@@ -22,18 +22,32 @@ marked **[proposed]** for the design team to confirm or change.
 4. **Main phase**, in any order and as often as money allows:
    - Play cards from hand.
    - Buy a card from the display. It goes to the discard pile. [proposed]
-   - **Solar Flare**: pay 2 to heat an enemy sun by 1. [brief]
-   - **Cryostasis**: pay 2 to cool your own sun by 1. [brief]
+   - **Solar Flare**: pay 2 to heat an enemy sun by 1, +1 per upgrade. [brief]
+   - **Thermosiphon**: pay 2 to cool your own sun by 1, +1 per upgrade. [brief]
 5. **End turn**: check objectives, discard everything, draw a new hand. Unspent money is lost. [proposed]
 
-## Planets and Command cards
+## Core actions
 
-A Command card upgrades one of your planets by 1 level (max 3). [brief: "upgrade a planet or system"]
+Solar Flare and Thermosiphon are **actions, not cards**. They are always
+available, shown as two tiles in the dock, and can be used as often as you can
+pay for them. [brief]
+
+| Action | Base | Upgrade slots | Max |
+| --- | --- | --- | --- |
+| Solar Flare | 1 heat to an enemy sun | 3 (small squares on the tile) | 4 heat |
+| Thermosiphon | 1 cooling to your own sun | 1 (large square on the tile) | 2 cooling |
+
+## Command cards
+
+A Command card upgrades **one** of these by 1 [proposed: which things it can upgrade]:
+- a Solar Flare or Thermosiphon upgrade slot, or
+- one of your planets, by 1 level (max 3). [brief: "upgrade a planet or system"]
+
 Each planet belongs to one of four tracks [brief]:
 
 | Track | Effect per level [proposed] |
 | --- | --- |
-| Weapons | Your first Solar Flare each turn gets +1 heat per 2 weapon levels. |
+| Weapons | Your heat ignores 1 enemy shield per 2 weapon levels. (Solar Flare stays capped at 4.) |
 | Defences | +1 shield per 2 defence levels, refreshed each turn. Shields absorb enemy heat. |
 | Economy | +1 money at turn start per level. |
 | Resources | +1 hand size per 2 resource levels. |
@@ -44,8 +58,8 @@ Systems differ by their mix of planets **and** a unique ability.
 
 | System | Planets | Ability |
 | --- | --- | --- |
-| Helios Reach | W, D, E, R | First Cryostasis each turn costs 1 less |
-| Vulcan Forge | W1, W, E | First Solar Flare each turn +1 heat |
+| Helios Reach | W, D, E, R | First Thermosiphon each turn costs 1 less |
+| Vulcan Forge | W1, W, E | Solar Flare starts with 1 upgrade |
 | Aegis Cluster | D, R | +1 shield every turn |
 | Midas Belt | E1, E, R | +1 money every turn |
 | Cryon Drift | D, R1, E | Sun starts at -3 |
@@ -75,7 +89,7 @@ rounds. It fits the theme (the loop decays) and guarantees games end.
 AI games currently average about 11 rounds with 2 players and 11 with 4.
 
 Alternatives worth playtesting instead: make Solar Flare cheaper than
-Cryostasis, cap cooling per turn, or add a market-exhaustion end condition.
+Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 
 ## Open design questions
 
@@ -83,5 +97,6 @@ Cryostasis, cap cooling per turn, or add a market-exhaustion end condition.
 2. **Objectives**: public and shared (current), or secret per-player?
 3. **Global effects**: which cards trigger them, how long they last (currently one round), and can they stack?
 4. **Player elimination**: should eliminated players keep a role, for example controlling global events?
-5. **Balance**: `npm run simulate` shows defensive systems (Aegis, Cryon) winning too often in 4-player games. Part of that is the AI always targeting the hottest sun. Needs human playtesting.
-6. **Deck exhaustion**: what happens when all 200 market cards are bought? Currently the display slots stay empty.
+5. **Cooling Chamber**: the reference video shows a third tile ("cooling chamber", with vertical bars and an upgrade chevron). What does it do? It isn't implemented yet.
+6. **Balance**: `npm run simulate` shows Cryon Drift winning far too often in 4-player games (about 55%, against a fair 25%), while Vulcan Forge and Obsidian Veil win too rarely. Part of that is the AI always targeting the hottest sun. Needs human playtesting.
+7. **Deck exhaustion**: what happens when all 200 market cards are bought? Currently the display slots stay empty.

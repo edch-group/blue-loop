@@ -3,8 +3,10 @@ import { cardDef, MARKET_CARDS } from './cards';
 import { GLOBALS, OBJECTIVES, objectiveDef } from './objectives';
 import { shuffleInPlace } from './rng';
 import { SOLAR_SYSTEMS, systemDef } from './systems';
+import { CORE_ACTIONS } from './types';
 import type {
   Action,
+  CoreAction,
   CardInstance,
   Effect,
   GameSetup,
@@ -13,11 +15,12 @@ import type {
   PlayerState,
   Track,
   TurnStats,
+  UpgradeId,
 } from './types';
 
 export class GameError extends Error {}
 
-const emptyTurn = (): TurnStats => ({ heatDealt: 0, moneySpent: 0, flares: 0, cryos: 0, cardsBought: 0 });
+const emptyTurn = (): TurnStats => ({ heatDealt: 0, moneySpent: 0, flares: 0, thermosiphons: 0, cardsBought: 0 });
 
 function newCard(state: GameState, defId: string): CardInstance {
   state.uidCounter += 1;
@@ -71,6 +74,7 @@ export function createGame(setup: GameSetup): GameState {
       isAI: ps.isAI,
       systemId: sys.id,
       planets: sys.planets.map((pl, j) => ({ id: `p${i + 1}-pl${j}`, ...pl })),
+      upgrades: { solarFlare: sys.modifiers.startingFlareUpgrades ?? 0, thermosiphon: 0 },
       heat: sys.modifiers.startingHeat ?? BALANCE.startingHeat,
       shields: 0,
       money: 0,
@@ -133,14 +137,26 @@ export function flareCost(state: GameState, p: PlayerState): number {
 }
 
 export function flareHeat(p: PlayerState): number {
-  if (p.turn.flares > 0) return BALANCE.solarFlareHeat;
-  const mods = systemDef(p.systemId).modifiers;
-  return BALANCE.solarFlareHeat + (mods.firstFlareBonusHeat ?? 0) + Math.floor(trackLevel(p, 'weapons') / BALANCE.weaponLevelsPerBonusHeat);
+  return BALANCE.solarFlareHeat + p.upgrades.solarFlare;
 }
 
-export function cryoCost(p: PlayerState): number {
-  const discount = p.turn.cryos === 0 ? systemDef(p.systemId).modifiers.firstCryoDiscount ?? 0 : 0;
-  return Math.max(0, BALANCE.cryostasisCost - discount);
+export function thermoCost(p: PlayerState): number {
+  const discount = p.turn.thermosiphons === 0 ? systemDef(p.systemId).modifiers.firstThermoDiscount ?? 0 : 0;
+  return Math.max(0, BALANCE.thermosiphonCost - discount);
+}
+
+export function thermoCool(p: PlayerState): number {
+  return BALANCE.thermosiphonCool + p.upgrades.thermosiphon;
+}
+
+export const MAX_UPGRADES: Record<CoreAction, number> = {
+  solarFlare: BALANCE.solarFlareMaxUpgrades,
+  thermosiphon: BALANCE.thermosiphonMaxUpgrades,
+};
+
+/** Enemy shields your heat ignores, from weapon planets. */
+export function shieldPierce(p: PlayerState): number {
+  return Math.floor(trackLevel(p, 'weapons') / BALANCE.weaponLevelsPerShieldPierce);
 }
 
 export function marketCost(p: PlayerState, defId: string): number {
@@ -166,12 +182,18 @@ export function cardNeedsTarget(defId: string): boolean {
   return cardDef(defId).effects.some((e) => e.type === 'heatTarget');
 }
 
-export function cardNeedsPlanet(defId: string): boolean {
+export function cardNeedsUpgrade(defId: string): boolean {
   return cardDef(defId).effects.some((e) => e.type === 'command');
 }
 
 export function upgradeablePlanets(p: PlayerState) {
   return p.planets.filter((pl) => pl.level < BALANCE.maxPlanetLevel);
+}
+
+/** Everything a Command card could upgrade right now. */
+export function upgradeOptions(p: PlayerState): UpgradeId[] {
+  const actions = CORE_ACTIONS.filter((a) => p.upgrades[a] < MAX_UPGRADES[a]);
+  return [...actions, ...upgradeablePlanets(p).map((pl) => pl.id)];
 }
 
 // ---------------------------------------------------------------------------
@@ -192,12 +214,14 @@ function drawCards(state: GameState, p: PlayerState, count: number) {
 /** Heat a sun, shields first. Returns heat actually applied to the sun. */
 function applyHeat(state: GameState, target: PlayerState, amount: number, source: PlayerState | null): number {
   if (target.eliminated || amount <= 0) return 0;
-  const blocked = source && source.id !== target.id ? Math.min(target.shields, amount) : 0;
+  const enemy = source !== null && source.id !== target.id;
+  const usableShields = enemy ? Math.max(0, target.shields - shieldPierce(source)) : 0;
+  const blocked = Math.min(usableShields, amount);
   target.shields -= blocked;
   target.blockedSinceTurnStart += blocked;
   const applied = amount - blocked;
   target.heat = Math.max(BALANCE.minHeat, target.heat + applied);
-  if (source && source.id !== target.id) source.turn.heatDealt += amount;
+  if (enemy) source.turn.heatDealt += amount;
   if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat.`);
   if (applied > 0) log(state, `${target.name}'s sun heats to ${target.heat}.`);
   if (target.heat >= BALANCE.supernovaAt) supernova(state, target);
@@ -303,7 +327,7 @@ function checkObjectives(state: GameState, p: PlayerState) {
   }
 }
 
-function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: string, planetId?: string) {
+function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: string, upgradeId?: UpgradeId) {
   switch (e.type) {
     case 'money':
       p.money += e.amount;
@@ -327,13 +351,17 @@ function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: s
       p.shields += e.amount;
       break;
     case 'command': {
-      if (upgradeablePlanets(p).length === 0) {
-        log(state, `${p.name}'s planets are fully upgraded.`);
+      if (upgradeOptions(p).length === 0) {
+        log(state, `${p.name} has nothing left to upgrade.`);
         break;
       }
-      const planet = p.planets.find((pl) => pl.id === planetId);
-      if (!planet) throw new GameError('Choose one of your planets to upgrade.');
-      if (planet.level >= BALANCE.maxPlanetLevel) throw new GameError(`${planet.name} is already at max level.`);
+      if (upgradeId === 'solarFlare' || upgradeId === 'thermosiphon') {
+        p.upgrades[upgradeId] += 1;
+        const name = upgradeId === 'solarFlare' ? 'Solar Flare' : 'Thermosiphon';
+        log(state, `${p.name} upgrades ${name} (${p.upgrades[upgradeId]}/${MAX_UPGRADES[upgradeId]}).`);
+        break;
+      }
+      const planet = p.planets.find((pl) => pl.id === upgradeId)!;
       planet.level += 1;
       log(state, `${p.name} upgrades ${planet.name} (${planet.track}) to level ${planet.level}.`);
       break;
@@ -357,23 +385,25 @@ function requireTarget(state: GameState, p: PlayerState, targetId?: string): Pla
   return t;
 }
 
-function playCard(state: GameState, p: PlayerState, cardUid: string, targetId?: string, planetId?: string) {
+function playCard(state: GameState, p: PlayerState, cardUid: string, targetId?: string, upgradeId?: UpgradeId) {
   const idx = p.hand.findIndex((c) => c.uid === cardUid);
   if (idx < 0) throw new GameError('That card is not in your hand.');
   const card = p.hand[idx];
   const def = cardDef(card.defId);
   // Validate choices before changing anything, so a bad action leaves no trace.
   if (cardNeedsTarget(def.id)) requireTarget(state, p, targetId);
-  if (cardNeedsPlanet(def.id) && upgradeablePlanets(p).length > 0) {
-    const planet = p.planets.find((pl) => pl.id === planetId);
-    if (!planet || planet.level >= BALANCE.maxPlanetLevel) throw new GameError('Choose one of your planets that can be upgraded.');
+  if (cardNeedsUpgrade(def.id)) {
+    const options = upgradeOptions(p);
+    if (options.length > 0 && (upgradeId === undefined || !options.includes(upgradeId))) {
+      throw new GameError('Choose an action or planet that can still be upgraded.');
+    }
   }
   p.hand.splice(idx, 1);
   p.inPlay.push(card);
   log(state, `${p.name} plays ${def.name}.`);
   for (const e of def.effects) {
     if (state.winnerId || p.eliminated) break;
-    resolveEffect(state, p, e, targetId, planetId);
+    resolveEffect(state, p, e, targetId, upgradeId);
   }
 }
 
@@ -392,7 +422,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
 
   switch (action.type) {
     case 'playCard':
-      playCard(state, p, action.cardUid, action.targetId, action.planetId);
+      playCard(state, p, action.cardUid, action.targetId, action.upgradeId);
       break;
     case 'playAllMoney': {
       const pure = p.hand.filter((c) => cardDef(c.defId).effects.every((e) => e.type === 'money'));
@@ -419,12 +449,12 @@ export function applyAction(prev: GameState, action: Action): GameState {
       applyHeat(state, target, heat, p);
       break;
     }
-    case 'cryostasis': {
+    case 'thermosiphon': {
       if (p.heat <= BALANCE.minHeat) throw new GameError(`Your sun cannot be cooled below ${BALANCE.minHeat}.`);
-      spend(p, cryoCost(p));
-      p.turn.cryos += 1;
-      log(state, `${p.name} triggers Cryostasis.`);
-      cool(state, p, BALANCE.cryostasisCool);
+      spend(p, thermoCost(p));
+      p.turn.thermosiphons += 1;
+      log(state, `${p.name} runs the Thermosiphon.`);
+      cool(state, p, thermoCool(p));
       break;
     }
     case 'endTurn':

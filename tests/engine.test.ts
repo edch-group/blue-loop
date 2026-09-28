@@ -73,13 +73,13 @@ describe('money actions', () => {
     expect(s.players[1].heat).toBe(1);
   });
 
-  it('Cryostasis cools but never below -10', () => {
+  it('Thermosiphon cools but never below -10', () => {
     let s = twoPlayer(3, ['midas_belt', 'aegis_cluster']);
     s.players[0].heat = -9;
     s.players[0].money = 10;
-    s = applyAction(s, { type: 'cryostasis' });
+    s = applyAction(s, { type: 'thermosiphon' });
     expect(s.players[0].heat).toBe(-10);
-    expect(() => applyAction(s, { type: 'cryostasis' })).toThrow(GameError);
+    expect(() => applyAction(s, { type: 'thermosiphon' })).toThrow(GameError);
   });
 
   it('rejects actions without enough money and leaves state untouched', () => {
@@ -130,7 +130,7 @@ describe('command cards', () => {
     const card = { uid: 'test-cmd', defId: 'command_directive' };
     p.hand.push(card);
     const planet = p.planets[0];
-    const after = applyAction(s, { type: 'playCard', cardUid: card.uid, planetId: planet.id });
+    const after = applyAction(s, { type: 'playCard', cardUid: card.uid, upgradeId: planet.id });
     expect(after.players[0].planets[0].level).toBe(planet.level + 1);
   });
 
@@ -143,12 +143,50 @@ describe('command cards', () => {
   it('economy upgrades raise turn-start income', () => {
     let s = twoPlayer(3, ['midas_belt', 'helios_reach']);
     s.players[0].hand.push({ uid: 'test-cmd', defId: 'command_directive' });
-    s = applyAction(s, { type: 'playCard', cardUid: 'test-cmd', planetId: s.players[0].planets[0].id });
+    s = applyAction(s, { type: 'playCard', cardUid: 'test-cmd', upgradeId: s.players[0].planets[0].id });
     s = applyAction(s, { type: 'endTurn' });
     s = applyAction(s, { type: 'endTurn' });
     // Midas: +1 system bonus, +2 from Aurum now at level 2.
     expect(activePlayer(s).id).toBe('p1');
     expect(activePlayer(s).money).toBe(3);
+  });
+});
+
+describe('core action upgrades', () => {
+  const withCommand = (s: GameState) => {
+    s.players[0].hand.push({ uid: `cmd${s.players[0].hand.length}`, defId: 'command_directive' });
+    return `cmd${s.players[0].hand.length - 1}`;
+  };
+
+  it('Solar Flare takes 3 upgrades, +1 heat each, max 4 heat', () => {
+    let s = twoPlayer(3, ['midas_belt', 'helios_reach']);
+    for (let i = 0; i < 3; i++) {
+      const uid = withCommand(s);
+      s = applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'solarFlare' });
+    }
+    expect(s.players[0].upgrades.solarFlare).toBe(3);
+    const uid = withCommand(s);
+    expect(() => applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'solarFlare' })).toThrow(GameError);
+    s.players[0].money = 2;
+    s.players[1].shields = 0;
+    s = applyAction(s, { type: 'solarFlare', targetId: 'p2' });
+    expect(s.players[1].heat).toBe(4);
+  });
+
+  it('Thermosiphon takes 1 upgrade, cooling 2', () => {
+    let s = twoPlayer(3, ['midas_belt', 'aegis_cluster']);
+    const uid = withCommand(s);
+    s = applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'thermosiphon' });
+    const again = withCommand(s);
+    expect(() => applyAction(s, { type: 'playCard', cardUid: again, upgradeId: 'thermosiphon' })).toThrow(GameError);
+    s.players[0].money = 2;
+    s = applyAction(s, { type: 'thermosiphon' });
+    expect(s.players[0].heat).toBe(-2);
+  });
+
+  it('Vulcan Forge starts with one Solar Flare upgrade', () => {
+    const s = twoPlayer(3, ['vulcan_forge', 'midas_belt']);
+    expect(s.players[0].upgrades).toEqual({ solarFlare: 1, thermosiphon: 0 });
   });
 });
 

@@ -15,7 +15,7 @@ export type Effect =
   | { type: 'heatSelf'; amount: number }
   | { type: 'cool'; amount: number }
   | { type: 'shield'; amount: number }
-  /** Upgrade one of your planets by a level. Needs a planet. */
+  /** Upgrade a planet or a core action by a level. Needs an upgrade choice. */
   | { type: 'command' }
   | { type: 'global'; effect: GlobalEffectId };
 
@@ -42,11 +42,17 @@ export interface Planet {
   level: number;
 }
 
+export type CoreAction = 'solarFlare' | 'thermosiphon';
+export const CORE_ACTIONS: readonly CoreAction[] = ['solarFlare', 'thermosiphon'];
+
+/** What a Command card upgrades: a core action, or a planet by its id. */
+export type UpgradeId = CoreAction | string;
+
 export interface SystemModifiers {
-  /** Discount on the first Cryostasis each turn. */
-  firstCryoDiscount?: number;
-  /** Extra heat on the first Solar Flare each turn. */
-  firstFlareBonusHeat?: number;
+  /** Discount on the first Thermosiphon each turn. */
+  firstThermoDiscount?: number;
+  /** Solar Flare upgrades the system starts with. */
+  startingFlareUpgrades?: number;
   /** Extra shields every turn. */
   shieldBonus?: number;
   /** Extra money every turn. */
@@ -82,7 +88,7 @@ export interface TurnStats {
   heatDealt: number;
   moneySpent: number;
   flares: number;
-  cryos: number;
+  thermosiphons: number;
   cardsBought: number;
 }
 
@@ -92,6 +98,8 @@ export interface PlayerState {
   isAI: boolean;
   systemId: string;
   planets: Planet[];
+  /** Upgrade slots filled on each core action. */
+  upgrades: Record<CoreAction, number>;
   heat: number;
   shields: number;
   money: number;
@@ -141,9 +149,9 @@ export interface GameSetup {
 }
 
 export type Action =
-  | { type: 'playCard'; cardUid: string; targetId?: string; planetId?: string }
+  | { type: 'playCard'; cardUid: string; targetId?: string; upgradeId?: UpgradeId }
   | { type: 'playAllMoney' }
   | { type: 'buyCard'; slot: number }
   | { type: 'solarFlare'; targetId: string }
-  | { type: 'cryostasis' }
+  | { type: 'thermosiphon' }
   | { type: 'endTurn' };

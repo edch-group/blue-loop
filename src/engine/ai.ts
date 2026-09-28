@@ -2,16 +2,17 @@ import { BALANCE } from './balance';
 import { cardDef } from './cards';
 import {
   activePlayer,
-  cardNeedsPlanet,
   cardNeedsTarget,
-  cryoCost,
+  cardNeedsUpgrade,
   flareCost,
   flareHeat,
   livingOpponents,
   marketCost,
-  upgradeablePlanets,
+  shieldPierce,
+  thermoCost,
+  upgradeOptions,
 } from './game';
-import type { Action, CardKind, GameState, PlayerState, Track } from './types';
+import type { Action, CardKind, GameState, PlayerState, Track, UpgradeId } from './types';
 
 /**
  * Heuristic AI: returns the next action for the active player.
@@ -29,8 +30,8 @@ export function chooseAIAction(state: GameState): Action {
       if (!target) continue;
       return { type: 'playCard', cardUid: card.uid, targetId: target.id };
     }
-    if (cardNeedsPlanet(card.defId)) {
-      return { type: 'playCard', cardUid: card.uid, planetId: pickPlanet(me)?.id };
+    if (cardNeedsUpgrade(card.defId)) {
+      return { type: 'playCard', cardUid: card.uid, upgradeId: pickUpgrade(me) };
     }
     return { type: 'playCard', cardUid: card.uid };
   }
@@ -40,14 +41,15 @@ export function chooseAIAction(state: GameState): Action {
   // 2. Go for the kill if the weakest enemy can be finished this turn.
   const cost = flareCost(state, me);
   const reachableFlares = Math.floor(me.money / cost);
-  const killHeat = reachableFlares > 0 ? flareHeat(me) + (reachableFlares - 1) * BALANCE.solarFlareHeat - target.shields : 0;
+  const shields = Math.max(0, target.shields - shieldPierce(me));
+  const killHeat = reachableFlares * flareHeat(me) - shields;
   if (reachableFlares > 0 && target.heat + killHeat >= BALANCE.supernovaAt) {
     return { type: 'solarFlare', targetId: target.id };
   }
 
   // 3. Cool down when our own sun is in danger.
   const danger = BALANCE.supernovaAt - 4;
-  if (me.heat >= danger && me.money >= cryoCost(me)) return { type: 'cryostasis' };
+  if (me.heat >= danger && me.money >= thermoCost(me)) return { type: 'thermosiphon' };
 
   // 4. Buy the best card we can afford.
   const buy = pickPurchase(state, me);
@@ -55,7 +57,7 @@ export function chooseAIAction(state: GameState): Action {
 
   // 5. Spend leftovers: attack if we're cooler than the target, else cool.
   if (me.money >= cost && me.heat <= target.heat) return { type: 'solarFlare', targetId: target.id };
-  if (me.money >= cryoCost(me) && me.heat > BALANCE.minHeat) return { type: 'cryostasis' };
+  if (me.money >= thermoCost(me) && me.heat > BALANCE.minHeat) return { type: 'thermosiphon' };
   if (me.money >= cost) return { type: 'solarFlare', targetId: target.id };
 
   return { type: 'endTurn' };
@@ -66,12 +68,17 @@ function pickTarget(foes: PlayerState[]): PlayerState | undefined {
   return [...foes].sort((a, b) => b.heat - a.heat || a.shields - b.shields)[0];
 }
 
-function pickPlanet(me: PlayerState) {
+/** Solar Flare upgrades first (or Thermosiphon when running hot), then planets. */
+function pickUpgrade(me: PlayerState): UpgradeId | undefined {
+  const options = upgradeOptions(me);
   const hot = me.heat >= 5;
+  const actionOrder: UpgradeId[] = hot ? ['thermosiphon', 'solarFlare'] : ['solarFlare', 'thermosiphon'];
+  const action = actionOrder.find((a) => options.includes(a));
+  if (action) return action;
   const priority: Track[] = hot ? ['defences', 'economy', 'weapons', 'resources'] : ['economy', 'weapons', 'resources', 'defences'];
-  return [...upgradeablePlanets(me)].sort(
-    (a, b) => priority.indexOf(a.track) - priority.indexOf(b.track) || a.level - b.level,
-  )[0];
+  return me.planets
+    .filter((pl) => options.includes(pl.id))
+    .sort((a, b) => priority.indexOf(a.track) - priority.indexOf(b.track) || a.level - b.level)[0]?.id;
 }
 
 const KIND_BIAS: Record<CardKind, number> = { command: 3, attack: 2, economy: 1.5, defence: 1, global: 0.5, basic: 0 };
@@ -86,7 +93,7 @@ function pickPurchase(state: GameState, me: PlayerState): number | null {
     const def = cardDef(card.defId);
     let score = def.cost + KIND_BIAS[def.kind];
     if (def.kind === 'defence' && me.heat >= 4) score += 3;
-    if (def.kind === 'command' && upgradeablePlanets(me).length === 0) score = 0;
+    if (def.kind === 'command' && upgradeOptions(me).length === 0) score = 0;
     if (score > bestScore) {
       bestScore = score;
       best = slot;

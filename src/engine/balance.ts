@@ -19,11 +19,16 @@ export const BALANCE = {
   /** Market display. */
   displaySize: 8,
 
-  /** Money actions available every turn, unlimited uses. */
+  /**
+   * The two core actions, usable every turn as often as money allows.
+   * Each upgrade makes the action 1 more effective.
+   */
   solarFlareCost: 2,
   solarFlareHeat: 1,
-  cryostasisCost: 2,
-  cryostasisCool: 1,
+  solarFlareMaxUpgrades: 3, // max 4 heat per flare
+  thermosiphonCost: 2,
+  thermosiphonCool: 1,
+  thermosiphonMaxUpgrades: 1, // max 2 cooling per use
 
   /** Planet upgrades. */
   maxPlanetLevel: 3,
@@ -33,8 +38,8 @@ export const BALANCE = {
   resourceLevelsPerExtraCard: 2,
   /** Shields refreshed at turn start: 1 for every N defence levels. */
   defenceLevelsPerShield: 2,
-  /** First flare each turn gains +1 heat for every N weapon levels. */
-  weaponLevelsPerBonusHeat: 2,
+  /** Your heat ignores 1 enemy shield for every N weapon levels. */
+  weaponLevelsPerShieldPierce: 2,
 
   /**
    * Stellar Instability: the late-game clock that guarantees games end.
