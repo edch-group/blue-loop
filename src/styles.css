@@ -358,7 +358,8 @@ input { font: inherit; }
   .card:hover:not([disabled]) { transform: translateY(-6px); box-shadow: 0 14px 30px rgba(90, 90, 110, 0.24), 0 0 0 2px #fff; }
 }
 .card:active:not([disabled]) { transform: scale(0.97); }
-.card-dim { opacity: 0.62; }
+.card-affordable { box-shadow: 0 0 0 1.5px #fff, 0 0 16px color-mix(in srgb, var(--kc) 30%, rgba(255, 255, 255, 0.9)), 0 5px 16px rgba(90, 90, 110, 0.15); }
+.card-pricey .coin { color: var(--ink-faint); background: radial-gradient(circle at 40% 35%, #fafafa, #efefed); }
 .card-glyph { flex: none; height: 38%; display: grid; place-items: center; padding-top: 7%; }
 .glyph { width: 78%; height: 100%; overflow: visible; color: var(--g, var(--kc)); }
 .glyph * { fill: none; stroke: var(--g, var(--kc)); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }

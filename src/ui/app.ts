@@ -935,9 +935,13 @@ export class App {
     } else if (opts.hand && (act || this.touch)) {
       attrs = `data-act="play" data-arg="${c.uid}"`;
     }
-    const unaffordable = opts.slot !== undefined && opts.buyer && opts.buyer.money < marketCost(opts.buyer, c.defId);
+    // Display cards stay at full strength; affordability shows as a highlight (on your turn) or a muted price.
+    let buyState = '';
+    if (opts.slot !== undefined && opts.buyer) {
+      buyState = opts.buyer.money >= marketCost(opts.buyer, c.defId) ? (act ? 'card-affordable' : '') : 'card-pricey';
+    }
     return `
-      <button class="card kind-${def.kind} ${unaffordable ? 'card-dim' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${costAttr} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
+      <button class="card kind-${def.kind} ${buyState}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${costAttr} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardGlyph(def.id, def.kind)}</div>
         ${cost}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
