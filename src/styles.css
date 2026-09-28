@@ -27,9 +27,9 @@
   --gap: clamp(6px, 1.4vh, 14px);
 
   /* Display cards: fill one row of 8, capped by height. Hand cards and tiles fit the dock. */
-  --dh: min(calc(34 * var(--vh)), calc((100vw - var(--pad-l) - var(--pad-r) - 7 * var(--gap)) / 8 * 1.4));
+  --dh: min(calc(31 * var(--vh)), 300px);
   --dw: calc(var(--dh) * 0.714);
-  --hh: min(calc(30 * var(--vh)), 250px);
+  --hh: min(calc(33 * var(--vh)), 270px);
   --hw: calc(var(--hh) * 0.714);
   --th: calc(var(--hh) * 0.9);
   --tw: calc(var(--th) * 0.714);
@@ -400,9 +400,8 @@ input { font: inherit; }
 .card-empty { width: var(--dw); height: var(--dh); background: rgba(255, 255, 255, 0.25); border: 1px dashed var(--line); box-shadow: none; }
 /* Small cards (phones) show glyph, name and cost; the rest is one tap away. */
 @media (max-height: 560px) {
-  .display .card-text, .hand .card-text { display: none; }
-  .display .card-glyph, .hand .card-glyph { height: 48%; }
-  .display .card-name, .hand .card-name { font-size: max(8px, calc(var(--cw) * 0.09)); }
+  .hand .card-text { -webkit-line-clamp: 3; }
+  .display .card-glyph, .hand .card-glyph { height: 34%; }
 }
 
 /* Magnified card: hover preview (mouse) and inspector (touch) */
@@ -413,20 +412,8 @@ input { font: inherit; }
 .card-big .card-name { font-size: max(12px, calc(var(--cw) * 0.07)); }
 
 /* ---------- Dock ---------- */
-.dock { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: var(--gap); align-items: end; }
-.me { display: flex; gap: 8px; align-items: center; align-self: stretch; padding: 8px 10px; border-radius: 14px; background: var(--glass); border: 1px solid #fff; box-shadow: var(--shadow); }
-.me-sun { position: relative; display: grid; justify-items: center; gap: 2px; }
-.me-sun .orb { --size: clamp(40px, 15vh, 96px) !important; }
-@media (max-height: 560px) {
-  .me-sys { display: none; }
-  .me { padding: 6px 8px; }
-}
 .health { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; }
 .health small { font-weight: 400; color: var(--ink-faint); }
-.me-info { display: grid; gap: 3px; min-width: 0; }
-.me-name { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
-.me-sys { font-size: 0.7rem; color: var(--ink-soft); }
-.me-stats { display: flex; gap: 8px; font-size: 0.72rem; color: var(--ink-soft); }
 .objectives-row { display: flex; gap: 6px; margin-top: 2px; }
 .objective {
   position: relative;
@@ -446,7 +433,6 @@ input { font: inherit; }
 .obj-mine { color: var(--gold); box-shadow: 0 0 0 1.5px var(--gold), 0 0 12px rgba(185, 155, 90, 0.45); }
 .obj-count { position: absolute; right: -4px; top: -4px; min-width: 14px; height: 14px; border-radius: 50%; background: #9ea1a8; color: #fff; font-size: 0.5rem; display: grid; place-items: center; border: 1px solid #fff; }
 
-.tiles { display: flex; gap: calc(var(--gap) * 0.8); }
 .hand-zone { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
 .in-play { display: flex; gap: 4px; min-height: 22px; overflow: hidden; }
 .hand { justify-content: flex-start; min-width: 0; padding-top: 6px; }
@@ -686,9 +672,7 @@ input { font: inherit; }
   .turn-pill { font-size: 0.7rem; padding: 8px 22px; }
   .section-label { font-size: 0.56rem; }
   .me { padding: 12px 16px; gap: 14px; }
-  .me-name { font-size: 0.72rem; }
-  .me-sys, .me-stats { font-size: 0.8rem; }
-  .pile { font-size: 0.5rem; padding: 8px 4px; }
+    .me-sys,   .pile { font-size: 0.5rem; padding: 8px 4px; }
   .pile span { font-size: 1.1rem; }
   .turn-controls { min-width: 130px; }
   .toast { font-size: 0.66rem; top: calc(var(--pad-t) + 84px); }
@@ -728,3 +712,78 @@ input { font: inherit; }
 .obj-claimed { align-self: center; font-family: var(--display); font-size: 0.62rem; color: var(--gold); }
 .requisition .pile-card { cursor: pointer; }
 .requisition .pile-card:hover .card { transform: translateY(-4px); }
+
+/* ---------- Compact dock: profile column + action rail (hand gets the room) ---------- */
+.dock { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: var(--gap); align-items: end; }
+.display .cards { gap: clamp(10px, 3vw, 36px); }
+.me {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  align-self: stretch;
+  padding: 6px 8px;
+  border-radius: 14px;
+  background: var(--glass);
+  border: 1px solid #fff;
+  box-shadow: var(--shadow);
+}
+.me .orb { --size: clamp(38px, 13vh, 64px) !important; }
+.me-stats { display: grid; justify-items: center; gap: 0; font-size: 0.66rem; color: var(--ink-soft); line-height: 1.3; }
+.rail { display: grid; grid-template-rows: repeat(3, 1fr); gap: 4px; align-self: stretch; width: clamp(96px, 16vw, 170px); }
+.rail > div { min-height: 0; border-radius: 10px; }
+.action-chip {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 3px;
+  border-radius: 10px;
+  background: var(--glass-strong);
+  border: 1px solid #fff;
+  box-shadow: 0 2px 10px rgba(90, 90, 110, 0.14);
+  transition: transform 0.12s, box-shadow 0.2s, opacity 0.2s;
+}
+@media (hover: hover) {
+  .action-chip:hover:not([disabled]) { transform: translateX(2px); box-shadow: 0 6px 18px rgba(90, 90, 110, 0.22), 0 0 0 1.5px #fff; }
+}
+.action-chip:active:not([disabled]) { transform: scale(0.97); }
+.action-chip[disabled] { opacity: 0.55; }
+.chip-art { position: relative; height: 100%; aspect-ratio: 1; min-height: 20px; border-radius: 7px; overflow: hidden; }
+.chip-body { display: grid; gap: 2px; justify-items: start; }
+.chip-power { font-family: var(--display); font-size: clamp(0.62rem, 2.6vh, 0.95rem); font-weight: 700; }
+.chip-pips { display: flex; gap: 2px; }
+.chip-pips i { width: 7px; height: 4px; border-radius: 2px; background: rgba(120, 124, 134, 0.22); }
+.chip-pips i.on { background: #7d8189; }
+.chip-cost { font-family: var(--display); font-size: 0.6rem; font-weight: 500; color: var(--ink-soft); }
+.chip-passive { font-size: 0.46rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.chip-label { display: none; }
+@media (min-height: 600px) {
+  .chip-label { display: block; position: absolute; left: calc(100% - 8px); transform: translateX(-100%); bottom: 3px; font-family: var(--display); font-size: 0.42rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
+  .chip-cost { align-self: start; margin-top: 4px; }
+}
+
+/* Short (phone) screens: display cards lie sideways so the 3 of them use the
+   width, with the glyph on the left and readable rules text on the right. */
+@media (max-height: 560px) {
+  .display .card {
+    --cw: calc(var(--dh) * 1.1);
+    width: calc(var(--dh) * 1.75);
+    height: var(--dh);
+    display: grid;
+    grid-template-columns: 34% 1fr;
+    grid-template-rows: auto 1fr auto;
+    column-gap: 8px;
+    padding: 8px 10px 8px 0;
+  }
+  .display .card-glyph { grid-row: 1 / -1; height: auto; padding: 0; }
+  .display .card-glyph .glyph { width: 100%; }
+  .display .card-name { font-size: 0.56rem; padding-right: 26px; }
+  .display .card-text { font-size: 0.72rem; -webkit-line-clamp: 4; }
+  .display .card-kind { text-align: left; font-size: 0.44rem; }
+  .display .coin { width: 22px; font-size: 0.62rem; top: 6px; right: 6px; }
+  .display .card::before { width: 40%; height: 100%; }
+}

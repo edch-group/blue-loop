@@ -17,7 +17,7 @@ export const BALANCE = {
   handSize: 5,
 
   /** Market display. */
-  displaySize: 8,
+  displaySize: 3,
 
   /**
    * The two core actions, usable every turn as often as money allows.

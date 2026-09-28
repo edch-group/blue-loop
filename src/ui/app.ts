@@ -38,7 +38,7 @@ import {
   type PlayerState,
   type RewardId,
 } from '../engine';
-import { actionTile, petalBackdrop, roman, sunOrb } from './art';
+import { actionChip, actionTile, petalBackdrop, roman, sunOrb } from './art';
 import { anchorRect, flyFrom, ghost, projectile, pulse, snapshot, type Snapshot } from './fx';
 import { cardGlyph, KIND_COLOUR, objectiveGlyph, rewardGlyph } from './glyphs';
 import { sound } from './sound';
@@ -495,7 +495,7 @@ export class App {
   private onHover(e: MouseEvent) {
     if (this.touch) return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-card]');
-    if (!el) return;
+    if (!el || !el.closest('.hand')) return; // hover preview is for cards in your hand only
     const from = (e.relatedTarget as HTMLElement | null)?.closest?.('[data-card]');
     if (from === el) return;
     this.showPreview(el);
@@ -692,7 +692,7 @@ export class App {
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.fitHand();
     const under = this.touch ? null : document.elementFromPoint(this.pointer.x, this.pointer.y)?.closest<HTMLElement>('[data-card]');
-    if (under && this.root.contains(under)) this.showPreview(under);
+    if (under && this.root.contains(under) && under.closest('.hand')) this.showPreview(under);
     else this.preview.classList.remove('show');
   }
 
@@ -813,6 +813,7 @@ export class App {
             <span class="stability-label">${instab ? `instability +${instab}` : `stability ${remaining}`}</span>
             <div class="stability-bar">${segments}</div>
           </div>
+          ${this.renderObjectivesRow(me)}
         </div>
         <div class="rivals">${rivals}</div>
         <div class="turn">
@@ -842,13 +843,56 @@ export class App {
   private renderDock(): string {
     const s = this.state!;
     const me = this.viewer();
-    const sys = systemDef(me.systemId);
     const act = this.canAct();
     const busy = this.pending !== null;
     const hidden = this.needsHandoff();
     const max = supernovaThreshold(me);
 
-    // Global objectives (first to meet one claims it), then this player's missions.
+    const fc = flareCost(s, me);
+    const tc = thermoCost(me);
+    const rail = `
+      <div data-anchor="upgrade:solarFlare">${actionChip({ action: 'solarFlare', upgrades: me.upgrades.solarFlare, cost: fc, power: flareHeat(me), enabled: act && !busy && me.money >= fc })}</div>
+      <div data-anchor="upgrade:thermosiphon">${actionChip({ action: 'thermosiphon', upgrades: me.upgrades.thermosiphon, cost: tc, power: thermoCool(me), enabled: act && !busy && me.money >= tc && me.heat > BALANCE.minHeat })}</div>
+      <div data-anchor="upgrade:coolingChamber">${actionChip({ action: 'coolingChamber', upgrades: me.upgrades.coolingChamber, power: max, enabled: true })}</div>`;
+
+    const hasMoneyCards = me.hand.some((c) => cardDef(c.defId).effects.every((e) => e.type === 'money'));
+    const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand.map((c) => this.renderCard(c, { hand: true })).join('');
+    const groups = new Map<string, CardInstance[]>();
+    for (const c of me.inPlay) groups.set(c.defId, [...(groups.get(c.defId) ?? []), c]);
+    const played = [...groups.values()].map((cs) => this.renderMini(cs[cs.length - 1], cs.length)).join('');
+
+    return `
+      <section class="dock">
+        <button class="me" data-act="view-system" data-arg="${me.id}" title="${esc(me.name)} · ${esc(systemDef(me.systemId).name)} (tap for details)">
+          <div class="orb-anchor" data-anchor="player:${me.id}">${sunOrb({ heat: me.heat, threshold: max, size: 52, dead: me.eliminated })}</div>
+          <span class="health">${me.heat}<small>/${max}</small></span>
+          <span class="me-stats">
+            <span title="Shields">⛨${me.shields}</span>
+            <span title="Income per turn">◈+${incomeFor(me)}</span>
+            <span title="Hand size">✋${handSizeFor(me)}</span>
+            ${shieldPierce(me) ? `<span title="Shield pierce">⚔${shieldPierce(me)}</span>` : ''}
+          </span>
+        </button>
+        <div class="rail">${rail}</div>
+        <div class="hand-zone">
+          <div class="in-play">${played}</div>
+          <div class="cards hand">${hand}</div>
+        </div>
+        <div class="turn-controls">
+          <div class="money" title="Money this turn">◈ ${me.money}</div>
+          <button class="btn btn-small" data-act="play-all" ${act && hasMoneyCards && !busy ? '' : 'disabled'} title="Play every plain money card in your hand">play money</button>
+          <div class="piles">
+            <button class="pile" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck"><span>${me.deck.length}</span>deck</button>
+            <button class="pile" data-anchor="discard" data-act="view-pile" data-arg="discard" title="Your discard pile"><span>${me.discard.length}</span>discard</button>
+          </div>
+          <button class="btn-primary end-turn" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end turn</button>
+        </div>
+      </section>`;
+  }
+
+  /** Global objectives (first to meet one claims it), then the viewer's missions. */
+  private renderObjectivesRow(me: PlayerState): string {
+    const s = this.state!;
     const objectives = s.objectives
       .map((id) => {
         const o = objectiveDef(id);
@@ -870,54 +914,7 @@ export class App {
       })
       .join('');
     const claimedCount = me.claimedObjectives.length;
-
-    const fc = flareCost(s, me);
-    const tc = thermoCost(me);
-    const tiles = `
-      <div data-anchor="upgrade:solarFlare">${actionTile({ action: 'solarFlare', upgrades: me.upgrades.solarFlare, cost: fc, power: flareHeat(me), enabled: act && !busy && me.money >= fc })}</div>
-      <div data-anchor="upgrade:thermosiphon">${actionTile({ action: 'thermosiphon', upgrades: me.upgrades.thermosiphon, cost: tc, power: thermoCool(me), enabled: act && !busy && me.money >= tc && me.heat > BALANCE.minHeat })}</div>
-      <div data-anchor="upgrade:coolingChamber">${actionTile({ action: 'coolingChamber', upgrades: me.upgrades.coolingChamber, power: max, enabled: true })}</div>`;
-
-    const hasMoneyCards = me.hand.some((c) => cardDef(c.defId).effects.every((e) => e.type === 'money'));
-    const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand.map((c) => this.renderCard(c, { hand: true })).join('');
-    const groups = new Map<string, CardInstance[]>();
-    for (const c of me.inPlay) groups.set(c.defId, [...(groups.get(c.defId) ?? []), c]);
-    const played = [...groups.values()].map((cs) => this.renderMini(cs[cs.length - 1], cs.length)).join('');
-
-    return `
-      <section class="dock">
-        <div class="me">
-          <button class="me-sun" data-act="view-system" data-arg="${me.id}" title="Your system">
-            <div class="orb-anchor" data-anchor="player:${me.id}">${sunOrb({ heat: me.heat, threshold: max, size: 64, dead: me.eliminated })}</div>
-            <span class="health" title="Heat / max health">${me.heat}<small>/${max}</small></span>
-          </button>
-          <div class="me-info">
-            <div class="me-name">${esc(me.name.toLowerCase())}</div>
-            <div class="me-sys">${esc(sys.name.toLowerCase())}</div>
-            <div class="me-stats">
-              <span title="Shields">⛨${me.shields}</span>
-              <span title="Income per turn">◈+${incomeFor(me)}</span>
-              <span title="Hand size">✋${handSizeFor(me)}</span>
-              ${shieldPierce(me) ? `<span title="Shield pierce">⚔${shieldPierce(me)}</span>` : ''}
-            </div>
-            <div class="objectives-row">${objectives}${missions ? `<span class="obj-divider"></span>${missions}` : ''}${claimedCount ? `<span class="obj-claimed" title="Objectives you have claimed">★${claimedCount}</span>` : ''}</div>
-          </div>
-        </div>
-        <div class="tiles">${tiles}</div>
-        <div class="hand-zone">
-          <div class="in-play">${played}</div>
-          <div class="cards hand">${hand}</div>
-        </div>
-        <div class="turn-controls">
-          <div class="money" title="Money this turn">◈ ${me.money}</div>
-          <button class="btn btn-small" data-act="play-all" ${act && hasMoneyCards && !busy ? '' : 'disabled'} title="Play every plain money card in your hand">play money</button>
-          <div class="piles">
-            <button class="pile" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck"><span>${me.deck.length}</span>deck</button>
-            <button class="pile" data-anchor="discard" data-act="view-pile" data-arg="discard" title="Your discard pile"><span>${me.discard.length}</span>discard</button>
-          </div>
-          <button class="btn-primary end-turn" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end turn</button>
-        </div>
-      </section>`;
+    return `<div class="objectives-row">${objectives}${missions ? `<span class="obj-divider"></span>${missions}` : ''}${claimedCount ? `<span class="obj-claimed" title="Objectives you have claimed">★${claimedCount}</span>` : ''}</div>`;
   }
 
   private renderCard(c: CardInstance, opts: { slot?: number; hand?: boolean; buyer?: PlayerState; static?: boolean }): string {

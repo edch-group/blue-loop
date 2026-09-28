@@ -98,6 +98,29 @@ export function actionTile(opts: {
     </button>`;
 }
 
+/**
+ * Compact action button for the dock rail: a small art thumbnail, the
+ * action's current power, its upgrade pips and (if it has one) its cost.
+ */
+export function actionChip(opts: { action: CoreAction; upgrades: number; cost?: number; power: number; enabled: boolean; actAttr?: string }): string {
+  const { action, upgrades, cost, power, enabled } = opts;
+  const meta = ACTION_META[action];
+  const max = MAX_UPGRADES[action];
+  const pips = Array.from({ length: max }, (_, i) => `<i class="${i < upgrades ? 'on' : ''}"></i>`).join('');
+  const icon = action === 'solarFlare' ? '▲' : action === 'thermosiphon' ? '▼' : '♥';
+  const attr = opts.actAttr ?? (enabled ? `data-act="${action}"` : 'disabled');
+  return `
+    <button class="action-chip chip-${action}" ${attr} title="${meta.label}">
+      <span class="chip-art ${meta.art}"></span>
+      <span class="chip-body">
+        <span class="chip-power">${icon}${power}</span>
+        <span class="chip-pips">${pips}</span>
+      </span>
+      ${cost !== undefined ? `<span class="chip-cost">◈${cost}</span>` : '<span class="chip-cost chip-passive">max</span>'}
+      <span class="chip-label">${meta.label}</span>
+    </button>`;
+}
+
 const ROMAN: [number, string][] = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
 export function roman(n: number): string {
   if (n >= 40) return String(n);
