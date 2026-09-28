@@ -150,6 +150,8 @@ input { font: inherit; }
 }
 .popover b { display: block; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 4px; }
 .popover p { margin: 0; }
+/* In the top strip there is no room above: open downwards instead. */
+.top .popover { top: calc(100% + 10px); bottom: auto; transform: translateY(-6px); }
 @media (hover: hover) {
   *:hover > .popover { opacity: 1; transform: none; }
 }
