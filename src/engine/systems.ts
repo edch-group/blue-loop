@@ -103,8 +103,8 @@ export const SOLAR_SYSTEMS: SolarSystemDef[] = [
     abilityText: 'At the start of your turn, gain 1 money for every 3 heat your sun has above 0.',
     planets: [
       { name: 'Corona', track: 'economy', level: 1 },
-      { name: 'Flare', track: 'weapons', level: 1 },
-      { name: 'Ember', track: 'defences', level: 0 },
+      { name: 'Pyre', track: 'weapons', level: 1 },
+      { name: 'Halo', track: 'defences', level: 0 },
     ],
     modifiers: { heatIncomeEvery: 3 },
   },

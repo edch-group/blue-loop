@@ -24,7 +24,10 @@ export function chooseAIAction(state: GameState): Action {
   const foes = livingOpponents(state, me);
   const target = pickTarget(foes);
 
-  // 1. Play every card in hand, cheapest decisions first.
+  // 1. Play every card in hand: plain money cards all at once, then the rest.
+  if (me.hand.some((c) => cardDef(c.defId).effects.every((e) => e.type === 'money'))) {
+    return { type: 'playAllMoney' };
+  }
   for (const card of me.hand) {
     if (cardNeedsTarget(card.defId)) {
       if (!target) continue;

@@ -79,7 +79,18 @@ The full list is in `src/engine/cards.ts`.
 Each player can complete each objective once. The reward is a Command Directive, added to the discard pile. [brief: "unlock more command cards via reaching objectives"]
 Pool: Deep Freeze, Firestorm, Collector, Big Spender, Brinkmanship, Industrialist, Shieldwall.
 
+## Planet effects vs action upgrades
+
+These are separate systems:
+- **Action upgrades** (Command card → Solar Flare or Thermosiphon slot) make that action stronger every time you use it.
+- **Planets** (Command card → planet level) give passive bonuses from their track, summed across all your planets of that track. Economy is the simplest: every economy level is +1 money at the start of every turn, permanently.
+
+Open question: should weapons and defence planets instead boost attack and cooling *cards*? See open questions.
+
 ## Why Stellar Instability exists
+
+The HUD shows a **stability bar** that loses one segment each completed round.
+When it empties, instability begins.
 
 Heating and cooling both cost 2 money, and a defender also gets shields, so
 two careful players can stall forever. The first AI simulations did exactly
@@ -99,4 +110,5 @@ Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 4. **Player elimination**: should eliminated players keep a role, for example controlling global events?
 5. **Cooling Chamber**: the reference video shows a third tile ("cooling chamber", with vertical bars and an upgrade chevron). What does it do? It isn't implemented yet.
 6. **Balance**: `npm run simulate` shows Cryon Drift winning far too often in 4-player games (about 55%, against a fair 25%), while Vulcan Forge and Obsidian Veil win too rarely. Part of that is the AI always targeting the hottest sun. Needs human playtesting.
-7. **Deck exhaustion**: what happens when all 200 market cards are bought? Currently the display slots stay empty.
+7. **Weapon and defence planets**: should they add their bonus to attack and cooling cards (as suggested in review), or keep the current effects (shield pierce and shields), or get more unique abilities per planet?
+8. **Deck exhaustion**: what happens when all 200 market cards are bought? Currently the display slots stay empty.

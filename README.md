@@ -28,7 +28,10 @@ npm run dist         # package a desktop build into release/
 | `src/engine/systems.ts` | The 8 solar systems. |
 | `src/engine/objectives.ts` | Objectives and global effects. |
 | `src/engine/ai.ts` | Heuristic AI opponent. |
-| `src/ui/` | Game client (plain TypeScript + DOM, no framework). |
+| `src/ui/app.ts` | Game client (plain TypeScript + DOM, no framework). |
+| `src/ui/art.ts`, `src/ui/glyphs.ts` | Procedural placeholder art: suns, action tiles, card glyphs. |
+| `src/ui/fx.ts` | Card movement, projectiles and hit effects. |
+| `src/ui/sound.ts` | Synthesised placeholder sound effects (Web Audio). |
 | `electron/` | Desktop shell for the Steam build. |
 | `scripts/simulate.ts` | Balance simulator. |
 | `docs/GAME_DESIGN.md` | Rules as implemented, and open design questions. |
