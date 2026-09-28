@@ -50,10 +50,12 @@ Each planet belongs to one of four tracks [brief]:
 
 | Track | Effect per level [proposed] |
 | --- | --- |
-| Weapons | Your heat ignores 1 enemy shield per 2 weapon levels. (Solar Flare stays capped at 4.) |
-| Defences | +1 shield per 2 defence levels, refreshed each turn. Shields absorb enemy heat. |
-| Economy | +1 money at turn start per level. |
-| Resources | +1 hand size per 2 resource levels. |
+| Weapons | Your heat ignores 1 enemy shield. |
+| Defences | +1 shield, refreshed each turn. Shields absorb enemy heat. |
+| Economy | +1 money at turn start. |
+| Resources | +1 hand size. |
+
+Every level counts: planets go to level 3, and each level adds its bonus once. Bonuses add up across all your planets of that track.
 
 Systems differ by their mix of planets **and** a unique ability.
 
@@ -62,15 +64,15 @@ Systems differ by their mix of planets **and** a unique ability.
 | System | Planets | Ability |
 | --- | --- | --- |
 | Helios Reach | W, D, E, R | First Thermosiphon each turn costs 1 less |
-| Vulcan Forge | W1, W, E | Solar Flare starts with 1 upgrade |
+| Vulcan Forge | W, W, E | Solar Flare starts with 1 upgrade |
 | Aegis Cluster | D, R | +1 shield every turn |
 | Midas Belt | E1, E, R | +1 money every turn |
-| Cryon Drift | D, R1, E | Sun starts at -3 |
+| Cryon Drift | D, R, E | Sun starts at -3 |
 | Tempest Binary | W, R | Draw 1 extra card every turn |
 | Obsidian Veil | E, W, D | Display cards cost 2 less (min 1) |
-| Nova Crown | E1, W1, D | +1 money per 3 heat above 0 at turn start |
+| Nova Crown | E1, W, D | +1 money per 3 heat above 0 at turn start |
 
-(`W1` = starts at level 1.)
+(`E1` = starts at level 1.)
 
 ## Market deck (200 cards) [proposed content]
 

@@ -26,7 +26,7 @@ export const SOLAR_SYSTEMS: SolarSystemDef[] = [
     abilityName: 'Forgefire',
     abilityText: 'Your Solar Flare starts with 1 upgrade.',
     planets: [
-      { name: 'Anvil', track: 'weapons', level: 1 },
+      { name: 'Anvil', track: 'weapons', level: 0 },
       { name: 'Crucible', track: 'weapons', level: 0 },
       { name: 'Slagmarket', track: 'economy', level: 0 },
     ],
@@ -65,7 +65,7 @@ export const SOLAR_SYSTEMS: SolarSystemDef[] = [
     abilityText: 'Your sun starts at -3.',
     planets: [
       { name: 'Rime', track: 'defences', level: 0 },
-      { name: 'Glacier', track: 'resources', level: 1 },
+      { name: 'Glacier', track: 'resources', level: 0 },
       { name: 'Floe', track: 'economy', level: 0 },
     ],
     modifiers: { startingHeat: -3 },
@@ -103,7 +103,7 @@ export const SOLAR_SYSTEMS: SolarSystemDef[] = [
     abilityText: 'At the start of your turn, gain 1 money for every 3 heat your sun has above 0.',
     planets: [
       { name: 'Corona', track: 'economy', level: 1 },
-      { name: 'Pyre', track: 'weapons', level: 1 },
+      { name: 'Pyre', track: 'weapons', level: 0 },
       { name: 'Halo', track: 'defences', level: 0 },
     ],
     modifiers: { heatIncomeEvery: 3 },

@@ -1,32 +1,66 @@
 /**
- * Synthesised sound effects (Web Audio, no asset files). Placeholders until
- * recorded audio arrives: each effect is one method, so swapping in samples
- * later only touches this file.
+ * Atmospheric audio, synthesised with Web Audio (no asset files yet).
+ *
+ * Every effect uses soft waveforms, slow attacks and a long shared "space"
+ * reverb, so actions swell and bloom rather than click. A generative ambient
+ * score (drone, slowly shifting pad chords, distant chimes and a solar-wind
+ * noise bed) plays underneath. Each effect is one method, so recorded audio
+ * can replace any of them later without touching the rest of the game.
  */
 
 const PREFS_KEY = 'blue-loop:sound';
+const MUSIC_KEY = 'blue-loop:music';
 
-type Wave = OscillatorType;
+/** A-aeolian flavoured chords (frequencies in Hz) the score drifts between. */
+const CHORDS: number[][] = [
+  [110.0, 164.81, 246.94, 329.63], // Am(add9)
+  [87.31, 130.81, 196.0, 329.63], // Fmaj7
+  [98.0, 146.83, 220.0, 293.66], // Gsus / Dm feel
+  [73.42, 110.0, 174.61, 261.63], // Dm7
+  [82.41, 123.47, 185.0, 246.94], // Em(add4) — the eerie one
+];
+/** Pentatonic chime notes for the distant sparkles. */
+const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 
 class SoundBoard {
   private ctx: AudioContext | null = null;
-  private master: GainNode | null = null;
+  private sfx: GainNode | null = null;
+  private musicBus: GainNode | null = null;
+  private reverb: ConvolverNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private lastHover = 0;
+  private musicTimers: number[] = [];
+  private musicNodes: AudioNode[] = [];
+  private musicPlaying = false;
   muted = false;
+  musicOn = true;
 
   constructor() {
     try {
       this.muted = localStorage.getItem(PREFS_KEY) === 'muted';
+      this.musicOn = localStorage.getItem(MUSIC_KEY) !== 'off';
     } catch {
-      // Storage unavailable: default to sound on.
+      // Storage unavailable: defaults.
     }
   }
 
   toggleMute() {
     this.muted = !this.muted;
+    this.store(PREFS_KEY, this.muted ? 'muted' : 'on');
+    if (this.muted) this.stopMusic();
+    else if (this.musicOn) this.startMusic();
+  }
+
+  toggleMusic() {
+    this.musicOn = !this.musicOn;
+    this.store(MUSIC_KEY, this.musicOn ? 'on' : 'off');
+    if (this.musicOn && !this.muted) this.startMusic();
+    else this.stopMusic();
+  }
+
+  private store(key: string, value: string) {
     try {
-      localStorage.setItem(PREFS_KEY, this.muted ? 'muted' : 'on');
+      localStorage.setItem(key, value);
     } catch {
       // ignore
     }
@@ -37,16 +71,50 @@ class SoundBoard {
     if (!this.ctx) {
       const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return;
-      this.ctx = new Ctx();
-      this.master = this.ctx.createGain();
-      this.master.gain.value = 0.55;
-      this.master.connect(this.ctx.destination);
-      const len = this.ctx.sampleRate;
-      this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const ctx = (this.ctx = new Ctx());
+      const master = ctx.createGain();
+      master.gain.value = 0.8;
+      // Gentle limiter so swells never clip.
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -14;
+      comp.ratio.value = 3;
+      master.connect(comp).connect(ctx.destination);
+
+      this.reverb = ctx.createConvolver();
+      this.reverb.buffer = this.impulse(4.5, 2.6);
+      const wet = ctx.createGain();
+      wet.gain.value = 0.55;
+      this.reverb.connect(wet).connect(master);
+
+      this.sfx = ctx.createGain();
+      this.sfx.gain.value = 0.9;
+      this.sfx.connect(master);
+      this.sfx.connect(this.reverb);
+
+      this.musicBus = ctx.createGain();
+      this.musicBus.gain.value = 0.0001;
+      this.musicBus.connect(master);
+      this.musicBus.connect(this.reverb);
+
+      const len = ctx.sampleRate * 2;
+      this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
       const data = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
+    if (this.musicOn && !this.muted) this.startMusic();
+  }
+
+  /** Synthetic hall: stereo noise with an exponential tail. */
+  private impulse(seconds: number, decay: number): AudioBuffer {
+    const ctx = this.ctx!;
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+    return buf;
   }
 
   private ready(): AudioContext | null {
@@ -54,101 +122,248 @@ class SoundBoard {
     return this.ctx;
   }
 
-  private tone(freq: number, dur: number, opts: { type?: Wave; gain?: number; to?: number; delay?: number; attack?: number } = {}) {
+  /** A soft voice: sine/triangle with a slow attack, optional glide, vibrato and lowpass. */
+  private voice(
+    freq: number,
+    opts: {
+      dur: number;
+      attack?: number;
+      gain?: number;
+      type?: OscillatorType;
+      to?: number;
+      delay?: number;
+      detune?: number;
+      vibrato?: number;
+      cutoff?: number;
+      out?: AudioNode;
+    },
+  ) {
     const ctx = this.ready();
     if (!ctx) return;
     const t = ctx.currentTime + (opts.delay ?? 0);
+    const attack = opts.attack ?? 0.12;
     const osc = ctx.createOscillator();
-    const g = ctx.createGain();
     osc.type = opts.type ?? 'sine';
     osc.frequency.setValueAtTime(freq, t);
-    if (opts.to) osc.frequency.exponentialRampToValueAtTime(opts.to, t + dur);
-    const peak = opts.gain ?? 0.2;
+    if (opts.to) osc.frequency.exponentialRampToValueAtTime(opts.to, t + opts.dur);
+    if (opts.detune) osc.detune.value = opts.detune;
+    if (opts.vibrato) {
+      const lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      lfo.frequency.value = 5.2;
+      depth.gain.value = opts.vibrato;
+      lfo.connect(depth).connect(osc.frequency);
+      lfo.start(t);
+      lfo.stop(t + opts.dur + 0.1);
+    }
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = opts.cutoff ?? 4000;
+    const g = ctx.createGain();
+    const peak = opts.gain ?? 0.1;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak, t + (opts.attack ?? 0.01));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(g).connect(this.master!);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + opts.dur);
+    osc.connect(f).connect(g).connect(opts.out ?? this.sfx!);
     osc.start(t);
-    osc.stop(t + dur + 0.05);
+    osc.stop(t + opts.dur + 0.1);
   }
 
-  private noise(dur: number, opts: { freq: number; to?: number; q?: number; gain?: number; type?: BiquadFilterType; delay?: number; attack?: number }) {
+  /** Filtered noise swell (wind, whooshes, solar roar). */
+  private breath(opts: { dur: number; freq: number; to?: number; q?: number; gain?: number; attack?: number; delay?: number; type?: BiquadFilterType }) {
     const ctx = this.ready();
     if (!ctx || !this.noiseBuf) return;
     const t = ctx.currentTime + (opts.delay ?? 0);
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuf;
+    src.loop = true;
     const f = ctx.createBiquadFilter();
     f.type = opts.type ?? 'bandpass';
-    f.Q.value = opts.q ?? 1;
+    f.Q.value = opts.q ?? 0.8;
     f.frequency.setValueAtTime(opts.freq, t);
-    if (opts.to) f.frequency.exponentialRampToValueAtTime(opts.to, t + dur);
+    if (opts.to) f.frequency.exponentialRampToValueAtTime(opts.to, t + opts.dur);
     const g = ctx.createGain();
-    const peak = opts.gain ?? 0.2;
+    const peak = opts.gain ?? 0.08;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak, t + (opts.attack ?? 0.01));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f).connect(g).connect(this.master!);
-    src.start(t, Math.random() * 0.5);
-    src.stop(t + dur + 0.05);
+    g.gain.exponentialRampToValueAtTime(peak, t + (opts.attack ?? 0.2));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + opts.dur);
+    src.connect(f).connect(g).connect(this.sfx!);
+    src.start(t, Math.random());
+    src.stop(t + opts.dur + 0.1);
   }
+
+  /** A glassy bell: fundamental plus a quiet inharmonic partial, long decay. */
+  private bell(freq: number, delay = 0, gain = 0.05) {
+    this.voice(freq, { dur: 2.4, attack: 0.02, gain, delay });
+    this.voice(freq * 2.76, { dur: 1.2, attack: 0.02, gain: gain * 0.25, delay });
+  }
+
+  // ---- Effects ------------------------------------------------------------
 
   hover() {
     const now = performance.now();
-    if (now - this.lastHover < 60) return;
+    if (now - this.lastHover < 90) return;
     this.lastHover = now;
-    this.tone(2100, 0.05, { gain: 0.025 });
+    this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
   draw(delay = 0) {
-    this.noise(0.14, { freq: 2500, to: 6000, q: 0.8, gain: 0.12, delay });
-    this.tone(880, 0.06, { gain: 0.02, delay: delay + 0.04 });
+    this.breath({ dur: 0.6, freq: 900, to: 2600, q: 1.2, gain: 0.05, attack: 0.18, delay });
+    this.voice(659.25, { dur: 0.9, attack: 0.12, gain: 0.018, delay: delay + 0.05 });
   }
   shuffle() {
-    for (let i = 0; i < 7; i++) this.noise(0.07, { freq: 1800 + Math.random() * 2000, q: 1.2, gain: 0.1, delay: i * 0.055 });
+    for (let i = 0; i < 4; i++) this.breath({ dur: 0.5, freq: 700 + i * 300, to: 1800, gain: 0.04, attack: 0.15, delay: i * 0.14 });
   }
   play() {
-    this.noise(0.22, { freq: 900, to: 3200, q: 0.7, gain: 0.12 });
-    this.tone(520, 0.18, { gain: 0.06, to: 780, delay: 0.03 });
+    this.breath({ dur: 0.9, freq: 400, to: 1600, gain: 0.05, attack: 0.25 });
+    this.voice(440, { dur: 1.6, attack: 0.18, gain: 0.05, cutoff: 1800 });
+    this.voice(659.25, { dur: 1.6, attack: 0.25, gain: 0.03, cutoff: 1800, detune: 4 });
   }
   buy() {
-    this.tone(660, 0.25, { gain: 0.08 });
-    this.tone(990, 0.35, { gain: 0.07, delay: 0.08 });
-    this.tone(1320, 0.4, { gain: 0.04, delay: 0.16 });
+    this.bell(880, 0, 0.045);
+    this.bell(1318.5, 0.14, 0.035);
+    this.bell(1760, 0.28, 0.02);
   }
   flare() {
-    this.noise(0.55, { freq: 300, to: 2400, type: 'lowpass', q: 4, gain: 0.25, attack: 0.05 });
-    this.tone(90, 0.5, { type: 'sawtooth', gain: 0.05, to: 240 });
+    // A solar-wind roar that swells, with a deep rising undertone.
+    this.breath({ dur: 1.8, freq: 180, to: 1400, type: 'lowpass', q: 2, gain: 0.16, attack: 0.55 });
+    this.voice(55, { dur: 1.8, attack: 0.5, gain: 0.12, to: 110, type: 'triangle', cutoff: 400 });
   }
   thermo() {
-    this.noise(0.6, { freq: 7000, to: 1500, type: 'highpass', q: 0.8, gain: 0.12, attack: 0.04 });
-    [1760, 1320, 990].forEach((f, i) => this.tone(f, 0.3, { gain: 0.035, delay: i * 0.08 }));
+    // Frost settling: a descending hiss and crystalline shimmer.
+    this.breath({ dur: 1.6, freq: 6000, to: 1200, type: 'bandpass', q: 1.5, gain: 0.05, attack: 0.3 });
+    [1567.98, 1318.51, 987.77].forEach((f, i) => this.voice(f, { dur: 1.8, attack: 0.25, gain: 0.018, delay: i * 0.18, vibrato: 4 }));
   }
   impact(hot: boolean) {
-    this.tone(hot ? 140 : 300, 0.3, { type: 'triangle', gain: 0.14, to: hot ? 55 : 180 });
-    this.noise(0.18, { freq: hot ? 500 : 3000, q: 1, gain: 0.08 });
+    if (hot) {
+      this.voice(65, { dur: 1.6, attack: 0.04, gain: 0.16, to: 40, cutoff: 300 });
+      this.breath({ dur: 1.1, freq: 300, to: 90, type: 'lowpass', gain: 0.08, attack: 0.05 });
+    } else {
+      this.bell(1174.66, 0, 0.03);
+    }
   }
   shield() {
-    this.tone(1200, 0.3, { type: 'triangle', gain: 0.05, to: 1500 });
+    this.voice(523.25, { dur: 1.6, attack: 0.2, gain: 0.03, type: 'triangle', vibrato: 6, cutoff: 2000 });
+    this.voice(784, { dur: 1.6, attack: 0.3, gain: 0.02, vibrato: 6 });
   }
   upgrade() {
-    [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.25, { gain: 0.06, delay: i * 0.07 }));
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.bell(f, i * 0.16, 0.035));
   }
   objective() {
-    [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, 0.4, { gain: 0.05, delay: i * 0.09 }));
+    // A slow shimmering chord bloom.
+    [440, 554.37, 659.25, 880].forEach((f, i) => this.voice(f, { dur: 3.2, attack: 0.8, gain: 0.03, delay: i * 0.08, vibrato: 3 }));
+    this.bell(1760, 0.6, 0.025);
   }
   turn() {
-    this.tone(523, 0.5, { gain: 0.06, attack: 0.03 });
-    this.tone(784, 0.7, { gain: 0.05, delay: 0.12, attack: 0.03 });
+    [220, 329.63, 440].forEach((f, i) => this.voice(f, { dur: 2.6, attack: 0.9, gain: 0.03, delay: i * 0.1, cutoff: 1400 }));
   }
   endTurn() {
-    this.noise(0.3, { freq: 3000, to: 600, q: 0.7, gain: 0.1 });
+    this.breath({ dur: 1.2, freq: 1600, to: 300, gain: 0.05, attack: 0.3 });
   }
   supernova() {
-    this.noise(1.8, { freq: 2000, to: 80, type: 'lowpass', q: 1, gain: 0.35, attack: 0.02 });
-    this.tone(60, 1.6, { type: 'sine', gain: 0.3, to: 30 });
+    this.breath({ dur: 4, freq: 3000, to: 60, type: 'lowpass', q: 1, gain: 0.3, attack: 0.6 });
+    this.voice(41.2, { dur: 4.5, attack: 0.4, gain: 0.28, to: 27.5, cutoff: 200 });
+    this.voice(82.4, { dur: 3.5, attack: 1.2, gain: 0.08, type: 'triangle', cutoff: 600 });
   }
   error() {
-    this.tone(180, 0.18, { type: 'square', gain: 0.04, to: 140 });
+    this.voice(146.83, { dur: 0.6, attack: 0.04, gain: 0.05, to: 130, cutoff: 500 });
+  }
+
+  // ---- Ambient score ------------------------------------------------------
+
+  startMusic() {
+    const ctx = this.ready();
+    if (!ctx || this.musicPlaying || !this.musicBus) return;
+    this.musicPlaying = true;
+    const bus = this.musicBus;
+    bus.gain.cancelScheduledValues(ctx.currentTime);
+    bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), ctx.currentTime);
+    bus.gain.exponentialRampToValueAtTime(0.5, ctx.currentTime + 6);
+
+    // Low drone: two detuned triangles through a slowly breathing lowpass.
+    const droneFilter = ctx.createBiquadFilter();
+    droneFilter.type = 'lowpass';
+    droneFilter.frequency.value = 260;
+    const lfo = ctx.createOscillator();
+    const lfoDepth = ctx.createGain();
+    lfo.frequency.value = 0.03;
+    lfoDepth.gain.value = 140;
+    lfo.connect(lfoDepth).connect(droneFilter.frequency);
+    const droneGain = ctx.createGain();
+    droneGain.gain.value = 0.09;
+    droneFilter.connect(droneGain).connect(bus);
+    const drones = [55, 55 * 1.5, 110].map((f, i) => {
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      o.detune.value = [-6, 5, 2][i];
+      o.connect(droneFilter);
+      o.start();
+      return o;
+    });
+    lfo.start();
+
+    // Solar-wind bed: quiet filtered noise drifting in and out.
+    const wind = ctx.createBufferSource();
+    wind.buffer = this.noiseBuf;
+    wind.loop = true;
+    const windFilter = ctx.createBiquadFilter();
+    windFilter.type = 'bandpass';
+    windFilter.Q.value = 0.6;
+    windFilter.frequency.value = 500;
+    const windLfo = ctx.createOscillator();
+    const windDepth = ctx.createGain();
+    windLfo.frequency.value = 0.05;
+    windDepth.gain.value = 300;
+    windLfo.connect(windDepth).connect(windFilter.frequency);
+    const windGain = ctx.createGain();
+    windGain.gain.value = 0.018;
+    wind.connect(windFilter).connect(windGain).connect(bus);
+    wind.start();
+    windLfo.start();
+
+    this.musicNodes = [...drones, lfo, wind, windLfo, droneFilter, droneGain, windFilter, windGain];
+
+    // Pad chords every ~11s, sparkles every few seconds.
+    let chord = 0;
+    const pad = () => {
+      if (!this.musicPlaying) return;
+      const notes = CHORDS[chord % CHORDS.length];
+      chord += 1 + Math.floor(Math.random() * 2);
+      notes.forEach((f, i) => {
+        const opts = { dur: 14, attack: 4 + i * 0.6, gain: 0.022, type: 'triangle' as OscillatorType, cutoff: 900, out: bus };
+        this.voice(f * 2, opts);
+        this.voice(f * 2, { ...opts, detune: 9, gain: 0.014 });
+      });
+      this.musicTimers.push(window.setTimeout(pad, 10500 + Math.random() * 3000));
+    };
+    const sparkle = () => {
+      if (!this.musicPlaying) return;
+      const f = CHIMES[Math.floor(Math.random() * CHIMES.length)];
+      this.voice(f, { dur: 4, attack: 0.6, gain: 0.008 + Math.random() * 0.006, vibrato: 2, out: bus });
+      this.musicTimers.push(window.setTimeout(sparkle, 2500 + Math.random() * 6000));
+    };
+    pad();
+    this.musicTimers.push(window.setTimeout(sparkle, 3000));
+  }
+
+  stopMusic() {
+    if (!this.musicPlaying || !this.ctx || !this.musicBus) return;
+    this.musicPlaying = false;
+    this.musicTimers.forEach((t) => window.clearTimeout(t));
+    this.musicTimers = [];
+    const now = this.ctx.currentTime;
+    const bus = this.musicBus;
+    bus.gain.cancelScheduledValues(now);
+    bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), now);
+    bus.gain.exponentialRampToValueAtTime(0.0001, now + 2);
+    const nodes = this.musicNodes;
+    this.musicNodes = [];
+    window.setTimeout(() => {
+      for (const n of nodes) {
+        if (n instanceof AudioScheduledSourceNode) n.stop();
+        n.disconnect();
+      }
+    }, 2200);
   }
 }
 

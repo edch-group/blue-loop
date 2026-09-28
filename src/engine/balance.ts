@@ -37,12 +37,13 @@ export const BALANCE = {
   maxPlanetLevel: 3,
   /** +1 money at turn start per economy level. */
   economyIncomePerLevel: 1,
-  /** +1 hand size for every N resource levels. */
-  resourceLevelsPerExtraCard: 2,
-  /** Shields refreshed at turn start: 1 for every N defence levels. */
-  defenceLevelsPerShield: 2,
-  /** Your heat ignores 1 enemy shield for every N weapon levels. */
-  weaponLevelsPerShieldPierce: 2,
+  /** Every planet level counts: each one adds its track's bonus once. */
+  /** +1 hand size per resource level. */
+  resourceCardsPerLevel: 1,
+  /** +1 shield (refreshed each turn) per defence level. */
+  shieldsPerDefenceLevel: 1,
+  /** Your heat ignores 1 enemy shield per weapon level. */
+  piercePerWeaponLevel: 1,
 
   /**
    * Stellar Instability: the late-game clock that guarantees games end.

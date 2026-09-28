@@ -107,11 +107,11 @@ function planetEffect(track: Planet['track'], level: number): string {
     case 'economy':
       return `+${level * BALANCE.economyIncomePerLevel} money at the start of each turn`;
     case 'defences':
-      return `+${Math.floor(level / BALANCE.defenceLevelsPerShield)} shields each turn (1 per ${BALANCE.defenceLevelsPerShield} levels)`;
+      return `+${level * BALANCE.shieldsPerDefenceLevel} shields each turn`;
     case 'weapons':
-      return `your heat ignores ${Math.floor(level / BALANCE.weaponLevelsPerShieldPierce)} enemy shields (1 per ${BALANCE.weaponLevelsPerShieldPierce} levels)`;
+      return `your heat ignores ${level * BALANCE.piercePerWeaponLevel} enemy shields`;
     case 'resources':
-      return `+${Math.floor(level / BALANCE.resourceLevelsPerExtraCard)} cards in hand (1 per ${BALANCE.resourceLevelsPerExtraCard} levels)`;
+      return `+${level * BALANCE.resourceCardsPerLevel} cards in hand`;
   }
 }
 
@@ -603,6 +603,9 @@ export class App {
       case 'toggle-sound':
         sound.toggleMute();
         return this.render();
+      case 'toggle-music':
+        sound.toggleMusic();
+        return this.render();
       case 'speed': {
         const order: Speed[] = ['slow', 'normal', 'fast'];
         this.speed = order[(order.indexOf(this.speed) + 1) % order.length];
@@ -1051,6 +1054,7 @@ export class App {
           `round ${s?.round ?? ''}`,
           `<div class="menu-list">
             <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
+            <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
             <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
             <button class="btn" data-act="open-log">game log</button>
             <button class="btn" data-act="rules">how to play</button>

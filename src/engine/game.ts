@@ -128,7 +128,7 @@ export function trackLevel(p: PlayerState, track: Track): number {
 export function handSizeFor(p: PlayerState): number {
   const mods = systemDef(p.systemId).modifiers;
   return (
-    BALANCE.handSize + (mods.handSizeBonus ?? 0) + Math.floor(trackLevel(p, 'resources') / BALANCE.resourceLevelsPerExtraCard) + bonus(p, 'wide_sensors')
+    BALANCE.handSize + (mods.handSizeBonus ?? 0) + trackLevel(p, 'resources') * BALANCE.resourceCardsPerLevel + bonus(p, 'wide_sensors')
   );
 }
 
@@ -141,7 +141,7 @@ export function incomeFor(p: PlayerState): number {
 
 export function shieldsFor(p: PlayerState): number {
   const mods = systemDef(p.systemId).modifiers;
-  return Math.floor(trackLevel(p, 'defences') / BALANCE.defenceLevelsPerShield) + (mods.shieldBonus ?? 0) + bonus(p, 'aegis_lattice');
+  return trackLevel(p, 'defences') * BALANCE.shieldsPerDefenceLevel + (mods.shieldBonus ?? 0) + bonus(p, 'aegis_lattice');
 }
 
 function globalAffects(state: GameState, id: GlobalEffectId, p: PlayerState): boolean {
@@ -185,7 +185,7 @@ export function supernovaThreshold(p: PlayerState): number {
 
 /** Enemy shields your heat ignores, from weapon planets. */
 export function shieldPierce(p: PlayerState): number {
-  return Math.floor(trackLevel(p, 'weapons') / BALANCE.weaponLevelsPerShieldPierce);
+  return trackLevel(p, 'weapons') * BALANCE.piercePerWeaponLevel;
 }
 
 export function marketCost(p: PlayerState, defId: string): number {
