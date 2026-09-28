@@ -457,9 +457,9 @@ export class App {
 
   /** Show the most important new log line as a toast. */
   private surfaceLog(prev: GameState, next: GameState) {
-    const lastPrev = prev.log[prev.log.length - 1];
-    const start = lastPrev ? next.log.lastIndexOf(lastPrev) + 1 : 0;
-    const fresh = next.log.slice(Math.max(start, 0)).map((l) => l.text);
+    // Only entries added by this action (state is cloned per action, so compare ids, not objects).
+    const lastSeq = prev.log[prev.log.length - 1]?.seq ?? 0;
+    const fresh = next.log.filter((l) => l.seq > lastSeq).map((l) => l.text);
     const hit = [...fresh].reverse().find((t) => TOAST_PATTERN.test(t));
     if (hit) this.showToast(hit, 'info');
   }

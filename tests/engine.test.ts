@@ -63,6 +63,15 @@ describe('setup', () => {
     expect(s.players[0].hand).toHaveLength(5);
   });
 
+  it('numbers log entries so new ones can be told apart', () => {
+    const s = twoPlayer(9, ['midas_belt', 'helios_reach']);
+    const after = applyAction(s, { type: 'playAllMoney' });
+    const lastSeq = s.log[s.log.length - 1].seq;
+    const fresh = after.log.filter((l) => l.seq > lastSeq);
+    expect(fresh.length).toBeGreaterThan(0);
+    expect(fresh.every((l) => l.text.includes('plays'))).toBe(true);
+  });
+
   it('is deterministic for a given seed', () => {
     expect(twoPlayer(42)).toEqual(twoPlayer(42));
     expect(twoPlayer(42)).not.toEqual(twoPlayer(43));

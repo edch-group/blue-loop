@@ -36,7 +36,8 @@ function newCard(state: GameState, defId: string): CardInstance {
 }
 
 function log(state: GameState, text: string) {
-  state.log.push({ turn: state.turnNumber, text });
+  const seq = (state.log[state.log.length - 1]?.seq ?? 0) + 1;
+  state.log.push({ seq, turn: state.turnNumber, text });
   if (state.log.length > BALANCE.maxLogEntries) state.log.splice(0, state.log.length - BALANCE.maxLogEntries);
 }
 

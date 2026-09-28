@@ -135,6 +135,8 @@ export interface PlayerState {
 }
 
 export interface LogEntry {
+  /** Increasing id, so a UI can tell exactly which entries are new. */
+  seq: number;
   turn: number;
   text: string;
 }

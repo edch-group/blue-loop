@@ -2,7 +2,7 @@ import type { GameState } from '../engine';
 
 // Local autosave. In the Steam build this can move to Steam Cloud by pointing
 // the Electron app's userData directory at a Steam Cloud-synced path.
-const KEY = 'blue-loop:save:v2';
+const KEY = 'blue-loop:save:v3';
 
 export function save(state: GameState) {
   try {
