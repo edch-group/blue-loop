@@ -11,6 +11,7 @@ import {
   MARKET_CARDS,
   SOLAR_SYSTEMS,
   supernovaThreshold,
+  instabilityHeat,
   availableRewards,
   handSizeFor,
   thermoCool,
@@ -122,6 +123,16 @@ describe('stellar instability', () => {
     s.round = BALANCE.instabilityStartsRound;
     s = applyAction(s, { type: 'endTurn' });
     expect(s.players[1].heat).toBe(1);
+  });
+
+  it('stacks: one more heat every round after it starts', () => {
+    const s = twoPlayer(3, ['midas_belt', 'helios_reach']);
+    s.round = BALANCE.instabilityStartsRound;
+    expect(instabilityHeat(s)).toBe(1);
+    s.round += 1;
+    expect(instabilityHeat(s)).toBe(2);
+    s.round += 2;
+    expect(instabilityHeat(s)).toBe(4);
   });
 });
 

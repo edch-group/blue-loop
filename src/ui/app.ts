@@ -208,7 +208,32 @@ export class App {
     this.syncViewer();
     this.render();
     this.dealOpening();
+    this.announceTurn(400);
     this.scheduleAI(900);
+  }
+
+  /**
+   * "Your turn" banner: a soft bloom across the middle of the screen whenever
+   * play comes back to a human who can see their hand. Lives outside the
+   * re-rendered root so it survives state changes.
+   */
+  private announceTurn(delay = 0) {
+    const s = this.state;
+    if (!s || isGameOver(s) || this.needsHandoff()) return;
+    const p = activePlayer(s);
+    if (p.isAI || p.id !== this.viewer().id) return;
+    const humans = s.players.filter((pl) => !pl.isAI).length;
+    window.setTimeout(() => {
+      document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
+      const el = document.createElement('div');
+      el.className = 'turn-banner';
+      el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">your turn</div>${
+        humans > 1 ? `<div class="turn-banner-sub">${esc(p.name.toLowerCase())}</div>` : `<div class="turn-banner-sub">round ${roman(s.round)}</div>`
+      }`;
+      document.body.appendChild(el);
+      sound.turn();
+      window.setTimeout(() => el.remove(), 2000);
+    }, delay);
   }
 
   /** Opening hand: shuffle, then deal the viewer's cards in one by one. */
@@ -243,6 +268,7 @@ export class App {
       return;
     }
     const before = animate ? snapshot(this.root) : null;
+    const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.state = next;
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
@@ -255,6 +281,7 @@ export class App {
       this.surfaceLog(prev, next);
       this.animate(prev, next, action, actor, before);
     }
+    if (turnPassed) this.announceTurn(450);
     this.scheduleAI(AI_PAUSE[action.type]);
   }
 
@@ -295,7 +322,7 @@ export class App {
     else save(s);
     this.syncViewer();
     this.render();
-    if (!isGameOver(s)) sound.turn();
+    this.announceTurn();
   }
 
   // -------------------------------------------------------------------------
@@ -408,8 +435,6 @@ export class App {
       }
       case 'endTurn': {
         sound.endTurn();
-        const nowActive = activePlayer(next);
-        if (!nowActive.isAI && !isGameOver(next)) window.setTimeout(() => sound.turn(), 500);
         break;
       }
     }
@@ -593,6 +618,7 @@ export class App {
       case 'reveal':
         this.revealedFor = s ? activePlayer(s).id : null;
         this.render();
+        this.announceTurn();
         return this.dealOpening();
       case 'open-menu':
         this.sheet = { kind: 'menu' };

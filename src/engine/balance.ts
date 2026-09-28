@@ -47,11 +47,11 @@ export const BALANCE = {
 
   /**
    * Stellar Instability: the late-game clock that guarantees games end.
-   * From this round on, every sun heats at the start of its turn (unblockable),
-   * by 1 plus 1 more every `instabilityRampEvery` rounds.
+   * From this round on, every sun heats at the start of its turn (unblockable).
+   * It stacks: +1 in the first unstable round, +1 more every round after.
    */
   instabilityStartsRound: 8,
-  instabilityRampEvery: 4,
+  instabilityRampEvery: 1,
 
   /** Log entries kept in game state (older ones are dropped). */
   maxLogEntries: 200,

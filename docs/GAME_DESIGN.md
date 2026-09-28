@@ -20,7 +20,7 @@ marked **[proposed]** for the design team to confirm or change.
 0. **Draw** a new hand (5 cards, plus bonuses). Hands are drawn when your turn begins, so nothing arrives during opponents' turns. [design review]
 1. **Gain resources**: money from economy planets and system abilities, plus shields from defence planets. [brief: "gain resources"]
 2. **Resolve global effects**: Solar Storm, Ice Age, Trade Boom. [brief]
-3. **Stellar Instability**: from round 8, every sun heats at the start of its turn. [proposed; see below]
+3. **Stellar Instability**: from round 8, every sun heats at the start of its turn: +1 in round 8, +2 in round 9, +3 in round 10, and so on. [design review]
 4. **Main phase**, in any order and as often as money allows:
    - Play cards from hand.
    - Buy a card from the display. It goes to the discard pile. [proposed]
@@ -121,8 +121,7 @@ When it empties, instability begins.
 Heating and cooling both cost 2 money, and a defender also gets shields, so
 two careful players can stall forever. The first AI simulations did exactly
 that: games ran past 300 turns. Stellar Instability is a late-game clock: from
-round 8, every sun heats by 1 at the start of its turn, plus 1 more every 4
-rounds. It fits the theme (the loop decays) and guarantees games end.
+round 8, every sun heats by 1 at the start of its turn, stacking +1 every round after. It fits the theme (the loop decays) and guarantees games end.
 AI games currently average about 11 rounds with 2 players and 11 with 4.
 
 Alternatives worth playtesting instead: make Solar Flare cheaper than
