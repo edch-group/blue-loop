@@ -6,7 +6,7 @@ export const BALANCE = {
   minPlayers: 2,
   maxPlayers: 4,
 
-  /** Sun temperature bounds. Reaching `supernovaAt` eliminates a player. */
+  /** Sun temperature bounds. Reaching `supernovaAt` (raised by Cooling Chamber upgrades) eliminates a player. */
   startingHeat: 0,
   minHeat: -10,
   supernovaAt: 10,
@@ -29,6 +29,9 @@ export const BALANCE = {
   thermosiphonCost: 2,
   thermosiphonCool: 1,
   thermosiphonMaxUpgrades: 1, // max 2 cooling per use
+  /** Cooling Chamber: passive. Each upgrade raises your supernova threshold (max health). */
+  coolingChamberMaxUpgrades: 3,
+  coolingChamberHealthPerUpgrade: 5, // 10 → 15 → 20 → 25
 
   /** Planet upgrades. */
   maxPlanetLevel: 3,

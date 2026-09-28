@@ -42,8 +42,9 @@ export interface Planet {
   level: number;
 }
 
-export type CoreAction = 'solarFlare' | 'thermosiphon';
-export const CORE_ACTIONS: readonly CoreAction[] = ['solarFlare', 'thermosiphon'];
+/** The three upgradeable core actions. Solar Flare and Thermosiphon are used with money; Cooling Chamber is passive. */
+export type CoreAction = 'solarFlare' | 'thermosiphon' | 'coolingChamber';
+export const CORE_ACTIONS: readonly CoreAction[] = ['solarFlare', 'thermosiphon', 'coolingChamber'];
 
 /** What a Command card upgrades: a core action, or a planet by its id. */
 export type UpgradeId = CoreAction | string;

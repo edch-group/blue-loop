@@ -1,4 +1,5 @@
 import {
+  ACTION_NAME,
   activePlayer,
   applyAction,
   BALANCE,
@@ -17,8 +18,10 @@ import {
   isGameOver,
   livingOpponents,
   marketCost,
+  MAX_UPGRADES,
   objectiveDef,
   shieldPierce,
+  supernovaThreshold,
   systemDef,
   thermoCool,
   thermoCost,
@@ -26,6 +29,7 @@ import {
   upgradeOptions,
   type Action,
   type CardInstance,
+  type CoreAction,
   type GameState,
   type Planet,
   type PlayerSetup,
@@ -54,6 +58,18 @@ interface Stage {
   targetId?: string;
 }
 
+/** Bottom sheets / dialogs that are not part of a pending move. */
+type Sheet =
+  | { kind: 'menu' }
+  | { kind: 'log' }
+  | { kind: 'rules' }
+  | { kind: 'pile'; pile: 'deck' | 'discard' }
+  | { kind: 'system'; playerId: string }
+  | { kind: 'objective'; id: string }
+  | { kind: 'action'; action: CoreAction }
+  /** Tap-to-inspect on touch screens: a readable card with its action. */
+  | { kind: 'card'; defId: string; uid?: string; slot?: number };
+
 const SPEED_KEY = 'blue-loop:ai-speed';
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
@@ -68,7 +84,13 @@ const AI_PAUSE: Record<Action['type'], number> = {
 const TOAST_MS = 2600;
 const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
 const TOAST_PATTERN = /heats to|SUPERNOVA|completes|upgrades|wins|shields absorb|Instability/;
-const HOT = '#ff6a3d';
+const HOT = '#f0a07a';
+
+const ACTION_TEXT: Record<CoreAction, string> = {
+  solarFlare: `Spend money to heat an enemy sun. Deals 1 heat, +1 per upgrade (max ${1 + BALANCE.solarFlareMaxUpgrades}). Use as often as you can afford.`,
+  thermosiphon: `Spend money to cool your own sun. Cools 1, +1 per upgrade (max ${1 + BALANCE.thermosiphonMaxUpgrades}). Use as often as you can afford.`,
+  coolingChamber: `Passive. Each upgrade raises your max health (the heat at which your sun goes supernova) by ${BALANCE.coolingChamberHealthPerUpgrade}, from ${BALANCE.supernovaAt} up to ${BALANCE.supernovaAt + BALANCE.coolingChamberMaxUpgrades * BALANCE.coolingChamberHealthPerUpgrade}.`,
+};
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -98,10 +120,11 @@ export class App {
   private state: GameState | null = null;
   private pending: Pending | null = null;
   private stage: Stage | null = null;
-  private pileView: 'deck' | 'discard' | null = null;
-  private showLog = false;
+  private sheet: Sheet | null = null;
   private aiTimer: number | null = null;
   private speed: Speed = 'normal';
+  /** Touch screens have no hover: cards open an inspector instead. */
+  private touch = window.matchMedia('(pointer: coarse)').matches;
   /** Human player whose hand was last revealed (for hot-seat handoff). */
   private revealedFor: string | null = null;
   /** Whose home system sits in the dock: the current or most recent human. */
@@ -132,7 +155,12 @@ export class App {
     root.addEventListener('mouseout', (e) => this.onHoverOut(e));
     window.addEventListener('mousemove', (e) => (this.pointer = { x: e.clientX, y: e.clientY }));
     window.addEventListener('keydown', (e) => this.onKey(e));
-    window.addEventListener('pointerdown', () => sound.unlock(), { capture: true });
+    window.addEventListener('pointerdown', (e) => {
+      sound.unlock();
+      this.touch = e.pointerType === 'touch';
+    }, { capture: true });
+    window.addEventListener('touchstart', () => (this.touch = true), { capture: true, passive: true });
+    window.addEventListener('resize', () => this.fitHand());
   }
 
   start() {
@@ -161,7 +189,7 @@ export class App {
     this.viewerId = null;
     this.pending = null;
     this.stage = null;
-    this.pileView = null;
+    this.sheet = null;
     this.screen = 'game';
     this.syncViewer();
     this.render();
@@ -203,6 +231,7 @@ export class App {
     const before = animate ? snapshot(this.root) : null;
     this.state = next;
     this.pending = null;
+    if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = actor.isAI ? this.stageFor(prev, actor, action) : null;
     if (isGameOver(next)) clearSave();
     else save(next);
@@ -247,6 +276,7 @@ export class App {
     while (!isGameOver(s) && activePlayer(s).isAI && guard++ < 5000) s = applyAction(s, chooseAIAction(s));
     this.state = s;
     this.stage = null;
+    this.sheet = null;
     if (isGameOver(s)) clearSave();
     else save(s);
     this.syncViewer();
@@ -282,7 +312,6 @@ export class App {
         return;
       }
       if (inHand.has(uid)) {
-        // Drawn: fly in from the deck, one after another (after the old hand is swept away).
         const from = before.anchors.get('deck') ?? anchorRect(root, 'deck');
         const delay = (endingTurn ? 420 : 60) + drawIndex * 110;
         if (from) flyFrom(el, from, { delay, fade: true, rotate: -8 });
@@ -320,23 +349,22 @@ export class App {
       const p = next.players.find((pl) => pl.id === id)!;
       const was = prev.players.find((pl) => pl.id === id)!;
       window.setTimeout(() => {
-        const hotter = p.heat > was.heat;
-        if (p.heat !== was.heat) sound.impact(hotter);
+        if (p.heat !== was.heat) sound.impact(p.heat > was.heat);
         if (p.blockedSinceTurnStart > was.blockedSinceTurnStart) sound.shield();
       }, at);
       pulse(orb(id), p.heat > was.heat ? 'fx-hot' : p.heat < was.heat ? 'fx-cold' : 'fx-shield', at);
       handled.add(id);
     };
-    const fire = (fromId: string, toId: string, colour: string, delay = 0) => {
+    const fire = (fromId: string, toId: string, delay = 0) => {
       const a = orbRect(fromId), b = orbRect(toId);
-      const at = a && b ? projectile(a, b, colour, { delay }) : delay;
+      const at = a && b ? projectile(a, b, HOT, { delay }) : delay;
       hit(toId, at);
     };
 
     switch (action.type) {
       case 'solarFlare':
         sound.flare();
-        fire(actor.id, action.targetId, HOT);
+        fire(actor.id, action.targetId);
         break;
       case 'thermosiphon':
         sound.thermo();
@@ -354,8 +382,8 @@ export class App {
         const delay = actor.isAI ? 500 : 150;
         let i = 0;
         for (const e of def.effects) {
-          if (e.type === 'heatTarget' && action.targetId) fire(actor.id, action.targetId, HOT, delay);
-          if (e.type === 'heatAllOpponents') for (const o of livingOpponents(prev, actor)) fire(actor.id, o.id, HOT, delay + 120 * i++);
+          if (e.type === 'heatTarget' && action.targetId) fire(actor.id, action.targetId, delay);
+          if (e.type === 'heatAllOpponents') for (const o of livingOpponents(prev, actor)) fire(actor.id, o.id, delay + 120 * i++);
           if (e.type === 'cool' || e.type === 'heatSelf' || e.type === 'shield') hit(actor.id, delay);
           if (e.type === 'command' && action.upgradeId) {
             window.setTimeout(() => sound.upgrade(), delay);
@@ -372,7 +400,6 @@ export class App {
       }
     }
 
-    // Anything else that changed a sun (turn-start effects, instability, self-heat).
     for (const p of next.players) {
       const was = prev.players.find((pl) => pl.id === p.id)!;
       if (!handled.has(p.id) && p.heat !== was.heat) hit(p.id, endingTurn ? 700 : 200);
@@ -442,20 +469,21 @@ export class App {
 
   private onKey(e: KeyboardEvent) {
     if (e.key !== 'Escape') return;
-    if (this.pending || this.pileView) {
+    if (this.pending || this.sheet) {
       this.pending = null;
-      this.pileView = null;
+      this.sheet = null;
       this.render();
     }
   }
 
   private onHover(e: MouseEvent) {
+    if (this.touch) return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-card]');
     if (!el) return;
     const from = (e.relatedTarget as HTMLElement | null)?.closest?.('[data-card]');
     if (from === el) return;
     this.showPreview(el);
-    if (!el.hasAttribute('disabled') || el.closest('.hand')) sound.hover();
+    sound.hover();
   }
 
   private onHoverOut(e: MouseEvent) {
@@ -464,20 +492,21 @@ export class App {
     if (el && to !== el) this.preview.classList.remove('show');
   }
 
-  /** Magnified, fully readable view of the hovered card. */
+  /** Magnified, fully readable view of the hovered card (mouse only). */
   private showPreview(el: HTMLElement) {
+    if (el.closest('.sheet')) return;
     const defId = el.dataset.card!;
     const cost = el.dataset.cost;
     this.preview.innerHTML = this.bigCard(defId, cost !== undefined ? Number(cost) : undefined);
     const r = el.getBoundingClientRect();
-    const w = 300, h = 420, gap = 18;
+    const h = Math.min(420, window.innerHeight - 16);
+    const w = h * 0.714;
+    this.preview.style.setProperty('--pw', `${w}px`);
+    const gap = 14;
     let left = r.right + gap;
     if (left + w > window.innerWidth - 8) left = r.left - gap - w;
     if (left < 8) left = Math.min(window.innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
-    let top = r.top + r.height / 2 - h / 2;
-    top = Math.max(8, Math.min(window.innerHeight - h - 8, top));
-    // If it would cover the card itself (no room either side), sit above it instead.
-    if (left < r.right && left + w > r.left) top = Math.max(8, r.top - h - gap);
+    const top = Math.max(8, Math.min(window.innerHeight - h - 8, r.top + r.height / 2 - h / 2));
     this.preview.style.left = `${left}px`;
     this.preview.style.top = `${top}px`;
     this.preview.classList.add('show');
@@ -504,17 +533,24 @@ export class App {
         return this.newGame();
       case 'continue':
         return this.continueGame();
-      case 'menu':
+      case 'rules':
+        this.sheet = { kind: 'rules' };
+        return this.render();
+      case 'to-menu':
         this.screen = 'menu';
         this.pending = null;
+        this.sheet = null;
         if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
         return this.render();
       case 'reveal':
         this.revealedFor = s ? activePlayer(s).id : null;
         this.render();
         return this.dealOpening();
-      case 'toggle-log':
-        this.showLog = !this.showLog;
+      case 'open-menu':
+        this.sheet = { kind: 'menu' };
+        return this.render();
+      case 'open-log':
+        this.sheet = { kind: 'log' };
         return this.render();
       case 'toggle-sound':
         sound.toggleMute();
@@ -532,19 +568,38 @@ export class App {
       case 'skip-ai':
         return this.skipAI();
       case 'view-pile':
-        this.pileView = arg as 'deck' | 'discard';
+        this.sheet = { kind: 'pile', pile: arg as 'deck' | 'discard' };
+        return this.render();
+      case 'view-system':
+        this.sheet = { kind: 'system', playerId: arg };
+        return this.render();
+      case 'view-objective':
+        this.sheet = { kind: 'objective', id: arg };
+        return this.render();
+      case 'coolingChamber':
+        this.sheet = { kind: 'action', action: 'coolingChamber' };
         return this.render();
       case 'cancel':
         this.pending = null;
-        this.pileView = null;
+        this.sheet = null;
         return this.render();
     }
 
-    if (!s || !this.canAct()) return;
+    if (!s) return;
+    // On touch screens, tapping a card opens the inspector; its button then acts.
+    if (((this.touch && (act === 'play' || act === 'buy')) || act === 'inspect') && !el.closest('.sheet') && el.dataset.card) {
+      const defId = el.dataset.card!;
+      const slot = el.dataset.slot;
+      this.sheet = { kind: 'card', defId, uid: el.dataset.hand, slot: slot !== undefined ? Number(slot) : undefined };
+      sound.hover();
+      return this.render();
+    }
+    if (!this.canAct()) return;
     const me = activePlayer(s);
 
     switch (act) {
       case 'play': {
+        this.sheet = null;
         const card = me.hand.find((c) => c.uid === arg);
         if (!card) return;
         if (cardNeedsTarget(card.defId)) {
@@ -562,6 +617,7 @@ export class App {
       case 'play-all':
         return this.dispatch({ type: 'playAllMoney' });
       case 'buy':
+        this.sheet = null;
         return this.dispatch({ type: 'buyCard', slot: Number(arg) });
       case 'solarFlare': {
         const foes = livingOpponents(s, me);
@@ -597,8 +653,7 @@ export class App {
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.renderGame();
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.fitHand();
-    // Elements were replaced: keep the preview only if the pointer is still over a card.
-    const under = document.elementFromPoint(this.pointer.x, this.pointer.y)?.closest<HTMLElement>('[data-card]');
+    const under = this.touch ? null : document.elementFromPoint(this.pointer.x, this.pointer.y)?.closest<HTMLElement>('[data-card]');
     if (under && this.root.contains(under)) this.showPreview(under);
     else this.preview.classList.remove('show');
   }
@@ -608,14 +663,13 @@ export class App {
     const hand = this.root.querySelector<HTMLElement>('.hand');
     if (!hand) return;
     const cards = [...hand.querySelectorAll<HTMLElement>(':scope > .card')];
+    cards.forEach((c) => (c.style.marginLeft = ''));
     if (cards.length < 2) return;
-    const gap = 12;
+    const gap = parseFloat(getComputedStyle(hand).columnGap) || 0;
     const w = cards[0].offsetWidth;
     const need = cards.length * w + (cards.length - 1) * gap;
     const overlap = Math.max(0, (need - hand.clientWidth) / (cards.length - 1));
-    cards.forEach((c, i) => {
-      if (i > 0) c.style.marginLeft = overlap ? `${-overlap}px` : '';
-    });
+    if (overlap) cards.forEach((c, i) => i > 0 && (c.style.marginLeft = `${-overlap}px`));
   }
 
   private renderMenu(): string {
@@ -625,13 +679,9 @@ export class App {
         const locked = i < BALANCE.minPlayers;
         return `
         <div class="seat ${seat.enabled ? '' : 'seat-off'}">
-          <button class="pill-btn" data-act="seat-toggle" data-arg="${i}" ${locked ? 'disabled' : ''}>
-            ${seat.enabled ? '●' : '○'} seat ${i + 1}
-          </button>
+          <button class="pill-btn" data-act="seat-toggle" data-arg="${i}" ${locked ? 'disabled' : ''}>${seat.enabled ? '●' : '○'} ${i + 1}</button>
           <input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" ${seat.enabled ? '' : 'disabled'} />
-          <button class="pill-btn" data-act="seat-ai" data-arg="${i}" ${seat.enabled ? '' : 'disabled'}>
-            ${seat.isAI ? 'ai' : 'human'}
-          </button>
+          <button class="pill-btn" data-act="seat-ai" data-arg="${i}" ${seat.enabled ? '' : 'disabled'}>${seat.isAI ? 'ai' : 'human'}</button>
         </div>`;
       })
       .join('');
@@ -641,8 +691,8 @@ export class App {
       ${petalBackdrop()}
       <div class="title-block">
         <div class="title-sun"></div>
-        <h1>blue loop</h1>
-        <p class="tagline">•cool your star · ignite theirs•</p>
+        <h1 class="title">blue loop</h1>
+        <p class="tagline">cool your star · ignite theirs</p>
       </div>
       <section class="glass menu-panel">
         <div class="bar-title">new game</div>
@@ -651,21 +701,24 @@ export class App {
           <div class="menu-actions">
             <button class="btn-primary" data-act="new-game">launch</button>
             ${hasSave ? '<button class="btn" data-act="continue">continue</button>' : ''}
+            <button class="btn" data-act="rules">how to play</button>
           </div>
         </div>
       </section>
-      <section class="glass menu-panel">
-        <div class="bar-title">how to play</div>
-        <ul class="rules">
-          <li>Every sun starts at <b>0</b>. At <b>${BALANCE.supernovaAt}</b> it goes supernova and that player is out. The last sun standing wins.</li>
-          <li>Play cards for money. Spend it on <b>Solar Flare</b> to heat an enemy sun, or <b>Thermosiphon</b> to cool your own (down to ${BALANCE.minHeat}), as often as you can afford.</li>
-          <li><b>Command</b> cards upgrade your actions or planets. Solar Flare has 3 upgrade slots (up to 4 heat). Thermosiphon has 1 (up to 2 cooling).</li>
-          <li>Buy stronger cards from the display, and complete objectives to earn more Command cards.</li>
-          <li>The stability bar drains by one every round. When it empties, <b>Stellar Instability</b> heats every sun at the start of each turn.</li>
-        </ul>
-      </section>
       <footer class="studio">coronal mass games · prototype build</footer>
+      ${this.sheet?.kind === 'rules' ? this.renderSheet() : ''}
     </main>`;
+  }
+
+  private rulesHtml(): string {
+    return `
+      <ul class="rules">
+        <li>Every sun starts at <b>0</b> with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. The last sun standing wins.</li>
+        <li>Play cards for money. Spend it on <b>Solar Flare</b> to heat an enemy sun, or <b>Thermosiphon</b> to cool your own (down to ${BALANCE.minHeat}), as often as you can afford.</li>
+        <li><b>Command</b> cards upgrade an action or a planet. Solar Flare: 3 upgrades (up to 4 heat). Thermosiphon: 1 (up to 2 cooling). <b>Cooling Chamber</b>: 3 upgrades, +${BALANCE.coolingChamberHealthPerUpgrade} max health each (up to ${BALANCE.supernovaAt + 3 * BALANCE.coolingChamberHealthPerUpgrade}).</li>
+        <li>Buy stronger cards from the display, and complete objectives to earn more Command cards.</li>
+        <li>The stability bar drains by one each round. When it empties, <b>Stellar Instability</b> heats every sun at the start of each turn.</li>
+      </ul>`;
   }
 
   private renderGame(): string {
@@ -673,32 +726,20 @@ export class App {
     return `
       <main class="game">
         ${petalBackdrop()}
-        ${this.renderHud()}
-        ${this.renderRivals()}
+        ${this.renderTop()}
         ${this.renderDisplay()}
         ${this.renderDock()}
         ${this.renderStage()}
-        ${this.showLog ? this.renderLog() : ''}
         ${this.renderOverlay(s)}
+        <div class="rotate-hint"><div><h1 class="title">blue loop</h1><p>turn your device sideways to play</p></div></div>
       </main>`;
   }
 
-  private renderHud(): string {
+  private renderTop(): string {
     const s = this.state!;
     const active = activePlayer(s);
     const me = this.viewer();
     const mine = active.id === me.id && !active.isAI;
-    const core = ((me.heat - BALANCE.minHeat) / (BALANCE.supernovaAt - BALANCE.minHeat)) * 100;
-    const avatars = s.players
-      .map(
-        (p) => `
-        <div class="avatar ${p.id === active.id ? 'avatar-active' : ''}" title="${esc(p.name)} · ${esc(systemDef(p.systemId).name)} · sun ${p.heat}">
-          ${sunOrb({ heat: p.heat, systemId: p.systemId, size: 38, dead: p.eliminated })}
-        </div>`,
-      )
-      .join('');
-
-    // Stability drains one segment per completed round; empty means instability.
     const total = BALANCE.instabilityStartsRound - 1;
     const remaining = Math.max(0, total - (s.round - 1));
     const instab = instabilityHeat(s);
@@ -708,77 +749,44 @@ export class App {
       .map((g) => `<span class="global" title="${esc(GLOBALS[g.id].text)} (${g.turnsRemaining} turns left)">${esc(GLOBALS[g.id].name.toLowerCase())}</span>`)
       .join('');
 
-    const feed = s.log
-      .slice(-3)
-      .map((l, i, all) => `<div class="feed-line ${i === all.length - 1 ? 'feed-new' : ''}">${esc(l.text)}</div>`)
+    const rivals = s.players
+      .filter((p) => p.id !== me.id)
+      .map(
+        (p) => `
+        <button class="rival ${p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''}" data-act="view-system" data-arg="${p.id}" title="${esc(p.name)} · ${esc(systemDef(p.systemId).name)}">
+          <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
+          <div class="rival-info">
+            <span class="rival-name">${esc(p.name.toLowerCase())}</span>
+            <span class="rival-stats"><b>${p.heat}/${supernovaThreshold(p)}</b><em> · ⛨${p.shields} · ▲${flareHeat(p)}</em></span>
+          </div>
+        </button>`,
+      )
       .join('');
 
+    const last = s.log[s.log.length - 1]?.text ?? '';
     const aiTurn = active.isAI && !isGameOver(s);
     return `
-      <header class="hud">
-        <div class="hud-left">
-          <div class="round-badge">
-            <button class="numeral" data-act="menu" title="Round ${s.round} · back to menu">${roman(s.round)}</button>
-            <div class="core-bar" title="Your sun: ${me.heat} (supernova at ${BALANCE.supernovaAt})">
-              <div class="core-fill" style="width:${core}%"></div>
-              <span>core ${me.heat} / ${BALANCE.supernovaAt}</span>
-            </div>
-          </div>
+      <header class="top">
+        <div class="round">
+          <button class="numeral" data-act="open-menu" title="Round ${s.round} · menu">${roman(s.round)}</button>
           <div class="stability ${instab ? 'unstable' : ''}" title="${instab
             ? `Stellar Instability: every sun heats by ${instab} at the start of its turn.`
-            : `Drains by one each round. When empty, every sun heats at the start of its turn.`}">
+            : 'Drains by one each round. When empty, every sun heats at the start of its turn.'}">
             <span class="stability-label">${instab ? `instability +${instab}` : `stability ${remaining}`}</span>
             <div class="stability-bar">${segments}</div>
           </div>
-          ${globals ? `<div class="globals">${globals}</div>` : ''}
         </div>
-        <div class="turn-block">
-          <div class="turn-pill ${mine ? 'turn-mine' : ''}">•${mine ? 'your turn' : `${esc(active.name.toLowerCase())}'s turn`}•</div>
-          <div class="feed">${feed}</div>
+        <div class="rivals">${rivals}</div>
+        <div class="turn">
+          <div class="turn-pill ${mine ? 'turn-mine' : ''}">${mine ? 'your turn' : `${esc(active.name.toLowerCase())}'s turn`}</div>
+          <div class="feed" title="${esc(last)}">${esc(last)}</div>
         </div>
-        <div class="hud-right">
-          <div class="players-panel glass-dark">
-            <div class="players-title">players</div>
-            <div class="avatars">${avatars}</div>
-          </div>
-          <div class="hud-controls">
-            <button class="pill-btn" data-act="toggle-sound" title="Sound">${sound.muted ? 'sound off' : 'sound on'}</button>
-            <button class="pill-btn" data-act="speed" title="How fast AI turns play">ai: ${this.speed}</button>
-            <button class="pill-btn" data-act="toggle-log">log</button>
-            ${aiTurn ? '<button class="pill-btn pill-strong" data-act="skip-ai" title="Resolve AI turns instantly">skip ai ›</button>' : ''}
-          </div>
+        <div class="top-controls">
+          ${globals}
+          ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
+          <button class="icon-btn" data-act="open-menu" aria-label="Menu">≡</button>
         </div>
       </header>`;
-  }
-
-  private renderRivals(): string {
-    const s = this.state!;
-    const me = this.viewer();
-    const active = activePlayer(s);
-    const rivals = s.players.filter((p) => p.id !== me.id);
-    return `
-      <section class="rivals">
-        ${rivals
-          .map((p) => {
-            const sys = systemDef(p.systemId);
-            return `
-            <article class="rival ${p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''}">
-              <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, systemId: p.systemId, size: 76, dead: p.eliminated })}</div>
-              <div class="rival-info">
-                <div class="rival-name">${esc(p.name)}${p.isAI ? ' <span class="tag">ai</span>' : ''}</div>
-                <div class="rival-sys" title="${esc(sys.abilityName)}: ${esc(sys.abilityText)}">${esc(sys.name.toLowerCase())}</div>
-                <div class="rival-stats">
-                  <span title="Shields">⛨ ${p.shields}</span>
-                  <span title="Solar Flare heat">▲ ${flareHeat(p)}</span>
-                  <span title="Thermosiphon cooling">▼ ${thermoCool(p)}</span>
-                  <span title="Cards in hand / deck / discard">▤ ${p.hand.length}·${p.deck.length}·${p.discard.length}</span>
-                  ${p.claimedObjectives.length ? `<span title="Objectives">★ ${p.claimedObjectives.length}</span>` : ''}
-                </div>
-              </div>
-            </article>`;
-          })
-          .join('')}
-      </section>`;
   }
 
   private renderDisplay(): string {
@@ -786,33 +794,11 @@ export class App {
     const me = activePlayer(s);
     return `
       <section class="display">
-        <div class="section-label" data-anchor="market">•display• <span>${s.marketDeck.length} in deck</span></div>
+        <div class="section-label" data-anchor="market">display <span>${s.marketDeck.length} left</span></div>
         <div class="cards">${s.display
           .map((c, i) => (c ? this.renderCard(c, { slot: i, buyer: me }) : '<div class="card card-empty"></div>'))
           .join('')}</div>
       </section>`;
-  }
-
-  private renderObjectives(viewer: PlayerState): string {
-    const s = this.state!;
-    return s.objectives
-      .map((id) => {
-        const o = objectiveDef(id);
-        const claimers = s.players.filter((p) => p.claimedObjectives.includes(id));
-        const mine = viewer.claimedObjectives.includes(id);
-        return `
-          <div class="objective ${mine ? 'obj-mine' : ''}" data-anchor="obj:${id}" tabindex="0">
-            ${objectiveGlyph(id)}
-            ${claimers.length && !mine ? `<span class="obj-count">${claimers.length}</span>` : ''}
-            <div class="popover">
-              <b>${esc(o.name.toLowerCase())}</b>
-              <p>${esc(o.text)}</p>
-              <p class="muted">Reward: a Command Directive. Each player can complete it once.</p>
-              ${claimers.length ? `<p class="claimed">✓ ${claimers.map((p) => esc(p.name)).join(', ')}</p>` : ''}
-            </div>
-          </div>`;
-      })
-      .join('');
   }
 
   private renderDock(): string {
@@ -822,98 +808,94 @@ export class App {
     const act = this.canAct();
     const busy = this.pending !== null;
     const hidden = this.needsHandoff();
+    const max = supernovaThreshold(me);
 
-    const planets = me.planets
-      .map((pl) => {
-        const pips = Array.from({ length: BALANCE.maxPlanetLevel }, (_, i) => `<i class="${i < pl.level ? 'on' : ''}"></i>`).join('');
-        const total = trackLevel(me, pl.track);
+    const objectives = s.objectives
+      .map((id) => {
+        const o = objectiveDef(id);
+        const claimers = s.players.filter((p) => p.claimedObjectives.includes(id));
+        const mine = me.claimedObjectives.includes(id);
         return `
-          <div class="planet track-${pl.track}" data-anchor="upgrade:${pl.id}" tabindex="0">
-            ${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}<span class="pips">${pips}</span>
-            <div class="popover">
-              <b>${esc(pl.name.toLowerCase())} · ${pl.track} · level ${pl.level}/${BALANCE.maxPlanetLevel}</b>
-              <p>All your ${pl.track} planets together (level ${total}): ${planetEffect(pl.track, total)}.</p>
-              ${pl.level < BALANCE.maxPlanetLevel ? `<p class="muted">Upgrade with a Command card.</p>` : ''}
-            </div>
-          </div>`;
+          <button class="objective ${mine ? 'obj-mine' : ''}" data-anchor="obj:${id}" data-act="view-objective" data-arg="${id}">
+            ${objectiveGlyph(id)}
+            ${claimers.length && !mine ? `<span class="obj-count">${claimers.length}</span>` : ''}
+            <div class="popover"><b>${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p></div>
+          </button>`;
       })
       .join('');
 
     const fc = flareCost(s, me);
     const tc = thermoCost(me);
     const tiles = `
+      <div data-anchor="upgrade:solarFlare">${actionTile({ action: 'solarFlare', upgrades: me.upgrades.solarFlare, cost: fc, power: flareHeat(me), enabled: act && !busy && me.money >= fc })}</div>
       <div data-anchor="upgrade:thermosiphon">${actionTile({ action: 'thermosiphon', upgrades: me.upgrades.thermosiphon, cost: tc, power: thermoCool(me), enabled: act && !busy && me.money >= tc && me.heat > BALANCE.minHeat })}</div>
-      <div data-anchor="upgrade:solarFlare">${actionTile({ action: 'solarFlare', upgrades: me.upgrades.solarFlare, cost: fc, power: flareHeat(me), enabled: act && !busy && me.money >= fc })}</div>`;
+      <div data-anchor="upgrade:coolingChamber">${actionTile({ action: 'coolingChamber', upgrades: me.upgrades.coolingChamber, power: max, enabled: true })}</div>`;
 
     const hasMoneyCards = me.hand.some((c) => cardDef(c.defId).effects.every((e) => e.type === 'money'));
     const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand.map((c) => this.renderCard(c, { hand: true })).join('');
-    // Group repeats ("stardust ×5"); the first copy carries the uid so it animates.
     const groups = new Map<string, CardInstance[]>();
     for (const c of me.inPlay) groups.set(c.defId, [...(groups.get(c.defId) ?? []), c]);
     const played = [...groups.values()].map((cs) => this.renderMini(cs[cs.length - 1], cs.length)).join('');
 
-    const pile = (kind: 'deck' | 'discard', count: number) => `
-      <button class="pile pile-${kind} ${count ? '' : 'pile-empty'}" data-anchor="${kind}" data-act="view-pile" data-arg="${kind}" title="View your ${kind}">
-        <div class="pile-stack">${count ? '<i></i><i></i><i></i>' : ''}</div>
-        <span class="pile-count">${count}</span>
-        <span class="pill">•${kind}•</span>
-      </button>`;
-
     return `
       <section class="dock">
-        <div class="home-col">
-          <div class="objectives-row" title="Objectives">${this.renderObjectives(me)}</div>
-          <div class="home glass">
-            <div class="orb-anchor" data-anchor="player:${me.id}">${sunOrb({ heat: me.heat, systemId: me.systemId, size: 96, dead: me.eliminated })}</div>
-            <div class="home-info">
-              <div class="home-name">${esc(me.name)}</div>
-              <div class="home-sys" title="${esc(sys.abilityText)}">${esc(sys.name.toLowerCase())} · <i>${esc(sys.abilityName.toLowerCase())}</i></div>
-              <div class="home-stats">
-                <span title="Shields">⛨ ${me.shields}</span>
-                <span title="Income per turn">◈ +${incomeFor(me)}</span>
-                <span title="Hand size">✋ ${handSizeFor(me)}</span>
-                ${shieldPierce(me) ? `<span title="Shield pierce">⚔ ${shieldPierce(me)}</span>` : ''}
-              </div>
-              <div class="planets">${planets}</div>
+        <div class="me">
+          <button class="me-sun" data-act="view-system" data-arg="${me.id}" title="Your system">
+            <div class="orb-anchor" data-anchor="player:${me.id}">${sunOrb({ heat: me.heat, threshold: max, size: 64, dead: me.eliminated })}</div>
+            <span class="health" title="Heat / max health">${me.heat}<small>/${max}</small></span>
+          </button>
+          <div class="me-info">
+            <div class="me-name">${esc(me.name.toLowerCase())}</div>
+            <div class="me-sys">${esc(sys.name.toLowerCase())}</div>
+            <div class="me-stats">
+              <span title="Shields">⛨${me.shields}</span>
+              <span title="Income per turn">◈+${incomeFor(me)}</span>
+              <span title="Hand size">✋${handSizeFor(me)}</span>
+              ${shieldPierce(me) ? `<span title="Shield pierce">⚔${shieldPierce(me)}</span>` : ''}
             </div>
+            <div class="objectives-row">${objectives}</div>
           </div>
         </div>
-        ${pile('deck', me.deck.length)}
-        <div class="actions">${tiles}</div>
+        <div class="tiles">${tiles}</div>
         <div class="hand-zone">
-          <div class="hand-bar">
-            <div class="money" title="Money this turn">◈ ${me.money}</div>
-            <button class="btn" data-act="play-all" ${act && hasMoneyCards && !busy ? '' : 'disabled'} title="Play every plain money card in your hand">play money</button>
-            <div class="in-play">${played}</div>
-          </div>
+          <div class="in-play">${played}</div>
           <div class="cards hand">${hand}</div>
         </div>
-        ${pile('discard', me.discard.length)}
-        <button class="btn-primary end-turn" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end turn</button>
+        <div class="turn-controls">
+          <div class="money" title="Money this turn">◈ ${me.money}</div>
+          <button class="btn btn-small" data-act="play-all" ${act && hasMoneyCards && !busy ? '' : 'disabled'} title="Play every plain money card in your hand">play money</button>
+          <div class="piles">
+            <button class="pile" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck"><span>${me.deck.length}</span>deck</button>
+            <button class="pile" data-anchor="discard" data-act="view-pile" data-arg="discard" title="Your discard pile"><span>${me.discard.length}</span>discard</button>
+          </div>
+          <button class="btn-primary end-turn" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end turn</button>
+        </div>
       </section>`;
   }
 
   private renderCard(c: CardInstance, opts: { slot?: number; hand?: boolean; buyer?: PlayerState; static?: boolean }): string {
     const def = cardDef(c.defId);
     const act = this.canAct() && !this.pending;
-    let attrs = 'disabled';
+    // Cards are never disabled: if a card can't be played or bought right now, tapping it inspects it.
+    let attrs = `data-act="inspect"`;
     let cost = '';
-    let costAttr = '';
+    let costAttr = opts.slot !== undefined ? `data-slot="${opts.slot}"` : opts.hand ? `data-hand="${c.uid}"` : '';
     if (opts.slot !== undefined && opts.buyer) {
       const price = marketCost(opts.buyer, c.defId);
-      if (act && opts.buyer.money >= price) attrs = `data-act="buy" data-arg="${opts.slot}"`;
+      if ((act && opts.buyer.money >= price) || this.touch) attrs = `data-act="buy" data-arg="${opts.slot}"`;
       cost = `<span class="coin ${price < def.cost ? 'coin-discount' : ''}">${price}</span>`;
-      costAttr = `data-cost="${price}"`;
-    } else if (opts.hand && act) {
+      costAttr += ` data-cost="${price}"`;
+    } else if (opts.hand && (act || this.touch)) {
       attrs = `data-act="play" data-arg="${c.uid}"`;
     }
+    const unaffordable = opts.slot !== undefined && opts.buyer && opts.buyer.money < marketCost(opts.buyer, c.defId);
     return `
-      <button class="card kind-${def.kind}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${costAttr} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
+      <button class="card kind-${def.kind} ${unaffordable ? 'card-dim' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${costAttr} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardGlyph(def.id, def.kind)}</div>
         ${cost}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
-        <div class="card-kind">•${def.kind === 'basic' ? 'money' : def.kind}•</div>
+        <div class="card-kind">${def.kind === 'basic' ? 'money' : def.kind}</div>
       </button>`;
   }
 
@@ -921,13 +903,13 @@ export class App {
   private renderMini(c: CardInstance, count = 1): string {
     const def = cardDef(c.defId);
     return `
-      <div class="mini kind-${def.kind}" data-uid="${c.uid}" data-card="${def.id}" style="--kc:${KIND_COLOUR[def.kind]}">
+      <button class="mini kind-${def.kind}" data-uid="${c.uid}" data-card="${def.id}" data-act="inspect" style="--kc:${KIND_COLOUR[def.kind]}">
         ${cardGlyph(def.id, def.kind)}
         ${count > 1 ? `<b>×${count}</b>` : ''}
-      </div>`;
+      </button>`;
   }
 
-  /** The magnified hover view. */
+  /** The magnified card, used by the hover preview and the inspector. */
   private bigCard(defId: string, cost?: number): string {
     const def = cardDef(defId);
     const shownCost = cost ?? def.cost;
@@ -937,7 +919,7 @@ export class App {
         ${shownCost > 0 ? `<span class="coin ${shownCost < def.cost ? 'coin-discount' : ''}">${shownCost}</span>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
-        <div class="card-kind">•${def.kind === 'basic' ? 'money' : def.kind}•</div>
+        <div class="card-kind">${def.kind === 'basic' ? 'money' : def.kind}</div>
       </div>`;
   }
 
@@ -947,50 +929,142 @@ export class App {
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
     const target = st.targetId ? s.players.find((p) => p.id === st.targetId) : undefined;
-    const card = { uid: st.uid, defId: st.defId };
     return `
       <div class="stage">
-        <div class="stage-caption">${esc(actor.name.toLowerCase())} ${st.verb}${target ? ` · targeting ${esc(target.name.toLowerCase())}` : ''}</div>
-        ${this.renderCard(card, {})}
+        ${this.renderCard({ uid: st.uid, defId: st.defId }, {})}
+        <div class="stage-caption">${esc(actor.name.toLowerCase())} ${st.verb}${target ? ` → ${esc(target.name.toLowerCase())}` : ''}</div>
       </div>`;
   }
 
-  private renderLog(): string {
-    const s = this.state!;
+  // ---- Sheets --------------------------------------------------------------
+
+  private sheetFrame(title: string, body: string, footer = ''): string {
     return `
-      <aside class="log-drawer glass">
-        <button class="bar-title bar-btn" data-act="toggle-log">log · close</button>
-        <div class="log-list">${s.log.slice(-120).map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>
-      </aside>`;
+      <div class="overlay overlay-soft" data-act="cancel">
+        <div class="modal sheet">
+          <div class="bar-title">${title}</div>
+          <div class="modal-body">${body}</div>
+          ${footer}
+          <button class="modal-cancel" data-act="cancel">close</button>
+        </div>
+      </div>`;
   }
 
-  private renderPile(kind: 'deck' | 'discard'): string {
+  private renderSheet(): string {
+    const sh = this.sheet!;
+    const s = this.state;
+    switch (sh.kind) {
+      case 'rules':
+        return this.sheetFrame('how to play', this.rulesHtml());
+      case 'menu':
+        return this.sheetFrame(
+          `round ${s?.round ?? ''}`,
+          `<div class="menu-list">
+            <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
+            <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
+            <button class="btn" data-act="open-log">game log</button>
+            <button class="btn" data-act="rules">how to play</button>
+            <button class="btn" data-act="to-menu">main menu</button>
+          </div>`,
+        );
+      case 'log':
+        return this.sheetFrame('game log', `<div class="log-list">${s!.log.slice(-120).map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>`);
+      case 'pile':
+        return this.renderPileSheet(sh.pile);
+      case 'system':
+        return this.renderSystemSheet(s!.players.find((p) => p.id === sh.playerId)!);
+      case 'objective': {
+        const o = objectiveDef(sh.id);
+        const claimers = s!.players.filter((p) => p.claimedObjectives.includes(sh.id));
+        return this.sheetFrame(
+          esc(o.name.toLowerCase()),
+          `<div class="obj-sheet">${objectiveGlyph(sh.id)}<p>${esc(o.text)}</p>
+           <p class="muted">Reward: a Command Directive, added to your discard pile. Each player can complete it once.</p>
+           ${claimers.length ? `<p class="claimed">✓ ${claimers.map((p) => esc(p.name)).join(', ')}</p>` : ''}</div>`,
+        );
+      }
+      case 'action': {
+        const me = this.viewer();
+        return this.sheetFrame(
+          ACTION_NAME[sh.action].toLowerCase(),
+          `<div class="action-sheet">
+            ${actionTile({ action: sh.action, upgrades: me.upgrades[sh.action], power: supernovaThreshold(me), enabled: false, compact: true, actAttr: '' })}
+            <div><p>${ACTION_TEXT[sh.action]}</p><p class="muted">Upgrades: ${me.upgrades[sh.action]}/${MAX_UPGRADES[sh.action]}. Upgrade with a Command card.</p></div>
+          </div>`,
+        );
+      }
+      case 'card': {
+        const act = this.canAct() && !this.pending;
+        const me = s ? activePlayer(s) : null;
+        let button = '';
+        let cost: number | undefined;
+        if (sh.uid && s) {
+          const inHand = me!.hand.some((c) => c.uid === sh.uid);
+          button = inHand ? `<button class="btn-primary" data-act="play" data-arg="${sh.uid}" ${act ? '' : 'disabled'}>play</button>` : '';
+        } else if (sh.slot !== undefined && s && me) {
+          cost = marketCost(me, sh.defId);
+          button = `<button class="btn-primary" data-act="buy" data-arg="${sh.slot}" ${act && me.money >= cost ? '' : 'disabled'}>buy · ◈${cost}</button>
+            ${me.money < cost && act ? `<span class="muted">you have ◈${me.money}</span>` : ''}`;
+        }
+        return `
+          <div class="overlay overlay-inspect" data-act="cancel">
+            <div class="inspector sheet">
+              ${this.bigCard(sh.defId, cost)}
+              <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
+            </div>
+          </div>`;
+      }
+    }
+  }
+
+  private renderSystemSheet(p: PlayerState): string {
+    const sys = systemDef(p.systemId);
+    const planets = p.planets
+      .map((pl) => {
+        const pips = Array.from({ length: BALANCE.maxPlanetLevel }, (_, i) => `<i class="${i < pl.level ? 'on' : ''}"></i>`).join('');
+        return `<div class="planet-row"><span class="planet track-${pl.track}">${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}<span class="pips">${pips}</span></span>
+          <small>${pl.track}: all levels together give ${planetEffect(pl.track, trackLevel(p, pl.track))}</small></div>`;
+      })
+      .join('');
+    const ups = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
+      .map((a) => `<span>${ACTION_NAME[a].toLowerCase()} ${p.upgrades[a]}/${MAX_UPGRADES[a]}</span>`)
+      .join(' · ');
+    return this.sheetFrame(
+      `${esc(p.name.toLowerCase())} · ${esc(sys.name.toLowerCase())}`,
+      `<div class="system-sheet">
+        <div class="system-head">
+          ${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 72, dead: p.eliminated })}
+          <div>
+            <p><b>${esc(sys.abilityName.toLowerCase())}</b> · ${esc(sys.abilityText)}</p>
+            <p class="muted">heat ${p.heat} / ${supernovaThreshold(p)} · shields ${p.shields} · income +${incomeFor(p)} · hand ${handSizeFor(p)} · deck ${p.deck.length} · discard ${p.discard.length}</p>
+            <p class="muted">${ups}</p>
+          </div>
+        </div>
+        ${planets}
+      </div>`,
+    );
+  }
+
+  private renderPileSheet(kind: 'deck' | 'discard'): string {
     const me = this.viewer();
     if (kind === 'deck') {
-      // The draw order is secret: show what is in the deck, grouped and sorted.
       const counts = new Map<string, number>();
       for (const c of me.deck) counts.set(c.defId, (counts.get(c.defId) ?? 0) + 1);
       const rows = [...counts.entries()]
         .sort((a, b) => cardDef(a[0]).name.localeCompare(cardDef(b[0]).name))
         .map(([defId, n]) => `<div class="pile-card">${this.renderCard({ uid: defId, defId }, { static: true })}<span class="pile-n">×${n}</span></div>`)
         .join('');
-      return `
-        <div class="bar-title">your deck · ${me.deck.length} cards</div>
-        <div class="modal-body">
-          <p class="muted center-text">Draw order is hidden. When your deck runs out, your discard pile is shuffled to form a new one.</p>
-          <div class="pile-grid">${rows || '<p class="muted">Your deck is empty.</p>'}</div>
-        </div>`;
+      return this.sheetFrame(
+        `your deck · ${me.deck.length}`,
+        `<p class="muted center-text">Draw order is hidden. When your deck runs out, your discard pile is shuffled into a new one.</p>
+         <div class="pile-grid">${rows || '<p class="muted">Your deck is empty.</p>'}</div>`,
+      );
     }
-    const rows = [...me.discard]
-      .reverse()
-      .map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`)
-      .join('');
-    return `
-      <div class="bar-title">your discard pile · ${me.discard.length} cards</div>
-      <div class="modal-body">
-        <p class="muted center-text">Most recent first.</p>
-        <div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>
-      </div>`;
+    const rows = [...me.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');
+    return this.sheetFrame(
+      `your discard · ${me.discard.length}`,
+      `<p class="muted center-text">Most recent first.</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
+    );
   }
 
   private renderOverlay(s: GameState): string {
@@ -1000,10 +1074,10 @@ export class App {
         <div class="overlay"><div class="modal">
           <div class="bar-title">supernova cascade complete</div>
           <div class="modal-body center">
-            ${sunOrb({ heat: winner.heat, systemId: winner.systemId, size: 120 })}
-            <h2>${esc(winner.name)} wins</h2>
+            ${sunOrb({ heat: winner.heat, threshold: supernovaThreshold(winner), size: 96 })}
+            <h2>${esc(winner.name.toLowerCase())} wins</h2>
             <p>${esc(systemDef(winner.systemId).name)} is the last sun standing after ${s.round} rounds.</p>
-            <button class="btn-primary" data-act="menu">back to menu</button>
+            <button class="btn-primary" data-act="to-menu">back to menu</button>
           </div>
         </div></div>`;
     }
@@ -1013,18 +1087,12 @@ export class App {
         <div class="overlay"><div class="modal">
           <div class="bar-title">pass to ${esc(p.name.toLowerCase())}</div>
           <div class="modal-body center">
-            <p>Hand the controls to ${esc(p.name)}, then reveal your hand.</p>
+            <p>Hand the device to ${esc(p.name)}, then reveal your hand.</p>
             <button class="btn-primary" data-act="reveal">reveal hand</button>
           </div>
         </div></div>`;
     }
-    if (this.pileView) {
-      return `
-        <div class="overlay overlay-soft" data-act="cancel"><div class="modal modal-wide modal-pile">
-          ${this.renderPile(this.pileView)}
-          <button class="modal-cancel" data-act="cancel">close · esc</button>
-        </div></div>`;
-    }
+    if (this.sheet) return this.renderSheet();
     const pend = this.pending;
     if (!pend) return '';
     const me = activePlayer(s);
@@ -1035,30 +1103,30 @@ export class App {
         .map(
           (p) => `
           <button class="target" data-act="target" data-arg="${p.id}">
-            ${sunOrb({ heat: p.heat, systemId: p.systemId, size: 96 })}
+            ${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 72 })}
             <span class="target-name">${esc(p.name.toLowerCase())}</span>
-            <span class="target-meta">⛨ ${p.shields}</span>
+            <span class="target-meta">${p.heat}/${supernovaThreshold(p)} · ⛨${p.shields}</span>
           </button>`,
         )
         .join('');
       return `
-        <div class="overlay overlay-soft" data-act="cancel"><div class="modal modal-wide">
+        <div class="overlay overlay-soft" data-act="cancel"><div class="modal">
           <div class="bar-title">${esc(title)}</div>
           <div class="modal-body targets">${foes}</div>
-          <button class="modal-cancel" data-act="cancel">cancel · esc</button>
+          <button class="modal-cancel" data-act="cancel">cancel</button>
         </div></div>`;
     }
 
     // Upgrade choice for a Command card.
     const options = upgradeOptions(me);
-    const actionChoices = (['solarFlare', 'thermosiphon'] as const)
+    const actionChoices = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
       .map((a) => {
         const available = options.includes(a);
         return actionTile({
           action: a,
           upgrades: me.upgrades[a],
-          cost: a === 'solarFlare' ? flareCost(s, me) : thermoCost(me),
-          power: a === 'solarFlare' ? flareHeat(me) : thermoCool(me),
+          cost: a === 'solarFlare' ? flareCost(s, me) : a === 'thermosiphon' ? thermoCost(me) : undefined,
+          power: a === 'solarFlare' ? flareHeat(me) : a === 'thermosiphon' ? thermoCool(me) : supernovaThreshold(me),
           enabled: available,
           compact: true,
           actAttr: available ? `data-act="upgrade" data-arg="${a}"` : 'disabled',
@@ -1069,11 +1137,10 @@ export class App {
       .map((pl) => {
         const available = options.includes(pl.id);
         const pips = Array.from({ length: BALANCE.maxPlanetLevel }, (_, i) => `<i class="${i < pl.level ? 'on' : ''}"></i>`).join('');
-        const after = trackLevel(me, pl.track) + 1;
         return `
           <button class="planet planet-choice track-${pl.track}" ${available ? `data-act="upgrade" data-arg="${pl.id}"` : 'disabled'}>
             <span>${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}<span class="pips">${pips}</span></span>
-            <small>${available ? `→ ${planetEffect(pl.track, after)}` : 'max level'}</small>
+            <small>${available ? `→ ${planetEffect(pl.track, trackLevel(me, pl.track) + 1)}` : 'max level'}</small>
           </button>`;
       })
       .join('');
@@ -1084,7 +1151,7 @@ export class App {
           <div class="upgrade-actions">${actionChoices}</div>
           <div class="upgrade-planets">${planetChoices}</div>
         </div>
-        <button class="modal-cancel" data-act="cancel">cancel · esc</button>
+        <button class="modal-cancel" data-act="cancel">cancel</button>
       </div></div>`;
   }
 }

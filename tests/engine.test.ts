@@ -10,6 +10,7 @@ import {
   isGameOver,
   MARKET_CARDS,
   SOLAR_SYSTEMS,
+  supernovaThreshold,
   type GameState,
 } from '../src/engine';
 
@@ -184,9 +185,28 @@ describe('core action upgrades', () => {
     expect(s.players[0].heat).toBe(-2);
   });
 
+  it('Cooling Chamber raises max health by 5 per upgrade, up to 25', () => {
+    let s = twoPlayer(3, ['midas_belt', 'helios_reach']);
+    for (let i = 0; i < 3; i++) {
+      const uid = withCommand(s);
+      s = applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'coolingChamber' });
+    }
+    expect(supernovaThreshold(s.players[0])).toBe(25);
+    const uid = withCommand(s);
+    expect(() => applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'coolingChamber' })).toThrow(GameError);
+    // A sun at 12 survives with max health 25, but an unupgraded one would not.
+    s = applyAction(s, { type: 'endTurn' });
+    s.players[1].money = 2;
+    s.players[0].heat = 11;
+    s.players[0].shields = 0;
+    s = applyAction(s, { type: 'solarFlare', targetId: 'p1' });
+    expect(s.players[0].eliminated).toBe(false);
+    expect(s.players[0].heat).toBe(12);
+  });
+
   it('Vulcan Forge starts with one Solar Flare upgrade', () => {
     const s = twoPlayer(3, ['vulcan_forge', 'midas_belt']);
-    expect(s.players[0].upgrades).toEqual({ solarFlare: 1, thermosiphon: 0 });
+    expect(s.players[0].upgrades).toEqual({ solarFlare: 1, thermosiphon: 0, coolingChamber: 0 });
   });
 });
 

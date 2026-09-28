@@ -8,6 +8,7 @@ import {
   flareHeat,
   livingOpponents,
   marketCost,
+  supernovaThreshold,
   shieldPierce,
   thermoCost,
   upgradeOptions,
@@ -46,12 +47,12 @@ export function chooseAIAction(state: GameState): Action {
   const reachableFlares = Math.floor(me.money / cost);
   const shields = Math.max(0, target.shields - shieldPierce(me));
   const killHeat = reachableFlares * flareHeat(me) - shields;
-  if (reachableFlares > 0 && target.heat + killHeat >= BALANCE.supernovaAt) {
+  if (reachableFlares > 0 && target.heat + killHeat >= supernovaThreshold(target)) {
     return { type: 'solarFlare', targetId: target.id };
   }
 
   // 3. Cool down when our own sun is in danger.
-  const danger = BALANCE.supernovaAt - 4;
+  const danger = supernovaThreshold(me) - 4;
   if (me.heat >= danger && me.money >= thermoCost(me)) return { type: 'thermosiphon' };
 
   // 4. Buy the best card we can afford.
@@ -74,8 +75,10 @@ function pickTarget(foes: PlayerState[]): PlayerState | undefined {
 /** Solar Flare upgrades first (or Thermosiphon when running hot), then planets. */
 function pickUpgrade(me: PlayerState): UpgradeId | undefined {
   const options = upgradeOptions(me);
-  const hot = me.heat >= 5;
-  const actionOrder: UpgradeId[] = hot ? ['thermosiphon', 'solarFlare'] : ['solarFlare', 'thermosiphon'];
+  const hot = me.heat >= supernovaThreshold(me) / 2;
+  const actionOrder: UpgradeId[] = hot
+    ? ['coolingChamber', 'thermosiphon', 'solarFlare']
+    : ['solarFlare', 'coolingChamber', 'thermosiphon'];
   const action = actionOrder.find((a) => options.includes(a));
   if (action) return action;
   const priority: Track[] = hot ? ['defences', 'economy', 'weapons', 'resources'] : ['economy', 'weapons', 'resources', 'defences'];

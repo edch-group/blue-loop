@@ -74,7 +74,7 @@ export function createGame(setup: GameSetup): GameState {
       isAI: ps.isAI,
       systemId: sys.id,
       planets: sys.planets.map((pl, j) => ({ id: `p${i + 1}-pl${j}`, ...pl })),
-      upgrades: { solarFlare: sys.modifiers.startingFlareUpgrades ?? 0, thermosiphon: 0 },
+      upgrades: { solarFlare: sys.modifiers.startingFlareUpgrades ?? 0, thermosiphon: 0, coolingChamber: 0 },
       heat: sys.modifiers.startingHeat ?? BALANCE.startingHeat,
       shields: 0,
       money: 0,
@@ -152,7 +152,19 @@ export function thermoCool(p: PlayerState): number {
 export const MAX_UPGRADES: Record<CoreAction, number> = {
   solarFlare: BALANCE.solarFlareMaxUpgrades,
   thermosiphon: BALANCE.thermosiphonMaxUpgrades,
+  coolingChamber: BALANCE.coolingChamberMaxUpgrades,
 };
+
+export const ACTION_NAME: Record<CoreAction, string> = {
+  solarFlare: 'Solar Flare',
+  thermosiphon: 'Thermosiphon',
+  coolingChamber: 'Cooling Chamber',
+};
+
+/** Max health: the heat at which this player's sun goes supernova. */
+export function supernovaThreshold(p: PlayerState): number {
+  return BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade;
+}
 
 /** Enemy shields your heat ignores, from weapon planets. */
 export function shieldPierce(p: PlayerState): number {
@@ -224,7 +236,7 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   if (enemy) source.turn.heatDealt += amount;
   if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat.`);
   if (applied > 0) log(state, `${target.name}'s sun heats to ${target.heat}.`);
-  if (target.heat >= BALANCE.supernovaAt) supernova(state, target);
+  if (target.heat >= supernovaThreshold(target)) supernova(state, target);
   return applied;
 }
 
@@ -355,10 +367,11 @@ function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: s
         log(state, `${p.name} has nothing left to upgrade.`);
         break;
       }
-      if (upgradeId === 'solarFlare' || upgradeId === 'thermosiphon') {
-        p.upgrades[upgradeId] += 1;
-        const name = upgradeId === 'solarFlare' ? 'Solar Flare' : 'Thermosiphon';
-        log(state, `${p.name} upgrades ${name} (${p.upgrades[upgradeId]}/${MAX_UPGRADES[upgradeId]}).`);
+      if ((CORE_ACTIONS as readonly string[]).includes(upgradeId!)) {
+        const a = upgradeId as CoreAction;
+        p.upgrades[a] += 1;
+        const extra = a === 'coolingChamber' ? ` Max health is now ${supernovaThreshold(p)}.` : '';
+        log(state, `${p.name} upgrades ${ACTION_NAME[a]} (${p.upgrades[a]}/${MAX_UPGRADES[a]}).${extra}`);
         break;
       }
       const planet = p.planets.find((pl) => pl.id === upgradeId)!;

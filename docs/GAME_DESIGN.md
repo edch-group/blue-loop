@@ -36,11 +36,14 @@ pay for them. [brief]
 | --- | --- | --- | --- |
 | Solar Flare | 1 heat to an enemy sun | 3 (small squares on the tile) | 4 heat |
 | Thermosiphon | 1 cooling to your own sun | 1 (large square on the tile) | 2 cooling |
+| Cooling Chamber | Passive: max health 10 | 3 (vertical bars on the tile) | max health 25 (+5 each) |
+
+**Max health** is the heat at which your sun goes supernova. Everyone starts at 10.
 
 ## Command cards
 
 A Command card upgrades **one** of these by 1 [proposed: which things it can upgrade]:
-- a Solar Flare or Thermosiphon upgrade slot, or
+- a Solar Flare, Thermosiphon or Cooling Chamber upgrade slot, or
 - one of your planets, by 1 level (max 3). [brief: "upgrade a planet or system"]
 
 Each planet belongs to one of four tracks [brief]:
@@ -108,7 +111,7 @@ Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 2. **Objectives**: public and shared (current), or secret per-player?
 3. **Global effects**: which cards trigger them, how long they last (currently one round), and can they stack?
 4. **Player elimination**: should eliminated players keep a role, for example controlling global events?
-5. **Cooling Chamber**: the reference video shows a third tile ("cooling chamber", with vertical bars and an upgrade chevron). What does it do? It isn't implemented yet.
+5. **Game length**: with a 4-heat Solar Flare costing only 2 money, AI games average about 6 rounds (2 players), so most end before Stellar Instability starts. Consider scaling the flare cost with its upgrades.
 6. **Balance**: `npm run simulate` shows Cryon Drift winning far too often in 4-player games (about 55%, against a fair 25%), while Vulcan Forge and Obsidian Veil win too rarely. Part of that is the AI always targeting the hottest sun. Needs human playtesting.
 7. **Weapon and defence planets**: should they add their bonus to attack and cooling cards (as suggested in review), or keep the current effects (shield pierce and shields), or get more unique abilities per planet?
 8. **Deck exhaustion**: what happens when all 200 market cards are bought? Currently the display slots stay empty.
