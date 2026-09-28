@@ -1,7 +1,9 @@
 export type Track = 'weapons' | 'defences' | 'economy' | 'resources';
 export const TRACKS: readonly Track[] = ['weapons', 'defences', 'economy', 'resources'];
 
-export type CardKind = 'basic' | 'command' | 'economy' | 'attack' | 'defence' | 'global';
+import type { RewardId } from './objectives';
+
+export type CardKind = 'basic' | 'command' | 'economy' | 'attack' | 'defence' | 'global' | 'mission';
 
 export type GlobalEffectId = 'solarStorm' | 'iceAge' | 'tradeBoom' | 'magneticStorm';
 
@@ -17,7 +19,9 @@ export type Effect =
   | { type: 'shield'; amount: number }
   /** Upgrade a planet or a core action by a level. Needs an upgrade choice. */
   | { type: 'command' }
-  | { type: 'global'; effect: GlobalEffectId };
+  | { type: 'global'; effect: GlobalEffectId }
+  /** Put this card in front of you as a personal mission (see MISSIONS). */
+  | { type: 'mission'; objective: string };
 
 export interface CardDef {
   id: string;
@@ -91,6 +95,17 @@ export interface TurnStats {
   flares: number;
   thermosiphons: number;
   cardsBought: number;
+  cardsPlayed: number;
+  /** Total cooling applied to your own sun this turn. */
+  cooled: number;
+}
+
+/** An objective reward waiting for its player to choose. */
+export interface PendingReward {
+  playerId: string;
+  /** What earned it: an objective or mission name, for display. */
+  source: string;
+  options: RewardId[];
 }
 
 export interface PlayerState {
@@ -101,6 +116,10 @@ export interface PlayerState {
   planets: Planet[];
   /** Upgrade slots filled on each core action. */
   upgrades: Record<CoreAction, number>;
+  /** Objective rewards taken (each at most once). Permanent ones keep working. */
+  rewards: RewardId[];
+  /** Mission cards in play, waiting for their condition. */
+  missions: CardInstance[];
   heat: number;
   shields: number;
   money: number;
@@ -132,7 +151,14 @@ export interface GameState {
   /** Fixed-size display. `null` marks an empty slot once the market deck runs out. */
   display: (CardInstance | null)[];
   globals: ActiveGlobal[];
+  /** Face-up global objectives, claimable by the first player to meet them. */
   objectives: string[];
+  /** Global objectives not yet revealed. */
+  objectiveDeck: string[];
+  /** Claimed global objectives, in order. */
+  claimed: { id: string; playerId: string }[];
+  /** Reward choices owed; the first must be resolved before anything else. */
+  pendingRewards: PendingReward[];
   winnerId: string | null;
   log: LogEntry[];
 }
@@ -155,4 +181,5 @@ export type Action =
   | { type: 'buyCard'; slot: number }
   | { type: 'solarFlare'; targetId: string }
   | { type: 'thermosiphon' }
+  | { type: 'chooseReward'; reward: RewardId; upgradeId?: UpgradeId; slot?: number }
   | { type: 'endTurn' };

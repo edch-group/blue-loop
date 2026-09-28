@@ -19,7 +19,9 @@ import {
   livingOpponents,
   marketCost,
   MAX_UPGRADES,
+  missionOf,
   objectiveDef,
+  rewardDef,
   shieldPierce,
   supernovaThreshold,
   systemDef,
@@ -34,10 +36,11 @@ import {
   type Planet,
   type PlayerSetup,
   type PlayerState,
+  type RewardId,
 } from '../engine';
 import { actionTile, petalBackdrop, roman, sunOrb } from './art';
 import { anchorRect, flyFrom, ghost, projectile, pulse, snapshot, type Snapshot } from './fx';
-import { cardGlyph, KIND_COLOUR, objectiveGlyph } from './glyphs';
+import { cardGlyph, KIND_COLOUR, objectiveGlyph, rewardGlyph } from './glyphs';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 
@@ -66,6 +69,7 @@ type Sheet =
   | { kind: 'pile'; pile: 'deck' | 'discard' }
   | { kind: 'system'; playerId: string }
   | { kind: 'objective'; id: string }
+  | { kind: 'mission'; uid: string; playerId: string }
   | { kind: 'action'; action: CoreAction }
   /** Tap-to-inspect on touch screens: a readable card with its action. */
   | { kind: 'card'; defId: string; uid?: string; slot?: number };
@@ -80,10 +84,11 @@ const AI_PAUSE: Record<Action['type'], number> = {
   solarFlare: 1300,
   thermosiphon: 1100,
   endTurn: 1000,
+  chooseReward: 1500,
 };
 const TOAST_MS = 2600;
 const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
-const TOAST_PATTERN = /heats to|SUPERNOVA|completes|upgrades|wins|shields absorb|Instability/;
+const TOAST_PATTERN = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|wins|shields absorb|Instability/;
 const HOT = '#f0a07a';
 
 const ACTION_TEXT: Record<CoreAction, string> = {
@@ -120,6 +125,8 @@ export class App {
   private state: GameState | null = null;
   private pending: Pending | null = null;
   private stage: Stage | null = null;
+  /** Second step of a reward that needs a choice (what to upgrade, which card). */
+  private rewardStep: 'command' | 'requisition' | null = null;
   private sheet: Sheet | null = null;
   private aiTimer: number | null = null;
   private speed: Speed = 'normal';
@@ -408,12 +415,12 @@ export class App {
         pulse(orb(p.id), 'fx-nova', 600);
         pulse(root.querySelector('.game'), 'fx-flash', 650);
       }
-      const newly = p.claimedObjectives.filter((o) => !was.claimedObjectives.includes(o));
-      if (newly.length) {
-        sound.objective();
-        if (p.id === viewer.id) newly.forEach((o) => pulse(root.querySelector(`[data-anchor="obj:${o}"]`), 'fx-upgrade', 200));
-      }
     }
+    if (next.pendingRewards.length > prev.pendingRewards.length) {
+      sound.objective();
+      pulse(root.querySelector('.objectives-row'), 'fx-upgrade', 150);
+    }
+    if (action.type === 'chooseReward') window.setTimeout(() => sound.upgrade(), 100);
   }
 
   /** Show the most important new log line as a toast. */
@@ -446,7 +453,16 @@ export class App {
   private canAct(): boolean {
     const s = this.state!;
     const me = activePlayer(s);
-    return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff();
+    return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff() && s.pendingRewards.length === 0;
+  }
+
+  /** The reward choice waiting for the viewer, if any. */
+  private myReward() {
+    const s = this.state!;
+    const r = s.pendingRewards[0];
+    if (!r || this.needsHandoff() || isGameOver(s)) return null;
+    const owner = s.players.find((p) => p.id === r.playerId)!;
+    return !owner.isAI && owner.id === this.viewer().id ? r : null;
   }
 
   /** Hot-seat: hide the hand until the next human confirms they have the device. */
@@ -575,6 +591,28 @@ export class App {
         return this.render();
       case 'view-objective':
         this.sheet = { kind: 'objective', id: arg };
+        return this.render();
+      case 'view-mission':
+        this.sheet = { kind: 'mission', uid: arg, playerId: el.dataset.player ?? '' };
+        return this.render();
+      case 'reward': {
+        if (!this.myReward()) return;
+        const reward = arg as RewardId;
+        const needs = rewardDef(reward).needs;
+        if (needs) {
+          this.rewardStep = needs === 'upgrade' ? 'command' : 'requisition';
+          return this.render();
+        }
+        return this.dispatch({ type: 'chooseReward', reward });
+      }
+      case 'reward-upgrade':
+        this.rewardStep = null;
+        return this.dispatch({ type: 'chooseReward', reward: 'command', upgradeId: arg });
+      case 'reward-slot':
+        this.rewardStep = null;
+        return this.dispatch({ type: 'chooseReward', reward: 'requisition', slot: Number(arg) });
+      case 'reward-back':
+        this.rewardStep = null;
         return this.render();
       case 'coolingChamber':
         this.sheet = { kind: 'action', action: 'coolingChamber' };
@@ -716,7 +754,7 @@ export class App {
         <li>Every sun starts at <b>0</b> with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. The last sun standing wins.</li>
         <li>Play cards for money. Spend it on <b>Solar Flare</b> to heat an enemy sun, or <b>Thermosiphon</b> to cool your own (down to ${BALANCE.minHeat}), as often as you can afford.</li>
         <li><b>Command</b> cards upgrade an action or a planet. Solar Flare: 3 upgrades (up to 4 heat). Thermosiphon: 1 (up to 2 cooling). <b>Cooling Chamber</b>: 3 upgrades, +${BALANCE.coolingChamberHealthPerUpgrade} max health each (up to ${BALANCE.supernovaAt + 3 * BALANCE.coolingChamberHealthPerUpgrade}).</li>
-        <li>Buy stronger cards from the display, and complete objectives to earn more Command cards.</li>
+        <li><b>Objectives</b> are shared: the first player to meet one claims it and picks a reward (each reward once per player). Buy <b>mission</b> cards for personal objectives: play one, meet its condition, and pick a reward.</li>
         <li>The stability bar drains by one each round. When it empties, <b>Stellar Instability</b> heats every sun at the start of each turn.</li>
       </ul>`;
   }
@@ -757,7 +795,7 @@ export class App {
           <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
           <div class="rival-info">
             <span class="rival-name">${esc(p.name.toLowerCase())}</span>
-            <span class="rival-stats"><b>${p.heat}/${supernovaThreshold(p)}</b><em> · ⛨${p.shields} · ▲${flareHeat(p)}</em></span>
+            <span class="rival-stats"><b>${p.heat}/${supernovaThreshold(p)}</b><em> · ⛨${p.shields} · ▲${flareHeat(p)}${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}</em></span>
           </div>
         </button>`,
       )
@@ -810,19 +848,28 @@ export class App {
     const hidden = this.needsHandoff();
     const max = supernovaThreshold(me);
 
+    // Global objectives (first to meet one claims it), then this player's missions.
     const objectives = s.objectives
       .map((id) => {
         const o = objectiveDef(id);
-        const claimers = s.players.filter((p) => p.claimedObjectives.includes(id));
-        const mine = me.claimedObjectives.includes(id);
         return `
-          <button class="objective ${mine ? 'obj-mine' : ''}" data-anchor="obj:${id}" data-act="view-objective" data-arg="${id}">
+          <button class="objective" data-anchor="obj:${id}" data-act="view-objective" data-arg="${id}">
             ${objectiveGlyph(id)}
-            ${claimers.length && !mine ? `<span class="obj-count">${claimers.length}</span>` : ''}
-            <div class="popover"><b>${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p></div>
+            <div class="popover"><b>${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p><p class="muted">First to meet it claims it.</p></div>
           </button>`;
       })
       .join('');
+    const missions = me.missions
+      .map((m) => {
+        const o = objectiveDef(missionOf(m.defId));
+        return `
+          <button class="objective obj-mission" data-act="view-mission" data-arg="${m.uid}" data-player="${me.id}" style="--kc:${KIND_COLOUR.mission}">
+            ${cardGlyph(m.defId, 'mission')}
+            <div class="popover"><b>mission · ${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p></div>
+          </button>`;
+      })
+      .join('');
+    const claimedCount = me.claimedObjectives.length;
 
     const fc = flareCost(s, me);
     const tc = thermoCost(me);
@@ -853,7 +900,7 @@ export class App {
               <span title="Hand size">✋${handSizeFor(me)}</span>
               ${shieldPierce(me) ? `<span title="Shield pierce">⚔${shieldPierce(me)}</span>` : ''}
             </div>
-            <div class="objectives-row">${objectives}</div>
+            <div class="objectives-row">${objectives}${missions ? `<span class="obj-divider"></span>${missions}` : ''}${claimedCount ? `<span class="obj-claimed" title="Objectives you have claimed">★${claimedCount}</span>` : ''}</div>
           </div>
         </div>
         <div class="tiles">${tiles}</div>
@@ -975,12 +1022,23 @@ export class App {
         return this.renderSystemSheet(s!.players.find((p) => p.id === sh.playerId)!);
       case 'objective': {
         const o = objectiveDef(sh.id);
-        const claimers = s!.players.filter((p) => p.claimedObjectives.includes(sh.id));
+        const claimed = s!.claimed.map((c) => `${esc(objectiveDef(c.id).name)} · ${esc(s!.players.find((p) => p.id === c.playerId)!.name)}`);
         return this.sheetFrame(
           esc(o.name.toLowerCase()),
           `<div class="obj-sheet">${objectiveGlyph(sh.id)}<p>${esc(o.text)}</p>
-           <p class="muted">Reward: a Command Directive, added to your discard pile. Each player can complete it once.</p>
-           ${claimers.length ? `<p class="claimed">✓ ${claimers.map((p) => esc(p.name)).join(', ')}</p>` : ''}</div>`,
+           <p class="muted">Global objective: the first player to meet it claims it and chooses a reward. A new objective then takes its place.</p>
+           ${claimed.length ? `<p class="claimed">claimed so far: ${claimed.join(' · ')}</p>` : ''}</div>`,
+        );
+      }
+      case 'mission': {
+        const owner = s!.players.find((p) => p.id === sh.playerId)!;
+        const card = owner.missions.find((m) => m.uid === sh.uid);
+        if (!card) return '';
+        const o = objectiveDef(missionOf(card.defId));
+        return this.sheetFrame(
+          `mission · ${esc(o.name.toLowerCase())}`,
+          `<div class="obj-sheet">${cardGlyph(card.defId, 'mission')}<p>${esc(o.text)}</p>
+           <p class="muted">Personal mission. When you meet it on your turn you choose a reward, and the mission card leaves the game.</p></div>`,
         );
       }
       case 'action': {
@@ -1038,6 +1096,8 @@ export class App {
             <p><b>${esc(sys.abilityName.toLowerCase())}</b> · ${esc(sys.abilityText)}</p>
             <p class="muted">heat ${p.heat} / ${supernovaThreshold(p)} · shields ${p.shields} · income +${incomeFor(p)} · hand ${handSizeFor(p)} · deck ${p.deck.length} · discard ${p.discard.length}</p>
             <p class="muted">${ups}</p>
+            ${p.rewards.length ? `<p class="muted">rewards: ${p.rewards.map((r) => esc(rewardDef(r).name.toLowerCase())).join(' · ')}</p>` : ''}
+            ${p.missions.length ? `<p class="muted">missions: ${p.missions.map((m) => esc(objectiveDef(missionOf(m.defId)).name.toLowerCase())).join(' · ')}</p>` : ''}
           </div>
         </div>
         ${planets}
@@ -1067,6 +1127,71 @@ export class App {
     );
   }
 
+  /** Objective claimed: pick one of the offered rewards (then, if needed, what it applies to). */
+  private renderReward(r: GameState['pendingRewards'][number]): string {
+    const s = this.state!;
+    const me = s.players.find((p) => p.id === r.playerId)!;
+    if (this.rewardStep === 'command') {
+      const options = upgradeOptions(me);
+      const tiles = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
+        .map((a) =>
+          actionTile({
+            action: a,
+            upgrades: me.upgrades[a],
+            cost: a === 'solarFlare' ? flareCost(s, me) : a === 'thermosiphon' ? thermoCost(me) : undefined,
+            power: a === 'solarFlare' ? flareHeat(me) : a === 'thermosiphon' ? thermoCool(me) : supernovaThreshold(me),
+            enabled: options.includes(a),
+            compact: true,
+            actAttr: options.includes(a) ? `data-act="reward-upgrade" data-arg="${a}"` : 'disabled',
+          }),
+        )
+        .join('');
+      const planets = me.planets
+        .map((pl) => {
+          const ok = options.includes(pl.id);
+          return `<button class="planet planet-choice" ${ok ? `data-act="reward-upgrade" data-arg="${pl.id}"` : 'disabled'}>
+            <span>${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}</span>
+            <small>${ok ? `→ ${planetEffect(pl.track, trackLevel(me, pl.track) + 1)}` : 'max level'}</small></button>`;
+        })
+        .join('');
+      return `
+        <div class="overlay"><div class="modal modal-wide">
+          <div class="bar-title">command upgrade · choose what to upgrade</div>
+          <div class="modal-body upgrade-body"><div class="upgrade-actions">${tiles}</div><div class="upgrade-planets">${planets}</div></div>
+          <button class="modal-cancel" data-act="reward-back">back</button>
+        </div></div>`;
+    }
+    if (this.rewardStep === 'requisition') {
+      const cards = s.display
+        .map((c, i) => (c ? `<div class="pile-card" data-act="reward-slot" data-arg="${i}">${this.renderCard(c, { static: true })}</div>` : ''))
+        .join('');
+      return `
+        <div class="overlay"><div class="modal modal-wide">
+          <div class="bar-title">requisition · take any card for free</div>
+          <div class="modal-body"><div class="pile-grid requisition">${cards}</div></div>
+          <button class="modal-cancel" data-act="reward-back">back</button>
+        </div></div>`;
+    }
+    const options = r.options
+      .map((id) => {
+        const def = rewardDef(id);
+        return `
+          <button class="reward" data-act="reward" data-arg="${id}">
+            <div class="reward-glyph">${rewardGlyph(id)}</div>
+            <div class="reward-name">${esc(def.name.toLowerCase())}</div>
+            <div class="reward-text">${esc(def.text.replace(/^Permanent: /, ''))}</div>
+            <div class="reward-kind">${def.permanent ? 'permanent' : 'instant'}</div>
+          </button>`;
+      })
+      .join('');
+    return `
+      <div class="overlay overlay-inspect"><div class="modal modal-wide">
+        <div class="bar-title">★ ${esc(r.source.toLowerCase())} · choose a reward</div>
+        <div class="modal-body"><div class="rewards">${options}</div>
+          <p class="muted center-text">Each reward can be taken once per game.</p></div>
+      </div></div>`;
+  }
+
   private renderOverlay(s: GameState): string {
     const winner = s.players.find((p) => p.id === s.winnerId);
     if (winner) {
@@ -1092,6 +1217,8 @@ export class App {
           </div>
         </div></div>`;
     }
+    const reward = this.myReward();
+    if (reward) return this.renderReward(reward);
     if (this.sheet) return this.renderSheet();
     const pend = this.pending;
     if (!pend) return '';

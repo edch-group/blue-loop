@@ -12,7 +12,7 @@ marked **[proposed]** for the design team to confirm or change.
 - 8 cards are on display at all times, drawn from a **200-card market deck**. [brief]
 - Suns start at **0**. The floor is **-10**, and a sun at **10** goes supernova and that player is out. [brief]
 - Hand size is 5. Standard deck-builder flow: draw 5, play, then discard hand and played cards and draw 5 more. [proposed]
-- 3 objectives are drawn from a pool of 7 each game. [proposed]
+- 3 global objectives are face up, drawn from a pool of 11. [proposed]
 
 ## Turn structure
 
@@ -77,10 +77,27 @@ Systems differ by their mix of planets **and** a unique ability.
 Economy 62 · Attack 48 · Defence 50 · Command 16 · Global 24.
 The full list is in `src/engine/cards.ts`.
 
-## Objectives [proposed content]
+## Objectives and rewards
 
-Each player can complete each objective once. The reward is a Command Directive, added to the discard pile. [brief: "unlock more command cards via reaching objectives"]
-Pool: Deep Freeze, Firestorm, Collector, Big Spender, Brinkmanship, Industrialist, Shieldwall.
+**Global objectives** are shared and first come, first served. [design review] Three are face up. The first player to meet one, checked after every action on their turn, claims it. It is then replaced from the pool, and the claimer chooses a reward.
+Pool [proposed]: Deep Freeze, Firestorm, Collector, Big Spender, Brinkmanship, Industrialist, Shieldwall, Arsenal, Cold Front, Trade Baron, Overdrive.
+
+**Missions** are personal objectives on cards in the market deck: 6 kinds, 2 copies each. [design review] Buy one, then play it to put it in front of you. When you meet its condition on your turn you choose a reward, and the mission card leaves the game.
+
+**Rewards**: each claim offers 3 at random from the pool below, and you pick 1. Each reward can be taken **once per player per game**. [design review: "one time use"; proposed interpretation]
+
+| Reward | Type | Effect |
+| --- | --- | --- |
+| Command Upgrade | instant | Upgrade one action or planet now. |
+| Requisition | instant | Take any display card for free. |
+| Purge | instant | Remove up to 2 Stardust for good (deck thinning). |
+| Emergency Vent | instant | Cool your sun by 4. |
+| Wide Sensors | permanent | Draw 1 extra card each turn. |
+| Stellar Mint | permanent | +1 money each turn. |
+| Plasma Focus | permanent | Your attack cards deal +1 heat. |
+| Deep Coolant | permanent | Thermosiphon and cooling cards cool +1. (Suggested +2; reduced to +1 because Thermosiphon at 4 cooling per use made suns nearly unkillable.) |
+| Aegis Lattice | permanent | +1 shield each turn. |
+| Flare Focus | permanent | Your first Solar Flare each turn costs 1 less. |
 
 ## Planet effects vs action upgrades
 
@@ -108,7 +125,7 @@ Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 ## Open design questions
 
 1. **"Upgrade a planet *or system*"**: what does a system-level upgrade do? Currently only planets upgrade.
-2. **Objectives**: public and shared (current), or secret per-player?
+2. **Rewards**: is "once per player" the right reading of "one time use"? Should the offer be 3 random rewards, or the full list?
 3. **Global effects**: which cards trigger them, how long they last (currently one round), and can they stack?
 4. **Player elimination**: should eliminated players keep a role, for example controlling global events?
 5. **Game length**: with a 4-heat Solar Flare costing only 2 money, AI games average about 6 rounds (2 players), so most end before Stellar Instability starts. Consider scaling the flare cost with its upgrades.

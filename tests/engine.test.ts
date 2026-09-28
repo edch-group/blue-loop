@@ -11,6 +11,10 @@ import {
   MARKET_CARDS,
   SOLAR_SYSTEMS,
   supernovaThreshold,
+  availableRewards,
+  handSizeFor,
+  thermoCool,
+  flareCost,
   type GameState,
 } from '../src/engine';
 
@@ -249,17 +253,75 @@ describe('global effects', () => {
 });
 
 describe('objectives', () => {
-  it('award a command directive at end of turn, once per player', () => {
+  it('go to the first player to meet them, who then chooses a reward', () => {
     const s = twoPlayer(5, ['midas_belt', 'helios_reach']);
     s.objectives = ['deep_freeze'];
+    s.objectiveDeck = ['firestorm'];
+    s.players[0].heat = -4;
+    s.players[0].money = 2;
+    let after = applyAction(s, { type: 'thermosiphon' }); // Helios is p2; Midas cools 1 → -5
+    expect(after.claimed).toEqual([{ id: 'deep_freeze', playerId: 'p1' }]);
+    expect(after.objectives).toEqual(['firestorm']); // replaced from the pool
+    expect(after.pendingRewards).toHaveLength(1);
+    expect(after.pendingRewards[0].options.length).toBe(3);
+    // Nothing else can happen until the reward is chosen.
+    expect(() => applyAction(after, { type: 'endTurn' })).toThrow(GameError);
+    after.pendingRewards[0].options = ['stellar_mint', 'vent', 'purge'];
+    after = applyAction(after, { type: 'chooseReward', reward: 'stellar_mint' });
+    expect(after.players[0].rewards).toEqual(['stellar_mint']);
+    expect(after.pendingRewards).toHaveLength(0);
+  });
+
+  it('cannot be claimed again once taken', () => {
+    const s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    s.objectives = ['deep_freeze'];
+    s.objectiveDeck = [];
     s.players[0].heat = -6;
-    let after = applyAction(s, { type: 'endTurn' });
-    expect(after.players[0].claimedObjectives).toEqual(['deep_freeze']);
-    const commands = (st: GameState) =>
-      [...st.players[0].deck, ...st.players[0].hand, ...st.players[0].discard].filter((c) => c.defId === 'command_directive').length;
-    expect(commands(after)).toBe(2);
-    after = applyAction(applyAction(after, { type: 'endTurn' }), { type: 'endTurn' });
-    expect(commands(after)).toBe(2);
+    let after = applyAction(s, { type: 'playAllMoney' });
+    expect(after.claimed.map((c) => c.playerId)).toEqual(['p1']);
+    after = applyAction(after, { type: 'chooseReward', reward: after.pendingRewards[0].options[0], upgradeId: 'solarFlare', slot: 0 });
+    after = applyAction(after, { type: 'endTurn' });
+    after.players[1].heat = -6;
+    after = applyAction(after, { type: 'playAllMoney' });
+    expect(after.claimed).toHaveLength(1);
+  });
+
+  it('permanent rewards change derived values; each reward only once', () => {
+    let s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    const hand = handSizeFor(s.players[0]);
+    s.players[0].rewards = ['wide_sensors', 'deep_coolant', 'flare_focus'];
+    expect(handSizeFor(s.players[0])).toBe(hand + 1);
+    expect(thermoCool(s.players[0])).toBe(2);
+    expect(flareCost(s, s.players[0])).toBe(1);
+    s.pendingRewards = [{ playerId: 'p1', source: 'test', options: ['wide_sensors'] }];
+    s = applyAction(s, { type: 'chooseReward', reward: 'wide_sensors' });
+    expect(availableRewards(s, s.players[0])).not.toContain('wide_sensors');
+  });
+
+  it('Command Upgrade reward upgrades immediately', () => {
+    let s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    s.pendingRewards = [{ playerId: 'p1', source: 'test', options: ['command'] }];
+    expect(() => applyAction(s, { type: 'chooseReward', reward: 'command' })).toThrow(GameError);
+    s = applyAction(s, { type: 'chooseReward', reward: 'command', upgradeId: 'coolingChamber' });
+    expect(supernovaThreshold(s.players[0])).toBe(15);
+  });
+});
+
+describe('missions', () => {
+  it('go in front of you when played and pay out once when met', () => {
+    let s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    s.objectives = [];
+    s.players[0].hand.push({ uid: 'mis', defId: 'mission_stockpile' });
+    s.players[0].money = 0;
+    s = applyAction(s, { type: 'playCard', cardUid: 'mis' });
+    expect(s.players[0].missions.map((m) => m.uid)).toEqual(['mis']);
+    expect(s.pendingRewards).toHaveLength(0);
+    s.players[0].money = 8;
+    s = applyAction(s, { type: 'playAllMoney' });
+    expect(s.players[0].missions).toHaveLength(0);
+    expect(s.pendingRewards).toHaveLength(1);
+    const all = [...s.players[0].deck, ...s.players[0].hand, ...s.players[0].inPlay, ...s.players[0].discard];
+    expect(all.some((c) => c.uid === 'mis')).toBe(false); // removed from the game
   });
 });
 

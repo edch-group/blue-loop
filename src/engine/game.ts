@@ -1,6 +1,6 @@
 import { BALANCE } from './balance';
 import { cardDef, MARKET_CARDS } from './cards';
-import { GLOBALS, OBJECTIVES, objectiveDef } from './objectives';
+import { GLOBALS, OBJECTIVES, objectiveDef, REWARDS, rewardDef, type RewardId } from './objectives';
 import { shuffleInPlace } from './rng';
 import { SOLAR_SYSTEMS, systemDef } from './systems';
 import { CORE_ACTIONS } from './types';
@@ -20,7 +20,15 @@ import type {
 
 export class GameError extends Error {}
 
-const emptyTurn = (): TurnStats => ({ heatDealt: 0, moneySpent: 0, flares: 0, thermosiphons: 0, cardsBought: 0 });
+const emptyTurn = (): TurnStats => ({ heatDealt: 0, moneySpent: 0, flares: 0, thermosiphons: 0, cardsBought: 0, cardsPlayed: 0, cooled: 0 });
+
+/** Rewards offered per objective claimed or mission completed. */
+const REWARD_CHOICES = 3;
+
+export function hasReward(p: PlayerState, id: RewardId): boolean {
+  return p.rewards.includes(id);
+}
+const bonus = (p: PlayerState, id: RewardId) => (hasReward(p, id) ? 1 : 0);
 
 function newCard(state: GameState, defId: string): CardInstance {
   state.uidCounter += 1;
@@ -53,6 +61,9 @@ export function createGame(setup: GameSetup): GameState {
     display: [],
     globals: [],
     objectives: [],
+    objectiveDeck: [],
+    claimed: [],
+    pendingRewards: [],
     winnerId: null,
     log: [],
   };
@@ -75,6 +86,8 @@ export function createGame(setup: GameSetup): GameState {
       systemId: sys.id,
       planets: sys.planets.map((pl, j) => ({ id: `p${i + 1}-pl${j}`, ...pl })),
       upgrades: { solarFlare: sys.modifiers.startingFlareUpgrades ?? 0, thermosiphon: 0, coolingChamber: 0 },
+      rewards: [],
+      missions: [],
       heat: sys.modifiers.startingHeat ?? BALANCE.startingHeat,
       shields: 0,
       money: 0,
@@ -95,7 +108,8 @@ export function createGame(setup: GameSetup): GameState {
   shuffleInPlace(state, state.marketDeck);
   for (let s = 0; s < BALANCE.displaySize; s++) state.display.push(state.marketDeck.pop() ?? null);
 
-  state.objectives = shuffleInPlace(state, OBJECTIVES.map((o) => o.id)).slice(0, BALANCE.objectivesPerGame);
+  state.objectiveDeck = shuffleInPlace(state, OBJECTIVES.map((o) => o.id));
+  state.objectives = state.objectiveDeck.splice(0, BALANCE.objectivesPerGame);
 
   for (const p of state.players) drawCards(state, p, handSizeFor(p));
   log(state, `A new game begins. ${state.players.map((p) => `${p.name} rules ${systemDef(p.systemId).name}`).join('; ')}.`);
@@ -113,19 +127,21 @@ export function trackLevel(p: PlayerState, track: Track): number {
 
 export function handSizeFor(p: PlayerState): number {
   const mods = systemDef(p.systemId).modifiers;
-  return BALANCE.handSize + (mods.handSizeBonus ?? 0) + Math.floor(trackLevel(p, 'resources') / BALANCE.resourceLevelsPerExtraCard);
+  return (
+    BALANCE.handSize + (mods.handSizeBonus ?? 0) + Math.floor(trackLevel(p, 'resources') / BALANCE.resourceLevelsPerExtraCard) + bonus(p, 'wide_sensors')
+  );
 }
 
 export function incomeFor(p: PlayerState): number {
   const mods = systemDef(p.systemId).modifiers;
-  let income = trackLevel(p, 'economy') * BALANCE.economyIncomePerLevel + (mods.incomeBonus ?? 0);
+  let income = trackLevel(p, 'economy') * BALANCE.economyIncomePerLevel + (mods.incomeBonus ?? 0) + bonus(p, 'stellar_mint');
   if (mods.heatIncomeEvery && p.heat > 0) income += Math.floor(p.heat / mods.heatIncomeEvery);
   return income;
 }
 
 export function shieldsFor(p: PlayerState): number {
   const mods = systemDef(p.systemId).modifiers;
-  return Math.floor(trackLevel(p, 'defences') / BALANCE.defenceLevelsPerShield) + (mods.shieldBonus ?? 0);
+  return Math.floor(trackLevel(p, 'defences') / BALANCE.defenceLevelsPerShield) + (mods.shieldBonus ?? 0) + bonus(p, 'aegis_lattice');
 }
 
 function globalAffects(state: GameState, id: GlobalEffectId, p: PlayerState): boolean {
@@ -133,7 +149,8 @@ function globalAffects(state: GameState, id: GlobalEffectId, p: PlayerState): bo
 }
 
 export function flareCost(state: GameState, p: PlayerState): number {
-  return BALANCE.solarFlareCost + (globalAffects(state, 'magneticStorm', p) ? 1 : 0);
+  const focus = p.turn.flares === 0 ? bonus(p, 'flare_focus') : 0;
+  return Math.max(1, BALANCE.solarFlareCost + (globalAffects(state, 'magneticStorm', p) ? 1 : 0) - focus);
 }
 
 export function flareHeat(p: PlayerState): number {
@@ -146,7 +163,7 @@ export function thermoCost(p: PlayerState): number {
 }
 
 export function thermoCool(p: PlayerState): number {
-  return BALANCE.thermosiphonCool + p.upgrades.thermosiphon;
+  return BALANCE.thermosiphonCool + p.upgrades.thermosiphon + bonus(p, 'deep_coolant');
 }
 
 export const MAX_UPGRADES: Record<CoreAction, number> = {
@@ -243,6 +260,7 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
 function cool(state: GameState, p: PlayerState, amount: number) {
   const before = p.heat;
   p.heat = Math.max(BALANCE.minHeat, p.heat - amount);
+  p.turn.cooled += before - p.heat;
   if (p.heat !== before) log(state, `${p.name}'s sun cools to ${p.heat}.`);
 }
 
@@ -303,11 +321,11 @@ function startTurn(state: GameState) {
   }
 
   if (p.eliminated && !state.winnerId) advanceTurn(state);
+  else if (!state.winnerId) checkObjectives(state, p);
 }
 
 function endTurn(state: GameState) {
   const p = activePlayer(state);
-  checkObjectives(state, p);
   p.discard.push(...p.inPlay, ...p.hand);
   p.inPlay = [];
   p.hand = [];
@@ -326,16 +344,115 @@ function advanceTurn(state: GameState) {
   startTurn(state);
 }
 
+/**
+ * Global objectives go to the first player to meet them; missions belong to
+ * whoever played them. Both are checked after every action on your turn.
+ */
 function checkObjectives(state: GameState, p: PlayerState) {
-  if (p.eliminated) return;
-  for (const id of state.objectives) {
-    if (p.claimedObjectives.includes(id)) continue;
+  if (p.eliminated || state.winnerId) return;
+  for (const id of [...state.objectives]) {
     const obj = objectiveDef(id);
-    if (obj.isMet(p)) {
-      p.claimedObjectives.push(id);
-      p.discard.push(newCard(state, 'command_directive'));
-      log(state, `★ ${p.name} completes "${obj.name}" and gains a Command Directive.`);
+    if (!obj.isMet(p)) continue;
+    state.objectives = state.objectives.filter((o) => o !== id);
+    const next = state.objectiveDeck.shift();
+    if (next) state.objectives.push(next);
+    state.claimed.push({ id, playerId: p.id });
+    p.claimedObjectives.push(id);
+    log(state, `★ ${p.name} claims the objective "${obj.name}".`);
+    queueReward(state, p, obj.name);
+  }
+  for (const card of [...p.missions]) {
+    const mission = missionOf(card.defId);
+    const obj = objectiveDef(mission);
+    if (!obj.isMet(p)) continue;
+    p.missions = p.missions.filter((m) => m.uid !== card.uid); // completed missions leave the game
+    log(state, `★ ${p.name} completes the mission "${obj.name}".`);
+    queueReward(state, p, obj.name);
+  }
+}
+
+export function missionOf(defId: string): string {
+  const e = cardDef(defId).effects.find((ef) => ef.type === 'mission');
+  if (!e || e.type !== 'mission') throw new Error(`${defId} is not a mission card`);
+  return e.objective;
+}
+
+/** Rewards this player could still be offered right now. */
+export function availableRewards(state: GameState, p: PlayerState): RewardId[] {
+  return REWARDS.map((r) => r.id).filter((id) => {
+    if (hasReward(p, id)) return false;
+    if (id === 'command') return upgradeOptions(p).length > 0;
+    if (id === 'requisition') return state.display.some(Boolean);
+    return true;
+  });
+}
+
+function queueReward(state: GameState, p: PlayerState, source: string) {
+  const options = shuffleInPlace(state, availableRewards(state, p)).slice(0, REWARD_CHOICES);
+  if (options.length === 0) {
+    log(state, `${p.name} has already taken every reward.`);
+    return;
+  }
+  state.pendingRewards.push({ playerId: p.id, source, options });
+}
+
+function applyUpgrade(state: GameState, p: PlayerState, upgradeId: UpgradeId) {
+  if ((CORE_ACTIONS as readonly string[]).includes(upgradeId)) {
+    const a = upgradeId as CoreAction;
+    p.upgrades[a] += 1;
+    const extra = a === 'coolingChamber' ? ` Max health is now ${supernovaThreshold(p)}.` : '';
+    log(state, `${p.name} upgrades ${ACTION_NAME[a]} (${p.upgrades[a]}/${MAX_UPGRADES[a]}).${extra}`);
+    return;
+  }
+  const planet = p.planets.find((pl) => pl.id === upgradeId)!;
+  planet.level += 1;
+  log(state, `${p.name} upgrades ${planet.name} (${planet.track}) to level ${planet.level}.`);
+}
+
+function chooseReward(state: GameState, action: Extract<Action, { type: 'chooseReward' }>) {
+  const pending = state.pendingRewards[0];
+  if (!pending) throw new GameError('There is no reward to choose.');
+  if (!pending.options.includes(action.reward)) throw new GameError('That reward is not on offer.');
+  const p = state.players.find((pl) => pl.id === pending.playerId)!;
+  const def = rewardDef(action.reward);
+  if (def.needs === 'upgrade' && (action.upgradeId === undefined || !upgradeOptions(p).includes(action.upgradeId))) {
+    throw new GameError('Choose an action or planet that can still be upgraded.');
+  }
+  if (def.needs === 'slot' && (action.slot === undefined || !state.display[action.slot])) {
+    throw new GameError('Choose a card from the display.');
+  }
+  state.pendingRewards.shift();
+  p.rewards.push(action.reward);
+  log(state, `${p.name} takes the reward ${def.name}.`);
+  switch (action.reward) {
+    case 'command':
+      applyUpgrade(state, p, action.upgradeId!);
+      break;
+    case 'requisition': {
+      const card = state.display[action.slot!]!;
+      p.discard.push(card);
+      state.display[action.slot!] = state.marketDeck.pop() ?? null;
+      log(state, `${p.name} requisitions ${cardDef(card.defId).name}.`);
+      break;
     }
+    case 'purge': {
+      let removed = 0;
+      for (const pile of [p.discard, p.deck]) {
+        for (let i = pile.length - 1; i >= 0 && removed < 2; i--) {
+          if (pile[i].defId === 'stardust') {
+            pile.splice(i, 1);
+            removed++;
+          }
+        }
+      }
+      log(state, `${p.name} purges ${removed} Stardust.`);
+      break;
+    }
+    case 'vent':
+      cool(state, p, 4);
+      break;
+    default:
+      break; // Permanent rewards work through the derived values above.
   }
 }
 
@@ -348,17 +465,19 @@ function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: s
       drawCards(state, p, e.amount);
       break;
     case 'heatTarget':
-      applyHeat(state, requireTarget(state, p, targetId), e.amount, p);
+      applyHeat(state, requireTarget(state, p, targetId), e.amount + bonus(p, 'plasma_focus'), p);
       break;
     case 'heatAllOpponents':
-      for (const o of livingOpponents(state, p)) applyHeat(state, o, e.amount, p);
+      for (const o of livingOpponents(state, p)) applyHeat(state, o, e.amount + bonus(p, 'plasma_focus'), p);
       break;
     case 'heatSelf':
       applyHeat(state, p, e.amount, null);
       break;
     case 'cool':
-      cool(state, p, e.amount);
+      cool(state, p, e.amount + bonus(p, 'deep_coolant'));
       break;
+    case 'mission':
+      break; // Handled in playCard: the card moves to the player's missions.
     case 'shield':
       p.shields += e.amount;
       break;
@@ -367,16 +486,7 @@ function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: s
         log(state, `${p.name} has nothing left to upgrade.`);
         break;
       }
-      if ((CORE_ACTIONS as readonly string[]).includes(upgradeId!)) {
-        const a = upgradeId as CoreAction;
-        p.upgrades[a] += 1;
-        const extra = a === 'coolingChamber' ? ` Max health is now ${supernovaThreshold(p)}.` : '';
-        log(state, `${p.name} upgrades ${ACTION_NAME[a]} (${p.upgrades[a]}/${MAX_UPGRADES[a]}).${extra}`);
-        break;
-      }
-      const planet = p.planets.find((pl) => pl.id === upgradeId)!;
-      planet.level += 1;
-      log(state, `${p.name} upgrades ${planet.name} (${planet.track}) to level ${planet.level}.`);
+      applyUpgrade(state, p, upgradeId!);
       break;
     }
     case 'global': {
@@ -412,8 +522,13 @@ function playCard(state: GameState, p: PlayerState, cardUid: string, targetId?: 
     }
   }
   p.hand.splice(idx, 1);
-  p.inPlay.push(card);
+  p.turn.cardsPlayed += 1;
   log(state, `${p.name} plays ${def.name}.`);
+  if (def.kind === 'mission') {
+    p.missions.push(card);
+    return;
+  }
+  p.inPlay.push(card);
   for (const e of def.effects) {
     if (state.winnerId || p.eliminated) break;
     resolveEffect(state, p, e, targetId, upgradeId);
@@ -430,10 +545,16 @@ function playCard(state: GameState, p: PlayerState, cardUid: string, targetId?: 
  */
 export function applyAction(prev: GameState, action: Action): GameState {
   if (isGameOver(prev)) throw new GameError('The game is over.');
+  if (prev.pendingRewards.length && action.type !== 'chooseReward') {
+    throw new GameError('Choose your objective reward first.');
+  }
   const state = structuredClone(prev);
   const p = activePlayer(state);
 
   switch (action.type) {
+    case 'chooseReward':
+      chooseReward(state, action);
+      break;
     case 'playCard':
       playCard(state, p, action.cardUid, action.targetId, action.upgradeId);
       break;
@@ -476,7 +597,12 @@ export function applyAction(prev: GameState, action: Action): GameState {
   }
 
   // A player who supernovas on their own turn (e.g. Dyson Tap) ends it at once.
-  if (p.eliminated && !state.winnerId) endTurn(state);
+  if (p.eliminated && !state.winnerId) {
+    state.pendingRewards = [];
+    endTurn(state);
+    return state;
+  }
+  checkObjectives(state, p);
   return state;
 }
 

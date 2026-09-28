@@ -13,6 +13,7 @@ import {
   thermoCost,
   upgradeOptions,
 } from './game';
+import type { RewardId } from './objectives';
 import type { Action, CardKind, GameState, PlayerState, Track, UpgradeId } from './types';
 
 /**
@@ -21,6 +22,8 @@ import type { Action, CardKind, GameState, PlayerState, Track, UpgradeId } from 
  * calling it always reaches `endTurn`.
  */
 export function chooseAIAction(state: GameState): Action {
+  if (state.pendingRewards.length) return pickReward(state);
+
   const me = activePlayer(state);
   const foes = livingOpponents(state, me);
   const target = pickTarget(foes);
@@ -87,7 +90,27 @@ function pickUpgrade(me: PlayerState): UpgradeId | undefined {
     .sort((a, b) => priority.indexOf(a.track) - priority.indexOf(b.track) || a.level - b.level)[0]?.id;
 }
 
-const KIND_BIAS: Record<CardKind, number> = { command: 3, attack: 2, economy: 1.5, defence: 1, global: 0.5, basic: 0 };
+/** Survive first when running hot; otherwise build the engine. */
+function pickReward(state: GameState): Action {
+  const pending = state.pendingRewards[0];
+  const me = state.players.find((p) => p.id === pending.playerId)!;
+  const hot = me.heat >= supernovaThreshold(me) * 0.6;
+  const order: RewardId[] = hot
+    ? ['vent', 'deep_coolant', 'aegis_lattice', 'command', 'stellar_mint', 'wide_sensors', 'plasma_focus', 'flare_focus', 'requisition', 'purge']
+    : ['command', 'stellar_mint', 'wide_sensors', 'plasma_focus', 'flare_focus', 'requisition', 'purge', 'aegis_lattice', 'deep_coolant', 'vent'];
+  const reward = order.find((r) => pending.options.includes(r)) ?? pending.options[0];
+  if (reward === 'command') return { type: 'chooseReward', reward, upgradeId: pickUpgrade(me) };
+  if (reward === 'requisition') {
+    let best = -1;
+    state.display.forEach((c, i) => {
+      if (c && (best < 0 || cardDef(c.defId).cost > cardDef(state.display[best]!.defId).cost)) best = i;
+    });
+    return { type: 'chooseReward', reward, slot: best };
+  }
+  return { type: 'chooseReward', reward };
+}
+
+const KIND_BIAS: Record<CardKind, number> = { command: 3, attack: 2, economy: 1.5, defence: 1, mission: 1, global: 0.5, basic: 0 };
 
 function pickPurchase(state: GameState, me: PlayerState): number | null {
   let best: number | null = null;

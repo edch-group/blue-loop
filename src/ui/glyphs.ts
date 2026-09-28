@@ -13,6 +13,7 @@ export const KIND_COLOUR: Record<CardKind, string> = {
   basic: '#d4a21f', // Stardust is money too
   global: '#9265d6', // purple
   command: '#8b909b', // silver: neither money nor combat
+  mission: '#3a9e91', // teal: personal objectives
 };
 
 const ring = (r: number, extra = '') => `<circle cx="50" cy="30" r="${r}" ${extra}/>`;
@@ -59,6 +60,14 @@ const GLYPHS: Record<string, string> = {
   ice_age: `${rays(6, 0, 18)}${rays(6, 10, 14, 30)}${ring(3, 'class="dot"')}`,
   trade_boom: `${ring(4, 'class="fill"')}${ring(11)}${ring(18, 'stroke-dasharray="3 4"')}`,
   magnetic_storm: `<path d="M30 14 C44 24 44 36 30 46"/><path d="M70 14 C56 24 56 36 70 46"/><path class="fill" d="M40 30 C45 22 55 22 60 30 C55 38 45 38 40 30 Z"/>`,
+
+  // Missions: a target reticle around the mission's own motif.
+  mission_ignition: `${ring(18)}<polygon class="fill" points="44,40 50,18 56,40"/>`,
+  mission_absolute_zero: `${ring(18)}${rays(6, 3, 12)}`,
+  mission_supply_run: `${ring(18)}<rect class="fill" x="41" y="22" width="9" height="12" rx="2"/><rect x="52" y="26" width="9" height="12" rx="2"/>`,
+  mission_overclock: `${ring(18)}${chevrons(3, 17, 8)}`,
+  mission_stockpile: `${ring(18)}${ring(7, 'class="fill"')}${ring(2, 'class="dot"')}`,
+  mission_fortify: `${ring(18)}<path class="fill" d="M50 18 L60 22 L59 33 L50 41 L41 33 L40 22 Z"/>`,
 };
 
 /** Inline SVG glyph for a card, tinted by its kind. */
@@ -74,7 +83,29 @@ const OBJECTIVE_GLYPHS: Record<string, string> = {
   brinkmanship: `${ring(10, 'class="fill"')}<path d="M26 44 L74 44"/><path d="M36 44 A14 14 0 0 1 64 44" stroke-dasharray="3 3"/>`,
   industrialist: `${hexagon(16)}${chevrons(2, 22, 7)}`,
   shieldwall: `<path class="fill" d="M50 12 L66 18 L64 36 L50 48 L36 36 L34 18 Z"/>`,
+  arsenal: `${[34, 50, 66].map((x) => `<rect ${x === 50 ? 'class="fill"' : ''} x="${x - 6}" y="18" width="12" height="12" rx="3"/>`).join('')}<line x1="28" y1="42" x2="72" y2="42"/>`,
+  cold_front: `${rays(6, 0, 16)}<polyline points="30,46 50,52 70,46"/>`,
+  trade_baron: `${[36, 50, 64].map((x) => `<polygon class="fill" points="${x},20 ${x + 7},30 ${x},40 ${x - 7},30"/>`).join('')}`,
+  overdrive: `${chevrons(4, 10, 14)}`,
 };
+
+const REWARD_GLYPHS: Record<string, string> = {
+  command: chevrons(3, 14),
+  requisition: `<rect x="36" y="12" width="28" height="36" rx="4"/><polyline points="44,30 50,36 58,24"/>`,
+  purge: `<rect x="38" y="14" width="24" height="32" rx="4"/><line x1="30" y1="50" x2="70" y2="10"/>`,
+  vent: `${rays(6, 0, 18)}${ring(5, 'class="fill"')}`,
+  wide_sensors: `<path d="M34 38 A18 18 0 0 1 66 38"/><path d="M26 42 A26 26 0 0 1 74 42"/>${ring(3, 'class="dot" transform="translate(0 10)"')}`,
+  stellar_mint: `${ring(15)}${ring(8, 'class="fill"')}`,
+  plasma_focus: `<polygon class="fill" points="34,27 78,30 34,33"/>${ring(5, 'transform="translate(-20 0)"')}`,
+  deep_coolant: `${hexagon(16)}${rays(6, 0, 9)}`,
+  aegis_lattice: `<path d="M26 42 A24 24 0 0 1 74 42"/><path class="fill" d="M34 42 A16 16 0 0 1 66 42 Z"/>`,
+  flare_focus: `${ring(8, 'class="fill"')}${rays(8, 12, 20)}`,
+};
+
+/** Symbol for an objective reward. */
+export function rewardGlyph(id: string): string {
+  return `<svg class="glyph" viewBox="0 0 100 60" aria-hidden="true">${REWARD_GLYPHS[id] ?? ring(12)}</svg>`;
+}
 
 /** Symbol for an objective circle. */
 export function objectiveGlyph(id: string): string {
