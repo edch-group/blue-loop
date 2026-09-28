@@ -51,6 +51,17 @@ describe('setup', () => {
     expect(s.players[0].systemId).not.toBe(s.players[1].systemId);
   });
 
+  it('draws a hand only when your turn begins', () => {
+    let s = twoPlayer(9, ['midas_belt', 'helios_reach']);
+    expect(s.players[0].hand).toHaveLength(5);
+    expect(s.players[1].hand).toHaveLength(0); // p2 has not started a turn yet
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players[0].hand).toHaveLength(0); // discarded, nothing drawn yet
+    expect(s.players[1].hand).toHaveLength(5);
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players[0].hand).toHaveLength(5);
+  });
+
   it('is deterministic for a given seed', () => {
     expect(twoPlayer(42)).toEqual(twoPlayer(42));
     expect(twoPlayer(42)).not.toEqual(twoPlayer(43));

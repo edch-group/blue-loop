@@ -111,7 +111,6 @@ export function createGame(setup: GameSetup): GameState {
   state.objectiveDeck = shuffleInPlace(state, OBJECTIVES.map((o) => o.id));
   state.objectives = state.objectiveDeck.splice(0, BALANCE.objectivesPerGame);
 
-  for (const p of state.players) drawCards(state, p, handSizeFor(p));
   log(state, `A new game begins. ${state.players.map((p) => `${p.name} rules ${systemDef(p.systemId).name}`).join('; ')}.`);
   startTurn(state);
   return state;
@@ -286,6 +285,10 @@ function startTurn(state: GameState) {
   p.turn = emptyTurn();
   p.blockedSinceTurnStart = 0;
 
+  // 0. Draw a fresh hand. Hands are drawn when your turn begins, not when the
+  // previous one ends, so nothing arrives while opponents are playing.
+  drawCards(state, p, handSizeFor(p));
+
   // 1. Gain resources.
   p.money = incomeFor(p);
   p.shields = shieldsFor(p);
@@ -330,7 +333,6 @@ function endTurn(state: GameState) {
   p.inPlay = [];
   p.hand = [];
   p.money = 0;
-  if (!p.eliminated) drawCards(state, p, handSizeFor(p));
   advanceTurn(state);
 }
 

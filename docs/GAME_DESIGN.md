@@ -16,6 +16,7 @@ marked **[proposed]** for the design team to confirm or change.
 
 ## Turn structure
 
+0. **Draw** a new hand (5 cards, plus bonuses). Hands are drawn when your turn begins, so nothing arrives during opponents' turns. [design review]
 1. **Gain resources**: money from economy planets and system abilities, plus shields from defence planets. [brief: "gain resources"]
 2. **Resolve global effects**: Solar Storm, Ice Age, Trade Boom. [brief]
 3. **Stellar Instability**: from round 8, every sun heats at the start of its turn. [proposed; see below]
@@ -24,7 +25,7 @@ marked **[proposed]** for the design team to confirm or change.
    - Buy a card from the display. It goes to the discard pile. [proposed]
    - **Solar Flare**: pay 2 to heat an enemy sun by 1, +1 per upgrade. [brief]
    - **Thermosiphon**: pay 2 to cool your own sun by 1, +1 per upgrade. [brief]
-5. **End turn**: check objectives, discard everything, draw a new hand. Unspent money is lost. [proposed]
+5. **End turn**: discard your hand and played cards. Unspent money is lost. [proposed]
 
 ## Core actions
 
@@ -75,6 +76,8 @@ Systems differ by their mix of planets **and** a unique ability.
 (`E1` = starts at level 1.)
 
 ## Market deck (200 cards) [proposed content]
+
+Prices were lowered in design review: about 82% of the deck costs 4 or less, so early turns (4–6 money) can usually buy something.
 
 Economy 62 · Attack 48 · Defence 50 · Command 16 · Global 24.
 The full list is in `src/engine/cards.ts`.
