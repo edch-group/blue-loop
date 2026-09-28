@@ -87,6 +87,7 @@ const AI_PAUSE: Record<Action['type'], number> = {
   chooseReward: 1500,
 };
 const TOAST_MS = 2600;
+const LONG_PRESS_MS = 450;
 const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
 const TOAST_PATTERN = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|wins|shields absorb|Instability/;
 const HOT = '#f0a07a';
@@ -137,7 +138,8 @@ export class App {
   /** Whose home system sits in the dock: the current or most recent human. */
   private viewerId: string | null = null;
   private preview: HTMLElement;
-  private pointer = { x: -1, y: -1 };
+  private press: { x: number; y: number; timer: number; shown: boolean } | null = null;
+  private suppressClick = false;
   private seats: MenuSeat[] = [
     { name: 'Commander', isAI: false, enabled: true },
     { name: "Xel'Naru", isAI: true, enabled: true },
@@ -159,8 +161,13 @@ export class App {
     root.addEventListener('click', (e) => this.onClick(e));
     root.addEventListener('input', (e) => this.onInput(e));
     root.addEventListener('mouseover', (e) => this.onHover(e));
-    root.addEventListener('mouseout', (e) => this.onHoverOut(e));
-    window.addEventListener('mousemove', (e) => (this.pointer = { x: e.clientX, y: e.clientY }));
+    root.addEventListener('pointerdown', (e) => this.onPressStart(e));
+    window.addEventListener('pointermove', (e) => this.onPressMove(e));
+    window.addEventListener('pointerup', () => this.onPressEnd());
+    window.addEventListener('pointercancel', () => this.onPressEnd());
+    root.addEventListener('contextmenu', (e) => {
+      if ((e.target as HTMLElement).closest('[data-card]')) e.preventDefault();
+    });
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('pointerdown', (e) => {
       sound.unlock();
@@ -494,41 +501,66 @@ export class App {
 
   private onHover(e: MouseEvent) {
     if (this.touch) return;
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-card]');
-    if (!el || !el.closest('.hand')) return; // hover preview is for cards in your hand only
+    const el = (e.target as HTMLElement).closest<HTMLElement>('.hand [data-card]');
     const from = (e.relatedTarget as HTMLElement | null)?.closest?.('[data-card]');
-    if (from === el) return;
-    this.showPreview(el);
-    sound.hover();
+    if (el && from !== el) sound.hover(); // the card lifts via CSS
   }
 
-  private onHoverOut(e: MouseEvent) {
+  // ---- Long press (touch): hold a card to read it; release to dismiss ----
+
+  private onPressStart(e: PointerEvent) {
+    if (e.pointerType === 'mouse') return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-card]');
-    const to = (e.relatedTarget as HTMLElement | null)?.closest?.('[data-card]');
-    if (el && to !== el) this.preview.classList.remove('show');
+    if (!el || el.closest('.sheet')) return;
+    this.cancelPress();
+    this.press = {
+      x: e.clientX,
+      y: e.clientY,
+      timer: window.setTimeout(() => {
+        this.press!.shown = true;
+        this.showPeek(el);
+        sound.hover();
+      }, LONG_PRESS_MS),
+      shown: false,
+    };
   }
 
-  /** Magnified, fully readable view of the hovered card (mouse only). */
-  private showPreview(el: HTMLElement) {
-    if (el.closest('.sheet')) return;
+  private onPressMove(e: PointerEvent) {
+    if (this.press && !this.press.shown && Math.hypot(e.clientX - this.press.x, e.clientY - this.press.y) > 10) this.cancelPress();
+  }
+
+  private onPressEnd() {
+    if (!this.press) return;
+    if (this.press.shown) {
+      this.suppressClick = true; // the tap that ends a long press must not also play/buy
+      this.preview.classList.remove('show');
+    }
+    this.cancelPress();
+  }
+
+  private cancelPress() {
+    if (this.press) window.clearTimeout(this.press.timer);
+    this.press = null;
+  }
+
+  /** Large, readable copy of a card, centred on screen while held. */
+  private showPeek(el: HTMLElement) {
     const defId = el.dataset.card!;
     const cost = el.dataset.cost;
     this.preview.innerHTML = this.bigCard(defId, cost !== undefined ? Number(cost) : undefined);
-    const r = el.getBoundingClientRect();
-    const h = Math.min(420, window.innerHeight - 16);
+    const h = Math.min(420, window.innerHeight - 24);
     const w = h * 0.714;
     this.preview.style.setProperty('--pw', `${w}px`);
-    const gap = 14;
-    let left = r.right + gap;
-    if (left + w > window.innerWidth - 8) left = r.left - gap - w;
-    if (left < 8) left = Math.min(window.innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
-    const top = Math.max(8, Math.min(window.innerHeight - h - 8, r.top + r.height / 2 - h / 2));
-    this.preview.style.left = `${left}px`;
-    this.preview.style.top = `${top}px`;
+    this.preview.style.left = `${(window.innerWidth - w) / 2}px`;
+    this.preview.style.top = `${(window.innerHeight - h) / 2}px`;
     this.preview.classList.add('show');
   }
 
   private onClick(e: MouseEvent) {
+    if (this.suppressClick) {
+      this.suppressClick = false;
+      return;
+    }
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     if (!el || el.hasAttribute('disabled')) return;
     if (el.classList.contains('overlay') && e.target !== el) return;
@@ -625,7 +657,8 @@ export class App {
 
     if (!s) return;
     // On touch screens, tapping a card opens the inspector; its button then acts.
-    if (((this.touch && (act === 'play' || act === 'buy')) || act === 'inspect') && !el.closest('.sheet') && el.dataset.card) {
+    // Touch: tapping a display card opens the buy overlay (hand cards play straight away).
+    if (((this.touch && act === 'buy') || act === 'inspect') && !el.closest('.sheet') && el.dataset.card) {
       const defId = el.dataset.card!;
       const slot = el.dataset.slot;
       this.sheet = { kind: 'card', defId, uid: el.dataset.hand, slot: slot !== undefined ? Number(slot) : undefined };
@@ -691,9 +724,7 @@ export class App {
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.renderGame();
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.fitHand();
-    const under = this.touch ? null : document.elementFromPoint(this.pointer.x, this.pointer.y)?.closest<HTMLElement>('[data-card]');
-    if (under && this.root.contains(under) && under.closest('.hand')) this.showPreview(under);
-    else this.preview.classList.remove('show');
+    if (!this.press?.shown) this.preview.classList.remove('show');
   }
 
   /**

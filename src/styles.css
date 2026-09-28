@@ -846,3 +846,7 @@ input { font: inherit; }
   .display .coin { width: 22px; font-size: 0.62rem; top: 6px; right: 6px; }
   .display .card::before { width: 40%; height: 100%; }
 }
+
+/* Long-press peek: stop the OS callout / text selection from hijacking the hold. */
+.card, .mini { -webkit-touch-callout: none; }
+.card-preview .card { background: linear-gradient(180deg, #ffffff, #f6f6f4); }
