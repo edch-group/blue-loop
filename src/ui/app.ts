@@ -696,18 +696,29 @@ export class App {
     else this.preview.classList.remove('show');
   }
 
-  /** Overlap hand cards like a fan when they don't fit side by side. */
+  /**
+   * Lay the hand out as a fan: cards overlap along a gentle arc, centred,
+   * with their lower half below the screen edge (CSS lifts a hovered card).
+   */
   private fitHand() {
     const hand = this.root.querySelector<HTMLElement>('.hand');
     if (!hand) return;
     const cards = [...hand.querySelectorAll<HTMLElement>(':scope > .card')];
-    cards.forEach((c) => (c.style.marginLeft = ''));
-    if (cards.length < 2) return;
-    const gap = parseFloat(getComputedStyle(hand).columnGap) || 0;
+    const n = cards.length;
+    if (!n) return;
     const w = cards[0].offsetWidth;
-    const need = cards.length * w + (cards.length - 1) * gap;
-    const overlap = Math.max(0, (need - hand.clientWidth) / (cards.length - 1));
-    if (overlap) cards.forEach((c, i) => i > 0 && (c.style.marginLeft = `${-overlap}px`));
+    const inset = w * 0.12; // room for the outer cards' tilt, so they don't cover the piles
+    const W = hand.clientWidth - inset * 2;
+    const spacing = n > 1 ? Math.min(w * 0.82, (W - w) / (n - 1)) : 0;
+    const start = inset + (W - (spacing * (n - 1) + w)) / 2;
+    const step = Math.min(5, 24 / Math.max(n - 1, 1)); // degrees between neighbours
+    cards.forEach((c, i) => {
+      const t = i - (n - 1) / 2;
+      c.style.left = `${start + i * spacing}px`;
+      c.style.setProperty('--fr', `${t * step}deg`);
+      c.style.setProperty('--fy', `${Math.abs(t) ** 2 * 2.5}px`);
+      c.style.zIndex = String(i + 1);
+    });
   }
 
   private renderMenu(): string {
@@ -863,28 +874,28 @@ export class App {
 
     return `
       <section class="dock">
-        <button class="me" data-act="view-system" data-arg="${me.id}" title="${esc(me.name)} · ${esc(systemDef(me.systemId).name)} (tap for details)">
-          <div class="orb-anchor" data-anchor="player:${me.id}">${sunOrb({ heat: me.heat, threshold: max, size: 52, dead: me.eliminated })}</div>
-          <span class="health">${me.heat}<small>/${max}</small></span>
-          <span class="me-stats">
-            <span title="Shields">⛨${me.shields}</span>
-            <span title="Income per turn">◈+${incomeFor(me)}</span>
-            <span title="Hand size">✋${handSizeFor(me)}</span>
-            ${shieldPierce(me) ? `<span title="Shield pierce">⚔${shieldPierce(me)}</span>` : ''}
-          </span>
-        </button>
-        <div class="rail">${rail}</div>
+        <div class="command">
+          <button class="me" data-act="view-system" data-arg="${me.id}" title="${esc(me.name)} · ${esc(systemDef(me.systemId).name)} (tap for details)">
+            <div class="orb-anchor" data-anchor="player:${me.id}">${sunOrb({ heat: me.heat, threshold: max, size: 44, dead: me.eliminated })}</div>
+            <span class="health">${me.heat}<small>/${max}</small></span>
+            <span class="me-stats">
+              <span title="Shields">⛨${me.shields}</span>
+              <span title="Income per turn">◈+${incomeFor(me)}</span>
+              <span title="Hand size">✋${handSizeFor(me)}</span>
+              ${shieldPierce(me) ? `<span title="Shield pierce">⚔${shieldPierce(me)}</span>` : ''}
+            </span>
+          </button>
+          <div class="rail">${rail}</div>
+        </div>
+        <button class="pile" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck"><span class="pile-stack"><i></i><i></i></span><b>${me.deck.length}</b><small>deck</small></button>
         <div class="hand-zone">
           <div class="in-play">${played}</div>
-          <div class="cards hand">${hand}</div>
+          <div class="hand">${hand}</div>
         </div>
+        <button class="pile" data-anchor="discard" data-act="view-pile" data-arg="discard" title="Your discard pile"><span class="pile-stack"><i></i><i></i></span><b>${me.discard.length}</b><small>discard</small></button>
         <div class="turn-controls">
           <div class="money" title="Money this turn">◈ ${me.money}</div>
           <button class="btn btn-small" data-act="play-all" ${act && hasMoneyCards && !busy ? '' : 'disabled'} title="Play every plain money card in your hand">play money</button>
-          <div class="piles">
-            <button class="pile" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck"><span>${me.deck.length}</span>deck</button>
-            <button class="pile" data-anchor="discard" data-act="view-pile" data-arg="discard" title="Your discard pile"><span>${me.discard.length}</span>discard</button>
-          </div>
           <button class="btn-primary end-turn" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end turn</button>
         </div>
       </section>`;

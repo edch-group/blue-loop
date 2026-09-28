@@ -34,10 +34,13 @@ export function flyFrom(el: HTMLElement, from: DOMRect, opts: { delay?: number; 
   const dx = from.left + from.width / 2 - (to.left + to.width / 2);
   const dy = from.top + from.height / 2 - (to.top + to.height / 2);
   const s = Math.min(from.width / to.width, from.height / to.height);
+  // Land on the element's own transform (e.g. its angle in the fanned hand).
+  const rest = getComputedStyle(el).transform;
+  const end = rest === 'none' ? '' : rest;
   el.animate(
     [
-      { transform: `translate(${dx}px, ${dy}px) scale(${s}) rotate(${opts.rotate ?? 0}deg)`, opacity: opts.fade ? 0 : 1 },
-      { transform: 'none', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${s}) rotate(${opts.rotate ?? 0}deg) ${end}`, opacity: opts.fade ? 0 : 1 },
+      { transform: end || 'none', opacity: 1 },
     ],
     { duration: opts.duration ?? 420, delay: opts.delay ?? 0, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' },
   );

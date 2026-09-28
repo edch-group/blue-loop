@@ -713,25 +713,36 @@ input { font: inherit; }
 .requisition .pile-card { cursor: pointer; }
 .requisition .pile-card:hover .card { transform: translateY(-4px); }
 
-/* ---------- Compact dock: profile column + action rail (hand gets the room) ---------- */
-.dock { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: var(--gap); align-items: end; }
+/* ---------- Dock: command panel · deck · fanned hand · discard · turn controls ---------- */
+:root {
+  /* Hand cards are big, but only their top part shows: the rest sits below the screen edge. */
+  --hh: min(calc(44 * var(--vh)), 300px);
+  --hvis: calc(var(--hh) * 0.56);
+}
+.game { padding-bottom: 0; }
+.dock { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; gap: var(--gap); align-items: end; }
 .display .cards { gap: clamp(10px, 3vw, 36px); }
-.me {
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 2px;
-  align-self: stretch;
-  padding: 6px 8px;
+
+.command {
+  display: flex;
+  gap: 6px;
+  height: var(--hvis);
+  margin-bottom: var(--pad-b);
+  padding: 5px;
   border-radius: 14px;
   background: var(--glass);
   border: 1px solid #fff;
   box-shadow: var(--shadow);
 }
-.me .orb { --size: clamp(38px, 13vh, 64px) !important; }
-.me-stats { display: grid; justify-items: center; gap: 0; font-size: 0.66rem; color: var(--ink-soft); line-height: 1.3; }
-.rail { display: grid; grid-template-rows: repeat(3, 1fr); gap: 4px; align-self: stretch; width: clamp(96px, 16vw, 170px); }
-.rail > div { min-height: 0; border-radius: 10px; }
+.me { display: grid; justify-items: center; align-content: center; gap: 1px; padding: 0 4px; }
+.me .orb { --size: clamp(30px, 9vh, 56px) !important; }
+.health { font-size: clamp(0.56rem, 2vh, 0.72rem); }
+.me-stats { display: flex; gap: 5px; font-size: clamp(0.56rem, 2vh, 0.7rem); color: var(--ink-soft); }
+@media (max-height: 560px) {
+  .me-stats { display: grid; justify-items: center; gap: 0; line-height: 1.2; }
+}
+.rail { display: grid; grid-template-rows: repeat(3, 1fr); gap: 3px; width: clamp(92px, 15vw, 170px); }
+.rail > div { min-height: 0; border-radius: 9px; }
 .action-chip {
   position: relative;
   width: 100%;
@@ -740,11 +751,11 @@ input { font: inherit; }
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px 3px 3px;
-  border-radius: 10px;
+  padding: 2px 8px 2px 2px;
+  border-radius: 9px;
   background: var(--glass-strong);
   border: 1px solid #fff;
-  box-shadow: 0 2px 10px rgba(90, 90, 110, 0.14);
+  box-shadow: 0 2px 8px rgba(90, 90, 110, 0.12);
   transition: transform 0.12s, box-shadow 0.2s, opacity 0.2s;
 }
 @media (hover: hover) {
@@ -752,19 +763,67 @@ input { font: inherit; }
 }
 .action-chip:active:not([disabled]) { transform: scale(0.97); }
 .action-chip[disabled] { opacity: 0.55; }
-.chip-art { position: relative; height: 100%; aspect-ratio: 1; min-height: 20px; border-radius: 7px; overflow: hidden; }
-.chip-body { display: grid; gap: 2px; justify-items: start; }
-.chip-power { font-family: var(--display); font-size: clamp(0.62rem, 2.6vh, 0.95rem); font-weight: 700; }
+.chip-art { position: relative; height: 100%; aspect-ratio: 1; min-height: 16px; border-radius: 7px; overflow: hidden; }
+.chip-body { display: flex; align-items: center; gap: 6px; }
+.chip-power { font-family: var(--display); font-size: clamp(0.58rem, 2.4vh, 0.9rem); font-weight: 700; }
 .chip-pips { display: flex; gap: 2px; }
-.chip-pips i { width: 7px; height: 4px; border-radius: 2px; background: rgba(120, 124, 134, 0.22); }
+.chip-pips i { width: 6px; height: 4px; border-radius: 2px; background: rgba(120, 124, 134, 0.22); }
 .chip-pips i.on { background: #7d8189; }
-.chip-cost { font-family: var(--display); font-size: 0.6rem; font-weight: 500; color: var(--ink-soft); }
-.chip-passive { font-size: 0.46rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.chip-cost { font-family: var(--display); font-size: 0.56rem; font-weight: 500; color: var(--ink-soft); }
+.chip-passive { font-size: 0.42rem; letter-spacing: 0.14em; text-transform: uppercase; }
 .chip-label { display: none; }
 @media (min-height: 600px) {
-  .chip-label { display: block; position: absolute; left: calc(100% - 8px); transform: translateX(-100%); bottom: 3px; font-family: var(--display); font-size: 0.42rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
-  .chip-cost { align-self: start; margin-top: 4px; }
+  .chip-body { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .chip-label { display: block; font-family: var(--display); font-size: 0.4rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; position: absolute; right: 8px; bottom: 3px; }
 }
+
+/* Deck and discard: small stacks either side of the hand. */
+.pile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  width: clamp(40px, 7vw, 76px);
+  height: var(--hvis);
+  margin-bottom: var(--pad-b);
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  font-family: var(--display);
+  z-index: 60;
+}
+.pile-stack { position: absolute; inset: 8% 6%; }
+.pile-stack i { position: absolute; inset: 0; border-radius: 8px; background: linear-gradient(160deg, #ffffff, #e9e9e7); border: 1px solid #fff; box-shadow: 0 3px 10px rgba(90, 90, 110, 0.16); }
+.pile-stack i:first-child { transform: rotate(-5deg) translate(-2px, 2px); }
+.pile-stack i:last-child { transform: rotate(3deg); }
+.pile b { position: relative; font-size: clamp(0.8rem, 3.4vh, 1.2rem); font-weight: 700; color: var(--ink); }
+.pile small { position: relative; font-size: 0.42rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); }
+@media (hover: hover) {
+  .pile:hover .pile-stack i:last-child { transform: rotate(3deg) translateY(-3px); }
+}
+
+/* The fanned hand. Cards are positioned by fitHand(); their bottom part is off-screen. */
+.hand-zone { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; min-width: 0; align-self: end; }
+.in-play { display: flex; gap: 4px; min-height: 22px; overflow: hidden; justify-content: center; }
+.hand { position: relative; height: var(--hvis); min-width: 0; }
+.hand > .card {
+  position: absolute;
+  top: 8px;
+  transform-origin: 50% 120%;
+  transform: translateY(var(--fy, 0)) rotate(var(--fr, 0deg));
+  transition: transform 0.18s ease-out, box-shadow 0.2s;
+  box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18);
+}
+.hand > .card:hover, .hand > .card:focus-visible {
+  z-index: 50 !important;
+  transform: translateY(calc(var(--hh) * -0.3)) rotate(0deg) scale(1.04);
+  box-shadow: 0 18px 40px rgba(80, 80, 100, 0.3), 0 0 0 2px #fff;
+}
+.hand-hidden { position: absolute; inset: 0; display: grid; place-items: center; }
+
+.turn-controls { display: grid; gap: 5px; align-content: end; min-width: clamp(84px, 12vw, 130px); margin-bottom: var(--pad-b); }
+.turn-controls .end-turn { padding: clamp(8px, 3vh, 14px) 10px; }
 
 /* Short (phone) screens: display cards lie sideways so the 3 of them use the
    width, with the glyph on the left and readable rules text on the right. */
