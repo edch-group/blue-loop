@@ -59,6 +59,7 @@ export function createGame(setup: GameSetup): GameState {
     players: [],
     marketDeck: [],
     display: [],
+    marketDiscard: [],
     globals: [],
     objectives: [],
     objectiveDeck: [],
@@ -340,7 +341,10 @@ function advanceTurn(state: GameState) {
   if (state.winnerId) return;
   do {
     state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
-    if (state.activePlayerIndex === 0) state.round += 1;
+    if (state.activePlayerIndex === 0) {
+      state.round += 1;
+      driftDisplay(state);
+    }
   } while (activePlayer(state).eliminated);
   state.turnNumber += 1;
   startTurn(state);
@@ -350,6 +354,19 @@ function advanceTurn(state: GameState) {
  * Global objectives go to the first player to meet them; missions belong to
  * whoever played them. Both are checked after every action on your turn.
  */
+/**
+ * After every full round the display drifts: the leftmost card is discarded,
+ * the rest slide one place left, and the empty right-hand slot is refilled.
+ */
+function driftDisplay(state: GameState) {
+  const [gone, ...rest] = state.display;
+  if (gone) {
+    (state.marketDiscard ??= []).push(gone);
+    log(state, `The display drifts: ${cardDef(gone.defId).name} is discarded.`);
+  }
+  state.display = [...rest, state.marketDeck.pop() ?? null];
+}
+
 function checkObjectives(state: GameState, p: PlayerState) {
   if (p.eliminated || state.winnerId) return;
   for (const id of [...state.objectives]) {

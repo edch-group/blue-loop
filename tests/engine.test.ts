@@ -238,6 +238,20 @@ describe('market', () => {
   });
 });
 
+describe('display drift', () => {
+  it('discards the leftmost card each round, slides the rest left and refills', () => {
+    let s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    const [a, b, c] = s.display.map((x) => x!.uid);
+    const next = s.marketDeck[s.marketDeck.length - 1].uid;
+    s = applyAction(s, { type: 'endTurn' }); // p2's turn: same round, no drift
+    expect(s.display.map((x) => x!.uid)).toEqual([a, b, c]);
+    s = applyAction(s, { type: 'endTurn' }); // back to p1: round 2 begins
+    expect(s.round).toBe(2);
+    expect(s.display.map((x) => x!.uid)).toEqual([b, c, next]);
+    expect(s.marketDiscard.map((x) => x.uid)).toEqual([a]);
+  });
+});
+
 describe('global effects', () => {
   it('Solar Storm heats each enemy once over the next round', () => {
     const s = twoPlayer(5, ['midas_belt', 'helios_reach']);

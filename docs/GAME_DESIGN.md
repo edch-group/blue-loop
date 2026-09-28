@@ -10,6 +10,7 @@ marked **[proposed]** for the design team to confirm or change.
 - Each player draws a random solar system from a pool of 8. [brief]
 - Each player starts with **9 Stardust** (+1 money) and **1 Command Directive**. [brief]
 - **3 cards** are on display at all times, drawn from a **200-card market deck**. [brief said 8; reduced to 3 in design review]
+- **The display drifts:** after every full round, the leftmost card is discarded (out of the game), the other two slide one place left, and the empty right-hand slot is refilled from the deck. [design review]
 - Suns start at **0**. The floor is **-10**, and a sun at **10** goes supernova and that player is out. [brief]
 - Hand size is 5. Standard deck-builder flow: draw 5, play, then discard hand and played cards and draw 5 more. [proposed]
 - 3 global objectives are face up, drawn from a pool of 11. [proposed]

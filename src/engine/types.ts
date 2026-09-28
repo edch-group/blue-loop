@@ -150,6 +150,8 @@ export interface GameState {
   marketDeck: CardInstance[];
   /** Fixed-size display. `null` marks an empty slot once the market deck runs out. */
   display: (CardInstance | null)[];
+  /** Market cards that drifted off the display unbought (out of the game). */
+  marketDiscard: CardInstance[];
   globals: ActiveGlobal[];
   /** Face-up global objectives, claimable by the first player to meet them. */
   objectives: string[];
