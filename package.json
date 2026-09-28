@@ -1,0 +1,49 @@
+{
+  "name": "blue-loop",
+  "productName": "Blue Loop",
+  "version": "0.1.0",
+  "description": "Blue Loop — a deck-building duel of warring solar civilisations, by Coronal Mass Games.",
+  "author": "Coronal Mass Games",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "simulate": "vite-node scripts/simulate.ts",
+    "electron:dev": "vite build && electron .",
+    "electron:build": "vite build && electron-builder --dir",
+    "dist": "vite build && electron-builder"
+  },
+  "build": {
+    "appId": "com.coronalmassgames.blueloop",
+    "productName": "Blue Loop",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "dir"
+    },
+    "linux": {
+      "target": "dir"
+    },
+    "mac": {
+      "target": "dir"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vite-node": "^6.0.0",
+    "vitest": "^5.0.2"
+  }
+}
