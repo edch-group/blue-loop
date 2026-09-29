@@ -9,6 +9,22 @@
  */
 
 const PREFS_KEY = 'blue-loop:sound';
+
+/** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
+function silentWav(): string {
+  const rate = 8000, samples = 800;
+  const bytes = new Uint8Array(44 + samples);
+  const view = new DataView(bytes.buffer);
+  const text = (o: number, t: string) => [...t].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+  text(0, 'RIFF'); view.setUint32(4, 36 + samples, true); text(8, 'WAVE'); text(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate, true); view.setUint16(32, 1, true); view.setUint16(34, 8, true);
+  text(36, 'data'); view.setUint32(40, samples, true);
+  bytes.fill(128, 44); // 8-bit silence
+  let bin = '';
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return `data:audio/wav;base64,${btoa(bin)}`;
+}
 const MUSIC_KEY = 'blue-loop:music';
 
 /** A-aeolian flavoured chords (frequencies in Hz) the score drifts between. */
@@ -32,6 +48,7 @@ class SoundBoard {
   private musicTimers: number[] = [];
   private musicNodes: AudioNode[] = [];
   private musicPlaying = false;
+  private silent: HTMLAudioElement | null = null;
   muted = false;
   musicOn = true;
 
@@ -42,13 +59,38 @@ class SoundBoard {
     } catch {
       // Storage unavailable: defaults.
     }
+    // Phones only allow audio to start from a completed gesture: on iOS a finger
+    // going down does not count, lifting it (or a click or key press) does. Keep
+    // listening, so audio also comes back after the app has been in the background.
+    for (const type of ['pointerup', 'touchend', 'click', 'keydown'] as const) {
+      window.addEventListener(type, () => this.unlock(), { capture: true, passive: true });
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && this.ctx && this.ctx.state !== 'running') void this.ctx.resume().catch(() => undefined);
+    });
   }
 
   toggleMute() {
     this.muted = !this.muted;
     this.store(PREFS_KEY, this.muted ? 'muted' : 'on');
-    if (this.muted) this.stopMusic();
-    else if (this.musicOn) this.startMusic();
+    if (this.muted) {
+      this.stopMusic();
+      this.releasePlayback();
+    } else {
+      this.mediaPlayback();
+      if (this.musicOn) this.startMusic();
+    }
+  }
+
+  /** Muted: stop claiming media playback, so the phone's other audio can carry on. */
+  private releasePlayback() {
+    this.silent?.pause();
+    try {
+      const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+      if (session) session.type = 'auto';
+    } catch {
+      // ignore
+    }
   }
 
   toggleMusic() {
@@ -101,8 +143,39 @@ class SoundBoard {
       const data = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
-    if (this.musicOn && !this.muted) this.startMusic();
+    if (!this.muted) this.mediaPlayback();
+    if (this.ctx.state !== 'running') {
+      // Resuming is asynchronous: start the music once the context is actually running.
+      void this.ctx
+        .resume()
+        .then(() => {
+          if (this.musicOn && !this.muted) this.startMusic();
+        })
+        .catch(() => undefined);
+    } else if (this.musicOn && !this.muted) this.startMusic();
+  }
+
+  /**
+   * On iPhone, Web Audio follows the silent switch unless the page is playing
+   * media. Ask for playback (Safari 17+) and, for older iOS, loop a silent clip.
+   */
+  private mediaPlayback() {
+    try {
+      const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+      if (session && session.type !== 'playback') session.type = 'playback';
+    } catch {
+      // Not supported: the silent clip below covers it.
+    }
+    try {
+      if (!this.silent) {
+        this.silent = new Audio(silentWav());
+        this.silent.loop = true;
+        this.silent.setAttribute('playsinline', '');
+      }
+      if (this.silent.paused) void this.silent.play().catch(() => undefined);
+    } catch {
+      // No HTMLAudioElement: nothing more to do.
+    }
   }
 
   /** Synthetic hall: stereo noise with an exponential tail. */
