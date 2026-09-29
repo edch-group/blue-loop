@@ -9,6 +9,7 @@ import {
   GameError,
   isGameOver,
   MARKET_CARDS,
+  marketCardsFor,
   SOLAR_SYSTEMS,
   supernovaThreshold,
   instabilityHeat,
@@ -39,6 +40,19 @@ describe('content', () => {
   });
 });
 
+describe('player count', () => {
+  it('leaves multi-target cards out of 1v1 games', () => {
+    const duel = createGame({ seed: 1, players: [{ name: 'A', isAI: true }, { name: 'B', isAI: true }] });
+    const cards = [...duel.marketDeck, ...duel.display].map((c) => c!.defId);
+    expect(cards).not.toContain('plasma_barrage');
+    expect(cards).not.toContain('solar_storm');
+    const trio = createGame({ seed: 1, players: [1, 2, 3].map((i) => ({ name: `P${i}`, isAI: true })) });
+    const trioCards = [...trio.marketDeck, ...trio.display].map((c) => c!.defId);
+    expect(trioCards).toContain('plasma_barrage');
+    expect(trioCards.length).toBe(200);
+  });
+});
+
 describe('setup', () => {
   it('deals 9 basic + 1 command, a full display and distinct systems', () => {
     const s = twoPlayer();
@@ -48,7 +62,8 @@ describe('setup', () => {
       expect(all.filter((c) => c.defId === 'command_directive')).toHaveLength(1);
     }
     expect(s.display.filter(Boolean)).toHaveLength(BALANCE.displaySize);
-    expect(s.marketDeck).toHaveLength(200 - BALANCE.displaySize);
+    const twoPlayerDeck = marketCardsFor(2).reduce((n, c) => n + c.copies, 0);
+    expect(s.marketDeck).toHaveLength(twoPlayerDeck - BALANCE.displaySize);
     expect(s.players[0].systemId).not.toBe(s.players[1].systemId);
   });
 
@@ -196,6 +211,7 @@ describe('core action upgrades', () => {
 
   it('Solar Flare takes 3 upgrades, +1 heat each, max 4 heat', () => {
     let s = twoPlayer(3, ['midas_belt', 'helios_reach']);
+    s.objectives = []; // keep objective claims out of upgrade tests
     for (let i = 0; i < 3; i++) {
       const uid = withCommand(s);
       s = applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'solarFlare' });
@@ -211,6 +227,7 @@ describe('core action upgrades', () => {
 
   it('Thermosiphon takes 1 upgrade, cooling 2', () => {
     let s = twoPlayer(3, ['midas_belt', 'aegis_cluster']);
+    s.objectives = [];
     const uid = withCommand(s);
     s = applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'thermosiphon' });
     const again = withCommand(s);
@@ -222,6 +239,7 @@ describe('core action upgrades', () => {
 
   it('Cooling Chamber raises max health by 5 per upgrade, up to 25', () => {
     let s = twoPlayer(3, ['midas_belt', 'helios_reach']);
+    s.objectives = []; // keep objective claims out of upgrade tests
     for (let i = 0; i < 3; i++) {
       const uid = withCommand(s);
       s = applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'coolingChamber' });

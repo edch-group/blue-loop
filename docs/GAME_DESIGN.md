@@ -78,6 +78,8 @@ Systems differ by their mix of planets **and** a unique ability.
 
 ## Market deck (200 cards) [proposed content]
 
+Cards that hit **every enemy** (Plasma Barrage, Solar Storm) are priced for several targets, so they are left out of 2-player games. The 2-player market deck is 184 cards. [design review]
+
 Prices were lowered in design review: about 82% of the deck costs 4 or less, so early turns (4–6 money) can usually buy something.
 
 Economy 62 · Attack 48 · Defence 50 · Command 16 · Global 24.

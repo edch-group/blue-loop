@@ -104,7 +104,7 @@ export function createGame(setup: GameSetup): GameState {
     });
   });
 
-  for (const def of MARKET_CARDS) {
+  for (const def of marketCardsFor(n)) {
     for (let k = 0; k < def.copies; k++) state.marketDeck.push(newCard(state, def.id));
   }
   shuffleInPlace(state, state.marketDeck);
@@ -116,6 +116,11 @@ export function createGame(setup: GameSetup): GameState {
   log(state, `A new game begins. ${state.players.map((p) => `${p.name} rules ${systemDef(p.systemId).name}`).join('; ')}.`);
   startTurn(state);
   return state;
+}
+
+/** The market cards used for a given player count (multi-target cards need 3+). */
+export function marketCardsFor(playerCount: number) {
+  return MARKET_CARDS.filter((d) => (d.minPlayers ?? 0) <= playerCount);
 }
 
 // ---------------------------------------------------------------------------

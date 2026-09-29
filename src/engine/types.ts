@@ -32,6 +32,11 @@ export interface CardDef {
   effects: Effect[];
   /** Copies in the 200-card market deck (0 for starter-only cards). */
   copies: number;
+  /**
+   * Leave this card out of games with fewer players. Cards that hit every
+   * enemy are priced for several targets, so they are dropped from 1v1.
+   */
+  minPlayers?: number;
 }
 
 export interface CardInstance {
