@@ -27,7 +27,7 @@
   --gap: clamp(6px, 1.4vh, 14px);
 
   /* Display cards: fill one row of 8, capped by height. Hand cards and tiles fit the dock. */
-  --dh: min(calc(31 * var(--vh)), 300px);
+  --dh: min(calc(25 * var(--vh)), 230px);
   --dw: calc(var(--dh) * 0.714);
   --hh: min(calc(33 * var(--vh)), 270px);
   --hw: calc(var(--hh) * 0.714);
@@ -385,9 +385,14 @@ input { font: inherit; }
   background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 8px rgba(90, 90, 110, 0.12);
   font-family: var(--display);
 }
-.round-num small { font-size: 0.4rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); line-height: 1; }
-.round-num b { font-size: clamp(0.72rem, 2.4vh, 1rem); font-weight: 700; color: #5b5f67; line-height: 1.1; }
-.round-box .stability { display: grid; gap: 4px; }
+.round-num small { font-size: clamp(0.42rem, 1.5vh, 0.56rem); letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); line-height: 1; }
+.round-num b { font-size: clamp(1rem, 3.8vh, 1.5rem); font-weight: 700; color: #5b5f67; line-height: 1.1; }
+.round-box { gap: clamp(10px, 2vw, 16px); padding: 6px 20px 6px 7px; border-radius: 18px; }
+.round-box .round-num { min-width: clamp(46px, 11vh, 68px); }
+.round-box .stability { display: grid; gap: 6px; }
+.round-box .stability-label { font-size: clamp(0.56rem, 2vh, 0.74rem); letter-spacing: 0.2em; color: var(--ink); }
+.round-box .stability-bar { gap: 3px; padding: 3px; border-radius: 8px; }
+.round-box .stability-bar i { width: clamp(14px, 3.2vw, 26px); height: 9px; border-radius: 4px; }
 .round-box.unstable .stability-label { color: #a8716c; font-weight: 700; }
 .rival-dead { opacity: 0.5; }
 .rival-info { display: grid; text-align: left; min-width: 0; }
@@ -955,13 +960,13 @@ input { font: inherit; }
 @media (max-height: 560px) {
   .display .card-glyph { height: 30%; padding-top: 5%; }
   .display .card-name { font-size: 0.52rem; }
-  .display .card-text { font-size: 0.64rem; line-height: 1.25; -webkit-line-clamp: 6; }
+  .display .card-text { font-size: 0.6rem; line-height: 1.22; -webkit-line-clamp: 4; }
   .display .card-kind { font-size: 0.42rem; }
   .display .coin { width: 22px; font-size: 0.62rem; top: 6px; right: 6px; }
   .game {
     --sidew: clamp(96px, 15vw, 150px);
     --logw: clamp(130px, 19vw, 190px);
-    --dh: min(calc(41 * var(--vh)), calc((100vw - var(--sidew) - var(--logw) - 110px) / 3 / 0.714));
+    --dh: min(calc(33 * var(--vh)), calc((100vw - var(--sidew) - var(--logw) - 110px) / 3 / 0.714));
     --dw: calc(var(--dh) * 0.714);
   }
   .rival .orb { --size: 32px !important; }
