@@ -8,6 +8,9 @@ import '@fontsource/exo-2/latin-400.css';
 import '@fontsource/exo-2/latin-600.css';
 import './styles.css';
 import { App } from './ui/app';
+import { trackViewport } from './ui/viewport';
+
+trackViewport();
 
 // Wait for the fonts before the first paint: rendering in a fallback face and then
 // swapping made the whole layout jump into place on phones. Give up after a moment

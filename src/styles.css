@@ -37,7 +37,7 @@
   font-family: var(--body);
   font-weight: 400;
   color: var(--ink);
-  background: var(--paper);
+  background: #e0dfdb;
   -webkit-text-size-adjust: 100%;
 }
 @supports (height: 1dvh) {
@@ -45,7 +45,8 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; overscroll-behavior: none; }
+html, body { margin: 0; height: var(--app-h, 100%); overscroll-behavior: none; }
+/* Anything left below the page (see viewport.ts) matches the page's bottom colour. */
 body {
   background:
     radial-gradient(ellipse 70% 60% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0.6) 40%, transparent 75%),
@@ -1729,3 +1730,6 @@ body.screen-campaign .backdrop { display: none; }
 /* Hold the first paint until the fonts are in, so nothing reflows as they arrive. */
 html:not(.ready) #app { opacity: 0; }
 html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
+
+/* Full-screen layers take the measured screen height rather than the (short) viewport. */
+.backdrop, .overlay, .peek-shield, .table-view { bottom: auto; height: var(--app-h, 100%); }
