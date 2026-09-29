@@ -222,10 +222,12 @@ describe('core action upgrades', () => {
     expect(s.players[0].upgrades.solarFlare).toBe(3);
     const uid = withCommand(s);
     expect(() => applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'solarFlare' })).toThrow(GameError);
-    s.players[0].money = 3; // Midas: Solar Flare costs 1 more
+    // Each upgrade also costs 1 more: 2 + 3 upgrades + Midas's drawback 1 = 6.
+    s.players[0].money = 6;
     s.players[1].shields = 0;
     s = applyAction(s, { type: 'solarFlare', targetId: 'p2' });
     expect(s.players[1].heat).toBe(4);
+    expect(s.players[0].money).toBe(0);
   });
 
   it('Thermosiphon takes 1 upgrade, cooling 2', () => {
@@ -241,7 +243,7 @@ describe('core action upgrades', () => {
   });
 
   it('Cooling Chamber raises max health by 5 per upgrade, up to 25', () => {
-    let s = twoPlayer(3, ['midas_belt', 'helios_reach']);
+    let s = twoPlayer(3, ['aegis_cluster', 'helios_reach']); // Aegis has no max-health drawback
     s.objectives = []; // keep objective claims out of upgrade tests
     for (let i = 0; i < 3; i++) {
       const uid = withCommand(s);
@@ -260,9 +262,9 @@ describe('core action upgrades', () => {
     expect(s.players[0].heat).toBe(12);
   });
 
-  it('Vulcan Forge starts with one Solar Flare upgrade', () => {
+  it('Vulcan Forge starts with two Solar Flare upgrades', () => {
     const s = twoPlayer(3, ['vulcan_forge', 'midas_belt']);
-    expect(s.players[0].upgrades).toEqual({ solarFlare: 1, thermosiphon: 0, coolingChamber: 0 });
+    expect(s.players[0].upgrades).toEqual({ solarFlare: 2, thermosiphon: 0, coolingChamber: 0 });
   });
 });
 
@@ -298,13 +300,17 @@ describe('system draft', () => {
   it('applies system drawbacks', () => {
     const s = twoPlayer(3, ['nova_crown', 'tempest_binary']);
     expect(supernovaThreshold(s.players[0])).toBe(8);
-    expect(supernovaThreshold(s.players[1])).toBe(8);
+    expect(supernovaThreshold(s.players[1])).toBe(6);
   });
 
-  it('Cryon Drift thaws by 2 at the start of its turns', () => {
-    let s = twoPlayer(3, ['midas_belt', 'cryon_drift']);
+  it('Cryon Drift thaws by 1 at the start of its turns, until it reaches 4', () => {
+    let s = twoPlayer(3, ['aegis_cluster', 'cryon_drift']);
+    s.objectives = [];
     s = applyAction(s, { type: 'endTurn' });
-    expect(s.players[1].heat).toBe(-8);
+    expect(s.players[1].heat).toBe(-9);
+    s.players[1].heat = 4;
+    s = applyAction(applyAction(s, { type: 'endTurn' }), { type: 'endTurn' });
+    expect(s.players[1].heat).toBe(4);
   });
 
   it('Obsidian Veil fixes hand size at 5', () => {
@@ -384,12 +390,12 @@ describe('global cards', () => {
 
 describe('objectives', () => {
   it('go to the first player to meet them, who then chooses a reward', () => {
-    const s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    const s = twoPlayer(5, ['aegis_cluster', 'helios_reach']);
     s.objectives = ['deep_freeze'];
     s.objectiveDeck = ['firestorm'];
     s.players[0].heat = -4;
-    s.players[0].money = 2;
-    let after = applyAction(s, { type: 'thermosiphon' }); // Helios is p2; Midas cools 1 → -5
+    s.players[0].money = 3; // Aegis: Thermosiphon costs 1 more
+    let after = applyAction(s, { type: 'thermosiphon' }); // cools 1 → -5
     expect(after.claimed).toEqual([{ id: 'deep_freeze', playerId: 'p1' }]);
     expect(after.objectives).toEqual(['firestorm']); // replaced from the pool
     expect(after.pendingRewards).toHaveLength(1);
@@ -429,7 +435,7 @@ describe('objectives', () => {
   });
 
   it('Command Upgrade reward upgrades immediately', () => {
-    let s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    let s = twoPlayer(5, ['aegis_cluster', 'helios_reach']);
     s.pendingRewards = [{ playerId: 'p1', source: 'test', options: ['command'] }];
     expect(() => applyAction(s, { type: 'chooseReward', reward: 'command' })).toThrow(GameError);
     s = applyAction(s, { type: 'chooseReward', reward: 'command', upgradeId: 'coolingChamber' });

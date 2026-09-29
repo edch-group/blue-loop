@@ -24,7 +24,7 @@ marked **[proposed]** for the design team to confirm or change.
 4. **Main phase**, in any order and as often as money allows:
    - Play cards from hand.
    - Buy a card from the display. It goes to the discard pile. [proposed]
-   - **Solar Flare**: pay 2 to heat an enemy sun by 1, +1 per upgrade. [brief]
+   - **Solar Flare**: pay 2 to heat an enemy sun by 1. Each upgrade adds +1 heat and +1 cost (2/3/4/5 money for 1/2/3/4 heat): the core actions are money sinks, never as efficient as bought cards. [design review]
    - **Thermosiphon**: pay 2 to cool your own sun by 1, +1 per upgrade. [brief]
 5. **End turn**: discard your hand and played cards. Unspent money is lost. [proposed]
 
@@ -66,13 +66,15 @@ Systems differ by their mix of planets, a unique ability **and** a drawback. [de
 | System | Planets | Ability | Drawback |
 | --- | --- | --- | --- |
 | Helios Reach | W, D, E, R | First Thermosiphon each turn costs 1 less | Max health 1 lower |
-| Vulcan Forge | W, W, E | Solar Flare starts with 1 upgrade | Max health 2 lower |
+| Vulcan Forge | W, W, E | Solar Flare starts with 2 upgrades | Max health 2 lower |
 | Aegis Cluster | D, R | +1 shield every turn | Thermosiphon costs 1 more |
-| Midas Belt | E1, E, R | +1 money every turn | Solar Flare costs 1 more |
-| Cryon Drift | D, R, E | Sun starts at -10 | Thaw: sun heats by 2 at the start of each of its turns |
-| Tempest Binary | W, R | Draw 1 extra card every turn | Max health 2 lower |
+| Midas Belt | E1, E, R | +1 money every turn | Solar Flare and Thermosiphon cost 1 more; max health 2 lower |
+| Cryon Drift | D, R, E | Sun starts at -10 | Thaw: sun heats by 1 at the start of each of its turns, until it reaches 4 |
+| Tempest Binary | W, R | Draw 1 extra card every turn | Display cards cost 1 more; max health 4 lower |
 | Obsidian Veil | E, W, D | Display cards cost 1 less (min 1) | Hand size fixed at 5 (planets and rewards cannot raise it) |
 | Nova Crown | E1, W, D | +1 money per 3 heat above 0 at turn start | Max health 2 lower |
+
+Tuned with `npm run simulate` after the Solar Flare cost change: every system wins 43–55% of 2-player games. [design review]
 
 (`E1` = starts at level 1.)
 
@@ -202,7 +204,7 @@ You lose if you lose all your systems.
 2. **Rewards**: is "once per player" the right reading of "one time use"? Should the offer be 3 random rewards, or the full list?
 3. **Fields**: is 3 rounds the right length, and should the setter's advantage be bigger?
 4. **Player elimination**: should eliminated players keep a role, for example controlling global events?
-5. **Game length**: with a 4-heat Solar Flare costing only 2 money, AI games average about 6 rounds (2 players), so most end before Stellar Instability starts. Consider scaling the flare cost with its upgrades.
+5. **Game length**: with the Solar Flare cost now rising with upgrades, 2-player AI games last about 23 turns (11 rounds), so Stellar Instability usually decides the late game.
 6. **Balance**: with drawbacks, `npm run simulate` puts every system at 46–54% in 2-player games. In 4-player games the systems with lower max health (Vulcan, Nova, Obsidian, Tempest) still win too rarely (13–21% against a fair 25%), and Aegis and Helios win too often (37–43%). Part of that is the AI always targeting the hottest sun. Needs human playtesting.
 7. **Weapon and defence planets**: should they add their bonus to attack and cooling cards (as suggested in review), or keep the current effects (shield pierce and shields), or get more unique abilities per planet?
 8. **Deck exhaustion**: what happens when all 200 market cards are bought? Currently the display slots stay empty.

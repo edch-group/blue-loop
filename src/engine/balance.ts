@@ -26,6 +26,8 @@ export const BALANCE = {
   solarFlareCost: 2,
   solarFlareHeat: 1,
   solarFlareMaxUpgrades: 3, // max 4 heat per flare
+  /** Each Solar Flare upgrade also raises its cost: 2 / 3 / 4 / 5 money for 1 / 2 / 3 / 4 heat. */
+  solarFlareCostPerUpgrade: 1,
   thermosiphonCost: 2,
   thermosiphonCool: 1,
   thermosiphonMaxUpgrades: 1, // max 2 cooling per use

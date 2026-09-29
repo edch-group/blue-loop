@@ -93,6 +93,8 @@ export interface SystemModifiers {
   noThermosiphon?: boolean;
   /** Your sun heats by this much at the start of each of your turns. */
   thawPerTurn?: number;
+  /** The thaw stops once your sun reaches this heat (no limit if unset). */
+  thawCeiling?: number;
 }
 
 export interface SolarSystemDef {

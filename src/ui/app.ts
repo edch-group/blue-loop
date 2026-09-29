@@ -111,7 +111,7 @@ const KEY_LOG = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|w
 const HOT = '#f0a07a';
 
 const ACTION_TEXT: Record<CoreAction, string> = {
-  solarFlare: `Spend money to heat an enemy sun. Deals 1 heat, +1 per upgrade (max ${1 + BALANCE.solarFlareMaxUpgrades}). Use as often as you can afford.`,
+  solarFlare: `Spend money to heat an enemy sun. Deals 1 heat for ${BALANCE.solarFlareCost} money; each upgrade adds +1 heat and +${BALANCE.solarFlareCostPerUpgrade} cost (max ${1 + BALANCE.solarFlareMaxUpgrades} heat). Use as often as you can afford.`,
   thermosiphon: `Spend money to cool your own sun. Cools 1, +1 per upgrade (max ${1 + BALANCE.thermosiphonMaxUpgrades}). Use as often as you can afford.`,
   coolingChamber: `Passive. Each upgrade raises your max health (the heat at which your sun goes supernova) by ${BALANCE.coolingChamberHealthPerUpgrade}, from ${BALANCE.supernovaAt} up to ${BALANCE.supernovaAt + BALANCE.coolingChamberMaxUpgrades * BALANCE.coolingChamberHealthPerUpgrade}.`,
 };
@@ -1010,7 +1010,7 @@ export class App {
       <ul class="rules">
         <li>Every sun starts at <b>0</b> with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. The last sun standing wins.</li>
         <li>Play cards for money. Spend it on <b>Solar Flare</b> to heat an enemy sun, or <b>Thermosiphon</b> to cool your own (down to ${BALANCE.minHeat}), as often as you can afford.</li>
-        <li><b>Command</b> cards upgrade an action or a planet. Solar Flare: 3 upgrades (up to 4 heat). Thermosiphon: 1 (up to 2 cooling). <b>Cooling Chamber</b>: 3 upgrades, +${BALANCE.coolingChamberHealthPerUpgrade} max health each (up to ${BALANCE.supernovaAt + 3 * BALANCE.coolingChamberHealthPerUpgrade}).</li>
+        <li><b>Command</b> cards upgrade an action or a planet. Solar Flare: 3 upgrades, each +1 heat and +1 cost (up to 4 heat for 5 money). Thermosiphon: 1 (up to 2 cooling). <b>Cooling Chamber</b>: 3 upgrades, +${BALANCE.coolingChamberHealthPerUpgrade} max health each (up to ${BALANCE.supernovaAt + 3 * BALANCE.coolingChamberHealthPerUpgrade}).</li>
         <li><b>Objectives</b> are shared: the first player to meet one claims it and picks a reward (each reward once per player). Buy <b>mission</b> cards for personal objectives: play one, meet its condition, and pick a reward.</li>
         <li>The stability bar drains by one each round. When it empties, <b>Stellar Instability</b> heats every sun at the start of each turn.</li>
       </ul>`;

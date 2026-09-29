@@ -212,7 +212,9 @@ export function flareCost(state: GameState, p: PlayerState): number {
   const field = activeField(state);
   const magnetic = field?.id === 'magneticStorm' ? 1 : 0;
   const drawback = (mods(p).flareCostDelta ?? 0) + (first ? mods(p).firstFlareCostDelta ?? 0 : 0);
-  return Math.max(1, BALANCE.solarFlareCost + magnetic + drawback - focus);
+  // Each upgrade adds +1 heat and +1 cost: the core actions are money sinks, never as efficient as bought cards.
+  const upgrades = p.upgrades.solarFlare * BALANCE.solarFlareCostPerUpgrade;
+  return Math.max(1, BALANCE.solarFlareCost + upgrades + magnetic + drawback - focus);
 }
 
 export function flareHeat(p: PlayerState, state?: GameState): number {
@@ -386,7 +388,8 @@ function startTurn(state: GameState) {
   for (const g of state.globals) g.turnsRemaining -= 1;
 
   // 2b. System drawbacks that tick each turn (e.g. Cryon Drift thawing).
-  const thaw = mods(p).thawPerTurn ?? 0;
+  const ceiling = mods(p).thawCeiling ?? Infinity;
+  const thaw = Math.max(0, Math.min(mods(p).thawPerTurn ?? 0, ceiling - p.heat));
   if (thaw > 0 && !p.eliminated) {
     log(state, `${p.name}'s frozen sun thaws by ${thaw}.`);
     applyHeat(state, p, thaw, null);

@@ -25,14 +25,14 @@ export const SOLAR_SYSTEMS: SolarSystemDef[] = [
     name: 'Vulcan Forge',
     flavor: 'Molten worlds that exist only to build weapons.',
     abilityName: 'Forgefire',
-    abilityText: 'Your Solar Flare starts with 1 upgrade.',
+    abilityText: 'Your Solar Flare starts with 2 upgrades.',
     drawbackText: 'Your max health is 2 lower.',
     planets: [
       { name: 'Anvil', track: 'weapons', level: 0 },
       { name: 'Crucible', track: 'weapons', level: 0 },
       { name: 'Slagmarket', track: 'economy', level: 0 },
     ],
-    modifiers: { startingFlareUpgrades: 1, maxHealthDelta: -2 },
+    modifiers: { startingFlareUpgrades: 2, maxHealthDelta: -2 },
   },
   {
     id: 'aegis_cluster',
@@ -53,13 +53,13 @@ export const SOLAR_SYSTEMS: SolarSystemDef[] = [
     flavor: 'Asteroid fields thick with rare metals.',
     abilityName: 'Gilded Orbit',
     abilityText: 'Gain 1 extra money every turn.',
-    drawbackText: 'Solar Flare costs 1 more.',
+    drawbackText: 'Solar Flare and Thermosiphon cost 1 more, and your max health is 2 lower.',
     planets: [
       { name: 'Aurum', track: 'economy', level: 1 },
       { name: 'Argent', track: 'economy', level: 0 },
       { name: 'Quarry', track: 'resources', level: 0 },
     ],
-    modifiers: { incomeBonus: 1, flareCostDelta: 1 },
+    modifiers: { incomeBonus: 1, flareCostDelta: 1, thermoCostDelta: 1, maxHealthDelta: -2 },
   },
   {
     id: 'cryon_drift',
@@ -67,13 +67,13 @@ export const SOLAR_SYSTEMS: SolarSystemDef[] = [
     flavor: 'A dim, ice-bound star far from the galactic core.',
     abilityName: 'Frozen Heart',
     abilityText: 'Your sun starts at -10, as cold as a sun can be.',
-    drawbackText: 'Thaw: your sun heats by 2 at the start of each of your turns.',
+    drawbackText: 'Thaw: your sun heats by 1 at the start of each of your turns, until it reaches 4.',
     planets: [
       { name: 'Rime', track: 'defences', level: 0 },
       { name: 'Glacier', track: 'resources', level: 0 },
       { name: 'Floe', track: 'economy', level: 0 },
     ],
-    modifiers: { startingHeat: -10, thawPerTurn: 2 },
+    modifiers: { startingHeat: -10, thawPerTurn: 1, thawCeiling: 4 },
   },
   {
     id: 'tempest_binary',
@@ -81,12 +81,12 @@ export const SOLAR_SYSTEMS: SolarSystemDef[] = [
     flavor: 'Twin stars whose chaos breeds swift strategists.',
     abilityName: 'Twin Minds',
     abilityText: 'Draw 1 extra card every turn.',
-    drawbackText: 'Your max health is 2 lower.',
+    drawbackText: 'Display cards cost you 1 more, and your max health is 4 lower.',
     planets: [
       { name: 'Castor', track: 'weapons', level: 0 },
       { name: 'Pollux', track: 'resources', level: 0 },
     ],
-    modifiers: { handSizeBonus: 1, maxHealthDelta: -2 },
+    modifiers: { handSizeBonus: 1, marketDiscount: -1, maxHealthDelta: -4 },
   },
   {
     id: 'obsidian_veil',
