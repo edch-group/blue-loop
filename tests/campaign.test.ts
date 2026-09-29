@@ -30,7 +30,12 @@ function settle(s: CampaignState, choice: 'settle' | 'absorb' | 'supernova' = 's
 describe('campaign setup', () => {
   it('builds a connected 48-system map with four factions in the corners', () => {
     const s = fresh();
-    expect(s.nodes).toHaveLength(CAMPAIGN.mapCols * CAMPAIGN.mapRows);
+    expect(s.nodes).toHaveLength(CAMPAIGN.mapSystems);
+    // Every system is reachable from every other.
+    const seen = new Set([s.nodes[0].id]);
+    const queue = [s.nodes[0].id];
+    while (queue.length) for (const l of nodeById(s, queue.shift()!).links) if (!seen.has(l)) { seen.add(l); queue.push(l); }
+    expect(seen.size).toBe(s.nodes.length);
     expect(s.factions).toHaveLength(4);
     for (const f of s.factions) expect(ownedNodes(s, f.id)).toHaveLength(1);
     // Links are symmetric.

@@ -60,8 +60,8 @@ function saveCampaign(s: CampaignState | null) {
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const lower = (t: string) => esc(t.toLowerCase());
 
-/** Muted faction tints: the player's blue loop, then the three rivals. */
-export const FACTION_COLOUR: Record<string, string> = { f1: '#6f9fd8', f2: '#d48a7c', f3: '#c9a95e', f4: '#a08bcb' };
+import { FACTION_COLOUR, factionAvatar } from './factions';
+export { FACTION_COLOUR };
 const NEUTRAL = '#c9cbd0';
 /** Credits: a solid gold coin. Earned from your systems, battles and missions; spent on repairs and planet upgrades. */
 const CREDITS =
@@ -70,17 +70,12 @@ const CREDITS =
 const MATERIALS =
   '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#4f9aa6"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#9fd3d9"/><path d="M10 9.6V18.5L3 14V6Z" fill="#6fb3bc"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="none" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/></svg>';
 const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
-/** Each system type burns its own colour. */
-const STAR_COLOUR: Record<string, string> = {
-  helios_reach: '#ffcf6b',
-  vulcan_forge: '#ff7f50',
-  aegis_cluster: '#8fc2ff',
-  midas_belt: '#ffb84d',
-  cryon_drift: '#aee4ff',
-  tempest_binary: '#c3d3ff',
-  obsidian_veil: '#c58bff',
-  nova_crown: '#ff8fc8',
-};
+/** A stable 0–1 value per id, to spread animation phases so stars never pulse in step. */
+function seedOf(id: string): string {
+  let h = 0;
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return ((h % 1000) / 1000).toFixed(3);
+}
 const TRACK_TINT: Record<string, string> = { weapons: '#e2a494', defences: '#a3c3df', economy: '#e0cd94', resources: '#abd2b5' };
 
 /** What the campaign screen needs from the app that hosts it. */
@@ -434,7 +429,9 @@ export class CampaignView {
             ${this.selected === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
               <span class="cmp-badges">${badges}</span>
-              <span class="cmp-star ${n.systemId === 'tempest_binary' ? 'cmp-binary' : ''}" style="--sc:${STAR_COLOUR[n.systemId] ?? '#ffd27a'}"><i class="cmp-corona"></i><i class="cmp-core"></i>${n.systemId === 'tempest_binary' ? '<i class="cmp-companion"></i>' : ''}</span>
+              <span class="cmp-star ${n.systemId === 'tempest_binary' ? 'cmp-binary' : ''}" style="--seed:${seedOf(n.id)}"><i class="cmp-core"></i>${n.systemId === 'tempest_binary' ? '<i class="cmp-companion"></i>' : ''}${
+                n.owner ? factionAvatar(n.owner, 'cmp-owner') : ''
+              }</span>
               <span class="cmp-label">${lower(n.name)}</span>
             </button>
           </div>`;
@@ -464,13 +461,13 @@ export class CampaignView {
         const def = ANOMALIES[a.kind];
         const far = focus && Math.hypot(a.x - focus.x, a.y - focus.y) > 300;
         const flat = {
-          blackHole: '<div class="an-disc"></div><div class="an-lens"></div>',
+          blackHole: '<div class="an-lens"></div>',
           nebula: '<div class="an-cloud an-cloud-a"></div><div class="an-cloud an-cloud-b"></div><div class="an-cloud an-cloud-c"></div>',
           darkMatter: '<div class="an-haze"></div><div class="an-motes"></div>',
           pulsar: '<div class="an-wave"></div><div class="an-wave an-wave-2"></div>',
         }[a.kind];
         const marker = {
-          blackHole: '<span class="an-hole"></span>',
+          blackHole: '<span class="an-hole"><i class="an-disc"></i></span>',
           nebula: '<span class="an-glint"></span>',
           darkMatter: '<span class="an-cluster"><i></i><i></i><i></i><i></i><i></i></span>',
           pulsar: '<span class="an-pulsar"><i class="an-beam"></i></span>',
@@ -493,7 +490,7 @@ export class CampaignView {
     const def = ANOMALIES[a.kind];
     const reached = s.nodes.filter((n) => nodeAnomalies(s, n).some((x) => x.id === a.id));
     const rows = reached
-      .map((n) => `<div class="cmp-faction" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}"><i></i><span>${lower(n.name)}</span><b>${n.owner ? lower(factionById(s, n.owner).name) : 'neutral'}</b></div>`)
+      .map((n) => `<div class="cmp-faction" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}">${n.owner ? factionAvatar(n.owner) : '<i></i>'}<span>${lower(n.name)}</span><b>${n.owner ? lower(factionById(s, n.owner).name) : 'neutral'}</b></div>`)
       .join('');
     return `
       <div class="cmp-node-head" style="--fc:#8d92a0"><i class="an-icon an-icon-${a.kind}"></i>
@@ -679,7 +676,7 @@ export class CampaignView {
     const factions = s.factions
       .map((f) => {
         const held = ownedNodes(s, f.id).length;
-        return `<div class="cmp-faction ${f.eliminated ? 'out' : ''}" style="--fc:${FACTION_COLOUR[f.id]}"><i></i><span>${f.id === me.id ? 'you' : lower(f.name)}</span><b>${f.eliminated ? 'eliminated' : `${held} system${held === 1 ? '' : 's'}`}</b></div>`;
+        return `<div class="cmp-faction ${f.eliminated ? 'out' : ''}" style="--fc:${FACTION_COLOUR[f.id]}">${factionAvatar(f.id)}<span>${f.id === me.id ? 'you' : lower(f.name)}</span><b>${f.eliminated ? 'eliminated' : `${held} system${held === 1 ? '' : 's'}`}</b></div>`;
       })
       .join('');
     const missions = me.missions.map((m) => this.missionRow(m.id, missionProgress(s, me, m))).join('');
@@ -745,7 +742,7 @@ export class CampaignView {
     const status = n.hazard.length ? '<p class="cmp-warn">Supernova remnant: rivals cannot advance into it this turn.</p>' : '';
     return `
       <div class="cmp-node-head" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}">
-        <i></i>
+        ${n.owner ? factionAvatar(n.owner, 'cmp-head-av') : '<i></i>'}
         <div><h3>${lower(n.name)}</h3><small>${owner ? (mine ? 'your system' : lower(owner.name)) : `neutral · sentinels tier ${n.tier + 1}`}${n.home ? ' · home' : ''}</small></div>
         <button class="icon-btn" data-act="cmp-select" data-arg="${n.id}" aria-label="Close">×</button>
       </div>
@@ -903,7 +900,7 @@ export class CampaignView {
       const sys = systemDef(n.systemId);
       const who = n.owner ? factionById(s, n.owner).name : `${n.name} Sentinels`;
       const fx = anomalyEffects(s, n);
-      return `<div class="cmp-side-card" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}"><small>${label}</small><b>${lower(who)}</b><span>${lower(n.name)} · ${lower(sys.name)}</span>${n.damage ? `<span class="cmp-dmg">✸ ${n.damage} damage</span>` : ''}${
+      return `<div class="cmp-side-card" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}"><small>${label}</small><b>${n.owner ? factionAvatar(n.owner, 'fav-inline') : ''}${lower(who)}</b><span>${lower(n.name)} · ${lower(sys.name)}</span>${n.damage ? `<span class="cmp-dmg">✸ ${n.damage} damage</span>` : ''}${
         fx ? fx.conditions.map((c) => `<span class="cmp-anom-tag">${lower(c.name)}</span>`).join('') : ''
       }</div>`;
     };

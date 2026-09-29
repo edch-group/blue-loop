@@ -145,9 +145,9 @@ Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 
 ## Campaign mode [design review, first version]
 
-Universe domination on a map of 48 linked solar systems (a jittered 8×6 grid). The map is a tilted 3D plane: drag to pan, scroll or pinch to zoom. Selecting a system zooms the camera in to show its planets orbiting the star. The player and 1–3 AI factions start in the corners. Everything else is neutral, held by "sentinels" that get stronger towards the middle of the map. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).
+Universe domination on a map of 48 linked solar systems. They're scattered in loose clusters with open voids between, so neighbours sit at irregular distances and angles. Routes follow a Gabriel graph, which never crosses. Overlong routes are dropped unless they're needed to keep the map connected. The map is a tilted 3D plane: drag to pan, scroll or pinch to zoom. Selecting a system zooms the camera in to show its planets orbiting the star. The player and 1–3 AI factions start in the corners. Everything else is neutral, held by "sentinels" that get stronger towards the middle of the map. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).
 
-**Anomalies.** Eight anomalies sit in the gaps between systems, never over a starting system. Each affects every battle fought from a system within its reach: the defender of a system there, or an attacker launching from one. Each is a trade-off:
+**Anomalies.** Eight anomalies settle in the voids between systems, each within reach of at least one system and never over a starting system. Each affects every battle fought from a system within its reach: the defender of a system there, or an attacker launching from one. Each is a trade-off:
 
 | Anomaly | Boon | Cost |
 | --- | --- | --- |

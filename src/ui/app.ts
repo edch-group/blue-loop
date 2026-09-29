@@ -929,6 +929,7 @@ export class App {
 
   private render() {
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
+    document.body.classList.toggle('screen-campaign', this.screen === 'campaign');
     if (this.screen === 'campaign') this.campaign.afterRender(this.root);
     this.syncPeek();
     // The backdrop warms (or chills) with the viewer's own sun, not whoever is acting.

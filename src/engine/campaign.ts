@@ -53,12 +53,14 @@ export const CAMPAIGN = {
   dominationShare: 0.5,
   /** When this turn ends, the faction controlling the most systems wins. */
   turnLimit: 60,
-  /** The map: a jittered grid of systems, this many columns and rows, this far apart. */
-  mapCols: 8,
-  mapRows: 6,
-  mapSpacingX: 200,
-  mapSpacingY: 160,
+  /** The map: this many systems scattered in loose clusters over this area (map units). */
+  mapSystems: 48,
+  mapWidth: 2200,
+  mapHeight: 1400,
   mapMargin: 110,
+  /** Systems are never closer than this; routes longer than this are dropped unless needed to connect. */
+  minSystemGap: 95,
+  maxRoute: 430,
   /** Anomalies scattered between systems; each changes battles fought from the systems within its reach. */
   anomalies: 8,
   /** Safety cap on simulated (auto-resolved) battles. */
@@ -427,12 +429,79 @@ export function factionIncome(s: CampaignState, factionId: string) {
 // Creation
 // ---------------------------------------------------------------------------
 
-const COLS = CAMPAIGN.mapCols;
-const ROWS = CAMPAIGN.mapRows;
-
 /** The map's size in map units (system positions lie inside it). */
-export const MAP_WIDTH = CAMPAIGN.mapMargin * 2 + (COLS - 1) * CAMPAIGN.mapSpacingX;
-export const MAP_HEIGHT = CAMPAIGN.mapMargin * 2 + (ROWS - 1) * CAMPAIGN.mapSpacingY;
+export const MAP_WIDTH = CAMPAIGN.mapWidth;
+export const MAP_HEIGHT = CAMPAIGN.mapHeight;
+
+/** Rough normal sample (sum of uniforms). */
+function gauss(s: CampaignState): number {
+  return (nextRandom(s) + nextRandom(s) + nextRandom(s) + nextRandom(s) - 2) / 0.58;
+}
+
+/**
+ * Scatter systems in loose clusters with voids between them, so neighbours sit
+ * at irregular distances and angles: some huddle close, some lie far out.
+ */
+function scatterSystems(s: CampaignState): { x: number; y: number }[] {
+  const m = CAMPAIGN.mapMargin;
+  const inside = (x: number, y: number) => x >= m && x <= MAP_WIDTH - m && y >= m && y <= MAP_HEIGHT - m;
+  const clusters = Array.from({ length: 9 }, () => ({
+    x: m + nextRandom(s) * (MAP_WIDTH - 2 * m),
+    y: m + nextRandom(s) * (MAP_HEIGHT - 2 * m),
+    spread: 90 + nextRandom(s) * 140,
+  }));
+  // Keep the four corners populated so every faction has room to start.
+  clusters.push({ x: m + 60, y: MAP_HEIGHT - m - 60, spread: 110 }, { x: MAP_WIDTH - m - 60, y: m + 60, spread: 110 });
+  clusters.push({ x: m + 60, y: m + 60, spread: 110 }, { x: MAP_WIDTH - m - 60, y: MAP_HEIGHT - m - 60, spread: 110 });
+  const pts: { x: number; y: number }[] = [];
+  for (let tries = 0; pts.length < CAMPAIGN.mapSystems && tries < 20000; tries++) {
+    let x: number;
+    let y: number;
+    if (nextRandom(s) < 0.72) {
+      const c = clusters[randomInt(s, clusters.length)];
+      x = c.x + gauss(s) * c.spread;
+      y = c.y + gauss(s) * c.spread;
+    } else {
+      x = m + nextRandom(s) * (MAP_WIDTH - 2 * m);
+      y = m + nextRandom(s) * (MAP_HEIGHT - 2 * m);
+    }
+    // The gap varies too, so some pairs sit close and others keep their distance.
+    const gap = CAMPAIGN.minSystemGap * (0.85 + nextRandom(s) * 0.6);
+    if (inside(x, y) && pts.every((p) => Math.hypot(p.x - x, p.y - y) >= gap)) pts.push({ x: Math.round(x), y: Math.round(y) });
+  }
+  return pts;
+}
+
+/**
+ * Routes: a Gabriel graph (two systems link if no third lies inside the circle
+ * on their route as diameter), which is planar so routes never cross. Overlong
+ * routes are dropped unless they are needed to keep the map connected.
+ */
+function routeSystems(pts: { x: number; y: number }[]): [number, number][] {
+  const d2 = (a: number, b: number) => (pts[a].x - pts[b].x) ** 2 + (pts[a].y - pts[b].y) ** 2;
+  const gabriel: [number, number, number][] = [];
+  for (let a = 0; a < pts.length; a++) {
+    for (let b = a + 1; b < pts.length; b++) {
+      const mx = (pts[a].x + pts[b].x) / 2;
+      const my = (pts[a].y + pts[b].y) / 2;
+      const r2 = d2(a, b) / 4;
+      if (pts.every((p, k) => k === a || k === b || (p.x - mx) ** 2 + (p.y - my) ** 2 > r2)) gabriel.push([a, b, Math.sqrt(d2(a, b))]);
+    }
+  }
+  // Minimum spanning tree (Kruskal) keeps everything reachable.
+  const parent = pts.map((_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  const tree = new Set<string>();
+  for (const [a, b] of [...gabriel].sort((x, y) => x[2] - y[2])) {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) {
+      parent[ra] = rb;
+      tree.add(`${a}-${b}`);
+    }
+  }
+  return gabriel.filter(([a, b, len]) => len <= CAMPAIGN.maxRoute || tree.has(`${a}-${b}`)).map(([a, b]) => [a, b]);
+}
 const SYLLABLES = ['ka', 'ren', 'thu', 'vo', 'lis', 'ar', 'mek', 'ssa', 'dor', 'ix', 'ul', 'phe', 'nar', 'zo', 'qua', 'tir', 'bel', 'osh', 'ven', 'cy'];
 
 function nodeName(s: CampaignState, used: Set<string>): string {
@@ -476,65 +545,40 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     log: [],
   };
 
-  // A jittered grid of systems, linked to their neighbours, with a
-  // diagonal in some cells (never both, so links do not cross).
+  // Systems in loose clusters, linked by routes that never cross.
   const used = new Set<string>();
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const id = `n${r * COLS + c}`;
-      const sys = SOLAR_SYSTEMS[randomInt(s, SOLAR_SYSTEMS.length)];
-      s.nodes.push({
-        id,
-        name: nodeName(s, used),
-        x: Math.round(CAMPAIGN.mapMargin + c * CAMPAIGN.mapSpacingX + (nextRandom(s) - 0.5) * 90),
-        y: Math.round(CAMPAIGN.mapMargin + r * CAMPAIGN.mapSpacingY + (nextRandom(s) - 0.5) * 70),
-        systemId: sys.id,
-        owner: null,
-        links: [],
-        boosts: sys.planets.map(() => 0),
-        damage: 0,
-        garrison: [],
-        hazard: [],
-        yield: { credits: 1 + randomInt(s, 2), materials: 1 + randomInt(s, 2) },
-        tier: 0,
-      });
-    }
-  }
-  const at = (r: number, c: number) => s.nodes[r * COLS + c];
-  const link = (a: CampaignNode, b: CampaignNode) => {
-    a.links.push(b.id);
-    b.links.push(a.id);
-  };
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (c + 1 < COLS) link(at(r, c), at(r, c + 1));
-      if (r + 1 < ROWS) link(at(r, c), at(r + 1, c));
-      if (r + 1 < ROWS && c + 1 < COLS && nextRandom(s) < 0.35) {
-        if (nextRandom(s) < 0.5) link(at(r, c), at(r + 1, c + 1));
-        else link(at(r, c + 1), at(r + 1, c));
-      }
-    }
+  const pts = scatterSystems(s);
+  pts.forEach((pt, i) => {
+    const sys = SOLAR_SYSTEMS[randomInt(s, SOLAR_SYSTEMS.length)];
+    s.nodes.push({
+      id: `n${i}`,
+      name: nodeName(s, used),
+      x: pt.x,
+      y: pt.y,
+      systemId: sys.id,
+      owner: null,
+      links: [],
+      boosts: sys.planets.map(() => 0),
+      damage: 0,
+      garrison: [],
+      hazard: [],
+      yield: { credits: 1 + randomInt(s, 2), materials: 1 + randomInt(s, 2) },
+      tier: 0,
+    });
+  });
+  for (const [a, b] of routeSystems(pts)) {
+    s.nodes[a].links.push(s.nodes[b].id);
+    s.nodes[b].links.push(s.nodes[a].id);
   }
 
-  // Anomalies sit in the gaps between four systems, away from the starting corners and each other.
-  const kinds: AnomalyKind[] = ['blackHole', 'nebula', 'darkMatter', 'pulsar'];
-  const cells = shuffleInPlace(
-    s,
-    Array.from({ length: (COLS - 1) * (ROWS - 1) }, (_, i) => ({ c: i % (COLS - 1), r: Math.floor(i / (COLS - 1)) })).filter(
-      ({ c, r }) => !((c === 0 || c === COLS - 2) && (r === 0 || r === ROWS - 2)),
-    ),
-  );
-  for (const cell of cells) {
-    if ((s.anomalies ?? []).length >= CAMPAIGN.anomalies) break;
-    const x = Math.round(CAMPAIGN.mapMargin + (cell.c + 0.5) * CAMPAIGN.mapSpacingX);
-    const y = Math.round(CAMPAIGN.mapMargin + (cell.r + 0.5) * CAMPAIGN.mapSpacingY);
-    if (s.anomalies!.some((a) => Math.hypot(a.x - x, a.y - y) < CAMPAIGN.mapSpacingX * 1.25)) continue;
-    const kind = kinds[s.anomalies!.length % kinds.length];
-    s.anomalies!.push({ id: `a${s.anomalies!.length}`, kind, x, y });
-  }
-
-  // Factions start in the corners.
-  const corners = [at(ROWS - 1, 0), at(0, COLS - 1), at(0, 0), at(ROWS - 1, COLS - 1)];
+  // Factions start in the corners: the system nearest each one.
+  const cornerPts = [
+    { x: 0, y: MAP_HEIGHT },
+    { x: MAP_WIDTH, y: 0 },
+    { x: 0, y: 0 },
+    { x: MAP_WIDTH, y: MAP_HEIGHT },
+  ];
+  const corners = cornerPts.map((c) => [...s.nodes].sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0]);
   for (let i = 0; i <= rivals; i++) {
     const id = `f${i + 1}`;
     const home = corners[i];
@@ -560,6 +604,28 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     };
     s.factions.push(f);
     for (let k = 0; k < CAMPAIGN.activeMissions; k++) drawMission(s, f);
+  }
+
+  // Anomalies settle in the voids between systems: away from the starting
+  // systems and each other, but close enough to reach at least one system.
+  const kinds: AnomalyKind[] = ['blackHole', 'nebula', 'darkMatter', 'pulsar'];
+  const homesNow = s.nodes.filter((n) => n.home);
+  const candidates: { x: number; y: number; clear: number }[] = [];
+  for (let k = 0; k < 600; k++) {
+    const x = CAMPAIGN.mapMargin + nextRandom(s) * (MAP_WIDTH - 2 * CAMPAIGN.mapMargin);
+    const y = CAMPAIGN.mapMargin + nextRandom(s) * (MAP_HEIGHT - 2 * CAMPAIGN.mapMargin);
+    const nearest = Math.min(...s.nodes.map((n) => Math.hypot(n.x - x, n.y - y)));
+    candidates.push({ x: Math.round(x), y: Math.round(y), clear: nearest });
+  }
+  candidates.sort((a, b) => b.clear - a.clear);
+  for (const c of candidates) {
+    if (s.anomalies!.length >= CAMPAIGN.anomalies) break;
+    const kind = kinds[s.anomalies!.length % kinds.length];
+    const reach = ANOMALIES[kind].radius;
+    if (c.clear < 55 || c.clear > reach * 0.85) continue; // in a gap, yet touching a system
+    if (homesNow.some((h) => Math.hypot(h.x - c.x, h.y - c.y) <= reach + 40)) continue;
+    if (s.anomalies!.some((a) => Math.hypot(a.x - c.x, a.y - c.y) < 330)) continue;
+    s.anomalies!.push({ id: `a${s.anomalies!.length}`, kind, x: c.x, y: c.y });
   }
 
   // Neutral systems grow stronger away from the starting corners.
