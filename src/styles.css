@@ -460,24 +460,14 @@ input { font: inherit; }
 }
 .card:active:not([disabled]) { transform: scale(0.97); }
 .card-affordable { box-shadow: 0 0 0 1.5px #fff, 0 0 16px color-mix(in srgb, var(--kc) 30%, rgba(255, 255, 255, 0.9)), 0 5px 16px rgba(90, 90, 110, 0.15); }
-/* Can't afford it yet: the card is greyed out (solid grey, no colour, a lighter shadow); the price stays neutral. */
-.card.card-pricey {
-  --kc: #a4a4ab;
-  background: #e9e9ec;
-  border-color: #dcdce0;
-  box-shadow: 0 3px 10px rgba(80, 84, 100, 0.12);
-  cursor: not-allowed;
-}
-.card-pricey::before { display: none; }
-.card-pricey .glyph { --g: #a4a4ab !important; filter: none; } /* beats the inline kind colour */
-.card-pricey .card-name, .card-pricey .card-text, .card-pricey .card-kind, .card-pricey .coin { color: #9c9ca4; }
+/* Can't afford it yet: the card keeps its colours but has no glow and does not lift. */
+.card.card-pricey { cursor: not-allowed; }
 @media (hover: hover) {
-  .card.card-pricey:hover { transform: none; box-shadow: 0 3px 10px rgba(80, 84, 100, 0.12); }
+  .card.card-pricey:hover { transform: none; }
 }
 /* Display cards float slightly above the board. */
 .display .card { box-shadow: 0 6px 18px rgba(80, 84, 100, 0.16), 0 1px 3px rgba(80, 84, 100, 0.1); }
 .display .card.card-affordable { box-shadow: 0 0 0 1.5px #fff, 0 0 16px color-mix(in srgb, var(--kc) 30%, rgba(255, 255, 255, 0.9)), 0 6px 18px rgba(80, 84, 100, 0.16); }
-.display .card.card-pricey { box-shadow: 0 3px 10px rgba(80, 84, 100, 0.12); }
 .card-glyph { flex: none; height: 38%; display: grid; place-items: center; padding-top: 7%; }
 .glyph { width: 78%; height: 100%; overflow: visible; color: var(--g, var(--kc)); }
 .glyph * { fill: none; stroke: var(--g, var(--kc)); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
