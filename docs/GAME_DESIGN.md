@@ -143,9 +143,9 @@ Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 
 ## Campaign mode [design review, first version]
 
-Universe domination on a map of 20 linked solar systems (a jittered 5×4 grid). The player and 1–3 AI factions start in the corners. Everything else is neutral, held by "sentinels" that get stronger towards the middle of the map. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).
+Universe domination on a map of 48 linked solar systems (a jittered 8×6 grid). The map is a tilted 3D plane: drag to pan, scroll or pinch to zoom. Selecting a system zooms the camera in to show its planets orbiting the star. The player and 1–3 AI factions start in the corners. Everything else is neutral, held by "sentinels" that get stronger towards the middle of the map. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).
 
-**Turns.** On your turn you can manage your systems and deck freely, and make **one attack**. Then each AI faction takes its turn in order. Garrison moves resolve and every faction collects income at the start of the next turn. The campaign lasts **40 turns**.
+**Turns.** On your turn you can manage your systems and deck freely, and make **one attack**. Then each AI faction takes its turn in order. Garrison moves resolve and every faction collects income at the start of the next turn. The campaign lasts **60 turns**.
 
 **Attacking.** You can attack any system linked to one you control, except a supernova remnant that is still blocking you. The battle is a normal 1v1 game:
 - **Attacker:** plays from the system it launched from, with that system's planet upgrades and damage.
@@ -163,7 +163,7 @@ You can fight a battle yourself or **auto-resolve** it, even partway through. AI
 
 **Damage.** The winner's sun carries its final heat home as damage (capped at 6). A repelled attack deals 3 damage to the system it launched from. Damage adds to that system's starting heat in later battles.
 
-**Two currencies.**
+**Two currencies**, each with its own solid icon: a gold coin for credits and a teal crystal for materials.
 - **Credits** repair damage (2 per point) and upgrade planets (4 + 4 per level already bought).
 - **Materials** buy armory cards (the card's price + 1; 3 new offers each turn) and upgrade cards (Stardust → Stellar Credits → Trade Convoy → Dyson Tap; Coolant Array → Cryo Vault; Gravity Sling → Coronal Lance → Starbreaker; and so on). An upgrade costs the new card's price.
 
@@ -185,14 +185,14 @@ You can fight a battle yourself or **auto-resolve** it, even partway through. AI
 Stardust, global and mission cards cannot garrison. If the system falls, the conqueror takes every card held there, including cards arriving or leaving.
 
 **Winning.** You win by:
-- controlling 60% of the systems,
+- controlling 50% of the systems,
 - eliminating every rival (a faction is out when it holds no systems), or
-- controlling the most systems when turn 40 ends.
+- controlling the most systems when turn 60 ends.
 
 You lose if you lose all your systems.
 
 **Balance notes (simulator).**
-- With the AI running every faction, campaigns average about 35 turns.
+- With the AI running every faction, campaigns average about 57 turns on the 48-system map, so most reach the turn limit. AI factions may need to be more aggressive.
 - The first faction to act (the player's seat) wins most often. That's generous to the player, but needs tuning.
 - An auto-player that never repairs or garrisons always loses, so management matters.
 

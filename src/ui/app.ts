@@ -228,7 +228,10 @@ export class App {
       this.touch = e.pointerType === 'touch';
     }, { capture: true });
     window.addEventListener('touchstart', () => (this.touch = true), { capture: true, passive: true });
-    window.addEventListener('resize', () => this.fitHand());
+    window.addEventListener('resize', () => {
+      this.fitHand();
+      if (this.screen === 'campaign') this.campaign.afterRender(this.root);
+    });
   }
 
   start() {
@@ -926,6 +929,7 @@ export class App {
 
   private render() {
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
+    if (this.screen === 'campaign') this.campaign.afterRender(this.root);
     this.syncPeek();
     // The backdrop warms (or chills) with the viewer's own sun, not whoever is acting.
     const me = this.screen === 'game' && this.state ? this.viewer() : null;

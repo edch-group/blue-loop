@@ -28,9 +28,9 @@ function settle(s: CampaignState, choice: 'settle' | 'absorb' | 'supernova' = 's
 }
 
 describe('campaign setup', () => {
-  it('builds a connected 20-system map with four factions in the corners', () => {
+  it('builds a connected 48-system map with four factions in the corners', () => {
     const s = fresh();
-    expect(s.nodes).toHaveLength(20);
+    expect(s.nodes).toHaveLength(CAMPAIGN.mapCols * CAMPAIGN.mapRows);
     expect(s.factions).toHaveLength(4);
     for (const f of s.factions) expect(ownedNodes(s, f.id)).toHaveLength(1);
     // Links are symmetric.
@@ -169,7 +169,7 @@ describe('a full campaign', () => {
   it('always reaches an end with an aggressive auto-playing commander', () => {
     for (const seed of [1, 2, 3]) {
       let s = createCampaign({ seed, rivals: 3 });
-      for (let turn = 0; turn < 120 && !s.winner; turn++) {
+      for (let turn = 0; turn < 200 && !s.winner; turn++) {
         const opt = attackOptions(s, s.playerId)[0];
         if (opt) s = settle(applyCampaignAction(s, { type: 'attack', fromId: opt.fromIds[0], toId: opt.toId }));
         if (!s.winner) s = settle(applyCampaignAction(s, { type: 'endTurn' }));

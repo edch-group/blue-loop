@@ -16,6 +16,8 @@ import {
   factionIncome,
   GameError,
   garrisonBonus,
+  MAP_HEIGHT,
+  MAP_WIDTH,
   missionProgress,
   nodeById,
   ownedNodes,
@@ -57,9 +59,14 @@ const lower = (t: string) => esc(t.toLowerCase());
 /** Muted faction tints: the player's blue loop, then the three rivals. */
 export const FACTION_COLOUR: Record<string, string> = { f1: '#6f9fd8', f2: '#d48a7c', f3: '#c9a95e', f4: '#a08bcb' };
 const NEUTRAL = '#c9cbd0';
-const CREDITS = '❖';
-const MATERIALS = '⬡';
+/** Credits: a solid gold coin. Earned from your systems, battles and missions; spent on repairs and planet upgrades. */
+const CREDITS =
+  '<svg class="cur cur-credits" viewBox="0 0 20 20" aria-label="credits"><circle cx="10" cy="10" r="9" fill="#b98f3c"/><circle cx="9.3" cy="9.2" r="8" fill="#d6ae57"/><circle cx="7.4" cy="6.8" r="3.2" fill="#f0d68f" opacity=".55"/><circle cx="10" cy="10" r="6.3" fill="none" stroke="#fff4d6" stroke-width="1.2" opacity=".85"/><path d="M10 5.6 11.2 8.8 14.4 10 11.2 11.2 10 14.4 8.8 11.2 5.6 10 8.8 8.8Z" fill="#fff8e6"/></svg>';
+/** Materials: a solid teal crystal. Earned the same ways; spent on buying and upgrading cards. */
+const MATERIALS =
+  '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#4f9aa6"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#9fd3d9"/><path d="M10 9.6V18.5L3 14V6Z" fill="#6fb3bc"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="none" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/></svg>';
 const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
+const TRACK_TINT: Record<string, string> = { weapons: '#e2a494', defences: '#a3c3df', economy: '#e0cd94', resources: '#abd2b5' };
 
 /** What the campaign screen needs from the app that hosts it. */
 export interface CampaignHost {
@@ -107,6 +114,7 @@ export class CampaignView {
     this.state = s;
     this.sheet = null;
     this.selected = null;
+    this.view = null;
     return true;
   }
 
@@ -163,11 +171,33 @@ export class CampaignView {
         break;
       case 'cmp-start':
         this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, rivals: this.setup.rivals, homeSystemId: this.setup.home });
-        this.selected = ownedNodes(this.state, this.state.playerId)[0].id;
+        this.selected = null;
+        this.view = null;
         saveCampaign(this.state);
         sound.objective();
         break;
+      case 'cmp-zoom':
+        if (this.view) {
+          this.selected = null;
+          this.view.zoom *= Number(arg);
+          this.clampView();
+        }
+        break;
+      case 'cmp-home-view':
+        this.selected = null;
+        this.view = this.homeView();
+        break;
+      case 'cmp-deselect':
+        if (this.swallowClick || !this.selected) return true;
+        this.selected = null;
+        break;
       case 'cmp-select':
+        if (this.swallowClick) return true;
+        if (this.selected !== arg && this.view) {
+          // Zoom out to where the system is, so leaving it returns the camera there.
+          const target = nodeById(s!, arg);
+          this.view = { ...this.view, x: target.x, y: target.y };
+        }
         this.selected = this.selected === arg ? null : arg;
         sound.hover();
         break;
@@ -270,9 +300,9 @@ export class CampaignView {
       <main class="cmp">
         <header class="cmp-top">
           <div class="cmp-turn"><span class="cmp-turn-n">turn ${s.turn}</span><small>/${CAMPAIGN.turnLimit}</small></div>
-          <div class="cmp-purse" title="Credits repair and upgrade systems. Materials buy and upgrade cards.">
-            <span><b>${CREDITS} ${me.credits}</b><small>+${inc.credits}</small></span>
-            <span><b>${MATERIALS} ${me.materials}</b><small>+${inc.materials}</small></span>
+          <div class="cmp-purse">
+            <span title="Credits: earned from your systems each turn, battles and missions. Spent on repairing damage and upgrading planets."><b>${CREDITS}${me.credits}</b><small>+${inc.credits}/turn</small><em>credits · systems</em></span>
+            <span title="Materials: earned from your systems each turn, battles and missions. Spent on buying cards in the armory and upgrading cards."><b>${MATERIALS}${me.materials}</b><small>+${inc.materials}/turn</small><em>materials · cards</em></span>
             <span class="cmp-held">${ownedNodes(s, me.id).length}/${s.nodes.length} systems</span>
           </div>
           <nav class="cmp-nav">
@@ -327,10 +357,16 @@ export class CampaignView {
       </main>`;
   }
 
+  /**
+   * The map is a tilted plane in perspective (CSS 3D). Stars stand upright on
+   * it as billboards; links and territory lie flat on the surface. Selecting a
+   * system swoops the camera in, and its planets orbit the star.
+   */
   private renderMap(): string {
     const s = this.state!;
     const me = campaignPlayer(s);
-    const targets = new Map(me.attacked || s.phase !== 'player' ? [] : attackOptions(s, me.id).map((o) => [o.toId, o.fromIds]));
+    const targets = new Set(me.attacked || s.phase !== 'player' ? [] : attackOptions(s, me.id).map((o) => o.toId));
+    const focus = this.selected ? nodeById(s, this.selected) : null;
     const drawn = new Set<string>();
     const links = s.nodes
       .flatMap((n) =>
@@ -344,34 +380,221 @@ export class CampaignView {
         }),
       )
       .join('');
+    // When zoomed in, the links fade out away from the focused system.
+    const mask = focus ? `style="--mx:${focus.x}px;--my:${focus.y}px"` : '';
     const nodes = s.nodes
       .map((n) => {
         const colour = n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL;
-        const target = targets.has(n.id);
-        const stationed = n.garrison.length;
+        const far = focus && focus.id !== n.id && Math.hypot(n.x - focus.x, n.y - focus.y) > 250;
         const cls = [
-          'cmp-node',
+          'cmp-n3',
           n.owner === me.id ? 'cmp-mine' : '',
-          target ? 'cmp-target' : '',
+          n.owner ? 'cmp-owned' : '',
+          targets.has(n.id) ? 'cmp-target' : '',
           this.selected === n.id ? 'cmp-selected' : '',
           n.hazard.length ? 'cmp-hazard' : '',
           s.battle?.nodeId === n.id ? 'cmp-contested' : '',
+          far ? 'cmp-far' : '',
         ].join(' ');
+        const badges = [
+          n.garrison.length ? `<i class="cmp-badge">▣${n.garrison.length}</i>` : '',
+          n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
+        ].join('');
         return `
-          <g class="${cls}" data-act="cmp-select" data-arg="${n.id}" style="--fc:${colour}" transform="translate(${n.x} ${n.y})">
-            <circle class="cmp-hit" r="44" />
-            ${target ? '<circle class="cmp-target-ring" r="34" />' : ''}
-            ${n.hazard.length ? '<circle class="cmp-hazard-ring" r="30" />' : ''}
-            <circle class="cmp-halo" r="26" />
-            <circle class="cmp-sun" r="15" />
-            ${n.home ? '<circle class="cmp-home-ring" r="21" />' : ''}
-            <text class="cmp-name" y="44">${lower(n.name)}</text>
-            ${stationed ? `<text class="cmp-badge" x="22" y="-16">▣${stationed}</text>` : ''}
-            ${n.damage ? `<text class="cmp-badge cmp-dmg" x="-22" y="-16">✸${n.damage}</text>` : ''}
-          </g>`;
+          <div class="${cls}" style="left:${n.x}px;top:${n.y}px;--fc:${colour}">
+            <div class="cmp-turf"></div>
+            ${targets.has(n.id) ? '<div class="cmp-ring cmp-ring-target"></div>' : ''}
+            ${n.hazard.length ? '<div class="cmp-ring cmp-ring-hazard"></div>' : ''}
+            ${n.home ? '<div class="cmp-ring cmp-ring-home"></div>' : ''}
+            ${this.selected === n.id ? this.renderOrbits(n) : ''}
+            <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
+              <span class="cmp-badges">${badges}</span>
+              <span class="cmp-star"></span>
+              <span class="cmp-label">${lower(n.name)}</span>
+            </button>
+          </div>`;
       })
       .join('');
-    return `<svg class="cmp-svg" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet">${links}${nodes}</svg>`;
+    return `
+      <div class="cmp-stage ${focus ? 'cmp-zoomed' : ''}" data-act="cmp-deselect">
+        <div class="cmp-plane" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">
+          <div class="cmp-grid"></div>
+          <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
+          ${nodes}
+        </div>
+        <div class="cmp-cam">
+          <button class="icon-btn" data-act="cmp-zoom" data-arg="1.3" aria-label="Zoom in">+</button>
+          <button class="icon-btn" data-act="cmp-zoom" data-arg="0.77" aria-label="Zoom out">−</button>
+          <button class="icon-btn" data-act="cmp-home-view" aria-label="Centre on your home" title="Centre on your home">⌂</button>
+        </div>
+      </div>`;
+  }
+
+  /** The selected system's planets, orbiting its star (sized by level, tinted by track). */
+  private renderOrbits(n: CampaignNode): string {
+    const planets = systemDef(n.systemId).planets;
+    return planets
+      .map((pl, j) => {
+        const level = pl.level + (n.boosts[j] ?? 0);
+        const r = 30 + j * 16;
+        const period = 16 + j * 9;
+        // Spread the planets around their orbits, deterministically per system.
+        const delay = -((n.x * 7 + n.y * 3 + j * 97) % period);
+        const size = 7 + level * 2.5;
+        return `
+          <div class="cmp-orbit-ring" style="--r:${r}px"></div>
+          <div class="cmp-orbit" style="--t:${period}s;--d:${delay}s">
+            <div class="cmp-arm" style="--r:${r}px">
+              <div class="cmp-counter">
+                <span class="cmp-orb-planet" style="--pc:${TRACK_TINT[pl.track]};--ps:${size}px" title="${esc(pl.name)} · ${pl.track} ${level}"><em>${lower(pl.name)}</em></span>
+              </div>
+            </div>
+          </div>`;
+      })
+      .join('');
+  }
+
+  /** Free camera over the map: where it looks (map units) and how far it is zoomed (1 = whole map fits). */
+  private view: { x: number; y: number; zoom: number } | null = null;
+  /** Last camera transform, so a re-render can animate from where the camera was. */
+  private camera: { transform: string; tilt: string } | null = null;
+  private drag: { id: number; x: number; y: number; moved: boolean; pinch?: { d: number; zoom: number } } | null = null;
+  private pointers = new Map<number, { x: number; y: number }>();
+  /** Set after a drag so the click that ends it does not select or deselect. */
+  private swallowClick = false;
+  private stageEl: HTMLElement | null = null;
+
+  private static readonly TILT = 44;
+  private static readonly FOCUS_TILT = 56;
+  private static readonly MAX_ZOOM = 3.5;
+
+  private homeView() {
+    const home = ownedNodes(this.state!, this.state!.playerId)[0] ?? this.state!.nodes[0];
+    return { x: home.x, y: home.y, zoom: 1.9 };
+  }
+
+  /** Fit the map to its stage and move the camera (called after every render and on resize). */
+  afterRender(root: HTMLElement) {
+    const stage = root.querySelector<HTMLElement>('.cmp-stage');
+    this.stageEl = stage;
+    if (!stage || !this.state) {
+      this.camera = null;
+      return;
+    }
+    if (!stage.dataset.bound) {
+      stage.dataset.bound = '1';
+      stage.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+      stage.addEventListener('pointermove', (e) => this.onPointerMove(e));
+      stage.addEventListener('pointerup', (e) => this.onPointerUp(e));
+      stage.addEventListener('pointercancel', (e) => this.onPointerUp(e));
+      stage.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+    }
+    this.view ??= this.homeView();
+    this.applyCamera(true);
+  }
+
+  /** Scale at which the whole map fits the stage, for a given tilt. */
+  private fitScale(stage: HTMLElement, tiltDeg: number) {
+    const tilt = (tiltDeg * Math.PI) / 180;
+    return Math.min(stage.clientWidth / MAP_WIDTH, stage.clientHeight / (MAP_HEIGHT * Math.cos(tilt) + 140));
+  }
+
+  private applyCamera(animate: boolean) {
+    const stage = this.stageEl;
+    const plane = stage?.querySelector<HTMLElement>('.cmp-plane');
+    if (!stage || !plane || !this.state || !this.view) return;
+    const focus = this.selected ? nodeById(this.state, this.selected) : null;
+    const tiltDeg = focus ? CampaignView.FOCUS_TILT : CampaignView.TILT;
+    const fit = this.fitScale(stage, CampaignView.TILT);
+    // Zoomed on a system: close in on it. Otherwise: the free camera.
+    const scale = focus ? Math.max(fit * this.view.zoom, 1) * 2.4 : fit * this.view.zoom;
+    const fx = focus ? focus.x : this.view.x;
+    const fy = focus ? focus.y : this.view.y;
+    const transform = `rotateX(${tiltDeg}deg) scale3d(${scale.toFixed(4)}, ${scale.toFixed(4)}, ${scale.toFixed(4)}) translate(${(-fx).toFixed(1)}px, ${(-fy).toFixed(1)}px)`;
+    const next = { transform, tilt: `${tiltDeg}deg` };
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (animate && this.camera && this.camera.transform !== transform && !reduce) {
+      // Start from the old camera, then glide to the new one.
+      plane.classList.add('cmp-no-anim');
+      plane.style.transform = this.camera.transform;
+      plane.style.setProperty('--tilt', this.camera.tilt);
+      void plane.offsetWidth;
+      plane.classList.remove('cmp-no-anim');
+    } else if (!animate) plane.classList.add('cmp-no-anim');
+    plane.style.transform = transform;
+    plane.style.setProperty('--tilt', next.tilt);
+    // Stars stay a readable size on screen whatever the zoom.
+    plane.style.setProperty('--ui', String(Math.min(2.2, Math.max(0.7, 1 / scale))));
+    this.camera = next;
+  }
+
+  private clampView() {
+    const v = this.view!;
+    v.zoom = Math.max(1, Math.min(CampaignView.MAX_ZOOM, v.zoom));
+    v.x = Math.max(0, Math.min(MAP_WIDTH, v.x));
+    v.y = Math.max(0, Math.min(MAP_HEIGHT, v.y));
+  }
+
+  private onPointerDown(e: PointerEvent) {
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pointers.size === 2 && this.view) {
+      const [a, b] = [...this.pointers.values()];
+      this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: true, pinch: { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.view.zoom } };
+      return;
+    }
+    this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+  }
+
+  private onPointerMove(e: PointerEvent) {
+    if (!this.drag || !this.view || !this.stageEl || !this.pointers.has(e.pointerId)) return;
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.drag.pinch && this.pointers.size >= 2) {
+      const [a, b] = [...this.pointers.values()];
+      this.view.zoom = this.drag.pinch.zoom * (Math.hypot(a.x - b.x, a.y - b.y) / this.drag.pinch.d);
+      this.clampView();
+      this.applyCamera(false);
+      return;
+    }
+    if (e.pointerId !== this.drag.id) return;
+    const dx = e.clientX - this.drag.x;
+    const dy = e.clientY - this.drag.y;
+    if (!this.drag.moved && Math.hypot(dx, dy) < 6) return;
+    if (!this.drag.moved) {
+      this.drag.moved = true;
+      // Dragging while zoomed on a system lets go of it and pans from there.
+      if (this.selected) {
+        const n = nodeById(this.state!, this.selected);
+        this.view = { ...this.view, x: n.x, y: n.y };
+        this.selected = null;
+        this.host.render();
+        return;
+      }
+      this.stageEl.setPointerCapture(e.pointerId);
+    }
+    const scale = this.fitScale(this.stageEl, CampaignView.TILT) * this.view.zoom;
+    const tilt = (CampaignView.TILT * Math.PI) / 180;
+    this.view.x -= dx / scale;
+    this.view.y -= dy / (scale * Math.cos(tilt));
+    this.drag.x = e.clientX;
+    this.drag.y = e.clientY;
+    this.clampView();
+    this.applyCamera(false);
+  }
+
+  private onPointerUp(e: PointerEvent) {
+    this.pointers.delete(e.pointerId);
+    if (this.drag?.moved) this.swallowClick = true;
+    if (this.pointers.size === 0) this.drag = null;
+    window.setTimeout(() => (this.swallowClick = false), 0);
+  }
+
+  private onWheel(e: WheelEvent) {
+    if (!this.view) return;
+    e.preventDefault();
+    if (this.selected) return;
+    this.view.zoom *= Math.exp(-e.deltaY * 0.0015);
+    this.clampView();
+    this.applyCamera(false);
   }
 
   private renderOverview(): string {
@@ -556,7 +779,11 @@ export class CampaignView {
       case 'help':
         return this.modal(
           'how the campaign works',
-          `<ul class="rules">
+          `<div class="cmp-legend">
+            <div>${CREDITS}<span><b>Credits</b> run your systems. Earned: each system's yield every turn, winning battles, missions. Spent: repairing damage, upgrading planets.</span></div>
+            <div>${MATERIALS}<span><b>Materials</b> build your deck. Earned: each system's yield every turn, winning battles, missions. Spent: buying armory cards, upgrading cards.</span></div>
+          </div>
+          <ul class="rules">
             <li><b>Attack</b> one system per turn: any system linked to one you control. The battle is a normal game, played from your system against theirs.</li>
             <li><b>Win</b> and choose: <b>Settle</b> it, <b>Absorb</b> its resources, or <b>Supernova</b> it to block rivals for a turn.</li>
             <li>A winner's sun carries its heat home as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits; upgrade planets with credits too.</li>

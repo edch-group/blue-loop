@@ -50,9 +50,15 @@ export const CAMPAIGN = {
   cardChoices: 3,
   activeMissions: 3,
   /** Control this share of all systems to win outright. */
-  dominationShare: 0.6,
+  dominationShare: 0.5,
   /** When this turn ends, the faction controlling the most systems wins. */
-  turnLimit: 40,
+  turnLimit: 60,
+  /** The map: a jittered grid of systems, this many columns and rows, this far apart. */
+  mapCols: 8,
+  mapRows: 6,
+  mapSpacingX: 200,
+  mapSpacingY: 160,
+  mapMargin: 110,
   /** Safety cap on simulated (auto-resolved) battles. */
   battleActionCap: 6000,
 } as const;
@@ -86,7 +92,7 @@ export interface GarrisonCard {
 export interface CampaignNode {
   id: string;
   name: string;
-  /** Map position, 0..1000 by 0..600. */
+  /** Map position, within MAP_WIDTH × MAP_HEIGHT. */
   x: number;
   y: number;
   systemId: string;
@@ -352,8 +358,12 @@ export function factionIncome(s: CampaignState, factionId: string) {
 // Creation
 // ---------------------------------------------------------------------------
 
-const COLS = 5;
-const ROWS = 4;
+const COLS = CAMPAIGN.mapCols;
+const ROWS = CAMPAIGN.mapRows;
+
+/** The map's size in map units (system positions lie inside it). */
+export const MAP_WIDTH = CAMPAIGN.mapMargin * 2 + (COLS - 1) * CAMPAIGN.mapSpacingX;
+export const MAP_HEIGHT = CAMPAIGN.mapMargin * 2 + (ROWS - 1) * CAMPAIGN.mapSpacingY;
 const SYLLABLES = ['ka', 'ren', 'thu', 'vo', 'lis', 'ar', 'mek', 'ssa', 'dor', 'ix', 'ul', 'phe', 'nar', 'zo', 'qua', 'tir', 'bel', 'osh', 'ven', 'cy'];
 
 function nodeName(s: CampaignState, used: Set<string>): string {
@@ -396,7 +406,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     log: [],
   };
 
-  // A jittered 5×4 grid of systems, linked to their neighbours, with a
+  // A jittered grid of systems, linked to their neighbours, with a
   // diagonal in some cells (never both, so links do not cross).
   const used = new Set<string>();
   for (let r = 0; r < ROWS; r++) {
@@ -406,8 +416,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
       s.nodes.push({
         id,
         name: nodeName(s, used),
-        x: Math.round(100 + c * 200 + (nextRandom(s) - 0.5) * 90),
-        y: Math.round(80 + r * 147 + (nextRandom(s) - 0.5) * 70),
+        x: Math.round(CAMPAIGN.mapMargin + c * CAMPAIGN.mapSpacingX + (nextRandom(s) - 0.5) * 90),
+        y: Math.round(CAMPAIGN.mapMargin + r * CAMPAIGN.mapSpacingY + (nextRandom(s) - 0.5) * 70),
         systemId: sys.id,
         owner: null,
         links: [],
@@ -470,7 +480,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   for (const n of s.nodes) {
     if (n.home) continue;
     const d = Math.min(...homes.map((h) => hops(s, h.id, n.id)));
-    n.tier = d <= 1 ? 0 : d <= 2 ? 1 : 2;
+    n.tier = d <= 1 ? 0 : d <= 3 ? 1 : 2;
   }
 
   refreshArmory(s);
