@@ -263,10 +263,63 @@ input { font: inherit; }
   padding: var(--pad-t) var(--pad-r) var(--pad-b) var(--pad-l);
 }
 .game > *:not(.petals):not(.overlay):not(.stage):not(.rotate-hint) { position: relative; z-index: 1; min-width: 0; min-height: 0; }
+/* Middle row: rival players down the left, the display (with round and stability above it) in the centre, the log down the right. */
+.game {
+  --sidew: clamp(118px, 16vw, 240px);
+  --logw: clamp(140px, 19vw, 280px);
+  grid-template-columns: var(--sidew) minmax(0, 1fr) var(--logw);
+  column-gap: clamp(8px, 1.6vw, 20px);
+}
+.game > * { grid-column: 1 / -1; }
+.game > .rivals { grid-column: 1; grid-row: 2; }
+.game > .display { grid-column: 2; grid-row: 2; }
+.log-panel {
+  grid-column: 3 !important;
+  grid-row: 2;
+  align-self: center;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 10px;
+  border-radius: 12px;
+  background: var(--glass);
+  border: 1px solid #fff;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  overflow: hidden;
+}
+.log-feed {
+  flex: 1;
+  min-height: 0;
+  max-height: calc(var(--dh) + 20px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  font-size: clamp(0.58rem, 1.9vh, 0.74rem);
+  line-height: 1.35;
+  color: var(--ink-faint);
+  mask-image: linear-gradient(to bottom, transparent, #000 22px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22px);
+}
+.log-feed::-webkit-scrollbar { display: none; }
+.log-feed .log-now { color: var(--ink-soft); }
+.log-feed .log-key { color: var(--ink); font-weight: 500; }
+.log-feed .log-new { animation: log-in 1.6s ease-out; }
+@keyframes log-in {
+  0% { opacity: 0; transform: translateX(8px); background: rgba(255, 255, 255, 0.9); }
+  15% { opacity: 1; transform: none; }
+  100% { background: transparent; }
+}
 
 /* Top strip */
-.top { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px; }
-.round { display: flex; align-items: center; gap: 8px; }
+.top { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
+.top-left { display: flex; align-items: center; min-width: 0; }
+.top .top-controls { justify-self: end; }
+.round { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.display .round { margin-bottom: 2px; }
 .numeral {
   width: clamp(34px, 9vh, 56px);
   aspect-ratio: 1;
@@ -289,12 +342,11 @@ input { font: inherit; }
 .unstable .stability-bar { background: rgba(201, 138, 134, 0.22); animation: blink 1.8s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: 0.6; } }
 
-.rivals { display: flex; justify-content: center; gap: clamp(8px, 2vw, 32px); min-width: 0; }
-.rival { display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; transition: background 0.2s, box-shadow 0.3s; min-width: 0; overflow: hidden; }
+.rivals { display: flex; flex-direction: column; justify-content: center; gap: clamp(6px, 2vh, 16px); min-width: 0; }
+.rival { display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; width: 100%; transition: background 0.2s, box-shadow 0.3s; min-width: 0; overflow: hidden; }
 .rival-stats b { font-weight: 600; }
 .rival-stats em { font-style: normal; }
 @media (max-width: 760px) {
-  .rival-stats em { display: none; }
   .feed { display: none; }
 }
 .rival:hover { background: rgba(255, 255, 255, 0.5); }
@@ -302,7 +354,8 @@ input { font: inherit; }
 .rival-dead { opacity: 0.5; }
 .rival-info { display: grid; text-align: left; min-width: 0; }
 .rival-name { font-size: 0.6rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rival-stats { font-size: 0.7rem; color: var(--ink-soft); white-space: nowrap; }
+.rival-stats { font-size: 0.7rem; color: var(--ink-soft); white-space: nowrap; display: grid; }
+.rival-stats em { font-size: 0.9em; overflow: hidden; text-overflow: ellipsis; }
 
 .turn { display: grid; justify-items: center; gap: 2px; max-width: 220px; min-width: 0; }
 .turn-pill {
@@ -858,26 +911,23 @@ input { font: inherit; }
 .turn-controls { display: grid; gap: 5px; align-content: end; min-width: clamp(84px, 12vw, 130px); margin-bottom: var(--pad-b); }
 .turn-controls .end-turn { padding: clamp(8px, 3vh, 14px) 10px; }
 
-/* Short (phone) screens: display cards lie sideways so the 3 of them use the
-   width, with the glyph on the left and readable rules text on the right. */
+/* Short (phone) screens: with players on the left and the log on the right, the
+   display keeps upright cards, as tall as the middle row allows. */
 @media (max-height: 560px) {
-  .display .card {
-    --cw: calc(var(--dh) * 1.1);
-    width: calc(var(--dh) * 1.75);
-    height: var(--dh);
-    display: grid;
-    grid-template-columns: 34% 1fr;
-    grid-template-rows: auto 1fr auto;
-    column-gap: 8px;
-    padding: 8px 10px 8px 0;
-  }
-  .display .card-glyph { grid-row: 1 / -1; height: auto; padding: 0; }
-  .display .card-glyph .glyph { width: 100%; }
-  .display .card-name { font-size: 0.56rem; padding-right: 26px; }
-  .display .card-text { font-size: 0.72rem; -webkit-line-clamp: 4; }
-  .display .card-kind { text-align: left; font-size: 0.44rem; }
+  .display .card-glyph { height: 30%; padding-top: 5%; }
+  .display .card-name { font-size: 0.52rem; }
+  .display .card-text { font-size: 0.64rem; line-height: 1.25; -webkit-line-clamp: 6; }
+  .display .card-kind { font-size: 0.42rem; }
   .display .coin { width: 22px; font-size: 0.62rem; top: 6px; right: 6px; }
-  .display .card::before { width: 40%; height: 100%; }
+  .game {
+    --sidew: clamp(96px, 15vw, 150px);
+    --logw: clamp(130px, 19vw, 190px);
+    --dh: min(calc(41 * var(--vh)), calc((100vw - var(--sidew) - var(--logw) - 110px) / 3 / 0.714));
+    --dw: calc(var(--dh) * 0.714);
+  }
+  .rival .orb { --size: 32px !important; }
+  .display .round { margin-bottom: 0; }
+  .display .numeral { width: 28px; font-size: 0.62rem; }
 }
 
 /* Long-press peek: stop the OS callout / text selection from hijacking the hold. */

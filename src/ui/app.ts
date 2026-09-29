@@ -105,7 +105,8 @@ const FIELD_CARD: Record<string, string> = {
 };
 const LONG_PRESS_MS = 450;
 const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
-const TOAST_PATTERN = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|wins|shields absorb|Instability|brings/;
+/** Log lines worth emphasising: hits, supernovas, claims, upgrades and so on. */
+const KEY_LOG = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|wins|shields absorb|Instability|brings/;
 const HOT = '#f0a07a';
 
 const ACTION_TEXT: Record<CoreAction, string> = {
@@ -342,7 +343,7 @@ export class App {
     this.syncViewer();
     this.render();
     if (before) {
-      this.surfaceLog(prev, next);
+      this.surfaceLog(prev);
       this.animate(prev, next, action, actor, before);
     }
     if (action.type === 'chooseSystem') {
@@ -542,12 +543,13 @@ export class App {
   }
 
   /** Show the most important new log line as a toast. */
-  private surfaceLog(prev: GameState, next: GameState) {
+  private surfaceLog(prev: GameState) {
     // Only entries added by this action (state is cloned per action, so compare ids, not objects).
     const lastSeq = prev.log[prev.log.length - 1]?.seq ?? 0;
-    const fresh = next.log.filter((l) => l.seq > lastSeq).map((l) => l.text);
-    const hit = [...fresh].reverse().find((t) => TOAST_PATTERN.test(t));
-    if (hit) this.showToast(hit, 'info');
+    // The log panel is always on screen, so new lines glow there instead of popping up as toasts.
+    this.root.querySelectorAll<HTMLElement>('.log-feed [data-seq]').forEach((el) => {
+      if (Number(el.dataset.seq) > lastSeq) el.classList.add('log-new');
+    });
   }
 
   private showToast(text: string, tone: 'info' | 'error') {
@@ -884,6 +886,7 @@ export class App {
     const heat = me && !me.eliminated ? me.heat : 0;
     backdrop.setHeat(!me || heat === 0 ? 0 : heat > 0 ? heat / supernovaThreshold(me) : heat / -BALANCE.minHeat);
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
+    this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
     if (!this.press?.shown) this.preview.classList.remove('show');
   }
@@ -966,7 +969,9 @@ export class App {
     return `
       <main class="game">
         ${this.renderTop()}
+        ${this.renderPlayers()}
         ${this.renderDisplay()}
+        ${this.renderLogPanel()}
         ${this.renderDock()}
         ${this.renderStage()}
         ${this.renderOverlay(s)}
@@ -974,15 +979,51 @@ export class App {
       </main>`;
   }
 
+  /** Round numeral and the stability bar, sitting above the display. */
+  private renderRoundBar(): string {
+    const s = this.state!;
+    const total = BALANCE.instabilityStartsRound - 1;
+    const remaining = Math.max(0, total - (s.round - 1));
+    const instab = instabilityHeat(s);
+    const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
+    return `
+      <div class="round">
+        <div class="numeral" title="Round ${s.round}">${roman(s.round)}</div>
+        <div class="stability ${instab ? 'unstable' : ''}" title="${instab
+          ? `Stellar Instability: every sun heats by ${instab} at the start of its turn.`
+          : 'Drains by one each round. When empty, every sun heats at the start of its turn.'}">
+          <span class="stability-label">round ${s.round} · ${instab ? `instability +${instab}` : `stability ${remaining}`}</span>
+          <div class="stability-bar">${segments}</div>
+        </div>
+      </div>`;
+  }
+
+  /** Rival players, stacked down the left-hand side. */
+  private renderPlayers(): string {
+    const s = this.state!;
+    const active = activePlayer(s);
+    const me = this.viewer();
+    const rivals = s.players
+      .filter((p) => p.id !== me.id)
+      .map(
+        (p) => `
+        <button class="rival ${p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''}" data-act="view-system" data-arg="${p.id}" title="${esc(p.name)} · ${esc(systemDef(p.systemId).name)}">
+          <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
+          <div class="rival-info">
+            <span class="rival-name">${esc(p.name.toLowerCase())}</span>
+            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em>⛨<span data-shields-of="${p.id}">${p.shields}</span> · ▲${flareHeat(p, s)}${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}</em></span>
+          </div>
+        </button>`,
+      )
+      .join('');
+    return `<aside class="rivals">${rivals}</aside>`;
+  }
+
   private renderTop(): string {
     const s = this.state!;
     const active = activePlayer(s);
     const me = this.viewer();
     const mine = active.id === me.id && !active.isAI;
-    const total = BALANCE.instabilityStartsRound - 1;
-    const remaining = Math.max(0, total - (s.round - 1));
-    const instab = instabilityHeat(s);
-    const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
     const field = activeField(s);
     const living = s.players.filter((p) => !p.eliminated).length;
     const globals = field
@@ -993,38 +1034,12 @@ export class App {
         </button>`
       : '';
 
-    const rivals = s.players
-      .filter((p) => p.id !== me.id)
-      .map(
-        (p) => `
-        <button class="rival ${p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''}" data-act="view-system" data-arg="${p.id}" title="${esc(p.name)} · ${esc(systemDef(p.systemId).name)}">
-          <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
-          <div class="rival-info">
-            <span class="rival-name">${esc(p.name.toLowerCase())}</span>
-            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em> · ⛨<span data-shields-of="${p.id}">${p.shields}</span> · ▲${flareHeat(p, s)}${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}</em></span>
-          </div>
-        </button>`,
-      )
-      .join('');
-
-    const last = s.log[s.log.length - 1]?.text ?? '';
     const aiTurn = active.isAI && !isGameOver(s);
     return `
       <header class="top">
-        <div class="round">
-          <button class="numeral" data-act="open-menu" title="Round ${s.round} · menu">${roman(s.round)}</button>
-          <div class="stability ${instab ? 'unstable' : ''}" title="${instab
-            ? `Stellar Instability: every sun heats by ${instab} at the start of its turn.`
-            : 'Drains by one each round. When empty, every sun heats at the start of its turn.'}">
-            <span class="stability-label">${instab ? `instability +${instab}` : `stability ${remaining}`}</span>
-            <div class="stability-bar">${segments}</div>
-          </div>
-          ${this.renderObjectivesRow(me)}
-        </div>
-        <div class="rivals">${rivals}</div>
+        <div class="top-left">${this.renderObjectivesRow(me)}</div>
         <div class="turn">
           <div class="turn-pill ${mine && s.phase !== 'setup' ? 'turn-mine' : ''}">${s.phase === 'setup' ? 'choosing systems' : mine ? 'your turn' : `${esc(active.name.toLowerCase())}'s turn`}</div>
-          <div class="feed" title="${esc(last)}">${esc(last)}</div>
         </div>
         <div class="top-controls">
           ${globals}
@@ -1034,11 +1049,27 @@ export class App {
       </header>`;
   }
 
+  /** The game log, always visible down the right-hand side. Tap it for the full history. */
+  private renderLogPanel(): string {
+    const s = this.state!;
+    const lastTurn = s.log[s.log.length - 1]?.turn;
+    const lines = s.log
+      .slice(-60)
+      .map((l) => `<div data-seq="${l.seq}" class="${l.turn === lastTurn ? 'log-now' : ''} ${KEY_LOG.test(l.text) ? 'log-key' : ''}">${esc(l.text)}</div>`)
+      .join('');
+    return `
+      <aside class="log-panel" data-act="open-log" title="Game log (tap for the full history)">
+        <div class="section-label">log</div>
+        <div class="log-feed">${lines}</div>
+      </aside>`;
+  }
+
   private renderDisplay(): string {
     const s = this.state!;
     const me = activePlayer(s);
     return `
       <section class="display">
+        ${this.renderRoundBar()}
         <div class="section-label" data-anchor="market">display <span>${s.marketDeck.length} left</span></div>
         <div class="cards">${s.display
           .map((c, i) => (c ? this.renderCard(c, { slot: i, buyer: me }) : '<div class="card card-empty"></div>'))
