@@ -147,6 +147,10 @@ export class App {
   /** Second step of a reward that needs a choice (what to upgrade, which card). */
   private rewardStep: 'command' | 'requisition' | null = null;
   private sheet: Sheet | null = null;
+  /** Overlays hidden so the player can study the board; the game is suspended meanwhile. */
+  private peeking = false;
+  private peekBtn!: HTMLButtonElement;
+  private peekShield!: HTMLDivElement;
   private aiTimer: number | null = null;
   private speed: Speed = 'normal';
   /** Touch screens have no hover: cards open an inspector instead. */
@@ -176,6 +180,15 @@ export class App {
     this.preview.className = 'card-preview';
     document.body.appendChild(this.preview);
 
+    // "View board": any overlay can be hidden to look at the board, then brought back.
+    this.peekShield = document.createElement('div');
+    this.peekShield.className = 'peek-shield';
+    this.peekShield.addEventListener('click', () => this.setPeek(false));
+    this.peekBtn = document.createElement('button');
+    this.peekBtn.className = 'peek-toggle';
+    this.peekBtn.addEventListener('click', () => this.setPeek(!this.peeking));
+    document.body.append(this.peekShield, this.peekBtn);
+
     root.addEventListener('click', (e) => this.onClick(e));
     root.addEventListener('input', (e) => this.onInput(e));
     root.addEventListener('mouseover', (e) => this.onHover(e));
@@ -187,6 +200,12 @@ export class App {
       if ((e.target as HTMLElement).closest('[data-card]')) e.preventDefault();
     });
     window.addEventListener('keydown', (e) => this.onKey(e));
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space' && this.peekHeld) {
+        this.peekHeld = false;
+        this.setPeek(false);
+      }
+    });
     window.addEventListener('pointerdown', (e) => {
       sound.unlock();
       this.touch = e.pointerType === 'touch';
@@ -582,8 +601,36 @@ export class App {
     if (seat !== undefined) this.seats[Number(seat)].name = el.value;
   }
 
+  private peekHeld = false;
+
+  private setPeek(on: boolean) {
+    this.peeking = on && !!this.root.querySelector('.overlay');
+    document.body.classList.toggle('peeking', this.peeking);
+    this.syncPeek();
+  }
+
+  /** Show the view-board toggle whenever an overlay is up; drop peeking once none is. */
+  private syncPeek() {
+    const open = !!this.root.querySelector('.overlay');
+    if (!open && this.peeking) {
+      this.peeking = false;
+      document.body.classList.remove('peeking');
+    }
+    this.peekBtn.classList.toggle('show', open);
+    this.peekBtn.innerHTML = this.peeking ? '<span>◉</span> back' : '<span>◎</span> view board';
+    this.peekBtn.title = this.peeking ? 'Bring the overlay back' : 'Hide this overlay to look at the board (or hold Space)';
+  }
+
   private onKey(e: KeyboardEvent) {
+    // Hold Space to look at the board behind an overlay.
+    if (e.code === 'Space' && !e.repeat && this.root.querySelector('.overlay') && !(e.target as HTMLElement).closest?.('input, textarea')) {
+      e.preventDefault();
+      this.peekHeld = true;
+      this.setPeek(true);
+      return;
+    }
     if (e.key !== 'Escape') return;
+    if (this.peeking) return this.setPeek(false);
     if (this.pending || this.sheet) {
       this.pending = null;
       this.sheet = null;
@@ -831,6 +878,7 @@ export class App {
 
   private render() {
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.renderGame();
+    this.syncPeek();
     // The backdrop warms (or chills) with the viewer's own sun, not whoever is acting.
     const me = this.screen === 'game' && this.state ? this.viewer() : null;
     const heat = me && !me.eliminated ? me.heat : 0;
