@@ -145,7 +145,7 @@ Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 
 ## The four races [design review, first version]
 
-Each player is one of four alien races. They're cosmetic for now: they set the looming figure behind the battle board and the faction portraits. None is humanoid.
+Each player is one of four alien races. They're cosmetic for now and set the faction portraits. The looming figures in `src/ui/titans.ts` are drawn but not shown. None is humanoid.
 
 | Race | Form | Colour |
 | --- | --- | --- |
@@ -154,7 +154,7 @@ Each player is one of four alien races. They're cosmetic for now: they set the l
 | Vorthane | A drifting jelly-like bell rimmed with glowing eyes, its tentacles draping over the board | Gold |
 | Ixquor | A branching fungal hive with pulsing nodes and root limbs | Violet |
 
-In battle, the whole play area is a table seen in perspective, like a tabletop simulator. Your hand, the player cards, the log, the controls and the display all lie on it, and pop-ups stay flat above it. The viewer's race stands behind the far edge at roughly person scale. Art: `src/ui/titans.ts`.
+In battle, the whole play area is a table seen in perspective, like a tabletop simulator. Your hand, the player cards, the log, the controls and the display all lie on it, and pop-ups stay flat above it. The rotating white star lies flat in the centre of the board, under the display cards.
 
 ## Campaign mode [design review, first version]
 

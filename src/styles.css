@@ -1668,3 +1668,22 @@ body.screen-campaign .backdrop { display: none; }
   .hud-players .rival-name { font-size: 0.46rem; }
   .table-view > .game { transform: translateY(calc(9 * var(--vh))) rotateX(34deg) scale(0.72); }
 }
+
+/* ---------- Board, round 3 ---------- */
+/* The rotating white star lies flat on the board, centred under the display cards. */
+.board-star-slot { position: absolute; left: 50%; top: 50%; width: calc(58 * var(--vh)); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; }
+.backdrop.backdrop-board { position: absolute; inset: 0; z-index: auto; }
+.backdrop.backdrop-board::after { display: none; }
+.board-plane .cards { position: relative; }
+/* Display cards centre on the whole board; the log sits over the right-hand side. */
+.table-view > .game > .display { grid-column: 1 / -1 !important; grid-row: 2; }
+.table-view > .game > .log-panel { grid-column: 2 !important; grid-row: 2; z-index: 2; }
+/* Taller board, filling the space the figure used to take. */
+.table-view > .game { height: calc(112 * var(--vh)); top: calc(-8 * var(--vh)); }
+/* On the white board the star needs a soft silver line to read; its heat tint still comes through. */
+.backdrop-board .petals ellipse, .backdrop-board .petals path {
+  stroke: color-mix(in srgb, var(--petal-stroke, #fff) 35%, #a3abbd);
+  fill: color-mix(in srgb, var(--petal-fill, rgba(255, 255, 255, 0.26)) 70%, rgba(200, 206, 220, 0.12));
+  stroke-width: 1.6;
+}
+.backdrop-board .petals circle { display: none; }

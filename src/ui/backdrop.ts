@@ -31,6 +31,28 @@ class Backdrop {
     requestAnimationFrame((t) => this.frame(t));
   }
 
+  /**
+   * Lay the star in a slot on the battle board (under the display cards), or
+   * return it to fill the screen when there is no slot. The element is moved,
+   * not recreated, so its rotation carries on smoothly.
+   */
+  attach(slot: HTMLElement | null) {
+    if (!this.el) return;
+    const svg = this.el.querySelector('svg');
+    if (slot) {
+      if (this.el.parentElement !== slot) slot.appendChild(this.el);
+      this.el.classList.add('backdrop-board');
+      // Frame the whole mandala, centred, rather than the screen-filling crop.
+      svg?.setAttribute('viewBox', '110 -220 780 780');
+      svg?.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    } else {
+      if (this.el.parentElement !== document.body) document.body.prepend(this.el);
+      this.el.classList.remove('backdrop-board');
+      svg?.setAttribute('viewBox', '0 -300 1000 900');
+      svg?.setAttribute('preserveAspectRatio', 'xMidYMin slice');
+    }
+  }
+
   /** A move was made: spin faster for a moment. */
   spin() {
     if (reducedMotion()) return;
