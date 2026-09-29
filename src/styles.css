@@ -1162,12 +1162,16 @@ input { font: inherit; }
 }
 .cmp-no-anim, .cmp-no-anim * { transition: none !important; }
 .cmp-grid {
-  position: absolute; inset: -60px; border-radius: 40px;
+  /* A faint, translucent star chart: lines and dust only, fading out at the edges. */
+  position: absolute; inset: -80px; border-radius: 60px;
   background:
-    repeating-linear-gradient(0deg, rgba(150, 160, 180, 0.12) 0 1px, transparent 1px 80px),
-    repeating-linear-gradient(90deg, rgba(150, 160, 180, 0.12) 0 1px, transparent 1px 80px),
-    radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.2) 70%, transparent);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7), 0 40px 80px rgba(90, 90, 110, 0.12);
+    radial-gradient(circle, rgba(120, 135, 170, 0.35) 0 1px, transparent 1.5px) 0 0 / 46px 46px,
+    radial-gradient(circle, rgba(150, 160, 200, 0.25) 0 0.8px, transparent 1.2px) 23px 17px / 71px 71px,
+    repeating-linear-gradient(0deg, rgba(140, 150, 175, 0.09) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(90deg, rgba(140, 150, 175, 0.09) 0 1px, transparent 1px 80px),
+    radial-gradient(ellipse at 50% 50%, rgba(230, 236, 250, 0.35), transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse 72% 70% at 50% 50%, #000 55%, transparent 100%);
+  mask-image: radial-gradient(ellipse 72% 70% at 50% 50%, #000 55%, transparent 100%);
 }
 .cmp-links { position: absolute; left: 0; top: 0; overflow: visible; }
 .cmp-links-focus { -webkit-mask-image: radial-gradient(circle 240px at var(--mx) var(--my), #000 55%, transparent); mask-image: radial-gradient(circle 240px at var(--mx) var(--my), #000 55%, transparent); }
@@ -1176,7 +1180,7 @@ input { font: inherit; }
 
 .cmp-n3 { position: absolute; width: 0; height: 0; transform-style: preserve-3d; }
 .cmp-turf, .cmp-ring, .cmp-orbit-ring { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
-.cmp-turf { width: 70px; height: 70px; background: radial-gradient(circle, color-mix(in srgb, var(--fc) 32%, transparent), transparent 70%); }
+.cmp-turf { width: 60px; height: 60px; background: radial-gradient(circle, rgba(120, 130, 160, 0.16), transparent 70%); }
 .cmp-owned .cmp-turf { width: 150px; height: 150px; background: radial-gradient(circle, color-mix(in srgb, var(--fc) 30%, transparent), color-mix(in srgb, var(--fc) 10%, transparent) 50%, transparent 70%); }
 .cmp-ring { width: 64px; height: 64px; }
 .cmp-ring-home { width: 44px; height: 44px; border: 1.5px dashed var(--fc); }
@@ -1195,20 +1199,52 @@ input { font: inherit; }
   padding: 34px 34px 0;
 }
 .cmp-star {
-  width: 26px; height: 26px; border-radius: 50%;
-  background: radial-gradient(circle at 36% 32%, #fff 0 18%, color-mix(in srgb, var(--fc) 70%, #fff) 45%, var(--fc) 80%);
-  box-shadow: 0 0 0 2px #fff, 0 0 18px 4px color-mix(in srgb, var(--fc) 45%, transparent), 0 8px 14px rgba(80, 80, 100, 0.25);
+  /* A living star: a flickering core, a slowly turning corona and a breathing glow, in the system's own colour. */
+  position: relative; display: block; width: 24px; height: 24px; border-radius: 50%;
   transition: transform 0.25s, width 0.6s, height 0.6s;
 }
+.cmp-star::after {
+  content: ''; position: absolute; inset: -90%; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--sc) 55%, transparent) 0, color-mix(in srgb, var(--sc) 18%, transparent) 38%, transparent 68%);
+  animation: star-breathe 4.2s ease-in-out infinite;
+  animation-delay: calc(var(--seed, 0) * -1s);
+}
+.cmp-corona {
+  position: absolute; inset: -55%; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--sc) 75%, #fff) 0 4deg, transparent 4deg 13deg, color-mix(in srgb, var(--sc) 45%, transparent) 13deg 16deg, transparent 16deg 24deg);
+  -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+  animation: star-turn 26s linear infinite, star-flare 2.6s ease-in-out infinite alternate;
+  opacity: 0.8;
+}
+.cmp-core {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle at 42% 38%, #fff 0 22%, color-mix(in srgb, var(--sc) 55%, #fff) 42%, var(--sc) 70%, color-mix(in srgb, var(--sc) 70%, #b0402a) 100%);
+  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--sc) 80%, #fff), 0 0 26px 6px color-mix(in srgb, var(--sc) 45%, transparent);
+  animation: star-flicker 3.1s ease-in-out infinite;
+}
+.cmp-owned .cmp-core { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--fc), 0 0 12px 3px color-mix(in srgb, var(--sc) 80%, #fff), 0 0 28px 8px color-mix(in srgb, var(--sc) 40%, transparent); }
+.cmp-binary .cmp-core { inset: 8%; }
+.cmp-companion {
+  position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; margin: -21% 0 0 -21%; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff 0 25%, #9fb8ff 70%);
+  box-shadow: 0 0 10px 3px rgba(160, 185, 255, 0.8);
+  animation: star-companion 5s linear infinite;
+}
+@keyframes star-companion { from { transform: rotate(0deg) translateX(160%) rotate(0deg); } to { transform: rotate(360deg) translateX(160%) rotate(-360deg); } }
+@keyframes star-turn { to { transform: rotate(360deg); } }
+@keyframes star-flare { from { transform: scale(0.92) rotate(0deg); } to { transform: scale(1.12) rotate(8deg); } }
+@keyframes star-flicker { 0%, 100% { filter: brightness(1); } 40% { filter: brightness(1.12); } 55% { filter: brightness(0.96); } 70% { filter: brightness(1.08); } }
+@keyframes star-breathe { 0%, 100% { transform: scale(0.9); opacity: 0.75; } 50% { transform: scale(1.12); opacity: 1; } }
 .cmp-bb:hover .cmp-star { transform: scale(1.15); }
 .cmp-label { font-family: var(--display); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; text-shadow: 0 0 4px #fff, 0 0 8px #fff; }
 .cmp-mine .cmp-label { color: var(--ink); }
 .cmp-badges { display: flex; gap: 3px; min-height: 12px; }
 .cmp-badge { font-style: normal; font-family: var(--display); font-size: 10px; color: var(--ink-soft); background: rgba(255, 255, 255, 0.9); border-radius: 6px; padding: 1px 4px; }
 .cmp-dmg { color: #c0735f; }
-.cmp-selected .cmp-star { width: 34px; height: 34px; box-shadow: 0 0 0 2px #fff, 0 0 30px 10px color-mix(in srgb, var(--fc) 50%, transparent), 0 10px 18px rgba(80, 80, 100, 0.25); }
+.cmp-selected .cmp-star { width: 34px; height: 34px; }
 .cmp-selected .cmp-label { display: none; }
-.cmp-contested .cmp-star { box-shadow: 0 0 0 3px #d9826c, 0 0 18px 6px rgba(217, 130, 108, 0.5); }
+.cmp-contested .cmp-core { box-shadow: 0 0 0 3px #d9826c, 0 0 18px 6px rgba(217, 130, 108, 0.5); }
 .cmp-far .cmp-bb, .cmp-far .cmp-turf, .cmp-far .cmp-ring { opacity: 0; pointer-events: none; transition: opacity 0.5s; }
 .cmp-n3 .cmp-bb, .cmp-n3 .cmp-turf { transition: opacity 0.5s, transform 0.9s cubic-bezier(.25, .8, .25, 1); }
 
@@ -1337,3 +1373,74 @@ input { font: inherit; }
 .cmp-legend div { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; font-size: 0.78rem; color: var(--ink-soft); }
 .cmp-legend .cur { width: 1.6em; height: 1.6em; margin: 0; }
 .cmp-legend b { color: var(--ink); font-weight: 600; }
+
+/* ---------- Campaign anomalies ---------- */
+.cmp-an { position: absolute; width: 0; height: 0; transform-style: preserve-3d; }
+.cmp-an > div { position: absolute; left: 0; top: 0; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+.an-reach { width: calc(var(--ar) * 2); height: calc(var(--ar) * 2); border: 1.5px dashed rgba(130, 138, 160, 0.28); }
+.an-on .an-reach { border-color: rgba(110, 120, 160, 0.7); background: rgba(150, 160, 200, 0.06); }
+.an-bb { padding-top: 20px; }
+.an-label { font-size: 10px; color: #7d8196; opacity: 0.9; }
+.cmp-an .cmp-bb { transition: opacity 0.5s, transform 0.9s cubic-bezier(.25, .8, .25, 1); }
+
+/* Black hole: a turning accretion disc on the plane, lensed light, and an upright dark core. */
+.an-disc { width: 150px; height: 150px; background: conic-gradient(from 0deg, rgba(255, 190, 120, 0.0), rgba(255, 196, 130, 0.75), rgba(255, 240, 220, 0.9), rgba(255, 150, 90, 0.5), rgba(255, 190, 120, 0.0), rgba(255, 170, 110, 0.6), rgba(255, 190, 120, 0.0)); -webkit-mask-image: radial-gradient(circle, transparent 24%, #000 30%, #000 44%, transparent 70%); mask-image: radial-gradient(circle, transparent 24%, #000 30%, #000 44%, transparent 70%); animation: an-spin 7s linear infinite; }
+.an-lens { width: 70px; height: 70px; background: radial-gradient(circle, rgba(20, 16, 30, 0.9) 0 38%, rgba(20, 16, 30, 0.35) 52%, transparent 70%); }
+.an-hole { display: block; width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle, #06050a 0 55%, #3a2a40 70%, transparent 72%); box-shadow: 0 0 0 2px rgba(255, 214, 160, 0.95), 0 0 14px 5px rgba(255, 180, 110, 0.7), 0 0 34px 10px rgba(255, 150, 90, 0.25); animation: an-throb 3.4s ease-in-out infinite; }
+
+/* Nebula: layered drifting clouds of coloured gas. */
+.an-cloud { mix-blend-mode: multiply; }
+.an-cloud-a { width: 300px; height: 220px; background: radial-gradient(ellipse, rgba(236, 140, 190, 0.34), transparent 68%); animation: an-drift 14s ease-in-out infinite alternate; }
+.an-cloud-b { width: 240px; height: 280px; background: radial-gradient(ellipse, rgba(130, 170, 240, 0.32), transparent 66%); animation: an-drift 18s ease-in-out infinite alternate-reverse; }
+.an-cloud-c { width: 200px; height: 170px; background: radial-gradient(ellipse, rgba(120, 210, 200, 0.3), transparent 64%); animation: an-drift 11s ease-in-out infinite alternate; }
+.an-glint { display: block; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle, #fff 0 30%, rgba(236, 140, 190, 0.8) 60%, transparent 72%); box-shadow: 0 0 16px 6px rgba(236, 160, 200, 0.55); animation: an-throb 2.8s ease-in-out infinite; }
+
+/* Dark matter: an unseen violet mass with twinkling motes. */
+.an-haze { width: 230px; height: 230px; background: radial-gradient(circle, rgba(90, 60, 140, 0.26), rgba(90, 60, 140, 0.08) 45%, transparent 70%); animation: an-throb 6s ease-in-out infinite; }
+.an-motes { width: 200px; height: 200px; background: radial-gradient(circle, rgba(170, 130, 255, 0.85) 0 1.2px, transparent 1.8px) 0 0 / 26px 26px, radial-gradient(circle, rgba(120, 90, 210, 0.7) 0 1px, transparent 1.6px) 13px 9px / 19px 19px; -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 68%); mask-image: radial-gradient(circle, #000 20%, transparent 68%); animation: an-spin 40s linear infinite, an-twinkle 2.4s ease-in-out infinite alternate; }
+.an-cluster { position: relative; display: block; width: 26px; height: 26px; }
+.an-cluster i { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: radial-gradient(circle, #efe4ff 0 25%, #8a62d8 70%); box-shadow: 0 0 8px 2px rgba(140, 100, 230, 0.6); animation: an-twinkle 1.8s ease-in-out infinite alternate; }
+.an-cluster i:nth-child(1) { left: 9px; top: 0; }
+.an-cluster i:nth-child(2) { left: 0; top: 10px; animation-delay: -0.4s; }
+.an-cluster i:nth-child(3) { left: 18px; top: 9px; animation-delay: -0.9s; }
+.an-cluster i:nth-child(4) { left: 6px; top: 19px; animation-delay: -1.3s; }
+.an-cluster i:nth-child(5) { left: 16px; top: 19px; animation-delay: -0.2s; }
+
+/* Pulsar: a hard white point with sweeping beams, and radiation rings rippling out over the plane. */
+.an-wave { width: 40px; height: 40px; border: 2px solid rgba(130, 200, 255, 0.7); animation: an-wave 3s ease-out infinite; }
+.an-wave-2 { animation-delay: -1.5s; }
+.an-pulsar { position: relative; display: block; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle, #fff 0 35%, #9fd8ff 70%); box-shadow: 0 0 12px 4px rgba(150, 210, 255, 0.9); }
+.an-beam { position: absolute; left: 50%; top: 50%; width: 90px; height: 3px; margin: -1.5px 0 0 -45px; background: linear-gradient(90deg, transparent, rgba(170, 220, 255, 0.95) 30%, #fff 50%, rgba(170, 220, 255, 0.95) 70%, transparent); border-radius: 2px; animation: an-spin 2.2s linear infinite; }
+
+@keyframes an-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+.an-beam { animation-name: an-sweep; }
+@keyframes an-sweep { to { transform: rotate(360deg); } }
+@keyframes an-drift { from { transform: translate(-54%, -48%) rotate(-6deg) scale(0.95); } to { transform: translate(-46%, -52%) rotate(8deg) scale(1.06); } }
+@keyframes an-throb { 0%, 100% { transform: translate(var(--tx, 0), var(--ty, 0)) scale(0.94); } 50% { transform: translate(var(--tx, 0), var(--ty, 0)) scale(1.06); } }
+.an-haze { --tx: -50%; --ty: -50%; }
+@keyframes an-twinkle { from { opacity: 0.45; } to { opacity: 1; } }
+@keyframes an-wave { from { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; } to { transform: translate(-50%, -50%) scale(6); opacity: 0; } }
+
+.cmp-anom { background: rgba(120, 110, 170, 0.07); border-color: rgba(120, 110, 170, 0.3); }
+.cmp-anom b { color: #7a6fae; }
+.cmp-anom-tag { justify-self: start; margin-top: 2px; padding: 1px 7px; border-radius: 999px; background: rgba(120, 110, 170, 0.12); color: #6f64a3; font-family: var(--display); font-size: 0.46rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.an-icon { background: radial-gradient(circle, #fff 0 20%, #9aa0b8 70%) !important; }
+.an-icon-blackHole { background: radial-gradient(circle, #06050a 0 50%, #ffcc99 60%, transparent 75%) !important; }
+.an-icon-nebula { background: radial-gradient(circle at 35% 40%, rgba(236, 140, 190, 0.9), rgba(130, 170, 240, 0.8)) !important; }
+.an-icon-darkMatter { background: radial-gradient(circle, #efe4ff 0 20%, #6a4ab8 80%) !important; }
+.an-icon-pulsar { background: radial-gradient(circle, #fff 0 35%, #7cc4ff 80%) !important; }
+@media (prefers-reduced-motion: reduce) {
+  .cmp-star::after, .cmp-corona, .cmp-core, .cmp-companion, .cmp-an *, .an-beam { animation: none !important; }
+}
+.cmp-an.cmp-far > div { opacity: 0; transition: opacity 0.5s; }
+/* Billboards are padded for the glow: only the star (or marker) and its label take taps. */
+.cmp-bb { pointer-events: none; }
+.cmp-bb .cmp-star, .cmp-bb .cmp-label, .cmp-bb .cmp-badges, .an-bb > span { pointer-events: auto; cursor: pointer; }
+.cmp-far .cmp-bb * { pointer-events: none !important; }
+/* Lift the black hole's disc to the height of its core, so it circles the hole. */
+.an-disc { animation-name: an-spin-lift; }
+.an-lens { transform: translate(-50%, -50%) translateZ(22px) !important; }
+@keyframes an-spin-lift { from { transform: translate(-50%, -50%) translateZ(22px) rotate(0deg); } to { transform: translate(-50%, -50%) translateZ(22px) rotate(360deg); } }
+.sys-conditions { display: grid; gap: 4px; }
+.sys-conditions div { padding: 6px 10px; border-radius: 10px; background: rgba(120, 110, 170, 0.07); border: 1px solid rgba(120, 110, 170, 0.28); font-size: 0.8rem; color: var(--ink-soft); text-align: center; }
+.sys-conditions b { display: block; font-family: var(--display); font-weight: 500; font-size: 0.56rem; letter-spacing: 0.18em; text-transform: uppercase; color: #7a6fae; }

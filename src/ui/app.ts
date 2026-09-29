@@ -1426,6 +1426,7 @@ export class App {
             <h2 class="sys-name">${esc(sys.name.toLowerCase())}</h2>
             <p class="sys-flavor">${esc(sys.flavor)}</p>
             <div class="sys-ability"><b>${esc(sys.abilityName.toLowerCase())}</b><span>+ ${esc(sys.abilityText)}</span><span class="sys-drawback">− ${esc(sys.drawbackText)}</span></div>
+            ${p.conditions?.length ? `<div class="sys-conditions">${p.conditions.map((c) => `<div><b>${esc(c.name.toLowerCase())}</b>${esc(c.text)}</div>`).join('')}</div>` : ''}
             <div class="sys-planets">${planets}</div>
             <div class="sys-ups">${ups}</div>
             <div class="sys-stats">

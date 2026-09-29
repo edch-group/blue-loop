@@ -1,4 +1,6 @@
 import {
+  ANOMALIES,
+  anomalyEffects,
   applyCampaignAction,
   armoryPrice,
   attackOptions,
@@ -19,11 +21,13 @@ import {
   MAP_HEIGHT,
   MAP_WIDTH,
   missionProgress,
+  nodeAnomalies,
   nodeById,
   ownedNodes,
   SOLAR_SYSTEMS,
   systemDef,
   upgradeCost,
+  type Anomaly,
   type CampaignAction,
   type CampaignNode,
   type CampaignState,
@@ -66,6 +70,17 @@ const CREDITS =
 const MATERIALS =
   '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#4f9aa6"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#9fd3d9"/><path d="M10 9.6V18.5L3 14V6Z" fill="#6fb3bc"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="none" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/></svg>';
 const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
+/** Each system type burns its own colour. */
+const STAR_COLOUR: Record<string, string> = {
+  helios_reach: '#ffcf6b',
+  vulcan_forge: '#ff7f50',
+  aegis_cluster: '#8fc2ff',
+  midas_belt: '#ffb84d',
+  cryon_drift: '#aee4ff',
+  tempest_binary: '#c3d3ff',
+  obsidian_veil: '#c58bff',
+  nova_crown: '#ff8fc8',
+};
 const TRACK_TINT: Record<string, string> = { weapons: '#e2a494', defences: '#a3c3df', economy: '#e0cd94', resources: '#abd2b5' };
 
 /** What the campaign screen needs from the app that hosts it. */
@@ -89,6 +104,8 @@ type Sheet =
 export class CampaignView {
   state: CampaignState | null = null;
   private selected: string | null = null;
+  /** An anomaly whose details are shown in the side panel. */
+  private anomaly: string | null = null;
   /** What happened in the last battle or turn, shown once the player is free to read it. */
   private report: { title: string; lines: string[] } | null = null;
   private sheet: Sheet | null = null;
@@ -191,7 +208,13 @@ export class CampaignView {
         if (this.swallowClick || !this.selected) return true;
         this.selected = null;
         break;
+      case 'cmp-anomaly':
+        if (this.swallowClick) return true;
+        this.anomaly = this.anomaly === arg ? null : arg;
+        this.selected = null;
+        break;
       case 'cmp-select':
+        this.anomaly = null;
         if (this.swallowClick) return true;
         if (this.selected !== arg && this.view) {
           // Zoom out to where the system is, so leaving it returns the camera there.
@@ -315,7 +338,9 @@ export class CampaignView {
           </nav>
         </header>
         <section class="cmp-map">${this.renderMap()}</section>
-        <aside class="cmp-side glass">${this.selected ? this.renderNode(nodeById(s, this.selected)) : this.renderOverview()}</aside>
+        <aside class="cmp-side glass">${
+          this.selected ? this.renderNode(nodeById(s, this.selected)) : this.anomaly ? this.renderAnomaly((s.anomalies ?? []).find((a) => a.id === this.anomaly)!) : this.renderOverview()
+        }</aside>
         <div class="cmp-end">
           <button class="btn-primary" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
         </div>
@@ -409,7 +434,7 @@ export class CampaignView {
             ${this.selected === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
               <span class="cmp-badges">${badges}</span>
-              <span class="cmp-star"></span>
+              <span class="cmp-star ${n.systemId === 'tempest_binary' ? 'cmp-binary' : ''}" style="--sc:${STAR_COLOUR[n.systemId] ?? '#ffd27a'}"><i class="cmp-corona"></i><i class="cmp-core"></i>${n.systemId === 'tempest_binary' ? '<i class="cmp-companion"></i>' : ''}</span>
               <span class="cmp-label">${lower(n.name)}</span>
             </button>
           </div>`;
@@ -420,6 +445,7 @@ export class CampaignView {
         <div class="cmp-plane" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">
           <div class="cmp-grid"></div>
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
+          ${this.renderAnomalies(focus)}
           ${nodes}
         </div>
         <div class="cmp-cam">
@@ -428,6 +454,56 @@ export class CampaignView {
           <button class="icon-btn" data-act="cmp-home-view" aria-label="Centre on your home" title="Centre on your home">⌂</button>
         </div>
       </div>`;
+  }
+
+  /** Anomalies: flat phenomena on the plane (discs, clouds, rings), with an upright marker to tap. */
+  private renderAnomalies(focus: CampaignNode | null): string {
+    const s = this.state!;
+    return (s.anomalies ?? [])
+      .map((a) => {
+        const def = ANOMALIES[a.kind];
+        const far = focus && Math.hypot(a.x - focus.x, a.y - focus.y) > 300;
+        const flat = {
+          blackHole: '<div class="an-disc"></div><div class="an-lens"></div>',
+          nebula: '<div class="an-cloud an-cloud-a"></div><div class="an-cloud an-cloud-b"></div><div class="an-cloud an-cloud-c"></div>',
+          darkMatter: '<div class="an-haze"></div><div class="an-motes"></div>',
+          pulsar: '<div class="an-wave"></div><div class="an-wave an-wave-2"></div>',
+        }[a.kind];
+        const marker = {
+          blackHole: '<span class="an-hole"></span>',
+          nebula: '<span class="an-glint"></span>',
+          darkMatter: '<span class="an-cluster"><i></i><i></i><i></i><i></i><i></i></span>',
+          pulsar: '<span class="an-pulsar"><i class="an-beam"></i></span>',
+        }[a.kind];
+        return `
+          <div class="cmp-an an-${a.kind} ${far ? 'cmp-far' : ''} ${this.anomaly === a.id ? 'an-on' : ''}" style="left:${a.x}px;top:${a.y}px;--ar:${def.radius}px">
+            <div class="an-reach"></div>
+            ${flat}
+            <button class="cmp-bb an-bb" data-act="cmp-anomaly" data-arg="${a.id}" aria-label="${esc(def.name)}">
+              ${marker}
+              <span class="cmp-label an-label">${lower(def.name)}</span>
+            </button>
+          </div>`;
+      })
+      .join('');
+  }
+
+  private renderAnomaly(a: Anomaly): string {
+    const s = this.state!;
+    const def = ANOMALIES[a.kind];
+    const reached = s.nodes.filter((n) => nodeAnomalies(s, n).some((x) => x.id === a.id));
+    const rows = reached
+      .map((n) => `<div class="cmp-faction" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}"><i></i><span>${lower(n.name)}</span><b>${n.owner ? lower(factionById(s, n.owner).name) : 'neutral'}</b></div>`)
+      .join('');
+    return `
+      <div class="cmp-node-head" style="--fc:#8d92a0"><i class="an-icon an-icon-${a.kind}"></i>
+        <div><h3>${lower(def.name)}</h3><small>anomaly</small></div>
+        <button class="icon-btn" data-act="cmp-anomaly" data-arg="${a.id}" aria-label="Close">×</button>
+      </div>
+      <div class="cmp-sys cmp-anom"><b>in battle</b><span>${esc(def.text)}</span></div>
+      <p class="cmp-hint">Applies to anyone fighting from a system within its reach: the defender of a system here, or an attacker launching from one.</p>
+      <div class="section-label">systems in reach</div>
+      <div class="cmp-factions">${rows}</div>`;
   }
 
   /** The selected system's planets, orbiting its star (sized by level, tinted by track). */
@@ -675,6 +751,9 @@ export class CampaignView {
       </div>
       ${status}
       ${attack}
+      ${nodeAnomalies(s, n)
+        .map((a) => `<div class="cmp-sys cmp-anom"><b>${lower(ANOMALIES[a.kind].name)} nearby</b><span>${esc(ANOMALIES[a.kind].text)}</span></div>`)
+        .join('')}
       <div class="cmp-sys"><b>${lower(sys.name)}</b><span>+ ${esc(sys.abilityText)}</span><span class="sys-drawback">− ${esc(sys.drawbackText)}</span></div>
       <div class="cmp-yield">yield ${CREDITS} ${n.yield.credits} · ${MATERIALS} ${n.yield.materials} per turn</div>
       <div class="section-label">planets</div>
@@ -823,7 +902,10 @@ export class CampaignView {
     const side = (n: CampaignNode, label: string) => {
       const sys = systemDef(n.systemId);
       const who = n.owner ? factionById(s, n.owner).name : `${n.name} Sentinels`;
-      return `<div class="cmp-side-card" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}"><small>${label}</small><b>${lower(who)}</b><span>${lower(n.name)} · ${lower(sys.name)}</span>${n.damage ? `<span class="cmp-dmg">✸ ${n.damage} damage</span>` : ''}</div>`;
+      const fx = anomalyEffects(s, n);
+      return `<div class="cmp-side-card" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}"><small>${label}</small><b>${lower(who)}</b><span>${lower(n.name)} · ${lower(sys.name)}</span>${n.damage ? `<span class="cmp-dmg">✸ ${n.damage} damage</span>` : ''}${
+        fx ? fx.conditions.map((c) => `<span class="cmp-anom-tag">${lower(c.name)}</span>`).join('') : ''
+      }</div>`;
     };
     const g = garrisonBonus(to);
     const def = [g.opening.money && `+${g.opening.money} money`, g.opening.shields && `+${g.opening.shields} shields`, g.opening.draw && `+${g.opening.draw} cards`, g.bombard && `+${g.bombard} heat on the attacker`, g.chill && `${g.chill} cooler`, g.planetLevels && `+${g.planetLevels} planet levels`].filter(Boolean);

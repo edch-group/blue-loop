@@ -10,8 +10,8 @@ import { chooseAIAction } from './ai';
 import { cardDef, MARKET_CARDS } from './cards';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
-import { SOLAR_SYSTEMS, systemDef } from './systems';
-import type { GameState, OpeningBonus, PlayerSetup } from './types';
+import { mergeModifiers, SOLAR_SYSTEMS, systemDef } from './systems';
+import type { GameState, OpeningBonus, PlayerSetup, SystemModifiers } from './types';
 
 // ---------------------------------------------------------------------------
 // Tuning
@@ -59,6 +59,8 @@ export const CAMPAIGN = {
   mapSpacingX: 200,
   mapSpacingY: 160,
   mapMargin: 110,
+  /** Anomalies scattered between systems; each changes battles fought from the systems within its reach. */
+  anomalies: 8,
   /** Safety cap on simulated (auto-resolved) battles. */
   battleActionCap: 6000,
 } as const;
@@ -110,6 +112,71 @@ export interface CampaignNode {
   tier: number;
   /** Set on a faction's starting system. */
   home?: string;
+}
+
+export type AnomalyKind = 'blackHole' | 'nebula' | 'darkMatter' | 'pulsar';
+
+export interface AnomalyDef {
+  kind: AnomalyKind;
+  name: string;
+  /** What it does to battles fought from a system within its reach. */
+  text: string;
+  modifiers: SystemModifiers;
+  /** Reach, in map units. */
+  radius: number;
+}
+
+/** Every anomaly is a trade-off: a boon and a cost for whoever fights from a system near it. */
+export const ANOMALIES: Record<AnomalyKind, AnomalyDef> = {
+  blackHole: {
+    kind: 'blackHole',
+    name: 'Black Hole',
+    text: 'Its gravity well drinks heat: +3 max health, but your hand is 1 card smaller.',
+    modifiers: { maxHealthDelta: 3, handSizeBonus: -1 },
+    radius: 150,
+  },
+  nebula: {
+    kind: 'nebula',
+    name: 'Nebula',
+    text: 'Hidden in the gas: +1 shield every turn, but display cards cost you 1 more.',
+    modifiers: { shieldBonus: 1, marketDiscount: -1 },
+    radius: 175,
+  },
+  darkMatter: {
+    kind: 'darkMatter',
+    name: 'Dark Matter Cluster',
+    text: 'Unseen mass to mine: +1 money every turn, but Thermosiphon costs 1 more.',
+    modifiers: { incomeBonus: 1, thermoCostDelta: 1 },
+    radius: 150,
+  },
+  pulsar: {
+    kind: 'pulsar',
+    name: 'Pulsar',
+    text: 'Its beam charges your weapons: your first Solar Flare each turn costs 1 less, but your sun heats by 1 each turn until it reaches 3.',
+    modifiers: { firstFlareCostDelta: -1, thawPerTurn: 1, thawCeiling: 3 },
+    radius: 150,
+  },
+};
+
+export interface Anomaly {
+  id: string;
+  kind: AnomalyKind;
+  x: number;
+  y: number;
+}
+
+/** Anomalies whose reach covers a system. */
+export function nodeAnomalies(s: CampaignState, n: CampaignNode): Anomaly[] {
+  return (s.anomalies ?? []).filter((a) => Math.hypot(n.x - a.x, n.y - a.y) <= ANOMALIES[a.kind].radius);
+}
+
+/** The combined battle modifiers (and their descriptions) for fighting from a system. */
+export function anomalyEffects(s: CampaignState, n: CampaignNode) {
+  const found = nodeAnomalies(s, n);
+  if (!found.length) return null;
+  let modifiers: SystemModifiers = {};
+  for (const a of found) modifiers = mergeModifiers(modifiers, ANOMALIES[a.kind].modifiers);
+  return { modifiers, conditions: found.map((a) => ({ name: ANOMALIES[a.kind].name, text: ANOMALIES[a.kind].text })) };
 }
 
 export interface CampaignStats {
@@ -171,6 +238,8 @@ export interface CampaignState {
   playerId: string;
   factions: Faction[];
   nodes: CampaignNode[];
+  /** Black holes, nebulae and the like, lying between systems (missing in older saves). */
+  anomalies?: Anomaly[];
   /** Cards the player can buy this turn with materials. */
   armory: string[];
   /** A battle the player is fighting (or can auto-resolve). */
@@ -396,6 +465,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     playerId: 'f1',
     factions: [],
     nodes: [],
+    anomalies: [],
     armory: [],
     battle: null,
     conquest: null,
@@ -444,6 +514,23 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
         else link(at(r, c + 1), at(r + 1, c));
       }
     }
+  }
+
+  // Anomalies sit in the gaps between four systems, away from the starting corners and each other.
+  const kinds: AnomalyKind[] = ['blackHole', 'nebula', 'darkMatter', 'pulsar'];
+  const cells = shuffleInPlace(
+    s,
+    Array.from({ length: (COLS - 1) * (ROWS - 1) }, (_, i) => ({ c: i % (COLS - 1), r: Math.floor(i / (COLS - 1)) })).filter(
+      ({ c, r }) => !((c === 0 || c === COLS - 2) && (r === 0 || r === ROWS - 2)),
+    ),
+  );
+  for (const cell of cells) {
+    if ((s.anomalies ?? []).length >= CAMPAIGN.anomalies) break;
+    const x = Math.round(CAMPAIGN.mapMargin + (cell.c + 0.5) * CAMPAIGN.mapSpacingX);
+    const y = Math.round(CAMPAIGN.mapMargin + (cell.r + 0.5) * CAMPAIGN.mapSpacingY);
+    if (s.anomalies!.some((a) => Math.hypot(a.x - x, a.y - y) < CAMPAIGN.mapSpacingX * 1.25)) continue;
+    const kind = kinds[s.anomalies!.length % kinds.length];
+    s.anomalies!.push({ id: `a${s.anomalies!.length}`, kind, x, y });
   }
 
   // Factions start in the corners.
@@ -559,6 +646,8 @@ function battleSetup(s: CampaignState, attacker: Faction, from: CampaignNode, ta
     });
     if (best >= 0) boosts[best] = (boosts[best] ?? 0) + 1;
   }
+  const fromFx = anomalyEffects(s, from);
+  const targetFx = anomalyEffects(s, target);
   return [
     {
       name: attacker.name,
@@ -567,8 +656,12 @@ function battleSetup(s: CampaignState, attacker: Faction, from: CampaignNode, ta
       deck: attacker.deck,
       planetBoosts: from.boosts,
       heatDelta: from.damage + g.bombard,
+      extraModifiers: fromFx?.modifiers,
+      conditions: fromFx?.conditions,
     },
     {
+      extraModifiers: targetFx?.modifiers,
+      conditions: targetFx?.conditions,
       name: owner ? owner.name : `${target.name} Sentinels`,
       isAI: owner ? owner.isAI : true,
       systemId: target.systemId,

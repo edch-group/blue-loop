@@ -1,4 +1,4 @@
-import type { SolarSystemDef } from './types';
+import type { SolarSystemDef, SystemModifiers } from './types';
 
 /**
  * The pool of 8 solar systems. Each player draws one at random.
@@ -124,4 +124,24 @@ export function systemDef(id: string): SolarSystemDef {
   const def = BY_ID.get(id);
   if (!def) throw new Error(`Unknown solar system: ${id}`);
   return def;
+}
+
+/** Numeric modifiers add up; flags combine; caps take the tighter value. */
+export function mergeModifiers(a: SystemModifiers, b?: SystemModifiers): SystemModifiers {
+  if (!b) return a;
+  const out: SystemModifiers = { ...a };
+  for (const [key, value] of Object.entries(b) as [keyof SystemModifiers, number | boolean | undefined][]) {
+    if (value === undefined) continue;
+    const prev = out[key];
+    if (typeof value === 'boolean') (out as Record<string, unknown>)[key] = Boolean(prev) || value;
+    else if (key === 'handSizeCap' || key === 'thawCeiling') (out as Record<string, unknown>)[key] = prev === undefined ? value : Math.min(prev as number, value);
+    else if (key === 'startingHeat') (out as Record<string, unknown>)[key] = value; // an override, not a bonus
+    else (out as Record<string, unknown>)[key] = ((prev as number | undefined) ?? 0) + value;
+  }
+  return out;
+}
+
+/** A player's modifiers: their solar system's, plus any extra ones (campaign anomalies). */
+export function playerModifiers(p: { systemId: string; extraModifiers?: SystemModifiers }): SystemModifiers {
+  return mergeModifiers(systemDef(p.systemId).modifiers, p.extraModifiers);
 }

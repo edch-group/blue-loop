@@ -178,3 +178,27 @@ describe('a full campaign', () => {
     }
   }, 60000);
 });
+
+describe('anomalies', () => {
+  it('are scattered between systems and change battles fought from the systems they reach', async () => {
+    const { ANOMALIES, nodeAnomalies } = await import('../src/engine');
+    for (const seed of [1, 2, 3, 4]) {
+      const s = fresh(seed);
+      expect(s.anomalies!.length).toBe(CAMPAIGN.anomalies);
+      expect(new Set(s.anomalies!.map((a) => a.kind)).size).toBe(4);
+      // Every anomaly reaches at least one system; no home system starts inside one.
+      for (const a of s.anomalies!) expect(s.nodes.some((n) => nodeAnomalies(s, n).includes(a))).toBe(true);
+      for (const n of s.nodes.filter((x) => x.home)) expect(nodeAnomalies(s, n)).toHaveLength(0);
+    }
+    // A battle fought from inside a nebula gets its shield bonus.
+    let s = fresh(2);
+    const target = s.nodes.find((n) => nodeAnomalies(s, n).some((a) => a.kind === 'nebula'))!;
+    const home = ownedNodes(s, s.playerId)[0];
+    target.links.push(home.id);
+    home.links.push(target.id);
+    s = applyCampaignAction(s, { type: 'attack', fromId: home.id, toId: target.id });
+    const defender = s.battle!.game.players[1];
+    expect(defender.extraModifiers?.shieldBonus).toBeGreaterThanOrEqual(ANOMALIES.nebula.modifiers.shieldBonus!);
+    expect(defender.conditions?.map((c) => c.name)).toContain('Nebula');
+  });
+});

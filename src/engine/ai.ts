@@ -1,6 +1,6 @@
 import { BALANCE } from './balance';
 import { cardDef } from './cards';
-import { systemDef } from './systems';
+import { playerModifiers } from './systems';
 import {
   activePlayer,
   cardNeedsTarget,
@@ -57,7 +57,7 @@ export function chooseAIAction(state: GameState): Action {
 
   // 3. Cool down when our own sun is in danger.
   const danger = supernovaThreshold(me) - 4;
-  const canThermo = !systemDef(me.systemId).modifiers.noThermosiphon;
+  const canThermo = !playerModifiers(me).noThermosiphon;
   if (canThermo && me.heat >= danger && me.money >= thermoCost(me)) return { type: 'thermosiphon' };
 
   // 4. Buy the best card we can afford.

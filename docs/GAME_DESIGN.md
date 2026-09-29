@@ -147,6 +147,17 @@ Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 
 Universe domination on a map of 48 linked solar systems (a jittered 8×6 grid). The map is a tilted 3D plane: drag to pan, scroll or pinch to zoom. Selecting a system zooms the camera in to show its planets orbiting the star. The player and 1–3 AI factions start in the corners. Everything else is neutral, held by "sentinels" that get stronger towards the middle of the map. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).
 
+**Anomalies.** Eight anomalies sit in the gaps between systems, never over a starting system. Each affects every battle fought from a system within its reach: the defender of a system there, or an attacker launching from one. Each is a trade-off:
+
+| Anomaly | Boon | Cost |
+| --- | --- | --- |
+| Black Hole | +3 max health | Hand 1 card smaller |
+| Nebula | +1 shield every turn | Display cards cost 1 more |
+| Dark Matter Cluster | +1 money every turn | Thermosiphon costs 1 more |
+| Pulsar | First Solar Flare each turn costs 1 less | Your sun heats by 1 each turn, up to 3 |
+
+A system in reach of two anomalies gets both. Their effects are listed on the system panel, the attack matchup and the in-battle solar system card, and logged at the start of the battle.
+
 **Turns.** On your turn you can manage your systems and deck freely, and make **one attack**. Then each AI faction takes its turn in order. Garrison moves resolve and every faction collects income at the start of the next turn. The campaign lasts **60 turns**.
 
 **Attacking.** You can attack any system linked to one you control, except a supernova remnant that is still blocking you. The battle is a normal 1v1 game:

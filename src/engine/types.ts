@@ -163,6 +163,9 @@ export interface PlayerState {
   blockedSinceTurnStart: number;
   /** Campaign head start, used up on this player's first turn. */
   opening?: OpeningBonus;
+  /** Campaign battles: extra modifiers (anomalies), merged with the system's own. */
+  extraModifiers?: SystemModifiers;
+  conditions?: { name: string; text: string }[];
 }
 
 export interface LogEntry {
@@ -213,6 +216,10 @@ export interface PlayerSetup {
   heatDelta?: number;
   /** Campaign battles: a one-off head start on this player's first turn (from a garrison). */
   opening?: OpeningBonus;
+  /** Campaign battles: extra modifiers on top of the system's own (from nearby anomalies). */
+  extraModifiers?: SystemModifiers;
+  /** Campaign battles: what those extra modifiers are, for display ("Nebula: +1 shield…"). */
+  conditions?: { name: string; text: string }[];
 }
 
 export interface OpeningBonus {

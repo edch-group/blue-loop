@@ -1,7 +1,7 @@
 import type { GlobalEffectId, PlayerState } from './types';
 import { BALANCE } from './balance';
 import { cardDef } from './cards';
-import { systemDef } from './systems';
+import { playerModifiers } from './systems';
 
 export interface ObjectiveDef {
   id: string;
@@ -61,7 +61,7 @@ export function objectiveDef(id: string): ObjectiveDef {
 /** Max health (supernova threshold): kept here too so objectives can use it without a cycle. */
 function maxHealth(p: PlayerState): number {
   return (
-    BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade + (systemDef(p.systemId).modifiers.maxHealthDelta ?? 0)
+    BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade + (playerModifiers(p).maxHealthDelta ?? 0)
   );
 }
 

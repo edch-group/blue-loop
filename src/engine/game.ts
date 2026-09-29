@@ -2,7 +2,7 @@ import { BALANCE } from './balance';
 import { cardDef, MARKET_CARDS } from './cards';
 import { FIELD_ROUNDS, GLOBALS, OBJECTIVES, objectiveDef, REWARDS, rewardDef, type RewardId } from './objectives';
 import { randomInt, shuffleInPlace } from './rng';
-import { SOLAR_SYSTEMS, systemDef } from './systems';
+import { playerModifiers, SOLAR_SYSTEMS, systemDef } from './systems';
 import { CORE_ACTIONS } from './types';
 import type {
   Action,
@@ -134,6 +134,10 @@ export function createGame(setup: GameSetup): GameState {
 
 /** Campaign battles: planet upgrades bought on the map and heat carried in. */
 function applyCampaignSetup(p: PlayerState, ps: GameSetup['players'][number]) {
+  if (ps.extraModifiers) {
+    p.extraModifiers = ps.extraModifiers;
+    p.conditions = ps.conditions;
+  }
   ps.planetBoosts?.forEach((boost, j) => {
     const pl = p.planets[j];
     if (pl) pl.level = Math.min(BALANCE.maxPlanetLevel, pl.level + boost);
@@ -165,6 +169,7 @@ function finishSetupIfReady(state: GameState) {
   state.phase = 'play';
   state.activePlayerIndex = 0;
   log(state, `A new game begins. ${state.players.map((p) => `${p.name} rules ${systemDef(p.systemId).name}`).join('; ')}.`);
+  for (const p of state.players) for (const c of p.conditions ?? []) log(state, `${c.name} affects ${p.name}: ${c.text}`);
   startTurn(state);
 }
 
@@ -181,23 +186,23 @@ export function trackLevel(p: PlayerState, track: Track): number {
   return p.planets.filter((pl) => pl.track === track).reduce((s, pl) => s + pl.level, 0);
 }
 
-const mods = (p: PlayerState) => systemDef(p.systemId).modifiers;
+const mods = (p: PlayerState) => playerModifiers(p);
 
 export function handSizeFor(p: PlayerState): number {
-  const mods = systemDef(p.systemId).modifiers;
+  const mods = playerModifiers(p);
   const size = BALANCE.handSize + (mods.handSizeBonus ?? 0) + trackLevel(p, 'resources') * BALANCE.resourceCardsPerLevel + bonus(p, 'wide_sensors');
   return Math.min(size, mods.handSizeCap ?? Infinity);
 }
 
 export function incomeFor(p: PlayerState): number {
-  const mods = systemDef(p.systemId).modifiers;
+  const mods = playerModifiers(p);
   let income = trackLevel(p, 'economy') * BALANCE.economyIncomePerLevel + (mods.incomeBonus ?? 0) + bonus(p, 'stellar_mint');
   if (mods.heatIncomeEvery && p.heat > 0) income += Math.floor(p.heat / mods.heatIncomeEvery);
   return income;
 }
 
 export function shieldsFor(p: PlayerState): number {
-  const mods = systemDef(p.systemId).modifiers;
+  const mods = playerModifiers(p);
   return trackLevel(p, 'defences') * BALANCE.shieldsPerDefenceLevel + (mods.shieldBonus ?? 0) + bonus(p, 'aegis_lattice');
 }
 
@@ -223,7 +228,7 @@ export function flareHeat(p: PlayerState, state?: GameState): number {
 }
 
 export function thermoCost(p: PlayerState): number {
-  const discount = p.turn.thermosiphons === 0 ? systemDef(p.systemId).modifiers.firstThermoDiscount ?? 0 : 0;
+  const discount = p.turn.thermosiphons === 0 ? mods(p).firstThermoDiscount ?? 0 : 0;
   return Math.max(0, BALANCE.thermosiphonCost - discount + (mods(p).thermoCostDelta ?? 0));
 }
 
@@ -255,7 +260,7 @@ export function shieldPierce(p: PlayerState): number {
 
 export function marketCost(p: PlayerState, defId: string, state?: GameState): number {
   const nebula = state && activeField(state)?.id === 'nebulaDrift' ? 1 : 0;
-  const discount = (systemDef(p.systemId).modifiers.marketDiscount ?? 0) + nebula;
+  const discount = (mods(p).marketDiscount ?? 0) + nebula;
   return Math.max(1, cardDef(defId).cost - discount);
 }
 
