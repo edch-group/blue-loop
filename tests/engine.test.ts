@@ -48,7 +48,7 @@ describe('player count', () => {
     const duel = createGame({ seed: 1, players: [{ name: 'A', isAI: true }, { name: 'B', isAI: true }] });
     const cards = [...duel.marketDeck, ...duel.display].map((c) => c!.defId);
     expect(cards).not.toContain('plasma_barrage');
-    expect(cards).not.toContain('solar_storm');
+    expect(cards).toContain('solar_storm'); // hits every sun equally, so fine in 1v1
     const trio = createGame({ seed: 1, players: [1, 2, 3].map((i) => ({ name: `P${i}`, isAI: true })) });
     const trioCards = [...trio.marketDeck, ...trio.display].map((c) => c!.defId);
     expect(trioCards).toContain('plasma_barrage');
@@ -96,16 +96,16 @@ describe('setup', () => {
   });
 
   it('applies the Cryon Drift starting heat', () => {
-    const s = twoPlayer(1, ['cryon_drift', 'midas_belt']);
-    expect(s.players[0].heat).toBe(-3);
-    expect(s.players[1].heat).toBe(0);
+    const s = twoPlayer(1, ['midas_belt', 'cryon_drift']);
+    expect(s.players[1].heat).toBe(-10); // thaw only starts on its own turn
+    expect(s.players[0].heat).toBe(0);
   });
 });
 
 describe('money actions', () => {
   it('Solar Flare costs 2 and heats an enemy sun by 1', () => {
-    // Midas Belt has no weapon bonuses, so a flare deals base heat.
-    let s = twoPlayer(3, ['midas_belt', 'aegis_cluster']);
+    // Aegis Cluster has no weapon bonuses or flare drawback, so a flare is base.
+    let s = twoPlayer(3, ['aegis_cluster', 'midas_belt']);
     s = { ...s, players: s.players.map((p) => ({ ...p, shields: 0 })) };
     const moneyBefore = activePlayer(s).money;
     s = playAllMoney(s);
@@ -135,7 +135,7 @@ describe('money actions', () => {
   });
 
   it('shields absorb heat before the sun', () => {
-    const s = twoPlayer(3, ['midas_belt', 'aegis_cluster']);
+    const s = twoPlayer(3, ['aegis_cluster', 'midas_belt']);
     s.players[0].money = 4;
     s.players[1].shields = 1;
     const after = applyAction(applyAction(s, { type: 'solarFlare', targetId: 'p2' }), { type: 'solarFlare', targetId: 'p2' });
@@ -168,7 +168,7 @@ describe('supernova', () => {
     const s = twoPlayer(3, ['midas_belt', 'helios_reach']);
     s.players[1].heat = 9;
     s.players[1].shields = 0;
-    s.players[0].money = 2;
+    s.players[0].money = 3; // Midas: Solar Flare costs 1 more
     const after = applyAction(s, { type: 'solarFlare', targetId: 'p2' });
     expect(after.players[1].eliminated).toBe(true);
     expect(after.winnerId).toBe('p1');
@@ -222,14 +222,14 @@ describe('core action upgrades', () => {
     expect(s.players[0].upgrades.solarFlare).toBe(3);
     const uid = withCommand(s);
     expect(() => applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'solarFlare' })).toThrow(GameError);
-    s.players[0].money = 2;
+    s.players[0].money = 3; // Midas: Solar Flare costs 1 more
     s.players[1].shields = 0;
     s = applyAction(s, { type: 'solarFlare', targetId: 'p2' });
     expect(s.players[1].heat).toBe(4);
   });
 
   it('Thermosiphon takes 1 upgrade, cooling 2', () => {
-    let s = twoPlayer(3, ['midas_belt', 'aegis_cluster']);
+    let s = twoPlayer(3, ['obsidian_veil', 'aegis_cluster']); // no cooling drawback
     s.objectives = [];
     const uid = withCommand(s);
     s = applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'thermosiphon' });
@@ -252,7 +252,7 @@ describe('core action upgrades', () => {
     expect(() => applyAction(s, { type: 'playCard', cardUid: uid, upgradeId: 'coolingChamber' })).toThrow(GameError);
     // A sun at 12 survives with max health 25, but an unupgraded one would not.
     s = applyAction(s, { type: 'endTurn' });
-    s.players[1].money = 2;
+    s.players[1].money = 3; // Helios: first flare each turn costs 1 more
     s.players[0].heat = 11;
     s.players[0].shields = 0;
     s = applyAction(s, { type: 'solarFlare', targetId: 'p1' });
@@ -279,6 +279,41 @@ describe('market', () => {
   });
 });
 
+describe('system draft', () => {
+  it('offers each human two systems; AI choose at once; play starts when all have chosen', () => {
+    let s = createGame({ seed: 4, draft: true, players: [{ name: 'A', isAI: false }, { name: 'B', isAI: true }] });
+    expect(s.phase).toBe('setup');
+    expect(s.players[0].systemOffers).toHaveLength(2);
+    expect(s.players[1].systemOffers).toBeUndefined();
+    expect(s.players[0].hand).toHaveLength(0);
+    expect(() => applyAction(s, { type: 'endTurn' })).toThrow(GameError);
+    const pick = s.players[0].systemOffers![1];
+    s = applyAction(s, { type: 'chooseSystem', systemId: pick });
+    expect(s.phase).toBe('play');
+    expect(s.players[0].systemId).toBe(pick);
+    expect(s.players[0].hand.length).toBe(handSizeFor(s.players[0]));
+    expect(new Set(s.players.map((p) => p.systemId)).size).toBe(2);
+  });
+
+  it('applies system drawbacks', () => {
+    const s = twoPlayer(3, ['nova_crown', 'tempest_binary']);
+    expect(supernovaThreshold(s.players[0])).toBe(8);
+    expect(supernovaThreshold(s.players[1])).toBe(8);
+  });
+
+  it('Cryon Drift thaws by 2 at the start of its turns', () => {
+    let s = twoPlayer(3, ['midas_belt', 'cryon_drift']);
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players[1].heat).toBe(-8);
+  });
+
+  it('Obsidian Veil fixes hand size at 5', () => {
+    const s = twoPlayer(3, ['obsidian_veil', 'aegis_cluster']);
+    s.players[0].rewards = ['wide_sensors'];
+    expect(handSizeFor(s.players[0])).toBe(5);
+  });
+});
+
 describe('display drift', () => {
   it('discards the leftmost card each round, slides the rest left and refills', () => {
     let s = twoPlayer(5, ['midas_belt', 'helios_reach']);
@@ -293,65 +328,57 @@ describe('display drift', () => {
   });
 });
 
-describe('global effects (fields)', () => {
+describe('global cards', () => {
   const setup = () => {
-    const s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    const s = twoPlayer(5, ['obsidian_veil', 'aegis_cluster']);
     s.objectives = [];
-    s.players[1].shields = 0;
     return s;
   };
+  const play = (s: GameState, defId: string) => {
+    s.players[0].hand.push({ uid: defId, defId });
+    return applyAction(s, { type: 'playCard', cardUid: defId });
+  };
 
-  it('Solar Storm hits now, then heats the enemy at each of their turn starts for 3 rounds', () => {
-    let s = setup();
-    s.players[0].hand.push({ uid: 'storm', defId: 'solar_storm' });
-    s = applyAction(s, { type: 'playCard', cardUid: 'storm', targetId: 'p2' });
-    expect(s.players[1].heat).toBe(1); // instant effect
+  it('Solar Storm heats every sun (including the player who played it) for 3 rounds', () => {
+    let s = play(setup(), 'solar_storm');
+    expect(s.players[0].heat).toBe(0); // no instant effect
     for (let round = 1; round <= 3; round++) {
-      s = applyAction(s, { type: 'endTurn' }); // p2's turn: storm ticks
-      expect(s.players[1].heat).toBe(1 + round);
       s = applyAction(s, { type: 'endTurn' });
+      expect(s.players[1].heat).toBe(round);
+      s = applyAction(s, { type: 'endTurn' });
+      expect(s.players[0].heat).toBe(round);
     }
     expect(s.globals.filter((g) => g.turnsRemaining > 0)).toHaveLength(0);
-    s = applyAction(s, { type: 'endTurn' });
-    expect(s.players[1].heat).toBe(4); // expired
   });
 
-  it('Magnetic Storm makes enemy flares dearer and the setter\'s cheaper', () => {
-    let s = setup();
-    s.players[0].hand.push({ uid: 'mag', defId: 'magnetic_storm' });
-    s = applyAction(s, { type: 'playCard', cardUid: 'mag' });
-    expect(flareCost(s, s.players[0])).toBe(1);
+  it('Magnetic Storm raises every Solar Flare cost equally', () => {
+    const s = play(setup(), 'magnetic_storm');
+    expect(flareCost(s, s.players[0])).toBe(3);
     expect(flareCost(s, s.players[1])).toBe(3);
   });
 
-  it('only one field is active: a new global replaces it', () => {
-    let s = setup();
-    s.players[0].hand.push({ uid: 'mag', defId: 'magnetic_storm' }, { uid: 'ice', defId: 'ice_age' });
-    s = applyAction(s, { type: 'playCard', cardUid: 'mag' });
-    s = applyAction(s, { type: 'playCard', cardUid: 'ice' });
+  it('only one is active: a new global replaces it', () => {
+    let s = play(setup(), 'magnetic_storm');
+    s = play(s, 'ice_age');
     expect(s.globals.map((g) => g.id)).toEqual(['iceAge']);
-    expect(flareCost(s, s.players[1])).toBe(2);
+    expect(flareCost(s, s.players[0])).toBe(2);
   });
 
-  it('Trade Boom pays the setter more than everyone else', () => {
-    let s = setup();
-    s.players[0].hand.push({ uid: 'tb', defId: 'trade_boom' });
-    s = applyAction(s, { type: 'playCard', cardUid: 'tb' });
+  it('Trade Boom pays every player the same', () => {
+    let s = play(setup(), 'trade_boom');
     s = applyAction(s, { type: 'endTurn' });
     expect(s.players[1].money).toBe(incomeFor(s.players[1]) + 1);
     s = applyAction(s, { type: 'endTurn' });
-    expect(s.players[0].money).toBe(incomeFor(s.players[0]) + 2);
+    expect(s.players[0].money).toBe(incomeFor(s.players[0]) + 1);
   });
 
-  it('Solar Maximum and Nebula Drift change flare heat and display prices', () => {
-    let s = setup();
-    s.players[0].hand.push({ uid: 'sm', defId: 'solar_maximum' });
-    s = applyAction(s, { type: 'playCard', cardUid: 'sm', targetId: 'p2' });
+  it('Solar Maximum and Nebula Drift change flare heat and display prices for all', () => {
+    let s = play(setup(), 'solar_maximum');
+    expect(flareHeat(s.players[0], s)).toBe(2);
     expect(flareHeat(s.players[1], s)).toBe(2);
-    s.players[0].hand.push({ uid: 'nd', defId: 'nebula_drift' });
-    s = applyAction(s, { type: 'playCard', cardUid: 'nd' });
+    s = play(s, 'nebula_drift');
     expect(flareHeat(s.players[1], s)).toBe(1);
-    expect(marketCost(s.players[0], 'fleet_command', s)).toBe(cardDef('fleet_command').cost - 1);
+    expect(marketCost(s.players[1], 'fleet_command', s)).toBe(cardDef('fleet_command').cost - 1);
   });
 });
 
@@ -394,8 +421,8 @@ describe('objectives', () => {
     const hand = handSizeFor(s.players[0]);
     s.players[0].rewards = ['wide_sensors', 'deep_coolant', 'flare_focus'];
     expect(handSizeFor(s.players[0])).toBe(hand + 1);
-    expect(thermoCool(s.players[0])).toBe(2);
-    expect(flareCost(s, s.players[0])).toBe(1);
+    expect(thermoCool(s.players[0])).toBe(2); // 1 + Deep Coolant 1
+    expect(flareCost(s, s.players[0])).toBe(2); // 2 + Midas 1 − Flare Focus 1
     s.pendingRewards = [{ playerId: 'p1', source: 'test', options: ['wide_sensors'] }];
     s = applyAction(s, { type: 'chooseReward', reward: 'wide_sensors' });
     expect(availableRewards(s, s.players[0])).not.toContain('wide_sensors');

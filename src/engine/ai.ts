@@ -1,5 +1,6 @@
 import { BALANCE } from './balance';
 import { cardDef } from './cards';
+import { systemDef } from './systems';
 import {
   activePlayer,
   cardNeedsTarget,
@@ -56,7 +57,8 @@ export function chooseAIAction(state: GameState): Action {
 
   // 3. Cool down when our own sun is in danger.
   const danger = supernovaThreshold(me) - 4;
-  if (me.heat >= danger && me.money >= thermoCost(me)) return { type: 'thermosiphon' };
+  const canThermo = !systemDef(me.systemId).modifiers.noThermosiphon;
+  if (canThermo && me.heat >= danger && me.money >= thermoCost(me)) return { type: 'thermosiphon' };
 
   // 4. Buy the best card we can afford.
   const buy = pickPurchase(state, me);
@@ -64,7 +66,7 @@ export function chooseAIAction(state: GameState): Action {
 
   // 5. Spend leftovers: attack if we're cooler than the target, else cool.
   if (me.money >= cost && me.heat <= target.heat) return { type: 'solarFlare', targetId: target.id };
-  if (me.money >= thermoCost(me) && me.heat > BALANCE.minHeat) return { type: 'thermosiphon' };
+  if (canThermo && me.money >= thermoCost(me) && me.heat > BALANCE.minHeat) return { type: 'thermosiphon' };
   if (me.money >= cost) return { type: 'solarFlare', targetId: target.id };
 
   return { type: 'endTurn' };
@@ -110,7 +112,26 @@ function pickReward(state: GameState): Action {
   return { type: 'chooseReward', reward };
 }
 
-const KIND_BIAS: Record<CardKind, number> = { command: 3, attack: 2, economy: 1.5, global: 1.5, defence: 1, mission: 1, basic: 0 };
+const KIND_BIAS: Record<CardKind, number> = { command: 3, attack: 2, economy: 1.5, global: 0, defence: 1, mission: 1, basic: 0 };
+
+/** Globals help everyone equally, so only buy one when the change favours us. */
+function globalValue(state: GameState, me: PlayerState, defId: string): number {
+  const foes = livingOpponents(state, me);
+  if (!foes.length) return 0;
+  const myRoom = supernovaThreshold(me) - me.heat;
+  const theirRoom = Math.min(...foes.map((f) => supernovaThreshold(f) - f.heat));
+  switch (defId) {
+    case 'solar_storm':
+    case 'solar_maximum':
+      return myRoom > theirRoom + 3 ? 6 : 0; // we can take the heat better than they can
+    case 'ice_age':
+      return myRoom < theirRoom - 2 ? 6 : 0; // we need the cooling more
+    case 'magnetic_storm':
+      return myRoom < theirRoom ? 4 : 0; // slow everyone's attacks while we are behind
+    default:
+      return 2;
+  }
+}
 
 function pickPurchase(state: GameState, me: PlayerState): number | null {
   let best: number | null = null;
@@ -122,6 +143,7 @@ function pickPurchase(state: GameState, me: PlayerState): number | null {
     const def = cardDef(card.defId);
     let score = def.cost + KIND_BIAS[def.kind];
     if (def.kind === 'defence' && me.heat >= 4) score += 3;
+    if (def.kind === 'global') score = globalValue(state, me, def.id);
     if (def.kind === 'command' && upgradeOptions(me).length === 0) score = 0;
     if (score > bestScore) {
       bestScore = score;

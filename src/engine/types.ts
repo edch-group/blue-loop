@@ -75,6 +75,24 @@ export interface SystemModifiers {
   marketDiscount?: number;
   /** +1 money at turn start for every N heat your sun has above 0. */
   heatIncomeEvery?: number;
+
+  // Drawbacks
+  /** Added to every Solar Flare's cost. */
+  flareCostDelta?: number;
+  /** Added to the first Solar Flare each turn. */
+  firstFlareCostDelta?: number;
+  /** Added to Thermosiphon's cost. */
+  thermoCostDelta?: number;
+  /** Added to all your cooling (Thermosiphon and cooling cards), minimum 1. */
+  coolingDelta?: number;
+  /** Added to max health (supernova threshold). */
+  maxHealthDelta?: number;
+  /** Hand size can never exceed this (planets and rewards cannot raise it). */
+  handSizeCap?: number;
+  /** This system cannot use (or upgrade) Thermosiphon. */
+  noThermosiphon?: boolean;
+  /** Your sun heats by this much at the start of each of your turns. */
+  thawPerTurn?: number;
 }
 
 export interface SolarSystemDef {
@@ -83,6 +101,8 @@ export interface SolarSystemDef {
   flavor: string;
   abilityName: string;
   abilityText: string;
+  /** Every system has a downside to balance its ability. */
+  drawbackText: string;
   planets: { name: string; track: Track; level: number }[];
   modifiers: SystemModifiers;
 }
@@ -125,6 +145,8 @@ export interface PlayerState {
   rewards: RewardId[];
   /** Mission cards in play, waiting for their condition. */
   missions: CardInstance[];
+  /** During setup: the two systems this player may choose between. */
+  systemOffers?: string[];
   heat: number;
   shields: number;
   money: number;
@@ -152,6 +174,8 @@ export interface GameState {
   turnNumber: number;
   /** Increments each time play passes back around to the first seat. */
   round: number;
+  /** 'setup' while players choose solar systems; missing means 'play' (older saves). */
+  phase?: 'setup' | 'play';
   activePlayerIndex: number;
   players: PlayerState[];
   marketDeck: CardInstance[];
@@ -182,6 +206,8 @@ export interface PlayerSetup {
 export interface GameSetup {
   seed: number;
   players: PlayerSetup[];
+  /** Offer each player two solar systems to choose from (AI players choose at once). */
+  draft?: boolean;
 }
 
 export type Action =
@@ -191,4 +217,5 @@ export type Action =
   | { type: 'solarFlare'; targetId: string }
   | { type: 'thermosiphon' }
   | { type: 'chooseReward'; reward: RewardId; upgradeId?: UpgradeId; slot?: number }
+  | { type: 'chooseSystem'; systemId: string }
   | { type: 'endTurn' };

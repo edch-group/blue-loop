@@ -1008,3 +1008,35 @@ input { font: inherit; }
   .sys-planet { grid-template-columns: auto auto; }
   .sys-planet-effect { grid-column: 1 / -1; font-size: 0.72rem; }
 }
+
+/* ---------- System choice (game start) ---------- */
+.dock-setup { opacity: 0.35; pointer-events: none; filter: blur(1px); }
+.sys-drawback { color: #a8716c; }
+.sys-ability span { display: block; }
+.draft-wrap { width: min(900px, 96vw); }
+.draft-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(10px, 2.4vw, 22px); width: 100%; min-height: 0; }
+.draft-one { grid-template-columns: minmax(0, 440px); justify-content: center; }
+.draft-one .sys-kicker { margin-bottom: -4px; }
+.draft-card { padding-bottom: 0; }
+.draft-card .sys-planet { grid-template-columns: auto 1fr; }
+.sys-spacer { height: 14px; }
+.sys-tab[disabled] { opacity: 0.4; }
+@media (max-height: 560px) {
+  .draft-card { grid-template-columns: 1fr; column-gap: 0; padding-top: 8px; gap: 4px; }
+  .draft-card .orrery { max-height: calc(16 * var(--vh)); }
+  .draft-card .sys-name { font-size: 0.9rem; }
+  .draft-card .sys-flavor { display: none; }
+  .draft-card .sys-ability { padding: 6px 10px; }
+  .draft-card .sys-ability span { font-size: 0.74rem; }
+  .draft-card .sys-planets { grid-row: auto; grid-column: 1; gap: 2px; }
+  .draft-card .sys-planet { font-size: 0.7rem; }
+  .draft-card .sys-begin { margin: 4px 0 10px; padding: 8px 30px; }
+}
+.turn-banner-text { white-space: nowrap; }
+.turn-banner-long .turn-banner-text { font-size: clamp(1.1rem, min(6.4vh, 4.2vw), 2.6rem); letter-spacing: 0.34em; padding-left: 0.34em; }
+@keyframes bannerTextLong { 0% { letter-spacing: 0.6em; opacity: 0; filter: blur(6px); } 30% { opacity: 1; filter: blur(0); } 100% { letter-spacing: 0.34em; } }
+.turn-banner-long .turn-banner-text { animation-name: bannerTextLong; }
+@media (max-height: 560px) {
+  .draft-card .sys-planet { grid-template-columns: auto 1fr; }
+  .draft-card .sys-planet-effect { grid-column: auto; }
+}

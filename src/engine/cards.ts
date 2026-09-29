@@ -61,13 +61,14 @@ export const MARKET_CARDS: CardDef[] = [
   { id: 'mission_fortify', name: 'Mission: Fortify', kind: 'mission', cost: 2, text: 'Mission. Have 3 or more shields at once. Reward: choose an objective reward.', effects: [{ type: 'mission', objective: 'm_fortify' }], copies: 2 },
 
   // Global (24)
-  // Global (24): each sets a FIELD for 3 rounds (a new global replaces it) and has an instant effect.
-  { id: 'solar_storm', name: 'Solar Storm', kind: 'global', cost: 5, text: 'Heat an enemy sun by 1. Field, 3 rounds: at the start of each enemy turn, their sun heats by 1.', effects: [{ type: 'heatTarget', amount: 1 }, { type: 'global', effect: 'solarStorm' }], copies: 4, minPlayers: 3 },
-  { id: 'solar_maximum', name: 'Solar Maximum', kind: 'global', cost: 4, text: 'Heat an enemy sun by 1. Field, 3 rounds: every Solar Flare deals +1 heat.', effects: [{ type: 'heatTarget', amount: 1 }, { type: 'global', effect: 'solarMaximum' }], copies: 4 },
-  { id: 'ice_age', name: 'Ice Age', kind: 'global', cost: 3, text: 'Cool your sun by 2. Field, 3 rounds: every sun cools by 1 at the start of its turn.', effects: [{ type: 'cool', amount: 2 }, { type: 'global', effect: 'iceAge' }], copies: 4 },
-  { id: 'trade_boom', name: 'Trade Boom', kind: 'global', cost: 3, text: '+2 money. Field, 3 rounds: every player gains +1 money each turn; you gain +2.', effects: [{ type: 'money', amount: 2 }, { type: 'global', effect: 'tradeBoom' }], copies: 4 },
-  { id: 'magnetic_storm', name: 'Magnetic Storm', kind: 'global', cost: 4, text: '+1 money. Field, 3 rounds: enemy Solar Flares cost +1; yours cost 1 less.', effects: [{ type: 'money', amount: 1 }, { type: 'global', effect: 'magneticStorm' }], copies: 4 },
-  { id: 'nebula_drift', name: 'Nebula Drift', kind: 'global', cost: 3, text: 'Draw 1 card. Field, 3 rounds: display cards cost 1 less for everyone.', effects: [{ type: 'draw', amount: 1 }, { type: 'global', effect: 'nebulaDrift' }], copies: 4 },
+  // Global (24): change the board for everyone, equally, for 3 rounds. A new
+  // global replaces the current one. You pay to reshape the game, not for a direct benefit.
+  { id: 'solar_storm', name: 'Solar Storm', kind: 'global', cost: 3, text: 'For 3 rounds, every sun heats by 1 at the start of its turn.', effects: [{ type: 'global', effect: 'solarStorm' }], copies: 4 },
+  { id: 'solar_maximum', name: 'Solar Maximum', kind: 'global', cost: 3, text: 'For 3 rounds, every Solar Flare deals +1 heat.', effects: [{ type: 'global', effect: 'solarMaximum' }], copies: 4 },
+  { id: 'ice_age', name: 'Ice Age', kind: 'global', cost: 2, text: 'For 3 rounds, every sun cools by 1 at the start of its turn.', effects: [{ type: 'global', effect: 'iceAge' }], copies: 4 },
+  { id: 'trade_boom', name: 'Trade Boom', kind: 'global', cost: 2, text: 'For 3 rounds, every player gains +1 money at the start of their turn.', effects: [{ type: 'global', effect: 'tradeBoom' }], copies: 4 },
+  { id: 'magnetic_storm', name: 'Magnetic Storm', kind: 'global', cost: 2, text: 'For 3 rounds, every Solar Flare costs 1 more.', effects: [{ type: 'global', effect: 'magneticStorm' }], copies: 4 },
+  { id: 'nebula_drift', name: 'Nebula Drift', kind: 'global', cost: 2, text: 'For 3 rounds, display cards cost 1 less for everyone.', effects: [{ type: 'global', effect: 'nebulaDrift' }], copies: 4 },
 ];
 
 const ALL = [...STARTER_CARDS, ...MARKET_CARDS];

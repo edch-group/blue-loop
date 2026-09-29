@@ -69,8 +69,10 @@ type Sheet =
   | { kind: 'log' }
   | { kind: 'rules' }
   | { kind: 'pile'; pile: 'deck' | 'discard' }
-  /** A player's solar system card; `intro` is the game-start reveal. */
-  | { kind: 'system'; playerId: string; intro?: boolean }
+  /** A player's solar system card. */
+  | { kind: 'system'; playerId: string }
+  /** Game-start choice between two offered systems (or peeking at a rival's). */
+  | { kind: 'draft'; view?: string }
   | { kind: 'objective'; id: string }
   | { kind: 'field' }
   | { kind: 'mission'; uid: string; playerId: string }
@@ -89,6 +91,7 @@ const AI_PAUSE: Record<Action['type'], number> = {
   thermosiphon: 1100,
   endTurn: 1000,
   chooseReward: 1500,
+  chooseSystem: 600,
 };
 const TOAST_MS = 2600;
 /** The card whose glyph represents each field. */
@@ -102,7 +105,7 @@ const FIELD_CARD: Record<string, string> = {
 };
 const LONG_PRESS_MS = 450;
 const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
-const TOAST_PATTERN = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|wins|shields absorb|Instability|sets the field/;
+const TOAST_PATTERN = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|wins|shields absorb|Instability|brings/;
 const HOT = '#f0a07a';
 
 const ACTION_TEXT: Record<CoreAction, string> = {
@@ -141,8 +144,6 @@ export class App {
   private state: GameState | null = null;
   private pending: Pending | null = null;
   private stage: Stage | null = null;
-  /** Human players who have already been shown their system card. */
-  private introduced = new Set<string>();
   /** Second step of a reward that needs a choice (what to upgrade, which card). */
   private rewardStep: 'command' | 'requisition' | null = null;
   private sheet: Sheet | null = null;
@@ -207,7 +208,7 @@ export class App {
     const players: PlayerSetup[] = this.seats
       .filter((s) => s.enabled)
       .map((s) => ({ name: s.name.trim() || 'Unnamed', isAI: s.isAI }));
-    this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
+    this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players, draft: true }));
   }
 
   private continueGame() {
@@ -225,22 +226,31 @@ export class App {
     this.screen = 'game';
     save(state);
     this.syncViewer();
-    this.introduced.clear();
-    this.maybeIntroduce();
     this.render();
-    this.dealOpening();
-    if (!this.sheet) this.announceTurn(400);
+    if (state.phase === 'setup') this.startDraft();
+    else {
+      this.dealOpening();
+      this.announceTurn(400);
+    }
     this.scheduleAI(900);
   }
 
-  /** First time a human sees the board, open their solar system card. */
-  private maybeIntroduce() {
+  /**
+   * System choice: the board is shown first, then a "select solar system"
+   * banner, then the two offered systems.
+   */
+  private startDraft() {
     const s = this.state;
-    if (!s || isGameOver(s) || this.needsHandoff()) return;
+    if (!s || s.phase !== 'setup' || this.needsHandoff()) return;
     const p = activePlayer(s);
-    if (p.isAI || this.introduced.has(p.id)) return;
-    this.introduced.add(p.id);
-    this.sheet = { kind: 'system', playerId: p.id, intro: true };
+    if (p.isAI || p.id !== this.viewer().id) return;
+    this.showBanner('select solar system', s.players.filter((pl) => !pl.isAI).length > 1 ? p.name : 'choose one of two', 500);
+    window.setTimeout(() => {
+      if (this.state?.phase === 'setup' && activePlayer(this.state).id === p.id) {
+        this.sheet = { kind: 'draft' };
+        this.render();
+      }
+    }, 2300);
   }
 
   /**
@@ -250,17 +260,20 @@ export class App {
    */
   private announceTurn(delay = 0) {
     const s = this.state;
-    if (!s || isGameOver(s) || this.needsHandoff()) return;
+    if (!s || isGameOver(s) || this.needsHandoff() || s.phase === 'setup') return;
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
     const humans = s.players.filter((pl) => !pl.isAI).length;
+    this.showBanner('your turn', humans > 1 ? p.name : `round ${roman(s.round)}`, delay);
+  }
+
+  /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
+  private showBanner(text: string, sub: string, delay = 0) {
     window.setTimeout(() => {
       document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
       const el = document.createElement('div');
-      el.className = 'turn-banner';
-      el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">your turn</div>${
-        humans > 1 ? `<div class="turn-banner-sub">${esc(p.name.toLowerCase())}</div>` : `<div class="turn-banner-sub">round ${roman(s.round)}</div>`
-      }`;
+      el.className = `turn-banner ${text.length > 12 ? 'turn-banner-long' : ''}`;
+      el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">${esc(text)}</div><div class="turn-banner-sub">${esc(sub.toLowerCase())}</div>`;
       document.body.appendChild(el);
       sound.turn();
       window.setTimeout(() => el.remove(), 2000);
@@ -303,7 +316,7 @@ export class App {
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.state = next;
     this.pending = null;
-    if (this.sheet?.kind === 'card') this.sheet = null;
+    if (this.sheet?.kind === 'card' || action.type === 'chooseSystem') this.sheet = null;
     this.stage = actor.isAI ? this.stageFor(prev, actor, action) : null;
     if (isGameOver(next)) clearSave();
     else save(next);
@@ -313,7 +326,12 @@ export class App {
       this.surfaceLog(prev, next);
       this.animate(prev, next, action, actor, before);
     }
-    if (turnPassed) this.announceTurn(450);
+    if (action.type === 'chooseSystem') {
+      if (next.phase === 'play') {
+        this.dealOpening();
+        this.announceTurn(300);
+      } else this.startDraft(); // next human to choose (after the hand-off screen)
+    } else if (turnPassed) this.announceTurn(450);
     this.scheduleAI(AI_PAUSE[action.type]);
   }
 
@@ -517,7 +535,7 @@ export class App {
   private canAct(): boolean {
     const s = this.state!;
     const me = activePlayer(s);
-    return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff() && s.pendingRewards.length === 0;
+    return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff() && s.pendingRewards.length === 0 && s.phase !== 'setup';
   }
 
   /** The reward choice waiting for the viewer, if any. */
@@ -649,9 +667,9 @@ export class App {
         return this.render();
       case 'reveal':
         this.revealedFor = s ? activePlayer(s).id : null;
-        this.maybeIntroduce();
         this.render();
-        if (!this.sheet) this.announceTurn();
+        if (s?.phase === 'setup') return this.startDraft();
+        this.announceTurn();
         return this.dealOpening();
       case 'open-menu':
         this.sheet = { kind: 'menu' };
@@ -681,16 +699,16 @@ export class App {
         this.sheet = { kind: 'pile', pile: arg as 'deck' | 'discard' };
         return this.render();
       case 'view-system':
-        // Keep the intro flag while flicking between players on the game-start card.
-        this.sheet = { kind: 'system', playerId: arg, intro: this.sheet?.kind === 'system' && this.sheet.intro };
+        this.sheet = { kind: 'system', playerId: arg };
         return this.render();
       case 'systems':
         this.sheet = { kind: 'system', playerId: this.viewer().id };
         return this.render();
-      case 'begin-game':
-        this.sheet = null;
-        this.render();
-        return this.announceTurn();
+      case 'draft-pick':
+        return this.dispatch({ type: 'chooseSystem', systemId: arg });
+      case 'draft-view':
+        this.sheet = { kind: 'draft', view: arg || undefined };
+        return this.render();
       case 'view-field':
         this.sheet = { kind: 'field' };
         return this.render();
@@ -722,14 +740,11 @@ export class App {
       case 'coolingChamber':
         this.sheet = { kind: 'action', action: 'coolingChamber' };
         return this.render();
-      case 'cancel': {
-        const wasIntro = this.sheet?.kind === 'system' && this.sheet.intro;
+      case 'cancel':
+        if (this.sheet?.kind === 'draft') return; // a system must be chosen
         this.pending = null;
         this.sheet = null;
-        this.render();
-        if (wasIntro) this.announceTurn();
-        return;
-      }
+        return this.render();
     }
 
     if (!s) return;
@@ -942,7 +957,7 @@ export class App {
         </div>
         <div class="rivals">${rivals}</div>
         <div class="turn">
-          <div class="turn-pill ${mine ? 'turn-mine' : ''}">${mine ? 'your turn' : `${esc(active.name.toLowerCase())}'s turn`}</div>
+          <div class="turn-pill ${mine && s.phase !== 'setup' ? 'turn-mine' : ''}">${s.phase === 'setup' ? 'choosing systems' : mine ? 'your turn' : `${esc(active.name.toLowerCase())}'s turn`}</div>
           <div class="feed" title="${esc(last)}">${esc(last)}</div>
         </div>
         <div class="top-controls">
@@ -987,7 +1002,7 @@ export class App {
     const played = [...groups.values()].map((cs) => this.renderMini(cs[cs.length - 1], cs.length)).join('');
 
     return `
-      <section class="dock">
+      <section class="dock ${s.phase === 'setup' ? 'dock-setup' : ''}">
         <div class="command">
           <button class="me" data-act="view-system" data-arg="${me.id}" title="${esc(me.name)} · ${esc(systemDef(me.systemId).name)} (tap for details)">
             <div class="orb-anchor" data-anchor="player:${me.id}">${sunOrb({ heat: me.heat, threshold: max, size: 44, dead: me.eliminated })}</div>
@@ -1147,16 +1162,18 @@ export class App {
       case 'pile':
         return this.renderPileSheet(sh.pile);
       case 'system':
-        return this.renderSystemSheet(s!.players.find((p) => p.id === sh.playerId)!, !!sh.intro);
+        return this.renderSystemSheet(s!.players.find((p) => p.id === sh.playerId)!);
+      case 'draft':
+        return this.renderDraft(sh.view);
       case 'field': {
         const f = activeField(s!);
         if (!f) return '';
         const setter = s!.players.find((p) => p.id === f.sourcePlayerId)!;
         const living = s!.players.filter((p) => !p.eliminated).length;
         return this.sheetFrame(
-          `field · ${esc(GLOBALS[f.id].name.toLowerCase())}`,
+          esc(GLOBALS[f.id].name.toLowerCase()),
           `<div class="obj-sheet">${cardGlyph(FIELD_CARD[f.id], 'global')}<p>${esc(GLOBALS[f.id].text)}</p>
-           <p class="muted">Set by ${esc(setter.name)} · ${Math.ceil(f.turnsRemaining / living)} round(s) left. Playing another global card replaces it.</p></div>`,
+           <p class="muted">Applies to every player equally · ${Math.ceil(f.turnsRemaining / living)} round(s) left · played by ${esc(setter.name)}. Another global card replaces it.</p></div>`,
         );
       }
       case 'objective': {
@@ -1218,7 +1235,7 @@ export class App {
    * Solar system card: the player's system, ability, planets and progress,
    * with small tabs above it to flick between every player's system.
    */
-  private renderSystemSheet(p: PlayerState, intro: boolean): string {
+  private renderSystemSheet(p: PlayerState): string {
     const s = this.state!;
     const me = this.viewer();
     const sys = systemDef(p.systemId);
@@ -1258,7 +1275,7 @@ export class App {
             ${systemDiagram(p.planets)}
             <h2 class="sys-name">${esc(sys.name.toLowerCase())}</h2>
             <p class="sys-flavor">${esc(sys.flavor)}</p>
-            <div class="sys-ability"><b>${esc(sys.abilityName.toLowerCase())}</b><span>${esc(sys.abilityText)}</span></div>
+            <div class="sys-ability"><b>${esc(sys.abilityName.toLowerCase())}</b><span>+ ${esc(sys.abilityText)}</span><span class="sys-drawback">− ${esc(sys.drawbackText)}</span></div>
             <div class="sys-planets">${planets}</div>
             <div class="sys-ups">${ups}</div>
             <div class="sys-stats">
@@ -1266,10 +1283,49 @@ export class App {
               ${p.rewards.length ? `<span>rewards: ${p.rewards.map((r) => esc(rewardDef(r).name.toLowerCase())).join(', ')}</span>` : ''}
               ${p.missions.length ? `<span>missions: ${p.missions.map((m) => esc(objectiveDef(missionOf(m.defId)).name.toLowerCase())).join(', ')}</span>` : ''}
             </div>
-            ${intro
-              ? `<button class="btn-primary sys-begin" data-act="begin-game">begin</button>`
-              : `<button class="modal-cancel" data-act="cancel">close</button>`}
+            <button class="modal-cancel" data-act="cancel">close</button>
           </div>
+        </div>
+      </div>`;
+  }
+
+  /** The two offered systems side by side, with tabs to peek at rivals' chosen systems. */
+  private renderDraft(view?: string): string {
+    const s = this.state!;
+    const me = activePlayer(s);
+    if (!me.systemOffers) return '';
+    const rivals = s.players.filter((p) => p.id !== me.id);
+    const tabs = [
+      `<button class="sys-tab ${!view ? 'sys-tab-on' : ''}" data-act="draft-view" data-arg=""><span>your options</span></button>`,
+      ...rivals.map(
+        (o) => `<button class="sys-tab ${view === o.id ? 'sys-tab-on' : ''}" data-act="draft-view" data-arg="${o.id}" ${o.systemOffers ? 'disabled' : ''}>
+          ${sunOrb({ heat: o.heat, threshold: supernovaThreshold(o), size: 26, label: '' })}<span>${esc(o.name.toLowerCase())}</span></button>`,
+      ),
+    ].join('');
+    const card = (sysId: string, pick: boolean) => {
+      const sys = systemDef(sysId);
+      const planets = sys.planets
+        .map((pl) => `<div class="sys-planet"><span class="sys-planet-name">${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}</span><span class="sys-planet-effect">${pl.track}${pl.level ? ` · starts at level ${pl.level}` : ''}</span></div>`)
+        .join('');
+      return `
+        <div class="sys-card draft-card">
+          ${systemDiagram(sys.planets)}
+          <h2 class="sys-name">${esc(sys.name.toLowerCase())}</h2>
+          <p class="sys-flavor">${esc(sys.flavor)}</p>
+          <div class="sys-ability"><b>${esc(sys.abilityName.toLowerCase())}</b><span>+ ${esc(sys.abilityText)}</span><span class="sys-drawback">− ${esc(sys.drawbackText)}</span></div>
+          <div class="sys-planets">${planets}</div>
+          ${pick ? `<button class="btn-primary sys-begin" data-act="draft-pick" data-arg="${sys.id}">choose</button>` : '<div class="sys-spacer"></div>'}
+        </div>`;
+    };
+    const rival = view ? s.players.find((p) => p.id === view) : undefined;
+    const body = rival
+      ? `<div class="draft-cards draft-one"><div class="sys-kicker">${esc(rival.name.toLowerCase())}'s solar system</div>${card(rival.systemId, false)}</div>`
+      : `<div class="draft-cards">${me.systemOffers!.map((id) => card(id, true)).join('')}</div>`;
+    return `
+      <div class="overlay overlay-inspect">
+        <div class="sys-wrap draft-wrap sheet">
+          <div class="sys-tabs">${tabs}</div>
+          ${body}
         </div>
       </div>`;
   }

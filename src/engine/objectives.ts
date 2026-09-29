@@ -1,6 +1,7 @@
 import type { GlobalEffectId, PlayerState } from './types';
 import { BALANCE } from './balance';
 import { cardDef } from './cards';
+import { systemDef } from './systems';
 
 export interface ObjectiveDef {
   id: string;
@@ -59,7 +60,9 @@ export function objectiveDef(id: string): ObjectiveDef {
 
 /** Max health (supernova threshold): kept here too so objectives can use it without a cycle. */
 function maxHealth(p: PlayerState): number {
-  return BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade;
+  return (
+    BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade + (systemDef(p.systemId).modifiers.maxHealthDelta ?? 0)
+  );
 }
 
 export type RewardId =
@@ -118,17 +121,16 @@ export interface GlobalDef {
 }
 
 /**
- * Global cards set a FIELD: a lasting effect on the whole table. Only one
- * field is active at a time (a new global replaces it) and it lasts
- * FIELD_ROUNDS full rounds. Each field favours whoever set it.
+ * Global cards change the board for everyone, equally, for FIELD_ROUNDS full
+ * rounds. Only one is active at a time: a new global replaces it.
  */
 export const FIELD_ROUNDS = 3;
 
 export const GLOBALS: Record<GlobalEffectId, GlobalDef> = {
-  solarStorm: { id: 'solarStorm', name: 'Solar Storm', text: 'Enemy suns heat by 1 at the start of their turn.', affectsCaster: false },
+  solarStorm: { id: 'solarStorm', name: 'Solar Storm', text: 'Every sun heats by 1 at the start of its turn.', affectsCaster: true },
   iceAge: { id: 'iceAge', name: 'Ice Age', text: 'Every sun cools by 1 at the start of its turn.', affectsCaster: true },
-  tradeBoom: { id: 'tradeBoom', name: 'Trade Boom', text: 'Every player gains +1 money at the start of their turn; whoever set it gains +2.', affectsCaster: true },
-  magneticStorm: { id: 'magneticStorm', name: 'Magnetic Storm', text: 'Enemy Solar Flares cost +1; the setter\'s cost 1 less.', affectsCaster: true },
+  tradeBoom: { id: 'tradeBoom', name: 'Trade Boom', text: 'Every player gains +1 money at the start of their turn.', affectsCaster: true },
+  magneticStorm: { id: 'magneticStorm', name: 'Magnetic Storm', text: 'Every Solar Flare costs 1 more.', affectsCaster: true },
   solarMaximum: { id: 'solarMaximum', name: 'Solar Maximum', text: 'Every Solar Flare deals +1 heat.', affectsCaster: true },
   nebulaDrift: { id: 'nebulaDrift', name: 'Nebula Drift', text: 'Display cards cost 1 less for everyone (minimum 1).', affectsCaster: true },
 };

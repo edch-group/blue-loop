@@ -1,7 +1,7 @@
 import { BALANCE } from './balance';
 import { cardDef, MARKET_CARDS } from './cards';
 import { FIELD_ROUNDS, GLOBALS, OBJECTIVES, objectiveDef, REWARDS, rewardDef, type RewardId } from './objectives';
-import { shuffleInPlace } from './rng';
+import { randomInt, shuffleInPlace } from './rng';
 import { SOLAR_SYSTEMS, systemDef } from './systems';
 import { CORE_ACTIONS } from './types';
 import type {
@@ -74,7 +74,9 @@ export function createGame(setup: GameSetup): GameState {
   const pool = shuffleInPlace(state, SOLAR_SYSTEMS.map((s) => s.id).filter((id) => !fixed.has(id)));
 
   setup.players.forEach((ps, i) => {
-    const sys = systemDef(ps.systemId ?? pool.pop()!);
+    // Drafting: two offers each (8 systems covers 4 players); play starts once all have chosen.
+    const offers = setup.draft && !ps.systemId ? [pool.pop()!, pool.pop()!] : undefined;
+    const sys = systemDef(ps.systemId ?? offers?.[0] ?? pool.pop()!);
     const deck: CardInstance[] = [];
     for (let k = 0; k < BALANCE.startingBasicCards; k++) deck.push(newCard(state, 'stardust'));
     for (let k = 0; k < BALANCE.startingCommandCards; k++) deck.push(newCard(state, 'command_directive'));
@@ -100,8 +102,16 @@ export function createGame(setup: GameSetup): GameState {
       claimedObjectives: [],
       turn: emptyTurn(),
       blockedSinceTurnStart: 0,
+      systemOffers: offers,
     });
   });
+  // AI players pick at once.
+  for (const p of state.players) {
+    if (p.isAI && p.systemOffers) {
+      applySystem(p, p.systemOffers[randomInt(state, 2)]);
+      p.systemOffers = undefined;
+    }
+  }
 
   for (const def of marketCardsFor(n)) {
     for (let k = 0; k < def.copies; k++) state.marketDeck.push(newCard(state, def.id));
@@ -112,9 +122,36 @@ export function createGame(setup: GameSetup): GameState {
   state.objectiveDeck = shuffleInPlace(state, OBJECTIVES.map((o) => o.id));
   state.objectives = state.objectiveDeck.splice(0, BALANCE.objectivesPerGame);
 
+  state.phase = 'setup';
+  finishSetupIfReady(state);
+  return state;
+}
+
+/** Give a player a solar system: its planets, starting upgrades and starting heat. */
+function applySystem(p: PlayerState, systemId: string) {
+  const sys = systemDef(systemId);
+  p.systemId = sys.id;
+  p.planets = sys.planets.map((pl, j) => ({ id: `${p.id}-pl${j}`, ...pl }));
+  p.upgrades = { solarFlare: sys.modifiers.startingFlareUpgrades ?? 0, thermosiphon: 0, coolingChamber: 0 };
+  p.heat = sys.modifiers.startingHeat ?? BALANCE.startingHeat;
+}
+
+/** Players still to choose a system (humans only; AI choose at creation). */
+export function pendingSystemChoices(state: GameState): PlayerState[] {
+  return state.players.filter((p) => p.systemOffers?.length);
+}
+
+/** During setup the "active" seat is the next player to choose; once all have, play begins. */
+function finishSetupIfReady(state: GameState) {
+  const next = pendingSystemChoices(state)[0];
+  if (next) {
+    state.activePlayerIndex = state.players.indexOf(next);
+    return;
+  }
+  state.phase = 'play';
+  state.activePlayerIndex = 0;
   log(state, `A new game begins. ${state.players.map((p) => `${p.name} rules ${systemDef(p.systemId).name}`).join('; ')}.`);
   startTurn(state);
-  return state;
 }
 
 /** The market cards used for a given player count (multi-target cards need 3+). */
@@ -130,11 +167,12 @@ export function trackLevel(p: PlayerState, track: Track): number {
   return p.planets.filter((pl) => pl.track === track).reduce((s, pl) => s + pl.level, 0);
 }
 
+const mods = (p: PlayerState) => systemDef(p.systemId).modifiers;
+
 export function handSizeFor(p: PlayerState): number {
   const mods = systemDef(p.systemId).modifiers;
-  return (
-    BALANCE.handSize + (mods.handSizeBonus ?? 0) + trackLevel(p, 'resources') * BALANCE.resourceCardsPerLevel + bonus(p, 'wide_sensors')
-  );
+  const size = BALANCE.handSize + (mods.handSizeBonus ?? 0) + trackLevel(p, 'resources') * BALANCE.resourceCardsPerLevel + bonus(p, 'wide_sensors');
+  return Math.min(size, mods.handSizeCap ?? Infinity);
 }
 
 export function incomeFor(p: PlayerState): number {
@@ -155,10 +193,12 @@ export function activeField(state: GameState) {
 }
 
 export function flareCost(state: GameState, p: PlayerState): number {
-  const focus = p.turn.flares === 0 ? bonus(p, 'flare_focus') : 0;
+  const first = p.turn.flares === 0;
+  const focus = first ? bonus(p, 'flare_focus') : 0;
   const field = activeField(state);
-  const magnetic = field?.id === 'magneticStorm' ? (field.sourcePlayerId === p.id ? -1 : 1) : 0;
-  return Math.max(1, BALANCE.solarFlareCost + magnetic - focus);
+  const magnetic = field?.id === 'magneticStorm' ? 1 : 0;
+  const drawback = (mods(p).flareCostDelta ?? 0) + (first ? mods(p).firstFlareCostDelta ?? 0 : 0);
+  return Math.max(1, BALANCE.solarFlareCost + magnetic + drawback - focus);
 }
 
 export function flareHeat(p: PlayerState, state?: GameState): number {
@@ -168,11 +208,11 @@ export function flareHeat(p: PlayerState, state?: GameState): number {
 
 export function thermoCost(p: PlayerState): number {
   const discount = p.turn.thermosiphons === 0 ? systemDef(p.systemId).modifiers.firstThermoDiscount ?? 0 : 0;
-  return Math.max(0, BALANCE.thermosiphonCost - discount);
+  return Math.max(0, BALANCE.thermosiphonCost - discount + (mods(p).thermoCostDelta ?? 0));
 }
 
 export function thermoCool(p: PlayerState): number {
-  return BALANCE.thermosiphonCool + p.upgrades.thermosiphon + bonus(p, 'deep_coolant');
+  return Math.max(1, BALANCE.thermosiphonCool + p.upgrades.thermosiphon + bonus(p, 'deep_coolant') + (mods(p).coolingDelta ?? 0));
 }
 
 export const MAX_UPGRADES: Record<CoreAction, number> = {
@@ -189,7 +229,7 @@ export const ACTION_NAME: Record<CoreAction, string> = {
 
 /** Max health: the heat at which this player's sun goes supernova. */
 export function supernovaThreshold(p: PlayerState): number {
-  return BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade;
+  return BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade + (mods(p).maxHealthDelta ?? 0);
 }
 
 /** Enemy shields your heat ignores, from weapon planets. */
@@ -231,7 +271,7 @@ export function upgradeablePlanets(p: PlayerState) {
 
 /** Everything a Command card could upgrade right now. */
 export function upgradeOptions(p: PlayerState): UpgradeId[] {
-  const actions = CORE_ACTIONS.filter((a) => p.upgrades[a] < MAX_UPGRADES[a]);
+  const actions = CORE_ACTIONS.filter((a) => p.upgrades[a] < MAX_UPGRADES[a] && !(a === 'thermosiphon' && mods(p).noThermosiphon));
   return [...actions, ...upgradeablePlanets(p).map((pl) => pl.id)];
 }
 
@@ -319,7 +359,7 @@ function startTurn(state: GameState) {
         cool(state, p, 1);
         break;
       case 'tradeBoom':
-        p.money += g.sourcePlayerId === p.id ? 2 : 1;
+        p.money += 1;
         break;
       case 'magneticStorm':
       case 'solarMaximum':
@@ -328,6 +368,13 @@ function startTurn(state: GameState) {
     }
   }
   for (const g of state.globals) g.turnsRemaining -= 1;
+
+  // 2b. System drawbacks that tick each turn (e.g. Cryon Drift thawing).
+  const thaw = mods(p).thawPerTurn ?? 0;
+  if (thaw > 0 && !p.eliminated) {
+    log(state, `${p.name}'s frozen sun thaws by ${thaw}.`);
+    applyHeat(state, p, thaw, null);
+  }
 
   // 3. Stellar Instability (late-game clock).
   const instability = instabilityHeat(state);
@@ -505,7 +552,7 @@ function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: s
       applyHeat(state, p, e.amount, null);
       break;
     case 'cool':
-      cool(state, p, e.amount + bonus(p, 'deep_coolant'));
+      cool(state, p, Math.max(1, e.amount + bonus(p, 'deep_coolant') + (mods(p).coolingDelta ?? 0)));
       break;
     case 'mission':
       break; // Handled in playCard: the card moves to the player's missions.
@@ -528,7 +575,7 @@ function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: s
       state.globals = [{ id: e.effect, sourcePlayerId: p.id, turnsRemaining: living * FIELD_ROUNDS }];
       log(
         state,
-        `${p.name} sets the field to ${GLOBALS[e.effect].name}${replaced && replaced.id !== e.effect ? `, replacing ${GLOBALS[replaced.id].name}` : ''}: ${GLOBALS[e.effect].text}`,
+        `${p.name} brings ${GLOBALS[e.effect].name}${replaced && replaced.id !== e.effect ? `, ending ${GLOBALS[replaced.id].name}` : ''}: ${GLOBALS[e.effect].text}`,
       );
       break;
     }
@@ -578,6 +625,8 @@ function playCard(state: GameState, p: PlayerState, cardUid: string, targetId?: 
  */
 export function applyAction(prev: GameState, action: Action): GameState {
   if (isGameOver(prev)) throw new GameError('The game is over.');
+  if (prev.phase === 'setup') return chooseSystem(prev, action);
+  if (action.type === 'chooseSystem') throw new GameError('Solar systems have already been chosen.');
   if (prev.pendingRewards.length && action.type !== 'chooseReward') {
     throw new GameError('Choose your objective reward first.');
   }
@@ -617,6 +666,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       break;
     }
     case 'thermosiphon': {
+      if (mods(p).noThermosiphon) throw new GameError(`${systemDef(p.systemId).name} cannot use Thermosiphon.`);
       if (p.heat <= BALANCE.minHeat) throw new GameError(`Your sun cannot be cooled below ${BALANCE.minHeat}.`);
       spend(p, thermoCost(p));
       p.turn.thermosiphons += 1;
@@ -636,6 +686,18 @@ export function applyAction(prev: GameState, action: Action): GameState {
     return state;
   }
   checkObjectives(state, p);
+  return state;
+}
+
+function chooseSystem(prev: GameState, action: Action): GameState {
+  if (action.type !== 'chooseSystem') throw new GameError('Choose your solar system first.');
+  const state = structuredClone(prev);
+  const p = activePlayer(state);
+  if (!p.systemOffers?.includes(action.systemId)) throw new GameError('That solar system is not on offer.');
+  applySystem(p, action.systemId);
+  p.systemOffers = undefined;
+  log(state, `${p.name} chooses ${systemDef(action.systemId).name}.`);
+  finishSetupIfReady(state);
   return state;
 }
 

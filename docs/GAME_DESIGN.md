@@ -7,7 +7,7 @@ marked **[proposed]** for the design team to confirm or change.
 ## Setup
 
 - 2–4 players. [proposed player count]
-- Each player draws a random solar system from a pool of 8. [brief]
+- **System draft:** each player is offered 2 random solar systems from the pool of 8 and picks one. A "SELECT SOLAR SYSTEM" banner plays over the board first, then the two offers appear; rivals' offers can be peeked at via tabs. [design review]
 - Each player starts with **9 Stardust** (+1 money) and **1 Command Directive**. [brief]
 - **3 cards** are on display at all times, drawn from a **200-card market deck**. [brief said 8; reduced to 3 in design review]
 - **The display drifts:** after every full round, the leftmost card is discarded (out of the game), the other two slide one place left, and the empty right-hand slot is refilled from the deck. [design review]
@@ -19,7 +19,7 @@ marked **[proposed]** for the design team to confirm or change.
 
 0. **Draw** a new hand (5 cards, plus bonuses). Hands are drawn when your turn begins, so nothing arrives during opponents' turns. [design review]
 1. **Gain resources**: money from economy planets and system abilities, plus shields from defence planets. [brief: "gain resources"]
-2. **Resolve global effects**: Solar Storm, Ice Age, Trade Boom. [brief]
+2. **Resolve global effects**: the active global card (if any), then Cryon Drift's thaw. [brief]
 3. **Stellar Instability**: from round 8, every sun heats at the start of its turn: +1 in round 8, +2 in round 9, +3 in round 10, and so on. [design review]
 4. **Main phase**, in any order and as often as money allows:
    - Play cards from hand.
@@ -59,41 +59,42 @@ Each planet belongs to one of four tracks [brief]:
 
 Every level counts: planets go to level 3, and each level adds its bonus once. Bonuses add up across all your planets of that track.
 
-Systems differ by their mix of planets **and** a unique ability.
+Systems differ by their mix of planets, a unique ability **and** a drawback. [design review]
 
 ## The 8 solar systems [proposed content]
 
-| System | Planets | Ability |
-| --- | --- | --- |
-| Helios Reach | W, D, E, R | First Thermosiphon each turn costs 1 less |
-| Vulcan Forge | W, W, E | Solar Flare starts with 1 upgrade |
-| Aegis Cluster | D, R | +1 shield every turn |
-| Midas Belt | E1, E, R | +1 money every turn |
-| Cryon Drift | D, R, E | Sun starts at -3 |
-| Tempest Binary | W, R | Draw 1 extra card every turn |
-| Obsidian Veil | E, W, D | Display cards cost 2 less (min 1) |
-| Nova Crown | E1, W, D | +1 money per 3 heat above 0 at turn start |
+| System | Planets | Ability | Drawback |
+| --- | --- | --- | --- |
+| Helios Reach | W, D, E, R | First Thermosiphon each turn costs 1 less | Max health 1 lower |
+| Vulcan Forge | W, W, E | Solar Flare starts with 1 upgrade | Max health 2 lower |
+| Aegis Cluster | D, R | +1 shield every turn | Thermosiphon costs 1 more |
+| Midas Belt | E1, E, R | +1 money every turn | Solar Flare costs 1 more |
+| Cryon Drift | D, R, E | Sun starts at -10 | Thaw: sun heats by 2 at the start of each of its turns |
+| Tempest Binary | W, R | Draw 1 extra card every turn | Max health 2 lower |
+| Obsidian Veil | E, W, D | Display cards cost 1 less (min 1) | Hand size fixed at 5 (planets and rewards cannot raise it) |
+| Nova Crown | E1, W, D | +1 money per 3 heat above 0 at turn start | Max health 2 lower |
 
 (`E1` = starts at level 1.)
 
 ## Market deck (200 cards) [proposed content]
 
-Cards that hit **every enemy** (Plasma Barrage, Solar Storm) are priced for several targets, so they are left out of 2-player games. The 2-player market deck is 184 cards. [design review]
+Cards that hit **every enemy** (Plasma Barrage) are priced for several targets, so they are left out of 2-player games. The 2-player market deck is 190 cards. [design review]
 
 Prices were lowered in design review: about 82% of the deck costs 4 or less, so early turns (4–6 money) can usually buy something.
 
 Economy · Attack · Defence · Command · Mission · Global (24).
 
-**Global cards set a field.** Each has an instant effect and sets a field that lasts 3 full rounds. Only one field is active at a time: playing a global replaces the current one. Fields favour whoever set them. [design review]
+**Global cards change the board for everyone, equally.** They have no instant effect and never favour the player who played them: you pay to change the conditions of play, not for a direct benefit. Each lasts 3 full rounds. Only one is active at a time, and playing a new global replaces the current one. [design review]
 
-| Card | Instant | Field (3 rounds) |
-| --- | --- | --- |
-| Solar Maximum (4) | Heat an enemy by 1 | Every Solar Flare deals +1 heat |
-| Ice Age (3) | Cool your sun by 2 | Every sun cools 1 at the start of its turn |
-| Trade Boom (3) | +2 money | Everyone +1 money per turn; the setter +2 |
-| Magnetic Storm (4) | +1 money | Enemy flares cost +1; the setter's cost 1 less |
-| Nebula Drift (3) | Draw 1 | Display cards cost 1 less for everyone |
-| Solar Storm (5, 3+ players) | Heat an enemy by 1 | Enemy suns heat 1 at the start of their turns |
+| Card (cost) | For 3 rounds |
+| --- | --- |
+| Solar Storm (3) | Every sun heats by 1 at the start of its turn |
+| Solar Maximum (3) | Every Solar Flare deals +1 heat |
+| Ice Age (2) | Every sun cools by 1 at the start of its turn |
+| Trade Boom (2) | Every player gains +1 money at the start of their turn |
+| Magnetic Storm (2) | Every Solar Flare costs 1 more |
+| Nebula Drift (2) | Display cards cost 1 less for everyone (min 1) |
+
 The full list is in `src/engine/cards.ts`.
 
 ## Objectives and rewards
@@ -147,6 +148,6 @@ Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 3. **Fields**: is 3 rounds the right length, and should the setter's advantage be bigger?
 4. **Player elimination**: should eliminated players keep a role, for example controlling global events?
 5. **Game length**: with a 4-heat Solar Flare costing only 2 money, AI games average about 6 rounds (2 players), so most end before Stellar Instability starts. Consider scaling the flare cost with its upgrades.
-6. **Balance**: `npm run simulate` shows Cryon Drift winning far too often in 4-player games (about 55%, against a fair 25%), while Vulcan Forge and Obsidian Veil win too rarely. Part of that is the AI always targeting the hottest sun. Needs human playtesting.
+6. **Balance**: with drawbacks, `npm run simulate` puts every system at 46–54% in 2-player games. In 4-player games the systems with lower max health (Vulcan, Nova, Obsidian, Tempest) still win too rarely (13–21% against a fair 25%), and Aegis and Helios win too often (37–43%). Part of that is the AI always targeting the hottest sun. Needs human playtesting.
 7. **Weapon and defence planets**: should they add their bonus to attack and cooling cards (as suggested in review), or keep the current effects (shield pierce and shields), or get more unique abilities per planet?
 8. **Deck exhaustion**: what happens when all 200 market cards are bought? Currently the display slots stay empty.
