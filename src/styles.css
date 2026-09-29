@@ -1605,3 +1605,8 @@ body.screen-campaign .backdrop { display: none; }
 .obj-name { font-family: var(--display); font-weight: 500; font-size: clamp(0.5rem, 1.7vh, 0.64rem); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
 .obj-mission .obj-name { color: var(--kc); }
 .obj-mission .obj-icon .glyph { width: 78%; height: 66%; }
+
+/* Menu button: a centred three-bar icon, sized to the button. */
+.menu-icon { width: 55%; height: 55%; display: block; }
+.menu-icon path { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; }
+.hud .icon-btn, .cmp-nav .icon-btn { width: clamp(36px, 8vh, 44px); height: clamp(36px, 8vh, 44px); }

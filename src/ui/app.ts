@@ -47,6 +47,7 @@ import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { CampaignView, loadCampaign } from './campaign';
 import { SPECIES, titanSvg } from './titans';
+import { MENU_ICON } from './menu-icon';
 
 type Screen = 'menu' | 'game' | 'campaign';
 type Speed = 'slow' | 'normal' | 'fast';
@@ -331,12 +332,72 @@ export class App {
   /** Opening hand: shuffle, then deal the viewer's cards in one by one. */
   private dealOpening() {
     sound.shuffle();
-    const deck = anchorRect(this.root, 'deck');
-    if (!deck) return;
     this.root.querySelectorAll<HTMLElement>('.hand [data-uid]').forEach((el, i) => {
-      flyFrom(el, deck, { delay: 350 + i * 110, fade: true, rotate: -8 });
+      this.dealCard(el, 350 + i * 110);
       sound.draw(0.35 + i * 0.11);
     });
+  }
+
+  /** An element's position inside the dock, from layout offsets (unaffected by the table's tilt). */
+  private dockPos(el: HTMLElement): { x: number; y: number } | null {
+    const dock = el.closest<HTMLElement>('.dock');
+    let x = 0;
+    let y = 0;
+    let n: HTMLElement | null = el;
+    while (n && n !== dock) {
+      x += n.offsetLeft;
+      y += n.offsetTop;
+      n = n.offsetParent as HTMLElement | null;
+    }
+    return n === dock ? { x, y } : null;
+  }
+
+  /**
+   * Draw a card: it always starts on the deck pile and flies exactly to its
+   * place in the fan. Everything is computed in the dock's own layout space,
+   * so the tilted, scaled table cannot throw it off.
+   */
+  private dealCard(el: HTMLElement, delay: number) {
+    if (reducedMotion()) return;
+    for (const a of el.getAnimations()) a.cancel();
+    const pile = this.root.querySelector<HTMLElement>('[data-anchor="deck"]');
+    const card = this.dockPos(el);
+    const deck = pile && this.dockPos(pile);
+    if (!card || !deck || !pile) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const s = Math.min(1, (pile.offsetHeight * 0.9) / h);
+    // The card rotates about (50%, 120%): place its centre on the pile's centre.
+    const tx = deck.x + pile.offsetWidth / 2 - (card.x + w / 2);
+    const ty = deck.y + pile.offsetHeight / 2 - (card.y + h * 1.2) + h * 0.7 * s;
+    const rest = getComputedStyle(el).transform;
+    el.animate(
+      [
+        { transform: `translate(${tx}px, ${ty}px) scale(${s}) rotate(-6deg)`, opacity: 0 },
+        { opacity: 1, offset: 0.25 },
+        { transform: rest === 'none' ? 'none' : rest, opacity: 1 },
+      ],
+      { duration: 460, delay, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' },
+    );
+  }
+
+  /** Slide a card that stayed in hand from its old place in the fan to its new one. */
+  private refan(el: HTMLElement, oldHtml: string) {
+    if (reducedMotion()) return;
+    const num = (re: RegExp) => Number(re.exec(oldHtml)?.[1] ?? NaN);
+    const oldLeft = num(/left:\s*(-?[\d.]+)px/);
+    const oldRot = num(/--fr:\s*(-?[\d.]+)deg/);
+    const oldFy = num(/--fy:\s*(-?[\d.]+)px/);
+    const newLeft = parseFloat(el.style.left);
+    if (!Number.isFinite(oldLeft) || !Number.isFinite(newLeft) || Math.abs(oldLeft - newLeft) < 1) return;
+    const rest = getComputedStyle(el).transform;
+    el.animate(
+      [
+        { transform: `translate(${oldLeft - newLeft}px, ${Number.isFinite(oldFy) ? oldFy : 0}px) rotate(${Number.isFinite(oldRot) ? oldRot : 0}deg)` },
+        { transform: rest === 'none' ? 'none' : rest },
+      ],
+      { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' },
+    );
   }
 
   private syncViewer() {
@@ -462,15 +523,19 @@ export class App {
     root.querySelectorAll<HTMLElement>('[data-uid]').forEach((el) => {
       const uid = el.dataset.uid!;
       const old = before.cards.get(uid);
+      if (old && el.parentElement?.classList.contains('hand')) {
+        // A card already in hand that the fan moved: slide it along the fan, in the hand's own space.
+        this.refan(el, old.html);
+        return;
+      }
       if (old) {
         const r = el.getBoundingClientRect();
         if (Math.abs(r.left - old.rect.left) > 2 || Math.abs(r.top - old.rect.top) > 2) flyFrom(el, old.rect);
         return;
       }
       if (inHand.has(uid)) {
-        const from = before.anchors.get('deck') ?? anchorRect(root, 'deck');
         const delay = (endingTurn ? 420 : 60) + drawIndex * 110;
-        if (from) flyFrom(el, from, { delay, fade: true, rotate: -8 });
+        this.dealCard(el, delay);
         sound.draw(delay / 1000);
         drawIndex++;
       } else if (el.closest('.stage')) {
@@ -1131,7 +1196,7 @@ export class App {
           ${globals}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
           ${this.campaignBattle && !isGameOver(s) ? '<button class="pill-btn" data-act="campaign-auto" title="Let your commanders finish this battle">auto-resolve</button>' : ''}
-          <button class="icon-btn" data-act="open-menu" aria-label="Menu">≡</button>
+          <button class="icon-btn" data-act="open-menu" aria-label="Menu">${MENU_ICON}</button>
         </div>
       </div>`;
     // On the table: objective pills along the top edge, from the left.

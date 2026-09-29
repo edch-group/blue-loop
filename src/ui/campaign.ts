@@ -35,6 +35,7 @@ import {
   type GameState,
 } from '../engine';
 import { systemDiagram } from './art';
+import { MENU_ICON } from './menu-icon';
 import { cardGlyph, KIND_COLOUR } from './glyphs';
 import { sound } from './sound';
 
@@ -329,7 +330,7 @@ export class CampaignView {
             <button class="pill-btn" data-act="cmp-sheet" data-arg="missions">missions</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="log">log</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="help">?</button>
-            <button class="icon-btn" data-act="cmp-menu" aria-label="Menu">≡</button>
+            <button class="icon-btn" data-act="cmp-menu" aria-label="Menu">${MENU_ICON}</button>
           </nav>
         </header>
         <section class="cmp-map">${this.renderMap()}</section>
