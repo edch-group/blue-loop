@@ -796,7 +796,8 @@ export class App {
     const h = Math.min(420, window.innerHeight - 24);
     const w = h * 0.714;
     this.preview.style.setProperty('--pw', `${w}px`);
-    this.preview.style.left = `${(window.innerWidth - w) / 2}px`;
+    // Zoomed cards sit at the middle right, clear of the hand and the display.
+    this.preview.style.left = `${Math.min(window.innerWidth - w - 16, window.innerWidth * 0.78 - w / 2)}px`;
     this.preview.style.top = `${(window.innerHeight - h) / 2}px`;
     this.preview.classList.add('show');
   }

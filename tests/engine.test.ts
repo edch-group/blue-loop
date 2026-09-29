@@ -279,6 +279,15 @@ describe('market', () => {
     expect(after.display[0]!.uid).not.toBe(bought.uid);
     expect(after.players[0].money).toBe(20 - cardDef(bought.defId).cost);
   });
+
+  it('buying slides the rest of the display left and adds the replacement last', () => {
+    const s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    s.players[0].money = 20;
+    const [a, , c] = s.display;
+    const next = s.marketDeck[s.marketDeck.length - 1];
+    const after = applyAction(s, { type: 'buyCard', slot: 1 });
+    expect(after.display.map((x) => x?.uid)).toEqual([a!.uid, c!.uid, next.uid]);
+  });
 });
 
 describe('system draft', () => {

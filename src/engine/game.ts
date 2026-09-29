@@ -451,6 +451,15 @@ function driftDisplay(state: GameState) {
   state.display = [...rest, state.marketDeck.pop() ?? null];
 }
 
+/** Take a card out of the display: the cards to its right slide left and the
+ *  replacement joins at the end, so it is always the last to drift away. */
+function takeFromDisplay(state: GameState, slot: number) {
+  const rest = state.display.filter((_, i) => i !== slot);
+  const cards = rest.filter((c) => c);
+  const gaps = rest.length - cards.length;
+  state.display = [...cards, ...Array(gaps).fill(null), state.marketDeck.pop() ?? null];
+}
+
 function checkObjectives(state: GameState, p: PlayerState) {
   if (p.eliminated || state.winnerId) return;
   for (const id of [...state.objectives]) {
@@ -534,7 +543,7 @@ function chooseReward(state: GameState, action: Extract<Action, { type: 'chooseR
     case 'requisition': {
       const card = state.display[action.slot!]!;
       p.discard.push(card);
-      state.display[action.slot!] = state.marketDeck.pop() ?? null;
+      takeFromDisplay(state, action.slot!);
       log(state, `${p.name} requisitions ${cardDef(card.defId).name}.`);
       break;
     }
@@ -677,7 +686,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       spend(p, cost);
       p.discard.push(card);
       p.turn.cardsBought += 1;
-      state.display[action.slot] = state.marketDeck.pop() ?? null;
+      takeFromDisplay(state, action.slot);
       log(state, `${p.name} buys ${cardDef(card.defId).name} for ${cost}.`);
       break;
     }
