@@ -65,9 +65,23 @@ class SoundBoard {
     for (const type of ['pointerup', 'touchend', 'click', 'keydown'] as const) {
       window.addEventListener(type, () => this.unlock(), { capture: true, passive: true });
     }
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && this.ctx && this.ctx.state !== 'running') void this.ctx.resume().catch(() => undefined);
-    });
+    // Leaving the app (home screen, app switcher, locking the phone) silences the game
+    // completely; coming back resumes it. Without this, iOS keeps "media" playing.
+    document.addEventListener('visibilitychange', () => (document.visibilityState === 'hidden' ? this.sleep() : this.wake()));
+    window.addEventListener('pagehide', () => this.sleep());
+    window.addEventListener('pageshow', () => this.wake());
+  }
+
+  private sleep() {
+    this.stopMusic(true);
+    this.releasePlayback();
+    if (this.ctx && this.ctx.state === 'running') void this.ctx.suspend().catch(() => undefined);
+  }
+
+  private wake() {
+    if (document.visibilityState !== 'visible' || !this.ctx) return;
+    // Resuming may need a fresh tap on iOS; the gesture listeners above retry until it runs.
+    this.unlock();
   }
 
   toggleMute() {
@@ -110,6 +124,7 @@ class SoundBoard {
 
   /** Browsers only allow audio after a user gesture; call from input handlers. */
   unlock() {
+    if (document.visibilityState === 'hidden') return;
     if (!this.ctx) {
       const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return;
@@ -419,7 +434,8 @@ class SoundBoard {
     this.musicTimers.push(window.setTimeout(sparkle, 3000));
   }
 
-  stopMusic() {
+  /** Fade the score out (or cut it at once, when the app is being hidden). */
+  stopMusic(immediate = false) {
     if (!this.musicPlaying || !this.ctx || !this.musicBus) return;
     this.musicPlaying = false;
     this.musicTimers.forEach((t) => window.clearTimeout(t));
@@ -428,7 +444,8 @@ class SoundBoard {
     const bus = this.musicBus;
     bus.gain.cancelScheduledValues(now);
     bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), now);
-    bus.gain.exponentialRampToValueAtTime(0.0001, now + 2);
+    if (immediate) bus.gain.setValueAtTime(0.0001, now);
+    else bus.gain.exponentialRampToValueAtTime(0.0001, now + 2);
     const nodes = this.musicNodes;
     this.musicNodes = [];
     window.setTimeout(() => {
