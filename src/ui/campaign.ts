@@ -33,6 +33,7 @@ import {
 import { MENU_ICON } from './menu-icon';
 import { cardGlyph, KIND_COLOUR } from './glyphs';
 import { sound } from './sound';
+import { toPageDelta } from './viewport';
 
 const KEY = 'blue-loop:campaign:v2';
 
@@ -641,8 +642,8 @@ export class CampaignView {
       return;
     }
     if (e.pointerId !== this.drag.id) return;
-    const dx = e.clientX - this.drag.x;
-    const dy = e.clientY - this.drag.y;
+    // A finger's movement on screen, turned into the page's own directions (the page may be sideways).
+    const { x: dx, y: dy } = toPageDelta(e.clientX - this.drag.x, e.clientY - this.drag.y);
     if (!this.drag.moved && Math.hypot(dx, dy) < 6) return;
     if (!this.drag.moved) {
       this.drag.moved = true;

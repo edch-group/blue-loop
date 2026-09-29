@@ -125,6 +125,10 @@ Each player is one of four non-humanoid alien races. The race sets the faction e
 | Vorthane | A drifting jelly-like bell rimmed with glowing eyes | Gold |
 | Ixquor | A branching fungal hive with pulsing nodes | Violet |
 
+## Always landscape
+
+The game is always landscape. Held upright, a phone shows the whole page turned a quarter-turn, so you just hold it sideways. That works even with rotation lock on. Browsers can't lock orientation on iPhone, so this is the only reliable way. Where a real lock is allowed (Android, full screen), the app asks for one too. [design review]
+
 ## The battle table
 
 The whole play area is a table seen in perspective, like a tabletop simulator. A flat HUD sits above it:

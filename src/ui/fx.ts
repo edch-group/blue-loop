@@ -2,7 +2,11 @@
  * Animation helpers. The UI re-renders from state each change, so movement
  * is animated FLIP-style: snapshot element positions before a render, then
  * animate each element from its old place to its new one.
+ *
+ * All rectangles are in the page's own coordinates (see viewport.ts), which
+ * differ from the screen's when a portrait screen shows the page sideways.
  */
+import { pageRect } from './viewport';
 
 export interface Snapshot {
   cards: Map<string, { rect: DOMRect; html: string }>;
@@ -15,15 +19,16 @@ export const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: r
 export function snapshot(root: HTMLElement): Snapshot {
   const cards = new Map<string, { rect: DOMRect; html: string }>();
   root.querySelectorAll<HTMLElement>('[data-uid]').forEach((el) => {
-    cards.set(el.dataset.uid!, { rect: el.getBoundingClientRect(), html: el.outerHTML });
+    cards.set(el.dataset.uid!, { rect: pageRect(el), html: el.outerHTML });
   });
   const anchors = new Map<string, DOMRect>();
-  root.querySelectorAll<HTMLElement>('[data-anchor]').forEach((el) => anchors.set(el.dataset.anchor!, el.getBoundingClientRect()));
+  root.querySelectorAll<HTMLElement>('[data-anchor]').forEach((el) => anchors.set(el.dataset.anchor!, pageRect(el)));
   return { cards, anchors };
 }
 
 export function anchorRect(root: HTMLElement, name: string): DOMRect | null {
-  return root.querySelector<HTMLElement>(`[data-anchor="${name}"]`)?.getBoundingClientRect() ?? null;
+  const el = root.querySelector<HTMLElement>(`[data-anchor="${name}"]`);
+  return el ? pageRect(el) : null;
 }
 
 /** Animate `el` from `from` to where it is now. */
@@ -31,7 +36,7 @@ export function flyFrom(el: HTMLElement, from: DOMRect, opts: { delay?: number; 
   if (reducedMotion()) return;
   // One flight at a time: a newer flight replaces any still running (so a card never animates twice).
   for (const a of el.getAnimations()) if ((a as Animation & { id: string }).id === 'fly') a.cancel();
-  const to = el.getBoundingClientRect();
+  const to = pageRect(el);
   if (!to.width || !from.width) return;
   // Rects are in screen space, but the transform applies in the element's own space, which may be
   // scaled and tilted (the battle table is in perspective). Convert the screen offset into it.

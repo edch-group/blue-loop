@@ -39,6 +39,7 @@ import { cardGlyph, KIND_COLOUR } from './glyphs';
 import { MENU_ICON } from './menu-icon';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
+import { appSize, pageRect } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
 type MenuPage = 'title' | 'hub' | 'quickplay' | 'options' | 'decks';
@@ -469,7 +470,7 @@ export class App {
         return;
       }
       if (old) {
-        const r = el.getBoundingClientRect();
+        const r = pageRect(el);
         if (Math.abs(r.left - old.rect.left) > 2 || Math.abs(r.top - old.rect.top) > 2) flyFrom(el, old.rect);
         return;
       }
@@ -778,11 +779,12 @@ export class App {
   /** Large, readable copy of a card at the middle right of the screen while held. */
   private showPeek(el: HTMLElement) {
     this.preview.innerHTML = this.bigCard(el.dataset.card!, el.dataset.growth ? Number(el.dataset.growth) : undefined);
-    const h = Math.min(420, window.innerHeight - 24) * 0.7;
+    const page = appSize();
+    const h = Math.min(420, page.h - 24) * 0.7;
     const w = h * 0.714;
     this.preview.style.setProperty('--pw', `${w}px`);
-    this.preview.style.left = `${Math.min(window.innerWidth - w - 16, window.innerWidth * 0.78 - w / 2)}px`;
-    this.preview.style.top = `${(window.innerHeight - h) / 2}px`;
+    this.preview.style.left = `${Math.min(page.w - w - 16, page.w * 0.78 - w / 2)}px`;
+    this.preview.style.top = `${(page.h - h) / 2}px`;
     this.preview.classList.add('show');
   }
 
@@ -1103,8 +1105,8 @@ export class App {
 
   private renderGame(): string {
     const s = this.state!;
-    // The whole play area is a table seen in perspective; pop-ups, the played-card
-    // stage and the rotate hint sit outside it so they stay flat and readable.
+    // The whole play area is a table seen in perspective; pop-ups and the
+    // played-card stage sit outside it so they stay flat and readable.
     return `
       <main class="table-view">
         <div class="game">
@@ -1117,7 +1119,6 @@ export class App {
         ${this.renderPickHint()}
         ${this.renderStage()}
         ${this.renderOverlay(s)}
-        <div class="rotate-hint"><div><h1 class="title">blue loop</h1><p>turn your device sideways to play</p></div></div>
       </main>`;
   }
 
