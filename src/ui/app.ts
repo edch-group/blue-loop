@@ -49,6 +49,13 @@ import { CampaignView, loadCampaign } from './campaign';
 import { MENU_ICON } from './menu-icon';
 
 type Screen = 'menu' | 'game' | 'campaign';
+type MenuPage = 'title' | 'hub' | 'quickplay' | 'options';
+
+const HUB_ICONS = {
+  campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle cx="10" cy="34" r="3.2"/><circle cx="22" cy="26" r="2.6"/><circle cx="36" cy="32" r="3.6"/><circle cx="26" cy="12" r="3"/><circle cx="14" cy="16" r="2.4"/></svg>`,
+  quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="17" cy="24" r="8"/><circle cx="36" cy="24" r="4.5"/><path d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
+  options: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 15h28M10 24h28M10 33h28"/><circle cx="18" cy="15" r="3.2"/><circle cx="31" cy="24" r="3.2"/><circle cx="22" cy="33" r="3.2"/></svg>`,
+};
 type Speed = 'slow' | 'normal' | 'fast';
 
 /** A flare or card waiting for the player to pick a target or an upgrade. */
@@ -144,6 +151,8 @@ interface MenuSeat {
 
 export class App {
   private screen: Screen = 'menu';
+  /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
+  private menuPage: MenuPage = 'title';
   private state: GameState | null = null;
   private pending: Pending | null = null;
   private stage: Stage | null = null;
@@ -176,6 +185,7 @@ export class App {
     toMenu: () => {
       this.campaignBattle = false;
       this.screen = 'menu';
+      this.menuPage = 'hub';
       this.render();
     },
   });
@@ -842,9 +852,14 @@ export class App {
         return this.returnToCampaign(false);
       case 'campaign-auto':
         return this.returnToCampaign(true);
+      case 'menu-page':
+        this.menuPage = arg as MenuPage;
+        this.sheet = null;
+        return this.render();
       case 'to-menu':
         this.campaignBattle = false;
         this.screen = 'menu';
+        this.menuPage = 'hub';
         this.pending = null;
         this.sheet = null;
         if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
@@ -1039,6 +1054,64 @@ export class App {
   }
 
   private renderMenu(): string {
+    const page = this.menuPage;
+    const body = page === 'title' ? this.renderTitlePage() : page === 'hub' ? this.renderHub() : page === 'quickplay' ? this.renderQuickplay() : this.renderOptions();
+    return `
+    <main class="menu menu-${page}">
+      ${body}
+      <footer class="studio">coronal mass games · prototype build</footer>
+      ${this.sheet?.kind === 'rules' ? this.renderSheet() : ''}
+    </main>`;
+  }
+
+  private titleBlock(small = false): string {
+    return `
+      <div class="title-block ${small ? 'title-small' : ''}">
+        <div class="title-sun"></div>
+        <h1 class="title">blue loop</h1>
+        ${small ? '' : '<p class="tagline">cool your star · ignite theirs</p>'}
+      </div>`;
+  }
+
+  /** Landing screen: just the logo, the title and a start button. */
+  private renderTitlePage(): string {
+    return `
+      <div class="menu-stack">
+        ${this.titleBlock()}
+        <button class="btn-primary menu-start" data-act="menu-page" data-arg="hub">start</button>
+      </div>`;
+  }
+
+  private renderHub(): string {
+    const hasCampaign = loadCampaign() !== null;
+    const hasGame = loadSave() !== null;
+    const column = (act: string, arg: string, icon: string, name: string, blurb: string, extra = '') => `
+      <div class="hub-col">
+        <button class="hub-card" data-act="${act}" ${arg ? `data-arg="${arg}"` : ''}>
+          <span class="hub-icon">${icon}</span>
+          <span class="hub-name">${name}</span>
+          <small class="hub-blurb">${blurb}</small>
+        </button>
+        ${extra}
+      </div>`;
+    return `
+      <div class="menu-back"><button class="btn btn-small" data-act="menu-page" data-arg="title">‹ back</button></div>
+      ${this.titleBlock(true)}
+      <div class="hub">
+        ${column('campaign-new', '', HUB_ICONS.campaign, 'campaign', 'Conquer a galaxy of forty-eight systems, one battle at a time.',
+          hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue campaign</button>' : '')}
+        ${column('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', 'A single battle for two to four suns, against AI or friends.',
+          hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue game</button>' : '')}
+        ${column('menu-page', 'options', HUB_ICONS.options, 'options', 'Sound, music, AI speed and how to play.')}
+      </div>`;
+  }
+
+  private subHeader(title: string): string {
+    return `<div class="menu-back"><button class="btn btn-small" data-act="menu-page" data-arg="hub">‹ back</button></div>
+      <h2 class="menu-heading">${title}</h2>`;
+  }
+
+  private renderQuickplay(): string {
     const hasSave = loadSave() !== null;
     const seats = this.seats
       .map((seat, i) => {
@@ -1051,30 +1124,30 @@ export class App {
         </div>`;
       })
       .join('');
-
     return `
-    <main class="menu">
-      <div class="title-block">
-        <div class="title-sun"></div>
-        <h1 class="title">blue loop</h1>
-        <p class="tagline">cool your star · ignite theirs</p>
-      </div>
+      ${this.subHeader('quickplay')}
       <section class="glass menu-panel">
-        <div class="bar-title">new game</div>
         <div class="menu-body">
           ${seats}
           <div class="menu-actions">
             <button class="btn-primary" data-act="new-game">launch</button>
             ${hasSave ? '<button class="btn" data-act="continue">continue</button>' : ''}
-            <button class="btn" data-act="campaign-new">campaign</button>
-            ${loadCampaign() ? '<button class="btn" data-act="campaign-continue">continue campaign</button>' : ''}
-            <button class="btn" data-act="rules">how to play</button>
           </div>
         </div>
-      </section>
-      <footer class="studio">coronal mass games · prototype build</footer>
-      ${this.sheet?.kind === 'rules' ? this.renderSheet() : ''}
-    </main>`;
+      </section>`;
+  }
+
+  private renderOptions(): string {
+    return `
+      ${this.subHeader('options')}
+      <section class="glass menu-panel">
+        <div class="menu-body menu-list">
+          <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
+          <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
+          <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
+          <button class="btn" data-act="rules">how to play</button>
+        </div>
+      </section>`;
   }
 
   private rulesHtml(): string {
