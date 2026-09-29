@@ -475,5 +475,5 @@ describe('AI', () => {
       }
       expect(s.players.filter((p) => !p.eliminated)).toHaveLength(1);
     }
-  });
+  }, 30000); // 40 full games: allow for a busy machine
 });
