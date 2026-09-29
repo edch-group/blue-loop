@@ -82,7 +82,18 @@ Cards that hit **every enemy** (Plasma Barrage, Solar Storm) are priced for seve
 
 Prices were lowered in design review: about 82% of the deck costs 4 or less, so early turns (4–6 money) can usually buy something.
 
-Economy 62 · Attack 48 · Defence 50 · Command 16 · Global 24.
+Economy · Attack · Defence · Command · Mission · Global (24).
+
+**Global cards set a field.** Each has an instant effect and sets a field that lasts 3 full rounds. Only one field is active at a time: playing a global replaces the current one. Fields favour whoever set them. [design review]
+
+| Card | Instant | Field (3 rounds) |
+| --- | --- | --- |
+| Solar Maximum (4) | Heat an enemy by 1 | Every Solar Flare deals +1 heat |
+| Ice Age (3) | Cool your sun by 2 | Every sun cools 1 at the start of its turn |
+| Trade Boom (3) | +2 money | Everyone +1 money per turn; the setter +2 |
+| Magnetic Storm (4) | +1 money | Enemy flares cost +1; the setter's cost 1 less |
+| Nebula Drift (3) | Draw 1 | Display cards cost 1 less for everyone |
+| Solar Storm (5, 3+ players) | Heat an enemy by 1 | Enemy suns heat 1 at the start of their turns |
 The full list is in `src/engine/cards.ts`.
 
 ## Objectives and rewards
@@ -133,7 +144,7 @@ Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 
 1. **"Upgrade a planet *or system*"**: what does a system-level upgrade do? Currently only planets upgrade.
 2. **Rewards**: is "once per player" the right reading of "one time use"? Should the offer be 3 random rewards, or the full list?
-3. **Global effects**: which cards trigger them, how long they last (currently one round), and can they stack?
+3. **Fields**: is 3 rounds the right length, and should the setter's advantage be bigger?
 4. **Player elimination**: should eliminated players keep a role, for example controlling global events?
 5. **Game length**: with a 4-heat Solar Flare costing only 2 money, AI games average about 6 rounds (2 players), so most end before Stellar Instability starts. Consider scaling the flare cost with its upgrades.
 6. **Balance**: `npm run simulate` shows Cryon Drift winning far too often in 4-player games (about 55%, against a fair 25%), while Vulcan Forge and Obsidian Veil win too rarely. Part of that is the AI always targeting the hottest sun. Needs human playtesting.

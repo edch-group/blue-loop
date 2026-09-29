@@ -1,6 +1,6 @@
 import { BALANCE } from './balance';
 import { cardDef, MARKET_CARDS } from './cards';
-import { GLOBALS, OBJECTIVES, objectiveDef, REWARDS, rewardDef, type RewardId } from './objectives';
+import { FIELD_ROUNDS, GLOBALS, OBJECTIVES, objectiveDef, REWARDS, rewardDef, type RewardId } from './objectives';
 import { shuffleInPlace } from './rng';
 import { SOLAR_SYSTEMS, systemDef } from './systems';
 import { CORE_ACTIONS } from './types';
@@ -11,7 +11,6 @@ import type {
   Effect,
   GameSetup,
   GameState,
-  GlobalEffectId,
   PlayerState,
   Track,
   TurnStats,
@@ -150,17 +149,21 @@ export function shieldsFor(p: PlayerState): number {
   return trackLevel(p, 'defences') * BALANCE.shieldsPerDefenceLevel + (mods.shieldBonus ?? 0) + bonus(p, 'aegis_lattice');
 }
 
-function globalAffects(state: GameState, id: GlobalEffectId, p: PlayerState): boolean {
-  return state.globals.some((g) => g.id === id && (GLOBALS[id].affectsCaster || g.sourcePlayerId !== p.id));
+/** The active field (global effect), if any, and who set it. */
+export function activeField(state: GameState) {
+  return state.globals.find((g) => g.turnsRemaining > 0) ?? null;
 }
 
 export function flareCost(state: GameState, p: PlayerState): number {
   const focus = p.turn.flares === 0 ? bonus(p, 'flare_focus') : 0;
-  return Math.max(1, BALANCE.solarFlareCost + (globalAffects(state, 'magneticStorm', p) ? 1 : 0) - focus);
+  const field = activeField(state);
+  const magnetic = field?.id === 'magneticStorm' ? (field.sourcePlayerId === p.id ? -1 : 1) : 0;
+  return Math.max(1, BALANCE.solarFlareCost + magnetic - focus);
 }
 
-export function flareHeat(p: PlayerState): number {
-  return BALANCE.solarFlareHeat + p.upgrades.solarFlare;
+export function flareHeat(p: PlayerState, state?: GameState): number {
+  const maximum = state && activeField(state)?.id === 'solarMaximum' ? 1 : 0;
+  return BALANCE.solarFlareHeat + p.upgrades.solarFlare + maximum;
 }
 
 export function thermoCost(p: PlayerState): number {
@@ -194,8 +197,9 @@ export function shieldPierce(p: PlayerState): number {
   return trackLevel(p, 'weapons') * BALANCE.piercePerWeaponLevel;
 }
 
-export function marketCost(p: PlayerState, defId: string): number {
-  const discount = systemDef(p.systemId).modifiers.marketDiscount ?? 0;
+export function marketCost(p: PlayerState, defId: string, state?: GameState): number {
+  const nebula = state && activeField(state)?.id === 'nebulaDrift' ? 1 : 0;
+  const discount = (systemDef(p.systemId).modifiers.marketDiscount ?? 0) + nebula;
   return Math.max(1, cardDef(defId).cost - discount);
 }
 
@@ -315,10 +319,12 @@ function startTurn(state: GameState) {
         cool(state, p, 1);
         break;
       case 'tradeBoom':
-        p.money += 1;
+        p.money += g.sourcePlayerId === p.id ? 2 : 1;
         break;
       case 'magneticStorm':
-        break; // Passive: raises flare cost.
+      case 'solarMaximum':
+      case 'nebulaDrift':
+        break; // Passive: read by flareCost / flareHeat / marketCost.
     }
   }
   for (const g of state.globals) g.turnsRemaining -= 1;
@@ -515,13 +521,15 @@ function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: s
       break;
     }
     case 'global': {
-      // Lasts one full round: one turn start for every other living player
-      // (plus the caster's own next turn if the effect affects them).
-      const others = livingOpponents(state, p).length;
-      const turns = GLOBALS[e.effect].affectsCaster ? others + 1 : others;
-      state.globals = state.globals.filter((g) => g.id !== e.effect);
-      state.globals.push({ id: e.effect, sourcePlayerId: p.id, turnsRemaining: turns });
-      log(state, `${p.name} unleashes ${GLOBALS[e.effect].name}: ${GLOBALS[e.effect].text}`);
+      // Sets the field: replaces any current one and lasts FIELD_ROUNDS full
+      // rounds, i.e. that many turn starts for every living player.
+      const living = state.players.filter((o) => !o.eliminated).length;
+      const replaced = activeField(state);
+      state.globals = [{ id: e.effect, sourcePlayerId: p.id, turnsRemaining: living * FIELD_ROUNDS }];
+      log(
+        state,
+        `${p.name} sets the field to ${GLOBALS[e.effect].name}${replaced && replaced.id !== e.effect ? `, replacing ${GLOBALS[replaced.id].name}` : ''}: ${GLOBALS[e.effect].text}`,
+      );
       break;
     }
   }
@@ -591,7 +599,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
     case 'buyCard': {
       const card = state.display[action.slot];
       if (!card) throw new GameError('That display slot is empty.');
-      const cost = marketCost(p, card.defId);
+      const cost = marketCost(p, card.defId, state);
       spend(p, cost);
       p.discard.push(card);
       p.turn.cardsBought += 1;
@@ -602,7 +610,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
     case 'solarFlare': {
       const target = requireTarget(state, p, action.targetId);
       spend(p, flareCost(state, p));
-      const heat = flareHeat(p);
+      const heat = flareHeat(p, state);
       p.turn.flares += 1;
       log(state, `${p.name} launches a Solar Flare at ${target.name} (${heat} heat).`);
       applyHeat(state, target, heat, p);

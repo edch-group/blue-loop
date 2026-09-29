@@ -49,7 +49,7 @@ export function chooseAIAction(state: GameState): Action {
   const cost = flareCost(state, me);
   const reachableFlares = Math.floor(me.money / cost);
   const shields = Math.max(0, target.shields - shieldPierce(me));
-  const killHeat = reachableFlares * flareHeat(me) - shields;
+  const killHeat = reachableFlares * flareHeat(me, state) - shields;
   if (reachableFlares > 0 && target.heat + killHeat >= supernovaThreshold(target)) {
     return { type: 'solarFlare', targetId: target.id };
   }
@@ -110,14 +110,14 @@ function pickReward(state: GameState): Action {
   return { type: 'chooseReward', reward };
 }
 
-const KIND_BIAS: Record<CardKind, number> = { command: 3, attack: 2, economy: 1.5, defence: 1, mission: 1, global: 0.5, basic: 0 };
+const KIND_BIAS: Record<CardKind, number> = { command: 3, attack: 2, economy: 1.5, global: 1.5, defence: 1, mission: 1, basic: 0 };
 
 function pickPurchase(state: GameState, me: PlayerState): number | null {
   let best: number | null = null;
   let bestScore = 0;
   state.display.forEach((card, slot) => {
     if (!card) return;
-    const cost = marketCost(me, card.defId);
+    const cost = marketCost(me, card.defId, state);
     if (cost > me.money) return;
     const def = cardDef(card.defId);
     let score = def.cost + KIND_BIAS[def.kind];

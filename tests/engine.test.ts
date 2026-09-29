@@ -14,6 +14,9 @@ import {
   supernovaThreshold,
   instabilityHeat,
   availableRewards,
+  incomeFor,
+  flareHeat,
+  marketCost,
   handSizeFor,
   thermoCool,
   flareCost,
@@ -290,28 +293,65 @@ describe('display drift', () => {
   });
 });
 
-describe('global effects', () => {
-  it('Solar Storm heats each enemy once over the next round', () => {
+describe('global effects (fields)', () => {
+  const setup = () => {
     const s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+    s.objectives = [];
+    s.players[1].shields = 0;
+    return s;
+  };
+
+  it('Solar Storm hits now, then heats the enemy at each of their turn starts for 3 rounds', () => {
+    let s = setup();
     s.players[0].hand.push({ uid: 'storm', defId: 'solar_storm' });
-    let after = applyAction(s, { type: 'playCard', cardUid: 'storm' });
-    after = applyAction(after, { type: 'endTurn' }); // Bo's turn: storm hits
-    expect(after.players[1].heat).toBe(1);
-    after = applyAction(after, { type: 'endTurn' }); // Ada's turn: expires
-    expect(after.players[0].heat).toBe(0);
-    expect(after.globals).toHaveLength(0);
-    after = applyAction(after, { type: 'endTurn' });
-    expect(after.players[1].heat).toBe(1);
+    s = applyAction(s, { type: 'playCard', cardUid: 'storm', targetId: 'p2' });
+    expect(s.players[1].heat).toBe(1); // instant effect
+    for (let round = 1; round <= 3; round++) {
+      s = applyAction(s, { type: 'endTurn' }); // p2's turn: storm ticks
+      expect(s.players[1].heat).toBe(1 + round);
+      s = applyAction(s, { type: 'endTurn' });
+    }
+    expect(s.globals.filter((g) => g.turnsRemaining > 0)).toHaveLength(0);
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players[1].heat).toBe(4); // expired
   });
 
-  it('Magnetic Storm raises enemy flare cost during their turn', () => {
-    const s = twoPlayer(5, ['midas_belt', 'helios_reach']);
+  it('Magnetic Storm makes enemy flares dearer and the setter\'s cheaper', () => {
+    let s = setup();
     s.players[0].hand.push({ uid: 'mag', defId: 'magnetic_storm' });
-    let after = applyAction(s, { type: 'playCard', cardUid: 'mag' });
-    after = applyAction(after, { type: 'endTurn' });
-    after.players[1].money = 3;
-    after = applyAction(after, { type: 'solarFlare', targetId: 'p1' });
-    expect(after.players[1].money).toBe(0);
+    s = applyAction(s, { type: 'playCard', cardUid: 'mag' });
+    expect(flareCost(s, s.players[0])).toBe(1);
+    expect(flareCost(s, s.players[1])).toBe(3);
+  });
+
+  it('only one field is active: a new global replaces it', () => {
+    let s = setup();
+    s.players[0].hand.push({ uid: 'mag', defId: 'magnetic_storm' }, { uid: 'ice', defId: 'ice_age' });
+    s = applyAction(s, { type: 'playCard', cardUid: 'mag' });
+    s = applyAction(s, { type: 'playCard', cardUid: 'ice' });
+    expect(s.globals.map((g) => g.id)).toEqual(['iceAge']);
+    expect(flareCost(s, s.players[1])).toBe(2);
+  });
+
+  it('Trade Boom pays the setter more than everyone else', () => {
+    let s = setup();
+    s.players[0].hand.push({ uid: 'tb', defId: 'trade_boom' });
+    s = applyAction(s, { type: 'playCard', cardUid: 'tb' });
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players[1].money).toBe(incomeFor(s.players[1]) + 1);
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players[0].money).toBe(incomeFor(s.players[0]) + 2);
+  });
+
+  it('Solar Maximum and Nebula Drift change flare heat and display prices', () => {
+    let s = setup();
+    s.players[0].hand.push({ uid: 'sm', defId: 'solar_maximum' });
+    s = applyAction(s, { type: 'playCard', cardUid: 'sm', targetId: 'p2' });
+    expect(flareHeat(s.players[1], s)).toBe(2);
+    s.players[0].hand.push({ uid: 'nd', defId: 'nebula_drift' });
+    s = applyAction(s, { type: 'playCard', cardUid: 'nd' });
+    expect(flareHeat(s.players[1], s)).toBe(1);
+    expect(marketCost(s.players[0], 'fleet_command', s)).toBe(cardDef('fleet_command').cost - 1);
   });
 });
 

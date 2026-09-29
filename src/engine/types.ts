@@ -5,7 +5,7 @@ import type { RewardId } from './objectives';
 
 export type CardKind = 'basic' | 'command' | 'economy' | 'attack' | 'defence' | 'global' | 'mission';
 
-export type GlobalEffectId = 'solarStorm' | 'iceAge' | 'tradeBoom' | 'magneticStorm';
+export type GlobalEffectId = 'solarStorm' | 'iceAge' | 'tradeBoom' | 'magneticStorm' | 'solarMaximum' | 'nebulaDrift';
 
 export type Effect =
   | { type: 'money'; amount: number }

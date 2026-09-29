@@ -61,6 +61,9 @@ const GLYPHS: Record<string, string> = {
   trade_boom: `${ring(4, 'class="fill"')}${ring(11)}${ring(18, 'stroke-dasharray="3 4"')}`,
   magnetic_storm: `<path d="M30 14 C44 24 44 36 30 46"/><path d="M70 14 C56 24 56 36 70 46"/><path class="fill" d="M40 30 C45 22 55 22 60 30 C55 38 45 38 40 30 Z"/>`,
 
+  solar_maximum: `${ring(10, 'class="fill"')}${rays(8, 14, 24)}${ring(3, 'class="dot"')}`,
+  nebula_drift: `<path d="M22 36 C30 22 44 22 50 30 C56 38 70 38 78 24"/><path class="fill" d="M30 40 C38 30 48 32 52 36 C58 42 66 40 72 34"/>${ring(2, 'class="dot" transform="translate(-14 -14)"')}${ring(1.6, 'class="dot" transform="translate(18 12)"')}`,
+
   // Missions: a target reticle around the mission's own motif.
   mission_ignition: `${ring(18)}<polygon class="fill" points="44,40 50,18 56,40"/>`,
   mission_absolute_zero: `${ring(18)}${rays(6, 3, 12)}`,

@@ -117,9 +117,18 @@ export interface GlobalDef {
   affectsCaster: boolean;
 }
 
+/**
+ * Global cards set a FIELD: a lasting effect on the whole table. Only one
+ * field is active at a time (a new global replaces it) and it lasts
+ * FIELD_ROUNDS full rounds. Each field favours whoever set it.
+ */
+export const FIELD_ROUNDS = 3;
+
 export const GLOBALS: Record<GlobalEffectId, GlobalDef> = {
   solarStorm: { id: 'solarStorm', name: 'Solar Storm', text: 'Enemy suns heat by 1 at the start of their turn.', affectsCaster: false },
   iceAge: { id: 'iceAge', name: 'Ice Age', text: 'Every sun cools by 1 at the start of its turn.', affectsCaster: true },
-  tradeBoom: { id: 'tradeBoom', name: 'Trade Boom', text: 'Every player gains +1 money at the start of their turn.', affectsCaster: true },
-  magneticStorm: { id: 'magneticStorm', name: 'Magnetic Storm', text: 'Enemy Solar Flares cost +1 money.', affectsCaster: false },
+  tradeBoom: { id: 'tradeBoom', name: 'Trade Boom', text: 'Every player gains +1 money at the start of their turn; whoever set it gains +2.', affectsCaster: true },
+  magneticStorm: { id: 'magneticStorm', name: 'Magnetic Storm', text: 'Enemy Solar Flares cost +1; the setter\'s cost 1 less.', affectsCaster: true },
+  solarMaximum: { id: 'solarMaximum', name: 'Solar Maximum', text: 'Every Solar Flare deals +1 heat.', affectsCaster: true },
+  nebulaDrift: { id: 'nebulaDrift', name: 'Nebula Drift', text: 'Display cards cost 1 less for everyone (minimum 1).', affectsCaster: true },
 };

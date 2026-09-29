@@ -1,5 +1,6 @@
 import {
   ACTION_NAME,
+  activeField,
   activePlayer,
   applyAction,
   BALANCE,
@@ -70,6 +71,7 @@ type Sheet =
   | { kind: 'pile'; pile: 'deck' | 'discard' }
   | { kind: 'system'; playerId: string }
   | { kind: 'objective'; id: string }
+  | { kind: 'field' }
   | { kind: 'mission'; uid: string; playerId: string }
   | { kind: 'action'; action: CoreAction }
   /** Tap-to-inspect on touch screens: a readable card with its action. */
@@ -88,9 +90,18 @@ const AI_PAUSE: Record<Action['type'], number> = {
   chooseReward: 1500,
 };
 const TOAST_MS = 2600;
+/** The card whose glyph represents each field. */
+const FIELD_CARD: Record<string, string> = {
+  solarStorm: 'solar_storm',
+  iceAge: 'ice_age',
+  tradeBoom: 'trade_boom',
+  magneticStorm: 'magnetic_storm',
+  solarMaximum: 'solar_maximum',
+  nebulaDrift: 'nebula_drift',
+};
 const LONG_PRESS_MS = 450;
 const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
-const TOAST_PATTERN = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|wins|shields absorb|Instability/;
+const TOAST_PATTERN = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|wins|shields absorb|Instability|sets the field/;
 const HOT = '#f0a07a';
 
 const ACTION_TEXT: Record<CoreAction, string> = {
@@ -207,6 +218,7 @@ export class App {
     this.stage = null;
     this.sheet = null;
     this.screen = 'game';
+    save(state);
     this.syncViewer();
     this.render();
     this.dealOpening();
@@ -653,6 +665,9 @@ export class App {
       case 'view-system':
         this.sheet = { kind: 'system', playerId: arg };
         return this.render();
+      case 'view-field':
+        this.sheet = { kind: 'field' };
+        return this.render();
       case 'view-objective':
         this.sheet = { kind: 'objective', id: arg };
         return this.render();
@@ -857,10 +872,15 @@ export class App {
     const remaining = Math.max(0, total - (s.round - 1));
     const instab = instabilityHeat(s);
     const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
-    const globals = s.globals
-      .filter((g) => g.turnsRemaining > 0)
-      .map((g) => `<span class="global" title="${esc(GLOBALS[g.id].text)} (${g.turnsRemaining} turns left)">${esc(GLOBALS[g.id].name.toLowerCase())}</span>`)
-      .join('');
+    const field = activeField(s);
+    const living = s.players.filter((p) => !p.eliminated).length;
+    const globals = field
+      ? `<button class="field" data-act="view-field" title="${esc(GLOBALS[field.id].text)}">
+          ${cardGlyph(FIELD_CARD[field.id], 'global')}
+          <span class="field-name">${esc(GLOBALS[field.id].name.toLowerCase())}</span>
+          <span class="field-rounds">${Math.ceil(field.turnsRemaining / living)}</span>
+        </button>`
+      : '';
 
     const rivals = s.players
       .filter((p) => p.id !== me.id)
@@ -870,7 +890,7 @@ export class App {
           <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
           <div class="rival-info">
             <span class="rival-name">${esc(p.name.toLowerCase())}</span>
-            <span class="rival-stats"><b>${p.heat}/${supernovaThreshold(p)}</b><em> · ⛨${p.shields} · ▲${flareHeat(p)}${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}</em></span>
+            <span class="rival-stats"><b>${p.heat}/${supernovaThreshold(p)}</b><em> · ⛨${p.shields} · ▲${flareHeat(p, s)}${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}</em></span>
           </div>
         </button>`,
       )
@@ -926,7 +946,7 @@ export class App {
     const fc = flareCost(s, me);
     const tc = thermoCost(me);
     const rail = `
-      <div data-anchor="upgrade:solarFlare">${actionChip({ action: 'solarFlare', upgrades: me.upgrades.solarFlare, cost: fc, power: flareHeat(me), enabled: act && !busy && me.money >= fc })}</div>
+      <div data-anchor="upgrade:solarFlare">${actionChip({ action: 'solarFlare', upgrades: me.upgrades.solarFlare, cost: fc, power: flareHeat(me, s), enabled: act && !busy && me.money >= fc })}</div>
       <div data-anchor="upgrade:thermosiphon">${actionChip({ action: 'thermosiphon', upgrades: me.upgrades.thermosiphon, cost: tc, power: thermoCool(me), enabled: act && !busy && me.money >= tc && me.heat > BALANCE.minHeat })}</div>
       <div data-anchor="upgrade:coolingChamber">${actionChip({ action: 'coolingChamber', upgrades: me.upgrades.coolingChamber, power: max, enabled: true })}</div>`;
 
@@ -1000,7 +1020,7 @@ export class App {
     let cost = '';
     let costAttr = opts.slot !== undefined ? `data-slot="${opts.slot}"` : opts.hand ? `data-hand="${c.uid}"` : '';
     if (opts.slot !== undefined && opts.buyer) {
-      const price = marketCost(opts.buyer, c.defId);
+      const price = marketCost(opts.buyer, c.defId, this.state!);
       if ((act && opts.buyer.money >= price) || this.touch) attrs = `data-act="buy" data-arg="${opts.slot}"`;
       cost = `<span class="coin ${price < def.cost ? 'coin-discount' : ''}">${price}</span>`;
       costAttr += ` data-cost="${price}"`;
@@ -1010,7 +1030,7 @@ export class App {
     // Display cards stay at full strength; affordability shows as a highlight (on your turn) or a muted price.
     let buyState = '';
     if (opts.slot !== undefined && opts.buyer) {
-      buyState = opts.buyer.money >= marketCost(opts.buyer, c.defId) ? (act ? 'card-affordable' : '') : 'card-pricey';
+      buyState = opts.buyer.money >= marketCost(opts.buyer, c.defId, this.state!) ? (act ? 'card-affordable' : '') : 'card-pricey';
     }
     return `
       <button class="card kind-${def.kind} ${buyState}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${costAttr} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
@@ -1097,6 +1117,17 @@ export class App {
         return this.renderPileSheet(sh.pile);
       case 'system':
         return this.renderSystemSheet(s!.players.find((p) => p.id === sh.playerId)!);
+      case 'field': {
+        const f = activeField(s!);
+        if (!f) return '';
+        const setter = s!.players.find((p) => p.id === f.sourcePlayerId)!;
+        const living = s!.players.filter((p) => !p.eliminated).length;
+        return this.sheetFrame(
+          `field · ${esc(GLOBALS[f.id].name.toLowerCase())}`,
+          `<div class="obj-sheet">${cardGlyph(FIELD_CARD[f.id], 'global')}<p>${esc(GLOBALS[f.id].text)}</p>
+           <p class="muted">Set by ${esc(setter.name)} · ${Math.ceil(f.turnsRemaining / living)} round(s) left. Playing another global card replaces it.</p></div>`,
+        );
+      }
       case 'objective': {
         const o = objectiveDef(sh.id);
         const claimed = s!.claimed.map((c) => `${esc(objectiveDef(c.id).name)} · ${esc(s!.players.find((p) => p.id === c.playerId)!.name)}`);
@@ -1137,7 +1168,7 @@ export class App {
           const inHand = me!.hand.some((c) => c.uid === sh.uid);
           button = inHand ? `<button class="btn-primary" data-act="play" data-arg="${sh.uid}" ${act ? '' : 'disabled'}>play</button>` : '';
         } else if (sh.slot !== undefined && s && me) {
-          cost = marketCost(me, sh.defId);
+          cost = marketCost(me, sh.defId, s);
           button = `<button class="btn-primary" data-act="buy" data-arg="${sh.slot}" ${act && me.money >= cost ? '' : 'disabled'}>buy · ◈${cost}</button>
             ${me.money < cost && act ? `<span class="muted">you have ◈${me.money}</span>` : ''}`;
         }
@@ -1216,7 +1247,7 @@ export class App {
             action: a,
             upgrades: me.upgrades[a],
             cost: a === 'solarFlare' ? flareCost(s, me) : a === 'thermosiphon' ? thermoCost(me) : undefined,
-            power: a === 'solarFlare' ? flareHeat(me) : a === 'thermosiphon' ? thermoCool(me) : supernovaThreshold(me),
+            power: a === 'solarFlare' ? flareHeat(me, s) : a === 'thermosiphon' ? thermoCool(me) : supernovaThreshold(me),
             enabled: options.includes(a),
             compact: true,
             actAttr: options.includes(a) ? `data-act="reward-upgrade" data-arg="${a}"` : 'disabled',
@@ -1330,7 +1361,7 @@ export class App {
           action: a,
           upgrades: me.upgrades[a],
           cost: a === 'solarFlare' ? flareCost(s, me) : a === 'thermosiphon' ? thermoCost(me) : undefined,
-          power: a === 'solarFlare' ? flareHeat(me) : a === 'thermosiphon' ? thermoCool(me) : supernovaThreshold(me),
+          power: a === 'solarFlare' ? flareHeat(me, s) : a === 'thermosiphon' ? thermoCool(me) : supernovaThreshold(me),
           enabled: available,
           compact: true,
           actAttr: available ? `data-act="upgrade" data-arg="${a}"` : 'disabled',
