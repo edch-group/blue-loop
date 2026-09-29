@@ -1496,12 +1496,10 @@ body.screen-campaign .backdrop { display: none; }
 /* ---------- 3D battle board ---------- */
 /* The display lies on a tilted board seen in perspective, like the campaign map;
    cards rest slightly above its surface. The HUD around it stays flat. */
-.board3d { perspective: 1100px; perspective-origin: 50% 0%; display: grid; justify-items: center; }
+.board3d { display: grid; justify-items: center; }
 .board-plane {
   position: relative;
   transform-style: preserve-3d;
-  transform: rotateX(34deg);
-  transform-origin: 50% 60%;
   padding: 14px 24px;
 }
 .board-floor {
@@ -1525,8 +1523,9 @@ body.screen-campaign .backdrop { display: none; }
 
 /* ---------- The looming figure of your race ---------- */
 .titan {
-  position: fixed; left: 50%; top: calc(var(--pad-t) + 2vh);
-  width: min(1180px, 112vw); height: calc(82 * var(--vh));
+  /* Person-sized, standing behind the table's far edge (the table hides its lower half). */
+  position: fixed; left: 50%; top: calc(var(--pad-t) + 1vh);
+  width: calc(46 * var(--vh) * 1.613); height: calc(46 * var(--vh));
   transform: translateX(-50%);
   z-index: 0; pointer-events: none;
   opacity: 0; transition: opacity 1.2s ease;
@@ -1556,3 +1555,31 @@ body.screen-campaign .backdrop { display: none; }
 @keyframes ti-drift { from { transform: translateY(-6px); } to { transform: translateY(8px); } }
 @media (prefers-reduced-motion: reduce) { .titan-art * { animation: none !important; } }
 .board-label { margin-top: 2px; }
+
+/* ---------- The table: the whole play area in perspective ---------- */
+.table-view {
+  position: fixed; inset: 0;
+  perspective: calc(200 * var(--vh));
+  perspective-origin: 50% 24%;
+  overflow: hidden;
+}
+.table-view > .game {
+  /* Tip the whole board away from the viewer and shrink it so the table sits in the room. */
+  transform-origin: 50% 50%;
+  transform: translateY(calc(5 * var(--vh))) rotateX(34deg) scale(0.72);
+  border-radius: 34px;
+  background:
+    radial-gradient(circle, rgba(120, 135, 170, 0.18) 0 1px, transparent 1.6px) 0 0 / 38px 38px,
+    radial-gradient(ellipse 70% 60% at 50% 45%, #ffffff, #f4f3ef 60%, #ebeae5);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.95),
+    inset 0 0 0 12px rgba(150, 156, 172, 0.08),
+    inset 0 0 60px rgba(150, 156, 172, 0.12),
+    0 18px 0 -2px #dcdbd5,
+    0 60px 90px rgba(60, 60, 80, 0.28);
+  /* Smaller cards that rest fully on the table rather than off its edge. */
+  --hh: min(calc(27 * var(--vh)), 210px);
+  --hvis: calc(var(--hh) * 0.94);
+  overflow: visible;
+}
+@media (prefers-reduced-motion: reduce) { .table-view > .game { transition: none; } }

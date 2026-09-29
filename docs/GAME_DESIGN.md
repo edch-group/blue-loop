@@ -154,7 +154,7 @@ Each player is one of four alien races. They're cosmetic for now: they set the l
 | Vorthane | A drifting jelly-like bell rimmed with glowing eyes, its tentacles draping over the board | Gold |
 | Ixquor | A branching fungal hive with pulsing nodes and root limbs | Violet |
 
-In battle, the board is a tilted 3D surface at a similar angle to the campaign map. The display cards lie on it, and the viewer's race rises behind its far edge. Art: `src/ui/titans.ts`.
+In battle, the whole play area is a table seen in perspective, like a tabletop simulator. Your hand, the player cards, the log, the controls and the display all lie on it, and pop-ups stay flat above it. The viewer's race stands behind the far edge at roughly person scale. Art: `src/ui/titans.ts`.
 
 ## Campaign mode [design review, first version]
 

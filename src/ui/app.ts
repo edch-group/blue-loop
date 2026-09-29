@@ -1042,13 +1042,17 @@ export class App {
 
   private renderGame(): string {
     const s = this.state!;
+    // The whole play area is a table seen in perspective; pop-ups, the played-card
+    // stage and the rotate hint sit outside it so they stay flat and readable.
     return `
-      <main class="game">
-        ${this.renderTop()}
-        ${this.renderPlayers()}
-        ${this.renderDisplay()}
-        ${this.renderLogPanel()}
-        ${this.renderDock()}
+      <main class="table-view">
+        <div class="game">
+          ${this.renderTop()}
+          ${this.renderPlayers()}
+          ${this.renderDisplay()}
+          ${this.renderLogPanel()}
+          ${this.renderDock()}
+        </div>
         ${this.renderStage()}
         ${this.renderOverlay(s)}
         <div class="rotate-hint"><div><h1 class="title">blue loop</h1><p>turn your device sideways to play</p></div></div>
