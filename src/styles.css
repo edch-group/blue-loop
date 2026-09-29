@@ -839,9 +839,10 @@ input { font: inherit; }
 
 /* ---------- Dock: command panel · deck · fanned hand · discard · turn controls ---------- */
 :root {
-  /* Hand cards are big, but only their top part shows: the rest sits below the screen edge. */
-  --hh: min(calc(44 * var(--vh)), 300px);
-  --hvis: calc(var(--hh) * 0.56);
+  /* Hand cards: compact and mostly visible, only their lower edge tucked below the screen
+     (like MTG Arena). Press and hold one on a phone for a full-size preview. */
+  --hh: min(calc(30 * var(--vh)), 230px);
+  --hvis: calc(var(--hh) * 0.8);
 }
 .game { padding-bottom: 0; }
 .dock { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; gap: var(--gap); align-items: end; }
@@ -969,7 +970,9 @@ input { font: inherit; }
 }
 
 /* Long-press peek: stop the OS callout / text selection from hijacking the hold. */
-.card, .mini { -webkit-touch-callout: none; }
+.card, .mini { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* Cards own their touches: iOS must not claim a press-and-hold (and cancel it) for its own gestures. */
+.game .card, .game .mini { touch-action: none; }
 .card-preview .card { background: linear-gradient(180deg, #ffffff, #f6f6f4); }
 
 /* ---------- "Your turn" banner ---------- */
