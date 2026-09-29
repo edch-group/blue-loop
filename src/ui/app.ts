@@ -1032,7 +1032,7 @@ export class App {
       </main>`;
   }
 
-  /** Round numeral and the stability bar, sitting above the display. */
+  /** Round and stability, together in one container at the top centre. */
   private renderRoundBar(): string {
     const s = this.state!;
     const total = BALANCE.instabilityStartsRound - 1;
@@ -1040,43 +1040,50 @@ export class App {
     const instab = instabilityHeat(s);
     const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
     return `
-      <div class="round">
-        <div class="numeral" title="Round ${s.round}">${roman(s.round)}</div>
-        <div class="stability ${instab ? 'unstable' : ''}" title="${instab
-          ? `Stellar Instability: every sun heats by ${instab} at the start of its turn.`
-          : 'Drains by one each round. When empty, every sun heats at the start of its turn.'}">
-          <span class="stability-label">round ${s.round} · ${instab ? `instability +${instab}` : `stability ${remaining}`}</span>
+      <div class="round-box ${instab ? 'unstable' : ''}" title="${instab
+        ? `Round ${s.round}. Stellar Instability: every sun heats by ${instab} at the start of its turn.`
+        : `Round ${s.round}. Stability drains by one each round; when it runs out, every sun heats at the start of its turn.`}">
+        <div class="round-num"><small>round</small><b>${roman(s.round)}</b></div>
+        <div class="stability">
+          <span class="stability-label">${instab ? `instability +${instab}` : `stability ${remaining}`}</span>
           <div class="stability-bar">${segments}</div>
         </div>
       </div>`;
   }
 
-  /** Rival players, stacked down the left-hand side. */
+  /**
+   * Every player's card, stacked down the left: yours first, then your rivals.
+   * Whoever's turn it is glows green.
+   */
   private renderPlayers(): string {
     const s = this.state!;
     const active = activePlayer(s);
     const me = this.viewer();
-    const rivals = s.players
-      .filter((p) => p.id !== me.id)
-      .map(
-        (p) => `
-        <button class="rival ${p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''}" data-act="view-system" data-arg="${p.id}" title="${esc(p.name)} · ${esc(systemDef(p.systemId).name)}">
+    const playing = s.phase !== 'setup' && !isGameOver(s);
+    const cards = [me, ...s.players.filter((p) => p.id !== me.id)]
+      .map((p) => {
+        const mine = p.id === me.id;
+        const extras = mine
+          ? ` · ◈+${incomeFor(p)} · ✋${handSizeFor(p)}${shieldPierce(p) ? ` · ⚔${shieldPierce(p)}` : ''}`
+          : ` · ▲${flareHeat(p, s)}`;
+        const tally = `${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}`;
+        return `
+        <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''}" data-act="view-system" data-arg="${p.id}" title="${esc(p.name)} · ${esc(systemDef(p.systemId).name)}${mine ? ' (you)' : ''}">
           <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
           <div class="rival-info">
-            <span class="rival-name">${esc(p.name.toLowerCase())}</span>
-            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em>⛨<span data-shields-of="${p.id}">${p.shields}</span> · ▲${flareHeat(p, s)}${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}</em></span>
+            <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}</span>
+            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em>⛨<span data-shields-of="${p.id}">${p.shields}</span>${extras}${tally}</em></span>
           </div>
-        </button>`,
-      )
+        </button>`;
+      })
       .join('');
-    return `<aside class="rivals">${rivals}</aside>`;
+    return `<aside class="rivals">${cards}</aside>`;
   }
 
   private renderTop(): string {
     const s = this.state!;
     const active = activePlayer(s);
     const me = this.viewer();
-    const mine = active.id === me.id && !active.isAI;
     const field = activeField(s);
     const living = s.players.filter((p) => !p.eliminated).length;
     const globals = field
@@ -1091,9 +1098,7 @@ export class App {
     return `
       <header class="top">
         <div class="top-left">${this.renderObjectivesRow(me)}</div>
-        <div class="turn">
-          <div class="turn-pill ${mine && s.phase !== 'setup' ? 'turn-mine' : ''}">${s.phase === 'setup' ? 'choosing systems' : mine ? 'your turn' : `${esc(active.name.toLowerCase())}'s turn`}</div>
-        </div>
+        <div class="turn">${this.renderRoundBar()}</div>
         <div class="top-controls">
           ${globals}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
@@ -1123,7 +1128,6 @@ export class App {
     const me = activePlayer(s);
     return `
       <section class="display">
-        ${this.renderRoundBar()}
         <div class="section-label" data-anchor="market">display <span>${s.marketDeck.length} left</span></div>
         <div class="cards">${s.display
           .map((c, i) => (c ? this.renderCard(c, { slot: i, buyer: me }) : '<div class="card card-empty"></div>'))
@@ -1155,16 +1159,6 @@ export class App {
     return `
       <section class="dock ${s.phase === 'setup' ? 'dock-setup' : ''}">
         <div class="command">
-          <button class="me" data-act="view-system" data-arg="${me.id}" title="${esc(me.name)} · ${esc(systemDef(me.systemId).name)} (tap for details)">
-            <div class="orb-anchor" data-anchor="player:${me.id}">${sunOrb({ heat: me.heat, threshold: max, size: 44, dead: me.eliminated })}</div>
-            <span class="health"><span data-heat-of="${me.id}">${me.heat}</span><small>/${max}</small></span>
-            <span class="me-stats">
-              <span title="Shields">⛨<span data-shields-of="${me.id}">${me.shields}</span></span>
-              <span title="Income per turn">◈+${incomeFor(me)}</span>
-              <span title="Hand size">✋${handSizeFor(me)}</span>
-              ${shieldPierce(me) ? `<span title="Shield pierce">⚔${shieldPierce(me)}</span>` : ''}
-            </span>
-          </button>
           <div class="rail">${rail}</div>
         </div>
         <button class="pile" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck"><span class="pile-stack"><i></i><i></i></span><b>${me.deck.length}</b><small>deck</small></button>

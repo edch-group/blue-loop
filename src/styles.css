@@ -362,7 +362,33 @@ input { font: inherit; }
   .feed { display: none; }
 }
 .rival:hover { background: rgba(255, 255, 255, 0.5); }
-.rival-active { background: rgba(255, 255, 255, 0.7); box-shadow: 0 0 0 1px #fff, 0 0 18px rgba(255, 255, 255, 0.95); }
+/* Whoever's turn it is: a soft mint rim and glow, breathing gently. */
+.rival-active {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 1.5px #7cc79a, 0 0 0 4px rgba(124, 199, 154, 0.18), 0 0 20px rgba(110, 196, 146, 0.45);
+  animation: turn-glow 2.8s ease-in-out infinite;
+}
+@keyframes turn-glow { 50% { box-shadow: 0 0 0 1.5px #7cc79a, 0 0 0 5px rgba(124, 199, 154, 0.12), 0 0 26px rgba(110, 196, 146, 0.6); } }
+.rival-me { background: rgba(255, 255, 255, 0.55); }
+.rival-you { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 0.8em; letter-spacing: 0.12em; color: var(--ink-soft); background: rgba(120, 124, 134, 0.1); vertical-align: 1px; }
+@media (prefers-reduced-motion: reduce) { .rival-active { animation: none; } }
+
+/* Round and stability: one element in the top-centre container. */
+.round-box {
+  display: flex; align-items: center; gap: 12px;
+  padding: 5px 16px 5px 6px; border-radius: 14px;
+  background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow);
+}
+.round-num {
+  display: grid; justify-items: center; align-content: center; gap: 0;
+  min-width: clamp(38px, 8vh, 52px); aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 8px rgba(90, 90, 110, 0.12);
+  font-family: var(--display);
+}
+.round-num small { font-size: 0.4rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); line-height: 1; }
+.round-num b { font-size: clamp(0.72rem, 2.4vh, 1rem); font-weight: 700; color: #5b5f67; line-height: 1.1; }
+.round-box .stability { display: grid; gap: 4px; }
+.round-box.unstable .stability-label { color: #a8716c; font-weight: 700; }
 .rival-dead { opacity: 0.5; }
 .rival-info { display: grid; text-align: left; min-width: 0; }
 .rival-name { font-size: 0.6rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1454,3 +1480,4 @@ input { font: inherit; }
 
 /* The campaign map has its own space: no rotating petal backdrop behind it. */
 body.screen-campaign .backdrop { display: none; }
+@media (max-width: 760px) { .rival-you { display: none; } }
