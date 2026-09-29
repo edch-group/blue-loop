@@ -39,7 +39,7 @@ import {
   type PlayerState,
   type RewardId,
 } from '../engine';
-import { actionChip, actionTile, roman, sunOrb, systemDiagram } from './art';
+import { actionChip, actionTile, roman, sunOrb, systemDiagram, systemOrrery3d } from './art';
 import { backdrop } from './backdrop';
 import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, type Snapshot } from './fx';
 import { cardGlyph, KIND_COLOUR, objectiveGlyph, rewardGlyph } from './glyphs';
@@ -1623,7 +1623,7 @@ export class App {
         .join('');
       return `
         <div class="sys-card draft-card">
-          ${systemDiagram(sys.planets)}
+          ${systemOrrery3d(sys.planets)}
           <h2 class="sys-name">${esc(sys.name.toLowerCase())}</h2>
           <p class="sys-flavor">${esc(sys.flavor)}</p>
           <div class="sys-ability"><b>${esc(sys.abilityName.toLowerCase())}</b><span>+ ${esc(sys.abilityText)}</span><span class="sys-drawback">− ${esc(sys.drawbackText)}</span></div>
@@ -1636,7 +1636,7 @@ export class App {
       ? `<div class="draft-cards draft-one"><div class="sys-kicker">${esc(rival.name.toLowerCase())}'s solar system</div>${card(rival.systemId, false)}</div>`
       : `<div class="draft-cards">${me.systemOffers!.map((id) => card(id, true)).join('')}</div>`;
     return `
-      <div class="overlay overlay-inspect">
+      <div class="overlay overlay-inspect overlay-draft">
         <div class="sys-wrap draft-wrap sheet">
           <div class="sys-tabs">${tabs}</div>
           ${body}

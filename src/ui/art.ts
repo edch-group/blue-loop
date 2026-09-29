@@ -186,3 +186,27 @@ export function roman(n: number): string {
   for (const [v, s] of ROMAN) while (n >= v) { out += s; n -= v; }
   return out;
 }
+
+/**
+ * A 3D orrery: the planets circle their star on rings tilted back in perspective,
+ * each planet turned to face the viewer (sized by level, tinted by track).
+ */
+export function systemOrrery3d(planets: { name: string; track: string; level: number }[]): string {
+  const bodies = planets
+    .map((pl, j) => {
+      const r = 46 + j * 20;
+      const period = 14 + j * 8;
+      const seed = [...pl.name].reduce((a, c) => a + c.charCodeAt(0), 0);
+      const delay = -((seed * 7 + j * 97) % period);
+      const size = 9 + pl.level * 3;
+      return `
+        <i class="o3-ring" style="--r:${r}px"></i>
+        <div class="o3-orbit" style="--t:${period}s;--d:${delay}s">
+          <div class="o3-arm" style="--r:${r}px">
+            <div class="o3-counter"><span class="o3-planet" style="--pc:${TRACK_TINT[pl.track]};--ps:${size}px"><em>${pl.name.toLowerCase()}</em></span></div>
+          </div>
+        </div>`;
+    })
+    .join('');
+  return `<div class="o3" aria-hidden="true"><div class="o3-plane">${bodies}<span class="o3-star"></span></div></div>`;
+}
