@@ -804,7 +804,7 @@ export class App {
     const defId = el.dataset.card!;
     const cost = el.dataset.cost;
     this.preview.innerHTML = this.bigCard(defId, cost !== undefined ? Number(cost) : undefined);
-    const h = Math.min(420, window.innerHeight - 24);
+    const h = Math.min(420, window.innerHeight - 24) * 0.7;
     const w = h * 0.714;
     this.preview.style.setProperty('--pw', `${w}px`);
     // Zoomed cards sit at the middle right, clear of the hand and the display.
