@@ -39,7 +39,7 @@ import {
   type PlayerState,
   type RewardId,
 } from '../engine';
-import { actionChip, actionTile, roman, sunOrb } from './art';
+import { actionChip, actionTile, roman, sunOrb, systemDiagram } from './art';
 import { backdrop } from './backdrop';
 import { anchorRect, flyFrom, ghost, projectile, pulse, snapshot, type Snapshot } from './fx';
 import { cardGlyph, KIND_COLOUR, objectiveGlyph, rewardGlyph } from './glyphs';
@@ -69,7 +69,8 @@ type Sheet =
   | { kind: 'log' }
   | { kind: 'rules' }
   | { kind: 'pile'; pile: 'deck' | 'discard' }
-  | { kind: 'system'; playerId: string }
+  /** A player's solar system card; `intro` is the game-start reveal. */
+  | { kind: 'system'; playerId: string; intro?: boolean }
   | { kind: 'objective'; id: string }
   | { kind: 'field' }
   | { kind: 'mission'; uid: string; playerId: string }
@@ -113,17 +114,19 @@ const ACTION_TEXT: Record<CoreAction, string> = {
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
 /** What a planet's track does at a given level, in plain words. */
 function planetEffect(track: Planet['track'], level: number): string {
   switch (track) {
     case 'economy':
       return `+${level * BALANCE.economyIncomePerLevel} money at the start of each turn`;
     case 'defences':
-      return `+${level * BALANCE.shieldsPerDefenceLevel} shields each turn`;
+      return `+${plural(level * BALANCE.shieldsPerDefenceLevel, 'shield')} each turn`;
     case 'weapons':
-      return `your heat ignores ${level * BALANCE.piercePerWeaponLevel} enemy shields`;
+      return `your heat ignores ${plural(level * BALANCE.piercePerWeaponLevel, 'enemy shield')}`;
     case 'resources':
-      return `+${level * BALANCE.resourceCardsPerLevel} cards in hand`;
+      return `+${plural(level * BALANCE.resourceCardsPerLevel, 'card')} in hand`;
   }
 }
 
@@ -138,6 +141,8 @@ export class App {
   private state: GameState | null = null;
   private pending: Pending | null = null;
   private stage: Stage | null = null;
+  /** Human players who have already been shown their system card. */
+  private introduced = new Set<string>();
   /** Second step of a reward that needs a choice (what to upgrade, which card). */
   private rewardStep: 'command' | 'requisition' | null = null;
   private sheet: Sheet | null = null;
@@ -220,10 +225,22 @@ export class App {
     this.screen = 'game';
     save(state);
     this.syncViewer();
+    this.introduced.clear();
+    this.maybeIntroduce();
     this.render();
     this.dealOpening();
-    this.announceTurn(400);
+    if (!this.sheet) this.announceTurn(400);
     this.scheduleAI(900);
+  }
+
+  /** First time a human sees the board, open their solar system card. */
+  private maybeIntroduce() {
+    const s = this.state;
+    if (!s || isGameOver(s) || this.needsHandoff()) return;
+    const p = activePlayer(s);
+    if (p.isAI || this.introduced.has(p.id)) return;
+    this.introduced.add(p.id);
+    this.sheet = { kind: 'system', playerId: p.id, intro: true };
   }
 
   /**
@@ -632,8 +649,9 @@ export class App {
         return this.render();
       case 'reveal':
         this.revealedFor = s ? activePlayer(s).id : null;
+        this.maybeIntroduce();
         this.render();
-        this.announceTurn();
+        if (!this.sheet) this.announceTurn();
         return this.dealOpening();
       case 'open-menu':
         this.sheet = { kind: 'menu' };
@@ -663,8 +681,16 @@ export class App {
         this.sheet = { kind: 'pile', pile: arg as 'deck' | 'discard' };
         return this.render();
       case 'view-system':
-        this.sheet = { kind: 'system', playerId: arg };
+        // Keep the intro flag while flicking between players on the game-start card.
+        this.sheet = { kind: 'system', playerId: arg, intro: this.sheet?.kind === 'system' && this.sheet.intro };
         return this.render();
+      case 'systems':
+        this.sheet = { kind: 'system', playerId: this.viewer().id };
+        return this.render();
+      case 'begin-game':
+        this.sheet = null;
+        this.render();
+        return this.announceTurn();
       case 'view-field':
         this.sheet = { kind: 'field' };
         return this.render();
@@ -696,10 +722,14 @@ export class App {
       case 'coolingChamber':
         this.sheet = { kind: 'action', action: 'coolingChamber' };
         return this.render();
-      case 'cancel':
+      case 'cancel': {
+        const wasIntro = this.sheet?.kind === 'system' && this.sheet.intro;
         this.pending = null;
         this.sheet = null;
-        return this.render();
+        this.render();
+        if (wasIntro) this.announceTurn();
+        return;
+      }
     }
 
     if (!s) return;
@@ -1106,6 +1136,7 @@ export class App {
             <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
             <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
             <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
+            <button class="btn" data-act="systems">solar systems</button>
             <button class="btn" data-act="open-log">game log</button>
             <button class="btn" data-act="rules">how to play</button>
             <button class="btn" data-act="to-menu">main menu</button>
@@ -1116,7 +1147,7 @@ export class App {
       case 'pile':
         return this.renderPileSheet(sh.pile);
       case 'system':
-        return this.renderSystemSheet(s!.players.find((p) => p.id === sh.playerId)!);
+        return this.renderSystemSheet(s!.players.find((p) => p.id === sh.playerId)!, !!sh.intro);
       case 'field': {
         const f = activeField(s!);
         if (!f) return '';
@@ -1183,34 +1214,64 @@ export class App {
     }
   }
 
-  private renderSystemSheet(p: PlayerState): string {
+  /**
+   * Solar system card: the player's system, ability, planets and progress,
+   * with small tabs above it to flick between every player's system.
+   */
+  private renderSystemSheet(p: PlayerState, intro: boolean): string {
+    const s = this.state!;
+    const me = this.viewer();
     const sys = systemDef(p.systemId);
+    const tabs = [me, ...s.players.filter((o) => o.id !== me.id)]
+      .map(
+        (o) => `
+        <button class="sys-tab ${o.id === p.id ? 'sys-tab-on' : ''} ${o.eliminated ? 'sys-tab-dead' : ''}" data-act="view-system" data-arg="${o.id}">
+          ${sunOrb({ heat: o.heat, threshold: supernovaThreshold(o), size: 26, dead: o.eliminated, label: '' })}
+          <span>${o.id === me.id ? 'you' : esc(o.name.toLowerCase())}</span>
+        </button>`,
+      )
+      .join('');
     const planets = p.planets
       .map((pl) => {
         const pips = Array.from({ length: BALANCE.maxPlanetLevel }, (_, i) => `<i class="${i < pl.level ? 'on' : ''}"></i>`).join('');
-        return `<div class="planet-row"><span class="planet track-${pl.track}">${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}<span class="pips">${pips}</span></span>
-          <small>${pl.track}: all levels together give ${planetEffect(pl.track, trackLevel(p, pl.track))}</small></div>`;
+        return `
+          <div class="sys-planet">
+            <span class="sys-planet-name">${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}</span>
+            <span class="pips">${pips}</span>
+            <span class="sys-planet-effect">${pl.track} · ${pl.level ? planetEffect(pl.track, pl.level) : `each level: ${planetEffect(pl.track, 1)}`}</span>
+          </div>`;
       })
       .join('');
     const ups = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
-      .map((a) => `<span>${ACTION_NAME[a].toLowerCase()} ${p.upgrades[a]}/${MAX_UPGRADES[a]}</span>`)
-      .join(' · ');
-    return this.sheetFrame(
-      `${esc(p.name.toLowerCase())} · ${esc(sys.name.toLowerCase())}`,
-      `<div class="system-sheet">
-        <div class="system-head">
-          ${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 72, dead: p.eliminated })}
-          <div>
-            <p><b>${esc(sys.abilityName.toLowerCase())}</b> · ${esc(sys.abilityText)}</p>
-            <p class="muted">heat ${p.heat} / ${supernovaThreshold(p)} · shields ${p.shields} · income +${incomeFor(p)} · hand ${handSizeFor(p)} · deck ${p.deck.length} · discard ${p.discard.length}</p>
-            <p class="muted">${ups}</p>
-            ${p.rewards.length ? `<p class="muted">rewards: ${p.rewards.map((r) => esc(rewardDef(r).name.toLowerCase())).join(' · ')}</p>` : ''}
-            ${p.missions.length ? `<p class="muted">missions: ${p.missions.map((m) => esc(objectiveDef(missionOf(m.defId)).name.toLowerCase())).join(' · ')}</p>` : ''}
+      .map((a) => {
+        const pips = Array.from({ length: MAX_UPGRADES[a] }, (_, i) => `<i class="${i < p.upgrades[a] ? 'on' : ''}"></i>`).join('');
+        return `<span class="sys-up">${ACTION_NAME[a].toLowerCase()} <span class="pips">${pips}</span></span>`;
+      })
+      .join('');
+    const whose = p.id === me.id ? 'your solar system' : `${esc(p.name.toLowerCase())}'s solar system`;
+    return `
+      <div class="overlay overlay-inspect" data-act="cancel">
+        <div class="sys-wrap sheet">
+          <div class="sys-tabs">${tabs}</div>
+          <div class="sys-card">
+            <div class="sys-kicker">${whose}</div>
+            ${systemDiagram(p.planets)}
+            <h2 class="sys-name">${esc(sys.name.toLowerCase())}</h2>
+            <p class="sys-flavor">${esc(sys.flavor)}</p>
+            <div class="sys-ability"><b>${esc(sys.abilityName.toLowerCase())}</b><span>${esc(sys.abilityText)}</span></div>
+            <div class="sys-planets">${planets}</div>
+            <div class="sys-ups">${ups}</div>
+            <div class="sys-stats">
+              <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⛨ ${p.shields}</span><span>◈ +${incomeFor(p)}/turn</span><span>✋ ${handSizeFor(p)}</span>
+              ${p.rewards.length ? `<span>rewards: ${p.rewards.map((r) => esc(rewardDef(r).name.toLowerCase())).join(', ')}</span>` : ''}
+              ${p.missions.length ? `<span>missions: ${p.missions.map((m) => esc(objectiveDef(missionOf(m.defId)).name.toLowerCase())).join(', ')}</span>` : ''}
+            </div>
+            ${intro
+              ? `<button class="btn-primary sys-begin" data-act="begin-game">begin</button>`
+              : `<button class="modal-cancel" data-act="cancel">close</button>`}
           </div>
         </div>
-        ${planets}
-      </div>`,
-    );
+      </div>`;
   }
 
   private renderPileSheet(kind: 'deck' | 'discard'): string {

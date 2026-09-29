@@ -55,6 +55,53 @@ export function petalBackdrop(): string {
     </svg>`;
 }
 
+const TRACK_TINT: Record<string, string> = {
+  weapons: '#e2a494',
+  defences: '#a3c3df',
+  economy: '#e0cd94',
+  resources: '#abd2b5',
+};
+
+/**
+ * A small orrery for a solar system card: the sun on the left, orbit rings,
+ * and each planet sized by its level and tinted by its track.
+ */
+export function systemDiagram(planets: { name: string; track: string; level: number }[]): string {
+  const w = 320, h = 110, cx = 34, cy = 55;
+  const orbits = planets
+    .map((_, i) => {
+      const r = 70 + i * (230 / Math.max(planets.length, 1));
+      return `<path class="orbit" d="M ${cx + r} ${cy - 46} A ${r} 60 0 0 1 ${cx + r} ${cy + 46}" />`;
+    })
+    .join('');
+  const bodies = planets
+    .map((pl, i) => {
+      const x = cx + 70 + i * (230 / Math.max(planets.length, 1));
+      const y = cy + (i % 2 ? 10 : -10);
+      const r = 7 + pl.level * 2.2;
+      return `<g class="planet-body">
+        <circle cx="${x}" cy="${y}" r="${r + 5}" fill="${TRACK_TINT[pl.track]}" opacity="0.18" />
+        <circle cx="${x}" cy="${y}" r="${r}" fill="url(#pl-${pl.track})" stroke="#fff" stroke-width="1.2" />
+        <text x="${x}" y="${y + r + 13}" text-anchor="middle">${pl.name.toLowerCase()}</text>
+      </g>`;
+    })
+    .join('');
+  const grads = Object.entries(TRACK_TINT)
+    .map(([t, c]) => `<radialGradient id="pl-${t}" cx="35%" cy="30%" r="75%"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="${c}"/></radialGradient>`)
+    .join('');
+  return `
+    <svg class="orrery" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+      <defs>
+        ${grads}
+        <radialGradient id="orrery-sun" cx="40%" cy="38%" r="70%"><stop offset="0%" stop-color="#fff"/><stop offset="70%" stop-color="#f4f1ea"/><stop offset="100%" stop-color="#e2ddd2"/></radialGradient>
+      </defs>
+      ${orbits}
+      <circle cx="${cx}" cy="${cy}" r="30" fill="#fff" opacity="0.7" />
+      <circle cx="${cx}" cy="${cy}" r="22" fill="url(#orrery-sun)" stroke="#fff" stroke-width="1.5" />
+      ${bodies}
+    </svg>`;
+}
+
 const ACTION_META: Record<CoreAction, { label: string; art: string }> = {
   solarFlare: { label: 'solar flare', art: 'art-flare' },
   thermosiphon: { label: 'thermosiphon', art: 'art-thermo' },
