@@ -143,6 +143,19 @@ AI games currently average about 11 rounds with 2 players and 11 with 4.
 Alternatives worth playtesting instead: make Solar Flare cheaper than
 Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 
+## The four races [design review, first version]
+
+Each player is one of four alien races. They're cosmetic for now: they set the looming figure behind the battle board and the faction portraits. None is humanoid.
+
+| Race | Form | Colour |
+| --- | --- | --- |
+| Aureline (the player) | Tilted plasma halos around a single unblinking eye, with ribbon arms | Blue |
+| Xel'Naru | A choir of floating crystal shards around a core of light | Rose |
+| Vorthane | A drifting jelly-like bell rimmed with glowing eyes, its tentacles draping over the board | Gold |
+| Ixquor | A branching fungal hive with pulsing nodes and root limbs | Violet |
+
+In battle, the board is a tilted 3D surface at a similar angle to the campaign map. The display cards lie on it, and the viewer's race rises behind its far edge. Art: `src/ui/titans.ts`.
+
 ## Campaign mode [design review, first version]
 
 Universe domination on a map of 48 linked solar systems. They're scattered in loose clusters with open voids between, so neighbours sit at irregular distances and angles. Routes follow a Gabriel graph, which never crosses. Overlong routes are dropped unless they're needed to keep the map connected. The map is a tilted 3D plane: drag to pan, scroll or pinch to zoom. Selecting a system zooms the camera in to show its planets orbiting the star. The player and 1–3 AI factions start in the corners. Everything else is neutral, held by "sentinels" that get stronger towards the middle of the map. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).

@@ -46,6 +46,7 @@ import { cardGlyph, KIND_COLOUR, objectiveGlyph, rewardGlyph } from './glyphs';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { CampaignView, loadCampaign } from './campaign';
+import { SPECIES, titanSvg } from './titans';
 
 type Screen = 'menu' | 'game' | 'campaign';
 type Speed = 'slow' | 'normal' | 'fast';
@@ -179,6 +180,9 @@ export class App {
     },
   });
   private campaignBattle = false;
+  /** The looming figure of the viewer's race: mounted once (like the backdrop) so its motion never restarts. */
+  private titan: HTMLElement;
+  private titanSpecies = -1;
   private seats: MenuSeat[] = [
     { name: 'Commander', isAI: false, enabled: true },
     { name: "Xel'Naru", isAI: true, enabled: true },
@@ -196,6 +200,10 @@ export class App {
     this.preview = document.createElement('div');
     this.preview.className = 'card-preview';
     document.body.appendChild(this.preview);
+    this.titan = document.createElement('div');
+    this.titan.className = 'titan';
+    this.titan.setAttribute('aria-hidden', 'true');
+    document.body.insertBefore(this.titan, root);
 
     // "View board": any overlay can be hidden to look at the board, then brought back.
     this.peekShield = document.createElement('div');
@@ -245,8 +253,9 @@ export class App {
 
   private newGame() {
     const players: PlayerSetup[] = this.seats
+      .map((s, seat) => ({ name: s.name.trim() || 'Unnamed', isAI: s.isAI, enabled: s.enabled, species: seat }))
       .filter((s) => s.enabled)
-      .map((s) => ({ name: s.name.trim() || 'Unnamed', isAI: s.isAI }));
+      .map(({ enabled: _enabled, ...p }) => p);
     this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players, draft: true }));
   }
 
@@ -647,6 +656,19 @@ export class App {
     this.syncPeek();
   }
 
+  /** Show the viewer's race looming over the board during battles; redraw only when the race changes. */
+  private syncTitan() {
+    const me = this.screen === 'game' && this.state ? this.viewer() : null;
+    this.titan.classList.toggle('show', !!me);
+    if (!me) return;
+    const species = me.species ?? 0;
+    if (species !== this.titanSpecies) {
+      this.titanSpecies = species;
+      this.titan.innerHTML = titanSvg(species);
+      this.titan.title = `${SPECIES[species % 4].name}: ${SPECIES[species % 4].blurb}`;
+    }
+  }
+
   /** Show the view-board toggle whenever an overlay is up; drop peeking once none is. */
   private syncPeek() {
     const open = !!this.root.querySelector('.overlay');
@@ -930,6 +952,7 @@ export class App {
   private render() {
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
     document.body.classList.toggle('screen-campaign', this.screen === 'campaign');
+    this.syncTitan();
     if (this.screen === 'campaign') this.campaign.afterRender(this.root);
     this.syncPeek();
     // The backdrop warms (or chills) with the viewer's own sun, not whoever is acting.
@@ -1128,10 +1151,15 @@ export class App {
     const me = activePlayer(s);
     return `
       <section class="display">
-        <div class="section-label" data-anchor="market">display <span>${s.marketDeck.length} left</span></div>
-        <div class="cards">${s.display
-          .map((c, i) => (c ? this.renderCard(c, { slot: i, buyer: me }) : '<div class="card card-empty"></div>'))
-          .join('')}</div>
+        <div class="board3d">
+          <div class="board-plane">
+            <div class="board-floor"></div>
+            <div class="cards">${s.display
+              .map((c, i) => (c ? this.renderCard(c, { slot: i, buyer: me }) : '<div class="card card-empty"></div>'))
+              .join('')}</div>
+          </div>
+        </div>
+        <div class="section-label board-label" data-anchor="market">display <span>${s.marketDeck.length} left</span></div>
       </section>`;
   }
 

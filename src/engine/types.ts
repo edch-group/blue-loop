@@ -166,6 +166,8 @@ export interface PlayerState {
   /** Campaign battles: extra modifiers (anomalies), merged with the system's own. */
   extraModifiers?: SystemModifiers;
   conditions?: { name: string; text: string }[];
+  /** Which of the four alien races this player is (0–3); cosmetic. */
+  species?: number;
 }
 
 export interface LogEntry {
@@ -220,6 +222,8 @@ export interface PlayerSetup {
   extraModifiers?: SystemModifiers;
   /** Campaign battles: what those extra modifiers are, for display ("Nebula: +1 shield…"). */
   conditions?: { name: string; text: string }[];
+  /** Which of the four alien races this player is (0–3); cosmetic. Defaults to the seat order. */
+  species?: number;
 }
 
 export interface OpeningBonus {

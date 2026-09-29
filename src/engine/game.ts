@@ -107,6 +107,7 @@ export function createGame(setup: GameSetup): GameState {
       blockedSinceTurnStart: 0,
       systemOffers: offers,
       opening: ps.opening,
+      species: ps.species ?? i % 4,
     });
     applyCampaignSetup(state.players[i], ps);
   });

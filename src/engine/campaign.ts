@@ -686,6 +686,9 @@ function randomCardChoices(s: CampaignState): string[] {
 // Battles
 // ---------------------------------------------------------------------------
 
+/** Faction f1–f4 are the four alien races, in order. */
+const speciesOf = (factionId: string) => Math.max(0, Number(factionId.slice(1)) - 1) % 4;
+
 /** Neutral sentinels' decks, by tier. */
 function neutralDeck(tier: number): string[] {
   const deck = starterDeck();
@@ -717,6 +720,7 @@ function battleSetup(s: CampaignState, attacker: Faction, from: CampaignNode, ta
   return [
     {
       name: attacker.name,
+      species: speciesOf(attacker.id),
       isAI: attacker.isAI,
       systemId: from.systemId,
       deck: attacker.deck,
@@ -729,6 +733,7 @@ function battleSetup(s: CampaignState, attacker: Faction, from: CampaignNode, ta
       extraModifiers: targetFx?.modifiers,
       conditions: targetFx?.conditions,
       name: owner ? owner.name : `${target.name} Sentinels`,
+      species: owner ? speciesOf(owner.id) : undefined,
       isAI: owner ? owner.isAI : true,
       systemId: target.systemId,
       deck: owner ? owner.deck : neutralDeck(target.tier),
