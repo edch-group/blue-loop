@@ -157,11 +157,18 @@ input { font: inherit; }
 }
 
 /* ---------- Backdrop ---------- */
-.petals { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-.petals ellipse, .petals path { fill: rgba(255, 255, 255, 0.26); stroke: rgba(255, 255, 255, 0.95); stroke-width: 1.4; }
-.petals .petal-inner path { fill: rgba(255, 255, 255, 0.38); stroke-width: 1; }
-.petal-outer { transform-origin: 500px 170px; animation: drift 180s linear infinite; }
-@keyframes drift { to { transform: rotate(360deg); } }
+.backdrop { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.backdrop::after {
+  /* red heat haze that rises with the viewer's sun */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 70% at 50% 20%, rgba(235, 110, 85, 0.55), rgba(235, 110, 85, 0.15) 45%, transparent 75%);
+  opacity: var(--heat-glow, 0);
+}
+.petals { position: absolute; inset: 0; width: 100%; height: 100%; }
+.petals ellipse, .petals path { fill: var(--petal-fill, rgba(255, 255, 255, 0.26)); stroke: var(--petal-stroke, rgba(255, 255, 255, 0.95)); stroke-width: 1.4; }
+.petals .petal-inner path { stroke-width: 1; }
 
 /* ---------- Sun orbs: pearl, with a thin silver heat ring ---------- */
 .orb { position: relative; width: var(--size); height: var(--size); flex: none; }

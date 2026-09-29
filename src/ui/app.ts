@@ -38,7 +38,8 @@ import {
   type PlayerState,
   type RewardId,
 } from '../engine';
-import { actionChip, actionTile, petalBackdrop, roman, sunOrb } from './art';
+import { actionChip, actionTile, roman, sunOrb } from './art';
+import { backdrop } from './backdrop';
 import { anchorRect, flyFrom, ghost, projectile, pulse, snapshot, type Snapshot } from './fx';
 import { cardGlyph, KIND_COLOUR, objectiveGlyph, rewardGlyph } from './glyphs';
 import { sound } from './sound';
@@ -178,6 +179,7 @@ export class App {
   }
 
   start() {
+    backdrop.mount();
     this.render();
   }
 
@@ -268,6 +270,7 @@ export class App {
       return;
     }
     const before = animate ? snapshot(this.root) : null;
+    if (animate) backdrop.spin();
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.state = next;
     this.pending = null;
@@ -751,6 +754,9 @@ export class App {
 
   private render() {
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.renderGame();
+    // The backdrop warms with the viewer's own sun (not whoever is acting).
+    const me = this.screen === 'game' && this.state ? this.viewer() : null;
+    backdrop.setHeat(me && !me.eliminated ? me.heat / supernovaThreshold(me) : 0);
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.fitHand();
     if (!this.press?.shown) this.preview.classList.remove('show');
@@ -797,7 +803,6 @@ export class App {
 
     return `
     <main class="menu">
-      ${petalBackdrop()}
       <div class="title-block">
         <div class="title-sun"></div>
         <h1 class="title">blue loop</h1>
@@ -834,7 +839,6 @@ export class App {
     const s = this.state!;
     return `
       <main class="game">
-        ${petalBackdrop()}
         ${this.renderTop()}
         ${this.renderDisplay()}
         ${this.renderDock()}
