@@ -1113,7 +1113,6 @@ export class App {
       <main class="table-view">
         <div class="game">
           ${this.renderTop()}
-          ${this.renderPlayers()}
           ${this.renderDisplay()}
           ${this.renderLogPanel()}
           ${this.renderDock()}
@@ -1191,6 +1190,7 @@ export class App {
     // Off the table, flat: round and stability top centre; menu and turn controls top right.
     this.hudHtml = `
       <div class="hud">
+        <div class="hud-players">${this.renderPlayers()}</div>
         <div class="hud-round">${this.renderRoundBar()}</div>
         <div class="hud-controls">
           ${globals}
@@ -1287,7 +1287,7 @@ export class App {
         return `
           <button class="objective" data-anchor="obj:${id}" data-act="view-objective" data-arg="${id}">
             <span class="obj-icon">${objectiveGlyph(id)}</span>
-            <span class="obj-name">${esc(o.name.toLowerCase())}</span>
+            <span class="obj-body"><span class="obj-name">${esc(o.name.toLowerCase())}</span><small class="obj-text">${esc(o.text)}</small></span>
             <div class="popover"><b>${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p><p class="muted">First to meet it claims it.</p></div>
           </button>`;
       })
@@ -1298,7 +1298,7 @@ export class App {
         return `
           <button class="objective obj-mission" data-act="view-mission" data-arg="${m.uid}" data-player="${me.id}" style="--kc:${KIND_COLOUR.mission}">
             <span class="obj-icon">${cardGlyph(m.defId, 'mission')}</span>
-            <span class="obj-name">${esc(o.name.toLowerCase())}</span>
+            <span class="obj-body"><span class="obj-name">mission · ${esc(o.name.toLowerCase())}</span><small class="obj-text">${esc(o.text)}</small></span>
             <div class="popover"><b>mission · ${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p></div>
           </button>`;
       })
