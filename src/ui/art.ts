@@ -61,120 +61,65 @@ export function petalBackdrop(): string {
     </svg>`;
 }
 
-const TRACK_TINT: Record<string, string> = {
-  weapons: '#e2a494',
-  defences: '#a3c3df',
-  economy: '#e0cd94',
-  resources: '#abd2b5',
-};
-
-/**
- * A small orrery for a solar system card: the sun on the left, orbit rings,
- * and each planet sized by its level and tinted by its track.
- */
-export function systemDiagram(planets: { name: string; track: string; level: number }[]): string {
-  const w = 320, h = 110, cx = 34, cy = 55;
-  const orbits = planets
-    .map((_, i) => {
-      const r = 70 + i * (230 / Math.max(planets.length, 1));
-      return `<path class="orbit" d="M ${cx + r} ${cy - 46} A ${r} 60 0 0 1 ${cx + r} ${cy + 46}" />`;
-    })
-    .join('');
-  const bodies = planets
-    .map((pl, i) => {
-      const x = cx + 70 + i * (230 / Math.max(planets.length, 1));
-      const y = cy + (i % 2 ? 10 : -10);
-      const r = 7 + pl.level * 2.2;
-      return `<g class="planet-body">
-        <circle cx="${x}" cy="${y}" r="${r + 5}" fill="${TRACK_TINT[pl.track]}" opacity="0.18" />
-        <circle cx="${x}" cy="${y}" r="${r}" fill="url(#pl-${pl.track})" stroke="#fff" stroke-width="1.2" />
-        <text x="${x}" y="${y + r + 13}" text-anchor="middle">${pl.name.toLowerCase()}</text>
-      </g>`;
-    })
-    .join('');
-  const grads = Object.entries(TRACK_TINT)
-    .map(([t, c]) => `<radialGradient id="pl-${t}" cx="35%" cy="30%" r="75%"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="${c}"/></radialGradient>`)
-    .join('');
-  return `
-    <svg class="orrery" viewBox="0 0 ${w} ${h}" aria-hidden="true">
-      <defs>
-        ${grads}
-        <radialGradient id="orrery-sun" cx="40%" cy="38%" r="70%"><stop offset="0%" stop-color="#fff"/><stop offset="70%" stop-color="#f4f1ea"/><stop offset="100%" stop-color="#e2ddd2"/></radialGradient>
-        <radialGradient id="heat-core">
-          <stop offset="0%" class="heat-stop" stop-opacity="0.75" />
-          <stop offset="45%" class="heat-stop" stop-opacity="0.3" />
-          <stop offset="100%" class="heat-stop" stop-opacity="0" />
-        </radialGradient>
-      </defs>
-      ${orbits}
-      <circle cx="${cx}" cy="${cy}" r="30" fill="#fff" opacity="0.7" />
-      <circle cx="${cx}" cy="${cy}" r="22" fill="url(#orrery-sun)" stroke="#fff" stroke-width="1.5" />
-      ${bodies}
-    </svg>`;
-}
-
 const ACTION_META: Record<CoreAction, { label: string; art: string }> = {
   solarFlare: { label: 'solar flare', art: 'art-flare' },
   thermosiphon: { label: 'thermosiphon', art: 'art-thermo' },
   coolingChamber: { label: 'cooling chamber', art: 'art-chamber' },
 };
 
+/** What an upgrade's number means, for each core action. */
+const UPGRADE_POWER: Record<CoreAction, { icon: string; title: string }> = {
+  solarFlare: { icon: '▲', title: 'Extra heat on every attack card effect' },
+  thermosiphon: { icon: '▼', title: 'Extra cooling on every cooling effect' },
+  coolingChamber: { icon: '♥', title: 'Max health (supernova threshold)' },
+};
+
 /**
- * A core action tile. Upgrade slots are frosted shapes that light up when
+ * A core upgrade tile. Upgrade slots are frosted shapes that light up when
  * filled: Solar Flare has three small squares, Thermosiphon one large
  * square, Cooling Chamber three vertical bars.
  */
 export function actionTile(opts: {
   action: CoreAction;
   upgrades: number;
-  /** Money cost (omit for the passive Cooling Chamber). */
-  cost?: number;
-  /** Chip value: heat dealt, cooling, or max health. */
-  power: number;
+  /** The upgrade's effect: bonus heat, bonus cooling, or max health. */
+  power: string;
   enabled: boolean;
   compact?: boolean;
   actAttr?: string;
 }): string {
-  const { action, upgrades, cost, power, enabled } = opts;
+  const { action, upgrades, power, enabled } = opts;
   const meta = ACTION_META[action];
   const max = MAX_UPGRADES[action];
   const slots = Array.from({ length: max }, (_, i) => `<i class="slot slot-${i} ${i < upgrades ? 'filled' : ''}"></i>`).join('');
-  const arc = action === 'solarFlare' ? `<div class="flare-ring" style="--p:${(power / (max + 1)) * 100}%"></div>` : '';
   const attr = opts.actAttr ?? (enabled ? `data-act="${action}"` : 'disabled');
-  const icon = action === 'solarFlare' ? '▲' : action === 'thermosiphon' ? '▼' : '♥';
-  const title = action === 'solarFlare' ? 'Heat dealt per flare' : action === 'thermosiphon' ? 'Cooling per use' : 'Max health (supernova threshold)';
+  const p = UPGRADE_POWER[action];
   return `
     <button class="tile tile-${action} ${opts.compact ? 'tile-compact' : ''}" ${attr}>
       <div class="tile-art ${meta.art}"></div>
-      ${arc}
       <div class="slots slots-${action}">${slots}</div>
-      <div class="tile-chips">
-        ${cost !== undefined ? `<span class="chip-glass" title="Cost">◈${cost}</span>` : ''}
-        <span class="chip-glass" title="${title}">${icon}${power}</span>
-      </div>
+      <div class="tile-chips"><span class="chip-glass" title="${p.title}">${p.icon}${power}</span></div>
       <div class="pill">${meta.label}</div>
     </button>`;
 }
 
 /**
- * Compact action button for the dock rail: a small art thumbnail, the
- * action's current power, its upgrade pips and (if it has one) its cost.
+ * Compact upgrade chip for the dock rail: a small art thumbnail, what the
+ * upgrades add, and its upgrade pips. Tapping it explains the upgrade.
  */
-export function actionChip(opts: { action: CoreAction; upgrades: number; cost?: number; power: number; enabled: boolean; actAttr?: string }): string {
-  const { action, upgrades, cost, power, enabled } = opts;
+export function actionChip(opts: { action: CoreAction; upgrades: number; power: string }): string {
+  const { action, upgrades, power } = opts;
   const meta = ACTION_META[action];
   const max = MAX_UPGRADES[action];
   const pips = Array.from({ length: max }, (_, i) => `<i class="${i < upgrades ? 'on' : ''}"></i>`).join('');
-  const icon = action === 'solarFlare' ? '▲' : action === 'thermosiphon' ? '▼' : '♥';
-  const attr = opts.actAttr ?? (enabled ? `data-act="${action}"` : 'disabled');
+  const p = UPGRADE_POWER[action];
   return `
-    <button class="action-chip chip-${action}" ${attr} title="${meta.label}">
+    <button class="action-chip chip-${action} ${upgrades ? 'chip-upgraded' : ''}" data-act="view-upgrade" data-arg="${action}" title="${meta.label}: ${p.title.toLowerCase()}">
       <span class="chip-art ${meta.art}"></span>
       <span class="chip-body">
-        <span class="chip-power">${icon}${power}</span>
+        <span class="chip-power">${p.icon}${power}</span>
         <span class="chip-pips">${pips}</span>
       </span>
-      ${cost !== undefined ? `<span class="chip-cost">◈${cost}</span>` : '<span class="chip-cost chip-passive">max</span>'}
       <span class="chip-label">${meta.label}</span>
     </button>`;
 }
@@ -185,28 +130,4 @@ export function roman(n: number): string {
   let out = '';
   for (const [v, s] of ROMAN) while (n >= v) { out += s; n -= v; }
   return out;
-}
-
-/**
- * A 3D orrery: the planets circle their star on rings tilted back in perspective,
- * each planet turned to face the viewer (sized by level, tinted by track).
- */
-export function systemOrrery3d(planets: { name: string; track: string; level: number }[]): string {
-  const bodies = planets
-    .map((pl, j) => {
-      const r = 46 + j * 20;
-      const period = 14 + j * 8;
-      const seed = [...pl.name].reduce((a, c) => a + c.charCodeAt(0), 0);
-      const delay = -((seed * 7 + j * 97) % period);
-      const size = 9 + pl.level * 3;
-      return `
-        <i class="o3-ring" style="--r:${r}px"></i>
-        <div class="o3-orbit" style="--t:${period}s;--d:${delay}s">
-          <div class="o3-arm" style="--r:${r}px">
-            <div class="o3-counter"><span class="o3-planet" style="--pc:${TRACK_TINT[pl.track]};--ps:${size}px"><em>${pl.name.toLowerCase()}</em></span></div>
-          </div>
-        </div>`;
-    })
-    .join('');
-  return `<div class="o3" aria-hidden="true"><div class="o3-plane">${bodies}<span class="o3-star"></span></div></div>`;
 }

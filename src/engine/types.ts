@@ -1,173 +1,154 @@
-export type Track = 'weapons' | 'defences' | 'economy' | 'resources';
-export const TRACKS: readonly Track[] = ['weapons', 'defences', 'economy', 'resources'];
+/**
+ * Blue Loop is a tableau card game. Each player brings a 20-card deck (with
+ * exactly 2 Command cards). Cards stay in front of you once played, so their
+ * ongoing effects stack into synergies; you may play 1 card on your first
+ * turn, 2 on your second, and so on up to a cap.
+ */
 
-import type { RewardId } from './objectives';
+/** Card types. They matter for synergies ("your attack cards deal +1 heat"). */
+export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command';
+export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'global', 'command'];
 
-export type CardKind = 'basic' | 'command' | 'economy' | 'attack' | 'defence' | 'global' | 'mission';
+/** The three core upgrades. Command cards raise them; they buff your whole deck. */
+export type CoreAction = 'solarFlare' | 'thermosiphon' | 'coolingChamber';
+export const CORE_ACTIONS: readonly CoreAction[] = ['solarFlare', 'thermosiphon', 'coolingChamber'];
 
-export type GlobalEffectId = 'solarStorm' | 'iceAge' | 'tradeBoom' | 'magneticStorm' | 'solarMaximum' | 'nebulaDrift';
+/** Global cards change the table for everyone while they are in play. Only one can be in play at a time. */
+export type FieldId = 'solarStorm' | 'iceAge' | 'solarMaximum';
 
-export type Effect =
-  | { type: 'money'; amount: number }
+/** A number that grows with your tableau, added on top of an effect's base amount. */
+export type Count =
+  /** Your tableau cards of a kind (this card included), divided by `per` (rounded down). */
+  | { of: 'kind'; kind: CardKind; per?: number }
+  /** Every card in your tableau, divided by `per`. */
+  | { of: 'cards'; per?: number }
+  /** Your upgrades on a core action. */
+  | { of: 'upgrades'; action: CoreAction }
+  /** Your current shields, divided by `per`. */
+  | { of: 'shields'; per?: number }
+  /** This card's growth counter. */
+  | { of: 'growth' };
+
+/** Only resolve an effect when this holds. */
+export type Condition =
+  /** Your sun is at half its max health or hotter. */
+  | { overheated: true }
+  /** You control at least `n` cards of this kind (this one included). */
+  | { minKind: CardKind; n: number }
+  /** You control at least `n` cards. */
+  | { minCards: number }
+  /** You have at least one upgrade on this core action. */
+  | { upgraded: CoreAction };
+
+export type Effect = (
+  /** Heat your target's sun, or every enemy sun. */
+  | { type: 'heat'; amount: number; to: 'target' | 'enemies'; plus?: Count; max?: number; /** Also heat every other enemy by this much (no bonuses). */ splash?: number }
+  /** Heat your own sun (the price of a strong effect). Shields do not stop it. */
+  | { type: 'selfHeat'; amount: number }
+  | { type: 'cool'; amount: number; plus?: Count; max?: number }
+  | { type: 'shield'; amount: number; plus?: Count; max?: number }
   | { type: 'draw'; amount: number }
-  /** Heat one chosen opponent's sun. Needs a target. */
-  | { type: 'heatTarget'; amount: number }
-  | { type: 'heatAllOpponents'; amount: number }
-  /** Heat your own sun (drawback on powerful cards). */
-  | { type: 'heatSelf'; amount: number }
-  | { type: 'cool'; amount: number }
-  | { type: 'shield'; amount: number }
-  /** Upgrade a planet or a core action by a level. Needs an upgrade choice. */
-  | { type: 'command' }
-  | { type: 'global'; effect: GlobalEffectId }
-  /** Put this card in front of you as a personal mission (see MISSIONS). */
-  | { type: 'mission'; objective: string };
+  /** Add 1 to this card's growth counter, up to `max`. */
+  | { type: 'grow'; max: number }
+  /** Command cards: upgrade a core action ('choice': the player picks). */
+  | { type: 'upgrade'; action: CoreAction | 'choice' }
+  /** Destroy a card of your choice in your target's tableau. */
+  | { type: 'destroy' }
+) & { if?: Condition };
+
+export type Passive =
+  /** Heat effects from your cards of this kind deal +amount (optionally not this card's own; optionally only start-of-turn effects). */
+  | { type: 'kindBonus'; kind: CardKind; amount: number; others?: boolean; onTurnOnly?: boolean }
+  /** You may play extra cards each turn. */
+  | { type: 'extraPlay'; amount: number }
+  /** Your shields no longer fade at the start of your turn. */
+  | { type: 'keepShields' }
+  /** When your shields absorb an enemy's heat, heat that enemy's sun. */
+  | { type: 'retaliate'; amount: number }
+  /** Global cards: a table-wide effect. */
+  | { type: 'field'; field: FieldId };
 
 export interface CardDef {
   id: string;
   name: string;
   kind: CardKind;
-  cost: number;
+  /** Which race's card this is (0 Aureline, 1 Xel'Naru, 2 Vorthane, 3 Ixquor); neutral if unset. */
+  race?: number;
   text: string;
-  effects: Effect[];
-  /** Copies in the 200-card market deck (0 for starter-only cards). */
-  copies: number;
-  /**
-   * Leave this card out of games with fewer players. Cards that hit every
-   * enemy are priced for several targets, so they are dropped from 1v1.
-   */
-  minPlayers?: number;
+  /** When played. */
+  onPlay?: Effect[];
+  /** At the start of each of your turns while this card is in your tableau. */
+  onTurn?: Effect[];
+  /** When this card leaves your tableau (replaced or destroyed). */
+  onLeave?: Effect[];
+  /** While this card is in your tableau. */
+  passive?: Passive[];
 }
 
 export interface CardInstance {
   uid: string;
   defId: string;
+  /** Growth counter, for cards that grow. */
+  growth?: number;
 }
 
-export interface Planet {
-  id: string;
-  name: string;
-  track: Track;
-  level: number;
-}
-
-/** The three upgradeable core actions. Solar Flare and Thermosiphon are used with money; Cooling Chamber is passive. */
-export type CoreAction = 'solarFlare' | 'thermosiphon' | 'coolingChamber';
-export const CORE_ACTIONS: readonly CoreAction[] = ['solarFlare', 'thermosiphon', 'coolingChamber'];
-
-/** What a Command card upgrades: a core action, or a planet by its id. */
-export type UpgradeId = CoreAction | string;
-
-export interface SystemModifiers {
-  /** Discount on the first Thermosiphon each turn. */
-  firstThermoDiscount?: number;
-  /** Solar Flare upgrades the system starts with. */
-  startingFlareUpgrades?: number;
-  /** Extra shields every turn. */
-  shieldBonus?: number;
-  /** Extra money every turn. */
-  incomeBonus?: number;
-  /** Sun starts at this temperature instead of the default. */
+/** Battle modifiers from the campaign map (anomalies, garrisons). */
+export interface BattleModifiers {
+  /** Added to the sun's starting heat. */
   startingHeat?: number;
-  /** Extra cards in hand. */
-  handSizeBonus?: number;
-  /** Market cards cost this much less (minimum 1). */
-  marketDiscount?: number;
-  /** +1 money at turn start for every N heat your sun has above 0. */
-  heatIncomeEvery?: number;
-
-  // Drawbacks
-  /** Added to every Solar Flare's cost. */
-  flareCostDelta?: number;
-  /** Added to the first Solar Flare each turn. */
-  firstFlareCostDelta?: number;
-  /** Added to Thermosiphon's cost. */
-  thermoCostDelta?: number;
-  /** Added to all your cooling (Thermosiphon and cooling cards), minimum 1. */
-  coolingDelta?: number;
-  /** Added to max health (supernova threshold). */
+  /** Added to max health. */
   maxHealthDelta?: number;
-  /** Hand size can never exceed this (planets and rewards cannot raise it). */
-  handSizeCap?: number;
-  /** This system cannot use (or upgrade) Thermosiphon. */
-  noThermosiphon?: boolean;
-  /** Your sun heats by this much at the start of each of your turns. */
-  thawPerTurn?: number;
-  /** The thaw stops once your sun reaches this heat (no limit if unset). */
-  thawCeiling?: number;
-}
-
-export interface SolarSystemDef {
-  id: string;
-  name: string;
-  flavor: string;
-  abilityName: string;
-  abilityText: string;
-  /** Every system has a downside to balance its ability. */
-  drawbackText: string;
-  planets: { name: string; track: Track; level: number }[];
-  modifiers: SystemModifiers;
-}
-
-export interface ActiveGlobal {
-  id: GlobalEffectId;
-  sourcePlayerId: string;
-  /** Number of turn starts left before it expires. */
-  turnsRemaining: number;
+  /** Shields gained at the start of every turn. */
+  shieldPerTurn?: number;
+  /** Your sun heats by this much at the start of every turn. */
+  heatPerTurn?: number;
+  /** Your sun cools by this much at the start of every turn. */
+  coolPerTurn?: number;
+  /** Extra cards drawn every turn. */
+  extraDraw?: number;
+  /** Extra cards in the opening hand. */
+  openingHand?: number;
 }
 
 export interface TurnStats {
   heatDealt: number;
-  moneySpent: number;
-  flares: number;
-  thermosiphons: number;
-  cardsBought: number;
   cardsPlayed: number;
   /** Total cooling applied to your own sun this turn. */
   cooled: number;
-}
-
-/** An objective reward waiting for its player to choose. */
-export interface PendingReward {
-  playerId: string;
-  /** What earned it: an objective or mission name, for display. */
-  source: string;
-  options: RewardId[];
 }
 
 export interface PlayerState {
   id: string;
   name: string;
   isAI: boolean;
-  systemId: string;
-  planets: Planet[];
-  /** Upgrade slots filled on each core action. */
-  upgrades: Record<CoreAction, number>;
-  /** Objective rewards taken (each at most once). Permanent ones keep working. */
-  rewards: RewardId[];
-  /** Mission cards in play, waiting for their condition. */
-  missions: CardInstance[];
-  /** During setup: the two systems this player may choose between. */
-  systemOffers?: string[];
+  /** Which of the four alien races this player is (0–3). */
+  species: number;
+  /** The deck's name, for display. */
+  deckName?: string;
   heat: number;
   shields: number;
-  money: number;
+  /** Command upgrades on each core action. */
+  upgrades: Record<CoreAction, number>;
   deck: CardInstance[];
   hand: CardInstance[];
-  inPlay: CardInstance[];
+  /** Cards in play in front of this player, in the order they arrived. */
+  tableau: CardInstance[];
   discard: CardInstance[];
+  /** Command cards played (their upgrades are permanent). */
+  commands: CardInstance[];
   eliminated: boolean;
-  claimedObjectives: string[];
+  /** The rival this player's attacks hit. */
+  targetId: string | null;
+  /** Turns this player has started; sets how many cards they may play. */
+  turnsTaken: number;
+  /** Cards this player may still play this turn. */
+  playsLeft: number;
   turn: TurnStats;
-  /** Heat absorbed by shields since this player's last turn started. */
-  blockedSinceTurnStart: number;
-  /** Campaign head start, used up on this player's first turn. */
-  opening?: OpeningBonus;
-  /** Campaign battles: extra modifiers (anomalies), merged with the system's own. */
-  extraModifiers?: SystemModifiers;
+  /** Rivals this player's Stinging Veil has already stung this turn (the turn number, and who). */
+  stung?: { turn: number; ids: string[] };
+  modifiers?: BattleModifiers;
+  /** What the modifiers are, for display ("Nebula: +1 shield each turn"). */
   conditions?: { name: string; text: string }[];
-  /** Which of the four alien races this player is (0–3); cosmetic. */
-  species?: number;
 }
 
 export interface LogEntry {
@@ -178,29 +159,15 @@ export interface LogEntry {
 }
 
 export interface GameState {
+  /** Rules version, so old saves from the deck-building version are ignored. */
+  version: 2;
   rngState: number;
   uidCounter: number;
   turnNumber: number;
   /** Increments each time play passes back around to the first seat. */
   round: number;
-  /** 'setup' while players choose solar systems; missing means 'play' (older saves). */
-  phase?: 'setup' | 'play';
   activePlayerIndex: number;
   players: PlayerState[];
-  marketDeck: CardInstance[];
-  /** Fixed-size display. `null` marks an empty slot once the market deck runs out. */
-  display: (CardInstance | null)[];
-  /** Market cards that drifted off the display unbought (out of the game). */
-  marketDiscard: CardInstance[];
-  globals: ActiveGlobal[];
-  /** Face-up global objectives, claimable by the first player to meet them. */
-  objectives: string[];
-  /** Global objectives not yet revealed. */
-  objectiveDeck: string[];
-  /** Claimed global objectives, in order. */
-  claimed: { id: string; playerId: string }[];
-  /** Reward choices owed; the first must be resolved before anything else. */
-  pendingRewards: PendingReward[];
   winnerId: string | null;
   log: LogEntry[];
 }
@@ -208,44 +175,38 @@ export interface GameState {
 export interface PlayerSetup {
   name: string;
   isAI: boolean;
-  /** Optional fixed system; otherwise one is drawn at random. */
-  systemId?: string;
-  /** Campaign battles: the exact starting deck, as card ids (default: 9 Stardust + 1 Command Directive). */
+  /** The deck, as card ids (default: the race's starter deck). */
   deck?: string[];
-  /** Campaign battles: extra levels on the system's planets, by planet index. */
-  planetBoosts?: number[];
-  /** Campaign battles: added to the starting heat (damage carried over, or a garrison's attack/cooling). */
-  heatDelta?: number;
-  /** Campaign battles: a one-off head start on this player's first turn (from a garrison). */
-  opening?: OpeningBonus;
-  /** Campaign battles: extra modifiers on top of the system's own (from nearby anomalies). */
-  extraModifiers?: SystemModifiers;
-  /** Campaign battles: what those extra modifiers are, for display ("Nebula: +1 shield…"). */
-  conditions?: { name: string; text: string }[];
-  /** Which of the four alien races this player is (0–3); cosmetic. Defaults to the seat order. */
+  deckName?: string;
+  /** Which of the four alien races this player is (0–3). Defaults to the seat order. */
   species?: number;
-}
-
-export interface OpeningBonus {
-  money?: number;
-  shields?: number;
-  /** Extra cards in the first hand. */
-  draw?: number;
+  /** Campaign battles: heat carried in (damage taken earlier, or a garrison's bombardment). */
+  heatDelta?: number;
+  /** Campaign battles: upgrades the player starts with (from garrisoned Command cards). */
+  upgrades?: Partial<Record<CoreAction, number>>;
+  /** Campaign battles: a one-off head start (from a garrison). */
+  opening?: { shields?: number; draw?: number };
+  /** Campaign battles: cards already in the tableau when the battle starts (a garrison). */
+  tableau?: string[];
+  modifiers?: BattleModifiers;
+  conditions?: { name: string; text: string }[];
 }
 
 export interface GameSetup {
   seed: number;
   players: PlayerSetup[];
-  /** Offer each player two solar systems to choose from (AI players choose at once). */
-  draft?: boolean;
 }
 
 export type Action =
-  | { type: 'playCard'; cardUid: string; targetId?: string; upgradeId?: UpgradeId }
-  | { type: 'playAllMoney' }
-  | { type: 'buyCard'; slot: number }
-  | { type: 'solarFlare'; targetId: string }
-  | { type: 'thermosiphon' }
-  | { type: 'chooseReward'; reward: RewardId; upgradeId?: UpgradeId; slot?: number }
-  | { type: 'chooseSystem'; systemId: string }
+  | {
+      type: 'playCard';
+      cardUid: string;
+      /** Tableau full: the card of yours this one replaces. */
+      replaceUid?: string;
+      /** Command Directive: which core action to upgrade. */
+      upgrade?: CoreAction;
+      /** Destroy effects: the card in your target's tableau to destroy. */
+      destroyUid?: string;
+    }
+  | { type: 'setTarget'; targetId: string }
   | { type: 'endTurn' };

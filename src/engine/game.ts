@@ -1,37 +1,35 @@
 import { BALANCE } from './balance';
-import { cardDef, MARKET_CARDS } from './cards';
-import { FIELD_ROUNDS, GLOBALS, OBJECTIVES, objectiveDef, REWARDS, rewardDef, type RewardId } from './objectives';
-import { randomInt, shuffleInPlace } from './rng';
-import { playerModifiers, SOLAR_SYSTEMS, systemDef } from './systems';
+import { cardDef, presetDeck } from './cards';
+import { shuffleInPlace } from './rng';
 import { CORE_ACTIONS } from './types';
-import type {
-  Action,
-  CoreAction,
-  CardInstance,
-  Effect,
-  GameSetup,
-  GameState,
-  PlayerState,
-  Track,
-  TurnStats,
-  UpgradeId,
-} from './types';
+import type { Action, CardDef, CardInstance, Condition, CoreAction, Count, Effect, FieldId, GameSetup, GameState, Passive, PlayerState, TurnStats } from './types';
 
 export class GameError extends Error {}
 
-const emptyTurn = (): TurnStats => ({ heatDealt: 0, moneySpent: 0, flares: 0, thermosiphons: 0, cardsBought: 0, cardsPlayed: 0, cooled: 0 });
+const emptyTurn = (): TurnStats => ({ heatDealt: 0, cardsPlayed: 0, cooled: 0 });
 
-/** Rewards offered per objective claimed or mission completed. */
-const REWARD_CHOICES = 3;
+export const MAX_UPGRADES: Record<CoreAction, number> = {
+  solarFlare: BALANCE.solarFlareMaxUpgrades,
+  thermosiphon: BALANCE.thermosiphonMaxUpgrades,
+  coolingChamber: BALANCE.coolingChamberMaxUpgrades,
+};
 
-export function hasReward(p: PlayerState, id: RewardId): boolean {
-  return p.rewards.includes(id);
-}
-const bonus = (p: PlayerState, id: RewardId) => (hasReward(p, id) ? 1 : 0);
+export const ACTION_NAME: Record<CoreAction, string> = {
+  solarFlare: 'Solar Flare',
+  thermosiphon: 'Thermosiphon',
+  coolingChamber: 'Cooling Chamber',
+};
+
+/** What each core upgrade does for your deck. */
+export const ACTION_TEXT: Record<CoreAction, string> = {
+  solarFlare: 'Each upgrade: every heat effect from your attack cards deals 1 more heat.',
+  thermosiphon: 'Each upgrade: every cooling effect from your cards cools 1 more.',
+  coolingChamber: `Each upgrade: +${BALANCE.coolingChamberHealthPerUpgrade} max health.`,
+};
 
 function newCard(state: GameState, defId: string): CardInstance {
   state.uidCounter += 1;
-  return { uid: `c${state.uidCounter}`, defId };
+  return { uid: `c${state.uidCounter}`, defId: cardDef(defId).id };
 }
 
 function log(state: GameState, text: string) {
@@ -49,227 +47,63 @@ export function createGame(setup: GameSetup): GameState {
   if (n < BALANCE.minPlayers || n > BALANCE.maxPlayers) {
     throw new GameError(`Blue Loop needs ${BALANCE.minPlayers}-${BALANCE.maxPlayers} players.`);
   }
-
   const state: GameState = {
+    version: 2,
     rngState: setup.seed | 0,
     uidCounter: 0,
     turnNumber: 1,
     round: 1,
     activePlayerIndex: 0,
     players: [],
-    marketDeck: [],
-    display: [],
-    marketDiscard: [],
-    globals: [],
-    objectives: [],
-    objectiveDeck: [],
-    claimed: [],
-    pendingRewards: [],
     winnerId: null,
     log: [],
   };
 
-  // Deal solar systems: honour fixed picks, draw the rest from what is left.
-  const fixed = new Set(setup.players.map((p) => p.systemId).filter(Boolean));
-  const pool = shuffleInPlace(state, SOLAR_SYSTEMS.map((s) => s.id).filter((id) => !fixed.has(id)));
-
+  const catchUp = (i: number) => i > 0 && n <= BALANCE.catchUpMaxPlayers;
   setup.players.forEach((ps, i) => {
-    // Drafting: two offers each (8 systems covers 4 players); play starts once all have chosen.
-    const offers = setup.draft && !ps.systemId ? [pool.pop()!, pool.pop()!] : undefined;
-    const sys = systemDef(ps.systemId ?? offers?.[0] ?? pool.pop()!);
-    const deck: CardInstance[] = [];
-    if (ps.deck) for (const id of ps.deck) deck.push(newCard(state, cardDef(id).id));
-    else {
-      for (let k = 0; k < BALANCE.startingBasicCards; k++) deck.push(newCard(state, 'stardust'));
-      for (let k = 0; k < BALANCE.startingCommandCards; k++) deck.push(newCard(state, 'command_directive'));
-    }
-    shuffleInPlace(state, deck);
-
-    state.players.push({
+    const species = ps.species ?? i % 4;
+    const list = ps.deck ?? presetDeck(species).cards;
+    const deck = shuffleInPlace(state, list.map((id) => newCard(state, id)));
+    const upgrades = { solarFlare: 0, thermosiphon: 0, coolingChamber: 0 };
+    for (const a of CORE_ACTIONS) upgrades[a] = Math.min(MAX_UPGRADES[a], ps.upgrades?.[a] ?? 0);
+    const p: PlayerState = {
       id: `p${i + 1}`,
       name: ps.name,
       isAI: ps.isAI,
-      systemId: sys.id,
-      planets: sys.planets.map((pl, j) => ({ id: `p${i + 1}-pl${j}`, ...pl })),
-      upgrades: { solarFlare: sys.modifiers.startingFlareUpgrades ?? 0, thermosiphon: 0, coolingChamber: 0 },
-      rewards: [],
-      missions: [],
-      heat: sys.modifiers.startingHeat ?? BALANCE.startingHeat,
-      shields: 0,
-      money: 0,
+      species,
+      deckName: ps.deckName ?? (ps.deck ? undefined : presetDeck(species).name),
+      heat: BALANCE.startingHeat + (ps.heatDelta ?? 0) + (ps.modifiers?.startingHeat ?? 0) - (catchUp(i) ? BALANCE.laterSeatCool : 0),
+      shields: ps.opening?.shields ?? 0,
+      upgrades,
       deck,
       hand: [],
-      inPlay: [],
+      tableau: [],
       discard: [],
+      commands: [],
       eliminated: false,
-      claimedObjectives: [],
+      targetId: null,
+      turnsTaken: 0,
+      playsLeft: 0,
       turn: emptyTurn(),
-      blockedSinceTurnStart: 0,
-      systemOffers: offers,
-      opening: ps.opening,
-      species: ps.species ?? i % 4,
-    });
-    applyCampaignSetup(state.players[i], ps);
+      modifiers: ps.modifiers,
+      conditions: ps.conditions,
+    };
+    p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
+    for (const id of (ps.tableau ?? []).slice(0, BALANCE.tableauSlots)) if (persists(id)) p.tableau.push(newCard(state, id));
+    state.players.push(p);
+    // Later seats start a little ahead to make up for moving second.
+    drawCards(state, p, BALANCE.openingHand + (catchUp(i) ? BALANCE.laterSeatCards : 0) + (ps.modifiers?.openingHand ?? 0) + (ps.opening?.draw ?? 0));
   });
-  // AI players pick at once.
-  for (const p of state.players) {
-    if (p.isAI && p.systemOffers) {
-      applySystem(p, p.systemOffers[randomInt(state, 2)]);
-      p.systemOffers = undefined;
-    }
-  }
+  for (const p of state.players) p.targetId = nextOpponent(state, p)?.id ?? null;
 
-  for (const def of marketCardsFor(n)) {
-    for (let k = 0; k < def.copies; k++) state.marketDeck.push(newCard(state, def.id));
-  }
-  shuffleInPlace(state, state.marketDeck);
-  for (let s = 0; s < BALANCE.displaySize; s++) state.display.push(state.marketDeck.pop() ?? null);
-
-  state.objectiveDeck = shuffleInPlace(state, OBJECTIVES.map((o) => o.id));
-  state.objectives = state.objectiveDeck.splice(0, BALANCE.objectivesPerGame);
-
-  state.phase = 'setup';
-  finishSetupIfReady(state);
+  log(state, `A new Blue Loop begins with ${state.players.map((p) => p.name).join(', ')}.`);
+  startTurn(state);
   return state;
 }
 
-/** Campaign battles: planet upgrades bought on the map and heat carried in. */
-function applyCampaignSetup(p: PlayerState, ps: GameSetup['players'][number]) {
-  if (ps.extraModifiers) {
-    p.extraModifiers = ps.extraModifiers;
-    p.conditions = ps.conditions;
-  }
-  ps.planetBoosts?.forEach((boost, j) => {
-    const pl = p.planets[j];
-    if (pl) pl.level = Math.min(BALANCE.maxPlanetLevel, pl.level + boost);
-  });
-  if (ps.heatDelta) p.heat = Math.max(BALANCE.minHeat, Math.min(supernovaThreshold(p) - 1, p.heat + ps.heatDelta));
-}
-
-/** Give a player a solar system: its planets, starting upgrades and starting heat. */
-function applySystem(p: PlayerState, systemId: string) {
-  const sys = systemDef(systemId);
-  p.systemId = sys.id;
-  p.planets = sys.planets.map((pl, j) => ({ id: `${p.id}-pl${j}`, ...pl }));
-  p.upgrades = { solarFlare: sys.modifiers.startingFlareUpgrades ?? 0, thermosiphon: 0, coolingChamber: 0 };
-  p.heat = sys.modifiers.startingHeat ?? BALANCE.startingHeat;
-}
-
-/** Players still to choose a system (humans only; AI choose at creation). */
-export function pendingSystemChoices(state: GameState): PlayerState[] {
-  return state.players.filter((p) => p.systemOffers?.length);
-}
-
-/** During setup the "active" seat is the next player to choose; once all have, play begins. */
-function finishSetupIfReady(state: GameState) {
-  const next = pendingSystemChoices(state)[0];
-  if (next) {
-    state.activePlayerIndex = state.players.indexOf(next);
-    return;
-  }
-  state.phase = 'play';
-  state.activePlayerIndex = 0;
-  log(state, `A new game begins. ${state.players.map((p) => `${p.name} rules ${systemDef(p.systemId).name}`).join('; ')}.`);
-  for (const p of state.players) for (const c of p.conditions ?? []) log(state, `${c.name} affects ${p.name}: ${c.text}`);
-  startTurn(state);
-}
-
-/** The market cards used for a given player count (multi-target cards need 3+). */
-export function marketCardsFor(playerCount: number) {
-  return MARKET_CARDS.filter((d) => (d.minPlayers ?? 0) <= playerCount);
-}
-
 // ---------------------------------------------------------------------------
-// Derived values
+// Queries
 // ---------------------------------------------------------------------------
-
-export function trackLevel(p: PlayerState, track: Track): number {
-  return p.planets.filter((pl) => pl.track === track).reduce((s, pl) => s + pl.level, 0);
-}
-
-const mods = (p: PlayerState) => playerModifiers(p);
-
-export function handSizeFor(p: PlayerState): number {
-  const mods = playerModifiers(p);
-  const size = BALANCE.handSize + (mods.handSizeBonus ?? 0) + trackLevel(p, 'resources') * BALANCE.resourceCardsPerLevel + bonus(p, 'wide_sensors');
-  return Math.min(size, mods.handSizeCap ?? Infinity);
-}
-
-export function incomeFor(p: PlayerState): number {
-  const mods = playerModifiers(p);
-  let income = trackLevel(p, 'economy') * BALANCE.economyIncomePerLevel + (mods.incomeBonus ?? 0) + bonus(p, 'stellar_mint');
-  if (mods.heatIncomeEvery && p.heat > 0) income += Math.floor(p.heat / mods.heatIncomeEvery);
-  return income;
-}
-
-export function shieldsFor(p: PlayerState): number {
-  const mods = playerModifiers(p);
-  return trackLevel(p, 'defences') * BALANCE.shieldsPerDefenceLevel + (mods.shieldBonus ?? 0) + bonus(p, 'aegis_lattice');
-}
-
-/** The active field (global effect), if any, and who set it. */
-export function activeField(state: GameState) {
-  return state.globals.find((g) => g.turnsRemaining > 0) ?? null;
-}
-
-export function flareCost(state: GameState, p: PlayerState): number {
-  const first = p.turn.flares === 0;
-  const focus = first ? bonus(p, 'flare_focus') : 0;
-  const field = activeField(state);
-  const magnetic = field?.id === 'magneticStorm' ? 1 : 0;
-  const drawback = (mods(p).flareCostDelta ?? 0) + (first ? mods(p).firstFlareCostDelta ?? 0 : 0);
-  // Each upgrade adds +1 heat and +1 cost: the core actions are money sinks, never as efficient as bought cards.
-  const upgrades = p.upgrades.solarFlare * BALANCE.solarFlareCostPerUpgrade;
-  return Math.max(1, BALANCE.solarFlareCost + upgrades + magnetic + drawback - focus);
-}
-
-export function flareHeat(p: PlayerState, state?: GameState): number {
-  const maximum = state && activeField(state)?.id === 'solarMaximum' ? 1 : 0;
-  return BALANCE.solarFlareHeat + p.upgrades.solarFlare + maximum;
-}
-
-export function thermoCost(p: PlayerState): number {
-  const discount = p.turn.thermosiphons === 0 ? mods(p).firstThermoDiscount ?? 0 : 0;
-  return Math.max(0, BALANCE.thermosiphonCost - discount + (mods(p).thermoCostDelta ?? 0));
-}
-
-export function thermoCool(p: PlayerState): number {
-  return Math.max(1, BALANCE.thermosiphonCool + p.upgrades.thermosiphon + bonus(p, 'deep_coolant') + (mods(p).coolingDelta ?? 0));
-}
-
-export const MAX_UPGRADES: Record<CoreAction, number> = {
-  solarFlare: BALANCE.solarFlareMaxUpgrades,
-  thermosiphon: BALANCE.thermosiphonMaxUpgrades,
-  coolingChamber: BALANCE.coolingChamberMaxUpgrades,
-};
-
-export const ACTION_NAME: Record<CoreAction, string> = {
-  solarFlare: 'Solar Flare',
-  thermosiphon: 'Thermosiphon',
-  coolingChamber: 'Cooling Chamber',
-};
-
-/** Max health: the heat at which this player's sun goes supernova. */
-export function supernovaThreshold(p: PlayerState): number {
-  return BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade + (mods(p).maxHealthDelta ?? 0);
-}
-
-/** Enemy shields your heat ignores, from weapon planets. */
-export function shieldPierce(p: PlayerState): number {
-  return trackLevel(p, 'weapons') * BALANCE.piercePerWeaponLevel;
-}
-
-export function marketCost(p: PlayerState, defId: string, state?: GameState): number {
-  const nebula = state && activeField(state)?.id === 'nebulaDrift' ? 1 : 0;
-  const discount = (mods(p).marketDiscount ?? 0) + nebula;
-  return Math.max(1, cardDef(defId).cost - discount);
-}
-
-/** Heat every sun takes at the start of its turn this round (0 before instability begins). */
-export function instabilityHeat(state: GameState): number {
-  if (state.round < BALANCE.instabilityStartsRound) return 0;
-  return 1 + Math.floor((state.round - BALANCE.instabilityStartsRound) / BALANCE.instabilityRampEvery);
-}
 
 export function activePlayer(state: GameState): PlayerState {
   return state.players[state.activePlayerIndex];
@@ -279,53 +113,181 @@ export function livingOpponents(state: GameState, p: PlayerState): PlayerState[]
   return state.players.filter((o) => o.id !== p.id && !o.eliminated);
 }
 
-export function cardNeedsTarget(defId: string): boolean {
-  return cardDef(defId).effects.some((e) => e.type === 'heatTarget');
+/** The next living rival after this player, in seat order. */
+function nextOpponent(state: GameState, p: PlayerState): PlayerState | undefined {
+  const n = state.players.length;
+  const start = state.players.indexOf(p);
+  for (let k = 1; k < n; k++) {
+    const o = state.players[(start + k) % n];
+    if (!o.eliminated) return o;
+  }
+  return undefined;
 }
 
-export function cardNeedsUpgrade(defId: string): boolean {
-  return cardDef(defId).effects.some((e) => e.type === 'command');
+/** The rival this player's attacks hit (falls back to the next living rival). */
+export function targetOf(state: GameState, p: PlayerState): PlayerState | undefined {
+  const t = state.players.find((o) => o.id === p.targetId);
+  if (t && !t.eliminated && t.id !== p.id) return t;
+  return nextOpponent(state, p);
 }
 
-export function upgradeablePlanets(p: PlayerState) {
-  return p.planets.filter((pl) => pl.level < BALANCE.maxPlanetLevel);
+/** Max health: reach it and your sun goes supernova. */
+export function supernovaThreshold(p: PlayerState): number {
+  return BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade + (p.modifiers?.maxHealthDelta ?? 0);
 }
 
-/** Everything a Command card could upgrade right now. */
-export function upgradeOptions(p: PlayerState): UpgradeId[] {
-  const actions = CORE_ACTIONS.filter((a) => p.upgrades[a] < MAX_UPGRADES[a] && !(a === 'thermosiphon' && mods(p).noThermosiphon));
-  return [...actions, ...upgradeablePlanets(p).map((pl) => pl.id)];
+/** Half your max health or hotter. */
+export function isOverheated(p: PlayerState): boolean {
+  return p.heat * 2 >= supernovaThreshold(p);
+}
+
+/** Heat every sun takes at the start of its turn this round (0 before instability begins). */
+export function instabilityHeat(state: GameState): number {
+  if (state.round < BALANCE.instabilityStartsRound) return 0;
+  return 1 + Math.floor((state.round - BALANCE.instabilityStartsRound) / BALANCE.instabilityRampEvery);
+}
+
+function passives(p: PlayerState): { card: CardInstance; passive: Passive }[] {
+  return p.tableau.flatMap((card) => (cardDef(card.defId).passive ?? []).map((passive) => ({ card, passive })));
+}
+
+/** Cards this player may play on a turn (before any have been played). */
+export function playsAllowed(state: GameState, p: PlayerState): number {
+  const extra = passives(p).reduce((sum, { passive }) => sum + (passive.type === 'extraPlay' ? passive.amount : 0), 0);
+  // Later seats get an extra play on their first turn to make up for moving second.
+  const catchUp = p.turnsTaken === 1 && state.players.indexOf(p) > 0 && state.players.length <= BALANCE.catchUpMaxPlayers ? BALANCE.laterSeatPlays : 0;
+  return Math.min(p.turnsTaken, BALANCE.maxPlays) + extra + catchUp;
+}
+
+export function tableauFull(p: PlayerState): boolean {
+  return p.tableau.length >= BALANCE.tableauSlots;
+}
+
+/** The global card in play, if any, and whose tableau it is in. */
+export function activeGlobal(state: GameState): { card: CardInstance; owner: PlayerState } | null {
+  for (const owner of state.players) {
+    if (owner.eliminated) continue;
+    const card = owner.tableau.find((c) => cardDef(c.defId).kind === 'global');
+    if (card) return { card, owner };
+  }
+  return null;
+}
+
+function fieldActive(state: GameState, field: FieldId): boolean {
+  const g = activeGlobal(state);
+  return !!g && (cardDef(g.card.defId).passive ?? []).some((ps) => ps.type === 'field' && ps.field === field);
+}
+
+export function cardNeedsDestroyTarget(defId: string): boolean {
+  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'destroy');
+}
+
+export function cardNeedsUpgradeChoice(defId: string): boolean {
+  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'upgrade' && e.action === 'choice');
+}
+
+/** Core actions that can still be upgraded. */
+export function upgradeOptions(p: PlayerState): CoreAction[] {
+  return CORE_ACTIONS.filter((a) => p.upgrades[a] < MAX_UPGRADES[a]);
+}
+
+/** Whether a card persists in the tableau when played (everything but Command cards). */
+export function persists(defId: string): boolean {
+  return cardDef(defId).kind !== 'command';
+}
+
+function countOf(p: PlayerState, card: CardInstance, c: Count): number {
+  const per = 'per' in c && c.per ? c.per : 1;
+  switch (c.of) {
+    case 'kind':
+      return Math.floor(p.tableau.filter((t) => cardDef(t.defId).kind === c.kind).length / per);
+    case 'cards':
+      return Math.floor(p.tableau.length / per);
+    case 'upgrades':
+      return p.upgrades[c.action];
+    case 'shields':
+      return Math.floor(p.shields / per);
+    case 'growth':
+      return card.growth ?? 0;
+  }
+}
+
+export function conditionMet(p: PlayerState, cond: Condition | undefined): boolean {
+  if (!cond) return true;
+  if ('overheated' in cond) return isOverheated(p);
+  if ('minKind' in cond) return p.tableau.filter((t) => cardDef(t.defId).kind === cond.minKind).length >= cond.n;
+  if ('upgraded' in cond) return p.upgrades[cond.upgraded] > 0;
+  return p.tableau.length >= cond.minCards;
+}
+
+/**
+ * How much an effect does right now, with every bonus: the card's scaling,
+ * Solar Flare or Thermosiphon upgrades, attack bonuses and Solar Maximum.
+ * Bonuses only apply to an effect that does something on its own.
+ */
+export function effectAmount(state: GameState, p: PlayerState, card: CardInstance, e: Effect, when: Timing = 'play'): number {
+  if (e.type !== 'heat' && e.type !== 'cool' && e.type !== 'shield' && e.type !== 'selfHeat' && e.type !== 'draw') return 0;
+  let base = e.amount;
+  if ((e.type === 'heat' || e.type === 'cool' || e.type === 'shield') && e.plus) base += countOf(p, card, e.plus);
+  if ((e.type === 'heat' || e.type === 'cool' || e.type === 'shield') && e.max !== undefined) base = Math.min(base, e.max);
+  if (base <= 0) return 0;
+  if (e.type === 'heat') {
+    const kind = cardDef(card.defId).kind;
+    // Solar Flare upgrades power attacks; bonus cards count once per card name (copies do not stack).
+    let bonus = kind === 'attack' ? p.upgrades.solarFlare : 0;
+    const counted = new Set<string>();
+    for (const { card: src, passive } of passives(p)) {
+      if (passive.type !== 'kindBonus' || passive.kind !== kind || (passive.others && src.uid === card.uid) || (passive.onTurnOnly && when !== 'turn') || counted.has(src.defId)) continue;
+      counted.add(src.defId);
+      bonus += passive.amount;
+    }
+    if (fieldActive(state, 'solarMaximum')) bonus += 1;
+    return base + bonus;
+  }
+  if (e.type === 'cool') return base + p.upgrades.thermosiphon;
+  return base;
 }
 
 // ---------------------------------------------------------------------------
-// Core mechanics
+// Rules
 // ---------------------------------------------------------------------------
 
 function drawCards(state: GameState, p: PlayerState, count: number) {
   for (let i = 0; i < count; i++) {
-    if (p.deck.length === 0) {
-      if (p.discard.length === 0) return;
-      p.deck = shuffleInPlace(state, p.discard);
-      p.discard = [];
+    const card = p.deck.pop();
+    if (card) p.hand.push(card);
+    else {
+      log(state, `${p.name}'s deck is empty: the strain heats their sun by ${BALANCE.fatigueHeat}.`);
+      applyHeat(state, p, BALANCE.fatigueHeat, null);
+      if (p.eliminated) return;
     }
-    p.hand.push(p.deck.pop()!);
   }
 }
 
-/** Heat a sun, shields first. Returns heat actually applied to the sun. */
-function applyHeat(state: GameState, target: PlayerState, amount: number, source: PlayerState | null): number {
+/** Heat a sun. Enemy heat is absorbed by shields first. Returns the heat that got through. */
+function applyHeat(state: GameState, target: PlayerState, amount: number, source: PlayerState | null, retaliation = false, cardUid?: string): number {
   if (target.eliminated || amount <= 0) return 0;
   const enemy = source !== null && source.id !== target.id;
-  const usableShields = enemy ? Math.max(0, target.shields - shieldPierce(source)) : 0;
-  const blocked = Math.min(usableShields, amount);
+  const blocked = enemy ? Math.min(target.shields, amount) : 0;
   target.shields -= blocked;
-  target.blockedSinceTurnStart += blocked;
   const applied = amount - blocked;
   target.heat = Math.max(BALANCE.minHeat, target.heat + applied);
   if (enemy) source.turn.heatDealt += amount;
   if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat.`);
   if (applied > 0) log(state, `${target.name}'s sun heats to ${target.heat}.`);
   if (target.heat >= supernovaThreshold(target)) supernova(state, target);
+  // Stinging Veil: shields that absorbed an enemy's heat sting back.
+  if (enemy && blocked > 0 && !retaliation && !target.eliminated) {
+    const sting = passives(target).reduce((sum, { passive }) => sum + (passive.type === 'retaliate' ? passive.amount : 0), 0);
+    // At most once per attacking card each turn.
+    const key = cardUid ?? source.id;
+    if (target.stung?.turn !== state.turnNumber) target.stung = { turn: state.turnNumber, ids: [] };
+    if (sting > 0 && !target.stung.ids.includes(key)) {
+      target.stung.ids.push(key);
+      log(state, `${target.name}'s veil stings ${source.name} for ${sting}.`);
+      applyHeat(state, source, sting, target, true);
+    }
+  }
   return applied;
 }
 
@@ -339,7 +301,10 @@ function cool(state: GameState, p: PlayerState, amount: number) {
 function supernova(state: GameState, p: PlayerState) {
   if (p.eliminated) return;
   p.eliminated = true;
-  log(state, `☀ ${p.name}'s sun goes SUPERNOVA! ${systemDef(p.systemId).name} is lost.`);
+  log(state, `☀ ${p.name}'s sun goes SUPERNOVA!`);
+  // Their tableau burns away with them (without triggering anything).
+  p.discard.push(...p.tableau);
+  p.tableau = [];
   const alive = state.players.filter((o) => !o.eliminated);
   if (alive.length === 1) {
     state.winnerId = alive[0].id;
@@ -347,391 +312,201 @@ function supernova(state: GameState, p: PlayerState) {
   }
 }
 
-function spend(p: PlayerState, amount: number) {
-  if (p.money < amount) throw new GameError(`Not enough money (need ${amount}, have ${p.money}).`);
-  p.money -= amount;
-  p.turn.moneySpent += amount;
+/** When an effect resolves: as its card is played, at the start of its owner's turn, or as it leaves play. */
+export type Timing = 'play' | 'turn' | 'leave';
+
+interface PlayContext {
+  upgrade?: CoreAction;
+  destroyUid?: string;
+}
+
+function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, effects: Effect[] | undefined, when: Timing, ctx: PlayContext = {}) {
+  for (const e of effects ?? []) {
+    if (state.winnerId || p.eliminated) return;
+    if (!conditionMet(p, e.if)) continue;
+    switch (e.type) {
+      case 'heat': {
+        const amount = effectAmount(state, p, card, e, when);
+        if (amount <= 0) break;
+        const main = targetOf(state, p);
+        const targets = e.to === 'enemies' ? livingOpponents(state, p) : main ? [main] : [];
+        const others = e.splash ? livingOpponents(state, p).filter((o) => o.id !== main?.id) : [];
+        for (const t of targets) applyHeat(state, t, amount, p, false, card.uid);
+        for (const t of others) applyHeat(state, t, e.splash!, p, false, card.uid);
+        break;
+      }
+      case 'selfHeat':
+        applyHeat(state, p, e.amount, null);
+        break;
+      case 'cool': {
+        const amount = effectAmount(state, p, card, e, when);
+        if (amount > 0) cool(state, p, amount);
+        break;
+      }
+      case 'shield': {
+        const amount = effectAmount(state, p, card, e, when);
+        if (amount > 0) {
+          p.shields += amount;
+          log(state, `${p.name} raises ${amount} shield${amount === 1 ? '' : 's'}.`);
+        }
+        break;
+      }
+      case 'draw':
+        drawCards(state, p, e.amount);
+        break;
+      case 'grow':
+        card.growth = Math.min(e.max, (card.growth ?? 0) + 1);
+        break;
+      case 'upgrade': {
+        const action = e.action === 'choice' ? ctx.upgrade : e.action;
+        if (!action || p.upgrades[action] >= MAX_UPGRADES[action]) {
+          log(state, `${p.name}'s ${e.action === 'choice' ? 'upgrades' : ACTION_NAME[e.action]} are already at their limit.`);
+          break;
+        }
+        p.upgrades[action] += 1;
+        log(state, `${p.name} upgrades ${ACTION_NAME[action]} to level ${p.upgrades[action]}.`);
+        break;
+      }
+      case 'destroy': {
+        const t = targetOf(state, p);
+        const victim = t?.tableau.find((c) => c.uid === ctx.destroyUid);
+        if (t && victim) {
+          log(state, `${p.name} destroys ${t.name}'s ${cardDef(victim.defId).name}.`);
+          leaveTableau(state, t, victim);
+        }
+        break;
+      }
+    }
+  }
+}
+
+/** A card leaves its tableau for the discard pile, triggering its leave effects. */
+function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance) {
+  owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
+  card.growth = undefined;
+  owner.discard.push(card);
+  resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
 }
 
 function startTurn(state: GameState) {
   const p = activePlayer(state);
+  p.turnsTaken += 1;
   p.turn = emptyTurn();
-  p.blockedSinceTurnStart = 0;
+  log(state, `— Turn ${state.turnNumber}: ${p.name}.`);
 
-  // 0. Draw a fresh hand. Hands are drawn when your turn begins, not when the
-  // previous one ends, so nothing arrives while opponents are playing.
-  const opening = p.opening;
-  p.opening = undefined;
-  drawCards(state, p, handSizeFor(p) + (opening?.draw ?? 0));
+  // Shields fade, unless Deep Current holds them.
+  const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
+  p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
 
-  // 1. Gain resources (plus a campaign garrison's one-off head start).
-  p.money = incomeFor(p) + (opening?.money ?? 0);
-  p.shields = shieldsFor(p) + (opening?.shields ?? 0);
-  log(state, `— Turn ${state.turnNumber}: ${p.name} (+${p.money} money, ${p.shields} shields).`);
+  // Draw (your opening hand covers your first turn).
+  if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0));
+  if (p.eliminated) return passOn(state);
 
-  // 2. Resolve global effects. An effect stays listed (and passive ones like
-  // Magnetic Storm stay active) through its last turn, and expires here.
-  state.globals = state.globals.filter((g) => g.turnsRemaining > 0);
-  for (const g of state.globals) {
-    if (!GLOBALS[g.id].affectsCaster && g.sourcePlayerId === p.id) continue;
-    switch (g.id) {
-      case 'solarStorm':
-        log(state, `Solar Storm batters ${p.name}.`);
-        applyHeat(state, p, 1, null);
-        break;
-      case 'iceAge':
-        cool(state, p, 1);
-        break;
-      case 'tradeBoom':
-        p.money += 1;
-        break;
-      case 'magneticStorm':
-      case 'solarMaximum':
-      case 'nebulaDrift':
-        break; // Passive: read by flareCost / flareHeat / marketCost.
-    }
+  // The table: instability, the map's modifiers, then any global card.
+  const unstable = instabilityHeat(state);
+  if (unstable > 0) {
+    log(state, `Stellar instability heats ${p.name}'s sun by ${unstable}.`);
+    applyHeat(state, p, unstable, null);
   }
-  for (const g of state.globals) g.turnsRemaining -= 1;
-
-  // 2b. System drawbacks that tick each turn (e.g. Cryon Drift thawing).
-  const ceiling = mods(p).thawCeiling ?? Infinity;
-  const thaw = Math.max(0, Math.min(mods(p).thawPerTurn ?? 0, ceiling - p.heat));
-  if (thaw > 0 && !p.eliminated) {
-    log(state, `${p.name}'s frozen sun thaws by ${thaw}.`);
-    applyHeat(state, p, thaw, null);
+  const m = p.modifiers;
+  if (m?.heatPerTurn) applyHeat(state, p, m.heatPerTurn, null);
+  if (m?.coolPerTurn) cool(state, p, m.coolPerTurn);
+  if (m?.shieldPerTurn) p.shields += m.shieldPerTurn;
+  if (fieldActive(state, 'solarStorm')) {
+    log(state, `Solar Storm batters ${p.name}.`);
+    applyHeat(state, p, 1, null);
   }
+  if (fieldActive(state, 'iceAge')) cool(state, p, 1);
 
-  // 3. Stellar Instability (late-game clock).
-  const instability = instabilityHeat(state);
-  if (instability > 0 && !p.eliminated) {
-    log(state, `Stellar Instability: ${p.name}'s sun heats by ${instability}.`);
-    applyHeat(state, p, instability, null);
+  // Your tableau's start-of-turn effects, oldest card first.
+  for (const card of [...p.tableau]) {
+    if (state.winnerId || p.eliminated) break;
+    if (!p.tableau.includes(card)) continue;
+    resolveEffects(state, p, card, cardDef(card.defId).onTurn, 'turn');
   }
-
-  if (p.eliminated && !state.winnerId) advanceTurn(state);
-  else if (!state.winnerId) checkObjectives(state, p);
+  p.playsLeft = playsAllowed(state, p);
+  if (p.eliminated) passOn(state);
 }
 
-function endTurn(state: GameState) {
-  const p = activePlayer(state);
-  p.discard.push(...p.inPlay, ...p.hand);
-  p.inPlay = [];
-  p.hand = [];
-  p.money = 0;
-  advanceTurn(state);
+/** The active player's sun went supernova on their own turn: play moves on. */
+function passOn(state: GameState) {
+  if (!state.winnerId) advanceTurn(state);
 }
 
 function advanceTurn(state: GameState) {
   if (state.winnerId) return;
   do {
     state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
-    if (state.activePlayerIndex === 0) {
-      state.round += 1;
-      driftDisplay(state);
-    }
+    if (state.activePlayerIndex === 0) state.round += 1;
   } while (activePlayer(state).eliminated);
   state.turnNumber += 1;
   startTurn(state);
 }
 
-/**
- * Global objectives go to the first player to meet them; missions belong to
- * whoever played them. Both are checked after every action on your turn.
- */
-/**
- * After every full round the display drifts: the leftmost card is discarded,
- * the rest slide one place left, and the empty right-hand slot is refilled.
- */
-function driftDisplay(state: GameState) {
-  const [gone, ...rest] = state.display;
-  if (gone) {
-    (state.marketDiscard ??= []).push(gone);
-    log(state, `The display drifts: ${cardDef(gone.defId).name} is discarded.`);
-  }
-  state.display = [...rest, state.marketDeck.pop() ?? null];
-}
+function playCard(state: GameState, p: PlayerState, action: Extract<Action, { type: 'playCard' }>) {
+  const card = p.hand.find((c) => c.uid === action.cardUid);
+  if (!card) throw new GameError('That card is not in your hand.');
+  if (p.playsLeft <= 0) throw new GameError('You have no plays left this turn.');
+  const def: CardDef = cardDef(card.defId);
 
-/** Take a card out of the display: the cards to its right slide left and the
- *  replacement joins at the end, so it is always the last to drift away. */
-function takeFromDisplay(state: GameState, slot: number) {
-  const rest = state.display.filter((_, i) => i !== slot);
-  const cards = rest.filter((c) => c);
-  const gaps = rest.length - cards.length;
-  state.display = [...cards, ...Array(gaps).fill(null), state.marketDeck.pop() ?? null];
-}
-
-function checkObjectives(state: GameState, p: PlayerState) {
-  if (p.eliminated || state.winnerId) return;
-  for (const id of [...state.objectives]) {
-    const obj = objectiveDef(id);
-    if (!obj.isMet(p)) continue;
-    state.objectives = state.objectives.filter((o) => o !== id);
-    const next = state.objectiveDeck.shift();
-    if (next) state.objectives.push(next);
-    state.claimed.push({ id, playerId: p.id });
-    p.claimedObjectives.push(id);
-    log(state, `★ ${p.name} claims the objective "${obj.name}".`);
-    queueReward(state, p, obj.name);
+  if (cardNeedsUpgradeChoice(def.id) && upgradeOptions(p).length > 0) {
+    if (!action.upgrade || !upgradeOptions(p).includes(action.upgrade)) throw new GameError('Choose an upgrade.');
   }
-  for (const card of [...p.missions]) {
-    const mission = missionOf(card.defId);
-    const obj = objectiveDef(mission);
-    if (!obj.isMet(p)) continue;
-    p.missions = p.missions.filter((m) => m.uid !== card.uid); // completed missions leave the game
-    log(state, `★ ${p.name} completes the mission "${obj.name}".`);
-    queueReward(state, p, obj.name);
+  const target = targetOf(state, p);
+  if (cardNeedsDestroyTarget(def.id) && target && target.tableau.length > 0) {
+    if (!target.tableau.some((c) => c.uid === action.destroyUid)) throw new GameError(`Choose a card in ${target.name}'s tableau to destroy.`);
   }
-}
+  const replacing = persists(def.id) && tableauFull(p);
+  const replaced = replacing ? p.tableau.find((c) => c.uid === action.replaceUid) : undefined;
+  if (replacing && !replaced) throw new GameError('Your tableau is full: choose a card to replace.');
 
-export function missionOf(defId: string): string {
-  const e = cardDef(defId).effects.find((ef) => ef.type === 'mission');
-  if (!e || e.type !== 'mission') throw new Error(`${defId} is not a mission card`);
-  return e.objective;
-}
-
-/** Rewards this player could still be offered right now. */
-export function availableRewards(state: GameState, p: PlayerState): RewardId[] {
-  return REWARDS.map((r) => r.id).filter((id) => {
-    if (hasReward(p, id)) return false;
-    if (id === 'command') return upgradeOptions(p).length > 0;
-    if (id === 'requisition') return state.display.some(Boolean);
-    return true;
-  });
-}
-
-function queueReward(state: GameState, p: PlayerState, source: string) {
-  const options = shuffleInPlace(state, availableRewards(state, p)).slice(0, REWARD_CHOICES);
-  if (options.length === 0) {
-    log(state, `${p.name} has already taken every reward.`);
-    return;
-  }
-  state.pendingRewards.push({ playerId: p.id, source, options });
-}
-
-function applyUpgrade(state: GameState, p: PlayerState, upgradeId: UpgradeId) {
-  if ((CORE_ACTIONS as readonly string[]).includes(upgradeId)) {
-    const a = upgradeId as CoreAction;
-    p.upgrades[a] += 1;
-    const extra = a === 'coolingChamber' ? ` Max health is now ${supernovaThreshold(p)}.` : '';
-    log(state, `${p.name} upgrades ${ACTION_NAME[a]} (${p.upgrades[a]}/${MAX_UPGRADES[a]}).${extra}`);
-    return;
-  }
-  const planet = p.planets.find((pl) => pl.id === upgradeId)!;
-  planet.level += 1;
-  log(state, `${p.name} upgrades ${planet.name} (${planet.track}) to level ${planet.level}.`);
-}
-
-function chooseReward(state: GameState, action: Extract<Action, { type: 'chooseReward' }>) {
-  const pending = state.pendingRewards[0];
-  if (!pending) throw new GameError('There is no reward to choose.');
-  if (!pending.options.includes(action.reward)) throw new GameError('That reward is not on offer.');
-  const p = state.players.find((pl) => pl.id === pending.playerId)!;
-  const def = rewardDef(action.reward);
-  if (def.needs === 'upgrade' && (action.upgradeId === undefined || !upgradeOptions(p).includes(action.upgradeId))) {
-    throw new GameError('Choose an action or planet that can still be upgraded.');
-  }
-  if (def.needs === 'slot' && (action.slot === undefined || !state.display[action.slot])) {
-    throw new GameError('Choose a card from the display.');
-  }
-  state.pendingRewards.shift();
-  p.rewards.push(action.reward);
-  log(state, `${p.name} takes the reward ${def.name}.`);
-  switch (action.reward) {
-    case 'command':
-      applyUpgrade(state, p, action.upgradeId!);
-      break;
-    case 'requisition': {
-      const card = state.display[action.slot!]!;
-      p.discard.push(card);
-      takeFromDisplay(state, action.slot!);
-      log(state, `${p.name} requisitions ${cardDef(card.defId).name}.`);
-      break;
-    }
-    case 'purge': {
-      let removed = 0;
-      for (const pile of [p.discard, p.deck]) {
-        for (let i = pile.length - 1; i >= 0 && removed < 2; i--) {
-          if (pile[i].defId === 'stardust') {
-            pile.splice(i, 1);
-            removed++;
-          }
-        }
-      }
-      log(state, `${p.name} purges ${removed} Stardust.`);
-      break;
-    }
-    case 'vent':
-      cool(state, p, 4);
-      break;
-    default:
-      break; // Permanent rewards work through the derived values above.
-  }
-}
-
-function resolveEffect(state: GameState, p: PlayerState, e: Effect, targetId?: string, upgradeId?: UpgradeId) {
-  switch (e.type) {
-    case 'money':
-      p.money += e.amount;
-      break;
-    case 'draw':
-      drawCards(state, p, e.amount);
-      break;
-    case 'heatTarget':
-      applyHeat(state, requireTarget(state, p, targetId), e.amount + bonus(p, 'plasma_focus'), p);
-      break;
-    case 'heatAllOpponents':
-      for (const o of livingOpponents(state, p)) applyHeat(state, o, e.amount + bonus(p, 'plasma_focus'), p);
-      break;
-    case 'heatSelf':
-      applyHeat(state, p, e.amount, null);
-      break;
-    case 'cool':
-      cool(state, p, Math.max(1, e.amount + bonus(p, 'deep_coolant') + (mods(p).coolingDelta ?? 0)));
-      break;
-    case 'mission':
-      break; // Handled in playCard: the card moves to the player's missions.
-    case 'shield':
-      p.shields += e.amount;
-      break;
-    case 'command': {
-      if (upgradeOptions(p).length === 0) {
-        log(state, `${p.name} has nothing left to upgrade.`);
-        break;
-      }
-      applyUpgrade(state, p, upgradeId!);
-      break;
-    }
-    case 'global': {
-      // Sets the field: replaces any current one and lasts FIELD_ROUNDS full
-      // rounds, i.e. that many turn starts for every living player.
-      const living = state.players.filter((o) => !o.eliminated).length;
-      const replaced = activeField(state);
-      state.globals = [{ id: e.effect, sourcePlayerId: p.id, turnsRemaining: living * FIELD_ROUNDS }];
-      log(
-        state,
-        `${p.name} brings ${GLOBALS[e.effect].name}${replaced && replaced.id !== e.effect ? `, ending ${GLOBALS[replaced.id].name}` : ''}: ${GLOBALS[e.effect].text}`,
-      );
-      break;
-    }
-  }
-}
-
-function requireTarget(state: GameState, p: PlayerState, targetId?: string): PlayerState {
-  const t = state.players.find((o) => o.id === targetId);
-  if (!t || t.id === p.id || t.eliminated) throw new GameError('Choose a living enemy sun to target.');
-  return t;
-}
-
-function playCard(state: GameState, p: PlayerState, cardUid: string, targetId?: string, upgradeId?: UpgradeId) {
-  const idx = p.hand.findIndex((c) => c.uid === cardUid);
-  if (idx < 0) throw new GameError('That card is not in your hand.');
-  const card = p.hand[idx];
-  const def = cardDef(card.defId);
-  // Validate choices before changing anything, so a bad action leaves no trace.
-  if (cardNeedsTarget(def.id)) requireTarget(state, p, targetId);
-  if (cardNeedsUpgrade(def.id)) {
-    const options = upgradeOptions(p);
-    if (options.length > 0 && (upgradeId === undefined || !options.includes(upgradeId))) {
-      throw new GameError('Choose an action or planet that can still be upgraded.');
-    }
-  }
-  p.hand.splice(idx, 1);
+  p.hand = p.hand.filter((c) => c.uid !== card.uid);
+  p.playsLeft -= 1;
   p.turn.cardsPlayed += 1;
   log(state, `${p.name} plays ${def.name}.`);
-  if (def.kind === 'mission') {
-    p.missions.push(card);
+
+  if (!persists(def.id)) {
+    p.commands.push(card);
+    resolveEffects(state, p, card, def.onPlay, 'play', action);
     return;
   }
-  p.inPlay.push(card);
-  for (const e of def.effects) {
-    if (state.winnerId || p.eliminated) break;
-    resolveEffect(state, p, e, targetId, upgradeId);
+  if (replaced) {
+    log(state, `${cardDef(replaced.defId).name} makes way.`);
+    leaveTableau(state, p, replaced);
+    if (state.winnerId || p.eliminated) return;
   }
+  // Only one global card on the table: a new one sweeps the old away.
+  if (def.kind === 'global') {
+    const old = activeGlobal(state);
+    if (old) {
+      log(state, `${def.name} replaces ${cardDef(old.card.defId).name}.`);
+      leaveTableau(state, old.owner, old.card);
+    }
+  }
+  p.tableau.push(card);
+  resolveEffects(state, p, card, def.onPlay, 'play', action);
 }
 
-// ---------------------------------------------------------------------------
-// Public reducer
-// ---------------------------------------------------------------------------
-
-/**
- * Apply an action for the active player and return the new state.
- * Input state is never mutated; invalid actions throw GameError.
- */
+/** Apply an action and return the new state (the input is never mutated). */
 export function applyAction(prev: GameState, action: Action): GameState {
-  if (isGameOver(prev)) throw new GameError('The game is over.');
-  if (prev.phase === 'setup') return chooseSystem(prev, action);
-  if (action.type === 'chooseSystem') throw new GameError('Solar systems have already been chosen.');
-  if (prev.pendingRewards.length && action.type !== 'chooseReward') {
-    throw new GameError('Choose your objective reward first.');
-  }
+  if (prev.winnerId) throw new GameError('The game is over.');
   const state = structuredClone(prev);
   const p = activePlayer(state);
-
   switch (action.type) {
-    case 'chooseReward':
-      chooseReward(state, action);
-      break;
     case 'playCard':
-      playCard(state, p, action.cardUid, action.targetId, action.upgradeId);
+      playCard(state, p, action);
+      if (p.eliminated) passOn(state);
       break;
-    case 'playAllMoney': {
-      const pure = p.hand.filter((c) => cardDef(c.defId).effects.every((e) => e.type === 'money'));
-      for (const c of pure) playCard(state, p, c.uid);
-      break;
-    }
-    case 'buyCard': {
-      const card = state.display[action.slot];
-      if (!card) throw new GameError('That display slot is empty.');
-      const cost = marketCost(p, card.defId, state);
-      spend(p, cost);
-      p.discard.push(card);
-      p.turn.cardsBought += 1;
-      takeFromDisplay(state, action.slot);
-      log(state, `${p.name} buys ${cardDef(card.defId).name} for ${cost}.`);
-      break;
-    }
-    case 'solarFlare': {
-      const target = requireTarget(state, p, action.targetId);
-      spend(p, flareCost(state, p));
-      const heat = flareHeat(p, state);
-      p.turn.flares += 1;
-      log(state, `${p.name} launches a Solar Flare at ${target.name} (${heat} heat).`);
-      applyHeat(state, target, heat, p);
-      break;
-    }
-    case 'thermosiphon': {
-      if (mods(p).noThermosiphon) throw new GameError(`${systemDef(p.systemId).name} cannot use Thermosiphon.`);
-      if (p.heat <= BALANCE.minHeat) throw new GameError(`Your sun cannot be cooled below ${BALANCE.minHeat}.`);
-      spend(p, thermoCost(p));
-      p.turn.thermosiphons += 1;
-      log(state, `${p.name} runs the Thermosiphon.`);
-      cool(state, p, thermoCool(p));
+    case 'setTarget': {
+      const t = state.players.find((o) => o.id === action.targetId);
+      if (!t || t.eliminated || t.id === p.id) throw new GameError('Choose a living rival to target.');
+      p.targetId = t.id;
       break;
     }
     case 'endTurn':
-      endTurn(state);
-      return state;
+      advanceTurn(state);
+      break;
   }
-
-  // A player who supernovas on their own turn (e.g. Dyson Tap) ends it at once.
-  if (p.eliminated && !state.winnerId) {
-    state.pendingRewards = [];
-    endTurn(state);
-    return state;
-  }
-  checkObjectives(state, p);
-  return state;
-}
-
-function chooseSystem(prev: GameState, action: Action): GameState {
-  if (action.type !== 'chooseSystem') throw new GameError('Choose your solar system first.');
-  const state = structuredClone(prev);
-  const p = activePlayer(state);
-  if (!p.systemOffers?.includes(action.systemId)) throw new GameError('That solar system is not on offer.');
-  applySystem(p, action.systemId);
-  p.systemOffers = undefined;
-  log(state, `${p.name} chooses ${systemDef(action.systemId).name}.`);
-  finishSetupIfReady(state);
   return state;
 }
 

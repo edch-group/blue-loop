@@ -5,8 +5,10 @@ import {
   CAMPAIGN,
   campaignPlayer,
   createCampaign,
+  deckProblems,
   garrisonBonus,
   GameError,
+  armoryPrice,
   nodeById,
   ownedNodes,
   type CampaignState,
@@ -40,7 +42,8 @@ describe('campaign setup', () => {
     for (const f of s.factions) expect(ownedNodes(s, f.id)).toHaveLength(1);
     // Links are symmetric.
     for (const n of s.nodes) for (const l of n.links) expect(nodeById(s, l).links).toContain(n.id);
-    expect(campaignPlayer(s).deck).toHaveLength(CAMPAIGN.deckSize);
+    for (const f of s.factions) expect(deckProblems(f.deck)).toEqual([]);
+    expect(new Set(s.factions.map((f) => f.race)).size).toBe(4);
     expect(campaignPlayer(s).missions).toHaveLength(CAMPAIGN.activeMissions);
   });
 
@@ -66,7 +69,7 @@ describe('battles and conquest', () => {
     s = applyCampaignAction(s, { type: 'attack', fromId: home(s).id, toId: target });
     expect(s.battle?.nodeId).toBe(target);
     expect(s.battle?.game.players[0].isAI).toBe(false);
-    expect(s.battle!.game.players[0].deck.length + s.battle!.game.players[0].hand.length).toBe(10);
+    expect(s.battle!.game.players[0].deck.length + s.battle!.game.players[0].hand.length).toBe(20);
     s = settle(s);
     const again = attackOptions(s, s.playerId)[0];
     if (again && !s.winner && s.turn === 1) {
@@ -113,60 +116,73 @@ describe('battles and conquest', () => {
 describe('garrisons', () => {
   it('cards take a turn to arrive and a turn to return, and cannot be redirected mid-move', () => {
     let s = fresh();
-    s.factions[0].reserve.push('stellar_credits');
+    s.factions[0].reserve.push('bell_warden');
     const h = home(s).id;
-    s = applyCampaignAction(s, { type: 'station', nodeId: h, from: 'reserve', index: 0 });
+    s = applyCampaignAction(s, { type: 'station', nodeId: h, index: 0 });
     const g = nodeById(s, h).garrison[0];
     expect(g.status).toBe('arriving');
-    expect(garrisonBonus(nodeById(s, h)).opening.money).toBe(0);
+    expect(garrisonBonus(nodeById(s, h)).tableau).toEqual([]);
     expect(() => applyCampaignAction(s, { type: 'recall', nodeId: h, uid: g.uid })).toThrow(GameError);
     s = settle(applyCampaignAction(s, { type: 'endTurn' }));
     if (nodeById(s, h).owner !== s.playerId) return; // lost the home system to an AI attack: nothing more to check
     expect(nodeById(s, h).garrison[0].status).toBe('stationed');
-    expect(garrisonBonus(nodeById(s, h)).opening.money).toBe(2);
+    expect(garrisonBonus(nodeById(s, h)).tableau).toEqual(['bell_warden']);
     s = applyCampaignAction(s, { type: 'recall', nodeId: h, uid: g.uid });
     expect(nodeById(s, h).garrison[0].status).toBe('leaving');
     s = settle(applyCampaignAction(s, { type: 'endTurn' }));
     if (nodeById(s, h).owner !== s.playerId) return;
     expect(nodeById(s, h).garrison).toHaveLength(0);
-    expect(campaignPlayer(s).reserve).toContain('stellar_credits');
+    expect(campaignPlayer(s).reserve).toContain('bell_warden');
   });
 
-  it('turns each stationed card into a head start for the defender', () => {
-    const s = fresh();
+  it('puts stationed cards in the defender\'s tableau, and Command cards become upgrades', () => {
+    let s = fresh();
     const n = home(s);
     n.garrison = [
-      { uid: 'a', defId: 'coronal_lance', status: 'stationed' },
-      { uid: 'b', defId: 'cryo_vault', status: 'stationed' },
+      { uid: 'a', defId: 'plasma_relay', status: 'stationed' },
+      { uid: 'b', defId: 'chamber_protocol', status: 'stationed' },
       { uid: 'c', defId: 'deflector_grid', status: 'leaving' },
     ];
     const b = garrisonBonus(n);
-    expect(b.bombard).toBe(2);
-    expect(b.chill).toBe(2);
-    expect(b.opening.shields).toBe(0); // leaving cards no longer defend
+    expect(b.tableau).toEqual(['plasma_relay']); // leaving cards no longer defend
+    expect(b.upgrades).toEqual({ coolingChamber: 1 });
+    // Attack a garrisoned system: its defender starts with the garrison in play.
+    const target = nodeById(s, attackOptions(s, s.playerId)[0].toId);
+    target.garrison = n.garrison;
+    n.garrison = [];
+    s = applyCampaignAction(s, { type: 'attack', fromId: n.id, toId: target.id });
+    const defender = s.battle!.game.players[1];
+    expect(defender.tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
+    expect(defender.upgrades.coolingChamber).toBe(1);
   });
 
-  it('Stardust cannot garrison; the deck always holds 10 cards', () => {
+  it('only garrisons reserve cards, and keeps the deck legal when swapping', () => {
     let s = fresh();
-    expect(() => applyCampaignAction(s, { type: 'station', nodeId: home(s).id, from: 'deck', index: 0 })).toThrow(GameError);
-    const slot = campaignPlayer(s).deck.indexOf('command_directive');
-    s = applyCampaignAction(s, { type: 'station', nodeId: home(s).id, from: 'deck', index: slot });
-    expect(campaignPlayer(s).deck).toHaveLength(10);
-    expect(campaignPlayer(s).deck[slot]).toBe('stardust');
+    const f = campaignPlayer(s);
+    f.reserve.push('ice_age', 'helio_lancer', 'command_directive');
+    expect(() => applyCampaignAction(s, { type: 'station', nodeId: home(s).id, index: 0 })).toThrow(/garrison/);
+    // Swapping a Command card out for a normal card would leave the deck one Command short.
+    const cmd = f.deck.indexOf('command_directive');
+    expect(() => applyCampaignAction(s, { type: 'deckSwap', slot: cmd, reserveIndex: 1 })).toThrow(/Command/);
+    s = applyCampaignAction(s, { type: 'deckSwap', slot: 0, reserveIndex: 1 });
+    expect(campaignPlayer(s).deck[0]).toBe('helio_lancer');
+    expect(campaignPlayer(s).reserve).toContain(f.deck[0]);
+    expect(deckProblems(campaignPlayer(s).deck)).toEqual([]);
   });
 });
 
 describe('economy', () => {
-  it('upgrades cards with materials and planets with credits', () => {
+  it('buys cards with materials and fortifies systems with credits', () => {
     let s = fresh();
-    s = applyCampaignAction(s, { type: 'upgradeCard', from: 'deck', index: 0 });
-    expect(campaignPlayer(s).deck[0]).toBe('stellar_credits');
-    expect(campaignPlayer(s).materials).toBe(CAMPAIGN.startMaterials - 2);
-    const h = home(s);
-    const planet = h.boosts.findIndex((_, j) => j >= 0);
-    s = applyCampaignAction(s, { type: 'upgradePlanet', nodeId: h.id, planet });
-    expect(home(s).boosts[planet]).toBe(1);
-    expect(campaignPlayer(s).credits).toBe(CAMPAIGN.startCredits - CAMPAIGN.upgradeBaseCost);
+    const id = s.armory[0];
+    const price = armoryPrice(id);
+    s.factions[0].materials = 10;
+    s = applyCampaignAction(s, { type: 'buyCard', slot: 0 });
+    expect(campaignPlayer(s).reserve).toContain(id);
+    expect(campaignPlayer(s).materials).toBe(10 - price);
+    s = applyCampaignAction(s, { type: 'fortify', nodeId: home(s).id });
+    expect(home(s).fortification).toBe(1);
+    expect(campaignPlayer(s).credits).toBe(CAMPAIGN.startCredits - CAMPAIGN.fortifyBaseCost);
   });
 });
 
@@ -195,7 +211,7 @@ describe('anomalies', () => {
       for (const a of s.anomalies!) expect(s.nodes.some((n) => nodeAnomalies(s, n).includes(a))).toBe(true);
       for (const n of s.nodes.filter((x) => x.home)) expect(nodeAnomalies(s, n)).toHaveLength(0);
     }
-    // A battle fought from inside a nebula gets its shield bonus.
+    // A battle fought for a system inside a nebula gives its defender the nebula's shields.
     let s = fresh(2);
     const target = s.nodes.find((n) => nodeAnomalies(s, n).some((a) => a.kind === 'nebula'))!;
     const home = ownedNodes(s, s.playerId)[0];
@@ -203,7 +219,7 @@ describe('anomalies', () => {
     home.links.push(target.id);
     s = applyCampaignAction(s, { type: 'attack', fromId: home.id, toId: target.id });
     const defender = s.battle!.game.players[1];
-    expect(defender.extraModifiers?.shieldBonus).toBeGreaterThanOrEqual(ANOMALIES.nebula.modifiers.shieldBonus!);
+    expect(defender.modifiers?.shieldPerTurn).toBeGreaterThanOrEqual(ANOMALIES.nebula.modifiers.shieldPerTurn!);
     expect(defender.conditions?.map((c) => c.name)).toContain('Nebula');
   });
 });

@@ -8,56 +8,49 @@ export const BALANCE = {
 
   /** Sun temperature bounds. Reaching `supernovaAt` (raised by Cooling Chamber upgrades) eliminates a player. */
   startingHeat: 0,
-  minHeat: -10,
-  supernovaAt: 10,
+  minHeat: -5,
+  supernovaAt: 30,
 
-  /** Starting deck: 9 basic cards + 1 command card. */
-  startingBasicCards: 9,
-  startingCommandCards: 1,
-  handSize: 5,
+  /** Decks: exactly this many cards, at most `maxCopies` of each, exactly `commandCards` Command cards. */
+  deckSize: 20,
+  maxCopies: 2,
+  commandCards: 2,
 
-  /** Market display. */
-  displaySize: 3,
+  /** Cards in the opening hand, and drawn at the start of each turn after the first. */
+  openingHand: 5,
+  drawPerTurn: 2,
+  /** Seats after the first: extra cards in the opening hand, and extra plays on their first turn. */
+  laterSeatCards: 1,
+  laterSeatPlays: 1,
+  /** Seats after the first also start with a cooler sun. */
+  laterSeatCool: 2,
+  /** The catch-up only applies in games with at most this many players (in bigger games everyone but the leader gangs up anyway). */
+  catchUpMaxPlayers: 2,
+  /** Drawing from an empty deck heats your sun instead (unblockable). */
+  fatigueHeat: 2,
 
-  /**
-   * The two core actions, usable every turn as often as money allows.
-   * Each upgrade makes the action 1 more effective.
-   */
-  solarFlareCost: 2,
-  solarFlareHeat: 1,
-  solarFlareMaxUpgrades: 3, // max 4 heat per flare
-  /** Each Solar Flare upgrade also raises its cost: 2 / 3 / 4 / 5 money for 1 / 2 / 3 / 4 heat. */
-  solarFlareCostPerUpgrade: 1,
-  thermosiphonCost: 2,
-  thermosiphonCool: 1,
-  thermosiphonMaxUpgrades: 1, // max 2 cooling per use
-  /** Cooling Chamber: passive. Each upgrade raises your supernova threshold (max health). */
+  /** You may play as many cards as turns you have taken, up to this cap (before extra-play cards). */
+  maxPlays: 4,
+  /** Tableau slots. A card played into a full tableau replaces one of yours. */
+  tableauSlots: 8,
+  /** Kept shields (Deep Current) never exceed this. */
+  maxKeptShields: 12,
+
+  /** Command upgrades. Solar Flare: +1 heat on every heat effect. Thermosiphon: +1 on every cooling effect. */
+  solarFlareMaxUpgrades: 3,
+  thermosiphonMaxUpgrades: 3,
+  /** Cooling Chamber: each upgrade raises max health. */
   coolingChamberMaxUpgrades: 3,
-  coolingChamberHealthPerUpgrade: 5, // 10 → 15 → 20 → 25
-
-  /** Planet upgrades. */
-  maxPlanetLevel: 3,
-  /** +1 money at turn start per economy level. */
-  economyIncomePerLevel: 1,
-  /** Every planet level counts: each one adds its track's bonus once. */
-  /** +1 hand size per resource level. */
-  resourceCardsPerLevel: 1,
-  /** +1 shield (refreshed each turn) per defence level. */
-  shieldsPerDefenceLevel: 1,
-  /** Your heat ignores 1 enemy shield per weapon level. */
-  piercePerWeaponLevel: 1,
+  coolingChamberHealthPerUpgrade: 6,
 
   /**
    * Stellar Instability: the late-game clock that guarantees games end.
    * From this round on, every sun heats at the start of its turn (unblockable).
    * It stacks: +1 in the first unstable round, +1 more every round after.
    */
-  instabilityStartsRound: 8,
+  instabilityStartsRound: 10,
   instabilityRampEvery: 1,
 
   /** Log entries kept in game state (older ones are dropped). */
   maxLogEntries: 200,
-
-  /** Number of public objectives drawn each game. */
-  objectivesPerGame: 3,
 } as const;

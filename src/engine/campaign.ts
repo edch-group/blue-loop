@@ -7,40 +7,38 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
-import { cardDef, MARKET_CARDS } from './cards';
+import { CARDS, cardDef, deckProblems, RACE_NAMES } from './cards';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
-import { mergeModifiers, SOLAR_SYSTEMS, systemDef } from './systems';
-import type { GameState, OpeningBonus, PlayerSetup, SystemModifiers } from './types';
+import type { BattleModifiers, CoreAction, GameState, PlayerSetup } from './types';
 
 // ---------------------------------------------------------------------------
 // Tuning
 // ---------------------------------------------------------------------------
 
 export const CAMPAIGN = {
-  /** Battle decks are always exactly this many cards. Empty slots hold Stardust. */
-  deckSize: 10,
-  /** Cards a system can hold as its garrison. */
+  /** Cards a system can hold as its garrison. They start its defence already in play. */
   garrisonSlots: 3,
   startCredits: 6,
   startMaterials: 6,
   /** Credits to repair one point of damage on a system. */
-  healCostPerPoint: 2,
-  /** Credits for +1 level on a system's planet: base + per level already bought. */
-  upgradeBaseCost: 4,
-  upgradeCostPerLevel: 4,
+  healCostPerPoint: 1,
+  /** Fortifying a system: each level gives its defender extra max health. Credits: base + per level already built. */
+  maxFortification: 3,
+  fortifyBaseCost: 4,
+  fortifyCostPerLevel: 4,
+  fortifyHealth: 4,
   /** Absorb pays this many turns of the system's yield at once. */
   absorbTurns: 3,
   /** Armory offers refreshed each turn; buying costs the card's price + this, in materials. */
   armorySize: 3,
   armoryMarkup: 1,
-  /** Garrison attack and cooling are capped so a battle is never decided before it starts. */
-  maxBombard: 4,
-  maxChill: 5,
+  /** Neutral sentinels' suns start this much hotter, by tier (the outer systems are the easiest to take). */
+  sentinelHeat: [5, 2, 0],
   /** Damage cap on a system (added to its sun's starting heat in battles). */
-  maxDamage: 6,
+  maxDamage: 9,
   /** Damage an attacker's home system takes when the attack is repelled. */
-  repelledDamage: 3,
+  repelledDamage: 4,
   /** Rewards for winning a battle. */
   winCredits: 3,
   winMaterials: 2,
@@ -67,19 +65,14 @@ export const CAMPAIGN = {
   battleActionCap: 6000,
 } as const;
 
-/** Upgrading a card in your collection turns it into a stronger one. Costs the new card's price in materials. */
-export const CARD_UPGRADES: Record<string, string> = {
-  stardust: 'stellar_credits',
-  stellar_credits: 'trade_convoy',
-  trade_convoy: 'dyson_tap',
-  coolant_array: 'cryo_vault',
-  gravity_sling: 'coronal_lance',
-  coronal_lance: 'starbreaker',
-  command_directive: 'strategic_directive',
-  deep_scanners: 'asteroid_mining',
-};
+/** Armory prices in materials: race cards cost more than neutral ones. */
+export const ARMORY_PRICE = { neutral: 3, race: 5, global: 4, command: 4 } as const;
 
-export const FACTION_NAMES = ['Commander', "Xel'Naru", 'Vorthane', 'Ixquor'];
+/** A planet orbiting a map system (cosmetic; the tint names its colour). */
+export interface MapPlanet {
+  name: string;
+  tint: 'weapons' | 'defences' | 'economy' | 'resources';
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,11 +92,11 @@ export interface CampaignNode {
   /** Map position, within MAP_WIDTH × MAP_HEIGHT. */
   x: number;
   y: number;
-  systemId: string;
+  planets: MapPlanet[];
   owner: string | null;
   links: string[];
-  /** Planet levels bought on the map, by planet index. */
-  boosts: number[];
+  /** Fortification levels built (0–3): extra max health for its defender. */
+  fortification: number;
   /** Damage carried between battles; heats this system's sun at the start of each battle here. */
   damage: number;
   garrison: GarrisonCard[];
@@ -123,7 +116,7 @@ export interface AnomalyDef {
   name: string;
   /** What it does to battles fought from a system within its reach. */
   text: string;
-  modifiers: SystemModifiers;
+  modifiers: BattleModifiers;
   /** Reach, in map units. */
   radius: number;
 }
@@ -133,29 +126,29 @@ export const ANOMALIES: Record<AnomalyKind, AnomalyDef> = {
   blackHole: {
     kind: 'blackHole',
     name: 'Black Hole',
-    text: 'Its gravity well drinks heat: +3 max health, but your hand is 1 card smaller.',
-    modifiers: { maxHealthDelta: 3, handSizeBonus: -1 },
+    text: 'Its gravity well drinks heat: +5 max health, but your opening hand is 1 card smaller.',
+    modifiers: { maxHealthDelta: 5, openingHand: -1 },
     radius: 150,
   },
   nebula: {
     kind: 'nebula',
     name: 'Nebula',
-    text: 'Hidden in the gas: +1 shield every turn, but display cards cost you 1 more.',
-    modifiers: { shieldBonus: 1, marketDiscount: -1 },
+    text: 'Hidden in the gas: +1 shield every turn, but your sun starts 3 hotter.',
+    modifiers: { shieldPerTurn: 1, startingHeat: 3 },
     radius: 175,
   },
   darkMatter: {
     kind: 'darkMatter',
     name: 'Dark Matter Cluster',
-    text: 'Unseen mass to mine: +1 money every turn, but Thermosiphon costs 1 more.',
-    modifiers: { incomeBonus: 1, thermoCostDelta: 1 },
+    text: 'Unseen mass to mine: draw 1 extra card every turn, but your sun heats by 1 every turn.',
+    modifiers: { extraDraw: 1, heatPerTurn: 1 },
     radius: 150,
   },
   pulsar: {
     kind: 'pulsar',
     name: 'Pulsar',
-    text: 'Its beam charges your weapons: your first Solar Flare each turn costs 1 less, but your sun heats by 1 each turn until it reaches 3.',
-    modifiers: { firstFlareCostDelta: -1, thawPerTurn: 1, thawCeiling: 3 },
+    text: 'Its steady beam steadies your sun: it cools by 1 every turn, but you have 4 less max health.',
+    modifiers: { coolPerTurn: 1, maxHealthDelta: -4 },
     radius: 150,
   },
 };
@@ -167,6 +160,13 @@ export interface Anomaly {
   y: number;
 }
 
+/** Add two sets of battle modifiers together. */
+export function mergeModifiers(a: BattleModifiers, b: BattleModifiers): BattleModifiers {
+  const out: BattleModifiers = { ...a };
+  for (const [k, v] of Object.entries(b) as [keyof BattleModifiers, number][]) out[k] = (out[k] ?? 0) + v;
+  return out;
+}
+
 /** Anomalies whose reach covers a system. */
 export function nodeAnomalies(s: CampaignState, n: CampaignNode): Anomaly[] {
   return (s.anomalies ?? []).filter((a) => Math.hypot(n.x - a.x, n.y - a.y) <= ANOMALIES[a.kind].radius);
@@ -176,7 +176,7 @@ export function nodeAnomalies(s: CampaignState, n: CampaignNode): Anomaly[] {
 export function anomalyEffects(s: CampaignState, n: CampaignNode) {
   const found = nodeAnomalies(s, n);
   if (!found.length) return null;
-  let modifiers: SystemModifiers = {};
+  let modifiers: BattleModifiers = {};
   for (const a of found) modifiers = mergeModifiers(modifiers, ANOMALIES[a.kind].modifiers);
   return { modifiers, conditions: found.map((a) => ({ name: ANOMALIES[a.kind].name, text: ANOMALIES[a.kind].text })) };
 }
@@ -202,11 +202,13 @@ export interface Faction {
   id: string;
   name: string;
   isAI: boolean;
+  /** Which of the four alien races this faction is (0–3). */
+  race: number;
   credits: number;
   materials: number;
-  /** The battle deck: always CAMPAIGN.deckSize card ids. */
+  /** The battle deck: always a legal deck (20 cards, at most 2 of each, exactly 2 Commands). */
   deck: string[];
-  /** Owned cards not in the deck or a garrison. Stardust is unlimited and never kept here. */
+  /** Owned cards not in the deck or a garrison. */
   reserve: string[];
   missions: ActiveMission[];
   missionDeck: string[];
@@ -232,7 +234,7 @@ export interface CampaignLogEntry {
 }
 
 export interface CampaignState {
-  version: 1;
+  version: 2;
   rngState: number;
   uidCounter: number;
   logSeq: number;
@@ -261,14 +263,13 @@ export interface CampaignState {
 export interface CampaignSetup {
   seed: number;
   playerName?: string;
-  /** The player's home system type. */
-  homeSystemId?: string;
+  /** The player's race (0–3); the rivals are the other races. */
+  race?: number;
   /** Rival AI factions, 1–3. */
   rivals?: number;
 }
 
 export type ConquestChoice = 'settle' | 'absorb' | 'supernova';
-export type CardSource = 'deck' | 'reserve';
 
 export type CampaignAction =
   | { type: 'attack'; fromId: string; toId: string }
@@ -277,12 +278,12 @@ export type CampaignAction =
   | { type: 'conquer'; choice: ConquestChoice }
   | { type: 'chooseCard'; defId: string | null }
   | { type: 'heal'; nodeId: string }
-  | { type: 'upgradePlanet'; nodeId: string; planet: number }
+  | { type: 'fortify'; nodeId: string }
   | { type: 'buyCard'; slot: number }
-  | { type: 'upgradeCard'; from: CardSource; index: number }
-  /** Put a reserve card into a deck slot (the slot's card goes to reserve), or clear the slot to Stardust (reserveIndex null). */
-  | { type: 'deckSwap'; slot: number; reserveIndex: number | null }
-  | { type: 'station'; nodeId: string; from: CardSource; index: number }
+  /** Swap a reserve card into a deck slot (the slot's card goes to reserve). The deck must stay legal. */
+  | { type: 'deckSwap'; slot: number; reserveIndex: number }
+  /** Station a reserve card in a system's garrison. */
+  | { type: 'station'; nodeId: string; index: number }
   | { type: 'recall'; nodeId: string; uid: string }
   | { type: 'endTurn' };
 
@@ -309,7 +310,7 @@ export const CAMPAIGN_MISSIONS: CampaignMissionDef[] = [
   { id: 'c_bulwark', name: 'Bulwark', text: 'Win a defence.', target: 1, counting: true, value: stat('defences') },
   { id: 'c_usurper', name: 'Usurper', text: 'Take a system from a rival faction.', target: 1, counting: true, value: stat('rivalsTaken') },
   { id: 'c_warlord', name: 'Warlord', text: 'Win 3 battles.', target: 3, counting: true, value: stat('battlesWon') },
-  { id: 'c_blitz', name: 'Blitz', text: 'Win a battle within 5 rounds.', target: 1, counting: true, value: stat('swiftWins') },
+  { id: 'c_blitz', name: 'Blitz', text: 'Win a battle within 6 rounds.', target: 1, counting: true, value: stat('swiftWins') },
   { id: 'c_cold', name: 'Cold Victory', text: 'Win a battle with your sun at 0 or colder.', target: 1, counting: true, value: stat('coldWins') },
   {
     id: 'c_fortress',
@@ -351,22 +352,31 @@ export const factionById = (s: CampaignState, id: string) => {
 export const campaignPlayer = (s: CampaignState) => factionById(s, s.playerId);
 export const ownedNodes = (s: CampaignState, factionId: string) => s.nodes.filter((n) => n.owner === factionId);
 
-export function upgradeCost(node: CampaignNode, planet: number): number {
-  return CAMPAIGN.upgradeBaseCost + (node.boosts[planet] ?? 0) * CAMPAIGN.upgradeCostPerLevel;
+/** Credits for the next fortification level on a system (null at the maximum). */
+export function fortifyCost(node: CampaignNode): number | null {
+  if (node.fortification >= CAMPAIGN.maxFortification) return null;
+  return CAMPAIGN.fortifyBaseCost + node.fortification * CAMPAIGN.fortifyCostPerLevel;
 }
 
-export function canUpgradePlanet(node: CampaignNode, planet: number): boolean {
-  const base = systemDef(node.systemId).planets[planet];
-  return !!base && base.level + (node.boosts[planet] ?? 0) < 3;
-}
-
-export const armoryPrice = (defId: string) => cardDef(defId).cost + CAMPAIGN.armoryMarkup;
-export const cardUpgradePrice = (defId: string) => (CARD_UPGRADES[defId] ? cardDef(CARD_UPGRADES[defId]).cost : null);
-
-/** Only these kinds can garrison a system (Stardust is unlimited, so it cannot). */
-export function canGarrison(defId: string): boolean {
+export function armoryPrice(defId: string): number {
   const def = cardDef(defId);
-  return defId !== 'stardust' && ['economy', 'attack', 'defence', 'command'].includes(def.kind);
+  if (def.kind === 'command') return ARMORY_PRICE.command;
+  if (def.kind === 'global') return ARMORY_PRICE.global;
+  return def.race === undefined ? ARMORY_PRICE.neutral : ARMORY_PRICE.race;
+}
+
+/** Any card except a global can garrison a system. */
+export function canGarrison(defId: string): boolean {
+  return cardDef(defId).kind !== 'global';
+}
+
+/** Whether swapping a reserve card into a deck slot keeps the deck legal (and why not). */
+export function deckSwapProblem(f: Faction, slot: number, reserveIndex: number): string | null {
+  const id = f.reserve[reserveIndex];
+  if (!id || f.deck[slot] === undefined) return 'No such card.';
+  const next = [...f.deck];
+  next[slot] = id;
+  return deckProblems(next)[0] ?? null;
 }
 
 /** Is `factionId` barred from attacking this system (a recent Supernova)? */
@@ -384,36 +394,30 @@ export function attackOptions(s: CampaignState, factionId: string): { toId: stri
 }
 
 export interface GarrisonBonus {
-  opening: Required<OpeningBonus>;
-  /** Heat added to the attacker's sun at the start. */
-  bombard: number;
-  /** Cooling applied to the defender's sun at the start. */
-  chill: number;
-  /** Extra planet levels (from Command cards). */
-  planetLevels: number;
+  /** Cards that start the defence already in the defender's tableau. */
+  tableau: string[];
+  /** Upgrades the defender starts with (from stationed Command cards). */
+  upgrades: Partial<Record<CoreAction, number>>;
 }
 
 /**
- * What a system's stationed cards do when it is attacked: each card's power
- * becomes a head start. Money adds opening money, draw adds cards to the first
- * hand, shields add opening shields, attack heats the attacker's sun, cooling
- * cools the defender's sun, and Command cards upgrade planets.
+ * What a system's stationed cards do when it is attacked: they start the
+ * battle already in the defender's tableau. A stationed Command card gives
+ * its upgrade instead (Command Directive: Cooling Chamber).
  */
 export function garrisonBonus(n: CampaignNode): GarrisonBonus {
-  const b: GarrisonBonus = { opening: { money: 0, shields: 0, draw: 0 }, bombard: 0, chill: 0, planetLevels: 0 };
+  const b: GarrisonBonus = { tableau: [], upgrades: {} };
   for (const g of n.garrison) {
     if (g.status !== 'stationed') continue;
-    for (const e of cardDef(g.defId).effects) {
-      if (e.type === 'money') b.opening.money += e.amount;
-      else if (e.type === 'draw') b.opening.draw += e.amount;
-      else if (e.type === 'shield') b.opening.shields += e.amount;
-      else if (e.type === 'heatTarget' || e.type === 'heatAllOpponents') b.bombard += e.amount;
-      else if (e.type === 'cool') b.chill += e.amount;
-      else if (e.type === 'command') b.planetLevels += 1;
+    const def = cardDef(g.defId);
+    if (def.kind !== 'command') {
+      b.tableau.push(g.defId);
+      continue;
     }
+    const up = (def.onPlay ?? []).find((e) => e.type === 'upgrade');
+    const action: CoreAction = up?.type === 'upgrade' && up.action !== 'choice' ? up.action : 'coolingChamber';
+    b.upgrades[action] = (b.upgrades[action] ?? 0) + 1;
   }
-  b.bombard = Math.min(b.bombard, CAMPAIGN.maxBombard);
-  b.chill = Math.min(b.chill, CAMPAIGN.maxChill);
   return b;
 }
 
@@ -519,14 +523,19 @@ function nodeName(s: CampaignState, used: Set<string>): string {
 
 const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, defences: 0, rivalsTaken: 0, battlesWon: 0, swiftWins: 0, coldWins: 0 });
 
-export function starterDeck(): string[] {
-  return [...Array(CAMPAIGN.deckSize - 1).fill('stardust'), 'command_directive'];
+/** Neutral cards every campaign deck starts with (twice each), before its race's cards. */
+const STARTER_NEUTRALS = ['plasma_relay', 'coronal_lance', 'gravity_sling', 'thermal_exchange', 'coolant_array', 'cryo_vault', 'deflector_grid', 'heat_sink'];
+
+/** A campaign starting deck: mostly neutral cards, a first taste of the race's own, and two Command Directives. */
+export function starterDeck(race: number): string[] {
+  const own = CARDS.filter((c) => c.race === race).slice(0, 2).map((c) => c.id);
+  return [...STARTER_NEUTRALS.flatMap((id) => [id, id]), ...own, 'command_directive', 'command_directive'];
 }
 
 export function createCampaign(setup: CampaignSetup): CampaignState {
   const rivals = Math.max(1, Math.min(3, setup.rivals ?? 3));
   const s: CampaignState = {
-    version: 1,
+    version: 2,
     rngState: setup.seed | 0,
     uidCounter: 0,
     logSeq: 0,
@@ -548,17 +557,19 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   // Systems in loose clusters, linked by routes that never cross.
   const used = new Set<string>();
   const pts = scatterSystems(s);
+  const tints: MapPlanet['tint'][] = ['weapons', 'defences', 'economy', 'resources'];
   pts.forEach((pt, i) => {
-    const sys = SOLAR_SYSTEMS[randomInt(s, SOLAR_SYSTEMS.length)];
+    const name = nodeName(s, used);
+    const planets = Array.from({ length: 2 + randomInt(s, 3) }, (_, j) => ({ name: `${name} ${['I', 'II', 'III', 'IV'][j]}`, tint: tints[randomInt(s, tints.length)] }));
     s.nodes.push({
       id: `n${i}`,
-      name: nodeName(s, used),
+      name,
       x: pt.x,
       y: pt.y,
-      systemId: sys.id,
+      planets,
       owner: null,
       links: [],
-      boosts: sys.planets.map(() => 0),
+      fortification: 0,
       damage: 0,
       garrison: [],
       hazard: [],
@@ -579,22 +590,24 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     { x: MAP_WIDTH, y: MAP_HEIGHT },
   ];
   const corners = cornerPts.map((c) => [...s.nodes].sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0]);
+  const playerRace = ((setup.race ?? 0) % 4 + 4) % 4;
+  const races = [playerRace, ...[0, 1, 2, 3].filter((r) => r !== playerRace)];
   for (let i = 0; i <= rivals; i++) {
     const id = `f${i + 1}`;
     const home = corners[i];
     const isAI = i > 0;
-    if (!isAI && setup.homeSystemId) home.systemId = systemDef(setup.homeSystemId).id;
-    home.boosts = systemDef(home.systemId).planets.map(() => 0);
+    const race = races[i];
     home.owner = id;
     home.home = id;
     home.yield = { credits: 3, materials: 3 };
     const f: Faction = {
       id,
-      name: isAI ? FACTION_NAMES[i] : setup.playerName || FACTION_NAMES[0],
+      name: isAI ? RACE_NAMES[race] : setup.playerName || 'Commander',
       isAI,
+      race,
       credits: CAMPAIGN.startCredits,
       materials: CAMPAIGN.startMaterials,
-      deck: starterDeck(),
+      deck: starterDeck(race),
       reserve: [],
       missions: [],
       missionDeck: shuffleInPlace(s, CAMPAIGN_MISSIONS.map((m) => m.id)),
@@ -636,7 +649,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     n.tier = d <= 1 ? 0 : d <= 3 ? 1 : 2;
   }
 
-  refreshArmory(s);
+  refreshArmory(s, s.factions[0]);
   clog(s, `The campaign begins. ${s.factions.map((f) => `${f.name} holds ${nodeById(s, s.nodes.find((n) => n.home === f.id)!.id).name}`).join('; ')}.`);
   return s;
 }
@@ -672,13 +685,18 @@ function drawMission(s: CampaignState, f: Faction) {
   f.missions.push({ id, base: def.counting ? def.value(f, s) : 0 });
 }
 
-function refreshArmory(s: CampaignState) {
-  const pool = MARKET_CARDS.filter((d) => d.minPlayers === undefined).flatMap((d) => Array(d.copies).fill(d.id) as string[]);
+/** Cards a faction can be offered: its own race's cards (weighted up), neutral cards and globals. */
+function offerPool(f: Faction): string[] {
+  return CARDS.filter((c) => c.kind !== 'command' && (c.race === undefined || c.race === f.race)).flatMap((c) => (c.race === f.race ? [c.id, c.id] : [c.id]));
+}
+
+function refreshArmory(s: CampaignState, f: Faction) {
+  const pool = offerPool(f);
   s.armory = Array.from({ length: CAMPAIGN.armorySize }, () => pool[randomInt(s, pool.length)]);
 }
 
-function randomCardChoices(s: CampaignState): string[] {
-  const pool = shuffleInPlace(s, MARKET_CARDS.filter((d) => d.minPlayers === undefined || d.minPlayers <= 2).map((d) => d.id));
+function randomCardChoices(s: CampaignState, f: Faction): string[] {
+  const pool = [...new Set(shuffleInPlace(s, offerPool(f)))];
   return pool.slice(0, CAMPAIGN.cardChoices);
 }
 
@@ -686,60 +704,46 @@ function randomCardChoices(s: CampaignState): string[] {
 // Battles
 // ---------------------------------------------------------------------------
 
-/** Faction f1–f4 are the four alien races, in order. */
-const speciesOf = (factionId: string) => Math.max(0, Number(factionId.slice(1)) - 1) % 4;
-
-/** Neutral sentinels' decks, by tier. */
-function neutralDeck(tier: number): string[] {
-  const deck = starterDeck();
-  const extras = [
-    [],
-    ['stellar_credits', 'coolant_array'],
-    ['stellar_credits', 'coronal_lance', 'cryo_vault', 'deflector_grid'],
-  ][tier] ?? [];
+/** Neutral sentinels' decks, by tier: the plain starter at first, then with a pair of each race's cards mixed in. */
+function neutralDeck(s: CampaignState, tier: number): string[] {
+  const deck = starterDeck(randomInt(s, 4));
+  const extras = [[], ['solar_battery', 'solar_battery', 'deep_scanners', 'deep_scanners'], ['solar_battery', 'solar_battery', 'deep_scanners', 'deep_scanners', 'ion_cannon', 'ion_cannon', 'solar_maximum', 'ice_age']][tier] ?? [];
   extras.forEach((id, i) => (deck[i] = id));
   return deck;
 }
 
+/** Everything that shapes a battle fought for (or from) a system. */
 function battleSetup(s: CampaignState, attacker: Faction, from: CampaignNode, target: CampaignNode): PlayerSetup[] {
   const owner = target.owner ? factionById(s, target.owner) : null;
   const g = garrisonBonus(target);
-  const boosts = [...target.boosts];
-  // Command cards in the garrison raise the lowest planets.
-  const base = systemDef(target.systemId).planets;
-  for (let k = 0; k < g.planetLevels; k++) {
-    let best = -1;
-    base.forEach((pl, j) => {
-      const lvl = pl.level + (boosts[j] ?? 0);
-      if (lvl < 3 && (best < 0 || lvl < base[best].level + (boosts[best] ?? 0))) best = j;
-    });
-    if (best >= 0) boosts[best] = (boosts[best] ?? 0) + 1;
-  }
   const fromFx = anomalyEffects(s, from);
   const targetFx = anomalyEffects(s, target);
+  const fortified: BattleModifiers = target.fortification ? { maxHealthDelta: target.fortification * CAMPAIGN.fortifyHealth } : {};
+  const defenceConditions = [
+    ...(targetFx?.conditions ?? []),
+    ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
+    ...(g.tableau.length || Object.keys(g.upgrades).length ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
+  ];
   return [
     {
       name: attacker.name,
-      species: speciesOf(attacker.id),
+      species: attacker.race,
       isAI: attacker.isAI,
-      systemId: from.systemId,
       deck: attacker.deck,
-      planetBoosts: from.boosts,
-      heatDelta: from.damage + g.bombard,
-      extraModifiers: fromFx?.modifiers,
+      heatDelta: from.damage,
+      modifiers: fromFx?.modifiers,
       conditions: fromFx?.conditions,
     },
     {
-      extraModifiers: targetFx?.modifiers,
-      conditions: targetFx?.conditions,
       name: owner ? owner.name : `${target.name} Sentinels`,
-      species: owner ? speciesOf(owner.id) : undefined,
+      species: owner ? owner.race : target.tier % 4,
       isAI: owner ? owner.isAI : true,
-      systemId: target.systemId,
-      deck: owner ? owner.deck : neutralDeck(target.tier),
-      planetBoosts: boosts,
-      heatDelta: target.damage - g.chill,
-      opening: g.opening,
+      deck: owner ? owner.deck : neutralDeck(s, target.tier),
+      heatDelta: target.damage + (owner ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0),
+      tableau: g.tableau,
+      upgrades: g.upgrades,
+      modifiers: mergeModifiers(targetFx?.modifiers ?? {}, fortified),
+      conditions: defenceConditions.length ? defenceConditions : undefined,
     },
   ];
 }
@@ -798,7 +802,7 @@ function resolveBattle(s: CampaignState, game: GameState) {
     winner.credits += CAMPAIGN.winCredits;
     winner.materials += CAMPAIGN.winMaterials;
     winner.stats.battlesWon += 1;
-    if (game.round <= 5) winner.stats.swiftWins += 1;
+    if (game.round <= 6) winner.stats.swiftWins += 1;
     if (winnerSeat.heat <= 0) winner.stats.coldWins += 1;
     if (!attackerWon) winner.stats.defences += 1;
   }
@@ -834,14 +838,14 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
     f.credits += credits;
     f.materials += materials;
     n.owner = null;
-    n.boosts = n.boosts.map(() => 0);
+    n.fortification = 0;
     n.yield = { credits: Math.max(0, n.yield.credits - 1), materials: Math.max(0, n.yield.materials - 1) };
     n.tier = 0;
     f.stats.absorbed += 1;
     clog(s, `${f.name} absorbs ${n.name}: +${credits} credits, +${materials} materials. The system is left depleted.`);
   } else {
     n.owner = null;
-    n.boosts = n.boosts.map(() => 0);
+    n.fortification = 0;
     n.damage = 0;
     n.tier = 0;
     n.hazard = s.factions.filter((o) => !o.eliminated && o.id !== f.id).map((o) => o.id);
@@ -887,7 +891,7 @@ function checkMissions(s: CampaignState) {
       f.materials += CAMPAIGN.missionMaterials;
       const def = campaignMissionDef(m.id);
       clog(s, `${f.name} completes the mission ${def.name}: +${CAMPAIGN.missionCredits} credits, +${CAMPAIGN.missionMaterials} materials and a new card.`);
-      const options = randomCardChoices(s);
+      const options = randomCardChoices(s, f);
       if (f.isAI) f.reserve.push(options[randomInt(s, options.length)]);
       else s.cardRewards.push({ source: def.name, options });
       drawMission(s, f);
@@ -924,7 +928,7 @@ function newTurn(s: CampaignState) {
     f.credits += inc.credits;
     f.materials += inc.materials;
   }
-  refreshArmory(s);
+  refreshArmory(s, campaignPlayer(s));
   checkMissions(s);
   const p = campaignPlayer(s);
   clog(s, `— Turn ${s.turn}. ${p.name} collects ${factionIncome(s, p.id).credits} credits and ${factionIncome(s, p.id).materials} materials.`);
@@ -958,6 +962,20 @@ function aiConquestChoice(s: CampaignState, n: CampaignNode): ConquestChoice {
   return 'settle';
 }
 
+/** AI deck building: swap reserve race cards in for neutral cards, keeping the deck legal. */
+function improveDeck(f: Faction) {
+  for (let r = 0; r < f.reserve.length; r++) {
+    const id = f.reserve[r];
+    const def = cardDef(id);
+    if (def.race === undefined || def.kind === 'command') continue;
+    const slot = f.deck.findIndex((d, i) => cardDef(d).race === undefined && cardDef(d).kind !== 'command' && deckSwapProblem(f, i, r) === null);
+    if (slot < 0) continue;
+    const out = f.deck[slot];
+    f.deck[slot] = id;
+    f.reserve[r] = out;
+  }
+}
+
 function aiTurn(s: CampaignState, f: Faction) {
   const mine = ownedNodes(s, f.id);
   // 1. Repair damaged systems.
@@ -967,35 +985,30 @@ function aiTurn(s: CampaignState, f: Faction) {
       n.damage -= 1;
     }
   }
-  // 2. Improve the deck: put reserve cards in, then upgrade Stardust.
-  for (let i = 0; i < f.reserve.length; i++) {
-    const slot = f.deck.indexOf('stardust');
-    if (slot < 0) break;
-    f.deck[slot] = f.reserve.splice(i--, 1)[0];
+  // 2. Buy a race card from its own armory now and then.
+  if (f.materials >= ARMORY_PRICE.race + 2 && nextRandom(s) < 0.5) {
+    const pool = offerPool(f);
+    const id = pool[randomInt(s, pool.length)];
+    f.materials -= armoryPrice(id);
+    f.reserve.push(id);
   }
-  for (let slot = 0; slot < f.deck.length; slot++) {
-    const price = cardUpgradePrice(f.deck[slot]);
-    if (price !== null && f.materials >= price + 2 && nextRandom(s) < 0.6) {
-      f.materials -= price;
-      f.deck[slot] = CARD_UPGRADES[f.deck[slot]];
-    }
+  // 3. Improve the deck: swap race cards in for neutral ones.
+  improveDeck(f);
+  // 4. Fortify the home system with spare credits.
+  const home = mine.find((n) => n.home === f.id) ?? mine[0];
+  const cost = home ? fortifyCost(home) : null;
+  if (home && cost !== null && f.credits >= cost + 6) {
+    f.credits -= cost;
+    home.fortification += 1;
   }
-  // 3. Upgrade planets with spare credits.
-  for (const n of mine) {
-    const planet = n.boosts.findIndex((_, j) => canUpgradePlanet(n, j));
-    if (planet >= 0 && f.credits >= upgradeCost(n, planet) + 6) {
-      f.credits -= upgradeCost(n, planet);
-      n.boosts[planet] += 1;
-    }
-  }
-  // 4. Garrison a border system with a spare card.
+  // 5. Garrison a border system with a spare card.
   const border = mine.filter((n) => n.links.some((id) => nodeById(s, id).owner !== f.id) && n.garrison.length < CAMPAIGN.garrisonSlots);
   const spare = f.reserve.findIndex(canGarrison);
   if (border.length && spare >= 0) {
     const n = border[randomInt(s, border.length)];
     n.garrison.push({ uid: uid(s), defId: f.reserve.splice(spare, 1)[0], status: 'arriving' });
   }
-  // 5. Attack the weakest reachable system, most turns.
+  // 6. Attack the weakest reachable system, most turns.
   const options = attackOptions(s, f.id);
   if (!options.length || nextRandom(s) < 0.2) return;
   const strength = (n: CampaignNode) => (n.owner ? 3 : n.tier) + n.garrison.length - n.damage * 0.3 + (n.owner === s.playerId ? 0.5 : 0);
@@ -1009,20 +1022,6 @@ function aiTurn(s: CampaignState, f: Faction) {
 // ---------------------------------------------------------------------------
 // The reducer
 // ---------------------------------------------------------------------------
-
-function takeCard(f: Faction, from: CardSource, index: number): string {
-  if (from === 'deck') {
-    const id = f.deck[index];
-    if (!id) throw new GameError('No card in that deck slot.');
-    if (id === 'stardust') throw new GameError('Stardust cannot be moved; it is always available.');
-    f.deck[index] = 'stardust';
-    return id;
-  }
-  const id = f.reserve[index];
-  if (!id) throw new GameError('No such card in reserve.');
-  f.reserve.splice(index, 1);
-  return id;
-}
 
 function requireOwned(s: CampaignState, f: Faction, nodeId: string): CampaignNode {
   const n = nodeById(s, nodeId);
@@ -1086,12 +1085,13 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       n.damage -= 1;
       break;
     }
-    case 'upgradePlanet': {
+    case 'fortify': {
       const n = requireOwned(s, f, action.nodeId);
-      if (!canUpgradePlanet(n, action.planet)) throw new GameError('That planet is already at its highest level.');
-      spendCredits(f, upgradeCost(n, action.planet));
-      n.boosts[action.planet] += 1;
-      clog(s, `${f.name} upgrades ${systemDef(n.systemId).planets[action.planet].name} at ${n.name}.`);
+      const cost = fortifyCost(n);
+      if (cost === null) throw new GameError(`${n.name} is fully fortified.`);
+      spendCredits(f, cost);
+      n.fortification += 1;
+      clog(s, `${f.name} fortifies ${n.name} to level ${n.fortification}.`);
       break;
     }
     case 'buyCard': {
@@ -1103,40 +1103,21 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       clog(s, `${f.name} acquires ${cardDef(id).name}.`);
       break;
     }
-    case 'upgradeCard': {
-      const list = action.from === 'deck' ? f.deck : f.reserve;
-      const id = list[action.index];
-      if (!id) throw new GameError('No such card.');
-      const next = CARD_UPGRADES[id];
-      if (!next) throw new GameError(`${cardDef(id).name} cannot be upgraded.`);
-      spendMaterials(f, cardDef(next).cost);
-      list[action.index] = next;
-      clog(s, `${f.name} upgrades ${cardDef(id).name} into ${cardDef(next).name}.`);
-      break;
-    }
     case 'deckSwap': {
-      if (action.slot < 0 || action.slot >= CAMPAIGN.deckSize) throw new GameError('No such deck slot.');
+      const problem = deckSwapProblem(f, action.slot, action.reserveIndex);
+      if (problem) throw new GameError(problem);
       const out = f.deck[action.slot];
-      if (action.reserveIndex === null) {
-        if (out === 'stardust') throw new GameError('That slot already holds Stardust.');
-        f.deck[action.slot] = 'stardust';
-      } else {
-        const id = f.reserve[action.reserveIndex];
-        if (!id) throw new GameError('No such card in reserve.');
-        f.reserve.splice(action.reserveIndex, 1);
-        f.deck[action.slot] = id;
-      }
-      if (out !== 'stardust') f.reserve.push(out);
+      f.deck[action.slot] = f.reserve[action.reserveIndex];
+      f.reserve[action.reserveIndex] = out;
       break;
     }
     case 'station': {
       const n = requireOwned(s, f, action.nodeId);
       if (n.garrison.length >= CAMPAIGN.garrisonSlots) throw new GameError(`${n.name}'s garrison is full.`);
-      const list = action.from === 'deck' ? f.deck : f.reserve;
-      const id = list[action.index];
-      if (!id) throw new GameError('No such card.');
+      const id = f.reserve[action.index];
+      if (!id) throw new GameError('No such card in reserve.');
       if (!canGarrison(id)) throw new GameError(`${cardDef(id).name} cannot garrison a system.`);
-      takeCard(f, action.from, action.index);
+      f.reserve.splice(action.index, 1);
       n.garrison.push({ uid: uid(s), defId: id, status: 'arriving' });
       clog(s, `${f.name} sends ${cardDef(id).name} to ${n.name}. It arrives next turn.`);
       break;

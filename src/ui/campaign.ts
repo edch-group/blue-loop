@@ -9,11 +9,9 @@ import {
   campaignMissionDef,
   campaignPlayer,
   canGarrison,
-  canUpgradePlanet,
   cardDef,
-  cardUpgradePrice,
-  CARD_UPGRADES,
   createCampaign,
+  deckSwapProblem,
   factionById,
   factionIncome,
   GameError,
@@ -24,27 +22,26 @@ import {
   nodeAnomalies,
   nodeById,
   ownedNodes,
-  SOLAR_SYSTEMS,
-  systemDef,
-  upgradeCost,
+  fortifyCost,
+  RACE_NAMES,
   type Anomaly,
   type CampaignAction,
   type CampaignNode,
   type CampaignState,
-  type CardSource,
   type GameState,
 } from '../engine';
-import { systemDiagram } from './art';
 import { MENU_ICON } from './menu-icon';
 import { cardGlyph, KIND_COLOUR } from './glyphs';
 import { sound } from './sound';
 
-const KEY = 'blue-loop:campaign:v1';
+const KEY = 'blue-loop:campaign:v2';
 
 export function loadCampaign(): CampaignState | null {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as CampaignState) : null;
+    const s = raw ? (JSON.parse(raw) as CampaignState) : null;
+    // Campaigns from before the card game was rebuilt cannot be resumed.
+    return s && s.version === 2 ? s : null;
   } catch {
     return null;
   }
@@ -64,13 +61,12 @@ const lower = (t: string) => esc(t.toLowerCase());
 import { FACTION_COLOUR, factionAvatar } from './factions';
 export { FACTION_COLOUR };
 const NEUTRAL = '#c9cbd0';
-/** Credits: a solid gold coin. Earned from your systems, battles and missions; spent on repairs and planet upgrades. */
+/** Credits: a solid gold coin. Earned from your systems, battles and missions; spent on repairs and fortifications. */
 const CREDITS =
   '<svg class="cur cur-credits" viewBox="0 0 20 20" aria-label="credits"><circle cx="10" cy="10" r="9" fill="#b98f3c"/><circle cx="9.3" cy="9.2" r="8" fill="#d6ae57"/><circle cx="7.4" cy="6.8" r="3.2" fill="#f0d68f" opacity=".55"/><circle cx="10" cy="10" r="6.3" fill="none" stroke="#fff4d6" stroke-width="1.2" opacity=".85"/><path d="M10 5.6 11.2 8.8 14.4 10 11.2 11.2 10 14.4 8.8 11.2 5.6 10 8.8 8.8Z" fill="#fff8e6"/></svg>';
-/** Materials: a solid teal crystal. Earned the same ways; spent on buying and upgrading cards. */
+/** Materials: a solid teal crystal. Earned the same ways; spent on buying cards in the armory. */
 const MATERIALS =
   '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#4f9aa6"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#9fd3d9"/><path d="M10 9.6V18.5L3 14V6Z" fill="#6fb3bc"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="none" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/></svg>';
-const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
 /** A stable 0–1 value per id, to spread animation phases so stars never pulse in step. */
 function seedOf(id: string): string {
   let h = 0;
@@ -78,6 +74,13 @@ function seedOf(id: string): string {
   return ((h % 1000) / 1000).toFixed(3);
 }
 const TRACK_TINT: Record<string, string> = { weapons: '#e2a494', defences: '#a3c3df', economy: '#e0cd94', resources: '#abd2b5' };
+/** Each race's style of play, for choosing one. */
+const RACE_BLURB = [
+  'Lancers of light: many attack cards, each making the others hit harder.',
+  'Crystal overloaders: heat every rival, and run your own sun hot to hit harder still.',
+  'Tidal bells: stack shields, keep them, and sting whoever strikes them.',
+  'The hive: grow, spread wide, and play more cards each turn.',
+];
 
 /** What the campaign screen needs from the app that hosts it. */
 export interface CampaignHost {
@@ -106,7 +109,7 @@ export class CampaignView {
   private report: { title: string; lines: string[] } | null = null;
   private sheet: Sheet | null = null;
   /** New-campaign setup choices. */
-  private setup = { rivals: 3, offers: [] as string[], home: '' };
+  private setup = { rivals: 3, race: 0 };
 
   constructor(private host: CampaignHost) {}
 
@@ -116,9 +119,6 @@ export class CampaignView {
   openSetup() {
     this.state = null;
     this.sheet = null;
-    const pool = SOLAR_SYSTEMS.map((s) => s.id).sort(() => Math.random() - 0.5);
-    this.setup.offers = pool.slice(0, 2);
-    this.setup.home = this.setup.offers[0];
   }
 
   resume(): boolean {
@@ -179,11 +179,11 @@ export class CampaignView {
       case 'cmp-rivals':
         this.setup.rivals = n();
         break;
-      case 'cmp-home':
-        this.setup.home = arg;
+      case 'cmp-race':
+        this.setup.race = n();
         break;
       case 'cmp-start':
-        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, rivals: this.setup.rivals, homeSystemId: this.setup.home });
+        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, rivals: this.setup.rivals, race: this.setup.race });
         this.selected = null;
         this.view = null;
         saveCampaign(this.state);
@@ -257,21 +257,18 @@ export class CampaignView {
       case 'cmp-heal':
         if (this.apply({ type: 'heal', nodeId: arg })) sound.upgrade();
         break;
-      case 'cmp-planet':
-        if (this.apply({ type: 'upgradePlanet', nodeId: el.dataset.node!, planet: n() })) sound.upgrade();
+      case 'cmp-fortify':
+        if (this.apply({ type: 'fortify', nodeId: arg })) sound.upgrade();
         break;
       case 'cmp-buy':
         if (this.apply({ type: 'buyCard', slot: n() })) sound.buy();
-        break;
-      case 'cmp-upgrade-card':
-        if (this.apply({ type: 'upgradeCard', from: el.dataset.from as CardSource, index: n() })) sound.upgrade();
         break;
       case 'cmp-slot':
         this.sheet = { kind: 'deck', slot: n() };
         break;
       case 'cmp-swap': {
         if (this.sheet?.kind !== 'deck' || this.sheet.slot === undefined) break;
-        if (this.apply({ type: 'deckSwap', slot: this.sheet.slot, reserveIndex: arg === '' ? null : n() })) sound.play();
+        if (this.apply({ type: 'deckSwap', slot: this.sheet.slot, reserveIndex: n() })) sound.play();
         this.sheet = { kind: 'deck' };
         break;
       }
@@ -280,7 +277,7 @@ export class CampaignView {
         break;
       case 'cmp-station': {
         if (this.sheet?.kind !== 'station') break;
-        if (this.apply({ type: 'station', nodeId: this.sheet.nodeId, from: el.dataset.from as CardSource, index: n() })) sound.play();
+        if (this.apply({ type: 'station', nodeId: this.sheet.nodeId, index: n() })) sound.play();
         this.sheet = null;
         break;
       }
@@ -309,6 +306,18 @@ export class CampaignView {
   }
 
   // ---- Rendering ----------------------------------------------------------------
+
+  /** Emblem and colour follow a faction's race (the player may be any of the four). */
+  private raceKey(factionId: string): string {
+    const f = this.state?.factions.find((x) => x.id === factionId);
+    return `f${(f?.race ?? 0) + 1}`;
+  }
+  private avatarOf(factionId: string, cls = ''): string {
+    return factionAvatar(this.raceKey(factionId), cls);
+  }
+  private colourOf(factionId: string): string {
+    return FACTION_COLOUR[this.raceKey(factionId)];
+  }
 
   render(): string {
     if (!this.state) return this.renderSetup();
@@ -345,17 +354,15 @@ export class CampaignView {
   }
 
   private renderSetup(): string {
-    const systems = this.setup.offers
-      .map((id) => {
-        const sys = systemDef(id);
-        return `
-        <button class="cmp-home-pick ${this.setup.home === id ? 'on' : ''}" data-act="cmp-home" data-arg="${id}">
-          ${systemDiagram(sys.planets)}
-          <b>${lower(sys.name)}</b>
-          <span>+ ${esc(sys.abilityText)}</span>
-          <span class="sys-drawback">− ${esc(sys.drawbackText)}</span>
-        </button>`;
-      })
+    const races = [0, 1, 2, 3]
+      .map(
+        (r) => `
+        <button class="cmp-home-pick cmp-race-pick ${this.setup.race === r ? 'on' : ''}" data-act="cmp-race" data-arg="${r}">
+          ${factionAvatar(`f${r + 1}`, 'cmp-race-emblem')}
+          <b>${lower(RACE_NAMES[r])}</b>
+          <span>${esc(RACE_BLURB[r])}</span>
+        </button>`,
+      )
       .join('');
     const rivals = [1, 2, 3]
       .map((r) => `<button class="pill-btn ${this.setup.rivals === r ? 'pill-on' : ''}" data-act="cmp-rivals" data-arg="${r}">${r}</button>`)
@@ -370,13 +377,13 @@ export class CampaignView {
         <div class="setup-body cmp-setup-body">
           <aside class="cmp-setup-aside">
             <div class="cmp-label">universe domination</div>
-            <p class="muted">Start from one solar system. Conquer the systems linked to yours, then Settle, Absorb or Supernova each one. Hold ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe, outlast every rival, or hold the most after ${CAMPAIGN.turnLimit} turns.</p>
+            <p class="muted">Start from one solar system with a mostly neutral deck. Conquer the systems linked to yours, then Settle, Absorb or Supernova each one; win cards of your race along the way. Hold ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe, outlast every rival, or hold the most after ${CAMPAIGN.turnLimit} turns.</p>
             <div class="cmp-label">rival factions</div>
             <div class="cmp-rivals">${rivals}</div>
           </aside>
           <div class="cmp-setup-homes">
-            <div class="cmp-label">choose your home system</div>
-            <div class="cmp-home-row">${systems}</div>
+            <div class="cmp-label">choose your race</div>
+            <div class="cmp-home-row cmp-race-row">${races}</div>
           </div>
         </div>
         <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start">begin campaign</button></footer>
@@ -402,7 +409,7 @@ export class CampaignView {
           drawn.add(key);
           const m = nodeById(s, id);
           const same = n.owner && n.owner === m.owner;
-          return `<line x1="${n.x}" y1="${n.y}" x2="${m.x}" y2="${m.y}" class="cmp-link ${same ? 'cmp-link-held' : ''}" ${same ? `style="--fc:${FACTION_COLOUR[n.owner!]}"` : ''} />`;
+          return `<line x1="${n.x}" y1="${n.y}" x2="${m.x}" y2="${m.y}" class="cmp-link ${same ? 'cmp-link-held' : ''}" ${same ? `style="--fc:${this.colourOf(n.owner!)}"` : ''} />`;
         }),
       )
       .join('');
@@ -410,7 +417,7 @@ export class CampaignView {
     const mask = focus ? `style="--mx:${focus.x}px;--my:${focus.y}px"` : '';
     const nodes = s.nodes
       .map((n) => {
-        const colour = n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL;
+        const colour = n.owner ? this.colourOf(n.owner) : NEUTRAL;
         const far = focus && focus.id !== n.id && Math.hypot(n.x - focus.x, n.y - focus.y) > 250;
         const cls = [
           'cmp-n3',
@@ -435,8 +442,8 @@ export class CampaignView {
             ${this.selected === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
               <span class="cmp-badges">${badges}</span>
-              <span class="cmp-star ${n.systemId === 'tempest_binary' ? 'cmp-binary' : ''}" style="--seed:${seedOf(n.id)}"><i class="cmp-core"></i>${n.systemId === 'tempest_binary' ? '<i class="cmp-companion"></i>' : ''}${
-                n.owner ? factionAvatar(n.owner, 'cmp-owner') : ''
+              <span class="cmp-star" style="--seed:${seedOf(n.id)}"><i class="cmp-core"></i>${
+                n.owner ? this.avatarOf(n.owner, 'cmp-owner') : ''
               }</span>
               <span class="cmp-label">${lower(n.name)}</span>
             </button>
@@ -496,7 +503,7 @@ export class CampaignView {
     const def = ANOMALIES[a.kind];
     const reached = s.nodes.filter((n) => nodeAnomalies(s, n).some((x) => x.id === a.id));
     const rows = reached
-      .map((n) => `<div class="cmp-faction" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}">${n.owner ? factionAvatar(n.owner) : '<i></i>'}<span>${lower(n.name)}</span><b>${n.owner ? lower(factionById(s, n.owner).name) : 'neutral'}</b></div>`)
+      .map((n) => `<div class="cmp-faction" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">${n.owner ? this.avatarOf(n.owner) : '<i></i>'}<span>${lower(n.name)}</span><b>${n.owner ? lower(factionById(s, n.owner).name) : 'neutral'}</b></div>`)
       .join('');
     return `
       <div class="cmp-node-head" style="--fc:#8d92a0"><i class="an-icon an-icon-${a.kind}"></i>
@@ -511,10 +518,9 @@ export class CampaignView {
 
   /** The selected system's planets, orbiting its star (sized by level, tinted by track). */
   private renderOrbits(n: CampaignNode): string {
-    const planets = systemDef(n.systemId).planets;
-    return planets
+    return n.planets
       .map((pl, j) => {
-        const level = pl.level + (n.boosts[j] ?? 0);
+        const level = 1 + Math.min(2, n.fortification);
         const r = 30 + j * 16;
         const period = 16 + j * 9;
         // Spread the planets around their orbits, deterministically per system.
@@ -525,7 +531,7 @@ export class CampaignView {
           <div class="cmp-orbit" style="--t:${period}s;--d:${delay}s">
             <div class="cmp-arm" style="--r:${r}px">
               <div class="cmp-counter">
-                <span class="cmp-orb-planet" style="--pc:${TRACK_TINT[pl.track]};--ps:${size}px" title="${esc(pl.name)} · ${pl.track} ${level}"><em>${lower(pl.name)}</em></span>
+                <span class="cmp-orb-planet" style="--pc:${TRACK_TINT[pl.tint]};--ps:${size}px" title="${esc(pl.name)}"><em>${lower(pl.name)}</em></span>
               </div>
             </div>
           </div>`;
@@ -682,7 +688,7 @@ export class CampaignView {
     const factions = s.factions
       .map((f) => {
         const held = ownedNodes(s, f.id).length;
-        return `<div class="cmp-faction ${f.eliminated ? 'out' : ''}" style="--fc:${FACTION_COLOUR[f.id]}">${factionAvatar(f.id)}<span>${f.id === me.id ? 'you' : lower(f.name)}</span><b>${f.eliminated ? 'eliminated' : `${held} system${held === 1 ? '' : 's'}`}</b></div>`;
+        return `<div class="cmp-faction ${f.eliminated ? 'out' : ''}" style="--fc:${this.colourOf(f.id)}">${this.avatarOf(f.id)}<span>${f.id === me.id ? 'you' : lower(f.name)}</span><b>${f.eliminated ? 'eliminated' : `${held} system${held === 1 ? '' : 's'}`}</b></div>`;
       })
       .join('');
     const missions = me.missions.map((m) => this.missionRow(m.id, missionProgress(s, me, m))).join('');
@@ -709,28 +715,20 @@ export class CampaignView {
   private renderNode(n: CampaignNode): string {
     const s = this.state!;
     const me = campaignPlayer(s);
-    const sys = systemDef(n.systemId);
     const mine = n.owner === me.id;
     const owner = n.owner ? factionById(s, n.owner) : null;
-    const planets = sys.planets
-      .map((pl, j) => {
-        const level = pl.level + (n.boosts[j] ?? 0);
-        const pips = [0, 1, 2].map((i) => `<i class="${i < level ? 'on' : ''}"></i>`).join('');
-        const up =
-          mine && canUpgradePlanet(n, j)
-            ? `<button class="pill-btn" data-act="cmp-planet" data-node="${n.id}" data-arg="${j}" ${me.credits < upgradeCost(n, j) ? 'disabled' : ''}>+1 · ${CREDITS}${upgradeCost(n, j)}</button>`
-            : '';
-        return `<div class="cmp-planet"><span>${TRACK_ICON[pl.track]} ${lower(pl.name)}</span><span class="pips">${pips}</span>${up}</div>`;
-      })
-      .join('');
+    const fortCost = fortifyCost(n);
+    const fortPips = Array.from({ length: CAMPAIGN.maxFortification }, (_, i) => `<i class="${i < n.fortification ? 'on' : ''}"></i>`).join('');
+    const fortify = `
+      <div class="cmp-planet"><span>fortification</span><span class="pips">${fortPips}</span>${
+        mine && fortCost !== null ? `<button class="pill-btn" data-act="cmp-fortify" data-arg="${n.id}" ${me.credits < fortCost ? 'disabled' : ''}>+1 · ${CREDITS}${fortCost}</button>` : ''
+      }</div>
+      <p class="cmp-hint">Each level gives this system's defender +${CAMPAIGN.fortifyHealth} max health.</p>`;
     const g = garrisonBonus(n);
     const bonus = [
-      g.opening.money && `+${g.opening.money} money`,
-      g.opening.draw && `+${g.opening.draw} cards`,
-      g.opening.shields && `+${g.opening.shields} shields`,
-      g.bombard && `attacker starts +${g.bombard} heat`,
-      g.chill && `sun starts ${g.chill} cooler`,
-      g.planetLevels && `+${g.planetLevels} planet level${g.planetLevels > 1 ? 's' : ''}`,
+      g.tableau.length && `${g.tableau.length} card${g.tableau.length > 1 ? 's' : ''} start in play`,
+      ...Object.entries(g.upgrades).map(([a, k]) => `+${k} ${a === 'solarFlare' ? 'Solar Flare' : a === 'thermosiphon' ? 'Thermosiphon' : 'Cooling Chamber'} upgrade`),
+      n.fortification && `+${n.fortification * CAMPAIGN.fortifyHealth} max health`,
     ].filter(Boolean);
     const garrison = n.garrison
       .map((c) => {
@@ -747,8 +745,8 @@ export class CampaignView {
       : '';
     const status = n.hazard.length ? '<p class="cmp-warn">Supernova remnant: rivals cannot advance into it this turn.</p>' : '';
     return `
-      <div class="cmp-node-head" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}">
-        ${n.owner ? factionAvatar(n.owner, 'cmp-head-av') : '<i></i>'}
+      <div class="cmp-node-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
+        ${n.owner ? this.avatarOf(n.owner, 'cmp-head-av') : '<i></i>'}
         <div><h3>${lower(n.name)}</h3><small>${owner ? (mine ? 'your system' : lower(owner.name)) : `neutral · sentinels tier ${n.tier + 1}`}${n.home ? ' · home' : ''}</small></div>
         <button class="icon-btn" data-act="cmp-select" data-arg="${n.id}" aria-label="Close">×</button>
       </div>
@@ -757,10 +755,9 @@ export class CampaignView {
       ${nodeAnomalies(s, n)
         .map((a) => `<div class="cmp-sys cmp-anom"><b>${lower(ANOMALIES[a.kind].name)} nearby</b><span>${esc(ANOMALIES[a.kind].text)}</span></div>`)
         .join('')}
-      <div class="cmp-sys"><b>${lower(sys.name)}</b><span>+ ${esc(sys.abilityText)}</span><span class="sys-drawback">− ${esc(sys.drawbackText)}</span></div>
-      <div class="cmp-yield">yield ${CREDITS} ${n.yield.credits} · ${MATERIALS} ${n.yield.materials} per turn</div>
-      <div class="section-label">planets</div>
-      <div class="cmp-planets">${planets}</div>
+      <div class="cmp-yield">yield ${CREDITS} ${n.yield.credits} · ${MATERIALS} ${n.yield.materials} per turn · ${n.planets.length} planets</div>
+      <div class="section-label">defences</div>
+      <div class="cmp-planets">${fortify}</div>
       ${
         n.damage || mine
           ? `<div class="cmp-damage"><span>damage ✸ ${n.damage}${n.damage ? ` <small>(its sun starts ${n.damage} hotter)</small>` : ''}</span>${
@@ -862,29 +859,27 @@ export class CampaignView {
         return this.modal(
           'how the campaign works',
           `<div class="cmp-legend">
-            <div>${CREDITS}<span><b>Credits</b> run your systems. Earned: each system's yield every turn, winning battles, missions. Spent: repairing damage, upgrading planets.</span></div>
-            <div>${MATERIALS}<span><b>Materials</b> build your deck. Earned: each system's yield every turn, winning battles, missions. Spent: buying armory cards, upgrading cards.</span></div>
+            <div>${CREDITS}<span><b>Credits</b> run your systems. Earned: each system's yield every turn, winning battles, missions. Spent: repairing damage, fortifying systems.</span></div>
+            <div>${MATERIALS}<span><b>Materials</b> build your collection. Earned the same ways. Spent: buying cards in the armory.</span></div>
           </div>
           <ul class="rules">
             <li><b>Attack</b> one system per turn: any system linked to one you control. The battle is a normal game, played from your system against theirs.</li>
             <li><b>Win</b> and choose: <b>Settle</b> it, <b>Absorb</b> its resources, or <b>Supernova</b> it to block rivals for a turn.</li>
-            <li>A winner's sun carries its heat home as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits; upgrade planets with credits too.</li>
-            <li>Your battle <b>deck is always 10 cards</b>; empty slots are Stardust. Earn cards from missions, buy them in the armory and upgrade them with ${MATERIALS} materials.</li>
-            <li><b>Send cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: each gives its power as a head start when the system is attacked. Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
+            <li>A winner's sun carries its heat home as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits, and <b>fortify</b> a system for +${CAMPAIGN.fortifyHealth} max health per level when it defends.</li>
+            <li>Your battle <b>deck is 20 cards</b> with exactly 2 Command cards. Win cards from missions and buy them in the armory with ${MATERIALS} materials; they wait in your reserve until you swap them into your deck.</li>
+            <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play in its tableau (a Command card gives its upgrade). Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
           </ul>`,
           true,
         );
       case 'station': {
         const n = nodeById(s, sh.nodeId);
-        const pick = (list: string[], from: CardSource) =>
-          list
-            .map((id, i) => (canGarrison(id) ? `<button class="cmp-pick" data-act="cmp-station" data-from="${from}" data-arg="${i}">${cardHtml(id)}<span class="cmp-price">${from}</span></button>` : ''))
-            .join('');
-        const cards = pick(me.reserve, 'reserve') + pick(me.deck, 'deck');
+        const cards = me.reserve
+          .map((id, i) => (canGarrison(id) ? `<button class="cmp-pick" data-act="cmp-station" data-arg="${i}">${cardHtml(id)}</button>` : ''))
+          .join('');
         return this.modal(
           `send a card to ${lower(n.name)}`,
-          `<div class="cmp-cards">${cards || '<p class="muted">No cards to send. Stardust cannot garrison; win missions or visit the armory for more.</p>'}</div>
-           <p class="muted center-text">It arrives next turn and defends from then on. A deck card leaves a Stardust in its slot.</p>`,
+          `<div class="cmp-cards">${cards || '<p class="muted">No reserve cards to send. Win missions or visit the armory for more (global cards cannot garrison).</p>'}</div>
+           <p class="muted center-text">It arrives next turn and, from then on, starts in play whenever the system is attacked.</p>`,
           true,
         );
       }
@@ -903,45 +898,45 @@ export class CampaignView {
   private matchup(from: CampaignNode, to: CampaignNode): string {
     const s = this.state!;
     const side = (n: CampaignNode, label: string) => {
-      const sys = systemDef(n.systemId);
       const who = n.owner ? factionById(s, n.owner).name : `${n.name} Sentinels`;
       const fx = anomalyEffects(s, n);
-      return `<div class="cmp-side-card" style="--fc:${n.owner ? FACTION_COLOUR[n.owner] : NEUTRAL}"><small>${label}</small><b>${n.owner ? factionAvatar(n.owner, 'fav-inline') : ''}${lower(who)}</b><span>${lower(n.name)} · ${lower(sys.name)}</span>${n.damage ? `<span class="cmp-dmg">✸ ${n.damage} damage</span>` : ''}${
+      return `<div class="cmp-side-card" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}"><small>${label}</small><b>${n.owner ? this.avatarOf(n.owner, 'fav-inline') : ''}${lower(who)}</b><span>${lower(n.name)}${n.fortification ? ` · fortified ${n.fortification}` : ''}</span>${n.damage ? `<span class="cmp-dmg">✸ ${n.damage} damage</span>` : ''}${
         fx ? fx.conditions.map((c) => `<span class="cmp-anom-tag">${lower(c.name)}</span>`).join('') : ''
       }</div>`;
     };
     const g = garrisonBonus(to);
-    const def = [g.opening.money && `+${g.opening.money} money`, g.opening.shields && `+${g.opening.shields} shields`, g.opening.draw && `+${g.opening.draw} cards`, g.bombard && `+${g.bombard} heat on the attacker`, g.chill && `${g.chill} cooler`, g.planetLevels && `+${g.planetLevels} planet levels`].filter(Boolean);
-    return `<div class="cmp-matchup">${side(from, 'attacker')}<span class="cmp-vs">vs</span>${side(to, 'defender')}</div>${def.length ? `<p class="cmp-bonus">Defender's garrison: ${def.join(', ')}.</p>` : ''}`;
+    const def = g.tableau.map((id) => cardDef(id).name);
+    const ups = Object.keys(g.upgrades).length;
+    return `<div class="cmp-matchup">${side(from, 'attacker')}<span class="cmp-vs">vs</span>${side(to, 'defender')}</div>${
+      def.length || ups ? `<p class="cmp-bonus">The defender starts with ${[def.length ? `${def.join(', ')} in play` : '', ups ? `${ups} garrison upgrade${ups > 1 ? 's' : ''}` : ''].filter(Boolean).join(' and ')}.</p>` : ''
+    }`;
   }
 
   private renderDeck(slot?: number): string {
     const me = campaignPlayer(this.state!);
-    const upgrade = (id: string, from: CardSource, i: number) => {
-      const price = cardUpgradePrice(id);
-      if (price === null) return '';
-      return `<button class="pill-btn" data-act="cmp-upgrade-card" data-from="${from}" data-arg="${i}" ${me.materials < price ? 'disabled' : ''} title="Upgrade into ${esc(cardDef(CARD_UPGRADES[id]).name)}">→ ${lower(cardDef(CARD_UPGRADES[id]).name)} · ${MATERIALS}${price}</button>`;
-    };
     if (slot !== undefined) {
       const current = me.deck[slot];
-      const options = me.reserve.map((id, i) => `<button class="cmp-pick" data-act="cmp-swap" data-arg="${i}">${cardHtml(id)}</button>`).join('');
+      const options = me.reserve
+        .map((id, i) => {
+          const problem = deckSwapProblem(me, slot, i);
+          return `<button class="cmp-pick" data-act="cmp-swap" data-arg="${i}" ${problem ? `disabled title="${esc(problem)}"` : ''}>${cardHtml(id)}${problem ? '<span class="cmp-price">not allowed</span>' : ''}</button>`;
+        })
+        .join('');
       return this.modal(
-        `deck slot ${slot + 1}: ${lower(cardDef(current).name)}`,
-        `<p class="muted center-text">Choose a reserve card for this slot${current !== 'stardust' ? `, or put ${esc(cardDef(current).name)} back in reserve` : ''}.</p>
+        `swap out ${lower(cardDef(current).name)}`,
+        `<p class="muted center-text">Choose a reserve card to take its place (${esc(cardDef(current).name)} goes to your reserve). The deck keeps 20 cards, at most 2 of each, and exactly 2 Command cards.</p>
          <div class="cmp-cards">${options || '<p class="muted">Your reserve is empty.</p>'}</div>
-         <div class="center-row">${current !== 'stardust' ? '<button class="btn" data-act="cmp-swap" data-arg="">replace with stardust</button>' : ''}<button class="btn" data-act="cmp-close">back</button></div>`,
+         <div class="center-row"><button class="btn" data-act="cmp-close">back</button></div>`,
       );
     }
-    const deck = me.deck
-      .map((id, i) => `<div class="cmp-deck-slot"><button class="cmp-pick" data-act="cmp-slot" data-arg="${i}">${cardHtml(id)}</button>${upgrade(id, 'deck', i)}</div>`)
-      .join('');
-    const reserve = me.reserve.map((id, i) => `<div class="cmp-deck-slot">${cardHtml(id)}${upgrade(id, 'reserve', i)}</div>`).join('');
+    const deck = me.deck.map((id, i) => `<div class="cmp-deck-slot"><button class="cmp-pick" data-act="cmp-slot" data-arg="${i}">${cardHtml(id)}</button></div>`).join('');
+    const reserve = me.reserve.map((id) => `<div class="cmp-deck-slot">${cardHtml(id)}</div>`).join('');
     return this.modal(
-      `battle deck · ${CAMPAIGN.deckSize} cards`,
-      `<p class="muted center-text">Tap a card to swap it. Upgrades cost ${MATERIALS} materials (you have ${me.materials}).</p>
+      `battle deck · ${me.deck.length} cards`,
+      `<p class="muted center-text">Tap a card to swap a reserve card in for it.</p>
        <div class="cmp-cards cmp-deck">${deck}</div>
        <div class="section-label">reserve · ${me.reserve.length}</div>
-       <div class="cmp-cards cmp-deck">${reserve || '<p class="muted">Cards you win or buy wait here until you put them in your deck.</p>'}</div>`,
+       <div class="cmp-cards cmp-deck">${reserve || '<p class="muted">Cards you win or buy wait here until you swap them into your deck.</p>'}</div>`,
       true,
     );
   }
@@ -965,6 +960,6 @@ function cardHtml(defId: string): string {
       <div class="card-glyph">${cardGlyph(def.id, def.kind)}</div>
       <div class="card-name">${lower(def.name)}</div>
       <div class="card-text">${esc(def.text)}</div>
-      <div class="card-kind">${def.kind === 'basic' ? 'money' : def.kind}</div>
+      <div class="card-kind">${def.kind}${def.race !== undefined ? ` · ${lower(RACE_NAMES[def.race])}` : ''}</div>
     </div>`;
 }

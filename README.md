@@ -1,9 +1,10 @@
 # Blue Loop
 
-*A deck-building duel of warring solar civilisations, by **Coronal Mass Games**.*
+*A tableau card game of warring solar civilisations, by **Coronal Mass Games**.*
 
-Each player rules a solar system. Heat enemy suns until they go supernova, and
-cool your own to survive. The last sun standing wins.
+Each player brings a 20-card deck. Cards stay in play once played and power
+each other up. Heat enemy suns until they go supernova, and cool your own to
+survive. The last sun standing wins.
 
 This repository holds the digital edition, which is aimed at release on Steam.
 
@@ -39,12 +40,13 @@ Add to Home Screen**, and launch it from the icon to play full-screen.
 | --- | --- |
 | `src/engine/` | The rules engine: pure, deterministic, UI-free TypeScript. |
 | `src/engine/balance.ts` | Every tunable number (costs, limits, clocks). |
-| `src/engine/cards.ts` | Starter cards and the 200-card market deck. |
-| `src/engine/systems.ts` | The 8 solar systems. |
-| `src/engine/objectives.ts` | Objectives and global effects. |
+| `src/engine/cards.ts` | The card pool, the four race starter decks and deck rules. |
+| `src/engine/game.ts` | Turns, the tableau, effects, targets and shields. |
+| `src/engine/campaign.ts` | Campaign mode: the map, factions, garrisons and battles. |
 | `src/engine/ai.ts` | Heuristic AI opponent. |
 | `src/ui/app.ts` | Game client (plain TypeScript + DOM, no framework). |
-| `src/ui/art.ts`, `src/ui/glyphs.ts` | Procedural placeholder art: suns, action tiles, card glyphs. |
+| `src/ui/builder.ts`, `src/ui/decks.ts` | The deck builder and saved decks. |
+| `src/ui/art.ts`, `src/ui/glyphs.ts` | Procedural placeholder art: suns, upgrade tiles, card glyphs. |
 | `src/ui/fx.ts` | Card movement, projectiles and hit effects. |
 | `src/ui/sound.ts` | Synthesised placeholder sound effects (Web Audio). |
 | `electron/` | Desktop shell for the Steam build. |

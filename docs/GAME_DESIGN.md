@@ -1,235 +1,191 @@
 # Blue Loop: Game design (as implemented)
 
-Status: **playable prototype**. Rules from the original brief are marked
-**[brief]**. Everything else was added to make the brief playable, and is
-marked **[proposed]** for the design team to confirm or change.
+Status: **playable prototype**. Blue Loop is a tableau card game: each player
+brings a deck, and the cards they play stay in front of them, powering each
+other up. Decisions from design review are marked **[design review]**. The
+rest was added to make them playable and is marked **[proposed]**, for the
+design team to confirm or change.
 
-## Setup
+The deck-building version (solar systems, money, the display, objectives)
+was replaced by this design in design review.
 
-- 2–4 players. [proposed player count]
-- **System draft:** each player is offered 2 random solar systems from the pool of 8 and picks one. A "SELECT SOLAR SYSTEM" banner plays over the board first, then the two offers appear; rivals' offers can be peeked at via tabs. [design review]
-- Each player starts with **9 Stardust** (+1 money) and **1 Command Directive**. [brief]
-- **3 cards** are on display at all times, drawn from a **200-card market deck**. [brief said 8; reduced to 3 in design review]
-- **The display drifts:** after every full round, the leftmost card is discarded (out of the game), the other two slide one place left, and the empty right-hand slot is refilled from the deck. [design review]
-- **Buying closes the gap:** when a card is bought (or requisitioned) from the display, the cards to its right slide left to fill the gap and the replacement always joins in the rightmost slot, so a fresh card is always the last to drift away. [design review]
-- Suns start at **0**. The floor is **-10**, and a sun at **10** goes supernova and that player is out. [brief]
-- Hand size is 5. Standard deck-builder flow: draw 5, play, then discard hand and played cards and draw 5 more. [proposed]
-- 3 global objectives are face up, drawn from a pool of 11. [proposed]
+## The goal
 
-## Turn structure
+- 2–4 players. Every sun starts at **0** heat with **30** max health. Reaching max health makes your sun go supernova, and you are out. The last sun standing wins. [proposed numbers]
+- Cooling can take a sun down to **-5**. [proposed]
 
-0. **Draw** a new hand (5 cards, plus bonuses). Hands are drawn when your turn begins, so nothing arrives during opponents' turns. [design review]
-1. **Gain resources**: money from economy planets and system abilities, plus shields from defence planets. [brief: "gain resources"]
-2. **Resolve global effects**: the active global card (if any), then Cryon Drift's thaw. [brief]
-3. **Stellar Instability**: from round 8, every sun heats at the start of its turn: +1 in round 8, +2 in round 9, +3 in round 10, and so on. [design review]
-4. **Main phase**, in any order and as often as money allows:
-   - Play cards from hand.
-   - Buy a card from the display. It goes to the discard pile. [proposed]
-   - **Solar Flare**: pay 2 to heat an enemy sun by 1. Each upgrade adds +1 heat and +1 cost (2/3/4/5 money for 1/2/3/4 heat): the core actions are money sinks, never as efficient as bought cards. [design review]
-   - **Thermosiphon**: pay 2 to cool your own sun by 1, +1 per upgrade. [brief]
-5. **End turn**: discard your hand and played cards. Unspent money is lost. [proposed]
+## Decks
 
-## Core actions
+- A deck is **exactly 20 cards**, with **at most 2 copies** of any card and **exactly 2 Command cards**. [design review: 20 cards, 2 commands; proposed: 2 copies]
+- Players build decks in the **deck builder** (Quickplay → deck builder) from the whole card pool, or pick one of the four **race starter decks**. The AI plays the starters. [design review]
+- Each deck carries a race emblem. Cards can be mixed freely across races. [proposed]
 
-Solar Flare and Thermosiphon are **actions, not cards**. They are always
-available, shown as two tiles in the dock, and can be used as often as you can
-pay for them. [brief]
+## Turns
 
-| Action | Base | Upgrade slots | Max |
-| --- | --- | --- | --- |
-| Solar Flare | 1 heat to an enemy sun | 3 (small squares on the tile) | 4 heat |
-| Thermosiphon | 1 cooling to your own sun | 1 (large square on the tile) | 2 cooling |
-| Cooling Chamber | Passive: max health 10 | 3 (vertical bars on the tile) | max health 25 (+5 each) |
+1. **Start of turn.** In this order:
+   - Your shields fade (unless Deep Current holds them).
+   - Draw **2 cards**. Your opening hand of 5 covers your first turn.
+   - Stellar Instability applies, if it has begun.
+   - The global card applies, if there is one.
+   - Your tableau's **start-of-turn effects** trigger, oldest card first.
+2. **Play cards.** You may play **1 card on your first turn, 2 on your second, 3 on your third, and 4 on every turn after that**. Hive Relay adds 1. [design review: 1, 2, 3…; proposed: cap of 4]
+3. **End turn.** Unplayed cards stay in your hand. [proposed]
 
-**Max health** is the heat at which your sun goes supernova. Everyone starts at 10.
+**Second seat head start** [proposed]: in 2-player games, the second player starts with a sun 2 cooler, 1 extra card in hand, and 1 extra play on their first turn. Without it the first player won about 70% of AI games; with it, seats are even. In 3–4 player games there is no head start: everyone else gangs up on the leader anyway.
+
+**Drawing from an empty deck** heats your sun by 2 for each card you should have drawn. [proposed]
+
+## The tableau
+
+- Played cards **stay in play** in your tableau, which has **8 slots**. [design review: cards persist; proposed: 8 slots]
+- When all 8 are full, a new card must **replace** one of yours, which goes to your discard pile. [design review]
+- Cards have up to three kinds of effect:
+  - **When played**: a one-off effect.
+  - **Start of turn**: triggers at the start of each of your turns while the card is in play.
+  - **Passive**: works while the card is in play.
+
+  A few cards also do something **when they leave** your tableau. [design review]
+- Every player's tableau is visible. On the board, your target's tableau lies across the table and yours is on the near side. Tap a rival's pill (top left) to target them and bring their tableau across. [design review: players need to see each other's tableaus]
+- Only **one global card** can be in play on the whole table. A new one sweeps the old one away. Global effects apply to everyone equally. [design review: globals are symmetric]
+
+## Targets and shields
+
+- **Your target** is the rival your attacks hit. Tap a rival to choose. It defaults to the next rival round the table, and moves on if they are knocked out. [proposed]
+- **Shields** absorb enemy heat point for point. They fade at the start of your turn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields. [proposed]
+- A few cards splash: they hit your target in full and every other enemy for 1. In 2-player games that is the same as hitting your target. [proposed, for multiplayer balance]
 
 ## Command cards
 
-A Command card upgrades **one** of these by 1 [proposed: which things it can upgrade]:
-- a Solar Flare, Thermosiphon or Cooling Chamber upgrade slot, or
-- one of your planets, by 1 level (max 3). [brief: "upgrade a planet or system"]
+Command cards don't take a tableau slot. Each one upgrades a core stat for your **whole deck**, permanently. [design review]
 
-Each planet belongs to one of four tracks [brief]:
-
-| Track | Effect per level [proposed] |
-| --- | --- |
-| Weapons | Your heat ignores 1 enemy shield. |
-| Defences | +1 shield, refreshed each turn. Shields absorb enemy heat. |
-| Economy | +1 money at turn start. |
-| Resources | +1 hand size. |
-
-Every level counts: planets go to level 3, and each level adds its bonus once. Bonuses add up across all your planets of that track.
-
-Systems differ by their mix of planets, a unique ability **and** a drawback. [design review]
-
-## The 8 solar systems [proposed content]
-
-| System | Planets | Ability | Drawback |
-| --- | --- | --- | --- |
-| Helios Reach | W, D, E, R | First Thermosiphon each turn costs 1 less | Max health 1 lower |
-| Vulcan Forge | W, W, E | Solar Flare starts with 2 upgrades | Max health 2 lower |
-| Aegis Cluster | D, R | +1 shield every turn | Thermosiphon costs 1 more |
-| Midas Belt | E1, E, R | +1 money every turn | Solar Flare and Thermosiphon cost 1 more; max health 2 lower |
-| Cryon Drift | D, R, E | Sun starts at -10 | Thaw: sun heats by 1 at the start of each of its turns, until it reaches 4 |
-| Tempest Binary | W, R | Draw 1 extra card every turn | Display cards cost 1 more; max health 4 lower |
-| Obsidian Veil | E, W, D | Display cards cost 1 less (min 1) | Hand size fixed at 5 (planets and rewards cannot raise it) |
-| Nova Crown | E1, W, D | +1 money per 3 heat above 0 at turn start | Max health 2 lower |
-
-Tuned with `npm run simulate` after the Solar Flare cost change: every system wins 43–55% of 2-player games. [design review]
-
-(`E1` = starts at level 1.)
-
-## Market deck (200 cards) [proposed content]
-
-Cards that hit **every enemy** (Plasma Barrage) are priced for several targets, so they are left out of 2-player games. The 2-player market deck is 190 cards. [design review]
-
-Prices were lowered in design review: about 82% of the deck costs 4 or less, so early turns (4–6 money) can usually buy something.
-
-Economy · Attack · Defence · Command · Mission · Global (24).
-
-**Global cards change the board for everyone, equally.** They have no instant effect and never favour the player who played them: you pay to change the conditions of play, not for a direct benefit. Each lasts 3 full rounds. Only one is active at a time, and playing a new global replaces the current one. [design review]
-
-| Card (cost) | For 3 rounds |
-| --- | --- |
-| Solar Storm (3) | Every sun heats by 1 at the start of its turn |
-| Solar Maximum (3) | Every Solar Flare deals +1 heat |
-| Ice Age (2) | Every sun cools by 1 at the start of its turn |
-| Trade Boom (2) | Every player gains +1 money at the start of their turn |
-| Magnetic Storm (2) | Every Solar Flare costs 1 more |
-| Nebula Drift (2) | Display cards cost 1 less for everyone (min 1) |
-
-The full list is in `src/engine/cards.ts`.
-
-## Objectives and rewards
-
-**Global objectives** are shared and first come, first served. [design review] Three are face up. The first player to meet one, checked after every action on their turn, claims it. It is then replaced from the pool, and the claimer chooses a reward.
-Pool [proposed]: Deep Freeze, Firestorm, Collector, Big Spender, Brinkmanship, Industrialist, Shieldwall, Arsenal, Cold Front, Trade Baron, Overdrive.
-
-**Missions** are personal objectives on cards in the market deck: 6 kinds, 2 copies each. [design review] Buy one, then play it to put it in front of you. When you meet its condition on your turn you choose a reward, and the mission card leaves the game.
-
-**Rewards**: each claim offers 3 at random from the pool below, and you pick 1. Each reward can be taken **once per player per game**. [design review: "one time use"; proposed interpretation]
-
-| Reward | Type | Effect |
+| Upgrade | Effect per level | Max |
 | --- | --- | --- |
-| Command Upgrade | instant | Upgrade one action or planet now. |
-| Requisition | instant | Take any display card for free. |
-| Purge | instant | Remove up to 2 Stardust for good (deck thinning). |
-| Emergency Vent | instant | Cool your sun by 4. |
-| Wide Sensors | permanent | Draw 1 extra card each turn. |
-| Stellar Mint | permanent | +1 money each turn. |
-| Plasma Focus | permanent | Your attack cards deal +1 heat. |
-| Deep Coolant | permanent | Thermosiphon and cooling cards cool +1. (Suggested +2; reduced to +1 because Thermosiphon at 4 cooling per use made suns nearly unkillable.) |
-| Aegis Lattice | permanent | +1 shield each turn. |
-| Flare Focus | permanent | Your first Solar Flare each turn costs 1 less. |
+| Solar Flare | Every heat effect from your **attack cards** deals +1 | 3 |
+| Thermosiphon | Every cooling effect from your cards cools +1 | 3 |
+| Cooling Chamber | +6 max health | 3 |
 
-## Planet effects vs action upgrades
+The Command cards:
 
-These are separate systems:
-- **Action upgrades** (Command card → Solar Flare or Thermosiphon slot) make that action stronger every time you use it.
-- **Planets** (Command card → planet level) give passive bonuses from their track, summed across all your planets of that track. Economy is the simplest: every economy level is +1 money at the start of every turn, permanently.
+| Card | Effect |
+| --- | --- |
+| Ignition Protocol | Solar Flare upgrade, and heat your target by 1 |
+| Coolant Protocol | Thermosiphon upgrade, and cool your sun by 1 |
+| Chamber Protocol | Cooling Chamber upgrade, and gain 2 shields |
+| Command Directive | Choose any upgrade |
 
-Open question: should weapons and defence planets instead boost attack and cooling *cards*? See open questions.
+With exactly 2 Command cards per deck, a player reaches at most +2 on one stat in a game. The campaign's garrisons can add more.
+
+## The card pool [proposed content]
+
+**42 cards:** 14 neutral (including 3 globals), 4 Command cards, and 6 for each race. Cards have no cost: the number of plays per turn is the only limit, so no single card is a bomb. The power is in combinations. The full list and exact wording are in `src/engine/cards.ts`.
+
+| Race | Theme | Its cards |
+| --- | --- | --- |
+| Aureline | Lancers: many attack cards, each making the others hit harder | Helio Lancer, Focusing Array (other attack cards +1 at start of turn; copies don't stack), Coronal Chorus (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Ward |
+| Xel'Naru | Overload: splash every enemy, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm, Overload Core (harder while overheated), Martyr Crystal (burst when it leaves play), Prism Vent, Fracture Lens |
+| Vorthane | Tides: build shields, keep them, and sting attackers | Bell Warden, Stinging Veil (once per attacking card each turn), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Lure Jelly |
+| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each turn), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud |
+
+**Neutral cards:** Coronal Lance, Plasma Relay, Gravity Sling, Thermal Exchange, Solar Battery, Ion Cannon, Coolant Array, Cryo Vault, Deflector Grid, Heat Sink and Deep-Space Scanners. Ion Cannon destroys a card in your target's tableau.
+
+**Globals:** Solar Storm (every sun heats 1 each turn), Ice Age (every sun cools 1 each turn) and Solar Maximum (every heat effect +1).
+
+## Balance (AI simulations)
+
+`npm run simulate -- [games] [players]` plays AI-versus-AI games with the four starter decks.
+
+**2 players.** Seats are even (49/51). Overall deck win rates are 42–57%. The worst match-up is about 70/30:
+
+| Row beats column | Lancers | Overload | Tide | Bloom |
+| --- | --- | --- | --- | --- |
+| Solar Lancers | – | 32% | 72% | 53% |
+| Shard Overload | 68% | – | 33% | 68% |
+| Abyssal Tide | 28% | 67% | – | 51% |
+| Hive Bloom | 47% | 32% | 49% | – |
+
+**3–4 players.**
+- Abyssal Tide (defence) does best: about 47% in 3-player games, against a fair 33%, and 37% in 4-player games, against a fair 25%.
+- Solar Lancers (all attack) does worst: 15–23%.
+- The AI attacks the rival on its left, but switches to finish off a sun near supernova or to rein in a clear leader.
+
+The balance has been sensitive to single cards, removal above all. Adding two Ion Cannons to the Tide starter swung it from 45% to 80% overall.
 
 ## Why Stellar Instability exists
 
-The HUD shows a **stability bar** that loses one segment each completed round.
-When it empties, instability begins.
+The stability bar loses one segment each round. From round **10**, every sun heats at the start of its turn: +1, then +1 more each round after. Together with fatigue from empty decks, this guarantees that games end. AI games currently last about 7–8 rounds, so most end before instability begins.
 
-Heating and cooling both cost 2 money, and a defender also gets shields, so
-two careful players can stall forever. The first AI simulations did exactly
-that: games ran past 300 turns. Stellar Instability is a late-game clock: from
-round 8, every sun heats by 1 at the start of its turn, stacking +1 every round after. It fits the theme (the loop decays) and guarantees games end.
-AI games currently average about 11 rounds with 2 players and 11 with 4.
+## The four races
 
-Alternatives worth playtesting instead: make Solar Flare cheaper than
-Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
-
-## The four races [design review, first version]
-
-Each player is one of four alien races. They're cosmetic for now and set the faction portraits. The looming figures in `src/ui/titans.ts` are drawn but not shown. None is humanoid.
+Each player is one of four non-humanoid alien races. The race sets the faction emblem and colour, and each has six cards of its own.
 
 | Race | Form | Colour |
 | --- | --- | --- |
-| Aureline (the player) | Tilted plasma halos around a single unblinking eye, with ribbon arms | Blue |
+| Aureline | Tilted plasma halos around a single unblinking eye | Blue |
 | Xel'Naru | A choir of floating crystal shards around a core of light | Rose |
-| Vorthane | A drifting jelly-like bell rimmed with glowing eyes, its tentacles draping over the board | Gold |
-| Ixquor | A branching fungal hive with pulsing nodes and root limbs | Violet |
+| Vorthane | A drifting jelly-like bell rimmed with glowing eyes | Gold |
+| Ixquor | A branching fungal hive with pulsing nodes | Violet |
 
-In battle, the whole play area is a table seen in perspective, like a tabletop simulator. Your hand, the player cards, the log, the controls and the display all lie on it, and pop-ups stay flat above it. The rotating white star lies flat in the centre of the board, under the display cards.
+## The battle table
 
-## Campaign mode [design review, first version]
+The whole play area is a table seen in perspective, like a tabletop simulator. A flat HUD sits above it:
+- **Top left:** player pills, in a column. The active player glows green, and your target has a crosshair.
+- **Top centre:** the round and stability.
+- **Top right:** the global card, skip and the menu.
 
-Universe domination on a map of 48 linked solar systems. They're scattered in loose clusters with open voids between, so neighbours sit at irregular distances and angles. Routes follow a Gabriel graph, which never crosses. Overlong routes are dropped unless they're needed to keep the map connected. The map is a tilted 3D plane: drag to pan, scroll or pinch to zoom. Selecting a system zooms the camera in to show its planets orbiting the star. The player and 1–3 AI factions start in the corners. Everything else is neutral, held by "sentinels" that get stronger towards the middle of the map. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).
+On the table:
+- Your target's tableau lies across the far side, yours on the near side, and the rotating white star between them.
+- The log runs down the right.
+- Your hand fans along the bottom, with your deck and discard piles either side.
+- The upgrade rail sits on the left, and the "plays left" pips and End Turn on the right.
 
-**Anomalies.** Eight anomalies settle in the voids between systems, each within reach of at least one system and never over a starting system. Each affects every battle fought from a system within its reach: the defender of a system there, or an attacker launching from one. Each is a trade-off:
+When a card needs a choice, you make it on the board and a short prompt appears at the top of the screen:
+- which rival card Ion Cannon destroys
+- which of your cards to replace when your tableau is full
+
+Command Directive's upgrade choice is a small dialog. Press and hold any card to read it at the middle right of the screen.
+
+## Campaign mode
+
+Universe domination on a map of 48 linked solar systems, played with the card game. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).
+
+**Setup.** Choose your race and 1–3 rivals. The rivals are the other races. Your deck starts mostly neutral: 8 neutral pairs, 2 cards of your race and 2 Command Directives.
+
+**The map.** Unchanged from before:
+- 48 systems in loose clusters, linked by routes that never cross, on a tilted 3D plane that you can pan and zoom.
+- Factions start in the corners. Neutral systems are held by sentinels, which get stronger towards the middle of the map.
+- Outer sentinels start their battles with hotter suns (+5 heat at tier 1, +2 at tier 2), so early expansion is easier. [proposed]
+
+**Turns, attacks, conquest, missions and winning** work as before:
+- One attack per turn, on a system linked to yours. The battle is a 1v1 game: you attack from your system, the defender holds theirs.
+- After a win, choose Settle, Absorb or Supernova.
+- Damage carries between battles.
+- The campaign lasts 60 turns. You win at 50% of the systems or by eliminating every rival.
+
+**Economy.**
+- **Credits** repair damage (1 per point) and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +4 max health.
+- **Materials** buy cards in the armory: 3 neutral, 4 global or Command, 5 race. The armory and mission rewards offer mostly your own race's cards.
+
+**The deck.** Your campaign deck is always a legal 20-card deck. Cards you win or buy wait in your **reserve**. You swap a reserve card in for a deck card, as long as the deck stays legal.
+
+**Garrisons.** Send up to 3 reserve cards to a system you control. They take a turn to arrive and a turn to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau**, and a stationed Command card gives its upgrade instead. If the system falls, the conqueror takes them. [design review: garrisoned cards defend a system]
+
+**Anomalies** now give battle modifiers:
 
 | Anomaly | Boon | Cost |
 | --- | --- | --- |
-| Black Hole | +3 max health | Hand 1 card smaller |
-| Nebula | +1 shield every turn | Display cards cost 1 more |
-| Dark Matter Cluster | +1 money every turn | Thermosiphon costs 1 more |
-| Pulsar | First Solar Flare each turn costs 1 less | Your sun heats by 1 each turn, up to 3 |
-
-A system in reach of two anomalies gets both. Their effects are listed on the system panel, the attack matchup and the in-battle solar system card, and logged at the start of the battle.
-
-**Turns.** On your turn you can manage your systems and deck freely, and make **one attack**. Then each AI faction takes its turn in order. Garrison moves resolve and every faction collects income at the start of the next turn. The campaign lasts **60 turns**.
-
-**Attacking.** You can attack any system linked to one you control, except a supernova remnant that is still blocking you. The battle is a normal 1v1 game:
-- **Attacker:** plays from the system it launched from, with that system's planet upgrades and damage.
-- **Defender:** plays the target system, with its upgrades, damage and garrison.
-
-You can fight a battle yourself or **auto-resolve** it, even partway through. AI-versus-AI battles resolve automatically.
-
-**After a win, choose the system's fate:**
-
-| Choice | Effect |
-| --- | --- |
-| Settle | Take control. It pays its yield (credits and materials) every turn. |
-| Absorb | Take 3 turns of its yield at once. It is left neutral and depleted (yield −1 each). |
-| Supernova | It is left neutral. No rival can attack it until each of them has had one turn. |
-
-**Damage.** The winner's sun carries its final heat home as damage (capped at 6). A repelled attack deals 3 damage to the system it launched from. Damage adds to that system's starting heat in later battles.
-
-**Two currencies**, each with its own solid icon: a gold coin for credits and a teal crystal for materials.
-- **Credits** repair damage (2 per point) and upgrade planets (4 + 4 per level already bought).
-- **Materials** buy armory cards (the card's price + 1; 3 new offers each turn) and upgrade cards (Stardust → Stellar Credits → Trade Convoy → Dyson Tap; Coolant Array → Cryo Vault; Gravity Sling → Coronal Lance → Starbreaker; and so on). An upgrade costs the new card's price.
-
-**Deck.** Your battle deck is **always 10 cards**; empty slots are Stardust (unlimited). New cards wait in a reserve until you swap them in.
-
-**Missions.** Each faction has 3 campaign missions at a time, from a pool of 10 (for example Settle 2 systems, Win a defence, Win a battle within 5 rounds). Each one pays 4 credits and 3 materials, plus a choice of 1 of 3 new cards. Winning any battle also pays 3 credits and 2 materials.
-
-**Garrisons.** Send up to 3 cards to a system you control. Cards take **a turn to arrive** and **a turn to return**, and cannot be redirected while moving. Only stationed cards defend. When the system is attacked, each one gives its power as a head start:
-
-| Card effect | Garrison bonus |
-| --- | --- |
-| Money | Defender's first-turn money |
-| Draw | Extra cards in the first hand |
-| Shields | First-turn shields |
-| Attack | Heats the attacker's sun at the start (max 4) |
-| Cooling | Cools the defender's sun at the start (max 5) |
-| Command | +1 planet level |
-
-Stardust, global and mission cards cannot garrison. If the system falls, the conqueror takes every card held there, including cards arriving or leaving.
-
-**Winning.** You win by:
-- controlling 50% of the systems,
-- eliminating every rival (a faction is out when it holds no systems), or
-- controlling the most systems when turn 60 ends.
-
-You lose if you lose all your systems.
+| Black Hole | +5 max health | Opening hand 1 card smaller |
+| Nebula | +1 shield every turn | Sun starts 3 hotter |
+| Dark Matter Cluster | Draw 1 extra card every turn | Sun heats by 1 every turn |
+| Pulsar | Sun cools by 1 every turn | 4 less max health |
 
 **Balance notes (simulator).**
-- With the AI running every faction, campaigns average about 57 turns on the 48-system map, so most reach the turn limit. AI factions may need to be more aggressive.
-- The first faction to act (the player's seat) wins most often. That's generous to the player, but needs tuning.
-- An auto-player that never repairs or garrisons always loses, so management matters.
+- With the AI running every faction, campaigns average about 56 turns.
+- Race and starting corner matter too much: in 12 all-AI campaigns, Xel'Naru won 8 and Aureline none. This needs tuning next.
 
 ## Open design questions
 
-1. **"Upgrade a planet *or system*"**: what does a system-level upgrade do? Currently only planets upgrade.
-2. **Rewards**: is "once per player" the right reading of "one time use"? Should the offer be 3 random rewards, or the full list?
-3. **Fields**: is 3 rounds the right length, and should the setter's advantage be bigger?
-4. **Player elimination**: should eliminated players keep a role, for example controlling global events?
-5. **Game length**: with the Solar Flare cost now rising with upgrades, 2-player AI games last about 23 turns (11 rounds), so Stellar Instability usually decides the late game.
-6. **Balance**: with drawbacks, `npm run simulate` puts every system at 46–54% in 2-player games. In 4-player games the systems with lower max health (Vulcan, Nova, Obsidian, Tempest) still win too rarely (13–21% against a fair 25%), and Aegis and Helios win too often (37–43%). Part of that is the AI always targeting the hottest sun. Needs human playtesting.
-7. **Weapon and defence planets**: should they add their bonus to attack and cooling cards (as suggested in review), or keep the current effects (shield pierce and shields), or get more unique abilities per planet?
-8. **Deck exhaustion**: what happens when all 200 market cards are bought? Currently the display slots stay empty.
+1. **Numbers:** max health 30, 8 slots, a cap of 4 plays and 2 draws a turn are all first guesses. Human playtesting should drive them.
+2. **Removal:** Ion Cannon is the only way to destroy a card, and it swings match-ups hard. Should there be more removal, or none?
+3. **Multiplayer:** defensive decks win free-for-alls. Should attacks be restricted (for example, only your neighbours), or should defence scale down with more players?
+4. **Collection:** decks are built from the full pool. A collection to unlock would suit a CCG, but was left for later.
+5. **Campaign balance:** some races and corners win far more often in AI-only campaigns.

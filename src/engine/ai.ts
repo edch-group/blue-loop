@@ -1,154 +1,170 @@
-import { BALANCE } from './balance';
 import { cardDef } from './cards';
-import { playerModifiers } from './systems';
 import {
   activePlayer,
-  cardNeedsTarget,
-  cardNeedsUpgrade,
-  flareCost,
-  flareHeat,
+  applyAction,
+  cardNeedsDestroyTarget,
+  cardNeedsUpgradeChoice,
+  conditionMet,
+  effectAmount,
+  isOverheated,
   livingOpponents,
-  marketCost,
+  persists,
   supernovaThreshold,
-  shieldPierce,
-  thermoCost,
+  tableauFull,
+  targetOf,
   upgradeOptions,
 } from './game';
-import type { RewardId } from './objectives';
-import type { Action, CardKind, GameState, PlayerState, Track, UpgradeId } from './types';
+import type { Action, CardInstance, GameState, PlayerState } from './types';
+
+/** Turns a card in play is expected to keep working, for valuing ongoing effects. */
+const HORIZON = 2.5;
+/** A rival this close to supernova is worth switching targets to finish. */
+const FINISH_RATIO = Number(globalThis.process?.env?.FINISH ?? 0.75);
+/** In a free-for-all, switch to the leader once it is this much cooler (as a share of max health) than your usual target. */
+const LEADER_GAP = Number(globalThis.process?.env?.GAP ?? 0.25);
+
+/** Roughly what a card in play is worth to its owner each turn from now on. */
+function cardValue(state: GameState, p: PlayerState, card: CardInstance): number {
+  const def = cardDef(card.defId);
+  const foes = Math.max(1, livingOpponents(state, p).length);
+  let perTurn = 0;
+  for (const e of def.onTurn ?? []) {
+    if (!conditionMet(p, e.if) && !(e.if && 'minKind' in e.if)) continue;
+    const scale = conditionMet(p, e.if) ? 1 : 0.4;
+    switch (e.type) {
+      case 'heat':
+        perTurn += scale * (Math.max(effectAmount(state, p, card, e, 'turn'), e.plus?.of === 'growth' ? 2 : 0) * (e.to === 'enemies' ? foes * 0.85 : 1) + (e.splash ?? 0) * (foes - 1) * 0.85);
+        break;
+      case 'cool':
+        perTurn += scale * effectAmount(state, p, card, e, 'turn') * (p.heat > 0 ? 0.9 : 0.35);
+        break;
+      case 'shield':
+        perTurn += scale * effectAmount(state, p, card, e, 'turn') * 0.45;
+        break;
+      case 'draw':
+        perTurn += scale * e.amount * 0.7;
+        break;
+      case 'selfHeat':
+        perTurn -= e.amount * (isOverheated(p) ? 1.1 : 0.7);
+        break;
+      case 'grow':
+        perTurn += 0.3;
+        break;
+    }
+  }
+  for (const ps of def.passive ?? []) {
+    switch (ps.type) {
+      case 'kindBonus': {
+        const matching = p.tableau.filter((c) => c.uid !== card.uid && cardDef(c.defId).kind === ps.kind && (cardDef(c.defId).onTurn ?? []).some((e) => e.type === 'heat')).length;
+        perTurn += ps.amount * (matching + 0.5);
+        break;
+      }
+      case 'extraPlay':
+        perTurn += 1.4 * ps.amount;
+        break;
+      case 'keepShields':
+        perTurn += 0.4 + p.shields * 0.1;
+        break;
+      case 'retaliate':
+        perTurn += 0.6 * foes;
+        break;
+      case 'field':
+        perTurn += 0.2;
+        break;
+    }
+  }
+  if (def.onLeave?.length) perTurn += 0.35;
+  return perTurn * HORIZON;
+}
+
+function tableauValue(state: GameState, p: PlayerState): number {
+  return p.tableau.reduce((sum, c) => sum + cardValue(state, p, c), 0);
+}
+
+/** How good this state is for `meId`: heat on every sun, ongoing value, cards and upgrades. */
+function evaluate(state: GameState, meId: string): number {
+  const me = state.players.find((p) => p.id === meId)!;
+  if (state.winnerId === meId) return 1e6;
+  if (me.eliminated) return -1e6;
+  let score = 0;
+  for (const o of state.players) {
+    if (o.id === meId) continue;
+    if (o.eliminated) score += 16;
+    else {
+      const danger = Math.max(0, o.heat) / supernovaThreshold(o);
+      score += 12 * danger + 5 * danger * danger - 0.45 * tableauValue(state, o);
+    }
+  }
+  const mine = Math.max(0, me.heat) / supernovaThreshold(me);
+  score -= 12 * mine + 10 * mine * mine;
+  score += tableauValue(state, me) + 0.8 * me.hand.length + 0.3 * me.shields;
+  // Upgrades already pay off through effectAmount; a little extra for future cards.
+  score += 0.6 * (me.upgrades.solarFlare + me.upgrades.thermosiphon);
+  return score;
+}
+
+/** Every way to play one card now (replacement, upgrade and destroy choices included). */
+function candidatePlays(state: GameState, me: PlayerState): Action[] {
+  const plays: Action[] = [];
+  const seen = new Set<string>();
+  const target = targetOf(state, me);
+  // Replacing: only the weakest few of our own cards are worth considering.
+  const replaceable = [...me.tableau].sort((a, b) => cardValue(state, me, a) - cardValue(state, me, b)).slice(0, 2);
+  for (const card of me.hand) {
+    if (seen.has(card.defId)) continue;
+    seen.add(card.defId);
+    const upgrades: (Action & { type: 'playCard' })['upgrade'][] = cardNeedsUpgradeChoice(card.defId) && upgradeOptions(me).length ? upgradeOptions(me) : [undefined];
+    const destroys: (string | undefined)[] = cardNeedsDestroyTarget(card.defId) && target?.tableau.length ? target.tableau.map((c) => c.uid) : [undefined];
+    const replaces: (string | undefined)[] = persists(card.defId) && tableauFull(me) ? replaceable.map((c) => c.uid) : [undefined];
+    for (const upgrade of upgrades) for (const destroyUid of destroys) for (const replaceUid of replaces) plays.push({ type: 'playCard', cardUid: card.uid, upgrade, destroyUid, replaceUid });
+  }
+  return plays;
+}
 
 /**
- * Heuristic AI: returns the next action for the active player.
- * Every non-endTurn action it picks spends money or a card, so repeatedly
- * calling it always reaches `endTurn`.
+ * The rival to focus: the next rival round the table (so the AI does not all
+ * gang up on one sun), unless another rival is close enough to finish off.
+ */
+function bestTarget(state: GameState, me: PlayerState): PlayerState | undefined {
+  const foes = livingOpponents(state, me);
+  const n = state.players.length;
+  const seat = state.players.indexOf(me);
+  const left = [...foes].sort((a, b) => ((state.players.indexOf(a) - seat + n) % n) - ((state.players.indexOf(b) - seat + n) % n))[0];
+  const ratio = (o: PlayerState) => o.heat / supernovaThreshold(o);
+  const nearest = [...foes].sort((a, b) => ratio(b) - ratio(a))[0];
+  if (nearest && ratio(nearest) >= FINISH_RATIO && ratio(nearest) > ratio(left)) return nearest;
+  // In a free-for-all, rein in the leader: the coolest sun, if it is clearly ahead.
+  if (foes.length > 1) {
+    const leader = [...foes].sort((a, b) => ratio(a) - ratio(b))[0];
+    if (ratio(left) - ratio(leader) >= LEADER_GAP) return leader;
+  }
+  return left;
+}
+
+/**
+ * Heuristic AI: returns the next action for the active player. It focuses the
+ * rival nearest to supernova, then plays whichever card leaves it best off,
+ * until it has no plays (or nothing worth playing) left.
  */
 export function chooseAIAction(state: GameState): Action {
-  if (state.pendingRewards.length) return pickReward(state);
-
   const me = activePlayer(state);
-  const foes = livingOpponents(state, me);
-  const target = pickTarget(foes);
+  const focus = bestTarget(state, me);
+  if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
+  if (me.playsLeft <= 0 || me.hand.length === 0) return { type: 'endTurn' };
 
-  // 1. Play every card in hand: plain money cards all at once, then the rest.
-  if (me.hand.some((c) => cardDef(c.defId).effects.every((e) => e.type === 'money'))) {
-    return { type: 'playAllMoney' };
-  }
-  for (const card of me.hand) {
-    if (cardNeedsTarget(card.defId)) {
-      if (!target) continue;
-      return { type: 'playCard', cardUid: card.uid, targetId: target.id };
+  const baseline = evaluate(state, me.id);
+  let best: { action: Action; score: number } | null = null;
+  for (const action of candidatePlays(state, me)) {
+    let next: GameState;
+    try {
+      next = applyAction(state, action);
+    } catch {
+      continue;
     }
-    if (cardNeedsUpgrade(card.defId)) {
-      return { type: 'playCard', cardUid: card.uid, upgradeId: pickUpgrade(me) };
-    }
-    return { type: 'playCard', cardUid: card.uid };
+    const score = evaluate(next, me.id);
+    if (!best || score > best.score) best = { action, score };
   }
-
-  if (!target) return { type: 'endTurn' };
-
-  // 2. Go for the kill if the weakest enemy can be finished this turn.
-  const cost = flareCost(state, me);
-  const reachableFlares = Math.floor(me.money / cost);
-  const shields = Math.max(0, target.shields - shieldPierce(me));
-  const killHeat = reachableFlares * flareHeat(me, state) - shields;
-  if (reachableFlares > 0 && target.heat + killHeat >= supernovaThreshold(target)) {
-    return { type: 'solarFlare', targetId: target.id };
-  }
-
-  // 3. Cool down when our own sun is in danger.
-  const danger = supernovaThreshold(me) - 4;
-  const canThermo = !playerModifiers(me).noThermosiphon;
-  if (canThermo && me.heat >= danger && me.money >= thermoCost(me)) return { type: 'thermosiphon' };
-
-  // 4. Buy the best card we can afford.
-  const buy = pickPurchase(state, me);
-  if (buy !== null) return { type: 'buyCard', slot: buy };
-
-  // 5. Spend leftovers: attack if we're cooler than the target, else cool.
-  if (me.money >= cost && me.heat <= target.heat) return { type: 'solarFlare', targetId: target.id };
-  if (canThermo && me.money >= thermoCost(me) && me.heat > BALANCE.minHeat) return { type: 'thermosiphon' };
-  if (me.money >= cost) return { type: 'solarFlare', targetId: target.id };
-
-  return { type: 'endTurn' };
-}
-
-/** Focus fire on the hottest enemy sun (least effective shields breaks ties). */
-function pickTarget(foes: PlayerState[]): PlayerState | undefined {
-  return [...foes].sort((a, b) => b.heat - a.heat || a.shields - b.shields)[0];
-}
-
-/** Solar Flare upgrades first (or Thermosiphon when running hot), then planets. */
-function pickUpgrade(me: PlayerState): UpgradeId | undefined {
-  const options = upgradeOptions(me);
-  const hot = me.heat >= supernovaThreshold(me) / 2;
-  const actionOrder: UpgradeId[] = hot
-    ? ['coolingChamber', 'thermosiphon', 'solarFlare']
-    : ['solarFlare', 'coolingChamber', 'thermosiphon'];
-  const action = actionOrder.find((a) => options.includes(a));
-  if (action) return action;
-  const priority: Track[] = hot ? ['defences', 'economy', 'weapons', 'resources'] : ['economy', 'weapons', 'resources', 'defences'];
-  return me.planets
-    .filter((pl) => options.includes(pl.id))
-    .sort((a, b) => priority.indexOf(a.track) - priority.indexOf(b.track) || a.level - b.level)[0]?.id;
-}
-
-/** Survive first when running hot; otherwise build the engine. */
-function pickReward(state: GameState): Action {
-  const pending = state.pendingRewards[0];
-  const me = state.players.find((p) => p.id === pending.playerId)!;
-  const hot = me.heat >= supernovaThreshold(me) * 0.6;
-  const order: RewardId[] = hot
-    ? ['vent', 'deep_coolant', 'aegis_lattice', 'command', 'stellar_mint', 'wide_sensors', 'plasma_focus', 'flare_focus', 'requisition', 'purge']
-    : ['command', 'stellar_mint', 'wide_sensors', 'plasma_focus', 'flare_focus', 'requisition', 'purge', 'aegis_lattice', 'deep_coolant', 'vent'];
-  const reward = order.find((r) => pending.options.includes(r)) ?? pending.options[0];
-  if (reward === 'command') return { type: 'chooseReward', reward, upgradeId: pickUpgrade(me) };
-  if (reward === 'requisition') {
-    let best = -1;
-    state.display.forEach((c, i) => {
-      if (c && (best < 0 || cardDef(c.defId).cost > cardDef(state.display[best]!.defId).cost)) best = i;
-    });
-    return { type: 'chooseReward', reward, slot: best };
-  }
-  return { type: 'chooseReward', reward };
-}
-
-const KIND_BIAS: Record<CardKind, number> = { command: 3, attack: 2, economy: 1.5, global: 0, defence: 1, mission: 1, basic: 0 };
-
-/** Globals help everyone equally, so only buy one when the change favours us. */
-function globalValue(state: GameState, me: PlayerState, defId: string): number {
-  const foes = livingOpponents(state, me);
-  if (!foes.length) return 0;
-  const myRoom = supernovaThreshold(me) - me.heat;
-  const theirRoom = Math.min(...foes.map((f) => supernovaThreshold(f) - f.heat));
-  switch (defId) {
-    case 'solar_storm':
-    case 'solar_maximum':
-      return myRoom > theirRoom + 3 ? 6 : 0; // we can take the heat better than they can
-    case 'ice_age':
-      return myRoom < theirRoom - 2 ? 6 : 0; // we need the cooling more
-    case 'magnetic_storm':
-      return myRoom < theirRoom ? 4 : 0; // slow everyone's attacks while we are behind
-    default:
-      return 2;
-  }
-}
-
-function pickPurchase(state: GameState, me: PlayerState): number | null {
-  let best: number | null = null;
-  let bestScore = 0;
-  state.display.forEach((card, slot) => {
-    if (!card) return;
-    const cost = marketCost(me, card.defId, state);
-    if (cost > me.money) return;
-    const def = cardDef(card.defId);
-    let score = def.cost + KIND_BIAS[def.kind];
-    if (def.kind === 'defence' && me.heat >= 4) score += 3;
-    if (def.kind === 'global') score = globalValue(state, me, def.id);
-    if (def.kind === 'command' && upgradeOptions(me).length === 0) score = 0;
-    if (score > bestScore) {
-      bestScore = score;
-      best = slot;
-    }
-  });
-  return best;
+  // Holding a card is only better than playing it when every play would hurt.
+  if (!best || best.score < baseline - 1.5) return { type: 'endTurn' };
+  return best.action;
 }

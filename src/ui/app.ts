@@ -1,56 +1,47 @@
 import {
   ACTION_NAME,
-  activeField,
+  ACTION_TEXT,
+  activeGlobal,
   activePlayer,
   applyAction,
   BALANCE,
   cardDef,
-  cardNeedsTarget,
-  cardNeedsUpgrade,
+  cardNeedsDestroyTarget,
+  cardNeedsUpgradeChoice,
   chooseAIAction,
   createGame,
-  flareCost,
-  flareHeat,
   GameError,
-  GLOBALS,
-  handSizeFor,
-  incomeFor,
   instabilityHeat,
   isGameOver,
-  livingOpponents,
-  marketCost,
   MAX_UPGRADES,
-  missionOf,
-  objectiveDef,
-  rewardDef,
-  shieldPierce,
+  persists,
+  playsAllowed,
+  RACE_NAMES,
   supernovaThreshold,
-  systemDef,
-  thermoCool,
-  thermoCost,
-  trackLevel,
+  tableauFull,
+  targetOf,
   upgradeOptions,
   type Action,
   type CardInstance,
   type CoreAction,
   type GameState,
-  type Planet,
   type PlayerSetup,
   type PlayerState,
-  type RewardId,
 } from '../engine';
-import { actionChip, actionTile, roman, sunOrb, systemDiagram, systemOrrery3d } from './art';
+import { actionChip, actionTile, roman, sunOrb } from './art';
 import { backdrop } from './backdrop';
+import { DeckBuilder } from './builder';
+import { CampaignView, loadCampaign } from './campaign';
+import { allDecks, deckById, PRESETS } from './decks';
+import { factionAvatar } from './factions';
 import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, type Snapshot } from './fx';
-import { cardGlyph, KIND_COLOUR, objectiveGlyph, rewardGlyph } from './glyphs';
+import { cardGlyph, KIND_COLOUR } from './glyphs';
+import { MENU_ICON } from './menu-icon';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
-import { CampaignView, loadCampaign } from './campaign';
-import { MENU_ICON } from './menu-icon';
-import { factionAvatar } from './factions';
 
 type Screen = 'menu' | 'game' | 'campaign';
-type MenuPage = 'title' | 'hub' | 'quickplay' | 'options';
+type MenuPage = 'title' | 'hub' | 'quickplay' | 'options' | 'decks';
 
 const HUB_ICONS = {
   campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle cx="10" cy="34" r="3.2"/><circle cx="22" cy="26" r="2.6"/><circle cx="36" cy="32" r="3.6"/><circle cx="26" cy="12" r="3"/><circle cx="14" cy="16" r="2.4"/></svg>`,
@@ -59,18 +50,23 @@ const HUB_ICONS = {
 };
 type Speed = 'slow' | 'normal' | 'fast';
 
-/** A flare or card waiting for the player to pick a target or an upgrade. */
-type Pending =
-  | { kind: 'flare' }
-  | { kind: 'card'; uid: string; need: 'target' | 'upgrade' };
-
-/** What an AI player is doing right now, shown large in the centre. */
-interface Stage {
+/**
+ * A card the player is playing that still needs choices: which upgrade
+ * (Command Directive), which rival card to destroy (Ion Cannon), and which of
+ * their own cards to replace when their tableau is full.
+ */
+interface Pending {
   uid: string;
+  step: 'upgrade' | 'destroy' | 'replace';
+  upgrade?: CoreAction;
+  destroyUid?: string;
+  replaceUid?: string;
+}
+
+/** What an AI player just played, shown large at the middle right. */
+interface Stage {
   defId: string;
   actorId: string;
-  verb: 'plays' | 'buys';
-  targetId?: string;
 }
 
 /** Bottom sheets / dialogs that are not part of a pending move. */
@@ -79,75 +75,30 @@ type Sheet =
   | { kind: 'log' }
   | { kind: 'rules' }
   | { kind: 'pile'; pile: 'deck' | 'discard' }
-  /** A player's solar system card. */
-  | { kind: 'system'; playerId: string }
-  /** Game-start choice between two offered systems (or peeking at a rival's). */
-  | { kind: 'draft'; view?: string }
-  | { kind: 'objective'; id: string }
-  | { kind: 'field' }
-  | { kind: 'mission'; uid: string; playerId: string }
-  | { kind: 'action'; action: CoreAction }
+  /** A player's summary: deck, upgrades, commands and conditions. */
+  | { kind: 'player'; playerId: string }
+  | { kind: 'upgrade'; action: CoreAction }
   /** Tap-to-inspect on touch screens: a readable card with its action. */
-  | { kind: 'card'; defId: string; uid?: string; slot?: number };
+  | { kind: 'card'; defId: string; uid?: string };
 
 const SPEED_KEY = 'blue-loop:ai-speed';
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = {
-  playAllMoney: 1000,
-  playCard: 1700,
-  buyCard: 1500,
-  solarFlare: 1300,
-  thermosiphon: 1100,
-  endTurn: 1000,
-  chooseReward: 1500,
-  chooseSystem: 600,
-};
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200 };
 const TOAST_MS = 2600;
-/** The card whose glyph represents each field. */
-const FIELD_CARD: Record<string, string> = {
-  solarStorm: 'solar_storm',
-  iceAge: 'ice_age',
-  tradeBoom: 'trade_boom',
-  magneticStorm: 'magnetic_storm',
-  solarMaximum: 'solar_maximum',
-  nebulaDrift: 'nebula_drift',
-};
 const LONG_PRESS_MS = 450;
-const TRACK_ICON: Record<string, string> = { weapons: '⚔', defences: '⛨', economy: '◈', resources: '⬢' };
-/** Log lines worth emphasising: hits, supernovas, claims, upgrades and so on. */
-const KEY_LOG = /heats to|SUPERNOVA|completes|claims|takes the reward|upgrades|wins|shields absorb|Instability|brings/;
+/** Log lines worth emphasising: hits, supernovas, upgrades and so on. */
+const KEY_LOG = /heats to|SUPERNOVA|upgrades|wins|shields absorb|instability|destroys|stings|replaces/;
 const HOT = '#f0a07a';
-
-const ACTION_TEXT: Record<CoreAction, string> = {
-  solarFlare: `Spend money to heat an enemy sun. Deals 1 heat for ${BALANCE.solarFlareCost} money; each upgrade adds +1 heat and +${BALANCE.solarFlareCostPerUpgrade} cost (max ${1 + BALANCE.solarFlareMaxUpgrades} heat). Use as often as you can afford.`,
-  thermosiphon: `Spend money to cool your own sun. Cools 1, +1 per upgrade (max ${1 + BALANCE.thermosiphonMaxUpgrades}). Use as often as you can afford.`,
-  coolingChamber: `Passive. Each upgrade raises your max health (the heat at which your sun goes supernova) by ${BALANCE.coolingChamberHealthPerUpgrade}, from ${BALANCE.supernovaAt} up to ${BALANCE.supernovaAt + BALANCE.coolingChamberMaxUpgrades * BALANCE.coolingChamberHealthPerUpgrade}.`,
-};
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
-/** What a planet's track does at a given level, in plain words. */
-function planetEffect(track: Planet['track'], level: number): string {
-  switch (track) {
-    case 'economy':
-      return `+${level * BALANCE.economyIncomePerLevel} money at the start of each turn`;
-    case 'defences':
-      return `+${plural(level * BALANCE.shieldsPerDefenceLevel, 'shield')} each turn`;
-    case 'weapons':
-      return `your heat ignores ${plural(level * BALANCE.piercePerWeaponLevel, 'enemy shield')}`;
-    case 'resources':
-      return `+${plural(level * BALANCE.resourceCardsPerLevel, 'card')} in hand`;
-  }
-}
 
 interface MenuSeat {
   name: string;
   isAI: boolean;
   enabled: boolean;
+  deckId: string;
 }
 
 export class App {
@@ -157,9 +108,9 @@ export class App {
   private state: GameState | null = null;
   private pending: Pending | null = null;
   private stage: Stage | null = null;
-  /** Second step of a reward that needs a choice (what to upgrade, which card). */
-  private rewardStep: 'command' | 'requisition' | null = null;
   private sheet: Sheet | null = null;
+  /** The rival whose tableau is shown across the table (defaults to the viewer's target). */
+  private viewRivalId: string | null = null;
   /** Overlays hidden so the player can study the board; the game is suspended meanwhile. */
   private peeking = false;
   private peekBtn!: HTMLButtonElement;
@@ -170,7 +121,7 @@ export class App {
   private touch = window.matchMedia('(pointer: coarse)').matches;
   /** Human player whose hand was last revealed (for hot-seat handoff). */
   private revealedFor: string | null = null;
-  /** Whose home system sits in the dock: the current or most recent human. */
+  /** Whose hand sits in the dock: the current or most recent human. */
   private viewerId: string | null = null;
   private preview: HTMLElement;
   private press: { x: number; y: number; timer: number; shown: boolean } | null = null;
@@ -191,12 +142,20 @@ export class App {
     },
   });
   private campaignBattle = false;
+  private builder = new DeckBuilder({
+    render: () => this.render(),
+    toast: (text) => this.showToast(text, 'error'),
+    done: () => {
+      this.menuPage = 'quickplay';
+      this.render();
+    },
+  });
 
   private seats: MenuSeat[] = [
-    { name: 'Commander', isAI: false, enabled: true },
-    { name: "Xel'Naru", isAI: true, enabled: true },
-    { name: 'Vorthane', isAI: true, enabled: false },
-    { name: 'Ixquor', isAI: true, enabled: false },
+    { name: 'Commander', isAI: false, enabled: true, deckId: PRESETS[0].id },
+    { name: "Xel'Naru", isAI: true, enabled: true, deckId: PRESETS[1].id },
+    { name: 'Vorthane', isAI: true, enabled: false, deckId: PRESETS[2].id },
+    { name: 'Ixquor', isAI: true, enabled: false, deckId: PRESETS[3].id },
   ];
 
   constructor(private root: HTMLElement) {
@@ -209,7 +168,6 @@ export class App {
     this.preview = document.createElement('div');
     this.preview.className = 'card-preview';
     document.body.appendChild(this.preview);
-
 
     // "View board": any overlay can be hidden to look at the board, then brought back.
     this.peekShield = document.createElement('div');
@@ -237,10 +195,14 @@ export class App {
         this.setPeek(false);
       }
     });
-    window.addEventListener('pointerdown', (e) => {
-      sound.unlock();
-      this.touch = e.pointerType === 'touch';
-    }, { capture: true });
+    window.addEventListener(
+      'pointerdown',
+      (e) => {
+        sound.unlock();
+        this.touch = e.pointerType === 'touch';
+      },
+      { capture: true },
+    );
     window.addEventListener('touchstart', () => (this.touch = true), { capture: true, passive: true });
     window.addEventListener('resize', () => {
       this.fitHand();
@@ -259,10 +221,12 @@ export class App {
 
   private newGame() {
     const players: PlayerSetup[] = this.seats
-      .map((s, seat) => ({ name: s.name.trim() || 'Unnamed', isAI: s.isAI, enabled: s.enabled, species: seat }))
       .filter((s) => s.enabled)
-      .map(({ enabled: _enabled, ...p }) => p);
-    this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players, draft: true }));
+      .map((s, i) => {
+        const deck = deckById(s.deckId) ?? PRESETS[i % 4];
+        return { name: s.name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, species: deck.race };
+      });
+    this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
   }
 
   private continueGame() {
@@ -274,6 +238,7 @@ export class App {
     this.state = state;
     this.revealedFor = null;
     this.viewerId = null;
+    this.viewRivalId = null;
     this.pending = null;
     this.stage = null;
     this.sheet = null;
@@ -281,30 +246,9 @@ export class App {
     this.persist(state);
     this.syncViewer();
     this.render();
-    if (state.phase === 'setup') this.startDraft();
-    else {
-      this.dealOpening();
-      this.announceTurn(400);
-    }
+    this.dealOpening();
+    this.announceTurn(400);
     this.scheduleAI(900);
-  }
-
-  /**
-   * System choice: the board is shown first, then a "select solar system"
-   * banner, then the two offered systems.
-   */
-  private startDraft() {
-    const s = this.state;
-    if (!s || s.phase !== 'setup' || this.needsHandoff()) return;
-    const p = activePlayer(s);
-    if (p.isAI || p.id !== this.viewer().id) return;
-    this.showBanner('select solar system', s.players.filter((pl) => !pl.isAI).length > 1 ? p.name : 'choose one of two', 500);
-    window.setTimeout(() => {
-      if (this.state?.phase === 'setup' && activePlayer(this.state).id === p.id) {
-        this.sheet = { kind: 'draft' };
-        this.render();
-      }
-    }, 2300);
   }
 
   /**
@@ -314,16 +258,18 @@ export class App {
    */
   private announceTurn(delay = 0) {
     const s = this.state;
-    if (!s || isGameOver(s) || this.needsHandoff() || s.phase === 'setup') return;
+    if (!s || isGameOver(s) || this.needsHandoff()) return;
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
     const humans = s.players.filter((pl) => !pl.isAI).length;
-    this.showBanner('your turn', humans > 1 ? p.name : `round ${roman(s.round)}`, delay);
+    const plays = `${p.playsLeft} card${p.playsLeft === 1 ? '' : 's'} to play`;
+    this.showBanner('your turn', humans > 1 ? `${p.name} · ${plays}` : `round ${roman(s.round)} · ${plays}`, delay);
   }
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
   private showBanner(text: string, sub: string, delay = 0) {
     window.setTimeout(() => {
+      if (this.screen !== 'game') return; // left the table before it showed
       document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
       const el = document.createElement('div');
       el.className = `turn-banner ${text.length > 12 ? 'turn-banner-long' : ''}`;
@@ -426,12 +372,14 @@ export class App {
       return;
     }
     const before = animate ? snapshot(this.root) : null;
-    if (animate) backdrop.spin();
+    if (animate && action.type !== 'setTarget') backdrop.spin();
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.state = next;
     this.pending = null;
-    if (this.sheet?.kind === 'card' || action.type === 'chooseSystem') this.sheet = null;
-    this.stage = actor.isAI ? this.stageFor(prev, actor, action) : null;
+    if (this.sheet?.kind === 'card') this.sheet = null;
+    this.stage = actor.isAI ? this.stageFor(actor, action) : null;
+    // An AI's attacks bring its target's tableau onto the table.
+    if (actor.isAI && action.type === 'setTarget' && action.targetId !== this.viewer().id) this.viewRivalId = action.targetId;
     this.persist(next);
     this.syncViewer();
     this.render();
@@ -439,12 +387,7 @@ export class App {
       this.surfaceLog(prev);
       this.animate(prev, next, action, actor, before);
     }
-    if (action.type === 'chooseSystem') {
-      if (next.phase === 'play') {
-        this.dealOpening();
-        this.announceTurn(300);
-      } else this.startDraft(); // next human to choose (after the hand-off screen)
-    } else if (turnPassed) this.announceTurn(450);
+    if (turnPassed) this.announceTurn(450);
     this.scheduleAI(AI_PAUSE[action.type]);
   }
 
@@ -467,16 +410,10 @@ export class App {
     this.render();
   }
 
-  private stageFor(prev: GameState, actor: PlayerState, action: Action): Stage | null {
-    if (action.type === 'playCard') {
-      const card = actor.hand.find((c) => c.uid === action.cardUid);
-      return card ? { uid: card.uid, defId: card.defId, actorId: actor.id, verb: 'plays', targetId: action.targetId } : null;
-    }
-    if (action.type === 'buyCard') {
-      const card = prev.display[action.slot];
-      return card ? { uid: card.uid, defId: card.defId, actorId: actor.id, verb: 'buys' } : null;
-    }
-    return null;
+  private stageFor(actor: PlayerState, action: Action): Stage | null {
+    if (action.type !== 'playCard') return null;
+    const card = actor.hand.find((c) => c.uid === action.cardUid);
+    return card ? { defId: card.defId, actorId: actor.id } : null;
   }
 
   private scheduleAI(pause: number) {
@@ -516,12 +453,10 @@ export class App {
     const vNext = next.players.find((p) => p.id === viewer.id)!;
     const vPrev = prev.players.find((p) => p.id === viewer.id)!;
     const orb = (id: string) => root.querySelector(`[data-anchor="player:${id}"]`);
-    const orbRect = (id: string) => anchorRect(root, `player:${id}`);
+    const orbRect = (id: string) => before.anchors.get(`player:${id}`) ?? anchorRect(root, `player:${id}`);
 
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
-    const inDeck = new Set(vNext.deck.map((c) => c.uid));
-    const inDiscard = new Set(vNext.discard.map((c) => c.uid));
     const endingTurn = action.type === 'endTurn';
     let drawIndex = 0;
 
@@ -543,33 +478,30 @@ export class App {
         this.dealCard(el, delay);
         sound.draw(delay / 1000);
         drawIndex++;
-      } else if (el.closest('.stage')) {
-        const from = orbRect(this.stage?.actorId ?? actor.id);
-        if (from) flyFrom(el, from, { fade: true, duration: 520 });
-      } else if (el.closest('.display')) {
-        const from = before.anchors.get('market') ?? anchorRect(root, 'market');
-        if (from) flyFrom(el, from, { fade: true, delay: 250 });
+      } else if (el.closest('.tableau')) {
+        // A card that arrives in a tableau without having been on screen flies in from its owner's sun.
+        const owner = el.closest<HTMLElement>('[data-owner]')?.dataset.owner;
+        const from = owner ? orbRect(owner) : null;
+        if (from) flyFrom(el, from, { fade: true, duration: 560, delay: actor.isAI ? 350 : 0 });
       }
     });
+    const stageCard = root.querySelector<HTMLElement>('.stage .card');
+    const stageFrom = this.stage ? orbRect(this.stage.actorId) : null;
+    if (stageCard && stageFrom) flyFrom(stageCard, stageFrom, { fade: true, duration: 520 });
 
     before.cards.forEach((old, uid) => {
       if (root.querySelector(`[data-uid="${uid}"]`)) return;
       let to: DOMRect | null = null;
-      if (inDiscard.has(uid)) to = anchorRect(root, 'discard');
-      else if (inDeck.has(uid)) to = anchorRect(root, 'deck');
+      if (vNext.discard.some((c) => c.uid === uid)) to = anchorRect(root, 'discard');
+      else if (vNext.commands.some((c) => c.uid === uid)) to = anchorRect(root, 'upgrades');
       else {
-        const owner = next.players.find((p) => p.id !== viewer.id && [...p.deck, ...p.hand, ...p.inPlay, ...p.discard].some((c) => c.uid === uid));
+        const owner = next.players.find((p) => [...p.deck, ...p.hand, ...p.discard, ...p.commands].some((c) => c.uid === uid));
         if (owner) to = orbRect(owner.id);
       }
       ghost(old.html, old.rect, to);
     });
 
-    if (vNext.deck.length > vPrev.deck.length && vPrev.discard.length > vNext.discard.length) {
-      sound.shuffle();
-      pulse(root.querySelector('[data-anchor="deck"]'), 'fx-shuffle');
-    }
-
-    // --- Action sounds and projectiles --------------------------------------
+    // --- Hits: projectiles, glows and sounds -------------------------------
     const handled = new Set<string>();
     // Until a projectile lands, the target's sun and numbers keep showing their old values.
     const holdUntil = (p: PlayerState, was: PlayerState, at: number) => {
@@ -593,75 +525,73 @@ export class App {
       if (!handled.has(id)) holdUntil(p, was, at);
       window.setTimeout(() => {
         if (p.heat !== was.heat) sound.impact(p.heat > was.heat);
-        if (p.blockedSinceTurnStart > was.blockedSinceTurnStart) sound.shield();
+        else if (p.shields < was.shields) sound.shield();
       }, at);
       pulse(orb(id), p.heat > was.heat ? 'fx-hot' : p.heat < was.heat ? 'fx-cold' : 'fx-shield', at);
       handled.add(id);
     };
-    const fire = (fromId: string, toId: string, delay = 0) => {
-      const a = orbRect(fromId), b = orbRect(toId);
-      const at = a && b ? projectile(a, b, HOT, { delay }) : delay;
-      hit(toId, at);
-    };
+
+    // Who caused this round of changes: the player who acted, or (at a turn's
+    // start) the player whose tableau just triggered.
+    const source = endingTurn ? activePlayer(next) : actor;
+    const delay = endingTurn ? 750 : actor.isAI ? 520 : 160;
+    let volley = 0;
+    for (const p of next.players) {
+      const was = prev.players.find((pl) => pl.id === p.id)!;
+      if (p.id === source.id) continue;
+      const struck = p.heat > was.heat || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
+      if (!struck) continue;
+      const a = orbRect(source.id);
+      const b = orbRect(p.id);
+      const at = a && b ? projectile(a, b, HOT, { delay: delay + 110 * volley++ }) : delay;
+      hit(p.id, at);
+    }
+    if (volley) window.setTimeout(() => sound.flare(), delay);
+    const me = next.players.find((p) => p.id === source.id)!;
+    const meWas = prev.players.find((p) => p.id === source.id)!;
+    if (me.heat !== meWas.heat || me.shields > meWas.shields) {
+      hit(source.id, delay);
+      if (me.heat < meWas.heat) window.setTimeout(() => sound.thermo(), delay);
+    }
 
     switch (action.type) {
-      case 'solarFlare':
-        sound.flare();
-        fire(actor.id, action.targetId);
-        break;
-      case 'thermosiphon':
-        sound.thermo();
-        hit(actor.id, 80);
-        break;
-      case 'buyCard':
-        sound.buy();
-        break;
-      case 'playAllMoney':
-        sound.play();
-        break;
       case 'playCard': {
         sound.play();
-        const def = cardDef(prev.players.find((p) => p.id === actor.id)!.hand.find((c) => c.uid === action.cardUid)!.defId);
-        const delay = actor.isAI ? 500 : 150;
-        let i = 0;
-        for (const e of def.effects) {
-          if (e.type === 'heatTarget' && action.targetId) fire(actor.id, action.targetId, delay);
-          if (e.type === 'heatAllOpponents') for (const o of livingOpponents(prev, actor)) fire(actor.id, o.id, delay + 120 * i++);
-          if (e.type === 'cool' || e.type === 'heatSelf' || e.type === 'shield') hit(actor.id, delay);
-          if (e.type === 'command' && action.upgradeId) {
-            window.setTimeout(() => sound.upgrade(), delay);
-            pulse(root.querySelector(`[data-anchor="upgrade:${action.upgradeId}"]`), 'fx-upgrade', delay);
-          }
+        const played = prev.players.find((p) => p.id === actor.id)!.hand.find((c) => c.uid === action.cardUid);
+        if (played && cardDef(played.defId).kind === 'command') {
+          window.setTimeout(() => sound.upgrade(), delay);
+          if (actor.id === viewer.id) pulse(root.querySelector('[data-anchor="upgrades"]'), 'fx-upgrade', delay);
         }
         break;
       }
       case 'endTurn': {
         sound.endTurn();
+        // The new player's start-of-turn cards light up, oldest first, as they trigger.
+        let k = 0;
+        root.querySelectorAll<HTMLElement>(`.tableau[data-owner="${source.id}"] [data-uid]`).forEach((el) => {
+          if (cardDef(el.dataset.card!).onTurn?.length) pulse(el, 'fx-trigger', 220 + 90 * k++);
+        });
         break;
       }
+      case 'setTarget':
+        sound.hover();
+        break;
     }
 
     for (const p of next.players) {
       const was = prev.players.find((pl) => pl.id === p.id)!;
-      if (!handled.has(p.id) && p.heat !== was.heat) hit(p.id, endingTurn ? 700 : 200);
       if (p.eliminated && !was.eliminated) {
         window.setTimeout(() => sound.supernova(), 650);
         pulse(orb(p.id), 'fx-nova', 600);
         pulse(root.querySelector('.game'), 'fx-flash', 650);
       }
     }
-    if (next.pendingRewards.length > prev.pendingRewards.length) {
-      sound.objective();
-      pulse(root.querySelector('.objectives-row'), 'fx-upgrade', 150);
-    }
-    if (action.type === 'chooseReward') window.setTimeout(() => sound.upgrade(), 100);
+    if (vNext.deck.length === 0 && vPrev.deck.length > 0) pulse(root.querySelector('[data-anchor="deck"]'), 'fx-shuffle');
   }
 
-  /** Show the most important new log line as a toast. */
+  /** New log lines glow in the always-visible log panel. */
   private surfaceLog(prev: GameState) {
-    // Only entries added by this action (state is cloned per action, so compare ids, not objects).
     const lastSeq = prev.log[prev.log.length - 1]?.seq ?? 0;
-    // The log panel is always on screen, so new lines glow there instead of popping up as toasts.
     this.root.querySelectorAll<HTMLElement>('.log-feed [data-seq]').forEach((el) => {
       if (Number(el.dataset.seq) > lastSeq) el.classList.add('log-new');
     });
@@ -684,20 +614,19 @@ export class App {
     return s.players.find((p) => p.id === this.viewerId) ?? s.players.find((p) => !p.isAI) ?? activePlayer(s);
   }
 
+  /** The rival whose tableau is shown across the table. */
+  private shownRival(): PlayerState | undefined {
+    const s = this.state!;
+    const me = this.viewer();
+    const chosen = s.players.find((p) => p.id === this.viewRivalId && p.id !== me.id && !p.eliminated);
+    return chosen ?? targetOf(s, me) ?? s.players.find((p) => p.id !== me.id);
+  }
+
   /** True when the viewer may act right now. */
   private canAct(): boolean {
     const s = this.state!;
     const me = activePlayer(s);
-    return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff() && s.pendingRewards.length === 0 && s.phase !== 'setup';
-  }
-
-  /** The reward choice waiting for the viewer, if any. */
-  private myReward() {
-    const s = this.state!;
-    const r = s.pendingRewards[0];
-    if (!r || this.needsHandoff() || isGameOver(s)) return null;
-    const owner = s.players.find((p) => p.id === r.playerId)!;
-    return !owner.isAI && owner.id === this.viewer().id ? r : null;
+    return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff();
   }
 
   /** Hot-seat: hide the hand until the next human confirms they have the device. */
@@ -709,6 +638,52 @@ export class App {
   }
 
   // -------------------------------------------------------------------------
+  // Playing a card: collect any choices it needs, then play it
+  // -------------------------------------------------------------------------
+
+  private startPlay(uid: string) {
+    const s = this.state!;
+    const me = activePlayer(s);
+    const card = me.hand.find((c) => c.uid === uid);
+    if (!card) return;
+    if (me.playsLeft <= 0) {
+      this.showToast('No plays left this turn: end your turn.', 'info');
+      sound.error();
+      return;
+    }
+    this.pending = { uid, step: 'upgrade' };
+    this.advancePlay();
+  }
+
+  /** Ask for the next choice the pending card needs, or play it once it has them all. */
+  private advancePlay() {
+    const p = this.pending;
+    const s = this.state!;
+    if (!p) return;
+    const me = activePlayer(s);
+    const card = me.hand.find((c) => c.uid === p.uid);
+    if (!card) {
+      this.pending = null;
+      return this.render();
+    }
+    const target = targetOf(s, me);
+    if (cardNeedsUpgradeChoice(card.defId) && upgradeOptions(me).length > 0 && !p.upgrade) {
+      p.step = 'upgrade';
+      return this.render();
+    }
+    if (cardNeedsDestroyTarget(card.defId) && target && target.tableau.length > 0 && !p.destroyUid) {
+      p.step = 'destroy';
+      this.viewRivalId = target.id;
+      return this.render();
+    }
+    if (persists(card.defId) && tableauFull(me) && !p.replaceUid) {
+      p.step = 'replace';
+      return this.render();
+    }
+    this.dispatch({ type: 'playCard', cardUid: p.uid, upgrade: p.upgrade, destroyUid: p.destroyUid, replaceUid: p.replaceUid });
+  }
+
+  // -------------------------------------------------------------------------
   // Input
   // -------------------------------------------------------------------------
 
@@ -716,6 +691,7 @@ export class App {
     const el = e.target as HTMLInputElement;
     const seat = el.dataset.seatName;
     if (seat !== undefined) this.seats[Number(seat)].name = el.value;
+    if (el.dataset.dbName !== undefined) this.builder.onInput(el.value);
   }
 
   private peekHeld = false;
@@ -733,7 +709,7 @@ export class App {
       this.peeking = false;
       document.body.classList.remove('peeking');
     }
-    this.peekBtn.classList.toggle('show', open);
+    this.peekBtn.classList.toggle('show', open && this.screen === 'game');
     this.peekBtn.innerHTML = this.peeking ? '<span>◉</span> back' : '<span>◎</span> view board';
     this.peekBtn.title = this.peeking ? 'Bring the overlay back' : 'Hide this overlay to look at the board (or hold Space)';
   }
@@ -788,7 +764,7 @@ export class App {
   private onPressEnd() {
     if (!this.press) return;
     if (this.press.shown) {
-      this.suppressClick = true; // the tap that ends a long press must not also play/buy
+      this.suppressClick = true; // the tap that ends a long press must not also play the card
       this.preview.classList.remove('show');
     }
     this.cancelPress();
@@ -799,15 +775,12 @@ export class App {
     this.press = null;
   }
 
-  /** Large, readable copy of a card, centred on screen while held. */
+  /** Large, readable copy of a card at the middle right of the screen while held. */
   private showPeek(el: HTMLElement) {
-    const defId = el.dataset.card!;
-    const cost = el.dataset.cost;
-    this.preview.innerHTML = this.bigCard(defId, cost !== undefined ? Number(cost) : undefined);
+    this.preview.innerHTML = this.bigCard(el.dataset.card!, el.dataset.growth ? Number(el.dataset.growth) : undefined);
     const h = Math.min(420, window.innerHeight - 24) * 0.7;
     const w = h * 0.714;
     this.preview.style.setProperty('--pw', `${w}px`);
-    // Zoomed cards sit at the middle right, clear of the hand and the display.
     this.preview.style.left = `${Math.min(window.innerWidth - w - 16, window.innerWidth * 0.78 - w / 2)}px`;
     this.preview.style.top = `${(window.innerHeight - h) / 2}px`;
     this.preview.classList.add('show');
@@ -825,6 +798,7 @@ export class App {
     const arg = el.dataset.arg ?? '';
     const s = this.state;
     if (act.startsWith('cmp-') && this.campaign.onClick(act, arg, el)) return;
+    if (act.startsWith('db-') && this.builder.onClick(act, arg)) return;
 
     switch (act) {
       case 'seat-toggle': {
@@ -835,12 +809,24 @@ export class App {
       case 'seat-ai':
         this.seats[Number(arg)].isAI = !this.seats[Number(arg)].isAI;
         return this.render();
+      case 'seat-deck': {
+        // Cycle through every deck on offer.
+        const seat = this.seats[Number(arg)];
+        const decks = allDecks();
+        const i = decks.findIndex((d) => d.id === seat.deckId);
+        seat.deckId = decks[(i + 1) % decks.length].id;
+        return this.render();
+      }
       case 'new-game':
         return this.newGame();
       case 'continue':
         return this.continueGame();
       case 'rules':
         this.sheet = { kind: 'rules' };
+        return this.render();
+      case 'open-decks':
+        this.builder.open();
+        this.menuPage = 'decks';
         return this.render();
       case 'campaign-new':
         this.campaign.openSetup();
@@ -868,7 +854,6 @@ export class App {
       case 'reveal':
         this.revealedFor = s ? activePlayer(s).id : null;
         this.render();
-        if (s?.phase === 'setup') return this.startDraft();
         this.announceTurn();
         return this.dealOpening();
       case 'open-menu':
@@ -898,113 +883,49 @@ export class App {
       case 'view-pile':
         this.sheet = { kind: 'pile', pile: arg as 'deck' | 'discard' };
         return this.render();
-      case 'view-system':
-        this.sheet = { kind: 'system', playerId: arg };
+      case 'view-player':
+        this.sheet = { kind: 'player', playerId: arg || (s ? this.viewer().id : '') };
         return this.render();
-      case 'systems':
-        this.sheet = { kind: 'system', playerId: this.viewer().id };
-        return this.render();
-      case 'draft-pick':
-        return this.dispatch({ type: 'chooseSystem', systemId: arg });
-      case 'draft-view':
-        this.sheet = { kind: 'draft', view: arg || undefined };
-        return this.render();
-      case 'view-field':
-        this.sheet = { kind: 'field' };
-        return this.render();
-      case 'view-objective':
-        this.sheet = { kind: 'objective', id: arg };
-        return this.render();
-      case 'view-mission':
-        this.sheet = { kind: 'mission', uid: arg, playerId: el.dataset.player ?? '' };
-        return this.render();
-      case 'reward': {
-        if (!this.myReward()) return;
-        const reward = arg as RewardId;
-        const needs = rewardDef(reward).needs;
-        if (needs) {
-          this.rewardStep = needs === 'upgrade' ? 'command' : 'requisition';
-          return this.render();
-        }
-        return this.dispatch({ type: 'chooseReward', reward });
-      }
-      case 'reward-upgrade':
-        this.rewardStep = null;
-        return this.dispatch({ type: 'chooseReward', reward: 'command', upgradeId: arg });
-      case 'reward-slot':
-        this.rewardStep = null;
-        return this.dispatch({ type: 'chooseReward', reward: 'requisition', slot: Number(arg) });
-      case 'reward-back':
-        this.rewardStep = null;
-        return this.render();
-      case 'coolingChamber':
-        this.sheet = { kind: 'action', action: 'coolingChamber' };
+      case 'view-upgrade':
+        this.sheet = { kind: 'upgrade', action: arg as CoreAction };
         return this.render();
       case 'cancel':
-        if (this.sheet?.kind === 'draft') return; // a system must be chosen
         this.pending = null;
         this.sheet = null;
         return this.render();
     }
 
     if (!s) return;
-    // On touch screens, tapping a card opens the inspector; its button then acts.
-    // Touch: tapping a display card opens the buy overlay (hand cards play straight away).
-    if (((this.touch && act === 'buy') || act === 'inspect') && !el.closest('.sheet') && el.dataset.card) {
-      const defId = el.dataset.card!;
-      const slot = el.dataset.slot;
-      this.sheet = { kind: 'card', defId, uid: el.dataset.hand, slot: slot !== undefined ? Number(slot) : undefined };
+    if (act === 'focus') {
+      // A rival's pill: make them your target (on your turn) and bring their tableau across the table.
+      this.viewRivalId = arg;
+      const me = activePlayer(s);
+      if (this.canAct() && !this.pending && targetOf(s, me)?.id !== arg) return this.dispatch({ type: 'setTarget', targetId: arg });
+      sound.hover();
+      return this.render();
+    }
+    if (act === 'inspect' && !el.closest('.sheet') && el.dataset.card) {
+      this.sheet = { kind: 'card', defId: el.dataset.card, uid: el.dataset.hand };
       sound.hover();
       return this.render();
     }
     if (!this.canAct()) return;
-    const me = activePlayer(s);
 
     switch (act) {
-      case 'play': {
+      case 'play':
         this.sheet = null;
-        const card = me.hand.find((c) => c.uid === arg);
-        if (!card) return;
-        if (cardNeedsTarget(card.defId)) {
-          const foes = livingOpponents(s, me);
-          if (foes.length === 1) return this.dispatch({ type: 'playCard', cardUid: arg, targetId: foes[0].id });
-          this.pending = { kind: 'card', uid: arg, need: 'target' };
-          return this.render();
-        }
-        if (cardNeedsUpgrade(card.defId) && upgradeOptions(me).length > 0) {
-          this.pending = { kind: 'card', uid: arg, need: 'upgrade' };
-          return this.render();
-        }
-        return this.dispatch({ type: 'playCard', cardUid: arg });
-      }
-      case 'play-all':
-        return this.dispatch({ type: 'playAllMoney' });
-      case 'buy':
-        this.sheet = null;
-        return this.dispatch({ type: 'buyCard', slot: Number(arg) });
-      case 'solarFlare': {
-        const foes = livingOpponents(s, me);
-        if (foes.length === 1) return this.dispatch({ type: 'solarFlare', targetId: foes[0].id });
-        this.pending = { kind: 'flare' };
-        return this.render();
-      }
-      case 'thermosiphon':
-        return this.dispatch({ type: 'thermosiphon' });
+        return this.startPlay(arg);
       case 'end-turn':
         return this.dispatch({ type: 'endTurn' });
-      case 'target': {
-        const p = this.pending;
-        this.pending = null;
-        if (p?.kind === 'flare') return this.dispatch({ type: 'solarFlare', targetId: arg });
-        if (p?.kind === 'card') return this.dispatch({ type: 'playCard', cardUid: p.uid, targetId: arg });
-        return;
-      }
-      case 'upgrade': {
-        const p = this.pending;
-        this.pending = null;
-        if (p?.kind === 'card') return this.dispatch({ type: 'playCard', cardUid: p.uid, upgradeId: arg });
-        return;
-      }
+      case 'upgrade':
+        if (this.pending) this.pending.upgrade = arg as CoreAction;
+        return this.advancePlay();
+      case 'choose-destroy':
+        if (this.pending) this.pending.destroyUid = arg;
+        return this.advancePlay();
+      case 'choose-replace':
+        if (this.pending) this.pending.replaceUid = arg;
+        return this.advancePlay();
     }
   }
 
@@ -1015,7 +936,7 @@ export class App {
   private render() {
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
     document.body.classList.toggle('screen-campaign', this.screen === 'campaign');
-    // The rotating star lies on the battle board, under the display; elsewhere it fills the screen.
+    // The rotating star lies on the battle board, between the tableaus; elsewhere it fills the screen.
     backdrop.attach(this.root.querySelector<HTMLElement>('.board-star-slot'));
     if (this.screen === 'campaign') this.campaign.afterRender(this.root);
     this.syncPeek();
@@ -1054,11 +975,15 @@ export class App {
     });
   }
 
+  // ---- Front end -------------------------------------------------------------
+
   private renderMenu(): string {
     const page = this.menuPage;
-    const body = page === 'title' ? this.renderTitlePage() : page === 'hub' ? this.renderHub() : page === 'quickplay' ? this.renderQuickplay() : this.renderOptions();
+    const setup = page === 'quickplay' || page === 'options' || page === 'decks';
+    const body =
+      page === 'title' ? this.renderTitlePage() : page === 'hub' ? this.renderHub() : page === 'quickplay' ? this.renderQuickplay() : page === 'decks' ? this.builder.render() : this.renderOptions();
     return `
-    <main class="menu menu-${page} ${page === 'quickplay' || page === 'options' ? 'setup-page' : ''}">
+    <main class="menu menu-${page} ${setup ? 'setup-page' : ''}">
       ${body}
       ${page === 'title' || page === 'hub' ? '<footer class="studio">coronal mass games · prototype build</footer>' : ''}
       ${this.sheet?.kind === 'rules' ? this.renderSheet() : ''}
@@ -1108,10 +1033,10 @@ export class App {
   }
 
   /** Setup pages fill the screen: back and title across the top, the choices in the middle, the main action bottom right. */
-  private setupPage(title: string, body: string, foot: string): string {
+  private setupPage(title: string, body: string, foot: string, back = 'hub'): string {
     return `
       <header class="setup-top">
-        <button class="btn btn-small" data-act="menu-page" data-arg="hub">‹ back</button>
+        <button class="btn btn-small" data-act="menu-page" data-arg="${back}">‹ back</button>
         <h2 class="menu-heading">${title}</h2>
         <span></span>
       </header>
@@ -1124,11 +1049,15 @@ export class App {
     const seats = this.seats
       .map((seat, i) => {
         const locked = i < BALANCE.minPlayers;
+        const deck = deckById(seat.deckId) ?? PRESETS[i];
         return `
         <div class="seat-tile ${seat.enabled ? '' : 'seat-off'}">
           <button class="pill-btn seat-in" data-act="seat-toggle" data-arg="${i}" ${locked ? 'disabled' : ''}>${seat.enabled ? '● playing' : '○ empty'}</button>
-          ${factionAvatar(`f${i + 1}`, 'seat-emblem')}
+          ${factionAvatar(`f${deck.race + 1}`, 'seat-emblem')}
           <input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" ${seat.enabled ? '' : 'disabled'} aria-label="Seat ${i + 1} name" />
+          <button class="seat-deck" data-act="seat-deck" data-arg="${i}" ${seat.enabled ? '' : 'disabled'} title="Tap to change deck">
+            <small>deck</small><span>${esc(deck.name.toLowerCase())}</span>
+          </button>
           <button class="pill-btn" data-act="seat-ai" data-arg="${i}" ${seat.enabled ? '' : 'disabled'}>${seat.isAI ? 'ai' : 'human'}</button>
         </div>`;
       })
@@ -1136,7 +1065,9 @@ export class App {
     return this.setupPage(
       'quickplay',
       `<div class="seat-row">${seats}</div>`,
-      `${hasSave ? '<button class="btn" data-act="continue">continue game</button>' : ''}
+      `<button class="btn" data-act="open-decks">deck builder</button>
+       <span class="setup-spacer"></span>
+       ${hasSave ? '<button class="btn" data-act="continue">continue game</button>' : ''}
        <button class="btn-primary" data-act="new-game">launch</button>`,
     );
   }
@@ -1159,13 +1090,16 @@ export class App {
   private rulesHtml(): string {
     return `
       <ul class="rules">
-        <li>Every sun starts at <b>0</b> with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. The last sun standing wins.</li>
-        <li>Play cards for money. Spend it on <b>Solar Flare</b> to heat an enemy sun, or <b>Thermosiphon</b> to cool your own (down to ${BALANCE.minHeat}), as often as you can afford.</li>
-        <li><b>Command</b> cards upgrade an action or a planet. Solar Flare: 3 upgrades, each +1 heat and +1 cost (up to 4 heat for 5 money). Thermosiphon: 1 (up to 2 cooling). <b>Cooling Chamber</b>: 3 upgrades, +${BALANCE.coolingChamberHealthPerUpgrade} max health each (up to ${BALANCE.supernovaAt + 3 * BALANCE.coolingChamberHealthPerUpgrade}).</li>
-        <li><b>Objectives</b> are shared: the first player to meet one claims it and picks a reward (each reward once per player). Buy <b>mission</b> cards for personal objectives: play one, meet its condition, and pick a reward.</li>
-        <li>The stability bar drains by one each round. When it empties, <b>Stellar Instability</b> heats every sun at the start of each turn.</li>
+        <li>Every sun starts at <b>${BALANCE.startingHeat}</b> heat with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. The last sun standing wins.</li>
+        <li>Bring a <b>${BALANCE.deckSize}-card deck</b>: up to ${BALANCE.maxCopies} copies of a card, and exactly ${BALANCE.commandCards} Command cards. You start with ${BALANCE.openingHand} cards and draw ${BALANCE.drawPerTurn} each turn after that.</li>
+        <li>Play <b>1 card</b> on your first turn, <b>2</b> on your second, and so on up to ${BALANCE.maxPlays}. Cards <b>stay in play</b> in your tableau (${BALANCE.tableauSlots} slots): their start-of-turn effects trigger every turn, and they power each other up. With every slot full, a new card replaces one of yours.</li>
+        <li><b>Your target</b> is the rival your attacks hit: tap a rival to choose. Shields absorb enemy heat and fade at the start of your turn.</li>
+        <li><b>Command</b> cards upgrade your whole deck: Solar Flare (your attack cards deal +1 heat), Thermosiphon (your cooling cools +1) or Cooling Chamber (+${BALANCE.coolingChamberHealthPerUpgrade} max health).</li>
+        <li>Only one <b>global</b> card can be in play at a time, and it affects everyone. From round ${BALANCE.instabilityStartsRound}, <b>Stellar Instability</b> heats every sun each turn, and drawing from an empty deck heats yours by ${BALANCE.fatigueHeat}.</li>
       </ul>`;
   }
+
+  // ---- The battle table --------------------------------------------------------
 
   private renderGame(): string {
     const s = this.state!;
@@ -1174,12 +1108,13 @@ export class App {
     return `
       <main class="table-view">
         <div class="game">
-          ${this.renderTop()}
-          ${this.renderDisplay()}
+          <header class="top"></header>
+          ${this.renderBoard()}
           ${this.renderLogPanel()}
           ${this.renderDock()}
         </div>
-        ${this.hudHtml}
+        ${this.renderHud()}
+        ${this.renderPickHint()}
         ${this.renderStage()}
         ${this.renderOverlay(s)}
         <div class="rotate-hint"><div><h1 class="title">blue loop</h1><p>turn your device sideways to play</p></div></div>
@@ -1207,26 +1142,28 @@ export class App {
 
   /**
    * Every player's card, stacked down the left: yours first, then your rivals.
-   * Whoever's turn it is glows green.
+   * Whoever's turn it is glows green; your target wears a crosshair. Tap a
+   * rival to target them (on your turn) and see their tableau.
    */
   private renderPlayers(): string {
     const s = this.state!;
     const active = activePlayer(s);
     const me = this.viewer();
-    const playing = s.phase !== 'setup' && !isGameOver(s);
+    const target = targetOf(s, me);
+    const shown = this.shownRival();
+    const playing = !isGameOver(s);
     const cards = [me, ...s.players.filter((p) => p.id !== me.id)]
       .map((p) => {
         const mine = p.id === me.id;
-        const extras = mine
-          ? ` · ◈+${incomeFor(p)} · ✋${handSizeFor(p)}${shieldPierce(p) ? ` · ⚔${shieldPierce(p)}` : ''}`
-          : ` · ▲${flareHeat(p, s)}`;
-        const tally = `${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}`;
+        const targeted = !mine && target?.id === p.id && !p.eliminated;
+        const title = mine ? `${p.name} (you)` : `${p.name}${targeted ? ' · your target' : ' · tap to target'}`;
         return `
-        <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''}" data-act="view-system" data-arg="${p.id}" title="${esc(p.name)} · ${esc(systemDef(p.systemId).name)}${mine ? ' (you)' : ''}">
+        <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''} ${targeted ? 'rival-target' : ''} ${!mine && shown?.id === p.id ? 'rival-shown' : ''}"
+          data-act="${mine ? 'view-player' : 'focus'}" data-arg="${p.id}" title="${esc(title)}">
           <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
           <div class="rival-info">
-            <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}</span>
-            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em>⛨<span data-shields-of="${p.id}">${p.shields}</span>${extras}${tally}</em></span>
+            <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}${targeted ? '<i class="rival-crosshair" aria-label="your target">◎</i>' : ''}</span>
+            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em>⛨<span data-shields-of="${p.id}">${p.shields}</span> · ✋${p.hand.length} · ▤${p.deck.length}</em></span>
           </div>
         </button>`;
       })
@@ -1234,39 +1171,45 @@ export class App {
     return `<aside class="rivals">${cards}</aside>`;
   }
 
-  private renderTop(): string {
+  private renderHud(): string {
     const s = this.state!;
     const active = activePlayer(s);
-    const me = this.viewer();
-    const field = activeField(s);
-    const living = s.players.filter((p) => !p.eliminated).length;
-    const globals = field
-      ? `<button class="field" data-act="view-field" title="${esc(GLOBALS[field.id].text)}">
-          ${cardGlyph(FIELD_CARD[field.id], 'global')}
-          <span class="field-name">${esc(GLOBALS[field.id].name.toLowerCase())}</span>
-          <span class="field-rounds">${Math.ceil(field.turnsRemaining / living)}</span>
+    const global = activeGlobal(s);
+    const field = global
+      ? `<button class="field" data-act="inspect" data-card="${global.card.defId}" title="${esc(cardDef(global.card.defId).text)}">
+          ${cardGlyph(global.card.defId, 'global')}
+          <span class="field-name">${esc(cardDef(global.card.defId).name.toLowerCase())}</span>
         </button>`
       : '';
-
     const aiTurn = active.isAI && !isGameOver(s);
-    // Off the table, flat: round and stability top centre; menu and turn controls top right.
-    this.hudHtml = `
+    // Off the table, flat: players top left, round and stability top centre, menu and turn controls top right.
+    return `
       <div class="hud">
         <div class="hud-players">${this.renderPlayers()}</div>
         <div class="hud-round">${this.renderRoundBar()}</div>
         <div class="hud-controls">
-          ${globals}
+          ${field}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
           ${this.campaignBattle && !isGameOver(s) ? '<button class="pill-btn" data-act="campaign-auto" title="Let your commanders finish this battle">auto-resolve</button>' : ''}
           <button class="icon-btn" data-act="open-menu" aria-label="Menu">${MENU_ICON}</button>
         </div>
       </div>`;
-    // On the table: objective pills along the top edge, from the left.
-    return `<header class="top">${this.renderObjectivesRow(me)}</header>`;
   }
 
-  /** The flat HUD above the table (built with the top row, rendered outside the tilted board). */
-  private hudHtml = '';
+  /** While a card waits for a choice on the board, a short prompt sits at the top of the screen. */
+  private renderPickHint(): string {
+    const p = this.pending;
+    if (!p || p.step === 'upgrade') return '';
+    const s = this.state!;
+    const card = activePlayer(s).hand.find((c) => c.uid === p.uid);
+    if (!card) return '';
+    const name = esc(cardDef(card.defId).name.toLowerCase());
+    const text =
+      p.step === 'destroy'
+        ? `${name}: choose a card in ${esc(targetOf(s, activePlayer(s))!.name.toLowerCase())}'s tableau to destroy`
+        : `${name}: your tableau is full · choose a card of yours to replace`;
+    return `<div class="pick-hint"><span>${text}</span><button class="pill-btn" data-act="cancel">cancel</button></div>`;
+  }
 
   /** The game log, always visible down the right-hand side. Tap it for the full history. */
   private renderLogPanel(): string {
@@ -1283,22 +1226,37 @@ export class App {
       </aside>`;
   }
 
-  private renderDisplay(): string {
-    const s = this.state!;
-    const me = activePlayer(s);
+  /** The board: your target's tableau across the far side, yours on the near side, the star between. */
+  private renderBoard(): string {
+    const me = this.viewer();
+    const rival = this.shownRival();
     return `
-      <section class="display">
+      <section class="display board">
         <div class="board3d">
           <div class="board-plane">
             <div class="board-floor"></div>
             <div class="board-star-slot"></div>
-            <div class="cards">${s.display
-              .map((c, i) => (c ? this.renderCard(c, { slot: i, buyer: me }) : '<div class="card card-empty"></div>'))
-              .join('')}</div>
+            ${rival ? this.renderTableau(rival, 'rival') : ''}
+            ${this.renderTableau(me, 'mine')}
           </div>
         </div>
-        <div class="section-label board-label" data-anchor="market">display <span>${s.marketDeck.length} left</span></div>
       </section>`;
+  }
+
+  private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
+    const s = this.state!;
+    const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
+      const c = p.tableau[i];
+      return c ? this.renderCard(c, { tableau: side }) : '<div class="slot-empty"></div>';
+    }).join('');
+    const targeted = side === 'rival' && targetOf(s, this.viewer())?.id === p.id;
+    const label = side === 'mine' ? 'your tableau' : `${esc(p.name.toLowerCase())}'s tableau`;
+    const deck = p.deckName ? `<em>${esc(p.deckName.toLowerCase())}</em>` : '';
+    return `
+      <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
+        <div class="tableau-label">${factionAvatar(`f${p.species + 1}`, 'tableau-emblem')}<span>${label}</span>${deck}<b>${p.tableau.length}/${BALANCE.tableauSlots}</b>${targeted ? '<i class="target-tag">◎ your target</i>' : ''}</div>
+        <div class="tableau-row">${slots}</div>
+      </div>`;
   }
 
   private renderDock(): string {
@@ -1307,120 +1265,78 @@ export class App {
     const act = this.canAct();
     const busy = this.pending !== null;
     const hidden = this.needsHandoff();
-    const max = supernovaThreshold(me);
-
-    const fc = flareCost(s, me);
-    const tc = thermoCost(me);
     const rail = `
-      <div data-anchor="upgrade:solarFlare">${actionChip({ action: 'solarFlare', upgrades: me.upgrades.solarFlare, cost: fc, power: flareHeat(me, s), enabled: act && !busy && me.money >= fc })}</div>
-      <div data-anchor="upgrade:thermosiphon">${actionChip({ action: 'thermosiphon', upgrades: me.upgrades.thermosiphon, cost: tc, power: thermoCool(me), enabled: act && !busy && me.money >= tc && me.heat > BALANCE.minHeat })}</div>
-      <div data-anchor="upgrade:coolingChamber">${actionChip({ action: 'coolingChamber', upgrades: me.upgrades.coolingChamber, power: max, enabled: true })}</div>`;
-
-    const hasMoneyCards = me.hand.some((c) => cardDef(c.defId).effects.every((e) => e.type === 'money'));
+      ${actionChip({ action: 'solarFlare', upgrades: me.upgrades.solarFlare, power: `+${me.upgrades.solarFlare}` })}
+      ${actionChip({ action: 'thermosiphon', upgrades: me.upgrades.thermosiphon, power: `+${me.upgrades.thermosiphon}` })}
+      ${actionChip({ action: 'coolingChamber', upgrades: me.upgrades.coolingChamber, power: `${supernovaThreshold(me)}` })}`;
     const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand.map((c) => this.renderCard(c, { hand: true })).join('');
-    const groups = new Map<string, CardInstance[]>();
-    for (const c of me.inPlay) groups.set(c.defId, [...(groups.get(c.defId) ?? []), c]);
-    const played = [...groups.values()].map((cs) => this.renderMini(cs[cs.length - 1], cs.length)).join('');
-
+    const myTurn = activePlayer(s).id === me.id && !isGameOver(s);
+    const total = Math.max(me.playsLeft, myTurn ? playsAllowed(s, me) : 0);
+    const pips = myTurn
+      ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''}"></i>`).join('')
+      : '';
     return `
-      <section class="dock ${s.phase === 'setup' ? 'dock-setup' : ''}">
-        <div class="command">
+      <section class="dock">
+        <div class="command" data-anchor="upgrades">
           <div class="rail">${rail}</div>
         </div>
         <button class="pile" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck"><span class="pile-stack"><i></i><i></i></span><b>${me.deck.length}</b><small>deck</small></button>
         <div class="hand-zone">
-          <div class="in-play">${played}</div>
           <div class="hand">${hand}</div>
         </div>
         <button class="pile" data-anchor="discard" data-act="view-pile" data-arg="discard" title="Your discard pile"><span class="pile-stack"><i></i><i></i></span><b>${me.discard.length}</b><small>discard</small></button>
         <div class="turn-controls">
-          <div class="money" title="Money this turn">◈ ${me.money}</div>
-          <button class="btn btn-small" data-act="play-all" ${act && hasMoneyCards && !busy ? '' : 'disabled'} title="Play every plain money card in your hand">play money</button>
-          <button class="btn-primary end-turn" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end turn</button>
+          <div class="plays ${myTurn ? '' : 'plays-off'}" title="Cards you may still play this turn">
+            <small>${myTurn ? `plays ${me.playsLeft}` : 'waiting'}</small>
+            <span class="plays-pips">${pips}</span>
+          </div>
+          <button class="btn-primary end-turn ${act && me.playsLeft === 0 ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end turn</button>
         </div>
       </section>`;
   }
 
-  /** Global objectives (first to meet one claims it), then the viewer's missions. */
-  private renderObjectivesRow(me: PlayerState): string {
-    const s = this.state!;
-    const objectives = s.objectives
-      .map((id) => {
-        const o = objectiveDef(id);
-        return `
-          <button class="objective" data-anchor="obj:${id}" data-act="view-objective" data-arg="${id}">
-            <span class="obj-icon">${objectiveGlyph(id)}</span>
-            <span class="obj-body"><span class="obj-name">${esc(o.name.toLowerCase())}</span><small class="obj-text">${esc(o.text)}</small></span>
-            <div class="popover"><b>${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p><p class="muted">First to meet it claims it.</p></div>
-          </button>`;
-      })
-      .join('');
-    const missions = me.missions
-      .map((m) => {
-        const o = objectiveDef(missionOf(m.defId));
-        return `
-          <button class="objective obj-mission" data-act="view-mission" data-arg="${m.uid}" data-player="${me.id}" style="--kc:${KIND_COLOUR.mission}">
-            <span class="obj-icon">${cardGlyph(m.defId, 'mission')}</span>
-            <span class="obj-body"><span class="obj-name">mission · ${esc(o.name.toLowerCase())}</span><small class="obj-text">${esc(o.text)}</small></span>
-            <div class="popover"><b>mission · ${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p></div>
-          </button>`;
-      })
-      .join('');
-    const claimedCount = me.claimedObjectives.length;
-    return `<div class="objectives-row">${objectives}${missions ? `<span class="obj-divider"></span>${missions}` : ''}${claimedCount ? `<span class="obj-claimed" title="Objectives you have claimed">★${claimedCount}</span>` : ''}</div>`;
-  }
-
-  private renderCard(c: CardInstance, opts: { slot?: number; hand?: boolean; buyer?: PlayerState; static?: boolean }): string {
+  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean }): string {
     const def = cardDef(c.defId);
-    const act = this.canAct() && !this.pending;
-    // Cards are never disabled: if a card can't be played or bought right now, tapping it inspects it.
-    let attrs = `data-act="inspect"`;
-    let cost = '';
-    let costAttr = opts.slot !== undefined ? `data-slot="${opts.slot}"` : opts.hand ? `data-hand="${c.uid}"` : '';
-    if (opts.slot !== undefined && opts.buyer) {
-      const price = marketCost(opts.buyer, c.defId, this.state!);
-      if ((act && opts.buyer.money >= price) || this.touch) attrs = `data-act="buy" data-arg="${opts.slot}"`;
-      cost = `<span class="coin ${price < def.cost ? 'coin-discount' : ''}">${price}</span>`;
-      costAttr += ` data-cost="${price}"`;
-    } else if (opts.hand && (act || this.touch)) {
-      attrs = `data-act="play" data-arg="${c.uid}"`;
+    const act = this.canAct();
+    const p = this.pending;
+    let attrs = 'data-act="inspect"';
+    let extra = '';
+    if (opts.hand) {
+      extra = `data-hand="${c.uid}"`;
+      if ((act && !p) || this.touch) attrs = `data-act="play" data-arg="${c.uid}"`;
     }
-    // Display cards stay at full strength; affordability shows as a highlight (on your turn) or a muted price.
-    let buyState = '';
-    if (opts.slot !== undefined && opts.buyer) {
-      buyState = opts.buyer.money >= marketCost(opts.buyer, c.defId, this.state!) ? (act ? 'card-affordable' : '') : 'card-pricey';
+    let state = '';
+    if (p && opts.tableau === 'rival' && p.step === 'destroy') {
+      attrs = `data-act="choose-destroy" data-arg="${c.uid}"`;
+      state = 'card-choosable';
     }
+    if (p && opts.tableau === 'mine' && p.step === 'replace') {
+      attrs = `data-act="choose-replace" data-arg="${c.uid}"`;
+      state = 'card-choosable';
+    }
+    if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
+    const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
+    const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
-      <button class="card kind-${def.kind} ${buyState}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${costAttr} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
+      <button class="card kind-${def.kind}${race} ${opts.tableau ? 'card-table' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardGlyph(def.id, def.kind)}</div>
-        ${cost}
+        ${growth}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
-        <div class="card-kind">${def.kind === 'basic' ? 'money' : def.kind}</div>
-      </button>`;
-  }
-
-  /** Small card for the "in play" strip. */
-  private renderMini(c: CardInstance, count = 1): string {
-    const def = cardDef(c.defId);
-    return `
-      <button class="mini kind-${def.kind}" data-uid="${c.uid}" data-card="${def.id}" data-act="inspect" style="--kc:${KIND_COLOUR[def.kind]}">
-        ${cardGlyph(def.id, def.kind)}
-        ${count > 1 ? `<b>×${count}</b>` : ''}
+        <div class="card-kind">${def.kind}${def.race !== undefined ? ` · ${esc(RACE_NAMES[def.race].toLowerCase())}` : ''}</div>
       </button>`;
   }
 
   /** The magnified card, used by the hover preview and the inspector. */
-  private bigCard(defId: string, cost?: number): string {
+  private bigCard(defId: string, growth?: number): string {
     const def = cardDef(defId);
-    const shownCost = cost ?? def.cost;
     return `
       <div class="card card-big kind-${def.kind}" style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardGlyph(def.id, def.kind)}</div>
-        ${shownCost > 0 ? `<span class="coin ${shownCost < def.cost ? 'coin-discount' : ''}">${shownCost}</span>` : ''}
+        ${growth ? `<span class="growth">${growth}</span>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
-        <div class="card-kind">${def.kind === 'basic' ? 'money' : def.kind}</div>
+        <div class="card-kind">${def.kind}${def.race !== undefined ? ` · ${esc(RACE_NAMES[def.race].toLowerCase())}` : ''}</div>
       </div>`;
   }
 
@@ -1429,11 +1345,10 @@ export class App {
     const s = this.state!;
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
-    const target = st.targetId ? s.players.find((p) => p.id === st.targetId) : undefined;
     return `
       <div class="stage">
-        ${this.renderCard({ uid: st.uid, defId: st.defId }, {})}
-        <div class="stage-caption">${esc(actor.name.toLowerCase())} ${st.verb}${target ? ` → ${esc(target.name.toLowerCase())}` : ''}</div>
+        ${this.renderCard({ uid: 'stage', defId: st.defId }, { static: true })}
+        <div class="stage-caption">${esc(actor.name.toLowerCase())} plays</div>
       </div>`;
   }
 
@@ -1464,7 +1379,7 @@ export class App {
             <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
             <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
             <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
-            <button class="btn" data-act="systems">solar systems</button>
+            <button class="btn" data-act="view-player" data-arg="">players</button>
             <button class="btn" data-act="open-log">game log</button>
             <button class="btn" data-act="rules">how to play</button>
             <button class="btn" data-act="to-menu">main menu</button>
@@ -1474,69 +1389,27 @@ export class App {
         return this.sheetFrame('game log', `<div class="log-list">${s!.log.slice(-120).map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>`);
       case 'pile':
         return this.renderPileSheet(sh.pile);
-      case 'system':
-        return this.renderSystemSheet(s!.players.find((p) => p.id === sh.playerId)!);
-      case 'draft':
-        return this.renderDraft(sh.view);
-      case 'field': {
-        const f = activeField(s!);
-        if (!f) return '';
-        const setter = s!.players.find((p) => p.id === f.sourcePlayerId)!;
-        const living = s!.players.filter((p) => !p.eliminated).length;
-        return this.sheetFrame(
-          esc(GLOBALS[f.id].name.toLowerCase()),
-          `<div class="obj-sheet">${cardGlyph(FIELD_CARD[f.id], 'global')}<p>${esc(GLOBALS[f.id].text)}</p>
-           <p class="muted">Applies to every player equally · ${Math.ceil(f.turnsRemaining / living)} round(s) left · played by ${esc(setter.name)}. Another global card replaces it.</p></div>`,
-        );
-      }
-      case 'objective': {
-        const o = objectiveDef(sh.id);
-        const claimed = s!.claimed.map((c) => `${esc(objectiveDef(c.id).name)} · ${esc(s!.players.find((p) => p.id === c.playerId)!.name)}`);
-        return this.sheetFrame(
-          esc(o.name.toLowerCase()),
-          `<div class="obj-sheet">${objectiveGlyph(sh.id)}<p>${esc(o.text)}</p>
-           <p class="muted">Global objective: the first player to meet it claims it and chooses a reward. A new objective then takes its place.</p>
-           ${claimed.length ? `<p class="claimed">claimed so far: ${claimed.join(' · ')}</p>` : ''}</div>`,
-        );
-      }
-      case 'mission': {
-        const owner = s!.players.find((p) => p.id === sh.playerId)!;
-        const card = owner.missions.find((m) => m.uid === sh.uid);
-        if (!card) return '';
-        const o = objectiveDef(missionOf(card.defId));
-        return this.sheetFrame(
-          `mission · ${esc(o.name.toLowerCase())}`,
-          `<div class="obj-sheet">${cardGlyph(card.defId, 'mission')}<p>${esc(o.text)}</p>
-           <p class="muted">Personal mission. When you meet it on your turn you choose a reward, and the mission card leaves the game.</p></div>`,
-        );
-      }
-      case 'action': {
+      case 'player':
+        return this.renderPlayerSheet(s!.players.find((p) => p.id === sh.playerId) ?? this.viewer());
+      case 'upgrade': {
         const me = this.viewer();
+        const a = sh.action;
         return this.sheetFrame(
-          ACTION_NAME[sh.action].toLowerCase(),
+          ACTION_NAME[a].toLowerCase(),
           `<div class="action-sheet">
-            ${actionTile({ action: sh.action, upgrades: me.upgrades[sh.action], power: supernovaThreshold(me), enabled: false, compact: true, actAttr: '' })}
-            <div><p>${ACTION_TEXT[sh.action]}</p><p class="muted">Upgrades: ${me.upgrades[sh.action]}/${MAX_UPGRADES[sh.action]}. Upgrade with a Command card.</p></div>
+            ${actionTile({ action: a, upgrades: me.upgrades[a], power: a === 'coolingChamber' ? String(supernovaThreshold(me)) : `+${me.upgrades[a]}`, enabled: false, compact: true, actAttr: '' })}
+            <div><p>${ACTION_TEXT[a]}</p><p class="muted">Upgrades: ${me.upgrades[a]}/${MAX_UPGRADES[a]}. Command cards upgrade it.</p></div>
           </div>`,
         );
       }
       case 'card': {
-        const act = this.canAct() && !this.pending;
         const me = s ? activePlayer(s) : null;
-        let button = '';
-        let cost: number | undefined;
-        if (sh.uid && s) {
-          const inHand = me!.hand.some((c) => c.uid === sh.uid);
-          button = inHand ? `<button class="btn-primary" data-act="play" data-arg="${sh.uid}" ${act ? '' : 'disabled'}>play</button>` : '';
-        } else if (sh.slot !== undefined && s && me) {
-          cost = marketCost(me, sh.defId, s);
-          button = `<button class="btn-primary" data-act="buy" data-arg="${sh.slot}" ${act && me.money >= cost ? '' : 'disabled'}>buy · ◈${cost}</button>
-            ${me.money < cost && act ? `<span class="muted">you have ◈${me.money}</span>` : ''}`;
-        }
+        const playable = !!(sh.uid && me && me.hand.some((c) => c.uid === sh.uid) && this.canAct() && !this.pending);
+        const button = sh.uid ? `<button class="btn-primary" data-act="play" data-arg="${sh.uid}" ${playable && me!.playsLeft > 0 ? '' : 'disabled'}>play</button>` : '';
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
-              ${this.bigCard(sh.defId, cost)}
+              ${this.bigCard(sh.defId)}
               <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
             </div>
           </div>`;
@@ -1544,102 +1417,41 @@ export class App {
     }
   }
 
-  /**
-   * Solar system card: the player's system, ability, planets and progress,
-   * with small tabs above it to flick between every player's system.
-   */
-  private renderSystemSheet(p: PlayerState): string {
+  /** A player's summary: their deck, upgrades, Command cards and the conditions they fight under. */
+  private renderPlayerSheet(p: PlayerState): string {
     const s = this.state!;
     const me = this.viewer();
-    const sys = systemDef(p.systemId);
     const tabs = [me, ...s.players.filter((o) => o.id !== me.id)]
       .map(
         (o) => `
-        <button class="sys-tab ${o.id === p.id ? 'sys-tab-on' : ''} ${o.eliminated ? 'sys-tab-dead' : ''}" data-act="view-system" data-arg="${o.id}">
+        <button class="sys-tab ${o.id === p.id ? 'sys-tab-on' : ''} ${o.eliminated ? 'sys-tab-dead' : ''}" data-act="view-player" data-arg="${o.id}">
           ${sunOrb({ heat: o.heat, threshold: supernovaThreshold(o), size: 26, dead: o.eliminated, label: '' })}
           <span>${o.id === me.id ? 'you' : esc(o.name.toLowerCase())}</span>
         </button>`,
       )
       .join('');
-    const planets = p.planets
-      .map((pl) => {
-        const pips = Array.from({ length: BALANCE.maxPlanetLevel }, (_, i) => `<i class="${i < pl.level ? 'on' : ''}"></i>`).join('');
-        return `
-          <div class="sys-planet">
-            <span class="sys-planet-name">${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}</span>
-            <span class="pips">${pips}</span>
-            <span class="sys-planet-effect">${pl.track} · ${pl.level ? planetEffect(pl.track, pl.level) : `each level: ${planetEffect(pl.track, 1)}`}</span>
-          </div>`;
-      })
-      .join('');
     const ups = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
-      .map((a) => {
-        const pips = Array.from({ length: MAX_UPGRADES[a] }, (_, i) => `<i class="${i < p.upgrades[a] ? 'on' : ''}"></i>`).join('');
-        return `<span class="sys-up">${ACTION_NAME[a].toLowerCase()} <span class="pips">${pips}</span></span>`;
-      })
+      .map((a) =>
+        actionTile({ action: a, upgrades: p.upgrades[a], power: a === 'coolingChamber' ? String(supernovaThreshold(p)) : `+${p.upgrades[a]}`, enabled: false, compact: true, actAttr: `data-act="view-upgrade" data-arg="${a}"` }),
+      )
       .join('');
-    const whose = p.id === me.id ? 'your solar system' : `${esc(p.name.toLowerCase())}'s solar system`;
+    const commands = p.commands.map((c) => esc(cardDef(c.defId).name.toLowerCase())).join(' · ');
     return `
       <div class="overlay overlay-inspect" data-act="cancel">
         <div class="sys-wrap sheet">
           <div class="sys-tabs">${tabs}</div>
-          <div class="sys-card">
-            <div class="sys-kicker">${whose}</div>
-            ${systemDiagram(p.planets)}
-            <h2 class="sys-name">${esc(sys.name.toLowerCase())}</h2>
-            <p class="sys-flavor">${esc(sys.flavor)}</p>
-            <div class="sys-ability"><b>${esc(sys.abilityName.toLowerCase())}</b><span>+ ${esc(sys.abilityText)}</span><span class="sys-drawback">− ${esc(sys.drawbackText)}</span></div>
+          <div class="sys-card player-card">
+            <div class="sys-kicker">${p.id === me.id ? 'you' : esc(p.name.toLowerCase())} · ${esc(RACE_NAMES[p.species].toLowerCase())}</div>
+            ${factionAvatar(`f${p.species + 1}`, 'player-emblem')}
+            <h2 class="sys-name">${esc((p.deckName ?? 'custom deck').toLowerCase())}</h2>
+            <div class="upgrade-actions">${ups}</div>
+            ${commands ? `<p class="muted center-text">Command cards played: ${commands}</p>` : ''}
             ${p.conditions?.length ? `<div class="sys-conditions">${p.conditions.map((c) => `<div><b>${esc(c.name.toLowerCase())}</b>${esc(c.text)}</div>`).join('')}</div>` : ''}
-            <div class="sys-planets">${planets}</div>
-            <div class="sys-ups">${ups}</div>
             <div class="sys-stats">
-              <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⛨ ${p.shields}</span><span>◈ +${incomeFor(p)}/turn</span><span>✋ ${handSizeFor(p)}</span>
-              ${p.rewards.length ? `<span>rewards: ${p.rewards.map((r) => esc(rewardDef(r).name.toLowerCase())).join(', ')}</span>` : ''}
-              ${p.missions.length ? `<span>missions: ${p.missions.map((m) => esc(objectiveDef(missionOf(m.defId)).name.toLowerCase())).join(', ')}</span>` : ''}
+              <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⛨ ${p.shields}</span><span>✋ ${p.hand.length} in hand</span><span>▤ ${p.deck.length} in deck</span><span>${p.discard.length} discarded</span><span>${p.tableau.length}/${BALANCE.tableauSlots} in play</span>
             </div>
             <button class="modal-cancel" data-act="cancel">close</button>
           </div>
-        </div>
-      </div>`;
-  }
-
-  /** The two offered systems side by side, with tabs to peek at rivals' chosen systems. */
-  private renderDraft(view?: string): string {
-    const s = this.state!;
-    const me = activePlayer(s);
-    if (!me.systemOffers) return '';
-    const rivals = s.players.filter((p) => p.id !== me.id);
-    const tabs = [
-      `<button class="sys-tab ${!view ? 'sys-tab-on' : ''}" data-act="draft-view" data-arg=""><span>your options</span></button>`,
-      ...rivals.map(
-        (o) => `<button class="sys-tab ${view === o.id ? 'sys-tab-on' : ''}" data-act="draft-view" data-arg="${o.id}" ${o.systemOffers ? 'disabled' : ''}>
-          ${sunOrb({ heat: o.heat, threshold: supernovaThreshold(o), size: 26, label: '' })}<span>${esc(o.name.toLowerCase())}</span></button>`,
-      ),
-    ].join('');
-    const card = (sysId: string, pick: boolean) => {
-      const sys = systemDef(sysId);
-      const planets = sys.planets
-        .map((pl) => `<div class="sys-planet"><span class="sys-planet-name">${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}</span><span class="sys-planet-effect">${pl.track}${pl.level ? ` · starts at level ${pl.level}` : ''}</span></div>`)
-        .join('');
-      return `
-        <div class="sys-card draft-card">
-          ${systemOrrery3d(sys.planets)}
-          <h2 class="sys-name">${esc(sys.name.toLowerCase())}</h2>
-          <p class="sys-flavor">${esc(sys.flavor)}</p>
-          <div class="sys-ability"><b>${esc(sys.abilityName.toLowerCase())}</b><span>+ ${esc(sys.abilityText)}</span><span class="sys-drawback">− ${esc(sys.drawbackText)}</span></div>
-          <div class="sys-planets">${planets}</div>
-          ${pick ? `<button class="btn-primary sys-begin" data-act="draft-pick" data-arg="${sys.id}">choose</button>` : '<div class="sys-spacer"></div>'}
-        </div>`;
-    };
-    const rival = view ? s.players.find((p) => p.id === view) : undefined;
-    const body = rival
-      ? `<div class="draft-cards draft-one"><div class="sys-kicker">${esc(rival.name.toLowerCase())}'s solar system</div>${card(rival.systemId, false)}</div>`
-      : `<div class="draft-cards">${me.systemOffers!.map((id) => card(id, true)).join('')}</div>`;
-    return `
-      <div class="overlay overlay-inspect overlay-draft">
-        <div class="sys-wrap draft-wrap sheet">
-          <div class="sys-tabs">${tabs}</div>
-          ${body}
         </div>
       </div>`;
   }
@@ -1655,80 +1467,15 @@ export class App {
         .join('');
       return this.sheetFrame(
         `your deck · ${me.deck.length}`,
-        `<p class="muted center-text">Draw order is hidden. When your deck runs out, your discard pile is shuffled into a new one.</p>
+        `<p class="muted center-text">Draw order is hidden. When your deck runs out, each card you should draw heats your sun by ${BALANCE.fatigueHeat} instead.</p>
          <div class="pile-grid">${rows || '<p class="muted">Your deck is empty.</p>'}</div>`,
       );
     }
     const rows = [...me.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');
     return this.sheetFrame(
       `your discard · ${me.discard.length}`,
-      `<p class="muted center-text">Most recent first.</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
+      `<p class="muted center-text">Cards replaced or destroyed, most recent first.</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
     );
-  }
-
-  /** Objective claimed: pick one of the offered rewards (then, if needed, what it applies to). */
-  private renderReward(r: GameState['pendingRewards'][number]): string {
-    const s = this.state!;
-    const me = s.players.find((p) => p.id === r.playerId)!;
-    if (this.rewardStep === 'command') {
-      const options = upgradeOptions(me);
-      const tiles = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
-        .map((a) =>
-          actionTile({
-            action: a,
-            upgrades: me.upgrades[a],
-            cost: a === 'solarFlare' ? flareCost(s, me) : a === 'thermosiphon' ? thermoCost(me) : undefined,
-            power: a === 'solarFlare' ? flareHeat(me, s) : a === 'thermosiphon' ? thermoCool(me) : supernovaThreshold(me),
-            enabled: options.includes(a),
-            compact: true,
-            actAttr: options.includes(a) ? `data-act="reward-upgrade" data-arg="${a}"` : 'disabled',
-          }),
-        )
-        .join('');
-      const planets = me.planets
-        .map((pl) => {
-          const ok = options.includes(pl.id);
-          return `<button class="planet planet-choice" ${ok ? `data-act="reward-upgrade" data-arg="${pl.id}"` : 'disabled'}>
-            <span>${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}</span>
-            <small>${ok ? `→ ${planetEffect(pl.track, trackLevel(me, pl.track) + 1)}` : 'max level'}</small></button>`;
-        })
-        .join('');
-      return `
-        <div class="overlay"><div class="modal modal-wide">
-          <div class="bar-title">command upgrade · choose what to upgrade</div>
-          <div class="modal-body upgrade-body"><div class="upgrade-actions">${tiles}</div><div class="upgrade-planets">${planets}</div></div>
-          <button class="modal-cancel" data-act="reward-back">back</button>
-        </div></div>`;
-    }
-    if (this.rewardStep === 'requisition') {
-      const cards = s.display
-        .map((c, i) => (c ? `<div class="pile-card" data-act="reward-slot" data-arg="${i}">${this.renderCard(c, { static: true })}</div>` : ''))
-        .join('');
-      return `
-        <div class="overlay"><div class="modal modal-wide">
-          <div class="bar-title">requisition · take any card for free</div>
-          <div class="modal-body"><div class="pile-grid requisition">${cards}</div></div>
-          <button class="modal-cancel" data-act="reward-back">back</button>
-        </div></div>`;
-    }
-    const options = r.options
-      .map((id) => {
-        const def = rewardDef(id);
-        return `
-          <button class="reward" data-act="reward" data-arg="${id}">
-            <div class="reward-glyph">${rewardGlyph(id)}</div>
-            <div class="reward-name">${esc(def.name.toLowerCase())}</div>
-            <div class="reward-text">${esc(def.text.replace(/^Permanent: /, ''))}</div>
-            <div class="reward-kind">${def.permanent ? 'permanent' : 'instant'}</div>
-          </button>`;
-      })
-      .join('');
-    return `
-      <div class="overlay overlay-inspect"><div class="modal modal-wide">
-        <div class="bar-title">★ ${esc(r.source.toLowerCase())} · choose a reward</div>
-        <div class="modal-body"><div class="rewards">${options}</div>
-          <p class="muted center-text">Each reward can be taken once per game.</p></div>
-      </div></div>`;
   }
 
   private renderOverlay(s: GameState): string {
@@ -1740,7 +1487,7 @@ export class App {
           <div class="modal-body center">
             ${sunOrb({ heat: winner.heat, threshold: supernovaThreshold(winner), size: 96 })}
             <h2>${esc(winner.name.toLowerCase())} wins</h2>
-            <p>${esc(systemDef(winner.systemId).name)} is the last sun standing after ${s.round} rounds.</p>
+            <p>The last sun standing after ${s.round} rounds.</p>
             ${this.campaignBattle ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>' : '<button class="btn-primary" data-act="to-menu">back to menu</button>'}
           </div>
         </div></div>`;
@@ -1756,67 +1503,27 @@ export class App {
           </div>
         </div></div>`;
     }
-    const reward = this.myReward();
-    if (reward) return this.renderReward(reward);
     if (this.sheet) return this.renderSheet();
     const pend = this.pending;
-    if (!pend) return '';
+    if (!pend || pend.step !== 'upgrade') return '';
+
+    // Command Directive: choose what to upgrade.
     const me = activePlayer(s);
-
-    if (pend.kind === 'flare' || pend.need === 'target') {
-      const title = pend.kind === 'flare' ? 'select solar flare target' : `select ${cardDef(me.hand.find((c) => c.uid === pend.uid)!.defId).name.toLowerCase()} target`;
-      const foes = livingOpponents(s, me)
-        .map(
-          (p) => `
-          <button class="target" data-act="target" data-arg="${p.id}">
-            ${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 72 })}
-            <span class="target-name">${esc(p.name.toLowerCase())}</span>
-            <span class="target-meta">${p.heat}/${supernovaThreshold(p)} · ⛨${p.shields}</span>
-          </button>`,
-        )
-        .join('');
-      return `
-        <div class="overlay overlay-soft" data-act="cancel"><div class="modal">
-          <div class="bar-title">${esc(title)}</div>
-          <div class="modal-body targets">${foes}</div>
-          <button class="modal-cancel" data-act="cancel">cancel</button>
-        </div></div>`;
-    }
-
-    // Upgrade choice for a Command card.
     const options = upgradeOptions(me);
-    const actionChoices = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
+    const tiles = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
       .map((a) => {
-        const available = options.includes(a);
-        return actionTile({
-          action: a,
-          upgrades: me.upgrades[a],
-          cost: a === 'solarFlare' ? flareCost(s, me) : a === 'thermosiphon' ? thermoCost(me) : undefined,
-          power: a === 'solarFlare' ? flareHeat(me, s) : a === 'thermosiphon' ? thermoCool(me) : supernovaThreshold(me),
-          enabled: available,
-          compact: true,
-          actAttr: available ? `data-act="upgrade" data-arg="${a}"` : 'disabled',
-        });
-      })
-      .join('');
-    const planetChoices = me.planets
-      .map((pl) => {
-        const available = options.includes(pl.id);
-        const pips = Array.from({ length: BALANCE.maxPlanetLevel }, (_, i) => `<i class="${i < pl.level ? 'on' : ''}"></i>`).join('');
-        return `
-          <button class="planet planet-choice track-${pl.track}" ${available ? `data-act="upgrade" data-arg="${pl.id}"` : 'disabled'}>
-            <span>${TRACK_ICON[pl.track]} ${esc(pl.name.toLowerCase())}<span class="pips">${pips}</span></span>
-            <small>${available ? `→ ${planetEffect(pl.track, trackLevel(me, pl.track) + 1)}` : 'max level'}</small>
-          </button>`;
+        const ok = options.includes(a);
+        const next = me.upgrades[a] + 1;
+        return `<div class="upgrade-choice">
+          ${actionTile({ action: a, upgrades: me.upgrades[a], power: a === 'coolingChamber' ? String(supernovaThreshold(me)) : `+${me.upgrades[a]}`, enabled: ok, compact: true, actAttr: ok ? `data-act="upgrade" data-arg="${a}"` : 'disabled' })}
+          <small>${ok ? (a === 'coolingChamber' ? `→ ${supernovaThreshold(me) + BALANCE.coolingChamberHealthPerUpgrade} max health` : `→ +${next} ${a === 'solarFlare' ? 'heat on attacks' : 'cooling'}`) : 'fully upgraded'}</small>
+        </div>`;
       })
       .join('');
     return `
       <div class="overlay overlay-soft" data-act="cancel"><div class="modal modal-wide">
-        <div class="bar-title">select upgrade</div>
-        <div class="modal-body upgrade-body">
-          <div class="upgrade-actions">${actionChoices}</div>
-          <div class="upgrade-planets">${planetChoices}</div>
-        </div>
+        <div class="bar-title">command · choose an upgrade</div>
+        <div class="modal-body upgrade-body"><div class="upgrade-actions">${tiles}</div></div>
         <button class="modal-cancel" data-act="cancel">cancel</button>
       </div></div>`;
   }
