@@ -18,6 +18,21 @@ npm run electron:dev # run as a desktop app (Electron)
 npm run dist         # package a desktop build into release/
 ```
 
+## Web app (iPhone / Android) on Cloudflare Pages
+
+The build is a static site that installs as a full-screen web app. It has a
+manifest, home-screen icons and an offline service worker (`public/`).
+
+To deploy it on Cloudflare Pages (free plan):
+
+1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** →
+   **Connect to Git**, and pick this repository.
+2. Build command: `npm run build`. Build output directory: `dist`.
+3. Production branch: the branch you want live. Every push to it redeploys.
+
+On iPhone, open the `*.pages.dev` address in **Safari**, tap **Share →
+Add to Home Screen**, and launch it from the icon to play full-screen.
+
 ## Project layout
 
 | Path | What it is |

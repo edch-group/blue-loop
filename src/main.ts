@@ -10,3 +10,9 @@ import './styles.css';
 import { App } from './ui/app';
 
 new App(document.getElementById('app')!).start();
+
+// Installed as a web app (e.g. "Add to Home Screen" on iPhone): cache the game so it
+// runs offline. Skipped in development and in the Electron build (file://).
+if (import.meta.env.PROD && 'serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => undefined));
+}
