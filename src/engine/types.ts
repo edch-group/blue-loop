@@ -159,6 +159,8 @@ export interface PlayerState {
   turn: TurnStats;
   /** Heat absorbed by shields since this player's last turn started. */
   blockedSinceTurnStart: number;
+  /** Campaign head start, used up on this player's first turn. */
+  opening?: OpeningBonus;
 }
 
 export interface LogEntry {
@@ -201,6 +203,21 @@ export interface PlayerSetup {
   isAI: boolean;
   /** Optional fixed system; otherwise one is drawn at random. */
   systemId?: string;
+  /** Campaign battles: the exact starting deck, as card ids (default: 9 Stardust + 1 Command Directive). */
+  deck?: string[];
+  /** Campaign battles: extra levels on the system's planets, by planet index. */
+  planetBoosts?: number[];
+  /** Campaign battles: added to the starting heat (damage carried over, or a garrison's attack/cooling). */
+  heatDelta?: number;
+  /** Campaign battles: a one-off head start on this player's first turn (from a garrison). */
+  opening?: OpeningBonus;
+}
+
+export interface OpeningBonus {
+  money?: number;
+  shields?: number;
+  /** Extra cards in the first hand. */
+  draw?: number;
 }
 
 export interface GameSetup {

@@ -45,8 +45,9 @@ import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot,
 import { cardGlyph, KIND_COLOUR, objectiveGlyph, rewardGlyph } from './glyphs';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
+import { CampaignView, loadCampaign } from './campaign';
 
-type Screen = 'menu' | 'game';
+type Screen = 'menu' | 'game' | 'campaign';
 type Speed = 'slow' | 'normal' | 'fast';
 
 /** A flare or card waiting for the player to pick a target or an upgrade. */
@@ -163,6 +164,21 @@ export class App {
   private preview: HTMLElement;
   private press: { x: number; y: number; timer: number; shown: boolean } | null = null;
   private suppressClick = false;
+  /** Campaign mode; `campaignBattle` is set while one of its battles is on the battle screen. */
+  private campaign = new CampaignView({
+    render: () => this.render(),
+    toast: (text) => this.showToast(text, 'error'),
+    playBattle: (game) => {
+      this.campaignBattle = true;
+      this.begin(game);
+    },
+    toMenu: () => {
+      this.campaignBattle = false;
+      this.screen = 'menu';
+      this.render();
+    },
+  });
+  private campaignBattle = false;
   private seats: MenuSeat[] = [
     { name: 'Commander', isAI: false, enabled: true },
     { name: "Xel'Naru", isAI: true, enabled: true },
@@ -244,7 +260,7 @@ export class App {
     this.stage = null;
     this.sheet = null;
     this.screen = 'game';
-    save(state);
+    this.persist(state);
     this.syncViewer();
     this.render();
     if (state.phase === 'setup') this.startDraft();
@@ -338,8 +354,7 @@ export class App {
     this.pending = null;
     if (this.sheet?.kind === 'card' || action.type === 'chooseSystem') this.sheet = null;
     this.stage = actor.isAI ? this.stageFor(prev, actor, action) : null;
-    if (isGameOver(next)) clearSave();
-    else save(next);
+    this.persist(next);
     this.syncViewer();
     this.render();
     if (before) {
@@ -353,6 +368,25 @@ export class App {
       } else this.startDraft(); // next human to choose (after the hand-off screen)
     } else if (turnPassed) this.announceTurn(450);
     this.scheduleAI(AI_PAUSE[action.type]);
+  }
+
+  /** Autosave: a campaign battle is saved inside its campaign; a normal game on its own. */
+  private persist(state: GameState) {
+    if (this.campaignBattle) this.campaign.saveBattle(state);
+    else if (isGameOver(state)) clearSave();
+    else save(state);
+  }
+
+  /** Leave a campaign battle: hand the result (or the battle to auto-resolve) back to the map. */
+  private returnToCampaign(auto: boolean) {
+    if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
+    this.aiTimer = null;
+    this.campaignBattle = false;
+    this.screen = 'campaign';
+    this.sheet = null;
+    this.pending = null;
+    this.campaign.finishBattle(this.state!, auto);
+    this.render();
   }
 
   private stageFor(prev: GameState, actor: PlayerState, action: Action): Stage | null {
@@ -388,8 +422,7 @@ export class App {
     this.state = s;
     this.stage = null;
     this.sheet = null;
-    if (isGameOver(s)) clearSave();
-    else save(s);
+    this.persist(s);
     this.syncViewer();
     this.render();
     this.announceTurn();
@@ -708,6 +741,7 @@ export class App {
     const act = el.dataset.act!;
     const arg = el.dataset.arg ?? '';
     const s = this.state;
+    if (act.startsWith('cmp-') && this.campaign.onClick(act, arg, el)) return;
 
     switch (act) {
       case 'seat-toggle': {
@@ -725,7 +759,19 @@ export class App {
       case 'rules':
         this.sheet = { kind: 'rules' };
         return this.render();
+      case 'campaign-new':
+        this.campaign.openSetup();
+        this.screen = 'campaign';
+        return this.render();
+      case 'campaign-continue':
+        if (this.campaign.resume()) this.screen = 'campaign';
+        return this.render();
+      case 'campaign-return':
+        return this.returnToCampaign(false);
+      case 'campaign-auto':
+        return this.returnToCampaign(true);
       case 'to-menu':
+        this.campaignBattle = false;
         this.screen = 'menu';
         this.pending = null;
         this.sheet = null;
@@ -879,7 +925,7 @@ export class App {
   // -------------------------------------------------------------------------
 
   private render() {
-    this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.renderGame();
+    this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
     this.syncPeek();
     // The backdrop warms (or chills) with the viewer's own sun, not whoever is acting.
     const me = this.screen === 'game' && this.state ? this.viewer() : null;
@@ -944,6 +990,8 @@ export class App {
           <div class="menu-actions">
             <button class="btn-primary" data-act="new-game">launch</button>
             ${hasSave ? '<button class="btn" data-act="continue">continue</button>' : ''}
+            <button class="btn" data-act="campaign-new">campaign</button>
+            ${loadCampaign() ? '<button class="btn" data-act="campaign-continue">continue campaign</button>' : ''}
             <button class="btn" data-act="rules">how to play</button>
           </div>
         </div>
@@ -1044,6 +1092,7 @@ export class App {
         <div class="top-controls">
           ${globals}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
+          ${this.campaignBattle && !isGameOver(s) ? '<button class="pill-btn" data-act="campaign-auto" title="Let your commanders finish this battle">auto-resolve</button>' : ''}
           <button class="icon-btn" data-act="open-menu" aria-label="Menu">≡</button>
         </div>
       </header>`;
@@ -1524,7 +1573,7 @@ export class App {
             ${sunOrb({ heat: winner.heat, threshold: supernovaThreshold(winner), size: 96 })}
             <h2>${esc(winner.name.toLowerCase())} wins</h2>
             <p>${esc(systemDef(winner.systemId).name)} is the last sun standing after ${s.round} rounds.</p>
-            <button class="btn-primary" data-act="to-menu">back to menu</button>
+            ${this.campaignBattle ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>' : '<button class="btn-primary" data-act="to-menu">back to menu</button>'}
           </div>
         </div></div>`;
     }

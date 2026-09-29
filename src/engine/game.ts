@@ -78,8 +78,11 @@ export function createGame(setup: GameSetup): GameState {
     const offers = setup.draft && !ps.systemId ? [pool.pop()!, pool.pop()!] : undefined;
     const sys = systemDef(ps.systemId ?? offers?.[0] ?? pool.pop()!);
     const deck: CardInstance[] = [];
-    for (let k = 0; k < BALANCE.startingBasicCards; k++) deck.push(newCard(state, 'stardust'));
-    for (let k = 0; k < BALANCE.startingCommandCards; k++) deck.push(newCard(state, 'command_directive'));
+    if (ps.deck) for (const id of ps.deck) deck.push(newCard(state, cardDef(id).id));
+    else {
+      for (let k = 0; k < BALANCE.startingBasicCards; k++) deck.push(newCard(state, 'stardust'));
+      for (let k = 0; k < BALANCE.startingCommandCards; k++) deck.push(newCard(state, 'command_directive'));
+    }
     shuffleInPlace(state, deck);
 
     state.players.push({
@@ -103,7 +106,9 @@ export function createGame(setup: GameSetup): GameState {
       turn: emptyTurn(),
       blockedSinceTurnStart: 0,
       systemOffers: offers,
+      opening: ps.opening,
     });
+    applyCampaignSetup(state.players[i], ps);
   });
   // AI players pick at once.
   for (const p of state.players) {
@@ -125,6 +130,15 @@ export function createGame(setup: GameSetup): GameState {
   state.phase = 'setup';
   finishSetupIfReady(state);
   return state;
+}
+
+/** Campaign battles: planet upgrades bought on the map and heat carried in. */
+function applyCampaignSetup(p: PlayerState, ps: GameSetup['players'][number]) {
+  ps.planetBoosts?.forEach((boost, j) => {
+    const pl = p.planets[j];
+    if (pl) pl.level = Math.min(BALANCE.maxPlanetLevel, pl.level + boost);
+  });
+  if (ps.heatDelta) p.heat = Math.max(BALANCE.minHeat, Math.min(supernovaThreshold(p) - 1, p.heat + ps.heatDelta));
 }
 
 /** Give a player a solar system: its planets, starting upgrades and starting heat. */
@@ -338,11 +352,13 @@ function startTurn(state: GameState) {
 
   // 0. Draw a fresh hand. Hands are drawn when your turn begins, not when the
   // previous one ends, so nothing arrives while opponents are playing.
-  drawCards(state, p, handSizeFor(p));
+  const opening = p.opening;
+  p.opening = undefined;
+  drawCards(state, p, handSizeFor(p) + (opening?.draw ?? 0));
 
-  // 1. Gain resources.
-  p.money = incomeFor(p);
-  p.shields = shieldsFor(p);
+  // 1. Gain resources (plus a campaign garrison's one-off head start).
+  p.money = incomeFor(p) + (opening?.money ?? 0);
+  p.shields = shieldsFor(p) + (opening?.shields ?? 0);
   log(state, `— Turn ${state.turnNumber}: ${p.name} (+${p.money} money, ${p.shields} shields).`);
 
   // 2. Resolve global effects. An effect stays listed (and passive ones like

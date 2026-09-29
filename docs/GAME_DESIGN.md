@@ -141,6 +141,61 @@ AI games currently average about 11 rounds with 2 players and 11 with 4.
 Alternatives worth playtesting instead: make Solar Flare cheaper than
 Thermosiphon, cap cooling per turn, or add a market-exhaustion end condition.
 
+## Campaign mode [design review, first version]
+
+Universe domination on a map of 20 linked solar systems (a jittered 5×4 grid). The player and 1–3 AI factions start in the corners. Everything else is neutral, held by "sentinels" that get stronger towards the middle of the map. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).
+
+**Turns.** On your turn you can manage your systems and deck freely, and make **one attack**. Then each AI faction takes its turn in order. Garrison moves resolve and every faction collects income at the start of the next turn. The campaign lasts **40 turns**.
+
+**Attacking.** You can attack any system linked to one you control, except a supernova remnant that is still blocking you. The battle is a normal 1v1 game:
+- **Attacker:** plays from the system it launched from, with that system's planet upgrades and damage.
+- **Defender:** plays the target system, with its upgrades, damage and garrison.
+
+You can fight a battle yourself or **auto-resolve** it, even partway through. AI-versus-AI battles resolve automatically.
+
+**After a win, choose the system's fate:**
+
+| Choice | Effect |
+| --- | --- |
+| Settle | Take control. It pays its yield (credits and materials) every turn. |
+| Absorb | Take 3 turns of its yield at once. It is left neutral and depleted (yield −1 each). |
+| Supernova | It is left neutral. No rival can attack it until each of them has had one turn. |
+
+**Damage.** The winner's sun carries its final heat home as damage (capped at 6). A repelled attack deals 3 damage to the system it launched from. Damage adds to that system's starting heat in later battles.
+
+**Two currencies.**
+- **Credits** repair damage (2 per point) and upgrade planets (4 + 4 per level already bought).
+- **Materials** buy armory cards (the card's price + 1; 3 new offers each turn) and upgrade cards (Stardust → Stellar Credits → Trade Convoy → Dyson Tap; Coolant Array → Cryo Vault; Gravity Sling → Coronal Lance → Starbreaker; and so on). An upgrade costs the new card's price.
+
+**Deck.** Your battle deck is **always 10 cards**; empty slots are Stardust (unlimited). New cards wait in a reserve until you swap them in.
+
+**Missions.** Each faction has 3 campaign missions at a time, from a pool of 10 (for example Settle 2 systems, Win a defence, Win a battle within 5 rounds). Each one pays 4 credits and 3 materials, plus a choice of 1 of 3 new cards. Winning any battle also pays 3 credits and 2 materials.
+
+**Garrisons.** Send up to 3 cards to a system you control. Cards take **a turn to arrive** and **a turn to return**, and cannot be redirected while moving. Only stationed cards defend. When the system is attacked, each one gives its power as a head start:
+
+| Card effect | Garrison bonus |
+| --- | --- |
+| Money | Defender's first-turn money |
+| Draw | Extra cards in the first hand |
+| Shields | First-turn shields |
+| Attack | Heats the attacker's sun at the start (max 4) |
+| Cooling | Cools the defender's sun at the start (max 5) |
+| Command | +1 planet level |
+
+Stardust, global and mission cards cannot garrison. If the system falls, the conqueror takes every card held there, including cards arriving or leaving.
+
+**Winning.** You win by:
+- controlling 60% of the systems,
+- eliminating every rival (a faction is out when it holds no systems), or
+- controlling the most systems when turn 40 ends.
+
+You lose if you lose all your systems.
+
+**Balance notes (simulator).**
+- With the AI running every faction, campaigns average about 35 turns.
+- The first faction to act (the player's seat) wins most often. That's generous to the player, but needs tuning.
+- An auto-player that never repairs or garrisons always loses, so management matters.
+
 ## Open design questions
 
 1. **"Upgrade a planet *or system*"**: what does a system-level upgrade do? Currently only planets upgrade.
