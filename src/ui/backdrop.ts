@@ -5,7 +5,8 @@ import { reducedMotion } from './fx';
  * The petal mandala behind everything. Mounted once (outside the
  * re-rendered game root, so it never restarts), rotated frame by frame:
  * a slow constant drift, plus a burst of speed each time a move is made.
- * It warms from white towards red as the viewer's own sun overheats.
+ * A glow at its centre turns red as the viewer's own sun overheats and
+ * blue as it cools below 0.
  */
 class Backdrop {
   private el: HTMLElement | null = null;
@@ -36,9 +37,9 @@ class Backdrop {
     this.burst = Math.min(this.burst + 28, 90);
   }
 
-  /** 0 = cool (white), 1 = on the edge of supernova (red). */
+  /** -1 = as cold as a sun can be (blue), 0 = neutral (white), 1 = on the edge of supernova (red). */
   setHeat(t: number) {
-    this.tintTarget = Math.max(0, Math.min(1, t));
+    this.tintTarget = Math.max(-1, Math.min(1, t));
   }
 
   private frame(now: number) {
@@ -60,14 +61,19 @@ class Backdrop {
 
   private applyTint() {
     if (!this.el) return;
-    const t = this.tint;
-    const mix = (a: number, b: number) => Math.round(a + (b - a) * t);
-    // White petals → warm ember → deep red as the sun nears supernova.
-    const stroke = `rgba(${mix(255, 232)}, ${mix(255, 98)}, ${mix(255, 80)}, ${0.95})`;
-    const fill = `rgba(${mix(255, 240)}, ${mix(255, 120)}, ${mix(255, 100)}, ${(0.26 + t * 0.1).toFixed(3)})`;
+    const t = Math.abs(this.tint);
+    // Deep red when hot, icy blue when cold.
+    const [r, g, b] = this.tint >= 0 ? [226, 84, 66] : [74, 142, 226];
+    const mix = (from: number, to: number, k: number) => Math.round(from + (to - from) * k);
+    // The petals only take a light wash of the colour, so the page stays easy to read;
+    // the strong colour sits in a glow at the centre of the mandala.
+    const k = t * 0.35;
+    const stroke = `rgba(${mix(255, r, k)}, ${mix(255, g, k)}, ${mix(255, b, k)}, 0.95)`;
+    const fill = `rgba(${mix(255, r, k)}, ${mix(255, g, k)}, ${mix(255, b, k)}, 0.26)`;
     this.el.style.setProperty('--petal-stroke', stroke);
     this.el.style.setProperty('--petal-fill', fill);
-    this.el.style.setProperty('--heat-glow', (t * 0.55).toFixed(3));
+    this.el.style.setProperty('--heat-colour', `rgb(${r}, ${g}, ${b})`);
+    this.el.style.setProperty('--heat-glow', (t * 0.8).toFixed(3));
   }
 }
 

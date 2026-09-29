@@ -48,10 +48,16 @@ export function petalBackdrop(): string {
           <stop offset="40%" stop-color="#fbfaf6" stop-opacity="0.8" />
           <stop offset="100%" stop-color="#fbfaf6" stop-opacity="0" />
         </radialGradient>
+        <radialGradient id="heat-core">
+          <stop offset="0%" class="heat-stop" stop-opacity="0.75" />
+          <stop offset="45%" class="heat-stop" stop-opacity="0.3" />
+          <stop offset="100%" class="heat-stop" stop-opacity="0" />
+        </radialGradient>
       </defs>
       <g class="petal-outer">${petals}</g>
       <g class="petal-inner">${inner}</g>
       <circle cx="500" cy="170" r="520" fill="url(#glow)" />
+      <circle class="heat-core" cx="500" cy="170" r="300" fill="url(#heat-core)" />
     </svg>`;
 }
 
@@ -94,6 +100,11 @@ export function systemDiagram(planets: { name: string; track: string; level: num
       <defs>
         ${grads}
         <radialGradient id="orrery-sun" cx="40%" cy="38%" r="70%"><stop offset="0%" stop-color="#fff"/><stop offset="70%" stop-color="#f4f1ea"/><stop offset="100%" stop-color="#e2ddd2"/></radialGradient>
+        <radialGradient id="heat-core">
+          <stop offset="0%" class="heat-stop" stop-opacity="0.75" />
+          <stop offset="45%" class="heat-stop" stop-opacity="0.3" />
+          <stop offset="100%" class="heat-stop" stop-opacity="0" />
+        </radialGradient>
       </defs>
       ${orbits}
       <circle cx="${cx}" cy="${cy}" r="30" fill="#fff" opacity="0.7" />

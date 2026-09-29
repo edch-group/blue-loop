@@ -158,14 +158,9 @@ input { font: inherit; }
 
 /* ---------- Backdrop ---------- */
 .backdrop { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
-.backdrop::after {
-  /* red heat haze that rises with the viewer's sun */
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 80% 70% at 50% 20%, rgba(235, 110, 85, 0.55), rgba(235, 110, 85, 0.15) 45%, transparent 75%);
-  opacity: var(--heat-glow, 0);
-}
+/* Glow at the heart of the mandala: red as the viewer's sun overheats, blue as it cools below 0. */
+.heat-core { opacity: var(--heat-glow, 0); }
+.heat-stop { stop-color: var(--heat-colour, #fff); }
 .petals { position: absolute; inset: 0; width: 100%; height: 100%; }
 .petals ellipse, .petals path { fill: var(--petal-fill, rgba(255, 255, 255, 0.26)); stroke: var(--petal-stroke, rgba(255, 255, 255, 0.95)); stroke-width: 1.4; }
 .petals .petal-inner path { stroke-width: 1; }
@@ -368,7 +363,9 @@ input { font: inherit; }
 }
 .card:active:not([disabled]) { transform: scale(0.97); }
 .card-affordable { box-shadow: 0 0 0 1.5px #fff, 0 0 16px color-mix(in srgb, var(--kc) 30%, rgba(255, 255, 255, 0.9)), 0 5px 16px rgba(90, 90, 110, 0.15); }
-/* Can't afford it yet: the price turns red; the card itself stays full strength. */
+/* Can't afford it yet: the card greys out (not faded) and the price turns red. */
+.card-pricey { background: linear-gradient(180deg, #eeeeee, #dedede); }
+.card-pricey > :not(.coin) { filter: grayscale(1) opacity(0.75); }
 .card-pricey .coin { color: #c4473d; box-shadow: 0 0 0 1.5px rgba(196, 71, 61, 0.55), 0 2px 6px rgba(90, 90, 110, 0.22); }
 .card-glyph { flex: none; height: 38%; display: grid; place-items: center; padding-top: 7%; }
 .glyph { width: 78%; height: 100%; overflow: visible; color: var(--g, var(--kc)); }

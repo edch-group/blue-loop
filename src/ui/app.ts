@@ -41,7 +41,7 @@ import {
 } from '../engine';
 import { actionChip, actionTile, roman, sunOrb, systemDiagram } from './art';
 import { backdrop } from './backdrop';
-import { anchorRect, flyFrom, ghost, projectile, pulse, snapshot, type Snapshot } from './fx';
+import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, type Snapshot } from './fx';
 import { cardGlyph, KIND_COLOUR, objectiveGlyph, rewardGlyph } from './glyphs';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
@@ -436,9 +436,26 @@ export class App {
 
     // --- Action sounds and projectiles --------------------------------------
     const handled = new Set<string>();
+    // Until a projectile lands, the target's sun and numbers keep showing their old values.
+    const holdUntil = (p: PlayerState, was: PlayerState, at: number) => {
+      if (reducedMotion() || at < 150 || (p.heat === was.heat && p.shields === was.shields && p.eliminated === was.eliminated)) return;
+      const restore: (() => void)[] = [];
+      const swap = (el: Element, old: string) => {
+        const now = el.innerHTML;
+        el.innerHTML = old;
+        restore.push(() => (el.innerHTML = now));
+      };
+      root.querySelectorAll(`[data-anchor="player:${p.id}"]`).forEach((el) =>
+        swap(el, sunOrb({ heat: was.heat, threshold: supernovaThreshold(was), size: Number(el.querySelector<HTMLElement>('.orb')?.style.getPropertyValue('--size').replace('px', '')) || 40 })),
+      );
+      root.querySelectorAll(`[data-heat-of="${p.id}"]`).forEach((el) => swap(el, String(was.heat)));
+      root.querySelectorAll(`[data-shields-of="${p.id}"]`).forEach((el) => swap(el, String(was.shields)));
+      window.setTimeout(() => restore.forEach((f) => f()), at);
+    };
     const hit = (id: string, at: number) => {
       const p = next.players.find((pl) => pl.id === id)!;
       const was = prev.players.find((pl) => pl.id === id)!;
+      if (!handled.has(id)) holdUntil(p, was, at);
       window.setTimeout(() => {
         if (p.heat !== was.heat) sound.impact(p.heat > was.heat);
         if (p.blockedSinceTurnStart > was.blockedSinceTurnStart) sound.shield();
@@ -814,9 +831,10 @@ export class App {
 
   private render() {
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.renderGame();
-    // The backdrop warms with the viewer's own sun (not whoever is acting).
+    // The backdrop warms (or chills) with the viewer's own sun, not whoever is acting.
     const me = this.screen === 'game' && this.state ? this.viewer() : null;
-    backdrop.setHeat(me && !me.eliminated ? me.heat / supernovaThreshold(me) : 0);
+    const heat = me && !me.eliminated ? me.heat : 0;
+    backdrop.setHeat(!me || heat === 0 ? 0 : heat > 0 ? heat / supernovaThreshold(me) : heat / -BALANCE.minHeat);
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.fitHand();
     if (!this.press?.shown) this.preview.classList.remove('show');
@@ -935,7 +953,7 @@ export class App {
           <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
           <div class="rival-info">
             <span class="rival-name">${esc(p.name.toLowerCase())}</span>
-            <span class="rival-stats"><b>${p.heat}/${supernovaThreshold(p)}</b><em> · ⛨${p.shields} · ▲${flareHeat(p, s)}${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}</em></span>
+            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em> · ⛨<span data-shields-of="${p.id}">${p.shields}</span> · ▲${flareHeat(p, s)}${p.claimedObjectives.length ? ` · ★${p.claimedObjectives.length}` : ''}${p.missions.length ? ` · ◎${p.missions.length}` : ''}</em></span>
           </div>
         </button>`,
       )
@@ -1006,9 +1024,9 @@ export class App {
         <div class="command">
           <button class="me" data-act="view-system" data-arg="${me.id}" title="${esc(me.name)} · ${esc(systemDef(me.systemId).name)} (tap for details)">
             <div class="orb-anchor" data-anchor="player:${me.id}">${sunOrb({ heat: me.heat, threshold: max, size: 44, dead: me.eliminated })}</div>
-            <span class="health">${me.heat}<small>/${max}</small></span>
+            <span class="health"><span data-heat-of="${me.id}">${me.heat}</span><small>/${max}</small></span>
             <span class="me-stats">
-              <span title="Shields">⛨${me.shields}</span>
+              <span title="Shields">⛨<span data-shields-of="${me.id}">${me.shields}</span></span>
               <span title="Income per turn">◈+${incomeFor(me)}</span>
               <span title="Hand size">✋${handSizeFor(me)}</span>
               ${shieldPierce(me) ? `<span title="Shield pierce">⚔${shieldPierce(me)}</span>` : ''}
