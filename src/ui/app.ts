@@ -1053,6 +1053,7 @@ export class App {
           ${this.renderLogPanel()}
           ${this.renderDock()}
         </div>
+        ${this.hudHtml}
         ${this.renderStage()}
         ${this.renderOverlay(s)}
         <div class="rotate-hint"><div><h1 class="title">blue loop</h1><p>turn your device sideways to play</p></div></div>
@@ -1122,18 +1123,23 @@ export class App {
       : '';
 
     const aiTurn = active.isAI && !isGameOver(s);
-    return `
-      <header class="top">
-        <div class="top-left">${this.renderObjectivesRow(me)}</div>
-        <div class="turn">${this.renderRoundBar()}</div>
-        <div class="top-controls">
+    // Off the table, flat: round and stability top centre; menu and turn controls top right.
+    this.hudHtml = `
+      <div class="hud">
+        <div class="hud-round">${this.renderRoundBar()}</div>
+        <div class="hud-controls">
           ${globals}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
           ${this.campaignBattle && !isGameOver(s) ? '<button class="pill-btn" data-act="campaign-auto" title="Let your commanders finish this battle">auto-resolve</button>' : ''}
           <button class="icon-btn" data-act="open-menu" aria-label="Menu">≡</button>
         </div>
-      </header>`;
+      </div>`;
+    // On the table: objective pills along the top edge, from the left.
+    return `<header class="top">${this.renderObjectivesRow(me)}</header>`;
   }
+
+  /** The flat HUD above the table (built with the top row, rendered outside the tilted board). */
+  private hudHtml = '';
 
   /** The game log, always visible down the right-hand side. Tap it for the full history. */
   private renderLogPanel(): string {
@@ -1215,7 +1221,8 @@ export class App {
         const o = objectiveDef(id);
         return `
           <button class="objective" data-anchor="obj:${id}" data-act="view-objective" data-arg="${id}">
-            ${objectiveGlyph(id)}
+            <span class="obj-icon">${objectiveGlyph(id)}</span>
+            <span class="obj-name">${esc(o.name.toLowerCase())}</span>
             <div class="popover"><b>${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p><p class="muted">First to meet it claims it.</p></div>
           </button>`;
       })
@@ -1225,7 +1232,8 @@ export class App {
         const o = objectiveDef(missionOf(m.defId));
         return `
           <button class="objective obj-mission" data-act="view-mission" data-arg="${m.uid}" data-player="${me.id}" style="--kc:${KIND_COLOUR.mission}">
-            ${cardGlyph(m.defId, 'mission')}
+            <span class="obj-icon">${cardGlyph(m.defId, 'mission')}</span>
+            <span class="obj-name">${esc(o.name.toLowerCase())}</span>
             <div class="popover"><b>mission · ${esc(o.name.toLowerCase())}</b><p>${esc(o.text)}</p></div>
           </button>`;
       })
