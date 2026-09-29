@@ -29,10 +29,16 @@ export function anchorRect(root: HTMLElement, name: string): DOMRect | null {
 /** Animate `el` from `from` to where it is now. */
 export function flyFrom(el: HTMLElement, from: DOMRect, opts: { delay?: number; duration?: number; fade?: boolean; rotate?: number } = {}) {
   if (reducedMotion()) return;
+  // One flight at a time: a newer flight replaces any still running (so a card never animates twice).
+  for (const a of el.getAnimations()) if ((a as Animation & { id: string }).id === 'fly') a.cancel();
   const to = el.getBoundingClientRect();
   if (!to.width || !from.width) return;
-  const dx = from.left + from.width / 2 - (to.left + to.width / 2);
-  const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+  // Rects are in screen space, but the transform applies in the element's own space, which may be
+  // scaled and tilted (the battle table is in perspective). Convert the screen offset into it.
+  const kx = el.offsetWidth ? to.width / el.offsetWidth : 1;
+  const ky = el.offsetHeight ? to.height / el.offsetHeight : 1;
+  const dx = (from.left + from.width / 2 - (to.left + to.width / 2)) / (kx || 1);
+  const dy = (from.top + from.height / 2 - (to.top + to.height / 2)) / (ky || 1);
   const s = Math.min(from.width / to.width, from.height / to.height);
   // Land on the element's own transform (e.g. its angle in the fanned hand).
   const rest = getComputedStyle(el).transform;
@@ -42,7 +48,7 @@ export function flyFrom(el: HTMLElement, from: DOMRect, opts: { delay?: number; 
       { transform: `translate(${dx}px, ${dy}px) scale(${s}) rotate(${opts.rotate ?? 0}deg) ${end}`, opacity: opts.fade ? 0 : 1 },
       { transform: end || 'none', opacity: 1 },
     ],
-    { duration: opts.duration ?? 420, delay: opts.delay ?? 0, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' },
+    { id: 'fly', duration: opts.duration ?? 420, delay: opts.delay ?? 0, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' },
   );
 }
 
