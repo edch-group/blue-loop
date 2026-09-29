@@ -361,20 +361,25 @@ export class CampaignView {
       .map((r) => `<button class="pill-btn ${this.setup.rivals === r ? 'pill-on' : ''}" data-act="cmp-rivals" data-arg="${r}">${r}</button>`)
       .join('');
     return `
-      <main class="cmp cmp-setup">
-        <section class="glass cmp-setup-panel">
-          <div class="bar-title">new campaign · universe domination</div>
-          <div class="modal-body">
+      <main class="cmp-setup setup-page">
+        <header class="setup-top">
+          <button class="btn btn-small" data-act="cmp-menu">‹ back</button>
+          <h2 class="menu-heading">new campaign</h2>
+          <span></span>
+        </header>
+        <div class="setup-body cmp-setup-body">
+          <aside class="cmp-setup-aside">
+            <div class="cmp-label">universe domination</div>
             <p class="muted">Start from one solar system. Conquer the systems linked to yours, then Settle, Absorb or Supernova each one. Hold ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe, outlast every rival, or hold the most after ${CAMPAIGN.turnLimit} turns.</p>
-            <div class="cmp-label">home system</div>
+            <div class="cmp-label">rival factions</div>
+            <div class="cmp-rivals">${rivals}</div>
+          </aside>
+          <div class="cmp-setup-homes">
+            <div class="cmp-label">choose your home system</div>
             <div class="cmp-home-row">${systems}</div>
-            <div class="cmp-label">rival factions <span class="cmp-rivals">${rivals}</span></div>
-            <div class="menu-actions">
-              <button class="btn-primary" data-act="cmp-start">begin campaign</button>
-              <button class="btn" data-act="cmp-menu">back</button>
-            </div>
           </div>
-        </section>
+        </div>
+        <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start">begin campaign</button></footer>
       </main>`;
   }
 

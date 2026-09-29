@@ -47,6 +47,7 @@ import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { CampaignView, loadCampaign } from './campaign';
 import { MENU_ICON } from './menu-icon';
+import { factionAvatar } from './factions';
 
 type Screen = 'menu' | 'game' | 'campaign';
 type MenuPage = 'title' | 'hub' | 'quickplay' | 'options';
@@ -1057,9 +1058,9 @@ export class App {
     const page = this.menuPage;
     const body = page === 'title' ? this.renderTitlePage() : page === 'hub' ? this.renderHub() : page === 'quickplay' ? this.renderQuickplay() : this.renderOptions();
     return `
-    <main class="menu menu-${page}">
+    <main class="menu menu-${page} ${page === 'quickplay' || page === 'options' ? 'setup-page' : ''}">
       ${body}
-      <footer class="studio">coronal mass games · prototype build</footer>
+      ${page === 'title' || page === 'hub' ? '<footer class="studio">coronal mass games · prototype build</footer>' : ''}
       ${this.sheet?.kind === 'rules' ? this.renderSheet() : ''}
     </main>`;
   }
@@ -1106,9 +1107,16 @@ export class App {
       </div>`;
   }
 
-  private subHeader(title: string): string {
-    return `<div class="menu-back"><button class="btn btn-small" data-act="menu-page" data-arg="hub">‹ back</button></div>
-      <h2 class="menu-heading">${title}</h2>`;
+  /** Setup pages fill the screen: back and title across the top, the choices in the middle, the main action bottom right. */
+  private setupPage(title: string, body: string, foot: string): string {
+    return `
+      <header class="setup-top">
+        <button class="btn btn-small" data-act="menu-page" data-arg="hub">‹ back</button>
+        <h2 class="menu-heading">${title}</h2>
+        <span></span>
+      </header>
+      <div class="setup-body">${body}</div>
+      <footer class="setup-foot">${foot}</footer>`;
   }
 
   private renderQuickplay(): string {
@@ -1117,37 +1125,35 @@ export class App {
       .map((seat, i) => {
         const locked = i < BALANCE.minPlayers;
         return `
-        <div class="seat ${seat.enabled ? '' : 'seat-off'}">
-          <button class="pill-btn" data-act="seat-toggle" data-arg="${i}" ${locked ? 'disabled' : ''}>${seat.enabled ? '●' : '○'} ${i + 1}</button>
-          <input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" ${seat.enabled ? '' : 'disabled'} />
+        <div class="seat-tile ${seat.enabled ? '' : 'seat-off'}">
+          <button class="pill-btn seat-in" data-act="seat-toggle" data-arg="${i}" ${locked ? 'disabled' : ''}>${seat.enabled ? '● playing' : '○ empty'}</button>
+          ${factionAvatar(`f${i + 1}`, 'seat-emblem')}
+          <input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" ${seat.enabled ? '' : 'disabled'} aria-label="Seat ${i + 1} name" />
           <button class="pill-btn" data-act="seat-ai" data-arg="${i}" ${seat.enabled ? '' : 'disabled'}>${seat.isAI ? 'ai' : 'human'}</button>
         </div>`;
       })
       .join('');
-    return `
-      ${this.subHeader('quickplay')}
-      <section class="glass menu-panel">
-        <div class="menu-body">
-          ${seats}
-          <div class="menu-actions">
-            <button class="btn-primary" data-act="new-game">launch</button>
-            ${hasSave ? '<button class="btn" data-act="continue">continue</button>' : ''}
-          </div>
-        </div>
-      </section>`;
+    return this.setupPage(
+      'quickplay',
+      `<div class="seat-row">${seats}</div>`,
+      `${hasSave ? '<button class="btn" data-act="continue">continue game</button>' : ''}
+       <button class="btn-primary" data-act="new-game">launch</button>`,
+    );
   }
 
   private renderOptions(): string {
-    return `
-      ${this.subHeader('options')}
-      <section class="glass menu-panel">
-        <div class="menu-body menu-list">
-          <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
-          <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
-          <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
-          <button class="btn" data-act="rules">how to play</button>
-        </div>
-      </section>`;
+    const tile = (act: string, label: string, value: string, disabled = false) =>
+      `<button class="opt-tile" data-act="${act}" ${disabled ? 'disabled' : ''}><span class="opt-label">${label}</span><b class="opt-value">${value}</b></button>`;
+    return this.setupPage(
+      'options',
+      `<div class="opt-row">
+        ${tile('toggle-sound', 'sound', sound.muted ? 'off' : 'on')}
+        ${tile('toggle-music', 'music', sound.musicOn && !sound.muted ? 'on' : 'off', sound.muted)}
+        ${tile('speed', 'ai speed', this.speed)}
+        ${tile('rules', 'how to play', 'read')}
+      </div>`,
+      '',
+    );
   }
 
   private rulesHtml(): string {
