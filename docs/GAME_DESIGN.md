@@ -253,13 +253,24 @@ The game is always landscape.
 ## The battle table
 
 The whole play area is a table seen in perspective, like a tabletop simulator. A flat HUD sits above it:
-- **Top left:** player pills, in a column. The active player glows green, and your target has a crosshair.
+- **Top left:** player pills, in a column: race emblem, name, cards in hand and deck, and ⚡ if a Lightspeed card is set. The active player glows green, and your target has a crosshair. Tap a rival to target them and bring their tableau across.
 - **Top centre:** the round and regional stability.
-- **Top right:** the global card, skip and the menu.
+- **Top right:** the global card, skip, the **log** button (the log opens as a popover under it) and the menu.
 
 On the table:
-- Your target's tableau lies across the far side, yours on the near side, and the rotating white star between them.
-- The log runs down the right.
+- **Suns, large, beside their tableaus.** Your target's sun is left of their row, and yours is left of yours. Each shows:
+  - its heat in the middle, out of max health;
+  - a heat arc around it;
+  - a blue shield ring around that, with the shield count on the ring.
+
+  The sun burns from pale gold to amber to red as it nears supernova, frosts blue below 0, and pulses when within 4 of supernova. [design review]
+- **Hits read clearly.** [design review]
+  - A bolt flies from the attacker's sun to the target's.
+  - On landing, the numbers rise off the sun: a red "+3" for heat taken, a blue "−2" for cooling, and "⛨−2" for shields lost.
+  - The sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring.
+  - When your own sun takes enemy heat, the edges of the screen burn red with a heavy low blow. Heat you deal lands with a bright crack, and shields that block ring with a glassy clang.
+  - Numbers on a sun keep their old value until the bolt lands.
+- The rotating white star lies on the right of the table.
 - Your hand fans along the bottom, with your deck and discard piles either side.
 - The upgrade rail sits on the left, and the "plays left" pips and End Turn on the right.
 

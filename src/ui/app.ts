@@ -37,7 +37,7 @@ import {
   type PlayerSetup,
   type PlayerState,
 } from '../engine';
-import { actionChip, actionTile, roman, sunOrb } from './art';
+import { actionChip, actionTile, roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
 import { DeckBuilder } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
@@ -109,6 +109,29 @@ const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, upgrades and so on. */
 const KEY_LOG = /heats to|SUPERNOVA|upgrades|wins|shields absorb|instability|destroys|stings|replaces|Lightspeed|cancelled|returns|recovers|shuffles/;
 const HOT = '#f0a07a';
+/** The log button: lines of text in a page. */
+const LOG_ICON = '<svg class="log-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6z"/><path d="M9 9h6M9 12.5h6M9 16h4"/></svg>';
+
+/** A number that pops out of a sun and rises away: heat taken, cooling, shields. Outside the re-rendered root. */
+function floatNumber(at: DOMRect, text: string, tone: 'hot' | 'cool' | 'block', row: number) {
+  const el = document.createElement('div');
+  el.className = `dmg dmg-${tone}`;
+  el.textContent = text;
+  // Heat over the sun's middle; shields lower down and to the side, so the two never overlap.
+  el.style.left = `${at.left + at.width * (row ? 1.02 : 0.5)}px`;
+  el.style.top = `${at.top + at.height * (row ? 0.78 : 0.34)}px`;
+  document.body.appendChild(el);
+  window.setTimeout(() => el.remove(), 1400);
+}
+
+/** The edges of the screen burn briefly when your own sun takes enemy heat. */
+function hurtFlash() {
+  if (reducedMotion()) return;
+  const el = document.createElement('div');
+  el.className = 'hurt-vignette';
+  document.body.appendChild(el);
+  window.setTimeout(() => el.remove(), 950);
+}
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -490,8 +513,9 @@ export class App {
     const viewer = this.viewer();
     const vNext = next.players.find((p) => p.id === viewer.id)!;
     const vPrev = prev.players.find((p) => p.id === viewer.id)!;
-    const orb = (id: string) => root.querySelector(`[data-anchor="player:${id}"]`);
-    const orbRect = (id: string) => before.anchors.get(`player:${id}`) ?? anchorRect(root, `player:${id}`);
+    // A player's sun on the board (or, for a rival not on the board, their pill).
+    const orb = (id: string) => root.querySelector(`[data-anchor="player:${id}"]`) ?? root.querySelector(`[data-anchor="pill:${id}"]`);
+    const orbRect = (id: string) => anchorRect(root, `player:${id}`) ?? before.anchors.get(`player:${id}`) ?? anchorRect(root, `pill:${id}`);
 
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
@@ -538,34 +562,48 @@ export class App {
       ghost(old.html, old.rect, to);
     });
 
-    // --- Hits: projectiles, glows and sounds -------------------------------
+    // --- Hits: projectiles, glows, numbers and sounds ----------------------
     const handled = new Set<string>();
-    // Until a projectile lands, the target's sun and numbers keep showing their old values.
+    // Until a projectile lands, the target's sun keeps showing its old heat and shields.
     const holdUntil = (p: PlayerState, was: PlayerState, at: number) => {
       if (reducedMotion() || at < 150 || (p.heat === was.heat && p.shields === was.shields && p.eliminated === was.eliminated)) return;
-      const restore: (() => void)[] = [];
-      const swap = (el: Element, old: string) => {
+      root.querySelectorAll(`[data-anchor="player:${p.id}"]`).forEach((el) => {
+        const vit = el.querySelector('.vit');
+        if (!vit) return;
         const now = el.innerHTML;
-        el.innerHTML = old;
-        restore.push(() => (el.innerHTML = now));
-      };
-      root.querySelectorAll(`[data-anchor="player:${p.id}"]`).forEach((el) =>
-        swap(el, sunOrb({ heat: was.heat, threshold: supernovaThreshold(was), size: Number(el.querySelector<HTMLElement>('.orb')?.style.getPropertyValue('--size').replace('px', '')) || 40 })),
-      );
-      root.querySelectorAll(`[data-heat-of="${p.id}"]`).forEach((el) => swap(el, String(was.heat)));
-      root.querySelectorAll(`[data-shields-of="${p.id}"]`).forEach((el) => swap(el, String(was.shields)));
-      window.setTimeout(() => restore.forEach((f) => f()), at);
+        vit.outerHTML = vitals({ heat: was.heat, threshold: supernovaThreshold(was), shields: was.shields, dead: was.eliminated, id: was.id });
+        window.setTimeout(() => (el.innerHTML = now), at);
+      });
     };
-    const hit = (id: string, at: number) => {
+    const hit = (id: string, at: number, byEnemy: boolean) => {
       const p = next.players.find((pl) => pl.id === id)!;
       const was = prev.players.find((pl) => pl.id === id)!;
       if (!handled.has(id)) holdUntil(p, was, at);
-      window.setTimeout(() => {
-        if (p.heat !== was.heat) sound.impact(p.heat > was.heat);
-        else if (p.shields < was.shields) sound.shield();
-      }, at);
-      pulse(orb(id), p.heat > was.heat ? 'fx-hot' : p.heat < was.heat ? 'fx-cold' : 'fx-shield', at);
       handled.add(id);
+      const dHeat = p.heat - was.heat;
+      const lostShields = byEnemy ? Math.max(0, was.shields - p.shields) : 0;
+      const gainedShields = Math.max(0, p.shields - was.shields);
+      const mine = id === viewer.id;
+      window.setTimeout(() => {
+        const r = orbRect(id);
+        if (r) {
+          // Heat taken (red, rising), cooling (blue) and shields lost or raised, over the sun.
+          if (dHeat) floatNumber(r, dHeat > 0 ? `+${dHeat}` : `−${-dHeat}`, dHeat > 0 ? 'hot' : 'cool', 0);
+          if (lostShields) floatNumber(r, `⛨−${lostShields}`, 'block', dHeat ? 1 : 0);
+          else if (gainedShields) floatNumber(r, `⛨+${gainedShields}`, 'block', dHeat ? 1 : 0);
+        }
+        if (dHeat > 0) {
+          if (mine && byEnemy) {
+            sound.hurt(dHeat);
+            hurtFlash();
+          } else if (byEnemy) sound.strike(dHeat);
+          else sound.impact(true);
+        } else if (dHeat < 0) sound.impact(false);
+        if (lostShields) sound.block();
+        else if (gainedShields && !dHeat) sound.shield();
+      }, at);
+      const fx = [dHeat > 0 ? 'fx-hot' : dHeat < 0 ? 'fx-cold' : '', lostShields || gainedShields ? 'fx-shield' : ''].filter(Boolean);
+      for (const cls of fx.length ? fx : ['fx-shield']) pulse(orb(id), cls, at);
     };
 
     // Who caused this round of changes: the player who acted, or (at a turn's
@@ -580,14 +618,14 @@ export class App {
       if (!struck) continue;
       const a = orbRect(source.id);
       const b = orbRect(p.id);
-      const at = a && b ? projectile(a, b, HOT, { delay: delay + 110 * volley++ }) : delay;
-      hit(p.id, at);
+      const at = a && b ? projectile(a, b, HOT, { delay: delay + 110 * volley++, size: 34 }) : delay;
+      hit(p.id, at, true);
     }
     if (volley) window.setTimeout(() => sound.flare(), delay);
     const me = next.players.find((p) => p.id === source.id)!;
     const meWas = prev.players.find((p) => p.id === source.id)!;
     if (me.heat !== meWas.heat || me.shields > meWas.shields) {
-      hit(source.id, delay);
+      hit(source.id, delay, false);
       if (me.heat < meWas.heat) window.setTimeout(() => sound.thermo(), delay);
     }
 
@@ -1168,7 +1206,7 @@ export class App {
         <div class="game">
           <header class="top"></header>
           ${this.renderBoard()}
-          ${this.renderLogPanel()}
+          <div class="star-dock"><div class="board-star-slot"></div></div>
           ${this.renderDock()}
         </div>
         ${this.renderHud()}
@@ -1217,11 +1255,11 @@ export class App {
         const title = mine ? `${p.name} (you)` : `${p.name}${targeted ? ' · your target' : ' · tap to target'}`;
         return `
         <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''} ${targeted ? 'rival-target' : ''} ${!mine && shown?.id === p.id ? 'rival-shown' : ''}"
-          data-act="${mine ? 'view-player' : 'focus'}" data-arg="${p.id}" title="${esc(title)}">
-          <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
+          data-act="${mine ? 'view-player' : 'focus'}" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(title)}">
+          ${factionAvatar(`f${p.species + 1}`, 'rival-emblem')}
           <div class="rival-info">
             <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}${targeted ? '<i class="rival-crosshair" aria-label="your target">◎</i>' : ''}</span>
-            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em>⛨<span data-shields-of="${p.id}">${p.shields}</span> · ✋${p.hand.length} · ▤${p.deck.length}${p.lightspeed ? ' · <i class="ls-pip" title="A Lightspeed card is set face down">⚡</i>' : ''}</em></span>
+            <span class="rival-stats"><em>${p.eliminated ? 'supernova' : `✋${p.hand.length} · ▤${p.deck.length}${p.lightspeed ? ' · <i class="ls-pip" title="A Lightspeed card is set face down">⚡</i>' : ''}`}</em></span>
           </div>
         </button>`;
       })
@@ -1249,6 +1287,7 @@ export class App {
           ${field}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
           ${this.campaignBattle && !isGameOver(s) ? '<button class="pill-btn" data-act="campaign-auto" title="Let your commanders finish this battle">auto-resolve</button>' : ''}
+          <button class="icon-btn ${this.sheet?.kind === 'log' ? 'icon-on' : ''}" data-act="${this.sheet?.kind === 'log' ? 'cancel' : 'open-log'}" aria-label="Game log" title="Game log">${LOG_ICON}</button>
           <button class="icon-btn" data-act="open-menu" aria-label="Menu">${MENU_ICON}</button>
         </div>
       </div>`;
@@ -1274,21 +1313,6 @@ export class App {
     return `<div class="pick-hint"><span>${text}</span><button class="pill-btn" data-act="cancel">cancel</button></div>`;
   }
 
-  /** The game log, always visible down the right-hand side. Tap it for the full history. */
-  private renderLogPanel(): string {
-    const s = this.state!;
-    const lastTurn = s.log[s.log.length - 1]?.turn;
-    const lines = s.log
-      .slice(-60)
-      .map((l) => `<div data-seq="${l.seq}" class="${l.turn === lastTurn ? 'log-now' : ''} ${KEY_LOG.test(l.text) ? 'log-key' : ''}">${esc(l.text)}</div>`)
-      .join('');
-    return `
-      <aside class="log-panel" data-act="open-log" title="Game log (tap for the full history)">
-        <div class="section-label">log</div>
-        <div class="log-feed">${lines}</div>
-      </aside>`;
-  }
-
   /** The board: your target's tableau across the far side, yours on the near side, the star between. */
   private renderBoard(): string {
     const me = this.viewer();
@@ -1298,7 +1322,6 @@ export class App {
         <div class="board3d">
           <div class="board-plane">
             <div class="board-floor"></div>
-            <div class="board-star-slot"></div>
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.renderTableau(me, 'mine')}
           </div>
@@ -1331,7 +1354,10 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-label">${factionAvatar(`f${p.species + 1}`, 'tableau-emblem')}<span>${label}</span>${deck}<b>${p.tableau.length}/${BALANCE.tableauSlots}</b>${lightspeed}${targeted ? '<i class="target-tag">◎ your target</i>' : ''}</div>
-        <div class="tableau-row">${slots}</div>
+        <div class="tableau-row-wrap">
+          <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="tableau-row">${slots}</div>
+        </div>
       </div>`;
   }
 
@@ -1474,8 +1500,16 @@ export class App {
             <button class="btn" data-act="to-menu">main menu</button>
           </div>`,
         );
-      case 'log':
-        return this.sheetFrame('game log', `<div class="log-list">${s!.log.slice(-120).map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>`);
+      case 'log': {
+        // A popover under the log button; the board stays in view (tap anywhere else to close).
+        const lastTurn = s!.log[s!.log.length - 1]?.turn;
+        const lines = s!.log
+          .slice(-120)
+          .map((l) => `<div data-seq="${l.seq}" class="${l.turn === lastTurn ? 'log-now' : ''} ${KEY_LOG.test(l.text) ? 'log-key' : ''}">${esc(l.text)}</div>`)
+          .join('');
+        return `<div class="log-pop-overlay" data-act="cancel"></div>
+          <div class="log-pop sheet"><div class="log-pop-head"><span class="section-label">game log</span><button class="pill-btn" data-act="cancel">close</button></div><div class="log-list">${lines}</div></div>`;
+      }
       case 'pile':
         return this.renderPileSheet(sh.pile);
       case 'player':

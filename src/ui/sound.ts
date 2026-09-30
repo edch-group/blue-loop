@@ -329,6 +329,26 @@ class SoundBoard {
       this.bell(1174.66, 0, 0.03);
     }
   }
+  /** Your sun takes enemy heat: a heavy, low blow with a searing crackle (bigger hits land harder). */
+  hurt(amount = 1) {
+    const g = Math.min(1.6, 0.8 + amount * 0.12);
+    this.voice(49, { dur: 1.4, attack: 0.01, gain: 0.2 * g, to: 30, type: 'triangle', cutoff: 260 });
+    this.voice(98, { dur: 0.5, attack: 0.005, gain: 0.08 * g, to: 55, type: 'square', cutoff: 500 });
+    this.breath({ dur: 0.9, freq: 2400, to: 300, type: 'bandpass', q: 0.8, gain: 0.12 * g, attack: 0.01 });
+  }
+  /** You land heat on a rival: a bright crack, then a rolling burn. */
+  strike(amount = 1) {
+    const g = Math.min(1.5, 0.8 + amount * 0.1);
+    this.breath({ dur: 0.35, freq: 5000, to: 1200, type: 'highpass', q: 0.7, gain: 0.1 * g, attack: 0.004 });
+    this.voice(130.8, { dur: 1.0, attack: 0.01, gain: 0.1 * g, to: 65, type: 'triangle', cutoff: 900 });
+    this.breath({ dur: 1.2, freq: 900, to: 160, type: 'lowpass', q: 1.2, gain: 0.07 * g, attack: 0.06, delay: 0.05 });
+  }
+  /** Shields take a hit: a glassy clang. */
+  block() {
+    this.voice(880, { dur: 0.7, attack: 0.003, gain: 0.05, type: 'triangle', cutoff: 5000 });
+    this.voice(1244.5, { dur: 0.9, attack: 0.003, gain: 0.03, cutoff: 5000, detune: 7 });
+    this.breath({ dur: 0.25, freq: 4200, to: 2500, type: 'bandpass', q: 2, gain: 0.06, attack: 0.003 });
+  }
   shield() {
     this.voice(523.25, { dur: 1.6, attack: 0.2, gain: 0.03, type: 'triangle', vibrato: 6, cutoff: 2000 });
     this.voice(784, { dur: 1.6, attack: 0.3, gain: 0.02, vibrato: 6 });

@@ -33,6 +33,40 @@ export function sunOrb(opts: { heat: number; threshold: number; size: number; de
     </div>`;
 }
 
+/**
+ * A player's vitals, large on the board: their sun (its heat, out of max
+ * health, in the middle, with a heat arc round it) and their shields as a
+ * ring wrapped round the sun, with the shield count on the ring. The sun burns
+ * whiter-gold, then orange, then red as it nears supernova; it frosts blue below 0.
+ */
+export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string }): string {
+  const { heat, threshold, shields, dead } = opts;
+  const t = Math.max(0, Math.min(1, heat / threshold));
+  const cold = heat < 0 ? Math.min(1, heat / BALANCE.minHeat) : 0;
+  // Sun colours: pale gold at 0 → amber → deep red at supernova; icy blue when cold.
+  const hue = cold ? 205 : lerp(46, 4, t);
+  const sat = cold ? lerp(40, 70, cold) : lerp(90, 88, t);
+  const core = `hsl(${hue} ${sat}% ${cold ? lerp(90, 80, cold) : lerp(78, 58, t)}%)`;
+  const rim = `hsl(${hue} ${sat}% ${cold ? lerp(80, 62, cold) : lerp(60, 42, t)}%)`;
+  const circ = (r: number) => 2 * Math.PI * r;
+  const heatArc = cold ? cold : t;
+  const shieldArc = Math.min(1, shields / BALANCE.maxKeptShields);
+  const danger = heat > 0 && heat >= threshold - 4;
+  const idAttr = (k: string) => (opts.id ? `data-${k}-of="${opts.id}"` : '');
+  return `
+    <div class="vit ${dead ? 'vit-dead' : ''} ${danger ? 'vit-danger' : ''} ${shields > 0 ? 'vit-shielded' : ''} ${cold ? 'vit-cold' : ''}" style="--core:${core};--rim:${rim}">
+      <svg class="vit-rings" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="vit-shield-track" cx="50" cy="50" r="45"/>
+        <circle class="vit-shield-arc" cx="50" cy="50" r="45" stroke-dasharray="${(circ(45) * shieldArc).toFixed(1)} ${circ(45).toFixed(1)}"/>
+        <circle class="vit-heat-track" cx="50" cy="50" r="36"/>
+        <circle class="vit-heat-arc" cx="50" cy="50" r="36" stroke-dasharray="${(circ(36) * heatArc).toFixed(1)} ${circ(36).toFixed(1)}"/>
+      </svg>
+      <div class="vit-sun"></div>
+      <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '✸' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
+      <div class="vit-shields" title="Shields: they absorb enemy heat, and fade at the start of your turn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div>
+    </div>`;
+}
+
 /** Soft petal mandala behind the play area (the "blue loop" motif). */
 export function petalBackdrop(): string {
   const petals = Array.from({ length: 12 }, (_, i) => `<ellipse cx="500" cy="170" rx="95" ry="330" transform="rotate(${i * 30} 500 170)" />`).join('');
