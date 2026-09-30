@@ -531,7 +531,7 @@ function nodeName(s: CampaignState, used: Set<string>): string {
 const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, defences: 0, rivalsTaken: 0, battlesWon: 0, swiftWins: 0, coldWins: 0 });
 
 /** Neutral cards every campaign deck starts with (twice each), before its race's cards. */
-const STARTER_NEUTRALS = ['plasma_relay', 'coronal_lance', 'gravity_sling', 'thermal_exchange', 'coolant_array', 'cryo_vault', 'deflector_grid', 'heat_sink'];
+const STARTER_NEUTRALS = ['plasma_relay', 'coronal_lance', 'thermal_exchange', 'coolant_array', 'cryo_vault', 'bulwark_plating', 'resonance_lattice', 'solar_mirror'];
 
 /** A campaign starting deck: mostly neutral cards, a first taste of the race's own, and two Command Directives. */
 export function starterDeck(race: number): string[] {

@@ -22,10 +22,10 @@ export const BALANCE = {
   openingHand: 5,
   drawPerTurn: 1,
   /** Seats after the first: extra cards in the opening hand, and extra plays on their first turn. */
-  laterSeatCards: 0,
+  laterSeatCards: 1,
   laterSeatPlays: 0,
   /** Seats after the first also start with a cooler sun. */
-  laterSeatCool: 1,
+  laterSeatCool: 0,
   /** The catch-up only applies in games with at most this many players (in bigger games everyone but the leader gangs up anyway). */
   catchUpMaxPlayers: 2,
   /** An empty deck is refilled by shuffling your discard pile back in, which heats your sun by this much (unblockable). */

@@ -629,24 +629,51 @@ const twoOf = (...ids: string[]) => ids.flatMap((id) => [id, id]);
 /** A ready-made deck for each race: its cards (with its Stellar hero and its Anomaly), neutral support and two Command cards. */
 export const PRESET_DECKS: DeckList[] = [
   {
+    // Attack cards that power each other up, Sunforges and a Resonance Lattice boosting their
+    // neighbours, Command cards kept in play for the War-Herald, a Stasis Field to hold the best
+    // card in place, an Ion Cannon, and a Null Field set face down against the counter-attack.
     name: 'Solar Lancers',
     race: 0,
-    cards: [...twoOf('helio_lancer', 'focusing_array', 'coronal_chorus', 'sunspear', 'dawn_beacon', 'halo_ward', 'coolant_array', 'command_directive'), 'sunforge', 'aurelia_first_light', 'aureline_war_herald', 'aureline_sun_priest'],
+    cards: [
+      ...twoOf('helio_lancer', 'coronal_chorus', 'sunforge', 'command_directive'),
+      'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'aurelia_first_light', 'halo_ward',
+      'resonance_lattice', 'standing_orders', 'stasis_field', 'null_field', 'ion_cannon', 'coolant_array', 'cryo_vault',
+    ],
   },
   {
+    // Cards that pay off as they leave play (Martyr, Kyr'Vessa), recalled with Phase Shift to do it
+    // again; Ember Shards recovered by the Reliquarist; a Prism Conduit cooled by the attack cards
+    // beside it; a Tractor Beam; and a Solar Mirror set face down for the return fire.
     name: 'Shard Overload',
     race: 1,
-    cards: [...twoOf('shard_reactor', 'overload_core', 'martyr_crystal', 'prism_vent', 'fracture_lens', 'coolant_array', 'command_directive'), 'ember_shard', 'xelnaru_reliquarist', 'cryo_vault', 'ion_cannon', 'xelnaru_champion', 'kyrvessa_prism_queen'],
+    cards: [
+      ...twoOf('shard_reactor', 'martyr_crystal', 'ember_shard', 'prism_vent', 'overload_core', 'command_directive'),
+      'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift', 'tractor_beam',
+      'solar_mirror', 'crystal_storm',
+    ],
   },
   {
+    // Shields and defence: Tide Pylons and a Bulwark around the Wardens, the Aegis Monolith guarding
+    // the middle, Undertow to sweep rival cards back into their decks, and Riptide Ambushers set
+    // face down against a big hit.
     name: 'Abyssal Tide',
     race: 2,
-    cards: [...twoOf('bell_warden', 'stinging_veil', 'tidal_bloom', 'abyssal_choir', 'deep_current', 'lure_jelly', 'command_directive'), 'tide_pylon', 'ommarath_deep_bell', 'hero_of_rathune', 'riptide_ambush', 'plasma_relay', 'coronal_lance'],
+    cards: [
+      ...twoOf('bell_warden', 'abyssal_choir', 'tide_pylon', 'riptide_ambush', 'undertow', 'plasma_relay', 'command_directive'),
+      'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'bulwark_plating', 'aegis_monolith', 'coronal_lance',
+    ],
   },
   {
+    // Go wide and keep it: Hive Rooting and a Stasis Field to hold the hive in play, a Resonance
+    // Lattice in the middle of it, husks and pods recovered from the discard pile, and an Entropy
+    // Pulse to wear down a rival's best card.
     name: 'Hive Bloom',
     race: 3,
-    cards: [...twoOf('mycelium_tower', 'hive_relay', 'sporecaster', 'rot_bloom', 'canopy', 'spore_cloud', 'ion_cannon', 'command_directive'), 'spore_husk', 'regrowth_pod', 'ixquor_brood_tender', 'the_brood_queen'],
+    cards: [
+      ...twoOf('rot_bloom', 'spore_husk', 'command_directive'),
+      'mycelium_tower', 'hive_rooting', 'stasis_field', 'resonance_lattice', 'hive_relay', 'sporecaster', 'canopy', 'spore_cloud',
+      'ixquor_brood_tender', 'the_brood_queen', 'regrowth_pod', 'entropy_pulse', 'coronal_lance', 'gravity_sling',
+    ],
   },
 ];
 

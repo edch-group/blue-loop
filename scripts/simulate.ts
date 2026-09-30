@@ -23,7 +23,7 @@ for (const [i, cards] of Object.entries(JSON.parse(process.env.DECKS ?? '{}') as
 for (const [id, patch] of Object.entries(JSON.parse(process.env.PATCH ?? '{}') as Record<string, object>)) Object.assign(cardDef(id), patch);
 
 // ...or a rules number: BAL='{"maxPlays": 3}'
-Object.assign(BALANCE, JSON.parse(process.env.BAL ?? '{}'));
+Object.assign(BALANCE, { maxLogEntries: 1e6 }, JSON.parse(process.env.BAL ?? '{}'));
 
 const games = Number(process.argv[2] ?? 1000);
 const playerCount = Number(process.argv[3] ?? 2);
@@ -35,6 +35,20 @@ const matchups = new Map<string, [number, number]>();
 let totalRounds = 0;
 let longest = 0;
 let fatigueGames = 0;
+/** How often each of the newer mechanics comes up, from the game logs. */
+const MECHANICS: [string, RegExp][] = [
+  ['lightspeed set', /sets a card face down/],
+  ['lightspeed sprung', /Lightspeed! /],
+  ['removal (destroy)', / destroys /],
+  ['returned to hand', /returns .* to (their|your) hand|flung back/],
+  ['stability eroded', /loses \d+ stability/],
+  ['stability restored', /steadies/],
+  ['faded to deck', /fades back into/],
+  ['recovered', /recovers /],
+  ['resonance/bulwark played', /plays (Resonance Lattice|Harmonic Singularity|Sunforge|The Admiralty|Tide Pylon|Prism Conduit|Bulwark Plating|Aegis Monolith|Chrono Anchor)/],
+  ['command played', /plays (Command Directive|Ignition Protocol|Coolant Protocol|Chamber Protocol|The Admiralty)/],
+];
+const mechCount = new Map<string, number>();
 
 for (let seed = 1; seed <= games; seed++) {
   const decks = pickDecks(seed, playerCount);
@@ -44,6 +58,7 @@ for (let seed = 1; seed <= games; seed++) {
   totalRounds += s.round;
   longest = Math.max(longest, s.round);
   if (s.log.some((l) => l.text.includes('deck is empty'))) fatigueGames++;
+  for (const [name, re] of MECHANICS) mechCount.set(name, (mechCount.get(name) ?? 0) + s.log.filter((l) => re.test(l.text)).length);
   const winnerIndex = s.players.findIndex((p) => p.id === s.winnerId);
   if (winnerIndex >= 0) seatWins[winnerIndex]++;
   decks.forEach((d, i) => {
@@ -67,3 +82,5 @@ if (matchups.size) {
   console.log('\nMatchups:');
   for (const [key, [a, b]] of matchups) console.log(`  ${key.padEnd(36)} ${pct(a, a + b)} / ${pct(b, a + b)}`);
 }
+console.log('\nMechanics per game:');
+for (const [name] of MECHANICS) console.log(`  ${name.padEnd(28)} ${((mechCount.get(name) ?? 0) / games).toFixed(2)}`);

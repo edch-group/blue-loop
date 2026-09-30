@@ -208,30 +208,44 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 `npm run simulate -- [games] [players]` plays AI-versus-AI games with the four starter decks.
 
-**2 players** (1000 games). Seats are even (48/52). Overall deck win rates are 47–52%. The worst match-up is about 61/39: Bloom over Lancers. Games last about 11 rounds.
+**The starter decks** were rebuilt so every race plays with the newer mechanics. [design review: in play, the old starters never used them]
+
+| Deck | Built around |
+| --- | --- |
+| Solar Lancers | Attack cards that boost each other; Sunforges and a Resonance Lattice powering their neighbours; Command cards kept in play for the War-Herald; Stasis Field; Ion Cannon; Null Field set face down |
+| Shard Overload | Martyr and Kyr'Vessa paying off as cards leave play, Phase Shift to recall and replay them; Ember Shards and the Reliquarist; Prism Conduit; Tractor Beam; Solar Mirror |
+| Abyssal Tide | Wardens flanked by Tide Pylons and a Bulwark, the Aegis Monolith guarding the middle; Undertow to erode rival cards back into their decks; Riptide Ambushers |
+| Hive Bloom | Going wide and staying there with Hive Rooting and Stasis Field; a Resonance Lattice; husks and pods recovered from the discard pile; Entropy Pulse |
+
+How often the newer mechanics come up in an AI game (per game, 2 players), before and after the rebuild:
+
+| Mechanic | Old starters | New starters |
+| --- | --- | --- |
+| Lightspeed cards set / sprung | 0.3 / 0.3 | 1.2 / 1.1 |
+| Stability restored / eroded | 0 / 0 | 2.2 / 1.2 |
+| Cards returned to hand | 0 | 0.7 |
+| Resonance and bulwark cards played | 0.8 | 3.3 |
+| Cards recovered from the discard pile | 0.07 | 0.14 |
+
+Recovery stays rare because cards that fade go back into the deck, not the discard pile, so the discard pile holds only destroyed and cancelled cards. [open question]
+
+**2 players** (1000 games). Deck win rates are 40–55%. The worst match-up is about 68/32: Overload over Bloom. Games last about 10–11 rounds.
+- **Seats:** 45/55. The second seat now starts with 1 extra card instead of a cooler sun; the cooler sun was worth too much with these decks.
+- **Hive Bloom:** its first draft won 81%. It had three Sporecasters (a card every turn each, when everyone else draws one), two Mycelium Towers and a Frost Snare, which cancels defence cards and so shut down Tide. It now has one Sporecaster and one Tower, and no Frost Snare.
 
 | Row beats column | Lancers | Overload | Tide | Bloom |
 | --- | --- | --- | --- | --- |
-| Solar Lancers | – | 50% | 47% | 39% |
-| Shard Overload | 50% | – | 47% | 54% |
-| Abyssal Tide | 53% | 53% | – | 51% |
-| Hive Bloom | 61% | 46% | 49% | – |
-
-**Rule and card changes, with 5 slots, 1 draw, 2 plays a turn and stability:**
-- **Max health:** 30 down to 24. Heat builds more slowly with fewer plays, and games had stretched to 12 rounds.
-- **Second-seat head start:** cut to 1 cooler (see Turns).
-- **Go-wide thresholds scaled to 5 slots:**
-  - Spore Cloud and The Brood Queen now need 4 cards.
-  - Canopy cools 1 per 2 cards.
-  - Hero of Rathune shields 1 per 2 defence cards.
-- **Aureline Lancer:** heats 2. Many small attack cards suffer most from a small, fading tableau, so the Lancers deck fell to about 35%.
-- **Kept from the last balance pass:** Bell Warden 3 shields, Shard Reactor self-heat 2, Overload Core 1 (3 while overheated), Xel'Naru Champion opening 1. Rot Bloom is back to 1 +1 per 2 cards, up to 5.
+| Solar Lancers | – | 51% | 57% | 59% |
+| Shard Overload | 49% | – | 62% | 68% |
+| Abyssal Tide | 43% | 38% | – | 39% |
+| Hive Bloom | 41% | 32% | 61% | – |
 
 **3–4 players.**
-- Deck rates are close to fair in 3-player games (29–36%, against 33%).
-- In 4-player games Abyssal Tide does best (35%, against 25%) and Solar Lancers worst (15%).
-- Later seats do better: seat 1 wins 26% of 3-player games and 17% of 4-player games. The head start only applies to 2-player games.
+- Hive Bloom does best: 44% in 3-player games (fair 33%) and 41% in 4-player games (fair 25%). Swapping out its Spore Cloud barely changes that.
+- Solar Lancers does worst in 4-player games (13%).
 - The AI attacks the rival on its left, but switches to finish off a sun near supernova or to rein in a clear leader.
+
+`npm run simulate` also prints how often each mechanic comes up per game.
 
 Balance has been sensitive to single cards, removal above all. Adding two Ion Cannons to the Tide starter once swung it from 45% to 80% overall. `npm run simulate` takes three overrides, so you can experiment without editing the code:
 - `DECKS='{"1": [...]}'` for a starter deck change.
