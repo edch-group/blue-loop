@@ -2238,3 +2238,11 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
   .vitals { margin-right: 8px; }
   .vitals-name { display: none; }
 }
+
+/* Removal: a glowing white arc from the removing card to its target. */
+.tether { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 47; pointer-events: none; overflow: visible; }
+.tether path { fill: none; stroke-linecap: round; }
+.tether-glow { stroke: rgba(255, 255, 255, 0.9); stroke-width: 12; filter: blur(5px) drop-shadow(0 0 10px rgba(190, 215, 255, 0.95)); }
+.tether-line { stroke: #fff; stroke-width: 3.5; filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 10px rgba(170, 200, 255, 0.9)); }
+.tether-tip { fill: none; stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 8px #fff); }
+.tether-halo { position: fixed; z-index: 46; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 3px #fff, 0 0 26px 8px rgba(255, 255, 255, 0.95), 0 0 50px 14px rgba(180, 205, 255, 0.7); }

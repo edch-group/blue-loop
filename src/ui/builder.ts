@@ -172,7 +172,7 @@ export class DeckBuilder {
             <span class="db-card-glyph">${cardArt(c)}</span>
             <span class="db-card-name">${esc(c.name.toLowerCase())}</span>
             <span class="db-card-text">${esc(c.text)}</span>
-            <span class="db-card-kind">${typeLine(c, true)}</span>
+            <span class="db-card-kind">${typeLine(c)}</span>
             ${n ? `<b class="db-count">×${n}</b>` : ''}
           </button>`;
       })

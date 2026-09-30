@@ -43,7 +43,7 @@ import { DeckBuilder } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
-import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, type Snapshot } from './fx';
+import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, KIND_COLOUR, rarityGem, typeLine } from './glyphs';
 import { MENU_ICON } from './menu-icon';
 import { sound } from './sound';
@@ -522,17 +522,39 @@ export class App {
     const endingTurn = action.type === 'endTurn';
     let drawIndex = 0;
 
+    // Removal: a glowing arc from the removing card to each rival card it destroys, returns or
+    // erodes; a removed card lingers under the arc before it goes.
+    const removalAt = new Map<string, number>();
+    if (action.type === 'playCard') {
+      const rivalCards = (st: GameState) => new Map(st.players.filter((p) => p.id !== actor.id).flatMap((p) => p.tableau.map((c) => [c.uid, c] as const)));
+      const was = rivalCards(prev);
+      const now = rivalCards(next);
+      const hitCards = [...was].filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.stability ?? 0) < (c.stability ?? 0)).map(([uid]) => uid);
+      // From the removing card once it has landed (in the tableau, or on the stage), else the attacker's sun.
+      const from = () => {
+        const src = this.root.querySelector(`.tableau [data-uid="${action.cardUid}"]`) ?? this.root.querySelector('.stage .card');
+        return src ? pageRect(src) : orbRect(actor.id);
+      };
+      hitCards.forEach((uid, i) => {
+        const el = root.querySelector(`[data-uid="${uid}"]`);
+        const to = before.cards.get(uid)?.rect ?? (el ? pageRect(el) : null);
+        if (!to) return;
+        removalAt.set(uid, tether(from, to, { delay: (actor.isAI ? 600 : 470) + i * 140 }));
+      });
+    }
+
     root.querySelectorAll<HTMLElement>('[data-uid]').forEach((el) => {
       const uid = el.dataset.uid!;
       const old = before.cards.get(uid);
-      if (old && el.parentElement?.classList.contains('hand')) {
+      if (old && el.parentElement?.classList.contains('hand') && old.html.includes('data-hand=')) {
         // A card already in hand that the fan moved: slide it along the fan, in the hand's own space.
         this.refan(el, old.html);
         return;
       }
       if (old) {
         const r = pageRect(el);
-        if (Math.abs(r.left - old.rect.left) > 2 || Math.abs(r.top - old.rect.top) > 2) flyFrom(el, old.rect);
+        // A card flung back to hand by removal waits in its slot until the arc reaches it.
+        if (Math.abs(r.left - old.rect.left) > 2 || Math.abs(r.top - old.rect.top) > 2) flyFrom(el, old.rect, { delay: removalAt.get(uid) ?? 0 });
         return;
       }
       if (inHand.has(uid)) {
@@ -559,7 +581,9 @@ export class App {
         const owner = next.players.find((p) => [...p.deck, ...p.hand, ...p.discard].some((c) => c.uid === uid));
         if (owner) to = orbRect(owner.id);
       }
-      ghost(old.html, old.rect, to);
+      const at = removalAt.get(uid);
+      if (at !== undefined && this.lingerInSlot(prev, uid, old.html, at)) return;
+      ghost(old.html, old.rect, to, { size: { w: old.w, h: old.h } });
     });
 
     // --- Hits: projectiles, glows, numbers and sounds ----------------------
@@ -662,6 +686,39 @@ export class App {
       }
     }
     if (vNext.deck.length === 0 && vPrev.deck.length > 0) pulse(root.querySelector('[data-anchor="deck"]'), 'fx-shuffle');
+  }
+
+  /**
+   * A card taken out of a tableau by removal stays in its slot on the table
+   * (a copy, in place of the empty slot) while the removal's arc holds it,
+   * then dissolves. Returns false if its slot is not on the table.
+   */
+  private lingerInSlot(prev: GameState, uid: string, html: string, at: number): boolean {
+    const owner = prev.players.find((p) => p.tableau.some((c) => c.uid === uid));
+    const slot = owner?.tableau.find((c) => c.uid === uid)?.slot;
+    const cell = owner && slot !== undefined ? this.root.querySelector(`.tableau[data-owner="${owner.id}"] .tableau-row`)?.children[slot] : null;
+    if (!cell || cell.hasAttribute('data-uid')) return false;
+    const holder = document.createElement('div');
+    holder.innerHTML = html;
+    const copy = holder.firstElementChild as HTMLElement;
+    copy.removeAttribute('data-uid');
+    copy.removeAttribute('data-act');
+    copy.classList.remove('card-choosable');
+    copy.classList.add('card-removing');
+    const empty = cell as HTMLElement;
+    empty.replaceWith(copy);
+    const dissolve = copy.animate(
+      [
+        { opacity: 1, filter: 'brightness(1)', transform: 'translateZ(8px) scale(1)' },
+        { opacity: 1, filter: 'brightness(1.6)', transform: 'translateZ(20px) scale(1.06)', offset: 0.35 },
+        { opacity: 0, filter: 'brightness(2.2) blur(3px)', transform: 'translateZ(8px) scale(0.7)' },
+      ],
+      { duration: 520, delay: at, easing: 'ease-in', fill: 'both' },
+    );
+    dissolve.onfinish = () => {
+      if (copy.isConnected) copy.replaceWith(empty);
+    };
+    return true;
   }
 
   /** New log lines glow in the always-visible log panel. */
@@ -1450,7 +1507,7 @@ export class App {
         ${growth ? `<span class="growth">${growth}</span>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
-        <div class="card-kind">${typeLine(def, true)}</div>
+        <div class="card-kind">${typeLine(def)}</div>
       </div>`;
   }
 

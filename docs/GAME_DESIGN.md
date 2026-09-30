@@ -157,7 +157,7 @@ Every card has a rarity, shown by a small animated gem in its top corner. The ge
 | Stellar | A granulated, limb-darkened sun turning slowly in its corona | 2 copies |
 | Anomaly | A black hole: a lensed glow over the shadow, and an accretion disk that streams around it and passes in front; never at rest | **1 copy** (unique) [proposed] |
 
-Stellar and Anomaly cards also get a faint gold or violet edge. In the campaign, rarer cards cost more in the armory (3 / 5 / 8 materials, +1 for a race card) and turn up less often there and in mission rewards.
+The line at the bottom of a card shows only its type and race; rarity shows only in the gem. Stellar and Anomaly cards also get a faint gold or violet edge. In the campaign, rarer cards cost more in the armory (3 / 5 / 8 materials, +1 for a race card) and turn up less often there and in mission rewards.
 
 ## Characters [design review]
 
@@ -270,6 +270,7 @@ On the table:
   - The sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring.
   - When your own sun takes enemy heat, the edges of the screen burn red with a heavy low blow. Heat you deal lands with a bright crack, and shields that block ring with a glassy clang.
   - Numbers on a sun keep their old value until the bolt lands.
+- **Removal is shown before it happens.** A glowing white arc draws from the removing card to each card it destroys, returns or erodes. The target glows under it while the arc holds, then a destroyed card dissolves in its slot and a returned card flies back to its owner's hand. [design review]
 - The rotating white star lies on the right of the table.
 - Your hand fans along the bottom, with your deck and discard piles either side.
 - The upgrade rail sits on the left, and the "plays left" pips and End Turn on the right.

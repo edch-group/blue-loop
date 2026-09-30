@@ -1,4 +1,4 @@
-import { RACE_NAMES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
+import { RACE_NAMES, type CardDef, type CardKind, type Rarity } from '../engine';
 import { raceHead } from './factions';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -183,13 +183,9 @@ export function rarityGem(def: CardDef): string {
 const GEM_IMAGES: Record<string, string> = { socket, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk };
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
 
-/** The small line under a card's text: its kind and race (plus, in full, its rarity and whether it is a character). */
-export function typeLine(def: CardDef, full = false): string {
+/** The small line at the bottom of a card: just its type and race (rarity shows in the gem). */
+export function typeLine(def: CardDef): string {
   const parts = [def.kind as string];
   if (def.race !== undefined) parts.push(RACE_NAMES[def.race].toLowerCase());
-  if (full) {
-    if (def.character) parts.push('character');
-    parts.unshift(RARITY_NAME[def.rarity ?? 'dwarf'].toLowerCase());
-  }
   return parts.join(' · ').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
