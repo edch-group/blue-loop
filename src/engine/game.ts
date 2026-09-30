@@ -411,6 +411,77 @@ export function effectAmount(state: GameState, p: PlayerState, card: CardInstanc
   return base;
 }
 
+/** What a player's start of turn will do, from their tableau and the table (for everyone to see and plan around). */
+export interface TurnForecast {
+  /** Heat at their target (their attacks and every-enemy effects). */
+  heat: number;
+  /** Who that is. */
+  targetId: string | null;
+  /** Heat at each other rival (splash and every-enemy effects). */
+  others: number;
+  shields: number;
+  cool: number;
+  /** Heat to their own sun: drawbacks, instability, Solar Storm, the map. */
+  selfHeat: number;
+  /** Extra cards drawn (beyond the usual draw). */
+  draw: number;
+}
+
+/**
+ * The net effect of a player's next start of turn, before shields and
+ * Lightspeed cards answer it: each card in their tableau, left to right
+ * (growing cards grow first), plus the global card, regional instability and
+ * the map's conditions.
+ */
+export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
+  const target = targetOf(state, p);
+  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, others: 0, shields: 0, cool: 0, selfHeat: 0, draw: 0 };
+  if (p.eliminated) return f;
+  // Run the effects on a copy, so growth and the like carry from one effect to the next.
+  const me: PlayerState = { ...p, tableau: p.tableau.map((c) => ({ ...c })) };
+  for (const card of me.tableau) {
+    for (const e of cardDef(card.defId).onTurn ?? []) {
+      if (!conditionMet(me, e.if)) continue;
+      switch (e.type) {
+        case 'grow':
+          card.growth = Math.min(e.max, (card.growth ?? 0) + 1);
+          break;
+        case 'heat': {
+          const n = effectAmount(state, me, card, e, 'turn');
+          f.heat += n;
+          if (e.to === 'enemies') f.others += n;
+          f.others += e.splash ?? 0;
+          break;
+        }
+        case 'selfHeat':
+          f.selfHeat += e.amount;
+          break;
+        case 'cool':
+          f.cool += effectAmount(state, me, card, e, 'turn');
+          break;
+        case 'shield':
+          f.shields += effectAmount(state, me, card, e, 'turn');
+          break;
+        case 'draw':
+          f.draw += e.amount;
+          break;
+      }
+    }
+  }
+  // Their turn comes this round if they sit after the active player, else next round.
+  const later = state.players.indexOf(p) > state.activePlayerIndex;
+  f.selfHeat += instabilityHeat({ ...state, round: state.round + (later ? 0 : 1) });
+  if (fieldActive(state, 'solarStorm')) f.selfHeat += 1;
+  if (fieldActive(state, 'iceAge')) f.cool += 1;
+  const m = p.modifiers;
+  f.selfHeat += m?.heatPerTurn ?? 0;
+  f.cool += m?.coolPerTurn ?? 0;
+  f.shields += m?.shieldPerTurn ?? 0;
+  f.draw += m?.extraDraw ?? 0;
+  if (livingOpponents(state, p).length < 2) f.others = 0;
+  return f;
+}
+
 // ---------------------------------------------------------------------------
 // Rules
 // ---------------------------------------------------------------------------

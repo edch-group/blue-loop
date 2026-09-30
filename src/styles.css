@@ -2246,3 +2246,29 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .tether-line { stroke: #fff; stroke-width: 3.5; filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 10px rgba(170, 200, 255, 0.9)); }
 .tether-tip { fill: none; stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 8px #fff); }
 .tether-halo { position: fixed; z-index: 46; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 3px #fff, 0 0 26px 8px rgba(255, 255, 255, 0.95), 0 0 50px 14px rgba(180, 205, 255, 0.7); }
+
+/* ---------- Start-of-turn forecast, right of each tableau ---------- */
+.forecast {
+  position: absolute; left: 100%; top: 50%; margin-left: clamp(10px, calc(2 * var(--vw)), 28px);
+  transform: translateY(-50%) translateZ(10px); display: grid; gap: 4px; min-width: clamp(96px, calc(13 * var(--vw)), 170px);
+  padding: 10px 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 0 0 1px #fff, 0 6px 18px rgba(80, 84, 100, 0.14);
+  font-family: var(--display);
+}
+.fc-head { font-size: clamp(0.5rem, calc(1.9 * var(--vh)), 0.72rem); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
+.fc { display: flex; align-items: baseline; gap: 7px; white-space: nowrap; font-size: clamp(0.6rem, calc(2.5 * var(--vh)), 0.95rem); letter-spacing: 0.06em; color: var(--ink-soft); }
+.fc b { min-width: 1.9em; text-align: right; font-size: clamp(0.95rem, calc(4.6 * var(--vh)), 1.75rem); font-weight: 800; }
+.fc-heat b { color: #d9472a; }
+.fc-heat:not(.fc-minor) span { color: #b0432a; font-weight: 600; }
+.fc-minor b { font-size: clamp(0.75rem, calc(3.2 * var(--vh)), 1.25rem); }
+.fc-shield b { color: #4f70a8; }
+.fc-cool b { color: #3d8fd8; }
+.fc-self b { color: #c7822c; }
+.fc-draw b { color: #3a9e6a; }
+.fc-none { color: var(--ink-faint); font-style: italic; }
+@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
+  .forecast { padding: 4px 6px; gap: 1px; margin-left: 8px; min-width: 0; }
+  .fc-head { display: none; }
+  .fc { font-size: 0.55rem; gap: 3px; }
+  .fc b { font-size: 0.9rem; }
+}
+.table-view > .game > .star-dock { z-index: 0 !important; }

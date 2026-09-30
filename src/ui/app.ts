@@ -29,6 +29,7 @@ import {
   supernovaThreshold,
   tableauFull,
   targetOf,
+  turnForecast,
   upgradeOptions,
   type Action,
   type CardInstance,
@@ -1414,7 +1415,36 @@ export class App {
         <div class="tableau-row-wrap">
           <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row">${slots}</div>
+          ${this.renderForecast(p)}
         </div>
+      </div>`;
+  }
+
+  /**
+   * Beside each tableau: what that player's next start of turn will do, net of
+   * every card (heat at their target, shields, cooling, heat to their own sun,
+   * extra cards), so everyone can see it coming and answer it.
+   */
+  private renderForecast(p: PlayerState): string {
+    const s = this.state!;
+    if (p.eliminated) return '';
+    const f = turnForecast(s, p);
+    const me = this.viewer();
+    const who = (id: string | null) => (id === me.id ? 'you' : esc((s.players.find((o) => o.id === id)?.name ?? '').toLowerCase()));
+    const line = (cls: string, n: number, text: string, title: string) =>
+      n ? `<div class="fc ${cls}" title="${title}"><b>${n > 0 && cls !== 'fc-cool' ? '+' : ''}${cls === 'fc-cool' ? `−${n}` : n}</b><span>${text}</span></div>` : '';
+    const lines = [
+      line('fc-heat', f.heat, `heat → ${who(f.targetId)}`, 'Heat their start of turn deals to their target (before shields)'),
+      line('fc-heat fc-minor', f.others, 'to each other rival', 'Splash and every-enemy heat'),
+      line('fc-shield', f.shields, 'shields', 'Shields they raise'),
+      line('fc-cool', f.cool, 'cooling', 'Cooling to their own sun'),
+      line('fc-self', f.selfHeat, 'heat to own sun', 'Drawbacks, regional instability and the table heating their own sun'),
+      line('fc-draw', f.draw, `extra card${f.draw === 1 ? '' : 's'}`, 'Extra cards they draw'),
+    ].join('');
+    return `
+      <div class="forecast ${p.id === me.id ? 'forecast-mine' : ''}">
+        <div class="fc-head">${p.id === me.id ? 'your' : 'their'} start of turn</div>
+        ${lines || '<div class="fc fc-none">nothing yet</div>'}
       </div>`;
   }
 

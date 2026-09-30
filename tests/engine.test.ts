@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, applyAction, baseStability, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold } from '../src/engine/game';
+import { activePlayer, applyAction, baseStability, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -591,5 +591,23 @@ describe('defence', () => {
     expect(() => play(s, 'ion_cannon', { enemyUid: centre.uid })).toThrow();
     s = play(s, 'ion_cannon', { enemyUid: inner.uid });
     expect(s.players[1].tableau.map((c) => c.uid)).toEqual([edge.uid, centre.uid]);
+  });
+});
+
+describe('turn forecast', () => {
+  it("adds up a player's start-of-turn effects, and matches what then happens", () => {
+    let s = twoPlayer();
+    const ada = activePlayer(s);
+    give(ada, ['plasma_relay', 'mycelium_tower', 'bell_warden', 'coolant_array'], 'tableau');
+    ada.tableau[1].growth = 1;
+    ada.heat = 5;
+    const f = turnForecast(s, ada);
+    // Relay 1, Tower grows to 2 then heats 2; Warden 3 shields; Array cools 1.
+    expect(f).toMatchObject({ heat: 3, targetId: 'p2', shields: 3, cool: 1, selfHeat: 0, draw: 0 });
+    const bo = s.players[1].heat;
+    s = endTurn(endTurn(s));
+    expect(s.players[1].heat).toBe(bo + 3);
+    expect(s.players[0].shields).toBe(3);
+    expect(s.players[0].heat).toBe(4);
   });
 });

@@ -270,6 +270,7 @@ On the table:
   - The sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring.
   - When your own sun takes enemy heat, the edges of the screen burn red with a heavy low blow. Heat you deal lands with a bright crack, and shields that block ring with a glassy clang.
   - Numbers on a sun keep their old value until the bolt lands.
+- **Start-of-turn forecast, right of each tableau.** It shows what that player's next start of turn will do, net of all their cards. It lists heat at their target (and who that is), heat to each other rival, shields, cooling, heat to their own sun, and extra cards. The totals include resonance, upgrades, growth, conditions, the global card, regional instability and the map, before shields or Lightspeed cards answer. Everyone can see what's coming and respond to it. [design review]
 - **Removal is shown before it happens.** A glowing white arc draws from the removing card to each card it destroys, returns or erodes. The target glows under it while the arc holds, then a destroyed card dissolves in its slot and a returned card flies back to its owner's hand. [design review]
 - The rotating white star lies on the right of the table.
 - Your hand fans along the bottom, with your deck and discard piles either side.
