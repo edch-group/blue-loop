@@ -21,7 +21,9 @@ import {
   persists,
   playsAllowed,
   RACE_NAMES,
-  recallChoices,
+  allyChoices,
+  allyEffectKind,
+  cardDefence,
   recoverChoices,
   resonanceBonus,
   supernovaThreshold,
@@ -68,11 +70,10 @@ type Speed = 'slow' | 'normal' | 'fast';
  */
 interface Pending {
   uid: string;
-  step: 'upgrade' | 'enemy' | 'replace' | 'recall' | 'recover' | 'slot';
+  step: 'upgrade' | 'enemy' | 'ally' | 'recover' | 'slot';
   upgrade?: CoreAction;
   enemyUid?: string;
-  replaceUid?: string;
-  recallUid?: string;
+  allyUid?: string;
   recoverUid?: string;
   slot?: number;
 }
@@ -692,6 +693,11 @@ export class App {
       sound.error();
       return;
     }
+    if (persists(card.defId) && tableauFull(me)) {
+      this.showToast('Your tableau is full: a card can only go in once one fades (or is recalled or removed).', 'info');
+      sound.error();
+      return;
+    }
     this.pending = { uid, step: 'upgrade' };
     this.advancePlay();
   }
@@ -717,11 +723,10 @@ export class App {
       if (target) this.viewRivalId = target.id;
       return ask('enemy');
     }
-    if (persists(card.defId) && tableauFull(me) && !p.replaceUid) return ask('replace');
-    if (recallChoices(me, card.defId, p.replaceUid).length > 0 && !p.recallUid) return ask('recall');
+    if (allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
     if (needsSlot(me, card.defId) && p.slot === undefined) return ask('slot');
-    this.dispatch({ type: 'playCard', cardUid: p.uid, upgrade: p.upgrade, enemyUid: p.enemyUid, replaceUid: p.replaceUid, recallUid: p.recallUid, recoverUid: p.recoverUid, slot: p.slot });
+    this.dispatch({ type: 'playCard', cardUid: p.uid, upgrade: p.upgrade, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot });
   }
 
   // -------------------------------------------------------------------------
@@ -965,17 +970,14 @@ export class App {
       case 'choose-enemy':
         if (this.pending) this.pending.enemyUid = arg;
         return this.advancePlay();
-      case 'choose-recall':
-        if (this.pending) this.pending.recallUid = arg;
+      case 'choose-ally':
+        if (this.pending) this.pending.allyUid = arg;
         return this.advancePlay();
       case 'choose-recover':
         if (this.pending) this.pending.recoverUid = arg;
         return this.advancePlay();
       case 'choose-slot':
         if (this.pending) this.pending.slot = Number(arg);
-        return this.advancePlay();
-      case 'choose-replace':
-        if (this.pending) this.pending.replaceUid = arg;
         return this.advancePlay();
     }
   }
@@ -1143,12 +1145,14 @@ export class App {
       <ul class="rules">
         <li>Every sun starts at <b>${BALANCE.startingHeat}</b> heat with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. The last sun standing wins.</li>
         <li>Bring a <b>${BALANCE.deckSize}-card deck</b>: up to ${BALANCE.maxCopies} copies of a card, and exactly ${BALANCE.commandCards} Command cards. You start with ${BALANCE.openingHand} cards and draw ${BALANCE.drawPerTurn} each turn after that.</li>
-        <li>Play <b>1 card</b> on your first turn, <b>2</b> on your second, and so on up to ${BALANCE.maxPlays}. Cards <b>stay in play</b> in your tableau (${BALANCE.tableauSlots} slots): their start-of-turn effects trigger every turn, and they power each other up. With every slot full, a new card replaces one of yours.</li>
+        <li>Play <b>1 card</b> on your first turn, then up to <b>${BALANCE.maxPlays}</b> a turn. Cards <b>stay in play</b> in your tableau of <b>${BALANCE.tableauSlots} slots</b>, in the slot you choose: their start-of-turn effects trigger every turn, and they power each other up.</li>
+        <li><b>Stability</b> (◷) is how many of your turns a card stays: after its start-of-turn effects it loses 1, and at 0 it fades back into your deck. Some cards restore stability; others erode your rivals'. There is <b>no replacing</b>: with every slot full, nothing new goes in until a card fades, or is recalled or removed.</li>
+        <li><b>Defence</b> (⛨) comes from the slot: ${BALANCE.slotDefence.join(', ')} from left to right, so the middle is safest. Sturdy cards and bulwarks add more. Removal only reaches cards with low enough defence ("destroy a card with 2 or less defence").</li>
         <li><b>Your target</b> is the rival your attacks hit: tap a rival to choose. Shields absorb enemy heat and fade at the start of your turn.</li>
         <li><b>Command</b> cards upgrade your whole deck: Solar Flare (your attack cards deal +1 heat), Thermosiphon (your cooling cools +1) or Cooling Chamber (+${BALANCE.coolingChamberHealthPerUpgrade} max health), up to ${BALANCE.solarFlareMaxUpgrades} each. They stay in your tableau like any other card, and some cards reward keeping them there. Play one again and it upgrades again.</li>
-        <li><b>Resonance</b> cards power up their neighbours in your tableau, so where a card goes matters: when it does, you choose its place.</li>
+        <li><b>Resonance</b> cards power up their neighbours in your tableau, and bulwarks guard them.</li>
         <li><b>Lightspeed</b> cards are set face down (one at a time, no slot) and spring during an enemy's turn: cancelling a card they play, turning heat aside, or saving your cards from removal.</li>
-        <li>Replaced and destroyed cards go to your discard pile. When your deck runs out it is shuffled back in (heating your sun by ${BALANCE.reshuffleHeat}), and some cards recover cards from it or return your cards to your hand to play again.</li>
+        <li>Destroyed and cancelled cards go to your discard pile. When your deck runs out it is shuffled back in (heating your sun by ${BALANCE.reshuffleHeat}), and some cards recover cards from it or return your cards to your hand to play again.</li>
         <li>Only one <b>global</b> card can be in play at a time, and it affects everyone. From round ${BALANCE.instabilityStartsRound}, <b>Stellar Instability</b> heats every sun each turn.</li>
       </ul>`;
   }
@@ -1177,19 +1181,14 @@ export class App {
   /** Round and stability, together in one container at the top centre. */
   private renderRoundBar(): string {
     const s = this.state!;
-    const total = BALANCE.instabilityStartsRound - 1;
-    const remaining = Math.max(0, total - (s.round - 1));
+    // Stability now lives on each card (◷ turns left); the round only carries the late-game clock.
     const instab = instabilityHeat(s);
-    const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
     return `
       <div class="round-box ${instab ? 'unstable' : ''}" title="${instab
         ? `Round ${s.round}. Stellar Instability: every sun heats by ${instab} at the start of its turn.`
-        : `Round ${s.round}. Stability drains by one each round; when it runs out, every sun heats at the start of its turn.`}">
+        : `Round ${s.round}. From round ${BALANCE.instabilityStartsRound}, Stellar Instability heats every sun at the start of its turn. Each card's own stability (◷) is how many turns it stays in play.`}">
         <div class="round-num"><small>round</small><b>${roman(s.round)}</b></div>
-        <div class="stability">
-          <span class="stability-label">${instab ? `instability +${instab}` : `stability ${remaining}`}</span>
-          <div class="stability-bar">${segments}</div>
-        </div>
+        ${instab ? `<div class="stability"><span class="stability-label">instability +${instab}</span></div>` : ''}
       </div>`;
   }
 
@@ -1257,14 +1256,15 @@ export class App {
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid);
     if (!card) return '';
     const name = esc(cardDef(card.defId).name.toLowerCase());
-    if (p.step === 'recover' || p.step === 'slot') return '';
+    if (p.step === 'recover') return '';
     const rival = esc(targetOf(s, activePlayer(s))?.name.toLowerCase() ?? 'your target');
+    const verb = { destroy: 'destroy', bounce: 'return to their hand', erode: 'erode' }[enemyEffectKind(card.defId) ?? 'destroy'];
     const text =
       p.step === 'enemy'
-        ? `${name}: choose a card in ${rival}'s tableau to ${enemyEffectKind(card.defId) === 'bounce' ? 'return to their hand' : 'destroy'}`
-        : p.step === 'recall'
-          ? `${name}: choose a card of yours to return to your hand`
-          : `${name}: your tableau is full · choose a card of yours to replace`;
+        ? `${name}: choose a card in ${rival}'s tableau to ${verb}`
+        : p.step === 'ally'
+          ? `${name}: choose a card of yours to ${allyEffectKind(card.defId) === 'recall' ? 'return to your hand' : 'restore'}`
+          : `${name}: choose a slot · the middle is safest (⛨ defence)`;
     return `<div class="pick-hint"><span>${text}</span><button class="pill-btn" data-act="cancel">cancel</button></div>`;
   }
 
@@ -1302,9 +1302,15 @@ export class App {
 
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
     const s = this.state!;
+    const pend = this.pending;
+    const choosingSlot = side === 'mine' && pend?.step === 'slot';
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
-      const c = p.tableau[i];
-      return c ? this.renderCard(c, { tableau: side, owner: p }) : '<div class="slot-empty"></div>';
+      const c = p.tableau.find((x) => x.slot === i);
+      if (c) return this.renderCard(c, { tableau: side, owner: p });
+      const def = BALANCE.slotDefence[i];
+      return choosingSlot
+        ? `<button class="slot-empty slot-choosable" data-act="choose-slot" data-arg="${i}" title="Place it here: defence ${def}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
+        : `<div class="slot-empty" title="Slot defence ${def}"><span class="slot-def">⛨${def}</span></div>`;
     }).join('');
     // A face-down Lightspeed card: its owner can read it; everyone else sees its back.
     const ls = p.lightspeed;
@@ -1377,24 +1383,25 @@ export class App {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    if (p && opts.tableau === 'mine' && p.step === 'replace') {
-      attrs = `data-act="choose-replace" data-arg="${c.uid}"`;
-      state = 'card-choosable';
-    }
-    if (p && opts.tableau === 'mine' && p.step === 'recall' && c.uid !== p.replaceUid) {
-      attrs = `data-act="choose-recall" data-arg="${c.uid}"`;
+    if (p && opts.tableau === 'mine' && p.step === 'ally') {
+      attrs = `data-act="choose-ally" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     const boost = opts.owner && boostable(c.defId) ? resonanceBonus(opts.owner, c) : 0;
     const resonance = boost ? `<span class="resonance" title="Resonance: +${boost} to this card's heat, cooling and shields from its neighbours">+${boost}</span>` : '';
+    // In play: its defence (what removal must beat) and stability (turns before it fades back into the deck).
+    const stats =
+      opts.owner && c.slot !== undefined
+        ? `<span class="card-stats"><b class="stat-def" title="Defence: removal cards can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades back into the deck">◷${c.stability ?? 0}</b></span>`
+        : '';
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
       <button class="card kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         ${rarityGem(def)}
         <div class="card-glyph">${cardArt(def)}</div>
-        ${growth}${resonance}
+        ${growth}${resonance}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
         <div class="card-kind">${typeLine(def)}</div>
@@ -1551,7 +1558,7 @@ export class App {
     const rows = [...me.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');
     return this.sheetFrame(
       `your discard · ${me.discard.length}`,
-      `<p class="muted center-text">Cards replaced, destroyed or cancelled, most recent first. They are shuffled back into your deck when it runs out.</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
+      `<p class="muted center-text">Cards destroyed or cancelled, most recent first. They are shuffled back into your deck when it runs out. (Cards that fade go straight back into your deck.)</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
     );
   }
 
@@ -1583,7 +1590,6 @@ export class App {
     if (this.sheet) return this.renderSheet();
     const pend = this.pending;
     if (pend?.step === 'recover') return this.renderRecoverChoice(pend);
-    if (pend?.step === 'slot') return this.renderSlotChoice(pend);
     if (!pend || pend.step !== 'upgrade') return '';
 
     // Command Directive: choose what to upgrade.
@@ -1624,18 +1630,5 @@ export class App {
       </div></div>`;
   }
 
-  /** Resonance makes position matter: choose where in your tableau the card goes. */
-  private renderSlotChoice(pend: Pending): string {
-    const me = activePlayer(this.state!);
-    const card = me.hand.find((c) => c.uid === pend.uid);
-    if (!card) return '';
-    const gap = (i: number) => `<button class="slot-gap" data-act="choose-slot" data-arg="${i}" title="Place it here"><span>${esc(cardDef(card.defId).name.toLowerCase())}</span><i>here</i></button>`;
-    const row = me.tableau.map((c, i) => `${gap(i)}<div class="slot-card">${this.renderCard(c, { static: true, owner: me }).replace('data-act="inspect"', '')}</div>`).join('') + gap(me.tableau.length);
-    return `
-      <div class="overlay overlay-soft" data-act="cancel"><div class="modal modal-wide">
-        <div class="bar-title">${esc(cardDef(card.defId).name.toLowerCase())} · choose where it goes</div>
-        <div class="modal-body"><p class="muted center-text">Resonance cards power up their neighbours, so position matters.</p><div class="slot-row">${row}</div></div>
-        <button class="modal-cancel" data-act="cancel">cancel</button>
-      </div></div>`;
-  }
+
 }

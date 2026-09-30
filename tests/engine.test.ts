@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, applyAction, createGame, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold } from '../src/engine/game';
+import { activePlayer, applyAction, baseStability, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -11,13 +11,20 @@ const twoPlayer = (seed = 1) =>
 let uid = 1000;
 /** Put specific cards in a player's hand (or tableau), for testing exact situations. */
 function give(p: PlayerState, defIds: string[], where: 'hand' | 'tableau' = 'hand'): CardInstance[] {
-  const cards = defIds.map((defId) => ({ uid: `t${uid++}`, defId }));
-  p[where].push(...cards);
+  const cards: CardInstance[] = defIds.map((defId) => ({ uid: `t${uid++}`, defId }));
+  if (where === 'tableau') {
+    // Into the free slots, left to right, at full stability.
+    for (const c of cards) {
+      c.slot = freeSlots(p)[0];
+      c.stability = baseStability(c.defId);
+      p.tableau.push(c);
+    }
+  } else p.hand.push(...cards);
   return cards;
 }
 
 /** Play a card by id from the active player's hand. */
-function play(s: GameState, defId: string, extra: Record<string, string> = {}) {
+function play(s: GameState, defId: string, extra: Record<string, string | number> = {}) {
   const card = activePlayer(s).hand.find((c) => c.defId === defId);
   if (!card) throw new Error(`${defId} not in hand`);
   return applyAction(s, { type: 'playCard', cardUid: card.uid, ...extra });
@@ -93,9 +100,9 @@ describe('plays per turn', () => {
       plays.push(activePlayer(s).playsLeft);
       s = endTurn(s);
     }
-    // Ada: 1,2,3,4,4,4 · Bo: 2 (1 + head start),2,3,4,4,4
-    expect(plays.filter((_, i) => i % 2 === 0)).toEqual([1, 2, 3, 4, 4, 4]);
-    expect(plays.filter((_, i) => i % 2 === 1)).toEqual([1 + BALANCE.laterSeatPlays, 2, 3, 4, 4, 4]);
+    // Ada: 1,2,2,2,2,2 · Bo: the same, plus any head start on the first turn
+    expect(plays.filter((_, i) => i % 2 === 0)).toEqual([1, 2, 2, 2, 2, 2]);
+    expect(plays.filter((_, i) => i % 2 === 1)).toEqual([1 + BALANCE.laterSeatPlays, 2, 2, 2, 2, 2]);
   });
 
   it('refuses a play once none are left', () => {
@@ -125,19 +132,53 @@ describe('the tableau', () => {
     expect(s.players[1].heat).toBe(before + 1);
   });
 
-  it('makes you replace a card when the tableau is full, triggering its leave effect', () => {
+  it('refuses a card when the tableau is full (no replacing), but still takes a Lightspeed card', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    give(me, ['martyr_crystal'], 'tableau');
-    give(me, Array(BALANCE.tableauSlots - 1).fill('coolant_array'), 'tableau');
-    give(me, ['cryo_vault']);
+    me.playsLeft = 2;
+    give(me, Array(BALANCE.tableauSlots).fill('coolant_array'), 'tableau');
+    give(me, ['cryo_vault', 'null_field']);
     expect(() => play(s, 'cryo_vault')).toThrow(/full/);
-    const martyr = me.tableau[0];
-    const before = s.players[1].heat;
-    s = play(s, 'cryo_vault', { replaceUid: martyr.uid });
-    expect(s.players[0].tableau).toHaveLength(BALANCE.tableauSlots);
-    expect(s.players[0].discard.map((c) => c.uid)).toContain(martyr.uid);
-    expect(s.players[1].heat).toBe(before + 3);
+    s = play(s, 'null_field');
+    expect(s.players[0].lightspeed?.defId).toBe('null_field');
+  });
+
+  it('fades cards after their stability runs out, back into the deck, triggering leave effects', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const [martyr] = give(me, ['martyr_crystal'], 'tableau'); // no start-of-turn or passive effect: it fades fast
+    const [relay] = give(me, ['plasma_relay'], 'tableau');
+    expect(martyr.stability).toBe(BALANCE.stabilityBurst);
+    expect(relay.stability).toBe(BALANCE.stability);
+    const bo = s.players[1].heat;
+    s = endTurn(endTurn(s)); // Ada's turn 2: relay fires, both lose 1
+    expect(s.players[0].tableau.map((c) => c.stability)).toEqual([1, 2]);
+    s = endTurn(endTurn(s)); // Ada's turn 3: the Martyr fades and bursts
+    expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
+    expect(s.players[0].deck.some((c) => c.uid === martyr.uid)).toBe(true);
+    expect(s.players[1].heat).toBeGreaterThanOrEqual(bo + 2 + 3);
+    s = endTurn(endTurn(s)); // Ada's turn 4: the relay fires a third time, then fades
+    expect(s.players[0].tableau).toHaveLength(0);
+  });
+
+  it('keeps anchored cards from fading, and lets stability be restored or eroded', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.playsLeft = 2;
+    const [relay, anchor, lance] = give(me, ['plasma_relay', 'chrono_anchor', 'coronal_lance'], 'tableau');
+    s = endTurn(endTurn(s));
+    const t = s.players[0].tableau;
+    expect(t.find((c) => c.uid === relay.uid)!.stability).toBe(BALANCE.stability);
+    expect(t.find((c) => c.uid === lance.uid)!.stability).toBe(BALANCE.stabilityBurst);
+    give(activePlayer(s), ['stasis_field']);
+    s = play(s, 'stasis_field', { allyUid: lance.uid, slot: 3 });
+    expect(s.players[0].tableau.find((c) => c.uid === lance.uid)!.stability).toBe(BALANCE.stabilityBurst + 2);
+    s = endTurn(s);
+    give(activePlayer(s), ['entropy_pulse']);
+    // The Anchor itself still fades: 3 → 2, and the pulse takes the last 2.
+    s = play(s, 'entropy_pulse', { enemyUid: anchor.uid });
+    expect(s.players[0].tableau.some((c) => c.uid === anchor.uid)).toBe(false);
+    expect(s.players[0].deck.some((c) => c.uid === anchor.uid)).toBe(true);
   });
 
   it('lets Ion Cannon destroy a card of your choice in your target\'s tableau', () => {
@@ -179,7 +220,7 @@ describe('commands', () => {
     const [cmd] = give(me, ['command_directive'], 'tableau');
     me.upgrades.solarFlare = 1;
     give(me, ['phase_shift']);
-    s = play(s, 'phase_shift', { recallUid: cmd.uid });
+    s = play(s, 'phase_shift', { allyUid: cmd.uid });
     expect(s.players[0].hand.some((c) => c.uid === cmd.uid)).toBe(true);
     expect(s.players[0].playsLeft).toBe(3); // Phase Shift gives back the play it used
     s = play(s, 'command_directive', { upgrade: 'solarFlare' });
@@ -275,10 +316,11 @@ describe('the new heroes', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     give(me, ['kyrvessa_prism_queen'], 'tableau');
-    give(me, Array(BALANCE.tableauSlots - 1).fill('coolant_array'), 'tableau');
-    give(me, ['cryo_vault']);
+    give(me, Array(BALANCE.tableauSlots - 2).fill('coolant_array'), 'tableau');
     const before = s.players[1].heat;
-    s = play(s, 'cryo_vault', { replaceUid: me.tableau[1].uid });
+    me.playsLeft = 2;
+    give(me, ['phase_shift']);
+    s = play(s, 'phase_shift', { allyUid: me.tableau[1].uid });
     expect(s.players[1].heat).toBe(before + 2);
   });
 
@@ -378,17 +420,13 @@ describe('AI', () => {
     }
   });
 
-  it('picks a target and a card to replace when its tableau is full', () => {
-    let s = twoPlayer();
+  it('holds its cards when its tableau is full', () => {
+    const s = twoPlayer();
     const me = activePlayer(s);
     give(me, Array(BALANCE.tableauSlots).fill('coolant_array'), 'tableau');
     me.hand = [];
     give(me, ['coronal_lance']);
-    const action = chooseAIAction(s);
-    expect(action.type).toBe('playCard');
-    if (action.type === 'playCard') expect(action.replaceUid).toBeDefined();
-    s = applyAction(s, action);
-    expect(s.players[0].tableau.some((c) => c.defId === 'coronal_lance')).toBe(true);
+    expect(chooseAIAction(s).type).toBe('endTurn');
   });
 });
 
@@ -408,8 +446,9 @@ describe('resonance', () => {
     const me = activePlayer(s);
     give(me, ['coolant_array', 'cryo_vault'], 'tableau');
     give(me, ['resonance_lattice']);
-    s = play(s, 'resonance_lattice', { slot: 1 } as never);
-    expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['coolant_array', 'resonance_lattice', 'cryo_vault']);
+    expect(() => play(s, 'resonance_lattice', { slot: 1 } as never)).toThrow(/empty slot/);
+    s = play(s, 'resonance_lattice', { slot: 3 } as never);
+    expect(s.players[0].tableau.map((c) => [c.defId, c.slot])).toEqual([['coolant_array', 0], ['cryo_vault', 1], ['resonance_lattice', 3]]);
   });
 
   it('counts neighbours of a kind (Tide Pylon)', () => {
@@ -531,5 +570,26 @@ describe('lightspeed', () => {
     s = play(s, 'coolant_array');
     expect(s.players[1].playsLeft).toBe(0);
     expect(s.players[1].tableau).toHaveLength(0);
+  });
+});
+
+describe('defence', () => {
+  it('comes from the slot (1, 2, 3, 2, 1), sturdiness and bulwarks', () => {
+    const s = twoPlayer();
+    const me = activePlayer(s);
+    const cards = give(me, ['coolant_array', 'bulwark_plating', 'bell_warden', 'coolant_array', 'coolant_array'], 'tableau');
+    // The Plating (slot 1) guards both neighbours: slot 0 gets +1, and slot 2 (Bell Warden, sturdy +1) too.
+    expect(cards.map((c) => cardDefence(me, c))).toEqual([1 + 1, 2, 3 + 1 + 1, 2, 1]);
+  });
+
+  it('limits what removal can reach (Ion Cannon: 2 or less)', () => {
+    let s = twoPlayer();
+    const foe = s.players[1];
+    const [edge, inner, centre] = give(foe, ['coolant_array', 'coolant_array', 'plasma_relay'], 'tableau');
+    centre.slot = 2;
+    give(activePlayer(s), ['ion_cannon']);
+    expect(() => play(s, 'ion_cannon', { enemyUid: centre.uid })).toThrow();
+    s = play(s, 'ion_cannon', { enemyUid: inner.uid });
+    expect(s.players[1].tableau.map((c) => c.uid)).toEqual([edge.uid, centre.uid]);
   });
 });

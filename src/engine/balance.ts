@@ -9,7 +9,7 @@ export const BALANCE = {
   /** Sun temperature bounds. Reaching `supernovaAt` (raised by Cooling Chamber upgrades) eliminates a player. */
   startingHeat: 0,
   minHeat: -5,
-  supernovaAt: 30,
+  supernovaAt: 24,
 
   /** Decks: exactly this many cards, at most `maxCopies` of each, exactly `commandCards` Command cards. */
   deckSize: 20,
@@ -20,12 +20,12 @@ export const BALANCE = {
 
   /** Cards in the opening hand, and drawn at the start of each turn after the first. */
   openingHand: 5,
-  drawPerTurn: 2,
+  drawPerTurn: 1,
   /** Seats after the first: extra cards in the opening hand, and extra plays on their first turn. */
-  laterSeatCards: 1,
-  laterSeatPlays: 1,
+  laterSeatCards: 0,
+  laterSeatPlays: 0,
   /** Seats after the first also start with a cooler sun. */
-  laterSeatCool: 2,
+  laterSeatCool: 1,
   /** The catch-up only applies in games with at most this many players (in bigger games everyone but the leader gangs up anyway). */
   catchUpMaxPlayers: 2,
   /** An empty deck is refilled by shuffling your discard pile back in, which heats your sun by this much (unblockable). */
@@ -34,9 +34,20 @@ export const BALANCE = {
   fatigueHeat: 2,
 
   /** You may play as many cards as turns you have taken, up to this cap (before extra-play cards). */
-  maxPlays: 4,
+  maxPlays: 2,
   /** Tableau slots. A card played into a full tableau replaces one of yours. */
-  tableauSlots: 8,
+  tableauSlots: 5,
+  /** Each slot's defence, left to right: the middle is safest. Removal cards can only reach cards with low enough defence. */
+  slotDefence: [1, 2, 3, 2, 1],
+  /**
+   * Stability: how many of your turns a card stays in your tableau (its start-of-turn effects trigger
+   * that many times), before it is swept back into your deck. Cards with only a when-played effect fade faster.
+   */
+  stability: 3,
+  stabilityBurst: 2,
+  stabilityCommand: 3,
+  /** Stability can be restored up to this. */
+  maxStability: 6,
   /** Kept shields (Deep Current) never exceed this. */
   maxKeptShields: 12,
 

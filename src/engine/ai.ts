@@ -11,7 +11,9 @@ import {
   livingOpponents,
   needsSlot,
   persists,
-  recallChoices,
+  allyChoices,
+  cardDefence,
+  freeSlots,
   recoverChoices,
   supernovaThreshold,
   tableauFull,
@@ -82,14 +84,25 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
         // Its value shows up in its neighbours' effects; a little extra for future neighbours.
         perTurn += 0.3 * ps.amounts[0];
         break;
+      case 'guard':
+        perTurn += 0.25 * ps.amounts[0];
+        break;
+      case 'anchor':
+        perTurn += 0.5;
+        break;
     }
   }
   if (def.onLeave?.length) perTurn += 0.35;
-  return perTurn * HORIZON;
+  // Worth as many turns as it has left (roughly), and a little more where removal cannot reach it.
+  const turns = Math.min(card.stability ?? HORIZON, HORIZON + 1);
+  return perTurn * turns * (0.85 + 0.05 * cardDefence(p, card));
 }
 
+/** A card in play also blocks a slot until it fades: the cost of that, per turn it stays. */
+const SLOT_COST = Number(globalThis.process?.env?.SLOT ?? 0.35);
+
 function tableauValue(state: GameState, p: PlayerState): number {
-  return p.tableau.reduce((sum, c) => sum + cardValue(state, p, c), 0);
+  return p.tableau.reduce((sum, c) => sum + cardValue(state, p, c) - SLOT_COST * (c.stability ?? 0), 0);
 }
 
 /** How good this state is for `meId`: heat on every sun, ongoing value, cards and upgrades. */
@@ -114,29 +127,27 @@ function evaluate(state: GameState, meId: string): number {
   return score;
 }
 
-/** Every way to play one card now (replacement, placement, upgrade, removal, recall and recovery choices included). */
+/** Every way to play one card now (placement, upgrade, removal, recall, restore and recovery choices included). */
 function candidatePlays(state: GameState, me: PlayerState): Action[] {
   const plays: Action[] = [];
   const seen = new Set<string>();
   const opt = <T,>(list: T[]): (T | undefined)[] => (list.length ? list : [undefined]);
-  // Replacing: only the weakest few of our own cards are worth considering.
-  const replaceable = [...me.tableau].sort((a, b) => cardValue(state, me, a) - cardValue(state, me, b)).slice(0, 2);
   for (const card of me.hand) {
     if (seen.has(card.defId)) continue;
     seen.add(card.defId);
     if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) continue;
     const upgrades = cardNeedsUpgradeChoice(card.defId) ? opt(upgradeOptions(me)) : [undefined];
     const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
-    const replaces = persists(card.defId) && tableauFull(me) ? replaceable.map((c) => c.uid) : [undefined];
-    const slots = needsSlot(me, card.defId) ? Array.from({ length: me.tableau.length + 1 }, (_, i) => i) : [undefined];
+    if (persists(card.defId) && tableauFull(me)) continue;
+    const slots = needsSlot(me, card.defId) ? freeSlots(me) : [undefined];
     // Recovering: one of each card in the discard pile.
     const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);
+    const allies = opt(allyChoices(me, card.defId).map((c) => c.uid));
     for (const upgrade of upgrades)
       for (const enemyUid of foes)
-        for (const replaceUid of replaces)
-          for (const slot of slots)
-            for (const recallUid of opt(recallChoices(me, card.defId, replaceUid).map((c) => c.uid)))
-              for (const recoverUid of recovers) plays.push({ type: 'playCard', cardUid: card.uid, upgrade, enemyUid, replaceUid, slot, recallUid, recoverUid });
+        for (const slot of slots)
+          for (const allyUid of allies)
+            for (const recoverUid of recovers) plays.push({ type: 'playCard', cardUid: card.uid, upgrade, enemyUid, slot, allyUid, recoverUid });
   }
   return plays;
 }

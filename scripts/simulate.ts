@@ -4,6 +4,7 @@
  * played), plus average game length. Usage: npm run simulate -- [games] [players]
  */
 import { chooseAIAction } from '../src/engine/ai';
+import { BALANCE } from '../src/engine/balance';
 import { cardDef, PRESET_DECKS } from '../src/engine/cards';
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
 
@@ -20,6 +21,9 @@ for (const [i, cards] of Object.entries(JSON.parse(process.env.DECKS ?? '{}') as
 
 // ...or a card change: PATCH='{"card_id": {"onTurn": [...]}}'
 for (const [id, patch] of Object.entries(JSON.parse(process.env.PATCH ?? '{}') as Record<string, object>)) Object.assign(cardDef(id), patch);
+
+// ...or a rules number: BAL='{"maxPlays": 3}'
+Object.assign(BALANCE, JSON.parse(process.env.BAL ?? '{}'));
 
 const games = Number(process.argv[2] ?? 1000);
 const playerCount = Number(process.argv[3] ?? 2);

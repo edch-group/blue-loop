@@ -67,10 +67,17 @@ export type Effect = (
   | { type: 'growOthers' }
   /** Command cards: upgrade a core action ('choice': the player picks). */
   | { type: 'upgrade'; action: CoreAction | 'choice' }
-  /** Destroy a card of your choice (of a kind, if given) in your target's tableau. `neighbours`: the cards either side of it go back to their owner's hand. */
-  | { type: 'destroy'; kind?: CardKind; neighbours?: boolean }
-  /** Return a card of your choice in your target's tableau to its owner's hand. */
-  | { type: 'bounce' }
+  /**
+   * Destroy a card of your choice in your target's tableau: of a kind, if given, and with at most
+   * `maxDefence` defence, if given. `neighbours`: the cards either side of it go back to their owner's hand.
+   */
+  | { type: 'destroy'; kind?: CardKind; maxDefence?: number; neighbours?: boolean }
+  /** Return a card of your choice (with at most `maxDefence` defence, if given) in your target's tableau to its owner's hand. */
+  | { type: 'bounce'; maxDefence?: number }
+  /** Reduce the stability of a card of your choice in your target's tableau (`all`: every card there). At 0 it is swept back into its owner's deck. */
+  | { type: 'erode'; amount: number; all?: boolean }
+  /** Restore stability to another card of yours (your choice; `all`: every other card of yours). */
+  | { type: 'restore'; amount: number; all?: boolean }
   /** Return another card of yours from your tableau to your hand (to play it again). */
   | { type: 'recall' }
   /** Return a card of your choice (of a kind, if given) from your discard pile to your hand. */
@@ -101,7 +108,11 @@ export type Passive =
    * get a bonus on their heat, cooling and shields. `amounts[0]` for the cards
    * right next to it, `amounts[1]` for the cards two places away, and so on.
    */
-  | { type: 'adjacent'; amounts: number[]; kind?: CardKind };
+  | { type: 'adjacent'; amounts: number[]; kind?: CardKind }
+  /** Bulwark: your cards near this one get more defence (`amounts[0]` right next to it, `amounts[1]` two slots away). */
+  | { type: 'guard'; amounts: number[] }
+  /** Your cards next to this one lose no stability. */
+  | { type: 'anchor' };
 
 /**
  * What springs a face-down Lightspeed card, during an enemy's turn:
@@ -140,6 +151,10 @@ export interface CardDef {
   onRecover?: Effect[];
   /** Lightspeed cards: what springs it and what it does. */
   lightspeed?: Lightspeed;
+  /** Extra defence on top of its slot's (sturdy cards). */
+  defence?: number;
+  /** Turns it stays in your tableau before it is swept back into your deck (default: see BALANCE.stability). */
+  stability?: number;
   /** While this card is in your tableau. */
   passive?: Passive[];
 }
@@ -149,6 +164,10 @@ export interface CardInstance {
   defId: string;
   /** Growth counter, for cards that grow. */
   growth?: number;
+  /** In a tableau: which of its slots the card sits in (0 far left … 4 far right). */
+  slot?: number;
+  /** In a tableau: turns left before it is swept back into its owner's deck. */
+  stability?: number;
 }
 
 /** Battle modifiers from the campaign map (anomalies, garrisons). */
@@ -190,7 +209,10 @@ export interface PlayerState {
   upgrades: Record<CoreAction, number>;
   deck: CardInstance[];
   hand: CardInstance[];
-  /** Cards in play in front of this player, left to right. Position matters for resonance. */
+  /**
+   * Cards in play in front of this player, left to right (sorted by `slot`; slots may be empty).
+   * Position matters: the middle slots give more defence, and resonance works on neighbours.
+   */
   tableau: CardInstance[];
   discard: CardInstance[];
   /** A face-down Lightspeed card waiting to spring (only one at a time). Rivals see only its back. */
@@ -219,7 +241,7 @@ export interface LogEntry {
 
 export interface GameState {
   /** Rules version, so saves from older rules are ignored. */
-  version: 3;
+  version: 4;
   rngState: number;
   uidCounter: number;
   turnNumber: number;
@@ -262,16 +284,14 @@ export type Action =
   | {
       type: 'playCard';
       cardUid: string;
-      /** Tableau full: the card of yours this one replaces (the new card takes its place). */
-      replaceUid?: string;
-      /** Where the card goes in your tableau: 0 is the far left (default: the far right). */
+      /** Which empty slot of your tableau the card goes in (default: the most defended one free). */
       slot?: number;
       /** Command Directive: which core action to upgrade. */
       upgrade?: CoreAction;
       /** Destroy and bounce effects: the card in your target's tableau. */
       enemyUid?: string;
-      /** Recall effects: the card of yours to return to your hand. */
-      recallUid?: string;
+      /** Recall and restore effects: the card of yours they act on. */
+      allyUid?: string;
       /** Recover effects: the card in your discard pile to take back. */
       recoverUid?: string;
     }

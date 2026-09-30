@@ -22,7 +22,7 @@ export const CARDS: CardDef[] = [
     text: 'Start of turn: if you control 3 or more attack cards, heat your target by 2.',
     onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { minKind: 'attack', n: 3 } }],
   },
-  { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: "Destroy a card in your target's tableau.", onPlay: [{ type: 'destroy' }] },
+  { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: "Destroy a card with 2 or less defence in your target's tableau.", onPlay: [{ type: 'destroy', maxDefence: 2 }] },
   { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: 'Start of turn: cool your sun by 1.', onTurn: [{ type: 'cool', amount: 1 }] },
   { id: 'cryo_vault', name: 'Cryo Vault', kind: 'defence', text: 'Cool your sun by 3.', onPlay: [{ type: 'cool', amount: 3 }] },
   { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: 'Start of turn: gain 2 shields.', onTurn: [{ type: 'shield', amount: 2 }] },
@@ -102,6 +102,49 @@ export const CARDS: CardDef[] = [
     passive: [{ type: 'adjacent', amounts: [2, 1] }],
   },
 
+  // ---- Defence: where your cards sit, and what guards them ----
+  {
+    id: 'bulwark_plating',
+    name: 'Bulwark Plating',
+    kind: 'defence',
+    text: 'Cards next to this one get +1 defence. Start of turn: gain 1 shield.',
+    onTurn: [{ type: 'shield', amount: 1 }],
+    passive: [{ type: 'guard', amounts: [1] }],
+  },
+  {
+    id: 'aegis_monolith',
+    name: 'Aegis Monolith',
+    kind: 'defence',
+    text: 'Sturdy (+1 defence). Cards next to this one get +2 defence; cards two slots away get +1.',
+    defence: 1,
+    stability: 4,
+    passive: [{ type: 'guard', amounts: [2, 1] }],
+  },
+
+  // ---- Stability: keeping your cards in play, and sweeping theirs away ----
+  { id: 'chrono_anchor', name: 'Chrono Anchor', kind: 'growth', text: 'Cards next to this one lose no stability.', passive: [{ type: 'anchor' }] },
+  {
+    id: 'stasis_field',
+    name: 'Stasis Field',
+    kind: 'growth',
+    text: 'Another card of yours regains 2 stability. Heat your own sun by 1.',
+    onPlay: [{ type: 'restore', amount: 2 }, { type: 'selfHeat', amount: 1 }],
+  },
+  {
+    id: 'entropy_pulse',
+    name: 'Entropy Pulse',
+    kind: 'attack',
+    text: "A card in your target's tableau loses 2 stability (at 0 it is swept back into their deck). Heat your target by 1.",
+    onPlay: [{ type: 'erode', amount: 2 }, { type: 'heat', amount: 1, to: 'target' }],
+  },
+  {
+    id: 'decay_wave',
+    name: 'Decay Wave',
+    kind: 'attack',
+    text: "Every card in your target's tableau loses 1 stability. Heat your own sun by 2.",
+    onPlay: [{ type: 'erode', amount: 1, all: true }, { type: 'selfHeat', amount: 2 }],
+  },
+
   // ---- Recovery and recall: getting cards back to use again ----
   { id: 'salvage_drone', name: 'Salvage Drone', kind: 'growth', text: 'Return a card from your discard pile to your hand.', onPlay: [{ type: 'recover' }] },
   {
@@ -117,21 +160,21 @@ export const CARDS: CardDef[] = [
     id: 'tractor_beam',
     name: 'Tractor Beam',
     kind: 'attack',
-    text: "Return a card in your target's tableau to its owner's hand. Heat your target by 1.",
-    onPlay: [{ type: 'bounce' }, { type: 'heat', amount: 1, to: 'target' }],
+    text: "Return a card with 3 or less defence in your target's tableau to its owner's hand. Heat your target by 1.",
+    onPlay: [{ type: 'bounce', maxDefence: 3 }, { type: 'heat', amount: 1, to: 'target' }],
   },
   {
     id: 'command_breaker',
     name: 'Command Breaker',
     kind: 'attack',
-    text: "Destroy a Command card in your target's tableau. Heat your target by 1.",
-    onPlay: [{ type: 'destroy', kind: 'command' }, { type: 'heat', amount: 1, to: 'target' }],
+    text: "Destroy a Command card with 3 or less defence in your target's tableau. Heat your target by 1.",
+    onPlay: [{ type: 'destroy', kind: 'command', maxDefence: 3 }, { type: 'heat', amount: 1, to: 'target' }],
   },
   {
     id: 'event_horizon',
     name: 'Event Horizon',
     kind: 'attack',
-    text: "Destroy a card in your target's tableau. The cards either side of it return to their owner's hand.",
+    text: "Destroy a card in your target's tableau, whatever its defence. The cards either side of it return to their owner's hand.",
     onPlay: [{ type: 'destroy', neighbours: true }],
   },
 
@@ -185,8 +228,8 @@ export const CARDS: CardDef[] = [
     name: 'Helio Lancer',
     kind: 'attack',
     race: 0,
-    text: 'Start of turn: heat your target by 1. If you have a Solar Flare upgrade, gain 1 shield.',
-    onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'shield', amount: 1, if: { upgraded: 'solarFlare' } }],
+    text: 'Start of turn: heat your target by 2. If you have a Solar Flare upgrade, gain 1 shield.',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'shield', amount: 1, if: { upgraded: 'solarFlare' } }],
   },
   { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: 'Your other attack cards deal 1 more heat at the start of your turn. Copies do not stack.', passive: [{ type: 'kindBonus', kind: 'attack', amount: 1, others: true, onTurnOnly: true }] },
   {
@@ -250,7 +293,7 @@ export const CARDS: CardDef[] = [
   { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 2 cards. Heat your own sun by 1.', onPlay: [{ type: 'draw', amount: 2 }, { type: 'selfHeat', amount: 1 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
-  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: 'Start of turn: gain 3 shields.', onTurn: [{ type: 'shield', amount: 3 }] },
+  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: 'Sturdy (+1 defence). Start of turn: gain 3 shields.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }] },
   { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: 'When your shields absorb an enemy\'s heat, heat that enemy\'s sun by 2 (once per attacking card each turn).', passive: [{ type: 'retaliate', amount: 2 }] },
   {
     id: 'tidal_bloom',
@@ -285,6 +328,7 @@ export const CARDS: CardDef[] = [
     name: 'Mycelium Tower',
     kind: 'growth',
     race: 3,
+    stability: 4,
     text: 'Start of turn: this card grows (up to 4), then heats your target by its growth.',
     onTurn: [{ type: 'grow', max: 4 }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'growth' } }],
   },
@@ -295,27 +339,51 @@ export const CARDS: CardDef[] = [
     name: 'Rot Bloom',
     kind: 'attack',
     race: 3,
-    text: 'Heat your target by 2, +1 for every 2 cards you control (up to 6).',
-    onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'cards', per: 2 }, max: 6 }],
+    text: 'Heat your target by 1, +1 for every 2 cards you control (up to 5).',
+    onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cards', per: 2 }, max: 5 }],
   },
   {
     id: 'canopy',
     name: 'Canopy',
     kind: 'defence',
     race: 3,
-    text: 'Start of turn: cool your sun by 1 for every 3 cards you control.',
-    onTurn: [{ type: 'cool', amount: 0, plus: { of: 'cards', per: 3 } }],
+    text: 'Start of turn: cool your sun by 1 for every 2 cards you control.',
+    onTurn: [{ type: 'cool', amount: 0, plus: { of: 'cards', per: 2 } }],
   },
   {
     id: 'spore_cloud',
     name: 'Spore Cloud',
     kind: 'attack',
     race: 3,
-    text: 'Start of turn: if you control 5 or more cards, heat every enemy sun by 1.',
-    onTurn: [{ type: 'heat', amount: 1, to: 'enemies', if: { minCards: 5 } }],
+    text: 'Start of turn: if you control 4 or more cards, heat every enemy sun by 1.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'enemies', if: { minCards: 4 } }],
   },
 
-  // ---- Race cards for resonance, recovery, command synergies and lightspeed ----
+  // ---- Race cards for resonance, recovery, stability, command synergies and lightspeed ----
+  {
+    id: 'shard_renewal',
+    name: 'Shard Renewal',
+    kind: 'growth',
+    race: 1,
+    text: 'Another card of yours regains 3 stability. Heat your own sun by 2.',
+    onPlay: [{ type: 'restore', amount: 3 }, { type: 'selfHeat', amount: 2 }],
+  },
+  {
+    id: 'undertow',
+    name: 'Undertow',
+    kind: 'attack',
+    race: 2,
+    text: "A card in your target's tableau loses 2 stability (at 0 it is swept back into their deck). Gain 2 shields.",
+    onPlay: [{ type: 'erode', amount: 2 }, { type: 'shield', amount: 2 }],
+  },
+  {
+    id: 'hive_rooting',
+    name: 'Hive Rooting',
+    kind: 'growth',
+    race: 3,
+    text: 'Every other card of yours regains 1 stability. Draw 1 card.',
+    onPlay: [{ type: 'restore', amount: 1, all: true }, { type: 'draw', amount: 1 }],
+  },
   {
     id: 'aureline_war_herald',
     name: 'Aureline War-Herald',
@@ -431,9 +499,10 @@ export const CARDS: CardDef[] = [
     name: 'Hero of Rathune',
     kind: 'defence',
     race: 2,
-    text: 'Gain 3 shields. Start of turn: gain 1 shield for every 3 defence cards you control (up to 2).',
+    text: 'Sturdy (+1 defence). Gain 3 shields. Start of turn: gain 1 shield for every 2 defence cards you control (up to 2).',
+    defence: 1,
     onPlay: [{ type: 'shield', amount: 3 }],
-    onTurn: [{ type: 'shield', amount: 0, plus: { of: 'kind', kind: 'defence', per: 3 }, max: 2 }],
+    onTurn: [{ type: 'shield', amount: 0, plus: { of: 'kind', kind: 'defence', per: 2 }, max: 2 }],
   },
   {
     id: 'ommarath_deep_bell',
@@ -458,9 +527,9 @@ export const CARDS: CardDef[] = [
     name: 'The Brood Queen',
     kind: 'growth',
     race: 3,
-    text: 'You may play 1 extra card each turn. Start of turn: if you control 6 or more cards, heat every enemy sun by 1.',
+    text: 'You may play 1 extra card each turn. Start of turn: if you control 4 or more cards, heat every enemy sun by 1.',
     passive: [{ type: 'extraPlay', amount: 1 }],
-    onTurn: [{ type: 'heat', amount: 1, to: 'enemies', if: { minCards: 6 } }],
+    onTurn: [{ type: 'heat', amount: 1, to: 'enemies', if: { minCards: 4 } }],
   },
 ];
 
@@ -481,6 +550,9 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   chamber_protocol: { rarity: 'stellar' },
   the_admiralty: { rarity: 'anomaly' },
   harmonic_singularity: { rarity: 'anomaly' },
+  aegis_monolith: { rarity: 'anomaly' },
+  chrono_anchor: { rarity: 'stellar' },
+  decay_wave: { rarity: 'stellar' },
   event_horizon: { rarity: 'anomaly' },
   temporal_snare: { rarity: 'anomaly' },
   null_field: { rarity: 'stellar' },

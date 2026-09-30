@@ -1821,7 +1821,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .table-view > .game {
   /* Tableau cards: eight across the board, capped by the height of half the board. */
   --boardw: calc(calc(100 * var(--vw)) - 2 * var(--inset) - var(--logw) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
-  --tcw: min(calc((var(--boardw) - 7 * clamp(4px, calc(0.8 * var(--vw)), 10px)) / 8), calc(var(--app-h, calc(100 * var(--vh))) * 0.3 * 0.714), 150px);
+  --tcw: min(calc((var(--boardw) - 4 * clamp(6px, calc(1.4 * var(--vw)), 18px)) / 5), calc(var(--app-h, calc(100 * var(--vh))) * 0.3 * 0.714), 150px);
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .table-view > .game { --logw: clamp(104px, calc(14 * var(--vw)), 180px); }
@@ -1839,7 +1839,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .tableau-mine { grid-row: 3; }
 .tableau-mine .tableau-label { order: 2; }
 .tableau-dead { opacity: 0.45; filter: grayscale(0.7); }
-.tableau-row { display: grid; grid-template-columns: repeat(8, var(--tcw)); gap: clamp(4px, calc(0.8 * var(--vw)), 10px); transform-style: preserve-3d; }
+.tableau-row { display: grid; grid-template-columns: repeat(5, var(--tcw)); gap: clamp(6px, calc(1.4 * var(--vw)), 18px); transform-style: preserve-3d; }
 .tableau-label {
   display: flex; align-items: center; gap: 6px;
   font-family: var(--display); font-size: clamp(0.46rem, calc(1.7 * var(--vh)), 0.64rem); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft);
@@ -2110,3 +2110,27 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
   .slot-gap { width: 24px; height: 92px; }
   .choose-grid .card { --cw: 90px; width: 90px; height: 126px; }
 }
+
+/* ---- Slots, defence and stability ---------------------------------------- */
+.slot-empty { display: grid; place-items: center; align-content: center; gap: 2px; font-family: var(--display); color: rgba(120, 128, 150, 0.55); }
+.slot-def { font-size: max(9px, calc(var(--tcw) * 0.14)); letter-spacing: 0.08em; }
+.slot-empty i { font-style: normal; font-size: max(7px, calc(var(--tcw) * 0.08)); letter-spacing: 0.2em; text-transform: uppercase; }
+button.slot-choosable {
+  cursor: pointer; color: #c0563d; border: 1.5px dashed rgba(208, 101, 75, 0.7); background: rgba(255, 255, 255, 0.7); padding: 0;
+  animation: choosable-gap 1.4s ease-in-out infinite;
+}
+button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
+/* A card in play: defence bottom left, stability bottom right, just above the type line. */
+.card-stats {
+  position: absolute; left: 5%; right: 5%; top: calc(var(--cw, 100px) * 1.4 * 0.29);
+  display: flex; justify-content: space-between; pointer-events: none;
+}
+.card-stats b {
+  min-width: max(16px, calc(var(--cw, 100px) * 0.24)); height: max(13px, calc(var(--cw, 100px) * 0.16)); padding: 0 4px; border-radius: 999px;
+  display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: max(7px, calc(var(--cw, 100px) * 0.09)); color: #fff;
+  box-shadow: 0 0 0 1.5px #fff;
+}
+.stat-def { background: linear-gradient(135deg, #7c8aa6, #4d5b78); }
+.stat-stab { background: linear-gradient(135deg, #e0b25a, #b8801f); }
+.stat-stab.stat-low { background: linear-gradient(135deg, #e88a6c, #c0563d); animation: blink 1.6s ease-in-out infinite; }
+.card-table .resonance { top: calc(var(--cw, 100px) * 0.2); }

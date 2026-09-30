@@ -1,6 +1,6 @@
 import { BALANCE } from './balance';
 import { cardDef, presetDeck } from './cards';
-import { shuffleInPlace } from './rng';
+import { randomInt, shuffleInPlace } from './rng';
 import { CORE_ACTIONS } from './types';
 import type { Action, CardDef, CardInstance, CardKind, Condition, CoreAction, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, PlayerState, TurnStats } from './types';
 
@@ -48,7 +48,7 @@ export function createGame(setup: GameSetup): GameState {
     throw new GameError(`Blue Loop needs ${BALANCE.minPlayers}-${BALANCE.maxPlayers} players.`);
   }
   const state: GameState = {
-    version: 3,
+    version: 4,
     rngState: setup.seed | 0,
     uidCounter: 0,
     turnNumber: 1,
@@ -89,7 +89,9 @@ export function createGame(setup: GameSetup): GameState {
       conditions: ps.conditions,
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
-    for (const id of (ps.tableau ?? []).slice(0, BALANCE.tableauSlots)) if (persists(id)) p.tableau.push(newCard(state, id));
+    // A garrison takes the safest slots first.
+    const safest = slotsBySafety();
+    for (const id of (ps.tableau ?? []).filter(persists).slice(0, BALANCE.tableauSlots)) place(p, newCard(state, id), safest.shift()!);
     if (ps.lightspeed && cardDef(ps.lightspeed).kind === 'lightspeed') p.lightspeed = newCard(state, ps.lightspeed);
     state.players.push(p);
     // Later seats start a little ahead to make up for moving second.
@@ -102,13 +104,21 @@ export function createGame(setup: GameSetup): GameState {
   return state;
 }
 
-/** Bring a saved game from older rules up to date (version 2 kept Command cards out of the tableau). */
+/**
+ * Bring a saved game from older rules up to date: version 2 kept Command cards
+ * out of the tableau; before version 4 tableaus had 8 unslotted places and no stability.
+ */
 export function migrateGame(state: GameState): GameState {
   for (const p of state.players) {
     p.lightspeed ??= null;
     delete (p as { commands?: unknown }).commands;
+    if (state.version < 4) {
+      const cards = p.tableau;
+      p.tableau = [];
+      cards.forEach((c, i) => (i < BALANCE.tableauSlots ? place(p, c, i) : p.discard.push(c)));
+    }
   }
-  state.version = 3;
+  state.version = 4;
   return state;
 }
 
@@ -189,28 +199,42 @@ function fieldActive(state: GameState, field: FieldId): boolean {
   return !!g && (cardDef(g.card.defId).passive ?? []).some((ps) => ps.type === 'field' && ps.field === field);
 }
 
-/** The destroy or bounce effect a card aims at a rival's tableau, if any. */
-function enemyEffect(defId: string): Extract<Effect, { type: 'destroy' | 'bounce' }> | undefined {
-  return (cardDef(defId).onPlay ?? []).find((e): e is Extract<Effect, { type: 'destroy' | 'bounce' }> => e.type === 'destroy' || e.type === 'bounce');
+type EnemyEffect = Extract<Effect, { type: 'destroy' | 'bounce' | 'erode' }>;
+
+/** The effect a card aims at one card in a rival's tableau (destroy, return or erode), if any. */
+function enemyEffect(defId: string): EnemyEffect | undefined {
+  return (cardDef(defId).onPlay ?? []).find((e): e is EnemyEffect => e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all));
 }
 
-/** Cards in your target's tableau this card could destroy or return (empty if it needs no choice). */
+function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect): boolean {
+  if (e.type === 'destroy' && e.kind && cardDef(c.defId).kind !== e.kind) return false;
+  if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) > e.maxDefence) return false;
+  return true;
+}
+
+/** Cards in your target's tableau this card could destroy, return or erode (empty if it needs no choice). */
 export function enemyChoices(state: GameState, p: PlayerState, defId: string): CardInstance[] {
   const e = enemyEffect(defId);
   const t = targetOf(state, p);
   if (!e || !t) return [];
-  return t.tableau.filter((c) => e.type === 'bounce' || !e.kind || cardDef(c.defId).kind === e.kind);
+  return t.tableau.filter((c) => canReach(t, c, e));
 }
 
-/** Whether a card's removal destroys (rather than returns) the chosen card. */
-export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | null {
+/** What a card's removal does to the chosen card. */
+export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' | null {
   return enemyEffect(defId)?.type ?? null;
 }
 
-/** Your cards this card could return to your hand (empty if it has no recall). `except`: a card being replaced. */
-export function recallChoices(p: PlayerState, defId: string, except?: string): CardInstance[] {
-  if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall')) return [];
-  return p.tableau.filter((c) => c.uid !== except);
+/** Your other cards this card could return to your hand or restore (empty if it needs no such choice). */
+export function allyChoices(p: PlayerState, defId: string): CardInstance[] {
+  if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || (e.type === 'restore' && !e.all))) return [];
+  return [...p.tableau];
+}
+
+/** Whether a card's ally choice returns the card to hand (rather than restoring its stability). */
+export function allyEffectKind(defId: string): 'recall' | 'restore' | null {
+  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || (x.type === 'restore' && !x.all));
+  return e?.type === 'recall' || e?.type === 'restore' ? e.type : null;
 }
 
 /** Cards in your discard pile this card could recover (empty if it has no recover). */
@@ -233,14 +257,61 @@ export function boostable(defId: string): boolean {
   return [...(def.onPlay ?? []), ...(def.onTurn ?? [])].some((e) => e.type === 'heat' || e.type === 'cool' || e.type === 'shield');
 }
 
-/**
- * Whether the player should choose where a card goes: only when its position
- * matters to it (it resonates, or it can be boosted and something resonates).
- * Otherwise it goes on the far right, which never splits existing neighbours.
- */
+/** Your empty tableau slots, left to right. */
+export function freeSlots(p: PlayerState): number[] {
+  const taken = new Set(p.tableau.map((c) => c.slot));
+  return Array.from({ length: BALANCE.tableauSlots }, (_, i) => i).filter((i) => !taken.has(i));
+}
+
+/** Slots from safest (the middle) to least safe (the edges). */
+function slotsBySafety(): number[] {
+  return Array.from({ length: BALANCE.tableauSlots }, (_, i) => i).sort((a, b) => BALANCE.slotDefence[b] - BALANCE.slotDefence[a] || a - b);
+}
+
+/** Whether the player must choose a slot: whenever more than one is free (position always matters). */
 export function needsSlot(p: PlayerState, defId: string): boolean {
-  if (!persists(defId) || tableauFull(p) || p.tableau.length === 0) return false;
-  return resonates(defId) || (boostable(defId) && p.tableau.some((c) => resonates(c.defId)));
+  return persists(defId) && freeSlots(p).length > 1;
+}
+
+/** How long a card stays in play before it is swept back into its owner's deck. */
+export function baseStability(defId: string): number {
+  const def = cardDef(defId);
+  if (def.stability !== undefined) return def.stability;
+  if (def.kind === 'command') return BALANCE.stabilityCommand;
+  return def.onTurn?.length || def.passive?.length ? BALANCE.stability : BALANCE.stabilityBurst;
+}
+
+/** Put a card into a tableau slot, with its full stability. */
+function place(p: PlayerState, card: CardInstance, slot: number) {
+  card.slot = slot;
+  card.stability = baseStability(card.defId);
+  p.tableau.push(card);
+  p.tableau.sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
+}
+
+/** Slots between two cards in the same tableau. */
+function distance(a: CardInstance, b: CardInstance): number {
+  return Math.abs((a.slot ?? 0) - (b.slot ?? 0));
+}
+
+/**
+ * A card's defence: its slot's (1 at the edges, 2 inside, 3 in the middle),
+ * plus its own sturdiness, plus bulwark cards near it. Removal cards can only
+ * reach cards with low enough defence.
+ */
+export function cardDefence(p: PlayerState, card: CardInstance): number {
+  let d = (BALANCE.slotDefence[card.slot ?? 0] ?? 1) + (cardDef(card.defId).defence ?? 0);
+  for (const src of p.tableau) {
+    const k = distance(src, card);
+    if (k === 0) continue;
+    for (const ps of cardDef(src.defId).passive ?? []) if (ps.type === 'guard' && k <= ps.amounts.length) d += ps.amounts[k - 1];
+  }
+  return d;
+}
+
+/** Whether a card is anchored (a neighbour stops it losing stability). */
+function anchored(p: PlayerState, card: CardInstance): boolean {
+  return p.tableau.some((src) => distance(src, card) === 1 && (cardDef(src.defId).passive ?? []).some((ps) => ps.type === 'anchor'));
 }
 
 /** Whether the player may set this Lightspeed card now (only one can be face down at a time). */
@@ -267,13 +338,11 @@ export function persists(defId: string): boolean {
  * near it (+amounts[0] right next to one, +amounts[1] two places away...).
  */
 export function resonanceBonus(p: PlayerState, card: CardInstance): number {
-  if (!p.tableau.some((c) => cardDef(c.defId).passive?.some((ps) => ps.type === 'adjacent'))) return 0;
-  const i = p.tableau.findIndex((c) => c.uid === card.uid);
-  if (i < 0) return 0;
+  if (!p.tableau.some((c) => c.uid === card.uid)) return 0;
   const kind = cardDef(card.defId).kind;
   let bonus = 0;
-  p.tableau.forEach((src, j) => {
-    const d = Math.abs(i - j);
+  p.tableau.forEach((src) => {
+    const d = distance(src, card);
     if (d === 0) return;
     for (const ps of cardDef(src.defId).passive ?? []) {
       if (ps.type === 'adjacent' && d <= ps.amounts.length && (!ps.kind || ps.kind === kind)) bonus += ps.amounts[d - 1];
@@ -283,8 +352,8 @@ export function resonanceBonus(p: PlayerState, card: CardInstance): number {
 }
 
 function neighbours(p: PlayerState, card: CardInstance): CardInstance[] {
-  const i = p.tableau.findIndex((c) => c.uid === card.uid);
-  return i < 0 ? [] : [p.tableau[i - 1], p.tableau[i + 1]].filter((c): c is CardInstance => !!c);
+  if (!p.tableau.some((c) => c.uid === card.uid)) return [];
+  return p.tableau.filter((c) => distance(c, card) === 1);
 }
 
 function countOf(p: PlayerState, card: CardInstance, c: Count): number {
@@ -454,7 +523,7 @@ export type Timing = 'play' | 'turn' | 'leave' | 'recover' | 'spring';
 interface PlayContext {
   upgrade?: CoreAction;
   enemyUid?: string;
-  recallUid?: string;
+  allyUid?: string;
   recoverUid?: string;
   /** Lightspeed: the enemy who sprang the card (the effects' target). */
   against?: PlayerState;
@@ -519,7 +588,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'destroy':
       case 'bounce': {
         const t = ctx.against ?? targetOf(state, p);
-        const victim = t?.tableau.find((c) => c.uid === ctx.enemyUid && (e.type === 'bounce' || kindMatches(c, e.kind)));
+        const victim = t?.tableau.find((c) => c.uid === ctx.enemyUid && canReach(t, c, e));
         if (!t || !victim) break;
         if (spring(state, t, p, (tr) => tr.on === 'targeted')) {
           log(state, `${p.name}'s ${cardDef(card.defId).name} misses: ${cardDef(victim.defId).name} stays in play.`);
@@ -541,8 +610,33 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         }
         break;
       }
+      case 'erode': {
+        const t = ctx.against ?? targetOf(state, p);
+        if (!t) break;
+        const hit = e.all ? [...t.tableau] : t.tableau.filter((c) => c.uid === ctx.enemyUid);
+        if (!hit.length) break;
+        if (!e.all && spring(state, t, p, (tr) => tr.on === 'targeted')) {
+          log(state, `${p.name}'s ${cardDef(card.defId).name} misses.`);
+          break;
+        }
+        for (const c of hit) {
+          if (state.winnerId || t.eliminated || !t.tableau.includes(c)) continue;
+          c.stability = (c.stability ?? 1) - e.amount;
+          log(state, `${t.name}'s ${cardDef(c.defId).name} loses ${e.amount} stability.`);
+          if (c.stability <= 0) sweep(state, t, c);
+        }
+        break;
+      }
+      case 'restore': {
+        const mine = e.all ? p.tableau.filter((c) => c.uid !== card.uid) : p.tableau.filter((c) => c.uid === ctx.allyUid);
+        for (const c of mine) {
+          c.stability = Math.min(BALANCE.maxStability, (c.stability ?? 0) + e.amount);
+          log(state, `${p.name}'s ${cardDef(c.defId).name} steadies (stability ${c.stability}).`);
+        }
+        break;
+      }
       case 'recall': {
-        const back = p.tableau.find((c) => c.uid === ctx.recallUid && c.uid !== card.uid);
+        const back = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid);
         if (back) {
           log(state, `${p.name} returns ${cardDef(back.defId).name} to their hand.`);
           leaveTableau(state, p, back, 'hand');
@@ -574,11 +668,20 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
   }
 }
 
-/** A card leaves its tableau for the discard pile (or its owner's hand), triggering its leave effects. */
-function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' = 'discard') {
+/** A card whose stability ran out is swept back into its owner's deck, at a random place. */
+function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
+  log(state, `${owner.name}'s ${cardDef(card.defId).name} fades back into their deck.`);
+  leaveTableau(state, owner, card, 'deck');
+}
+
+/** A card leaves its tableau for the discard pile (or its owner's hand or deck), triggering its leave effects. */
+function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck' = 'discard') {
   owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
   card.growth = undefined;
-  (to === 'hand' ? owner.hand : owner.discard).push(card);
+  card.slot = undefined;
+  card.stability = undefined;
+  if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
+  else (to === 'hand' ? owner.hand : owner.discard).push(card);
   resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
   // Cards that answer another card leaving (Kyr'Vessa).
   for (const { card: watcher, passive } of passives(owner)) {
@@ -616,11 +719,18 @@ function startTurn(state: GameState) {
   }
   if (fieldActive(state, 'iceAge')) cool(state, p, 1);
 
-  // Your tableau's start-of-turn effects, oldest card first.
+  // Your tableau's start-of-turn effects, left to right.
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
     if (!p.tableau.includes(card)) continue;
     resolveEffects(state, p, card, cardDef(card.defId).onTurn, 'turn');
+  }
+  // Then every card loses 1 stability (unless anchored); at 0 it is swept back into your deck.
+  const fading = p.tableau.filter((c) => !anchored(p, c));
+  for (const card of fading) card.stability = (card.stability ?? 1) - 1;
+  for (const card of fading) {
+    if (state.winnerId || p.eliminated) break;
+    if (p.tableau.includes(card) && (card.stability ?? 0) <= 0) sweep(state, p, card);
   }
   p.playsLeft = playsAllowed(state, p);
   if (p.eliminated) passOn(state);
@@ -664,11 +774,11 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (foes.length > 0 && !foes.some((c) => c.uid === action.enemyUid)) {
     throw new GameError(`Choose a card in ${target?.name ?? 'your target'}'s tableau.`);
   }
-  const replacing = persists(def.id) && tableauFull(p);
-  const replaced = replacing ? p.tableau.find((c) => c.uid === action.replaceUid) : undefined;
-  if (replacing && !replaced) throw new GameError('Your tableau is full: choose a card to replace.');
-  const recalls = recallChoices(p, def.id, replaced?.uid);
-  if (recalls.length > 0 && !recalls.some((c) => c.uid === action.recallUid)) throw new GameError('Choose a card of yours to return to your hand.');
+  if (persists(def.id) && tableauFull(p)) throw new GameError('Your tableau is full: a card can only go in once one fades, or is recalled or removed.');
+  const free = freeSlots(p);
+  if (persists(def.id) && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
+  const allies = allyChoices(p, def.id);
+  if (allies.length > 0 && !allies.some((c) => c.uid === action.allyUid)) throw new GameError('Choose a card of yours.');
   const recovers = recoverChoices(p, def.id);
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
 
@@ -695,16 +805,6 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     p.lightspeed = card;
     return;
   }
-  // Where the card goes: into the replaced card's place, the chosen slot, or the far right.
-  // Remember the card that will sit to its right, since cards may leave before it lands.
-  let rightOf: CardInstance | undefined;
-  if (replaced) rightOf = p.tableau[p.tableau.indexOf(replaced) + 1];
-  else if (action.slot !== undefined) rightOf = p.tableau[Math.max(0, Math.min(p.tableau.length, Math.floor(action.slot)))];
-  if (replaced) {
-    log(state, `${cardDef(replaced.defId).name} makes way.`);
-    leaveTableau(state, p, replaced);
-    if (state.winnerId || p.eliminated) return;
-  }
   // Only one global card on the table: a new one sweeps the old away.
   if (def.kind === 'global') {
     const old = activeGlobal(state);
@@ -714,8 +814,14 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       if (state.winnerId || p.eliminated) return;
     }
   }
-  const at = rightOf && p.tableau.includes(rightOf) ? p.tableau.indexOf(rightOf) : p.tableau.length;
-  p.tableau.splice(at, 0, card);
+  // The chosen slot, or else the safest one free.
+  const open = freeSlots(p);
+  const slot = action.slot !== undefined && open.includes(action.slot) ? action.slot : slotsBySafety().find((i) => open.includes(i));
+  if (slot === undefined) {
+    p.discard.push(card);
+    return;
+  }
+  place(p, card, slot);
   resolveEffects(state, p, card, def.onPlay, 'play', action);
 }
 
