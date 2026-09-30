@@ -392,7 +392,7 @@ input { font: inherit; }
   background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 8px rgba(90, 90, 110, 0.12);
   font-family: var(--display);
 }
-.round-num small { font-size: clamp(0.42rem, calc(1.5 * var(--vh)), 0.56rem); letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); line-height: 1; }
+.round-num small { font-size: clamp(0.34rem, calc(1.2 * var(--vh)), 0.48rem); letter-spacing: 0.1em; padding-left: 0.1em; text-transform: uppercase; color: var(--ink-faint); line-height: 1; }
 .round-num b { font-size: clamp(1rem, calc(3.8 * var(--vh)), 1.5rem); font-weight: 700; color: #5b5f67; line-height: 1.1; }
 .round-box { gap: clamp(10px, calc(2 * var(--vw)), 16px); padding: 6px 20px 6px 7px; border-radius: 18px; }
 .round-box .round-num { min-width: clamp(46px, calc(11 * var(--vh)), 68px); }
@@ -718,6 +718,8 @@ input { font: inherit; }
 .inspector .card-big { --pw: min(280px, calc(62 * var(--vh))); }
 .inspector-actions { display: grid; gap: 10px; min-width: 150px; justify-items: stretch; text-align: center; }
 .menu-list { display: grid; gap: 8px; min-width: 240px; }
+/* Settings sheets: two columns, so the whole list fits a phone held sideways without scrolling. */
+.modal .menu-list { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
 .system-sheet { display: grid; gap: 8px; }
 .system-head { display: flex; gap: 14px; align-items: center; }
 .system-head p { margin: 0 0 4px; font-size: 0.82rem; }
@@ -970,7 +972,6 @@ input { font: inherit; }
 .card, .mini { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* Cards own their touches: iOS must not claim a press-and-hold (and cancel it) for its own gestures. */
 .game .card, .game .mini { touch-action: none; }
-.card-preview .card { background: linear-gradient(180deg, #ffffff, #f6f6f4); }
 
 /* ---------- "Your turn" banner ---------- */
 .turn-banner {
@@ -1159,7 +1160,7 @@ input { font: inherit; }
   z-index: 1;
   height: calc(100 * var(--vh));
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(230px, calc(28 * var(--vw)), 360px);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   gap: var(--gap);
   padding: var(--pad-t) var(--pad-r) var(--pad-b) var(--pad-l);
@@ -1300,7 +1301,17 @@ input { font: inherit; }
 .cmp-cam { position: absolute; left: 10px; bottom: 10px; display: grid; gap: 6px; z-index: 2; }
 .cmp-cam .icon-btn { width: 34px; height: 34px; font-size: 1rem; }
 
-.cmp-side { min-height: 0; overflow-y: auto; padding: 12px 14px 70px; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; }
+.cmp-side {
+  position: absolute; z-index: 3; right: calc(var(--pad-r) + 10px); top: calc(var(--pad-t) + 64px); bottom: calc(var(--pad-b) + 76px);
+  width: clamp(230px, calc(30 * var(--vw)), 340px); min-height: 0; overflow-y: auto;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; border-radius: 16px;
+  animation: rise 0.2s ease-out;
+}
+.cmp-float-hint {
+  position: absolute; z-index: 2; left: 50%; bottom: calc(var(--pad-b) + 16px); transform: translateX(-50%); margin: 0;
+  max-width: min(520px, calc(100% - 360px)); padding: 7px 14px; border-radius: 999px; text-align: center;
+  background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow); font-size: 0.74rem; color: var(--ink-soft); pointer-events: none;
+}
 .cmp-side .section-label { display: flex; justify-content: space-between; margin-top: 4px; }
 .cmp-end { position: absolute; right: calc(var(--pad-r) + 12px); bottom: calc(var(--pad-b) + 12px); z-index: 2; }
 .cmp-end .btn-primary { padding: 12px 22px; }
@@ -1379,9 +1390,9 @@ input { font: inherit; }
 .cmp-home-pick .orrery { max-height: 60px; }
 
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .cmp { grid-template-columns: minmax(0, 1fr) clamp(210px, calc(32 * var(--vw)), 300px); }
   .cmp-name { font-size: 16px; }
-  .cmp-side { font-size: 0.74rem; padding: 10px 10px 64px; }
+  .cmp-side { font-size: 0.74rem; padding: 10px; top: calc(var(--pad-t) + 50px); bottom: calc(var(--pad-b) + 62px); }
+  .cmp-float-hint { font-size: 0.64rem; padding: 5px 12px; bottom: calc(var(--pad-b) + 12px); }
   .cmp-nav .pill-btn { padding: 5px 8px; font-size: 0.5rem; }
   .cmp-purse { font-size: 0.66rem; }
   .cmp-held { display: none; }
@@ -1594,7 +1605,7 @@ body.screen-campaign .backdrop { display: none; }
 
 /* Menu button: a centred three-bar icon, sized to the button. */
 .menu-icon { width: 55%; height: 55%; display: block; }
-.menu-icon path { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; }
+.menu-icon path, .menu-icon circle { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
 .hud .icon-btn, .cmp-nav .icon-btn { width: clamp(36px, calc(8 * var(--vh)), 44px); height: clamp(36px, calc(8 * var(--vh)), 44px); }
 
 /* ---------- Table layout, round 2 ---------- */
@@ -2215,7 +2226,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .log-pop .log-list .log-key { color: var(--ink); font-weight: 600; }
 .log-pop .log-list .log-now { color: var(--ink); }
 .log-pop-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.log-icon { width: 52%; height: 52%; display: block; }
+.log-icon { width: 50%; height: 50%; display: block; }
 .log-icon path { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; }
 .vitals.fx-hot, .vitals.fx-cold, .vitals.fx-shield { animation: none; }
 .hud-players .rival .rival-emblem { width: clamp(22px, calc(5.2 * var(--vh)), 32px); height: auto; margin: 2px; }
@@ -2353,3 +2364,22 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
   .online-box p { display: none; }
   .online-wrap { gap: 8px; }
 }
+
+/* Cards in hand: a little card fan, sized to the text around it. */
+.hand-icon { width: 1.15em; height: 1em; vertical-align: -0.12em; margin-right: 1px; }
+.hand-icon rect { fill: rgba(255, 255, 255, 0.9); stroke: currentColor; stroke-width: 1.1; }
+
+/* Solar Flare, Thermosiphon and Cooling Chamber: three standalone pills on the board, no tray behind them;
+   the round art on the left, the power and name in the middle, the upgrade notches on the right. */
+.dock .command { background: none; border: 0; box-shadow: none; padding: 0; }
+.dock .rail { gap: clamp(3px, calc(1 * var(--vh)), 6px); }
+.action-chip { border-radius: 999px; padding: 2px 10px 2px 2px; box-shadow: var(--shadow); }
+.action-chip .chip-art { border-radius: 50%; }
+.action-chip .chip-body { flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
+.action-chip .chip-label { position: static; display: block; font-family: var(--display); font-size: clamp(0.34rem, calc(1.2 * var(--vh)), 0.42rem); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.action-chip .chip-pips { justify-self: end; }
+@media (orientation: landscape) and (max-height: 420px) { .action-chip .chip-label { display: none; } }
+/* The magnified card: its picture sits lower (wider side margins), and the badges stay jewel-sized. */
+.card-big .card-stats { top: calc(var(--cw) * 0.415); left: 6%; right: 6%; }
+.card-big .card-stats b { min-width: calc(var(--cw) * 0.17); height: calc(var(--cw) * 0.11); font-size: calc(var(--cw) * 0.068); }
+.card-big .resonance { top: calc(var(--cw) * 0.1); right: calc(var(--cw) * 0.1); min-width: calc(var(--cw) * 0.13); height: calc(var(--cw) * 0.13); font-size: calc(var(--cw) * 0.07); }

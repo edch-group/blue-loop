@@ -152,9 +152,9 @@ export function actionChip(opts: { action: CoreAction; upgrades: number; power: 
       <span class="chip-art ${meta.art}"></span>
       <span class="chip-body">
         <span class="chip-power">${p.icon}${power}</span>
-        <span class="chip-pips">${pips}</span>
+        <span class="chip-label">${meta.label}</span>
       </span>
-      <span class="chip-label">${meta.label}</span>
+      <span class="chip-pips" aria-label="${upgrades} of ${max} upgrades">${pips}</span>
     </button>`;
 }
 

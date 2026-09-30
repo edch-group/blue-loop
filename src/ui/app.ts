@@ -46,7 +46,7 @@ import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
-import { MENU_ICON } from './menu-icon';
+import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
@@ -100,7 +100,7 @@ type Sheet =
   | { kind: 'player'; playerId: string }
   | { kind: 'upgrade'; action: CoreAction }
   /** Tap-to-inspect on touch screens: a readable card with its action. */
-  | { kind: 'card'; defId: string; uid?: string };
+  | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string };
 
 const SPEED_KEY = 'blue-loop:ai-speed';
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
@@ -112,7 +112,10 @@ const LONG_PRESS_MS = 450;
 const KEY_LOG = /heats to|SUPERNOVA|upgrades|wins|shields absorb|instability|destroys|stings|replaces|Lightspeed|cancelled|returns|recovers|shuffles/;
 const HOT = '#f0a07a';
 /** The log button: lines of text in a page. */
-const LOG_ICON = '<svg class="log-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6z"/><path d="M9 9h6M9 12.5h6M9 16h4"/></svg>';
+/** Cards in hand: a small fan of three cards. */
+const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
+/** Clicks that make their own sound (or none): moves on the table and picks on the map. */
+const QUIET_ACTS = new Set(['play', 'end-turn', 'upgrade', 'choose-enemy', 'choose-ally', 'choose-recover', 'choose-slot', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
 
 /** A number that pops out of a sun and rises away: heat taken, cooling, shields. Outside the re-rendered root. */
 function floatNumber(at: DOMRect, text: string, tone: 'hot' | 'cool' | 'block', row: number) {
@@ -177,6 +180,7 @@ export class App {
       this.campaignBattle = true;
       this.begin(game);
     },
+    settingsButtons: () => this.settingsButtons(),
     toMenu: () => {
       this.campaignBattle = false;
       this.screen = 'menu';
@@ -418,9 +422,9 @@ export class App {
   }
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
-  private showBanner(text: string, sub: string, delay = 0) {
+  private showBanner(text: string, sub: string, delay = 0, screen: Screen = 'game') {
     window.setTimeout(() => {
-      if (this.screen !== 'game') return; // left the table before it showed
+      if (this.screen !== screen) return; // left the screen before it showed
       document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
       const el = document.createElement('div');
       el.className = `turn-banner ${text.length > 12 ? 'turn-banner-long' : ''}`;
@@ -957,27 +961,36 @@ export class App {
 
   private peekHeld = false;
 
+  /**
+   * Whether an overlay is up that the player must answer mid-move (choosing an
+   * upgrade, or a card to recover): only then can they look past it at the board.
+   * Sheets they open and close at will just get closed instead.
+   */
+  private canPeek(): boolean {
+    return this.screen === 'game' && !!this.pending && !this.sheet && !!this.root.querySelector('.overlay');
+  }
+
   private setPeek(on: boolean) {
-    this.peeking = on && !!this.root.querySelector('.overlay');
+    this.peeking = on && this.canPeek();
     document.body.classList.toggle('peeking', this.peeking);
     this.syncPeek();
   }
 
-  /** Show the view-board toggle whenever an overlay is up; drop peeking once none is. */
+  /** Show the view-board toggle while a mid-move choice is up; drop peeking once it is gone. */
   private syncPeek() {
-    const open = !!this.root.querySelector('.overlay');
+    const open = this.canPeek();
     if (!open && this.peeking) {
       this.peeking = false;
       document.body.classList.remove('peeking');
     }
-    this.peekBtn.classList.toggle('show', open && this.screen === 'game');
+    this.peekBtn.classList.toggle('show', open);
     this.peekBtn.innerHTML = this.peeking ? '<span>◉</span> back' : '<span>◎</span> view board';
     this.peekBtn.title = this.peeking ? 'Bring the overlay back' : 'Hide this overlay to look at the board (or hold Space)';
   }
 
   private onKey(e: KeyboardEvent) {
     // Hold Space to look at the board behind an overlay.
-    if (e.code === 'Space' && !e.repeat && this.root.querySelector('.overlay') && !(e.target as HTMLElement).closest?.('input, textarea')) {
+    if (e.code === 'Space' && !e.repeat && this.canPeek() && !(e.target as HTMLElement).closest?.('input, textarea')) {
       e.preventDefault();
       this.peekHeld = true;
       this.setPeek(true);
@@ -1038,7 +1051,7 @@ export class App {
 
   /** Large, readable copy of a card at the middle right of the screen while held. */
   private showPeek(el: HTMLElement) {
-    this.preview.innerHTML = this.bigCard(el.dataset.card!, el.dataset.growth ? Number(el.dataset.growth) : undefined);
+    this.preview.innerHTML = this.bigCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
     const page = appSize();
     const h = Math.min(420, page.h - 24) * 0.7;
     const w = h * 0.714;
@@ -1059,6 +1072,8 @@ export class App {
     const act = el.dataset.act!;
     const arg = el.dataset.arg ?? '';
     const s = this.state;
+    // Buttons tick; moves on the table (and map selections) have sounds of their own.
+    if (!QUIET_ACTS.has(act) && !el.classList.contains('overlay') && !el.classList.contains('cmp-stage')) sound.click();
     if (act.startsWith('cmp-') && this.campaign.onClick(act, arg, el)) return;
     if (act.startsWith('db-') && this.builder.onClick(act, arg)) return;
 
@@ -1115,10 +1130,13 @@ export class App {
       case 'campaign-new':
         this.campaign.openSetup();
         this.screen = 'campaign';
-        return this.render();
+        this.render();
+        return this.showBanner('campaign', 'a new galaxy', 120, 'campaign');
       case 'campaign-continue':
-        if (this.campaign.resume()) this.screen = 'campaign';
-        return this.render();
+        if (!this.campaign.resume()) return this.render();
+        this.screen = 'campaign';
+        this.render();
+        return this.showBanner('campaign', this.campaign.turnLine(), 120, 'campaign');
       case 'campaign-return':
         return this.returnToCampaign(false);
       case 'campaign-auto':
@@ -1182,16 +1200,8 @@ export class App {
     }
 
     if (!s) return;
-    if (act === 'focus') {
-      // A rival's pill: make them your target (on your turn) and bring their tableau across the table.
-      this.viewRivalId = arg;
-      const me = activePlayer(s);
-      if (this.canAct() && !this.pending && targetOf(s, me)?.id !== arg) return this.dispatch({ type: 'setTarget', targetId: arg });
-      sound.hover();
-      return this.render();
-    }
     if (act === 'inspect' && !el.closest('.sheet') && el.dataset.card) {
-      this.sheet = { kind: 'card', defId: el.dataset.card, uid: el.dataset.hand };
+      this.sheet = { kind: 'card', defId: el.dataset.card, uid: el.dataset.hand, table: el.closest('.tableau') ? el.dataset.uid : undefined };
       sound.hover();
       return this.render();
     }
@@ -1512,11 +1522,11 @@ export class App {
         const title = mine ? `${p.name} (you)` : p.name;
         return `
         <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''} ${!mine && shown?.id === p.id ? 'rival-shown' : ''}"
-          data-act="${mine ? 'view-player' : 'focus'}" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(title)}">
+          data-act="view-player" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(title)}">
           ${factionAvatar(`f${p.species + 1}`, 'rival-emblem')}
           <div class="rival-info">
             <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}</span>
-            <span class="rival-stats"><em>${p.eliminated ? 'supernova' : `✋${p.hand.length} · ▤${p.deck.length}${p.lightspeed ? ' · <i class="ls-pip" title="A Lightspeed card is set face down">⚡</i>' : ''}`}</em></span>
+            <span class="rival-stats"><em>${p.eliminated ? 'supernova' : `${HAND_ICON}${p.hand.length} · ▤${p.deck.length}${p.lightspeed ? ' · <i class="ls-pip" title="A Lightspeed card is set face down">⚡</i>' : ''}`}</em></span>
           </div>
         </button>`;
       })
@@ -1547,7 +1557,7 @@ export class App {
           ${this.online && this.net.status === 'lost' ? '<button class="pill-btn net-pill" data-act="online-retry">connection lost · retry</button>' : ''}
           ${this.campaignBattle && !isGameOver(s) ? '<button class="pill-btn" data-act="campaign-auto" title="Let your commanders finish this battle">auto-resolve</button>' : ''}
           <button class="icon-btn ${this.sheet?.kind === 'log' ? 'icon-on' : ''}" data-act="${this.sheet?.kind === 'log' ? 'cancel' : 'open-log'}" aria-label="Game log" title="Game log">${LOG_ICON}</button>
-          <button class="icon-btn" data-act="open-menu" aria-label="Menu">${MENU_ICON}</button>
+          <button class="icon-btn" data-act="open-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
         </div>
       </div>`;
   }
@@ -1639,10 +1649,12 @@ export class App {
       line('fc-self', f.selfHeat, 'heat to own sun', 'Drawbacks, regional instability and the table heating their own sun'),
       line('fc-draw', f.draw, `extra card${f.draw === 1 ? '' : 's'}`, 'Extra cards they draw'),
     ].join('');
+    // An empty tableau has nothing to forecast: show nothing rather than an empty box.
+    if (!lines) return '';
     return `
       <div class="forecast ${p.id === me.id ? 'forecast-mine' : ''}">
         <div class="fc-head">${p.id === me.id ? 'your' : 'their'} start of turn</div>
-        ${lines || '<div class="fc fc-none">nothing yet</div>'}
+        ${lines}
       </div>`;
   }
 
@@ -1724,13 +1736,25 @@ export class App {
       </button>`;
   }
 
-  /** The magnified card, used by the hover preview and the inspector. */
-  private bigCard(defId: string, growth?: number): string {
+  /**
+   * The magnified card, used by the hover preview and the inspector: the same
+   * card stock, gem and badges as the card itself, and, for a card in play
+   * (`uid`), its live growth, resonance, defence and stability.
+   */
+  private bigCard(defId: string, uid?: string): string {
     const def = cardDef(defId);
+    const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
+    const c = owner?.tableau.find((x) => x.uid === uid);
+    const boost = owner && c && boostable(c.defId) ? resonanceBonus(owner, c) : 0;
+    const stats =
+      owner && c
+        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">◷${c.stability ?? 0}</b></span>`
+        : stabilityBadge(def);
+    const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
-      <div class="card card-big kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
+      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArt(def, true)}</div>
-        ${growth ? `<span class="growth">${growth}</span>` : ''}${stabilityBadge(def)}
+        ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${boost ? `<span class="resonance">+${boost}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
         <div class="card-kind">${typeLine(def)}</div>
@@ -1764,6 +1788,14 @@ export class App {
       </div>`;
   }
 
+  /** Sound, music and AI speed: in the battle's settings sheet and the campaign's. */
+  private settingsButtons(): string {
+    return `
+      <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
+      <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
+      <button class="btn" data-act="speed">ai speed: ${this.speed}</button>`;
+  }
+
   private renderSheet(): string {
     const sh = this.sheet!;
     const s = this.state;
@@ -1772,11 +1804,9 @@ export class App {
         return this.sheetFrame('how to play', this.rulesHtml());
       case 'menu':
         return this.sheetFrame(
-          `round ${s?.round ?? ''}`,
+          `settings · round ${s?.round ?? ''}`,
           `<div class="menu-list">
-            <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
-            <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
-            <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
+            ${this.settingsButtons()}
             <button class="btn" data-act="view-player" data-arg="">players</button>
             <button class="btn" data-act="open-log">game log</button>
             <button class="btn" data-act="rules">how to play</button>
@@ -1815,7 +1845,7 @@ export class App {
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
-              ${this.bigCard(sh.defId)}
+              ${this.bigCard(sh.defId, sh.table)}
               <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
             </div>
           </div>`;
@@ -1855,7 +1885,7 @@ export class App {
             ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A Lightspeed card is set face down.'}</p>` : ''}
             ${p.conditions?.length ? `<div class="sys-conditions">${p.conditions.map((c) => `<div><b>${esc(c.name.toLowerCase())}</b>${esc(c.text)}</div>`).join('')}</div>` : ''}
             <div class="sys-stats">
-              <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⛨ ${p.shields}</span><span>✋ ${p.hand.length} in hand</span><span>▤ ${p.deck.length} in deck</span><span>${p.discard.length} discarded</span><span>${p.tableau.length}/${BALANCE.tableauSlots} in play</span>
+              <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⛨ ${p.shields}</span><span>${HAND_ICON} ${p.hand.length} in hand</span><span>▤ ${p.deck.length} in deck</span><span>${p.discard.length} discarded</span><span>${p.tableau.length}/${BALANCE.tableauSlots} in play</span>
             </div>
             <button class="modal-cancel" data-act="cancel">close</button>
           </div>

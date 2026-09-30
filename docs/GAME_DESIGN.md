@@ -284,7 +284,8 @@ Two players, each on their own device. From **Quickplay → play online**, one p
 The whole play area is a table seen in perspective, like a tabletop simulator. A flat HUD sits above it:
 - **Top left:** player pills, in a column: race emblem, name, cards in hand and deck, and ⚡ if a Lightspeed card is set. The active player glows green.
 - **Top centre:** the round and regional stability.
-- **Top right:** the global card, skip, the **log** button (the log opens as a popover under it) and the menu.
+- **Top right:** the global card, skip, the **log** button (the log opens as a popover under it) and the **settings** wheel.
+- Tap either player's pill for the players sheet. Closable sheets (settings, log, players, cards) have no "view board" button: that only appears mid-move, while an upgrade or card choice waits for an answer (or hold Space). [design review]
 
 On the table:
 - **Suns, large, beside their tableaus.** Your rival's sun is left of their row, and yours is left of yours. Each shows:
@@ -325,7 +326,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 **The map.**
 - 48 systems in loose clusters, linked by routes that never cross, on a tilted 3D plane that you can pan and zoom.
 - The map is wide (3500 × 2250) so systems sit well apart. Stars are small, sharp points with only a tight glow, so the map stays readable.
-- Tap the turn box (top left) to open the **overview**: every faction's systems held, their share of the map, and the win condition. The side panel only holds hints, missions and the log.
+- Tap the turn box (top left) to open the **overview**: every faction's systems held, their share of the map, and the win condition. The map fills the screen: a system's details float in a panel only while it is selected, missions and the log sit behind their buttons, and the settings wheel opens sound, music, AI speed and the way back to the main menu. Entering the campaign flashes a "campaign" banner. [design review]
 - Factions start in the corners. Neutral systems are held by sentinels, which get stronger towards the middle of the map.
 - Outer sentinels start their battles with hotter suns (+5 heat at tier 1, +2 at tier 2), so early expansion is easier. [proposed]
 

@@ -93,6 +93,8 @@ export interface CampaignHost {
   /** Play a campaign battle on the battle screen. */
   playBattle(game: GameState): void;
   toMenu(): void;
+  /** The shared settings buttons (sound, music, AI speed), for the campaign's settings sheet. */
+  settingsButtons(): string;
 }
 
 type Sheet =
@@ -103,6 +105,7 @@ type Sheet =
   | { kind: 'station'; nodeId: string }
   | { kind: 'attack'; fromId: string; toId: string }
   | { kind: 'help' }
+  | { kind: 'settings' }
   /** The game overview: every faction, its systems and its share of the universe. */
   | { kind: 'overview' };
 
@@ -125,6 +128,11 @@ export class CampaignView {
   openSetup() {
     this.state = null;
     this.sheet = null;
+  }
+
+  /** "turn 12 of 60", for the banner on entering the campaign. */
+  turnLine(): string {
+    return this.state ? `turn ${this.state.turn} of ${CAMPAIGN.turnLimit}` : '';
   }
 
   resume(): boolean {
@@ -297,6 +305,10 @@ export class CampaignView {
         }
         break;
       case 'cmp-menu':
+        this.sheet = { kind: 'settings' };
+        break;
+      case 'cmp-exit':
+        this.sheet = null;
         this.host.toMenu();
         return true;
       case 'cmp-abandon':
@@ -345,13 +357,18 @@ export class CampaignView {
             <button class="pill-btn" data-act="cmp-sheet" data-arg="missions">missions</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="log">log</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="help">?</button>
-            <button class="icon-btn" data-act="cmp-menu" aria-label="Menu">${MENU_ICON}</button>
+            <button class="icon-btn" data-act="cmp-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
           </nav>
         </header>
         <section class="cmp-map">${this.renderMap()}</section>
-        <aside class="cmp-side glass">${
-          this.selected ? this.renderNode(nodeById(s, this.selected)) : this.anomaly ? this.renderAnomaly((s.anomalies ?? []).find((a) => a.id === this.anomaly)!) : this.renderOverview()
-        }</aside>
+        ${
+          // A system's (or anomaly's) details float over the map only while it is selected; missions and the log are behind their buttons.
+          this.selected
+            ? `<aside class="cmp-side glass">${this.renderNode(nodeById(s, this.selected))}</aside>`
+            : this.anomaly
+              ? `<aside class="cmp-side glass">${this.renderAnomaly((s.anomalies ?? []).find((a) => a.id === this.anomaly)!)}</aside>`
+              : `<p class="cmp-float-hint">${this.hint()}</p>`
+        }
         <div class="cmp-end">
           <button class="btn-primary" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
         </div>
@@ -688,21 +705,11 @@ export class CampaignView {
     this.applyCamera(false);
   }
 
-  private renderOverview(): string {
+  private hint(): string {
     const s = this.state!;
     const me = campaignPlayer(s);
-    const missions = me.missions.map((m) => this.missionRow(m.id, missionProgress(s, me, m))).join('');
-    const log = s.log
-      .slice(-8)
-      .map((l) => `<div>${esc(l.text)}</div>`)
-      .join('');
     const canAttack = !me.attacked && s.phase === 'player' && attackOptions(s, me.id).length > 0;
-    return `
-      <p class="cmp-hint">${canAttack ? 'Tap a system with a dashed ring to attack it (one attack per turn). Tap one of yours to manage it.' : me.attacked ? 'You have attacked this turn. Manage your systems, then end the turn.' : 'Manage your systems, then end the turn.'}</p>
-      <div class="section-label">missions</div>
-      <div class="cmp-missions">${missions}</div>
-      <div class="section-label">log</div>
-      <div class="cmp-log">${log}</div>`;
+    return canAttack ? 'Tap a system with a dashed ring to attack it (one attack per turn), or one of yours to manage it.' : me.attacked ? 'You have attacked this turn. Manage your systems, then end the turn.' : 'Manage your systems, then end the turn.';
   }
 
   private missionRow(id: string, progress: number): string {
@@ -872,6 +879,17 @@ export class CampaignView {
           true,
         );
       }
+      case 'settings':
+        return this.modal(
+          `settings · turn ${s.turn}`,
+          `<div class="menu-list">
+            ${this.host.settingsButtons()}
+            <button class="btn" data-act="cmp-sheet" data-arg="help">how the campaign works</button>
+            <button class="btn" data-act="cmp-exit">main menu</button>
+          </div>
+          <p class="muted center-text">Your campaign is saved; continue it from the main menu.</p>`,
+          true,
+        );
       case 'help':
         return this.modal(
           'how the campaign works',
