@@ -387,7 +387,9 @@ export class CampaignView {
             ? `<aside class="cmp-side glass">${this.renderNode(nodeById(s, this.selected))}</aside>`
             : this.anomaly
               ? `<aside class="cmp-side glass">${this.renderAnomaly((s.anomalies ?? []).find((a) => a.id === this.anomaly)!)}</aside>`
-              : `${leaving ? `<aside class="cmp-side glass cmp-side-out" aria-hidden="true">${this.renderNode(leaving)}</aside>` : ''}<p class="cmp-float-hint">${this.hint()}</p>`
+              : leaving
+                ? `<aside class="cmp-side glass cmp-side-out" aria-hidden="true">${this.renderNode(leaving)}</aside>`
+                : ''
         }
         <div class="cmp-end">
           <button class="btn-primary" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
@@ -777,13 +779,6 @@ export class CampaignView {
     this.view.zoom *= Math.exp(-e.deltaY * 0.0015);
     this.clampView();
     this.applyCamera(false);
-  }
-
-  private hint(): string {
-    const s = this.state!;
-    const me = campaignPlayer(s);
-    const canAttack = !me.attacked && s.phase === 'player' && attackOptions(s, me.id).length > 0;
-    return canAttack ? 'Tap a system with a dashed ring to attack it (one attack per turn), or one of yours to manage it.' : me.attacked ? 'You have attacked this turn. Manage your systems, then end the turn.' : 'Manage your systems, then end the turn.';
   }
 
   private missionRow(id: string, progress: number): string {

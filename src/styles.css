@@ -1310,11 +1310,6 @@ input { font: inherit; }
   padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; border-radius: 16px;
   animation: rise 0.2s ease-out;
 }
-.cmp-float-hint {
-  position: absolute; z-index: 2; left: 50%; bottom: calc(var(--pad-b) + 16px); transform: translateX(-50%); margin: 0;
-  max-width: min(520px, calc(100% - 360px)); padding: 7px 14px; border-radius: 999px; text-align: center;
-  background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow); font-size: 0.74rem; color: var(--ink-soft); pointer-events: none;
-}
 .cmp-side .section-label { display: flex; justify-content: space-between; margin-top: 4px; }
 .cmp-end { position: absolute; right: calc(var(--pad-r) + 12px); bottom: calc(var(--pad-b) + 12px); z-index: 2; }
 .cmp-end .btn-primary { padding: 12px 22px; }
@@ -1395,8 +1390,7 @@ input { font: inherit; }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .cmp-name { font-size: 16px; }
   .cmp-side { font-size: 0.74rem; padding: 10px; top: calc(var(--pad-t) + 50px); bottom: calc(var(--pad-b) + 62px); }
-  .cmp-float-hint { font-size: 0.64rem; padding: 5px 12px; bottom: calc(var(--pad-b) + 12px); }
-  .cmp-nav .pill-btn { padding: 5px 8px; font-size: 0.5rem; }
+    .cmp-nav .pill-btn { padding: 5px 8px; font-size: 0.5rem; }
   .cmp-purse { font-size: 0.66rem; }
   .cmp-held { display: none; }
   .cmp-card { --hh: 124px; --hw: 88px; --cw: 88px; }
