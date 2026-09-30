@@ -49,7 +49,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
     const scale = conditionMet(p, e.if) ? 1 : 0.4;
     switch (e.type) {
       case 'heat':
-        perTurn += scale * (Math.max(effectAmount(state, p, card, e, 'turn'), e.plus?.of === 'growth' ? 2 : 0) * (e.to === 'enemies' ? foes * 0.85 : 1) + (e.splash ?? 0) * (foes - 1) * 0.85);
+        perTurn += scale * Math.max(effectAmount(state, p, card, e, 'turn'), e.plus?.of === 'growth' ? 2 : 0);
         break;
       case 'cool':
         perTurn += scale * effectAmount(state, p, card, e, 'turn') * (p.heat > 0 ? 0.9 : 0.35);

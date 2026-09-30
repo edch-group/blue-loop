@@ -11,7 +11,7 @@ was replaced by this design in design review.
 
 ## The goal
 
-- 2–4 players. Every sun starts at **0** heat with **24** max health. Reaching max health makes your sun go supernova, and you are out. The last sun standing wins. [proposed numbers]
+- **1v1**: two players, always. Every sun starts at **0** heat with **24** max health. Reaching max health makes your sun go supernova, and your rival wins. [proposed numbers; design review: 1v1 across the board]
 - Cooling can take a sun down to **-5**. [proposed]
 
 ## Decks
@@ -32,7 +32,7 @@ was replaced by this design in design review.
 2. **Play cards.** You may play **1 card on your first turn and 2 on every turn after that**. Hive Relay adds 1. [design review: draw 1 a turn; proposed: cap of 2]
 3. **End turn.** Unplayed cards stay in your hand. [proposed]
 
-**Second seat head start** [proposed]: in 2-player games, the second player starts with a sun 1 cooler. With fewer plays and draws, the old head start (2 cooler, 1 extra card, 1 extra play) let the second seat win 68%. The smaller one makes seats even (48/52). In 3–4 player games there is no head start: everyone else gangs up on the leader anyway.
+**Second seat head start** [proposed]: the second player starts with 1 extra card. The old head start (2 cooler, 1 extra card, 1 extra play) let the second seat win 68%; a sun 1 cooler was still worth too much with the current decks. With 1 extra card, seats are 46/54.
 
 **An empty deck** is refilled by shuffling your discard pile back in, so destroyed and cancelled cards come round again. (Cards that fade go straight back into the deck.) Each reshuffle heats your sun by 2 (unblockable). Only with both deck and discard pile empty does each card you should have drawn heat your sun by 2 instead. [design review: cards are discarded for reuse; proposed: 2 heat]
 
@@ -70,14 +70,13 @@ was replaced by this design in design review.
   - **Passive**: works while the card is in play.
 
   A few cards also do something **when they leave** your tableau (faded, destroyed or returned to hand), or **when you recover them** from your discard pile. [design review]
-- Every player's tableau is visible. On the board, your target's tableau lies across the table and yours is on the near side. Tap a rival's pill (top left) to target them and bring their tableau across. [design review: players need to see each other's tableaus]
-- Only **one global card** can be in play on the whole table. A new one sweeps the old one away. Global effects apply to everyone equally. [design review: globals are symmetric]
+- Both tableaus are visible: your rival's lies across the table and yours is on the near side. [design review: players need to see each other's tableaus]
+- Only **one global card** can be in play on the whole table. A new one sweeps the old one away. Global effects apply to both players equally. [design review: globals are symmetric]
 
-## Targets and shields
+## Attacks and shields
 
-- **Your target** is the rival your attacks hit. Tap a rival to choose. It defaults to the next rival round the table, and moves on if they are knocked out. [proposed]
-- **Shields** absorb enemy heat point for point. They fade at the start of your turn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields. [proposed]
-- A few cards splash: they hit your target in full and every other enemy for 1. In 2-player games that is the same as hitting your target. [proposed, for multiplayer balance]
+- Your attacks heat your rival's sun. [design review: 1v1 only, so there is no choosing a target and no splash damage]
+- **Shields** absorb your rival's heat point for point. They fade at the start of your turn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields. [proposed]
 
 ## Command cards
 
@@ -124,7 +123,7 @@ Some cards count their own neighbours instead:
 ## Recovery, recall and removal [design review]
 
 - **Recover** (from your discard pile to your hand): Salvage Drone (any card), Xel'Naru Reliquarist (an attack card, then draw 1), Regrowth Pod (a growth card, and cool 1).
-- **On recovery**, some cards fire an effect: Ember Shard heats every enemy by 1; Spore Husk draws 2.
+- **On recovery**, some cards fire an effect: Ember Shard heats your rival by 1; Spore Husk draws 2.
 - **Recall** (from your tableau to your hand, triggering its leave effects, to play it again): Phase Shift, which also gives you 1 extra play this turn.
 - **Removal** of cards in your target's tableau:
   - Ion Cannon destroys a card.
@@ -190,9 +189,9 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 | Race | Theme | Its cards |
 | --- | --- | --- |
 | Aureline | Lancers: many attack cards, each making the others hit harder | Aureline Lancer, Focusing Array (other attack cards +1 at start of turn; copies don't stack), Chorus of Dawn (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Warden, Sun-Priest (cools with your attack cards), Aurelia (heat that grows with your attack cards), War-Herald (heat per Command card in play), Sunforge (resonance for attack cards) |
-| Xel'Naru | Overload: splash every enemy, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm, Overload Core (harder while overheated), Xel'Naru Martyr (burst when it leaves play), Prism Vent, Fracture Seer, Champion (harder while overheated), Kyr'Vessa (strikes whenever another of your cards leaves play), Ember Shard (burst when recovered), Reliquarist (recovers an attack card), Prism Conduit (cools with neighbouring attack cards) |
+| Xel'Naru | Overload: big bursts of heat, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm (3 heat, or 4 while you are overheated), Overload Core (harder while overheated), Xel'Naru Martyr (burst when it leaves play), Prism Vent, Fracture Seer, Champion (harder while overheated), Kyr'Vessa (strikes whenever another of your cards leaves play), Ember Shard (burst when recovered), Reliquarist (recovers an attack card), Prism Conduit (cools with neighbouring attack cards) |
 | Vorthane | Tides: build shields, keep them, and sting attackers | Bellwarden, Stinging Veil (once per attacking card each turn), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Vorthanian Commoners, Hero of Rathune (shields from your defence cards), Ommarath (cools your sun when your shields absorb a hit), Tide Pylon (shields from neighbouring defence cards), Riptide Ambushers (Lightspeed: turn aside a big hit) |
-| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each turn), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and splash once you're wide), Regrowth Pod (recovers a growth card), Spore Husk (draws when recovered) |
+| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each turn), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and hits harder once you're wide), Regrowth Pod (recovers a growth card), Spore Husk (draws when recovered) |
 
 **Neutral cards:**
 - Coronal Lance, Plasma Relay, Gravity Sling, Thermal Exchange, Solar Battery, Coolant Array, Cryo Vault, Deflector Grid, Heat Sink and Deep-Space Scanners.
@@ -207,7 +206,7 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 ## Balance (AI simulations)
 
-`npm run simulate -- [games] [players]` plays AI-versus-AI games with the four starter decks.
+`npm run simulate -- [games]` plays AI-versus-AI 1v1 games with the four starter decks.
 
 **The starter decks** were rebuilt so every race plays with the newer mechanics. [design review: in play, the old starters never used them]
 
@@ -218,7 +217,7 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 | Abyssal Tide | Wardens flanked by Tide Pylons and a Bulwark, the Aegis Monolith guarding the middle; Undertow to erode rival cards back into their decks; Riptide Ambushers |
 | Hive Bloom | Going wide and staying there with Hive Rooting and Stasis Field; a Resonance Lattice; husks and pods recovered from the discard pile; Entropy Pulse |
 
-How often the newer mechanics come up in an AI game (per game, 2 players), before and after the rebuild:
+How often the newer mechanics come up in an AI game (per game), before and after the rebuild:
 
 | Mechanic | Old starters | New starters |
 | --- | --- | --- |
@@ -230,21 +229,16 @@ How often the newer mechanics come up in an AI game (per game, 2 players), befor
 
 Recovery stays rare because cards that fade go back into the deck, not the discard pile, so the discard pile holds only destroyed and cancelled cards. [open question]
 
-**2 players** (1000 games). Deck win rates are 40–55%. The worst match-up is about 68/32: Overload over Bloom. Games last about 10–11 rounds.
-- **Seats:** 45/55. The second seat now starts with 1 extra card instead of a cooler sun; the cooler sun was worth too much with these decks.
+**1000 games.** Deck win rates are 39–57%. The worst match-up is about 70/30: Overload over Bloom. Games last about 10–11 rounds. Converting the splash and every-enemy cards to plain target heat for 1v1 barely moved the numbers.
+- **Seats:** 46/54. The second seat now starts with 1 extra card instead of a cooler sun; the cooler sun was worth too much with these decks.
 - **Hive Bloom:** its first draft won 81%. It had three Sporecasters (a card every turn each, when everyone else draws one), two Mycelium Towers and a Frost Snare, which cancels defence cards and so shut down Tide. It now has one Sporecaster and one Tower, and no Frost Snare.
 
 | Row beats column | Lancers | Overload | Tide | Bloom |
 | --- | --- | --- | --- | --- |
-| Solar Lancers | – | 51% | 57% | 59% |
-| Shard Overload | 49% | – | 62% | 68% |
-| Abyssal Tide | 43% | 38% | – | 39% |
-| Hive Bloom | 41% | 32% | 61% | – |
-
-**3–4 players.**
-- Hive Bloom does best: 44% in 3-player games (fair 33%) and 41% in 4-player games (fair 25%). Swapping out its Spore Cloud barely changes that.
-- Solar Lancers does worst in 4-player games (13%).
-- The AI attacks the rival on its left, but switches to finish off a sun near supernova or to rein in a clear leader.
+| Solar Lancers | – | 50% | 57% | 60% |
+| Shard Overload | 50% | – | 64% | 70% |
+| Abyssal Tide | 43% | 36% | – | 39% |
+| Hive Bloom | 40% | 30% | 61% | – |
 
 `npm run simulate` also prints how often each mechanic comes up per game.
 
@@ -288,25 +282,24 @@ Two players, each on their own device. From **Quickplay → play online**, one p
 ## The battle table
 
 The whole play area is a table seen in perspective, like a tabletop simulator. A flat HUD sits above it:
-- **Top left:** player pills, in a column: race emblem, name, cards in hand and deck, and ⚡ if a Lightspeed card is set. The active player glows green, and your target has a crosshair. Tap a rival to target them and bring their tableau across.
+- **Top left:** player pills, in a column: race emblem, name, cards in hand and deck, and ⚡ if a Lightspeed card is set. The active player glows green.
 - **Top centre:** the round and regional stability.
 - **Top right:** the global card, skip, the **log** button (the log opens as a popover under it) and the menu.
-- **Under the top right, in 3–4 player games:** an overview of every rival not on the table. Each shows their sun (heat and shields), their five slots as thumbnails, who they target, and the heat their next start of turn will deal. Tap one to bring that rival across the table; the one who was there moves into the overview, so every player is always in view. [design review]
 
 On the table:
-- **Suns, large, beside their tableaus.** Your target's sun is left of their row, and yours is left of yours. Each shows:
+- **Suns, large, beside their tableaus.** Your rival's sun is left of their row, and yours is left of yours. Each shows:
   - its heat in the middle, out of max health;
   - a heat arc around it;
   - a blue shield ring around that, with the shield count on the ring.
 
   The sun burns from pale gold to amber to red as it nears supernova, frosts blue below 0, and pulses when within 4 of supernova. [design review]
 - **Hits read clearly.** [design review]
-  - A bolt flies from the attacker's sun to the target's.
+  - A bolt flies from the attacker's sun to their rival's.
   - On landing, the numbers rise off the sun: a red "+3" for heat taken, a blue "−2" for cooling, and "⛨−2" for shields lost.
   - The sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring.
   - When your own sun takes enemy heat, the edges of the screen burn red with a heavy low blow. Heat you deal lands with a bright crack, and shields that block ring with a glassy clang.
   - Numbers on a sun keep their old value until the bolt lands.
-- **Start-of-turn forecast, right of each tableau.** It shows what that player's next start of turn will do, net of all their cards. It lists heat at their target (and who that is), heat to each other rival, shields, cooling, heat to their own sun, and extra cards. The totals include resonance, upgrades, growth, conditions, the global card, regional instability and the map, before shields or Lightspeed cards answer. Everyone can see what's coming and respond to it. [design review]
+- **Start-of-turn forecast, right of each tableau.** It shows what that player's next start of turn will do, net of all their cards. It lists heat at their rival, shields, cooling, heat to their own sun, and extra cards. The totals include resonance, upgrades, growth, conditions, the global card, regional instability and the map, before shields or Lightspeed cards answer. Everyone can see what's coming and respond to it. [design review]
 - **Removal is shown before it happens.** A glowing white arc draws from the removing card to each card it destroys, returns or erodes. The target glows under it while the arc holds, then a destroyed card dissolves in its slot and a returned card flies back to its owner's hand. [design review]
 - The rotating white star lies on the right of the table.
 - Your hand fans along the bottom, with your deck and discard piles either side.
@@ -367,6 +360,6 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 
 1. **Numbers:** max health 24, 5 slots, slot defence 1-2-3-2-1, stability 3 (2 for when-played cards), a cap of 2 plays and 1 draw a turn are all first guesses. Human playtesting should drive them.
 2. **Removal:** Ion Cannon is the only way to destroy a card, and it swings match-ups hard. Should there be more removal, or none?
-3. **Multiplayer:** defensive decks win free-for-alls. Should attacks be restricted (for example, only your neighbours), or should defence scale down with more players?
+3. **Abyssal Tide** is the weakest starter (about 39%). It needs a stronger finisher or cheaper protection.
 4. **Collection:** decks are built from the full pool. A collection to unlock would suit a CCG, but was left for later.
 5. **Campaign balance:** some races and corners win far more often in AI-only campaigns.

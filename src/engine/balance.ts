@@ -4,7 +4,8 @@
  */
 export const BALANCE = {
   minPlayers: 2,
-  maxPlayers: 4,
+  /** Blue Loop is 1v1. */
+  maxPlayers: 2,
 
   /** Sun temperature bounds. Reaching `supernovaAt` (raised by Cooling Chamber upgrades) eliminates a player. */
   startingHeat: 0,

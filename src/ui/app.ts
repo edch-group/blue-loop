@@ -141,7 +141,6 @@ const esc = (s: string) =>
 interface MenuSeat {
   name: string;
   isAI: boolean;
-  enabled: boolean;
   deckId: string;
 }
 
@@ -205,10 +204,8 @@ export class App {
   });
 
   private seats: MenuSeat[] = [
-    { name: 'Commander', isAI: false, enabled: true, deckId: PRESETS[0].id },
-    { name: "Xel'Naru", isAI: true, enabled: true, deckId: PRESETS[1].id },
-    { name: 'Vorthane', isAI: true, enabled: false, deckId: PRESETS[2].id },
-    { name: 'Ixquor', isAI: true, enabled: false, deckId: PRESETS[3].id },
+    { name: 'Commander', isAI: false, deckId: PRESETS[0].id },
+    { name: "Xel'Naru", isAI: true, deckId: PRESETS[1].id },
   ];
 
   constructor(private root: HTMLElement) {
@@ -376,9 +373,8 @@ export class App {
 
   private newGame() {
     const players: PlayerSetup[] = this.seats
-      .filter((s) => s.enabled)
       .map((s, i) => {
-        const deck = deckById(s.deckId) ?? PRESETS[i % 4];
+        const deck = deckById(s.deckId) ?? PRESETS[i];
         return { name: s.name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, species: deck.race };
       });
     this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
@@ -1067,11 +1063,6 @@ export class App {
     if (act.startsWith('db-') && this.builder.onClick(act, arg)) return;
 
     switch (act) {
-      case 'seat-toggle': {
-        const i = Number(arg);
-        if (i >= BALANCE.minPlayers) this.seats[i].enabled = !this.seats[i].enabled;
-        return this.render();
-      }
       case 'seat-ai':
         this.seats[Number(arg)].isAI = !this.seats[Number(arg)].isAI;
         return this.render();
@@ -1327,7 +1318,7 @@ export class App {
       <div class="hub">
         ${column('campaign-new', '', HUB_ICONS.campaign, 'campaign', 'Conquer a galaxy of forty-eight systems, one battle at a time.',
           hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue campaign</button>' : '')}
-        ${column('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', 'A single battle for two to four suns, against AI or friends.',
+        ${column('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', 'A 1v1 battle: against the AI, a friend on this device, or online.',
           hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue game</button>' : '')}
         ${column('menu-page', 'options', HUB_ICONS.options, 'options', 'Sound, music, AI speed and how to play.')}
       </div>`;
@@ -1349,17 +1340,15 @@ export class App {
     const hasSave = loadSave() !== null;
     const seats = this.seats
       .map((seat, i) => {
-        const locked = i < BALANCE.minPlayers;
         const deck = deckById(seat.deckId) ?? PRESETS[i];
         return `
-        <div class="seat-tile ${seat.enabled ? '' : 'seat-off'}">
-          <button class="pill-btn seat-in" data-act="seat-toggle" data-arg="${i}" ${locked ? 'disabled' : ''}>${seat.enabled ? '● playing' : '○ empty'}</button>
+        <div class="seat-tile">
           ${factionAvatar(`f${deck.race + 1}`, 'seat-emblem')}
-          <input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" ${seat.enabled ? '' : 'disabled'} aria-label="Seat ${i + 1} name" />
-          <button class="seat-deck" data-act="seat-deck" data-arg="${i}" ${seat.enabled ? '' : 'disabled'} title="Tap to change deck">
+          <input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" aria-label="Seat ${i + 1} name" />
+          <button class="seat-deck" data-act="seat-deck" data-arg="${i}" title="Tap to change deck">
             <small>deck</small><span>${esc(deck.name.toLowerCase())}</span>
           </button>
-          <button class="pill-btn" data-act="seat-ai" data-arg="${i}" ${seat.enabled ? '' : 'disabled'}>${seat.isAI ? 'ai' : 'human'}</button>
+          <button class="pill-btn" data-act="seat-ai" data-arg="${i}">${seat.isAI ? 'ai' : 'human'}</button>
         </div>`;
       })
       .join('');
@@ -1452,17 +1441,17 @@ export class App {
   private rulesHtml(): string {
     return `
       <ul class="rules">
-        <li>Every sun starts at <b>${BALANCE.startingHeat}</b> heat with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. The last sun standing wins.</li>
+        <li>Every sun starts at <b>${BALANCE.startingHeat}</b> heat with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. Blow up your rival's sun to win.</li>
         <li>Bring a <b>${BALANCE.deckSize}-card deck</b>: up to ${BALANCE.maxCopies} copies of a card, and exactly ${BALANCE.commandCards} Command cards. You start with ${BALANCE.openingHand} cards and draw ${BALANCE.drawPerTurn} each turn after that.</li>
         <li>Play <b>1 card</b> on your first turn, then up to <b>${BALANCE.maxPlays}</b> a turn. Cards <b>stay in play</b> in your tableau of <b>${BALANCE.tableauSlots} slots</b>, in the slot you choose: their start-of-turn effects trigger every turn, and they power each other up.</li>
-        <li><b>Stability</b> (◷) is how many of your turns a card stays: after its start-of-turn effects it loses 1, and at 0 it fades back into your deck. Some cards restore stability; others erode your rivals'. There is <b>no replacing</b>: with every slot full, nothing new goes in until a card fades, or is recalled or removed.</li>
+        <li><b>Stability</b> (◷) is how many of your turns a card stays: after its start-of-turn effects it loses 1, and at 0 it fades back into your deck. Some cards restore stability; others erode your rival's. There is <b>no replacing</b>: with every slot full, nothing new goes in until a card fades, or is recalled or removed.</li>
         <li><b>Defence</b> (⛨) comes from the slot: ${BALANCE.slotDefence.join(', ')} from left to right, so the middle is safest. Sturdy cards and bulwarks add more. Removal only reaches cards with low enough defence ("destroy a card with 2 or less defence").</li>
-        <li><b>Your target</b> is the rival your attacks hit: tap a rival to choose. Shields absorb enemy heat and fade at the start of your turn.</li>
+        <li>Your attacks heat your rival's sun. Shields absorb their heat and fade at the start of your turn.</li>
         <li><b>Command</b> cards upgrade your whole deck: Solar Flare (your attack cards deal +1 heat), Thermosiphon (your cooling cools +1) or Cooling Chamber (+${BALANCE.coolingChamberHealthPerUpgrade} max health), up to ${BALANCE.solarFlareMaxUpgrades} each. They stay in your tableau like any other card, and some cards reward keeping them there. Play one again and it upgrades again.</li>
         <li><b>Resonance</b> cards power up their neighbours in your tableau, and bulwarks guard them.</li>
-        <li><b>Lightspeed</b> cards are set face down (one at a time, no slot) and spring during an enemy's turn: cancelling a card they play, turning heat aside, or saving your cards from removal.</li>
+        <li><b>Lightspeed</b> cards are set face down (one at a time, no slot) and spring during your rival's turn: cancelling a card they play, turning heat aside, or saving your cards from removal.</li>
         <li>Destroyed and cancelled cards go to your discard pile. When your deck runs out it is shuffled back in (heating your sun by ${BALANCE.reshuffleHeat}), and some cards recover cards from it or return your cards to your hand to play again.</li>
-        <li>Only one <b>global</b> card can be in play at a time, and it affects everyone. <b>Regional stability</b> (top of the screen) drains one segment a round; from round ${BALANCE.instabilityStartsRound} it is gone and every sun heats each turn, more each round.</li>
+        <li>Only one <b>global</b> card can be in play at a time, and it affects both players. <b>Regional stability</b> (top of the screen) drains one segment a round; from round ${BALANCE.instabilityStartsRound} it is gone and both suns heat each turn, more each round.</li>
       </ul>`;
   }
 
@@ -1508,28 +1497,25 @@ export class App {
   }
 
   /**
-   * Every player's card, stacked down the left: yours first, then your rivals.
-   * Whoever's turn it is glows green; your target wears a crosshair. Tap a
-   * rival to target them (on your turn) and see their tableau.
+   * Both players' cards, stacked down the left: yours first, then your rival's.
+   * Whoever's turn it is glows green.
    */
   private renderPlayers(): string {
     const s = this.state!;
     const active = activePlayer(s);
     const me = this.viewer();
-    const target = targetOf(s, me);
     const shown = this.shownRival();
     const playing = !isGameOver(s);
     const cards = [me, ...s.players.filter((p) => p.id !== me.id)]
       .map((p) => {
         const mine = p.id === me.id;
-        const targeted = !mine && target?.id === p.id && !p.eliminated;
-        const title = mine ? `${p.name} (you)` : `${p.name}${targeted ? ' · your target' : ' · tap to target'}`;
+        const title = mine ? `${p.name} (you)` : p.name;
         return `
-        <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''} ${targeted ? 'rival-target' : ''} ${!mine && shown?.id === p.id ? 'rival-shown' : ''}"
+        <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''} ${!mine && shown?.id === p.id ? 'rival-shown' : ''}"
           data-act="${mine ? 'view-player' : 'focus'}" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(title)}">
           ${factionAvatar(`f${p.species + 1}`, 'rival-emblem')}
           <div class="rival-info">
-            <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}${targeted ? '<i class="rival-crosshair" aria-label="your target">◎</i>' : ''}</span>
+            <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}</span>
             <span class="rival-stats"><em>${p.eliminated ? 'supernova' : `✋${p.hand.length} · ▤${p.deck.length}${p.lightspeed ? ' · <i class="ls-pip" title="A Lightspeed card is set face down">⚡</i>' : ''}`}</em></span>
           </div>
         </button>`;
@@ -1554,7 +1540,6 @@ export class App {
       <div class="hud">
         <div class="hud-players">${this.renderPlayers()}</div>
         <div class="hud-round">${this.renderRoundBar()}</div>
-        ${this.renderOthers()}
         <div class="hud-controls">
           ${field}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
@@ -1565,40 +1550,6 @@ export class App {
           <button class="icon-btn" data-act="open-menu" aria-label="Menu">${MENU_ICON}</button>
         </div>
       </div>`;
-  }
-
-  /**
-   * In 3–4 player games, every rival not on the table gets an overview under
-   * the controls: their sun (heat and shields), their five slots, who they
-   * are aiming at and what their start of turn will do. Tap one to bring them
-   * across the table.
-   */
-  private renderOthers(): string {
-    const s = this.state!;
-    const me = this.viewer();
-    const shown = this.shownRival();
-    const others = s.players.filter((p) => p.id !== me.id && p.id !== shown?.id);
-    if (!others.length) return '';
-    const mine = targetOf(s, me);
-    const panels = others.map((p) => {
-      const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
-        const c = p.tableau.find((x) => x.slot === i);
-        return c ? `<span class="oth-slot" title="${esc(cardDef(c.defId).name)}">${cardArt(cardDef(c.defId))}</span>` : '<span class="oth-slot oth-empty"></span>';
-      }).join('');
-      const f = turnForecast(s, p);
-      const aim = p.eliminated ? 'supernova' : f.targetId === me.id ? '<b class="oth-at-you">targets you</b>' : `targets ${esc((s.players.find((o) => o.id === f.targetId)?.name ?? '—').toLowerCase())}`;
-      const next = !p.eliminated && f.heat ? `<span class="oth-next" title="Heat their start of turn deals to their target">+${f.heat}${f.others ? ` <small>+${f.others} each</small>` : ''}</span>` : '';
-      return `
-        <button class="oth ${p.eliminated ? 'oth-dead' : ''} ${mine?.id === p.id ? 'oth-target' : ''} ${activePlayer(s).id === p.id && !isGameOver(s) ? 'oth-active' : ''}" data-act="focus" data-arg="${p.id}" title="Show ${esc(p.name)}'s tableau">
-          <span class="oth-sun" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id })}</span>
-          <span class="oth-body">
-            <span class="oth-head">${factionAvatar(`f${p.species + 1}`, 'oth-emblem')}<b>${esc(p.name.toLowerCase())}</b>${mine?.id === p.id ? '<i class="rival-crosshair">◎</i>' : ''}${p.lightspeed ? '<i class="ls-pip">⚡</i>' : ''}</span>
-            <span class="oth-slots">${slots}</span>
-            <span class="oth-foot"><span>${aim}</span>${next}</span>
-          </span>
-        </button>`;
-    });
-    return `<div class="hud-others">${panels.join('')}</div>`;
   }
 
   /** While a card waits for a choice on the board, a short prompt sits at the top of the screen. */
@@ -1638,7 +1589,6 @@ export class App {
   }
 
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
-    const s = this.state!;
     const pend = this.pending;
     const choosingSlot = side === 'mine' && pend?.step === 'slot';
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
@@ -1656,12 +1606,11 @@ export class App {
         ? `<button class="ls-chip" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).text)}">⚡ ${esc(cardDef(ls.defId).name.toLowerCase())}</button>`
         : '<span class="ls-chip ls-hidden" title="A Lightspeed card is set face down. It springs during your turn.">⚡ face down</span>'
       : '';
-    const targeted = side === 'rival' && targetOf(s, this.viewer())?.id === p.id;
     const label = side === 'mine' ? 'your tableau' : `${esc(p.name.toLowerCase())}'s tableau`;
     const deck = p.deckName ? `<em>${esc(p.deckName.toLowerCase())}</em>` : '';
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
-        <div class="tableau-label">${factionAvatar(`f${p.species + 1}`, 'tableau-emblem')}<span>${label}</span>${deck}<b>${p.tableau.length}/${BALANCE.tableauSlots}</b>${lightspeed}${targeted ? '<i class="target-tag">◎ your target</i>' : ''}</div>
+        <div class="tableau-label">${factionAvatar(`f${p.species + 1}`, 'tableau-emblem')}<span>${label}</span>${deck}<b>${p.tableau.length}/${BALANCE.tableauSlots}</b>${lightspeed}</div>
         <div class="tableau-row-wrap">
           <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row">${slots}</div>
@@ -1684,8 +1633,7 @@ export class App {
     const line = (cls: string, n: number, text: string, title: string) =>
       n ? `<div class="fc ${cls}" title="${title}"><b>${n > 0 && cls !== 'fc-cool' ? '+' : ''}${cls === 'fc-cool' ? `−${n}` : n}</b><span>${text}</span></div>` : '';
     const lines = [
-      line('fc-heat', f.heat, `heat → ${who(f.targetId)}`, 'Heat their start of turn deals to their target (before shields)'),
-      line('fc-heat fc-minor', f.others, 'to each other rival', 'Splash and every-enemy heat'),
+      line('fc-heat', f.heat, `heat → ${who(f.targetId)}`, 'Heat their start of turn deals to their rival (before shields)'),
       line('fc-shield', f.shields, 'shields', 'Shields they raise'),
       line('fc-cool', f.cool, 'cooling', 'Cooling to their own sun'),
       line('fc-self', f.selfHeat, 'heat to own sun', 'Drawbacks, regional instability and the table heating their own sun'),

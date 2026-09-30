@@ -83,12 +83,10 @@ describe('setup', () => {
     expect(b.heat).toBe(BALANCE.startingHeat - BALANCE.laterSeatCool);
   });
 
-  it('accepts 2 to 4 players and nothing else', () => {
+  it('is 1v1: exactly two players', () => {
     expect(() => createGame({ seed: 1, players: [{ name: 'Solo', isAI: false }] })).toThrow(GameError);
-    const four = createGame({ seed: 2, players: [0, 1, 2, 3].map((i) => ({ name: `P${i}`, isAI: true })) });
-    expect(four.players.map((p) => p.species)).toEqual([0, 1, 2, 3]);
-    // No catch-up in bigger games.
-    expect(four.players[1].heat).toBe(BALANCE.startingHeat);
+    expect(() => createGame({ seed: 2, players: [0, 1, 2].map((i) => ({ name: `P${i}`, isAI: true })) })).toThrow(GameError);
+    expect(twoPlayer().players).toHaveLength(2);
   });
 });
 
@@ -385,13 +383,13 @@ describe('the end', () => {
     expect(() => endTurn(s)).toThrow(GameError);
   });
 
-  it('passes the turn on if you blow up your own sun', () => {
-    let s = createGame({ seed: 3, players: [0, 1, 2].map((i) => ({ name: `P${i}`, isAI: false })) });
+  it('hands your rival the win if you blow up your own sun', () => {
+    let s = twoPlayer(3);
     s.players[0].heat = supernovaThreshold(s.players[0]) - 1;
     give(activePlayer(s), ['sunspear']);
     s = play(s, 'sunspear');
     expect(s.players[0].eliminated).toBe(true);
-    expect(activePlayer(s).id).toBe('p2');
+    expect(s.winnerId).toBe('p2');
   });
 
   it('never mutates the state it is given', () => {
@@ -403,9 +401,9 @@ describe('the end', () => {
 });
 
 describe('AI', () => {
-  it('finishes games for 2, 3 and 4 players, and is deterministic', { timeout: 60000 }, () => {
-    for (const n of [2, 3, 4]) {
-      for (let seed = 1; seed <= 6; seed++) {
+  it('finishes games, and is deterministic', { timeout: 60000 }, () => {
+    for (const n of [2]) {
+      for (let seed = 1; seed <= 16; seed++) {
         const run = () => {
           let s = createGame({ seed, players: Array.from({ length: n }, (_, i) => ({ name: `AI ${i}`, isAI: true })) });
           let steps = 0;

@@ -413,12 +413,10 @@ export function effectAmount(state: GameState, p: PlayerState, card: CardInstanc
 
 /** What a player's start of turn will do, from their tableau and the table (for everyone to see and plan around). */
 export interface TurnForecast {
-  /** Heat at their target (their attacks and every-enemy effects). */
+  /** Heat at their rival. */
   heat: number;
   /** Who that is. */
   targetId: string | null;
-  /** Heat at each other rival (splash and every-enemy effects). */
-  others: number;
   shields: number;
   cool: number;
   /** Heat to their own sun: drawbacks, instability, Solar Storm, the map. */
@@ -435,7 +433,7 @@ export interface TurnForecast {
  */
 export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   const target = targetOf(state, p);
-  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, others: 0, shields: 0, cool: 0, selfHeat: 0, draw: 0 };
+  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, draw: 0 };
   if (p.eliminated) return f;
   // Run the effects on a copy, so growth and the like carry from one effect to the next.
   const me: PlayerState = { ...p, tableau: p.tableau.map((c) => ({ ...c })) };
@@ -449,8 +447,6 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
         case 'heat': {
           const n = effectAmount(state, me, card, e, 'turn');
           f.heat += n;
-          if (e.to === 'enemies') f.others += n;
-          f.others += e.splash ?? 0;
           break;
         }
         case 'selfHeat':
@@ -478,7 +474,6 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   f.cool += m?.coolPerTurn ?? 0;
   f.shields += m?.shieldPerTurn ?? 0;
   f.draw += m?.extraDraw ?? 0;
-  if (livingOpponents(state, p).length < 2) f.others = 0;
   return f;
 }
 
@@ -611,10 +606,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const amount = effectAmount(state, p, card, e, when);
         if (amount <= 0) break;
         const main = ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p);
-        const targets = e.to === 'enemies' ? livingOpponents(state, p) : main ? [main] : [];
-        const others = e.splash ? livingOpponents(state, p).filter((o) => o.id !== main?.id) : [];
-        for (const t of targets) applyHeat(state, t, amount, p, false, card.uid);
-        for (const t of others) applyHeat(state, t, e.splash!, p, false, card.uid);
+        if (main) applyHeat(state, main, amount, p, false, card.uid);
         break;
       }
       case 'selfHeat':
@@ -843,7 +835,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const target = targetOf(state, p);
   const foes = enemyChoices(state, p, def.id);
   if (foes.length > 0 && !foes.some((c) => c.uid === action.enemyUid)) {
-    throw new GameError(`Choose a card in ${target?.name ?? 'your target'}'s tableau.`);
+    throw new GameError(`Choose a card in ${target?.name ?? 'your rival'}'s tableau.`);
   }
   if (persists(def.id) && tableauFull(p)) throw new GameError('Your tableau is full: a card can only go in once one fades, or is recalled or removed.');
   const free = freeSlots(p);

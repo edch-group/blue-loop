@@ -6,23 +6,23 @@ import type { CardDef, Rarity } from './types';
  * turn is the only limit, so no single card should be a bomb. Power comes from
  * what a card does alongside the others already in your tableau.
  *
- * "Your target" is the rival you have chosen to attack. "Start of turn"
+ * "Your rival" is the other player (Blue Loop is 1v1). "Start of turn"
  * effects trigger at the start of each of your turns while the card is in play.
  */
 export const CARDS: CardDef[] = [
   // ---- Neutral ------------------------------------------------------------
-  { id: 'coronal_lance', name: 'Coronal Lance', kind: 'attack', text: 'Heat your target by 3.', onPlay: [{ type: 'heat', amount: 3, to: 'target' }] },
-  { id: 'plasma_relay', name: 'Plasma Relay', kind: 'attack', text: 'Start of turn: heat your target by 1.', onTurn: [{ type: 'heat', amount: 1, to: 'target' }] },
-  { id: 'gravity_sling', name: 'Gravity Sling', kind: 'attack', text: 'Heat your target by 1. Draw 1 card.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'draw', amount: 1 }] },
-  { id: 'thermal_exchange', name: 'Thermal Exchange', kind: 'attack', text: 'Heat your target by 2. Cool your sun by 1.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'cool', amount: 1 }] },
+  { id: 'coronal_lance', name: 'Coronal Lance', kind: 'attack', text: 'Heat your rival by 3.', onPlay: [{ type: 'heat', amount: 3, to: 'target' }] },
+  { id: 'plasma_relay', name: 'Plasma Relay', kind: 'attack', text: 'Start of turn: heat your rival by 1.', onTurn: [{ type: 'heat', amount: 1, to: 'target' }] },
+  { id: 'gravity_sling', name: 'Gravity Sling', kind: 'attack', text: 'Heat your rival by 1. Draw 1 card.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'draw', amount: 1 }] },
+  { id: 'thermal_exchange', name: 'Thermal Exchange', kind: 'attack', text: 'Heat your rival by 2. Cool your sun by 1.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'cool', amount: 1 }] },
   {
     id: 'solar_battery',
     name: 'Solar Battery',
     kind: 'attack',
-    text: 'Start of turn: if you control 3 or more attack cards, heat your target by 2.',
+    text: 'Start of turn: if you control 3 or more attack cards, heat your rival by 2.',
     onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { minKind: 'attack', n: 3 } }],
   },
-  { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: "Destroy a card with 2 or less defence in your target's tableau.", onPlay: [{ type: 'destroy', maxDefence: 2 }] },
+  { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: "Destroy a card with 2 or less defence in your rival's tableau.", onPlay: [{ type: 'destroy', maxDefence: 2 }] },
   { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: 'Start of turn: cool your sun by 1.', onTurn: [{ type: 'cool', amount: 1 }] },
   { id: 'cryo_vault', name: 'Cryo Vault', kind: 'defence', text: 'Cool your sun by 3.', onPlay: [{ type: 'cool', amount: 3 }] },
   { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: 'Start of turn: gain 2 shields.', onTurn: [{ type: 'shield', amount: 2 }] },
@@ -40,7 +40,7 @@ export const CARDS: CardDef[] = [
     id: 'ignition_protocol',
     name: 'Ignition Protocol',
     kind: 'command',
-    text: 'Upgrade Solar Flare: your attack cards deal 1 more heat. Start of turn: heat your target by 1.',
+    text: 'Upgrade Solar Flare: your attack cards deal 1 more heat. Start of turn: heat your rival by 1.',
     onPlay: [{ type: 'upgrade', action: 'solarFlare' }],
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
   },
@@ -134,14 +134,14 @@ export const CARDS: CardDef[] = [
     id: 'entropy_pulse',
     name: 'Entropy Pulse',
     kind: 'attack',
-    text: "A card in your target's tableau loses 2 stability (at 0 it is swept back into their deck). Heat your target by 1.",
+    text: "A card in your rival's tableau loses 2 stability (at 0 it is swept back into their deck). Heat your rival by 1.",
     onPlay: [{ type: 'erode', amount: 2 }, { type: 'heat', amount: 1, to: 'target' }],
   },
   {
     id: 'decay_wave',
     name: 'Decay Wave',
     kind: 'attack',
-    text: "Every card in your target's tableau loses 1 stability. Heat your own sun by 2.",
+    text: "Every card in your rival's tableau loses 1 stability. Heat your own sun by 2.",
     onPlay: [{ type: 'erode', amount: 1, all: true }, { type: 'selfHeat', amount: 2 }],
   },
 
@@ -155,26 +155,26 @@ export const CARDS: CardDef[] = [
     onPlay: [{ type: 'recall' }, { type: 'plays', amount: 1 }],
   },
 
-  // ---- Removal: aimed at your target's tableau ----
+  // ---- Removal: aimed at your rival's tableau ----
   {
     id: 'tractor_beam',
     name: 'Tractor Beam',
     kind: 'attack',
-    text: "Return a card with 3 or less defence in your target's tableau to its owner's hand. Heat your target by 1.",
+    text: "Return a card with 3 or less defence in your rival's tableau to its owner's hand. Heat your rival by 1.",
     onPlay: [{ type: 'bounce', maxDefence: 3 }, { type: 'heat', amount: 1, to: 'target' }],
   },
   {
     id: 'command_breaker',
     name: 'Command Breaker',
     kind: 'attack',
-    text: "Destroy a Command card with 3 or less defence in your target's tableau. Heat your target by 1.",
+    text: "Destroy a Command card with 3 or less defence in your rival's tableau. Heat your rival by 1.",
     onPlay: [{ type: 'destroy', kind: 'command', maxDefence: 3 }, { type: 'heat', amount: 1, to: 'target' }],
   },
   {
     id: 'event_horizon',
     name: 'Event Horizon',
     kind: 'attack',
-    text: "Destroy a card in your target's tableau, whatever its defence. The cards either side of it return to their owner's hand.",
+    text: "Destroy a card in your rival's tableau, whatever its defence. The cards either side of it return to their owner's hand.",
     onPlay: [{ type: 'destroy', neighbours: true }],
   },
 
@@ -228,7 +228,7 @@ export const CARDS: CardDef[] = [
     name: 'Helio Lancer',
     kind: 'attack',
     race: 0,
-    text: 'Start of turn: heat your target by 2. If you have a Solar Flare upgrade, gain 1 shield.',
+    text: 'Start of turn: heat your rival by 2. If you have a Solar Flare upgrade, gain 1 shield.',
     onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'shield', amount: 1, if: { upgraded: 'solarFlare' } }],
   },
   { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: 'Your other attack cards deal 1 more heat at the start of your turn. Copies do not stack.', passive: [{ type: 'kindBonus', kind: 'attack', amount: 1, others: true, onTurnOnly: true }] },
@@ -237,10 +237,10 @@ export const CARDS: CardDef[] = [
     name: 'Coronal Chorus',
     kind: 'attack',
     race: 0,
-    text: 'Heat your target by 1 for each attack card you control (up to 4).',
+    text: 'Heat your rival by 1 for each attack card you control (up to 4).',
     onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 4 }],
   },
-  { id: 'sunspear', name: 'Sunspear', kind: 'attack', race: 0, text: 'Heat your target by 4. Heat your own sun by 2.', onPlay: [{ type: 'heat', amount: 4, to: 'target' }, { type: 'selfHeat', amount: 2 }] },
+  { id: 'sunspear', name: 'Sunspear', kind: 'attack', race: 0, text: 'Heat your rival by 4. Heat your own sun by 2.', onPlay: [{ type: 'heat', amount: 4, to: 'target' }, { type: 'selfHeat', amount: 2 }] },
   {
     id: 'dawn_beacon',
     name: 'Dawn Beacon',
@@ -259,28 +259,35 @@ export const CARDS: CardDef[] = [
     onTurn: [{ type: 'shield', amount: 0, plus: { of: 'kind', kind: 'attack', per: 2 } }],
   },
 
-  // ---- Xel'Naru: overload. Heat every enemy, run your own sun hot, and profit from it ----
+  // ---- Xel'Naru: overload. Run your own sun hot, and profit from it ----
   {
     id: 'shard_reactor',
     name: 'Shard Reactor',
     kind: 'attack',
     race: 1,
-    text: 'Start of turn: heat your target by 2 and every other enemy sun by 1. Heat your own sun by 2.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target', splash: 1 }, { type: 'selfHeat', amount: 2 }],
+    text: 'Start of turn: heat your rival by 2. Heat your own sun by 2.',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'selfHeat', amount: 2 }],
   },
-  { id: 'crystal_storm', name: 'Crystal Storm', kind: 'attack', race: 1, text: 'Heat your target by 3 and every other enemy sun by 1.', onPlay: [{ type: 'heat', amount: 3, to: 'target', splash: 1 }] },
+  {
+    id: 'crystal_storm',
+    name: 'Crystal Storm',
+    kind: 'attack',
+    race: 1,
+    text: 'Heat your rival by 3, or by 4 while you are overheated (half your max health or hotter).',
+    onPlay: [{ type: 'heat', amount: 3, to: 'target' }, { type: 'heat', amount: 1, to: 'target', if: { overheated: true } }],
+  },
   {
     id: 'overload_core',
     name: 'Overload Core',
     kind: 'attack',
     race: 1,
-    text: 'Start of turn: heat your target by 1, or by 3 while you are overheated (half your max health or hotter).',
+    text: 'Start of turn: heat your rival by 1, or by 3 while you are overheated (half your max health or hotter).',
     onTurn: [
       { type: 'heat', amount: 1, to: 'target' },
       { type: 'heat', amount: 2, to: 'target', if: { overheated: true } },
     ],
   },
-  { id: 'martyr_crystal', name: 'Martyr Crystal', kind: 'attack', race: 1, text: 'Heat every enemy sun by 1. When this card leaves your tableau, heat your target by 3 and every other enemy sun by 1.', onPlay: [{ type: 'heat', amount: 1, to: 'enemies' }], onLeave: [{ type: 'heat', amount: 3, to: 'target', splash: 1 }] },
+  { id: 'martyr_crystal', name: 'Martyr Crystal', kind: 'attack', race: 1, text: 'Heat your rival by 1. When this card leaves your tableau, heat your rival by 3.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }], onLeave: [{ type: 'heat', amount: 3, to: 'target' }] },
   {
     id: 'prism_vent',
     name: 'Prism Vent',
@@ -308,7 +315,7 @@ export const CARDS: CardDef[] = [
     name: 'Abyssal Choir',
     kind: 'attack',
     race: 2,
-    text: 'Start of turn: heat your target by 1, +1 for every 2 shields you have (up to 5).',
+    text: 'Start of turn: heat your rival by 1, +1 for every 2 shields you have (up to 5).',
     onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }],
   },
   {
@@ -329,7 +336,7 @@ export const CARDS: CardDef[] = [
     kind: 'growth',
     race: 3,
     stability: 4,
-    text: 'Start of turn: this card grows (up to 4), then heats your target by its growth.',
+    text: 'Start of turn: this card grows (up to 4), then heats your rival by its growth.',
     onTurn: [{ type: 'grow', max: 4 }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'growth' } }],
   },
   { id: 'hive_relay', name: 'Hive Relay', kind: 'growth', race: 3, text: 'You may play 1 extra card each turn.', passive: [{ type: 'extraPlay', amount: 1 }] },
@@ -339,7 +346,7 @@ export const CARDS: CardDef[] = [
     name: 'Rot Bloom',
     kind: 'attack',
     race: 3,
-    text: 'Heat your target by 1, +1 for every 2 cards you control (up to 5).',
+    text: 'Heat your rival by 1, +1 for every 2 cards you control (up to 5).',
     onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cards', per: 2 }, max: 5 }],
   },
   {
@@ -355,8 +362,8 @@ export const CARDS: CardDef[] = [
     name: 'Spore Cloud',
     kind: 'attack',
     race: 3,
-    text: 'Start of turn: if you control 4 or more cards, heat every enemy sun by 1.',
-    onTurn: [{ type: 'heat', amount: 1, to: 'enemies', if: { minCards: 4 } }],
+    text: 'Start of turn: if you control 4 or more cards, heat your rival by 1.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', if: { minCards: 4 } }],
   },
 
   // ---- Race cards for resonance, recovery, stability, command synergies and lightspeed ----
@@ -373,7 +380,7 @@ export const CARDS: CardDef[] = [
     name: 'Undertow',
     kind: 'attack',
     race: 2,
-    text: "A card in your target's tableau loses 2 stability (at 0 it is swept back into their deck). Gain 2 shields.",
+    text: "A card in your rival's tableau loses 2 stability (at 0 it is swept back into their deck). Gain 2 shields.",
     onPlay: [{ type: 'erode', amount: 2 }, { type: 'shield', amount: 2 }],
   },
   {
@@ -389,7 +396,7 @@ export const CARDS: CardDef[] = [
     name: 'Aureline War-Herald',
     kind: 'attack',
     race: 0,
-    text: 'Start of turn: heat your target by 1 for each Command card you control (up to 2).',
+    text: 'Start of turn: heat your rival by 1 for each Command card you control (up to 2).',
     onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'command' }, max: 2 }],
   },
   {
@@ -397,7 +404,7 @@ export const CARDS: CardDef[] = [
     name: 'Sunforge',
     kind: 'attack',
     race: 0,
-    text: 'Resonance: attack cards next to this one deal +1 heat. Start of turn: heat your target by 1.',
+    text: 'Resonance: attack cards next to this one deal +1 heat. Start of turn: heat your rival by 1.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     passive: [{ type: 'adjacent', amounts: [1], kind: 'attack' }],
   },
@@ -406,9 +413,9 @@ export const CARDS: CardDef[] = [
     name: 'Ember Shard',
     kind: 'attack',
     race: 1,
-    text: 'Heat your target by 2. When you recover this card, heat every enemy sun by 1.',
+    text: 'Heat your rival by 2. When you recover this card, heat your rival by 1.',
     onPlay: [{ type: 'heat', amount: 2, to: 'target' }],
-    onRecover: [{ type: 'heat', amount: 1, to: 'enemies' }],
+    onRecover: [{ type: 'heat', amount: 1, to: 'target' }],
   },
   {
     id: 'xelnaru_reliquarist',
@@ -474,7 +481,7 @@ export const CARDS: CardDef[] = [
     name: 'Aurelia, the First Light',
     kind: 'attack',
     race: 0,
-    text: 'Start of turn: heat your target by 1 for every 2 attack cards you control (up to 3).',
+    text: 'Start of turn: heat your rival by 1 for every 2 attack cards you control (up to 3).',
     onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 3 }],
   },
   {
@@ -482,7 +489,7 @@ export const CARDS: CardDef[] = [
     name: "Xel'Naru Champion",
     kind: 'attack',
     race: 1,
-    text: 'Heat your target by 1. Start of turn: while you are overheated, heat your target by 2.',
+    text: 'Heat your rival by 1. Start of turn: while you are overheated, heat your rival by 2.',
     onPlay: [{ type: 'heat', amount: 1, to: 'target' }],
     onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { overheated: true } }],
   },
@@ -491,8 +498,8 @@ export const CARDS: CardDef[] = [
     name: "Kyr'Vessa, Prism Queen",
     kind: 'attack',
     race: 1,
-    text: 'When another of your cards leaves your tableau, heat your target by 2 and every other enemy sun by 1.',
-    passive: [{ type: 'allyLeaves', effects: [{ type: 'heat', amount: 2, to: 'target', splash: 1 }] }],
+    text: 'When another of your cards leaves your tableau, heat your rival by 2.',
+    passive: [{ type: 'allyLeaves', effects: [{ type: 'heat', amount: 2, to: 'target' }] }],
   },
   {
     id: 'hero_of_rathune',
@@ -527,9 +534,9 @@ export const CARDS: CardDef[] = [
     name: 'The Brood Queen',
     kind: 'growth',
     race: 3,
-    text: 'You may play 1 extra card each turn. Start of turn: if you control 4 or more cards, heat every enemy sun by 1.',
+    text: 'You may play 1 extra card each turn. Start of turn: if you control 4 or more cards, heat your rival by 1.',
     passive: [{ type: 'extraPlay', amount: 1 }],
-    onTurn: [{ type: 'heat', amount: 1, to: 'enemies', if: { minCards: 4 } }],
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', if: { minCards: 4 } }],
   },
 ];
 

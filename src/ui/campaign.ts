@@ -81,7 +81,7 @@ const TRACK_TINT: Record<string, string> = { weapons: '#e2a494', defences: '#a3c
 /** Each race's style of play, for choosing one. */
 const RACE_BLURB = [
   'Lancers of light: many attack cards, each making the others hit harder.',
-  'Crystal overloaders: heat every rival, and run your own sun hot to hit harder still.',
+  'Crystal overloaders: big bursts of heat, and run your own sun hot to hit harder still.',
   'Tidal bells: stack shields, keep them, and sting whoever strikes them.',
   'The hive: grow, spread wide, and play more cards each turn.',
 ];

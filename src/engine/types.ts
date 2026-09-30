@@ -55,7 +55,7 @@ export type Condition =
 
 export type Effect = (
   /** Heat your target's sun, or every enemy sun. */
-  | { type: 'heat'; amount: number; to: 'target' | 'enemies'; plus?: Count; max?: number; /** Also heat every other enemy by this much (no bonuses). */ splash?: number }
+  | { type: 'heat'; amount: number; to: 'target'; plus?: Count; max?: number }
   /** Heat your own sun (the price of a strong effect). Shields do not stop it. */
   | { type: 'selfHeat'; amount: number }
   | { type: 'cool'; amount: number; plus?: Count; max?: number }

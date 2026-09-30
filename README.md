@@ -14,7 +14,7 @@ This repository holds the digital edition, which is aimed at release on Steam.
 npm install
 npm run dev          # play in the browser at http://localhost:5173
 npm test             # rules engine tests
-npm run simulate     # AI-vs-AI balance report: npm run simulate -- <games> <players>
+npm run simulate     # AI-vs-AI balance report: npm run simulate -- <games>
 npm run electron:dev # run as a desktop app (Electron)
 npm run dist         # package a desktop build into release/
 ```
