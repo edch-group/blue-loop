@@ -95,6 +95,8 @@ export interface CampaignHost {
   toMenu(): void;
   /** The shared settings buttons (sound, music, AI speed), for the campaign's settings sheet. */
   settingsButtons(): string;
+  /** The big centred announcement, as on the battle screen's "your turn". */
+  banner(text: string, sub: string): void;
 }
 
 type Sheet =
@@ -202,7 +204,10 @@ export class CampaignView {
         this.view = null;
         saveCampaign(this.state);
         sound.objective();
-        break;
+        // The map is up: announce the campaign (the setup page before it gets none).
+        this.host.render();
+        this.host.banner('campaign', 'a new galaxy');
+        return true;
       case 'cmp-zoom':
         if (this.view) {
           this.selected = null;

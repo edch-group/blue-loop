@@ -182,6 +182,7 @@ export class App {
       this.begin(game);
     },
     settingsButtons: () => this.settingsButtons(),
+    banner: (text, sub) => this.showBanner(text, sub, 120, 'campaign'),
     toMenu: () => {
       this.campaignBattle = false;
       this.screen = 'menu';
@@ -1174,8 +1175,7 @@ export class App {
       case 'campaign-new':
         this.campaign.openSetup();
         this.screen = 'campaign';
-        this.render();
-        return this.showBanner('campaign', 'a new galaxy', 120, 'campaign');
+        return this.render();
       case 'campaign-continue':
         if (!this.campaign.resume()) return this.render();
         this.screen = 'campaign';
