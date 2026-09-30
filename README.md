@@ -34,7 +34,31 @@ To deploy it on Cloudflare Pages (free plan):
 On iPhone, open the `*.pages.dev` address in **Safari**, tap **Share →
 Add to Home Screen**, and launch it from the icon to play full-screen.
 
-## Project layout
+## Native iPhone / iPad app (locked to landscape)
+
+A web app added from Safari cannot lock its orientation: iOS doesn't allow it. The native app can,
+like any App Store game. `ios/` is a native Xcode project ([Capacitor](https://capacitorjs.com))
+that wraps the same game and declares **landscape as its only orientation**, with the status
+bar hidden.
+
+You need a Mac with Xcode, and an Apple ID. A free Apple ID runs the app on your own iPhone for a
+week at a time; TestFlight and the App Store need a paid Apple Developer account.
+
+```bash
+npm install
+npm run ios:open     # builds the game, copies it into ios/, and opens Xcode
+```
+
+In Xcode:
+1. Select the **App** target, then **Signing & Capabilities**, and choose your team.
+2. Plug in your iPhone, pick it as the run destination, and press **Run**.
+
+After changing the game, run `npm run ios:sync` again.
+
+The web version on Cloudflare still works in a browser. When an iPhone is held upright, it draws
+the page sideways instead.
+
+
 
 | Path | What it is |
 | --- | --- |
@@ -51,6 +75,8 @@ Add to Home Screen**, and launch it from the icon to play full-screen.
 | `src/ui/sound.ts` | Synthesised placeholder sound effects (Web Audio). |
 | `electron/` | Desktop shell for the Steam build. |
 | `scripts/simulate.ts` | Balance simulator. |
+| `scripts/render_gems.py` | Renders the rarity gem images into `src/ui/gems/`. |
+| `ios/`, `capacitor.config.ts` | The native iOS app (landscape only). |
 | `docs/GAME_DESIGN.md` | Rules as implemented, and open design questions. |
 | `docs/STEAM.md` | Steam release roadmap. |
 

@@ -2,7 +2,7 @@
   "name": "blue-loop",
   "productName": "Blue Loop",
   "version": "0.1.0",
-  "description": "Blue Loop — a deck-building duel of warring solar civilisations, by Coronal Mass Games.",
+  "description": "Blue Loop \u2014 a deck-building duel of warring solar civilisations, by Coronal Mass Games.",
   "author": "Coronal Mass Games",
   "private": true,
   "type": "module",
@@ -16,7 +16,9 @@
     "simulate": "vite-node scripts/simulate.ts",
     "electron:dev": "vite build && electron .",
     "electron:build": "vite build && electron-builder --dir",
-    "dist": "vite build && electron-builder"
+    "dist": "vite build && electron-builder",
+    "ios:sync": "npm run build && cap sync ios",
+    "ios:open": "npm run ios:sync && cap open ios"
   },
   "build": {
     "appId": "com.coronalmassgames.blueloop",
@@ -39,6 +41,7 @@
     }
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
     "typescript": "^7.0.2",
@@ -47,6 +50,9 @@
     "vitest": "^5.0.2"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "@capacitor/screen-orientation": "^8.0.1",
     "@fontsource/exo-2": "^5.3.0",
     "@fontsource/orbitron": "^5.3.0"
   }

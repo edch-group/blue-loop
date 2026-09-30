@@ -14,6 +14,11 @@
  * Everything sizes from --app-w / --app-h and --vw / --vh (the page's own
  * width and height, as it is laid out), never the raw screen.
  */
+import { ScreenOrientation } from '@capacitor/screen-orientation';
+
+/** Fired on window whenever the page's size or turn changes (after it has settled). */
+export const VIEWPORT_EVENT = 'bl-viewport';
+
 let rotated = false;
 let screenW = window.innerWidth;
 let size = { w: window.innerWidth, h: window.innerHeight };
@@ -40,25 +45,41 @@ export function trackViewport() {
     rotated = portraitQuery.matches;
     screenW = w;
     size = rotated ? { w: h, h: w } : { w, h };
+    const key = `${rotated}:${w}:${size.w}:${size.h}`;
+    if (key === lastKey) return;
+    lastKey = key;
     root.classList.toggle('rotated', rotated);
     root.style.setProperty('--screen-w', `${w}px`);
     root.style.setProperty('--app-w', `${size.w}px`);
     root.style.setProperty('--app-h', `${size.h}px`);
     root.style.setProperty('--vw', `${size.w / 100}px`);
     root.style.setProperty('--vh', `${size.h / 100}px`);
+    window.dispatchEvent(new Event(VIEWPORT_EVENT));
   };
+  // iOS reports the new size a little while after a rotation begins (and sometimes reports a stale
+  // size first), so keep measuring until it settles rather than trusting the first event.
+  let timers: number[] = [];
+  const settle = () => {
+    update();
+    timers.forEach((t) => window.clearTimeout(t));
+    timers = [60, 180, 400, 800].map((ms) => window.setTimeout(update, ms));
+  };
+  let lastKey = '';
   update();
-  window.addEventListener('resize', update);
-  window.addEventListener('orientationchange', () => window.setTimeout(update, 250));
-  window.visualViewport?.addEventListener('resize', update);
-  portraitQuery.addEventListener?.('change', update);
+  window.addEventListener('resize', settle);
+  window.addEventListener('orientationchange', settle);
+  window.visualViewport?.addEventListener('resize', settle);
+  portraitQuery.addEventListener?.('change', settle);
   lockLandscape();
 }
 
-/** Where a browser allows it (Android, installed or full screen), lock the screen itself to landscape. */
+/**
+ * Lock the screen itself to landscape wherever that is allowed: the native
+ * app (which is landscape-only anyway), and Android browsers in full screen.
+ * iPhone browsers refuse, which is why the page turns itself instead.
+ */
 function lockLandscape() {
-  const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
-  const tryLock = () => orientation?.lock?.('landscape').catch(() => undefined);
+  const tryLock = () => ScreenOrientation.lock({ orientation: 'landscape' }).catch(() => undefined);
   tryLock();
   // Some browsers only allow a lock after a tap.
   window.addEventListener('pointerup', tryLock, { once: true });

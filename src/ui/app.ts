@@ -39,7 +39,7 @@ import { cardArt, cardGlyph, KIND_COLOUR, rarityGem, typeLine } from './glyphs';
 import { MENU_ICON } from './menu-icon';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
-import { appSize, pageRect } from './viewport';
+import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
 type MenuPage = 'title' | 'hub' | 'quickplay' | 'options' | 'decks';
@@ -205,7 +205,8 @@ export class App {
       { capture: true },
     );
     window.addEventListener('touchstart', () => (this.touch = true), { capture: true, passive: true });
-    window.addEventListener('resize', () => {
+    // Re-lay out whenever the page's size settles (after a rotation the first resize event can be stale).
+    window.addEventListener(VIEWPORT_EVENT, () => {
       this.fitHand();
       if (this.screen === 'campaign') this.campaign.afterRender(this.root);
     });

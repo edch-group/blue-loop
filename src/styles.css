@@ -2001,73 +2001,46 @@ html.rotated body {
 }
 
 /* ---------- Rarity gems ---------- */
-/* A small gem at the top of every card: a white dwarf (standard), a golden sun
-   (Stellar) or a black hole with a turning accretion disk (Anomaly). Each
-   shines gently, out of step with its neighbours; the black hole never rests. */
+/* A tiny polished cabochon in the card's top corner (see rarityGem in glyphs.ts). Layers
+   are pre-rendered images; each one moves a little, out of step with other cards. */
 .gem {
-  --gs: max(10px, calc(var(--cw, 100px) * 0.15));
-  position: absolute; top: calc(var(--cw, 100px) * 0.035); left: 50%; z-index: 2;
-  width: var(--gs); height: var(--gs); margin-left: calc(var(--gs) / -2);
-  border-radius: 50%; pointer-events: none;
+  --gs: max(9px, calc(var(--cw, 100px) * 0.1));
+  position: absolute; z-index: 2; top: calc(var(--cw, 100px) * 0.05); right: calc(var(--cw, 100px) * 0.05);
+  width: var(--gs); height: var(--gs); border-radius: 50%; pointer-events: none;
+  filter: drop-shadow(0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.08) rgba(40, 40, 60, 0.35));
 }
-.gem > i { position: absolute; inset: 0; border-radius: 50%; }
-.card-big .gem, .db-card .gem { --gs: max(14px, calc(var(--cw, 140px) * 0.12)); }
-.db-card .gem { top: 6px; left: auto; right: 8px; margin-left: 0; }
+.card-big .gem, .db-card .gem { --gs: max(14px, calc(var(--cw, 140px) * 0.085)); }
+.db-card .gem { --gs: clamp(14px, calc(2.6 * var(--vw)), 20px); top: 7px; right: 8px; }
 .db-card .db-count { right: auto; left: 9px; }
+.gem .g, .gem .gem-window, .gem .g-disk { position: absolute; inset: 0; display: block; background-size: 100% 100%; }
+.gem-window { border-radius: 50%; overflow: hidden; clip-path: circle(46.5% at 50% 50%); }
+.g-socket { background-image: var(--gem-socket); }
+.g-glass { background-image: var(--gem-glass); }
 
-/* White dwarf: a pearl with a slow travelling glint. */
-.gem-dwarf .gem-core {
-  background: radial-gradient(circle at 36% 32%, #fff 0 18%, #f3f6fa 46%, #cdd6e2 100%);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 calc(var(--gs) * 0.5) rgba(210, 222, 238, 0.95);
-  overflow: hidden;
-}
-.gem-dwarf .gem-core::after {
-  content: ''; position: absolute; inset: -30%;
-  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.95) 50%, transparent 62%);
-  animation: gemGlint 4.6s ease-in-out infinite; animation-delay: calc(var(--gp) * -4.6s);
-}
-@keyframes gemGlint { 0%, 55% { transform: translateX(-70%); } 85%, 100% { transform: translateX(70%); } }
+/* White dwarf: a searing point whose glare breathes and twinkles. */
+.g-dwarf { background-image: var(--gem-dwarf); animation: gemFlare 3.8s ease-in-out infinite; animation-delay: calc(var(--gp) * -3.8s); }
+.g-dwarf-glow { background-image: var(--gem-dwarfGlow); animation: gemTwinkle 2.3s ease-in-out infinite; animation-delay: calc(var(--gp) * -2.3s); }
+@keyframes gemFlare { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.06); filter: brightness(1.18); } }
+@keyframes gemTwinkle { 0%, 100% { opacity: 0.75; transform: scale(0.94); } 35% { opacity: 1; transform: scale(1.06); } 60% { opacity: 0.85; } }
 
-/* Stellar: a golden sun with slowly turning rays and a warm pulse. */
-.gem-stellar .gem-rays {
-  inset: -38%;
-  background: repeating-conic-gradient(from 0deg, rgba(255, 196, 92, 0.85) 0 7deg, transparent 7deg 30deg);
-  -webkit-mask: radial-gradient(circle, transparent 34%, #000 36%, transparent 70%);
-  mask: radial-gradient(circle, transparent 34%, #000 36%, transparent 70%);
-  animation: gemSpin 14s linear infinite; animation-delay: calc(var(--gp) * -14s);
-}
-.gem-stellar .gem-core {
-  background: radial-gradient(circle at 38% 34%, #fffbe8 0 16%, #ffd66b 48%, #e8962e 100%);
-  box-shadow: 0 0 0 1px rgba(255, 244, 214, 0.9), 0 0 calc(var(--gs) * 0.6) rgba(255, 182, 72, 0.75);
-  animation: gemPulse 3.2s ease-in-out infinite; animation-delay: calc(var(--gp) * -3.2s);
-}
-@keyframes gemPulse { 50% { box-shadow: 0 0 0 1px rgba(255, 244, 214, 0.9), 0 0 calc(var(--gs) * 1.1) rgba(255, 170, 60, 0.95); filter: brightness(1.08); } }
-@keyframes gemSpin { to { transform: rotate(360deg); } }
+/* Stellar: the sun turns slowly inside a gently breathing corona. */
+.g-sun-disc { background-image: var(--gem-sunDisc); animation: gemTurn 48s linear infinite; animation-delay: calc(var(--gp) * -48s); }
+.g-sun-corona { background-image: var(--gem-sunCorona); animation: gemCorona 5.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -5.5s); }
+@keyframes gemCorona { 0%, 100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.07); opacity: 1; } }
+@keyframes gemTurn { to { transform: rotate(360deg); } }
 
-/* Anomaly: a black hole, always active: a turning, tilted accretion disk and a flickering glow. */
-.gem-anomaly { overflow: visible; }
-.gem-anomaly .gem-disk { inset: -45%; transform: rotate(-18deg) scaleY(0.42); border-radius: 50%; }
-.gem-anomaly .gem-disk > i {
-  position: absolute; inset: 0; border-radius: 50%;
-  background: conic-gradient(from 0deg, #ffb35c, #ff6fa0 25%, #8a6cff 45%, transparent 55%, #ffd08a 75%, #ffb35c);
-  -webkit-mask: radial-gradient(circle, transparent 42%, #000 46%, #000 60%, transparent 72%);
-  mask: radial-gradient(circle, transparent 42%, #000 46%, #000 60%, transparent 72%);
-  animation: gemSpin 2.4s linear infinite;
-  filter: blur(0.3px) drop-shadow(0 0 2px rgba(255, 150, 120, 0.9));
-}
-.gem-anomaly .gem-core {
-  inset: 12%;
-  background: radial-gradient(circle, #000 0 55%, #1a0f2e 72%, rgba(120, 80, 220, 0.6) 100%);
-  box-shadow: 0 0 0 1px rgba(255, 190, 140, 0.55), 0 0 calc(var(--gs) * 0.7) rgba(140, 90, 255, 0.8);
-  animation: gemFlicker 1.9s ease-in-out infinite;
-}
-@keyframes gemFlicker {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 190, 140, 0.55), 0 0 calc(var(--gs) * 0.6) rgba(140, 90, 255, 0.7); }
-  50% { box-shadow: 0 0 0 1.5px rgba(255, 200, 150, 0.8), 0 0 calc(var(--gs) * 1.2) rgba(255, 120, 170, 0.8); }
-}
+/* Anomaly: the black hole never rests. Its disk, tilted into perspective, streams around it;
+   the near half passes in front of the shadow, the lensed far side glows over the top. */
+.g-hole-back { background-image: var(--gem-holeBack); animation: gemSimmer 2.6s ease-in-out infinite; }
+.g-hole { background-image: var(--gem-hole); }
+.gem .g-disk { transform: rotate(-14deg) scaleY(0.3); }
+.gem .g-disk-front { clip-path: inset(50% 0 0 0); }
+.g-disk-spin { background-image: var(--gem-disk); animation: gemTurn 5s linear infinite; }
+@keyframes gemSimmer { 0%, 100% { opacity: 0.88; filter: brightness(1); } 50% { opacity: 1; filter: brightness(1.15); } }
 @media (prefers-reduced-motion: reduce) {
-  .gem-dwarf .gem-core::after, .gem-stellar .gem-rays, .gem-stellar .gem-core { animation: none; }
-  .gem-anomaly .gem-disk > i { animation-duration: 8s; } /* the black hole stays active, just slower */
+  .g-dwarf, .g-dwarf-glow, .g-sun-corona, .g-hole-back { animation: none; }
+  .g-sun-disc { animation-duration: 200s; }
+  .g-disk-spin { animation-duration: 20s; } /* the black hole stays active, just slower */
 }
 /* Rarer cards get a faint edge in their gem's colour. */
 .card.rarity-stellar { border-color: rgba(255, 214, 140, 0.9); }
@@ -2079,6 +2052,5 @@ html.rotated body {
 .glyph-character g * { stroke-width: 1.7; }
 .glyph-character g .fill { fill: color-mix(in srgb, var(--g, var(--kc)) 30%, transparent); stroke: none; }
 .glyph-character .halo { fill: none; stroke: #e9b95c; stroke-width: 1.6; opacity: 0.9; }
-/* The gem sits in the top corner, clear of the art; the growth counter moves to the other corner. */
-.card .gem { left: auto; right: calc(var(--cw, 100px) * 0.05); margin-left: 0; top: calc(var(--cw, 100px) * 0.05); }
+/* The gem sits in the top-right corner, so the growth counter takes the top left. */
 .card .growth { right: auto; left: calc(var(--cw, 100px) * 0.05); }

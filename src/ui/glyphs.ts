@@ -1,5 +1,14 @@
 import { RACE_NAMES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
 import { raceHead } from './factions';
+import disk from './gems/disk.png';
+import dwarfGlow from './gems/dwarf-glow.png';
+import dwarf from './gems/dwarf.png';
+import glass from './gems/glass.png';
+import holeBack from './gems/hole-back.png';
+import hole from './gems/hole.png';
+import socket from './gems/socket.png';
+import sunCorona from './gems/sun-corona.png';
+import sunDisc from './gems/sun-disc.png';
 
 /**
  * Alien glyphs: one simple line-drawn shape per card, coloured by what the
@@ -124,14 +133,26 @@ function phase(id: string): string {
 }
 
 /**
- * The rarity gem at the top of a card: a white dwarf (standard), a golden sun
- * (Stellar) or a black hole with a turning accretion disk (Anomaly).
+ * The rarity gem in a card's top corner: a tiny cabochon of dark glass in a
+ * silver bezel, with a glowing body inside it. A white dwarf (standard) that
+ * glares and twinkles; a sun (Stellar) that slowly turns inside its corona; a
+ * black hole (Anomaly) whose accretion disk streams around it without rest.
+ * The layers are pre-rendered images (scripts/render_gems.py).
  */
 export function rarityGem(def: CardDef): string {
   const r: Rarity = def.rarity ?? 'dwarf';
-  const inner = r === 'anomaly' ? '<i class="gem-disk"><i></i></i><i class="gem-core"></i>' : r === 'stellar' ? '<i class="gem-rays"></i><i class="gem-core"></i>' : '<i class="gem-core"></i>';
-  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}">${inner}</span>`;
+  const body =
+    r === 'anomaly'
+      ? '<i class="g g-hole-back"></i><i class="g-disk"><i class="g g-disk-spin"></i></i><i class="g g-hole"></i><i class="g-disk g-disk-front"><i class="g g-disk-spin"></i></i>'
+      : r === 'stellar'
+        ? '<i class="g g-sun-corona"></i><i class="g g-sun-disc"></i>'
+        : '<i class="g g-dwarf-glow"></i><i class="g g-dwarf"></i>';
+  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}"><i class="g g-socket"></i><i class="gem-window">${body}</i><i class="g g-glass"></i></span>`;
 }
+
+// The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
+const GEM_IMAGES: Record<string, string> = { socket, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk };
+for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
 
 /** The small line under a card's text: its kind and race (plus, in full, its rarity and whether it is a character). */
 export function typeLine(def: CardDef, full = false): string {

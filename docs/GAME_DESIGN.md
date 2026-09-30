@@ -77,13 +77,13 @@ With exactly 2 Command cards per deck, a player reaches at most +2 on one stat i
 
 ## Rarity [design review]
 
-Every card has a rarity, shown by a small animated gem in its top corner:
+Every card has a rarity, shown by a small animated gem in its top corner. The gem is a tiny cabochon of dark glass in a silver bezel, with a glowing body inside it. The images are rendered by `scripts/render_gems.py`.
 
 | Rarity | Gem | Deck limit |
 | --- | --- | --- |
-| White Dwarf (standard) | A pearl with a slow travelling glint | 2 copies |
-| Stellar | A golden sun with slowly turning rays and a warm pulse | 2 copies |
-| Anomaly | A black hole with a turning accretion disk and a flickering glow; always active | **1 copy** (unique) [proposed] |
+| White Dwarf (standard) | A searing blue-white point whose glare breathes and twinkles | 2 copies |
+| Stellar | A granulated, limb-darkened sun turning slowly in its corona | 2 copies |
+| Anomaly | A black hole: a lensed glow over the shadow, and an accretion disk that streams around it and passes in front; never at rest | **1 copy** (unique) [proposed] |
 
 Stellar and Anomaly cards also get a faint gold or violet edge. In the campaign, rarer cards cost more in the armory (3 / 5 / 8 materials, +1 for a race card) and turn up less often there and in mission rewards.
 
@@ -154,7 +154,10 @@ Each player is one of four non-humanoid alien races. The race sets the faction e
 
 ## Always landscape
 
-The game is always landscape. Held upright, a phone shows the whole page turned a quarter-turn, so you just hold it sideways. That works even with rotation lock on. Browsers can't lock orientation on iPhone, so this is the only reliable way. Where a real lock is allowed (Android, full screen), the app asks for one too. [design review]
+The game is always landscape.
+- **Native iOS app** (`ios/`): landscape is its only orientation, so iOS locks it like any App Store game.
+- **Web version held upright** (browsers can't lock orientation on iPhone): the page draws itself sideways. It re-measures until a rotation settles, then re-lays out the hand and map.
+- **Android and full-screen browsers that allow it:** the app also requests a real lock.
 
 ## The battle table
 
