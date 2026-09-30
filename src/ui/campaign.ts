@@ -653,9 +653,11 @@ export class CampaignView {
     const focus = this.selected ? nodeById(this.state!, this.selected) : null;
     const fit = this.fitScale(stage, CampaignView.TILT);
     const v = this.view!;
+    // Stars keep a readable size at any free zoom; zooming into a system leaves that alone, so they grow with it.
+    const ui = Math.min(2.2, Math.max(0.7, 1 / (fit * v.zoom)));
     return focus
-      ? { x: focus.x, y: focus.y, scale: Math.max(fit * v.zoom, 1) * 2.4, tilt: CampaignView.FOCUS_TILT }
-      : { x: v.x, y: v.y, scale: fit * v.zoom, tilt: CampaignView.TILT };
+      ? { x: focus.x, y: focus.y, scale: Math.max(fit * v.zoom, 1) * 2.4, tilt: CampaignView.FOCUS_TILT, ui }
+      : { x: v.x, y: v.y, scale: fit * v.zoom, tilt: CampaignView.TILT, ui };
   }
 
   /**
@@ -671,10 +673,11 @@ export class CampaignView {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (animate && this.cam && !reduce && !sameCam(this.cam, target)) {
       this.glide = { from: { ...this.cam }, start: performance.now() };
+      this.writeCamera(); // the re-rendered plane starts where the old one was, not untransformed
       if (this.frame === null) this.frame = requestAnimationFrame((t) => this.tick(t));
       return;
     }
-    if (this.glide) return; // mid-glide: the next frame heads for the new target
+    if (this.glide) return this.writeCamera(); // mid-glide: keep the fresh plane in place; the next frame heads for the new target
     this.cam = target;
     this.writeCamera();
   }
@@ -693,6 +696,7 @@ export class CampaignView {
       y: f.y + (target.y - f.y) * e,
       scale: Math.exp(Math.log(f.scale) + (Math.log(target.scale) - Math.log(f.scale)) * e),
       tilt: f.tilt + (target.tilt - f.tilt) * e,
+      ui: f.ui + (target.ui - f.ui) * e,
     };
     this.writeCamera();
     if (t < 1) this.frame = requestAnimationFrame((n) => this.tick(n));
@@ -705,8 +709,7 @@ export class CampaignView {
     if (!plane || !c) return;
     plane.style.transform = `rotateX(${c.tilt.toFixed(2)}deg) scale3d(${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}) translate(${(-c.x).toFixed(1)}px, ${(-c.y).toFixed(1)}px)`;
     plane.style.setProperty('--tilt', `${c.tilt.toFixed(2)}deg`);
-    // Stars stay a readable size on screen whatever the zoom.
-    plane.style.setProperty('--ui', String(Math.min(2.2, Math.max(0.7, 1 / c.scale))));
+    plane.style.setProperty('--ui', c.ui.toFixed(4));
   }
 
   private clampView() {
@@ -1074,8 +1077,10 @@ interface Cam {
   y: number;
   scale: number;
   tilt: number;
+  /** Star size factor: counters the free zoom so stars stay readable (see cameraTarget). */
+  ui: number;
 }
 
 function sameCam(a: Cam, b: Cam): boolean {
-  return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.scale / b.scale - 1) < 0.001 && Math.abs(a.tilt - b.tilt) < 0.05;
+  return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.scale / b.scale - 1) < 0.001 && Math.abs(a.tilt - b.tilt) < 0.05 && Math.abs(a.ui - b.ui) < 0.001;
 }
