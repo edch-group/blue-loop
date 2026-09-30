@@ -49,10 +49,11 @@ import { cardArt, cardGlyph, KIND_COLOUR, stabilityBadge, typeLine } from './gly
 import { MENU_ICON } from './menu-icon';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
+import { cleanCode, hasSeat, inviteLink, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
 import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
-type MenuPage = 'title' | 'hub' | 'quickplay' | 'options' | 'decks';
+type MenuPage = 'title' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online';
 
 const HUB_ICONS = {
   campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle cx="10" cy="34" r="3.2"/><circle cx="22" cy="26" r="2.6"/><circle cx="36" cy="32" r="3.6"/><circle cx="26" cy="12" r="3"/><circle cx="14" cy="16" r="2.4"/></svg>`,
@@ -185,6 +186,15 @@ export class App {
     },
   });
   private campaignBattle = false;
+  /** Online 1v1: the room connection, and what the lobby shows. */
+  private online: OnlineClient | null = null;
+  private net = {
+    /** A code typed (or from an invite link) to join. */
+    joinCode: '',
+    status: 'idle' as 'idle' | 'connecting' | 'open' | 'lost',
+    lobby: null as LobbySeat[] | null,
+    you: 0,
+  };
   private builder = new DeckBuilder({
     render: () => this.render(),
     toast: (text) => this.showToast(text, 'error'),
@@ -256,7 +266,108 @@ export class App {
 
   start() {
     backdrop.mount();
+    // An invite link (?room=CODE) opens the online page, ready to join.
+    const invited = cleanCode(new URLSearchParams(location.search).get('room') ?? '');
+    if (invited) {
+      this.net.joinCode = invited;
+      this.menuPage = 'online';
+      // Already holding a seat in that room (a reload, or the tab was closed): go straight back to it.
+      if (hasSeat(invited)) return this.goOnline(invited);
+    }
     this.render();
+  }
+
+  // -------------------------------------------------------------------------
+  // Online 1v1
+  // -------------------------------------------------------------------------
+
+  /** Create a room (no code) or join one, with the first seat's name and deck. */
+  private goOnline(code?: string) {
+    this.leaveOnline();
+    const seat = this.seats[0];
+    const deck = deckById(seat.deckId) ?? PRESETS[0];
+    const room = code || newRoomCode();
+    this.net.lobby = null;
+    this.online = new OnlineClient(
+      room,
+      { name: seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race },
+      {
+        lobby: (seats, you) => {
+          this.net.lobby = seats;
+          this.net.you = you;
+          if (this.screen === 'menu') this.render();
+        },
+        state: (state, you, last) => this.onRemoteState(state, you, last),
+        error: (message) => {
+          this.showToast(message, 'error');
+          sound.error();
+          if (/full/.test(message)) {
+            this.leaveOnline();
+            this.render();
+          }
+        },
+        status: (status) => {
+          this.net.status = status;
+          this.render();
+        },
+      },
+    );
+    history.replaceState(null, '', inviteLink(room));
+    this.render();
+  }
+
+  private leaveOnline() {
+    this.online?.close();
+    this.online = null;
+    this.net.lobby = null;
+    this.net.status = 'idle';
+    if (location.search) history.replaceState(null, '', location.pathname);
+  }
+
+  /** The room sent this player's view of the game: start it, or animate the move that changed it. */
+  private onRemoteState(next: GameState, you: string, last: LastMove | null) {
+    const prev = this.state;
+    const sameGame = this.screen === 'game' && prev && prev.players.every((p, i) => next.players[i]?.id === p.id) && next.turnNumber >= prev.turnNumber && !(prev.winnerId && !next.winnerId);
+    if (!sameGame || !prev) {
+      this.state = next;
+      this.viewerId = you;
+      this.revealedFor = you;
+      this.viewRivalId = null;
+      this.pending = null;
+      this.stage = null;
+      this.sheet = null;
+      this.campaignBattle = false;
+      this.screen = 'game';
+      this.render();
+      this.dealOpening();
+      this.announceTurn(400);
+      return;
+    }
+    // A reconnect resends the same state: just show it.
+    const unchanged = (prev.log[prev.log.length - 1]?.seq ?? 0) === (next.log[next.log.length - 1]?.seq ?? 0);
+    if (unchanged || !last) {
+      this.state = next;
+      this.render();
+      return;
+    }
+    const actor = prev.players.find((p) => p.id === last.actorId) ?? activePlayer(prev);
+    const before = snapshot(this.root);
+    if (last.action.type !== 'setTarget') backdrop.spin();
+    const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
+    this.state = next;
+    this.pending = null;
+    if (this.sheet?.kind === 'card') this.sheet = null;
+    this.stage = null;
+    if (actor.id !== you && last.action.type === 'playCard') {
+      if (last.faceDown) this.stage = { defId: 'null_field', actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
+      else if (last.played) this.stage = { defId: last.played, actorId: actor.id };
+    }
+    const sprung = this.sprungLightspeed(prev, next);
+    if (sprung) this.stage = sprung;
+    this.render();
+    this.surfaceLog(prev);
+    this.animate(prev, next, last.action, actor, before);
+    if (turnPassed) this.announceTurn(450);
   }
 
   // -------------------------------------------------------------------------
@@ -397,7 +508,7 @@ export class App {
 
   private syncViewer() {
     const s = this.state;
-    if (!s) return;
+    if (!s || this.online) return;
     const active = activePlayer(s);
     if (!active.isAI) this.viewerId = active.id;
   }
@@ -405,6 +516,13 @@ export class App {
   private dispatch(action: Action, animate = true) {
     const prev = this.state;
     if (!prev) return;
+    // Online, the room plays the move and sends back the result.
+    if (this.online) {
+      this.online.act(action);
+      this.pending = null;
+      this.render();
+      return;
+    }
     const actor = activePlayer(prev);
     let next: GameState;
     try {
@@ -439,6 +557,7 @@ export class App {
 
   /** Autosave: a campaign battle is saved inside its campaign; a normal game on its own. */
   private persist(state: GameState) {
+    if (this.online) return; // the room keeps online games
     if (this.campaignBattle) this.campaign.saveBattle(state);
     else if (isGameOver(state)) clearSave();
     else save(state);
@@ -469,11 +588,13 @@ export class App {
     for (const was of prev.players) {
       const card = was.lightspeed;
       const now = next.players.find((p) => p.id === was.id)!;
-      if (!card || now.lightspeed?.uid === card.uid || now.eliminated) continue;
-      const name = cardDef(card.defId).name;
+      if (!card || now.lightspeed || now.eliminated) continue;
+      // A rival's face-down card is hidden (online); the one that sprang is now on top of their discard pile.
+      const defId = now.discard[now.discard.length - 1]?.defId ?? card.defId;
+      const name = cardDef(defId).name;
       this.showBanner('lightspeed!', `${now.name} springs ${name}`, 150);
       sound.flare();
-      return { defId: card.defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs` };
+      return { defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs` };
     }
     return null;
   }
@@ -764,6 +885,7 @@ export class App {
 
   /** Hot-seat: hide the hand until the next human confirms they have the device. */
   private needsHandoff(): boolean {
+    if (this.online) return false;
     const s = this.state!;
     const p = activePlayer(s);
     const humans = s.players.filter((pl) => !pl.isAI).length;
@@ -834,6 +956,7 @@ export class App {
     const seat = el.dataset.seatName;
     if (seat !== undefined) this.seats[Number(seat)].name = el.value;
     if (el.dataset.dbName !== undefined) this.builder.onInput(el.value);
+    if (el.dataset.joinCode !== undefined) this.net.joinCode = el.value;
   }
 
   private peekHeld = false;
@@ -962,6 +1085,33 @@ export class App {
       }
       case 'new-game':
         return this.newGame();
+      case 'online-create':
+        return this.goOnline();
+      case 'online-join': {
+        const code = cleanCode(this.net.joinCode);
+        if (code.length < 4) {
+          this.showToast('Enter the room code your friend sent you.', 'info');
+          return;
+        }
+        return this.goOnline(code);
+      }
+      case 'online-leave':
+        this.leaveOnline();
+        return this.render();
+      case 'online-retry':
+        this.online?.retry();
+        return;
+      case 'online-rematch':
+        this.online?.rematch();
+        return;
+      case 'online-share': {
+        if (!this.online) return;
+        const link = inviteLink(this.online.code);
+        const nav = navigator as Navigator & { share?: (d: { title: string; url: string }) => Promise<void> };
+        if (nav.share) void nav.share({ title: 'Blue Loop', url: link }).catch(() => undefined);
+        else void navigator.clipboard?.writeText(link).then(() => this.showToast('Invite link copied.', 'info'), () => undefined);
+        return;
+      }
       case 'continue':
         return this.continueGame();
       case 'rules':
@@ -983,10 +1133,12 @@ export class App {
       case 'campaign-auto':
         return this.returnToCampaign(true);
       case 'menu-page':
+        if (this.menuPage === 'online' && arg !== 'online') this.leaveOnline();
         this.menuPage = arg as MenuPage;
         this.sheet = null;
         return this.render();
       case 'to-menu':
+        this.leaveOnline();
         this.campaignBattle = false;
         this.screen = 'menu';
         this.menuPage = 'hub';
@@ -1128,9 +1280,9 @@ export class App {
 
   private renderMenu(): string {
     const page = this.menuPage;
-    const setup = page === 'quickplay' || page === 'options' || page === 'decks';
+    const setup = page === 'quickplay' || page === 'options' || page === 'decks' || page === 'online';
     const body =
-      page === 'title' ? this.renderTitlePage() : page === 'hub' ? this.renderHub() : page === 'quickplay' ? this.renderQuickplay() : page === 'decks' ? this.builder.render() : this.renderOptions();
+      page === 'title' ? this.renderTitlePage() : page === 'hub' ? this.renderHub() : page === 'quickplay' ? this.renderQuickplay() : page === 'decks' ? this.builder.render() : page === 'online' ? this.renderOnline() : this.renderOptions();
     return `
     <main class="menu menu-${page} ${setup ? 'setup-page' : ''}">
       ${body}
@@ -1215,9 +1367,70 @@ export class App {
       'quickplay',
       `<div class="seat-row">${seats}</div>`,
       `<button class="btn" data-act="open-decks">deck builder</button>
+       <button class="btn" data-act="menu-page" data-arg="online">play online</button>
        <span class="setup-spacer"></span>
        ${hasSave ? '<button class="btn" data-act="continue">continue game</button>' : ''}
        <button class="btn-primary" data-act="new-game">launch</button>`,
+    );
+  }
+
+  /** Online 1v1: create a room or join one; then the room code, the invite and who is in. */
+  private renderOnline(): string {
+    const seat = this.seats[0];
+    const deck = deckById(seat.deckId) ?? PRESETS[0];
+    const you = `
+      <div class="seat-tile online-you">
+        ${factionAvatar(`f${deck.race + 1}`, 'seat-emblem')}
+        <input data-seat-name="0" value="${esc(seat.name)}" maxlength="18" aria-label="Your name" ${this.online ? 'disabled' : ''} />
+        <button class="seat-deck" data-act="seat-deck" data-arg="0" ${this.online ? 'disabled' : ''} title="Tap to change deck"><small>your deck</small><span>${esc(deck.name.toLowerCase())}</span></button>
+      </div>`;
+    if (!this.online) {
+      return this.setupPage(
+        'play online',
+        `<div class="online-wrap">
+          ${you}
+          <div class="online-choices">
+            <div class="online-box">
+              <b>host a game</b>
+              <p>Get a room code and an invite link to send a friend.</p>
+              <button class="btn-primary" data-act="online-create">create room</button>
+            </div>
+            <div class="online-box">
+              <b>join a game</b>
+              <p>Enter the code your friend sent you.</p>
+              <input class="online-code" data-join-code value="${esc(this.net.joinCode)}" maxlength="8" placeholder="CODE" autocapitalize="characters" aria-label="Room code" />
+              <button class="btn-primary" data-act="online-join">join</button>
+            </div>
+          </div>
+        </div>`,
+        '<span class="muted">1v1 · each player on their own device</span>',
+        'quickplay',
+      );
+    }
+    const code = this.online.code;
+    const status = this.net.status === 'open' ? '' : this.net.status === 'lost' ? '<button class="btn" data-act="online-retry">connection lost · retry</button>' : '<span class="muted">connecting…</span>';
+    const seats = this.net.lobby ?? [];
+    const rival = seats.find((_, i) => i !== this.net.you);
+    return this.setupPage(
+      'play online',
+      `<div class="online-wrap">
+        <div class="online-room">
+          <small>room code</small>
+          <b class="online-room-code">${code}</b>
+          <button class="btn" data-act="online-share">share invite link</button>
+          <span class="muted online-link">${esc(inviteLink(code))}</span>
+        </div>
+        <div class="online-seats">
+          ${you}
+          <span class="online-vs">vs</span>
+          ${rival
+            ? `<div class="seat-tile">${factionAvatar(`f${rival.species + 1}`, 'seat-emblem')}<b class="online-name">${esc(rival.name)}</b><span class="seat-deck"><small>deck</small><span>${esc(rival.deckName.toLowerCase())}</span></span></div>`
+            : '<div class="seat-tile seat-off online-waiting"><span class="online-pulse"></span><b>waiting for your opponent…</b><small>send them the code or the link</small></div>'}
+        </div>
+        ${status}
+      </div>`,
+      '<button class="btn" data-act="online-leave">leave room</button><span class="setup-spacer"></span><span class="muted">the game starts as soon as they join</span>',
+      'quickplay',
     );
   }
 
@@ -1345,6 +1558,8 @@ export class App {
         <div class="hud-controls">
           ${field}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
+          ${this.online && this.net.status === 'connecting' ? '<span class="pill-btn net-pill">reconnecting…</span>' : ''}
+          ${this.online && this.net.status === 'lost' ? '<button class="pill-btn net-pill" data-act="online-retry">connection lost · retry</button>' : ''}
           ${this.campaignBattle && !isGameOver(s) ? '<button class="pill-btn" data-act="campaign-auto" title="Let your commanders finish this battle">auto-resolve</button>' : ''}
           <button class="icon-btn ${this.sheet?.kind === 'log' ? 'icon-on' : ''}" data-act="${this.sheet?.kind === 'log' ? 'cancel' : 'open-log'}" aria-label="Game log" title="Game log">${LOG_ICON}</button>
           <button class="icon-btn" data-act="open-menu" aria-label="Menu">${MENU_ICON}</button>
@@ -1732,7 +1947,11 @@ export class App {
             ${sunOrb({ heat: winner.heat, threshold: supernovaThreshold(winner), size: 96 })}
             <h2>${esc(winner.name.toLowerCase())} wins</h2>
             <p>The last sun standing after ${s.round} rounds.</p>
-            ${this.campaignBattle ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>' : '<button class="btn-primary" data-act="to-menu">back to menu</button>'}
+            ${this.campaignBattle
+              ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
+              : this.online
+                ? '<div class="menu-actions center-row"><button class="btn-primary" data-act="online-rematch">rematch</button><button class="btn" data-act="to-menu">leave</button></div>'
+                : '<button class="btn-primary" data-act="to-menu">back to menu</button>'}
           </div>
         </div></div>`;
     }

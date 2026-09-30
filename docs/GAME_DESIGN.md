@@ -275,6 +275,16 @@ The game is always landscape.
 - **Web version held upright** (browsers can't lock orientation on iPhone): the page draws itself sideways. It re-measures until a rotation settles, then re-lays out the hand and map.
 - **Android and full-screen browsers that allow it:** the app also requests a real lock.
 
+## Online 1v1 [design review]
+
+Two players, each on their own device. From **Quickplay → play online**, one player creates a room and sends the five-letter code or the invite link; the other joins with it. The game starts as soon as both are in.
+- **The server holds the game.** It runs on a Cloudflare Worker with one Durable Object per room, and runs the same engine as the client. Moves are checked there, so a client cannot cheat.
+- **Hidden information is hidden in transit, not just on screen.** Each player receives only their view: their own hand and face-down Lightspeed card, the rival's card counts, neither deck's order, and no random seed. Hidden cards also get throwaway ids, since real ids would reveal deck-list positions.
+- **On the table**, the rival's moves animate like an AI's: the card they played is shown at the middle right, and a card they set face down shows as a card back.
+- **Connections:** a dropped connection reconnects to its seat by itself; reopening the invite link in the same browser also rejoins. A "reconnecting…" pill shows meanwhile.
+- **Rematches** alternate who goes first. Rooms delete themselves after a day without play.
+- **Code:** `server/room.ts` holds the room logic (tested in `tests/room.test.ts`), `server/worker.ts` the Worker and Durable Object, and `src/ui/online.ts` the client connection.
+
 ## The battle table
 
 The whole play area is a table seen in perspective, like a tabletop simulator. A flat HUD sits above it:

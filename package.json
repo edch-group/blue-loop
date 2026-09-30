@@ -18,7 +18,9 @@
     "electron:build": "vite build && electron-builder --dir",
     "dist": "vite build && electron-builder",
     "ios:sync": "npm run build && cap sync ios",
-    "ios:open": "npm run ios:sync && cap open ios"
+    "ios:open": "npm run ios:sync && cap open ios",
+    "server": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
   },
   "build": {
     "appId": "com.coronalmassgames.blueloop",
@@ -42,12 +44,14 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
+    "@cloudflare/workers-types": "^5.20260930.2",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",
     "vite-node": "^6.0.0",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.2",
+    "wrangler": "^4.145.0"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.2",

@@ -34,6 +34,26 @@ To deploy it on Cloudflare Pages (free plan):
 On iPhone, open the `*.pages.dev` address in **Safari**, tap **Share →
 Add to Home Screen**, and launch it from the icon to play full-screen.
 
+## Online 1v1 (play with a friend on your own devices)
+
+Online games run on a Cloudflare Worker (`server/`). The Worker serves the game itself and hosts the rooms. Each room is a Durable Object that runs the same engine as the game, checks every move, and sends each player only what they may see. That means your own hand and face-down card, but not your rival's.
+
+**Deploy (once, then after each change):**
+
+```bash
+npx wrangler login     # first time only: authorise your Cloudflare account in the browser
+npm run deploy         # builds the game, then deploys the Worker and its rooms
+```
+
+Wrangler prints the address, e.g. `https://blue-loop.<your-subdomain>.workers.dev`. Open it, then **Quickplay → play online → create room**, and send your friend the code or the invite link. The game starts as soon as they join.
+- **Dropped connections:** a phone that locks or loses signal reconnects to its seat by itself. Reopening the invite link in the same browser also rejoins.
+- **Rematches:** they alternate who goes first.
+- **Tidying up:** rooms delete themselves after a day without play.
+
+**Try it locally first:** `npm run server` runs the Worker and rooms on your machine at http://localhost:8787. Open it in two browser windows to play yourself.
+
+**Playing online from the Pages site:** the Pages build only has the game files, not the rooms. To play online from your `*.pages.dev` address, set the environment variable `VITE_SERVER_URL=https://blue-loop.<your-subdomain>.workers.dev` in the Pages project's build settings and redeploy. Otherwise share the `workers.dev` address, which has both.
+
 ## Native iPhone / iPad app (locked to landscape)
 
 A web app added from Safari cannot lock its orientation: iOS doesn't allow it. The native app can,

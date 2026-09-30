@@ -1,0 +1,17 @@
+# Blue Loop online: one Worker serves the built game (dist/) and runs the 1v1 rooms.
+# Deploy with `npm run deploy` (builds first). Rooms are Durable Objects, one per room code.
+name = "blue-loop"
+main = "server/worker.ts"
+compatibility_date = "2025-09-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

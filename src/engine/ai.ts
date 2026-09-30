@@ -22,15 +22,22 @@ import {
 } from './game';
 import type { Action, CardInstance, GameState, PlayerState } from './types';
 
+/** A tuning number, overridable from the environment when simulating (npm run simulate); fixed everywhere else. */
+function tuning(name: string, fallback: number): number {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  const v = env?.[name];
+  return v === undefined ? fallback : Number(v);
+}
+
 /** Turns a card in play is expected to keep working, for valuing ongoing effects. */
 const HORIZON = 2.5;
 /** A rival this close to supernova is worth switching targets to finish. */
-const FINISH_RATIO = Number(globalThis.process?.env?.FINISH ?? 0.75);
+const FINISH_RATIO = tuning('FINISH', 0.75);
 /** In a free-for-all, switch to the leader once it is this much cooler (as a share of max health) than your usual target. */
-const LEADER_GAP = Number(globalThis.process?.env?.GAP ?? 0.25);
+const LEADER_GAP = tuning('GAP', 0.25);
 
 /** What a face-down Lightspeed card is worth to its owner (a counter waiting to spring). */
-const LIGHTSPEED_VALUE = Number(globalThis.process?.env?.LSV ?? 3);
+const LIGHTSPEED_VALUE = tuning('LSV', 3);
 
 /** Roughly what a card in play is worth to its owner each turn from now on. */
 function cardValue(state: GameState, p: PlayerState, card: CardInstance): number {
@@ -99,7 +106,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
 }
 
 /** A card in play also blocks a slot until it fades: the cost of that, per turn it stays. */
-const SLOT_COST = Number(globalThis.process?.env?.SLOT ?? 0.35);
+const SLOT_COST = tuning('SLOT', 0.35);
 
 function tableauValue(state: GameState, p: PlayerState): number {
   return p.tableau.reduce((sum, c) => sum + cardValue(state, p, c) - SLOT_COST * (c.stability ?? 0), 0);
