@@ -35,7 +35,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, type Snapshot } from './fx';
-import { cardGlyph, KIND_COLOUR } from './glyphs';
+import { cardArt, cardGlyph, KIND_COLOUR, rarityGem, typeLine } from './glyphs';
 import { MENU_ICON } from './menu-icon';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
@@ -1319,12 +1319,13 @@ export class App {
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
-      <button class="card kind-${def.kind}${race} ${opts.tableau ? 'card-table' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardGlyph(def.id, def.kind)}</div>
+      <button class="card kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
+        ${rarityGem(def)}
+        <div class="card-glyph">${cardArt(def)}</div>
         ${growth}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
-        <div class="card-kind">${def.kind}${def.race !== undefined ? ` · ${esc(RACE_NAMES[def.race].toLowerCase())}` : ''}</div>
+        <div class="card-kind">${typeLine(def)}</div>
       </button>`;
   }
 
@@ -1332,12 +1333,13 @@ export class App {
   private bigCard(defId: string, growth?: number): string {
     const def = cardDef(defId);
     return `
-      <div class="card card-big kind-${def.kind}" style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardGlyph(def.id, def.kind)}</div>
+      <div class="card card-big kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
+        ${rarityGem(def)}
+        <div class="card-glyph">${cardArt(def)}</div>
         ${growth ? `<span class="growth">${growth}</span>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
-        <div class="card-kind">${def.kind}${def.race !== undefined ? ` · ${esc(RACE_NAMES[def.race].toLowerCase())}` : ''}</div>
+        <div class="card-kind">${typeLine(def, true)}</div>
       </div>`;
   }
 

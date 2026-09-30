@@ -1,5 +1,5 @@
 import { BALANCE } from './balance';
-import type { CardDef } from './types';
+import type { CardDef, Rarity } from './types';
 
 /**
  * The card pool. Cards have no cost: the number of cards you may play each
@@ -193,7 +193,133 @@ export const CARDS: CardDef[] = [
     text: 'Start of turn: if you control 5 or more cards, heat every enemy sun by 1.',
     onTurn: [{ type: 'heat', amount: 1, to: 'enemies', if: { minCards: 5 } }],
   },
+
+  // ---- New characters: a Stellar hero and an Anomaly for each race ----
+  {
+    id: 'aureline_sun_priest',
+    name: 'Aureline Sun-Priest',
+    kind: 'defence',
+    race: 0,
+    text: 'Start of turn: cool your sun by 1 for every 2 attack cards you control (up to 2).',
+    onTurn: [{ type: 'cool', amount: 0, plus: { of: 'kind', kind: 'attack', per: 2 }, max: 2 }],
+  },
+  {
+    id: 'aurelia_first_light',
+    name: 'Aurelia, the First Light',
+    kind: 'attack',
+    race: 0,
+    text: 'Start of turn: heat your target by 1 for every 2 attack cards you control (up to 3).',
+    onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 3 }],
+  },
+  {
+    id: 'xelnaru_champion',
+    name: "Xel'Naru Champion",
+    kind: 'attack',
+    race: 1,
+    text: 'Heat your target by 2. Start of turn: while you are overheated, heat your target by 2.',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target' }],
+    onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { overheated: true } }],
+  },
+  {
+    id: 'kyrvessa_prism_queen',
+    name: "Kyr'Vessa, Prism Queen",
+    kind: 'attack',
+    race: 1,
+    text: 'When another of your cards leaves your tableau, heat your target by 2 and every other enemy sun by 1.',
+    passive: [{ type: 'allyLeaves', effects: [{ type: 'heat', amount: 2, to: 'target', splash: 1 }] }],
+  },
+  {
+    id: 'hero_of_rathune',
+    name: 'Hero of Rathune',
+    kind: 'defence',
+    race: 2,
+    text: 'Gain 3 shields. Start of turn: gain 1 shield for every 3 defence cards you control (up to 2).',
+    onPlay: [{ type: 'shield', amount: 3 }],
+    onTurn: [{ type: 'shield', amount: 0, plus: { of: 'kind', kind: 'defence', per: 3 }, max: 2 }],
+  },
+  {
+    id: 'ommarath_deep_bell',
+    name: 'Ommarath, the Deep Bell',
+    kind: 'defence',
+    race: 2,
+    text: 'Start of turn: gain 1 shield. When your shields absorb an enemy\'s heat, cool your sun by 1 (once per attacking card each turn).',
+    onTurn: [{ type: 'shield', amount: 1 }],
+    passive: [{ type: 'absorbCool', amount: 1 }],
+  },
+  {
+    id: 'ixquor_brood_tender',
+    name: 'Ixquor Brood-Tender',
+    kind: 'growth',
+    race: 3,
+    text: 'Draw 1 card. Start of turn: your other growing cards grow by 1.',
+    onPlay: [{ type: 'draw', amount: 1 }],
+    onTurn: [{ type: 'growOthers' }],
+  },
+  {
+    id: 'the_brood_queen',
+    name: 'The Brood Queen',
+    kind: 'growth',
+    race: 3,
+    text: 'You may play 1 extra card each turn. Start of turn: if you control 6 or more cards, heat every enemy sun by 1.',
+    passive: [{ type: 'extraPlay', amount: 1 }],
+    onTurn: [{ type: 'heat', amount: 1, to: 'enemies', if: { minCards: 6 } }],
+  },
 ];
+
+/**
+ * Rarity and characters, in one place. Cards not listed are White Dwarfs
+ * (the standard rarity) and not characters. A character card shows a person,
+ * or people, of its race in its picture; `name` renames the card for them.
+ */
+const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: string }> = {
+  // Neutral
+  solar_battery: { rarity: 'stellar' },
+  ion_cannon: { rarity: 'stellar' },
+  solar_storm: { rarity: 'stellar' },
+  ice_age: { rarity: 'stellar' },
+  solar_maximum: { rarity: 'stellar' },
+  command_directive: { rarity: 'stellar' },
+  // Aureline
+  helio_lancer: { character: true, name: 'Aureline Lancer' },
+  halo_ward: { character: true, name: 'Halo Warden' },
+  coronal_chorus: { character: true, rarity: 'stellar', name: 'Chorus of Dawn' },
+  focusing_array: { rarity: 'stellar' },
+  aureline_sun_priest: { character: true, rarity: 'stellar' },
+  aurelia_first_light: { character: true, rarity: 'anomaly' },
+  // Xel'Naru
+  martyr_crystal: { character: true, rarity: 'stellar', name: "Xel'Naru Martyr" },
+  fracture_lens: { character: true, name: 'Fracture Seer' },
+  overload_core: { rarity: 'stellar' },
+  xelnaru_champion: { character: true, rarity: 'stellar' },
+  kyrvessa_prism_queen: { character: true, rarity: 'anomaly' },
+  // Vorthane
+  bell_warden: { character: true, name: 'Vorthanian Bellwarden' },
+  lure_jelly: { character: true, name: 'Vorthanian Commoners' },
+  abyssal_choir: { character: true, rarity: 'stellar' },
+  stinging_veil: { rarity: 'stellar' },
+  deep_current: { rarity: 'stellar' },
+  hero_of_rathune: { character: true, rarity: 'stellar' },
+  ommarath_deep_bell: { character: true, rarity: 'anomaly' },
+  // Ixquor
+  sporecaster: { character: true, name: 'Ixquor Sporecaster' },
+  hive_relay: { rarity: 'stellar' },
+  spore_cloud: { rarity: 'stellar' },
+  ixquor_brood_tender: { character: true, rarity: 'stellar' },
+  the_brood_queen: { character: true, rarity: 'anomaly' },
+};
+for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? {});
+
+/** Display names for the rarities. */
+export const RARITY_NAME: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly' };
+
+export function rarityOf(defId: string): Rarity {
+  return cardDef(defId).rarity ?? 'dwarf';
+}
+
+/** Copies of a card a deck may hold: one for an Anomaly, otherwise the usual limit. */
+export function copyLimit(defId: string): number {
+  return rarityOf(defId) === 'anomaly' ? BALANCE.maxAnomalyCopies : BALANCE.maxCopies;
+}
 
 const BY_ID = new Map(CARDS.map((c) => [c.id, c]));
 
@@ -218,27 +344,27 @@ export interface DeckList {
 
 const twoOf = (...ids: string[]) => ids.flatMap((id) => [id, id]);
 
-/** A ready-made deck for each race: its six cards twice, neutral support and two Command cards. */
+/** A ready-made deck for each race: its cards (with its Stellar hero and its Anomaly), neutral support and two Command cards. */
 export const PRESET_DECKS: DeckList[] = [
   {
     name: 'Solar Lancers',
     race: 0,
-    cards: [...twoOf('helio_lancer', 'focusing_array', 'coronal_chorus', 'sunspear', 'dawn_beacon', 'halo_ward', 'plasma_relay', 'coronal_lance', 'coolant_array'), 'ignition_protocol', 'ignition_protocol'],
+    cards: [...twoOf('helio_lancer', 'focusing_array', 'coronal_chorus', 'sunspear', 'dawn_beacon', 'halo_ward', 'coolant_array'), 'plasma_relay', 'aurelia_first_light', 'coronal_lance', 'aureline_sun_priest', 'ignition_protocol', 'ignition_protocol'],
   },
   {
     name: 'Shard Overload',
     race: 1,
-    cards: [...twoOf('shard_reactor', 'crystal_storm', 'overload_core', 'martyr_crystal', 'prism_vent', 'fracture_lens', 'cryo_vault', 'coolant_array', 'ion_cannon'), 'chamber_protocol', 'coolant_protocol'],
+    cards: [...twoOf('shard_reactor', 'overload_core', 'martyr_crystal', 'prism_vent', 'fracture_lens', 'cryo_vault', 'coolant_array', 'ion_cannon'), 'xelnaru_champion', 'kyrvessa_prism_queen', 'chamber_protocol', 'coolant_protocol'],
   },
   {
     name: 'Abyssal Tide',
     race: 2,
-    cards: [...twoOf('bell_warden', 'stinging_veil', 'tidal_bloom', 'abyssal_choir', 'deep_current', 'lure_jelly', 'deflector_grid', 'plasma_relay'), 'coronal_lance', 'ion_cannon', 'coolant_protocol', 'chamber_protocol'],
+    cards: [...twoOf('bell_warden', 'stinging_veil', 'tidal_bloom', 'abyssal_choir', 'deep_current', 'lure_jelly'), 'deflector_grid', 'ommarath_deep_bell', 'plasma_relay', 'hero_of_rathune', 'coronal_lance', 'ion_cannon', 'coolant_protocol', 'chamber_protocol'],
   },
   {
     name: 'Hive Bloom',
     race: 3,
-    cards: [...twoOf('mycelium_tower', 'hive_relay', 'sporecaster', 'rot_bloom', 'canopy', 'spore_cloud', 'deep_scanners', 'plasma_relay', 'ion_cannon'), 'command_directive', 'command_directive'],
+    cards: [...twoOf('mycelium_tower', 'hive_relay', 'sporecaster', 'rot_bloom', 'canopy', 'spore_cloud', 'plasma_relay', 'ion_cannon'), 'ixquor_brood_tender', 'the_brood_queen', 'command_directive', 'command_directive'],
   },
 ];
 
@@ -254,7 +380,7 @@ export function deckProblems(cards: string[]): string[] {
   for (const id of cards) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const [id, n] of counts) {
     if (!BY_ID.has(id)) problems.push(`Unknown card: ${id}.`);
-    else if (n > BALANCE.maxCopies) problems.push(`At most ${BALANCE.maxCopies} copies of ${cardDef(id).name}.`);
+    else if (n > copyLimit(id)) problems.push(copyLimit(id) === 1 ? `${cardDef(id).name} is an Anomaly: only one copy per deck.` : `At most ${BALANCE.maxCopies} copies of ${cardDef(id).name}.`);
   }
   const commands = cards.filter((id) => BY_ID.get(id)?.kind === 'command').length;
   if (commands !== BALANCE.commandCards) problems.push(`A deck needs exactly ${BALANCE.commandCards} Command cards (this has ${commands}).`);

@@ -9,6 +9,14 @@
 export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command';
 export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'global', 'command'];
 
+/**
+ * How rare a card is, shown by a gem at the top of the card: a White Dwarf
+ * (the standard rarity), a Stellar sun, or an Anomaly (a black hole). A deck
+ * may hold only one copy of each Anomaly.
+ */
+export type Rarity = 'dwarf' | 'stellar' | 'anomaly';
+export const RARITIES: readonly Rarity[] = ['dwarf', 'stellar', 'anomaly'];
+
 /** The three core upgrades. Command cards raise them; they buff your whole deck. */
 export type CoreAction = 'solarFlare' | 'thermosiphon' | 'coolingChamber';
 export const CORE_ACTIONS: readonly CoreAction[] = ['solarFlare', 'thermosiphon', 'coolingChamber'];
@@ -50,6 +58,8 @@ export type Effect = (
   | { type: 'draw'; amount: number }
   /** Add 1 to this card's growth counter, up to `max`. */
   | { type: 'grow'; max: number }
+  /** Your other growing cards grow by 1 (up to their own limits). */
+  | { type: 'growOthers' }
   /** Command cards: upgrade a core action ('choice': the player picks). */
   | { type: 'upgrade'; action: CoreAction | 'choice' }
   /** Destroy a card of your choice in your target's tableau. */
@@ -66,7 +76,11 @@ export type Passive =
   /** When your shields absorb an enemy's heat, heat that enemy's sun. */
   | { type: 'retaliate'; amount: number }
   /** Global cards: a table-wide effect. */
-  | { type: 'field'; field: FieldId };
+  | { type: 'field'; field: FieldId }
+  /** When another of your cards leaves your tableau, these effects resolve (as this card). */
+  | { type: 'allyLeaves'; effects: Effect[] }
+  /** When your shields absorb an enemy's heat, cool your sun (once per attacking card each turn). */
+  | { type: 'absorbCool'; amount: number };
 
 export interface CardDef {
   id: string;
@@ -74,6 +88,10 @@ export interface CardDef {
   kind: CardKind;
   /** Which race's card this is (0 Aureline, 1 Xel'Naru, 2 Vorthane, 3 Ixquor); neutral if unset. */
   race?: number;
+  /** White Dwarf (the default), Stellar or Anomaly. */
+  rarity?: Rarity;
+  /** A character card: a person (or people) of its race, who features in its picture. */
+  character?: boolean;
   text: string;
   /** When played. */
   onPlay?: Effect[];

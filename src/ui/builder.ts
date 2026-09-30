@@ -1,7 +1,7 @@
-import { BALANCE, CARDS, cardDef, deckProblems, RACE_NAMES, type CardKind } from '../engine';
+import { BALANCE, CARDS, cardDef, copyLimit, deckProblems, RACE_NAMES, type CardKind } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
-import { cardGlyph, KIND_COLOUR } from './glyphs';
+import { cardArt, KIND_COLOUR, rarityGem, typeLine } from './glyphs';
 
 interface BuilderHost {
   render(): void;
@@ -10,7 +10,7 @@ interface BuilderHost {
   done(): void;
 }
 
-type Filter = 'all' | 'race' | 'neutral' | CardKind;
+type Filter = 'all' | 'race' | 'neutral' | 'characters' | 'stellar' | 'anomaly' | CardKind;
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -71,7 +71,7 @@ export class DeckBuilder {
         const copies = d.cards.filter((id) => id === arg).length;
         const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
         if (d.cards.length >= BALANCE.deckSize) this.host.toast(`A deck holds exactly ${BALANCE.deckSize} cards.`);
-        else if (copies >= BALANCE.maxCopies) this.host.toast(`At most ${BALANCE.maxCopies} copies of a card.`);
+        else if (copies >= copyLimit(arg)) this.host.toast(copyLimit(arg) === 1 ? `${cardDef(arg).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`);
         else if (cardDef(arg).kind === 'command' && commands >= BALANCE.commandCards) this.host.toast(`A deck holds exactly ${BALANCE.commandCards} Command cards.`);
         else d.cards.push(arg);
         break;
@@ -154,6 +154,11 @@ export class DeckBuilder {
           return c.race === d.race;
         case 'neutral':
           return c.race === undefined && c.kind !== 'command' && c.kind !== 'global';
+        case 'characters':
+          return !!c.character;
+        case 'stellar':
+        case 'anomaly':
+          return c.rarity === this.filter;
         default:
           return c.kind === this.filter;
       }
@@ -163,10 +168,11 @@ export class DeckBuilder {
         const n = count(c.id);
         return `
           <button class="db-card kind-${c.kind} ${n ? 'db-card-in' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
-            <span class="db-card-glyph">${cardGlyph(c.id, c.kind)}</span>
+            ${rarityGem(c)}
+            <span class="db-card-glyph">${cardArt(c)}</span>
             <span class="db-card-name">${esc(c.name.toLowerCase())}</span>
             <span class="db-card-text">${esc(c.text)}</span>
-            <span class="db-card-kind">${c.kind}${c.race !== undefined ? ` · ${esc(RACE_NAMES[c.race].toLowerCase())}` : ''}</span>
+            <span class="db-card-kind">${typeLine(c, true)}</span>
             ${n ? `<b class="db-count">×${n}</b>` : ''}
           </button>`;
       })
@@ -186,6 +192,9 @@ export class DeckBuilder {
       ['all', 'all'],
       ['race', RACE_NAMES[d.race].toLowerCase()],
       ['neutral', 'neutral'],
+      ['characters', 'characters'],
+      ['stellar', 'stellar'],
+      ['anomaly', 'anomaly'],
       ['attack', 'attack'],
       ['defence', 'defence'],
       ['growth', 'growth'],

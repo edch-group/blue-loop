@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
-import { CARDS, cardDef, deckProblems, PRESET_DECKS } from '../src/engine/cards';
+import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
 import { activePlayer, applyAction, createGame, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
@@ -31,8 +31,13 @@ describe('content', () => {
     for (const c of CARDS) expect(c.text.length).toBeGreaterThan(5);
   });
 
-  it('gives every race six cards and a legal starter deck', () => {
-    for (let race = 0; race < 4; race++) expect(CARDS.filter((c) => c.race === race)).toHaveLength(6);
+  it('gives every race eight cards, with a Stellar hero and an Anomaly, and a legal starter deck', () => {
+    for (let race = 0; race < 4; race++) {
+      const own = CARDS.filter((c) => c.race === race);
+      expect(own).toHaveLength(8);
+      expect(own.filter((c) => c.rarity === 'anomaly' && c.character)).toHaveLength(1);
+      expect(own.some((c) => c.character)).toBe(true);
+    }
     for (const d of PRESET_DECKS) expect(deckProblems(d.cards)).toEqual([]);
   });
 
@@ -42,6 +47,18 @@ describe('content', () => {
     expect(deckProblems([...good.slice(0, 17), 'plasma_relay', 'plasma_relay', 'plasma_relay'].slice(0, 20))).not.toEqual([]);
     const noCommands = [...good.filter((id) => cardDef(id).kind !== 'command'), 'coolant_array', 'cryo_vault'];
     expect(deckProblems(noCommands).some((p) => p.includes('Command'))).toBe(true);
+  });
+
+  it('allows only one copy of an Anomaly', () => {
+    // A legal deck of 18 plain cards and 2 Commands, with two of its cards swapped for an Anomaly.
+    const deck = [...Array(9).fill(0).flatMap((_, i) => ['plasma_relay', 'coronal_lance', 'gravity_sling', 'thermal_exchange', 'coolant_array', 'cryo_vault', 'deflector_grid', 'heat_sink', 'deep_scanners'].slice(i, i + 1).flatMap((id) => [id, id])), 'command_directive', 'command_directive'];
+    expect(deckProblems(deck)).toEqual([]);
+    const one = [...deck.slice(0, 17), 'aurelia_first_light', ...deck.slice(18)];
+    expect(deckProblems(one)).toEqual([]);
+    const two = [...deck.slice(0, 16), 'aurelia_first_light', 'aurelia_first_light', ...deck.slice(18)];
+    expect(deckProblems(two).some((p) => p.includes('Anomaly'))).toBe(true);
+    expect(copyLimit('aurelia_first_light')).toBe(1);
+    expect(copyLimit('plasma_relay')).toBe(BALANCE.maxCopies);
   });
 });
 
@@ -236,6 +253,38 @@ describe('synergies', () => {
     s = play(s, 'coronal_lance');
     s = play(s, 'coronal_lance');
     expect(s.players[0].heat).toBe(16 + 2 + 2 + 2);
+  });
+});
+
+describe('the new heroes', () => {
+  it("Kyr'Vessa strikes when another of your cards leaves play", () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['kyrvessa_prism_queen'], 'tableau');
+    give(me, Array(BALANCE.tableauSlots - 1).fill('coolant_array'), 'tableau');
+    give(me, ['cryo_vault']);
+    const before = s.players[1].heat;
+    s = play(s, 'cryo_vault', { replaceUid: me.tableau[1].uid });
+    expect(s.players[1].heat).toBe(before + 2);
+  });
+
+  it('Ommarath cools your sun when your shields absorb a hit', () => {
+    let s = twoPlayer();
+    const foe = s.players[1];
+    give(foe, ['ommarath_deep_bell'], 'tableau');
+    foe.shields = 5;
+    foe.heat = 4;
+    give(activePlayer(s), ['coronal_lance']);
+    s = play(s, 'coronal_lance');
+    expect(s.players[1].shields).toBe(2);
+    expect(s.players[1].heat).toBe(3);
+  });
+
+  it('the Brood-Tender makes your other growing cards grow', () => {
+    let s = twoPlayer();
+    give(activePlayer(s), ['mycelium_tower', 'ixquor_brood_tender'], 'tableau');
+    s = endTurn(endTurn(s));
+    expect(s.players[0].tableau[0].growth).toBe(2);
   });
 });
 

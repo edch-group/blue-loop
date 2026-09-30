@@ -65,8 +65,10 @@ export const CAMPAIGN = {
   battleActionCap: 6000,
 } as const;
 
-/** Armory prices in materials: race cards cost more than neutral ones. */
-export const ARMORY_PRICE = { neutral: 3, race: 5, global: 4, command: 4 } as const;
+/** Armory prices in materials, by rarity (race cards cost 1 more than neutral ones). */
+export const ARMORY_PRICE = { dwarf: 3, stellar: 5, anomaly: 8, race: 1 } as const;
+/** How often each rarity turns up in the armory and mission rewards (relative weights). */
+export const OFFER_WEIGHT = { dwarf: 4, stellar: 2, anomaly: 1 } as const;
 
 /** A planet orbiting a map system (cosmetic; the tint names its colour). */
 export interface MapPlanet {
@@ -360,9 +362,7 @@ export function fortifyCost(node: CampaignNode): number | null {
 
 export function armoryPrice(defId: string): number {
   const def = cardDef(defId);
-  if (def.kind === 'command') return ARMORY_PRICE.command;
-  if (def.kind === 'global') return ARMORY_PRICE.global;
-  return def.race === undefined ? ARMORY_PRICE.neutral : ARMORY_PRICE.race;
+  return ARMORY_PRICE[def.rarity ?? 'dwarf'] + (def.race === undefined ? 0 : ARMORY_PRICE.race);
 }
 
 /** Any card except a global can garrison a system. */
@@ -685,9 +685,11 @@ function drawMission(s: CampaignState, f: Faction) {
   f.missions.push({ id, base: def.counting ? def.value(f, s) : 0 });
 }
 
-/** Cards a faction can be offered: its own race's cards (weighted up), neutral cards and globals. */
+/** Cards a faction can be offered: its own race's cards (twice as often), neutral cards and globals; Anomalies are rarest. */
 function offerPool(f: Faction): string[] {
-  return CARDS.filter((c) => c.kind !== 'command' && (c.race === undefined || c.race === f.race)).flatMap((c) => (c.race === f.race ? [c.id, c.id] : [c.id]));
+  return CARDS.filter((c) => c.kind !== 'command' && (c.race === undefined || c.race === f.race)).flatMap((c) =>
+    Array(OFFER_WEIGHT[c.rarity ?? 'dwarf'] * (c.race === f.race ? 2 : 1)).fill(c.id) as string[],
+  );
 }
 
 function refreshArmory(s: CampaignState, f: Faction) {
@@ -986,11 +988,13 @@ function aiTurn(s: CampaignState, f: Faction) {
     }
   }
   // 2. Buy a race card from its own armory now and then.
-  if (f.materials >= ARMORY_PRICE.race + 2 && nextRandom(s) < 0.5) {
+  if (f.materials >= ARMORY_PRICE.stellar + 3 && nextRandom(s) < 0.5) {
     const pool = offerPool(f);
     const id = pool[randomInt(s, pool.length)];
-    f.materials -= armoryPrice(id);
-    f.reserve.push(id);
+    if (f.materials >= armoryPrice(id)) {
+      f.materials -= armoryPrice(id);
+      f.reserve.push(id);
+    }
   }
   // 3. Improve the deck: swap race cards in for neutral ones.
   improveDeck(f);

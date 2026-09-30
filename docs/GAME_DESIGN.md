@@ -75,16 +75,41 @@ The Command cards:
 
 With exactly 2 Command cards per deck, a player reaches at most +2 on one stat in a game. The campaign's garrisons can add more.
 
+## Rarity [design review]
+
+Every card has a rarity, shown by a small animated gem in its top corner:
+
+| Rarity | Gem | Deck limit |
+| --- | --- | --- |
+| White Dwarf (standard) | A pearl with a slow travelling glint | 2 copies |
+| Stellar | A golden sun with slowly turning rays and a warm pulse | 2 copies |
+| Anomaly | A black hole with a turning accretion disk and a flickering glow; always active | **1 copy** (unique) [proposed] |
+
+Stellar and Anomaly cards also get a faint gold or violet edge. In the campaign, rarer cards cost more in the armory (3 / 5 / 8 materials, +1 for a race card) and turn up less often there and in mission rewards.
+
+## Characters [design review]
+
+Many race cards are **characters**: people of that race, who will feature in the card's picture. Until the portraits are commissioned, a character card shows a figure of its race: the race's emblem as the head, over a pair of shoulders, in an arched window. Named heroes (the Anomalies) wear a halo. Each race has a Stellar hero and an Anomaly, and both are in its starter deck.
+
+| Race | Characters |
+| --- | --- |
+| Aureline | Aureline Lancer, Halo Warden, Chorus of Dawn (Stellar), Aureline Sun-Priest (Stellar), **Aurelia, the First Light** (Anomaly) |
+| Xel'Naru | Xel'Naru Martyr (Stellar), Fracture Seer, Xel'Naru Champion (Stellar), **Kyr'Vessa, Prism Queen** (Anomaly) |
+| Vorthane | Vorthanian Bellwarden, Vorthanian Commoners, Abyssal Choir (Stellar), Hero of Rathune (Stellar), **Ommarath, the Deep Bell** (Anomaly) |
+| Ixquor | Ixquor Sporecaster, Ixquor Brood-Tender (Stellar), **The Brood Queen** (Anomaly) |
+
+Rathune is the Vorthane home tide-world. [proposed lore]
+
 ## The card pool [proposed content]
 
-**42 cards:** 14 neutral (including 3 globals), 4 Command cards, and 6 for each race. Cards have no cost: the number of plays per turn is the only limit, so no single card is a bomb. The power is in combinations. The full list and exact wording are in `src/engine/cards.ts`.
+**50 cards:** 14 neutral (including 3 globals), 4 Command cards, and 8 for each race. Cards have no cost: the number of plays per turn is the only limit, so no single card is a bomb. The power is in combinations. The full list and exact wording are in `src/engine/cards.ts`. Rarity and characters are set in one table there (`CARD_META`).
 
 | Race | Theme | Its cards |
 | --- | --- | --- |
-| Aureline | Lancers: many attack cards, each making the others hit harder | Helio Lancer, Focusing Array (other attack cards +1 at start of turn; copies don't stack), Coronal Chorus (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Ward |
-| Xel'Naru | Overload: splash every enemy, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm, Overload Core (harder while overheated), Martyr Crystal (burst when it leaves play), Prism Vent, Fracture Lens |
-| Vorthane | Tides: build shields, keep them, and sting attackers | Bell Warden, Stinging Veil (once per attacking card each turn), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Lure Jelly |
-| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each turn), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud |
+| Aureline | Lancers: many attack cards, each making the others hit harder | Aureline Lancer, Focusing Array (other attack cards +1 at start of turn; copies don't stack), Chorus of Dawn (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Warden, Sun-Priest (cools with your attack cards), Aurelia (heat that grows with your attack cards) |
+| Xel'Naru | Overload: splash every enemy, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm, Overload Core (harder while overheated), Xel'Naru Martyr (burst when it leaves play), Prism Vent, Fracture Seer, Champion (harder while overheated), Kyr'Vessa (strikes whenever another of your cards leaves play) |
+| Vorthane | Tides: build shields, keep them, and sting attackers | Bellwarden, Stinging Veil (once per attacking card each turn), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Vorthanian Commoners, Hero of Rathune (shields from your defence cards), Ommarath (cools your sun when your shields absorb a hit) |
+| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each turn), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and splash once you're wide) |
 
 **Neutral cards:** Coronal Lance, Plasma Relay, Gravity Sling, Thermal Exchange, Solar Battery, Ion Cannon, Coolant Array, Cryo Vault, Deflector Grid, Heat Sink and Deep-Space Scanners. Ion Cannon destroys a card in your target's tableau.
 
@@ -94,18 +119,20 @@ With exactly 2 Command cards per deck, a player reaches at most +2 on one stat i
 
 `npm run simulate -- [games] [players]` plays AI-versus-AI games with the four starter decks.
 
-**2 players.** Seats are even (49/51). Overall deck win rates are 42–57%. The worst match-up is about 70/30:
+**2 players.** Seats are even (47/53). Overall deck win rates are 44–53%. The worst match-ups are about 80/20: Tide over both Lancers and Overload.
 
 | Row beats column | Lancers | Overload | Tide | Bloom |
 | --- | --- | --- | --- | --- |
-| Solar Lancers | – | 32% | 72% | 53% |
-| Shard Overload | 68% | – | 33% | 68% |
-| Abyssal Tide | 28% | 67% | – | 51% |
-| Hive Bloom | 47% | 32% | 49% | – |
+| Solar Lancers | – | 32% | 80% | 46% |
+| Shard Overload | 68% | – | 18% | 68% |
+| Abyssal Tide | 20% | 82% | – | 55% |
+| Hive Bloom | 54% | 32% | 45% | – |
+
+Each hero was placed in its starter deck where it shifted balance least. Lancers are on a knife edge: any extra start-of-turn attacker in place of their Coolant Arrays (even a plain Plasma Relay) lifts them from about 52% to 70%, because it compounds with Focusing Array.
 
 **3–4 players.**
-- Abyssal Tide (defence) does best: about 47% in 3-player games, against a fair 33%, and 37% in 4-player games, against a fair 25%.
-- Solar Lancers (all attack) does worst: 15–23%.
+- Abyssal Tide (defence) does best: about 47% in 3-player games, against a fair 33%, and 44% in 4-player games, against a fair 25%.
+- Solar Lancers (all attack) does worst: 16–27%.
 - The AI attacks the rival on its left, but switches to finish off a sun near supernova or to rein in a clear leader.
 
 The balance has been sensitive to single cards, removal above all. Adding two Ion Cannons to the Tide starter swung it from 45% to 80% overall.
@@ -167,7 +194,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 
 **Economy.**
 - **Credits** repair damage (1 per point) and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +4 max health.
-- **Materials** buy cards in the armory: 3 neutral, 4 global or Command, 5 race. The armory and mission rewards offer mostly your own race's cards.
+- **Materials** buy cards in the armory by rarity: 3 for a White Dwarf, 5 for a Stellar, 8 for an Anomaly, +1 for a race card. The armory and mission rewards offer mostly your own race's cards, and Anomalies least often.
 
 **The deck.** Your campaign deck is always a legal 20-card deck. Cards you win or buy wait in your **reserve**. You swap a reserve card in for a deck card, as long as the deck stays legal.
 

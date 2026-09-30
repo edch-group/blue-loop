@@ -1,4 +1,5 @@
-import type { CardKind } from '../engine';
+import { RACE_NAMES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
+import { raceHead } from './factions';
 
 /**
  * Alien glyphs: one simple line-drawn shape per card, coloured by what the
@@ -91,4 +92,54 @@ const GLYPHS: Record<string, string> = {
 /** Inline SVG glyph for a card, tinted by its kind. */
 export function cardGlyph(defId: string, kind: CardKind): string {
   return `<svg class="glyph" viewBox="0 0 100 60" style="--g:${KIND_COLOUR[kind]}" aria-hidden="true">${GLYPHS[defId] ?? ring(12)}</svg>`;
+}
+
+/**
+ * A character card's picture: a figure of its race in an arched portrait
+ * window (the race's emblem as the head, over a pair of shoulders). Anomalies
+ * are named heroes and wear a halo. Placeholder for commissioned portraits.
+ */
+function characterArt(def: CardDef): string {
+  const halo = def.rarity === 'anomaly' ? '<ellipse class="halo" cx="50" cy="5.5" rx="10" ry="2.4"/>' : '';
+  return `<svg class="glyph glyph-character" viewBox="0 0 100 60" style="--g:${KIND_COLOUR[def.kind]}" aria-hidden="true">
+    <path class="frame" d="M29 60 V25 A21 21 0 0 1 71 25 V60"/>
+    <path class="fill" d="M33 60 C34 47 41 40 50 40 C59 40 66 47 67 60 Z"/>
+    <g transform="translate(35 7) scale(0.94)">${raceHead(def.race ?? 0)}</g>
+    ${halo}
+  </svg>`;
+}
+
+/** A card's picture: its character's portrait, or its glyph. */
+export function cardArt(def: CardDef): string {
+  return def.character && def.race !== undefined ? characterArt(def) : cardGlyph(def.id, def.kind);
+}
+
+const RARITY_TITLE: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly (one per deck)' };
+
+/** A stable per-card phase, so gems on neighbouring cards shine out of step. */
+function phase(id: string): string {
+  let h = 0;
+  for (const ch of id) h = (h * 33 + ch.charCodeAt(0)) >>> 0;
+  return ((h % 997) / 997).toFixed(3);
+}
+
+/**
+ * The rarity gem at the top of a card: a white dwarf (standard), a golden sun
+ * (Stellar) or a black hole with a turning accretion disk (Anomaly).
+ */
+export function rarityGem(def: CardDef): string {
+  const r: Rarity = def.rarity ?? 'dwarf';
+  const inner = r === 'anomaly' ? '<i class="gem-disk"><i></i></i><i class="gem-core"></i>' : r === 'stellar' ? '<i class="gem-rays"></i><i class="gem-core"></i>' : '<i class="gem-core"></i>';
+  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}">${inner}</span>`;
+}
+
+/** The small line under a card's text: its kind and race (plus, in full, its rarity and whether it is a character). */
+export function typeLine(def: CardDef, full = false): string {
+  const parts = [def.kind as string];
+  if (def.race !== undefined) parts.push(RACE_NAMES[def.race].toLowerCase());
+  if (full) {
+    if (def.character) parts.push('character');
+    parts.unshift(RARITY_NAME[def.rarity ?? 'dwarf'].toLowerCase());
+  }
+  return parts.join(' · ').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }

@@ -31,7 +31,7 @@ import {
   type GameState,
 } from '../engine';
 import { MENU_ICON } from './menu-icon';
-import { cardGlyph, KIND_COLOUR } from './glyphs';
+import { cardArt, cardGlyph, KIND_COLOUR, rarityGem, typeLine } from './glyphs';
 import { sound } from './sound';
 import { toPageDelta } from './viewport';
 
@@ -957,10 +957,11 @@ export class CampaignView {
 function cardHtml(defId: string): string {
   const def = cardDef(defId);
   return `
-    <div class="card cmp-card kind-${def.kind}" style="--kc:${KIND_COLOUR[def.kind]}">
-      <div class="card-glyph">${cardGlyph(def.id, def.kind)}</div>
+    <div class="card cmp-card kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
+      ${rarityGem(def)}
+      <div class="card-glyph">${cardArt(def)}</div>
       <div class="card-name">${lower(def.name)}</div>
       <div class="card-text">${esc(def.text)}</div>
-      <div class="card-kind">${def.kind}${def.race !== undefined ? ` · ${lower(RACE_NAMES[def.race])}` : ''}</div>
+      <div class="card-kind">${typeLine(def)}</div>
     </div>`;
 }

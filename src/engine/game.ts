@@ -276,16 +276,22 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat.`);
   if (applied > 0) log(state, `${target.name}'s sun heats to ${target.heat}.`);
   if (target.heat >= supernovaThreshold(target)) supernova(state, target);
-  // Stinging Veil: shields that absorbed an enemy's heat sting back.
+  // Shields that absorbed an enemy's heat can sting back (Stinging Veil) or cool their sun
+  // (Ommarath), at most once per attacking card each turn.
   if (enemy && blocked > 0 && !retaliation && !target.eliminated) {
-    const sting = passives(target).reduce((sum, { passive }) => sum + (passive.type === 'retaliate' ? passive.amount : 0), 0);
-    // At most once per attacking card each turn.
+    const sum = (type: 'retaliate' | 'absorbCool') =>
+      passives(target).reduce((n, { passive }) => n + (passive.type === type ? passive.amount : 0), 0);
+    const sting = sum('retaliate');
+    const soothe = sum('absorbCool');
     const key = cardUid ?? source.id;
     if (target.stung?.turn !== state.turnNumber) target.stung = { turn: state.turnNumber, ids: [] };
-    if (sting > 0 && !target.stung.ids.includes(key)) {
+    if ((sting > 0 || soothe > 0) && !target.stung.ids.includes(key)) {
       target.stung.ids.push(key);
-      log(state, `${target.name}'s veil stings ${source.name} for ${sting}.`);
-      applyHeat(state, source, sting, target, true);
+      if (soothe > 0) cool(state, target, soothe);
+      if (sting > 0) {
+        log(state, `${target.name}'s veil stings ${source.name} for ${sting}.`);
+        applyHeat(state, source, sting, target, true);
+      }
     }
   }
   return applied;
@@ -354,6 +360,13 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'draw':
         drawCards(state, p, e.amount);
         break;
+      case 'growOthers':
+        for (const other of p.tableau) {
+          if (other.uid === card.uid) continue;
+          const g = (cardDef(other.defId).onTurn ?? []).find((x) => x.type === 'grow');
+          if (g?.type === 'grow') other.growth = Math.min(g.max, (other.growth ?? 0) + 1);
+        }
+        break;
       case 'grow':
         card.growth = Math.min(e.max, (card.growth ?? 0) + 1);
         break;
@@ -386,6 +399,10 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance) 
   card.growth = undefined;
   owner.discard.push(card);
   resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
+  // Cards that answer another card leaving (Kyr'Vessa).
+  for (const { card: watcher, passive } of passives(owner)) {
+    if (passive.type === 'allyLeaves' && owner.tableau.includes(watcher)) resolveEffects(state, owner, watcher, passive.effects, 'leave');
+  }
 }
 
 function startTurn(state: GameState) {

@@ -14,6 +14,8 @@ export const BALANCE = {
   /** Decks: exactly this many cards, at most `maxCopies` of each, exactly `commandCards` Command cards. */
   deckSize: 20,
   maxCopies: 2,
+  /** Anomaly cards are unique: one copy per deck. */
+  maxAnomalyCopies: 1,
   commandCards: 2,
 
   /** Cards in the opening hand, and drawn at the start of each turn after the first. */
