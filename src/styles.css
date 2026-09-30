@@ -2390,3 +2390,14 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 /* Online lobby: whether each player has confirmed. */
 .ready-tag { font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.16em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; color: var(--ink-faint); background: rgba(120, 124, 134, 0.08); }
 .ready-tag.ready-on { color: #fff; background: linear-gradient(135deg, #7cc79a, #4f9e70); box-shadow: 0 0 12px rgba(110, 196, 146, 0.45); }
+
+/* Online lobby: both seat tiles the same size, with the same rows (emblem, name, deck, ready). */
+.online-seats { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; width: min(560px, 100%); }
+.online-seats .online-vs { align-self: center; }
+.online-seats .seat-tile { width: 100%; grid-template-rows: auto auto auto auto; align-content: start; }
+.online-seats .seat-tile .seat-deck { width: 100%; }
+.online-seats .online-name {
+  display: block; width: 100%; box-sizing: border-box; padding: 7px 8px; border: 1px solid transparent; text-align: center;
+  font-family: var(--body); font-weight: 500; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.online-seats .online-waiting { align-content: center; }
