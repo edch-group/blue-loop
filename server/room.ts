@@ -50,7 +50,9 @@ export type ServerMessage =
   | { t: 'lobby'; seats: { name: string; deckName: string; species: number }[]; you: number }
   | { t: 'state'; state: GameState; you: string; last: LastMove | null; names: string[] }
   | { t: 'error'; message: string }
-  | { t: 'pong' };
+  | { t: 'pong' }
+  /** Whether the other player is connected right now (sent by the worker as connections come and go). */
+  | { t: 'presence'; rivalOnline: boolean };
 
 /** A placeholder for a card someone may not see (it is a real card id, so the client can draw it safely). */
 const HIDDEN = 'coronal_lance';
@@ -99,6 +101,13 @@ export function handle(
       const g = room.game;
       if (seat === null || !g) return { seat, reply: [{ t: 'error', message: 'The game has not started.' }], broadcast: false };
       const me = g.players[playerIndex(room, seat)];
+      // Conceding is allowed on either player's turn, and only ever for yourself.
+      if (msg.action.type === 'concede') {
+        if (g.winnerId) return { seat, reply: [], broadcast: false };
+        room.game = applyAction(g, { type: 'concede', playerId: me.id });
+        room.last = { action: { type: 'concede', playerId: me.id }, actorId: me.id };
+        return { seat, reply: [], broadcast: true };
+      }
       if (g.players[g.activePlayerIndex].id !== me.id) return { seat, reply: [{ t: 'error', message: "It's not your turn." }], broadcast: false };
       try {
         const next = applyAction(g, msg.action);
@@ -112,6 +121,8 @@ export function handle(
     }
     case 'rematch': {
       if (seat === null || !room.game?.winnerId) return { seat, reply: [], broadcast: false };
+      // Whoever conceded has left the room: there is no one to play again.
+      if (room.game.concededBy) return { seat, reply: [{ t: 'error', message: 'Your rival has left the room.' }], broadcast: false };
       start(room, random);
       return { seat, reply: [], broadcast: true };
     }

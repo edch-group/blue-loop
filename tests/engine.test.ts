@@ -88,6 +88,16 @@ describe('setup', () => {
     expect(() => createGame({ seed: 2, players: [0, 1, 2].map((i) => ({ name: `P${i}`, isAI: true })) })).toThrow(GameError);
     expect(twoPlayer().players).toHaveLength(2);
   });
+
+  it('lets either player concede at any time, handing their rival the win', () => {
+    const s = twoPlayer();
+    const idle = s.players.find((p) => p.id !== activePlayer(s).id)!;
+    const next = applyAction(s, { type: 'concede', playerId: idle.id });
+    expect(next.winnerId).toBe(activePlayer(s).id);
+    expect(next.concededBy).toBe(idle.id);
+    expect(isGameOver(next)).toBe(true);
+    expect(() => applyAction(next, { type: 'endTurn' })).toThrow(GameError);
+  });
 });
 
 describe('plays per turn', () => {

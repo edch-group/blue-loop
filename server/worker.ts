@@ -55,18 +55,46 @@ export class Room extends DurableObject<Env> {
       await this.ctx.storage.put('room', room);
       const byseat = views(room);
       for (const other of this.ctx.getWebSockets()) {
-        const s = (other.deserializeAttachment() as { seat: number | null } | null)?.seat;
-        if (s !== null && s !== undefined && byseat[s]) send(other, byseat[s]);
+        const s = seatOf(other);
+        if (s !== null && byseat[s]) send(other, byseat[s]);
       }
     }
-    // A finished room tidies itself away after a day without play.
-    await this.ctx.storage.setAlarm(Date.now() + 24 * 3600 * 1000);
+    if (msg.t === 'join') this.presence();
+    // Rooms tidy themselves away: an hour after a game ends, or after a day without play.
+    await this.ctx.storage.setAlarm(Date.now() + (room.game?.winnerId ? 3600 : 24 * 3600) * 1000);
+  }
+
+  async webSocketClose(ws: WebSocket, code: number) {
+    try {
+      ws.close(code === 1005 ? 1000 : code);
+    } catch {
+      // Already closed.
+    }
+    this.presence(ws);
+  }
+
+  async webSocketError(ws: WebSocket) {
+    this.presence(ws);
+  }
+
+  /** Tell each connected player whether their rival is connected too (`gone` is a connection that just closed). */
+  private presence(gone?: WebSocket) {
+    const open = this.ctx.getWebSockets().filter((w) => w !== gone && w.readyState === WebSocket.OPEN);
+    const seats = new Set(open.map(seatOf).filter((s) => s !== null));
+    for (const w of open) {
+      const s = seatOf(w);
+      if (s !== null) send(w, { t: 'presence', rivalOnline: seats.has(1 - s) });
+    }
   }
 
   async alarm() {
     await this.ctx.storage.deleteAll();
     this.data = null;
   }
+}
+
+function seatOf(ws: WebSocket): number | null {
+  return (ws.deserializeAttachment() as { seat: number | null } | null)?.seat ?? null;
 }
 
 function send(ws: WebSocket, msg: ServerMessage) {

@@ -894,6 +894,19 @@ export function applyAction(prev: GameState, action: Action): GameState {
   const state = structuredClone(prev);
   const p = activePlayer(state);
   switch (action.type) {
+    case 'concede': {
+      const quitter = state.players.find((o) => o.id === action.playerId);
+      if (!quitter || quitter.eliminated) throw new GameError('That player is not in the game.');
+      quitter.eliminated = true;
+      state.concededBy = quitter.id;
+      log(state, `${quitter.name} concedes.`);
+      const alive = state.players.filter((o) => !o.eliminated);
+      if (alive.length === 1) {
+        state.winnerId = alive[0].id;
+        log(state, `${alive[0].name} wins the Blue Loop!`);
+      } else if (quitter === p) advanceTurn(state);
+      break;
+    }
     case 'playCard':
       playCard(state, p, action);
       if (p.eliminated) passOn(state);

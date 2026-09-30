@@ -100,12 +100,13 @@ type Sheet =
   | { kind: 'player'; playerId: string }
   | { kind: 'upgrade'; action: CoreAction }
   /** Tap-to-inspect on touch screens: a readable card with its action. */
+  | { kind: 'quit' }
   | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string };
 
 const SPEED_KEY = 'blue-loop:ai-speed';
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, upgrades and so on. */
@@ -197,6 +198,8 @@ export class App {
     status: 'idle' as 'idle' | 'connecting' | 'open' | 'lost',
     lobby: null as LobbySeat[] | null,
     you: 0,
+    /** Whether the rival is connected (they may have closed the app; the room waits for them). */
+    rivalOnline: true,
   };
   private builder = new DeckBuilder({
     render: () => this.render(),
@@ -299,6 +302,11 @@ export class App {
           if (this.screen === 'menu') this.render();
         },
         state: (state, you, last) => this.onRemoteState(state, you, last),
+        presence: (rivalOnline) => {
+          if (this.net.rivalOnline === rivalOnline) return;
+          this.net.rivalOnline = rivalOnline;
+          this.render();
+        },
         error: (message) => {
           this.showToast(message, 'error');
           sound.error();
@@ -322,6 +330,7 @@ export class App {
     this.online = null;
     this.net.lobby = null;
     this.net.status = 'idle';
+    this.net.rivalOnline = true;
     if (location.search) history.replaceState(null, '', location.pathname);
   }
 
@@ -553,6 +562,18 @@ export class App {
     }
     if (turnPassed) this.announceTurn(450);
     this.scheduleAI(AI_PAUSE[action.type]);
+  }
+
+  private quitToMenu() {
+    this.leaveOnline();
+    this.campaignBattle = false;
+    this.screen = 'menu';
+    this.menuPage = 'hub';
+    this.pending = null;
+    this.sheet = null;
+    if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
+    this.aiTimer = null;
+    this.render();
   }
 
   /** Autosave: a campaign battle is saved inside its campaign; a normal game on its own. */
@@ -1147,14 +1168,7 @@ export class App {
         this.sheet = null;
         return this.render();
       case 'to-menu':
-        this.leaveOnline();
-        this.campaignBattle = false;
-        this.screen = 'menu';
-        this.menuPage = 'hub';
-        this.pending = null;
-        this.sheet = null;
-        if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
-        return this.render();
+        return this.quitToMenu();
       case 'reveal':
         this.revealedFor = s ? activePlayer(s).id : null;
         this.render();
@@ -1163,6 +1177,26 @@ export class App {
       case 'open-menu':
         this.sheet = { kind: 'menu' };
         return this.render();
+      case 'open-quit':
+        this.sheet = { kind: 'quit' };
+        return this.render();
+      case 'quit-concede': {
+        if (!s || isGameOver(s)) return;
+        const me = this.viewer();
+        this.sheet = null;
+        if (this.online) {
+          this.online.act({ type: 'concede', playerId: me.id });
+          // Let the message go before the connection closes.
+          window.setTimeout(() => this.quitToMenu(), 150);
+          return;
+        }
+        return this.dispatch({ type: 'concede', playerId: me.id });
+      }
+      case 'quit-retreat': {
+        if (!s || isGameOver(s) || !this.campaignBattle) return;
+        this.state = applyAction(s, { type: 'concede', playerId: this.viewer().id });
+        return this.returnToCampaign(false);
+      }
       case 'open-log':
         this.sheet = { kind: 'log' };
         return this.render();
@@ -1554,6 +1588,7 @@ export class App {
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
           ${this.online && this.net.status === 'connecting' ? '<span class="pill-btn net-pill">reconnecting…</span>' : ''}
           ${this.online && this.net.status === 'lost' ? '<button class="pill-btn net-pill" data-act="online-retry">connection lost · retry</button>' : ''}
+          ${this.online && this.net.status === 'open' && !this.net.rivalOnline && !isGameOver(s) ? '<span class="pill-btn net-pill" title="Their seat is kept: they rejoin by opening the invite link again">rival disconnected · waiting</span>' : ''}
           ${this.campaignBattle && !isGameOver(s) ? '<button class="pill-btn" data-act="campaign-auto" title="Let your commanders finish this battle">auto-resolve</button>' : ''}
           <button class="icon-btn ${this.sheet?.kind === 'log' ? 'icon-on' : ''}" data-act="${this.sheet?.kind === 'log' ? 'cancel' : 'open-log'}" aria-label="Game log" title="Game log">${LOG_ICON}</button>
           <button class="icon-btn" data-act="open-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
@@ -1801,6 +1836,21 @@ export class App {
     switch (sh.kind) {
       case 'rules':
         return this.sheetFrame('how to play', this.rulesHtml());
+      case 'quit': {
+        // What quitting means depends on the game: online and campaign battles are lost; a local game can wait.
+        const [text, buttons] = this.online
+          ? ['Quit and concede? Your rival wins, and the room closes for you.', '<button class="btn-primary" data-act="quit-concede">concede and leave</button>']
+          : this.campaignBattle
+            ? ['Retreat from this battle? You lose it, as if your sun had gone supernova.', '<button class="btn-primary" data-act="quit-retreat">retreat</button>']
+            : [
+                'Leave this game? It is saved: continue it from Quickplay. Or concede it to your rival.',
+                '<button class="btn-primary" data-act="to-menu">save and leave</button><button class="btn" data-act="quit-concede">concede</button>',
+              ];
+        return this.sheetFrame(
+          'quit game',
+          `<p class="center-text">${text}</p><div class="menu-actions center-row">${buttons}<button class="btn" data-act="cancel">keep playing</button></div>`,
+        );
+      }
       case 'menu':
         return this.sheetFrame(
           `settings · round ${s?.round ?? ''}`,
@@ -1809,7 +1859,7 @@ export class App {
             <button class="btn" data-act="view-player" data-arg="">players</button>
             <button class="btn" data-act="open-log">game log</button>
             <button class="btn" data-act="rules">how to play</button>
-            <button class="btn" data-act="to-menu">main menu</button>
+            ${s && !isGameOver(s) ? '<button class="btn" data-act="open-quit">quit game</button>' : '<button class="btn" data-act="to-menu">main menu</button>'}
           </div>`,
         );
       case 'log': {
@@ -1916,18 +1966,24 @@ export class App {
 
   private renderOverlay(s: GameState): string {
     const winner = s.players.find((p) => p.id === s.winnerId);
+    const quitter = s.concededBy ? s.players.find((p) => p.id === s.concededBy) : undefined;
+    // One person at this device (online, or against the AI): tell it from their side.
+    const viewer = this.viewer();
+    const solo = !!this.online || s.players.filter((p) => !p.isAI).length === 1;
     if (winner) {
       return `
         <div class="overlay"><div class="modal">
-          <div class="bar-title">supernova cascade complete</div>
+          <div class="bar-title">${quitter ? 'concession' : 'supernova cascade complete'}</div>
           <div class="modal-body center">
             ${sunOrb({ heat: winner.heat, threshold: supernovaThreshold(winner), size: 96 })}
-            <h2>${esc(winner.name.toLowerCase())} wins</h2>
-            <p>The last sun standing after ${s.round} rounds.</p>
+            <h2>${solo ? (winner.id === viewer.id ? 'you win' : 'you lose') : `${esc(winner.name.toLowerCase())} wins`}</h2>
+            <p>${quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} rounds.`}</p>
             ${this.campaignBattle
               ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
               : this.online
-                ? '<div class="menu-actions center-row"><button class="btn-primary" data-act="online-rematch">rematch</button><button class="btn" data-act="to-menu">leave</button></div>'
+                ? quitter
+                  ? '<p class="muted">They have left the room.</p><button class="btn-primary" data-act="to-menu">leave</button>'
+                  : '<div class="menu-actions center-row"><button class="btn-primary" data-act="online-rematch">rematch</button><button class="btn" data-act="to-menu">leave</button></div>'
                 : '<button class="btn-primary" data-act="to-menu">back to menu</button>'}
           </div>
         </div></div>`;

@@ -250,6 +250,8 @@ export interface GameState {
   activePlayerIndex: number;
   players: PlayerState[];
   winnerId: string | null;
+  /** The player who conceded, if the game ended that way. */
+  concededBy?: string;
   log: LogEntry[];
 }
 
@@ -296,4 +298,6 @@ export type Action =
       recoverUid?: string;
     }
   | { type: 'setTarget'; targetId: string }
-  | { type: 'endTurn' };
+  | { type: 'endTurn' }
+  /** A player gives up (at any time, not only on their turn): their rival wins. */
+  | { type: 'concede'; playerId: string };

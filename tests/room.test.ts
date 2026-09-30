@@ -105,6 +105,19 @@ describe('online room', () => {
     expect(activePlayer(room.game!).name).toBe(room.seats[room.first].name);
   });
 
+  it('lets either player concede, even off turn, and then offers no rematch', () => {
+    const { room } = twoSeats();
+    const g = room.game!;
+    const idleSeat = [0, 1].find((s) => playerIndex(room, s) !== g.activePlayerIndex)!;
+    // A seat can only concede for itself, whatever player it names.
+    const other = g.players[playerIndex(room, 1 - idleSeat)].id;
+    const r = handle(room, idleSeat, { t: 'action', action: { type: 'concede', playerId: other } });
+    expect(r.broadcast).toBe(true);
+    expect(room.game!.concededBy).toBe(g.players[playerIndex(room, idleSeat)].id);
+    expect(room.game!.winnerId).toBe(other);
+    expect(handle(room, 1 - idleSeat, { t: 'rematch' }).reply[0]).toMatchObject({ t: 'error', message: expect.stringMatching(/left/) });
+  });
+
   it('falls back to a starter deck if a player sends an illegal one', () => {
     const room = emptyRoom();
     handle(room, null, { t: 'join', name: '<b>Eve</b>', deck: ['coronal_lance'], deckName: 'x', species: 1 });

@@ -47,8 +47,10 @@ npm run deploy         # builds the game, then deploys the Worker and its rooms
 
 Wrangler prints the address, e.g. `https://blue-loop.<your-subdomain>.workers.dev`. Open it, then **Quickplay → play online → create room**, and send your friend the code or the invite link. The game starts as soon as they join.
 - **Dropped connections:** a phone that locks or loses signal reconnects to its seat by itself. Reopening the invite link in the same browser also rejoins.
+- **Dropped connections, for the other player:** while a rival is away, you see "rival disconnected · waiting". Their seat is kept, and the notice clears when they're back.
+- **Quitting:** settings (⚙) → **quit game** asks first. Online, quitting concedes: your rival wins and there is no rematch. Against the AI, a game can be saved and left, or conceded. In a campaign battle, quitting is a retreat, which loses the battle.
 - **Rematches:** they alternate who goes first.
-- **Tidying up:** rooms delete themselves after a day without play.
+- **Tidying up:** an idle room costs nothing. It hibernates between moves, and it deletes itself an hour after its game ends, or after a day without play.
 
 **Try it locally first:** `npm run server` runs the Worker and rooms on your machine at http://localhost:8787. Open it in two browser windows to play yourself.
 

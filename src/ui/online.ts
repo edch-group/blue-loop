@@ -24,6 +24,8 @@ export interface OnlineEvents {
   lobby(seats: LobbySeat[], you: number): void;
   state(state: GameState, you: string, last: LastMove | null): void;
   error(message: string): void;
+  /** Whether the rival is connected right now. */
+  presence(rivalOnline: boolean): void;
   /** Connected, reconnecting, or given up. */
   status(status: 'connecting' | 'open' | 'lost'): void;
 }
@@ -124,6 +126,9 @@ export class OnlineClient {
           break;
         case 'error':
           this.on.error(String(msg.message));
+          break;
+        case 'presence':
+          this.on.presence(!!msg.rivalOnline);
           break;
       }
     };
