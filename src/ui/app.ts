@@ -45,7 +45,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardArt, cardGlyph, KIND_COLOUR, typeLine } from './glyphs';
+import { cardArt, cardGlyph, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { MENU_ICON } from './menu-icon';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
@@ -1549,7 +1549,7 @@ export class App {
     const stats =
       opts.owner && c.slot !== undefined
         ? `<span class="card-stats"><b class="stat-def" title="Defence: removal cards can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades back into the deck">◷${c.stability ?? 0}</b></span>`
-        : '';
+        : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
       <button class="card kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
@@ -1567,7 +1567,7 @@ export class App {
     return `
       <div class="card card-big kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArt(def, true)}</div>
-        ${growth ? `<span class="growth">${growth}</span>` : ''}
+        ${growth ? `<span class="growth">${growth}</span>` : ''}${stabilityBadge(def)}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
         <div class="card-kind">${typeLine(def)}</div>

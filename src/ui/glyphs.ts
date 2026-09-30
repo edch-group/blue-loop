@@ -1,4 +1,4 @@
-import { RACE_NAMES, type CardDef, type CardKind, type Rarity } from '../engine';
+import { baseStability, persists, RACE_NAMES, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -232,3 +232,9 @@ function circuitTile(colour: string, seed: number): string {
 }
 const CIRCUIT: Record<Rarity, [string, number]> = { dwarf: ['#6f86ad', 7], stellar: ['#c08a24', 11], anomaly: ['#8c5ad6', 19] };
 for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElement.style.setProperty(`--circuit-${r}`, circuitTile(colour, seed));
+
+/** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
+export function stabilityBadge(def: CardDef): string {
+  if (!persists(def.id)) return '';
+  return `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your turns, then fades back into your deck">◷${baseStability(def.id)}</b></span>`;
+}
