@@ -25,7 +25,7 @@ was replaced by this design in design review.
 1. **Start of turn.** In this order:
    - Your shields fade (unless Deep Current holds them).
    - Draw **1 card**. Your opening hand of 5 covers your first turn.
-   - Stellar Instability applies, if it has begun.
+   - Regional instability applies, once regional stability has run out.
    - The global card applies, if there is one.
    - Your tableau's **start-of-turn effects** trigger, left to right.
    - Then every card in your tableau loses **1 stability**. A card at 0 fades back into your deck.
@@ -47,7 +47,7 @@ was replaced by this design in design review.
     - Ion Cannon: 2 or less.
     - Tractor Beam and Command Breaker: 3 or less.
     - Event Horizon (Anomaly): any.
-- **Stability** is how many of your turns a card stays in play. Its start-of-turn effects trigger that many times, then it fades back into your deck at a random place. [design review: stability on each card replaces the stability bar]
+- **Stability** is how many of your turns a card stays in play. Its start-of-turn effects trigger that many times, then it fades back into your deck at a random place. [design review: stability on each card]
   - **Standard stability:** 3.
   - **Cards with only a when-played effect:** 2. They are mostly slot-fillers once played.
   - **Command cards:** 3.
@@ -228,9 +228,9 @@ Balance has been sensitive to single cards, removal above all. Adding two Ion Ca
 - `PATCH='{"card_id": {...}}'` for a card change.
 - `BAL='{"maxPlays": 3}'` for a rules number.
 
-## Why Stellar Instability exists
+## Why regional stability exists
 
-Stability now lives on each card, so the old stability bar is gone from the top of the screen. The round counter keeps a late-game clock as a safety net: from round **10**, every sun heats at the start of its turn, +1 and then +1 more each round after. The counter only shows "instability" once it has begun. AI games last about 11 rounds, so the clock often decides the end. [proposed: keep the clock until playtesting shows games end without it]
+The **regional stability** bar at the top loses one segment each round. From round **10**, every sun heats at the start of its turn: +1, then +1 more each round after. This guarantees that games end. It works exactly as the old stability bar did; the name distinguishes it from each card's own stability (◷). AI games last about 11 rounds, so it often decides the end. [design review: the stability bar stays, as regional stability]
 
 ## The four races
 
@@ -254,7 +254,7 @@ The game is always landscape.
 
 The whole play area is a table seen in perspective, like a tabletop simulator. A flat HUD sits above it:
 - **Top left:** player pills, in a column. The active player glows green, and your target has a crosshair.
-- **Top centre:** the round (and, from round 10, the instability).
+- **Top centre:** the round and regional stability.
 - **Top right:** the global card, skip and the menu.
 
 On the table:

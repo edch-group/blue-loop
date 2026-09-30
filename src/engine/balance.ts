@@ -59,7 +59,7 @@ export const BALANCE = {
   coolingChamberHealthPerUpgrade: 6,
 
   /**
-   * Stellar Instability: the late-game clock that guarantees games end.
+   * Regional stability runs out: the late-game clock that guarantees games end.
    * From this round on, every sun heats at the start of its turn (unblockable).
    * It stacks: +1 in the first unstable round, +1 more every round after.
    */

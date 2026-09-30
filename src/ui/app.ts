@@ -1153,7 +1153,7 @@ export class App {
         <li><b>Resonance</b> cards power up their neighbours in your tableau, and bulwarks guard them.</li>
         <li><b>Lightspeed</b> cards are set face down (one at a time, no slot) and spring during an enemy's turn: cancelling a card they play, turning heat aside, or saving your cards from removal.</li>
         <li>Destroyed and cancelled cards go to your discard pile. When your deck runs out it is shuffled back in (heating your sun by ${BALANCE.reshuffleHeat}), and some cards recover cards from it or return your cards to your hand to play again.</li>
-        <li>Only one <b>global</b> card can be in play at a time, and it affects everyone. From round ${BALANCE.instabilityStartsRound}, <b>Stellar Instability</b> heats every sun each turn.</li>
+        <li>Only one <b>global</b> card can be in play at a time, and it affects everyone. <b>Regional stability</b> (top of the screen) drains one segment a round; from round ${BALANCE.instabilityStartsRound} it is gone and every sun heats each turn, more each round.</li>
       </ul>`;
   }
 
@@ -1181,14 +1181,20 @@ export class App {
   /** Round and stability, together in one container at the top centre. */
   private renderRoundBar(): string {
     const s = this.state!;
-    // Stability now lives on each card (◷ turns left); the round only carries the late-game clock.
+    // Regional stability: the whole system's, draining one segment a round (each card also has its own, ◷).
+    const total = BALANCE.instabilityStartsRound - 1;
+    const remaining = Math.max(0, total - (s.round - 1));
     const instab = instabilityHeat(s);
+    const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
     return `
       <div class="round-box ${instab ? 'unstable' : ''}" title="${instab
-        ? `Round ${s.round}. Stellar Instability: every sun heats by ${instab} at the start of its turn.`
-        : `Round ${s.round}. From round ${BALANCE.instabilityStartsRound}, Stellar Instability heats every sun at the start of its turn. Each card's own stability (◷) is how many turns it stays in play.`}">
+        ? `Round ${s.round}. Regional instability: every sun heats by ${instab} at the start of its turn.`
+        : `Round ${s.round}. Regional stability drains by one each round; when it runs out, every sun heats at the start of its turn.`}">
         <div class="round-num"><small>round</small><b>${roman(s.round)}</b></div>
-        ${instab ? `<div class="stability"><span class="stability-label">instability +${instab}</span></div>` : ''}
+        <div class="stability">
+          <span class="stability-label">${instab ? `regional instability +${instab}` : `regional stability ${remaining}`}</span>
+          <div class="stability-bar">${segments}</div>
+        </div>
       </div>`;
   }
 

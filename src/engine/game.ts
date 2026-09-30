@@ -706,7 +706,7 @@ function startTurn(state: GameState) {
   // The table: instability, the map's modifiers, then any global card.
   const unstable = instabilityHeat(state);
   if (unstable > 0) {
-    log(state, `Stellar instability heats ${p.name}'s sun by ${unstable}.`);
+    log(state, `Regional instability heats ${p.name}'s sun by ${unstable}.`);
     applyHeat(state, p, unstable, null);
   }
   const m = p.modifiers;
