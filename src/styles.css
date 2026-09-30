@@ -2330,9 +2330,11 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 
 /* ---------- The gem sits in a notch cut from the picture's top corner ---------- */
 .card .art-wrap {
-  --gs: max(12px, calc(var(--cw, 100px) * 0.135));
-  --gx: calc(var(--gs) * 0.62);
-  --gr: calc(var(--gs) * 0.5 + max(2px, calc(var(--cw, 100px) * 0.022)));
+  /* About a third of its old size: a small jewel, not a badge. */
+  --gs: max(5px, calc(var(--cw, 100px) * 0.045));
+  /* Its centre sits clear of the frame's rounded corner. */
+  --gx: max(calc(var(--gs) * 0.95), calc(var(--cw, 100px) * 0.05));
+  --gr: calc(var(--gs) * 0.5 + max(1.5px, calc(var(--cw, 100px) * 0.012)));
   /* The frame's edge and shadow follow the notch (a filter, since the mask would clip a box-shadow). */
   filter: drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.95)) drop-shadow(0 2px 3px rgba(40, 40, 60, 0.16));
 }
