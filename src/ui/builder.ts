@@ -167,12 +167,14 @@ export class DeckBuilder {
       .map((c) => {
         const n = count(c.id);
         return `
-          <button class="db-card kind-${c.kind} ${n ? 'db-card-in' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
-            ${rarityGem(c)}
-            <span class="db-card-glyph">${cardArt(c)}</span>
-            <span class="db-card-name">${esc(c.name.toLowerCase())}</span>
-            <span class="db-card-text">${esc(c.text)}</span>
-            <span class="db-card-kind">${typeLine(c)}</span>
+          <button class="db-card ${n ? 'db-card-in' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
+            <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}">
+              ${rarityGem(c)}
+              <span class="card-glyph">${cardArt(c)}</span>
+              <span class="card-name">${esc(c.name.toLowerCase())}</span>
+              <span class="card-text">${esc(c.text)}</span>
+              <span class="card-kind">${typeLine(c)}</span>
+            </span>
             ${n ? `<b class="db-count">×${n}</b>` : ''}
           </button>`;
       })

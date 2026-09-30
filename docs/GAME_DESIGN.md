@@ -17,7 +17,7 @@ was replaced by this design in design review.
 ## Decks
 
 - A deck is **exactly 20 cards**, with **at most 2 copies** of any card and **exactly 2 Command cards**. [design review: 20 cards, 2 commands; proposed: 2 copies]
-- Players build decks in the **deck builder** (Quickplay → deck builder) from the whole card pool, or pick one of the four **race starter decks**. The AI plays the starters. [design review]
+- Players build decks in the **deck builder** (Quickplay → deck builder) from the whole card pool, or pick one of the four **race starter decks**. The builder shows real cards, always the same shape and size as on the table. The AI plays the starters. [design review]
 - Each deck carries a race emblem. Cards can be mixed freely across races. [proposed]
 
 ## Turns
@@ -266,6 +266,7 @@ The whole play area is a table seen in perspective, like a tabletop simulator. A
 - **Top left:** player pills, in a column: race emblem, name, cards in hand and deck, and ⚡ if a Lightspeed card is set. The active player glows green, and your target has a crosshair. Tap a rival to target them and bring their tableau across.
 - **Top centre:** the round and regional stability.
 - **Top right:** the global card, skip, the **log** button (the log opens as a popover under it) and the menu.
+- **Under the top right, in 3–4 player games:** an overview of every rival not on the table. Each shows their sun (heat and shields), their five slots as thumbnails, who they target, and the heat their next start of turn will deal. Tap one to bring that rival across the table; the one who was there moves into the overview, so every player is always in view. [design review]
 
 On the table:
 - **Suns, large, beside their tableaus.** Your target's sun is left of their row, and yours is left of yours. Each shows:

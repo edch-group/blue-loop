@@ -1341,6 +1341,7 @@ export class App {
       <div class="hud">
         <div class="hud-players">${this.renderPlayers()}</div>
         <div class="hud-round">${this.renderRoundBar()}</div>
+        ${this.renderOthers()}
         <div class="hud-controls">
           ${field}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
@@ -1349,6 +1350,40 @@ export class App {
           <button class="icon-btn" data-act="open-menu" aria-label="Menu">${MENU_ICON}</button>
         </div>
       </div>`;
+  }
+
+  /**
+   * In 3–4 player games, every rival not on the table gets an overview under
+   * the controls: their sun (heat and shields), their five slots, who they
+   * are aiming at and what their start of turn will do. Tap one to bring them
+   * across the table.
+   */
+  private renderOthers(): string {
+    const s = this.state!;
+    const me = this.viewer();
+    const shown = this.shownRival();
+    const others = s.players.filter((p) => p.id !== me.id && p.id !== shown?.id);
+    if (!others.length) return '';
+    const mine = targetOf(s, me);
+    const panels = others.map((p) => {
+      const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
+        const c = p.tableau.find((x) => x.slot === i);
+        return c ? `<span class="oth-slot" title="${esc(cardDef(c.defId).name)}">${cardArt(cardDef(c.defId))}</span>` : '<span class="oth-slot oth-empty"></span>';
+      }).join('');
+      const f = turnForecast(s, p);
+      const aim = p.eliminated ? 'supernova' : f.targetId === me.id ? '<b class="oth-at-you">targets you</b>' : `targets ${esc((s.players.find((o) => o.id === f.targetId)?.name ?? '—').toLowerCase())}`;
+      const next = !p.eliminated && f.heat ? `<span class="oth-next" title="Heat their start of turn deals to their target">+${f.heat}${f.others ? ` <small>+${f.others} each</small>` : ''}</span>` : '';
+      return `
+        <button class="oth ${p.eliminated ? 'oth-dead' : ''} ${mine?.id === p.id ? 'oth-target' : ''} ${activePlayer(s).id === p.id && !isGameOver(s) ? 'oth-active' : ''}" data-act="focus" data-arg="${p.id}" title="Show ${esc(p.name)}'s tableau">
+          <span class="oth-sun" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id })}</span>
+          <span class="oth-body">
+            <span class="oth-head">${factionAvatar(`f${p.species + 1}`, 'oth-emblem')}<b>${esc(p.name.toLowerCase())}</b>${mine?.id === p.id ? '<i class="rival-crosshair">◎</i>' : ''}${p.lightspeed ? '<i class="ls-pip">⚡</i>' : ''}</span>
+            <span class="oth-slots">${slots}</span>
+            <span class="oth-foot"><span>${aim}</span>${next}</span>
+          </span>
+        </button>`;
+    });
+    return `<div class="hud-others">${panels.join('')}</div>`;
   }
 
   /** While a card waits for a choice on the board, a short prompt sits at the top of the screen. */
