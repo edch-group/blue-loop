@@ -2414,3 +2414,14 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 @media (prefers-reduced-motion: reduce) {
   .cmp-leaving .cmp-orbit-ring, .cmp-leaving .cmp-orb-planet, .cmp-side-out { animation-duration: 0.01s; }
 }
+
+/* Campaign top bar: a slim turn chip and bare resources (symbol, value, income). */
+button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 12px; border-radius: 999px; }
+.cmp-turn small { font-size: 0.46rem; letter-spacing: 0.18em; color: var(--ink-faint); }
+.cmp-turn b { font-weight: 500; font-size: 0.72rem; letter-spacing: 0.1em; color: var(--ink); }
+.cmp-turn i { font-style: normal; font-size: 0.72rem; color: var(--ink-faint); }
+.cmp-purse { align-items: center; }
+.cmp-purse > span { display: flex; align-items: center; gap: 4px; }
+.cmp-purse > span b { font-weight: 600; }
+.cmp-purse > span small { margin-left: 0; }
+.cmp-purse .cur { vertical-align: 0; }

@@ -71,6 +71,9 @@ const CREDITS =
 /** Materials: a solid teal crystal. Earned the same ways; spent on buying cards in the armory. */
 const MATERIALS =
   '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#4f9aa6"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#9fd3d9"/><path d="M10 9.6V18.5L3 14V6Z" fill="#6fb3bc"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="none" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/></svg>';
+/** Systems held: a small ringed planet. */
+const SYSTEMS =
+  '<svg class="cur cur-systems" viewBox="0 0 20 20" aria-label="systems"><g transform="rotate(-18 10 10)"><path d="M0.6 10A9.4 3 0 0 1 19.4 10" fill="none" stroke="#8a93a8" stroke-width="1.3"/></g><circle cx="10" cy="10" r="6.6" fill="#9fb0cf"/><circle cx="8" cy="7.9" r="2.6" fill="#dfe6f3" opacity=".7"/><g transform="rotate(-18 10 10)"><path d="M0.6 10A9.4 3 0 0 0 19.4 10" fill="none" stroke="#8a93a8" stroke-width="1.3"/></g></svg>';
 /** A stable 0–1 value per id, to spread animation phases so stars never pulse in step. */
 function seedOf(id: string): string {
   let h = 0;
@@ -362,11 +365,11 @@ export class CampaignView {
     return `
       <main class="cmp">
         <header class="cmp-top">
-          <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" title="Game overview: every faction and its systems"><span class="cmp-turn-n">turn ${s.turn}</span><small>/${CAMPAIGN.turnLimit}</small><i class="cmp-turn-more">overview ›</i></button>
+          <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" title="Game overview: every faction and its systems"><small>turn</small><b>${s.turn}/${CAMPAIGN.turnLimit}</b><i>›</i></button>
           <div class="cmp-purse">
-            <span title="Credits: earned from your systems each turn, battles and missions. Spent on repairing damage and fortifying systems."><b>${CREDITS}${me.credits}</b><small>+${inc.credits}/turn</small><em>credits · systems</em></span>
-            <span title="Materials: earned from your systems each turn, battles and missions. Spent on buying cards in the armory."><b>${MATERIALS}${me.materials}</b><small>+${inc.materials}/turn</small><em>materials · cards</em></span>
-            <span class="cmp-held">${ownedNodes(s, me.id).length}/${s.nodes.length} systems</span>
+            <span title="Credits (+${inc.credits} a turn): earned from your systems each turn, battles and missions. Spent on repairing damage and fortifying systems.">${CREDITS}<b>${me.credits}</b><small>(+${inc.credits})</small></span>
+            <span title="Materials (+${inc.materials} a turn): earned from your systems each turn, battles and missions. Spent on buying cards in the armory.">${MATERIALS}<b>${me.materials}</b><small>(+${inc.materials})</small></span>
+            <span title="Systems you hold, of ${s.nodes.length}">${SYSTEMS}<b>${ownedNodes(s, me.id).length}</b></span>
           </div>
           <nav class="cmp-nav">
             <button class="pill-btn" data-act="cmp-sheet" data-arg="deck">deck</button>
