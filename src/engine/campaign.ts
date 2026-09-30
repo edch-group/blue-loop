@@ -53,12 +53,12 @@ export const CAMPAIGN = {
   turnLimit: 60,
   /** The map: this many systems scattered in loose clusters over this area (map units). */
   mapSystems: 48,
-  mapWidth: 2200,
-  mapHeight: 1400,
-  mapMargin: 110,
+  mapWidth: 3500,
+  mapHeight: 2250,
+  mapMargin: 170,
   /** Systems are never closer than this; routes longer than this are dropped unless needed to connect. */
-  minSystemGap: 95,
-  maxRoute: 430,
+  minSystemGap: 160,
+  maxRoute: 690,
   /** Anomalies scattered between systems; each changes battles fought from the systems within its reach. */
   anomalies: 8,
   /** Safety cap on simulated (auto-resolved) battles. */
@@ -130,28 +130,28 @@ export const ANOMALIES: Record<AnomalyKind, AnomalyDef> = {
     name: 'Black Hole',
     text: 'Its gravity well drinks heat: +5 max health, but your opening hand is 1 card smaller.',
     modifiers: { maxHealthDelta: 5, openingHand: -1 },
-    radius: 150,
+    radius: 240,
   },
   nebula: {
     kind: 'nebula',
     name: 'Nebula',
     text: 'Hidden in the gas: +1 shield every turn, but your sun starts 3 hotter.',
     modifiers: { shieldPerTurn: 1, startingHeat: 3 },
-    radius: 175,
+    radius: 280,
   },
   darkMatter: {
     kind: 'darkMatter',
     name: 'Dark Matter Cluster',
     text: 'Unseen mass to mine: draw 1 extra card every turn, but your sun heats by 1 every turn.',
     modifiers: { extraDraw: 1, heatPerTurn: 1 },
-    radius: 150,
+    radius: 240,
   },
   pulsar: {
     kind: 'pulsar',
     name: 'Pulsar',
     text: 'Its steady beam steadies your sun: it cools by 1 every turn, but you have 4 less max health.',
     modifiers: { coolPerTurn: 1, maxHealthDelta: -4 },
-    radius: 150,
+    radius: 240,
   },
 };
 
@@ -452,11 +452,11 @@ function scatterSystems(s: CampaignState): { x: number; y: number }[] {
   const clusters = Array.from({ length: 9 }, () => ({
     x: m + nextRandom(s) * (MAP_WIDTH - 2 * m),
     y: m + nextRandom(s) * (MAP_HEIGHT - 2 * m),
-    spread: 90 + nextRandom(s) * 140,
+    spread: 140 + nextRandom(s) * 220,
   }));
   // Keep the four corners populated so every faction has room to start.
-  clusters.push({ x: m + 60, y: MAP_HEIGHT - m - 60, spread: 110 }, { x: MAP_WIDTH - m - 60, y: m + 60, spread: 110 });
-  clusters.push({ x: m + 60, y: m + 60, spread: 110 }, { x: MAP_WIDTH - m - 60, y: MAP_HEIGHT - m - 60, spread: 110 });
+  clusters.push({ x: m + 100, y: MAP_HEIGHT - m - 100, spread: 175 }, { x: MAP_WIDTH - m - 100, y: m + 100, spread: 175 });
+  clusters.push({ x: m + 100, y: m + 100, spread: 175 }, { x: MAP_WIDTH - m - 100, y: MAP_HEIGHT - m - 100, spread: 175 });
   const pts: { x: number; y: number }[] = [];
   for (let tries = 0; pts.length < CAMPAIGN.mapSystems && tries < 20000; tries++) {
     let x: number;
@@ -635,9 +635,9 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     if (s.anomalies!.length >= CAMPAIGN.anomalies) break;
     const kind = kinds[s.anomalies!.length % kinds.length];
     const reach = ANOMALIES[kind].radius;
-    if (c.clear < 55 || c.clear > reach * 0.85) continue; // in a gap, yet touching a system
+    if (c.clear < 90 || c.clear > reach * 0.85) continue; // in a gap, yet touching a system
     if (homesNow.some((h) => Math.hypot(h.x - c.x, h.y - c.y) <= reach + 40)) continue;
-    if (s.anomalies!.some((a) => Math.hypot(a.x - c.x, a.y - c.y) < 330)) continue;
+    if (s.anomalies!.some((a) => Math.hypot(a.x - c.x, a.y - c.y) < 530)) continue;
     s.anomalies!.push({ id: `a${s.anomalies!.length}`, kind, x: c.x, y: c.y });
   }
 

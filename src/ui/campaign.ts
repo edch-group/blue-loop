@@ -99,7 +99,9 @@ type Sheet =
   | { kind: 'log' }
   | { kind: 'station'; nodeId: string }
   | { kind: 'attack'; fromId: string; toId: string }
-  | { kind: 'help' };
+  | { kind: 'help' }
+  /** The game overview: every faction, its systems and its share of the universe. */
+  | { kind: 'overview' };
 
 export class CampaignView {
   state: CampaignState | null = null;
@@ -222,7 +224,7 @@ export class CampaignView {
         sound.hover();
         break;
       case 'cmp-sheet':
-        this.sheet = { kind: arg as 'deck' | 'armory' | 'missions' | 'log' | 'help' };
+        this.sheet = { kind: arg as 'deck' | 'armory' | 'missions' | 'log' | 'help' | 'overview' };
         break;
       case 'cmp-close':
         if (this.report && !this.sheet) this.report = null;
@@ -328,10 +330,10 @@ export class CampaignView {
     return `
       <main class="cmp">
         <header class="cmp-top">
-          <div class="cmp-turn"><span class="cmp-turn-n">turn ${s.turn}</span><small>/${CAMPAIGN.turnLimit}</small></div>
+          <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" title="Game overview: every faction and its systems"><span class="cmp-turn-n">turn ${s.turn}</span><small>/${CAMPAIGN.turnLimit}</small><i class="cmp-turn-more">overview ›</i></button>
           <div class="cmp-purse">
-            <span title="Credits: earned from your systems each turn, battles and missions. Spent on repairing damage and upgrading planets."><b>${CREDITS}${me.credits}</b><small>+${inc.credits}/turn</small><em>credits · systems</em></span>
-            <span title="Materials: earned from your systems each turn, battles and missions. Spent on buying cards in the armory and upgrading cards."><b>${MATERIALS}${me.materials}</b><small>+${inc.materials}/turn</small><em>materials · cards</em></span>
+            <span title="Credits: earned from your systems each turn, battles and missions. Spent on repairing damage and fortifying systems."><b>${CREDITS}${me.credits}</b><small>+${inc.credits}/turn</small><em>credits · systems</em></span>
+            <span title="Materials: earned from your systems each turn, battles and missions. Spent on buying cards in the armory."><b>${MATERIALS}${me.materials}</b><small>+${inc.materials}/turn</small><em>materials · cards</em></span>
             <span class="cmp-held">${ownedNodes(s, me.id).length}/${s.nodes.length} systems</span>
           </div>
           <nav class="cmp-nav">
@@ -552,11 +554,11 @@ export class CampaignView {
 
   private static readonly TILT = 44;
   private static readonly FOCUS_TILT = 56;
-  private static readonly MAX_ZOOM = 3.5;
+  private static readonly MAX_ZOOM = 5.5;
 
   private homeView() {
     const home = ownedNodes(this.state!, this.state!.playerId)[0] ?? this.state!.nodes[0];
-    return { x: home.x, y: home.y, zoom: 1.9 };
+    return { x: home.x, y: home.y, zoom: 2.8 };
   }
 
   /** Fit the map to its stage and move the camera (called after every render and on resize). */
@@ -686,12 +688,6 @@ export class CampaignView {
   private renderOverview(): string {
     const s = this.state!;
     const me = campaignPlayer(s);
-    const factions = s.factions
-      .map((f) => {
-        const held = ownedNodes(s, f.id).length;
-        return `<div class="cmp-faction ${f.eliminated ? 'out' : ''}" style="--fc:${this.colourOf(f.id)}">${this.avatarOf(f.id)}<span>${f.id === me.id ? 'you' : lower(f.name)}</span><b>${f.eliminated ? 'eliminated' : `${held} system${held === 1 ? '' : 's'}`}</b></div>`;
-      })
-      .join('');
     const missions = me.missions.map((m) => this.missionRow(m.id, missionProgress(s, me, m))).join('');
     const log = s.log
       .slice(-8)
@@ -699,8 +695,6 @@ export class CampaignView {
       .join('');
     const canAttack = !me.attacked && s.phase === 'player' && attackOptions(s, me.id).length > 0;
     return `
-      <div class="section-label">factions</div>
-      <div class="cmp-factions">${factions}</div>
       <p class="cmp-hint">${canAttack ? 'Tap a system with a dashed ring to attack it (one attack per turn). Tap one of yours to manage it.' : me.attacked ? 'You have attacked this turn. Manage your systems, then end the turn.' : 'Manage your systems, then end the turn.'}</p>
       <div class="section-label">missions</div>
       <div class="cmp-missions">${missions}</div>
@@ -856,6 +850,25 @@ export class CampaignView {
       }
       case 'log':
         return this.modal('campaign log', `<div class="log-list">${s.log.map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>`, true);
+      case 'overview': {
+        const me = campaignPlayer(s);
+        const goal = Math.ceil(s.nodes.length * CAMPAIGN.dominationShare);
+        const factions = [...s.factions]
+          .sort((a, b) => ownedNodes(s, b.id).length - ownedNodes(s, a.id).length)
+          .map((f) => {
+            const held = ownedNodes(s, f.id).length;
+            const share = Math.round((held / s.nodes.length) * 100);
+            return `<div class="cmp-faction ${f.eliminated ? 'out' : ''}" style="--fc:${this.colourOf(f.id)}">${this.avatarOf(f.id)}<span>${f.id === me.id ? 'you' : lower(f.name)}${f.name !== RACE_NAMES[f.race] ? ` <small>${lower(RACE_NAMES[f.race])}</small>` : ''}</span><b>${f.eliminated ? 'eliminated' : `${held} system${held === 1 ? '' : 's'} · ${share}%`}</b></div>`;
+          })
+          .join('');
+        const neutral = s.nodes.filter((n) => !n.owner).length;
+        return this.modal(
+          `overview · turn ${s.turn} of ${CAMPAIGN.turnLimit}`,
+          `<div class="cmp-factions cmp-overview">${factions}</div>
+           <p class="muted center-text">${neutral} systems are still neutral. Hold ${goal} of ${s.nodes.length} systems (${Math.round(CAMPAIGN.dominationShare * 100)}%) or outlast every rival to win; otherwise the most systems after turn ${CAMPAIGN.turnLimit} wins.</p>`,
+          true,
+        );
+      }
       case 'help':
         return this.modal(
           'how the campaign works',

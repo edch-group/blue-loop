@@ -184,8 +184,10 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 
 **Setup.** Choose your race and 1–3 rivals. The rivals are the other races. Your deck starts mostly neutral: 8 neutral pairs, 2 cards of your race and 2 Command Directives.
 
-**The map.** Unchanged from before:
+**The map.**
 - 48 systems in loose clusters, linked by routes that never cross, on a tilted 3D plane that you can pan and zoom.
+- The map is wide (3500 × 2250) so systems sit well apart. Stars are small, sharp points with only a tight glow, so the map stays readable.
+- Tap the turn box (top left) to open the **overview**: every faction's systems held, their share of the map, and the win condition. The side panel only holds hints, missions and the log.
 - Factions start in the corners. Neutral systems are held by sentinels, which get stronger towards the middle of the map.
 - Outer sentinels start their battles with hotter suns (+5 heat at tier 1, +2 at tier 2), so early expansion is easier. [proposed]
 
