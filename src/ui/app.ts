@@ -1297,7 +1297,6 @@ export class App {
       <div class="title-block ${small ? 'title-small' : ''}">
         <div class="title-sun"></div>
         <h1 class="title">blue loop</h1>
-        ${small ? '' : '<p class="tagline">cool your star · ignite theirs</p>'}
       </div>`;
   }
 

@@ -70,7 +70,7 @@ input { font: inherit; }
 /* ---------- Type ---------- */
 .title, .bar-title, .pill, .btn, .btn-primary, .pill-btn, .turn-pill, .numeral, .section-label,
 .stability-label, .rival-name, .me-name, .money, .card-name, .card-kind, .coin, .chip-glass,
-.pile, .health, .stage-caption, .toast, .target-name, .tagline, .studio, .global {
+.pile, .health, .stage-caption, .toast, .target-name, .studio, .global {
   font-family: var(--display);
 }
 
@@ -253,7 +253,6 @@ input { font: inherit; }
   animation: breathe 6s ease-in-out infinite;
 }
 .title { font-size: clamp(1.6rem, calc(7 * var(--vh)), 3rem); font-weight: 400; letter-spacing: 0.32em; text-transform: uppercase; margin: 22px 0 6px; padding-left: 0.32em; color: #555a63; }
-.tagline { margin: 0; color: var(--ink-soft); letter-spacing: 0.26em; font-size: 0.6rem; text-transform: uppercase; }
 .menu-body { padding: 14px; }
 .seat { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .seat input {
