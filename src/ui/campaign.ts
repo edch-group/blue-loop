@@ -71,9 +71,9 @@ const CREDITS =
 /** Materials: a solid teal crystal. Earned the same ways; spent on buying cards in the armory. */
 const MATERIALS =
   '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#4f9aa6"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#9fd3d9"/><path d="M10 9.6V18.5L3 14V6Z" fill="#6fb3bc"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="none" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/></svg>';
-/** Systems held: a small ringed planet. */
+/** Systems held: a white dwarf, a small hot white star with a pale blue glow. */
 const SYSTEMS =
-  '<svg class="cur cur-systems" viewBox="0 0 20 20" aria-label="systems"><g transform="rotate(-18 10 10)"><path d="M0.6 10A9.4 3 0 0 1 19.4 10" fill="none" stroke="#8a93a8" stroke-width="1.3"/></g><circle cx="10" cy="10" r="6.6" fill="#9fb0cf"/><circle cx="8" cy="7.9" r="2.6" fill="#dfe6f3" opacity=".7"/><g transform="rotate(-18 10 10)"><path d="M0.6 10A9.4 3 0 0 0 19.4 10" fill="none" stroke="#8a93a8" stroke-width="1.3"/></g></svg>';
+  '<svg class="cur cur-systems" viewBox="0 0 20 20" aria-label="systems"><defs><radialGradient id="wd-glow"><stop offset=".3" stop-color="#9fbcf2" stop-opacity=".75"/><stop offset=".65" stop-color="#b9cff5" stop-opacity=".28"/><stop offset="1" stop-color="#b9cff5" stop-opacity="0"/></radialGradient><radialGradient id="wd-core" cx=".4" cy=".36"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#eef3ff"/><stop offset="1" stop-color="#b4c6ec"/></radialGradient></defs><circle cx="10" cy="10" r="9.8" fill="url(#wd-glow)"/><path d="M10 .8 10.9 7.6 10 9 9.1 7.6ZM10 19.2 9.1 12.4 10 11 10.9 12.4ZM.8 10 7.6 9.1 9 10 7.6 10.9ZM19.2 10 12.4 10.9 11 10 12.4 9.1Z" fill="#a9bfea" opacity=".9"/><circle cx="10" cy="10" r="5.3" fill="url(#wd-core)" stroke="#7f98cc" stroke-width=".7"/></svg>';
 /** A stable 0–1 value per id, to spread animation phases so stars never pulse in step. */
 function seedOf(id: string): string {
   let h = 0;
