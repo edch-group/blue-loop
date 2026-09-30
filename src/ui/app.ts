@@ -5,18 +5,25 @@ import {
   activePlayer,
   applyAction,
   BALANCE,
+  boostable,
+  canSetLightspeed,
   cardDef,
-  cardNeedsDestroyTarget,
   cardNeedsUpgradeChoice,
   chooseAIAction,
   createGame,
+  enemyChoices,
+  enemyEffectKind,
   GameError,
   instabilityHeat,
   isGameOver,
   MAX_UPGRADES,
+  needsSlot,
   persists,
   playsAllowed,
   RACE_NAMES,
+  recallChoices,
+  recoverChoices,
+  resonanceBonus,
   supernovaThreshold,
   tableauFull,
   targetOf,
@@ -53,21 +60,31 @@ type Speed = 'slow' | 'normal' | 'fast';
 
 /**
  * A card the player is playing that still needs choices: which upgrade
- * (Command Directive), which rival card to destroy (Ion Cannon), and which of
- * their own cards to replace when their tableau is full.
+ * (Command Directive), which rival card to destroy or return (Ion Cannon,
+ * Tractor Beam), which of their own cards to replace when their tableau is
+ * full, which to recall (Phase Shift), what to recover from the discard pile
+ * (Salvage Drone), and where in the tableau it goes (when resonance makes
+ * position matter).
  */
 interface Pending {
   uid: string;
-  step: 'upgrade' | 'destroy' | 'replace';
+  step: 'upgrade' | 'enemy' | 'replace' | 'recall' | 'recover' | 'slot';
   upgrade?: CoreAction;
-  destroyUid?: string;
+  enemyUid?: string;
   replaceUid?: string;
+  recallUid?: string;
+  recoverUid?: string;
+  slot?: number;
 }
 
-/** What an AI player just played, shown large at the middle right. */
+/** What an AI player just played (or a Lightspeed card that just sprang), shown large at the middle right. */
 interface Stage {
   defId: string;
   actorId: string;
+  /** Shown instead of "<name> plays". */
+  caption?: string;
+  /** A Lightspeed card set face down: show only its back. */
+  faceDown?: boolean;
 }
 
 /** Bottom sheets / dialogs that are not part of a pending move. */
@@ -89,7 +106,7 @@ const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 50
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, upgrades and so on. */
-const KEY_LOG = /heats to|SUPERNOVA|upgrades|wins|shields absorb|instability|destroys|stings|replaces/;
+const KEY_LOG = /heats to|SUPERNOVA|upgrades|wins|shields absorb|instability|destroys|stings|replaces|Lightspeed|cancelled|returns|recovers|shuffles/;
 const HOT = '#f0a07a';
 
 const esc = (s: string) =>
@@ -380,6 +397,8 @@ export class App {
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = actor.isAI ? this.stageFor(actor, action) : null;
+    const sprung = this.sprungLightspeed(prev, next);
+    if (sprung) this.stage = sprung;
     // An AI's attacks bring its target's tableau onto the table.
     if (actor.isAI && action.type === 'setTarget' && action.targetId !== this.viewer().id) this.viewRivalId = action.targetId;
     this.persist(next);
@@ -415,7 +434,23 @@ export class App {
   private stageFor(actor: PlayerState, action: Action): Stage | null {
     if (action.type !== 'playCard') return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
-    return card ? { defId: card.defId, actorId: actor.id } : null;
+    if (!card) return null;
+    if (cardDef(card.defId).kind === 'lightspeed') return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
+    return { defId: card.defId, actorId: actor.id };
+  }
+
+  /** A Lightspeed card that just sprang (revealed from face down into its owner's discard pile), announced for everyone. */
+  private sprungLightspeed(prev: GameState, next: GameState): Stage | null {
+    for (const was of prev.players) {
+      const card = was.lightspeed;
+      const now = next.players.find((p) => p.id === was.id)!;
+      if (!card || now.lightspeed?.uid === card.uid || now.eliminated) continue;
+      const name = cardDef(card.defId).name;
+      this.showBanner('lightspeed!', `${now.name} springs ${name}`, 150);
+      sound.flare();
+      return { defId: card.defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs` };
+    }
+    return null;
   }
 
   private scheduleAI(pause: number) {
@@ -495,9 +530,8 @@ export class App {
       if (root.querySelector(`[data-uid="${uid}"]`)) return;
       let to: DOMRect | null = null;
       if (vNext.discard.some((c) => c.uid === uid)) to = anchorRect(root, 'discard');
-      else if (vNext.commands.some((c) => c.uid === uid)) to = anchorRect(root, 'upgrades');
       else {
-        const owner = next.players.find((p) => [...p.deck, ...p.hand, ...p.discard, ...p.commands].some((c) => c.uid === uid));
+        const owner = next.players.find((p) => [...p.deck, ...p.hand, ...p.discard].some((c) => c.uid === uid));
         if (owner) to = orbRect(owner.id);
       }
       ghost(old.html, old.rect, to);
@@ -653,6 +687,11 @@ export class App {
       sound.error();
       return;
     }
+    if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) {
+      this.showToast('You already have a Lightspeed card face down: only one at a time.', 'info');
+      sound.error();
+      return;
+    }
     this.pending = { uid, step: 'upgrade' };
     this.advancePlay();
   }
@@ -669,20 +708,20 @@ export class App {
       return this.render();
     }
     const target = targetOf(s, me);
-    if (cardNeedsUpgradeChoice(card.defId) && upgradeOptions(me).length > 0 && !p.upgrade) {
-      p.step = 'upgrade';
-      return this.render();
+    const ask = (step: Pending['step']) => {
+      p.step = step;
+      this.render();
+    };
+    if (cardNeedsUpgradeChoice(card.defId) && upgradeOptions(me).length > 0 && !p.upgrade) return ask('upgrade');
+    if (enemyChoices(s, me, card.defId).length > 0 && !p.enemyUid) {
+      if (target) this.viewRivalId = target.id;
+      return ask('enemy');
     }
-    if (cardNeedsDestroyTarget(card.defId) && target && target.tableau.length > 0 && !p.destroyUid) {
-      p.step = 'destroy';
-      this.viewRivalId = target.id;
-      return this.render();
-    }
-    if (persists(card.defId) && tableauFull(me) && !p.replaceUid) {
-      p.step = 'replace';
-      return this.render();
-    }
-    this.dispatch({ type: 'playCard', cardUid: p.uid, upgrade: p.upgrade, destroyUid: p.destroyUid, replaceUid: p.replaceUid });
+    if (persists(card.defId) && tableauFull(me) && !p.replaceUid) return ask('replace');
+    if (recallChoices(me, card.defId, p.replaceUid).length > 0 && !p.recallUid) return ask('recall');
+    if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
+    if (needsSlot(me, card.defId) && p.slot === undefined) return ask('slot');
+    this.dispatch({ type: 'playCard', cardUid: p.uid, upgrade: p.upgrade, enemyUid: p.enemyUid, replaceUid: p.replaceUid, recallUid: p.recallUid, recoverUid: p.recoverUid, slot: p.slot });
   }
 
   // -------------------------------------------------------------------------
@@ -923,8 +962,17 @@ export class App {
       case 'upgrade':
         if (this.pending) this.pending.upgrade = arg as CoreAction;
         return this.advancePlay();
-      case 'choose-destroy':
-        if (this.pending) this.pending.destroyUid = arg;
+      case 'choose-enemy':
+        if (this.pending) this.pending.enemyUid = arg;
+        return this.advancePlay();
+      case 'choose-recall':
+        if (this.pending) this.pending.recallUid = arg;
+        return this.advancePlay();
+      case 'choose-recover':
+        if (this.pending) this.pending.recoverUid = arg;
+        return this.advancePlay();
+      case 'choose-slot':
+        if (this.pending) this.pending.slot = Number(arg);
         return this.advancePlay();
       case 'choose-replace':
         if (this.pending) this.pending.replaceUid = arg;
@@ -1097,8 +1145,11 @@ export class App {
         <li>Bring a <b>${BALANCE.deckSize}-card deck</b>: up to ${BALANCE.maxCopies} copies of a card, and exactly ${BALANCE.commandCards} Command cards. You start with ${BALANCE.openingHand} cards and draw ${BALANCE.drawPerTurn} each turn after that.</li>
         <li>Play <b>1 card</b> on your first turn, <b>2</b> on your second, and so on up to ${BALANCE.maxPlays}. Cards <b>stay in play</b> in your tableau (${BALANCE.tableauSlots} slots): their start-of-turn effects trigger every turn, and they power each other up. With every slot full, a new card replaces one of yours.</li>
         <li><b>Your target</b> is the rival your attacks hit: tap a rival to choose. Shields absorb enemy heat and fade at the start of your turn.</li>
-        <li><b>Command</b> cards upgrade your whole deck: Solar Flare (your attack cards deal +1 heat), Thermosiphon (your cooling cools +1) or Cooling Chamber (+${BALANCE.coolingChamberHealthPerUpgrade} max health).</li>
-        <li>Only one <b>global</b> card can be in play at a time, and it affects everyone. From round ${BALANCE.instabilityStartsRound}, <b>Stellar Instability</b> heats every sun each turn, and drawing from an empty deck heats yours by ${BALANCE.fatigueHeat}.</li>
+        <li><b>Command</b> cards upgrade your whole deck: Solar Flare (your attack cards deal +1 heat), Thermosiphon (your cooling cools +1) or Cooling Chamber (+${BALANCE.coolingChamberHealthPerUpgrade} max health), up to ${BALANCE.solarFlareMaxUpgrades} each. They stay in your tableau like any other card, and some cards reward keeping them there. Play one again and it upgrades again.</li>
+        <li><b>Resonance</b> cards power up their neighbours in your tableau, so where a card goes matters: when it does, you choose its place.</li>
+        <li><b>Lightspeed</b> cards are set face down (one at a time, no slot) and spring during an enemy's turn: cancelling a card they play, turning heat aside, or saving your cards from removal.</li>
+        <li>Replaced and destroyed cards go to your discard pile. When your deck runs out it is shuffled back in (heating your sun by ${BALANCE.reshuffleHeat}), and some cards recover cards from it or return your cards to your hand to play again.</li>
+        <li>Only one <b>global</b> card can be in play at a time, and it affects everyone. From round ${BALANCE.instabilityStartsRound}, <b>Stellar Instability</b> heats every sun each turn.</li>
       </ul>`;
   }
 
@@ -1165,7 +1216,7 @@ export class App {
           <div class="orb-anchor" data-anchor="player:${p.id}">${sunOrb({ heat: p.heat, threshold: supernovaThreshold(p), size: 40, dead: p.eliminated })}</div>
           <div class="rival-info">
             <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}${targeted ? '<i class="rival-crosshair" aria-label="your target">◎</i>' : ''}</span>
-            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em>⛨<span data-shields-of="${p.id}">${p.shields}</span> · ✋${p.hand.length} · ▤${p.deck.length}</em></span>
+            <span class="rival-stats"><b><span data-heat-of="${p.id}">${p.heat}</span>/${supernovaThreshold(p)}</b><em>⛨<span data-shields-of="${p.id}">${p.shields}</span> · ✋${p.hand.length} · ▤${p.deck.length}${p.lightspeed ? ' · <i class="ls-pip" title="A Lightspeed card is set face down">⚡</i>' : ''}</em></span>
           </div>
         </button>`;
       })
@@ -1206,10 +1257,14 @@ export class App {
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid);
     if (!card) return '';
     const name = esc(cardDef(card.defId).name.toLowerCase());
+    if (p.step === 'recover' || p.step === 'slot') return '';
+    const rival = esc(targetOf(s, activePlayer(s))?.name.toLowerCase() ?? 'your target');
     const text =
-      p.step === 'destroy'
-        ? `${name}: choose a card in ${esc(targetOf(s, activePlayer(s))!.name.toLowerCase())}'s tableau to destroy`
-        : `${name}: your tableau is full · choose a card of yours to replace`;
+      p.step === 'enemy'
+        ? `${name}: choose a card in ${rival}'s tableau to ${enemyEffectKind(card.defId) === 'bounce' ? 'return to their hand' : 'destroy'}`
+        : p.step === 'recall'
+          ? `${name}: choose a card of yours to return to your hand`
+          : `${name}: your tableau is full · choose a card of yours to replace`;
     return `<div class="pick-hint"><span>${text}</span><button class="pill-btn" data-act="cancel">cancel</button></div>`;
   }
 
@@ -1249,14 +1304,21 @@ export class App {
     const s = this.state!;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau[i];
-      return c ? this.renderCard(c, { tableau: side }) : '<div class="slot-empty"></div>';
+      return c ? this.renderCard(c, { tableau: side, owner: p }) : '<div class="slot-empty"></div>';
     }).join('');
+    // A face-down Lightspeed card: its owner can read it; everyone else sees its back.
+    const ls = p.lightspeed;
+    const lightspeed = ls
+      ? side === 'mine'
+        ? `<button class="ls-chip" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).text)}">⚡ ${esc(cardDef(ls.defId).name.toLowerCase())}</button>`
+        : '<span class="ls-chip ls-hidden" title="A Lightspeed card is set face down. It springs during your turn.">⚡ face down</span>'
+      : '';
     const targeted = side === 'rival' && targetOf(s, this.viewer())?.id === p.id;
     const label = side === 'mine' ? 'your tableau' : `${esc(p.name.toLowerCase())}'s tableau`;
     const deck = p.deckName ? `<em>${esc(p.deckName.toLowerCase())}</em>` : '';
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
-        <div class="tableau-label">${factionAvatar(`f${p.species + 1}`, 'tableau-emblem')}<span>${label}</span>${deck}<b>${p.tableau.length}/${BALANCE.tableauSlots}</b>${targeted ? '<i class="target-tag">◎ your target</i>' : ''}</div>
+        <div class="tableau-label">${factionAvatar(`f${p.species + 1}`, 'tableau-emblem')}<span>${label}</span>${deck}<b>${p.tableau.length}/${BALANCE.tableauSlots}</b>${lightspeed}${targeted ? '<i class="target-tag">◎ your target</i>' : ''}</div>
         <div class="tableau-row">${slots}</div>
       </div>`;
   }
@@ -1297,7 +1359,7 @@ export class App {
       </section>`;
   }
 
-  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean }): string {
+  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState }): string {
     const def = cardDef(c.defId);
     const act = this.canAct();
     const p = this.pending;
@@ -1308,22 +1370,31 @@ export class App {
       if ((act && !p) || this.touch) attrs = `data-act="play" data-arg="${c.uid}"`;
     }
     let state = '';
-    if (p && opts.tableau === 'rival' && p.step === 'destroy') {
-      attrs = `data-act="choose-destroy" data-arg="${c.uid}"`;
+    const s = this.state;
+    const me = s ? activePlayer(s) : null;
+    const pendingDef = p && me ? me.hand.find((h) => h.uid === p.uid)?.defId : undefined;
+    if (p && pendingDef && me && opts.tableau === 'rival' && p.step === 'enemy' && enemyChoices(s!, me, pendingDef).some((x) => x.uid === c.uid)) {
+      attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
     if (p && opts.tableau === 'mine' && p.step === 'replace') {
       attrs = `data-act="choose-replace" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
+    if (p && opts.tableau === 'mine' && p.step === 'recall' && c.uid !== p.replaceUid) {
+      attrs = `data-act="choose-recall" data-arg="${c.uid}"`;
+      state = 'card-choosable';
+    }
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
+    const boost = opts.owner && boostable(c.defId) ? resonanceBonus(opts.owner, c) : 0;
+    const resonance = boost ? `<span class="resonance" title="Resonance: +${boost} to this card's heat, cooling and shields from its neighbours">+${boost}</span>` : '';
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
       <button class="card kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         ${rarityGem(def)}
         <div class="card-glyph">${cardArt(def)}</div>
-        ${growth}
+        ${growth}${resonance}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
         <div class="card-kind">${typeLine(def)}</div>
@@ -1349,10 +1420,11 @@ export class App {
     const s = this.state!;
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
+    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true });
     return `
-      <div class="stage">
-        ${this.renderCard({ uid: 'stage', defId: st.defId }, { static: true })}
-        <div class="stage-caption">${esc(actor.name.toLowerCase())} plays</div>
+      <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''}">
+        ${card}
+        <div class="stage-caption">${esc(st.caption ?? `${actor.name.toLowerCase()} plays`)}</div>
       </div>`;
   }
 
@@ -1439,7 +1511,7 @@ export class App {
         actionTile({ action: a, upgrades: p.upgrades[a], power: a === 'coolingChamber' ? String(supernovaThreshold(p)) : `+${p.upgrades[a]}`, enabled: false, compact: true, actAttr: `data-act="view-upgrade" data-arg="${a}"` }),
       )
       .join('');
-    const commands = p.commands.map((c) => esc(cardDef(c.defId).name.toLowerCase())).join(' · ');
+    const commands = p.tableau.filter((c) => cardDef(c.defId).kind === 'command').map((c) => esc(cardDef(c.defId).name.toLowerCase())).join(' · ');
     return `
       <div class="overlay overlay-inspect" data-act="cancel">
         <div class="sys-wrap sheet">
@@ -1449,7 +1521,8 @@ export class App {
             ${factionAvatar(`f${p.species + 1}`, 'player-emblem')}
             <h2 class="sys-name">${esc((p.deckName ?? 'custom deck').toLowerCase())}</h2>
             <div class="upgrade-actions">${ups}</div>
-            ${commands ? `<p class="muted center-text">Command cards played: ${commands}</p>` : ''}
+            ${commands ? `<p class="muted center-text">Command cards in play: ${commands}</p>` : ''}
+            ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A Lightspeed card is set face down.'}</p>` : ''}
             ${p.conditions?.length ? `<div class="sys-conditions">${p.conditions.map((c) => `<div><b>${esc(c.name.toLowerCase())}</b>${esc(c.text)}</div>`).join('')}</div>` : ''}
             <div class="sys-stats">
               <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⛨ ${p.shields}</span><span>✋ ${p.hand.length} in hand</span><span>▤ ${p.deck.length} in deck</span><span>${p.discard.length} discarded</span><span>${p.tableau.length}/${BALANCE.tableauSlots} in play</span>
@@ -1471,14 +1544,14 @@ export class App {
         .join('');
       return this.sheetFrame(
         `your deck · ${me.deck.length}`,
-        `<p class="muted center-text">Draw order is hidden. When your deck runs out, each card you should draw heats your sun by ${BALANCE.fatigueHeat} instead.</p>
+        `<p class="muted center-text">Draw order is hidden. When your deck runs out, your discard pile is shuffled back in, heating your sun by ${BALANCE.reshuffleHeat}.</p>
          <div class="pile-grid">${rows || '<p class="muted">Your deck is empty.</p>'}</div>`,
       );
     }
     const rows = [...me.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');
     return this.sheetFrame(
       `your discard · ${me.discard.length}`,
-      `<p class="muted center-text">Cards replaced or destroyed, most recent first.</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
+      `<p class="muted center-text">Cards replaced, destroyed or cancelled, most recent first. They are shuffled back into your deck when it runs out.</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
     );
   }
 
@@ -1509,6 +1582,8 @@ export class App {
     }
     if (this.sheet) return this.renderSheet();
     const pend = this.pending;
+    if (pend?.step === 'recover') return this.renderRecoverChoice(pend);
+    if (pend?.step === 'slot') return this.renderSlotChoice(pend);
     if (!pend || pend.step !== 'upgrade') return '';
 
     // Command Directive: choose what to upgrade.
@@ -1528,6 +1603,38 @@ export class App {
       <div class="overlay overlay-soft" data-act="cancel"><div class="modal modal-wide">
         <div class="bar-title">command · choose an upgrade</div>
         <div class="modal-body upgrade-body"><div class="upgrade-actions">${tiles}</div></div>
+        <button class="modal-cancel" data-act="cancel">cancel</button>
+      </div></div>`;
+  }
+
+  /** Salvage Drone and friends: choose a card from your discard pile. */
+  private renderRecoverChoice(pend: Pending): string {
+    const me = activePlayer(this.state!);
+    const card = me.hand.find((c) => c.uid === pend.uid);
+    if (!card) return '';
+    const cards = [...recoverChoices(me, card.defId)]
+      .reverse()
+      .map((c) => this.renderCard(c, { static: true }).replace('data-act="inspect"', `data-act="choose-recover" data-arg="${c.uid}"`).replace('class="card ', 'class="card card-choosable '))
+      .join('');
+    return `
+      <div class="overlay overlay-soft" data-act="cancel"><div class="modal modal-wide">
+        <div class="bar-title">${esc(cardDef(card.defId).name.toLowerCase())} · choose a card to recover</div>
+        <div class="modal-body"><div class="pile-grid choose-grid">${cards}</div></div>
+        <button class="modal-cancel" data-act="cancel">cancel</button>
+      </div></div>`;
+  }
+
+  /** Resonance makes position matter: choose where in your tableau the card goes. */
+  private renderSlotChoice(pend: Pending): string {
+    const me = activePlayer(this.state!);
+    const card = me.hand.find((c) => c.uid === pend.uid);
+    if (!card) return '';
+    const gap = (i: number) => `<button class="slot-gap" data-act="choose-slot" data-arg="${i}" title="Place it here"><span>${esc(cardDef(card.defId).name.toLowerCase())}</span><i>here</i></button>`;
+    const row = me.tableau.map((c, i) => `${gap(i)}<div class="slot-card">${this.renderCard(c, { static: true, owner: me }).replace('data-act="inspect"', '')}</div>`).join('') + gap(me.tableau.length);
+    return `
+      <div class="overlay overlay-soft" data-act="cancel"><div class="modal modal-wide">
+        <div class="bar-title">${esc(cardDef(card.defId).name.toLowerCase())} · choose where it goes</div>
+        <div class="modal-body"><p class="muted center-text">Resonance cards power up their neighbours, so position matters.</p><div class="slot-row">${row}</div></div>
         <button class="modal-cancel" data-act="cancel">cancel</button>
       </div></div>`;
   }

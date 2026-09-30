@@ -2,13 +2,17 @@ import { cardDef } from './cards';
 import {
   activePlayer,
   applyAction,
-  cardNeedsDestroyTarget,
+  canSetLightspeed,
   cardNeedsUpgradeChoice,
   conditionMet,
   effectAmount,
+  enemyChoices,
   isOverheated,
   livingOpponents,
+  needsSlot,
   persists,
+  recallChoices,
+  recoverChoices,
   supernovaThreshold,
   tableauFull,
   targetOf,
@@ -22,6 +26,9 @@ const HORIZON = 2.5;
 const FINISH_RATIO = Number(globalThis.process?.env?.FINISH ?? 0.75);
 /** In a free-for-all, switch to the leader once it is this much cooler (as a share of max health) than your usual target. */
 const LEADER_GAP = Number(globalThis.process?.env?.GAP ?? 0.25);
+
+/** What a face-down Lightspeed card is worth to its owner (a counter waiting to spring). */
+const LIGHTSPEED_VALUE = Number(globalThis.process?.env?.LSV ?? 3);
 
 /** Roughly what a card in play is worth to its owner each turn from now on. */
 function cardValue(state: GameState, p: PlayerState, card: CardInstance): number {
@@ -71,6 +78,10 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
       case 'field':
         perTurn += 0.2;
         break;
+      case 'adjacent':
+        // Its value shows up in its neighbours' effects; a little extra for future neighbours.
+        perTurn += 0.3 * ps.amounts[0];
+        break;
     }
   }
   if (def.onLeave?.length) perTurn += 0.35;
@@ -97,26 +108,35 @@ function evaluate(state: GameState, meId: string): number {
   }
   const mine = Math.max(0, me.heat) / supernovaThreshold(me);
   score -= 12 * mine + 10 * mine * mine;
-  score += tableauValue(state, me) + 0.8 * me.hand.length + 0.3 * me.shields;
+  score += tableauValue(state, me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
   // Upgrades already pay off through effectAmount; a little extra for future cards.
   score += 0.6 * (me.upgrades.solarFlare + me.upgrades.thermosiphon);
   return score;
 }
 
-/** Every way to play one card now (replacement, upgrade and destroy choices included). */
+/** Every way to play one card now (replacement, placement, upgrade, removal, recall and recovery choices included). */
 function candidatePlays(state: GameState, me: PlayerState): Action[] {
   const plays: Action[] = [];
   const seen = new Set<string>();
-  const target = targetOf(state, me);
+  const opt = <T,>(list: T[]): (T | undefined)[] => (list.length ? list : [undefined]);
   // Replacing: only the weakest few of our own cards are worth considering.
   const replaceable = [...me.tableau].sort((a, b) => cardValue(state, me, a) - cardValue(state, me, b)).slice(0, 2);
   for (const card of me.hand) {
     if (seen.has(card.defId)) continue;
     seen.add(card.defId);
-    const upgrades: (Action & { type: 'playCard' })['upgrade'][] = cardNeedsUpgradeChoice(card.defId) && upgradeOptions(me).length ? upgradeOptions(me) : [undefined];
-    const destroys: (string | undefined)[] = cardNeedsDestroyTarget(card.defId) && target?.tableau.length ? target.tableau.map((c) => c.uid) : [undefined];
-    const replaces: (string | undefined)[] = persists(card.defId) && tableauFull(me) ? replaceable.map((c) => c.uid) : [undefined];
-    for (const upgrade of upgrades) for (const destroyUid of destroys) for (const replaceUid of replaces) plays.push({ type: 'playCard', cardUid: card.uid, upgrade, destroyUid, replaceUid });
+    if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) continue;
+    const upgrades = cardNeedsUpgradeChoice(card.defId) ? opt(upgradeOptions(me)) : [undefined];
+    const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
+    const replaces = persists(card.defId) && tableauFull(me) ? replaceable.map((c) => c.uid) : [undefined];
+    const slots = needsSlot(me, card.defId) ? Array.from({ length: me.tableau.length + 1 }, (_, i) => i) : [undefined];
+    // Recovering: one of each card in the discard pile.
+    const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);
+    for (const upgrade of upgrades)
+      for (const enemyUid of foes)
+        for (const replaceUid of replaces)
+          for (const slot of slots)
+            for (const recallUid of opt(recallChoices(me, card.defId, replaceUid).map((c) => c.uid)))
+              for (const recoverUid of recovers) plays.push({ type: 'playCard', cardUid: card.uid, upgrade, enemyUid, replaceUid, slot, recallUid, recoverUid });
   }
   return plays;
 }
@@ -152,12 +172,18 @@ export function chooseAIAction(state: GameState): Action {
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
   if (me.playsLeft <= 0 || me.hand.length === 0) return { type: 'endTurn' };
 
-  const baseline = evaluate(state, me.id);
+  // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.
+  let view = state;
+  if (state.players.some((p) => p.id !== me.id && p.lightspeed)) {
+    view = structuredClone(state);
+    for (const p of view.players) if (p.id !== me.id) p.lightspeed = null;
+  }
+  const baseline = evaluate(view, me.id);
   let best: { action: Action; score: number } | null = null;
-  for (const action of candidatePlays(state, me)) {
+  for (const action of candidatePlays(view, me)) {
     let next: GameState;
     try {
-      next = applyAction(state, action);
+      next = applyAction(view, action);
     } catch {
       continue;
     }

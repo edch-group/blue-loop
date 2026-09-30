@@ -31,10 +31,10 @@ describe('content', () => {
     for (const c of CARDS) expect(c.text.length).toBeGreaterThan(5);
   });
 
-  it('gives every race eight cards, with a Stellar hero and an Anomaly, and a legal starter deck', () => {
+  it('gives every race at least ten cards, with a Stellar hero and an Anomaly, and a legal starter deck', () => {
     for (let race = 0; race < 4; race++) {
       const own = CARDS.filter((c) => c.race === race);
-      expect(own).toHaveLength(8);
+      expect(own.length).toBeGreaterThanOrEqual(10);
       expect(own.filter((c) => c.rarity === 'anomaly' && c.character)).toHaveLength(1);
       expect(own.some((c) => c.character)).toBe(true);
     }
@@ -146,7 +146,7 @@ describe('the tableau', () => {
     const [victim] = give(foe, ['bell_warden', 'coolant_array'], 'tableau');
     give(me, ['ion_cannon']);
     expect(() => play(s, 'ion_cannon')).toThrow(GameError);
-    s = play(s, 'ion_cannon', { destroyUid: victim.uid });
+    s = play(s, 'ion_cannon', { enemyUid: victim.uid });
     expect(s.players[1].tableau.map((c) => c.defId)).toEqual(['coolant_array']);
     expect(s.players[1].discard.map((c) => c.uid)).toContain(victim.uid);
   });
@@ -162,14 +162,28 @@ describe('the tableau', () => {
 });
 
 describe('commands', () => {
-  it('upgrade a core action without taking a tableau slot', () => {
+  it('upgrade a core action and stay in the tableau', () => {
     let s = twoPlayer();
     give(activePlayer(s), ['chamber_protocol']);
     const max = supernovaThreshold(s.players[0]);
     s = play(s, 'chamber_protocol');
-    expect(s.players[0].tableau).toHaveLength(0);
-    expect(s.players[0].commands.map((c) => c.defId)).toEqual(['chamber_protocol']);
+    expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['chamber_protocol']);
     expect(supernovaThreshold(s.players[0])).toBe(max + BALANCE.coolingChamberHealthPerUpgrade);
+  });
+
+  it('upgrade again when recalled and played again', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.turnsTaken = 3;
+    me.playsLeft = 3;
+    const [cmd] = give(me, ['command_directive'], 'tableau');
+    me.upgrades.solarFlare = 1;
+    give(me, ['phase_shift']);
+    s = play(s, 'phase_shift', { recallUid: cmd.uid });
+    expect(s.players[0].hand.some((c) => c.uid === cmd.uid)).toBe(true);
+    expect(s.players[0].playsLeft).toBe(3); // Phase Shift gives back the play it used
+    s = play(s, 'command_directive', { upgrade: 'solarFlare' });
+    expect(s.players[0].upgrades.solarFlare).toBe(2);
   });
 
   it('let Command Directive choose, and require a choice', () => {
@@ -236,12 +250,12 @@ describe('synergies', () => {
 
   it('Stinging Veil stings each attacking card once per turn', () => {
     let s = twoPlayer();
-    // Ada's Overload Core, overheated, hits twice at the start of her turn.
+    // Ada's Overload Core, overheated, hits twice at the start of Ada's turn.
     const ada = s.players[0];
     give(ada, ['overload_core'], 'tableau');
     ada.heat = 16;
     give(s.players[1], ['stinging_veil'], 'tableau');
-    s = endTurn(s); // Bo's turn: his shields are up when Ada's turn begins.
+    s = endTurn(s); // Bo's turn: Bo's shields are up when Ada's turn begins.
     s.players[1].shields = 10;
     s = endTurn(s);
     expect(s.players[1].shields).toBe(10 - 2 - 1);
@@ -292,9 +306,23 @@ describe('the end', () => {
   it('heats a sun drawing from an empty deck', () => {
     let s = endTurn(twoPlayer()); // Bo's first turn: the opening hand covers it.
     s.players[0].deck = [];
+    s.players[0].discard = [];
     const before = s.players[0].heat;
     s = endTurn(s);
     expect(s.players[0].heat).toBe(before + BALANCE.drawPerTurn * BALANCE.fatigueHeat);
+  });
+
+  it('shuffles the discard pile back in when the deck runs out, for a little heat', () => {
+    let s = endTurn(twoPlayer());
+    s.players[0].deck = [];
+    s.players[0].discard = [{ uid: 'x1', defId: 'coolant_array' }, { uid: 'x2', defId: 'cryo_vault' }, { uid: 'x3', defId: 'coronal_lance' }];
+    const before = s.players[0].heat;
+    const hand = s.players[0].hand.length;
+    s = endTurn(s);
+    expect(s.players[0].heat).toBe(before + BALANCE.reshuffleHeat);
+    expect(s.players[0].hand.length).toBe(hand + BALANCE.drawPerTurn);
+    expect(s.players[0].discard).toHaveLength(0);
+    expect(s.players[0].deck).toHaveLength(3 - BALANCE.drawPerTurn);
   });
 
   it('ramps up stellar instability late in the game', () => {
@@ -361,5 +389,147 @@ describe('AI', () => {
     if (action.type === 'playCard') expect(action.replaceUid).toBeDefined();
     s = applyAction(s, action);
     expect(s.players[0].tableau.some((c) => c.defId === 'coronal_lance')).toBe(true);
+  });
+});
+
+describe('resonance', () => {
+  it('boosts the cards next to it, and further away for the Anomaly', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['plasma_relay', 'harmonic_singularity', 'plasma_relay', 'plasma_relay'], 'tableau');
+    const bo = s.players[1].heat;
+    s = endTurn(endTurn(s));
+    // Relays at distance 1, 1 and 2 from the Singularity: 1+2, 1+2 and 1+1.
+    expect(s.players[1].heat).toBe(bo + 3 + 3 + 2);
+  });
+
+  it('lets you choose where a card goes', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['coolant_array', 'cryo_vault'], 'tableau');
+    give(me, ['resonance_lattice']);
+    s = play(s, 'resonance_lattice', { slot: 1 } as never);
+    expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['coolant_array', 'resonance_lattice', 'cryo_vault']);
+  });
+
+  it('counts neighbours of a kind (Tide Pylon)', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['bell_warden', 'tide_pylon', 'coronal_lance'], 'tableau');
+    s = endTurn(endTurn(s));
+    // Bell Warden 3, Pylon 1 + 1 (one defence neighbour).
+    expect(s.players[0].shields).toBe(5);
+  });
+});
+
+describe('recovery and removal', () => {
+  it('recovers a card from the discard pile and fires its recover effect', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const [ember] = give(me, ['ember_shard']);
+    me.hand = me.hand.filter((c) => c.uid !== ember.uid);
+    me.discard.push(ember);
+    give(me, ['salvage_drone']);
+    const bo = s.players[1].heat;
+    expect(() => play(s, 'salvage_drone')).toThrow(/discard/);
+    s = play(s, 'salvage_drone', { recoverUid: ember.uid });
+    expect(s.players[0].hand.some((c) => c.uid === ember.uid)).toBe(true);
+    expect(s.players[1].heat).toBe(bo + 1);
+  });
+
+  it('returns a rival card to its owner hand (Tractor Beam) and only destroys the right kind (Command Breaker)', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.turnsTaken = 2;
+    me.playsLeft = 2;
+    const [relay, cmd] = give(s.players[1], ['plasma_relay', 'command_directive'], 'tableau');
+    give(me, ['tractor_beam', 'command_breaker']);
+    expect(() => play(s, 'command_breaker', { enemyUid: relay.uid })).toThrow();
+    s = play(s, 'tractor_beam', { enemyUid: relay.uid });
+    expect(s.players[1].hand.some((c) => c.uid === relay.uid)).toBe(true);
+    s = play(s, 'command_breaker', { enemyUid: cmd.uid });
+    expect(s.players[1].tableau).toHaveLength(0);
+    expect(s.players[1].discard.some((c) => c.uid === cmd.uid)).toBe(true);
+  });
+
+  it('Event Horizon destroys a card and flings its neighbours back to hand', () => {
+    let s = twoPlayer();
+    const [a, b, c] = give(s.players[1], ['coolant_array', 'plasma_relay', 'cryo_vault'], 'tableau');
+    give(activePlayer(s), ['event_horizon']);
+    s = play(s, 'event_horizon', { enemyUid: b.uid });
+    expect(s.players[1].tableau).toHaveLength(0);
+    expect(s.players[1].discard.map((x) => x.uid)).toContain(b.uid);
+    expect(s.players[1].hand.map((x) => x.uid)).toEqual(expect.arrayContaining([a.uid, c.uid]));
+  });
+});
+
+describe('lightspeed', () => {
+  it('is set face down, one at a time, without taking a slot', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.turnsTaken = 2;
+    me.playsLeft = 2;
+    give(me, ['null_field', 'signal_jammer']);
+    s = play(s, 'null_field');
+    expect(s.players[0].lightspeed?.defId).toBe('null_field');
+    expect(s.players[0].tableau).toHaveLength(0);
+    expect(s.log.some((l) => l.text.includes('Null Field'))).toBe(false);
+    expect(() => play(s, 'signal_jammer')).toThrow(/face down/);
+  });
+
+  it('cancels an enemy attack card during their turn (Null Field)', () => {
+    let s = twoPlayer();
+    give(activePlayer(s), ['null_field']);
+    s = play(s, 'null_field');
+    s = endTurn(s);
+    give(activePlayer(s), ['coronal_lance', 'cryo_vault']);
+    const ada = s.players[0].heat;
+    s = play(s, 'coronal_lance');
+    expect(s.players[0].heat).toBe(ada);
+    expect(s.players[0].lightspeed).toBeNull();
+    expect(s.players[1].discard.some((c) => c.defId === 'coronal_lance')).toBe(true);
+    expect(s.players[1].tableau).toHaveLength(0);
+  });
+
+  it('ignores cards of other kinds, and springs on heat (Riptide Ambushers)', () => {
+    let s = twoPlayer();
+    give(activePlayer(s), ['riptide_ambush']);
+    s = play(s, 'riptide_ambush');
+    s = endTurn(s);
+    const bo = activePlayer(s);
+    bo.playsLeft = 2;
+    give(bo, ['gravity_sling', 'sunspear']);
+    const ada = s.players[0].heat;
+    s = play(s, 'gravity_sling'); // only 1 heat: not enough to spring it
+    expect(s.players[0].heat).toBe(ada + 1);
+    const boHeat = s.players[1].heat;
+    s = play(s, 'sunspear');
+    expect(s.players[0].heat).toBe(ada + 1);
+    expect(s.players[1].heat).toBe(boHeat + 2 + 2); // Sunspear's own recoil, plus the ambush
+  });
+
+  it('protects your cards from removal (Decoy Array)', () => {
+    let s = twoPlayer();
+    const [keep] = give(activePlayer(s), ['coolant_array'], 'tableau');
+    give(activePlayer(s), ['decoy_array']);
+    s = play(s, 'decoy_array');
+    s = endTurn(s);
+    give(activePlayer(s), ['ion_cannon']);
+    s = play(s, 'ion_cannon', { enemyUid: keep.uid });
+    expect(s.players[0].tableau.map((c) => c.uid)).toContain(keep.uid);
+    expect(s.players[0].lightspeed).toBeNull();
+  });
+
+  it('stops the enemy playing more cards (Temporal Snare)', () => {
+    let s = twoPlayer();
+    give(activePlayer(s), ['temporal_snare']);
+    s = play(s, 'temporal_snare');
+    s = endTurn(s);
+    const bo = activePlayer(s);
+    bo.playsLeft = 3;
+    give(bo, ['coolant_array']);
+    s = play(s, 'coolant_array');
+    expect(s.players[1].playsLeft).toBe(0);
+    expect(s.players[1].tableau).toHaveLength(0);
   });
 });

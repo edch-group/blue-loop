@@ -10,6 +10,7 @@ import {
   campaignPlayer,
   canGarrison,
   cardDef,
+  migrateGame,
   createCampaign,
   deckSwapProblem,
   factionById,
@@ -42,7 +43,9 @@ export function loadCampaign(): CampaignState | null {
     const raw = localStorage.getItem(KEY);
     const s = raw ? (JSON.parse(raw) as CampaignState) : null;
     // Campaigns from before the card game was rebuilt cannot be resumed.
-    return s && s.version === 2 ? s : null;
+    if (!s || s.version !== 2) return null;
+    if (s.battle) migrateGame(s.battle.game);
+    return s;
   } catch {
     return null;
   }
@@ -881,7 +884,7 @@ export class CampaignView {
             <li><b>Win</b> and choose: <b>Settle</b> it, <b>Absorb</b> its resources, or <b>Supernova</b> it to block rivals for a turn.</li>
             <li>A winner's sun carries its heat home as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits, and <b>fortify</b> a system for +${CAMPAIGN.fortifyHealth} max health per level when it defends.</li>
             <li>Your battle <b>deck is 20 cards</b> with exactly 2 Command cards. Win cards from missions and buy them in the armory with ${MATERIALS} materials; they wait in your reserve until you swap them into your deck.</li>
-            <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play in its tableau (a Command card gives its upgrade). Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
+            <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play in its tableau (a Command card gives its upgrade, and a Lightspeed card starts set face down). Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
           </ul>`,
           true,
         );

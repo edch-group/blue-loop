@@ -5,9 +5,12 @@
  * turn, 2 on your second, and so on up to a cap.
  */
 
-/** Card types. They matter for synergies ("your attack cards deal +1 heat"). */
-export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command';
-export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'global', 'command'];
+/**
+ * Card types. They matter for synergies ("your attack cards deal +1 heat").
+ * Lightspeed cards are played face down and spring during an enemy's turn.
+ */
+export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'lightspeed';
+export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'global', 'command', 'lightspeed'];
 
 /**
  * How rare a card is, shown by a gem at the top of the card: a White Dwarf
@@ -35,7 +38,9 @@ export type Count =
   /** Your current shields, divided by `per`. */
   | { of: 'shields'; per?: number }
   /** This card's growth counter. */
-  | { of: 'growth' };
+  | { of: 'growth' }
+  /** Your cards right next to this one in your tableau (of a kind, if given). */
+  | { of: 'adjacent'; kind?: CardKind };
 
 /** Only resolve an effect when this holds. */
 export type Condition =
@@ -62,8 +67,18 @@ export type Effect = (
   | { type: 'growOthers' }
   /** Command cards: upgrade a core action ('choice': the player picks). */
   | { type: 'upgrade'; action: CoreAction | 'choice' }
-  /** Destroy a card of your choice in your target's tableau. */
-  | { type: 'destroy' }
+  /** Destroy a card of your choice (of a kind, if given) in your target's tableau. `neighbours`: the cards either side of it go back to their owner's hand. */
+  | { type: 'destroy'; kind?: CardKind; neighbours?: boolean }
+  /** Return a card of your choice in your target's tableau to its owner's hand. */
+  | { type: 'bounce' }
+  /** Return another card of yours from your tableau to your hand (to play it again). */
+  | { type: 'recall' }
+  /** Return a card of your choice (of a kind, if given) from your discard pile to your hand. */
+  | { type: 'recover'; kind?: CardKind }
+  /** You may play this many extra cards this turn. */
+  | { type: 'plays'; amount: number }
+  /** Lightspeed: the enemy who sprang this card may play no more cards this turn. */
+  | { type: 'halt' }
 ) & { if?: Condition };
 
 export type Passive =
@@ -80,7 +95,29 @@ export type Passive =
   /** When another of your cards leaves your tableau, these effects resolve (as this card). */
   | { type: 'allyLeaves'; effects: Effect[] }
   /** When your shields absorb an enemy's heat, cool your sun (once per attacking card each turn). */
-  | { type: 'absorbCool'; amount: number };
+  | { type: 'absorbCool'; amount: number }
+  /**
+   * Resonance: your cards near this one in your tableau (of a kind, if given)
+   * get a bonus on their heat, cooling and shields. `amounts[0]` for the cards
+   * right next to it, `amounts[1]` for the cards two places away, and so on.
+   */
+  | { type: 'adjacent'; amounts: number[]; kind?: CardKind };
+
+/**
+ * What springs a face-down Lightspeed card, during an enemy's turn:
+ * - `enemyPlays`: an enemy plays a card (of a kind, if given), before it resolves;
+ * - `heated`: an enemy's card is about to heat your sun (by at least `min`);
+ * - `targeted`: an enemy is about to destroy or return one of your cards.
+ */
+export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'heated'; /** Only heat of at least this much. */ min?: number } | { on: 'targeted' };
+
+export interface Lightspeed {
+  trigger: LightspeedTrigger;
+  /** Cancel what sprang it: the card played (it goes to its owner's discard pile), the heat, or the removal. */
+  counter?: boolean;
+  /** Resolved as the card springs (before the enemy's card, if it is not cancelled). "Your target" is the enemy who sprang it. */
+  effects?: Effect[];
+}
 
 export interface CardDef {
   id: string;
@@ -97,8 +134,12 @@ export interface CardDef {
   onPlay?: Effect[];
   /** At the start of each of your turns while this card is in your tableau. */
   onTurn?: Effect[];
-  /** When this card leaves your tableau (replaced or destroyed). */
+  /** When this card leaves your tableau (replaced, destroyed or returned to hand). */
   onLeave?: Effect[];
+  /** When this card is recovered from your discard pile to your hand. */
+  onRecover?: Effect[];
+  /** Lightspeed cards: what springs it and what it does. */
+  lightspeed?: Lightspeed;
   /** While this card is in your tableau. */
   passive?: Passive[];
 }
@@ -149,11 +190,11 @@ export interface PlayerState {
   upgrades: Record<CoreAction, number>;
   deck: CardInstance[];
   hand: CardInstance[];
-  /** Cards in play in front of this player, in the order they arrived. */
+  /** Cards in play in front of this player, left to right. Position matters for resonance. */
   tableau: CardInstance[];
   discard: CardInstance[];
-  /** Command cards played (their upgrades are permanent). */
-  commands: CardInstance[];
+  /** A face-down Lightspeed card waiting to spring (only one at a time). Rivals see only its back. */
+  lightspeed: CardInstance | null;
   eliminated: boolean;
   /** The rival this player's attacks hit. */
   targetId: string | null;
@@ -177,8 +218,8 @@ export interface LogEntry {
 }
 
 export interface GameState {
-  /** Rules version, so old saves from the deck-building version are ignored. */
-  version: 2;
+  /** Rules version, so saves from older rules are ignored. */
+  version: 3;
   rngState: number;
   uidCounter: number;
   turnNumber: number;
@@ -206,6 +247,8 @@ export interface PlayerSetup {
   opening?: { shields?: number; draw?: number };
   /** Campaign battles: cards already in the tableau when the battle starts (a garrison). */
   tableau?: string[];
+  /** Campaign battles: a Lightspeed card already set face down (a garrison). */
+  lightspeed?: string;
   modifiers?: BattleModifiers;
   conditions?: { name: string; text: string }[];
 }
@@ -219,12 +262,18 @@ export type Action =
   | {
       type: 'playCard';
       cardUid: string;
-      /** Tableau full: the card of yours this one replaces. */
+      /** Tableau full: the card of yours this one replaces (the new card takes its place). */
       replaceUid?: string;
+      /** Where the card goes in your tableau: 0 is the far left (default: the far right). */
+      slot?: number;
       /** Command Directive: which core action to upgrade. */
       upgrade?: CoreAction;
-      /** Destroy effects: the card in your target's tableau to destroy. */
-      destroyUid?: string;
+      /** Destroy and bounce effects: the card in your target's tableau. */
+      enemyUid?: string;
+      /** Recall effects: the card of yours to return to your hand. */
+      recallUid?: string;
+      /** Recover effects: the card in your discard pile to take back. */
+      recoverUid?: string;
     }
   | { type: 'setTarget'; targetId: string }
   | { type: 'endTurn' };

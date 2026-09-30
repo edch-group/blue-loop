@@ -398,18 +398,25 @@ export interface GarrisonBonus {
   tableau: string[];
   /** Upgrades the defender starts with (from stationed Command cards). */
   upgrades: Partial<Record<CoreAction, number>>;
+  /** A stationed Lightspeed card, set face down from the start (only the first). */
+  lightspeed?: string;
 }
 
 /**
  * What a system's stationed cards do when it is attacked: they start the
  * battle already in the defender's tableau. A stationed Command card gives
- * its upgrade instead (Command Directive: Cooling Chamber).
+ * its upgrade instead (Command Directive: Cooling Chamber), and a stationed
+ * Lightspeed card starts set face down (only one can be).
  */
 export function garrisonBonus(n: CampaignNode): GarrisonBonus {
   const b: GarrisonBonus = { tableau: [], upgrades: {} };
   for (const g of n.garrison) {
     if (g.status !== 'stationed') continue;
     const def = cardDef(g.defId);
+    if (def.kind === 'lightspeed') {
+      b.lightspeed ??= g.defId;
+      continue;
+    }
     if (def.kind !== 'command') {
       b.tableau.push(g.defId);
       continue;
@@ -685,9 +692,12 @@ function drawMission(s: CampaignState, f: Faction) {
   f.missions.push({ id, base: def.counting ? def.value(f, s) : 0 });
 }
 
-/** Cards a faction can be offered: its own race's cards (twice as often), neutral cards and globals; Anomalies are rarest. */
+/**
+ * Cards a faction can be offered: its own race's cards (twice as often), neutral cards, globals and the
+ * fine-tuned Command cards (a deck starts with two standard Command Directives); Anomalies are rarest.
+ */
 function offerPool(f: Faction): string[] {
-  return CARDS.filter((c) => c.kind !== 'command' && (c.race === undefined || c.race === f.race)).flatMap((c) =>
+  return CARDS.filter((c) => c.id !== 'command_directive' && (c.race === undefined || c.race === f.race)).flatMap((c) =>
     Array(OFFER_WEIGHT[c.rarity ?? 'dwarf'] * (c.race === f.race ? 2 : 1)).fill(c.id) as string[],
   );
 }
@@ -724,7 +734,7 @@ function battleSetup(s: CampaignState, attacker: Faction, from: CampaignNode, ta
   const defenceConditions = [
     ...(targetFx?.conditions ?? []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
-    ...(g.tableau.length || Object.keys(g.upgrades).length ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
+    ...(g.tableau.length || Object.keys(g.upgrades).length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
   ];
   return [
     {
@@ -743,6 +753,7 @@ function battleSetup(s: CampaignState, attacker: Faction, from: CampaignNode, ta
       deck: owner ? owner.deck : neutralDeck(s, target.tier),
       heatDelta: target.damage + (owner ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0),
       tableau: g.tableau,
+      lightspeed: g.lightspeed,
       upgrades: g.upgrades,
       modifiers: mergeModifiers(targetFx?.modifiers ?? {}, fortified),
       conditions: defenceConditions.length ? defenceConditions : undefined,

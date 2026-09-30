@@ -2058,3 +2058,55 @@ html.rotated body {
 button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 2px; text-align: left; cursor: pointer; }
 .cmp-turn-more { grid-column: 1 / -1; font-style: normal; font-size: 0.5rem; letter-spacing: 0.16em; color: var(--ink-faint); }
 .cmp-overview .cmp-faction small { font-size: 0.6rem; color: var(--ink-faint); letter-spacing: 0.08em; margin-left: 4px; }
+
+/* ---- Resonance, Lightspeed and placement ---------------------------------- */
+/* Resonance: the bonus a card gets from its neighbours, bottom right of the art. */
+.resonance {
+  position: absolute; top: calc(var(--cw, 100px) * 0.52); right: calc(var(--cw, 100px) * 0.05);
+  min-width: max(14px, calc(var(--cw, 100px) * 0.2)); height: max(14px, calc(var(--cw, 100px) * 0.2)); border-radius: 999px;
+  display: grid; place-items: center; padding: 0 3px;
+  background: linear-gradient(135deg, #8a6fe0, #4fa3e0); color: #fff;
+  font-family: var(--display); font-weight: 700; font-size: max(8px, calc(var(--cw, 100px) * 0.1));
+  box-shadow: 0 0 0 2px #fff, 0 0 10px rgba(110, 130, 230, 0.55);
+}
+/* A face-down Lightspeed card, beside its owner's tableau label. */
+.ls-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid rgba(212, 149, 42, 0.55); background: rgba(255, 246, 228, 0.92); color: #a86d10;
+  font: inherit; letter-spacing: 0.12em; cursor: pointer; box-shadow: 0 0 10px rgba(212, 149, 42, 0.25);
+}
+.ls-chip.ls-hidden { cursor: default; animation: ls-hum 2.4s ease-in-out infinite; }
+@keyframes ls-hum { 50% { box-shadow: 0 0 16px rgba(212, 149, 42, 0.55); } }
+.ls-pip { font-style: normal; color: #c1841c; }
+/* The back of a card set face down. */
+.card.card-back {
+  display: grid; place-content: center; justify-items: center; gap: 6px;
+  background: radial-gradient(circle at 50% 42%, #fff3d6, #f0c46c 38%, #b27418 72%, #6b4210);
+  color: #fff; border: 2px solid #fff;
+}
+.card-back span { font-size: calc(var(--cw) * 0.34); text-shadow: 0 0 18px rgba(255, 220, 140, 0.9); }
+.card-back small { font-family: var(--display); letter-spacing: 0.24em; text-transform: uppercase; font-size: calc(var(--cw) * 0.07); }
+.stage-sprung .stage-caption { color: #a86d10; border-color: rgba(212, 149, 42, 0.6); box-shadow: 0 0 18px rgba(212, 149, 42, 0.4); }
+.stage-sprung .card { box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff, 0 0 30px rgba(212, 149, 42, 0.6); }
+/* Choosing: a card from the discard pile, or where a card goes in the tableau. */
+.choose-grid .card { --hh: 150px; --hw: 107px; --cw: 107px; width: 107px; height: 150px; }
+.choose-grid .card .card-text { display: -webkit-box !important; }
+.slot-row { display: flex; align-items: center; justify-content: center; gap: 4px; overflow-x: auto; padding: 10px 4px; }
+.slot-card .card { --cw: 86px; width: 86px; height: 120px; pointer-events: none; }
+.slot-card .card .card-text { display: none; }
+.slot-gap {
+  flex: none; width: 34px; height: 120px; border-radius: 10px; border: 1.5px dashed rgba(208, 101, 75, 0.6);
+  background: rgba(255, 255, 255, 0.6); color: #c0563d; cursor: pointer; display: grid; place-items: center; padding: 0;
+  font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.14em; text-transform: uppercase; writing-mode: vertical-rl;
+  animation: choosable-gap 1.4s ease-in-out infinite;
+}
+.slot-gap span { display: none; }
+.slot-gap i { font-style: normal; }
+.slot-gap:hover { background: rgba(208, 101, 75, 0.12); }
+@keyframes choosable-gap { 50% { box-shadow: 0 0 14px rgba(208, 101, 75, 0.4); } }
+@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
+  .slot-card .card { --cw: 66px; width: 66px; height: 92px; }
+  .slot-card .card .card-kind { display: none; }
+  .slot-gap { width: 24px; height: 92px; }
+  .choose-grid .card { --cw: 90px; width: 90px; height: 126px; }
+}

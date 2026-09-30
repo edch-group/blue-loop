@@ -4,7 +4,7 @@
  * played), plus average game length. Usage: npm run simulate -- [games] [players]
  */
 import { chooseAIAction } from '../src/engine/ai';
-import { PRESET_DECKS } from '../src/engine/cards';
+import { cardDef, PRESET_DECKS } from '../src/engine/cards';
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
 
 /** A seeded random line-up of distinct starter decks (different seat orders every game). */
@@ -14,6 +14,12 @@ function pickDecks(seed: number, count: number) {
   const order = [...PRESET_DECKS].sort(() => rand() - 0.5);
   return order.slice(0, count);
 }
+
+// Try a deck change without editing the presets: DECKS='{"1": ["card_id", ...]}' npm run simulate
+for (const [i, cards] of Object.entries(JSON.parse(process.env.DECKS ?? '{}') as Record<string, string[]>)) PRESET_DECKS[Number(i)].cards = cards;
+
+// ...or a card change: PATCH='{"card_id": {"onTurn": [...]}}'
+for (const [id, patch] of Object.entries(JSON.parse(process.env.PATCH ?? '{}') as Record<string, object>)) Object.assign(cardDef(id), patch);
 
 const games = Number(process.argv[2] ?? 1000);
 const playerCount = Number(process.argv[3] ?? 2);
@@ -28,7 +34,7 @@ let fatigueGames = 0;
 
 for (let seed = 1; seed <= games; seed++) {
   const decks = pickDecks(seed, playerCount);
-  let s = createGame({ seed, players: decks.map((d, i) => ({ name: `AI ${i + 1}`, isAI: true, species: d.race })) });
+  let s = createGame({ seed, players: decks.map((d, i) => ({ name: `AI ${i + 1}`, isAI: true, species: d.race, deck: d.cards })) });
   let steps = 0;
   while (!isGameOver(s) && steps++ < 5000) s = applyAction(s, chooseAIAction(s));
   totalRounds += s.round;

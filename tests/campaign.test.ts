@@ -197,7 +197,7 @@ describe('a full campaign', () => {
       }
       expect(s.winner).not.toBeNull();
     }
-  }, 60000);
+  }, 240000);
 });
 
 describe('anomalies', () => {

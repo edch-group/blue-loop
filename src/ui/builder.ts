@@ -200,6 +200,7 @@ export class DeckBuilder {
       ['growth', 'growth'],
       ['global', 'global'],
       ['command', 'command'],
+      ['lightspeed', 'lightspeed'],
     ];
     return `
       ${this.header('deck builder')}

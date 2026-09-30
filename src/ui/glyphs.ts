@@ -22,6 +22,7 @@ export const KIND_COLOUR: Record<CardKind, string> = {
   growth: '#3a9e6a', // green: draw, growth and extra plays
   global: '#9265d6', // purple
   command: '#8b909b', // silver: upgrades for the whole deck
+  lightspeed: '#d4952a', // amber: set face down, springs on the enemy's turn
 };
 
 const ring = (r: number, extra = '') => `<circle cx="50" cy="30" r="${r}" ${extra}/>`;
@@ -64,6 +65,28 @@ const GLYPHS: Record<string, string> = {
   coolant_protocol: `<rect x="34" y="14" width="32" height="32" rx="4"/>${rays(6, 0, 11)}`,
   chamber_protocol: `<rect x="34" y="14" width="32" height="32" rx="4"/>${[42, 48, 54].map((x) => `<rect class="fill" x="${x}" y="22" width="4" height="16" rx="2"/>`).join('')}`,
   command_directive: `<rect x="34" y="14" width="32" height="32" rx="4"/>${chevrons(2, 20, 9)}`,
+  the_admiralty: `<rect x="34" y="14" width="32" height="32" rx="4"/>${chevrons(3, 17, 9)}<line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  standing_orders: `<rect x="36" y="12" width="28" height="36" rx="3"/><line class="fill" x1="41" y1="21" x2="59" y2="21"/><line x1="41" y1="29" x2="59" y2="29"/><line x1="41" y1="37" x2="53" y2="37"/>`,
+  chain_of_command: `${[28, 50, 72].map((x, i) => `<rect ${i === 1 ? 'class="fill"' : ''} x="${x - 8}" y="24" width="16" height="12" rx="6"/>`).join('')}`,
+
+  // Resonance
+  resonance_lattice: `${ring(6, 'class="fill"')}<path d="M36 18 A18 18 0 0 0 36 42M64 18 A18 18 0 0 1 64 42"/><path d="M28 12 A28 28 0 0 0 28 48M72 12 A28 28 0 0 1 72 48"/>`,
+  harmonic_singularity: `${ring(7, 'class="fill"')}${ring(12)}<path d="M30 16 A22 22 0 0 0 30 44M70 16 A22 22 0 0 1 70 44"/><path d="M20 10 A32 32 0 0 0 20 50M80 10 A32 32 0 0 1 80 50" stroke-dasharray="3 3"/>`,
+
+  // Recovery, recall and removal
+  salvage_drone: `<path d="M34 34 A16 16 0 1 1 50 46"/><polyline points="30,28 34,35 41,31"/>${ring(4, 'class="fill"')}`,
+  phase_shift: `<rect x="26" y="18" width="18" height="24" rx="2"/><rect class="fill" x="56" y="18" width="18" height="24" rx="2"/><path d="M44 24 H56M52 20 L56 24 L52 28M56 36 H44M48 32 L44 36 L48 40"/>`,
+  tractor_beam: `${ring(4, 'class="fill" transform="translate(-24 0)"')}<path d="M30 26 L72 16 V44 L30 34"/><rect x="66" y="24" width="10" height="12" rx="2"/>`,
+  command_breaker: `<rect x="34" y="14" width="32" height="32" rx="4"/><polyline class="fill" points="44,14 52,28 46,32 56,46"/>`,
+  event_horizon: `${ring(8, 'class="fill"')}<ellipse cx="50" cy="30" rx="26" ry="8"/><path d="M20 30 C28 18 72 18 80 30" stroke-dasharray="3 3"/>`,
+
+  // Lightspeed
+  null_field: `${ring(17)}<line x1="38" y1="18" x2="62" y2="42"/><polygon class="fill" points="44,30 60,27 60,33"/>`,
+  signal_jammer: `<path d="M50 44 V22"/><path d="M40 20 A14 14 0 0 1 60 20M34 14 A22 22 0 0 1 66 14"/><line x1="36" y1="44" x2="64" y2="16"/>`,
+  frost_snare: `${rays(6, 0, 16)}<path d="M28 44 L50 34 L72 44" class="fill"/>`,
+  solar_mirror: `<path class="fill" d="M60 12 L66 14 L66 46 L60 48 Z"/><line x1="24" y1="22" x2="58" y2="30"/><line x1="58" y1="30" x2="24" y2="40"/>`,
+  decoy_array: `<rect x="28" y="18" width="18" height="24" rx="2" stroke-dasharray="3 3"/><rect class="fill" x="54" y="18" width="18" height="24" rx="2"/>`,
+  temporal_snare: `${ring(18)}<line x1="50" y1="30" x2="50" y2="16"/><line x1="50" y1="30" x2="60" y2="36"/>${ring(3, 'class="dot"')}`,
 
   // Aureline: lances of light
   helio_lancer: `<polygon class="fill" points="30,34 70,30 30,26"/><line x1="24" y1="42" x2="76" y2="18"/>`,
@@ -71,6 +94,7 @@ const GLYPHS: Record<string, string> = {
   coronal_chorus: [-22, -8, 6, 20].map((dx) => `<polygon class="fill" points="${50 + dx - 3},44 ${50 + dx},16 ${50 + dx + 3},44"/>`).join(''),
   sunspear: `${ring(8, 'class="fill" transform="translate(-24 0)"')}<polygon class="fill" points="32,26 84,30 32,34"/>${rays(6, 10, 14).replace(/<line/g, '<line transform="translate(-24 0)"')}`,
   dawn_beacon: `<path d="M24 44 A26 26 0 0 1 76 44"/>${ring(7, 'class="fill" transform="translate(0 14)"')}${rays(5, 12, 20, 200)}`,
+  sunforge: `<rect x="34" y="34" width="32" height="10" rx="2"/><polygon class="fill" points="40,34 50,14 60,34"/><line x1="24" y1="30" x2="32" y2="30"/><line x1="68" y1="30" x2="76" y2="30"/>`,
   halo_ward: `<ellipse cx="50" cy="30" rx="26" ry="9"/><path class="fill" d="M40 30 A10 10 0 0 1 60 30 Z"/>`,
 
   // Xel'Naru: shards and prisms
@@ -79,6 +103,8 @@ const GLYPHS: Record<string, string> = {
   overload_core: `${hexagon(16)}<polyline points="50,18 45,30 55,30 50,42"/>`,
   martyr_crystal: `<polygon class="fill" points="50,12 60,26 50,48 40,26"/>${rays(8, 18, 24, 22.5)}`,
   prism_vent: `<polygon points="50,14 66,42 34,42"/><line x1="18" y1="34" x2="44" y2="30"/><line class="fill" x1="56" y1="30" x2="82" y2="22"/><line x1="56" y1="32" x2="82" y2="36"/>`,
+  ember_shard: `<polygon class="fill" points="50,14 57,30 50,46 43,30"/><path d="M36 42 C30 34 34 26 38 22M64 42 C70 34 66 26 62 22"/>`,
+  prism_conduit: `<polygon points="50,16 62,40 38,40"/><line x1="20" y1="30" x2="40" y2="30"/><line class="fill" x1="60" y1="30" x2="80" y2="30"/>`,
   fracture_lens: `${ring(15)}<polyline points="38,20 50,30 44,40"/><polyline points="50,30 64,26"/>`,
 
   // Vorthane: bells and tides
@@ -87,6 +113,7 @@ const GLYPHS: Record<string, string> = {
   tidal_bloom: `<path d="M20 38 C30 28 40 28 50 38 S70 48 80 38"/><path class="fill" d="M34 32 C40 20 60 20 66 32 C58 28 42 28 34 32 Z"/>`,
   abyssal_choir: `${ring(6, 'class="fill"')}${ring(13)}${ring(20, 'stroke-dasharray="4 4"')}`,
   deep_current: `<path d="M18 24 C30 16 40 32 52 24 S74 16 82 24"/><path class="fill" d="M18 36 C30 28 40 44 52 36 S74 28 82 36 L82 40 C74 32 64 48 52 40 S30 32 18 40 Z"/>`,
+  tide_pylon: `<rect class="fill" x="45" y="14" width="10" height="32" rx="3"/><path d="M22 36 C30 30 36 30 42 36M58 36 C64 30 70 30 78 36"/>`,
   lure_jelly: `<path class="fill" d="M38 30 C38 20 44 16 50 16 S62 20 62 30 Z"/><path d="M42 30 C42 38 40 42 38 46M50 30 V46M58 30 C58 38 60 42 62 46"/>${ring(2.5, 'class="dot" transform="translate(0 -22)"')}`,
 
   // Ixquor: the hive
@@ -95,6 +122,8 @@ const GLYPHS: Record<string, string> = {
   sporecaster: `${ring(8, 'class="fill"')}${[0, 72, 144, 216, 288].map((a) => `<circle class="dot" cx="${(50 + Math.cos((a * Math.PI) / 180) * 17).toFixed(1)}" cy="${(30 + Math.sin((a * Math.PI) / 180) * 17).toFixed(1)}" r="2.2"/>`).join('')}`,
   rot_bloom: `<path class="fill" d="M50 16 C58 22 58 30 50 34 C42 30 42 22 50 16 Z"/><path d="M50 34 C60 32 68 36 70 44 C62 44 54 40 50 34 Z M50 34 C40 32 32 36 30 44 C38 44 46 40 50 34 Z"/>`,
   canopy: `<path d="M22 34 C22 20 36 14 50 14 S78 20 78 34 Z"/><path d="M50 34 V48M38 34 V42M62 34 V42"/>`,
+  regrowth_pod: `<path class="fill" d="M50 16 C60 22 60 36 50 44 C40 36 40 22 50 16 Z"/><path d="M50 44 V50M34 30 A16 16 0 0 1 42 18"/><polyline points="38,16 42,18 40,23"/>`,
+  spore_husk: `<path d="M36 44 C32 30 40 16 50 16 S68 30 64 44 Z"/>${[[-6, 0], [6, 4], [0, 12]].map(([dx, dy]) => `<circle class="dot" cx="${50 + dx}" cy="${28 + dy}" r="2.4"/>`).join('')}`,
   spore_cloud: `${[[-16, -6], [0, -10], [14, -4], [-8, 6], [8, 8]].map(([dx, dy], i) => `<circle ${i === 1 ? 'class="fill"' : ''} cx="${50 + dx}" cy="${30 + dy}" r="${6 + (i % 2) * 2}"/>`).join('')}`,
 };
 

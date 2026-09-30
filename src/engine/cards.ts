@@ -34,29 +34,150 @@ export const CARDS: CardDef[] = [
   { id: 'ice_age', name: 'Ice Age', kind: 'global', text: 'Global. Every sun cools by 1 at the start of its turn.', passive: [{ type: 'field', field: 'iceAge' }] },
   { id: 'solar_maximum', name: 'Solar Maximum', kind: 'global', text: 'Global. Every heat effect deals 1 more heat.', passive: [{ type: 'field', field: 'solarMaximum' }] },
 
-  // ---- Command: upgrades for your whole deck; they do not take a slot ----
+  // ---- Command: upgrades for your whole deck. They stay in your tableau like any other card ----
+  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: 'Upgrade Solar Flare, Thermosiphon or Cooling Chamber.', onPlay: [{ type: 'upgrade', action: 'choice' }] },
   {
     id: 'ignition_protocol',
     name: 'Ignition Protocol',
     kind: 'command',
-    text: 'Upgrade Solar Flare: your attack cards deal 1 more heat. Heat your target by 1.',
-    onPlay: [{ type: 'upgrade', action: 'solarFlare' }, { type: 'heat', amount: 1, to: 'target' }],
+    text: 'Upgrade Solar Flare: your attack cards deal 1 more heat. Start of turn: heat your target by 1.',
+    onPlay: [{ type: 'upgrade', action: 'solarFlare' }],
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
   },
   {
     id: 'coolant_protocol',
     name: 'Coolant Protocol',
     kind: 'command',
-    text: 'Upgrade Thermosiphon: your cooling effects cool +1. Cool your sun by 1.',
-    onPlay: [{ type: 'upgrade', action: 'thermosiphon' }, { type: 'cool', amount: 1 }],
+    text: 'Upgrade Thermosiphon: your cooling effects cool 1 more. Start of turn: cool your sun by 1.',
+    onPlay: [{ type: 'upgrade', action: 'thermosiphon' }],
+    onTurn: [{ type: 'cool', amount: 1 }],
   },
   {
     id: 'chamber_protocol',
     name: 'Chamber Protocol',
     kind: 'command',
-    text: `Upgrade Cooling Chamber: +${BALANCE.coolingChamberHealthPerUpgrade} max health. Gain 2 shields.`,
-    onPlay: [{ type: 'upgrade', action: 'coolingChamber' }, { type: 'shield', amount: 2 }],
+    text: `Upgrade Cooling Chamber: +${BALANCE.coolingChamberHealthPerUpgrade} max health. Start of turn: gain 1 shield.`,
+    onPlay: [{ type: 'upgrade', action: 'coolingChamber' }],
+    onTurn: [{ type: 'shield', amount: 1 }],
   },
-  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: 'Upgrade Solar Flare, Thermosiphon or Cooling Chamber.', onPlay: [{ type: 'upgrade', action: 'choice' }] },
+  {
+    id: 'the_admiralty',
+    name: 'The Admiralty',
+    kind: 'command',
+    text: 'Upgrade Solar Flare, Thermosiphon or Cooling Chamber. Resonance: cards next to this one get +1 to their heat, cooling and shields.',
+    onPlay: [{ type: 'upgrade', action: 'choice' }],
+    passive: [{ type: 'adjacent', amounts: [1] }],
+  },
+
+  // ---- Keeping your Command cards in play ----
+  {
+    id: 'standing_orders',
+    name: 'Standing Orders',
+    kind: 'growth',
+    text: 'Draw 1 card. Start of turn: if you control 2 or more Command cards, draw 1 card.',
+    onPlay: [{ type: 'draw', amount: 1 }],
+    onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'command', n: 2 } }],
+  },
+  {
+    id: 'chain_of_command',
+    name: 'Chain of Command',
+    kind: 'defence',
+    text: 'Start of turn: cool your sun by 1 for each Command card you control (up to 2).',
+    onTurn: [{ type: 'cool', amount: 0, plus: { of: 'kind', kind: 'command' }, max: 2 }],
+  },
+
+  // ---- Resonance: cards that power up their neighbours ----
+  {
+    id: 'resonance_lattice',
+    name: 'Resonance Lattice',
+    kind: 'growth',
+    text: 'Resonance: cards next to this one get +1 to their heat, cooling and shields.',
+    passive: [{ type: 'adjacent', amounts: [1] }],
+  },
+  {
+    id: 'harmonic_singularity',
+    name: 'Harmonic Singularity',
+    kind: 'growth',
+    text: 'Resonance: cards next to this one get +2 to their heat, cooling and shields; cards two places away get +1.',
+    passive: [{ type: 'adjacent', amounts: [2, 1] }],
+  },
+
+  // ---- Recovery and recall: getting cards back to use again ----
+  { id: 'salvage_drone', name: 'Salvage Drone', kind: 'growth', text: 'Return a card from your discard pile to your hand.', onPlay: [{ type: 'recover' }] },
+  {
+    id: 'phase_shift',
+    name: 'Phase Shift',
+    kind: 'growth',
+    text: 'Return another card of yours from your tableau to your hand. You may play 1 extra card this turn.',
+    onPlay: [{ type: 'recall' }, { type: 'plays', amount: 1 }],
+  },
+
+  // ---- Removal: aimed at your target's tableau ----
+  {
+    id: 'tractor_beam',
+    name: 'Tractor Beam',
+    kind: 'attack',
+    text: "Return a card in your target's tableau to its owner's hand. Heat your target by 1.",
+    onPlay: [{ type: 'bounce' }, { type: 'heat', amount: 1, to: 'target' }],
+  },
+  {
+    id: 'command_breaker',
+    name: 'Command Breaker',
+    kind: 'attack',
+    text: "Destroy a Command card in your target's tableau. Heat your target by 1.",
+    onPlay: [{ type: 'destroy', kind: 'command' }, { type: 'heat', amount: 1, to: 'target' }],
+  },
+  {
+    id: 'event_horizon',
+    name: 'Event Horizon',
+    kind: 'attack',
+    text: "Destroy a card in your target's tableau. The cards either side of it return to their owner's hand.",
+    onPlay: [{ type: 'destroy', neighbours: true }],
+  },
+
+  // ---- Lightspeed: set face down (one at a time); springs during an enemy's turn ----
+  {
+    id: 'null_field',
+    name: 'Null Field',
+    kind: 'lightspeed',
+    text: 'Lightspeed. When an enemy plays an attack card, cancel it.',
+    lightspeed: { trigger: { on: 'enemyPlays', kind: 'attack' }, counter: true },
+  },
+  {
+    id: 'signal_jammer',
+    name: 'Signal Jammer',
+    kind: 'lightspeed',
+    text: 'Lightspeed. When an enemy plays a Command card, cancel it. Draw 1 card.',
+    lightspeed: { trigger: { on: 'enemyPlays', kind: 'command' }, counter: true, effects: [{ type: 'draw', amount: 1 }] },
+  },
+  {
+    id: 'frost_snare',
+    name: 'Frost Snare',
+    kind: 'lightspeed',
+    text: 'Lightspeed. When an enemy plays a defence card, cancel it and heat that enemy by 1.',
+    lightspeed: { trigger: { on: 'enemyPlays', kind: 'defence' }, counter: true, effects: [{ type: 'heat', amount: 1, to: 'target' }] },
+  },
+  {
+    id: 'solar_mirror',
+    name: 'Solar Mirror',
+    kind: 'lightspeed',
+    text: "Lightspeed. When an enemy's card is about to heat your sun, first gain 3 shields and heat that enemy by 1.",
+    lightspeed: { trigger: { on: 'heated' }, effects: [{ type: 'shield', amount: 3 }, { type: 'heat', amount: 1, to: 'target' }] },
+  },
+  {
+    id: 'decoy_array',
+    name: 'Decoy Array',
+    kind: 'lightspeed',
+    text: 'Lightspeed. When an enemy is about to destroy or return one of your cards, cancel it. Draw 1 card.',
+    lightspeed: { trigger: { on: 'targeted' }, counter: true, effects: [{ type: 'draw', amount: 1 }] },
+  },
+  {
+    id: 'temporal_snare',
+    name: 'Temporal Snare',
+    kind: 'lightspeed',
+    text: 'Lightspeed. When an enemy plays a card, cancel it. They may play no more cards this turn.',
+    lightspeed: { trigger: { on: 'enemyPlays' }, counter: true, effects: [{ type: 'halt' }] },
+  },
 
   // ---- Aureline: lancers. Many attack cards, each making the others hit harder ----
   {
@@ -101,8 +222,8 @@ export const CARDS: CardDef[] = [
     name: 'Shard Reactor',
     kind: 'attack',
     race: 1,
-    text: 'Start of turn: heat your target by 2 and every other enemy sun by 1. Heat your own sun by 1.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target', splash: 1 }, { type: 'selfHeat', amount: 1 }],
+    text: 'Start of turn: heat your target by 2 and every other enemy sun by 1. Heat your own sun by 2.',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target', splash: 1 }, { type: 'selfHeat', amount: 2 }],
   },
   { id: 'crystal_storm', name: 'Crystal Storm', kind: 'attack', race: 1, text: 'Heat your target by 3 and every other enemy sun by 1.', onPlay: [{ type: 'heat', amount: 3, to: 'target', splash: 1 }] },
   {
@@ -110,10 +231,10 @@ export const CARDS: CardDef[] = [
     name: 'Overload Core',
     kind: 'attack',
     race: 1,
-    text: 'Start of turn: heat your target by 2, or by 3 while you are overheated (half your max health or hotter).',
+    text: 'Start of turn: heat your target by 1, or by 3 while you are overheated (half your max health or hotter).',
     onTurn: [
-      { type: 'heat', amount: 2, to: 'target' },
-      { type: 'heat', amount: 1, to: 'target', if: { overheated: true } },
+      { type: 'heat', amount: 1, to: 'target' },
+      { type: 'heat', amount: 2, to: 'target', if: { overheated: true } },
     ],
   },
   { id: 'martyr_crystal', name: 'Martyr Crystal', kind: 'attack', race: 1, text: 'Heat every enemy sun by 1. When this card leaves your tableau, heat your target by 3 and every other enemy sun by 1.', onPlay: [{ type: 'heat', amount: 1, to: 'enemies' }], onLeave: [{ type: 'heat', amount: 3, to: 'target', splash: 1 }] },
@@ -129,7 +250,7 @@ export const CARDS: CardDef[] = [
   { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 2 cards. Heat your own sun by 1.', onPlay: [{ type: 'draw', amount: 2 }, { type: 'selfHeat', amount: 1 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
-  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: 'Start of turn: gain 2 shields.', onTurn: [{ type: 'shield', amount: 2 }] },
+  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: 'Start of turn: gain 3 shields.', onTurn: [{ type: 'shield', amount: 3 }] },
   { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: 'When your shields absorb an enemy\'s heat, heat that enemy\'s sun by 2 (once per attacking card each turn).', passive: [{ type: 'retaliate', amount: 2 }] },
   {
     id: 'tidal_bloom',
@@ -174,8 +295,8 @@ export const CARDS: CardDef[] = [
     name: 'Rot Bloom',
     kind: 'attack',
     race: 3,
-    text: 'Heat your target by 1, +1 for every 2 cards you control (up to 5).',
-    onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cards', per: 2 }, max: 5 }],
+    text: 'Heat your target by 2, +1 for every 2 cards you control (up to 6).',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'cards', per: 2 }, max: 6 }],
   },
   {
     id: 'canopy',
@@ -192,6 +313,83 @@ export const CARDS: CardDef[] = [
     race: 3,
     text: 'Start of turn: if you control 5 or more cards, heat every enemy sun by 1.',
     onTurn: [{ type: 'heat', amount: 1, to: 'enemies', if: { minCards: 5 } }],
+  },
+
+  // ---- Race cards for resonance, recovery, command synergies and lightspeed ----
+  {
+    id: 'aureline_war_herald',
+    name: 'Aureline War-Herald',
+    kind: 'attack',
+    race: 0,
+    text: 'Start of turn: heat your target by 1 for each Command card you control (up to 2).',
+    onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'command' }, max: 2 }],
+  },
+  {
+    id: 'sunforge',
+    name: 'Sunforge',
+    kind: 'attack',
+    race: 0,
+    text: 'Resonance: attack cards next to this one deal +1 heat. Start of turn: heat your target by 1.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
+    passive: [{ type: 'adjacent', amounts: [1], kind: 'attack' }],
+  },
+  {
+    id: 'ember_shard',
+    name: 'Ember Shard',
+    kind: 'attack',
+    race: 1,
+    text: 'Heat your target by 2. When you recover this card, heat every enemy sun by 1.',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target' }],
+    onRecover: [{ type: 'heat', amount: 1, to: 'enemies' }],
+  },
+  {
+    id: 'xelnaru_reliquarist',
+    name: "Xel'Naru Reliquarist",
+    kind: 'growth',
+    race: 1,
+    text: 'Return an attack card from your discard pile to your hand. Draw 1 card.',
+    onPlay: [{ type: 'recover', kind: 'attack' }, { type: 'draw', amount: 1 }],
+  },
+  {
+    id: 'prism_conduit',
+    name: 'Prism Conduit',
+    kind: 'defence',
+    race: 1,
+    text: 'Start of turn: cool your sun by 1 for each attack card next to this one.',
+    onTurn: [{ type: 'cool', amount: 0, plus: { of: 'adjacent', kind: 'attack' } }],
+  },
+  {
+    id: 'tide_pylon',
+    name: 'Tide Pylon',
+    kind: 'defence',
+    race: 2,
+    text: 'Start of turn: gain 1 shield, +1 for each defence card next to this one.',
+    onTurn: [{ type: 'shield', amount: 1, plus: { of: 'adjacent', kind: 'defence' } }],
+  },
+  {
+    id: 'riptide_ambush',
+    name: 'Riptide Ambushers',
+    kind: 'lightspeed',
+    race: 2,
+    text: "Lightspeed. When an enemy's card is about to heat your sun by 3 or more, cancel that heat and heat the enemy by 2.",
+    lightspeed: { trigger: { on: 'heated', min: 3 }, counter: true, effects: [{ type: 'heat', amount: 2, to: 'target' }] },
+  },
+  {
+    id: 'regrowth_pod',
+    name: 'Regrowth Pod',
+    kind: 'growth',
+    race: 3,
+    text: 'Return a growth card from your discard pile to your hand. Cool your sun by 1.',
+    onPlay: [{ type: 'recover', kind: 'growth' }, { type: 'cool', amount: 1 }],
+  },
+  {
+    id: 'spore_husk',
+    name: 'Spore Husk',
+    kind: 'growth',
+    race: 3,
+    text: 'Start of turn: cool your sun by 1. When you recover this card, draw 2 cards.',
+    onTurn: [{ type: 'cool', amount: 1 }],
+    onRecover: [{ type: 'draw', amount: 2 }],
   },
 
   // ---- New characters: a Stellar hero and an Anomaly for each race ----
@@ -216,8 +414,8 @@ export const CARDS: CardDef[] = [
     name: "Xel'Naru Champion",
     kind: 'attack',
     race: 1,
-    text: 'Heat your target by 2. Start of turn: while you are overheated, heat your target by 2.',
-    onPlay: [{ type: 'heat', amount: 2, to: 'target' }],
+    text: 'Heat your target by 1. Start of turn: while you are overheated, heat your target by 2.',
+    onPlay: [{ type: 'heat', amount: 1, to: 'target' }],
     onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { overheated: true } }],
   },
   {
@@ -278,7 +476,15 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   solar_storm: { rarity: 'stellar' },
   ice_age: { rarity: 'stellar' },
   solar_maximum: { rarity: 'stellar' },
-  command_directive: { rarity: 'stellar' },
+  ignition_protocol: { rarity: 'stellar' },
+  coolant_protocol: { rarity: 'stellar' },
+  chamber_protocol: { rarity: 'stellar' },
+  the_admiralty: { rarity: 'anomaly' },
+  harmonic_singularity: { rarity: 'anomaly' },
+  event_horizon: { rarity: 'anomaly' },
+  temporal_snare: { rarity: 'anomaly' },
+  null_field: { rarity: 'stellar' },
+  tractor_beam: { rarity: 'stellar' },
   // Aureline
   helio_lancer: { character: true, name: 'Aureline Lancer' },
   halo_ward: { character: true, name: 'Halo Warden' },
@@ -286,12 +492,15 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   focusing_array: { rarity: 'stellar' },
   aureline_sun_priest: { character: true, rarity: 'stellar' },
   aurelia_first_light: { character: true, rarity: 'anomaly' },
+  aureline_war_herald: { character: true, rarity: 'stellar' },
+  sunforge: { rarity: 'stellar' },
   // Xel'Naru
   martyr_crystal: { character: true, rarity: 'stellar', name: "Xel'Naru Martyr" },
   fracture_lens: { character: true, name: 'Fracture Seer' },
   overload_core: { rarity: 'stellar' },
   xelnaru_champion: { character: true, rarity: 'stellar' },
   kyrvessa_prism_queen: { character: true, rarity: 'anomaly' },
+  xelnaru_reliquarist: { character: true, rarity: 'stellar' },
   // Vorthane
   bell_warden: { character: true, name: 'Vorthanian Bellwarden' },
   lure_jelly: { character: true, name: 'Vorthanian Commoners' },
@@ -300,6 +509,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   deep_current: { rarity: 'stellar' },
   hero_of_rathune: { character: true, rarity: 'stellar' },
   ommarath_deep_bell: { character: true, rarity: 'anomaly' },
+  riptide_ambush: { character: true, rarity: 'stellar' },
   // Ixquor
   sporecaster: { character: true, name: 'Ixquor Sporecaster' },
   hive_relay: { rarity: 'stellar' },
@@ -349,22 +559,22 @@ export const PRESET_DECKS: DeckList[] = [
   {
     name: 'Solar Lancers',
     race: 0,
-    cards: [...twoOf('helio_lancer', 'focusing_array', 'coronal_chorus', 'sunspear', 'dawn_beacon', 'halo_ward', 'coolant_array'), 'plasma_relay', 'aurelia_first_light', 'coronal_lance', 'aureline_sun_priest', 'ignition_protocol', 'ignition_protocol'],
+    cards: [...twoOf('helio_lancer', 'focusing_array', 'coronal_chorus', 'sunspear', 'dawn_beacon', 'halo_ward', 'coolant_array', 'command_directive'), 'sunforge', 'aurelia_first_light', 'aureline_war_herald', 'aureline_sun_priest'],
   },
   {
     name: 'Shard Overload',
     race: 1,
-    cards: [...twoOf('shard_reactor', 'overload_core', 'martyr_crystal', 'prism_vent', 'fracture_lens', 'cryo_vault', 'coolant_array', 'ion_cannon'), 'xelnaru_champion', 'kyrvessa_prism_queen', 'chamber_protocol', 'coolant_protocol'],
+    cards: [...twoOf('shard_reactor', 'overload_core', 'martyr_crystal', 'prism_vent', 'fracture_lens', 'coolant_array', 'command_directive'), 'ember_shard', 'xelnaru_reliquarist', 'cryo_vault', 'ion_cannon', 'xelnaru_champion', 'kyrvessa_prism_queen'],
   },
   {
     name: 'Abyssal Tide',
     race: 2,
-    cards: [...twoOf('bell_warden', 'stinging_veil', 'tidal_bloom', 'abyssal_choir', 'deep_current', 'lure_jelly'), 'deflector_grid', 'ommarath_deep_bell', 'plasma_relay', 'hero_of_rathune', 'coronal_lance', 'ion_cannon', 'coolant_protocol', 'chamber_protocol'],
+    cards: [...twoOf('bell_warden', 'stinging_veil', 'tidal_bloom', 'abyssal_choir', 'deep_current', 'lure_jelly', 'command_directive'), 'tide_pylon', 'ommarath_deep_bell', 'hero_of_rathune', 'riptide_ambush', 'plasma_relay', 'coronal_lance'],
   },
   {
     name: 'Hive Bloom',
     race: 3,
-    cards: [...twoOf('mycelium_tower', 'hive_relay', 'sporecaster', 'rot_bloom', 'canopy', 'spore_cloud', 'plasma_relay', 'ion_cannon'), 'ixquor_brood_tender', 'the_brood_queen', 'command_directive', 'command_directive'],
+    cards: [...twoOf('mycelium_tower', 'hive_relay', 'sporecaster', 'rot_bloom', 'canopy', 'spore_cloud', 'ion_cannon', 'command_directive'), 'spore_husk', 'regrowth_pod', 'ixquor_brood_tender', 'the_brood_queen'],
   },
 ];
 

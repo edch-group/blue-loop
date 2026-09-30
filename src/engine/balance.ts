@@ -28,7 +28,9 @@ export const BALANCE = {
   laterSeatCool: 2,
   /** The catch-up only applies in games with at most this many players (in bigger games everyone but the leader gangs up anyway). */
   catchUpMaxPlayers: 2,
-  /** Drawing from an empty deck heats your sun instead (unblockable). */
+  /** An empty deck is refilled by shuffling your discard pile back in, which heats your sun by this much (unblockable). */
+  reshuffleHeat: 2,
+  /** With both deck and discard pile empty, each card you should draw heats your sun by this much instead (unblockable). */
   fatigueHeat: 2,
 
   /** You may play as many cards as turns you have taken, up to this cap (before extra-play cards). */
