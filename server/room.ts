@@ -18,10 +18,14 @@ export interface Seat {
   deck: string[];
   deckName: string;
   species: number;
+  /** Confirmed in the lobby: the game starts once both seats are ready. */
+  ready?: boolean;
 }
 
 export interface RoomData {
   seats: Seat[];
+  /** Whether a game has been played here, so the next one alternates who goes first. */
+  played?: boolean;
   /** Which seat plays first this game (it alternates on a rematch). Player i is seat (first + i) % 2. */
   first: number;
   game: GameState | null;
@@ -42,12 +46,16 @@ export type ClientMessage =
   | { t: 'join'; name: string; deck: string[]; deckName: string; species: number; token?: string }
   | { t: 'action'; action: Action }
   | { t: 'rematch' }
+  /** In the lobby: change your name, deck or race (this un-readies you). */
+  | { t: 'setup'; name: string; deck: string[]; deckName: string; species: number }
+  /** In the lobby: confirm (or take back) that you are ready to start. */
+  | { t: 'ready'; ready: boolean }
   | { t: 'ping' };
 
 /** What the room sends. */
 export type ServerMessage =
   | { t: 'joined'; seat: number; token: string }
-  | { t: 'lobby'; seats: { name: string; deckName: string; species: number }[]; you: number }
+  | { t: 'lobby'; seats: { name: string; deckName: string; species: number; ready: boolean }[]; you: number }
   | { t: 'state'; state: GameState; you: string; last: LastMove | null; names: string[] }
   | { t: 'error'; message: string }
   | { t: 'pong' }
@@ -82,20 +90,22 @@ export function handle(
       const back = msg.token ? room.seats.findIndex((s) => s.token === msg.token) : -1;
       if (back >= 0) return { seat: back, reply: [{ t: 'joined', seat: back, token: room.seats[back].token }], broadcast: true };
       if (room.seats.length >= 2) return { seat, reply: [{ t: 'error', message: 'This room is full.' }], broadcast: false };
-      const deck = Array.isArray(msg.deck) ? msg.deck.map(String) : [];
-      const species = Number.isInteger(msg.species) && msg.species >= 0 && msg.species < 4 ? msg.species : 0;
-      const legal = deck.length > 0 && deckProblems(deck).length === 0;
       const token = Array.from({ length: 24 }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(random() * 36)]).join('');
-      room.seats.push({
-        token,
-        name: clean(msg.name, 18) || `Player ${room.seats.length + 1}`,
-        deck: legal ? deck : presetDeck(species).cards,
-        deckName: legal ? clean(msg.deckName, 24) || 'Custom deck' : presetDeck(species).name,
-        species,
-      });
+      room.seats.push({ token, ...seatSetup(msg, room.seats.length), ready: false });
       const mine = room.seats.length - 1;
-      if (room.seats.length === 2 && !room.game) start(room, random);
       return { seat: mine, reply: [{ t: 'joined', seat: mine, token }], broadcast: true };
+    }
+    case 'setup': {
+      if (seat === null || room.game) return { seat, reply: [], broadcast: false };
+      Object.assign(room.seats[seat], seatSetup(msg, seat), { ready: false });
+      return { seat, reply: [], broadcast: true };
+    }
+    case 'ready': {
+      if (seat === null || room.game) return { seat, reply: [], broadcast: false };
+      room.seats[seat].ready = !!msg.ready;
+      // Both seats taken and both confirmed: play.
+      if (room.seats.length === 2 && room.seats.every((s) => s.ready)) start(room, random);
+      return { seat, reply: [], broadcast: true };
     }
     case 'action': {
       const g = room.game;
@@ -123,7 +133,10 @@ export function handle(
       if (seat === null || !room.game?.winnerId) return { seat, reply: [], broadcast: false };
       // Whoever conceded has left the room: there is no one to play again.
       if (room.game.concededBy) return { seat, reply: [{ t: 'error', message: 'Your rival has left the room.' }], broadcast: false };
-      start(room, random);
+      // Back to the lobby, where both can change deck or race and confirm again.
+      room.game = null;
+      room.last = null;
+      for (const s of room.seats) s.ready = false;
       return { seat, reply: [], broadcast: true };
     }
   }
@@ -135,9 +148,24 @@ export function playerIndex(room: RoomData, seat: number): number {
   return (seat - room.first + 2) % 2;
 }
 
+/** A seat's name, deck and race from a join or setup message (an illegal deck falls back to that race's starter). */
+function seatSetup(msg: { name: string; deck: string[]; deckName: string; species: number }, index: number): Omit<Seat, 'token'> {
+  const deck = Array.isArray(msg.deck) ? msg.deck.map(String) : [];
+  const species = Number.isInteger(msg.species) && msg.species >= 0 && msg.species < 4 ? msg.species : 0;
+  const legal = deck.length > 0 && deckProblems(deck).length === 0;
+  return {
+    name: clean(msg.name, 18) || `Player ${index + 1}`,
+    deck: legal ? deck : presetDeck(species).cards,
+    deckName: legal ? clean(msg.deckName, 24) || 'Custom deck' : presetDeck(species).name,
+    species,
+  };
+}
+
 function start(room: RoomData, random: () => number) {
   // A coin toss for the first game; after that, whoever went second goes first.
-  room.first = room.game ? 1 - room.first : random() < 0.5 ? 0 : 1;
+  room.first = room.played ? 1 - room.first : random() < 0.5 ? 0 : 1;
+  room.played = true;
+  for (const s of room.seats) s.ready = false;
   const order = [room.seats[room.first], room.seats[1 - room.first]];
   room.game = createGame({
     seed: Math.floor(random() * 2 ** 31),
@@ -186,7 +214,7 @@ export function viewFor(game: GameState, me: number): GameState {
 export function views(room: RoomData): ServerMessage[] {
   const g = room.game;
   if (!g) {
-    const seats = room.seats.map((s) => ({ name: s.name, deckName: s.deckName, species: s.species }));
+    const seats = room.seats.map((s) => ({ name: s.name, deckName: s.deckName, species: s.species, ready: !!s.ready }));
     return room.seats.map((_, i) => ({ t: 'lobby', seats, you: i }));
   }
   return room.seats.map((_, seat) => {

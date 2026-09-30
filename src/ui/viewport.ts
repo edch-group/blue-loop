@@ -13,6 +13,11 @@
  *
  * Everything sizes from --app-w / --app-h and --vw / --vh (the page's own
  * width and height, as it is laid out), never the raw screen.
+ *
+ * On a big screen (a desktop or laptop browser) the whole page is scaled up
+ * (CSS zoom on the body), so cards and text are as readable as on a tablet:
+ * it is laid out at a smaller size and drawn larger. Rectangles and pointer
+ * movements are converted back to the page's own units below.
  */
 import { ScreenOrientation } from '@capacitor/screen-orientation';
 
@@ -20,6 +25,11 @@ import { ScreenOrientation } from '@capacitor/screen-orientation';
 export const VIEWPORT_EVENT = 'bl-viewport';
 
 let rotated = false;
+/** How much the page is scaled up on a big screen (1 on phones and tablets). */
+let zoom = 1;
+/** The page is designed to read well at about this size; bigger screens scale it up, to at most MAX_ZOOM. */
+const DESIGN = { w: 1100, h: 660 };
+const MAX_ZOOM = 1.75;
 let screenW = window.innerWidth;
 let size = { w: window.innerWidth, h: window.innerHeight };
 
@@ -44,11 +54,15 @@ export function trackViewport() {
     // The same test as the CSS media queries use, so the two always agree.
     rotated = portraitQuery.matches;
     screenW = w;
-    size = rotated ? { w: h, h: w } : { w, h };
-    const key = `${rotated}:${w}:${size.w}:${size.h}`;
+    zoom = rotated ? 1 : Math.max(1, Math.min(MAX_ZOOM, w / DESIGN.w, h / DESIGN.h));
+    // Round, so text and borders land on whole pixels at common sizes.
+    zoom = Math.floor(zoom * 20) / 20;
+    size = rotated ? { w: h, h: w } : { w: w / zoom, h: h / zoom };
+    const key = `${rotated}:${w}:${size.w}:${size.h}:${zoom}`;
     if (key === lastKey) return;
     lastKey = key;
     root.classList.toggle('rotated', rotated);
+    root.style.setProperty('--ui-zoom', String(zoom));
     root.style.setProperty('--screen-w', `${w}px`);
     root.style.setProperty('--app-w', `${size.w}px`);
     root.style.setProperty('--app-h', `${size.h}px`);
@@ -92,6 +106,7 @@ export function appSize(): { w: number; h: number } {
 
 /** A screen-space rectangle (getBoundingClientRect) in the page's own coordinates. */
 export function toPage(r: DOMRect): DOMRect {
+  if (zoom !== 1) return new DOMRect(r.x / zoom, r.y / zoom, r.width / zoom, r.height / zoom);
   if (!rotated) return r;
   // Turned clockwise: page x runs down the screen, page y runs right to left.
   return new DOMRect(r.top, screenW - r.right, r.height, r.width);
@@ -99,7 +114,7 @@ export function toPage(r: DOMRect): DOMRect {
 
 /** A screen-space movement (a finger's drag) in the page's own coordinates. */
 export function toPageDelta(dx: number, dy: number): { x: number; y: number } {
-  return rotated ? { x: dy, y: -dx } : { x: dx, y: dy };
+  return rotated ? { x: dy, y: -dx } : { x: dx / zoom, y: dy / zoom };
 }
 
 /** An element's rectangle in the page's own coordinates. */

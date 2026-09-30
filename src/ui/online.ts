@@ -18,6 +18,7 @@ export interface LobbySeat {
   name: string;
   deckName: string;
   species: number;
+  ready: boolean;
 }
 
 export interface OnlineEvents {
@@ -153,6 +154,16 @@ export class OnlineClient {
 
   rematch() {
     this.send({ t: 'rematch' });
+  }
+
+  /** In the lobby: a new name, deck or race (kept for rejoining too). */
+  setup(join: JoinInfo) {
+    this.join = join;
+    this.send({ t: 'setup', ...join });
+  }
+
+  ready(ready: boolean) {
+    this.send({ t: 'ready', ready });
   }
 
   /** Reconnect now (after the connection was given up). */

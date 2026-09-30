@@ -237,6 +237,10 @@ export class App {
 
     root.addEventListener('click', (e) => this.onClick(e));
     root.addEventListener('input', (e) => this.onInput(e));
+    // Online, a new name reaches the room once typed (on leaving the field), so the lobby does not redraw mid-word.
+    root.addEventListener('change', (e) => {
+      if ((e.target as HTMLElement).dataset.seatName === '0' && this.online && this.screen === 'menu') this.online.setup(this.joinInfo());
+    });
     root.addEventListener('mouseover', (e) => this.onHover(e));
     root.addEventListener('pointerdown', (e) => this.onPressStart(e));
     window.addEventListener('pointermove', (e) => this.onPressMove(e));
@@ -286,19 +290,32 @@ export class App {
   // -------------------------------------------------------------------------
 
   /** Create a room (no code) or join one, with the first seat's name and deck. */
-  private goOnline(code?: string) {
-    this.leaveOnline();
+  /** Your name, deck and race, as the room needs them. */
+  private joinInfo() {
     const seat = this.seats[0];
     const deck = deckById(seat.deckId) ?? PRESETS[0];
+    return { name: seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race };
+  }
+
+  private goOnline(code?: string) {
+    this.leaveOnline();
     const room = code || newRoomCode();
     this.net.lobby = null;
     this.online = new OnlineClient(
       room,
-      { name: seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race },
+      this.joinInfo(),
       {
         lobby: (seats, you) => {
           this.net.lobby = seats;
           this.net.you = you;
+          // After a game ("play again"), both players come back to the lobby to confirm again.
+          if (this.screen === 'game') {
+            if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
+            this.screen = 'menu';
+            this.menuPage = 'online';
+            this.sheet = null;
+            this.pending = null;
+          }
           if (this.screen === 'menu') this.render();
         },
         state: (state, you, last) => this.onRemoteState(state, you, last),
@@ -1108,6 +1125,7 @@ export class App {
         const decks = allDecks();
         const i = decks.findIndex((d) => d.id === seat.deckId);
         seat.deckId = decks[(i + 1) % decks.length].id;
+        if (this.online && arg === '0') this.online.setup(this.joinInfo());
         return this.render();
       }
       case 'new-game':
@@ -1128,6 +1146,11 @@ export class App {
       case 'online-retry':
         this.online?.retry();
         return;
+      case 'online-ready': {
+        const mine = this.net.lobby?.[this.net.you];
+        this.online?.ready(!mine?.ready);
+        return;
+      }
       case 'online-rematch':
         this.online?.rematch();
         return;
@@ -1410,11 +1433,13 @@ export class App {
   private renderOnline(): string {
     const seat = this.seats[0];
     const deck = deckById(seat.deckId) ?? PRESETS[0];
-    const you = `
+    // In the lobby you can still change your name, deck and race, until the game starts.
+    const you = (extra = '') => `
       <div class="seat-tile online-you">
         ${factionAvatar(`f${deck.race + 1}`, 'seat-emblem')}
-        <input data-seat-name="0" value="${esc(seat.name)}" maxlength="18" aria-label="Your name" ${this.online ? 'disabled' : ''} />
-        <button class="seat-deck" data-act="seat-deck" data-arg="0" ${this.online ? 'disabled' : ''} title="Tap to change deck"><small>your deck</small><span>${esc(deck.name.toLowerCase())}</span></button>
+        <input data-seat-name="0" value="${esc(seat.name)}" maxlength="18" aria-label="Your name" />
+        <button class="seat-deck" data-act="seat-deck" data-arg="0" title="Tap to change deck"><small>your deck · ${esc(RACE_NAMES[deck.race].toLowerCase())}</small><span>${esc(deck.name.toLowerCase())}</span></button>
+        ${extra}
       </div>`;
     if (!this.online) {
       return this.setupPage(
@@ -1443,6 +1468,8 @@ export class App {
     const status = this.net.status === 'open' ? '' : this.net.status === 'lost' ? '<button class="btn" data-act="online-retry">connection lost · retry</button>' : '<span class="muted">connecting…</span>';
     const seats = this.net.lobby ?? [];
     const rival = seats.find((_, i) => i !== this.net.you);
+    const ready = !!seats[this.net.you]?.ready;
+    const tag = (on: boolean, who: string) => `<span class="ready-tag ${on ? 'ready-on' : ''}">${on ? '✓ ready' : who}</span>`;
     return this.setupPage(
       'play online',
       `<div class="online-wrap">
@@ -1453,15 +1480,17 @@ export class App {
           <span class="muted online-link">${esc(inviteLink(code))}</span>
         </div>
         <div class="online-seats">
-          ${you}
+          ${you(tag(ready, 'not ready'))}
           <span class="online-vs">vs</span>
           ${rival
-            ? `<div class="seat-tile">${factionAvatar(`f${rival.species + 1}`, 'seat-emblem')}<b class="online-name">${esc(rival.name)}</b><span class="seat-deck"><small>deck</small><span>${esc(rival.deckName.toLowerCase())}</span></span></div>`
+            ? `<div class="seat-tile">${factionAvatar(`f${rival.species + 1}`, 'seat-emblem')}<b class="online-name">${esc(rival.name)}</b><span class="seat-deck"><small>deck · ${esc((RACE_NAMES[rival.species] ?? '').toLowerCase())}</small><span>${esc(rival.deckName.toLowerCase())}</span></span>${tag(rival.ready, 'choosing…')}</div>`
             : '<div class="seat-tile seat-off online-waiting"><span class="online-pulse"></span><b>waiting for your opponent…</b><small>send them the code or the link</small></div>'}
         </div>
         ${status}
       </div>`,
-      '<button class="btn" data-act="online-leave">leave room</button><span class="setup-spacer"></span><span class="muted">the game starts as soon as they join</span>',
+      `<button class="btn" data-act="online-leave">leave room</button><span class="setup-spacer"></span><span class="muted">${
+        !rival ? 'get ready while you wait' : ready && rival.ready ? 'starting…' : ready ? `waiting for ${esc(rival.name)} to confirm` : 'the game starts when you are both ready'
+      }</span><button class="${ready ? 'btn' : 'btn-primary'}" data-act="online-ready">${ready ? 'not ready' : 'ready'}</button>`,
       'quickplay',
     );
   }
@@ -1983,7 +2012,7 @@ export class App {
               : this.online
                 ? quitter
                   ? '<p class="muted">They have left the room.</p><button class="btn-primary" data-act="to-menu">leave</button>'
-                  : '<div class="menu-actions center-row"><button class="btn-primary" data-act="online-rematch">rematch</button><button class="btn" data-act="to-menu">leave</button></div>'
+                  : '<div class="menu-actions center-row"><button class="btn-primary" data-act="online-rematch">play again</button><button class="btn" data-act="to-menu">leave</button></div>'
                 : '<button class="btn-primary" data-act="to-menu">back to menu</button>'}
           </div>
         </div></div>`;

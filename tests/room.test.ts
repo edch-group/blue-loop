@@ -25,19 +25,41 @@ function twoSeats(seed = 1): { room: RoomData; tokens: string[]; rand: () => num
   const a = handle(room, null, join('Ada', 0), rand);
   const b = handle(room, null, join('Bo', 2), rand);
   const tokens = [a, b].map((r) => (r.reply[0] as Extract<ServerMessage, { t: 'joined' }>).token);
+  readyUp(room, rand);
   return { room, tokens, rand };
 }
 
+function readyUp(room: RoomData, rand: () => number = Math.random) {
+  handle(room, 0, { t: 'ready', ready: true }, rand);
+  handle(room, 1, { t: 'ready', ready: true }, rand);
+}
+
 describe('online room', () => {
-  it('waits in the lobby for a second player, then starts', () => {
+  it('waits in the lobby until both players have joined and confirmed', () => {
     const room = emptyRoom();
     const a = handle(room, null, join('Ada', 0), seeded(1));
     expect(a.seat).toBe(0);
-    expect(room.game).toBeNull();
-    expect(views(room)[0]).toMatchObject({ t: 'lobby', you: 0, seats: [{ name: 'Ada' }] });
+    handle(room, 0, { t: 'ready', ready: true });
+    expect(room.game).toBeNull(); // ready, but alone
+    expect(views(room)[0]).toMatchObject({ t: 'lobby', you: 0, seats: [{ name: 'Ada', ready: true }] });
     handle(room, null, join('Bo', 2), seeded(2));
+    expect(room.game).toBeNull(); // Bo has not confirmed yet
+    handle(room, 1, { t: 'ready', ready: true }, seeded(3));
     expect(room.game).not.toBeNull();
     expect(room.game!.players.map((p) => p.name).sort()).toEqual(['Ada', 'Bo']);
+  });
+
+  it('lets a player change deck and race in the lobby, which takes back their ready', () => {
+    const room = emptyRoom();
+    handle(room, null, join('Ada', 0));
+    handle(room, null, join('Bo', 2));
+    handle(room, 1, { t: 'ready', ready: true });
+    handle(room, 1, { t: 'setup', name: 'Bo', deck: PRESET_DECKS[3].cards, deckName: PRESET_DECKS[3].name, species: 3 });
+    expect(room.seats[1]).toMatchObject({ species: 3, deckName: PRESET_DECKS[3].name, ready: false });
+    handle(room, 0, { t: 'ready', ready: true });
+    expect(room.game).toBeNull();
+    handle(room, 1, { t: 'ready', ready: true });
+    expect(room.game!.players.find((p) => p.name === 'Bo')!.species).toBe(3);
   });
 
   it('is 1v1: a third player is turned away', () => {
@@ -100,6 +122,10 @@ describe('online room', () => {
     expect(room.game!.winnerId).not.toBeNull();
     expect(room.last).not.toBeNull();
     handle(room, 0, { t: 'rematch' });
+    // Back to the lobby, then both confirm again.
+    expect(room.game).toBeNull();
+    expect(room.seats.every((s) => !s.ready)).toBe(true);
+    readyUp(room);
     expect(room.game!.winnerId).toBeNull();
     expect(room.first).toBe(1 - firstBefore);
     expect(activePlayer(room.game!).name).toBe(room.seats[room.first].name);
