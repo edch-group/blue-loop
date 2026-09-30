@@ -20,8 +20,3 @@ export function factionAvatar(id: string, cls = ''): string {
   const colour = FACTION_COLOUR[id] ?? '#9aa0ac';
   return `<svg class="fav ${cls}" viewBox="0 0 32 32" style="--fc:${colour}" aria-hidden="true"><circle cx="16" cy="16" r="15" class="fav-disc"/><g class="fav-head">${HEADS[id] ?? ''}</g></svg>`;
 }
-
-/** A race's emblem head (line art on a 32×32 canvas), for character portraits. */
-export function raceHead(race: number): string {
-  return HEADS[`f${(race % 4) + 1}`] ?? '';
-}

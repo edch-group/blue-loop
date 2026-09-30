@@ -159,9 +159,19 @@ Every card has a rarity, shown by a small animated gem in its top corner. The ge
 
 The line at the bottom of a card shows only its type and race; rarity shows only in the gem. Stellar and Anomaly cards also get a faint gold or violet edge. In the campaign, rarer cards cost more in the armory (3 / 5 / 8 materials, +1 for a race card) and turn up less often there and in mission rewards.
 
+## Card art [design review]
+
+Every card has its own painted picture, in a window at the top of the card. They are drawn procedurally in SVG by `src/ui/cardart.ts`, as placeholders for commissioned art.
+- **Palettes:** each race has its own sky (Aureline dawn blue and gold, Xel'Naru rose dusk, Vorthane deep teal sea, Ixquor violet and bio-green). Neutral cards take their palette from their type: attack ember, defence ice blue, growth green, global violet, Command steel, Lightspeed amber.
+- **Pictures:** each card has a subject of its own, shaded with gradients and soft glows. A test checks that no card falls back to a default and that no two pictures are the same.
+
 ## Characters [design review]
 
-Many race cards are **characters**: people of that race, who will feature in the card's picture. Until the portraits are commissioned, a character card shows a figure of its race: the race's emblem as the head, over a pair of shoulders, in an arched window. Named heroes (the Anomalies) wear a halo. Each race has a Stellar hero and an Anomaly, and both are in its starter deck.
+Many race cards are **characters**: people of that race, drawn as individuals, each with their own pose, props, markings and colours.
+- **Aureline:** plasma-cloaked beings with one great eye inside tilted halos. They wear plate armour or vestments and carry a lance, a halo shield, a sun staff, a war banner or a star.
+- **Xel'Naru:** figures of floating crystal shards around a core of light. There's a blade, a fractured lens, a reliquary, shard capes, a shattering Martyr and a shard crown for the Queen.
+- **Vorthane:** bells of living jelly rimmed with eyes. The Bellwarden has a helm and a bronze bell. The Hero of Rathune has a helm and a trident. The Commoners carry lanterns, the choir sings in rings of sound, and the Ambushers are eyes in the kelp.
+- **Ixquor:** walking fungal hives with glowing caps and nodes. The Sporecaster casts spores, the Brood-Tender carries brood pods, and the Brood Queen wears a crown of caps.
 
 | Race | Characters |
 | --- | --- |
