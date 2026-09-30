@@ -344,7 +344,19 @@ export class CampaignView {
 
   render(): string {
     if (!this.state) return this.renderSetup();
-    const s = this.state;
+    const html = this.renderCampaign();
+    this.lastFocus = this.selected;
+    return html;
+  }
+
+  /** The system that was focused at the last render and no longer is: its orbits and panel fade out. */
+  private leavingFocus(): CampaignNode | null {
+    return this.lastFocus && this.lastFocus !== this.selected ? nodeById(this.state!, this.lastFocus) : null;
+  }
+
+  private renderCampaign(): string {
+    const s = this.state!;
+    const leaving = this.leavingFocus();
     const me = campaignPlayer(s);
     const inc = factionIncome(s, me.id);
     return `
@@ -372,7 +384,7 @@ export class CampaignView {
             ? `<aside class="cmp-side glass">${this.renderNode(nodeById(s, this.selected))}</aside>`
             : this.anomaly
               ? `<aside class="cmp-side glass">${this.renderAnomaly((s.anomalies ?? []).find((a) => a.id === this.anomaly)!)}</aside>`
-              : `<p class="cmp-float-hint">${this.hint()}</p>`
+              : `${leaving ? `<aside class="cmp-side glass cmp-side-out" aria-hidden="true">${this.renderNode(leaving)}</aside>` : ''}<p class="cmp-float-hint">${this.hint()}</p>`
         }
         <div class="cmp-end">
           <button class="btn-primary" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
@@ -428,6 +440,10 @@ export class CampaignView {
     const me = campaignPlayer(s);
     const targets = new Set(me.attacked || s.phase !== 'player' ? [] : attackOptions(s, me.id).map((o) => o.toId));
     const focus = this.selected ? nodeById(s, this.selected) : null;
+    // The focus before this render: systems that change between near and far fade rather than pop.
+    const prev = this.lastFocus ? nodeById(s, this.lastFocus) : null;
+    const leaving = this.leavingFocus();
+    const farFrom = (f: CampaignNode | null, x: number, y: number, id: string, r: number) => !!f && f.id !== id && Math.hypot(x - f.x, y - f.y) > r;
     const drawn = new Set<string>();
     const links = s.nodes
       .flatMap((n) =>
@@ -446,8 +462,11 @@ export class CampaignView {
     const nodes = s.nodes
       .map((n) => {
         const colour = n.owner ? this.colourOf(n.owner) : NEUTRAL;
-        const far = focus && focus.id !== n.id && Math.hypot(n.x - focus.x, n.y - focus.y) > 250;
+        const far = farFrom(focus, n.x, n.y, n.id, 250);
+        const wasFar = farFrom(prev, n.x, n.y, n.id, 250);
         const cls = [
+          far !== wasFar ? (far ? 'cmp-fade-out' : 'cmp-fade-in') : '',
+          leaving?.id === n.id ? 'cmp-leaving' : '',
           'cmp-n3',
           n.owner === me.id ? 'cmp-mine' : '',
           n.owner ? 'cmp-owned' : '',
@@ -467,7 +486,7 @@ export class CampaignView {
             ${targets.has(n.id) ? '<div class="cmp-ring cmp-ring-target"></div>' : ''}
             ${n.hazard.length ? '<div class="cmp-ring cmp-ring-hazard"></div>' : ''}
             ${n.home ? '<div class="cmp-ring cmp-ring-home"></div>' : ''}
-            ${this.selected === n.id ? this.renderOrbits(n) : ''}
+            ${this.selected === n.id || leaving?.id === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
               <span class="cmp-badges">${badges}</span>
               <span class="cmp-star" style="--seed:${seedOf(n.id)}"><i class="cmp-core"></i>${
@@ -482,8 +501,8 @@ export class CampaignView {
       <div class="cmp-stage ${focus ? 'cmp-zoomed' : ''}" data-act="cmp-deselect">
         <div class="cmp-plane" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">
           <div class="cmp-grid"></div>
-          <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
-          ${this.renderAnomalies(focus)}
+          <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
+          ${this.renderAnomalies(focus, prev)}
           ${nodes}
         </div>
         <div class="cmp-cam">
@@ -495,12 +514,14 @@ export class CampaignView {
   }
 
   /** Anomalies: flat phenomena on the plane (discs, clouds, rings), with an upright marker to tap. */
-  private renderAnomalies(focus: CampaignNode | null): string {
+  private renderAnomalies(focus: CampaignNode | null, prev: CampaignNode | null): string {
     const s = this.state!;
+    const farFrom = (f: CampaignNode | null, a: Anomaly) => !!f && Math.hypot(a.x - f.x, a.y - f.y) > 300;
     return (s.anomalies ?? [])
       .map((a) => {
         const def = ANOMALIES[a.kind];
-        const far = focus && Math.hypot(a.x - focus.x, a.y - focus.y) > 300;
+        const far = farFrom(focus, a);
+        const fade = far !== farFrom(prev, a) ? (far ? 'cmp-fade-out' : 'cmp-fade-in') : '';
         const flat = {
           blackHole: '<div class="an-lens"></div>',
           nebula: '<div class="an-cloud an-cloud-a"></div><div class="an-cloud an-cloud-b"></div><div class="an-cloud an-cloud-c"></div>',
@@ -514,7 +535,7 @@ export class CampaignView {
           pulsar: '<span class="an-pulsar"><i class="an-beam"></i></span>',
         }[a.kind];
         return `
-          <div class="cmp-an an-${a.kind} ${far ? 'cmp-far' : ''} ${this.anomaly === a.id ? 'an-on' : ''}" style="left:${a.x}px;top:${a.y}px;--ar:${def.radius}px">
+          <div class="cmp-an an-${a.kind} ${far ? 'cmp-far' : ''} ${fade} ${this.anomaly === a.id ? 'an-on' : ''}" style="left:${a.x}px;top:${a.y}px;--ar:${def.radius}px">
             <div class="an-reach"></div>
             ${flat}
             <button class="cmp-bb an-bb" data-act="cmp-anomaly" data-arg="${a.id}" aria-label="${esc(def.name)}">
@@ -569,8 +590,13 @@ export class CampaignView {
 
   /** Free camera over the map: where it looks (map units) and how far it is zoomed (1 = whole map fits). */
   private view: { x: number; y: number; zoom: number } | null = null;
-  /** Last camera transform, so a re-render can animate from where the camera was. */
-  private camera: { transform: string; tilt: string } | null = null;
+  /** Where the camera is right now (it outlives re-renders, so a glide can start from it). */
+  private cam: Cam | null = null;
+  /** A glide in progress: where it started and when. */
+  private glide: { from: Cam; start: number } | null = null;
+  private frame: number | null = null;
+  /** The system focused at the last render, to fade out what belonged to it. */
+  private lastFocus: string | null = null;
   private drag: { id: number; x: number; y: number; moved: boolean; pinch?: { d: number; zoom: number } } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
   /** Set after a drag so the click that ends it does not select or deselect. */
@@ -580,6 +606,7 @@ export class CampaignView {
   private static readonly TILT = 44;
   private static readonly FOCUS_TILT = 56;
   private static readonly MAX_ZOOM = 5.5;
+  private static readonly GLIDE_MS = 1000;
 
   private homeView() {
     const home = ownedNodes(this.state!, this.state!.playerId)[0] ?? this.state!.nodes[0];
@@ -591,7 +618,8 @@ export class CampaignView {
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
     if (!stage || !this.state) {
-      this.camera = null;
+      this.cam = null;
+      this.glide = null;
       return;
     }
     if (!stage.dataset.bound) {
@@ -612,33 +640,68 @@ export class CampaignView {
     return Math.min(stage.clientWidth / MAP_WIDTH, stage.clientHeight / (MAP_HEIGHT * Math.cos(tilt) + 140));
   }
 
+  /**
+   * Where the camera should be: over the focused system (closer and steeper),
+   * or wherever the free camera looks.
+   */
+  private cameraTarget(stage: HTMLElement): Cam {
+    const focus = this.selected ? nodeById(this.state!, this.selected) : null;
+    const fit = this.fitScale(stage, CampaignView.TILT);
+    const v = this.view!;
+    return focus
+      ? { x: focus.x, y: focus.y, scale: Math.max(fit * v.zoom, 1) * 2.4, tilt: CampaignView.FOCUS_TILT }
+      : { x: v.x, y: v.y, scale: fit * v.zoom, tilt: CampaignView.TILT };
+  }
+
+  /**
+   * Move the camera. Zooming into or out of a system glides there (position,
+   * zoom and tilt together, with the stars turning and resizing as it goes);
+   * pans and pinches follow the finger at once, and a pan during a glide
+   * steers it rather than cutting it short.
+   */
   private applyCamera(animate: boolean) {
     const stage = this.stageEl;
-    const plane = stage?.querySelector<HTMLElement>('.cmp-plane');
-    if (!stage || !plane || !this.state || !this.view) return;
-    const focus = this.selected ? nodeById(this.state, this.selected) : null;
-    const tiltDeg = focus ? CampaignView.FOCUS_TILT : CampaignView.TILT;
-    const fit = this.fitScale(stage, CampaignView.TILT);
-    // Zoomed on a system: close in on it. Otherwise: the free camera.
-    const scale = focus ? Math.max(fit * this.view.zoom, 1) * 2.4 : fit * this.view.zoom;
-    const fx = focus ? focus.x : this.view.x;
-    const fy = focus ? focus.y : this.view.y;
-    const transform = `rotateX(${tiltDeg}deg) scale3d(${scale.toFixed(4)}, ${scale.toFixed(4)}, ${scale.toFixed(4)}) translate(${(-fx).toFixed(1)}px, ${(-fy).toFixed(1)}px)`;
-    const next = { transform, tilt: `${tiltDeg}deg` };
+    if (!stage || !this.state || !this.view) return;
+    const target = this.cameraTarget(stage);
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (animate && this.camera && this.camera.transform !== transform && !reduce) {
-      // Start from the old camera, then glide to the new one.
-      plane.classList.add('cmp-no-anim');
-      plane.style.transform = this.camera.transform;
-      plane.style.setProperty('--tilt', this.camera.tilt);
-      void plane.offsetWidth;
-      plane.classList.remove('cmp-no-anim');
-    } else if (!animate) plane.classList.add('cmp-no-anim');
-    plane.style.transform = transform;
-    plane.style.setProperty('--tilt', next.tilt);
+    if (animate && this.cam && !reduce && !sameCam(this.cam, target)) {
+      this.glide = { from: { ...this.cam }, start: performance.now() };
+      if (this.frame === null) this.frame = requestAnimationFrame((t) => this.tick(t));
+      return;
+    }
+    if (this.glide) return; // mid-glide: the next frame heads for the new target
+    this.cam = target;
+    this.writeCamera();
+  }
+
+  private tick(now: number) {
+    this.frame = null;
+    const stage = this.stageEl;
+    if (!stage || !this.state || !this.view || !this.glide) return;
+    const target = this.cameraTarget(stage);
+    const t = Math.min(1, (now - this.glide.start) / CampaignView.GLIDE_MS);
+    // Ease in and out; zoom in log space, so it feels even at every scale.
+    const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+    const f = this.glide.from;
+    this.cam = {
+      x: f.x + (target.x - f.x) * e,
+      y: f.y + (target.y - f.y) * e,
+      scale: Math.exp(Math.log(f.scale) + (Math.log(target.scale) - Math.log(f.scale)) * e),
+      tilt: f.tilt + (target.tilt - f.tilt) * e,
+    };
+    this.writeCamera();
+    if (t < 1) this.frame = requestAnimationFrame((n) => this.tick(n));
+    else this.glide = null;
+  }
+
+  private writeCamera() {
+    const plane = this.stageEl?.querySelector<HTMLElement>('.cmp-plane');
+    const c = this.cam;
+    if (!plane || !c) return;
+    plane.style.transform = `rotateX(${c.tilt.toFixed(2)}deg) scale3d(${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}) translate(${(-c.x).toFixed(1)}px, ${(-c.y).toFixed(1)}px)`;
+    plane.style.setProperty('--tilt', `${c.tilt.toFixed(2)}deg`);
     // Stars stay a readable size on screen whatever the zoom.
-    plane.style.setProperty('--ui', String(Math.min(2.2, Math.max(0.7, 1 / scale))));
-    this.camera = next;
+    plane.style.setProperty('--ui', String(Math.min(2.2, Math.max(0.7, 1 / c.scale))));
   }
 
   private clampView() {
@@ -674,17 +737,20 @@ export class CampaignView {
     if (!this.drag.moved && Math.hypot(dx, dy) < 6) return;
     if (!this.drag.moved) {
       this.drag.moved = true;
-      // Dragging while zoomed on a system lets go of it and pans from there.
+      // Dragging while zoomed on a system lets go of it: the camera glides back out while the drag pans on.
       if (this.selected) {
         const n = nodeById(this.state!, this.selected);
         this.view = { ...this.view, x: n.x, y: n.y };
         this.selected = null;
         this.host.render();
-        return;
       }
-      this.stageEl.setPointerCapture(e.pointerId);
+      try {
+        this.stageEl!.setPointerCapture(e.pointerId);
+      } catch {
+        // The pointer has gone; the drag ends with it.
+      }
     }
-    const scale = this.fitScale(this.stageEl, CampaignView.TILT) * this.view.zoom;
+    const scale = this.fitScale(this.stageEl!, CampaignView.TILT) * this.view.zoom;
     const tilt = (CampaignView.TILT * Math.PI) / 180;
     this.view.x -= dx / scale;
     this.view.y -= dy / (scale * Math.cos(tilt));
@@ -1002,4 +1068,16 @@ function cardHtml(defId: string): string {
       <div class="card-text">${esc(def.text)}</div>
       <div class="card-kind">${typeLine(def)}</div>
     </div>`;
+}
+
+/** The map camera: what it looks at (map units), how far it is zoomed, and how steeply it looks down. */
+interface Cam {
+  x: number;
+  y: number;
+  scale: number;
+  tilt: number;
+}
+
+function sameCam(a: Cam, b: Cam): boolean {
+  return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.scale / b.scale - 1) < 0.001 && Math.abs(a.tilt - b.tilt) < 0.05;
 }
