@@ -1,7 +1,7 @@
 import { BALANCE, CARDS, cardDef, copyLimit, deckProblems, RACE_NAMES, type CardKind } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
-import { cardArt, KIND_COLOUR, rarityGem, typeLine } from './glyphs';
+import { cardArt, KIND_COLOUR, typeLine } from './glyphs';
 
 interface BuilderHost {
   render(): void;
@@ -169,8 +169,7 @@ export class DeckBuilder {
         return `
           <button class="db-card ${n ? 'db-card-in' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
             <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}">
-              ${rarityGem(c)}
-              <span class="card-glyph">${cardArt(c)}</span>
+              <span class="card-glyph">${cardArt(c, true)}</span>
               <span class="card-name">${esc(c.name.toLowerCase())}</span>
               <span class="card-text">${esc(c.text)}</span>
               <span class="card-kind">${typeLine(c)}</span>

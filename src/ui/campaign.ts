@@ -32,7 +32,7 @@ import {
   type GameState,
 } from '../engine';
 import { MENU_ICON } from './menu-icon';
-import { cardArt, cardGlyph, KIND_COLOUR, rarityGem, typeLine } from './glyphs';
+import { cardArt, cardGlyph, KIND_COLOUR, typeLine } from './glyphs';
 import { sound } from './sound';
 import { toPageDelta } from './viewport';
 
@@ -974,8 +974,7 @@ function cardHtml(defId: string): string {
   const def = cardDef(defId);
   return `
     <div class="card cmp-card kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
-      ${rarityGem(def)}
-      <div class="card-glyph">${cardArt(def)}</div>
+      <div class="card-glyph">${cardArt(def, true)}</div>
       <div class="card-name">${lower(def.name)}</div>
       <div class="card-text">${esc(def.text)}</div>
       <div class="card-kind">${typeLine(def)}</div>

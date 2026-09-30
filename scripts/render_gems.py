@@ -44,22 +44,30 @@ def light_layer(light, clip=None):
 
 window = smoothstep(SOCK, SOCK - 0.03, r)          # 1 inside the glass window
 
-# ---------- Socket: deep space in dark glass, a silver bezel ----------
-space = np.array([0.045, 0.05, 0.08]) + (np.array([0.10, 0.11, 0.17]) - np.array([0.045, 0.05, 0.08])) * (1 - r / SOCK).clip(0, 1)[..., None] ** 1.5
-stars = (np.random.default_rng(3).random((N, N)) > 0.9985) * np.random.default_rng(4).random((N, N)) * 0.5
-stars = gaussian_filter(stars, 0.6) * 3
-space = space + stars[..., None] * np.array([0.8, 0.85, 1.0])
+# ---------- Sockets: a glass bed in the rarity's colour, in a bezel of its metal ----------
+# White Dwarf: silver on icy blue. Stellar: gold on amber. Anomaly: violet silver on deep purple.
+# The bed glows brightest at the centre, so the colour reads even at a few pixels across.
+SOCKETS = {
+    'dwarf': dict(centre=[0.62, 0.78, 1.0], edge=[0.10, 0.20, 0.42], metal=[0.95, 0.96, 0.99]),
+    'stellar': dict(centre=[1.0, 0.72, 0.30], edge=[0.42, 0.14, 0.02], metal=[1.0, 0.84, 0.46]),
+    'anomaly': dict(centre=[0.70, 0.42, 1.0], edge=[0.12, 0.03, 0.26], metal=[0.84, 0.76, 1.0]),
+}
 bez_in, bez_out = SOCK - 0.012, 0.995
 bezel = smoothstep(bez_in - 0.01, bez_in + 0.01, r) * smoothstep(bez_out, bez_out - 0.02, r)
 # Metal: lit from the top left, a bright rim edge and a darker groove.
 light_dir = (-dx * 0.6 - dy * 0.8) / np.maximum(r, 1e-3)
 u = np.clip((r - bez_in) / (bez_out - bez_in), 0, 1)
-# A polished rounded rim: bright where it faces the light, a crisp highlight along its crest.
 metal = 0.55 + 0.38 * light_dir * np.sin(u * np.pi) + 0.35 * np.exp(-((u - 0.35) / 0.12) ** 2) * (0.5 + 0.5 * light_dir)
-metal_rgb = np.clip(metal, 0, 1)[..., None] * np.array([0.95, 0.955, 0.975])
-rgb = np.where(bezel[..., None] > 0.5, metal_rgb, space)
-a = np.maximum(window, bezel)
-save('socket.png', rgb, a)
+neb = fbm(4, 6, 11)
+stars = (np.random.default_rng(3).random((N, N)) > 0.9985) * np.random.default_rng(4).random((N, N)) * 0.5
+stars = gaussian_filter(stars, 0.6) * 3
+for name, k in SOCKETS.items():
+    t = (1 - r / SOCK).clip(0, 1)[..., None] ** 0.9
+    bed = np.array(k['edge']) + (np.array(k['centre']) - np.array(k['edge'])) * t
+    bed = bed * (0.85 + 0.3 * neb[..., None]) + stars[..., None] * 0.6
+    metal_rgb = np.clip(metal, 0, 1.1)[..., None] * np.array(k['metal'])
+    rgb = np.where(bezel[..., None] > 0.5, metal_rgb, bed)
+    save(f'socket-{name}.png', rgb, np.maximum(window, bezel))
 
 # ---------- Glass: the cabochon's highlights, drawn over everything ----------
 hl = np.exp(-(((dx + 0.32) / 0.28) ** 2 + ((dy + 0.42) / 0.16) ** 2)) * 0.75          # soft window reflection
@@ -68,7 +76,7 @@ rim = np.exp(-((r - (SOCK - 0.05)) / 0.035) ** 2) * np.clip(dy + 0.2, 0, 1) * 0.
 save('glass.png', np.ones((N, N, 3)), np.clip((hl + rim) * window, 0, 1))
 
 # ---------- White dwarf: a small, searing blue-white star ----------
-cr = 0.13
+cr = 0.17
 core = smoothstep(cr, cr * 0.8, r)
 b1 = np.exp(-np.maximum(r - cr * 0.8, 0) / 0.045)
 b2 = 1 / (1 + (np.maximum(r - cr, 0) / 0.12) ** 2)
@@ -78,7 +86,7 @@ twinkle = (1 / (1 + (np.maximum(r - cr, 0) / 0.26) ** 2)) * 0.5
 save('dwarf-glow.png', np.ones((N, N, 3)) * np.array([0.7, 0.8, 1.0]), twinkle * window)
 
 # ---------- Sun: granulated photosphere with limb darkening; a corona ----------
-R = 0.52
+R = 0.58
 mu = np.sqrt(np.clip(1 - (r / R) ** 2, 0, 1))
 limb = 0.3 + 0.93 * mu ** 0.55
 # Granulation: bright cells with dark lanes (a cellular-looking fbm), plus faculae and spots.
@@ -98,7 +106,7 @@ cor = (np.exp(-outer / 0.05) * 0.85 + np.exp(-outer / 0.16) * 0.4) * wisps * smo
 save('sun-corona.png', np.ones((N, N, 3)) * np.array([1.0, 0.62, 0.22]), np.clip(cor, 0, 1) * window)
 
 # ---------- Black hole ----------
-Rs = 0.2
+Rs = 0.22
 # Behind: the far side of the disk lensed up over the shadow and down under it, the photon ring
 # hugging the shadow, all brighter on the approaching (left) side (relativistic beaming).
 beam = 0.4 + 0.6 * (0.5 - 0.5 * np.cos(th)) ** 1.4

@@ -6,7 +6,9 @@ import dwarf from './gems/dwarf.png';
 import glass from './gems/glass.png';
 import holeBack from './gems/hole-back.png';
 import hole from './gems/hole.png';
-import socket from './gems/socket.png';
+import socketAnomaly from './gems/socket-anomaly.png';
+import socketDwarf from './gems/socket-dwarf.png';
+import socketStellar from './gems/socket-stellar.png';
 import sunCorona from './gems/sun-corona.png';
 import sunDisc from './gems/sun-disc.png';
 
@@ -132,9 +134,12 @@ export function cardGlyph(defId: string, kind: CardKind): string {
   return `<svg class="glyph" viewBox="0 0 100 60" style="--g:${KIND_COLOUR[kind]}" aria-hidden="true">${GLYPHS[defId] ?? ring(12)}</svg>`;
 }
 
-/** A card's picture: its own painted scene (characters show a figure of their race). */
-export function cardArt(def: CardDef): string {
-  return `<span class="art-frame">${cardScene(def)}</span>`;
+/**
+ * A card's picture: its own painted scene (characters show a figure of their
+ * race). With `gem`, the rarity gem sits in a notch cut from its top corner.
+ */
+export function cardArt(def: CardDef, gem = false): string {
+  return `<span class="art-wrap"><span class="art-frame ${gem ? 'art-notched' : ''}">${cardScene(def)}</span>${gem ? rarityGem(def) : ''}</span>`;
 }
 
 const RARITY_TITLE: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly (one per deck)' };
@@ -165,7 +170,7 @@ export function rarityGem(def: CardDef): string {
 }
 
 // The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
-const GEM_IMAGES: Record<string, string> = { socket, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk };
+const GEM_IMAGES: Record<string, string> = { socketDwarf, socketStellar, socketAnomaly, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk };
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
 
 /** The small line at the bottom of a card: just its type and race (rarity shows in the gem). */
@@ -174,3 +179,56 @@ export function typeLine(def: CardDef): string {
   if (def.race !== undefined) parts.push(RACE_NAMES[def.race].toLowerCase());
   return parts.join(' · ').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
+
+/**
+ * Card stock: a faint circuit board, drawn once as a tile per rarity and handed
+ * to CSS (--circuit-dwarf, --circuit-stellar, --circuit-anomaly). Traces run in
+ * straight lines and 45° bends between solder pads, with a few vias and a chip.
+ */
+function circuitTile(colour: string, seed: number): string {
+  let h = seed;
+  const rand = () => ((h = (Math.imul(h, 1103515245) + 12345) >>> 0) / 4294967296);
+  const S = 200;
+  const g = 10; // the grid the traces follow
+  const pt = () => g * (2 + Math.floor(rand() * (S / g - 4)));
+  const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  let paths = '';
+  let pads = '';
+  for (let i = 0; i < 16; i++) {
+    let x = pt(), y = pt();
+    const pts = [`${x},${y}`];
+    pads += `<circle cx="${x}" cy="${y}" r="2.6" fill="none"/>`;
+    let [dx, dy] = dirs[Math.floor(rand() * 4)];
+    for (let leg = 0; leg < 3; leg++) {
+      const n = 2 + Math.floor(rand() * 5);
+      for (let k = 0; k < n; k++) {
+        const nx = x + dx * g, ny = y + dy * g;
+        if (nx < g || ny < g || nx > S - g || ny > S - g) break;
+        x = nx;
+        y = ny;
+      }
+      pts.push(`${x},${y}`);
+      // Bend 45° (a diagonal step), then carry on straight.
+      const turn = rand() < 0.5 ? 1 : -1;
+      const ddx = dx === 0 ? turn : dx, ddy = dy === 0 ? turn : dy;
+      const bx = x + ddx * g, by = y + ddy * g;
+      if (bx < g || by < g || bx > S - g || by > S - g) break;
+      x = bx;
+      y = by;
+      pts.push(`${x},${y}`);
+      if (dx === 0) [dx, dy] = [0, dy];
+      else [dx, dy] = [dx, 0];
+    }
+    paths += `<polyline fill="none" points="${pts.join(' ')}"/>`;
+    pads += `<circle cx="${x}" cy="${y}" r="2.6" fill="none"/>`;
+    if (rand() < 0.5) pads += `<circle cx="${pt()}" cy="${pt()}" r="1.4" stroke="none"/>`;
+  }
+  // A chip: a small square with pins.
+  const cx = pt(), cy = pt();
+  let chip = `<rect x="${cx - 12}" y="${cy - 12}" width="24" height="24" rx="2" fill="none"/>`;
+  for (let k = -8; k <= 8; k += 8) chip += `<path d="M${cx + k} ${cy - 12}v-5M${cx + k} ${cy + 12}v5M${cx - 12} ${cy + k}h-5M${cx + 12} ${cy + k}h5"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}"><g fill="${colour}" stroke="${colour}" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" fill-opacity="0.5" opacity="0.27">${paths}${pads}${chip}</g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+const CIRCUIT: Record<Rarity, [string, number]> = { dwarf: ['#6f86ad', 7], stellar: ['#c08a24', 11], anomaly: ['#8c5ad6', 19] };
+for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElement.style.setProperty(`--circuit-${r}`, circuitTile(colour, seed));

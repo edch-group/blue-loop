@@ -2000,7 +2000,14 @@ html.rotated body {
 .card-big .gem { --gs: max(14px, calc(var(--cw, 140px) * 0.085)); }
 .gem .g, .gem .gem-window, .gem .g-disk { position: absolute; inset: 0; display: block; background-size: 100% 100%; }
 .gem-window { border-radius: 50%; overflow: hidden; clip-path: circle(46.5% at 50% 50%); }
-.g-socket { background-image: var(--gem-socket); }
+.gem-dwarf .g-socket { background-image: var(--gem-socketDwarf); }
+.gem-stellar .g-socket { background-image: var(--gem-socketStellar); }
+.gem-anomaly .g-socket { background-image: var(--gem-socketAnomaly); }
+/* A halo of the rarity's colour behind the gem, so it reads at a glance. */
+.gem::before { content: ''; position: absolute; inset: -30%; border-radius: 50%; background: radial-gradient(circle, var(--gem-halo) 0%, transparent 68%); opacity: 0.85; }
+.gem-dwarf { --gem-halo: rgba(170, 205, 255, 0.95); }
+.gem-stellar { --gem-halo: rgba(255, 196, 90, 0.95); }
+.gem-anomaly { --gem-halo: rgba(185, 125, 255, 0.95); }
 .g-glass { background-image: var(--gem-glass); }
 
 /* White dwarf: a searing point whose glare breathes and twinkles. */
@@ -2263,7 +2270,8 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 0 2px color-mix(in srgb, var(--kc) 30%, transparent), 0 3px 8px rgba(40, 40, 60, 0.18);
 }
 .art { display: block; width: 100%; height: 100%; }
-.card .art-frame { width: calc(100% + 4%); margin: 0 -2%; }
+.art-wrap { position: relative; display: block; width: 100%; height: 100%; }
+.card .art-wrap { width: calc(100% + 4%); margin: 0 -2%; }
 
 
 /* ---------- Deck builder: real cards, always the same shape and size ---------- */
@@ -2319,3 +2327,29 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .oth { overflow: hidden; }
 .oth-foot > span:first-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .oth-next { flex: none; }
+
+/* ---------- The gem sits in a notch cut from the picture's top corner ---------- */
+.card .art-wrap {
+  --gs: max(12px, calc(var(--cw, 100px) * 0.135));
+  --gx: calc(var(--gs) * 0.62);
+  --gr: calc(var(--gs) * 0.5 + max(2px, calc(var(--cw, 100px) * 0.022)));
+  /* The frame's edge and shadow follow the notch (a filter, since the mask would clip a box-shadow). */
+  filter: drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.95)) drop-shadow(0 2px 3px rgba(40, 40, 60, 0.16));
+}
+.card .art-wrap .art-frame { box-shadow: none; }
+.art-notched {
+  -webkit-mask: radial-gradient(circle at calc(100% - var(--gx)) var(--gx), transparent var(--gr), #000 calc(var(--gr) + 0.6px));
+  mask: radial-gradient(circle at calc(100% - var(--gx)) var(--gx), transparent var(--gr), #000 calc(var(--gr) + 0.6px));
+}
+.card .art-wrap .gem { --gs: inherit; top: var(--gx); right: var(--gx); width: var(--gs); height: var(--gs); transform: translate(50%, -50%); }
+
+/* ---------- Card stock: faint circuit traces, in the rarity's colour ---------- */
+.card {
+  background-color: #fbfbfc;
+  background-image: var(--circuit-dwarf), linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(240, 243, 248, 0.95));
+  background-size: calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05), 100% 100%;
+  background-position: 0 0, 0 0;
+}
+.card.rarity-stellar { background-image: var(--circuit-stellar), linear-gradient(180deg, rgba(255, 253, 246, 0.98), rgba(250, 240, 218, 0.95)); }
+.card.rarity-anomaly { background-image: var(--circuit-anomaly), linear-gradient(180deg, rgba(253, 250, 255, 0.98), rgba(238, 229, 251, 0.95)); }
+.card .card-glyph { display: block; }

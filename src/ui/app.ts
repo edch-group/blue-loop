@@ -45,7 +45,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardArt, cardGlyph, KIND_COLOUR, rarityGem, typeLine } from './glyphs';
+import { cardArt, cardGlyph, KIND_COLOUR, typeLine } from './glyphs';
 import { MENU_ICON } from './menu-icon';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
@@ -1553,8 +1553,7 @@ export class App {
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
       <button class="card kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
-        ${rarityGem(def)}
-        <div class="card-glyph">${cardArt(def)}</div>
+        <div class="card-glyph">${cardArt(def, true)}</div>
         ${growth}${resonance}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>
@@ -1567,8 +1566,7 @@ export class App {
     const def = cardDef(defId);
     return `
       <div class="card card-big kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
-        ${rarityGem(def)}
-        <div class="card-glyph">${cardArt(def)}</div>
+        <div class="card-glyph">${cardArt(def, true)}</div>
         ${growth ? `<span class="growth">${growth}</span>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${esc(def.text)}</div>

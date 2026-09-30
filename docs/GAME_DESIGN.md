@@ -149,15 +149,15 @@ A cancelled card still uses the play and goes to its owner's discard pile. The A
 
 ## Rarity [design review]
 
-Every card has a rarity, shown by a small animated gem in its top corner. The gem is a tiny cabochon of dark glass in a silver bezel, with a glowing body inside it. The images are rendered by `scripts/render_gems.py`.
+Every card has a rarity. It shows in two places: a small animated gem set in a notch cut from the top corner of the card's picture, and the card stock itself. The gem is a polished cabochon in a bezel, with a glowing body inside and a halo of its colour behind it. The images are rendered by `scripts/render_gems.py`.
 
-| Rarity | Gem | Deck limit |
-| --- | --- | --- |
-| White Dwarf (standard) | A searing blue-white point whose glare breathes and twinkles | 2 copies |
-| Stellar | A granulated, limb-darkened sun turning slowly in its corona | 2 copies |
-| Anomaly | A black hole: a lensed glow over the shadow, and an accretion disk that streams around it and passes in front; never at rest | **1 copy** (unique) [proposed] |
+| Rarity | Gem | Card stock | Deck limit |
+| --- | --- | --- | --- |
+| White Dwarf (standard) | Icy blue glass in a silver bezel; a searing blue-white point whose glare breathes and twinkles | Pearl, with faint steel-blue circuit traces | 2 copies |
+| Stellar | Amber glass in a gold bezel; a granulated sun turning slowly in its corona | Warm cream, with faint gold traces and a gold edge | 2 copies |
+| Anomaly | Deep violet glass in a violet-silver bezel; a black hole whose accretion disk streams around it, never at rest | Lavender, with faint violet traces and a violet edge | **1 copy** (unique) [proposed] |
 
-The line at the bottom of a card shows only its type and race; rarity shows only in the gem. Stellar and Anomaly cards also get a faint gold or violet edge. In the campaign, rarer cards cost more in the armory (3 / 5 / 8 materials, +1 for a race card) and turn up less often there and in mission rewards.
+The card stock is a faint circuit board: thin traces running straight and in 45° bends between solder pads, with vias and the odd chip. It is drawn once per rarity as a tile, and kept light so it never competes with the picture or the text. In the campaign, rarer cards cost more in the armory (3 / 5 / 8 materials, +1 for a race card) and turn up less often there and in mission rewards. The line at the bottom of a card shows only its type and race.
 
 ## Card art [design review]
 
