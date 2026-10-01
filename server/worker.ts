@@ -1,5 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
-import { emptyRoom, handle, views, type ClientMessage, type RoomData, type ServerMessage } from './room';
+import { emptyLadder, enqueue, leaveQueue, recordResult, standing, type LadderData, type LadderPlayer, type Queued } from './ladder';
+import { rankName } from '../src/engine/progression';
+import { emptyRoom, handle, views, type ClientMessage, type RankedReport, type RoomData, type ServerMessage } from './room';
 
 /**
  * The Blue Loop server: the game's static files (built by Vite into dist/)
@@ -8,8 +10,12 @@ import { emptyRoom, handle, views, type ClientMessage, type RoomData, type Serve
 
 interface Env {
   ROOMS: DurableObjectNamespace<Room>;
+  LADDER: DurableObjectNamespace<Ladder>;
   ASSETS: Fetcher;
 }
+
+/** The one ladder for the whole game. */
+const ladderOf = (env: Env) => env.LADDER.get(env.LADDER.idFromName('ladder'));
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -18,6 +24,10 @@ export default {
     if (m) {
       if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket.', { status: 426 });
       return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(request);
+    }
+    if (url.pathname === '/ladder') {
+      if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket.', { status: 426 });
+      return ladderOf(env).fetch(request);
     }
     return env.ASSETS.fetch(request);
   },
@@ -32,7 +42,17 @@ export class Room extends DurableObject<Env> {
     return this.data;
   }
 
-  async fetch(): Promise<Response> {
+  async fetch(request: Request): Promise<Response> {
+    // The ladder made this room for two matched players: it is ranked, and only for them.
+    if (request.method === 'POST' && new URL(request.url).pathname === '/setup') {
+      const { ids } = (await request.json()) as { ids: string[] };
+      const room = await this.load();
+      if (!room.seats.length && !room.game) {
+        room.ranked = { ids: ids.map(String).slice(0, 2) };
+        await this.ctx.storage.put('room', room);
+      }
+      return new Response('ok');
+    }
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
     pair[1].serializeAttachment({ seat: null });
@@ -60,6 +80,7 @@ export class Room extends DurableObject<Env> {
       }
     }
     if (msg.t === 'join') this.presence();
+    if (out.report) await this.reportRanked(room, out.report);
     // Rooms tidy themselves away: an hour after a game ends, or after a day without play.
     await this.ctx.storage.setAlarm(Date.now() + (room.game?.winnerId ? 3600 : 24 * 3600) * 1000);
   }
@@ -72,6 +93,22 @@ export class Room extends DurableObject<Env> {
     }
     await this.release(ws);
     this.presence(ws);
+  }
+
+  /** A ranked game ended: the ladder moves both players and says what each earned; each hears their own result. */
+  private async reportRanked(room: RoomData, report: RankedReport) {
+    let outcomes: { id: string; won: boolean; reward: { stardust: number; flux: number; xp: number; rank?: number }; rankPoints: number; rankName: string }[] = [];
+    try {
+      const res = await ladderOf(this.env).fetch('https://ladder/result', { method: 'POST', body: JSON.stringify(report) });
+      outcomes = await res.json();
+    } catch {
+      return;
+    }
+    for (const ws of this.ctx.getWebSockets()) {
+      const s = seatOf(ws);
+      const o = s !== null ? outcomes.find((x) => x.id === room.seats[s]?.profileId) : undefined;
+      if (o) send(ws, { t: 'ranked', won: o.won, reward: o.reward, rankPoints: o.rankPoints, rankName: o.rankName });
+    }
   }
 
   /** A player who leaves (or loses their connection) no longer holds up their rival, who was waiting for them to read a card. */
@@ -118,5 +155,123 @@ function send(ws: WebSocket, msg: ServerMessage) {
     ws.send(JSON.stringify(msg));
   } catch {
     // The connection is gone; it will rejoin.
+  }
+}
+
+/** What a client may send the ladder. */
+type LadderMessage = { t: 'queue'; id: string; name: string } | { t: 'leave' } | { t: 'standing'; id: string } | { t: 'ping' };
+
+/** A room code for a ranked match (longer than a friend's, so it never clashes with one). */
+function rankedCode(): string {
+  const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 8 }, () => abc[Math.floor(Math.random() * abc.length)]).join('');
+}
+
+/**
+ * The ranked ladder (one for the whole game): players queue over a WebSocket,
+ * are matched within a tier of each other and sent to a room made for them;
+ * rooms post results back here. Each player's standing is stored under their
+ * profile id.
+ */
+export class Ladder extends DurableObject<Env> {
+  private queue: Queued[] | null = null;
+
+  private async ladder(ids: string[]): Promise<LadderData> {
+    this.queue ??= (await this.ctx.storage.get<Queued[]>('queue')) ?? [];
+    const data = emptyLadder();
+    data.queue = this.queue;
+    for (const id of ids) {
+      const p = await this.ctx.storage.get<LadderPlayer>(`p:${id}`);
+      if (p) data.players[id] = p;
+    }
+    return data;
+  }
+
+  private async save(data: LadderData) {
+    this.queue = data.queue;
+    await this.ctx.storage.put('queue', data.queue);
+    for (const [id, p] of Object.entries(data.players)) await this.ctx.storage.put(`p:${id}`, p);
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    if (request.method === 'POST' && new URL(request.url).pathname === '/result') {
+      const r = (await request.json()) as RankedReport;
+      const data = await this.ladder([r.winner, r.loser]);
+      const outcomes = recordResult(data, r.winner, r.loser, r.conceded);
+      await this.save(data);
+      return Response.json(outcomes);
+    }
+    const pair = new WebSocketPair();
+    this.ctx.acceptWebSocket(pair[1]);
+    pair[1].serializeAttachment({ id: null });
+    return new Response(null, { status: 101, webSocket: pair[0] });
+  }
+
+  async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) {
+    let msg: LadderMessage;
+    try {
+      msg = JSON.parse(typeof raw === 'string' ? raw : new TextDecoder().decode(raw));
+    } catch {
+      return;
+    }
+    const clean = (v: unknown, n: number) => String(v ?? '').replace(/[^\p{L}\p{N} '’.-]/gu, '').trim().slice(0, n);
+    if (msg.t === 'ping') return void ws.send(JSON.stringify({ t: 'pong' }));
+    if (msg.t === 'standing') {
+      const id = clean(msg.id, 40);
+      const data = await this.ladder([id]);
+      const p = data.players[id];
+      return void ws.send(JSON.stringify({ t: 'standing', rankPoints: p?.rankPoints ?? 0, rankName: rankName(p?.rankPoints ?? 0) }));
+    }
+    if (msg.t === 'leave') {
+      const id = (ws.deserializeAttachment() as { id: string | null })?.id;
+      if (!id) return;
+      const data = await this.ladder([]);
+      leaveQueue(data, id);
+      await this.save(data);
+      return;
+    }
+    if (msg.t === 'queue') {
+      const id = clean(msg.id, 40);
+      const name = clean(msg.name, 18) || 'Player';
+      if (!id) return;
+      ws.serializeAttachment({ id });
+      // Only players still connected can be matched.
+      const live = new Set(this.ctx.getWebSockets().map((w) => (w.deserializeAttachment() as { id: string | null })?.id).filter(Boolean));
+      const data = await this.ladder([id, ...(this.queue ?? (await this.ctx.storage.get<Queued[]>('queue')) ?? []).map((q) => q.id)]);
+      data.queue = data.queue.filter((q) => live.has(q.id));
+      const match = enqueue(data, id, name, Date.now(), rankedCode);
+      await this.save(data);
+      if (!match) {
+        const me = standing(data, id, name);
+        return void ws.send(JSON.stringify({ t: 'queued', rankPoints: me.rankPoints, rankName: rankName(me.rankPoints) }));
+      }
+      // Make the room for the two of them, then send both there.
+      await this.env.ROOMS.get(this.env.ROOMS.idFromName(match.room)).fetch('https://room/setup', { method: 'POST', body: JSON.stringify({ ids: match.players.map((p) => p.id) }) });
+      for (const w of this.ctx.getWebSockets()) {
+        const wid = (w.deserializeAttachment() as { id: string | null })?.id;
+        const me = match.players.find((p) => p.id === wid);
+        const rival = match.players.find((p) => p.id !== wid);
+        if (me && rival) {
+          try {
+            w.send(JSON.stringify({ t: 'match', room: match.room, rival: { name: rival.name, rankName: rankName(rival.rankPoints) }, rankPoints: me.rankPoints }));
+          } catch {
+            // Gone: they will find the room empty of them, and their rival can leave.
+          }
+        }
+      }
+    }
+  }
+
+  async webSocketClose(ws: WebSocket, code: number) {
+    try {
+      ws.close(code === 1005 ? 1000 : code);
+    } catch {
+      // Already closed.
+    }
+    const id = (ws.deserializeAttachment() as { id: string | null })?.id;
+    if (!id) return;
+    const data = await this.ladder([]);
+    leaveQueue(data, id);
+    await this.save(data);
   }
 }

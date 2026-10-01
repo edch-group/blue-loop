@@ -56,10 +56,10 @@ import { factionAvatar } from './factions';
 import { anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
-import { buyBooster, grantReward, owned, profile, type RewardResult } from './profile';
+import { buyBooster, grantReward, owned, profile, setRankPoints, type RewardResult } from './profile';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
-import { cleanCode, hasSeat, inviteLink, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
+import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
 import { animateSuns } from './sun3d';
 import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
 
@@ -170,6 +170,8 @@ export class App {
   private screen: Screen = 'menu';
   /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
   private menuPage: MenuPage = 'title';
+  /** The ranked ladder, while queued for a match. */
+  private ladder: LadderClient | null = null;
   /** The booster just opened in the shop. */
   private opened: { kind: BoosterKind; cards: BoosterCard[] } | null = null;
   private state: GameState | null = null;
@@ -223,6 +225,8 @@ export class App {
     rivalOnline: true,
     /** Online: whether this is a ranked game (its reward comes from the server). */
     ranked: false,
+    /** Queued on the ranked ladder, looking for a match. */
+    searching: false,
     /** Online: 'you' must confirm the rival's card; the 'rival' is reading yours (you wait). */
     waitFor: null as 'you' | 'rival' | null,
   };
@@ -319,7 +323,7 @@ export class App {
   private joinInfo() {
     const seat = this.seats[0];
     const deck = deckById(seat.deckId) ?? PRESETS[0];
-    return { name: seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race };
+    return { name: seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race, profileId: profile().id };
   }
 
   private goOnline(code?: string) {
@@ -330,9 +334,10 @@ export class App {
       room,
       this.joinInfo(),
       {
-        lobby: (seats, you) => {
+        lobby: (seats, you, ranked) => {
           this.net.lobby = seats;
           this.net.you = you;
+          this.net.ranked = ranked;
           // After a game ("play again"), both players come back to the lobby to confirm again.
           if (this.screen === 'game') {
             if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
@@ -343,9 +348,16 @@ export class App {
           }
           if (this.screen === 'menu') this.render();
         },
-        state: (state, you, last, waitFor) => {
+        state: (state, you, last, waitFor, ranked) => {
           this.net.waitFor = waitFor;
+          this.net.ranked = ranked;
           this.onRemoteState(state, you, last);
+        },
+        ranked: (r) => {
+          // The ladder's word on a ranked game: what it earned, and where it left you.
+          setRankPoints(r.rankPoints);
+          this.resultExtra = this.rewardLine(grantReward(r.reward, r.won));
+          this.render();
         },
         presence: (rivalOnline) => {
           if (this.net.rivalOnline === rivalOnline) return;
@@ -370,7 +382,45 @@ export class App {
     this.render();
   }
 
+  /** Queue for a ranked match: the ladder finds a rival within a tier of you, then both go to a room made for you. */
+  private findRanked() {
+    this.ladder?.close();
+    const p = profile();
+    this.net.searching = true;
+    this.ladder = new LadderClient(p.id, this.joinInfo().name, {
+      queued: (rp) => {
+        setRankPoints(rp);
+        this.render();
+      },
+      match: (room, rival, rp) => {
+        setRankPoints(rp);
+        this.ladder?.close();
+        this.ladder = null;
+        this.net.searching = false;
+        this.showToast(`Matched with ${rival.name} (${rival.rankName.toLowerCase()})`, 'info');
+        this.goOnline(room);
+      },
+      lost: () => {
+        this.ladder = null;
+        this.net.searching = false;
+        this.showToast("Couldn't reach the ranked ladder.", 'error');
+        this.render();
+      },
+    });
+    this.render();
+  }
+
+  private cancelRanked() {
+    this.ladder?.close();
+    this.ladder = null;
+    this.net.searching = false;
+    this.render();
+  }
+
   private leaveOnline() {
+    this.ladder?.close();
+    this.ladder = null;
+    this.net.searching = false;
     this.online?.close();
     this.online = null;
     this.net.lobby = null;
@@ -1397,6 +1447,16 @@ export class App {
         return this.returnToCampaign(false);
       case 'campaign-auto':
         return this.returnToCampaign(true);
+      case 'ranked-find':
+        return this.findRanked();
+      case 'ranked-cancel':
+        return this.cancelRanked();
+      case 'ranked-again':
+        this.leaveOnline();
+        this.screen = 'menu';
+        this.menuPage = 'online';
+        this.state = null;
+        return this.findRanked();
       case 'buy-booster': {
         const kind: BoosterKind = arg === 'general' ? 'general' : (Number(arg) as BoosterKind);
         const cards = buyBooster(kind);
@@ -1753,6 +1813,11 @@ export class App {
               <p>Get a room code and an invite link to send a friend.</p>
               <button class="btn-primary" data-act="online-create">create room</button>
             </div>
+            <div class="online-box online-ranked">
+              <b>ranked</b>
+              <p>${profile().rankPoints === null ? 'Play rivals within one rank of you, and climb from Olivine I.' : `You are ${esc(rankName(profile().rankPoints!))}. You meet rivals within one rank of you.`}</p>
+              ${this.net.searching ? '<span class="muted">searching for a rival…</span><button class="btn" data-act="ranked-cancel">cancel</button>' : '<button class="btn-primary" data-act="ranked-find">find a match</button>'}
+            </div>
             <div class="online-box">
               <b>join a game</b>
               <p>Enter the code your friend sent you.</p>
@@ -1774,12 +1839,14 @@ export class App {
     return this.setupPage(
       'play online',
       `<div class="online-wrap">
-        <div class="online-room">
+        ${this.net.ranked
+          ? `<div class="online-room"><small>ranked match</small><b class="online-room-code online-ranked-title">${rival ? `vs ${esc(rival.name)}` : 'matched'}</b><span class="muted">a win climbs the ladder · ${profile().rankPoints !== null ? esc(rankName(profile().rankPoints!).toLowerCase()) : 'olivine i'}</span></div>`
+          : `<div class="online-room">
           <small>room code</small>
           <b class="online-room-code">${code}</b>
           <button class="btn" data-act="online-share">share invite link</button>
           <span class="muted online-link">${esc(inviteLink(code))}</span>
-        </div>
+        </div>`}
         <div class="online-seats">
           ${you(tag(ready, 'not ready'))}
           <span class="online-vs">vs</span>
@@ -1968,7 +2035,9 @@ export class App {
     const why = quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} round${s.round === 1 ? "" : "s"}.`;
     const actions = this.campaignBattle
       ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
-      : this.online
+      : this.online && this.net.ranked
+        ? '<div class="result-actions"><button class="btn-primary" data-act="ranked-again">find another match</button><button class="btn" data-act="to-menu">return to menu</button></div>'
+        : this.online
         ? quitter
           ? '<button class="btn-primary" data-act="to-menu">return to menu</button>'
           : '<div class="result-actions"><button class="btn-primary" data-act="online-rematch">play again</button><button class="btn" data-act="to-menu">return to menu</button></div>'

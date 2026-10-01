@@ -2612,3 +2612,5 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .result-rewards span:nth-child(2) { color: #6d6fd0; }
 .rw-level { color: #3a9e6a; letter-spacing: 0.1em; text-transform: uppercase; }
 .rw-rank { color: var(--ink-soft); letter-spacing: 0.08em; text-transform: uppercase; }
+
+.online-ranked-title { font-size: clamp(1.4rem, calc(6 * var(--vh)), 2.6rem) !important; letter-spacing: 0.2em; }

@@ -368,6 +368,32 @@ Two players, each on their own device. From **Quickplay → play online**, one p
 - **Rematches** alternate who goes first. Rooms delete themselves after a day without play.
 - **Code:** `server/room.ts` holds the room logic (tested in `tests/room.test.ts`), `server/worker.ts` the Worker and Durable Object, and `src/ui/online.ts` the client connection.
 
+## Progression, collection and ranks [design review]
+
+Outside a single game, each player has a **profile** (kept on their device): a level, two currencies and a card collection. The rules live in `src/engine/progression.ts` (all the numbers in its `PROGRESSION` table), the profile in `src/ui/profile.ts`.
+- **Stardust ✦** buys booster packs (and cosmetics, once there are some). **Flux ⟁** crafts cards you don't own.
+- **Experience** raises your level (100 for the first, 25 more for each after). Every level brings ✦50 and ⟁10.
+- **Every game pays out**, and online pays far more:
+
+| Game | Win | Loss |
+| --- | --- | --- |
+| Against the AI (quickplay or campaign battle) | ✦20 ⟁5, 40 xp | ✦8 ⟁2, 20 xp |
+| Online, with a friend | ✦60 ⟁15, 100 xp | ✦25 ⟁6, 50 xp |
+| Ranked (against an equal) | ✦120 ⟁30, 160 xp | ✦50 ⟁12, 80 xp |
+
+  Hot-seat games pay nothing (both players share one profile). Conceding earns half the experience and no currency. The reward shows under the result on the board.
+
+**The collection.** You start with the cards of the four starter decks (enough to play each). The deck builder greys out cards you don't own and lets a deck use only as many copies as you own.
+- **Booster packs (✦100):** one for each race (only that race's cards) and a general one (every card of no race: neutral cards, Command, global and Lightspeed cards). Five cards: three White Dwarfs, a fourth that is Stellar 30% of the time, and a fifth that is Stellar, or an Anomaly 18% of the time. A copy beyond what a deck can use (2, or 1 for an Anomaly) comes as its breakdown value in flux instead.
+- **Crafting:** ⟁40 for a White Dwarf, ⟁100 for a Stellar card, ⟁400 for an Anomaly. **Breaking down** returns half (⟁20, ⟁50, ⟁200). Starter cards can't be broken down; extra copies beyond the starter grant can.
+
+**Ranks** (ranked online games only). Six tiers, named after rare matter found in space, lowest first: **Olivine, Cobalt, Iridium, Lonsdaleite, Neutronium, Strange Matter**. Each has three stages, I to III; each stage is 100 rank points. Everyone starts at Olivine I.
+- **Matchmaking:** from play online → ranked → find a match. The ladder pairs you with the longest-waiting player at most **one tier** above or below you (an Iridium player can meet any stage of Cobalt, Iridium or Lonsdaleite). The two go to a room made for them: it admits only them, and is one game (no rematch).
+- **Rank points:** a win is worth 25 against an equal, a loss costs 20. Each stage of difference changes that by 15%: beating a higher rank climbs further, beating a lower one less; losing to a higher rank costs less, losing to a lower one more. You never drop below Olivine I.
+- **Currency and experience** follow the gap too: each stage your rival is above you adds 20% to a win (down to 40% of it against lower ranks). For a loss, each stage they're above you adds 30%; each stage below takes 30% away, and losing to a lower-ranked player at the very bottom of the ladder earns nothing.
+- **The server keeps ranks.** A Ladder Durable Object (`server/ladder.ts`, wrapped in `server/worker.ts`) stores every ranked player's standing by profile id and runs the queue. The room reports the result, and the ladder works out both players' rank change and rewards and sends each their own.
+- **Not yet:** profiles have no accounts, so a profile is tied to its browser, and currencies and the collection are kept on the device (only ranks are on the server). Cosmetics aren't in yet.
+
 ## The battle table
 
 The whole play area is a table seen in perspective, like a tabletop simulator. A flat HUD sits above it:

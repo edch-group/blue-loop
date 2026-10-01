@@ -22,9 +22,11 @@ export interface LobbySeat {
 }
 
 export interface OnlineEvents {
-  lobby(seats: LobbySeat[], you: number): void;
-  /** `waitFor`: 'you' when you must confirm the card your rival just played, 'rival' while they read yours. */
-  state(state: GameState, you: string, last: LastMove | null, waitFor: 'you' | 'rival' | null): void;
+  lobby(seats: LobbySeat[], you: number, ranked: boolean): void;
+  /** `waitFor`: 'you' when you must confirm the card your rival just played, 'rival' while they read yours. `ranked`: a ranked match. */
+  state(state: GameState, you: string, last: LastMove | null, waitFor: 'you' | 'rival' | null, ranked: boolean): void;
+  /** A ranked game's result for you, from the ladder. */
+  ranked?(result: RankedResult): void;
   error(message: string): void;
   /** Whether the rival is connected right now. */
   presence(rivalOnline: boolean): void;
@@ -37,6 +39,15 @@ export interface JoinInfo {
   deck: string[];
   deckName: string;
   species: number;
+  /** Your profile id (ranked rooms admit only the two players matched). */
+  profileId?: string;
+}
+
+export interface RankedResult {
+  won: boolean;
+  reward: { stardust: number; flux: number; xp: number; rank?: number };
+  rankPoints: number;
+  rankName: string;
 }
 
 /** Room codes: five letters and digits, without the ones easily confused (0/O, 1/I). */
@@ -51,8 +62,12 @@ export function cleanCode(s: string): string {
 
 /** Where the rooms are: the same server as the page, unless the build names another (VITE_SERVER_URL). */
 function serverUrl(code: string): string {
+  return `${serverBase()}/room/${code}`;
+}
+
+function serverBase(): string {
   const base = (import.meta.env.VITE_SERVER_URL as string | undefined) || location.origin;
-  return `${base.replace(/^http/, 'ws').replace(/\/$/, '')}/room/${code}`;
+  return base.replace(/^http/, 'ws').replace(/\/$/, '');
 }
 
 /** An invite link to a room. */
@@ -121,10 +136,13 @@ export class OnlineClient {
           }
           break;
         case 'lobby':
-          this.on.lobby(msg.seats as LobbySeat[], msg.you as number);
+          this.on.lobby(msg.seats as LobbySeat[], msg.you as number, !!msg.ranked);
           break;
         case 'state':
-          this.on.state(msg.state as GameState, msg.you as string, (msg.last as LastMove | null) ?? null, (msg.waitFor as 'you' | 'rival' | null) ?? null);
+          this.on.state(msg.state as GameState, msg.you as string, (msg.last as LastMove | null) ?? null, (msg.waitFor as 'you' | 'rival' | null) ?? null, !!msg.ranked);
+          break;
+        case 'ranked':
+          this.on.ranked?.(msg as unknown as RankedResult);
           break;
         case 'error':
           this.on.error(String(msg.message));
@@ -183,5 +201,52 @@ export class OnlineClient {
     this.closed = true;
     if (this.ping !== null) window.clearInterval(this.ping);
     this.ws?.close();
+  }
+}
+
+export interface LadderEvents {
+  /** In the queue: your rank as the ladder has it. */
+  queued(rankPoints: number, rankName: string): void;
+  /** Matched: the room made for you and your rival. */
+  match(room: string, rival: { name: string; rankName: string }, rankPoints: number): void;
+  /** The connection to the ladder failed. */
+  lost(): void;
+}
+
+/**
+ * The ranked ladder (see server/ladder.ts): a WebSocket to /ladder that
+ * queues you for a ranked match and tells you which room to join once a rival
+ * within a tier of you is found.
+ */
+export class LadderClient {
+  private ws: WebSocket;
+  private closed = false;
+
+  constructor(id: string, name: string, private on: LadderEvents) {
+    this.ws = new WebSocket(`${serverBase()}/ladder`);
+    this.ws.onopen = () => this.ws.send(JSON.stringify({ t: 'queue', id, name }));
+    this.ws.onmessage = (e) => {
+      let msg: { t: string; [k: string]: unknown };
+      try {
+        msg = JSON.parse(String(e.data));
+      } catch {
+        return;
+      }
+      if (msg.t === 'queued') this.on.queued(Number(msg.rankPoints), String(msg.rankName));
+      if (msg.t === 'match') this.on.match(String(msg.room), msg.rival as { name: string; rankName: string }, Number(msg.rankPoints));
+    };
+    this.ws.onclose = () => {
+      if (!this.closed) this.on.lost();
+    };
+  }
+
+  close() {
+    this.closed = true;
+    try {
+      this.ws.send(JSON.stringify({ t: 'leave' }));
+    } catch {
+      // Not open.
+    }
+    this.ws.close();
   }
 }

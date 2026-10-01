@@ -20,6 +20,8 @@ export interface Seat {
   species: number;
   /** Confirmed in the lobby: the game starts once both seats are ready. */
   ready?: boolean;
+  /** The player's profile id (ranked rooms admit only the two players matched). */
+  profileId?: string;
 }
 
 export interface RoomData {
@@ -36,6 +38,8 @@ export interface RoomData {
    * before the player who played it may act again (null: nobody is waited on).
    */
   waitingOn?: number | null;
+  /** A ranked room: the profile ids of the two players the ladder matched, and whether the result has gone back to it. */
+  ranked?: { ids: string[]; reported?: boolean };
 }
 
 export interface LastMove {
@@ -48,7 +52,7 @@ export interface LastMove {
 
 /** What a client may send. */
 export type ClientMessage =
-  | { t: 'join'; name: string; deck: string[]; deckName: string; species: number; token?: string }
+  | { t: 'join'; name: string; deck: string[]; deckName: string; species: number; token?: string; profileId?: string }
   | { t: 'action'; action: Action }
   | { t: 'rematch' }
   /** In the lobby: change your name, deck or race (this un-readies you). */
@@ -62,9 +66,11 @@ export type ClientMessage =
 /** What the room sends. */
 export type ServerMessage =
   | { t: 'joined'; seat: number; token: string }
-  | { t: 'lobby'; seats: { name: string; deckName: string; species: number; ready: boolean }[]; you: number }
+  | { t: 'lobby'; seats: { name: string; deckName: string; species: number; ready: boolean }[]; you: number; ranked: boolean }
   /** `waitFor`: 'you' when you must confirm your rival's card, 'rival' while they read yours. */
-  | { t: 'state'; state: GameState; you: string; last: LastMove | null; names: string[]; waitFor: 'you' | 'rival' | null }
+  | { t: 'state'; state: GameState; you: string; last: LastMove | null; names: string[]; waitFor: 'you' | 'rival' | null; ranked: boolean }
+  /** A ranked game's result for you: what it earned, and where it left you on the ladder. */
+  | { t: 'ranked'; won: boolean; reward: { stardust: number; flux: number; xp: number; rank?: number }; rankPoints: number; rankName: string }
   | { t: 'error'; message: string }
   | { t: 'pong' }
   /** Whether the other player is connected right now (sent by the worker as connections come and go). */
@@ -84,12 +90,35 @@ export function emptyRoom(): RoomData {
  * holds (or null before it has joined). Returns what to send: to this
  * connection only (`reply`), and whether everyone's view changed (`broadcast`).
  */
+/** A ranked game has just ended: who won and lost (by profile id), for the ladder. */
+export interface RankedReport {
+  winner: string;
+  loser: string;
+  conceded: boolean;
+}
+
 export function handle(
   room: RoomData,
   seat: number | null,
   msg: ClientMessage,
   random: () => number = Math.random,
-): { seat: number | null; reply: ServerMessage[]; broadcast: boolean } {
+): { seat: number | null; reply: ServerMessage[]; broadcast: boolean; report?: RankedReport } {
+  const out = handleMessage(room, seat, msg, random);
+  // A ranked game that just ended goes back to the ladder (once).
+  const g = room.game;
+  if (room.ranked && !room.ranked.reported && g?.winnerId) {
+    const winnerSeat = [0, 1].find((s) => g.players[playerIndex(room, s)]?.id === g.winnerId);
+    const winner = winnerSeat !== undefined ? room.seats[winnerSeat]?.profileId : undefined;
+    const loser = winnerSeat !== undefined ? room.seats[1 - winnerSeat]?.profileId : undefined;
+    if (winner && loser) {
+      room.ranked.reported = true;
+      return { ...out, report: { winner, loser, conceded: !!g.concededBy } };
+    }
+  }
+  return out;
+}
+
+function handleMessage(room: RoomData, seat: number | null, msg: ClientMessage, random: () => number): { seat: number | null; reply: ServerMessage[]; broadcast: boolean } {
   switch (msg.t) {
     case 'ping':
       return { seat, reply: [{ t: 'pong' }], broadcast: false };
@@ -98,8 +127,12 @@ export function handle(
       const back = msg.token ? room.seats.findIndex((s) => s.token === msg.token) : -1;
       if (back >= 0) return { seat: back, reply: [{ t: 'joined', seat: back, token: room.seats[back].token }], broadcast: true };
       if (room.seats.length >= 2) return { seat, reply: [{ t: 'error', message: 'This room is full.' }], broadcast: false };
+      // A ranked room is only for the two players the ladder matched.
+      if (room.ranked && (!msg.profileId || !room.ranked.ids.includes(msg.profileId) || room.seats.some((s) => s.profileId === msg.profileId))) {
+        return { seat, reply: [{ t: 'error', message: 'This ranked match is for two other players.' }], broadcast: false };
+      }
       const token = Array.from({ length: 24 }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(random() * 36)]).join('');
-      room.seats.push({ token, ...seatSetup(msg, room.seats.length), ready: false });
+      room.seats.push({ token, ...seatSetup(msg, room.seats.length), ready: false, profileId: typeof msg.profileId === 'string' ? msg.profileId.slice(0, 40) : undefined });
       const mine = room.seats.length - 1;
       return { seat: mine, reply: [{ t: 'joined', seat: mine, token }], broadcast: true };
     }
@@ -154,6 +187,7 @@ export function handle(
       if (seat === null || !room.game?.winnerId) return { seat, reply: [], broadcast: false };
       // Whoever conceded has left the room: there is no one to play again.
       if (room.game.concededBy) return { seat, reply: [{ t: 'error', message: 'Your rival has left the room.' }], broadcast: false };
+      if (room.ranked) return { seat, reply: [{ t: 'error', message: 'A ranked match is one game: find another match to play again.' }], broadcast: false };
       // Back to the lobby, where both can change deck or race and confirm again.
       room.game = null;
       room.last = null;
@@ -238,11 +272,11 @@ export function views(room: RoomData): ServerMessage[] {
   const g = room.game;
   if (!g) {
     const seats = room.seats.map((s) => ({ name: s.name, deckName: s.deckName, species: s.species, ready: !!s.ready }));
-    return room.seats.map((_, i) => ({ t: 'lobby', seats, you: i }));
+    return room.seats.map((_, i) => ({ t: 'lobby', seats, you: i, ranked: !!room.ranked }));
   }
   return room.seats.map((_, seat) => {
     const i = playerIndex(room, seat);
     const waitFor = room.waitingOn == null || g.winnerId ? null : room.waitingOn === seat ? 'you' : 'rival';
-    return { t: 'state', state: viewFor(g, i), you: g.players[i].id, last: room.last, names: room.seats.map((s) => s.name), waitFor };
+    return { t: 'state', state: viewFor(g, i), you: g.players[i].id, last: room.last, names: room.seats.map((s) => s.name), waitFor, ranked: !!room.ranked };
   });
 }
