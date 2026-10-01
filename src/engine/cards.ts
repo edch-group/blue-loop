@@ -76,9 +76,9 @@ export const CARDS: CardDef[] = [
     id: 'the_admiralty',
     name: 'The Admiralty',
     kind: 'command',
-    text: '{resonance:1}. {dawn}, one of: {options:heat2|cool3|draw1}',
+    text: '{resonance:2}. {dawn}, one of: {options:heat2|cool3|draw1}',
     choices: COMMAND_CHOICES,
-    passive: [{ type: 'adjacent', amounts: [1] }],
+    passive: [{ type: 'adjacent', amounts: [2] }],
   },
 
   // ---- Keeping your Command cards in play ----
@@ -110,8 +110,8 @@ export const CARDS: CardDef[] = [
     id: 'harmonic_singularity',
     name: 'Harmonic Singularity',
     kind: 'growth',
-    text: "{resonance:2/1}.",
-    passive: [{ type: 'adjacent', amounts: [2, 1] }],
+    text: "{resonance:2/2}.",
+    passive: [{ type: 'adjacent', amounts: [2, 2] }],
   },
 
   // ---- Defence: where your cards sit, and what guards them ----
@@ -127,10 +127,11 @@ export const CARDS: CardDef[] = [
     id: 'aegis_monolith',
     name: 'Aegis Monolith',
     kind: 'defence',
-    text: "{sturdy:1}. {bulwark:2/1}.",
-    defence: 1,
+    text: "{sturdy:2}. {bulwark:2/2}. {dawn}: {shield:1}.",
+    defence: 2,
     stability: 4,
-    passive: [{ type: 'guard', amounts: [2, 1] }],
+    onTurn: [{ type: 'shield', amount: 1 }],
+    passive: [{ type: 'guard', amounts: [2, 2] }],
   },
 
   // ---- Stability: keeping your cards in play, and sweeping theirs away ----
@@ -186,8 +187,8 @@ export const CARDS: CardDef[] = [
     id: 'event_horizon',
     name: 'Event Horizon',
     kind: 'attack',
-    text: "{destroy:any}. Its neighbours return to their owner's hand.",
-    onPlay: [{ type: 'destroy', neighbours: true }],
+    text: "{destroy:any}. Its neighbours return to their owner's hand. {heat:2}.",
+    onPlay: [{ type: 'destroy', neighbours: true }, { type: 'heat', amount: 2, to: 'target' }],
   },
 
   // ---- Lightspeed: set face down (one at a time); springs during an enemy's day ----
@@ -230,8 +231,8 @@ export const CARDS: CardDef[] = [
     id: 'temporal_snare',
     name: 'Temporal Snare',
     kind: 'lightspeed',
-    text: "{lightspeed}. When an enemy plays a card, cancel it. They may play no more cards today.",
-    lightspeed: { trigger: { on: 'enemyPlays' }, counter: true, effects: [{ type: 'halt' }] },
+    text: "{lightspeed}. When an enemy plays a card, cancel it. They may play no more cards today. Draw 1.",
+    lightspeed: { trigger: { on: 'enemyPlays' }, counter: true, effects: [{ type: 'halt' }, { type: 'draw', amount: 1 }] },
   },
 
   // ---- Aureline: lancers. Many attack cards, each making the others hit harder ----
@@ -252,7 +253,7 @@ export const CARDS: CardDef[] = [
     text: '{heat:1} per attack card you control (up to 3).',
     onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 3 }],
   },
-  { id: 'sunspear', name: 'Sunspear', kind: 'attack', race: 0, text: '{heat:4}. {heat:2} to your sun.', onPlay: [{ type: 'heat', amount: 4, to: 'target' }, { type: 'selfHeat', amount: 2 }] },
+  { id: 'sunspear', name: 'Sunspear', kind: 'attack', race: 0, cost: 2, text: '{heat:6}, {pierce}. {heat:1} to your sun.', onPlay: [{ type: 'heat', amount: 6, to: 'target', pierce: true }, { type: 'selfHeat', amount: 1 }] },
   {
     id: 'dawn_beacon',
     name: 'Dawn Beacon',
@@ -497,8 +498,8 @@ export const CARDS: CardDef[] = [
     name: 'Aurelia, the First Light',
     kind: 'attack',
     race: 0,
-    text: '{dawn}: {heat:1}. {heat:+1} per 2 attack cards (up to 3).',
-    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 3 }],
+    text: '{dawn}: {heat:1}. {heat:+1} per attack card you control (up to 5).',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 5 }],
   },
   {
     id: 'xelnaru_champion',
@@ -514,8 +515,9 @@ export const CARDS: CardDef[] = [
     name: "Kyr'Vessa, Prism Queen",
     kind: 'attack',
     race: 1,
-    text: 'When another of your cards leaves your tableau, {heat:2}.',
-    passive: [{ type: 'allyLeaves', effects: [{ type: 'heat', amount: 2, to: 'target' }] }],
+    text: '{heat:2}. When another of your cards leaves your tableau, {heat:3}.',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target' }],
+    passive: [{ type: 'allyLeaves', effects: [{ type: 'heat', amount: 3, to: 'target' }] }],
   },
   {
     id: 'hero_of_rathune',
@@ -532,8 +534,8 @@ export const CARDS: CardDef[] = [
     name: 'Ommarath, the Deep Bell',
     kind: 'defence',
     race: 2,
-    text: '{dawn}: {shield:2}. {soothe:1}.',
-    onTurn: [{ type: 'shield', amount: 2 }],
+    text: '{dawn}: {shield:3}. {soothe:1}.',
+    onTurn: [{ type: 'shield', amount: 3 }],
     passive: [{ type: 'absorbCool', amount: 1 }],
   },
   {
@@ -550,9 +552,9 @@ export const CARDS: CardDef[] = [
     name: 'The Brood Queen',
     kind: 'growth',
     race: 3,
-    text: '{plays:1}. {dawn}: with 4+ cards, {heat:2}.',
+    text: '{plays:1}. {dawn}: {heat:1}. {heat:+2} with 4+ cards.',
     passive: [{ type: 'extraPlay', amount: 1 }],
-    onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
   // ---- Orbit: cards that move the planets round a sun (dead → abundant → industrial, three turns each) ----
   { id: 'gravity_assist', name: 'Gravity Assist', kind: 'attack', text: '{heat:2}. Your {orbit:+1}.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'orbit', amount: 1, who: 'self' }] },

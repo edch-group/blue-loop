@@ -160,6 +160,8 @@ export interface CardDef {
   onRecover?: Effect[];
   /** Lightspeed cards: what springs it and what it does. */
   lightspeed?: Lightspeed;
+  /** How many of your day's actions it takes to play (default 1; Anomalies 2). */
+  cost?: number;
   /** Extra defence on top of its slot's (sturdy cards). */
   defence?: number;
   /** Turns it stays in your tableau before it fades into your discard pile (default: see BALANCE.stability). */

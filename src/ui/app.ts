@@ -31,6 +31,7 @@ import {
   RACE_NAMES,
   allyChoices,
   cardChoices,
+  cardCost,
   optionText,
   allyEffectKind,
   cardDefence,
@@ -683,7 +684,7 @@ export class App {
     const s = this.state;
     if (!s || !this.canAct() || this.pending) return;
     const me = activePlayer(s);
-    const playable = me.playsLeft > 0 && me.hand.some((c) => hasRoomFor(me, c.defId) && (cardDef(c.defId).kind !== 'lightspeed' || canSetLightspeed(me)));
+    const playable = me.playsLeft > 0 && me.hand.some((c) => cardCost(c.defId) <= me.playsLeft && hasRoomFor(me, c.defId) && (cardDef(c.defId).kind !== 'lightspeed' || canSetLightspeed(me)));
     if (playable && this.sheet?.kind !== 'end-day') {
       this.sheet = { kind: 'end-day' };
       return this.render();
@@ -1501,6 +1502,11 @@ export class App {
     if (!card) return;
     if (me.playsLeft <= 0) {
       this.showToast('No plays left today: end your day.', 'info');
+      sound.error();
+      return;
+    }
+    if (cardCost(card.defId) > me.playsLeft) {
+      this.showToast(`${cardDef(card.defId).name} takes ${cardCost(card.defId)} actions: you have ${me.playsLeft} left today.`, 'info');
       sound.error();
       return;
     }
@@ -2432,6 +2438,7 @@ export class App {
             fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”."),
             fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun.'),
             fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
+            fact('Actions', `Each card takes 1 of your day's actions; Anomalies, Sunspear and Fracture Burst take 2 (shown by two dots on the card). Your first day has only 1.`),
             fact('Heat limit', `On your day (your Dawn and your plays), at most <b>${B.maxHeatPerDay}</b> heat lands on your rival's sun. Stings and Lightspeed cards on their day are not limited.`),
             fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),
             fact('The planets', `Dead: nothing. Abundant: draw +${B.abundantDraw}. Industrial: play +${B.industrialPlays}.`),
@@ -2787,6 +2794,8 @@ export class App {
       state = 'card-choosable';
     }
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
+    // On your day, a card that takes more actions than you have left is dimmed.
+    if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft && me.playsLeft > 0) state = 'card-pricey';
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     const boost = opts.owner && boostable(c.defId) ? resonanceBonus(opts.owner, c) : 0;
     const resonance = boost ? `<span class="resonance" title="Resonance: +${boost} to this card's heat, cooling and shields from its neighbours">+${boost}</span>` : '';

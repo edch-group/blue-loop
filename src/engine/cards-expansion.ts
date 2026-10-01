@@ -171,7 +171,8 @@ export const EXPANSION: CardDef[] = [
     name: 'The Sun Throne',
     kind: 'growth',
     race: 0,
-    text: 'Your attack cards deal +1 {heat}.',
+    text: 'Your attack cards deal +1 {heat}. Draw 1.',
+    onPlay: [{ type: 'draw', amount: 1 }],
     passive: [{ type: 'kindBonus', kind: 'attack', amount: 1 }],
   },
   {
@@ -421,8 +422,9 @@ export const EXPANSION: CardDef[] = [
     name: 'Fracture Burst',
     kind: 'attack',
     race: 1,
-    text: '{heat:4}, {pierce}. {heat:3} to your sun.',
-    onPlay: [{ type: 'heat', amount: 4, to: 'target', pierce: true }, { type: 'selfHeat', amount: 3 }],
+    cost: 2,
+    text: '{heat:7}, {pierce}. {heat:2} to your sun.',
+    onPlay: [{ type: 'heat', amount: 7, to: 'target', pierce: true }, { type: 'selfHeat', amount: 2 }],
   },
   { id: 'cinder_ward', name: 'Cinder Ward', kind: 'defence', race: 1, text: '{shield:2}. {cool:1}.', onPlay: [{ type: 'shield', amount: 2 }, { type: 'cool', amount: 1 }] },
 

@@ -5,6 +5,7 @@ import {
   applyAction,
   canSetLightspeed,
   cardChoices,
+  cardCost,
   conditionMet,
   effectAmount,
   enemyChoices,
@@ -37,6 +38,9 @@ const HORIZON = 2.5;
 const FINISH_RATIO = tuning('FINISH', 0.75);
 /** In a free-for-all, switch to the leader once it is this much cooler (as a share of max health) than your usual target. */
 const LEADER_GAP = tuning('GAP', 0.25);
+
+/** What one action is worth, roughly (the price of a card that takes two). */
+const ACTION_VALUE = tuning('ACTION', 2.5);
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
 const INCOMING_WEIGHT = tuning('INCOMING', 0.8);
@@ -172,6 +176,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     if (seen.has(card.defId)) continue;
     seen.add(card.defId);
     if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) continue;
+    if (cardCost(card.defId) > me.playsLeft) continue;
     const choices = opt(cardChoices(card.defId));
     const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
     if (!hasRoomFor(me, card.defId)) continue;
@@ -234,7 +239,9 @@ export function chooseAIAction(state: GameState): Action {
     } catch {
       continue;
     }
-    const score = evaluate(next, me.id);
+    // A card that takes two actions also gives up the card that could have been played with the second.
+    const extra = action.type === 'playCard' ? cardCost(me.hand.find((c) => c.uid === action.cardUid)?.defId ?? '') - 1 : 0;
+    const score = evaluate(next, me.id) - extra * ACTION_VALUE;
     if (!best || score > best.score) best = { action, score };
   }
   // Holding a card is only better than playing it when every play would hurt.

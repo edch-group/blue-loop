@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, allyChoices, applyAction, baseStability, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+import { activePlayer, allyChoices, cardCost, applyAction, baseStability, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -341,11 +341,27 @@ describe('the day\'s heat limit', () => {
     const rival = s.players.find((p) => p.id !== me.id)!;
     rival.shields = 0;
     me.playsLeft = 3;
-    give(me, ['sunspear', 'sunspear', 'coronal_lance']);
-    s = play(s, 'sunspear');
-    s = play(s, 'sunspear');
+    give(me, ['coronal_lance', 'coronal_lance', 'coronal_lance']);
+    s = play(s, 'coronal_lance');
+    s = play(s, 'coronal_lance');
     s = play(s, 'coronal_lance');
     expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(BALANCE.maxHeatPerDay);
+  });
+});
+
+describe('card costs', () => {
+  it('Anomalies (and a few big cards) take two actions', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    expect(cardCost('event_horizon')).toBe(2);
+    expect(cardCost('sunspear')).toBe(2);
+    expect(cardCost('coronal_lance')).toBe(1);
+    me.playsLeft = 1;
+    give(me, ['sunspear']);
+    expect(() => play(s, 'sunspear')).toThrow(GameError);
+    me.playsLeft = 3;
+    s = play(s, 'sunspear');
+    expect(activePlayer(s).playsLeft).toBe(1);
   });
 });
 
@@ -359,7 +375,7 @@ describe('the new heroes', () => {
     me.playsLeft = 2;
     give(me, ['phase_shift']);
     s = play(s, 'phase_shift', { allyUid: me.tableau[1].uid });
-    expect(s.players[1].heat).toBe(before + 2);
+    expect(s.players[1].heat).toBe(before + 3);
   });
 
   it('Ommarath cools your sun when your shields absorb a hit', () => {
@@ -426,6 +442,7 @@ describe('the end', () => {
   it('hands your rival the win if you blow up your own sun', () => {
     let s = twoPlayer(3);
     s.players[0].heat = supernovaThreshold(s.players[0]) - 1;
+    activePlayer(s).playsLeft = 2;
     give(activePlayer(s), ['sunspear']);
     s = play(s, 'sunspear');
     expect(s.players[0].eliminated).toBe(true);
@@ -532,6 +549,7 @@ describe('recovery and removal', () => {
   it('Event Horizon destroys a card and flings its neighbours back to hand', () => {
     let s = twoPlayer();
     const [a, b, c] = give(s.players[1], ['coolant_array', 'plasma_relay', 'cryo_vault'], 'tableau');
+    activePlayer(s).playsLeft = 2;
     give(activePlayer(s), ['event_horizon']);
     s = play(s, 'event_horizon', { enemyUid: b.uid });
     expect(s.players[1].tableau).toHaveLength(0);
@@ -575,14 +593,14 @@ describe('lightspeed', () => {
     s = endTurn(s);
     const bo = activePlayer(s);
     bo.playsLeft = 2;
-    give(bo, ['gravity_sling', 'sunspear']);
+    give(bo, ['gravity_sling', 'coronal_lance']);
     const ada = s.players[0].heat;
     s = play(s, 'gravity_sling'); // only 1 heat: not enough to spring it
     expect(s.players[0].heat).toBe(ada + 1);
     const boHeat = s.players[1].heat;
-    s = play(s, 'sunspear');
+    s = play(s, 'coronal_lance');
     expect(s.players[0].heat).toBe(ada + 1);
-    expect(s.players[1].heat).toBe(boHeat + 2 + 2); // Sunspear's own recoil, plus the ambush
+    expect(s.players[1].heat).toBe(boHeat + 2); // the ambush
   });
 
   it('protects your cards from removal (Decoy Array)', () => {
@@ -599,6 +617,7 @@ describe('lightspeed', () => {
 
   it('stops the enemy playing more cards (Temporal Snare)', () => {
     let s = twoPlayer();
+    activePlayer(s).playsLeft = 2;
     give(activePlayer(s), ['temporal_snare']);
     s = play(s, 'temporal_snare');
     s = endTurn(s);

@@ -1,4 +1,4 @@
-import { baseStability, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { baseStability, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -237,8 +237,14 @@ document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad'
 
 /** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
 export function stabilityBadge(def: CardDef): string {
-  if (!persists(def.id)) return '';
-  return `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your days, then fades into your discard pile">◷${baseStability(def.id)}</b></span>`;
+  return costBadge(def) + (persists(def.id) ? `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your days, then fades into your discard pile">◷${baseStability(def.id)}</b></span>` : '');
+}
+
+/** A card that takes more than one of your day's actions: that many action pips, on its picture's corner. */
+export function costBadge(def: CardDef): string {
+  const n = cardCost(def.id);
+  if (n <= 1) return '';
+  return `<span class="card-cost" title="Takes ${n} of your day's actions to play">${'<i></i>'.repeat(n)}</span>`;
 }
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

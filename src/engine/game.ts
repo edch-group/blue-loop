@@ -308,6 +308,12 @@ export function baseStability(defId: string): number {
   return BALANCE.stability;
 }
 
+/** How many of your day's actions a card takes to play: Anomalies take 2 (a whole day, once you have 2), most cards 1. */
+export function cardCost(defId: string): number {
+  const def = cardDef(defId);
+  return def.cost ?? (def.rarity === 'anomaly' ? 2 : 1);
+}
+
 /** Put a card into a tableau slot, with its full stability. */
 function place(p: PlayerState, card: CardInstance, slot: number) {
   card.slot = slot;
@@ -949,6 +955,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (!card) throw new GameError('That card is not in your hand.');
   if (p.playsLeft <= 0) throw new GameError('You have no plays left today.');
   const def: CardDef = cardDef(card.defId);
+  const cost = cardCost(def.id);
+  if (p.playsLeft < cost) throw new GameError(`${def.name} takes ${cost} actions: you have ${p.playsLeft} left today.`);
   const lightspeed = def.kind === 'lightspeed';
   if (lightspeed && !canSetLightspeed(p)) throw new GameError('You already have a Lightspeed card face down.');
 
@@ -970,7 +978,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
 
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
-  p.playsLeft -= 1;
+  p.playsLeft -= cost;
   p.turn.cardsPlayed += 1;
   log(state, lightspeed ? `${p.name} sets a card face down at lightspeed.` : `${p.name} plays ${def.name}.`);
 
