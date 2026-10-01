@@ -89,7 +89,7 @@ const TOKEN = /\{([a-z]+)(?::([^}]+))?\}/g;
 /** Every word capitalised ("recover attack" → "Recover Attack"). */
 const titleCase = (s: string) => s.replace(/(^|\s)(\p{Ll})/gu, (_, sp: string, c: string) => sp + c.toUpperCase());
 
-/** A keyword as it reads on a card, in title case: its name and value ("Sturdy 1", "Destroy ≤2", "Recover Attack"). */
+/** A keyword as it reads on a card, in title case: its name and value ("Sturdy 1", "Destroy 2", "Recover Attack"). */
 export function keywordLabel(id: string, value?: string): string {
   return titleCase(rawLabel(id, value));
 }
@@ -98,7 +98,7 @@ function rawLabel(id: string, value?: string): string {
   const k = KEYWORDS[id];
   if (!k) return value ?? id;
   if (!value) return k.name;
-  if (id === 'destroy' || id === 'eject') return value === 'any' ? `${k.name} any` : `${k.name} ≤${value}`;
+  if (id === 'destroy' || id === 'eject') return `${k.name} ${value}`;
   if (id === 'plays') return `${k.name} +${value}`;
   if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
   return `${k.name} ${value}`;

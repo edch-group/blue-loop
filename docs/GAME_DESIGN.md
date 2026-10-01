@@ -218,7 +218,7 @@ Cards that only worked alongside others (a count of a card type, Command cards, 
 
 ## Keywords [design review]
 
-The game's recurring mechanics are **keywords**: a coloured word on the card with its number, always in title case (**Sturdy 1**, **Resonance 2 · 1**, **Erode 2**, **Recover Attack**, **Destroy ≤2**). The three most common effects are **symbols** instead of words, so card text stays very short: **heat** (two red chevrons up), **cool** (two blue chevrons down) and **shields** (a shield), each with its number. "At dawn, heat your rival's sun by 3" reads **Dawn: ⏶3**. Heat goes to the rival's sun unless the card says "to your sun".
+The game's recurring mechanics are **keywords**: a coloured word on the card with its number, always in title case (**Sturdy 1**, **Resonance 2 · 1**, **Erode 2**, **Recover Attack**, **Destroy 2** (2 or less defence)). The three most common effects are **symbols** instead of words, so card text stays very short: **heat** (two red chevrons up), **cool** (two blue chevrons down) and **shields** (a shield), each with its number. "At dawn, heat your rival's sun by 3" reads **Dawn: ⏶3**. Heat goes to the rival's sun unless the card says "to your sun".
 
 Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoomed card (with no hover pop-up there, since the explanations are already beside it); in the deck builder and the shop, on hover; and on the rules page (How to Play → Keywords), which lists them all. The zoomed card also explains its stability and defence badges, and the rules its text names in plain words (`TEXT_RULES`: upgrades, Command cards, leaving the tableau, facing a planet, cancelling, max health).
 
@@ -239,7 +239,7 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | restore N / renew N | Another card / every other card of yours regains N stability |
 | recover (type) | A card (of that type) from your discard pile to your hand; with none there, draw |
 | recall | Another card of yours from your tableau to your hand |
-| destroy ≤N / eject ≤N | Destroy / return to hand a rival card with at most N defence |
+| destroy N / eject N | Destroy / return to hand a rival card with at most N defence |
 | sting N / soothe N | When your shields absorb heat: heat the attacker N / cool your sun N |
 | hold N | Your shields don't fade (up to N) |
 | overheated | Half your max health or hotter |
