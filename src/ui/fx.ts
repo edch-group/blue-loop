@@ -33,7 +33,7 @@ export function anchorRect(root: HTMLElement, name: string): DOMRect | null {
 }
 
 /** Animate `el` from `from` to where it is now. */
-export function flyFrom(el: HTMLElement, from: DOMRect, opts: { delay?: number; duration?: number; fade?: boolean; rotate?: number } = {}) {
+export function flyFrom(el: HTMLElement, from: DOMRect, opts: { delay?: number; duration?: number; fade?: boolean; rotate?: number; arc?: number } = {}) {
   if (reducedMotion()) return;
   // One flight at a time: a newer flight replaces any still running (so a card never animates twice).
   for (const a of el.getAnimations()) if ((a as Animation & { id: string }).id === 'fly') a.cancel();
@@ -49,6 +49,22 @@ export function flyFrom(el: HTMLElement, from: DOMRect, opts: { delay?: number; 
   // Land on the element's own transform (e.g. its angle in the fanned hand).
   const rest = getComputedStyle(el).transform;
   const end = rest === 'none' ? '' : rest;
+  if (opts.arc) {
+    // Along a curve: a quadratic path bowed upwards by `arc` px, sampled with an ease-out (one smooth sweep, no wobble).
+    const frames: Keyframe[] = [];
+    const n = 16;
+    const cx = dx / 2, cy = dy / 2 - opts.arc;
+    for (let i = 0; i <= n; i++) {
+      const t = 1 - Math.pow(1 - i / n, 3);
+      const u = 1 - t;
+      const x = u * u * dx + 2 * u * t * cx;
+      const y = u * u * dy + 2 * u * t * cy;
+      const k = s + (1 - s) * t;
+      frames.push({ transform: `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) scale(${k.toFixed(4)}) ${end}`, opacity: opts.fade ? Math.min(1, t * 2.5) : 1 });
+    }
+    el.animate(frames, { id: 'fly', duration: opts.duration ?? 420, delay: opts.delay ?? 0, easing: 'linear', fill: 'backwards' });
+    return;
+  }
   el.animate(
     [
       { transform: `translate(${dx}px, ${dy}px) scale(${s}) rotate(${opts.rotate ?? 0}deg) ${end}`, opacity: opts.fade ? 0 : 1 },

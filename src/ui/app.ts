@@ -577,7 +577,13 @@ export class App {
     if (this.autoConfirm && stage?.confirm) window.setTimeout(() => this.stage === stage && this.confirmStage(), AUTO_CONFIRM_MS);
     const card = this.root.querySelector<HTMLElement>('.stage .card');
     const side = this.root.querySelector<HTMLElement>(`.tableau[data-owner="${actorId}"] .tableau-row`) ?? this.root.querySelector<HTMLElement>(`[data-anchor="pill:${actorId}"]`);
-    if (card && side) flyFrom(card, pageRect(side), { duration: 560 });
+    if (card && side) {
+      // From the middle of their row (at a card's size), sweeping up and over to the stage.
+      const row = pageRect(side);
+      const w = Math.min(row.height / 1.4, card.offsetWidth), h = w * 1.4;
+      const from = new DOMRect(row.left + row.width / 2 - w / 2, row.top + row.height / 2 - h / 2, w, h);
+      flyFrom(card, from, { duration: 640, fade: true, arc: Math.min(140, Math.abs(pageRect(card).top - from.top) * 0.35 + 60) });
+    }
     // A removal card aims at what it will take, until it is confirmed (or the stage moves on).
     this.unaim?.();
     this.unaim = null;
@@ -587,7 +593,7 @@ export class App {
         const el = this.root.querySelector(sel);
         return el ? pageRect(el) : null;
       };
-      this.unaim = aim(() => rect('.stage .card'), () => rect(`.tableau [data-uid="${target}"]`), { delay: 560, alive: () => this.stage === stage });
+      this.unaim = aim(() => rect('.stage .card'), () => rect(`.tableau [data-uid="${target}"]`), { delay: 640, alive: () => this.stage === stage });
     }
   }
 
