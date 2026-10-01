@@ -738,47 +738,16 @@ export class App {
     });
   }
 
-  /** An element's position inside the dock, from layout offsets (unaffected by the table's tilt). */
-  private dockPos(el: HTMLElement): { x: number; y: number } | null {
-    const dock = el.closest<HTMLElement>('.dock');
-    let x = 0;
-    let y = 0;
-    let n: HTMLElement | null = el;
-    while (n && n !== dock) {
-      x += n.offsetLeft;
-      y += n.offsetTop;
-      n = n.offsetParent as HTMLElement | null;
-    }
-    return n === dock ? { x, y } : null;
-  }
-
   /**
-   * Draw a card: it always starts on the deck pile and flies exactly to its
-   * place in the fan. Everything is computed in the dock's own layout space,
-   * so the tilted, scaled table cannot throw it off.
+   * Draw a card: it starts on your deck pile (on the board, beside your
+   * tableau) and flies to its place in the fan.
    */
   private dealCard(el: HTMLElement, delay: number) {
     if (reducedMotion()) return;
     for (const a of el.getAnimations()) a.cancel();
+    // The deck lies on the board, by your tableau: the card flies from it to its place in the fan.
     const pile = this.root.querySelector<HTMLElement>('[data-anchor="deck"]');
-    const card = this.dockPos(el);
-    const deck = pile && this.dockPos(pile);
-    if (!card || !deck || !pile) return;
-    const w = el.offsetWidth;
-    const h = el.offsetHeight;
-    const s = Math.min(1, (pile.offsetHeight * 0.9) / h);
-    // The card rotates about (50%, 120%): place its centre on the pile's centre.
-    const tx = deck.x + pile.offsetWidth / 2 - (card.x + w / 2);
-    const ty = deck.y + pile.offsetHeight / 2 - (card.y + h * 1.2) + h * 0.7 * s;
-    const rest = getComputedStyle(el).transform;
-    el.animate(
-      [
-        { transform: `translate(${tx}px, ${ty}px) scale(${s}) rotate(-6deg)`, opacity: 0 },
-        { opacity: 1, offset: 0.25 },
-        { transform: rest === 'none' ? 'none' : rest, opacity: 1 },
-      ],
-      { duration: 460, delay, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' },
-    );
+    if (pile) flyFrom(el, pageRect(pile), { delay, duration: 520, fade: true });
   }
 
   /** Slide a card that stayed in hand from its old place in the fan to its new one. */
@@ -2548,9 +2517,28 @@ export class App {
         <div class="tableau-row-wrap">
           <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row">${slots}<div class="ls-slot">${lightspeed}</div></div>
+          ${this.renderPiles(p, side)}
           ${this.renderForecast(p)}
         </div>
       </div>`;
+  }
+
+  /**
+   * A player's deck and discard pile, on the board to the right of their tableau. Everyone sees both
+   * counts; the discard pile lies face up (its top card showing) and anyone can look through it; only
+   * your own deck can be opened (to see what's left in it).
+   */
+  private renderPiles(p: PlayerState, side: 'mine' | 'rival'): string {
+    const mine = side === 'mine';
+    const top = p.discard[p.discard.length - 1];
+    const deck = `<span class="tpile-stack"><i></i><i></i></span><b>${p.deck.length}</b><small>deck</small>`;
+    const discard = top
+      ? `<span class="tpile-face">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span><b class="tpile-count">${p.discard.length}</b>`
+      : `<span class="tpile-empty"></span><b>0</b><small>discard</small>`;
+    return `<div class="tableau-piles">
+      ${mine ? `<button class="tpile tpile-open" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck: look at what's left">${deck}</button>` : `<div class="tpile" data-anchor="deck:${p.id}" title="Cards left in ${esc(p.name)}'s deck">${deck}</div>`}
+      <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile: look through it">${discard}</div>
+    </div>`;
   }
 
   /**
@@ -2595,11 +2583,9 @@ export class App {
       : '';
     return `
       <section class="dock">
-        <button class="pile" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck"><span class="pile-stack"><i></i><i></i></span><b>${me.deck.length}</b><small>deck</small></button>
         <div class="hand-zone">
           <div class="hand">${hand}</div>
         </div>
-        <button class="pile" data-anchor="discard" data-act="view-pile" data-arg="discard" title="Your discard pile"><span class="pile-stack"><i></i><i></i></span><b>${me.discard.length}</b><small>discard</small></button>
         <div class="turn-controls">
           <div class="plays ${myTurn ? '' : 'plays-off'}" title="Cards you may still play today">
             <small>${myTurn ? `plays ${me.playsLeft}` : 'waiting'}</small>
