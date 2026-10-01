@@ -2203,7 +2203,6 @@ export class App {
         <div class="game">
           <header class="top"></header>
           ${this.renderBoard()}
-          <div class="star-dock"><div class="board-star-slot"></div></div>
           ${this.renderDock()}
         </div>
         ${this.renderHud()}
@@ -2380,6 +2379,7 @@ export class App {
         <div class="board3d">
           <div class="board-plane">
             <div class="board-floor"></div>
+            <div class="board-star-slot"></div>
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.renderResult()}
             ${this.renderTableau(me, 'mine')}

@@ -185,7 +185,7 @@ export function typeLine(def: CardDef): string {
  * to CSS (--circuit-dwarf, --circuit-stellar, --circuit-anomaly). Traces run in
  * straight lines and 45° bends between solder pads, with a few vias and a chip.
  */
-function circuitTile(colour: string, seed: number): string {
+function circuitTile(colour: string, seed: number, strength = 0.27): string {
   let h = seed;
   const rand = () => ((h = (Math.imul(h, 1103515245) + 12345) >>> 0) / 4294967296);
   const S = 200;
@@ -227,11 +227,13 @@ function circuitTile(colour: string, seed: number): string {
   const cx = pt(), cy = pt();
   let chip = `<rect x="${cx - 12}" y="${cy - 12}" width="24" height="24" rx="2" fill="none"/>`;
   for (let k = -8; k <= 8; k += 8) chip += `<path d="M${cx + k} ${cy - 12}v-5M${cx + k} ${cy + 12}v5M${cx - 12} ${cy + k}h-5M${cx + 12} ${cy + k}h5"/>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}"><g fill="${colour}" stroke="${colour}" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" fill-opacity="0.5" opacity="0.27">${paths}${pads}${chip}</g></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}"><g fill="${colour}" stroke="${colour}" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" fill-opacity="0.5" opacity="${strength}">${paths}${pads}${chip}</g></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 const CIRCUIT: Record<Rarity, [string, number]> = { dwarf: ['#6f86ad', 7], stellar: ['#c08a24', 11], anomaly: ['#8c5ad6', 19] };
 for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElement.style.setProperty(`--circuit-${r}`, circuitTile(colour, seed));
+// The same traces, fainter and in silver, for the interface: buttons, panels, pop-ups.
+document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad', 23, 0.2));
 
 /** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
 export function stabilityBadge(def: CardDef): string {
