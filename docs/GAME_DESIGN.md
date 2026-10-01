@@ -315,7 +315,7 @@ Small dialogs handle the other choices:
 - Command Directive's upgrade
 - what to recover from your discard pile
 
-A face-down Lightspeed card shows as an amber ⚡ chip by its owner's tableau label. Yours is named and can be read; a rival's only says "face down". When one springs, a "Lightspeed!" banner names it and the card is shown at the middle right. Press and hold any card to read it at the middle right of the screen.
+A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their five, with no defence. You can tap yours to read it; a rival's shows only its back. When one springs, a "Lightspeed!" banner names it and the card is shown at the middle right. Press and hold any card to read it at the middle right of the screen. [design review]
 
 ## Campaign mode
 
