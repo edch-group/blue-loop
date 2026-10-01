@@ -8,13 +8,22 @@ import { reducedMotion } from './fx';
  * A glow at its centre turns red as the viewer's own sun overheats and
  * blue as it cools below 0.
  */
+/** How far, and over how long, a move spins the star. */
+const BURST_DEG = 30;
+const BURST_MS = 1800;
+/** Gentle at both ends (a sine ease: no sudden start or stop). */
+const easeInOut = (t: number) => 0.5 - Math.cos(Math.PI * t) / 2;
+
 class Backdrop {
   private el: HTMLElement | null = null;
   private outer: SVGGElement | null = null;
   private inner: SVGGElement | null = null;
   private angle = 0;
-  /** Extra degrees still to be spun off by the current burst(s). */
-  private burst = 0;
+  /**
+   * Bursts of spin from moves: each turns the star a set amount over a set time, easing in and out,
+   * timed by the clock (so a frame that a re-render holds up does not jolt it). Overlapping bursts add up.
+   */
+  private bursts: { start: number; deg: number }[] = [];
   private tint = 0;
   private tintTarget = 0;
   private last = 0;
@@ -56,7 +65,9 @@ class Backdrop {
   /** A move was made: spin faster for a moment. */
   spin() {
     if (reducedMotion()) return;
-    this.burst = Math.min(this.burst + 28, 90);
+    // At most a few at once, so a flurry of moves does not whirl it.
+    if (this.bursts.length >= 3) return;
+    this.bursts.push({ start: performance.now(), deg: BURST_DEG });
   }
 
   /** -1 = as cold as a sun can be (blue), 0 = neutral (white), 1 = on the edge of supernova (red). */
@@ -67,13 +78,21 @@ class Backdrop {
   private frame(now: number) {
     const dt = this.last ? Math.min(0.1, (now - this.last) / 1000) : 0;
     this.last = now;
-    // Base drift: one turn every 3 minutes. Bursts decay smoothly.
-    const drift = 2 * dt;
-    const spent = this.burst * Math.min(1, dt * 2.2);
-    this.burst -= spent;
-    this.angle = (this.angle + drift + spent) % 360;
-    this.outer?.setAttribute('transform', `rotate(${this.angle.toFixed(3)} 500 170)`);
-    this.inner?.setAttribute('transform', `rotate(${(-this.angle * 0.6).toFixed(3)} 500 170)`);
+    // Base drift: one turn every 3 minutes. Finished bursts fold into the angle; running ones ease along.
+    this.angle = (this.angle + 2 * dt) % 360;
+    let extra = 0;
+    this.bursts = this.bursts.filter((b) => {
+      const t = (now - b.start) / BURST_MS;
+      if (t >= 1) {
+        this.angle = (this.angle + b.deg) % 360;
+        return false;
+      }
+      extra += b.deg * easeInOut(Math.max(0, t));
+      return true;
+    });
+    const a = this.angle + extra;
+    this.outer?.setAttribute('transform', `rotate(${a.toFixed(3)} 500 170)`);
+    this.inner?.setAttribute('transform', `rotate(${(-a * 0.6).toFixed(3)} 500 170)`);
     if (Math.abs(this.tint - this.tintTarget) > 0.002) {
       this.tint += (this.tintTarget - this.tint) * Math.min(1, dt * 1.5);
       this.applyTint();

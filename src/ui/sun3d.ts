@@ -601,6 +601,7 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
 }
 
 let last = 0;
+let lastDome = 0;
 function frame(time: number) {
   const suns = document.querySelectorAll<HTMLCanvasElement>('canvas.sun3d');
   if (!suns.length) {
@@ -608,24 +609,56 @@ function frame(time: number) {
     return;
   }
   // About 20 frames a second is plenty for a slow turn and a lazy flicker; a swinging orbit gets every frame.
-  if (time - last > 50 || orbitsMoving) {
-    const flicker = time - last > 50;
-    if (flicker) {
-      last = time;
-      suns.forEach((cv) => draw(cv, reduce() ? 0 : time));
-    }
+  if (time - last > 50) {
+    last = time;
+    suns.forEach((cv) => draw(cv, reduce() ? 0 : time));
+  }
+  // The planets turn slowly: ten frames a second does, unless an orbit is swinging (then every frame).
+  if (orbitsMoving || time - lastDome > 100) {
+    lastDome = time;
     orbitsMoving = false;
     document.querySelectorAll<HTMLCanvasElement>('canvas.vit-dome').forEach((cv) => drawDome(cv, reduce() ? 0 : time));
   }
   requestAnimationFrame(frame);
 }
 
+/**
+ * A re-render makes new sun canvases. Drawing each from scratch stalls the page (and every animation
+ * on it), so each new canvas hands its place back to the one it replaces (same player, same layer),
+ * which keeps its pixels and caches; it is only redrawn now if what it shows has changed.
+ */
+const pool = new Map<string, HTMLCanvasElement>();
+const shown = new WeakMap<HTMLCanvasElement, string>();
+const signature = (cv: HTMLCanvasElement) => `${cv.className}|${Object.entries(cv.dataset).join(';')}`;
+function adopt(cv: HTMLCanvasElement): HTMLCanvasElement {
+  const anchor = cv.closest('[data-anchor]')?.getAttribute('data-anchor');
+  if (!anchor) return cv;
+  const key = `${anchor}|${cv.classList.contains('vit-dome') ? 'dome' : 'sun'}`;
+  const old = pool.get(key);
+  if (old && old !== cv && !old.isConnected) {
+    for (const k of Object.keys(old.dataset)) delete old.dataset[k];
+    Object.assign(old.dataset, cv.dataset);
+    old.className = cv.className;
+    cv.replaceWith(old);
+    cv = old;
+  }
+  pool.set(key, cv);
+  return cv;
+}
+
 /** Start (or keep) drawing every sun canvas on the page; call after rendering. */
 export function animateSuns() {
+  const now = reduce() ? 0 : performance.now();
+  // Draw new (or changed) canvases at once, so a re-render never shows an empty or stale sun.
+  document.querySelectorAll<HTMLCanvasElement>('canvas.sun3d, canvas.vit-dome').forEach((fresh) => {
+    const cv = adopt(fresh);
+    const sig = signature(cv);
+    if (shown.get(cv) === sig) return;
+    shown.set(cv, sig);
+    if (cv.classList.contains('vit-dome')) drawDome(cv, now);
+    else draw(cv, now);
+  });
   const suns = document.querySelectorAll<HTMLCanvasElement>('canvas.sun3d');
-  // Draw new canvases at once, so a re-render never shows an empty sun.
-  suns.forEach((cv) => draw(cv, reduce() ? 0 : performance.now()));
-  document.querySelectorAll<HTMLCanvasElement>('canvas.vit-dome').forEach((cv) => drawDome(cv, reduce() ? 0 : performance.now()));
   if (!running && suns.length) {
     running = true;
     requestAnimationFrame(frame);
