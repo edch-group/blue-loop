@@ -25,7 +25,7 @@ was replaced by this design in design review.
 1. **Dawn.** In this order:
    - Your shields fade (unless Deep Current holds them).
    - Draw **1 card**. Your opening hand of 5 covers your first day.
-   - Regional instability applies, once regional stability has run out.
+   - At the first dawn of each round, once regional stability has run out, regional instability heats **every sun at once** by the same amount, past shields. If that would finish every sun, the one least far past its limit holds on (a coin flip if level) and wins. (Simulated 300 games: seats 51.7% / 48.3%.)
    - The global card applies, if there is one.
    - Your tableau's **dawn effects** trigger, left to right.
    - Then every card in your tableau loses **1 stability**. A card at 0 fades into your discard pile.
@@ -87,7 +87,7 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 - **Orbit cards** move an orbit on or back, yours or your rival's, and the change counts from your next day. "Orbit +3" swings the next planet round; "your rival's orbit −2" holds their next planet back (and from their dead planet's first day, it wraps round to their industrial planet).
 - Some cards are **stronger while a planet faces your sun** (a scaling bonus, so attack bonuses count once).
 - Each sun sits on the board at the left end of its tableau row: the top half of a sphere rising out of the board, slowly turning, its surface mottled with granulation, deep orange where it faces you and white-hot at its outline (as in a photograph of the Sun), with a flickering corona of flames across the board round its base. Round it, flat on the board, lie its orbit ring (three markers for the current planet's three turns: done, now, still to come) and inside that its shield and heat rings. Its planets are half-spheres in the board on the orbit, all the same size, lit from the sun's side, passing behind it. The orbit turns clockwise, and a change (at the start of a day, or from a card) is seen: the planets swing round a notch at a time, and the planet facing the sun lays a trail in its colour along the notches it has passed (the dead planet a grey one, and so on), which fades as it swings away and the next planet comes in. Flat on the board beyond the orbit lie a tag naming the facing planet and its days left, and the sun's shields: under your rival's sun, above yours. (Sun and planets are ray-traced onto a canvas lying on the board: each pixel's line of sight from the viewer's eye, worked out from the table's perspective, either meets a ball or reaches the board, so they look truly solid without making the board itself a 3D scene, which is slow.)
-- Between the tableaus (beneath your rival's, above yours, centred on each), its owner's next dawn as symbols: ✹ heat to their rival, ⛨ shields, ❄ cooling, ☀ heat to their own sun from their cards and the table, ≋ regional instability, extra cards and extra plays (details in each one's tooltip). Instability is counted for the round that turn falls in: whoever moves first in a round takes the next round's amount, so the top bar shows both this round's and the next ("regional instability +2 · next round +3").
+- Between the tableaus (beneath your rival's, above yours, centred on each), its owner's next dawn as symbols: ✹ heat to their rival, ⛨ shields, ❄ cooling, ☀ heat to their own sun from their cards and the table, ≋ regional instability, extra cards and extra plays (details in each one's tooltip). Instability is shown as the amount every sun takes when the next round begins.
 
 | Card | Kind | Text |
 | --- | --- | --- |
@@ -487,7 +487,7 @@ Small dialogs handle the other choices:
 
 A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their five, with no defence. You can tap yours to read it; a rival's shows only its back. When one springs, a "Lightspeed!" banner names it and the card is shown at the middle right for a few seconds, then fades. Press and hold any card to read it at the middle right of the screen. [design review]
 
-**Dawn, effect by effect.** When a day starts, its effects play out one after the other, in the order they happen: regional instability (from the top of the screen), the table, then each card left to right. Each card lights up as it fires, and its effect flies from it to the sun it reaches: a flare of heat to the rival's sun (or its own, for a drawback), a cooling beam or a shield beam to its owner's. That sun's numbers change as it lands, with what changed floating over it. A card on its last turn fires, then fades once the replay is done. The AI waits for its dawn to finish before it plays.
+**Dawn, effect by effect.** When a day starts, its effects play out one after the other, in the order they happen: regional instability (from the top of the screen, striking both suns together as the gauge throbs red), the table, then each card left to right. Each card lights up as it fires, and its effect flies from it to the sun it reaches: a flare of heat to the rival's sun (or its own, for a drawback), a cooling beam or a shield beam to its owner's. That sun's numbers change as it lands, with what changed floating over it. A card on its last turn fires, then fades once the replay is done. The AI waits for its dawn to finish before it plays.
 
 **Reading the rival's cards.** Each card a rival plays (or sets face down) flies in from their side of the board (with a sound) and waits at the middle right with an "OK" button (or press Enter). With **auto-confirm** on (settings), it waits 2 seconds and lands by itself. Its effects only happen once you press it (then the card lands and its heat, cooling and so on play out), and the rival goes on after that, so there is time to read every card. Against the AI, it waits for you. Online, the room holds the player who played the card ("<rival> is reading your card…") until their rival confirms, unless the rival disconnects. Hot-seat games skip this, since both players share the screen. [design review] A removal card on the stage draws a held arc to the card it will destroy, return or erode, until you press OK.
 
@@ -545,3 +545,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 3. **Abyssal Tide** is the weakest starter (about 39%). It needs a stronger finisher or cheaper protection.
 4. **Collection:** decks are built from the full pool. A collection to unlock would suit a CCG, but was left for later.
 5. **Campaign balance:** some races and corners win far more often in AI-only campaigns.
+
+**Supernova.** A sun keeps its colour until the blow that finishes it lands. Then it explodes: a white-hot flash, three shockwave rings and flung sparks, and the board shudders. Only then do the sun and its half of the board grey out. [design review]
+
+**Dawn and Dusk.** "Dawn" greets the start of your day and "Dusk" its end, each with the round beneath. [design review]

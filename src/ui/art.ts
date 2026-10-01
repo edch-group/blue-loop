@@ -125,7 +125,7 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
       ${ringTracks(heatArc, shieldArc, orbit)}
       <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" data-pid="${opts.id ?? ''}" aria-hidden="true"></canvas>
       ${orbit !== undefined ? orbitPlanets(orbit) : ''}
-      <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '✸' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
+      <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
       <div class="vit-under">${orbit !== undefined ? planetTag(orbit) : ''}<div class="vit-shields" title="Shields: they absorb enemy heat, and fade at your dawn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div></div>
     </div>`;
 }

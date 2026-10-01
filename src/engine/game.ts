@@ -450,8 +450,9 @@ export interface TurnForecast {
   cool: number;
   /** Heat to their own sun from their cards' drawbacks, Solar Storm and the map (regional instability is apart, below). */
   selfHeat: number;
-  /** Regional instability's heat at the start of their next day (that turn's round, which may be the next one). */
+  /** Regional instability's heat on every sun as the next round begins (in round `unstableRound`). */
   unstable: number;
+  unstableRound: number;
   /** The round their next day falls in. */
   round: number;
   /** Extra cards drawn (beyond the usual draw). */
@@ -475,7 +476,7 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   const planet = planetAt(orbit);
   // Their day comes this round if they sit after the active player, else next round.
   const round = state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
-  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, round, draw: 0, plays: 0, planet };
+  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, unstableRound: state.round + 1, round, draw: 0, plays: 0, planet };
   if (p.eliminated) return f;
   if (planet === 'abundant' && p.turnsTaken > 0) f.draw += BALANCE.abundantDraw;
   if (planet === 'industrial') f.plays += BALANCE.industrialPlays;
@@ -508,7 +509,7 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
       }
     }
   }
-  f.unstable = instabilityHeat({ ...state, round });
+  f.unstable = instabilityHeat({ ...state, round: f.unstableRound });
   if (fieldActive(state, 'solarStorm')) f.selfHeat += 1;
   if (fieldActive(state, 'iceAge')) f.cool += 1;
   const m = p.modifiers;
@@ -814,6 +815,35 @@ function notePulse(state: GameState, source: PlayerState, card: CardInstance | n
   state.turnPulses.push({ uid: card?.uid, source: source.id, to: to.id, kind, amount, suns });
 }
 
+/**
+ * Regional instability: every living sun takes the same heat at once, past shields. If that would
+ * finish every sun, the one least far past its limit holds on (a coin flip if they are level) and wins.
+ */
+function regionalInstability(state: GameState, roundStarter: PlayerState) {
+  const n = instabilityHeat(state);
+  if (n <= 0) return;
+  const living = state.players.filter((x) => !x.eliminated);
+  log(state, `Regional instability heats every sun by ${n}.`);
+  for (const x of living) x.heat = Math.max(BALANCE.minHeat, x.heat + n);
+  let over = living.filter((x) => x.heat >= supernovaThreshold(x));
+  if (over.length === living.length) {
+    const past = (x: PlayerState) => x.heat - supernovaThreshold(x);
+    const least = Math.min(...over.map(past));
+    const level = over.filter((x) => past(x) === least);
+    const holds = level[randomInt(state, level.length)];
+    holds.heat = supernovaThreshold(holds) - 1;
+    log(state, `${holds.name}'s sun barely holds.`);
+    over = over.filter((x) => x !== holds);
+  }
+  for (const x of over) supernova(state, x);
+  // Every sun's pulse lands together, showing the suns as they now stand.
+  living.forEach((x, i) => {
+    notePulse(state, roundStarter, null, 'unstable', x, n);
+    const last = state.turnPulses?.[state.turnPulses.length - 1];
+    if (last && i > 0) last.together = true;
+  });
+}
+
 function startTurn(state: GameState) {
   const p = activePlayer(state);
   state.turnPulses = [];
@@ -839,12 +869,10 @@ function startTurn(state: GameState) {
   // Every sun as the turn's effects begin (shields faded), for the table's replay to start from.
   notePulse(state, p, null, 'start', p, 0);
   // The table: instability, the map's modifiers, then any global card.
-  const unstable = instabilityHeat(state);
-  if (unstable > 0) {
-    log(state, `Regional instability heats ${p.name}'s sun by ${unstable}.`);
-    applyHeat(state, p, unstable, null);
-    notePulse(state, p, null, 'unstable', p, unstable);
-  }
+  // Regional instability strikes as each round begins: every sun at once (so no seat takes it first).
+  if (state.players.find((x) => !x.eliminated) === p) regionalInstability(state, p);
+  if (state.winnerId) return;
+  if (p.eliminated) return passOn(state);
   const m = p.modifiers;
   if (m?.heatPerTurn) {
     applyHeat(state, p, m.heatPerTurn, null);

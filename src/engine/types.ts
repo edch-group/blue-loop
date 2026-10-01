@@ -282,6 +282,8 @@ export interface TurnPulse {
   kind: 'start' | 'heat' | 'selfHeat' | 'cool' | 'shield' | 'draw' | 'unstable';
   amount: number;
   suns: Record<string, { heat: number; shields: number; eliminated: boolean }>;
+  /** Lands at the same moment as the pulse before it (regional instability hits every sun at once). */
+  together?: boolean;
 }
 
 export interface PlayerSetup {

@@ -291,3 +291,63 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
   };
   return stop;
 }
+
+/**
+ * A sun going supernova: a white-hot flash swelling from it, shockwave rings racing out across the
+ * board, and sparks flung in every direction, all fading as they go.
+ */
+export function supernovaBurst(at: DOMRect) {
+  if (reducedMotion()) return;
+  const x = at.left + at.width / 2, y = at.top + at.height / 2;
+  const r = Math.max(30, at.width / 2);
+  const layer = document.createElement('div');
+  layer.className = 'nova-burst';
+  Object.assign(layer.style, { left: `${x}px`, top: `${y}px` });
+  document.body.appendChild(layer);
+  const add = (cls: string) => {
+    const el = document.createElement('i');
+    el.className = cls;
+    layer.appendChild(el);
+    return el;
+  };
+  // The flash: white at the heart, orange at its edge, swelling past the sun and fading.
+  const core = add('nova-core');
+  Object.assign(core.style, { width: `${r * 2}px`, height: `${r * 2}px`, margin: `${-r}px 0 0 ${-r}px` });
+  core.animate(
+    [
+      { transform: 'scale(0.6)', opacity: 1 },
+      { transform: 'scale(2.6)', opacity: 1, offset: 0.25 },
+      { transform: 'scale(4.2)', opacity: 0 },
+    ],
+    { duration: 1300, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' },
+  );
+  // Shockwaves: three rings, each a little later and wider.
+  [0, 140, 320].forEach((delay, i) => {
+    const ring = add('nova-ring');
+    Object.assign(ring.style, { width: `${r * 2}px`, height: `${r * 2}px`, margin: `${-r}px 0 0 ${-r}px` });
+    ring.animate(
+      [
+        { transform: 'scale(0.8)', opacity: 0.95, borderWidth: `${6 - i}px` },
+        { transform: `scale(${7 + i * 3})`, opacity: 0, borderWidth: '1px' },
+      ],
+      { duration: 1100 + i * 250, delay, easing: 'cubic-bezier(.15,.6,.3,1)', fill: 'both' },
+    );
+  });
+  // Sparks flung outwards.
+  const n = 28;
+  for (let i = 0; i < n; i++) {
+    const spark = add('nova-spark');
+    const angle = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+    const dist = r * (2.2 + Math.random() * 3.5);
+    const size = 3 + Math.random() * 5;
+    Object.assign(spark.style, { width: `${size}px`, height: `${size}px`, margin: `${-size / 2}px 0 0 ${-size / 2}px` });
+    spark.animate(
+      [
+        { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+        { transform: `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px) scale(0.3)`, opacity: 0 },
+      ],
+      { duration: 900 + Math.random() * 700, delay: 60 + Math.random() * 120, easing: 'cubic-bezier(.1,.7,.3,1)', fill: 'both' },
+    );
+  }
+  window.setTimeout(() => layer.remove(), 2400);
+}

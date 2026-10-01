@@ -55,7 +55,7 @@ import { DeckBuilder } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
-import { aim, anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
+import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
@@ -546,6 +546,7 @@ export class App {
       this.render();
       this.surfaceLog(prev);
       this.animate(prev, next, last.action, actor, before);
+      if (turnPassed && last.action.type === 'endTurn') this.announceDusk(actor, next);
       if (turnPassed) this.announceTurn(450);
     };
     // The rival's card takes effect once the viewer has read it and said OK.
@@ -741,9 +742,15 @@ export class App {
     if (!s || isGameOver(s) || this.needsHandoff()) return;
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
-    const humans = s.players.filter((pl) => !pl.isAI).length;
-    const plays = `${p.playsLeft} card${p.playsLeft === 1 ? '' : 's'} to play`;
-    this.showBanner('dawn', humans > 1 ? `${p.name} · ${plays}` : `round ${roman(s.round)} · ${plays}`, delay);
+    this.showBanner('dawn', `round ${roman(s.round)}`, delay);
+  }
+
+  /** You ended your day: "Dusk", as "Dawn" greets its start (not when the next day is yours too, as in hot-seat). */
+  private announceDusk(actor: PlayerState, next: GameState) {
+    if (actor.isAI || isGameOver(next)) return;
+    const you = this.viewer().id;
+    if (actor.id !== you || activePlayer(next).id === you || !activePlayer(next).isAI && !this.online) return;
+    this.showBanner('dusk', `round ${roman(next.round)}`, 0);
   }
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
@@ -851,6 +858,7 @@ export class App {
         this.surfaceLog(prev);
         this.animate(prev, next, action, actor, before);
       }
+      if (turnPassed && action.type === 'endTurn') this.announceDusk(actor, next);
       if (turnPassed) this.announceTurn(450);
       // The AI waits for its dawn to play out before it acts.
       this.scheduleAI(AI_PAUSE[action.type] + (action.type === 'endTurn' && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
@@ -1044,7 +1052,20 @@ export class App {
 
     // A day's start replays its effects one by one (see replayPulses); cards that faded go once it has.
     const pulses = endingTurn && !reducedMotion() ? (next.turnPulses ?? []).filter((p) => p.kind !== 'start') : [];
-    const replayEnd = pulses.length ? this.replayPulses(next, prev, before) : 0;
+    // A sun that goes supernova this move: it keeps its colour (and its half of the board) until the blow lands.
+    const novas = next.players.filter((p) => p.eliminated && !prev.players.find((x) => x.id === p.id)?.eliminated);
+    for (const p of novas) {
+      root.querySelector(`.tableau[data-owner="${p.id}"]`)?.classList.remove('tableau-dead');
+      root.querySelector(`[data-anchor="pill:${p.id}"]`)?.classList.remove('rival-dead');
+    }
+    const novaDone = new Set<string>();
+    const nova = (pid: string) => {
+      if (novaDone.has(pid)) return;
+      novaDone.add(pid);
+      this.supernovaAt(pid);
+    };
+    const replayEnd = pulses.length ? this.replayPulses(next, prev, before, nova) : 0;
+    const hitAt = new Map<string, number>();
     let faded = 0;
     before.cards.forEach((old, uid) => {
       if (root.querySelector(`[data-uid="${uid}"]`)) return;
@@ -1092,6 +1113,7 @@ export class App {
       const was = prev.players.find((pl) => pl.id === id)!;
       if (!handled.has(id)) holdUntil(p, was, at);
       handled.add(id);
+      if (!hitAt.has(id)) hitAt.set(id, at);
       const dHeat = p.heat - was.heat;
       const lostShields = byEnemy ? Math.max(0, was.shields - p.shields) : 0;
       const gainedShields = Math.max(0, p.shields - was.shields);
@@ -1170,15 +1192,26 @@ export class App {
         break;
     }
 
-    for (const p of next.players) {
-      const was = prev.players.find((pl) => pl.id === p.id)!;
-      if (p.eliminated && !was.eliminated) {
-        window.setTimeout(() => sound.supernova(), 650);
-        pulse(orb(p.id), 'fx-nova', 600);
-        pulse(root.querySelector('.game'), 'fx-flash', 650);
-      }
-    }
+    // Supernovas not shown by a dawn replay go off as the blow that caused them lands.
+    if (!replayEnd) for (const p of novas) window.setTimeout(() => nova(p.id), hitAt.get(p.id) ?? 600);
     if (vNext.deck.length === 0 && vPrev.deck.length > 0) pulse(root.querySelector('[data-anchor="deck"]'), 'fx-shuffle');
+  }
+
+  /** A sun goes supernova: the explosion, then its half of the board greys out. */
+  private supernovaAt(pid: string) {
+    const root = this.root;
+    const sun = root.querySelector(`[data-anchor="player:${pid}"]`) ?? root.querySelector(`[data-anchor="pill:${pid}"]`);
+    sound.supernova();
+    if (sun) {
+      pulse(sun, 'fx-nova', 0);
+      supernovaBurst(pageRect(sun.querySelector('.vit-sun') ?? sun));
+    }
+    pulse(root.querySelector('.game'), 'fx-flash', 120);
+    pulse(root.querySelector('.table-view') ?? root.querySelector('.game'), 'fx-quake', 60);
+    window.setTimeout(() => {
+      root.querySelector(`.tableau[data-owner="${pid}"]`)?.classList.add('tableau-dead');
+      root.querySelector(`[data-anchor="pill:${pid}"]`)?.classList.add('rival-dead');
+    }, 900);
   }
 
   /** When the result may show on the board (after the game's last moves have played out). */
@@ -1221,7 +1254,7 @@ export class App {
   /** How long a state's dawn replay lasts, in ms (0 if it has none). */
   private replayLength(state: GameState): number {
     if (reducedMotion()) return 0;
-    const n = (state.turnPulses ?? []).filter((p) => p.kind !== 'start').length;
+    const n = (state.turnPulses ?? []).filter((p) => p.kind !== 'start' && !p.together).length;
     return n ? 700 + n * PULSE_STEP * SPEED_FACTOR[this.speed] + 400 : 0;
   }
 
@@ -1232,7 +1265,7 @@ export class App {
    * as it lands. Regional instability and the table strike from the top of the
    * screen. Returns when the last effect has landed.
    */
-  private replayPulses(next: GameState, prev: GameState, before: Snapshot): number {
+  private replayPulses(next: GameState, prev: GameState, before: Snapshot, onNova: (pid: string) => void): number {
     const root = this.root;
     const id = ++this.replayId;
     const all = next.turnPulses ?? [];
@@ -1254,21 +1287,26 @@ export class App {
     for (const p of next.players) show(p.id, start[p.id] ?? { heat: p.heat, shields: p.shields, eliminated: p.eliminated });
     let last = start;
     let t = 700;
+    let lastAt = t;
     for (const ps of steps) {
-      const at = t;
+      // Regional instability strikes every sun at once: those pulses share one moment.
+      const at = ps.together ? lastAt : t;
+      lastAt = at;
       const was = last;
       last = ps.suns;
       const fromEl = ps.uid ? root.querySelector(`.tableau [data-uid="${ps.uid}"]`) : null;
       const from = fromEl ? pageRect(fromEl) : ps.uid ? before.cards.get(ps.uid)?.rect ?? null : (root.querySelector('.round-box') ? pageRect(root.querySelector('.round-box')!) : null);
       const to = orbRect(ps.to);
       if (fromEl) pulse(fromEl, 'fx-trigger', at);
+      // The instability gauge throbs red as it deals its heat.
+      if (ps.kind === 'unstable' && !ps.uid && !ps.together) pulse(root.querySelector('.round-box'), 'fx-unstable', at);
       let land = at + 300;
       if (from && to) {
         if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') land = projectile(from, to, HOT, { delay: at + 120, size: ps.kind === 'heat' ? 34 : 26, duration: 520 });
         else if (ps.kind === 'cool') land = beam(from, to, COOLING, { delay: at + 120 });
         else if (ps.kind === 'shield') land = beam(from, to, SHIELDING, { delay: at + 120, width: 5 });
       }
-      window.setTimeout(() => {
+      if (!ps.together) window.setTimeout(() => {
         if (id !== this.replayId) return;
         if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') sound.launch();
         else if (ps.kind === 'cool') sound.thermo();
@@ -1276,19 +1314,25 @@ export class App {
       }, at + 120);
       window.setTimeout(() => {
         if (id !== this.replayId) return;
-        // Every sun that changed takes its new numbers, with what changed floating over it.
+        // Every sun that changed takes its new numbers, with what changed floating over it (one heat sound per landing).
+        let heard = false;
         for (const p of next.players) {
           const a = was[p.id], b = ps.suns[p.id];
           if (!a || !b || (a.heat === b.heat && a.shields === b.shields && a.eliminated === b.eliminated)) continue;
           show(p.id, b);
+          if (b.eliminated && !a.eliminated) onNova(p.id);
           const r = orbRect(p.id);
           const dHeat = b.heat - a.heat, dShield = b.shields - a.shields;
           if (r && dHeat) floatNumber(r, dHeat > 0 ? `+${dHeat}` : `−${-dHeat}`, dHeat > 0 ? 'hot' : 'cool', 0);
           if (r && dShield) floatNumber(r, dShield > 0 ? `⛨+${dShield}` : `⛨−${-dShield}`, 'block', dHeat ? 1 : 0);
           const cls = dHeat > 0 ? 'fx-hot' : dHeat < 0 ? 'fx-cold' : 'fx-shield';
           pulse(root.querySelector(`[data-anchor="player:${p.id}"]`), cls, 0);
-          if (dHeat > 0) {
-            if (p.id === viewer.id && ps.source !== viewer.id) {
+          const table = ps.kind === 'unstable' && !ps.uid;
+          if (dHeat > 0 && table && p.id === viewer.id) hurtFlash();
+          if (dHeat > 0 && !heard) {
+            heard = true;
+            if (table) sound.hurt(dHeat);
+            else if (p.id === viewer.id && ps.source !== viewer.id) {
               sound.hurt(dHeat);
               hurtFlash();
             } else if (p.id !== ps.source) sound.strike(dHeat);
@@ -1298,7 +1342,7 @@ export class App {
           else if (dShield > 0 && !dHeat) sound.shield();
         }
       }, land);
-      t += step;
+      if (!ps.together) t += step;
     }
     // Finally the suns as they really are.
     const end = t + 200;
@@ -1812,10 +1856,10 @@ export class App {
         return this.render();
       case 'toggle-sound':
         sound.toggleMute();
-        return this.render();
+        return this.refreshSettings();
       case 'toggle-music':
         sound.toggleMusic();
-        return this.render();
+        return this.refreshSettings();
       case 'toggle-autoconfirm':
         this.autoConfirm = !this.autoConfirm;
         try {
@@ -1823,8 +1867,8 @@ export class App {
         } catch {
           // ignore
         }
+        this.refreshSettings();
         if (this.autoConfirm && this.stage?.confirm) this.confirmStage();
-        else this.render();
         return;
       case 'speed': {
         const order: Speed[] = ['slow', 'normal', 'fast'];
@@ -1834,7 +1878,7 @@ export class App {
         } catch {
           // ignore
         }
-        return this.render();
+        return this.refreshSettings();
       }
       case 'skip-ai':
         return this.skipAI();
@@ -2441,7 +2485,7 @@ export class App {
           ${factionAvatar(`f${p.species + 1}`, 'rival-emblem')}
           <div class="rival-info">
             <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}</span>
-            <span class="rival-stats"><em>${p.eliminated ? 'supernova' : `${HAND_ICON}${p.hand.length} · ▤${p.deck.length}${p.lightspeed ? ' · <i class="ls-pip" title="A Lightspeed card is set face down">⚡</i>' : ''}`}</em></span>
+            ${p.eliminated ? '<span class="rival-stats"><em>supernova</em></span>' : p.lightspeed ? '<span class="rival-stats"><em><i class="ls-pip" title="A Lightspeed card is set face down">⚡</i></em></span>' : ''}
           </div>
         </button>`;
       })
@@ -2618,7 +2662,7 @@ export class App {
       chip('fc-shield', symbolIcon('shield'), f.shields, `Their dawn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
       chip('fc-cool', symbolIcon('cool'), f.cool, `Their dawn: their own sun cools by ${f.cool}`),
       chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
-      chip('fc-unstable', '≋', f.unstable, `Their dawn (round ${f.round}): regional instability heats their sun by ${f.unstable}`),
+      chip('fc-unstable', '≋', f.unstable, `As round ${f.unstableRound} begins: regional instability heats every sun by ${f.unstable}, all at once`),
       chip('fc-draw', HAND_ICON, f.draw, `Their dawn: ${f.draw} extra card${f.draw === 1 ? '' : 's'} drawn${f.planet === 'abundant' ? ' (the abundant planet faces their sun)' : ''}`),
       chip('fc-play', '▶', f.plays, `Their day: ${f.plays} extra card${f.plays === 1 ? '' : 's'} they may play (the industrial planet faces their sun)`),
     ].join('');
@@ -2769,6 +2813,27 @@ export class App {
           <button class="modal-cancel" data-act="cancel">close</button>
         </div>
       </div>`;
+  }
+
+  /**
+   * A setting changed: relabel its buttons where they stand (settings sheet, options page, campaign),
+   * rather than redrawing the page and replaying its entrance.
+   */
+  private refreshSettings() {
+    const values: Record<string, { text: string; disabled?: boolean; tile?: string }> = {
+      'toggle-sound': { text: `sound: ${sound.muted ? 'off' : 'on'}`, tile: sound.muted ? 'off' : 'on' },
+      'toggle-music': { text: `music: ${sound.musicOn ? 'on' : 'off'}`, tile: sound.musicOn && !sound.muted ? 'on' : 'off', disabled: sound.muted },
+      speed: { text: `ai speed: ${this.speed}`, tile: this.speed },
+      'toggle-autoconfirm': { text: `auto-confirm: ${this.autoConfirm ? 'on' : 'off'}`, tile: this.autoConfirm ? 'on' : 'off' },
+    };
+    for (const [act, v] of Object.entries(values)) {
+      document.querySelectorAll<HTMLButtonElement>(`[data-act="${act}"]`).forEach((el) => {
+        const tile = el.querySelector('.opt-value');
+        if (tile) tile.textContent = v.tile ?? v.text;
+        else el.textContent = v.text;
+        if (v.disabled !== undefined) el.disabled = v.disabled;
+      });
+    }
   }
 
   /** Sound, music and AI speed: in the battle's settings sheet and the campaign's. */

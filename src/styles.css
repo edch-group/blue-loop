@@ -1607,7 +1607,7 @@ body.screen-campaign .backdrop { display: none; }
 .hud { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
 .hud-players { grid-column: 1; grid-row: 1; justify-self: start; }
 .hud-players .rivals { display: flex; flex-direction: column; gap: 6px; }
-.hud-players .rival { width: auto; min-width: clamp(130px, calc(17 * var(--vw)), 200px); background: var(--glass-strong); box-shadow: var(--shadow); padding: 2px 12px 2px 2px; }
+.hud-players .rival { width: auto; min-width: clamp(98px, calc(12.75 * var(--vw)), 150px); background: var(--glass-strong); box-shadow: var(--shadow); padding: 2px 12px 2px 2px; }
 .hud-players .rival .orb { --size: clamp(28px, calc(6.5 * var(--vh)), 40px) !important; }
 .hud-players .rival-name { font-size: clamp(0.5rem, calc(1.6 * var(--vh)), 0.62rem); }
 .hud-players .rival-stats { font-size: clamp(0.56rem, calc(1.7 * var(--vh)), 0.7rem); }
@@ -1925,7 +1925,6 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 
 /* Players: your target wears a crosshair; the rival shown on the table is outlined. */
 .rival-crosshair { font-style: normal; color: #d0654b; margin-left: 5px; font-size: 1.1em; }
-.hud-players .rival.rival-shown:not(.rival-active) { box-shadow: 0 0 0 1.5px rgba(208, 101, 75, 0.45), var(--shadow); }
 
 /* Dock: plays left this turn, and the upgrade chips. */
 .plays { display: grid; justify-items: center; gap: 3px; }
@@ -2872,3 +2871,16 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .turn-corner { position: fixed; right: var(--pad-r, 16px); bottom: max(14px, var(--pad-b, 14px)); z-index: 30; width: clamp(120px, calc(14 * var(--vw)), 190px); margin: 0 !important; }
 /* A staged rival card's aim at the card it will remove: under the stage, over the board. */
 .tether.tether-aim, .tether-halo.tether-aim { z-index: 14; }
+
+/* Supernova: flash, shockwaves and sparks over the board (see supernovaBurst). */
+.nova-burst { position: fixed; width: 0; height: 0; z-index: 60; pointer-events: none; }
+.nova-burst i { position: absolute; left: 0; top: 0; border-radius: 50%; }
+.nova-core { background: radial-gradient(circle, #fff 0 30%, #fff3c4 45%, rgba(255, 170, 60, 0.85) 62%, rgba(255, 110, 40, 0) 72%); mix-blend-mode: screen; filter: blur(2px); }
+.nova-ring { border: 5px solid rgba(255, 200, 120, 0.95); box-shadow: 0 0 18px rgba(255, 160, 70, 0.8), inset 0 0 14px rgba(255, 230, 180, 0.7); }
+.nova-spark { background: #fff6d8; box-shadow: 0 0 8px 2px rgba(255, 170, 70, 0.9); }
+/* The board shudders as a sun goes. */
+.fx-quake { animation: quake 0.6s cubic-bezier(.3,.6,.4,1); }
+@keyframes quake { 10% { translate: -7px 3px; } 25% { translate: 6px -4px; } 40% { translate: -5px 2px; } 55% { translate: 4px -2px; } 70% { translate: -2px 1px; } 85% { translate: 1px 0; } }
+/* Regional instability throbs red as it deals its heat. */
+.round-box.fx-unstable { animation: unstable-throb 0.9s ease-out; }
+@keyframes unstable-throb { 0% { box-shadow: 0 0 0 0 rgba(224, 85, 58, 0.9); } 35% { box-shadow: 0 0 0 6px rgba(224, 85, 58, 0.5), 0 0 34px 10px rgba(224, 85, 58, 0.55); } 100% { box-shadow: 0 0 0 0 rgba(224, 85, 58, 0); } }

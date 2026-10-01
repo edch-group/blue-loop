@@ -708,24 +708,35 @@ describe('recovery', () => {
   });
 });
 
-describe('regional instability in the forecast', () => {
-  it('forecasts exactly the instability each player takes at their next turn', () => {
+describe('regional instability', () => {
+  it('strikes every sun at once as each round begins, as forecast', () => {
     let s = twoPlayer();
     s.round = BALANCE.instabilityStartsRound;
     for (let k = 0; k < 4; k++) {
-      // Whoever moves next: their forecast, then what their turn actually costs them.
-      const waiting = s.players[(s.activePlayerIndex + 1) % 2];
-      const f = turnForecast(s, waiting);
+      const f = turnForecast(s, s.players[0]);
       for (const p of s.players) {
         p.tableau = [];
-        p.shields = 0;
+        p.shields = 3;
+        p.heat = 0;
       }
-      const before = waiting.heat;
+      const newRound = s.activePlayerIndex === s.players.length - 1;
       s = endTurn(s);
-      const after = s.players.find((p) => p.id === waiting.id)!;
-      expect(after.heat - before).toBe(f.unstable);
-      expect(s.round).toBe(f.round);
-      expect(f.unstable).toBe(instabilityHeat(s));
+      for (const p of s.players) expect(p.heat).toBe(newRound ? f.unstable : 0);
+      if (newRound) expect(s.round).toBe(f.unstableRound);
     }
+  });
+
+  it('lets the sun least far past its limit hold on when it would finish every sun', () => {
+    let s = twoPlayer();
+    s.round = BALANCE.instabilityStartsRound - 1;
+    s = endTurn(s);
+    const [a, b] = s.players;
+    a.tableau = [];
+    b.tableau = [];
+    a.heat = supernovaThreshold(a) - 1;
+    b.heat = supernovaThreshold(b) - 2;
+    s = endTurn(s);
+    expect(isGameOver(s)).toBe(true);
+    expect(s.winnerId).toBe(b.id);
   });
 });
