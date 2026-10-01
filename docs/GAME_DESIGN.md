@@ -406,6 +406,10 @@ Small dialogs handle the other choices:
 
 A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their five, with no defence. You can tap yours to read it; a rival's shows only its back. When one springs, a "Lightspeed!" banner names it and the card is shown at the middle right for a few seconds, then fades. Press and hold any card to read it at the middle right of the screen. [design review]
 
+**Start of turn, effect by effect.** When a turn starts, its effects play out one after the other, in the order they happen: regional instability (from the top of the screen), the table, then each card left to right. Each card lights up as it fires, and its effect flies from it to the sun it reaches: a flare of heat to the rival's sun (or its own, for a drawback), a cooling beam or a shield beam to its owner's. That sun's numbers change as it lands, with what changed floating over it. A card on its last turn fires, then fades once the replay is done. The AI waits for its start of turn to finish before it plays.
+
+**Reading the rival's cards.** Each card a rival plays (or sets face down) waits at the middle right with a "got it" button, and the rival goes on only once you press it, so there is time to read every card. Against the AI, it waits for you. Online, the room holds the player who played the card ("<rival> is reading your card…") until their rival confirms, unless the rival disconnects. Hot-seat games skip this, since both players share the screen. [design review]
+
 ## Campaign mode
 
 Universe domination on a map of 48 linked solar systems, played with the card game. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).

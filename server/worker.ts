@@ -70,10 +70,26 @@ export class Room extends DurableObject<Env> {
     } catch {
       // Already closed.
     }
+    await this.release(ws);
     this.presence(ws);
   }
 
+  /** A player who leaves (or loses their connection) no longer holds up their rival, who was waiting for them to read a card. */
+  private async release(ws: WebSocket) {
+    const room = await this.load();
+    const seat = seatOf(ws);
+    if (seat === null || room.waitingOn !== seat) return;
+    room.waitingOn = null;
+    await this.ctx.storage.put('room', room);
+    const byseat = views(room);
+    for (const other of this.ctx.getWebSockets()) {
+      const s = seatOf(other);
+      if (other !== ws && s !== null && byseat[s]) send(other, byseat[s]);
+    }
+  }
+
   async webSocketError(ws: WebSocket) {
+    await this.release(ws);
     this.presence(ws);
   }
 

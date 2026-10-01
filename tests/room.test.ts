@@ -118,6 +118,8 @@ describe('online room', () => {
       const seat = [0, 1].find((s) => playerIndex(room, s) === g.activePlayerIndex)!;
       const r = handle(room, seat, { t: 'action', action: chooseAIAction(g) });
       expect(r.reply.filter((m) => m.t === 'error')).toEqual([]);
+      // The rival reads each card played against them.
+      if (room.waitingOn != null) handle(room, room.waitingOn, { t: 'ack' });
     }
     expect(room.game!.winnerId).not.toBeNull();
     expect(room.last).not.toBeNull();
@@ -149,5 +151,28 @@ describe('online room', () => {
     handle(room, null, { t: 'join', name: '<b>Eve</b>', deck: ['coronal_lance'], deckName: 'x', species: 1 });
     expect(room.seats[0].deck).toEqual(PRESET_DECKS[1].cards);
     expect(room.seats[0].name).toBe('bEveb');
+  });
+});
+
+describe('reading a rival card', () => {
+  it('holds a player who played a card until their rival has read it', () => {
+    const { room } = twoSeats(7);
+    const g = room.game!;
+    const activeSeat = [0, 1].find((s) => g.players[playerIndex(room, s)].id === activePlayer(g).id)!;
+    const me = activePlayer(g);
+    const card = me.hand.find((c) => c.defId !== 'null_field' && c.defId !== 'riptide_ambush')!;
+    handle(room, activeSeat, { t: 'action', action: { type: 'playCard', cardUid: card.uid, slot: 2 } });
+    expect(room.waitingOn).toBe(1 - activeSeat);
+    expect(views(room)[activeSeat]).toMatchObject({ waitFor: 'rival' });
+    expect(views(room)[1 - activeSeat]).toMatchObject({ waitFor: 'you' });
+    // Until then the player can't go on.
+    const blocked = handle(room, activeSeat, { t: 'action', action: { type: 'endTurn' } });
+    expect(blocked.reply[0]).toMatchObject({ t: 'error' });
+    // Only the rival can confirm.
+    handle(room, activeSeat, { t: 'ack' });
+    expect(room.waitingOn).toBe(1 - activeSeat);
+    handle(room, 1 - activeSeat, { t: 'ack' });
+    expect(room.waitingOn).toBeNull();
+    expect(handle(room, activeSeat, { t: 'action', action: { type: 'endTurn' } }).broadcast).toBe(true);
   });
 });

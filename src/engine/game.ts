@@ -2,7 +2,7 @@ import { BALANCE } from './balance';
 import { cardDef, presetDeck } from './cards';
 import { randomInt, shuffleInPlace } from './rng';
 import { CORE_ACTIONS } from './types';
-import type { Action, CardDef, CardInstance, CardKind, Condition, CoreAction, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnStats } from './types';
+import type { Action, CardDef, CardInstance, CardKind, Condition, CoreAction, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnPulse, TurnStats } from './types';
 
 export class GameError extends Error {}
 
@@ -653,15 +653,22 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const amount = effectAmount(state, p, card, e, when);
         if (amount <= 0) break;
         const main = ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p);
-        if (main) applyHeat(state, main, amount, p, false, card.uid);
+        if (main) {
+          applyHeat(state, main, amount, p, false, card.uid);
+          if (when === 'turn') notePulse(state, p, card, 'heat', main, amount);
+        }
         break;
       }
       case 'selfHeat':
         applyHeat(state, p, e.amount, null);
+        if (when === 'turn') notePulse(state, p, card, 'selfHeat', p, e.amount);
         break;
       case 'cool': {
         const amount = effectAmount(state, p, card, e, when);
-        if (amount > 0) cool(state, p, amount);
+        if (amount > 0) {
+          cool(state, p, amount);
+          if (when === 'turn') notePulse(state, p, card, 'cool', p, amount);
+        }
         break;
       }
       case 'shield': {
@@ -669,11 +676,13 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (amount > 0) {
           p.shields += amount;
           log(state, `${p.name} raises ${amount} shield${amount === 1 ? '' : 's'}.`);
+          if (when === 'turn') notePulse(state, p, card, 'shield', p, amount);
         }
         break;
       }
       case 'draw':
         drawCards(state, p, e.amount);
+        if (when === 'turn') notePulse(state, p, card, 'draw', p, e.amount);
         break;
       case 'orbit': {
         const who = e.who === 'rival' ? (ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p)) : p;
@@ -811,8 +820,16 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   }
 }
 
+/** Note a start-of-turn effect for the table to replay (only while a turn is starting). */
+function notePulse(state: GameState, source: PlayerState, card: CardInstance | null, kind: TurnPulse['kind'], to: PlayerState, amount: number) {
+  if (!state.turnPulses || (amount <= 0 && kind !== 'start')) return;
+  const suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated }]));
+  state.turnPulses.push({ uid: card?.uid, source: source.id, to: to.id, kind, amount, suns });
+}
+
 function startTurn(state: GameState) {
   const p = activePlayer(state);
+  state.turnPulses = [];
   p.turnsTaken += 1;
   p.turn = emptyTurn();
   log(state, `— Turn ${state.turnNumber}: ${p.name}.`);
@@ -832,21 +849,37 @@ function startTurn(state: GameState) {
   if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
   if (p.eliminated) return passOn(state);
 
+  // Every sun as the turn's effects begin (shields faded), for the table's replay to start from.
+  notePulse(state, p, null, 'start', p, 0);
   // The table: instability, the map's modifiers, then any global card.
   const unstable = instabilityHeat(state);
   if (unstable > 0) {
     log(state, `Regional instability heats ${p.name}'s sun by ${unstable}.`);
     applyHeat(state, p, unstable, null);
+    notePulse(state, p, null, 'unstable', p, unstable);
   }
   const m = p.modifiers;
-  if (m?.heatPerTurn) applyHeat(state, p, m.heatPerTurn, null);
-  if (m?.coolPerTurn) cool(state, p, m.coolPerTurn);
-  if (m?.shieldPerTurn) p.shields += m.shieldPerTurn;
+  if (m?.heatPerTurn) {
+    applyHeat(state, p, m.heatPerTurn, null);
+    notePulse(state, p, null, 'unstable', p, m.heatPerTurn);
+  }
+  if (m?.coolPerTurn) {
+    cool(state, p, m.coolPerTurn);
+    notePulse(state, p, null, 'cool', p, m.coolPerTurn);
+  }
+  if (m?.shieldPerTurn) {
+    p.shields += m.shieldPerTurn;
+    notePulse(state, p, null, 'shield', p, m.shieldPerTurn);
+  }
   if (fieldActive(state, 'solarStorm')) {
     log(state, `Solar Storm batters ${p.name}.`);
     applyHeat(state, p, 1, null);
+    notePulse(state, p, activeGlobal(state)?.card ?? null, 'unstable', p, 1);
   }
-  if (fieldActive(state, 'iceAge')) cool(state, p, 1);
+  if (fieldActive(state, 'iceAge')) {
+    cool(state, p, 1);
+    notePulse(state, p, activeGlobal(state)?.card ?? null, 'cool', p, 1);
+  }
 
   // Your tableau's start-of-turn effects, left to right.
   for (const card of [...p.tableau]) {
@@ -958,6 +991,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
 export function applyAction(prev: GameState, action: Action): GameState {
   if (prev.winnerId) throw new GameError('The game is over.');
   const state = structuredClone(prev);
+  // Only the state a turn starts in carries that start's pulses.
+  delete state.turnPulses;
   const p = activePlayer(state);
   switch (action.type) {
     case 'concede': {

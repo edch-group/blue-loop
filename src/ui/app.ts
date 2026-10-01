@@ -44,7 +44,7 @@ import { DeckBuilder } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
-import { anchorRect, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
+import { anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { sound } from './sound';
@@ -89,6 +89,8 @@ interface Stage {
   caption?: string;
   /** A Lightspeed card set face down: show only its back. */
   faceDown?: boolean;
+  /** A rival's card the viewer must confirm they have read before the rival goes on. */
+  confirm?: boolean;
 }
 
 /** Bottom sheets / dialogs that are not part of a pending move. */
@@ -113,11 +115,15 @@ const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, upgrades and so on. */
 const KEY_LOG = /heats to|SUPERNOVA|upgrades|wins|shields absorb|instability|destroys|stings|replaces|Lightspeed|cancelled|returns|recovers|shuffles/;
 const HOT = '#f0a07a';
+const COOLING = '#8fc6ff';
+const SHIELDING = '#a9b8ff';
+/** How long each start-of-turn effect gets on the table, before the next fires (scaled by the game speed). */
+const PULSE_STEP = 720;
 /** The log button: lines of text in a page. */
 /** Cards in hand: a small fan of three cards. */
 const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
 /** Clicks that make their own sound (or none): moves on the table and picks on the map. */
-const QUIET_ACTS = new Set(['play', 'end-turn', 'upgrade', 'choose-enemy', 'choose-ally', 'choose-recover', 'choose-slot', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
+const QUIET_ACTS = new Set(['play', 'end-turn', 'upgrade', 'choose-enemy', 'choose-ally', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
 
 /** A number that pops out of a sun and rises away: heat taken, cooling, shields. Outside the re-rendered root. */
 function floatNumber(at: DOMRect, text: string, tone: 'hot' | 'cool' | 'block', row: number) {
@@ -202,6 +208,8 @@ export class App {
     you: 0,
     /** Whether the rival is connected (they may have closed the app; the room waits for them). */
     rivalOnline: true,
+    /** Online: 'you' must confirm the rival's card; the 'rival' is reading yours (you wait). */
+    waitFor: null as 'you' | 'rival' | null,
   };
   private builder = new DeckBuilder({
     render: () => this.render(),
@@ -320,7 +328,10 @@ export class App {
           }
           if (this.screen === 'menu') this.render();
         },
-        state: (state, you, last) => this.onRemoteState(state, you, last),
+        state: (state, you, last, waitFor) => {
+          this.net.waitFor = waitFor;
+          this.onRemoteState(state, you, last);
+        },
         presence: (rivalOnline) => {
           if (this.net.rivalOnline === rivalOnline) return;
           this.net.rivalOnline = rivalOnline;
@@ -372,10 +383,12 @@ export class App {
       this.announceTurn(400);
       return;
     }
-    // A reconnect resends the same state: just show it.
+    // A reconnect resends the same state: just show it (and, if a card still waits to be read, show it again).
     const unchanged = (prev.log[prev.log.length - 1]?.seq ?? 0) === (next.log[next.log.length - 1]?.seq ?? 0);
     if (unchanged || !last) {
       this.state = next;
+      if (this.net.waitFor === 'you' && !this.stage && last?.action.type === 'playCard') this.stage = this.remoteStage(last, next);
+      if (this.net.waitFor !== 'you' && this.stage?.confirm) this.stage = null;
       this.render();
       return;
     }
@@ -387,16 +400,36 @@ export class App {
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = null;
-    if (actor.id !== you && last.action.type === 'playCard') {
-      if (last.faceDown) this.stage = { defId: 'null_field', actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
-      else if (last.played) this.stage = { defId: last.played, actorId: actor.id };
-    }
+    if (actor.id !== you && last.action.type === 'playCard') this.stage = this.remoteStage(last, next);
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     this.render();
     this.surfaceLog(prev);
     this.animate(prev, next, last.action, actor, before);
     if (turnPassed) this.announceTurn(450);
+  }
+
+  /** The rival's card just played, online, on the stage (to confirm, if the room is waiting on you to read it). */
+  private remoteStage(last: LastMove, state: GameState): Stage | null {
+    const actor = state.players.find((p) => p.id === last.actorId);
+    if (!actor) return null;
+    const confirm = this.net.waitFor === 'you';
+    if (last.faceDown) return { defId: 'null_field', actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down`, confirm };
+    if (last.played) return { defId: last.played, actorId: actor.id, confirm };
+    return null;
+  }
+
+  /** The viewer has read the rival's card on the stage: it goes, and the rival carries on. */
+  private confirmStage() {
+    if (!this.stage?.confirm) return;
+    this.stage = null;
+    sound.click();
+    if (this.online) {
+      this.net.waitFor = null;
+      this.online.ack();
+    }
+    this.render();
+    if (!this.online) this.scheduleAI(450);
   }
 
   // -------------------------------------------------------------------------
@@ -568,6 +601,8 @@ export class App {
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = actor.isAI ? this.stageFor(actor, action) : null;
+    // With someone watching, an AI's card waits on the stage until they have read it.
+    if (this.stage && animate && !isGameOver(next) && next.players.some((p) => !p.isAI)) this.stage.confirm = true;
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     // An AI's attacks bring its target's tableau onto the table.
@@ -580,7 +615,8 @@ export class App {
       this.animate(prev, next, action, actor, before);
     }
     if (turnPassed) this.announceTurn(450);
-    this.scheduleAI(AI_PAUSE[action.type]);
+    // The AI waits for its start of turn to play out before it acts.
+    this.scheduleAI(AI_PAUSE[action.type] + (action.type === 'endTurn' && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
   }
 
   private quitToMenu() {
@@ -654,6 +690,8 @@ export class App {
     this.aiTimer = null;
     const s = this.state;
     if (this.screen !== 'game' || !s || isGameOver(s) || !activePlayer(s).isAI) return;
+    // A card of the AI's is still waiting to be read.
+    if (this.stage?.confirm) return;
     this.aiTimer = window.setTimeout(() => {
       this.aiTimer = null;
       if (this.state === s) this.dispatch(chooseAIAction(s));
@@ -745,6 +783,9 @@ export class App {
     const stageFrom = this.stage ? orbRect(this.stage.actorId) : null;
     if (stageCard && stageFrom) flyFrom(stageCard, stageFrom, { fade: true, duration: 520 });
 
+    // A turn's start replays its effects one by one (see replayPulses); cards that faded go once it has.
+    const pulses = endingTurn && !reducedMotion() ? (next.turnPulses ?? []).filter((p) => p.kind !== 'start') : [];
+    const replayEnd = pulses.length ? this.replayPulses(next, prev, before) : 0;
     before.cards.forEach((old, uid) => {
       if (root.querySelector(`[data-uid="${uid}"]`)) return;
       let to: DOMRect | null = null;
@@ -755,7 +796,7 @@ export class App {
       }
       const at = removalAt.get(uid);
       if (at !== undefined && this.lingerInSlot(prev, uid, old.html, at)) return;
-      ghost(old.html, old.rect, to, { size: { w: old.w, h: old.h } });
+      ghost(old.html, old.rect, to, { size: { w: old.w, h: old.h }, delay: replayEnd });
     });
 
     // --- Hits: projectiles, glows, numbers and sounds ----------------------
@@ -810,23 +851,26 @@ export class App {
     // start) the player whose tableau just triggered.
     const source = endingTurn ? activePlayer(next) : actor;
     const delay = endingTurn ? 750 : actor.isAI ? 520 : 160;
-    let volley = 0;
-    for (const p of next.players) {
-      const was = prev.players.find((pl) => pl.id === p.id)!;
-      if (p.id === source.id) continue;
-      const struck = p.heat > was.heat || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
-      if (!struck) continue;
-      const a = orbRect(source.id);
-      const b = orbRect(p.id);
-      const at = a && b ? projectile(a, b, HOT, { delay: delay + 110 * volley++, size: 34 }) : delay;
-      hit(p.id, at, true);
-    }
-    if (volley) window.setTimeout(() => sound.flare(), delay);
-    const me = next.players.find((p) => p.id === source.id)!;
-    const meWas = prev.players.find((p) => p.id === source.id)!;
-    if (me.heat !== meWas.heat || me.shields > meWas.shields) {
-      hit(source.id, delay, false);
-      if (me.heat < meWas.heat) window.setTimeout(() => sound.thermo(), delay);
+    // (A turn's start that replays its effects one by one has shown its hits already.)
+    if (!replayEnd) {
+      let volley = 0;
+      for (const p of next.players) {
+        const was = prev.players.find((pl) => pl.id === p.id)!;
+        if (p.id === source.id) continue;
+        const struck = p.heat > was.heat || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
+        if (!struck) continue;
+        const a = orbRect(source.id);
+        const b = orbRect(p.id);
+        const at = a && b ? projectile(a, b, HOT, { delay: delay + 110 * volley++, size: 34 }) : delay;
+        hit(p.id, at, true);
+      }
+      if (volley) window.setTimeout(() => sound.flare(), delay);
+      const me = next.players.find((p) => p.id === source.id)!;
+      const meWas = prev.players.find((p) => p.id === source.id)!;
+      if (me.heat !== meWas.heat || me.shields > meWas.shields) {
+        hit(source.id, delay, false);
+        if (me.heat < meWas.heat) window.setTimeout(() => sound.thermo(), delay);
+      }
     }
 
     switch (action.type) {
@@ -843,9 +887,10 @@ export class App {
         sound.endTurn();
         // The new player's start-of-turn cards light up, oldest first, as they trigger.
         let k = 0;
-        root.querySelectorAll<HTMLElement>(`.tableau[data-owner="${source.id}"] [data-uid]`).forEach((el) => {
-          if (cardDef(el.dataset.card!).onTurn?.length) pulse(el, 'fx-trigger', 220 + 90 * k++);
-        });
+        if (!replayEnd)
+          root.querySelectorAll<HTMLElement>(`.tableau[data-owner="${source.id}"] [data-uid]`).forEach((el) => {
+            if (cardDef(el.dataset.card!).onTurn?.length) pulse(el, 'fx-trigger', 220 + 90 * k++);
+          });
         break;
       }
       case 'setTarget':
@@ -862,6 +907,100 @@ export class App {
       }
     }
     if (vNext.deck.length === 0 && vPrev.deck.length > 0) pulse(root.querySelector('[data-anchor="deck"]'), 'fx-shuffle');
+  }
+
+  /** Replays in flight (a newer state cancels an older replay's remaining steps). */
+  private replayId = 0;
+
+  /** How long a state's start-of-turn replay lasts, in ms (0 if it has none). */
+  private replayLength(state: GameState): number {
+    if (reducedMotion()) return 0;
+    const n = (state.turnPulses ?? []).filter((p) => p.kind !== 'start').length;
+    return n ? 700 + n * PULSE_STEP * SPEED_FACTOR[this.speed] + 400 : 0;
+  }
+
+  /**
+   * A turn's start, effect by effect: each card that fires lights up, and its
+   * effect flies from it to the sun it reaches (a flare of heat to the rival's
+   * sun, a cooling beam or a shield beam to its owner's), whose numbers change
+   * as it lands. Regional instability and the table strike from the top of the
+   * screen. Returns when the last effect has landed.
+   */
+  private replayPulses(next: GameState, prev: GameState, before: Snapshot): number {
+    const root = this.root;
+    const id = ++this.replayId;
+    const all = next.turnPulses ?? [];
+    const steps = all.filter((p) => p.kind !== 'start');
+    const step = PULSE_STEP * SPEED_FACTOR[this.speed];
+    const viewer = this.viewer();
+    const orbRect = (pid: string) => anchorRect(root, `player:${pid}`) ?? before.anchors.get(`player:${pid}`) ?? anchorRect(root, `pill:${pid}`);
+    // Show a sun with given numbers (its planets as they are now).
+    const show = (pid: string, sun: { heat: number; shields: number; eliminated: boolean }) => {
+      if (id !== this.replayId) return;
+      const p = next.players.find((x) => x.id === pid)!;
+      root.querySelectorAll(`[data-anchor="player:${pid}"] .vit`).forEach((vit) => {
+        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated, id: pid, orbit: p.orbit });
+      });
+      animateSuns();
+    };
+    // Every sun starts where it was as the turn began (shields already faded).
+    const start = all.find((p) => p.kind === 'start')?.suns ?? Object.fromEntries(prev.players.map((p) => [p.id, { heat: p.heat, shields: p.shields, eliminated: p.eliminated }]));
+    for (const p of next.players) show(p.id, start[p.id] ?? { heat: p.heat, shields: p.shields, eliminated: p.eliminated });
+    let last = start;
+    let t = 700;
+    for (const ps of steps) {
+      const at = t;
+      const was = last;
+      last = ps.suns;
+      const fromEl = ps.uid ? root.querySelector(`.tableau [data-uid="${ps.uid}"]`) : null;
+      const from = fromEl ? pageRect(fromEl) : ps.uid ? before.cards.get(ps.uid)?.rect ?? null : (root.querySelector('.round-box') ? pageRect(root.querySelector('.round-box')!) : null);
+      const to = orbRect(ps.to);
+      if (fromEl) pulse(fromEl, 'fx-trigger', at);
+      let land = at + 300;
+      if (from && to) {
+        if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') land = projectile(from, to, HOT, { delay: at + 120, size: ps.kind === 'heat' ? 34 : 26, duration: 520 });
+        else if (ps.kind === 'cool') land = beam(from, to, COOLING, { delay: at + 120 });
+        else if (ps.kind === 'shield') land = beam(from, to, SHIELDING, { delay: at + 120, width: 5 });
+      }
+      window.setTimeout(() => {
+        if (id !== this.replayId) return;
+        if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') sound.flare();
+        else if (ps.kind === 'cool') sound.thermo();
+        else if (ps.kind === 'draw') sound.draw();
+      }, at + 120);
+      window.setTimeout(() => {
+        if (id !== this.replayId) return;
+        // Every sun that changed takes its new numbers, with what changed floating over it.
+        for (const p of next.players) {
+          const a = was[p.id], b = ps.suns[p.id];
+          if (!a || !b || (a.heat === b.heat && a.shields === b.shields && a.eliminated === b.eliminated)) continue;
+          show(p.id, b);
+          const r = orbRect(p.id);
+          const dHeat = b.heat - a.heat, dShield = b.shields - a.shields;
+          if (r && dHeat) floatNumber(r, dHeat > 0 ? `+${dHeat}` : `−${-dHeat}`, dHeat > 0 ? 'hot' : 'cool', 0);
+          if (r && dShield) floatNumber(r, dShield > 0 ? `⛨+${dShield}` : `⛨−${-dShield}`, 'block', dHeat ? 1 : 0);
+          const cls = dHeat > 0 ? 'fx-hot' : dHeat < 0 ? 'fx-cold' : 'fx-shield';
+          pulse(root.querySelector(`[data-anchor="player:${p.id}"]`), cls, 0);
+          if (dHeat > 0) {
+            if (p.id === viewer.id && ps.source !== viewer.id) {
+              sound.hurt(dHeat);
+              hurtFlash();
+            } else if (p.id !== ps.source) sound.strike(dHeat);
+            else sound.impact(true);
+          } else if (dHeat < 0) sound.impact(false);
+          if (dShield < 0) sound.block();
+          else if (dShield > 0 && !dHeat) sound.shield();
+        }
+      }, land);
+      t += step;
+    }
+    // Finally the suns as they really are.
+    const end = t + 200;
+    window.setTimeout(() => {
+      if (id !== this.replayId) return;
+      for (const p of next.players) show(p.id, { heat: p.heat, shields: p.shields, eliminated: p.eliminated });
+    }, end);
+    return end;
   }
 
   /**
@@ -934,6 +1073,8 @@ export class App {
   private canAct(): boolean {
     const s = this.state!;
     const me = activePlayer(s);
+    // Online, you wait while your rival reads the card you just played.
+    if (this.online && this.net.waitFor === 'rival') return false;
     return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff();
   }
 
@@ -1261,6 +1402,8 @@ export class App {
       }
       case 'skip-ai':
         return this.skipAI();
+      case 'stage-ok':
+        return this.confirmStage();
       case 'view-pile':
         this.sheet = { kind: 'pile', pile: arg as 'deck' | 'discard' };
         return this.render();
@@ -1849,13 +1992,19 @@ export class App {
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
+    // Online, while your rival reads your card: say so (you can't act until they have).
+    if (!st && this.online && this.net.waitFor === 'rival' && !isGameOver(s)) {
+      const rival = s.players.find((p) => p.id !== this.viewer().id);
+      return `<div class="wait-note">${esc((rival?.name ?? 'your rival').toLowerCase())} is reading your card…</div>`;
+    }
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
     const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true });
     return `
-      <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''}">
+      <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
         ${card}
         <div class="stage-caption">${esc(st.caption ?? `${actor.name.toLowerCase()} plays`)}</div>
+        ${st.confirm ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">got it</button>` : ''}
       </div>`;
   }
 

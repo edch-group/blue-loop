@@ -127,6 +127,36 @@ export function projectile(from: DOMRect, to: DOMRect, colour: string, opts: { d
   return delay + duration;
 }
 
+/**
+ * A straight beam of light shot from one element to another: it races out
+ * from the source, holds for a moment with a bright head on the target, and
+ * fades. Returns when it reaches the target.
+ */
+export function beam(from: DOMRect, to: DOMRect, colour: string, opts: { delay?: number; duration?: number; width?: number } = {}): number {
+  const duration = opts.duration ?? 420;
+  const delay = opts.delay ?? 0;
+  if (reducedMotion()) return delay;
+  const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2;
+  const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const el = document.createElement('div');
+  el.className = 'beam';
+  el.style.setProperty('--c', colour);
+  Object.assign(el.style, { width: `${len}px`, height: `${opts.width ?? 6}px`, transform: `translate(${x0}px, ${y0}px) rotate(${Math.atan2(y1 - y0, x1 - x0)}rad)` });
+  document.body.appendChild(el);
+  const anim = el.animate(
+    [
+      { clipPath: 'inset(0 100% 0 0)', opacity: 1 },
+      { clipPath: 'inset(0 0 0 0)', opacity: 1, offset: 0.55 },
+      { clipPath: 'inset(0 0 0 0)', opacity: 1, offset: 0.75 },
+      { clipPath: 'inset(0 0 0 100%)', opacity: 0 },
+    ],
+    { duration: duration / 0.55, delay, easing: 'ease-out', fill: 'both' },
+  );
+  anim.onfinish = () => el.remove();
+  return delay + duration;
+}
+
 /** Briefly apply a CSS animation class to an element (restarting it if already running). */
 export function pulse(el: Element | null, cls: string, delay = 0) {
   if (!el) return;

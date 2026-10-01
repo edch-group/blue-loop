@@ -31,6 +31,11 @@ export interface RoomData {
   game: GameState | null;
   /** The last move, for the clients to animate. */
   last: LastMove | null;
+  /**
+   * The seat that must confirm it has read the card just played against it
+   * before the player who played it may act again (null: nobody is waited on).
+   */
+  waitingOn?: number | null;
 }
 
 export interface LastMove {
@@ -50,13 +55,16 @@ export type ClientMessage =
   | { t: 'setup'; name: string; deck: string[]; deckName: string; species: number }
   /** In the lobby: confirm (or take back) that you are ready to start. */
   | { t: 'ready'; ready: boolean }
+  /** In a game: you have read the card your rival just played (they may carry on). */
+  | { t: 'ack' }
   | { t: 'ping' };
 
 /** What the room sends. */
 export type ServerMessage =
   | { t: 'joined'; seat: number; token: string }
   | { t: 'lobby'; seats: { name: string; deckName: string; species: number; ready: boolean }[]; you: number }
-  | { t: 'state'; state: GameState; you: string; last: LastMove | null; names: string[] }
+  /** `waitFor`: 'you' when you must confirm your rival's card, 'rival' while they read yours. */
+  | { t: 'state'; state: GameState; you: string; last: LastMove | null; names: string[]; waitFor: 'you' | 'rival' | null }
   | { t: 'error'; message: string }
   | { t: 'pong' }
   /** Whether the other player is connected right now (sent by the worker as connections come and go). */
@@ -114,20 +122,33 @@ export function handle(
       // Conceding is allowed on either player's turn, and only ever for yourself.
       if (msg.action.type === 'concede') {
         if (g.winnerId) return { seat, reply: [], broadcast: false };
+        room.waitingOn = null;
         room.game = applyAction(g, { type: 'concede', playerId: me.id });
         room.last = { action: { type: 'concede', playerId: me.id }, actorId: me.id };
         return { seat, reply: [], broadcast: true };
       }
       if (g.players[g.activePlayerIndex].id !== me.id) return { seat, reply: [{ t: 'error', message: "It's not your turn." }], broadcast: false };
+      if (room.waitingOn === 1 - seat) return { seat, reply: [{ t: 'error', message: `${room.seats[1 - seat]?.name ?? 'Your rival'} is still reading your card.` }], broadcast: false };
       try {
         const next = applyAction(g, msg.action);
         room.last = describe(g, next, msg.action, me.id);
         room.game = next;
+        // A card that landed (in play, or set face down) waits for the rival to read it before its player goes on.
+        if (msg.action.type === 'playCard' && !next.winnerId) {
+          const cardUid = msg.action.cardUid;
+          const actor = next.players.find((p) => p.id === me.id)!;
+          room.waitingOn = actor.tableau.some((c) => c.uid === cardUid) || actor.lightspeed?.uid === cardUid ? 1 - seat : null;
+        } else room.waitingOn = null;
         return { seat, reply: [], broadcast: true };
       } catch (err) {
         if (err instanceof GameError) return { seat, reply: [{ t: 'error', message: err.message }], broadcast: false };
         throw err;
       }
+    }
+    case 'ack': {
+      if (seat === null || room.waitingOn !== seat) return { seat, reply: [], broadcast: false };
+      room.waitingOn = null;
+      return { seat, reply: [], broadcast: true };
     }
     case 'rematch': {
       if (seat === null || !room.game?.winnerId) return { seat, reply: [], broadcast: false };
@@ -136,6 +157,7 @@ export function handle(
       // Back to the lobby, where both can change deck or race and confirm again.
       room.game = null;
       room.last = null;
+      room.waitingOn = null;
       for (const s of room.seats) s.ready = false;
       return { seat, reply: [], broadcast: true };
     }
@@ -172,6 +194,7 @@ function start(room: RoomData, random: () => number) {
     players: order.map((s) => ({ name: s.name, isAI: false, deck: s.deck, deckName: s.deckName, species: s.species })),
   });
   room.last = null;
+  room.waitingOn = null;
 }
 
 function describe(prev: GameState, next: GameState, action: Action, actorId: string): LastMove {
@@ -219,6 +242,7 @@ export function views(room: RoomData): ServerMessage[] {
   }
   return room.seats.map((_, seat) => {
     const i = playerIndex(room, seat);
-    return { t: 'state', state: viewFor(g, i), you: g.players[i].id, last: room.last, names: room.seats.map((s) => s.name) };
+    const waitFor = room.waitingOn == null || g.winnerId ? null : room.waitingOn === seat ? 'you' : 'rival';
+    return { t: 'state', state: viewFor(g, i), you: g.players[i].id, last: room.last, names: room.seats.map((s) => s.name), waitFor };
   });
 }

@@ -270,6 +270,22 @@ export interface GameState {
   /** The player who conceded, if the game ended that way. */
   concededBy?: string;
   log: LogEntry[];
+  /** What the latest start of turn did, effect by effect, so the table can replay it (only on the state a turn starts in). */
+  turnPulses?: TurnPulse[];
+}
+
+/** One start-of-turn effect, as it happened: what fired it, where it went, and every sun just after. */
+export interface TurnPulse {
+  /** The card that fired it (none for the table: regional instability, a global card, the map). */
+  uid?: string;
+  /** Whose turn it is. */
+  source: string;
+  /** The player it reached. */
+  to: string;
+  /** 'start': no effect, just every sun as the turn's effects begin. */
+  kind: 'start' | 'heat' | 'selfHeat' | 'cool' | 'shield' | 'draw' | 'unstable';
+  amount: number;
+  suns: Record<string, { heat: number; shields: number; eliminated: boolean }>;
 }
 
 export interface PlayerSetup {

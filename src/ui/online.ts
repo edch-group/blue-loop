@@ -23,7 +23,8 @@ export interface LobbySeat {
 
 export interface OnlineEvents {
   lobby(seats: LobbySeat[], you: number): void;
-  state(state: GameState, you: string, last: LastMove | null): void;
+  /** `waitFor`: 'you' when you must confirm the card your rival just played, 'rival' while they read yours. */
+  state(state: GameState, you: string, last: LastMove | null, waitFor: 'you' | 'rival' | null): void;
   error(message: string): void;
   /** Whether the rival is connected right now. */
   presence(rivalOnline: boolean): void;
@@ -123,7 +124,7 @@ export class OnlineClient {
           this.on.lobby(msg.seats as LobbySeat[], msg.you as number);
           break;
         case 'state':
-          this.on.state(msg.state as GameState, msg.you as string, (msg.last as LastMove | null) ?? null);
+          this.on.state(msg.state as GameState, msg.you as string, (msg.last as LastMove | null) ?? null, (msg.waitFor as 'you' | 'rival' | null) ?? null);
           break;
         case 'error':
           this.on.error(String(msg.message));
@@ -150,6 +151,11 @@ export class OnlineClient {
 
   act(action: Action) {
     this.send({ t: 'action', action });
+  }
+
+  /** You have read the card your rival just played: they may carry on. */
+  ack() {
+    this.send({ t: 'ack' });
   }
 
   rematch() {
