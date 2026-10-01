@@ -154,6 +154,8 @@ const PULSE_STEP = 720;
 const DEAL_STEP_MS = 110;
 /** A faded card's way out: the deal's flight (520ms), played backwards into the discard pile. */
 const FADE_OUT = { duration: 520, easing: 'cubic-bezier(.8,.2,.8,.2)', endOpacity: 0 };
+/** How long the pointer rests on a keyword before it explains itself. */
+const KW_TIP_DELAY_MS = 350;
 const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
 /** Clicks that make their own sound (or none): moves on the table and picks on the map. */
 const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
@@ -213,6 +215,8 @@ export class App {
   private landing: (() => void) | null = null;
   /** The staged rival card has played its arrival sound (so it does not sound again as it lands). */
   private entranceHeard = false;
+  /** An invite link's room, joined once a new player has signed in. */
+  private inviteAfterSignIn: string | null = null;
   /** A menu page is playing out (see leaveMenu); further clicks wait. */
   private menuLeaving = false;
   /** The page last drawn, so a new one can come in with a little rise. */
@@ -304,19 +308,29 @@ export class App {
     const tip = document.createElement('div');
     tip.className = 'kw-tip';
     document.body.appendChild(tip);
+    // It shows after a short hover (not as the pointer passes over), and goes at once.
+    let tipFor: HTMLElement | null = null;
+    let tipTimer = 0;
     document.addEventListener('mouseover', (e) => {
       const kw = (e.target as HTMLElement).closest?.<HTMLElement>('.kw[data-kw]');
+      if (kw === tipFor) return;
+      tipFor = kw;
+      window.clearTimeout(tipTimer);
+      tip.classList.remove('show');
       // Not where the card's explanations are already laid out beside it.
-      if (!kw || this.touch || kw.closest('.zoom-card, .inspector-row, .card-preview')?.querySelector('.kw-list')) return tip.classList.remove('show');
+      if (!kw || this.touch || kw.closest('.zoom-card, .inspector-row, .card-preview')?.querySelector('.kw-list')) return;
       const k = KEYWORDS[kw.dataset.kw!];
       if (!k) return;
-      tip.innerHTML = `${keywordHtml(kw.dataset.kw!, kw.dataset.kv, { named: true })} ${esc(k.explain(kw.dataset.kv))}`;
-      const r = pageRect(kw);
-      const page = appSize();
-      tip.classList.add('show');
-      const w = tip.offsetWidth, h = tip.offsetHeight;
-      tip.style.left = `${Math.max(8, Math.min(page.w - w - 8, r.left + r.width / 2 - w / 2))}px`;
-      tip.style.top = `${r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8}px`;
+      tipTimer = window.setTimeout(() => {
+        if (tipFor !== kw || !kw.isConnected) return;
+        tip.innerHTML = `${keywordHtml(kw.dataset.kw!, kw.dataset.kv, { named: true })} ${esc(k.explain(kw.dataset.kv))}`;
+        const r = pageRect(kw);
+        const page = appSize();
+        tip.classList.add('show');
+        const w = tip.offsetWidth, h = tip.offsetHeight;
+        tip.style.left = `${Math.max(8, Math.min(page.w - w - 8, r.left + r.width / 2 - w / 2))}px`;
+        tip.style.top = `${r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8}px`;
+      }, KW_TIP_DELAY_MS);
     });
 
     // "View board": any overlay can be hidden to look at the board, then brought back.
@@ -378,8 +392,11 @@ export class App {
     if (invited) {
       this.net.joinCode = invited;
       this.menuPage = 'online';
-      // Already holding a seat in that room (a reload, or the tab was closed): go straight back to it.
-      if (hasSeat(invited)) return this.goOnline(invited);
+      // Straight into the room's lobby (or back to your seat in it, after a reload).
+      if (signedIn() || hasSeat(invited)) return this.goOnline(invited);
+      // New players name themselves first, then go on into the room.
+      this.inviteAfterSignIn = invited;
+      this.menuPage = 'signin';
     }
     this.render();
   }
@@ -1809,6 +1826,12 @@ export class App {
         signIn(this.signinName ?? profile().name, this.signinAvatar ?? profile().avatar);
         this.signinName = this.signinAvatar = null;
         this.seats[0].name = profile().name;
+        if (this.inviteAfterSignIn) {
+          const room = this.inviteAfterSignIn;
+          this.inviteAfterSignIn = null;
+          this.menuPage = 'online';
+          return this.goOnline(room);
+        }
         this.menuPage = 'hub';
         return this.render();
       case 'menu-page':
