@@ -2177,13 +2177,16 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .vit-cold .vit-heat { color: #2d4a6e; text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8); }
 .vit-heat b { font-size: calc(var(--vs) * 0.2); font-weight: 800; }
 .vit-heat small { font-size: calc(var(--vs) * 0.09); font-weight: 700; opacity: 0.8; letter-spacing: 0.06em; }
-.vit-shields {
-  display: flex; align-items: center; gap: 2px; padding: 1px calc(var(--vs) * 0.05);
-  border-radius: 999px; background: #fff; border: 2px solid #6d8cc2; color: #3d5a8c;
-  font-family: var(--display); font-weight: 800; font-size: calc(var(--vs) * 0.12); line-height: 1.2;
-  box-shadow: 0 2px 8px rgba(60, 80, 120, 0.25);
+/* The shields pill and the planet tag beside it share one look: the same height, a soft border, a light shadow. */
+.vit-shields, .vit-planet-tag {
+  box-sizing: border-box; height: max(16px, calc(var(--vs) * 0.16)); display: inline-flex; align-items: center;
+  padding: 0 calc(var(--vs) * 0.05); border-radius: 999px; background: #fff;
+  border: 2px solid rgba(150, 164, 190, 0.5); box-shadow: 0 2px 8px rgba(60, 80, 120, 0.18);
+  font-family: var(--display); line-height: 1; white-space: nowrap;
 }
-.vit:not(.vit-shielded) .vit-shields { border-color: rgba(150, 164, 190, 0.5); color: #9aa6ba; }
+.vit-shields { gap: 2px; color: #3d5a8c; font-weight: 800; font-size: calc(var(--vs) * 0.12); }
+.vit-shielded .vit-shields { border-color: rgba(109, 140, 194, 0.65); }
+.vit:not(.vit-shielded) .vit-shields { color: #9aa6ba; }
 .vit-shields i { font-style: normal; font-size: 0.9em; }
 .vit-dead .vit-tracks, .vit-dead .vit-shields, .vit-dead .vit-heat { opacity: 0.5; }
 
@@ -2510,11 +2513,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   position: absolute; width: calc(var(--vs) * 0.14); height: calc(var(--vs) * 0.14); margin: calc(var(--vs) * -0.07) 0 0 calc(var(--vs) * -0.07);
   border-radius: 50%; pointer-events: auto; cursor: help;
 }
-.vit-planet-tag {
-  padding: 1px calc(var(--vs) * 0.05); border-radius: 999px; background: #fff; white-space: nowrap; cursor: help;
-  font-family: var(--display); font-size: max(8px, calc(var(--vs) * 0.075)); letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.4;
-  box-shadow: 0 2px 6px rgba(60, 70, 100, 0.18); border: 1.5px solid currentColor;
-}
+.vit-planet-tag { cursor: help; font-size: max(8px, calc(var(--vs) * 0.075)); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 .vt-dead { color: #7d828d; }
 .vt-abundant { color: #2f9a72; }
 .vt-industrial { color: #c06d24; }
