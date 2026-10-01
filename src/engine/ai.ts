@@ -11,13 +11,12 @@ import {
   livingOpponents,
   needsSlot,
   planetAt,
-  persists,
   allyChoices,
   cardDefence,
   freeSlots,
   recoverChoices,
   supernovaThreshold,
-  tableauFull,
+  hasRoomFor,
   targetOf,
   upgradeOptions,
 } from './game';
@@ -164,7 +163,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) continue;
     const upgrades = cardNeedsUpgradeChoice(card.defId) ? opt(upgradeOptions(me)) : [undefined];
     const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
-    if (persists(card.defId) && tableauFull(me)) continue;
+    if (!hasRoomFor(me, card.defId)) continue;
     const slots = needsSlot(me, card.defId) ? freeSlots(me) : [undefined];
     // Recovering: one of each card in the discard pile.
     const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);

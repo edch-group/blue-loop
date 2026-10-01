@@ -313,7 +313,7 @@ const TRAIL_RGB: Record<string, RGB> = { dead: [112, 118, 132], abundant: [40, 1
  */
 const orbitsShown = new Map<string, { at: number; seen: number }>();
 /** How long one notch of the orbit takes to swing round, in ms. */
-const ORBIT_STEP_MS = 700;
+const ORBIT_STEP_MS = 1400;
 let orbitsMoving = false;
 const domeImages = new WeakMap<HTMLCanvasElement, ImageData>();
 const ballLayers = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();

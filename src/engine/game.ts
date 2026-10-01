@@ -262,6 +262,16 @@ export function allyChoices(p: PlayerState, defId: string): CardInstance[] {
   return [...p.tableau];
 }
 
+/** Whether a card recalls one of your cards, so it can take that card's place in a full tableau. */
+export function recallsInto(p: PlayerState, defId: string): boolean {
+  return allyEffectKind(defId) === 'recall' && p.tableau.length > 0;
+}
+
+/** Whether a card can be played into this tableau now: a free slot, a recall to make one, or no slot needed. */
+export function hasRoomFor(p: PlayerState, defId: string): boolean {
+  return !persists(defId) || !tableauFull(p) || recallsInto(p, defId);
+}
+
 /** Whether a card's ally choice returns the card to hand (rather than restoring its stability). */
 export function allyEffectKind(defId: string): 'recall' | 'restore' | null {
   const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || (x.type === 'restore' && !x.all));
@@ -937,9 +947,11 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (foes.length > 0 && !foes.some((c) => c.uid === action.enemyUid)) {
     throw new GameError(`Choose a card in ${target?.name ?? 'your rival'}'s tableau.`);
   }
-  if (persists(def.id) && tableauFull(p)) throw new GameError('Your tableau is full: a card can only go in once one fades, or is recalled or removed.');
+  // A recall card can go into a full tableau: it takes the place of the card it recalls.
+  const swap = persists(def.id) && tableauFull(p) && recallsInto(p, def.id);
+  if (persists(def.id) && tableauFull(p) && !swap) throw new GameError('Your tableau is full: a card can only go in once one fades, or is recalled or removed.');
   const free = freeSlots(p);
-  if (persists(def.id) && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
+  if (persists(def.id) && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
   const allies = allyChoices(p, def.id);
   if (allies.length > 0 && !allies.some((c) => c.uid === action.allyUid)) throw new GameError('Choose a card of yours.');
   const recovers = recoverChoices(p, def.id);
@@ -975,6 +987,20 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       log(state, `${def.name} replaces ${cardDef(old.card.defId).name}.`);
       leaveTableau(state, old.owner, old.card);
       if (state.winnerId || p.eliminated) return;
+    }
+  }
+  // Into a full tableau, a recall card first returns the card it recalls, and takes its slot.
+  if (swap) {
+    const back = p.tableau.find((c) => c.uid === action.allyUid);
+    if (back) {
+      log(state, `${p.name} returns ${cardDef(back.defId).name} to their hand.`);
+      const at = back.slot;
+      leaveTableau(state, p, back, 'hand');
+      if (state.winnerId || p.eliminated) {
+        p.discard.push(card);
+        return;
+      }
+      action = { ...action, slot: at };
     }
   }
   // The chosen slot, or else the safest one free.

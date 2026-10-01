@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, applyAction, baseStability, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold } from '../src/engine/game';
+import { activePlayer, applyAction, baseStability, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -232,6 +232,24 @@ describe('commands', () => {
     expect(s.players[0].playsLeft).toBe(3); // Phase Shift gives back the play it used
     s = play(s, 'command_directive', { upgrade: 'solarFlare' });
     expect(s.players[0].upgrades.solarFlare).toBe(2);
+  });
+
+  it('lets a recall card into a full tableau, in the place of the card it recalls', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.playsLeft = 2;
+    const placed = give(me, ['plasma_relay', 'coolant_array', 'chrono_anchor', 'resonance_lattice', 'bulwark_plating'], 'tableau');
+    expect(tableauFull(me)).toBe(true);
+    const back = placed[2];
+    give(me, ['recall_beacon']);
+    s = play(s, 'recall_beacon', { allyUid: back.uid });
+    const t = s.players[0].tableau;
+    expect(t).toHaveLength(BALANCE.tableauSlots);
+    expect(t.find((c) => c.defId === 'recall_beacon')!.slot).toBe(back.slot);
+    expect(s.players[0].hand.some((c) => c.uid === back.uid)).toBe(true);
+    // Any other card still can't go in.
+    give(activePlayer(s), ['coronal_lance']);
+    expect(() => play(s, 'coronal_lance')).toThrow(/full/);
   });
 
   it('let Command Directive choose, and require a choice', () => {

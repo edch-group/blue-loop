@@ -39,7 +39,7 @@ import {
   recoverChoices,
   resonanceBonus,
   supernovaThreshold,
-  tableauFull,
+  hasRoomFor,
   targetOf,
   turnForecast,
   upgradeOptions,
@@ -1309,8 +1309,8 @@ export class App {
       sound.error();
       return;
     }
-    if (persists(card.defId) && tableauFull(me)) {
-      this.showToast('Your tableau is full: a card can only go in once one fades (or is recalled or removed).', 'info');
+    if (!hasRoomFor(me, card.defId)) {
+      this.showToast('Your tableau is full: a card can only go in once one fades (or is recalled or removed). A recall card can take the place of the card it recalls.', 'info');
       sound.error();
       return;
     }
@@ -2126,7 +2126,7 @@ export class App {
             fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
             fact('Defence', `Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
-            fact('No replacing', 'A full tableau takes nothing new until a card fades or leaves.'),
+            fact('No replacing', 'A full tableau takes nothing new until a card fades or leaves. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
             fact('Discard pile', `Every card that leaves goes here. An empty deck reshuffles it back in: ${kw('heat', String(B.reshuffleHeat))} to your sun.`),
           ),

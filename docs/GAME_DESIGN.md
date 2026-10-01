@@ -39,7 +39,7 @@ was replaced by this design in design review.
 ## The tableau
 
 - Played cards **stay in play** in your tableau, which has **5 slots**. [design review: 5 slots]
-- **You choose the slot.** There is **no replacing**: with every slot full, no new card goes in (Lightspeed cards excepted) until one fades, or is recalled or removed. Fill your tableau carelessly and you can lock yourself out. [design review]
+- **You choose the slot.** There is **no replacing**: with every slot full, no new card goes in (Lightspeed cards excepted) until one fades, or is recalled or removed. A recall card is the one way in: it takes the place of the card it recalls. Fill your tableau carelessly and you can lock yourself out. [design review]
 - **Defence** comes from the slot: **1, 2, 3, 2, 1** from left to right. The middle is the safest place for the card you most want to keep. [design review]
   - Sturdy cards add their own defence: Bellwarden, Hero of Rathune and Aegis Monolith, +1 each.
   - Bulwarks guard their neighbours: Bulwark Plating gives +1 to the cards either side. Aegis Monolith (Anomaly) gives +2 either side and +1 two slots away.
