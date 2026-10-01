@@ -1192,16 +1192,20 @@ input { font: inherit; }
 }
 .cmp-no-anim, .cmp-no-anim * { transition: none !important; }
 .cmp-grid {
-  /* A faint, translucent star chart: lines and dust only, fading out at the edges. */
-  position: absolute; inset: -80px; border-radius: 60px;
+  /* The board the systems sit on, like the battle board: a rounded slab with a dotted grid, a bright rim and
+     a front edge, translucent enough for the galaxy to show through. */
+  position: absolute; inset: -90px; border-radius: 72px;
   background:
-    radial-gradient(circle, rgba(120, 135, 170, 0.35) 0 1px, transparent 1.5px) 0 0 / 46px 46px,
-    radial-gradient(circle, rgba(150, 160, 200, 0.25) 0 0.8px, transparent 1.2px) 23px 17px / 71px 71px,
-    repeating-linear-gradient(0deg, rgba(140, 150, 175, 0.09) 0 1px, transparent 1px 80px),
-    repeating-linear-gradient(90deg, rgba(140, 150, 175, 0.09) 0 1px, transparent 1px 80px),
-    radial-gradient(ellipse at 50% 50%, rgba(230, 236, 250, 0.35), transparent 72%);
-  -webkit-mask-image: radial-gradient(ellipse 72% 70% at 50% 50%, #000 55%, transparent 100%);
-  mask-image: radial-gradient(ellipse 72% 70% at 50% 50%, #000 55%, transparent 100%);
+    radial-gradient(circle, rgba(120, 135, 170, 0.2) 0 1.2px, transparent 1.8px) 0 0 / 40px 40px,
+    repeating-linear-gradient(0deg, rgba(140, 150, 175, 0.07) 0 1px, transparent 1px 160px),
+    repeating-linear-gradient(90deg, rgba(140, 150, 175, 0.07) 0 1px, transparent 1px 160px),
+    radial-gradient(ellipse 70% 60% at 50% 45%, rgba(255, 255, 255, 0.5), rgba(246, 245, 241, 0.38) 60%, rgba(236, 235, 230, 0.4));
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.95),
+    inset 0 0 0 16px rgba(150, 156, 172, 0.07),
+    inset 0 0 80px rgba(150, 156, 172, 0.12),
+    0 24px 0 -2px rgba(214, 213, 207, 0.95),
+    0 50px 60px rgba(60, 60, 80, 0.16);
 }
 .cmp-links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .cmp-links-focus { -webkit-mask-image: radial-gradient(circle 240px at var(--mx) var(--my), #000 55%, transparent); mask-image: radial-gradient(circle 240px at var(--mx) var(--my), #000 55%, transparent); }
@@ -1246,7 +1250,12 @@ input { font: inherit; }
   animation: star-flicker calc(3.4s + var(--seed, 0) * 3s) ease-in-out infinite;
   animation-delay: calc(var(--seed, 0) * -7s);
 }
-.cmp-owned .cmp-core { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--fc), 0 1px 4px rgba(60, 66, 84, 0.3); }
+/* A controlled system's star burns in its faction's colour. */
+.cmp-owned .cmp-core {
+  background: radial-gradient(circle at 40% 36%, #fff 0 14%, color-mix(in srgb, var(--fc) 30%, #fff) 36%, var(--fc) 72%, color-mix(in srgb, var(--fc) 70%, #3c4254) 100%);
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.9), 0 0 10px 1px color-mix(in srgb, var(--fc) 55%, transparent), 0 1px 4px rgba(60, 66, 84, 0.3);
+}
+.cmp-owned .cmp-star::after { background: radial-gradient(circle, color-mix(in srgb, var(--fc) 30%, rgba(255, 255, 255, 0.7)) 0 45%, color-mix(in srgb, var(--fc) 25%, transparent) 60%, transparent 72%); }
 .cmp-binary .cmp-core { inset: 8%; }
 .cmp-companion {
   position: absolute; left: 50%; top: 50%; width: 40%; height: 40%; margin: -20% 0 0 -20%; border-radius: 50%;
