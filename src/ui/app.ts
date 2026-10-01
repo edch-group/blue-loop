@@ -127,6 +127,9 @@ type Sheet =
   | { kind: 'end-day' }
   | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string };
 
+/** Menu buttons that lead somewhere: the page they're on lifts away (and the star spins up) before the next one comes in. */
+const MENU_NAV = new Set(['menu-page', 'open-decks', 'campaign-new', 'campaign-continue', 'continue', 'new-game', 'to-menu']);
+const MENU_LEAVE_MS = 300;
 const SPEED_KEY = 'blue-loop:ai-speed';
 /** A rival's cards land by themselves after a moment, rather than waiting for OK. */
 const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
@@ -202,6 +205,10 @@ export class App {
   private sheet: Sheet | null = null;
   /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
   private landing: (() => void) | null = null;
+  /** A menu page is playing out (see leaveMenu); further clicks wait. */
+  private menuLeaving = false;
+  /** The page last drawn, so a new one can come in with a little rise. */
+  private shownPage = '';
   /** Auto-confirm: a rival's card waits on the stage for a moment, then lands by itself. */
   private autoConfirm = false;
   /** The How to Play tab showing. */
@@ -562,6 +569,63 @@ export class App {
     const card = this.root.querySelector<HTMLElement>('.stage .card');
     const side = this.root.querySelector<HTMLElement>(`.tableau[data-owner="${actorId}"] .tableau-row`) ?? this.root.querySelector<HTMLElement>(`[data-anchor="pill:${actorId}"]`);
     if (card && side) flyFrom(card, pageRect(side), { duration: 560 });
+  }
+
+  /**
+   * Leaving a menu page: the button pressed lifts up and fades (a quick rise that eases off), the rest of
+   * the page drifts up after it, and the star spins faster, as it does on the board when a move is made.
+   */
+  private leaveMenu(el: HTMLElement) {
+    this.menuLeaving = true;
+    backdrop.spin();
+    backdrop.spin();
+    const ease = 'cubic-bezier(.1,.75,.3,1)';
+    const button = el.closest<HTMLElement>('.hub-col') ?? el;
+    button.animate(
+      [
+        { opacity: 1, transform: 'translateY(0)' },
+        { opacity: 0, transform: 'translateY(-34px)' },
+      ],
+      { duration: MENU_LEAVE_MS, easing: ease, fill: 'forwards' },
+    );
+    this.menuParts().forEach((part, i) => {
+      if (part === button || part.contains(button)) return;
+      part.animate(
+        [
+          { opacity: 1, transform: 'translateY(0)' },
+          { opacity: 0, transform: 'translateY(-14px)' },
+        ],
+        { duration: MENU_LEAVE_MS - 40, delay: Math.min(60, i * 15), easing: ease, fill: 'forwards' },
+      );
+    });
+  }
+
+  /** A new menu page rises gently into place, a part at a time. */
+  private enterMenu() {
+    if (reducedMotion()) return;
+    this.menuParts().forEach((part, i) =>
+      part.animate(
+        [
+          { opacity: 0, transform: 'translateY(16px)' },
+          { opacity: 1, transform: 'translateY(0)' },
+        ],
+        { duration: 420, delay: i * 45, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' },
+      ),
+    );
+  }
+
+  /** The parts of a menu page that move as one (each hub tile on its own). */
+  private menuParts(): HTMLElement[] {
+    const menu = this.root.querySelector<HTMLElement>('.menu');
+    if (!menu) return [];
+    const parts: HTMLElement[] = [];
+    for (const child of menu.children) {
+      if (!(child instanceof HTMLElement) || child.matches('.petals, .overlay')) continue;
+      const tiles = child.matches('.hub') ? [...child.querySelectorAll<HTMLElement>(':scope > .hub-col')] : [];
+      const stack = child.matches('.menu-stack') ? [...child.children].filter((c): c is HTMLElement => c instanceof HTMLElement) : [];
+      parts.push(...(tiles.length ? tiles : stack.length ? stack : [child]));
+    }
+    return parts;
   }
 
   /** End the day, checking first if there are still cards that could be played. */
@@ -1543,8 +1607,23 @@ export class App {
     const act = el.dataset.act!;
     const arg = el.dataset.arg ?? '';
     const s = this.state;
+    // In the menus, a button that leads somewhere first plays the page out, then acts.
+    const leaving = el.dataset.leaving === '1';
+    if (leaving) delete el.dataset.leaving;
+    else if (this.screen === 'menu' && MENU_NAV.has(act) && !reducedMotion()) {
+      if (this.menuLeaving) return;
+      sound.click();
+      this.leaveMenu(el);
+      window.setTimeout(() => {
+        this.menuLeaving = false;
+        if (!el.isConnected) return;
+        el.dataset.leaving = '1';
+        el.click();
+      }, MENU_LEAVE_MS);
+      return;
+    }
     // Buttons tick; moves on the table (and map selections) have sounds of their own.
-    if (!QUIET_ACTS.has(act) && !el.classList.contains('overlay') && !el.classList.contains('cmp-stage')) sound.click();
+    if (!leaving && !QUIET_ACTS.has(act) && !el.classList.contains('overlay') && !el.classList.contains('cmp-stage')) sound.click();
     if (act.startsWith('cmp-') && this.campaign.onClick(act, arg, el)) return;
     if (act.startsWith('db-') && this.builder.onClick(act, arg)) return;
 
@@ -1824,6 +1903,12 @@ export class App {
     this.fitHand();
     fitCardText(this.root);
     refreshLift();
+    const page = this.screen === 'menu' ? `menu:${this.menuPage}` : this.screen;
+    if (page !== this.shownPage) {
+      const first = !this.shownPage;
+      this.shownPage = page;
+      if (this.screen === 'menu' && !first) this.enterMenu();
+    }
     animateSuns();
     if (!this.press?.shown) this.preview.classList.remove('show');
   }
