@@ -1,5 +1,6 @@
 import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
+import { EXPANSION, EXPANSION_META } from './cards-expansion';
 
 /**
  * The card pool. Cards have no cost: the number of cards you may play each
@@ -704,7 +705,9 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   ixquor_brood_tender: { character: true, rarity: 'stellar' },
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
-for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? {});
+// The second set joins the pool (for building decks; the starters use only the first).
+CARDS.push(...EXPANSION);
+for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {});
 
 /** Display names for the rarities. */
 export const RARITY_NAME: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly' };

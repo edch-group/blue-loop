@@ -38,6 +38,8 @@ const esc = (s: string) =>
  */
 export class DeckBuilder {
   private editing: SavedDeck | null = null;
+  /** Opened from a starter deck: the starter as it was (a changed starter saves as a copy of its own). */
+  private starter: SavedDeck | null = null;
   private filters: Filters = { ...NO_FILTERS };
   /** A card opened to craft or break down. */
   private focus: string | null = null;
@@ -45,7 +47,7 @@ export class DeckBuilder {
   constructor(private host: BuilderHost) {}
 
   open() {
-    this.editing = null;
+    this.editing = this.starter = null;
   }
 
   onInput(value: string) {
@@ -69,22 +71,36 @@ export class DeckBuilder {
     const d = this.editing;
     switch (act) {
       case 'db-back':
-        if (this.editing) this.editing = null;
+        if (this.editing) this.editing = this.starter = null;
         else this.host.done();
         break;
+      case 'db-view': {
+        // A starter opens just as a deck of your own does; change anything and it saves as a copy.
+        const src = deckById(arg);
+        if (!src) return true;
+        this.starter = src;
+        this.editing = { id: `deck-${Date.now().toString(36)}`, name: src.name, race: src.race, cards: [...src.cards] };
+        this.filters = { ...NO_FILTERS };
+        break;
+      }
       case 'db-new':
+        this.starter = null;
         this.editing = { id: `deck-${Date.now().toString(36)}`, name: 'New deck', race: 0, cards: [] };
         this.filters = { ...NO_FILTERS };
         break;
       case 'db-copy': {
         const src = deckById(arg);
         if (!src) return true;
+        this.starter = null;
         this.editing = { id: `deck-${Date.now().toString(36)}`, name: `${src.name} copy`, race: src.race, cards: [...src.cards] };
         break;
       }
       case 'db-edit': {
         const src = deckById(arg);
-        if (src && !src.preset) this.editing = { ...src, cards: [...src.cards] };
+        if (src && !src.preset) {
+          this.starter = null;
+          this.editing = { ...src, cards: [...src.cards] };
+        }
         break;
       }
       case 'db-delete':
@@ -147,8 +163,17 @@ export class DeckBuilder {
           return true;
         }
         d.name = d.name.trim() || 'Unnamed deck';
+        const st = this.starter;
+        const changed = !st || d.name !== st.name || d.race !== st.race || [...d.cards].sort().join() !== [...st.cards].sort().join();
+        if (st && !changed) {
+          // Nothing to keep: the starter is still there as it was.
+          this.editing = this.starter = null;
+          break;
+        }
+        if (st && d.name === st.name) d.name = `${st.name} copy`.slice(0, 24);
         saveDeck(d);
-        this.editing = null;
+        if (st) this.host.toast(`Saved as a new deck: ${d.name}. The starter stays as it was.`);
+        this.editing = this.starter = null;
         break;
       }
       default:
@@ -176,14 +201,14 @@ export class DeckBuilder {
       const counts = (kind: CardKind) => d.cards.filter((id) => cardDef(id).kind === kind).length;
       const legal = deckProblems(d.cards).length === 0;
       return `
-        <div class="db-deck ${legal ? '' : 'db-deck-bad'}">
+        <div class="db-deck db-deck-open ${legal ? '' : 'db-deck-bad'}" data-act="${d.preset ? 'db-view' : 'db-edit'}" data-arg="${d.id}" role="button" tabindex="0" title="${d.preset ? 'Look through it (changes save as a copy)' : 'Edit it'}">
           ${factionAvatar(`f${d.race + 1}`, 'db-emblem')}
           <div class="db-deck-info">
             <b>${esc(d.name.toLowerCase())}</b>
             <small>${d.preset ? `${esc(RACE_NAMES[d.race].toLowerCase())} starter` : legal ? `${d.cards.length} cards` : 'incomplete'} · ${counts('attack')} attack · ${counts('defence')} defence · ${counts('growth')} growth</small>
           </div>
           <div class="db-deck-actions">
-            ${d.preset ? `<button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>` : `<button class="pill-btn" data-act="db-edit" data-arg="${d.id}">edit</button><button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}
+            ${d.preset ? `<button class="pill-btn" data-act="db-view" data-arg="${d.id}">view</button><button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>` : `<button class="pill-btn" data-act="db-edit" data-arg="${d.id}">edit</button><button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}
           </div>
         </div>`;
     };
@@ -243,6 +268,7 @@ export class DeckBuilder {
           <div class="db-pool">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
         </div>
         <aside class="db-deck-side">
+          ${this.starter ? `<div class="db-starter-note">${esc(RACE_NAMES[this.starter.race].toLowerCase())} starter · any change saves as a copy</div>` : ''}
           <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
           <div class="db-races">${[0, 1, 2, 3].map((r) => `<button class="db-race ${d.race === r ? 'on' : ''}" data-act="db-race" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
           <div class="db-tally"><b class="${d.cards.length === BALANCE.deckSize ? 'ok' : ''}">${d.cards.length}/${BALANCE.deckSize}</b> cards · <b class="${commands === BALANCE.commandCards ? 'ok' : ''}">${commands}/${BALANCE.commandCards}</b> command</div>
@@ -252,7 +278,7 @@ export class DeckBuilder {
       </div>
       <footer class="setup-foot">
         <span class="db-problem">${problems.length ? esc(problems[0]) : 'Ready to play.'}</span>
-        <button class="btn-primary" data-act="db-save" ${problems.length ? 'disabled' : ''}>save deck</button>
+        <button class="btn-primary" data-act="db-save" ${problems.length ? 'disabled' : ''}>${this.starter ? 'save as copy' : 'save deck'}</button>
       </footer>`;
   }
 
