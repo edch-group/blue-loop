@@ -1898,6 +1898,10 @@ export class App {
     const spacing = n > 1 ? Math.min(w * 0.82, (W - w) / (n - 1)) : 0;
     const start = inset + (W - (spacing * (n - 1) + w)) / 2;
     const step = Math.min(5, 24 / Math.max(n - 1, 1)); // degrees between neighbours
+    // Freshly drawn cards are placed straight into the fan (with no transition, they would swing out from
+    // the middle every time the page is redrawn); a card already placed keeps its smooth move.
+    const fresh = cards.filter((c) => !c.style.getPropertyValue('--fr'));
+    fresh.forEach((c) => (c.style.transition = 'none'));
     cards.forEach((c, i) => {
       const t = i - (n - 1) / 2;
       c.style.left = `${start + i * spacing}px`;
@@ -1905,6 +1909,10 @@ export class App {
       c.style.setProperty('--fy', `${Math.abs(t) ** 2 * 2.5}px`);
       c.style.zIndex = String(i + 1);
     });
+    if (fresh.length) {
+      void hand.offsetWidth;
+      fresh.forEach((c) => (c.style.transition = ''));
+    }
   }
 
   // ---- Front end -------------------------------------------------------------
