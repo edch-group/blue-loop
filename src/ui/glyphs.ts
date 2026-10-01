@@ -24,7 +24,7 @@ export const KIND_COLOUR: Record<CardKind, string> = {
   growth: '#3a9e6a', // green: draw, growth and extra plays
   global: '#9265d6', // purple
   command: '#8b909b', // silver: upgrades for the whole deck
-  lightspeed: '#d4952a', // amber: set face down, springs on the enemy's turn
+  lightspeed: '#d4952a', // amber: set face down, springs on the enemy's day
 };
 
 const ring = (r: number, extra = '') => `<circle cx="50" cy="30" r="${r}" ${extra}/>`;
@@ -236,7 +236,7 @@ for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElem
 /** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
 export function stabilityBadge(def: CardDef): string {
   if (!persists(def.id)) return '';
-  return `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your turns, then fades into your discard pile">◷${baseStability(def.id)}</b></span>`;
+  return `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your days, then fades into your discard pile">◷${baseStability(def.id)}</b></span>`;
 }
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -267,7 +267,7 @@ export function cardTextHtml(text: string): string {
 
 /** The explanations of a card's keywords, for beside a zoomed card. */
 export function keywordList(text: string): string {
-  const list = keywordsIn(text).filter((k) => KEYWORDS[k.id] && k.id !== 'turn');
+  const list = keywordsIn(text).filter((k) => KEYWORDS[k.id] && k.id !== 'dawn');
   if (!list.length) return '';
   return `<div class="kw-list">${list
     .map((k) => `<div><b class="kw kw-${KEYWORDS[k.id].group}">${escText(keywordLabel(k.id, k.value))}</b><span>${escText(KEYWORDS[k.id].explain(k.value))}</span></div>`)

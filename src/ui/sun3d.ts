@@ -233,7 +233,7 @@ const PLANETS = ['dead', 'abundant', 'industrial'];
 const TRAIL_RGB: Record<string, RGB> = { dead: [112, 118, 132], abundant: [40, 158, 112], industrial: [214, 120, 36] };
 /**
  * Each sun's orbit as drawn, by player: it follows the real orbit a notch at
- * a time (each step easing in and out), so a change at the start of a turn,
+ * a time (each step easing in and out), so a change at the start of a day,
  * or from a card, is seen as the planets swinging round. Kept by player, not
  * by canvas, since the board is redrawn as the game moves on.
  */

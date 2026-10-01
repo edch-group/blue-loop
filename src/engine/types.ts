@@ -7,7 +7,7 @@
 
 /**
  * Card types. They matter for synergies ("your attack cards deal +1 heat").
- * Lightspeed cards are played face down and spring during an enemy's turn.
+ * Lightspeed cards are played face down and spring during an enemy's day.
  */
 export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'lightspeed';
 export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'global', 'command', 'lightspeed'];
@@ -54,13 +54,13 @@ export type Condition =
   | { minCards: number }
   /** You have at least one upgrade on this core action. */
   | { upgraded: CoreAction }
-  /** The planet facing your sun this turn (see Orbit). */
+  /** The planet facing your sun today (see Orbit). */
   | { planet: Planet };
 
 /**
  * Orbit: three planets circle each sun, each facing it for three of its
  * owner's turns in turn: a dead planet (nothing), an abundant one (draw an
- * extra card each turn) and an industrial one (play an extra card each turn).
+ * extra card each day) and an industrial one (play an extra card each day).
  */
 export type Planet = 'dead' | 'abundant' | 'industrial';
 
@@ -93,20 +93,20 @@ export type Effect = (
   | { type: 'recall' }
   /** Return a card of your choice (of a kind, if given) from your discard pile to your hand. */
   | { type: 'recover'; kind?: CardKind; /** With nothing (of that kind) in your discard pile, draw this many cards instead. */ orDraw?: number }
-  /** You may play this many extra cards this turn. */
+  /** You may play this many extra cards today. */
   | { type: 'plays'; amount: number }
-  /** Lightspeed: the enemy who sprang this card may play no more cards this turn. */
+  /** Lightspeed: the enemy who sprang this card may play no more cards today. */
   | { type: 'halt' }
   /** Move an orbit on by `amount` turns (negative: back), yours or your rival's. Three turns is a whole planet. */
   | { type: 'orbit'; amount: number; who: 'self' | 'rival' }
 ) & { if?: Condition };
 
 export type Passive =
-  /** Heat effects from your cards of this kind deal +amount (optionally not this card's own; optionally only start-of-turn effects). */
+  /** Heat effects from your cards of this kind deal +amount (optionally not this card's own; optionally only dawn effects). */
   | { type: 'kindBonus'; kind: CardKind; amount: number; others?: boolean; onTurnOnly?: boolean }
-  /** You may play extra cards each turn. */
+  /** You may play extra cards each day. */
   | { type: 'extraPlay'; amount: number; /** Only while this planet faces your sun. */ planet?: Planet }
-  /** Your shields no longer fade at the start of your turn. */
+  /** Your shields no longer fade at your dawn. */
   | { type: 'keepShields' }
   /** When your shields absorb an enemy's heat, heat that enemy's sun. */
   | { type: 'retaliate'; amount: number }
@@ -114,7 +114,7 @@ export type Passive =
   | { type: 'field'; field: FieldId }
   /** When another of your cards leaves your tableau, these effects resolve (as this card). */
   | { type: 'allyLeaves'; effects: Effect[] }
-  /** When your shields absorb an enemy's heat, cool your sun (once per attacking card each turn). */
+  /** When your shields absorb an enemy's heat, cool your sun (once per attacking card each day). */
   | { type: 'absorbCool'; amount: number }
   /**
    * Resonance: your cards near this one in your tableau (of a kind, if given)
@@ -128,7 +128,7 @@ export type Passive =
   | { type: 'anchor' };
 
 /**
- * What springs a face-down Lightspeed card, during an enemy's turn:
+ * What springs a face-down Lightspeed card, during an enemy's day:
  * - `enemyPlays`: an enemy plays a card (of a kind, if given), before it resolves;
  * - `heated`: an enemy's card is about to heat your sun (by at least `min`);
  * - `targeted`: an enemy is about to destroy or return one of your cards.
@@ -156,7 +156,7 @@ export interface CardDef {
   text: string;
   /** When played. */
   onPlay?: Effect[];
-  /** At the start of each of your turns while this card is in your tableau. */
+  /** At each of your dawns while this card is in your tableau. */
   onTurn?: Effect[];
   /** When this card leaves your tableau (replaced, destroyed or returned to hand). */
   onLeave?: Effect[];
@@ -181,7 +181,7 @@ export interface CardInstance {
   growth?: number;
   /** In a tableau: which of its slots the card sits in (0 far left … 4 far right). */
   slot?: number;
-  /** In a tableau: turns left before it fades into its owner's discard pile. */
+  /** In a tableau: days left before it fades into its owner's discard pile. */
   stability?: number;
 }
 
@@ -191,13 +191,13 @@ export interface BattleModifiers {
   startingHeat?: number;
   /** Added to max health. */
   maxHealthDelta?: number;
-  /** Shields gained at the start of every turn. */
+  /** Shields gained at the start of every day. */
   shieldPerTurn?: number;
-  /** Your sun heats by this much at the start of every turn. */
+  /** Your sun heats by this much at the start of every day. */
   heatPerTurn?: number;
-  /** Your sun cools by this much at the start of every turn. */
+  /** Your sun cools by this much at the start of every day. */
   coolPerTurn?: number;
-  /** Extra cards drawn every turn. */
+  /** Extra cards drawn every day. */
   extraDraw?: number;
   /** Extra cards in the opening hand. */
   openingHand?: number;
@@ -206,7 +206,7 @@ export interface BattleModifiers {
 export interface TurnStats {
   heatDealt: number;
   cardsPlayed: number;
-  /** Total cooling applied to your own sun this turn. */
+  /** Total cooling applied to your own sun today. */
   cooled: number;
 }
 
@@ -237,15 +237,15 @@ export interface PlayerState {
   targetId: string | null;
   /** Turns this player has started; sets how many cards they may play. */
   turnsTaken: number;
-  /** Cards this player may still play this turn. */
+  /** Cards this player may still play today. */
   playsLeft: number;
-  /** Where this player's planets are: 0–8, three turns per planet (0–2 dead, 3–5 abundant, 6–8 industrial), moving on one each turn. */
+  /** Where this player's planets are: 0–8, three turns per planet (0–2 dead, 3–5 abundant, 6–8 industrial), moving on one each day. */
   orbit: number;
   turn: TurnStats;
-  /** Rivals this player's Stinging Veil has already stung this turn (the turn number, and who). */
+  /** Rivals this player's Stinging Veil has already stung today (the turn number, and who). */
   stung?: { turn: number; ids: string[] };
   modifiers?: BattleModifiers;
-  /** What the modifiers are, for display ("Nebula: +1 shield each turn"). */
+  /** What the modifiers are, for display ("Nebula: +1 shield each day"). */
   conditions?: { name: string; text: string }[];
 }
 
@@ -270,15 +270,15 @@ export interface GameState {
   /** The player who conceded, if the game ended that way. */
   concededBy?: string;
   log: LogEntry[];
-  /** What the latest start of turn did, effect by effect, so the table can replay it (only on the state a turn starts in). */
+  /** What the latest dawn did, effect by effect, so the table can replay it (only on the state a day starts in). */
   turnPulses?: TurnPulse[];
 }
 
-/** One start-of-turn effect, as it happened: what fired it, where it went, and every sun just after. */
+/** One dawn effect, as it happened: what fired it, where it went, and every sun just after. */
 export interface TurnPulse {
   /** The card that fired it (none for the table: regional instability, a global card, the map). */
   uid?: string;
-  /** Whose turn it is. */
+  /** Whose day it is. */
   source: string;
   /** The player it reached. */
   to: string;
@@ -332,5 +332,5 @@ export type Action =
     }
   | { type: 'setTarget'; targetId: string }
   | { type: 'endTurn' }
-  /** A player gives up (at any time, not only on their turn): their rival wins. */
+  /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string };

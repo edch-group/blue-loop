@@ -41,9 +41,9 @@ export function sunOrb(opts: { heat: number; threshold: number; size: number; de
  */
 /** The three planets of an orbit: what each looks like and does. */
 const PLANET_LOOK: Record<Planet, { name: string; text: string }> = {
-  dead: { name: 'dead', text: 'The dead planet: nothing this turn.' },
-  abundant: { name: 'abundant', text: 'The abundant planet: draw an extra card each turn.' },
-  industrial: { name: 'industrial', text: 'The industrial planet: play an extra card each turn.' },
+  dead: { name: 'dead', text: 'The dead planet: nothing today.' },
+  abundant: { name: 'abundant', text: 'The abundant planet: draw an extra card each day.' },
+  industrial: { name: 'industrial', text: 'The industrial planet: play an extra card each day.' },
 };
 
 /**
@@ -80,7 +80,7 @@ function ringTracks(heatArc: number, shieldArc: number, orbit: number | undefine
 
 /**
  * A sun's orbit: its three planets on the orbit ring. The planet facing the
- * sun this turn is at the front; the others wait their turn behind and to
+ * sun today is at the front; the others wait their day behind and to
  * the sides (one step of the orbit is 40°, clockwise).
  */
 function orbitPlanets(orbit: number): string {
@@ -96,11 +96,11 @@ function orbitPlanets(orbit: number): string {
   return planets;
 }
 
-/** The tag naming the planet facing the sun, and its turns left there. */
+/** The tag naming the planet facing the sun, and its days left there. */
 function planetTag(orbit: number): string {
   const facing = planetAt(orbit);
   const left = BALANCE.orbitTurns - (((orbit % BALANCE.orbitTurns) + BALANCE.orbitTurns) % BALANCE.orbitTurns);
-  return `<div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more turn${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
+  return `<div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more day${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
 }
 
 export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number }): string {
@@ -126,7 +126,7 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
       <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" data-pid="${opts.id ?? ''}" aria-hidden="true"></canvas>
       ${orbit !== undefined ? orbitPlanets(orbit) : ''}
       <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '✸' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
-      <div class="vit-under">${orbit !== undefined ? planetTag(orbit) : ''}<div class="vit-shields" title="Shields: they absorb enemy heat, and fade at the start of your turn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div></div>
+      <div class="vit-under">${orbit !== undefined ? planetTag(orbit) : ''}<div class="vit-shields" title="Shields: they absorb enemy heat, and fade at your dawn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div></div>
     </div>`;
 }
 

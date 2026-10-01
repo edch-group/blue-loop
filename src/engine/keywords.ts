@@ -18,7 +18,7 @@ export interface Keyword {
 const n = (v: string | undefined, d = 'N') => v ?? d;
 
 export const KEYWORDS: Record<string, Keyword> = {
-  turn: { name: 'start of turn', group: 'timing', explain: () => 'Happens at the start of each of your turns while the card is in your tableau.' },
+  dawn: { name: 'dawn', group: 'timing', explain: () => 'Happens at dawn (the start of each of your days) while the card is in your tableau.' },
   sturdy: { name: 'sturdy', group: 'defence', explain: (v) => `This card has +${n(v)} defence, on top of its slot's. Removal can only reach cards with low enough defence.` },
   bulwark: {
     name: 'bulwark',
@@ -50,14 +50,14 @@ export const KEYWORDS: Record<string, Keyword> = {
   recall: { name: 'recall', group: 'recovery', explain: () => 'Return another card of yours from your tableau to your hand, to play it again (its leave effects fire, and the slot is free).' },
   destroy: { name: 'destroy', group: 'removal', explain: (v) => (v && v !== 'any' ? `Destroy a card of your choice in your rival's tableau with ${v} or less defence.` : "Destroy a card of your choice in your rival's tableau, whatever its defence.") },
   eject: { name: 'eject', group: 'removal', explain: (v) => `Return a card of your choice in your rival's tableau with ${n(v)} or less defence to its owner's hand.` },
-  sting: { name: 'sting', group: 'shields', explain: (v) => `When your shields absorb an enemy's heat, heat that enemy's sun by ${n(v)} (once per attacking card each turn).` },
-  soothe: { name: 'soothe', group: 'shields', explain: (v) => `When your shields absorb an enemy's heat, cool your sun by ${n(v)} (once per attacking card each turn).` },
-  hold: { name: 'hold', group: 'shields', explain: (v) => `Your shields no longer fade at the start of your turn (they keep, up to ${n(v, '12')}).` },
+  sting: { name: 'sting', group: 'shields', explain: (v) => `When your shields absorb an enemy's heat, heat that enemy's sun by ${n(v)} (once per attacking card each day).` },
+  soothe: { name: 'soothe', group: 'shields', explain: (v) => `When your shields absorb an enemy's heat, cool your sun by ${n(v)} (once per attacking card each day).` },
+  hold: { name: 'hold', group: 'shields', explain: (v) => `Your shields no longer fade at your dawn (they keep, up to ${n(v, '12')}).` },
   overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or hotter.' },
-  grows: { name: 'grows', group: 'tempo', explain: (v) => `At the start of each of your turns this card grows by 1, up to ${n(v)}.` },
-  plays: { name: 'plays', group: 'tempo', explain: (v) => `You may play ${n(v, '1')} extra card${v === '1' || !v ? '' : 's'} each turn while this is in play.` },
+  grows: { name: 'grows', group: 'tempo', explain: (v) => `At each of your dawns this card grows by 1, up to ${n(v)}.` },
+  plays: { name: 'plays', group: 'tempo', explain: (v) => `You may play ${n(v, '1')} extra card${v === '1' || !v ? '' : 's'} each day while this is in play.` },
   orbit: { name: 'orbit', group: 'orbit', explain: (v) => `Moves the planets round a sun by ${n(v)} turn${v === '+1' || v === '-1' || v === '−1' ? '' : 's'} (each planet faces it for 3).` },
-  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Played face down in your Lightspeed slot (one at a time). It springs during an enemy's turn when its trigger happens, then goes to your discard pile." },
+  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Played face down in your Lightspeed slot (one at a time). It springs during an enemy's day when its trigger happens, then goes to your discard pile." },
   global: { name: 'global', group: 'global', explain: () => 'Changes the table for both players while it is in play. Only one global card can be in play: a new one replaces it.' },
 };
 

@@ -164,7 +164,7 @@ export function isOverheated(p: PlayerState): boolean {
   return p.heat * 2 >= supernovaThreshold(p);
 }
 
-/** Heat every sun takes at the start of its turn this round (0 before instability begins). */
+/** Heat every sun takes at its dawn this round (0 before instability begins). */
 export function instabilityHeat(state: GameState): number {
   if (state.round < BALANCE.instabilityStartsRound) return 0;
   return 1 + Math.floor((state.round - BALANCE.instabilityStartsRound) / BALANCE.instabilityRampEvery);
@@ -174,7 +174,7 @@ function passives(p: PlayerState): { card: CardInstance; passive: Passive }[] {
   return p.tableau.flatMap((card) => (cardDef(card.defId).passive ?? []).map((passive) => ({ card, passive })));
 }
 
-/** Cards this player may play on a turn (before any have been played). */
+/** Cards this player may play on a day (before any have been played). */
 // ---- Orbit ------------------------------------------------------------------
 
 const PLANETS: Planet[] = ['dead', 'abundant', 'industrial'];
@@ -186,12 +186,12 @@ export function planetAt(orbit: number): Planet {
   return PLANETS[Math.floor((((orbit % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH) / BALANCE.orbitTurns)];
 }
 
-/** The planet facing this player's sun this turn. */
+/** The planet facing this player's sun today. */
 export function currentPlanet(p: PlayerState): Planet {
   return planetAt(p.orbit);
 }
 
-/** This player's turns left with the current planet (this one included). */
+/** This player's days left with the current planet (this one included). */
 export function planetTurnsLeft(p: PlayerState): number {
   return BALANCE.orbitTurns - (((p.orbit % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH) % BALANCE.orbitTurns;
 }
@@ -205,7 +205,7 @@ function moveOrbit(state: GameState, p: PlayerState, by: number) {
 
 export function playsAllowed(state: GameState, p: PlayerState): number {
   const extra = passives(p).reduce((sum, { passive }) => sum + (passive.type === 'extraPlay' && (!passive.planet || currentPlanet(p) === passive.planet) ? passive.amount : 0), 0);
-  // Later seats get an extra play on their first turn to make up for moving second.
+  // Later seats get an extra play on their first day to make up for moving second.
   const catchUp = p.turnsTaken === 1 && state.players.indexOf(p) > 0 && state.players.length <= BALANCE.catchUpMaxPlayers ? BALANCE.laterSeatPlays : 0;
   const industry = currentPlanet(p) === 'industrial' ? BALANCE.industrialPlays : 0;
   return Math.min(p.turnsTaken, BALANCE.maxPlays) + extra + catchUp + industry;
@@ -445,7 +445,7 @@ export function effectAmount(state: GameState, p: PlayerState, card: CardInstanc
   return base;
 }
 
-/** What a player's start of turn will do, from their tableau and the table (for everyone to see and plan around). */
+/** What a player's dawn will do, from their tableau and the table (for everyone to see and plan around). */
 export interface TurnForecast {
   /** Heat at their rival. */
   heat: number;
@@ -455,9 +455,9 @@ export interface TurnForecast {
   cool: number;
   /** Heat to their own sun from their cards' drawbacks, Solar Storm and the map (regional instability is apart, below). */
   selfHeat: number;
-  /** Regional instability's heat at the start of their next turn (that turn's round, which may be the next one). */
+  /** Regional instability's heat at the start of their next day (that turn's round, which may be the next one). */
   unstable: number;
-  /** The round their next turn falls in. */
+  /** The round their next day falls in. */
   round: number;
   /** Extra cards drawn (beyond the usual draw). */
   draw: number;
@@ -468,17 +468,17 @@ export interface TurnForecast {
 }
 
 /**
- * The net effect of a player's next start of turn, before shields and
+ * The net effect of a player's next dawn, before shields and
  * Lightspeed cards answer it: each card in their tableau, left to right
  * (growing cards grow first), plus the global card, regional instability and
  * the map's conditions.
  */
 export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   const target = targetOf(state, p);
-  // Their next turn's planet (their first turn starts at the dead planet).
+  // Their next day's planet (their first day starts at the dead planet).
   const orbit = p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
   const planet = planetAt(orbit);
-  // Their turn comes this round if they sit after the active player, else next round.
+  // Their day comes this round if they sit after the active player, else next round.
   const round = state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
   const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, round, draw: 0, plays: 0, planet };
   if (p.eliminated) return f;
@@ -588,7 +588,7 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   if (applied > 0) log(state, `${target.name}'s sun heats to ${target.heat}.`);
   if (target.heat >= supernovaThreshold(target)) supernova(state, target);
   // Shields that absorbed an enemy's heat can sting back (Stinging Veil) or cool their sun
-  // (Ommarath), at most once per attacking card each turn.
+  // (Ommarath), at most once per attacking card each day.
   if (enemy && blocked > 0 && !retaliation && !target.eliminated) {
     const sum = (type: 'retaliate' | 'absorbCool') =>
       passives(target).reduce((n, { passive }) => n + (passive.type === type ? passive.amount : 0), 0);
@@ -786,13 +786,13 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'plays':
         if (activePlayer(state).id === p.id) {
           p.playsLeft += e.amount;
-          log(state, `${p.name} may play ${e.amount} more card${e.amount === 1 ? '' : 's'} this turn.`);
+          log(state, `${p.name} may play ${e.amount} more card${e.amount === 1 ? '' : 's'} today.`);
         }
         break;
       case 'halt':
         if (ctx.against && ctx.against.playsLeft > 0) {
           ctx.against.playsLeft = 0;
-          log(state, `${ctx.against.name} may play no more cards this turn.`);
+          log(state, `${ctx.against.name} may play no more cards today.`);
         }
         break;
     }
@@ -820,7 +820,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   }
 }
 
-/** Note a start-of-turn effect for the table to replay (only while a turn is starting). */
+/** Note a dawn effect for the table to replay (only while a day is starting). */
 function notePulse(state: GameState, source: PlayerState, card: CardInstance | null, kind: TurnPulse['kind'], to: PlayerState, amount: number) {
   if (!state.turnPulses || (amount <= 0 && kind !== 'start')) return;
   const suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated }]));
@@ -832,20 +832,20 @@ function startTurn(state: GameState) {
   state.turnPulses = [];
   p.turnsTaken += 1;
   p.turn = emptyTurn();
-  log(state, `— Turn ${state.turnNumber}: ${p.name}.`);
+  log(state, `— Day ${state.turnNumber}: ${p.name}.`);
 
   // Shields fade, unless Deep Current holds them.
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
   p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
 
-  // The planets move on a turn (your first turn starts at the dead planet).
+  // The planets move on a day (your first day starts at the dead planet).
   if (p.turnsTaken > 1) {
     const before = currentPlanet(p);
     p.orbit = (p.orbit + 1) % ORBIT_LENGTH;
     if (currentPlanet(p) !== before) log(state, `The ${currentPlanet(p)} planet swings round to face ${p.name}'s sun.`);
   }
   const abundance = currentPlanet(p) === 'abundant' ? BALANCE.abundantDraw : 0;
-  // Draw (your opening hand covers your first turn).
+  // Draw (your opening hand covers your first day).
   if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
   if (p.eliminated) return passOn(state);
 
@@ -881,7 +881,7 @@ function startTurn(state: GameState) {
     notePulse(state, p, activeGlobal(state)?.card ?? null, 'cool', p, 1);
   }
 
-  // Your tableau's start-of-turn effects, left to right.
+  // Your tableau's dawn effects, left to right.
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
     if (!p.tableau.includes(card)) continue;
@@ -923,7 +923,7 @@ function othersInOrder(state: GameState, p: PlayerState): PlayerState[] {
 function playCard(state: GameState, p: PlayerState, action: Extract<Action, { type: 'playCard' }>) {
   const card = p.hand.find((c) => c.uid === action.cardUid);
   if (!card) throw new GameError('That card is not in your hand.');
-  if (p.playsLeft <= 0) throw new GameError('You have no plays left this turn.');
+  if (p.playsLeft <= 0) throw new GameError('You have no plays left today.');
   const def: CardDef = cardDef(card.defId);
   const lightspeed = def.kind === 'lightspeed';
   if (lightspeed && !canSetLightspeed(p)) throw new GameError('You already have a Lightspeed card face down.');
@@ -991,7 +991,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
 export function applyAction(prev: GameState, action: Action): GameState {
   if (prev.winnerId) throw new GameError('The game is over.');
   const state = structuredClone(prev);
-  // Only the state a turn starts in carries that start's pulses.
+  // Only the state a day starts in carries that start's pulses.
   delete state.turnPulses;
   const p = activePlayer(state);
   switch (action.type) {

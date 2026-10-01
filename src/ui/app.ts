@@ -133,7 +133,7 @@ const KEY_LOG = /heats to|SUPERNOVA|upgrades|wins|shields absorb|instability|des
 const HOT = '#f0a07a';
 const COOLING = '#8fc6ff';
 const SHIELDING = '#a9b8ff';
-/** How long each start-of-turn effect gets on the table, before the next fires (scaled by the game speed). */
+/** How long each dawn effect gets on the table, before the next fires (scaled by the game speed). */
 const PULSE_STEP = 720;
 /** The log button: lines of text in a page. */
 /** Cards in hand: a small fan of three cards. */
@@ -572,7 +572,7 @@ export class App {
   }
 
   /**
-   * "Your turn" banner: a soft bloom across the middle of the screen whenever
+   * "Your day" banner: a soft bloom across the middle of the screen whenever
    * play comes back to a human who can see their hand. Lives outside the
    * re-rendered root so it survives state changes.
    */
@@ -583,7 +583,7 @@ export class App {
     if (p.isAI || p.id !== this.viewer().id) return;
     const humans = s.players.filter((pl) => !pl.isAI).length;
     const plays = `${p.playsLeft} card${p.playsLeft === 1 ? '' : 's'} to play`;
-    this.showBanner('your turn', humans > 1 ? `${p.name} · ${plays}` : `round ${roman(s.round)} · ${plays}`, delay);
+    this.showBanner('your day', humans > 1 ? `${p.name} · ${plays}` : `round ${roman(s.round)} · ${plays}`, delay);
   }
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
@@ -720,7 +720,7 @@ export class App {
       this.animate(prev, next, action, actor, before);
     }
     if (turnPassed) this.announceTurn(450);
-    // The AI waits for its start of turn to play out before it acts.
+    // The AI waits for its dawn to play out before it acts.
     this.scheduleAI(AI_PAUSE[action.type] + (action.type === 'endTurn' && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
   }
 
@@ -803,7 +803,7 @@ export class App {
     }, pause * SPEED_FACTOR[this.speed]);
   }
 
-  /** Resolve the rest of the AI turns instantly, up to the next human turn. */
+  /** Resolve the rest of the AI days instantly, up to the next human turn. */
   private skipAI() {
     if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
     this.aiTimer = null;
@@ -888,7 +888,7 @@ export class App {
     const stageFrom = this.stage ? orbRect(this.stage.actorId) : null;
     if (stageCard && stageFrom) flyFrom(stageCard, stageFrom, { fade: true, duration: 520 });
 
-    // A turn's start replays its effects one by one (see replayPulses); cards that faded go once it has.
+    // A day's start replays its effects one by one (see replayPulses); cards that faded go once it has.
     const pulses = endingTurn && !reducedMotion() ? (next.turnPulses ?? []).filter((p) => p.kind !== 'start') : [];
     const replayEnd = pulses.length ? this.replayPulses(next, prev, before) : 0;
     before.cards.forEach((old, uid) => {
@@ -952,11 +952,11 @@ export class App {
       for (const cls of fx.length ? fx : ['fx-shield']) pulse(orb(id), cls, at);
     };
 
-    // Who caused this round of changes: the player who acted, or (at a turn's
+    // Who caused this round of changes: the player who acted, or (at a day's
     // start) the player whose tableau just triggered.
     const source = endingTurn ? activePlayer(next) : actor;
     const delay = endingTurn ? 750 : actor.isAI ? 520 : 160;
-    // (A turn's start that replays its effects one by one has shown its hits already.)
+    // (A day's start that replays its effects one by one has shown its hits already.)
     if (!replayEnd) {
       let volley = 0;
       for (const p of next.players) {
@@ -990,7 +990,7 @@ export class App {
       }
       case 'endTurn': {
         sound.endTurn();
-        // The new player's start-of-turn cards light up, oldest first, as they trigger.
+        // The new player's dawn cards light up, oldest first, as they trigger.
         let k = 0;
         if (!replayEnd)
           root.querySelectorAll<HTMLElement>(`.tableau[data-owner="${source.id}"] [data-uid]`).forEach((el) => {
@@ -1051,7 +1051,7 @@ export class App {
   /** Replays in flight (a newer state cancels an older replay's remaining steps). */
   private replayId = 0;
 
-  /** How long a state's start-of-turn replay lasts, in ms (0 if it has none). */
+  /** How long a state's dawn replay lasts, in ms (0 if it has none). */
   private replayLength(state: GameState): number {
     if (reducedMotion()) return 0;
     const n = (state.turnPulses ?? []).filter((p) => p.kind !== 'start').length;
@@ -1059,7 +1059,7 @@ export class App {
   }
 
   /**
-   * A turn's start, effect by effect: each card that fires lights up, and its
+   * A day's start, effect by effect: each card that fires lights up, and its
    * effect flies from it to the sun it reaches (a flare of heat to the rival's
    * sun, a cooling beam or a shield beam to its owner's), whose numbers change
    * as it lands. Regional instability and the table strike from the top of the
@@ -1241,7 +1241,7 @@ export class App {
     const card = me.hand.find((c) => c.uid === uid);
     if (!card) return;
     if (me.playsLeft <= 0) {
-      this.showToast('No plays left this turn: end your turn.', 'info');
+      this.showToast('No plays left today: end your day.', 'info');
       sound.error();
       return;
     }
@@ -2026,24 +2026,24 @@ export class App {
     return `
       <ul class="rules">
         <li>Every sun starts at <b>${BALANCE.startingHeat}</b> heat with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. Blow up your rival's sun to win.</li>
-        <li>Bring a <b>${BALANCE.deckSize}-card deck</b>: up to ${BALANCE.maxCopies} copies of a card, and exactly ${BALANCE.commandCards} Command cards. You start with ${BALANCE.openingHand} cards and draw ${BALANCE.drawPerTurn} each turn after that.</li>
-        <li>Play <b>1 card</b> on your first turn, then up to <b>${BALANCE.maxPlays}</b> a turn. Cards <b>stay in play</b> in your tableau of <b>${BALANCE.tableauSlots} slots</b>, in the slot you choose: their start-of-turn effects trigger every turn, and they power each other up.</li>
-        <li><b>Stability</b> (◷) is how many of your turns a card stays: after its start-of-turn effects it loses 1, and at 0 it fades into your discard pile. Some cards restore stability; others erode your rival's. There is <b>no replacing</b>: with every slot full, nothing new goes in until a card fades, or is recalled or removed.</li>
-        <li><b>Orbit:</b> three planets circle your sun, each facing it for ${BALANCE.orbitTurns} of your turns in turn: the <b>dead</b> planet (nothing), the <b>abundant</b> planet (draw ${BALANCE.abundantDraw} extra card each turn), then the <b>industrial</b> planet (play ${BALANCE.industrialPlays} extra card each turn), and round again. Every sun starts at the dead planet. Some cards move an orbit on or back ("your orbit +1", "your rival's orbit −2"); others are stronger while a planet faces your sun.</li>
+        <li>Bring a <b>${BALANCE.deckSize}-card deck</b>: up to ${BALANCE.maxCopies} copies of a card, and exactly ${BALANCE.commandCards} Command cards. You start with ${BALANCE.openingHand} cards and draw ${BALANCE.drawPerTurn} each day after that.</li>
+        <li>Play <b>1 card</b> on your first day, then up to <b>${BALANCE.maxPlays}</b> a day. Cards <b>stay in play</b> in your tableau of <b>${BALANCE.tableauSlots} slots</b>, in the slot you choose: their dawn effects trigger every day, and they power each other up.</li>
+        <li><b>Stability</b> (◷) is how many of your days a card stays: after its dawn effects it loses 1, and at 0 it fades into your discard pile. Some cards restore stability; others erode your rival's. There is <b>no replacing</b>: with every slot full, nothing new goes in until a card fades, or is recalled or removed.</li>
+        <li><b>Orbit:</b> three planets circle your sun, each facing it for ${BALANCE.orbitTurns} of your days in turn: the <b>dead</b> planet (nothing), the <b>abundant</b> planet (draw ${BALANCE.abundantDraw} extra card each day), then the <b>industrial</b> planet (play ${BALANCE.industrialPlays} extra card each day), and round again. Every sun starts at the dead planet. Some cards move an orbit on or back ("your orbit +1", "your rival's orbit −2"); others are stronger while a planet faces your sun.</li>
         <li><b>Defence</b> (⛨) comes from the slot: ${BALANCE.slotDefence.join(', ')} from left to right, so the middle is safest. Sturdy cards and bulwarks add more. Removal only reaches cards with low enough defence ("destroy a card with 2 or less defence").</li>
-        <li>Your attacks heat your rival's sun. Shields absorb their heat and fade at the start of your turn.</li>
+        <li>Your attacks heat your rival's sun. Shields absorb their heat and fade at your dawn.</li>
         <li><b>Command</b> cards upgrade your whole deck: Solar Flare (your attack cards deal +1 heat), Thermosiphon (your cooling cools +1) or Cooling Chamber (+${BALANCE.coolingChamberHealthPerUpgrade} max health), up to ${BALANCE.solarFlareMaxUpgrades} each. They stay in your tableau like any other card, and some cards reward keeping them there. Play one again and it upgrades again.</li>
         <li><b>Resonance</b> cards power up their neighbours in your tableau, and bulwarks guard them.</li>
-        <li><b>Lightspeed</b> cards are set face down (one at a time, no slot) and spring during your rival's turn: cancelling a card they play, turning heat aside, or saving your cards from removal.</li>
+        <li><b>Lightspeed</b> cards are set face down (one at a time, no slot) and spring during your rival's day: cancelling a card they play, turning heat aside, or saving your cards from removal.</li>
         <li>Destroyed and cancelled cards go to your discard pile. When your deck runs out it is shuffled back in (heating your sun by ${BALANCE.reshuffleHeat}), and some cards recover cards from it or return your cards to your hand to play again.</li>
-        <li>Only one <b>global</b> card can be in play at a time, and it affects both players. <b>Regional stability</b> (top of the screen) drains one segment a round; from round ${BALANCE.instabilityStartsRound} it is gone and both suns heat each turn, more each round.</li>
+        <li>Only one <b>global</b> card can be in play at a time, and it affects both players. <b>Regional stability</b> (top of the screen) drains one segment a round; from round ${BALANCE.instabilityStartsRound} it is gone and both suns heat each day, more each round.</li>
       </ul>
       <h3 class="rules-head">mechanics</h3>
       <p class="muted">Keywords on cards, in colour, with their number (sturdy 1). Hover one on a card, or zoom a card in a game, to read it there.</p>
       <dl class="kw-rules">${Object.entries(KEYWORDS)
         .map(([id, k]) => {
           // Shown with a stand-in value where the keyword takes one.
-          const v = ['turn', 'anchor', 'recall', 'recover', 'overheated', 'lightspeed', 'global'].includes(id) ? undefined : id === 'orbit' ? '±N' : 'N';
+          const v = ['dawn', 'anchor', 'recall', 'recover', 'overheated', 'lightspeed', 'global'].includes(id) ? undefined : id === 'orbit' ? '±N' : 'N';
           return `<div><dt><b class="kw kw-${k.group}">${esc(keywordLabel(id, v))}</b></dt><dd>${esc(k.explain(v))}${id === 'recover' ? ' Some name a type: recover attack.' : ''}</dd></div>`;
         })
         .join('')}</dl>`;
@@ -2082,8 +2082,8 @@ export class App {
     const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
     return `
       <div class="round-box ${instab ? 'unstable' : ''}" title="${instab
-        ? `Round ${s.round}. Regional instability: every sun heats by ${instab} at the start of its turn this round, and by ${next} next round.`
-        : `Round ${s.round}. Regional stability drains by one each round; when it runs out, every sun heats at the start of its turn.`}">
+        ? `Round ${s.round}. Regional instability: every sun heats by ${instab} at its dawn this round, and by ${next} next round.`
+        : `Round ${s.round}. Regional stability drains by one each round; when it runs out, every sun heats at its dawn.`}">
         <div class="round-num"><small>round</small><b>${roman(s.round)}</b></div>
         <div class="stability">
           <span class="stability-label">${instab ? `regional instability +${instab} <em>next round +${next}</em>` : `regional stability ${remaining}`}</span>
@@ -2094,7 +2094,7 @@ export class App {
 
   /**
    * Both players' cards, stacked down the left: yours first, then your rival's.
-   * Whoever's turn it is glows green.
+   * Whoever's day it is glows green.
    */
   private renderPlayers(): string {
     const s = this.state!;
@@ -2138,7 +2138,7 @@ export class App {
         <div class="hud-round">${this.renderRoundBar()}</div>
         <div class="hud-controls">
           ${field}
-          ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI turns instantly">skip ›</button>' : ''}
+          ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI days instantly">skip ›</button>' : ''}
           ${this.online && this.net.status === 'connecting' ? '<span class="pill-btn net-pill">reconnecting…</span>' : ''}
           ${this.online && this.net.status === 'lost' ? '<button class="pill-btn net-pill" data-act="online-retry">connection lost · retry</button>' : ''}
           ${this.online && this.net.status === 'open' && !this.net.rivalOnline && !isGameOver(s) ? '<span class="pill-btn net-pill" title="Their seat is kept: they rejoin by opening the invite link again">rival disconnected · waiting</span>' : ''}
@@ -2237,7 +2237,7 @@ export class App {
     const lightspeed = ls
       ? side === 'mine'
         ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}"><span>⚡</span><small>lightspeed</small></button>`
-        : '<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your turn."><span>⚡</span><small>lightspeed</small></div>'
+        : '<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your day."><span>⚡</span><small>lightspeed</small></div>'
       : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
@@ -2250,7 +2250,7 @@ export class App {
   }
 
   /**
-   * Above each tableau: what that player's next start of turn will do, net of
+   * Above each tableau: what that player's next dawn will do, net of
    * every card (heat at their target, shields, cooling, heat to their own sun,
    * extra cards), so everyone can see it coming and answer it.
    */
@@ -2264,17 +2264,17 @@ export class App {
     const chip = (cls: string, icon: string, n: number, title: string) =>
       n ? `<span class="fc ${cls}" title="${title}"><i>${icon}</i><b>${cls === 'fc-cool' ? `−${n}` : `+${n}`}</b></span>` : '';
     const chips = [
-      chip('fc-heat', '✹', f.heat, `Their start of turn: ${f.heat} heat to ${who(f.targetId)} (before shields)`),
-      chip('fc-shield', '⛨', f.shields, `Their start of turn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
-      chip('fc-cool', '❄', f.cool, `Their start of turn: their own sun cools by ${f.cool}`),
-      chip('fc-self', '☀', f.selfHeat, `Their start of turn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
-      chip('fc-unstable', '≋', f.unstable, `Their start of turn (round ${f.round}): regional instability heats their sun by ${f.unstable}`),
-      chip('fc-draw', HAND_ICON, f.draw, `Their start of turn: ${f.draw} extra card${f.draw === 1 ? '' : 's'} drawn${f.planet === 'abundant' ? ' (the abundant planet faces their sun)' : ''}`),
-      chip('fc-play', '▶', f.plays, `Their turn: ${f.plays} extra card${f.plays === 1 ? '' : 's'} they may play (the industrial planet faces their sun)`),
+      chip('fc-heat', '✹', f.heat, `Their dawn: ${f.heat} heat to ${who(f.targetId)} (before shields)`),
+      chip('fc-shield', '⛨', f.shields, `Their dawn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
+      chip('fc-cool', '❄', f.cool, `Their dawn: their own sun cools by ${f.cool}`),
+      chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
+      chip('fc-unstable', '≋', f.unstable, `Their dawn (round ${f.round}): regional instability heats their sun by ${f.unstable}`),
+      chip('fc-draw', HAND_ICON, f.draw, `Their dawn: ${f.draw} extra card${f.draw === 1 ? '' : 's'} drawn${f.planet === 'abundant' ? ' (the abundant planet faces their sun)' : ''}`),
+      chip('fc-play', '▶', f.plays, `Their day: ${f.plays} extra card${f.plays === 1 ? '' : 's'} they may play (the industrial planet faces their sun)`),
     ].join('');
     // Nothing coming: show nothing.
     if (!chips) return '';
-    return `<div class="forecast ${p.id === me.id ? 'forecast-mine' : ''}" aria-label="${p.id === me.id ? 'your' : 'their'} next start of turn">${chips}</div>`;
+    return `<div class="forecast ${p.id === me.id ? 'forecast-mine' : ''}" aria-label="${p.id === me.id ? 'your' : 'their'} next dawn">${chips}</div>`;
   }
 
   private renderDock(): string {
@@ -2304,11 +2304,11 @@ export class App {
         </div>
         <button class="pile" data-anchor="discard" data-act="view-pile" data-arg="discard" title="Your discard pile"><span class="pile-stack"><i></i><i></i></span><b>${me.discard.length}</b><small>discard</small></button>
         <div class="turn-controls">
-          <div class="plays ${myTurn ? '' : 'plays-off'}" title="Cards you may still play this turn">
+          <div class="plays ${myTurn ? '' : 'plays-off'}" title="Cards you may still play today">
             <small>${myTurn ? `plays ${me.playsLeft}` : 'waiting'}</small>
             <span class="plays-pips">${pips}</span>
           </div>
-          <button class="btn-primary end-turn ${act && me.playsLeft === 0 ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end turn</button>
+          <button class="btn-primary end-turn ${act && me.playsLeft === 0 ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
         </div>
       </section>`;
   }

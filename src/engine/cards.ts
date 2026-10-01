@@ -6,32 +6,32 @@ import type { CardDef, Rarity } from './types';
  * turn is the only limit, so no single card should be a bomb. Power comes from
  * what a card does alongside the others already in your tableau.
  *
- * "Your rival" is the other player (Blue Loop is 1v1). "Start of turn"
- * effects trigger at the start of each of your turns while the card is in play.
+ * "Your rival" is the other player (Blue Loop is 1v1). "Dawn"
+ * effects trigger at each of your dawns while the card is in play.
  */
 export const CARDS: CardDef[] = [
   // ---- Neutral ------------------------------------------------------------
   { id: 'coronal_lance', name: 'Coronal Lance', kind: 'attack', text: 'Heat your rival by 3.', onPlay: [{ type: 'heat', amount: 3, to: 'target' }] },
-  { id: 'plasma_relay', name: 'Plasma Relay', kind: 'attack', text: '{turn}: heat your rival by 1.', onTurn: [{ type: 'heat', amount: 1, to: 'target' }] },
+  { id: 'plasma_relay', name: 'Plasma Relay', kind: 'attack', text: '{dawn}: heat your rival by 1.', onTurn: [{ type: 'heat', amount: 1, to: 'target' }] },
   { id: 'gravity_sling', name: 'Gravity Sling', kind: 'attack', text: 'Heat your rival by 1. Draw 1 card.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'draw', amount: 1 }] },
   { id: 'thermal_exchange', name: 'Thermal Exchange', kind: 'attack', text: 'Heat your rival by 2. Cool your sun by 1.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'cool', amount: 1 }] },
   {
     id: 'solar_battery',
     name: 'Solar Battery',
     kind: 'attack',
-    text: '{turn}: heat your rival by 1, or by 3 if you control 3 or more attack cards.',
+    text: '{dawn}: heat your rival by 1, or by 3 if you control 3 or more attack cards.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minKind: 'attack', n: 3 } }],
   },
   { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: "{destroy:2}.", onPlay: [{ type: 'destroy', maxDefence: 2 }] },
-  { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: '{turn}: cool your sun by 1.', onTurn: [{ type: 'cool', amount: 1 }] },
+  { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: '{dawn}: cool your sun by 1.', onTurn: [{ type: 'cool', amount: 1 }] },
   { id: 'cryo_vault', name: 'Cryo Vault', kind: 'defence', text: 'Cool your sun by 3.', onPlay: [{ type: 'cool', amount: 3 }] },
-  { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: '{turn}: gain 2 shields.', onTurn: [{ type: 'shield', amount: 2 }] },
+  { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: '{dawn}: gain 2 shields.', onTurn: [{ type: 'shield', amount: 2 }] },
   { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: 'Cool your sun by 1. Draw 1 card.', onPlay: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1 }] },
   { id: 'deep_scanners', name: 'Deep-Space Scanners', kind: 'growth', text: 'Draw 2 cards.', onPlay: [{ type: 'draw', amount: 2 }] },
 
   // ---- Global: one at a time on the whole table; a new one replaces it ----
-  { id: 'solar_storm', name: 'Solar Storm', kind: 'global', text: "{global}. Every sun heats by 1 at the start of its turn.", passive: [{ type: 'field', field: 'solarStorm' }] },
-  { id: 'ice_age', name: 'Ice Age', kind: 'global', text: "{global}. Every sun cools by 1 at the start of its turn.", passive: [{ type: 'field', field: 'iceAge' }] },
+  { id: 'solar_storm', name: 'Solar Storm', kind: 'global', text: "{global}. Every sun heats by 1 at its dawn.", passive: [{ type: 'field', field: 'solarStorm' }] },
+  { id: 'ice_age', name: 'Ice Age', kind: 'global', text: "{global}. Every sun cools by 1 at its dawn.", passive: [{ type: 'field', field: 'iceAge' }] },
   { id: 'solar_maximum', name: 'Solar Maximum', kind: 'global', text: "{global}. Every heat effect deals 1 more heat.", passive: [{ type: 'field', field: 'solarMaximum' }] },
 
   // ---- Command: upgrades for your whole deck. They stay in your tableau like any other card ----
@@ -40,7 +40,7 @@ export const CARDS: CardDef[] = [
     id: 'ignition_protocol',
     name: 'Ignition Protocol',
     kind: 'command',
-    text: 'Upgrade Solar Flare: your attack cards deal 1 more heat. {turn}: heat your rival by 1.',
+    text: 'Upgrade Solar Flare: your attack cards deal 1 more heat. {dawn}: heat your rival by 1.',
     onPlay: [{ type: 'upgrade', action: 'solarFlare' }],
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
   },
@@ -48,7 +48,7 @@ export const CARDS: CardDef[] = [
     id: 'coolant_protocol',
     name: 'Coolant Protocol',
     kind: 'command',
-    text: 'Upgrade Thermosiphon: your cooling effects cool 1 more. {turn}: cool your sun by 1.',
+    text: 'Upgrade Thermosiphon: your cooling effects cool 1 more. {dawn}: cool your sun by 1.',
     onPlay: [{ type: 'upgrade', action: 'thermosiphon' }],
     onTurn: [{ type: 'cool', amount: 1 }],
   },
@@ -56,7 +56,7 @@ export const CARDS: CardDef[] = [
     id: 'chamber_protocol',
     name: 'Chamber Protocol',
     kind: 'command',
-    text: `Upgrade Cooling Chamber: +${BALANCE.coolingChamberHealthPerUpgrade} max health. {turn}: gain 1 shield.`,
+    text: `Upgrade Cooling Chamber: +${BALANCE.coolingChamberHealthPerUpgrade} max health. {dawn}: gain 1 shield.`,
     onPlay: [{ type: 'upgrade', action: 'coolingChamber' }],
     onTurn: [{ type: 'shield', amount: 1 }],
   },
@@ -74,7 +74,7 @@ export const CARDS: CardDef[] = [
     id: 'standing_orders',
     name: 'Standing Orders',
     kind: 'growth',
-    text: 'Draw 1 card. {turn}: if you control a Command card, draw 1 card.',
+    text: 'Draw 1 card. {dawn}: if you control a Command card, draw 1 card.',
     onPlay: [{ type: 'draw', amount: 1 }],
     onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
@@ -82,7 +82,7 @@ export const CARDS: CardDef[] = [
     id: 'chain_of_command',
     name: 'Chain of Command',
     kind: 'defence',
-    text: '{turn}: cool your sun by 1, or by 2 if you control a Command card.',
+    text: '{dawn}: cool your sun by 1, or by 2 if you control a Command card.',
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
 
@@ -107,7 +107,7 @@ export const CARDS: CardDef[] = [
     id: 'bulwark_plating',
     name: 'Bulwark Plating',
     kind: 'defence',
-    text: "{bulwark:1}. {turn}: gain 1 shield.",
+    text: "{bulwark:1}. {dawn}: gain 1 shield.",
     onTurn: [{ type: 'shield', amount: 1 }],
     passive: [{ type: 'guard', amounts: [1] }],
   },
@@ -151,7 +151,7 @@ export const CARDS: CardDef[] = [
     id: 'phase_shift',
     name: 'Phase Shift',
     kind: 'growth',
-    text: "{recall}. You may play 1 extra card this turn.",
+    text: "{recall}. You may play 1 extra card today.",
     onPlay: [{ type: 'recall' }, { type: 'plays', amount: 1 }],
   },
 
@@ -178,7 +178,7 @@ export const CARDS: CardDef[] = [
     onPlay: [{ type: 'destroy', neighbours: true }],
   },
 
-  // ---- Lightspeed: set face down (one at a time); springs during an enemy's turn ----
+  // ---- Lightspeed: set face down (one at a time); springs during an enemy's day ----
   {
     id: 'null_field',
     name: 'Null Field',
@@ -218,7 +218,7 @@ export const CARDS: CardDef[] = [
     id: 'temporal_snare',
     name: 'Temporal Snare',
     kind: 'lightspeed',
-    text: "{lightspeed}. When an enemy plays a card, cancel it. They may play no more cards this turn.",
+    text: "{lightspeed}. When an enemy plays a card, cancel it. They may play no more cards today.",
     lightspeed: { trigger: { on: 'enemyPlays' }, counter: true, effects: [{ type: 'halt' }] },
   },
 
@@ -228,10 +228,10 @@ export const CARDS: CardDef[] = [
     name: 'Helio Lancer',
     kind: 'attack',
     race: 0,
-    text: '{turn}: heat your rival by 2. If you have a Solar Flare upgrade, gain 1 shield.',
+    text: '{dawn}: heat your rival by 2. If you have a Solar Flare upgrade, gain 1 shield.',
     onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'shield', amount: 1, if: { upgraded: 'solarFlare' } }],
   },
-  { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: 'Your other attack cards deal 1 more heat at the start of your turn. Copies do not stack.', passive: [{ type: 'kindBonus', kind: 'attack', amount: 1, others: true, onTurnOnly: true }] },
+  { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: 'Your other attack cards deal 1 more heat at your dawn. Copies do not stack.', passive: [{ type: 'kindBonus', kind: 'attack', amount: 1, others: true, onTurnOnly: true }] },
   {
     id: 'coronal_chorus',
     name: 'Coronal Chorus',
@@ -246,7 +246,7 @@ export const CARDS: CardDef[] = [
     name: 'Dawn Beacon',
     kind: 'growth',
     race: 0,
-    text: 'Draw 1 card. {turn}: if you control 2 or more attack cards, draw 1 card.',
+    text: 'Draw 1 card. {dawn}: if you control 2 or more attack cards, draw 1 card.',
     onPlay: [{ type: 'draw', amount: 1 }],
     onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'attack', n: 2 } }],
   },
@@ -255,7 +255,7 @@ export const CARDS: CardDef[] = [
     name: 'Halo Ward',
     kind: 'defence',
     race: 0,
-    text: '{turn}: gain 1 shield, +1 for every 2 attack cards you control.',
+    text: '{dawn}: gain 1 shield, +1 for every 2 attack cards you control.',
     onTurn: [{ type: 'shield', amount: 1, plus: { of: 'kind', kind: 'attack', per: 2 } }],
   },
 
@@ -265,7 +265,7 @@ export const CARDS: CardDef[] = [
     name: 'Shard Reactor',
     kind: 'attack',
     race: 1,
-    text: '{turn}: heat your rival by 2. Heat your own sun by 2.',
+    text: '{dawn}: heat your rival by 2. Heat your own sun by 2.',
     onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'selfHeat', amount: 2 }],
   },
   {
@@ -281,7 +281,7 @@ export const CARDS: CardDef[] = [
     name: 'Overload Core',
     kind: 'attack',
     race: 1,
-    text: "{turn}: heat your rival by 1, or by 3 while {overheated}.",
+    text: "{dawn}: heat your rival by 1, or by 3 while {overheated}.",
     onTurn: [
       { type: 'heat', amount: 1, to: 'target' },
       { type: 'heat', amount: 2, to: 'target', if: { overheated: true } },
@@ -293,21 +293,21 @@ export const CARDS: CardDef[] = [
     name: 'Prism Vent',
     kind: 'defence',
     race: 1,
-    text: 'Cool your sun by 3. {turn}: cool your sun by 1.',
+    text: 'Cool your sun by 3. {dawn}: cool your sun by 1.',
     onPlay: [{ type: 'cool', amount: 3 }],
     onTurn: [{ type: 'cool', amount: 1 }],
   },
   { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 2 cards. Heat your own sun by 1.', onPlay: [{ type: 'draw', amount: 2 }, { type: 'selfHeat', amount: 1 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
-  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: "{sturdy:1}. {turn}: gain 3 shields.", defence: 1, onTurn: [{ type: 'shield', amount: 3 }] },
+  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: "{sturdy:1}. {dawn}: gain 3 shields.", defence: 1, onTurn: [{ type: 'shield', amount: 3 }] },
   { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: "{sting:3}.", passive: [{ type: 'retaliate', amount: 3 }] },
   {
     id: 'tidal_bloom',
     name: 'Tidal Bloom',
     kind: 'defence',
     race: 2,
-    text: '{turn}: cool your sun by 1, or by 2 if you control 3 or more defence cards.',
+    text: '{dawn}: cool your sun by 1, or by 2 if you control 3 or more defence cards.',
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minKind: 'defence', n: 3 } }],
   },
   {
@@ -315,7 +315,7 @@ export const CARDS: CardDef[] = [
     name: 'Abyssal Choir',
     kind: 'attack',
     race: 2,
-    text: '{turn}: heat your rival by 2, +1 for every 2 shields you have (up to 5).',
+    text: '{dawn}: heat your rival by 2, +1 for every 2 shields you have (up to 5).',
     onTurn: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }],
   },
   {
@@ -323,24 +323,24 @@ export const CARDS: CardDef[] = [
     name: 'Deep Current',
     kind: 'defence',
     race: 2,
-    text: `Gain 2 shields. Your shields no longer fade at the start of your turn (up to ${BALANCE.maxKeptShields}).`,
+    text: `Gain 2 shields. {hold:${BALANCE.maxKeptShields}}.`,
     onPlay: [{ type: 'shield', amount: 2 }],
     passive: [{ type: 'keepShields' }],
   },
   { id: 'lure_jelly', name: 'Lure Jelly', kind: 'growth', race: 2, text: "Gain 2 shields. {hold:12}.", onPlay: [{ type: 'cool', amount: 2 }, { type: 'draw', amount: 1 }] },
 
-  // ---- Ixquor: the hive. Grow, go wide, and play more each turn ----
+  // ---- Ixquor: the hive. Grow, go wide, and play more each day ----
   {
     id: 'mycelium_tower',
     name: 'Mycelium Tower',
     kind: 'growth',
     race: 3,
     stability: 4,
-    text: "{turn}: {grows:4}, then heat your rival by its growth.",
+    text: "{dawn}: {grows:4}, then heat your rival by its growth.",
     onTurn: [{ type: 'grow', max: 4 }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'growth' } }],
   },
   { id: 'hive_relay', name: 'Hive Relay', kind: 'growth', race: 3, text: "{plays:1}.", passive: [{ type: 'extraPlay', amount: 1 }] },
-  { id: 'sporecaster', name: 'Sporecaster', kind: 'growth', race: 3, text: '{turn}: draw 1 card.', onTurn: [{ type: 'draw', amount: 1 }] },
+  { id: 'sporecaster', name: 'Sporecaster', kind: 'growth', race: 3, text: '{dawn}: draw 1 card.', onTurn: [{ type: 'draw', amount: 1 }] },
   {
     id: 'rot_bloom',
     name: 'Rot Bloom',
@@ -354,7 +354,7 @@ export const CARDS: CardDef[] = [
     name: 'Canopy',
     kind: 'defence',
     race: 3,
-    text: '{turn}: cool your sun by 1, +1 for every 2 cards you control.',
+    text: '{dawn}: cool your sun by 1, +1 for every 2 cards you control.',
     onTurn: [{ type: 'cool', amount: 1, plus: { of: 'cards', per: 2 } }],
   },
   {
@@ -362,7 +362,7 @@ export const CARDS: CardDef[] = [
     name: 'Spore Cloud',
     kind: 'attack',
     race: 3,
-    text: '{turn}: heat your rival by 1, or by 3 if you control 4 or more cards.',
+    text: '{dawn}: heat your rival by 1, or by 3 if you control 4 or more cards.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
 
@@ -396,7 +396,7 @@ export const CARDS: CardDef[] = [
     name: 'Aureline War-Herald',
     kind: 'attack',
     race: 0,
-    text: '{turn}: heat your rival by 1. If you control a Command card, gain 1 shield.',
+    text: '{dawn}: heat your rival by 1. If you control a Command card, gain 1 shield.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'shield', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
   {
@@ -404,7 +404,7 @@ export const CARDS: CardDef[] = [
     name: 'Sunforge',
     kind: 'attack',
     race: 0,
-    text: "{forge:1}. {turn}: heat your rival by 1.",
+    text: "{forge:1}. {dawn}: heat your rival by 1.",
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     passive: [{ type: 'adjacent', amounts: [1], kind: 'attack' }],
   },
@@ -430,7 +430,7 @@ export const CARDS: CardDef[] = [
     name: 'Prism Conduit',
     kind: 'defence',
     race: 1,
-    text: '{turn}: cool your sun by 1, +1 for each attack card next to this one.',
+    text: '{dawn}: cool your sun by 1, +1 for each attack card next to this one.',
     onTurn: [{ type: 'cool', amount: 1, plus: { of: 'adjacent', kind: 'attack' } }],
   },
   {
@@ -438,7 +438,7 @@ export const CARDS: CardDef[] = [
     name: 'Tide Pylon',
     kind: 'defence',
     race: 2,
-    text: '{turn}: gain 1 shield, +1 for each defence card next to this one.',
+    text: '{dawn}: gain 1 shield, +1 for each defence card next to this one.',
     onTurn: [{ type: 'shield', amount: 1, plus: { of: 'adjacent', kind: 'defence' } }],
   },
   {
@@ -462,7 +462,7 @@ export const CARDS: CardDef[] = [
     name: 'Spore Husk',
     kind: 'growth',
     race: 3,
-    text: '{turn}: cool your sun by 1. When you recover this card, draw 2 cards.',
+    text: '{dawn}: cool your sun by 1. When you recover this card, draw 2 cards.',
     onTurn: [{ type: 'cool', amount: 1 }],
     onRecover: [{ type: 'draw', amount: 2 }],
   },
@@ -473,7 +473,7 @@ export const CARDS: CardDef[] = [
     name: 'Aureline Sun-Priest',
     kind: 'defence',
     race: 0,
-    text: '{turn}: cool your sun by 1, or by 2 if you control 2 or more attack cards.',
+    text: '{dawn}: cool your sun by 1, or by 2 if you control 2 or more attack cards.',
     onTurn: [{ type: 'cool', amount: 1, plus: { of: 'kind', kind: 'attack', per: 2 }, max: 2 }],
   },
   {
@@ -481,7 +481,7 @@ export const CARDS: CardDef[] = [
     name: 'Aurelia, the First Light',
     kind: 'attack',
     race: 0,
-    text: '{turn}: heat your rival by 1, +1 for every 2 attack cards you control (up to 4).',
+    text: '{dawn}: heat your rival by 1, +1 for every 2 attack cards you control (up to 4).',
     onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 4 }],
   },
   {
@@ -489,7 +489,7 @@ export const CARDS: CardDef[] = [
     name: "Xel'Naru Champion",
     kind: 'attack',
     race: 1,
-    text: "Heat your rival by 1. {turn}: while {overheated}, heat your rival by 2.",
+    text: "Heat your rival by 1. {dawn}: while {overheated}, heat your rival by 2.",
     onPlay: [{ type: 'heat', amount: 1, to: 'target' }],
     onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { overheated: true } }],
   },
@@ -506,7 +506,7 @@ export const CARDS: CardDef[] = [
     name: 'Hero of Rathune',
     kind: 'defence',
     race: 2,
-    text: "{sturdy:1}. Gain 3 shields. {turn}: gain 1 shield for every 2 defence cards you control (up to 2).",
+    text: "{sturdy:1}. Gain 3 shields. {dawn}: gain 1 shield for every 2 defence cards you control (up to 2).",
     defence: 1,
     onPlay: [{ type: 'shield', amount: 3 }],
     onTurn: [{ type: 'shield', amount: 0, plus: { of: 'kind', kind: 'defence', per: 2 }, max: 2 }],
@@ -516,7 +516,7 @@ export const CARDS: CardDef[] = [
     name: 'Ommarath, the Deep Bell',
     kind: 'defence',
     race: 2,
-    text: "{turn}: gain 1 shield. {soothe:1}.",
+    text: "{dawn}: gain 1 shield. {soothe:1}.",
     onTurn: [{ type: 'shield', amount: 1 }],
     passive: [{ type: 'absorbCool', amount: 1 }],
   },
@@ -525,7 +525,7 @@ export const CARDS: CardDef[] = [
     name: 'Ixquor Brood-Tender',
     kind: 'growth',
     race: 3,
-    text: 'Draw 1 card. {turn}: your other growing cards grow by 1.',
+    text: 'Draw 1 card. {dawn}: your other growing cards grow by 1.',
     onPlay: [{ type: 'draw', amount: 1 }],
     onTurn: [{ type: 'growOthers' }],
   },
@@ -534,7 +534,7 @@ export const CARDS: CardDef[] = [
     name: 'The Brood Queen',
     kind: 'growth',
     race: 3,
-    text: "{plays:1}. {turn}: if you control 4 or more cards, heat your rival by 2.",
+    text: "{plays:1}. {dawn}: if you control 4 or more cards, heat your rival by 2.",
     passive: [{ type: 'extraPlay', amount: 1 }],
     onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
@@ -546,14 +546,14 @@ export const CARDS: CardDef[] = [
     id: 'dead_world_mine',
     name: 'Dead World Mine',
     kind: 'growth',
-    text: '{turn}: cool your sun by 1. While your dead planet faces your sun, also draw 1 card.',
+    text: '{dawn}: cool your sun by 1. While your dead planet faces your sun, also draw 1 card.',
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1, if: { planet: 'dead' } }],
   },
   {
     id: 'perihelion_forge',
     name: 'Perihelion Forge',
     kind: 'attack',
-    text: '{turn}: heat your rival by 1, or by 3 while your industrial planet faces your sun.',
+    text: '{dawn}: heat your rival by 1, or by 3 while your industrial planet faces your sun.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'planet', planet: 'industrial', amount: 2 } }],
   },
   {
@@ -577,7 +577,7 @@ export const CARDS: CardDef[] = [
     name: 'Tide Lock',
     kind: 'defence',
     race: 2,
-    text: '{turn}: gain 1 shield, or 3 while your abundant planet faces your sun.',
+    text: '{dawn}: gain 1 shield, or 3 while your abundant planet faces your sun.',
     onTurn: [{ type: 'shield', amount: 1, plus: { of: 'planet', planet: 'abundant', amount: 2 } }],
   },
   {
@@ -585,7 +585,7 @@ export const CARDS: CardDef[] = [
     name: 'Orbit Root',
     kind: 'growth',
     race: 3,
-    text: "{turn}: cool your sun by 1. While your dead planet faces your sun, your {orbit:+2}.",
+    text: "{dawn}: cool your sun by 1. While your dead planet faces your sun, your {orbit:+2}.",
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'orbit', amount: 2, who: 'self', if: { planet: 'dead' } }],
   },
 

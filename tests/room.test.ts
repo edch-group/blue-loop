@@ -81,7 +81,7 @@ describe('online room', () => {
     const g = room.game!;
     const activeSeat = [0, 1].find((s) => playerIndex(room, s) === g.activePlayerIndex)!;
     const idleSeat = 1 - activeSeat;
-    expect(handle(room, idleSeat, { t: 'action', action: { type: 'endTurn' } }).reply[0]).toMatchObject({ t: 'error', message: expect.stringMatching(/not your turn/) });
+    expect(handle(room, idleSeat, { t: 'action', action: { type: 'endTurn' } }).reply[0]).toMatchObject({ t: 'error', message: expect.stringMatching(/not your day/) });
     expect(handle(room, activeSeat, { t: 'action', action: { type: 'playCard', cardUid: 'nope' } }).reply[0]).toMatchObject({ t: 'error' });
     const ok = handle(room, activeSeat, { t: 'action', action: { type: 'endTurn' } });
     expect(ok.broadcast).toBe(true);

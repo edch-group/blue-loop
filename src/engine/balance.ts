@@ -19,10 +19,10 @@ export const BALANCE = {
   maxAnomalyCopies: 1,
   commandCards: 2,
 
-  /** Cards in the opening hand, and drawn at the start of each turn after the first. */
+  /** Cards in the opening hand, and drawn at the each dawn after the first. */
   openingHand: 5,
   drawPerTurn: 1,
-  /** Seats after the first: extra cards in the opening hand, and extra plays on their first turn. */
+  /** Seats after the first: extra cards in the opening hand, and extra plays on their first day. */
   laterSeatCards: 1,
   laterSeatPlays: 0,
   /** Seats after the first also start with a cooler sun. */
@@ -36,7 +36,7 @@ export const BALANCE = {
 
   /** You may play as many cards as turns you have taken, up to this cap (before extra-play cards). */
   maxPlays: 2,
-  /** Orbit: turns each planet faces its sun, and what the abundant and industrial planets give each turn. */
+  /** Orbit: turns each planet faces its sun, and what the abundant and industrial planets give each day. */
   orbitTurns: 3,
   abundantDraw: 1,
   industrialPlays: 1,
@@ -45,7 +45,7 @@ export const BALANCE = {
   /** Each slot's defence, left to right: the middle is safest. Removal cards can only reach cards with low enough defence. */
   slotDefence: [1, 2, 3, 2, 1],
   /**
-   * Stability: how many of your turns a card stays in your tableau (its start-of-turn effects trigger
+   * Stability: how many of your days a card stays in your tableau (its dawn effects trigger
    * that many times), before it fades into your discard pile. Cards with only a when-played effect fade faster.
    */
   stability: 3,
@@ -65,7 +65,7 @@ export const BALANCE = {
 
   /**
    * Regional stability runs out: the late-game clock that guarantees games end.
-   * From this round on, every sun heats at the start of its turn (unblockable).
+   * From this round on, every sun heats at its dawn (unblockable).
    * It stacks: +1 in the first unstable round, +1 more every round after.
    */
   instabilityStartsRound: 10,

@@ -40,7 +40,7 @@ const LEADER_GAP = tuning('GAP', 0.25);
 /** What a face-down Lightspeed card is worth to its owner (a counter waiting to spring). */
 const LIGHTSPEED_VALUE = tuning('LSV', 3);
 
-/** Roughly what a card in play is worth to its owner each turn from now on. */
+/** Roughly what a card in play is worth to its owner each day from now on. */
 function cardValue(state: GameState, p: PlayerState, card: CardInstance): number {
   const def = cardDef(card.defId);
   const foes = Math.max(1, livingOpponents(state, p).length);
@@ -68,7 +68,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
         perTurn += 0.3;
         break;
       case 'orbit': {
-        // Moving an orbit each turn: what one step does to the planets ahead, theirs or yours.
+        // Moving an orbit each day: what one step does to the planets ahead, theirs or yours.
         const who = e.who === 'rival' ? targetOf(state, p) : p;
         if (who) perTurn += (e.who === 'rival' ? -0.6 : 1) * scale * (orbitOutlook(who, e.amount) - orbitOutlook(who)) * 0.5;
         break;
@@ -117,7 +117,7 @@ const PLANET_VALUE = { dead: 0, abundant: tuning('ABUND', 0.9), industrial: tuni
 /** Own turns of orbit the AI looks ahead. */
 const ORBIT_HORIZON = 4;
 
-/** What a player's coming turns are worth from their orbit (from their next turn, shifted by `shift`). */
+/** What a player's coming turns are worth from their orbit (from their next day, shifted by `shift`). */
 function orbitOutlook(p: PlayerState, shift = 0): number {
   let v = 0;
   for (let k = 1; k <= ORBIT_HORIZON; k++) v += PLANET_VALUE[planetAt(p.orbit + shift + k)] * (1 - (k - 1) * 0.15);

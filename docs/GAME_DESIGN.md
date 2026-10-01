@@ -22,15 +22,15 @@ was replaced by this design in design review.
 
 ## Turns
 
-1. **Start of turn.** In this order:
+1. **Dawn.** In this order:
    - Your shields fade (unless Deep Current holds them).
-   - Draw **1 card**. Your opening hand of 5 covers your first turn.
+   - Draw **1 card**. Your opening hand of 5 covers your first day.
    - Regional instability applies, once regional stability has run out.
    - The global card applies, if there is one.
-   - Your tableau's **start-of-turn effects** trigger, left to right.
+   - Your tableau's **dawn effects** trigger, left to right.
    - Then every card in your tableau loses **1 stability**. A card at 0 fades into your discard pile.
-2. **Play cards.** You may play **1 card on your first turn and 2 on every turn after that**. Hive Relay adds 1. [design review: draw 1 a turn; proposed: cap of 2]
-3. **End turn.** Unplayed cards stay in your hand. [proposed]
+2. **Play cards.** You may play **1 card on your first day and 2 on every day after that**. Hive Relay adds 1. [design review: draw 1 a day; proposed: cap of 2]
+3. **End day.** Unplayed cards stay in your hand. [proposed]
 
 **Second seat head start** [proposed]: the second player starts with 1 extra card. The old head start (2 cooler, 1 extra card, 1 extra play) let the second seat win 68%; a sun 1 cooler was still worth too much with the current decks. With 1 extra card, seats are 46/54.
 
@@ -47,7 +47,7 @@ was replaced by this design in design review.
     - Ion Cannon: 2 or less.
     - Tractor Beam and Command Breaker: 3 or less.
     - Event Horizon (Anomaly): any.
-- **Stability** is how many of your turns a card stays in play. Its start-of-turn effects trigger that many times, then it fades into your discard pile. [design review: stability on each card; the discard pile takes everything that leaves play]
+- **Stability** is how many of your days a card stays in play. Its dawn effects trigger that many times, then it fades into your discard pile. [design review: stability on each card; the discard pile takes everything that leaves play]
   - **Standard stability:** 3.
   - **Cards with only a when-played effect:** 2. They are mostly slot-fillers once played.
   - **Command cards:** 3.
@@ -66,7 +66,7 @@ was replaced by this design in design review.
 - On the board, each card in play shows ⛨ defence and ◷ stability. The badge turns red on its last turn. Empty slots show their defence.
 - Cards have up to three kinds of effect:
   - **When played**: a one-off effect.
-  - **Start of turn**: triggers at the start of each of your turns while the card is in play.
+  - **Dawn**: triggers at each of your dawns while the card is in play.
   - **Passive**: works while the card is in play.
 
   A few cards also do something **when they leave** your tableau (faded, destroyed or returned to hand), or **when you recover them** from your discard pile. [design review]
@@ -80,26 +80,26 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 | Planet | While it faces your sun |
 | --- | --- |
 | Dead | Nothing. |
-| Abundant | Draw 1 extra card each turn. |
-| Industrial | Play 1 extra card each turn. |
+| Abundant | Draw 1 extra card each day. |
+| Industrial | Play 1 extra card each day. |
 
-- Every sun starts at the dead planet. The orbit moves on one step at the start of each of your turns: three steps per planet, nine for the whole orbit.
-- **Orbit cards** move an orbit on or back, yours or your rival's, and the change counts from your next turn. "Orbit +3" swings the next planet round; "your rival's orbit −2" holds their next planet back (and from their dead planet's first turn, it wraps round to their industrial planet).
+- Every sun starts at the dead planet. The orbit moves on one step at each of your dawns: three steps per planet, nine for the whole orbit.
+- **Orbit cards** move an orbit on or back, yours or your rival's, and the change counts from your next day. "Orbit +3" swings the next planet round; "your rival's orbit −2" holds their next planet back (and from their dead planet's first day, it wraps round to their industrial planet).
 - Some cards are **stronger while a planet faces your sun** (a scaling bonus, so upgrades and attack bonuses count once).
-- Each sun sits on the board at the left end of its tableau row: the top half of a sphere rising out of the board, slowly turning, its surface mottled with granulation, deep orange where it faces you and white-hot at its outline (as in a photograph of the Sun), with a flickering corona of flames across the board round its base. Round it, flat on the board, lie its orbit ring (three markers for the current planet's three turns: done, now, still to come) and inside that its shield and heat rings. Its planets are half-spheres in the board on the orbit, all the same size, lit from the sun's side, passing behind it. The orbit turns clockwise, and a change (at the start of a turn, or from a card) is seen: the planets swing round a notch at a time, and the planet facing the sun lays a trail in its colour along the notches it has passed (the dead planet a grey one, and so on), which fades as it swings away and the next planet comes in. Flat on the board beyond the orbit lie a tag naming the facing planet and its turns left, and the sun's shields: under your rival's sun, above yours. (Sun and planets are ray-traced onto a canvas lying on the board: each pixel's line of sight from the viewer's eye, worked out from the table's perspective, either meets a ball or reaches the board, so they look truly solid without making the board itself a 3D scene, which is slow.)
-- Between the tableaus (beneath your rival's, above yours, centred on each), its owner's next start of turn as symbols: ✹ heat to their rival, ⛨ shields, ❄ cooling, ☀ heat to their own sun from their cards and the table, ≋ regional instability, extra cards and extra plays (details in each one's tooltip). Instability is counted for the round that turn falls in: whoever moves first in a round takes the next round's amount, so the top bar shows both this round's and the next ("regional instability +2 · next round +3").
+- Each sun sits on the board at the left end of its tableau row: the top half of a sphere rising out of the board, slowly turning, its surface mottled with granulation, deep orange where it faces you and white-hot at its outline (as in a photograph of the Sun), with a flickering corona of flames across the board round its base. Round it, flat on the board, lie its orbit ring (three markers for the current planet's three turns: done, now, still to come) and inside that its shield and heat rings. Its planets are half-spheres in the board on the orbit, all the same size, lit from the sun's side, passing behind it. The orbit turns clockwise, and a change (at the start of a day, or from a card) is seen: the planets swing round a notch at a time, and the planet facing the sun lays a trail in its colour along the notches it has passed (the dead planet a grey one, and so on), which fades as it swings away and the next planet comes in. Flat on the board beyond the orbit lie a tag naming the facing planet and its days left, and the sun's shields: under your rival's sun, above yours. (Sun and planets are ray-traced onto a canvas lying on the board: each pixel's line of sight from the viewer's eye, worked out from the table's perspective, either meets a ball or reaches the board, so they look truly solid without making the board itself a 3D scene, which is slow.)
+- Between the tableaus (beneath your rival's, above yours, centred on each), its owner's next dawn as symbols: ✹ heat to their rival, ⛨ shields, ❄ cooling, ☀ heat to their own sun from their cards and the table, ≋ regional instability, extra cards and extra plays (details in each one's tooltip). Instability is counted for the round that turn falls in: whoever moves first in a round takes the next round's amount, so the top bar shows both this round's and the next ("regional instability +2 · next round +3").
 
 | Card | Kind | Text |
 | --- | --- | --- |
 | Gravity Assist | Attack | Heat your rival by 2. Your orbit +1. |
 | Orbital Slingshot | Growth | Your orbit +3 (the next planet swings round). Draw 1 card. |
 | Tidal Brake | Defence | Gain 2 shields. Your rival's orbit −2. |
-| Dead World Mine | Growth | Start of turn: cool your sun by 1. While your dead planet faces your sun, also draw 1 card. |
-| Perihelion Forge (Stellar) | Attack | Start of turn: heat your rival by 1, or by 3 while your industrial planet faces your sun. |
+| Dead World Mine | Growth | Dawn: cool your sun by 1. While your dead planet faces your sun, also draw 1 card. |
+| Perihelion Forge (Stellar) | Attack | Dawn: heat your rival by 1, or by 3 while your industrial planet faces your sun. |
 | Sunward Lance (Aureline) | Attack | Heat your rival by 1, or by 3 while your industrial planet faces your sun. Your orbit +1. |
 | Comet Shard (Xel'Naru) | Attack | Heat your rival by 3. Your rival's orbit −1. Heat your own sun by 1. |
-| Tide Lock (Vorthane) | Defence | Start of turn: gain 1 shield, or 3 while your abundant planet faces your sun. |
-| Orbit Root (Ixquor, Stellar) | Growth | Start of turn: cool your sun by 1. While your dead planet faces your sun, your orbit +2 (it moves on in a turn, not three). |
+| Tide Lock (Vorthane) | Defence | Dawn: gain 1 shield, or 3 while your abundant planet faces your sun. |
+| Orbit Root (Ixquor, Stellar) | Growth | Dawn: cool your sun by 1. While your dead planet faces your sun, your orbit +2 (it moves on in a day, not three). |
 
 **Starter decks with orbit:**
 - **Solar Lancers:** Gravity Assist and Tidal Brake, in place of a Helio Lancer and Aurelia.
@@ -129,7 +129,7 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 ## Attacks and shields
 
 - Your attacks heat your rival's sun. [design review: 1v1 only, so there is no choosing a target and no splash damage]
-- **Shields** absorb your rival's heat point for point. They fade at the start of your turn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields. [proposed]
+- **Shields** absorb your rival's heat point for point. They fade at your dawn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields. [proposed]
 
 ## Command cards
 
@@ -146,15 +146,15 @@ The standard Command card is **Command Directive**: choose any of the three upgr
 | Card | Rarity | Effect |
 | --- | --- | --- |
 | Command Directive | White Dwarf | Choose any upgrade |
-| Ignition Protocol | Stellar | Solar Flare upgrade. Start of turn: heat your target by 1 |
-| Coolant Protocol | Stellar | Thermosiphon upgrade. Start of turn: cool your sun by 1 |
-| Chamber Protocol | Stellar | Cooling Chamber upgrade. Start of turn: gain 1 shield |
+| Ignition Protocol | Stellar | Solar Flare upgrade. Dawn: heat your target by 1 |
+| Coolant Protocol | Stellar | Thermosiphon upgrade. Dawn: cool your sun by 1 |
+| Chamber Protocol | Stellar | Cooling Chamber upgrade. Dawn: gain 1 shield |
 | The Admiralty | Anomaly | Choose any upgrade. Resonance: cards next to it get +1 |
 
 **Keeping Command cards in play** is rewarded by:
-- Standing Orders: draw 1; start of turn, draw 1 if you control a Command card.
-- Chain of Command: start of turn, cool 1, or 2 if you control a Command card.
-- Aureline War-Herald: start of turn, heat 1; gain 1 shield if you control a Command card.
+- Standing Orders: draw 1; dawn, draw 1 if you control a Command card.
+- Chain of Command: dawn, cool 1, or 2 if you control a Command card.
+- Aureline War-Herald: dawn, heat 1; gain 1 shield if you control a Command card.
 
 Decks hold only 2 Command cards, so these ask for one, not two, and do something without one.
 
@@ -167,13 +167,13 @@ Resonance cards power up their neighbours in your tableau (by slot: an empty slo
 | Card | Rarity | Resonance |
 | --- | --- | --- |
 | Resonance Lattice | White Dwarf | +1 to the cards either side |
-| Sunforge (Aureline) | Stellar | +1 to attack cards either side, and start of turn: heat 1 |
+| Sunforge (Aureline) | Stellar | +1 to attack cards either side, and dawn: heat 1 |
 | The Admiralty | Anomaly | +1 to the cards either side (a Command card) |
 | Harmonic Singularity | Anomaly | +2 to the cards either side, +1 to the cards two places away |
 
 Some cards count their own neighbours instead:
-- Tide Pylon (Vorthane): start of turn, 1 shield +1 per defence card next to it.
-- Prism Conduit (Xel'Naru): start of turn, cool 1, +1 per attack card next to it.
+- Tide Pylon (Vorthane): dawn, 1 shield +1 per defence card next to it.
+- Prism Conduit (Xel'Naru): dawn, cool 1, +1 per attack card next to it.
 
 ## Recovery, recall and removal [design review]
 
@@ -187,7 +187,7 @@ Some cards count their own neighbours instead:
   - Compost Cycle (Ixquor): any card, and your other cards regain 1 stability.
 - **On recovery**, some cards fire an effect: Ember Shard heats your rival by 1; Spore Husk draws 2.
 - **Recall** (from your tableau to your hand, triggering its leave effects, to play it again; it also frees the slot):
-  - Phase Shift: and 1 extra play this turn.
+  - Phase Shift: and 1 extra play today.
   - Recall Beacon: and draw 1.
   - Shard Recall (Xel'Naru): and heat your rival by 1 (recalling a Martyr fires it too).
 - **Removal** of cards in your target's tableau:
@@ -207,12 +207,12 @@ Cards that only worked alongside others (a count of a card type, Command cards, 
 | Halo Ward (Aureline) | 1 shield per 2 attack cards | 1 shield, +1 per 2 attack cards |
 | Aureline Sun-Priest | cool 1 per 2 attack cards (up to 2) | cool 1, or 2 with 2+ attack cards |
 | Aurelia, the First Light | 1 heat per 2 attack cards (up to 3) | 1 heat, +1 per 2 attack cards (up to 4) |
-| Dawn Beacon (Aureline) | start of turn, draw 1 with 3+ attack cards | with 2+ attack cards |
+| Dawn Beacon (Aureline) | dawn, draw 1 with 3+ attack cards | with 2+ attack cards |
 | Prism Conduit (Xel'Naru) | cool 1 per attack card next to it | cool 1, +1 per attack card next to it |
 | Standing Orders, Chain of Command, War-Herald | needed one or two Command cards | see Command cards |
 | Command Breaker | heat 1, destroy a Command card | heat 2, destroy a Command card if there is one |
 | Signal Jammer | cancels a Command card (decks hold 2) | cancels a growth card |
-| Dead World Mine, Orbit Root | only while the dead planet faces your sun | also cool 1 every turn |
+| Dead World Mine, Orbit Root | only while the dead planet faces your sun | also cool 1 every day |
 | Recovery cards | nothing with an empty discard pile | draw 1 instead |
 
 ## Keywords [design review]
@@ -221,7 +221,7 @@ The game's recurring mechanics are **keywords**: a coloured word on the card wit
 
 | Keyword | Meaning |
 | --- | --- |
-| start of turn | At the start of each of your turns, while in play |
+| dawn | At each of your dawns, while in play |
 | sturdy N | +N defence |
 | bulwark N (· M) | Cards next to it +N defence (two slots away +M) |
 | resonance N (· M) | Cards next to it +N heat, cooling and shields (two places away +M) |
@@ -235,14 +235,14 @@ The game's recurring mechanics are **keywords**: a coloured word on the card wit
 | sting N / soothe N | When your shields absorb heat: heat the attacker N / cool your sun N |
 | hold N | Your shields don't fade (up to N) |
 | overheated | Half your max health or hotter |
-| grows N | Grows by 1 each turn, up to N |
-| plays +N | N extra plays each turn |
+| grows N | Grows by 1 each day, up to N |
+| plays +N | N extra plays each day |
 | orbit ±N | Moves the planets round a sun |
 | lightspeed, global | Card types (see below) |
 
 ## Lightspeed cards [design review]
 
-Lightspeed cards are played **face down**. They don't take a slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies face down in the Lightspeed slot, right of its owner's five (that slot has no defence), and the owner's pill shows ⚡. The card springs **during an enemy's turn** when its trigger happens. It is revealed ("Lightspeed!"), resolves against that enemy ("your target" means them), and goes to your discard pile.
+Lightspeed cards are played **face down**. They don't take a slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies face down in the Lightspeed slot, right of its owner's five (that slot has no defence), and the owner's pill shows ⚡. The card springs **during an enemy's day** when its trigger happens. It is revealed ("Lightspeed!"), resolves against that enemy ("your target" means them), and goes to your discard pile.
 
 | Card | Rarity | Springs when an enemy… | Effect |
 | --- | --- | --- | --- |
@@ -252,7 +252,7 @@ Lightspeed cards are played **face down**. They don't take a slot, and **only on
 | Solar Mirror | White Dwarf | is about to heat your sun | First gain 3 shields and heat them 1 |
 | Decoy Array | White Dwarf | is about to destroy or return one of your cards | Cancel it, draw 1 |
 | Riptide Ambushers (Vorthane) | Stellar | is about to heat your sun by 3 or more | Cancel that heat, heat them 2 |
-| Temporal Snare | Anomaly | plays any card | Cancel it; they may play no more cards this turn |
+| Temporal Snare | Anomaly | plays any card | Cancel it; they may play no more cards today |
 
 A cancelled card still uses the play and goes to its owner's discard pile. The AI plans without seeing its rivals' face-down cards.
 
@@ -297,10 +297,10 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 | Race | Theme | Its cards |
 | --- | --- | --- |
-| Aureline | Lancers: many attack cards, each making the others hit harder | Aureline Lancer, Focusing Array (other attack cards +1 at start of turn; copies don't stack), Chorus of Dawn (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Warden, Sun-Priest (cools more with your attack cards), Aurelia (heat that grows with your attack cards), War-Herald (heat, and a shield while you hold a Command card), Sunforge (resonance for attack cards), Sunlit Return (recovers an attack card) |
+| Aureline | Lancers: many attack cards, each making the others hit harder | Aureline Lancer, Focusing Array (other attack cards +1 at dawn; copies don't stack), Chorus of Dawn (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Warden, Sun-Priest (cools more with your attack cards), Aurelia (heat that grows with your attack cards), War-Herald (heat, and a shield while you hold a Command card), Sunforge (resonance for attack cards), Sunlit Return (recovers an attack card) |
 | Xel'Naru | Overload: big bursts of heat, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm (3 heat, or 4 while you are overheated), Overload Core (harder while overheated), Xel'Naru Martyr (burst when it leaves play), Prism Vent, Fracture Seer, Champion (harder while overheated), Kyr'Vessa (strikes whenever another of your cards leaves play), Ember Shard (burst when recovered), Reliquarist (recovers an attack card), Prism Conduit (cools more with neighbouring attack cards), Shard Recall (recalls a card) |
-| Vorthane | Tides: build shields, keep them, and sting attackers | Bellwarden, Stinging Veil (once per attacking card each turn), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Vorthanian Commoners, Hero of Rathune (shields from your defence cards), Ommarath (cools your sun when your shields absorb a hit), Tide Pylon (shields from neighbouring defence cards), Riptide Ambushers (Lightspeed: turn aside a big hit), Returning Tide (recovers a defence card) |
-| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each turn), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and hits harder once you're wide), Regrowth Pod (recovers a growth card), Spore Husk (draws when recovered), Compost Cycle (recovers any card, steadies the rest) |
+| Vorthane | Tides: build shields, keep them, and sting attackers | Bellwarden, Stinging Veil (once per attacking card each day), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Vorthanian Commoners, Hero of Rathune (shields from your defence cards), Ommarath (cools your sun when your shields absorb a hit), Tide Pylon (shields from neighbouring defence cards), Riptide Ambushers (Lightspeed: turn aside a big hit), Returning Tide (recovers a defence card) |
+| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each day), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and hits harder once you're wide), Regrowth Pod (recovers a growth card), Spore Husk (draws when recovered), Compost Cycle (recovers any card, steadies the rest) |
 
 **Neutral cards:**
 - Coronal Lance, Plasma Relay, Gravity Sling, Thermal Exchange, Solar Battery, Coolant Array, Cryo Vault, Deflector Grid, Heat Sink and Deep-Space Scanners.
@@ -311,7 +311,7 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 - Defence and stability: Bulwark Plating, Aegis Monolith, Chrono Anchor, Stasis Field, Entropy Pulse and Decay Wave. The race cards are Shard Renewal (Xel'Naru), Undertow (Vorthane) and Hive Rooting (Ixquor).
 - Commands and Lightspeed cards: see above.
 
-**Globals:** Solar Storm (every sun heats 1 each turn), Ice Age (every sun cools 1 each turn) and Solar Maximum (every heat effect +1).
+**Globals:** Solar Storm (every sun heats 1 each day), Ice Age (every sun cools 1 each day) and Solar Maximum (every heat effect +1).
 
 ## Balance (AI simulations)
 
@@ -339,13 +339,13 @@ How often the newer mechanics come up in an AI game (per game), before and after
 Recovery used to be rare because cards that faded went back into the deck, so the discard pile held only destroyed and cancelled cards. Now every card that leaves play goes there.
 
 **After the discard pile and the card floors (1000 games).** Cards recovered from the discard pile went from 0.2 to 1.7 a game, and cards returned to hand to 1.9. Deck win rates are 46–55%: Lancers 54.7%, Overload 49.0%, Tide 49.6%, Bloom 46.3%. Seats are 49/51, and games last about 11.5 rounds.
-- The floors made Solar Lancers far too strong at first (about 80%). Their attack cards now all hit every turn, and Focusing Array and Sunforge add to every one of them. Lancers now run one Sunforge (and a Recall Beacon), Coronal Chorus hits for up to 2, Sunlit Return cools 1, the Sun-Priest cools at most 2, and the War-Herald's Command bonus is a shield rather than more heat.
+- The floors made Solar Lancers far too strong at first (about 80%). Their attack cards now all hit every day, and Focusing Array and Sunforge add to every one of them. Lancers now run one Sunforge (and a Recall Beacon), Coronal Chorus hits for up to 2, Sunlit Return cools 1, the Sun-Priest cools at most 2, and the War-Herald's Command bonus is a shield rather than more heat.
 - Abyssal Tide fell to about 25% (it gained little from the floors), so the Abyssal Choir now starts at 2 heat and the Stinging Veil stings for 3. Rot Bloom also starts at 2.
 - The widest match-ups are Tide over Overload (74/26) and Lancers over Tide (72/28).
 
 **1000 games.** Deck win rates are 39–57%. The worst match-up is about 70/30: Overload over Bloom. Games last about 10–11 rounds. Converting the splash and every-enemy cards to plain target heat for 1v1 barely moved the numbers.
 - **Seats:** 46/54. The second seat now starts with 1 extra card instead of a cooler sun; the cooler sun was worth too much with these decks.
-- **Hive Bloom:** its first draft won 81%. It had three Sporecasters (a card every turn each, when everyone else draws one), two Mycelium Towers and a Frost Snare, which cancels defence cards and so shut down Tide. It now has one Sporecaster and one Tower, and no Frost Snare.
+- **Hive Bloom:** its first draft won 81%. It had three Sporecasters (a card every day each, when everyone else draws one), two Mycelium Towers and a Frost Snare, which cancels defence cards and so shut down Tide. It now has one Sporecaster and one Tower, and no Frost Snare.
 
 | Row beats column | Lancers | Overload | Tide | Bloom |
 | --- | --- | --- | --- | --- |
@@ -363,7 +363,7 @@ Balance has been sensitive to single cards, removal above all. Adding two Ion Ca
 
 ## Why regional stability exists
 
-The **regional stability** bar at the top loses one segment each round. From round **10**, every sun heats at the start of its turn: +1, then +1 more each round after. This guarantees that games end. It works exactly as the old stability bar did; the name distinguishes it from each card's own stability (◷). AI games last about 11 rounds, so it often decides the end. [design review: the stability bar stays, as regional stability]
+The **regional stability** bar at the top loses one segment each round. From round **10**, every sun heats at its dawn: +1, then +1 more each round after. This guarantees that games end. It works exactly as the old stability bar did; the name distinguishes it from each card's own stability (◷). AI games last about 11 rounds, so it often decides the end. [design review: the stability bar stays, as regional stability]
 
 ## The four races
 
@@ -444,7 +444,7 @@ On the table:
   - The sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring.
   - When your own sun takes enemy heat, the edges of the screen burn red with a heavy low blow. Heat you deal lands with a bright crack, and shields that block ring with a glassy clang.
   - Numbers on a sun keep their old value until the bolt lands.
-- **Start-of-turn forecast, symbols centred between the tableaus.** They show what that player's next start of turn will do, net of all their cards. Heat at their rival, shields, cooling, heat to their own sun, extra cards and extra plays, each as a symbol and number. The totals include resonance, upgrades, growth, conditions, the global card, regional instability and the map, before shields or Lightspeed cards answer. Everyone can see what's coming and respond to it. [design review]
+- **Dawn forecast, symbols centred between the tableaus.** They show what that player's next dawn will do, net of all their cards. Heat at their rival, shields, cooling, heat to their own sun, extra cards and extra plays, each as a symbol and number. The totals include resonance, upgrades, growth, conditions, the global card, regional instability and the map, before shields or Lightspeed cards answer. Everyone can see what's coming and respond to it. [design review]
 - **Removal is shown before it happens.** A glowing white arc draws from the removing card to each card it destroys, returns or erodes. The target glows under it while the arc holds, then a destroyed card dissolves in its slot and a returned card flies back to its owner's hand. [design review]
 - The rotating white star lies on the right of the table.
 - Your hand fans along the bottom, with your deck and discard piles either side.
@@ -461,7 +461,7 @@ Small dialogs handle the other choices:
 
 A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their five, with no defence. You can tap yours to read it; a rival's shows only its back. When one springs, a "Lightspeed!" banner names it and the card is shown at the middle right for a few seconds, then fades. Press and hold any card to read it at the middle right of the screen. [design review]
 
-**Start of turn, effect by effect.** When a turn starts, its effects play out one after the other, in the order they happen: regional instability (from the top of the screen), the table, then each card left to right. Each card lights up as it fires, and its effect flies from it to the sun it reaches: a flare of heat to the rival's sun (or its own, for a drawback), a cooling beam or a shield beam to its owner's. That sun's numbers change as it lands, with what changed floating over it. A card on its last turn fires, then fades once the replay is done. The AI waits for its start of turn to finish before it plays.
+**Dawn, effect by effect.** When a day starts, its effects play out one after the other, in the order they happen: regional instability (from the top of the screen), the table, then each card left to right. Each card lights up as it fires, and its effect flies from it to the sun it reaches: a flare of heat to the rival's sun (or its own, for a drawback), a cooling beam or a shield beam to its owner's. That sun's numbers change as it lands, with what changed floating over it. A card on its last turn fires, then fades once the replay is done. The AI waits for its dawn to finish before it plays.
 
 **Reading the rival's cards.** Each card a rival plays (or sets face down) waits at the middle right with a "got it" button, and the rival goes on only once you press it, so there is time to read every card. Against the AI, it waits for you. Online, the room holds the player who played the card ("<rival> is reading your card…") until their rival confirms, unless the rival disconnects. Hot-seat games skip this, since both players share the screen. [design review]
 
@@ -483,7 +483,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 - After a win, choose Settle, Absorb or Supernova.
 - Damage carries between battles.
 - **Fog of war:** you see only your systems and the systems linked to them. About one system in six has a **scanner array**; hold it and you see two links out from it. Routes into unseen space fade out, and anomalies appear once their reach touches a system in view. [design review]
-- **Base:** one button opens your deck, the armory and your missions as tabs. The armory restocks every turn and whenever you conquer a system. [design review]
+- **Base:** one button opens your deck, the armory and your missions as tabs. The armory restocks every day and whenever you conquer a system. [design review]
 - **Fusion (armory):** merge two reserve cards into one that does both, for materials (4 plus both cards' armory prices by rarity). It cannot be undone. The fused card takes the first card's kind, the higher rarity and both texts, and its name joins the two (Coronal Lance + Cryo Vault → Coronal Vault). Command, global and Lightspeed cards can't be fused, a fused card can't be fused again, and two cards that ask for the same kind of choice when played (two removals, say) can't be fused together. Its picture is both cards' pictures split along a glowing seam. [design review]
 - **The board:** the systems sit on a board like the battle board: a rounded, translucent slab with a dotted grid, a bright rim and a front edge, the galaxy showing through it. A controlled system's star burns in its faction's colour. [design review]
 - **The map's sky** is the heart of the Milky Way, high-key: a faint off-white sky, a lighter band across most of the page with a white core, crisp dust lanes of a slightly deeper off-white (a main rift down its spine and finer filaments), and tiny white stars. Every tone is within a few percent of white. It is painted pixel by pixel (scripts/paint-sky.ts, shipped as src/assets/campaign-sky.webp) and multiplied onto the board. It is a parallax layer: it slides with the systems as you pan, more slowly, and never scales. [design review]
@@ -495,16 +495,16 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 
 **The deck.** Your campaign deck is always a legal 20-card deck. Cards you win or buy wait in your **reserve**. You swap a reserve card in for a deck card, as long as the deck stays legal.
 
-**Garrisons.** Send up to 3 reserve cards to a system you control. They take a turn to arrive and a turn to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau**, a stationed Command card gives its upgrade instead, and a stationed Lightspeed card starts the battle set face down (only one). If the system falls, the conqueror takes them. [design review: garrisoned cards defend a system]
+**Garrisons.** Send up to 3 reserve cards to a system you control. They take a day to arrive and a day to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau**, a stationed Command card gives its upgrade instead, and a stationed Lightspeed card starts the battle set face down (only one). If the system falls, the conqueror takes them. [design review: garrisoned cards defend a system]
 
 **Anomalies** now give battle modifiers:
 
 | Anomaly | Boon | Cost |
 | --- | --- | --- |
 | Black Hole | +5 max health | Opening hand 1 card smaller |
-| Nebula | +1 shield every turn | Sun starts 3 hotter |
-| Dark Matter Cluster | Draw 1 extra card every turn | Sun heats by 1 every turn |
-| Pulsar | Sun cools by 1 every turn | 4 less max health |
+| Nebula | +1 shield every day | Sun starts 3 hotter |
+| Dark Matter Cluster | Draw 1 extra card every day | Sun heats by 1 every day |
+| Pulsar | Sun cools by 1 every day | 4 less max health |
 
 **Balance notes (simulator).**
 - With the AI running every faction, campaigns average about 56 turns.
@@ -512,7 +512,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 
 ## Open design questions
 
-1. **Numbers:** max health 24, 5 slots, slot defence 1-2-3-2-1, stability 3 (2 for when-played cards), a cap of 2 plays and 1 draw a turn are all first guesses. Human playtesting should drive them.
+1. **Numbers:** max health 24, 5 slots, slot defence 1-2-3-2-1, stability 3 (2 for when-played cards), a cap of 2 plays and 1 draw a day are all first guesses. Human playtesting should drive them.
 2. **Removal:** Ion Cannon is the only way to destroy a card, and it swings match-ups hard. Should there be more removal, or none?
 3. **Abyssal Tide** is the weakest starter (about 39%). It needs a stronger finisher or cheaper protection.
 4. **Collection:** decks are built from the full pool. A collection to unlock would suit a CCG, but was left for later.

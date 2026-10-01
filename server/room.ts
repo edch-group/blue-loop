@@ -160,7 +160,7 @@ function handleMessage(room: RoomData, seat: number | null, msg: ClientMessage, 
         room.last = { action: { type: 'concede', playerId: me.id }, actorId: me.id };
         return { seat, reply: [], broadcast: true };
       }
-      if (g.players[g.activePlayerIndex].id !== me.id) return { seat, reply: [{ t: 'error', message: "It's not your turn." }], broadcast: false };
+      if (g.players[g.activePlayerIndex].id !== me.id) return { seat, reply: [{ t: 'error', message: "It's not your day." }], broadcast: false };
       if (room.waitingOn === 1 - seat) return { seat, reply: [{ t: 'error', message: `${room.seats[1 - seat]?.name ?? 'Your rival'} is still reading your card.` }], broadcast: false };
       try {
         const next = applyAction(g, msg.action);
