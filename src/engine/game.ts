@@ -566,7 +566,7 @@ function spring(state: GameState, owner: PlayerState, enemy: PlayerState, matche
 }
 
 /** Heat a sun. Enemy heat is absorbed by shields first. Returns the heat that got through. */
-function applyHeat(state: GameState, target: PlayerState, amount: number, source: PlayerState | null, retaliation = false, cardUid?: string): number {
+function applyHeat(state: GameState, target: PlayerState, amount: number, source: PlayerState | null, retaliation = false, cardUid?: string, pierce = false): number {
   if (target.eliminated || amount <= 0) return 0;
   const enemy = source !== null && source.id !== target.id;
   if (enemy && !retaliation && spring(state, target, source, (t) => t.on === 'heated' && amount >= (t.min ?? 1))) {
@@ -574,7 +574,8 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
     return 0;
   }
   if (target.eliminated || state.winnerId) return 0;
-  const blocked = enemy ? Math.min(target.shields, amount) : 0;
+  // Piercing heat goes straight past shields.
+  const blocked = enemy && !pierce ? Math.min(target.shields, amount) : 0;
   target.shields -= blocked;
   const applied = amount - blocked;
   target.heat = Math.max(BALANCE.minHeat, target.heat + applied);
@@ -649,7 +650,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (amount <= 0) break;
         const main = ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p);
         if (main) {
-          applyHeat(state, main, amount, p, false, card.uid);
+          applyHeat(state, main, amount, p, false, card.uid, e.pierce);
           if (when === 'turn') notePulse(state, p, card, 'heat', main, amount);
         }
         break;

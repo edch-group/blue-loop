@@ -142,9 +142,9 @@ Every deck has exactly 2 Command cards: its steady engines. There are **no perma
 | Card | Rarity | Effect |
 | --- | --- | --- |
 | Command Directive | White Dwarf | Dawn, one of: heat 2, cool 3, draw 1 |
-| Ignition Protocol | Stellar | Heat 1. Dawn: heat 2 |
-| Coolant Protocol | Stellar | Cool 1. Dawn: cool 2 |
-| Chamber Protocol | Stellar | Shields 2. Dawn: shields 2 |
+| Ignition Protocol | Stellar | Heat 1. Dawn: heat 2, Pierce |
+| Coolant Protocol | Stellar | Cool 2. Dawn: cool 3 |
+| Chamber Protocol | Stellar | Shields 3. Dawn: shields 3 |
 | The Admiralty | Anomaly | Resonance 1. Dawn, one of: heat 2, cool 3, draw 1 |
 
 **Keeping Command cards in play** is rewarded by:
@@ -156,7 +156,16 @@ Decks hold only 2 Command cards, so these ask for one, not two, and do something
 
 **Answering Command cards.** Command Breaker destroys a Command card in your target's tableau; Tractor Beam and Event Horizon can send one back to its owner's hand (it can be played again, with a new choice).
 
-**Why the change, and what the simulator says (1000 games).** Permanent upgrades were opaque and snowballed, and a Command card fading after a day made the cards that want one in play weak. As choose-one dawn cards with a full term, they are easier to read. But the upgrades did one useful job: Solar Flare's +1 on every attack was what let attack-heavy decks break through shield decks. Without it, Abyssal Tide sits behind its shields at 0–4 heat (and the AI mostly picks cool 3 for its Commands), so Tide beats Shard Overload about 85% of the time. Tried and kept: Bell Warden 2 shields a dawn (was 3), Shard Reactor heats its own sun by 1 (was 2), Ember Shard 3 heat (was 2), and no extra opening card for the second seat (seats were 43/57 with it, as games run longer now). Result: Tide 60%, Hive 52%, Lancers 49%, Overload 42%; seats 49/51; about 13 rounds a game (was 11). Cool 2 in place of cool 3 sinks Hive Bloom (~20%), which leans on cooling; raising max health to 27 or 30 only made games longer. Open question: give attack decks a way through shields (a heat option that pierces them, say), or trim Tide's shields further.
+**Why the change, and what the simulator says (1000 games).** Permanent upgrades were opaque and snowballed, and a Command card fading after a day made the cards that want one in play weak. As choose-one dawn cards with a full term, they are easier to read. But the upgrades did one useful job: Solar Flare's +1 on every attack was what let attack-heavy decks break through shield decks. Without it, Abyssal Tide sits behind its shields at 0–4 heat (and the AI mostly picks cool 3 for its Commands), so Tide beats Shard Overload about 85% of the time. Tried and kept: Bell Warden 2 shields a dawn (was 3), Shard Reactor heats its own sun by 1 (was 2), Ember Shard 3 heat (was 2), and no extra opening card for the second seat (seats were 43/57 with it, as games run longer now). Result: Tide 60%, Hive 52%, Lancers 49%, Overload 42%; seats 49/51; about 13 rounds a game (was 11). Cool 2 in place of cool 3 sinks Hive Bloom (~20%), which leans on cooling; raising max health to 27 or 30 only made games longer. **Pierce: the counter to shields.** Every mechanic should have a counter. Shields answer heat, Sting and Soothe punish heat into shields, and **Pierce** answers shields: piercing heat goes straight past them (and so sets off no Sting or Soothe), though a Lightspeed card can still cancel it. On Shard Reactor's dawn heat, the Xel'Naru Martyr's burst, and Ignition Protocol. With them, Tide vs Overload went from 85/15 to about 55/45.
+
+**Rarity review.** No card should be strictly worse than a commoner one:
+- Chorus of Dawn (Stellar): 1 heat per attack card you control, up to 4 (it was up to 2, worse than a plain Coronal Lance).
+- Aureline Lancer (White Dwarf) is a plain dawn heat 2; Aureline War-Herald (Stellar) is dawn heat 1, and with a Command card heat +1 and a shield (it was strictly worse than the Lancer).
+- Aurelia, the First Light (Anomaly): dawn heat 1, +1 per attack card you control (up to 5).
+- Ommarath, the Deep Bell (Anomaly): dawn 2 shields, Soothe 1.
+- The protocols now beat Command Directive's matching option: Ignition heat 1, dawn heat 2 with Pierce; Coolant cool 2, dawn cool 3; Chamber 3 shields, dawn 3 shields.
+
+Result (1000 games): Tide 54%, Lancers 53%, Overload 49%, Hive 44%; seats 49/51; about 12.5 rounds a game.
 
 ## Resonance [design review]
 
@@ -228,6 +237,7 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | heat N (symbol) | Heat your rival's sun by N (or the sun the card names) |
 | cool N (symbol) | Cool your sun by N |
 | shields N (symbol) | Gain N shields |
+| Pierce | This card's heat ignores shields (so no absorbing, Sting or Soothe); Lightspeed cards can still answer it |
 | sturdy N | +N defence |
 | bulwark N (· M) | Cards next to it +N defence (two slots away +M) |
 | resonance N (· M) | Cards next to it +N heat, cooling and shields (two places away +M) |
