@@ -533,7 +533,7 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
       // a band of its own colour hugging the outline, fading out just beyond. Under the orbit's trail and notches.
       flat.unshift(() => {
         const [r0, g0, b0] = TRAIL_RGB[pl];
-        const out = pr * 1.7;
+        const out = pr * 1.35;
         const g = ctx.createRadialGradient(ctr[0], ctr[1], pr, ctr[0], ctr[1], out);
         g.addColorStop(0, `rgba(${r0}, ${g0}, ${b0}, 0.9)`);
         g.addColorStop(0.45, `rgba(${r0}, ${g0}, ${b0}, 0.7)`);

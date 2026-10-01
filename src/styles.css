@@ -2757,14 +2757,14 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .rules-head { margin: 18px 0 4px; font-family: var(--display); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; }
 
 /* A card's choices, one per line; when shown being played, the one picked lights up and the rest step back. */
-.card-opts { display: grid; gap: 0.18em; margin-top: 0.3em; }
+.card-opts { display: grid; gap: 0.18em; margin-top: 0.3em; padding: 3px 4px; }
 .card-opt { display: flex; align-items: center; gap: 0.4em; padding: 0.12em 0.5em; border-radius: 0.5em; background: rgba(139, 144, 155, 0.1); font-weight: 600; color: var(--ink); transition: opacity 0.2s, background 0.2s; }
 .card-opt i { font-style: normal; font-size: 0.8em; color: #8b909b; width: 1em; text-align: center; }
 .card-opt[data-opt="solarFlare"] i { color: #e0553a; }
 .card-opt[data-opt="thermosiphon"] i { color: #1e9bd7; }
 .card-opt[data-opt="coolingChamber"] i { color: #c05878; }
 .card-opts-chosen .card-opt { opacity: 0.38; }
-.card-opts-chosen .card-opt.on { opacity: 1; background: #fff4d6; box-shadow: 0 0 0 1.5px #d4a52a, 0 0 12px rgba(212, 165, 42, 0.45); }
+.card-opts-chosen .card-opt.on { opacity: 1; background: #fff4d6; box-shadow: inset 0 0 0 1.5px #d4a52a, 0 0 4px rgba(212, 165, 42, 0.5); }
 .card-opts-chosen .card-opt.on::after { content: '✓'; margin-left: auto; color: #b9861a; }
 
 /* The rival's upgrades and piles, top right on their side of the table. */
