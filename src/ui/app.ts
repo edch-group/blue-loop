@@ -403,6 +403,7 @@ export class App {
     if (actor.id !== you && last.action.type === 'playCard') this.stage = this.remoteStage(last, next);
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
+    if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, last.action);
     this.render();
     this.surfaceLog(prev);
     this.animate(prev, next, last.action, actor, before);
@@ -609,6 +610,7 @@ export class App {
     if (actor.isAI && action.type === 'setTarget' && action.targetId !== this.viewer().id) this.viewRivalId = action.targetId;
     this.persist(next);
     this.syncViewer();
+    if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, animate ? action : { type: 'concede', playerId: '' });
     this.render();
     if (before) {
       this.surfaceLog(prev);
@@ -907,6 +909,20 @@ export class App {
       }
     }
     if (vNext.deck.length === 0 && vPrev.deck.length > 0) pulse(root.querySelector('[data-anchor="deck"]'), 'fx-shuffle');
+  }
+
+  /** When the result may show on the board (after the game's last moves have played out). */
+  private resultAt = 0;
+  /** Extra lines under the result (what the game earned you). */
+  private resultExtra = '';
+
+  /** The game just ended: hold the result back until its last moves have played out on the table. */
+  private holdResult(next: GameState, action: Action) {
+    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' ? this.replayLength(next) : 900) + 1800;
+    this.resultAt = Date.now() + wait;
+    window.setTimeout(() => {
+      if (this.state === next || isGameOver(this.state ?? next)) this.render();
+    }, wait + 20);
   }
 
   /** Replays in flight (a newer state cancels an older replay's remaining steps). */
@@ -1814,6 +1830,37 @@ export class App {
     return `<div class="pick-hint"><span>${text}</span><button class="pill-btn" data-act="cancel">cancel</button></div>`;
   }
 
+  /**
+   * Game over: the result, on the board where the forecast was, with the way
+   * out beneath it. It waits for the game's last moves to finish playing out.
+   */
+  private renderResult(): string {
+    const s = this.state!;
+    const winner = s.players.find((p) => p.id === s.winnerId);
+    if (!winner || Date.now() < this.resultAt) return '';
+    const quitter = s.concededBy ? s.players.find((p) => p.id === s.concededBy) : undefined;
+    // One person at this device (online, or against the AI): tell it from their side.
+    const viewer = this.viewer();
+    const solo = !!this.online || s.players.filter((p) => !p.isAI).length === 1;
+    const won = winner.id === viewer.id;
+    const title = solo ? (won ? 'victory' : 'defeat') : `${esc(winner.name.toLowerCase())} wins`;
+    const why = quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} round${s.round === 1 ? "" : "s"}.`;
+    const actions = this.campaignBattle
+      ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
+      : this.online
+        ? quitter
+          ? '<button class="btn-primary" data-act="to-menu">return to menu</button>'
+          : '<div class="result-actions"><button class="btn-primary" data-act="online-rematch">play again</button><button class="btn" data-act="to-menu">return to menu</button></div>'
+        : '<button class="btn-primary" data-act="to-menu">return to menu</button>';
+    return `
+      <div class="game-result ${solo ? (won ? 'result-win' : 'result-loss') : ''}">
+        <h2>${title}</h2>
+        <p>${why}</p>
+        ${this.resultExtra}
+        ${actions}
+      </div>`;
+  }
+
   /** The board: your target's tableau across the far side, yours on the near side, the star between. */
   private renderBoard(): string {
     const me = this.viewer();
@@ -1824,6 +1871,7 @@ export class App {
           <div class="board-plane">
             <div class="board-floor"></div>
             ${rival ? this.renderTableau(rival, 'rival') : ''}
+            ${this.renderResult()}
             ${this.renderTableau(me, 'mine')}
           </div>
         </div>
@@ -1865,7 +1913,7 @@ export class App {
    */
   private renderForecast(p: PlayerState): string {
     const s = this.state!;
-    if (p.eliminated) return '';
+    if (p.eliminated || isGameOver(s)) return '';
     const f = turnForecast(s, p);
     const me = this.viewer();
     const who = (id: string | null) => (id === me.id ? 'you' : esc((s.players.find((o) => o.id === id)?.name ?? '').toLowerCase()));
@@ -2166,28 +2214,8 @@ export class App {
 
   private renderOverlay(s: GameState): string {
     const winner = s.players.find((p) => p.id === s.winnerId);
-    const quitter = s.concededBy ? s.players.find((p) => p.id === s.concededBy) : undefined;
-    // One person at this device (online, or against the AI): tell it from their side.
-    const viewer = this.viewer();
-    const solo = !!this.online || s.players.filter((p) => !p.isAI).length === 1;
-    if (winner) {
-      return `
-        <div class="overlay"><div class="modal">
-          <div class="bar-title">${quitter ? 'concession' : 'supernova cascade complete'}</div>
-          <div class="modal-body center">
-            ${sunOrb({ heat: winner.heat, threshold: supernovaThreshold(winner), size: 96 })}
-            <h2>${solo ? (winner.id === viewer.id ? 'you win' : 'you lose') : `${esc(winner.name.toLowerCase())} wins`}</h2>
-            <p>${quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} rounds.`}</p>
-            ${this.campaignBattle
-              ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
-              : this.online
-                ? quitter
-                  ? '<p class="muted">They have left the room.</p><button class="btn-primary" data-act="to-menu">leave</button>'
-                  : '<div class="menu-actions center-row"><button class="btn-primary" data-act="online-rematch">play again</button><button class="btn" data-act="to-menu">leave</button></div>'
-                : '<button class="btn-primary" data-act="to-menu">back to menu</button>'}
-          </div>
-        </div></div>`;
-    }
+    // The result lies on the board itself (see renderResult), so the board can still be looked over.
+    if (winner) return this.sheet ? this.renderSheet() : '';
     if (this.needsHandoff()) {
       const p = activePlayer(s);
       return `
