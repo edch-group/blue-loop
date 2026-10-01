@@ -656,8 +656,8 @@ export class CampaignView {
   private static readonly FOCUS_TILT = 56;
   private static readonly MAX_ZOOM = 5.5;
   private static readonly GLIDE_MS = 1000;
-  /** How far behind the map the sky lies: it scrolls at this fraction of the systems' speed. */
-  private static readonly SKY_DEPTH = 0.3;
+  /** How far behind the map the sky lies: over the whole map it slides this fraction of the map's fitted width. */
+  private static readonly SKY_DEPTH = 0.55;
 
   private homeView() {
     const home = ownedNodes(this.state!, this.state!.playerId)[0] ?? this.state!.nodes[0];
@@ -751,30 +751,29 @@ export class CampaignView {
   }
 
   /**
-   * Parallax: the sky is a far-off layer behind the map. It scrolls with the
-   * systems, the same way but at a fraction of their speed, and zooming in
-   * grows it a little. It is sized each frame to cover the screen wherever the
-   * camera goes.
+   * Parallax: the sky is a far-off layer behind the map. It slides with the
+   * systems as you pan, the same way but slower, and never scales: zooming
+   * moves the map, not the sky. Its size is fixed (the screen plus room to
+   * slide), so the picture never stretches.
    */
   private writeSky(c: Cam) {
     const stage = this.stageEl;
     const sky = stage?.closest('.cmp')?.querySelector<HTMLElement>('.cmp-sky');
     if (!stage || !sky) return;
-    const depth = CampaignView.SKY_DEPTH;
-    const fit = this.fitScale(stage, CampaignView.TILT);
-    const zoom = (c.scale / fit) ** (depth * 0.5);
-    const cos = Math.cos((c.tilt * Math.PI) / 180);
-    // How far the map has moved on screen from centred, scaled down for depth.
-    const dx = -(c.x - MAP_WIDTH / 2) * c.scale * depth;
-    const dy = -(c.y - MAP_HEIGHT / 2) * c.scale * cos * depth;
     const page = sky.parentElement!;
-    const w = (page.clientWidth + Math.abs(dx) * 2) / zoom + 8;
-    const h = (page.clientHeight + Math.abs(dy) * 2) / zoom + 8;
-    // Keep the painting's proportions (it is 13:8), large enough for both.
-    const size = Math.max(w, h * (13 / 8));
-    sky.style.width = `${size.toFixed(0)}px`;
-    sky.style.height = `${((size * 8) / 13).toFixed(0)}px`;
-    sky.style.transform = `translate(-50%, -50%) translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${zoom.toFixed(4)})`;
+    const fit = this.fitScale(stage, CampaignView.TILT);
+    // How far the sky slides across the whole map, in screen pixels (independent of zoom).
+    const range = { x: MAP_WIDTH * fit * CampaignView.SKY_DEPTH, y: MAP_HEIGHT * fit * CampaignView.SKY_DEPTH * 0.7 };
+    const dx = -(c.x / MAP_WIDTH - 0.5) * range.x;
+    const dy = -(c.y / MAP_HEIGHT - 0.5) * range.y;
+    // Cover the screen at either end of the slide, keeping the painting's 8:5 proportions.
+    const w = Math.max(page.clientWidth + range.x, (page.clientHeight + range.y) * 1.6) + 8;
+    if (sky.dataset.w !== w.toFixed(0)) {
+      sky.dataset.w = w.toFixed(0);
+      sky.style.width = `${w.toFixed(0)}px`;
+      sky.style.height = `${(w / 1.6).toFixed(0)}px`;
+    }
+    sky.style.transform = `translate(-50%, -50%) translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
   }
 
   private writeCamera() {

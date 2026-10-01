@@ -2436,7 +2436,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   /* Painted by scripts/paint-sky.ts; sized and moved by the camera (campaign.ts, writeSky). */
   position: absolute; left: 50%; top: 50%; z-index: -1; pointer-events: none;
   width: 100%; height: 100%; transform: translate(-50%, -50%);
-  background: url('./assets/campaign-sky.jpg') center / 100% 100% no-repeat;
+  background: url('./assets/campaign-sky.webp') center / 100% 100% no-repeat;
   /* Multiplied onto the board: the painting's white drops out, leaving only its faint greys. */
   mix-blend-mode: multiply;
   will-change: transform;
