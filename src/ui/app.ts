@@ -2247,7 +2247,7 @@ export class App {
       return this.setupPage(
         'play online',
         `<div class="online-wrap">
-          ${you}
+          ${you()}
           <div class="online-choices">
             <div class="online-box">
               <b>host a game</b>
