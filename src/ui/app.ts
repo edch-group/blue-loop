@@ -156,6 +156,8 @@ const DEAL_STEP_MS = 110;
 const FADE_OUT = { duration: 520, easing: 'cubic-bezier(.8,.2,.8,.2)', endOpacity: 0 };
 /** How long the pointer rests on a keyword before it explains itself. */
 const KW_TIP_DELAY_MS = 350;
+/** Scrolling areas whose position survives a redraw. */
+const SCROLL_KEEP = '.db-pool, .db-rows, .db-list-body, .setup-body, .pile-grid, .log-list';
 const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
 /** Clicks that make their own sound (or none): moves on the table and picks on the map. */
 const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
@@ -351,6 +353,7 @@ export class App {
       if ((e.target as HTMLElement).dataset.seatName === '0' && this.online && this.screen === 'menu') this.online.setup(this.joinInfo());
     });
     root.addEventListener('mouseover', (e) => this.onHover(e));
+    root.addEventListener('mousemove', (e) => (this.mouseAt = { x: e.clientX, y: e.clientY }), { passive: true });
     root.addEventListener('pointerdown', (e) => this.onPressStart(e));
     window.addEventListener('pointermove', (e) => this.onPressMove(e));
     window.addEventListener('pointerup', () => this.onPressEnd());
@@ -1616,6 +1619,13 @@ export class App {
 
   private onHover(e: MouseEvent) {
     if (this.touch) return;
+    // The deck builder's deck list: hovering a card's row shows it large, beside the list.
+    const row = (e.target as HTMLElement).closest<HTMLElement>('.db-row[data-card]');
+    if (row !== this.rowPeek) {
+      this.rowPeek = row;
+      if (row) this.showPeek(row, row.closest('.db-deck-side'));
+      else if (!this.press?.shown) this.preview.classList.remove('show');
+    }
     const el = (e.target as HTMLElement).closest<HTMLElement>('.hand [data-card]');
     const from = (e.relatedTarget as HTMLElement | null)?.closest?.('[data-card]');
     if (el && from !== el) sound.hover(); // the card lifts via CSS
@@ -1658,8 +1668,12 @@ export class App {
     this.press = null;
   }
 
-  /** Large, readable copy of a card at the middle right of the screen while held. */
-  private showPeek(el: HTMLElement) {
+  /** The deck row whose card is shown large (see onHover). */
+  private rowPeek: HTMLElement | null = null;
+  private mouseAt: { x: number; y: number } | null = null;
+
+  /** Large, readable copy of a card at the middle right of the screen while held (or, `beside` a panel, to its left). */
+  private showPeek(el: HTMLElement, beside: Element | null = null) {
     this.preview.innerHTML = this.bigCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined) + this.explainCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
     const page = appSize();
     const h = Math.min(420, page.h - 24) * 0.7;
@@ -1668,6 +1682,13 @@ export class App {
     this.preview.style.left = `${Math.min(page.w - w - 16, page.w * 0.78 - w / 2)}px`;
     this.preview.style.top = `${(page.h - h) / 2}px`;
     this.preview.classList.add('show');
+    if (beside) {
+      // Left of the panel, level with the row (kept on screen).
+      const r = pageRect(beside), row = pageRect(el);
+      const pw = this.preview.offsetWidth, ph = this.preview.offsetHeight;
+      this.preview.style.left = `${Math.max(8, r.left - pw - 14)}px`;
+      this.preview.style.top = `${Math.max(8, Math.min(page.h - ph - 8, row.top + row.height / 2 - ph / 2))}px`;
+    }
     fitCardText(this.preview);
   }
 
@@ -1964,7 +1985,20 @@ export class App {
   private render() {
     // Typing in the deck builder's search re-renders the page: keep the caret in the box.
     const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.dbSearch !== undefined ? document.activeElement.selectionStart : null;
+    // Lists that scroll (the deck builder's card pool and deck, piles, setup pages) keep their place across a redraw.
+    const scrolled = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)].map((el) => [el.scrollTop, el.scrollLeft]);
+    const pageY = window.scrollY;
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
+    const again = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)];
+    if (again.length === scrolled.length) again.forEach((el, i) => ((el.scrollTop = scrolled[i][0]), (el.scrollLeft = scrolled[i][1])));
+    if (window.scrollY !== pageY) window.scrollTo(0, pageY);
+    // A deck row shown large was redrawn (or removed): show whichever row is under the pointer now.
+    if (this.rowPeek) {
+      const under = this.mouseAt ? document.elementFromPoint(this.mouseAt.x, this.mouseAt.y)?.closest<HTMLElement>('.db-row[data-card]') ?? null : null;
+      this.rowPeek = under;
+      if (under) this.showPeek(under, under.closest('.db-deck-side'));
+      else this.preview.classList.remove('show');
+    }
     if (typing !== null) {
       const box = this.root.querySelector<HTMLInputElement>('[data-db-search]');
       box?.focus();
