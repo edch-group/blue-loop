@@ -533,15 +533,15 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
       // under the orbit's trail and notches.
       flat.unshift(() => {
         const away = norm3([ctr[0] - c[0], ctr[1] - c[1], 0]);
-        const sx = ctr[0] + away[0] * pr * 0.25, sy = ctr[1] + away[1] * pr * 0.25;
-        const g = ctx.createRadialGradient(sx, sy, pr * 0.6, sx, sy, pr * 1.75);
+        const sx = ctr[0] + away[0] * pr * 0.12, sy = ctr[1] + away[1] * pr * 0.12;
+        const g = ctx.createRadialGradient(sx, sy, pr * 0.7, sx, sy, pr * 1.3);
         const [r0, g0, b0] = TRAIL_RGB[pl].map((q) => Math.round(q * 0.45));
         g.addColorStop(0, `rgba(${r0}, ${g0}, ${b0}, 0.58)`);
         g.addColorStop(0.45, `rgba(${r0}, ${g0}, ${b0}, 0.24)`);
         g.addColorStop(1, `rgba(${r0}, ${g0}, ${b0}, 0)`);
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(sx, sy, pr * 1.75, 0, Math.PI * 2);
+        ctx.arc(sx, sy, pr * 1.3, 0, Math.PI * 2);
         ctx.fill();
       });
       balls.push({
