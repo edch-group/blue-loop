@@ -255,7 +255,7 @@ export const CARDS: CardDef[] = [
     name: 'Halo Ward',
     kind: 'defence',
     race: 0,
-    text: '{dawn}: {shield:1}, +1 per 2 attack cards.',
+    text: '{dawn}: {shield:1}. {shield:+1} per 2 attack cards.',
     onTurn: [{ type: 'shield', amount: 1, plus: { of: 'kind', kind: 'attack', per: 2 } }],
   },
 
@@ -315,7 +315,7 @@ export const CARDS: CardDef[] = [
     name: 'Abyssal Choir',
     kind: 'attack',
     race: 2,
-    text: '{dawn}: {heat:2}, +1 per 2 shields you have (up to 5).',
+    text: '{dawn}: {heat:2}. {heat:+1} per 2 shields you have (up to 5).',
     onTurn: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }],
   },
   {
@@ -346,7 +346,7 @@ export const CARDS: CardDef[] = [
     name: 'Rot Bloom',
     kind: 'attack',
     race: 3,
-    text: '{heat:2}, +1 per 2 cards you control (up to 5).',
+    text: '{heat:2}. {heat:+1} per 2 cards you control (up to 5).',
     onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'cards', per: 2 }, max: 5 }],
   },
   {
@@ -354,7 +354,7 @@ export const CARDS: CardDef[] = [
     name: 'Canopy',
     kind: 'defence',
     race: 3,
-    text: '{dawn}: {cool:1}, +1 per 3 cards you control.',
+    text: '{dawn}: {cool:1}. {cool:+1} per 3 cards you control.',
     onTurn: [{ type: 'cool', amount: 1, plus: { of: 'cards', per: 3 } }],
   },
   {
@@ -430,7 +430,7 @@ export const CARDS: CardDef[] = [
     name: 'Prism Conduit',
     kind: 'defence',
     race: 1,
-    text: '{dawn}: {cool:1}, +1 per attack card next to this.',
+    text: '{dawn}: {cool:1}. {cool:+1} per attack card next to this.',
     onTurn: [{ type: 'cool', amount: 1, plus: { of: 'adjacent', kind: 'attack' } }],
   },
   {
@@ -438,7 +438,7 @@ export const CARDS: CardDef[] = [
     name: 'Tide Pylon',
     kind: 'defence',
     race: 2,
-    text: '{dawn}: {shield:1}, +1 per defence card next to this.',
+    text: '{dawn}: {shield:1}. {shield:+1} per defence card next to this.',
     onTurn: [{ type: 'shield', amount: 1, plus: { of: 'adjacent', kind: 'defence' } }],
   },
   {
@@ -481,7 +481,7 @@ export const CARDS: CardDef[] = [
     name: 'Aurelia, the First Light',
     kind: 'attack',
     race: 0,
-    text: '{dawn}: {heat:1}, +1 per 2 attack cards (up to 4).',
+    text: '{dawn}: {heat:1}. {heat:+1} per 2 attack cards (up to 4).',
     onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 4 }],
   },
   {

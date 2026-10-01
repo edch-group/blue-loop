@@ -2712,10 +2712,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .kw-tempo { --kwc: #7a9a2a; }
 .kw-cool { --kwc: #1e9bd7; }
 /* Heat, cool and shields: a symbol and its number. */
-.kw-sym { display: inline-flex; align-items: center; gap: 0.08em; vertical-align: -0.12em; letter-spacing: 0; }
-.kw-ico { width: 0.8em; height: 0.8em; flex: none; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+/* Laid out as plain inline text, so the number and the words round it share one baseline;
+   the icon stands on that baseline, as tall as a capital. */
+.kw-sym { display: inline; white-space: nowrap; letter-spacing: 0; }
+.kw-ico { display: inline-block; width: 0.78em; height: 0.78em; vertical-align: -0.04em; margin-right: 0.08em; flex: none; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
 .kw-ico .kw-ico-fill { fill: currentColor; fill-opacity: 0.22; stroke-width: 1.6; }
-.kw-list .kw-sym, .kw-tip .kw-sym, .kw-rules .kw-sym { gap: 0.25em; }
+.kw-list .kw-sym .kw-ico, .kw-tip .kw-sym .kw-ico, .kw-rules .kw-sym .kw-ico, .rule-fact .kw-sym .kw-ico { margin-right: 0.25em; }
 .card .kw[data-kw] { cursor: help; }
 .kw-tip {
   position: fixed; left: 0; top: 0; z-index: 90; max-width: 260px; padding: 8px 12px; border-radius: 12px; pointer-events: none;

@@ -25,10 +25,10 @@ export const KEYWORDS: Record<string, Keyword> = {
     name: 'heat',
     group: 'heat',
     symbol: true,
-    explain: (v) => `Heats your rival's sun${v ? ` by ${v}` : ''}, unless the card names another ("to your sun"). Shields absorb heat from enemies; at max health a sun goes supernova.`,
+    explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more heat, on top of the card's own.` : `Heats your rival's sun${v ? ` by ${v}` : ''}, unless the card names another ("to your sun"). Shields absorb heat from enemies; at max health a sun goes supernova.`),
   },
-  cool: { name: 'cool', group: 'cool', symbol: true, explain: (v) => `Cool your sun${v ? ` by ${v}` : ''}, taking heat off it.` },
-  shield: { name: 'shields', group: 'shields', symbol: true, explain: (v) => `Gain ${v ? `${v} shield${v === '1' ? '' : 's'}` : 'shields'}: each absorbs 1 heat from an enemy. Shields fade at your dawn.` },
+  cool: { name: 'cool', group: 'cool', symbol: true, explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more cooling, on top of the card's own.` : `Cool your sun${v ? ` by ${v}` : ''}, taking heat off it.`) },
+  shield: { name: 'shields', group: 'shields', symbol: true, explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more shield${v === '+1' ? '' : 's'}, on top of the card's own.` : `Gain ${v ? `${v} shield${v === '1' ? '' : 's'}` : 'shields'}: each absorbs 1 heat from an enemy. Shields fade at your dawn.`) },
   sturdy: { name: 'sturdy', group: 'defence', explain: (v) => `This card has +${n(v)} defence, on top of its slot's. Removal can only reach cards with low enough defence.` },
   bulwark: {
     name: 'bulwark',
