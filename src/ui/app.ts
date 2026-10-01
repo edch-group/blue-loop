@@ -67,6 +67,7 @@ import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
 import { fitCardText } from './fittext';
+import { refreshLift, trackLift } from './lift';
 import { animateSuns } from './sun3d';
 import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
 
@@ -279,6 +280,7 @@ export class App {
     this.preview = document.createElement('div');
     this.preview.className = 'card-preview';
     document.body.appendChild(this.preview);
+    trackLift();
     // Hovering a keyword on a card explains it.
     const tip = document.createElement('div');
     tip.className = 'kw-tip';
@@ -1743,6 +1745,7 @@ export class App {
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
     fitCardText(this.root);
+    refreshLift();
     animateSuns();
     if (!this.press?.shown) this.preview.classList.remove('show');
   }

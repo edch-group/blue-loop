@@ -463,14 +463,14 @@ input { font: inherit; }
   pointer-events: none;
 }
 @media (hover: hover) {
-  .card:hover:not([disabled]) { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(90, 90, 110, 0.2), 0 0 0 1.5px #fff; }
+  .card.lifted:not([disabled]) { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(90, 90, 110, 0.2), 0 0 0 1.5px #fff; }
 }
 .card:active:not([disabled]) { transform: scale(0.97); }
 .card-affordable { box-shadow: 0 0 0 1.5px #fff, 0 0 16px color-mix(in srgb, var(--kc) 30%, rgba(255, 255, 255, 0.9)), 0 5px 16px rgba(90, 90, 110, 0.15); }
 /* Can't afford it yet: the card keeps its colours but has no glow and does not lift. */
 .card.card-pricey { cursor: not-allowed; }
 @media (hover: hover) {
-  .card.card-pricey:hover { transform: none; }
+  .card.card-pricey.lifted { transform: none; }
 }
 /* Display cards float slightly above the board. */
 .display .card { box-shadow: 0 6px 18px rgba(80, 84, 100, 0.16), 0 1px 3px rgba(80, 84, 100, 0.1); }
@@ -549,7 +549,7 @@ input { font: inherit; }
 .in-play { display: flex; gap: 4px; min-height: 22px; overflow: hidden; }
 .hand { justify-content: flex-start; min-width: 0; padding-top: 6px; }
 .hand .card { box-shadow: -5px 5px 16px rgba(90, 90, 110, 0.16); }
-.hand .card:hover { z-index: 3; }
+.hand .card.lifted { z-index: 3; }
 .hand-hidden { color: var(--ink-faint); letter-spacing: 0.3em; padding: 30px 12px; font-family: var(--display); font-size: 0.6rem; text-transform: uppercase; }
 .mini { display: flex; align-items: center; gap: 2px; height: 22px; padding: 0 6px 0 2px; border-radius: 6px; background: rgba(255, 255, 255, 0.85); border: 1px solid #fff; box-shadow: 0 2px 6px rgba(90, 90, 110, 0.12); flex: none; }
 .mini .glyph { width: 26px; height: 16px; }
@@ -912,7 +912,7 @@ input { font: inherit; }
   transition: transform 0.18s ease-out, box-shadow 0.2s;
   box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18);
 }
-.hand > .card:hover, .hand > .card:focus-visible {
+.hand > .card.lifted, .hand > .card:focus-visible {
   /* A subtle lift: the card rises a little out of the fan, keeping its angle. */
   z-index: 50 !important;
   transform: translateY(calc(var(--fy, 0px) - var(--hh) * 0.08)) rotate(var(--fr, 0deg));
@@ -1493,8 +1493,8 @@ body.screen-campaign .backdrop { display: none; }
 .board-plane .cards { transform-style: preserve-3d; }
 .board-plane .card { transform: translateZ(8px); }
 @media (hover: hover) {
-  .board-plane .card:hover:not([disabled]) { transform: translateZ(10px) translateY(-3px); }
-  .board-plane .card.card-pricey:hover { transform: translateZ(8px); }
+  .board-plane .card.lifted:not([disabled]) { transform: translateZ(10px) translateY(-3px); }
+  .board-plane .card.card-pricey.lifted { transform: translateZ(8px); }
 }
 .board-plane .card:active:not([disabled]) { transform: translateZ(4px) scale(0.98); }
 
