@@ -66,38 +66,29 @@ function ringPoint(r: number, deg: number): [number, number] {
   return [50 + Math.cos(a) * r, 50 + Math.sin(a) * r];
 }
 
-/** The tracks (orbit, shields, heat), flat on the board, with the orbit's three stage markers on its near side. */
+/** The tracks (orbit, shields, heat), flat on the board (the orbit's notches and trail are drawn with the planets, in sun3d.ts). */
 function ringTracks(heatArc: number, shieldArc: number, orbit: number | undefined): string {
   const track = (r: number, cls: string, fill?: number) =>
     `<path class="${cls}-track" d="${ringPath(r)}" pathLength="100"/>` + (fill ? `<path class="${cls}-arc" d="${ringPath(r)}" pathLength="100" stroke-dasharray="${(fill * 100).toFixed(1)} 100"/>` : '');
-  let markers = '';
-  if (orbit !== undefined) {
-    const stage = ((orbit % BALANCE.orbitTurns) + BALANCE.orbitTurns) % BALANCE.orbitTurns;
-    markers = Array.from({ length: BALANCE.orbitTurns }, (_, k) => {
-      const [x, y] = ringPoint(ORBIT_R, 130 - k * 40);
-      return `<circle class="ring-mark ${k < stage ? 'mark-done' : k === stage ? 'mark-now' : ''} mk-${planetAt(orbit)}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${k === stage ? 2.6 : 1.8}"/>`;
-    }).join('');
-  }
   return `
     <svg class="vit-tracks" viewBox="0 0 100 100" aria-hidden="true">
       ${orbit !== undefined ? `<path class="vit-orbit-track" d="${ringPath(ORBIT_R)}"/>` : ''}
       ${track(SHIELD_R, 'vit-shield', shieldArc)}
       ${track(HEAT_R, 'vit-heat', heatArc)}
-      ${markers}
     </svg>`;
 }
 
 /**
  * A sun's orbit: its three planets on the orbit ring. The planet facing the
- * sun this turn swings round to the front and glows; the others wait their
- * turn behind and to the sides (one step of the orbit is 40°).
+ * sun this turn is at the front; the others wait their turn behind and to
+ * the sides (one step of the orbit is 40°, clockwise).
  */
 function orbitPlanets(orbit: number): string {
   const order: Planet[] = ['dead', 'abundant', 'industrial'];
   const facing = planetAt(orbit);
   const planets = order
     .map((pl, i) => {
-      const deg = 90 + (i * 3 + 1 - orbit) * 40;
+      const deg = 90 - (i * 3 + 1 - orbit) * 40;
       const [x, y] = ringPoint(ORBIT_R, deg);
       return `<i class="vit-planet vp-${pl} ${pl === facing ? 'vp-facing' : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" title="${PLANET_LOOK[pl].text}"></i>`;
     })
@@ -132,7 +123,7 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
     <div class="vit ${dead ? 'vit-dead' : ''} ${danger ? 'vit-danger' : ''} ${shields > 0 ? 'vit-shielded' : ''} ${cold ? 'vit-cold' : ''}" style="--core:${core};--rim:${rim}">
       <canvas class="vit-sun sun3d" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-danger="${danger ? 1 : 0}" data-dead="${dead ? 1 : 0}" data-seed="${(seed / 997) * 6.28}" aria-hidden="true"></canvas>
       ${ringTracks(heatArc, shieldArc, orbit)}
-      <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" aria-hidden="true"></canvas>
+      <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" data-pid="${opts.id ?? ''}" aria-hidden="true"></canvas>
       ${orbit !== undefined ? orbitPlanets(orbit) : ''}
       <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '✸' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
       <div class="vit-under">${orbit !== undefined ? planetTag(orbit) : ''}<div class="vit-shields" title="Shields: they absorb enemy heat, and fade at the start of your turn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div></div>

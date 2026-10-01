@@ -2098,6 +2098,7 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
 .card-back span { font-size: calc(var(--cw) * 0.34); text-shadow: 0 0 18px rgba(255, 220, 140, 0.9); }
 .card-back small { font-family: var(--display); letter-spacing: 0.24em; text-transform: uppercase; font-size: calc(var(--cw) * 0.07); }
 .stage-sprung .stage-caption { color: #a86d10; border-color: rgba(212, 149, 42, 0.6); box-shadow: 0 0 18px rgba(212, 149, 42, 0.4); }
+.stage.stage-out { opacity: 0; transition: opacity 0.4s ease; }
 .stage-sprung .card { box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff, 0 0 30px rgba(212, 149, 42, 0.6); }
 /* Choosing: a card from the discard pile, or where a card goes in the tableau. */
 .choose-grid .card { --hh: 150px; --hw: 107px; --cw: 107px; width: 107px; height: 150px; }
@@ -2154,9 +2155,10 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 /* The sun as a solid, with its planets: drawn by sun3d.ts as the board sees them, so it reaches well past the gauge. */
 .vit-dome { position: absolute; left: -60%; top: -60%; width: 220%; height: 220%; pointer-events: none; display: block; }
 /* Labels standing up off the board, turned to face you (placed by sun3d.ts). */
-.vit-heat, .vit-under { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-/* Under each sun, side by side: the planet facing it, and its shields. */
-.vit-under { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.vit-heat { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* Flat on the board beyond the orbit, side by side: the planet facing the sun, and its shields. Under your rival's sun; above yours, clear of your upgrades. */
+.vit-under { position: absolute; left: 50%; top: calc(var(--vs) * 1.13); transform: translateX(-50%); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.tableau-mine .vit-under { top: calc(var(--vs) * -0.13); transform: translate(-50%, -100%); }
 .vit-shield-track { stroke: rgba(150, 164, 190, 0.22); stroke-width: 3.2; }
 .vit-shield-arc { stroke: #6d8cc2; stroke-width: 3.2; stroke-linecap: round; transition: stroke-dasharray 0.5s cubic-bezier(.2,.8,.2,1); filter: drop-shadow(0 0 3px rgba(110, 150, 220, 0.7)); }
 .vit:not(.vit-shielded) .vit-shield-arc { opacity: 0; }
@@ -2196,7 +2198,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
   transform: translateY(-50%); display: grid; justify-items: center; gap: 4px; border-radius: 50%;
 }
 .vitals-name { font-family: var(--display); font-size: clamp(0.46rem, calc(1.7 * var(--vh)), 0.66rem); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
-.tableau-mine .vitals-name { display: none; }
+.vitals-name { display: none; }
 /* Hits: the sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring. */
 .fx-hot .vit { animation: vit-hit 0.6s cubic-bezier(.3,.7,.3,1); }
 .fx-hot .vit-sun { animation: vit-flare 0.9s ease-out; }
@@ -2503,12 +2505,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .vit-tracks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .vit-tracks path { fill: none; }
 .vit-orbit-track { stroke: rgba(150, 160, 185, 0.5); stroke-width: 0.9; }
-/* Markers on the orbit: the turns the facing planet spends there; passed ones filled, the current one lit. */
-.ring-mark { fill: #fff; stroke: rgba(150, 160, 185, 0.8); stroke-width: 0.8; }
-.ring-mark.mark-done.mk-dead, .ring-mark.mark-now.mk-dead { fill: #9aa0ab; stroke: #fff; }
-.ring-mark.mark-done.mk-abundant, .ring-mark.mark-now.mk-abundant { fill: #3fae84; stroke: #fff; }
-.ring-mark.mark-done.mk-industrial, .ring-mark.mark-now.mk-industrial { fill: #d9833a; stroke: #fff; }
-.ring-mark.mark-now { stroke-width: 1.2; filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.9)); }
 /* The planets are drawn on the dome canvas; these are just their tooltips' hit areas, on the orbit. */
 .vit-planet {
   position: absolute; width: calc(var(--vs) * 0.14); height: calc(var(--vs) * 0.14); margin: calc(var(--vs) * -0.07) 0 0 calc(var(--vs) * -0.07);

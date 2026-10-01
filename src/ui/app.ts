@@ -634,7 +634,17 @@ export class App {
       const name = cardDef(defId).name;
       this.showBanner('lightspeed!', `${now.name} springs ${name}`, 150);
       sound.flare();
-      return { defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs` };
+      const stage: Stage = { defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs` };
+      // It shows for a few seconds, then fades away by itself (not lingering until someone acts).
+      window.setTimeout(() => {
+        if (this.stage !== stage) return;
+        this.stage = null;
+        const el = this.root.querySelector<HTMLElement>('.stage-sprung');
+        if (!el) return;
+        el.classList.add('stage-out');
+        window.setTimeout(() => el.remove(), 400);
+      }, 3500);
+      return stage;
     }
     return null;
   }

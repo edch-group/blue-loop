@@ -229,9 +229,52 @@ function sunPalette(t: number, cold: number, dead: boolean): RGB[] {
 
 const PLANET_RGB: Record<string, RGB> = { dead: [170, 175, 186], abundant: [86, 192, 150], industrial: [226, 150, 72] };
 const PLANETS = ['dead', 'abundant', 'industrial'];
-/** Each dome canvas's planets, as drawn (angles in degrees), eased towards where the orbit puts them. */
-const planetAngles = new WeakMap<HTMLCanvasElement, number[]>();
+/** Each planet's trail along the orbit, and its notches: deeper than the planet, to read on the white board. */
+const TRAIL_RGB: Record<string, RGB> = { dead: [112, 118, 132], abundant: [40, 158, 112], industrial: [214, 120, 36] };
+/**
+ * Each sun's orbit as drawn, by player: it follows the real orbit a notch at
+ * a time (each step easing in and out), so a change at the start of a turn,
+ * or from a card, is seen as the planets swinging round. Kept by player, not
+ * by canvas, since the board is redrawn as the game moves on.
+ */
+const orbitsShown = new Map<string, { at: number; seen: number }>();
+/** How long one notch of the orbit takes to swing round, in ms. */
+const ORBIT_STEP_MS = 700;
+let orbitsMoving = false;
 const domeImages = new WeakMap<HTMLCanvasElement, ImageData>();
+const ballLayers = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
+/** The three notches on the orbit's near side (degrees, in turn): where the facing planet spends each of its turns. The orbit runs clockwise. */
+const NOTCHES = [50, 90, 130];
+
+/** Moves a sun's shown orbit on towards its real one, and returns it (fractional while swinging). */
+function shownOrbit(pid: string, orbit: number, now: number): number {
+  const was = orbitsShown.get(pid);
+  // A sun not seen for a while (a new game, say) starts where it is.
+  if (!was || now - was.seen > 3000 || reduce()) {
+    orbitsShown.set(pid, { at: orbit, seen: now });
+    return orbit;
+  }
+  const dt = Math.max(0, now - was.seen);
+  // The way round to the real orbit: forward, unless it moved back (cards can turn it back).
+  let gap = (((orbit - was.at) % 9) + 9) % 9;
+  if (gap > 4.5) gap -= 9;
+  if (Math.abs(gap) < 1e-3) {
+    orbitsShown.set(pid, { at: orbit, seen: now });
+    return orbit;
+  }
+  // Several notches at once go a little faster each, so a big swing doesn't drag on.
+  const speed = (dt / ORBIT_STEP_MS) * Math.max(1, Math.abs(gap) / 2.5);
+  const at = Math.abs(gap) <= speed ? orbit : was.at + Math.sign(gap) * speed;
+  orbitsShown.set(pid, { at, seen: now });
+  if (at !== orbit) orbitsMoving = true;
+  return at;
+}
+
+/** A notch-to-notch swing: within each step, ease in and out. */
+function notchEase(o: number): number {
+  const i = Math.floor(o), f = o - i;
+  return i + f * f * (3 - 2 * f);
+}
 
 /** A half-sphere sitting in the board: its centre on the board, its colour at a point of its surface. */
 type Ball = { ctr: V3; r: number; shade: (n: V3, mu: number) => RGB };
@@ -358,20 +401,46 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   ];
 
   // The planets: half-spheres in the board on the orbit, easing round to where the orbit puts them.
-  const orbit = canvas.dataset.orbit === '' || canvas.dataset.orbit === undefined ? NaN : Number(canvas.dataset.orbit);
-  if (!dead && isFinite(orbit)) {
-    const facing = PLANETS[Math.floor((((orbit % 9) + 9) % 9) / 3)];
-    const target = PLANETS.map((_, i) => 90 + (i * 3 + 1 - orbit) * 40);
-    const drawn = planetAngles.get(canvas) ?? target.slice();
-    drawn.forEach((d, i) => {
-      const delta = ((((target[i] - d) % 360) + 540) % 360) - 180;
-      drawn[i] = Math.abs(delta) < 0.2 ? target[i] : d + delta * 0.18;
+  const real = canvas.dataset.orbit === '' || canvas.dataset.orbit === undefined ? NaN : Number(canvas.dataset.orbit);
+  // Flat on the board under the balls: the trail the facing planet leaves along its notches, and the notches.
+  const flat: (() => void)[] = [];
+  if (!dead && isFinite(real)) {
+    const o = notchEase(shownOrbit(canvas.dataset.pid ?? '', real, performance.now()));
+    const wrap = ((o % 9) + 9) % 9;
+    const fi = Math.min(2, Math.floor(wrap / 3));
+    const facing = PLANETS[fi];
+    const stage = wrap - fi * 3;
+    const ringAt = (deg: number): [number, number] => [c[0] + Math.cos((deg * Math.PI) / 180) * ORBIT_R * vs, c[1] + Math.sin((deg * Math.PI) / 180) * ORBIT_R * vs];
+    const colour = (pl: string, a: number) => `rgba(${TRAIL_RGB[pl].join(', ')}, ${a})`;
+    flat.push(() => {
+      const arc = (pl: string, to: number, alpha: number) => {
+        if (to <= NOTCHES[0] + 0.01 || alpha <= 0) return;
+        ctx.beginPath();
+        ctx.arc(c[0], c[1], ORBIT_R * vs, (NOTCHES[0] * Math.PI) / 180, (to * Math.PI) / 180);
+        ctx.strokeStyle = colour(pl, alpha);
+        ctx.lineWidth = Math.max(2.5, vs * 0.028);
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      };
+      // As the planet swings on past its last notch, its trail fades, ready for the next planet to lay its own.
+      arc(facing, NOTCHES[0] + 40 * stage, stage > 2 ? 3 - stage : 1);
+      NOTCHES.forEach((deg, k) => {
+        const [x, y] = ringAt(deg);
+        const reached = stage >= k - 0.02;
+        const now = Math.round(stage) === k || (stage > 2 && k === 2);
+        ctx.beginPath();
+        ctx.arc(x, y, vs * (now ? 0.026 : 0.018), 0, Math.PI * 2);
+        ctx.fillStyle = reached ? colour(facing, 1) : '#fff';
+        ctx.fill();
+        ctx.strokeStyle = reached ? '#fff' : 'rgba(150, 160, 185, 0.85)';
+        ctx.lineWidth = Math.max(1, vs * 0.008);
+        ctx.stroke();
+      });
     });
-    planetAngles.set(canvas, drawn);
     const glow: V3 = [c[0], c[1], R * 0.5];
     PLANETS.forEach((pl, i) => {
-      const pr = vs * (pl === facing ? 0.09 : 0.065);
-      const ang = (drawn[i] * Math.PI) / 180;
+      const pr = vs * 0.07;
+      const ang = ((90 - (i * 3 + 1 - o) * 40) * Math.PI) / 180;
       const ctr: V3 = [c[0] + Math.cos(ang) * ORBIT_R * vs, c[1] + Math.sin(ang) * ORBIT_R * vs, 0];
       const base = PLANET_RGB[pl];
       const light = norm3(sub3(glow, add3(ctr, [0, 0, pr * 0.5])));
@@ -388,7 +457,23 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
     });
   }
   traceBalls(img, s, pad, cam, balls);
-  ctx.putImageData(img, 0, 0);
+  // The balls go on their own layer, laid over the flat things on the board.
+  let layer = ballLayers.get(canvas);
+  if (!layer) {
+    layer = document.createElement('canvas');
+    ballLayers.set(canvas, layer);
+  }
+  if (layer.width !== size) {
+    layer.width = size;
+    layer.height = size;
+  }
+  layer.getContext('2d')?.putImageData(img, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  ctx.setTransform(s, 0, 0, s, pad * s, pad * s);
+  flat.forEach((f) => f());
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(layer, 0, 0);
 
   // The labels standing up off the board, turned to face the eye.
   const stand = (el: HTMLElement | null, at: V3, ay: string) => {
@@ -399,7 +484,6 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
     el.style.transform = `matrix(${((qx[0] - q0[0]) / k).toFixed(4)},${((qx[1] - q0[1]) / k).toFixed(4)},${((qy[0] - q0[0]) / k).toFixed(4)},${((qy[1] - q0[1]) / k).toFixed(4)},${q0[0].toFixed(2)},${q0[1].toFixed(2)}) translate(-50%, ${ay})`;
   };
   stand(vit.querySelector<HTMLElement>('.vit-heat'), [c[0], c[1], R * 0.9], '-50%');
-  stand(vit.querySelector<HTMLElement>('.vit-under'), [c[0], c[1] + vs * (ORBIT_R + 0.22), 0], '-100%');
 }
 
 let last = 0;
@@ -409,10 +493,14 @@ function frame(time: number) {
     running = false;
     return;
   }
-  // About 20 frames a second is plenty for a slow turn and a lazy flicker.
-  if (time - last > 50) {
-    last = time;
-    suns.forEach((cv) => draw(cv, reduce() ? 0 : time));
+  // About 20 frames a second is plenty for a slow turn and a lazy flicker; a swinging orbit gets every frame.
+  if (time - last > 50 || orbitsMoving) {
+    const flicker = time - last > 50;
+    if (flicker) {
+      last = time;
+      suns.forEach((cv) => draw(cv, reduce() ? 0 : time));
+    }
+    orbitsMoving = false;
     document.querySelectorAll<HTMLCanvasElement>('canvas.vit-dome').forEach((cv) => drawDome(cv, reduce() ? 0 : time));
   }
   requestAnimationFrame(frame);
