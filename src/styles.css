@@ -1719,7 +1719,7 @@ body.screen-campaign .backdrop { display: none; }
 .title-small .title-sun { width: min(54px, calc(11 * var(--vh))); }
 .title-small .title { font-size: clamp(1.1rem, calc(5 * var(--vh)), 1.8rem); margin: clamp(6px, calc(2 * var(--vh)), 14px) 0 0; }
 .menu-heading { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(0.9rem, calc(4 * var(--vh)), 1.3rem); letter-spacing: 0.3em; text-transform: uppercase; color: #555a63; padding-left: 0.3em; }
-.hub { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, calc(2.4 * var(--vw)), 24px); width: min(860px, calc(100% - 28px)); }
+.hub { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(10px, calc(2.2 * var(--vw)), 22px); width: min(1080px, calc(100% - 28px)); }
 .hub-col { display: grid; gap: 8px; align-content: start; }
 .hub-card {
   display: grid; justify-items: center; align-content: center; gap: clamp(6px, calc(2 * var(--vh)), 12px);
@@ -2546,3 +2546,69 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .vt-dead { color: #7d828d; }
 .vt-abundant { color: #2f9a72; }
 .vt-industrial { color: #c06d24; }
+
+/* ---------- Profile, collection and shop ---------- */
+.profile-bar {
+  display: flex; align-items: center; gap: clamp(8px, calc(1.6 * var(--vw)), 16px); justify-self: center; margin: 0 auto;
+  padding: 6px 16px 6px 8px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px #fff, 0 6px 18px rgba(80, 84, 100, 0.12);
+  font-family: var(--display); color: var(--ink); width: max-content; max-width: 100%;
+}
+.menu.menu-hub > .profile-bar { position: absolute; top: max(14px, var(--pad-t, 0px)); left: 50%; transform: translateX(-50%); z-index: 2; }
+.pf-level { display: grid; justify-items: center; line-height: 1; min-width: 38px; height: 38px; place-content: center; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, #eef1f8); box-shadow: inset 0 0 0 2px #dfe4ef; }
+.pf-level small { font-size: 0.42rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+.pf-level b { font-size: 0.95rem; }
+.pf-xp { width: clamp(60px, calc(10 * var(--vw)), 120px); height: 7px; border-radius: 99px; background: #eef0f5; overflow: hidden; }
+.pf-xp i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #9fb4ff, #c9a4ff); }
+.pf-cur { font-size: 0.8rem; white-space: nowrap; }
+.pf-dust { color: #b9852a; }
+.pf-flux { color: #6d6fd0; }
+.pf-cur b { color: var(--ink); }
+.pf-rank { font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); padding: 3px 10px; border-radius: 999px; background: #f2f3f7; white-space: nowrap; }
+
+.menu-shop .setup-body { display: grid; align-content: start; justify-items: center; gap: clamp(14px, calc(3 * var(--vh)), 26px); }
+.booster-row { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(10px, calc(1.6 * var(--vw)), 18px); }
+.booster {
+  width: clamp(150px, calc(17 * var(--vw)), 200px); display: grid; justify-items: center; gap: 8px; text-align: center;
+  padding: 14px 12px; border-radius: 20px; background: #fff; box-shadow: 0 0 0 1px #fff, 0 8px 22px rgba(80, 84, 100, 0.12);
+  font-family: var(--display);
+}
+.booster b { letter-spacing: 0.14em; text-transform: uppercase; font-size: 0.78rem; color: var(--ink); }
+.booster small { font-family: var(--body, inherit); color: var(--ink-soft); font-size: 0.66rem; }
+.booster-pack {
+  width: 74%; aspect-ratio: 3 / 4; display: grid; place-items: center; border-radius: 14px;
+  background: linear-gradient(160deg, #ffffff, #eef1f8 60%, #e3e7f2); box-shadow: inset 0 0 0 2px #fff, 0 6px 14px rgba(80, 84, 100, 0.16);
+}
+.booster-emblem, .booster-icon svg { width: 62%; height: auto; }
+.booster-icon { display: grid; place-items: center; width: 100%; }
+.booster-icon svg { fill: none; stroke: #8b93ad; stroke-width: 2; stroke-linejoin: round; }
+.booster-open { display: grid; justify-items: center; gap: 14px; }
+.booster-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; --cw: clamp(96px, calc(13 * var(--vw)), 150px); }
+.booster-card { display: grid; justify-items: center; gap: 6px; width: var(--cw); animation: booster-reveal 0.55s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i) * 0.16s); }
+.booster-card .card { width: var(--cw); }
+.booster-card small { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); }
+.booster-card .bc-new { color: #3a9e6a; font-weight: 700; }
+.booster-card .bc-flux { color: #6d6fd0; }
+@keyframes booster-reveal { from { opacity: 0; transform: translateY(18px) rotateY(80deg) scale(0.9); } }
+
+/* Deck builder: cards you don't own are greyed out; tap one to craft it. */
+.db-card-locked .card { filter: grayscale(1) opacity(0.45); }
+.db-card-focus { outline: 2px solid #9fb4ff; outline-offset: 2px; border-radius: 10px; }
+.db-own {
+  position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); z-index: 3; white-space: nowrap; cursor: pointer;
+  padding: 1px 8px; border-radius: 999px; background: #fff; box-shadow: 0 1px 4px rgba(80, 84, 100, 0.18);
+  font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint);
+}
+.db-card-locked .db-own { color: #6d6fd0; }
+.db-deck-side:has(.db-focus) { grid-template-rows: auto auto auto auto minmax(0, 1fr); }
+.db-focus { display: grid; align-content: start; gap: 6px; padding: 10px 12px; border-radius: 14px; background: #f6f7fb; box-shadow: inset 0 0 0 1px #e6e9f2; }
+.db-focus-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-family: var(--display); font-size: 0.72rem; letter-spacing: 0.1em; }
+.db-focus small { color: var(--ink-soft); font-size: 0.62rem; }
+.db-focus-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.db-focus-actions .btn { flex: 1 1 auto; min-height: 0; padding: 6px 10px; }
+
+/* Under the result: what the game earned you. */
+.result-rewards { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 12px; font-family: var(--display); font-size: clamp(0.62rem, calc(2.2 * var(--vh)), 0.86rem); color: var(--ink); }
+.result-rewards span:nth-child(1) { color: #b9852a; }
+.result-rewards span:nth-child(2) { color: #6d6fd0; }
+.rw-level { color: #3a9e6a; letter-spacing: 0.1em; text-transform: uppercase; }
+.rw-rank { color: var(--ink-soft); letter-spacing: 0.08em; text-transform: uppercase; }

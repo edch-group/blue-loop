@@ -6,6 +6,13 @@ import {
   applyAction,
   BALANCE,
   boostable,
+  boosterPool,
+  BOOSTERS,
+  gameReward,
+  PROGRESSION,
+  rankName,
+  rankOf,
+  xpToNext,
   canSetLightspeed,
   cardDef,
   cardNeedsUpgradeChoice,
@@ -32,6 +39,8 @@ import {
   turnForecast,
   upgradeOptions,
   type Action,
+  type BoosterCard,
+  type BoosterKind,
   type CardInstance,
   type CoreAction,
   type GameState,
@@ -47,6 +56,7 @@ import { factionAvatar } from './factions';
 import { anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
+import { buyBooster, grantReward, owned, profile, type RewardResult } from './profile';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
@@ -54,9 +64,10 @@ import { animateSuns } from './sun3d';
 import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
-type MenuPage = 'title' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online';
+type MenuPage = 'title' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop';
 
 const HUB_ICONS = {
+  shop: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 10h20l2 30H12z"/><path d="M14 10l4 6h12l4-6M24 22l2.4 4.8 5.3.8-3.8 3.7.9 5.2-4.8-2.5-4.8 2.5.9-5.2-3.8-3.7 5.3-.8z"/></svg>`,
   campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle cx="10" cy="34" r="3.2"/><circle cx="22" cy="26" r="2.6"/><circle cx="36" cy="32" r="3.6"/><circle cx="26" cy="12" r="3"/><circle cx="14" cy="16" r="2.4"/></svg>`,
   quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="17" cy="24" r="8"/><circle cx="36" cy="24" r="4.5"/><path d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
   options: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 15h28M10 24h28M10 33h28"/><circle cx="18" cy="15" r="3.2"/><circle cx="31" cy="24" r="3.2"/><circle cx="22" cy="33" r="3.2"/></svg>`,
@@ -159,6 +170,8 @@ export class App {
   private screen: Screen = 'menu';
   /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
   private menuPage: MenuPage = 'title';
+  /** The booster just opened in the shop. */
+  private opened: { kind: BoosterKind; cards: BoosterCard[] } | null = null;
   private state: GameState | null = null;
   private pending: Pending | null = null;
   private stage: Stage | null = null;
@@ -208,6 +221,8 @@ export class App {
     you: 0,
     /** Whether the rival is connected (they may have closed the app; the room waits for them). */
     rivalOnline: true,
+    /** Online: whether this is a ranked game (its reward comes from the server). */
+    ranked: false,
     /** Online: 'you' must confirm the rival's card; the 'rival' is reading yours (you wait). */
     waitFor: null as 'you' | 'rival' | null,
   };
@@ -916,8 +931,28 @@ export class App {
   /** Extra lines under the result (what the game earned you). */
   private resultExtra = '';
 
-  /** The game just ended: hold the result back until its last moves have played out on the table. */
+  /** What a reward came to, for under the result. */
+  private rewardLine(r: RewardResult): string {
+    const parts = [`✦ +${r.stardust}`, `⟁ +${r.flux}`, `+${r.xp} xp`];
+    const up = r.levelsGained ? `<b class="rw-level">level ${profile().level}!</b>` : '';
+    const rank = r.rank !== undefined && profile().rankPoints !== null ? `<span class="rw-rank">${r.rank >= 0 ? '+' : ''}${r.rank} rank · ${esc(rankName(profile().rankPoints!).toLowerCase())}</span>` : '';
+    return `<div class="result-rewards">${parts.map((x) => `<span>${x}</span>`).join('')}${up}${rank}</div>`;
+  }
+
+  /**
+   * The game just ended: pay out what it earned this device's player (not in a
+   * hot-seat game, nor for a ranked game, whose reward the server sends), and
+   * hold the result back until its last moves have played out on the table.
+   */
   private holdResult(next: GameState, action: Action) {
+    this.resultExtra = '';
+    const viewer = next.players.find((p) => p.id === this.viewer().id);
+    const humans = next.players.filter((p) => !p.isAI).length;
+    const kind = this.online ? (this.net.ranked ? null : 'online') : humans === 1 ? 'ai' : null;
+    if (viewer && kind) {
+      const won = next.winnerId === viewer.id;
+      this.resultExtra = this.rewardLine(grantReward(gameReward(kind, won, { conceded: next.concededBy === viewer.id }), won));
+    }
     const wait = reducedMotion() ? 300 : (action.type === 'endTurn' ? this.replayLength(next) : 900) + 1800;
     this.resultAt = Date.now() + wait;
     window.setTimeout(() => {
@@ -1362,6 +1397,21 @@ export class App {
         return this.returnToCampaign(false);
       case 'campaign-auto':
         return this.returnToCampaign(true);
+      case 'buy-booster': {
+        const kind: BoosterKind = arg === 'general' ? 'general' : (Number(arg) as BoosterKind);
+        const cards = buyBooster(kind);
+        if (!cards) {
+          this.showToast(`A booster costs ✦${PROGRESSION.boosterPrice} stardust.`, 'info');
+          sound.error();
+          return;
+        }
+        this.opened = { kind, cards };
+        sound.shuffle();
+        return this.render();
+      }
+      case 'close-booster':
+        this.opened = null;
+        return this.render();
       case 'menu-page':
         if (this.menuPage === 'online' && arg !== 'online') this.leaveOnline();
         this.menuPage = arg as MenuPage;
@@ -1518,9 +1568,21 @@ export class App {
 
   private renderMenu(): string {
     const page = this.menuPage;
-    const setup = page === 'quickplay' || page === 'options' || page === 'decks' || page === 'online';
+    const setup = page === 'quickplay' || page === 'options' || page === 'decks' || page === 'online' || page === 'shop';
     const body =
-      page === 'title' ? this.renderTitlePage() : page === 'hub' ? this.renderHub() : page === 'quickplay' ? this.renderQuickplay() : page === 'decks' ? this.builder.render() : page === 'online' ? this.renderOnline() : this.renderOptions();
+      page === 'title'
+        ? this.renderTitlePage()
+        : page === 'hub'
+          ? this.renderHub()
+          : page === 'quickplay'
+            ? this.renderQuickplay()
+            : page === 'decks'
+              ? this.builder.render()
+              : page === 'online'
+                ? this.renderOnline()
+                : page === 'shop'
+                  ? this.renderShop()
+                  : this.renderOptions();
     return `
     <main class="menu menu-${page} ${setup ? 'setup-page' : ''}">
       ${body}
@@ -1560,14 +1622,73 @@ export class App {
       </div>`;
     return `
       <div class="menu-back"><button class="btn btn-small" data-act="menu-page" data-arg="title">‹ back</button></div>
+      ${this.profileBar()}
       ${this.titleBlock(true)}
       <div class="hub">
         ${column('campaign-new', '', HUB_ICONS.campaign, 'campaign', 'Conquer a galaxy of forty-eight systems, one battle at a time.',
           hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue campaign</button>' : '')}
         ${column('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', 'A 1v1 battle: against the AI, a friend on this device, or online.',
           hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue game</button>' : '')}
+        ${column('menu-page', 'shop', HUB_ICONS.shop, 'collection', 'Open booster packs, craft the cards you want and build decks with them.',
+          '<button class="btn btn-small hub-continue" data-act="open-decks">deck builder</button>')}
         ${column('menu-page', 'options', HUB_ICONS.options, 'options', 'Sound, music, AI speed and how to play.')}
       </div>`;
+  }
+
+  /** Your level, experience, currencies and rank, across the top of the hub and the shop. */
+  private profileBar(): string {
+    const p = profile();
+    const need = xpToNext(p.level);
+    return `
+      <div class="profile-bar" title="${p.won} won of ${p.played} played">
+        <span class="pf-level"><small>level</small><b>${p.level}</b></span>
+        <span class="pf-xp" title="${p.xp} / ${need} experience to level ${p.level + 1}"><i style="width:${Math.round((p.xp / need) * 100)}%"></i></span>
+        <span class="pf-cur pf-dust" title="Stardust: buys booster packs">✦ <b>${p.stardust}</b></span>
+        <span class="pf-cur pf-flux" title="Flux: crafts cards (break spare cards down for more)">⟁ <b>${p.flux}</b></span>
+        <span class="pf-rank" title="${p.rankPoints === null ? 'Play ranked online to earn a rank' : `${rankOf(p.rankPoints).points} / ${PROGRESSION.stagePoints} rank points to the next stage`}">${p.rankPoints === null ? 'unranked' : esc(rankName(p.rankPoints).toLowerCase())}</span>
+      </div>`;
+  }
+
+  /** The shop: a booster for each race, and a general one with every card of no race. Opened packs are shown here. */
+  private renderShop(): string {
+    const p = profile();
+    const label = (k: BoosterKind) => (k === 'general' ? 'general' : RACE_NAMES[k].toLowerCase());
+    const packs = BOOSTERS.map((k) => {
+      const pool = boosterPool(k);
+      const missing = pool.filter((c) => owned(c.id) === 0).length;
+      return `
+        <div class="booster booster-${k}">
+          <div class="booster-pack">${k === 'general' ? `<span class="booster-icon">${HUB_ICONS.shop}</span>` : factionAvatar(`f${k + 1}`, 'booster-emblem')}</div>
+          <b>${label(k)} booster</b>
+          <small>${PROGRESSION.boosterSize} cards of ${pool.length} · ${missing ? `${missing} you don't own` : 'you own them all'}</small>
+          <button class="btn-primary" data-act="buy-booster" data-arg="${k}" ${p.stardust < PROGRESSION.boosterPrice ? 'disabled' : ''}>open · ✦${PROGRESSION.boosterPrice}</button>
+        </div>`;
+    }).join('');
+    const opened = this.opened
+      ? `<div class="booster-open">
+          <div class="section-label">${esc(label(this.opened.kind))} booster</div>
+          <div class="booster-cards">${this.opened.cards
+            .map((c, i) => `<div class="booster-card" style="--i:${i}">${this.cardFace(c.id)}<small class="${c.flux ? 'bc-flux' : owned(c.id) === 1 ? 'bc-new' : ''}">${c.flux ? `spare · +⟁${c.flux}` : owned(c.id) === 1 ? 'new' : `owned ${owned(c.id)}`}</small></div>`)
+            .join('')}</div>
+          <button class="btn" data-act="close-booster">done</button>
+        </div>`
+      : '';
+    return this.setupPage(
+      'collection',
+      `${this.profileBar()}${opened || `<div class="booster-row">${packs}</div>`}`,
+      `<span class="muted">Win games to earn stardust ✦ and flux ⟁ (far more online, and more again ranked).</span><span class="setup-spacer"></span><button class="btn" data-act="open-decks">deck builder</button>`,
+    );
+  }
+
+  /** A card's face on its own, outside a game (as in the deck builder). */
+  private cardFace(id: string): string {
+    const c = cardDef(id);
+    return `<div class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}" data-card="${c.id}">
+      <span class="card-glyph">${cardArt(c, true)}</span>${stabilityBadge(c)}
+      <span class="card-name">${esc(c.name.toLowerCase())}</span>
+      <span class="card-text">${esc(c.text)}</span>
+      <span class="card-kind">${typeLine(c)}</span>
+    </div>`;
   }
 
   /** Setup pages fill the screen: back and title across the top, the choices in the middle, the main action bottom right. */

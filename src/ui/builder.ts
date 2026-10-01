@@ -1,7 +1,8 @@
-import { BALANCE, CARDS, cardDef, copyLimit, deckProblems, RACE_NAMES, type CardKind } from '../engine';
+import { BALANCE, breakable, breakdownValue, CARDS, cardDef, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, type CardKind } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { cardArt, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { breakDown, craft, owned, profile } from './profile';
 
 interface BuilderHost {
   render(): void;
@@ -10,7 +11,7 @@ interface BuilderHost {
   done(): void;
 }
 
-type Filter = 'all' | 'race' | 'neutral' | 'characters' | 'stellar' | 'anomaly' | CardKind;
+type Filter = 'all' | 'owned' | 'missing' | 'race' | 'neutral' | 'characters' | 'stellar' | 'anomaly' | CardKind;
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -23,6 +24,8 @@ const esc = (s: string) =>
 export class DeckBuilder {
   private editing: SavedDeck | null = null;
   private filter: Filter = 'all';
+  /** A card opened to craft or break down. */
+  private focus: string | null = null;
 
   constructor(private host: BuilderHost) {}
 
@@ -66,11 +69,28 @@ export class DeckBuilder {
       case 'db-race':
         if (d) d.race = Number(arg);
         break;
+      case 'db-focus':
+        this.focus = this.focus === arg ? null : arg;
+        break;
+      case 'db-craft': {
+        const why = craft(arg);
+        if (why) this.host.toast(why);
+        break;
+      }
+      case 'db-break': {
+        const why = breakDown(arg);
+        if (why) this.host.toast(why);
+        break;
+      }
       case 'db-add': {
         if (!d) return true;
         const copies = d.cards.filter((id) => id === arg).length;
         const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
-        if (d.cards.length >= BALANCE.deckSize) this.host.toast(`A deck holds exactly ${BALANCE.deckSize} cards.`);
+        // A card you don't own (or not enough copies of): offer to craft it.
+        if (copies >= owned(arg) && copies < copyLimit(arg)) {
+          this.focus = arg;
+          this.host.toast(owned(arg) ? `You own ${owned(arg)} ${cardDef(arg).name}: craft another to add it.` : `You don't own ${cardDef(arg).name} yet: craft it with flux, or find it in a booster.`);
+        } else if (d.cards.length >= BALANCE.deckSize) this.host.toast(`A deck holds exactly ${BALANCE.deckSize} cards.`);
         else if (copies >= copyLimit(arg)) this.host.toast(copyLimit(arg) === 1 ? `${cardDef(arg).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`);
         else if (cardDef(arg).kind === 'command' && commands >= BALANCE.commandCards) this.host.toast(`A deck holds exactly ${BALANCE.commandCards} Command cards.`);
         else d.cards.push(arg);
@@ -87,6 +107,10 @@ export class DeckBuilder {
         const problems = deckProblems(d.cards);
         if (problems.length) {
           this.host.toast(problems[0]);
+          return true;
+        }
+        if (!ownsDeck(profile().collection, d.cards)) {
+          this.host.toast('This deck uses cards you no longer own.');
           return true;
         }
         d.name = d.name.trim() || 'Unnamed deck';
@@ -150,6 +174,10 @@ export class DeckBuilder {
       switch (this.filter) {
         case 'all':
           return true;
+        case 'owned':
+          return owned(c.id) > 0;
+        case 'missing':
+          return owned(c.id) === 0;
         case 'race':
           return c.race === d.race;
         case 'neutral':
@@ -166,8 +194,9 @@ export class DeckBuilder {
       .sort((a, b) => (a.race === d.race ? -1 : 0) - (b.race === d.race ? -1 : 0) || (a.race ?? 9) - (b.race ?? 9))
       .map((c) => {
         const n = count(c.id);
+        const have = owned(c.id);
         return `
-          <button class="db-card ${n ? 'db-card-in' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
+          <button class="db-card ${n ? 'db-card-in' : ''} ${have ? '' : 'db-card-locked'} ${this.focus === c.id ? 'db-card-focus' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
             <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}">
               <span class="card-glyph">${cardArt(c, true)}</span>${stabilityBadge(c)}
               <span class="card-name">${esc(c.name.toLowerCase())}</span>
@@ -175,6 +204,7 @@ export class DeckBuilder {
               <span class="card-kind">${typeLine(c)}</span>
             </span>
             ${n ? `<b class="db-count">×${n}</b>` : ''}
+            <span class="db-own" data-act="db-focus" data-arg="${c.id}" title="Craft or break down">${have ? `owned ${have}` : 'not owned'} · ⟁</span>
           </button>`;
       })
       .join('');
@@ -191,6 +221,8 @@ export class DeckBuilder {
     const problems = deckProblems(d.cards);
     const filters: [Filter, string][] = [
       ['all', 'all'],
+      ['owned', 'owned'],
+      ['missing', 'not owned'],
       ['race', RACE_NAMES[d.race].toLowerCase()],
       ['neutral', 'neutral'],
       ['characters', 'characters'],
@@ -214,6 +246,7 @@ export class DeckBuilder {
           <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
           <div class="db-races">${[0, 1, 2, 3].map((r) => `<button class="db-race ${d.race === r ? 'on' : ''}" data-act="db-race" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
           <div class="db-tally"><b class="${d.cards.length === BALANCE.deckSize ? 'ok' : ''}">${d.cards.length}/${BALANCE.deckSize}</b> cards · <b class="${commands === BALANCE.commandCards ? 'ok' : ''}">${commands}/${BALANCE.commandCards}</b> command</div>
+          ${this.focus ? this.renderFocus(this.focus) : ''}
           <div class="db-rows">${grouped || '<p class="muted">Tap cards on the left to add them.</p>'}</div>
         </aside>
       </div>
@@ -221,5 +254,23 @@ export class DeckBuilder {
         <span class="db-problem">${problems.length ? esc(problems[0]) : 'Ready to play.'}</span>
         <button class="btn-primary" data-act="db-save" ${problems.length ? 'disabled' : ''}>save deck</button>
       </footer>`;
+  }
+
+  /** Crafting: make another copy with flux, or break a spare one down for half its cost. */
+  private renderFocus(id: string): string {
+    const def = cardDef(id);
+    const p = profile();
+    const have = owned(id);
+    const cost = craftCost(id);
+    const spare = breakable(p.collection, id);
+    return `
+      <div class="db-focus">
+        <div class="db-focus-head"><b>${esc(def.name.toLowerCase())}</b><button class="pill-btn" data-act="db-focus" data-arg="${id}">close</button></div>
+        <small>owned ${have} · a deck may hold ${copyLimit(id)} · you have ⟁${p.flux} flux</small>
+        <div class="db-focus-actions">
+          <button class="btn btn-small" data-act="db-craft" data-arg="${id}" ${p.flux < cost ? 'disabled' : ''}>craft · ⟁${cost}</button>
+          <button class="btn btn-small" data-act="db-break" data-arg="${id}" ${spare ? '' : 'disabled'} title="${spare ? '' : 'Starter cards are kept'}">break down · +⟁${breakdownValue(id)}</button>
+        </div>
+      </div>`;
   }
 }

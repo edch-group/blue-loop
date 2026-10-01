@@ -1,4 +1,5 @@
-import { deckProblems, PRESET_DECKS, type DeckList } from '../engine';
+import { deckProblems, ownsDeck, PRESET_DECKS, type DeckList } from '../engine';
+import { profile } from './profile';
 
 /** A deck the player can pick: one of the four race presets, or one they built. */
 export interface SavedDeck extends DeckList {
@@ -28,9 +29,10 @@ function store(decks: SavedDeck[]) {
   }
 }
 
-/** Every deck on offer: the presets first, then the player's own (legal ones only). */
+/** Every deck on offer: the presets first, then the player's own (legal ones, built from cards they own). */
 export function allDecks(): SavedDeck[] {
-  return [...PRESETS, ...customDecks().filter((d) => deckProblems(d.cards).length === 0)];
+  const have = profile().collection;
+  return [...PRESETS, ...customDecks().filter((d) => deckProblems(d.cards).length === 0 && ownsDeck(have, d.cards))];
 }
 
 export function deckById(id: string | undefined): SavedDeck | undefined {
