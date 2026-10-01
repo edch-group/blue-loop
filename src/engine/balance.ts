@@ -19,7 +19,7 @@ export const BALANCE = {
   maxAnomalyCopies: 1,
   commandCards: 2,
 
-  /** Cards in the opening hand, and drawn at the each dawn after the first. */
+  /** Cards in the opening hand, and drawn at each dawn after the first. */
   openingHand: 5,
   drawPerTurn: 1,
   /** Seats after the first: extra cards in the opening hand, and extra plays on their first day. */
@@ -40,7 +40,7 @@ export const BALANCE = {
   orbitTurns: 3,
   abundantDraw: 1,
   industrialPlays: 1,
-  /** Tableau slots. A card played into a full tableau replaces one of yours. */
+  /** Tableau slots. A full tableau takes no new card until one leaves. */
   tableauSlots: 5,
   /** Each slot's defence, left to right: the middle is safest. Removal cards can only reach cards with low enough defence. */
   slotDefence: [1, 2, 3, 2, 1],

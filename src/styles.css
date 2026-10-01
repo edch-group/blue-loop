@@ -271,8 +271,6 @@ input { font: inherit; }
 .seat-off input { opacity: 0.45; }
 .menu-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .studio { grid-column: 1 / -1; text-align: center; color: var(--ink-faint); font-size: 0.5rem; letter-spacing: 0.3em; text-transform: uppercase; }
-.rules { margin: 0; padding: 0 0 0 18px; line-height: 1.55; font-size: 0.86rem; }
-.rules li + li { margin-top: 6px; }
 
 /* ---------- Game layout ---------- */
 .game {
@@ -2728,7 +2726,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* ---------- Keywords on cards ---------- */
 .kw { font-weight: 700; letter-spacing: 0.02em; color: var(--kwc, #5b6aa8); white-space: nowrap; }
-.kw-timing { --kwc: #8a7a5a; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.86em; }
+.kw-timing { --kwc: #8a7a5a; }
 .kw-defence { --kwc: #4f70a8; }
 .kw-resonance { --kwc: #8a5fd0; }
 .kw-stability { --kwc: #2f8f8a; }
@@ -2740,6 +2738,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .kw-orbit { --kwc: #2c8fb0; }
 .kw-heat { --kwc: #d0592a; }
 .kw-tempo { --kwc: #7a9a2a; }
+.kw-cool { --kwc: #1e9bd7; }
+/* Heat, cool and shields: a symbol and its number. */
+.kw-sym { display: inline-flex; align-items: center; gap: 0.08em; vertical-align: -0.12em; letter-spacing: 0; }
+.kw-ico { width: 0.82em; height: 1.1em; flex: none; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+.kw-ico .kw-ico-fill { fill: currentColor; fill-opacity: 0.22; stroke-width: 1.6; }
+.kw-list .kw-sym, .kw-tip .kw-sym, .kw-rules .kw-sym { gap: 0.25em; }
 .card .kw[data-kw] { cursor: help; }
 .kw-tip {
   position: fixed; left: 0; top: 0; z-index: 90; max-width: 260px; padding: 8px 12px; border-radius: 12px; pointer-events: none;
@@ -2758,4 +2762,24 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .kw-rules > div { display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 10px; align-items: baseline; }
 .kw-rules dt, .kw-rules dd { margin: 0; }
 .kw-rules dd { color: var(--ink-soft); font-size: 0.82rem; line-height: 1.4; }
+.rules { margin: 0; padding: 0 0 0 18px; line-height: 1.55; font-size: 0.86rem; }
+.rules li + li { margin-top: 6px; }
+.rules-wrap { width: min(720px, calc(86 * var(--vw))); display: grid; gap: 14px; }
+.rules-tabs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.rules-tab { padding: 6px 12px; border-radius: 999px; font-size: 0.74rem; font-weight: 500; color: var(--ink-soft); background: #f3f4f7; border: 1px solid transparent; }
+.rules-tab:hover { color: var(--ink); background: #eceef3; }
+.rules-tab.on { color: var(--ink); background: #fff; border-color: rgba(120, 124, 134, 0.18); box-shadow: 0 2px 8px rgba(70, 76, 100, 0.12); }
+.rules-page { min-height: 300px; }
+.rule-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.rule-fact { display: grid; gap: 4px; align-content: start; padding: 12px 14px; border-radius: 14px; background: #f7f8fa; border: 1px solid rgba(120, 124, 134, 0.1); }
+.rule-fact > b { font-size: 0.86rem; display: flex; align-items: center; gap: 7px; }
+.rule-fact > span { font-size: 0.8rem; line-height: 1.4; color: var(--ink-soft); }
+.rule-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--kc); flex: none; }
+.rule-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; counter-reset: step; }
+.rule-steps li { counter-increment: step; display: grid; grid-template-columns: 28px 96px 1fr; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 14px; background: #f7f8fa; border: 1px solid rgba(120, 124, 134, 0.1); }
+.rule-steps li::before { content: counter(step); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 0.72rem; font-weight: 600; color: #fff; background: #8a7a5a; }
+.rule-steps b { font-size: 0.86rem; }
+.rule-steps span { font-size: 0.8rem; line-height: 1.4; color: var(--ink-soft); }
+@media (max-width: 520px) { .rule-steps li { grid-template-columns: 28px 1fr; } .rule-steps span { grid-column: 2; } }
+.rule-note { margin: 0 0 6px; font-size: 0.78rem; color: var(--ink-faint); text-align: center; }
 .rules-head { margin: 18px 0 4px; font-family: var(--display); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; }

@@ -2,7 +2,7 @@
  * Keywords: the game's recurring mechanics, written into card text as tokens
  * (`{sturdy:1}`, `{resonance:2/1}`, `{recover:attack}`, `{lightspeed}`) so a
  * card says each one in a word or two with its number, and the rules explain
- * it once. The UI draws a token as coloured text ("sturdy 1"); its
+ * it once. The UI draws a token as coloured text in title case ("Sturdy 1"); its
  * explanation appears in the zoomed card, on hover, and on the rules page.
  */
 
@@ -10,7 +10,9 @@ export interface Keyword {
   /** As it reads on a card. */
   name: string;
   /** Colour family on the card. */
-  group: 'defence' | 'resonance' | 'stability' | 'recovery' | 'removal' | 'shields' | 'lightspeed' | 'global' | 'orbit' | 'heat' | 'tempo' | 'timing';
+  group: 'defence' | 'resonance' | 'stability' | 'recovery' | 'removal' | 'shields' | 'lightspeed' | 'global' | 'orbit' | 'heat' | 'cool' | 'tempo' | 'timing';
+  /** Drawn as a symbol and its number on a card (heat, cool, shields), not as a word. */
+  symbol?: boolean;
   /** What it means, for a given value (or in general, without one). */
   explain: (value?: string) => string;
 }
@@ -19,6 +21,14 @@ const n = (v: string | undefined, d = 'N') => v ?? d;
 
 export const KEYWORDS: Record<string, Keyword> = {
   dawn: { name: 'dawn', group: 'timing', explain: () => 'Happens at dawn (the start of each of your days) while the card is in your tableau.' },
+  heat: {
+    name: 'heat',
+    group: 'heat',
+    symbol: true,
+    explain: (v) => `Heats your rival's sun${v ? ` by ${v}` : ''}, unless the card names another ("to your sun"). Shields absorb heat from enemies; at max health a sun goes supernova.`,
+  },
+  cool: { name: 'cool', group: 'cool', symbol: true, explain: (v) => `Cool your sun${v ? ` by ${v}` : ''}, taking heat off it.` },
+  shield: { name: 'shields', group: 'shields', symbol: true, explain: (v) => `Gain ${v ? `${v} shield${v === '1' ? '' : 's'}` : 'shields'}: each absorbs 1 heat from an enemy. Shields fade at your dawn.` },
   sturdy: { name: 'sturdy', group: 'defence', explain: (v) => `This card has +${n(v)} defence, on top of its slot's. Removal can only reach cards with low enough defence.` },
   bulwark: {
     name: 'bulwark',
@@ -61,10 +71,30 @@ export const KEYWORDS: Record<string, Keyword> = {
   global: { name: 'global', group: 'global', explain: () => 'Changes the table for both players while it is in play. Only one global card can be in play: a new one replaces it.' },
 };
 
+/**
+ * Rules that card text names in plain words rather than as a keyword token:
+ * the zoomed card explains them too, whenever its text mentions one.
+ */
+export const TEXT_RULES: { name: string; group: Keyword['group']; pattern: RegExp; explain: string }[] = [
+  { name: 'Upgrade', group: 'tempo', pattern: /\bUpgrade\b/, explain: 'Solar Flare: your attack cards deal +1 heat. Thermosiphon: your cooling cools +1. Cooling Chamber: +6 max health. Up to 3 each, for the rest of the game.' },
+  { name: 'Command Card', group: 'tempo', pattern: /\bCommand card/, explain: 'Every deck has exactly 2 Command cards. They upgrade your whole deck, and stay in your tableau like any other card.' },
+  { name: 'Leaves Your Tableau', group: 'stability', pattern: /leaves? your tableau/, explain: 'When the card fades, is destroyed, or returns to a hand. It goes to the discard pile (or the hand).' },
+  { name: 'Facing A Planet', group: 'orbit', pattern: /facing the (dead|abundant|industrial) planet/, explain: 'The planet facing your sun right now. Each faces it for 3 of your days: dead, then abundant, then industrial.' },
+  { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'The card or heat has no effect. A cancelled card goes to its owner’s discard pile.' },
+  { name: 'Max Health', group: 'heat', pattern: /max health/, explain: 'The heat at which your sun goes supernova.' },
+];
+
 const TOKEN = /\{([a-z]+)(?::([^}]+))?\}/g;
 
-/** A keyword as it reads on a card: its name and value ("sturdy 1", "destroy ≤2", "recover attack"). */
+/** Every word capitalised ("recover attack" → "Recover Attack"). */
+const titleCase = (s: string) => s.replace(/(^|\s)(\p{Ll})/gu, (_, sp: string, c: string) => sp + c.toUpperCase());
+
+/** A keyword as it reads on a card, in title case: its name and value ("Sturdy 1", "Destroy ≤2", "Recover Attack"). */
 export function keywordLabel(id: string, value?: string): string {
+  return titleCase(rawLabel(id, value));
+}
+
+function rawLabel(id: string, value?: string): string {
   const k = KEYWORDS[id];
   if (!k) return value ?? id;
   if (!value) return k.name;

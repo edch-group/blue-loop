@@ -217,11 +217,18 @@ Cards that only worked alongside others (a count of a card type, Command cards, 
 
 ## Keywords [design review]
 
-The game's recurring mechanics are **keywords**: a coloured word on the card with its number, so card text stays short (**sturdy 1**, **resonance 2 · 1**, **erode 2**, **recover attack**, **destroy ≤2**). Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoomed card; in the deck builder and the shop, on hover; and on the rules page (how to play → mechanics), which lists them all.
+The game's recurring mechanics are **keywords**: a coloured word on the card with its number, always in title case (**Sturdy 1**, **Resonance 2 · 1**, **Erode 2**, **Recover Attack**, **Destroy ≤2**). The three most common effects are **symbols** instead of words, so card text stays very short: **heat** (three red chevrons up), **cool** (three blue chevrons down) and **shields** (a shield), each with its number. "At dawn, heat your rival's sun by 3" reads **Dawn: ⏶3**. Heat goes to the rival's sun unless the card says "to your sun".
+
+Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoomed card (with no hover pop-up there, since the explanations are already beside it); in the deck builder and the shop, on hover; and on the rules page (How to Play → Keywords), which lists them all. The zoomed card also explains its stability and defence badges, and the rules its text names in plain words (`TEXT_RULES`: upgrades, Command cards, leaving the tableau, facing a planet, cancelling, max health).
+
+**How to Play** is a sheet of tabs (Overview, Your Day, Tableau, Sun & Orbit, Card Types, Keywords, Progress), each a handful of short facts rather than paragraphs.
 
 | Keyword | Meaning |
 | --- | --- |
-| dawn | At each of your dawns, while in play |
+| Dawn | At each of your dawns, while in play |
+| heat N (symbol) | Heat your rival's sun by N (or the sun the card names) |
+| cool N (symbol) | Cool your sun by N |
+| shields N (symbol) | Gain N shields |
 | sturdy N | +N defence |
 | bulwark N (· M) | Cards next to it +N defence (two slots away +M) |
 | resonance N (· M) | Cards next to it +N heat, cooling and shields (two places away +M) |
@@ -463,7 +470,7 @@ A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their 
 
 **Dawn, effect by effect.** When a day starts, its effects play out one after the other, in the order they happen: regional instability (from the top of the screen), the table, then each card left to right. Each card lights up as it fires, and its effect flies from it to the sun it reaches: a flare of heat to the rival's sun (or its own, for a drawback), a cooling beam or a shield beam to its owner's. That sun's numbers change as it lands, with what changed floating over it. A card on its last turn fires, then fades once the replay is done. The AI waits for its dawn to finish before it plays.
 
-**Reading the rival's cards.** Each card a rival plays (or sets face down) waits at the middle right with a "got it" button, and the rival goes on only once you press it, so there is time to read every card. Against the AI, it waits for you. Online, the room holds the player who played the card ("<rival> is reading your card…") until their rival confirms, unless the rival disconnects. Hot-seat games skip this, since both players share the screen. [design review]
+**Reading the rival's cards.** Each card a rival plays (or sets face down) waits at the middle right with an "OK" button. Its effects only happen once you press it (then the card lands and its heat, cooling and so on play out), and the rival goes on after that, so there is time to read every card. Against the AI, it waits for you. Online, the room holds the player who played the card ("<rival> is reading your card…") until their rival confirms, unless the rival disconnects. Hot-seat games skip this, since both players share the screen. [design review]
 
 ## Campaign mode
 

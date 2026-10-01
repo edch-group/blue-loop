@@ -11,6 +11,7 @@ import {
   gameReward,
   PROGRESSION,
   rankName,
+  RANK_TIERS,
   rankOf,
   xpToNext,
   canSetLightspeed,
@@ -29,6 +30,7 @@ import {
   MAX_UPGRADES,
   needsSlot,
   persists,
+  baseStability,
   playsAllowed,
   RACE_NAMES,
   allyChoices,
@@ -45,6 +47,7 @@ import {
   type BoosterCard,
   type BoosterKind,
   type CardInstance,
+  type CardKind,
   type CoreAction,
   type GameState,
   type PlayerSetup,
@@ -57,7 +60,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardArt, cardGlyph, cardTextHtml, keywordList, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { cardArt, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
 import { sound } from './sound';
@@ -192,6 +195,10 @@ export class App {
   private pending: Pending | null = null;
   private stage: Stage | null = null;
   private sheet: Sheet | null = null;
+  /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
+  private landing: (() => void) | null = null;
+  /** The How to Play tab showing. */
+  private rulesTab = 'overview';
   /** The rival whose tableau is shown across the table (defaults to the viewer's target). */
   private viewRivalId: string | null = null;
   /** Overlays hidden so the player can study the board; the game is suspended meanwhile. */
@@ -275,10 +282,11 @@ export class App {
     document.body.appendChild(tip);
     document.addEventListener('mouseover', (e) => {
       const kw = (e.target as HTMLElement).closest?.<HTMLElement>('.kw[data-kw]');
-      if (!kw || this.touch) return tip.classList.remove('show');
+      // Not where the card's explanations are already laid out beside it.
+      if (!kw || this.touch || kw.closest('.zoom-card, .inspector-row, .card-preview')?.querySelector('.kw-list')) return tip.classList.remove('show');
       const k = KEYWORDS[kw.dataset.kw!];
       if (!k) return;
-      tip.innerHTML = `<b class="kw kw-${k.group}">${esc(keywordLabel(kw.dataset.kw!, kw.dataset.kv))}</b> ${esc(k.explain(kw.dataset.kv))}`;
+      tip.innerHTML = `${keywordHtml(kw.dataset.kw!, kw.dataset.kv, { named: true })} ${esc(k.explain(kw.dataset.kv))}`;
       const r = pageRect(kw);
       const page = appSize();
       tip.classList.add('show');
@@ -469,6 +477,8 @@ export class App {
 
   /** The room sent this player's view of the game: start it, or animate the move that changed it. */
   private onRemoteState(next: GameState, you: string, last: LastMove | null) {
+    // A move still waiting to be read lands first.
+    if (this.landing) this.flushLanding();
     const prev = this.state;
     const sameGame = this.screen === 'game' && prev && prev.players.every((p, i) => next.players[i]?.id === p.id) && next.turnNumber >= prev.turnNumber && !(prev.winnerId && !next.winnerId);
     if (!sameGame || !prev) {
@@ -478,6 +488,7 @@ export class App {
       this.viewRivalId = null;
       this.pending = null;
       this.stage = null;
+      this.landing = null;
       this.sheet = null;
       this.campaignBattle = false;
       this.screen = 'game';
@@ -496,21 +507,30 @@ export class App {
       return;
     }
     const actor = prev.players.find((p) => p.id === last.actorId) ?? activePlayer(prev);
-    const before = snapshot(this.root);
-    if (last.action.type !== 'setTarget') backdrop.spin();
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
-    this.state = next;
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = null;
     if (actor.id !== you && last.action.type === 'playCard') this.stage = this.remoteStage(last, next);
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
-    if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, last.action);
-    this.render();
-    this.surfaceLog(prev);
-    this.animate(prev, next, last.action, actor, before);
-    if (turnPassed) this.announceTurn(450);
+    const land = () => {
+      const before = snapshot(this.root);
+      if (last.action.type !== 'setTarget') backdrop.spin();
+      this.state = next;
+      if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, last.action);
+      this.render();
+      this.surfaceLog(prev);
+      this.animate(prev, next, last.action, actor, before);
+      if (turnPassed) this.announceTurn(450);
+    };
+    // The rival's card takes effect once the viewer has read it and said OK.
+    if (this.stage?.confirm && !isGameOver(next)) {
+      this.landing = land;
+      this.render();
+      return;
+    }
+    land();
   }
 
   /** The rival's card just played, online, on the stage (to confirm, if the room is waiting on you to read it). */
@@ -532,8 +552,17 @@ export class App {
       this.net.waitFor = null;
       this.online.ack();
     }
+    // Now the card takes effect.
+    if (this.landing) return this.flushLanding();
     this.render();
     if (!this.online) this.scheduleAI(450);
+  }
+
+  /** Play out a move that was waiting for its card to be read. */
+  private flushLanding() {
+    const land = this.landing;
+    this.landing = null;
+    land?.();
   }
 
   // -------------------------------------------------------------------------
@@ -561,6 +590,7 @@ export class App {
     this.viewRivalId = null;
     this.pending = null;
     this.stage = null;
+    this.landing = null;
     this.sheet = null;
     this.screen = 'game';
     this.persist(state);
@@ -572,7 +602,7 @@ export class App {
   }
 
   /**
-   * "Your day" banner: a soft bloom across the middle of the screen whenever
+   * "Dawn" banner: a soft bloom across the middle of the screen whenever
    * play comes back to a human who can see their hand. Lives outside the
    * re-rendered root so it survives state changes.
    */
@@ -583,7 +613,7 @@ export class App {
     if (p.isAI || p.id !== this.viewer().id) return;
     const humans = s.players.filter((pl) => !pl.isAI).length;
     const plays = `${p.playsLeft} card${p.playsLeft === 1 ? '' : 's'} to play`;
-    this.showBanner('your day', humans > 1 ? `${p.name} · ${plays}` : `round ${roman(s.round)} · ${plays}`, delay);
+    this.showBanner('dawn', humans > 1 ? `${p.name} · ${plays}` : `round ${roman(s.round)} · ${plays}`, delay);
   }
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
@@ -679,6 +709,8 @@ export class App {
   }
 
   private dispatch(action: Action, animate = true) {
+    // A move still waiting to be read lands first.
+    if (this.landing) this.flushLanding();
     const prev = this.state;
     if (!prev) return;
     // Online, the room plays the move and sends back the result.
@@ -698,10 +730,7 @@ export class App {
       sound.error();
       return;
     }
-    const before = animate ? snapshot(this.root) : null;
-    if (animate && action.type !== 'setTarget') backdrop.spin();
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
-    this.state = next;
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = actor.isAI ? this.stageFor(actor, action) : null;
@@ -709,22 +738,35 @@ export class App {
     if (this.stage && animate && !isGameOver(next) && next.players.some((p) => !p.isAI)) this.stage.confirm = true;
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
-    // An AI's attacks bring its target's tableau onto the table.
-    if (actor.isAI && action.type === 'setTarget' && action.targetId !== this.viewer().id) this.viewRivalId = action.targetId;
-    this.persist(next);
-    this.syncViewer();
-    if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, animate ? action : { type: 'concede', playerId: '' });
-    this.render();
-    if (before) {
-      this.surfaceLog(prev);
-      this.animate(prev, next, action, actor, before);
+    const land = () => {
+      const before = animate ? snapshot(this.root) : null;
+      if (animate && action.type !== 'setTarget') backdrop.spin();
+      this.state = next;
+      // An AI's attacks bring its target's tableau onto the table.
+      if (actor.isAI && action.type === 'setTarget' && action.targetId !== this.viewer().id) this.viewRivalId = action.targetId;
+      this.persist(next);
+      this.syncViewer();
+      if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, animate ? action : { type: 'concede', playerId: '' });
+      this.render();
+      if (before) {
+        this.surfaceLog(prev);
+        this.animate(prev, next, action, actor, before);
+      }
+      if (turnPassed) this.announceTurn(450);
+      // The AI waits for its dawn to play out before it acts.
+      this.scheduleAI(AI_PAUSE[action.type] + (action.type === 'endTurn' && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
+    };
+    // A card waiting to be read takes effect once the viewer says OK.
+    if (this.stage?.confirm) {
+      this.landing = land;
+      this.render();
+      return;
     }
-    if (turnPassed) this.announceTurn(450);
-    // The AI waits for its dawn to play out before it acts.
-    this.scheduleAI(AI_PAUSE[action.type] + (action.type === 'endTurn' && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
+    land();
   }
 
   private quitToMenu() {
+    this.landing = null;
     this.leaveOnline();
     this.campaignBattle = false;
     this.screen = 'menu';
@@ -807,6 +849,15 @@ export class App {
   private skipAI() {
     if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
     this.aiTimer = null;
+    // A card still waiting to be read takes effect first.
+    if (this.landing) {
+      const land = this.landing;
+      this.landing = null;
+      this.stage = null;
+      land();
+      if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
+      this.aiTimer = null;
+    }
     let s = this.state!;
     let guard = 0;
     while (!isGameOver(s) && activePlayer(s).isAI && guard++ < 5000) s = applyAction(s, chooseAIAction(s));
@@ -1392,7 +1443,7 @@ export class App {
 
   /** Large, readable copy of a card at the middle right of the screen while held. */
   private showPeek(el: HTMLElement) {
-    this.preview.innerHTML = this.bigCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined) + keywordList(cardDef(el.dataset.card!).text);
+    this.preview.innerHTML = this.bigCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined) + this.explainCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
     const page = appSize();
     const h = Math.min(420, page.h - 24) * 0.7;
     const w = h * 0.714;
@@ -1470,6 +1521,9 @@ export class App {
         return this.continueGame();
       case 'rules':
         this.sheet = { kind: 'rules' };
+        return this.render();
+      case 'rules-tab':
+        this.rulesTab = arg;
         return this.render();
       case 'open-decks':
         // The builder hands back to wherever it was opened from.
@@ -1823,7 +1877,7 @@ export class App {
   }
 
   private renderZoom(): string {
-    return `<div class="overlay overlay-soft zoom-view" data-act="zoom-close"><div class="zoom-card" data-act="zoom-close">${this.bigCard(this.zoomed!)}${keywordList(cardDef(this.zoomed!).text)}</div><small class="muted">tap anywhere to close</small></div>`;
+    return `<div class="overlay overlay-soft zoom-view" data-act="zoom-close"><div class="zoom-card" data-act="zoom-close">${this.bigCard(this.zoomed!)}${this.explainCard(this.zoomed!)}</div><small class="muted">tap anywhere to close</small></div>`;
   }
 
   /** Signing in: the name and emblem you go by (until accounts arrive, it lives on this device). */
@@ -2022,31 +2076,106 @@ export class App {
     );
   }
 
+  /** How to play: short facts, one tab per topic. */
   private rulesHtml(): string {
+    const B = BALANCE;
+    const kw = (id: string, v?: string) => keywordHtml(id, v);
+    const fact = (title: string, body: string) => `<div class="rule-fact"><b>${title}</b><span>${body}</span></div>`;
+    const facts = (...f: string[]) => `<div class="rule-facts">${f.join('')}</div>`;
+    const step = (title: string, body: string) => `<li><b>${title}</b><span>${body}</span></li>`;
+    const kind = (k: CardKind, name: string, body: string) => `<div class="rule-fact"><b><i class="rule-dot" style="--kc:${KIND_COLOUR[k]}"></i>${name}</b><span>${body}</span></div>`;
+    const tabs: Record<string, [string, () => string]> = {
+      overview: [
+        'Overview',
+        () =>
+          facts(
+            fact('The goal', `Heat your rival's sun to <b>${B.supernovaAt}</b>. It goes supernova and you win.`),
+            fact('Two suns', `Both start at ${B.startingHeat} heat. ${kw('heat')} heats, ${kw('cool')} cools, ${kw('shield')} blocks.`),
+            fact('Days', 'Players take turns, called days. Each of your days starts at Dawn.'),
+            fact('Cards stay', 'Played cards sit in your tableau and act every Dawn, until they fade.'),
+            fact('Your deck', `${B.deckSize} cards: up to ${B.maxCopies} of each, exactly ${B.commandCards} Command cards.`),
+            fact('Your hand', `Start with ${B.openingHand} cards. Draw ${B.drawPerTurn} every Dawn after the first.`),
+          ),
+      ],
+      day: [
+        'Your Day',
+        () => `<ol class="rule-steps">
+          ${step('Dawn', `Your shields fade. The planets move on a notch. Draw ${B.drawPerTurn}.`)}
+          ${step('The table', 'Regional instability strikes, then the global card in play.')}
+          ${step('Your cards', `Every card in your tableau fires its ${kw('dawn')} effect, left to right.`)}
+          ${step('Fade', 'Every card loses 1 ◷ stability. At 0 it goes to your discard pile.')}
+          ${step('Play', `Play up to <b>${B.maxPlays}</b> cards (1 on your first day), each into a slot you choose.`)}
+          ${step('End', "End your day. Your rival's begins.")}
+        </ol>`,
+      ],
+      tableau: [
+        'Tableau',
+        () =>
+          facts(
+            fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
+            fact('Defence', `Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
+            fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
+            fact('No replacing', 'A full tableau takes nothing new until a card fades or leaves.'),
+            fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
+            fact('Discard pile', `Every card that leaves goes here. An empty deck reshuffles it back in: ${kw('heat', String(B.reshuffleHeat))} to your sun.`),
+          ),
+      ],
+      sun: [
+        'Sun & Orbit',
+        () =>
+          facts(
+            fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”."),
+            fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun.'),
+            fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
+            fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),
+            fact('The planets', `Dead: nothing. Abundant: draw +${B.abundantDraw}. Industrial: play +${B.industrialPlays}.`),
+            fact('Regional stability', `Drains each round. From round ${B.instabilityStartsRound}, every sun heats at Dawn, more each round.`),
+          ),
+      ],
+      cards: [
+        'Card Types',
+        () =>
+          facts(
+            kind('attack', 'Attack', `Heat your rival's sun.`),
+            kind('defence', 'Defence', 'Cool your sun, raise shields, guard your tableau.'),
+            kind('growth', 'Growth', 'Draw, recover, grow and play more.'),
+            kind('command', 'Command', `Upgrade your whole deck (up to ${B.solarFlareMaxUpgrades} times each). Play again to upgrade again.`),
+            kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
+            kind('lightspeed', 'Lightspeed', "Set face down. Springs during your rival's day."),
+          ),
+      ],
+      keywords: [
+        'Keywords',
+        () => `<p class="rule-note">Hover a keyword on a card, or zoom the card, to read it there.</p>
+          <dl class="kw-rules">${Object.entries(KEYWORDS)
+            .map(([id, k]) => {
+              // Shown with a stand-in value where the keyword takes one.
+              const v = ['dawn', 'anchor', 'recall', 'recover', 'overheated', 'lightspeed', 'global'].includes(id) ? undefined : id === 'orbit' ? '±N' : 'N';
+              return `<div><dt>${keywordHtml(id, v, { named: true })}</dt><dd>${esc(k.explain(v))}${id === 'recover' ? ` Some name a type: ${keywordLabel('recover', 'attack')}.` : ''}</dd></div>`;
+            })
+            .join('')}</dl>`,
+      ],
+      progress: [
+        'Progress',
+        () =>
+          facts(
+            fact('Levels', `Every game earns experience. Each level: ✦${PROGRESSION.levelReward.stardust} and ⟁${PROGRESSION.levelReward.flux}.`),
+            fact('Stardust ✦', `Buys boosters: ✦${PROGRESSION.boosterPrice} for ${PROGRESSION.boosterSize} cards.`),
+            fact('Flux ⟁', 'Crafts the cards you want. Breaking one down returns half.'),
+            fact('Ranks', `${RANK_TIERS.join(' → ')}. Three stages each.`),
+            fact('Ranked', 'Matches players at most one tier apart. Beat higher ranks for more.'),
+            fact('Collection', 'You start with every starter card. Boosters and crafting add the rest.'),
+          ),
+      ],
+    };
+    const tab = tabs[this.rulesTab] ? this.rulesTab : 'overview';
     return `
-      <ul class="rules">
-        <li>Every sun starts at <b>${BALANCE.startingHeat}</b> heat with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. Blow up your rival's sun to win.</li>
-        <li>Bring a <b>${BALANCE.deckSize}-card deck</b>: up to ${BALANCE.maxCopies} copies of a card, and exactly ${BALANCE.commandCards} Command cards. You start with ${BALANCE.openingHand} cards and draw ${BALANCE.drawPerTurn} each day after that.</li>
-        <li>Play <b>1 card</b> on your first day, then up to <b>${BALANCE.maxPlays}</b> a day. Cards <b>stay in play</b> in your tableau of <b>${BALANCE.tableauSlots} slots</b>, in the slot you choose: their dawn effects trigger every day, and they power each other up.</li>
-        <li><b>Stability</b> (◷) is how many of your days a card stays: after its dawn effects it loses 1, and at 0 it fades into your discard pile. Some cards restore stability; others erode your rival's. There is <b>no replacing</b>: with every slot full, nothing new goes in until a card fades, or is recalled or removed.</li>
-        <li><b>Orbit:</b> three planets circle your sun, each facing it for ${BALANCE.orbitTurns} of your days in turn: the <b>dead</b> planet (nothing), the <b>abundant</b> planet (draw ${BALANCE.abundantDraw} extra card each day), then the <b>industrial</b> planet (play ${BALANCE.industrialPlays} extra card each day), and round again. Every sun starts at the dead planet. Some cards move an orbit on or back ("your orbit +1", "your rival's orbit −2"); others are stronger while a planet faces your sun.</li>
-        <li><b>Defence</b> (⛨) comes from the slot: ${BALANCE.slotDefence.join(', ')} from left to right, so the middle is safest. Sturdy cards and bulwarks add more. Removal only reaches cards with low enough defence ("destroy a card with 2 or less defence").</li>
-        <li>Your attacks heat your rival's sun. Shields absorb their heat and fade at your dawn.</li>
-        <li><b>Command</b> cards upgrade your whole deck: Solar Flare (your attack cards deal +1 heat), Thermosiphon (your cooling cools +1) or Cooling Chamber (+${BALANCE.coolingChamberHealthPerUpgrade} max health), up to ${BALANCE.solarFlareMaxUpgrades} each. They stay in your tableau like any other card, and some cards reward keeping them there. Play one again and it upgrades again.</li>
-        <li><b>Resonance</b> cards power up their neighbours in your tableau, and bulwarks guard them.</li>
-        <li><b>Lightspeed</b> cards are set face down (one at a time, no slot) and spring during your rival's day: cancelling a card they play, turning heat aside, or saving your cards from removal.</li>
-        <li>Destroyed and cancelled cards go to your discard pile. When your deck runs out it is shuffled back in (heating your sun by ${BALANCE.reshuffleHeat}), and some cards recover cards from it or return your cards to your hand to play again.</li>
-        <li>Only one <b>global</b> card can be in play at a time, and it affects both players. <b>Regional stability</b> (top of the screen) drains one segment a round; from round ${BALANCE.instabilityStartsRound} it is gone and both suns heat each day, more each round.</li>
-      </ul>
-      <h3 class="rules-head">mechanics</h3>
-      <p class="muted">Keywords on cards, in colour, with their number (sturdy 1). Hover one on a card, or zoom a card in a game, to read it there.</p>
-      <dl class="kw-rules">${Object.entries(KEYWORDS)
-        .map(([id, k]) => {
-          // Shown with a stand-in value where the keyword takes one.
-          const v = ['dawn', 'anchor', 'recall', 'recover', 'overheated', 'lightspeed', 'global'].includes(id) ? undefined : id === 'orbit' ? '±N' : 'N';
-          return `<div><dt><b class="kw kw-${k.group}">${esc(keywordLabel(id, v))}</b></dt><dd>${esc(k.explain(v))}${id === 'recover' ? ' Some name a type: recover attack.' : ''}</dd></div>`;
-        })
-        .join('')}</dl>`;
+      <div class="rules-wrap">
+        <nav class="rules-tabs">${Object.entries(tabs)
+          .map(([id, [name]]) => `<button class="rules-tab${id === tab ? ' on' : ''}" data-act="rules-tab" data-arg="${id}">${name}</button>`)
+          .join('')}</nav>
+        <div class="rules-page">${tabs[tab][1]()}</div>
+      </div>`;
   }
 
   // ---- The battle table --------------------------------------------------------
@@ -2355,6 +2484,14 @@ export class App {
       </button>`;
   }
 
+  /** The explanations beside a magnified card: its keywords, and its stability and defence (live, for a card in play). */
+  private explainCard(defId: string, uid?: string): string {
+    const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
+    const c = owner?.tableau.find((x) => x.uid === uid);
+    const stats = owner && c ? { stability: c.stability ?? 0, defence: cardDefence(owner, c) } : persists(defId) ? { stability: baseStability(defId) } : {};
+    return keywordList(cardDef(defId).text, stats);
+  }
+
   /**
    * The magnified card, used by the hover preview and the inspector: the same
    * card stock, gem and badges as the card itself, and, for a card in play
@@ -2395,7 +2532,7 @@ export class App {
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
         ${card}
         <div class="stage-caption">${esc(st.caption ?? `${actor.name.toLowerCase()} plays`)}</div>
-        ${st.confirm ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">got it</button>` : ''}
+        ${st.confirm ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}
       </div>`;
   }
 
@@ -2485,7 +2622,7 @@ export class App {
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
-              <div class="inspector-row">${this.bigCard(sh.defId, sh.table)}${keywordList(cardDef(sh.defId).text)}</div>
+              <div class="inspector-row">${this.bigCard(sh.defId, sh.table)}${this.explainCard(sh.defId, sh.table)}</div>
               <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
             </div>
           </div>`;

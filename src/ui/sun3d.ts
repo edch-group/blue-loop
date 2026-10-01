@@ -227,8 +227,82 @@ function sunPalette(t: number, cold: number, dead: boolean): RGB[] {
   return palette(t, cold);
 }
 
-const PLANET_RGB: Record<string, RGB> = { dead: [170, 175, 186], abundant: [86, 192, 150], industrial: [226, 150, 72] };
 const PLANETS = ['dead', 'abundant', 'industrial'];
+
+/** Each planet's surface, as colour over longitude × latitude (painted once, on first use). */
+const PW = 256, PH = 128;
+const planetMaps = new Map<string, Uint8ClampedArray>();
+const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+function planetMap(pl: string): Uint8ClampedArray {
+  const have = planetMaps.get(pl);
+  if (have) return have;
+  const out = new Uint8ClampedArray(PW * PH * 3);
+  // A few craters for the dead world: centre direction and size.
+  const craters: [V3, number][] = [];
+  for (let k = 0; k < 26; k++) {
+    const u = hash3(k, 7, 1) * 2 - 1, th = hash3(k, 3, 9) * Math.PI * 2, q = Math.sqrt(1 - u * u);
+    craters.push([[q * Math.cos(th), u, q * Math.sin(th)], 0.08 + 0.22 * Math.pow(hash3(k, 5, 2), 2)]);
+  }
+  for (let j = 0; j < PH; j++) {
+    const lat = (j / (PH - 1) - 0.5) * Math.PI;
+    for (let i = 0; i < PW; i++) {
+      const lon = (i / PW) * Math.PI * 2;
+      const x = Math.cos(lat) * Math.cos(lon), y = Math.sin(lat), z = Math.cos(lat) * Math.sin(lon);
+      let col: RGB;
+      if (pl === 'dead') {
+        // Dusty grey rock: mottled maria, fine grit, and craters with bright rims and dark floors.
+        const maria = fbm3(x * 2.4 + 11, y * 2.4, z * 2.4, 4);
+        const grit = fbm3(x * 18, y * 18, z * 18, 3);
+        let v = 0.62 + (maria - 0.5) * 0.55 + (grit - 0.5) * 0.22;
+        for (const [d, r] of craters) {
+          const dd = Math.acos(Math.min(1, x * d[0] + y * d[1] + z * d[2])) / r;
+          if (dd < 1.25) v += dd < 0.8 ? -0.24 * (1 - dd / 0.8) - 0.06 : 0.2 * (1 - Math.abs(dd - 1) / 0.25);
+        }
+        col = mix([92, 96, 106], [206, 210, 218], clamp01(v));
+      } else if (pl === 'abundant') {
+        // Oceans and green continents, ice at the poles, and wisps of cloud.
+        const land = fbm3(x * 1.8 + 3, y * 1.8, z * 1.8 + 7, 5);
+        const lush = fbm3(x * 5, y * 5 + 4, z * 5, 3);
+        const ocean: RGB = mix([28, 92, 150], [52, 148, 196], clamp01((land - 0.3) * 4));
+        const ground: RGB = mix([54, 150, 82], [150, 168, 92], clamp01((lush - 0.45) * 2.4));
+        col = land > 0.52 ? mix(ground, [40, 120, 70], clamp01((land - 0.6) * 3)) : ocean;
+        if (land > 0.5 && land < 0.52) col = mix(ocean, [196, 200, 150], 0.5);
+        const ice = clamp01((Math.abs(y) - 0.8) * 8 + (fbm3(x * 6, y * 6, z * 6, 3) - 0.5) * 2);
+        col = mix(col, [236, 244, 250], ice);
+        const cloud = clamp01((fbm3(x * 3.2 + 20, y * 6.5, z * 3.2, 5) - 0.55) * 3.2);
+        col = mix(col, [250, 252, 255], cloud * 0.85);
+      } else {
+        // An industrial world: rust-and-ochre bands, smoke swirls, and a lattice of glowing works.
+        const warp = fbm3(x * 3, y * 3, z * 3 + 5, 4);
+        const band = 0.5 + 0.5 * Math.sin(y * 14 + warp * 5);
+        col = mix([150, 72, 30], [238, 168, 86], band);
+        const smoke = clamp01((fbm3(x * 7, y * 7 + 2, z * 7, 4) - 0.5) * 2.5);
+        col = mix(col, [96, 58, 40], smoke * 0.55);
+        const grid = Math.max(Math.pow(Math.abs(Math.sin(lon * 18)), 60), Math.pow(Math.abs(Math.sin(lat * 18)), 60));
+        const works = clamp01((fbm3(x * 9 + 1, y * 9, z * 9, 2) - 0.52) * 6);
+        col = mix(col, [255, 226, 140], grid * works * 0.9);
+      }
+      const o = (j * PW + i) * 3;
+      out[o] = col[0]; out[o + 1] = col[1]; out[o + 2] = col[2];
+    }
+  }
+  planetMaps.set(pl, out);
+  return out;
+}
+
+/** A planet's surface colour in a direction (`n`, from its centre), turned by `spin`. */
+function planetAt(map: Uint8ClampedArray, n: V3, spin: number): RGB {
+  const u = (Math.atan2(n[1], n[0]) + spin) / (Math.PI * 2);
+  const v = Math.asin(Math.min(1, n[2])) / Math.PI + 0.5;
+  // Bilinear, so the texture stays smooth however big the planet is drawn.
+  const fx = (u - Math.floor(u)) * PW, fy = Math.min(PH - 1.001, v * (PH - 1));
+  const x0 = Math.floor(fx) % PW, x1 = (x0 + 1) % PW, y0 = Math.floor(fy), y1 = y0 + 1;
+  const tx = fx - Math.floor(fx), ty = fy - y0;
+  const at = (x: number, y: number, q: number) => map[(y * PW + x) * 3 + q];
+  return [0, 1, 2].map((q) => (at(x0, y0, q) * (1 - tx) + at(x1, y0, q) * tx) * (1 - ty) + (at(x0, y1, q) * (1 - tx) + at(x1, y1, q) * tx) * ty) as RGB;
+}
 /** Each planet's trail along the orbit, and its notches: deeper than the planet, to read on the white board. */
 const TRAIL_RGB: Record<string, RGB> = { dead: [112, 118, 132], abundant: [40, 158, 112], industrial: [214, 120, 36] };
 /**
@@ -451,16 +525,23 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
       const pr = vs * 0.07;
       const ang = ((90 - (i * 3 + 1 - o) * 40) * Math.PI) / 180;
       const ctr: V3 = [c[0] + Math.cos(ang) * ORBIT_R * vs, c[1] + Math.sin(ang) * ORBIT_R * vs, 0];
-      const base = PLANET_RGB[pl];
+      const map = planetMap(pl);
+      const turn = time * 0.00012 + seed + i * 2.1;
       const light = norm3(sub3(glow, add3(ctr, [0, 0, pr * 0.5])));
+      const half = norm3(add3(light, [0, 0, 1]));
       balls.push({
         ctr,
         r: pr,
         shade: (n, mu) => {
-          const lit = 0.74 + 0.42 * Math.max(0, dot3(n, light)) - 0.1 * (1 - mu);
-          // A soft highlight where the sunlight glances off towards the eye.
-          const spec = Math.pow(Math.max(0, dot3(n, norm3(add3(light, [0, 0, 1])))), 24) * 70;
-          return base.map((q) => Math.min(255, q * lit + spec)) as RGB;
+          const tex = planetAt(map, n, turn);
+          // Lit from the sun: a soft terminator, darker towards the outline, and a glint of sunlight.
+          const sun = Math.max(0, dot3(n, light));
+          const lit = 0.5 + 0.62 * Math.pow(sun, 0.8) - 0.16 * (1 - mu);
+          const spec = Math.pow(Math.max(0, dot3(n, half)), pl === 'abundant' ? 40 : 18) * (pl === 'abundant' ? 90 : 36);
+          let col = tex.map((q) => Math.min(255, q * lit + spec)) as RGB;
+          // The living world's air glows at its rim.
+          if (pl === 'abundant') col = mix(col, [170, 220, 255], Math.pow(1 - mu, 3) * 0.6);
+          return col;
         },
       });
     });

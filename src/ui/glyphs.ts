@@ -1,4 +1,4 @@
-import { baseStability, keywordLabel, KEYWORDS, keywordsIn, persists, RACE_NAMES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { baseStability, keywordLabel, KEYWORDS, keywordsIn, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -241,35 +241,51 @@ export function stabilityBadge(def: CardDef): string {
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
+/** Heat, cool and shields are drawn as symbols on cards: three chevrons up, three down, a shield. */
+const SYMBOL_SVG: Record<string, string> = {
+  heat: '<polyline points="2,7 6,3 10,7"/><polyline points="2,11 6,7 10,11"/><polyline points="2,15 6,11 10,15"/>',
+  cool: '<polyline points="2,3 6,7 10,3"/><polyline points="2,7 6,11 10,7"/><polyline points="2,11 6,15 10,11"/>',
+  shield: '<path class="kw-ico-fill" d="M6 1.5 L10.5 3.3 V7.6 C10.5 11 8.4 13.3 6 14.6 C3.6 13.3 1.5 11 1.5 7.6 V3.3 Z"/>',
+};
+
 /**
- * Card text as HTML: each keyword in its colour, with its value ("sturdy 1").
- * Hovering one (in the deck builder and the shop) explains it; in a game the
- * zoomed card lists the explanations alongside.
+ * A keyword as HTML, in its colour: its name in title case ("Sturdy 1"), or
+ * for heat, cool and shields its symbol and number. `named` adds the name to a
+ * symbol too, for where it is being explained.
+ */
+export function keywordHtml(id: string, value?: string, opts: { named?: boolean; data?: boolean } = {}): string {
+  const k = KEYWORDS[id];
+  if (!k) return escText(value ?? id);
+  const data = opts.data ? ` data-kw="${id}"${value ? ` data-kv="${escText(value)}"` : ''}` : '';
+  const label = keywordLabel(id, value);
+  if (!k.symbol) return `<b class="kw kw-${k.group}"${data}>${escText(label)}</b>`;
+  const icon = `<svg class="kw-ico" viewBox="0 0 12 16" aria-hidden="true">${SYMBOL_SVG[id]}</svg>`;
+  const shown = opts.named ? label : value ?? '';
+  return `<b class="kw kw-${k.group} kw-sym"${data} aria-label="${escText(label)}">${icon}${escText(shown)}</b>`;
+}
+
+/**
+ * Card text as HTML: each keyword in its colour, with its value ("Sturdy 1"),
+ * and heat, cool and shields as symbols. Hovering one (in the deck builder and
+ * the shop) explains it; in a game the zoomed card lists the explanations alongside.
  */
 export function cardTextHtml(text: string): string {
-  let before = '';
   return textParts(text)
-    .map((p) => {
-      if ('text' in p) {
-        before += p.text;
-        return escText(p.text);
-      }
-      const k = KEYWORDS[p.kw];
-      if (!k) return escText(p.value ?? p.kw);
-      // A keyword that starts a sentence gets a capital, like any word would.
-      let label = keywordLabel(p.kw, p.value);
-      if (/(^|[.!?]\s*)$/.test(before)) label = label.replace(/^./, (c) => c.toUpperCase());
-      before += label;
-      return `<b class="kw kw-${k.group}" data-kw="${p.kw}"${p.value ? ` data-kv="${escText(p.value)}"` : ''}>${escText(label)}</b>`;
-    })
+    .map((p) => ('text' in p ? escText(p.text) : keywordHtml(p.kw, p.value, { data: true })))
     .join('');
 }
 
-/** The explanations of a card's keywords, for beside a zoomed card. */
-export function keywordList(text: string): string {
-  const list = keywordsIn(text).filter((k) => KEYWORDS[k.id] && k.id !== 'dawn');
-  if (!list.length) return '';
-  return `<div class="kw-list">${list
-    .map((k) => `<div><b class="kw kw-${KEYWORDS[k.id].group}">${escText(keywordLabel(k.id, k.value))}</b><span>${escText(KEYWORDS[k.id].explain(k.value))}</span></div>`)
-    .join('')}</div>`;
+/**
+ * The explanations beside a zoomed card: its keywords (Dawn included), the
+ * rules its text names in plain words, and its stability and defence badges.
+ */
+export function keywordList(text: string, stats: { stability?: number; defence?: number } = {}): string {
+  const rows: string[] = [];
+  const row = (head: string, body: string) => rows.push(`<div>${head}<span>${escText(body)}</span></div>`);
+  for (const k of keywordsIn(text)) if (KEYWORDS[k.id]) row(keywordHtml(k.id, k.value, { named: true }), KEYWORDS[k.id].explain(k.value));
+  const plain = plainText(text);
+  for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
+  if (stats.stability !== undefined) row(`<b class="kw kw-stability">◷ Stability ${stats.stability}</b>`, `Stays in your tableau for ${stats.stability} more of your days: it loses 1 each dawn, and at 0 fades into your discard pile.`);
+  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence ${stats.defence}</b>`, `Removal only reaches it if it allows ${stats.defence} or more (${keywordLabel('destroy', String(stats.defence))} does). It comes from the slot, plus Sturdy and Bulwark.`);
+  return rows.length ? `<div class="kw-list">${rows.join('')}</div>` : '';
 }
