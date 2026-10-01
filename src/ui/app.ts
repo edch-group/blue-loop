@@ -2432,6 +2432,7 @@ export class App {
             fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”."),
             fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun.'),
             fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
+            fact('Heat limit', `On your day (your Dawn and your plays), at most <b>${B.maxHeatPerDay}</b> heat lands on your rival's sun. Stings and Lightspeed cards on their day are not limited.`),
             fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),
             fact('The planets', `Dead: nothing. Abundant: draw +${B.abundantDraw}. Industrial: play +${B.industrialPlays}.`),
             fact('Regional stability', `Drains each round. From round ${B.instabilityStartsRound}, every sun heats at Dawn, more each round.`),
@@ -2719,7 +2720,7 @@ export class App {
     const chip = (cls: string, icon: string, n: number, title: string) =>
       n ? `<span class="fc ${cls}" title="${title}"><i>${icon}</i><b>${cls === 'fc-cool' ? `−${n}` : `+${n}`}</b></span>` : '';
     const chips = [
-      chip('fc-heat', symbolIcon('heat'), f.heat, `Their dawn: ${f.heat} heat to ${who(f.targetId)} (before shields)`),
+      chip('fc-heat', symbolIcon('heat'), BALANCE.maxHeatPerDay ? Math.min(f.heat, BALANCE.maxHeatPerDay) : f.heat, `Their dawn: ${f.heat} heat to ${who(f.targetId)} (before shields${BALANCE.maxHeatPerDay && f.heat > BALANCE.maxHeatPerDay ? `; at most ${BALANCE.maxHeatPerDay} lands in a day` : ''})`),
       chip('fc-shield', symbolIcon('shield'), f.shields, `Their dawn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
       chip('fc-cool', symbolIcon('cool'), f.cool, `Their dawn: their own sun cools by ${f.cool}`),
       chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),

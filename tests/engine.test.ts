@@ -334,6 +334,21 @@ describe('synergies', () => {
   });
 });
 
+describe('the day\'s heat limit', () => {
+  it('lands at most maxHeatPerDay on a rival sun in a day, and starts again the next day', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    rival.shields = 0;
+    me.playsLeft = 3;
+    give(me, ['sunspear', 'sunspear', 'coronal_lance']);
+    s = play(s, 'sunspear');
+    s = play(s, 'sunspear');
+    s = play(s, 'coronal_lance');
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(BALANCE.maxHeatPerDay);
+  });
+});
+
 describe('the new heroes', () => {
   it("Kyr'Vessa strikes when another of your cards leaves play", () => {
     let s = twoPlayer();

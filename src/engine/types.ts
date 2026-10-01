@@ -203,6 +203,8 @@ export interface BattleModifiers {
 
 export interface TurnStats {
   heatDealt: number;
+  /** Heat that got through to enemy suns today (for the day's heat limit). */
+  heatLanded?: number;
   cardsPlayed: number;
   /** Total cooling applied to your own sun today. */
   cooled: number;

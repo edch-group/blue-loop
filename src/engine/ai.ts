@@ -1,3 +1,4 @@
+import { BALANCE } from './balance';
 import { cardDef } from './cards';
 import {
   activePlayer,
@@ -19,6 +20,7 @@ import {
   hasRoomFor,
   targetOf,
   dawnEffects,
+  turnForecast,
 } from './game';
 import type { Action, CardInstance, GameState, PlayerState } from './types';
 
@@ -35,6 +37,9 @@ const HORIZON = 2.5;
 const FINISH_RATIO = tuning('FINISH', 0.75);
 /** In a free-for-all, switch to the leader once it is this much cooler (as a share of max health) than your usual target. */
 const LEADER_GAP = tuning('GAP', 0.25);
+
+/** How much of the heat a rival's next dawn will bring counts as heat already taken. */
+const INCOMING_WEIGHT = tuning('INCOMING', 0.8);
 
 /** What a face-down Lightspeed card is worth to its owner (a counter waiting to spring). */
 const LIGHTSPEED_VALUE = tuning('LSV', 3);
@@ -144,7 +149,15 @@ function evaluate(state: GameState, meId: string): number {
       score += 12 * danger + 5 * danger * danger - 0.45 * tableauValue(state, o) - 0.6 * orbitOutlook(o);
     }
   }
-  const mine = Math.max(0, me.heat) / supernovaThreshold(me);
+  // Count the heat already on its way: what each rival's tableau will do to this sun at their next dawn,
+  // past its shields (so a tableau stacked with attack cards is seen coming, and answered in time).
+  const incoming = state.players.reduce((sum, o) => {
+    if (o.id === meId || o.eliminated || targetOf(state, o)?.id !== meId) return sum;
+    return sum + turnForecast(state, o).heat;
+  }, 0);
+  const landing = Math.max(0, incoming - me.shields);
+  const coming = (BALANCE.maxHeatPerDay ? Math.min(landing, BALANCE.maxHeatPerDay) : landing) * INCOMING_WEIGHT;
+  const mine = Math.max(0, me.heat + coming) / supernovaThreshold(me);
   score -= 12 * mine + 10 * mine * mine;
   score += tableauValue(state, me) + orbitOutlook(me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
   return score;

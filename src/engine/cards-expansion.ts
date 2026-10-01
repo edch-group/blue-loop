@@ -22,8 +22,8 @@ export const EXPANSION: CardDef[] = [
     id: 'siege_array',
     name: 'Siege Array',
     kind: 'attack',
-    text: '{dawn}: {heat:1}. {heat:+1} per 2 attack cards (up to 3).',
-    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 3 }],
+    text: '{dawn}: {heat:1}. {heat:+1} per 3 attack cards (up to 2).',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack', per: 3 }, max: 2 }],
   },
   { id: 'scatter_shot', name: 'Scatter Shot', kind: 'attack', text: '{heat:1}. {erode:1}.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'erode', amount: 1 }] },
   {
