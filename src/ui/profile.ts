@@ -24,6 +24,8 @@ export interface Profile {
   /** The name and emblem (a race, 0–3) they signed in with (empty: not signed in yet). */
   name: string;
   avatar: number;
+  /** Signed in on this device right now (signing out returns to the title screen). */
+  signedIn?: boolean;
   level: number;
   xp: number;
   stardust: number;
@@ -102,7 +104,19 @@ export function signIn(name: string, avatar: number) {
   const p = profile();
   p.name = name.replace(/[^\p{L}\p{N} '’.-]/gu, '').trim().slice(0, 18) || 'Commander';
   p.avatar = ((avatar % 4) + 4) % 4;
+  p.signedIn = true;
   store();
+}
+
+export function signOut() {
+  profile().signedIn = false;
+  store();
+}
+
+/** Whether the player has signed in (and not out since). */
+export function signedIn(): boolean {
+  const p = profile();
+  return !!p.name && p.signedIn !== false;
 }
 
 export function setRankPoints(rp: number) {

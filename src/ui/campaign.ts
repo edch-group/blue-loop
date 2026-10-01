@@ -447,7 +447,7 @@ export class CampaignView {
     return `
       <main class="cmp-setup setup-page">
         <header class="setup-top">
-          <button class="btn btn-small" data-act="cmp-menu">‹ back</button>
+          <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">new campaign</h2>
           <span></span>
         </header>

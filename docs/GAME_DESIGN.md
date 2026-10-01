@@ -370,7 +370,7 @@ Two players, each on their own device. From **Quickplay → play online**, one p
 
 ## Progression, collection and ranks [design review]
 
-Outside a single game, each player has a **profile** (kept on their device): a level, two currencies and a card collection. Players **sign in** (a name and an emblem) before the hub; until there are accounts, that lives on the device too. Their chip sits top right on the hub and in the shop (emblem, name, level, both currencies); tapping it opens the whole profile (level and experience, currencies, rank and record).
+Outside a single game, each player has a **profile** (kept on their device): a level, two currencies and a card collection. Players **sign in** (a name and an emblem) before the hub; until there are accounts, that lives on the device too. Their chip sits top right on the hub and in the shop (emblem, name, level, both currencies); tapping it opens the whole profile (level and experience, currencies, rank and record), with **log out**, which returns to the title screen (the hub has no back button: you log out to leave it).
 - **The hub** has five small tiles, titles only: campaign, quickplay, collection (the deck builder), shop and options.
 - **The shop** has a boosters section: a foil pack for each race and a general one, each with its name and price beneath. Buying one rips it open: the tear strip comes off, the wrapper drops away and the five cards come out. The rules live in `src/engine/progression.ts` (all the numbers in its `PROGRESSION` table), the profile in `src/ui/profile.ts`.
 - **Stardust ✦** buys booster packs (and cosmetics, once there are some). **Flux ⟁** crafts cards you don't own.

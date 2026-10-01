@@ -56,7 +56,7 @@ import { factionAvatar } from './factions';
 import { anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
-import { buyBooster, grantReward, profile, setRankPoints, signIn, type RewardResult } from './profile';
+import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
@@ -172,6 +172,8 @@ export class App {
   private screen: Screen = 'menu';
   /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
   private menuPage: MenuPage = 'title';
+  /** Where the deck builder was opened from (it goes back there). */
+  private decksFrom: MenuPage = 'hub';
   /** A card shown large outside a game (tap anywhere to close). */
   private zoomed: string | null = null;
   /** The profile view is open (from the player chip). */
@@ -244,7 +246,7 @@ export class App {
     zoom: (id) => this.zoom(id),
     toast: (text) => this.showToast(text, 'error'),
     done: () => {
-      this.menuPage = 'quickplay';
+      this.menuPage = this.decksFrom;
       this.render();
     },
   });
@@ -1450,6 +1452,8 @@ export class App {
         this.sheet = { kind: 'rules' };
         return this.render();
       case 'open-decks':
+        // The builder hands back to wherever it was opened from.
+        this.decksFrom = this.menuPage === 'decks' ? this.decksFrom : this.menuPage;
         this.builder.open();
         this.menuPage = 'decks';
         return this.render();
@@ -1500,6 +1504,11 @@ export class App {
       case 'profile-close':
         this.profileOpen = false;
         return this.render();
+      case 'profile-logout':
+        signOut();
+        this.profileOpen = false;
+        this.menuPage = 'title';
+        return this.render();
       case 'profile-rename':
         this.profileOpen = false;
         this.menuPage = 'signin';
@@ -1515,7 +1524,7 @@ export class App {
         return this.render();
       case 'menu-page':
         // Players sign in before they reach the hub.
-        if (arg === 'hub' && !profile().name) {
+        if (arg === 'hub' && !signedIn()) {
           this.menuPage = 'signin';
           return this.render();
         }
@@ -1738,7 +1747,6 @@ export class App {
         ${extra}
       </div>`;
     return `
-      <div class="menu-back"><button class="btn btn-small" data-act="menu-page" data-arg="title">‹ back</button></div>
       ${this.playerChip()}
       ${this.titleBlock(true)}
       <div class="hub">
@@ -1776,11 +1784,11 @@ export class App {
           </div>
           <div class="pv-grid">
             <div class="pv-box"><small>level</small><b>${p.level}</b><span class="pf-xp"><i style="width:${Math.round((p.xp / need) * 100)}%"></i></span><small>${p.xp} / ${need} xp</small></div>
-            <div class="pv-box"><small>stardust</small><b class="pf-dust">✦ ${p.stardust}</b><small>buys booster packs</small></div>
-            <div class="pv-box"><small>flux</small><b class="pf-flux">⟁ ${p.flux}</b><small>crafts cards</small></div>
-            <div class="pv-box"><small>rank</small><b>${rank === null ? 'unranked' : esc(rankName(rank).toLowerCase())}</b>${r ? `<span class="pf-xp"><i style="width:${r.points}%"></i></span><small>${r.points} / ${PROGRESSION.stagePoints} to the next stage</small>` : '<small>play ranked online</small>'}</div>
+            <div class="pv-box"><small>stardust</small><b class="pf-dust"><i>✦</i> ${p.stardust}</b><span></span><small>buys booster packs</small></div>
+            <div class="pv-box"><small>flux</small><b class="pf-flux"><i>⟁</i> ${p.flux}</b><span></span><small>crafts cards</small></div>
+            <div class="pv-box"><small>rank</small><b>${rank === null ? 'unranked' : esc(rankName(rank).toLowerCase())}</b>${r ? `<span class="pf-xp"><i style="width:${r.points}%"></i></span><small>${r.points} / ${PROGRESSION.stagePoints} to the next stage</small>` : '<span></span><small>play ranked online</small>'}</div>
           </div>
-          <div class="menu-actions center-row"><button class="btn" data-act="profile-rename">change name or emblem</button><button class="btn-primary" data-act="profile-close">close</button></div>
+          <div class="pv-actions"><button class="btn" data-act="profile-logout">log out</button><span class="setup-spacer"></span><button class="btn" data-act="profile-rename">change name or emblem</button><button class="btn-primary" data-act="profile-close">close</button></div>
         </div>
       </div>`;
   }
