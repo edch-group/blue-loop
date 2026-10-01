@@ -549,3 +549,5 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 **Supernova.** A sun keeps its colour until the blow that finishes it lands. Then it explodes: a white-hot flash, three shockwave rings and flung sparks, and the board shudders. Only then do the sun and its half of the board grey out. [design review]
 
 **Dawn and Dusk.** "Dawn" greets the start of your day and "Dusk" its end, each with the round beneath. [design review]
+
+**Game log.** Each line shows the art of the card it is about, or an icon for what happened (heat, cooling, shields, removal, orbit). Card and player names are picked out in colour: you in blue, your rival in red. A chip on the right shows the outcome with an arrow ("→ 14" heat, "→ hand", "→ discard", "→ tableau"). Rows are taller and divided by hairlines, and each new day starts with a header row. [design review]

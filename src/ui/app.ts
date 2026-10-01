@@ -58,6 +58,7 @@ import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
+import { logRows } from './logview';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
@@ -142,7 +143,6 @@ const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 50
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
-const KEY_LOG = /heats to|SUPERNOVA|chooses|wins|shields absorb|instability|destroys|stings|replaces|Lightspeed|cancelled|returns|recovers|shuffles/;
 const HOT = '#f0a07a';
 const COOLING = '#8fc6ff';
 const SHIELDING = '#a9b8ff';
@@ -2888,10 +2888,7 @@ export class App {
       case 'log': {
         // A popover under the log button; the board stays in view (tap anywhere else to close).
         const lastTurn = s!.log[s!.log.length - 1]?.turn;
-        const lines = s!.log
-          .slice(-120)
-          .map((l) => `<div data-seq="${l.seq}" class="${l.turn === lastTurn ? 'log-now' : ''} ${KEY_LOG.test(l.text) ? 'log-key' : ''}">${esc(l.text)}</div>`)
-          .join('');
+        const lines = logRows(s!.log.slice(-120), s!.players, this.viewer().id, lastTurn);
         return `<div class="log-pop-overlay" data-act="cancel"></div>
           <div class="log-pop sheet"><div class="log-pop-head"><span class="section-label">game log</span><button class="pill-btn" data-act="cancel">close</button></div><div class="log-list">${lines}</div></div>`;
       }

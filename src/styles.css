@@ -2304,13 +2304,44 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .log-pop-overlay { position: fixed; inset: 0; z-index: 30; background: transparent; }
 .log-pop {
   position: fixed; top: calc(var(--pad-t, 12px) + clamp(40px, calc(9 * var(--vh)), 52px)); right: var(--pad-r, 12px);
-  width: min(340px, calc(100% - 32px)); max-height: min(60%, calc(66 * var(--vh))); display: flex; flex-direction: column;
+  width: min(440px, calc(100% - 32px)); max-height: min(70%, calc(76 * var(--vh))); display: flex; flex-direction: column;
   background: var(--glass-strong, rgba(255, 255, 255, 0.95)); border-radius: 16px; box-shadow: var(--shadow), 0 0 0 1px #fff; padding: 10px 12px; z-index: 31;
   animation: rise 0.18s ease-out;
 }
-.log-pop .log-list { overflow-y: auto; font-size: 0.72rem; line-height: 1.45; color: var(--ink-soft); display: grid; gap: 2px; }
-.log-pop .log-list .log-key { color: var(--ink); font-weight: 600; }
-.log-pop .log-list .log-now { color: var(--ink); }
+.log-pop .log-list { min-width: 0; overflow-x: hidden; overflow-y: auto; font-size: 0.74rem; line-height: 1.35; color: var(--ink-soft); display: grid; gap: 0; margin: 0 -12px; }
+/* Each line: the card it is about (or an icon), the line, and a chip with what came of it; divided by hairlines. */
+.log-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 46px; padding: 6px 12px; border-top: 1px solid rgba(140, 150, 175, 0.18); }
+.log-row.log-now { color: var(--ink); background: rgba(255, 255, 255, 0.6); }
+.log-thumb { width: 34px; height: 34px; border-radius: 8px; overflow: hidden; display: block; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--kc) 55%, #fff), 0 2px 6px rgba(80, 84, 100, 0.18); }
+.log-thumb .art-wrap, .log-thumb .art-frame { display: block; width: 100%; height: 100%; }
+.log-thumb svg, .log-thumb img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.lg-icon { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 1rem; color: var(--ink-soft); background: rgba(139, 144, 155, 0.1); }
+.lg-icon .kw-ico { width: 16px; height: 16px; }
+.log-tone-heat.lg-icon, .log-tone-nova.lg-icon { color: #e0553a; background: rgba(224, 85, 58, 0.1); }
+.log-tone-cool.lg-icon { color: #1e9bd7; background: rgba(30, 155, 215, 0.1); }
+.log-tone-shield.lg-icon { color: #6b7fd6; background: rgba(107, 127, 214, 0.1); }
+.log-tone-win.lg-icon, .log-tone-ls.lg-icon { color: #b9861a; background: rgba(212, 165, 42, 0.14); }
+.log-tone-remove.lg-icon { color: #c05878; background: rgba(192, 88, 120, 0.1); }
+.log-tone-orbit.lg-icon { color: #3f9e74; background: rgba(63, 158, 116, 0.1); }
+.log-text { min-width: 0; }
+.log-card { color: color-mix(in srgb, var(--kc) 75%, var(--ink)); font-weight: 600; }
+.log-who { font-weight: 600; }
+.log-you { color: #3d72c4; }
+.log-rival { color: #c2553e; }
+.log-chip { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.04em; white-space: nowrap; background: rgba(139, 144, 155, 0.12); color: var(--ink-soft); }
+.log-chip .kw-ico { width: 11px; height: 11px; }
+.log-arrow { font-style: normal; opacity: 0.7; }
+.log-chip-heat { background: rgba(224, 85, 58, 0.12); color: #c2442b; }
+.log-chip-cool { background: rgba(30, 155, 215, 0.12); color: #1683b8; }
+.log-chip-shield { background: rgba(107, 127, 214, 0.12); color: #5366bd; }
+.log-chip-remove, .log-chip-nova { background: rgba(192, 88, 120, 0.12); color: #a8455f; }
+.log-chip-win, .log-chip-ls { background: rgba(212, 165, 42, 0.16); color: #96690f; }
+.log-chip-play { background: rgba(63, 158, 116, 0.12); color: #2f8460; }
+/* A new day: a header dividing the log. */
+.log-day { display: flex; align-items: baseline; gap: 8px; padding: 10px 12px 5px; border-top: 1px solid rgba(140, 150, 175, 0.35); font-family: var(--display); text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.6rem; color: var(--ink-faint); }
+.log-day b { color: #c2553e; font-weight: 600; }
+.log-day-mine b { color: #3d72c4; }
+.log-list > :first-child { border-top: 0; }
 .log-pop-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .log-icon { width: 50%; height: 50%; display: block; }
 .log-icon path { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; }
