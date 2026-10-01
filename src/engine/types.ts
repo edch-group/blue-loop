@@ -40,7 +40,9 @@ export type Count =
   /** This card's growth counter. */
   | { of: 'growth' }
   /** Your cards right next to this one in your tableau (of a kind, if given). */
-  | { of: 'adjacent'; kind?: CardKind };
+  | { of: 'adjacent'; kind?: CardKind }
+  /** `amount` while this planet faces your sun, otherwise nothing. */
+  | { of: 'planet'; planet: Planet; amount: number };
 
 /** Only resolve an effect when this holds. */
 export type Condition =
@@ -51,7 +53,16 @@ export type Condition =
   /** You control at least `n` cards. */
   | { minCards: number }
   /** You have at least one upgrade on this core action. */
-  | { upgraded: CoreAction };
+  | { upgraded: CoreAction }
+  /** The planet facing your sun this turn (see Orbit). */
+  | { planet: Planet };
+
+/**
+ * Orbit: three planets circle each sun, each facing it for three of its
+ * owner's turns in turn: a dead planet (nothing), an abundant one (draw an
+ * extra card each turn) and an industrial one (play an extra card each turn).
+ */
+export type Planet = 'dead' | 'abundant' | 'industrial';
 
 export type Effect = (
   /** Heat your target's sun, or every enemy sun. */
@@ -86,13 +97,15 @@ export type Effect = (
   | { type: 'plays'; amount: number }
   /** Lightspeed: the enemy who sprang this card may play no more cards this turn. */
   | { type: 'halt' }
+  /** Move an orbit on by `amount` turns (negative: back), yours or your rival's. Three turns is a whole planet. */
+  | { type: 'orbit'; amount: number; who: 'self' | 'rival' }
 ) & { if?: Condition };
 
 export type Passive =
   /** Heat effects from your cards of this kind deal +amount (optionally not this card's own; optionally only start-of-turn effects). */
   | { type: 'kindBonus'; kind: CardKind; amount: number; others?: boolean; onTurnOnly?: boolean }
   /** You may play extra cards each turn. */
-  | { type: 'extraPlay'; amount: number }
+  | { type: 'extraPlay'; amount: number; /** Only while this planet faces your sun. */ planet?: Planet }
   /** Your shields no longer fade at the start of your turn. */
   | { type: 'keepShields' }
   /** When your shields absorb an enemy's heat, heat that enemy's sun. */
@@ -226,6 +239,8 @@ export interface PlayerState {
   turnsTaken: number;
   /** Cards this player may still play this turn. */
   playsLeft: number;
+  /** Where this player's planets are: 0–8, three turns per planet (0–2 dead, 3–5 abundant, 6–8 industrial), moving on one each turn. */
+  orbit: number;
   turn: TurnStats;
   /** Rivals this player's Stinging Veil has already stung this turn (the turn number, and who). */
   stung?: { turn: number; ids: string[] };
@@ -243,7 +258,7 @@ export interface LogEntry {
 
 export interface GameState {
   /** Rules version, so saves from older rules are ignored. */
-  version: 4;
+  version: 5;
   rngState: number;
   uidCounter: number;
   turnNumber: number;

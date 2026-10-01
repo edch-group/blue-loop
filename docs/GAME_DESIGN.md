@@ -73,6 +73,58 @@ was replaced by this design in design review.
 - Both tableaus are visible: your rival's lies across the table and yours is on the near side. [design review: players need to see each other's tableaus]
 - Only **one global card** can be in play on the whole table. A new one sweeps the old one away. Global effects apply to both players equally. [design review: globals are symmetric]
 
+## Orbit
+
+Three planets circle each sun. Each faces it for **3 of its owner's turns**, in turn, and then the next comes round. [design review]
+
+| Planet | While it faces your sun |
+| --- | --- |
+| Dead | Nothing. |
+| Abundant | Draw 1 extra card each turn. |
+| Industrial | Play 1 extra card each turn. |
+
+- Every sun starts at the dead planet. The orbit moves on one step at the start of each of your turns: three steps per planet, nine for the whole orbit.
+- **Orbit cards** move an orbit on or back, yours or your rival's, and the change counts from your next turn. "Orbit +3" swings the next planet round; "your rival's orbit −2" holds their next planet back (and from their dead planet's first turn, it wraps round to their industrial planet).
+- Some cards are **stronger while a planet faces your sun** (a scaling bonus, so upgrades and attack bonuses count once).
+- Each sun on the board shows its orbit: the three planets on a tilted ring round it, the one facing it this turn at the front and glowing, with a tag naming it and its turns left. The start-of-turn forecast counts its extra card or play.
+
+| Card | Kind | Text |
+| --- | --- | --- |
+| Gravity Assist | Attack | Heat your rival by 2. Your orbit +1. |
+| Orbital Slingshot | Growth | Your orbit +3 (the next planet swings round). Draw 1 card. |
+| Tidal Brake | Defence | Gain 2 shields. Your rival's orbit −2. |
+| Dead World Mine | Growth | Start of turn: while your dead planet faces your sun, draw 1 card and cool your sun by 1. |
+| Perihelion Forge (Stellar) | Attack | Start of turn: heat your rival by 1, or by 3 while your industrial planet faces your sun. |
+| Sunward Lance (Aureline) | Attack | Heat your rival by 1, or by 3 while your industrial planet faces your sun. Your orbit +1. |
+| Comet Shard (Xel'Naru) | Attack | Heat your rival by 3. Your rival's orbit −1. Heat your own sun by 1. |
+| Tide Lock (Vorthane) | Defence | Start of turn: gain 1 shield, or 3 while your abundant planet faces your sun. |
+| Orbit Root (Ixquor, Stellar) | Growth | Start of turn: while your dead planet faces your sun, your orbit +2 (it moves on in a turn, not three). |
+
+**Starter decks with orbit:**
+- **Solar Lancers:** Gravity Assist and Tidal Brake, in place of a Helio Lancer and Aurelia.
+- **Shard Overload:** Comet Shard and Tidal Brake, in place of an Overload Core and Crystal Storm.
+- **Abyssal Tide:** Tidal Brake, in place of a Plasma Relay.
+- **Hive Bloom:** two Orbit Roots and a Tidal Brake, with Coolant Array and Cryo Vault for more cooling, in place of the Mycelium Tower, Regrowth Pod, Entropy Pulse and the attacks.
+
+**Playtesting orbit (AI simulations).**
+- Orbit on its own, with the old decks, threw the balance out: Hive Bloom fell from 48% to 20% and Solar Lancers rose from 54% to 66%. Games got shorter (about 9 rounds).
+- The cause is the abundant planet. With its extra card switched off, Bloom recovered to about 41%. Its extra card arrives on turns 4–6 for everyone, just as fast attack decks reload, and Bloom already holds plenty of cards (about 6.5 in hand at the start of its turns), so it gains nothing while every rival speeds up. Bloom was not locked out of its tableau, and reshuffles were not the cause either.
+- Two card fixes followed from that:
+  - On Sunward Lance and Perihelion Forge, the planet bonus was first a second heat effect, so Solar Flare and attack bonuses counted twice. It is now a scaling bonus, counted once.
+  - Coronal Chorus now hits for up to 3, not 4: with orbit's extra plays it reached its cap too easily.
+- Hive Bloom got more cooling and harder-hitting payoffs:
+  - Canopy cools 1, +1 for every 2 cards you control.
+  - Spore Cloud and the Brood Queen heat by 2 once you control 4 cards.
+  - Orbit Root skips the dead planet.
+- **Result (1,000 games):**
+  - Shard Overload 58%, Solar Lancers 51%, Hive Bloom 47%, Abyssal Tide 42%.
+  - Seats 46/54. Games last about 11–12 rounds. Orbit cards are played about 3 times a game.
+  - Before orbit it was Overload 57%, Lancers 54%, Bloom 48%, Tide 39%, so the spread is now slightly tighter.
+- **Still open:**
+  - Bloom against Overload is the worst matchup (28/72).
+  - Tidal Brake is in all four starters, so the starters feel a little alike. A race-specific alternative for each would help.
+  - Sunward Lance and Tide Lock are in the card pool but not the starters: they tipped their decks too far in testing.
+
 ## Attacks and shields
 
 - Your attacks heat your rival's sun. [design review: 1v1 only, so there is no choosing a target and no splash damage]

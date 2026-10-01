@@ -45,6 +45,8 @@ const MECHANICS: [string, RegExp][] = [
   ['faded to deck', /fades back into/],
   ['recovered', /recovers /],
   ['resonance/bulwark played', /plays (Resonance Lattice|Harmonic Singularity|Sunforge|The Admiralty|Tide Pylon|Prism Conduit|Bulwark Plating|Aegis Monolith|Chrono Anchor)/],
+  ['orbit moved by a card', /orbit (speeds on|slips back)/],
+  ['orbit card played', /plays (Gravity Assist|Orbital Slingshot|Tidal Brake|Dead World Mine|Perihelion Forge|Sunward Lance|Comet Shard|Tide Lock|Orbit Root)/],
   ['command played', /plays (Command Directive|Ignition Protocol|Coolant Protocol|Chamber Protocol|The Admiralty)/],
 ];
 const mechCount = new Map<string, number>();

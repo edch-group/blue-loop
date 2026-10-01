@@ -2,7 +2,7 @@ import { BALANCE } from './balance';
 import { cardDef, presetDeck } from './cards';
 import { randomInt, shuffleInPlace } from './rng';
 import { CORE_ACTIONS } from './types';
-import type { Action, CardDef, CardInstance, CardKind, Condition, CoreAction, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, PlayerState, TurnStats } from './types';
+import type { Action, CardDef, CardInstance, CardKind, Condition, CoreAction, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnStats } from './types';
 
 export class GameError extends Error {}
 
@@ -48,7 +48,7 @@ export function createGame(setup: GameSetup): GameState {
     throw new GameError(`Blue Loop needs ${BALANCE.minPlayers}-${BALANCE.maxPlayers} players.`);
   }
   const state: GameState = {
-    version: 4,
+    version: 5,
     rngState: setup.seed | 0,
     uidCounter: 0,
     turnNumber: 1,
@@ -84,6 +84,7 @@ export function createGame(setup: GameSetup): GameState {
       targetId: null,
       turnsTaken: 0,
       playsLeft: 0,
+      orbit: 0,
       turn: emptyTurn(),
       modifiers: ps.modifiers,
       conditions: ps.conditions,
@@ -111,6 +112,7 @@ export function createGame(setup: GameSetup): GameState {
 export function migrateGame(state: GameState): GameState {
   for (const p of state.players) {
     p.lightspeed ??= null;
+    p.orbit ??= 0;
     delete (p as { commands?: unknown }).commands;
     if (state.version < 4) {
       const cards = p.tableau;
@@ -118,7 +120,7 @@ export function migrateGame(state: GameState): GameState {
       cards.forEach((c, i) => (i < BALANCE.tableauSlots ? place(p, c, i) : p.discard.push(c)));
     }
   }
-  state.version = 4;
+  state.version = 5;
   return state;
 }
 
@@ -173,11 +175,40 @@ function passives(p: PlayerState): { card: CardInstance; passive: Passive }[] {
 }
 
 /** Cards this player may play on a turn (before any have been played). */
+// ---- Orbit ------------------------------------------------------------------
+
+const PLANETS: Planet[] = ['dead', 'abundant', 'industrial'];
+/** A whole orbit: three planets, three turns each. */
+export const ORBIT_LENGTH = PLANETS.length * BALANCE.orbitTurns;
+
+/** The planet facing a sun at an orbit position. */
+export function planetAt(orbit: number): Planet {
+  return PLANETS[Math.floor((((orbit % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH) / BALANCE.orbitTurns)];
+}
+
+/** The planet facing this player's sun this turn. */
+export function currentPlanet(p: PlayerState): Planet {
+  return planetAt(p.orbit);
+}
+
+/** This player's turns left with the current planet (this one included). */
+export function planetTurnsLeft(p: PlayerState): number {
+  return BALANCE.orbitTurns - (((p.orbit % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH) % BALANCE.orbitTurns;
+}
+
+function moveOrbit(state: GameState, p: PlayerState, by: number) {
+  const before = currentPlanet(p);
+  p.orbit = (((p.orbit + by) % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH;
+  const now = currentPlanet(p);
+  log(state, `${p.name}'s orbit ${by > 0 ? 'speeds on' : 'slips back'} ${Math.abs(by)}: the ${now} planet${now === before ? '' : ' swings round'} (${planetTurnsLeft(p)} turn${planetTurnsLeft(p) === 1 ? '' : 's'} left).`);
+}
+
 export function playsAllowed(state: GameState, p: PlayerState): number {
-  const extra = passives(p).reduce((sum, { passive }) => sum + (passive.type === 'extraPlay' ? passive.amount : 0), 0);
+  const extra = passives(p).reduce((sum, { passive }) => sum + (passive.type === 'extraPlay' && (!passive.planet || currentPlanet(p) === passive.planet) ? passive.amount : 0), 0);
   // Later seats get an extra play on their first turn to make up for moving second.
   const catchUp = p.turnsTaken === 1 && state.players.indexOf(p) > 0 && state.players.length <= BALANCE.catchUpMaxPlayers ? BALANCE.laterSeatPlays : 0;
-  return Math.min(p.turnsTaken, BALANCE.maxPlays) + extra + catchUp;
+  const industry = currentPlanet(p) === 'industrial' ? BALANCE.industrialPlays : 0;
+  return Math.min(p.turnsTaken, BALANCE.maxPlays) + extra + catchUp + industry;
 }
 
 export function tableauFull(p: PlayerState): boolean {
@@ -371,6 +402,8 @@ function countOf(p: PlayerState, card: CardInstance, c: Count): number {
       return card.growth ?? 0;
     case 'adjacent':
       return neighbours(p, card).filter((n) => !c.kind || cardDef(n.defId).kind === c.kind).length;
+    case 'planet':
+      return currentPlanet(p) === c.planet ? c.amount : 0;
   }
 }
 
@@ -379,6 +412,7 @@ export function conditionMet(p: PlayerState, cond: Condition | undefined): boole
   if ('overheated' in cond) return isOverheated(p);
   if ('minKind' in cond) return p.tableau.filter((t) => cardDef(t.defId).kind === cond.minKind).length >= cond.n;
   if ('upgraded' in cond) return p.upgrades[cond.upgraded] > 0;
+  if ('planet' in cond) return currentPlanet(p) === cond.planet;
   return p.tableau.length >= cond.minCards;
 }
 
@@ -423,6 +457,10 @@ export interface TurnForecast {
   selfHeat: number;
   /** Extra cards drawn (beyond the usual draw). */
   draw: number;
+  /** Extra cards they may play (an industrial planet). */
+  plays: number;
+  /** The planet that will face their sun. */
+  planet: Planet;
 }
 
 /**
@@ -433,10 +471,15 @@ export interface TurnForecast {
  */
 export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   const target = targetOf(state, p);
-  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, draw: 0 };
+  // Their next turn's planet (their first turn starts at the dead planet).
+  const orbit = p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
+  const planet = planetAt(orbit);
+  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, draw: 0, plays: 0, planet };
   if (p.eliminated) return f;
+  if (planet === 'abundant' && p.turnsTaken > 0) f.draw += BALANCE.abundantDraw;
+  if (planet === 'industrial') f.plays += BALANCE.industrialPlays;
   // Run the effects on a copy, so growth and the like carry from one effect to the next.
-  const me: PlayerState = { ...p, tableau: p.tableau.map((c) => ({ ...c })) };
+  const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c })) };
   for (const card of me.tableau) {
     for (const e of cardDef(card.defId).onTurn ?? []) {
       if (!conditionMet(me, e.if)) continue;
@@ -628,6 +671,11 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'draw':
         drawCards(state, p, e.amount);
         break;
+      case 'orbit': {
+        const who = e.who === 'rival' ? (ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p)) : p;
+        if (who) moveOrbit(state, who, e.amount);
+        break;
+      }
       case 'growOthers':
         for (const other of p.tableau) {
           if (other.uid === card.uid) continue;
@@ -762,8 +810,15 @@ function startTurn(state: GameState) {
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
   p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
 
+  // The planets move on a turn (your first turn starts at the dead planet).
+  if (p.turnsTaken > 1) {
+    const before = currentPlanet(p);
+    p.orbit = (p.orbit + 1) % ORBIT_LENGTH;
+    if (currentPlanet(p) !== before) log(state, `The ${currentPlanet(p)} planet swings round to face ${p.name}'s sun.`);
+  }
+  const abundance = currentPlanet(p) === 'abundant' ? BALANCE.abundantDraw : 0;
   // Draw (your opening hand covers your first turn).
-  if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0));
+  if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
   if (p.eliminated) return passOn(state);
 
   // The table: instability, the map's modifiers, then any global card.

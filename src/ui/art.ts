@@ -1,4 +1,4 @@
-import { BALANCE, MAX_UPGRADES, type CoreAction } from '../engine';
+import { BALANCE, MAX_UPGRADES, planetAt, type CoreAction, type Planet } from '../engine';
 
 /**
  * Procedural art: placeholders until commissioned artwork arrives. Swap any
@@ -39,7 +39,37 @@ export function sunOrb(opts: { heat: number; threshold: number; size: number; de
  * ring wrapped round the sun, with the shield count on the ring. The sun burns
  * whiter-gold, then orange, then red as it nears supernova; it frosts blue below 0.
  */
-export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string }): string {
+/** The three planets of an orbit: what each looks like and does. */
+const PLANET_LOOK: Record<Planet, { name: string; text: string }> = {
+  dead: { name: 'dead', text: 'The dead planet: nothing this turn.' },
+  abundant: { name: 'abundant', text: 'The abundant planet: draw an extra card each turn.' },
+  industrial: { name: 'industrial', text: 'The industrial planet: play an extra card each turn.' },
+};
+
+/**
+ * A sun's orbit: its three planets on a tilted ring around it. The planet
+ * facing the sun this turn swings round to the front and glows; the others
+ * wait their turn behind and to the sides (one step of the orbit is 40°).
+ */
+function orbitRing(orbit: number): string {
+  const order: Planet[] = ['dead', 'abundant', 'industrial'];
+  const facing = planetAt(orbit);
+  const planets = order
+    .map((pl, i) => {
+      const deg = 90 + (i * 3 + 1 - orbit) * 40;
+      const a = (deg * Math.PI) / 180;
+      const x = 50 + Math.cos(a) * 56;
+      const y = 50 + Math.sin(a) * 19;
+      const front = Math.sin(a) > -0.1;
+      return `<i class="vit-planet vp-${pl} ${pl === facing ? 'vp-facing' : ''} ${front ? 'vp-front' : 'vp-back'}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" title="${PLANET_LOOK[pl].text}"></i>`;
+    })
+    .join('');
+  const left = BALANCE.orbitTurns - (((orbit % (BALANCE.orbitTurns * 3)) + BALANCE.orbitTurns * 3) % BALANCE.orbitTurns);
+  return `<div class="vit-orbit vit-orbit-back"></div><div class="vit-orbit vit-orbit-front"></div>${planets}
+    <div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more turn${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
+}
+
+export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number }): string {
   const { heat, threshold, shields, dead } = opts;
   const t = Math.max(0, Math.min(1, heat / threshold));
   const cold = heat < 0 ? Math.min(1, heat / BALANCE.minHeat) : 0;
@@ -61,6 +91,7 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
         <circle class="vit-heat-track" cx="50" cy="50" r="36"/>
         <circle class="vit-heat-arc" cx="50" cy="50" r="36" stroke-dasharray="${(circ(36) * heatArc).toFixed(1)} ${circ(36).toFixed(1)}"/>
       </svg>
+      ${opts.orbit !== undefined && !dead ? orbitRing(opts.orbit) : ''}
       <div class="vit-sun"></div>
       <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '✸' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
       <div class="vit-shields" title="Shields: they absorb enemy heat, and fade at the start of your turn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div>

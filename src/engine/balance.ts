@@ -36,6 +36,10 @@ export const BALANCE = {
 
   /** You may play as many cards as turns you have taken, up to this cap (before extra-play cards). */
   maxPlays: 2,
+  /** Orbit: turns each planet faces its sun, and what the abundant and industrial planets give each turn. */
+  orbitTurns: 3,
+  abundantDraw: 1,
+  industrialPlays: 1,
   /** Tableau slots. A card played into a full tableau replaces one of yours. */
   tableauSlots: 5,
   /** Each slot's defence, left to right: the middle is safest. Removal cards can only reach cards with low enough defence. */

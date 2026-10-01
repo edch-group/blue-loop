@@ -10,6 +10,7 @@ import {
   isOverheated,
   livingOpponents,
   needsSlot,
+  planetAt,
   persists,
   allyChoices,
   cardDefence,
@@ -66,6 +67,12 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
       case 'grow':
         perTurn += 0.3;
         break;
+      case 'orbit': {
+        // Moving an orbit each turn: what one step does to the planets ahead, theirs or yours.
+        const who = e.who === 'rival' ? targetOf(state, p) : p;
+        if (who) perTurn += (e.who === 'rival' ? -0.6 : 1) * scale * (orbitOutlook(who, e.amount) - orbitOutlook(who)) * 0.5;
+        break;
+      }
     }
   }
   for (const ps of def.passive ?? []) {
@@ -76,7 +83,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
         break;
       }
       case 'extraPlay':
-        perTurn += 1.4 * ps.amount;
+        perTurn += 1.4 * ps.amount * (ps.planet ? 0.4 : 1);
         break;
       case 'keepShields':
         perTurn += 0.4 + p.shields * 0.1;
@@ -105,6 +112,18 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   return perTurn * turns * (0.85 + 0.05 * cardDefence(p, card));
 }
 
+/** What each planet is worth for one turn (an extra card drawn; an extra card played). */
+const PLANET_VALUE = { dead: 0, abundant: tuning('ABUND', 0.9), industrial: tuning('INDUS', 1.3) } as const;
+/** Own turns of orbit the AI looks ahead. */
+const ORBIT_HORIZON = 4;
+
+/** What a player's coming turns are worth from their orbit (from their next turn, shifted by `shift`). */
+function orbitOutlook(p: PlayerState, shift = 0): number {
+  let v = 0;
+  for (let k = 1; k <= ORBIT_HORIZON; k++) v += PLANET_VALUE[planetAt(p.orbit + shift + k)] * (1 - (k - 1) * 0.15);
+  return v;
+}
+
 /** A card in play also blocks a slot until it fades: the cost of that, per turn it stays. */
 const SLOT_COST = tuning('SLOT', 0.35);
 
@@ -123,12 +142,12 @@ function evaluate(state: GameState, meId: string): number {
     if (o.eliminated) score += 16;
     else {
       const danger = Math.max(0, o.heat) / supernovaThreshold(o);
-      score += 12 * danger + 5 * danger * danger - 0.45 * tableauValue(state, o);
+      score += 12 * danger + 5 * danger * danger - 0.45 * tableauValue(state, o) - 0.6 * orbitOutlook(o);
     }
   }
   const mine = Math.max(0, me.heat) / supernovaThreshold(me);
   score -= 12 * mine + 10 * mine * mine;
-  score += tableauValue(state, me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
+  score += tableauValue(state, me) + orbitOutlook(me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
   // Upgrades already pay off through effectAmount; a little extra for future cards.
   score += 0.6 * (me.upgrades.solarFlare + me.upgrades.thermosiphon);
   return score;

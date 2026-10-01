@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, applyAction, baseStability, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold } from '../src/engine/game';
+import { activePlayer, applyAction, baseStability, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -617,5 +617,65 @@ describe('turn forecast', () => {
     expect(s.players[1].heat).toBe(bo + 3);
     expect(s.players[0].shields).toBe(3);
     expect(s.players[0].heat).toBe(4);
+  });
+});
+
+describe('orbit', () => {
+  /** End turns until it is player `id`'s turn again. */
+  const nextTurnOf = (s: GameState, id: string) => {
+    do s = applyAction(s, { type: 'endTurn' });
+    while (activePlayer(s).id !== id);
+    return s;
+  };
+
+  it('brings each planet round for three turns: dead, abundant (+1 draw), industrial (+1 play)', () => {
+    let s = twoPlayer();
+    const id = activePlayer(s).id;
+    const seen: string[] = [];
+    for (let t = 0; t < 10; t++) {
+      const me = activePlayer(s);
+      seen.push(currentPlanet(me));
+      if (t === 0) expect(planetTurnsLeft(me)).toBe(3);
+      s = nextTurnOf(s, id);
+    }
+    expect(seen).toEqual(['dead', 'dead', 'dead', 'abundant', 'abundant', 'abundant', 'industrial', 'industrial', 'industrial', 'dead']);
+  });
+
+  it('draws an extra card at the abundant planet and plays an extra one at the industrial planet', () => {
+    let s = twoPlayer();
+    const id = activePlayer(s).id;
+    const me = () => s.players.find((p) => p.id === id)!;
+    me().orbit = 2; // the dead planet's last turn: next turn the abundant planet comes round
+    me().hand = [];
+    s = nextTurnOf(s, id);
+    expect(currentPlanet(me())).toBe('abundant');
+    expect(me().hand.length).toBe(BALANCE.drawPerTurn + BALANCE.abundantDraw);
+    me().orbit = 5;
+    s = nextTurnOf(s, id);
+    expect(currentPlanet(me())).toBe('industrial');
+    expect(me().playsLeft).toBe(BALANCE.maxPlays + BALANCE.industrialPlays);
+  });
+
+  it('lets cards move your orbit or your rival\'s, and wraps round', () => {
+    const s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    give(me, ['orbital_slingshot', 'tidal_brake']);
+    const a = applyAction(s, { type: 'playCard', cardUid: me.hand.at(-2)!.uid });
+    expect(currentPlanet(activePlayer(a))).toBe('abundant'); // +3 from the dead planet's first turn
+    const b = applyAction(s, { type: 'playCard', cardUid: me.hand.at(-1)!.uid });
+    expect(b.players.find((p) => p.id === rival.id)!.orbit).toBe(7); // −2 from 0 wraps to the industrial planet
+  });
+
+  it('counts the planet in conditions and forecasts', () => {
+    const s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['perihelion_forge'], 'tableau');
+    me.turnsTaken = 2;
+    me.orbit = 5; // next turn: industrial
+    const f = turnForecast(s, me);
+    expect(f.planet).toBe('industrial');
+    expect(f.plays).toBe(BALANCE.industrialPlays);
+    expect(f.heat).toBeGreaterThanOrEqual(3);
   });
 });

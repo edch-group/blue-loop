@@ -756,7 +756,7 @@ export class App {
         const vit = el.querySelector('.vit');
         if (!vit) return;
         const now = el.innerHTML;
-        vit.outerHTML = vitals({ heat: was.heat, threshold: supernovaThreshold(was), shields: was.shields, dead: was.eliminated, id: was.id });
+        vit.outerHTML = vitals({ heat: was.heat, threshold: supernovaThreshold(was), shields: was.shields, dead: was.eliminated, id: was.id, orbit: was.orbit });
         window.setTimeout(() => (el.innerHTML = now), at);
       });
     };
@@ -1522,6 +1522,7 @@ export class App {
         <li>Bring a <b>${BALANCE.deckSize}-card deck</b>: up to ${BALANCE.maxCopies} copies of a card, and exactly ${BALANCE.commandCards} Command cards. You start with ${BALANCE.openingHand} cards and draw ${BALANCE.drawPerTurn} each turn after that.</li>
         <li>Play <b>1 card</b> on your first turn, then up to <b>${BALANCE.maxPlays}</b> a turn. Cards <b>stay in play</b> in your tableau of <b>${BALANCE.tableauSlots} slots</b>, in the slot you choose: their start-of-turn effects trigger every turn, and they power each other up.</li>
         <li><b>Stability</b> (◷) is how many of your turns a card stays: after its start-of-turn effects it loses 1, and at 0 it fades back into your deck. Some cards restore stability; others erode your rival's. There is <b>no replacing</b>: with every slot full, nothing new goes in until a card fades, or is recalled or removed.</li>
+        <li><b>Orbit:</b> three planets circle your sun, each facing it for ${BALANCE.orbitTurns} of your turns in turn: the <b>dead</b> planet (nothing), the <b>abundant</b> planet (draw ${BALANCE.abundantDraw} extra card each turn), then the <b>industrial</b> planet (play ${BALANCE.industrialPlays} extra card each turn), and round again. Every sun starts at the dead planet. Some cards move an orbit on or back ("your orbit +1", "your rival's orbit −2"); others are stronger while a planet faces your sun.</li>
         <li><b>Defence</b> (⛨) comes from the slot: ${BALANCE.slotDefence.join(', ')} from left to right, so the middle is safest. Sturdy cards and bulwarks add more. Removal only reaches cards with low enough defence ("destroy a card with 2 or less defence").</li>
         <li>Your attacks heat your rival's sun. Shields absorb their heat and fade at the start of your turn.</li>
         <li><b>Command</b> cards upgrade your whole deck: Solar Flare (your attack cards deal +1 heat), Thermosiphon (your cooling cools +1) or Cooling Chamber (+${BALANCE.coolingChamberHealthPerUpgrade} max health), up to ${BALANCE.solarFlareMaxUpgrades} each. They stay in your tableau like any other card, and some cards reward keeping them there. Play one again and it upgrades again.</li>
@@ -1689,7 +1690,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row">${slots}<div class="ls-slot">${lightspeed}</div></div>
           ${this.renderForecast(p)}
         </div>
@@ -1714,7 +1715,8 @@ export class App {
       line('fc-shield', f.shields, 'shields', 'Shields they raise'),
       line('fc-cool', f.cool, 'cooling', 'Cooling to their own sun'),
       line('fc-self', f.selfHeat, 'heat to own sun', 'Drawbacks, regional instability and the table heating their own sun'),
-      line('fc-draw', f.draw, `extra card${f.draw === 1 ? '' : 's'}`, 'Extra cards they draw'),
+      line('fc-draw', f.draw, `extra card${f.draw === 1 ? '' : 's'}`, f.planet === 'abundant' ? 'Extra cards they draw (the abundant planet faces their sun)' : 'Extra cards they draw'),
+      line('fc-draw', f.plays, `extra play${f.plays === 1 ? '' : 's'}`, 'Extra cards they may play (the industrial planet faces their sun)'),
     ].join('');
     // An empty tableau has nothing to forecast: show nothing rather than an empty box.
     if (!lines) return '';

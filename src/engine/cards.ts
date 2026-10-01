@@ -237,8 +237,8 @@ export const CARDS: CardDef[] = [
     name: 'Coronal Chorus',
     kind: 'attack',
     race: 0,
-    text: 'Heat your rival by 1 for each attack card you control (up to 4).',
-    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 4 }],
+    text: 'Heat your rival by 1 for each attack card you control (up to 3).',
+    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 3 }],
   },
   { id: 'sunspear', name: 'Sunspear', kind: 'attack', race: 0, text: 'Heat your rival by 4. Heat your own sun by 2.', onPlay: [{ type: 'heat', amount: 4, to: 'target' }, { type: 'selfHeat', amount: 2 }] },
   {
@@ -354,16 +354,16 @@ export const CARDS: CardDef[] = [
     name: 'Canopy',
     kind: 'defence',
     race: 3,
-    text: 'Start of turn: cool your sun by 1 for every 2 cards you control.',
-    onTurn: [{ type: 'cool', amount: 0, plus: { of: 'cards', per: 2 } }],
+    text: 'Start of turn: cool your sun by 1, +1 for every 2 cards you control.',
+    onTurn: [{ type: 'cool', amount: 1, plus: { of: 'cards', per: 2 } }],
   },
   {
     id: 'spore_cloud',
     name: 'Spore Cloud',
     kind: 'attack',
     race: 3,
-    text: 'Start of turn: if you control 4 or more cards, heat your rival by 1.',
-    onTurn: [{ type: 'heat', amount: 1, to: 'target', if: { minCards: 4 } }],
+    text: 'Start of turn: if you control 4 or more cards, heat your rival by 2.',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
 
   // ---- Race cards for resonance, recovery, stability, command synergies and lightspeed ----
@@ -534,9 +534,59 @@ export const CARDS: CardDef[] = [
     name: 'The Brood Queen',
     kind: 'growth',
     race: 3,
-    text: 'You may play 1 extra card each turn. Start of turn: if you control 4 or more cards, heat your rival by 1.',
+    text: 'You may play 1 extra card each turn. Start of turn: if you control 4 or more cards, heat your rival by 2.',
     passive: [{ type: 'extraPlay', amount: 1 }],
-    onTurn: [{ type: 'heat', amount: 1, to: 'target', if: { minCards: 4 } }],
+    onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
+  },
+  // ---- Orbit: cards that move the planets round a sun (dead → abundant → industrial, three turns each) ----
+  { id: 'gravity_assist', name: 'Gravity Assist', kind: 'attack', text: 'Heat your rival by 2. Your orbit +1.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'orbit', amount: 1, who: 'self' }] },
+  { id: 'orbital_slingshot', name: 'Orbital Slingshot', kind: 'growth', text: 'Your orbit +3: the next planet swings round. Draw 1 card.', onPlay: [{ type: 'orbit', amount: 3, who: 'self' }, { type: 'draw', amount: 1 }] },
+  { id: 'tidal_brake', name: 'Tidal Brake', kind: 'defence', text: "Gain 2 shields. Your rival's orbit −2.", onPlay: [{ type: 'shield', amount: 2 }, { type: 'orbit', amount: -2, who: 'rival' }] },
+  {
+    id: 'dead_world_mine',
+    name: 'Dead World Mine',
+    kind: 'growth',
+    text: 'Start of turn: while your dead planet faces your sun, draw 1 card and cool your sun by 1.',
+    onTurn: [{ type: 'draw', amount: 1, if: { planet: 'dead' } }, { type: 'cool', amount: 1, if: { planet: 'dead' } }],
+  },
+  {
+    id: 'perihelion_forge',
+    name: 'Perihelion Forge',
+    kind: 'attack',
+    text: 'Start of turn: heat your rival by 1, or by 3 while your industrial planet faces your sun.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'planet', planet: 'industrial', amount: 2 } }],
+  },
+  {
+    id: 'sunward_lance',
+    name: 'Sunward Lance',
+    kind: 'attack',
+    race: 0,
+    text: 'Heat your rival by 1, or by 3 while your industrial planet faces your sun. Your orbit +1.',
+    onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'planet', planet: 'industrial', amount: 2 } }, { type: 'orbit', amount: 1, who: 'self' }],
+  },
+  {
+    id: 'comet_shard',
+    name: 'Comet Shard',
+    kind: 'attack',
+    race: 1,
+    text: "Heat your rival by 3. Your rival's orbit −1. Heat your own sun by 1.",
+    onPlay: [{ type: 'heat', amount: 3, to: 'target' }, { type: 'orbit', amount: -1, who: 'rival' }, { type: 'selfHeat', amount: 1 }],
+  },
+  {
+    id: 'tide_lock',
+    name: 'Tide Lock',
+    kind: 'defence',
+    race: 2,
+    text: 'Start of turn: gain 1 shield, or 3 while your abundant planet faces your sun.',
+    onTurn: [{ type: 'shield', amount: 1, plus: { of: 'planet', planet: 'abundant', amount: 2 } }],
+  },
+  {
+    id: 'orbit_root',
+    name: 'Orbit Root',
+    kind: 'growth',
+    race: 3,
+    text: 'Start of turn: while your dead planet faces your sun, your orbit +2 (it moves on in a turn, not three).',
+    onTurn: [{ type: 'orbit', amount: 2, who: 'self', if: { planet: 'dead' } }],
   },
 ];
 
@@ -549,6 +599,8 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   // Neutral
   solar_battery: { rarity: 'stellar' },
   ion_cannon: { rarity: 'stellar' },
+  perihelion_forge: { rarity: 'stellar' },
+  orbit_root: { rarity: 'stellar' },
   solar_storm: { rarity: 'stellar' },
   ice_age: { rarity: 'stellar' },
   solar_maximum: { rarity: 'stellar' },
@@ -728,9 +780,10 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Solar Lancers',
     race: 0,
     cards: [
-      ...twoOf('helio_lancer', 'coronal_chorus', 'sunforge', 'command_directive'),
-      'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'aurelia_first_light', 'halo_ward',
+      ...twoOf('coronal_chorus', 'sunforge', 'command_directive'),
+      'helio_lancer', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
       'resonance_lattice', 'standing_orders', 'stasis_field', 'null_field', 'ion_cannon', 'coolant_array', 'cryo_vault',
+      'gravity_assist', 'tidal_brake',
     ],
   },
   {
@@ -740,9 +793,9 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Shard Overload',
     race: 1,
     cards: [
-      ...twoOf('shard_reactor', 'martyr_crystal', 'ember_shard', 'prism_vent', 'overload_core', 'command_directive'),
-      'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift', 'tractor_beam',
-      'solar_mirror', 'crystal_storm',
+      ...twoOf('shard_reactor', 'martyr_crystal', 'ember_shard', 'prism_vent', 'command_directive'),
+      'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift', 'tractor_beam',
+      'solar_mirror', 'comet_shard', 'tidal_brake',
     ],
   },
   {
@@ -752,8 +805,8 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Abyssal Tide',
     race: 2,
     cards: [
-      ...twoOf('bell_warden', 'abyssal_choir', 'tide_pylon', 'riptide_ambush', 'undertow', 'plasma_relay', 'command_directive'),
-      'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'bulwark_plating', 'aegis_monolith', 'coronal_lance',
+      ...twoOf('bell_warden', 'abyssal_choir', 'tide_pylon', 'riptide_ambush', 'undertow', 'command_directive'),
+      'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'bulwark_plating', 'aegis_monolith', 'plasma_relay', 'coronal_lance', 'tidal_brake',
     ],
   },
   {
@@ -763,9 +816,9 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Hive Bloom',
     race: 3,
     cards: [
-      ...twoOf('rot_bloom', 'spore_husk', 'command_directive'),
-      'mycelium_tower', 'hive_rooting', 'stasis_field', 'resonance_lattice', 'hive_relay', 'sporecaster', 'canopy', 'spore_cloud',
-      'ixquor_brood_tender', 'the_brood_queen', 'regrowth_pod', 'entropy_pulse', 'coronal_lance', 'gravity_sling',
+      ...twoOf('rot_bloom', 'spore_husk', 'orbit_root', 'command_directive'),
+      'hive_rooting', 'stasis_field', 'resonance_lattice', 'hive_relay', 'sporecaster', 'canopy', 'spore_cloud',
+      'ixquor_brood_tender', 'the_brood_queen', 'coolant_array', 'tidal_brake', 'cryo_vault',
     ],
   },
 ];
