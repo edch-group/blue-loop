@@ -2737,7 +2737,12 @@ export class App {
     }
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
-    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true, option: st.option });
+    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true, option: st.option })
+          // Already the zoomed view: a still card, not a button (only its keywords respond, explaining themselves).
+          .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+          .replace(/<\/button>\s*$/, '</div>')
+          .replace(/ data-act="[^"]*"/, '')
+          .replace(/ data-card="[^"]*"/, '');
     return `
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
         ${card}

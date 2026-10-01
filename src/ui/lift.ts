@@ -16,7 +16,7 @@ function set(el: HTMLElement | null) {
 }
 
 function update(x: number, y: number, target: Element | null) {
-  const card = target?.closest<HTMLElement>('.card') ?? null;
+  const card = target?.closest<HTMLElement>('.card:not(.card-still)') ?? null;
   if (card) return set(card);
   // Over the strip the lifted card rose out of: it stays up.
   if (lifted?.isConnected) {
