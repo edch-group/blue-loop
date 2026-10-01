@@ -2787,18 +2787,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-text-mid { display: grid; place-content: center; justify-items: center; height: 100%; font-size: 1.35em; line-height: 1.2; text-align: center; }
 .card-text-mid .card-para { height: 0.2em; }
 
-/* ---------- The interface's stock: the cards' faint circuit traces on every panel, button and pop-up ----------
-   (the game board keeps its own rings). Each keeps its own fill underneath. */
-.glass, .popover, .log-panel, .log-pop, .rival, .round-box, .pile, .peek-toggle, .toast, .action-chip, .field,
-.sys-tab, .pick-hint, .seat-deck, .db-deck-side, .player-chip, .kw-tip, .kw-list, .btn, .pill-btn, .icon-btn,
-.modal, .hud-rival, .stage-caption, .wait-note, .rule-fact, .rules-tab, .pv-box, .game-result {
-  background-image: var(--circuit-ui) !important; background-size: 150px 150px !important; background-repeat: repeat !important;
-}
-.btn-primary { background-image: var(--circuit-ui), linear-gradient(180deg, #ffffff, #eeeff1) !important; background-size: 150px 150px, 100% 100% !important; }
-.hub-card, .opt-tile { background-image: var(--circuit-ui), linear-gradient(180deg, #fff, #f5f5f3) !important; background-size: 150px 150px, 100% 100% !important; }
-/* Side by side, the tiles show different stretches of the traces, not the same chip on each. */
-.hub-col:nth-child(2) .hub-card { background-position: -47px -23px, 0 0 !important; }
-.hub-col:nth-child(3) .hub-card { background-position: -91px -61px, 0 0 !important; }
-.hub-col:nth-child(4) .hub-card { background-position: -29px -97px, 0 0 !important; }
-.hub-col:nth-child(5) .hub-card { background-position: -113px -11px, 0 0 !important; }
+/* ---------- Circuit traces on the upgrade pills and on dialog panels (the settings overlay and the like), in a faint
+   silver; never on buttons. ---------- */
+.action-chip, .modal { background-image: var(--circuit-ui); background-size: 150px 150px; background-repeat: repeat; }
 .log-pop { background-color: rgba(255, 255, 255, 0.97) !important; }
