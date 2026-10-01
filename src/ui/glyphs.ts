@@ -1,4 +1,4 @@
-import { baseStability, persists, RACE_NAMES, type CardDef, type CardKind, type Rarity } from '../engine';
+import { baseStability, keywordLabel, KEYWORDS, keywordsIn, persists, RACE_NAMES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -237,4 +237,39 @@ for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElem
 export function stabilityBadge(def: CardDef): string {
   if (!persists(def.id)) return '';
   return `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your turns, then fades into your discard pile">◷${baseStability(def.id)}</b></span>`;
+}
+
+const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/**
+ * Card text as HTML: each keyword in its colour, with its value ("sturdy 1").
+ * Hovering one (in the deck builder and the shop) explains it; in a game the
+ * zoomed card lists the explanations alongside.
+ */
+export function cardTextHtml(text: string): string {
+  let before = '';
+  return textParts(text)
+    .map((p) => {
+      if ('text' in p) {
+        before += p.text;
+        return escText(p.text);
+      }
+      const k = KEYWORDS[p.kw];
+      if (!k) return escText(p.value ?? p.kw);
+      // A keyword that starts a sentence gets a capital, like any word would.
+      let label = keywordLabel(p.kw, p.value);
+      if (/(^|[.!?]\s*)$/.test(before)) label = label.replace(/^./, (c) => c.toUpperCase());
+      before += label;
+      return `<b class="kw kw-${k.group}" data-kw="${p.kw}"${p.value ? ` data-kv="${escText(p.value)}"` : ''}>${escText(label)}</b>`;
+    })
+    .join('');
+}
+
+/** The explanations of a card's keywords, for beside a zoomed card. */
+export function keywordList(text: string): string {
+  const list = keywordsIn(text).filter((k) => KEYWORDS[k.id] && k.id !== 'turn');
+  if (!list.length) return '';
+  return `<div class="kw-list">${list
+    .map((k) => `<div><b class="kw kw-${KEYWORDS[k.id].group}">${escText(keywordLabel(k.id, k.value))}</b><span>${escText(KEYWORDS[k.id].explain(k.value))}</span></div>`)
+    .join('')}</div>`;
 }

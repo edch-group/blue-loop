@@ -2725,3 +2725,37 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 .db-card:hover .db-zoom, .db-card:focus-visible .db-zoom { opacity: 1; }
 @media (hover: none) { .db-zoom { opacity: 1; } }
+
+/* ---------- Keywords on cards ---------- */
+.kw { font-weight: 700; letter-spacing: 0.02em; color: var(--kwc, #5b6aa8); white-space: nowrap; }
+.kw-timing { --kwc: #8a7a5a; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.86em; }
+.kw-defence { --kwc: #4f70a8; }
+.kw-resonance { --kwc: #8a5fd0; }
+.kw-stability { --kwc: #2f8f8a; }
+.kw-recovery { --kwc: #3a9e6a; }
+.kw-removal { --kwc: #c0472c; }
+.kw-shields { --kwc: #3d7fc4; }
+.kw-lightspeed { --kwc: #b98216; }
+.kw-global { --kwc: #6f7480; }
+.kw-orbit { --kwc: #2c8fb0; }
+.kw-heat { --kwc: #d0592a; }
+.kw-tempo { --kwc: #7a9a2a; }
+.card .kw[data-kw] { cursor: help; }
+.kw-tip {
+  position: fixed; left: 0; top: 0; z-index: 90; max-width: 260px; padding: 8px 12px; border-radius: 12px; pointer-events: none;
+  background: #fff; box-shadow: 0 8px 24px rgba(60, 64, 90, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.9);
+  font-size: 0.72rem; line-height: 1.35; color: var(--ink-soft); opacity: 0; transition: opacity 0.12s;
+}
+.kw-tip.show { opacity: 1; }
+/* Beside a zoomed card: what its keywords mean. */
+.kw-list { display: grid; gap: 8px; align-content: start; max-width: 260px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 10px 30px rgba(70, 76, 100, 0.18); font-size: 0.74rem; line-height: 1.35; color: var(--ink-soft); }
+.kw-list > div { display: grid; gap: 2px; }
+.kw-list .kw { font-size: 0.86rem; }
+.inspector-row { display: flex; align-items: center; gap: 16px; }
+.zoom-card { display: flex; align-items: center; gap: 16px; }
+.card-preview .kw-list { position: absolute; right: calc(100% + 12px); top: 0; width: 220px; }
+.kw-rules { display: grid; gap: 8px; margin: 8px 0 0; }
+.kw-rules > div { display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 10px; align-items: baseline; }
+.kw-rules dt, .kw-rules dd { margin: 0; }
+.kw-rules dd { color: var(--ink-soft); font-size: 0.82rem; line-height: 1.4; }
+.rules-head { margin: 18px 0 4px; font-family: var(--display); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; }

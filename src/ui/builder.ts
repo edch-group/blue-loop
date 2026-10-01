@@ -1,7 +1,7 @@
-import { BALANCE, breakable, breakdownValue, CARDS, CARD_KINDS, cardDef, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, cardDef, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
-import { cardArt, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { cardArt, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { breakDown, craft, owned, profile } from './profile';
 
 interface BuilderHost {
@@ -212,7 +212,7 @@ export class DeckBuilder {
             <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}">
               <span class="card-glyph">${cardArt(c, true)}</span>${stabilityBadge(c)}
               <span class="card-name">${esc(c.name.toLowerCase())}</span>
-              <span class="card-text">${esc(c.text)}</span>
+              <span class="card-text">${cardTextHtml(c.text)}</span>
               <span class="card-kind">${typeLine(c)}</span>
             </span>
             ${n ? `<b class="db-count">×${n}</b>` : ''}
@@ -281,7 +281,7 @@ export class DeckBuilder {
     const inDeck = new Set(d.cards);
     const flux = profile().flux;
     const list = CARDS.filter((c) => {
-      if (q && !`${c.name} ${c.text} ${c.kind} ${c.race !== undefined ? RACE_NAMES[c.race] : 'neutral'}`.toLowerCase().includes(q)) return false;
+      if (q && !`${c.name} ${plainText(c.text)} ${c.kind} ${c.race !== undefined ? RACE_NAMES[c.race] : 'neutral'}`.toLowerCase().includes(q)) return false;
       if (f.race === 'deck' && c.race !== undefined && c.race !== d.race) return false;
       if (f.race === 'neutral' && c.race !== undefined) return false;
       if (f.race !== 'any' && f.race !== 'deck' && f.race !== 'neutral' && c.race !== Number(f.race)) return false;

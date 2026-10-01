@@ -22,6 +22,9 @@ import {
   enemyEffectKind,
   GameError,
   instabilityHeat,
+  KEYWORDS,
+  keywordLabel,
+  plainText,
   isGameOver,
   MAX_UPGRADES,
   needsSlot,
@@ -54,7 +57,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardArt, cardGlyph, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { cardArt, cardGlyph, cardTextHtml, keywordList, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
 import { sound } from './sound';
@@ -266,6 +269,23 @@ export class App {
     this.preview = document.createElement('div');
     this.preview.className = 'card-preview';
     document.body.appendChild(this.preview);
+    // Hovering a keyword on a card explains it.
+    const tip = document.createElement('div');
+    tip.className = 'kw-tip';
+    document.body.appendChild(tip);
+    document.addEventListener('mouseover', (e) => {
+      const kw = (e.target as HTMLElement).closest?.<HTMLElement>('.kw[data-kw]');
+      if (!kw || this.touch) return tip.classList.remove('show');
+      const k = KEYWORDS[kw.dataset.kw!];
+      if (!k) return;
+      tip.innerHTML = `<b class="kw kw-${k.group}">${esc(keywordLabel(kw.dataset.kw!, kw.dataset.kv))}</b> ${esc(k.explain(kw.dataset.kv))}`;
+      const r = pageRect(kw);
+      const page = appSize();
+      tip.classList.add('show');
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = `${Math.max(8, Math.min(page.w - w - 8, r.left + r.width / 2 - w / 2))}px`;
+      tip.style.top = `${r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8}px`;
+    });
 
     // "View board": any overlay can be hidden to look at the board, then brought back.
     this.peekShield = document.createElement('div');
@@ -1372,7 +1392,7 @@ export class App {
 
   /** Large, readable copy of a card at the middle right of the screen while held. */
   private showPeek(el: HTMLElement) {
-    this.preview.innerHTML = this.bigCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
+    this.preview.innerHTML = this.bigCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined) + keywordList(cardDef(el.dataset.card!).text);
     const page = appSize();
     const h = Math.min(420, page.h - 24) * 0.7;
     const w = h * 0.714;
@@ -1803,7 +1823,7 @@ export class App {
   }
 
   private renderZoom(): string {
-    return `<div class="overlay overlay-soft zoom-view" data-act="zoom-close"><div class="zoom-card" data-act="zoom-close">${this.bigCard(this.zoomed!)}</div><small class="muted">tap anywhere to close</small></div>`;
+    return `<div class="overlay overlay-soft zoom-view" data-act="zoom-close"><div class="zoom-card" data-act="zoom-close">${this.bigCard(this.zoomed!)}${keywordList(cardDef(this.zoomed!).text)}</div><small class="muted">tap anywhere to close</small></div>`;
   }
 
   /** Signing in: the name and emblem you go by (until accounts arrive, it lives on this device). */
@@ -1870,7 +1890,7 @@ export class App {
     return `<div class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}" data-card="${c.id}">
       <span class="card-glyph">${cardArt(c, true)}</span>${stabilityBadge(c)}
       <span class="card-name">${esc(c.name.toLowerCase())}</span>
-      <span class="card-text">${esc(c.text)}</span>
+      <span class="card-text">${cardTextHtml(c.text)}</span>
       <span class="card-kind">${typeLine(c)}</span>
     </div>`;
   }
@@ -2017,7 +2037,16 @@ export class App {
         <li><b>Lightspeed</b> cards are set face down (one at a time, no slot) and spring during your rival's turn: cancelling a card they play, turning heat aside, or saving your cards from removal.</li>
         <li>Destroyed and cancelled cards go to your discard pile. When your deck runs out it is shuffled back in (heating your sun by ${BALANCE.reshuffleHeat}), and some cards recover cards from it or return your cards to your hand to play again.</li>
         <li>Only one <b>global</b> card can be in play at a time, and it affects both players. <b>Regional stability</b> (top of the screen) drains one segment a round; from round ${BALANCE.instabilityStartsRound} it is gone and both suns heat each turn, more each round.</li>
-      </ul>`;
+      </ul>
+      <h3 class="rules-head">mechanics</h3>
+      <p class="muted">Keywords on cards, in colour, with their number (sturdy 1). Hover one on a card, or zoom a card in a game, to read it there.</p>
+      <dl class="kw-rules">${Object.entries(KEYWORDS)
+        .map(([id, k]) => {
+          // Shown with a stand-in value where the keyword takes one.
+          const v = ['turn', 'anchor', 'recall', 'recover', 'overheated', 'lightspeed', 'global'].includes(id) ? undefined : id === 'orbit' ? '±N' : 'N';
+          return `<div><dt><b class="kw kw-${k.group}">${esc(keywordLabel(id, v))}</b></dt><dd>${esc(k.explain(v))}${id === 'recover' ? ' Some name a type: recover attack.' : ''}</dd></div>`;
+        })
+        .join('')}</dl>`;
   }
 
   // ---- The battle table --------------------------------------------------------
@@ -2096,7 +2125,7 @@ export class App {
     const active = activePlayer(s);
     const global = activeGlobal(s);
     const field = global
-      ? `<button class="field" data-act="inspect" data-card="${global.card.defId}" title="${esc(cardDef(global.card.defId).text)}">
+      ? `<button class="field" data-act="inspect" data-card="${global.card.defId}" title="${esc(plainText(cardDef(global.card.defId).text))}">
           ${cardGlyph(global.card.defId, 'global')}
           <span class="field-name">${esc(cardDef(global.card.defId).name.toLowerCase())}</span>
         </button>`
@@ -2207,7 +2236,7 @@ export class App {
     const ls = p.lightspeed;
     const lightspeed = ls
       ? side === 'mine'
-        ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(cardDef(ls.defId).text)}"><span>⚡</span><small>lightspeed</small></button>`
+        ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}"><span>⚡</span><small>lightspeed</small></button>`
         : '<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your turn."><span>⚡</span><small>lightspeed</small></div>'
       : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
     return `
@@ -2321,7 +2350,7 @@ export class App {
         <div class="card-glyph">${cardArt(def, true)}</div>
         ${growth}${resonance}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${esc(def.text)}</div>
+        <div class="card-text">${cardTextHtml(def.text)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </button>`;
   }
@@ -2346,7 +2375,7 @@ export class App {
         <div class="card-glyph">${cardArt(def, true)}</div>
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${boost ? `<span class="resonance">+${boost}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${esc(def.text)}</div>
+        <div class="card-text">${cardTextHtml(def.text)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </div>`;
   }
@@ -2456,7 +2485,7 @@ export class App {
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
-              ${this.bigCard(sh.defId, sh.table)}
+              <div class="inspector-row">${this.bigCard(sh.defId, sh.table)}${keywordList(cardDef(sh.defId).text)}</div>
               <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
             </div>
           </div>`;

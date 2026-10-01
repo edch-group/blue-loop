@@ -5,3 +5,4 @@ export { cardDef, fusedId, fusionProblem, isFused, unfusable, allCardDefs, CARDS
 export { chooseAIAction } from './ai';
 export * from './campaign';
 export * from './progression';
+export * from './keywords';

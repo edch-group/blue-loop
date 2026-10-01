@@ -215,6 +215,31 @@ Cards that only worked alongside others (a count of a card type, Command cards, 
 | Dead World Mine, Orbit Root | only while the dead planet faces your sun | also cool 1 every turn |
 | Recovery cards | nothing with an empty discard pile | draw 1 instead |
 
+## Keywords [design review]
+
+The game's recurring mechanics are **keywords**: a coloured word on the card with its number, so card text stays short (**sturdy 1**, **resonance 2 · 1**, **erode 2**, **recover attack**, **destroy ≤2**). Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoomed card; in the deck builder and the shop, on hover; and on the rules page (how to play → mechanics), which lists them all.
+
+| Keyword | Meaning |
+| --- | --- |
+| start of turn | At the start of each of your turns, while in play |
+| sturdy N | +N defence |
+| bulwark N (· M) | Cards next to it +N defence (two slots away +M) |
+| resonance N (· M) | Cards next to it +N heat, cooling and shields (two places away +M) |
+| forge N | Resonance for attack cards only: +N heat |
+| anchor | Cards next to it lose no stability |
+| erode N / decay N | A rival card / every rival card loses N stability |
+| restore N / renew N | Another card / every other card of yours regains N stability |
+| recover (type) | A card (of that type) from your discard pile to your hand; with none there, draw |
+| recall | Another card of yours from your tableau to your hand |
+| destroy ≤N / eject ≤N | Destroy / return to hand a rival card with at most N defence |
+| sting N / soothe N | When your shields absorb heat: heat the attacker N / cool your sun N |
+| hold N | Your shields don't fade (up to N) |
+| overheated | Half your max health or hotter |
+| grows N | Grows by 1 each turn, up to N |
+| plays +N | N extra plays each turn |
+| orbit ±N | Moves the planets round a sun |
+| lightspeed, global | Card types (see below) |
+
 ## Lightspeed cards [design review]
 
 Lightspeed cards are played **face down**. They don't take a slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies face down in the Lightspeed slot, right of its owner's five (that slot has no defence), and the owner's pill shows ⚡. The card springs **during an enemy's turn** when its trigger happens. It is revealed ("Lightspeed!"), resolves against that enemy ("your target" means them), and goes to your discard pile.
