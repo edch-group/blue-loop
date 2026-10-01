@@ -2014,11 +2014,15 @@ export class App {
     // the middle every time the page is redrawn); a card already placed keeps its smooth move.
     const fresh = cards.filter((c) => !c.style.getPropertyValue('--fr'));
     fresh.forEach((c) => (c.style.transition = 'none'));
+    // A true arc: the cards' centres sit on a circle whose curve matches their tilt (radius = spacing / angle
+    // between neighbours), so each card is lower than the one inside it, corners and all.
+    const radius = spacing / ((step * Math.PI) / 180 || 1);
     cards.forEach((c, i) => {
       const t = i - (n - 1) / 2;
+      const a = (t * step * Math.PI) / 180;
       c.style.left = `${start + i * spacing}px`;
       c.style.setProperty('--fr', `${t * step}deg`);
-      c.style.setProperty('--fy', `${Math.abs(t) ** 2 * 2.5}px`);
+      c.style.setProperty('--fy', `${(radius * (1 - Math.cos(a)) * 1.25).toFixed(2)}px`);
       c.style.zIndex = String(i + 1);
     });
     if (fresh.length) {

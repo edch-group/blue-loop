@@ -912,7 +912,7 @@ input { font: inherit; }
 .hand > .card {
   position: absolute;
   top: 8px;
-  transform-origin: 50% 120%;
+  transform-origin: 50% 50%;
   transform: translateY(var(--fy, 0)) rotate(var(--fr, 0deg));
   transition: transform 0.18s ease-out, box-shadow 0.2s;
   box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18);
