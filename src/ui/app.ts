@@ -60,7 +60,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardArt, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { cardArt, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
 import { sound } from './sound';
@@ -110,6 +110,8 @@ interface Stage {
   faceDown?: boolean;
   /** A rival's card the viewer must confirm they have read before the rival goes on. */
   confirm?: boolean;
+  /** The option the player picked on a card with choices (a Command card's upgrade): highlighted on it. */
+  option?: string;
 }
 
 /** Bottom sheets / dialogs that are not part of a pending move. */
@@ -117,7 +119,8 @@ type Sheet =
   | { kind: 'menu' }
   | { kind: 'log' }
   | { kind: 'rules' }
-  | { kind: 'pile'; pile: 'deck' | 'discard' }
+  /** A deck or discard pile: the viewer's, or (`playerId`) a rival's discard pile. */
+  | { kind: 'pile'; pile: 'deck' | 'discard'; playerId?: string }
   /** A player's summary: deck, upgrades, commands and conditions. */
   | { kind: 'player'; playerId: string }
   | { kind: 'upgrade'; action: CoreAction }
@@ -539,7 +542,7 @@ export class App {
     if (!actor) return null;
     const confirm = this.net.waitFor === 'you';
     if (last.faceDown) return { defId: 'null_field', actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down`, confirm };
-    if (last.played) return { defId: last.played, actorId: actor.id, confirm };
+    if (last.played) return { defId: last.played, actorId: actor.id, confirm, option: last.action.type === 'playCard' ? last.action.upgrade : undefined };
     return null;
   }
 
@@ -803,7 +806,7 @@ export class App {
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
     if (cardDef(card.defId).kind === 'lightspeed') return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
-    return { defId: card.defId, actorId: actor.id };
+    return { defId: card.defId, actorId: actor.id, option: action.upgrade };
   }
 
   /** A Lightspeed card that just sprang (revealed from face down into its owner's discard pile), announced for everyone. */
@@ -946,7 +949,11 @@ export class App {
       if (root.querySelector(`[data-uid="${uid}"]`)) return;
       let to: DOMRect | null = null;
       if (vNext.discard.some((c) => c.uid === uid)) to = anchorRect(root, 'discard');
-      else {
+      else if (!to) {
+        const binned = next.players.find((p) => p.id !== vNext.id && p.discard.some((c) => c.uid === uid));
+        if (binned) to = anchorRect(root, `discard:${binned.id}`);
+      }
+      if (!to) {
         const owner = next.players.find((p) => [...p.deck, ...p.hand, ...p.discard].some((c) => c.uid === uid));
         if (owner) to = orbRect(owner.id);
       }
@@ -1036,6 +1043,7 @@ export class App {
         if (played && cardDef(played.defId).kind === 'command') {
           window.setTimeout(() => sound.upgrade(), delay);
           if (actor.id === viewer.id) pulse(root.querySelector('[data-anchor="upgrades"]'), 'fx-upgrade', delay);
+          else pulse(root.querySelector('.hud-rival'), 'fx-upgrade', delay);
         }
         break;
       }
@@ -1660,7 +1668,10 @@ export class App {
       case 'stage-ok':
         return this.confirmStage();
       case 'view-pile':
-        this.sheet = { kind: 'pile', pile: arg as 'deck' | 'discard' };
+        {
+          const [pile, playerId] = arg.split(':');
+          this.sheet = { kind: 'pile', pile: pile as 'deck' | 'discard', playerId };
+        }
         return this.render();
       case 'view-player':
         this.sheet = { kind: 'player', playerId: arg || (s ? this.viewer().id : '') };
@@ -2265,6 +2276,7 @@ export class App {
       <div class="hud">
         <div class="hud-players">${this.renderPlayers()}</div>
         <div class="hud-round">${this.renderRoundBar()}</div>
+        ${this.renderRivalRail()}
         <div class="hud-controls">
           ${field}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI days instantly">skip ›</button>' : ''}
@@ -2275,6 +2287,29 @@ export class App {
           <button class="icon-btn ${this.sheet?.kind === 'log' ? 'icon-on' : ''}" data-act="${this.sheet?.kind === 'log' ? 'cancel' : 'open-log'}" aria-label="Game log" title="Game log">${LOG_ICON}</button>
           <button class="icon-btn" data-act="open-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
         </div>
+      </div>`;
+  }
+
+  /**
+   * The rival shown on the board, at a glance (top right, on their side of
+   * the table): their upgrades, deck, discard pile and hand, as your own sit
+   * in your dock.
+   */
+  private renderRivalRail(): string {
+    const r = this.shownRival();
+    if (!r) return '';
+    const u = r.upgrades;
+    const chip = (cls: string, icon: string, value: string, n: number, title: string) =>
+      `<button class="hr-chip ${cls} ${n ? 'hr-on' : ''}" data-act="view-player" data-arg="${r.id}" title="${esc(title)}"><i>${icon}</i><b>${value}</b></button>`;
+    return `
+      <div class="hud-rival" aria-label="${esc(r.name)}'s upgrades and piles">
+        <span class="hr-name">${esc(r.name.toLowerCase())}</span>
+        ${chip('hr-flare', '▲', `+${u.solarFlare}`, u.solarFlare, `Solar Flare: their attack cards deal +${u.solarFlare} heat`)}
+        ${chip('hr-thermo', '▼', `+${u.thermosiphon}`, u.thermosiphon, `Thermosiphon: their cooling cools +${u.thermosiphon}`)}
+        ${chip('hr-chamber', '♥', `${supernovaThreshold(r)}`, u.coolingChamber, `Cooling Chamber: their sun goes supernova at ${supernovaThreshold(r)} heat`)}
+        <span class="hr-pile" title="Cards in their hand">${HAND_ICON}<b>${r.hand.length}</b></span>
+        <span class="hr-pile" data-anchor="deck:${r.id}" title="Cards left in their deck">▤<b>${r.deck.length}</b></span>
+        <button class="hr-pile hr-discard" data-anchor="discard:${r.id}" data-act="view-pile" data-arg="discard:${r.id}" title="Their discard pile: look through it"><small>discard</small><b>${r.discard.length}</b></button>
       </div>`;
   }
 
@@ -2393,9 +2428,9 @@ export class App {
     const chip = (cls: string, icon: string, n: number, title: string) =>
       n ? `<span class="fc ${cls}" title="${title}"><i>${icon}</i><b>${cls === 'fc-cool' ? `−${n}` : `+${n}`}</b></span>` : '';
     const chips = [
-      chip('fc-heat', '✹', f.heat, `Their dawn: ${f.heat} heat to ${who(f.targetId)} (before shields)`),
-      chip('fc-shield', '⛨', f.shields, `Their dawn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
-      chip('fc-cool', '❄', f.cool, `Their dawn: their own sun cools by ${f.cool}`),
+      chip('fc-heat', symbolIcon('heat'), f.heat, `Their dawn: ${f.heat} heat to ${who(f.targetId)} (before shields)`),
+      chip('fc-shield', symbolIcon('shield'), f.shields, `Their dawn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
+      chip('fc-cool', symbolIcon('cool'), f.cool, `Their dawn: their own sun cools by ${f.cool}`),
       chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
       chip('fc-unstable', '≋', f.unstable, `Their dawn (round ${f.round}): regional instability heats their sun by ${f.unstable}`),
       chip('fc-draw', HAND_ICON, f.draw, `Their dawn: ${f.draw} extra card${f.draw === 1 ? '' : 's'} drawn${f.planet === 'abundant' ? ' (the abundant planet faces their sun)' : ''}`),
@@ -2442,7 +2477,7 @@ export class App {
       </section>`;
   }
 
-  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState }): string {
+  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string }): string {
     const def = cardDef(c.defId);
     const act = this.canAct();
     const p = this.pending;
@@ -2479,7 +2514,7 @@ export class App {
         <div class="card-glyph">${cardArt(def, true)}</div>
         ${growth}${resonance}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardTextHtml(def.text)}</div>
+        <div class="card-text">${cardTextHtml(def.text, opts.option)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </button>`;
   }
@@ -2527,7 +2562,7 @@ export class App {
     }
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
-    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true });
+    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true, option: st.option });
     return `
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
         ${card}
@@ -2601,7 +2636,7 @@ export class App {
           <div class="log-pop sheet"><div class="log-pop-head"><span class="section-label">game log</span><button class="pill-btn" data-act="cancel">close</button></div><div class="log-list">${lines}</div></div>`;
       }
       case 'pile':
-        return this.renderPileSheet(sh.pile);
+        return this.renderPileSheet(sh.pile, s?.players.find((p) => p.id === sh.playerId));
       case 'player':
         return this.renderPlayerSheet(s!.players.find((p) => p.id === sh.playerId) ?? this.viewer());
       case 'upgrade': {
@@ -2670,8 +2705,16 @@ export class App {
       </div>`;
   }
 
-  private renderPileSheet(kind: 'deck' | 'discard'): string {
+  private renderPileSheet(kind: 'deck' | 'discard', of?: PlayerState): string {
     const me = this.viewer();
+    // A rival's discard pile is public: every card in it was seen.
+    if (of && of.id !== me.id) {
+      const rows = [...of.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');
+      return this.sheetFrame(
+        `${esc(of.name.toLowerCase())}'s discard · ${of.discard.length}`,
+        `<p class="muted center-text">Most recent first. ${esc(of.name)} has ${of.deck.length} card${of.deck.length === 1 ? '' : 's'} left in their deck and ${of.hand.length} in hand.</p><div class="pile-grid">${rows || '<p class="muted">Their discard pile is empty.</p>'}</div>`,
+      );
+    }
     if (kind === 'deck') {
       const counts = new Map<string, number>();
       for (const c of me.deck) counts.set(c.defId, (counts.get(c.defId) ?? 0) + 1);

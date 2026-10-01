@@ -1,4 +1,4 @@
-import { baseStability, keywordLabel, KEYWORDS, keywordsIn, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { baseStability, keywordLabel, KEYWORDS, keywordsIn, OPTION_NAMES, optionList, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -241,12 +241,17 @@ export function stabilityBadge(def: CardDef): string {
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-/** Heat, cool and shields are drawn as symbols on cards: three chevrons up, three down, a shield. */
+/** Heat, cool and shields are drawn as symbols on cards: two chevrons up, two down, a shield. */
 const SYMBOL_SVG: Record<string, string> = {
-  heat: '<polyline points="2,7 6,3 10,7"/><polyline points="2,11 6,7 10,11"/><polyline points="2,15 6,11 10,15"/>',
-  cool: '<polyline points="2,3 6,7 10,3"/><polyline points="2,7 6,11 10,7"/><polyline points="2,11 6,15 10,11"/>',
-  shield: '<path class="kw-ico-fill" d="M6 1.5 L10.5 3.3 V7.6 C10.5 11 8.4 13.3 6 14.6 C3.6 13.3 1.5 11 1.5 7.6 V3.3 Z"/>',
-};
+  heat: '<polyline points="2,6.5 6,2.5 10,6.5"/><polyline points="2,10.5 6,6.5 10,10.5"/>',
+  cool: '<polyline points="2,1.5 6,5.5 10,1.5"/><polyline points="2,5.5 6,9.5 10,5.5"/>',
+  shield: '<path class="kw-ico-fill" d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/>',
+}
+
+/** The heat, cool or shield symbol on its own (also used by the dawn forecast). */
+export function symbolIcon(id: 'heat' | 'cool' | 'shield' | string): string {
+  return `<svg class="kw-ico" viewBox="0 0 12 12" aria-hidden="true">${SYMBOL_SVG[id] ?? ''}</svg>`;
+}
 
 /**
  * A keyword as HTML, in its colour: its name in title case ("Sturdy 1"), or
@@ -259,7 +264,7 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
   const data = opts.data ? ` data-kw="${id}"${value ? ` data-kv="${escText(value)}"` : ''}` : '';
   const label = keywordLabel(id, value);
   if (!k.symbol) return `<b class="kw kw-${k.group}"${data}>${escText(label)}</b>`;
-  const icon = `<svg class="kw-ico" viewBox="0 0 12 16" aria-hidden="true">${SYMBOL_SVG[id]}</svg>`;
+  const icon = symbolIcon(id);
   const shown = opts.named ? label : value ?? '';
   return `<b class="kw kw-${k.group} kw-sym"${data} aria-label="${escText(label)}">${icon}${escText(shown)}</b>`;
 }
@@ -269,11 +274,27 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
  * and heat, cool and shields as symbols. Hovering one (in the deck builder and
  * the shop) explains it; in a game the zoomed card lists the explanations alongside.
  */
-export function cardTextHtml(text: string): string {
-  return textParts(text)
-    .map((p) => ('text' in p ? escText(p.text) : keywordHtml(p.kw, p.value, { data: true })))
+export function cardTextHtml(text: string, chosen?: string): string {
+  const parts = textParts(text);
+  return parts
+    .map((p, i) => {
+      // Each sentence is a paragraph of its own: a full stop becomes a break (and the last one just ends it).
+      if ('text' in p) return escText(p.text).replace(/\.(\s+|$)/g, (_, sp: string, at: number, str: string) => (sp || (at + 1 === str.length && i < parts.length - 1) ? PARA : ''));
+      // A card's choices, one per line: the one picked (as the card is played) stands out.
+      if (p.kw === 'options')
+        return `<span class="card-opts${chosen ? ' card-opts-chosen' : ''}">${optionList(p.value)
+          .map((o) => `<span class="card-opt${o === chosen ? ' on' : ''}" data-opt="${escText(o)}">${OPTION_ICON[o] ?? ''}${escText(OPTION_NAMES[o] ?? o)}</span>`)
+          .join('')}</span>`;
+      return keywordHtml(p.kw, p.value, { data: true });
+    })
     .join('');
 }
+
+/** Between a card's sentences: a paragraph break. */
+const PARA = '<span class="card-para"></span>';
+
+/** The upgrades' marks, as on the upgrade chips beside the board. */
+const OPTION_ICON: Record<string, string> = { solarFlare: '<i>▲</i>', thermosiphon: '<i>▼</i>', coolingChamber: '<i>♥</i>' };
 
 /**
  * The explanations beside a zoomed card: its keywords (Dawn included), the

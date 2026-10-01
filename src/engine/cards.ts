@@ -35,7 +35,7 @@ export const CARDS: CardDef[] = [
   { id: 'solar_maximum', name: 'Solar Maximum', kind: 'global', text: '{global}. Every {heat} effect deals 1 more.', passive: [{ type: 'field', field: 'solarMaximum' }] },
 
   // ---- Command: upgrades for your whole deck. They stay in your tableau like any other card ----
-  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: 'Upgrade Solar Flare, Thermosiphon or Cooling Chamber.', onPlay: [{ type: 'upgrade', action: 'choice' }] },
+  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: 'Upgrade one of: {options:solarFlare|thermosiphon|coolingChamber}', onPlay: [{ type: 'upgrade', action: 'choice' }] },
   {
     id: 'ignition_protocol',
     name: 'Ignition Protocol',
@@ -64,7 +64,7 @@ export const CARDS: CardDef[] = [
     id: 'the_admiralty',
     name: 'The Admiralty',
     kind: 'command',
-    text: "Upgrade Solar Flare, Thermosiphon or Cooling Chamber. {resonance:1}.",
+    text: '{resonance:1}. Upgrade one of: {options:solarFlare|thermosiphon|coolingChamber}',
     onPlay: [{ type: 'upgrade', action: 'choice' }],
     passive: [{ type: 'adjacent', amounts: [1] }],
   },

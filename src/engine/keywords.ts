@@ -104,6 +104,16 @@ function rawLabel(id: string, value?: string): string {
   return `${k.name} ${value}`;
 }
 
+/**
+ * A card's choices, written `{options:a|b|c}`: listed on the card one per
+ * line, and the one picked highlighted when the card is shown being played.
+ */
+export const OPTION_NAMES: Record<string, string> = { solarFlare: 'Solar Flare', thermosiphon: 'Thermosiphon', coolingChamber: 'Cooling Chamber' };
+
+export function optionList(value = ''): string[] {
+  return value.split('|').filter(Boolean);
+}
+
 /** Split card text into plain text and keywords, in order. */
 export function textParts(text: string): ({ text: string } | { kw: string; value?: string })[] {
   const out: ({ text: string } | { kw: string; value?: string })[] = [];
@@ -120,7 +130,7 @@ export function textParts(text: string): ({ text: string } | { kw: string; value
 /** Card text as plain words (for tooltips and the like): each keyword by its label. */
 export function plainText(text: string): string {
   return textParts(text)
-    .map((p) => ('text' in p ? p.text : keywordLabel(p.kw, p.value)))
+    .map((p) => ('text' in p ? p.text : p.kw === 'options' ? optionList(p.value).map((o) => OPTION_NAMES[o] ?? o).join(', ').replace(/, ([^,]*)$/, ' or $1') : keywordLabel(p.kw, p.value)))
     .join('')
     .replace(/^./, (c) => c.toUpperCase());
 }
