@@ -1587,7 +1587,7 @@ body.screen-campaign .backdrop { display: none; }
 
 /* Menu button: a centred three-bar icon, sized to the button. */
 .menu-icon { width: 55%; height: 55%; display: block; }
-.menu-icon path, .menu-icon circle { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.menu-icon path, .menu-icon circle { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .hud .icon-btn, .cmp-nav .icon-btn { width: clamp(36px, calc(8 * var(--vh)), 44px); height: clamp(36px, calc(8 * var(--vh)), 44px); }
 
 /* ---------- Table layout, round 2 ---------- */

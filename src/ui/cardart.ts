@@ -691,63 +691,25 @@ const UPGRADE_PAL: Record<'solarFlare' | 'thermosiphon' | 'coolingChamber', Pal>
 };
 
 const UPGRADE_ART: Record<keyof typeof UPGRADE_PAL, (S: Scene) => string> = {
-  // A star throwing off a great looping prominence, with plasma flung from its crest.
-  solarFlare: (S) => {
-    const loop = S.linear([[0, '#fff3c8'], [0.5, '#ff9a3c'], [1, '#e2401c']], 0, 0, 1, 0);
-    return (
-      S.glow(80, 62, 52, '#ff8a3a', 0.45) +
-      `<path d="M64 58 C58 26 104 18 98 56" fill="none" stroke="${loop}" stroke-width="9" stroke-linecap="round" opacity="0.35"/>` +
-      `<path d="M64 58 C58 26 104 18 98 56" fill="none" stroke="${loop}" stroke-width="4" stroke-linecap="round"/>` +
-      `<path d="M66 57 C62 33 98 26 95 55" fill="none" stroke="#fff6dc" stroke-width="1.2" stroke-linecap="round" opacity="0.8"/>` +
-      S.sun(80, 66, 17, '#ffb060', 12) +
-      S.motes(84, 30, 9, 14, '#ffe2a8', 1.2) +
-      S.glow(83, 30, 8, '#fff2c0', 0.8)
-    );
-  },
-  // A heat-exchange loop: hot on one side, cold on the other, the coolant running round it.
+  // A smooth, glowing star, a soft plume of plasma streaming off it.
+  solarFlare: (S) =>
+    S.glow(80, 56, 40, '#ff8a3a', 0.5) +
+    `<ellipse cx="80" cy="34" rx="9" ry="24" transform="rotate(28 80 56)" fill="${S.radial([[0, '#fff0c0', 0.95], [0.5, '#ffa04a', 0.6], [1, '#ff6a2a', 0]])}"/>` +
+    `<circle cx="80" cy="56" r="17" fill="${S.radial([[0, '#ffffff'], [0.35, '#fff1c4'], [0.75, '#ffa24a'], [1, '#f06a24']], 0.42, 0.38, 0.62)}"/>`,
+  // One loop, hot on one side and cold on the other.
   thermosiphon: (S) => {
-    const pipe = S.linear([[0, '#ff8a4a'], [0.45, '#ffd2a0'], [0.55, '#d8f0ff'], [1, '#5aa8ff']], 0, 0, 1, 0);
-    const arrows = [
-      [80, 24, 0],
-      [80, 76, 180],
-    ]
-      .map(([x, y, r]) => `<polygon points="${x - 4},${y - 3.5} ${x + 4},${y} ${x - 4},${y + 3.5}" fill="#fff" transform="rotate(${r} ${x} ${y})" opacity="0.95"/>`)
-      .join('');
+    const pipe = S.linear([[0, '#ff9a5a'], [0.5, '#f4f8ff'], [1, '#5aa8ff']], 0, 0, 1, 0);
     return (
-      S.glow(56, 50, 30, '#ff8a4a', 0.5) +
-      S.glow(104, 50, 30, '#7cc4ff', 0.55) +
-      `<ellipse cx="80" cy="50" rx="27" ry="26" fill="none" stroke="${pipe}" stroke-width="10" opacity="0.3"/>` +
-      `<ellipse cx="80" cy="50" rx="27" ry="26" fill="none" stroke="${pipe}" stroke-width="5.5"/>` +
-      `<ellipse cx="80" cy="50" rx="27" ry="26" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 6" opacity="0.85"/>` +
-      arrows +
-      // The exchanger at its heart: fins between the two sides.
-      [70, 76, 82, 88].map((x, i) => `<rect x="${x - 1.4}" y="38" width="2.8" height="24" rx="1.4" fill="${i < 2 ? '#ffd0a8' : '#d4ecff'}" opacity="0.9"/>`).join('') +
-      S.motes(108, 50, 8, 10, '#e8f6ff', 1) +
-      S.motes(52, 50, 6, 9, '#ffd8b0', 1)
+      S.glow(80, 50, 38, '#cfe6ff', 0.35) +
+      `<circle cx="80" cy="50" r="22" fill="none" stroke="${pipe}" stroke-width="6"/>`
     );
   },
-  // An armoured vault round a cold, bright core: it lets a sun take more heat before it bursts.
-  coolingChamber: (S) => {
-    const shell = S.linear([[0, '#e8f0fa'], [0.5, '#8ea2bc'], [1, '#3a4a62']], 0, 0, 1, 1);
-    const ribs = [0, 60, 120]
-      .map((a) => `<ellipse cx="80" cy="50" rx="25" ry="9" fill="none" stroke="#dfeaf8" stroke-width="1.3" stroke-opacity="0.75" transform="rotate(${a} 80 50)"/>`)
-      .join('');
-    return (
-      S.glow(80, 50, 44, '#bfe0ff', 0.4) +
-      S.hex(80, 50, 30, shell, '#f4f8ff', 0.95) +
-      S.hex(80, 50, 23, S.radial([[0, '#0e1a2e'], [1, '#22324c']]), '#9fb4d0', 1) +
-      ribs +
-      S.sun(80, 50, 9, '#cfe8ff', 6) +
-      S.glow(80, 50, 5, '#ffffff', 1) +
-      // Bolts on the shell's corners.
-      Array.from({ length: 6 }, (_, i) => {
-        const t = ((i * 60 + 30) * Math.PI) / 180;
-        return `<circle cx="${f(80 + Math.cos(t) * 26.5)}" cy="${f(50 + Math.sin(t) * 26.5)}" r="1.6" fill="#f4f8ff"/>`;
-      }).join('') +
-      S.crystal(48, 74, 12, 5, -20, '#d8ecff', 0.8) +
-      S.crystal(113, 72, 10, 4, 18, '#d8ecff', 0.75)
-    );
-  },
+  // A hexagonal vault round a cold, bright core.
+  coolingChamber: (S) =>
+    S.glow(80, 50, 38, '#bfe0ff', 0.35) +
+    S.hex(80, 50, 24, S.radial([[0, '#24364f'], [1, '#141e30']]), '#e6f0fc', 1) +
+    S.glow(80, 50, 12, '#e6f4ff', 0.95) +
+    `<circle cx="80" cy="50" r="5" fill="#ffffff"/>`,
 };
 
 /** An upgrade's picture, as an SVG filling its box. */
