@@ -936,6 +936,11 @@ export class App {
   // -------------------------------------------------------------------------
 
   private startPlay(uid: string) {
+    // Tapping the card that is waiting to be placed puts it back.
+    if (this.pending?.uid === uid) {
+      this.pending = null;
+      return this.render();
+    }
     const s = this.state!;
     const me = activePlayer(s);
     const card = me.hand.find((c) => c.uid === uid);
@@ -1636,6 +1641,8 @@ export class App {
     if (p.step === 'recover') return '';
     const rival = esc(targetOf(s, activePlayer(s))?.name.toLowerCase() ?? 'your target');
     const verb = { destroy: 'destroy', bounce: 'return to their hand', erode: 'erode' }[enemyEffectKind(card.defId) ?? 'destroy'];
+    // Placing a card needs no prompt: the open slots light up (tap the card again to put it back).
+    if (p.step === 'slot') return '';
     const text =
       p.step === 'enemy'
         ? `${name}: choose a card in ${rival}'s tableau to ${verb}`
@@ -1672,21 +1679,18 @@ export class App {
         ? `<button class="slot-empty slot-choosable" data-act="choose-slot" data-arg="${i}" title="Place it here: defence ${def}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
         : `<div class="slot-empty" title="Slot defence ${def}"><span class="slot-def">⛨${def}</span></div>`;
     }).join('');
-    // A face-down Lightspeed card: its owner can read it; everyone else sees its back.
+    // The Lightspeed slot, right of the tableau: a card set there lies face down (its owner can still read it). It has no defence.
     const ls = p.lightspeed;
     const lightspeed = ls
       ? side === 'mine'
-        ? `<button class="ls-chip" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).text)}">⚡ ${esc(cardDef(ls.defId).name.toLowerCase())}</button>`
-        : '<span class="ls-chip ls-hidden" title="A Lightspeed card is set face down. It springs during your turn.">⚡ face down</span>'
-      : '';
-    const label = side === 'mine' ? 'your tableau' : `${esc(p.name.toLowerCase())}'s tableau`;
-    const deck = p.deckName ? `<em>${esc(p.deckName.toLowerCase())}</em>` : '';
+        ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(cardDef(ls.defId).text)}"><span>⚡</span><small>lightspeed</small></button>`
+        : '<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your turn."><span>⚡</span><small>lightspeed</small></div>'
+      : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
-        <div class="tableau-label">${factionAvatar(`f${p.species + 1}`, 'tableau-emblem')}<span>${label}</span>${deck}<b>${p.tableau.length}/${BALANCE.tableauSlots}</b>${lightspeed}</div>
         <div class="tableau-row-wrap">
           <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
-          <div class="tableau-row">${slots}</div>
+          <div class="tableau-row">${slots}<div class="ls-slot">${lightspeed}</div></div>
           ${this.renderForecast(p)}
         </div>
       </div>`;

@@ -133,7 +133,7 @@ Some cards count their own neighbours instead:
 
 ## Lightspeed cards [design review]
 
-Lightspeed cards are played **face down**. They don't take a slot, and **only one can be face down at a time**. Rivals see only that one is set (⚡ by the owner's tableau and pill). The card springs **during an enemy's turn** when its trigger happens. It is revealed ("Lightspeed!"), resolves against that enemy ("your target" means them), and goes to your discard pile.
+Lightspeed cards are played **face down**. They don't take a slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies face down in the Lightspeed slot, right of its owner's five (that slot has no defence), and the owner's pill shows ⚡. The card springs **during an enemy's turn** when its trigger happens. It is revealed ("Lightspeed!"), resolves against that enemy ("your target" means them), and goes to your discard pile.
 
 | Card | Rarity | Springs when an enemy… | Effect |
 | --- | --- | --- | --- |

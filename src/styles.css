@@ -1840,7 +1840,8 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .table-view > .game {
   /* Tableau cards: eight across the board, capped by the height of half the board. */
   --boardw: calc(calc(100 * var(--vw)) - 2 * var(--inset) - var(--logw) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
-  --tcw: min(calc((var(--boardw) - 4 * clamp(6px, calc(1.4 * var(--vw)), 18px)) / 5), calc(var(--app-h, calc(100 * var(--vh))) * 0.3 * 0.714), 150px);
+  /* Five slots and the Lightspeed slot, set a little apart. */
+  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--app-h, calc(100 * var(--vh))) * 0.3 * 0.714), 150px);
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .table-view > .game { --logw: clamp(104px, calc(14 * var(--vw)), 180px); }
@@ -1858,7 +1859,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .tableau-mine { grid-row: 3; }
 .tableau-mine .tableau-label { order: 2; }
 .tableau-dead { opacity: 0.45; filter: grayscale(0.7); }
-.tableau-row { display: grid; grid-template-columns: repeat(5, var(--tcw)); gap: clamp(6px, calc(1.4 * var(--vw)), 18px); transform-style: preserve-3d; }
+.tableau-row { display: grid; grid-template-columns: repeat(6, var(--tcw)); gap: clamp(6px, calc(1.4 * var(--vw)), 18px); transform-style: preserve-3d; }
 .tableau-label {
   display: flex; align-items: center; gap: 6px;
   font-family: var(--display); font-size: clamp(0.46rem, calc(1.7 * var(--vh)), 0.64rem); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft);
@@ -2475,3 +2476,17 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-fuse-result { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 4px 0 10px; }
 .cmp-fuse-go { display: grid; gap: 10px; max-width: 300px; }
 .cmp-fuse-go p { margin: 0; color: var(--ink-soft); }
+
+/* The Lightspeed slot: right of the five, a little apart, with no defence; a card set there lies face down. */
+.ls-slot { margin-left: 12px; transform-style: preserve-3d; }
+.slot-ls { border-color: rgba(212, 149, 42, 0.4); color: rgba(193, 132, 28, 0.6); }
+.slot-ls .slot-def { font-size: max(12px, calc(var(--tcw) * 0.22)); }
+.card.card-back.ls-card { --cw: var(--tcw); padding: 0; cursor: pointer; transform: translateZ(8px); }
+.card.card-back.ls-hidden { cursor: default; animation: ls-glow 2.4s ease-in-out infinite; }
+@keyframes ls-glow { 50% { box-shadow: 0 6px 18px rgba(80, 84, 100, 0.16), 0 0 18px rgba(212, 149, 42, 0.55); } }
+
+/* The petal beside the board: fitted to its slot (the drawing used to overflow it, hanging low and off the
+   right edge), centred between the two tableaus and set a little further onto the board. */
+.backdrop.backdrop-board { top: 0; right: 0; bottom: 0; left: 0; width: auto; height: auto; }
+.backdrop.backdrop-board svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.star-dock .board-star-slot { left: 36%; }
