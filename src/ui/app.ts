@@ -2347,6 +2347,7 @@ export class App {
           ${this.renderDock()}
         </div>
         ${this.renderHud()}
+        ${this.renderTurnControls()}
         ${this.renderPickHint()}
         ${this.renderStage()}
         ${this.renderOverlay(s)}
@@ -2578,30 +2579,34 @@ export class App {
   }
 
   private renderDock(): string {
-    const s = this.state!;
     const me = this.viewer();
-    const act = this.canAct();
-    const busy = this.pending !== null;
     const hidden = this.needsHandoff();
     const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand.map((c) => this.renderCard(c, { hand: true })).join('');
-    const myTurn = activePlayer(s).id === me.id && !isGameOver(s);
-    const total = Math.max(me.playsLeft, myTurn ? playsAllowed(s, me) : 0);
-    const pips = myTurn
-      ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''}"></i>`).join('')
-      : '';
     return `
       <section class="dock">
         <div class="hand-zone">
           <div class="hand">${hand}</div>
         </div>
-        <div class="turn-controls">
-          <div class="plays ${myTurn ? '' : 'plays-off'}" title="Cards you may still play today">
-            <small>${myTurn ? `plays ${me.playsLeft}` : 'waiting'}</small>
-            <span class="plays-pips">${pips}</span>
-          </div>
-          <button class="btn-primary end-turn ${act && me.playsLeft === 0 ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
-        </div>
       </section>`;
+  }
+
+  /** The day's controls, off the board at the bottom right of the screen: actions left (as dots) and End Day. */
+  private renderTurnControls(): string {
+    const s = this.state!;
+    const me = this.viewer();
+    const act = this.canAct();
+    const busy = this.pending !== null;
+    const myTurn = activePlayer(s).id === me.id && !isGameOver(s);
+    const total = Math.max(me.playsLeft, myTurn ? playsAllowed(s, me) : 0);
+    const pips = myTurn ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''}"></i>`).join('') : '';
+    return `
+      <div class="turn-controls turn-corner">
+        <div class="plays ${myTurn ? '' : 'plays-off'}" title="Actions left today: each card you play uses one">
+          <small>${myTurn ? 'actions' : 'waiting'}</small>
+          <span class="plays-pips">${pips}</span>
+        </div>
+        <button class="btn-primary end-turn ${act && me.playsLeft === 0 ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
+      </div>`;
   }
 
   private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string }): string {
