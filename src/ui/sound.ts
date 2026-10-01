@@ -321,6 +321,10 @@ class SoundBoard {
     this.breath({ dur: 1.8, freq: 180, to: 1400, type: 'lowpass', q: 2, gain: 0.16, attack: 0.55 });
     this.voice(55, { dur: 1.8, attack: 0.5, gain: 0.12, to: 110, type: 'triangle', cutoff: 400 });
   }
+  /** Heat thrown at a rival: a short rising rush that leads into the strike (the strike is the blow). */
+  launch() {
+    this.breath({ dur: 0.5, freq: 400, to: 2200, type: 'bandpass', q: 1.2, gain: 0.06, attack: 0.3 });
+  }
   thermo() {
     // Frost settling: a descending hiss and crystalline shimmer.
     this.breath({ dur: 1.6, freq: 6000, to: 1200, type: 'bandpass', q: 1.5, gain: 0.05, attack: 0.3 });

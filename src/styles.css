@@ -1886,7 +1886,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   .card-table .card-name { margin-top: max(6px, calc(var(--cw) * 0.08)); font-size: max(5px, calc(var(--cw) * 0.085)); letter-spacing: 0.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 0; }
   .card-table .card-text { display: block; font-size: max(5px, calc(var(--cw) * 0.085)); line-height: 1.2; }
   .card-table .card-para { height: 0.25em; }
-  .card-table .card-opts { padding: 1px 2px; gap: 1px; }
+  .card-table .card-opts { gap: 1px; }
 }
 /* Growth counter (Mycelium Tower and the like). */
 .growth {
@@ -2216,8 +2216,8 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 /* Labels standing up off the board, turned to face you (placed by sun3d.ts). */
 .vit-heat { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 /* Flat on the board beyond the orbit, side by side: the planet facing the sun, and its shields. Under your rival's sun; above yours, clear of your upgrades. */
-.vit-under { position: absolute; left: 50%; top: calc(var(--vs) * 1.13); transform: translateX(-50%); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.tableau-mine .vit-under { top: calc(var(--vs) * -0.13); transform: translate(-50%, -100%); }
+.vit-under { position: absolute; left: 50%; top: calc(var(--vs) * 1.26); transform: translateX(-50%); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.tableau-mine .vit-under { top: calc(var(--vs) * -0.26); transform: translate(-50%, -100%); }
 .vit-shield-track { stroke: rgba(150, 164, 190, 0.22); stroke-width: 3.2; }
 .vit-shield-arc { stroke: #6d8cc2; stroke-width: 3.2; stroke-linecap: round; transition: stroke-dasharray 0.5s cubic-bezier(.2,.8,.2,1); filter: drop-shadow(0 0 3px rgba(110, 150, 220, 0.7)); }
 .vit:not(.vit-shielded) .vit-shield-arc { opacity: 0; }
@@ -2782,14 +2782,14 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .rules-head { margin: 18px 0 4px; font-family: var(--display); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; }
 
 /* A card's choices, one per line; when shown being played, the one picked lights up and the rest step back. */
-.card-opts { display: grid; gap: 0.18em; margin-top: 0.3em; padding: 3px 4px; }
-.card-opt { display: flex; align-items: center; gap: 0.4em; padding: 0.12em 0.5em; border-radius: 0.5em; background: rgba(139, 144, 155, 0.1); font-weight: 600; color: var(--ink); transition: opacity 0.2s, background 0.2s; }
+.card-opts { display: grid; gap: 0.18em; margin-top: 0.3em; }
+.card-opt { display: flex; align-items: center; gap: 0.4em; height: 1.6em; line-height: 1; font-size: 1em; padding: 0 0.5em; box-sizing: border-box; border-radius: 0.5em; background: rgba(139, 144, 155, 0.1); font-weight: 600; color: var(--ink); transition: opacity 0.2s, background 0.2s; }
 .card-opt i { font-style: normal; font-size: 0.8em; color: #8b909b; width: 1em; text-align: center; }
 .card-opt[data-opt="solarFlare"] i { color: #e0553a; }
 .card-opt[data-opt="thermosiphon"] i { color: #1e9bd7; }
 .card-opt[data-opt="coolingChamber"] i { color: #c05878; }
 .card-opts-chosen .card-opt { opacity: 0.38; }
-.card-opts-chosen .card-opt.on { opacity: 1; background: #fff4d6; box-shadow: inset 0 0 0 1.5px #d4a52a, 0 0 4px rgba(212, 165, 42, 0.5); }
+.card-opts-chosen .card-opt.on { opacity: 1; background: #fff4d6; box-shadow: inset 0 0 0 1.5px #d4a52a; }
 .card-opts-chosen .card-opt.on::after { content: '✓'; margin-left: auto; color: #b9861a; }
 
 /* Card text: every sentence starts a new paragraph. */
@@ -2830,6 +2830,16 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   font-family: var(--display); color: var(--ink);
 }
 .tpile-stack, .tpile-empty { position: absolute; inset: 0; }
+/* The hand count: a slim bar spanning both piles, above yours and below theirs, off the piles' centre line. */
+.tpile-hand {
+  position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 6px; height: max(20px, calc(var(--pw) * 0.26)); padding: 0 10px;
+  border-radius: 999px; background: rgba(250, 251, 253, 0.85); box-shadow: 0 0 0 1px rgba(140, 150, 175, 0.28), 0 2px 8px rgba(90, 90, 110, 0.1);
+  font-family: var(--display); color: var(--ink-soft); font-size: max(9px, calc(var(--pw) * 0.11)); letter-spacing: 0.14em; text-transform: uppercase;
+}
+.tpile-hand-mine { bottom: calc(100% + 8px); }
+.tpile-hand-rival { top: calc(100% + 8px); }
+.tpile-hand .hand-icon { width: 1.3em; height: 1.15em; flex: none; }
+.tpile-hand b { margin-left: auto; color: var(--ink); font-weight: 700; font-size: 1.25em; letter-spacing: 0; }
 .tpile-stack i { position: absolute; inset: 0; border-radius: calc(var(--tcw) * 0.07); background: linear-gradient(160deg, #ffffff, #e9e9e7); border: 1px solid #fff; box-shadow: 0 3px 10px rgba(90, 90, 110, 0.16); }
 .tpile-stack i:first-child { transform: rotate(-5deg) translate(-2px, 2px); }
 .tpile-stack i:last-child { transform: rotate(3deg); }
@@ -2851,7 +2861,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .choice-view .card-big { --pw: min(300px, calc(60 * var(--vh))); }
 .choice-hint { padding: 6px 16px; border-radius: 999px; background: #fff; box-shadow: var(--shadow); font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); }
 .card-opt-pick { cursor: pointer; pointer-events: auto; box-shadow: inset 0 0 0 1.5px rgba(139, 144, 155, 0.35); transition: background 0.15s, box-shadow 0.15s, transform 0.12s; }
-.card-opt-pick:hover { background: #fff4d6; box-shadow: inset 0 0 0 1.5px #d4a52a, 0 0 8px rgba(212, 165, 42, 0.4); transform: translateX(2px); }
+.card-opt-pick:hover { background: #fff4d6; box-shadow: inset 0 0 0 1.5px #d4a52a; }
 
 /* The day's controls: off the board, at the bottom right of the screen. */
 .turn-corner { position: fixed; right: var(--pad-r, 16px); bottom: max(14px, var(--pad-b, 14px)); z-index: 30; width: clamp(120px, calc(14 * var(--vw)), 190px); margin: 0 !important; }
+/* A staged rival card's aim at the card it will remove: under the stage, over the board. */
+.tether.tether-aim, .tether-halo.tether-aim { z-index: 14; }

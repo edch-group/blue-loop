@@ -24,7 +24,7 @@ import {
   keywordLabel,
   plainText,
   isGameOver,
-  needsSlot,
+  freeSlots,
   persists,
   baseStability,
   playsAllowed,
@@ -55,7 +55,7 @@ import { DeckBuilder } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
-import { anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
+import { aim, anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
@@ -110,6 +110,8 @@ interface Stage {
   confirm?: boolean;
   /** The option the player picked on a card with choices (a Command card's dawn effect): highlighted on it. */
   option?: string;
+  /** The rival card it will remove (destroy, return or erode): aimed at while it waits on the stage. */
+  target?: string;
 }
 
 /** Bottom sheets / dialogs that are not part of a pending move. */
@@ -148,6 +150,10 @@ const SHIELDING = '#a9b8ff';
 const PULSE_STEP = 720;
 /** The log button: lines of text in a page. */
 /** Cards in hand: a small fan of three cards. */
+/** The gap between cards dealt into the opening hand (and between faded cards leaving the table). */
+const DEAL_STEP_MS = 110;
+/** A faded card's way out: the deal's flight (520ms), played backwards into the discard pile. */
+const FADE_OUT = { duration: 520, easing: 'cubic-bezier(.8,.2,.8,.2)', endOpacity: 0 };
 const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
 /** Clicks that make their own sound (or none): moves on the table and picks on the map. */
 const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
@@ -205,6 +211,8 @@ export class App {
   private sheet: Sheet | null = null;
   /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
   private landing: (() => void) | null = null;
+  /** The staged rival card has played its arrival sound (so it does not sound again as it lands). */
+  private entranceHeard = false;
   /** A menu page is playing out (see leaveMenu); further clicks wait. */
   private menuLeaving = false;
   /** The page last drawn, so a new one can come in with a little rise. */
@@ -556,20 +564,35 @@ export class App {
     if (!actor) return null;
     const confirm = this.net.waitFor === 'you';
     if (last.faceDown) return { defId: 'null_field', actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down`, confirm };
-    if (last.played) return { defId: last.played, actorId: actor.id, confirm, option: last.action.type === 'playCard' ? last.action.choice : undefined };
+    if (last.played) return { defId: last.played, actorId: actor.id, confirm, option: last.action.type === 'playCard' ? last.action.choice : undefined, target: last.action.type === 'playCard' ? last.action.enemyUid : undefined };
     return null;
   }
 
   /** A rival's card arriving on the stage to be read: it flies in from their side of the board, with a sound. */
   private stageEntrance(actorId: string) {
     sound.play();
+    this.entranceHeard = true;
     // Auto-confirm: the card is shown for a moment, then lands by itself.
     const stage = this.stage;
     if (this.autoConfirm && stage?.confirm) window.setTimeout(() => this.stage === stage && this.confirmStage(), AUTO_CONFIRM_MS);
     const card = this.root.querySelector<HTMLElement>('.stage .card');
     const side = this.root.querySelector<HTMLElement>(`.tableau[data-owner="${actorId}"] .tableau-row`) ?? this.root.querySelector<HTMLElement>(`[data-anchor="pill:${actorId}"]`);
     if (card && side) flyFrom(card, pageRect(side), { duration: 560 });
+    // A removal card aims at what it will take, until it is confirmed (or the stage moves on).
+    this.unaim?.();
+    this.unaim = null;
+    const target = stage?.target;
+    if (target && stage?.confirm) {
+      const rect = (sel: string) => {
+        const el = this.root.querySelector(sel);
+        return el ? pageRect(el) : null;
+      };
+      this.unaim = aim(() => rect('.stage .card'), () => rect(`.tableau [data-uid="${target}"]`), { delay: 560, alive: () => this.stage === stage });
+    }
   }
+
+  /** Takes away a staged card's aim (see stageEntrance). */
+  private unaim: (() => void) | null = null;
 
   /**
    * Leaving a menu page: the button pressed lifts up and fades (a quick rise that eases off), the rest of
@@ -646,6 +669,8 @@ export class App {
   private confirmStage() {
     if (!this.stage?.confirm) return;
     this.stage = null;
+    this.unaim?.();
+    this.unaim = null;
     sound.click();
     if (this.online) {
       this.net.waitFor = null;
@@ -733,8 +758,8 @@ export class App {
   private dealOpening() {
     sound.shuffle();
     this.root.querySelectorAll<HTMLElement>('.hand [data-uid]').forEach((el, i) => {
-      this.dealCard(el, 350 + i * 110);
-      sound.draw(0.35 + i * 0.11);
+      this.dealCard(el, 350 + i * DEAL_STEP_MS);
+      sound.draw(0.35 + (i * DEAL_STEP_MS) / 1000);
     });
   }
 
@@ -835,6 +860,9 @@ export class App {
   }
 
   private quitToMenu() {
+    this.entranceHeard = false;
+    this.unaim?.();
+    this.unaim = null;
     this.landing = null;
     this.leaveOnline();
     this.campaignBattle = false;
@@ -872,7 +900,7 @@ export class App {
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
     if (cardDef(card.defId).kind === 'lightspeed') return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
-    return { defId: card.defId, actorId: actor.id, option: action.choice };
+    return { defId: card.defId, actorId: actor.id, option: action.choice, target: action.enemyUid };
   }
 
   /** A Lightspeed card that just sprang (revealed from face down into its owner's discard pile), announced for everyone. */
@@ -1011,6 +1039,7 @@ export class App {
     // A day's start replays its effects one by one (see replayPulses); cards that faded go once it has.
     const pulses = endingTurn && !reducedMotion() ? (next.turnPulses ?? []).filter((p) => p.kind !== 'start') : [];
     const replayEnd = pulses.length ? this.replayPulses(next, prev, before) : 0;
+    let faded = 0;
     before.cards.forEach((old, uid) => {
       if (root.querySelector(`[data-uid="${uid}"]`)) return;
       let to: DOMRect | null = null;
@@ -1026,7 +1055,12 @@ export class App {
       const at = removalAt.get(uid);
       if (at !== undefined && this.lingerInSlot(prev, uid, old.html, at)) return;
       // A card that faded at dawn stays in its slot while the day's effects play out, then goes.
-      if (replayEnd > 0 && this.fadeFromSlot(prev, uid, old.html, replayEnd, to, { w: old.w, h: old.h })) return;
+      if (replayEnd > 0 && this.fadeFromSlot(prev, uid, old.html, replayEnd, to, { w: old.w, h: old.h }, faded++)) return;
+      // Faded at a dawn with nothing to replay: still one at a time.
+      if (endingTurn && prev.players.some((p) => p.tableau.some((c) => c.uid === uid))) {
+        ghost(old.html, old.rect, to, { size: { w: old.w, h: old.h }, ...FADE_OUT, delay: 200 + faded++ * DEAL_STEP_MS });
+        return;
+      }
       ghost(old.html, old.rect, to, { size: { w: old.w, h: old.h } });
     });
 
@@ -1095,7 +1129,7 @@ export class App {
         const at = a && b ? projectile(a, b, HOT, { delay: delay + 110 * volley++, size: 34 }) : delay;
         hit(p.id, at, true);
       }
-      if (volley) window.setTimeout(() => sound.flare(), delay);
+      if (volley) window.setTimeout(() => sound.launch(), delay);
       const me = next.players.find((p) => p.id === source.id)!;
       const meWas = prev.players.find((p) => p.id === source.id)!;
       if (me.heat !== meWas.heat || me.shields > meWas.shields) {
@@ -1106,7 +1140,9 @@ export class App {
 
     switch (action.type) {
       case 'playCard': {
-        sound.play();
+        // (A rival's card already sounded as it arrived on the stage.)
+        if (!this.entranceHeard) sound.play();
+        this.entranceHeard = false;
         const played = prev.players.find((p) => p.id === actor.id)!.hand.find((c) => c.uid === action.cardUid);
         if (played && cardDef(played.defId).kind === 'command') {
           window.setTimeout(() => sound.upgrade(), delay);
@@ -1228,7 +1264,7 @@ export class App {
       }
       window.setTimeout(() => {
         if (id !== this.replayId) return;
-        if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') sound.flare();
+        if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') sound.launch();
         else if (ps.kind === 'cool') sound.thermo();
         else if (ps.kind === 'draw') sound.draw();
       }, at + 120);
@@ -1304,7 +1340,7 @@ export class App {
    * A card that faded at dawn: a copy stays in its slot (in the table's perspective, as it was) until
    * `at`, while its last effects play out, then flies to where it went. False if its slot isn't on the table.
    */
-  private fadeFromSlot(prev: GameState, uid: string, html: string, at: number, to: DOMRect | null, size: { w: number; h: number }): boolean {
+  private fadeFromSlot(prev: GameState, uid: string, html: string, at: number, to: DOMRect | null, size: { w: number; h: number }, order = 0): boolean {
     const owner = prev.players.find((p) => p.tableau.some((c) => c.uid === uid));
     const slot = owner?.tableau.find((c) => c.uid === uid)?.slot;
     const cell = owner && slot !== undefined ? this.root.querySelector(`.tableau[data-owner="${owner.id}"] .tableau-row`)?.children[slot] : null;
@@ -1317,12 +1353,14 @@ export class App {
     copy.classList.remove('card-choosable', 'lifted');
     const empty = cell as HTMLElement;
     empty.replaceWith(copy);
+    // They leave one at a time, like the opening hand dealt in reverse: each lifts off and speeds into the pile.
     window.setTimeout(() => {
       if (!copy.isConnected) return;
       const from = pageRect(copy);
       copy.replaceWith(empty);
-      ghost(html, from, to, { size });
-    }, at);
+      ghost(html, from, to, { size, ...FADE_OUT });
+      sound.draw();
+    }, at + order * DEAL_STEP_MS);
     return true;
   }
 
@@ -1433,7 +1471,8 @@ export class App {
     }
     if (allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
-    if (needsSlot(me, card.defId) && p.slot === undefined) return ask('slot');
+    // Even the last open slot is clicked to confirm (a misclicked card is never played outright).
+    if (persists(card.defId) && freeSlots(me).length > 0 && p.slot === undefined) return ask('slot');
     this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot });
   }
 
@@ -2544,7 +2583,11 @@ export class App {
     const discard = top
       ? `<span class="tpile-face">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span><b class="tpile-count">${p.discard.length}</b>`
       : `<span class="tpile-empty"></span><b>0</b><small>discard</small>`;
+    // How many cards they hold: a little bar above your piles, below theirs (the board stays a mirror).
+    const n = p.hand.length;
+    const hand = `<div class="tpile-hand tpile-hand-${side}" title="${mine ? 'Cards in your hand' : `Cards in ${esc(p.name)}'s hand`}">${HAND_ICON}<span>hand</span><b>${n}</b></div>`;
     return `<div class="tableau-piles">
+      ${hand}
       ${mine ? `<button class="tpile tpile-open" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck: look at what's left">${deck}</button>` : `<div class="tpile" data-anchor="deck:${p.id}" title="Cards left in ${esc(p.name)}'s deck">${deck}</div>`}
       <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile: look through it">${discard}</div>
     </div>`;

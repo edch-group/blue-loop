@@ -59,7 +59,7 @@ export function flyFrom(el: HTMLElement, from: DOMRect, opts: { delay?: number; 
 }
 
 /** A copy of a removed element flies from where it was to a target rect, then vanishes. */
-export function ghost(html: string, from: DOMRect, to: DOMRect | null, opts: { delay?: number; duration?: number; size?: { w: number; h: number } } = {}) {
+export function ghost(html: string, from: DOMRect, to: DOMRect | null, opts: { delay?: number; duration?: number; size?: { w: number; h: number }; easing?: string; endOpacity?: number } = {}) {
   if (reducedMotion()) return;
   const holder = document.createElement('div');
   holder.innerHTML = html;
@@ -97,9 +97,9 @@ export function ghost(html: string, from: DOMRect, to: DOMRect | null, opts: { d
   const anim = el.animate(
     [
       { transform: `scale(${sx}, ${sy})`, opacity: 1 },
-      { transform: `translate(${dx}px, ${dy}px) scale(${sx * s}, ${sy * s})`, opacity: to ? 0.2 : 0 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${sx * s}, ${sy * s})`, opacity: opts.endOpacity ?? (to ? 0.2 : 0) },
     ],
-    { duration: opts.duration ?? 460, delay: opts.delay ?? 0, easing: 'cubic-bezier(.5,0,.3,1)', fill: 'both' },
+    { duration: opts.duration ?? 460, delay: opts.delay ?? 0, easing: opts.easing ?? 'cubic-bezier(.5,0,.3,1)', fill: 'both' },
   );
   anim.onfinish = () => el.remove();
 }
@@ -223,4 +223,55 @@ function drawTether(from: DOMRect, to: DOMRect, draw: number, hold: number) {
   Object.assign(halo.style, { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px` });
   document.body.appendChild(halo);
   halo.animate([{ opacity: 0 }, { opacity: 1, offset: 0.3 }, { opacity: 0 }], { duration: hold + 300, delay: delay + draw - 80, fill: 'both' }).onfinish = () => halo.remove();
+}
+
+/**
+ * A held aim: the arc from a card waiting on the stage to the card it will remove, drawn once and kept
+ * (following both as the board moves) until the returned function takes it away.
+ */
+export function aim(source: () => DOMRect | null, target: () => DOMRect | null, opts: { delay?: number; alive?: () => boolean } = {}): () => void {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('class', 'tether tether-aim');
+  svg.innerHTML = '<path class="tether-glow"/><path class="tether-line"/>';
+  const halo = document.createElement('div');
+  halo.className = 'tether-halo tether-aim';
+  let frame = 0;
+  let gone = false;
+  const place = () => {
+    if (opts.alive && !opts.alive()) return stop();
+    const from = source(), to = target();
+    svg.style.visibility = halo.style.visibility = from && to ? '' : 'hidden';
+    if (from && to) {
+      const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2;
+      const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
+      const dx = x1 - x0, dy = y1 - y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const bow = Math.min(160, len * 0.32);
+      const cx = (x0 + x1) / 2 - (dy / len) * bow, cy = (y0 + y1) / 2 + (dx / len) * bow - bow * 0.3;
+      const d = `M${x0.toFixed(1)} ${y0.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+      for (const path of svg.querySelectorAll('path')) path.setAttribute('d', d);
+      Object.assign(halo.style, { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px` });
+    }
+    frame = requestAnimationFrame(place);
+  };
+  const start = window.setTimeout(() => {
+    if (gone) return;
+    document.body.append(svg, halo);
+    place();
+    if (reducedMotion()) return;
+    for (const path of svg.querySelectorAll('path')) {
+      const L = path.getTotalLength();
+      path.animate([{ strokeDasharray: `0 ${L + 1}` }, { strokeDasharray: `${L + 1} 0` }], { duration: 420, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'both' });
+    }
+    halo.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 340, fill: 'both' });
+  }, opts.delay ?? 0);
+  const stop = () => {
+    gone = true;
+    window.clearTimeout(start);
+    cancelAnimationFrame(frame);
+    svg.remove();
+    halo.remove();
+  };
+  return stop;
 }

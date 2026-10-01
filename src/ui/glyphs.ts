@@ -276,7 +276,7 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
  * and heat, cool and shields as symbols. Hovering one (in the deck builder and
  * the shop) explains it; in a game the zoomed card lists the explanations alongside.
  */
-export function cardTextHtml(text: string, chosen?: string): string {
+export function cardTextHtml(text: string, chosen?: string, inline = false): string {
   const parts = textParts(text);
   // Nothing but a few symbols ("Heat 2", "Heat 2. Cool 1"): they sit in the middle of the text box.
   const symbols = parts.filter((p) => 'kw' in p);
@@ -288,12 +288,12 @@ export function cardTextHtml(text: string, chosen?: string): string {
       // A card's choices, one per line: the one picked (as the card is played) stands out.
       if (p.kw === 'options')
         return `<span class="card-opts${chosen ? ' card-opts-chosen' : ''}">${optionList(p.value)
-          .map((o) => `<span class="card-opt${o === chosen ? ' on' : ''}" data-opt="${escText(o)}">${cardTextHtml(optionText(o))}</span>`)
+          .map((o) => `<span class="card-opt${o === chosen ? ' on' : ''}" data-opt="${escText(o)}">${cardTextHtml(optionText(o), undefined, true)}</span>`)
           .join('')}</span>`;
       return keywordHtml(p.kw, p.value, { data: true });
     })
     .join('');
-  return only ? `<span class="card-text-mid">${html}</span>` : html;
+  return only && !inline ? `<span class="card-text-mid">${html}</span>` : html;
 }
 
 /** Between a card's sentences: a paragraph break. */
