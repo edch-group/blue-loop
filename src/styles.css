@@ -713,9 +713,11 @@ input { font: inherit; }
 .pips i.on { background: #7d8189; }
 .track-weapons, .track-defences, .track-economy, .track-resources { color: var(--ink); }
 
-.inspector { display: flex; gap: 20px; align-items: center; animation: rise 0.2s ease-out; }
-.inspector .card-big { --pw: min(280px, calc(62 * var(--vh))); }
-.inspector-actions { display: grid; gap: 10px; min-width: 150px; justify-items: stretch; text-align: center; }
+.inspector { display: flex; flex-direction: column; gap: clamp(10px, calc(2.4 * var(--vh)), 18px); align-items: center; animation: rise 0.2s ease-out; }
+.inspector .card-big { --pw: min(280px, calc(56 * var(--vh))); }
+/* The card and its explanations centred side by side; the buttons centred beneath. */
+.inspector-actions { display: flex; gap: 10px; justify-content: center; }
+.inspector-actions > * { min-width: 140px; }
 .menu-list { display: grid; gap: 8px; min-width: 240px; }
 /* Settings sheets: two columns, so the whole list fits a phone held sideways without scrolling. */
 .modal .menu-list { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
@@ -2757,7 +2759,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .kw-list { display: grid; gap: 8px; align-content: start; max-width: 260px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 10px 30px rgba(70, 76, 100, 0.18); font-size: 0.74rem; line-height: 1.35; color: var(--ink-soft); }
 .kw-list > div { display: grid; gap: 2px; }
 .kw-list .kw { font-size: 0.86rem; }
-.inspector-row { display: flex; align-items: center; gap: 16px; }
+.inspector-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .zoom-card { display: flex; align-items: center; gap: 16px; }
 .card-preview .kw-list { position: absolute; right: calc(100% + 12px); top: 0; width: 220px; }
 .kw-rules { display: grid; gap: 8px; margin: 8px 0 0; }
