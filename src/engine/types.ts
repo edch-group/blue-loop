@@ -20,10 +20,6 @@ export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', '
 export type Rarity = 'dwarf' | 'stellar' | 'anomaly';
 export const RARITIES: readonly Rarity[] = ['dwarf', 'stellar', 'anomaly'];
 
-/** The three core upgrades. Command cards raise them; they buff your whole deck. */
-export type CoreAction = 'solarFlare' | 'thermosiphon' | 'coolingChamber';
-export const CORE_ACTIONS: readonly CoreAction[] = ['solarFlare', 'thermosiphon', 'coolingChamber'];
-
 /** Global cards change the table for everyone while they are in play. Only one can be in play at a time. */
 export type FieldId = 'solarStorm' | 'iceAge' | 'solarMaximum';
 
@@ -33,8 +29,6 @@ export type Count =
   | { of: 'kind'; kind: CardKind; per?: number }
   /** Every card in your tableau, divided by `per`. */
   | { of: 'cards'; per?: number }
-  /** Your upgrades on a core action. */
-  | { of: 'upgrades'; action: CoreAction }
   /** Your current shields, divided by `per`. */
   | { of: 'shields'; per?: number }
   /** This card's growth counter. */
@@ -52,8 +46,6 @@ export type Condition =
   | { minKind: CardKind; n: number }
   /** You control at least `n` cards. */
   | { minCards: number }
-  /** You have at least one upgrade on this core action. */
-  | { upgraded: CoreAction }
   /** The planet facing your sun today (see Orbit). */
   | { planet: Planet };
 
@@ -76,8 +68,6 @@ export type Effect = (
   | { type: 'grow'; max: number }
   /** Your other growing cards grow by 1 (up to their own limits). */
   | { type: 'growOthers' }
-  /** Command cards: upgrade a core action ('choice': the player picks). */
-  | { type: 'upgrade'; action: CoreAction | 'choice' }
   /**
    * Destroy a card of your choice in your target's tableau: of a kind, if given, and with at most
    * `maxDefence` defence, if given. `neighbours`: the cards either side of it go back to their owner's hand.
@@ -158,6 +148,11 @@ export interface CardDef {
   onPlay?: Effect[];
   /** At each of your dawns while this card is in your tableau. */
   onTurn?: Effect[];
+  /**
+   * A choice made when the card is played (Command cards): one of these is added to its dawn effects
+   * for as long as it stays in your tableau. The ids are written into its text as `{options:id|id|…}`.
+   */
+  choices?: { id: string; onTurn: Effect[] }[];
   /** When this card leaves your tableau (replaced, destroyed or returned to hand). */
   onLeave?: Effect[];
   /** When this card is recovered from your discard pile to your hand. */
@@ -183,6 +178,8 @@ export interface CardInstance {
   slot?: number;
   /** In a tableau: days left before it fades into its owner's discard pile. */
   stability?: number;
+  /** In a tableau: the choice it was played with (Command cards), which it keeps until it leaves. */
+  choice?: string;
 }
 
 /** Battle modifiers from the campaign map (anomalies, garrisons). */
@@ -220,8 +217,6 @@ export interface PlayerState {
   deckName?: string;
   heat: number;
   shields: number;
-  /** Command upgrades on each core action. */
-  upgrades: Record<CoreAction, number>;
   deck: CardInstance[];
   hand: CardInstance[];
   /**
@@ -298,8 +293,6 @@ export interface PlayerSetup {
   species?: number;
   /** Campaign battles: heat carried in (damage taken earlier, or a garrison's bombardment). */
   heatDelta?: number;
-  /** Campaign battles: upgrades the player starts with (from garrisoned Command cards). */
-  upgrades?: Partial<Record<CoreAction, number>>;
   /** Campaign battles: a one-off head start (from a garrison). */
   opening?: { shields?: number; draw?: number };
   /** Campaign battles: cards already in the tableau when the battle starts (a garrison). */
@@ -321,8 +314,8 @@ export type Action =
       cardUid: string;
       /** Which empty slot of your tableau the card goes in (default: the most defended one free). */
       slot?: number;
-      /** Command Directive: which core action to upgrade. */
-      upgrade?: CoreAction;
+      /** A card with choices (Command cards): the one picked. */
+      choice?: string;
       /** Destroy and bounce effects: the card in your target's tableau. */
       enemyUid?: string;
       /** Recall and restore effects: the card of yours they act on. */

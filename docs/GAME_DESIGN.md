@@ -85,7 +85,7 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 
 - Every sun starts at the dead planet. The orbit moves on one step at each of your dawns: three steps per planet, nine for the whole orbit.
 - **Orbit cards** move an orbit on or back, yours or your rival's, and the change counts from your next day. "Orbit +3" swings the next planet round; "your rival's orbit −2" holds their next planet back (and from their dead planet's first day, it wraps round to their industrial planet).
-- Some cards are **stronger while a planet faces your sun** (a scaling bonus, so upgrades and attack bonuses count once).
+- Some cards are **stronger while a planet faces your sun** (a scaling bonus, so attack bonuses count once).
 - Each sun sits on the board at the left end of its tableau row: the top half of a sphere rising out of the board, slowly turning, its surface mottled with granulation, deep orange where it faces you and white-hot at its outline (as in a photograph of the Sun), with a flickering corona of flames across the board round its base. Round it, flat on the board, lie its orbit ring (three markers for the current planet's three turns: done, now, still to come) and inside that its shield and heat rings. Its planets are half-spheres in the board on the orbit, all the same size, lit from the sun's side, passing behind it. The orbit turns clockwise, and a change (at the start of a day, or from a card) is seen: the planets swing round a notch at a time, and the planet facing the sun lays a trail in its colour along the notches it has passed (the dead planet a grey one, and so on), which fades as it swings away and the next planet comes in. Flat on the board beyond the orbit lie a tag naming the facing planet and its days left, and the sun's shields: under your rival's sun, above yours. (Sun and planets are ray-traced onto a canvas lying on the board: each pixel's line of sight from the viewer's eye, worked out from the table's perspective, either meets a ball or reaches the board, so they look truly solid without making the board itself a 3D scene, which is slow.)
 - Between the tableaus (beneath your rival's, above yours, centred on each), its owner's next dawn as symbols: ✹ heat to their rival, ⛨ shields, ❄ cooling, ☀ heat to their own sun from their cards and the table, ≋ regional instability, extra cards and extra plays (details in each one's tooltip). Instability is counted for the round that turn falls in: whoever moves first in a round takes the next round's amount, so the top bar shows both this round's and the next ("regional instability +2 · next round +3").
 
@@ -133,23 +133,19 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 
 ## Command cards
 
-Each Command card upgrades a core stat for your **whole deck**, permanently. Command cards **stay in your tableau** like any other card and take a slot. When one fades or is destroyed, it goes to your discard pile. Play one again and it upgrades again, so full upgrades are reachable. [design review]
+Every deck has exactly 2 Command cards: its steady engines. There are **no permanent upgrades** (the old Solar Flare, Thermosiphon and Cooling Chamber are gone, and with them the deck-wide buffs and the extra max health). [design review]
 
-| Upgrade | Effect per level | Max |
-| --- | --- | --- |
-| Solar Flare | Every heat effect from your **attack cards** deals +1 | 3 |
-| Thermosiphon | Every cooling effect from your cards cools +1 | 3 |
-| Cooling Chamber | +6 max health | 3 |
-
-The standard Command card is **Command Directive**: choose any of the three upgrades. Every starter deck runs two. The other Command cards are fine-tuned alternatives a player can swap in. Each gives one fixed upgrade plus an effect **while it stays in your tableau**, which gives a reason to keep it there. [design review: commands stay general unless you swap in a fine-tuned one]
+- **A choice as you play it.** Command Directive and The Admiralty ask you to pick one dawn effect, which the card keeps for as long as it stays: **heat 2** (your rival's sun), **cool 3** (your sun) or **draw 1**. The card shows all three; the one picked is highlighted (on the table, and on the stage as a rival plays it).
+- **A full term.** Every Command card has stability 3, whatever it does, so cards that want a Command card in play can count on one.
+- **Never back to your own hand.** Command cards can't be recalled (Phase Shift, Recall Beacon, Shard Recall) or recovered from the discard pile (Salvage Drone and the rest). A rival can still send one back to its owner's hand (Tractor Beam, Event Horizon), and Command Breaker destroys one.
 
 | Card | Rarity | Effect |
 | --- | --- | --- |
-| Command Directive | White Dwarf | Choose any upgrade |
-| Ignition Protocol | Stellar | Solar Flare upgrade. Dawn: heat your target by 1 |
-| Coolant Protocol | Stellar | Thermosiphon upgrade. Dawn: cool your sun by 1 |
-| Chamber Protocol | Stellar | Cooling Chamber upgrade. Dawn: gain 1 shield |
-| The Admiralty | Anomaly | Choose any upgrade. Resonance: cards next to it get +1 |
+| Command Directive | White Dwarf | Dawn, one of: heat 2, cool 3, draw 1 |
+| Ignition Protocol | Stellar | Heat 1. Dawn: heat 2 |
+| Coolant Protocol | Stellar | Cool 1. Dawn: cool 2 |
+| Chamber Protocol | Stellar | Shields 2. Dawn: shields 2 |
+| The Admiralty | Anomaly | Resonance 1. Dawn, one of: heat 2, cool 3, draw 1 |
 
 **Keeping Command cards in play** is rewarded by:
 - Standing Orders: draw 1; dawn, draw 1 if you control a Command card.
@@ -158,7 +154,9 @@ The standard Command card is **Command Directive**: choose any of the three upgr
 
 Decks hold only 2 Command cards, so these ask for one, not two, and do something without one.
 
-**Replaying Command cards.** Phase Shift returns one of your cards to your hand and gives the play back, so a Command card can be recalled and played again for another upgrade. Command Breaker is the answer: it destroys a Command card in your target's tableau.
+**Answering Command cards.** Command Breaker destroys a Command card in your target's tableau; Tractor Beam and Event Horizon can send one back to its owner's hand (it can be played again, with a new choice).
+
+**Why the change, and what the simulator says (1000 games).** Permanent upgrades were opaque and snowballed, and a Command card fading after a day made the cards that want one in play weak. As choose-one dawn cards with a full term, they are easier to read. But the upgrades did one useful job: Solar Flare's +1 on every attack was what let attack-heavy decks break through shield decks. Without it, Abyssal Tide sits behind its shields at 0–4 heat (and the AI mostly picks cool 3 for its Commands), so Tide beats Shard Overload about 85% of the time. Tried and kept: Bell Warden 2 shields a dawn (was 3), Shard Reactor heats its own sun by 1 (was 2), Ember Shard 3 heat (was 2), and no extra opening card for the second seat (seats were 43/57 with it, as games run longer now). Result: Tide 60%, Hive 52%, Lancers 49%, Overload 42%; seats 49/51; about 13 rounds a game (was 11). Cool 2 in place of cool 3 sinks Hive Bloom (~20%), which leans on cooling; raising max health to 27 or 30 only made games longer. Open question: give attack decks a way through shields (a heat option that pierces them, say), or trim Tide's shields further.
 
 ## Resonance [design review]
 
@@ -220,7 +218,7 @@ Cards that only worked alongside others (a count of a card type, Command cards, 
 
 The game's recurring mechanics are **keywords**: a coloured word on the card with its number, always in title case (**Sturdy 1**, **Resonance 2 · 1**, **Erode 2**, **Recover Attack**, **Destroy 2** (2 or less defence)). The three most common effects are **symbols** instead of words, so card text stays very short: **heat** (two red chevrons up), **cool** (two blue chevrons down) and **shields** (a shield), each with its number. "At dawn, heat your rival's sun by 3" reads **Dawn: ⏶3**. Heat goes to the rival's sun unless the card says "to your sun".
 
-Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoomed card (with no hover pop-up there, since the explanations are already beside it); in the deck builder and the shop, on hover; and on the rules page (How to Play → Keywords), which lists them all. The zoomed card also explains its stability and defence badges, and the rules its text names in plain words (`TEXT_RULES`: upgrades, Command cards, leaving the tableau, facing a planet, cancelling, max health).
+Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoomed card (with no hover pop-up there, since the explanations are already beside it); in the deck builder and the shop, on hover; and on the rules page (How to Play → Keywords), which lists them all. The zoomed card also explains its stability and defence badges, and the rules its text names in plain words (`TEXT_RULES`: choose-one cards, Command cards, leaving the tableau, facing a planet, cancelling, max health).
 
 **How to Play** is a sheet of tabs (Overview, Your Day, Tableau, Sun & Orbit, Card Types, Keywords, Progress), each a handful of short facts rather than paragraphs.
 
@@ -399,6 +397,8 @@ The game is always landscape.
 - **Web version held upright** (browsers can't lock orientation on iPhone): the page draws itself sideways. It re-measures until a rotation settles, then re-lays out the hand and map.
 - **Android and full-screen browsers that allow it:** the app also requests a real lock.
 
+**Ending the day.** Enter ends your day; with plays still left (and a card that could go in), it asks first. [design review]
+
 ## Online 1v1 [design review]
 
 Two players, each on their own device. From **Quickplay → play online**, one player creates a room and sends the five-letter code or the invite link; the other joins with it. The game starts as soon as both are in.
@@ -460,7 +460,7 @@ On the table:
   - The sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring.
   - When your own sun takes enemy heat, the edges of the screen burn red with a heavy low blow. Heat you deal lands with a bright crack, and shields that block ring with a glassy clang.
   - Numbers on a sun keep their old value until the bolt lands.
-- **Dawn forecast, symbols centred between the tableaus.** They show what that player's next dawn will do, net of all their cards. Heat at their rival, shields, cooling, heat to their own sun, extra cards and extra plays, each as a symbol and number. The totals include resonance, upgrades, growth, conditions, the global card, regional instability and the map, before shields or Lightspeed cards answer. Everyone can see what's coming and respond to it. [design review]
+- **Dawn forecast, symbols centred between the tableaus.** They show what that player's next dawn will do, net of all their cards. Heat at their rival, shields, cooling, heat to their own sun, extra cards and extra plays, each as a symbol and number. The totals include resonance, Command cards' choices, growth, conditions, the global card, regional instability and the map, before shields or Lightspeed cards answer. Everyone can see what's coming and respond to it. [design review]
 - **Removal is shown before it happens.** A glowing white arc draws from the removing card to each card it destroys, returns or erodes. The target glows under it while the arc holds, then a destroyed card dissolves in its slot and a returned card flies back to its owner's hand. [design review]
 - The rotating white star lies on the right of the table.
 - Your hand fans along the bottom, with your deck and discard piles either side.
@@ -479,7 +479,7 @@ A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their 
 
 **Dawn, effect by effect.** When a day starts, its effects play out one after the other, in the order they happen: regional instability (from the top of the screen), the table, then each card left to right. Each card lights up as it fires, and its effect flies from it to the sun it reaches: a flare of heat to the rival's sun (or its own, for a drawback), a cooling beam or a shield beam to its owner's. That sun's numbers change as it lands, with what changed floating over it. A card on its last turn fires, then fades once the replay is done. The AI waits for its dawn to finish before it plays.
 
-**Reading the rival's cards.** Each card a rival plays (or sets face down) waits at the middle right with an "OK" button. Its effects only happen once you press it (then the card lands and its heat, cooling and so on play out), and the rival goes on after that, so there is time to read every card. Against the AI, it waits for you. Online, the room holds the player who played the card ("<rival> is reading your card…") until their rival confirms, unless the rival disconnects. Hot-seat games skip this, since both players share the screen. [design review]
+**Reading the rival's cards.** Each card a rival plays (or sets face down) flies in from their side of the board (with a sound) and waits at the middle right with an "OK" button (or press Enter). With **auto-confirm** on (settings), it waits 2 seconds and lands by itself. Its effects only happen once you press it (then the card lands and its heat, cooling and so on play out), and the rival goes on after that, so there is time to read every card. Against the AI, it waits for you. Online, the room holds the player who played the card ("<rival> is reading your card…") until their rival confirms, unless the rival disconnects. Hot-seat games skip this, since both players share the screen. [design review]
 
 ## Campaign mode
 
@@ -511,7 +511,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 
 **The deck.** Your campaign deck is always a legal 20-card deck. Cards you win or buy wait in your **reserve**. You swap a reserve card in for a deck card, as long as the deck stays legal.
 
-**Garrisons.** Send up to 3 reserve cards to a system you control. They take a day to arrive and a day to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau**, a stationed Command card gives its upgrade instead, and a stationed Lightspeed card starts the battle set face down (only one). If the system falls, the conqueror takes them. [design review: garrisoned cards defend a system]
+**Garrisons.** Send up to 3 reserve cards to a system you control. They take a day to arrive and a day to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau** (a Command card with its first choice), and a stationed Lightspeed card starts the battle set face down (only one). If the system falls, the conqueror takes them. [design review: garrisoned cards defend a system]
 
 **Anomalies** now give battle modifiers:
 

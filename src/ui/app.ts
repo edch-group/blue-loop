@@ -1,6 +1,4 @@
 import {
-  ACTION_NAME,
-  ACTION_TEXT,
   activeGlobal,
   activePlayer,
   applyAction,
@@ -16,7 +14,6 @@ import {
   xpToNext,
   canSetLightspeed,
   cardDef,
-  cardNeedsUpgradeChoice,
   chooseAIAction,
   createGame,
   enemyChoices,
@@ -27,13 +24,14 @@ import {
   keywordLabel,
   plainText,
   isGameOver,
-  MAX_UPGRADES,
   needsSlot,
   persists,
   baseStability,
   playsAllowed,
   RACE_NAMES,
   allyChoices,
+  cardChoices,
+  optionText,
   allyEffectKind,
   cardDefence,
   recoverChoices,
@@ -42,18 +40,16 @@ import {
   hasRoomFor,
   targetOf,
   turnForecast,
-  upgradeOptions,
   type Action,
   type BoosterCard,
   type BoosterKind,
   type CardInstance,
   type CardKind,
-  type CoreAction,
   type GameState,
   type PlayerSetup,
   type PlayerState,
 } from '../engine';
-import { actionChip, actionTile, roman, sunOrb, vitals } from './art';
+import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
 import { DeckBuilder } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
@@ -84,7 +80,7 @@ const HUB_ICONS = {
 type Speed = 'slow' | 'normal' | 'fast';
 
 /**
- * A card the player is playing that still needs choices: which upgrade
+ * A card the player is playing that still needs choices: which option
  * (Command Directive), which rival card to destroy or return (Ion Cannon,
  * Tractor Beam), which of their own cards to replace when their tableau is
  * full, which to recall (Phase Shift), what to recover from the discard pile
@@ -93,8 +89,9 @@ type Speed = 'slow' | 'normal' | 'fast';
  */
 interface Pending {
   uid: string;
-  step: 'upgrade' | 'enemy' | 'ally' | 'recover' | 'slot';
-  upgrade?: CoreAction;
+  step: 'choice' | 'enemy' | 'ally' | 'recover' | 'slot';
+  /** A Command card's option. */
+  choice?: string;
   enemyUid?: string;
   allyUid?: string;
   recoverUid?: string;
@@ -111,7 +108,7 @@ interface Stage {
   faceDown?: boolean;
   /** A rival's card the viewer must confirm they have read before the rival goes on. */
   confirm?: boolean;
-  /** The option the player picked on a card with choices (a Command card's upgrade): highlighted on it. */
+  /** The option the player picked on a card with choices (a Command card's dawn effect): highlighted on it. */
   option?: string;
 }
 
@@ -122,21 +119,25 @@ type Sheet =
   | { kind: 'rules' }
   /** A deck or discard pile: the viewer's, or (`playerId`) a rival's discard pile. */
   | { kind: 'pile'; pile: 'deck' | 'discard'; playerId?: string }
-  /** A player's summary: deck, upgrades, commands and conditions. */
+  /** A player's summary: deck, commands and conditions. */
   | { kind: 'player'; playerId: string }
-  | { kind: 'upgrade'; action: CoreAction }
   /** Tap-to-inspect on touch screens: a readable card with its action. */
   | { kind: 'quit' }
+  /** Ending the day with plays still left: are you sure? */
+  | { kind: 'end-day' }
   | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string };
 
 const SPEED_KEY = 'blue-loop:ai-speed';
+/** A rival's cards land by themselves after a moment, rather than waiting for OK. */
+const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
+const AUTO_CONFIRM_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
 const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
-/** Log lines worth emphasising: hits, supernovas, upgrades and so on. */
-const KEY_LOG = /heats to|SUPERNOVA|upgrades|wins|shields absorb|instability|destroys|stings|replaces|Lightspeed|cancelled|returns|recovers|shuffles/;
+/** Log lines worth emphasising: hits, supernovas, choices and so on. */
+const KEY_LOG = /heats to|SUPERNOVA|chooses|wins|shields absorb|instability|destroys|stings|replaces|Lightspeed|cancelled|returns|recovers|shuffles/;
 const HOT = '#f0a07a';
 const COOLING = '#8fc6ff';
 const SHIELDING = '#a9b8ff';
@@ -146,7 +147,7 @@ const PULSE_STEP = 720;
 /** Cards in hand: a small fan of three cards. */
 const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
 /** Clicks that make their own sound (or none): moves on the table and picks on the map. */
-const QUIET_ACTS = new Set(['play', 'end-turn', 'upgrade', 'choose-enemy', 'choose-ally', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
+const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
 
 /** A number that pops out of a sun and rises away: heat taken, cooling, shields. Outside the re-rendered root. */
 function floatNumber(at: DOMRect, text: string, tone: 'hot' | 'cool' | 'block', row: number) {
@@ -201,6 +202,8 @@ export class App {
   private sheet: Sheet | null = null;
   /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
   private landing: (() => void) | null = null;
+  /** Auto-confirm: a rival's card waits on the stage for a moment, then lands by itself. */
+  private autoConfirm = false;
   /** The How to Play tab showing. */
   private rulesTab = 'overview';
   /** The rival whose tableau is shown across the table (defaults to the viewer's target). */
@@ -274,6 +277,7 @@ export class App {
     try {
       const saved = localStorage.getItem(SPEED_KEY) as Speed | null;
       if (saved && saved in SPEED_FACTOR) this.speed = saved;
+      this.autoConfirm = localStorage.getItem(AUTO_CONFIRM_KEY) === '1';
     } catch {
       // ignore
     }
@@ -533,6 +537,7 @@ export class App {
     if (this.stage?.confirm && !isGameOver(next)) {
       this.landing = land;
       this.render();
+      this.stageEntrance(actor.id);
       return;
     }
     land();
@@ -544,8 +549,33 @@ export class App {
     if (!actor) return null;
     const confirm = this.net.waitFor === 'you';
     if (last.faceDown) return { defId: 'null_field', actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down`, confirm };
-    if (last.played) return { defId: last.played, actorId: actor.id, confirm, option: last.action.type === 'playCard' ? last.action.upgrade : undefined };
+    if (last.played) return { defId: last.played, actorId: actor.id, confirm, option: last.action.type === 'playCard' ? last.action.choice : undefined };
     return null;
+  }
+
+  /** A rival's card arriving on the stage to be read: it flies in from their side of the board, with a sound. */
+  private stageEntrance(actorId: string) {
+    sound.play();
+    // Auto-confirm: the card is shown for a moment, then lands by itself.
+    const stage = this.stage;
+    if (this.autoConfirm && stage?.confirm) window.setTimeout(() => this.stage === stage && this.confirmStage(), AUTO_CONFIRM_MS);
+    const card = this.root.querySelector<HTMLElement>('.stage .card');
+    const side = this.root.querySelector<HTMLElement>(`.tableau[data-owner="${actorId}"] .tableau-row`) ?? this.root.querySelector<HTMLElement>(`[data-anchor="pill:${actorId}"]`);
+    if (card && side) flyFrom(card, pageRect(side), { duration: 560 });
+  }
+
+  /** End the day, checking first if there are still cards that could be played. */
+  private requestEndDay() {
+    const s = this.state;
+    if (!s || !this.canAct() || this.pending) return;
+    const me = activePlayer(s);
+    const playable = me.playsLeft > 0 && me.hand.some((c) => hasRoomFor(me, c.defId) && (cardDef(c.defId).kind !== 'lightspeed' || canSetLightspeed(me)));
+    if (playable && this.sheet?.kind !== 'end-day') {
+      this.sheet = { kind: 'end-day' };
+      return this.render();
+    }
+    this.sheet = null;
+    this.dispatch({ type: 'endTurn' });
   }
 
   /** The viewer has read the rival's card on the stage: it goes, and the rival carries on. */
@@ -765,6 +795,7 @@ export class App {
     if (this.stage?.confirm) {
       this.landing = land;
       this.render();
+      this.stageEntrance(actor.id);
       return;
     }
     land();
@@ -808,7 +839,7 @@ export class App {
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
     if (cardDef(card.defId).kind === 'lightspeed') return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
-    return { defId: card.defId, actorId: actor.id, option: action.upgrade };
+    return { defId: card.defId, actorId: actor.id, option: action.choice };
   }
 
   /** A Lightspeed card that just sprang (revealed from face down into its owner's discard pile), announced for everyone. */
@@ -961,7 +992,9 @@ export class App {
       }
       const at = removalAt.get(uid);
       if (at !== undefined && this.lingerInSlot(prev, uid, old.html, at)) return;
-      ghost(old.html, old.rect, to, { size: { w: old.w, h: old.h }, delay: replayEnd });
+      // A card that faded at dawn stays in its slot while the day's effects play out, then goes.
+      if (replayEnd > 0 && this.fadeFromSlot(prev, uid, old.html, replayEnd, to, { w: old.w, h: old.h })) return;
+      ghost(old.html, old.rect, to, { size: { w: old.w, h: old.h } });
     });
 
     // --- Hits: projectiles, glows, numbers and sounds ----------------------
@@ -1044,8 +1077,6 @@ export class App {
         const played = prev.players.find((p) => p.id === actor.id)!.hand.find((c) => c.uid === action.cardUid);
         if (played && cardDef(played.defId).kind === 'command') {
           window.setTimeout(() => sound.upgrade(), delay);
-          if (actor.id === viewer.id) pulse(root.querySelector('[data-anchor="upgrades"]'), 'fx-upgrade', delay);
-          else pulse(root.querySelector(`[data-anchor="upgrades:${actor.id}"]`), 'fx-upgrade', delay);
         }
         break;
       }
@@ -1236,6 +1267,32 @@ export class App {
     return true;
   }
 
+  /**
+   * A card that faded at dawn: a copy stays in its slot (in the table's perspective, as it was) until
+   * `at`, while its last effects play out, then flies to where it went. False if its slot isn't on the table.
+   */
+  private fadeFromSlot(prev: GameState, uid: string, html: string, at: number, to: DOMRect | null, size: { w: number; h: number }): boolean {
+    const owner = prev.players.find((p) => p.tableau.some((c) => c.uid === uid));
+    const slot = owner?.tableau.find((c) => c.uid === uid)?.slot;
+    const cell = owner && slot !== undefined ? this.root.querySelector(`.tableau[data-owner="${owner.id}"] .tableau-row`)?.children[slot] : null;
+    if (!cell || cell.hasAttribute('data-uid')) return false;
+    const holder = document.createElement('div');
+    holder.innerHTML = html;
+    const copy = holder.firstElementChild as HTMLElement;
+    // It keeps its uid, so the dawn replay can still light it up as its last effects fire.
+    copy.removeAttribute('data-act');
+    copy.classList.remove('card-choosable', 'lifted');
+    const empty = cell as HTMLElement;
+    empty.replaceWith(copy);
+    window.setTimeout(() => {
+      if (!copy.isConnected) return;
+      const from = pageRect(copy);
+      copy.replaceWith(empty);
+      ghost(html, from, to, { size });
+    }, at);
+    return true;
+  }
+
   /** New log lines glow in the always-visible log panel. */
   private surfaceLog(prev: GameState) {
     const lastSeq = prev.log[prev.log.length - 1]?.seq ?? 0;
@@ -1316,7 +1373,7 @@ export class App {
       sound.error();
       return;
     }
-    this.pending = { uid, step: 'upgrade' };
+    this.pending = { uid, step: 'choice' };
     this.advancePlay();
   }
 
@@ -1336,7 +1393,7 @@ export class App {
       p.step = step;
       this.render();
     };
-    if (cardNeedsUpgradeChoice(card.defId) && upgradeOptions(me).length > 0 && !p.upgrade) return ask('upgrade');
+    if (cardChoices(card.defId).length > 0 && !p.choice) return ask('choice');
     if (enemyChoices(s, me, card.defId).length > 0 && !p.enemyUid) {
       if (target) this.viewRivalId = target.id;
       return ask('enemy');
@@ -1344,7 +1401,7 @@ export class App {
     if (allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
     if (needsSlot(me, card.defId) && p.slot === undefined) return ask('slot');
-    this.dispatch({ type: 'playCard', cardUid: p.uid, upgrade: p.upgrade, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot });
+    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot });
   }
 
   // -------------------------------------------------------------------------
@@ -1365,7 +1422,7 @@ export class App {
 
   /**
    * Whether an overlay is up that the player must answer mid-move (choosing an
-   * upgrade, or a card to recover): only then can they look past it at the board.
+   * option, or a card to recover): only then can they look past it at the board.
    * Sheets they open and close at will just get closed instead.
    */
   private canPeek(): boolean {
@@ -1397,6 +1454,17 @@ export class App {
       this.peekHeld = true;
       this.setPeek(true);
       return;
+    }
+    // Enter: OK the rival's card, or end the day (asking first if cards could still be played).
+    if (e.key === 'Enter' && !e.repeat && !(e.target as HTMLElement).closest?.('input, textarea, select')) {
+      if (this.screen !== 'game') return;
+      if (this.stage?.confirm) {
+        e.preventDefault();
+        return this.confirmStage();
+      }
+      if (this.sheet && this.sheet.kind !== 'end-day') return;
+      e.preventDefault();
+      return this.requestEndDay();
     }
     if (e.key !== 'Escape') return;
     if (this.peeking) return this.setPeek(false);
@@ -1655,6 +1723,16 @@ export class App {
       case 'toggle-music':
         sound.toggleMusic();
         return this.render();
+      case 'toggle-autoconfirm':
+        this.autoConfirm = !this.autoConfirm;
+        try {
+          localStorage.setItem(AUTO_CONFIRM_KEY, this.autoConfirm ? '1' : '0');
+        } catch {
+          // ignore
+        }
+        if (this.autoConfirm && this.stage?.confirm) this.confirmStage();
+        else this.render();
+        return;
       case 'speed': {
         const order: Speed[] = ['slow', 'normal', 'fast'];
         this.speed = order[(order.indexOf(this.speed) + 1) % order.length];
@@ -1678,9 +1756,6 @@ export class App {
       case 'view-player':
         this.sheet = { kind: 'player', playerId: arg || (s ? this.viewer().id : '') };
         return this.render();
-      case 'view-upgrade':
-        this.sheet = { kind: 'upgrade', action: arg as CoreAction };
-        return this.render();
       case 'cancel':
         this.pending = null;
         this.sheet = null;
@@ -1700,9 +1775,12 @@ export class App {
         this.sheet = null;
         return this.startPlay(arg);
       case 'end-turn':
+        return this.requestEndDay();
+      case 'end-day-confirm':
+        this.sheet = null;
         return this.dispatch({ type: 'endTurn' });
-      case 'upgrade':
-        if (this.pending) this.pending.upgrade = arg as CoreAction;
+      case 'choose-option':
+        if (this.pending) this.pending.choice = arg;
         return this.advancePlay();
       case 'choose-enemy':
         if (this.pending) this.pending.enemyUid = arg;
@@ -2084,6 +2162,7 @@ export class App {
         ${tile('toggle-sound', 'sound', sound.muted ? 'off' : 'on')}
         ${tile('toggle-music', 'music', sound.musicOn && !sound.muted ? 'on' : 'off', sound.muted)}
         ${tile('speed', 'ai speed', this.speed)}
+        ${tile('toggle-autoconfirm', 'auto-confirm', this.autoConfirm ? 'on' : 'off')}
         ${tile('rules', 'how to play', 'read')}
       </div>`,
       '',
@@ -2153,7 +2232,7 @@ export class App {
             kind('attack', 'Attack', `Heat your rival's sun.`),
             kind('defence', 'Defence', 'Cool your sun, raise shields, guard your tableau.'),
             kind('growth', 'Growth', 'Draw, recover, grow and play more.'),
-            kind('command', 'Command', `Upgrade your whole deck (up to ${B.solarFlareMaxUpgrades} times each). Play again to upgrade again.`),
+            kind('command', 'Command', `Two in every deck. Pick a dawn effect as you play one; it stays ${B.stabilityCommand} days, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
             kind('lightspeed', 'Lightspeed', "Set face down. Springs during your rival's day."),
           ),
@@ -2264,7 +2343,6 @@ export class App {
 
   private renderHud(): string {
     const s = this.state!;
-    const active = activePlayer(s);
     const global = activeGlobal(s);
     const field = global
       ? `<button class="field" data-act="inspect" data-card="${global.card.defId}" title="${esc(plainText(cardDef(global.card.defId).text))}">
@@ -2272,7 +2350,6 @@ export class App {
           <span class="field-name">${esc(cardDef(global.card.defId).name.toLowerCase())}</span>
         </button>`
       : '';
-    const aiTurn = active.isAI && !isGameOver(s);
     // Off the table, flat: players top left, round and stability top centre, menu and turn controls top right.
     return `
       <div class="hud">
@@ -2280,7 +2357,6 @@ export class App {
         <div class="hud-round">${this.renderRoundBar()}</div>
         <div class="hud-controls">
           ${field}
-          ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI days instantly">skip ›</button>' : ''}
           ${this.online && this.net.status === 'connecting' ? '<span class="pill-btn net-pill">reconnecting…</span>' : ''}
           ${this.online && this.net.status === 'lost' ? '<button class="pill-btn net-pill" data-act="online-retry">connection lost · retry</button>' : ''}
           ${this.online && this.net.status === 'open' && !this.net.rivalOnline && !isGameOver(s) ? '<span class="pill-btn net-pill" title="Their seat is kept: they rejoin by opening the invite link again">rival disconnected · waiting</span>' : ''}
@@ -2294,7 +2370,7 @@ export class App {
   /** While a card waits for a choice on the board, a short prompt sits at the top of the screen. */
   private renderPickHint(): string {
     const p = this.pending;
-    if (!p || p.step === 'upgrade') return '';
+    if (!p || p.step === 'choice') return '';
     const s = this.state!;
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid);
     if (!card) return '';
@@ -2387,20 +2463,9 @@ export class App {
         <div class="tableau-row-wrap">
           <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row">${slots}<div class="ls-slot">${lightspeed}</div></div>
-          ${this.upgradeRail(p, side)}
           ${this.renderForecast(p)}
         </div>
       </div>`;
-  }
-
-  /** A player's three upgrades, as pills on the board to the right of their tableau. */
-  private upgradeRail(p: PlayerState, side: 'mine' | 'rival'): string {
-    const pid = side === 'rival' ? p.id : undefined;
-    return `<div class="rail tableau-rail" data-anchor="${side === 'mine' ? 'upgrades' : `upgrades:${p.id}`}">
-      ${actionChip({ action: 'solarFlare', upgrades: p.upgrades.solarFlare, power: `+${p.upgrades.solarFlare}`, playerId: pid })}
-      ${actionChip({ action: 'thermosiphon', upgrades: p.upgrades.thermosiphon, power: `+${p.upgrades.thermosiphon}`, playerId: pid })}
-      ${actionChip({ action: 'coolingChamber', upgrades: p.upgrades.coolingChamber, power: `${supernovaThreshold(p)}`, playerId: pid })}
-    </div>`;
   }
 
   /**
@@ -2497,7 +2562,7 @@ export class App {
         <div class="card-glyph">${cardArt(def, true)}</div>
         ${growth}${resonance}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardTextHtml(def.text, opts.option)}</div>
+        <div class="card-text">${cardTextHtml(def.text, opts.option ?? c.choice)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </button>`;
   }
@@ -2573,7 +2638,8 @@ export class App {
     return `
       <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
       <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
-      <button class="btn" data-act="speed">ai speed: ${this.speed}</button>`;
+      <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
+      <button class="btn" data-act="toggle-autoconfirm" title="Your rival's cards land by themselves after ${AUTO_CONFIRM_MS / 1000}s">auto-confirm: ${this.autoConfirm ? 'on' : 'off'}</button>`;
   }
 
   private renderSheet(): string {
@@ -2582,6 +2648,14 @@ export class App {
     switch (sh.kind) {
       case 'rules':
         return this.sheetFrame('how to play', this.rulesHtml());
+      case 'end-day': {
+        const left = s ? activePlayer(s).playsLeft : 0;
+        return this.sheetFrame(
+          'end your day?',
+          `<p class="center-text">You can still play ${left} card${left === 1 ? '' : 's'} today.</p>
+           <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
+        );
+      }
       case 'quit': {
         // What quitting means depends on the game: online and campaign battles are lost; a local game can wait.
         const [text, buttons] = this.online
@@ -2622,17 +2696,6 @@ export class App {
         return this.renderPileSheet(sh.pile, s?.players.find((p) => p.id === sh.playerId));
       case 'player':
         return this.renderPlayerSheet(s!.players.find((p) => p.id === sh.playerId) ?? this.viewer());
-      case 'upgrade': {
-        const me = this.viewer();
-        const a = sh.action;
-        return this.sheetFrame(
-          ACTION_NAME[a].toLowerCase(),
-          `<div class="action-sheet">
-            ${actionTile({ action: a, upgrades: me.upgrades[a], power: a === 'coolingChamber' ? String(supernovaThreshold(me)) : `+${me.upgrades[a]}`, enabled: false, compact: true, actAttr: '' })}
-            <div><p>${ACTION_TEXT[a]}</p><p class="muted">Upgrades: ${me.upgrades[a]}/${MAX_UPGRADES[a]}. Command cards upgrade it.</p></div>
-          </div>`,
-        );
-      }
       case 'card': {
         const me = s ? activePlayer(s) : null;
         const playable = !!(sh.uid && me && me.hand.some((c) => c.uid === sh.uid) && this.canAct() && !this.pending);
@@ -2648,7 +2711,7 @@ export class App {
     }
   }
 
-  /** A player's summary: their deck, upgrades, Command cards and the conditions they fight under. */
+  /** A player's summary: their deck, Command cards and the conditions they fight under. */
   private renderPlayerSheet(p: PlayerState): string {
     const s = this.state!;
     const me = this.viewer();
@@ -2661,12 +2724,10 @@ export class App {
         </button>`,
       )
       .join('');
-    const ups = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
-      .map((a) =>
-        actionTile({ action: a, upgrades: p.upgrades[a], power: a === 'coolingChamber' ? String(supernovaThreshold(p)) : `+${p.upgrades[a]}`, enabled: false, compact: true, actAttr: `data-act="view-upgrade" data-arg="${a}"` }),
-      )
-      .join('');
-    const commands = p.tableau.filter((c) => cardDef(c.defId).kind === 'command').map((c) => esc(cardDef(c.defId).name.toLowerCase())).join(' · ');
+    const commands = p.tableau
+      .filter((c) => cardDef(c.defId).kind === 'command')
+      .map((c) => `${esc(cardDef(c.defId).name.toLowerCase())}${c.choice ? ` (${cardTextHtml(optionText(c.choice))})` : ''}`)
+      .join(' · ');
     return `
       <div class="overlay overlay-inspect" data-act="cancel">
         <div class="sys-wrap sheet">
@@ -2675,7 +2736,6 @@ export class App {
             <div class="sys-kicker">${p.id === me.id ? 'you' : esc(p.name.toLowerCase())} · ${esc(RACE_NAMES[p.species].toLowerCase())}</div>
             ${factionAvatar(`f${p.species + 1}`, 'player-emblem')}
             <h2 class="sys-name">${esc((p.deckName ?? 'custom deck').toLowerCase())}</h2>
-            <div class="upgrade-actions">${ups}</div>
             ${commands ? `<p class="muted center-text">Command cards in play: ${commands}</p>` : ''}
             ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A Lightspeed card is set face down.'}</p>` : ''}
             ${p.conditions?.length ? `<div class="sys-conditions">${p.conditions.map((c) => `<div><b>${esc(c.name.toLowerCase())}</b>${esc(c.text)}</div>`).join('')}</div>` : ''}
@@ -2736,25 +2796,19 @@ export class App {
     if (this.sheet) return this.renderSheet();
     const pend = this.pending;
     if (pend?.step === 'recover') return this.renderRecoverChoice(pend);
-    if (!pend || pend.step !== 'upgrade') return '';
+    if (!pend || pend.step !== 'choice') return '';
 
-    // Command Directive: choose what to upgrade.
+    // A Command card: choose its dawn effect.
     const me = activePlayer(s);
-    const options = upgradeOptions(me);
-    const tiles = (['solarFlare', 'thermosiphon', 'coolingChamber'] as const)
-      .map((a) => {
-        const ok = options.includes(a);
-        const next = me.upgrades[a] + 1;
-        return `<div class="upgrade-choice">
-          ${actionTile({ action: a, upgrades: me.upgrades[a], power: a === 'coolingChamber' ? String(supernovaThreshold(me)) : `+${me.upgrades[a]}`, enabled: ok, compact: true, actAttr: ok ? `data-act="upgrade" data-arg="${a}"` : 'disabled' })}
-          <small>${ok ? (a === 'coolingChamber' ? `→ ${supernovaThreshold(me) + BALANCE.coolingChamberHealthPerUpgrade} max health` : `→ +${next} ${a === 'solarFlare' ? 'heat on attacks' : 'cooling'}`) : 'fully upgraded'}</small>
-        </div>`;
-      })
+    const card = me.hand.find((c) => c.uid === pend.uid);
+    if (!card) return '';
+    const tiles = cardChoices(card.defId)
+      .map((o) => `<button class="choice-tile" data-act="choose-option" data-arg="${o}"><small>each dawn</small><b>${cardTextHtml(optionText(o))}</b></button>`)
       .join('');
     return `
-      <div class="overlay overlay-soft" data-act="cancel"><div class="modal modal-wide">
-        <div class="bar-title">command · choose an upgrade</div>
-        <div class="modal-body upgrade-body"><div class="upgrade-actions">${tiles}</div></div>
+      <div class="overlay overlay-soft" data-act="cancel"><div class="modal">
+        <div class="bar-title">${esc(cardDef(card.defId).name.toLowerCase())} · choose one</div>
+        <div class="modal-body"><p class="muted center-text">It does this at each of your dawns while it stays (${baseStability(card.defId)} days).</p><div class="choice-tiles">${tiles}</div></div>
         <button class="modal-cancel" data-act="cancel">cancel</button>
       </div></div>`;
   }

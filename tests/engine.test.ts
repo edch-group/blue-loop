@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, applyAction, baseStability, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+import { activePlayer, allyChoices, applyAction, baseStability, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -210,30 +210,51 @@ describe('the tableau', () => {
 });
 
 describe('commands', () => {
-  it('upgrade a core action and stay in the tableau', () => {
+  it('ask for a choice of dawn effect, keep it, and stay their full term', () => {
     let s = twoPlayer();
-    give(activePlayer(s), ['chamber_protocol']);
-    const max = supernovaThreshold(s.players[0]);
-    s = play(s, 'chamber_protocol');
-    expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['chamber_protocol']);
-    expect(supernovaThreshold(s.players[0])).toBe(max + BALANCE.coolingChamberHealthPerUpgrade);
+    give(activePlayer(s), ['command_directive']);
+    expect(() => play(s, 'command_directive')).toThrow(/options/);
+    s = play(s, 'command_directive', { choice: 'heat2' });
+    const cmd = s.players[0].tableau[0];
+    expect(cmd.choice).toBe('heat2');
+    expect(cmd.stability).toBe(BALANCE.stabilityCommand);
+    const before = s.players[1].heat;
+    s = endTurn(endTurn(s)); // Ada's next dawn: the chosen effect fires
+    expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 2);
   });
 
-  it('upgrade again when recalled and played again', () => {
+  it('cool or draw, as chosen', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    me.turnsTaken = 3;
-    me.playsLeft = 3;
-    const [cmd] = give(me, ['command_directive'], 'tableau');
-    me.upgrades.solarFlare = 1;
-    give(me, ['phase_shift']);
-    s = play(s, 'phase_shift', { allyUid: cmd.uid });
-    expect(s.players[0].hand.some((c) => c.uid === cmd.uid)).toBe(true);
-    expect(s.players[0].playsLeft).toBe(3); // Phase Shift gives back the play it used
-    s = play(s, 'command_directive', { upgrade: 'solarFlare' });
-    expect(s.players[0].upgrades.solarFlare).toBe(2);
+    me.heat = 6;
+    give(me, ['command_directive']);
+    s = play(s, 'command_directive', { choice: 'cool3' });
+    s = endTurn(endTurn(s));
+    expect(s.players[0].heat).toBeLessThanOrEqual(6 - 3 + 1);
   });
 
+  it("can't be recalled or recovered to their owner's hand", () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.playsLeft = 3;
+    const [cmd] = give(me, ['command_directive'], 'tableau');
+    expect(allyChoices(me, 'phase_shift').some((c) => c.uid === cmd.uid)).toBe(false);
+    me.discard.push({ uid: 'x1', defId: 'command_directive' });
+    expect(recoverChoices(me, 'salvage_drone').some((c) => c.uid === 'x1')).toBe(false);
+    // A full tableau of nothing but Command cards leaves a recall card nothing to take the place of.
+    void s;
+  });
+
+  it('can still be sent back by a rival', () => {
+    let s = twoPlayer();
+    const [cmd] = give(s.players[1], ['command_directive'], 'tableau');
+    give(activePlayer(s), ['tractor_beam']);
+    s = play(s, 'tractor_beam', { enemyUid: cmd.uid });
+    expect(s.players[1].hand.some((c) => c.uid === cmd.uid)).toBe(true);
+  });
+});
+
+describe('recall', () => {
   it('lets a recall card into a full tableau, in the place of the card it recalls', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
@@ -250,30 +271,6 @@ describe('commands', () => {
     // Any other card still can't go in.
     give(activePlayer(s), ['coronal_lance']);
     expect(() => play(s, 'coronal_lance')).toThrow(/full/);
-  });
-
-  it('let Command Directive choose, and require a choice', () => {
-    let s = twoPlayer();
-    give(activePlayer(s), ['command_directive']);
-    expect(() => play(s, 'command_directive')).toThrow(/upgrade/);
-    s = play(s, 'command_directive', { upgrade: 'thermosiphon' });
-    expect(s.players[0].upgrades.thermosiphon).toBe(1);
-  });
-
-  it('Solar Flare upgrades add heat to attack cards only; Thermosiphon adds cooling', () => {
-    let s = twoPlayer();
-    const me = activePlayer(s);
-    me.upgrades.solarFlare = 1;
-    me.upgrades.thermosiphon = 1;
-    me.heat = 5;
-    me.turnsTaken = 3;
-    me.playsLeft = 3;
-    give(me, ['coronal_lance', 'cryo_vault']);
-    const before = s.players[1].heat;
-    s = play(s, 'coronal_lance');
-    expect(s.players[1].heat).toBe(before + 3 + 1);
-    s = play(s, 'cryo_vault');
-    expect(s.players[0].heat).toBe(5 - 3 - 1);
   });
 });
 
@@ -482,8 +479,8 @@ describe('resonance', () => {
     const me = activePlayer(s);
     give(me, ['bell_warden', 'tide_pylon', 'coronal_lance'], 'tableau');
     s = endTurn(endTurn(s));
-    // Bell Warden 3, Pylon 1 + 1 (one defence neighbour).
-    expect(s.players[0].shields).toBe(5);
+    // Bell Warden 2, Pylon 1 + 1 (one defence neighbour).
+    expect(s.players[0].shields).toBe(4);
   });
 });
 
@@ -628,12 +625,12 @@ describe('turn forecast', () => {
     ada.tableau[1].growth = 1;
     ada.heat = 5;
     const f = turnForecast(s, ada);
-    // Relay 1, Tower grows to 2 then heats 2; Warden 3 shields; Array cools 1.
-    expect(f).toMatchObject({ heat: 3, targetId: 'p2', shields: 3, cool: 1, selfHeat: 0, draw: 0 });
+    // Relay 1, Tower grows to 2 then heats 2; Warden 2 shields; Array cools 1.
+    expect(f).toMatchObject({ heat: 3, targetId: 'p2', shields: 2, cool: 1, selfHeat: 0, draw: 0 });
     const bo = s.players[1].heat;
     s = endTurn(endTurn(s));
     expect(s.players[1].heat).toBe(bo + 3);
-    expect(s.players[0].shields).toBe(3);
+    expect(s.players[0].shields).toBe(2);
     expect(s.players[0].heat).toBe(4);
   });
 });

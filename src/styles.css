@@ -384,7 +384,7 @@ input { font: inherit; }
 /* Round and stability: one element in the top-centre container. */
 .round-box {
   display: flex; align-items: center; gap: 12px;
-  padding: 5px 16px 5px 6px; border-radius: 14px;
+  padding: 5px 16px 5px 6px; border-radius: 35px;
   background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow);
 }
 .round-num {
@@ -395,7 +395,7 @@ input { font: inherit; }
 }
 .round-num small { font-size: clamp(0.34rem, calc(1.2 * var(--vh)), 0.48rem); letter-spacing: 0.1em; padding-left: 0.1em; text-transform: uppercase; color: var(--ink-faint); line-height: 1; }
 .round-num b { font-size: clamp(1rem, calc(3.8 * var(--vh)), 1.5rem); font-weight: 700; color: #5b5f67; line-height: 1.1; }
-.round-box { gap: clamp(10px, calc(2 * var(--vw)), 16px); padding: 6px 20px 6px 7px; border-radius: 18px; }
+.round-box { gap: clamp(10px, calc(2 * var(--vw)), 16px); padding: 6px 20px 6px 7px; border-radius: 35px; }
 .round-box .round-num { min-width: clamp(46px, calc(11 * var(--vh)), 68px); }
 .round-box .stability { display: grid; gap: 6px; }
 .round-box .stability-label { font-size: clamp(0.56rem, calc(2 * var(--vh)), 0.74rem); letter-spacing: 0.2em; color: var(--ink); }
@@ -1826,14 +1826,12 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   --boardw: calc(var(--gw) - 2 * var(--inset) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
   /* Five slots and the Lightspeed slot, set a little apart. */
   --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * 0.3 * 0.714), 150px,
-    /* Room across the board for each row's sun on the left and its upgrade pills on the right. */
+    /* Room across the board for each row's sun on the left (and the same on the right). */
     calc((var(--game-w) - 2 * var(--inset) - 24px - 2 * var(--row-side) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
   /* Each row's ends: its sun on the left, its upgrade pills on the right, the same width each so the slots centre. */
-  --row-side: max(calc(1.3 * var(--row-vs)), calc(var(--rail-w) + var(--rail-gap)));
+  --row-side: calc(1.3 * var(--row-vs));
   --game-w: calc(var(--gw) * 0.95);
   --row-vs: clamp(84px, calc(var(--gh) / 112 * 23), 168px);
-  --rail-w: clamp(70px, calc(10 * var(--vw)), 132px);
-  --rail-gap: clamp(14px, calc(2 * var(--vw)), 32px);
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .table-view > .game { --logw: 0px; }
@@ -2797,19 +2795,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .action-chip, .modal { background-image: var(--circuit-ui); background-size: 150px 150px; background-repeat: repeat; }
 .log-pop { background-color: rgba(255, 255, 255, 0.97) !important; }
 
-/* Each player's upgrades: three compact pills on the board, to the right of their tableau
-   (each row leaves room for them, and the cards are sized to fit). */
+/* Each row: its sun on the left, and the same room on the right, so the slots centre on the board. */
 .tableau-row-wrap { box-sizing: border-box; width: 100%; padding-left: var(--row-side); padding-right: var(--row-side); }
 .tableau-row { width: max-content; margin-inline: auto; }
-.tableau-rail {
-  position: absolute; right: 0; top: 50%; transform: translateY(-50%) translateZ(4px);
-  height: calc(var(--tcw) * 1.05); width: var(--rail-w);
-  gap: clamp(3px, calc(0.8 * var(--vh)), 6px);
-}
-.tableau-rail .action-chip { gap: 4px; padding-right: 6px; }
-.tableau-rail .chip-label { display: none !important; }
-.tableau-rail .chip-pips { display: flex; gap: 2px; }
-.tableau-rail .chip-power { font-size: clamp(0.6rem, calc(1.7 * var(--vh)), 0.86rem); }
 
 /* The dock: deck, hand and discard centred under the board; the day's controls at the far right
    (the empty first column mirrors them, so the middle stays centred). */
@@ -2821,3 +2809,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .table-view .dock { --dock-side: clamp(96px, calc(15 * var(--vw)), 150px); }
 }
+
+/* A Command card's choice of dawn effect, as it is played. */
+.choice-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.choice-tile { display: grid; gap: 6px; justify-items: center; padding: 16px 10px; border-radius: 14px; background: #f7f8fa; border: 1px solid rgba(120, 124, 134, 0.14); transition: transform 0.12s, box-shadow 0.2s, background 0.2s; }
+.choice-tile small { font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+.choice-tile > b { font-size: 1.5rem; font-weight: 700; color: var(--ink); }
+.choice-tile:hover { transform: translateY(-2px); background: #fff; box-shadow: 0 8px 20px rgba(70, 76, 100, 0.16); }
+.end-day-actions { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+.end-day-actions small { font-size: 0.6em; opacity: 0.55; margin-left: 4px; }

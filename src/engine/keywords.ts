@@ -76,8 +76,8 @@ export const KEYWORDS: Record<string, Keyword> = {
  * the zoomed card explains them too, whenever its text mentions one.
  */
 export const TEXT_RULES: { name: string; group: Keyword['group']; pattern: RegExp; explain: string }[] = [
-  { name: 'Upgrade', group: 'tempo', pattern: /\bUpgrade\b/, explain: 'Solar Flare: your attack cards deal +1 heat. Thermosiphon: your cooling cools +1. Cooling Chamber: +6 max health. Up to 3 each, for the rest of the game.' },
-  { name: 'Command Card', group: 'tempo', pattern: /\bCommand card/, explain: 'Every deck has exactly 2 Command cards. They upgrade your whole deck, and stay in your tableau like any other card.' },
+  { name: 'One Of', group: 'tempo', pattern: /one of:/, explain: 'Pick one as you play the card: it does that at each of your dawns for as long as it stays.' },
+  { name: 'Command Card', group: 'tempo', pattern: /\bCommand card|^Dawn, one of/, explain: 'Every deck has exactly 2. They stay 3 days, and can never be recovered or recalled to your hand (a rival can still send them back).' },
   { name: 'Leaves Your Tableau', group: 'stability', pattern: /leaves? your tableau/, explain: 'When the card fades, is destroyed, or returns to a hand. It goes to the discard pile (or the hand).' },
   { name: 'Facing A Planet', group: 'orbit', pattern: /facing the (dead|abundant|industrial) planet/, explain: 'The planet facing your sun right now. Each faces it for 3 of your days: dead, then abundant, then industrial.' },
   { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'The card or heat has no effect. A cancelled card goes to its owner’s discard pile.' },
@@ -105,10 +105,16 @@ function rawLabel(id: string, value?: string): string {
 }
 
 /**
- * A card's choices, written `{options:a|b|c}`: listed on the card one per
- * line, and the one picked highlighted when the card is shown being played.
+ * A card's choices, written `{options:a|b|c}` (heat2, cool3, draw1): listed on
+ * the card one per line, and the one picked highlighted when the card is shown
+ * being played.
  */
-export const OPTION_NAMES: Record<string, string> = { solarFlare: 'Solar Flare', thermosiphon: 'Thermosiphon', coolingChamber: 'Cooling Chamber' };
+/** An option as a short phrase of card text: "heat2" → "{heat:2}", "draw1" → "Draw 1". */
+export function optionText(id: string): string {
+  const m = /^([a-z]+)(\d+)$/.exec(id);
+  if (!m) return id;
+  return m[1] === 'draw' ? `Draw ${m[2]}` : KEYWORDS[m[1]] ? `{${m[1]}:${m[2]}}` : `${m[1]} ${m[2]}`;
+}
 
 export function optionList(value = ''): string[] {
   return value.split('|').filter(Boolean);
@@ -130,7 +136,7 @@ export function textParts(text: string): ({ text: string } | { kw: string; value
 /** Card text as plain words (for tooltips and the like): each keyword by its label. */
 export function plainText(text: string): string {
   return textParts(text)
-    .map((p) => ('text' in p ? p.text : p.kw === 'options' ? optionList(p.value).map((o) => OPTION_NAMES[o] ?? o).join(', ').replace(/, ([^,]*)$/, ' or $1') : keywordLabel(p.kw, p.value)))
+    .map((p) => ('text' in p ? p.text : p.kw === 'options' ? optionList(p.value).map((o) => plainText(optionText(o))).join(', ').replace(/, ([^,]*)$/, ' or $1') : keywordLabel(p.kw, p.value)))
     .join('')
     .replace(/^./, (c) => c.toUpperCase());
 }

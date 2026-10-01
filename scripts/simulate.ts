@@ -48,6 +48,9 @@ const MECHANICS: [string, RegExp][] = [
   ['orbit moved by a card', /orbit (speeds on|slips back)/],
   ['orbit card played', /plays (Gravity Assist|Orbital Slingshot|Tidal Brake|Dead World Mine|Perihelion Forge|Sunward Lance|Comet Shard|Tide Lock|Orbit Root)/],
   ['command played', /plays (Command Directive|Ignition Protocol|Coolant Protocol|Chamber Protocol|The Admiralty)/],
+  ['command chose heat', /chooses: heat/],
+  ['command chose cool', /chooses: cool/],
+  ['command chose draw', /chooses: draw/],
 ];
 const mechCount = new Map<string, number>();
 

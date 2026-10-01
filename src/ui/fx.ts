@@ -71,12 +71,15 @@ export function ghost(html: string, from: DOMRect, to: DOMRect | null, opts: { d
   // Lay the copy out at the card's own size (so its text keeps its proportions), then scale it onto the screen rect.
   const w = opts.size?.w || from.width;
   const h = opts.size?.h || from.height;
+  // One scale both ways, so the copy keeps the card's shape (a card on the tilted table looks shorter
+  // on screen than it is: squeezing the flat copy into that box would stretch it). Centred on the card.
   const sx = from.width / w;
-  const sy = from.height / h;
+  const sy = sx;
+  const top = from.top + (from.height - h * sy) / 2;
   Object.assign(el.style, {
     position: 'fixed',
     left: `${from.left}px`,
-    top: `${from.top}px`,
+    top: `${top}px`,
     width: `${w}px`,
     height: `${h}px`,
     margin: '0',
@@ -90,7 +93,7 @@ export function ghost(html: string, from: DOMRect, to: DOMRect | null, opts: { d
   const target = to ?? new DOMRect(from.left, from.top - 40, from.width, from.height);
   const s = Math.max(0.15, Math.min(target.width / from.width, target.height / from.height));
   const dx = target.left + target.width / 2 - from.left - (w * sx * s) / 2;
-  const dy = target.top + target.height / 2 - from.top - (h * sy * s) / 2;
+  const dy = target.top + target.height / 2 - top - (h * sy * s) / 2;
   const anim = el.animate(
     [
       { transform: `scale(${sx}, ${sy})`, opacity: 1 },

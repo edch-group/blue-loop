@@ -3,7 +3,7 @@ import {
   activePlayer,
   applyAction,
   canSetLightspeed,
-  cardNeedsUpgradeChoice,
+  cardChoices,
   conditionMet,
   effectAmount,
   enemyChoices,
@@ -18,7 +18,7 @@ import {
   supernovaThreshold,
   hasRoomFor,
   targetOf,
-  upgradeOptions,
+  dawnEffects,
 } from './game';
 import type { Action, CardInstance, GameState, PlayerState } from './types';
 
@@ -44,7 +44,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   const def = cardDef(card.defId);
   const foes = Math.max(1, livingOpponents(state, p).length);
   let perTurn = 0;
-  for (const e of def.onTurn ?? []) {
+  for (const e of dawnEffects(card)) {
     if (!conditionMet(p, e.if) && !(e.if && 'minKind' in e.if)) continue;
     const scale = conditionMet(p, e.if) ? 1 : 0.4;
     switch (e.type) {
@@ -130,7 +130,7 @@ function tableauValue(state: GameState, p: PlayerState): number {
   return p.tableau.reduce((sum, c) => sum + cardValue(state, p, c) - SLOT_COST * (c.stability ?? 0), 0);
 }
 
-/** How good this state is for `meId`: heat on every sun, ongoing value, cards and upgrades. */
+/** How good this state is for `meId`: heat on every sun, ongoing value and cards. */
 function evaluate(state: GameState, meId: string): number {
   const me = state.players.find((p) => p.id === meId)!;
   if (state.winnerId === meId) return 1e6;
@@ -147,12 +147,10 @@ function evaluate(state: GameState, meId: string): number {
   const mine = Math.max(0, me.heat) / supernovaThreshold(me);
   score -= 12 * mine + 10 * mine * mine;
   score += tableauValue(state, me) + orbitOutlook(me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
-  // Upgrades already pay off through effectAmount; a little extra for future cards.
-  score += 0.6 * (me.upgrades.solarFlare + me.upgrades.thermosiphon);
   return score;
 }
 
-/** Every way to play one card now (placement, upgrade, removal, recall, restore and recovery choices included). */
+/** Every way to play one card now (placement, choice, removal, recall, restore and recovery choices included). */
 function candidatePlays(state: GameState, me: PlayerState): Action[] {
   const plays: Action[] = [];
   const seen = new Set<string>();
@@ -161,18 +159,18 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     if (seen.has(card.defId)) continue;
     seen.add(card.defId);
     if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) continue;
-    const upgrades = cardNeedsUpgradeChoice(card.defId) ? opt(upgradeOptions(me)) : [undefined];
+    const choices = opt(cardChoices(card.defId));
     const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
     if (!hasRoomFor(me, card.defId)) continue;
     const slots = needsSlot(me, card.defId) ? freeSlots(me) : [undefined];
     // Recovering: one of each card in the discard pile.
     const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);
     const allies = opt(allyChoices(me, card.defId).map((c) => c.uid));
-    for (const upgrade of upgrades)
+    for (const choice of choices)
       for (const enemyUid of foes)
         for (const slot of slots)
           for (const allyUid of allies)
-            for (const recoverUid of recovers) plays.push({ type: 'playCard', cardUid: card.uid, upgrade, enemyUid, slot, allyUid, recoverUid });
+            for (const recoverUid of recovers) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid });
   }
   return plays;
 }

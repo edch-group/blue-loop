@@ -140,7 +140,7 @@ describe('garrisons', () => {
     expect(campaignPlayer(s).reserve).toContain('bell_warden');
   });
 
-  it('puts stationed cards in the defender\'s tableau, and Command cards become upgrades', () => {
+  it('puts stationed cards, Command cards included, in the defender\'s tableau', () => {
     let s = fresh();
     const n = home(s);
     n.garrison = [
@@ -149,16 +149,14 @@ describe('garrisons', () => {
       { uid: 'c', defId: 'deflector_grid', status: 'leaving' },
     ];
     const b = garrisonBonus(n);
-    expect(b.tableau).toEqual(['plasma_relay']); // leaving cards no longer defend
-    expect(b.upgrades).toEqual({ coolingChamber: 1 });
+    expect(b.tableau).toEqual(['plasma_relay', 'chamber_protocol']); // leaving cards no longer defend
     // Attack a garrisoned system: its defender starts with the garrison in play.
     const target = nodeById(s, attackOptions(s, s.playerId)[0].toId);
     target.garrison = n.garrison;
     n.garrison = [];
     s = applyCampaignAction(s, { type: 'attack', fromId: n.id, toId: target.id });
     const defender = s.battle!.game.players[1];
-    expect(defender.tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
-    expect(defender.upgrades.coolingChamber).toBe(1);
+    expect(defender.tableau.map((c) => c.defId).sort()).toEqual(['chamber_protocol', 'plasma_relay']);
   });
 
   it('only garrisons reserve cards, and keeps the deck legal when swapping', () => {

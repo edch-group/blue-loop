@@ -1,5 +1,4 @@
-import { BALANCE, MAX_UPGRADES, planetAt, type CoreAction, type Planet } from '../engine';
-import { upgradeScene } from './cardart';
+import { BALANCE, planetAt, type Planet } from '../engine';
 
 /**
  * Procedural art: placeholders until commissioned artwork arrives. Swap any
@@ -157,69 +156,6 @@ export function petalBackdrop(): string {
       <circle cx="500" cy="170" r="520" fill="url(#glow)" />
       <circle class="heat-core" cx="500" cy="170" r="300" fill="url(#heat-core)" />
     </svg>`;
-}
-
-const ACTION_META: Record<CoreAction, { label: string; art: string }> = {
-  solarFlare: { label: 'solar flare', art: 'art-flare' },
-  thermosiphon: { label: 'thermosiphon', art: 'art-thermo' },
-  coolingChamber: { label: 'cooling chamber', art: 'art-chamber' },
-};
-
-/** What an upgrade's number means, for each core action. */
-const UPGRADE_POWER: Record<CoreAction, { icon: string; title: string }> = {
-  solarFlare: { icon: '▲', title: 'Extra heat on every attack card effect' },
-  thermosiphon: { icon: '▼', title: 'Extra cooling on every cooling effect' },
-  coolingChamber: { icon: '♥', title: 'Max health (supernova threshold)' },
-};
-
-/**
- * A core upgrade tile. Upgrade slots are frosted shapes that light up when
- * filled: Solar Flare has three small squares, Thermosiphon one large
- * square, Cooling Chamber three vertical bars.
- */
-export function actionTile(opts: {
-  action: CoreAction;
-  upgrades: number;
-  /** The upgrade's effect: bonus heat, bonus cooling, or max health. */
-  power: string;
-  enabled: boolean;
-  compact?: boolean;
-  actAttr?: string;
-}): string {
-  const { action, upgrades, power, enabled } = opts;
-  const meta = ACTION_META[action];
-  const max = MAX_UPGRADES[action];
-  const slots = Array.from({ length: max }, (_, i) => `<i class="slot slot-${i} ${i < upgrades ? 'filled' : ''}"></i>`).join('');
-  const attr = opts.actAttr ?? (enabled ? `data-act="${action}"` : 'disabled');
-  const p = UPGRADE_POWER[action];
-  return `
-    <button class="tile tile-${action} ${opts.compact ? 'tile-compact' : ''}" ${attr}>
-      <div class="tile-art ${meta.art}">${upgradeScene(action)}</div>
-      <div class="slots slots-${action}">${slots}</div>
-      <div class="tile-chips"><span class="chip-glass" title="${p.title}">${p.icon}${power}</span></div>
-      <div class="pill">${meta.label}</div>
-    </button>`;
-}
-
-/**
- * Compact upgrade chip for the dock rail: a small art thumbnail, what the
- * upgrades add, and its upgrade pips. Tapping it explains the upgrade.
- */
-export function actionChip(opts: { action: CoreAction; upgrades: number; power: string; /** A rival's chip: tapping it shows that player. */ playerId?: string }): string {
-  const { action, upgrades, power } = opts;
-  const meta = ACTION_META[action];
-  const max = MAX_UPGRADES[action];
-  const pips = Array.from({ length: max }, (_, i) => `<i class="${i < upgrades ? 'on' : ''}"></i>`).join('');
-  const p = UPGRADE_POWER[action];
-  return `
-    <button class="action-chip chip-${action} ${upgrades ? 'chip-upgraded' : ''}" ${opts.playerId ? `data-act="view-player" data-arg="${opts.playerId}"` : `data-act="view-upgrade" data-arg="${action}"`} title="${meta.label}: ${p.title.toLowerCase()}">
-      <span class="chip-art ${meta.art}">${upgradeScene(action)}</span>
-      <span class="chip-body">
-        <span class="chip-power">${p.icon}${power}</span>
-        <span class="chip-label">${meta.label}</span>
-      </span>
-      <span class="chip-pips" aria-label="${upgrades} of ${max} upgrades">${pips}</span>
-    </button>`;
 }
 
 const ROMAN: [number, string][] = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];

@@ -7,7 +7,7 @@ export const BALANCE = {
   /** Blue Loop is 1v1. */
   maxPlayers: 2,
 
-  /** Sun temperature bounds. Reaching `supernovaAt` (raised by Cooling Chamber upgrades) eliminates a player. */
+  /** Sun temperature bounds. Reaching `supernovaAt` eliminates a player. */
   startingHeat: 0,
   minHeat: -5,
   supernovaAt: 24,
@@ -23,7 +23,7 @@ export const BALANCE = {
   openingHand: 5,
   drawPerTurn: 1,
   /** Seats after the first: extra cards in the opening hand, and extra plays on their first day. */
-  laterSeatCards: 1,
+  laterSeatCards: 0,
   laterSeatPlays: 0,
   /** Seats after the first also start with a cooler sun. */
   laterSeatCool: 0,
@@ -56,12 +56,6 @@ export const BALANCE = {
   /** Kept shields (Deep Current) never exceed this. */
   maxKeptShields: 12,
 
-  /** Command upgrades. Solar Flare: +1 heat on every heat effect. Thermosiphon: +1 on every cooling effect. */
-  solarFlareMaxUpgrades: 3,
-  thermosiphonMaxUpgrades: 3,
-  /** Cooling Chamber: each upgrade raises max health. */
-  coolingChamberMaxUpgrades: 3,
-  coolingChamberHealthPerUpgrade: 6,
 
   /**
    * Regional stability runs out: the late-game clock that guarantees games end.

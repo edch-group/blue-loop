@@ -880,7 +880,6 @@ export class CampaignView {
     const g = garrisonBonus(n);
     const bonus = [
       g.tableau.length && `${g.tableau.length} card${g.tableau.length > 1 ? 's' : ''} start in play`,
-      ...Object.entries(g.upgrades).map(([a, k]) => `+${k} ${a === 'solarFlare' ? 'Solar Flare' : a === 'thermosiphon' ? 'Thermosiphon' : 'Cooling Chamber'} upgrade`),
       n.fortification && `+${n.fortification * CAMPAIGN.fortifyHealth} max health`,
     ].filter(Boolean);
     const garrison = n.garrison
@@ -1051,7 +1050,7 @@ export class CampaignView {
             <li>Your battle <b>deck is 20 cards</b> with exactly 2 Command cards. Win cards from missions and buy them in the armory with ${MATERIALS} materials; they wait in your reserve until you swap them into your deck.</li>
             <li><b>Fog of war:</b> you only see systems linked to yours. Hold a system with a <b>scanner</b> to see two links out from it.</li>
             <li><b>Your base</b> holds your deck, the armory and your missions. The armory restocks every turn and whenever you conquer a system. <b>Fusion</b> merges two reserve cards into one that does both, for ${MATERIALS} materials; it cannot be undone.</li>
-            <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play in its tableau (a Command card gives its upgrade, and a Lightspeed card starts set face down). Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
+            <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play in its tableau (a Lightspeed card starts set face down). Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
           </ul>`,
           true,
         );
@@ -1090,9 +1089,8 @@ export class CampaignView {
     };
     const g = garrisonBonus(to);
     const def = g.tableau.map((id) => cardDef(id).name);
-    const ups = Object.keys(g.upgrades).length;
     return `<div class="cmp-matchup">${side(from, 'attacker')}<span class="cmp-vs">vs</span>${side(to, 'defender')}</div>${
-      def.length || ups ? `<p class="cmp-bonus">The defender starts with ${[def.length ? `${def.join(', ')} in play` : '', ups ? `${ups} garrison upgrade${ups > 1 ? 's' : ''}` : ''].filter(Boolean).join(' and ')}.</p>` : ''
+      def.length ? `<p class="cmp-bonus">The defender starts with ${def.join(', ')} in play.</p>` : ''
     }`;
   }
 

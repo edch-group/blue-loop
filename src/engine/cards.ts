@@ -9,6 +9,16 @@ import type { CardDef, Rarity } from './types';
  * "Your rival" is the other player (Blue Loop is 1v1). "Dawn"
  * effects trigger at each of your dawns while the card is in play.
  */
+/**
+ * A Command card's choice of dawn effect: heat your rival, cool your sun, or draw. The ids are how the
+ * choice is written into card text ({options:heat2|cool3|draw1}) and named in a play.
+ */
+export const COMMAND_CHOICES: NonNullable<CardDef['choices']> = [
+  { id: 'heat2', onTurn: [{ type: 'heat', amount: 2, to: 'target' }] },
+  { id: 'cool3', onTurn: [{ type: 'cool', amount: 3 }] },
+  { id: 'draw1', onTurn: [{ type: 'draw', amount: 1 }] },
+];
+
 export const CARDS: CardDef[] = [
   // ---- Neutral ------------------------------------------------------------
   { id: 'coronal_lance', name: 'Coronal Lance', kind: 'attack', text: '{heat:3}.', onPlay: [{ type: 'heat', amount: 3, to: 'target' }] },
@@ -34,38 +44,39 @@ export const CARDS: CardDef[] = [
   { id: 'ice_age', name: 'Ice Age', kind: 'global', text: '{global}. Every sun gets {cool:1} at its dawn.', passive: [{ type: 'field', field: 'iceAge' }] },
   { id: 'solar_maximum', name: 'Solar Maximum', kind: 'global', text: '{global}. Every {heat} effect deals 1 more.', passive: [{ type: 'field', field: 'solarMaximum' }] },
 
-  // ---- Command: upgrades for your whole deck. They stay in your tableau like any other card ----
-  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: 'Upgrade one of: {options:solarFlare|thermosiphon|coolingChamber}', onPlay: [{ type: 'upgrade', action: 'choice' }] },
+  // ---- Command: each deck's two pillars. Played with a choice of dawn effect, they stay their full term,
+  // and can't be recovered or recalled to your own hand (a rival can still send them back) ----
+  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: '{dawn}, one of: {options:heat2|cool3|draw1}', choices: COMMAND_CHOICES },
   {
     id: 'ignition_protocol',
     name: 'Ignition Protocol',
     kind: 'command',
-    text: 'Upgrade Solar Flare: attack cards deal +1 {heat}. {dawn}: {heat:1}.',
-    onPlay: [{ type: 'upgrade', action: 'solarFlare' }],
-    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
+    text: '{heat:1}. {dawn}: {heat:2}.',
+    onPlay: [{ type: 'heat', amount: 1, to: 'target' }],
+    onTurn: [{ type: 'heat', amount: 2, to: 'target' }],
   },
   {
     id: 'coolant_protocol',
     name: 'Coolant Protocol',
     kind: 'command',
-    text: 'Upgrade Thermosiphon: cooling gives +1 {cool}. {dawn}: {cool:1}.',
-    onPlay: [{ type: 'upgrade', action: 'thermosiphon' }],
-    onTurn: [{ type: 'cool', amount: 1 }],
+    text: '{cool:1}. {dawn}: {cool:2}.',
+    onPlay: [{ type: 'cool', amount: 1 }],
+    onTurn: [{ type: 'cool', amount: 2 }],
   },
   {
     id: 'chamber_protocol',
     name: 'Chamber Protocol',
     kind: 'command',
-    text: `Upgrade Cooling Chamber: +${BALANCE.coolingChamberHealthPerUpgrade} max health. {dawn}: {shield:1}.`,
-    onPlay: [{ type: 'upgrade', action: 'coolingChamber' }],
-    onTurn: [{ type: 'shield', amount: 1 }],
+    text: '{shield:2}. {dawn}: {shield:2}.',
+    onPlay: [{ type: 'shield', amount: 2 }],
+    onTurn: [{ type: 'shield', amount: 2 }],
   },
   {
     id: 'the_admiralty',
     name: 'The Admiralty',
     kind: 'command',
-    text: '{resonance:1}. Upgrade one of: {options:solarFlare|thermosiphon|coolingChamber}',
-    onPlay: [{ type: 'upgrade', action: 'choice' }],
+    text: '{resonance:1}. {dawn}, one of: {options:heat2|cool3|draw1}',
+    choices: COMMAND_CHOICES,
     passive: [{ type: 'adjacent', amounts: [1] }],
   },
 
@@ -228,8 +239,8 @@ export const CARDS: CardDef[] = [
     name: 'Helio Lancer',
     kind: 'attack',
     race: 0,
-    text: '{dawn}: {heat:2}. With a Solar Flare upgrade, {shield:1}.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'shield', amount: 1, if: { upgraded: 'solarFlare' } }],
+    text: '{dawn}: {heat:2}. With a Command card, {shield:1}.',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'shield', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
   { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: "Your other attack cards deal +1 {heat} at your dawn. Copies don't stack.", passive: [{ type: 'kindBonus', kind: 'attack', amount: 1, others: true, onTurnOnly: true }] },
   {
@@ -265,8 +276,8 @@ export const CARDS: CardDef[] = [
     name: 'Shard Reactor',
     kind: 'attack',
     race: 1,
-    text: '{dawn}: {heat:2}. {heat:2} to your sun.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'selfHeat', amount: 2 }],
+    text: '{dawn}: {heat:2}. {heat:1} to your sun.',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'selfHeat', amount: 1 }],
   },
   {
     id: 'crystal_storm',
@@ -300,7 +311,7 @@ export const CARDS: CardDef[] = [
   { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 2. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 2 }, { type: 'selfHeat', amount: 1 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
-  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{sturdy:1}. {dawn}: {shield:3}.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }] },
+  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{sturdy:1}. {dawn}: {shield:2}.', defence: 1, onTurn: [{ type: 'shield', amount: 2 }] },
   { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: "{sting:3}.", passive: [{ type: 'retaliate', amount: 3 }] },
   {
     id: 'tidal_bloom',
@@ -413,8 +424,8 @@ export const CARDS: CardDef[] = [
     name: 'Ember Shard',
     kind: 'attack',
     race: 1,
-    text: '{heat:2}. When you recover this, {heat:1}.',
-    onPlay: [{ type: 'heat', amount: 2, to: 'target' }],
+    text: '{heat:3}. When you recover this, {heat:1}.',
+    onPlay: [{ type: 'heat', amount: 3, to: 'target' }],
     onRecover: [{ type: 'heat', amount: 1, to: 'target' }],
   },
   {
@@ -734,7 +745,6 @@ function choiceKinds(def: CardDef): Set<string> {
     if (e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all)) kinds.add('enemy');
     if (e.type === 'recall' || (e.type === 'restore' && !e.all)) kinds.add('ally');
     if (e.type === 'recover') kinds.add('recover');
-    if (e.type === 'upgrade') kinds.add('upgrade');
   }
   return kinds;
 }

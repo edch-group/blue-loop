@@ -10,7 +10,7 @@ import { chooseAIAction } from './ai';
 import { CARDS, cardDef, deckProblems, fusedId, fusionProblem, RACE_NAMES } from './cards';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
-import type { BattleModifiers, CoreAction, GameState, PlayerSetup } from './types';
+import type { BattleModifiers, GameState, PlayerSetup } from './types';
 
 // ---------------------------------------------------------------------------
 // Tuning
@@ -440,20 +440,18 @@ export function attackOptions(s: CampaignState, factionId: string): { toId: stri
 export interface GarrisonBonus {
   /** Cards that start the defence already in the defender's tableau. */
   tableau: string[];
-  /** Upgrades the defender starts with (from stationed Command cards). */
-  upgrades: Partial<Record<CoreAction, number>>;
   /** A stationed Lightspeed card, set face down from the start (only the first). */
   lightspeed?: string;
 }
 
 /**
  * What a system's stationed cards do when it is attacked: they start the
- * battle already in the defender's tableau. A stationed Command card gives
- * its upgrade instead (Command Directive: Cooling Chamber), and a stationed
- * Lightspeed card starts set face down (only one can be).
+ * battle already in the defender's tableau (a stationed Command card with its
+ * first choice), and a stationed Lightspeed card starts set face down (only
+ * one can be).
  */
 export function garrisonBonus(n: CampaignNode): GarrisonBonus {
-  const b: GarrisonBonus = { tableau: [], upgrades: {} };
+  const b: GarrisonBonus = { tableau: [] };
   for (const g of n.garrison) {
     if (g.status !== 'stationed') continue;
     const def = cardDef(g.defId);
@@ -461,13 +459,7 @@ export function garrisonBonus(n: CampaignNode): GarrisonBonus {
       b.lightspeed ??= g.defId;
       continue;
     }
-    if (def.kind !== 'command') {
-      b.tableau.push(g.defId);
-      continue;
-    }
-    const up = (def.onPlay ?? []).find((e) => e.type === 'upgrade');
-    const action: CoreAction = up?.type === 'upgrade' && up.action !== 'choice' ? up.action : 'coolingChamber';
-    b.upgrades[action] = (b.upgrades[action] ?? 0) + 1;
+    b.tableau.push(g.defId);
   }
   return b;
 }
@@ -780,7 +772,7 @@ function battleSetup(s: CampaignState, attacker: Faction, from: CampaignNode, ta
   const defenceConditions = [
     ...(targetFx?.conditions ?? []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
-    ...(g.tableau.length || Object.keys(g.upgrades).length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
+    ...(g.tableau.length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
   ];
   return [
     {
@@ -800,7 +792,6 @@ function battleSetup(s: CampaignState, attacker: Faction, from: CampaignNode, ta
       heatDelta: target.damage + (owner ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0),
       tableau: g.tableau,
       lightspeed: g.lightspeed,
-      upgrades: g.upgrades,
       modifiers: mergeModifiers(targetFx?.modifiers ?? {}, fortified),
       conditions: defenceConditions.length ? defenceConditions : undefined,
     },

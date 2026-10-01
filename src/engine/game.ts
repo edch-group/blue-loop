@@ -1,31 +1,11 @@
 import { BALANCE } from './balance';
 import { cardDef, presetDeck } from './cards';
 import { randomInt, shuffleInPlace } from './rng';
-import { CORE_ACTIONS } from './types';
-import type { Action, CardDef, CardInstance, CardKind, Condition, CoreAction, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnPulse, TurnStats } from './types';
+import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnPulse, TurnStats } from './types';
 
 export class GameError extends Error {}
 
 const emptyTurn = (): TurnStats => ({ heatDealt: 0, cardsPlayed: 0, cooled: 0 });
-
-export const MAX_UPGRADES: Record<CoreAction, number> = {
-  solarFlare: BALANCE.solarFlareMaxUpgrades,
-  thermosiphon: BALANCE.thermosiphonMaxUpgrades,
-  coolingChamber: BALANCE.coolingChamberMaxUpgrades,
-};
-
-export const ACTION_NAME: Record<CoreAction, string> = {
-  solarFlare: 'Solar Flare',
-  thermosiphon: 'Thermosiphon',
-  coolingChamber: 'Cooling Chamber',
-};
-
-/** What each core upgrade does for your deck. */
-export const ACTION_TEXT: Record<CoreAction, string> = {
-  solarFlare: 'Each upgrade: every heat effect from your attack cards deals 1 more heat.',
-  thermosiphon: 'Each upgrade: every cooling effect from your cards cools 1 more.',
-  coolingChamber: `Each upgrade: +${BALANCE.coolingChamberHealthPerUpgrade} max health.`,
-};
 
 function newCard(state: GameState, defId: string): CardInstance {
   state.uidCounter += 1;
@@ -64,8 +44,6 @@ export function createGame(setup: GameSetup): GameState {
     const species = ps.species ?? i % 4;
     const list = ps.deck ?? presetDeck(species).cards;
     const deck = shuffleInPlace(state, list.map((id) => newCard(state, id)));
-    const upgrades = { solarFlare: 0, thermosiphon: 0, coolingChamber: 0 };
-    for (const a of CORE_ACTIONS) upgrades[a] = Math.min(MAX_UPGRADES[a], ps.upgrades?.[a] ?? 0);
     const p: PlayerState = {
       id: `p${i + 1}`,
       name: ps.name,
@@ -74,7 +52,6 @@ export function createGame(setup: GameSetup): GameState {
       deckName: ps.deckName ?? (ps.deck ? undefined : presetDeck(species).name),
       heat: BALANCE.startingHeat + (ps.heatDelta ?? 0) + (ps.modifiers?.startingHeat ?? 0) - (catchUp(i) ? BALANCE.laterSeatCool : 0),
       shields: ps.opening?.shields ?? 0,
-      upgrades,
       deck,
       hand: [],
       tableau: [],
@@ -156,7 +133,7 @@ export function targetOf(state: GameState, p: PlayerState): PlayerState | undefi
 
 /** Max health: reach it and your sun goes supernova. */
 export function supernovaThreshold(p: PlayerState): number {
-  return BALANCE.supernovaAt + p.upgrades.coolingChamber * BALANCE.coolingChamberHealthPerUpgrade + (p.modifiers?.maxHealthDelta ?? 0);
+  return BALANCE.supernovaAt + (p.modifiers?.maxHealthDelta ?? 0);
 }
 
 /** Half your max health or hotter. */
@@ -259,12 +236,18 @@ export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' |
 /** Your other cards this card could return to your hand or restore (empty if it needs no such choice). */
 export function allyChoices(p: PlayerState, defId: string): CardInstance[] {
   if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || (e.type === 'restore' && !e.all))) return [];
-  return [...p.tableau];
+  // Command cards can't be brought back to your own hand (a rival can still send them back).
+  return allyEffectKind(defId) === 'recall' ? p.tableau.filter(returnable) : [...p.tableau];
+}
+
+/** Whether a card may be recalled or recovered to its owner's hand: anything but a Command card. */
+export function returnable(card: CardInstance): boolean {
+  return cardDef(card.defId).kind !== 'command';
 }
 
 /** Whether a card recalls one of your cards, so it can take that card's place in a full tableau. */
 export function recallsInto(p: PlayerState, defId: string): boolean {
-  return allyEffectKind(defId) === 'recall' && p.tableau.length > 0;
+  return allyEffectKind(defId) === 'recall' && p.tableau.some(returnable);
 }
 
 /** Whether a card can be played into this tableau now: a free slot, a recall to make one, or no slot needed. */
@@ -282,7 +265,7 @@ export function allyEffectKind(defId: string): 'recall' | 'restore' | null {
 export function recoverChoices(p: PlayerState, defId: string): CardInstance[] {
   const e = (cardDef(defId).onPlay ?? []).find((x): x is Extract<Effect, { type: 'recover' }> => x.type === 'recover');
   if (!e) return [];
-  return p.discard.filter((c) => !e.kind || cardDef(c.defId).kind === e.kind);
+  return p.discard.filter((c) => returnable(c) && (!e.kind || cardDef(c.defId).kind === e.kind));
 }
 
 /** Whether a card cares about its neighbours (or makes its neighbours better). */
@@ -295,7 +278,7 @@ export function resonates(defId: string): boolean {
 /** Whether resonance can boost a card: it has heat, cooling or shields of its own. */
 export function boostable(defId: string): boolean {
   const def = cardDef(defId);
-  return [...(def.onPlay ?? []), ...(def.onTurn ?? [])].some((e) => e.type === 'heat' || e.type === 'cool' || e.type === 'shield');
+  return [...(def.onPlay ?? []), ...(def.onTurn ?? []), ...(def.choices ?? []).flatMap((c) => c.onTurn)].some((e) => e.type === 'heat' || e.type === 'cool' || e.type === 'shield');
 }
 
 /** Your empty tableau slots, left to right. */
@@ -319,8 +302,10 @@ export function baseStability(defId: string): number {
   const def = cardDef(defId);
   if (def.stability !== undefined) return def.stability;
   // A card that only does something once (when played) stays just until your next dawn: its slot is part of its cost.
-  if (!def.onTurn?.length && !def.passive?.length) return BALANCE.stabilityBurst;
-  return def.kind === 'command' ? BALANCE.stabilityCommand : BALANCE.stability;
+  // Command cards stay for their full term, whatever they do.
+  if (def.kind === 'command') return BALANCE.stabilityCommand;
+  if (!def.onTurn?.length && !def.passive?.length && !def.choices?.length) return BALANCE.stabilityBurst;
+  return BALANCE.stability;
 }
 
 /** Put a card into a tableau slot, with its full stability. */
@@ -361,13 +346,16 @@ export function canSetLightspeed(p: PlayerState): boolean {
   return p.lightspeed === null;
 }
 
-export function cardNeedsUpgradeChoice(defId: string): boolean {
-  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'upgrade' && e.action === 'choice');
+/** The choices a card is played with (Command cards), or none. */
+export function cardChoices(defId: string): string[] {
+  return (cardDef(defId).choices ?? []).map((c) => c.id);
 }
 
-/** Core actions that can still be upgraded. */
-export function upgradeOptions(p: PlayerState): CoreAction[] {
-  return CORE_ACTIONS.filter((a) => p.upgrades[a] < MAX_UPGRADES[a]);
+/** A card's dawn effects: its own, and the choice it was played with (a card placed without one takes the first). */
+export function dawnEffects(card: CardInstance): Effect[] {
+  const def = cardDef(card.defId);
+  const chosen = def.choices?.find((c) => c.id === card.choice) ?? def.choices?.[0];
+  return [...(def.onTurn ?? []), ...(chosen?.onTurn ?? [])];
 }
 
 /** Whether a card stays in the tableau when played (everything but Lightspeed cards, which are set face down). */
@@ -405,8 +393,6 @@ function countOf(p: PlayerState, card: CardInstance, c: Count): number {
       return Math.floor(p.tableau.filter((t) => cardDef(t.defId).kind === c.kind).length / per);
     case 'cards':
       return Math.floor(p.tableau.length / per);
-    case 'upgrades':
-      return p.upgrades[c.action];
     case 'shields':
       return Math.floor(p.shields / per);
     case 'growth':
@@ -422,14 +408,13 @@ export function conditionMet(p: PlayerState, cond: Condition | undefined): boole
   if (!cond) return true;
   if ('overheated' in cond) return isOverheated(p);
   if ('minKind' in cond) return p.tableau.filter((t) => cardDef(t.defId).kind === cond.minKind).length >= cond.n;
-  if ('upgraded' in cond) return p.upgrades[cond.upgraded] > 0;
   if ('planet' in cond) return currentPlanet(p) === cond.planet;
   return p.tableau.length >= cond.minCards;
 }
 
 /**
  * How much an effect does right now, with every bonus: the card's scaling,
- * Solar Flare or Thermosiphon upgrades, attack bonuses and Solar Maximum.
+ * attack bonuses and Solar Maximum.
  * Bonuses only apply to an effect that does something on its own.
  */
 export function effectAmount(state: GameState, p: PlayerState, card: CardInstance, e: Effect, when: Timing = 'play'): number {
@@ -441,8 +426,8 @@ export function effectAmount(state: GameState, p: PlayerState, card: CardInstanc
   if (e.type !== 'draw' && e.type !== 'selfHeat') base += resonanceBonus(p, card);
   if (e.type === 'heat') {
     const kind = cardDef(card.defId).kind;
-    // Solar Flare upgrades power attacks; bonus cards count once per card name (copies do not stack).
-    let bonus = kind === 'attack' ? p.upgrades.solarFlare : 0;
+    // Bonus cards count once per card name (copies do not stack).
+    let bonus = 0;
     const counted = new Set<string>();
     for (const { card: src, passive } of passives(p)) {
       if (passive.type !== 'kindBonus' || passive.kind !== kind || (passive.others && src.uid === card.uid) || (passive.onTurnOnly && when !== 'turn') || counted.has(src.defId)) continue;
@@ -452,7 +437,6 @@ export function effectAmount(state: GameState, p: PlayerState, card: CardInstanc
     if (fieldActive(state, 'solarMaximum')) bonus += 1;
     return base + bonus;
   }
-  if (e.type === 'cool') return base + p.upgrades.thermosiphon;
   return base;
 }
 
@@ -498,7 +482,7 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   // Run the effects on a copy, so growth and the like carry from one effect to the next.
   const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c })) };
   for (const card of me.tableau) {
-    for (const e of cardDef(card.defId).onTurn ?? []) {
+    for (const e of dawnEffects(card)) {
       if (!conditionMet(me, e.if)) continue;
       switch (e.type) {
         case 'grow':
@@ -645,7 +629,6 @@ function supernova(state: GameState, p: PlayerState) {
 export type Timing = 'play' | 'turn' | 'leave' | 'recover' | 'spring';
 
 interface PlayContext {
-  upgrade?: CoreAction;
   enemyUid?: string;
   allyUid?: string;
   recoverUid?: string;
@@ -653,7 +636,8 @@ interface PlayContext {
   against?: PlayerState;
 }
 
-const kindMatches = (c: CardInstance, kind?: CardKind) => !kind || cardDef(c.defId).kind === kind;
+/** A card in the discard pile a recover effect can take back: of its kind, if it names one, and never a Command card. */
+const kindMatches = (c: CardInstance, kind?: CardKind) => returnable(c) && (!kind || cardDef(c.defId).kind === kind);
 
 function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, effects: Effect[] | undefined, when: Timing, ctx: PlayContext = {}) {
   for (const e of effects ?? []) {
@@ -710,16 +694,6 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'grow':
         card.growth = Math.min(e.max, (card.growth ?? 0) + 1);
         break;
-      case 'upgrade': {
-        const action = e.action === 'choice' ? ctx.upgrade : e.action;
-        if (!action || p.upgrades[action] >= MAX_UPGRADES[action]) {
-          log(state, `${p.name}'s ${e.action === 'choice' ? 'upgrades' : ACTION_NAME[e.action]} are already at their limit.`);
-          break;
-        }
-        p.upgrades[action] += 1;
-        log(state, `${p.name} upgrades ${ACTION_NAME[action]} to level ${p.upgrades[action]}.`);
-        break;
-      }
       case 'destroy':
       case 'bounce': {
         const t = ctx.against ?? targetOf(state, p);
@@ -771,7 +745,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         break;
       }
       case 'recall': {
-        const back = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid);
+        const back = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid && returnable(c));
         if (back) {
           log(state, `${p.name} returns ${cardDef(back.defId).name} to their hand.`);
           leaveTableau(state, p, back, 'hand');
@@ -822,6 +796,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   card.growth = undefined;
   card.slot = undefined;
   card.stability = undefined;
+  card.choice = undefined;
   if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
   else (to === 'hand' ? owner.hand : owner.discard).push(card);
   resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
@@ -896,7 +871,7 @@ function startTurn(state: GameState) {
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
     if (!p.tableau.includes(card)) continue;
-    resolveEffects(state, p, card, cardDef(card.defId).onTurn, 'turn');
+    resolveEffects(state, p, card, dawnEffects(card), 'turn');
   }
   // Then every card loses 1 stability (unless anchored); at 0 it fades into your discard pile.
   const fading = p.tableau.filter((c) => !anchored(p, c));
@@ -939,9 +914,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const lightspeed = def.kind === 'lightspeed';
   if (lightspeed && !canSetLightspeed(p)) throw new GameError('You already have a Lightspeed card face down.');
 
-  if (cardNeedsUpgradeChoice(def.id) && upgradeOptions(p).length > 0) {
-    if (!action.upgrade || !upgradeOptions(p).includes(action.upgrade)) throw new GameError('Choose an upgrade.');
-  }
+  const choices = cardChoices(def.id);
+  if (choices.length && !choices.includes(action.choice ?? '')) throw new GameError('Choose one of its options.');
   const target = targetOf(state, p);
   const foes = enemyChoices(state, p, def.id);
   if (foes.length > 0 && !foes.some((c) => c.uid === action.enemyUid)) {
@@ -1011,7 +985,17 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     return;
   }
   place(p, card, slot);
+  if (choices.length) {
+    card.choice = action.choice;
+    log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);
+  }
   resolveEffects(state, p, card, def.onPlay, 'play', action);
+}
+
+/** A choice as words, for the log ("heat 2", "draw 1"). */
+export function choiceLabel(id: string): string {
+  const m = /^([a-z]+)(\d+)$/.exec(id);
+  return m ? `${m[1]} ${m[2]}` : id;
 }
 
 /** Apply an action and return the new state (the input is never mutated). */

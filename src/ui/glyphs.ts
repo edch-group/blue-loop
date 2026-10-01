@@ -1,4 +1,4 @@
-import { baseStability, keywordLabel, KEYWORDS, keywordsIn, OPTION_NAMES, optionList, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { baseStability, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -23,7 +23,7 @@ export const KIND_COLOUR: Record<CardKind, string> = {
   defence: '#3f93dc', // blue
   growth: '#3a9e6a', // green: draw, growth and extra plays
   global: '#9265d6', // purple
-  command: '#8b909b', // silver: upgrades for the whole deck
+  command: '#8b909b', // silver: each deck's two Command cards
   lightspeed: '#d4952a', // amber: set face down, springs on the enemy's day
 };
 
@@ -288,7 +288,7 @@ export function cardTextHtml(text: string, chosen?: string): string {
       // A card's choices, one per line: the one picked (as the card is played) stands out.
       if (p.kw === 'options')
         return `<span class="card-opts${chosen ? ' card-opts-chosen' : ''}">${optionList(p.value)
-          .map((o) => `<span class="card-opt${o === chosen ? ' on' : ''}" data-opt="${escText(o)}">${OPTION_ICON[o] ?? ''}${escText(OPTION_NAMES[o] ?? o)}</span>`)
+          .map((o) => `<span class="card-opt${o === chosen ? ' on' : ''}" data-opt="${escText(o)}">${cardTextHtml(optionText(o))}</span>`)
           .join('')}</span>`;
       return keywordHtml(p.kw, p.value, { data: true });
     })
@@ -299,8 +299,7 @@ export function cardTextHtml(text: string, chosen?: string): string {
 /** Between a card's sentences: a paragraph break. */
 const PARA = '<span class="card-para"></span>';
 
-/** The upgrades' marks, as on the upgrade chips beside the board. */
-const OPTION_ICON: Record<string, string> = { solarFlare: '<i>▲</i>', thermosiphon: '<i>▼</i>', coolingChamber: '<i>♥</i>' };
+
 
 /**
  * The explanations beside a zoomed card: its keywords (Dawn included), the
