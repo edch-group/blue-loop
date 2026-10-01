@@ -169,8 +169,6 @@ const DOME_R = 0.27;
 const ORBIT_R = 0.56;
 /** How far the dome canvas reaches past the gauge on every side (it holds the sun's image as the board sees it). */
 const DOME_PAD = 0.6;
-const DOME_LATS = 12;
-const DOME_SLICES = 36;
 
 /** Where each sun gauge's top-left corner is, and the camera, in the gauge's own board coordinates (px; z up off the board). */
 function offsetIn(el: HTMLElement, anc: HTMLElement): [number, number] {
@@ -229,32 +227,81 @@ function sunPalette(t: number, cold: number, dead: boolean): RGB[] {
   return palette(t, cold);
 }
 
-const mottles = new Map<number, Float32Array>();
-function mottleFor(seed: number): Float32Array {
-  let m = mottles.get(seed);
-  if (m) return m;
-  m = new Float32Array(DOME_LATS * DOME_SLICES);
-  let r = (Math.floor(seed * 1000) * 7919 + 17) >>> 0;
-  for (let k = 0; k < m.length; k++) m[k] = ((r = (Math.imul(r, 1664525) + 1013904223) >>> 0) / 4294967296 - 0.5) * 0.1;
-  mottles.set(seed, m);
-  return m;
-}
-
-const PLANET_RGB: Record<string, RGB> = { dead: [150, 156, 168], abundant: [86, 192, 150], industrial: [224, 150, 72] };
+const PLANET_RGB: Record<string, RGB> = { dead: [170, 175, 186], abundant: [86, 192, 150], industrial: [226, 150, 72] };
 const PLANETS = ['dead', 'abundant', 'industrial'];
 /** Each dome canvas's planets, as drawn (angles in degrees), eased towards where the orbit puts them. */
 const planetAngles = new WeakMap<HTMLCanvasElement, number[]>();
+const domeImages = new WeakMap<HTMLCanvasElement, ImageData>();
 
-type Shape = { depth: number; draw: () => void };
+/** A half-sphere sitting in the board: its centre on the board, its colour at a point of its surface. */
+type Ball = { ctr: V3; r: number; shade: (n: V3, mu: number) => RGB };
 
 /**
- * Draws a sun as a solid object: a faceted dome rising out of the board, and
- * its planets as faceted balls lit by it, each facet projected onto the
- * board along the viewer's line of sight. Lying on the board, the drawing
- * looks to the viewer exactly like the solid it was projected from (the trick
- * of 3D pavement art), so the sun is truly 3D in the board's own perspective
- * while costing no more than a flat drawing. Facets facing the viewer burn
- * deep orange, facets seen edge-on white-hot, as in a photograph of the Sun.
+ * Ray-traces the visible half-spheres (the sun and its planets) into the
+ * canvas, pixel by pixel: each pixel is a point of the board, and the line of
+ * sight from the eye to it either meets a ball first (and shows that ball's
+ * surface there) or reaches the board. Lying on the board, the picture looks
+ * to the viewer exactly like the solids themselves (the trick of 3D pavement
+ * art), smooth and in the board's own perspective, while the board stays flat.
+ */
+function traceBalls(img: ImageData, s: number, pad: number, cam: V3, balls: Ball[]) {
+  const W = img.width;
+  const px = img.data;
+  // Farthest first, so nearer balls paint over farther ones.
+  const order = balls.slice().sort((a, b) => Math.hypot(...sub3(cam, b.ctr)) - Math.hypot(...sub3(cam, a.ctr)));
+  for (const ball of order) {
+    const { ctr, r } = ball;
+    // The ball's outline on the board, from points round its surface.
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let la = 0; la <= 90; la += 15) {
+      for (let lo = 0; lo < 360; lo += 15) {
+        const a = (la * Math.PI) / 180, o = (lo * Math.PI) / 180;
+        const [qx, qy] = onBoard(cam, [ctr[0] + r * Math.cos(a) * Math.cos(o), ctr[1] + r * Math.cos(a) * Math.sin(o), r * Math.sin(a)]);
+        x0 = Math.min(x0, qx); y0 = Math.min(y0, qy); x1 = Math.max(x1, qx); y1 = Math.max(y1, qy);
+      }
+    }
+    const pa = Math.max(0, Math.floor((x0 + pad) * s) - 2), pb = Math.min(W - 1, Math.ceil((x1 + pad) * s) + 2);
+    const qa = Math.max(0, Math.floor((y0 + pad) * s) - 2), qb = Math.min(W - 1, Math.ceil((y1 + pad) * s) + 2);
+    const o: V3 = sub3(cam, ctr);
+    const oo = dot3(o, o);
+    for (let y = qa; y <= qb; y++) {
+      for (let x = pa; x <= pb; x++) {
+        // The line of sight from the eye to this point of the board.
+        const D: V3 = [(x + 0.5) / s - pad - cam[0], (y + 0.5) / s - pad - cam[1], -cam[2]];
+        const a = dot3(D, D), b = dot3(o, D);
+        // How close the line passes to the ball's centre, and how big a pixel is out there (for smooth edges).
+        const near = Math.sqrt(Math.max(0, oo - (b * b) / a));
+        const reach = Math.sqrt(oo / a) / s;
+        const cover = Math.min(1, Math.max(0, (r - near) / reach + 0.5));
+        if (cover <= 0) continue;
+        const disc = b * b - a * (oo - r * r);
+        const t = disc > 0 ? (-b - Math.sqrt(disc)) / a : -b / a;
+        const P: V3 = add3(cam, mul3(D, t));
+        if (P[2] < 0) continue;
+        const n = norm3(sub3(P, ctr));
+        const mu = Math.max(0, dot3(n, norm3(sub3(cam, P))));
+        const col = ball.shade(n, mu);
+        const i = (y * W + x) * 4;
+        const da = px[i + 3] / 255;
+        if (da === 0 || cover >= 1) {
+          px[i] = col[0]; px[i + 1] = col[1]; px[i + 2] = col[2];
+          px[i + 3] = cover * 255;
+        } else {
+          px[i] = px[i] + (col[0] - px[i]) * cover;
+          px[i + 1] = px[i + 1] + (col[1] - px[i + 1]) * cover;
+          px[i + 2] = px[i + 2] + (col[2] - px[i + 2]) * cover;
+          px[i + 3] = Math.min(255, px[i + 3] + (255 - px[i + 3]) * cover);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Draws a sun and its planets as solids: the top halves of spheres rising out
+ * of the board, the sun's surface mottled with granulation, deep orange where
+ * it faces the viewer and white-hot at its outline (as in a photograph of the
+ * Sun), the planets lit from the sun's side.
  */
 function drawDome(canvas: HTMLCanvasElement, time: number) {
   const vit = canvas.closest<HTMLElement>('.vit');
@@ -262,71 +309,55 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   const vs = vit.offsetWidth;
   if (vs < 8) return;
   const span = vs * (1 + 2 * DOME_PAD);
-  const px = Math.round(Math.min(640, span * Math.min(2, window.devicePixelRatio || 1)));
-  if (canvas.width !== px) {
-    canvas.width = px;
-    canvas.height = px;
+  const size = Math.round(Math.min(640, span * Math.min(2, window.devicePixelRatio || 1)));
+  if (canvas.width !== size) {
+    canvas.width = size;
+    canvas.height = size;
   }
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
-  const s = px / span;
-  ctx.setTransform(s, 0, 0, s, DOME_PAD * vs * s, DOME_PAD * vs * s);
-  ctx.clearRect(-DOME_PAD * vs, -DOME_PAD * vs, span, span);
-  ctx.lineJoin = 'round';
+  let img = domeImages.get(canvas);
+  if (!img || img.width !== size) {
+    img = ctx.createImageData(size, size);
+    domeImages.set(canvas, img);
+  }
+  img.data.fill(0);
+  const s = size / span;
+  const pad = DOME_PAD * vs;
 
   const eye = cameraFor(vit);
   const cam = eye.cam;
   const dead = canvas.dataset.dead === '1';
   const [deep, mid, bright] = sunPalette(Number(canvas.dataset.t ?? 0), Number(canvas.dataset.cold ?? 0), dead);
   const seed = Number(canvas.dataset.seed ?? 0);
-  const mottle = mottleFor(seed);
+  const tex = surface();
   const c: V3 = [vs / 2, vs / 2, 0];
   const R = vs * DOME_R;
   const spin = time * 0.00004 + seed;
-  const rad = Math.PI / 180;
-  const vert = (lat: number, lon: number): V3 => [c[0] + R * Math.cos(lat) * Math.cos(lon), c[1] + R * Math.cos(lat) * Math.sin(lon), R * Math.sin(lat)];
-  const poly = (pts: V3[], fill: string) => {
-    ctx.beginPath();
-    pts.forEach((p, k) => {
-      const [x, y] = onBoard(cam, p);
-      if (k) ctx.lineTo(x, y);
-      else ctx.moveTo(x, y);
-    });
-    ctx.closePath();
-    ctx.fillStyle = fill;
-    ctx.fill();
-    // The same colour round the edge closes the hairline seams between facets.
-    ctx.strokeStyle = fill;
-    ctx.lineWidth = 0.6 / s;
-    ctx.stroke();
-  };
-  const rgb = (k: number[]) => `rgb(${Math.round(k[0])} ${Math.round(k[1])} ${Math.round(k[2])})`;
+  const balls: Ball[] = [
+    {
+      ctr: c,
+      r: R,
+      shade: (n, mu) => {
+        // The granulation, turning with the sun.
+        const lon = Math.atan2(n[1], n[0]) + spin;
+        const u = lon / (Math.PI * 2);
+        const v = Math.asin(Math.min(1, n[2])) / Math.PI + 0.5;
+        const raw = tex[Math.min(TH - 1, Math.floor(v * TH)) * TW + (Math.floor((u - Math.floor(u)) * TW) % TW)];
+        const g = Math.min(1, Math.max(0, (raw - 0.3) * 1.6));
+        const k = Math.min(1, g * (0.6 + 0.4 * Math.sqrt(mu)));
+        const a = k < 0.5 ? k / 0.5 : (k - 0.5) / 0.5;
+        const lo = k < 0.5 ? deep : mid, hi = k < 0.5 ? mid : bright;
+        const w = dead ? 0 : Math.min(1, Math.pow(1 - mu, 4) * 1.3);
+        return [0, 1, 2].map((q) => {
+          const base = lo[q] + (hi[q] - lo[q]) * a;
+          return base + ([255, 248, 222][q] - base) * w;
+        }) as RGB;
+      },
+    },
+  ];
 
-  const shapes: Shape[] = [];
-  // The dome: its facets, each lit by how squarely it faces the eye.
-  const dome: (() => void)[] = [];
-  for (let i = 0; i < DOME_LATS; i++) {
-    const a0 = ((i * 90) / DOME_LATS) * rad, a1 = (((i + 1) * 90) / DOME_LATS) * rad;
-    for (let j = 0; j < DOME_SLICES; j++) {
-      const l0 = (j / DOME_SLICES) * Math.PI * 2 + spin, l1 = ((j + 1) / DOME_SLICES) * Math.PI * 2 + spin;
-      const am = (a0 + a1) / 2, lm = (l0 + l1) / 2;
-      const n: V3 = [Math.cos(am) * Math.cos(lm), Math.cos(am) * Math.sin(lm), Math.sin(am)];
-      const mu = dot3(n, norm3(sub3(cam, add3(c, mul3(n, R)))));
-      if (mu <= 0) continue;
-      let v = 0.28 + 0.66 * Math.pow(1 - mu, 1.5) + mottle[i * DOME_SLICES + j];
-      v = Math.max(0, Math.min(1, v));
-      const a = v < 0.5 ? v / 0.5 : (v - 0.5) / 0.5;
-      const lo = v < 0.5 ? deep : mid, hi = v < 0.5 ? mid : bright;
-      const w = dead ? 0 : Math.pow(1 - mu, 5) * 0.85;
-      const col = [0, 1, 2].map((k) => lo[k] + (hi[k] - lo[k]) * a + (([255, 248, 222][k] - (lo[k] + (hi[k] - lo[k]) * a)) * w));
-      const pts = [vert(a0, l0), vert(a0, l1), vert(a1, l1), vert(a1, l0)];
-      dome.push(() => poly(pts, rgb(col)));
-    }
-  }
-  const domeDepth = Math.hypot(...sub3(cam, add3(c, [0, 0, R * 0.5])));
-  shapes.push({ depth: domeDepth, draw: () => dome.forEach((f) => f()) });
-
-  // The planets: balls resting on the orbit, lit by the sun, easing round to where the orbit puts them.
+  // The planets: half-spheres in the board on the orbit, easing round to where the orbit puts them.
   const orbit = canvas.dataset.orbit === '' || canvas.dataset.orbit === undefined ? NaN : Number(canvas.dataset.orbit);
   if (!dead && isFinite(orbit)) {
     const facing = PLANETS[Math.floor((((orbit % 9) + 9) % 9) / 3)];
@@ -337,43 +368,27 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
       drawn[i] = Math.abs(delta) < 0.2 ? target[i] : d + delta * 0.18;
     });
     planetAngles.set(canvas, drawn);
-    const glow: V3 = [c[0], c[1], R * 0.6];
+    const glow: V3 = [c[0], c[1], R * 0.5];
     PLANETS.forEach((pl, i) => {
-      const big = pl === facing;
-      const pr = vs * (big ? 0.085 : 0.06);
-      const ang = drawn[i] * rad;
-      const ctr: V3 = [c[0] + Math.cos(ang) * ORBIT_R * vs, c[1] + Math.sin(ang) * ORBIT_R * vs, pr];
+      const pr = vs * (pl === facing ? 0.09 : 0.065);
+      const ang = (drawn[i] * Math.PI) / 180;
+      const ctr: V3 = [c[0] + Math.cos(ang) * ORBIT_R * vs, c[1] + Math.sin(ang) * ORBIT_R * vs, 0];
       const base = PLANET_RGB[pl];
-      const light = norm3(sub3(glow, ctr));
-      shapes.push({
-        depth: Math.hypot(...sub3(cam, ctr)),
-        draw: () => {
-          // A soft contact shadow on the board, cast away from the sun.
-          const away = norm3([ctr[0] - c[0], ctr[1] - c[1], 0]);
-          ctx.beginPath();
-          ctx.ellipse(ctr[0] + away[0] * pr * 0.45, ctr[1] + away[1] * pr * 0.45, pr * 1.05, pr * 1.05, 0, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(40, 44, 60, 0.1)';
-          ctx.fill();
-          const LAT = 7, LON = 12;
-          for (let a = 0; a < LAT; a++) {
-            const b0 = (-90 + (a * 180) / LAT) * rad, b1 = (-90 + ((a + 1) * 180) / LAT) * rad;
-            for (let o = 0; o < LON; o++) {
-              const o0 = (o / LON) * Math.PI * 2 + spin * 3, o1 = ((o + 1) / LON) * Math.PI * 2 + spin * 3;
-              const bm = (b0 + b1) / 2, om = (o0 + o1) / 2;
-              const n: V3 = [Math.cos(bm) * Math.cos(om), Math.cos(bm) * Math.sin(om), Math.sin(bm)];
-              const surf = add3(ctr, mul3(n, pr));
-              if (dot3(n, sub3(cam, surf)) <= 0) continue;
-              const lit = 0.62 + 0.5 * Math.max(0, dot3(n, light));
-              const pv = (b: number, o2: number): V3 => add3(ctr, [pr * Math.cos(b) * Math.cos(o2), pr * Math.cos(b) * Math.sin(o2), pr * Math.sin(b)]);
-              poly([pv(b0, o0), pv(b0, o1), pv(b1, o1), pv(b1, o0)], rgb(base.map((k) => Math.min(255, k * lit))));
-            }
-          }
+      const light = norm3(sub3(glow, add3(ctr, [0, 0, pr * 0.5])));
+      balls.push({
+        ctr,
+        r: pr,
+        shade: (n, mu) => {
+          const lit = 0.74 + 0.42 * Math.max(0, dot3(n, light)) - 0.1 * (1 - mu);
+          // A soft highlight where the sunlight glances off towards the eye.
+          const spec = Math.pow(Math.max(0, dot3(n, norm3(add3(light, [0, 0, 1])))), 24) * 70;
+          return base.map((q) => Math.min(255, q * lit + spec)) as RGB;
         },
       });
     });
   }
-  // Farthest first, so nearer things cover farther ones.
-  shapes.sort((a, b) => b.depth - a.depth).forEach((sh) => sh.draw());
+  traceBalls(img, s, pad, cam, balls);
+  ctx.putImageData(img, 0, 0);
 
   // The labels standing up off the board, turned to face the eye.
   const stand = (el: HTMLElement | null, at: V3, ay: string) => {
@@ -384,8 +399,7 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
     el.style.transform = `matrix(${((qx[0] - q0[0]) / k).toFixed(4)},${((qx[1] - q0[1]) / k).toFixed(4)},${((qy[0] - q0[0]) / k).toFixed(4)},${((qy[1] - q0[1]) / k).toFixed(4)},${q0[0].toFixed(2)},${q0[1].toFixed(2)}) translate(-50%, ${ay})`;
   };
   stand(vit.querySelector<HTMLElement>('.vit-heat'), [c[0], c[1], R * 0.9], '-50%');
-  stand(vit.querySelector<HTMLElement>('.vit-planet-tag'), [c[0], c[1] - vs * (ORBIT_R + 0.1), 0], '-100%');
-  stand(vit.querySelector<HTMLElement>('.vit-shields'), [c[0], c[1] + vs * (ORBIT_R + 0.2), 0], '-100%');
+  stand(vit.querySelector<HTMLElement>('.vit-under'), [c[0], c[1] + vs * (ORBIT_R + 0.22), 0], '-100%');
 }
 
 let last = 0;

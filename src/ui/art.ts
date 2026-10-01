@@ -102,9 +102,14 @@ function orbitPlanets(orbit: number): string {
       return `<i class="vit-planet vp-${pl} ${pl === facing ? 'vp-facing' : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" title="${PLANET_LOOK[pl].text}"></i>`;
     })
     .join('');
+  return planets;
+}
+
+/** The tag naming the planet facing the sun, and its turns left there. */
+function planetTag(orbit: number): string {
+  const facing = planetAt(orbit);
   const left = BALANCE.orbitTurns - (((orbit % BALANCE.orbitTurns) + BALANCE.orbitTurns) % BALANCE.orbitTurns);
-  return `${planets}
-    <div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more turn${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
+  return `<div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more turn${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
 }
 
 export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number }): string {
@@ -130,7 +135,7 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
       <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" aria-hidden="true"></canvas>
       ${orbit !== undefined ? orbitPlanets(orbit) : ''}
       <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '✸' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
-      <div class="vit-shields" title="Shields: they absorb enemy heat, and fade at the start of your turn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div>
+      <div class="vit-under">${orbit !== undefined ? planetTag(orbit) : ''}<div class="vit-shields" title="Shields: they absorb enemy heat, and fade at the start of your turn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div></div>
     </div>`;
 }
 

@@ -1704,7 +1704,7 @@ export class App {
   }
 
   /**
-   * Beside each tableau: what that player's next start of turn will do, net of
+   * Above each tableau: what that player's next start of turn will do, net of
    * every card (heat at their target, shields, cooling, heat to their own sun,
    * extra cards), so everyone can see it coming and answer it.
    */
@@ -1714,23 +1714,20 @@ export class App {
     const f = turnForecast(s, p);
     const me = this.viewer();
     const who = (id: string | null) => (id === me.id ? 'you' : esc((s.players.find((o) => o.id === id)?.name ?? '').toLowerCase()));
-    const line = (cls: string, n: number, text: string, title: string) =>
-      n ? `<div class="fc ${cls}" title="${title}"><b>${n > 0 && cls !== 'fc-cool' ? '+' : ''}${cls === 'fc-cool' ? `−${n}` : n}</b><span>${text}</span></div>` : '';
-    const lines = [
-      line('fc-heat', f.heat, `heat → ${who(f.targetId)}`, 'Heat their start of turn deals to their rival (before shields)'),
-      line('fc-shield', f.shields, 'shields', 'Shields they raise'),
-      line('fc-cool', f.cool, 'cooling', 'Cooling to their own sun'),
-      line('fc-self', f.selfHeat, 'heat to own sun', 'Drawbacks, regional instability and the table heating their own sun'),
-      line('fc-draw', f.draw, `extra card${f.draw === 1 ? '' : 's'}`, f.planet === 'abundant' ? 'Extra cards they draw (the abundant planet faces their sun)' : 'Extra cards they draw'),
-      line('fc-draw', f.plays, `extra play${f.plays === 1 ? '' : 's'}`, 'Extra cards they may play (the industrial planet faces their sun)'),
+    // Each effect as a symbol and a number, with the detail in its tooltip.
+    const chip = (cls: string, icon: string, n: number, title: string) =>
+      n ? `<span class="fc ${cls}" title="${title}"><i>${icon}</i><b>${cls === 'fc-cool' ? `−${n}` : `+${n}`}</b></span>` : '';
+    const chips = [
+      chip('fc-heat', '✹', f.heat, `Their start of turn: ${f.heat} heat to ${who(f.targetId)} (before shields)`),
+      chip('fc-shield', '⛨', f.shields, `Their start of turn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
+      chip('fc-cool', '❄', f.cool, `Their start of turn: their own sun cools by ${f.cool}`),
+      chip('fc-self', '☀', f.selfHeat, `Their start of turn: ${f.selfHeat} heat to their own sun (drawbacks, regional instability and the table)`),
+      chip('fc-draw', HAND_ICON, f.draw, `Their start of turn: ${f.draw} extra card${f.draw === 1 ? '' : 's'} drawn${f.planet === 'abundant' ? ' (the abundant planet faces their sun)' : ''}`),
+      chip('fc-play', '▶', f.plays, `Their turn: ${f.plays} extra card${f.plays === 1 ? '' : 's'} they may play (the industrial planet faces their sun)`),
     ].join('');
-    // An empty tableau has nothing to forecast: show nothing rather than an empty box.
-    if (!lines) return '';
-    return `
-      <div class="forecast ${p.id === me.id ? 'forecast-mine' : ''}">
-        <div class="fc-head">${p.id === me.id ? 'your' : 'their'} start of turn</div>
-        ${lines}
-      </div>`;
+    // Nothing coming: show nothing.
+    if (!chips) return '';
+    return `<div class="forecast ${p.id === me.id ? 'forecast-mine' : ''}" aria-label="${p.id === me.id ? 'your' : 'their'} next start of turn">${chips}</div>`;
   }
 
   private renderDock(): string {

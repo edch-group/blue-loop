@@ -2148,13 +2148,15 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 
 /* ---------- Vitals: each sun, large, beside its tableau ---------- */
 .vit {
-  --vs: clamp(92px, calc(27 * var(--vh)), 196px); position: relative; width: var(--vs); height: var(--vs); flex: none;
+  position: relative; width: var(--vs); height: var(--vs); flex: none;
   margin: calc(var(--vs) * 0.14) 0 calc(var(--vs) * 0.3);
 }
 /* The sun as a solid, with its planets: drawn by sun3d.ts as the board sees them, so it reaches well past the gauge. */
 .vit-dome { position: absolute; left: -60%; top: -60%; width: 220%; height: 220%; pointer-events: none; display: block; }
 /* Labels standing up off the board, turned to face you (placed by sun3d.ts). */
-.vit-heat, .vit-planet-tag, .vit-shields { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.vit-heat, .vit-under { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* Under each sun, side by side: the planet facing it, and its shields. */
+.vit-under { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .vit-shield-track { stroke: rgba(150, 164, 190, 0.22); stroke-width: 3.2; }
 .vit-shield-arc { stroke: #6d8cc2; stroke-width: 3.2; stroke-linecap: round; transition: stroke-dasharray 0.5s cubic-bezier(.2,.8,.2,1); filter: drop-shadow(0 0 3px rgba(110, 150, 220, 0.7)); }
 .vit:not(.vit-shielded) .vit-shield-arc { opacity: 0; }
@@ -2174,7 +2176,6 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .vit-heat b { font-size: calc(var(--vs) * 0.2); font-weight: 800; }
 .vit-heat small { font-size: calc(var(--vs) * 0.09); font-weight: 700; opacity: 0.8; letter-spacing: 0.06em; }
 .vit-shields {
-  /* Stands just past the near side of the orbit. */
   display: flex; align-items: center; gap: 2px; padding: 1px calc(var(--vs) * 0.05);
   border-radius: 999px; background: #fff; border: 2px solid #6d8cc2; color: #3d5a8c;
   font-family: var(--display); font-weight: 800; font-size: calc(var(--vs) * 0.12); line-height: 1.2;
@@ -2184,16 +2185,18 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .vit-shields i { font-style: normal; font-size: 0.9em; }
 .vit-dead .vit-tracks, .vit-dead .vit-shields, .vit-dead .vit-heat { opacity: 0.5; }
 
-/* Beside each tableau row, on the board. */
-.tableau-row-wrap { position: relative; transform-style: preserve-3d; }
+/* Each tableau row has its sun at its left end, on the board (the row moves right to make room). */
+.tableau-row-wrap {
+  --vs: clamp(84px, calc(23 * var(--vh)), 168px);
+  position: relative; transform-style: preserve-3d; padding-left: calc(var(--vs) * 1.3);
+}
 .vitals {
-  position: absolute; right: 100%; top: 50%; margin-right: clamp(10px, calc(2 * var(--vw)), 28px);
-  /* The board lies tipped back (34°); stretching the sun back up keeps it round, facing you. */
+  position: absolute; left: calc(var(--vs) * 0.08); top: 50%;
   /* Flat on the board (sun3d.ts allows for the -50% when it works out where the viewer's eye is). */
   transform: translateY(-50%); display: grid; justify-items: center; gap: 4px; border-radius: 50%;
 }
 .vitals-name { font-family: var(--display); font-size: clamp(0.46rem, calc(1.7 * var(--vh)), 0.66rem); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
-.tableau-mine .vitals-name { order: 2; }
+.tableau-mine .vitals-name { display: none; }
 /* Hits: the sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring. */
 .fx-hot .vit { animation: vit-hit 0.6s cubic-bezier(.3,.7,.3,1); }
 .fx-hot .vit-sun { animation: vit-flare 0.9s ease-out; }
@@ -2231,7 +2234,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 
 /* ---------- The star beside the board, and the log as a popover ---------- */
 .star-dock { grid-column: 2 !important; grid-row: 2; position: relative; pointer-events: none; }
-.star-dock .board-star-slot { width: min(calc(46 * var(--vh)), 150%); }
+.star-dock .board-star-slot { width: min(calc(30 * var(--vh)), 150%); }
 .log-pop-overlay { position: fixed; inset: 0; z-index: 30; background: transparent; }
 .log-pop {
   position: fixed; top: calc(var(--pad-t, 12px) + clamp(40px, calc(9 * var(--vh)), 52px)); right: var(--pad-r, 12px);
@@ -2250,7 +2253,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .hud-players .rival { padding-left: 4px; }
 .icon-btn.icon-on { box-shadow: 0 0 0 2px #7c8aa6, var(--shadow); }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .vit { --vs: calc(21 * var(--vh)); }
+  .tableau-row-wrap { --vs: calc(20 * var(--vh)); }
   .vitals { margin-right: 8px; }
   .vitals-name { display: none; }
 }
@@ -2263,30 +2266,24 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .tether-tip { fill: none; stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 8px #fff); }
 .tether-halo { position: fixed; z-index: 46; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 3px #fff, 0 0 26px 8px rgba(255, 255, 255, 0.95), 0 0 50px 14px rgba(180, 205, 255, 0.7); }
 
-/* ---------- Start-of-turn forecast, right of each tableau ---------- */
+/* ---------- Start-of-turn forecast: symbols above each tableau ---------- */
 .forecast {
-  position: absolute; left: 100%; top: 50%; margin-left: clamp(10px, calc(2 * var(--vw)), 28px);
-  transform: translateY(-50%) translateZ(10px); display: grid; gap: 4px; min-width: clamp(96px, calc(13 * var(--vw)), 170px);
-  padding: 10px 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 0 0 1px #fff, 0 6px 18px rgba(80, 84, 100, 0.14);
-  font-family: var(--display);
+  position: absolute; bottom: 100%; left: calc(var(--vs) * 1.3); margin-bottom: clamp(3px, calc(0.9 * var(--vh)), 8px);
+  display: flex; gap: clamp(4px, calc(0.8 * var(--vw)), 8px); font-family: var(--display); pointer-events: auto;
 }
-.fc-head { font-size: clamp(0.5rem, calc(1.9 * var(--vh)), 0.72rem); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
-.fc { display: flex; align-items: baseline; gap: 7px; white-space: nowrap; font-size: clamp(0.6rem, calc(2.5 * var(--vh)), 0.95rem); letter-spacing: 0.06em; color: var(--ink-soft); }
-.fc b { min-width: 1.9em; text-align: right; font-size: clamp(0.95rem, calc(4.6 * var(--vh)), 1.75rem); font-weight: 800; }
-.fc-heat b { color: #d9472a; }
-.fc-heat:not(.fc-minor) span { color: #b0432a; font-weight: 600; }
-.fc-minor b { font-size: clamp(0.75rem, calc(3.2 * var(--vh)), 1.25rem); }
-.fc-shield b { color: #4f70a8; }
-.fc-cool b { color: #3d8fd8; }
-.fc-self b { color: #c7822c; }
-.fc-draw b { color: #3a9e6a; }
-.fc-none { color: var(--ink-faint); font-style: italic; }
-@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .forecast { padding: 4px 6px; gap: 1px; margin-left: 8px; min-width: 0; }
-  .fc-head { display: none; }
-  .fc { font-size: 0.55rem; gap: 3px; }
-  .fc b { font-size: 0.9rem; }
+.fc {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px clamp(6px, calc(1 * var(--vw)), 10px) 2px clamp(5px, calc(0.8 * var(--vw)), 8px);
+  border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 3px 10px rgba(80, 84, 100, 0.14); cursor: help;
+  font-size: clamp(0.62rem, calc(2.4 * var(--vh)), 0.95rem); line-height: 1.25; white-space: nowrap;
 }
+.fc i { font-style: normal; font-size: 1.05em; display: inline-flex; }
+.fc i svg { width: 1.1em; height: 1.1em; }
+.fc b { font-weight: 800; }
+.fc-heat { color: #d9472a; }
+.fc-shield { color: #4f70a8; }
+.fc-cool { color: #3d8fd8; }
+.fc-self { color: #c7822c; }
+.fc-draw, .fc-play { color: #3a9e6a; }
 .table-view > .game > .star-dock { z-index: 0 !important; }
 
 /* ---------- Card pictures: a painted window at the top of the card ---------- */
@@ -2515,7 +2512,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   border-radius: 50%; pointer-events: auto; cursor: help;
 }
 .vit-planet-tag {
-  /* Stands at the far side of the orbit. */
   padding: 1px calc(var(--vs) * 0.05); border-radius: 999px; background: #fff; white-space: nowrap; cursor: help;
   font-family: var(--display); font-size: max(8px, calc(var(--vs) * 0.075)); letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.4;
   box-shadow: 0 2px 6px rgba(60, 70, 100, 0.18); border: 1.5px solid currentColor;
