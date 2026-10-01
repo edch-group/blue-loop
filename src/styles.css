@@ -2425,11 +2425,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* ---------- Campaign: the heart of the Milky Way behind the map (galaxy.ts), drifting with the camera ---------- */
 .cmp { overflow: hidden; background: #fbfbfb; }
-.cmp::before {
-  content: ''; position: absolute; inset: -60px; z-index: -1; pointer-events: none;
-  /* Painted by scripts/paint-sky.ts. */
-  background: url('./assets/campaign-sky.jpg') center / cover no-repeat;
-  transform: translate(var(--sky-x, 0px), var(--sky-y, 0px));
+.cmp-sky {
+  /* Painted by scripts/paint-sky.ts; sized and moved by the camera (campaign.ts, writeSky). */
+  position: absolute; left: 50%; top: 50%; z-index: -1; pointer-events: none;
+  width: 100%; height: 100%; transform: translate(-50%, -50%);
+  background: url('./assets/campaign-sky.jpg') center / 100% 100% no-repeat;
+  will-change: transform;
 }
 body.screen-campaign { background: #fbfbfb; }
 

@@ -397,6 +397,7 @@ export class CampaignView {
     const inc = factionIncome(s, me.id);
     return `
       <main class="cmp">
+        <div class="cmp-sky" aria-hidden="true"></div>
         <header class="cmp-top">
           <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" title="Game overview: every faction and its systems"><small>turn</small><b>${s.turn}/${CAMPAIGN.turnLimit}</b><i>›</i></button>
           <div class="cmp-purse">
@@ -655,6 +656,8 @@ export class CampaignView {
   private static readonly FOCUS_TILT = 56;
   private static readonly MAX_ZOOM = 5.5;
   private static readonly GLIDE_MS = 1000;
+  /** How far behind the map the sky lies: it scrolls at this fraction of the systems' speed. */
+  private static readonly SKY_DEPTH = 0.3;
 
   private homeView() {
     const home = ownedNodes(this.state!, this.state!.playerId)[0] ?? this.state!.nodes[0];
@@ -747,6 +750,33 @@ export class CampaignView {
     else this.glide = null;
   }
 
+  /**
+   * Parallax: the sky is a far-off layer behind the map. It scrolls with the
+   * systems, the same way but at a fraction of their speed, and zooming in
+   * grows it a little. It is sized each frame to cover the screen wherever the
+   * camera goes.
+   */
+  private writeSky(c: Cam) {
+    const stage = this.stageEl;
+    const sky = stage?.closest('.cmp')?.querySelector<HTMLElement>('.cmp-sky');
+    if (!stage || !sky) return;
+    const depth = CampaignView.SKY_DEPTH;
+    const fit = this.fitScale(stage, CampaignView.TILT);
+    const zoom = (c.scale / fit) ** (depth * 0.5);
+    const cos = Math.cos((c.tilt * Math.PI) / 180);
+    // How far the map has moved on screen from centred, scaled down for depth.
+    const dx = -(c.x - MAP_WIDTH / 2) * c.scale * depth;
+    const dy = -(c.y - MAP_HEIGHT / 2) * c.scale * cos * depth;
+    const page = sky.parentElement!;
+    const w = (page.clientWidth + Math.abs(dx) * 2) / zoom + 8;
+    const h = (page.clientHeight + Math.abs(dy) * 2) / zoom + 8;
+    // Keep the painting's proportions (it is 13:8), large enough for both.
+    const size = Math.max(w, h * (13 / 8));
+    sky.style.width = `${size.toFixed(0)}px`;
+    sky.style.height = `${((size * 8) / 13).toFixed(0)}px`;
+    sky.style.transform = `translate(-50%, -50%) translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${zoom.toFixed(4)})`;
+  }
+
   private writeCamera() {
     const plane = this.stageEl?.querySelector<HTMLElement>('.cmp-plane');
     const c = this.cam;
@@ -754,10 +784,7 @@ export class CampaignView {
     plane.style.transform = `rotateX(${c.tilt.toFixed(2)}deg) scale3d(${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}) translate(${(-c.x).toFixed(1)}px, ${(-c.y).toFixed(1)}px)`;
     plane.style.setProperty('--tilt', `${c.tilt.toFixed(2)}deg`);
     plane.style.setProperty('--ui', c.ui.toFixed(4));
-    // The sky drifts a little with the camera, far behind the map.
-    const sky = this.stageEl!.closest<HTMLElement>('.cmp');
-    sky?.style.setProperty('--sky-x', `${(-(c.x / MAP_WIDTH - 0.5) * 60).toFixed(1)}px`);
-    sky?.style.setProperty('--sky-y', `${(-(c.y / MAP_HEIGHT - 0.5) * 40).toFixed(1)}px`);
+    this.writeSky(c);
   }
 
   private clampView() {
