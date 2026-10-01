@@ -491,9 +491,8 @@ input { font: inherit; }
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
+  /* No clamping: text that doesn't fit shrinks to fit instead (fittext.ts). */
+  display: block;
 }
 .card-kind { font-size: max(6px, calc(var(--cw) * 0.05)); letter-spacing: 0.22em; text-transform: uppercase; color: color-mix(in srgb, var(--kc) 70%, #888); text-align: center; }
 .coin {
@@ -516,7 +515,6 @@ input { font: inherit; }
 .card-empty { width: var(--dw); height: var(--dh); background: rgba(255, 255, 255, 0.25); border: 1px dashed var(--line); box-shadow: none; }
 /* Small cards (phones) show glyph, name and cost; the rest is one tap away. */
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .hand .card-text { -webkit-line-clamp: 3; }
   .display .card-glyph, .hand .card-glyph { height: 34%; }
 }
 
@@ -524,7 +522,7 @@ input { font: inherit; }
 .card-preview { position: fixed; z-index: 60; pointer-events: none; opacity: 0; transform: scale(0.95); transition: opacity 0.12s, transform 0.12s; }
 .card-preview.show { opacity: 1; transform: none; }
 .card-big { --cw: var(--pw, 300px); width: var(--pw, 300px); height: calc(var(--pw, 300px) * 1.4); padding: 0 7% 6%; box-shadow: 0 26px 60px rgba(70, 70, 90, 0.3), 0 0 0 2px #fff; }
-.card-big .card-text { -webkit-line-clamp: unset; display: block; font-size: max(12px, calc(var(--cw) * 0.062)); }
+.card-big .card-text { display: block; font-size: max(12px, calc(var(--cw) * 0.062)); }
 .card-big .card-name { font-size: max(12px, calc(var(--cw) * 0.07)); }
 
 /* ---------- Dock ---------- */
@@ -656,7 +654,7 @@ input { font: inherit; }
 .stage { --cw: min(161px, calc(32 * var(--vh))); position: fixed; left: min(78%, calc(100% - var(--cw) / 2 - 16px)); top: 50%; transform: translate(-50%, -50%); z-index: 15; display: grid; justify-items: center; gap: 8px; pointer-events: none; animation: rise 0.25s ease-out; }
 .stage::before { content: ''; position: absolute; inset: -50px -110px; background: radial-gradient(ellipse, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.6) 45%, transparent 70%); z-index: -1; }
 .stage .card { width: var(--cw); height: calc(var(--cw) * 1.4); box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff; }
-.stage .card .card-text { -webkit-line-clamp: unset; display: block; }
+.stage .card .card-text { display: block; }
 .stage-caption { padding: 5px 14px; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: var(--ink); letter-spacing: 0.18em; font-size: 0.56rem; text-transform: uppercase; border: 1px solid #fff; box-shadow: var(--shadow); }
 
 /* ---------- Modals and sheets ---------- */
@@ -736,7 +734,7 @@ input { font: inherit; }
 .pile-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding-top: 4px; }
 .pile-card { position: relative; }
 .pile-card .card { --hh: 150px; --hw: 107px; --cw: 107px; }
-.pile-card .card-text { display: -webkit-box !important; }
+.pile-card .card-text { display: block !important; }
 .pile-n { position: absolute; right: -5px; bottom: -5px; padding: 2px 7px; border-radius: 999px; background: #8a8c91; color: #fff; font-size: 0.7rem; font-weight: 600; border: 2px solid #fff; }
 .log-list { max-height: calc(60 * var(--vh)); min-width: min(460px, calc(80 * var(--vw))); overflow-y: auto; font-size: 0.78rem; line-height: 1.5; color: var(--ink-soft); }
 .log-list div:last-child { color: var(--ink); }
@@ -962,7 +960,7 @@ input { font: inherit; }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .display .card-glyph { height: 30%; padding-top: 5%; }
   .display .card-name { font-size: 0.52rem; }
-  .display .card-text { font-size: 0.6rem; line-height: 1.22; -webkit-line-clamp: 4; }
+  .display .card-text { font-size: 0.6rem; line-height: 1.22; }
   .display .card-kind { font-size: 0.42rem; }
   .display .coin { width: 22px; font-size: 0.62rem; top: 6px; right: 6px; }
   .game {
@@ -1372,7 +1370,7 @@ input { font: inherit; }
 .modal-x:hover { background: #f2f2f4; color: var(--ink); }
 .cmp-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .cmp-card { --hh: 150px; --hw: 107px; --cw: 107px; pointer-events: none; }
-.cmp-card .card-text { display: -webkit-box !important; }
+.cmp-card .card-text { display: block !important; }
 .cmp-pick { position: relative; display: grid; justify-items: center; gap: 4px; border-radius: 10px; transition: transform 0.15s; }
 .cmp-pick:hover:not([disabled]) { transform: translateY(-4px); }
 .cmp-pick[disabled] .cmp-card { filter: grayscale(1); opacity: 0.6; }
@@ -1883,7 +1881,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .card.card-table { --cw: var(--tcw); width: var(--tcw); height: calc(var(--tcw) * 1.4); padding: 0 7% 6%; gap: 2px; }
 .card-table .card-glyph { height: 42%; }
 .card-table .card-name { font-size: max(6px, calc(var(--cw) * 0.1)); padding-right: 0; }
-.card-table .card-text { font-size: max(6px, calc(var(--cw) * 0.07)); -webkit-line-clamp: 4; }
+.card-table .card-text { font-size: max(6px, calc(var(--cw) * 0.07)); }
 .card-table .card-kind { font-size: max(5px, calc(var(--cw) * 0.055)); letter-spacing: 0.12em; }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   /* Small cards on a phone: art and name; press and hold one to read it. */
@@ -2164,7 +2162,7 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
 .stage-sprung .card { box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff, 0 0 30px rgba(212, 149, 42, 0.6); }
 /* Choosing: a card from the discard pile, or where a card goes in the tableau. */
 .choose-grid .card { --hh: 150px; --hw: 107px; --cw: 107px; width: 107px; height: 150px; }
-.choose-grid .card .card-text { display: -webkit-box !important; }
+.choose-grid .card .card-text { display: block !important; }
 .slot-row { display: flex; align-items: center; justify-content: center; gap: 4px; overflow-x: auto; padding: 10px 4px; }
 .slot-card .card { --cw: 86px; width: 86px; height: 120px; pointer-events: none; }
 .slot-card .card .card-text { display: none; }
@@ -2377,7 +2375,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 }
 /* The card itself is laid out exactly like one on the table (5:7), scaled to the column. */
 .db-card > .card { --cw: 100cqw; width: 100%; height: 100%; }
-.db-card > .card .card-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 8; overflow: hidden; }
+.db-card > .card .card-text { display: block; overflow: hidden; }
 .db-card-in > .card { box-shadow: 0 0 0 2px color-mix(in srgb, var(--kc) 75%, transparent), 0 5px 16px rgba(90, 90, 110, 0.15); }
 .db-card .db-count {
   position: absolute; top: 6%; left: 6%; right: auto; z-index: 3; padding: 1px 7px; border-radius: 999px;
@@ -2710,3 +2708,15 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .booster-card .bc-new { color: #3a9e6a; font-weight: 700; }
 .booster-card .bc-flux { color: #6d6fd0; }
 @keyframes booster-reveal { from { opacity: 0; transform: translateY(-40px) scale(0.7) rotateY(80deg); } }
+
+/* A card read large over the menus (right-click a card, or its ⤢ in the deck builder). */
+.zoom-view { display: grid; place-content: center; justify-items: center; gap: 10px; cursor: zoom-out; }
+.zoom-card { --pw: min(340px, calc(var(--app-h, 100vh) * 0.62), 80vw); }
+.zoom-card .card-big { animation: rise 0.2s ease-out; }
+.db-zoom {
+  position: absolute; top: 5%; right: 5%; z-index: 4; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 4px rgba(80, 84, 100, 0.25); font-size: 0.72rem; color: var(--ink-soft); cursor: zoom-in;
+  opacity: 0; transition: opacity 0.15s;
+}
+.db-card:hover .db-zoom, .db-card:focus-visible .db-zoom { opacity: 1; }
+@media (hover: none) { .db-zoom { opacity: 1; } }

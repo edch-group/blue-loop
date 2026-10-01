@@ -9,6 +9,8 @@ interface BuilderHost {
   toast(text: string): void;
   /** Leave the builder (back to quickplay). */
   done(): void;
+  /** Show a card large. */
+  zoom(id: string): void;
 }
 
 /** The card view's filters: a search, and a choice of race, type, rarity, ownership and order. */
@@ -97,6 +99,9 @@ export class DeckBuilder {
       case 'db-race':
         if (d) d.race = Number(arg);
         break;
+      case 'db-zoom':
+        this.host.zoom(arg);
+        return true;
       case 'db-focus':
         this.focus = this.focus === arg ? null : arg;
         break;
@@ -211,6 +216,7 @@ export class DeckBuilder {
               <span class="card-kind">${typeLine(c)}</span>
             </span>
             ${n ? `<b class="db-count">×${n}</b>` : ''}
+            <span class="db-zoom" data-act="db-zoom" data-arg="${c.id}" title="Read it large (or right-click the card)">⤢</span>
             <span class="db-own" data-act="db-focus" data-arg="${c.id}" title="Craft or break down">${have ? `owned ${have}` : 'not owned'} · ⟁</span>
           </button>`;
       });

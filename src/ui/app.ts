@@ -60,6 +60,7 @@ import { buyBooster, grantReward, profile, setRankPoints, signIn, type RewardRes
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
+import { fitCardText } from './fittext';
 import { animateSuns } from './sun3d';
 import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
 
@@ -171,6 +172,8 @@ export class App {
   private screen: Screen = 'menu';
   /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
   private menuPage: MenuPage = 'title';
+  /** A card shown large outside a game (tap anywhere to close). */
+  private zoomed: string | null = null;
   /** The profile view is open (from the player chip). */
   private profileOpen = false;
   /** Sign-in being filled in. */
@@ -238,6 +241,7 @@ export class App {
   };
   private builder = new DeckBuilder({
     render: () => this.render(),
+    zoom: (id) => this.zoom(id),
     toast: (text) => this.showToast(text, 'error'),
     done: () => {
       this.menuPage = 'quickplay';
@@ -283,8 +287,12 @@ export class App {
     window.addEventListener('pointermove', (e) => this.onPressMove(e));
     window.addEventListener('pointerup', () => this.onPressEnd());
     window.addEventListener('pointercancel', () => this.onPressEnd());
+    // Right-click a card (anywhere) to read it large.
     root.addEventListener('contextmenu', (e) => {
-      if ((e.target as HTMLElement).closest('[data-card]')) e.preventDefault();
+      const card = (e.target as HTMLElement).closest<HTMLElement>('[data-card]');
+      if (!card) return;
+      e.preventDefault();
+      this.zoom(card.dataset.card!);
     });
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('keyup', (e) => {
@@ -1370,6 +1378,7 @@ export class App {
     this.preview.style.left = `${Math.min(page.w - w - 16, page.w * 0.78 - w / 2)}px`;
     this.preview.style.top = `${(page.h - h) / 2}px`;
     this.preview.classList.add('show');
+    fitCardText(this.preview);
   }
 
   private onClick(e: MouseEvent) {
@@ -1481,6 +1490,9 @@ export class App {
       }
       case 'close-booster':
         this.opened = null;
+        return this.render();
+      case 'zoom-close':
+        this.zoomed = null;
         return this.render();
       case 'profile-open':
         this.profileOpen = true;
@@ -1636,6 +1648,7 @@ export class App {
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
+    fitCardText(this.root);
     animateSuns();
     if (!this.press?.shown) this.preview.classList.remove('show');
   }
@@ -1692,6 +1705,7 @@ export class App {
       ${page === 'title' || page === 'hub' ? '<footer class="studio">coronal mass games · prototype build</footer>' : ''}
       ${this.sheet?.kind === 'rules' ? this.renderSheet() : ''}
       ${this.profileOpen ? this.renderProfileView() : ''}
+      ${this.zoomed ? this.renderZoom() : ''}
     </main>`;
   }
 
@@ -1769,6 +1783,19 @@ export class App {
           <div class="menu-actions center-row"><button class="btn" data-act="profile-rename">change name or emblem</button><button class="btn-primary" data-act="profile-close">close</button></div>
         </div>
       </div>`;
+  }
+
+  /** Read a card large: in a game, the card sheet; elsewhere, a zoomed view over the menu. */
+  private zoom(defId: string) {
+    if (this.screen === 'game' && this.state) this.sheet = { kind: 'card', defId };
+    else if (this.screen === 'menu') this.zoomed = defId;
+    else return;
+    sound.hover();
+    this.render();
+  }
+
+  private renderZoom(): string {
+    return `<div class="overlay overlay-soft zoom-view" data-act="zoom-close"><div class="zoom-card" data-act="zoom-close">${this.bigCard(this.zoomed!)}</div><small class="muted">tap anywhere to close</small></div>`;
   }
 
   /** Signing in: the name and emblem you go by (until accounts arrive, it lives on this device). */
