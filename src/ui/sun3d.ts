@@ -597,8 +597,15 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
       x0 = Math.min(x0, qx); y0 = Math.min(y0, qy); x1 = Math.max(x1, qx); y1 = Math.max(y1, qy);
     }
   }
-  stand(vit.querySelector<HTMLElement>('.vit-heat'), [(x0 + x1) / 2, (y0 + y1) / 2, 0], '-50%');
+  const label = vit.querySelector<HTMLElement>('.vit-heat');
+  stand(label, [(x0 + x1) / 2, (y0 + y1) / 2, 0], '-50%');
+  // Remembered, so a redrawn gauge can put its label straight back where it stands (see animateSuns).
+  const key = vit.closest('[data-anchor]')?.getAttribute('data-anchor');
+  if (key && label) labelPlace.set(key, label.style.transform);
 }
+
+/** Each sun's heat label as last placed, by its gauge's anchor. */
+const labelPlace = new Map<string, string>();
 
 let last = 0;
 let lastDome = 0;
@@ -652,11 +659,22 @@ export function animateSuns() {
   // Draw new (or changed) canvases at once, so a re-render never shows an empty or stale sun.
   document.querySelectorAll<HTMLCanvasElement>('canvas.sun3d, canvas.vit-dome').forEach((fresh) => {
     const cv = adopt(fresh);
+    const dome = cv.classList.contains('vit-dome');
+    // The corona is cheap: always painted at once, so a redrawn gauge never shows a sun without its flames.
+    if (!dome) return draw(cv, now);
     const sig = signature(cv);
-    if (shown.get(cv) === sig) return;
+    if (shown.get(cv) === sig) {
+      // The sun and planets are kept as they were; the new label goes straight to its place on the sun
+      // (otherwise it sits in the gauge's corner until the next frame draws it).
+      const key = cv.closest('[data-anchor]')?.getAttribute('data-anchor');
+      const label = cv.closest('.vit')?.querySelector<HTMLElement>('.vit-heat');
+      const place = key ? labelPlace.get(key) : undefined;
+      if (label && place) label.style.transform = place;
+      else drawDome(cv, now);
+      return;
+    }
     shown.set(cv, sig);
-    if (cv.classList.contains('vit-dome')) drawDome(cv, now);
-    else draw(cv, now);
+    drawDome(cv, now);
   });
   const suns = document.querySelectorAll<HTMLCanvasElement>('canvas.sun3d');
   if (!running && suns.length) {
