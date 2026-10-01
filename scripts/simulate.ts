@@ -42,7 +42,7 @@ const MECHANICS: [string, RegExp][] = [
   ['returned to hand', /returns .* to (their|your) hand|flung back/],
   ['stability eroded', /loses \d+ stability/],
   ['stability restored', /steadies/],
-  ['faded to deck', /fades back into/],
+  ['faded to discard', /fades into their discard/],
   ['recovered', /recovers /],
   ['resonance/bulwark played', /plays (Resonance Lattice|Harmonic Singularity|Sunforge|The Admiralty|Tide Pylon|Prism Conduit|Bulwark Plating|Aegis Monolith|Chrono Anchor)/],
   ['orbit moved by a card', /orbit (speeds on|slips back)/],

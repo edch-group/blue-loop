@@ -19,8 +19,8 @@ export const CARDS: CardDef[] = [
     id: 'solar_battery',
     name: 'Solar Battery',
     kind: 'attack',
-    text: 'Start of turn: if you control 3 or more attack cards, heat your rival by 2.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { minKind: 'attack', n: 3 } }],
+    text: 'Start of turn: heat your rival by 1, or by 3 if you control 3 or more attack cards.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minKind: 'attack', n: 3 } }],
   },
   { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: "Destroy a card with 2 or less defence in your rival's tableau.", onPlay: [{ type: 'destroy', maxDefence: 2 }] },
   { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: 'Start of turn: cool your sun by 1.', onTurn: [{ type: 'cool', amount: 1 }] },
@@ -74,16 +74,16 @@ export const CARDS: CardDef[] = [
     id: 'standing_orders',
     name: 'Standing Orders',
     kind: 'growth',
-    text: 'Draw 1 card. Start of turn: if you control 2 or more Command cards, draw 1 card.',
+    text: 'Draw 1 card. Start of turn: if you control a Command card, draw 1 card.',
     onPlay: [{ type: 'draw', amount: 1 }],
-    onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'command', n: 2 } }],
+    onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
   {
     id: 'chain_of_command',
     name: 'Chain of Command',
     kind: 'defence',
-    text: 'Start of turn: cool your sun by 1 for each Command card you control (up to 2).',
-    onTurn: [{ type: 'cool', amount: 0, plus: { of: 'kind', kind: 'command' }, max: 2 }],
+    text: 'Start of turn: cool your sun by 1, or by 2 if you control a Command card.',
+    onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
 
   // ---- Resonance: cards that power up their neighbours ----
@@ -134,7 +134,7 @@ export const CARDS: CardDef[] = [
     id: 'entropy_pulse',
     name: 'Entropy Pulse',
     kind: 'attack',
-    text: "A card in your rival's tableau loses 2 stability (at 0 it is swept back into their deck). Heat your rival by 1.",
+    text: "A card in your rival's tableau loses 2 stability (at 0 it fades into their discard pile). Heat your rival by 1.",
     onPlay: [{ type: 'erode', amount: 2 }, { type: 'heat', amount: 1, to: 'target' }],
   },
   {
@@ -146,7 +146,7 @@ export const CARDS: CardDef[] = [
   },
 
   // ---- Recovery and recall: getting cards back to use again ----
-  { id: 'salvage_drone', name: 'Salvage Drone', kind: 'growth', text: 'Return a card from your discard pile to your hand.', onPlay: [{ type: 'recover' }] },
+  { id: 'salvage_drone', name: 'Salvage Drone', kind: 'growth', text: 'Return a card from your discard pile to your hand (with none there, draw 1 card). Cool your sun by 1.', onPlay: [{ type: 'recover', orDraw: 1 }, { type: 'cool', amount: 1 }] },
   {
     id: 'phase_shift',
     name: 'Phase Shift',
@@ -167,8 +167,8 @@ export const CARDS: CardDef[] = [
     id: 'command_breaker',
     name: 'Command Breaker',
     kind: 'attack',
-    text: "Destroy a Command card with 3 or less defence in your rival's tableau. Heat your rival by 1.",
-    onPlay: [{ type: 'destroy', kind: 'command', maxDefence: 3 }, { type: 'heat', amount: 1, to: 'target' }],
+    text: "Heat your rival by 2. Destroy a Command card with 3 or less defence in your rival's tableau.",
+    onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'destroy', kind: 'command', maxDefence: 3 }],
   },
   {
     id: 'event_horizon',
@@ -190,8 +190,8 @@ export const CARDS: CardDef[] = [
     id: 'signal_jammer',
     name: 'Signal Jammer',
     kind: 'lightspeed',
-    text: 'Lightspeed. When an enemy plays a Command card, cancel it. Draw 1 card.',
-    lightspeed: { trigger: { on: 'enemyPlays', kind: 'command' }, counter: true, effects: [{ type: 'draw', amount: 1 }] },
+    text: 'Lightspeed. When an enemy plays a growth card, cancel it. Draw 1 card.',
+    lightspeed: { trigger: { on: 'enemyPlays', kind: 'growth' }, counter: true, effects: [{ type: 'draw', amount: 1 }] },
   },
   {
     id: 'frost_snare',
@@ -237,8 +237,8 @@ export const CARDS: CardDef[] = [
     name: 'Coronal Chorus',
     kind: 'attack',
     race: 0,
-    text: 'Heat your rival by 1 for each attack card you control (up to 3).',
-    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 3 }],
+    text: 'Heat your rival by 1 for each attack card you control (up to 2).',
+    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 2 }],
   },
   { id: 'sunspear', name: 'Sunspear', kind: 'attack', race: 0, text: 'Heat your rival by 4. Heat your own sun by 2.', onPlay: [{ type: 'heat', amount: 4, to: 'target' }, { type: 'selfHeat', amount: 2 }] },
   {
@@ -246,17 +246,17 @@ export const CARDS: CardDef[] = [
     name: 'Dawn Beacon',
     kind: 'growth',
     race: 0,
-    text: 'Draw 1 card. Start of turn: if you control 3 or more attack cards, draw 1 card.',
+    text: 'Draw 1 card. Start of turn: if you control 2 or more attack cards, draw 1 card.',
     onPlay: [{ type: 'draw', amount: 1 }],
-    onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'attack', n: 3 } }],
+    onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'attack', n: 2 } }],
   },
   {
     id: 'halo_ward',
     name: 'Halo Ward',
     kind: 'defence',
     race: 0,
-    text: 'Start of turn: gain 1 shield for every 2 attack cards you control.',
-    onTurn: [{ type: 'shield', amount: 0, plus: { of: 'kind', kind: 'attack', per: 2 } }],
+    text: 'Start of turn: gain 1 shield, +1 for every 2 attack cards you control.',
+    onTurn: [{ type: 'shield', amount: 1, plus: { of: 'kind', kind: 'attack', per: 2 } }],
   },
 
   // ---- Xel'Naru: overload. Run your own sun hot, and profit from it ----
@@ -301,7 +301,7 @@ export const CARDS: CardDef[] = [
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
   { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: 'Sturdy (+1 defence). Start of turn: gain 3 shields.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }] },
-  { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: 'When your shields absorb an enemy\'s heat, heat that enemy\'s sun by 2 (once per attacking card each turn).', passive: [{ type: 'retaliate', amount: 2 }] },
+  { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: 'When your shields absorb an enemy\'s heat, heat that enemy\'s sun by 3 (once per attacking card each turn).', passive: [{ type: 'retaliate', amount: 3 }] },
   {
     id: 'tidal_bloom',
     name: 'Tidal Bloom',
@@ -315,8 +315,8 @@ export const CARDS: CardDef[] = [
     name: 'Abyssal Choir',
     kind: 'attack',
     race: 2,
-    text: 'Start of turn: heat your rival by 1, +1 for every 2 shields you have (up to 5).',
-    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }],
+    text: 'Start of turn: heat your rival by 2, +1 for every 2 shields you have (up to 5).',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }],
   },
   {
     id: 'deep_current',
@@ -346,8 +346,8 @@ export const CARDS: CardDef[] = [
     name: 'Rot Bloom',
     kind: 'attack',
     race: 3,
-    text: 'Heat your rival by 1, +1 for every 2 cards you control (up to 5).',
-    onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cards', per: 2 }, max: 5 }],
+    text: 'Heat your rival by 2, +1 for every 2 cards you control (up to 5).',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'cards', per: 2 }, max: 5 }],
   },
   {
     id: 'canopy',
@@ -362,8 +362,8 @@ export const CARDS: CardDef[] = [
     name: 'Spore Cloud',
     kind: 'attack',
     race: 3,
-    text: 'Start of turn: if you control 4 or more cards, heat your rival by 2.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
+    text: 'Start of turn: heat your rival by 1, or by 3 if you control 4 or more cards.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
 
   // ---- Race cards for resonance, recovery, stability, command synergies and lightspeed ----
@@ -380,7 +380,7 @@ export const CARDS: CardDef[] = [
     name: 'Undertow',
     kind: 'attack',
     race: 2,
-    text: "A card in your rival's tableau loses 2 stability (at 0 it is swept back into their deck). Gain 2 shields.",
+    text: "A card in your rival's tableau loses 2 stability (at 0 it fades into their discard pile). Gain 2 shields.",
     onPlay: [{ type: 'erode', amount: 2 }, { type: 'shield', amount: 2 }],
   },
   {
@@ -396,8 +396,8 @@ export const CARDS: CardDef[] = [
     name: 'Aureline War-Herald',
     kind: 'attack',
     race: 0,
-    text: 'Start of turn: heat your rival by 1 for each Command card you control (up to 2).',
-    onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'command' }, max: 2 }],
+    text: 'Start of turn: heat your rival by 1. If you control a Command card, gain 1 shield.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'shield', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
   {
     id: 'sunforge',
@@ -422,16 +422,16 @@ export const CARDS: CardDef[] = [
     name: "Xel'Naru Reliquarist",
     kind: 'growth',
     race: 1,
-    text: 'Return an attack card from your discard pile to your hand. Draw 1 card.',
-    onPlay: [{ type: 'recover', kind: 'attack' }, { type: 'draw', amount: 1 }],
+    text: 'Return an attack card from your discard pile to your hand (with none there, draw 1 card). Draw 1 card.',
+    onPlay: [{ type: 'recover', kind: 'attack', orDraw: 1 }, { type: 'draw', amount: 1 }],
   },
   {
     id: 'prism_conduit',
     name: 'Prism Conduit',
     kind: 'defence',
     race: 1,
-    text: 'Start of turn: cool your sun by 1 for each attack card next to this one.',
-    onTurn: [{ type: 'cool', amount: 0, plus: { of: 'adjacent', kind: 'attack' } }],
+    text: 'Start of turn: cool your sun by 1, +1 for each attack card next to this one.',
+    onTurn: [{ type: 'cool', amount: 1, plus: { of: 'adjacent', kind: 'attack' } }],
   },
   {
     id: 'tide_pylon',
@@ -454,8 +454,8 @@ export const CARDS: CardDef[] = [
     name: 'Regrowth Pod',
     kind: 'growth',
     race: 3,
-    text: 'Return a growth card from your discard pile to your hand. Cool your sun by 1.',
-    onPlay: [{ type: 'recover', kind: 'growth' }, { type: 'cool', amount: 1 }],
+    text: 'Return a growth card from your discard pile to your hand (with none there, draw 1 card). Cool your sun by 1.',
+    onPlay: [{ type: 'recover', kind: 'growth', orDraw: 1 }, { type: 'cool', amount: 1 }],
   },
   {
     id: 'spore_husk',
@@ -473,16 +473,16 @@ export const CARDS: CardDef[] = [
     name: 'Aureline Sun-Priest',
     kind: 'defence',
     race: 0,
-    text: 'Start of turn: cool your sun by 1 for every 2 attack cards you control (up to 2).',
-    onTurn: [{ type: 'cool', amount: 0, plus: { of: 'kind', kind: 'attack', per: 2 }, max: 2 }],
+    text: 'Start of turn: cool your sun by 1, or by 2 if you control 2 or more attack cards.',
+    onTurn: [{ type: 'cool', amount: 1, plus: { of: 'kind', kind: 'attack', per: 2 }, max: 2 }],
   },
   {
     id: 'aurelia_first_light',
     name: 'Aurelia, the First Light',
     kind: 'attack',
     race: 0,
-    text: 'Start of turn: heat your rival by 1 for every 2 attack cards you control (up to 3).',
-    onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 3 }],
+    text: 'Start of turn: heat your rival by 1, +1 for every 2 attack cards you control (up to 4).',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 4 }],
   },
   {
     id: 'xelnaru_champion',
@@ -546,8 +546,8 @@ export const CARDS: CardDef[] = [
     id: 'dead_world_mine',
     name: 'Dead World Mine',
     kind: 'growth',
-    text: 'Start of turn: while your dead planet faces your sun, draw 1 card and cool your sun by 1.',
-    onTurn: [{ type: 'draw', amount: 1, if: { planet: 'dead' } }, { type: 'cool', amount: 1, if: { planet: 'dead' } }],
+    text: 'Start of turn: cool your sun by 1. While your dead planet faces your sun, also draw 1 card.',
+    onTurn: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1, if: { planet: 'dead' } }],
   },
   {
     id: 'perihelion_forge',
@@ -585,8 +585,49 @@ export const CARDS: CardDef[] = [
     name: 'Orbit Root',
     kind: 'growth',
     race: 3,
-    text: 'Start of turn: while your dead planet faces your sun, your orbit +2 (it moves on in a turn, not three).',
-    onTurn: [{ type: 'orbit', amount: 2, who: 'self', if: { planet: 'dead' } }],
+    text: 'Start of turn: cool your sun by 1. While your dead planet faces your sun, your orbit +2 (it moves on in a turn, not three).',
+    onTurn: [{ type: 'cool', amount: 1 }, { type: 'orbit', amount: 2, who: 'self', if: { planet: 'dead' } }],
+  },
+
+  // ---- More recovery and recall: every race can get its cards back ----
+  {
+    id: 'recall_beacon',
+    name: 'Recall Beacon',
+    kind: 'growth',
+    text: 'Return another card of yours from your tableau to your hand. Draw 1 card.',
+    onPlay: [{ type: 'recall' }, { type: 'draw', amount: 1 }],
+  },
+  {
+    id: 'sunlit_return',
+    name: 'Sunlit Return',
+    kind: 'defence',
+    race: 0,
+    text: 'Cool your sun by 1. Return an attack card from your discard pile to your hand (with none there, draw 1 card).',
+    onPlay: [{ type: 'cool', amount: 1 }, { type: 'recover', kind: 'attack', orDraw: 1 }],
+  },
+  {
+    id: 'shard_recall',
+    name: 'Shard Recall',
+    kind: 'growth',
+    race: 1,
+    text: 'Return another card of yours from your tableau to your hand. Heat your rival by 1.',
+    onPlay: [{ type: 'recall' }, { type: 'heat', amount: 1, to: 'target' }],
+  },
+  {
+    id: 'returning_tide',
+    name: 'Returning Tide',
+    kind: 'defence',
+    race: 2,
+    text: 'Gain 2 shields. Return a defence card from your discard pile to your hand (with none there, draw 1 card).',
+    onPlay: [{ type: 'shield', amount: 2 }, { type: 'recover', kind: 'defence', orDraw: 1 }],
+  },
+  {
+    id: 'compost_cycle',
+    name: 'Compost Cycle',
+    kind: 'growth',
+    race: 3,
+    text: 'Return a card from your discard pile to your hand (with none there, draw 1 card). Every other card of yours regains 1 stability.',
+    onPlay: [{ type: 'recover', orDraw: 1 }, { type: 'restore', amount: 1, all: true }],
   },
 ];
 
@@ -774,51 +815,51 @@ const twoOf = (...ids: string[]) => ids.flatMap((id) => [id, id]);
 /** A ready-made deck for each race: its cards (with its Stellar hero and its Anomaly), neutral support and two Command cards. */
 export const PRESET_DECKS: DeckList[] = [
   {
-    // Attack cards that power each other up, Sunforges and a Resonance Lattice boosting their
-    // neighbours, Command cards kept in play for the War-Herald, a Stasis Field to hold the best
-    // card in place, an Ion Cannon, and a Null Field set face down against the counter-attack.
+    // Attack cards that power each other up, a Sunforge and a Resonance Lattice boosting their
+    // neighbours, Command cards kept in play for the War-Herald, a Sunlit Return and a Recall Beacon
+    // to bring the best attack cards back, an Ion Cannon, and a Null Field set face down against the counter-attack.
     name: 'Solar Lancers',
     race: 0,
     cards: [
-      ...twoOf('coronal_chorus', 'sunforge', 'command_directive'),
-      'helio_lancer', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
-      'resonance_lattice', 'standing_orders', 'stasis_field', 'null_field', 'ion_cannon', 'coolant_array', 'cryo_vault',
+      ...twoOf('coronal_chorus', 'command_directive'),
+      'sunforge', 'helio_lancer', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
+      'resonance_lattice', 'standing_orders', 'sunlit_return', 'null_field', 'ion_cannon', 'coolant_array', 'cryo_vault', 'recall_beacon',
       'gravity_assist', 'tidal_brake',
     ],
   },
   {
     // Cards that pay off as they leave play (Martyr, Kyr'Vessa), recalled with Phase Shift to do it
-    // again; Ember Shards recovered by the Reliquarist; a Prism Conduit cooled by the attack cards
-    // beside it; a Tractor Beam; and a Solar Mirror set face down for the return fire.
+    // again (and with Shard Recall); Ember Shards recovered by the Reliquarist; a Prism Conduit
+    // cooled by the attack cards beside it; and a Tractor Beam.
     name: 'Shard Overload',
     race: 1,
     cards: [
       ...twoOf('shard_reactor', 'martyr_crystal', 'ember_shard', 'prism_vent', 'command_directive'),
       'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift', 'tractor_beam',
-      'solar_mirror', 'comet_shard', 'tidal_brake',
+      'shard_recall', 'comet_shard', 'tidal_brake',
     ],
   },
   {
-    // Shields and defence: Tide Pylons and a Bulwark around the Wardens, the Aegis Monolith guarding
-    // the middle, Undertow to sweep rival cards back into their decks, and Riptide Ambushers set
-    // face down against a big hit.
+    // Shields and defence: Tide Pylons around the Wardens, the Aegis Monolith guarding
+    // the middle, Returning Tide to bring a fallen defence card back, Undertow to wear rival cards
+    // away, and Riptide Ambushers set face down against a big hit.
     name: 'Abyssal Tide',
     race: 2,
     cards: [
       ...twoOf('bell_warden', 'abyssal_choir', 'tide_pylon', 'riptide_ambush', 'undertow', 'command_directive'),
-      'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'bulwark_plating', 'aegis_monolith', 'plasma_relay', 'coronal_lance', 'tidal_brake',
+      'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide', 'aegis_monolith', 'plasma_relay', 'coronal_lance', 'tidal_brake',
     ],
   },
   {
-    // Go wide and keep it: Hive Rooting and a Stasis Field to hold the hive in play, a Resonance
-    // Lattice in the middle of it, husks and pods recovered from the discard pile, and an Entropy
-    // Pulse to wear down a rival's best card.
+    // Go wide and keep it coming back: Hive Rooting and a Compost Cycle to hold the hive in play,
+    // a Resonance Lattice in the middle of it, and Spore Husks recovered from the discard pile (by
+    // the Compost Cycle and a Regrowth Pod) to draw more.
     name: 'Hive Bloom',
     race: 3,
     cards: [
       ...twoOf('rot_bloom', 'spore_husk', 'orbit_root', 'command_directive'),
-      'hive_rooting', 'stasis_field', 'resonance_lattice', 'hive_relay', 'sporecaster', 'canopy', 'spore_cloud',
-      'ixquor_brood_tender', 'the_brood_queen', 'coolant_array', 'tidal_brake', 'cryo_vault',
+      'hive_rooting', 'compost_cycle', 'resonance_lattice', 'hive_relay', 'sporecaster', 'canopy', 'spore_cloud',
+      'ixquor_brood_tender', 'the_brood_queen', 'coolant_array', 'tidal_brake', 'regrowth_pod',
     ],
   },
 ];

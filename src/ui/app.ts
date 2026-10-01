@@ -1537,7 +1537,7 @@ export class App {
         <li>Every sun starts at <b>${BALANCE.startingHeat}</b> heat with <b>${BALANCE.supernovaAt}</b> max health. Reach it and your sun goes supernova. Blow up your rival's sun to win.</li>
         <li>Bring a <b>${BALANCE.deckSize}-card deck</b>: up to ${BALANCE.maxCopies} copies of a card, and exactly ${BALANCE.commandCards} Command cards. You start with ${BALANCE.openingHand} cards and draw ${BALANCE.drawPerTurn} each turn after that.</li>
         <li>Play <b>1 card</b> on your first turn, then up to <b>${BALANCE.maxPlays}</b> a turn. Cards <b>stay in play</b> in your tableau of <b>${BALANCE.tableauSlots} slots</b>, in the slot you choose: their start-of-turn effects trigger every turn, and they power each other up.</li>
-        <li><b>Stability</b> (◷) is how many of your turns a card stays: after its start-of-turn effects it loses 1, and at 0 it fades back into your deck. Some cards restore stability; others erode your rival's. There is <b>no replacing</b>: with every slot full, nothing new goes in until a card fades, or is recalled or removed.</li>
+        <li><b>Stability</b> (◷) is how many of your turns a card stays: after its start-of-turn effects it loses 1, and at 0 it fades into your discard pile. Some cards restore stability; others erode your rival's. There is <b>no replacing</b>: with every slot full, nothing new goes in until a card fades, or is recalled or removed.</li>
         <li><b>Orbit:</b> three planets circle your sun, each facing it for ${BALANCE.orbitTurns} of your turns in turn: the <b>dead</b> planet (nothing), the <b>abundant</b> planet (draw ${BALANCE.abundantDraw} extra card each turn), then the <b>industrial</b> planet (play ${BALANCE.industrialPlays} extra card each turn), and round again. Every sun starts at the dead planet. Some cards move an orbit on or back ("your orbit +1", "your rival's orbit −2"); others are stronger while a planet faces your sun.</li>
         <li><b>Defence</b> (⛨) comes from the slot: ${BALANCE.slotDefence.join(', ')} from left to right, so the middle is safest. Sturdy cards and bulwarks add more. Removal only reaches cards with low enough defence ("destroy a card with 2 or less defence").</li>
         <li>Your attacks heat your rival's sun. Shields absorb their heat and fade at the start of your turn.</li>
@@ -1802,10 +1802,10 @@ export class App {
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     const boost = opts.owner && boostable(c.defId) ? resonanceBonus(opts.owner, c) : 0;
     const resonance = boost ? `<span class="resonance" title="Resonance: +${boost} to this card's heat, cooling and shields from its neighbours">+${boost}</span>` : '';
-    // In play: its defence (what removal must beat) and stability (turns before it fades back into the deck).
+    // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<span class="card-stats"><b class="stat-def" title="Defence: removal cards can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades back into the deck">◷${c.stability ?? 0}</b></span>`
+        ? `<span class="card-stats"><b class="stat-def" title="Defence: removal cards can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">◷${c.stability ?? 0}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
@@ -2008,7 +2008,7 @@ export class App {
     const rows = [...me.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');
     return this.sheetFrame(
       `your discard · ${me.discard.length}`,
-      `<p class="muted center-text">Cards destroyed or cancelled, most recent first. They are shuffled back into your deck when it runs out. (Cards that fade go straight back into your deck.)</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
+      `<p class="muted center-text">Cards that faded, were destroyed or were cancelled, most recent first. When your deck runs out they are shuffled into a new one.</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
     );
   }
 

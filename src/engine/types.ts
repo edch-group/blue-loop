@@ -85,14 +85,14 @@ export type Effect = (
   | { type: 'destroy'; kind?: CardKind; maxDefence?: number; neighbours?: boolean }
   /** Return a card of your choice (with at most `maxDefence` defence, if given) in your target's tableau to its owner's hand. */
   | { type: 'bounce'; maxDefence?: number }
-  /** Reduce the stability of a card of your choice in your target's tableau (`all`: every card there). At 0 it is swept back into its owner's deck. */
+  /** Reduce the stability of a card of your choice in your target's tableau (`all`: every card there). At 0 it fades into its owner's discard pile. */
   | { type: 'erode'; amount: number; all?: boolean }
   /** Restore stability to another card of yours (your choice; `all`: every other card of yours). */
   | { type: 'restore'; amount: number; all?: boolean }
   /** Return another card of yours from your tableau to your hand (to play it again). */
   | { type: 'recall' }
   /** Return a card of your choice (of a kind, if given) from your discard pile to your hand. */
-  | { type: 'recover'; kind?: CardKind }
+  | { type: 'recover'; kind?: CardKind; /** With nothing (of that kind) in your discard pile, draw this many cards instead. */ orDraw?: number }
   /** You may play this many extra cards this turn. */
   | { type: 'plays'; amount: number }
   /** Lightspeed: the enemy who sprang this card may play no more cards this turn. */
@@ -166,7 +166,7 @@ export interface CardDef {
   lightspeed?: Lightspeed;
   /** Extra defence on top of its slot's (sturdy cards). */
   defence?: number;
-  /** Turns it stays in your tableau before it is swept back into your deck (default: see BALANCE.stability). */
+  /** Turns it stays in your tableau before it fades into your discard pile (default: see BALANCE.stability). */
   stability?: number;
   /** While this card is in your tableau. */
   passive?: Passive[];
@@ -181,7 +181,7 @@ export interface CardInstance {
   growth?: number;
   /** In a tableau: which of its slots the card sits in (0 far left … 4 far right). */
   slot?: number;
-  /** In a tableau: turns left before it is swept back into its owner's deck. */
+  /** In a tableau: turns left before it fades into its owner's discard pile. */
   stability?: number;
 }
 

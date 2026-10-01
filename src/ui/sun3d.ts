@@ -320,20 +320,28 @@ function traceBalls(img: ImageData, s: number, pad: number, cam: V3, balls: Ball
         const disc = b * b - a * (oo - r * r);
         const t = disc > 0 ? (-b - Math.sqrt(disc)) / a : -b / a;
         const P: V3 = add3(cam, mul3(D, t));
-        if (P[2] < 0) continue;
+        // Where the ball meets the board on the near side, smooth its edge too: by how far this point of
+        // the board lies inside the ball's base (a ball cut off by the board would otherwise be jagged there).
+        const qx = (x + 0.5) / s - pad - ctr[0], qy = (y + 0.5) / s - pad - ctr[1];
+        let edge = 1;
+        if (P[2] < r * 0.25 && qx * o[0] + qy * o[1] > 0) edge = Math.min(1, Math.max(0, (r - Math.hypot(qx, qy)) * s + 0.5));
+        const coverAll = Math.min(cover, edge);
+        if (coverAll <= 0) continue;
+        if (P[2] < 0) P[2] = 0;
         const n = norm3(sub3(P, ctr));
+        if (n[2] < 0) n[2] = 0;
         const mu = Math.max(0, dot3(n, norm3(sub3(cam, P))));
         const col = ball.shade(n, mu);
         const i = (y * W + x) * 4;
         const da = px[i + 3] / 255;
-        if (da === 0 || cover >= 1) {
+        if (da === 0 || coverAll >= 1) {
           px[i] = col[0]; px[i + 1] = col[1]; px[i + 2] = col[2];
-          px[i + 3] = cover * 255;
+          px[i + 3] = coverAll * 255;
         } else {
-          px[i] = px[i] + (col[0] - px[i]) * cover;
-          px[i + 1] = px[i + 1] + (col[1] - px[i + 1]) * cover;
-          px[i + 2] = px[i + 2] + (col[2] - px[i + 2]) * cover;
-          px[i + 3] = Math.min(255, px[i + 3] + (255 - px[i + 3]) * cover);
+          px[i] = px[i] + (col[0] - px[i]) * coverAll;
+          px[i + 1] = px[i + 1] + (col[1] - px[i + 1]) * coverAll;
+          px[i + 2] = px[i + 2] + (col[2] - px[i + 2]) * coverAll;
+          px[i + 3] = Math.min(255, px[i + 3] + (255 - px[i + 3]) * coverAll);
         }
       }
     }
@@ -352,7 +360,8 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   const vs = vit.offsetWidth;
   if (vs < 8) return;
   const span = vs * (1 + 2 * DOME_PAD);
-  const size = Math.round(Math.min(640, span * Math.min(2, window.devicePixelRatio || 1)));
+  // A little finer than the screen's own pixels, so edges stay smooth however the board scales it.
+  const size = Math.round(Math.min(760, span * Math.min(2, window.devicePixelRatio || 1) * 1.5));
   if (canvas.width !== size) {
     canvas.width = size;
     canvas.height = size;
@@ -483,7 +492,16 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
     const q0 = onBoard(cam, at), qx = onBoard(cam, add3(at, mul3(right, k))), qy = onBoard(cam, add3(at, mul3(up, -k)));
     el.style.transform = `matrix(${((qx[0] - q0[0]) / k).toFixed(4)},${((qx[1] - q0[1]) / k).toFixed(4)},${((qy[0] - q0[0]) / k).toFixed(4)},${((qy[1] - q0[1]) / k).toFixed(4)},${q0[0].toFixed(2)},${q0[1].toFixed(2)}) translate(-50%, ${ay})`;
   };
-  stand(vit.querySelector<HTMLElement>('.vit-heat'), [c[0], c[1], R * 0.9], '-50%');
+  // The heat count in the middle of the sun as you see it: the centre of its outline on screen.
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let la = 0; la <= 90; la += 10) {
+    for (let lo = 0; lo < 360; lo += 10) {
+      const a = (la * Math.PI) / 180, b = (lo * Math.PI) / 180;
+      const [qx, qy] = onBoard(cam, [c[0] + R * Math.cos(a) * Math.cos(b), c[1] + R * Math.cos(a) * Math.sin(b), R * Math.sin(a)]);
+      x0 = Math.min(x0, qx); y0 = Math.min(y0, qy); x1 = Math.max(x1, qx); y1 = Math.max(y1, qy);
+    }
+  }
+  stand(vit.querySelector<HTMLElement>('.vit-heat'), [(x0 + x1) / 2, (y0 + y1) / 2, 0], '-50%');
 }
 
 let last = 0;

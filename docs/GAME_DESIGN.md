@@ -28,13 +28,13 @@ was replaced by this design in design review.
    - Regional instability applies, once regional stability has run out.
    - The global card applies, if there is one.
    - Your tableau's **start-of-turn effects** trigger, left to right.
-   - Then every card in your tableau loses **1 stability**. A card at 0 fades back into your deck.
+   - Then every card in your tableau loses **1 stability**. A card at 0 fades into your discard pile.
 2. **Play cards.** You may play **1 card on your first turn and 2 on every turn after that**. Hive Relay adds 1. [design review: draw 1 a turn; proposed: cap of 2]
 3. **End turn.** Unplayed cards stay in your hand. [proposed]
 
 **Second seat head start** [proposed]: the second player starts with 1 extra card. The old head start (2 cooler, 1 extra card, 1 extra play) let the second seat win 68%; a sun 1 cooler was still worth too much with the current decks. With 1 extra card, seats are 46/54.
 
-**An empty deck** is refilled by shuffling your discard pile back in, so destroyed and cancelled cards come round again. (Cards that fade go straight back into the deck.) Each reshuffle heats your sun by 2 (unblockable). Only with both deck and discard pile empty does each card you should have drawn heat your sun by 2 instead. [design review: cards are discarded for reuse; proposed: 2 heat]
+**The discard pile** takes every card that leaves play: cards that fade, and cards destroyed or cancelled (cards returned or recalled go to hand). Recovery cards draw from it. **An empty deck** is refilled by shuffling the discard pile into a new deck. Each reshuffle heats your sun by 2 (unblockable). Only with both deck and discard pile empty does each card you should have drawn heat your sun by 2 instead. [design review: cards are discarded for reuse; proposed: 2 heat]
 
 ## The tableau
 
@@ -47,7 +47,7 @@ was replaced by this design in design review.
     - Ion Cannon: 2 or less.
     - Tractor Beam and Command Breaker: 3 or less.
     - Event Horizon (Anomaly): any.
-- **Stability** is how many of your turns a card stays in play. Its start-of-turn effects trigger that many times, then it fades back into your deck at a random place. [design review: stability on each card]
+- **Stability** is how many of your turns a card stays in play. Its start-of-turn effects trigger that many times, then it fades into your discard pile. [design review: stability on each card; the discard pile takes everything that leaves play]
   - **Standard stability:** 3.
   - **Cards with only a when-played effect:** 2. They are mostly slot-fillers once played.
   - **Command cards:** 3.
@@ -61,7 +61,7 @@ was replaced by this design in design review.
     - Entropy Pulse: −2 to a rival card, heat 1.
     - Undertow (Vorthane): −2, gain 2 shields.
     - Decay Wave: −1 to every card in the target's tableau, heat your own sun 2.
-  - Erosion ignores defence. A card eroded to 0 is swept back into its owner's deck.
+  - Erosion ignores defence. A card eroded to 0 fades into its owner's discard pile.
 - Every card that stays in play shows its stability (◷) in your hand, zoomed and in the deck builder too.
 - On the board, each card in play shows ⛨ defence and ◷ stability. The badge turns red on its last turn. Empty slots show their defence.
 - Cards have up to three kinds of effect:
@@ -94,12 +94,12 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 | Gravity Assist | Attack | Heat your rival by 2. Your orbit +1. |
 | Orbital Slingshot | Growth | Your orbit +3 (the next planet swings round). Draw 1 card. |
 | Tidal Brake | Defence | Gain 2 shields. Your rival's orbit −2. |
-| Dead World Mine | Growth | Start of turn: while your dead planet faces your sun, draw 1 card and cool your sun by 1. |
+| Dead World Mine | Growth | Start of turn: cool your sun by 1. While your dead planet faces your sun, also draw 1 card. |
 | Perihelion Forge (Stellar) | Attack | Start of turn: heat your rival by 1, or by 3 while your industrial planet faces your sun. |
 | Sunward Lance (Aureline) | Attack | Heat your rival by 1, or by 3 while your industrial planet faces your sun. Your orbit +1. |
 | Comet Shard (Xel'Naru) | Attack | Heat your rival by 3. Your rival's orbit −1. Heat your own sun by 1. |
 | Tide Lock (Vorthane) | Defence | Start of turn: gain 1 shield, or 3 while your abundant planet faces your sun. |
-| Orbit Root (Ixquor, Stellar) | Growth | Start of turn: while your dead planet faces your sun, your orbit +2 (it moves on in a turn, not three). |
+| Orbit Root (Ixquor, Stellar) | Growth | Start of turn: cool your sun by 1. While your dead planet faces your sun, your orbit +2 (it moves on in a turn, not three). |
 
 **Starter decks with orbit:**
 - **Solar Lancers:** Gravity Assist and Tidal Brake, in place of a Helio Lancer and Aurelia.
@@ -133,7 +133,7 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 
 ## Command cards
 
-Each Command card upgrades a core stat for your **whole deck**, permanently. Command cards **stay in your tableau** like any other card and take a slot. When one fades, it goes back into your deck; destroyed, it goes to your discard pile. Play one again and it upgrades again, so full upgrades are reachable. [design review]
+Each Command card upgrades a core stat for your **whole deck**, permanently. Command cards **stay in your tableau** like any other card and take a slot. When one fades or is destroyed, it goes to your discard pile. Play one again and it upgrades again, so full upgrades are reachable. [design review]
 
 | Upgrade | Effect per level | Max |
 | --- | --- | --- |
@@ -152,9 +152,11 @@ The standard Command card is **Command Directive**: choose any of the three upgr
 | The Admiralty | Anomaly | Choose any upgrade. Resonance: cards next to it get +1 |
 
 **Keeping Command cards in play** is rewarded by:
-- Standing Orders: draw 1; start of turn, draw 1 if you control 2 or more Command cards.
-- Chain of Command: cool 1 per Command card (up to 2).
-- Aureline War-Herald: heat 1 per Command card (up to 2).
+- Standing Orders: draw 1; start of turn, draw 1 if you control a Command card.
+- Chain of Command: start of turn, cool 1, or 2 if you control a Command card.
+- Aureline War-Herald: start of turn, heat 1; gain 1 shield if you control a Command card.
+
+Decks hold only 2 Command cards, so these ask for one, not two, and do something without one.
 
 **Replaying Command cards.** Phase Shift returns one of your cards to your hand and gives the play back, so a Command card can be recalled and played again for another upgrade. Command Breaker is the answer: it destroys a Command card in your target's tableau.
 
@@ -171,18 +173,47 @@ Resonance cards power up their neighbours in your tableau (by slot: an empty slo
 
 Some cards count their own neighbours instead:
 - Tide Pylon (Vorthane): start of turn, 1 shield +1 per defence card next to it.
-- Prism Conduit (Xel'Naru): start of turn, cool 1 per attack card next to it.
+- Prism Conduit (Xel'Naru): start of turn, cool 1, +1 per attack card next to it.
 
 ## Recovery, recall and removal [design review]
 
-- **Recover** (from your discard pile to your hand): Salvage Drone (any card), Xel'Naru Reliquarist (an attack card, then draw 1), Regrowth Pod (a growth card, and cool 1).
+- **The discard pile** takes every card that leaves play (faded, destroyed or cancelled), so there is nearly always something to recover.
+- **Recover** (from your discard pile to your hand). With nothing to recover, each of these draws a card instead, so none is ever dead:
+  - Salvage Drone: any card, and cool 1.
+  - Xel'Naru Reliquarist: an attack card, then draw 1.
+  - Regrowth Pod (Ixquor): a growth card, and cool 1.
+  - Sunlit Return (Aureline): cool 1, and an attack card.
+  - Returning Tide (Vorthane): gain 2 shields, and a defence card.
+  - Compost Cycle (Ixquor): any card, and your other cards regain 1 stability.
 - **On recovery**, some cards fire an effect: Ember Shard heats your rival by 1; Spore Husk draws 2.
-- **Recall** (from your tableau to your hand, triggering its leave effects, to play it again): Phase Shift, which also gives you 1 extra play this turn.
+- **Recall** (from your tableau to your hand, triggering its leave effects, to play it again; it also frees the slot):
+  - Phase Shift: and 1 extra play this turn.
+  - Recall Beacon: and draw 1.
+  - Shard Recall (Xel'Naru): and heat your rival by 1 (recalling a Martyr fires it too).
 - **Removal** of cards in your target's tableau:
   - Ion Cannon destroys a card.
-  - Command Breaker destroys a Command card, and heats 1.
+  - Command Breaker heats 2, and destroys a Command card if there is one.
   - Tractor Beam returns a card to its owner's hand, and heats 1.
   - Event Horizon (Anomaly) destroys a card and flings the cards either side of it back to their owner's hand.
+
+## Every card does something on its own [design review]
+
+Cards that only worked alongside others (a count of a card type, Command cards, neighbours, a planet) left hands full of cards that did nothing, and a deck had to be almost all of one type to use them. Now each has a **floor**: it always does something, and its synergy makes it better.
+
+| Card | Before | Now |
+| --- | --- | --- |
+| Solar Battery | 2 heat with 3+ attack cards, else nothing | 1 heat, or 3 with 3+ attack cards |
+| Spore Cloud (Ixquor) | 2 heat with 4+ cards, else nothing | 1 heat, or 3 with 4+ cards |
+| Halo Ward (Aureline) | 1 shield per 2 attack cards | 1 shield, +1 per 2 attack cards |
+| Aureline Sun-Priest | cool 1 per 2 attack cards (up to 2) | cool 1, or 2 with 2+ attack cards |
+| Aurelia, the First Light | 1 heat per 2 attack cards (up to 3) | 1 heat, +1 per 2 attack cards (up to 4) |
+| Dawn Beacon (Aureline) | start of turn, draw 1 with 3+ attack cards | with 2+ attack cards |
+| Prism Conduit (Xel'Naru) | cool 1 per attack card next to it | cool 1, +1 per attack card next to it |
+| Standing Orders, Chain of Command, War-Herald | needed one or two Command cards | see Command cards |
+| Command Breaker | heat 1, destroy a Command card | heat 2, destroy a Command card if there is one |
+| Signal Jammer | cancels a Command card (decks hold 2) | cancels a growth card |
+| Dead World Mine, Orbit Root | only while the dead planet faces your sun | also cool 1 every turn |
+| Recovery cards | nothing with an empty discard pile | draw 1 instead |
 
 ## Lightspeed cards [design review]
 
@@ -191,7 +222,7 @@ Lightspeed cards are played **face down**. They don't take a slot, and **only on
 | Card | Rarity | Springs when an enemy… | Effect |
 | --- | --- | --- | --- |
 | Null Field | Stellar | plays an attack card | Cancel it |
-| Signal Jammer | White Dwarf | plays a Command card | Cancel it, draw 1 |
+| Signal Jammer | White Dwarf | plays a growth card | Cancel it, draw 1 |
 | Frost Snare | White Dwarf | plays a defence card | Cancel it, heat them 1 |
 | Solar Mirror | White Dwarf | is about to heat your sun | First gain 3 shields and heat them 1 |
 | Decoy Array | White Dwarf | is about to destroy or return one of your cards | Cancel it, draw 1 |
@@ -237,20 +268,20 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 ## The card pool [proposed content]
 
-**84 cards:** 40 neutral (26 others, 3 globals, 5 Command cards and 6 Lightspeed cards), and 10–12 for each race. Cards have no cost: the number of plays per turn is the only limit, so no single card is a bomb. The power is in combinations. The full list and exact wording are in `src/engine/cards.ts`. Rarity and characters are set in one table there (`CARD_META`).
+**89 cards:** 41 neutral (27 others, 3 globals, 5 Command cards and 6 Lightspeed cards), and 11–13 for each race. Cards have no cost: the number of plays per turn is the only limit, so no single card is a bomb. The power is in combinations. The full list and exact wording are in `src/engine/cards.ts`. Rarity and characters are set in one table there (`CARD_META`).
 
 | Race | Theme | Its cards |
 | --- | --- | --- |
-| Aureline | Lancers: many attack cards, each making the others hit harder | Aureline Lancer, Focusing Array (other attack cards +1 at start of turn; copies don't stack), Chorus of Dawn (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Warden, Sun-Priest (cools with your attack cards), Aurelia (heat that grows with your attack cards), War-Herald (heat per Command card in play), Sunforge (resonance for attack cards) |
-| Xel'Naru | Overload: big bursts of heat, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm (3 heat, or 4 while you are overheated), Overload Core (harder while overheated), Xel'Naru Martyr (burst when it leaves play), Prism Vent, Fracture Seer, Champion (harder while overheated), Kyr'Vessa (strikes whenever another of your cards leaves play), Ember Shard (burst when recovered), Reliquarist (recovers an attack card), Prism Conduit (cools with neighbouring attack cards) |
-| Vorthane | Tides: build shields, keep them, and sting attackers | Bellwarden, Stinging Veil (once per attacking card each turn), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Vorthanian Commoners, Hero of Rathune (shields from your defence cards), Ommarath (cools your sun when your shields absorb a hit), Tide Pylon (shields from neighbouring defence cards), Riptide Ambushers (Lightspeed: turn aside a big hit) |
-| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each turn), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and hits harder once you're wide), Regrowth Pod (recovers a growth card), Spore Husk (draws when recovered) |
+| Aureline | Lancers: many attack cards, each making the others hit harder | Aureline Lancer, Focusing Array (other attack cards +1 at start of turn; copies don't stack), Chorus of Dawn (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Warden, Sun-Priest (cools more with your attack cards), Aurelia (heat that grows with your attack cards), War-Herald (heat, and a shield while you hold a Command card), Sunforge (resonance for attack cards), Sunlit Return (recovers an attack card) |
+| Xel'Naru | Overload: big bursts of heat, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm (3 heat, or 4 while you are overheated), Overload Core (harder while overheated), Xel'Naru Martyr (burst when it leaves play), Prism Vent, Fracture Seer, Champion (harder while overheated), Kyr'Vessa (strikes whenever another of your cards leaves play), Ember Shard (burst when recovered), Reliquarist (recovers an attack card), Prism Conduit (cools more with neighbouring attack cards), Shard Recall (recalls a card) |
+| Vorthane | Tides: build shields, keep them, and sting attackers | Bellwarden, Stinging Veil (once per attacking card each turn), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Vorthanian Commoners, Hero of Rathune (shields from your defence cards), Ommarath (cools your sun when your shields absorb a hit), Tide Pylon (shields from neighbouring defence cards), Riptide Ambushers (Lightspeed: turn aside a big hit), Returning Tide (recovers a defence card) |
+| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each turn), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and hits harder once you're wide), Regrowth Pod (recovers a growth card), Spore Husk (draws when recovered), Compost Cycle (recovers any card, steadies the rest) |
 
 **Neutral cards:**
 - Coronal Lance, Plasma Relay, Gravity Sling, Thermal Exchange, Solar Battery, Coolant Array, Cryo Vault, Deflector Grid, Heat Sink and Deep-Space Scanners.
 - Removal: Ion Cannon, Tractor Beam, Command Breaker and Event Horizon.
 - Resonance: Resonance Lattice and Harmonic Singularity.
-- Recovery and recall: Salvage Drone and Phase Shift.
+- Recovery and recall: Salvage Drone, Phase Shift and Recall Beacon.
 - Command synergies: Standing Orders and Chain of Command.
 - Defence and stability: Bulwark Plating, Aegis Monolith, Chrono Anchor, Stasis Field, Entropy Pulse and Decay Wave. The race cards are Shard Renewal (Xel'Naru), Undertow (Vorthane) and Hive Rooting (Ixquor).
 - Commands and Lightspeed cards: see above.
@@ -265,10 +296,10 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 | Deck | Built around |
 | --- | --- |
-| Solar Lancers | Attack cards that boost each other; Sunforges and a Resonance Lattice powering their neighbours; Command cards kept in play for the War-Herald; Stasis Field; Ion Cannon; Null Field set face down |
-| Shard Overload | Martyr and Kyr'Vessa paying off as cards leave play, Phase Shift to recall and replay them; Ember Shards and the Reliquarist; Prism Conduit; Tractor Beam; Solar Mirror |
-| Abyssal Tide | Wardens flanked by Tide Pylons and a Bulwark, the Aegis Monolith guarding the middle; Undertow to erode rival cards back into their decks; Riptide Ambushers |
-| Hive Bloom | Going wide and staying there with Hive Rooting and Stasis Field; a Resonance Lattice; husks and pods recovered from the discard pile; Entropy Pulse |
+| Solar Lancers | Attack cards that boost each other; a Sunforge and a Resonance Lattice powering their neighbours; Command cards kept in play for the War-Herald; Sunlit Return and a Recall Beacon to bring attack cards back; Ion Cannon; Null Field set face down |
+| Shard Overload | Martyr and Kyr'Vessa paying off as cards leave play, Phase Shift and Shard Recall to recall and replay them; Ember Shards and the Reliquarist; Prism Conduit; Tractor Beam |
+| Abyssal Tide | Wardens flanked by Tide Pylons, the Aegis Monolith guarding the middle; Undertow to erode rival cards away; Returning Tide to bring a fallen defence card back; Riptide Ambushers |
+| Hive Bloom | Going wide and staying there with Hive Rooting and Compost Cycle; a Resonance Lattice; Spore Husks recovered (by the Compost Cycle and a Regrowth Pod) to draw more |
 
 How often the newer mechanics come up in an AI game (per game), before and after the rebuild:
 
@@ -280,7 +311,12 @@ How often the newer mechanics come up in an AI game (per game), before and after
 | Resonance and bulwark cards played | 0.8 | 3.3 |
 | Cards recovered from the discard pile | 0.07 | 0.14 |
 
-Recovery stays rare because cards that fade go back into the deck, not the discard pile, so the discard pile holds only destroyed and cancelled cards. [open question]
+Recovery used to be rare because cards that faded went back into the deck, so the discard pile held only destroyed and cancelled cards. Now every card that leaves play goes there.
+
+**After the discard pile and the card floors (1000 games).** Cards recovered from the discard pile went from 0.2 to 1.7 a game, and cards returned to hand to 1.9. Deck win rates are 46–55%: Lancers 54.7%, Overload 49.0%, Tide 49.6%, Bloom 46.3%. Seats are 49/51, and games last about 11.5 rounds.
+- The floors made Solar Lancers far too strong at first (about 80%). Their attack cards now all hit every turn, and Focusing Array and Sunforge add to every one of them. Lancers now run one Sunforge (and a Recall Beacon), Coronal Chorus hits for up to 2, Sunlit Return cools 1, the Sun-Priest cools at most 2, and the War-Herald's Command bonus is a shield rather than more heat.
+- Abyssal Tide fell to about 25% (it gained little from the floors), so the Abyssal Choir now starts at 2 heat and the Stinging Veil stings for 3. Rot Bloom also starts at 2.
+- The widest match-ups are Tide over Overload (74/26) and Lancers over Tide (72/28).
 
 **1000 games.** Deck win rates are 39–57%. The worst match-up is about 70/30: Overload over Bloom. Games last about 10–11 rounds. Converting the splash and every-enemy cards to plain target heat for 1v1 barely moved the numbers.
 - **Seats:** 46/54. The second seat now starts with 1 extra card instead of a cooler sun; the cooler sun was worth too much with these decks.

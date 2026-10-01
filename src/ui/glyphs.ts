@@ -236,5 +236,5 @@ for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElem
 /** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
 export function stabilityBadge(def: CardDef): string {
   if (!persists(def.id)) return '';
-  return `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your turns, then fades back into your deck">◷${baseStability(def.id)}</b></span>`;
+  return `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your turns, then fades into your discard pile">◷${baseStability(def.id)}</b></span>`;
 }

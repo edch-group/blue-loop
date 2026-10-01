@@ -46,7 +46,7 @@ export const BALANCE = {
   slotDefence: [1, 2, 3, 2, 1],
   /**
    * Stability: how many of your turns a card stays in your tableau (its start-of-turn effects trigger
-   * that many times), before it is swept back into your deck. Cards with only a when-played effect fade faster.
+   * that many times), before it fades into your discard pile. Cards with only a when-played effect fade faster.
    */
   stability: 3,
   stabilityBurst: 2,

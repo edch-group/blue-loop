@@ -151,7 +151,7 @@ describe('the tableau', () => {
     expect(s.players[0].lightspeed?.defId).toBe('null_field');
   });
 
-  it('fades cards after their stability runs out, back into the deck, triggering leave effects', () => {
+  it('fades cards after their stability runs out, into the discard pile, triggering leave effects', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     const [martyr] = give(me, ['martyr_crystal'], 'tableau'); // no start-of-turn or passive effect: it fades fast
@@ -163,7 +163,7 @@ describe('the tableau', () => {
     expect(s.players[0].tableau.map((c) => c.stability)).toEqual([1, 2]);
     s = endTurn(endTurn(s)); // Ada's turn 3: the Martyr fades and bursts
     expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
-    expect(s.players[0].deck.some((c) => c.uid === martyr.uid)).toBe(true);
+    expect(s.players[0].discard.some((c) => c.uid === martyr.uid)).toBe(true);
     expect(s.players[1].heat).toBeGreaterThanOrEqual(bo + 2 + 3);
     s = endTurn(endTurn(s)); // Ada's turn 4: the relay fires a third time, then fades
     expect(s.players[0].tableau).toHaveLength(0);
@@ -186,7 +186,7 @@ describe('the tableau', () => {
     // The Anchor itself still fades: 3 → 2, and the pulse takes the last 2.
     s = play(s, 'entropy_pulse', { enemyUid: anchor.uid });
     expect(s.players[0].tableau.some((c) => c.uid === anchor.uid)).toBe(false);
-    expect(s.players[0].deck.some((c) => c.uid === anchor.uid)).toBe(true);
+    expect(s.players[0].discard.some((c) => c.uid === anchor.uid)).toBe(true);
   });
 
   it('lets Ion Cannon destroy a card of your choice in your target\'s tableau', () => {
@@ -299,6 +299,7 @@ describe('synergies', () => {
 
   it('Stinging Veil stings each attacking card once per turn', () => {
     let s = twoPlayer();
+    const BALANCE_VEIL = 3; // Stinging Veil's sting
     // Ada's Overload Core, overheated, hits twice at the start of Ada's turn.
     const ada = s.players[0];
     give(ada, ['overload_core'], 'tableau');
@@ -308,14 +309,14 @@ describe('synergies', () => {
     s.players[1].shields = 10;
     s = endTurn(s);
     expect(s.players[1].shields).toBe(10 - 2 - 1);
-    expect(s.players[0].heat).toBe(16 + 2);
+    expect(s.players[0].heat).toBe(16 + BALANCE_VEIL);
     // Two different cards each get stung.
     const me = activePlayer(s);
     me.playsLeft = 2;
     give(me, ['coronal_lance', 'coronal_lance']);
     s = play(s, 'coronal_lance');
     s = play(s, 'coronal_lance');
-    expect(s.players[0].heat).toBe(16 + 2 + 2 + 2);
+    expect(s.players[0].heat).toBe(16 + 3 * BALANCE_VEIL);
   });
 });
 
@@ -677,5 +678,18 @@ describe('orbit', () => {
     expect(f.planet).toBe('industrial');
     expect(f.plays).toBe(BALANCE.industrialPlays);
     expect(f.heat).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('recovery', () => {
+  it('draws instead when there is nothing to recover', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.discard = [];
+    give(me, ['salvage_drone']);
+    const hand = me.hand.length;
+    s = play(s, 'salvage_drone', { slot: 0 });
+    // The drone left the hand, and one card was drawn in its place.
+    expect(activePlayer(s).hand.length).toBe(hand);
   });
 });

@@ -304,7 +304,7 @@ export function needsSlot(p: PlayerState, defId: string): boolean {
   return persists(defId) && freeSlots(p).length > 1;
 }
 
-/** How long a card stays in play before it is swept back into its owner's deck. */
+/** How long a card stays in play before it fades into its owner's discard pile. */
 export function baseStability(defId: string): number {
   const def = cardDef(defId);
   if (def.stability !== undefined) return def.stability;
@@ -756,7 +756,14 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       }
       case 'recover': {
         const i = p.discard.findIndex((c) => c.uid === ctx.recoverUid && kindMatches(c, e.kind));
-        if (i < 0) break;
+        if (i < 0) {
+          // Nothing there to recover: the card draws instead, so it is never dead.
+          if (e.orDraw && !p.discard.some((c) => kindMatches(c, e.kind))) {
+            log(state, `${p.name} has nothing to recover, and draws instead.`);
+            drawCards(state, p, e.orDraw);
+          }
+          break;
+        }
         const [back] = p.discard.splice(i, 1);
         p.hand.push(back);
         log(state, `${p.name} recovers ${cardDef(back.defId).name} from their discard pile.`);
@@ -779,10 +786,10 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
   }
 }
 
-/** A card whose stability ran out is swept back into its owner's deck, at a random place. */
+/** A card whose stability ran out fades into its owner's discard pile (shuffled into a new deck once the deck runs out). */
 function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
-  log(state, `${owner.name}'s ${cardDef(card.defId).name} fades back into their deck.`);
-  leaveTableau(state, owner, card, 'deck');
+  log(state, `${owner.name}'s ${cardDef(card.defId).name} fades into their discard pile.`);
+  leaveTableau(state, owner, card, 'discard');
 }
 
 /** A card leaves its tableau for the discard pile (or its owner's hand or deck), triggering its leave effects. */
@@ -843,7 +850,7 @@ function startTurn(state: GameState) {
     if (!p.tableau.includes(card)) continue;
     resolveEffects(state, p, card, cardDef(card.defId).onTurn, 'turn');
   }
-  // Then every card loses 1 stability (unless anchored); at 0 it is swept back into your deck.
+  // Then every card loses 1 stability (unless anchored); at 0 it fades into your discard pile.
   const fading = p.tableau.filter((c) => !anchored(p, c));
   for (const card of fading) card.stability = (card.stability ?? 1) - 1;
   for (const card of fading) {
