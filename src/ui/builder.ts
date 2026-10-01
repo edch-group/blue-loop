@@ -1,4 +1,4 @@
-import { BALANCE, breakable, breakdownValue, CARDS, cardDef, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, type CardKind } from '../engine';
+import { BALANCE, breakable, breakdownValue, CARDS, CARD_KINDS, cardDef, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { cardArt, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
@@ -11,7 +11,20 @@ interface BuilderHost {
   done(): void;
 }
 
-type Filter = 'all' | 'owned' | 'missing' | 'race' | 'neutral' | 'characters' | 'stellar' | 'anomaly' | CardKind;
+/** The card view's filters: a search, and a choice of race, type, rarity, ownership and order. */
+interface Filters {
+  q: string;
+  race: 'any' | 'deck' | 'neutral' | '0' | '1' | '2' | '3';
+  kind: 'any' | CardKind;
+  rarity: 'any' | Rarity;
+  own: 'any' | 'owned' | 'missing' | 'craftable';
+  sort: 'race' | 'name' | 'type' | 'rarity';
+  characters: boolean;
+  inDeck: boolean;
+}
+
+const NO_FILTERS: Filters = { q: '', race: 'any', kind: 'any', rarity: 'any', own: 'any', sort: 'race', characters: false, inDeck: false };
+const RARITY_ORDER: Record<Rarity, number> = { dwarf: 0, stellar: 1, anomaly: 2 };
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -23,7 +36,7 @@ const esc = (s: string) =>
  */
 export class DeckBuilder {
   private editing: SavedDeck | null = null;
-  private filter: Filter = 'all';
+  private filters: Filters = { ...NO_FILTERS };
   /** A card opened to craft or break down. */
   private focus: string | null = null;
 
@@ -37,6 +50,18 @@ export class DeckBuilder {
     if (this.editing) this.editing.name = value.slice(0, 24);
   }
 
+  /** The card search, as it is typed. */
+  onSearch(value: string) {
+    this.filters.q = value.slice(0, 40);
+    this.host.render();
+  }
+
+  /** A filter dropdown changed. */
+  onSelect(name: string, value: string) {
+    if (name === 'race' || name === 'kind' || name === 'rarity' || name === 'own' || name === 'sort') (this.filters as unknown as Record<string, string>)[name] = value;
+    this.host.render();
+  }
+
   /** Handle a `db-` action; returns true if it was one. */
   onClick(act: string, arg: string): boolean {
     const d = this.editing;
@@ -47,7 +72,7 @@ export class DeckBuilder {
         break;
       case 'db-new':
         this.editing = { id: `deck-${Date.now().toString(36)}`, name: 'New deck', race: 0, cards: [] };
-        this.filter = 'all';
+        this.filters = { ...NO_FILTERS };
         break;
       case 'db-copy': {
         const src = deckById(arg);
@@ -63,8 +88,11 @@ export class DeckBuilder {
       case 'db-delete':
         deleteDeck(arg);
         break;
-      case 'db-filter':
-        this.filter = arg as Filter;
+      case 'db-toggle':
+        if (arg === 'characters' || arg === 'inDeck') this.filters[arg] = !this.filters[arg];
+        break;
+      case 'db-clear':
+        this.filters = { ...NO_FILTERS };
         break;
       case 'db-race':
         if (d) d.race = Number(arg);
@@ -170,28 +198,7 @@ export class DeckBuilder {
 
   private renderEditor(d: SavedDeck): string {
     const count = (id: string) => d.cards.filter((x) => x === id).length;
-    const pool = CARDS.filter((c) => {
-      switch (this.filter) {
-        case 'all':
-          return true;
-        case 'owned':
-          return owned(c.id) > 0;
-        case 'missing':
-          return owned(c.id) === 0;
-        case 'race':
-          return c.race === d.race;
-        case 'neutral':
-          return c.race === undefined && c.kind !== 'command' && c.kind !== 'global';
-        case 'characters':
-          return !!c.character;
-        case 'stellar':
-        case 'anomaly':
-          return c.rarity === this.filter;
-        default:
-          return c.kind === this.filter;
-      }
-    })
-      .sort((a, b) => (a.race === d.race ? -1 : 0) - (b.race === d.race ? -1 : 0) || (a.race ?? 9) - (b.race ?? 9))
+    const pool = this.filtered(d)
       .map((c) => {
         const n = count(c.id);
         const have = owned(c.id);
@@ -206,41 +213,28 @@ export class DeckBuilder {
             ${n ? `<b class="db-count">×${n}</b>` : ''}
             <span class="db-own" data-act="db-focus" data-arg="${c.id}" title="Craft or break down">${have ? `owned ${have}` : 'not owned'} · ⟁</span>
           </button>`;
-      })
-      .join('');
+      });
+    // The deck, card by card: a pill in the card's own colours with its picture, by type then name.
     const grouped = [...new Set(d.cards)]
       .sort((a, b) => cardDef(a).kind.localeCompare(cardDef(b).kind) || cardDef(a).name.localeCompare(cardDef(b).name))
-      .map(
-        (id) => `
-        <button class="db-row" data-act="db-remove" data-arg="${id}" style="--kc:${KIND_COLOUR[cardDef(id).kind]}" title="Tap to remove one">
-          <span class="db-row-dot"></span><span>${esc(cardDef(id).name.toLowerCase())}</span><b>×${count(id)}</b><i>−</i>
-        </button>`,
-      )
+      .map((id) => {
+        const c = cardDef(id);
+        return `
+        <button class="db-row rarity-${c.rarity ?? 'dwarf'}" data-act="db-remove" data-arg="${id}" data-card="${id}" style="--kc:${KIND_COLOUR[c.kind]}" title="Tap to remove one">
+          <span class="db-row-art">${cardArt(c)}</span>
+          <span class="db-row-name"><b>${esc(c.name.toLowerCase())}</b><small>${typeLine(c).replace(/<[^>]+>/g, '')}</small></span>
+          <b class="db-row-n">×${count(id)}</b><i>−</i>
+        </button>`;
+      })
       .join('');
     const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
     const problems = deckProblems(d.cards);
-    const filters: [Filter, string][] = [
-      ['all', 'all'],
-      ['owned', 'owned'],
-      ['missing', 'not owned'],
-      ['race', RACE_NAMES[d.race].toLowerCase()],
-      ['neutral', 'neutral'],
-      ['characters', 'characters'],
-      ['stellar', 'stellar'],
-      ['anomaly', 'anomaly'],
-      ['attack', 'attack'],
-      ['defence', 'defence'],
-      ['growth', 'growth'],
-      ['global', 'global'],
-      ['command', 'command'],
-      ['lightspeed', 'lightspeed'],
-    ];
     return `
       ${this.header('deck builder')}
       <div class="setup-body db-editor">
         <div class="db-pool-side">
-          <div class="db-filters">${filters.map(([f, label]) => `<button class="pill-btn ${this.filter === f ? 'pill-on' : ''}" data-act="db-filter" data-arg="${f}">${esc(label)}</button>`).join('')}</div>
-          <div class="db-pool">${pool}</div>
+          ${this.renderFilters(d, pool.length)}
+          <div class="db-pool">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
         </div>
         <aside class="db-deck-side">
           <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
@@ -271,6 +265,63 @@ export class DeckBuilder {
           <button class="btn btn-small" data-act="db-craft" data-arg="${id}" ${p.flux < cost ? 'disabled' : ''}>craft · ⟁${cost}</button>
           <button class="btn btn-small" data-act="db-break" data-arg="${id}" ${spare ? '' : 'disabled'} title="${spare ? '' : 'Starter cards are kept'}">break down · +⟁${breakdownValue(id)}</button>
         </div>
+      </div>`;
+  }
+
+  /** The cards the filters let through, in the chosen order. */
+  private filtered(d: SavedDeck): CardDef[] {
+    const f = this.filters;
+    const q = f.q.trim().toLowerCase();
+    const inDeck = new Set(d.cards);
+    const flux = profile().flux;
+    const list = CARDS.filter((c) => {
+      if (q && !`${c.name} ${c.text} ${c.kind} ${c.race !== undefined ? RACE_NAMES[c.race] : 'neutral'}`.toLowerCase().includes(q)) return false;
+      if (f.race === 'deck' && c.race !== undefined && c.race !== d.race) return false;
+      if (f.race === 'neutral' && c.race !== undefined) return false;
+      if (f.race !== 'any' && f.race !== 'deck' && f.race !== 'neutral' && c.race !== Number(f.race)) return false;
+      if (f.kind !== 'any' && c.kind !== f.kind) return false;
+      if (f.rarity !== 'any' && (c.rarity ?? 'dwarf') !== f.rarity) return false;
+      if (f.own === 'owned' && owned(c.id) === 0) return false;
+      if (f.own === 'missing' && owned(c.id) > 0) return false;
+      if (f.own === 'craftable' && (owned(c.id) >= copyLimit(c.id) || craftCost(c.id) > flux)) return false;
+      if (f.characters && !c.character) return false;
+      if (f.inDeck && !inDeck.has(c.id)) return false;
+      return true;
+    });
+    const byRace = (a: CardDef, b: CardDef) => (a.race === d.race ? -1 : 0) - (b.race === d.race ? -1 : 0) || (a.race ?? 9) - (b.race ?? 9);
+    const order: Record<Filters['sort'], (a: CardDef, b: CardDef) => number> = {
+      race: byRace,
+      name: (a, b) => a.name.localeCompare(b.name),
+      type: (a, b) => CARD_KINDS.indexOf(a.kind) - CARD_KINDS.indexOf(b.kind) || a.name.localeCompare(b.name),
+      rarity: (a, b) => RARITY_ORDER[b.rarity ?? 'dwarf'] - RARITY_ORDER[a.rarity ?? 'dwarf'] || a.name.localeCompare(b.name),
+    };
+    return list.sort(order[f.sort]);
+  }
+
+  /** The card view's toolbar: search, the dropdowns, and the toggles. */
+  private renderFilters(d: SavedDeck, shown: number): string {
+    const f = this.filters;
+    const select = (name: string, value: string, options: [string, string][], label: string) =>
+      `<label class="db-select"><small>${label}</small><select data-db-select="${name}">${options.map(([v, t]) => `<option value="${v}" ${v === value ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+    const races: [string, string][] = [['any', 'every race'], ['deck', `${RACE_NAMES[d.race].toLowerCase()} + neutral`], ['neutral', 'neutral only'], ...RACE_NAMES.map((n, i): [string, string] => [String(i), n.toLowerCase()])];
+    const kinds: [string, string][] = [['any', 'every type'], ...CARD_KINDS.map((k): [string, string] => [k, k])];
+    const rarities: [string, string][] = [['any', 'every rarity'], ...RARITIES.map((r): [string, string] => [r, RARITY_NAME[r].toLowerCase()])];
+    const owns: [string, string][] = [['any', 'all cards'], ['owned', 'owned'], ['missing', 'not owned'], ['craftable', 'craftable now']];
+    const sorts: [string, string][] = [['race', 'by race'], ['name', 'by name'], ['type', 'by type'], ['rarity', 'by rarity']];
+    const toggle = (key: 'characters' | 'inDeck', label: string) => `<button class="pill-btn ${f[key] ? 'pill-on' : ''}" data-act="db-toggle" data-arg="${key}">${label}</button>`;
+    const changed = JSON.stringify(f) !== JSON.stringify(NO_FILTERS);
+    return `
+      <div class="db-toolbar">
+        <input class="db-search" data-db-search type="search" value="${esc(f.q)}" placeholder="search cards" aria-label="Search cards" />
+        ${select('race', f.race, races, 'race')}
+        ${select('kind', f.kind, kinds, 'type')}
+        ${select('rarity', f.rarity, rarities, 'rarity')}
+        ${select('own', f.own, owns, 'collection')}
+        ${select('sort', f.sort, sorts, 'order')}
+        ${toggle('characters', 'characters')}
+        ${toggle('inDeck', 'in this deck')}
+        <span class="db-shown">${shown} card${shown === 1 ? '' : 's'}</span>
+        ${changed ? '<button class="pill-btn" data-act="db-clear">clear</button>' : ''}
       </div>`;
   }
 }

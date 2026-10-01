@@ -384,6 +384,7 @@ Outside a single game, each player has a **profile** (kept on their device): a l
   Hot-seat games pay nothing (both players share one profile). Conceding earns half the experience and no currency. The reward shows under the result on the board.
 
 **The collection.** You start with the cards of the four starter decks (enough to play each). The deck builder greys out cards you don't own and lets a deck use only as many copies as you own.
+- **The deck builder:** the deck is a column of pills, one per card, each in its card's colours (by rarity) with its picture, type and count; tap one to take a copy out. The card view has a search (name and text) and filters for race (any, this deck's race with neutrals, neutral only, or one race), type, rarity, collection (owned, not owned, or craftable now), characters, and cards already in the deck, sorted by race, name, type or rarity. The ⟁ tag under each card opens crafting.
 - **Booster packs (✦100):** one for each race (only that race's cards) and a general one (every card of no race: neutral cards, Command, global and Lightspeed cards). Five cards: three White Dwarfs, a fourth that is Stellar 30% of the time, and a fifth that is Stellar, or an Anomaly 18% of the time. A copy beyond what a deck can use (2, or 1 for an Anomaly) comes as its breakdown value in flux instead.
 - **Crafting:** ⟁40 for a White Dwarf, ⟁100 for a Stellar card, ⟁400 for an Anomaly. **Breaking down** returns half (⟁20, ⟁50, ⟁200). Starter cards can't be broken down; extra copies beyond the starter grant can.
 

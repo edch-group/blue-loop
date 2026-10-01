@@ -268,6 +268,8 @@ export class App {
     root.addEventListener('input', (e) => this.onInput(e));
     // Online, a new name reaches the room once typed (on leaving the field), so the lobby does not redraw mid-word.
     root.addEventListener('change', (e) => {
+      const sel = (e.target as HTMLElement).dataset.dbSelect;
+      if (sel) this.builder.onSelect(sel, (e.target as HTMLSelectElement).value);
       if ((e.target as HTMLElement).dataset.seatName === '0' && this.online && this.screen === 'menu') this.online.setup(this.joinInfo());
     });
     root.addEventListener('mouseover', (e) => this.onHover(e));
@@ -1257,6 +1259,7 @@ export class App {
     const seat = el.dataset.seatName;
     if (seat !== undefined) this.seats[Number(seat)].name = el.value;
     if (el.dataset.dbName !== undefined) this.builder.onInput(el.value);
+    if (el.dataset.dbSearch !== undefined) this.builder.onSearch(el.value);
     if (el.dataset.joinCode !== undefined) this.net.joinCode = el.value;
   }
 
@@ -1582,7 +1585,14 @@ export class App {
   // -------------------------------------------------------------------------
 
   private render() {
+    // Typing in the deck builder's search re-renders the page: keep the caret in the box.
+    const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.dbSearch !== undefined ? document.activeElement.selectionStart : null;
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
+    if (typing !== null) {
+      const box = this.root.querySelector<HTMLInputElement>('[data-db-search]');
+      box?.focus();
+      box?.setSelectionRange(typing, typing);
+    }
     document.body.classList.toggle('screen-campaign', this.screen === 'campaign');
     // The rotating star lies on the battle board, between the tableaus; elsewhere it fills the screen.
     backdrop.attach(this.root.querySelector<HTMLElement>('.board-star-slot'));
