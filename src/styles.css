@@ -2424,14 +2424,14 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-purse .cur { vertical-align: 0; }
 
 /* ---------- Campaign: the heart of the Milky Way behind the map (galaxy.ts), drifting with the camera ---------- */
-.cmp { overflow: hidden; background: linear-gradient(180deg, #fcfbf8, #f1efe9); }
+.cmp { overflow: hidden; background: linear-gradient(180deg, #f3f3f4, #e8e8ea); }
 .cmp::before {
   content: ''; position: absolute; inset: -60px; z-index: -1; pointer-events: none;
   /* Painted by scripts/paint-sky.ts. */
   background: url('./assets/campaign-sky.jpg') center / cover no-repeat;
   transform: translate(var(--sky-x, 0px), var(--sky-y, 0px));
 }
-body.screen-campaign { background: #f1efe9; }
+body.screen-campaign { background: #e8e8ea; }
 
 /* Fog of war: routes into unseen space fade out; scanner arrays are marked. */
 .cmp-link-fog { stroke-dasharray: 3 6; opacity: 0.45; }

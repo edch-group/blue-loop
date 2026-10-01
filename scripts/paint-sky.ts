@@ -1,9 +1,8 @@
 /**
  * The campaign map's sky: the heart of the Milky Way, painted in Blue Loop's
- * white style. It is the photograph turned inside out: on pale paper, the
- * galactic band is a warm cream-and-gold glow crossing the sky, its dust
- * lanes soft taupe filaments, its edges a lavender-blue haze, and its stars
- * tiny slate specks, densest along the band, with a few brighter blue ones.
+ * white style, in white and greys only: on pale grey paper, the galactic band
+ * is a white glow crossing the sky, its dust lanes soft grey filaments, and
+ * its stars tiny grey specks, densest along the band, with a few brighter ones.
  *
  * Painted on a canvas, deterministically (the same sky every time). Painting
  * takes about half a second, too slow to do on a phone each time the campaign
@@ -30,8 +29,8 @@ export function galaxyImage(): string {
 
   // Paper.
   const paper = ctx.createLinearGradient(0, 0, 0, H);
-  paper.addColorStop(0, '#fcfbf8');
-  paper.addColorStop(1, '#f1efe9');
+  paper.addColorStop(0, '#f7f7f8');
+  paper.addColorStop(1, '#eeeef0');
   ctx.fillStyle = paper;
   ctx.fillRect(0, 0, W, H);
 
@@ -58,26 +57,26 @@ export function galaxyImage(): string {
   for (let i = 0; i < 220; i++) {
     const t = rand() * 2.3 - 1.15;
     const p = at(t, gauss() * 300);
-    blob(p.x, p.y, 160 + rand() * 240, rand() < 0.5 ? '186,194,232' : '204,190,232', 0.018 + rand() * 0.02);
+    blob(p.x, p.y, 160 + rand() * 240, '196,198,206', 0.045 + rand() * 0.035);
   }
   // Star clouds: the band is clumps of light, not a smooth tube. Each cloud is a knot of small soft blobs.
-  for (let c = 0; c < 140; c++) {
+  for (let c = 0; c < 220; c++) {
     const t = rand() * 2.1 - 1.05;
     const near = 1 - Math.min(1, Math.abs(t) * 1.05);
-    const centre = at(t, gauss() * (60 + near * 70));
+    const centre = at(t, gauss() * (95 + near * 90));
     const size = 30 + rand() * 70 + near * 50;
-    const warm = rand() < 0.35 + near * 0.5;
+    const warm = rand() < 0.25 + near * 0.45;
     for (let k = 0; k < 14; k++) {
-      blob(centre.x + gauss() * size, centre.y + gauss() * size * 0.7, 18 + rand() * size * 0.8, warm ? '240,212,168' : '220,212,238', (0.03 + near * 0.05) * (0.6 + rand()));
+      blob(centre.x + gauss() * size, centre.y + gauss() * size * 0.7, warm ? 10 + rand() * size * 0.45 : 18 + rand() * size * 0.8, warm ? '255,255,255' : '190,192,198', warm ? (0.08 + near * 0.1) * (0.6 + rand()) : (0.07 + near * 0.07) * (0.6 + rand()));
     }
   }
   // The core: a soft bulge of warm white light, gold at its rim.
   for (let i = 0; i < 60; i++) {
     const p = at(gauss() * 0.14, gauss() * 60);
-    blob(p.x, p.y, 60 + rand() * 120, rand() < 0.55 ? '244,214,160' : '252,238,208', 0.07 + rand() * 0.06);
+    blob(p.x, p.y, 60 + rand() * 120, '255,255,255', 0.12 + rand() * 0.1);
   }
-  blob(core.x, core.y, 240, '255,250,238', 0.6);
-  blob(core.x, core.y, 110, '255,255,250', 0.55);
+  blob(core.x, core.y, 260, '255,255,255', 0.75);
+  blob(core.x, core.y, 120, '255,255,255', 0.7);
 
   // Dust lanes: fine taupe filaments wandering along the band (a random walk each), branching now and then, darkest near the core.
   const lane = (t0: number, d0: number, steps: number, dir: number) => {
@@ -94,7 +93,7 @@ export function galaxyImage(): string {
       const p = at(t, d);
       // Lanes swell and thin as they go, like smoke.
       const r = (5 + rand() * 12 + near * 10) * (0.6 + 0.5 * Math.sin(i * 0.05 + t0 * 7) ** 2);
-      blob(p.x + gauss() * r * 0.6, p.y + gauss() * r * 0.6, r, rand() < 0.75 ? '150,132,118' : '128,118,132', (0.014 + near * 0.028) * (0.5 + rand()));
+      blob(p.x + gauss() * r * 0.6, p.y + gauss() * r * 0.6, r, rand() < 0.75 ? '120,122,128' : '100,102,108', (0.012 + near * 0.024) * (0.5 + rand()));
       if (rand() < 0.012 && steps > 60) lane(t, d, Math.floor(steps * 0.25), dir);
     }
   };
@@ -102,15 +101,16 @@ export function galaxyImage(): string {
   // A few dark clouds near the core.
   for (let i = 0; i < 40; i++) {
     const p = at(gauss() * 0.4, gauss() * 55);
-    blob(p.x, p.y, 14 + rand() * 34, '150,132,118', 0.02 + rand() * 0.03);
+    blob(p.x, p.y, 14 + rand() * 34, '120,122,128', 0.02 + rand() * 0.03);
   }
 
   // Stars: tiny slate specks, densest along the band.
-  for (let i = 0; i < 11000; i++) {
-    const onBand = rand() < 0.65;
-    const p = onBand ? at(rand() * 2.2 - 1.1, gauss() * 170) : { x: rand() * W, y: rand() * H };
-    const r = 0.3 + rand() ** 4 * 1.1;
-    ctx.fillStyle = `rgba(${rand() < 0.7 ? '96,106,132' : '142,124,112'},${0.14 + rand() * 0.4})`;
+  for (let i = 0; i < 42000; i++) {
+    const onBand = rand() < 0.82;
+    const t = rand() * 2.2 - 1.1;
+    const p = onBand ? at(t, gauss() * (110 + (1 - Math.min(1, Math.abs(t))) * 90)) : { x: rand() * W, y: rand() * H };
+    const r = 0.3 + rand() ** 5 * 1.1;
+    ctx.fillStyle = `rgba(${rand() < 0.7 ? '92,94,100' : '128,130,136'},${0.08 + rand() * 0.3})`;
     ctx.beginPath();
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fill();
@@ -120,7 +120,7 @@ export function galaxyImage(): string {
     const x = rand() * W;
     const y = rand() * H;
     const r = 0.9 + rand() * 1.3;
-    const tint = rand() < 0.75 ? '122,150,226' : '226,168,122';
+    const tint = '140,142,150';
     blob(x, y, r * 4.5, tint, 0.22);
     ctx.strokeStyle = `rgba(${tint},0.35)`;
     ctx.lineWidth = 0.6;
