@@ -2869,19 +2869,19 @@ export class App {
     if (pend?.step === 'recover') return this.renderRecoverChoice(pend);
     if (!pend || pend.step !== 'choice') return '';
 
-    // A Command card: choose its dawn effect.
+    // A Command card: its options are chosen right on the card, magnified.
     const me = activePlayer(s);
     const card = me.hand.find((c) => c.uid === pend.uid);
     if (!card) return '';
-    const tiles = cardChoices(card.defId)
-      .map((o) => `<button class="choice-tile" data-act="choose-option" data-arg="${o}"><small>each dawn</small><b>${cardTextHtml(optionText(o))}</b></button>`)
-      .join('');
+    const big = this.bigCard(card.defId).replace(/<span class="card-opt" data-opt="([^"]+)">/g, '<span class="card-opt card-opt-pick" role="button" data-act="choose-option" data-arg="$1">');
     return `
-      <div class="overlay overlay-soft" data-act="cancel"><div class="modal">
-        <div class="bar-title">${esc(cardDef(card.defId).name.toLowerCase())} · choose one</div>
-        <div class="modal-body"><p class="muted center-text">It does this at each of your dawns while it stays (${baseStability(card.defId)} days).</p><div class="choice-tiles">${tiles}</div></div>
-        <button class="modal-cancel" data-act="cancel">cancel</button>
-      </div></div>`;
+      <div class="overlay overlay-inspect" data-act="cancel">
+        <div class="choice-view">
+          <span class="choice-hint">choose one</span>
+          ${big}
+          <button class="btn" data-act="cancel">cancel</button>
+        </div>
+      </div>`;
   }
 
   /** Salvage Drone and friends: choose a card from your discard pile. */
