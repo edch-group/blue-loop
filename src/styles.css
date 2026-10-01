@@ -1502,9 +1502,7 @@ body.screen-campaign .backdrop { display: none; }
 /* ---------- 3D battle board ---------- */
 /* The display lies on a tilted board seen in perspective, like the campaign map;
    cards rest slightly above its surface. The HUD around it stays flat. */
-.board3d { display: grid; justify-items: center; transform-style: preserve-3d; }
-/* Keep the 3D space through to the board, so the suns can stand up out of it (see .vitals). */
-.table-view > .game, .table-view .display.board { transform-style: preserve-3d; }
+.board3d { display: grid; justify-items: center; }
 .board-plane {
   position: relative;
   transform-style: preserve-3d;
@@ -1566,6 +1564,8 @@ body.screen-campaign .backdrop { display: none; }
 
 /* ---------- The table: the whole play area in perspective ---------- */
 .table-view {
+  /* How far the board tips away from the viewer. */
+  --board-tilt: 34deg;
   position: fixed; inset: 0;
   perspective: calc(200 * var(--vh));
   perspective-origin: 50% 24%;
@@ -1574,7 +1574,7 @@ body.screen-campaign .backdrop { display: none; }
 .table-view > .game {
   /* Tip the whole board away from the viewer and shrink it so the table sits in the room. */
   transform-origin: 50% 50%;
-  transform: translateY(calc(5 * var(--vh))) rotateX(34deg) scale(0.72);
+  transform: translateY(calc(5 * var(--vh))) rotateX(var(--board-tilt)) scale(0.72);
   border-radius: 34px;
   background:
     radial-gradient(circle, rgba(120, 135, 170, 0.18) 0 1px, transparent 1.6px) 0 0 / 38px 38px,
@@ -1674,7 +1674,7 @@ body.screen-campaign .backdrop { display: none; }
   .hud-players .rival .orb { --size: 24px !important; }
   .hud-players .rival-stats { display: flex; gap: 6px; font-size: 0.5rem; }
   .hud-players .rival-name { font-size: 0.46rem; }
-  .table-view > .game { transform: translateY(calc(9 * var(--vh))) rotateX(34deg) scale(0.72); }
+  .table-view > .game { transform: translateY(calc(9 * var(--vh))) rotateX(var(--board-tilt)) scale(0.72); }
 }
 
 /* ---------- Board, round 3 ---------- */
@@ -2147,26 +2147,34 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .card-table .resonance { top: calc(var(--cw, 100px) * 0.2); }
 
 /* ---------- Vitals: each sun, large, beside its tableau ---------- */
-.vit { --vs: clamp(92px, calc(27 * var(--vh)), 196px); position: relative; width: var(--vs); height: var(--vs); flex: none; }
+.vit {
+  --vs: clamp(92px, calc(27 * var(--vh)), 196px); position: relative; width: var(--vs); height: var(--vs); flex: none;
+  margin: calc(var(--vs) * 0.14) 0 calc(var(--vs) * 0.3);
+}
+/* The sun as a solid, with its planets: drawn by sun3d.ts as the board sees them, so it reaches well past the gauge. */
+.vit-dome { position: absolute; left: -60%; top: -60%; width: 220%; height: 220%; pointer-events: none; display: block; }
+/* Labels standing up off the board, turned to face you (placed by sun3d.ts). */
+.vit-heat, .vit-planet-tag, .vit-shields { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .vit-shield-track { stroke: rgba(150, 164, 190, 0.22); stroke-width: 3.2; }
 .vit-shield-arc { stroke: #6d8cc2; stroke-width: 3.2; stroke-linecap: round; transition: stroke-dasharray 0.5s cubic-bezier(.2,.8,.2,1); filter: drop-shadow(0 0 3px rgba(110, 150, 220, 0.7)); }
 .vit:not(.vit-shielded) .vit-shield-arc { opacity: 0; }
 .vit-heat-track { stroke: rgba(255, 255, 255, 0.75); stroke-width: 2.2; }
 .vit-heat-arc { stroke: var(--rim); stroke-width: 2.2; stroke-linecap: round; transition: stroke-dasharray 0.5s cubic-bezier(.2,.8,.2,1); }
 .vit-sun {
-  /* A real, slowly turning sun, drawn on a canvas by sun3d.ts (its corona reaches past the sphere). */
-  position: absolute; inset: 8%; width: 84%; height: 84%; z-index: 2; border-radius: 50%; display: block;
+  /* The corona: flames licking out across the board round the sun's base, drawn on a canvas by sun3d.ts. */
+  position: absolute; inset: 6%; width: 88%; height: 88%; border-radius: 50%; display: block; pointer-events: none;
 }
 .vit-heat {
-  position: absolute; inset: 24%; z-index: 3; display: grid; place-content: center; justify-items: center; line-height: 1;
+  /* Stands on the crown of the sun. */
+  display: grid; justify-items: center; line-height: 1; padding-bottom: 2px; pointer-events: auto;
   font-family: var(--display); color: #3b1a08;
   text-shadow: 0 0 6px rgba(255, 250, 235, 0.95), 0 0 2px #fff;
 }
 .vit-cold .vit-heat { color: #2d4a6e; text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8); }
-.vit-heat b { font-size: calc(var(--vs) * 0.24); font-weight: 800; }
+.vit-heat b { font-size: calc(var(--vs) * 0.2); font-weight: 800; }
 .vit-heat small { font-size: calc(var(--vs) * 0.09); font-weight: 700; opacity: 0.8; letter-spacing: 0.06em; }
 .vit-shields {
-  position: absolute; left: 50%; bottom: calc(var(--vs) * -0.04); transform: translateX(-50%);
+  /* Stands just past the near side of the orbit. */
   display: flex; align-items: center; gap: 2px; padding: 1px calc(var(--vs) * 0.05);
   border-radius: 999px; background: #fff; border: 2px solid #6d8cc2; color: #3d5a8c;
   font-family: var(--display); font-weight: 800; font-size: calc(var(--vs) * 0.12); line-height: 1.2;
@@ -2174,21 +2182,23 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 }
 .vit:not(.vit-shielded) .vit-shields { border-color: rgba(150, 164, 190, 0.5); color: #9aa6ba; }
 .vit-shields i { font-style: normal; font-size: 0.9em; }
-.vit-dead { filter: grayscale(1) opacity(0.45); }
+.vit-dead .vit-tracks, .vit-dead .vit-shields, .vit-dead .vit-heat { opacity: 0.5; }
 
 /* Beside each tableau row, on the board. */
 .tableau-row-wrap { position: relative; transform-style: preserve-3d; }
 .vitals {
   position: absolute; right: 100%; top: 50%; margin-right: clamp(10px, calc(2 * var(--vw)), 28px);
   /* The board lies tipped back (34°); stretching the sun back up keeps it round, facing you. */
-  /* The board lies tipped back 34°; the sun gauge stands back up by as much, so the sun faces you as a round ball. */
-  transform: translateY(-50%) translateZ(40px) rotateX(-34deg); transform-origin: 50% 50%; display: grid; justify-items: center; gap: 4px; border-radius: 50%;
+  /* Flat on the board (sun3d.ts allows for the -50% when it works out where the viewer's eye is). */
+  transform: translateY(-50%); display: grid; justify-items: center; gap: 4px; border-radius: 50%;
 }
 .vitals-name { font-family: var(--display); font-size: clamp(0.46rem, calc(1.7 * var(--vh)), 0.66rem); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
 .tableau-mine .vitals-name { order: 2; }
 /* Hits: the sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring. */
 .fx-hot .vit { animation: vit-hit 0.6s cubic-bezier(.3,.7,.3,1); }
 .fx-hot .vit-sun { animation: vit-flare 0.9s ease-out; }
+.fx-hot .vit-dome { animation: vit-flare-dome 0.9s ease-out; }
+@keyframes vit-flare-dome { 0% { filter: brightness(1.5) saturate(1.3); } 100% { filter: none; } }
 @keyframes vit-hit { 0% { transform: scale(1); } 15% { transform: scale(1.16) rotate(-3deg); } 30% { transform: scale(0.95) rotate(3deg); } 50% { transform: scale(1.05) rotate(-1deg); } 100% { transform: none; } }
 @keyframes vit-flare { 0% { filter: brightness(1.8) saturate(1.4); box-shadow: 0 0 calc(var(--vs) * 0.5) 10px #ff5a2a, 0 0 calc(var(--vs) * 0.9) rgba(255, 90, 40, 0.7); } 100% { filter: none; } }
 .fx-cold .vit-sun { animation: vit-frost 1s ease-out; }
@@ -2488,12 +2498,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .backdrop.backdrop-board svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .star-dock .board-star-slot { left: 36%; }
 
-/* ---------- Orbit: three planets on a tilted ring round each sun ---------- */
-/* The tracks share the orbit's tilt: the far half behind the sun, the near half in front. */
+/* ---------- The sun: a solid dome rising out of the board, ringed by its orbit ---------- */
+/* The tracks lie flat on the board, over the corona and under the sun. */
 .vit-tracks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .vit-tracks path { fill: none; }
-.vit-tracks-back { z-index: 1; }
-.vit-tracks-front { z-index: 4; }
 .vit-orbit-track { stroke: rgba(150, 160, 185, 0.5); stroke-width: 0.9; }
 /* Markers on the orbit: the turns the facing planet spends there; passed ones filled, the current one lit. */
 .ring-mark { fill: #fff; stroke: rgba(150, 160, 185, 0.8); stroke-width: 0.8; }
@@ -2501,25 +2509,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .ring-mark.mark-done.mk-abundant, .ring-mark.mark-now.mk-abundant { fill: #3fae84; stroke: #fff; }
 .ring-mark.mark-done.mk-industrial, .ring-mark.mark-now.mk-industrial { fill: #d9833a; stroke: #fff; }
 .ring-mark.mark-now { stroke-width: 1.2; filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.9)); }
-.vit .vit-heat { z-index: 6; }
+/* The planets are drawn on the dome canvas; these are just their tooltips' hit areas, on the orbit. */
 .vit-planet {
-  position: absolute; width: calc(var(--vs) * 0.12); height: calc(var(--vs) * 0.12); margin: calc(var(--vs) * -0.06) 0 0 calc(var(--vs) * -0.06);
+  position: absolute; width: calc(var(--vs) * 0.14); height: calc(var(--vs) * 0.14); margin: calc(var(--vs) * -0.07) 0 0 calc(var(--vs) * -0.07);
   border-radius: 50%; pointer-events: auto; cursor: help;
-  box-shadow: inset calc(var(--vs) * -0.012) calc(var(--vs) * -0.016) calc(var(--vs) * 0.02) rgba(0, 0, 0, 0.35), 0 1px 3px rgba(40, 40, 60, 0.3);
-  transition: left 0.6s cubic-bezier(.3,.7,.3,1), top 0.6s cubic-bezier(.3,.7,.3,1);
 }
-.vp-back { z-index: 0; transform: scale(0.82); filter: saturate(0.7) brightness(0.92); }
-.vp-front { z-index: 5; }
-.vp-dead { background: radial-gradient(circle at 35% 30%, #e4e6ea, #9aa0ab 55%, #5d626d); }
-.vp-abundant { background: radial-gradient(circle at 35% 30%, #e6fff2, #5cc49a 50%, #2a6f88); }
-.vp-industrial { background: radial-gradient(circle at 35% 30%, #fff1d6, #e09a4c 50%, #7a3d1c); }
-/* The planet facing the sun this turn: larger, with a soft halo in its colour. */
-.vit-planet.vp-facing { width: calc(var(--vs) * 0.17); height: calc(var(--vs) * 0.17); margin: calc(var(--vs) * -0.085) 0 0 calc(var(--vs) * -0.085); }
-.vp-facing.vp-dead { box-shadow: 0 0 0 2px #fff, 0 0 10px rgba(140, 146, 160, 0.7); }
-.vp-facing.vp-abundant { box-shadow: 0 0 0 2px #fff, 0 0 12px rgba(80, 200, 150, 0.8); }
-.vp-facing.vp-industrial { box-shadow: 0 0 0 2px #fff, 0 0 12px rgba(230, 150, 70, 0.85); }
 .vit-planet-tag {
-  position: absolute; left: 50%; top: calc(var(--vs) * 0.01); transform: translateX(-50%); z-index: 6;
+  /* Stands at the far side of the orbit. */
   padding: 1px calc(var(--vs) * 0.05); border-radius: 999px; background: #fff; white-space: nowrap; cursor: help;
   font-family: var(--display); font-size: max(8px, calc(var(--vs) * 0.075)); letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.4;
   box-shadow: 0 2px 6px rgba(60, 70, 100, 0.18); border: 1.5px solid currentColor;
