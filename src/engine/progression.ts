@@ -216,6 +216,8 @@ export function boosterPool(kind: BoosterKind): CardDef[] {
 
 export interface BoosterCard {
   id: string;
+  /** The first copy you own. */
+  isNew?: boolean;
   /** Already owned as many as a deck can use: it comes as flux instead. */
   flux?: number;
 }
@@ -242,7 +244,8 @@ export function openBooster(kind: BoosterKind, collection: Collection, random: (
   return rarities.map((r) => {
     const c = pick(r);
     if (!wantsCopy(owned, c.id)) return { id: c.id, flux: breakdownValue(c.id) };
+    const isNew = !owned[c.id];
     owned[c.id] = (owned[c.id] ?? 0) + 1;
-    return { id: c.id };
+    return isNew ? { id: c.id, isNew } : { id: c.id };
   });
 }

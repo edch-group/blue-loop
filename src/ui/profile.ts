@@ -21,6 +21,9 @@ import {
 export interface Profile {
   /** Identifies this player to the ranked server. */
   id: string;
+  /** The name and emblem (a race, 0–3) they signed in with (empty: not signed in yet). */
+  name: string;
+  avatar: number;
   level: number;
   xp: number;
   stardust: number;
@@ -39,7 +42,7 @@ let cached: Profile | null = null;
 function fresh(): Profile {
   const id = Array.from({ length: 24 }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('');
   // Every player starts with the starter decks' cards, and enough stardust for a first booster.
-  return { id, level: 1, xp: 0, stardust: PROGRESSION.boosterPrice, flux: 0, collection: starterGrant(), rankPoints: null, played: 0, won: 0 };
+  return { id, name: '', avatar: 0, level: 1, xp: 0, stardust: PROGRESSION.boosterPrice, flux: 0, collection: starterGrant(), rankPoints: null, played: 0, won: 0 };
 }
 
 export function profile(): Profile {
@@ -52,6 +55,8 @@ export function profile(): Profile {
     p = null;
   }
   if (!p || typeof p.id !== 'string' || typeof p.collection !== 'object') p = fresh();
+  p.name ??= '';
+  p.avatar ??= 0;
   // Cards added to the starter decks since are granted too.
   for (const [id, n] of Object.entries(starterGrant())) p.collection[id] = Math.max(p.collection[id] ?? 0, n);
   cached = p;
@@ -90,6 +95,14 @@ export function grantReward(r: Reward, won: boolean): RewardResult {
   if (won) p.won += 1;
   store();
   return { ...r, levelsGained: lv.levelsGained, bonus };
+}
+
+/** Sign in on this device: the name and emblem the player goes by. */
+export function signIn(name: string, avatar: number) {
+  const p = profile();
+  p.name = name.replace(/[^\p{L}\p{N} '’.-]/gu, '').trim().slice(0, 18) || 'Commander';
+  p.avatar = ((avatar % 4) + 4) % 4;
+  store();
 }
 
 export function setRankPoints(rp: number) {

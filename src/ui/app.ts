@@ -56,7 +56,7 @@ import { factionAvatar } from './factions';
 import { anchorRect, beam, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArt, cardGlyph, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
-import { buyBooster, grantReward, owned, profile, setRankPoints, type RewardResult } from './profile';
+import { buyBooster, grantReward, profile, setRankPoints, signIn, type RewardResult } from './profile';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
@@ -64,9 +64,10 @@ import { animateSuns } from './sun3d';
 import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
-type MenuPage = 'title' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop';
+type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop';
 
 const HUB_ICONS = {
+  collection: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="12" width="18" height="26" rx="3" transform="rotate(-10 17 25)"/><rect x="16" y="10" width="18" height="26" rx="3"/><rect x="24" y="12" width="18" height="26" rx="3" transform="rotate(10 33 25)"/></svg>`,
   shop: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 10h20l2 30H12z"/><path d="M14 10l4 6h12l4-6M24 22l2.4 4.8 5.3.8-3.8 3.7.9 5.2-4.8-2.5-4.8 2.5.9-5.2-3.8-3.7 5.3-.8z"/></svg>`,
   campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle cx="10" cy="34" r="3.2"/><circle cx="22" cy="26" r="2.6"/><circle cx="36" cy="32" r="3.6"/><circle cx="26" cy="12" r="3"/><circle cx="14" cy="16" r="2.4"/></svg>`,
   quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="17" cy="24" r="8"/><circle cx="36" cy="24" r="4.5"/><path d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
@@ -170,6 +171,11 @@ export class App {
   private screen: Screen = 'menu';
   /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
   private menuPage: MenuPage = 'title';
+  /** The profile view is open (from the player chip). */
+  private profileOpen = false;
+  /** Sign-in being filled in. */
+  private signinName: string | null = null;
+  private signinAvatar: number | null = null;
   /** The ranked ladder, while queued for a match. */
   private ladder: LadderClient | null = null;
   /** The booster just opened in the shop. */
@@ -240,7 +246,7 @@ export class App {
   });
 
   private seats: MenuSeat[] = [
-    { name: 'Commander', isAI: false, deckId: PRESETS[0].id },
+    { name: profile().name || 'Commander', isAI: false, deckId: PRESETS[0].id },
     { name: "Xel'Naru", isAI: true, deckId: PRESETS[1].id },
   ];
 
@@ -1261,6 +1267,7 @@ export class App {
     if (el.dataset.dbName !== undefined) this.builder.onInput(el.value);
     if (el.dataset.dbSearch !== undefined) this.builder.onSearch(el.value);
     if (el.dataset.joinCode !== undefined) this.net.joinCode = el.value;
+    if (el.dataset.signinName !== undefined) this.signinName = el.value;
   }
 
   private peekHeld = false;
@@ -1475,7 +1482,31 @@ export class App {
       case 'close-booster':
         this.opened = null;
         return this.render();
+      case 'profile-open':
+        this.profileOpen = true;
+        return this.render();
+      case 'profile-close':
+        this.profileOpen = false;
+        return this.render();
+      case 'profile-rename':
+        this.profileOpen = false;
+        this.menuPage = 'signin';
+        return this.render();
+      case 'signin-avatar':
+        this.signinAvatar = Number(arg);
+        return this.render();
+      case 'signin-go':
+        signIn(this.signinName ?? profile().name, this.signinAvatar ?? profile().avatar);
+        this.signinName = this.signinAvatar = null;
+        this.seats[0].name = profile().name;
+        this.menuPage = 'hub';
+        return this.render();
       case 'menu-page':
+        // Players sign in before they reach the hub.
+        if (arg === 'hub' && !profile().name) {
+          this.menuPage = 'signin';
+          return this.render();
+        }
         if (this.menuPage === 'online' && arg !== 'online') this.leaveOnline();
         this.menuPage = arg as MenuPage;
         this.sheet = null;
@@ -1642,7 +1673,9 @@ export class App {
     const body =
       page === 'title'
         ? this.renderTitlePage()
-        : page === 'hub'
+        : page === 'signin'
+          ? this.renderSignIn()
+          : page === 'hub'
           ? this.renderHub()
           : page === 'quickplay'
             ? this.renderQuickplay()
@@ -1658,6 +1691,7 @@ export class App {
       ${body}
       ${page === 'title' || page === 'hub' ? '<footer class="studio">coronal mass games · prototype build</footer>' : ''}
       ${this.sheet?.kind === 'rules' ? this.renderSheet() : ''}
+      ${this.profileOpen ? this.renderProfileView() : ''}
     </main>`;
   }
 
@@ -1681,73 +1715,118 @@ export class App {
   private renderHub(): string {
     const hasCampaign = loadCampaign() !== null;
     const hasGame = loadSave() !== null;
-    const column = (act: string, arg: string, icon: string, name: string, blurb: string, extra = '') => `
+    const tile = (act: string, arg: string, icon: string, name: string, extra = '') => `
       <div class="hub-col">
         <button class="hub-card" data-act="${act}" ${arg ? `data-arg="${arg}"` : ''}>
           <span class="hub-icon">${icon}</span>
           <span class="hub-name">${name}</span>
-          <small class="hub-blurb">${blurb}</small>
         </button>
         ${extra}
       </div>`;
     return `
       <div class="menu-back"><button class="btn btn-small" data-act="menu-page" data-arg="title">‹ back</button></div>
-      ${this.profileBar()}
+      ${this.playerChip()}
       ${this.titleBlock(true)}
       <div class="hub">
-        ${column('campaign-new', '', HUB_ICONS.campaign, 'campaign', 'Conquer a galaxy of forty-eight systems, one battle at a time.',
-          hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue campaign</button>' : '')}
-        ${column('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', 'A 1v1 battle: against the AI, a friend on this device, or online.',
-          hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue game</button>' : '')}
-        ${column('menu-page', 'shop', HUB_ICONS.shop, 'collection', 'Open booster packs, craft the cards you want and build decks with them.',
-          '<button class="btn btn-small hub-continue" data-act="open-decks">deck builder</button>')}
-        ${column('menu-page', 'options', HUB_ICONS.options, 'options', 'Sound, music, AI speed and how to play.')}
+        ${tile('campaign-new', '', HUB_ICONS.campaign, 'campaign', hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue</button>' : '')}
+        ${tile('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue</button>' : '')}
+        ${tile('open-decks', '', HUB_ICONS.collection, 'collection')}
+        ${tile('menu-page', 'shop', HUB_ICONS.shop, 'shop')}
+        ${tile('menu-page', 'options', HUB_ICONS.options, 'options')}
       </div>`;
   }
 
-  /** Your level, experience, currencies and rank, across the top of the hub and the shop. */
-  private profileBar(): string {
+  /** Who you are, top right: your emblem, name, level and currencies. Tap it for your whole profile. */
+  private playerChip(): string {
+    const p = profile();
+    return `
+      <button class="player-chip" data-act="profile-open" title="Your profile">
+        ${factionAvatar(`f${p.avatar + 1}`, 'pc-avatar')}
+        <span class="pc-who"><b>${esc(p.name || 'Commander')}</b><small>level ${p.level}</small></span>
+        <span class="pc-cur"><span class="pf-dust">✦ ${p.stardust}</span><span class="pf-flux">⟁ ${p.flux}</span></span>
+      </button>`;
+  }
+
+  /** The full profile: level and experience, currencies, rank and record. */
+  private renderProfileView(): string {
     const p = profile();
     const need = xpToNext(p.level);
+    const rank = p.rankPoints;
+    const r = rank !== null ? rankOf(rank) : null;
     return `
-      <div class="profile-bar" title="${p.won} won of ${p.played} played">
-        <span class="pf-level"><small>level</small><b>${p.level}</b></span>
-        <span class="pf-xp" title="${p.xp} / ${need} experience to level ${p.level + 1}"><i style="width:${Math.round((p.xp / need) * 100)}%"></i></span>
-        <span class="pf-cur pf-dust" title="Stardust: buys booster packs">✦ <b>${p.stardust}</b></span>
-        <span class="pf-cur pf-flux" title="Flux: crafts cards (break spare cards down for more)">⟁ <b>${p.flux}</b></span>
-        <span class="pf-rank" title="${p.rankPoints === null ? 'Play ranked online to earn a rank' : `${rankOf(p.rankPoints).points} / ${PROGRESSION.stagePoints} rank points to the next stage`}">${p.rankPoints === null ? 'unranked' : esc(rankName(p.rankPoints).toLowerCase())}</span>
+      <div class="overlay overlay-soft" data-act="profile-close">
+        <div class="modal sheet profile-view">
+          <div class="pv-head">
+            ${factionAvatar(`f${p.avatar + 1}`, 'pv-avatar')}
+            <div><h2>${esc(p.name || 'Commander')}</h2><small>${esc(RACE_NAMES[p.avatar])} · ${p.won} won of ${p.played} played</small></div>
+          </div>
+          <div class="pv-grid">
+            <div class="pv-box"><small>level</small><b>${p.level}</b><span class="pf-xp"><i style="width:${Math.round((p.xp / need) * 100)}%"></i></span><small>${p.xp} / ${need} xp</small></div>
+            <div class="pv-box"><small>stardust</small><b class="pf-dust">✦ ${p.stardust}</b><small>buys booster packs</small></div>
+            <div class="pv-box"><small>flux</small><b class="pf-flux">⟁ ${p.flux}</b><small>crafts cards</small></div>
+            <div class="pv-box"><small>rank</small><b>${rank === null ? 'unranked' : esc(rankName(rank).toLowerCase())}</b>${r ? `<span class="pf-xp"><i style="width:${r.points}%"></i></span><small>${r.points} / ${PROGRESSION.stagePoints} to the next stage</small>` : '<small>play ranked online</small>'}</div>
+          </div>
+          <div class="menu-actions center-row"><button class="btn" data-act="profile-rename">change name or emblem</button><button class="btn-primary" data-act="profile-close">close</button></div>
+        </div>
       </div>`;
   }
 
-  /** The shop: a booster for each race, and a general one with every card of no race. Opened packs are shown here. */
+  /** Signing in: the name and emblem you go by (until accounts arrive, it lives on this device). */
+  private renderSignIn(): string {
+    const p = profile();
+    return `
+      <div class="menu-back"><button class="btn btn-small" data-act="menu-page" data-arg="title">‹ back</button></div>
+      <div class="signin">
+        ${this.titleBlock(true)}
+        <h2 class="menu-heading">sign in</h2>
+        <input class="signin-name" data-signin-name value="${esc(this.signinName ?? p.name)}" maxlength="18" placeholder="your name" aria-label="Your name" />
+        <div class="signin-emblems">${[0, 1, 2, 3].map((r) => `<button class="db-race ${(this.signinAvatar ?? p.avatar) === r ? 'on' : ''}" data-act="signin-avatar" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
+        <button class="btn-primary" data-act="signin-go">continue</button>
+      </div>`;
+  }
+
+  /** The shop: booster packs (one for each race, and a general one), to rip open. */
   private renderShop(): string {
     const p = profile();
     const label = (k: BoosterKind) => (k === 'general' ? 'general' : RACE_NAMES[k].toLowerCase());
-    const packs = BOOSTERS.map((k) => {
-      const pool = boosterPool(k);
-      const missing = pool.filter((c) => owned(c.id) === 0).length;
-      return `
-        <div class="booster booster-${k}">
-          <div class="booster-pack">${k === 'general' ? `<span class="booster-icon">${HUB_ICONS.shop}</span>` : factionAvatar(`f${k + 1}`, 'booster-emblem')}</div>
-          <b>${label(k)} booster</b>
-          <small>${PROGRESSION.boosterSize} cards of ${pool.length} · ${missing ? `${missing} you don't own` : 'you own them all'}</small>
-          <button class="btn-primary" data-act="buy-booster" data-arg="${k}" ${p.stardust < PROGRESSION.boosterPrice ? 'disabled' : ''}>open · ✦${PROGRESSION.boosterPrice}</button>
-        </div>`;
-    }).join('');
-    const opened = this.opened
-      ? `<div class="booster-open">
-          <div class="section-label">${esc(label(this.opened.kind))} booster</div>
+    if (this.opened) {
+      const k = this.opened.kind;
+      return this.setupPage(
+        'shop',
+        `<div class="booster-open">
+          <div class="pack pack-${k} pack-ripped" aria-hidden="true">${this.packFace(k)}</div>
           <div class="booster-cards">${this.opened.cards
-            .map((c, i) => `<div class="booster-card" style="--i:${i}">${this.cardFace(c.id)}<small class="${c.flux ? 'bc-flux' : owned(c.id) === 1 ? 'bc-new' : ''}">${c.flux ? `spare · +⟁${c.flux}` : owned(c.id) === 1 ? 'new' : `owned ${owned(c.id)}`}</small></div>`)
+            .map((c, i) => `<div class="booster-card" style="--i:${i}">${this.cardFace(c.id)}<small class="${c.flux ? 'bc-flux' : c.isNew ? 'bc-new' : ''}">${c.flux ? `spare · +⟁${c.flux}` : c.isNew ? 'new' : 'another copy'}</small></div>`)
             .join('')}</div>
-          <button class="btn" data-act="close-booster">done</button>
-        </div>`
-      : '';
-    return this.setupPage(
-      'collection',
-      `${this.profileBar()}${opened || `<div class="booster-row">${packs}</div>`}`,
-      `<span class="muted">Win games to earn stardust ✦ and flux ⟁ (far more online, and more again ranked).</span><span class="setup-spacer"></span><button class="btn" data-act="open-decks">deck builder</button>`,
-    );
+        </div>`,
+        `<span class="muted">${esc(label(k))} booster</span><span class="setup-spacer"></span><button class="btn-primary" data-act="close-booster">done</button>`,
+      );
+    }
+    const packs = BOOSTERS.map(
+      (k) => `
+        <button class="pack-slot" data-act="buy-booster" data-arg="${k}" ${p.stardust < PROGRESSION.boosterPrice ? 'disabled' : ''} title="${boosterPool(k).length} cards · ${PROGRESSION.boosterSize} in a pack">
+          <span class="pack pack-${k}">${this.packFace(k)}</span>
+          <b>${esc(label(k))}</b>
+          <small>✦ ${PROGRESSION.boosterPrice}</small>
+        </button>`,
+    ).join('');
+    return `
+      <header class="setup-top">
+        <button class="btn btn-small" data-act="menu-page" data-arg="hub">‹ back</button>
+        <h2 class="menu-heading">shop</h2>
+        ${this.playerChip()}
+      </header>
+      <div class="setup-body shop-body">
+        <div class="section-label">boosters</div>
+        <div class="pack-row">${packs}</div>
+      </div>`;
+  }
+
+  /** A booster pack: a foil wrapper, crimped top and bottom, with its race's emblem and a tear strip. */
+  private packFace(k: BoosterKind): string {
+    const name = k === 'general' ? 'general' : RACE_NAMES[k].toLowerCase();
+    const emblem = k === 'general' ? `<span class="pack-icon">${HUB_ICONS.shop}</span>` : factionAvatar(`f${k + 1}`, 'pack-emblem');
+    return `<span class="pack-tear"></span><span class="pack-body"><span class="pack-brand">blue loop</span>${emblem}<span class="pack-name">${esc(name)}</span><span class="pack-count">${PROGRESSION.boosterSize} cards</span></span><span class="pack-shine"></span>`;
   }
 
   /** A card's face on its own, outside a game (as in the deck builder). */
