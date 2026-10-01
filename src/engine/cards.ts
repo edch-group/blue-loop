@@ -613,8 +613,94 @@ export function copyLimit(defId: string): number {
 const BY_ID = new Map(CARDS.map((c) => [c.id, c]));
 
 export function cardDef(defId: string): CardDef {
-  const def = BY_ID.get(defId);
+  const def = BY_ID.get(defId) ?? fusedDef(defId);
   if (!def) throw new Error(`Unknown card: ${defId}`);
+  return def;
+}
+
+// ---------------------------------------------------------------------------
+// Fusion (campaign armory): two cards merged into one that does both. A fused
+// card's id names its parts ("fuse:a+b"), so it needs no storage of its own.
+// ---------------------------------------------------------------------------
+
+const FUSE = 'fuse:';
+const RARITY_RANK: Record<Rarity, number> = { dwarf: 0, stellar: 1, anomaly: 2 };
+
+export function fusedId(a: string, b: string): string {
+  return `${FUSE}${a}+${b}`;
+}
+
+export function isFused(defId: string): boolean {
+  return defId.startsWith(FUSE);
+}
+
+/** The choices a card asks for as it is played (a fused card can only ask for each once). */
+function choiceKinds(def: CardDef): Set<string> {
+  const kinds = new Set<string>();
+  for (const e of def.onPlay ?? []) {
+    if (e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all)) kinds.add('enemy');
+    if (e.type === 'recall' || (e.type === 'restore' && !e.all)) kinds.add('ally');
+    if (e.type === 'recover') kinds.add('recover');
+    if (e.type === 'upgrade') kinds.add('upgrade');
+  }
+  return kinds;
+}
+
+/** Why a card cannot be fused at all (null if it can). */
+export function unfusable(id: string): string | null {
+  const d = BY_ID.get(id);
+  if (!d) return 'A fused card cannot be fused again.';
+  if (d.kind === 'command') return 'Command cards cannot be fused (a deck needs exactly two).';
+  if (d.kind === 'global') return 'Global cards cannot be fused.';
+  if (d.kind === 'lightspeed') return 'Lightspeed cards cannot be fused.';
+  return null;
+}
+
+/** Why two cards cannot be fused (null if they can). */
+export function fusionProblem(a: string, b: string): string | null {
+  const whole = unfusable(a) ?? unfusable(b);
+  if (whole) return whole;
+  const [da, db] = [BY_ID.get(a)!, BY_ID.get(b)!];
+  const ka = choiceKinds(da);
+  if ([...choiceKinds(db)].some((k) => ka.has(k))) return 'Both cards ask for the same kind of choice when played.';
+  return null;
+}
+
+/** A fused card's name: the first word of one and the last of the other ("Plasma" + "Cryo Vault" → "Plasma Vault"). */
+function fusedName(a: CardDef, b: CardDef): string {
+  const first = a.name.split(' ')[0];
+  const last = b.name.split(' ').slice(-1)[0];
+  const name = `${first} ${last}`;
+  return name === a.name || name === b.name || first === last ? `Fused ${a.name}` : name;
+}
+
+const FUSED = new Map<string, CardDef>();
+
+function fusedDef(id: string): CardDef | undefined {
+  if (!isFused(id)) return undefined;
+  const cached = FUSED.get(id);
+  if (cached) return cached;
+  const [a, b] = id.slice(FUSE.length).split('+');
+  const [da, db] = [BY_ID.get(a), BY_ID.get(b)];
+  if (!da || !db) return undefined;
+  const both = <T>(x?: T[], y?: T[]) => (x || y ? [...(x ?? []), ...(y ?? [])] : undefined);
+  const def: CardDef = {
+    id,
+    name: fusedName(da, db),
+    kind: da.kind,
+    race: da.race === db.race ? da.race : undefined,
+    rarity: RARITY_RANK[db.rarity ?? 'dwarf'] > RARITY_RANK[da.rarity ?? 'dwarf'] ? db.rarity : da.rarity,
+    text: `${da.text} ${db.text}`,
+    onPlay: both(da.onPlay, db.onPlay),
+    onTurn: both(da.onTurn, db.onTurn),
+    onLeave: both(da.onLeave, db.onLeave),
+    onRecover: both(da.onRecover, db.onRecover),
+    passive: both(da.passive, db.passive),
+    defence: da.defence || db.defence ? Math.max(da.defence ?? 0, db.defence ?? 0) : undefined,
+    stability: da.stability !== undefined || db.stability !== undefined ? Math.max(da.stability ?? 0, db.stability ?? 0) : undefined,
+    fusedFrom: [a, b],
+  };
+  FUSED.set(id, def);
   return def;
 }
 

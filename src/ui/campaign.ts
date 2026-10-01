@@ -11,6 +11,12 @@ import {
   canGarrison,
   cardDef,
   migrateGame,
+  ensureScanners,
+  visibleNodes,
+  fusionCost,
+  fusionProblem,
+  fusedId,
+  unfusable,
   createCampaign,
   deckSwapProblem,
   factionById,
@@ -45,6 +51,7 @@ export function loadCampaign(): CampaignState | null {
     // Campaigns from before the card game was rebuilt cannot be resumed.
     if (!s || s.version !== 2) return null;
     if (s.battle) migrateGame(s.battle.game);
+    ensureScanners(s);
     return s;
   } catch {
     return null;
@@ -74,6 +81,9 @@ const MATERIALS =
 /** Systems held: a white dwarf, a small hot white star with a pale blue glow. */
 const SYSTEMS =
   '<svg class="cur cur-systems" viewBox="0 0 20 20" aria-label="systems"><defs><radialGradient id="wd-glow"><stop offset=".3" stop-color="#9fbcf2" stop-opacity=".75"/><stop offset=".65" stop-color="#b9cff5" stop-opacity=".28"/><stop offset="1" stop-color="#b9cff5" stop-opacity="0"/></radialGradient><radialGradient id="wd-core" cx=".4" cy=".36"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#eef3ff"/><stop offset="1" stop-color="#b4c6ec"/></radialGradient></defs><circle cx="10" cy="10" r="9.8" fill="url(#wd-glow)"/><path d="M10 .8 10.9 7.6 10 9 9.1 7.6ZM10 19.2 9.1 12.4 10 11 10.9 12.4ZM.8 10 7.6 9.1 9 10 7.6 10.9ZM19.2 10 12.4 10.9 11 10 12.4 9.1Z" fill="#a9bfea" opacity=".9"/><circle cx="10" cy="10" r="5.3" fill="url(#wd-core)" stroke="#7f98cc" stroke-width=".7"/></svg>';
+/** A scanner array: a dish with two rings of signal. */
+const SCANNER =
+  '<svg class="cur cur-scanner" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5 9.2 10.3" stroke="#6e7f9f" stroke-width="1.4" stroke-linecap="round"/><path d="M3 11a6 6 0 0 0 6 6L3 11Z" fill="#8fa3c6" stroke="#6e7f9f" stroke-width=".9" stroke-linejoin="round"/><path d="M11.2 6.8a3.4 3.4 0 0 1 2 2M11.6 3.6a6.6 6.6 0 0 1 4.8 4.8" fill="none" stroke="#6fb3bc" stroke-width="1.3" stroke-linecap="round"/><circle cx="9.6" cy="9.9" r="1.2" fill="#6fb3bc"/></svg>';
 /** A stable 0–1 value per id, to spread animation phases so stars never pulse in step. */
 function seedOf(id: string): string {
   let h = 0;
@@ -104,7 +114,8 @@ export interface CampaignHost {
 
 type Sheet =
   | { kind: 'deck'; slot?: number }
-  | { kind: 'armory' }
+  /** `fuse`: the reserve cards picked for a fusion (up to two). */
+  | { kind: 'armory'; fuse?: number[] }
   | { kind: 'missions' }
   | { kind: 'log' }
   | { kind: 'station'; nodeId: string }
@@ -122,6 +133,8 @@ export class CampaignView {
   /** What happened in the last battle or turn, shown once the player is free to read it. */
   private report: { title: string; lines: string[] } | null = null;
   private sheet: Sheet | null = null;
+  /** The base's tab last open (deck, armory or missions). */
+  private baseTab: 'deck' | 'armory' | 'missions' = 'deck';
   /** New-campaign setup choices. */
   private setup = { rivals: 3, race: 0 };
 
@@ -243,8 +256,28 @@ export class CampaignView {
         sound.hover();
         break;
       case 'cmp-sheet':
+        // "base" reopens the base on the tab last used.
+        if (arg === 'base') arg = this.baseTab;
+        if (arg === 'deck' || arg === 'armory' || arg === 'missions') this.baseTab = arg;
         this.sheet = { kind: arg as 'deck' | 'armory' | 'missions' | 'log' | 'help' | 'overview' };
         break;
+      case 'cmp-fuse-pick': {
+        if (this.sheet?.kind !== 'armory') break;
+        const i = n();
+        const picks = this.sheet.fuse ?? [];
+        // Tap to pick, tap again to put back; a third pick replaces the second.
+        this.sheet = { kind: 'armory', fuse: picks.includes(i) ? picks.filter((x) => x !== i) : [...picks.slice(0, 1), i] };
+        break;
+      }
+      case 'cmp-fuse': {
+        if (this.sheet?.kind !== 'armory' || this.sheet.fuse?.length !== 2) break;
+        const [a, b] = this.sheet.fuse;
+        if (this.apply({ type: 'fuse', a, b })) {
+          sound.upgrade();
+          this.sheet = { kind: 'armory' };
+        }
+        break;
+      }
       case 'cmp-close':
         if (this.report && !this.sheet) this.report = null;
         else if (this.sheet?.kind === 'deck' && this.sheet.slot !== undefined) this.sheet = { kind: 'deck' };
@@ -372,9 +405,7 @@ export class CampaignView {
             <span title="Systems you hold, of ${s.nodes.length}">${SYSTEMS}<b>${ownedNodes(s, me.id).length}</b></span>
           </div>
           <nav class="cmp-nav">
-            <button class="pill-btn" data-act="cmp-sheet" data-arg="deck">deck</button>
-            <button class="pill-btn" data-act="cmp-sheet" data-arg="armory">armory</button>
-            <button class="pill-btn" data-act="cmp-sheet" data-arg="missions">missions</button>
+            <button class="pill-btn" data-act="cmp-sheet" data-arg="base" title="Your deck, the armory and missions">base</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="log">log</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="help">?</button>
             <button class="icon-btn" data-act="cmp-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
@@ -449,6 +480,8 @@ export class CampaignView {
     const prev = this.lastFocus ? nodeById(s, this.lastFocus) : null;
     const leaving = this.leavingFocus();
     const farFrom = (f: CampaignNode | null, x: number, y: number, id: string, r: number) => !!f && f.id !== id && Math.hypot(x - f.x, y - f.y) > r;
+    // Fog of war: only systems linked to yours (two links from a scanner) are drawn; routes into the fog fade out.
+    const seen = visibleNodes(s, me.id);
     const drawn = new Set<string>();
     const links = s.nodes
       .flatMap((n) =>
@@ -457,6 +490,11 @@ export class CampaignView {
           if (drawn.has(key)) return '';
           drawn.add(key);
           const m = nodeById(s, id);
+          if (!seen.has(n.id) && !seen.has(m.id)) return '';
+          if (!seen.has(n.id) || !seen.has(m.id)) {
+            const [a, b] = seen.has(n.id) ? [n, m] : [m, n];
+            return `<line x1="${a.x}" y1="${a.y}" x2="${(a.x + (b.x - a.x) * 0.45).toFixed(1)}" y2="${(a.y + (b.y - a.y) * 0.45).toFixed(1)}" class="cmp-link cmp-link-fog" />`;
+          }
           const same = n.owner && n.owner === m.owner;
           return `<line x1="${n.x}" y1="${n.y}" x2="${m.x}" y2="${m.y}" class="cmp-link ${same ? 'cmp-link-held' : ''}" ${same ? `style="--fc:${this.colourOf(n.owner!)}"` : ''} />`;
         }),
@@ -465,6 +503,7 @@ export class CampaignView {
     // When zoomed in, the links fade out away from the focused system.
     const mask = focus ? `style="--mx:${focus.x}px;--my:${focus.y}px"` : '';
     const nodes = s.nodes
+      .filter((n) => seen.has(n.id))
       .map((n) => {
         const colour = n.owner ? this.colourOf(n.owner) : NEUTRAL;
         const far = farFrom(focus, n.x, n.y, n.id, 250);
@@ -484,6 +523,7 @@ export class CampaignView {
         const badges = [
           n.garrison.length ? `<i class="cmp-badge">▣${n.garrison.length}</i>` : '',
           n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
+          n.scanner ? `<i class="cmp-badge cmp-scan" title="Scanner array">${SCANNER}</i>` : '',
         ].join('');
         return `
           <div class="${cls}" style="left:${n.x}px;top:${n.y}px;--fc:${colour}">
@@ -507,7 +547,7 @@ export class CampaignView {
         <div class="cmp-plane" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">
           <div class="cmp-grid"></div>
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
-          ${this.renderAnomalies(focus, prev)}
+          ${this.renderAnomalies(focus, prev, seen)}
           ${nodes}
         </div>
         <div class="cmp-cam">
@@ -519,10 +559,13 @@ export class CampaignView {
   }
 
   /** Anomalies: flat phenomena on the plane (discs, clouds, rings), with an upright marker to tap. */
-  private renderAnomalies(focus: CampaignNode | null, prev: CampaignNode | null): string {
+  private renderAnomalies(focus: CampaignNode | null, prev: CampaignNode | null, seen: Set<string>): string {
     const s = this.state!;
     const farFrom = (f: CampaignNode | null, a: Anomaly) => !!f && Math.hypot(a.x - f.x, a.y - f.y) > 300;
+    // An anomaly shows once its reach touches a system in view.
+    const inView = (a: Anomaly) => s.nodes.some((n) => seen.has(n.id) && Math.hypot(n.x - a.x, n.y - a.y) <= ANOMALIES[a.kind].radius + 40);
     return (s.anomalies ?? [])
+      .filter(inView)
       .map((a) => {
         const def = ANOMALIES[a.kind];
         const far = farFrom(focus, a);
@@ -656,7 +699,8 @@ export class CampaignView {
     // Stars keep a readable size at any free zoom; zooming into a system leaves that alone, so they grow with it.
     const ui = Math.min(2.2, Math.max(0.7, 1 / (fit * v.zoom)));
     return focus
-      ? { x: focus.x, y: focus.y, scale: Math.max(fit * v.zoom, 1) * 2.4, tilt: CampaignView.FOCUS_TILT, ui }
+      ? // Zoomed on a system the stars still grow, just not as much as the map (so the star stays on screen).
+        { x: focus.x, y: focus.y, scale: Math.max(fit * v.zoom, 1) * 2.4, tilt: CampaignView.FOCUS_TILT, ui: ui * 0.6 }
       : { x: v.x, y: v.y, scale: fit * v.zoom, tilt: CampaignView.TILT, ui };
   }
 
@@ -710,6 +754,10 @@ export class CampaignView {
     plane.style.transform = `rotateX(${c.tilt.toFixed(2)}deg) scale3d(${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}) translate(${(-c.x).toFixed(1)}px, ${(-c.y).toFixed(1)}px)`;
     plane.style.setProperty('--tilt', `${c.tilt.toFixed(2)}deg`);
     plane.style.setProperty('--ui', c.ui.toFixed(4));
+    // The sky drifts a little with the camera, far behind the map.
+    const sky = this.stageEl!.closest<HTMLElement>('.cmp');
+    sky?.style.setProperty('--sky-x', `${(-(c.x / MAP_WIDTH - 0.5) * 60).toFixed(1)}px`);
+    sky?.style.setProperty('--sky-y', `${(-(c.y / MAP_HEIGHT - 0.5) * 40).toFixed(1)}px`);
   }
 
   private clampView() {
@@ -796,11 +844,13 @@ export class CampaignView {
     const owner = n.owner ? factionById(s, n.owner) : null;
     const fortCost = fortifyCost(n);
     const fortPips = Array.from({ length: CAMPAIGN.maxFortification }, (_, i) => `<i class="${i < n.fortification ? 'on' : ''}"></i>`).join('');
+    // Fortification: its notches and what they are worth to the defender, and (on your own systems) the next level's price.
     const fortify = `
-      <div class="cmp-planet"><span>fortification</span><span class="pips">${fortPips}</span>${
-        mine && fortCost !== null ? `<button class="pill-btn" data-act="cmp-fortify" data-arg="${n.id}" ${me.credits < fortCost ? 'disabled' : ''}>+1 · ${CREDITS}${fortCost}</button>` : ''
-      }</div>
-      <p class="cmp-hint">Each level gives this system's defender +${CAMPAIGN.fortifyHealth} max health.</p>`;
+      <div class="cmp-fort" title="Fortification: each level gives this system's defender +${CAMPAIGN.fortifyHealth} max health">
+        <span class="pips">${fortPips}</span><b>+${n.fortification * CAMPAIGN.fortifyHealth} defence</b>${
+          mine && fortCost !== null ? `<button class="pill-btn" data-act="cmp-fortify" data-arg="${n.id}" ${me.credits < fortCost ? 'disabled' : ''} title="Fortify: +${CAMPAIGN.fortifyHealth} defence">+ ${CREDITS}${fortCost}</button>` : ''
+        }
+      </div>`;
     const g = garrisonBonus(n);
     const bonus = [
       g.tableau.length && `${g.tableau.length} card${g.tableau.length > 1 ? 's' : ''} start in play`,
@@ -832,7 +882,7 @@ export class CampaignView {
       ${nodeAnomalies(s, n)
         .map((a) => `<div class="cmp-sys cmp-anom"><b>${lower(ANOMALIES[a.kind].name)} nearby</b><span>${esc(ANOMALIES[a.kind].text)}</span></div>`)
         .join('')}
-      <div class="cmp-yield">yield ${CREDITS} ${n.yield.credits} · ${MATERIALS} ${n.yield.materials} per turn · ${n.planets.length} planets</div>
+      <div class="cmp-yield" title="Resources this system yields each turn">${CREDITS}<b>${n.yield.credits}</b>${MATERIALS}<b>${n.yield.materials}</b>${n.scanner ? `<span class="cmp-scan-tag" title="Scanner array: whoever holds it sees systems two links away">${SCANNER} scanner</span>` : ''}</div>
       <div class="section-label">defences</div>
       <div class="cmp-planets">${fortify}</div>
       ${
@@ -914,21 +964,20 @@ export class CampaignView {
               `<button class="cmp-pick" data-act="cmp-buy" data-arg="${i}" ${me.materials < armoryPrice(id) ? 'disabled' : ''}>${cardHtml(id)}<span class="cmp-price">${MATERIALS} ${armoryPrice(id)}</span></button>`,
           )
           .join('');
-        return this.modal(
+        return this.base(
           'armory',
-          `<div class="cmp-cards">${cards || '<p class="muted">Sold out. New stock arrives next turn.</p>'}</div>
-           <p class="muted center-text">Bought cards join your reserve. Stock changes every turn. You have ${MATERIALS} ${me.materials}.</p>`,
-          true,
+          `<div class="cmp-cards">${cards || '<p class="muted">Sold out. New stock arrives next turn, or when you conquer a system.</p>'}</div>
+           <p class="muted center-text">Bought cards join your reserve. Stock changes every turn and with every conquest. You have ${MATERIALS} ${me.materials}.</p>
+           ${this.renderFusion(sh.fuse ?? [])}`,
         );
       }
       case 'missions': {
         const active = me.missions.map((m) => this.missionRow(m.id, missionProgress(s, me, m))).join('');
-        return this.modal(
+        return this.base(
           'missions',
           `<div class="cmp-missions">${active || '<p class="muted">All missions complete.</p>'}</div>
            <p class="muted">Each completed mission pays ${CREDITS} ${CAMPAIGN.missionCredits} and ${MATERIALS} ${CAMPAIGN.missionMaterials}, and lets you choose a new card. ${CAMPAIGN_MISSIONS.length} missions in all.</p>`,
-          true,
-        );
+                  );
       }
       case 'log':
         return this.modal('campaign log', `<div class="log-list">${s.log.map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>`, true);
@@ -974,6 +1023,8 @@ export class CampaignView {
             <li><b>Win</b> and choose: <b>Settle</b> it, <b>Absorb</b> its resources, or <b>Supernova</b> it to block rivals for a turn.</li>
             <li>A winner's sun carries its heat home as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits, and <b>fortify</b> a system for +${CAMPAIGN.fortifyHealth} max health per level when it defends.</li>
             <li>Your battle <b>deck is 20 cards</b> with exactly 2 Command cards. Win cards from missions and buy them in the armory with ${MATERIALS} materials; they wait in your reserve until you swap them into your deck.</li>
+            <li><b>Fog of war:</b> you only see systems linked to yours. Hold a system with a <b>scanner</b> to see two links out from it.</li>
+            <li><b>Your base</b> holds your deck, the armory and your missions. The armory restocks every turn and whenever you conquer a system. <b>Fusion</b> merges two reserve cards into one that does both, for ${MATERIALS} materials; it cannot be undone.</li>
             <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play in its tableau (a Command card gives its upgrade, and a Lightspeed card starts set face down). Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
           </ul>`,
           true,
@@ -1038,21 +1089,66 @@ export class CampaignView {
     }
     const deck = me.deck.map((id, i) => `<div class="cmp-deck-slot"><button class="cmp-pick" data-act="cmp-slot" data-arg="${i}">${cardHtml(id)}</button></div>`).join('');
     const reserve = me.reserve.map((id) => `<div class="cmp-deck-slot">${cardHtml(id)}</div>`).join('');
-    return this.modal(
-      `battle deck · ${me.deck.length} cards`,
-      `<p class="muted center-text">Tap a card to swap a reserve card in for it.</p>
+    return this.base(
+      'deck',
+      `<div class="section-label">battle deck · ${me.deck.length} cards</div>
+       <p class="muted center-text">Tap a card to swap a reserve card in for it.</p>
        <div class="cmp-cards cmp-deck">${deck}</div>
        <div class="section-label">reserve · ${me.reserve.length}</div>
        <div class="cmp-cards cmp-deck">${reserve || '<p class="muted">Cards you win or buy wait here until you swap them into your deck.</p>'}</div>`,
-      true,
     );
   }
 
-  private modal(title: string, body: string, closable = false): string {
+  /**
+   * Fusion, in the armory: pick two reserve cards to merge into one that does
+   * both, for materials. It cannot be undone.
+   */
+  private renderFusion(picks: number[]): string {
+    const me = campaignPlayer(this.state!);
+    const cards = me.reserve
+      .map((id, i) => {
+        const on = picks.includes(i);
+        // Once one card is picked, cards that cannot fuse with it are marked.
+        const problem = picks.length && !on ? fusionProblem(me.reserve[picks[0]], id) : unfusable(id);
+        return `<button class="cmp-pick ${on ? 'cmp-pick-on' : ''}" data-act="cmp-fuse-pick" data-arg="${i}" ${problem && !on ? `disabled title="${esc(problem)}"` : ''}>${cardHtml(id)}</button>`;
+      })
+      .join('');
+    let result = '<p class="muted center-text">Pick two reserve cards to fuse.</p>';
+    if (picks.length === 2) {
+      const [a, b] = picks.map((i) => me.reserve[i]);
+      const problem = fusionProblem(a, b);
+      const cost = fusionCost(a, b);
+      result = problem
+        ? `<p class="cmp-warn center-text">${esc(problem)}</p>`
+        : `<div class="cmp-fuse-result">
+            <div class="cmp-deck-slot">${cardHtml(fusedId(a, b))}</div>
+            <div class="cmp-fuse-go">
+              <p>${esc(cardDef(a).name)} and ${esc(cardDef(b).name)} become one card that does both. <b>This cannot be undone.</b></p>
+              <button class="btn-primary" data-act="cmp-fuse" ${me.materials < cost ? 'disabled' : ''}>fuse · ${MATERIALS} ${cost}</button>
+            </div>
+          </div>`;
+    }
+    return `
+      <div class="section-label">fusion</div>
+      ${result}
+      <div class="cmp-cards cmp-deck">${cards || '<p class="muted">Your reserve is empty. Buy or win cards to fuse them.</p>'}</div>
+      <p class="muted center-text">Command, global and Lightspeed cards cannot be fused, nor can a fused card be fused again.</p>`;
+  }
+
+  /** The base: deck, armory and missions, as tabs of one overlay. */
+  private base(tab: 'deck' | 'armory' | 'missions', body: string): string {
+    const tabs = (['deck', 'armory', 'missions'] as const)
+      .map((t) => `<button class="cmp-tab ${t === tab ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${t}</button>`)
+      .join('');
+    return this.modal('base', body, true, `<nav class="cmp-tabs">${tabs}</nav>`);
+  }
+
+  private modal(title: string, body: string, closable = false, tabs = ''): string {
     return `
       <div class="overlay ${closable ? 'overlay-soft' : ''}" ${closable ? 'data-act="cmp-close"' : ''}>
         <div class="modal modal-wide cmp-modal">
           <div class="bar-title">${title}${closable ? '<button class="modal-x" data-act="cmp-close" aria-label="Close">×</button>' : ''}</div>
+          ${tabs}
           <div class="modal-body">${body}</div>
         </div>
       </div>`;

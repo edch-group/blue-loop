@@ -334,6 +334,10 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 - One attack per turn, on a system linked to yours. The battle is a 1v1 game: you attack from your system, the defender holds theirs.
 - After a win, choose Settle, Absorb or Supernova.
 - Damage carries between battles.
+- **Fog of war:** you see only your systems and the systems linked to them. About one system in six has a **scanner array**; hold it and you see two links out from it. Routes into unseen space fade out, and anomalies appear once their reach touches a system in view. [design review]
+- **Base:** one button opens your deck, the armory and your missions as tabs. The armory restocks every turn and whenever you conquer a system. [design review]
+- **Fusion (armory):** merge two reserve cards into one that does both, for materials (4 plus both cards' armory prices by rarity). It cannot be undone. The fused card takes the first card's kind, the higher rarity and both texts, and its name joins the two (Coronal Lance + Cryo Vault → Coronal Vault). Command, global and Lightspeed cards can't be fused, a fused card can't be fused again, and two cards that ask for the same kind of choice when played (two removals, say) can't be fused together. Its picture is both cards' pictures split along a glowing seam. [design review]
+- **The map's sky** is the heart of the Milky Way in Blue Loop's white style (scripts/paint-sky.ts, shipped as an image). It drifts slightly as the camera moves. [design review]
 - The campaign lasts 60 turns. You win at 50% of the systems or by eliminating every rival.
 
 **Economy.**

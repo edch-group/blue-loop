@@ -157,6 +157,8 @@ export interface CardDef {
   stability?: number;
   /** While this card is in your tableau. */
   passive?: Passive[];
+  /** A fused card (campaign armory): the two cards it was made from. */
+  fusedFrom?: [string, string];
 }
 
 export interface CardInstance {

@@ -1,4 +1,4 @@
-import type { CardDef } from '../engine';
+import { cardDef, type CardDef } from '../engine';
 
 /**
  * Card illustrations: a painted scene for every card, drawn procedurally in
@@ -632,6 +632,7 @@ const ART: Record<string, Draw> = {
 
 /** The window a card's picture sits in: a sky in its palette, with stars and the picture. */
 export function cardScene(def: CardDef): string {
+  if (def.fusedFrom) return fusedScene(def);
   const palette = PAL[def.race !== undefined ? RACE_PAL[def.race] : def.kind] ?? PAL.command;
   const S = new Scene(`a-${def.id}`, palette);
   const p = S.p;
@@ -647,6 +648,14 @@ export function cardScene(def: CardDef): string {
   const haze = S.radial([[0, p.glow, 0.35], [1, p.glow, 0]], 0.5, 0.45, 0.6);
   const vignette = S.radial([[0.55, '#000', 0], [1, '#000', 0.45]], 0.5, 0.5, 0.75);
   return `<svg class="art" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>${S.defs.join('')}</defs><rect width="160" height="100" fill="${sky}"/>${stars}<rect width="160" height="100" fill="${haze}"/>${body}<rect width="160" height="100" fill="${vignette}"/></svg>`;
+}
+
+/** A fused card: its two cards' pictures, split along a glowing diagonal seam. */
+function fusedScene(def: CardDef): string {
+  const [a, b] = def.fusedFrom!.map((id) => cardScene(cardDef(id)));
+  const clip = `fz-${def.id.replace(/[^a-z0-9]/gi, '')}`;
+  const inner = (svg: string) => svg.replace('<svg class="art"', '<svg width="160" height="100"');
+  return `<svg class="art" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><clipPath id="${clip}"><path d="M96 0H160V100H64Z"/></clipPath><linearGradient id="${clip}-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>${inner(a)}<g clip-path="url(#${clip})">${inner(b)}</g><path d="M93 0 99 0 67 100 61 100Z" fill="url(#${clip}-g)"/><path d="M96 0 64 100" stroke="#fff" stroke-width=".8" opacity=".9"/></svg>`;
 }
 
 /** Whether a card has a picture of its own (rather than the fallback). */

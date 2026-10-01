@@ -7,7 +7,7 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
-import { CARDS, cardDef, deckProblems, RACE_NAMES } from './cards';
+import { CARDS, cardDef, deckProblems, fusedId, fusionProblem, RACE_NAMES } from './cards';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, CoreAction, GameState, PlayerSetup } from './types';
@@ -33,6 +33,8 @@ export const CAMPAIGN = {
   /** Armory offers refreshed each turn; buying costs the card's price + this, in materials. */
   armorySize: 3,
   armoryMarkup: 1,
+  /** Materials for a fusion, before the two cards' prices. */
+  fusionBase: 4,
   /** Neutral sentinels' suns start this much hotter, by tier (the outer systems are the easiest to take). */
   sentinelHeat: [5, 2, 0],
   /** Damage cap on a system (added to its sun's starting heat in battles). */
@@ -109,6 +111,8 @@ export interface CampaignNode {
   tier: number;
   /** Set on a faction's starting system. */
   home?: string;
+  /** A scanner array: whoever holds it sees systems two links away, not just one (fog of war). */
+  scanner?: boolean;
 }
 
 export type AnomalyKind = 'blackHole' | 'nebula' | 'darkMatter' | 'pulsar';
@@ -282,6 +286,8 @@ export type CampaignAction =
   | { type: 'heal'; nodeId: string }
   | { type: 'fortify'; nodeId: string }
   | { type: 'buyCard'; slot: number }
+  /** Fuse two reserve cards into one that does both (for materials; it cannot be undone). */
+  | { type: 'fuse'; a: number; b: number }
   /** Swap a reserve card into a deck slot (the slot's card goes to reserve). The deck must stay legal. */
   | { type: 'deckSwap'; slot: number; reserveIndex: number }
   /** Station a reserve card in a system's garrison. */
@@ -354,10 +360,48 @@ export const factionById = (s: CampaignState, id: string) => {
 export const campaignPlayer = (s: CampaignState) => factionById(s, s.playerId);
 export const ownedNodes = (s: CampaignState, factionId: string) => s.nodes.filter((n) => n.owner === factionId);
 
+/**
+ * Fog of war: the systems a faction can see. Its own, those linked to them,
+ * and, from a system with a scanner, those two links away. A system being
+ * fought over is always in view.
+ */
+export function visibleNodes(s: CampaignState, factionId: string): Set<string> {
+  const seen = new Set<string>();
+  const byId = new Map(s.nodes.map((n) => [n.id, n]));
+  for (const n of s.nodes) {
+    if (n.owner !== factionId) continue;
+    seen.add(n.id);
+    for (const a of n.links) {
+      seen.add(a);
+      if (n.scanner) for (const b of byId.get(a)!.links) seen.add(b);
+    }
+  }
+  if (s.battle) seen.add(s.battle.nodeId);
+  return seen;
+}
+
+/** Older saves have no scanners: place them as a new campaign would (about one system in six, never a home). */
+export function ensureScanners(s: CampaignState) {
+  if (s.nodes.some((n) => n.scanner !== undefined)) return;
+  for (const n of s.nodes) n.scanner = !n.home && scannerRoll(n.id);
+}
+
+function scannerRoll(id: string): boolean {
+  let h = 2166136261;
+  for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return (h >>> 0) % 6 === 0;
+}
+
 /** Credits for the next fortification level on a system (null at the maximum). */
 export function fortifyCost(node: CampaignNode): number | null {
   if (node.fortification >= CAMPAIGN.maxFortification) return null;
   return CAMPAIGN.fortifyBaseCost + node.fortification * CAMPAIGN.fortifyCostPerLevel;
+}
+
+/** Materials to fuse two cards: a base cost plus both cards' armory prices by rarity. */
+export function fusionCost(a: string, b: string): number {
+  const r = (id: string) => ARMORY_PRICE[cardDef(id).rarity ?? 'dwarf'];
+  return CAMPAIGN.fusionBase + r(a) + r(b);
 }
 
 export function armoryPrice(defId: string): number {
@@ -657,6 +701,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   }
 
   refreshArmory(s, s.factions[0]);
+  // Scanner arrays on about one system in six (never a home).
+  for (const n of s.nodes) n.scanner = !n.home && randomInt(s, 6) === 0;
   clog(s, `The campaign begins. ${s.factions.map((f) => `${f.name} holds ${nodeById(s, s.nodes.find((n) => n.home === f.id)!.id).name}`).join('; ')}.`);
   return s;
 }
@@ -839,6 +885,8 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
   if (spoils.length) clog(s, `${f.name} seizes ${spoils.map((id) => cardDef(id).name).join(', ')} from ${n.name}.`);
   if (prevOwner) f.stats.rivalsTaken += 1;
   n.home = undefined;
+  // A conquest brings new stock to the player's armory.
+  if (f.id === s.playerId) refreshArmory(s, f);
 
   if (choice === 'settle') {
     n.owner = f.id;
@@ -1116,6 +1164,18 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       s.armory.splice(action.slot, 1);
       f.reserve.push(id);
       clog(s, `${f.name} acquires ${cardDef(id).name}.`);
+      break;
+    }
+    case 'fuse': {
+      const [a, b] = [f.reserve[action.a], f.reserve[action.b]];
+      if (!a || !b || action.a === action.b) throw new GameError('Choose two different cards from your reserve.');
+      const problem = fusionProblem(a, b);
+      if (problem) throw new GameError(problem);
+      spendMaterials(f, fusionCost(a, b));
+      for (const i of [action.a, action.b].sort((x, y) => y - x)) f.reserve.splice(i, 1);
+      const id = fusedId(a, b);
+      f.reserve.push(id);
+      clog(s, `${f.name} fuses ${cardDef(a).name} and ${cardDef(b).name} into ${cardDef(id).name}.`);
       break;
     }
     case 'deckSwap': {

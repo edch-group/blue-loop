@@ -9,7 +9,12 @@ import {
   garrisonBonus,
   GameError,
   armoryPrice,
+  cardDef,
+  fusedId,
+  fusionCost,
+  fusionProblem,
   nodeById,
+  visibleNodes,
   ownedNodes,
   type CampaignState,
 } from '../src/engine';
@@ -221,5 +226,72 @@ describe('anomalies', () => {
     const defender = s.battle!.game.players[1];
     expect(defender.modifiers?.shieldPerTurn).toBeGreaterThanOrEqual(ANOMALIES.nebula.modifiers.shieldPerTurn!);
     expect(defender.conditions?.map((c) => c.name)).toContain('Nebula');
+  });
+});
+
+describe('the armory', () => {
+  it('restocks when the player conquers a system', () => {
+    let s = fresh();
+    const target = attackOptions(s, s.playerId)[0].toId;
+    s = applyCampaignAction(s, { type: 'attack', fromId: home(s).id, toId: target });
+    const before = [...s.armory];
+    const game = structuredClone(s.battle!.game);
+    game.winnerId = game.players[0].id;
+    s = applyCampaignAction(s, { type: 'finishBattle', game });
+    s = applyCampaignAction(s, { type: 'conquer', choice: 'settle' });
+    expect(s.armory).toHaveLength(CAMPAIGN.armorySize);
+    expect(s.armory).not.toEqual(before); // a fresh draw (the same three again is vanishingly unlikely)
+  });
+
+  it('fuses two reserve cards into one that does both, for materials, for good', () => {
+    const s = fresh();
+    const me = campaignPlayer(s);
+    me.reserve = ['coronal_lance', 'cryo_vault', 'command_directive'];
+    me.materials = 50;
+    const next = applyCampaignAction(s, { type: 'fuse', a: 0, b: 1 });
+    const p = campaignPlayer(next);
+    const id = fusedId('coronal_lance', 'cryo_vault');
+    expect(p.reserve).toEqual(['command_directive', id]);
+    expect(p.materials).toBe(50 - fusionCost('coronal_lance', 'cryo_vault'));
+    const def = cardDef(id);
+    expect(def.name).toBe('Coronal Vault');
+    expect(def.text).toBe(`${cardDef('coronal_lance').text} ${cardDef('cryo_vault').text}`);
+    expect(def.onPlay?.length).toBe((cardDef('coronal_lance').onPlay?.length ?? 0) + (cardDef('cryo_vault').onPlay?.length ?? 0));
+    // No undoing, no fusing again, no Command cards, and no two cards asking for the same choice.
+    expect(() => applyCampaignAction(next, { type: 'fuse', a: 0, b: 1 })).toThrow(GameError);
+    expect(fusionProblem(id, 'coronal_lance')).toMatch(/again/);
+    expect(fusionProblem('ion_cannon', 'tractor_beam')).toMatch(/same kind of choice/);
+  });
+
+  it('plays a fused card in battle like any other', () => {
+    let s = fresh();
+    const me = campaignPlayer(s);
+    me.deck[0] = fusedId('coronal_lance', 'cryo_vault');
+    const target = attackOptions(s, s.playerId)[0].toId;
+    s = applyCampaignAction(s, { type: 'attack', fromId: home(s).id, toId: target });
+    s = settle(s);
+    expect(s.battle).toBeNull();
+  });
+});
+
+describe('fog of war', () => {
+  it('shows only your systems and those linked to them, two links out from a scanner', () => {
+    const s = fresh();
+    const h = home(s);
+    for (const n of s.nodes) n.scanner = false;
+    const seen = visibleNodes(s, s.playerId);
+    expect([...seen].sort()).toEqual([h.id, ...h.links].sort());
+    h.scanner = true;
+    const wide = visibleNodes(s, s.playerId);
+    const twoOut = h.links.flatMap((id) => nodeById(s, id).links);
+    for (const id of twoOut) expect(wide.has(id)).toBe(true);
+    expect(wide.size).toBeLessThan(s.nodes.length);
+  });
+
+  it('places scanners on some systems, never a home', () => {
+    const s = fresh();
+    const scanners = s.nodes.filter((n) => n.scanner);
+    expect(scanners.length).toBeGreaterThan(0);
+    expect(scanners.every((n) => !n.home)).toBe(true);
   });
 });

@@ -2422,3 +2422,38 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-purse > span b { font-weight: 600; }
 .cmp-purse > span small { margin-left: 0; }
 .cmp-purse .cur { vertical-align: 0; }
+
+/* ---------- Campaign: the heart of the Milky Way behind the map (galaxy.ts), drifting with the camera ---------- */
+.cmp { overflow: hidden; background: linear-gradient(180deg, #fcfbf8, #f1efe9); }
+.cmp::before {
+  content: ''; position: absolute; inset: -60px; z-index: -1; pointer-events: none;
+  /* Painted by scripts/paint-sky.ts. */
+  background: url('./assets/campaign-sky.jpg') center / cover no-repeat;
+  transform: translate(var(--sky-x, 0px), var(--sky-y, 0px));
+}
+body.screen-campaign { background: #f1efe9; }
+
+/* Fog of war: routes into unseen space fade out; scanner arrays are marked. */
+.cmp-link-fog { stroke-dasharray: 3 6; opacity: 0.45; }
+.cmp-badge.cmp-scan { padding: 0 2px; background: rgba(255, 255, 255, 0.9); }
+.cmp-badge .cur-scanner, .cmp-scan-tag .cur-scanner { width: 14px; height: 14px; vertical-align: -3px; }
+.cmp-scan-tag { margin-left: auto; font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); }
+
+/* A system's resources and defences: icon and number, notches and what they are worth. */
+.cmp-yield { display: flex; align-items: center; gap: 5px; font-family: var(--display); font-size: 0.8rem; }
+.cmp-yield .cur { width: 1.2em; height: 1.2em; }
+.cmp-yield b { font-weight: 600; margin-right: 8px; }
+.cmp-fort { display: flex; align-items: center; gap: 10px; }
+.cmp-fort b { font-family: var(--display); font-weight: 500; font-size: 0.72rem; letter-spacing: 0.08em; }
+.cmp-fort .pill-btn { margin-left: auto; }
+
+/* The base: deck, armory and missions as tabs. */
+.cmp-tabs { display: flex; justify-content: center; gap: 6px; padding: 8px 12px 0; }
+.cmp-tab { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; padding: 7px 16px; border-radius: 999px; color: var(--ink-soft); background: rgba(120, 124, 134, 0.07); }
+.cmp-tab-on { color: var(--ink); background: #fff; box-shadow: 0 0 0 1.5px rgba(111, 159, 216, 0.55), var(--shadow); }
+
+/* Fusion: the picked cards glow; the result sits beside its price. */
+.cmp-pick-on .card { box-shadow: 0 0 0 2.5px #8a6fe0, 0 0 18px rgba(138, 111, 224, 0.45); }
+.cmp-fuse-result { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 4px 0 10px; }
+.cmp-fuse-go { display: grid; gap: 10px; max-width: 300px; }
+.cmp-fuse-go p { margin: 0; color: var(--ink-soft); }
