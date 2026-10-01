@@ -1847,7 +1847,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .target-tag { font-style: normal; color: #d0654b; letter-spacing: 0.12em; }
 .slot-empty {
   width: var(--tcw); height: calc(var(--tcw) * 1.4); border-radius: calc(var(--tcw) * 0.08);
-  border: 1px dashed rgba(140, 150, 175, 0.35); background: rgba(255, 255, 255, 0.22);
+  border: 1px dashed rgba(140, 150, 175, 0.35); background: rgba(250, 251, 253, 0.66); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   transform: translateZ(2px);
 }
 .card.card-table { --cw: var(--tcw); width: var(--tcw); height: calc(var(--tcw) * 1.4); padding: 0 7% 6%; gap: 2px; }
