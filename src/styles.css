@@ -1859,10 +1859,14 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .card-table .card-text { font-size: max(6px, calc(var(--cw) * 0.07)); }
 .card-table .card-kind { font-size: max(5px, calc(var(--cw) * 0.055)); letter-spacing: 0.12em; }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  /* Small cards on a phone: art and name; press and hold one to read it. */
-  .card-table .card-text, .card-table .card-kind { display: none; }
-  .card-table .card-glyph { height: 58%; }
-  .card-table .card-name { font-size: max(7px, calc(var(--cw) * 0.12)); text-align: center; letter-spacing: 0.04em; }
+  /* Small cards on a phone: a shorter picture, the name on one small line, and the ability below it
+     (symbols and keywords keep it short; it shrinks to fit). Press and hold one for the full card. */
+  .card-table .card-kind { display: none; }
+  .card-table .card-glyph { height: 40%; }
+  .card-table .card-name { margin-top: max(6px, calc(var(--cw) * 0.08)); font-size: max(5px, calc(var(--cw) * 0.085)); letter-spacing: 0.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 0; }
+  .card-table .card-text { display: block; font-size: max(5px, calc(var(--cw) * 0.085)); line-height: 1.2; }
+  .card-table .card-para { height: 0.25em; }
+  .card-table .card-opts { padding: 1px 2px; gap: 1px; }
 }
 /* Growth counter (Mycelium Tower and the like). */
 .growth {
