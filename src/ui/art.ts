@@ -205,14 +205,14 @@ export function actionTile(opts: {
  * Compact upgrade chip for the dock rail: a small art thumbnail, what the
  * upgrades add, and its upgrade pips. Tapping it explains the upgrade.
  */
-export function actionChip(opts: { action: CoreAction; upgrades: number; power: string }): string {
+export function actionChip(opts: { action: CoreAction; upgrades: number; power: string; /** A rival's chip: tapping it shows that player. */ playerId?: string }): string {
   const { action, upgrades, power } = opts;
   const meta = ACTION_META[action];
   const max = MAX_UPGRADES[action];
   const pips = Array.from({ length: max }, (_, i) => `<i class="${i < upgrades ? 'on' : ''}"></i>`).join('');
   const p = UPGRADE_POWER[action];
   return `
-    <button class="action-chip chip-${action} ${upgrades ? 'chip-upgraded' : ''}" data-act="view-upgrade" data-arg="${action}" title="${meta.label}: ${p.title.toLowerCase()}">
+    <button class="action-chip chip-${action} ${upgrades ? 'chip-upgraded' : ''}" ${opts.playerId ? `data-act="view-player" data-arg="${opts.playerId}"` : `data-act="view-upgrade" data-arg="${action}"`} title="${meta.label}: ${p.title.toLowerCase()}">
       <span class="chip-art ${meta.art}">${upgradeScene(action)}</span>
       <span class="chip-body">
         <span class="chip-power">${p.icon}${power}</span>

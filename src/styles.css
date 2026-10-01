@@ -817,7 +817,7 @@ input { font: inherit; }
   --hvis: calc(var(--hh) * 0.8);
 }
 .game { padding-bottom: 0; }
-.dock { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; gap: var(--gap); align-items: end; }
+.dock { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: var(--gap); align-items: end; }
 .display .cards { gap: clamp(10px, calc(3 * var(--vw)), 36px); }
 
 .command {
@@ -1819,7 +1819,13 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   /* Tableau cards: eight across the board, capped by the height of half the board. */
   --boardw: calc(calc(100 * var(--vw)) - 2 * var(--inset) - var(--logw) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
   /* Five slots and the Lightspeed slot, set a little apart. */
-  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--app-h, calc(100 * var(--vh))) * 0.3 * 0.714), 150px);
+  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--app-h, calc(100 * var(--vh))) * 0.3 * 0.714), 150px,
+    /* Room across the board for each row's sun on the left and its upgrade pills on the right. */
+    calc((var(--game-w) - 2 * var(--inset) - 24px - 1.3 * var(--row-vs) - var(--rail-w) - var(--rail-gap) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
+  --game-w: calc(95 * var(--vw));
+  --row-vs: clamp(84px, calc(23 * var(--vh)), 168px);
+  --rail-w: clamp(70px, calc(10 * var(--vw)), 132px);
+  --rail-gap: clamp(8px, calc(1.2 * var(--vw)), 16px);
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .table-view > .game { --logw: clamp(104px, calc(14 * var(--vw)), 180px); }
@@ -2772,19 +2778,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-opts-chosen .card-opt.on { opacity: 1; background: #fff4d6; box-shadow: inset 0 0 0 1.5px #d4a52a, 0 0 4px rgba(212, 165, 42, 0.5); }
 .card-opts-chosen .card-opt.on::after { content: '✓'; margin-left: auto; color: #b9861a; }
 
-/* The rival's upgrades and piles, top right on their side of the table. */
-.hud-rival { grid-column: 3; grid-row: 2; justify-self: end; margin-top: 6px; display: flex; align-items: center; gap: 4px; padding: 4px 6px 4px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.86); border: 1px solid #fff; box-shadow: var(--shadow); }
-.hr-name { font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); margin-right: 4px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hr-chip, .hr-pile { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; background: #f3f4f7; font-size: 0.7rem; color: var(--ink-soft); line-height: 1.2; }
-.hr-chip i { font-style: normal; font-size: 0.7em; }
-.hr-chip b, .hr-pile b { font-weight: 600; color: var(--ink); }
-.hr-chip.hr-on { background: #fff6e2; box-shadow: inset 0 0 0 1px rgba(212, 165, 42, 0.5); }
-.hr-flare i { color: #e0553a; }
-.hr-thermo i { color: #1e9bd7; }
-.hr-chamber i { color: #c05878; }
-.hr-pile svg { width: 0.9em; height: 0.9em; }
-.hr-discard small { font-size: 0.56rem; letter-spacing: 0.1em; text-transform: uppercase; }
-.hr-discard:hover, .hr-chip:hover { background: #e9ebf0; }
 /* Card text: every sentence starts a new paragraph. */
 .card-para { display: block; height: 0.55em; }
 /* A card whose text is only a few symbols: centred in its text box, a little larger. */
@@ -2795,3 +2788,16 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
    silver; never on buttons. ---------- */
 .action-chip, .modal { background-image: var(--circuit-ui); background-size: 150px 150px; background-repeat: repeat; }
 .log-pop { background-color: rgba(255, 255, 255, 0.97) !important; }
+
+/* Each player's upgrades: three compact pills on the board, to the right of their tableau
+   (each row leaves room for them, and the cards are sized to fit). */
+.tableau-row-wrap { padding-right: calc(var(--rail-w) + var(--rail-gap)); }
+.tableau-rail {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%) translateZ(4px);
+  height: calc(var(--tcw) * 1.05); width: var(--rail-w);
+  gap: clamp(3px, calc(0.8 * var(--vh)), 6px);
+}
+.tableau-rail .action-chip { gap: 4px; padding-right: 6px; }
+.tableau-rail .chip-label { display: none !important; }
+.tableau-rail .chip-pips { display: flex; gap: 2px; }
+.tableau-rail .chip-power { font-size: clamp(0.6rem, calc(1.7 * var(--vh)), 0.86rem); }

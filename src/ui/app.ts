@@ -1045,7 +1045,7 @@ export class App {
         if (played && cardDef(played.defId).kind === 'command') {
           window.setTimeout(() => sound.upgrade(), delay);
           if (actor.id === viewer.id) pulse(root.querySelector('[data-anchor="upgrades"]'), 'fx-upgrade', delay);
-          else pulse(root.querySelector('.hud-rival'), 'fx-upgrade', delay);
+          else pulse(root.querySelector(`[data-anchor="upgrades:${actor.id}"]`), 'fx-upgrade', delay);
         }
         break;
       }
@@ -2278,7 +2278,6 @@ export class App {
       <div class="hud">
         <div class="hud-players">${this.renderPlayers()}</div>
         <div class="hud-round">${this.renderRoundBar()}</div>
-        ${this.renderRivalRail()}
         <div class="hud-controls">
           ${field}
           ${aiTurn ? '<button class="pill-btn" data-act="skip-ai" title="Resolve AI days instantly">skip ›</button>' : ''}
@@ -2289,29 +2288,6 @@ export class App {
           <button class="icon-btn ${this.sheet?.kind === 'log' ? 'icon-on' : ''}" data-act="${this.sheet?.kind === 'log' ? 'cancel' : 'open-log'}" aria-label="Game log" title="Game log">${LOG_ICON}</button>
           <button class="icon-btn" data-act="open-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
         </div>
-      </div>`;
-  }
-
-  /**
-   * The rival shown on the board, at a glance (top right, on their side of
-   * the table): their upgrades, deck, discard pile and hand, as your own sit
-   * in your dock.
-   */
-  private renderRivalRail(): string {
-    const r = this.shownRival();
-    if (!r) return '';
-    const u = r.upgrades;
-    const chip = (cls: string, icon: string, value: string, n: number, title: string) =>
-      `<button class="hr-chip ${cls} ${n ? 'hr-on' : ''}" data-act="view-player" data-arg="${r.id}" title="${esc(title)}"><i>${icon}</i><b>${value}</b></button>`;
-    return `
-      <div class="hud-rival" aria-label="${esc(r.name)}'s upgrades and piles">
-        <span class="hr-name">${esc(r.name.toLowerCase())}</span>
-        ${chip('hr-flare', '▲', `+${u.solarFlare}`, u.solarFlare, `Solar Flare: their attack cards deal +${u.solarFlare} heat`)}
-        ${chip('hr-thermo', '▼', `+${u.thermosiphon}`, u.thermosiphon, `Thermosiphon: their cooling cools +${u.thermosiphon}`)}
-        ${chip('hr-chamber', '♥', `${supernovaThreshold(r)}`, u.coolingChamber, `Cooling Chamber: their sun goes supernova at ${supernovaThreshold(r)} heat`)}
-        <span class="hr-pile" title="Cards in their hand">${HAND_ICON}<b>${r.hand.length}</b></span>
-        <span class="hr-pile" data-anchor="deck:${r.id}" title="Cards left in their deck">▤<b>${r.deck.length}</b></span>
-        <button class="hr-pile hr-discard" data-anchor="discard:${r.id}" data-act="view-pile" data-arg="discard:${r.id}" title="Their discard pile: look through it"><small>discard</small><b>${r.discard.length}</b></button>
       </div>`;
   }
 
@@ -2411,9 +2387,20 @@ export class App {
         <div class="tableau-row-wrap">
           <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row">${slots}<div class="ls-slot">${lightspeed}</div></div>
+          ${this.upgradeRail(p, side)}
           ${this.renderForecast(p)}
         </div>
       </div>`;
+  }
+
+  /** A player's three upgrades, as pills on the board to the right of their tableau. */
+  private upgradeRail(p: PlayerState, side: 'mine' | 'rival'): string {
+    const pid = side === 'rival' ? p.id : undefined;
+    return `<div class="rail tableau-rail" data-anchor="${side === 'mine' ? 'upgrades' : `upgrades:${p.id}`}">
+      ${actionChip({ action: 'solarFlare', upgrades: p.upgrades.solarFlare, power: `+${p.upgrades.solarFlare}`, playerId: pid })}
+      ${actionChip({ action: 'thermosiphon', upgrades: p.upgrades.thermosiphon, power: `+${p.upgrades.thermosiphon}`, playerId: pid })}
+      ${actionChip({ action: 'coolingChamber', upgrades: p.upgrades.coolingChamber, power: `${supernovaThreshold(p)}`, playerId: pid })}
+    </div>`;
   }
 
   /**
@@ -2450,10 +2437,6 @@ export class App {
     const act = this.canAct();
     const busy = this.pending !== null;
     const hidden = this.needsHandoff();
-    const rail = `
-      ${actionChip({ action: 'solarFlare', upgrades: me.upgrades.solarFlare, power: `+${me.upgrades.solarFlare}` })}
-      ${actionChip({ action: 'thermosiphon', upgrades: me.upgrades.thermosiphon, power: `+${me.upgrades.thermosiphon}` })}
-      ${actionChip({ action: 'coolingChamber', upgrades: me.upgrades.coolingChamber, power: `${supernovaThreshold(me)}` })}`;
     const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand.map((c) => this.renderCard(c, { hand: true })).join('');
     const myTurn = activePlayer(s).id === me.id && !isGameOver(s);
     const total = Math.max(me.playsLeft, myTurn ? playsAllowed(s, me) : 0);
@@ -2462,9 +2445,6 @@ export class App {
       : '';
     return `
       <section class="dock">
-        <div class="command" data-anchor="upgrades">
-          <div class="rail">${rail}</div>
-        </div>
         <button class="pile" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck"><span class="pile-stack"><i></i><i></i></span><b>${me.deck.length}</b><small>deck</small></button>
         <div class="hand-zone">
           <div class="hand">${hand}</div>
