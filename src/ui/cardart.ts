@@ -678,3 +678,91 @@ function fusedScene(def: CardDef): string {
 export function hasOwnArt(defId: string): boolean {
   return defId in ART;
 }
+
+/**
+ * The three upgrades' pictures (Solar Flare, Thermosiphon, Cooling Chamber),
+ * painted like the cards: the same skies, stars, glows and vignette. Their
+ * subject sits in the middle, so they still read when cropped to a circle.
+ */
+const UPGRADE_PAL: Record<'solarFlare' | 'thermosiphon' | 'coolingChamber', Pal> = {
+  solarFlare: { sky: ['#2a0f14', '#6e2420', '#e8884a'], glow: '#ffb070', accent: '#ffe2a8', deep: '#170608' },
+  thermosiphon: { sky: ['#101c3c', '#2b4f88', '#9cc4e8'], glow: '#bfe6ff', accent: '#ffb27a', deep: '#081128' },
+  coolingChamber: { sky: ['#131a28', '#33445e', '#a8bcd4'], glow: '#d8ecff', accent: '#ff9cb0', deep: '#0a0e18' },
+};
+
+const UPGRADE_ART: Record<keyof typeof UPGRADE_PAL, (S: Scene) => string> = {
+  // A star throwing off a great looping prominence, with plasma flung from its crest.
+  solarFlare: (S) => {
+    const loop = S.linear([[0, '#fff3c8'], [0.5, '#ff9a3c'], [1, '#e2401c']], 0, 0, 1, 0);
+    return (
+      S.glow(80, 62, 52, '#ff8a3a', 0.45) +
+      `<path d="M64 58 C58 26 104 18 98 56" fill="none" stroke="${loop}" stroke-width="9" stroke-linecap="round" opacity="0.35"/>` +
+      `<path d="M64 58 C58 26 104 18 98 56" fill="none" stroke="${loop}" stroke-width="4" stroke-linecap="round"/>` +
+      `<path d="M66 57 C62 33 98 26 95 55" fill="none" stroke="#fff6dc" stroke-width="1.2" stroke-linecap="round" opacity="0.8"/>` +
+      S.sun(80, 66, 17, '#ffb060', 12) +
+      S.motes(84, 30, 9, 14, '#ffe2a8', 1.2) +
+      S.glow(83, 30, 8, '#fff2c0', 0.8)
+    );
+  },
+  // A heat-exchange loop: hot on one side, cold on the other, the coolant running round it.
+  thermosiphon: (S) => {
+    const pipe = S.linear([[0, '#ff8a4a'], [0.45, '#ffd2a0'], [0.55, '#d8f0ff'], [1, '#5aa8ff']], 0, 0, 1, 0);
+    const arrows = [
+      [80, 24, 0],
+      [80, 76, 180],
+    ]
+      .map(([x, y, r]) => `<polygon points="${x - 4},${y - 3.5} ${x + 4},${y} ${x - 4},${y + 3.5}" fill="#fff" transform="rotate(${r} ${x} ${y})" opacity="0.95"/>`)
+      .join('');
+    return (
+      S.glow(56, 50, 30, '#ff8a4a', 0.5) +
+      S.glow(104, 50, 30, '#7cc4ff', 0.55) +
+      `<ellipse cx="80" cy="50" rx="27" ry="26" fill="none" stroke="${pipe}" stroke-width="10" opacity="0.3"/>` +
+      `<ellipse cx="80" cy="50" rx="27" ry="26" fill="none" stroke="${pipe}" stroke-width="5.5"/>` +
+      `<ellipse cx="80" cy="50" rx="27" ry="26" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 6" opacity="0.85"/>` +
+      arrows +
+      // The exchanger at its heart: fins between the two sides.
+      [70, 76, 82, 88].map((x, i) => `<rect x="${x - 1.4}" y="38" width="2.8" height="24" rx="1.4" fill="${i < 2 ? '#ffd0a8' : '#d4ecff'}" opacity="0.9"/>`).join('') +
+      S.motes(108, 50, 8, 10, '#e8f6ff', 1) +
+      S.motes(52, 50, 6, 9, '#ffd8b0', 1)
+    );
+  },
+  // An armoured vault round a cold, bright core: it lets a sun take more heat before it bursts.
+  coolingChamber: (S) => {
+    const shell = S.linear([[0, '#e8f0fa'], [0.5, '#8ea2bc'], [1, '#3a4a62']], 0, 0, 1, 1);
+    const ribs = [0, 60, 120]
+      .map((a) => `<ellipse cx="80" cy="50" rx="25" ry="9" fill="none" stroke="#dfeaf8" stroke-width="1.3" stroke-opacity="0.75" transform="rotate(${a} 80 50)"/>`)
+      .join('');
+    return (
+      S.glow(80, 50, 44, '#bfe0ff', 0.4) +
+      S.hex(80, 50, 30, shell, '#f4f8ff', 0.95) +
+      S.hex(80, 50, 23, S.radial([[0, '#0e1a2e'], [1, '#22324c']]), '#9fb4d0', 1) +
+      ribs +
+      S.sun(80, 50, 9, '#cfe8ff', 6) +
+      S.glow(80, 50, 5, '#ffffff', 1) +
+      // Bolts on the shell's corners.
+      Array.from({ length: 6 }, (_, i) => {
+        const t = ((i * 60 + 30) * Math.PI) / 180;
+        return `<circle cx="${f(80 + Math.cos(t) * 26.5)}" cy="${f(50 + Math.sin(t) * 26.5)}" r="1.6" fill="#f4f8ff"/>`;
+      }).join('') +
+      S.crystal(48, 74, 12, 5, -20, '#d8ecff', 0.8) +
+      S.crystal(113, 72, 10, 4, 18, '#d8ecff', 0.75)
+    );
+  },
+};
+
+/** An upgrade's picture, as an SVG filling its box. */
+export function upgradeScene(action: keyof typeof UPGRADE_PAL): string {
+  const p = UPGRADE_PAL[action];
+  const S = new Scene(`up-${action}`, p);
+  const body = UPGRADE_ART[action](S);
+  let stars = '';
+  const r = rng(`up-${action}*`);
+  for (let i = 0; i < 22; i++) {
+    const x = r() * 160, y = r() * 100, b = r();
+    stars += `<circle cx="${f(x)}" cy="${f(y)}" r="${f(b > 0.9 ? 0.9 : 0.4)}" fill="#fff" opacity="${f(0.25 + b * 0.6)}"/>`;
+  }
+  const sky = S.linear([[0, p.sky[0]], [0.62, p.sky[1]], [1, p.sky[2]]]);
+  const haze = S.radial([[0, p.glow, 0.3], [1, p.glow, 0]], 0.5, 0.5, 0.6);
+  const vignette = S.radial([[0.55, '#000', 0], [1, '#000', 0.45]], 0.5, 0.5, 0.75);
+  return `<svg class="art upgrade-art" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>${S.defs.join('')}</defs><rect width="160" height="100" fill="${sky}"/>${stars}<rect width="160" height="100" fill="${haze}"/>${body}<rect width="160" height="100" fill="${vignette}"/></svg>`;
+}

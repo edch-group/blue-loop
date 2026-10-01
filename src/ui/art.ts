@@ -1,4 +1,5 @@
 import { BALANCE, MAX_UPGRADES, planetAt, type CoreAction, type Planet } from '../engine';
+import { upgradeScene } from './cardart';
 
 /**
  * Procedural art: placeholders until commissioned artwork arrives. Swap any
@@ -193,7 +194,7 @@ export function actionTile(opts: {
   const p = UPGRADE_POWER[action];
   return `
     <button class="tile tile-${action} ${opts.compact ? 'tile-compact' : ''}" ${attr}>
-      <div class="tile-art ${meta.art}"></div>
+      <div class="tile-art ${meta.art}">${upgradeScene(action)}</div>
       <div class="slots slots-${action}">${slots}</div>
       <div class="tile-chips"><span class="chip-glass" title="${p.title}">${p.icon}${power}</span></div>
       <div class="pill">${meta.label}</div>
@@ -212,7 +213,7 @@ export function actionChip(opts: { action: CoreAction; upgrades: number; power: 
   const p = UPGRADE_POWER[action];
   return `
     <button class="action-chip chip-${action} ${upgrades ? 'chip-upgraded' : ''}" data-act="view-upgrade" data-arg="${action}" title="${meta.label}: ${p.title.toLowerCase()}">
-      <span class="chip-art ${meta.art}"></span>
+      <span class="chip-art ${meta.art}">${upgradeScene(action)}</span>
       <span class="chip-body">
         <span class="chip-power">${p.icon}${power}</span>
         <span class="chip-label">${meta.label}</span>

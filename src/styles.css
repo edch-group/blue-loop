@@ -592,33 +592,9 @@ input { font: inherit; }
 .tile[disabled] { filter: brightness(0.92) saturate(0.75); opacity: 0.8; }
 .tile-compact { --tw: min(96px, calc(20 * var(--vh))); --th: calc(var(--tw) * 1.4); }
 .tile-art { position: absolute; inset: 0; }
-.art-flare {
-  background:
-    radial-gradient(circle at 58% 56%, #ffffff 0%, #fff2c2 6%, #ffb347 14%, transparent 32%),
-    radial-gradient(ellipse 80% 40% at 50% 62%, rgba(255, 110, 40, 0.95), transparent 70%),
-    conic-gradient(from 0deg at 58% 56%, #ff7b2e, #8a1c0e, #ff9340, #5c0f08, #ff6a1f, #9c2410, #ff7b2e),
-    #3a0b06;
-}
-.art-flare::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 58% 56%, transparent 20%, rgba(40, 6, 2, 0.55) 80%); }
-.art-thermo {
-  background:
-    radial-gradient(circle at 70% 42%, rgba(255, 255, 255, 0.9) 0%, rgba(200, 225, 255, 0.5) 12%, transparent 30%),
-    radial-gradient(circle at 30% 70%, rgba(255, 170, 110, 0.55), transparent 28%),
-    radial-gradient(circle at 70% 42%, #6f8fd8 0%, transparent 45%),
-    radial-gradient(ellipse at 20% 20%, #7b5fbf, transparent 50%),
-    linear-gradient(160deg, #1b2450, #2c3f7a 45%, #121634);
-}
-.art-thermo::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 70% 42%, transparent 0 22%, rgba(255, 255, 255, 0.35) 22.5% 23%, transparent 23.5%); }
-.art-chamber {
-  /* monochrome: a pale singularity in a grey swirl, after the reference tile */
-  background:
-    radial-gradient(circle at 78% 18%, rgba(255, 255, 255, 0.95) 0 4%, transparent 9%),
-    radial-gradient(circle at 55% 60%, transparent 0 18%, rgba(255, 255, 255, 0.55) 19% 20%, transparent 21%),
-    radial-gradient(circle at 55% 60%, #0d0d0f 0 17%, transparent 18%),
-    repeating-conic-gradient(from 20deg at 55% 60%, #3a3b3f 0 8deg, #5b5d62 12deg, #2b2c30 20deg),
-    #2b2c30;
-}
-.art-chamber::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 55% 60%, transparent 25%, rgba(20, 20, 24, 0.55) 85%); }
+/* The upgrades' pictures (cardart.ts upgradeScene), painted like the cards. */
+.art-flare, .art-thermo, .art-chamber { background: #10131c; }
+.tile-art > svg, .chip-art > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .flare-ring {
   position: absolute;
   left: 50%;
@@ -632,18 +608,10 @@ input { font: inherit; }
   -webkit-mask: radial-gradient(circle, transparent 60%, #000 61%);
   mask: radial-gradient(circle, transparent 60%, #000 61%);
 }
-.slots { position: absolute; inset: 0; pointer-events: none; }
-.slot { position: absolute; border-radius: 18%; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.38); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); transition: background 0.3s, box-shadow 0.3s; }
-.slot.filled { background: rgba(255, 255, 255, 0.94); box-shadow: 0 0 14px rgba(255, 255, 255, 0.9); }
-.slots-solarFlare .slot { width: 20%; aspect-ratio: 1; }
-.slots-solarFlare .slot-0 { left: 12%; top: 8%; }
-.slots-solarFlare .slot-1 { right: 12%; top: 8%; }
-.slots-solarFlare .slot-2 { left: 12%; top: 45%; }
-.slots-thermosiphon .slot { left: 10%; top: 8%; width: 52%; height: 38%; border-radius: 12%; }
-.slots-coolingChamber .slot { top: 9%; width: 13%; height: 50%; border-radius: 999px; }
-.slots-coolingChamber .slot-0 { left: 14%; }
-.slots-coolingChamber .slot-1 { left: 34%; }
-.slots-coolingChamber .slot-2 { left: 54%; }
+.slots { position: absolute; left: 0; right: 0; top: 7%; display: flex; justify-content: center; gap: 6%; pointer-events: none; }
+/* Its upgrades as a row of pips along the top of the picture: lit as they fill. */
+.slot { position: relative; width: 11%; aspect-ratio: 1; border-radius: 50%; background: rgba(255, 255, 255, 0.16); border: 1.5px solid rgba(255, 255, 255, 0.7); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
+.slot.filled { background: radial-gradient(circle at 40% 35%, #fff, #ffe6a8 55%, #e0a83a); border-color: #fff; box-shadow: 0 0 10px rgba(255, 220, 140, 0.9); }
 .tile-chips { position: absolute; left: 0; right: 0; bottom: 24%; display: flex; justify-content: center; gap: 4px; }
 .chip-glass { padding: 2px 6px; border-radius: 5px; background: rgba(255, 255, 255, 0.24); border: 1px solid rgba(255, 255, 255, 0.55); color: #fff; font-weight: 500; font-size: max(9px, calc(var(--tw) * 0.1)); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
 .tile .pill { position: absolute; left: 50%; bottom: 5%; transform: translateX(-50%); font-size: max(6px, calc(var(--tw) * 0.052)); letter-spacing: 0.1em; width: max-content; max-width: 92%; white-space: normal; line-height: 1.25; text-align: center; padding: 3px 6px; }
@@ -2238,7 +2206,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
   font-family: var(--display); color: #3b1a08;
   text-shadow: 0 0 6px rgba(255, 250, 235, 0.95), 0 0 2px #fff;
 }
-.vit-cold .vit-heat { color: #2d4a6e; text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8); }
+.vit-cold .vit-heat { color: #fff; text-shadow: 0 0 6px rgba(10, 28, 72, 0.95), 0 0 2px rgba(10, 28, 72, 0.95), 0 1px 1px rgba(10, 28, 72, 0.9); }
 .vit-heat b { font-size: calc(var(--vs) * 0.2); font-weight: 800; }
 .vit-heat small { font-size: calc(var(--vs) * 0.09); font-weight: 700; opacity: 0.8; letter-spacing: 0.06em; }
 /* The shields pill and the planet tag beside it share one look: the same height, a soft border, a light shadow. */
