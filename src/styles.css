@@ -1538,6 +1538,10 @@ body.screen-campaign .backdrop { display: none; }
 
 /* ---------- The table: the whole play area in perspective ---------- */
 .table-view {
+  /* The table keeps one shape whatever the window: no wider than its height allows, no taller than its width
+     allows, centred in the window. */
+  --gw: min(calc(100 * var(--vw)), calc(var(--app-h, calc(100 * var(--vh))) * 2.2));
+  --gh: min(calc(112 * var(--vh)), calc(var(--gw) * 0.64));
   /* How far the board tips away from the viewer. */
   --board-tilt: 34deg;
   position: fixed; inset: 0;
@@ -1663,7 +1667,7 @@ body.screen-campaign .backdrop { display: none; }
 .table-view > .game > .display { grid-column: 1 / -1 !important; grid-row: 2; }
 .table-view > .game > .log-panel { grid-column: 2 !important; grid-row: 2; z-index: 2; }
 /* Taller board, filling the space the figure used to take. */
-.table-view > .game { height: calc(112 * var(--vh)); top: calc(-8 * var(--vh)); }
+.table-view > .game { width: var(--gw); height: var(--gh); margin-inline: auto; top: calc((100 * var(--vh) - var(--gh)) / 2 - 2 * var(--vh)); }
 /* On the white board the star is a wireframe: a soft silver line (its heat tint still comes through). */
 .backdrop-board .petals ellipse, .backdrop-board .petals path {
   stroke: color-mix(in srgb, var(--petal-stroke, #fff) 35%, #a3abbd);
@@ -1819,15 +1823,15 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 /* ---------- The card game: tableaus on the board ---------- */
 .table-view > .game {
   /* Tableau cards: eight across the board, capped by the height of half the board. */
-  --boardw: calc(calc(100 * var(--vw)) - 2 * var(--inset) - var(--logw) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
+  --boardw: calc(var(--gw) - 2 * var(--inset) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
   /* Five slots and the Lightspeed slot, set a little apart. */
-  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--app-h, calc(100 * var(--vh))) * 0.3 * 0.714), 150px,
+  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * 0.3 * 0.714), 150px,
     /* Room across the board for each row's sun on the left and its upgrade pills on the right. */
     calc((var(--game-w) - 2 * var(--inset) - 24px - 2 * var(--row-side) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
   /* Each row's ends: its sun on the left, its upgrade pills on the right, the same width each so the slots centre. */
   --row-side: max(calc(1.3 * var(--row-vs)), calc(var(--rail-w) + var(--rail-gap)));
-  --game-w: calc(95 * var(--vw));
-  --row-vs: clamp(84px, calc(23 * var(--vh)), 168px);
+  --game-w: calc(var(--gw) * 0.95);
+  --row-vs: clamp(84px, calc(var(--gh) / 112 * 23), 168px);
   --rail-w: clamp(70px, calc(10 * var(--vw)), 132px);
   --rail-gap: clamp(14px, calc(2 * var(--vw)), 32px);
 }
@@ -2241,7 +2245,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 
 /* Each tableau row has its sun at its left end, on the board (the row moves right to make room). */
 .tableau-row-wrap {
-  --vs: clamp(84px, calc(23 * var(--vh)), 168px);
+  --vs: var(--row-vs, clamp(84px, calc(23 * var(--vh)), 168px));
   position: relative; transform-style: preserve-3d; padding-left: calc(var(--vs) * 1.3);
 }
 .vitals {
@@ -2809,11 +2813,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* The dock: deck, hand and discard centred under the board; the day's controls at the far right
    (the empty first column mirrors them, so the middle stays centred). */
-.table-view .dock { grid-template-columns: minmax(0, 1fr) auto minmax(0, min(60vw, 860px)) auto minmax(0, 1fr); }
+.table-view .dock { --dock-side: clamp(124px, calc(15 * var(--vw)), 210px); grid-template-columns: var(--dock-side) auto minmax(0, 1fr) auto var(--dock-side); }
 .table-view .dock > .pile[data-anchor="deck"] { grid-column: 2; }
 .table-view .dock > .hand-zone { grid-column: 3; }
 .table-view .dock > .pile[data-anchor="discard"] { grid-column: 4; }
-.table-view .dock > .turn-controls { grid-column: 5; justify-self: end; }
+.table-view .dock > .turn-controls { grid-column: 5; justify-self: stretch; min-width: 0; }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .table-view .dock { grid-template-columns: minmax(0, 1fr) auto minmax(0, 46vw) auto minmax(0, 1fr); }
+  .table-view .dock { --dock-side: clamp(96px, calc(15 * var(--vw)), 150px); }
 }

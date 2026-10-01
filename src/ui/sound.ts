@@ -3,8 +3,8 @@
  *
  * Every effect uses soft waveforms, slow attacks and a long shared "space"
  * reverb, so actions swell and bloom rather than click. A generative ambient
- * score (drone, slowly shifting pad chords, distant chimes and a solar-wind
- * noise bed) plays underneath. Each effect is one method, so recorded audio
+ * score (drone, slowly shifting pad chords and distant chimes; just synths,
+ * no noise) plays underneath. Each effect is one method, so recorded audio
  * can replace any of them later without touching the rest of the game.
  */
 
@@ -415,26 +415,7 @@ class SoundBoard {
     });
     lfo.start();
 
-    // Solar-wind bed: quiet filtered noise drifting in and out.
-    const wind = ctx.createBufferSource();
-    wind.buffer = this.noiseBuf;
-    wind.loop = true;
-    const windFilter = ctx.createBiquadFilter();
-    windFilter.type = 'bandpass';
-    windFilter.Q.value = 0.6;
-    windFilter.frequency.value = 500;
-    const windLfo = ctx.createOscillator();
-    const windDepth = ctx.createGain();
-    windLfo.frequency.value = 0.05;
-    windDepth.gain.value = 300;
-    windLfo.connect(windDepth).connect(windFilter.frequency);
-    const windGain = ctx.createGain();
-    windGain.gain.value = 0.018;
-    wind.connect(windFilter).connect(windGain).connect(bus);
-    wind.start();
-    windLfo.start();
-
-    this.musicNodes = [...drones, lfo, wind, windLfo, droneFilter, droneGain, windFilter, windGain];
+    this.musicNodes = [...drones, lfo, droneFilter, droneGain];
 
     // Pad chords every ~11s, sparkles every few seconds.
     let chord = 0;
