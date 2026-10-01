@@ -1609,7 +1609,9 @@ body.screen-campaign .backdrop { display: none; }
 .table-view > .game {
   --inset: clamp(14px, calc(2.6 * var(--vh)), 24px);
   padding: var(--inset);
-  grid-template-columns: minmax(0, 1fr) var(--logw);
+  /* One column: the board, the dock and everything on them centre on the screen (the log is a pop-up). */
+  grid-template-columns: minmax(0, 1fr);
+  --logw: 0px;
   /* The hand sits lower, its bottom edge tucked past the table's front (like MTG Arena). */
   --hvis: calc(var(--hh) * 0.72);
 }
@@ -1821,16 +1823,18 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   /* Five slots and the Lightspeed slot, set a little apart. */
   --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--app-h, calc(100 * var(--vh))) * 0.3 * 0.714), 150px,
     /* Room across the board for each row's sun on the left and its upgrade pills on the right. */
-    calc((var(--game-w) - 2 * var(--inset) - 24px - 1.3 * var(--row-vs) - var(--rail-w) - var(--rail-gap) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
+    calc((var(--game-w) - 2 * var(--inset) - 24px - 2 * var(--row-side) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
+  /* Each row's ends: its sun on the left, its upgrade pills on the right, the same width each so the slots centre. */
+  --row-side: max(calc(1.3 * var(--row-vs)), calc(var(--rail-w) + var(--rail-gap)));
   --game-w: calc(95 * var(--vw));
   --row-vs: clamp(84px, calc(23 * var(--vh)), 168px);
   --rail-w: clamp(70px, calc(10 * var(--vw)), 132px);
-  --rail-gap: clamp(8px, calc(1.2 * var(--vw)), 16px);
+  --rail-gap: clamp(14px, calc(2 * var(--vw)), 32px);
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .table-view > .game { --logw: clamp(104px, calc(14 * var(--vw)), 180px); }
+  .table-view > .game { --logw: 0px; }
 }
-.table-view > .game > .board { grid-column: 1 !important; grid-row: 2; display: flex; min-height: 0; }
+.table-view > .game > .board { grid-column: 1 / -1 !important; grid-row: 2; display: flex; min-height: 0; }
 .board .board3d { flex: 1; min-height: 0; display: flex; }
 .board .board-plane {
   flex: 1; min-height: 0;
@@ -2791,7 +2795,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* Each player's upgrades: three compact pills on the board, to the right of their tableau
    (each row leaves room for them, and the cards are sized to fit). */
-.tableau-row-wrap { padding-right: calc(var(--rail-w) + var(--rail-gap)); }
+.tableau-row-wrap { box-sizing: border-box; width: 100%; padding-left: var(--row-side); padding-right: var(--row-side); }
+.tableau-row { width: max-content; margin-inline: auto; }
 .tableau-rail {
   position: absolute; right: 0; top: 50%; transform: translateY(-50%) translateZ(4px);
   height: calc(var(--tcw) * 1.05); width: var(--rail-w);
@@ -2801,3 +2806,14 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .tableau-rail .chip-label { display: none !important; }
 .tableau-rail .chip-pips { display: flex; gap: 2px; }
 .tableau-rail .chip-power { font-size: clamp(0.6rem, calc(1.7 * var(--vh)), 0.86rem); }
+
+/* The dock: deck, hand and discard centred under the board; the day's controls at the far right
+   (the empty first column mirrors them, so the middle stays centred). */
+.table-view .dock { grid-template-columns: minmax(0, 1fr) auto minmax(0, min(60vw, 860px)) auto minmax(0, 1fr); }
+.table-view .dock > .pile[data-anchor="deck"] { grid-column: 2; }
+.table-view .dock > .hand-zone { grid-column: 3; }
+.table-view .dock > .pile[data-anchor="discard"] { grid-column: 4; }
+.table-view .dock > .turn-controls { grid-column: 5; justify-self: end; }
+@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
+  .table-view .dock { grid-template-columns: minmax(0, 1fr) auto minmax(0, 46vw) auto minmax(0, 1fr); }
+}
