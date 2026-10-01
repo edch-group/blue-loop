@@ -529,6 +529,21 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
       const turn = time * 0.00012 + seed + i * 2.1;
       const light = norm3(sub3(glow, add3(ctr, [0, 0, pr * 0.5])));
       const half = norm3(add3(light, [0, 0, 1]));
+      // A soft rounded shadow on the board round its base (as the sun has its glow), cast a little away from the sun;
+      // under the orbit's trail and notches.
+      flat.unshift(() => {
+        const away = norm3([ctr[0] - c[0], ctr[1] - c[1], 0]);
+        const sx = ctr[0] + away[0] * pr * 0.25, sy = ctr[1] + away[1] * pr * 0.25;
+        const g = ctx.createRadialGradient(sx, sy, pr * 0.6, sx, sy, pr * 1.75);
+        const [r0, g0, b0] = TRAIL_RGB[pl].map((q) => Math.round(q * 0.45));
+        g.addColorStop(0, `rgba(${r0}, ${g0}, ${b0}, 0.58)`);
+        g.addColorStop(0.45, `rgba(${r0}, ${g0}, ${b0}, 0.24)`);
+        g.addColorStop(1, `rgba(${r0}, ${g0}, ${b0}, 0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(sx, sy, pr * 1.75, 0, Math.PI * 2);
+        ctx.fill();
+      });
       balls.push({
         ctr,
         r: pr,

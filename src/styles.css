@@ -2812,3 +2812,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .hr-discard:hover, .hr-chip:hover { background: #e9ebf0; }
 /* Card text: every sentence starts a new paragraph. */
 .card-para { display: block; height: 0.55em; }
+/* A card whose text is only a few symbols: centred in its text box, a little larger. */
+.card-text-mid { display: grid; place-content: center; justify-items: center; height: 100%; font-size: 1.35em; line-height: 1.2; text-align: center; }
+.card-text-mid .card-para { height: 0.2em; }

@@ -159,13 +159,12 @@ describe('the tableau', () => {
     expect(martyr.stability).toBe(BALANCE.stabilityBurst);
     expect(relay.stability).toBe(BALANCE.stability);
     const bo = s.players[1].heat;
-    s = endTurn(endTurn(s)); // Ada's turn 2: relay fires, both lose 1
-    expect(s.players[0].tableau.map((c) => c.stability)).toEqual([1, 2]);
-    s = endTurn(endTurn(s)); // Ada's turn 3: the Martyr fades and bursts
+    s = endTurn(endTurn(s)); // Ada's turn 2: relay fires, both lose 1; the one-time Martyr fades and bursts
     expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
+    expect(s.players[0].tableau[0].stability).toBe(BALANCE.stability - 1);
     expect(s.players[0].discard.some((c) => c.uid === martyr.uid)).toBe(true);
-    expect(s.players[1].heat).toBeGreaterThanOrEqual(bo + 2 + 3);
-    s = endTurn(endTurn(s)); // Ada's turn 4: the relay fires a third time, then fades
+    expect(s.players[1].heat).toBeGreaterThanOrEqual(bo + 1 + 4);
+    s = endTurn(endTurn(endTurn(endTurn(s)))); // Ada's turn 4: the relay fires a third time, then fades
     expect(s.players[0].tableau).toHaveLength(0);
   });
 

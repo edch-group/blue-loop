@@ -49,7 +49,7 @@ export const BALANCE = {
    * that many times), before it fades into your discard pile. Cards with only a when-played effect fade faster.
    */
   stability: 3,
-  stabilityBurst: 2,
+  stabilityBurst: 1,
   stabilityCommand: 3,
   /** Stability can be restored up to this. */
   maxStability: 6,

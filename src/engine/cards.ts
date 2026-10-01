@@ -287,7 +287,7 @@ export const CARDS: CardDef[] = [
       { type: 'heat', amount: 2, to: 'target', if: { overheated: true } },
     ],
   },
-  { id: 'martyr_crystal', name: 'Martyr Crystal', kind: 'attack', race: 1, text: '{heat:1}. When this leaves your tableau, {heat:3}.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }], onLeave: [{ type: 'heat', amount: 3, to: 'target' }] },
+  { id: 'martyr_crystal', name: 'Martyr Crystal', kind: 'attack', race: 1, text: '{heat:1}. When this leaves your tableau, {heat:4}.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }], onLeave: [{ type: 'heat', amount: 4, to: 'target' }] },
   {
     id: 'prism_vent',
     name: 'Prism Vent',
@@ -354,8 +354,8 @@ export const CARDS: CardDef[] = [
     name: 'Canopy',
     kind: 'defence',
     race: 3,
-    text: '{dawn}: {cool:1}, +1 per 2 cards you control.',
-    onTurn: [{ type: 'cool', amount: 1, plus: { of: 'cards', per: 2 } }],
+    text: '{dawn}: {cool:1}, +1 per 3 cards you control.',
+    onTurn: [{ type: 'cool', amount: 1, plus: { of: 'cards', per: 3 } }],
   },
   {
     id: 'spore_cloud',
@@ -585,8 +585,8 @@ export const CARDS: CardDef[] = [
     name: 'Orbit Root',
     kind: 'growth',
     race: 3,
-    text: '{dawn}: {cool:1}. While facing the dead planet, your {orbit:+2}.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'orbit', amount: 2, who: 'self', if: { planet: 'dead' } }],
+    text: '{dawn}: {shield:1}. While facing the dead planet, your {orbit:+2}.',
+    onTurn: [{ type: 'shield', amount: 1 }, { type: 'orbit', amount: 2, who: 'self', if: { planet: 'dead' } }],
   },
 
   // ---- More recovery and recall: every race can get its cards back ----
@@ -847,7 +847,7 @@ export const PRESET_DECKS: DeckList[] = [
     race: 2,
     cards: [
       ...twoOf('bell_warden', 'abyssal_choir', 'tide_pylon', 'riptide_ambush', 'undertow', 'command_directive'),
-      'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide', 'aegis_monolith', 'plasma_relay', 'coronal_lance', 'tidal_brake',
+      'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide', 'aegis_monolith', 'plasma_relay', 'coronal_lance', 'deep_current',
     ],
   },
   {

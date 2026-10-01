@@ -276,7 +276,10 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
  */
 export function cardTextHtml(text: string, chosen?: string): string {
   const parts = textParts(text);
-  return parts
+  // Nothing but a few symbols ("Heat 2", "Heat 2. Cool 1"): they sit in the middle of the text box.
+  const symbols = parts.filter((p) => 'kw' in p);
+  const only = symbols.length > 0 && symbols.length <= 3 && parts.every((p) => ('kw' in p ? KEYWORDS[p.kw]?.symbol : /^[\s.,]*$/.test(p.text)));
+  const html = parts
     .map((p, i) => {
       // Each sentence is a paragraph of its own: a full stop becomes a break (and the last one just ends it).
       if ('text' in p) return escText(p.text).replace(/\.(\s+|$)/g, (_, sp: string, at: number, str: string) => (sp || (at + 1 === str.length && i < parts.length - 1) ? PARA : ''));
@@ -288,6 +291,7 @@ export function cardTextHtml(text: string, chosen?: string): string {
       return keywordHtml(p.kw, p.value, { data: true });
     })
     .join('');
+  return only ? `<span class="card-text-mid">${html}</span>` : html;
 }
 
 /** Between a card's sentences: a paragraph break. */

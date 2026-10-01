@@ -49,8 +49,8 @@ was replaced by this design in design review.
     - Event Horizon (Anomaly): any.
 - **Stability** is how many of your days a card stays in play. Its dawn effects trigger that many times, then it fades into your discard pile. [design review: stability on each card; the discard pile takes everything that leaves play]
   - **Standard stability:** 3.
-  - **Cards with only a when-played effect:** 2. They are mostly slot-fillers once played.
-  - **Command cards:** 3.
+  - **Cards with only a one-time effect** (no Dawn effect, nothing passive), Command Directive included: 1. They stay through your rival's day and fade at your next dawn: the slot is part of their cost, but they never stay past the day they are played. A card with a leave effect (Xel'Naru Martyr) fires it then.
+  - **Command cards** with a Dawn effect or a passive: 3.
   - **Cards with their own stability:** Mycelium Tower 4 (it grows over time), Aegis Monolith 4.
   - **Restoring it (at a price):**
     - Stasis Field: +2 to a card, heat your own sun 1.
@@ -99,7 +99,7 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 | Sunward Lance (Aureline) | Attack | Heat your rival by 1, or by 3 while your industrial planet faces your sun. Your orbit +1. |
 | Comet Shard (Xel'Naru) | Attack | Heat your rival by 3. Your rival's orbit −1. Heat your own sun by 1. |
 | Tide Lock (Vorthane) | Defence | Dawn: gain 1 shield, or 3 while your abundant planet faces your sun. |
-| Orbit Root (Ixquor, Stellar) | Growth | Dawn: cool your sun by 1. While your dead planet faces your sun, your orbit +2 (it moves on in a day, not three). |
+| Orbit Root (Ixquor, Stellar) | Growth | Dawn: gain 1 shield. While your dead planet faces your sun, your orbit +2 (it moves on in a day, not three). |
 
 **Starter decks with orbit:**
 - **Solar Lancers:** Gravity Assist and Tidal Brake, in place of a Helio Lancer and Aurelia.
@@ -114,7 +114,7 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
   - On Sunward Lance and Perihelion Forge, the planet bonus was first a second heat effect, so Solar Flare and attack bonuses counted twice. It is now a scaling bonus, counted once.
   - Coronal Chorus now hits for up to 3, not 4: with orbit's extra plays it reached its cap too easily.
 - Hive Bloom got more cooling and harder-hitting payoffs:
-  - Canopy cools 1, +1 for every 2 cards you control.
+  - Canopy cools 1, +1 for every 3 cards you control (was every 2).
   - Spore Cloud and the Brood Queen heat by 2 once you control 4 cards.
   - Orbit Root skips the dead planet.
 - **Result (1,000 games):**
@@ -212,7 +212,8 @@ Cards that only worked alongside others (a count of a card type, Command cards, 
 | Standing Orders, Chain of Command, War-Herald | needed one or two Command cards | see Command cards |
 | Command Breaker | heat 1, destroy a Command card | heat 2, destroy a Command card if there is one |
 | Signal Jammer | cancels a Command card (decks hold 2) | cancels a growth card |
-| Dead World Mine, Orbit Root | only while the dead planet faces your sun | also cool 1 every day |
+| Dead World Mine | only while the dead planet faces your sun | also cool 1 every day |
+| Orbit Root | only while the dead planet faces your sun | also 1 shield every day |
 | Recovery cards | nothing with an empty discard pile | draw 1 instead |
 
 ## Keywords [design review]
@@ -344,6 +345,14 @@ How often the newer mechanics come up in an AI game (per game), before and after
 | Cards recovered from the discard pile | 0.07 | 0.14 |
 
 Recovery used to be rare because cards that faded went back into the deck, so the discard pile held only destroyed and cancelled cards. Now every card that leaves play goes there.
+
+**One-time cards last a day (1000 games).** Cards with only a when-played effect now fade at their owner's next dawn (stability 1, was 2; Command Directive was 3). Unchanged, this swung the field to Hive Bloom (67%): with nothing clogging its tableau, its cooling kept it alive, and Tide fell to 41%. Fixes, tried one at a time in the simulator:
+- Canopy: +1 cooling per 3 cards you control, not per 2.
+- Orbit Root: a shield each dawn in place of its cooling.
+- Xel'Naru Martyr: 4 heat when it leaves (was 3), now that it leaves sooner.
+- Abyssal Tide's starter deck: Deep Current in place of Tidal Brake (its held shields feed the Abyssal Choirs).
+
+Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its cooling did. Result: Overload 52.5%, Tide 51.1%, Bloom 50.7%, Lancers 46.0%; seats 48/52; games about 11 rounds. Lancers lost the most from Command Directive fading fast (War-Herald and Standing Orders want a Command card in play), and Overload beats it 60/40. The other lopsided matchup is Tide vs Overload (74/26), as before.
 
 **After the discard pile and the card floors (1000 games).** Cards recovered from the discard pile went from 0.2 to 1.7 a game, and cards returned to hand to 1.9. Deck win rates are 46–55%: Lancers 54.7%, Overload 49.0%, Tide 49.6%, Bloom 46.3%. Seats are 49/51, and games last about 11.5 rounds.
 - The floors made Solar Lancers far too strong at first (about 80%). Their attack cards now all hit every day, and Focusing Array and Sunforge add to every one of them. Lancers now run one Sunforge (and a Recall Beacon), Coronal Chorus hits for up to 2, Sunlit Return cools 1, the Sun-Priest cools at most 2, and the War-Herald's Command bonus is a shield rather than more heat.
@@ -519,7 +528,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 
 ## Open design questions
 
-1. **Numbers:** max health 24, 5 slots, slot defence 1-2-3-2-1, stability 3 (2 for when-played cards), a cap of 2 plays and 1 draw a day are all first guesses. Human playtesting should drive them.
+1. **Numbers:** max health 24, 5 slots, slot defence 1-2-3-2-1, stability 3 (1 for one-time cards), a cap of 2 plays and 1 draw a day are all first guesses. Human playtesting should drive them.
 2. **Removal:** Ion Cannon is the only way to destroy a card, and it swings match-ups hard. Should there be more removal, or none?
 3. **Abyssal Tide** is the weakest starter (about 39%). It needs a stronger finisher or cheaper protection.
 4. **Collection:** decks are built from the full pool. A collection to unlock would suit a CCG, but was left for later.

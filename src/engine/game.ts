@@ -308,8 +308,9 @@ export function needsSlot(p: PlayerState, defId: string): boolean {
 export function baseStability(defId: string): number {
   const def = cardDef(defId);
   if (def.stability !== undefined) return def.stability;
-  if (def.kind === 'command') return BALANCE.stabilityCommand;
-  return def.onTurn?.length || def.passive?.length ? BALANCE.stability : BALANCE.stabilityBurst;
+  // A card that only does something once (when played) stays just until your next dawn: its slot is part of its cost.
+  if (!def.onTurn?.length && !def.passive?.length) return BALANCE.stabilityBurst;
+  return def.kind === 'command' ? BALANCE.stabilityCommand : BALANCE.stability;
 }
 
 /** Put a card into a tableau slot, with its full stability. */
