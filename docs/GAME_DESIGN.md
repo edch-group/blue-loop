@@ -86,7 +86,7 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 - Every sun starts at the dead planet. The orbit moves on one step at the start of each of your turns: three steps per planet, nine for the whole orbit.
 - **Orbit cards** move an orbit on or back, yours or your rival's, and the change counts from your next turn. "Orbit +3" swings the next planet round; "your rival's orbit −2" holds their next planet back (and from their dead planet's first turn, it wraps round to their industrial planet).
 - Some cards are **stronger while a planet faces your sun** (a scaling bonus, so upgrades and attack bonuses count once).
-- Each sun on the board shows its orbit: the three planets on a tilted ring round it, the one facing it this turn at the front and glowing, with a tag naming it and its turns left. The start-of-turn forecast counts its extra card or play.
+- Each sun on the board is a real, slowly turning star (mottled surface, white-hot rim, flickering corona; drawn on a canvas, no pulsing glow), standing up to face you. Round it, on one shared tilt, run its orbit ring, with three markers for the orbit's three planets (done, now, still to come), and inside that its shield and heat rings. The planet facing it this turn sits at the front and glows, with a tag naming it and its turns left. The start-of-turn forecast counts its extra card or play.
 
 | Card | Kind | Text |
 | --- | --- | --- |

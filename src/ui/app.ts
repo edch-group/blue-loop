@@ -50,6 +50,7 @@ import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
+import { animateSuns } from './sun3d';
 import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
@@ -757,7 +758,11 @@ export class App {
         if (!vit) return;
         const now = el.innerHTML;
         vit.outerHTML = vitals({ heat: was.heat, threshold: supernovaThreshold(was), shields: was.shields, dead: was.eliminated, id: was.id, orbit: was.orbit });
-        window.setTimeout(() => (el.innerHTML = now), at);
+        animateSuns();
+        window.setTimeout(() => {
+          el.innerHTML = now;
+          animateSuns();
+        }, at);
       });
     };
     const hit = (id: string, at: number, byEnemy: boolean) => {
@@ -1311,6 +1316,7 @@ export class App {
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
+    animateSuns();
     if (!this.press?.shown) this.preview.classList.remove('show');
   }
 
