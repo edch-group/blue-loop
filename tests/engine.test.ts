@@ -693,3 +693,25 @@ describe('recovery', () => {
     expect(activePlayer(s).hand.length).toBe(hand);
   });
 });
+
+describe('regional instability in the forecast', () => {
+  it('forecasts exactly the instability each player takes at their next turn', () => {
+    let s = twoPlayer();
+    s.round = BALANCE.instabilityStartsRound;
+    for (let k = 0; k < 4; k++) {
+      // Whoever moves next: their forecast, then what their turn actually costs them.
+      const waiting = s.players[(s.activePlayerIndex + 1) % 2];
+      const f = turnForecast(s, waiting);
+      for (const p of s.players) {
+        p.tableau = [];
+        p.shields = 0;
+      }
+      const before = waiting.heat;
+      s = endTurn(s);
+      const after = s.players.find((p) => p.id === waiting.id)!;
+      expect(after.heat - before).toBe(f.unstable);
+      expect(s.round).toBe(f.round);
+      expect(f.unstable).toBe(instabilityHeat(s));
+    }
+  });
+});

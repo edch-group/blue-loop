@@ -1577,14 +1577,16 @@ export class App {
     const total = BALANCE.instabilityStartsRound - 1;
     const remaining = Math.max(0, total - (s.round - 1));
     const instab = instabilityHeat(s);
+    // It grows each round: say what the next round brings too, since whoever moves first in a round takes the new amount.
+    const next = instabilityHeat({ ...s, round: s.round + 1 });
     const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
     return `
       <div class="round-box ${instab ? 'unstable' : ''}" title="${instab
-        ? `Round ${s.round}. Regional instability: every sun heats by ${instab} at the start of its turn.`
+        ? `Round ${s.round}. Regional instability: every sun heats by ${instab} at the start of its turn this round, and by ${next} next round.`
         : `Round ${s.round}. Regional stability drains by one each round; when it runs out, every sun heats at the start of its turn.`}">
         <div class="round-num"><small>round</small><b>${roman(s.round)}</b></div>
         <div class="stability">
-          <span class="stability-label">${instab ? `regional instability +${instab}` : `regional stability ${remaining}`}</span>
+          <span class="stability-label">${instab ? `regional instability +${instab} <em>next round +${next}</em>` : `regional stability ${remaining}`}</span>
           <div class="stability-bar">${segments}</div>
         </div>
       </div>`;
@@ -1731,7 +1733,8 @@ export class App {
       chip('fc-heat', '✹', f.heat, `Their start of turn: ${f.heat} heat to ${who(f.targetId)} (before shields)`),
       chip('fc-shield', '⛨', f.shields, `Their start of turn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
       chip('fc-cool', '❄', f.cool, `Their start of turn: their own sun cools by ${f.cool}`),
-      chip('fc-self', '☀', f.selfHeat, `Their start of turn: ${f.selfHeat} heat to their own sun (drawbacks, regional instability and the table)`),
+      chip('fc-self', '☀', f.selfHeat, `Their start of turn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
+      chip('fc-unstable', '≋', f.unstable, `Their start of turn (round ${f.round}): regional instability heats their sun by ${f.unstable}`),
       chip('fc-draw', HAND_ICON, f.draw, `Their start of turn: ${f.draw} extra card${f.draw === 1 ? '' : 's'} drawn${f.planet === 'abundant' ? ' (the abundant planet faces their sun)' : ''}`),
       chip('fc-play', '▶', f.plays, `Their turn: ${f.plays} extra card${f.plays === 1 ? '' : 's'} they may play (the industrial planet faces their sun)`),
     ].join('');

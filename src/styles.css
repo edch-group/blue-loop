@@ -360,6 +360,7 @@ input { font: inherit; }
 .stability-bar i { width: clamp(9px, calc(2.6 * var(--vw)), 20px); height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.4); transition: background 0.4s; }
 .stability-bar i.on { background: linear-gradient(180deg, #ffffff, #dfe3e8); box-shadow: 0 0 4px rgba(200, 208, 218, 0.9); }
 .unstable .stability-label { color: #a8716c; font-weight: 700; }
+.stability-label em { font-style: normal; font-weight: 500; opacity: 0.75; margin-left: 0.6em; }
 .unstable .stability-bar { background: rgba(201, 138, 134, 0.22); animation: blink 1.8s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: 0.6; } }
 
@@ -2291,6 +2292,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .fc-shield { color: #4f70a8; }
 .fc-cool { color: #3d8fd8; }
 .fc-self { color: #c7822c; }
+.fc-unstable { color: #a8716c; }
 .fc-draw, .fc-play { color: #3a9e6a; }
 .table-view > .game > .star-dock { z-index: 0 !important; }
 

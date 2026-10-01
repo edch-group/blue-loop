@@ -453,8 +453,12 @@ export interface TurnForecast {
   targetId: string | null;
   shields: number;
   cool: number;
-  /** Heat to their own sun: drawbacks, instability, Solar Storm, the map. */
+  /** Heat to their own sun from their cards' drawbacks, Solar Storm and the map (regional instability is apart, below). */
   selfHeat: number;
+  /** Regional instability's heat at the start of their next turn (that turn's round, which may be the next one). */
+  unstable: number;
+  /** The round their next turn falls in. */
+  round: number;
   /** Extra cards drawn (beyond the usual draw). */
   draw: number;
   /** Extra cards they may play (an industrial planet). */
@@ -474,7 +478,9 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   // Their next turn's planet (their first turn starts at the dead planet).
   const orbit = p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
   const planet = planetAt(orbit);
-  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, draw: 0, plays: 0, planet };
+  // Their turn comes this round if they sit after the active player, else next round.
+  const round = state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
+  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, round, draw: 0, plays: 0, planet };
   if (p.eliminated) return f;
   if (planet === 'abundant' && p.turnsTaken > 0) f.draw += BALANCE.abundantDraw;
   if (planet === 'industrial') f.plays += BALANCE.industrialPlays;
@@ -507,9 +513,7 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
       }
     }
   }
-  // Their turn comes this round if they sit after the active player, else next round.
-  const later = state.players.indexOf(p) > state.activePlayerIndex;
-  f.selfHeat += instabilityHeat({ ...state, round: state.round + (later ? 0 : 1) });
+  f.unstable = instabilityHeat({ ...state, round });
   if (fieldActive(state, 'solarStorm')) f.selfHeat += 1;
   if (fieldActive(state, 'iceAge')) f.cool += 1;
   const m = p.modifiers;
