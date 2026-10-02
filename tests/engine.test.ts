@@ -105,15 +105,16 @@ describe('setup', () => {
 describe('plays per turn', () => {
   it('grows by one each turn up to the cap, with a head start for the second seat', () => {
     // The industrial planet's bonus energy aside: 1, 2, then 3 a day.
-    const industry = BALANCE.industrialPlays;
-    BALANCE.industrialPlays = 0;
+    const rules = BALANCE as { industrialPlays: number };
+    const industry = rules.industrialPlays;
+    rules.industrialPlays = 0;
     let s = twoPlayer();
     const plays: number[] = [];
     for (let t = 0; t < 12; t++) {
       plays.push(activePlayer(s).playsLeft);
       s = endTurn(s);
     }
-    BALANCE.industrialPlays = industry;
+    rules.industrialPlays = industry;
     expect(plays.filter((_, i) => i % 2 === 0)).toEqual([1, 2, 3, 3, 3, 3]);
     expect(plays.filter((_, i) => i % 2 === 1)).toEqual([1 + BALANCE.laterSeatPlays, 2, 3, 3, 3, 3]);
   });
@@ -355,6 +356,17 @@ describe('the day\'s heat limit', () => {
 });
 
 describe('card costs', () => {
+  it("a Command card's energy option adds 1 energy at each of your dawns", () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['command_directive']);
+    s = play(s, 'command_directive', { choice: 'energy1', slot: 0 });
+    s = endTurn(s);
+    s = endTurn(s);
+    const back = s.players.find((p) => p.id === me.id)!;
+    expect(back.playsLeft).toBe(playsAllowed(s, back) + 1);
+  });
+
   it('cards cost energy, and a card is refused without enough of it', () => {
     let s = twoPlayer();
     const me = activePlayer(s);

@@ -572,3 +572,19 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 - **Four 4-cost bombs, which need bonus energy to play:** Fracture Burst (8, pierce), The Sun Throne (draws 2), Harmonic Singularity (Resonance 3/2) and The Brood Queen (heats 2 every dawn).
 - **After simulating:** Hive Bloom won 83% at first. Its cheap engine was underpriced, so Rot Bloom, Compost Cycle, Hive Rooting and Spore Husk went to 2, and Hive Relay (+1 energy every day) to 3.
 - **Result (AI games):** starters 46–57% (400 games), seats 52/48, games 14 rounds. The expensive synergy-attack deck wins 31% against the starters, a cheap all-attack deck 67%, and the shield/sting wall deck 14% (its key cards now cost 2–3). Curve matters: a deck of bombs can't play them fast enough.
+
+**Command cards: heat, cool or energy.** The draw option was never picked in simulation (0 times a game), so it became **+1 energy** at each dawn. Dawn energy is banked and added once the day's energy is set. The AI values it at an energy's worth, scaled down when it holds fewer than 4 cards to spend it on. In 400 games it picks heat 0.8 times a game, cool 2.9 and energy 1.3. Starters sit at 44–57%, seats 50/50.
+
+**Defence that answers at once.** Walls fell to 14% once energy came in, because their persistent cards cost 2–3 and took days to pay off. Eight new defence cards protect as they land, and keep going:
+- Frost Bulwark (2): Cool 2, Shield 2.
+- Dawn Rampart (2, Aureline): Shield 2, Cool 1, then Shield 1 each dawn.
+- Glacier Shell (3): Shield 3, then Cool 2 each dawn.
+- Prism Sanctum (3, Xel'Naru): Cool 4, then cooling each dawn, more while overheated.
+- Chitin Fortress (3, Ixquor): Sturdy, Shield 3, then cooling each dawn.
+- Stellar Aegis (4): Shield 10, Cool 3, near-unkillable for a day under the 8-heat limit.
+- Solar Bastion (4): Shield 6, Cool 2, then Shield 2 and Cool 1 each dawn.
+- Leviathan Shell (4, Vorthane): Shield 6 that never fade, then Shield 2 each dawn.
+
+A wall deck built with them wins 50% against the starters and 86% against the cheap all-attack deck (67% against the starters), so aggro has a counter again.
+
+**Supernova flicker.** The explosion's pulse animated `transform: scale(...)` on the sun's holder. That wiped out the `translateY(-50%)` centring it, so the sun dropped half its height for the length of the burst. It now animates `scale` on its own, which adds to the transform instead of replacing it.

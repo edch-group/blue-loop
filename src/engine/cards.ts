@@ -13,12 +13,12 @@ import { CARD_COSTS } from './costs';
  */
 /**
  * A Command card's choice of dawn effect: heat your rival, cool your sun, or draw. The ids are how the
- * choice is written into card text ({options:heat2|cool3|draw1}) and named in a play.
+ * choice is written into card text ({options:heat2|cool3|energy1}) and named in a play.
  */
 export const COMMAND_CHOICES: NonNullable<CardDef['choices']> = [
   { id: 'heat2', onTurn: [{ type: 'heat', amount: 2, to: 'target' }] },
   { id: 'cool3', onTurn: [{ type: 'cool', amount: 3 }] },
-  { id: 'draw1', onTurn: [{ type: 'draw', amount: 1 }] },
+  { id: 'energy1', onTurn: [{ type: 'plays', amount: 1 }] },
 ];
 
 export const CARDS: CardDef[] = [
@@ -48,7 +48,7 @@ export const CARDS: CardDef[] = [
 
   // ---- Command: each deck's two pillars. Played with a choice of dawn effect, they stay their full term,
   // and can't be recovered or recalled to your own hand (a rival can still send them back) ----
-  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: '{dawn}, one of: {options:heat2|cool3|draw1}', choices: COMMAND_CHOICES },
+  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: '{dawn}, one of: {options:heat2|cool3|energy1}', choices: COMMAND_CHOICES },
   {
     id: 'ignition_protocol',
     name: 'Ignition Protocol',
@@ -77,7 +77,7 @@ export const CARDS: CardDef[] = [
     id: 'the_admiralty',
     name: 'The Admiralty',
     kind: 'command',
-    text: '{resonance:2}. {dawn}, one of: {options:heat2|cool3|draw1}',
+    text: '{resonance:2}. {dawn}, one of: {options:heat2|cool3|energy1}',
     choices: COMMAND_CHOICES,
     passive: [{ type: 'adjacent', amounts: [2] }],
   },

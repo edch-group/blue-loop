@@ -107,11 +107,11 @@ function rawLabel(id: string, value?: string): string {
 }
 
 /**
- * A card's choices, written `{options:a|b|c}` (heat2, cool3, draw1): listed on
+ * A card's choices, written `{options:a|b|c}` (heat2, cool3, energy1): listed on
  * the card one per line, and the one picked highlighted when the card is shown
  * being played.
  */
-/** An option as a short phrase of card text: "heat2" → "{heat:2}", "draw1" → "Draw 1". */
+/** An option as a short phrase of card text: "heat2" → "{heat:2}", "energy1" → "{energy:1}". */
 export function optionText(id: string): string {
   const m = /^([a-z]+)(\d+)$/.exec(id);
   if (!m) return id;

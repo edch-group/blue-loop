@@ -2733,7 +2733,7 @@ export class App {
       chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
       chip('fc-unstable', '≋', f.unstable, `As round ${f.unstableRound} begins: regional instability heats every sun by ${f.unstable}, all at once`),
       chip('fc-draw', HAND_ICON, f.draw, `Their dawn: ${f.draw} extra card${f.draw === 1 ? '' : 's'} drawn${f.planet === 'abundant' ? ' (the abundant planet faces their sun)' : ''}`),
-      chip('fc-play', '⚡', f.plays, `Their day: +${f.plays} energy (the industrial planet faces their sun)`),
+      chip('fc-play', '⚡', f.plays, `Their day: +${f.plays} energy (from the industrial planet and their cards)`),
     ].join('');
     // Nothing coming: show nothing.
     if (!chips) return '';
@@ -2752,7 +2752,7 @@ export class App {
       </section>`;
   }
 
-  /** The day's controls, off the board at the bottom right of the screen: actions left (as dots) and End Day. */
+  /** The day's controls, off the board at the bottom right of the screen: energy left (as dots) and End Day. */
   private renderTurnControls(): string {
     const s = this.state!;
     const me = this.viewer();
@@ -2763,7 +2763,7 @@ export class App {
     const pips = myTurn ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''}"></i>`).join('') : '';
     return `
       <div class="turn-controls turn-corner">
-        <div class="plays ${myTurn ? '' : 'plays-off'}" title="Actions left today: each card you play uses one">
+        <div class="plays ${myTurn ? '' : 'plays-off'}" title="Energy left today: each card costs the number on its gem">
           <small>${myTurn ? 'energy' : 'waiting'}</small>
           <span class="plays-pips">${pips}</span>
         </div>
@@ -2794,7 +2794,7 @@ export class App {
       state = 'card-choosable';
     }
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
-    // On your day, a card that takes more actions than you have left is dimmed.
+    // On your day, a card that costs more energy than you have left is dimmed.
     if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     const boost = opts.owner && boostable(c.defId) ? resonanceBonus(opts.owner, c) : 0;

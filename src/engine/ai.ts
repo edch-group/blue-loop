@@ -41,6 +41,8 @@ const LEADER_GAP = tuning('GAP', 0.25);
 
 /** What one energy is worth, roughly (beyond the first, which every card costs). */
 const ACTION_VALUE = tuning('ACTION', 2.5);
+/** A dawn's +1 energy is worth a full energy with this many cards (beyond one) in hand to spend it on, less with fewer. */
+const ENERGY_HAND = tuning('EHAND', 4);
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
 const INCOMING_WEIGHT = tuning('INCOMING', 0.8);
@@ -68,6 +70,10 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
         break;
       case 'draw':
         perTurn += scale * e.amount * 0.7;
+        break;
+      case 'plays':
+        // Energy is worth what it lets you play: about a card's worth, with cards in hand to spend it on.
+        perTurn += scale * e.amount * ACTION_VALUE * Math.min(1, Math.max(0.2, (p.hand.length - 1) / ENERGY_HAND));
         break;
       case 'selfHeat':
         perTurn -= e.amount * (isOverheated(p) ? 1.1 : 0.7);

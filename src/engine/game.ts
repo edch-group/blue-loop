@@ -511,6 +511,9 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
         case 'draw':
           f.draw += e.amount;
           break;
+        case 'plays':
+          f.plays += e.amount;
+          break;
       }
     }
   }
@@ -786,7 +789,9 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       }
       case 'plays':
         if (activePlayer(state).id === p.id) {
-          p.playsLeft += e.amount;
+          // At dawn the day's energy is not set yet: it is banked and added when it is.
+          if (when === 'turn') p.turn.dawnEnergy = (p.turn.dawnEnergy ?? 0) + e.amount;
+          else p.playsLeft += e.amount;
           log(state, `${p.name} gains ${e.amount} energy today.`);
         }
         break;
@@ -923,7 +928,7 @@ function startTurn(state: GameState) {
     if (state.winnerId || p.eliminated) break;
     if (p.tableau.includes(card) && (card.stability ?? 0) <= 0) sweep(state, p, card);
   }
-  p.playsLeft = playsAllowed(state, p);
+  p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
   if (p.eliminated) passOn(state);
 }
 

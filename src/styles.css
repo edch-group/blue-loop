@@ -751,7 +751,8 @@ input { font: inherit; }
 @keyframes hitShield { 0% { box-shadow: 0 0 0 5px rgba(255, 255, 255, 1), 0 0 30px rgba(200, 210, 225, 1); } 100% { box-shadow: 0 0 0 0 transparent; } }
 @keyframes shake { 20% { transform: translateX(-4px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(1px); } }
 .fx-nova { animation: nova 1.3s ease-out; }
-@keyframes nova { 0% { transform: scale(1); filter: brightness(2); } 40% { transform: scale(1.6); filter: brightness(3); } 100% { transform: scale(1); filter: none; } }
+/* Scale, not transform: the sun's holder is centred by its own translate, which a transform keyframe would wipe out. */
+@keyframes nova { 0% { scale: 1; filter: brightness(2); } 40% { scale: 1.6; filter: brightness(3); } 100% { scale: 1; filter: none; } }
 .fx-flash::after { content: ''; position: fixed; inset: 0; background: #fff; z-index: 70; pointer-events: none; animation: flash 1s ease-out forwards; }
 @keyframes flash { from { opacity: 0.95; } to { opacity: 0; } }
 .fx-upgrade { animation: upgradeGlow 1.2s ease-out; }

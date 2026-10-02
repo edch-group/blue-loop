@@ -763,6 +763,15 @@ const ART2: Record<string, Draw> = {
   overgrowth: (S) => Array.from({ length: 8 }, (_, i) => S.mushroom(12 + i * 20, 100, 30 + ((i * 13) % 30), 18, i % 2 ? '#d59cff' : '#c5ff8a', (i - 4) * 2)).join(''),
   fruiting_body: (S) => S.ground(92, '#0e0a1c') + S.mushroom(80, 92, 44, 56, '#ff9a8a') + S.glow(80, 40, 24, '#ffb070', 0.5),
   ixquor_broodguard: (S) => S.ground(92, '#0e0a1c') + ixquor(S, 64, 68, 1.1, { arms: 3, cap: '#9fd0ff', tall: 0.95 }) + S.dome(64, 92, 40, '#c5ff8a'),
+  // ---- Defence that answers at once ----
+  frost_bulwark: (S) => S.dome(80, 86, 50, '#bfe6ff') + S.hex(80, 56, 16, S.linear([[0, '#ffffff', 0.9], [1, '#9fd0ff', 0.5]]), '#fff') + S.motes(80, 40, 22, 60, '#ffffff', 1.1),
+  glacier_shell: (S) => `<path d="M30 90 L52 30 L70 54 L86 18 L104 50 L120 34 L134 90 Z" fill="${S.linear([[0, '#ffffff'], [1, '#7fb6e6']])}" stroke="#fff" stroke-width="0.8"/>` + S.dome(80, 90, 62, '#bfe6ff'),
+  stellar_aegis: (S) => S.glow(80, 60, 70, '#dff2ff', 0.6) + S.dome(80, 92, 74, '#ffffff') + S.dome(80, 92, 52, '#9fd0ff') + S.sun(80, 72, 8, '#ffffff', 10),
+  solar_bastion: (S) => S.ground(88) + `<polygon points="40,88 48,40 64,40 64,28 96,28 96,40 112,40 120,88" fill="${S.linear([[0, '#e6ecf5'], [1, '#4a5a74']])}" stroke="#fff" stroke-width="0.8"/>` + S.sun(80, 20, 7, '#ffd98a', 10) + S.dome(80, 88, 64, '#bfe6ff'),
+  dawn_rampart: (S) => S.sun(80, 26, 8, '#ffd98a', 10) + [44, 62, 80, 98, 116].map((x) => `<rect x="${x - 7}" y="48" width="14" height="40" rx="2" fill="${S.linear([[0, '#fff3c4'], [1, '#4d6fae']])}" stroke="#fff" stroke-width="0.6"/>`).join('') + S.dome(80, 88, 56, '#ffd98a'),
+  prism_sanctum: (S) => S.ground(90, '#1b0c24') + S.crystal(80, 54, 60, 28, 0, '#9fd0ff') + S.crystal(50, 66, 34, 14, -12, '#c9a2ff') + S.crystal(110, 66, 34, 14, 12, '#c9a2ff') + S.glow(80, 50, 30, '#dff2ff', 0.5),
+  leviathan_shell: (S) => `<path d="M20 90 Q80 6 140 90 Z" fill="${S.linear([[0, '#58a9a0'], [1, '#063040']])}" stroke="#7ff0e0" stroke-width="1.2"/>` + [30, 44, 58, 72].map((y) => `<path d="M${30 + (y - 30) * 0.3} ${y + 14} Q80 ${y - 20} ${130 - (y - 30) * 0.3} ${y + 14}" fill="none" stroke="#7ff0e0" stroke-width="0.8" opacity="0.6"/>`).join('') + S.glow(80, 60, 14, '#dffff8', 0.8),
+  chitin_fortress: (S) => S.ground(90, '#0e0a1c') + [[54, 70, 18], [80, 58, 24], [106, 70, 18]].map(([x, y, r]) => S.hex(x, y, r, S.linear([[0, '#d59cff'], [1, '#3d2b5e']]), '#c5ff8a')).join('') + S.dome(80, 90, 60, '#c5ff8a'),
   hive_tyrant: (S) => S.glow(80, 30, 60, '#ff9a8a', 0.35) + ixquor(S, 80, 70, 1.25, { arms: 5, cap: '#ff9a8a', tall: 1.1, crown: true }),
 };
 Object.assign(ART, ART2);

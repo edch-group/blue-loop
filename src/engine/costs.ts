@@ -7,6 +7,8 @@ export const CARD_COSTS: Record<string, number> = {
   // 0
   relay_station: 0,
   // 2
+  dawn_rampart: 2,
+  frost_bulwark: 2,
   abyssal_snap: 2,
   aureline_skirmisher: 2,
   aureline_sun_priest: 2,
@@ -87,6 +89,9 @@ export const CARD_COSTS: Record<string, number> = {
   xelnaru_oracle: 2,
   xelnaru_warden: 2,
   // 3
+  chitin_fortress: 3,
+  glacier_shell: 3,
+  prism_sanctum: 3,
   abyssal_choir: 3,
   aegis_monolith: 3,
   aurelia_first_light: 3,
@@ -99,6 +104,9 @@ export const CARD_COSTS: Record<string, number> = {
   temporal_snare: 3,
   the_admiralty: 3,
   // 4
+  leviathan_shell: 4,
+  solar_bastion: 4,
+  stellar_aegis: 4,
   fracture_burst: 4,
   harmonic_singularity: 4,
   the_brood_queen: 4,

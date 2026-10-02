@@ -50,7 +50,7 @@ const MECHANICS: [string, RegExp][] = [
   ['command played', /plays (Command Directive|Ignition Protocol|Coolant Protocol|Chamber Protocol|The Admiralty)/],
   ['command chose heat', /chooses: heat/],
   ['command chose cool', /chooses: cool/],
-  ['command chose draw', /chooses: draw/],
+  ['command chose energy', /chooses: energy/],
 ];
 const mechCount = new Map<string, number>();
 
