@@ -2653,7 +2653,6 @@ export class App {
         </div>
         ${this.renderHud()}
         ${this.renderTurnControls()}
-        ${this.renderPickHint()}
         ${this.renderStage()}
         ${this.renderOverlay(s)}
       </main>`;
@@ -2735,38 +2734,26 @@ export class App {
       </div>`;
   }
 
-  /** While a card waits for a choice on the board, a short prompt sits at the top of the screen. */
-  private renderPickHint(): string {
+  /**
+   * While the board waits on you (aiming heat, choosing a card), a word or two lies in the middle of the
+   * board saying what to do, with a way back out.
+   */
+  private renderMidHint(): string {
     const p = this.pending;
     const s = this.state!;
-    // Your dawn: aim each card's dawn heat, then let it break.
-    if (!p && this.dawnTurn()) {
-      const who = esc(targetOf(s, activePlayer(s))?.name.toLowerCase() ?? 'your rival');
-      return `<div class="pick-hint pick-dawn"><span>dawn: tap a card of yours, then where its heat goes: one of ${who}'s cards, or their sun</span><button class="pill-btn pill-dawn" data-act="dawn-go">break dawn</button></div>`;
-    }
-    if (!p || p.step === 'choice') return '';
+    if (isGameOver(s)) return '';
+    const hint = (text: string, cancel = true) => `<div class="mid-hint"><b>${text}</b>${cancel ? '<button class="mid-cancel" data-act="cancel">cancel</button>' : ''}</div>`;
+    // Online, while your rival reads the card you just played.
+    if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
+    // Your dawn: aim each card's dawn heat (the button lets it break).
+    if (!p && this.dawnTurn()) return hint('assign heat', false);
+    if (!p || p.step === 'choice' || p.step === 'recover' || p.step === 'slot') return '';
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.dawn ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
-    const name = esc(cardDef(card.defId).name.toLowerCase());
-    if (p.step === 'recover') return '';
-    if (p.step === 'aim') {
-      const aims = aimChoices(s, activePlayer(s));
-      const who = esc(targetOf(s, activePlayer(s))?.name.toLowerCase() ?? 'your rival');
-      const its = p.dawn ? 'its dawn heat' : 'its heat';
-      const text = aims.sun ? `${name}: aim ${its} at one of ${who}'s cards, or at their sun` : `${name}: ${who} has a Guard in play: aim ${its} at it`;
-      return `<div class="pick-hint"><span>${text}</span><button class="pill-btn" data-act="cancel">cancel</button></div>`;
-    }
-    const rival = esc(targetOf(s, activePlayer(s))?.name.toLowerCase() ?? 'your target');
-    const verb = { destroy: 'destroy', bounce: 'return to their hand', erode: 'erode' }[enemyEffectKind(card.defId) ?? 'destroy'];
-    // Placing a card needs no prompt: the open slots light up (tap the card again to put it back).
-    if (p.step === 'slot') return '';
-    const text =
-      p.step === 'enemy'
-        ? `${name}: choose a card in ${rival}'s tableau to ${verb}`
-        : p.step === 'ally'
-          ? `${name}: choose a card of yours to ${allyEffectKind(card.defId) === 'recall' ? 'return to your hand' : 'restore'}`
-          : `${name}: choose a slot · the middle is safest (⛨ defence)`;
-    return `<div class="pick-hint"><span>${text}</span><button class="pill-btn" data-act="cancel">cancel</button></div>`;
+    if (p.step === 'aim') return hint(aimChoices(s, activePlayer(s)).sun ? 'aim heat' : 'aim at a guard');
+    if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
+    if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
+    return '';
   }
 
   /**
@@ -2814,6 +2801,7 @@ export class App {
             <div class="board-star-slot"></div>
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.renderResult()}
+            ${this.renderMidHint()}
             ${this.renderTableau(me, 'mine')}
           </div>
         </div>
@@ -3011,6 +2999,8 @@ export class App {
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
     // On your day, a card that costs more energy than you have left is dimmed.
     if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
+    // While you assign your dawn's heat, your hand waits (greyed out).
+    if (opts.hand && this.dawnTurn()) state = 'card-pricey';
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     const boost = opts.owner && boostable(c.defId) ? resonanceBonus(opts.owner, c) : 0;
     const resonance = boost ? `<span class="resonance" title="Resonance: +${boost} to this card's heat, cooling and shields from its neighbours">+${boost}</span>` : '';
@@ -3068,10 +3058,7 @@ export class App {
     const st = this.stage;
     const s = this.state!;
     // Online, while your rival reads your card: say so (you can't act until they have).
-    if (!st && this.online && this.net.waitFor === 'rival' && !isGameOver(s)) {
-      const rival = s.players.find((p) => p.id !== this.viewer().id);
-      return `<div class="wait-note">${esc((rival?.name ?? 'your rival').toLowerCase())} is reading your card…</div>`;
-    }
+
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
     const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true, option: st.option, landscape: cardDef(st.defId).kind === 'command' })

@@ -3044,3 +3044,21 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* The stage shows a Command card landscape. */
 .stage .card.card-landscape { width: calc(var(--cw) * 1.4); height: var(--cw); }
+
+/* What the board waits on you for, in a word or two, lying in the middle of the board. */
+.board .mid-hint { grid-row: 2; }
+.mid-hint {
+  position: relative; z-index: 3; justify-self: center; align-self: center; display: grid; justify-items: center; gap: 4px;
+  pointer-events: none; transform: translateZ(4px);
+}
+.mid-hint b {
+  font-family: var(--display); font-weight: 500; text-transform: uppercase; letter-spacing: 0.32em;
+  font-size: clamp(0.8rem, calc(3.6 * var(--vh)), 1.5rem); color: var(--ink);
+  padding: 6px 18px; border-radius: 999px; background: rgba(255, 255, 255, 0.86); box-shadow: 0 0 0 1px #fff, 0 6px 18px rgba(70, 76, 100, 0.14);
+  animation: result-in 0.35s cubic-bezier(.2,.8,.2,1);
+}
+.mid-cancel {
+  pointer-events: auto; border: 0; background: none; cursor: pointer; font-family: var(--display); letter-spacing: 0.2em; text-transform: uppercase;
+  font-size: clamp(0.5rem, calc(1.8 * var(--vh)), 0.7rem); color: var(--ink-soft); padding: 4px 10px;
+}
+.mid-cancel:hover { color: var(--ink); }
