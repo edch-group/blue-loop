@@ -742,8 +742,12 @@ export class App {
   }
 
   /** The viewer has read the rival's card on the stage: it goes, and the rival carries on. */
+  /** Clicks are ignored until then (just after the stage's OK, so a tap can't land on the board beneath it). */
+  private clickShieldUntil = 0;
+
   private confirmStage() {
     if (!this.stage?.confirm) return;
+    this.clickShieldUntil = Date.now() + 400;
     this.stage = null;
     this.unaim?.();
     this.unaim = null;
@@ -1808,6 +1812,15 @@ export class App {
       this.suppressClick = false;
       return;
     }
+    // While a rival's card waits on the stage to be read, only the stage takes clicks (and a tap on its OK
+    // must not fall through to whatever is under it once the stage has gone).
+    // (The menu, settings and log stay usable.)
+    const onStage = !!(e.target as HTMLElement).closest?.('.stage, .hud, .overlay, .modal');
+    if ((this.stage?.confirm && !onStage) || Date.now() < this.clickShieldUntil) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     if (!el || el.hasAttribute('disabled')) return;
     if (el.classList.contains('overlay') && e.target !== el) return;
@@ -2170,7 +2183,8 @@ export class App {
     const n = cards.length;
     if (!n) return;
     // Cards differ in width (a Command card lies landscape): neighbours overlap by the same share of their widths.
-    const ws = cards.map((c) => c.offsetWidth);
+    // (A Command card is held on its side: its footprint is as wide as it is tall.)
+    const ws = cards.map((c) => (c.classList.contains('card-landscape') ? c.offsetHeight : c.offsetWidth));
     const w = Math.min(...ws);
     const inset = w * 0.12; // room for the outer cards' tilt, so they don't cover the piles
     const W = hand.clientWidth - inset * 2;
@@ -2191,7 +2205,7 @@ export class App {
     cards.forEach((c, i) => {
       const t = i - (n - 1) / 2;
       const a = (t * step * Math.PI) / 180;
-      c.style.left = `${start + centres[i] - ws[i] / 2}px`;
+      c.style.left = `${start + centres[i] - c.offsetWidth / 2}px`;
       c.style.setProperty('--fr', `${t * step}deg`);
       c.style.setProperty('--fy', `${(radius * (1 - Math.cos(a)) * 1.25).toFixed(2)}px`);
       c.style.zIndex = String(i + 1);
@@ -3039,7 +3053,7 @@ export class App {
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
-      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
+      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}${def.kind === 'command' ? ' card-landscape' : ''}" style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArt(def, true)}</div>
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${boost ? `<span class="resonance">+${boost}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
@@ -3058,7 +3072,7 @@ export class App {
     }
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
-    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true, option: st.option })
+    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true, option: st.option, landscape: cardDef(st.defId).kind === 'command' })
           // Already the zoomed view: a still card, not a button (only its keywords respond, explaining themselves).
           .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
           .replace(/<\/button>\s*$/, '</div>')

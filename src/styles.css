@@ -914,14 +914,14 @@ input { font: inherit; }
   position: absolute;
   top: 8px;
   transform-origin: 50% 50%;
-  transform: translateY(var(--fy, 0)) rotate(var(--fr, 0deg));
+  transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg)));
   transition: transform 0.18s ease-out, box-shadow 0.2s;
   box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18);
 }
 .hand > .card.lifted, .hand > .card:focus-visible {
   /* A subtle lift: the card rises a little out of the fan, keeping its angle. */
   z-index: 50 !important;
-  transform: translateY(calc(var(--fy, 0px) - var(--hh) * 0.08)) rotate(var(--fr, 0deg));
+  transform: translateY(calc(var(--fy, 0px) - var(--hh) * 0.08)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg)));
   box-shadow: 0 10px 24px rgba(80, 80, 100, 0.22), 0 0 0 1.5px #fff;
 }
 .hand-hidden { position: absolute; inset: 0; display: grid; place-items: center; }
@@ -3030,10 +3030,17 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* Keyword colours are made for pale cards: lift them on a Command card's slate. */
 .card.kind-command .card-text .kw:not(.kw-timing) { filter: brightness(1.9) saturate(1.15); }
 .card.kind-command .card-opts-chosen .card-opt.on, .card.kind-command .card-opt.on { background: rgba(255, 217, 138, 0.22); color: #fff; box-shadow: inset 0 0 0 1.5px #d4a52a; }
-/* In hand, it lies on its side too. On its side the text has less room: no type line, a smaller name,
-   and the options get the rest. */
-.hand > .card.card-landscape { height: var(--hw); }
-.card.card-landscape .card-kind { display: none; }
+/* In hand it is held upright like every other card: the same landscape card, turned on its side (picture at
+   the top), in an upright card's footprint. */
+.hand > .card.card-landscape { --side: 90deg; height: var(--hw); top: calc(8px + (var(--hh) - var(--hw)) / 2); }
+.card.card-landscape:not(.card-big) .card-kind { display: none; }
 .hand > .card.card-landscape .card-name { font-size: max(8px, calc(var(--cw) * 0.075)); padding-right: 0; line-height: 1.1; }
 .hand > .card.card-landscape .card-text { font-size: max(8px, calc(var(--cw) * 0.07)); }
+/* Its magnified view lies landscape too. */
+.card-big.card-landscape { padding: 4% 4% 4% calc(var(--cmdw) * 0.5); }
+.card-big.card-landscape .card-glyph { width: calc(var(--cmdw) * 0.46); }
+.card-big.card-landscape .card-kind { text-align: left; margin-top: auto; }
 .card.kind-command .kw-timing { color: #ffd98a; }
+
+/* The stage shows a Command card landscape. */
+.stage .card.card-landscape { width: calc(var(--cw) * 1.4); height: var(--cw); }
