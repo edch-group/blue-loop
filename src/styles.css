@@ -3016,20 +3016,24 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* Command cards (the race heroes) are dark, so they stand out from the moment they are drawn. */
 .card.kind-command, .card.kind-command.rarity-stellar, .card.kind-command.rarity-anomaly {
-  background-color: #232937;
-  background-image: linear-gradient(160deg, #3c4658, #1a1f2a 70%);
+  background-color: #4b5466;
+  background-image: linear-gradient(160deg, #6b7588, #4b5466 75%);
   background-size: 100% 100%; background-position: 0 0;
-  border-color: #4a5468;
+  border-color: #7a8498;
 }
 .card.kind-command.rarity-stellar { box-shadow: inset 0 0 0 1px rgba(212, 165, 42, 0.55), 0 6px 16px rgba(30, 34, 44, 0.3); }
 .card.kind-command.rarity-anomaly { box-shadow: inset 0 0 0 1px rgba(175, 140, 230, 0.6), 0 6px 16px rgba(30, 34, 44, 0.3); }
 .card.kind-command .card-name { color: #f2f5fa; }
-.card.kind-command .card-text { color: #c9d1de; }
-.card.kind-command .card-kind { color: #a9b3c4; }
-.card.kind-command .card-opt { background: rgba(255, 255, 255, 0.08); color: #e6ecf5; }
+.card.kind-command .card-text { color: #eef2f8; }
+.card.kind-command .card-kind { color: #d6dce8; }
+.card.kind-command .card-opt { background: rgba(255, 255, 255, 0.14); color: #ffffff; }
+/* Keyword colours are made for pale cards: lift them on a Command card's slate. */
+.card.kind-command .card-text .kw:not(.kw-timing) { filter: brightness(1.9) saturate(1.15); }
 .card.kind-command .card-opts-chosen .card-opt.on, .card.kind-command .card-opt.on { background: rgba(255, 217, 138, 0.22); color: #fff; box-shadow: inset 0 0 0 1.5px #d4a52a; }
-/* In hand, it lies on its side too, with its name and options large enough to read. */
+/* In hand, it lies on its side too. On its side the text has less room: no type line, a smaller name,
+   and the options get the rest. */
 .hand > .card.card-landscape { height: var(--hw); }
-.hand > .card.card-landscape .card-name { font-size: max(8px, calc(var(--cw) * 0.085)); }
-.hand > .card.card-landscape .card-text { font-size: max(8px, calc(var(--cw) * 0.068)); }
+.card.card-landscape .card-kind { display: none; }
+.hand > .card.card-landscape .card-name { font-size: max(8px, calc(var(--cw) * 0.075)); padding-right: 0; line-height: 1.1; }
+.hand > .card.card-landscape .card-text { font-size: max(8px, calc(var(--cw) * 0.07)); }
 .card.kind-command .kw-timing { color: #ffd98a; }
