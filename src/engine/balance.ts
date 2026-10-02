@@ -50,6 +50,8 @@ export const BALANCE = {
   tableauSlots: 5,
   /** Each slot's defence, left to right: the middle is safest. Removal cards can only reach cards with low enough defence. */
   slotDefence: [1, 2, 3, 2, 1],
+  /** The share of a player's shields that still stands against pierce heat (0: pierce ignores shields). */
+  pierceShieldShare: 0.5,
   /** The Command slot's defence (it leads the tableau, out in front of the five). */
   commandSlotDefence: 2,
   /**

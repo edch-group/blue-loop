@@ -572,11 +572,13 @@ const ART: Record<string, Draw> = {
   ice_age: (S) => S.planet(80, 60, 30, '#ffffff', '#6aa0d0') + [0, 60, 120].map((a) => `<line x1="80" y1="30" x2="80" y2="90" stroke="#fff" stroke-width="2" transform="rotate(${a} 80 60)"/>`).join('') + S.glow(80, 60, 44, '#dff2ff', 0.5),
   solar_maximum: (S) => S.sun(80, 54, 20, '#ffd98a', 16) + S.rings(80, 54, 30, 3, 10, '#ffe7a8', 0.6),
   // ---- Commands ----
-  command_directive: (S) => S.planet(80, 98, 40, '#a9b3c4', '#1a1f2a') + [0, 1, 2].map((i) => `<polyline points="${60},${56 - i * 12} 80,${44 - i * 12} 100,${56 - i * 12}" fill="none" stroke="#fff" stroke-width="3" stroke-opacity="${1 - i * 0.25}"/>`).join('') + S.glow(80, 30, 20, '#fff', 0.5),
-  ignition_protocol: (S) => S.panel(56, 24, 48, 56, 6) + `<polygon points="72,68 80,34 88,68" fill="${S.linear([[0, '#fff'], [1, '#ff7a3a']])}"/>` + S.sun(80, 36, 5, '#ffb070', 8),
-  coolant_protocol: (S) => S.panel(56, 24, 48, 56, 6) + [0, 60, 120].map((a) => `<line x1="80" y1="36" x2="80" y2="68" stroke="#dff2ff" stroke-width="2.4" transform="rotate(${a} 80 52)"/>`).join('') + S.glow(80, 52, 16, '#dff2ff', 0.8),
-  chamber_protocol: (S) => S.panel(56, 24, 48, 56, 6) + [68, 78, 88].map((x) => `<rect x="${x}" y="34" width="6" height="36" rx="3" fill="${S.linear([[0, '#fff'], [1, '#e05a5a']])}"/>`).join('') + S.glow(80, 52, 22, '#ffd0d0', 0.5),
-  the_admiralty: (S) => S.planet(28, 84, 30, '#a9b3c4', '#1a1f2a') + [50, 80, 110].map((x, i) => `<polygon points="${x - 14},${60 - i * 6} ${x + 14},${60 - i * 6} ${x + 8},${50 - i * 6} ${x - 8},${50 - i * 6}" fill="${S.linear([[0, '#e6ecf5'], [1, '#56657e']])}"/>` + S.glow(x, 55 - i * 6, 6, '#ffd98a', 0.9)).join('') + S.sun(128, 22, 5, '#ffd98a', 8),
+  // Command cards: the heroes who lead each race, crowned.
+  command_directive: (S) => S.sun(132, 20, 6, '#fff3c4', 9) + aureline(S, 66, 32, 1.35, { item: 'shield', crown: true, halos: 3, garb: 'armour', eye: '#2a6fd0', cloak: '#ffe7b0', sash: '#2f5fb8' }),
+  ignition_protocol: (S) => S.planet(140, 88, 22, '#e08a5a', '#4d6fae') + aureline(S, 58, 30, 1.35, { item: 'lance', crown: true, halos: 2, garb: 'armour', eye: '#c0392b', cloak: '#ffb070', sash: '#c0392b', lean: -1 }),
+  coolant_protocol: (S) => S.glow(80, 30, 60, '#bfe6ff', 0.4) + xelnaru(S, 68, 32, 1.4, { item: 'lens', crown: true, pauldrons: true, shard: '#bfe6ff', core: '#f0faff', cape: '#8fb8e8' }) + S.motes(80, 40, 14, 70, '#e6f6ff'),
+  chamber_protocol: (S) => S.ground(92, '#0e0a1c') + ixquor(S, 72, 68, 1.2, { item: 'pods', crown: true, arms: 6, cap: '#d59cff', tall: 1.1 }) + S.motes(80, 50, 18, 60, '#d59cff', 1),
+  tide_regent: (S) => S.waves(92, S.p.accent, 2, 2, 0.5) + vorthane(S, 70, 34, 1.4, { item: 'trident', crown: true, eyes: 7, bell: '#9ff0e0' }),
+  the_admiralty: (S) => S.glow(80, 34, 70, '#7ff0e0', 0.3) + [[40, 42, 0.85, 'lantern'], [80, 30, 1.1, 'trident'], [120, 42, 0.85, 'bell']].map(([x, y, sc, it]) => vorthane(S, x as number, y as number, sc as number, { helm: true, crown: x === 80, eyes: 5, item: it as 'lantern', reach: 0.7, bell: x === 80 ? '#bff8f0' : '#7fd8f0' })).join(''),
   // ---- Lightspeed ----
   null_field: (S) => S.rings(80, 52, 14, 4, 10, '#ffe2a0', 0.8) + S.beam(0, 20, 64, 44, 2, '#ff9a5a') + `<line x1="60" y1="30" x2="100" y2="74" stroke="#fff" stroke-width="3"/>` + S.glow(72, 46, 12, '#fff', 0.8),
   signal_jammer: (S) => S.panel(72, 50, 16, 34, 3) + S.rings(80, 46, 8, 4, 9, '#ffe2a0', 0.8) + `<line x1="40" y1="84" x2="120" y2="14" stroke="#fff" stroke-width="3"/>`,
@@ -677,8 +679,8 @@ const ART2: Record<string, Draw> = {
   snare_beacon: (S) => S.panel(70, 48, 20, 30, 4) + S.glow(80, 44, 14, '#fff6dc', 1) + S.rings(80, 44, 14, 4, 12, '#ffe2a0', 0.6) + S.card(126, 60, 14, '#ffe2a0', 16),
   ghost_signal: (S) => [0, 1, 2].map((i) => S.card(60 + i * 20, 52 - i * 4, -10 + i * 10, '#fff6dc', 20).replace('<g ', `<g opacity="${0.35 + i * 0.3}" `)).join('') + S.bolt(120, 18, 150, 70, '#ffb070', 4, 1.4),
   // ---- Neutral Command ----
-  war_council: (S) => S.panel(30, 54, 100, 10, 4) + [44, 66, 94, 116].map((x) => S.panel(x - 6, 34, 12, 20, 5) + S.glow(x, 32, 6, '#ffd98a', 0.8)).join('') + S.sun(80, 26, 8, '#ffb070', 8),
-  logistics_command: (S) => S.panel(48, 18, 64, 66, 4) + [30, 42, 54, 66].map((y, i) => `<rect x="56" y="${y}" width="${i === 2 ? 30 : 48}" height="4" rx="2" fill="#fff" opacity="0.8"/>`).join('') + S.card(126, 52, 14, '#e6ecf5', 18) + S.glow(126, 52, 14, '#9fd0ff', 0.4),
+  war_council: (S) => S.ground(92, '#1b0c24') + xelnaru(S, 62, 30, 1.4, { item: 'reliquary', crown: true, cape: '#c9a2ff', shard: '#ffc8e0', core: '#fff0c0' }),
+  logistics_command: (S) => S.ground(92, '#0e0a1c') + S.planet(136, 26, 12, '#9cd2a0', '#3d2b5e') + ixquor(S, 64, 68, 1.15, { item: 'spores', crown: true, arms: 5, cap: '#c5ff8a' }),
 
   // ---- Aureline ----
   aureline_skirmisher: (S) => S.ground(90, '#132446') + aureline(S, 70, 32, 1.1, { item: 'lance', lean: 1, halos: 1, garb: 'robe', cloak: '#ffe0a0' }),
@@ -716,6 +718,9 @@ const ART2: Record<string, Draw> = {
   crystal_matrix: (S) => [[50, 34], [80, 26], [110, 34], [50, 66], [80, 74], [110, 66]].map(([x, y]) => S.crystal(x, y, 18, 8, 0, '#c9a2ff') + `<line x1="80" y1="50" x2="${x}" y2="${y}" stroke="#ffe0ea" stroke-width="0.8" opacity="0.7"/>`).join('') + S.sun(80, 50, 7, '#ffe0ea', 6),
   xelnaru_warden: (S) => S.ground(92, '#1b0c24') + xelnaru(S, 64, 30, 1.35, { item: 'none', bulk: 1.3, pauldrons: true, shard: '#9fd0ff', core: '#e0f4ff' }),
   shard_echo: (S) => S.card(56, 52, -10, '#ffb3c2', 24) + S.card(104, 52, 10, '#ffb3c2', 24).replace('<g ', '<g opacity="0.5" ') + `<path d="M70 28 Q80 18 92 28" fill="none" stroke="#fff" stroke-width="1.6"/>`,
+  tactical_withdrawal: (S) => S.card(108, 50, 8, '#bfe6ff', 26) + S.card(56, 54, -10, '#bfe6ff', 22).replace('<g ', '<g opacity="0.55" ') + `<path d="M98 30 Q80 16 62 32" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M62 32 l2 -6 M62 32 l6 1" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>` + S.glow(56, 54, 16, '#dff2ff', 0.6),
+  rally_banner: (S) => S.ground(90, '#132446') + `<line x1="70" y1="92" x2="70" y2="16" stroke="${S.linear([[0, '#fff3c4'], [1, '#a8761e']])}" stroke-width="2.4"/><path d="M71 18 Q96 14 116 22 Q104 32 116 42 Q96 36 71 40 Z" fill="${S.linear([[0, '#ffd98a'], [1, '#c0392b']], 0, 0, 1, 0)}"/>` + S.sun(92, 29, 3.5, '#fff3c4', 6) + S.glow(70, 16, 8, '#fff', 0.8),
+  spore_return: (S) => S.ground(90, '#0e0a1c') + [[50, 70], [80, 56], [110, 70]].map(([x, y]) => S.glow(x, y, 10, '#c5ff8a', 0.7) + `<circle cx="${x}" cy="${y}" r="5" fill="${S.radial([[0, '#f0ffd0'], [1, '#6f8f5a']])}"/>`).join('') + `<path d="M118 40 Q80 10 42 40" fill="none" stroke="#d59cff" stroke-width="1.6" stroke-dasharray="3 3"/>` + S.motes(80, 40, 18, 60, '#c5ff8a', 1),
   overcharge: (S) => S.sun(80, 52, 18, '#ffb3c2', 14) + S.rings(80, 52, 28, 3, 10, '#ffe0ea', 0.6) + S.bolt(80, 10, 80, 90, '#fff', 6, 1.2),
   refraction_veil: (S) => `<path d="M20 10 Q80 50 20 90" fill="none" stroke="#ffe2a0" stroke-width="3"/>` + S.beam(150, 30, 60, 50, 2, '#ffb070') + S.beam(60, 50, 130, 86, 1.6, '#ffe2a0'),
   shard_mother: (S) => S.glow(80, 30, 60, '#ffb3c2', 0.4) + xelnaru(S, 80, 36, 1.4, { crown: true, cape: '#ff9ab0', shard: '#ffc8e0', bulk: 1.15 }) + S.motes(80, 70, 12, 60, '#ffe0ea', 1),

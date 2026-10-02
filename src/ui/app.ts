@@ -1649,7 +1649,9 @@ export class App {
     // A card that heats, with rival cards on the table: where its heat goes (a card, or their sun).
     if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
     // Even the last open slot is clicked to confirm (a misclicked card is never played outright).
-    if (inSlots(card.defId) && freeSlots(me).length > 0 && p.slot === undefined) return ask('slot');
+    // (A recall card can also go into the slot of the card it recalls.)
+    const replaces = allyEffectKind(card.defId) === 'recall' && !!p.allyUid;
+    if (inSlots(card.defId) && (freeSlots(me).length > 0 || replaces) && p.slot === undefined) return ask('slot');
     this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined });
   }
 
@@ -2966,6 +2968,11 @@ export class App {
       state = 'card-aimer';
     }
     if (p?.dawn && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
+    // Placing a recall card: the card it recalls can make way for it.
+    if (p && pendingDef && opts.tableau === 'mine' && p.step === 'slot' && p.allyUid === c.uid && allyEffectKind(pendingDef) === 'recall' && c.slot !== undefined) {
+      attrs = `data-act="choose-slot" data-arg="${c.slot}" title="Put it here, in place of the card it recalls"`;
+      state = 'card-choosable card-replace';
+    }
     if (p && opts.tableau === 'mine' && p.step === 'ally') {
       attrs = `data-act="choose-ally" data-arg="${c.uid}"`;
       state = 'card-choosable';

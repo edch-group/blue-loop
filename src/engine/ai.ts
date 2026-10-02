@@ -23,6 +23,8 @@ import {
   dawnEffects,
   turnForecast,
   aimable,
+  allyEffectKind,
+  inSlots,
   dawnAimable,
   aimChoices,
 } from './game';
@@ -200,11 +202,15 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     const aim = aimable(card.defId) ? aimChoices(state, me) : { sun: true, cards: [] };
     const aims: (string | undefined)[] = [...(aim.sun ? [undefined] : []), ...aim.cards.map((c) => c.uid)];
     if (!aims.length) aims.push(undefined);
+    // A recall card may also take the slot of the card it recalls.
+    const recalls = allyEffectKind(card.defId) === 'recall' && inSlots(card.defId);
     for (const choice of choices)
       for (const enemyUid of foes)
-        for (const slot of slots)
-          for (const allyUid of allies)
-            for (const recoverUid of recovers) for (const aimUid of aims) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid });
+        for (const allyUid of allies) {
+          const back = recalls ? me.tableau.find((c) => c.uid === allyUid) : undefined;
+          const here: (number | undefined)[] = back && back.slot !== undefined && !(slots as (number | undefined)[]).includes(back.slot) ? [...slots, back.slot] : slots;
+          for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid });
+        }
   }
   return plays;
 }

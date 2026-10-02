@@ -570,10 +570,19 @@ const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, de
 /** Neutral cards every campaign deck starts with (twice each), before its race's cards. */
 const STARTER_NEUTRALS = ['plasma_relay', 'coronal_lance', 'thermal_exchange', 'gravity_sling', 'coolant_array', 'cryo_vault', 'heat_sink', 'deflector_grid', 'bulwark_plating', 'resonance_lattice', 'tidal_brake', 'solar_mirror'];
 
-/** A campaign starting deck (30 cards): mostly neutral cards, a first taste of the race's own, and three Command cards. */
+/** Each race's two hero leaders (Command cards): two of the first and one of the second in a starting deck. */
+const LEADERS: [string, string][] = [
+  ['command_directive', 'ignition_protocol'],
+  ['war_council', 'coolant_protocol'],
+  ['tide_regent', 'the_admiralty'],
+  ['logistics_command', 'chamber_protocol'],
+];
+
+/** A campaign starting deck (30 cards): mostly neutral cards, a first taste of the race's own, and three of its leaders. */
 export function starterDeck(race: number): string[] {
-  const own = CARDS.filter((c) => c.race === race).slice(0, 3).map((c) => c.id);
-  return [...STARTER_NEUTRALS.flatMap((id) => [id, id]), ...own, 'command_directive', 'command_directive', 'logistics_command'];
+  const own = CARDS.filter((c) => c.race === race && c.kind !== 'command').slice(0, 3).map((c) => c.id);
+  const [a, b] = LEADERS[((race % 4) + 4) % 4];
+  return [...STARTER_NEUTRALS.flatMap((id) => [id, id]), ...own, a, a, b];
 }
 
 /**
@@ -751,10 +760,10 @@ function drawMission(s: CampaignState, f: Faction) {
 
 /**
  * Cards a faction can be offered: its own race's cards (twice as often), neutral cards, globals and the
- * fine-tuned Command cards (a deck starts with two standard Command Directives); Anomalies are rarest.
+ * fine-tuned Command cards (a deck starts with two of its race's first leader); Anomalies are rarest.
  */
 function offerPool(f: Faction): string[] {
-  return CARDS.filter((c) => c.id !== 'command_directive' && (c.race === undefined || c.race === f.race)).flatMap((c) =>
+  return CARDS.filter((c) => c.id !== LEADERS[f.race]?.[0] && (c.race === undefined || c.race === f.race)).flatMap((c) =>
     Array(OFFER_WEIGHT[c.rarity ?? 'dwarf'] * (c.race === f.race ? 2 : 1)).fill(c.id) as string[],
   );
 }

@@ -3000,3 +3000,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-landscape .card-text { font-size: max(6px, calc(var(--cmdw) * 0.048)); flex: 1; min-height: 0; }
 .card-landscape .card-kind { text-align: left; }
 .card-landscape .card-stats { left: calc(var(--cmdw) * 0.03); right: auto; top: auto; bottom: calc(var(--cmdw) * 0.035); }
+
+/* A recall card being placed: the card it recalls can make way for it. */
+.card.card-replace::after {
+  content: 'replace'; position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); z-index: 4;
+  padding: 2px 8px; border-radius: 999px; background: #d0654b; color: #fff; font-family: var(--display);
+  font-size: max(7px, calc(var(--cw, 100px) * 0.08)); letter-spacing: 0.14em; text-transform: uppercase; pointer-events: none;
+}

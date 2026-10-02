@@ -48,7 +48,9 @@ describe('content', () => {
     for (let race = 0; race < 4; race++) {
       const own = CARDS.filter((c) => c.race === race);
       expect(own.length).toBeGreaterThanOrEqual(10);
-      expect(own.filter((c) => c.rarity === 'anomaly' && c.character)).toHaveLength(1);
+      expect(own.filter((c) => c.rarity === 'anomaly' && c.character).length).toBeGreaterThanOrEqual(1);
+      // Two hero leaders (Command cards) of its own.
+      expect(own.filter((c) => c.kind === 'command' && c.character)).toHaveLength(2);
       expect(own.some((c) => c.character)).toBe(true);
     }
     for (const d of PRESET_DECKS) expect(deckProblems(d.cards)).toEqual([]);
@@ -317,6 +319,19 @@ describe('recall', () => {
     // Any other card still can't go in.
     give(activePlayer(s), ['coronal_lance']);
     expect(() => play(s, 'coronal_lance')).toThrow(/full/);
+  });
+
+  it('lets a recall card take the slot of the card it recalls, with free slots elsewhere', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.playsLeft = 2;
+    const [relay] = give(me, ['plasma_relay'], 'tableau');
+    give(me, ['recall_beacon']);
+    s = play(s, 'recall_beacon', { allyUid: relay.uid, slot: relay.slot! });
+    const t = s.players[0].tableau;
+    expect(t.map((c) => c.defId)).toEqual(['recall_beacon']);
+    expect(t[0].slot).toBe(relay.slot);
+    expect(s.players[0].hand.some((c) => c.uid === relay.uid)).toBe(true);
   });
 });
 

@@ -295,7 +295,7 @@ function aimedCard(state: GameState, p: PlayerState, card: CardInstance): CardIn
 /** Heat on a card wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
 function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string) {
   // Shields cover their owner's whole side, cards as well as the sun (pierce heat gets past them).
-  const blocked = pierce ? 0 : Math.min(owner.shields, amount);
+  const blocked = Math.min(pierce ? Math.floor(owner.shields * BALANCE.pierceShieldShare) : owner.shields, amount);
   owner.shields -= blocked;
   if (blocked > 0) {
     log(state, `${owner.name}'s shields absorb ${blocked} heat.`);
@@ -688,7 +688,7 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   }
   if (target.eliminated || state.winnerId) return 0;
   // Piercing heat goes straight past shields.
-  const blocked = enemy && !pierce ? Math.min(target.shields, amount) : 0;
+  const blocked = enemy ? Math.min(pierce ? Math.floor(target.shields * BALANCE.pierceShieldShare) : target.shields, amount) : 0;
   target.shields -= blocked;
   let applied = amount - blocked;
   // The day's limit: on their own day (their dawn and their plays), one player's cards can only push so
@@ -1116,7 +1116,10 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     throw new GameError(`Choose a card in ${target?.name ?? 'your rival'}'s tableau.`);
   }
   // A recall card can go into a full tableau: it takes the place of the card it recalls.
-  const swap = inSlots(def.id) && tableauFull(p) && recallsInto(p, def.id);
+  // A recall card can take the place of the card it recalls: when the tableau is full, or whenever its
+  // player puts it in that card's slot.
+  const recalled = allyEffectKind(def.id) === 'recall' ? p.tableau.find((c) => c.uid === action.allyUid && returnable(c) && c.slot !== COMMAND_SLOT) : undefined;
+  const swap = inSlots(def.id) && (tableauFull(p) ? recallsInto(p, def.id) : !!recalled && action.slot === recalled.slot);
   if (inSlots(def.id) && tableauFull(p) && !swap) throw new GameError('Your tableau is full: a card can only go in once one fades, or is recalled or removed.');
   const free = freeSlots(p);
   if (inSlots(def.id) && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');

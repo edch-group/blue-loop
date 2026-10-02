@@ -37,15 +37,20 @@ export const CARDS: CardDef[] = [
   { id: 'ice_age', name: 'Ice Age', kind: 'global', text: '{global}. Every sun gets {cool:1} at its dawn.', passive: [{ type: 'field', field: 'iceAge' }] },
   { id: 'solar_maximum', name: 'Solar Maximum', kind: 'global', text: '{global}. Every {heat} effect deals 1 more.', passive: [{ type: 'field', field: 'solarMaximum' }] },
 
-  // ---- Command: each deck's leaders. One at a time, in the Command slot ahead of the tableau (a new one
-  // replaces the old). Played with a choice of dawn effect, they stay their full term, and can't be
-  // recovered or recalled to your own hand (a rival can still send them back) ----
-  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|shield2}', choices: commandChoices('energy1', 'draw1', 'shield2') },
-  { id: 'ignition_protocol', name: 'Ignition Protocol', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|heat2}', choices: commandChoices('energy1', 'draw1', 'heat2') },
-  { id: 'coolant_protocol', name: 'Coolant Protocol', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|cool2}', choices: commandChoices('energy1', 'draw1', 'cool2') },
-  { id: 'chamber_protocol', name: 'Chamber Protocol', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|renew1}', choices: commandChoices('energy1', 'draw1', 'renew1') },
-  // The Admiralty: the big one, twice as much of each.
-  { id: 'the_admiralty', name: 'The Admiralty', kind: 'command', text: '{dawn}, one of: {options:energy2|draw2|shield4}', choices: commandChoices('energy2', 'draw2', 'shield4') },
+  // ---- Command: the heroes who lead each race. One at a time, in the Command slot ahead of the tableau
+  // (a new one replaces the old). Played with a choice of dawn effect (+1 energy, draw 1, or the hero's
+  // own), they stay their full term, and can't be recovered or recalled to your own hand (a rival can
+  // still send them back) ----
+  // Aureline
+  { id: 'command_directive', name: 'Solarch Veyra', kind: 'command', race: 0, text: '{dawn}, one of: {options:energy1|draw1|shield2}', choices: commandChoices('energy1', 'draw1', 'shield2') },
+  { id: 'ignition_protocol', name: 'Sol-Marshal Aurex', kind: 'command', race: 0, text: '{dawn}, one of: {options:energy1|draw1|heat2}', choices: commandChoices('energy1', 'draw1', 'heat2') },
+  // Xel'Naru (Archon Seris is in the second set)
+  { id: 'coolant_protocol', name: 'Hierarch Vael', kind: 'command', race: 1, text: '{dawn}, one of: {options:energy1|draw1|cool2}', choices: commandChoices('energy1', 'draw1', 'cool2') },
+  // Vorthane: the Tide-Regent, and the Admiralty, the deep fleet's council of elders, twice as much of each.
+  { id: 'tide_regent', name: 'Tide-Regent Osshara', kind: 'command', race: 2, text: '{dawn}, one of: {options:energy1|draw1|shield3}', choices: commandChoices('energy1', 'draw1', 'shield3') },
+  { id: 'the_admiralty', name: 'The Admiralty', kind: 'command', race: 2, text: '{dawn}, one of: {options:energy2|draw2|shield4}', choices: commandChoices('energy2', 'draw2', 'shield4') },
+  // Ixquor (Hive-Speaker Zyth is in the second set)
+  { id: 'chamber_protocol', name: "Broodmother Ul'Kha", kind: 'command', race: 3, text: '{dawn}, one of: {options:energy1|draw1|renew1}', choices: commandChoices('energy1', 'draw1', 'renew1') },
 
   // ---- Keeping your Command cards in play ----
   {
@@ -628,10 +633,13 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   solar_storm: { rarity: 'stellar' },
   ice_age: { rarity: 'stellar' },
   solar_maximum: { rarity: 'stellar' },
-  ignition_protocol: { rarity: 'stellar' },
-  coolant_protocol: { rarity: 'stellar' },
-  chamber_protocol: { rarity: 'stellar' },
-  the_admiralty: { rarity: 'anomaly' },
+  // The heroes who lead each race (Command cards).
+  command_directive: { character: true },
+  ignition_protocol: { character: true, rarity: 'stellar' },
+  coolant_protocol: { character: true, rarity: 'stellar' },
+  tide_regent: { character: true },
+  the_admiralty: { character: true, rarity: 'anomaly' },
+  chamber_protocol: { character: true, rarity: 'stellar' },
   harmonic_singularity: { rarity: 'anomaly' },
   aegis_monolith: { rarity: 'anomaly' },
   chrono_anchor: { rarity: 'stellar' },
@@ -805,15 +813,15 @@ export const PRESET_DECKS: DeckList[] = [
     // Attack cards that power each other up: a Sunforge and a Focusing Array boosting them all, Lancer
     // Squadrons and Sunlance Charges growing with the attack and Command cards around them, a Halo
     // Sentinel guarding the line, a Sunlit Return and a Recall Beacon to bring the best attack cards back,
-    // an Ion Cannon, and a Prism of Dawn set face down against the counter-attack. At the top: Aurelia,
-    // the Archon, a Sunspear and the Sun Throne.
+    // an Ion Cannon, Rally Banners to recall a card and play it again, and a Prism of Dawn set face down
+    // against the counter-attack. At the top: Aurelia, the Archon and the Sun Throne.
     name: 'Solar Lancers',
     race: 0,
     cards: [
       ...twoOf('command_directive', 'sunlance_charge', 'lancer_squadron', 'helio_lancer'),
       'ignition_protocol', 'coronal_chorus', 'dawnblade', 'sunforge', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
-      'halo_sentinel', 'sunlit_return', 'prism_of_dawn', 'ion_cannon', 'coolant_array', 'cryo_vault', 'recall_beacon', 'gravity_assist', 'tidal_brake',
-      'glory_charge', 'aureline_archon', 'sunspear', 'aurelia_first_light', 'the_sun_throne',
+      'halo_sentinel', 'sunlit_return', 'prism_of_dawn', 'ion_cannon', 'coolant_array', 'cryo_vault', 'recall_beacon', 'rally_banner', 'rally_banner',
+      'glory_charge', 'aureline_archon', 'dawn_rampart', 'aurelia_first_light', 'the_sun_throne',
     ],
   },
   {
@@ -824,9 +832,9 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Shard Overload',
     race: 1,
     cards: [
-      ...twoOf('shard_reactor', 'martyr_crystal', 'prism_ward', 'command_directive', 'ember_shard', 'echo_shard'),
+      ...twoOf('shard_reactor', 'martyr_crystal', 'prism_ward', 'war_council', 'ember_shard', 'echo_shard'),
       'coolant_protocol', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift',
-      'shard_recall', 'shard_echo', 'comet_shard', 'tidal_brake', 'prism_vent', 'heat_bleed', 'xelnaru_warden', 'overcharge', 'xelnaru_oracle',
+      'shard_recall', 'shard_echo', 'comet_shard', 'tactical_withdrawal', 'prism_vent', 'heat_bleed', 'xelnaru_warden', 'overcharge', 'xelnaru_oracle',
       'prism_sanctum', 'crystal_storm',
     ],
   },
@@ -838,9 +846,9 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Abyssal Tide',
     race: 2,
     cards: [
-      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'command_directive', 'riptide', 'brine_lash', 'jelly_swarm', 'coronal_lance'),
-      'chamber_protocol', 'riptide_ambush', 'ink_cloud', 'trench_warden', 'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide',
-      'aegis_monolith', 'pressure_wave', 'tidebreaker', 'leviathan_shell',
+      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'tide_regent', 'riptide', 'brine_lash', 'jelly_swarm', 'coronal_lance'),
+      'the_admiralty', 'riptide_ambush', 'sunken_bell', 'trench_warden', 'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide',
+      'aegis_monolith', 'sunken_bell', 'tidebreaker', 'leviathan_shell',
     ],
   },
   {
@@ -851,9 +859,9 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Hive Bloom',
     race: 3,
     cards: [
-      ...twoOf('orbit_root', 'spore_husk', 'command_directive', 'rot_bloom', 'hive_warrior', 'hive_relay', 'spore_cloud'),
-      'logistics_command', 'hive_rooting', 'compost_cycle', 'sporelings', 'overgrowth', 'chitin_fortress', 'sporecaster',
-      'ixquor_brood_tender', 'the_brood_queen', 'coolant_array', 'regrowth_pod', 'hive_tyrant', 'spore_drone', 'brood_chamber', 'mycelium_tower',
+      ...twoOf('orbit_root', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_warrior', 'hive_relay', 'spore_cloud'),
+      'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings', 'overgrowth', 'chitin_fortress', 'sporecaster',
+      'ixquor_brood_tender', 'the_brood_queen', 'spore_return', 'regrowth_pod', 'hive_tyrant', 'spore_drone', 'recall_beacon', 'spore_return',
       'solar_bastion',
     ],
   },

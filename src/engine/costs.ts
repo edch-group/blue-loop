@@ -20,6 +20,7 @@ export const CARD_COSTS: Record<string, number> = {
   chrono_anchor: 2,
   command_breaker: 2,
   command_directive: 2,
+  tide_regent: 2,
   compost_cycle: 2,
   coolant_protocol: 2,
   coral_bastion: 2,

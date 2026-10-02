@@ -116,8 +116,9 @@ export const EXPANSION: CardDef[] = [
   },
 
   // ---- Neutral Command ----
-  { id: 'war_council', name: 'War Council', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|recover1}', choices: commandChoices('energy1', 'draw1', 'recover1') },
-  { id: 'logistics_command', name: 'Logistics Command', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|orbit1}', choices: commandChoices('energy1', 'draw1', 'orbit1') },
+  // Hero leaders (Command cards): a Xel'Naru Archon and an Ixquor Hive-Speaker.
+  { id: 'war_council', name: 'Archon Seris', kind: 'command', race: 1, text: '{dawn}, one of: {options:energy1|draw1|recover1}', choices: commandChoices('energy1', 'draw1', 'recover1') },
+  { id: 'logistics_command', name: 'Hive-Speaker Zyth', kind: 'command', race: 3, text: '{dawn}, one of: {options:energy1|draw1|orbit1}', choices: commandChoices('energy1', 'draw1', 'orbit1') },
 
   // ---- Aureline ----
   {
@@ -377,6 +378,10 @@ export const EXPANSION: CardDef[] = [
     defence: 1,
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { overheated: true } }], passive: [{ type: 'taunt' }] },
   { id: 'shard_echo', name: 'Shard Echo', kind: 'growth', race: 1, text: '{recall}. {cool:1}.', onPlay: [{ type: 'recall' }, { type: 'cool', amount: 1 }] },
+  // More recall, for every deck: a card that comes back to be played again (and the recall card can take its slot).
+  { id: 'tactical_withdrawal', name: 'Tactical Withdrawal', kind: 'defence', text: '{recall}. {cool:2}.', onPlay: [{ type: 'recall' }, { type: 'cool', amount: 2 }] },
+  { id: 'rally_banner', name: 'Rally Banner', kind: 'attack', race: 0, text: '{recall}. {heat:1}. {shield:1}.', onPlay: [{ type: 'recall' }, { type: 'heat', amount: 1, to: 'target' }, { type: 'shield', amount: 1 }] },
+  { id: 'spore_return', name: 'Spore Return', kind: 'growth', race: 3, text: '{recall}. {renew:1}.', onPlay: [{ type: 'recall' }, { type: 'restore', amount: 1, all: true }] },
   {
     id: 'overcharge',
     name: 'Overcharge',
@@ -816,8 +821,8 @@ export const EXPANSION_META: Record<string, { rarity?: Rarity; character?: boole
   gravity_well: { rarity: 'stellar' },
   archive_vault: { rarity: 'stellar' },
   counter_pulse: { rarity: 'stellar' },
-  war_council: { rarity: 'stellar' },
-  logistics_command: { rarity: 'stellar' },
+  war_council: { character: true },
+  logistics_command: { character: true },
   // Aureline
   aureline_skirmisher: { character: true },
   lancer_squadron: { character: true, rarity: 'stellar' },
