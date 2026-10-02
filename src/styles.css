@@ -1839,7 +1839,9 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   /* Tableau cards: eight across the board, capped by the height of half the board. */
   --boardw: calc(var(--gw) - 2 * var(--inset) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
   /* Five slots and the Lightspeed slot, set a little apart. */
-  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * 0.3 * 0.714), 150px,
+  /* (The height share leaves room between the rows for the Command slots, which stand out a card's width.) */
+  --tcw-h: 0.262;
+  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * var(--tcw-h) * 0.714), 150px,
     /* Room across the board for each row's sun on the left (and the same on the right). */
     calc((var(--game-w) - 2 * var(--inset) - 24px - 2 * var(--row-side) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
   /* Each row's ends: its sun on the left, its upgrade pills on the right, the same width each so the slots centre. */
@@ -1848,7 +1850,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   --row-vs: clamp(84px, calc(var(--gh) / 112 * 23), 168px);
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .table-view > .game { --logw: 0px; }
+  .table-view > .game { --logw: 0px; --tcw-h: 0.215; }
 }
 .table-view > .game > .board { grid-column: 1 / -1 !important; grid-row: 2; display: flex; min-height: 0; }
 .board .board3d { flex: 1; min-height: 0; display: flex; }
@@ -2371,11 +2373,13 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 /* ---------- Start-of-turn forecast: symbols centred between the tableaus ---------- */
 /* Yours above your row, your rival's beneath theirs, so both sit in the middle of the board. */
 .forecast {
-  position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: clamp(3px, calc(0.9 * var(--vh)), 8px);
+  /* Clear of the tableau's outline (which stands --frame-pad off the cards). */
+  --fc-gap: calc(clamp(10px, calc(1.8 * var(--vh)), 16px) + clamp(5px, calc(1 * var(--vh)), 9px));
+  position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: var(--fc-gap);
   display: flex; justify-content: center; gap: clamp(4px, calc(0.8 * var(--vw)), 8px); font-family: var(--display); pointer-events: none;
 }
 .forecast .fc { pointer-events: auto; }
-.tableau-rival .forecast { bottom: auto; top: 100%; margin: clamp(3px, calc(0.9 * var(--vh)), 8px) 0 0; }
+.tableau-rival .forecast { bottom: auto; top: 100%; margin: var(--fc-gap) 0 0; }
 .fc {
   display: inline-flex; align-items: center; gap: 3px; padding: 2px clamp(6px, calc(1 * var(--vw)), 10px) 2px clamp(5px, calc(0.8 * var(--vw)), 8px);
   border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 3px 10px rgba(80, 84, 100, 0.14); cursor: help;
@@ -2975,20 +2979,17 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* ---------- The Command slot: the tableau's leader, landscape, out in front ---------- */
 .tableau-row { position: relative; }
 /* Yours stands above the right end of your row; your rival's below the left end of theirs (the board is a mirror). */
-.cmd-slot { --cmdw: calc(var(--tcw) * 1.4); --cmdgap: 16px; position: absolute; width: var(--cmdw); height: calc(var(--cmdw) / 1.4); transform-style: preserve-3d; z-index: 1; }
+.tableau-row { --frame-pad: clamp(10px, calc(1.8 * var(--vh)), 16px); }
+/* Exactly a table card turned on its side. */
+.cmd-slot { --cmdw: calc(var(--tcw) * 1.4); --cmdgap: calc(var(--frame-pad) + 4px); position: absolute; width: var(--cmdw); height: var(--tcw); transform-style: preserve-3d; z-index: 1; }
 .tableau-mine .cmd-slot { right: 0; bottom: calc(100% + var(--cmdgap)); }
 .tableau-rival .cmd-slot { left: 0; top: calc(100% + var(--cmdgap)); }
-/* A phone: less room between the rows, so the Command slot stands out less far. */
-@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .cmd-slot { --cmdw: calc(var(--tcw) * 1.12); --cmdgap: 7px; }
-}
+
 .slot-empty.slot-cmd { width: 100%; height: 100%; grid-auto-flow: row; }
 .slot-cmd small { font-size: max(6px, calc(var(--tcw) * 0.075)); letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.8; }
 /* The outline round the tableau, with its bump for the Command slot. */
 .tableau-frame { position: absolute; overflow: visible; pointer-events: none; transform: translateZ(1px); }
-.tableau-frame path { fill: rgba(255, 255, 255, 0.18); stroke: rgba(130, 142, 170, 0.5); stroke-width: 1.5; stroke-linejoin: round; }
-.tableau-mine .tableau-frame path { stroke: rgba(110, 150, 120, 0.55); }
-.tableau-rival .tableau-frame path { stroke: rgba(200, 120, 100, 0.5); }
+.tableau-frame path { fill: rgba(255, 255, 255, 0.18); stroke: rgba(130, 142, 170, 0.45); stroke-width: 1.5; stroke-linejoin: round; }
 /* A Command card in play lies landscape: its picture on the left, its name and options on the right. */
 .card.card-table.card-landscape {
   width: 100%; height: 100%; padding: 5% 5% 4% calc(var(--cmdw) * 0.44);

@@ -143,15 +143,20 @@ Command cards **lead the tableau**. Each player has **one Command slot**, out in
 - **A full term.** Every Command card has stability 3, whatever it does, so cards that want a Command card in play can count on one.
 - **Never back to your own hand.** Command cards can't be recalled (Phase Shift, Recall Beacon, Shard Recall) or recovered from the discard pile (Salvage Drone and the rest). A rival can still send one back to its owner's hand (Tractor Beam, Event Horizon), and Command Breaker destroys one.
 
-| Card | Rarity | Dawn, one of |
-| --- | --- | --- |
-| Command Directive | White Dwarf | +1 energy, draw 1, or 2 shields |
-| Ignition Protocol | Stellar | +1 energy, draw 1, or heat 2 |
-| Coolant Protocol | Stellar | +1 energy, draw 1, or cool 2 |
-| Chamber Protocol | Stellar | +1 energy, draw 1, or renew 1 (your other cards regain 1 stability) |
-| War Council | White Dwarf | +1 energy, draw 1, or recover your last discarded card |
-| Logistics Command | White Dwarf | +1 energy, draw 1, or your orbit +1 |
-| The Admiralty | Anomaly | +2 energy, draw 2, or 4 shields |
+**Heroes.** Every Command card is a hero: a character who leads their race, with their own picture. Each race has two, so a deck's three Command cards can be its own race's (two of one, one of the other).
+
+| Hero | Race | Rarity | Dawn, one of |
+| --- | --- | --- | --- |
+| Solarch Veyra | Aureline | White Dwarf | +1 energy, draw 1, or 2 shields |
+| Sol-Marshal Aurex | Aureline | Stellar | +1 energy, draw 1, or heat 2 |
+| Archon Seris | Xel'Naru | White Dwarf | +1 energy, draw 1, or recover your last discarded card |
+| Hierarch Vael | Xel'Naru | Stellar | +1 energy, draw 1, or cool 2 |
+| Tide-Regent Osshara | Vorthane | White Dwarf | +1 energy, draw 1, or 3 shields |
+| The Admiralty (the deep fleet's elders) | Vorthane | Anomaly | +2 energy, draw 2, or 4 shields |
+| Hive-Speaker Zyth | Ixquor | White Dwarf | +1 energy, draw 1, or your orbit +1 |
+| Broodmother Ul'Kha | Ixquor | Stellar | +1 energy, draw 1, or renew 1 |
+
+(They keep the ids of the Command cards they replaced, so collections and saved decks carry over.)
 
 **Keeping Command cards in play** is rewarded by:
 - Standing Orders: draw 1; dawn, draw 1 if you control a Command card.
@@ -376,6 +381,8 @@ Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its coo
 **The energy curve (600 games).** At 3 energy a day, a deck full of 2s plays one card most days. The starters had only 5–7 cards at 0–1 energy (13–14 at 2), so they were rebuilt to 8–12 at 0–1, 8–10 at 2 and a few 3s and 4s, mostly with on-theme 1-cost cards from the second set (new and existing profiles are granted them). Win rates: Lancers 45.5%, Overload 55.8%, Tide 44.0%, Bloom 53.6%; seats 47/53. Tide fell to 35% at first; it got its second Abyssal Choir and Undertow back, and a Trench-Warden.
 
 **Ramp (600 games).** A higher curve is fine for a deck that ramps, so Hive Bloom became the ramp deck (Sporelings, Overgrowth, Hive Relay, the Brood Queen, Chitin Fortress: 6 cards at 1, 10 at 2, three 3–4s). The AI had never ramped: it judged a play by the board it left, and energy still to spend today counted for nothing, so "+energy today" cards looked worthless. It now counts the energy a card gives back, up to what the cards left in its hand can use. Overgrowth's drawback went from 2 heat to 1. Win rates: Lancers 52.9%, Overload 49.2%, Tide 52.4%, Bloom 45.7%. Seats are 44/56: the second seat now wins too often.
+
+**Heroes, recall and pierce (600 games).** A recall card can now be put in the slot of the card it recalls (that card shows "replace" as you place it), not only into a full tableau, and every starter deck runs 2–4 recall cards (new: Tactical Withdrawal, Rally Banner, Spore Return). Abyssal Tide still lost about 89% of games to Shard Overload, so **pierce heat now gets past half the shields in its way** (rounded down) rather than all of them. Win rates: Lancers 53.8%, Overload 51.1%, Tide 42.4%, Bloom 51.0%; seats 46/54; Tide vs Overload 27/73. Lancers swapped its Sunspear for a Dawn Rampart.
 
 **Energy 4, 30-card decks and the Command slot (600 games).** Games got faster (about 13 rounds) and Abyssal Tide fell to 25% (7% against Shard Overload, whose pierce heat ignores its shields). It came back to 43% with more attack cards in its list (two each of Riptide, Brine Lash, Jelly Swarm and Coronal Lance), Abyssal Choir at heat 3 (up to 6), Bell Warden at 3 shields and Tide Pylon at 2; Shard Overload lost its Fracture Burst, Shard Lancer, Searing Core and Shard Mother. Shield buffs alone hardly moved Tide; heat did. Win rates: Lancers 46.5%, Overload 55.5%, Tide 42.8%, Bloom 53.9%; seats 47/53 (with the second seat's extra card). The AI still picks +1 energy for almost every Command card. It also leaves about 1.7 energy unspent a day, often because its five tableau slots are full: with 4 energy a day, the five slots may now be the limit.
 

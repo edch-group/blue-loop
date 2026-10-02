@@ -379,7 +379,7 @@ export const EXPANSION: CardDef[] = [
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { overheated: true } }], passive: [{ type: 'taunt' }] },
   { id: 'shard_echo', name: 'Shard Echo', kind: 'growth', race: 1, text: '{recall}. {cool:1}.', onPlay: [{ type: 'recall' }, { type: 'cool', amount: 1 }] },
   // More recall, for every deck: a card that comes back to be played again (and the recall card can take its slot).
-  { id: 'tactical_withdrawal', name: 'Tactical Withdrawal', kind: 'defence', text: '{recall}. {cool:2}.', onPlay: [{ type: 'recall' }, { type: 'cool', amount: 2 }] },
+  { id: 'tactical_withdrawal', name: 'Tactical Withdrawal', kind: 'growth', text: '{recall}. Your {orbit:+1}.', onPlay: [{ type: 'recall' }, { type: 'orbit', amount: 1, who: 'self' }] },
   { id: 'rally_banner', name: 'Rally Banner', kind: 'attack', race: 0, text: '{recall}. {heat:1}. {shield:1}.', onPlay: [{ type: 'recall' }, { type: 'heat', amount: 1, to: 'target' }, { type: 'shield', amount: 1 }] },
   { id: 'spore_return', name: 'Spore Return', kind: 'growth', race: 3, text: '{recall}. {renew:1}.', onPlay: [{ type: 'recall' }, { type: 'restore', amount: 1, all: true }] },
   {

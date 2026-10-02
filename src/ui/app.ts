@@ -218,7 +218,7 @@ function frameTableaus(root: HTMLElement) {
     const svg = row.querySelector<SVGSVGElement>('.tableau-frame');
     const cmd = row.querySelector<HTMLElement>('.cmd-slot');
     if (!svg || !cmd) continue;
-    const pad = 8;
+    const pad = parseFloat(getComputedStyle(row).getPropertyValue('--frame-pad')) || 12;
     const W = row.offsetWidth + 2 * pad, H = row.offsetHeight + 2 * pad;
     const bw = cmd.offsetWidth + 2 * pad;
     // How far the bump stands out past the row's outline (the slot sits just outside the row).
