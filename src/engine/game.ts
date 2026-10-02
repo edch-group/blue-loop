@@ -188,8 +188,21 @@ export function playsAllowed(state: GameState, p: PlayerState): number {
   return Math.min(p.turnsTaken, BALANCE.maxPlays) + extra + catchUp + industry;
 }
 
+/** The Command slot: a player's one Command card leads their tableau from its own slot, outside the five. */
+export const COMMAND_SLOT = -1;
+
+/** A player's Command card in play, if any. */
+export function commandCard(p: PlayerState): CardInstance | undefined {
+  return p.tableau.find((c) => c.slot === COMMAND_SLOT);
+}
+
+/** Whether a card goes into one of the five tableau slots (not the Command slot, nor face down). */
+export function inSlots(defId: string): boolean {
+  return persists(defId) && cardDef(defId).kind !== 'command';
+}
+
 export function tableauFull(p: PlayerState): boolean {
-  return p.tableau.length >= BALANCE.tableauSlots;
+  return p.tableau.filter((c) => c.slot !== COMMAND_SLOT).length >= BALANCE.tableauSlots;
 }
 
 /** The global card in play, if any, and whose tableau it is in. */
@@ -328,7 +341,7 @@ export function recallsInto(p: PlayerState, defId: string): boolean {
 
 /** Whether a card can be played into this tableau now: a free slot, a recall to make one, or no slot needed. */
 export function hasRoomFor(p: PlayerState, defId: string): boolean {
-  return !persists(defId) || !tableauFull(p) || recallsInto(p, defId);
+  return !inSlots(defId) || !tableauFull(p) || recallsInto(p, defId);
 }
 
 /** Whether a card's ally choice returns the card to hand (rather than restoring its stability). */
@@ -370,7 +383,7 @@ function slotsBySafety(): number[] {
 
 /** Whether the player must choose a slot: whenever more than one is free (position always matters). */
 export function needsSlot(p: PlayerState, defId: string): boolean {
-  return persists(defId) && freeSlots(p).length > 1;
+  return inSlots(defId) && freeSlots(p).length > 1;
 }
 
 /** How long a card stays in play before it fades into its owner's discard pile. */
@@ -399,6 +412,8 @@ function place(p: PlayerState, card: CardInstance, slot: number) {
 
 /** Slots between two cards in the same tableau. */
 function distance(a: CardInstance, b: CardInstance): number {
+  // The Command slot stands apart: it has no neighbours.
+  if (a.slot === COMMAND_SLOT || b.slot === COMMAND_SLOT) return a.uid === b.uid ? 0 : 99;
   return Math.abs((a.slot ?? 0) - (b.slot ?? 0));
 }
 
@@ -408,7 +423,8 @@ function distance(a: CardInstance, b: CardInstance): number {
  * reach cards with low enough defence.
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
-  let d = (BALANCE.slotDefence[card.slot ?? 0] ?? 1) + (cardDef(card.defId).defence ?? 0);
+  const slotDef = card.slot === COMMAND_SLOT ? BALANCE.commandSlotDefence : (BALANCE.slotDefence[card.slot ?? 0] ?? 1);
+  let d = slotDef + (cardDef(card.defId).defence ?? 0);
   for (const src of p.tableau) {
     const k = distance(src, card);
     if (k === 0) continue;
@@ -877,7 +893,9 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         break;
       }
       case 'recover': {
-        const i = p.discard.findIndex((c) => c.uid === ctx.recoverUid && kindMatches(c, e.kind));
+        // (A Command card's dawn takes back the card most recently discarded: there is no one to choose.)
+        const latest = e.latest ? p.discard.map((c, k) => (returnable(c) && kindMatches(c, e.kind) ? k : -1)).filter((k) => k >= 0).pop() ?? -1 : -1;
+        const i = e.latest ? latest : p.discard.findIndex((c) => c.uid === ctx.recoverUid && kindMatches(c, e.kind));
         if (i < 0) {
           // Nothing there to recover: the card draws instead, so it is never dead.
           if (e.orDraw && !p.discard.some((c) => kindMatches(c, e.kind))) {
@@ -1098,10 +1116,10 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     throw new GameError(`Choose a card in ${target?.name ?? 'your rival'}'s tableau.`);
   }
   // A recall card can go into a full tableau: it takes the place of the card it recalls.
-  const swap = persists(def.id) && tableauFull(p) && recallsInto(p, def.id);
-  if (persists(def.id) && tableauFull(p) && !swap) throw new GameError('Your tableau is full: a card can only go in once one fades, or is recalled or removed.');
+  const swap = inSlots(def.id) && tableauFull(p) && recallsInto(p, def.id);
+  if (inSlots(def.id) && tableauFull(p) && !swap) throw new GameError('Your tableau is full: a card can only go in once one fades, or is recalled or removed.');
   const free = freeSlots(p);
-  if (persists(def.id) && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
+  if (inSlots(def.id) && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
   const allies = allyChoices(p, def.id);
   if (allies.length > 0 && !allies.some((c) => c.uid === action.allyUid)) throw new GameError('Choose a card of yours.');
   const recovers = recoverChoices(p, def.id);
@@ -1149,6 +1167,19 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       if (state.winnerId || p.eliminated) return;
     }
   }
+  // A Command card takes the Command slot: one at a time, so a new one replaces the old.
+  if (def.kind === 'command') {
+    const old = commandCard(p);
+    if (old) {
+      log(state, `${def.name} replaces ${cardDef(old.defId).name}.`);
+      leaveTableau(state, p, old);
+      if (state.winnerId || p.eliminated) {
+        p.discard.push(card);
+        return;
+      }
+    }
+    action = { ...action, slot: COMMAND_SLOT };
+  }
   // Into a full tableau, a recall card first returns the card it recalls, and takes its slot.
   if (swap) {
     const back = p.tableau.find((c) => c.uid === action.allyUid);
@@ -1165,7 +1196,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   }
   // The chosen slot, or else the safest one free.
   const open = freeSlots(p);
-  const slot = action.slot !== undefined && open.includes(action.slot) ? action.slot : slotsBySafety().find((i) => open.includes(i));
+  const slot = def.kind === 'command' ? COMMAND_SLOT : action.slot !== undefined && open.includes(action.slot) ? action.slot : slotsBySafety().find((i) => open.includes(i));
   if (slot === undefined) {
     p.discard.push(card);
     return;

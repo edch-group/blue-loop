@@ -5,7 +5,7 @@
  */
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
-import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
+import { CARDS, cardDef, commandCardsFor, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
 
 Object.assign(BALANCE, { maxLogEntries: 1e6 });
@@ -21,7 +21,7 @@ function randomDeck(race: number): string[] {
   const commands = pool.filter((c) => c.kind === 'command');
   const rest = pool.filter((c) => c.kind !== 'command');
   const deck: string[] = [];
-  while (deck.length < BALANCE.commandCards) {
+  while (deck.length < commandCardsFor(BALANCE.deckSize)) {
     const c = pick(commands);
     if (deck.filter((id) => id === c.id).length < copyLimit(c.id)) deck.push(c.id);
   }

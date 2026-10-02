@@ -85,7 +85,7 @@ export type Effect = (
   /** Return another card of yours from your tableau to your hand (to play it again). */
   | { type: 'recall' }
   /** Return a card of your choice (of a kind, if given) from your discard pile to your hand. */
-  | { type: 'recover'; kind?: CardKind; /** With nothing (of that kind) in your discard pile, draw this many cards instead. */ orDraw?: number }
+  | { type: 'recover'; kind?: CardKind; /** With nothing (of that kind) in your discard pile, draw this many cards instead. */ orDraw?: number; /** No choice: the card most recently discarded (a Command card's dawn). */ latest?: boolean }
   /** You may play this many extra cards today. */
   | { type: 'plays'; amount: number }
   /** Lightspeed: the enemy who sprang this card may play no more cards today. */

@@ -74,7 +74,7 @@ describe('battles and conquest', () => {
     s = applyCampaignAction(s, { type: 'attack', fromId: home(s).id, toId: target });
     expect(s.battle?.nodeId).toBe(target);
     expect(s.battle?.game.players[0].isAI).toBe(false);
-    expect(s.battle!.game.players[0].deck.length + s.battle!.game.players[0].hand.length).toBe(20);
+    expect(s.battle!.game.players[0].deck.length + s.battle!.game.players[0].hand.length).toBe(30);
     s = settle(s);
     const again = attackOptions(s, s.playerId)[0];
     if (again && !s.winner && s.turn === 1) {

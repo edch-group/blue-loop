@@ -1,4 +1,4 @@
-import { BALANCE, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, cardDef, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { cardArt, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
@@ -139,9 +139,9 @@ export class DeckBuilder {
         if (copies >= owned(arg) && copies < copyLimit(arg)) {
           this.focus = arg;
           this.host.toast(owned(arg) ? `You own ${owned(arg)} ${cardDef(arg).name}: craft another to add it.` : `You don't own ${cardDef(arg).name} yet: craft it with flux, or find it in a booster.`);
-        } else if (d.cards.length >= BALANCE.deckSize) this.host.toast(`A deck holds exactly ${BALANCE.deckSize} cards.`);
+        } else if (d.cards.length >= BALANCE.maxDeckSize) this.host.toast(`A deck holds at most ${BALANCE.maxDeckSize} cards.`);
         else if (copies >= copyLimit(arg)) this.host.toast(copyLimit(arg) === 1 ? `${cardDef(arg).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`);
-        else if (cardDef(arg).kind === 'command' && commands >= BALANCE.commandCards) this.host.toast(`A deck holds exactly ${BALANCE.commandCards} Command cards.`);
+        else if (cardDef(arg).kind === 'command' && commands >= commandCardsFor(BALANCE.maxDeckSize)) this.host.toast(`A deck holds at most ${commandCardsFor(BALANCE.maxDeckSize)} Command cards (one per ${BALANCE.cardsPerCommand} cards).`);
         else d.cards.push(arg);
         break;
       }
@@ -271,7 +271,7 @@ export class DeckBuilder {
           ${this.starter ? `<div class="db-starter-note">${esc(RACE_NAMES[this.starter.race].toLowerCase())} starter · any change saves as a copy</div>` : ''}
           <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
           <div class="db-races">${[0, 1, 2, 3].map((r) => `<button class="db-race ${d.race === r ? 'on' : ''}" data-act="db-race" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
-          <div class="db-tally"><b class="${d.cards.length === BALANCE.deckSize ? 'ok' : ''}">${d.cards.length}/${BALANCE.deckSize}</b> cards · <b class="${commands === BALANCE.commandCards ? 'ok' : ''}">${commands}/${BALANCE.commandCards}</b> command</div>
+          <div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Command card per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> command</div>
           ${this.focus ? this.renderFocus(this.focus) : ''}
           <div class="db-rows">${grouped || '<p class="muted">Tap cards on the left to add them.</p>'}</div>
         </aside>

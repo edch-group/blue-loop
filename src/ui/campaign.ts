@@ -12,6 +12,7 @@ import {
   cardDef,
   migrateGame,
   ensureScanners,
+  ensureDeckSizes,
   visibleNodes,
   fusionCost,
   fusionProblem,
@@ -52,6 +53,7 @@ export function loadCampaign(): CampaignState | null {
     if (!s || s.version !== 2) return null;
     if (s.battle) migrateGame(s.battle.game);
     ensureScanners(s);
+    ensureDeckSizes(s);
     return s;
   } catch {
     return null;

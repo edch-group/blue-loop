@@ -6,8 +6,9 @@
  * invalid actions. Battles are ordinary Blue Loop games (see game.ts) created
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
+import { BALANCE } from './balance';
 import { chooseAIAction } from './ai';
-import { CARDS, cardDef, deckProblems, fusedId, fusionProblem, RACE_NAMES } from './cards';
+import { CARDS, cardDef, copyLimit, deckProblems, fusedId, fusionProblem, RACE_NAMES } from './cards';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup } from './types';
@@ -212,7 +213,7 @@ export interface Faction {
   race: number;
   credits: number;
   materials: number;
-  /** The battle deck: always a legal deck (20 cards, at most 2 of each, exactly 2 Commands). */
+  /** The battle deck: always a legal deck (30–40 cards, at most 2 of each, one Command card per 10). */
   deck: string[];
   /** Owned cards not in the deck or a garrison. */
   reserve: string[];
@@ -567,12 +568,30 @@ function nodeName(s: CampaignState, used: Set<string>): string {
 const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, defences: 0, rivalsTaken: 0, battlesWon: 0, swiftWins: 0, coldWins: 0 });
 
 /** Neutral cards every campaign deck starts with (twice each), before its race's cards. */
-const STARTER_NEUTRALS = ['plasma_relay', 'coronal_lance', 'thermal_exchange', 'coolant_array', 'cryo_vault', 'bulwark_plating', 'resonance_lattice', 'solar_mirror'];
+const STARTER_NEUTRALS = ['plasma_relay', 'coronal_lance', 'thermal_exchange', 'gravity_sling', 'coolant_array', 'cryo_vault', 'heat_sink', 'deflector_grid', 'bulwark_plating', 'resonance_lattice', 'tidal_brake', 'solar_mirror'];
 
-/** A campaign starting deck: mostly neutral cards, a first taste of the race's own, and two Command Directives. */
+/** A campaign starting deck (30 cards): mostly neutral cards, a first taste of the race's own, and three Command cards. */
 export function starterDeck(race: number): string[] {
-  const own = CARDS.filter((c) => c.race === race).slice(0, 2).map((c) => c.id);
-  return [...STARTER_NEUTRALS.flatMap((id) => [id, id]), ...own, 'command_directive', 'command_directive'];
+  const own = CARDS.filter((c) => c.race === race).slice(0, 3).map((c) => c.id);
+  return [...STARTER_NEUTRALS.flatMap((id) => [id, id]), ...own, 'command_directive', 'command_directive', 'logistics_command'];
+}
+
+/**
+ * Decks saved when they held 20 cards (and two Command cards): topped up from the faction's starter deck
+ * to the size decks are now (with its third Command card), so they stay legal.
+ */
+export function ensureDeckSizes(s: CampaignState) {
+  for (const f of s.factions) {
+    if (f.deck.length >= BALANCE.deckSize) continue;
+    const want = starterDeck(f.race);
+    const have = new Map<string, number>();
+    for (const id of f.deck) have.set(id, (have.get(id) ?? 0) + 1);
+    for (const id of want) {
+      if (f.deck.length >= BALANCE.deckSize) break;
+      if ((have.get(id) ?? 0) > 0) have.set(id, have.get(id)! - 1);
+      else if (f.deck.filter((x) => x === id).length < copyLimit(id)) f.deck.push(id);
+    }
+  }
 }
 
 export function createCampaign(setup: CampaignSetup): CampaignState {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, allyChoices, cardCost, applyAction, baseStability, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+import { activePlayer, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -63,8 +63,9 @@ describe('content', () => {
   });
 
   it('allows only one copy of an Anomaly', () => {
-    // A legal deck of 18 plain cards and 2 Commands, with two of its cards swapped for an Anomaly.
-    const deck = [...Array(9).fill(0).flatMap((_, i) => ['plasma_relay', 'coronal_lance', 'gravity_sling', 'thermal_exchange', 'coolant_array', 'cryo_vault', 'deflector_grid', 'heat_sink', 'deep_scanners'].slice(i, i + 1).flatMap((id) => [id, id])), 'command_directive', 'command_directive'];
+    // A legal deck of 27 plain cards and 3 Commands, with two of its cards swapped for an Anomaly.
+    const plain = ['plasma_relay', 'coronal_lance', 'gravity_sling', 'thermal_exchange', 'coolant_array', 'cryo_vault', 'deflector_grid', 'heat_sink', 'deep_scanners', 'bulwark_plating', 'tidal_brake', 'recall_beacon', 'gravity_assist'];
+    const deck = [...plain.flatMap((id) => [id, id]), 'chain_of_command', 'command_directive', 'command_directive', 'logistics_command'];
     expect(deckProblems(deck)).toEqual([]);
     const one = [...deck.slice(0, 17), 'aurelia_first_light', ...deck.slice(18)];
     expect(deckProblems(one)).toEqual([]);
@@ -108,7 +109,7 @@ describe('setup', () => {
 
 describe('plays per turn', () => {
   it('grows by one each turn up to the cap, with a head start for the second seat', () => {
-    // The industrial planet's bonus energy aside: 1, 2, then 3 a day.
+    // The industrial planet's bonus energy aside: 1, 2, 3, then 4 a day.
     const rules = BALANCE as { industrialPlays: number };
     const industry = rules.industrialPlays;
     rules.industrialPlays = 0;
@@ -119,8 +120,8 @@ describe('plays per turn', () => {
       s = endTurn(s);
     }
     rules.industrialPlays = industry;
-    expect(plays.filter((_, i) => i % 2 === 0)).toEqual([1, 2, 3, 3, 3, 3]);
-    expect(plays.filter((_, i) => i % 2 === 1)).toEqual([1 + BALANCE.laterSeatPlays, 2, 3, 3, 3, 3]);
+    expect(plays.filter((_, i) => i % 2 === 0)).toEqual([1, 2, 3, 4, 4, 4]);
+    expect(plays.filter((_, i) => i % 2 === 1)).toEqual([1 + BALANCE.laterSeatPlays, 2, 3, 4, 4, 4]);
   });
 
   it('refuses a play once none are left', () => {
@@ -220,27 +221,62 @@ describe('the tableau', () => {
 });
 
 describe('commands', () => {
-  it('ask for a choice of dawn effect, keep it, and stay their full term', () => {
+  it('ask for a choice of dawn effect, keep it, and stay their full term, in the Command slot', () => {
     let s = twoPlayer();
-    give(activePlayer(s), ['command_directive']);
-    expect(() => play(s, 'command_directive')).toThrow(/options/);
-    s = play(s, 'command_directive', { choice: 'heat2' });
+    give(activePlayer(s), ['ignition_protocol']);
+    expect(() => play(s, 'ignition_protocol')).toThrow(/options/);
+    s = play(s, 'ignition_protocol', { choice: 'heat2' });
     const cmd = s.players[0].tableau[0];
     expect(cmd.choice).toBe('heat2');
+    expect(cmd.slot).toBe(COMMAND_SLOT);
     expect(cmd.stability).toBe(BALANCE.stabilityCommand);
     const before = s.players[1].heat;
     s = endTurn(endTurn(s)); // Ada's next dawn: the chosen effect fires
     expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 2);
   });
 
-  it('cool or draw, as chosen', () => {
+  it('offer energy, a draw, or their own third option', () => {
+    for (const id of ['command_directive', 'ignition_protocol', 'coolant_protocol', 'chamber_protocol', 'war_council', 'logistics_command']) {
+      const choices = (cardDef(id).choices ?? []).map((c) => c.id);
+      expect(choices.slice(0, 2)).toEqual(['energy1', 'draw1']);
+      expect(choices).toHaveLength(3);
+    }
     let s = twoPlayer();
     const me = activePlayer(s);
     me.heat = 6;
-    give(me, ['command_directive']);
-    s = play(s, 'command_directive', { choice: 'cool3' });
+    give(me, ['coolant_protocol']);
+    s = play(s, 'coolant_protocol', { choice: 'cool2' });
     s = endTurn(endTurn(s));
-    expect(s.players[0].heat).toBeLessThanOrEqual(6 - 3 + 1);
+    expect(s.players[0].heat).toBeLessThanOrEqual(6 - 2 + 1);
+  });
+
+  it('take one Command slot: a new one replaces the old, and neither takes a tableau slot', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.playsLeft = 9;
+    give(me, ['plasma_relay', 'plasma_relay', 'coolant_array', 'coolant_array', 'deflector_grid'], 'tableau');
+    expect(tableauFull(me)).toBe(true);
+    give(me, ['command_directive', 'war_council']);
+    s = play(s, 'command_directive', { choice: 'draw1' });
+    expect(activePlayer(s).tableau.filter((c) => c.slot === COMMAND_SLOT).map((c) => c.defId)).toEqual(['command_directive']);
+    s = play(s, 'war_council', { choice: 'recover1' });
+    const after = activePlayer(s);
+    expect(after.tableau.filter((c) => c.slot === COMMAND_SLOT).map((c) => c.defId)).toEqual(['war_council']);
+    expect(after.discard.some((c) => c.defId === 'command_directive')).toBe(true);
+    expect(after.tableau).toHaveLength(6);
+  });
+
+  it("War Council's recover takes back the card most recently discarded (not a Command card)", () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['war_council']);
+    s = play(s, 'war_council', { choice: 'recover1' });
+    const ada = s.players[0];
+    ada.discard.push({ uid: 'd1', defId: 'coronal_lance' }, { uid: 'd2', defId: 'gravity_sling' }, { uid: 'd3', defId: 'command_directive' });
+    s = endTurn(endTurn(s));
+    const now = s.players[0];
+    expect(now.hand.some((c) => c.uid === 'd2')).toBe(true);
+    expect(now.discard.some((c) => c.uid === 'd3')).toBe(true);
   });
 
   it("can't be recalled or recovered to their owner's hand", () => {
@@ -556,8 +592,8 @@ describe('resonance', () => {
     const me = activePlayer(s);
     give(me, ['bell_warden', 'tide_pylon', 'coronal_lance'], 'tableau');
     s = endTurn(endTurn(s));
-    // Bell Warden 2, Pylon 1 + 1 (one defence neighbour).
-    expect(s.players[0].shields).toBe(4);
+    // Bell Warden 3, Pylon 2 + 1 (one defence neighbour).
+    expect(s.players[0].shields).toBe(6);
   });
 });
 
@@ -704,12 +740,12 @@ describe('turn forecast', () => {
     ada.tableau[1].growth = 1;
     ada.heat = 5;
     const f = turnForecast(s, ada);
-    // Relay 1, Tower grows to 2 then heats 2; Warden 2 shields; Array cools 1.
-    expect(f).toMatchObject({ heat: 3, targetId: 'p2', shields: 2, cool: 1, selfHeat: 0, draw: 0 });
+    // Relay 1, Tower grows to 2 then heats 2; Warden 3 shields; Array cools 1.
+    expect(f).toMatchObject({ heat: 3, targetId: 'p2', shields: 3, cool: 1, selfHeat: 0, draw: 0 });
     const bo = s.players[1].heat;
     s = endTurn(endTurn(s));
     expect(s.players[1].heat).toBe(bo + 3);
-    expect(s.players[0].shields).toBe(2);
+    expect(s.players[0].shields).toBe(3);
     expect(s.players[0].heat).toBe(4);
   });
 });
@@ -745,6 +781,7 @@ describe('orbit', () => {
     expect(currentPlanet(me())).toBe('abundant');
     expect(me().hand.length).toBe(BALANCE.drawPerTurn + BALANCE.abundantDraw);
     me().orbit = 5;
+    me().turnsTaken = 10; // well past the ramp to full energy
     s = nextTurnOf(s, id);
     expect(currentPlanet(me())).toBe('industrial');
     expect(me().playsLeft).toBe(BALANCE.maxPlays + BALANCE.industrialPlays);

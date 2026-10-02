@@ -1,4 +1,5 @@
 import type { CardDef, Rarity } from './types';
+import { commandChoices } from './commands';
 
 /**
  * The second set: a hundred cards for building decks, alongside the first set (the starter decks use
@@ -115,22 +116,8 @@ export const EXPANSION: CardDef[] = [
   },
 
   // ---- Neutral Command ----
-  {
-    id: 'war_council',
-    name: 'War Council',
-    kind: 'command',
-    text: '{heat:2}. {dawn}: {heat:1}. {shield:1}.',
-    onPlay: [{ type: 'heat', amount: 2, to: 'target' }],
-    onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'shield', amount: 1 }],
-  },
-  {
-    id: 'logistics_command',
-    name: 'Logistics Command',
-    kind: 'command',
-    text: 'Draw 1. {dawn}: draw 1. {cool:1}.',
-    onPlay: [{ type: 'draw', amount: 1 }],
-    onTurn: [{ type: 'draw', amount: 1 }, { type: 'cool', amount: 1 }],
-  },
+  { id: 'war_council', name: 'War Council', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|recover1}', choices: commandChoices('energy1', 'draw1', 'recover1') },
+  { id: 'logistics_command', name: 'Logistics Command', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|orbit1}', choices: commandChoices('energy1', 'draw1', 'orbit1') },
 
   // ---- Aureline ----
   {
@@ -431,8 +418,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Vorthanian Tidecaller',
     kind: 'defence',
     race: 2,
-    text: '{dawn}: {shield:1}. {shield:+2} with 3+ defence cards.',
-    onTurn: [{ type: 'shield', amount: 1 }, { type: 'shield', amount: 2, if: { minKind: 'defence', n: 3 } }],
+    text: '{dawn}: {shield:2}. {shield:+2} with 3+ defence cards.',
+    onTurn: [{ type: 'shield', amount: 2 }, { type: 'shield', amount: 2, if: { minKind: 'defence', n: 3 } }],
   },
   {
     id: 'brine_lash',

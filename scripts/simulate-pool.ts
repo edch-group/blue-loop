@@ -5,7 +5,7 @@
  */
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
-import { CARDS, cardDef, copyLimit } from '../src/engine/cards';
+import { CARDS, cardDef, commandCardsFor, copyLimit } from '../src/engine/cards';
 import { EXPANSION } from '../src/engine/cards-expansion';
 import { deckProblems } from '../src/engine/cards';
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
@@ -20,8 +20,11 @@ function randomDeck(race: number): string[] {
   const pool = CARDS.filter((c) => !c.fusedFrom && (c.race === undefined || c.race === race));
   const commands = pool.filter((c) => c.kind === 'command');
   const rest = pool.filter((c) => c.kind !== 'command' && c.kind !== 'global');
-  const deck: string[] = [pick(commands).id];
-  deck.push(pick(commands.filter((c) => copyLimit(c.id) > 1 || c.id !== deck[0])).id);
+  const deck: string[] = [];
+  while (deck.length < commandCardsFor(BALANCE.deckSize)) {
+    const c = pick(commands);
+    if (deck.filter((id) => id === c.id).length < copyLimit(c.id)) deck.push(c.id);
+  }
   // Lean on the race's own cards, as a real deck would.
   const own = rest.filter((c) => c.race === race);
   while (deck.length < BALANCE.deckSize) {

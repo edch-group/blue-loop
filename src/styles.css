@@ -2971,3 +2971,28 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .stage-against .card { filter: saturate(0.85); box-shadow: 0 14px 30px rgba(70, 70, 90, 0.22), 0 0 0 2px #fff; }
 .stage-against .card .card-text { display: none; }
 .stage-against span { padding: 3px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #a86d10; letter-spacing: 0.16em; font-size: 0.5rem; text-transform: uppercase; white-space: nowrap; box-shadow: var(--shadow); }
+
+/* ---------- The Command slot: the tableau's leader, landscape, out in front ---------- */
+.tableau-row { position: relative; }
+/* Yours stands above the right end of your row; your rival's below the left end of theirs (the board is a mirror). */
+.cmd-slot { position: absolute; width: calc(var(--tcw) * 1.4); height: var(--tcw); transform-style: preserve-3d; z-index: 1; }
+.tableau-mine .cmd-slot { right: 0; bottom: calc(100% + 16px); }
+.tableau-rival .cmd-slot { left: 0; top: calc(100% + 16px); }
+.slot-empty.slot-cmd { width: 100%; height: 100%; grid-auto-flow: row; }
+.slot-cmd small { font-size: max(6px, calc(var(--tcw) * 0.075)); letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.8; }
+/* The outline round the tableau, with its bump for the Command slot. */
+.tableau-frame { position: absolute; overflow: visible; pointer-events: none; transform: translateZ(1px); }
+.tableau-frame path { fill: rgba(255, 255, 255, 0.18); stroke: rgba(130, 142, 170, 0.5); stroke-width: 1.5; stroke-linejoin: round; }
+.tableau-mine .tableau-frame path { stroke: rgba(110, 150, 120, 0.55); }
+.tableau-rival .tableau-frame path { stroke: rgba(200, 120, 100, 0.5); }
+/* A Command card in play lies landscape: its picture on the left, its name and options on the right. */
+.card.card-table.card-landscape {
+  width: calc(var(--tcw) * 1.4); height: var(--tcw); padding: 5% 5% 4% calc(var(--tcw) * 0.62);
+  display: flex; flex-direction: column; justify-content: flex-start; gap: 1px;
+}
+.card-landscape .card-glyph { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--tcw) * 0.56); height: 100%; padding: 0; overflow: hidden; border-radius: inherit; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.card-landscape .card-glyph > * { height: 100%; }
+.card-landscape .card-name { font-size: max(6px, calc(var(--tcw) * 0.085)); padding-right: calc(var(--tcw) * 0.22); }
+.card-landscape .card-text { font-size: max(6px, calc(var(--tcw) * 0.068)); flex: 1; min-height: 0; }
+.card-landscape .card-kind { text-align: left; }
+.card-landscape .card-stats { left: calc(var(--tcw) * 0.04); right: auto; top: auto; bottom: calc(var(--tcw) * 0.05); }

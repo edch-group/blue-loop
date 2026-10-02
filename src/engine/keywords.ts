@@ -117,7 +117,10 @@ function rawLabel(id: string, value?: string): string {
 export function optionText(id: string): string {
   const m = /^([a-z]+)(\d+)$/.exec(id);
   if (!m) return id;
-  return m[1] === 'draw' ? `Draw ${m[2]}` : KEYWORDS[m[1]] ? `{${m[1]}:${m[2]}}` : `${m[1]} ${m[2]}`;
+  if (m[1] === 'draw') return `Draw ${m[2]}`;
+  if (m[1] === 'recover') return 'Recover your last discarded card';
+  if (m[1] === 'orbit') return `Your {orbit:+${m[2]}}`;
+  return KEYWORDS[m[1]] ? `{${m[1]}:${m[2]}}` : `${m[1]} ${m[2]}`;
 }
 
 export function optionList(value = ''): string[] {

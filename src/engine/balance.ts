@@ -12,18 +12,19 @@ export const BALANCE = {
   minHeat: -5,
   supernovaAt: 24,
 
-  /** Decks: exactly this many cards, at most `maxCopies` of each, exactly `commandCards` Command cards. */
-  deckSize: 20,
+  /** Decks: between `deckSize` and `maxDeckSize` cards, at most `maxCopies` of each, and one Command card per `cardsPerCommand` cards. */
+  deckSize: 30,
+  maxDeckSize: 40,
+  cardsPerCommand: 10,
   maxCopies: 2,
   /** Anomaly cards are unique: one copy per deck. */
   maxAnomalyCopies: 1,
-  commandCards: 2,
 
   /** Cards in the opening hand, and drawn at each dawn after the first. */
   openingHand: 5,
   drawPerTurn: 1,
   /** Seats after the first: extra cards in the opening hand, and extra plays on their first day. */
-  laterSeatCards: 0,
+  laterSeatCards: 1,
   laterSeatPlays: 0,
   /** Seats after the first also start with a cooler sun. */
   laterSeatCool: 0,
@@ -36,10 +37,10 @@ export const BALANCE = {
 
   /**
    * Energy: what you spend to play cards (each card has a cost, see costs.ts). You get as much as the
-   * days you have taken, up to `maxPlays` (1, 2, then 3 a day); the industrial planet and energy cards
+   * days you have taken, up to `maxPlays` (1, 2, 3, then 4 a day); the industrial planet and energy cards
    * add more on top, with no ceiling.
    */
-  maxPlays: 3,
+  maxPlays: 4,
   /** Orbit: turns each planet faces its sun, and what the abundant and industrial planets give each day. */
   orbitTurns: 3,
   abundantDraw: 1,
@@ -49,6 +50,8 @@ export const BALANCE = {
   tableauSlots: 5,
   /** Each slot's defence, left to right: the middle is safest. Removal cards can only reach cards with low enough defence. */
   slotDefence: [1, 2, 3, 2, 1],
+  /** The Command slot's defence (it leads the tableau, out in front of the five). */
+  commandSlotDefence: 2,
   /**
    * Stability: how many of your days a card stays in your tableau (its dawn effects trigger
    * that many times), before it fades into your discard pile. Cards with only a when-played effect fade faster.

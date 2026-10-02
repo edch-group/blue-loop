@@ -2,6 +2,7 @@ import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { CARD_COSTS } from './costs';
+import { commandChoices } from './commands';
 
 /**
  * The card pool. Cards have no cost: the number of cards you may play each
@@ -11,16 +12,6 @@ import { CARD_COSTS } from './costs';
  * "Your rival" is the other player (Blue Loop is 1v1). "Dawn"
  * effects trigger at each of your dawns while the card is in play.
  */
-/**
- * A Command card's choice of dawn effect: heat your rival, cool your sun, or draw. The ids are how the
- * choice is written into card text ({options:heat2|cool3|energy1}) and named in a play.
- */
-export const COMMAND_CHOICES: NonNullable<CardDef['choices']> = [
-  { id: 'heat2', onTurn: [{ type: 'heat', amount: 2, to: 'target' }] },
-  { id: 'cool3', onTurn: [{ type: 'cool', amount: 3 }] },
-  { id: 'energy1', onTurn: [{ type: 'plays', amount: 1 }] },
-];
-
 export const CARDS: CardDef[] = [
   // ---- Neutral ------------------------------------------------------------
   { id: 'coronal_lance', name: 'Coronal Lance', kind: 'attack', text: '{heat:3}.', onPlay: [{ type: 'heat', amount: 3, to: 'target' }] },
@@ -46,41 +37,15 @@ export const CARDS: CardDef[] = [
   { id: 'ice_age', name: 'Ice Age', kind: 'global', text: '{global}. Every sun gets {cool:1} at its dawn.', passive: [{ type: 'field', field: 'iceAge' }] },
   { id: 'solar_maximum', name: 'Solar Maximum', kind: 'global', text: '{global}. Every {heat} effect deals 1 more.', passive: [{ type: 'field', field: 'solarMaximum' }] },
 
-  // ---- Command: each deck's two pillars. Played with a choice of dawn effect, they stay their full term,
-  // and can't be recovered or recalled to your own hand (a rival can still send them back) ----
-  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: '{dawn}, one of: {options:heat2|cool3|energy1}', choices: COMMAND_CHOICES },
-  {
-    id: 'ignition_protocol',
-    name: 'Ignition Protocol',
-    kind: 'command',
-    text: '{heat:1}. {dawn}: {heat:2}, {pierce}.',
-    onPlay: [{ type: 'heat', amount: 1, to: 'target' }],
-    onTurn: [{ type: 'heat', amount: 2, to: 'target', pierce: true }],
-  },
-  {
-    id: 'coolant_protocol',
-    name: 'Coolant Protocol',
-    kind: 'command',
-    text: '{cool:2}. {dawn}: {cool:3}.',
-    onPlay: [{ type: 'cool', amount: 2 }],
-    onTurn: [{ type: 'cool', amount: 3 }],
-  },
-  {
-    id: 'chamber_protocol',
-    name: 'Chamber Protocol',
-    kind: 'command',
-    text: '{shield:3}. {dawn}: {shield:3}.',
-    onPlay: [{ type: 'shield', amount: 3 }],
-    onTurn: [{ type: 'shield', amount: 3 }],
-  },
-  {
-    id: 'the_admiralty',
-    name: 'The Admiralty',
-    kind: 'command',
-    text: '{resonance:2}. {dawn}, one of: {options:heat2|cool3|energy1}',
-    choices: COMMAND_CHOICES,
-    passive: [{ type: 'adjacent', amounts: [2] }],
-  },
+  // ---- Command: each deck's leaders. One at a time, in the Command slot ahead of the tableau (a new one
+  // replaces the old). Played with a choice of dawn effect, they stay their full term, and can't be
+  // recovered or recalled to your own hand (a rival can still send them back) ----
+  { id: 'command_directive', name: 'Command Directive', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|shield2}', choices: commandChoices('energy1', 'draw1', 'shield2') },
+  { id: 'ignition_protocol', name: 'Ignition Protocol', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|heat2}', choices: commandChoices('energy1', 'draw1', 'heat2') },
+  { id: 'coolant_protocol', name: 'Coolant Protocol', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|cool2}', choices: commandChoices('energy1', 'draw1', 'cool2') },
+  { id: 'chamber_protocol', name: 'Chamber Protocol', kind: 'command', text: '{dawn}, one of: {options:energy1|draw1|renew1}', choices: commandChoices('energy1', 'draw1', 'renew1') },
+  // The Admiralty: the big one, twice as much of each.
+  { id: 'the_admiralty', name: 'The Admiralty', kind: 'command', text: '{dawn}, one of: {options:energy2|draw2|shield4}', choices: commandChoices('energy2', 'draw2', 'shield4') },
 
   // ---- Keeping your Command cards in play ----
   {
@@ -314,7 +279,7 @@ export const CARDS: CardDef[] = [
   { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 3. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 1 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
-  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:1}. {dawn}: {shield:2}.', defence: 1, onTurn: [{ type: 'shield', amount: 2 }], passive: [{ type: 'taunt' }] },
+  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:1}. {dawn}: {shield:3}.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }], passive: [{ type: 'taunt' }] },
   { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: "{sting:3}.", passive: [{ type: 'retaliate', amount: 3 }] },
   {
     id: 'tidal_bloom',
@@ -329,8 +294,8 @@ export const CARDS: CardDef[] = [
     name: 'Abyssal Choir',
     kind: 'attack',
     race: 2,
-    text: '{dawn}: {heat:2}. {heat:+1} per 2 shields you have (up to 5).',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }],
+    text: '{dawn}: {heat:3}. {heat:+1} per 2 shields you have (up to 6).',
+    onTurn: [{ type: 'heat', amount: 3, to: 'target', plus: { of: 'shields', per: 2 }, max: 6 }],
   },
   {
     id: 'deep_current',
@@ -456,8 +421,8 @@ export const CARDS: CardDef[] = [
     name: 'Tide Pylon',
     kind: 'defence',
     race: 2,
-    text: '{dawn}: {shield:1}. {shield:+1} per defence card next to this.',
-    onTurn: [{ type: 'shield', amount: 1, plus: { of: 'adjacent', kind: 'defence' } }],
+    text: '{dawn}: {shield:2}. {shield:+1} per defence card next to this.',
+    onTurn: [{ type: 'shield', amount: 2, plus: { of: 'adjacent', kind: 'defence' } }],
   },
   {
     id: 'riptide_ambush',
@@ -832,57 +797,64 @@ export interface DeckList {
 const twoOf = (...ids: string[]) => ids.flatMap((id) => [id, id]);
 
 /** A ready-made deck for each race: its cards (with its Stellar hero and its Anomaly), neutral support and two Command cards. */
-// A starter deck keeps about half its cards at 0–1 energy, so most days can play a 2 and a 1 (or three 1s)
-// at 3 energy, with a few 3s and 4s as its bombs; a deck that ramps (Hive Bloom) can run a higher curve.
+// A starter deck (30 cards, three of them Command cards) keeps a bit under half its cards at 0–1 energy, so
+// most days can play a 2 and a 1 early and fill 4 energy later, with a few 3s and 4s as its bombs; a deck
+// that ramps (Hive Bloom) can run a higher curve.
 export const PRESET_DECKS: DeckList[] = [
   {
     // Attack cards that power each other up: a Sunforge and a Focusing Array boosting them all, Lancer
     // Squadrons and Sunlance Charges growing with the attack and Command cards around them, a Halo
     // Sentinel guarding the line, a Sunlit Return and a Recall Beacon to bring the best attack cards back,
-    // an Ion Cannon, and a Prism of Dawn set face down against the counter-attack.
+    // an Ion Cannon, and a Prism of Dawn set face down against the counter-attack. At the top: Aurelia,
+    // the Archon, a Sunspear and the Sun Throne.
     name: 'Solar Lancers',
     race: 0,
     cards: [
-      ...twoOf('command_directive', 'sunlance_charge'),
-      'lancer_squadron', 'sunforge', 'helio_lancer', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
-      'halo_sentinel', 'sunlit_return', 'prism_of_dawn', 'ion_cannon', 'coolant_array', 'cryo_vault', 'recall_beacon',
-      'gravity_assist', 'tidal_brake',
+      ...twoOf('command_directive', 'sunlance_charge', 'lancer_squadron', 'helio_lancer'),
+      'ignition_protocol', 'coronal_chorus', 'dawnblade', 'sunforge', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
+      'halo_sentinel', 'sunlit_return', 'prism_of_dawn', 'ion_cannon', 'coolant_array', 'cryo_vault', 'recall_beacon', 'gravity_assist', 'tidal_brake',
+      'glory_charge', 'aureline_archon', 'sunspear', 'aurelia_first_light', 'the_sun_throne',
     ],
   },
   {
-    // Cards that pay off as they leave play (Martyr, Echo Shard, Prism Ward, Kyr'Vessa), recalled with
-    // Phase Shift and Shard Echo to do it again (and with Shard Recall); an Ember Shard recovered by the
-    // Reliquarist; a Prism Conduit cooled by the attack cards beside it.
+    // Cards that pay off as they leave play (Martyrs, Echo Shards, Prism Wards, Kyr'Vessa), recalled with
+    // Phase Shift and Shard Echo to do it again (and with Shard Recall); Ember Shards recovered by the
+    // Reliquarist; a Prism Conduit cooled by the attack cards beside it; a Coolant Protocol, a Prism Vent,
+    // a Heat Bleed and a Prism Sanctum to run hot safely, and an Oracle drawing while it does.
     name: 'Shard Overload',
     race: 1,
     cards: [
-      ...twoOf('shard_reactor', 'martyr_crystal', 'prism_ward', 'command_directive'),
-      'ember_shard', 'echo_shard', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift',
-      'shard_recall', 'shard_echo', 'comet_shard', 'tidal_brake',
+      ...twoOf('shard_reactor', 'martyr_crystal', 'prism_ward', 'command_directive', 'ember_shard', 'echo_shard'),
+      'coolant_protocol', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift',
+      'shard_recall', 'shard_echo', 'comet_shard', 'tidal_brake', 'prism_vent', 'heat_bleed', 'xelnaru_warden', 'overcharge', 'xelnaru_oracle',
+      'prism_sanctum', 'crystal_storm',
     ],
   },
   {
-    // Shields and defence: Tide Pylons around the Wardens, a Trench-Warden and the Aegis Monolith
-    // guarding the line, Returning Tide to bring a fallen defence card back, Undertows to wear rival
-    // cards away, and a Riptide Ambusher and an Ink Cloud set face down against a big hit.
+    // Shields and defence: Tide Pylons around the Wardens, a Trench-Warden, the Aegis Monolith and a
+    // Leviathan Shell guarding the line, Returning Tide to bring a fallen defence card back, Undertows to
+    // wear rival cards away, Brine Lashes, Riptides and Jelly Swarms hitting harder behind shields, and a
+    // Riptide Ambusher and an Ink Cloud set face down against a big hit.
     name: 'Abyssal Tide',
     race: 2,
     cards: [
-      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'command_directive'),
-      'riptide_ambush', 'ink_cloud', 'trench_warden', 'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide', 'aegis_monolith',
-      'coronal_lance', 'deep_current',
+      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'command_directive', 'riptide', 'brine_lash', 'jelly_swarm', 'coronal_lance'),
+      'chamber_protocol', 'riptide_ambush', 'ink_cloud', 'trench_warden', 'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide',
+      'aegis_monolith', 'pressure_wave', 'tidebreaker', 'leviathan_shell',
     ],
   },
   {
-    // Go wide, ramp and keep it coming back: Sporelings, Overgrowth, a Hive Relay and the Brood Queen for
-    // the energy to play more (and bigger: a Chitin Fortress), Hive Rooting and a Compost Cycle to hold the
-    // hive in play, and Spore Husks recovered from the discard pile (by the Compost Cycle and a Regrowth Pod) to draw more.
+    // Go wide, ramp and keep it coming back: Sporelings, Overgrowth, Hive Relays and the Brood Queen for
+    // the energy to play more (and bigger: a Chitin Fortress, a Solar Bastion), Hive Rooting and a Compost
+    // Cycle to hold the hive in play, and Spore Husks recovered from the discard pile (by the Compost Cycle
+    // and a Regrowth Pod) to draw more.
     name: 'Hive Bloom',
     race: 3,
     cards: [
-      ...twoOf('orbit_root', 'spore_husk', 'command_directive'),
-      'rot_bloom', 'hive_warrior', 'hive_rooting', 'compost_cycle', 'sporelings', 'overgrowth', 'hive_relay', 'chitin_fortress', 'sporecaster', 'spore_cloud',
-      'ixquor_brood_tender', 'the_brood_queen', 'coolant_array', 'regrowth_pod',
+      ...twoOf('orbit_root', 'spore_husk', 'command_directive', 'rot_bloom', 'hive_warrior', 'hive_relay', 'spore_cloud'),
+      'logistics_command', 'hive_rooting', 'compost_cycle', 'sporelings', 'overgrowth', 'chitin_fortress', 'sporecaster',
+      'ixquor_brood_tender', 'the_brood_queen', 'coolant_array', 'regrowth_pod', 'hive_tyrant', 'spore_drone', 'brood_chamber', 'mycelium_tower',
+      'solar_bastion',
     ],
   },
 ];
@@ -891,10 +863,15 @@ export function presetDeck(race: number): DeckList {
   return PRESET_DECKS[((race % 4) + 4) % 4];
 }
 
+/** How many Command cards a deck of this size runs: one per `cardsPerCommand` cards (3 in 30, 4 in 40). */
+export function commandCardsFor(size: number): number {
+  return Math.max(1, Math.floor(Math.max(size, BALANCE.deckSize) / BALANCE.cardsPerCommand));
+}
+
 /** Why a deck list is not legal (empty if it is). */
 export function deckProblems(cards: string[]): string[] {
   const problems: string[] = [];
-  if (cards.length !== BALANCE.deckSize) problems.push(`A deck needs exactly ${BALANCE.deckSize} cards (this has ${cards.length}).`);
+  if (cards.length < BALANCE.deckSize || cards.length > BALANCE.maxDeckSize) problems.push(`A deck needs ${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards (this has ${cards.length}).`);
   const counts = new Map<string, number>();
   for (const id of cards) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const [id, n] of counts) {
@@ -902,6 +879,7 @@ export function deckProblems(cards: string[]): string[] {
     else if (n > copyLimit(id)) problems.push(copyLimit(id) === 1 ? `${cardDef(id).name} is an Anomaly: only one copy per deck.` : `At most ${BALANCE.maxCopies} copies of ${cardDef(id).name}.`);
   }
   const commands = cards.filter((id) => BY_ID.get(id)?.kind === 'command').length;
-  if (commands !== BALANCE.commandCards) problems.push(`A deck needs exactly ${BALANCE.commandCards} Command cards (this has ${commands}).`);
+  const need = commandCardsFor(cards.length);
+  if (commands !== need) problems.push(`A deck of ${cards.length} needs exactly ${need} Command cards: one per ${BALANCE.cardsPerCommand} cards (this has ${commands}).`);
   return problems;
 }
