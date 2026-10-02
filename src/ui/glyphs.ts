@@ -142,6 +142,26 @@ export function cardArt(def: CardDef, gem = false): string {
   return `<span class="art-wrap"><span class="art-frame ${gem ? 'art-notched' : ''}">${cardScene(def)}</span>${gem ? rarityGem(def) : ''}</span>`;
 }
 
+/** Each card's picture as an image (drawn once, then reused). */
+const sceneImages = new Map<string, string>();
+function sceneImage(def: CardDef): string {
+  let img = sceneImages.get(def.id);
+  if (!img) {
+    const svg = cardScene(def).replace('<svg class="art"', '<svg xmlns="http://www.w3.org/2000/svg"');
+    img = `<img class="art" alt="" decoding="async" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" />`;
+    sceneImages.set(def.id, img);
+  }
+  return img;
+}
+
+/**
+ * A card's picture as a single image rather than live SVG: for long lists of cards (the deck builder),
+ * where hundreds of live pictures would make every redraw slow.
+ */
+export function cardArtLite(def: CardDef, gem = false): string {
+  return `<span class="art-wrap"><span class="art-frame ${gem ? 'art-notched' : ''}">${sceneImage(def)}</span>${gem ? rarityGem(def) : ''}</span>`;
+}
+
 const RARITY_TITLE: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly (one per deck)' };
 
 /** A stable per-card phase, so gems on neighbouring cards shine out of step. */

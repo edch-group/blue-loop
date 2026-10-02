@@ -73,7 +73,7 @@ import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, sign
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
-import { fitCardText } from './fittext';
+import { fitCardText, fitWhenSeen } from './fittext';
 import { refreshLift, trackLift } from './lift';
 import { animateSuns } from './sun3d';
 import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
@@ -2162,6 +2162,7 @@ export class App {
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
     fitCardText(this.root);
+    fitWhenSeen(this.root.querySelectorAll<HTMLElement>('.db-pool .db-card'));
     refreshLift();
     const page = this.screen === 'menu' ? `menu:${this.menuPage}` : this.screen;
     if (page !== this.shownPage) {
