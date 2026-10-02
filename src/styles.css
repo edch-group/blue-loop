@@ -2997,7 +2997,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card.card-landscape {
   /* A card turned on its side: as wide as a card is tall. (--cw is the upright card's width.) */
   --cmdw: calc(var(--cw) * 1.4);
-  width: var(--cmdw); height: var(--cw); padding: 5% 5% 4% calc(var(--cmdw) * 0.44);
+  width: var(--cmdw); height: var(--cw);
+  /* (In fixed lengths: a percentage would be of whatever holds the card, such as the whole hand.) */
+  padding: calc(var(--cmdw) * 0.05) calc(var(--cmdw) * 0.05) calc(var(--cmdw) * 0.04) calc(var(--cmdw) * 0.44);
   display: flex; flex-direction: column; justify-content: flex-start; gap: 1px;
 }
 .card-landscape .card-glyph { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--cmdw) * 0.4); height: 100%; padding: 0; overflow: hidden; border-radius: inherit; border-top-right-radius: 0; border-bottom-right-radius: 0; }
@@ -3033,14 +3035,15 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* Keyword colours are made for pale cards: lift them on a Command card's slate. */
 .card.kind-command .card-text .kw:not(.kw-timing) { filter: brightness(1.9) saturate(1.15); }
 .card.kind-command .card-opts-chosen .card-opt.on, .card.kind-command .card-opt.on { background: rgba(255, 217, 138, 0.22); color: #fff; box-shadow: inset 0 0 0 1.5px #d4a52a; }
-/* In hand it is held upright like every other card: the same landscape card, turned on its side (picture at
-   the top), in an upright card's footprint. */
-.hand > .card.card-landscape { --side: 90deg; height: var(--hw); top: calc(8px + (var(--hh) - var(--hw)) / 2); }
+/* In hand it is held upright like every other card: the same landscape card, turned on its side
+   (anticlockwise, so its name and options are on the edge the next card in the fan leaves showing), in
+   exactly an upright hand card's footprint: as long as a hand card is tall (--hh), as wide as it is wide. */
+.hand > .card.card-landscape { --side: -90deg; --cmdw: var(--hh); width: var(--hh); height: var(--hw); top: calc(8px + (var(--hh) - var(--hw)) / 2); }
 .card.card-landscape:not(.card-big) .card-kind { display: none; }
 .hand > .card.card-landscape .card-name { font-size: max(8px, calc(var(--cw) * 0.075)); padding-right: 0; line-height: 1.1; }
 .hand > .card.card-landscape .card-text { font-size: max(8px, calc(var(--cw) * 0.07)); }
 /* Its magnified view lies landscape too. */
-.card-big.card-landscape { padding: 4% 4% 4% calc(var(--cmdw) * 0.5); }
+.card-big.card-landscape { padding: calc(var(--cmdw) * 0.04) calc(var(--cmdw) * 0.04) calc(var(--cmdw) * 0.04) calc(var(--cmdw) * 0.5); }
 .card-big.card-landscape .card-glyph { width: calc(var(--cmdw) * 0.46); }
 .card-big.card-landscape .card-kind { text-align: left; margin-top: auto; }
 .card.kind-command .kw-timing { color: #ffd98a; }
