@@ -2991,8 +2991,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .tableau-frame { position: absolute; overflow: visible; pointer-events: none; transform: translateZ(1px); }
 .tableau-frame path { fill: rgba(255, 255, 255, 0.14); stroke: rgba(140, 150, 175, 0.4); stroke-width: 1; stroke-linejoin: round; }
 /* A Command card in play lies landscape: its picture on the left, its name and options on the right. */
-.card.card-table.card-landscape {
-  width: 100%; height: 100%; padding: 5% 5% 4% calc(var(--cmdw) * 0.44);
+.card.card-landscape {
+  /* A card turned on its side: as wide as a card is tall. (--cw is the upright card's width.) */
+  --cmdw: calc(var(--cw) * 1.4);
+  width: var(--cmdw); height: var(--cw); padding: 5% 5% 4% calc(var(--cmdw) * 0.44);
   display: flex; flex-direction: column; justify-content: flex-start; gap: 1px;
 }
 .card-landscape .card-glyph { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--cmdw) * 0.4); height: 100%; padding: 0; overflow: hidden; border-radius: inherit; border-top-right-radius: 0; border-bottom-right-radius: 0; }
@@ -3011,3 +3013,23 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* Defence dented by heat this day: it shows what is left, in red, until the next day. */
 .stat-def.stat-dented { background: linear-gradient(135deg, #e88a6c, #c0563d); color: #fff; }
+
+/* Command cards (the race heroes) are dark, so they stand out from the moment they are drawn. */
+.card.kind-command, .card.kind-command.rarity-stellar, .card.kind-command.rarity-anomaly {
+  background-color: #232937;
+  background-image: linear-gradient(160deg, #3c4658, #1a1f2a 70%);
+  background-size: 100% 100%; background-position: 0 0;
+  border-color: #4a5468;
+}
+.card.kind-command.rarity-stellar { box-shadow: inset 0 0 0 1px rgba(212, 165, 42, 0.55), 0 6px 16px rgba(30, 34, 44, 0.3); }
+.card.kind-command.rarity-anomaly { box-shadow: inset 0 0 0 1px rgba(175, 140, 230, 0.6), 0 6px 16px rgba(30, 34, 44, 0.3); }
+.card.kind-command .card-name { color: #f2f5fa; }
+.card.kind-command .card-text { color: #c9d1de; }
+.card.kind-command .card-kind { color: #a9b3c4; }
+.card.kind-command .card-opt { background: rgba(255, 255, 255, 0.08); color: #e6ecf5; }
+.card.kind-command .card-opts-chosen .card-opt.on, .card.kind-command .card-opt.on { background: rgba(255, 217, 138, 0.22); color: #fff; box-shadow: inset 0 0 0 1.5px #d4a52a; }
+/* In hand, it lies on its side too, with its name and options large enough to read. */
+.hand > .card.card-landscape { height: var(--hw); }
+.hand > .card.card-landscape .card-name { font-size: max(8px, calc(var(--cw) * 0.085)); }
+.hand > .card.card-landscape .card-text { font-size: max(8px, calc(var(--cw) * 0.068)); }
+.card.kind-command .kw-timing { color: #ffd98a; }

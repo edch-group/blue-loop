@@ -2169,11 +2169,17 @@ export class App {
     const cards = [...hand.querySelectorAll<HTMLElement>(':scope > .card')];
     const n = cards.length;
     if (!n) return;
-    const w = cards[0].offsetWidth;
+    // Cards differ in width (a Command card lies landscape): neighbours overlap by the same share of their widths.
+    const ws = cards.map((c) => c.offsetWidth);
+    const w = Math.min(...ws);
     const inset = w * 0.12; // room for the outer cards' tilt, so they don't cover the piles
     const W = hand.clientWidth - inset * 2;
-    const spacing = n > 1 ? Math.min(w * 0.82, (W - w) / (n - 1)) : 0;
-    const start = inset + (W - (spacing * (n - 1) + w)) / 2;
+    const pairs = ws.slice(1).reduce((sum, x, i) => sum + (x + ws[i]) / 2, 0);
+    const k = n > 1 ? Math.min(0.82, (W - ws[0] / 2 - ws[n - 1] / 2) / pairs) : 0;
+    const centres = ws.reduce<number[]>((at, x, i) => [...at, i ? at[i - 1] + ((ws[i - 1] + x) / 2) * k : 0], []);
+    const span = ws[0] / 2 + centres[n - 1] + ws[n - 1] / 2;
+    const start = inset + (W - span) / 2 + ws[0] / 2;
+    const spacing = n > 1 ? centres[n - 1] / (n - 1) : 0;
     const step = Math.min(5, 24 / Math.max(n - 1, 1)); // degrees between neighbours
     // Freshly drawn cards are placed straight into the fan (with no transition, they would swing out from
     // the middle every time the page is redrawn); a card already placed keeps its smooth move.
@@ -2185,7 +2191,7 @@ export class App {
     cards.forEach((c, i) => {
       const t = i - (n - 1) / 2;
       const a = (t * step * Math.PI) / 180;
-      c.style.left = `${start + i * spacing}px`;
+      c.style.left = `${start + centres[i] - ws[i] / 2}px`;
       c.style.setProperty('--fr', `${t * step}deg`);
       c.style.setProperty('--fy', `${(radius * (1 - Math.cos(a)) * 1.25).toFixed(2)}px`);
       c.style.zIndex = String(i + 1);
@@ -3000,7 +3006,7 @@ export class App {
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
     return `
-      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
+      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape || (opts.hand && def.kind === 'command') ? 'card-landscape' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArt(def, true)}</div>
         ${growth}${resonance}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
