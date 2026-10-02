@@ -34,6 +34,8 @@ function outcome(text: string): { icon: string; tone: string; chip: Chip | null 
   if ((m = text.match(/shields absorb (\d+)/))) return { icon: sym('shield'), tone: 'shield', chip: { cls: 'shield', html: `${sym('shield')}−${m[1]}` } };
   if ((m = text.match(/raises (\d+) shield/))) return { icon: sym('shield'), tone: 'shield', chip: { cls: 'shield', html: `${sym('shield')}+${m[1]}` } };
   if ((m = text.match(/stings .+ for (\d+)/))) return { icon: '⚔', tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')}+${m[1]}` } };
+  if ((m = text.match(/heat strikes .* \(stability (\d+)\)/))) return { icon: sym('heat'), tone: 'heat', chip: { cls: 'remove', html: `◷ ${ARROW} ${m[1]}` } };
+  if (/burns away/.test(text)) return { icon: '✕', tone: 'remove', chip: { cls: 'remove', html: '✕ burned' } };
   if (/destroys/.test(text)) return { icon: '✕', tone: 'remove', chip: { cls: 'remove', html: `✕ destroyed` } };
   if (/flung back|returns .+ to their hand/.test(text)) return { icon: '↩', tone: 'remove', chip: { cls: 'move', html: `${ARROW} hand` } };
   if (/recovers/.test(text)) return { icon: '↩', tone: 'move', chip: { cls: 'move', html: `${ARROW} hand` } };

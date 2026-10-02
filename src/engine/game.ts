@@ -228,6 +228,63 @@ export function enemyChoices(state: GameState, p: PlayerState, defId: string): C
   return t.tableau.filter((c) => canReach(t, c, e));
 }
 
+/** Whether a card has heat for your rival that it can aim (at their sun, or at one of their cards). */
+export function aimable(defId: string): boolean {
+  const d = cardDef(defId);
+  return [...(d.onPlay ?? []), ...(d.onTurn ?? [])].some((e) => e.type === 'heat' && e.to === 'target');
+}
+
+/** Whether all of a card's aimable heat pierces (past shields and past Guards). */
+function piercing(defId: string): boolean {
+  const heat = [...(cardDef(defId).onPlay ?? []), ...(cardDef(defId).onTurn ?? [])].filter((e) => e.type === 'heat');
+  return heat.length > 0 && heat.every((e) => e.type === 'heat' && e.pierce);
+}
+
+/** A player's Guard cards: while they have any, rival heat can only be aimed at them (pierce heat excepted). */
+export function guards(p: PlayerState): CardInstance[] {
+  return p.tableau.filter((c) => (cardDef(c.defId).passive ?? []).some((x) => x.type === 'taunt'));
+}
+
+/**
+ * Where a card's heat may be aimed: any card in your rival's tableau, or their sun. While they have Guard
+ * cards, only those (unless the card's heat pierces). `sun` says whether their sun is a choice.
+ */
+export function aimChoices(state: GameState, p: PlayerState, defId: string): { cards: CardInstance[]; sun: boolean } {
+  const t = targetOf(state, p);
+  if (!t || !aimable(defId)) return { cards: [], sun: true };
+  const g = guards(t);
+  if (g.length && !piercing(defId)) return { cards: g, sun: false };
+  return { cards: [...t.tableau], sun: true };
+}
+
+/** Where a card's dawn heat lands now: a rival card (its aim, or a Guard), or null for their sun. */
+export function heatTarget(state: GameState, p: PlayerState, card: CardInstance): CardInstance | null {
+  return aimedCard(state, p, card, piercing(card.defId));
+}
+
+/** Where this card's heat lands now: the rival card it is aimed at (if still there and allowed), a Guard, or the sun (null). */
+function aimedCard(state: GameState, p: PlayerState, card: CardInstance, pierce: boolean): CardInstance | null {
+  const t = targetOf(state, p);
+  if (!t) return null;
+  const g = pierce ? [] : guards(t);
+  const aimed = card.aim ? t.tableau.find((c) => c.uid === card.aim) : undefined;
+  if (aimed && (!g.length || g.includes(aimed))) return aimed;
+  // Guards take the heat meant for the sun or for the cards behind them: the most worn one first.
+  if (g.length) return [...g].sort((a, b) => (a.stability ?? 0) - (b.stability ?? 0))[0];
+  return null;
+}
+
+/** Heat on a card wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
+function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState) {
+  const before = victim.stability ?? 0;
+  victim.stability = Math.max(0, before - amount);
+  log(state, `${source.name}'s heat strikes ${owner.name}'s ${cardDef(victim.defId).name} (stability ${victim.stability}).`);
+  if (victim.stability <= 0) {
+    log(state, `${owner.name}'s ${cardDef(victim.defId).name} burns away.`);
+    leaveTableau(state, owner, victim);
+  }
+}
+
 /** What a card's removal does to the chosen card. */
 export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' | null {
   return enemyEffect(defId)?.type ?? null;
@@ -497,6 +554,8 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
           card.growth = Math.min(e.max, (card.growth ?? 0) + 1);
           break;
         case 'heat': {
+          // Only the heat headed for the sun: a card aimed at a rival card (or held off by a Guard) is not.
+          if (aimedCard(state, me, card, !!e.pierce)) break;
           const n = effectAmount(state, me, card, e, 'turn');
           f.heat += n;
           break;
@@ -669,10 +728,21 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const amount = effectAmount(state, p, card, e, when);
         if (amount <= 0) break;
         const main = ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p);
-        if (main) {
-          applyHeat(state, main, amount, p, false, card.uid, e.pierce);
-          if (when === 'turn') notePulse(state, p, card, 'heat', main, amount);
+        if (!main) break;
+        // A card's own heat (as it is played and at dawn) goes where it is aimed: a rival card, or their sun.
+        // Guards draw it in. Heat from anything else (leave effects, Lightspeed cards) goes to the sun.
+        const victim = !ctx.against && (when === 'play' || when === 'turn') && main === targetOf(state, p) ? aimedCard(state, p, card, !!e.pierce) : null;
+        if (victim) {
+          if (when === 'turn') notePulse(state, p, card, 'heat', main, amount, victim.uid);
+          heatCard(state, main, victim, amount, p);
+          if (when === 'turn' && state.turnPulses) {
+            const last = state.turnPulses[state.turnPulses.length - 1];
+            last.suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated }]));
+          }
+          break;
         }
+        applyHeat(state, main, amount, p, false, card.uid, e.pierce);
+        if (when === 'turn') notePulse(state, p, card, 'heat', main, amount);
         break;
       }
       case 'selfHeat':
@@ -826,6 +896,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   card.stability = undefined;
   card.choice = undefined;
   card.spent = undefined;
+  card.aim = undefined;
   if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
   else (to === 'hand' ? owner.hand : owner.discard).push(card);
   resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
@@ -836,10 +907,10 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
 }
 
 /** Note a dawn effect for the table to replay (only while a day is starting). */
-function notePulse(state: GameState, source: PlayerState, card: CardInstance | null, kind: TurnPulse['kind'], to: PlayerState, amount: number) {
+function notePulse(state: GameState, source: PlayerState, card: CardInstance | null, kind: TurnPulse['kind'], to: PlayerState, amount: number, toCard?: string) {
   if (!state.turnPulses || (amount <= 0 && kind !== 'start')) return;
   const suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated }]));
-  state.turnPulses.push({ uid: card?.uid, source: source.id, to: to.id, kind, amount, suns });
+  state.turnPulses.push({ uid: card?.uid, source: source.id, to: to.id, kind, amount, suns, ...(toCard ? { toCard } : {}) });
 }
 
 /**
@@ -990,7 +1061,14 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const recovers = recoverChoices(p, def.id);
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
 
+  const aims = aimChoices(state, p, def.id);
+  if (aimable(def.id) && target) {
+    if (action.aimUid && !aims.cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
+    if (!action.aimUid && !aims.sun && aims.cards.length) throw new GameError(`${target.name} has a Guard in play: aim at it.`);
+  }
+
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
+  if (action.aimUid) card.aim = action.aimUid;
   // An X card spends all the energy left; its effects count how much.
   const spend = def.spendAll ? p.playsLeft : cost;
   if (def.spendAll) card.spent = spend;
@@ -1085,6 +1163,19 @@ export function applyAction(prev: GameState, action: Action): GameState {
       playCard(state, p, action);
       if (p.eliminated) passOn(state);
       break;
+    case 'aim': {
+      const mine = p.tableau.find((c) => c.uid === action.cardUid);
+      if (!mine || !aimable(mine.defId)) throw new GameError('Choose one of your cards that heats.');
+      const aims = aimChoices(state, p, mine.defId);
+      if (action.aimUid === null) {
+        if (!aims.sun) throw new GameError('Your rival has a Guard in play: aim at it.');
+        mine.aim = undefined;
+      } else {
+        if (!aims.cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
+        mine.aim = action.aimUid;
+      }
+      break;
+    }
     case 'setTarget': {
       const t = state.players.find((o) => o.id === action.targetId);
       if (!t || t.eliminated || t.id === p.id) throw new GameError('Choose a living rival to target.');

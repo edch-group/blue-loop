@@ -22,6 +22,8 @@ import {
   targetOf,
   dawnEffects,
   turnForecast,
+  aimable,
+  aimChoices,
 } from './game';
 import type { Action, CardInstance, GameState, PlayerState } from './types';
 
@@ -43,6 +45,9 @@ const LEADER_GAP = tuning('GAP', 0.25);
 const ACTION_VALUE = tuning('ACTION', 2.5);
 /** A dawn's +1 energy is worth a full energy with this many cards (beyond one) in hand to spend it on, less with fewer. */
 const ENERGY_HAND = tuning('EHAND', 4);
+
+/** How much a card burned away is worth against heat on the sun, when aiming. */
+const AIM_CARD = tuning('AIMCARD', 0.8);
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
 const INCOMING_WEIGHT = tuning('INCOMING', 0.8);
@@ -190,11 +195,15 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     // Recovering: one of each card in the discard pile.
     const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);
     const allies = opt(allyChoices(me, card.defId).map((c) => c.uid));
+    // Heat can go to the rival's sun (unset) or any card it may aim at.
+    const aim = aimChoices(state, me, card.defId);
+    const aims: (string | undefined)[] = [...(aim.sun ? [undefined] : []), ...aim.cards.map((c) => c.uid)];
+    if (!aims.length) aims.push(undefined);
     for (const choice of choices)
       for (const enemyUid of foes)
         for (const slot of slots)
           for (const allyUid of allies)
-            for (const recoverUid of recovers) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid });
+            for (const recoverUid of recovers) for (const aimUid of aims) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid });
   }
   return plays;
 }
@@ -219,6 +228,30 @@ function bestTarget(state: GameState, me: PlayerState): PlayerState | undefined 
   return left;
 }
 
+/** The first of your heat cards worth aiming somewhere else, and where (or null if all are aimed well). */
+function bestAim(state: GameState, me: PlayerState): Action | null {
+  const rival = targetOf(state, me);
+  if (!rival) return null;
+  const danger = Math.max(0, rival.heat) / supernovaThreshold(rival);
+  for (const card of me.tableau) {
+    if (!aimable(card.defId)) continue;
+    const heat = dawnEffects(card).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(me, e.if) ? effectAmount(state, me, card, e, 'turn') : 0), 0);
+    if (heat <= 0) continue;
+    const { cards, sun } = aimChoices(state, me, card.defId);
+    // The sun counts for more the nearer it is to supernova; a card for what it is worth to its owner, if this burns it away.
+    let best: { uid: string | null; score: number } = { uid: null, score: sun ? heat * (1 + 3 * danger) : -Infinity };
+    for (const c of cards) {
+      const left = c.stability ?? 0;
+      const share = heat >= left ? 1 : (heat / Math.max(1, left)) * 0.5;
+      const score = cardValue(state, rival, c) * share * AIM_CARD;
+      if (score > best.score) best = { uid: c.uid, score };
+    }
+    const current = card.aim && cards.some((c) => c.uid === card.aim) ? card.aim : null;
+    if (best.uid !== current && (best.uid !== null || sun)) return { type: 'aim', cardUid: card.uid, aimUid: best.uid };
+  }
+  return null;
+}
+
 /**
  * Heuristic AI: returns the next action for the active player. It focuses the
  * rival nearest to supernova, then plays whichever card leaves it best off,
@@ -228,6 +261,9 @@ export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
   const focus = bestTarget(state, me);
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
+  // Point each card's heat where it does most: a card it can burn away (and that is worth it), or the sun.
+  const reaim = bestAim(state, me);
+  if (reaim) return reaim;
   if (!me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
   // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.

@@ -118,7 +118,9 @@ export type Passive =
   /** Bulwark: your cards near this one get more defence (`amounts[0]` right next to it, `amounts[1]` two slots away). */
   | { type: 'guard'; amounts: number[] }
   /** Your cards next to this one lose no stability. */
-  | { type: 'anchor' };
+  | { type: 'anchor' }
+  /** Guard: rival cards' heat can only be aimed at your Guard cards while you have one (pierce heat excepted). */
+  | { type: 'taunt' };
 
 /**
  * What springs a face-down Lightspeed card, during an enemy's day:
@@ -189,6 +191,8 @@ export interface CardInstance {
   choice?: string;
   /** The energy spent on it as it was played (cards that spend all your energy). */
   spent?: number;
+  /** Where its heat goes: a card in your rival's tableau (its uid), or your rival's sun (unset). */
+  aim?: string;
 }
 
 /** Battle modifiers from the campaign map (anomalies, garrisons). */
@@ -297,6 +301,8 @@ export interface TurnPulse {
   kind: 'start' | 'heat' | 'selfHeat' | 'cool' | 'shield' | 'draw' | 'unstable';
   amount: number;
   suns: Record<string, { heat: number; shields: number; eliminated: boolean }>;
+  /** The rival card the heat struck, if it was aimed at one (not at their sun). */
+  toCard?: string;
   /** Lands at the same moment as the pulse before it (regional instability hits every sun at once). */
   together?: boolean;
 }
@@ -340,7 +346,11 @@ export type Action =
       allyUid?: string;
       /** Recover effects: the card in your discard pile to take back. */
       recoverUid?: string;
+      /** A card that heats: the rival card its heat goes to (unset: their sun). */
+      aimUid?: string;
     }
+  /** Turn one of your cards' heat on a rival card, or back on their sun (free, during your day). */
+  | { type: 'aim'; cardUid: string; aimUid: string | null }
   | { type: 'setTarget'; targetId: string }
   | { type: 'endTurn' }
   /** A player gives up (at any time, not only on their day): their rival wins. */
