@@ -1,7 +1,7 @@
 import { BALANCE, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
-import { cardArtLite, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { cardArtLite, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
 import { breakDown, craft, owned, profile } from './profile';
 
 interface BuilderHost {
@@ -284,7 +284,7 @@ export class DeckBuilder {
         return `
         <button class="db-row rarity-${c.rarity ?? 'dwarf'}" data-act="db-remove" data-arg="${id}" data-card="${id}" style="--kc:${KIND_COLOUR[c.kind]}" title="Tap to remove one">
           <span class="db-row-art">${cardArtLite(c)}</span>
-          <span class="db-row-name"><b>${esc(c.name.toLowerCase())}</b><small>${typeLine(c).replace(/<[^>]+>/g, '')}</small></span>
+          <span class="db-row-name"><b>${esc(c.name.toLowerCase())}</b><small>${typeWords(c)}</small></span>
           <b class="db-row-n">×${count(id)}</b><i>−</i>
         </button>`;
       })

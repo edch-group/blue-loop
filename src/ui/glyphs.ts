@@ -194,10 +194,20 @@ const GEM_IMAGES: Record<string, string> = { socketDwarf, socketStellar, socketA
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
 
 /** The small line at the bottom of a card: just its type and race (rarity shows in the gem). */
+const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/**
+ * A card's type and race, for the foot of the card: the type is a small pill (placed at the top middle
+ * of the card by the stylesheet), the race small text where the line sits.
+ */
 export function typeLine(def: CardDef): string {
-  const parts = [def.kind as string];
-  if (def.race !== undefined) parts.push(RACE_NAMES[def.race].toLowerCase());
-  return parts.join(' · ').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
+  return `<span class="card-type">${escType(def.kind)}</span>${race}`;
+}
+
+/** The same as plain words ("attack · aureline"), for lists. */
+export function typeWords(def: CardDef): string {
+  return escType(def.race !== undefined ? `${def.kind} · ${RACE_NAMES[def.race].toLowerCase()}` : def.kind);
 }
 
 /**
