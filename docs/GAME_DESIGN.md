@@ -16,7 +16,7 @@ was replaced by this design in design review.
 
 ## Decks
 
-- A deck is **exactly 20 cards**, with **at most 2 copies** of any card and **exactly 2 Command cards**. [design review: 20 cards, 2 commands; proposed: 2 copies]
+- A deck is **30 to 40 cards**, with **at most 2 copies** of any card and **one Command card per 10 cards** (3 in a 30-card deck, 4 in 40), so a deck runs at least two different Command cards. The starter decks are 30. [design review: 30–40 cards so a deck has room for a balanced curve and its big cards; proposed: 2 copies]
 - Players build decks in the **deck builder** (Quickplay → deck builder) from the whole card pool, or pick one of the four **race starter decks**. The builder shows real cards, always the same shape and size as on the table. The AI plays the starters. [design review]
 - Each deck carries a race emblem. Cards can be mixed freely across races. [proposed]
 
@@ -29,10 +29,10 @@ was replaced by this design in design review.
    - The global card applies, if there is one.
    - Your tableau's **dawn effects** trigger, left to right.
    - Then every card in your tableau loses **1 stability**. A card at 0 fades into your discard pile.
-2. **Play cards.** You may play **1 card on your first day and 2 on every day after that**. Hive Relay adds 1. [design review: draw 1 a day; proposed: cap of 2]
+2. **Play cards** with your **energy**: 1 on your first day, then 2, 3, and **4 a day** from your fourth day. The industrial planet, a Command card's energy option and cards like Hive Relay add more on top, with no ceiling (5+ is normal). [design review: a cap of 4, because big cards are fun]
 3. **End day.** Unplayed cards stay in your hand. [proposed]
 
-**Second seat head start** [proposed]: the second player starts with 1 extra card. The old head start (2 cooler, 1 extra card, 1 extra play) let the second seat win 68%; a sun 1 cooler was still worth too much with the current decks. With 1 extra card, seats are 46/54.
+**Second seat head start** [proposed]: the second player starts with 1 extra card (with 4 energy and 30-card decks the first seat won 55–58% without it; with it, seats are about 48/52). The old head start (2 cooler, 1 extra card, 1 extra play) let the second seat win 68%; a sun 1 cooler was still worth too much with the current decks. With 1 extra card, seats are 46/54.
 
 **The discard pile** takes every card that leaves play: cards that fade, and cards destroyed or cancelled (cards returned or recalled go to hand). Recovery cards draw from it. **An empty deck** is refilled by shuffling the discard pile into a new deck. Each reshuffle heats your sun by 2 (unblockable). Only with both deck and discard pile empty does each card you should have drawn heat your sun by 2 instead. [design review: cards are discarded for reuse; proposed: 2 heat]
 
@@ -137,26 +137,28 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 
 ## Command cards
 
-Every deck has exactly 2 Command cards: its steady engines. There are **no permanent upgrades** (the old Solar Flare, Thermosiphon and Cooling Chamber are gone, and with them the deck-wide buffs and the extra max health). [design review]
+Command cards **lead the tableau**. Each player has **one Command slot**, out in front of their five tableau slots (top right of your tableau; your rival's is bottom left, the board being a mirror), so only one Command card is in play at a time: **a new one replaces the old** (which goes to the discard pile). It takes no tableau slot, has no neighbours, and its slot has defence 2. On the board it lies landscape, and a line round each tableau bumps out round it. [design review]
 
-- **A choice as you play it.** Command Directive and The Admiralty ask you to pick one dawn effect, which the card keeps for as long as it stays: **heat 2** (your rival's sun), **cool 3** (your sun) or **draw 1**. The card shows all three; the one picked is highlighted (on the table, and on the stage as a rival plays it).
+- **Utility, chosen as you play it.** Every Command card offers **+1 energy** or **draw 1** each dawn, or a **third option of its own**. The card keeps the option picked for as long as it stays; the card shows all three, with the one picked highlighted. [design review: heat and cool options lost to energy almost every time, so the first two are utility for all, and the third varies]
 - **A full term.** Every Command card has stability 3, whatever it does, so cards that want a Command card in play can count on one.
 - **Never back to your own hand.** Command cards can't be recalled (Phase Shift, Recall Beacon, Shard Recall) or recovered from the discard pile (Salvage Drone and the rest). A rival can still send one back to its owner's hand (Tractor Beam, Event Horizon), and Command Breaker destroys one.
 
-| Card | Rarity | Effect |
+| Card | Rarity | Dawn, one of |
 | --- | --- | --- |
-| Command Directive | White Dwarf | Dawn, one of: heat 2, cool 3, draw 1 |
-| Ignition Protocol | Stellar | Heat 1. Dawn: heat 2, Pierce |
-| Coolant Protocol | Stellar | Cool 2. Dawn: cool 3 |
-| Chamber Protocol | Stellar | Shields 3. Dawn: shields 3 |
-| The Admiralty | Anomaly | Resonance 1. Dawn, one of: heat 2, cool 3, draw 1 |
+| Command Directive | White Dwarf | +1 energy, draw 1, or 2 shields |
+| Ignition Protocol | Stellar | +1 energy, draw 1, or heat 2 |
+| Coolant Protocol | Stellar | +1 energy, draw 1, or cool 2 |
+| Chamber Protocol | Stellar | +1 energy, draw 1, or renew 1 (your other cards regain 1 stability) |
+| War Council | White Dwarf | +1 energy, draw 1, or recover your last discarded card |
+| Logistics Command | White Dwarf | +1 energy, draw 1, or your orbit +1 |
+| The Admiralty | Anomaly | +2 energy, draw 2, or 4 shields |
 
 **Keeping Command cards in play** is rewarded by:
 - Standing Orders: draw 1; dawn, draw 1 if you control a Command card.
 - Chain of Command: dawn, cool 1, or 2 if you control a Command card.
 - Aureline War-Herald: dawn, heat 1; gain 1 shield if you control a Command card.
 
-Decks hold only 2 Command cards, so these ask for one, not two, and do something without one.
+Only one Command card is in play at a time, so these ask for one, and do something without one.
 
 **Answering Command cards.** Command Breaker destroys a Command card in your target's tableau; Tractor Beam and Event Horizon can send one back to its owner's hand (it can be played again, with a new choice).
 
@@ -374,6 +376,8 @@ Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its coo
 **The energy curve (600 games).** At 3 energy a day, a deck full of 2s plays one card most days. The starters had only 5–7 cards at 0–1 energy (13–14 at 2), so they were rebuilt to 8–12 at 0–1, 8–10 at 2 and a few 3s and 4s, mostly with on-theme 1-cost cards from the second set (new and existing profiles are granted them). Win rates: Lancers 45.5%, Overload 55.8%, Tide 44.0%, Bloom 53.6%; seats 47/53. Tide fell to 35% at first; it got its second Abyssal Choir and Undertow back, and a Trench-Warden.
 
 **Ramp (600 games).** A higher curve is fine for a deck that ramps, so Hive Bloom became the ramp deck (Sporelings, Overgrowth, Hive Relay, the Brood Queen, Chitin Fortress: 6 cards at 1, 10 at 2, three 3–4s). The AI had never ramped: it judged a play by the board it left, and energy still to spend today counted for nothing, so "+energy today" cards looked worthless. It now counts the energy a card gives back, up to what the cards left in its hand can use. Overgrowth's drawback went from 2 heat to 1. Win rates: Lancers 52.9%, Overload 49.2%, Tide 52.4%, Bloom 45.7%. Seats are 44/56: the second seat now wins too often.
+
+**Energy 4, 30-card decks and the Command slot (600 games).** Games got faster (about 13 rounds) and Abyssal Tide fell to 25% (7% against Shard Overload, whose pierce heat ignores its shields). It came back to 43% with more attack cards in its list (two each of Riptide, Brine Lash, Jelly Swarm and Coronal Lance), Abyssal Choir at heat 3 (up to 6), Bell Warden at 3 shields and Tide Pylon at 2; Shard Overload lost its Fracture Burst, Shard Lancer, Searing Core and Shard Mother. Shield buffs alone hardly moved Tide; heat did. Win rates: Lancers 46.5%, Overload 55.5%, Tide 42.8%, Bloom 53.9%; seats 47/53 (with the second seat's extra card). The AI still picks +1 energy for almost every Command card. It also leaves about 1.7 energy unspent a day, often because its five tableau slots are full: with 4 energy a day, the five slots may now be the limit.
 
 **After dawn aiming and defence against heat (300 games).** Win rates: Lancers 53.4%, Overload 51.2%, Tide 47.2%, Bloom 47.4%; seats 45/55; about 15 rounds. The widest match-ups are Lancers over Tide and over Bloom (59/41).
 

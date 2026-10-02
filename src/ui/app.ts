@@ -27,6 +27,7 @@ import {
   freeSlots,
   persists,
   commandCard,
+  inSlots,
   baseStability,
   playsAllowed,
   RACE_NAMES,
@@ -1648,7 +1649,7 @@ export class App {
     // A card that heats, with rival cards on the table: where its heat goes (a card, or their sun).
     if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
     // Even the last open slot is clicked to confirm (a misclicked card is never played outright).
-    if (persists(card.defId) && freeSlots(me).length > 0 && p.slot === undefined) return ask('slot');
+    if (inSlots(card.defId) && freeSlots(me).length > 0 && p.slot === undefined) return ask('slot');
     this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined });
   }
 
