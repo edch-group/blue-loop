@@ -240,10 +240,15 @@ function bestAim(state: GameState, me: PlayerState): Action | null {
     const { cards, sun } = aimChoices(state, me, card.defId);
     // The sun counts for more the nearer it is to supernova; a card for what it is worth to its owner, if this burns it away.
     let best: { uid: string | null; score: number } = { uid: null, score: sun ? heat * (1 + 3 * danger) : -Infinity };
+    // What burning a card away sets off against you: its own leave heat, and its owner's cards that answer a card leaving.
+    const payback = (c: CardInstance) =>
+      (cardDef(c.defId).onLeave ?? []).reduce((n, e) => n + (e.type === 'heat' ? e.amount : 0), 0) +
+      rival.tableau.reduce((n, o) => n + (o.uid === c.uid ? 0 : (cardDef(o.defId).passive ?? []).reduce((m, x) => m + (x.type === 'allyLeaves' ? x.effects.reduce((k, e) => k + (e.type === 'heat' ? e.amount : 0), 0) : 0), 0)), 0);
     for (const c of cards) {
       const left = c.stability ?? 0;
-      const share = heat >= left ? 1 : (heat / Math.max(1, left)) * 0.5;
-      const score = cardValue(state, rival, c) * share * AIM_CARD;
+      const kills = heat >= left;
+      const share = kills ? 1 : (heat / Math.max(1, left)) * 0.5;
+      const score = cardValue(state, rival, c) * share * AIM_CARD - (kills ? payback(c) * 1.2 : 0);
       if (score > best.score) best = { uid: c.uid, score };
     }
     const current = card.aim && cards.some((c) => c.uid === card.aim) ? card.aim : null;

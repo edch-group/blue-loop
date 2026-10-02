@@ -119,7 +119,7 @@ export type Passive =
   | { type: 'guard'; amounts: number[] }
   /** Your cards next to this one lose no stability. */
   | { type: 'anchor' }
-  /** Guard: rival cards' heat can only be aimed at your Guard cards while you have one (pierce heat excepted). */
+  /** Guard: rival cards' heat can only be aimed at your Guard cards while you have one. */
   | { type: 'taunt' };
 
 /**

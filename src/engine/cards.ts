@@ -431,8 +431,8 @@ export const CARDS: CardDef[] = [
     name: 'Ember Shard',
     kind: 'attack',
     race: 1,
-    text: '{heat:3}. When you recover this, {heat:1}.',
-    onPlay: [{ type: 'heat', amount: 3, to: 'target' }],
+    text: '{heat:2}. When you recover this, {heat:1}.',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target' }],
     onRecover: [{ type: 'heat', amount: 1, to: 'target' }],
   },
   {

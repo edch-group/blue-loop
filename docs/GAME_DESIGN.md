@@ -128,7 +128,10 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 
 ## Attacks and shields
 
-- Your attacks heat your rival's sun. [design review: 1v1 only, so there is no choosing a target and no splash damage]
+- **Aiming.** Each card's heat goes where its owner aims it: the rival's sun, or one rival card. Aim when you play the card, and re-aim any of your tableau cards (click the card, then the target) during your day; an aim stays put until you change it or its target leaves. [design review: per card, not per dawn, so an attack deck can split its heat between clearing a wall and pressing the sun]
+- Heat on a card wears its **stability** point for point; at 0 the card burns away (its leave effects fire, so killing a Martyr or a card beside Kyr'Vessa has a price, and the AI weighs it).
+- **Guard** cards draw heat: while a rival has any, your heat must go at one of them (a Guard that was not aimed at takes it on the most worn Guard). Pierce gets through shields, never past a Guard. Shields still cover cards, so stings and soothes answer heat aimed at a Guard too.
+- The day heat limit (8) counts only heat on the sun.
 - **Shields** absorb your rival's heat point for point. They fade at your dawn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields. [proposed]
 
 ## Command cards
@@ -366,6 +369,11 @@ Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its coo
 - The floors made Solar Lancers far too strong at first (about 80%). Their attack cards now all hit every day, and Focusing Array and Sunforge add to every one of them. Lancers now run one Sunforge (and a Recall Beacon), Coronal Chorus hits for up to 2, Sunlit Return cools 1, the Sun-Priest cools at most 2, and the War-Herald's Command bonus is a shield rather than more heat.
 - Abyssal Tide fell to about 25% (it gained little from the floors), so the Abyssal Choir now starts at 2 heat and the Stinging Veil stings for 3. Rot Bloom also starts at 2.
 - The widest match-ups are Tide over Overload (74/26) and Lancers over Tide (72/28).
+
+**After aiming and Guard (300 games).** Win rates: Lancers 50.3%, Overload 57.5%, Tide 45.5%, Bloom 45.5%. Seats are 51/49, and games last about 15 rounds (aiming heat at cards slows the race to the sun).
+- At first Overload won 71%: a 3-heat Ember Shard kills most cards outright, and it gets recovered. It now deals 2.
+- Tide had fallen to 30%, because Guards pulled heat away from its shields and stings never fired. Shields now cover cards too.
+- The widest match-up is Lancers over Tide (71/29): Lancers have no Guards to aim at, so Tide's heat all reaches the sun or a lone card.
 
 **1000 games.** Deck win rates are 39–57%. The worst match-up is about 70/30: Overload over Bloom. Games last about 10–11 rounds. Converting the splash and every-enemy cards to plain target heat for 1v1 barely moved the numbers.
 - **Seats:** 46/54. The second seat now starts with 1 extra card instead of a cooler sun; the cooler sun was worth too much with these decks.

@@ -234,39 +234,34 @@ export function aimable(defId: string): boolean {
   return [...(d.onPlay ?? []), ...(d.onTurn ?? [])].some((e) => e.type === 'heat' && e.to === 'target');
 }
 
-/** Whether all of a card's aimable heat pierces (past shields and past Guards). */
-function piercing(defId: string): boolean {
-  const heat = [...(cardDef(defId).onPlay ?? []), ...(cardDef(defId).onTurn ?? [])].filter((e) => e.type === 'heat');
-  return heat.length > 0 && heat.every((e) => e.type === 'heat' && e.pierce);
-}
 
-/** A player's Guard cards: while they have any, rival heat can only be aimed at them (pierce heat excepted). */
+/** A player's Guard cards: while they have any, rival heat can only be aimed at them. */
 export function guards(p: PlayerState): CardInstance[] {
   return p.tableau.filter((c) => (cardDef(c.defId).passive ?? []).some((x) => x.type === 'taunt'));
 }
 
 /**
  * Where a card's heat may be aimed: any card in your rival's tableau, or their sun. While they have Guard
- * cards, only those (unless the card's heat pierces). `sun` says whether their sun is a choice.
+ * cards, only those. `sun` says whether their sun is a choice.
  */
 export function aimChoices(state: GameState, p: PlayerState, defId: string): { cards: CardInstance[]; sun: boolean } {
   const t = targetOf(state, p);
   if (!t || !aimable(defId)) return { cards: [], sun: true };
   const g = guards(t);
-  if (g.length && !piercing(defId)) return { cards: g, sun: false };
+  if (g.length) return { cards: g, sun: false };
   return { cards: [...t.tableau], sun: true };
 }
 
 /** Where a card's dawn heat lands now: a rival card (its aim, or a Guard), or null for their sun. */
 export function heatTarget(state: GameState, p: PlayerState, card: CardInstance): CardInstance | null {
-  return aimedCard(state, p, card, piercing(card.defId));
+  return aimedCard(state, p, card);
 }
 
 /** Where this card's heat lands now: the rival card it is aimed at (if still there and allowed), a Guard, or the sun (null). */
-function aimedCard(state: GameState, p: PlayerState, card: CardInstance, pierce: boolean): CardInstance | null {
+function aimedCard(state: GameState, p: PlayerState, card: CardInstance): CardInstance | null {
   const t = targetOf(state, p);
   if (!t) return null;
-  const g = pierce ? [] : guards(t);
+  const g = guards(t);
   const aimed = card.aim ? t.tableau.find((c) => c.uid === card.aim) : undefined;
   if (aimed && (!g.length || g.includes(aimed))) return aimed;
   // Guards take the heat meant for the sun or for the cards behind them: the most worn one first.
@@ -275,7 +270,16 @@ function aimedCard(state: GameState, p: PlayerState, card: CardInstance, pierce:
 }
 
 /** Heat on a card wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
-function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState) {
+function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string) {
+  // Shields cover their owner's whole side, cards as well as the sun (pierce heat gets past them).
+  const blocked = pierce ? 0 : Math.min(owner.shields, amount);
+  owner.shields -= blocked;
+  if (blocked > 0) {
+    log(state, `${owner.name}'s shields absorb ${blocked} heat.`);
+    shieldsAnswer(state, owner, source, cardUid);
+  }
+  amount -= blocked;
+  if (amount <= 0 || !owner.tableau.includes(victim)) return;
   const before = victim.stability ?? 0;
   victim.stability = Math.max(0, before - amount);
   log(state, `${source.name}'s heat strikes ${owner.name}'s ${cardDef(victim.defId).name} (stability ${victim.stability}).`);
@@ -555,7 +559,7 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
           break;
         case 'heat': {
           // Only the heat headed for the sun: a card aimed at a rival card (or held off by a Guard) is not.
-          if (aimedCard(state, me, card, !!e.pierce)) break;
+          if (aimedCard(state, me, card)) break;
           const n = effectAmount(state, me, card, e, 'turn');
           f.heat += n;
           break;
@@ -662,25 +666,29 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat.`);
   if (applied > 0) log(state, `${target.name}'s sun heats to ${target.heat}.`);
   if (target.heat >= supernovaThreshold(target)) supernova(state, target);
-  // Shields that absorbed an enemy's heat can sting back (Stinging Veil) or cool their sun
-  // (Ommarath), at most once per attacking card each day.
-  if (enemy && blocked > 0 && !retaliation && !target.eliminated) {
-    const sum = (type: 'retaliate' | 'absorbCool') =>
-      passives(target).reduce((n, { passive }) => n + (passive.type === type ? passive.amount : 0), 0);
-    const sting = sum('retaliate');
-    const soothe = sum('absorbCool');
-    const key = cardUid ?? source.id;
-    if (target.stung?.turn !== state.turnNumber) target.stung = { turn: state.turnNumber, ids: [] };
-    if ((sting > 0 || soothe > 0) && !target.stung.ids.includes(key)) {
-      target.stung.ids.push(key);
-      if (soothe > 0) cool(state, target, soothe);
-      if (sting > 0) {
-        log(state, `${target.name}'s veil stings ${source.name} for ${sting}.`);
-        applyHeat(state, source, sting, target, true);
-      }
+  if (enemy && blocked > 0 && !retaliation && !target.eliminated) shieldsAnswer(state, target, source, cardUid);
+  return applied;
+}
+
+/**
+ * Shields that absorbed an enemy's heat (aimed at the sun or at a card) can sting back (Stinging Veil)
+ * or cool their sun (Ommarath), at most once per attacking card each day.
+ */
+function shieldsAnswer(state: GameState, target: PlayerState, source: PlayerState, cardUid?: string) {
+  const sum = (type: 'retaliate' | 'absorbCool') =>
+    passives(target).reduce((n, { passive }) => n + (passive.type === type ? passive.amount : 0), 0);
+  const sting = sum('retaliate');
+  const soothe = sum('absorbCool');
+  const key = cardUid ?? source.id;
+  if (target.stung?.turn !== state.turnNumber) target.stung = { turn: state.turnNumber, ids: [] };
+  if ((sting > 0 || soothe > 0) && !target.stung.ids.includes(key)) {
+    target.stung.ids.push(key);
+    if (soothe > 0) cool(state, target, soothe);
+    if (sting > 0) {
+      log(state, `${target.name}'s veil stings ${source.name} for ${sting}.`);
+      applyHeat(state, source, sting, target, true);
     }
   }
-  return applied;
 }
 
 function cool(state: GameState, p: PlayerState, amount: number) {
@@ -729,12 +737,12 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (amount <= 0) break;
         const main = ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p);
         if (!main) break;
-        // A card's own heat (as it is played and at dawn) goes where it is aimed: a rival card, or their sun.
-        // Guards draw it in. Heat from anything else (leave effects, Lightspeed cards) goes to the sun.
-        const victim = !ctx.against && (when === 'play' || when === 'turn') && main === targetOf(state, p) ? aimedCard(state, p, card, !!e.pierce) : null;
+        // A card's heat goes where it is aimed: a rival card, or their sun (a card that has left play aims
+        // at the sun). Guards draw it all in. Only Lightspeed cards, springing on a rival's day, go straight to the sun.
+        const victim = !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, card) : null;
         if (victim) {
           if (when === 'turn') notePulse(state, p, card, 'heat', main, amount, victim.uid);
-          heatCard(state, main, victim, amount, p);
+          heatCard(state, main, victim, amount, p, !!e.pierce, card.uid);
           if (when === 'turn' && state.turnPulses) {
             const last = state.turnPulses[state.turnPulses.length - 1];
             last.suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated }]));
