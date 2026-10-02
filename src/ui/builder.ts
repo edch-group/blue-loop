@@ -291,11 +291,13 @@ export class DeckBuilder {
       .join('');
     const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
     const problems = deckProblems(d.cards);
+    // (The card count is in the tally above the deck: the footer only names other problems.)
+    const shownProblem = problems.find((p) => !/^A deck needs \d/.test(p));
     return `
       ${this.header('deck builder')}
       <div class="setup-body db-editor">
         <div class="db-pool-side">
-          ${this.renderFilters(d, pool.length)}
+          ${this.renderFilters(d)}
           <div class="db-pool" data-grid="${this.grid}">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
         </div>
         <aside class="db-deck-side">
@@ -308,7 +310,7 @@ export class DeckBuilder {
         </aside>
       </div>
       <footer class="setup-foot">
-        <span class="db-problem">${problems.length ? esc(problems[0]) : 'Ready to play.'}</span>
+        <span class="db-problem">${shownProblem ? esc(shownProblem) : ''}</span>
         <button class="btn-primary" data-act="db-save" ${problems.length ? 'disabled' : ''}>${this.starter ? 'save as copy' : 'save deck'}</button>
       </footer>`;
   }
@@ -362,7 +364,7 @@ export class DeckBuilder {
   }
 
   /** The card view's toolbar: search, the dropdowns, and the toggles. */
-  private renderFilters(d: SavedDeck, shown: number): string {
+  private renderFilters(d: SavedDeck): string {
     const f = this.filters;
     const select = (name: string, value: string, options: [string, string][], label: string) =>
       `<label class="db-select"><small>${label}</small><select data-db-select="${name}">${options.map(([v, t]) => `<option value="${v}" ${v === value ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
@@ -382,7 +384,6 @@ export class DeckBuilder {
         <input class="db-search" data-db-search type="search" value="${esc(f.q)}" placeholder="search cards" aria-label="Search cards" />
         <button class="pill-btn db-filter-btn ${this.filtersOpen || set ? 'pill-on' : ''}" data-act="db-filters" aria-expanded="${this.filtersOpen}">filters${set ? ` · ${set}` : ''}</button>
         <span class="db-grid-sizes" role="group" aria-label="Card size">${sizes}</span>
-        <span class="db-shown">${shown} card${shown === 1 ? '' : 's'}</span>
         ${
           this.filtersOpen
             ? `<div class="db-filters-pop">
