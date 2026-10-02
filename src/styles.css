@@ -2991,8 +2991,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* The outline round the tableau, with its bump for the Command slot. */
 .tableau-frame { position: absolute; overflow: visible; pointer-events: none; transform: translateZ(1px); }
 .tableau-frame { shape-rendering: geometricPrecision; }
-/* The same line as the board's rings (1px, the same blue-grey), round a faintly shaded floor. */
-.tableau-frame path { fill: rgba(140, 150, 175, 0.07); stroke: rgba(140, 150, 175, 0.16); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+/* The same line as the board's rings (1px, the same blue-grey), round a pale floor like the empty slots'. */
+.tableau-frame path { fill: rgba(250, 251, 253, 0.45); stroke: rgba(140, 150, 175, 0.16); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 /* A Command card in play lies landscape: its picture on the left, its name and options on the right. */
 .card.card-landscape {
   /* A card turned on its side: as wide as a card is tall. (--cw is the upright card's width.) */
