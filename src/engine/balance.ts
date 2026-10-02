@@ -34,11 +34,16 @@ export const BALANCE = {
   /** With both deck and discard pile empty, each card you should draw heats your sun by this much instead (unblockable). */
   fatigueHeat: 2,
 
-  /** You may play as many cards as turns you have taken, up to this cap (before extra-play cards). */
-  maxPlays: 2,
+  /**
+   * Energy: what you spend to play cards (each card has a cost, see costs.ts). You get as much as the
+   * days you have taken, up to `maxPlays` (1, 2, then 3 a day); the industrial planet and energy cards
+   * add more on top, with no ceiling.
+   */
+  maxPlays: 3,
   /** Orbit: turns each planet faces its sun, and what the abundant and industrial planets give each day. */
   orbitTurns: 3,
   abundantDraw: 1,
+  /** The industrial planet: +1 energy each day it faces your sun. */
   industrialPlays: 1,
   /** Tableau slots. A full tableau takes no new card until one leaves. */
   tableauSlots: 5,

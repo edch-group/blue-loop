@@ -2922,7 +2922,15 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .db-deck-open { cursor: pointer; transition: background 0.15s, box-shadow 0.15s; }
 @media (hover: hover) { .db-deck-open:hover { box-shadow: 0 0 0 1.5px rgba(140, 150, 175, 0.35), var(--shadow); } }
 .db-starter-note { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: #96690f; background: rgba(212, 165, 42, 0.12); border-radius: 999px; padding: 4px 10px; text-align: center; }
-/* A card that takes two actions: two action pips on its picture's top-left corner. */
-.card-cost { position: absolute; z-index: 2; top: max(4px, calc(var(--cw, 100px) * 0.05)); left: max(4px, calc(var(--cw, 100px) * 0.06)); display: flex; gap: max(2px, calc(var(--cw, 100px) * 0.02)); padding: max(2px, calc(var(--cw, 100px) * 0.02)) max(3px, calc(var(--cw, 100px) * 0.035)); border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 4px rgba(40, 50, 70, 0.3); }
-.card-cost i { width: max(5px, calc(var(--cw, 100px) * 0.055)); height: max(5px, calc(var(--cw, 100px) * 0.055)); border-radius: 50%; background: #7cc79a; border: 1px solid #5fb582; box-shadow: 0 0 4px rgba(110, 196, 146, 0.6); }
+/* What a card costs to play, in energy: a green gem with the number, on its picture's top-left corner. */
+.card-cost {
+  position: absolute; z-index: 2; top: max(3px, calc(var(--cw, 100px) * 0.045)); left: max(3px, calc(var(--cw, 100px) * 0.055));
+  display: grid; place-items: center; width: max(14px, calc(var(--cw, 100px) * 0.17)); height: max(14px, calc(var(--cw, 100px) * 0.17));
+  border-radius: 50%; font-family: var(--display); font-weight: 800; font-size: max(8px, calc(var(--cw, 100px) * 0.1)); line-height: 1; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #a8e8c0, #4fae78 60%, #2f8a58); border: 1.5px solid #fff; box-shadow: 0 1px 4px rgba(30, 60, 40, 0.4);
+  text-shadow: 0 1px 1px rgba(0, 60, 30, 0.5);
+}
+.card-cost-0 { background: radial-gradient(circle at 35% 30%, #e6ecf2, #a7b3c2 60%, #7d8a9c); }
+.card-cost-3 { background: radial-gradient(circle at 35% 30%, #ffe3a0, #e0a640 60%, #b97a1a); }
+.card-cost-4 { background: radial-gradient(circle at 35% 30%, #ffc0b0, #e2604a 60%, #b23a28); }
 .hand .card.card-pricey { filter: saturate(0.45) brightness(0.96); opacity: 0.8; }

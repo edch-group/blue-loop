@@ -39,7 +39,7 @@ const FINISH_RATIO = tuning('FINISH', 0.75);
 /** In a free-for-all, switch to the leader once it is this much cooler (as a share of max health) than your usual target. */
 const LEADER_GAP = tuning('GAP', 0.25);
 
-/** What one action is worth, roughly (the price of a card that takes two). */
+/** What one energy is worth, roughly (beyond the first, which every card costs). */
 const ACTION_VALUE = tuning('ACTION', 2.5);
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
@@ -222,7 +222,7 @@ export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
   const focus = bestTarget(state, me);
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
-  if (me.playsLeft <= 0 || me.hand.length === 0) return { type: 'endTurn' };
+  if (!me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
   // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.
   let view = state;
@@ -239,7 +239,7 @@ export function chooseAIAction(state: GameState): Action {
     } catch {
       continue;
     }
-    // A card that takes two actions also gives up the card that could have been played with the second.
+    // Energy spent on a card is energy not spent on another: a costlier card has to be worth it.
     const extra = action.type === 'playCard' ? cardCost(me.hand.find((c) => c.uid === action.cardUid)?.defId ?? '') - 1 : 0;
     const score = evaluate(next, me.id) - extra * ACTION_VALUE;
     if (!best || score > best.score) best = { action, score };

@@ -684,7 +684,7 @@ export class App {
     const s = this.state;
     if (!s || !this.canAct() || this.pending) return;
     const me = activePlayer(s);
-    const playable = me.playsLeft > 0 && me.hand.some((c) => cardCost(c.defId) <= me.playsLeft && hasRoomFor(me, c.defId) && (cardDef(c.defId).kind !== 'lightspeed' || canSetLightspeed(me)));
+    const playable = me.hand.some((c) => cardCost(c.defId) <= me.playsLeft && hasRoomFor(me, c.defId) && (cardDef(c.defId).kind !== 'lightspeed' || canSetLightspeed(me)));
     if (playable && this.sheet?.kind !== 'end-day') {
       this.sheet = { kind: 'end-day' };
       return this.render();
@@ -1501,12 +1501,12 @@ export class App {
     const card = me.hand.find((c) => c.uid === uid);
     if (!card) return;
     if (me.playsLeft <= 0) {
-      this.showToast('No plays left today: end your day.', 'info');
+      this.showToast('No energy left today: end your day.', 'info');
       sound.error();
       return;
     }
     if (cardCost(card.defId) > me.playsLeft) {
-      this.showToast(`${cardDef(card.defId).name} takes ${cardCost(card.defId)} actions: you have ${me.playsLeft} left today.`, 'info');
+      this.showToast(`${cardDef(card.defId).name} costs ${cardCost(card.defId)} energy: you have ${me.playsLeft} left today.`, 'info');
       sound.error();
       return;
     }
@@ -2415,7 +2415,7 @@ export class App {
           ${step('The table', 'Regional instability strikes, then the global card in play.')}
           ${step('Your cards', `Every card in your tableau fires its ${kw('dawn')} effect, left to right.`)}
           ${step('Fade', 'Every card loses 1 ◷ stability. At 0 it goes to your discard pile.')}
-          ${step('Play', `Play up to <b>${B.maxPlays}</b> cards (1 on your first day), each into a slot you choose.`)}
+          ${step('Play', `Spend your energy on cards: 1 on your first day, 2 on your second, then <b>${B.maxPlays}</b> a day (more with bonuses). Each card goes into a slot you choose.`)}
           ${step('End', "End your day. Your rival's begins.")}
         </ol>`,
       ],
@@ -2438,7 +2438,7 @@ export class App {
             fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”."),
             fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun.'),
             fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
-            fact('Actions', `Each card takes 1 of your day's actions; Anomalies, Sunspear and Fracture Burst take 2 (shown by two dots on the card). Your first day has only 1.`),
+            fact('Energy', `Cards cost energy (the green gem). You get 1 on your first day, 2 on your second, then ${B.maxPlays} a day. The industrial planet and energy cards add more on top.`),
             fact('Heat limit', `On your day (your Dawn and your plays), at most <b>${B.maxHeatPerDay}</b> heat lands on your rival's sun. Stings and Lightspeed cards on their day are not limited.`),
             fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),
             fact('The planets', `Dead: nothing. Abundant: draw +${B.abundantDraw}. Industrial: play +${B.industrialPlays}.`),
@@ -2733,7 +2733,7 @@ export class App {
       chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
       chip('fc-unstable', '≋', f.unstable, `As round ${f.unstableRound} begins: regional instability heats every sun by ${f.unstable}, all at once`),
       chip('fc-draw', HAND_ICON, f.draw, `Their dawn: ${f.draw} extra card${f.draw === 1 ? '' : 's'} drawn${f.planet === 'abundant' ? ' (the abundant planet faces their sun)' : ''}`),
-      chip('fc-play', '▶', f.plays, `Their day: ${f.plays} extra card${f.plays === 1 ? '' : 's'} they may play (the industrial planet faces their sun)`),
+      chip('fc-play', '⚡', f.plays, `Their day: +${f.plays} energy (the industrial planet faces their sun)`),
     ].join('');
     // Nothing coming: show nothing.
     if (!chips) return '';
@@ -2764,7 +2764,7 @@ export class App {
     return `
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn ? '' : 'plays-off'}" title="Actions left today: each card you play uses one">
-          <small>${myTurn ? 'actions' : 'waiting'}</small>
+          <small>${myTurn ? 'energy' : 'waiting'}</small>
           <span class="plays-pips">${pips}</span>
         </div>
         <button class="btn-primary end-turn ${act && me.playsLeft === 0 ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
@@ -2795,7 +2795,7 @@ export class App {
     }
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
     // On your day, a card that takes more actions than you have left is dimmed.
-    if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft && me.playsLeft > 0) state = 'card-pricey';
+    if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     const boost = opts.owner && boostable(c.defId) ? resonanceBonus(opts.owner, c) : 0;
     const resonance = boost ? `<span class="resonance" title="Resonance: +${boost} to this card's heat, cooling and shields from its neighbours">+${boost}</span>` : '';
@@ -2926,7 +2926,7 @@ export class App {
         const left = s ? activePlayer(s).playsLeft : 0;
         return this.sheetFrame(
           'end your day?',
-          `<p class="center-text">You can still play ${left} card${left === 1 ? '' : 's'} today.</p>
+          `<p class="center-text">You still have ${left} energy to spend today.</p>
            <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
         );
       }

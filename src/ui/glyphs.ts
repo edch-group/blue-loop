@@ -240,11 +240,10 @@ export function stabilityBadge(def: CardDef): string {
   return costBadge(def) + (persists(def.id) ? `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your days, then fades into your discard pile">◷${baseStability(def.id)}</b></span>` : '');
 }
 
-/** A card that takes more than one of your day's actions: that many action pips, on its picture's corner. */
+/** What a card costs to play, in energy: a green gem with the number, on its picture's top-left corner. */
 export function costBadge(def: CardDef): string {
   const n = cardCost(def.id);
-  if (n <= 1) return '';
-  return `<span class="card-cost" title="Takes ${n} of your day's actions to play">${'<i></i>'.repeat(n)}</span>`;
+  return `<span class="card-cost card-cost-${n}" title="Costs ${n} energy to play">${n}</span>`;
 }
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

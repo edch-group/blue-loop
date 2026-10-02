@@ -1,6 +1,7 @@
 import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
+import { CARD_COSTS } from './costs';
 
 /**
  * The card pool. Cards have no cost: the number of cards you may play each
@@ -110,8 +111,8 @@ export const CARDS: CardDef[] = [
     id: 'harmonic_singularity',
     name: 'Harmonic Singularity',
     kind: 'growth',
-    text: "{resonance:2/2}.",
-    passive: [{ type: 'adjacent', amounts: [2, 2] }],
+    text: "{resonance:3/2}.",
+    passive: [{ type: 'adjacent', amounts: [3, 2] }],
   },
 
   // ---- Defence: where your cards sit, and what guards them ----
@@ -164,7 +165,7 @@ export const CARDS: CardDef[] = [
     id: 'phase_shift',
     name: 'Phase Shift',
     kind: 'growth',
-    text: '{recall}. Play 1 extra card today.',
+    text: '{recall}. {energy:1} today.',
     onPlay: [{ type: 'recall' }, { type: 'plays', amount: 1 }],
   },
 
@@ -253,7 +254,7 @@ export const CARDS: CardDef[] = [
     text: '{heat:1} per attack card you control (up to 3).',
     onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 3 }],
   },
-  { id: 'sunspear', name: 'Sunspear', kind: 'attack', race: 0, cost: 2, text: '{heat:6}, {pierce}. {heat:1} to your sun.', onPlay: [{ type: 'heat', amount: 6, to: 'target', pierce: true }, { type: 'selfHeat', amount: 1 }] },
+  { id: 'sunspear', name: 'Sunspear', kind: 'attack', race: 0, text: '{heat:6}, {pierce}. {heat:1} to your sun.', onPlay: [{ type: 'heat', amount: 6, to: 'target', pierce: true }, { type: 'selfHeat', amount: 1 }] },
   {
     id: 'dawn_beacon',
     name: 'Dawn Beacon',
@@ -552,9 +553,9 @@ export const CARDS: CardDef[] = [
     name: 'The Brood Queen',
     kind: 'growth',
     race: 3,
-    text: '{plays:1}. {dawn}: {heat:1}. {heat:+2} with 4+ cards.',
+    text: '{plays:1}. {dawn}: {heat:2}. {heat:+2} with 4+ cards.',
     passive: [{ type: 'extraPlay', amount: 1 }],
-    onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
+    onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
   // ---- Orbit: cards that move the planets round a sun (dead → abundant → industrial, three turns each) ----
   { id: 'gravity_assist', name: 'Gravity Assist', kind: 'attack', text: '{heat:2}. Your {orbit:+1}.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'orbit', amount: 1, who: 'self' }] },
@@ -709,7 +710,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
 };
 // The second set joins the pool (for building decks; the starters use only the first).
 CARDS.push(...EXPANSION);
-for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {});
+for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? 1 });
 
 /** Display names for the rarities. */
 export const RARITY_NAME: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly' };

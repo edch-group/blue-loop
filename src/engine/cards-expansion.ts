@@ -78,7 +78,7 @@ export const EXPANSION: CardDef[] = [
     id: 'relay_station',
     name: 'Relay Station',
     kind: 'growth',
-    text: 'Play 1 extra card today. {heat:1} to your sun.',
+    text: '{energy:1} today. {heat:1} to your sun.',
     onPlay: [{ type: 'plays', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
   { id: 'archive_vault', name: 'Archive Vault', kind: 'growth', text: '{recover}. Draw 1.', onPlay: [{ type: 'recover', orDraw: 1 }, { type: 'draw', amount: 1 }] },
@@ -171,8 +171,8 @@ export const EXPANSION: CardDef[] = [
     name: 'The Sun Throne',
     kind: 'growth',
     race: 0,
-    text: 'Your attack cards deal +1 {heat}. Draw 1.',
-    onPlay: [{ type: 'draw', amount: 1 }],
+    text: 'Your attack cards deal +1 {heat}. Draw 2.',
+    onPlay: [{ type: 'draw', amount: 2 }],
     passive: [{ type: 'kindBonus', kind: 'attack', amount: 1 }],
   },
   {
@@ -215,7 +215,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Glory Charge',
     kind: 'attack',
     race: 0,
-    text: '{heat:2}. Play 1 extra card today. {heat:1} to your sun.',
+    text: '{heat:2}. {energy:1} today. {heat:1} to your sun.',
     onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'plays', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
   {
@@ -397,7 +397,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Overcharge',
     kind: 'growth',
     race: 1,
-    text: 'Play 1 extra card today. Draw 1. {heat:1} to your sun.',
+    text: '{energy:1} today. Draw 1. {heat:1} to your sun.',
     onPlay: [{ type: 'plays', amount: 1 }, { type: 'draw', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
   {
@@ -422,9 +422,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Fracture Burst',
     kind: 'attack',
     race: 1,
-    cost: 2,
-    text: '{heat:7}, {pierce}. {heat:2} to your sun.',
-    onPlay: [{ type: 'heat', amount: 7, to: 'target', pierce: true }, { type: 'selfHeat', amount: 2 }],
+    text: '{heat:8}, {pierce}. {heat:2} to your sun.',
+    onPlay: [{ type: 'heat', amount: 8, to: 'target', pierce: true }, { type: 'selfHeat', amount: 2 }],
   },
   { id: 'cinder_ward', name: 'Cinder Ward', kind: 'defence', race: 1, text: '{shield:2}. {cool:1}.', onPlay: [{ type: 'shield', amount: 2 }, { type: 'cool', amount: 1 }] },
 
@@ -616,7 +615,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Ixquor Sporelings',
     kind: 'growth',
     race: 3,
-    text: 'Draw 1. Play 1 extra card today.',
+    text: 'Draw 1. {energy:1} today.',
     onPlay: [{ type: 'draw', amount: 1 }, { type: 'plays', amount: 1 }],
   },
   {
@@ -678,7 +677,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Overgrowth',
     kind: 'growth',
     race: 3,
-    text: 'Play 2 extra cards today. {heat:2} to your sun.',
+    text: '{energy:2} today. {heat:2} to your sun.',
     onPlay: [{ type: 'plays', amount: 2 }, { type: 'selfHeat', amount: 2 }],
   },
   {

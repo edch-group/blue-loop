@@ -23,10 +23,12 @@ function give(p: PlayerState, defIds: string[], where: 'hand' | 'tableau' = 'han
   return cards;
 }
 
-/** Play a card by id from the active player's hand. */
+/** Play a card by id from the active player's hand (with enough energy for it: these tests are about what cards do; costs have their own). */
 function play(s: GameState, defId: string, extra: Record<string, string | number> = {}) {
-  const card = activePlayer(s).hand.find((c) => c.defId === defId);
+  const me = activePlayer(s);
+  const card = me.hand.find((c) => c.defId === defId);
   if (!card) throw new Error(`${defId} not in hand`);
+  if (me.playsLeft > 0) me.playsLeft = Math.max(me.playsLeft, cardCost(defId));
   return applyAction(s, { type: 'playCard', cardUid: card.uid, ...extra });
 }
 
@@ -102,15 +104,18 @@ describe('setup', () => {
 
 describe('plays per turn', () => {
   it('grows by one each turn up to the cap, with a head start for the second seat', () => {
+    // The industrial planet's bonus energy aside: 1, 2, then 3 a day.
+    const industry = BALANCE.industrialPlays;
+    BALANCE.industrialPlays = 0;
     let s = twoPlayer();
     const plays: number[] = [];
     for (let t = 0; t < 12; t++) {
       plays.push(activePlayer(s).playsLeft);
       s = endTurn(s);
     }
-    // Ada: 1,2,2,2,2,2 · Bo: the same, plus any head start on the first turn
-    expect(plays.filter((_, i) => i % 2 === 0)).toEqual([1, 2, 2, 2, 2, 2]);
-    expect(plays.filter((_, i) => i % 2 === 1)).toEqual([1 + BALANCE.laterSeatPlays, 2, 2, 2, 2, 2]);
+    BALANCE.industrialPlays = industry;
+    expect(plays.filter((_, i) => i % 2 === 0)).toEqual([1, 2, 3, 3, 3, 3]);
+    expect(plays.filter((_, i) => i % 2 === 1)).toEqual([1 + BALANCE.laterSeatPlays, 2, 3, 3, 3, 3]);
   });
 
   it('refuses a play once none are left', () => {
@@ -350,17 +355,17 @@ describe('the day\'s heat limit', () => {
 });
 
 describe('card costs', () => {
-  it('Anomalies (and a few big cards) take two actions', () => {
+  it('cards cost energy, and a card is refused without enough of it', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    expect(cardCost('event_horizon')).toBe(2);
-    expect(cardCost('sunspear')).toBe(2);
+    expect(cardCost('sunspear')).toBe(3);
     expect(cardCost('coronal_lance')).toBe(1);
-    me.playsLeft = 1;
-    give(me, ['sunspear']);
-    expect(() => play(s, 'sunspear')).toThrow(GameError);
-    me.playsLeft = 3;
-    s = play(s, 'sunspear');
+    expect(cardCost('relay_station')).toBe(0);
+    me.playsLeft = 2;
+    const [spear] = give(me, ['sunspear']);
+    expect(() => applyAction(s, { type: 'playCard', cardUid: spear.uid })).toThrow(/energy/);
+    me.playsLeft = 4;
+    s = applyAction(s, { type: 'playCard', cardUid: spear.uid });
     expect(activePlayer(s).playsLeft).toBe(1);
   });
 });
@@ -535,7 +540,7 @@ describe('recovery and removal', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     me.turnsTaken = 2;
-    me.playsLeft = 2;
+    me.playsLeft = 4;
     const [relay, cmd] = give(s.players[1], ['plasma_relay', 'command_directive'], 'tableau');
     give(me, ['tractor_beam', 'command_breaker']);
     expect(() => play(s, 'command_breaker', { enemyUid: relay.uid })).toThrow();
@@ -563,7 +568,7 @@ describe('lightspeed', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     me.turnsTaken = 2;
-    me.playsLeft = 2;
+    me.playsLeft = 4;
     give(me, ['null_field', 'signal_jammer']);
     s = play(s, 'null_field');
     expect(s.players[0].lightspeed?.defId).toBe('null_field');

@@ -66,7 +66,8 @@ export const KEYWORDS: Record<string, Keyword> = {
   hold: { name: 'hold', group: 'shields', explain: (v) => `Your shields no longer fade at your dawn (they keep, up to ${n(v, '12')}).` },
   overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or hotter.' },
   grows: { name: 'grows', group: 'tempo', explain: (v) => `At each of your dawns this card grows by 1, up to ${n(v)}.` },
-  plays: { name: 'plays', group: 'tempo', explain: (v) => `You may play ${n(v, '1')} extra card${v === '1' || !v ? '' : 's'} each day while this is in play.` },
+  plays: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy each day while this is in play.` },
+  energy: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy to spend today.` },
   orbit: { name: 'orbit', group: 'orbit', explain: (v) => `Moves the planets round a sun by ${n(v)} turn${v === '+1' || v === '-1' || v === '−1' ? '' : 's'} (each planet faces it for 3).` },
   lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Played face down in your Lightspeed slot (one at a time). It springs during an enemy's day when its trigger happens, then goes to your discard pile." },
   global: { name: 'global', group: 'global', explain: () => 'Changes the table for both players while it is in play. Only one global card can be in play: a new one replaces it.' },
@@ -100,7 +101,7 @@ function rawLabel(id: string, value?: string): string {
   if (!k) return value ?? id;
   if (!value) return k.name;
   if (id === 'destroy' || id === 'eject') return `${k.name} ${value}`;
-  if (id === 'plays') return `${k.name} +${value}`;
+  if (id === 'plays' || id === 'energy') return `${k.name} +${value}`;
   if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
   return `${k.name} ${value}`;
 }

@@ -308,10 +308,9 @@ export function baseStability(defId: string): number {
   return BALANCE.stability;
 }
 
-/** How many of your day's actions a card takes to play: Anomalies take 2 (a whole day, once you have 2), most cards 1. */
+/** The energy a card costs to play (see costs.ts; 1 if not listed). */
 export function cardCost(defId: string): number {
-  const def = cardDef(defId);
-  return def.cost ?? (def.rarity === 'anomaly' ? 2 : 1);
+  return cardDef(defId).cost ?? 1;
 }
 
 /** Put a card into a tableau slot, with its full stability. */
@@ -788,7 +787,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'plays':
         if (activePlayer(state).id === p.id) {
           p.playsLeft += e.amount;
-          log(state, `${p.name} may play ${e.amount} more card${e.amount === 1 ? '' : 's'} today.`);
+          log(state, `${p.name} gains ${e.amount} energy today.`);
         }
         break;
       case 'halt':
@@ -953,10 +952,9 @@ function othersInOrder(state: GameState, p: PlayerState): PlayerState[] {
 function playCard(state: GameState, p: PlayerState, action: Extract<Action, { type: 'playCard' }>) {
   const card = p.hand.find((c) => c.uid === action.cardUid);
   if (!card) throw new GameError('That card is not in your hand.');
-  if (p.playsLeft <= 0) throw new GameError('You have no plays left today.');
   const def: CardDef = cardDef(card.defId);
   const cost = cardCost(def.id);
-  if (p.playsLeft < cost) throw new GameError(`${def.name} takes ${cost} actions: you have ${p.playsLeft} left today.`);
+  if (p.playsLeft < cost) throw new GameError(p.playsLeft <= 0 ? 'You have no energy left today.' : `${def.name} costs ${cost} energy: you have ${p.playsLeft} left today.`);
   const lightspeed = def.kind === 'lightspeed';
   if (lightspeed && !canSetLightspeed(p)) throw new GameError('You already have a Lightspeed card face down.');
 
