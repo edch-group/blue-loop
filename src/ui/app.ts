@@ -66,7 +66,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardArt, cardGlyph, cardTextHtml, costBadge, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, symbolIcon, typeLine } from './glyphs';
+import { cardArtLite, cardGlyph, cardTextHtml, costBadge, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
@@ -2400,7 +2400,7 @@ export class App {
   private cardFace(id: string): string {
     const c = cardDef(id);
     return `<div class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}" data-card="${c.id}">
-      <span class="card-glyph">${cardArt(c, true)}</span>${stabilityBadge(c)}
+      <span class="card-glyph">${cardArtLite(c, true)}</span>${stabilityBadge(c)}
       <span class="card-name">${esc(c.name.toLowerCase())}</span>
       <span class="card-text">${cardTextHtml(c.text)}</span>
       <span class="card-kind">${typeLine(c)}</span>
@@ -3014,7 +3014,7 @@ export class App {
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
     return `
       <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape || (opts.hand && def.kind === 'command') ? 'card-landscape' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardArt(def, true)}</div>
+        <div class="card-glyph">${cardArtLite(def, true)}</div>
         ${growth}${resonance}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardTextHtml(def.text, opts.option ?? c.choice)}</div>
@@ -3047,7 +3047,7 @@ export class App {
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
       <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}${def.kind === 'command' ? ' card-landscape' : ''}" style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardArt(def, true)}</div>
+        <div class="card-glyph">${cardArtLite(def, true)}</div>
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${boost ? `<span class="resonance">+${boost}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardTextHtml(def.text)}</div>

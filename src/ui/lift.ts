@@ -40,5 +40,6 @@ export function trackLift() {
 export function refreshLift() {
   if (!at) return;
   if (lifted && !lifted.isConnected) lifted = null;
-  update(at.x, at.y, document.elementFromPoint(at.x, at.y));
+  // On the next frame, once the browser has laid the page out anyway (asking now would force a layout).
+  requestAnimationFrame(() => at && update(at.x, at.y, document.elementFromPoint(at.x, at.y)));
 }
