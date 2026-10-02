@@ -300,7 +300,12 @@ export function chooseAIAction(state: GameState): Action {
     // Energy spent on a card is energy not spent on another: a costlier card has to be worth it.
     const played = action.type === 'playCard' ? me.hand.find((c) => c.uid === action.cardUid) : undefined;
     const extra = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) - 1 : 0;
-    const score = evaluate(next, me.id) - extra * ACTION_VALUE;
+    // Energy a card gives back today (ramp) is worth what it lets you play: the cards left in hand that it pays for.
+    const after = next.players.find((p) => p.id === me.id)!;
+    const spent = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) : 0;
+    const gained = after.playsLeft - (me.playsLeft - spent);
+    const ramp = gained > 0 ? gained * ACTION_VALUE * Math.min(1, after.hand.filter((c) => cardCost(c.defId) <= after.playsLeft && cardCost(c.defId) > 0).length / gained) : 0;
+    const score = evaluate(next, me.id) - extra * ACTION_VALUE + ramp;
     if (!best || score > best.score) best = { action, score };
   }
   // Holding a card is only better than playing it when every play would hurt.

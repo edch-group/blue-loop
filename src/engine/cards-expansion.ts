@@ -674,8 +674,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Overgrowth',
     kind: 'growth',
     race: 3,
-    text: '{energy:2} today. {heat:2} to your sun.',
-    onPlay: [{ type: 'plays', amount: 2 }, { type: 'selfHeat', amount: 2 }],
+    text: '{energy:2} today. {heat:1} to your sun.',
+    onPlay: [{ type: 'plays', amount: 2 }, { type: 'selfHeat', amount: 1 }],
   },
   {
     id: 'fruiting_body',

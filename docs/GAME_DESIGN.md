@@ -344,7 +344,7 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 | Solar Lancers | Attack cards that boost each other: a Sunforge and a Focusing Array, Lancer Squadrons and Sunlance Charges; a Halo Sentinel (Guard); Command cards kept in play for the War-Herald; Sunlit Return and a Recall Beacon to bring attack cards back; Ion Cannon; Prism of Dawn set face down |
 | Shard Overload | Martyrs, Echo Shard, Prism Wards and Kyr'Vessa paying off as cards leave play; Phase Shift, Shard Echo and Shard Recall to recall and replay them; an Ember Shard and the Reliquarist; Prism Conduit |
 | Abyssal Tide | Wardens flanked by Tide Pylons, a Trench-Warden and the Aegis Monolith guarding the line; Undertows to erode rival cards away; Returning Tide to bring a fallen defence card back; a Riptide Ambusher and an Ink Cloud |
-| Hive Bloom | Going wide and staying there with Hive Rooting and Compost Cycle; cheap Hive Warriors, Spore Drones and Brood Chambers; Spore Husks recovered (by the Compost Cycle and a Regrowth Pod) to draw more |
+| Hive Bloom | The ramp deck: Sporelings, Overgrowth, a Hive Relay and the Brood Queen for more energy, so it can run a higher curve (a Chitin Fortress); Hive Rooting and Compost Cycle to stay wide; Spore Husks recovered (by the Compost Cycle and a Regrowth Pod) to draw more |
 
 How often the newer mechanics come up in an AI game (per game), before and after the rebuild:
 
@@ -372,6 +372,8 @@ Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its coo
 - The widest match-ups are Tide over Overload (74/26) and Lancers over Tide (72/28).
 
 **The energy curve (600 games).** At 3 energy a day, a deck full of 2s plays one card most days. The starters had only 5–7 cards at 0–1 energy (13–14 at 2), so they were rebuilt to 8–12 at 0–1, 8–10 at 2 and a few 3s and 4s, mostly with on-theme 1-cost cards from the second set (new and existing profiles are granted them). Win rates: Lancers 45.5%, Overload 55.8%, Tide 44.0%, Bloom 53.6%; seats 47/53. Tide fell to 35% at first; it got its second Abyssal Choir and Undertow back, and a Trench-Warden.
+
+**Ramp (600 games).** A higher curve is fine for a deck that ramps, so Hive Bloom became the ramp deck (Sporelings, Overgrowth, Hive Relay, the Brood Queen, Chitin Fortress: 6 cards at 1, 10 at 2, three 3–4s). The AI had never ramped: it judged a play by the board it left, and energy still to spend today counted for nothing, so "+energy today" cards looked worthless. It now counts the energy a card gives back, up to what the cards left in its hand can use. Overgrowth's drawback went from 2 heat to 1. Win rates: Lancers 52.9%, Overload 49.2%, Tide 52.4%, Bloom 45.7%. Seats are 44/56: the second seat now wins too often.
 
 **After dawn aiming and defence against heat (300 games).** Win rates: Lancers 53.4%, Overload 51.2%, Tide 47.2%, Bloom 47.4%; seats 45/55; about 15 rounds. The widest match-ups are Lancers over Tide and over Bloom (59/41).
 

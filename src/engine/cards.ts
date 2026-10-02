@@ -832,8 +832,8 @@ export interface DeckList {
 const twoOf = (...ids: string[]) => ids.flatMap((id) => [id, id]);
 
 /** A ready-made deck for each race: its cards (with its Stellar hero and its Anomaly), neutral support and two Command cards. */
-// Every starter deck keeps about half its cards at 0–1 energy, so most days can play a 2 and a 1 (or three 1s)
-// at 3 energy; a few 3s and 4s are the bombs.
+// A starter deck keeps about half its cards at 0–1 energy, so most days can play a 2 and a 1 (or three 1s)
+// at 3 energy, with a few 3s and 4s as its bombs; a deck that ramps (Hive Bloom) can run a higher curve.
 export const PRESET_DECKS: DeckList[] = [
   {
     // Attack cards that power each other up: a Sunforge and a Focusing Array boosting them all, Lancer
@@ -874,15 +874,15 @@ export const PRESET_DECKS: DeckList[] = [
     ],
   },
   {
-    // Go wide and keep it coming back: Hive Rooting and a Compost Cycle to hold the hive in play,
-    // a Rot Bloom, and cheap Hive Warriors, Spore Drones and Brood Chambers to fill it, and Spore Husks recovered from
-    // the discard pile (by the Compost Cycle and a Regrowth Pod) to draw more.
+    // Go wide, ramp and keep it coming back: Sporelings, Overgrowth, a Hive Relay and the Brood Queen for
+    // the energy to play more (and bigger: a Chitin Fortress), Hive Rooting and a Compost Cycle to hold the
+    // hive in play, and Spore Husks recovered from the discard pile (by the Compost Cycle and a Regrowth Pod) to draw more.
     name: 'Hive Bloom',
     race: 3,
     cards: [
       ...twoOf('orbit_root', 'spore_husk', 'command_directive'),
-      'rot_bloom', 'hive_warrior', 'hive_rooting', 'compost_cycle', 'spore_drone', 'brood_chamber', 'hive_relay', 'sporecaster', 'spore_cloud',
-      'ixquor_brood_tender', 'the_brood_queen', 'coolant_array', 'tidal_brake', 'regrowth_pod',
+      'rot_bloom', 'hive_warrior', 'hive_rooting', 'compost_cycle', 'sporelings', 'overgrowth', 'hive_relay', 'chitin_fortress', 'sporecaster', 'spore_cloud',
+      'ixquor_brood_tender', 'the_brood_queen', 'coolant_array', 'regrowth_pod',
     ],
   },
 ];
