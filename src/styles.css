@@ -2934,4 +2934,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-cost-0 { background: radial-gradient(circle at 35% 30%, #e6ecf2, #a7b3c2 60%, #7d8a9c); }
 .card-cost-3 { background: radial-gradient(circle at 35% 30%, #ffe3a0, #e0a640 60%, #b97a1a); }
 .card-cost-4 { background: radial-gradient(circle at 35% 30%, #ffc0b0, #e2604a 60%, #b23a28); }
-.hand .card.card-pricey { filter: saturate(0.45) brightness(0.96); opacity: 0.8; }
+/* Too costly to play right now: still a solid card, its colours muted and its cost gem greyed. */
+.hand .card.card-pricey .card-glyph, .hand .card.card-pricey .card-text { filter: saturate(0.4); }
+.hand .card.card-pricey .card-cost { background: radial-gradient(circle at 35% 30%, #e6e9ee, #a3aab5 60%, #7f8794); }
