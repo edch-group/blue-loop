@@ -28,6 +28,7 @@ import {
   persists,
   commandCard,
   inSlots,
+  fullDefence,
   baseStability,
   playsAllowed,
   RACE_NAMES,
@@ -2808,6 +2809,8 @@ export class App {
     // At the viewer's dawn, as they aim it: where each card's dawn heat is going.
     if (this.dawnTurn()) {
       const o = activePlayer(st);
+      // Defence still standing on each card as the dawn's heat lands (the first hit dents it for the next).
+      const stand = new Map(p.tableau.map((c) => [c.uid, cardDefence(p, c)]));
       for (const card of o.tableau) {
         if (!dawnAimable(card)) continue;
         const hit = this.dawnHit(st, o, card);
@@ -2815,8 +2818,14 @@ export class App {
         if (o.id === p.id) aiming.set(card.uid, true);
         else if (p.tableau.some((x) => x.uid === hit)) {
           // What gets past the card's defence (all of it, for pierce heat).
-          const victim = p.tableau.find((x) => x.uid === hit)!;
-          const heat = dawnEffects(card).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(o, e.if) ? Math.max(0, effectAmount(st, o, card, e, 'turn') - (e.pierce ? 0 : cardDefence(p, victim))) : 0), 0);
+          let heat = 0;
+          for (const e of dawnEffects(card)) {
+            if (e.type !== 'heat' || e.to !== 'target' || !conditionMet(o, e.if)) continue;
+            const n = effectAmount(st, o, card, e, 'turn');
+            const d = e.pierce ? 0 : Math.min(n, stand.get(hit) ?? 0);
+            if (d) stand.set(hit, (stand.get(hit) ?? 0) - d);
+            heat += n - d;
+          }
           incoming.set(hit, (incoming.get(hit) ?? 0) + heat);
         }
       }
@@ -2986,7 +2995,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `${costBadge(def)}${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<span class="card-stats"><b class="stat-def" title="Defence: heat aimed at this card is reduced by this much (pierce ignores it), and removal can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">◷${c.stability ?? 0}</b></span>`
+        ? `${costBadge(def)}${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<span class="card-stats"><b class="stat-def ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">◷${c.stability ?? 0}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';

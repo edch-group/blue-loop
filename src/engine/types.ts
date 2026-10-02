@@ -187,6 +187,8 @@ export interface CardInstance {
   slot?: number;
   /** In a tableau: days left before it fades into its owner's discard pile. */
   stability?: number;
+  /** In a tableau: defence knocked off by heat this day (it comes back as the next day starts). */
+  dented?: number;
   /** In a tableau: the choice it was played with (Command cards), which it keeps until it leaves. */
   choice?: string;
   /** The energy spent on it as it was played (cards that spend all your energy). */

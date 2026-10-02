@@ -303,9 +303,13 @@ function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, am
   }
   amount -= blocked;
   if (amount <= 0 || !owner.tableau.includes(victim)) return;
-  // The card's defence (its slot's, and its own) turns aside that much of the heat (not pierce heat).
+  // The card's defence (its slot's, and its own) takes the heat first (not pierce heat), and stays dented
+  // that much for the rest of the day: more heat today finds less defence in its way.
   const turned = pierce ? 0 : Math.min(amount, cardDefence(owner, victim));
-  if (turned > 0) log(state, `${owner.name}'s ${cardDef(victim.defId).name} turns aside ${turned} heat (defence ${cardDefence(owner, victim)}).`);
+  if (turned > 0) {
+    victim.dented = (victim.dented ?? 0) + turned;
+    log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${turned} heat on its defence (defence ${cardDefence(owner, victim)} left today).`);
+  }
   amount -= turned;
   if (amount <= 0) return;
   const before = victim.stability ?? 0;
@@ -430,7 +434,13 @@ export function cardDefence(p: PlayerState, card: CardInstance): number {
     if (k === 0) continue;
     for (const ps of cardDef(src.defId).passive ?? []) if (ps.type === 'guard' && k <= ps.amounts.length) d += ps.amounts[k - 1];
   }
-  return d;
+  // Heat dents defence for the rest of the day it lands in (it is back to full as the next day starts).
+  return Math.max(0, d - (card.dented ?? 0));
+}
+
+/** A card's defence before any dents this day. */
+export function fullDefence(p: PlayerState, card: CardInstance): number {
+  return cardDefence(p, { ...card, dented: 0 });
 }
 
 /** Whether a card is anchored (a neighbour stops it losing stability). */
@@ -942,6 +952,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
   card.growth = undefined;
   card.slot = undefined;
+  delete card.dented;
   card.stability = undefined;
   card.choice = undefined;
   card.spent = undefined;
@@ -997,6 +1008,8 @@ function startTurn(state: GameState) {
   p.turnsTaken += 1;
   p.turn = emptyTurn();
   delete state.awaitingDawn;
+  // A new day: every card's defence is whole again.
+  for (const o of state.players) for (const c of o.tableau) delete c.dented;
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
 
   // Shields fade, unless Deep Current holds them.

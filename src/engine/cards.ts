@@ -818,8 +818,9 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Solar Lancers',
     race: 0,
     cards: [
-      ...twoOf('command_directive', 'sunlance_charge', 'lancer_squadron', 'helio_lancer'),
-      'ignition_protocol', 'coronal_chorus', 'dawnblade', 'sunforge', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
+      ...twoOf('command_directive', 'helio_lancer'),
+      'sunlance_charge', 'lancer_squadron', 'aureline_cantor', 'solar_aegis',
+      'ignition_protocol', 'coronal_chorus', 'helio_bastion', 'sunforge', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
       'halo_sentinel', 'sunlit_return', 'prism_of_dawn', 'ion_cannon', 'coolant_array', 'cryo_vault', 'recall_beacon', 'rally_banner', 'rally_banner',
       'glory_charge', 'aureline_archon', 'dawn_rampart', 'aurelia_first_light', 'the_sun_throne',
     ],
@@ -828,13 +829,13 @@ export const PRESET_DECKS: DeckList[] = [
     // Cards that pay off as they leave play (Martyrs, Echo Shards, Prism Wards, Kyr'Vessa), recalled with
     // Phase Shift and Shard Echo to do it again (and with Shard Recall); Ember Shards recovered by the
     // Reliquarist; a Prism Conduit cooled by the attack cards beside it; a Coolant Protocol, a Prism Vent,
-    // a Heat Bleed and a Prism Sanctum to run hot safely, and an Oracle drawing while it does.
+    // and a Prism Sanctum to run hot safely, with a Shard Mother and a Searing Core to press.
     name: 'Shard Overload',
     race: 1,
     cards: [
       ...twoOf('shard_reactor', 'martyr_crystal', 'prism_ward', 'war_council', 'ember_shard', 'echo_shard'),
       'coolant_protocol', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift',
-      'shard_recall', 'shard_echo', 'comet_shard', 'tactical_withdrawal', 'prism_vent', 'heat_bleed', 'xelnaru_warden', 'overcharge', 'xelnaru_oracle',
+      'shard_recall', 'shard_echo', 'comet_shard', 'tactical_withdrawal', 'prism_vent', 'shard_mother', 'xelnaru_warden', 'overcharge', 'searing_core',
       'prism_sanctum', 'crystal_storm',
     ],
   },

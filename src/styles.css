@@ -2989,7 +2989,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .slot-cmd small { font-size: max(6px, calc(var(--tcw) * 0.075)); letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.8; }
 /* The outline round the tableau, with its bump for the Command slot. */
 .tableau-frame { position: absolute; overflow: visible; pointer-events: none; transform: translateZ(1px); }
-.tableau-frame path { fill: rgba(255, 255, 255, 0.18); stroke: rgba(130, 142, 170, 0.45); stroke-width: 1.5; stroke-linejoin: round; }
+.tableau-frame path { fill: rgba(255, 255, 255, 0.14); stroke: rgba(140, 150, 175, 0.4); stroke-width: 1; stroke-linejoin: round; }
 /* A Command card in play lies landscape: its picture on the left, its name and options on the right. */
 .card.card-table.card-landscape {
   width: 100%; height: 100%; padding: 5% 5% 4% calc(var(--cmdw) * 0.44);
@@ -3008,3 +3008,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   padding: 2px 8px; border-radius: 999px; background: #d0654b; color: #fff; font-family: var(--display);
   font-size: max(7px, calc(var(--cw, 100px) * 0.08)); letter-spacing: 0.14em; text-transform: uppercase; pointer-events: none;
 }
+
+/* Defence dented by heat this day: it shows what is left, in red, until the next day. */
+.stat-def.stat-dented { background: linear-gradient(135deg, #e88a6c, #c0563d); color: #fff; }

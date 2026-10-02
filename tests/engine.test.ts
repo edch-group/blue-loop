@@ -914,6 +914,27 @@ describe('aiming heat', () => {
     expect(activePlayer(next).tableau.every((c) => c.aim === undefined)).toBe(true);
   });
 
+  it('dents defence for the rest of the day, so more heat that day gets through, and mends it the next day', () => {
+    const { s, lancer, b } = atAdasDawn();
+    s.players[1].shields = 0;
+    const stab = (st: GameState) => st.players[1].tableau.find((c) => c.uid === b.uid)?.stability ?? 0;
+    const before = stab(s);
+    // Helio Lancer's 2 heat on defence 2: no stability lost, but the defence is down to 0 for today.
+    let next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
+    const bo = () => next.players[1];
+    const card = () => bo().tableau.find((c) => c.uid === b.uid)!;
+    expect(stab(next)).toBe(before);
+    expect(cardDefence(bo(), card())).toBe(0);
+    // Bo's day (the next one) finds it whole again.
+    const bosDay = applyAction(next, { type: 'endTurn' });
+    expect(cardDefence(bosDay.players[1], bosDay.players[1].tableau.find((c) => c.uid === b.uid)!)).toBe(2);
+    // While today, a Coronal Lance now (3 heat) wears all 3 off its stability.
+    activePlayer(next).playsLeft = 9;
+    give(activePlayer(next), ['coronal_lance']);
+    next = play(next, 'coronal_lance', { aimUid: b.uid });
+    expect(stab(next)).toBe(Math.max(0, before - 3));
+  });
+
   it('turns all the heat aside when the defence is as high as the heat', () => {
     const { s, lancer, b } = atAdasDawn();
     s.players[1].shields = 0;

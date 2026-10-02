@@ -242,8 +242,10 @@ function dawnAims(state: GameState, me: PlayerState): Record<string, string | nu
   if (!rival) return aims;
   const danger = Math.max(0, rival.heat) / supernovaThreshold(rival);
   const { cards, sun } = aimChoices(state, me);
-  // Heat already aimed at each card this dawn (a card burned away by one attacker needs no more).
+  // Heat already aimed at each card this dawn (a card burned away by one attacker needs no more), and
+  // the defence still standing on it (the first hit dents it for the rest of the day).
   const planned = new Map<string, number>();
+  const guardLeft = new Map(cards.map((c) => [c.uid, cardDefence(rival, c)]));
   // What burning a card away sets off against you: its own leave heat, and its owner's cards that answer a card leaving.
   const payback = (c: CardInstance) =>
     (cardDef(c.defId).onLeave ?? []).reduce((n, e) => n + (e.type === 'heat' ? e.amount : 0), 0) +
@@ -258,8 +260,8 @@ function dawnAims(state: GameState, me: PlayerState): Record<string, string | nu
     for (const c of cards) {
       const left = (c.stability ?? 0) - (planned.get(c.uid) ?? 0);
       if (left <= 0) continue;
-      // A card's defence turns aside that much heat (not pierce heat).
-      const wears = pierce ? heat : heat - cardDefence(rival, c);
+      // A card's defence takes that much heat first (not pierce heat).
+      const wears = pierce ? heat : heat - (guardLeft.get(c.uid) ?? 0);
       if (wears <= 0) continue;
       const kills = wears >= left;
       const share = kills ? 1 : (wears / Math.max(1, left)) * 0.5;
@@ -270,7 +272,9 @@ function dawnAims(state: GameState, me: PlayerState): Record<string, string | nu
     aims[card.uid] = best.uid;
     if (best.uid) {
       const hit = cards.find((c) => c.uid === best.uid)!;
-      planned.set(best.uid, (planned.get(best.uid) ?? 0) + (pierce ? heat : Math.max(0, heat - cardDefence(rival, hit))));
+      const stand = pierce ? 0 : guardLeft.get(hit.uid) ?? 0;
+      planned.set(best.uid, (planned.get(best.uid) ?? 0) + Math.max(0, heat - stand));
+      guardLeft.set(hit.uid, stand - Math.min(stand, heat));
     }
   }
   return aims;
