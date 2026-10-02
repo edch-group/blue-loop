@@ -3073,15 +3073,9 @@ export class App {
       case 'rules':
         return this.sheetFrame('how to play', this.rulesHtml());
       case 'end-day': {
-        const me = s ? activePlayer(s) : null;
-        const left = me?.playsLeft ?? 0;
-        // The cards you could still play (a free card can be played with no energy left).
-        const names = me ? [...new Set(me.hand.filter((c) => this.canPlayNow(me, c.defId)).map((c) => cardDef(c.defId).name))] : [];
-        const list = names.map((n) => `<b>${esc(n)}</b>`).join(', ');
-        const text = left > 0 ? `You still have ${left} energy to spend today${list ? `: you could play ${list}` : ''}.` : `You can still play ${list || 'a card'} for free.`;
         return this.sheetFrame(
           'end your day?',
-          `<p class="center-text">${text}</p>
+          `<p class="center-text">You still have playable cards.</p>
            <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
         );
       }
