@@ -786,6 +786,22 @@ const ART2: Record<string, Draw> = {
   leviathan_shell: (S) => `<path d="M20 90 Q80 6 140 90 Z" fill="${S.linear([[0, '#58a9a0'], [1, '#063040']])}" stroke="#7ff0e0" stroke-width="1.2"/>` + [30, 44, 58, 72].map((y) => `<path d="M${30 + (y - 30) * 0.3} ${y + 14} Q80 ${y - 20} ${130 - (y - 30) * 0.3} ${y + 14}" fill="none" stroke="#7ff0e0" stroke-width="0.8" opacity="0.6"/>`).join('') + S.glow(80, 60, 14, '#dffff8', 0.8),
   chitin_fortress: (S) => S.ground(90, '#0e0a1c') + [[54, 70, 18], [80, 58, 24], [106, 70, 18]].map(([x, y, r]) => S.hex(x, y, r, S.linear([[0, '#d59cff'], [1, '#3d2b5e']]), '#c5ff8a')).join('') + S.dome(80, 90, 60, '#c5ff8a'),
   hive_tyrant: (S) => S.glow(80, 30, 60, '#ff9a8a', 0.35) + ixquor(S, 80, 70, 1.25, { arms: 5, cap: '#ff9a8a', tall: 1.1, crown: true }),
+  // ---- The bombs ----
+  dawnstar_cannon: (S) => S.ground(86, '#132446') + S.panel(36, 52, 56, 24, 5) + S.panel(78, 44, 50, 12, 4) + S.beam(128, 50, 158, 30, 3, '#fff3c4') + S.sun(132, 48, 6, '#ffd98a', 8),
+  aureline_sunguard: (S) => S.dome(80, 92, 70, '#ffe7b0') + aureline(S, 80, 34, 1.3, { item: 'shield', halos: 3, garb: 'armour', eye: '#2a6fd0', cloak: '#ffe7b0' }),
+  hymn_of_the_sun: (S) => S.sun(80, 40, 22, '#ffd98a', 16) + [24, 56, 104, 136].map((x, i) => S.beam(x, 92, 80, 42, 1.4 + (i % 2) * 0.6, '#fff3c4')).join('') + S.motes(80, 60, 20, 70, '#fff3c4', 1.2),
+  prism_colossus: (S) => S.glow(80, 44, 70, '#ffb3c2', 0.4) + xelnaru(S, 80, 30, 1.9, { bulk: 1.4, pauldrons: true, shard: '#ff9ab0', core: '#ffffff', item: 'blade' }),
+  shard_tempest: (S) => [10, 30, 50, 70, 90, 110, 130, 150].map((x, i) => `<polygon points="${x},${20 + (i % 3) * 14} ${x + 6},${34 + (i % 3) * 14} ${x - 4},${40 + (i % 3) * 14}" fill="${S.linear([[0, '#fff'], [1, '#ff7a9a']])}" opacity="0.9"/>`).join('') + S.glow(80, 60, 40, '#ffb3c2', 0.6) + S.bolt(20, 20, 140, 80, '#ffe0ea', 6, 2),
+  crystal_reliquary: (S) => S.ground(88, '#1b0c24') + `<path d="M56 86 L60 46 L80 34 L100 46 L104 86 Z" fill="${S.linear([[0, '#f0c0d0'], [1, '#6b2f5e']])}" stroke="#fff" stroke-width="0.8"/>` + S.glow(80, 58, 20, '#fff0c0', 0.9) + S.card(122, 46, 12, '#ffb3c2', 16) + S.card(38, 46, -12, '#ffb3c2', 16),
+  abyssal_titan: (S) => S.waves(94, S.p.accent, 2, 2, 0.5) + vorthane(S, 80, 34, 2.1, { helm: true, eyes: 8, item: 'trident', reach: 0.6, bell: '#8fe0d0' }),
+  tidal_wave: (S) => `<path d="M0 90 Q40 20 90 40 Q120 52 104 70 Q140 50 160 64 L160 100 L0 100 Z" fill="${S.linear([[0, '#9ff0f0'], [1, '#0f5563']])}"/>` + S.waves(80, '#dffff8', 3, 2, 0.6) + S.motes(90, 40, 20, 50, '#ffffff', 1),
+  pressure_dome: (S) => S.ground(90, '#031520') + S.dome(80, 90, 60, '#7ff0e0') + S.dome(80, 90, 44, '#bff8f0') + S.rings(80, 70, 30, 3, 10, '#7ff0e0', 0.4),
+  hive_colossus: (S) => S.glow(80, 30, 70, '#c5ff8a', 0.3) + ixquor(S, 80, 72, 1.5, { arms: 7, tall: 1.2, cap: '#c5ff8a' }) + S.motes(80, 30, 20, 70, '#c5ff8a', 1),
+  sporestorm: (S) => S.ground(90, '#0e0a1c') + S.motes(80, 50, 40, 80, '#c5ff8a', 1.8) + S.motes(80, 40, 30, 70, '#d59cff', 1.4) + S.glow(80, 50, 40, '#c5ff8a', 0.4),
+  great_mycelium: (S) => S.ground(70, '#0e0a1c') + [24, 52, 80, 108, 136].map((x, i) => `<path d="M${x} 70 q${i % 2 ? 8 : -8} 14 ${i % 2 ? -2 : 2} 30" fill="none" stroke="#c5ff8a" stroke-width="1.6" opacity="0.8"/>` + S.glow(x, 66, 8, '#c5ff8a', 0.7)).join('') + ixquor(S, 80, 66, 0.9, { arms: 4, item: 'pods' }),
+  dreadnought: (S) => S.planet(130, 86, 26, '#a9b3c4', '#1a1f2a') + `<polygon points="14,58 60,40 130,46 150,54 130,62 60,68" fill="${S.linear([[0, '#e6ecf5'], [1, '#56657e']])}" stroke="#fff" stroke-width="0.6"/>` + S.glow(150, 54, 8, '#ffb070', 0.9) + S.beam(60, 54, 6, 54, 1.6, '#9fd0ff'),
+  star_breaker: (S) => S.planet(118, 54, 24, '#e08a5a', '#5a2a1a') + S.bolt(10, 20, 112, 50, '#fff3c4', 6, 2.4) + S.motes(118, 54, 18, 40, '#ffb070', 1.4) + S.glow(112, 50, 14, '#fff', 0.9),
+  fusion_reactor: (S) => S.panel(48, 30, 64, 54, 8) + S.sun(80, 56, 12, '#ffd98a', 10) + S.orbit(80, 56, 22, 8, -20, '#9fd0ff', 1.4) + S.orbit(80, 56, 22, 8, 40, '#9fd0ff', 1.4),
 };
 Object.assign(ART, ART2);
 

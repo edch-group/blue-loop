@@ -818,11 +818,11 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Solar Lancers',
     race: 0,
     cards: [
-      ...twoOf('command_directive', 'helio_lancer'),
-      'sunlance_charge', 'lancer_squadron', 'aureline_cantor', 'solar_aegis',
-      'ignition_protocol', 'coronal_chorus', 'helio_bastion', 'sunforge', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
-      'halo_sentinel', 'sunlit_return', 'prism_of_dawn', 'ion_cannon', 'coolant_array', 'cryo_vault', 'recall_beacon', 'rally_banner', 'rally_banner',
-      'glory_charge', 'aureline_archon', 'dawn_rampart', 'aurelia_first_light', 'the_sun_throne',
+      ...twoOf('command_directive', 'helio_lancer', 'rally_banner'),
+      'sunlance_charge', 'lancer_squadron', 'aureline_cantor', 'solar_aegis', 'ignition_protocol', 'coronal_chorus',
+      'hymn_of_the_sun', 'sunforge', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
+      'halo_sentinel', 'sunlit_return', 'prism_of_dawn', 'ion_cannon', 'aureline_sunguard', 'dawnstar_cannon',
+      'recall_beacon', 'glory_charge', 'aureline_archon', 'dawn_rampart', 'aurelia_first_light', 'the_sun_throne',
     ],
   },
   {
@@ -834,9 +834,9 @@ export const PRESET_DECKS: DeckList[] = [
     race: 1,
     cards: [
       ...twoOf('shard_reactor', 'martyr_crystal', 'prism_ward', 'war_council', 'ember_shard', 'echo_shard'),
-      'coolant_protocol', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift',
-      'shard_recall', 'shard_echo', 'comet_shard', 'tactical_withdrawal', 'prism_vent', 'shard_mother', 'xelnaru_warden', 'overcharge', 'searing_core',
-      'prism_sanctum', 'crystal_storm',
+      'coolant_protocol', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit',
+      'phase_shift', 'shard_recall', 'shard_echo', 'prism_colossus', 'tactical_withdrawal', 'star_breaker',
+      'shard_mother', 'xelnaru_warden', 'shard_tempest', 'searing_core', 'prism_sanctum', 'crystal_reliquary',
     ],
   },
   {
@@ -847,9 +847,10 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Abyssal Tide',
     race: 2,
     cards: [
-      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'tide_regent', 'riptide', 'brine_lash', 'jelly_swarm', 'coronal_lance'),
-      'the_admiralty', 'riptide_ambush', 'sunken_bell', 'trench_warden', 'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide',
-      'aegis_monolith', 'sunken_bell', 'tidebreaker', 'leviathan_shell',
+      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'tide_regent', 'riptide', 'brine_lash', 'sunken_bell'),
+      'tidal_wave', 'jelly_swarm', 'abyssal_titan', 'coronal_lance', 'the_admiralty', 'riptide_ambush',
+      'trench_warden', 'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide', 'aegis_monolith',
+      'tidebreaker', 'leviathan_shell',
     ],
   },
   {
@@ -860,10 +861,10 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Hive Bloom',
     race: 3,
     cards: [
-      ...twoOf('orbit_root', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_warrior', 'hive_relay', 'spore_cloud'),
-      'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings', 'overgrowth', 'chitin_fortress', 'sporecaster',
-      'ixquor_brood_tender', 'the_brood_queen', 'spore_return', 'regrowth_pod', 'hive_tyrant', 'spore_drone', 'recall_beacon', 'spore_return',
-      'solar_bastion',
+      ...twoOf('orbit_root', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_relay', 'spore_cloud', 'spore_return'),
+      'hive_colossus', 'hive_warrior', 'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings',
+      'overgrowth', 'chitin_fortress', 'great_mycelium', 'ixquor_brood_tender', 'the_brood_queen', 'sporestorm',
+      'hive_tyrant', 'spore_drone', 'recall_beacon', 'solar_bastion',
     ],
   },
 ];

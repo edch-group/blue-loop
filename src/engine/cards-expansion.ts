@@ -151,8 +151,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Aureline Archon',
     kind: 'attack',
     race: 0,
-    text: '{dawn}: {heat:2}. {heat:+1} with a Command card.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'heat', amount: 1, to: 'target', if: { minKind: 'command', n: 1 } }],
+    text: '{dawn}: {heat:3}. {heat:+1} with a Command card.',
+    onTurn: [{ type: 'heat', amount: 3, to: 'target' }, { type: 'heat', amount: 1, to: 'target', if: { minKind: 'command', n: 1 } }],
   },
   {
     id: 'the_sun_throne',
@@ -803,10 +803,33 @@ export const EXPANSION: CardDef[] = [
     text: '{spend}. Draw 1 and {cool:1} per energy spent.',
     onPlay: [{ type: 'draw', amount: 0, plus: { of: 'spent' } }, { type: 'cool', amount: 0, plus: { of: 'spent' } }],
   },
+  // ---- Bombs: the big cards (3-5 energy), so every deck has something to ramp into ----
+  { id: 'dawnstar_cannon', name: 'Dawnstar Cannon', kind: 'attack', race: 0, text: '{sturdy:1}. {dawn}: {heat:3}.', defence: 1, onTurn: [{ type: 'heat', amount: 3, to: 'target' }] },
+  { id: 'aureline_sunguard', name: 'Aureline Sunguard', kind: 'defence', race: 0, text: '{guard}. {sturdy:2}. {shield:3}. {dawn}: {shield:2}.', defence: 2, onPlay: [{ type: 'shield', amount: 3 }], onTurn: [{ type: 'shield', amount: 2 }], passive: [{ type: 'taunt' }] },
+  { id: 'hymn_of_the_sun', name: 'Hymn of the Sun', kind: 'attack', race: 0, text: '{heat:2}. {dawn}: {heat:2}. {heat:+1} per 2 attack cards you control (up to 2).', onPlay: [{ type: 'heat', amount: 2, to: 'target' }], onTurn: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 4 }] },
+  { id: 'prism_colossus', name: 'Prism Colossus', kind: 'attack', race: 1, text: '{dawn}: {heat:3}, {pierce}. When this leaves your tableau, {heat:4}.', onTurn: [{ type: 'heat', amount: 3, to: 'target', pierce: true }], onLeave: [{ type: 'heat', amount: 4, to: 'target' }] },
+  { id: 'shard_tempest', name: 'Shard Tempest', kind: 'attack', race: 1, text: '{heat:5}. {heat:+2} while {overheated}. {heat:2} to your sun.', onPlay: [{ type: 'heat', amount: 5, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { overheated: true } }, { type: 'selfHeat', amount: 2 }] },
+  { id: 'crystal_reliquary', name: 'Crystal Reliquary', kind: 'growth', race: 1, text: '{recover}. Draw 2.', onPlay: [{ type: 'recover', orDraw: 1 }, { type: 'draw', amount: 2 }] },
+  { id: 'abyssal_titan', name: 'Abyssal Titan', kind: 'defence', race: 2, text: '{guard}. {sturdy:2}. {sting:2}. {dawn}: {shield:3}.', defence: 2, onTurn: [{ type: 'shield', amount: 3 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }] },
+  { id: 'tidal_wave', name: 'Tidal Wave', kind: 'attack', race: 2, text: '{heat:3}. {heat:+1} per 2 shields you have (up to 7).', onPlay: [{ type: 'heat', amount: 3, to: 'target', plus: { of: 'shields', per: 2 }, max: 7 }] },
+  { id: 'pressure_dome', name: 'Pressure Dome', kind: 'defence', race: 2, text: '{shield:5}. {dawn}: {shield:2}.', onPlay: [{ type: 'shield', amount: 5 }], onTurn: [{ type: 'shield', amount: 2 }] },
+  { id: 'hive_colossus', name: 'Hive Colossus', kind: 'attack', race: 3, text: '{dawn}: {heat:2}. {heat:+1} per 2 cards you control (up to 3).', onTurn: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'cards', per: 2 }, max: 5 }] },
+  { id: 'sporestorm', name: 'Sporestorm', kind: 'attack', race: 3, text: '{heat:2}. {heat:+1} per card you control (up to 5).', onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'cards' }, max: 7 }] },
+  { id: 'great_mycelium', name: 'Great Mycelium', kind: 'growth', race: 3, text: '{dawn}: draw 1. {cool:1}. {cool:+1} with 4+ cards.', onTurn: [{ type: 'draw', amount: 1 }, { type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minCards: 4 } }] },
+  { id: 'dreadnought', name: 'Dreadnought', kind: 'attack', text: '{sturdy:2}. {dawn}: {heat:4}.', defence: 2, onTurn: [{ type: 'heat', amount: 4, to: 'target' }] },
+  { id: 'star_breaker', name: 'Star Breaker', kind: 'attack', text: '{destroy:4}. {heat:3}.', onPlay: [{ type: 'destroy', maxDefence: 4 }, { type: 'heat', amount: 3, to: 'target' }] },
+  { id: 'fusion_reactor', name: 'Fusion Reactor', kind: 'growth', text: '{plays:1}. {dawn}: {heat:1} to your sun.', onTurn: [{ type: 'selfHeat', amount: 1 }], passive: [{ type: 'extraPlay', amount: 1 }] },
 ];
 
 /** The second set's rarities and characters (as CARD_META in cards.ts). */
 export const EXPANSION_META: Record<string, { rarity?: Rarity; character?: boolean }> = {
+  aureline_sunguard: { character: true },
+  hymn_of_the_sun: { rarity: 'stellar' },
+  prism_colossus: { character: true, rarity: 'stellar' },
+  abyssal_titan: { character: true, rarity: 'stellar' },
+  hive_colossus: { character: true, rarity: 'stellar' },
+  dreadnought: { rarity: 'stellar' },
+  star_breaker: { rarity: 'stellar' },
   // Neutral
   solar_torrent: { rarity: 'stellar' },
   meltdown: { rarity: 'stellar' },

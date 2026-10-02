@@ -160,7 +160,9 @@ describe('reading a rival card', () => {
     const g = room.game!;
     const activeSeat = [0, 1].find((s) => g.players[playerIndex(room, s)].id === activePlayer(g).id)!;
     const me = activePlayer(g);
-    const card = me.hand.find((c) => c.defId !== 'null_field' && c.defId !== 'riptide_ambush')!;
+    // A plain 1-energy card (the opening hand may hold only dearer ones, or ones that need a choice).
+    const card = { uid: 'test-relay', defId: 'plasma_relay' };
+    me.hand.push(card);
     handle(room, activeSeat, { t: 'action', action: { type: 'playCard', cardUid: card.uid, slot: 2 } });
     expect(room.waitingOn).toBe(1 - activeSeat);
     expect(views(room)[activeSeat]).toMatchObject({ waitFor: 'rival' });
