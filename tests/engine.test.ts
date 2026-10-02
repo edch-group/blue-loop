@@ -32,7 +32,11 @@ function play(s: GameState, defId: string, extra: Record<string, string | number
   return applyAction(s, { type: 'playCard', cardUid: card.uid, ...extra });
 }
 
-const endTurn = (s: GameState) => applyAction(s, { type: 'endTurn' });
+// Ends the day; the next dawn breaks with its heat aimed by default (the sun, or a Guard).
+const endTurn = (s: GameState) => {
+  const next = applyAction(s, { type: 'endTurn' });
+  return next.awaitingDawn ? applyAction(next, { type: 'dawn', aims: {} }) : next;
+};
 
 describe('content', () => {
   it('has unique card ids, and every card has rules text', () => {
@@ -813,5 +817,86 @@ describe('regional instability', () => {
     s = endTurn(s);
     expect(isGameOver(s)).toBe(true);
     expect(s.winnerId).toBe(b.id);
+  });
+});
+
+describe('aiming heat', () => {
+  /** Ada with two dawn attackers; Bo with two Tide Pylons (slot 0: defence 1, slot 1: defence 2). Returns the state at Ada's next dawn. */
+  function atAdasDawn() {
+    let s = twoPlayer();
+    const [ada, bo] = s.players;
+    const [lancer, reactor] = give(ada, ['helio_lancer', 'shard_reactor'], 'tableau');
+    const [a, b] = give(bo, ['tide_pylon', 'tide_pylon'], 'tableau');
+    s = applyAction(s, { type: 'endTurn' }); // Bo's day: nothing to aim.
+    expect(s.awaitingDawn).toBeFalsy();
+    s = applyAction(s, { type: 'endTurn' }); // Ada's dawn waits for her to aim.
+    return { s, lancer, reactor, a, b };
+  }
+
+  it("waits at dawn for the player to aim each card's dawn heat, and nothing else can happen until they do", () => {
+    const { s, lancer } = atAdasDawn();
+    expect(s.awaitingDawn).toBe(true);
+    expect(() => applyAction(s, { type: 'endTurn' })).toThrow(GameError);
+    const ada = activePlayer(s);
+    give(ada, ['coronal_lance']);
+    expect(() => play(s, 'coronal_lance')).toThrow(GameError);
+    // Only your own cards with dawn heat can be aimed, and only at rival cards (or their sun).
+    expect(() => applyAction(s, { type: 'dawn', aims: { [lancer.uid]: lancer.uid } })).toThrow(GameError);
+  });
+
+  it("wears a card's stability by the heat less its defence, and pierce ignores defence", () => {
+    const { s, lancer, reactor, a, b } = atAdasDawn();
+    const bo = s.players[1];
+    bo.shields = 0;
+    const heatBefore = bo.heat;
+    const stab = (st: GameState, uid: string) => st.players[1].tableau.find((c) => c.uid === uid)?.stability ?? 0;
+    const [sa, sb] = [stab(s, a.uid), stab(s, b.uid)];
+    expect(cardDefence(bo, bo.tableau.find((c) => c.uid === a.uid)!)).toBe(1);
+    expect(cardDefence(bo, bo.tableau.find((c) => c.uid === b.uid)!)).toBe(2);
+    const next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: a.uid, [reactor.uid]: b.uid } });
+    expect(next.awaitingDawn).toBeFalsy();
+    expect(stab(next, a.uid)).toBe(sa - (2 - 1)); // Helio Lancer's 2 heat, less defence 1
+    expect(stab(next, b.uid)).toBe(sb - 2); // Shard Reactor's 2 pierce heat, all of it
+    expect(next.players[1].heat).toBe(heatBefore);
+    // Aims last for the dawn they were made for.
+    expect(activePlayer(next).tableau.every((c) => c.aim === undefined)).toBe(true);
+  });
+
+  it('turns all the heat aside when the defence is as high as the heat', () => {
+    const { s, lancer, b } = atAdasDawn();
+    s.players[1].shields = 0;
+    const before = s.players[1].tableau.find((c) => c.uid === b.uid)!.stability;
+    const next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
+    expect(next.players[1].tableau.find((c) => c.uid === b.uid)!.stability).toBe(before);
+  });
+
+  it('asks where to aim only for heat a card deals as it is played', () => {
+    let { s } = atAdasDawn();
+    s = applyAction(s, { type: 'dawn', aims: {} });
+    const rivalCard = s.players[1].tableau[0];
+    activePlayer(s).playsLeft = 9;
+    give(activePlayer(s), ['helio_lancer', 'coronal_lance']);
+    // A card with only dawn heat is played without an aim (and keeps none).
+    s = play(s, 'helio_lancer');
+    expect(activePlayer(s).tableau.find((c) => c.defId === 'helio_lancer' && c.aim)).toBeUndefined();
+    // A card with heat as it is played may aim it at a rival card.
+    s.players[1].shields = 0;
+    const before = rivalCard.stability ?? 0;
+    s = play(s, 'coronal_lance', { aimUid: rivalCard.uid });
+    expect(s.players[1].tableau.find((c) => c.uid === rivalCard.uid)?.stability ?? 0).toBe(Math.max(0, before - (3 - 1)));
+  });
+});
+
+describe('lightspeed', () => {
+  it('records which enemy card sprang a Lightspeed card, for the table to show beside it', () => {
+    const s = twoPlayer();
+    const bo = s.players[1];
+    bo.lightspeed = { uid: 'ls1', defId: 'null_field' };
+    give(activePlayer(s), ['coronal_lance']);
+    const next = play(s, 'coronal_lance');
+    expect(next.sprung).toEqual([{ ownerId: bo.id, defId: 'null_field', enemyId: activePlayer(s).id, against: 'coronal_lance', trigger: 'enemyPlays' }]);
+    expect(next.log.some((l) => /springs Null Field in answer to .*Coronal Lance/.test(l.text))).toBe(true);
+    // Only the move it sprang on carries it.
+    expect(applyAction(next, { type: 'endTurn' }).sprung).toBeUndefined();
   });
 });

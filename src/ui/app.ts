@@ -34,7 +34,7 @@ import {
   cardCost,
   aimable,
   aimChoices,
-  heatTarget,
+  dawnAimable,
   dawnEffects,
   conditionMet,
   effectAmount,
@@ -100,8 +100,8 @@ interface Pending {
   step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot';
   /** Where its heat goes: a rival card's uid, or 'sun'. */
   aimUid?: string;
-  /** Re-aiming a card already in your tableau (uid is that card), not playing one. */
-  reaim?: boolean;
+  /** Aiming the dawn heat of a card already in your tableau (uid is that card), not playing one. */
+  dawn?: boolean;
   /** A Command card's option. */
   choice?: string;
   enemyUid?: string;
@@ -122,6 +122,8 @@ interface Stage {
   confirm?: boolean;
   /** The option the player picked on a card with choices (a Command card's dawn effect): highlighted on it. */
   option?: string;
+  /** A sprung Lightspeed card: the enemy card it answered, shown beside it. */
+  against?: string;
   /** The rival card it will remove (destroy, return or erode): aimed at while it waits on the stage. */
   target?: string;
 }
@@ -150,7 +152,7 @@ const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, aim: 450, endTurn: 1200, concede: 0 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -693,6 +695,7 @@ export class App {
   private requestEndDay() {
     const s = this.state;
     if (!s || !this.canAct() || this.pending) return;
+    if (s.awaitingDawn) return this.breakDawn();
     const me = activePlayer(s);
     const playable = me.hand.some((c) => cardCost(c.defId) <= me.playsLeft && hasRoomFor(me, c.defId) && (cardDef(c.defId).kind !== 'lightspeed' || canSetLightspeed(me)));
     if (playable && this.sheet?.kind !== 'end-day') {
@@ -892,7 +895,7 @@ export class App {
       if (turnPassed && action.type === 'endTurn') this.announceDusk(actor, next);
       if (turnPassed) this.announceTurn(450);
       // The AI waits for its dawn to play out before it acts.
-      this.scheduleAI(AI_PAUSE[action.type] + (action.type === 'endTurn' && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
+      this.scheduleAI(AI_PAUSE[action.type] + ((action.type === 'endTurn' || action.type === 'dawn') && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
     };
     // A card waiting to be read takes effect once the viewer says OK.
     if (this.stage?.confirm) {
@@ -959,7 +962,9 @@ export class App {
       const name = cardDef(defId).name;
       this.showBanner('lightspeed!', `${now.name} springs ${name}`, 150);
       sound.flare();
-      const stage: Stage = { defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs` };
+      // What sprang it: the enemy card it answers (the card played, the heat's card, or the removal).
+      const why = next.sprung?.find((x) => x.ownerId === now.id);
+      const stage: Stage = { defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs`, against: why?.against };
       // It shows for a few seconds, then fades away by itself (not lingering until someone acts).
       window.setTimeout(() => {
         if (this.stage !== stage) return;
@@ -968,7 +973,7 @@ export class App {
         if (!el) return;
         el.classList.add('stage-out');
         window.setTimeout(() => el.remove(), 400);
-      }, 3500);
+      }, stage.against ? 5000 : 3500);
       return stage;
     }
     return null;
@@ -1027,7 +1032,8 @@ export class App {
 
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
-    const endingTurn = action.type === 'endTurn';
+    // A day's start (or its dawn, once aimed) replays its effects.
+    const endingTurn = action.type === 'endTurn' || action.type === 'dawn';
     let drawIndex = 0;
 
     // Removal: a glowing arc from the removing card to each rival card it destroys, returns or
@@ -1047,7 +1053,11 @@ export class App {
         const el = root.querySelector(`[data-uid="${uid}"]`);
         const to = before.cards.get(uid)?.rect ?? (el ? pageRect(el) : null);
         if (!to) return;
-        removalAt.set(uid, tether(from, to, { delay: (actor.isAI ? 600 : 470) + i * 140 }));
+        const delay = (actor.isAI ? 600 : 470) + i * 140;
+        removalAt.set(uid, tether(from, to, { delay }));
+        // The beam whooshes onto the card (and, if it takes it, sweeps it away).
+        const gone = !next.players.some((p) => p.tableau.some((c) => c.uid === uid));
+        window.setTimeout(() => sound.whoosh(0, gone), delay);
       });
     }
 
@@ -1208,8 +1218,9 @@ export class App {
         }
         break;
       }
-      case 'endTurn': {
-        sound.endTurn();
+      case 'endTurn':
+      case 'dawn': {
+        if (action.type === 'endTurn') sound.endTurn();
         // The new player's dawn cards light up, oldest first, as they trigger.
         let k = 0;
         if (!replayEnd)
@@ -1272,7 +1283,7 @@ export class App {
       const won = next.winnerId === viewer.id;
       this.resultExtra = this.rewardLine(grantReward(gameReward(kind, won, { conceded: next.concededBy === viewer.id }), won));
     }
-    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' ? this.replayLength(next) : 900) + 1800;
+    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' || action.type === 'dawn' ? this.replayLength(next) : 900) + 1800;
     this.resultAt = Date.now() + wait;
     window.setTimeout(() => {
       if (this.state === next || isGameOver(this.state ?? next)) this.render();
@@ -1331,6 +1342,13 @@ export class App {
       const cardEl = ps.toCard ? root.querySelector(`.tableau [data-uid="${ps.toCard}"]`) : null;
       const to = ps.toCard ? (cardEl ? pageRect(cardEl) : before.cards.get(ps.toCard)?.rect ?? null) : orbRect(ps.to);
       if (cardEl) pulse(cardEl, 'fx-hit-card', at + 640);
+      // Heat aimed at a card whooshes onto it (sweeping it away, if it burns away).
+      if (ps.toCard) {
+        const burns = !next.players.some((p) => p.tableau.some((c) => c.uid === ps.toCard));
+        window.setTimeout(() => {
+          if (id === this.replayId) sound.whoosh(0, burns);
+        }, at + 120);
+      }
       if (fromEl) pulse(fromEl, 'fx-trigger', at);
       // The instability gauge throbs red as it deals its heat.
       if (ps.kind === 'unstable' && !ps.uid && !ps.together) pulse(root.querySelector('.round-box'), 'fx-unstable', at);
@@ -1490,6 +1508,44 @@ export class App {
     return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff();
   }
 
+  /** The viewer's dawn waits for them to aim their cards' dawn heat. */
+  private dawnTurn(): boolean {
+    return !!this.state?.awaitingDawn && this.canAct();
+  }
+
+  /** Where the viewer has aimed each card's heat for this dawn (so far): card uid → rival card uid, or null for the sun. */
+  private dawnDraft: { turn: number; aims: Record<string, string | null> } | null = null;
+  private dawnAims(): Record<string, string | null> {
+    const turn = this.state?.turnNumber ?? 0;
+    if (this.dawnDraft?.turn !== turn) this.dawnDraft = { turn, aims: {} };
+    return this.dawnDraft.aims;
+  }
+
+  /** Where a card's dawn heat will land this dawn, as aimed so far: a rival card's uid, or null for their sun. */
+  private dawnHit(s: GameState, p: PlayerState, card: CardInstance): string | null {
+    const { cards, sun } = aimChoices(s, p);
+    const d = this.dawnAims()[card.uid];
+    if (d && cards.some((c) => c.uid === d)) return d;
+    if (sun) return null;
+    return [...cards].sort((a, b) => (a.stability ?? 0) - (b.stability ?? 0))[0]?.uid ?? null;
+  }
+
+  /** Let the dawn break, with the heat aimed as chosen. */
+  private breakDawn() {
+    if (!this.dawnTurn()) return;
+    const s = this.state!;
+    const me = activePlayer(s);
+    const { sun } = aimChoices(s, me);
+    const aims: Record<string, string | null> = {};
+    for (const card of me.tableau) {
+      if (!dawnAimable(card)) continue;
+      const hit = this.dawnHit(s, me, card);
+      if (hit !== null || sun) aims[card.uid] = hit;
+    }
+    this.pending = null;
+    this.dispatch({ type: 'dawn', aims });
+  }
+
   /** Hot-seat: hide the hand until the next human confirms they have the device. */
   private needsHandoff(): boolean {
     if (this.online) return false;
@@ -1561,7 +1617,7 @@ export class App {
     if (allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
     // A card that heats, with rival cards on the table: where its heat goes (a card, or their sun).
-    if (aimable(card.defId) && aimChoices(s, me, card.defId).cards.length && p.aimUid === undefined) return ask('aim');
+    if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
     // Even the last open slot is clicked to confirm (a misclicked card is never played outright).
     if (persists(card.defId) && freeSlots(me).length > 0 && p.slot === undefined) return ask('slot');
     this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined });
@@ -1627,6 +1683,7 @@ export class App {
       }
       if (this.sheet && this.sheet.kind !== 'end-day') return;
       e.preventDefault();
+      if (this.state?.awaitingDawn) return this.breakDawn();
       return this.requestEndDay();
     }
     if (e.key !== 'Escape') return;
@@ -1988,17 +2045,24 @@ export class App {
         if (this.pending) this.pending.enemyUid = arg;
         return this.advancePlay();
       case 'aim-start':
-        // One of your cards that heats, on your day: choose where its heat goes from now on.
-        if (!this.canAct()) return;
-        this.pending = { uid: arg, step: 'aim', reaim: true };
+        // At your dawn, one of your cards with dawn heat: choose where its heat goes this dawn.
+        if (!this.dawnTurn()) return;
+        this.pending = { uid: arg, step: 'aim', dawn: true };
         return this.render();
       case 'choose-aim': {
         const pend = this.pending;
         if (!pend) return;
-        if (pend.reaim) return this.dispatch({ type: 'aim', cardUid: pend.uid, aimUid: arg === 'sun' ? null : arg });
+        if (pend.dawn) {
+          this.dawnAims()[pend.uid] = arg === 'sun' ? null : arg;
+          this.pending = null;
+          sound.hover();
+          return this.render();
+        }
         pend.aimUid = arg;
         return this.advancePlay();
       }
+      case 'dawn-go':
+        return this.breakDawn();
       case 'choose-ally':
         if (this.pending) this.pending.allyUid = arg;
         return this.advancePlay();
@@ -2618,16 +2682,22 @@ export class App {
   /** While a card waits for a choice on the board, a short prompt sits at the top of the screen. */
   private renderPickHint(): string {
     const p = this.pending;
-    if (!p || p.step === 'choice') return '';
     const s = this.state!;
-    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.reaim ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
+    // Your dawn: aim each card's dawn heat, then let it break.
+    if (!p && this.dawnTurn()) {
+      const who = esc(targetOf(s, activePlayer(s))?.name.toLowerCase() ?? 'your rival');
+      return `<div class="pick-hint pick-dawn"><span>dawn: tap a card of yours, then where its heat goes: one of ${who}'s cards, or their sun</span><button class="pill-btn pill-dawn" data-act="dawn-go">break dawn</button></div>`;
+    }
+    if (!p || p.step === 'choice') return '';
+    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.dawn ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
     const name = esc(cardDef(card.defId).name.toLowerCase());
     if (p.step === 'recover') return '';
     if (p.step === 'aim') {
-      const aims = aimChoices(s, activePlayer(s), card.defId);
+      const aims = aimChoices(s, activePlayer(s));
       const who = esc(targetOf(s, activePlayer(s))?.name.toLowerCase() ?? 'your rival');
-      const text = aims.sun ? `${name}: aim its heat at one of ${who}'s cards, or at their sun` : `${name}: ${who} has a Guard in play: aim its heat at it`;
+      const its = p.dawn ? 'its dawn heat' : 'its heat';
+      const text = aims.sun ? `${name}: aim ${its} at one of ${who}'s cards, or at their sun` : `${name}: ${who} has a Guard in play: aim ${its} at it`;
       return `<div class="pick-hint"><span>${text}</span><button class="pill-btn" data-act="cancel">cancel</button></div>`;
     }
     const rival = esc(targetOf(s, activePlayer(s))?.name.toLowerCase() ?? 'your target');
@@ -2702,22 +2772,25 @@ export class App {
     const incoming = new Map<string, number>();
     const aiming = new Map<string, boolean>();
     const st = this.state!;
-    for (const o of st.players) {
-      if (o.eliminated) continue;
+    // At the viewer's dawn, as they aim it: where each card's dawn heat is going.
+    if (this.dawnTurn()) {
+      const o = activePlayer(st);
       for (const card of o.tableau) {
-        if (!aimable(card.defId)) continue;
-        const hit = heatTarget(st, o, card);
+        if (!dawnAimable(card)) continue;
+        const hit = this.dawnHit(st, o, card);
         if (!hit) continue;
         if (o.id === p.id) aiming.set(card.uid, true);
-        else if (p.tableau.some((x) => x.uid === hit.uid)) {
-          const heat = dawnEffects(card).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(o, e.if) ? effectAmount(st, o, card, e, 'turn') : 0), 0);
-          if (heat > 0) incoming.set(hit.uid, (incoming.get(hit.uid) ?? 0) + heat);
+        else if (p.tableau.some((x) => x.uid === hit)) {
+          // What gets past the card's defence (all of it, for pierce heat).
+          const victim = p.tableau.find((x) => x.uid === hit)!;
+          const heat = dawnEffects(card).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(o, e.if) ? Math.max(0, effectAmount(st, o, card, e, 'turn') - (e.pierce ? 0 : cardDefence(p, victim))) : 0), 0);
+          incoming.set(hit, (incoming.get(hit) ?? 0) + heat);
         }
       }
     }
     const viewer = this.state ? activePlayer(this.state) : null;
-    const aimingDef = pend?.step === 'aim' && viewer ? (pend.reaim ? viewer.tableau : viewer.hand).find((h) => h.uid === pend.uid)?.defId : undefined;
-    const sunAim = side === 'rival' && !!aimingDef && !!viewer && aimChoices(this.state!, viewer, aimingDef).sun;
+    const aimingDef = pend?.step === 'aim' && viewer ? (pend.dawn ? viewer.tableau : viewer.hand).find((h) => h.uid === pend.uid)?.defId : undefined;
+    const sunAim = side === 'rival' && !!aimingDef && !!viewer && aimChoices(this.state!, viewer).sun;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
       if (c) return this.renderCard(c, { tableau: side, owner: p, incoming: incoming.get(c.uid), aimsAtCard: !!aiming.get(c.uid) });
@@ -2823,7 +2896,7 @@ export class App {
           <small>${myTurn ? 'energy' : 'waiting'}</small>
           <span class="plays-pips">${pips}</span>
         </div>
-        <button class="btn-primary end-turn ${act && me.playsLeft === 0 ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
+        <button class="btn-primary end-turn ${act && me.playsLeft === 0 ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>${s.awaitingDawn && act ? 'break dawn' : 'end day'}</button>
       </div>`;
   }
 
@@ -2845,13 +2918,17 @@ export class App {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    const aimDef = p?.step === 'aim' && me ? (p.reaim ? me.tableau : me.hand).find((h) => h.uid === p.uid)?.defId : undefined;
-    if (aimDef && me && opts.tableau === 'rival' && aimChoices(s!, me, aimDef).cards.some((x) => x.uid === c.uid)) {
+    const aimDef = p?.step === 'aim' && me ? (p.dawn ? me.tableau : me.hand).find((h) => h.uid === p.uid)?.defId : undefined;
+    if (aimDef && me && opts.tableau === 'rival' && aimChoices(s!, me).cards.some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-aim" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    // On your day, your cards that heat can be re-aimed: click one, then its target.
-    if (!p && act && me && opts.tableau === 'mine' && opts.owner?.id === me.id && aimable(c.defId)) attrs = `data-act="aim-start" data-arg="${c.uid}" title="Aim its heat: click, then a rival card or their sun"`;
+    // At your dawn, your cards with dawn heat are aimed: click one, then its target.
+    if (!p && this.dawnTurn() && me && opts.tableau === 'mine' && opts.owner?.id === me.id && dawnAimable(c)) {
+      attrs = `data-act="aim-start" data-arg="${c.uid}" title="Aim its dawn heat: click, then a rival card or their sun"`;
+      state = 'card-aimer';
+    }
+    if (p?.dawn && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     if (p && opts.tableau === 'mine' && p.step === 'ally') {
       attrs = `data-act="choose-ally" data-arg="${c.uid}"`;
       state = 'card-choosable';
@@ -2865,7 +2942,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `${costBadge(def)}${opts.incoming ? `<span class="aim-in" title="${opts.incoming} heat aimed at this card for the next dawn: it wears away its stability">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<span class="card-stats"><b class="stat-def" title="Defence: removal cards can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">◷${c.stability ?? 0}</b></span>`
+        ? `${costBadge(def)}${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<span class="card-stats"><b class="stat-def" title="Defence: heat aimed at this card is reduced by this much (pierce ignores it), and removal can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">◷${c.stability ?? 0}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
@@ -2928,9 +3005,17 @@ export class App {
           .replace(/<\/button>\s*$/, '</div>')
           .replace(/ data-act="[^"]*"/, '')
           .replace(/ data-card="[^"]*"/, '');
+    // A sprung Lightspeed card: the card it answered, smaller, beside it.
+    const against = st.against
+      ? `<div class="stage-against"><span>${{ enemyPlays: 'in answer to', heated: 'against the heat of', targeted: 'against' }[s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays'] ?? 'in answer to'}</span>${this.renderCard({ uid: 'stage-against', defId: st.against }, { static: true })
+          .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+          .replace(/<\/button>\s*$/, '</div>')
+          .replace(/ data-act="[^"]*"/, '')
+          .replace(/ data-card="[^"]*"/, '')}</div>`
+      : '';
     return `
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
-        ${card}
+        ${against}${card}
         <div class="stage-caption">${esc(st.caption ?? `${actor.name.toLowerCase()} plays`)}</div>
         ${st.confirm ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}
       </div>`;

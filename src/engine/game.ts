@@ -228,12 +228,15 @@ export function enemyChoices(state: GameState, p: PlayerState, defId: string): C
   return t.tableau.filter((c) => canReach(t, c, e));
 }
 
-/** Whether a card has heat for your rival that it can aim (at their sun, or at one of their cards). */
+/** Whether a card heats your rival as it is played (it is aimed then, at their sun or one of their cards). */
 export function aimable(defId: string): boolean {
-  const d = cardDef(defId);
-  return [...(d.onPlay ?? []), ...(d.onTurn ?? [])].some((e) => e.type === 'heat' && e.to === 'target');
+  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target');
 }
 
+/** Whether a card in your tableau heats your rival at dawn (its heat is aimed afresh each dawn). */
+export function dawnAimable(card: CardInstance): boolean {
+  return dawnEffects(card).some((e) => e.type === 'heat' && e.to === 'target');
+}
 
 /** A player's Guard cards: while they have any, rival heat can only be aimed at them. */
 export function guards(p: PlayerState): CardInstance[] {
@@ -241,15 +244,22 @@ export function guards(p: PlayerState): CardInstance[] {
 }
 
 /**
- * Where a card's heat may be aimed: any card in your rival's tableau, or their sun. While they have Guard
+ * Where your heat may be aimed: any card in your rival's tableau, or their sun. While they have Guard
  * cards, only those. `sun` says whether their sun is a choice.
  */
-export function aimChoices(state: GameState, p: PlayerState, defId: string): { cards: CardInstance[]; sun: boolean } {
+export function aimChoices(state: GameState, p: PlayerState): { cards: CardInstance[]; sun: boolean } {
   const t = targetOf(state, p);
-  if (!t || !aimable(defId)) return { cards: [], sun: true };
+  if (!t) return { cards: [], sun: true };
   const g = guards(t);
   if (g.length) return { cards: g, sun: false };
   return { cards: [...t.tableau], sun: true };
+}
+
+/** Whether a player's dawn waits for them to aim: they have a card with dawn heat, and it has more than one place to go. */
+export function needsDawnAim(state: GameState, p: PlayerState): boolean {
+  if (!p.tableau.some(dawnAimable)) return false;
+  const { cards, sun } = aimChoices(state, p);
+  return cards.length + (sun ? 1 : 0) > 1;
 }
 
 /** Where a card's dawn heat lands now: a rival card (its aim, or a Guard), or null for their sun. */
@@ -280,6 +290,11 @@ function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, am
   }
   amount -= blocked;
   if (amount <= 0 || !owner.tableau.includes(victim)) return;
+  // The card's defence (its slot's, and its own) turns aside that much of the heat (not pierce heat).
+  const turned = pierce ? 0 : Math.min(amount, cardDefence(owner, victim));
+  if (turned > 0) log(state, `${owner.name}'s ${cardDef(victim.defId).name} turns aside ${turned} heat (defence ${cardDefence(owner, victim)}).`);
+  amount -= turned;
+  if (amount <= 0) return;
   const before = victim.stability ?? 0;
   victim.stability = Math.max(0, before - amount);
   log(state, `${source.name}'s heat strikes ${owner.name}'s ${cardDef(victim.defId).name} (stability ${victim.stability}).`);
@@ -627,23 +642,31 @@ function reshuffle(state: GameState, p: PlayerState) {
  * that enemy and goes to the discard pile. Returns true if it cancels what
  * sprang it.
  */
-function spring(state: GameState, owner: PlayerState, enemy: PlayerState, matches: (t: LightspeedTrigger) => boolean): boolean {
+function spring(state: GameState, owner: PlayerState, enemy: PlayerState, matches: (t: LightspeedTrigger) => boolean, cause?: string): boolean {
   const card = owner.lightspeed;
   if (!card || owner.eliminated || owner.id === enemy.id || activePlayer(state).id !== enemy.id) return false;
   const ls = cardDef(card.defId).lightspeed;
   if (!ls || !matches(ls.trigger)) return false;
   owner.lightspeed = null;
   owner.discard.push(card);
-  log(state, `⚡ Lightspeed! ${owner.name} springs ${cardDef(card.defId).name}.`);
+  const why = cause ? ` in answer to ${enemy.name}'s ${cardDef(cause).name}` : '';
+  log(state, `⚡ Lightspeed! ${owner.name} springs ${cardDef(card.defId).name}${why}.`);
+  // What sprang it, for the table to show beside it.
+  (state.sprung ??= []).push({ ownerId: owner.id, defId: card.defId, against: cause, enemyId: enemy.id, trigger: ls.trigger.on });
   resolveEffects(state, owner, card, ls.effects, 'spring', { against: enemy });
   return !!ls.counter;
+}
+
+/** A player's card by uid, wherever it is. */
+function cardIn(p: PlayerState, uid: string): CardInstance | undefined {
+  return [...p.tableau, ...p.hand, ...p.discard, ...p.deck].find((c) => c.uid === uid);
 }
 
 /** Heat a sun. Enemy heat is absorbed by shields first. Returns the heat that got through. */
 function applyHeat(state: GameState, target: PlayerState, amount: number, source: PlayerState | null, retaliation = false, cardUid?: string, pierce = false): number {
   if (target.eliminated || amount <= 0) return 0;
   const enemy = source !== null && source.id !== target.id;
-  if (enemy && !retaliation && spring(state, target, source, (t) => t.on === 'heated' && amount >= (t.min ?? 1))) {
+  if (enemy && !retaliation && spring(state, target, source, (t) => t.on === 'heated' && amount >= (t.min ?? 1), cardUid ? cardIn(source, cardUid)?.defId : undefined)) {
     log(state, `The heat never reaches ${target.name}'s sun.`);
     return 0;
   }
@@ -800,7 +823,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const t = ctx.against ?? targetOf(state, p);
         const victim = t?.tableau.find((c) => c.uid === ctx.enemyUid && canReach(t, c, e));
         if (!t || !victim) break;
-        if (spring(state, t, p, (tr) => tr.on === 'targeted')) {
+        if (spring(state, t, p, (tr) => tr.on === 'targeted', card.defId)) {
           log(state, `${p.name}'s ${cardDef(card.defId).name} misses: ${cardDef(victim.defId).name} stays in play.`);
           break;
         }
@@ -825,7 +848,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (!t) break;
         const hit = e.all ? [...t.tableau] : t.tableau.filter((c) => c.uid === ctx.enemyUid);
         if (!hit.length) break;
-        if (!e.all && spring(state, t, p, (tr) => tr.on === 'targeted')) {
+        if (!e.all && spring(state, t, p, (tr) => tr.on === 'targeted', card.defId)) {
           log(state, `${p.name}'s ${cardDef(card.defId).name} misses.`);
           break;
         }
@@ -955,6 +978,7 @@ function startTurn(state: GameState) {
   state.turnPulses = [];
   p.turnsTaken += 1;
   p.turn = emptyTurn();
+  delete state.awaitingDawn;
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
 
   // Shields fade, unless Deep Current holds them.
@@ -1002,6 +1026,18 @@ function startTurn(state: GameState) {
     notePulse(state, p, activeGlobal(state)?.card ?? null, 'cool', p, 1);
   }
 
+  // Your dawn heat waits for you to aim it (a `dawn` action), when there is a choice to make.
+  for (const c of p.tableau) c.aim = undefined;
+  if (needsDawnAim(state, p)) {
+    state.awaitingDawn = true;
+    return;
+  }
+  dawn(state, p);
+}
+
+/** A player's dawn: their tableau's dawn effects, cards fading, and the day's energy. */
+function dawn(state: GameState, p: PlayerState) {
+  delete state.awaitingDawn;
   // Your tableau's dawn effects, left to right.
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
@@ -1018,6 +1054,8 @@ function startTurn(state: GameState) {
   p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
   p.turn.energyTotal = p.playsLeft;
   p.turn.energyBase = Math.min(p.playsLeft, Math.min(p.turnsTaken, BALANCE.maxPlays));
+  // Aims last for the dawn they were made for.
+  for (const c of p.tableau) c.aim = undefined;
   if (p.eliminated) passOn(state);
 }
 
@@ -1069,14 +1107,14 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const recovers = recoverChoices(p, def.id);
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
 
-  const aims = aimChoices(state, p, def.id);
+  const aims = aimChoices(state, p);
   if (aimable(def.id) && target) {
     if (action.aimUid && !aims.cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
     if (!action.aimUid && !aims.sun && aims.cards.length) throw new GameError(`${target.name} has a Guard in play: aim at it.`);
   }
 
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
-  if (action.aimUid) card.aim = action.aimUid;
+  if (action.aimUid && aimable(def.id)) card.aim = action.aimUid;
   // An X card spends all the energy left; its effects count how much.
   const spend = def.spendAll ? p.playsLeft : cost;
   if (def.spendAll) card.spent = spend;
@@ -1086,7 +1124,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
 
   // Rivals' face-down Lightspeed cards may answer the card before it resolves.
   for (const o of othersInOrder(state, p)) {
-    const cancelled = spring(state, o, p, (t) => t.on === 'enemyPlays' && (!t.kind || t.kind === def.kind));
+    const cancelled = spring(state, o, p, (t) => t.on === 'enemyPlays' && (!t.kind || t.kind === def.kind), lightspeed ? undefined : def.id);
     if (state.winnerId || p.eliminated) {
       p.discard.push(card);
       return;
@@ -1138,6 +1176,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);
   }
   resolveEffects(state, p, card, def.onPlay, 'play', action);
+  // The aim was for this play: later heat (its dawn, or as it leaves) is aimed afresh.
+  card.aim = undefined;
 }
 
 /** A choice as words, for the log ("heat 2", "draw 1"). */
@@ -1150,9 +1190,12 @@ export function choiceLabel(id: string): string {
 export function applyAction(prev: GameState, action: Action): GameState {
   if (prev.winnerId) throw new GameError('The game is over.');
   const state = structuredClone(prev);
-  // Only the state a day starts in carries that start's pulses.
+  // Only the state a day starts in carries that start's pulses (and only this move's state, what sprang).
   delete state.turnPulses;
+  delete state.sprung;
   const p = activePlayer(state);
+  if (action.type === 'dawn' && !state.awaitingDawn) throw new GameError('Your dawn has already broken.');
+  if (state.awaitingDawn && action.type !== 'dawn' && action.type !== 'concede') throw new GameError('Aim your dawn heat first.');
   switch (action.type) {
     case 'concede': {
       const quitter = state.players.find((o) => o.id === action.playerId);
@@ -1171,17 +1214,23 @@ export function applyAction(prev: GameState, action: Action): GameState {
       playCard(state, p, action);
       if (p.eliminated) passOn(state);
       break;
-    case 'aim': {
-      const mine = p.tableau.find((c) => c.uid === action.cardUid);
-      if (!mine || !aimable(mine.defId)) throw new GameError('Choose one of your cards that heats.');
-      const aims = aimChoices(state, p, mine.defId);
-      if (action.aimUid === null) {
-        if (!aims.sun) throw new GameError('Your rival has a Guard in play: aim at it.');
-        mine.aim = undefined;
-      } else {
-        if (!aims.cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
-        mine.aim = action.aimUid;
+    case 'dawn': {
+      const choices = aimChoices(state, p);
+      for (const [uid, aim] of Object.entries(action.aims)) {
+        const mine = p.tableau.find((c) => c.uid === uid);
+        if (!mine || !dawnAimable(mine)) throw new GameError('Aim only your cards that heat at dawn.');
+        if (aim === null) {
+          if (!choices.sun) throw new GameError('Your rival has a Guard in play: aim at it.');
+          mine.aim = undefined;
+        } else {
+          if (!choices.cards.some((c) => c.uid === aim)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
+          mine.aim = aim;
+        }
       }
+      // The dawn's replay starts from the suns as they are now.
+      state.turnPulses = [];
+      notePulse(state, p, null, 'start', p, 0);
+      dawn(state, p);
       break;
     }
     case 'setTarget': {

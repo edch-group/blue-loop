@@ -325,6 +325,18 @@ class SoundBoard {
   launch() {
     this.breath({ dur: 0.5, freq: 400, to: 2200, type: 'bandpass', q: 1.2, gain: 0.06, attack: 0.3 });
   }
+  /**
+   * The targeting beam sweeping onto a card: an airy swish that rises as it flies, then (if it takes the card
+   * away) a falling rush as the card is swept off the table.
+   */
+  whoosh(delay = 0, removes = true) {
+    this.breath({ dur: 0.55, freq: 500, to: 3200, type: 'bandpass', q: 1.6, gain: 0.09, attack: 0.32, delay });
+    this.breath({ dur: 0.45, freq: 1800, to: 5200, type: 'highpass', q: 0.7, gain: 0.03, attack: 0.28, delay: delay + 0.05 });
+    if (removes) {
+      this.breath({ dur: 0.8, freq: 2600, to: 220, type: 'bandpass', q: 1.1, gain: 0.1, attack: 0.08, delay: delay + 0.5 });
+      this.voice(330, { dur: 0.7, attack: 0.05, gain: 0.025, to: 110, type: 'triangle', cutoff: 1200, delay: delay + 0.5 });
+    }
+  }
   thermo() {
     // Frost settling: a descending hiss and crystalline shimmer.
     this.breath({ dur: 1.6, freq: 6000, to: 1200, type: 'bandpass', q: 1.5, gain: 0.05, attack: 0.3 });

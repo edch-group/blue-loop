@@ -128,7 +128,8 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 
 ## Attacks and shields
 
-- **Aiming.** Each card's heat goes where its owner aims it: the rival's sun, or one rival card. Aim when you play the card, and re-aim any of your tableau cards (click the card, then the target) during your day; an aim stays put until you change it or its target leaves. [design review: per card, not per dawn, so an attack deck can split its heat between clearing a wall and pressing the sun]
+- **Aiming.** Each card's heat goes where its owner aims it: the rival's sun, or one rival card. A card that heats as it is played is aimed as you play it; a card with only dawn heat asks for nothing when played. Dawn heat is aimed afresh every dawn: your dawn waits while you tap each of your dawn attackers and then its target ("break dawn", or Enter, lets it go; anything unaimed goes at the sun, or the most worn Guard). The dawn step only appears when there is a choice. Heat from other triggers (a card leaving, recovering) goes at the sun or a Guard. [design review: per card and per dawn, so an attack deck can split its heat between clearing a wall and pressing the sun]
+- **Defence turns heat aside.** Heat aimed at a card is cut by the card's defence (its slot's, plus Sturdy and Bulwark), point for point, after shields. Pierce heat ignores both. So the middle slot really is safest, and removal cards still matter for well-defended cards.
 - Heat on a card wears its **stability** point for point; at 0 the card burns away (its leave effects fire, so killing a Martyr or a card beside Kyr'Vessa has a price, and the AI weighs it).
 - **Guard** cards draw heat: while a rival has any, your heat must go at one of them (a Guard that was not aimed at takes it on the most worn Guard). Pierce gets through shields, never past a Guard. Shields still cover cards, so stings and soothes answer heat aimed at a Guard too.
 - The day heat limit (8) counts only heat on the sun.
@@ -369,6 +370,8 @@ Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its coo
 - The floors made Solar Lancers far too strong at first (about 80%). Their attack cards now all hit every day, and Focusing Array and Sunforge add to every one of them. Lancers now run one Sunforge (and a Recall Beacon), Coronal Chorus hits for up to 2, Sunlit Return cools 1, the Sun-Priest cools at most 2, and the War-Herald's Command bonus is a shield rather than more heat.
 - Abyssal Tide fell to about 25% (it gained little from the floors), so the Abyssal Choir now starts at 2 heat and the Stinging Veil stings for 3. Rot Bloom also starts at 2.
 - The widest match-ups are Tide over Overload (74/26) and Lancers over Tide (72/28).
+
+**After dawn aiming and defence against heat (300 games).** Win rates: Lancers 53.4%, Overload 51.2%, Tide 47.2%, Bloom 47.4%; seats 45/55; about 15 rounds. The widest match-ups are Lancers over Tide and over Bloom (59/41).
 
 **After aiming and Guard (300 games).** Win rates: Lancers 50.3%, Overload 57.5%, Tide 45.5%, Bloom 45.5%. Seats are 51/49, and games last about 15 rounds (aiming heat at cards slows the race to the sun).
 - At first Overload won 71%: a 3-heat Ember Shard kills most cards outright, and it gets recovered. It now deals 2.

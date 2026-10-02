@@ -23,6 +23,7 @@ import {
   dawnEffects,
   turnForecast,
   aimable,
+  dawnAimable,
   aimChoices,
 } from './game';
 import type { Action, CardInstance, GameState, PlayerState } from './types';
@@ -196,7 +197,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);
     const allies = opt(allyChoices(me, card.defId).map((c) => c.uid));
     // Heat can go to the rival's sun (unset) or any card it may aim at.
-    const aim = aimChoices(state, me, card.defId);
+    const aim = aimable(card.defId) ? aimChoices(state, me) : { sun: true, cards: [] };
     const aims: (string | undefined)[] = [...(aim.sun ? [undefined] : []), ...aim.cards.map((c) => c.uid)];
     if (!aims.length) aims.push(undefined);
     for (const choice of choices)
@@ -228,33 +229,45 @@ function bestTarget(state: GameState, me: PlayerState): PlayerState | undefined 
   return left;
 }
 
-/** The first of your heat cards worth aiming somewhere else, and where (or null if all are aimed well). */
-function bestAim(state: GameState, me: PlayerState): Action | null {
+/** Where each of your cards' dawn heat does most: a card it can burn away (and that is worth it), or the sun. */
+function dawnAims(state: GameState, me: PlayerState): Record<string, string | null> {
+  const aims: Record<string, string | null> = {};
   const rival = targetOf(state, me);
-  if (!rival) return null;
+  if (!rival) return aims;
   const danger = Math.max(0, rival.heat) / supernovaThreshold(rival);
+  const { cards, sun } = aimChoices(state, me);
+  // Heat already aimed at each card this dawn (a card burned away by one attacker needs no more).
+  const planned = new Map<string, number>();
+  // What burning a card away sets off against you: its own leave heat, and its owner's cards that answer a card leaving.
+  const payback = (c: CardInstance) =>
+    (cardDef(c.defId).onLeave ?? []).reduce((n, e) => n + (e.type === 'heat' ? e.amount : 0), 0) +
+    rival.tableau.reduce((n, o) => n + (o.uid === c.uid ? 0 : (cardDef(o.defId).passive ?? []).reduce((m, x) => m + (x.type === 'allyLeaves' ? x.effects.reduce((k, e) => k + (e.type === 'heat' ? e.amount : 0), 0) : 0), 0)), 0);
   for (const card of me.tableau) {
-    if (!aimable(card.defId)) continue;
+    if (!dawnAimable(card)) continue;
     const heat = dawnEffects(card).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(me, e.if) ? effectAmount(state, me, card, e, 'turn') : 0), 0);
     if (heat <= 0) continue;
-    const { cards, sun } = aimChoices(state, me, card.defId);
     // The sun counts for more the nearer it is to supernova; a card for what it is worth to its owner, if this burns it away.
     let best: { uid: string | null; score: number } = { uid: null, score: sun ? heat * (1 + 3 * danger) : -Infinity };
-    // What burning a card away sets off against you: its own leave heat, and its owner's cards that answer a card leaving.
-    const payback = (c: CardInstance) =>
-      (cardDef(c.defId).onLeave ?? []).reduce((n, e) => n + (e.type === 'heat' ? e.amount : 0), 0) +
-      rival.tableau.reduce((n, o) => n + (o.uid === c.uid ? 0 : (cardDef(o.defId).passive ?? []).reduce((m, x) => m + (x.type === 'allyLeaves' ? x.effects.reduce((k, e) => k + (e.type === 'heat' ? e.amount : 0), 0) : 0), 0)), 0);
+    const pierce = dawnEffects(card).some((e) => e.type === 'heat' && e.to === 'target' && e.pierce);
     for (const c of cards) {
-      const left = c.stability ?? 0;
-      const kills = heat >= left;
-      const share = kills ? 1 : (heat / Math.max(1, left)) * 0.5;
+      const left = (c.stability ?? 0) - (planned.get(c.uid) ?? 0);
+      if (left <= 0) continue;
+      // A card's defence turns aside that much heat (not pierce heat).
+      const wears = pierce ? heat : heat - cardDefence(rival, c);
+      if (wears <= 0) continue;
+      const kills = wears >= left;
+      const share = kills ? 1 : (wears / Math.max(1, left)) * 0.5;
       const score = cardValue(state, rival, c) * share * AIM_CARD - (kills ? payback(c) * 1.2 : 0);
       if (score > best.score) best = { uid: c.uid, score };
     }
-    const current = card.aim && cards.some((c) => c.uid === card.aim) ? card.aim : null;
-    if (best.uid !== current && (best.uid !== null || sun)) return { type: 'aim', cardUid: card.uid, aimUid: best.uid };
+    if (best.uid === null && !sun) continue;
+    aims[card.uid] = best.uid;
+    if (best.uid) {
+      const hit = cards.find((c) => c.uid === best.uid)!;
+      planned.set(best.uid, (planned.get(best.uid) ?? 0) + (pierce ? heat : Math.max(0, heat - cardDefence(rival, hit))));
+    }
   }
-  return null;
+  return aims;
 }
 
 /**
@@ -264,11 +277,9 @@ function bestAim(state: GameState, me: PlayerState): Action | null {
  */
 export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
+  if (state.awaitingDawn) return { type: 'dawn', aims: dawnAims(state, me) };
   const focus = bestTarget(state, me);
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
-  // Point each card's heat where it does most: a card it can burn away (and that is worth it), or the sun.
-  const reaim = bestAim(state, me);
-  if (reaim) return reaim;
   if (!me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
   // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.

@@ -191,7 +191,7 @@ export interface CardInstance {
   choice?: string;
   /** The energy spent on it as it was played (cards that spend all your energy). */
   spent?: number;
-  /** Where its heat goes: a card in your rival's tableau (its uid), or your rival's sun (unset). */
+  /** Where its heat goes (as it is played, and at the dawn it was aimed for): a card in your rival's tableau (its uid), or your rival's sun (unset). */
   aim?: string;
 }
 
@@ -287,6 +287,10 @@ export interface GameState {
   log: LogEntry[];
   /** What the latest dawn did, effect by effect, so the table can replay it (only on the state a day starts in). */
   turnPulses?: TurnPulse[];
+  /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
+  sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
+  /** The active player's dawn waits for them to aim their cards' dawn heat (a `dawn` action). */
+  awaitingDawn?: boolean;
 }
 
 /** One dawn effect, as it happened: what fired it, where it went, and every sun just after. */
@@ -346,11 +350,11 @@ export type Action =
       allyUid?: string;
       /** Recover effects: the card in your discard pile to take back. */
       recoverUid?: string;
-      /** A card that heats: the rival card its heat goes to (unset: their sun). */
+      /** A card that heats as it is played: the rival card its heat goes to (unset: their sun). */
       aimUid?: string;
     }
-  /** Turn one of your cards' heat on a rival card, or back on their sun (free, during your day). */
-  | { type: 'aim'; cardUid: string; aimUid: string | null }
+  /** Your dawn: where each of your cards' dawn heat goes (card uid → rival card uid, or null for their sun; unset: the sun, or a Guard). */
+  | { type: 'dawn'; aims: Record<string, string | null> }
   | { type: 'setTarget'; targetId: string }
   | { type: 'endTurn' }
   /** A player gives up (at any time, not only on their day): their rival wins. */

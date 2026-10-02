@@ -84,7 +84,8 @@ export function logRows(log: LogEntry[], players: PlayerState[], viewerId: strin
       });
       const o = outcome(text);
       // The row's picture: the card it is about (the last named: the one acted on), else what happened.
-      const card = cards[cards.length - 1];
+      // (A Lightspeed card that sprang is the one it is about, not the card it answered.)
+      const card = /Lightspeed!/.test(text) ? cards[0] : cards[cards.length - 1];
       const thumb = card ? `<span class="log-thumb" style="--kc:${KIND_COLOUR[card.kind]}">${cardArt(card)}</span>` : `<span class="lg-icon log-tone-${o.tone}">${o.icon}</span>`;
       const chip = o.chip ? `<span class="log-chip log-chip-${o.chip.cls}">${o.chip.html}</span>` : '';
       return `<div data-seq="${l.seq}" class="log-row log-tone-${o.tone} ${l.turn === lastTurn ? 'log-now' : ''}">${thumb}<span class="log-text">${html}</span>${chip}</div>`;
