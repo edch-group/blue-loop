@@ -691,13 +691,18 @@ export class App {
     return parts;
   }
 
+  /** Whether a card in hand could be played now (energy, room in the tableau, a free Lightspeed slot). */
+  private canPlayNow(me: PlayerState, defId: string): boolean {
+    return cardCost(defId) <= me.playsLeft && hasRoomFor(me, defId) && (cardDef(defId).kind !== 'lightspeed' || canSetLightspeed(me));
+  }
+
   /** End the day, checking first if there are still cards that could be played. */
   private requestEndDay() {
     const s = this.state;
     if (!s || !this.canAct() || this.pending) return;
     if (s.awaitingDawn) return this.breakDawn();
     const me = activePlayer(s);
-    const playable = me.hand.some((c) => cardCost(c.defId) <= me.playsLeft && hasRoomFor(me, c.defId) && (cardDef(c.defId).kind !== 'lightspeed' || canSetLightspeed(me)));
+    const playable = me.hand.some((c) => this.canPlayNow(me, c.defId));
     if (playable && this.sheet?.kind !== 'end-day') {
       this.sheet = { kind: 'end-day' };
       return this.render();
@@ -1569,11 +1574,7 @@ export class App {
     const me = activePlayer(s);
     const card = me.hand.find((c) => c.uid === uid);
     if (!card) return;
-    if (me.playsLeft <= 0) {
-      this.showToast('No energy left today: end your day.', 'info');
-      sound.error();
-      return;
-    }
+    // (A card that costs 0 can still be played with no energy left.)
     if (cardCost(card.defId) > me.playsLeft) {
       this.showToast(`${cardDef(card.defId).name} costs ${cardCost(card.defId)} energy: you have ${me.playsLeft} left today.`, 'info');
       sound.error();
@@ -2896,7 +2897,7 @@ export class App {
           <small>${myTurn ? 'energy' : 'waiting'}</small>
           <span class="plays-pips">${pips}</span>
         </div>
-        <button class="btn-primary end-turn ${act && me.playsLeft === 0 ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>${s.awaitingDawn && act ? 'break dawn' : 'end day'}</button>
+        <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>${s.awaitingDawn && act ? 'break dawn' : 'end day'}</button>
       </div>`;
   }
 
@@ -3072,10 +3073,15 @@ export class App {
       case 'rules':
         return this.sheetFrame('how to play', this.rulesHtml());
       case 'end-day': {
-        const left = s ? activePlayer(s).playsLeft : 0;
+        const me = s ? activePlayer(s) : null;
+        const left = me?.playsLeft ?? 0;
+        // The cards you could still play (a free card can be played with no energy left).
+        const names = me ? [...new Set(me.hand.filter((c) => this.canPlayNow(me, c.defId)).map((c) => cardDef(c.defId).name))] : [];
+        const list = names.map((n) => `<b>${esc(n)}</b>`).join(', ');
+        const text = left > 0 ? `You still have ${left} energy to spend today${list ? `: you could play ${list}` : ''}.` : `You can still play ${list || 'a card'} for free.`;
         return this.sheetFrame(
           'end your day?',
-          `<p class="center-text">You still have ${left} energy to spend today.</p>
+          `<p class="center-text">${text}</p>
            <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
         );
       }
@@ -3119,7 +3125,7 @@ export class App {
       case 'card': {
         const me = s ? activePlayer(s) : null;
         const playable = !!(sh.uid && me && me.hand.some((c) => c.uid === sh.uid) && this.canAct() && !this.pending);
-        const button = sh.uid ? `<button class="btn-primary" data-act="play" data-arg="${sh.uid}" ${playable && me!.playsLeft > 0 ? '' : 'disabled'}>play</button>` : '';
+        const button = sh.uid ? `<button class="btn-primary" data-act="play" data-arg="${sh.uid}" ${playable && cardCost(sh.defId ?? '') <= me!.playsLeft ? '' : 'disabled'}>play</button>` : '';
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
