@@ -519,7 +519,7 @@ input { font: inherit; }
 /* Magnified card: hover preview (mouse) and inspector (touch) */
 .card-preview { position: fixed; z-index: 60; pointer-events: none; opacity: 0; transform: scale(0.95); transition: opacity 0.12s, transform 0.12s; }
 .card-preview.show { opacity: 1; transform: none; }
-.card-big { --cw: var(--pw, 300px); width: var(--pw, 300px); height: calc(var(--pw, 300px) * 1.4); padding: 0 7% 6%; box-shadow: 0 26px 60px rgba(70, 70, 90, 0.3), 0 0 0 2px #fff; }
+.card-big { --cw: var(--pw, 300px); width: var(--pw, 300px); height: calc(var(--pw, 300px) * 1.4); padding: 0 calc(var(--cw) * 0.07) calc(var(--cw) * 0.06); box-shadow: 0 26px 60px rgba(70, 70, 90, 0.3), 0 0 0 2px #fff; }
 .card-big .card-text { display: block; font-size: max(12px, calc(var(--cw) * 0.062)); }
 .card-big .card-name { font-size: max(12px, calc(var(--cw) * 0.07)); }
 
@@ -3106,3 +3106,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-kind { font-size: max(5px, calc(var(--cw) * 0.034)); letter-spacing: 0.18em; line-height: 1.2; }
 .card-table .card-kind { font-size: max(4px, calc(var(--cw) * 0.036)); }
 .card-table .card-type { font-size: max(4px, calc(var(--cw) * 0.045)); padding: 0.2em 0.6em; }
+
+/* The picture's top-left corner curves round the cost gem that sits on it (the gem's radius: 0.17 / 2 of the
+   card's width), and the card's own top-left corner curves round the picture's, the same distance out. */
+.card:not(.card-landscape) .art-frame { border-top-left-radius: calc(var(--cw, 100px) * 0.085); }
+.card:not(.card-landscape) { border-top-left-radius: calc(var(--cw, 100px) * 0.14); }
+/* The type pill's word sits in its middle (the display face rides high in its line box otherwise). */
+.card-type { display: inline-flex; align-items: center; line-height: 1; height: 1.7em; padding: 0.1em 0.8em 0; box-sizing: border-box; }
+.card-table .card-type { padding: 0.1em 0.65em 0; }
