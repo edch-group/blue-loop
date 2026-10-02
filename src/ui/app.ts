@@ -137,7 +137,7 @@ type Sheet =
   | { kind: 'log' }
   | { kind: 'rules' }
   /** A deck or discard pile: the viewer's, or (`playerId`) a rival's discard pile. */
-  | { kind: 'pile'; pile: 'deck' | 'discard'; playerId?: string }
+  | { kind: 'pile'; pile: 'discard'; playerId?: string }
   /** A player's summary: deck, commands and conditions. */
   | { kind: 'player'; playerId: string }
   /** Tap-to-inspect on touch screens: a readable card with its action. */
@@ -2054,8 +2054,10 @@ export class App {
         return this.confirmStage();
       case 'view-pile':
         {
+          // Only discard piles can be looked through: what is left in a deck stays hidden.
           const [pile, playerId] = arg.split(':');
-          this.sheet = { kind: 'pile', pile: pile as 'deck' | 'discard', playerId };
+          if (pile !== 'discard') return;
+          this.sheet = { kind: 'pile', pile: 'discard', playerId };
         }
         return this.render();
       case 'view-player':
@@ -2887,8 +2889,8 @@ export class App {
 
   /**
    * A player's deck and discard pile, on the board to the right of their tableau. Everyone sees both
-   * counts; the discard pile lies face up (its top card showing) and anyone can look through it; only
-   * your own deck can be opened (to see what's left in it).
+   * counts; the discard pile lies face up (its top card showing) and anyone can look through it. Decks
+   * stay closed, your own included: what is left in one is hidden.
    */
   private renderPiles(p: PlayerState, side: 'mine' | 'rival'): string {
     const mine = side === 'mine';
@@ -2902,7 +2904,7 @@ export class App {
     const hand = `<div class="tpile-hand tpile-hand-${side}" title="${mine ? 'Cards in your hand' : `Cards in ${esc(p.name)}'s hand`}">${HAND_ICON}<span>hand</span><b>${n}</b></div>`;
     return `<div class="tableau-piles">
       ${hand}
-      ${mine ? `<button class="tpile tpile-open" data-anchor="deck" data-act="view-pile" data-arg="deck" title="Your deck: look at what's left">${deck}</button>` : `<div class="tpile" data-anchor="deck:${p.id}" title="Cards left in ${esc(p.name)}'s deck">${deck}</div>`}
+      <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? 'Cards left in your deck (what they are, and their order, stay hidden)' : `Cards left in ${esc(p.name)}'s deck`}">${deck}</div>
       <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile: look through it">${discard}</div>
     </div>`;
   }
@@ -3185,7 +3187,7 @@ export class App {
           <div class="log-pop sheet"><div class="log-pop-head"><span class="section-label">game log</span><button class="pill-btn" data-act="cancel">close</button></div><div class="log-list">${lines}</div></div>`;
       }
       case 'pile':
-        return this.renderPileSheet(sh.pile, s?.players.find((p) => p.id === sh.playerId));
+        return this.renderPileSheet(s?.players.find((p) => p.id === sh.playerId));
       case 'player':
         return this.renderPlayerSheet(s!.players.find((p) => p.id === sh.playerId) ?? this.viewer());
       case 'card': {
@@ -3240,7 +3242,8 @@ export class App {
       </div>`;
   }
 
-  private renderPileSheet(kind: 'deck' | 'discard', of?: PlayerState): string {
+  /** A discard pile, looked through (a deck can't be: what is left in it stays hidden). */
+  private renderPileSheet(of?: PlayerState): string {
     const me = this.viewer();
     // A rival's discard pile is public: every card in it was seen.
     if (of && of.id !== me.id) {
@@ -3248,19 +3251,6 @@ export class App {
       return this.sheetFrame(
         `${esc(of.name.toLowerCase())}'s discard · ${of.discard.length}`,
         `<p class="muted center-text">Most recent first. ${esc(of.name)} has ${of.deck.length} card${of.deck.length === 1 ? '' : 's'} left in their deck and ${of.hand.length} in hand.</p><div class="pile-grid">${rows || '<p class="muted">Their discard pile is empty.</p>'}</div>`,
-      );
-    }
-    if (kind === 'deck') {
-      const counts = new Map<string, number>();
-      for (const c of me.deck) counts.set(c.defId, (counts.get(c.defId) ?? 0) + 1);
-      const rows = [...counts.entries()]
-        .sort((a, b) => cardDef(a[0]).name.localeCompare(cardDef(b[0]).name))
-        .map(([defId, n]) => `<div class="pile-card">${this.renderCard({ uid: defId, defId }, { static: true })}<span class="pile-n">×${n}</span></div>`)
-        .join('');
-      return this.sheetFrame(
-        `your deck · ${me.deck.length}`,
-        `<p class="muted center-text">Draw order is hidden. When your deck runs out, your discard pile is shuffled back in, heating your sun by ${BALANCE.reshuffleHeat}.</p>
-         <div class="pile-grid">${rows || '<p class="muted">Your deck is empty.</p>'}</div>`,
       );
     }
     const rows = [...me.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');

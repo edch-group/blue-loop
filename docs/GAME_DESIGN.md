@@ -502,6 +502,7 @@ On the table:
 - **Removal is shown before it happens.** A glowing white arc draws from the removing card to each card it destroys, returns or erodes. The target glows under it while the arc holds, then a destroyed card dissolves in its slot and a returned card flies back to its owner's hand. [design review]
 - The rotating white star lies on the right of the table.
 - Your hand fans along the bottom, with your deck and discard piles either side.
+- Discard piles (yours and your rival's) can be looked through. Decks can't, your own included: with 30–40 cards, knowing exactly what is left to draw was too easy an edge. The board shows only how many cards are left. [design review]
 - The upgrade rail sits on the left, and the "plays left" pips and End Turn on the right.
 
 When a card needs a choice, you make it on the board and a short prompt appears at the top of the screen:
