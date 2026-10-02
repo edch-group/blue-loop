@@ -36,7 +36,9 @@ export type Count =
   /** Your cards right next to this one in your tableau (of a kind, if given). */
   | { of: 'adjacent'; kind?: CardKind }
   /** `amount` while this planet faces your sun, otherwise nothing. */
-  | { of: 'planet'; planet: Planet; amount: number };
+  | { of: 'planet'; planet: Planet; amount: number }
+  /** The energy spent on this card as it was played (cards that spend all your energy), times `times`. */
+  | { of: 'spent'; times?: number };
 
 /** Only resolve an effect when this holds. */
 export type Condition =
@@ -64,7 +66,7 @@ export type Effect = (
   | { type: 'selfHeat'; amount: number }
   | { type: 'cool'; amount: number; plus?: Count; max?: number }
   | { type: 'shield'; amount: number; plus?: Count; max?: number }
-  | { type: 'draw'; amount: number }
+  | { type: 'draw'; amount: number; plus?: Count }
   /** Add 1 to this card's growth counter, up to `max`. */
   | { type: 'grow'; max: number }
   /** Your other growing cards grow by 1 (up to their own limits). */
@@ -160,8 +162,10 @@ export interface CardDef {
   onRecover?: Effect[];
   /** Lightspeed cards: what springs it and what it does. */
   lightspeed?: Lightspeed;
-  /** How many of your day's actions it takes to play (default 1; Anomalies 2). */
+  /** The energy it costs to play (see costs.ts). */
   cost?: number;
+  /** Spends all your energy as it is played (at least 1): its effects count how much (an X cost). */
+  spendAll?: boolean;
   /** Extra defence on top of its slot's (sturdy cards). */
   defence?: number;
   /** Turns it stays in your tableau before it fades into your discard pile (default: see BALANCE.stability). */
@@ -183,6 +187,8 @@ export interface CardInstance {
   stability?: number;
   /** In a tableau: the choice it was played with (Command cards), which it keeps until it leaves. */
   choice?: string;
+  /** The energy spent on it as it was played (cards that spend all your energy). */
+  spent?: number;
 }
 
 /** Battle modifiers from the campaign map (anomalies, garrisons). */
@@ -205,6 +211,9 @@ export interface BattleModifiers {
 
 export interface TurnStats {
   heatDealt: number;
+  /** The day's energy in all (bonuses and energy gained today included), and the part that is the day's usual amount. */
+  energyTotal?: number;
+  energyBase?: number;
   /** Energy gained from dawn effects, added to the day's energy once it is set. */
   dawnEnergy?: number;
   /** Heat that got through to enemy suns today (for the day's heat limit). */

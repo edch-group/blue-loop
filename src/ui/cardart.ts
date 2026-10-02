@@ -763,6 +763,14 @@ const ART2: Record<string, Draw> = {
   overgrowth: (S) => Array.from({ length: 8 }, (_, i) => S.mushroom(12 + i * 20, 100, 30 + ((i * 13) % 30), 18, i % 2 ? '#d59cff' : '#c5ff8a', (i - 4) * 2)).join(''),
   fruiting_body: (S) => S.ground(92, '#0e0a1c') + S.mushroom(80, 92, 44, 56, '#ff9a8a') + S.glow(80, 40, 24, '#ffb070', 0.5),
   ixquor_broodguard: (S) => S.ground(92, '#0e0a1c') + ixquor(S, 64, 68, 1.1, { arms: 3, cap: '#9fd0ff', tall: 0.95 }) + S.dome(64, 92, 40, '#c5ff8a'),
+  // ---- Energy dumps ----
+  solar_torrent: (S) => S.sun(24, 30, 12, '#ffd98a', 10) + [26, 40, 54, 68, 82].map((y, i) => S.beam(30, 34, 158, y, 2.4 - i * 0.2, i % 2 ? '#ffb070' : '#ffe0a0')).join(''),
+  deep_freeze: (S) => S.planet(80, 98, 40, '#dff2ff', '#2a5585') + [36, 58, 80, 102, 124].map((x, i) => S.crystal(x, 58 - (i % 2) * 10, 34, 10, (i - 2) * 8, '#bfe6ff')).join('') + S.motes(80, 30, 30, 70, '#ffffff', 1.2),
+  overflow_archive: (S) => [0, 1, 2, 3, 4].map((i) => S.card(40 + i * 20, 70 - i * 9, -20 + i * 10, i % 2 ? '#c8ffd0' : '#fff3b0', 18)).join('') + S.glow(120, 30, 20, '#c8ffd0', 0.6),
+  radiant_barrage: (S) => S.ground(90, '#132446') + [20, 44, 68].map((x) => S.beam(x, 90, x + 90, 16, 2, '#fff3c4')).join('') + S.dome(40, 90, 30, '#ffd98a'),
+  meltdown: (S) => S.glow(80, 60, 70, '#ffb070', 0.6) + S.sun(80, 60, 18, '#ffb3c2', 16) + [0, 1, 2, 3, 4, 5].map((i) => S.crystal(80 + Math.cos(i) * 46, 60 + Math.sin(i) * 30, 16, 6, i * 50, '#ffe0ea')).join(''),
+  abyssal_rampart: (S) => [62, 46, 30].map((r, i) => S.dome(80, 92, r + 10, i === 2 ? '#dffff8' : '#7ff0e0')).join('') + S.waves(90, '#7ff0e0', 2, 2, 0.6),
+  hive_surge: (S) => S.ground(92, '#0e0a1c') + Array.from({ length: 6 }, (_, i) => S.mushroom(22 + i * 24, 96, 20 + (i % 3) * 10, 16, i % 2 ? '#c5ff8a' : '#9fd0ff')).join('') + S.motes(80, 40, 30, 70, '#c5ff8a', 1.2),
   // ---- Defence that answers at once ----
   frost_bulwark: (S) => S.dome(80, 86, 50, '#bfe6ff') + S.hex(80, 56, 16, S.linear([[0, '#ffffff', 0.9], [1, '#9fd0ff', 0.5]]), '#fff') + S.motes(80, 40, 22, 60, '#ffffff', 1.1),
   glacier_shell: (S) => `<path d="M30 90 L52 30 L70 54 L86 18 L104 50 L120 34 L134 90 Z" fill="${S.linear([[0, '#ffffff'], [1, '#7fb6e6']])}" stroke="#fff" stroke-width="0.8"/>` + S.dome(80, 90, 62, '#bfe6ff'),

@@ -406,6 +406,8 @@ function countOf(p: PlayerState, card: CardInstance, c: Count): number {
       return neighbours(p, card).filter((n) => !c.kind || cardDef(n.defId).kind === c.kind).length;
     case 'planet':
       return currentPlanet(p) === c.planet ? c.amount : 0;
+    case 'spent':
+      return (card.spent ?? 0) * (c.times ?? 1);
   }
 }
 
@@ -694,10 +696,12 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         }
         break;
       }
-      case 'draw':
-        drawCards(state, p, e.amount);
-        if (when === 'turn') notePulse(state, p, card, 'draw', p, e.amount);
+      case 'draw': {
+        const n = e.amount + (e.plus ? countOf(p, card, e.plus) : 0);
+        drawCards(state, p, n);
+        if (when === 'turn') notePulse(state, p, card, 'draw', p, n);
         break;
+      }
       case 'orbit': {
         const who = e.who === 'rival' ? (ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p)) : p;
         if (who) moveOrbit(state, who, e.amount);
@@ -791,7 +795,10 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (activePlayer(state).id === p.id) {
           // At dawn the day's energy is not set yet: it is banked and added when it is.
           if (when === 'turn') p.turn.dawnEnergy = (p.turn.dawnEnergy ?? 0) + e.amount;
-          else p.playsLeft += e.amount;
+          else {
+            p.playsLeft += e.amount;
+            p.turn.energyTotal = (p.turn.energyTotal ?? p.playsLeft - e.amount) + e.amount;
+          }
           log(state, `${p.name} gains ${e.amount} energy today.`);
         }
         break;
@@ -818,6 +825,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   card.slot = undefined;
   card.stability = undefined;
   card.choice = undefined;
+  card.spent = undefined;
   if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
   else (to === 'hand' ? owner.hand : owner.discard).push(card);
   resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
@@ -929,6 +937,8 @@ function startTurn(state: GameState) {
     if (p.tableau.includes(card) && (card.stability ?? 0) <= 0) sweep(state, p, card);
   }
   p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
+  p.turn.energyTotal = p.playsLeft;
+  p.turn.energyBase = Math.min(p.playsLeft, Math.min(p.turnsTaken, BALANCE.maxPlays));
   if (p.eliminated) passOn(state);
 }
 
@@ -981,7 +991,10 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
 
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
-  p.playsLeft -= cost;
+  // An X card spends all the energy left; its effects count how much.
+  const spend = def.spendAll ? p.playsLeft : cost;
+  if (def.spendAll) card.spent = spend;
+  p.playsLeft -= spend;
   p.turn.cardsPlayed += 1;
   log(state, lightspeed ? `${p.name} sets a card face down at lightspeed.` : `${p.name} plays ${def.name}.`);
 

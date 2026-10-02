@@ -121,9 +121,9 @@ describe('plays per turn', () => {
 
   it('refuses a play once none are left', () => {
     let s = twoPlayer();
-    give(activePlayer(s), ['coolant_array', 'coolant_array']);
-    s = play(s, 'coolant_array');
-    expect(() => play(s, 'coolant_array')).toThrow(GameError);
+    give(activePlayer(s), ['coronal_lance', 'coronal_lance']);
+    s = play(s, 'coronal_lance');
+    expect(() => play(s, 'coronal_lance')).toThrow(GameError);
   });
 
   it('lets Hive Relay add a play', () => {
@@ -281,12 +281,12 @@ describe('recall', () => {
 });
 
 describe('synergies', () => {
-  it('Focusing Array boosts other attack cards at the start of your turn; copies do not stack', () => {
+  it('Focusing Array (Forge 2) boosts the attack card beside it', () => {
     let s = twoPlayer();
-    give(activePlayer(s), ['focusing_array', 'focusing_array', 'plasma_relay'], 'tableau');
+    give(activePlayer(s), ['plasma_relay', 'focusing_array', 'coolant_array'], 'tableau');
     const start = s.players[1].heat;
     s = endTurn(endTurn(s));
-    expect(s.players[1].heat).toBe(start + 1 + 1);
+    expect(s.players[1].heat).toBe(start + 1 + 2);
   });
 
   it('Mycelium Tower grows each turn and hits harder', () => {
@@ -356,6 +356,30 @@ describe('the day\'s heat limit', () => {
 });
 
 describe('card costs', () => {
+  it('an X card spends all your energy, and grows with it', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    rival.shields = 0;
+    me.playsLeft = 3;
+    const [torrent] = give(me, ['solar_torrent']);
+    s = applyAction(s, { type: 'playCard', cardUid: torrent.uid });
+    expect(activePlayer(s).playsLeft).toBe(0);
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(1 + 2 * 3);
+  });
+
+  it("keeps the day's whole energy, bonus included, as cards are played", () => {
+    let s = twoPlayer();
+    s = endTurn(endTurn(s));
+    const me = activePlayer(s);
+    give(me, ['relay_station', 'coronal_lance']);
+    const total = me.turn.energyTotal!;
+    s = play(s, 'relay_station');
+    expect(activePlayer(s).turn.energyTotal).toBe(total + 1);
+    s = play(s, 'coronal_lance');
+    expect(activePlayer(s).turn.energyTotal).toBe(total + 1);
+  });
+
   it("a Command card's energy option adds 1 energy at each of your dawns", () => {
     let s = twoPlayer();
     const me = activePlayer(s);

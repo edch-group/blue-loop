@@ -25,7 +25,7 @@ export const EXPANSION: CardDef[] = [
     text: '{dawn}: {heat:1}. {heat:+1} per 3 attack cards (up to 2).',
     onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack', per: 3 }, max: 2 }],
   },
-  { id: 'scatter_shot', name: 'Scatter Shot', kind: 'attack', text: '{heat:1}. {erode:1}.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'erode', amount: 1 }] },
+  { id: 'scatter_shot', name: 'Scatter Shot', kind: 'attack', text: '{heat:2}. {erode:1}.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'erode', amount: 1 }] },
   {
     id: 'flux_lance',
     name: 'Flux Lance',
@@ -65,7 +65,7 @@ export const EXPANSION: CardDef[] = [
   },
 
   // ---- Neutral growth ----
-  { id: 'survey_probe', name: 'Survey Probe', kind: 'growth', text: 'Draw 1. Your {orbit:+1}.', onPlay: [{ type: 'draw', amount: 1 }, { type: 'orbit', amount: 1, who: 'self' }] },
+  { id: 'survey_probe', name: 'Survey Probe', kind: 'growth', text: 'Draw 1. Your {orbit:+1}. {shield:1}.', onPlay: [{ type: 'draw', amount: 1 }, { type: 'orbit', amount: 1, who: 'self' }, { type: 'shield', amount: 1 }] },
   { id: 'star_chart', name: 'Star Chart', kind: 'growth', text: 'Draw 1. {restore:1}.', onPlay: [{ type: 'draw', amount: 1 }, { type: 'restore', amount: 1 }] },
   {
     id: 'gravity_well',
@@ -206,8 +206,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Aureline Cantor',
     kind: 'defence',
     race: 0,
-    text: '{dawn}: {shield:1}. {cool:1} with 3+ attack cards.',
-    onTurn: [{ type: 'shield', amount: 1 }, { type: 'cool', amount: 1, if: { minKind: 'attack', n: 3 } }],
+    text: '{dawn}: {shield:1}. {cool:2} with 3+ attack cards.',
+    onTurn: [{ type: 'shield', amount: 1 }, { type: 'cool', amount: 2, if: { minKind: 'attack', n: 3 } }],
   },
   { id: 'lance_volley', name: 'Lance Volley', kind: 'attack', race: 0, text: '{heat:1}. {restore:2}.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'restore', amount: 2 }] },
   {
@@ -294,8 +294,8 @@ export const EXPANSION: CardDef[] = [
     name: "Xel'Naru Shardlancer",
     kind: 'attack',
     race: 1,
-    text: '{heat:2}, {pierce}. {heat:1} to your sun.',
-    onPlay: [{ type: 'heat', amount: 2, to: 'target', pierce: true }, { type: 'selfHeat', amount: 1 }],
+    text: '{heat:3}, {pierce}. {heat:1} to your sun.',
+    onPlay: [{ type: 'heat', amount: 3, to: 'target', pierce: true }, { type: 'selfHeat', amount: 1 }],
   },
   {
     id: 'searing_core',
@@ -318,8 +318,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Fault Line',
     kind: 'attack',
     race: 1,
-    text: '{erode:1}. {heat:2}. {heat:1} to your sun.',
-    onPlay: [{ type: 'erode', amount: 1 }, { type: 'heat', amount: 2, to: 'target' }, { type: 'selfHeat', amount: 1 }],
+    text: '{erode:2}. {heat:2}. {heat:1} to your sun.',
+    onPlay: [{ type: 'erode', amount: 2 }, { type: 'heat', amount: 2, to: 'target' }, { type: 'selfHeat', amount: 1 }],
   },
   {
     id: 'echo_shard',
@@ -335,8 +335,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Shatter Point',
     kind: 'attack',
     race: 1,
-    text: '{destroy:2}. {heat:2} to your sun.',
-    onPlay: [{ type: 'destroy', maxDefence: 2 }, { type: 'selfHeat', amount: 2 }],
+    text: '{destroy:3}. {heat:2} to your sun.',
+    onPlay: [{ type: 'destroy', maxDefence: 3 }, { type: 'selfHeat', amount: 2 }],
   },
   {
     id: 'prism_ward',
@@ -378,9 +378,9 @@ export const EXPANSION: CardDef[] = [
     name: 'Crystal Matrix',
     kind: 'growth',
     race: 1,
-    text: '{resonance:1}. {dawn}: {heat:1} to your sun.',
+    text: '{resonance:2}. {dawn}: {heat:1} to your sun.',
     onTurn: [{ type: 'selfHeat', amount: 1 }],
-    passive: [{ type: 'adjacent', amounts: [1] }],
+    passive: [{ type: 'adjacent', amounts: [2] }],
   },
   {
     id: 'xelnaru_warden',
@@ -433,8 +433,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Vorthanian Tidecaller',
     kind: 'defence',
     race: 2,
-    text: '{dawn}: {shield:1}. {shield:+1} with 3+ defence cards.',
-    onTurn: [{ type: 'shield', amount: 1 }, { type: 'shield', amount: 1, if: { minKind: 'defence', n: 3 } }],
+    text: '{dawn}: {shield:1}. {shield:+2} with 3+ defence cards.',
+    onTurn: [{ type: 'shield', amount: 1 }, { type: 'shield', amount: 2, if: { minKind: 'defence', n: 3 } }],
   },
   {
     id: 'brine_lash',
@@ -755,11 +755,75 @@ export const EXPANSION: CardDef[] = [
     onPlay: [{ type: 'shield', amount: 3 }],
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minCards: 4 } }],
   },
+  // ---- Energy dumps: spend all your energy (X), for an effect that grows with every point of it ----
+  {
+    id: 'solar_torrent',
+    name: 'Solar Torrent',
+    kind: 'attack',
+    spendAll: true,
+    text: '{spend}. {heat:1}. {heat:+2} per energy spent.',
+    onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'spent', times: 2 } }],
+  },
+  {
+    id: 'deep_freeze',
+    name: 'Deep Freeze',
+    kind: 'defence',
+    spendAll: true,
+    text: '{spend}. {cool:1}. {cool:+2} and {shield:1} per energy spent.',
+    onPlay: [{ type: 'cool', amount: 1, plus: { of: 'spent', times: 2 } }, { type: 'shield', amount: 0, plus: { of: 'spent' } }],
+  },
+  {
+    id: 'overflow_archive',
+    name: 'Overflow Archive',
+    kind: 'growth',
+    spendAll: true,
+    text: '{spend}. Draw 1 per energy spent.',
+    onPlay: [{ type: 'draw', amount: 0, plus: { of: 'spent' } }],
+  },
+  {
+    id: 'radiant_barrage',
+    name: 'Radiant Barrage',
+    kind: 'attack',
+    race: 0,
+    spendAll: true,
+    text: '{spend}. {heat:2} and {shield:1} per energy spent.',
+    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'spent', times: 2 } }, { type: 'shield', amount: 0, plus: { of: 'spent' } }],
+  },
+  {
+    id: 'meltdown',
+    name: 'Meltdown',
+    kind: 'attack',
+    race: 1,
+    spendAll: true,
+    text: '{spend}. {heat:3} per energy spent, {pierce}. {heat:2} to your sun.',
+    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'spent', times: 3 }, pierce: true }, { type: 'selfHeat', amount: 2 }],
+  },
+  {
+    id: 'abyssal_rampart',
+    name: 'Abyssal Rampart',
+    kind: 'defence',
+    race: 2,
+    spendAll: true,
+    text: '{spend}. {shield:3} per energy spent.',
+    onPlay: [{ type: 'shield', amount: 0, plus: { of: 'spent', times: 3 } }],
+  },
+  {
+    id: 'hive_surge',
+    name: 'Hive Surge',
+    kind: 'growth',
+    race: 3,
+    spendAll: true,
+    text: '{spend}. Draw 1 and {cool:1} per energy spent.',
+    onPlay: [{ type: 'draw', amount: 0, plus: { of: 'spent' } }, { type: 'cool', amount: 0, plus: { of: 'spent' } }],
+  },
 ];
 
 /** The second set's rarities and characters (as CARD_META in cards.ts). */
 export const EXPANSION_META: Record<string, { rarity?: Rarity; character?: boolean }> = {
   // Neutral
+  solar_torrent: { rarity: 'stellar' },
+  meltdown: { rarity: 'stellar' },
+  overflow_archive: { rarity: 'stellar' },
   stellar_aegis: { rarity: 'stellar' },
   solar_bastion: { rarity: 'stellar' },
   leviathan_shell: { rarity: 'stellar' },

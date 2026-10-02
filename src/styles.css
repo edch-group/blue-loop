@@ -1934,6 +1934,9 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .plays-pips { display: flex; gap: 4px; min-height: 9px; }
 .plays-pips i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid #b9c2cf; background: rgba(255, 255, 255, 0.7); }
 .plays-pips i.on { background: #7cc79a; border-color: #5fb582; box-shadow: 0 0 6px rgba(110, 196, 146, 0.6); }
+/* Bonus energy, only for today: amber. */
+.plays-pips i.bonus { border-color: #e0b25a; }
+.plays-pips i.bonus.on { background: #f2b544; border-color: #d4952a; box-shadow: 0 0 6px rgba(242, 181, 68, 0.6); }
 .end-turn-ready { animation: endReady 1.8s ease-in-out infinite; }
 @keyframes endReady { 50% { box-shadow: 0 0 0 2px #fff, 0 0 18px rgba(110, 196, 146, 0.55); } }
 .action-chip .chip-cost { display: none; }
@@ -2933,6 +2936,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 .card-cost-0 { background: radial-gradient(circle at 35% 30%, #e6ecf2, #a7b3c2 60%, #7d8a9c); }
 .card-cost-3 { background: radial-gradient(circle at 35% 30%, #ffe3a0, #e0a640 60%, #b97a1a); }
+.card-cost-x { background: radial-gradient(circle at 35% 30%, #e7c8ff, #9a5fd6 60%, #6d3aa8); }
 .card-cost-4 { background: radial-gradient(circle at 35% 30%, #ffc0b0, #e2604a 60%, #b23a28); }
 /* Too costly to play right now: still a solid card, its colours muted and its cost gem greyed. */
 .hand .card.card-pricey .card-glyph, .hand .card.card-pricey .card-text { filter: saturate(0.4); }

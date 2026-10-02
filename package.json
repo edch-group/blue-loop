@@ -17,6 +17,7 @@
     "simulate:pool": "vite-node scripts/simulate-pool.ts",
     "duel": "vite-node scripts/duel.ts",
     "deck-search": "vite-node scripts/deck-search.ts",
+    "dominated": "vite-node scripts/dominated.ts",
     "sky": "node scripts/render-sky.mjs",
     "electron:dev": "vite build && electron .",
     "electron:build": "vite build && electron-builder --dir",

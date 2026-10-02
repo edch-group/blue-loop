@@ -2759,8 +2759,10 @@ export class App {
     const act = this.canAct();
     const busy = this.pending !== null;
     const myTurn = activePlayer(s).id === me.id && !isGameOver(s);
-    const total = Math.max(me.playsLeft, myTurn ? playsAllowed(s, me) : 0);
-    const pips = myTurn ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''}"></i>`).join('') : '';
+    // The day's whole energy, spent pips left empty; energy beyond the day's usual amount (planets, cards) is amber: it is only for today.
+    const total = Math.max(me.playsLeft, myTurn ? me.turn.energyTotal ?? playsAllowed(s, me) : 0);
+    const base = me.turn.energyBase ?? total;
+    const pips = myTurn ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''} ${i >= base ? 'bonus' : ''}"></i>`).join('') : '';
     return `
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn ? '' : 'plays-off'}" title="Energy left today: each card costs the number on its gem">

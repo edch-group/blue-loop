@@ -24,7 +24,7 @@ export const COMMAND_CHOICES: NonNullable<CardDef['choices']> = [
 export const CARDS: CardDef[] = [
   // ---- Neutral ------------------------------------------------------------
   { id: 'coronal_lance', name: 'Coronal Lance', kind: 'attack', text: '{heat:3}.', onPlay: [{ type: 'heat', amount: 3, to: 'target' }] },
-  { id: 'plasma_relay', name: 'Plasma Relay', kind: 'attack', text: '{dawn}: {heat:1}.', onTurn: [{ type: 'heat', amount: 1, to: 'target' }] },
+  { id: 'plasma_relay', name: 'Plasma Relay', kind: 'attack', text: '{sturdy:1}. {dawn}: {heat:1}.', defence: 1, onTurn: [{ type: 'heat', amount: 1, to: 'target' }] },
   { id: 'gravity_sling', name: 'Gravity Sling', kind: 'attack', text: '{heat:1}. Draw 1.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'draw', amount: 1 }] },
   { id: 'thermal_exchange', name: 'Thermal Exchange', kind: 'attack', text: '{heat:2}. {cool:1}.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'cool', amount: 1 }] },
   {
@@ -245,14 +245,14 @@ export const CARDS: CardDef[] = [
     text: '{dawn}: {heat:2}.',
     onTurn: [{ type: 'heat', amount: 2, to: 'target' }],
   },
-  { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: '{forge:1}.', passive: [{ type: 'adjacent', amounts: [1], kind: 'attack' }] },
+  { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: '{forge:2}.', passive: [{ type: 'adjacent', amounts: [2], kind: 'attack' }] },
   {
     id: 'coronal_chorus',
     name: 'Coronal Chorus',
     kind: 'attack',
     race: 0,
-    text: '{heat:1} per attack card you control (up to 3).',
-    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 3 }],
+    text: '{heat:1} per attack card you control (up to 5).',
+    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 5 }],
   },
   { id: 'sunspear', name: 'Sunspear', kind: 'attack', race: 0, text: '{heat:6}, {pierce}. {heat:1} to your sun.', onPlay: [{ type: 'heat', amount: 6, to: 'target', pierce: true }, { type: 'selfHeat', amount: 1 }] },
   {
@@ -311,7 +311,7 @@ export const CARDS: CardDef[] = [
     onPlay: [{ type: 'cool', amount: 3 }],
     onTurn: [{ type: 'cool', amount: 1 }],
   },
-  { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 2. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 2 }, { type: 'selfHeat', amount: 1 }] },
+  { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 3. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 1 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
   { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{sturdy:1}. {dawn}: {shield:2}.', defence: 1, onTurn: [{ type: 'shield', amount: 2 }] },

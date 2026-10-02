@@ -242,6 +242,7 @@ export function stabilityBadge(def: CardDef): string {
 
 /** What a card costs to play, in energy: a green gem with the number, on its picture's top-left corner. */
 export function costBadge(def: CardDef): string {
+  if (def.spendAll) return '<span class="card-cost card-cost-x" title="Spends all your energy (at least 1)">X</span>';
   const n = cardCost(def.id);
   return `<span class="card-cost card-cost-${n}" title="Costs ${n} energy to play">${n}</span>`;
 }

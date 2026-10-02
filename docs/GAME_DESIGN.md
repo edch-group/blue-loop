@@ -588,3 +588,32 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 A wall deck built with them wins 50% against the starters and 86% against the cheap all-attack deck (67% against the starters), so aggro has a counter again.
 
 **Supernova flicker.** The explosion's pulse animated `transform: scale(...)` on the sun's holder. That wiped out the `translateY(-50%)` centring it, so the sun dropped half its height for the length of the burst. It now animates `scale` on its own, which adds to the transform instead of replacing it.
+
+**No strictly worse cards.** `npm run dominated` lists every card another card beats outright: no higher cost, every effect at least as strong, no extra drawback, and able to go in the same decks. An unconditional effect counts as covering the same effect with a condition. It found 15 pairs, then 6 more once conditions were counted. Each was fixed by giving the weaker card an edge of its own, not by nerfing the stronger one:
+- Focusing Array is Forge 2.
+- Coolant Array is free.
+- Plasma Relay is Sturdy 1.
+- Chorus of Dawn hits up to 5.
+- Fracture Seer draws 3.
+- Scatter Shot heats 2.
+- Survey Probe adds Shield 1.
+- The Shardlancer heats 3, pierce.
+- Shatter Point destroys at defence 3.
+- Crystal Matrix is Resonance 2.
+- Hive-Warrior and Searing Core cost 1.
+- Fault Line erodes 2.
+- The Cantor cools 2 with 3+ attack cards.
+- The Tidecaller adds +2 shields with 3+ defence cards.
+
+The check now reports none.
+
+**Energy dumps (X).** Seven cards spend all the energy you have left (at least 1, shown by a purple X gem). Their effects grow with each energy spent:
+- Solar Torrent: Heat 1, plus 2 per energy.
+- Deep Freeze: Cool 1, plus Cool 2 and Shield 1 per energy.
+- Overflow Archive: Draw 1 per energy.
+- Radiant Barrage (Aureline): Heat 2 and Shield 1 per energy.
+- Meltdown (Xel'Naru): Heat 3 per energy, pierce, plus Heat 2 to your sun.
+- Abyssal Rampart (Vorthane): Shield 3 per energy.
+- Hive Surge (Ixquor): Draw 1 and Cool 1 per energy.
+
+**Energy pips.** The pips show the day's whole energy, with spent ones left empty, so bonus energy no longer disappears once you play a card. Energy beyond the day's usual amount (from the industrial planet or energy cards) is amber: it is only for today, and it is spent first.

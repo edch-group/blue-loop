@@ -5,6 +5,7 @@
  */
 export const CARD_COSTS: Record<string, number> = {
   // 0
+  coolant_array: 0,
   relay_station: 0,
   // 2
   dawn_rampart: 2,
@@ -43,7 +44,6 @@ export const CARD_COSTS: Record<string, number> = {
   hero_of_rathune: 2,
   hive_rooting: 2,
   hive_tyrant: 2,
-  hive_warrior: 2,
   ice_age: 2,
   ignition_protocol: 2,
   ion_cannon: 2,
@@ -63,7 +63,6 @@ export const CARD_COSTS: Record<string, number> = {
   riptide: 2,
   riptide_ambush: 2,
   rot_bloom: 2,
-  searing_core: 2,
   shard_mother: 2,
   shard_reactor: 2,
   shatter_point: 2,

@@ -67,6 +67,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or hotter.' },
   grows: { name: 'grows', group: 'tempo', explain: (v) => `At each of your dawns this card grows by 1, up to ${n(v)}.` },
   plays: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy each day while this is in play.` },
+  spend: { name: 'spend all', group: 'tempo', explain: () => 'Costs all the energy you have left (at least 1). The more you spend, the bigger it is.' },
   energy: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy to spend today.` },
   orbit: { name: 'orbit', group: 'orbit', explain: (v) => `Moves the planets round a sun by ${n(v)} turn${v === '+1' || v === '-1' || v === '−1' ? '' : 's'} (each planet faces it for 3).` },
   lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Played face down in your Lightspeed slot (one at a time). It springs during an enemy's day when its trigger happens, then goes to your discard pile." },

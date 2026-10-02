@@ -246,7 +246,8 @@ export function chooseAIAction(state: GameState): Action {
       continue;
     }
     // Energy spent on a card is energy not spent on another: a costlier card has to be worth it.
-    const extra = action.type === 'playCard' ? cardCost(me.hand.find((c) => c.uid === action.cardUid)?.defId ?? '') - 1 : 0;
+    const played = action.type === 'playCard' ? me.hand.find((c) => c.uid === action.cardUid) : undefined;
+    const extra = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) - 1 : 0;
     const score = evaluate(next, me.id) - extra * ACTION_VALUE;
     if (!best || score > best.score) best = { action, score };
   }
