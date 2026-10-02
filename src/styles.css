@@ -2592,7 +2592,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-fuse-go p { margin: 0; color: var(--ink-soft); }
 
 /* The Lightspeed slot: right of the five, a little apart, with no defence; a card set there lies face down. */
-.ls-slot { margin-left: 12px; transform-style: preserve-3d; }
+.ls-slot { transform-style: preserve-3d; }
 .slot-ls { border-color: rgba(212, 149, 42, 0.4); color: rgba(193, 132, 28, 0.6); }
 .slot-ls .slot-def { font-size: max(12px, calc(var(--tcw) * 0.22)); }
 .card.card-back.ls-card { --cw: var(--tcw); padding: 0; cursor: pointer; transform: translateZ(8px); }
@@ -2990,7 +2990,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .slot-cmd small { font-size: max(6px, calc(var(--tcw) * 0.075)); letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.8; }
 /* The outline round the tableau, with its bump for the Command slot. */
 .tableau-frame { position: absolute; overflow: visible; pointer-events: none; transform: translateZ(1px); }
-.tableau-frame path { fill: rgba(255, 255, 255, 0.14); stroke: rgba(140, 150, 175, 0.4); stroke-width: 1; stroke-linejoin: round; }
+.tableau-frame { shape-rendering: geometricPrecision; }
+/* The same line as the board's rings (1px, the same blue-grey), round a faintly shaded floor. */
+.tableau-frame path { fill: rgba(140, 150, 175, 0.07); stroke: rgba(140, 150, 175, 0.16); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 /* A Command card in play lies landscape: its picture on the left, its name and options on the right. */
 .card.card-landscape {
   /* A card turned on its side: as wide as a card is tall. (--cw is the upright card's width.) */

@@ -229,6 +229,8 @@ function frameTableaus(root: HTMLElement) {
     const x0 = W - bw;
     const d = `M${r},0 H${x0 - rc} Q${x0},0 ${x0},${-rc} V${-bh + r} Q${x0},${-bh} ${x0 + r},${-bh} H${W - r} Q${W},${-bh} ${W},${-bh + r} V${H - r} Q${W},${H} ${W - r},${H} H${r} Q0,${H} 0,${H - r} V${r} Q0,0 ${r},0 Z`;
     Object.assign(svg.style, { left: `${-pad}px`, top: `${-pad}px`, width: `${W}px`, height: `${H}px` });
+    // On the half pixel, so the 1px line lands on one row of pixels (as the rings do) rather than smearing over two.
+    svg.setAttribute('viewBox', `-0.5 -0.5 ${W} ${H}`);
     const path = svg.querySelector('path')!;
     path.setAttribute('d', d);
     path.setAttribute('transform', rival ? `rotate(180 ${W / 2} ${H / 2})` : '');
