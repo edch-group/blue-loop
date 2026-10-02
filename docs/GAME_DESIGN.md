@@ -341,10 +341,10 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 | Deck | Built around |
 | --- | --- |
-| Solar Lancers | Attack cards that boost each other; a Sunforge and a Resonance Lattice powering their neighbours; Command cards kept in play for the War-Herald; Sunlit Return and a Recall Beacon to bring attack cards back; Ion Cannon; Null Field set face down |
-| Shard Overload | Martyr and Kyr'Vessa paying off as cards leave play, Phase Shift and Shard Recall to recall and replay them; Ember Shards and the Reliquarist; Prism Conduit; Tractor Beam |
-| Abyssal Tide | Wardens flanked by Tide Pylons, the Aegis Monolith guarding the middle; Undertow to erode rival cards away; Returning Tide to bring a fallen defence card back; Riptide Ambushers |
-| Hive Bloom | Going wide and staying there with Hive Rooting and Compost Cycle; a Resonance Lattice; Spore Husks recovered (by the Compost Cycle and a Regrowth Pod) to draw more |
+| Solar Lancers | Attack cards that boost each other: a Sunforge and a Focusing Array, Lancer Squadrons and Sunlance Charges; a Halo Sentinel (Guard); Command cards kept in play for the War-Herald; Sunlit Return and a Recall Beacon to bring attack cards back; Ion Cannon; Prism of Dawn set face down |
+| Shard Overload | Martyrs, Echo Shard, Prism Wards and Kyr'Vessa paying off as cards leave play; Phase Shift, Shard Echo and Shard Recall to recall and replay them; an Ember Shard and the Reliquarist; Prism Conduit |
+| Abyssal Tide | Wardens flanked by Tide Pylons, a Trench-Warden and the Aegis Monolith guarding the line; Undertows to erode rival cards away; Returning Tide to bring a fallen defence card back; a Riptide Ambusher and an Ink Cloud |
+| Hive Bloom | Going wide and staying there with Hive Rooting and Compost Cycle; cheap Hive Warriors, Spore Drones and Brood Chambers; Spore Husks recovered (by the Compost Cycle and a Regrowth Pod) to draw more |
 
 How often the newer mechanics come up in an AI game (per game), before and after the rebuild:
 
@@ -370,6 +370,8 @@ Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its coo
 - The floors made Solar Lancers far too strong at first (about 80%). Their attack cards now all hit every day, and Focusing Array and Sunforge add to every one of them. Lancers now run one Sunforge (and a Recall Beacon), Coronal Chorus hits for up to 2, Sunlit Return cools 1, the Sun-Priest cools at most 2, and the War-Herald's Command bonus is a shield rather than more heat.
 - Abyssal Tide fell to about 25% (it gained little from the floors), so the Abyssal Choir now starts at 2 heat and the Stinging Veil stings for 3. Rot Bloom also starts at 2.
 - The widest match-ups are Tide over Overload (74/26) and Lancers over Tide (72/28).
+
+**The energy curve (600 games).** At 3 energy a day, a deck full of 2s plays one card most days. The starters had only 5–7 cards at 0–1 energy (13–14 at 2), so they were rebuilt to 8–12 at 0–1, 8–10 at 2 and a few 3s and 4s, mostly with on-theme 1-cost cards from the second set (new and existing profiles are granted them). Win rates: Lancers 45.5%, Overload 55.8%, Tide 44.0%, Bloom 53.6%; seats 47/53. Tide fell to 35% at first; it got its second Abyssal Choir and Undertow back, and a Trench-Warden.
 
 **After dawn aiming and defence against heat (300 games).** Win rates: Lancers 53.4%, Overload 51.2%, Tide 47.2%, Bloom 47.4%; seats 45/55; about 15 rounds. The widest match-ups are Lancers over Tide and over Bloom (59/41).
 

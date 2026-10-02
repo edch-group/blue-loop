@@ -832,52 +832,56 @@ export interface DeckList {
 const twoOf = (...ids: string[]) => ids.flatMap((id) => [id, id]);
 
 /** A ready-made deck for each race: its cards (with its Stellar hero and its Anomaly), neutral support and two Command cards. */
+// Every starter deck keeps about half its cards at 0–1 energy, so most days can play a 2 and a 1 (or three 1s)
+// at 3 energy; a few 3s and 4s are the bombs.
 export const PRESET_DECKS: DeckList[] = [
   {
-    // Attack cards that power each other up, a Sunforge and a Resonance Lattice boosting their
-    // neighbours, Command cards kept in play for the War-Herald, a Sunlit Return and a Recall Beacon
-    // to bring the best attack cards back, an Ion Cannon, and a Null Field set face down against the counter-attack.
+    // Attack cards that power each other up: a Sunforge and a Focusing Array boosting them all, Lancer
+    // Squadrons and Sunlance Charges growing with the attack and Command cards around them, a Halo
+    // Sentinel guarding the line, a Sunlit Return and a Recall Beacon to bring the best attack cards back,
+    // an Ion Cannon, and a Prism of Dawn set face down against the counter-attack.
     name: 'Solar Lancers',
     race: 0,
     cards: [
-      ...twoOf('coronal_chorus', 'command_directive'),
-      'sunforge', 'helio_lancer', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
-      'resonance_lattice', 'standing_orders', 'sunlit_return', 'null_field', 'ion_cannon', 'coolant_array', 'cryo_vault', 'recall_beacon',
+      ...twoOf('command_directive', 'sunlance_charge'),
+      'lancer_squadron', 'sunforge', 'helio_lancer', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
+      'halo_sentinel', 'sunlit_return', 'prism_of_dawn', 'ion_cannon', 'coolant_array', 'cryo_vault', 'recall_beacon',
       'gravity_assist', 'tidal_brake',
     ],
   },
   {
-    // Cards that pay off as they leave play (Martyr, Kyr'Vessa), recalled with Phase Shift to do it
-    // again (and with Shard Recall); Ember Shards recovered by the Reliquarist; a Prism Conduit
-    // cooled by the attack cards beside it; and a Tractor Beam.
+    // Cards that pay off as they leave play (Martyr, Echo Shard, Prism Ward, Kyr'Vessa), recalled with
+    // Phase Shift and Shard Echo to do it again (and with Shard Recall); an Ember Shard recovered by the
+    // Reliquarist; a Prism Conduit cooled by the attack cards beside it.
     name: 'Shard Overload',
     race: 1,
     cards: [
-      ...twoOf('shard_reactor', 'martyr_crystal', 'ember_shard', 'prism_vent', 'command_directive'),
-      'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift', 'tractor_beam',
-      'shard_recall', 'comet_shard', 'tidal_brake',
+      ...twoOf('shard_reactor', 'martyr_crystal', 'prism_ward', 'command_directive'),
+      'ember_shard', 'echo_shard', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit', 'phase_shift',
+      'shard_recall', 'shard_echo', 'comet_shard', 'tidal_brake',
     ],
   },
   {
-    // Shields and defence: Tide Pylons around the Wardens, the Aegis Monolith guarding
-    // the middle, Returning Tide to bring a fallen defence card back, Undertow to wear rival cards
-    // away, and Riptide Ambushers set face down against a big hit.
+    // Shields and defence: Tide Pylons around the Wardens, a Trench-Warden and the Aegis Monolith
+    // guarding the line, Returning Tide to bring a fallen defence card back, Undertows to wear rival
+    // cards away, and a Riptide Ambusher and an Ink Cloud set face down against a big hit.
     name: 'Abyssal Tide',
     race: 2,
     cards: [
-      ...twoOf('bell_warden', 'abyssal_choir', 'tide_pylon', 'riptide_ambush', 'undertow', 'command_directive'),
-      'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide', 'aegis_monolith', 'plasma_relay', 'coronal_lance', 'deep_current',
+      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'command_directive'),
+      'riptide_ambush', 'ink_cloud', 'trench_warden', 'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide', 'aegis_monolith',
+      'coronal_lance', 'deep_current',
     ],
   },
   {
     // Go wide and keep it coming back: Hive Rooting and a Compost Cycle to hold the hive in play,
-    // a Resonance Lattice in the middle of it, and Spore Husks recovered from the discard pile (by
-    // the Compost Cycle and a Regrowth Pod) to draw more.
+    // a Rot Bloom, and cheap Hive Warriors, Spore Drones and Brood Chambers to fill it, and Spore Husks recovered from
+    // the discard pile (by the Compost Cycle and a Regrowth Pod) to draw more.
     name: 'Hive Bloom',
     race: 3,
     cards: [
-      ...twoOf('rot_bloom', 'spore_husk', 'orbit_root', 'command_directive'),
-      'hive_rooting', 'compost_cycle', 'resonance_lattice', 'hive_relay', 'sporecaster', 'canopy', 'spore_cloud',
+      ...twoOf('orbit_root', 'spore_husk', 'command_directive'),
+      'rot_bloom', 'hive_warrior', 'hive_rooting', 'compost_cycle', 'spore_drone', 'brood_chamber', 'hive_relay', 'sporecaster', 'spore_cloud',
       'ixquor_brood_tender', 'the_brood_queen', 'coolant_array', 'tidal_brake', 'regrowth_pod',
     ],
   },
