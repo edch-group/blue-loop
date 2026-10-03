@@ -3566,9 +3566,10 @@ export class App {
   }
 
   /**
-   * Above each tableau: what that player's next dawn will do, net of
-   * every card (heat at their target, shields, cooling, heat to their own sun,
-   * extra cards), so everyone can see it coming and answer it.
+   * Above each tableau: what the cards on the table will do at that player's next dawn (heat at their
+   * target, shields, cooling, heat to their own sun, extra cards and energy), so everyone can see it
+   * coming and answer it. Only the table: what the planets will add, and regional instability, show
+   * where they come from (the orbits and the stability bar), not here.
    */
   private renderForecast(p: PlayerState): string {
     const s = this.state!;
@@ -3585,9 +3586,8 @@ export class App {
       chip('fc-shield', symbolIcon('shield'), f.shields, `Their dawn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
       chip('fc-cool', symbolIcon('cool'), f.cool, `Their dawn: their own sun cools by ${f.cool}`),
       chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
-      chip('fc-unstable', '≋', f.unstable, `As round ${f.unstableRound} begins: regional instability heats every sun by ${f.unstable}, all at once`),
-      chip('fc-draw', HAND_ICON, f.draw, `Their dawn: ${f.draw} extra card${f.draw === 1 ? '' : 's'} drawn${f.planet === 'abundant' ? ' (the abundant planet faces their sun)' : ''}`),
-      chip('fc-play', '⚡', f.plays, `Their day: +${f.plays} energy (from the industrial planet and their cards)`),
+      chip('fc-draw', HAND_ICON, f.draw - f.planetDraw, `Their dawn: ${f.draw - f.planetDraw} extra card${f.draw - f.planetDraw === 1 ? '' : 's'} drawn, from their cards`),
+      chip('fc-play', '⚡', f.plays - f.planetPlays, `Their day: +${f.plays - f.planetPlays} energy, from their cards`),
     ].join('');
     // Nothing coming: show nothing.
     if (!chips) return '';

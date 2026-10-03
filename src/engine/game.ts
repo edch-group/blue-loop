@@ -584,6 +584,9 @@ export interface TurnForecast {
   round: number;
   /** Extra cards drawn (beyond the usual draw). */
   draw: number;
+  /** Of those, and of the extra energy, what the planet facing their sun gives (the rest is the table's). */
+  planetDraw: number;
+  planetPlays: number;
   /** Extra cards they may play (an industrial planet). */
   plays: number;
   /** The planet that will face their sun. */
@@ -606,10 +609,12 @@ export function turnForecast(state: GameState, p: PlayerState, aims?: Record<str
   const planet = planetAt(orbit);
   // Their day comes this round if they sit after the active player, else next round.
   const round = now ? state.round : state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
-  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, unstableRound: state.round + 1, round, draw: 0, plays: 0, planet };
+  const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, unstableRound: state.round + 1, round, draw: 0, plays: 0, planet, planetDraw: 0, planetPlays: 0 };
   if (p.eliminated) return f;
-  if (!now && planet === 'abundant' && p.turnsTaken > 0) f.draw += BALANCE.abundantDraw;
-  if (planet === 'industrial') f.plays += BALANCE.industrialPlays;
+  if (!now && planet === 'abundant' && p.turnsTaken > 0) f.planetDraw = BALANCE.abundantDraw;
+  if (planet === 'industrial') f.planetPlays = BALANCE.industrialPlays;
+  f.draw += f.planetDraw;
+  f.plays += f.planetPlays;
   // Run the effects on a copy, so growth and the like carry from one effect to the next (aimed as given).
   const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c, ...(aims && c.uid in aims ? { aim: aims[c.uid] ?? undefined } : {}) })) };
   for (const card of me.tableau) {
