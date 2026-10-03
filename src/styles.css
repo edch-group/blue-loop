@@ -2388,6 +2388,16 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .stat-stab { background: linear-gradient(135deg, #e0b25a, #b8801f); }
 .stat-stab.stat-low { background: linear-gradient(135deg, #e88a6c, #c0563d); animation: blink 1.6s ease-in-out infinite; }
 .card-table .resonance { top: calc(var(--cw, 100px) * 0.2); }
+/* A card in play: stability on the right, and its defence on the card's foot, half on and half off it
+   (so the card lets it overhang). */
+.card.card-table { overflow: visible; }
+.card-stats.card-stats-stab { justify-content: flex-end; }
+.card .stat-def-floor {
+  position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 50%); z-index: 3; pointer-events: auto;
+  min-width: max(16px, calc(var(--cw, 100px) * 0.24)); height: max(13px, calc(var(--cw, 100px) * 0.16)); padding: 0 4px; border-radius: 999px;
+  display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: max(7px, calc(var(--cw, 100px) * 0.09)); color: #fff;
+  box-shadow: 0 0 0 1.5px #fff, 0 2px 5px rgba(60, 64, 80, 0.25);
+}
 
 /* ---------- Vitals: each sun, large, beside its tableau ---------- */
 .vit {
@@ -3036,8 +3046,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
    the icon stands on that baseline, as tall as a capital. */
 .kw-sym { display: inline; white-space: nowrap; letter-spacing: 0; }
 /* A number changed in play (by neighbours, Forge cards or the table): underlined, green when raised, red when lowered. */
-.kw-up, .kw-down { text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.18em; }
-.kw-up { text-decoration-color: #3fae6a; }
+.kw-down { text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.18em; }
 .kw-down { text-decoration-color: #d8452b; }
 .kw-ico { display: inline-block; width: 0.78em; height: 0.78em; vertical-align: -0.04em; margin-right: 0.08em; flex: none; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
 .kw-ico .kw-ico-fill { fill: currentColor; fill-opacity: 0.22; stroke-width: 1.6; }

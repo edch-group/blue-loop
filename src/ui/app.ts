@@ -3,7 +3,6 @@ import {
   activePlayer,
   applyAction,
   BALANCE,
-  boostable,
   boosterPool,
   BOOSTERS,
   PROGRESSION,
@@ -45,7 +44,6 @@ import {
   allyEffectKind,
   cardDefence,
   recoverChoices,
-  resonanceBonus,
   supernovaThreshold,
   hasRoomFor,
   targetOf,
@@ -3676,12 +3674,12 @@ export class App {
     const pv = (icon: string, n: number, after?: number) =>
       after === undefined || after === n ? `${icon}${n}` : `<span class="pv-now">${icon}${n}</span><span class="pv-after">${icon}${after}</span>`;
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
-    const boost = opts.owner && boostable(c.defId) ? resonanceBonus(opts.owner, c) : 0;
-    const resonance = boost ? `<span class="resonance" title="Resonance: +${boost} to this card's heat, cooling and shields from its neighbours">+${boost}</span>` : '';
+    // (Resonance and forge show in the card's own numbers, not as a badge.)
+    const resonance = '';
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<span class="card-stats"><b class="stat-def ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.preview?.defence)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">${pv('◷', c.stability ?? 0, opts.preview?.stability)}</b></span>`
+        ? `${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.preview?.defence)}</b><span class="card-stats card-stats-stab"><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">${pv('◷', c.stability ?? 0, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
@@ -3731,7 +3729,6 @@ export class App {
     const def = cardDef(defId);
     const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
     const c = owner?.tableau.find((x) => x.uid === uid);
-    const boost = owner && c && boostable(c.defId) ? resonanceBonus(owner, c) : 0;
     const stats =
       owner && c
         ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">◷${c.stability ?? 0}</b></span>`
@@ -3740,7 +3737,7 @@ export class App {
     return `
       <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}${def.kind === 'command' ? ' card-landscape' : ''}" style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArtLite(def, true)}</div>
-        ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${boost ? `<span class="resonance">+${boost}</span>` : ''}${stats}
+        ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardTextHtml(def.text, c?.choice, false, owner && c ? this.liveNumbers(c, { owner }) : {})}</div>
         <div class="card-kind">${typeLine(def)}</div>
