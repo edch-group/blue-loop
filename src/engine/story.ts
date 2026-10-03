@@ -1,0 +1,226 @@
+/**
+ * The campaign's story: who speaks, and what they say, at each moment worth a scene.
+ *
+ * The universe is dying. Its stars gutter one by one, and the four races fight over the last warm worlds.
+ * All of them are making for the Heart, the vast star at the centre of everything, because of a legend: in
+ * its light grows the Infinite Stellaria, a flower whose bloom gives energy without end. Lesser blooms, the
+ * Finite Stellaria, are scattered on the way: rich, but they wilt.
+ *
+ * The guide is Oriel the Wanderer, who has walked between the stars since before they began to fade, and
+ * speaks to every race alike. Generals are the races' heroes (the Hero cards).
+ *
+ * The Aureline were the flower's first keepers. They tended it in the Heart's light for an age and called
+ * it Vitalia ("life-giver"); then they lost it, and the war that followed nearly wiped them out. The flower
+ * itself is the white flower that turns on the game's landing page.
+ */
+
+/** Who speaks a line: the guide, or a hero (by Hero card id) of a faction. */
+export type Speaker = { kind: 'oracle' } | { kind: 'general'; card: string; faction: string };
+
+export interface StoryLine {
+  speaker: Speaker;
+  text: string;
+}
+
+export interface StoryScene {
+  /** What happened (each moment plays once per campaign). */
+  id: string;
+  title: string;
+  lines: StoryLine[];
+}
+
+export const ORACLE_NAME = 'Oriel the Wanderer';
+/** The star at the centre of the universe, and what is said to grow there. */
+export const HEART_NAME = 'The Heart';
+export const STELLARIA_NAME = 'Infinite Stellaria';
+/** What the Aureline, its first keepers, call it: roughly, "life-giver". */
+export const VITALIA = 'Vitalia';
+
+/** Each race's generals (Hero cards), in the order they join: the first leads the opening army. */
+export const GENERALS: string[][] = [
+  ['command_directive', 'ignition_protocol', 'empress_solenne'],
+  ['war_council', 'coolant_protocol', 'the_shardmind'],
+  ['tide_regent', 'the_admiralty', 'leviathan_thoross'],
+  ['logistics_command', 'chamber_protocol', 'the_worldroot'],
+];
+
+/** Why each race marches on the Heart. */
+const MOTIVE: string[] = [
+  "The Aureline were the flower's first keepers. They tended it in the Heart's light for an age and named it Vitalia, the life-giver. Then they lost it, and the war that followed nearly wiped them out. What is left of them is coming home.",
+  "The Xel'Naru keep every memory of their people in living crystal. The crystal needs light. In the dark, they forget, and then they are gone.",
+  "The Vorthane's oceans are freezing from the surface down. The tide fleets have nowhere left to sail but out, and in, towards the Heart.",
+  'The Ixquor hive is starving. Its spore-worlds rot under a cooling sun, and the hive does what hives do: it spreads, and it hungers.',
+];
+
+const RACE_NAMES = ['Aureline', "Xel'Naru", 'Vorthane', 'Ixquor'];
+
+/** What a general says on taking command (and on first meeting a rival). */
+const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
+  command_directive: { join: 'Solarch Veyra stands with you. We lost Vitalia once. We will not lose her again.', taunt: 'Vitalia was ours before your star was lit. Turn back.' },
+  ignition_protocol: { join: 'Sol-Marshal Aurex. Point me at something, and watch it burn.', taunt: 'Every star can be made to blaze. Yours will be first.' },
+  empress_solenne: { join: 'I am Solenne, last of the line that kept Vitalia. I have waited long enough. Kneel, and follow.', taunt: 'You stand between the Empress and the flower my mothers tended. Move.' },
+  war_council: { join: 'Archon Seris. Nothing we lose is truly lost. The shards remember.', taunt: 'We have remembered a thousand like you. We will remember you, too.' },
+  coolant_protocol: { join: 'Hierarch Vael. Patience is a blade of ice. I will lend you mine.', taunt: 'Be still. Be cold. Be certain. You are none of these.' },
+  the_shardmind: { join: 'We are many voices in one crystal. The Shardmind wakes for you.', taunt: 'All that you are will be stored, and forgotten.' },
+  tide_regent: { join: 'Tide-Regent Osshara. The tide rises with you, commander.', taunt: 'Let them break upon us, as every wave does.' },
+  the_admiralty: { join: 'The Admiralty has the fleet. Give the word, and we sail.', taunt: 'We have weathered worse than you. We will weather you.' },
+  leviathan_thoross: { join: 'Thoross rises from the deep. The sea follows where I go.', taunt: 'Nothing passes the Leviathan. Nothing.' },
+  logistics_command: { join: 'Zyth hears. Zyth obeys. Zyth spreads.', taunt: 'Many voices. One will. Yours is not among them.' },
+  chamber_protocol: { join: "Ul'Kha wakes, and the brood with her. Every root, a promise.", taunt: 'Grow, my children. There is so much here to eat.' },
+  the_worldroot: { join: 'The Worldroot stirs beneath you. Every world is soil.', taunt: 'From one root, a thousand. From you, nothing.' },
+};
+
+const oracle = (text: string): StoryLine => ({ speaker: { kind: 'oracle' }, text });
+const general = (card: string, faction: string, text: string): StoryLine => ({ speaker: { kind: 'general', card, faction }, text });
+
+/** The opening: the dying universe, the legend, the player's race and its first general. */
+export function introScene(race: number, faction: string): StoryScene {
+  const first = GENERALS[race][0];
+  return {
+    id: 'intro',
+    title: 'A dying universe',
+    lines: [
+      oracle(`I am ${ORACLE_NAME}. I have walked between the stars since before they began to go out. Now I walk among the ashes.`),
+      oracle('The universe is dying. Star by star, the light is failing, and every race left alive is fighting over the last warm worlds.'),
+      oracle(`But there is a legend. At the centre of all things burns ${HEART_NAME}, the oldest star, and in its light grows the ${STELLARIA_NAME}: a white flower whose bloom gives energy without end.`),
+      oracle(
+        race === 0
+          ? `Your people know it is more than a legend. The Aureline kept it once, and called it ${VITALIA}, the life-giver. You remember what losing it cost.`
+          : `It is more than a legend. It was kept, once, by the Aureline, who called it ${VITALIA}, the life-giver. They lost it, and very nearly everything else.`,
+      ),
+      oracle(MOTIVE[race]),
+      general(first, faction, GENERAL_LINES[first].join),
+      oracle(`Your armies march one route a turn. Take systems for their credits and materials, and press on towards ${HEART_NAME}. Recruit more generals as you grow: each leads an army with a deck of its own.`),
+    ],
+  };
+}
+
+/** A new general takes command of an army. */
+export function recruitScene(card: string, faction: string): StoryScene {
+  return { id: `recruit:${card}`, title: 'A new general', lines: [general(card, faction, GENERAL_LINES[card]?.join ?? 'I am ready.')] };
+}
+
+/** The player's first conquest. */
+export function firstConquestScene(): StoryScene {
+  return {
+    id: 'first-conquest',
+    title: 'The first world',
+    lines: [
+      oracle('Your first world. Settle it, and it will feed your armies every turn. Absorb it, and it pays at once, but it is spent.'),
+      oracle('Or burn it. A supernova bars your rivals from it for a turn. It is a terrible thing to do to a star, when so few are left.'),
+    ],
+  };
+}
+
+/** A rival faction, met for the first time: its general speaks, the player's answers. */
+export function contactScene(rivalRace: number, rivalGeneral: string, rivalFaction: string, myGeneral: string, myFaction: string): StoryScene {
+  return {
+    id: `contact:${rivalFaction}`,
+    title: `The ${RACE_NAMES[rivalRace]}`,
+    lines: [
+      oracle(`The ${RACE_NAMES[rivalRace]}. ${MOTIVE[rivalRace]}`),
+      general(rivalGeneral, rivalFaction, GENERAL_LINES[rivalGeneral]?.taunt ?? 'Turn back.'),
+      general(myGeneral, myFaction, GENERAL_LINES[myGeneral]?.join.split('.')[0] + '. We do not turn back.'),
+    ],
+  };
+}
+
+export function stellariaSightedScene(): StoryScene {
+  return {
+    id: 'stellaria-sighted',
+    title: 'A Stellaria bloom',
+    lines: [
+      oracle('Look there: a Stellaria bloom. A finite one, a cutting from the legend, blown out across the dark.'),
+      oracle('Hold the system, and the bloom will pour credits and materials into your hands every turn. But it is not the real thing. It wilts.'),
+    ],
+  };
+}
+
+export function stellariaClaimedScene(): StoryScene {
+  return {
+    id: 'stellaria-claimed',
+    title: 'The bloom is yours',
+    lines: [oracle('The bloom is yours. Feel how it warms everything near it? Imagine one that never wilts. That is what waits at the centre.')],
+  };
+}
+
+export function stellariaWiltedScene(): StoryScene {
+  return {
+    id: 'stellaria-wilted',
+    title: 'A bloom wilts',
+    lines: [oracle('The bloom has wilted. They all do, out here. Only one flower is infinite, and it does not grow this far from the Heart.')],
+  };
+}
+
+export function dimmingScene(system: string): StoryScene {
+  return {
+    id: 'dimming',
+    title: 'A star gutters',
+    lines: [
+      oracle(`Did you see? The star of ${system} has guttered. Its worlds will yield less now, and less again, until they yield nothing.`),
+      oracle('It will keep happening. The longer this war lasts, the less there will be left to win.'),
+    ],
+  };
+}
+
+export function heartSightedScene(): StoryScene {
+  return {
+    id: 'heart-sighted',
+    title: HEART_NAME,
+    lines: [
+      oracle(`There it is. ${HEART_NAME}. Even dying, it outshines everything.`),
+      oracle('It is guarded. The Heart Wardens have kept it since the first light, and they will not stand aside for anyone. Come strong, and come rested.'),
+    ],
+  };
+}
+
+export function armyLostScene(): StoryScene {
+  return {
+    id: 'army-lost',
+    title: 'An army falls',
+    lines: [oracle('An army is broken, and its general driven from the field. Generals can be recruited again, but the war will not wait for them.')],
+  };
+}
+
+export function rivalFallsScene(rivalRace: number, rivalFaction: string): StoryScene {
+  return {
+    id: `falls:${rivalFaction}`,
+    title: `The ${RACE_NAMES[rivalRace]} fall`,
+    lines: [oracle(`The ${RACE_NAMES[rivalRace]} are finished. Their worlds are yours to take, or to leave in the dark. One fewer people to share the light with.`)],
+  };
+}
+
+export function victoryHeartScene(hero: string, faction: string, race: number): StoryScene {
+  return {
+    id: 'victory',
+    title: race === 0 ? VITALIA : STELLARIA_NAME,
+    lines: [
+      oracle(`You have reached ${HEART_NAME}, and the Wardens are scattered. And there, in the white fire at its centre: the ${STELLARIA_NAME}, in bloom.`),
+      general(hero, faction, race === 0 ? `${VITALIA}. She is still here. After everything, we have brought her home.` : 'It is real. After everything, it is real.'),
+      oracle('Carry it home. Light your star again. And remember, when the others come to you in the dark, how much light there is now to share.'),
+    ],
+  };
+}
+
+export function victoryDominationScene(): StoryScene {
+  return {
+    id: 'victory',
+    title: 'Dominion',
+    lines: [oracle('Half the universe answers to you now. The Heart can wait: with so much under your banner, no one is left to reach it first.')],
+  };
+}
+
+export function defeatScene(winnerRace: number, heart: boolean): StoryScene {
+  return {
+    id: 'defeat',
+    title: 'The light goes out',
+    lines: [
+      oracle(
+        heart
+          ? `The ${RACE_NAMES[winnerRace]} have reached ${HEART_NAME}, and the ${STELLARIA_NAME} is theirs. Your star will go dark without it.`
+          : `It is over. The ${RACE_NAMES[winnerRace]} hold the universe now, and your people's star goes quietly out.`,
+      ),
+      oracle('I will remember you. Someone should.'),
+    ],
+  };
+}

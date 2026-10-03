@@ -1470,7 +1470,7 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
 .cmp-an.cmp-far > div { opacity: 0; transition: opacity 0.5s; }
 /* Billboards are padded for the glow: only the star (or marker) and its label take taps. */
 .cmp-bb { pointer-events: none; }
-.cmp-bb .cmp-star, .cmp-bb .cmp-label, .cmp-bb .cmp-badges, .an-bb > span { pointer-events: auto; cursor: pointer; }
+.cmp-bb .cmp-star, .cmp-bb .cmp-label, .cmp-bb .cmp-badges, .cmp-bb .cmp-army, .an-bb > span { pointer-events: auto; cursor: pointer; }
 .cmp-far .cmp-bb * { pointer-events: none !important; }
 /* The black hole's accretion disc belongs to its core: tipped almost flat in 3D, turning around the hole. */
 .an-blackHole .an-bb, .an-hole { transform-style: preserve-3d; }
@@ -3458,3 +3458,120 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
    a card in play. */
 .card .card-kind { text-align: right; padding-right: calc(var(--cw, 100px) * 0.06); }
 .card-landscape .card-kind, .card-big.card-landscape .card-kind { text-align: right; }
+
+/* ---------- Campaign: armies, the Heart, Stellaria and the story ---------- */
+/* A hero's portrait: their card's picture, cropped round on the character. */
+.cmp-portrait { display: block; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: #1a1f2a; }
+.cmp-portrait .art-wrap, .cmp-portrait .art-frame { display: block; width: 100%; height: 100%; }
+.cmp-portrait img.art { width: 100%; height: 100%; object-fit: cover; object-position: 42% 30%; transform: scale(1.35); transform-origin: 42% 34%; }
+.cmp-portrait svg { width: 100%; height: 100%; display: block; }
+
+/* An army on the map: its general's portrait beside the star, ringed in its faction's colour. */
+.cmp-army {
+  /* (In the billboard's own flow, above its star: positioned outside the billboard's box, the 3D layer clipped it.) */
+  position: relative; display: block; width: 30px; height: 30px; margin-bottom: 4px; border-radius: 50%; cursor: pointer;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ac), 0 3px 8px rgba(40, 46, 70, 0.35);
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.3s;
+}
+.cmp-army:hover { transform: scale(1.12); }
+.cmp-army-mine:not(.cmp-army-moved) { animation: cmp-army-ready 2.2s ease-in-out infinite; }
+@keyframes cmp-army-ready { 50% { transform: translateY(-3px); } }
+.cmp-army-moved { opacity: 0.65; filter: saturate(0.6); }
+.cmp-army-on { transform: scale(1.22); box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ac), 0 0 16px 4px color-mix(in srgb, var(--ac) 60%, transparent); }
+.cmp-army-dmg { position: absolute; right: -6px; bottom: -4px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; font-style: normal; font-family: var(--display); font-size: 9px; line-height: 14px; text-align: center; color: #fff; background: #d0653f; box-shadow: 0 0 0 1.5px #fff; }
+.cmp-selected .cmp-army { width: 38px; height: 38px; }
+/* The Infinite Stellaria: the white flower of the landing page, turning slowly beside the Heart. */
+.cmp-stellaria {
+  /* Its own upright billboard beside the Heart's star (a child placed outside the star's billboard was clipped). */
+  position: absolute; left: 0; top: 0; width: 112px; height: 112px; pointer-events: none;
+  transform-origin: 0 100%;
+  transform: translate(26px, -84%) rotateX(calc(-1 * var(--tilt))) scale(var(--ui));
+  /* A still disc of night sky behind it, so the white petals show on the pale map (a filter round the
+     turning flower would repaint it every frame). */
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(28, 22, 64, 0.92), rgba(44, 34, 92, 0.75) 62%, rgba(255, 206, 120, 0.35) 84%, transparent);
+  padding: 10px; box-sizing: border-box;
+}
+.stellaria-flower ellipse, .stellaria-flower path { stroke: #fff; }
+.cmp-stellaria svg { width: 100%; height: 100%; animation: cmp-bloom-turn 40s linear infinite; }
+@keyframes cmp-bloom-turn { to { transform: rotate(360deg); } }
+.stellaria-flower ellipse, .stellaria-flower path { fill: rgba(255, 255, 255, 0.35); stroke: #fff; stroke-width: 6; }
+.stellaria-flower .petal-inner path { stroke-width: 4; }
+/* A picked army's routes: where it can march (in its colour) and fight (the red target ring). */
+.cmp-ring-march { width: 58px; height: 58px; border: 2.5px dashed #7cc79a; animation: cmp-spin 12s linear infinite; }
+.cmp-target .cmp-ring-target { border-color: #d8452b; }
+
+/* The Heart: the oldest star, larger and golden, with a slow radiance on the plane round it. */
+.cmp-heart .cmp-star { width: 44px; height: 44px; }
+.cmp-heart .cmp-core { background: radial-gradient(circle at 42% 38%, #fff 0 22%, #fff3c4 45%, #ffcf6a 72%, #e08a2a 100%); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 24px 8px rgba(255, 206, 110, 0.75), 0 0 60px 18px rgba(255, 190, 90, 0.35); }
+.cmp-heart .cmp-label { color: #b5761e; font-weight: 700; letter-spacing: 0.24em; }
+.cmp-heart-glow { position: absolute; width: 320px; height: 320px; margin: -160px 0 0 -160px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, rgba(255, 214, 130, 0.42), rgba(255, 196, 110, 0.14) 45%, transparent 70%); animation: star-breathe 7s ease-in-out infinite; }
+/* A guttered star: greyer and smaller. */
+.cmp-dim .cmp-core { filter: grayscale(0.7) brightness(0.92); }
+.cmp-dim .cmp-star { transform: scale(0.85); }
+.cmp-bloom { display: inline-flex; align-items: center; gap: 2px; color: #a64f98; }
+.cur-bloom { width: 13px; height: 13px; }
+
+/* The system panel: lore lines, and the army standing there. */
+.cmp-lore { margin: 6px 0; font-size: 0.78rem; line-height: 1.45; color: var(--ink-soft); display: flex; gap: 6px; align-items: flex-start; }
+.cmp-lore .cur { flex: none; margin-top: 2px; }
+.cmp-army-row { display: grid; grid-template-columns: 40px 1fr; gap: 4px 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.7); border-left: 4px solid var(--ac); }
+.cmp-army-row > .cmp-portrait { width: 40px; height: 40px; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--ac); }
+.cmp-army-row b { font-family: var(--display); font-weight: 500; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; display: block; }
+.cmp-army-row small { font-size: 0.72rem; color: var(--ink-soft); }
+.cmp-army-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Your armies in the header: a row of small portraits (greyed once moved). */
+.cmp-purse-armies { display: inline-flex; gap: 4px; align-items: center; }
+.cmp-mini-army { display: block; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px var(--ac); }
+.cmp-mini-army.moved { opacity: 0.55; filter: saturate(0.5); }
+
+/* Recruiting: one row per general. */
+.cmp-recruits { display: grid; gap: 10px; }
+.cmp-recruit { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; text-align: left; padding: 10px 14px; border-radius: 14px; background: #fff; border: 1px solid #eceae6; cursor: pointer; }
+.cmp-recruit:disabled { opacity: 0.5; cursor: default; }
+.cmp-recruit:not(:disabled):hover { box-shadow: 0 4px 14px rgba(60, 70, 100, 0.15); }
+.cmp-recruit > .cmp-portrait { width: 56px; height: 56px; }
+.cmp-recruit > span:not(.cmp-recruit-text) > b { font-family: var(--display); font-weight: 500; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; display: block; }
+.cmp-recruit small { display: inline-flex; gap: 4px; align-items: center; font-size: 0.78rem; color: var(--ink-soft); }
+.cmp-recruit { grid-template-columns: 56px minmax(0, 0.8fr) minmax(0, 1.2fr); }
+.cmp-recruit-text { font-size: 0.78rem; line-height: 1.45; color: var(--ink-soft); }
+.cmp-recruit-text .card-opts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.cmp-recruit-text .card-opt { padding: 2px 8px; border-radius: 6px; background: #f2f1ee; }
+@media (max-width: 700px) { .cmp-recruit { grid-template-columns: 48px 1fr; } .cmp-recruit-text { grid-column: 1 / -1; } }
+
+/* The deck screen: a tab per army. */
+.cmp-army-tabs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 6px; }
+.cmp-army-tab { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border-radius: 999px; background: #fff; border: 1px solid #eceae6; font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); cursor: pointer; }
+.cmp-army-tab .cmp-portrait { width: 28px; height: 28px; }
+.cmp-army-tab.on { color: var(--ink); box-shadow: 0 0 0 2px var(--ac); }
+.cmp-side-card > .cmp-portrait { width: 44px; height: 44px; margin: 4px 0; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--fc); }
+
+/* The story: a dialogue box low on the screen, the speaker's portrait beside their words. */
+.cmp-story-overlay { align-items: end; background: linear-gradient(180deg, rgba(20, 18, 40, 0.05), rgba(20, 18, 40, 0.38)); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.cmp-story {
+  display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center;
+  width: min(760px, 100%); margin-bottom: max(18px, var(--sa-b)); padding: 18px 22px;
+  border-radius: 20px; background: rgba(255, 255, 255, 0.96); border-top: 4px solid var(--sc);
+  box-shadow: 0 18px 48px rgba(20, 24, 50, 0.3);
+  animation: cmp-story-in 0.4s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes cmp-story-in { from { transform: translateY(24px); opacity: 0; } }
+.cmp-story-face { width: clamp(72px, calc(14 * var(--vh)), 110px); aspect-ratio: 1; }
+.cmp-story-face .cmp-portrait { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--sc), 0 8px 20px rgba(30, 30, 60, 0.3); }
+.cmp-story-oracle .cmp-story-face .cmp-portrait { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--sc), 0 0 28px 6px rgba(255, 210, 130, 0.45); }
+.cmp-story-body { display: grid; gap: 2px; min-width: 0; }
+.cmp-story-title { font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
+.cmp-story-name { font-family: var(--display); font-weight: 500; font-size: 0.86rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); }
+.cmp-story-sub { font-size: 0.72rem; color: var(--ink-soft); }
+.cmp-story-text { margin: 8px 0 4px; font-size: 1rem; line-height: 1.55; color: var(--ink); }
+.cmp-story-foot { display: flex; align-items: center; gap: 12px; justify-content: flex-end; }
+.cmp-story-dots { display: flex; gap: 5px; margin-right: auto; }
+.cmp-story-dots i { width: 6px; height: 6px; border-radius: 50%; background: #d8d6d2; }
+.cmp-story-dots i.on { background: var(--sc); }
+@media (max-height: 480px) { .cmp-story { padding: 12px 16px; gap: 14px; } .cmp-story-text { font-size: 0.86rem; margin: 4px 0; } }
+.cmp-node-head > .cmp-portrait { width: 34px; height: 34px; flex: none; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--fc); }
+.cmp-hint-march { color: #3f9a68; }
+.cmp-hint-fight { color: #d8452b; }
+/* (Room inside the Heart's billboard for its wide glow: past the billboard's box, the 3D layer cut it square.) */
+.cmp-heart .cmp-bb { padding: 44px 44px 0; }

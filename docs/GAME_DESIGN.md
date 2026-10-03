@@ -577,37 +577,52 @@ A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their 
 
 ## Campaign mode
 
-Universe domination on a map of 48 linked solar systems, played with the card game. Code: `src/engine/campaign.ts` (rules) and `src/ui/campaign.ts` (screen).
+A 4X-style march on the centre of a dying universe, played with the card game. Code: `src/engine/campaign.ts` (rules), `src/engine/story.ts` (story and dialogue) and `src/ui/campaign.ts` (screen). Saves are version 3 (`blue-loop:campaign:v3`); older campaigns are not carried over.
 
-**Setup.** Choose your race and 1–3 rivals. The rivals are the other races. Your deck starts mostly neutral: 8 neutral pairs, 2 cards of your race and 2 Command Directives.
+**The story.** The universe is dying: star by star the light is failing, and the four races fight over the last warm worlds. All of them are making for **the Heart**, the supermassive star at the centre of the map, because of a legend: in its light grows the **Infinite Stellaria**, a white flower whose bloom gives energy without end. It is the white flower that turns on the landing page, and on the map it turns beside the Heart.
+- The **Aureline** were the flower's first keepers. They called it **Vitalia** ("life-giver"), lost it, and were nearly wiped out in the war that followed. What is left of them is coming home.
+- The Xel'Naru need light for the crystal that holds their memories; the Vorthane's oceans are freezing; the Ixquor hive is starving.
+- The guide is **Oriel the Wanderer**, a neutral oracle who speaks to every race alike. Oriel opens the campaign and comments at each moment that matters: the first conquest, a Stellaria bloom sighted, claimed or wilted, the first star to dim, the Heart sighted, an army broken, a rival race met or fallen, victory and defeat. Generals speak too: on joining, and when a rival race is first met (its general taunts, yours answers).
+- Each moment plays once, as a dialogue overlay with portraits. Tap to advance, or skip the scene.
+
+**Setup.** Choose your race and 1–3 rivals. Factions start in the corners with one army.
+
+**Armies and generals.**
+- Each army is led by a **general**: one of the race's Hero cards. Each race has three generals, in the order they join: the two leaders, then the race's bomb Hero (Empress Solenne, The Shardmind, Leviathan Thoross, The Worldroot).
+- An army is its general plus a **30-card deck** built round them. The general's copies can't be swapped out of it.
+- **One move per army per turn.** An army steps along a route into one of your own systems, or attacks a linked system. Tap an army's token to pick it: its routes light up (marches in blue, attacks in red).
+- **Recruit** a general in a system you hold, for credits: 8, plus 5 for each army you already have, plus 6 for a bomb Hero. A general who already leads an army can't be recruited twice. A new army moves next turn.
+- **Damage** stays with the army. Heal it for 1 credit a point.
+- An army that loses a battle is **routed**: it falls back to a free neighbouring system you hold. With nowhere to go, it is **broken**: the general leaves, and the army's non-standard cards go back to your reserve.
+
+**Battles.**
+- An attack is a 1v1 game. The attacking army plays its own deck. The defender is the army standing in the system if there is one; otherwise the owner's guard (the race's starter deck); otherwise the neutral sentinels; at the Heart, the **Heart Wardens**.
+- After a win, choose Settle, Absorb or Supernova, as before. Only Settle moves the army in.
+- Battle modifiers stack: the system's anomaly, its fortifications, the Wardens and the core (below).
 
 **The map.**
-- 48 systems in loose clusters, linked by routes that never cross, on a tilted 3D plane that you can pan and zoom.
-- The map is wide (3500 × 2250) so systems sit well apart. Stars are small, sharp points with only a tight glow, so the map stays readable.
-- Tap the turn box (top left) to open the **overview**: every faction's systems held, their share of the map, and the win condition. The map fills the screen: a system's details float in a panel only while it is selected, missions and the log sit behind their buttons, and the settings wheel opens sound, music, AI speed and the way back to the main menu. Entering the campaign flashes a "campaign" banner. [design review]
-- Factions start in the corners. Neutral systems are held by sentinels, which get stronger towards the middle of the map.
-- Outer sentinels start their battles with hotter suns (+5 heat at tier 1, +2 at tier 2), so early expansion is easier. [proposed]
+- About 48 systems in loose clusters, linked by routes that never cross, on a tilted 3D board you pan and zoom. The Heart sits in the middle with clear space round it.
+- **The core:** the closer a system is to the Heart (in routes), the richer and the better defended it is. Systems 1–3 routes from the Heart give +2/+1/+1 credits and materials and their defenders +6/+4/+2 max health; systems within 2 routes are at least tier 2, within 3 at least tier 1. This pays you back for the worlds lost to the dimming.
+- **Stellaria blooms:** 4 finite Stellaria grow on tier 1+ systems (never a home system or the Heart). Holding one adds 3 credits and 3 materials a turn. Each wilts after 8 turns.
+- **The dimming:** every 7 turns a star gutters, and its system yields less.
+- **Fog of war:** you see your systems, the systems around your armies, and those linked to them. About one system in six has a **scanner array**; hold it and you see two links out from it.
+- Tap the turn box (top left) to open the **overview**. The header shows your armies' portraits.
+- The board, the Milky Way sky and the settings work as before.
 
-**Turns, attacks, conquest, missions and winning** work as before:
-- One attack per turn, on a system linked to yours. The battle is a 1v1 game: you attack from your system, the defender holds theirs.
-- After a win, choose Settle, Absorb or Supernova.
-- Damage carries between battles.
-- **Fog of war:** you see only your systems and the systems linked to them. About one system in six has a **scanner array**; hold it and you see two links out from it. Routes into unseen space fade out, and anomalies appear once their reach touches a system in view. [design review]
-- **Base:** one button opens your deck, the armory and your missions as tabs. The armory restocks every day and whenever you conquer a system. [design review]
-- **Fusion (armory):** merge two reserve cards into one that does both, for materials (4 plus both cards' armory prices by rarity). It cannot be undone. The fused card takes the first card's kind, the higher rarity and both texts, and its name joins the two (Coronal Lance + Cryo Vault → Coronal Vault). Command, global and Lightspeed cards can't be fused, a fused card can't be fused again, and two cards that ask for the same kind of choice when played (two removals, say) can't be fused together. Its picture is both cards' pictures split along a glowing seam. [design review]
-- **The board:** the systems sit on a board like the battle board: a rounded, translucent slab with a dotted grid, a bright rim and a front edge, the galaxy showing through it. A controlled system's star burns in its faction's colour. [design review]
-- **The map's sky** is the heart of the Milky Way, high-key: a faint off-white sky, a lighter band across most of the page with a white core, crisp dust lanes of a slightly deeper off-white (a main rift down its spine and finer filaments), and tiny white stars. Every tone is within a few percent of white. It is painted pixel by pixel (scripts/paint-sky.ts, shipped as src/assets/campaign-sky.webp) and multiplied onto the board. It is a parallax layer: it slides with the systems as you pan, more slowly, and never scales. [design review]
-- The campaign lasts 60 turns. You win at 50% of the systems or by eliminating every rival.
+**Winning.**
+- **Reach the Heart:** beat the Wardens (12 extra max health) and claim it. The Heart is settled automatically and wins the campaign.
+- **Domination:** hold 50% of the systems, or eliminate every rival.
+- The campaign lasts 60 turns. AI factions race for the Heart too, though not before turn 12.
 
 **Economy.**
-- **Credits** repair damage (1 per point) and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +4 max health.
-- **Materials** buy cards in the armory by rarity: 3 for a White Dwarf, 5 for a Stellar, 8 for an Anomaly, +1 for a race card. The armory and mission rewards offer mostly your own race's cards, and Anomalies least often. The fine-tuned Heroes are on offer too, to swap for a standard Command Directive.
+- **Credits** recruit generals, heal armies and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +4 max health.
+- **Materials** buy cards in the armory by rarity: 3 for a White Dwarf, 5 for a Stellar, 8 for an Anomaly, +1 for a race card. The armory restocks every day and whenever you conquer a system.
+- **Base:** one button opens your armies' decks (a tab per army), the armory and your missions. Cards you win or buy wait in your **reserve**, to be swapped into any army's deck as long as it stays legal.
+- **Fusion (armory):** merge two reserve cards into one that does both, for materials (4 plus both cards' armory prices by rarity). It cannot be undone. Command, global and Lightspeed cards can't be fused, a fused card can't be fused again, and two cards that ask for the same kind of choice can't be fused together.
 
-**The deck.** Your campaign deck is always a legal 20-card deck. Cards you win or buy wait in your **reserve**. You swap a reserve card in for a deck card, as long as the deck stays legal.
+**Garrisons.** Send up to 3 reserve cards to a system you control. They take a day to arrive and a day to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau**, and a stationed Lightspeed card starts set face down (only one). If the system falls, the conqueror takes them.
 
-**Garrisons.** Send up to 3 reserve cards to a system you control. They take a day to arrive and a day to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau** (a Hero with its first choice), and a stationed Lightspeed card starts the battle set face down (only one). If the system falls, the conqueror takes them. [design review: garrisoned cards defend a system]
-
-**Anomalies** now give battle modifiers:
+**Anomalies** give battle modifiers:
 
 | Anomaly | Boon | Cost |
 | --- | --- | --- |
@@ -617,8 +632,8 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 | Pulsar | Sun cools by 1 every day | 4 less max health |
 
 **Balance notes (simulator).**
-- With the AI running every faction, campaigns average about 56 turns.
-- Race and starting corner matter too much: in 12 all-AI campaigns, Xel'Naru won 8 and Aureline none. This needs tuning next.
+- All-AI campaigns (6 seeds) ended between turns 12 and 32, with a mix of Heart and domination wins. The Wardens' bonus was raised from 8 to 12 health to keep the Heart a late-game goal.
+- Early auto-resolved attacks on tier-0 sentinels lose fairly often. Watch this.
 
 ## Open design questions
 

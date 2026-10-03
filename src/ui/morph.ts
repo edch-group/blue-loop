@@ -26,6 +26,16 @@ const keyOf = (n: Node): string | null => {
 
 const sameKind = (a: Node, b: Node) => a.nodeType === b.nodeType && a.nodeName === b.nodeName;
 
+/** The first class an element's markup gives it: what it is (a `.game`, a `.cmp-sky`), as opposed to its state. */
+const role = (n: Node) => (n.nodeType === 1 ? ((n as Element).getAttribute('class') ?? '').trim().split(/\s+/)[0] : '');
+
+/**
+ * Whether an unkeyed element can stand in for another: the same tag, and the same role. Otherwise a
+ * different screen's element would be reused, and keep what was set on it from script (the campaign
+ * sky's pan, say, would carry over onto the battle's game board).
+ */
+const sameElement = (a: Node, b: Node) => sameKind(a, b) && role(a) === role(b);
+
 /** Replace `root`'s contents with `html`, changing only what differs. */
 export function morphInto(root: Element, html: string) {
   const tpl = document.createElement('template');
@@ -50,7 +60,15 @@ function morphChildren(from: Element, to: ParentNode) {
         match = old;
         keyed.delete(k);
       }
-    } else if (cur && !keyOf(cur) && sameKind(cur, next)) match = cur;
+    } else {
+      // An old element no new one here can stand in for is dropped, so it doesn't hold up those after it.
+      while (cur && !keyOf(cur) && !sameElement(cur, next) && !laterMatch(cur, after)) {
+        const gone: Node = cur;
+        cur = cur.nextSibling;
+        from.removeChild(gone);
+      }
+      if (cur && !keyOf(cur) && sameElement(cur, next)) match = cur;
+    }
     if (match) {
       if (match === cur) cur = cur.nextSibling;
       else from.insertBefore(match, cur);
@@ -67,6 +85,12 @@ function morphChildren(from: Element, to: ParentNode) {
     cur = cur.nextSibling;
     from.removeChild(gone);
   }
+}
+
+/** Whether an unkeyed new node from `start` on could reuse `old`. */
+function laterMatch(old: Node, start: Node | null): boolean {
+  for (let n = start; n; n = n.nextSibling) if (!keyOf(n) && sameElement(old, n)) return true;
+  return false;
 }
 
 function morphNode(old: Node, next: Node) {

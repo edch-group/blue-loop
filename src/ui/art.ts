@@ -132,6 +132,16 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
     </div>`;
 }
 
+/**
+ * The Infinite Stellaria: the landing page's white flower, on its own (the same petals, framed tight round
+ * them), for the campaign's Heart and story.
+ */
+export function stellariaFlower(): string {
+  const petals = Array.from({ length: 12 }, (_, i) => `<ellipse cx="500" cy="170" rx="95" ry="330" transform="rotate(${i * 30} 500 170)" />`).join('');
+  const inner = Array.from({ length: 18 }, (_, i) => `<path d="M500 170 L526 -30 L500 -90 L474 -30 Z" transform="rotate(${i * 20 + 10} 500 170)" />`).join('');
+  return `<svg class="stellaria-flower" viewBox="70 -260 860 860" aria-hidden="true"><g class="petal-outer">${petals}</g><g class="petal-inner">${inner}</g></svg>`;
+}
+
 /** Soft petal mandala behind the play area (the "blue loop" motif). */
 export function petalBackdrop(): string {
   const petals = Array.from({ length: 12 }, (_, i) => `<ellipse cx="500" cy="170" rx="95" ry="330" transform="rotate(${i * 30} 500 170)" />`).join('');
