@@ -2040,7 +2040,11 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .menu.setup-page:has(> .db-list-body) { grid-template-rows: auto minmax(0, 1fr); padding-bottom: 0; }
 .menu.setup-page > .db-list-body { align-self: stretch; height: 100%; width: 100%; }
 .db-list-body .db-list { padding-bottom: max(18px, var(--sa-b)); }
-.setup-top > .btn-new-deck { justify-self: end; }
+.setup-top > .btn-new-deck { justify-self: end; display: inline-flex; align-items: center; gap: 8px; padding-left: 6px; }
+/* Its plus: white, in a solid round badge. */
+.plus-badge { width: 18px; height: 18px; border-radius: 50%; background: #5d6a8c; display: grid; place-items: center; flex: none; }
+.plus-badge svg { width: 10px; height: 10px; display: block; }
+.plus-badge path { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; }
 .db-list { display: grid; gap: 8px; width: min(760px, 100%); justify-self: center; padding-bottom: 8px; }
 .db-list .section-label { justify-self: start; margin-top: 4px; }
 /* The deck list: a grid of deck boxes, each a little 3D box in its race's colour with its hero on the front. */

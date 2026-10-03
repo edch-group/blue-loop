@@ -287,7 +287,7 @@ export class DeckBuilder {
       });
     const mine = customDecks();
     return `
-      ${this.header('decks', '<button class="btn btn-small btn-new-deck" data-act="db-new">+ new deck</button>')}
+      ${this.header('decks', '<button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button>')}
       <div class="setup-body db-list-body">
         <div class="db-list">
           <div class="section-label">race starters</div>
