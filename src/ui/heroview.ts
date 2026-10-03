@@ -1,61 +1,51 @@
 /**
- * The heroes page's two showpieces: the hero's figure, an outline of their race with their gear worn where
- * it sits on the body; and their skill tree, a constellation that grows up from the hero in two branches,
+ * The heroes page's two showpieces: the hero's portrait, their own picture with their gear worn where it
+ * sits on the body; and their skill tree, a constellation that grows up from the hero in two branches,
  * each skill a star (the bigger the skill, the bigger the star).
  */
-import type { HeroSkill, Item, SlotKind } from '../engine';
+import { cardDef, type HeroSkill, type Item, type SlotKind } from '../engine';
+import { cardScene } from './cardart';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 // ---------------------------------------------------------------------------
-// The figure: each race's outline, and where on it each slot sits (in % of the figure's box)
+// The figure: the hero's own picture, cropped to a portrait, and where on it each slot sits
 // ---------------------------------------------------------------------------
 
-/** Each race's outline (viewBox 0 0 200 300), drawn as soft light. */
-const FIGURES: string[] = [
-  // Aureline: a tall radiant figure in a flowing robe, a halo behind the head, one arm raised with a lance.
-  `<circle class="fig-glow" cx="100" cy="52" r="38"/>
-   <circle class="fig-line" cx="100" cy="52" r="34" stroke-dasharray="3 6"/>
-   <ellipse class="fig-body" cx="100" cy="58" rx="20" ry="23"/>
-   <path class="fig-body" d="M78 92c10-8 34-8 44 0l14 34c4 30 10 70 26 150H38c16-80 22-120 26-150z"/>
-   <path class="fig-body" d="M120 98c14 2 26-10 34-30l8 4c-6 26-22 42-38 44z"/>
-   <path class="fig-body" d="M80 98c-12 10-18 34-20 58l-9-2c2-28 10-52 25-62z"/>
-   <path class="fig-line" d="M100 120v150M74 160c16 10 36 10 52 0"/>`,
-  // Xel'Naru: a figure of living crystal, all facets and shards, a bright core in the chest.
-  `<path class="fig-glow" d="M100 90l40 40-40 60-40-60z"/>
-   <path class="fig-body" d="M100 18l22 26-8 34H86l-8-34z"/>
-   <path class="fig-body" d="M84 84h32l30 24-16 26 12 60-42 84-42-84 12-60-16-26z"/>
-   <path class="fig-body" d="M146 108l28-18 10 10-26 30z"/>
-   <path class="fig-body" d="M54 108l-24-20-10 12 24 28z"/>
-   <path class="fig-line" d="M100 84v190M70 134l30 18 30-18M84 84l16 22 16-22"/>`,
-  // Vorthane: a great domed head over a ring of tentacles, one curling up round a trident.
-  `<ellipse class="fig-glow" cx="100" cy="88" rx="62" ry="54"/>
-   <path class="fig-body" d="M42 104c0-48 26-78 58-78s58 30 58 78c0 14-8 24-20 28H62c-12-4-20-14-20-28z"/>
-   <circle class="fig-eye" cx="82" cy="98" r="7"/><circle class="fig-eye" cx="118" cy="98" r="7"/>
-   <path class="fig-limb" d="M66 132c-14 30-34 50-42 92"/>
-   <path class="fig-limb" d="M82 134c-6 40-14 74-20 128"/>
-   <path class="fig-limb" d="M100 134c0 44 4 80 0 136"/>
-   <path class="fig-limb" d="M118 134c6 40 14 74 20 128"/>
-   <path class="fig-limb" d="M134 132c14 30 34 50 42 92"/>
-   <path class="fig-limb" d="M146 120c22 0 38-20 40-52"/>`,
-  // Ixquor: an insect of the hive, a crested head and antennae, a broad thorax, a swollen abdomen and claws.
-  `<ellipse class="fig-glow" cx="100" cy="200" rx="60" ry="70"/>
-   <path class="fig-line" d="M86 30c-10-12-20-16-30-14M114 30c10-12 20-16 30-14"/>
-   <ellipse class="fig-body" cx="100" cy="50" rx="22" ry="20"/>
-   <path class="fig-body" d="M70 78c10-10 50-10 60 0l10 40c-12 14-68 14-80 0z"/>
-   <ellipse class="fig-body" cx="100" cy="196" rx="52" ry="68"/>
-   <path class="fig-line" d="M54 170c30 12 62 12 92 0M50 200c32 14 68 14 100 0M56 230c28 12 60 12 88 0"/>
-   <path class="fig-limb" d="M136 96c24-4 38 6 48-14l8 6c-8 20-24 28-50 26"/>
-   <path class="fig-limb" d="M64 96c-20 8-30 24-34 44M62 112c-16 16-20 36-18 54"/>`,
-];
+/**
+ * Each hero's portrait window into their card scene (the scene is 160 x 100; the window is 80 wide, full
+ * height, starting at x0), and where each slot sits on the body, in scene units.
+ */
+const PORTRAITS: Record<string, { x0: number; at: Record<string, [number, number]> }> = {
+  // Aureline: the halo is the helm, the sash the mantle, the heart the sigil, the shield or lance the weapon.
+  command_directive: { x0: 30, at: { helm: [64, 13], mantle: [56, 50], sigil: [64, 64], weapon: [96, 48] } },
+  ignition_protocol: { x0: 28, at: { helm: [58, 12], mantle: [63, 53], sigil: [56, 70], weapon: [98, 38] } },
+  empress_solenne: { x0: 50, at: { helm: [80, 12], mantle: [70, 52], sigil: [80, 68], weapon: [111, 52] } },
+  // Xel'Naru: the bright heart is the core, the shards at the shoulders the facets, what they hold the weapon.
+  war_council: { x0: 24, at: { core: [62, 41], facet1: [40, 34], facet2: [80, 30], weapon: [94, 58] } },
+  coolant_protocol: { x0: 30, at: { core: [68, 42], facet1: [45, 28], facet2: [88, 25], weapon: [104, 42] } },
+  the_shardmind: { x0: 40, at: { core: [80, 42], facet1: [60, 28], facet2: [98, 26], weapon: [112, 40] } },
+  // Vorthane: the crown is the helm, a ring on each of four tentacles, the trident the weapon.
+  tide_regent: { x0: 30, at: { helm: [70, 6], ring1: [53, 64], ring2: [64, 75], ring3: [77, 75], ring4: [88, 64], weapon: [105, 40] } },
+  the_admiralty: { x0: 40, at: { helm: [80, 6], ring1: [66, 58], ring2: [74, 70], ring3: [86, 70], ring4: [94, 58], weapon: [108, 22] } },
+  leviathan_thoross: { x0: 50, at: { helm: [80, 9], ring1: [62, 62], ring2: [72, 76], ring3: [88, 76], ring4: [98, 62], weapon: [126, 52] } },
+  // Ixquor: the cap is the carapace, glands along the stalk, the spores or pods the weapon.
+  logistics_command: { x0: 26, at: { carapace: [66, 30], gland1: [60, 58], gland2: [72, 66], weapon: [92, 36] } },
+  chamber_protocol: { x0: 32, at: { carapace: [72, 31], gland1: [66, 52], gland2: [78, 62], weapon: [96, 64] } },
+  the_worldroot: { x0: 40, at: { carapace: [80, 24], gland1: [74, 52], gland2: [86, 62], weapon: [100, 44] } },
+};
 
-/** Where each slot sits on its race's figure: [x%, y%]. */
-const SOCKETS: Record<string, [number, number]>[] = [
-  { helm: [50, 9], mantle: [32, 33], sigil: [50, 48], weapon: [79, 22] },
-  { core: [50, 47], facet1: [33, 34], facet2: [67, 34], weapon: [91, 31] },
-  { helm: [50, 9], ring1: [15, 74], ring2: [31, 86], ring3: [69, 86], ring4: [85, 74], weapon: [91, 22] },
-  { carapace: [50, 31], gland1: [30, 66], gland2: [70, 66], weapon: [91, 28] },
-];
+const portraitArt = new Map<string, string>();
+/** The hero's scene, cropped to their portrait window, as an image. */
+function portraitImage(hero: string, x0: number): string {
+  let img = portraitArt.get(hero);
+  if (!img) {
+    const svg = cardScene(cardDef(hero)).replace('<svg class="art"', '<svg xmlns="http://www.w3.org/2000/svg"').replace('viewBox="0 0 160 100"', `viewBox="${x0} 0 80 100"`);
+    img = `<img class="hv-portrait" alt="" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" />`;
+    portraitArt.set(hero, img);
+  }
+  return img;
+}
 
 /** A small line drawing for each kind of slot (shown in an empty socket). */
 const SLOT_ICON: Record<SlotKind, string> = {
@@ -73,29 +63,31 @@ const SLOT_ICON: Record<SlotKind, string> = {
 const icon = (body: string, cls = '') => `<svg class="hv-icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 
 export interface FigureData {
-  race: number;
+  hero: string;
   slots: { id: string; kind: SlotKind; name: string }[];
   gear: Record<string, Item>;
   /** The slot picked (its stores are shown, and a find goes there). */
   picked: string | null;
 }
 
-/** The hero's figure, with a socket on the body for each slot: worn gear glows in its rarity. */
+/** The hero's portrait, with a socket on the body for each slot: worn gear glows in its rarity. */
 export function heroFigure(d: FigureData): string {
+  const pic = PORTRAITS[d.hero] ?? { x0: 40, at: {} };
   const sockets = d.slots
-    .map((sl) => {
-      const [x, y] = SOCKETS[d.race]?.[sl.id] ?? [50, 50];
+    .map((sl, i) => {
+      const [sx, sy] = pic.at[sl.id] ?? [pic.x0 + 12 + (i % 3) * 28, 30 + Math.floor(i / 3) * 30];
+      const x = ((sx - pic.x0) / 80) * 100;
       const it = d.gear[sl.id];
-      const cls = ['hv-socket', it ? `full rarity-${it.rarity}` : 'empty', d.picked === sl.id ? 'picked' : ''].join(' ');
+      const cls = ['hv-socket', it ? `full rarity-${it.rarity}` : 'empty', d.picked === sl.id ? 'picked' : '', x > 70 ? 'tag-left' : x < 30 ? 'tag-right' : ''].join(' ');
       const tip = it ? `${it.name}: ${it.text} (tap to take it off)` : `${sl.name}: empty (tap to see what fits)`;
-      return `<button class="${cls}" style="left:${x}%;top:${y}%" data-act="${it ? 'cmp-unequip' : 'cmp-slot-pick'}" data-arg="${sl.id}" title="${esc(tip)}" aria-label="${esc(tip)}">
+      return `<button class="${cls}" style="left:${x.toFixed(1)}%;top:${sy}%" data-act="${it ? 'cmp-unequip' : 'cmp-slot-pick'}" data-arg="${sl.id}" title="${esc(tip)}" aria-label="${esc(tip)}">
           ${icon(SLOT_ICON[sl.kind])}<i class="hv-socket-tag">${esc(it ? it.name : sl.name.toLowerCase())}</i>
         </button>`;
     })
     .join('');
   return `
-    <div class="hv-figure hv-race-${d.race}">
-      <svg class="hv-outline" viewBox="0 0 200 300" aria-hidden="true">${FIGURES[d.race] ?? FIGURES[0]}</svg>
+    <div class="hv-figure">
+      ${portraitImage(d.hero, pic.x0)}
       ${sockets}
     </div>`;
 }
@@ -117,10 +109,10 @@ const SKILL_ICON: Record<string, string> = {
 
 /** Where each star of a branch sits (x%, y%), from the hero at the foot up to the crown of the branch. */
 const STARS: Record<0 | 1, [number, number][]> = {
-  0: [[30, 68], [20, 41], [29, 13]],
-  1: [[70, 68], [80, 41], [71, 13]],
+  0: [[36, 67], [27, 44], [36, 19]],
+  1: [[64, 67], [73, 44], [64, 19]],
 };
-const ROOT: [number, number] = [50, 90];
+const ROOT: [number, number] = [50, 87];
 const TIER_NAME = ['', 'minor', 'major', 'legendary'];
 
 export interface TreeData {
@@ -139,6 +131,35 @@ export function skillKind(k: HeroSkill): string {
   const e = k.effect;
   return e.kind === 'battle' ? (e.once ? 'battle · once a battle' : `battle · daily, ${e.cost} energy`) : e.kind === 'mod' ? 'battle · always' : e.kind === 'card' ? 'signature card' : 'campaign map';
 }
+
+/**
+ * The night behind the tree, the same for every hero: a few hundred pin-prick stars of slightly different
+ * colours, thicker along a faint band of the galaxy, a handful of brighter ones with a soft four-point glint,
+ * and some that twinkle.
+ */
+const SKY_DUST = (() => {
+  let seed = 7;
+  const r = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  const tints = ['#ffffff', '#dfe9ff', '#c9dbff', '#fff1dc', '#ffe2c4'];
+  const out: string[] = [];
+  for (let i = 0; i < 220; i++) {
+    // Two in three fall near the band, a soft diagonal from bottom left to top right.
+    const t = r();
+    const band = r() < 0.66;
+    const x = band ? t * 100 : r() * 100;
+    const y = band ? 92 - t * 84 + (r() + r() + r() - 1.5) * 26 : r() * 100;
+    if (y < 0 || y > 100) continue;
+    const b = r() ** 3;
+    const size = 0.5 + b * 1.4;
+    const tint = tints[Math.floor(r() * tints.length)];
+    const tw = r() < 0.12 ? ` tw" style="--d:${(2 + r() * 4).toFixed(1)}s;--o:${(0.3 + b * 0.6).toFixed(2)};` : '" style="';
+    out.push(`<i class="${tw}left:${x.toFixed(2)}%;top:${y.toFixed(2)}%;--s:${size.toFixed(2)}px;--c:${tint};opacity:${(0.25 + b * 0.7).toFixed(2)}"></i>`);
+  }
+  for (let i = 0; i < 7; i++) {
+    out.push(`<b style="left:${(6 + r() * 88).toFixed(1)}%;top:${(4 + r() * 90).toFixed(1)}%;--s:${(9 + r() * 10).toFixed(0)}px;--d:${(3 + r() * 4).toFixed(1)}s"></b>`);
+  }
+  return out.join('');
+})();
 
 /** The constellation: the hero at its foot, two branches of stars, and the picked star's details below. */
 export function skillTree(d: TreeData): string {
@@ -159,11 +180,7 @@ export function skillTree(d: TreeData): string {
       from = to;
     }
   }
-  // A scatter of faint background stars, the same for every hero (round, whatever the sky's shape).
-  const dust = Array.from({ length: 60 }, (_, i) => {
-    const x = (i * 37.7) % 100, y = (i * 53.3 + (i % 7) * 11) % 100, r = 0.5 + ((i * 7) % 5) * 0.35;
-    return `<i style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;--r:${r.toFixed(1)}px;opacity:${(0.2 + ((i * 13) % 6) / 10).toFixed(2)}"></i>`;
-  }).join('');
+  const dust = SKY_DUST;
   const stars = d.tree
     .map((k) => {
       const [x, y] = pos(k);

@@ -1809,7 +1809,7 @@ export class CampaignView {
         <aside class="cmp-hero-list">${list}</aside>
         <section class="hv-gear">
           <div class="hv-gear-head"><b>${lower(cardDef(pick).name)}</b><small>level ${heroLevel(h.xp)} · ${h.xp} xp${nextLevelXp(h.xp) !== null ? ` · next at ${nextLevelXp(h.xp)}` : ''}</small>${bar(h.xp)}</div>
-          ${heroFigure({ race: me.race, slots, gear: h.gear, picked })}
+          ${heroFigure({ hero: pick, slots, gear: h.gear, picked })}
           <div class="hv-stores-head"><span>${picked ? `stores · ${lower(SLOT_NAME[pickedKind!])}` : 'stores'}</span>${picked ? '<button class="link-btn" data-act="cmp-slot-pick" data-arg="">show all</button>' : ''}</div>
           <div class="hv-stores">${stores || `<p class="muted">${picked ? 'Nothing found for this slot yet.' : 'Nothing found yet. Armies find gear when they take systems: more, and better, the deeper they go.'}</p>`}</div>
         </section>
