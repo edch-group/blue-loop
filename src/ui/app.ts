@@ -1979,12 +1979,14 @@ export class App {
   private peekHeld = false;
 
   /**
-   * Whether an overlay is up that the player must answer mid-move (choosing an
-   * option, or a card to recover): only then can they look past it at the board.
-   * Sheets they open and close at will just get closed instead.
+   * Whether an overlay is up that the player must answer mid-move and can't back
+   * out of: only then can they look past it at the board. One with a cancel
+   * button (choosing an option, or a card to recover) is just cancelled instead,
+   * as are sheets they open and close at will.
    */
   private canPeek(): boolean {
-    return this.screen === 'game' && !!this.pending && !this.sheet && !!this.root.querySelector('.overlay');
+    const overlay = this.root.querySelector('.overlay');
+    return this.screen === 'game' && !!this.pending && !this.sheet && !!overlay && !overlay.querySelector('button[data-act="cancel"]');
   }
 
   private setPeek(on: boolean) {
