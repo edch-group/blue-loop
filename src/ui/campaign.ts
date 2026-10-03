@@ -19,6 +19,7 @@ import {
   armyMoves,
   recruitCost,
   regionalStability,
+  logInSight,
   collapsesPerTurn,
   stabiliseProblem,
   GENERALS,
@@ -118,6 +119,9 @@ const BLOOM =
 function portrait(cardId: string): string {
   return `<span class="cmp-portrait">${cardArtLite(cardDef(cardId))}</span>`;
 }
+
+/** The base button's icon: a little house. */
+const HOME_ICON = '<svg class="cmp-home-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v8.5h11V10"/><path d="M10.2 18.5v-4.6h3.6v4.6"/></svg>';
 
 /** One of the Lost Races: a faded figure, half gone into the dark. */
 const LOST_PORTRAIT = `<span class="cmp-portrait cmp-portrait-lost"><svg viewBox="0 0 80 80" aria-hidden="true">
@@ -278,6 +282,8 @@ export class CampaignView {
   private baseTab: 'deck' | 'armory' | 'missions' = 'deck';
   /** New-campaign setup choices. */
   private setup = { rivals: 3, race: 0 };
+  /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
+  private waiting: { factionId: string | null; lines: string[] } | null = null;
   /** Visits to the armoury's keepers (each visit, they say something else). */
   private keeperVisit = 0;
   /** The base's deck and armoury: the main deck builder, put to the campaign's use. */
@@ -314,6 +320,8 @@ export class CampaignView {
     this.selected = null;
     this.view = null;
     this.skipSilentScenes();
+    // Left while the others were moving: they carry on.
+    if (s.phase === 'ai' && s.aiStepwise && !s.battle) window.setTimeout(() => void this.runOthers(), 0);
     return true;
   }
 
@@ -326,6 +334,8 @@ export class CampaignView {
 
   finishBattle(game: GameState, auto = false) {
     this.withReport('battle report', () => this.apply({ type: 'finishBattle', game, auto }));
+    // A defence over: the others carry on with their turns.
+    if (this.state?.phase === 'ai' && this.state.aiStepwise && !this.state.battle) window.setTimeout(() => void this.runOthers(), 0);
   }
 
   /** Run an action and keep its new log lines as a report. */
@@ -366,6 +376,102 @@ export class CampaignView {
     while (this.state && this.state.story.queue[0] && !this.shownLines(this.state.story.queue[0]).length) {
       this.state = applyCampaignAction(this.state, { type: 'readStory' });
       this.storyLine = 0;
+    }
+  }
+
+  /**
+   * The other factions take their turns one at a time. Those in sight are shown moving, on a waiting
+   * screen, with whatever they do that can be seen; those out of sight move unseen and at once (so with
+   * none in sight, the next turn simply begins). A battle against the player pauses it; finishing the
+   * battle carries on.
+   */
+  private async runOthers() {
+    const pause = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+    const begun = this.state;
+    if (!begun) return;
+    const turn = begun.turn;
+    let shown = false;
+    for (;;) {
+      const s = this.state;
+      if (!s || s.phase !== 'ai' || s.battle || s.winner || s.turn !== turn) break;
+      const next = s.aiQueue[0] ?? null;
+      const inSight = next !== null && this.factionInSight(next);
+      if (inSight) {
+        shown = true;
+        this.waiting = { factionId: next, lines: this.waiting?.lines ?? [] };
+        this.host.render();
+        await pause(700);
+        if (this.state !== s) break;
+      }
+      const seq = s.log[s.log.length - 1]?.seq ?? 0;
+      const seen = visibleNodes(s, s.playerId);
+      if (!this.apply({ type: 'aiStep' })) break;
+      const now = this.state!;
+      // Only what happened in sight (before or after the move) is known.
+      const after = visibleNodes(now, now.playerId);
+      const lines = now.log.filter((l) => l.seq > seq && l.turn === turn && (logInSight(now, l, now.playerId, seen) || logInSight(now, l, now.playerId, after))).map((l) => l.text);
+      if (inSight) {
+        this.waiting = { factionId: next, lines: [...(this.waiting?.lines ?? []), ...lines].slice(-6) };
+        this.host.render();
+        await pause(lines.length ? 1100 : 500);
+      } else if (lines.length && this.waiting) {
+        this.waiting.lines = [...this.waiting.lines, ...lines].slice(-6);
+      }
+    }
+    this.waiting = null;
+    const s = this.state;
+    if (shown && s && s.turn !== turn) this.host.banner(`turn ${s.turn}`, 'your move');
+    this.host.render();
+  }
+
+  /** Whether a faction can be seen at all: any of its systems or armies in sight. */
+  private factionInSight(factionId: string): boolean {
+    const s = this.state!;
+    const seen = visibleNodes(s, s.playerId);
+    return s.nodes.some((n) => n.owner === factionId && seen.has(n.id)) || s.armies.some((a) => a.owner === factionId && seen.has(a.nodeId));
+  }
+
+  /** The waiting screen while the others move: who is moving, and what of it can be seen. */
+  private renderWaiting(): string {
+    const w = this.waiting!;
+    const s = this.state!;
+    const f = w.factionId ? s.factions.find((x) => x.id === w.factionId) : null;
+    const name = f ? (f.lost ? 'the lost races' : lower(f.name)) : 'the others';
+    return `
+      <div class="cmp-waiting" aria-live="polite">
+        <div class="cmp-waiting-card" style="--fc:${f ? this.colourOf(f.id) : NEUTRAL}">
+          <div class="cmp-waiting-head">${f ? this.avatarOf(f.id, 'cmp-waiting-av') : ''}<div><small>the other factions move</small><b>${esc(name)}</b></div><span class="cmp-waiting-dots"><i></i><i></i><i></i></span></div>
+          ${w.lines.length ? `<ul class="cmp-waiting-feed">${w.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
+        </div>
+      </div>`;
+  }
+
+  /** Nothing left to do this turn: no army can move (each has marched, is refitting, or has nowhere to go). */
+  private nothingLeft(): boolean {
+    const s = this.state!;
+    if (s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length) return false;
+    return armiesOf(s, s.playerId).every((a) => armyMoves(s, a).length === 0);
+  }
+
+  /** The armoury's stock as last seen (to tag the base "new" when it changes). */
+  private armoryKey(): string {
+    const s = this.state!;
+    return `${s.turn}:${s.armory.join(',')}`;
+  }
+  private armoryIsNew(): boolean {
+    if (!this.state?.armory.length) return false;
+    try {
+      const seen = localStorage.getItem('blue-loop:armory-seen');
+      return seen !== null ? seen.split(':').slice(1).join(':') !== this.state.armory.join(',') : true;
+    } catch {
+      return false;
+    }
+  }
+  private markArmorySeen() {
+    try {
+      localStorage.setItem('blue-loop:armory-seen', this.armoryKey());
+    } catch {
+      // only a convenience
     }
   }
 
@@ -521,6 +627,7 @@ export class CampaignView {
         if (arg === 'deck' || arg === 'armory' || arg === 'missions') this.baseTab = arg;
         if (arg === 'armory') {
           this.keeperVisit++;
+          this.markArmorySeen();
           this.sheet = { kind: 'armory', tab: 'buy' };
         } else if (arg === 'deck') this.sheet = { kind: 'deck', armyId: this.sheet?.kind === 'deck' ? this.sheet.armyId : undefined };
         else this.sheet = { kind: arg as 'missions' | 'log' | 'help' | 'overview' };
@@ -590,10 +697,13 @@ export class CampaignView {
         if (this.apply({ type: 'recall', nodeId: el.dataset.node!, uid: arg })) sound.play();
         break;
       case 'cmp-end-turn':
-        if (this.withReport('turn report', () => this.apply({ type: 'endTurn' }))) {
+        if (this.apply({ type: 'endTurn', stepwise: true })) {
           sound.endTurn();
           this.selected = null;
           this.army = null;
+          this.sheet = null;
+          void this.runOthers();
+          return true;
         }
         break;
       case 'cmp-menu':
@@ -667,8 +777,7 @@ export class CampaignView {
               .join('')}</span>
           </div>
           <nav class="cmp-nav">
-            <button class="pill-btn" data-act="cmp-sheet" data-arg="base" title="Your armies' decks, the armoury and missions">base</button>
-            <button class="pill-btn" data-act="cmp-sheet" data-arg="log">log</button>
+            <button class="cmp-base-btn" data-act="cmp-sheet" data-arg="base" title="Your armies' decks, the armoury and missions">${HOME_ICON}<span>base</span>${this.armoryIsNew() ? '<i class="cmp-new">new</i>' : ''}</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="help">?</button>
             <button class="icon-btn" data-act="cmp-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
           </nav>
@@ -687,9 +796,9 @@ export class CampaignView {
                 : ''
         }
         <div class="cmp-end">
-          <button class="btn-primary" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
+          <button class="btn-primary ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
         </div>
-        ${overlay}
+        ${this.waiting ? this.renderWaiting() : overlay}
       </main>`;
   }
 
@@ -850,11 +959,6 @@ export class CampaignView {
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
           ${this.renderAnomalies(focus, prev, seen)}
           ${nodes}
-        </div>
-        <div class="cmp-cam">
-          <button class="icon-btn" data-act="cmp-zoom" data-arg="1.3" aria-label="Zoom in">+</button>
-          <button class="icon-btn" data-act="cmp-zoom" data-arg="0.77" aria-label="Zoom out">−</button>
-          <button class="icon-btn" data-act="cmp-home-view" aria-label="Centre on your home" title="Centre on your home">⌂</button>
         </div>
       </div>`;
   }

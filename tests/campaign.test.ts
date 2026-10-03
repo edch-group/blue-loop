@@ -23,6 +23,8 @@ import {
   factionIncome,
   GENERALS,
   regionalStability,
+  logInSight,
+  visibleNodes as seenBy,
   supernovaThreshold,
   recycleValue,
   deckProblems as problemsOf,
@@ -575,5 +577,26 @@ describe('armies and generals', () => {
     expect(s.armies.some((a) => a.id === lost.id)).toBe(false);
     expect(campaignPlayer(s).materials).toBeGreaterThanOrEqual(before + CAMPAIGN.winMaterials + CAMPAIGN.lostRelicMaterials);
     expect(s.cardRewards.some((r) => r.source.startsWith('Relics'))).toBe(true);
+  });
+
+  it('lets the other factions move one at a time, and shows only what is in sight', () => {
+    let s = fresh();
+    s = applyCampaignAction(s, { type: 'endTurn', stepwise: true });
+    expect(s.phase).toBe('ai');
+    expect(s.aiQueue.length).toBeGreaterThan(1);
+    const before = s.aiQueue.length;
+    s = applyCampaignAction(s, { type: 'aiStep' });
+    if (!s.battle) expect(s.aiQueue.length).toBe(before - 1);
+    for (let guard = 0; guard < 20 && s.phase === 'ai'; guard++) {
+      if (s.battle) s = applyCampaignAction(s, { type: 'finishBattle', game: s.battle.game, auto: true });
+      else s = applyCampaignAction(s, { type: 'aiStep' });
+    }
+    expect(s.turn).toBe(2);
+    // News from out of sight is not the player's to know; their own doings and news everyone hears are.
+    const seen = seenBy(s, s.playerId);
+    const far = s.nodes.find((n) => !seen.has(n.id))!;
+    expect(logInSight(s, { seq: 0, turn: 1, text: 'x', at: [far.id], who: 'f2' }, s.playerId)).toBe(false);
+    expect(logInSight(s, { seq: 0, turn: 1, text: 'x', at: [far.id], who: s.playerId }, s.playerId)).toBe(true);
+    expect(logInSight(s, { seq: 0, turn: 1, text: 'x' }, s.playerId)).toBe(true);
   });
 });

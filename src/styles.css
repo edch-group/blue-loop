@@ -1761,10 +1761,11 @@ body.screen-campaign .backdrop { display: none; }
 .hub-icon { width: clamp(26px, calc(8 * var(--vh)), 42px); aspect-ratio: 1; }
 .hub-icon svg { width: 100%; height: 100%; display: block; }
 .hub-icon svg * { fill: none; stroke: #5b5f67; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-/* Ethereal icons (see ETHER in app.ts): one colour each, translucent pearls with pale rims and a faint glow. */
-.hub-icon svg[style*="--ih"], .hub-link-icon svg[style*="--ih"] { color: var(--ih); overflow: visible; filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--ih) 35%, transparent)); }
+/* The menu icons: one blue each, flat translucent fills under a clean line. */
+.hub-icon svg[style*="--ih"], .hub-link-icon svg[style*="--ih"] { color: var(--ih); overflow: visible; }
 .hub-icon svg[style*="--ih"] *, .hub-link-icon svg[style*="--ih"] * { stroke: color-mix(in srgb, var(--ih) 78%, #fff); stroke-width: 1.5; }
-.hub-icon svg .ic-e, .hub-link-icon svg .ic-e { fill: var(--ig); }
+/* Flat: one even, translucent tint (no highlight, no glow). */
+.hub-icon svg .ic-e, .hub-link-icon svg .ic-e { fill: color-mix(in srgb, var(--ih) 16%, transparent); }
 .hub-icon svg .ic-faint, .hub-link-icon svg .ic-faint { stroke: color-mix(in srgb, var(--ih) 68%, #fff); stroke-width: 1.3; }
 .hub-icon svg defs *, .hub-link-icon svg defs * { stroke: none; }
 /* Small, the icon needs a firmer line to hold its shape. */
@@ -3712,3 +3713,28 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .stage-ls { position: absolute; right: calc(100% + 18px); top: 0; display: grid; justify-items: center; gap: 6px; animation: stage-in 0.25s ease-out; }
 .stage-ls .card { box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff, 0 0 30px rgba(212, 149, 42, 0.6); }
 .stage-ls-tag { position: absolute; top: -26px; padding: 3px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.92); color: #a86d10; font-family: var(--display); letter-spacing: 0.16em; font-size: 0.5rem; text-transform: uppercase; white-space: nowrap; box-shadow: var(--shadow); }
+
+/* ---- Campaign: the base button (larger, a house, "new" when the armoury restocks) ---- */
+.cmp-base-btn { position: relative; display: inline-flex; align-items: center; gap: 8px; height: clamp(36px, calc(8 * var(--vh)), 44px); padding: 0 18px 0 14px; border-radius: 999px; border: 1px solid #fff; background: var(--glass-strong); box-shadow: var(--shadow); font-family: var(--display); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); cursor: pointer; }
+.cmp-base-btn:hover { box-shadow: 0 6px 18px rgba(80, 84, 100, 0.18); }
+.cmp-home-icon { width: 20px; height: 20px; fill: none; stroke: #5f8fc4; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cmp-new { position: absolute; top: -7px; right: -6px; padding: 2px 7px; border-radius: 999px; background: #5f8fc4; color: #fff; font-style: normal; font-size: 0.48rem; letter-spacing: 0.14em; box-shadow: 0 2px 6px rgba(60, 90, 140, 0.35); }
+
+/* ---- Campaign: end turn pulses once nothing is left to move ---- */
+.cmp-end-pulse { animation: cmp-end-pulse 1.8s ease-in-out infinite; }
+@keyframes cmp-end-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(95, 143, 196, 0.45), var(--shadow); } 50% { box-shadow: 0 0 0 10px rgba(95, 143, 196, 0), var(--shadow); } }
+
+/* ---- Campaign: waiting while the other factions move ---- */
+.cmp-waiting { position: absolute; inset: 0; z-index: 40; display: grid; justify-items: center; align-items: start; padding-top: calc(70px + 4 * var(--vh)); background: linear-gradient(180deg, rgba(240, 239, 236, 0.35), rgba(240, 239, 236, 0.1)); cursor: progress; }
+.cmp-waiting-card { width: min(440px, calc(100% - 32px)); padding: 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, 0.9); border: 1px solid #fff; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--fc) 40%, transparent), var(--shadow); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); animation: cmp-guide-in 0.25s ease-out both; }
+.cmp-waiting-head { display: flex; align-items: center; gap: 12px; }
+.cmp-waiting-head .fav, .cmp-waiting-av { width: 40px; height: 40px; }
+.cmp-waiting-head small { display: block; font-size: 0.56rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+.cmp-waiting-head b { font-family: var(--display); font-weight: 500; font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); }
+.cmp-waiting-dots { margin-left: auto; display: inline-flex; gap: 4px; }
+.cmp-waiting-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--fc); opacity: 0.3; animation: cmp-dot 1.2s ease-in-out infinite; }
+.cmp-waiting-dots i:nth-child(2) { animation-delay: 0.2s; }
+.cmp-waiting-dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes cmp-dot { 50% { opacity: 1; } }
+.cmp-waiting-feed { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.cmp-waiting-feed li { font-size: 0.74rem; line-height: 1.4; color: var(--ink-soft); padding: 4px 8px; border-radius: 8px; background: #f4f3f0; animation: cmp-guide-in 0.25s ease-out both; }
