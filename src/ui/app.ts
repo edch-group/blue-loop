@@ -1084,12 +1084,12 @@ export class App {
     this.showBanner('dawn', `round ${roman(s.round)}`, delay);
   }
 
-  /** You ended your day: "Dusk", as "Dawn" greets its start (not when the next day is yours too, as in hot-seat). */
+  /** You ended your day: "<rival>'s dawn", as "Dawn" greets the start of yours (not when the next day is yours too, as in hot-seat). */
   private announceDusk(actor: PlayerState, next: GameState) {
     if (actor.isAI || isGameOver(next)) return;
     const you = this.viewer().id;
     if (actor.id !== you || activePlayer(next).id === you || !activePlayer(next).isAI && !this.online) return;
-    this.showBanner('dusk', `round ${roman(next.round)}`, 0);
+    this.showBanner(`${activePlayer(next).name.toLowerCase()}'s dawn`, `round ${roman(next.round)}`, 0);
   }
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
@@ -3614,7 +3614,7 @@ export class App {
           <small>${myTurn ? 'energy' : 'waiting'}</small>
           <span class="plays-pips">${pips}</span>
         </div>
-        <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>${s.awaitingDawn && act ? 'break dawn' : 'end day'}</button>
+        <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>${s.awaitingDawn && act ? 'dawn' : 'end day'}</button>
       </div>`;
   }
 
