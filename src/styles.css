@@ -471,6 +471,8 @@ input { font: inherit; }
 .card.card-pricey { cursor: not-allowed; }
 @media (hover: hover) {
   .card.card-pricey.lifted { transform: none; }
+  /* In the hand it keeps its place in the fan, and its angle (a Command card stays on its side). */
+  .hand > .card.card-pricey.lifted { transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg))); }
 }
 /* Display cards float slightly above the board. */
 .display .card { box-shadow: 0 6px 18px rgba(80, 84, 100, 0.16), 0 1px 3px rgba(80, 84, 100, 0.1); }
