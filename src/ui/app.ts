@@ -2142,6 +2142,15 @@ export class App {
     this.preview.style.left = `${Math.min(page.w - w - 16, page.w * 0.78 - w / 2)}px`;
     this.preview.style.top = `${(page.h - h) / 2}px`;
     this.preview.classList.add('show');
+    // A card held in the deck builder's deck list: in the middle of the screen, clear of the thumb.
+    if (!beside && el.closest('.db-rows')) {
+      const pw = this.preview.offsetWidth, ph = this.preview.offsetHeight;
+      // (Its explanations sit to its left: centre the two together.)
+      const list = this.preview.querySelector<HTMLElement>('.kw-list');
+      const lw = list ? list.offsetWidth + 12 : 0;
+      this.preview.style.left = `${Math.max(8 + lw, (page.w - pw - lw) / 2 + lw)}px`;
+      this.preview.style.top = `${(page.h - ph) / 2}px`;
+    }
     if (beside) {
       // Left of the panel, level with the row (kept on screen).
       const r = pageRect(beside), row = pageRect(el);

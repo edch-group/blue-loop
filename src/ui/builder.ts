@@ -63,6 +63,10 @@ export class DeckBuilder {
   /** The filters popover, open or shut, and which of its dropdowns is open. */
   private filtersOpen = false;
   private dropOpen: string | null = null;
+  /** The deck as it was opened (to tell whether leaving would lose changes), and the leave-without-saving question. */
+  private openedAs: SavedDeck | null = null;
+  private openedSnap = '';
+  private confirmExit = false;
   /** How big the cards in the pool are (small fits more on a screen). Remembered on this device. */
   private grid: 'sm' | 'md' | 'lg' = (() => {
     try {
@@ -96,6 +100,18 @@ export class DeckBuilder {
       case 'db-back':
         if (this.editing) this.editing = this.starter = null;
         else this.host.done();
+        break;
+      case 'db-exit':
+        // Leave the deck: ask first if that would lose changes.
+        if (d && snap(d) !== this.openedSnap) this.confirmExit = true;
+        else this.editing = this.starter = null;
+        break;
+      case 'db-exit-keep':
+        this.confirmExit = false;
+        break;
+      case 'db-exit-discard':
+        this.confirmExit = false;
+        this.editing = this.starter = null;
         break;
       case 'db-view': {
         // A starter opens just as a deck of your own does; change anything and it saves as a copy.
@@ -196,12 +212,14 @@ export class DeckBuilder {
         else if (copies >= copyLimit(arg)) this.host.toast(copyLimit(arg) === 1 ? `${cardDef(arg).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`);
         else if (cardDef(arg).kind === 'command' && commands >= commandCardsFor(BALANCE.maxDeckSize)) this.host.toast(`A deck holds at most ${commandCardsFor(BALANCE.maxDeckSize)} Command cards (one per ${BALANCE.cardsPerCommand} cards).`);
         else d.cards.push(arg);
+        d.race = deckRace(d);
         break;
       }
       case 'db-remove': {
         if (!d) return true;
         const i = d.cards.lastIndexOf(arg);
         if (i >= 0) d.cards.splice(i, 1);
+        d.race = deckRace(d);
         break;
       }
       case 'db-save': {
@@ -237,6 +255,12 @@ export class DeckBuilder {
   }
 
   render(): string {
+    // A deck just opened: remember it as it was.
+    if (this.editing && this.editing !== this.openedAs) {
+      this.openedAs = this.editing;
+      this.openedSnap = snap(this.editing);
+      this.confirmExit = false;
+    }
     return this.editing ? this.renderEditor(this.editing) : this.renderList();
   }
 
@@ -288,11 +312,8 @@ export class DeckBuilder {
       })
       .join('');
     const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
-    const problems = deckProblems(d.cards);
-    // (The card count is in the tally above the deck: the footer only names other problems.)
-    const shownProblem = problems.find((p) => !/^A deck needs \d/.test(p));
+    // (Saving a deck that isn't ready yet says what it still needs.)
     return `
-      ${this.header('deck builder')}
       <div class="setup-body db-editor">
         <div class="db-pool-side">
           ${this.renderFilters(d)}
@@ -301,16 +322,21 @@ export class DeckBuilder {
         <aside class="db-deck-side">
           ${this.starter ? `<div class="db-starter-note">${esc(RACE_NAMES[this.starter.race].toLowerCase())} starter · any change saves as a copy</div>` : ''}
           <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
-          <div class="db-races">${[0, 1, 2, 3].map((r) => `<button class="db-race ${d.race === r ? 'on' : ''}" data-act="db-race" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
           <div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Command card per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> command</div>
           ${this.focus ? this.renderFocus(this.focus) : ''}
           <div class="db-rows">${grouped || '<p class="muted">Tap cards on the left to add them.</p>'}</div>
+          <div class="db-actions"><button class="btn btn-small" data-act="db-exit">exit</button><button class="btn-primary btn-small" data-act="db-save">save</button></div>
         </aside>
       </div>
-      <footer class="setup-foot">
-        <span class="db-problem">${shownProblem ? esc(shownProblem) : ''}</span>
-        <button class="btn-primary" data-act="db-save" ${problems.length ? 'disabled' : ''}>${this.starter ? 'save as copy' : 'save deck'}</button>
-      </footer>`;
+      ${
+        this.confirmExit
+          ? `<div class="overlay overlay-soft db-confirm-overlay"><div class="modal db-confirm">
+              <b>leave without saving?</b>
+              <p>Your changes to ${esc(d.name || 'this deck')} will be lost.</p>
+              <div class="db-confirm-actions"><button class="btn" data-act="db-exit-keep">keep editing</button><button class="btn btn-danger" data-act="db-exit-discard">leave</button></div>
+            </div></div>`
+          : ''
+      }`;
   }
 
   /** The card pool's tiles, as the filters let them through. */
@@ -491,4 +517,22 @@ export function deckBox(d: SavedDeck, opts: { act: string; title: string; action
 export function deckCover(d: SavedDeck): string {
   const hero = coverCard(d.cards);
   return `<span class="deck-box-cover">${hero ? cardArtLite(hero) : factionAvatar(`f${d.race + 1}`, 'db-emblem')}</span>`;
+}
+
+/** A deck as it stands, to compare (its name and cards, in any order). */
+function snap(d: SavedDeck): string {
+  return `${d.name.trim()}|${[...d.cards].sort().join(',')}`;
+}
+
+/** A deck's race, from its cards: its cover hero's, or else its most common race (unchanged with neither). */
+function deckRace(d: SavedDeck): number {
+  const hero = coverCard(d.cards);
+  if (hero?.race !== undefined) return hero.race;
+  const counts = [0, 0, 0, 0];
+  for (const id of d.cards) {
+    const r = cardDef(id).race;
+    if (r !== undefined) counts[r]++;
+  }
+  const best = Math.max(...counts);
+  return best > 0 ? counts.indexOf(best) : d.race;
 }
