@@ -777,7 +777,6 @@ export class CampaignView {
               .join('')}</span>
           </div>
           <nav class="cmp-nav">
-            <button class="cmp-base-btn" data-act="cmp-sheet" data-arg="base" title="Your armies' decks, the armoury and missions">${HOME_ICON}<span>base</span>${this.armoryIsNew() ? '<i class="cmp-new">new</i>' : ''}</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="help">?</button>
             <button class="icon-btn" data-act="cmp-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
           </nav>
@@ -795,6 +794,7 @@ export class CampaignView {
                 ? `<aside class="cmp-side glass cmp-side-out" aria-hidden="true">${this.renderNode(leaving)}</aside>`
                 : ''
         }
+        <div class="cmp-base-dock"><button class="cmp-base-btn" data-act="cmp-sheet" data-arg="base" title="Your armies' decks, the armoury and missions">${HOME_ICON}<span>base</span>${this.armoryIsNew() ? '<i class="cmp-new">new</i>' : ''}</button></div>
         <div class="cmp-end">
           <button class="btn-primary ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
         </div>
