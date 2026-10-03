@@ -38,6 +38,7 @@ import {
   type CampaignState,
   type GameState,
 } from '../engine';
+import { markDirty } from './account';
 import { MENU_ICON } from './menu-icon';
 import { cardArtLite, cardGlyph, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
@@ -63,6 +64,7 @@ function saveCampaign(s: CampaignState | null) {
   try {
     if (s && !s.winner) localStorage.setItem(KEY, JSON.stringify(s));
     else localStorage.removeItem(KEY);
+    markDirty();
   } catch {
     // best-effort
   }

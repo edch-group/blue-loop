@@ -1,5 +1,6 @@
 import { deckProblems, ownsDeck, PRESET_DECKS, type DeckList } from '../engine';
 import { profile } from './profile';
+import { markDirty } from './account';
 
 /** A deck the player can pick: one of the four race presets, or one they built. */
 export interface SavedDeck extends DeckList {
@@ -24,6 +25,7 @@ export function customDecks(): SavedDeck[] {
 function store(decks: SavedDeck[]) {
   try {
     localStorage.setItem(KEY, JSON.stringify(decks));
+    markDirty();
   } catch {
     // Storage unavailable: decks last for this session only.
   }

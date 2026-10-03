@@ -1,3 +1,4 @@
+import { withSession } from './account';
 import type { Action, GameState } from '../engine';
 
 /**
@@ -62,7 +63,7 @@ export function cleanCode(s: string): string {
 
 /** Where the rooms are: the same server as the page, unless the build names another (VITE_SERVER_URL). */
 function serverUrl(code: string): string {
-  return `${serverBase()}/room/${code}`;
+  return withSession(`${serverBase()}/room/${code}`);
 }
 
 function serverBase(): string {
@@ -211,6 +212,8 @@ export interface LadderEvents {
   match(room: string, rival: { name: string; rankName: string }, rankPoints: number): void;
   /** The connection to the ladder failed. */
   lost(): void;
+  /** Ranked play needs an account: sign in first. */
+  signin(): void;
 }
 
 /**
@@ -223,7 +226,7 @@ export class LadderClient {
   private closed = false;
 
   constructor(id: string, name: string, private on: LadderEvents) {
-    this.ws = new WebSocket(`${serverBase()}/ladder`);
+    this.ws = new WebSocket(withSession(`${serverBase()}/ladder`));
     this.ws.onopen = () => this.ws.send(JSON.stringify({ t: 'queue', id, name }));
     this.ws.onmessage = (e) => {
       let msg: { t: string; [k: string]: unknown };
@@ -232,6 +235,7 @@ export class LadderClient {
       } catch {
         return;
       }
+      if (msg.t === 'signin') this.on.signin();
       if (msg.t === 'queued') this.on.queued(Number(msg.rankPoints), String(msg.rankName));
       if (msg.t === 'match') this.on.match(String(msg.room), msg.rival as { name: string; rankName: string }, Number(msg.rankPoints));
     };

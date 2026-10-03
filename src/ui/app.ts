@@ -72,6 +72,7 @@ import { cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_CO
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
+import { account, checkIn, deleteAccount, logIn, logOut, markDirty, onProgressReplaced, signUp } from './account';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
@@ -288,6 +289,18 @@ export class App {
   /** Sign-in being filled in. */
   private signinName: string | null = null;
   private signinAvatar: number | null = null;
+  /**
+   * The sign-in page: an account to sign in to (or create), or (for a guest, or once signed in) the name
+   * and emblem you go by.
+   */
+  private authMode: 'signin' | 'signup' | 'name' = 'signin';
+  private authEmail = '';
+  private authPassword = '';
+  private authError = '';
+  private authBusy = false;
+  /** The profile view's delete-account step, and the password typed for it. */
+  private deleting = false;
+  private deletePassword = '';
   /** The ranked ladder, while queued for a match. */
   private ladder: LadderClient | null = null;
   /** The booster just opened in the shop. */
@@ -471,6 +484,23 @@ export class App {
 
   start() {
     backdrop.mount();
+    // Signed in: take up any newer progress from another device (and reload to read it).
+    onProgressReplaced(() => {
+      if (this.screen === 'menu') location.reload();
+    });
+    void checkIn().then((replaced) => {
+      if (replaced && this.screen === 'menu') location.reload();
+    });
+    // Back from signing in (the page reloads to read the account's progress): on to the hub.
+    let after = false;
+    try {
+      after = sessionStorage.getItem('blue-loop:signed-in') === '1';
+      sessionStorage.removeItem('blue-loop:signed-in');
+    } catch {
+      // Not available.
+    }
+    if (after) this.menuPage = signedIn() ? 'hub' : 'signin';
+    if (after && !signedIn()) this.authMode = 'name';
     // An invite link (?room=CODE) opens the online page, ready to join.
     const invited = cleanCode(new URLSearchParams(location.search).get('room') ?? '');
     if (invited) {
@@ -554,7 +584,17 @@ export class App {
   }
 
   /** Queue for a ranked match: the ladder finds a rival within a tier of you, then both go to a room made for you. */
+  /** Ranked play keeps your rank on your account: sign in (or create one) first. */
+  private askSignIn() {
+    this.showToast('Sign in to play ranked: your rank is kept on your account.', 'info');
+    this.authMode = 'signin';
+    this.authError = '';
+    this.menuPage = 'signin';
+    this.render();
+  }
+
   private findRanked() {
+    if (!account()) return this.askSignIn();
     this.ladder?.close();
     const p = profile();
     this.net.searching = true;
@@ -576,6 +616,12 @@ export class App {
         this.net.searching = false;
         this.showToast("Couldn't reach the ranked ladder.", 'error');
         this.render();
+      },
+      signin: () => {
+        this.ladder?.close();
+        this.ladder = null;
+        this.net.searching = false;
+        this.askSignIn();
       },
     });
     this.render();
@@ -1813,6 +1859,9 @@ export class App {
     if (el.dataset.dbSearch !== undefined) this.builder.onSearch(el.value);
     if (el.dataset.joinCode !== undefined) this.net.joinCode = el.value;
     if (el.dataset.signinName !== undefined) this.signinName = el.value;
+    if (el.dataset.authEmail !== undefined) this.authEmail = el.value;
+    if (el.dataset.authPassword !== undefined) this.authPassword = el.value;
+    if (el.dataset.deletePassword !== undefined) this.deletePassword = el.value;
   }
 
   private peekHeld = false;
@@ -2097,14 +2146,82 @@ export class App {
         this.profileOpen = false;
         return this.render();
       case 'profile-logout':
-        signOut();
         this.profileOpen = false;
+        // Signed in to an account: its progress leaves this device with it.
+        if (account()) {
+          void logOut().then(() => location.reload());
+          return;
+        }
+        signOut();
         this.menuPage = 'title';
         return this.render();
       case 'profile-rename':
         this.profileOpen = false;
+        this.authMode = 'name';
         this.menuPage = 'signin';
         return this.render();
+      case 'profile-account':
+        // A guest saves their progress to a new account.
+        this.profileOpen = false;
+        this.authMode = 'signup';
+        this.authError = '';
+        this.menuPage = 'signin';
+        return this.render();
+      case 'profile-delete':
+        this.deleting = !this.deleting;
+        this.deletePassword = '';
+        this.authError = '';
+        return this.render();
+      case 'profile-delete-go':
+        if (this.authBusy) return;
+        this.authBusy = true;
+        this.render();
+        void deleteAccount(this.deletePassword).then((why) => {
+          this.authBusy = false;
+          if (why) {
+            this.authError = why;
+            return this.render();
+          }
+          location.reload();
+        });
+        return;
+      case 'auth-mode':
+        this.authMode = arg === 'signup' ? 'signup' : arg === 'name' ? 'name' : 'signin';
+        this.authError = '';
+        return this.render();
+      case 'auth-go': {
+        if (this.authBusy) return;
+        const up = this.authMode === 'signup';
+        this.authBusy = true;
+        this.authError = '';
+        this.render();
+        void (up ? signUp(this.authEmail, this.authPassword) : logIn(this.authEmail, this.authPassword)).then((why) => {
+          this.authBusy = false;
+          this.authPassword = '';
+          if (why) {
+            this.authError = why;
+            return this.render();
+          }
+          if (up) {
+            // This device's progress is the account's now: name yourself if you haven't, then on to the hub.
+            if (!signedIn()) {
+              this.authMode = 'name';
+              return this.render();
+            }
+            this.menuPage = 'hub';
+            this.showToast('Account created: your progress is saved to it.', 'info');
+            return this.render();
+          }
+          // Signed in: reload to read the account's progress.
+          try {
+            sessionStorage.setItem('blue-loop:signed-in', '1');
+          } catch {
+            // Not available.
+          }
+          location.reload();
+        });
+        return;
+      }
       case 'signin-avatar':
         this.signinAvatar = Number(arg);
         return this.render();
@@ -2123,6 +2240,7 @@ export class App {
       case 'menu-page':
         // Players sign in before they reach the hub.
         if (arg === 'hub' && !signedIn()) {
+          this.authMode = account() ? 'name' : 'signin';
           this.menuPage = 'signin';
           return this.render();
         }
@@ -2173,6 +2291,7 @@ export class App {
         this.autoConfirm = !this.autoConfirm;
         try {
           localStorage.setItem(AUTO_CONFIRM_KEY, this.autoConfirm ? '1' : '0');
+          markDirty();
         } catch {
           // ignore
         }
@@ -2184,6 +2303,7 @@ export class App {
         this.speed = order[(order.indexOf(this.speed) + 1) % order.length];
         try {
           localStorage.setItem(SPEED_KEY, this.speed);
+          markDirty();
         } catch {
           // ignore
         }
@@ -2490,9 +2610,25 @@ export class App {
             <div class="pv-box"><small>flux</small><b class="pf-flux"><i>⟁</i> ${p.flux}</b><span></span><small>crafts cards</small></div>
             <div class="pv-box"><small>rank</small><b>${rank === null ? 'unranked' : esc(rankName(rank).toLowerCase())}</b>${r ? `<span class="pf-xp"><i style="width:${r.points}%"></i></span><small>${r.points} / ${PROGRESSION.stagePoints} to the next stage</small>` : '<span></span><small>play ranked online</small>'}</div>
           </div>
-          <div class="pv-actions"><button class="btn" data-act="profile-logout">log out</button><span class="setup-spacer"></span><button class="btn" data-act="profile-rename">change name or emblem</button><button class="btn-primary" data-act="profile-close">close</button></div>
+          ${this.accountRow()}
+          <div class="pv-actions"><button class="btn" data-act="profile-logout">${account() ? 'sign out' : 'log out'}</button><span class="setup-spacer"></span><button class="btn" data-act="profile-rename">change name or emblem</button><button class="btn-primary" data-act="profile-close">close</button></div>
         </div>
       </div>`;
+  }
+
+  /** In the profile view: the account your progress is saved to (or, for a guest, the offer to make one). */
+  private accountRow(): string {
+    const a = account();
+    if (!a) {
+      return `<div class="pv-account"><span><b>guest</b><small>Your progress is only on this device.</small></span><button class="btn-primary" data-act="profile-account">create an account</button></div>`;
+    }
+    const del = this.deleting
+      ? `<div class="pv-delete"><small>This deletes your account and all its progress, for good. Enter your password to confirm.</small>
+          <input class="signin-name" type="password" data-delete-password value="" placeholder="password" autocomplete="current-password" aria-label="Password" />
+          ${this.authError ? `<span class="auth-error">${esc(this.authError)}</span>` : ''}
+          <div class="pv-actions"><button class="btn" data-act="profile-delete">cancel</button><button class="btn btn-danger" data-act="profile-delete-go" ${this.authBusy ? 'disabled' : ''}>delete account</button></div></div>`
+      : '';
+    return `<div class="pv-account"><span><b>${esc(a.email)}</b><small>Your progress is saved to your account.</small></span>${this.deleting ? '' : '<button class="btn btn-small" data-act="profile-delete">delete account</button>'}</div>${del}`;
   }
 
   /** Read a card large: in a game, the card sheet; elsewhere, a zoomed view over the menu. */
@@ -2509,18 +2645,39 @@ export class App {
     return `<div class="overlay overlay-soft zoom-view" data-act="zoom-close"><div class="zoom-card" data-act="zoom-close">${this.bigCard(this.zoomed!)}${this.explainCard(this.zoomed!)}</div><small class="muted">tap anywhere to close</small></div>`;
   }
 
-  /** Signing in: the name and emblem you go by (until accounts arrive, it lives on this device). */
+  /**
+   * Signing in: to an account (email and password), or creating one, or playing as a guest; then the
+   * name and emblem you go by.
+   */
   private renderSignIn(): string {
     const p = profile();
-    return `
-      <div class="menu-back"><button class="btn btn-small" data-act="menu-page" data-arg="title">‹ back</button></div>
+    const back = `<div class="menu-back"><button class="btn btn-small" data-act="menu-page" data-arg="title">‹ back</button></div>`;
+    if (this.authMode === 'name') {
+      return `
+      ${back}
       <div class="signin">
         ${this.titleBlock(true)}
-        <h2 class="menu-heading">sign in</h2>
+        <h2 class="menu-heading">your name</h2>
         <input class="signin-name" data-signin-name value="${esc(this.signinName ?? p.name)}" maxlength="18" placeholder="your name" aria-label="Your name" />
         <div class="signin-emblems">${[0, 1, 2, 3].map((r) => `<button class="db-race ${(this.signinAvatar ?? p.avatar) === r ? 'on' : ''}" data-act="signin-avatar" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
         <button class="btn-primary" data-act="signin-go">continue</button>
       </div>`;
+    }
+    const up = this.authMode === 'signup';
+    return `
+      ${back}
+      <form class="signin" onsubmit="return false">
+        ${this.titleBlock(true)}
+        <h2 class="menu-heading">${up ? 'create account' : 'sign in'}</h2>
+        <input class="signin-name" type="email" data-auth-email value="${esc(this.authEmail)}" placeholder="email" autocomplete="email" aria-label="Email" />
+        <input class="signin-name" type="password" data-auth-password value="" placeholder="${up ? 'password (8+ characters)' : 'password'}" autocomplete="${up ? 'new-password' : 'current-password'}" aria-label="Password" />
+        ${this.authError ? `<span class="auth-error">${esc(this.authError)}</span>` : up && signedIn() ? '<small class="auth-note">Your progress on this device goes into the new account.</small>' : ''}
+        <button class="btn-primary" type="submit" data-act="auth-go" ${this.authBusy ? 'disabled' : ''}>${this.authBusy ? '…' : up ? 'create account' : 'sign in'}</button>
+        <div class="auth-alt">
+          <button class="link-btn" type="button" data-act="auth-mode" data-arg="${up ? 'signin' : 'signup'}">${up ? 'I have an account: sign in' : 'new here? create an account'}</button>
+          ${account() ? '' : '<button class="link-btn" type="button" data-act="auth-mode" data-arg="name">play as a guest</button>'}
+        </div>
+      </form>`;
   }
 
   /** The shop: booster packs (one for each race, and a general one), to rip open. */
@@ -2638,7 +2795,7 @@ export class App {
             <div class="online-box online-ranked">
               <b>ranked</b>
               <p>${profile().rankPoints === null ? 'Play rivals within one rank of you, and climb from Olivine I.' : `You are ${esc(rankName(profile().rankPoints!))}. You meet rivals within one rank of you.`}</p>
-              ${this.net.searching ? '<span class="muted">searching for a rival…</span><button class="btn" data-act="ranked-cancel">cancel</button>' : '<button class="btn-primary" data-act="ranked-find">find a match</button>'}
+              ${!account() ? '<button class="btn-primary" data-act="ranked-find">sign in to play</button>' : this.net.searching ? '<span class="muted">searching for a rival…</span><button class="btn" data-act="ranked-cancel">cancel</button>' : '<button class="btn-primary" data-act="ranked-find">find a match</button>'}
             </div>
             <div class="online-box">
               <b>join a game</b>

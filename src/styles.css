@@ -2694,6 +2694,19 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .signin { display: grid; justify-items: center; gap: 14px; }
 .signin-name { width: min(280px, 80vw); height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #e3e6ee; background: #fff; text-align: center; font-family: var(--display); letter-spacing: 0.12em; font-size: 0.8rem; color: var(--ink); }
 .signin-emblems { display: flex; gap: 10px; }
+/* Accounts: the sign-in form's notes, its other routes (as quiet text links), and the profile's account row. */
+.auth-error { color: #c0563d; font-size: 0.78rem; max-width: 320px; text-align: center; }
+.auth-note { color: var(--ink-soft); font-size: 0.72rem; max-width: 300px; text-align: center; }
+.auth-alt { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; }
+.link-btn { border: 0; background: none; padding: 4px 2px; cursor: pointer; font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); text-decoration: underline; text-decoration-color: rgba(120, 128, 150, 0.35); text-underline-offset: 3px; }
+@media (hover: hover) { .link-btn:hover { color: var(--ink); } }
+.pv-account { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.7); box-shadow: inset 0 0 0 1px rgba(150, 160, 185, 0.25); }
+.pv-account span { display: grid; gap: 2px; min-width: 0; }
+.pv-account b { font-family: var(--display); font-weight: 500; letter-spacing: 0.06em; overflow: hidden; text-overflow: ellipsis; }
+.pv-account small { color: var(--ink-soft); }
+.pv-delete { display: grid; gap: 8px; justify-items: start; }
+.pv-delete small { color: var(--ink-soft); }
+.btn.btn-danger { color: #b23c24; }
 
 /* ---------- The shop: booster packs to rip open ---------- */
 .shop-body { display: grid; align-content: center; justify-items: center; gap: clamp(10px, calc(2.4 * var(--vh)), 20px); }

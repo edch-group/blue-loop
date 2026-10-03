@@ -448,6 +448,17 @@ Two players, each on their own device. From **Quickplay → play online**, one p
 - **Rematches** alternate who goes first. Rooms delete themselves after a day without play.
 - **Code:** `server/room.ts` holds the room logic (tested in `tests/room.test.ts`), `server/worker.ts` the Worker and Durable Object, and `src/ui/online.ts` the client connection.
 
+## Accounts
+
+Players can create an account (email and password) so their progress follows them to any device. Without one they play as a **guest**, and progress stays on that device; a guest can make an account at any time from their profile, and their progress on that device goes into it.
+- **What an account keeps:** the profile (name, emblem, level, currencies, collection, record), custom decks, the campaign, and settings (sound, music, AI speed, auto-confirm). An unfinished quickplay game stays on the device.
+- **How it syncs:** the device keeps a copy and plays from it as before. A change goes to the account a couple of seconds later (and as the page closes). On opening, the game checks for a newer copy saved from another device and takes it up. If two devices both changed, the one that saved first wins and the other takes up its copy.
+- **Ranked needs an account.** A player's rank is kept on their account, and the server takes who you are from your session, never from what the device says, so no one can play as someone else on the ladder.
+- **Signing out** takes the account's progress off the device (it's safe on the server), leaving a fresh guest. **Deleting the account** (profile → delete account, with the password) removes it and all its progress for good.
+- **Security:** passwords are hashed with PBKDF2-SHA-256 (100,000 rounds, a random salt each); sessions are random tokens, stored only as hashes, in an HTTP-only cookie (the native app sends a Bearer header); sign-in attempts are rate-limited per email and per address.
+- **Not yet:** the server stores progress as the device sends it, so a determined player could still edit their own currencies before it syncs. Making boosters, crafting and rewards server-side would close that. Sign in with Apple or Google, and password reset by email, are next.
+- **Code:** `server/accounts.ts` (the API, tested in `tests/accounts.test.ts`), `migrations/` (the D1 schema), `src/ui/account.ts` (sign-in and sync).
+
 ## Progression, collection and ranks [design review]
 
 Outside a single game, each player has a **profile** (kept on their device): a level, two currencies and a card collection. Players **sign in** (a name and an emblem) before the hub; until there are accounts, that lives on the device too. Their chip sits top right on the hub and in the shop (emblem, name, level, both currencies); tapping it opens the whole profile (level and experience, currencies, rank and record), with **log out**, which returns to the title screen (the hub has no back button: you log out to leave it).

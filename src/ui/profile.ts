@@ -12,6 +12,7 @@ import {
   type Collection,
   type Reward,
 } from '../engine';
+import { markDirty } from './account';
 
 /**
  * The player's profile on this device: level, experience, both currencies and
@@ -69,6 +70,7 @@ export function profile(): Profile {
 function store() {
   try {
     if (cached) localStorage.setItem(KEY, JSON.stringify(cached));
+    markDirty();
   } catch {
     // Storage unavailable: progress lasts for this session only.
   }

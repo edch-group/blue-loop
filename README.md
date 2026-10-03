@@ -56,6 +56,17 @@ Wrangler prints the address, e.g. `https://blue-loop.<your-subdomain>.workers.de
 
 **Playing online from the Pages site:** the Pages build only has the game files, not the rooms. To play online from your `*.pages.dev` address, set the environment variable `VITE_SERVER_URL=https://blue-loop.<your-subdomain>.workers.dev` in the Pages project's build settings and redeploy. Otherwise share the `workers.dev` address, which has both.
 
+## Accounts
+
+Accounts (email and password) live in a Cloudflare **D1** database, `blue-loop-accounts`, bound to the Worker as `DB` in `wrangler.toml`. The schema is in `migrations/`; it is already applied to the live database. A new migration is applied with:
+
+```bash
+npx wrangler d1 migrations apply blue-loop-accounts --remote   # the live database
+npx wrangler d1 migrations apply blue-loop-accounts --local    # the one `npm run server` uses
+```
+
+The API is at `/api/*` on the Worker (sign up, sign in, sign out, load and save progress, delete account). See "Accounts" in `docs/GAME_DESIGN.md`.
+
 ## Native iPhone / iPad app (locked to landscape)
 
 A web app added from Safari cannot lock its orientation: iOS doesn't allow it. The native app can,

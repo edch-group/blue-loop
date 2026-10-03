@@ -1,3 +1,4 @@
+import { markDirty } from './account';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -117,6 +118,7 @@ class SoundBoard {
   private store(key: string, value: string) {
     try {
       localStorage.setItem(key, value);
+      markDirty();
     } catch {
       // ignore
     }

@@ -18,13 +18,13 @@
  *   POST /api/delete  { password }                 → { ok }   (the account and everything in it)
  */
 
+import { COOKIE, hashPassword, normaliseEmail, passwordProblem, randomToken, sameHex, sessionToken, sha256 } from './auth';
+
 export interface AccountsEnv {
   DB: D1Database;
 }
 
-const COOKIE = 'bl_session';
 const SESSION_DAYS = 90;
-const PBKDF2_ROUNDS = 100_000;
 /** At most this many sign-in attempts per email, and per address, in a window. */
 const ATTEMPTS = 10;
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
@@ -36,66 +36,6 @@ const NATIVE_ORIGINS = new Set(['capacitor://localhost', 'ionic://localhost', 'h
 export interface Account {
   id: string;
   email: string;
-}
-
-// ---------------------------------------------------------------------------
-// Pure helpers (tested in tests/accounts.test.ts)
-// ---------------------------------------------------------------------------
-
-const enc = new TextEncoder();
-
-export function toHex(buf: ArrayBuffer | Uint8Array): string {
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-export function randomToken(bytes = 32): string {
-  return toHex(crypto.getRandomValues(new Uint8Array(bytes)));
-}
-
-export async function sha256(text: string): Promise<string> {
-  return toHex(await crypto.subtle.digest('SHA-256', enc.encode(text)));
-}
-
-export async function hashPassword(password: string, saltHex: string): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const salt = new Uint8Array(saltHex.match(/../g)!.map((h) => parseInt(h, 16)));
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PBKDF2_ROUNDS }, key, 256);
-  return toHex(bits);
-}
-
-/** Compare two hex strings in constant time (no early exit on the first difference). */
-export function sameHex(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-export function normaliseEmail(raw: unknown): string | null {
-  const email = String(raw ?? '').trim().toLowerCase();
-  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
-}
-
-/** Why a password won't do, or null if it will. */
-export function passwordProblem(raw: unknown): string | null {
-  const p = String(raw ?? '');
-  if (p.length < 8) return 'Use at least 8 characters for your password.';
-  if (p.length > 200) return 'That password is too long.';
-  return null;
-}
-
-/**
- * The session token a request carries: the Bearer header (native app), the cookie (browser), or (for
- * the native app's WebSockets, which can't set headers) `?session=` on the URL.
- */
-export function sessionToken(request: Request): string | null {
-  const auth = request.headers.get('Authorization');
-  if (auth?.startsWith('Bearer ')) return auth.slice(7).trim() || null;
-  const q = new URL(request.url).searchParams.get('session');
-  if (q && /^[a-f0-9]{64}$/.test(q)) return q;
-  const cookie = request.headers.get('Cookie') ?? '';
-  const m = new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]{64})`).exec(cookie);
-  return m ? m[1] : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +115,7 @@ function saveOf(raw: unknown): string | null {
   if (raw === undefined || raw === null) return null;
   if (typeof raw !== 'object' || Array.isArray(raw)) throw new HttpError(400, 'Bad save.');
   const text = JSON.stringify(raw);
-  if (enc.encode(text).length > MAX_SAVE_BYTES) throw new HttpError(413, 'That is too much to save.');
+  if (new TextEncoder().encode(text).length > MAX_SAVE_BYTES) throw new HttpError(413, 'That is too much to save.');
   return text;
 }
 
