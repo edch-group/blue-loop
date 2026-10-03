@@ -1729,19 +1729,19 @@ body.screen-campaign .backdrop { display: none; }
 .menu.menu-hub > .hub-links { position: absolute; top: max(12px, var(--sa-t)); left: max(18px, var(--sa-l, 0px)); z-index: 2; display: flex; gap: clamp(14px, calc(2.4 * var(--vw)), 28px); height: 46px; align-items: center; }
 .hub-link {
   display: flex; align-items: center; gap: 7px; padding: 4px 2px; border: 0; background: none; cursor: pointer;
-  font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); transition: color 0.15s;
+  font-family: var(--display); font-weight: 600; font-size: 0.64rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); transition: color 0.15s;
 }
-.hub-link-icon { width: 18px; height: 18px; display: block; }
+.hub-link-icon { width: 22px; height: 22px; display: block; }
 .hub-link-icon svg, .hub-options svg { width: 100%; height: 100%; display: block; }
 .hub-link-icon svg *, .hub-options svg * { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-@media (hover: hover) { .hub-link:hover, .hub-options:hover { color: var(--ink); } }
+@media (hover: hover) { .hub-link:hover, .hub-options:hover { color: #3f6fa8; } }
 /* A little colour: the collection's cards in three races' colours, the shop's bag in gold. */
 /* You and options, top right. */
 .menu.menu-hub > .hub-corner { position: absolute; top: max(12px, var(--sa-t)); right: max(18px, var(--sa-r, 0px)); z-index: 2; display: flex; align-items: stretch; gap: 8px; }
 /* Options: the player card's own pill, as tall as it, as wide as its icon needs. */
 .hub-options {
   display: grid; place-items: center; padding: 0 12px; border-radius: 999px; border: 1px solid #fff; cursor: pointer;
-  background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 14px rgba(80, 84, 100, 0.12); color: var(--ink-soft); transition: color 0.15s, box-shadow 0.15s;
+  background: rgba(255, 255, 255, 0.92); box-shadow: 0 4px 14px rgba(80, 84, 100, 0.12); color: #5f8fc4; transition: color 0.15s, box-shadow 0.15s;
 }
 .hub-options svg { width: 20px; height: 20px; }
 @media (hover: hover) { .hub-options:hover { box-shadow: 0 6px 18px rgba(80, 84, 100, 0.18); } }
@@ -1767,6 +1767,8 @@ body.screen-campaign .backdrop { display: none; }
 .hub-icon svg .ic-e, .hub-link-icon svg .ic-e { fill: var(--ig); }
 .hub-icon svg .ic-faint, .hub-link-icon svg .ic-faint { stroke: color-mix(in srgb, var(--ih) 68%, #fff); stroke-width: 1.3; }
 .hub-icon svg defs *, .hub-link-icon svg defs * { stroke: none; }
+/* Small, the icon needs a firmer line to hold its shape. */
+.hub-link-icon svg[style*="--ih"] * { stroke: color-mix(in srgb, var(--ih) 92%, #000); stroke-width: 2.2; }
 .hub-name { font-family: var(--display); font-weight: 700; font-size: clamp(0.56rem, calc(2.3 * var(--vh)), 0.78rem); letter-spacing: 0.2em; text-transform: uppercase; padding-left: 0.24em; }
 .hub-blurb { color: var(--ink-soft); font-size: clamp(0.62rem, calc(2.4 * var(--vh)), 0.8rem); line-height: 1.45; max-width: 22ch; }
 .hub-continue { justify-self: center; }
