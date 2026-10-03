@@ -761,9 +761,10 @@ input { font: inherit; }
     linear-gradient(90deg, color-mix(in srgb, var(--bb) 55%, transparent), color-mix(in srgb, var(--ba) 55%, transparent), color-mix(in srgb, var(--bb) 55%, transparent)) center / 100% 4px no-repeat,
     linear-gradient(90deg, color-mix(in srgb, var(--ba) 45%, transparent), color-mix(in srgb, var(--bb) 45%, transparent), color-mix(in srgb, var(--ba) 45%, transparent), color-mix(in srgb, var(--bb) 45%, transparent));
 }
+.beam { box-shadow: 0 0 1px color-mix(in srgb, var(--c) 22%, transparent); }
 .beam::after {
-  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1.4px; margin-top: -0.7px; border-radius: 999px;
-  background: var(--c); box-shadow: 0 0 1.5px color-mix(in srgb, var(--c) 70%, transparent), 0 0 5px color-mix(in srgb, var(--c) 55%, transparent);
+  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 0.8px; margin-top: -0.4px; border-radius: 999px; opacity: 0.9;
+  background: color-mix(in srgb, var(--c) 55%, #fff); box-shadow: 0 0 0.6px color-mix(in srgb, var(--c) 30%, transparent);
 }
 .bolt { position: fixed; left: 0; top: 0; z-index: 45; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #fff 0 30%, var(--c) 60%, transparent 72%); box-shadow: 0 0 22px 6px var(--c); }
 .fx-hot .orb-core { animation: hitHot 0.8s ease-out; }
@@ -2533,14 +2534,15 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 /* Beams are like glowsticks: an evenly translucent body of two overlapping bands of shifting tint (no
    fade, no hard edge) round a thin core of the key colour, which glows on its own. Red for an attack,
    blue for cooling, white for anything else. */
-.tether { --beam: #ffffff; --beam-a: #c9d2e6; --beam-b: #e9eef8; --beam-glow: rgba(90, 104, 140, 0.5); }
-.tether.tether-aim { --beam: #e0452f; --beam-a: #ec6447; --beam-b: #ff9a80; --beam-glow: rgba(224, 69, 47, 0.6); }
+.tether { --beam: #ffffff; --beam-a: #c9d2e6; --beam-b: #e9eef8; --beam-glow: rgba(90, 104, 140, 0.22); }
+.tether.tether-aim { --beam: #ffe2d8; --beam-a: #ec6447; --beam-b: #ff9a80; --beam-glow: rgba(200, 50, 30, 0.25); }
 .beam-a { stop-color: var(--beam-a); }
 .beam-b { stop-color: var(--beam-b); }
-.tether-glow { stroke-width: 8; opacity: 0.5; filter: blur(1px); }
-.tether-tube { stroke-width: 5; opacity: 0.55; filter: blur(0.5px); }
-.tether-line { stroke: var(--beam); stroke-width: 1.4; filter: drop-shadow(0 0 1.5px var(--beam-glow)) drop-shadow(0 0 4px var(--beam-glow)); }
-.tether-tip { fill: none; stroke: var(--beam); stroke-width: 1.4; opacity: 0.7; filter: drop-shadow(0 0 4px var(--beam-glow)); }
+.tether-glow { stroke-width: 8; opacity: 0.5; filter: drop-shadow(0 0 1px var(--beam-glow)); }
+.tether-tube { stroke-width: 5; opacity: 0.55; }
+/* The core: a hairline, a lighter tint of the key colour (the bright heart of a glowstick), a tight faint shadow. */
+.tether-line { stroke: var(--beam); stroke-width: 0.8; opacity: 0.9; filter: drop-shadow(0 0 0.6px var(--beam-glow)); }
+.tether-tip { fill: none; stroke: var(--beam); stroke-width: 1; opacity: 0.6; filter: drop-shadow(0 0 1px var(--beam-glow)); }
 
 /* ---------- Start-of-turn forecast: symbols centred between the tableaus ---------- */
 /* Yours above your row, your rival's beneath theirs, so both sit in the middle of the board. */
