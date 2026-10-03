@@ -6,3 +6,4 @@ export { chooseAIAction } from './ai';
 export * from './campaign';
 export * from './progression';
 export * from './keywords';
+export * from './cover';

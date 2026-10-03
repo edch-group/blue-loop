@@ -1,4 +1,4 @@
-import { BALANCE, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, coverCard, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { cardArtLite, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
@@ -466,13 +466,6 @@ export class DeckBuilder {
   }
 }
 
-/** A deck's cover: its most expensive Command card (by energy, then rarity, then name), if it has one. */
-function coverHero(cards: string[]): CardDef | null {
-  const heroes = [...new Set(cards)].map(cardDef).filter((c) => c.kind === 'command');
-  heroes.sort((a, b) => cardCost(b.id) - cardCost(a.id) || craftCost(b.id) - craftCost(a.id) || a.name.localeCompare(b.name));
-  return heroes[0] ?? null;
-}
-
 /**
  * A deck as a deck box: a little 3D box in its race's colour, its cover the hero of its most expensive
  * Command card (its emblem if it has none), the deck's make-up beneath and any buttons under that.
@@ -497,6 +490,6 @@ export function deckBox(d: SavedDeck, opts: { act: string; title: string; action
 
 /** A deck's round cover: its hero's picture, or its race's emblem. */
 export function deckCover(d: SavedDeck): string {
-  const hero = coverHero(d.cards);
+  const hero = coverCard(d.cards);
   return `<span class="deck-box-cover">${hero ? cardArtLite(hero) : factionAvatar(`f${d.race + 1}`, 'db-emblem')}</span>`;
 }

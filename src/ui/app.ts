@@ -629,7 +629,7 @@ export class App {
   private joinInfo() {
     const seat = this.seats[0];
     const deck = deckById(seat.deckId) ?? PRESETS[0];
-    return { name: seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race, profileId: profile().id };
+    return { name: profile().name || seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race, profileId: profile().id };
   }
 
   private goOnline(code?: string) {
@@ -3057,12 +3057,17 @@ export class App {
     const current = deckById(this.seats[seat].deckId) ?? PRESETS[seat];
     const recent = recentDecks(seat).map((id) => deckById(id)).filter((d): d is SavedDeck => !!d);
     const decks = (recent.some((d) => d.id === current.id) ? recent : [current, ...recent]).slice(0, 3);
-    const box = (d: SavedDeck) => `
-      <button class="lobby-deck ${d.id === current.id ? 'on' : ''}" data-act="seat-recent" data-arg="${seat}:${d.id}" title="${esc(d.name)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">
+    return `<div class="qp-decks">${decks.map((d) => this.deckBoxMini(d, d.id === current.id, `data-act="seat-recent" data-arg="${seat}:${d.id}"`)).join('')}</div>`;
+  }
+
+  /** A small deck box with its name beneath: a button when `attrs` give it an action. */
+  private deckBoxMini(d: SavedDeck, on: boolean, attrs = ''): string {
+    const tag = attrs ? 'button' : 'div';
+    return `
+      <${tag} class="lobby-deck ${on ? 'on' : ''}" ${attrs} title="${esc(d.name)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">
         <span class="deck-box"><span class="deck-box-top"></span><span class="deck-box-side"></span><span class="deck-box-front">${deckCover(d)}</span></span>
         <small>${esc(d.name.toLowerCase())}</small>
-      </button>`;
-    return `<div class="qp-decks">${decks.map(box).join('')}</div>`;
+      </${tag}>`;
   }
 
   /** Choosing a seat's deck: every deck as a deck box; tap one to take it. */
@@ -3091,38 +3096,37 @@ export class App {
 
   /** Online 1v1: create a room or join one; then the room code, the invite and who is in. */
   private renderOnline(): string {
-    const seat = this.seats[0];
-    const deck = deckById(seat.deckId) ?? PRESETS[0];
-    // In the lobby you can still change your name, deck and race, until the game starts.
+    // You, as in quickplay: your name, your decks as boxes, and every deck a tap away.
     const you = (extra = '') => `
-      <div class="seat-tile online-you">
-        ${factionAvatar(`f${deck.race + 1}`, 'seat-emblem')}
-        <input data-seat-name="0" value="${esc(seat.name)}" maxlength="18" aria-label="Your name" />
-        <button class="seat-deck" data-act="seat-deck" data-arg="0" title="Tap to change deck"><small>your deck · ${esc(RACE_NAMES[deck.race].toLowerCase())}</small><span>${esc(deck.name.toLowerCase())}</span></button>
-        ${extra}
+      <div class="qp-seat online-me">
+        <div class="qp-head"><span class="seat-name">${esc(profile().name || 'Commander')}</span>${extra}</div>
+        ${this.seatDecks(0)}
+        <button class="link-btn qp-all" data-act="seat-deck" data-arg="0">view decks</button>
       </div>`;
     if (!this.online) {
+      const rank = profile().rankPoints;
+      const mode = (title: string, sub: string, action: string, cls = '') => `
+        <div class="online-mode ${cls}">
+          <div class="online-mode-text"><b>${title}</b><small>${sub}</small></div>
+          <div class="online-mode-act">${action}</div>
+        </div>`;
       return this.setupPage(
         'play online',
-        `<div class="online-wrap">
+        `<div class="online-page">
           ${you()}
-          <div class="online-choices">
-            <div class="online-box">
-              <b>host a game</b>
-              <p>Get a room code and an invite link to send a friend.</p>
-              <button class="btn-primary" data-act="online-create">create room</button>
-            </div>
-            <div class="online-box online-ranked">
-              <b>ranked</b>
-              <p>${profile().rankPoints === null ? 'Play rivals within one rank of you, and climb from Olivine I.' : `You are ${esc(rankName(profile().rankPoints!))}. You meet rivals within one rank of you.`}</p>
-              ${!account() ? '<button class="btn-primary" data-act="ranked-find">sign in to play</button>' : this.net.searching ? '<span class="muted">searching for a rival…</span><button class="btn" data-act="ranked-cancel">cancel</button>' : '<button class="btn-primary" data-act="ranked-find">find a match</button>'}
-            </div>
-            <div class="online-box">
-              <b>join a game</b>
-              <p>Enter the code your friend sent you.</p>
-              <input class="online-code" data-join-code value="${esc(this.net.joinCode)}" maxlength="8" placeholder="CODE" autocapitalize="characters" aria-label="Room code" />
-              <button class="btn-primary" data-act="online-join">join</button>
-            </div>
+          <div class="online-modes">
+            ${mode('host a game', 'a room code and link to send a friend', '<button class="btn-primary" data-act="online-create">create room</button>')}
+            ${mode(
+              'ranked',
+              rank === null ? 'climb from olivine i against rivals near your rank' : `${esc(rankName(rank).toLowerCase())} · rivals within one rank`,
+              this.net.searching ? '<span class="muted">searching…</span><button class="btn" data-act="ranked-cancel">cancel</button>' : '<button class="btn-primary" data-act="ranked-find">find a match</button>',
+            )}
+            ${mode(
+              'join a game',
+              'the code your friend sent you',
+              `<input class="online-code" data-join-code value="${esc(this.net.joinCode)}" maxlength="8" placeholder="code" autocapitalize="characters" aria-label="Room code" /><button class="btn-primary" data-act="online-join">join</button>`,
+              'online-join',
+            )}
           </div>
         </div>`,
         '<span class="muted">1v1 · each player on their own device</span>',
@@ -3134,7 +3138,15 @@ export class App {
     const seats = this.net.lobby ?? [];
     const rival = seats.find((_, i) => i !== this.net.you);
     const ready = !!seats[this.net.you]?.ready;
-    const tag = (on: boolean, who: string) => `<span class="ready-tag ${on ? 'ready-on' : ''}">${on ? '✓ ready' : who}</span>`;
+    const tag = (on: boolean, who: string) => `<span class="ready-tag ${on ? 'ready-on' : ''}">${on ? 'ready' : who}</span>`;
+    // Your rival: their name and their deck's box (theirs to choose, so not a button).
+    const rivalSeat = rival
+      ? `<div class="qp-seat online-rival">
+          <div class="qp-head"><span class="seat-name">${esc(rival.name)}</span>${tag(rival.ready, 'choosing')}</div>
+          <div class="qp-decks">${this.deckBoxMini({ id: 'rival', name: rival.deckName, race: rival.species, cards: rival.cover ? [rival.cover] : [] } as SavedDeck, false)}</div>
+          <span class="qp-all muted">their deck</span>
+        </div>`
+      : '<div class="qp-seat online-rival online-waiting"><span class="online-pulse"></span><b>waiting for your opponent</b><small>send them the code or the link</small></div>';
     return this.setupPage(
       'play online',
       `<div class="online-wrap">
@@ -3143,15 +3155,12 @@ export class App {
           : `<div class="online-room">
           <small>room code</small>
           <b class="online-room-code">${code}</b>
-          <button class="btn" data-act="online-share">share invite link</button>
-          <span class="muted online-link">${esc(inviteLink(code))}</span>
+          <button class="pill-btn" data-act="online-share">share invite link</button>
         </div>`}
         <div class="online-seats">
           ${you(tag(ready, 'not ready'))}
           <span class="online-vs">vs</span>
-          ${rival
-            ? `<div class="seat-tile">${factionAvatar(`f${rival.species + 1}`, 'seat-emblem')}<b class="online-name">${esc(rival.name)}</b><span class="seat-deck"><small>deck · ${esc((RACE_NAMES[rival.species] ?? '').toLowerCase())}</small><span>${esc(rival.deckName.toLowerCase())}</span></span>${tag(rival.ready, 'choosing…')}</div>`
-            : '<div class="seat-tile seat-off online-waiting"><span class="online-pulse"></span><b>waiting for your opponent…</b><small>send them the code or the link</small></div>'}
+          ${rivalSeat}
         </div>
         ${status}
       </div>`,

@@ -20,6 +20,8 @@ export interface LobbySeat {
   deckName: string;
   species: number;
   ready: boolean;
+  /** Their deck's cover card (see coverCard). */
+  cover?: string | null;
 }
 
 export interface OnlineEvents {

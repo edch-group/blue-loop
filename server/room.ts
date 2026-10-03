@@ -1,4 +1,4 @@
-import { applyAction, cardDef, createGame, deckProblems, GameError, presetDeck, type Action, type CardInstance, type GameState } from '../src/engine';
+import { applyAction, cardDef, coverCard, createGame, deckProblems, GameError, presetDeck, type Action, type CardInstance, type GameState } from '../src/engine';
 
 /**
  * An online 1v1 room: the whole game, run on the server with the same engine
@@ -78,7 +78,7 @@ export type ClientMessage =
 /** What the room sends. */
 export type ServerMessage =
   | { t: 'joined'; seat: number; token: string }
-  | { t: 'lobby'; seats: { name: string; deckName: string; species: number; ready: boolean }[]; you: number; ranked: boolean }
+  | { t: 'lobby'; seats: { name: string; deckName: string; species: number; ready: boolean; cover: string | null }[]; you: number; ranked: boolean }
   /** `waitFor`: 'you' when you must confirm your rival's card, 'rival' while they read yours. */
   | { t: 'state'; state: GameState; you: string; last: LastMove | null; names: string[]; waitFor: 'you' | 'rival' | null; ranked: boolean }
   /** A ranked game's result for you: what it earned, and where it left you on the ladder. */
@@ -286,7 +286,7 @@ export function viewFor(game: GameState, me: number): GameState {
 export function views(room: RoomData): ServerMessage[] {
   const g = room.game;
   if (!g) {
-    const seats = room.seats.map((s) => ({ name: s.name, deckName: s.deckName, species: s.species, ready: !!s.ready }));
+    const seats = room.seats.map((s) => ({ name: s.name, deckName: s.deckName, species: s.species, ready: !!s.ready, cover: coverCard(s.deck)?.id ?? null }));
     return room.seats.map((_, i) => ({ t: 'lobby', seats, you: i, ranked: !!room.ranked }));
   }
   return room.seats.map((_, seat) => {
