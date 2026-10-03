@@ -711,12 +711,14 @@ export class App {
     if (s && this.screen === 'game' && this.dawnTurn()) {
       const me = activePlayer(s);
       const aims = this.draftAims(s, me);
+      const chosen = this.dawnAims();
+      const rival = targetOf(s, me);
       for (const card of me.tableau) {
         if (!dawnAimable(card) || !(card.uid in aims)) continue;
-        // Only heat aimed at a card: the sun is where it goes by default once the dawn breaks.
+        // Heat aimed at a card, or at the sun when that was chosen (by default it goes there unmarked).
         const hit = aims[card.uid];
-        if (!hit) continue;
-        const to = `.tableau [data-uid="${hit}"]`;
+        const to = hit ? `.tableau [data-uid="${hit}"]` : rival && card.uid in chosen ? `.tableau [data-anchor="player:${rival.id}"]` : '';
+        if (!to) continue;
         want.set(`${card.uid}>${to}`, [`.tableau [data-uid="${card.uid}"]`, to]);
       }
     }
@@ -2990,12 +2992,16 @@ export class App {
     // The cards heat is aimed at (your dawn's, or a staged card's): rings round their edges. (Not the sun:
     // that is where heat goes by default.)
     const targeted = new Set<string>();
+    let sunTargeted = false;
     if (this.stage?.confirm && this.stage.target) targeted.add(this.stage.target);
     if (this.dawnTurn()) {
       const o = activePlayer(st);
       const aims = this.draftAims(st, o);
       if (o.id !== p.id) {
         for (const t of Object.values(aims)) if (t) targeted.add(t);
+        // The sun is ringed only when a card was aimed at it on purpose.
+        const chosen = this.dawnAims();
+        sunTargeted = Object.keys(chosen).some((uid) => chosen[uid] === null && uid in aims && aims[uid] === null);
       }
       if (o.id === p.id) {
         for (const card of o.tableau) if (dawnAimable(card) && aims[card.uid]) aiming.set(card.uid, true);
@@ -3039,7 +3045,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''} ${sunTargeted && !sunAim ? 'vitals-targeted' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
           ${this.renderForecast(p)}
