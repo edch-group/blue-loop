@@ -85,17 +85,24 @@ import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
 type Screen = 'menu' | 'game' | 'campaign';
 type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop' | 'pickdeck';
 
+/**
+ * The menu icons' look: one colour each, ethereal like the Stellari's petals. Each shape is a pearl of
+ * light: white where the light catches it, thinning to a translucent tint of the icon's colour.
+ */
+const ETHER = (name: string) =>
+  `<defs><radialGradient id="ig-${name}" cx=".36" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".55" stop-color="currentColor" stop-opacity=".22"/><stop offset="1" stop-color="currentColor" stop-opacity=".42"/></radialGradient></defs>`;
+
 const HUB_ICONS = {
-  collection: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect class="ic-c1" x="8" y="12" width="18" height="26" rx="3" transform="rotate(-10 17 25)"/><rect class="ic-c2" x="16" y="10" width="18" height="26" rx="3"/><rect class="ic-c3" x="24" y="12" width="18" height="26" rx="3" transform="rotate(10 33 25)"/></svg>`,
+  collection: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#8f86c9;--ig:url(#ig-collection)">${ETHER('collection')}<rect class="ic-e" x="8" y="12" width="18" height="26" rx="3" transform="rotate(-10 17 25)"/><rect class="ic-e" x="16" y="10" width="18" height="26" rx="3"/><rect class="ic-e" x="24" y="12" width="18" height="26" rx="3" transform="rotate(10 33 25)"/></svg>`,
   /** The general booster pack's emblem: a pack with a star. */
   pack: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 10h20l2 30H12z"/><path d="M14 10l4 6h12l4-6M24 22l2.4 4.8 5.3.8-3.8 3.7.9 5.2-4.8-2.5-4.8 2.5.9-5.2-3.8-3.7 5.3-.8z"/></svg>`,
-  shop: `<svg viewBox="0 0 48 48" aria-hidden="true"><path class="ic-bag" d="M11 17h26l-2 23H13z"/><path class="ic-handle" d="M18 20v-6a6 6 0 0 1 12 0v6"/></svg>`,
-  /** The map: routes between systems, each held by a faction (in its colour), the Heart's gold the largest. */
-  campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path class="ic-route" d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle class="ic-f1" cx="10" cy="34" r="3.2"/><circle class="ic-f2" cx="22" cy="26" r="2.6"/><circle class="ic-heart" cx="36" cy="32" r="3.6"/><circle class="ic-f3" cx="26" cy="12" r="3"/><circle class="ic-f4" cx="14" cy="16" r="2.4"/></svg>`,
-  /** A sun (warm) sending heat at a cool planet. */
-  quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle class="ic-sun" cx="17" cy="24" r="8"/><circle class="ic-planet" cx="36" cy="24" r="4.5"/><path class="ic-heat" d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
-  /** The world, its sea and meridians. */
-  online: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle class="ic-globe" cx="24" cy="24" r="14"/><path class="ic-lines" d="M10 24h28M24 10c-5 4-7 9-7 14s2 10 7 14M24 10c5 4 7 9 7 14s-2 10-7 14"/></svg>`,
+  shop: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#c39a4a;--ig:url(#ig-shop)">${ETHER('shop')}<path class="ic-e" d="M11 17h26l-2 23H13z"/><path d="M18 20v-6a6 6 0 0 1 12 0v6"/></svg>`,
+  /** The map: systems linked by routes, the Heart the largest. */
+  campaign: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#c39a4a;--ig:url(#ig-campaign)">${ETHER('campaign')}<path class="ic-faint" d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle class="ic-e" cx="10" cy="34" r="3.2"/><circle class="ic-e" cx="22" cy="26" r="2.6"/><circle class="ic-e" cx="36" cy="32" r="4.4"/><circle class="ic-e" cx="26" cy="12" r="3"/><circle class="ic-e" cx="14" cy="16" r="2.4"/></svg>`,
+  /** A sun sending its heat at a planet. */
+  quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#d0805a;--ig:url(#ig-quickplay)">${ETHER('quickplay')}<circle class="ic-e" cx="17" cy="24" r="8"/><circle class="ic-e" cx="36" cy="24" r="4.5"/><path class="ic-faint" d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
+  /** The world and its meridians. */
+  online: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4;--ig:url(#ig-online)">${ETHER('online')}<circle class="ic-e" cx="24" cy="24" r="14"/><path class="ic-faint" d="M10 24h28M24 10c-5 4-7 9-7 14s2 10 7 14M24 10c5 4 7 9 7 14s-2 10-7 14"/></svg>`,
   options: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 15h28M10 24h28M10 33h28"/><circle cx="18" cy="15" r="3.2"/><circle cx="31" cy="24" r="3.2"/><circle cx="22" cy="33" r="3.2"/></svg>`,
 };
 type Speed = 'slow' | 'normal' | 'fast';
@@ -996,27 +1003,34 @@ export class App {
    * Leaving a menu page: the button pressed lifts up and fades (a quick rise that eases off), the rest of
    * the page drifts up after it, and the star spins faster, as it does on the board when a move is made.
    */
+  /** The fades of the page being left (held at their end until the next page is drawn, then cleared). */
+  private menuFades: Animation[] = [];
+
   private leaveMenu(el: HTMLElement) {
     this.menuLeaving = true;
     backdrop.spin();
     backdrop.spin();
     const ease = 'cubic-bezier(.1,.75,.3,1)';
     const button = el.closest<HTMLElement>('.hub-col') ?? el;
-    button.animate(
-      [
-        { opacity: 1, transform: 'translateY(0)' },
-        { opacity: 0, transform: 'translateY(-34px)' },
-      ],
-      { duration: MENU_LEAVE_MS, easing: ease, fill: 'forwards' },
+    this.menuFades.push(
+      button.animate(
+        [
+          { opacity: 1, transform: 'translateY(0)' },
+          { opacity: 0, transform: 'translateY(-34px)' },
+        ],
+        { duration: MENU_LEAVE_MS, easing: ease, fill: 'forwards' },
+      ),
     );
     this.menuParts().forEach((part, i) => {
       if (part === button || part.contains(button)) return;
-      part.animate(
-        [
-          { opacity: 1, transform: 'translateY(0)' },
-          { opacity: 0, transform: 'translateY(-14px)' },
-        ],
-        { duration: MENU_LEAVE_MS - 40, delay: Math.min(60, i * 15), easing: ease, fill: 'forwards' },
+      this.menuFades.push(
+        part.animate(
+          [
+            { opacity: 1, transform: 'translateY(0)' },
+            { opacity: 0, transform: 'translateY(-14px)' },
+          ],
+          { duration: MENU_LEAVE_MS - 40, delay: Math.min(60, i * 15), easing: ease, fill: 'forwards' },
+        ),
       );
     });
   }
@@ -2257,6 +2271,10 @@ export class App {
     const el = (e.target as HTMLElement).closest<HTMLElement>(PAPER);
     const from = (e.relatedTarget as HTMLElement | null)?.closest?.(PAPER);
     if (el && from !== el) sound.rustle();
+    // The main menu's choices chime softly under the pointer.
+    const HUB = '.hub-card, .hub-link, .hub-options, .player-chip, .hub-continue';
+    const opt = (e.target as HTMLElement).closest<HTMLElement>(HUB);
+    if (opt && (e.relatedTarget as HTMLElement | null)?.closest?.(HUB) !== opt) sound.hover();
   }
 
   // ---- Long press (touch): hold a card to read it; release to dismiss ----
@@ -2764,6 +2782,8 @@ export class App {
     refreshLift();
     const page = this.screen === 'menu' ? `menu:${this.menuPage}` : this.screen;
     if (page !== this.shownPage) {
+      // The page left behind faded out and stayed faded; redraws keep elements, so those fades are cleared.
+      for (const anim of this.menuFades.splice(0)) anim.cancel();
       const first = !this.shownPage;
       this.shownPage = page;
       if (this.screen === 'menu' && !first) this.enterMenu();

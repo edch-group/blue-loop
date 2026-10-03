@@ -1,6 +1,6 @@
 /**
  * Campaign mode: a dying universe, four races fighting over its last warm worlds, and a march on the Heart,
- * the star at its centre, where the Infinite Stellaria is said to grow (see story.ts).
+ * the star at its centre, where the Infinite Stellari is said to grow (see story.ts).
  *
  * Each faction fields armies, each led by a general (one of its race's Hero cards) with a deck of its own.
  * Every army moves one route a turn; moving into a system it doesn't hold is a battle. Claiming the Heart
@@ -100,7 +100,7 @@ export const CAMPAIGN = {
   armyRepelledDamage: 4,
   /** Credits to repair one point of an army's damage (in a system you hold). */
   armyHealCost: 1,
-  /** Finite Stellaria: blooms on this many systems, each giving this much a turn to whoever holds it, for this many turns. */
+  /** Finite Stellari: blooms on this many systems, each giving this much a turn to whoever holds it, for this many turns. */
   stellariaBlooms: 4,
   stellariaCredits: 3,
   stellariaMaterials: 3,
@@ -185,7 +185,7 @@ export interface CampaignNode {
   heart?: boolean;
   /** Routes from here to the Heart (0 at the Heart): the core is richer and better defended. */
   ring?: number;
-  /** A Finite Stellaria bloom: the turns of plenty it has left (0: wilted). */
+  /** A Finite Stellari bloom: the turns of plenty it has left (0: wilted). */
   stellaria?: number;
   /** Its star has guttered (the dimming): it yields less. */
   dimmed?: boolean;
@@ -655,7 +655,7 @@ export function garrisonBonus(n: CampaignNode): GarrisonBonus {
   return b;
 }
 
-/** Income each turn from the systems a faction controls (Stellaria blooms included, while they last). */
+/** Income each turn from the systems a faction controls (Stellari blooms included, while they last). */
 export function factionIncome(s: CampaignState, factionId: string) {
   return ownedNodes(s, factionId).reduce(
     (acc, n) => {
@@ -923,7 +923,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     const bonus = CAMPAIGN.coreYield[n.ring] ?? 0;
     n.yield = { credits: n.yield.credits + bonus, materials: n.yield.materials + bonus };
   }
-  // Finite Stellaria bloom out in the middle reaches, never at home or the Heart.
+  // Finite Stellari bloom out in the middle reaches, never at home or the Heart.
   const reaches = shuffleInPlace(s, s.nodes.filter((n) => !n.home && !n.heart && n.tier >= 1));
   for (const n of reaches.slice(0, CAMPAIGN.stellariaBlooms)) n.stellaria = CAMPAIGN.stellariaTurns;
 
@@ -1266,10 +1266,10 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
   }
 
   if (prevOwner) checkEliminated(s, prevOwner);
-  // Whoever claims the Heart claims the Infinite Stellaria, and the campaign.
+  // Whoever claims the Heart claims the Infinite Stellari, and the campaign.
   if (n.heart && n.owner === f.id && !s.winner) {
     s.winner = f.id;
-    clog(s, `${f.name} claims ${HEART_NAME}, and the Infinite Stellaria with it.`);
+    clog(s, `${f.name} claims ${HEART_NAME}, and the Infinite Stellari with it.`);
     const general = (army && s.armies.includes(army) ? army.general : armiesOf(s, f.id)[0]?.general) ?? GENERALS[f.race][0];
     tell(s, f.id === s.playerId ? victoryHeartScene(general, f.id, f.race) : defeatScene(f.race, true));
     return;
@@ -1395,12 +1395,12 @@ function newTurn(s: CampaignState) {
     f.materials += inc.materials;
   }
   for (const a of s.armies) a.moved = false;
-  // Stellaria blooms held this turn give their last, and wilt in time.
+  // Stellari blooms held this turn give their last, and wilt in time.
   for (const n of s.nodes) {
     if (!n.owner || !((n.stellaria ?? 0) > 0)) continue;
     n.stellaria! -= 1;
     if (n.stellaria === 0) {
-      clog(s, `The Stellaria bloom on ${n.name} wilts.`);
+      clog(s, `The Stellari bloom on ${n.name} wilts.`);
       if (n.owner === s.playerId) tell(s, stellariaWiltedScene());
     }
   }

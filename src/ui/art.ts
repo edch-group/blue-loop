@@ -133,7 +133,7 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
 }
 
 /**
- * The Infinite Stellaria: the landing page's white flower, on its own (the same petals, framed tight round
+ * The Infinite Stellari: the landing page's white flower, on its own (the same petals, framed tight round
  * them), for the campaign's Heart and story.
  */
 export function stellariaFlower(): string {

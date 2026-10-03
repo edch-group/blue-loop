@@ -106,7 +106,7 @@ const SYSTEMS =
 /** A scanner array: a dish with two rings of signal. */
 const SCANNER =
   '<svg class="cur cur-scanner" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5 9.2 10.3" stroke="#6e7f9f" stroke-width="1.4" stroke-linecap="round"/><path d="M3 11a6 6 0 0 0 6 6L3 11Z" fill="#8fa3c6" stroke="#6e7f9f" stroke-width=".9" stroke-linejoin="round"/><path d="M11.2 6.8a3.4 3.4 0 0 1 2 2M11.6 3.6a6.6 6.6 0 0 1 4.8 4.8" fill="none" stroke="#6fb3bc" stroke-width="1.3" stroke-linecap="round"/><circle cx="9.6" cy="9.9" r="1.2" fill="#6fb3bc"/></svg>';
-/** A Finite Stellaria bloom: a small six-petalled flower. */
+/** A Finite Stellari bloom: a small six-petalled flower. */
 const BLOOM =
   '<svg class="cur cur-bloom" viewBox="0 0 20 20" aria-hidden="true">' +
   [0, 60, 120, 180, 240, 300].map((a) => `<ellipse cx="10" cy="5.2" rx="2.6" ry="4.4" fill="#f2b8e6" stroke="#c97bc0" stroke-width=".6" transform="rotate(${a} 10 10)"/>`).join('') +
@@ -699,7 +699,7 @@ export class CampaignView {
           <aside class="cmp-setup-aside">
             <div class="cmp-label">a dying universe</div>
             <p class="muted">The stars are going out. Four races fight over the last warm worlds, and every one of them is marching on ${esc(HEART_NAME)}, the vast star at the centre of everything, where the ${esc(STELLARIA)} is said to grow: a flower whose bloom gives energy without end.</p>
-            <p class="muted">Lead armies, each under one of your race's heroes with a deck of their own. Take systems for their resources, find the lesser Stellaria blooms on the way, and claim the Heart to win. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe wins too.</p>
+            <p class="muted">Lead armies, each under one of your race's heroes with a deck of their own. Take systems for their resources, find the lesser Stellari blooms on the way, and claim the Heart to win. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe wins too.</p>
             <div class="cmp-label">rival factions</div>
             <div class="cmp-rivals">${rivals}</div>
           </aside>
@@ -798,7 +798,7 @@ export class CampaignView {
           n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
           n.scanner ? `<i class="cmp-badge cmp-scan" title="Scanner array">${SCANNER}</i>` : '',
           n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
-          (n.stellaria ?? 0) > 0 ? `<i class="cmp-badge cmp-bloom" title="A Finite Stellaria bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}">${BLOOM}${n.stellaria}</i>` : '',
+          (n.stellaria ?? 0) > 0 ? `<i class="cmp-badge cmp-bloom" title="A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}">${BLOOM}${n.stellaria}</i>` : '',
         ].join('');
         const army = armyAt(s, n.id);
         return `
@@ -1231,7 +1231,7 @@ export class CampaignView {
       (n.stableUntil ?? 0) > s.turn ? `<p class="cmp-lore">Stabilised: it holds until turn ${n.stableUntil}.</p>` : '',
       n.hazard.length ? '<p class="cmp-warn">Supernova remnant: rivals cannot advance into it this turn.</p>' : '',
       n.heart ? `<p class="cmp-lore">The oldest star, at the centre of everything. The ${esc(STELLARIA)} is said to grow in its light. Whoever claims it wins the campaign. ${n.owner ? '' : `Guarded by the Heart Wardens: +${CAMPAIGN.heartWardenHealth} max health.`}</p>` : '',
-      (n.stellaria ?? 0) > 0 ? `<p class="cmp-lore">${BLOOM} A Finite Stellaria bloom: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}. Then it wilts.</p>` : n.stellaria === 0 ? '<p class="cmp-lore muted">A wilted Stellaria bloom.</p>' : '',
+      (n.stellaria ?? 0) > 0 ? `<p class="cmp-lore">${BLOOM} A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}. Then it wilts.</p>` : n.stellaria === 0 ? '<p class="cmp-lore muted">A wilted Stellari bloom.</p>' : '',
       n.dimmed ? '<p class="cmp-lore muted">Its star has guttered: it yields less than it did.</p>' : '',
       !n.heart && (CAMPAIGN.coreHealth[n.ring ?? 99] ?? 0) > 0
         ? `<p class="cmp-lore">${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart: richer worlds (+${CAMPAIGN.coreYield[n.ring!] ?? 0} of each a turn) and deeper defences (+${CAMPAIGN.coreHealth[n.ring!]} max health to whoever defends it).</p>`
@@ -1415,7 +1415,7 @@ export class CampaignView {
             <li>A system with no army defends itself with its race's plain deck, its garrison and its fortifications. Neutral systems have sentinels, stronger towards the centre.</li>
             <li><b>Win</b> and choose: <b>Settle</b> it (your army marches in), <b>Absorb</b> its resources, or <b>Supernova</b> it to block rivals for a turn. A beaten army falls back to a free system of yours next door, or is broken.</li>
             <li>An army's sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits in a system you hold. <b>Fortify</b> a system for +${CAMPAIGN.fortifyHealth} max health per level when it defends.</li>
-            <li>${BLOOM} <b>Finite Stellaria</b> bloom on a few systems: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds one, for ${CAMPAIGN.stellariaTurns} turns. Then they wilt.</li>
+            <li>${BLOOM} <b>Finite Stellari</b> bloom on a few systems: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds one, for ${CAMPAIGN.stellariaTurns} turns. Then they wilt.</li>
             <li><b>The universe is dying:</b> every ${CAMPAIGN.dimEvery} turns a star gutters, and its system yields less.</li>
             <li><b>Regional stability</b> lasts ${CAMPAIGN.stabilityTurns} turns. Then solar systems collapse, from the rim inwards: one a turn, one more every ${CAMPAIGN.collapseRamp} turns. Each is marked (⚠) a turn before it goes, and anything still in it is lost, so keep moving towards the Heart. Stabilise a marked system you hold for ${CAMPAIGN.stabiliseCost} materials to hold it ${CAMPAIGN.stabiliseTurns} turns more (once per system).</li>
             <li>Win cards from missions and buy them in the armoury with ${MATERIALS} materials; they wait in your reserve until you put them in an army's deck. A deck that falls short of 30 cards (or its Heroes) can still march, but not fight.</li>

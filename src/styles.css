@@ -1736,11 +1736,6 @@ body.screen-campaign .backdrop { display: none; }
 .hub-link-icon svg *, .hub-options svg * { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 @media (hover: hover) { .hub-link:hover, .hub-options:hover { color: var(--ink); } }
 /* A little colour: the collection's cards in three races' colours, the shop's bag in gold. */
-.hub-link-icon svg .ic-c1 { fill: #b9cdea; stroke: #6f9fd8; }
-.hub-link-icon svg .ic-c2 { fill: #f0c9c1; stroke: #d48a7c; }
-.hub-link-icon svg .ic-c3 { fill: #e8d8ae; stroke: #c9a95e; }
-.hub-link-icon svg .ic-bag { fill: #f1d48d; stroke: #c39a3c; }
-.hub-link-icon svg .ic-handle { fill: none; stroke: #c39a3c; }
 /* You and options, top right. */
 .menu.menu-hub > .hub-corner { position: absolute; top: max(12px, var(--sa-t)); right: max(18px, var(--sa-r, 0px)); z-index: 2; display: flex; align-items: stretch; gap: 8px; }
 /* Options: the player card's own pill, as tall as it, as wide as its icon needs. */
@@ -1766,18 +1761,12 @@ body.screen-campaign .backdrop { display: none; }
 .hub-icon { width: clamp(26px, calc(8 * var(--vh)), 42px); aspect-ratio: 1; }
 .hub-icon svg { width: 100%; height: 100%; display: block; }
 .hub-icon svg * { fill: none; stroke: #5b5f67; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-/* The mode icons in colour: soft fills under the same lines. */
-.hub-icon svg .ic-route { stroke: #a9adb6; }
-.hub-icon svg .ic-f1 { fill: #cfe0f4; stroke: #5d8fcf; }
-.hub-icon svg .ic-f2 { fill: #f4d4cc; stroke: #c9715c; }
-.hub-icon svg .ic-f3 { fill: #d5ecdc; stroke: #4f9c6c; }
-.hub-icon svg .ic-f4 { fill: #e6dcf4; stroke: #8a6cc4; }
-.hub-icon svg .ic-heart { fill: #fbe7b0; stroke: #d19a2a; }
-.hub-icon svg .ic-sun { fill: #fbd9a8; stroke: #e0823a; }
-.hub-icon svg .ic-planet { fill: #cfe3f6; stroke: #4f86c6; }
-.hub-icon svg .ic-heat { stroke: #e0823a; }
-.hub-icon svg .ic-globe { fill: #d6e9f5; stroke: #3f86b8; }
-.hub-icon svg .ic-lines { stroke: #58a49a; }
+/* Ethereal icons (see ETHER in app.ts): one colour each, translucent pearls with pale rims and a faint glow. */
+.hub-icon svg[style*="--ih"], .hub-link-icon svg[style*="--ih"] { color: var(--ih); overflow: visible; filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--ih) 35%, transparent)); }
+.hub-icon svg[style*="--ih"] *, .hub-link-icon svg[style*="--ih"] * { stroke: color-mix(in srgb, var(--ih) 78%, #fff); stroke-width: 1.5; }
+.hub-icon svg .ic-e, .hub-link-icon svg .ic-e { fill: var(--ig); }
+.hub-icon svg .ic-faint, .hub-link-icon svg .ic-faint { stroke: color-mix(in srgb, var(--ih) 68%, #fff); stroke-width: 1.3; }
+.hub-icon svg defs *, .hub-link-icon svg defs * { stroke: none; }
 .hub-name { font-family: var(--display); font-weight: 700; font-size: clamp(0.56rem, calc(2.3 * var(--vh)), 0.78rem); letter-spacing: 0.2em; text-transform: uppercase; padding-left: 0.24em; }
 .hub-blurb { color: var(--ink-soft); font-size: clamp(0.62rem, calc(2.4 * var(--vh)), 0.8rem); line-height: 1.45; max-width: 22ch; }
 .hub-continue { justify-self: center; }
@@ -3473,7 +3462,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card .card-kind { text-align: right; padding-right: calc(var(--cw, 100px) * 0.06); }
 .card-landscape .card-kind, .card-big.card-landscape .card-kind { text-align: right; }
 
-/* ---------- Campaign: armies, the Heart, Stellaria and the story ---------- */
+/* ---------- Campaign: armies, the Heart, Stellari and the story ---------- */
 /* A hero's portrait: their card's picture, cropped round on the character. */
 .cmp-portrait { display: block; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: #1a1f2a; }
 .cmp-portrait .art-wrap, .cmp-portrait .art-frame { display: block; width: 100%; height: 100%; }
@@ -3494,7 +3483,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-army-on { transform: scale(1.22); box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ac), 0 0 16px 4px color-mix(in srgb, var(--ac) 60%, transparent); }
 .cmp-army-dmg { position: absolute; right: -6px; bottom: -4px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; font-style: normal; font-family: var(--display); font-size: 9px; line-height: 14px; text-align: center; color: #fff; background: #d0653f; box-shadow: 0 0 0 1.5px #fff; }
 .cmp-selected .cmp-army { width: 38px; height: 38px; }
-/* The Infinite Stellaria: the white flower of the landing page, turning slowly beside the Heart. */
+/* The Infinite Stellari: the white flower of the landing page, turning slowly beside the Heart. */
 .cmp-stellaria {
   /* Its own upright billboard beside the Heart's star (a child placed outside the star's billboard was clipped). */
   position: absolute; left: 0; top: 0; width: 112px; height: 112px; pointer-events: none;

@@ -93,7 +93,7 @@ describe('campaign setup', () => {
     expect(() => applyCampaignAction(s, { type: 'move', armyId: myArmy(s).id, toId: far.id })).toThrow(GameError);
   });
 
-  it('puts the Heart at the centre, guarded, with Stellaria blooms out in the reaches', () => {
+  it('puts the Heart at the centre, guarded, with Stellari blooms out in the reaches', () => {
     const s = fresh();
     const heart = s.nodes.filter((n) => n.heart);
     expect(heart).toHaveLength(1);
@@ -399,7 +399,7 @@ describe('armies and generals', () => {
     expect(s.story.queue.some((x) => x.id === 'victory')).toBe(true);
   });
 
-  it('pays a Stellaria bloom to whoever holds it, until it wilts', () => {
+  it('pays a Stellari bloom to whoever holds it, until it wilts', () => {
     let s = fresh();
     const bloom = s.nodes.find((n) => (n.stellaria ?? 0) > 0)!;
     bloom.owner = s.playerId;

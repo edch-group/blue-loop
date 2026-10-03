@@ -3,8 +3,8 @@
  *
  * The universe is dying. Its stars gutter one by one, and the four races fight over the last warm worlds.
  * All of them are making for the Heart, the vast star at the centre of everything, because of a legend: in
- * its light grows the Infinite Stellaria, a flower whose bloom gives energy without end. Lesser blooms, the
- * Finite Stellaria, are scattered on the way: rich, but they wilt.
+ * its light grows the Infinite Stellari, a flower whose bloom gives energy without end. Lesser blooms, the
+ * Finite Stellari, are scattered on the way: rich, but they wilt.
  *
  * The guide is Oriel the Wanderer, who has walked between the stars since before they began to fade, and
  * speaks to every race alike. Generals are the races' heroes (the Hero cards).
@@ -32,7 +32,7 @@ export interface StoryScene {
 export const ORACLE_NAME = 'Oriel the Wanderer';
 /** The star at the centre of the universe, and what is said to grow there. */
 export const HEART_NAME = 'The Heart';
-export const STELLARIA_NAME = 'Infinite Stellaria';
+export const STELLARIA_NAME = 'Infinite Stellari';
 /** What the Aureline, its first keepers, call it: roughly, "life-giver". */
 export const VITALIA = 'Vitalia';
 
@@ -128,9 +128,9 @@ export function contactScene(rivalRace: number, rivalGeneral: string, rivalFacti
 export function stellariaSightedScene(): StoryScene {
   return {
     id: 'stellaria-sighted',
-    title: 'A Stellaria bloom',
+    title: 'A Stellari bloom',
     lines: [
-      oracle('Look there: a Stellaria bloom. A finite one, a cutting from the legend, blown out across the dark.'),
+      oracle('Look there: a Stellari bloom. A finite one, a cutting from the legend, blown out across the dark.'),
       oracle('Hold the system, and the bloom will pour credits and materials into your hands every turn. But it is not the real thing. It wilts.'),
     ],
   };
