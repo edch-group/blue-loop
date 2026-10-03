@@ -127,7 +127,9 @@ export type Passive =
   /** Your cards next to this one lose no stability. */
   | { type: 'anchor' }
   /** Guard: rival cards' heat can only be aimed at your Guard cards while you have one. */
-  | { type: 'taunt' };
+  | { type: 'taunt' }
+  /** Your rivals' planets all count as the dead planet (no energy or cards from them) while this is in play. */
+  | { type: 'eatPlanets' };
 
 /**
  * What springs a face-down Lightspeed card, during an enemy's day:

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+import { activePlayer, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -484,6 +484,24 @@ describe('card costs', () => {
     me.playsLeft = 4;
     s = applyAction(s, { type: 'playCard', cardUid: spear.uid });
     expect(activePlayer(s).playsLeft).toBe(1);
+  });
+});
+
+describe('Orion, Galaxy Eater', () => {
+  it("makes its rivals' planets dead (no Industry energy) while it is in play, and only theirs", () => {
+    const s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    // Both suns face the industrial planet.
+    me.orbit = rival.orbit = 6;
+    expect(currentPlanet(rival, s)).toBe('industrial');
+    const withIndustry = playsAllowed(s, rival);
+    give(me, ['orion_galaxy_eater'], 'tableau');
+    expect(planetsEaten(s, rival)).toBe(true);
+    expect(planetsEaten(s, me)).toBe(false);
+    expect(currentPlanet(rival, s)).toBe('dead');
+    expect(currentPlanet(me, s)).toBe('industrial');
+    expect(playsAllowed(s, rival)).toBe(withIndustry - BALANCE.industrialPlays);
   });
 });
 

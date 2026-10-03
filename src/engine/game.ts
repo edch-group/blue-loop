@@ -163,9 +163,17 @@ export function planetAt(orbit: number): Planet {
   return PLANETS[Math.floor((((orbit % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH) / BALANCE.orbitTurns)];
 }
 
-/** The planet facing this player's sun today. */
-export function currentPlanet(p: PlayerState): Planet {
-  return planetAt(p.orbit);
+/**
+ * The planet facing this player's sun today, as it counts: given the game, the dead planet while a rival
+ * has a planet-eater in play (Orion, Galaxy Eater).
+ */
+export function currentPlanet(p: PlayerState, state?: GameState): Planet {
+  return state && planetsEaten(state, p) ? 'dead' : planetAt(p.orbit);
+}
+
+/** Whether a rival still in the game has a card in play that eats this player's planets. */
+export function planetsEaten(state: GameState, p: PlayerState): boolean {
+  return state.players.some((o) => o.id !== p.id && !o.eliminated && passives(o).some(({ passive }) => passive.type === 'eatPlanets'));
 }
 
 /** This player's days left with the current planet (this one included). */
@@ -181,10 +189,10 @@ function moveOrbit(state: GameState, p: PlayerState, by: number) {
 }
 
 export function playsAllowed(state: GameState, p: PlayerState): number {
-  const extra = passives(p).reduce((sum, { passive }) => sum + (passive.type === 'extraPlay' && (!passive.planet || currentPlanet(p) === passive.planet) ? passive.amount : 0), 0);
+  const extra = passives(p).reduce((sum, { passive }) => sum + (passive.type === 'extraPlay' && (!passive.planet || currentPlanet(p, state) === passive.planet) ? passive.amount : 0), 0);
   // Later seats get an extra play on their first day to make up for moving second.
   const catchUp = p.turnsTaken === 1 && state.players.indexOf(p) > 0 && state.players.length <= BALANCE.catchUpMaxPlayers ? BALANCE.laterSeatPlays : 0;
-  const industry = currentPlanet(p) === 'industrial' ? BALANCE.industrialPlays : 0;
+  const industry = currentPlanet(p, state) === 'industrial' ? BALANCE.industrialPlays : 0;
   return Math.min(p.turnsTaken, BALANCE.maxPlays) + extra + catchUp + industry;
 }
 
@@ -525,7 +533,7 @@ function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState
     case 'adjacent':
       return neighbours(p, card).filter((n) => !c.kind || cardDef(n.defId).kind === c.kind).length;
     case 'planet':
-      return currentPlanet(p) === c.planet ? c.amount : 0;
+      return currentPlanet(p, state) === c.planet ? c.amount : 0;
     case 'spent':
       return (card.spent ?? 0) * (c.times ?? 1);
     case 'cold': {
@@ -535,11 +543,11 @@ function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState
   }
 }
 
-export function conditionMet(p: PlayerState, cond: Condition | undefined): boolean {
+export function conditionMet(p: PlayerState, cond: Condition | undefined, state?: GameState): boolean {
   if (!cond) return true;
   if ('overheated' in cond) return isOverheated(p);
   if ('minKind' in cond) return p.tableau.filter((t) => cardDef(t.defId).kind === cond.minKind).length >= cond.n;
-  if ('planet' in cond) return currentPlanet(p) === cond.planet;
+  if ('planet' in cond) return currentPlanet(p, state) === cond.planet;
   return p.tableau.length >= cond.minCards;
 }
 
@@ -610,7 +618,7 @@ export function turnForecast(state: GameState, p: PlayerState, aims?: Record<str
   const now = !!state.awaitingDawn && activePlayer(state) === p;
   // Their next day's planet (their first day starts at the dead planet).
   const orbit = !now && p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
-  const planet = planetAt(orbit);
+  const planet = planetsEaten(state, p) ? 'dead' : planetAt(orbit);
   // Their day comes this round if they sit after the active player, else next round.
   const round = now ? state.round : state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
   const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, unstableRound: state.round + 1, round, draw: 0, plays: 0, planet, planetDraw: 0, planetPlays: 0 };
@@ -623,7 +631,7 @@ export function turnForecast(state: GameState, p: PlayerState, aims?: Record<str
   const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c, ...(aims && c.uid in aims ? { aim: aims[c.uid] ?? undefined } : {}) })) };
   for (const card of me.tableau) {
     for (const e of dawnEffects(card)) {
-      if (!conditionMet(me, e.if)) continue;
+      if (!conditionMet(me, e.if, state)) continue;
       switch (e.type) {
         case 'grow':
           card.growth = Math.min(e.max, (card.growth ?? 0) + 1);
@@ -687,7 +695,7 @@ export function previewDawnHeat(state: GameState, p: PlayerState, aims: Record<s
   for (const card of p.tableau) {
     const aim = card.uid in aims ? aims[card.uid] : card.aim;
     for (const e of dawnEffects(card)) {
-      if (e.type !== 'heat' || !conditionMet(p, e.if)) continue;
+      if (e.type !== 'heat' || !conditionMet(p, e.if, state)) continue;
       let n = effectAmount(state, p, card, e, 'turn');
       if (n <= 0) continue;
       // Where it lands, as aimedCard decides it (burnt-away cards no longer draw it).
@@ -873,7 +881,7 @@ const kindMatches = (c: CardInstance, kind?: CardKind) => returnable(c) && (!kin
 function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, effects: Effect[] | undefined, when: Timing, ctx: PlayContext = {}) {
   for (const e of effects ?? []) {
     if (state.winnerId || p.eliminated) return;
-    if (!conditionMet(p, e.if)) continue;
+    if (!conditionMet(p, e.if, state)) continue;
     switch (e.type) {
       case 'heat': {
         const amount = effectAmount(state, p, card, e, when);
@@ -1119,7 +1127,7 @@ function startTurn(state: GameState) {
     p.orbit = (p.orbit + 1) % ORBIT_LENGTH;
     if (currentPlanet(p) !== before) log(state, `The ${currentPlanet(p)} planet swings round to face ${p.name}'s sun.`);
   }
-  const abundance = currentPlanet(p) === 'abundant' ? BALANCE.abundantDraw : 0;
+  const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw : 0;
   // Draw (your opening hand covers your first day).
   if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
   if (p.eliminated) return passOn(state);

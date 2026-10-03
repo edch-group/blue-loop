@@ -108,6 +108,8 @@ export const CARD_COSTS: Record<string, number> = {
   temporal_snare: 3,
   the_admiralty: 3,
   glacier_hull: 3,
+  // 5: Orion eats its rivals' planets (a day's bonus energy, or the industrial planet, to play).
+  orion_galaxy_eater: 5,
   // 4
   absolute_zero: 4,
   empress_solenne: 4,

@@ -23,7 +23,10 @@ const fontsReady = Promise.all(
 );
 const timeout = new Promise((resolve) => window.setTimeout(resolve, 1500));
 void Promise.race([fontsReady, timeout]).then(() => {
-  new App(document.getElementById('app')!).start();
+  const app = new App(document.getElementById('app')!);
+  app.start();
+  // In development only: the app, for test scripts to set up a board.
+  if (import.meta.env.DEV) (window as unknown as { __app: App }).__app = app;
   requestAnimationFrame(() => document.documentElement.classList.add('ready'));
 });
 

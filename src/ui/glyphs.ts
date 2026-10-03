@@ -68,6 +68,7 @@ const GLYPHS: Record<string, string> = {
   chamber_protocol: `<rect x="34" y="14" width="32" height="32" rx="4"/>${[42, 48, 54].map((x) => `<rect class="fill" x="${x}" y="22" width="4" height="16" rx="2"/>`).join('')}`,
   command_directive: `<rect x="34" y="14" width="32" height="32" rx="4"/>${chevrons(2, 20, 9)}`,
   the_admiralty: `<rect x="34" y="14" width="32" height="32" rx="4"/>${chevrons(3, 17, 9)}<line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  orion_galaxy_eater: `${ring(12, 'class="fill"')}${ring(17)}<circle class="dot" cx="24" cy="16" r="3"/><circle class="dot" cx="78" cy="44" r="2.5"/>`,
   absolute_zero: `${ring(12)}${rays(6, 4, 12)}${ring(3, 'class="dot"')}`,
   cryo_lance: `<polygon class="fill" points="30,44 64,18 70,24"/>${rays(6, 3, 7)}`,
   rime_bastion: `<path d="M34 44 V24 L50 16 L66 24 V44"/>${rays(6, 3, 8)}`,

@@ -190,6 +190,12 @@ Only one Hero is in play at a time, so these ask for one, and do something witho
 
 Result (1000 games): Tide 54%, Lancers 53%, Overload 49%, Hive 44%; seats 49/51; about 12.5 rounds a game.
 
+## Orion, Galaxy Eater [design review]
+
+A neutral Anomaly, cost 5 (a day's bonus energy, or the industrial planet, to play it), sturdy 1. While it is in play, every rival's planets count as the dead planet: no Industry energy and no Abundance cards from them, and planet conditions on their cards read "dead". The sun gauge's planet tag reads "eaten" while it lasts. Its own owner's planets are untouched.
+
+Counter: it does nothing on its own, so removal answers it cleanly (its defence is only 1), and a deck that doesn't lean on its planets barely notices it.
+
 ## Thermosiphon [design review]
 
 A sun runs from −5 to its max health, and starts at 0. **Thermosiphon** cards draw on the cold: the number beside the keyword is **per point your sun is below zero**, and at 0 or hotter the effect does nothing. In play, the card shows the total its number now comes to. (Thermosiphon was once an action that cooled your sun; it now names the payoff for getting there.)

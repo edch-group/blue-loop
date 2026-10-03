@@ -3235,11 +3235,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .hand .card.card-pricey .card-glyph, .hand .card.card-pricey .card-text { filter: saturate(0.4); }
 .hand .card.card-pricey .cost-dots i { background: #a3aab5; box-shadow: 0 1px 2px rgba(20, 30, 40, 0.3); }
 
-/* Aiming. Heat headed for a card: a red reticle on it, with how much. A card aimed at a rival card: a crosshair. */
-.aim-in, .aim-out { position: absolute; z-index: 3; font-family: var(--display); font-weight: 800; line-height: 1; border-radius: 999px; pointer-events: auto; }
-.aim-in { top: max(3px, calc(var(--cw, 100px) * 0.045)); right: max(3px, calc(var(--cw, 100px) * 0.055)); padding: max(2px, calc(var(--cw, 100px) * 0.02)) max(4px, calc(var(--cw, 100px) * 0.04)); font-size: max(8px, calc(var(--cw, 100px) * 0.09)); color: #fff; background: #d8452b; border: 1.5px solid #fff; box-shadow: 0 0 8px rgba(216, 69, 43, 0.6); animation: aim-throb 1.6s ease-in-out infinite; }
-@keyframes aim-throb { 50% { box-shadow: 0 0 14px rgba(216, 69, 43, 0.9); } }
-.aim-out { top: max(3px, calc(var(--cw, 100px) * 0.045)); left: max(20px, calc(var(--cw, 100px) * 0.25)); width: max(14px, calc(var(--cw, 100px) * 0.17)); height: max(14px, calc(var(--cw, 100px) * 0.17)); display: grid; place-items: center; font-size: max(9px, calc(var(--cw, 100px) * 0.12)); color: #d8452b; background: #fff; border: 1.5px solid #d8452b; }
 /* Guard cards: a bright rim, so it's plain which cards stand in front of the sun. */
 .card.card-guard { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(109, 140, 194, 0.75), 0 6px 16px rgba(60, 80, 120, 0.25); }
 /* The rival sun, when a card's heat can be aimed at it. */
@@ -3256,7 +3251,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   content: ''; position: absolute; inset: 2%; border-radius: 50%; pointer-events: none;
   border: 3px solid rgba(216, 69, 43, 0.85); box-shadow: 0 0 0 2px #fff, 0 0 18px rgba(216, 69, 43, 0.45);
 }
-@media (prefers-reduced-motion: reduce) { .aim-in, .vitals-choosable .vit::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .vitals-choosable .vit::after { animation: none; } }
+@keyframes aim-throb { 50% { box-shadow: 0 0 14px rgba(216, 69, 43, 0.9); } }
 .fx-hit-card { animation: hit-card 0.6s ease-out; }
 @keyframes hit-card { 0% { filter: brightness(1.6) saturate(1.4); box-shadow: 0 0 0 3px #ff8a5a, 0 0 24px #ff5a2a; } 100% { filter: none; } }
 
@@ -3266,6 +3262,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pv-after { display: none; }
 .card-choosable:hover .pv-now, .card-choosable:focus-visible .pv-now { display: none; }
 .card-choosable:hover .pv-after, .card-choosable:focus-visible .pv-after { display: inline; color: #d8452b; }
+/* A card heat is aimed at: its stats as the heat will leave them, in red, all the while. */
+.pv-settled { color: #d8452b; }
 .card.card-aiming { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.95), 0 0 22px rgba(216, 69, 43, 0.55); transform: translateZ(10px); }
 .pill-btn.pill-dawn { background: linear-gradient(135deg, #f1a14d, #d8452b); color: #fff; border-color: transparent; }
 
@@ -3455,3 +3453,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .db-page-dots:has(> :nth-child(13)) + .db-page-n { display: inline; }
 /* An empty deck: a dashed box saying what to do. */
 .db-rows-empty { margin: 4px 0; padding: 18px 12px; border: 1.5px dashed #d6d3ce; border-radius: 10px; text-align: center; color: var(--muted, #8a8f99); font-size: 0.8rem; line-height: 1.5; }
+
+/* The race sits at the card's foot, to the right: clear of the defence badge that hangs off the middle of
+   a card in play. */
+.card .card-kind { text-align: right; padding-right: calc(var(--cw, 100px) * 0.06); }
+.card-landscape .card-kind, .card-big.card-landscape .card-kind { text-align: right; }

@@ -159,6 +159,8 @@ export const EXPANSION: CardDef[] = [
   { id: 'frostbound_sentinel', name: 'Frostbound Sentinel', kind: 'defence', race: 1, text: '{guard}. {sturdy:1}. {dawn}: {cool:1}. {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'cool', amount: 1 }, { type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'taunt' }] },
   { id: 'glacier_hull', name: 'Glacier Hull', kind: 'defence', race: 2, text: '{shield:2}. {hold}. {dawn}: {thermosiphon} {shield:1}.', onPlay: [{ type: 'shield', amount: 2 }], onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'keepShields' }] },
   { id: 'thaw_beam', name: 'Thaw Beam', kind: 'attack', text: "{heat:1}, {pierce}. {heat:+1} per point your target's sun is below zero.", onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cold', rival: true }, pierce: true }] },
+  // ---- The galaxy eater: denies every rival its planets ----
+  { id: 'orion_galaxy_eater', name: 'Orion, Galaxy Eater', kind: 'growth', text: "{sturdy:1}. Your rivals' planets are all dead planets: no Industry or Abundance from them.", defence: 1, passive: [{ type: 'eatPlanets' }] },
   // ---- Bomb Heroes: a big entrance for a big price ----
   { id: 'empress_solenne', name: 'Empress Solenne', kind: 'command', race: 0, text: '{heat:4}, {pierce}. {dawn}, one of: {options:energy1|draw1|heat3}', onPlay: [{ type: 'heat', amount: 4, to: 'target', pierce: true }], choices: commandChoices('energy1', 'draw1', 'heat3') },
   { id: 'the_shardmind', name: 'The Shardmind', kind: 'command', race: 1, text: '{cool:4}, {recover}. {dawn}, one of: {options:energy1|draw1|cool3}', onPlay: [{ type: 'cool', amount: 4 }, { type: 'recover', orDraw: 1 }], choices: commandChoices('energy1', 'draw1', 'cool3') },
@@ -894,6 +896,7 @@ export const EXPANSION_META: Record<string, { rarity?: Rarity; character?: boole
   war_council: { character: true },
   logistics_command: { character: true },
   absolute_zero: { rarity: 'anomaly' },
+  orion_galaxy_eater: { character: true, rarity: 'anomaly' },
   frostbound_sentinel: { character: true },
   glacier_hull: { rarity: 'stellar' },
   empress_solenne: { character: true, rarity: 'anomaly' },

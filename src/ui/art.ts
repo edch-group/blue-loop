@@ -97,13 +97,15 @@ function orbitPlanets(orbit: number): string {
 }
 
 /** The tag naming the planet facing the sun, and its days left there. */
-function planetTag(orbit: number): string {
+function planetTag(orbit: number, eaten = false): string {
   const facing = planetAt(orbit);
   const left = BALANCE.orbitTurns - (((orbit % BALANCE.orbitTurns) + BALANCE.orbitTurns) % BALANCE.orbitTurns);
+  // A rival's galaxy eater has its planets: whichever faces the sun counts as dead.
+  if (eaten) return `<div class="vit-planet-tag vt-dead vt-eaten" title="A rival's Orion, Galaxy Eater has eaten this sun's planets: they count as dead, giving no energy or cards.">eaten · ${left}</div>`;
   return `<div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more day${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
 }
 
-export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number }): string {
+export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number; eaten?: boolean }): string {
   const { heat, threshold, shields, dead } = opts;
   const t = Math.max(0, Math.min(1, heat / threshold));
   const cold = heat < 0 ? Math.min(1, heat / BALANCE.minHeat) : 0;
@@ -126,7 +128,7 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
       <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" data-pid="${opts.id ?? ''}" aria-hidden="true"></canvas>
       ${orbit !== undefined ? orbitPlanets(orbit) : ''}
       <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
-      <div class="vit-under">${orbit !== undefined ? planetTag(orbit) : ''}<div class="vit-shields" title="Shields: they absorb enemy heat, and fade at your dawn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div></div>
+      <div class="vit-under">${orbit !== undefined ? planetTag(orbit, opts.eaten) : ''}<div class="vit-shields" title="Shields: they absorb enemy heat, and fade at your dawn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div></div>
     </div>`;
 }
 

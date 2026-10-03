@@ -376,6 +376,21 @@ class SoundBoard {
     this.voice(523.25, { dur: 1.6, attack: 0.2, gain: 0.03, type: 'triangle', vibrato: 6, cutoff: 2000 });
     this.voice(784, { dur: 1.6, attack: 0.3, gain: 0.02, vibrato: 6 });
   }
+  /**
+   * A hero takes the field: a rising rush, then a deep boom under a swelling brass-like chord, crowned with
+   * bells. Much bigger than an ordinary card.
+   */
+  hero() {
+    const hit = 0.5;
+    this.breath({ dur: hit + 0.1, freq: 220, to: 3200, type: 'bandpass', q: 1.4, gain: 0.08, attack: hit });
+    this.voice(55, { dur: 2.6, attack: 0.01, gain: 0.24, to: 31, type: 'triangle', cutoff: 320, delay: hit });
+    this.breath({ dur: 1.8, freq: 1400, to: 70, type: 'lowpass', q: 1, gain: 0.17, attack: 0.02, delay: hit });
+    // The chord: open fifths on D, low and wide, slightly detuned against itself like a brass section.
+    [73.42, 110, 146.83, 220, 293.66].forEach((f, i) =>
+      this.voice(f, { dur: 3.4, attack: 0.3, gain: 0.05 - i * 0.006, type: 'sawtooth', cutoff: 1300, detune: i % 2 ? 7 : -7, delay: hit + 0.02 }),
+    );
+    [587.33, 880, 1174.66, 1760].forEach((f, i) => this.bell(f, hit + 0.3 + i * 0.13, 0.03));
+  }
   upgrade() {
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.bell(f, i * 0.16, 0.035));
   }

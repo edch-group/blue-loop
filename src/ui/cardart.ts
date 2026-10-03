@@ -684,6 +684,14 @@ const ART2: Record<string, Draw> = {
   // ---- Neutral Command ----
   war_council: (S) => S.ground(92, '#1b0c24') + xelnaru(S, 62, 30, 1.4, { item: 'reliquary', crown: true, cape: '#c9a2ff', shard: '#ffc8e0', core: '#fff0c0' }),
   logistics_command: (S) => S.ground(92, '#0e0a1c') + S.planet(136, 26, 12, '#9cd2a0', '#3d2b5e') + ixquor(S, 64, 68, 1.15, { item: 'spores', crown: true, arms: 5, cap: '#c5ff8a' }),
+  // Orion: a starless maw, a ring of fire round its edge, planets spiralling in.
+  orion_galaxy_eater: (S) =>
+    S.glow(80, 52, 70, '#b07cff', 0.35) +
+    `<circle cx="80" cy="52" r="30" fill="${S.radial([[0, '#000000'], [0.7, '#0a0614'], [1, '#3a1f66']])}"/>` +
+    S.rings(80, 52, 31, 3, 5, '#ffb070', 0.75) +
+    [[28, 20, 7, '#e08a5a', '#4d6fae'], [132, 84, 6, '#9cd2a0', '#2c4a3a'], [138, 24, 5, '#c9d4e6', '#4a5266']].map(([x, y, r, a, b]) => S.planet(x as number, y as number, r as number, a as string, b as string)).join('') +
+    S.motes(80, 52, 22, 70, '#ffd9a0', 1) +
+    `<path d="M50 30 Q80 10 112 34 M48 74 Q80 96 114 70" fill="none" stroke="#ffcf9a" stroke-width="1.2" opacity="0.6"/>`,
   // Thermosiphon: cold suns, and what they drive.
   absolute_zero: (S) => S.planet(80, 50, 26, '#ffffff', '#3a6ea8') + [0, 30, 60, 90, 120, 150].map((a) => `<line x1="80" y1="14" x2="80" y2="86" stroke="#e6f6ff" stroke-width="1.4" stroke-opacity="0.8" transform="rotate(${a} 80 50)"/>`).join('') + S.rings(80, 50, 32, 3, 9, '#9fd0ff', 0.6) + S.bolt(80, 50, 150, 12, '#bfe6ff', 4, 1.6) + S.glow(80, 50, 16, '#ffffff', 0.9),
   cryo_lance: (S) => S.sun(36, 70, 9, '#bfe6ff') + S.crystal(96, 40, 70, 10, 55, '#bfe6ff') + S.beam(36, 70, 150, 14, 1.8, '#e6f6ff') + S.motes(110, 34, 10, 40, '#ffffff'),

@@ -121,30 +121,39 @@ export function ghost(html: string, from: DOMRect, to: DOMRect | null, opts: { d
 }
 
 /** A glowing bolt travelling from one element to another. */
-export function projectile(from: DOMRect, to: DOMRect, colour: string, opts: { delay?: number; duration?: number; size?: number } = {}): number {
+export function projectile(from: Where, to: Where, colour: string, opts: { delay?: number; duration?: number; size?: number } = {}): number {
   const duration = opts.duration ?? 620;
   const delay = opts.delay ?? 0;
   if (reducedMotion()) return delay;
   const size = opts.size ?? 26;
-  const el = document.createElement('div');
-  el.className = 'bolt';
-  el.style.setProperty('--c', colour);
-  Object.assign(el.style, { width: `${size}px`, height: `${size}px` });
-  document.body.appendChild(el);
-  const x0 = from.left + from.width / 2 - size / 2, y0 = from.top + from.height / 2 - size / 2;
-  const x1 = to.left + to.width / 2 - size / 2, y1 = to.top + to.height / 2 - size / 2;
-  const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 80;
-  const anim = el.animate(
-    [
-      { transform: `translate(${x0}px, ${y0}px) scale(0.4)`, opacity: 0 },
-      { transform: `translate(${mx}px, ${my}px) scale(1.2)`, opacity: 1, offset: 0.5 },
-      { transform: `translate(${x1}px, ${y1}px) scale(0.8)`, opacity: 1 },
-    ],
-    { duration, delay, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'both' },
-  );
-  anim.onfinish = () => el.remove();
+  // The ends are measured as it fires (the card firing may still be flying into its slot).
+  window.setTimeout(() => {
+    const a = place(from), b = place(to);
+    if (!a || !b) return;
+    const el = document.createElement('div');
+    el.className = 'bolt';
+    el.style.setProperty('--c', colour);
+    Object.assign(el.style, { width: `${size}px`, height: `${size}px` });
+    document.body.appendChild(el);
+    const x0 = a.left + a.width / 2 - size / 2, y0 = a.top + a.height / 2 - size / 2;
+    const x1 = b.left + b.width / 2 - size / 2, y1 = b.top + b.height / 2 - size / 2;
+    const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 80;
+    const anim = el.animate(
+      [
+        { transform: `translate(${x0}px, ${y0}px) scale(0.4)`, opacity: 0 },
+        { transform: `translate(${mx}px, ${my}px) scale(1.2)`, opacity: 1, offset: 0.5 },
+        { transform: `translate(${x1}px, ${y1}px) scale(0.8)`, opacity: 1 },
+      ],
+      { duration, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'both' },
+    );
+    anim.onfinish = () => el.remove();
+  }, delay);
   return delay + duration;
 }
+
+/** A place on the page: a rectangle, or a way to measure one when it is needed. */
+export type Where = DOMRect | (() => DOMRect | null);
+const place = (w: Where): DOMRect | null => (typeof w === 'function' ? w() : w);
 
 /**
  * A straight beam of light shot from one element to another: it races out

@@ -72,8 +72,8 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   const foes = Math.max(1, livingOpponents(state, p).length);
   let perTurn = 0;
   for (const e of dawnEffects(card)) {
-    if (!conditionMet(p, e.if) && !(e.if && 'minKind' in e.if)) continue;
-    const scale = conditionMet(p, e.if) ? 1 : 0.4;
+    if (!conditionMet(p, e.if, state) && !(e.if && 'minKind' in e.if)) continue;
+    const scale = conditionMet(p, e.if, state) ? 1 : 0.4;
     switch (e.type) {
       case 'heat':
         perTurn += scale * Math.max(effectAmount(state, p, card, e, 'turn'), e.plus?.of === 'growth' ? 2 : e.plus?.of === 'cold' ? COLD_HOPE * (e.plus.times ?? 1) : 0);
@@ -134,6 +134,10 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
         break;
       case 'anchor':
         perTurn += 0.5;
+        break;
+      case 'eatPlanets':
+        // What the rivals' planets would have given them: about a card or an energy a day each.
+        perTurn += 1.1 * foes;
         break;
     }
   }
@@ -263,7 +267,7 @@ function dawnAims(state: GameState, me: PlayerState): Record<string, string | nu
     rival.tableau.reduce((n, o) => n + (o.uid === c.uid ? 0 : (cardDef(o.defId).passive ?? []).reduce((m, x) => m + (x.type === 'allyLeaves' ? x.effects.reduce((k, e) => k + (e.type === 'heat' ? e.amount : 0), 0) : 0), 0)), 0);
   for (const card of me.tableau) {
     if (!dawnAimable(card)) continue;
-    const heat = dawnEffects(card).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(me, e.if) ? effectAmount(state, me, card, e, 'turn') : 0), 0);
+    const heat = dawnEffects(card).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(me, e.if, state) ? effectAmount(state, me, card, e, 'turn') : 0), 0);
     if (heat <= 0) continue;
     // The sun counts for more the nearer it is to supernova; a card for what it is worth to its owner, if this burns it away.
     let best: { uid: string | null; score: number } = { uid: null, score: sun ? heat * (1 + 3 * danger) : -Infinity };

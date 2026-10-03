@@ -49,6 +49,7 @@ import {
   targetOf,
   turnForecast,
   previewDawnHeat,
+  planetsEaten,
   type Action,
   type BoosterCard,
   type BoosterKind,
@@ -383,6 +384,40 @@ function frameTableaus(root: HTMLElement) {
   }
 }
 
+/**
+ * A sun as drawn on the tilted board: a square round the middle of its dome on screen (where its heat count
+ * stands, placed by sun3d.ts), sized like the dome. Attacks aim here, so they hit the sun you see.
+ */
+/**
+ * What an attack or aim points at, for an element on the board: a card together with the defence badge that
+ * hangs off its foot (so a beam arriving from below stops short of the badge, not on top of it), a sun as
+ * drawn, or anything else as it is.
+ */
+function targetRect(el: Element | null): DOMRect | null {
+  if (!el) return null;
+  const anchor = el.getAttribute('data-anchor');
+  if (anchor?.startsWith('player:')) {
+    const sun = sunRect(el.ownerDocument, anchor.slice(7));
+    if (sun) return sun;
+  }
+  const r = pageRect(el);
+  const badge = el.querySelector('.stat-def-floor');
+  if (!badge) return r;
+  const b = pageRect(badge);
+  const left = Math.min(r.left, b.left), top = Math.min(r.top, b.top);
+  return new DOMRect(left, top, Math.max(r.right, b.right) - left, Math.max(r.bottom, b.bottom) - top);
+}
+
+function sunRect(root: ParentNode, id: string): DOMRect | null {
+  const vit = root.querySelector<HTMLElement>(`[data-anchor="player:${id}"] .vit`);
+  const label = vit?.querySelector<HTMLElement>('.vit-heat');
+  if (!vit || !label) return null;
+  const l = pageRect(label), v = pageRect(vit);
+  if (!l.width || !v.width) return null;
+  const size = v.width * 0.45;
+  return new DOMRect(l.left + l.width / 2 - size / 2, l.top + l.height / 2 - size / 2, size, size);
+}
+
 export class App {
   private screen: Screen = 'menu';
   /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
@@ -433,6 +468,14 @@ export class App {
   private landing: (() => void) | null = null;
   /** The staged rival card has played its arrival sound (so it does not sound again as it lands). */
   private entranceHeard = false;
+  /**
+   * Players whose sun has just gone supernova, still drawn alive until the blow lands and the explosion has
+   * played (results show after the animation that causes them).
+   */
+  private dying = new Set<string>();
+  private shownDead(p: PlayerState): boolean {
+    return p.eliminated && !this.dying.has(p.id);
+  }
   /** An invite link's room, joined once a new player has signed in. */
   private inviteAfterSignIn: string | null = null;
   /** A menu page is playing out (see leaveMenu); further clicks wait. */
@@ -898,7 +941,7 @@ export class App {
       };
       // (Heat aimed at a card is an attack, in red; a removal is white.)
       const removal = (cardDef(stage.defId).onPlay ?? []).some((e) => e.type === 'destroy' || e.type === 'bounce');
-      this.unaim = aim(() => rect('.stage .card'), () => rect(`.tableau [data-uid="${target}"]`), { delay: 640, alive: () => this.stage === stage, kind: removal ? 'plain' : 'attack' });
+      this.unaim = aim(() => rect('.stage .card'), () => targetRect(this.root.querySelector(`.tableau [data-uid="${target}"]`)), { delay: 640, alive: () => this.stage === stage, kind: removal ? 'plain' : 'attack' });
     }
   }
 
@@ -936,7 +979,7 @@ export class App {
       return el ? pageRect(el) : null;
     };
     for (const [key, [from, to]] of want) {
-      if (!this.dawnBeams.has(key)) this.dawnBeams.set(key, aim(() => rect(from), () => rect(to)));
+      if (!this.dawnBeams.has(key)) this.dawnBeams.set(key, aim(() => rect(from), () => targetRect(this.root.querySelector(to))));
     }
   }
 
@@ -1239,6 +1282,14 @@ export class App {
       this.persist(next);
       this.syncViewer();
       if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, animate ? action : { type: 'concede', playerId: '' });
+      // A sun this move sends supernova stays drawn alive until its explosion has played (see supernovaAt).
+      if (before && !reducedMotion())
+        for (const p of next.players) {
+          if (!p.eliminated || prev.players.find((x) => x.id === p.id)?.eliminated) continue;
+          this.dying.add(p.id);
+          // (Should the explosion never come, e.g. the replay was cut short, it still greys in time.)
+          window.setTimeout(() => this.finishDying(p.id), 8000);
+        }
       this.render();
       if (before) {
         this.surfaceLog(prev);
@@ -1382,6 +1433,15 @@ export class App {
     // A player's sun on the board (or, for a rival not on the board, their pill).
     const orb = (id: string) => root.querySelector(`[data-anchor="player:${id}"]`) ?? root.querySelector(`[data-anchor="pill:${id}"]`);
     const orbRect = (id: string) => anchorRect(root, `player:${id}`) ?? before.anchors.get(`player:${id}`) ?? anchorRect(root, `pill:${id}`);
+    // Where a sun is on screen: the middle of the sun as drawn on the tilted board (its heat count stands
+    // there), not the middle of its gauge's box (which the dome, seen in perspective, sits off).
+    const sunAt = (id: string) => sunRect(root, id) ?? orbRect(id);
+    // The card just played, where it stands (it may still be flying in): attacks start from it.
+    const playedFrom = action.type === 'playCard' ? () => {
+      const src = this.root.querySelector(`.tableau [data-uid="${action.cardUid}"]`) ?? this.root.querySelector('.stage .card');
+      return src ? pageRect(src) : orbRect(actor.id);
+    } : null;
+    const playedDef = action.type === 'playCard' ? cardDef(prev.players.find((p) => p.id === actor.id)!.hand.find((c) => c.uid === action.cardUid)?.defId ?? '') : null;
 
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
@@ -1398,17 +1458,31 @@ export class App {
       const rivalCards = (st: GameState) => new Map(st.players.filter((p) => p.id !== actor.id).flatMap((p) => p.tableau.map((c) => [c.uid, c] as const)));
       const was = rivalCards(prev);
       const now = rivalCards(next);
-      const hitCards = [...was].filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.stability ?? 0) < (c.stability ?? 0)).map(([uid]) => uid);
-      // From the removing card once it has landed (in the tableau, or on the stage), else the attacker's sun.
-      const from = () => {
-        const src = this.root.querySelector(`.tableau [data-uid="${action.cardUid}"]`) ?? this.root.querySelector('.stage .card');
-        return src ? pageRect(src) : orbRect(actor.id);
-      };
+      const hitCards = [...was]
+        .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.stability ?? 0) < (c.stability ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0))
+        .map(([uid]) => uid);
+      const from = playedFrom!;
+      const heats = (playedDef?.onPlay ?? []).some((e) => e.type === 'heat');
       hitCards.forEach((uid, i) => {
-        const el = root.querySelector(`[data-uid="${uid}"]`);
+        const el = root.querySelector<HTMLElement>(`[data-uid="${uid}"]`);
         const to = before.cards.get(uid)?.rect ?? (el ? pageRect(el) : null);
         if (!to) return;
         const delay = (actor.isAI ? 600 : 470) + i * 140;
+        // Heat aimed at a card: an attack, flying from the card played to the card it strikes, whose numbers
+        // change as it lands. (Removal, below, is a white arc.)
+        const wasC = was.get(uid)!, nowC = now.get(uid);
+        const byHeat = heats && uid !== action.enemyUid && (uid === action.aimUid || (nowC?.dented ?? 0) > (wasC.dented ?? 0));
+        if (byHeat) {
+          const land = projectile(from, () => (el?.isConnected ? pageRect(el) : to), HOT, { delay, size: 30, duration: 560 });
+          removalAt.set(uid, land);
+          if (el) {
+            pulse(el, 'fx-hit-card', land);
+            this.holdCardStats(el, before.cards.get(uid)?.html, land);
+          }
+          window.setTimeout(() => sound.launch(), delay);
+          window.setTimeout(() => sound.whoosh(0, !nowC), land - 60);
+          return;
+        }
         // (A card whose aim was shown while it waited to be confirmed already pointed here.)
         removalAt.set(uid, uid === shown ? 160 : tether(from, to, { delay }));
         // The beam whooshes onto the card (and, if it takes it, sweeps it away).
@@ -1450,12 +1524,9 @@ export class App {
 
     // A day's start replays its effects one by one (see replayPulses); cards that faded go once it has.
     const pulses = endingTurn && !reducedMotion() ? (next.turnPulses ?? []).filter((p) => p.kind !== 'start') : [];
-    // A sun that goes supernova this move: it keeps its colour (and its half of the board) until the blow lands.
+    // A sun that goes supernova this move: it keeps its colour (and its half of the board) until the blow lands
+    // and the explosion has played (it is drawn alive meanwhile: see `dying`).
     const novas = next.players.filter((p) => p.eliminated && !prev.players.find((x) => x.id === p.id)?.eliminated);
-    for (const p of novas) {
-      root.querySelector(`.tableau[data-owner="${p.id}"]`)?.classList.remove('tableau-dead');
-      root.querySelector(`[data-anchor="pill:${p.id}"]`)?.classList.remove('rival-dead');
-    }
     const novaDone = new Set<string>();
     const nova = (pid: string) => {
       if (novaDone.has(pid)) return;
@@ -1525,7 +1596,7 @@ export class App {
       const gainedShields = Math.max(0, p.shields - was.shields);
       const mine = id === viewer.id;
       window.setTimeout(() => {
-        const r = orbRect(id);
+        const r = sunAt(id);
         if (r) {
           // Heat taken (red, rising), cooling (blue) and shields lost or raised, over the sun.
           if (dHeat) floatNumber(r, dHeat > 0 ? `+${dHeat}` : `−${-dHeat}`, dHeat > 0 ? 'hot' : 'cool', 0);
@@ -1558,9 +1629,9 @@ export class App {
         if (p.id === source.id) continue;
         const struck = p.heat > was.heat || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
         if (!struck) continue;
-        const a = orbRect(source.id);
-        const b = orbRect(p.id);
-        const at = a && b ? projectile(a, b, HOT, { delay: delay + 110 * volley++, size: 34 }) : delay;
+        // From the card that struck (if a card was played), else from the striking sun; to the sun as drawn.
+        const a = playedFrom && (playedDef?.onPlay ?? []).some((e) => e.type === 'heat') ? playedFrom : orbRect(source.id);
+        const at = a ? projectile(a, () => sunAt(p.id), HOT, { delay: delay + 110 * volley++, size: 34 }) : delay;
         hit(p.id, at, true);
       }
       if (volley) window.setTimeout(() => sound.launch(), delay);
@@ -1579,7 +1650,8 @@ export class App {
         this.entranceHeard = false;
         const played = prev.players.find((p) => p.id === actor.id)!.hand.find((c) => c.uid === action.cardUid);
         if (played && cardDef(played.defId).kind === 'command') {
-          window.setTimeout(() => sound.upgrade(), delay);
+          // (Its boom lands as the card does.)
+          window.setTimeout(() => sound.hero(), Math.max(0, delay - 300));
           // A hero takes the field, and says so (a caption by the card).
           window.setTimeout(() => voices.speak(played.defId, this.root.querySelector(`.tableau [data-uid="${played.uid}"]`)), delay + 250);
         }
@@ -1606,6 +1678,32 @@ export class App {
     if (vNext.deck.length === 0 && vPrev.deck.length > 0) pulse(root.querySelector('[data-anchor="deck"]'), 'fx-shuffle');
   }
 
+  /**
+   * Until heat lands on a card in play (`at` ms from now), it keeps showing its defence and stability as they
+   * were before (`oldHtml`: the card as it was drawn): numbers change as the blow lands, not before.
+   */
+  private holdCardStats(el: HTMLElement, oldHtml: string | undefined, at: number) {
+    if (!oldHtml || reducedMotion() || at < 100) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = oldHtml;
+    const was = tmp.firstElementChild;
+    if (!was) return;
+    for (const sel of ['.stat-def-floor', '.card-stats-stab']) {
+      const cur = el.querySelector<HTMLElement>(sel), old = was.querySelector<HTMLElement>(sel);
+      if (!cur || !old || cur.outerHTML === old.outerHTML) continue;
+      const html = cur.innerHTML, cls = cur.className;
+      cur.innerHTML = old.innerHTML;
+      cur.className = old.className;
+      window.setTimeout(() => {
+        // (Unless a redraw has drawn it afresh meanwhile.)
+        if (cur.isConnected && cur.innerHTML === old.innerHTML) {
+          cur.innerHTML = html;
+          cur.className = cls;
+        }
+      }, at);
+    }
+  }
+
   /** A sun goes supernova: the explosion, then its half of the board greys out. */
   private supernovaAt(pid: string) {
     const root = this.root;
@@ -1617,10 +1715,13 @@ export class App {
     }
     pulse(root.querySelector('.game'), 'fx-flash', 120);
     pulse(root.querySelector('.table-view') ?? root.querySelector('.game'), 'fx-quake', 60);
-    window.setTimeout(() => {
-      root.querySelector(`.tableau[data-owner="${pid}"]`)?.classList.add('tableau-dead');
-      root.querySelector(`[data-anchor="pill:${pid}"]`)?.classList.add('rival-dead');
-    }, 900);
+    window.setTimeout(() => this.finishDying(pid), 900);
+  }
+
+  /** A dying sun's explosion has played: now it, its pill and its half of the board show it gone. */
+  private finishDying(pid: string) {
+    if (!this.dying.delete(pid)) return;
+    this.render();
   }
 
   /** When the result may show on the board (after the game's last moves have played out). */
@@ -1688,12 +1789,13 @@ export class App {
     const step = PULSE_STEP * SPEED_FACTOR[this.speed];
     const viewer = this.viewer();
     const orbRect = (pid: string) => anchorRect(root, `player:${pid}`) ?? before.anchors.get(`player:${pid}`) ?? anchorRect(root, `pill:${pid}`);
-    // Show a sun with given numbers (its planets as they are now).
+    const sunAt = (pid: string) => sunRect(root, pid) ?? orbRect(pid);
+    // Show a sun with given numbers (its planets as they are now). One going supernova stays alive until its explosion has played.
     const show = (pid: string, sun: { heat: number; shields: number; eliminated: boolean }) => {
       if (id !== this.replayId) return;
       const p = next.players.find((x) => x.id === pid)!;
       root.querySelectorAll(`[data-anchor="player:${pid}"] .vit`).forEach((vit) => {
-        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated, id: pid, orbit: p.orbit });
+        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit });
       });
       animateSuns();
     };
@@ -1702,6 +1804,7 @@ export class App {
     for (const p of next.players) show(p.id, start[p.id] ?? { heat: p.heat, shields: p.shields, eliminated: p.eliminated });
     let last = start;
     let t = 700;
+    const cardLands = new Map<HTMLElement, number>();
     let lastAt = t;
     for (const ps of steps) {
       // Regional instability strikes every sun at once: those pulses share one moment.
@@ -1712,9 +1815,8 @@ export class App {
       const fromEl = ps.uid ? root.querySelector(`.tableau [data-uid="${ps.uid}"]`) : null;
       const from = fromEl ? pageRect(fromEl) : ps.uid ? before.cards.get(ps.uid)?.rect ?? null : (root.querySelector('.round-box') ? pageRect(root.querySelector('.round-box')!) : null);
       // Heat aimed at a card flies to that card (where it stood, if it has burned away since).
-      const cardEl = ps.toCard ? root.querySelector(`.tableau [data-uid="${ps.toCard}"]`) : null;
-      const to = ps.toCard ? (cardEl ? pageRect(cardEl) : before.cards.get(ps.toCard)?.rect ?? null) : orbRect(ps.to);
-      if (cardEl) pulse(cardEl, 'fx-hit-card', at + 640);
+      const cardEl = ps.toCard ? root.querySelector<HTMLElement>(`.tableau [data-uid="${ps.toCard}"]`) : null;
+      const to = ps.toCard ? (cardEl ? pageRect(cardEl) : before.cards.get(ps.toCard)?.rect ?? null) : sunAt(ps.to);
       // Heat aimed at a card whooshes onto it (sweeping it away, if it burns away).
       if (ps.toCard) {
         const burns = !next.players.some((p) => p.tableau.some((c) => c.uid === ps.toCard));
@@ -1731,6 +1833,11 @@ export class App {
         else if (ps.kind === 'cool') land = beam(from, to, 'cool', { delay: at + 120 });
         else if (ps.kind === 'shield') land = beam(from, to, 'plain', { delay: at + 120 });
       }
+      // A struck card glows as the heat lands, and its numbers change then (after its last blow this dawn).
+      if (cardEl) {
+        pulse(cardEl, 'fx-hit-card', land);
+        cardLands.set(cardEl, Math.max(cardLands.get(cardEl) ?? 0, land));
+      }
       if (!ps.together) window.setTimeout(() => {
         if (id !== this.replayId) return;
         if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') sound.launch();
@@ -1746,7 +1853,7 @@ export class App {
           if (!a || !b || (a.heat === b.heat && a.shields === b.shields && a.eliminated === b.eliminated)) continue;
           show(p.id, b);
           if (b.eliminated && !a.eliminated) onNova(p.id);
-          const r = orbRect(p.id);
+          const r = sunAt(p.id);
           const dHeat = b.heat - a.heat, dShield = b.shields - a.shields;
           if (r && dHeat) floatNumber(r, dHeat > 0 ? `+${dHeat}` : `−${-dHeat}`, dHeat > 0 ? 'hot' : 'cool', 0);
           if (r && dShield) floatNumber(r, dShield > 0 ? `⛨+${dShield}` : `⛨−${-dShield}`, 'block', dHeat ? 1 : 0);
@@ -1769,6 +1876,7 @@ export class App {
       }, land);
       if (!ps.together) t += step;
     }
+    for (const [el, at] of cardLands) this.holdCardStats(el, before.cards.get(el.dataset.uid!)?.html, at);
     // Finally the suns as they really are.
     const end = t + 200;
     window.setTimeout(() => {
@@ -3408,12 +3516,12 @@ export class App {
         const mine = p.id === me.id;
         const title = mine ? `${p.name} (you)` : p.name;
         return `
-        <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${p.eliminated ? 'rival-dead' : ''} ${!mine && shown?.id === p.id ? 'rival-shown' : ''}"
+        <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${this.shownDead(p) ? 'rival-dead' : ''} ${!mine && shown?.id === p.id ? 'rival-shown' : ''}"
           data-act="view-player" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(title)}">
           ${factionAvatar(`f${p.species + 1}`, 'rival-emblem')}
           <div class="rival-info">
             <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}</span>
-            ${p.eliminated ? '<span class="rival-stats"><em>supernova</em></span>' : p.lightspeed ? '<span class="rival-stats"><em><i class="ls-pip" title="A Lightspeed card is set face down">⚡</i></em></span>' : ''}
+            ${this.shownDead(p) ? '<span class="rival-stats"><em>supernova</em></span>' : p.lightspeed ? '<span class="rival-stats"><em><i class="ls-pip" title="A Lightspeed card is set face down">⚡</i></em></span>' : ''}
           </div>
         </button>`;
       })
@@ -3527,12 +3635,12 @@ export class App {
     const choosingSlot = side === 'mine' && pend?.step === 'slot';
     // The heat rival cards have aimed at each of this player's cards (for its next dawn), and which of this
     // player's own cards are aimed at a rival card rather than a sun.
-    const incoming = new Map<string, number>();
-    const aiming = new Map<string, boolean>();
     const st = this.state!;
     // At the viewer's dawn, as they aim it: where each card's dawn heat is going, and (while one card is
     // being aimed) what its heat would leave of each rival card it could hit.
     const preview = new Map<string, { defence: number; stability: number }>();
+    // What the heat already aimed will leave each targeted card: shown on the card all the while it is aimed.
+    const settled = new Map<string, { defence: number; stability: number }>();
     // What heat is aimed at (your dawn's, or a staged card's): rings round those cards' edges, and round the sun
     // when a card was aimed at it on purpose (not by default).
     const targeted = new Set<string>();
@@ -3547,11 +3655,12 @@ export class App {
         const chosen = this.dawnAims();
         sunTargeted = Object.keys(chosen).some((uid) => chosen[uid] === null && uid in aims && aims[uid] === null);
       }
-      if (o.id === p.id) {
-        for (const card of o.tableau) if (dawnAimable(card) && aims[card.uid]) aiming.set(card.uid, true);
-      } else {
+      if (o.id !== p.id) {
         const now = previewDawnHeat(st, o, aims);
-        for (const c of p.tableau) if (Object.values(aims).includes(c.uid) || now.cards[c.uid]?.heat) incoming.set(c.uid, now.cards[c.uid]?.heat ?? 0);
+        for (const c of p.tableau) {
+          if (!Object.values(aims).includes(c.uid) && !now.cards[c.uid]?.heat) continue;
+          if (now.cards[c.uid]) settled.set(c.uid, now.cards[c.uid]);
+        }
         if (pend?.dawn && pend.step === 'aim') {
           for (const c of aimChoices(st, o).cards) {
             const v = previewDawnHeat(st, o, { ...aims, [pend.uid]: c.uid }).cards[c.uid];
@@ -3571,7 +3680,7 @@ export class App {
       : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>hero</small></div>`;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
-      if (c) return this.renderCard(c, { tableau: side, owner: p, incoming: incoming.get(c.uid), aimsAtCard: !!aiming.get(c.uid), preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
+      if (c) return this.renderCard(c, { tableau: side, owner: p, settled: settled.get(c.uid), preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
       const def = BALANCE.slotDefence[i];
       return choosingSlot
         ? `<button class="slot-empty slot-choosable" data-act="choose-slot" data-arg="${i}" title="Place it here: defence ${def}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
@@ -3587,9 +3696,9 @@ export class App {
         ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down at lightspeed, for 1 more energy: it springs into your tableau to take heat aimed at your cards"><span class="slot-def">⚡</span><i>face down +1</i></button>`
         : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
     return `
-      <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
+      <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''} ${sunTargeted && !sunAim ? 'vitals-targeted' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''} ${sunTargeted && !sunAim ? 'vitals-targeted' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
           ${this.renderForecast(p)}
@@ -3681,7 +3790,7 @@ export class App {
       </div>`;
   }
 
-  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; incoming?: number; aimsAtCard?: boolean; landscape?: boolean; preview?: { defence: number; stability: number }; targeted?: boolean }): string {
+  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; landscape?: boolean; settled?: { defence: number; stability: number }; preview?: { defence: number; stability: number }; targeted?: boolean }): string {
     const def = cardDef(c.defId);
     const act = this.canAct();
     const p = this.pending;
@@ -3724,16 +3833,20 @@ export class App {
     if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
     // While you assign your dawn's heat, your hand waits (greyed out).
     if (opts.hand && this.dawnTurn()) state = 'card-pricey';
-    // A stat as it stands, and (while aiming heat at it) as the heat would leave it, shown on hover.
-    const pv = (icon: string, n: number, after?: number) =>
-      after === undefined || after === n ? `${icon}${n}` : `<span class="pv-now">${icon}${n}</span><span class="pv-after">${icon}${after}</span>`;
+    // A stat as it stands; on a card heat is aimed at, as that heat will leave it (in red, all the while it is
+    // aimed); and while aiming more heat, as that would leave it, shown on hover.
+    const pv = (icon: string, n: number, settled?: number, hover?: number) => {
+      const shown = settled ?? n;
+      const base = shown === n ? `${icon}${n}` : `<span class="pv-settled" title="${n} now">${icon}${shown}</span>`;
+      return hover === undefined || hover === shown ? base : `<span class="pv-now">${base}</span><span class="pv-after">${icon}${hover}</span>`;
+    };
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     // (Resonance and forge show in the card's own numbers, not as a badge.)
     const resonance = '';
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.preview?.defence)}</b><span class="card-stats card-stats-stab"><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">${pv('◷', c.stability ?? 0, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats card-stats-stab"><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
@@ -3947,8 +4060,8 @@ export class App {
     const tabs = [me, ...s.players.filter((o) => o.id !== me.id)]
       .map(
         (o) => `
-        <button class="sys-tab ${o.id === p.id ? 'sys-tab-on' : ''} ${o.eliminated ? 'sys-tab-dead' : ''}" data-act="view-player" data-arg="${o.id}">
-          ${sunOrb({ heat: o.heat, threshold: supernovaThreshold(o), size: 26, dead: o.eliminated, label: '' })}
+        <button class="sys-tab ${o.id === p.id ? 'sys-tab-on' : ''} ${this.shownDead(o) ? 'sys-tab-dead' : ''}" data-act="view-player" data-arg="${o.id}">
+          ${sunOrb({ heat: o.heat, threshold: supernovaThreshold(o), size: 26, dead: this.shownDead(o), label: '' })}
           <span>${o.id === me.id ? 'you' : esc(o.name.toLowerCase())}</span>
         </button>`,
       )
