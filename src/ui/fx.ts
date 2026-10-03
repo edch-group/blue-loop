@@ -213,7 +213,7 @@ export function tether(source: DOMRect | (() => DOMRect | null), to: DOMRect, op
  * starting and ending just outside each one's edge, so it never lies over the text of the card it
  * leaves (or lands on).
  */
-function arcPath(from: DOMRect, to: DOMRect): { d: string } {
+function arcPath(from: DOMRect, to: DOMRect): { d: string; x0: number; y0: number; x1: number; y1: number } {
   const ax = from.left + from.width / 2, ay = from.top + from.height / 2;
   const bx = to.left + to.width / 2, by = to.top + to.height / 2;
   const dx = bx - ax, dy = by - ay;
@@ -224,7 +224,28 @@ function arcPath(from: DOMRect, to: DOMRect): { d: string } {
   const [x0, y0] = edge(from, ax, ay, cx, cy, 5);
   const [x1, y1] = edge(to, bx, by, cx, cy, 3);
   const d = `M${x0.toFixed(1)} ${y0.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
-  return { d };
+  return { d, x0, y0, x1, y1 };
+}
+
+/**
+ * A beam's paths: a faint soft halo and a thin translucent line, both soft-edged, fading in along the
+ * arc from where it leaves to where it lands (a gradient laid along the beam: see placeBeam).
+ */
+let beamIds = 0;
+function beamMarkup(d = ''): string {
+  const id = `beam-g${++beamIds}`;
+  const stops = '<stop offset="0" class="beam-stop" style="stop-opacity:0.08"/><stop offset="0.4" class="beam-stop" style="stop-opacity:0.5"/><stop offset="1" class="beam-stop" style="stop-opacity:0.85"/>';
+  return `<defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse">${stops}</linearGradient></defs><path class="tether-glow" d="${d}" stroke="url(#${id})"/><path class="tether-line" d="${d}" stroke="url(#${id})"/>`;
+}
+
+/** Lay a beam's gradient along its arc, from start to end. */
+function placeBeam(svg: SVGSVGElement, a: { x0: number; y0: number; x1: number; y1: number }) {
+  const g = svg.querySelector('linearGradient');
+  if (!g) return;
+  g.setAttribute('x1', a.x0.toFixed(1));
+  g.setAttribute('y1', a.y0.toFixed(1));
+  g.setAttribute('x2', a.x1.toFixed(1));
+  g.setAttribute('y2', a.y1.toFixed(1));
 }
 
 /** Where a ray from a rectangle's centre (x, y) towards (tx, ty) leaves the rectangle, `gap` beyond it. */
@@ -240,13 +261,15 @@ function edge(r: DOMRect, x: number, y: number, tx: number, ty: number, gap: num
 
 function drawTether(from: DOMRect, to: DOMRect, draw: number, hold: number) {
   const delay = 0;
-  const { d } = arcPath(from, to);
+  const arc = arcPath(from, to);
+  const d = arc.d;
   // (The ring that marks the target swells round its centre.)
   const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('class', 'tether');
-  svg.innerHTML = `<path class="tether-glow" d="${d}"/><path class="tether-tube" d="${d}"/><path class="tether-line" d="${d}"/><circle class="tether-tip" cx="${x1.toFixed(1)}" cy="${y1.toFixed(1)}" r="0"/>`;
+  svg.innerHTML = `${beamMarkup(d)}<circle class="tether-tip" cx="${x1.toFixed(1)}" cy="${y1.toFixed(1)}" r="0"/>`;
+  placeBeam(svg, arc);
   document.body.appendChild(svg);
   for (const path of svg.querySelectorAll('path')) {
     const L = path.getTotalLength();
@@ -271,7 +294,7 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('class', 'tether tether-aim');
-  svg.innerHTML = '<path class="tether-glow"/><path class="tether-tube"/><path class="tether-line"/>';
+  svg.innerHTML = beamMarkup();
   let frame = 0;
   let gone = false;
   const place = () => {
@@ -280,8 +303,9 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
     // (The target itself is marked on the board: a ring round the card's or the sun's edge.)
     svg.style.visibility = from && to ? '' : 'hidden';
     if (from && to) {
-      const { d } = arcPath(from, to);
-      for (const path of svg.querySelectorAll('path')) path.setAttribute('d', d);
+      const arc = arcPath(from, to);
+      for (const path of svg.querySelectorAll('path')) path.setAttribute('d', arc.d);
+      placeBeam(svg, arc);
     }
     frame = requestAnimationFrame(place);
   };
