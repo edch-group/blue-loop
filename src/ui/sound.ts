@@ -5,8 +5,9 @@ import { markDirty } from './account';
  * Every effect uses soft waveforms, slow attacks and a long shared "space"
  * reverb, so actions swell and bloom rather than click. A generative ambient
  * score (drone, slowly shifting pad chords and distant chimes; just synths,
- * no noise) plays underneath. Each effect is one method, so recorded audio
- * can replace any of them later without touching the rest of the game.
+ * no noise) plays underneath the menus; matches get a driving battle theme with
+ * an entrance fanfare. Each effect is one method, so recorded audio can replace
+ * any of them later without touching the rest of the game.
  */
 
 const PREFS_KEY = 'blue-loop:sound';
@@ -39,16 +40,73 @@ const CHORDS: number[][] = [
 /** Pentatonic chime notes for the distant sparkles. */
 const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 
+export type MusicScene = 'ambient' | 'battle';
+
+// ---- Battle theme -----------------------------------------------------------
+// A handheld-era trainer battle reimagined in space: B minor at a racing tempo,
+// a pulse-wave lead with a dotted echo, octave-bouncing bass, a 16th-note arp
+// and a tight kit. Lines are written one bar (16 sixteenths) per string:
+// a note name starts a note, "-" holds it, "." rests.
+
+const BATTLE_BPM = 168;
+const NOTE_INDEX: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
+const midi = (name: string) => {
+  const m = /^([A-G]#?)(-?\d)$/.exec(name)!;
+  return (Number(m[2]) + 1) * 12 + NOTE_INDEX[m[1]];
+};
+const hz = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
+
+/** One bar of a line, as notes: step (0-15), MIDI note, length in steps. */
+function bar(line: string): { step: number; note: number; len: number }[] {
+  const out: { step: number; note: number; len: number }[] = [];
+  line.trim().split(/\s+/).forEach((tok, step) => {
+    if (tok === '-') {
+      if (out.length) out[out.length - 1].len++;
+    } else if (tok !== '.') out.push({ step, note: midi(tok), len: 1 });
+  });
+  return out;
+}
+
+/** Chord per bar: bass root, and the tones the arp climbs through. */
+const BATTLE_BARS: { root: string; arp: string[]; lead: string }[] = [
+  // A: the chase.
+  { root: 'B1', arp: ['B3', 'D4', 'F#4', 'B4'], lead: 'B4 - . B4 D5 - F#5 - E5 - D5 - C#5 - D5 E5' },
+  { root: 'B1', arp: ['B3', 'D4', 'F#4', 'B4'], lead: 'F#5 - - - - - E5 D5 E5 - - - . . . .' },
+  { root: 'G1', arp: ['G3', 'B3', 'D4', 'G4'], lead: 'G5 - - F#5 - - E5 - D5 - E5 - F#5 - G5 -' },
+  { root: 'A1', arp: ['A3', 'C#4', 'E4', 'A4'], lead: 'A5 - - - E5 - - - C#5 - E5 - A5 - G5 F#5' },
+  { root: 'B1', arp: ['B3', 'D4', 'F#4', 'B4'], lead: 'F#5 - - D5 - - B4 - D5 - F#5 - B5 - A5 -' },
+  { root: 'B1', arp: ['B3', 'D4', 'F#4', 'B4'], lead: 'F#5 - - - - - . . D5 E5 F#5 - E5 - D5 -' },
+  { root: 'G1', arp: ['G3', 'B3', 'D4', 'G4'], lead: 'E5 - - D5 - - B4 - G5 - - F#5 - - E5 -' },
+  { root: 'F#1', arp: ['F#3', 'A#3', 'C#4', 'E4'], lead: 'F#5 - - - - - - - A#4 - C#5 - E5 - F#5 -' },
+  // B: the climb.
+  { root: 'G1', arp: ['G3', 'B3', 'D4', 'G4'], lead: 'D6 - - - B5 - - - G5 - - - B5 - D6 -' },
+  { root: 'A1', arp: ['A3', 'C#4', 'E4', 'A4'], lead: 'C#6 - - - A5 - - - E5 - - - A5 - C#6 -' },
+  { root: 'F#1', arp: ['F#3', 'A3', 'C#4', 'F#4'], lead: 'C#6 - B5 - A5 - - - F#5 - A5 - C#6 - - -' },
+  { root: 'B1', arp: ['B3', 'D4', 'F#4', 'B4'], lead: 'B5 - - - - - - - . . F#5 - B5 - D6 -' },
+  { root: 'G1', arp: ['G3', 'B3', 'D4', 'G4'], lead: 'E6 - D6 - B5 - - - G5 - B5 - D6 - E6 -' },
+  { root: 'A1', arp: ['A3', 'C#4', 'E4', 'A4'], lead: 'F#6 - E6 - C#6 - - - A5 - C#6 - E6 - - -' },
+  { root: 'E1', arp: ['E3', 'G3', 'B3', 'E4'], lead: 'G6 - F#6 - E6 - D6 - E6 - D6 - B5 - G5 -' },
+  { root: 'F#1', arp: ['F#3', 'A#3', 'C#4', 'E4'], lead: 'F#5 - - - A#5 - - - C#6 - - - E6 - F#6 -' },
+];
+const BATTLE_LEAD = BATTLE_BARS.map((b) => bar(b.lead));
+/** Up-and-over arp shape through the four chord tones. */
+const ARP_SHAPE = [0, 1, 2, 3, 2, 1, 2, 3, 0, 1, 2, 3, 2, 3, 2, 1];
+
 class SoundBoard {
   private ctx: AudioContext | null = null;
   private sfx: GainNode | null = null;
   private musicBus: GainNode | null = null;
+  private battleBus: GainNode | null = null;
+  private pulse: PeriodicWave | null = null;
   private reverb: ConvolverNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private lastHover = 0;
   private musicTimers: number[] = [];
   private musicNodes: AudioNode[] = [];
-  private musicPlaying = false;
+  /** Which score is sounding (null: none). */
+  private playing: MusicScene | null = null;
+  /** Which score the current screen wants. */
+  private scene: MusicScene = 'ambient';
   private silent: HTMLAudioElement | null = null;
   muted = false;
   musicOn = true;
@@ -155,6 +213,19 @@ class SoundBoard {
       this.musicBus.connect(master);
       this.musicBus.connect(this.reverb);
 
+      // The battle theme is busy, so it gets a lighter reverb send (its lead has its own echo).
+      this.battleBus = ctx.createGain();
+      this.battleBus.gain.value = 0.0001;
+      this.battleBus.connect(master);
+      const battleSend = ctx.createGain();
+      battleSend.gain.value = 0.3;
+      this.battleBus.connect(battleSend).connect(this.reverb);
+
+      // A 25% pulse, the classic handheld lead.
+      const real = new Float32Array(32), imag = new Float32Array(32);
+      for (let n = 1; n < 32; n++) real[n] = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * 0.25);
+      this.pulse = ctx.createPeriodicWave(real, imag);
+
       const len = ctx.sampleRate * 2;
       this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
       const data = this.noiseBuf.getChannelData(0);
@@ -260,7 +331,7 @@ class SoundBoard {
   }
 
   /** Filtered noise swell (wind, whooshes, solar roar). */
-  private breath(opts: { dur: number; freq: number; to?: number; q?: number; gain?: number; attack?: number; delay?: number; type?: BiquadFilterType }) {
+  private breath(opts: { dur: number; freq: number; to?: number; q?: number; gain?: number; attack?: number; delay?: number; type?: BiquadFilterType; out?: AudioNode }) {
     const ctx = this.ready();
     if (!ctx || !this.noiseBuf) return;
     const t = ctx.currentTime + (opts.delay ?? 0);
@@ -277,7 +348,7 @@ class SoundBoard {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(peak, t + (opts.attack ?? 0.2));
     g.gain.exponentialRampToValueAtTime(0.0001, t + opts.dur);
-    src.connect(f).connect(g).connect(this.sfx!);
+    src.connect(f).connect(g).connect(opts.out ?? this.sfx!);
     src.start(t, Math.random());
     src.stop(t + opts.dur + 0.1);
   }
@@ -414,17 +485,32 @@ class SoundBoard {
     this.voice(146.83, { dur: 0.6, attack: 0.04, gain: 0.05, to: 130, cutoff: 500 });
   }
 
-  // ---- Ambient score ------------------------------------------------------
+  // ---- Score ---------------------------------------------------------------
+
+  /** The screen asks for a score: crossfade to it if music is playing (a battle opens with its fanfare). */
+  setScene(scene: MusicScene) {
+    if (scene === this.scene) return;
+    this.scene = scene;
+    if (this.playing) {
+      this.stopMusic();
+      this.startMusic();
+    }
+  }
 
   startMusic() {
     const ctx = this.ready();
-    if (!ctx || this.musicPlaying || !this.musicBus) return;
-    this.musicPlaying = true;
-    const bus = this.musicBus;
+    if (!ctx || this.playing || !this.musicBus || !this.battleBus) return;
+    this.playing = this.scene;
+    const battle = this.scene === 'battle';
+    const bus = battle ? this.battleBus : this.musicBus;
     bus.gain.cancelScheduledValues(ctx.currentTime);
     bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), ctx.currentTime);
-    bus.gain.exponentialRampToValueAtTime(0.5, ctx.currentTime + 6);
+    bus.gain.exponentialRampToValueAtTime(battle ? 0.6 : 0.5, ctx.currentTime + (battle ? 0.05 : 6));
+    if (battle) this.battleScore(ctx, bus);
+    else this.ambientScore(ctx, bus);
+  }
 
+  private ambientScore(ctx: AudioContext, bus: GainNode) {
     // Low drone: two detuned triangles through a slowly breathing lowpass.
     const droneFilter = ctx.createBiquadFilter();
     droneFilter.type = 'lowpass';
@@ -453,7 +539,7 @@ class SoundBoard {
     // Pad chords every ~11s, sparkles every few seconds.
     let chord = 0;
     const pad = () => {
-      if (!this.musicPlaying) return;
+      if (this.playing !== 'ambient') return;
       const notes = CHORDS[chord % CHORDS.length];
       chord += 1 + Math.floor(Math.random() * 2);
       notes.forEach((f, i) => {
@@ -464,7 +550,7 @@ class SoundBoard {
       this.musicTimers.push(window.setTimeout(pad, 10500 + Math.random() * 3000));
     };
     const sparkle = () => {
-      if (!this.musicPlaying) return;
+      if (this.playing !== 'ambient') return;
       const f = CHIMES[Math.floor(Math.random() * CHIMES.length)];
       this.voice(f, { dur: 4, attack: 0.6, gain: 0.008 + Math.random() * 0.006, vibrato: 2, out: bus });
       this.musicTimers.push(window.setTimeout(sparkle, 2500 + Math.random() * 6000));
@@ -473,14 +559,172 @@ class SoundBoard {
     this.musicTimers.push(window.setTimeout(sparkle, 3000));
   }
 
+  /** A held synth note at an exact time: quick attack, a sustain that sags a little, short release, late vibrato. */
+  private note(
+    at: number,
+    freq: number,
+    len: number,
+    opts: { gain: number; type?: OscillatorType | 'pulse'; cutoff?: number; detune?: number; vibrato?: boolean; out: AudioNode },
+  ) {
+    const ctx = this.ctx!;
+    const osc = ctx.createOscillator();
+    if (opts.type === 'pulse' && this.pulse) osc.setPeriodicWave(this.pulse);
+    else osc.type = (opts.type as OscillatorType) ?? 'square';
+    osc.frequency.setValueAtTime(freq, at);
+    if (opts.detune) osc.detune.value = opts.detune;
+    const rel = 0.06;
+    if (opts.vibrato && len > 0.35) {
+      const lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      lfo.frequency.value = 5.6;
+      depth.gain.setValueAtTime(0, at);
+      depth.gain.setValueAtTime(0, at + 0.22);
+      depth.gain.linearRampToValueAtTime(freq * 0.008, at + len);
+      lfo.connect(depth).connect(osc.frequency);
+      lfo.start(at);
+      lfo.stop(at + len + rel + 0.05);
+    }
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = opts.cutoff ?? 3000;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(opts.gain, at + 0.006);
+    g.gain.linearRampToValueAtTime(opts.gain * 0.7, at + len);
+    g.gain.linearRampToValueAtTime(0, at + len + rel);
+    osc.connect(f).connect(g).connect(opts.out);
+    osc.start(at);
+    osc.stop(at + len + rel + 0.05);
+  }
+
+  /** The lead voice: a pulse with a quiet detuned saw riding on it, for a synthier edge. */
+  private lead(at: number, n: number, len: number, out: AudioNode, gain = 0.03) {
+    this.note(at, hz(n), len, { gain, type: 'pulse', cutoff: 3400, vibrato: true, out });
+    this.note(at, hz(n), len, { gain: gain * 0.35, type: 'sawtooth', cutoff: 2200, detune: 9, vibrato: true, out });
+  }
+
+  /** The kit, as short noise and a falling sine. */
+  private kick(at: number, bus: GainNode) {
+    const ctx = this.ctx!;
+    this.voice(120, { dur: 0.28, attack: 0.003, gain: 0.16, to: 38, cutoff: 600, delay: Math.max(0, at - ctx.currentTime), out: bus });
+  }
+  private snare(at: number, bus: GainNode, gain = 0.045) {
+    this.breath({ dur: 0.2, freq: 1900, type: 'bandpass', q: 0.6, gain, attack: 0.003, delay: Math.max(0, at - this.ctx!.currentTime), out: bus });
+  }
+  private hat(at: number, bus: GainNode, gain = 0.014) {
+    this.breath({ dur: 0.06, freq: 7500, type: 'highpass', q: 0.7, gain, attack: 0.002, delay: Math.max(0, at - this.ctx!.currentTime), out: bus });
+  }
+
+  /**
+   * The battle theme: an entrance fanfare (a chromatic plunge, then stabs that climb into the key), one bar of
+   * the band vamping, then a looping 16-bar chase. Bars are scheduled just ahead of the audio clock.
+   */
+  private battleScore(ctx: AudioContext, bus: GainNode) {
+    const step = 60 / BATTLE_BPM / 4;
+    const barLen = step * 16;
+
+    // The lead's dotted-eighth echo, darker on each repeat: the "space" around the chiptune.
+    const leadBus = ctx.createGain();
+    const echo = ctx.createDelay(1);
+    echo.delayTime.value = step * 3;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.33;
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = 2400;
+    const wet = ctx.createGain();
+    wet.gain.value = 0.28;
+    leadBus.connect(bus);
+    leadBus.connect(echo).connect(tone).connect(feedback).connect(echo);
+    tone.connect(wet).connect(bus);
+    this.musicNodes = [leadBus, echo, feedback, tone, wet];
+
+    // ---- Entrance --------------------------------------------------------
+    const t0 = ctx.currentTime + 0.08;
+    // Bar 1: a two-octave chromatic plunge in thirty-seconds, doubled an octave down, under a rising rush.
+    for (let i = 0; i < 24; i++) {
+      const at = t0 + i * (step / 2);
+      this.note(at, hz(90 - i), step / 2, { gain: 0.03, type: 'pulse', cutoff: 4000, out: leadBus });
+      this.note(at, hz(78 - i), step / 2, { gain: 0.016, type: 'sawtooth', cutoff: 1800, out: bus });
+    }
+    this.breath({ dur: barLen * 0.45, freq: 300, to: 5000, type: 'bandpass', q: 1.4, gain: 0.05, attack: barLen * 0.42, delay: t0 + step * 9 - ctx.currentTime, out: bus });
+    // Bar 2: Bm hits, then C and F#/C# pushing back home.
+    const t1 = t0 + barLen;
+    const stab = (step0: number, len: number, notes: string[], bass: string) => {
+      const at = t1 + step0 * step;
+      notes.forEach((n, i) => {
+        this.note(at, hz(midi(n)), len * step, { gain: 0.022, type: 'sawtooth', cutoff: 2600, detune: i % 2 ? 8 : -8, out: bus });
+        this.note(at, hz(midi(n)), len * step, { gain: 0.012, type: 'pulse', cutoff: 3000, out: leadBus });
+      });
+      this.note(at, hz(midi(bass)), len * step, { gain: 0.07, type: 'triangle', cutoff: 900, out: bus });
+      this.note(at, hz(midi(bass) + 12), len * step, { gain: 0.03, type: 'sawtooth', cutoff: 600, out: bus });
+      this.kick(at, bus);
+    };
+    const bm = ['B3', 'D4', 'F#4', 'B4'];
+    stab(0, 2, bm, 'B1');
+    stab(3, 2, bm, 'B1');
+    stab(6, 3, bm, 'B1');
+    stab(10, 2, ['C4', 'E4', 'G4', 'C5'], 'C2');
+    stab(12, 4, ['C#4', 'F#4', 'A#4', 'C#5'], 'C#2');
+    this.voice(55, { dur: 1.8, attack: 0.01, gain: 0.18, to: 32, type: 'triangle', cutoff: 320, delay: t1 - ctx.currentTime, out: bus });
+    this.breath({ dur: 1.4, freq: 6000, to: 900, type: 'highpass', q: 0.6, gain: 0.04, attack: 0.005, delay: t1 - ctx.currentTime, out: bus });
+    [12, 13, 14, 15].forEach((s) => this.snare(t1 + s * step, bus, 0.03 + (s - 12) * 0.008));
+
+    // ---- The chase -------------------------------------------------------
+    const playBar = (index: number, at: number, withLead: boolean) => {
+      const b = BATTLE_BARS[index];
+      const root = midi(b.root);
+      const second = index >= 8;
+      // Bass: octave-bouncing eighths, the last one of the bar walking up to the next root.
+      for (let e = 0; e < 8; e++) {
+        const n = e % 2 ? root + 12 : root;
+        const s = at + e * 2 * step;
+        this.note(s, hz(n + 12), step * 1.7, { gain: 0.07, type: 'triangle', cutoff: 1200, out: bus });
+        this.note(s, hz(n + 12), step * 1.4, { gain: 0.022, type: 'sawtooth', cutoff: 700, out: bus });
+      }
+      // Arp: sixteenths through the chord, quiet and narrow, the second half an octave up.
+      ARP_SHAPE.forEach((k, s) => {
+        const n = midi(b.arp[k]) + (second ? 12 : 0);
+        this.note(at + s * step, hz(n), step * 0.8, { gain: 0.009, type: 'square', cutoff: 2200, out: bus });
+      });
+      // Kit: kick on the beat (more often in the climb), snare on two and four, offbeat hats.
+      [0, 8, ...(second ? [6, 10, 14] : [10])].forEach((s) => this.kick(at + s * step, bus));
+      [4, 12].forEach((s) => this.snare(at + s * step, bus));
+      for (let s = 2; s < 16; s += 4) this.hat(at + s * step, bus);
+      if (second) for (let s = 1; s < 16; s += 2) this.hat(at + s * step, bus, 0.006);
+      // A section opens on a slow pad swell; the climb adds a far-off chime for the stars.
+      if (index % 8 === 0) {
+        b.arp.forEach((n, i) =>
+          this.voice(hz(midi(n) + 12), { dur: barLen * 2, attack: barLen * 0.6, gain: 0.012, type: 'sawtooth', cutoff: 900, detune: i % 2 ? 9 : -9, delay: at - ctx.currentTime, out: bus }),
+        );
+      }
+      if (second && index % 2 === 0) this.voice(hz(midi(b.arp[3]) + 24), { dur: 2.4, attack: 0.01, gain: 0.012, vibrato: 3, delay: at + step * 8 - ctx.currentTime, out: leadBus });
+      if (withLead) for (const n of BATTLE_LEAD[index]) this.lead(at + n.step * step, n.note, n.len * step * 0.92, leadBus);
+    };
+
+    let next = t1 + barLen;
+    let index = -1; // the vamp bar before the tune comes in
+    const tick = () => {
+      if (this.playing !== 'battle') return;
+      while (next < ctx.currentTime + 0.4) {
+        playBar(Math.max(0, index), next, index >= 0);
+        next += barLen;
+        index = (index + 1) % BATTLE_BARS.length;
+      }
+    };
+    tick();
+    this.musicTimers.push(window.setInterval(tick, 100));
+  }
+
   /** Fade the score out (or cut it at once, when the app is being hidden). */
   stopMusic(immediate = false) {
-    if (!this.musicPlaying || !this.ctx || !this.musicBus) return;
-    this.musicPlaying = false;
+    if (!this.playing || !this.ctx || !this.musicBus || !this.battleBus) return;
+    const bus = this.playing === 'battle' ? this.battleBus : this.musicBus;
+    this.playing = null;
+    // Ids from setTimeout and setInterval share one pool, so clearTimeout ends either.
     this.musicTimers.forEach((t) => window.clearTimeout(t));
     this.musicTimers = [];
     const now = this.ctx.currentTime;
-    const bus = this.musicBus;
     bus.gain.cancelScheduledValues(now);
     bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), now);
     if (immediate) bus.gain.setValueAtTime(0.0001, now);
