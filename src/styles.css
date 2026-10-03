@@ -1884,10 +1884,13 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   transform: translateZ(2px);
 }
 .card.card-table { --cw: var(--tcw); width: var(--tcw); height: calc(var(--tcw) * 1.4); padding: 0 7% 6%; gap: 2px; }
-.card-table .card-glyph { height: 42%; }
-.card-table .card-name { font-size: max(6px, calc(var(--cw) * 0.1)); padding-right: 0; }
-.card-table .card-text { font-size: max(6px, calc(var(--cw) * 0.07)); }
-.card-table .card-kind { font-size: max(5px, calc(var(--cw) * 0.055)); letter-spacing: 0.12em; }
+/* On the table the cards are small: the name shrinks with them (the same share of the card as in the
+   hand), so the ability below it gets the room, set larger and tighter to stay readable. */
+.card-table .card-glyph { height: 38%; }
+.card-table .card-name { font-size: max(6px, calc(var(--cw) * 0.078)); letter-spacing: 0.03em; line-height: 1.12; padding-right: 0; margin-top: calc(var(--cw) * 0.085); }
+.card-table .card-text { font-size: max(7px, calc(var(--cw) * 0.088)); line-height: 1.18; }
+.card-table .card-para { height: 0.2em; }
+.card-table .card-kind { font-size: max(5px, calc(var(--cw) * 0.045)); letter-spacing: 0.12em; }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   /* Small cards on a phone: a shorter picture, the name on one small line, and the ability below it
      (symbols and keywords keep it short; it shrinks to fit). Press and hold one for the full card. */
