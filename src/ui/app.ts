@@ -710,13 +710,14 @@ export class App {
     const s = this.state;
     if (s && this.screen === 'game' && this.dawnTurn()) {
       const me = activePlayer(s);
-      const rival = targetOf(s, me);
       const aims = this.draftAims(s, me);
       for (const card of me.tableau) {
         if (!dawnAimable(card) || !(card.uid in aims)) continue;
+        // Only heat aimed at a card: the sun is where it goes by default once the dawn breaks.
         const hit = aims[card.uid];
-        const to = hit ? `.tableau [data-uid="${hit}"]` : rival ? `.tableau [data-anchor="player:${rival.id}"]` : '';
-        if (to) want.set(`${card.uid}>${to}`, [`.tableau [data-uid="${card.uid}"]`, to]);
+        if (!hit) continue;
+        const to = `.tableau [data-uid="${hit}"]`;
+        want.set(`${card.uid}>${to}`, [`.tableau [data-uid="${card.uid}"]`, to]);
       }
     }
     for (const [key, stop] of this.dawnBeams) {
@@ -1549,16 +1550,23 @@ export class App {
     copy.classList.remove('card-choosable', 'lifted', 'card-aimer', 'card-aiming');
     copy.classList.add('card-leaving');
     const at = planeOffset(cell, row);
-    Object.assign(copy.style, { position: 'absolute', left: `${at.x}px`, top: `${at.y}px`, width: `${cell.offsetWidth}px`, height: `${cell.offsetHeight}px`, margin: '0', zIndex: '6', pointerEvents: 'none' });
-    row.appendChild(copy);
+    // In a box the slot's size (a card's padding is a share of its container's width: laid out loose in
+    // the row, it would take a share of the whole row's, and squash the card).
+    const box = document.createElement('div');
+    box.className = 'card-leaving-box';
+    Object.assign(box.style, { position: 'absolute', left: `${at.x}px`, top: `${at.y}px`, width: `${cell.offsetWidth}px`, height: `${cell.offsetHeight}px`, zIndex: '6', pointerEvents: 'none', transformStyle: 'preserve-3d' });
+    Object.assign(copy.style, { position: 'relative', left: '0', top: '0', width: '100%', height: '100%', margin: '0' });
+    box.appendChild(copy);
+    row.appendChild(box);
     // A redraw mid-animation rebuilds the row: the copy is put back into the new one (see keepLeaving).
-    this.leaving.add({ el: copy, owner: owner!.id, until: Date.now() + 8000 });
+    this.leaving.add({ el: box, owner: owner!.id, until: Date.now() + 8000 });
     return copy;
   }
 
-  private dropLeaving(el: HTMLElement) {
-    el.remove();
-    for (const l of this.leaving) if (l.el === el) this.leaving.delete(l);
+  private dropLeaving(copy: HTMLElement) {
+    const box = copy.parentElement?.classList.contains('card-leaving-box') ? copy.parentElement : copy;
+    box.remove();
+    for (const l of this.leaving) if (l.el === box || l.el === copy) this.leaving.delete(l);
   }
 
   /** Copies of cards leaving a tableau, still animating, with whose tableau they lie in. */
@@ -1601,8 +1609,9 @@ export class App {
     if (!target) return false;
     const copy = this.slotCopy(prev, uid, html, keepUid);
     if (!copy) return false;
-    const row = copy.parentElement!;
-    const from = planeOffset(copy, row);
+    const box = copy.parentElement!;
+    const row = box.parentElement!;
+    const from = planeOffset(box, row);
     const to = planeOffset(target, row);
     const w = copy.offsetWidth || 1;
     const h = copy.offsetHeight || 1;
@@ -2971,18 +2980,15 @@ export class App {
     // At the viewer's dawn, as they aim it: where each card's dawn heat is going, and (while one card is
     // being aimed) what its heat would leave of each rival card it could hit.
     const preview = new Map<string, { defence: number; stability: number }>();
-    // What heat is aimed at (your dawn's, or a staged card's): rings round those cards' edges, or the sun's.
+    // The cards heat is aimed at (your dawn's, or a staged card's): rings round their edges. (Not the sun:
+    // that is where heat goes by default.)
     const targeted = new Set<string>();
-    let sunTargeted = false;
     if (this.stage?.confirm && this.stage.target) targeted.add(this.stage.target);
     if (this.dawnTurn()) {
       const o = activePlayer(st);
       const aims = this.draftAims(st, o);
       if (o.id !== p.id) {
-        for (const t of Object.values(aims)) {
-          if (t) targeted.add(t);
-          else sunTargeted = true;
-        }
+        for (const t of Object.values(aims)) if (t) targeted.add(t);
       }
       if (o.id === p.id) {
         for (const card of o.tableau) if (dawnAimable(card) && aims[card.uid]) aiming.set(card.uid, true);
@@ -3026,7 +3032,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''} ${sunTargeted && !sunAim ? 'vitals-targeted' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
           ${this.renderForecast(p)}
