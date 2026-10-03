@@ -1978,7 +1978,6 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .db-filters { display: flex; gap: 5px; flex-wrap: wrap; }
 .db-filters .pill-btn { padding: 4px 9px; font-size: 0.5rem; }
 .db-pool { overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(104px, calc(15 * var(--vw)), 150px), 1fr)); gap: 8px; align-content: start; padding: 2px 4px 12px; }
-.db-count { position: absolute; top: 6px; right: 8px; font-family: var(--display); font-size: 0.7rem; color: var(--kc); }
 .db-deck-side {
   /* A column: the deck list takes what is left, whatever sits above it (starter note, craft panel). */
   display: flex; flex-direction: column; gap: 8px; min-height: 0;
@@ -2018,14 +2017,6 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .db-search {
   flex: 1 1 160px; min-width: 120px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid #e6e8ee; background: #fff;
   font-family: var(--body, inherit); font-size: 0.75rem; color: var(--ink);
-}
-.db-select { display: grid; gap: 1px; }
-.db-select small { font-family: var(--display); font-size: 0.45rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); padding-left: 10px; }
-.db-select select {
-  height: 30px; padding: 0 26px 0 10px; border-radius: 999px; border: 1px solid #e6e8ee; background: #fff; color: var(--ink);
-  font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, #8b93ad 50%), linear-gradient(135deg, #8b93ad 50%, transparent 50%);
-  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
 }
 .db-toolbar .pill-btn { height: 30px; padding: 0 12px; font-size: 0.55rem; }
 .db-shown { font-family: var(--display); font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); align-self: center; }
@@ -2419,10 +2410,13 @@ img.art { object-fit: cover; }
 .db-card > .card { --cw: 100cqw; width: 100%; height: 100%; }
 .db-card > .card .card-text { display: block; overflow: hidden; }
 .db-card-in > .card { box-shadow: 0 0 0 2px color-mix(in srgb, var(--kc) 75%, transparent), 0 5px 16px rgba(90, 90, 110, 0.15); }
-.db-card .db-count {
-  position: absolute; top: 6%; left: 6%; right: auto; z-index: 3; padding: 1px 7px; border-radius: 999px;
-  background: var(--kc); color: #fff; font-size: 0.72rem; box-shadow: 0 0 0 2px #fff;
+.db-card .db-have {
+  position: absolute; top: 3.5%; left: 4%; z-index: 3; padding: 2px 8px; border-radius: 999px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.94); box-shadow: 0 0 0 1px rgba(150, 160, 185, 0.35), 0 1px 4px rgba(80, 84, 100, 0.18);
+  font-family: var(--display); font-size: max(9px, calc(var(--dbw, 120px) * 0.085)); letter-spacing: 0.06em; line-height: 1.2; color: var(--ink-faint);
 }
+.db-card .db-have.on { background: var(--kc); color: #fff; box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(80, 84, 100, 0.2); }
+.db-card-locked .db-have { color: #6d6fd0; }
 @media (hover: hover) { .db-card:hover > .card { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(90, 90, 110, 0.2); } }
 
 
@@ -2632,12 +2626,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* Deck builder: cards you don't own are greyed out; tap one to craft it. */
 .db-card-locked .card { filter: grayscale(1) opacity(0.45); }
 .db-card-focus { outline: 2px solid #9fb4ff; outline-offset: 2px; border-radius: 10px; }
-.db-own {
-  position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); z-index: 3; white-space: nowrap; cursor: pointer;
-  padding: 1px 8px; border-radius: 999px; background: #fff; box-shadow: 0 1px 4px rgba(80, 84, 100, 0.18);
-  font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint);
-}
-.db-card-locked .db-own { color: #6d6fd0; }
 .db-deck-side > * { flex: none; }
 .db-deck-side > .db-rows { flex: 1 1 0; min-height: 0; }
 .db-focus { display: grid; align-content: start; gap: 6px; padding: 10px 12px; border-radius: 14px; background: #f6f7fb; box-shadow: inset 0 0 0 1px #e6e9f2; }
@@ -3109,7 +3097,33 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   border-radius: 16px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 0 0 1px #fff, 0 14px 40px rgba(60, 66, 90, 0.22);
   animation: rise 0.18s ease-out;
 }
-.db-filters-pop .db-select select { width: 100%; }
+/* The filters' dropdowns, in the app's own style: a pill naming what is ticked, opening onto rows that tick. */
+.db-drop { position: relative; display: grid; min-width: 0; }
+.db-drop-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 6px; text-align: left; cursor: pointer;
+  padding: 5px 12px 6px; border-radius: 14px; border: 1px solid #e6e8ee; background: #fff; color: var(--ink); font: inherit;
+}
+.db-drop-head small { grid-column: 1 / -1; font-family: var(--display); font-size: 0.45rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+.db-drop-val { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-drop-caret { width: 7px; height: 7px; border-right: 1.5px solid #8b93ad; border-bottom: 1.5px solid #8b93ad; transform: translateY(-2px) rotate(45deg); transition: transform 0.15s ease; }
+.db-drop.open .db-drop-caret { transform: translateY(1px) rotate(-135deg); }
+.db-drop.open .db-drop-head { border-color: #c9cfdd; box-shadow: 0 0 0 3px rgba(150, 165, 200, 0.18); }
+.db-drop-list {
+  display: none; position: absolute; z-index: 3; top: calc(100% + 4px); left: 0; right: 0; padding: 4px; gap: 1px;
+  border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px rgba(150, 160, 185, 0.25), 0 10px 28px rgba(60, 66, 90, 0.2);
+}
+.db-drop.open .db-drop-list { display: grid; animation: rise 0.14s ease-out; }
+.db-opt {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: none; cursor: pointer;
+  font-family: var(--display); font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); text-align: left;
+}
+@media (hover: hover) { .db-opt:hover { background: #f3f5f9; color: var(--ink); } }
+.db-check { flex: none; width: 13px; height: 13px; border-radius: 4px; border: 1.5px solid #b9c0d2; background: #fff; display: grid; place-items: center; }
+.db-opt-radio .db-check { border-radius: 50%; }
+.db-opt.on { color: var(--ink); }
+.db-opt.on .db-check { border-color: #5d6a8c; background: #5d6a8c; }
+.db-opt.on .db-check::after { content: ''; width: 5px; height: 3px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: translateY(-1px) rotate(-45deg); }
+.db-opt-radio.on .db-check::after { width: 5px; height: 5px; border: 0; border-radius: 50%; background: #fff; transform: none; }
 .db-filters-toggles, .db-filters-foot { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
 .db-filters-foot { justify-content: flex-end; }
 /* Card sizes in the pool. */

@@ -430,8 +430,6 @@ export class App {
     root.addEventListener('input', (e) => this.onInput(e));
     // Online, a new name reaches the room once typed (on leaving the field), so the lobby does not redraw mid-word.
     root.addEventListener('change', (e) => {
-      const sel = (e.target as HTMLElement).dataset.dbSelect;
-      if (sel) this.builder.onSelect(sel, (e.target as HTMLSelectElement).value);
       if ((e.target as HTMLElement).dataset.seatName === '0' && this.online && this.screen === 'menu') this.online.setup(this.joinInfo());
     });
     root.addEventListener('mouseover', (e) => this.onHover(e));
@@ -2258,13 +2256,31 @@ export class App {
   // Rendering
   // -------------------------------------------------------------------------
 
+  /** Each card in hand's contents as drawn, to tell whether a redraw changed it. */
+  private handMarkup = new WeakMap<HTMLElement, string>();
+
   private render() {
     // Typing in the deck builder's search re-renders the page: keep the caret in the box.
     const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.dbSearch !== undefined ? document.activeElement.selectionStart : null;
     // Lists that scroll (the deck builder's card pool and deck, piles, setup pages) keep their place across a redraw.
     const scrolled = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)].map((el) => [el.scrollTop, el.scrollLeft]);
     const pageY = window.scrollY;
+    // Cards in hand that come out of the redraw unchanged are kept as they were (not rebuilt), so the
+    // hand doesn't flicker and re-settle every time anything on the page changes.
+    const held = new Map([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].map((el) => [el.dataset.uid!, el]));
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
+    this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]').forEach((el) => {
+      const inner = el.innerHTML;
+      const old = held.get(el.dataset.uid!);
+      if (!old || this.handMarkup.get(old) !== inner) return this.handMarkup.set(el, inner);
+      // The same card: only its own attributes (state classes, what a click does) can have changed. The
+      // layout the fan gave it (left, angle) stays, and a hovered card stays lifted.
+      const wasLifted = old.classList.contains('lifted');
+      for (const a of [...old.attributes]) if (a.name !== 'style' && !el.hasAttribute(a.name)) old.removeAttribute(a.name);
+      for (const a of [...el.attributes]) if (a.name !== 'style' && old.getAttribute(a.name) !== a.value) old.setAttribute(a.name, a.value);
+      if (wasLifted) old.classList.add('lifted');
+      el.replaceWith(old);
+    });
     const again = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)];
     if (again.length === scrolled.length) again.forEach((el, i) => ((el.scrollTop = scrolled[i][0]), (el.scrollLeft = scrolled[i][1])));
     if (window.scrollY !== pageY) window.scrollTo(0, pageY);
