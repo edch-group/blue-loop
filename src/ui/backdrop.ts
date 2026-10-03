@@ -79,12 +79,14 @@ class Backdrop {
     const dt = this.last ? Math.min(0.1, (now - this.last) / 1000) : 0;
     this.last = now;
     // Base drift: one turn every 3 minutes. Finished bursts fold into the angle; running ones ease along.
-    this.angle = (this.angle + 2 * dt) % 360;
+    // (The angle wraps at 1800°, five outer turns and three inner ones (at 0.6×), so neither ring ever
+    // jumps: wrapping at 360° snapped the inner ring back by 216° once a turn.)
+    this.angle = (this.angle + 2 * dt) % 1800;
     let extra = 0;
     this.bursts = this.bursts.filter((b) => {
       const t = (now - b.start) / BURST_MS;
       if (t >= 1) {
-        this.angle = (this.angle + b.deg) % 360;
+        this.angle = (this.angle + b.deg) % 1800;
         return false;
       }
       extra += b.deg * easeInOut(Math.max(0, t));
