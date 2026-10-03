@@ -382,7 +382,8 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   const row = (head: string, body: string) => rows.push(`<div>${head}<span>${escText(body)}</span></div>`);
   // Each mechanic once, by name alone (no numbers): "Heat", not "Heat 1" and "Heat +1".
   const texts = [text, ...[...text.matchAll(/\{options:([^}]+)\}/g)].flatMap((m) => optionList(m[1]).map(optionText))].join(' ');
-  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id]) row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
+  // (Gaining energy explains itself.)
+  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
   if (stats.stability !== undefined) row(`<b class="kw kw-stability">◷ Stability</b>`, 'Loses 1 each dawn. The card fades at 0.');
