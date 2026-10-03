@@ -112,7 +112,7 @@ export const EXPANSION: CardDef[] = [
     id: 'relay_station',
     name: 'Relay Station',
     kind: 'growth',
-    text: 'Gain 1 energy. {heat:1} to your sun.',
+    text: '{energy:1}. {heat:1} to your sun.',
     onPlay: [{ type: 'plays', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
   { id: 'archive_vault', name: 'Archive Vault', kind: 'growth', text: '{recover}. Draw 1.', onPlay: [{ type: 'recover', orDraw: 1 }, { type: 'draw', amount: 1 }] },
@@ -236,7 +236,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Glory Charge',
     kind: 'attack',
     race: 0,
-    text: '{heat:2}. Gain 1 energy. {heat:1} to your sun.',
+    text: '{heat:2}. {energy:1}. {heat:1} to your sun.',
     onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'plays', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
   {
@@ -420,7 +420,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Overcharge',
     kind: 'growth',
     race: 1,
-    text: 'Gain 1 energy. Draw 1. {heat:1} to your sun.',
+    text: '{energy:1}. Draw 1. {heat:1} to your sun.',
     onPlay: [{ type: 'plays', amount: 1 }, { type: 'draw', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
   {
@@ -638,7 +638,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Ixquor Sporelings',
     kind: 'growth',
     race: 3,
-    text: 'Draw 1. Gain 1 energy.',
+    text: 'Draw 1. {energy:1}.',
     onPlay: [{ type: 'draw', amount: 1 }, { type: 'plays', amount: 1 }],
   },
   {
@@ -699,7 +699,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Overgrowth',
     kind: 'growth',
     race: 3,
-    text: 'Gain 2 energy. {heat:1} to your sun.',
+    text: '{energy:2}. {heat:1} to your sun.',
     onPlay: [{ type: 'plays', amount: 2 }, { type: 'selfHeat', amount: 1 }],
   },
   {

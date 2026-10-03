@@ -49,7 +49,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   grows: { name: 'grows', group: 'tempo', explain: () => 'Its numbers rise at each of your dawns, up to a limit.' },
   plays: { name: 'industry', group: 'tempo', explain: () => 'Extra energy every day, while it is in play.' },
   spend: { name: 'spend all', group: 'tempo', explain: () => 'Spends all your energy. Stronger the more you spend.' },
-  energy: { name: 'energy', group: 'tempo', explain: () => 'Extra energy today.' },
+  energy: { name: 'gain', group: 'tempo', explain: () => 'Extra energy today, one per dot.' },
   abundance: { name: 'abundance', group: 'tempo', explain: () => 'Extra cards at each of your dawns, while it is in play.' },
   orbit: { name: 'orbit', group: 'orbit', explain: () => "Moves a sun's planets round." },
   lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Set face down. Springs on your rival's day when its trigger happens." },
@@ -84,7 +84,8 @@ function rawLabel(id: string, value?: string): string {
   if (!k) return value ?? id;
   if (!value) return k.name;
   if (id === 'destroy' || id === 'eject') return `${k.name} ${value}`;
-  if (id === 'plays' || id === 'energy') return `${k.name} +${value}`;
+  if (id === 'plays') return `${k.name} +${value}`;
+  if (id === 'energy') return `gain ${value} energy`;
   if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
   return `${k.name} ${value}`;
 }
@@ -98,8 +99,9 @@ function rawLabel(id: string, value?: string): string {
 export function optionText(id: string): string {
   const m = /^([a-z]+)(\d+)$/.exec(id);
   if (!m) return id;
-  if (m[1] === 'energy') return `Gain ${m[2]} energy`;
-  if (m[1] === 'draw') return `Draw ${m[2]}`;
+  // (A Command card's choice happens at every dawn: energy each day is Industry, cards each dawn Abundance.)
+  if (m[1] === 'energy') return `{plays:${m[2]}}`;
+  if (m[1] === 'draw') return `{abundance:${m[2]}}`;
   if (m[1] === 'recover') return '{recover} your last discarded card';
   if (m[1] === 'orbit') return `Your {orbit:+${m[2]}}`;
   return KEYWORDS[m[1]] ? `{${m[1]}:${m[2]}}` : `${m[1]} ${m[2]}`;

@@ -135,7 +135,7 @@ export const CARDS: CardDef[] = [
     id: 'phase_shift',
     name: 'Phase Shift',
     kind: 'growth',
-    text: '{recall}. Gain 1 energy.',
+    text: '{recall}. {energy:1}.',
     onPlay: [{ type: 'recall' }, { type: 'plays', amount: 1 }],
   },
 

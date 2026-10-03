@@ -308,6 +308,8 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
   if (!k) return escText(value ?? id);
   const data = opts.data ? ` data-kw="${id}"${value ? ` data-kv="${escText(value)}"` : ''}` : '';
   const label = keywordLabel(id, value);
+  // Energy gained: "Gain" and a green dot per energy.
+  if (id === 'energy' && value) return `<b class="kw kw-${k.group} kw-gain"${data} aria-label="${escText(label)}">Gain<span class="gain-dots">${'<i></i>'.repeat(Math.max(1, Number(value) || 1))}</span></b>`;
   if (!k.symbol) return `<b class="kw kw-${k.group}"${data}>${escText(label)}</b>`;
   const icon = symbolIcon(id);
   const shown = opts.named ? label : value ?? '';
