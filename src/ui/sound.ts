@@ -5,8 +5,8 @@ import { markDirty } from './account';
  * Every effect uses soft waveforms, slow attacks and a long shared "space"
  * reverb, so actions swell and bloom rather than click. A generative ambient
  * score (drone, slowly shifting pad chords and distant chimes; just synths,
- * no noise) plays underneath the menus; matches get a slow, tense battle theme
- * in the same voices, opened by the sound of a ship powering down. Each effect is one method, so recorded audio can replace
+ * no noise) plays underneath the menus; matches get an understated, driving
+ * bass and heartbeat, opened by the sound of a ship powering down. Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -43,10 +43,9 @@ const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 export type MusicScene = 'ambient' | 'battle';
 
 // ---- Battle theme -----------------------------------------------------------
-// The ambient score's voices (soft triangles, slow swells, the long hall) made
-// urgent: a heartbeat kick and a pulsing low bass under B minor pads, with a
-// sparse, echoing melody. Lines are written one bar (16 sixteenths) per string:
-// a note name starts a note, "-" holds it, "." rests.
+// No melody: an understated, driving bass and a heartbeat kick that sit under
+// the board's own sounds. The bass pulses in eighths through one slowly
+// breathing filter, with a dark echo and a little of the hall around it.
 
 const BATTLE_BPM = 96;
 const NOTE_INDEX: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
@@ -56,37 +55,10 @@ const midi = (name: string) => {
 };
 const hz = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
-/** One bar of a line, as notes: step (0-15), MIDI note, length in steps. */
-function bar(line: string): { step: number; note: number; len: number }[] {
-  const out: { step: number; note: number; len: number }[] = [];
-  line.trim().split(/\s+/).forEach((tok, step) => {
-    if (tok === '-') {
-      if (out.length) out[out.length - 1].len++;
-    } else if (tok !== '.') out.push({ step, note: midi(tok), len: 1 });
-  });
-  return out;
-}
-
-/** Per bar: the bass root, the pad chord (sounded on odd-numbered bars, held for two), and the melody. */
-const BATTLE_BARS: { root: string; chord: string[]; lead: string }[] = [
-  { root: 'B1', chord: ['B2', 'F#3', 'B3', 'D4'], lead: 'F#4 - - - - - - - B4 - - - - - - -' },
-  { root: 'B1', chord: [], lead: 'D5 - - - - - - - C#5 - - - B4 - - -' },
-  { root: 'G1', chord: ['G2', 'D3', 'B3', 'D4'], lead: 'B4 - - - - - - - - - - - . . . .' },
-  { root: 'G1', chord: [], lead: '. . . . . . . . D5 - - - E5 - - -' },
-  { root: 'E1', chord: ['E2', 'B2', 'G3', 'B3'], lead: 'G5 - - - - - - - F#5 - - - E5 - - -' },
-  { root: 'E1', chord: [], lead: 'B4 - - - - - - - - - - - . . . .' },
-  { root: 'F#1', chord: ['F#2', 'C#3', 'A#3', 'C#4'], lead: 'C#5 - - - - - - - A#4 - - - - - - -' },
-  { root: 'F#1', chord: [], lead: 'F#4 - - - - - - - - - - - . . . .' },
-  { root: 'G1', chord: ['G2', 'D3', 'B3', 'D4'], lead: 'D5 - - - - - - - G5 - - - - - - -' },
-  { root: 'G1', chord: [], lead: 'F#5 - - - E5 - - - D5 - - - - - - -' },
-  { root: 'A1', chord: ['A2', 'E3', 'C#4', 'E4'], lead: 'E5 - - - - - - - A5 - - - - - - -' },
-  { root: 'A1', chord: [], lead: 'G5 - - - F#5 - - - E5 - - - - - - -' },
-  { root: 'B1', chord: ['B2', 'F#3', 'B3', 'D4'], lead: 'F#5 - - - - - - - - - - - D5 - - -' },
-  { root: 'B1', chord: [], lead: 'B4 - - - - - - - - - - - . . . .' },
-  { root: 'F#1', chord: ['F#2', 'C#3', 'A#3', 'E4'], lead: 'A#4 - - - C#5 - - - E5 - - - F#5 - - -' },
-  { root: 'F#1', chord: [], lead: 'F#5 - - - - - - - - - - - . . . .' },
-];
-const BATTLE_LEAD = BATTLE_BARS.map((b) => bar(b.lead));
+/** The bass root per bar: two bars on each, B minor (Bm G Em F#, then G A Bm F#). */
+const BATTLE_ROOTS = ['B1', 'B1', 'G1', 'G1', 'E1', 'E1', 'F#1', 'F#1', 'G1', 'G1', 'A1', 'A1', 'B1', 'B1', 'F#1', 'F#1'].map(midi);
+/** Accents across the bar's eighths: it drives, but stays soft. */
+const BASS_ACCENTS = [1, 0.5, 0.7, 0.5, 0.85, 0.5, 0.7, 0.6];
 
 class SoundBoard {
   private ctx: AudioContext | null = null;
@@ -634,77 +606,80 @@ class SoundBoard {
   }
 
   /**
-   * The battle theme: the ship powers down, the bass and heartbeat come up out of the dark for two bars, then a
-   * looping 16-bar theme. Bars are scheduled just ahead of the audio clock.
+   * The battle theme: the ship powers down, the bass and heartbeat rise out of the dark, then a 16-bar loop of
+   * them. Bars are scheduled just ahead of the audio clock.
    */
   private battleScore(ctx: AudioContext, bus: GainNode, lush: GainNode) {
     const step = 60 / BATTLE_BPM / 4;
     const barLen = step * 16;
+    const t0 = ctx.currentTime + 0.05;
+    const start = t0 + 3.9; // after the power-down
 
-    // The melody's slow dotted-quarter echo, darker on each repeat, feeding the hall.
-    const leadBus = ctx.createGain();
+    // The bass runs through one shared filter that breathes slowly (as the menu drone does) and opens a little in
+    // the second half of the loop, then out dry, into the hall, and into a dark dotted-eighth echo.
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 1.6;
+    filter.frequency.setValueAtTime(140, start);
+    filter.frequency.linearRampToValueAtTime(320, start + barLen * 2);
+    const lfo = ctx.createOscillator();
+    const lfoDepth = ctx.createGain();
+    lfo.frequency.value = 0.05;
+    lfoDepth.gain.value = 110;
+    lfo.connect(lfoDepth).connect(filter.frequency);
+    const hall = ctx.createGain();
+    hall.gain.value = 0.4;
     const echo = ctx.createDelay(2);
-    echo.delayTime.value = step * 6;
+    echo.delayTime.value = step * 3;
     const feedback = ctx.createGain();
-    feedback.gain.value = 0.38;
+    feedback.gain.value = 0.3;
     const tone = ctx.createBiquadFilter();
     tone.type = 'lowpass';
-    tone.frequency.value = 1500;
+    tone.frequency.value = 500;
     const wet = ctx.createGain();
-    wet.gain.value = 0.45;
-    leadBus.connect(lush);
-    leadBus.connect(echo).connect(tone).connect(feedback).connect(echo);
-    tone.connect(wet).connect(lush);
-    this.musicNodes = [leadBus, echo, feedback, tone, wet];
+    wet.gain.value = 0.3;
+    filter.connect(bus);
+    filter.connect(hall).connect(lush);
+    filter.connect(echo).connect(tone).connect(feedback).connect(echo);
+    tone.connect(wet).connect(bus);
+    lfo.start(t0);
+    this.musicNodes = [filter, lfo, lfoDepth, hall, echo, feedback, tone, wet];
 
-    const t0 = ctx.currentTime + 0.05;
     this.powerDown(t0, lush);
 
-    const playBar = (index: number, at: number, intro: number) => {
-      const b = BATTLE_BARS[index];
-      const root = midi(b.root) + 12;
-      const climb = index >= 8;
+    const playBar = (index: number, at: number) => {
+      const root = BATTLE_ROOTS[index] + 12;
       // Heartbeat: a soft, low double thump on one and three.
       [0, 3, 8, 11].forEach((s, i) =>
         this.voice(i % 2 ? 58 : 66, { dur: 0.5, attack: 0.006, gain: i % 2 ? 0.07 : 0.11, to: 36, cutoff: 160, delay: this.until(at + s * step), out: bus }),
       );
-      // Bass: muted eighths on the root, rising a fifth on the last, the filter opening as the theme climbs (and
-      // out of the power-down).
-      const cutoff = (climb ? 520 : 380) * (intro === 1 ? 0.6 : intro === 2 ? 0.8 : 1);
-      for (let e = 0; e < 8; e++) {
-        const n = e === 7 ? root + 7 : root;
-        this.voice(hz(n), { dur: step * 2.2, attack: 0.01, gain: e % 4 === 0 ? 0.085 : 0.06, type: 'triangle', cutoff, delay: this.until(at + e * 2 * step), out: bus });
-        if (e % 4 === 0) this.voice(hz(n - 12), { dur: step * 3, attack: 0.01, gain: 0.06, cutoff: 140, delay: this.until(at + e * 2 * step), out: bus });
+      // Bass: soft eighths on the root (rising a fifth on the last), a detuned pair long enough to overlap, so
+      // the pulse blurs into a hum; a sine an octave down under each beat.
+      if (index === 8) {
+        filter.frequency.setValueAtTime(filter.frequency.value, at);
+        filter.frequency.linearRampToValueAtTime(440, at + barLen * 2);
+      } else if (index === 0 && at > start + 1) {
+        filter.frequency.setValueAtTime(filter.frequency.value, at);
+        filter.frequency.linearRampToValueAtTime(320, at + barLen);
       }
-      // Pads: the ambient score's detuned triangle pairs, swelling across two bars.
-      b.chord.forEach((nm, i) => {
-        const f = hz(midi(nm) + 12);
-        const opts = { dur: barLen * 2 + 2, attack: 1.2 + i * 0.25, gain: 0.02, type: 'triangle' as OscillatorType, cutoff: 900, delay: this.until(at), out: lush };
-        this.voice(f, opts);
-        this.voice(f, { ...opts, detune: 9, gain: 0.013 });
+      BASS_ACCENTS.forEach((accent, e) => {
+        const n = e === 7 ? root + 7 : root;
+        const d = this.until(at + e * 2 * step);
+        const opts = { dur: step * 3, attack: 0.025, gain: 0.1 * accent, type: 'triangle' as OscillatorType, cutoff: 2000, delay: d, out: filter };
+        this.voice(hz(n), { ...opts, detune: -6 });
+        this.voice(hz(n), { ...opts, detune: 6, gain: 0.07 * accent });
+        if (e % 2 === 0) this.voice(hz(n - 12), { dur: step * 3.5, attack: 0.02, gain: 0.05 * accent, cutoff: 140, delay: d, out: bus });
       });
-      // A far-off sonar ping every four bars, ringing out through the echo.
-      if (!intro && index % 4 === 0) this.voice(hz(midi(b.chord[3]) + 24), { dur: 2.2, attack: 0.01, gain: 0.014, vibrato: 2, delay: this.until(at + step * 12), out: leadBus });
-      // Melody: soft triangles, doubled and detuned, with a quiet sine an octave up for air.
-      if (!intro)
-        for (const n of BATTLE_LEAD[index]) {
-          const s = at + n.step * step, len = n.len * step;
-          this.note(s, hz(n.note), len, { gain: 0.03, cutoff: 1500, vibrato: true, out: leadBus });
-          this.note(s, hz(n.note), len, { gain: 0.016, cutoff: 1300, detune: 8, vibrato: true, out: leadBus });
-          this.note(s, hz(n.note + 12), len, { gain: 0.005, type: 'sine', attack: 0.2, vibrato: true, out: leadBus });
-        }
     };
 
-    let next = t0 + 3.9;
-    let intro = 2; // two bars of bass and heartbeat rising out of the dark before the tune
+    let next = start;
     let index = 0;
     const tick = () => {
       if (this.playing !== 'battle') return;
       while (next < ctx.currentTime + 0.5) {
-        playBar(intro ? (intro === 2 ? 0 : 1) : index, next, intro === 2 ? 1 : intro === 1 ? 2 : 0);
+        playBar(index, next);
         next += barLen;
-        if (intro) intro--;
-        else index = (index + 1) % BATTLE_BARS.length;
+        index = (index + 1) % BATTLE_ROOTS.length;
       }
     };
     tick();
