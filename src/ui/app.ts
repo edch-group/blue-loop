@@ -2676,7 +2676,7 @@ export class App {
     return `
     <main class="menu menu-${page} ${setup ? 'setup-page' : ''}">
       ${body}
-      ${page === 'title' || page === 'hub' ? '<footer class="studio">coronal mass games · prototype build</footer>' : ''}
+      ${page === 'title' || page === 'hub' ? '<footer class="studio">coronal mass games</footer>' : ''}
       ${this.sheet?.kind === 'rules' ? this.renderSheet() : ''}
       ${this.profileOpen ? this.renderProfileView() : ''}
       ${this.zoomed ? this.renderZoom() : ''}
@@ -2711,16 +2711,23 @@ export class App {
         </button>
         ${extra}
       </div>`;
+    // Shop and collection sit top left as plain header links; options top right, beside you.
+    const link = (act: string, arg: string, icon: string, name: string) =>
+      `<button class="hub-link" data-act="${act}" ${arg ? `data-arg="${arg}"` : ''}><span class="hub-link-icon">${icon}</span>${name}</button>`;
     return `
-      ${this.playerChip()}
+      <nav class="hub-links">
+        ${link('menu-page', 'shop', HUB_ICONS.shop, 'shop')}
+        ${link('open-decks', '', HUB_ICONS.collection, 'collection')}
+      </nav>
+      <div class="hub-corner">
+        ${this.playerChip()}
+        <button class="hub-options" data-act="menu-page" data-arg="options" title="Options" aria-label="Options">${HUB_ICONS.options}</button>
+      </div>
       ${this.titleBlock(true)}
       <div class="hub">
         ${tile('campaign-new', '', HUB_ICONS.campaign, 'campaign', hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue</button>' : '')}
         ${tile('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue</button>' : '')}
         ${tile('menu-page', 'online', HUB_ICONS.online, 'online')}
-        ${tile('open-decks', '', HUB_ICONS.collection, 'collection')}
-        ${tile('menu-page', 'shop', HUB_ICONS.shop, 'shop')}
-        ${tile('menu-page', 'options', HUB_ICONS.options, 'options')}
       </div>`;
   }
 

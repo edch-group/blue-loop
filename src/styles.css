@@ -1726,7 +1726,20 @@ body.screen-campaign .backdrop { display: none; }
 .title-small .title-sun { width: min(54px, calc(11 * var(--vh))); }
 .title-small .title { font-size: clamp(1.1rem, calc(5 * var(--vh)), 1.8rem); margin: clamp(6px, calc(2 * var(--vh)), 14px) 0 0; }
 .menu-heading { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(0.9rem, calc(4 * var(--vh)), 1.3rem); letter-spacing: 0.3em; text-transform: uppercase; color: #555a63; padding-left: 0.3em; }
-.hub { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(8px, calc(1.6 * var(--vw)), 16px); width: min(960px, calc(100% - 28px)); }
+.hub { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(8px, calc(1.6 * var(--vw)), 16px); width: min(540px, calc(100% - 28px)); }
+/* Shop and collection: plain links in the header, top left. */
+.menu.menu-hub > .hub-links { position: absolute; top: max(12px, var(--sa-t)); left: max(18px, var(--sa-l, 0px)); z-index: 2; display: flex; gap: clamp(14px, calc(2.4 * var(--vw)), 28px); height: 46px; align-items: center; }
+.hub-link {
+  display: flex; align-items: center; gap: 7px; padding: 4px 2px; border: 0; background: none; cursor: pointer;
+  font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); transition: color 0.15s;
+}
+.hub-link-icon { width: 18px; height: 18px; display: block; }
+.hub-link-icon svg, .hub-options svg { width: 100%; height: 100%; display: block; }
+.hub-link-icon svg *, .hub-options svg * { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: hover) { .hub-link:hover, .hub-options:hover { color: var(--ink); } }
+/* You and options, top right. */
+.menu.menu-hub > .hub-corner { position: absolute; top: max(12px, var(--sa-t)); right: max(18px, var(--sa-r, 0px)); z-index: 2; display: flex; align-items: center; gap: 10px; }
+.hub-options { width: 22px; height: 22px; padding: 0; border: 0; background: none; color: var(--ink-soft); cursor: pointer; transition: color 0.15s; }
 .hub-col { display: grid; gap: 8px; align-content: start; }
 .hub-card {
   display: grid; justify-items: center; align-content: center; gap: clamp(6px, calc(2 * var(--vh)), 12px);
