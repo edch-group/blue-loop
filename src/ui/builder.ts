@@ -436,7 +436,8 @@ export class DeckBuilder {
       if (f.inDeck && !inDeck.has(c.id)) return false;
       return true;
     });
-    const byRace = (a: CardDef, b: CardDef) => (a.race === d.race ? -1 : 0) - (b.race === d.race ? -1 : 0) || (a.race ?? 9) - (b.race ?? 9);
+    // (A fixed order: cards never move in the grid as the deck changes.)
+    const byRace = (a: CardDef, b: CardDef) => (a.race ?? 9) - (b.race ?? 9);
     const order: Record<Filters['sort'], (a: CardDef, b: CardDef) => number> = {
       race: byRace,
       name: (a, b) => a.name.localeCompare(b.name),

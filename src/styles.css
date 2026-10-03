@@ -962,6 +962,8 @@ input { font: inherit; }
 
 /* Long-press peek: stop the OS callout / text selection from hijacking the hold. */
 .card, .mini { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* No image in the game can be picked up and dragged (iOS lifts one onto the fingertip on a long press). */
+img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* Cards own their touches: iOS must not claim a press-and-hold (and cancel it) for its own gestures. */
 .game .card, .game .mini { touch-action: none; }
 

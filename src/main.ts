@@ -12,6 +12,9 @@ import { trackViewport } from './ui/viewport';
 
 trackViewport();
 
+// Nothing in the game is dragged as a picture (a long press on iOS lifts an image onto the fingertip).
+document.addEventListener('dragstart', (e) => e.preventDefault());
+
 // Wait for the fonts before the first paint: rendering in a fallback face and then
 // swapping made the whole layout jump into place on phones. Give up after a moment
 // so a slow or failed font load never blocks the game.

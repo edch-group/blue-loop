@@ -148,7 +148,7 @@ function sceneImage(def: CardDef): string {
   let img = sceneImages.get(def.id);
   if (!img) {
     const svg = cardScene(def).replace('<svg class="art"', '<svg xmlns="http://www.w3.org/2000/svg"');
-    img = `<img class="art" alt="" decoding="async" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" />`;
+    img = `<img class="art" alt="" decoding="async" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" />`;
     sceneImages.set(def.id, img);
   }
   return img;
