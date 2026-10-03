@@ -580,19 +580,22 @@ export interface TurnForecast {
  * (growing cards grow first), plus the global card, regional instability and
  * the map's conditions.
  */
-export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
+export function turnForecast(state: GameState, p: PlayerState, aims?: Record<string, string | null>): TurnForecast {
   const target = targetOf(state, p);
+  // While this player's dawn waits on their aim, it is this dawn being forecast: the day has begun (the
+  // planet has moved, the cards are drawn, the table has had its say), so only the tableau's dawn is left.
+  const now = !!state.awaitingDawn && activePlayer(state) === p;
   // Their next day's planet (their first day starts at the dead planet).
-  const orbit = p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
+  const orbit = !now && p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
   const planet = planetAt(orbit);
   // Their day comes this round if they sit after the active player, else next round.
-  const round = state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
+  const round = now ? state.round : state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
   const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, unstableRound: state.round + 1, round, draw: 0, plays: 0, planet };
   if (p.eliminated) return f;
-  if (planet === 'abundant' && p.turnsTaken > 0) f.draw += BALANCE.abundantDraw;
+  if (!now && planet === 'abundant' && p.turnsTaken > 0) f.draw += BALANCE.abundantDraw;
   if (planet === 'industrial') f.plays += BALANCE.industrialPlays;
-  // Run the effects on a copy, so growth and the like carry from one effect to the next.
-  const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c })) };
+  // Run the effects on a copy, so growth and the like carry from one effect to the next (aimed as given).
+  const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c, ...(aims && c.uid in aims ? { aim: aims[c.uid] ?? undefined } : {}) })) };
   for (const card of me.tableau) {
     for (const e of dawnEffects(card)) {
       if (!conditionMet(me, e.if)) continue;
@@ -626,6 +629,7 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
     }
   }
   f.unstable = instabilityHeat({ ...state, round: f.unstableRound });
+  if (now) return f;
   if (fieldActive(state, 'solarStorm')) f.selfHeat += 1;
   if (fieldActive(state, 'iceAge')) f.cool += 1;
   const m = p.modifiers;
@@ -634,6 +638,55 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   f.shields += m?.shieldPerTurn ?? 0;
   f.draw += m?.extraDraw ?? 0;
   return f;
+}
+
+/** How a dawn's heat would leave each rival card it reaches: what defence and stability it has left. */
+export interface DawnHeatPreview {
+  cards: Record<string, { defence: number; stability: number; heat: number; gone: boolean }>;
+  /** Heat that reaches the rival's sun (after shields), and the shields they have left. */
+  sun: number;
+  shields: number;
+}
+
+/**
+ * What this player's dawn heat would do, aimed as given (card uid → rival card uid, or null for their sun;
+ * cards not listed keep their own aim): shields first, then each card's defence (not for pierce heat),
+ * then its stability, card by card in the order the dawn resolves them.
+ */
+export function previewDawnHeat(state: GameState, p: PlayerState, aims: Record<string, string | null> = {}): DawnHeatPreview {
+  const t = targetOf(state, p);
+  const out: DawnHeatPreview = { cards: {}, sun: 0, shields: t?.shields ?? 0 };
+  if (!t) return out;
+  for (const c of t.tableau) out.cards[c.uid] = { defence: cardDefence(t, c), stability: c.stability ?? 0, heat: 0, gone: false };
+  const left = (c: CardInstance) => !out.cards[c.uid]?.gone;
+  for (const card of p.tableau) {
+    const aim = card.uid in aims ? aims[card.uid] : card.aim;
+    for (const e of dawnEffects(card)) {
+      if (e.type !== 'heat' || !conditionMet(p, e.if)) continue;
+      let n = effectAmount(state, p, card, e, 'turn');
+      if (n <= 0) continue;
+      // Where it lands, as aimedCard decides it (burnt-away cards no longer draw it).
+      const g = guards(t).filter(left);
+      const aimed = aim ? t.tableau.find((c) => c.uid === aim && left(c)) : undefined;
+      const victim = aimed && (!g.length || g.includes(aimed)) ? aimed : g.length ? [...g].sort((a, b) => out.cards[a.uid].stability - out.cards[b.uid].stability)[0] : undefined;
+      const blocked = Math.min(e.pierce ? Math.floor(out.shields * BALANCE.pierceShieldShare) : out.shields, n);
+      out.shields -= blocked;
+      n -= blocked;
+      if (!victim) {
+        out.sun += n;
+        continue;
+      }
+      const v = out.cards[victim.uid];
+      const turned = e.pierce ? 0 : Math.min(n, v.defence);
+      v.defence -= turned;
+      n -= turned;
+      v.stability = Math.max(0, v.stability - n);
+      v.heat += n;
+      if (v.stability <= 0) v.gone = true;
+    }
+  }
+  if (BALANCE.maxHeatPerDay > 0) out.sun = Math.min(out.sun, Math.max(0, BALANCE.maxHeatPerDay - (p.turn.heatLanded ?? 0)));
+  return out;
 }
 
 // ---------------------------------------------------------------------------

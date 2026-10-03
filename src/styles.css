@@ -2973,7 +2973,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @keyframes hit-card { 0% { filter: brightness(1.6) saturate(1.4); box-shadow: 0 0 0 3px #ff8a5a, 0 0 24px #ff5a2a; } 100% { filter: none; } }
 
 /* Your dawn: the cards whose dawn heat you aim glow red, and the one you are aiming lifts. */
-.card.card-aimer { cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.45), 0 0 16px rgba(216, 69, 43, 0.3); }
+.card.card-aimer { cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.8), 0 0 18px rgba(216, 69, 43, 0.5); animation: aimer-glow 1.5s ease-in-out infinite; }
+@keyframes aimer-glow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(216, 69, 43, 1), 0 0 28px rgba(216, 69, 43, 0.75); } }
+@media (prefers-reduced-motion: reduce) { .card.card-aimer { animation: none; } }
+/* Aiming heat: a rival card shows, while hovered, the defence and stability the heat would leave it. */
+.pv-after { display: none; }
+.card-choosable:hover .pv-now, .card-choosable:focus-visible .pv-now { display: none; }
+.card-choosable:hover .pv-after, .card-choosable:focus-visible .pv-after { display: inline; color: #d8452b; }
 .card.card-aiming { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.95), 0 0 22px rgba(216, 69, 43, 0.55); transform: translateZ(10px); }
 .pill-btn.pill-dawn { background: linear-gradient(135deg, #f1a14d, #d8452b); color: #fff; border-color: transparent; }
 

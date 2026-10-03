@@ -38,9 +38,6 @@ import {
   aimable,
   aimChoices,
   dawnAimable,
-  dawnEffects,
-  conditionMet,
-  effectAmount,
   optionText,
   allyEffectKind,
   cardDefence,
@@ -50,6 +47,7 @@ import {
   hasRoomFor,
   targetOf,
   turnForecast,
+  previewDawnHeat,
   type Action,
   type BoosterCard,
   type BoosterKind,
@@ -1586,11 +1584,8 @@ export class App {
     return [...cards].sort((a, b) => (a.stability ?? 0) - (b.stability ?? 0))[0]?.uid ?? null;
   }
 
-  /** Let the dawn break, with the heat aimed as chosen. */
-  private breakDawn() {
-    if (!this.dawnTurn()) return;
-    const s = this.state!;
-    const me = activePlayer(s);
+  /** Where every card's dawn heat lands, as aimed so far (cards not yet aimed go where they would by default). */
+  private draftAims(s: GameState, me: PlayerState): Record<string, string | null> {
     const { sun } = aimChoices(s, me);
     const aims: Record<string, string | null> = {};
     for (const card of me.tableau) {
@@ -1598,6 +1593,14 @@ export class App {
       const hit = this.dawnHit(s, me, card);
       if (hit !== null || sun) aims[card.uid] = hit;
     }
+    return aims;
+  }
+
+  /** Let the dawn break, with the heat aimed as chosen. */
+  private breakDawn() {
+    if (!this.dawnTurn()) return;
+    const s = this.state!;
+    const aims = this.draftAims(s, activePlayer(s));
     this.pending = null;
     this.dispatch({ type: 'dawn', aims });
   }
@@ -2836,27 +2839,22 @@ export class App {
     const incoming = new Map<string, number>();
     const aiming = new Map<string, boolean>();
     const st = this.state!;
-    // At the viewer's dawn, as they aim it: where each card's dawn heat is going.
+    // At the viewer's dawn, as they aim it: where each card's dawn heat is going, and (while one card is
+    // being aimed) what its heat would leave of each rival card it could hit.
+    const preview = new Map<string, { defence: number; stability: number }>();
     if (this.dawnTurn()) {
       const o = activePlayer(st);
-      // Defence still standing on each card as the dawn's heat lands (the first hit dents it for the next).
-      const stand = new Map(p.tableau.map((c) => [c.uid, cardDefence(p, c)]));
-      for (const card of o.tableau) {
-        if (!dawnAimable(card)) continue;
-        const hit = this.dawnHit(st, o, card);
-        if (!hit) continue;
-        if (o.id === p.id) aiming.set(card.uid, true);
-        else if (p.tableau.some((x) => x.uid === hit)) {
-          // What gets past the card's defence (all of it, for pierce heat).
-          let heat = 0;
-          for (const e of dawnEffects(card)) {
-            if (e.type !== 'heat' || e.to !== 'target' || !conditionMet(o, e.if)) continue;
-            const n = effectAmount(st, o, card, e, 'turn');
-            const d = e.pierce ? 0 : Math.min(n, stand.get(hit) ?? 0);
-            if (d) stand.set(hit, (stand.get(hit) ?? 0) - d);
-            heat += n - d;
+      const aims = this.draftAims(st, o);
+      if (o.id === p.id) {
+        for (const card of o.tableau) if (dawnAimable(card) && aims[card.uid]) aiming.set(card.uid, true);
+      } else {
+        const now = previewDawnHeat(st, o, aims);
+        for (const c of p.tableau) if (Object.values(aims).includes(c.uid) || now.cards[c.uid]?.heat) incoming.set(c.uid, now.cards[c.uid]?.heat ?? 0);
+        if (pend?.dawn && pend.step === 'aim') {
+          for (const c of aimChoices(st, o).cards) {
+            const v = previewDawnHeat(st, o, { ...aims, [pend.uid]: c.uid }).cards[c.uid];
+            if (v) preview.set(c.uid, v);
           }
-          incoming.set(hit, (incoming.get(hit) ?? 0) + heat);
         }
       }
     }
@@ -2871,7 +2869,7 @@ export class App {
       : `<div class="slot-empty slot-cmd" title="Command slot: your one Command card leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>command</small></div>`;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
-      if (c) return this.renderCard(c, { tableau: side, owner: p, incoming: incoming.get(c.uid), aimsAtCard: !!aiming.get(c.uid) });
+      if (c) return this.renderCard(c, { tableau: side, owner: p, incoming: incoming.get(c.uid), aimsAtCard: !!aiming.get(c.uid), preview: preview.get(c.uid) });
       const def = BALANCE.slotDefence[i];
       return choosingSlot
         ? `<button class="slot-empty slot-choosable" data-act="choose-slot" data-arg="${i}" title="Place it here: defence ${def}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
@@ -2925,7 +2923,8 @@ export class App {
   private renderForecast(p: PlayerState): string {
     const s = this.state!;
     if (p.eliminated || isGameOver(s)) return '';
-    const f = turnForecast(s, p);
+    // At your dawn, the forecast is of this dawn, as you have aimed it.
+    const f = turnForecast(s, p, this.dawnTurn() && activePlayer(s).id === p.id ? this.draftAims(s, p) : undefined);
     const me = this.viewer();
     const who = (id: string | null) => (id === me.id ? 'you' : esc((s.players.find((o) => o.id === id)?.name ?? '').toLowerCase()));
     // Each effect as a symbol and a number, with the detail in its tooltip.
@@ -2978,7 +2977,7 @@ export class App {
       </div>`;
   }
 
-  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; incoming?: number; aimsAtCard?: boolean; landscape?: boolean }): string {
+  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; incoming?: number; aimsAtCard?: boolean; landscape?: boolean; preview?: { defence: number; stability: number } }): string {
     const def = cardDef(c.defId);
     const act = this.canAct();
     const p = this.pending;
@@ -3021,13 +3020,16 @@ export class App {
     if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
     // While you assign your dawn's heat, your hand waits (greyed out).
     if (opts.hand && this.dawnTurn()) state = 'card-pricey';
+    // A stat as it stands, and (while aiming heat at it) as the heat would leave it, shown on hover.
+    const pv = (icon: string, n: number, after?: number) =>
+      after === undefined || after === n ? `${icon}${n}` : `<span class="pv-now">${icon}${n}</span><span class="pv-after">${icon}${after}</span>`;
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     const boost = opts.owner && boostable(c.defId) ? resonanceBonus(opts.owner, c) : 0;
     const resonance = boost ? `<span class="resonance" title="Resonance: +${boost} to this card's heat, cooling and shields from its neighbours">+${boost}</span>` : '';
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<span class="card-stats"><b class="stat-def ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">◷${c.stability ?? 0}</b></span>`
+        ? `${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<span class="card-stats"><b class="stat-def ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.preview?.defence)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">${pv('◷', c.stability ?? 0, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
