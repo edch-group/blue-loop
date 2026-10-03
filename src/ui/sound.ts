@@ -44,9 +44,10 @@ export type MusicScene = 'ambient' | 'battle';
 
 // ---- Battle theme -----------------------------------------------------------
 // Low, pulsing and minimal, so it sits under the board's own sounds: a soft bass
-// pulse holds one chord for about fifteen seconds, then shifts for a moment,
-// with a few more sounds coming in very briefly, and settles back. After a
-// couple of rounds the shifts grow a little and the pulse gains a touch more.
+// pulse holds one chord for about fifteen seconds, then the music splashes for a
+// few bars, in the power-down's voices (gliding triangles, rushing filtered
+// air): it crashes in with a dive-bomb, a low synth wobbles under the bass, and
+// it rises back out home. After a couple of rounds the splashes grow longer.
 
 const BATTLE_BPM = 96;
 const NOTE_INDEX: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
@@ -56,16 +57,13 @@ const midi = (name: string) => {
 };
 const hz = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
-/** The chord the pulse holds (B minor), and the brief shifts away from it: each a bass root and a soft swell. */
+/** The chord the pulse holds (B minor), and the splashes away from it: a bass root per bar. */
 const HOME = midi('B1');
-const SHIFTS: { root: number; swell: number[] }[][] = [
-  // Early rounds: one bar on G.
-  [{ root: midi('G1'), swell: ['B4', 'D5', 'G5'].map(midi) }],
-  // Later rounds: G, then A, leaning back home.
-  [
-    { root: midi('G1'), swell: ['B4', 'D5', 'G5'].map(midi) },
-    { root: midi('A1'), swell: ['C#5', 'E5', 'A5'].map(midi) },
-  ],
+const SPLASHES: number[][] = [
+  // Early rounds: two bars on G.
+  ['G1', 'G1'].map(midi),
+  // Later rounds: G, G, then A, leaning back home.
+  ['G1', 'G1', 'A1'].map(midi),
 ];
 /** Bars the pulse holds home before each shift (2.5s a bar). */
 const HOLD_BARS = 6;
@@ -659,27 +657,77 @@ class SoundBoard {
       this.voice(hz(root - 12), { dur: step * 6, attack: 0.03, gain: 0.06, cutoff: 140, delay: this.until(at), out: bus });
     };
 
-    /** A brief shift: the bass moves, the filter opens a touch, and a soft chord swells and fades within the bar. */
-    const shift = (at: number, sh: { root: number; swell: number[] }, more: boolean) => {
-      pulse(at, sh.root, more);
-      brighten(at, 380, barLen * 0.4);
-      brighten(at + barLen * 0.6, 260, barLen * 0.8);
-      sh.swell.forEach((n, i) => {
-        const opts = { dur: barLen * 1.1, attack: barLen * 0.4, gain: 0.012, type: 'triangle' as OscillatorType, cutoff: 1100, delay: this.until(at + i * 0.06), out: lush };
-        this.voice(hz(n), opts);
-        this.voice(hz(n), { ...opts, detune: 8, gain: 0.008 });
+    /** A low synth that wobbles: a detuned triangle pair with a slow pitch wobble and a filter that sways. */
+    const wobble = (at: number, freq: number, len: number, rate: number, gain: number) => {
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 3;
+      f.frequency.value = 380;
+      const sway = ctx.createOscillator();
+      const swayDepth = ctx.createGain();
+      sway.frequency.value = rate / 2;
+      swayDepth.gain.value = 240;
+      sway.connect(swayDepth).connect(f.frequency);
+      const wob = ctx.createOscillator();
+      const wobDepth = ctx.createGain();
+      wob.frequency.value = rate;
+      wobDepth.gain.setValueAtTime(freq * 0.004, at);
+      wobDepth.gain.linearRampToValueAtTime(freq * 0.02, at + len);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(gain, at + len * 0.3);
+      g.gain.setValueAtTime(gain, at + len * 0.7);
+      g.gain.linearRampToValueAtTime(0, at + len);
+      [-10, 10].forEach((detune) => {
+        const o = ctx.createOscillator();
+        o.type = 'triangle';
+        o.frequency.value = freq;
+        o.detune.value = detune;
+        wob.connect(wobDepth).connect(o.frequency);
+        o.connect(f);
+        o.start(at);
+        o.stop(at + len + 0.1);
       });
-      // A faint glint high above, in later rounds only.
-      if (more) this.voice(hz(sh.swell[2] + 12), { dur: 2.4, attack: 0.02, gain: 0.008, vibrato: 2, delay: this.until(at + step * 8), out: lush });
+      f.connect(g).connect(lush);
+      sway.start(at);
+      wob.start(at);
+      sway.stop(at + len + 0.1);
+      wob.stop(at + len + 0.1);
     };
 
-    // The plan, bar by bar: hold home, shift briefly, repeat; two plain rounds, then two with a little more.
-    type Bar = { shift?: { root: number; swell: number[] }; more: boolean };
+    /** The power-down's dive-bomb, lower: a triangle and a sine a fifth up, gliding down, over rushing air falling. */
+    const crash = (at: number, from: number) => {
+      this.note(at, from, 1.8, { gain: 0.042, to: 50, attack: 0.03, release: 1.0, cutoff: 2400, out: lush });
+      this.note(at, from * 1.5, 1.6, { gain: 0.014, type: 'sine', to: 75, attack: 0.03, release: 0.9, out: lush });
+      this.breath({ dur: 3.2, freq: 2400, to: 110, type: 'lowpass', q: 1.2, gain: 0.085, attack: 0.05, delay: this.until(at), out: lush });
+    };
+
+    /** And the reverse, back out: a triangle gliding up with a growing wobble, under air rising. */
+    const rise = (at: number, from: number, len: number) => {
+      this.note(at, from, len, { gain: 0.036, to: from * 4, attack: len * 0.6, release: 0.25, cutoff: 1600, vibrato: true, out: lush });
+      this.breath({ dur: len, freq: 140, to: 1500, type: 'bandpass', q: 1.4, gain: 0.065, attack: len * 0.92, delay: this.until(at), out: lush });
+    };
+
+    /** A splash: the bass keeps driving on new roots while it crashes in, wobbles, and rises back out. */
+    const splash = (at: number, roots: number[], more: boolean) => {
+      const len = roots.length * barLen;
+      roots.forEach((r, i) => pulse(at + i * barLen, r, more));
+      brighten(at, 420, barLen * 0.5);
+      brighten(at + len - barLen * 0.5, 260, barLen);
+      crash(at, more ? 820 : 640);
+      const root = hz(roots[0] + 24);
+      wobble(at + 0.2, root, len - 0.2, more ? 4.5 : 3, 0.045);
+      wobble(at + barLen * 0.5, root * 1.5, len - barLen * 0.5, more ? 3 : 2, 0.02);
+      rise(at + len - barLen, hz(roots[roots.length - 1] + 12), barLen);
+    };
+
+    // The plan, bar by bar: hold home, then splash; two rounds with short splashes, then two with longer ones.
+    type Bar = { splash?: number[]; more: boolean };
     const plan: Bar[] = [];
     for (let round = 0; round < 4; round++) {
       const more = round >= 2;
       for (let b = 0; b < HOLD_BARS; b++) plan.push({ more });
-      for (const sh of SHIFTS[more ? 1 : 0]) plan.push({ shift: sh, more });
+      plan.push({ splash: SPLASHES[more ? 1 : 0], more });
     }
 
     let next = start;
@@ -688,9 +736,9 @@ class SoundBoard {
       if (this.playing !== 'battle') return;
       while (next < ctx.currentTime + 0.5) {
         const bar = plan[index];
-        if (bar.shift) shift(next, bar.shift, bar.more);
+        if (bar.splash) splash(next, bar.splash, bar.more);
         else pulse(next, HOME, bar.more);
-        next += barLen;
+        next += barLen * (bar.splash?.length ?? 1);
         index = (index + 1) % plan.length;
       }
     };
