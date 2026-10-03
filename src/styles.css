@@ -1980,6 +1980,20 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .seat-deck small { font-size: 0.44rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
 .seat-deck span { font-family: var(--display); font-size: clamp(0.5rem, calc(2 * var(--vh)), 0.66rem); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .seat-tile { grid-template-rows: auto 1fr auto auto auto; }
+/* A seat, with its recent decks in a small row beneath. */
+.seat-col { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: clamp(6px, calc(1.6 * var(--vh)), 10px); min-height: 0; }
+.seat-name { font-family: var(--display); font-size: clamp(0.6rem, calc(2.4 * var(--vh)), 0.8rem); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); padding: 7px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.seat-recent { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.recent-deck {
+  display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 8px 4px 4px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75); border: 1px solid #fff; box-shadow: 0 3px 10px rgba(80, 84, 100, 0.08);
+  transition: box-shadow 0.15s, background 0.15s;
+}
+.recent-deck .deck-box-cover { width: clamp(20px, calc(6.5 * var(--vh)), 30px); flex: none; box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px color-mix(in srgb, var(--dc) 70%, #fff); }
+.recent-deck span { font-family: var(--display); font-size: clamp(0.42rem, calc(1.6 * var(--vh)), 0.56rem); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-deck.on { background: #fff; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--dc) 75%, #fff), 0 3px 10px rgba(80, 84, 100, 0.1); }
+.recent-deck.on span { color: var(--ink); }
+@media (hover: hover) { .recent-deck:hover { background: #fff; } }
 .setup-spacer { flex: 1; }
 
 /* ---------- Deck builder ---------- */
@@ -2030,6 +2044,9 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .db-deck .pill-btn { padding: 4px 10px; font-size: clamp(0.45rem, calc(1.7 * var(--vh)), 0.6rem); }
 .db-deck-sub { font-size: clamp(0.5rem, calc(1.8 * var(--vh)), 0.62rem); color: var(--ink-soft); white-space: nowrap; }
 @media (hover: hover) { .db-deck-open:hover .deck-box { transform: translateY(-4px); } }
+.db-deck-on .deck-box-front { box-shadow: 0 0 0 3px #d4a52a, 0 14px 24px rgba(60, 64, 80, 0.22); }
+.db-deck-on .db-deck-sub::before { content: '✓ '; color: #b9861a; }
+.db-deck[aria-disabled="true"] { cursor: default; opacity: 0.45; }
 .db-deck-open:focus-visible .deck-box-front { box-shadow: 0 0 0 2px #d4a52a, 0 14px 24px rgba(60, 64, 80, 0.22); }
 .db-deck-actions { display: flex; gap: 6px; }
 .menu.setup-page.menu-decks { gap: clamp(6px, calc(2 * var(--vh)), 14px); }

@@ -59,13 +59,14 @@ import {
   type GameState,
   type PlayerSetup,
   type PlayerState,
+  deckProblems,
 } from '../engine';
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
-import { DeckBuilder } from './builder';
+import { DeckBuilder, deckBox, deckCover } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
-import { allDecks, deckById, PRESETS } from './decks';
-import { factionAvatar } from './factions';
+import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
+import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
@@ -82,7 +83,7 @@ import { voices } from './voice';
 import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
-type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop';
+type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop' | 'pickdeck';
 
 const HUB_ICONS = {
   collection: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="12" width="18" height="26" rx="3" transform="rotate(-10 17 25)"/><rect x="16" y="10" width="18" height="26" rx="3"/><rect x="24" y="12" width="18" height="26" rx="3" transform="rotate(10 33 25)"/></svg>`,
@@ -253,9 +254,40 @@ const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 interface MenuSeat {
+  /** A human's name (the signed-in player's own, for the first seat). */
   name: string;
   isAI: boolean;
   deckId: string;
+  /** The name an AI plays under: a bot name, picked at random. */
+  bot: string;
+}
+
+/** Names the AI plays under in quickplay. */
+const BOT_NAMES = ['Unit Parhelion', 'Kepler-9', 'Null Vector', 'Coronabot', 'Tycho Engine', 'Sentinel K4', 'Orrery', 'Halo Mk II', 'Lagrange', 'Umbra-7', 'Perihelion', 'Quasar Drone', 'Brightwire', 'Heliostat', 'Ember Logic', 'Cold Fusion'];
+function botName(not = ''): string {
+  const pool = BOT_NAMES.filter((n) => n !== not);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/** Each quickplay seat's three most recently played decks, newest first (seat 0 is the signed-in player). */
+const RECENT_KEY = 'blue-loop:recent-decks';
+function recentDecks(seat: number): string[] {
+  try {
+    const all = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '{}') as Record<string, string[]>;
+    return Array.isArray(all[seat]) ? all[seat] : [];
+  } catch {
+    return [];
+  }
+}
+function noteRecentDeck(seat: number, deckId: string) {
+  try {
+    const all = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '{}') as Record<string, string[]>;
+    all[seat] = [deckId, ...(all[seat] ?? []).filter((id) => id !== deckId)].slice(0, 3);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(all));
+    markDirty();
+  } catch {
+    // Not available.
+  }
 }
 
 
@@ -443,9 +475,12 @@ export class App {
   });
 
   private seats: MenuSeat[] = [
-    { name: profile().name || 'Commander', isAI: false, deckId: PRESETS[0].id },
-    { name: "Xel'Naru", isAI: true, deckId: PRESETS[1].id },
+    { name: profile().name || 'Commander', isAI: false, deckId: PRESETS[0].id, bot: botName() },
+    { name: 'Player 2', isAI: true, deckId: PRESETS[1].id, bot: botName() },
   ];
+  /** Choosing a deck: for which seat, and the page to go back to. */
+  private pickSeat = 0;
+  private pickFrom: MenuPage = 'quickplay';
 
   constructor(private root: HTMLElement) {
     try {
@@ -599,6 +634,7 @@ export class App {
 
   private goOnline(code?: string) {
     this.leaveOnline();
+    noteRecentDeck(0, this.seats[0].deckId);
     const room = code || newRoomCode();
     this.net.lobby = null;
     this.online = new OnlineClient(
@@ -974,7 +1010,9 @@ export class App {
     const players: PlayerSetup[] = this.seats
       .map((s, i) => {
         const deck = deckById(s.deckId) ?? PRESETS[i];
-        return { name: s.name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, species: deck.race };
+        noteRecentDeck(i, deck.id);
+        const name = s.isAI ? s.bot : i === 0 ? profile().name || s.name : s.name;
+        return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, species: deck.race };
       });
     this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
   }
@@ -2155,18 +2193,31 @@ export class App {
     if (act.startsWith('db-') && this.builder.onClick(act, arg)) return;
 
     switch (act) {
-      case 'seat-ai':
-        this.seats[Number(arg)].isAI = !this.seats[Number(arg)].isAI;
-        return this.render();
-      case 'seat-deck': {
-        // Cycle through every deck on offer.
+      case 'seat-ai': {
         const seat = this.seats[Number(arg)];
-        const decks = allDecks();
-        const i = decks.findIndex((d) => d.id === seat.deckId);
-        seat.deckId = decks[(i + 1) % decks.length].id;
-        if (this.online && arg === '0') this.online.setup(this.joinInfo());
+        seat.isAI = !seat.isAI;
+        if (seat.isAI) seat.bot = botName(this.seats[1 - Number(arg)]?.bot);
         return this.render();
       }
+      case 'seat-deck':
+        // Choose from the decks, shown as deck boxes, then come back here.
+        this.pickSeat = Number(arg);
+        this.pickFrom = this.menuPage;
+        this.menuPage = 'pickdeck';
+        return this.render();
+      case 'pick-deck':
+      case 'seat-recent': {
+        const [seatArg, id] = act === 'seat-recent' ? arg.split(':') : [String(this.pickSeat), arg];
+        const seat = Number(seatArg);
+        if (!deckById(id)) return;
+        this.seats[seat].deckId = id;
+        if (this.online && seat === 0) this.online.setup(this.joinInfo());
+        if (act === 'pick-deck') this.menuPage = this.pickFrom;
+        return this.render();
+      }
+      case 'pick-back':
+        this.menuPage = this.pickFrom;
+        return this.render();
       case 'new-game':
         return this.newGame();
       case 'online-create':
@@ -2606,7 +2657,7 @@ export class App {
 
   private renderMenu(): string {
     const page = this.menuPage;
-    const setup = page === 'quickplay' || page === 'options' || page === 'decks' || page === 'online' || page === 'shop';
+    const setup = page === 'quickplay' || page === 'options' || page === 'decks' || page === 'online' || page === 'shop' || page === 'pickdeck';
     const body =
       page === 'title'
         ? this.renderTitlePage()
@@ -2622,6 +2673,8 @@ export class App {
                 ? this.renderOnline()
                 : page === 'shop'
                   ? this.renderShop()
+                  : page === 'pickdeck'
+                  ? this.renderPickDeck()
                   : this.renderOptions();
     return `
     <main class="menu menu-${page} ${setup ? 'setup-page' : ''}">
@@ -2973,14 +3026,23 @@ export class App {
     const seats = this.seats
       .map((seat, i) => {
         const deck = deckById(seat.deckId) ?? PRESETS[i];
+        // Only a second human types a name: you play as yourself, and the AI as a bot.
+        const name = seat.isAI
+          ? `<span class="seat-name" title="The AI plays as ${esc(seat.bot)}">${esc(seat.bot)}</span>`
+          : i === 0
+            ? `<span class="seat-name">${esc(profile().name || seat.name)}</span>`
+            : `<input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" aria-label="Player ${i + 1} name" />`;
         return `
-        <div class="seat-tile">
-          ${factionAvatar(`f${deck.race + 1}`, 'seat-emblem')}
-          <input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" aria-label="Seat ${i + 1} name" />
-          <button class="seat-deck" data-act="seat-deck" data-arg="${i}" title="Tap to change deck">
-            <small>deck</small><span>${esc(deck.name.toLowerCase())}</span>
-          </button>
-          <button class="pill-btn" data-act="seat-ai" data-arg="${i}">${seat.isAI ? 'ai' : 'human'}</button>
+        <div class="seat-col">
+          <div class="seat-tile">
+            ${factionAvatar(`f${deck.race + 1}`, 'seat-emblem')}
+            ${name}
+            <button class="seat-deck" data-act="seat-deck" data-arg="${i}" title="Choose a deck">
+              <small>deck</small><span>${esc(deck.name.toLowerCase())}</span>
+            </button>
+            <button class="pill-btn" data-act="seat-ai" data-arg="${i}">${seat.isAI ? 'ai' : 'human'}</button>
+          </div>
+          ${this.recentRow(i)}
         </div>`;
       })
       .join('');
@@ -2991,6 +3053,40 @@ export class App {
        ${hasSave ? '<button class="btn" data-act="continue">continue game</button>' : ''}
        <button class="btn-primary" data-act="new-game">launch</button>`,
     );
+  }
+
+  /** A seat's last three decks, for a quick switch. */
+  private recentRow(seat: number): string {
+    const decks = recentDecks(seat).map((id) => deckById(id)).filter((d): d is SavedDeck => !!d);
+    if (!decks.length) return '';
+    const current = this.seats[seat].deckId;
+    return `<div class="seat-recent" aria-label="Recent decks">${decks
+      .map((d) => `<button class="recent-deck ${d.id === current ? 'on' : ''}" data-act="seat-recent" data-arg="${seat}:${d.id}" title="${esc(d.name)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">${deckCover(d)}<span>${esc(d.name.toLowerCase())}</span></button>`)
+      .join('')}</div>`;
+  }
+
+  /** Choosing a seat's deck: every deck as a deck box; tap one to take it. */
+  private renderPickDeck(): string {
+    const current = this.seats[this.pickSeat]?.deckId;
+    const box = (d: SavedDeck) => {
+      const legal = deckProblems(d.cards).length === 0;
+      return deckBox(d, { act: 'pick-deck', title: legal ? `Play with ${d.name}` : 'This deck is not complete yet', selected: d.id === current, disabled: !legal });
+    };
+    const mine = customDecks();
+    return `
+      <header class="setup-top">
+        <button class="btn btn-small" data-act="pick-back">‹ back</button>
+        <h2 class="menu-heading">choose a deck</h2>
+        ${this.playerChip()}
+      </header>
+      <div class="setup-body db-list-body">
+        <div class="db-list">
+          <div class="section-label">race starters</div>
+          <div class="db-boxes">${PRESETS.map(box).join('')}</div>
+          ${mine.length ? `<div class="section-label">your decks</div><div class="db-boxes">${mine.map(box).join('')}</div>` : ''}
+        </div>
+      </div>
+      <footer class="setup-foot"></footer>`;
   }
 
   /** Online 1v1: create a room or join one; then the room code, the invite and who is in. */

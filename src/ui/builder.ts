@@ -250,27 +250,14 @@ export class DeckBuilder {
   }
 
   private renderList(): string {
-    // Each deck is a deck box, its cover the hero of its most expensive Command card (its emblem if it has none).
-    const box = (d: SavedDeck) => {
-      const counts = (kind: CardKind) => d.cards.filter((id) => cardDef(id).kind === kind).length;
-      const legal = deckProblems(d.cards).length === 0;
-      const hero = coverHero(d.cards);
-      return `
-        <div class="db-deck db-deck-open ${legal ? '' : 'db-deck-bad'}" data-act="${d.preset ? 'db-view' : 'db-edit'}" data-arg="${d.id}" role="button" tabindex="0" title="${d.preset ? 'Look through it (changes save as a copy)' : 'Edit it'}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">
-          <div class="deck-box">
-            <span class="deck-box-top"></span><span class="deck-box-side"></span>
-            <div class="deck-box-front">
-              <span class="deck-box-cover">${hero ? cardArtLite(hero) : factionAvatar(`f${d.race + 1}`, 'db-emblem')}</span>
-              <b class="deck-box-name">${esc(d.name.toLowerCase())}</b>
-              <small class="deck-box-race">${esc(RACE_NAMES[d.race].toLowerCase())}</small>
-            </div>
-          </div>
-          <small class="db-deck-sub">${d.preset ? 'starter' : legal ? `${d.cards.length} cards` : 'incomplete'} · ${counts('attack')} atk · ${counts('defence')} def · ${counts('growth')} gro</small>
-          <div class="db-deck-actions">
-            ${d.preset ? `<button class="pill-btn" data-act="db-view" data-arg="${d.id}">view</button><button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>` : `<button class="pill-btn" data-act="db-edit" data-arg="${d.id}">edit</button><button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}
-          </div>
-        </div>`;
-    };
+    const box = (d: SavedDeck) =>
+      deckBox(d, {
+        act: d.preset ? 'db-view' : 'db-edit',
+        title: d.preset ? 'Look through it (changes save as a copy)' : 'Edit it',
+        actions: d.preset
+          ? `<button class="pill-btn" data-act="db-view" data-arg="${d.id}">view</button><button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>`
+          : `<button class="pill-btn" data-act="db-edit" data-arg="${d.id}">edit</button><button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`,
+      });
     const mine = customDecks();
     return `
       ${this.header('decks')}
@@ -484,4 +471,32 @@ function coverHero(cards: string[]): CardDef | null {
   const heroes = [...new Set(cards)].map(cardDef).filter((c) => c.kind === 'command');
   heroes.sort((a, b) => cardCost(b.id) - cardCost(a.id) || craftCost(b.id) - craftCost(a.id) || a.name.localeCompare(b.name));
   return heroes[0] ?? null;
+}
+
+/**
+ * A deck as a deck box: a little 3D box in its race's colour, its cover the hero of its most expensive
+ * Command card (its emblem if it has none), the deck's make-up beneath and any buttons under that.
+ */
+export function deckBox(d: SavedDeck, opts: { act: string; title: string; actions?: string; selected?: boolean; disabled?: boolean }): string {
+  const counts = (kind: CardKind) => d.cards.filter((id) => cardDef(id).kind === kind).length;
+  const legal = deckProblems(d.cards).length === 0;
+  return `
+    <div class="db-deck db-deck-open ${legal ? '' : 'db-deck-bad'} ${opts.selected ? 'db-deck-on' : ''}" ${opts.disabled ? 'aria-disabled="true"' : `data-act="${opts.act}" data-arg="${d.id}"`} role="button" tabindex="0" title="${esc(opts.title)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">
+      <div class="deck-box">
+        <span class="deck-box-top"></span><span class="deck-box-side"></span>
+        <div class="deck-box-front">
+          ${deckCover(d)}
+          <b class="deck-box-name">${esc(d.name.toLowerCase())}</b>
+          <small class="deck-box-race">${esc(RACE_NAMES[d.race].toLowerCase())}</small>
+        </div>
+      </div>
+      <small class="db-deck-sub">${d.preset ? 'starter' : legal ? `${d.cards.length} cards` : 'incomplete'} · ${counts('attack')} atk · ${counts('defence')} def · ${counts('growth')} gro</small>
+      ${opts.actions ? `<div class="db-deck-actions">${opts.actions}</div>` : ''}
+    </div>`;
+}
+
+/** A deck's round cover: its hero's picture, or its race's emblem. */
+export function deckCover(d: SavedDeck): string {
+  const hero = coverHero(d.cards);
+  return `<span class="deck-box-cover">${hero ? cardArtLite(hero) : factionAvatar(`f${d.race + 1}`, 'db-emblem')}</span>`;
 }
