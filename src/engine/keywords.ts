@@ -62,7 +62,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   recall: { name: 'recall', group: 'recovery', explain: () => 'Return another card of yours from your tableau to your hand, to play it again (its leave effects fire, and the slot is free).' },
   destroy: { name: 'destroy', group: 'removal', explain: (v) => (v && v !== 'any' ? `Destroy a card of your choice in your rival's tableau with ${v} or less defence.` : "Destroy a card of your choice in your rival's tableau, whatever its defence.") },
   eject: { name: 'eject', group: 'removal', explain: (v) => `Return a card of your choice in your rival's tableau with ${n(v)} or less defence to its owner's hand.` },
-  sting: { name: 'sting', group: 'shields', explain: (v) => `When your shields absorb an enemy's heat, the card that attacked takes ${n(v)} heat, past its defence (its sun does, if that card isn't in play). Once per attacking card each day.` },
+  sting: { name: 'sting', group: 'shields', explain: (v) => `When your shields absorb an enemy's heat, the card that attacked takes ${n(v)} heat, past its defence (never a sun: heat from a card not in play goes unanswered). Once per attacking card each day.` },
   soothe: { name: 'soothe', group: 'shields', explain: (v) => `When your shields absorb an enemy's heat, cool your sun by ${n(v)} (once per attacking card each day).` },
   hold: { name: 'hold', group: 'shields', explain: (v) => `Your shields no longer fade at your dawn (they keep, up to ${n(v, '12')}).` },
   overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or hotter.' },

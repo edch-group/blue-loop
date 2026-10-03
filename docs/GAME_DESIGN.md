@@ -259,7 +259,7 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | recover (type) | A card (of that type) from your discard pile to your hand; with none there, draw |
 | recall | Another card of yours from your tableau to your hand |
 | destroy N / eject N | Destroy / return to hand a rival card with at most N defence |
-| sting N / soothe N | When your shields absorb heat: heat the attacking card N, past its defence (its sun, if that card isn't in play) / cool your sun N |
+| sting N / soothe N | When your shields absorb heat: heat the attacking card N, past its defence (never a sun) / cool your sun N |
 | hold N | Your shields don't fade (up to N) |
 | overheated | Half your max health or hotter |
 | grows N | Grows by 1 each day, up to N |

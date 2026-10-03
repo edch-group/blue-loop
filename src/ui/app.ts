@@ -38,6 +38,7 @@ import {
   cardCost,
   aimable,
   aimChoices,
+  COMMAND_SLOT,
   dawnAimable,
   dawnEffects,
   effectAmount,
@@ -221,6 +222,24 @@ interface MenuSeat {
  * The game's result floats flat above the tilted board (so nothing on the board can show through it),
  * centred on the spot the board keeps for it between the two tableaus.
  */
+/** Where an element lies within an ancestor, in that ancestor's own (untransformed) layout space. */
+function planeOffset(el: HTMLElement, ancestor: HTMLElement): { x: number; y: number } {
+  const a = layoutOffset(ancestor);
+  const e = layoutOffset(el);
+  return { x: e.x - a.x, y: e.y - a.y };
+}
+
+/** An element's offset from the top of the page's layout (transforms ignored), along its offset parents. */
+function layoutOffset(el: HTMLElement): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  for (let e: HTMLElement | null = el; e; e = e.offsetParent as HTMLElement | null) {
+    x += e.offsetLeft;
+    y += e.offsetTop;
+  }
+  return { x, y };
+}
+
 function placeResult(root: HTMLElement) {
   const result = root.querySelector<HTMLElement>('.game-result');
   const anchor = root.querySelector<HTMLElement>('.result-anchor');
@@ -683,6 +702,38 @@ export class App {
 
   /** Takes away a staged card's aim (see stageEntrance). */
   private unaim: (() => void) | null = null;
+  /** The card a confirmed stage was aimed at (its beam already shown), for the move as it lands. */
+  private aimShown: string | null = null;
+
+  /** At your dawn, a beam from each card with dawn heat to where it is aimed, until the dawn breaks. */
+  private dawnBeams = new Map<string, () => void>();
+  private syncDawnBeams() {
+    const want = new Map<string, [string, string]>();
+    const s = this.state;
+    if (s && this.screen === 'game' && this.dawnTurn()) {
+      const me = activePlayer(s);
+      const rival = targetOf(s, me);
+      const aims = this.draftAims(s, me);
+      for (const card of me.tableau) {
+        if (!dawnAimable(card) || !(card.uid in aims)) continue;
+        const hit = aims[card.uid];
+        const to = hit ? `.tableau [data-uid="${hit}"]` : rival ? `.tableau [data-anchor="player:${rival.id}"]` : '';
+        if (to) want.set(`${card.uid}>${to}`, [`.tableau [data-uid="${card.uid}"]`, to]);
+      }
+    }
+    for (const [key, stop] of this.dawnBeams) {
+      if (want.has(key)) continue;
+      stop();
+      this.dawnBeams.delete(key);
+    }
+    const rect = (sel: string) => {
+      const el = this.root.querySelector(sel);
+      return el ? pageRect(el) : null;
+    };
+    for (const [key, [from, to]] of want) {
+      if (!this.dawnBeams.has(key)) this.dawnBeams.set(key, aim(() => rect(from), () => rect(to)));
+    }
+  }
 
   /**
    * Leaving a menu page: the button pressed lifts up and fades (a quick rise that eases off), the rest of
@@ -768,6 +819,8 @@ export class App {
   private confirmStage() {
     if (!this.stage?.confirm) return;
     this.clickShieldUntil = Date.now() + 400;
+    // Its aim was shown while it waited: as it lands, no second beam goes to the same card.
+    this.aimShown = this.stage.target ?? null;
     this.stage = null;
     this.unaim?.();
     this.unaim = null;
@@ -1007,7 +1060,7 @@ export class App {
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
     if (cardDef(card.defId).kind === 'lightspeed' || action.faceDown) return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
-    return { defId: card.defId, actorId: actor.id, option: action.choice, target: action.enemyUid };
+    return { defId: card.defId, actorId: actor.id, option: action.choice, target: action.enemyUid ?? action.aimUid };
   }
 
   /** A Lightspeed card that just sprang (revealed from face down into its owner's discard pile), announced for everyone. */
@@ -1099,6 +1152,8 @@ export class App {
     // Removal: a glowing arc from the removing card to each rival card it destroys, returns or
     // erodes; a removed card lingers under the arc before it goes.
     const removalAt = new Map<string, number>();
+    const shown = this.aimShown;
+    this.aimShown = null;
     if (action.type === 'playCard') {
       const rivalCards = (st: GameState) => new Map(st.players.filter((p) => p.id !== actor.id).flatMap((p) => p.tableau.map((c) => [c.uid, c] as const)));
       const was = rivalCards(prev);
@@ -1114,7 +1169,8 @@ export class App {
         const to = before.cards.get(uid)?.rect ?? (el ? pageRect(el) : null);
         if (!to) return;
         const delay = (actor.isAI ? 600 : 470) + i * 140;
-        removalAt.set(uid, tether(from, to, { delay }));
+        // (A card whose aim was shown while it waited to be confirmed already pointed here.)
+        removalAt.set(uid, uid === shown ? 160 : tether(from, to, { delay }));
         // The beam whooshes onto the card (and, if it takes it, sweeps it away).
         const gone = !next.players.some((p) => p.tableau.some((c) => c.uid === uid));
         window.setTimeout(() => sound.whoosh(0, gone), delay);
@@ -1171,21 +1227,29 @@ export class App {
     before.cards.forEach((old, uid) => {
       if (root.querySelector(`[data-uid="${uid}"]`)) return;
       let to: DOMRect | null = null;
-      if (vNext.discard.some((c) => c.uid === uid)) to = anchorRect(root, 'discard');
-      else if (!to) {
+      // The pile on the table it went to, if any.
+      let pile: string | null = null;
+      if (vNext.discard.some((c) => c.uid === uid)) pile = 'discard';
+      else {
         const binned = next.players.find((p) => p.id !== vNext.id && p.discard.some((c) => c.uid === uid));
-        if (binned) to = anchorRect(root, `discard:${binned.id}`);
+        if (binned) pile = `discard:${binned.id}`;
       }
+      if (pile) to = anchorRect(root, pile);
       if (!to) {
         const owner = next.players.find((p) => [...p.deck, ...p.hand, ...p.discard].some((c) => c.uid === uid));
         if (owner) to = orbRect(owner.id);
       }
       const at = removalAt.get(uid);
       if (at !== undefined && this.lingerInSlot(prev, uid, old.html, at)) return;
+      const wasInPlay = prev.players.some((p) => p.tableau.some((c) => c.uid === uid));
       // A card that faded at dawn stays in its slot while the day's effects play out, then goes.
-      if (replayEnd > 0 && this.fadeFromSlot(prev, uid, old.html, replayEnd, to, { w: old.w, h: old.h }, faded++)) return;
-      // Faded at a dawn with nothing to replay: still one at a time.
-      if (endingTurn && prev.players.some((p) => p.tableau.some((c) => c.uid === uid))) {
+      if (replayEnd > 0 && wasInPlay && this.fadeFromSlot(prev, uid, old.html, replayEnd + faded * DEAL_STEP_MS, pile, true)) {
+        faded++;
+        return;
+      }
+      // Faded at a dawn with nothing to replay: still one at a time. Any other card leaving play goes straight.
+      if (wasInPlay && this.fadeFromSlot(prev, uid, old.html, endingTurn ? 200 + faded++ * DEAL_STEP_MS : 0, pile)) return;
+      if (endingTurn && wasInPlay) {
         ghost(old.html, old.rect, to, { size: { w: old.w, h: old.h }, ...FADE_OUT, delay: 200 + faded++ * DEAL_STEP_MS });
         return;
       }
@@ -1466,24 +1530,57 @@ export class App {
   }
 
   /**
-   * A card taken out of a tableau by removal stays in its slot on the table
-   * (a copy, in place of the empty slot) while the removal's arc holds it,
-   * then dissolves. Returns false if its slot is not on the table.
+   * A copy of a card that just left a tableau, laid over the slot it held, in the table's own 3D plane (so
+   * it keeps the table's perspective as it goes, and never changes the row's layout). Null if its tableau
+   * isn't on the table.
    */
-  private lingerInSlot(prev: GameState, uid: string, html: string, at: number): boolean {
+  private slotCopy(prev: GameState, uid: string, html: string, keepUid = false): HTMLElement | null {
     const owner = prev.players.find((p) => p.tableau.some((c) => c.uid === uid));
     const slot = owner?.tableau.find((c) => c.uid === uid)?.slot;
-    const cell = owner && slot !== undefined ? this.root.querySelector(`.tableau[data-owner="${owner.id}"] .tableau-row`)?.children[slot] : null;
-    if (!cell || cell.hasAttribute('data-uid')) return false;
+    const row = owner ? this.root.querySelector<HTMLElement>(`.tableau[data-owner="${owner.id}"] .tableau-row`) : null;
+    if (!row || slot === undefined) return null;
+    // Where it lay: the Command slot, or the slot's place in the row (an empty slot now, or a card that took its place).
+    const cell =
+      slot === COMMAND_SLOT ? row.querySelector<HTMLElement>(':scope > .cmd-slot > *') : row.querySelectorAll<HTMLElement>(':scope > .card, :scope > .slot-empty')[slot];
+    if (!cell) return null;
     const holder = document.createElement('div');
     holder.innerHTML = html;
     const copy = holder.firstElementChild as HTMLElement;
-    copy.removeAttribute('data-uid');
+    if (!keepUid) copy.removeAttribute('data-uid');
     copy.removeAttribute('data-act');
-    copy.classList.remove('card-choosable');
-    copy.classList.add('card-removing');
-    const empty = cell as HTMLElement;
-    empty.replaceWith(copy);
+    copy.classList.remove('card-choosable', 'lifted', 'card-aimer', 'card-aiming');
+    copy.classList.add('card-leaving');
+    const at = planeOffset(cell, row);
+    Object.assign(copy.style, { position: 'absolute', left: `${at.x}px`, top: `${at.y}px`, width: `${cell.offsetWidth}px`, height: `${cell.offsetHeight}px`, margin: '0', zIndex: '6', pointerEvents: 'none' });
+    row.appendChild(copy);
+    // A redraw mid-animation rebuilds the row: the copy is put back into the new one (see keepLeaving).
+    this.leaving.add({ el: copy, owner: owner!.id, until: Date.now() + 8000 });
+    return copy;
+  }
+
+  private dropLeaving(el: HTMLElement) {
+    el.remove();
+    for (const l of this.leaving) if (l.el === el) this.leaving.delete(l);
+  }
+
+  /** Copies of cards leaving a tableau, still animating, with whose tableau they lie in. */
+  private leaving = new Set<{ el: HTMLElement; owner: string; until: number; done?: boolean }>();
+  private keepLeaving() {
+    for (const l of this.leaving) {
+      if (l.done || Date.now() > l.until) {
+        l.el.remove();
+        this.leaving.delete(l);
+        continue;
+      }
+      if (l.el.isConnected) continue;
+      this.root.querySelector(`.tableau[data-owner="${l.owner}"] .tableau-row`)?.appendChild(l.el);
+    }
+  }
+
+  /** A card removed from play: it lingers in its slot until the removal's tether reaches it, then dissolves. */
+  private lingerInSlot(prev: GameState, uid: string, html: string, at: number): boolean {
+    const copy = this.slotCopy(prev, uid, html);
+    if (!copy) return false;
     const dissolve = copy.animate(
       [
         { opacity: 1, filter: 'brightness(1)', transform: 'translateZ(8px) scale(1)' },
@@ -1492,37 +1589,38 @@ export class App {
       ],
       { duration: 520, delay: at, easing: 'ease-in', fill: 'both' },
     );
-    dissolve.onfinish = () => {
-      if (copy.isConnected) copy.replaceWith(empty);
-    };
+    dissolve.onfinish = () => this.dropLeaving(copy);
     return true;
   }
 
   /**
-   * A card that faded at dawn: a copy stays in its slot (in the table's perspective, as it was) until
-   * `at`, while its last effects play out, then flies to where it went. False if its slot isn't on the table.
+   * A card leaving a tableau for a pile on the table: a copy lifts off its slot after `at` ms and glides
+   * into the pile, all in the table's plane. `keepUid` lets the dawn replay still light it up meanwhile.
+   * False if it can't be shown that way (its tableau or the pile isn't on the table).
    */
-  private fadeFromSlot(prev: GameState, uid: string, html: string, at: number, to: DOMRect | null, size: { w: number; h: number }, order = 0): boolean {
-    const owner = prev.players.find((p) => p.tableau.some((c) => c.uid === uid));
-    const slot = owner?.tableau.find((c) => c.uid === uid)?.slot;
-    const cell = owner && slot !== undefined ? this.root.querySelector(`.tableau[data-owner="${owner.id}"] .tableau-row`)?.children[slot] : null;
-    if (!cell || cell.hasAttribute('data-uid')) return false;
-    const holder = document.createElement('div');
-    holder.innerHTML = html;
-    const copy = holder.firstElementChild as HTMLElement;
-    // It keeps its uid, so the dawn replay can still light it up as its last effects fire.
-    copy.removeAttribute('data-act');
-    copy.classList.remove('card-choosable', 'lifted');
-    const empty = cell as HTMLElement;
-    empty.replaceWith(copy);
-    // They leave one at a time, like the opening hand dealt in reverse: each lifts off and speeds into the pile.
-    window.setTimeout(() => {
-      if (!copy.isConnected) return;
-      const from = pageRect(copy);
-      copy.replaceWith(empty);
-      ghost(html, from, to, { size, ...FADE_OUT });
-      sound.draw();
-    }, at + order * DEAL_STEP_MS);
+  private fadeFromSlot(prev: GameState, uid: string, html: string, at: number, pile: string | null, keepUid = false): boolean {
+    const target = pile ? this.root.querySelector<HTMLElement>(`.board-plane [data-anchor="${pile}"]`) : null;
+    if (!target) return false;
+    const copy = this.slotCopy(prev, uid, html, keepUid);
+    if (!copy) return false;
+    const row = copy.parentElement!;
+    const from = planeOffset(copy, row);
+    const to = planeOffset(target, row);
+    const w = copy.offsetWidth || 1;
+    const h = copy.offsetHeight || 1;
+    const sc = Math.min(target.offsetWidth / w, target.offsetHeight / h);
+    const dx = to.x + target.offsetWidth / 2 - (from.x + w / 2);
+    const dy = to.y + target.offsetHeight / 2 - (from.y + h / 2);
+    const fly = copy.animate(
+      [
+        { opacity: 1, transform: 'translateZ(8px) scale(1)' },
+        { opacity: 1, transform: 'translateZ(26px) scale(1.04)', offset: 0.25 },
+        { opacity: 0, transform: `translate(${dx}px, ${dy}px) translateZ(8px) scale(${sc})` },
+      ],
+      { duration: 560, delay: at, easing: 'cubic-bezier(.5,0,.3,1)', fill: 'both' },
+    );
+    window.setTimeout(() => sound.draw(), at);
+    fly.onfinish = () => this.dropLeaving(copy);
     return true;
   }
 
@@ -2206,6 +2304,8 @@ export class App {
     animateSuns();
     frameTableaus(this.root);
     placeResult(this.root);
+    this.keepLeaving();
+    this.syncDawnBeams();
     if (!this.press?.shown) this.preview.classList.remove('show');
   }
 

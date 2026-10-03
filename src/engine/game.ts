@@ -825,14 +825,11 @@ function shieldsAnswer(state: GameState, target: PlayerState, source: PlayerStat
     target.stung.ids.push(key);
     if (soothe > 0) cool(state, target, soothe);
     if (sting > 0) {
-      // The sting hits the card that attacked, past its defence; with no such card on the table, its owner's sun.
+      // The sting hits the card that attacked, past its defence; never a sun (with no such card on the table, nothing).
       const attacker = cardUid ? source.tableau.find((c) => c.uid === cardUid) : undefined;
       if (attacker) {
         log(state, `${target.name}'s veil stings ${source.name}'s ${cardDef(attacker.defId).name} for ${sting}.`);
         heatCard(state, source, attacker, sting, target, false, '', true);
-      } else {
-        log(state, `${target.name}'s veil stings ${source.name} for ${sting}.`);
-        applyHeat(state, source, sting, target, true);
       }
     }
   }
