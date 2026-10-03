@@ -38,6 +38,8 @@ import {
   aimable,
   aimChoices,
   dawnAimable,
+  dawnEffects,
+  effectAmount,
   optionText,
   allyEffectKind,
   cardDefence,
@@ -64,7 +66,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, symbolIcon, typeLine } from './glyphs';
+import { cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
@@ -3038,9 +3040,28 @@ export class App {
         <div class="card-glyph">${cardArtLite(def, true)}</div>
         ${growth}${resonance}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardTextHtml(def.text, opts.option ?? c.choice)}</div>
+        <div class="card-text">${cardTextHtml(def.text, opts.option ?? c.choice, false, this.liveNumbers(c, opts))}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </button>`;
+  }
+
+  /**
+   * A card's heat, cooling and shields as they now stand (its neighbours' resonance, Forge cards, the
+   * table): in play its dawn's numbers, in your hand what it would do as you play it.
+   */
+  private liveNumbers(c: CardInstance, opts: { hand?: boolean; owner?: PlayerState }): Record<number, number> {
+    const s = this.state;
+    const owner = opts.owner ?? (opts.hand ? this.viewer() : undefined);
+    if (!s || !owner) return {};
+    const def = cardDef(c.defId);
+    const inPlay = c.slot !== undefined && owner.tableau.some((x) => x.uid === c.uid);
+    if (!inPlay && !opts.hand) return {};
+    const effects = (inPlay ? dawnEffects(c) : def.onPlay ?? []).flatMap((e) =>
+      e.type === 'heat' || e.type === 'cool' || e.type === 'shield'
+        ? [{ type: e.type, amount: e.amount, now: e.amount + effectAmount(s, owner, c, { ...e, amount: 1, plus: undefined, max: undefined }, inPlay ? 'turn' : 'play') - 1 }]
+        : [],
+    );
+    return liveValues(def.text, effects, inPlay);
   }
 
   /** The explanations beside a magnified card: its keywords, and its stability and defence (live, for a card in play). */

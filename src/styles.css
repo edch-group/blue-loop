@@ -2786,6 +2786,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* Laid out as plain inline text, so the number and the words round it share one baseline;
    the icon stands on that baseline, as tall as a capital. */
 .kw-sym { display: inline; white-space: nowrap; letter-spacing: 0; }
+/* A number changed in play (by neighbours, Forge cards or the table): underlined, green when raised, red when lowered. */
+.kw-up, .kw-down { text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.18em; }
+.kw-up { text-decoration-color: #3fae6a; }
+.kw-down { text-decoration-color: #d8452b; }
 .kw-ico { display: inline-block; width: 0.78em; height: 0.78em; vertical-align: -0.04em; margin-right: 0.08em; flex: none; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
 .kw-ico .kw-ico-fill { fill: currentColor; fill-opacity: 0.22; stroke-width: 1.6; }
 .kw-list .kw-sym .kw-ico, .kw-tip .kw-sym .kw-ico, .kw-rules .kw-sym .kw-ico, .rule-fact .kw-sym .kw-ico { margin-right: 0.25em; }

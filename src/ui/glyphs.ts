@@ -319,7 +319,7 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
  * and heat, cool and shields as symbols. Hovering one (in the deck builder and
  * the shop) explains it; in a game the zoomed card lists the explanations alongside.
  */
-export function cardTextHtml(text: string, chosen?: string, inline = false): string {
+export function cardTextHtml(text: string, chosen?: string, inline = false, live: Record<number, number> = {}): string {
   const parts = textParts(text);
   // Nothing but a few symbols ("Heat 2", "Heat 2. Cool 1"): they sit in the middle of the text box.
   const symbols = parts.filter((p) => 'kw' in p);
@@ -333,10 +333,37 @@ export function cardTextHtml(text: string, chosen?: string, inline = false): str
         return `<span class="card-opts${chosen ? ' card-opts-chosen' : ''}">${optionList(p.value)
           .map((o) => `<span class="card-opt${o === chosen ? ' on' : ''}" data-opt="${escText(o)}">${cardTextHtml(optionText(o), undefined, true)}</span>`)
           .join('')}</span>`;
+      // A number its card's neighbours or the table have changed: shown as it now stands.
+      if (i in live && p.value !== undefined) {
+        const was = Number(p.value);
+        const kw = keywordHtml(p.kw, String(live[i]), { data: true });
+        return kw.replace('class="kw ', `class="kw ${live[i] > was ? 'kw-up' : 'kw-down'} `).replace('<b ', `<b title="${was} on the card, ${live[i]} as it stands" `);
+      }
       return keywordHtml(p.kw, p.value, { data: true });
     })
     .join('');
   return only && !inline ? `<span class="card-text-mid">${html}</span>` : html;
+}
+
+/**
+ * Which numbers in a card's text stand changed in play, by their place among the text's parts: the
+ * effects given are matched to the heat, cool and shield numbers of the text, in order (the numbers
+ * after {dawn} for its dawn effects, the ones before it for what it does as it is played).
+ */
+export function liveValues(text: string, effects: { type: string; amount: number; now: number }[], dawn: boolean): Record<number, number> {
+  const out: Record<number, number> = {};
+  const left = [...effects];
+  let afterDawn = false;
+  textParts(text).forEach((p, i) => {
+    if (!('kw' in p)) return;
+    if (p.kw === 'dawn') afterDawn = true;
+    if (afterDawn !== dawn) return;
+    const j = left.findIndex((l) => l.type === p.kw && String(l.amount) === p.value);
+    if (j < 0) return;
+    if (left[j].now !== left[j].amount) out[i] = left[j].now;
+    left.splice(j, 1);
+  });
+  return out;
 }
 
 /** Between a card's sentences: a paragraph break. */
