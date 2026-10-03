@@ -372,6 +372,7 @@ export class DeckBuilder {
     const pool = document.querySelector<HTMLElement>('.db-pool');
     if (!d || !pool) return this.host.render();
     pool.innerHTML = this.poolCards(d).join('') || '<p class="muted">No cards match these filters.</p>';
+    sizePool();
     fitWhenSeen(pool.querySelectorAll<HTMLElement>('.db-card'));
     const pop = document.querySelector<HTMLElement>('.db-filters-pop');
     const btn = document.querySelector<HTMLElement>('.db-filter-btn');
@@ -542,4 +543,39 @@ function deckRace(d: SavedDeck): number {
   }
   const best = Math.max(...counts);
   return best > 0 ? counts.indexOf(best) : d.race;
+}
+
+/**
+ * Size the deck builder's card pool to fill its width: as many columns as fit at the view's card size
+ * (--dbw), each then widened to share the leftover space, so the cards reach both edges at any size.
+ * (Fixed sizes, worked out here: cards that stretch themselves made laying out hundreds of them slow.)
+ * Command cards, which lie landscape, get their own columns: at least two, about as many as three fit
+ * where four cards do.
+ */
+export function sizePool(root: ParentNode = document) {
+  const pool = root.querySelector<HTMLElement>('.db-pool');
+  if (!pool) return;
+  const css = getComputedStyle(pool);
+  const width = pool.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight);
+  if (!(width > 0)) return;
+  const gap = parseFloat(css.columnGap) || 10;
+  // The view's card size, in pixels (--dbw is a clamp() of the screen size: measure it).
+  const probe = document.createElement('i');
+  probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--dbw);height:0';
+  pool.appendChild(probe);
+  const base = probe.offsetWidth || 140;
+  probe.remove();
+  const fit = (min: number, least = 1) => {
+    const cols = Math.max(least, Math.floor((width + gap) / (min + gap)));
+    return { cols, w: Math.floor(((width - (cols - 1) * gap) / cols) * 10) / 10 };
+  };
+  const card = fit(base);
+  pool.style.gridTemplateColumns = `repeat(${card.cols}, ${card.w}px)`;
+  pool.style.setProperty('--cardw', `${card.w}px`);
+  const cmds = pool.querySelector<HTMLElement>('.db-pool-cmds');
+  if (cmds) {
+    const cmd = fit(base * 1.3, 2);
+    cmds.style.gridTemplateColumns = `repeat(${cmd.cols}, ${cmd.w}px)`;
+    cmds.style.setProperty('--cmdcw', `${cmd.w}px`);
+  }
 }

@@ -63,7 +63,7 @@ import {
 } from '../engine';
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
-import { DeckBuilder, deckBox, deckCover } from './builder';
+import { DeckBuilder, deckBox, deckCover, sizePool } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
@@ -568,6 +568,7 @@ export class App {
     // Re-lay out whenever the page's size settles (after a rotation the first resize event can be stale).
     window.addEventListener(VIEWPORT_EVENT, () => {
       this.fitHand();
+      sizePool(this.root);
       if (this.screen === 'campaign') this.campaign.afterRender(this.root);
     });
   }
@@ -2599,6 +2600,7 @@ export class App {
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
     fitCardText(this.root);
+    sizePool(this.root);
     fitWhenSeen(this.root.querySelectorAll<HTMLElement>('.db-pool .db-card'));
     refreshLift();
     const page = this.screen === 'menu' ? `menu:${this.menuPage}` : this.screen;

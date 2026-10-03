@@ -2590,15 +2590,16 @@ img.art { object-fit: cover; }
 
 /* ---------- Deck builder: real cards, always the same shape and size ---------- */
 .db-pool { --dbw: clamp(108px, calc(14 * var(--vw)), 156px); grid-template-columns: repeat(auto-fill, var(--dbw)); justify-content: start; gap: 10px; }
+/* (sizePool in builder.ts widens the columns, --cardw, so the cards fill the grid's whole width.) */
 .db-card {
-  container-type: size; position: relative; display: block; width: var(--dbw); height: calc(var(--dbw) * 1.4); min-height: 0;
+  container-type: size; position: relative; display: block; width: var(--cardw, var(--dbw)); height: calc(var(--cardw, var(--dbw)) * 1.4); min-height: 0;
   padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; text-align: left;
 }
 /* Command cards: landscape, in a row of their own across the top of the pool. */
-.db-pool-cmds { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, min(calc(var(--dbw) * 1.3), calc((100% - 10px) / 2))); gap: inherit; padding-bottom: 4px; }
-/* (At least two side by side, however large the cards: each sizes from its width.) */
-.db-card.db-card-cmd { container-type: inline-size; width: 100%; height: auto; aspect-ratio: 1.4; }
-.db-card.db-card-cmd > .card { --cw: calc(100cqw / 1.4); }
+.db-pool-cmds { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, calc(var(--dbw) * 1.3)); gap: inherit; padding-bottom: 4px; }
+/* (sizePool sets their width, --cmdcw: at least two side by side, filling the row.) */
+.db-card.db-card-cmd { width: var(--cmdcw, calc(var(--dbw) * 1.3)); height: calc(var(--cmdcw, calc(var(--dbw) * 1.3)) / 1.4); }
+.db-card.db-card-cmd > .card { --cw: 100cqh; }
 .db-card.db-card-cmd .card-name { font-size: max(6px, calc(var(--cmdw) * 0.052)); overflow-wrap: anywhere; padding-right: 0; }
 /* The card itself is laid out exactly like one on the table (5:7), scaled to the column. */
 .db-card > .card { --cw: 100cqw; width: 100%; height: 100%; }
