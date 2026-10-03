@@ -1,13 +1,9 @@
 /**
  * From the game mode menu on, the page is always landscape. On a portrait
- * screen (a phone held upright) it first asks the player to turn the device
- * sideways. With rotation locked they can choose to play sideways anyway: the
- * whole page is then turned a quarter-turn clockwise and laid out as landscape
- * (remembered on this device). The landing and sign-in pages are not forced:
- * they lay out upright too (see forceLandscape).
- * Browsers cannot lock orientation on iPhone, so this is the only way to
- * guarantee it; where a real lock is allowed (Android, full screen) we ask for
- * one too.
+ * screen (a phone held upright) it asks the player to turn the device sideways,
+ * and waits. The landing and sign-in pages are not forced: they lay out upright
+ * too (see forceLandscape). Where a real lock is allowed (the native app,
+ * Android in full screen) we ask for one too.
  *
  * Also: installed on an iPhone home screen (with the translucent status bar),
  * WebKit reports a viewport shorter than the screen. When the app spans the
@@ -31,15 +27,12 @@ let rotated = false;
 /** Whether the current page must be landscape (the landing and sign-in pages need not be). */
 let forced = true;
 let remeasure = () => undefined as void;
-/** The player chose to play with the page turned sideways rather than turn the device. */
-const SIDEWAYS_KEY = 'blue-loop:sideways';
-let sideways = (() => {
-  try {
-    return localStorage.getItem(SIDEWAYS_KEY) === '1';
-  } catch {
-    return false;
-  }
-})();
+// (An earlier build let players turn the page sideways themselves, with no way back: forget that choice.)
+try {
+  localStorage.removeItem('blue-loop:sideways');
+} catch {
+  // Storage unavailable.
+}
 /** How much the page is scaled up on a big screen (1 on phones and tablets). */
 let zoom = 1;
 /** The page is designed to read well at about this size; bigger screens scale it up, to at most MAX_ZOOM. */
@@ -68,8 +61,8 @@ export function trackViewport() {
     }
     // The same test as the CSS media queries use, so the two always agree.
     const upright = forced && portraitQuery.matches;
-    rotated = upright && sideways;
-    root.classList.toggle('rotate-ask', upright && !sideways);
+    rotated = false;
+    root.classList.toggle('rotate-ask', upright);
     screenW = w;
     zoom = rotated ? 1 : Math.max(1, Math.min(MAX_ZOOM, w / DESIGN.w, h / DESIGN.h));
     // Round, so text and borders land on whole pixels at common sizes.
@@ -97,15 +90,7 @@ export function trackViewport() {
   };
   let lastKey = '';
   remeasure = update;
-  mountRotateHint(() => {
-    sideways = true;
-    try {
-      localStorage.setItem(SIDEWAYS_KEY, '1');
-    } catch {
-      /* remembered for this visit only */
-    }
-    update();
-  });
+  mountRotateHint();
   update();
   window.addEventListener('resize', settle);
   window.addEventListener('orientationchange', settle);
@@ -115,16 +100,15 @@ export function trackViewport() {
 }
 
 /** "Turn your device sideways", shown over the page while it waits for landscape. */
-function mountRotateHint(playSideways: () => void) {
+function mountRotateHint() {
   const hint = document.createElement('div');
   hint.className = 'rotate-hint';
   hint.innerHTML = `<div class="rotate-hint-body">
       <div class="rotate-phone" aria-hidden="true"></div>
       <h1 class="title">blue loop</h1>
       <p>turn your device sideways to play</p>
-      <button class="link-btn" type="button">rotation locked? play sideways anyway</button>
+      <small>screen not turning? switch off rotation lock</small>
     </div>`;
-  hint.querySelector('button')!.addEventListener('click', playSideways);
   document.body.appendChild(hint);
 }
 

@@ -437,7 +437,7 @@ Each player is one of four non-humanoid alien races. The race sets the faction e
 
 The game is landscape from the game mode menu on. The landing and sign-in pages lie whichever way the screen does, so a player can sign up holding the phone upright.
 - **Native iOS app** (`ios/`): allows portrait for the landing and sign-in pages, then locks to landscape from the game mode menu on.
-- **Web version held upright** (browsers can't lock orientation on iPhone): past the sign-in page it asks the player to turn the device. With rotation locked they can tap "play sideways anyway" (remembered on that device), and the page draws itself sideways. It re-measures until a rotation settles, then re-lays out the hand and map.
+- **Web version held upright** (browsers can't lock orientation on iPhone): past the sign-in page it asks the player to turn the device. It waits for the device to turn (with a note to switch off rotation lock). It re-measures until a rotation settles, then re-lays out the hand and map.
 - **Android and full-screen browsers that allow it:** the app also requests a real lock.
 
 **Ending the day.** Enter ends your day; with plays still left (and a card that could go in), it asks first. [design review]

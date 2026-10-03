@@ -2175,7 +2175,7 @@ html.rotate-ask body { overflow: hidden; }
 .rotate-hint-body { display: grid; justify-items: center; gap: 14px; }
 .rotate-hint .title { margin: 6px 0 0; font-size: 1.6rem; }
 .rotate-hint p { margin: 0; font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft); }
-.rotate-hint .link-btn { margin-top: 18px; }
+.rotate-hint small { margin-top: 14px; font-size: 0.66rem; color: var(--ink-faint); }
 .rotate-phone {
   width: 34px; height: 58px; border: 2px solid #8a8f99; border-radius: 8px; position: relative;
   animation: rotatePhone 2.6s ease-in-out infinite;
