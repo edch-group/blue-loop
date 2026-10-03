@@ -83,8 +83,13 @@ async function api(path: string, method = 'GET', body?: unknown): Promise<Record
   } catch {
     throw new ApiError(0, "Couldn't reach the server. Check your connection.", {});
   }
+  // A reply that isn't the account server's (JSON) means this page's address doesn't have it: a host with the
+  // game's files only (such as a Pages site), or a build pointing at the wrong server.
+  if (!(res.headers.get('Content-Type') ?? '').includes('application/json')) {
+    throw new ApiError(res.status, `Accounts aren't available at this address (${new URL(apiBase()).host}, error ${res.status}). Open the game from its Worker address instead.`, {});
+  }
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) throw new ApiError(res.status, String(data.error ?? 'Something went wrong.'), data);
+  if (!res.ok) throw new ApiError(res.status, String(data.error ?? `Something went wrong (error ${res.status}).`), data);
   return data;
 }
 
