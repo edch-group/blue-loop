@@ -2017,7 +2017,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .lobby-deck.on small { color: var(--ink); }
 .lobby-deck .deck-box { display: block; width: 100%; margin: 0; }
 .lobby-deck .deck-box-front::before { inset: 6%; border-radius: 3px; }
-.lobby-deck .deck-box-front { border-radius: 5px 1px 1px 5px; padding: 0; display: grid; place-items: center; grid-template-rows: none; }
+.lobby-deck .deck-box-front { border-radius: 1px 1px 1px 5px; padding: 0; display: grid; place-items: center; grid-template-rows: none; }
 .lobby-deck .deck-box-top { border-radius: 4px 1px 0 0; }
 .lobby-deck .deck-box-side { border-radius: 0 1px 4px 0; }
 .lobby-deck .deck-box-cover { width: 68%; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--dc) 60%, #fff), 0 3px 8px rgba(20, 24, 34, 0.4); }
@@ -2050,7 +2050,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 }
 .deck-box-front {
   position: absolute; inset: 0; z-index: 2; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; align-items: center; gap: 2px;
-  padding: 14% 8% 9%; border-radius: 8px 1px 1px 8px; text-align: center;
+  padding: 14% 8% 9%; border-radius: 1px 1px 1px 8px; text-align: center;
   /* The Command cards' slate stock, tinted by the deck's race, with a band of the race's colour just
      under the lid and a thin printed frame inside the edge. */
   background:
