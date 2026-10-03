@@ -2194,8 +2194,10 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
 .slot-empty i { font-style: normal; font-size: max(7px, calc(var(--tcw) * 0.08)); letter-spacing: 0.2em; text-transform: uppercase; }
 button.slot-choosable {
   cursor: pointer; color: #c0563d; border: 1.5px dashed rgba(208, 101, 75, 0.7); background: rgba(255, 255, 255, 0.7); padding: 0;
-  animation: choosable-gap 1.4s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(208, 101, 75, 0.25);
 }
+/* A card a recall card can take the place of: highlighted like an open slot, without the pulse. */
+.board-plane .card.card-table.card-choosable.card-replace { animation: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(208, 101, 75, 0.55), 0 6px 18px rgba(80, 84, 100, 0.16); }
 button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 /* A card in play: defence bottom left, stability bottom right, just above the type line. */
 .card-stats {
@@ -2968,9 +2970,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @keyframes hit-card { 0% { filter: brightness(1.6) saturate(1.4); box-shadow: 0 0 0 3px #ff8a5a, 0 0 24px #ff5a2a; } 100% { filter: none; } }
 
 /* Your dawn: the cards whose dawn heat you aim glow red, and the one you are aiming lifts. */
-.card.card-aimer { cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.8), 0 0 18px rgba(216, 69, 43, 0.5); animation: aimer-glow 1.5s ease-in-out infinite; }
-@keyframes aimer-glow { 50% { box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(216, 69, 43, 1), 0 0 28px rgba(216, 69, 43, 0.75); } }
-@media (prefers-reduced-motion: reduce) { .card.card-aimer { animation: none; } }
+.card.card-aimer, .board-plane .card.card-table.card-aimer { cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.8), 0 0 18px rgba(216, 69, 43, 0.4); }
 /* Aiming heat: a rival card shows, while hovered, the defence and stability the heat would leave it. */
 .pv-after { display: none; }
 .card-choosable:hover .pv-now, .card-choosable:focus-visible .pv-now { display: none; }
