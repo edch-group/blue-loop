@@ -567,7 +567,7 @@ Small dialogs handle the other choices:
 - Command Directive's upgrade
 - what to recover from your discard pile
 
-A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their five, with no defence. You can tap yours to read it; a rival's shows only its back. When one springs, a "Lightspeed!" banner names it and the card is shown at the middle right for a few seconds, then fades. Press and hold any card to read it at the middle right of the screen. [design review]
+A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their five, with no defence. You can tap yours to read it; a rival's shows only its back. When one springs, a "Lightspeed!" banner names it. The card that sprang it is shown where a played card is (middle right), plain and readable, and the Lightspeed card beside it on the left at the same size, tagged and glowing, with a caption saying what happened ("X springs Null Field in answer to this"); after a few seconds both fade. Press and hold any card to read it at the middle right of the screen. [design review]
 
 **Dawn, effect by effect.** When a day starts, its effects play out one after the other, in the order they happen: regional instability (from the top of the screen, striking both suns together as the gauge throbs red), the table, then each card left to right. Each card lights up as it fires, and its effect flies from it to the sun it reaches: a flare of heat to the rival's sun (or its own, for a drawback), a cooling beam or a shield beam to its owner's. That sun's numbers change as it lands, with what changed floating over it. A card on its last turn fires, then fades once the replay is done. The AI waits for its dawn to finish before it plays.
 

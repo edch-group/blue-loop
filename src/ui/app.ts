@@ -3956,23 +3956,29 @@ export class App {
 
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
-    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : this.renderCard({ uid: 'stage', defId: st.defId }, { static: true, option: st.option, landscape: cardDef(st.defId).kind === 'command' })
-          // Already the zoomed view: a still card, not a button (only its keywords respond, explaining themselves).
-          .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
-          .replace(/<\/button>\s*$/, '</div>')
-          .replace(/ data-act="[^"]*"/, '')
-          .replace(/ data-card="[^"]*"/, '');
-    // A sprung Lightspeed card: the card it answered, smaller, beside it.
-    const against = st.against
-      ? `<div class="stage-against"><span>${{ enemyPlays: 'in answer to', heated: 'against the heat of', targeted: 'against', cardHeated: 'against the heat of' }[s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays'] ?? 'in answer to'}</span>${this.renderCard({ uid: 'stage-against', defId: st.against }, { static: true })
-          .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
-          .replace(/<\/button>\s*$/, '</div>')
-          .replace(/ data-act="[^"]*"/, '')
-          .replace(/ data-card="[^"]*"/, '')}</div>`
-      : '';
+    // A card large and still (already the zoomed view: only its keywords respond, explaining themselves).
+    const still = (uid: string, defId: string, option?: string) =>
+      this.renderCard({ uid, defId }, { static: true, option, landscape: cardDef(defId).kind === 'command' })
+        .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+        .replace(/<\/button>\s*$/, '</div>')
+        .replace(/ data-act="[^"]*"/, '')
+        .replace(/ data-card="[^"]*"/, '');
+    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : still('stage', st.defId, st.option);
+    // A sprung Lightspeed card: the card that sprang it stands where a played card does (plain, to be read),
+    // and the Lightspeed card beside it on the left, the same size.
+    if (st.against) {
+      const trigger = s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays';
+      const how = { enemyPlays: 'in answer to this', heated: 'against its heat', targeted: 'against this', cardHeated: 'against its heat' }[trigger] ?? 'in answer to this';
+      return `
+      <div class="stage stage-sprung stage-pair">
+        <div class="stage-ls"><span class="stage-ls-tag">⚡ lightspeed</span>${card}</div>
+        ${still('stage-against', st.against)}
+        <div class="stage-caption">${esc(`${actor.name.toLowerCase()} springs ${cardDef(st.defId).name.toLowerCase()} ${how}`)}</div>
+      </div>`;
+    }
     return `
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
-        ${against}${card}
+        ${card}
         <div class="stage-caption">${esc(st.caption ?? `${actor.name.toLowerCase()} plays`)}</div>
         ${st.confirm ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}
       </div>`;
