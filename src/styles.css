@@ -2904,7 +2904,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* A card's choices, one per line; when shown being played, the one picked lights up and the rest step back. */
 .card-opts { display: grid; gap: 0.18em; margin-top: 0.3em; }
-.card-opt { display: flex; align-items: center; gap: 0.4em; height: 1.6em; line-height: 1; font-size: 1em; padding: 0 0.5em; box-sizing: border-box; border-radius: 0.5em; background: rgba(139, 144, 155, 0.1); font-weight: 600; color: var(--ink); transition: opacity 0.2s, background 0.2s; }
+.card-opt { display: flex; align-items: center; gap: 0.4em; min-height: 1.6em; line-height: 1.15; font-size: 1em; padding: 0.2em 0.5em; box-sizing: border-box; border-radius: 0.5em; background: rgba(139, 144, 155, 0.1); font-weight: 600; color: var(--ink); transition: opacity 0.2s, background 0.2s; }
 .card-opt i { font-style: normal; font-size: 0.8em; color: #8b909b; width: 1em; text-align: center; }
 .card-opt[data-opt="solarFlare"] i { color: #e0553a; }
 .card-opt[data-opt="thermosiphon"] i { color: #1e9bd7; }
@@ -3096,6 +3096,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-landscape .card-name { font-size: max(6px, calc(var(--cmdw) * 0.06)); padding-right: calc(var(--cmdw) * 0.16); }
 .card-landscape .card-text { font-size: max(6px, calc(var(--cmdw) * 0.048)); flex: 1; min-height: 0; }
 .card-landscape .card-kind { text-align: left; }
+/* Its type pill sits at the top of the picture, clear of the name. */
+.card-landscape .card-type { left: calc(var(--cmdw) * 0.2); }
+.card-big.card-landscape .card-type { left: calc(var(--cmdw) * 0.23); }
 .card-landscape .card-stats { left: calc(var(--cmdw) * 0.03); right: auto; top: auto; bottom: calc(var(--cmdw) * 0.035); }
 
 /* A recall card being placed: the card it recalls can make way for it. */
