@@ -1718,7 +1718,7 @@ body.screen-campaign .backdrop { display: none; }
 /* The title screen and the hub sit a little above the middle (the eye reads the middle as low). */
 .menu.menu-title, .menu.menu-hub, .menu.menu-signin { padding-bottom: calc(12 * var(--vh)); }
 .menu-title .title-sun { width: min(130px, calc(26 * var(--vh))); }
-.menu-title .title { font-size: clamp(2rem, calc(10 * var(--vh)), 3.8rem); }
+.menu-title .title { font-size: clamp(1.4rem, min(calc(10 * var(--vh)), calc(6.6 * var(--vw))), 3.8rem); } /* (by width too: upright, it stays one line) */
 .menu-start { min-width: 180px; padding: 12px 28px; letter-spacing: 0.3em; font-size: 0.8rem; }
 .menu > .menu-back.menu-back { position: absolute; top: calc(max(12px, var(--sa-t)) + 9px); left: max(18px, var(--sa-l)); z-index: 2; }
 .title-small .title-sun { width: min(54px, calc(11 * var(--vh))); }
