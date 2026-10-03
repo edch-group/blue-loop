@@ -2708,8 +2708,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pv-delete small { color: var(--ink-soft); }
 .btn.btn-danger { color: #b23c24; }
 /* Signing up: two tick boxes (the Terms, the Privacy Policy), each a whole clickable line. */
-.auth-agree { display: grid; gap: 6px; width: min(320px, 84vw); }
-.auth-tick { display: flex; align-items: flex-start; gap: 9px; padding: 4px 2px; border: 0; background: none; cursor: pointer; text-align: left; font: inherit; font-size: 0.74rem; line-height: 1.4; color: var(--ink-soft); }
+.auth-agree { display: grid; gap: 4px; width: min(280px, 80vw); }
+.auth-tick { display: flex; align-items: flex-start; gap: 9px; padding: 4px 0; border: 0; background: none; cursor: pointer; text-align: left; font: inherit; font-size: 0.7rem; line-height: 1.4; color: var(--ink-soft); }
 .auth-tick .db-check { margin-top: 2px; }
 .auth-tick.on { color: var(--ink); }
 .auth-tick.on .db-check { border-color: #5d6a8c; background: #5d6a8c; }
