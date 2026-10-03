@@ -228,8 +228,6 @@ export interface TurnStats {
   energyBase?: number;
   /** Energy gained from dawn effects, added to the day's energy once it is set. */
   dawnEnergy?: number;
-  /** Heat that got through to enemy suns today (for the day's heat limit). */
-  heatLanded?: number;
   cardsPlayed: number;
   /** Total cooling applied to your own sun today. */
   cooled: number;

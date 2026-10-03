@@ -61,12 +61,6 @@ export const BALANCE = {
   stability: 3,
   stabilityBurst: 1,
   stabilityCommand: 3,
-  /**
-   * The day's heat limit: the most heat one player's cards can land on an enemy sun in a day (from their
-   * dawn and their plays, after shields; 0: no limit). It stops a tableau stacked with attack cards from
-   * finishing a sun in a dawn or two, so there is always a day to answer it.
-   */
-  maxHeatPerDay: 8,
   /** Stability can be restored up to this. */
   maxStability: 6,
   /** Kept shields (Deep Current) never exceed this. */

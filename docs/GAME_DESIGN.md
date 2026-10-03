@@ -132,7 +132,6 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 - **Defence takes heat first, and stays dented for the day.** Heat aimed at a card hits its defence (its slot's, plus Sturdy and Bulwark) after shields, point for point; what gets past wears its stability. The defence stays dented for the rest of that day, and is whole again as the next player's day starts: 2 heat on a card with 4 defence leaves it 2 defence for the rest of the day, so more heat that day, or a removal card that can now reach it, finishes the job. Pierce heat ignores defence (and dents none). [design review: this lets you finish off at your day's plays the cards your dawn damaged]
 - Heat on a card wears its **stability** point for point; at 0 the card burns away (its leave effects fire, so killing a Martyr or a card beside Kyr'Vessa has a price, and the AI weighs it).
 - **Guard** cards draw heat: while a rival has any, your heat must go at one of them (a Guard that was not aimed at takes it on the most worn Guard). Pierce gets through shields, never past a Guard. Shields still cover cards, so stings and soothes answer heat aimed at a Guard too.
-- The day heat limit (8) counts only heat on the sun.
 - **Shields** absorb your rival's heat point for point. They fade at your dawn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields. [proposed]
 
 ## Command cards
@@ -592,6 +591,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 - Toning down the "per attack card" cards on their own still left it at 95% against the starters. So did a higher max health (30), attack cards fading sooner, a self-heat strain for many attack cards, and an AI that counts the heat coming at its next dawn.
 - A dedicated wall deck (Chamber Protocols, Stinging Veils, Null Fields, Ion Cannons) did beat it (74% before the changes, 94% after). The counter existed, but the starters couldn't reach it in time.
 - What worked was a **day's heat limit**: on a player's own day (their dawn and their plays), at most **8** heat lands on the rival's sun, after shields. Stings and Lightspeed cards on the rival's day are not limited. With the card changes below, the pure-attack deck wins 57% against the starters (it was 99%). It still beats Hive Bloom, loses to Shard Overload, and loses to shields and stings (5/95 against the wall deck). The wall deck is 46% against the starters. The starters themselves sit at 46–53% (500 games), with seats 50/50. The forecast shows at most 8, with the full figure in its tooltip, and the log says when a sun can take no more heat that day.
+- **The limit is gone (later).** It read as a bug in play: a card played after a big dawn simply did nothing. Without it, 400 starter games run 11.8 rounds (12.3 with it) and the starters' win rates move by a point or two. A pure-attack Aureline deck (2 Sol-Marshal Aurex, Solarch Veyra, Lancers, Archons, Focusing Arrays, Chorus, War-Heralds, Sunforges, Dawnblades, Siege Arrays, Squadrons) goes from 56% to 64% against the starters (100 games each, about 8 rounds): Solar Lancers 66%, Shard Overload 76%, Hive Bloom 83%, and Abyssal Tide still beats it 70% of the time. Its counters are shields with Sting and Soothe, Guards and Lightspeed guards, and cooling.
 - Alongside the limit: Focusing Array is now Forge 1 (attack cards next to it +1, not every attack card), Aurelia +1 per 2 attack cards (up to 3), Chorus of Dawn up to 3, Solar Battery +1 with 3+ attack cards, and Siege Array +1 per 3 attack cards (up to 2). Shard Reactor no longer heats its own sun: the limit took the edge off the Xel'Naru burst plan, and Shard Overload fell to 38% without this.
 
 **Card costs.** Each card takes 1 of your day's actions. Anomalies take 2, as do Sunspear (6, pierce) and Fracture Burst (7, pierce), and each is buffed to match. Your first day has only 1 action, so these come out from day 2. The AI weighs the second card it gives up. With costs, the starters sit at 47–53% (400 games), with seats 50/50, and the pure-attack deck is at 50.5% against them.
@@ -612,7 +612,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 - Glacier Shell (3): Shield 3, then Cool 2 each dawn.
 - Prism Sanctum (3, Xel'Naru): Cool 4, then cooling each dawn, more while overheated.
 - Chitin Fortress (3, Ixquor): Sturdy, Shield 3, then cooling each dawn.
-- Stellar Aegis (4): Shield 10, Cool 3, near-unkillable for a day under the 8-heat limit.
+- Stellar Aegis (4): Shield 10, Cool 3.
 - Solar Bastion (4): Shield 6, Cool 2, then Shield 2 and Cool 1 each dawn.
 - Leviathan Shell (4, Vorthane): Shield 6 that never fade, then Shield 2 each dawn.
 

@@ -701,7 +701,6 @@ export function previewDawnHeat(state: GameState, p: PlayerState, aims: Record<s
       if (v.stability <= 0) v.gone = true;
     }
   }
-  if (BALANCE.maxHeatPerDay > 0) out.sun = Math.min(out.sun, Math.max(0, BALANCE.maxHeatPerDay - (p.turn.heatLanded ?? 0)));
   return out;
 }
 
@@ -791,16 +790,7 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   // Piercing heat goes straight past shields.
   const blocked = enemy ? Math.min(pierce ? Math.floor(target.shields * BALANCE.pierceShieldShare) : target.shields, amount) : 0;
   target.shields -= blocked;
-  let applied = amount - blocked;
-  // The day's limit: on their own day (their dawn and their plays), one player's cards can only push so
-  // much heat into enemy suns. Answers on a rival's day (stings, Lightspeed cards) are not limited.
-  if (enemy && BALANCE.maxHeatPerDay > 0 && activePlayer(state).id === source.id) {
-    const landed = source.turn.heatLanded ?? 0;
-    const room = Math.max(0, BALANCE.maxHeatPerDay - landed);
-    if (applied > room) log(state, `${target.name}'s sun can take no more heat today.`);
-    applied = Math.min(applied, room);
-    source.turn.heatLanded = landed + applied;
-  }
+  const applied = amount - blocked;
   target.heat = Math.max(BALANCE.minHeat, target.heat + applied);
   if (enemy) source.turn.heatDealt += amount;
   if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat.`);

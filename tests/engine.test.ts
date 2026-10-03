@@ -434,21 +434,6 @@ describe('Lightspeed guards', () => {
   });
 });
 
-describe('the day\'s heat limit', () => {
-  it('lands at most maxHeatPerDay on a rival sun in a day, and starts again the next day', () => {
-    let s = twoPlayer();
-    const me = activePlayer(s);
-    const rival = s.players.find((p) => p.id !== me.id)!;
-    rival.shields = 0;
-    me.playsLeft = 3;
-    give(me, ['coronal_lance', 'coronal_lance', 'coronal_lance']);
-    s = play(s, 'coronal_lance');
-    s = play(s, 'coronal_lance');
-    s = play(s, 'coronal_lance');
-    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(BALANCE.maxHeatPerDay);
-  });
-});
-
 describe('card costs', () => {
   it('an X card spends all your energy, and grows with it', () => {
     let s = twoPlayer();
@@ -627,8 +612,8 @@ describe('resonance', () => {
     give(me, ['plasma_relay', 'harmonic_singularity', 'plasma_relay', 'plasma_relay'], 'tableau');
     const bo = s.players[1].heat;
     s = endTurn(endTurn(s));
-    // Relays at distance 1, 1 and 2 from the Singularity: 1+2, 1+2 and 1+1.
-    expect(s.players[1].heat).toBe(bo + 3 + 3 + 2);
+    // Relays at distance 1, 1 and 2 from the Singularity (resonance 3/2): 1+3, 1+3 and 1+2.
+    expect(s.players[1].heat).toBe(bo + 4 + 4 + 3);
   });
 
   it('lets you choose where a card goes', () => {

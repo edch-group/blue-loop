@@ -1,4 +1,3 @@
-import { BALANCE } from './balance';
 import { cardDef } from './cards';
 import {
   activePlayer,
@@ -175,7 +174,7 @@ function evaluate(state: GameState, meId: string): number {
     return sum + turnForecast(state, o).heat;
   }, 0);
   const landing = Math.max(0, incoming - me.shields);
-  const coming = (BALANCE.maxHeatPerDay ? Math.min(landing, BALANCE.maxHeatPerDay) : landing) * INCOMING_WEIGHT;
+  const coming = landing * INCOMING_WEIGHT;
   const mine = Math.max(0, me.heat + coming) / supernovaThreshold(me);
   score -= 12 * mine + 10 * mine * mine;
   score += tableauValue(state, me) + orbitOutlook(me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
