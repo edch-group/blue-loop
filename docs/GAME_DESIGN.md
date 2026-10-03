@@ -157,6 +157,8 @@ Command cards **lead the tableau**. Each player has **one Command slot**, out in
 
 (They keep the ids of the Command cards they replaced, so collections and saved decks carry over.)
 
+**Heroes speak.** As a Command card takes the field, its hero says one of their lines, captioned beside the card (src/ui/voice.ts). For now the lines are spoken by the device's own speech voice, each hero with their own voice, pitch and pace; recorded lines can replace them card by card. Options has a voices on/off switch, and sound off silences them too.
+
 **Keeping Command cards in play** is rewarded by:
 - Standing Orders: draw 1; dawn, draw 1 if you control a Command card.
 - Chain of Command: dawn, cool 1, or 2 if you control a Command card.

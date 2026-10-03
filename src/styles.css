@@ -714,6 +714,19 @@ input { font: inherit; }
 .log-list { max-height: calc(60 * var(--vh)); min-width: min(460px, calc(80 * var(--vw))); overflow-y: auto; font-size: 0.78rem; line-height: 1.5; color: var(--ink-soft); }
 .log-list div:last-child { color: var(--ink); }
 
+/* A hero's line as their Command card takes the field: a caption beside the card. */
+.hero-line {
+  position: fixed; z-index: 60; max-width: min(320px, 70vw); pointer-events: none;
+  transform: translate(-50%, calc(-100% - 10px)); padding: 8px 14px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94); color: var(--ink); box-shadow: 0 8px 24px rgba(80, 80, 100, 0.2);
+  font-size: 0.78rem; font-style: italic; line-height: 1.35; text-align: center;
+  animation: heroLineIn 0.35s ease-out both; transition: opacity 0.4s;
+}
+.hero-line-below { transform: translate(-50%, 10px); }
+.hero-line-free { left: 50%; top: 30%; }
+.hero-line-out { opacity: 0; }
+@keyframes heroLineIn { from { opacity: 0; margin-top: 6px; } to { opacity: 1; margin-top: 0; } }
+
 .toast {
   position: fixed;
   top: calc(var(--pad-t) + 58px);

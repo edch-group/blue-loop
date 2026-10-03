@@ -78,6 +78,7 @@ import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient
 import { fitCardText, fitWhenSeen } from './fittext';
 import { refreshLift, trackLift } from './lift';
 import { animateSuns } from './sun3d';
+import { voices } from './voice';
 import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
@@ -1496,6 +1497,8 @@ export class App {
         const played = prev.players.find((p) => p.id === actor.id)!.hand.find((c) => c.uid === action.cardUid);
         if (played && cardDef(played.defId).kind === 'command') {
           window.setTimeout(() => sound.upgrade(), delay);
+          // A hero takes the field, and says so.
+          window.setTimeout(() => voices.speak(played.defId, this.root.querySelector(`.tableau [data-uid="${played.uid}"]`)), delay + 250);
         }
         break;
       }
@@ -2370,6 +2373,9 @@ export class App {
       case 'toggle-music':
         sound.toggleMusic();
         return this.refreshSettings();
+      case 'toggle-voices':
+        voices.toggle();
+        return this.refreshSettings();
       case 'toggle-autoconfirm':
         this.autoConfirm = !this.autoConfirm;
         try {
@@ -3068,6 +3074,7 @@ export class App {
       `<div class="opt-row">
         ${tile('toggle-sound', 'sound', sound.muted ? 'off' : 'on')}
         ${tile('toggle-music', 'music', sound.musicOn && !sound.muted ? 'on' : 'off', sound.muted)}
+        ${tile('toggle-voices', 'voices', voices.on && !sound.muted ? 'on' : 'off', sound.muted)}
         ${tile('speed', 'ai speed', this.speed)}
         ${tile('toggle-autoconfirm', 'auto-confirm', this.autoConfirm ? 'on' : 'off')}
         ${tile('rules', 'how to play', 'read')}
@@ -3678,6 +3685,7 @@ export class App {
     const values: Record<string, { text: string; disabled?: boolean; tile?: string }> = {
       'toggle-sound': { text: `sound: ${sound.muted ? 'off' : 'on'}`, tile: sound.muted ? 'off' : 'on' },
       'toggle-music': { text: `music: ${sound.musicOn ? 'on' : 'off'}`, tile: sound.musicOn && !sound.muted ? 'on' : 'off', disabled: sound.muted },
+      'toggle-voices': { text: `voices: ${voices.on ? 'on' : 'off'}`, tile: voices.on && !sound.muted ? 'on' : 'off', disabled: sound.muted },
       speed: { text: `ai speed: ${this.speed}`, tile: this.speed },
       'toggle-autoconfirm': { text: `auto-confirm: ${this.autoConfirm ? 'on' : 'off'}`, tile: this.autoConfirm ? 'on' : 'off' },
     };
@@ -3696,6 +3704,7 @@ export class App {
     return `
       <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
       <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
+      <button class="btn" data-act="toggle-voices" ${sound.muted ? 'disabled' : ''}>${voices.on ? 'voices: on' : 'voices: off'}</button>
       <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
       <button class="btn" data-act="toggle-autoconfirm" title="Your rival's cards land by themselves after ${AUTO_CONFIRM_MS / 1000}s">auto-confirm: ${this.autoConfirm ? 'on' : 'off'}</button>`;
   }

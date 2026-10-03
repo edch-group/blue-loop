@@ -10,7 +10,7 @@
 import { reloadProfile, setEconomy, type EconomyFields } from './profile';
 
 /** What an account's progress is made of: these keys of this device's storage. */
-const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v2', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:ai-speed', 'blue-loop:auto-confirm'];
+const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v2', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:voices', 'blue-loop:ai-speed', 'blue-loop:auto-confirm'];
 /** The account signed in on this device, and the version of its progress this device last had. */
 const ACCOUNT_KEY = 'blue-loop:account';
 /** The native app's session token (a browser keeps its session in a cookie that pages can't read). */
