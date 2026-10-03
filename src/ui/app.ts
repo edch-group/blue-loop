@@ -2753,16 +2753,17 @@ export class App {
         <div class="modal sheet profile-view">
           <div class="pv-head">
             ${factionAvatar(`f${p.avatar + 1}`, 'pv-avatar')}
-            <div><h2>${esc(p.name || 'Commander')}</h2><small>${esc(RACE_NAMES[p.avatar])} · ${p.won} won of ${p.played} played</small></div>
+            <div class="pv-who"><h2>${esc(p.name || 'Commander')}</h2><small>${p.won} won of ${p.played} played</small></div>
+            <button class="pill-btn pv-close" data-act="profile-close">close</button>
           </div>
           <div class="pv-grid">
-            <div class="pv-box"><small>level</small><b>${p.level}</b><span class="pf-xp"><i style="width:${Math.round((p.xp / need) * 100)}%"></i></span><small>${p.xp} / ${need} xp</small></div>
-            <div class="pv-box"><small>stardust</small><b class="pf-dust"><i>✦</i> ${p.stardust}</b><span></span><small>buys booster packs</small></div>
-            <div class="pv-box"><small>flux</small><b class="pf-flux"><i>⟁</i> ${p.flux}</b><span></span><small>crafts cards</small></div>
-            <div class="pv-box"><small>rank</small><b>${rank === null ? 'unranked' : esc(rankName(rank).toLowerCase())}</b>${r ? `<span class="pf-xp"><i style="width:${r.points}%"></i></span><small>${r.points} / ${PROGRESSION.stagePoints} to the next stage</small>` : '<span></span><small>play ranked online</small>'}</div>
+            <div class="pv-box" title="${p.xp} / ${need} xp to the next level"><small>level</small><b>${p.level}</b><span class="pf-xp"><i style="width:${Math.round((p.xp / need) * 100)}%"></i></span><small>${p.xp} / ${need} xp</small></div>
+            <div class="pv-box" title="Buys booster packs"><small>stardust</small><b class="pf-dust"><i>✦</i> ${p.stardust}</b></div>
+            <div class="pv-box" title="Crafts cards"><small>flux</small><b class="pf-flux"><i>⟁</i> ${p.flux}</b></div>
+            <div class="pv-box" title="${r ? `${r.points} / ${PROGRESSION.stagePoints} to the next stage` : 'Play ranked online'}"><small>rank</small><b>${rank === null ? 'unranked' : esc(rankName(rank).toLowerCase())}</b>${r ? `<span class="pf-xp"><i style="width:${r.points}%"></i></span>` : ''}</div>
           </div>
           ${this.accountRow()}
-          <div class="pv-actions"><button class="btn" data-act="profile-logout">sign out</button><span class="setup-spacer"></span><button class="btn" data-act="profile-rename">change name or emblem</button><button class="btn-primary" data-act="profile-close">close</button></div>
+          <div class="pv-foot"><button class="link-btn" data-act="profile-rename">change name or emblem</button><button class="link-btn" data-act="profile-logout">sign out</button></div>
         </div>
       </div>`;
   }
@@ -2778,7 +2779,7 @@ export class App {
           ${this.authError ? `<span class="auth-error">${esc(this.authError)}</span>` : ''}
           <div class="pv-actions"><button class="btn" data-act="profile-delete">cancel</button><button class="btn btn-danger" data-act="profile-delete-go" ${this.authBusy ? 'disabled' : ''}>delete account</button></div></div>`
       : '';
-    return `<div class="pv-account"><span><b>${esc(a.email)}</b><small>Your progress is saved to your account.</small></span>${this.deleting ? '' : '<button class="btn btn-small" data-act="profile-delete">delete account</button>'}</div>${del}`;
+    return `<div class="pv-account"><span><b>${esc(a.email)}</b><small>Your progress is saved to this account.</small></span>${this.deleting ? '' : '<button class="link-btn" data-act="profile-delete">delete account</button>'}</div>${del}`;
   }
 
   /** Read a card large: in a game, the card sheet; elsewhere, a zoomed view over the menu. */

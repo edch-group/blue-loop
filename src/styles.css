@@ -2020,10 +2020,11 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .lobby-deck small { max-width: calc(var(--bw) + 10px); font-family: var(--display); font-size: clamp(0.4rem, calc(1.5 * var(--vh)), 0.52rem); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lobby-deck.on small { color: var(--ink); }
 .lobby-deck .deck-box { display: block; width: 100%; margin: 0; }
+.lobby-deck .deck-box-front::before { inset: 6%; border-radius: 3px; }
 .lobby-deck .deck-box-front { border-radius: 5px; padding: 0; display: grid; place-items: center; grid-template-rows: none; }
 .lobby-deck .deck-box-top { border-radius: 4px 4px 0 0; }
 .lobby-deck .deck-box-side { border-radius: 0 4px 4px 0; }
-.lobby-deck .deck-box-cover { width: 72%; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 3px 8px rgba(30, 34, 44, 0.3); }
+.lobby-deck .deck-box-cover { width: 68%; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--dc) 60%, #fff), 0 3px 8px rgba(20, 24, 34, 0.4); }
 .lobby-deck:not(.on) .deck-box { opacity: 0.72; }
 @media (hover: hover) { .lobby-deck:not(.on):hover .deck-box { opacity: 1; transform: translateY(-3px); } }
 .qp-all { padding: 2px 4px; }
@@ -2049,19 +2050,29 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .deck-box-front {
   position: absolute; inset: 0; z-index: 2; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; align-items: center; gap: 2px;
   padding: 14% 8% 9%; border-radius: 8px; text-align: center;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--dc) 22%, #fff), color-mix(in srgb, var(--dc) 55%, #4b5466) 120%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55), inset 0 -18px 30px rgba(30, 34, 44, 0.12), 0 14px 24px rgba(60, 64, 80, 0.22);
+  /* The Command cards' slate stock, tinted by the deck's race, with a band of the race's colour just
+     under the lid and a thin printed frame inside the edge. */
+  background:
+    linear-gradient(180deg, transparent 2.2%, color-mix(in srgb, var(--dc) 75%, #fff) 2.2%, color-mix(in srgb, var(--dc) 75%, #fff) 3.2%, transparent 3.2%),
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.16), transparent 60%),
+    linear-gradient(160deg, color-mix(in srgb, var(--dc) 24%, #6b7588), color-mix(in srgb, var(--dc) 14%, #4b5466) 75%);
+  border: 1px solid color-mix(in srgb, var(--dc) 25%, #7a8498);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -18px 30px rgba(20, 24, 34, 0.18), 0 14px 24px rgba(40, 44, 60, 0.25);
+}
+.deck-box-front::before {
+  content: ''; position: absolute; inset: 4.5%; border-radius: 4px; pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
 }
 /* The lid and the right side, drawn as slanted faces behind the front. */
 .deck-box-top, .deck-box-side { position: absolute; z-index: 1; pointer-events: none; }
 .deck-box-top {
   left: 0; right: 0; top: calc(var(--d) * -1); height: var(--d); border-radius: 6px 6px 0 0;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--dc) 15%, #fff), color-mix(in srgb, var(--dc) 35%, #fff));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dc) 14%, #9aa3b5), color-mix(in srgb, var(--dc) 14%, #7a8498));
   transform-origin: bottom left; transform: skewX(-45deg); transform-origin: 0 100%;
 }
 .deck-box-side {
   top: 0; bottom: 0; right: calc(var(--d) * -1); width: var(--d); border-radius: 0 6px 6px 0;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--dc) 60%, #4b5466), color-mix(in srgb, var(--dc) 40%, #3a4150));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--dc) 12%, #434b5b), color-mix(in srgb, var(--dc) 8%, #343a47));
   transform: skewY(-45deg); transform-origin: 0 0;
 }
 .deck-box-cover {
@@ -2844,19 +2855,25 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pc-cur { display: flex; gap: 8px; font-family: var(--display); font-size: 0.6rem; padding-left: 8px; border-left: 1px solid #eceef3; }
 @media (hover: hover) { .player-chip:hover { box-shadow: 0 6px 18px rgba(80, 84, 100, 0.18); } }
 
-.profile-view { width: min(600px, calc(100% - 24px)); display: grid; gap: 16px; padding: clamp(18px, calc(3.4 * var(--vh)), 28px); }
+.profile-view {
+  width: min(560px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow-y: auto;
+  display: grid; gap: clamp(8px, calc(2.4 * var(--vh)), 14px); padding: clamp(12px, calc(3 * var(--vh)), 20px) clamp(14px, calc(2.4 * var(--vw)), 22px);
+}
 .pv-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.pv-head { display: flex; align-items: center; gap: 14px; }
-.pv-avatar { width: 58px; height: 58px; }
-.pv-head h2 { margin: 0; font-family: var(--display); font-size: 1.1rem; letter-spacing: 0.16em; text-transform: uppercase; }
-.pv-head small { color: var(--ink-soft); font-size: 0.72rem; }
-.pv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 10px; }
-/* Every box the same shape: label, value, a bar's height (empty where there's none), then a note. */
-.pv-box { display: grid; grid-template-rows: auto auto 7px auto; align-content: start; gap: 6px; padding: 12px 14px; border-radius: 14px; background: #f7f8fb; box-shadow: inset 0 0 0 1px #eceef3; }
-.pv-box small { font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
-.pv-box b { font-family: var(--display); font-size: 1.05rem; letter-spacing: 0.08em; line-height: 1.2; }
+.pv-head { display: flex; align-items: center; gap: 12px; }
+.pv-avatar { width: clamp(34px, calc(10 * var(--vh)), 46px); height: auto; aspect-ratio: 1; flex: none; }
+.pv-who { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.pv-head h2 { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(0.8rem, calc(3 * var(--vh)), 1rem); letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pv-head small { color: var(--ink-soft); font-size: 0.66rem; }
+.pv-close { flex: none; }
+/* Level, stardust, flux and rank: four small cells in one row. */
+.pv-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.pv-box { display: grid; align-content: start; gap: 3px; padding: 8px 10px; border-radius: 12px; background: #f7f8fb; box-shadow: inset 0 0 0 1px #eceef3; min-width: 0; }
+.pv-box small { font-size: 0.5rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pv-box b { font-family: var(--display); font-weight: 500; font-size: clamp(0.7rem, calc(2.6 * var(--vh)), 0.9rem); letter-spacing: 0.06em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pv-box b i { font-style: normal; font-size: 0.85em; }
-.pv-box .pf-xp { width: 100%; }
+.pv-box .pf-xp { width: 100%; height: 4px; }
+.pv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
 
 .signin { display: grid; justify-items: center; gap: 14px; }
 .signin-name { width: min(280px, 80vw); height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #e3e6ee; background: #fff; text-align: center; font-family: var(--display); letter-spacing: 0.12em; font-size: 0.8rem; color: var(--ink); }
@@ -2867,7 +2884,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .auth-alt { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; }
 .link-btn { border: 0; background: none; padding: 4px 2px; cursor: pointer; font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); text-decoration: underline; text-decoration-color: rgba(120, 128, 150, 0.35); text-underline-offset: 3px; }
 @media (hover: hover) { .link-btn:hover { color: var(--ink); } }
-.pv-account { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.7); box-shadow: inset 0 0 0 1px rgba(150, 160, 185, 0.25); }
+.pv-account { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.7); box-shadow: inset 0 0 0 1px rgba(150, 160, 185, 0.25); }
+.pv-account small { font-size: 0.62rem; }
 .pv-account span { display: grid; gap: 2px; min-width: 0; }
 .pv-account b { font-family: var(--display); font-weight: 500; letter-spacing: 0.06em; overflow: hidden; text-overflow: ellipsis; }
 .pv-account small { color: var(--ink-soft); }
