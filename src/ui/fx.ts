@@ -205,20 +205,45 @@ export function tether(source: DOMRect | (() => DOMRect | null), to: DOMRect, op
   return delay + draw + hold * 0.7;
 }
 
-function drawTether(from: DOMRect, to: DOMRect, draw: number, hold: number) {
-  const delay = 0;
-  const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2;
-  const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
-  // Bow the arc sideways from the straight line, by a third of its length.
-  const dx = x1 - x0, dy = y1 - y0;
+/**
+ * The arc a beam takes from one rectangle to another: bowed sideways by a third of its length, and
+ * starting and ending just outside each one's edge, so it never lies over the text of the card it
+ * leaves (or lands on).
+ */
+function arcPath(from: DOMRect, to: DOMRect): { d: string } {
+  const ax = from.left + from.width / 2, ay = from.top + from.height / 2;
+  const bx = to.left + to.width / 2, by = to.top + to.height / 2;
+  const dx = bx - ax, dy = by - ay;
   const len = Math.hypot(dx, dy) || 1;
   const bow = Math.min(160, len * 0.32);
-  const cx = (x0 + x1) / 2 - (dy / len) * bow, cy = (y0 + y1) / 2 + (dx / len) * bow - bow * 0.3;
+  const cx = (ax + bx) / 2 - (dy / len) * bow, cy = (ay + by) / 2 + (dx / len) * bow - bow * 0.3;
+  // Leave each rectangle along the curve's own heading there (towards the control point), a little clear of it.
+  const [x0, y0] = edge(from, ax, ay, cx, cy, 5);
+  const [x1, y1] = edge(to, bx, by, cx, cy, 3);
+  const d = `M${x0.toFixed(1)} ${y0.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+  return { d };
+}
+
+/** Where a ray from a rectangle's centre (x, y) towards (tx, ty) leaves the rectangle, `gap` beyond it. */
+function edge(r: DOMRect, x: number, y: number, tx: number, ty: number, gap: number): [number, number] {
+  const dx = tx - x, dy = ty - y;
+  const len = Math.hypot(dx, dy);
+  if (!len) return [x, y];
+  const ux = dx / len, uy = dy / len;
+  const t = Math.min(ux ? r.width / 2 / Math.abs(ux) : Infinity, uy ? r.height / 2 / Math.abs(uy) : Infinity);
+  const k = Math.min(t + gap, len * 0.9);
+  return [x + ux * k, y + uy * k];
+}
+
+function drawTether(from: DOMRect, to: DOMRect, draw: number, hold: number) {
+  const delay = 0;
+  const { d } = arcPath(from, to);
+  // (The ring that marks the target swells round its centre.)
+  const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('class', 'tether');
-  const d = `M${x0.toFixed(1)} ${y0.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
-  svg.innerHTML = `<path class="tether-glow" d="${d}"/><path class="tether-line" d="${d}"/><circle class="tether-tip" cx="${x1.toFixed(1)}" cy="${y1.toFixed(1)}" r="0"/>`;
+  svg.innerHTML = `<path class="tether-glow" d="${d}"/><path class="tether-tube" d="${d}"/><path class="tether-line" d="${d}"/><circle class="tether-tip" cx="${x1.toFixed(1)}" cy="${y1.toFixed(1)}" r="0"/>`;
   document.body.appendChild(svg);
   for (const path of svg.querySelectorAll('path')) {
     const L = path.getTotalLength();
@@ -243,7 +268,7 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('class', 'tether tether-aim');
-  svg.innerHTML = '<path class="tether-glow"/><path class="tether-line"/>';
+  svg.innerHTML = '<path class="tether-glow"/><path class="tether-tube"/><path class="tether-line"/>';
   let frame = 0;
   let gone = false;
   const place = () => {
@@ -252,13 +277,7 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
     // (The target itself is marked on the board: a ring round the card's or the sun's edge.)
     svg.style.visibility = from && to ? '' : 'hidden';
     if (from && to) {
-      const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2;
-      const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
-      const dx = x1 - x0, dy = y1 - y0;
-      const len = Math.hypot(dx, dy) || 1;
-      const bow = Math.min(160, len * 0.32);
-      const cx = (x0 + x1) / 2 - (dy / len) * bow, cy = (y0 + y1) / 2 + (dx / len) * bow - bow * 0.3;
-      const d = `M${x0.toFixed(1)} ${y0.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+      const { d } = arcPath(from, to);
       for (const path of svg.querySelectorAll('path')) path.setAttribute('d', d);
     }
     frame = requestAnimationFrame(place);

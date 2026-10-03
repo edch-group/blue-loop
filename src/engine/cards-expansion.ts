@@ -112,7 +112,7 @@ export const EXPANSION: CardDef[] = [
     id: 'relay_station',
     name: 'Relay Station',
     kind: 'growth',
-    text: '{energy:1}. {heat:1} to your sun.',
+    text: '{energy:1} today. {heat:1} to your sun.',
     onPlay: [{ type: 'plays', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
   { id: 'archive_vault', name: 'Archive Vault', kind: 'growth', text: '{recover}. {draw:1}.', onPlay: [{ type: 'recover', orDraw: 1 }, { type: 'draw', amount: 1 }] },
@@ -236,7 +236,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Glory Charge',
     kind: 'attack',
     race: 0,
-    text: '{heat:2}. {energy:1}. {heat:1} to your sun.',
+    text: '{heat:2}. {energy:1} today. {heat:1} to your sun.',
     onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'plays', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
   {
@@ -420,7 +420,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Overcharge',
     kind: 'growth',
     race: 1,
-    text: '{energy:1}. {draw:1}. {heat:1} to your sun.',
+    text: '{energy:1} today. {draw:1}. {heat:1} to your sun.',
     onPlay: [{ type: 'plays', amount: 1 }, { type: 'draw', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
   {
@@ -638,7 +638,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Ixquor Sporelings',
     kind: 'growth',
     race: 3,
-    text: '{draw:1}. {energy:1}.',
+    text: '{draw:1}. {energy:1} today.',
     onPlay: [{ type: 'draw', amount: 1 }, { type: 'plays', amount: 1 }],
   },
   {
@@ -699,7 +699,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Overgrowth',
     kind: 'growth',
     race: 3,
-    text: '{energy:2}. {heat:1} to your sun.',
+    text: '{energy:2} today. {heat:1} to your sun.',
     onPlay: [{ type: 'plays', amount: 2 }, { type: 'selfHeat', amount: 1 }],
   },
   {
@@ -851,7 +851,7 @@ export const EXPANSION: CardDef[] = [
   { id: 'great_mycelium', name: 'Great Mycelium', kind: 'growth', race: 3, text: '{dawn}: {draw:1}. {cool:1}. {cool:+1} with 4+ cards.', onTurn: [{ type: 'draw', amount: 1 }, { type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minCards: 4 } }] },
   { id: 'dreadnought', name: 'Dreadnought', kind: 'attack', text: '{sturdy:2}. {dawn}: {heat:4}.', defence: 2, onTurn: [{ type: 'heat', amount: 4, to: 'target' }] },
   { id: 'star_breaker', name: 'Star Breaker', kind: 'attack', text: '{destroy:4}. {heat:3}.', onPlay: [{ type: 'destroy', maxDefence: 4 }, { type: 'heat', amount: 3, to: 'target' }] },
-  { id: 'fusion_reactor', name: 'Fusion Reactor', kind: 'growth', text: '{plays:1} every day. {dawn}: {heat:1} to your sun.', onTurn: [{ type: 'selfHeat', amount: 1 }], passive: [{ type: 'extraPlay', amount: 1 }] },
+  { id: 'fusion_reactor', name: 'Fusion Reactor', kind: 'growth', text: '{plays:1}. {dawn}: {heat:1} to your sun.', onTurn: [{ type: 'selfHeat', amount: 1 }], passive: [{ type: 'extraPlay', amount: 1 }] },
 ];
 
 /** The second set's rarities and characters (as CARD_META in cards.ts). */

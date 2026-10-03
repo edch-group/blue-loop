@@ -135,7 +135,7 @@ export const CARDS: CardDef[] = [
     id: 'phase_shift',
     name: 'Phase Shift',
     kind: 'growth',
-    text: '{recall}. {energy:1}.',
+    text: '{recall}. {energy:1} today.',
     onPlay: [{ type: 'recall' }, { type: 'plays', amount: 1 }],
   },
 
@@ -323,7 +323,7 @@ export const CARDS: CardDef[] = [
     text: '{dawn}: {grows:4}, then {heat} equal to its growth.',
     onTurn: [{ type: 'grow', max: 4 }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'growth' } }],
   },
-  { id: 'hive_relay', name: 'Hive Relay', kind: 'growth', race: 3, text: "{plays:1} every day.", passive: [{ type: 'extraPlay', amount: 1 }] },
+  { id: 'hive_relay', name: 'Hive Relay', kind: 'growth', race: 3, text: "{plays:1}.", passive: [{ type: 'extraPlay', amount: 1 }] },
   { id: 'sporecaster', name: 'Sporecaster', kind: 'growth', race: 3, text: '{dawn}: {draw:1}.', onTurn: [{ type: 'draw', amount: 1 }] },
   {
     id: 'rot_bloom',
@@ -522,7 +522,7 @@ export const CARDS: CardDef[] = [
     name: 'The Brood Queen',
     kind: 'growth',
     race: 3,
-    text: '{plays:1} every day. {dawn}: {heat:2}. {heat:+2} with 4+ cards.',
+    text: '{plays:1}. {dawn}: {heat:2}. {heat:+2} with 4+ cards.',
     passive: [{ type: 'extraPlay', amount: 1 }],
     onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
