@@ -212,7 +212,7 @@ const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
 const HOT = '#f0a07a';
 const COOLING = '#2f8fe0';
-const SHIELDING = '#c8d0e0';
+const SHIELDING = '#ffffff';
 /** How long each dawn effect gets on the table, before the next fires (scaled by the game speed). */
 const PULSE_STEP = 720;
 /** The log button: lines of text in a page. */

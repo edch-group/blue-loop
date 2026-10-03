@@ -228,24 +228,29 @@ function arcPath(from: DOMRect, to: DOMRect): { d: string; x0: number; y0: numbe
 }
 
 /**
- * A beam's paths: a faint soft halo and a thin translucent line, both soft-edged, fading in along the
- * arc from where it leaves to where it lands (a gradient laid along the beam: see placeBeam).
+ * A beam's paths, like a glowstick: a body (evenly translucent, two bands of gently shifting tint laid
+ * over each other, so it reads as light rather than a painted line) and a thin core of the beam's key
+ * colour down its middle, with its own glow. The bands' gradients run along the arc (see placeBeam).
  */
 let beamIds = 0;
 function beamMarkup(d = ''): string {
-  const id = `beam-g${++beamIds}`;
-  const stops = '<stop offset="0" class="beam-stop" style="stop-opacity:0.08"/><stop offset="0.4" class="beam-stop" style="stop-opacity:0.5"/><stop offset="1" class="beam-stop" style="stop-opacity:0.85"/>';
-  return `<defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse">${stops}</linearGradient></defs><path class="tether-glow" d="${d}" stroke="url(#${id})"/><path class="tether-line" d="${d}" stroke="url(#${id})"/>`;
+  const n = ++beamIds;
+  const stops = (pattern: string[]) => pattern.map((c, i) => `<stop offset="${(i / (pattern.length - 1)).toFixed(2)}" class="beam-${c}"/>`).join('');
+  return `<defs>
+      <linearGradient id="beam-a${n}" gradientUnits="userSpaceOnUse">${stops(['a', 'b', 'a', 'b', 'a'])}</linearGradient>
+      <linearGradient id="beam-b${n}" gradientUnits="userSpaceOnUse">${stops(['b', 'a', 'a', 'b'])}</linearGradient>
+    </defs>
+    <path class="tether-glow" d="${d}" stroke="url(#beam-a${n})"/><path class="tether-tube" d="${d}" stroke="url(#beam-b${n})"/><path class="tether-line" d="${d}"/>`;
 }
 
 /** Lay a beam's gradient along its arc, from start to end. */
 function placeBeam(svg: SVGSVGElement, a: { x0: number; y0: number; x1: number; y1: number }) {
-  const g = svg.querySelector('linearGradient');
-  if (!g) return;
-  g.setAttribute('x1', a.x0.toFixed(1));
-  g.setAttribute('y1', a.y0.toFixed(1));
-  g.setAttribute('x2', a.x1.toFixed(1));
-  g.setAttribute('y2', a.y1.toFixed(1));
+  for (const g of svg.querySelectorAll('linearGradient')) {
+    g.setAttribute('x1', a.x0.toFixed(1));
+    g.setAttribute('y1', a.y0.toFixed(1));
+    g.setAttribute('x2', a.x1.toFixed(1));
+    g.setAttribute('y2', a.y1.toFixed(1));
+  }
 }
 
 /** Where a ray from a rectangle's centre (x, y) towards (tx, ty) leaves the rectangle, `gap` beyond it. */
