@@ -3,3 +3,7 @@ export const MENU_ICON = '<svg class="menu-icon" viewBox="0 0 20 20" aria-hidden
 
 /** The log button's icon: lines of text, no page. */
 export const LOG_ICON = '<svg class="log-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5.5h12M4 10h12M4 14.5h8"/></svg>';
+
+/** Fullscreen: four corners opening out (enter) or folding in (leave). */
+export const FULLSCREEN_ICON = '<svg class="log-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5V3.5h4M12.5 3.5h4v4M16.5 12.5v4h-4M7.5 16.5h-4v-4"/></svg>';
+export const EXIT_FULLSCREEN_ICON = '<svg class="log-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 3.5v4h-4M16.5 7.5h-4v-4M12.5 16.5v-4h4M3.5 12.5h4v4"/></svg>';

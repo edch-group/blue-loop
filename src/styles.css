@@ -2577,6 +2577,8 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 }
 .fc i { font-style: normal; font-size: 1.05em; display: inline-flex; }
 .fc i svg { width: 1.1em; height: 1.1em; }
+/* Energy in the forecast: the green energy dot (the lightning bolt is Lightspeed's). */
+.fc .fc-dot { width: 0.8em; height: 0.8em; border-radius: 50%; background: #7cc79a; border: 0.1em solid #fff; box-sizing: border-box; display: inline-block; }
 .fc b { font-weight: 800; }
 .fc-heat { color: #d9472a; }
 .fc-shield { color: #4f70a8; }

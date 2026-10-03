@@ -67,7 +67,7 @@ import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, symbolIcon, typeLine } from './glyphs';
-import { LOG_ICON, MENU_ICON } from './menu-icon';
+import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
 import { account, buyBooster, checkIn, flush, confirmReset, deleteAccount, finishAiGame, logIn, logInWith, logOut, markDirty, onProgressReplaced, refreshEconomy, requestReset, serverConfig, signUp, startAiGame, type AuthResult, type Payout, type ServerConfig } from './account';
@@ -248,6 +248,38 @@ function hurtFlash() {
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/**
+ * Fullscreen, for playing in a browser: a button beside settings, where the browser allows it (iPhone
+ * Safari does not, so it is left out there; the installed app is fullscreen already).
+ */
+type FullscreenDoc = Document & { webkitFullscreenEnabled?: boolean; webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => Promise<void> };
+type FullscreenEl = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+function fullscreenOn(): boolean {
+  const d = document as FullscreenDoc;
+  return !!(d.fullscreenElement ?? d.webkitFullscreenElement);
+}
+function fullscreenButton(cls = 'icon-btn'): string {
+  const d = document as FullscreenDoc;
+  const on = fullscreenOn();
+  // (An installed app has no browser bars to hide. Fullscreen itself reports as display-mode fullscreen,
+  // so only standalone counts here, and while fullscreen the button always shows, to leave it.)
+  const installed = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  if (!on && (!(d.fullscreenEnabled || d.webkitFullscreenEnabled) || installed)) return '';
+  return `<button class="${cls}" data-act="fullscreen" aria-label="${on ? 'Leave fullscreen' : 'Fullscreen'}" title="${on ? 'Leave fullscreen' : 'Fullscreen'}">${on ? EXIT_FULLSCREEN_ICON : FULLSCREEN_ICON}</button>`;
+}
+function toggleFullscreen() {
+  const d = document as FullscreenDoc;
+  const root = document.documentElement as FullscreenEl;
+  if (fullscreenOn()) void (d.exitFullscreen?.() ?? d.webkitExitFullscreen?.())?.catch?.(() => undefined);
+  else void (root.requestFullscreen?.({ navigationUI: 'hide' }) ?? root.webkitRequestFullscreen?.())?.catch?.(() => undefined);
+}
+// The button's icon follows fullscreen as it changes (by the button, Escape or the browser).
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) {
+  document.addEventListener(ev, () => {
+    document.querySelectorAll<HTMLElement>('[data-act="fullscreen"]').forEach((b) => (b.outerHTML = fullscreenButton(b.className)));
+  });
+}
 
 interface MenuSeat {
   /** A human's name (the signed-in player's own, for the first seat). */
@@ -2423,6 +2455,9 @@ export class App {
         this.state = applyAction(s, { type: 'concede', playerId: this.viewer().id });
         return this.returnToCampaign(false);
       }
+      case 'fullscreen':
+        toggleFullscreen();
+        return;
       case 'open-log':
         this.sheet = { kind: 'log' };
         return this.render();
@@ -2731,6 +2766,7 @@ export class App {
       <div class="hub-corner">
         ${this.playerChip()}
         <button class="hub-options" data-act="menu-page" data-arg="options" title="Options" aria-label="Options">${HUB_ICONS.options}</button>
+        ${fullscreenButton('hub-options')}
       </div>
       ${this.titleBlock(true)}
       <div class="hub">
@@ -3389,6 +3425,7 @@ export class App {
           ${this.online && this.net.status === 'open' && !this.net.rivalOnline && !isGameOver(s) ? '<span class="pill-btn net-pill" title="Their seat is kept: they rejoin by opening the invite link again">rival disconnected · waiting</span>' : ''}
           ${this.campaignBattle && !isGameOver(s) ? '<button class="pill-btn" data-act="campaign-auto" title="Let your commanders finish this battle">auto-resolve</button>' : ''}
           <button class="icon-btn ${this.sheet?.kind === 'log' ? 'icon-on' : ''}" data-act="${this.sheet?.kind === 'log' ? 'cancel' : 'open-log'}" aria-label="Game log" title="Game log">${LOG_ICON}</button>
+          ${fullscreenButton()}
           <button class="icon-btn" data-act="open-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
         </div>
       </div>`;
@@ -3587,7 +3624,7 @@ export class App {
       chip('fc-cool', symbolIcon('cool'), f.cool, `Their dawn: their own sun cools by ${f.cool}`),
       chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
       chip('fc-draw', HAND_ICON, f.draw - f.planetDraw, `Their dawn: ${f.draw - f.planetDraw} extra card${f.draw - f.planetDraw === 1 ? '' : 's'} drawn, from their cards`),
-      chip('fc-play', '⚡', f.plays - f.planetPlays, `Their day: +${f.plays - f.planetPlays} energy, from their cards`),
+      chip('fc-play', '<span class="fc-dot"></span>', f.plays - f.planetPlays, `Their day: +${f.plays - f.planetPlays} energy, from their cards`),
     ].join('');
     // Nothing coming: show nothing.
     if (!chips) return '';
