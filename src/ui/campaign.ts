@@ -627,6 +627,9 @@ export class CampaignView {
 
   private renderCampaign(): string {
     const s = this.state!;
+    // A dialog up (a battle, a conquest, a sheet) takes the stage: the guide waits until it closes.
+    const overlay = this.renderOverlay();
+    const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
     const leaving = this.leavingFocus();
     const me = campaignPlayer(s);
     const inc = factionIncome(s, me.id);
@@ -637,7 +640,7 @@ export class CampaignView {
           <div class="cmp-top-left">
             <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" title="Game overview: every faction and its systems"><small>turn</small><b>${s.turn}/${CAMPAIGN.turnLimit}</b><i>›</i></button>
             ${this.renderStability()}
-            ${s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? this.renderStory(s.story.queue[0]) : ''}
+            ${scene ? this.renderStory(scene) : ''}
           </div>
           <div class="cmp-purse">
             <span title="Credits (+${inc.credits} a turn): earned from your systems each turn, battles and missions. Spent on repairing damage and fortifying systems.">${CREDITS}<b>${me.credits}</b><small>(+${inc.credits})</small></span>
@@ -670,7 +673,7 @@ export class CampaignView {
         <div class="cmp-end">
           <button class="btn-primary" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
         </div>
-        ${this.renderOverlay()}
+        ${overlay}
       </main>`;
   }
 
@@ -1317,15 +1320,19 @@ export class CampaignView {
     if (s.conquest) {
       const n = nodeById(s, s.conquest.nodeId);
       const spoils = n.garrison.length ? ` Its garrison (${n.garrison.map((g) => cardDef(g.defId).name).join(', ')}) is yours either way.` : '';
-      const opt = (id: string, title: string, text: string) => `<button class="cmp-choice" data-act="cmp-conquer" data-arg="${id}"><b>${title}</b><span>${text}</span></button>`;
+      // One short line each; the whole story is in the tooltip.
+      const opt = (id: string, title: string, line: string, more: string) => `<button class="cmp-choice" data-act="cmp-conquer" data-arg="${id}" title="${esc(more)}"><b>${title}</b><span>${line}</span></button>`;
       return this.modal(
         `${lower(n.name)} has fallen`,
-        `<p class="muted">Decide the system's fate.${esc(spoils)}</p>
-         <div class="cmp-choices">
-          ${opt('settle', 'settle', `Take control. ${CREDITS} +${n.yield.credits} and ${MATERIALS} +${n.yield.materials} every turn, and a new front to defend.`)}
-          ${opt('absorb', 'absorb', `Strip it: ${CREDITS} +${n.yield.credits * CAMPAIGN.absorbTurns} and ${MATERIALS} +${n.yield.materials * CAMPAIGN.absorbTurns} now. It is left neutral and depleted.`)}
-          ${opt('supernova', 'supernova', 'Detonate its sun. It is left neutral, and no rival can advance into it for a turn.')}
-         </div>`,
+        `<div class="cmp-choices">
+          ${opt('settle', 'settle', `${CREDITS}+${n.yield.credits} ${MATERIALS}+${n.yield.materials} a turn`, 'Take control: it pays every turn, and is a new front to defend. Your army marches in.')}
+          ${opt('absorb', 'absorb', `${CREDITS}+${n.yield.credits * CAMPAIGN.absorbTurns} ${MATERIALS}+${n.yield.materials * CAMPAIGN.absorbTurns} now`, 'Strip it: it pays at once, and is left neutral and depleted.')}
+          ${opt('supernova', 'supernova', 'bars rivals a turn', 'Detonate its sun: it is left neutral, and no rival can advance into it for a turn.')}
+         </div>
+         ${spoils ? `<p class="muted center-text">${esc(spoils.trim())}</p>` : ''}`,
+        false,
+        '',
+        'cmp-modal-narrow',
       );
     }
     const reward = s.cardRewards[0];
@@ -1627,10 +1634,10 @@ export class CampaignView {
     };
   }
 
-  private modal(title: string, body: string, closable = false, tabs = ''): string {
+  private modal(title: string, body: string, closable = false, tabs = '', cls = 'modal-wide'): string {
     return `
       <div class="overlay ${closable ? 'overlay-soft' : ''}" ${closable ? 'data-act="cmp-close"' : ''}>
-        <div class="modal modal-wide cmp-modal">
+        <div class="modal ${cls} cmp-modal">
           <div class="bar-title">${title}${closable ? '<button class="modal-x" data-act="cmp-close" aria-label="Close">×</button>' : ''}</div>
           ${tabs}
           <div class="modal-body">${body}</div>

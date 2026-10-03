@@ -767,7 +767,9 @@ function nodeName(s: CampaignState, used: Set<string>): string {
 const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, defences: 0, rivalsTaken: 0, battlesWon: 0, swiftWins: 0, coldWins: 0 });
 
 /** Neutral cards every campaign deck starts with (twice each), before its race's cards. */
-const STARTER_NEUTRALS = ['plasma_relay', 'coronal_lance', 'thermal_exchange', 'gravity_sling', 'coolant_array', 'cryo_vault', 'heat_sink', 'deflector_grid', 'bulwark_plating', 'resonance_lattice', 'tidal_brake', 'solar_mirror'];
+// Weighted to attack (seven attack pairs to three defence): a campaign is won by taking systems, and a
+// deck heavy with defence could not finish even a weakened foe before regional stability ran out.
+const STARTER_NEUTRALS = ['coronal_lance', 'thermal_exchange', 'photon_drill', 'scatter_shot', 'plasma_relay', 'gravity_sling', 'nova_shell', 'cryo_vault', 'heat_sink', 'deflector_grid', 'deep_scanners', 'solar_mirror'];
 
 /**
  * An army's starting deck (30 cards): mostly neutral cards, a first taste of the race's own, and three
@@ -776,7 +778,9 @@ const STARTER_NEUTRALS = ['plasma_relay', 'coronal_lance', 'thermal_exchange', '
  */
 export function armyDeck(race: number, general: string): string[] {
   const r = ((race % 4) + 4) % 4;
-  const own = CARDS.filter((c) => c.race === r && c.kind !== 'command').slice(0, 3).map((c) => c.id);
+  // The race's own first taste: its attacks first (every race's opening army has to take systems).
+  const mine = CARDS.filter((c) => c.race === r && c.kind !== 'command' && c.rarity !== 'anomaly');
+  const own = [...mine.filter((c) => c.kind === 'attack'), ...mine.filter((c) => c.kind !== 'attack')].slice(0, 3).map((c) => c.id);
   const others = GENERALS[r].filter((g) => g !== general);
   const heroes = copyLimit(general) > 1 ? [general, general, others[0]] : [general, ...others.slice(0, 2)];
   return [...STARTER_NEUTRALS.flatMap((id) => [id, id]), ...own, ...heroes];
@@ -1212,11 +1216,7 @@ function resolveBattle(s: CampaignState, game: GameState) {
     if (guard) rout(s, guard);
     if (!attacker.isAI) {
       if (target.heart) conquer(s, attacker, target, 'settle', army);
-      else {
-        s.conquest = { nodeId: target.id, armyId: army?.id };
-        // The first world won: the guide explains the choice before it is made.
-        if (attacker.stats.settled + attacker.stats.absorbed + attacker.stats.novas === 0) tell(s, firstConquestScene());
-      }
+      else s.conquest = { nodeId: target.id, armyId: army?.id };
     } else conquer(s, attacker, target, target.heart ? 'settle' : aiConquestChoice(s, target), army);
   } else {
     clog(s, `${target.name} holds: ${attacker.name}'s attack is repelled.`);
@@ -1232,6 +1232,8 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
   n.garrison = [];
   if (spoils.length) clog(s, `${f.name} seizes ${spoils.map((id) => cardDef(id).name).join(', ')} from ${n.name}.`);
   if (prevOwner) f.stats.rivalsTaken += 1;
+  // The first world taken: the guide reflects on the choice.
+  if (f.id === s.playerId && f.stats.settled + f.stats.absorbed + f.stats.novas === 0) tell(s, firstConquestScene());
   n.home = undefined;
   n.gate = undefined;
   // A conquest brings new stock to the player's armory.

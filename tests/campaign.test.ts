@@ -419,7 +419,7 @@ describe('armies and generals', () => {
     for (let i = 0; i < CAMPAIGN.dimEvery && !s.winner; i++) s = settle(applyCampaignAction(s, { type: 'endTurn' }));
     expect(s.nodes.some((n) => n.dimmed)).toBe(true);
     expect(total(s)).toBeLessThan(before + 10); // (absorbs can lower it too; it never grows)
-  });
+  }, 30_000); // (seven whole turns of AI battles)
 
   it('holds together for a lead-up, then collapses systems from the rim inwards, a turn after marking them', () => {
     let s = fresh();

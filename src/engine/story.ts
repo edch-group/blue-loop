@@ -106,8 +106,8 @@ export function firstConquestScene(): StoryScene {
     id: 'first-conquest',
     title: 'The first world',
     lines: [
-      oracle('Your first world. Settle it, and it will feed your armies every turn. Absorb it, and it pays at once, but it is spent.'),
-      oracle('Or burn it. A supernova bars your rivals from it for a turn. It is a terrible thing to do to a star, when so few are left.'),
+      oracle('Your first world. A settled world feeds your armies every turn; an absorbed one pays once, and is spent.'),
+      oracle('And a burned one bars your rivals for a turn. A terrible thing to do to a star, when so few are left. Choose as well with the next.'),
     ],
   };
 }

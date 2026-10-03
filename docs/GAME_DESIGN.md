@@ -589,7 +589,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 
 **Armies and generals.**
 - Each army is led by a **general**: one of the race's Hero cards. Each race has three generals, in the order they join: the two leaders, then the race's bomb Hero (Empress Solenne, The Shardmind, Leviathan Thoross, The Worldroot).
-- An army is its general plus a **30-card deck** built round them. The general's copies can't be swapped out of it.
+- An army is its general plus a **30-card deck** built round them. Starting decks lean to attack: seven neutral attack pairs (Coronal Lance, Thermal Exchange, Photon Drill, Scatter Shot, Plasma Relay, Gravity Sling, Nova Shell), three defence pairs (Cryo Vault, Heat Sink, Deflector Grid), Deep Scanners and Solar Mirror, then three of the race's own cards (attacks first) and three Heroes. (With the old defence-heavy deck, opening battles against the weakened gate ran past regional stability 75–100% of the time; now 13–35%, in 6–8 rounds.) The general's copies can't be swapped out of it.
 - **One move per army per turn.** An army steps along a route into one of your own systems, or attacks a linked system. Tap an army's token to pick it: its routes light up (marches in blue, attacks in red).
 - **Recruit** a general in a system you hold, for credits: 8, plus 5 for each army you already have, plus 6 for a bomb Hero. A general who already leads an army can't be recruited twice. A new army moves next turn.
 - **Damage** stays with the army. Heal it for 1 credit a point.
@@ -609,7 +609,8 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - **Counter, stabilise:** spend 8 materials on a marked system you hold to hold it together 4 turns more, once per system. The AI stabilises its home or a bloom when it can, and pulls its armies out of marked systems.
 - **Fog of war:** you see your systems, the systems around your armies, and those linked to them. About one system in six has a **scanner array**; hold it and you see two links out from it.
 - Tap the turn box (top left) to open the **overview**. Beside it, the regional stability meter (the same height); the resources and your armies' portraits are centred; the buttons sit on the right.
-- **Guidance:** story lines appear in a small panel under the turn box, never blocking play: read on, or dismiss. Settings can turn Oriel off entirely (generals still speak).
+- **Guidance:** story lines appear in a small panel under the turn box, never blocking play: read on, or dismiss. While a dialog is open (a battle, a conquest, a sheet) the panel waits; it never sits over one.
+- **Conquest:** a small dialog of three choices, each with one line (what it pays); the rest is in its tooltip. Settings can turn Oriel off entirely (generals still speak).
 - The board, the Milky Way sky and the settings work as before.
 
 **Winning.**
