@@ -88,6 +88,7 @@ const HUB_ICONS = {
   shop: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 10h20l2 30H12z"/><path d="M14 10l4 6h12l4-6M24 22l2.4 4.8 5.3.8-3.8 3.7.9 5.2-4.8-2.5-4.8 2.5.9-5.2-3.8-3.7 5.3-.8z"/></svg>`,
   campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle cx="10" cy="34" r="3.2"/><circle cx="22" cy="26" r="2.6"/><circle cx="36" cy="32" r="3.6"/><circle cx="26" cy="12" r="3"/><circle cx="14" cy="16" r="2.4"/></svg>`,
   quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="17" cy="24" r="8"/><circle cx="36" cy="24" r="4.5"/><path d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
+  online: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="14"/><path d="M10 24h28M24 10c-5 4-7 9-7 14s2 10 7 14M24 10c5 4 7 9 7 14s-2 10-7 14"/></svg>`,
   options: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 15h28M10 24h28M10 33h28"/><circle cx="18" cy="15" r="3.2"/><circle cx="31" cy="24" r="3.2"/><circle cx="22" cy="33" r="3.2"/></svg>`,
 };
 type Speed = 'slow' | 'normal' | 'fast';
@@ -2452,6 +2453,7 @@ export class App {
       <div class="hub">
         ${tile('campaign-new', '', HUB_ICONS.campaign, 'campaign', hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue</button>' : '')}
         ${tile('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue</button>' : '')}
+        ${tile('menu-page', 'online', HUB_ICONS.online, 'online')}
         ${tile('open-decks', '', HUB_ICONS.collection, 'collection')}
         ${tile('menu-page', 'shop', HUB_ICONS.shop, 'shop')}
         ${tile('menu-page', 'options', HUB_ICONS.options, 'options')}
@@ -2546,16 +2548,7 @@ export class App {
           <small>✦ ${PROGRESSION.boosterPrice}</small>
         </button>`,
     ).join('');
-    return `
-      <header class="setup-top">
-        <button class="btn btn-small" data-act="menu-page" data-arg="hub">‹ back</button>
-        <h2 class="menu-heading">shop</h2>
-        ${this.playerChip()}
-      </header>
-      <div class="setup-body shop-body">
-        <div class="section-label">boosters</div>
-        <div class="pack-row">${packs}</div>
-      </div>`;
+    return this.setupPage('shop', `<div class="section-label">boosters · ✦ ${PROGRESSION.boosterPrice} each</div><div class="pack-row">${packs}</div>`, '', 'hub', 'shop-body');
   }
 
   /** A booster pack: a foil wrapper, crimped top and bottom, with its race's emblem and a tear strip. */
@@ -2577,15 +2570,21 @@ export class App {
   }
 
   /** Setup pages fill the screen: back and title across the top, the choices in the middle, the main action bottom right. */
-  private setupPage(title: string, body: string, foot: string, back = 'hub'): string {
+  private setupPage(title: string, body: string, foot: string, back = 'hub', bodyClass = ''): string {
+    return `
+      ${this.setupTop(title, back)}
+      <div class="setup-body ${bodyClass}">${body}</div>
+      <footer class="setup-foot">${foot}</footer>`;
+  }
+
+  /** Every menu page's header, the same everywhere: back on the left, the page's name centred, you on the right. */
+  private setupTop(title: string, back = 'hub'): string {
     return `
       <header class="setup-top">
         <button class="btn btn-small" data-act="menu-page" data-arg="${back}">‹ back</button>
         <h2 class="menu-heading">${title}</h2>
-        <span></span>
-      </header>
-      <div class="setup-body">${body}</div>
-      <footer class="setup-foot">${foot}</footer>`;
+        ${this.playerChip()}
+      </header>`;
   }
 
   private renderQuickplay(): string {
@@ -2607,9 +2606,7 @@ export class App {
     return this.setupPage(
       'quickplay',
       `<div class="seat-row">${seats}</div>`,
-      `<button class="btn" data-act="open-decks">deck builder</button>
-       <button class="btn" data-act="menu-page" data-arg="online">play online</button>
-       <span class="setup-spacer"></span>
+      `<button class="btn" data-act="open-decks">edit decks</button>
        ${hasSave ? '<button class="btn" data-act="continue">continue game</button>' : ''}
        <button class="btn-primary" data-act="new-game">launch</button>`,
     );
@@ -2652,7 +2649,7 @@ export class App {
           </div>
         </div>`,
         '<span class="muted">1v1 · each player on their own device</span>',
-        'quickplay',
+        'hub',
       );
     }
     const code = this.online.code;
@@ -2684,7 +2681,7 @@ export class App {
       `<button class="btn" data-act="online-leave">leave room</button><span class="setup-spacer"></span><span class="muted">${
         !rival ? 'get ready while you wait' : ready && rival.ready ? 'starting…' : ready ? `waiting for ${esc(rival.name)} to confirm` : 'the game starts when you are both ready'
       }</span><button class="${ready ? 'btn' : 'btn-primary'}" data-act="online-ready">${ready ? 'not ready' : 'ready'}</button>`,
-      'quickplay',
+      'hub',
     );
   }
 
