@@ -163,6 +163,28 @@ export function dimmingScene(system: string): StoryScene {
   };
 }
 
+export function instabilityScene(): StoryScene {
+  return {
+    id: 'instability',
+    title: 'Regional stability',
+    lines: [
+      oracle('Do you feel it? The space between the stars is thinning. Regional stability is failing.'),
+      oracle('Soon whole systems will start to fall into the dark: the farthest first, then on, and in. Do not be standing in one when it goes.'),
+    ],
+  };
+}
+
+export function collapseScene(): StoryScene {
+  return {
+    id: 'collapse',
+    title: 'The collapse',
+    lines: [
+      oracle('It has begun. The systems marked on your map will be gone next turn, and more will follow, every turn, from the rim inwards.'),
+      oracle('You cannot stay. Keep moving towards the Heart. If a world is worth it, you can spend materials to hold it together a little longer: once, and only once.'),
+    ],
+  };
+}
+
 export function heartSightedScene(): StoryScene {
   return {
     id: 'heart-sighted',

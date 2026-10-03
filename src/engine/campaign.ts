@@ -28,6 +28,8 @@ import {
   introScene,
   recruitScene,
   rivalFallsScene,
+  collapseScene,
+  instabilityScene,
   stellariaClaimedScene,
   stellariaSightedScene,
   stellariaWiltedScene,
@@ -104,6 +106,16 @@ export const CAMPAIGN = {
   stellariaTurns: 8,
   /** The dimming: every this many turns a star gutters, and its system yields 1 less of each. */
   dimEvery: 7,
+  /**
+   * Regional stability: after this many turns of lead-up the region gives way, and solar systems collapse,
+   * from the rim inwards: one a turn, one more every `collapseRamp` turns after that. Each is marked a turn
+   * before it goes. Whatever stands there is lost (an army falls back, if it can).
+   */
+  stabilityTurns: 8,
+  collapseRamp: 12,
+  /** The counter: stabilise a collapsing system you hold, for materials, holding it together this many turns more (once per system). */
+  stabiliseCost: 8,
+  stabiliseTurns: 4,
   /** The Heart: its yield, and its Wardens' extra max health. */
   heartYield: 6,
   heartWardenHealth: 12,
@@ -172,6 +184,12 @@ export interface CampaignNode {
   stellaria?: number;
   /** Its star has guttered (the dimming): it yields less. */
   dimmed?: boolean;
+  /** Regional stability has failed here: it collapses as the next turn begins. */
+  collapsing?: boolean;
+  /** Gone: nothing can stand in it, or pass through it. */
+  collapsed?: boolean;
+  /** Stabilised (once only): it holds until this turn. */
+  stableUntil?: number;
 }
 
 export type AnomalyKind = 'blackHole' | 'nebula' | 'darkMatter' | 'pulsar';
@@ -358,6 +376,8 @@ export type CampaignAction =
   | { type: 'move'; armyId: string; toId: string }
   /** Raise a new army in a system you hold, led by one of your race's generals. */
   | { type: 'recruit'; general: string; nodeId: string }
+  /** Hold a collapsing system together a few turns more. */
+  | { type: 'stabilise'; nodeId: string }
   | { type: 'healArmy'; armyId: string }
   /** The oldest story scene has been read. */
   | { type: 'readStory' }
@@ -461,6 +481,8 @@ export function visibleNodes(s: CampaignState, factionId: string): Set<string> {
   // An army sees the routes out of wherever it stands.
   for (const a of s.armies) if (a.owner === factionId) look(byId.get(a.nodeId)!, false);
   if (s.battle) seen.add(s.battle.nodeId);
+  // The collapse is felt everywhere: a system about to go is always in view.
+  for (const n of s.nodes) if (n.collapsing) seen.add(n.id);
   return seen;
 }
 
@@ -486,6 +508,7 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
   const out: { toId: string; battle: boolean }[] = [];
   for (const id of here.links) {
     const n = nodeById(s, id);
+    if (n.collapsed) continue;
     const there = armyAt(s, id);
     if (n.owner === army.owner) {
       if (!there) out.push({ toId: id, battle: false });
@@ -495,6 +518,25 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
     out.push({ toId: id, battle: true });
   }
   return out;
+}
+
+/** Turns of regional stability left before systems start to collapse (0: they are collapsing). */
+export function regionalStability(s: CampaignState): number {
+  return Math.max(0, CAMPAIGN.stabilityTurns - s.turn);
+}
+
+/** Systems that collapse each turn, once stability has run out. */
+export function collapsesPerTurn(s: CampaignState): number {
+  return 1 + Math.floor(Math.max(0, s.turn - CAMPAIGN.stabilityTurns) / CAMPAIGN.collapseRamp);
+}
+
+/** Why a faction can't stabilise a system (null if it can). */
+export function stabiliseProblem(f: Faction, n: CampaignNode): string | null {
+  if (n.owner !== f.id) return 'You do not control that system.';
+  if (!n.collapsing) return `${n.name} is not collapsing.`;
+  if (n.stableUntil !== undefined) return `${n.name} has been stabilised once already: it cannot be again.`;
+  if (f.materials < CAMPAIGN.stabiliseCost) return `Not enough materials (need ${CAMPAIGN.stabiliseCost}, have ${f.materials}).`;
+  return null;
 }
 
 /** Older saves have no scanners: place them as a new campaign would (about one system in six, never a home). */
@@ -895,7 +937,7 @@ function hops(s: CampaignState, from: string, to: string): number {
     const id = queue.shift()!;
     if (id === to) return seen.get(id)!;
     for (const next of nodeById(s, id).links) {
-      if (!seen.has(next)) {
+      if (!seen.has(next) && !nodeById(s, next).collapsed) {
         seen.set(next, seen.get(id)! + 1);
         queue.push(next);
       }
@@ -1025,6 +1067,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   const here = nodeById(s, army.nodeId);
   const target = nodeById(s, toId);
   if (!here.links.includes(toId)) throw new GameError('There is no route between those systems.');
+  if (target.collapsed) throw new GameError(`${target.name} has collapsed. There is nothing left there.`);
   if (target.owner === f.id) {
     if (armyAt(s, toId)) throw new GameError(`An army already stands in ${target.name}.`);
     army.nodeId = toId;
@@ -1047,7 +1090,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
 function rout(s: CampaignState, army: Army) {
   const owner = factionById(s, army.owner);
   const here = nodeById(s, army.nodeId);
-  const refuge = here.links.map((id) => nodeById(s, id)).find((n) => n.owner === army.owner && !armyAt(s, n.id));
+  const refuge = here.links.map((id) => nodeById(s, id)).find((n) => n.owner === army.owner && !n.collapsed && !armyAt(s, n.id));
   if (refuge) {
     army.nodeId = refuge.id;
     army.damage = CAMPAIGN.maxDamage;
@@ -1152,15 +1195,7 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
     clog(s, `${f.name} drives ${n.name}'s sun to supernova. No rival can advance into it for a turn.`);
   }
 
-  if (prevOwner && ownedNodes(s, prevOwner.id).length === 0) {
-    prevOwner.eliminated = true;
-    s.aiQueue = s.aiQueue.filter((id) => id !== prevOwner.id);
-    for (const node of s.nodes) node.hazard = node.hazard.filter((id) => id !== prevOwner.id);
-    // With no worlds to supply them, its armies scatter.
-    s.armies = s.armies.filter((a) => a.owner !== prevOwner.id);
-    clog(s, `${prevOwner.name} has lost every system and is eliminated.`);
-    if (prevOwner.id !== s.playerId) tell(s, rivalFallsScene(prevOwner.race, prevOwner.id));
-  }
+  if (prevOwner) checkEliminated(s, prevOwner);
   // Whoever claims the Heart claims the Infinite Stellaria, and the campaign.
   if (n.heart && n.owner === f.id && !s.winner) {
     s.winner = f.id;
@@ -1170,6 +1205,52 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
     return;
   }
   checkVictory(s);
+}
+
+/** A faction with no systems left is out: with no worlds to supply them, its armies scatter. */
+function checkEliminated(s: CampaignState, f: Faction) {
+  if (f.eliminated || ownedNodes(s, f.id).length > 0) return;
+  f.eliminated = true;
+  s.aiQueue = s.aiQueue.filter((id) => id !== f.id);
+  for (const node of s.nodes) node.hazard = node.hazard.filter((id) => id !== f.id);
+  s.armies = s.armies.filter((a) => a.owner !== f.id);
+  clog(s, `${f.name} has lost every system and is eliminated.`);
+  if (f.id !== s.playerId) tell(s, rivalFallsScene(f.race, f.id));
+}
+
+/** A system gives way: whatever stood there is lost, and an army there falls back if it can. */
+function collapse(s: CampaignState, n: CampaignNode) {
+  const owner = n.owner ? factionById(s, n.owner) : null;
+  const army = armyAt(s, n.id);
+  n.collapsing = false;
+  n.collapsed = true;
+  n.owner = null;
+  n.garrison = [];
+  n.fortification = 0;
+  n.damage = 0;
+  n.hazard = [];
+  n.yield = { credits: 0, materials: 0 };
+  n.stellaria = n.stellaria === undefined ? undefined : 0;
+  n.scanner = false;
+  n.home = undefined;
+  clog(s, `${n.name} collapses into the dark.`);
+  if (army) rout(s, army);
+  if (owner) checkEliminated(s, owner);
+}
+
+/** The next systems to collapse: the farthest from the Heart (ties at random), passing over any held stable. */
+function markCollapses(s: CampaignState) {
+  const n = collapsesPerTurn(s);
+  for (let i = 0; i < n; i++) {
+    const open = s.nodes.filter((x) => !x.heart && !x.collapsed && !x.collapsing && !((x.stableUntil ?? 0) > s.turn));
+    if (!open.length) return;
+    const far = Math.max(...open.map((x) => x.ring ?? 0));
+    const rim = open.filter((x) => (x.ring ?? 0) === far);
+    const pick = rim[randomInt(s, rim.length)];
+    pick.collapsing = true;
+    clog(s, `${pick.name} is collapsing: it will be gone next turn.`);
+  }
+  tell(s, collapseScene());
 }
 
 function checkVictory(s: CampaignState) {
@@ -1183,8 +1264,10 @@ function checkVictory(s: CampaignState) {
     tell(s, defeatScene(top?.race ?? 0, false));
     return;
   }
+  // (Half of what is left: the collapse shrinks the universe.)
+  const standing = s.nodes.filter((n) => !n.collapsed).length;
   for (const f of living) {
-    const share = ownedNodes(s, f.id).length / s.nodes.length;
+    const share = ownedNodes(s, f.id).length / Math.max(1, standing);
     if (living.length === 1 || share >= CAMPAIGN.dominationShare) {
       s.winner = f.id;
       clog(s, `${f.name} dominates the universe!`);
@@ -1262,6 +1345,13 @@ function newTurn(s: CampaignState) {
       if (visibleNodes(s, s.playerId).has(n.id)) tell(s, dimmingScene(n.name));
     }
   }
+  // Regional stability: what was marked gives way, and once stability has run out, more is marked.
+  for (const n of s.nodes) if (n.collapsing && !((n.stableUntil ?? 0) > s.turn)) collapse(s, n);
+  for (const n of s.nodes) if (n.collapsing && (n.stableUntil ?? 0) > s.turn) n.collapsing = false;
+  if (!s.winner) checkVictory(s);
+  if (s.winner) return;
+  if (s.turn >= CAMPAIGN.stabilityTurns) markCollapses(s);
+  else if (regionalStability(s) <= 2) tell(s, instabilityScene());
   refreshArmory(s, campaignPlayer(s));
   checkMissions(s);
   const p = campaignPlayer(s);
@@ -1310,6 +1400,12 @@ function improveDeck(f: Faction, army: Army) {
   }
 }
 
+function stabilise(s: CampaignState, f: Faction, n: CampaignNode) {
+  f.materials -= CAMPAIGN.stabiliseCost;
+  n.stableUntil = s.turn + CAMPAIGN.stabiliseTurns + 1;
+  clog(s, `${f.name} stabilises ${n.name}. It holds for ${CAMPAIGN.stabiliseTurns} more turns.`);
+}
+
 /** Hops from a system to the Heart. */
 function hopsToHeart(s: CampaignState, id: string): number {
   const heart = s.nodes.find((n) => n.heart);
@@ -1349,6 +1445,8 @@ function aiTurn(s: CampaignState, f: Faction) {
     raiseArmy(s, f, next, muster.id);
     clog(s, `${f.name} raises an army under ${cardDef(next).name}.`);
   }
+  // 3b. Hold a collapsing home or bloom together, if it can.
+  for (const n of mine) if ((n.home === f.id || (n.stellaria ?? 0) > 0) && stabiliseProblem(f, n) === null) stabilise(s, f, n);
   // 4. Improve its armies' decks: swap race cards in for neutral ones.
   for (const army of armiesOf(s, f.id)) improveDeck(f, army);
   // 5. Fortify the home system with spare credits.
@@ -1373,7 +1471,15 @@ function aiTurn(s: CampaignState, f: Faction) {
     if (!moves.length) continue;
     const strength = (n: CampaignNode) =>
       (n.heart ? 6 : n.owner ? 3 : n.tier) + n.garrison.length + (armyAt(s, n.id) ? 2 - armyAt(s, n.id)!.damage * 0.2 : 0) - n.damage * 0.3 + (n.owner === s.playerId ? 0.5 : 0) - ((n.stellaria ?? 0) > 0 ? 1 : 0);
-    const battles = moves.filter((m) => m.battle).map((m) => ({ ...m, node: nodeById(s, m.toId) }));
+    // Never into a system about to collapse; and out of one, before it does.
+    const battles = moves.filter((m) => m.battle && !nodeById(s, m.toId).collapsing).map((m) => ({ ...m, node: nodeById(s, m.toId) }));
+    if (nodeById(s, army.nodeId).collapsing) {
+      const away = moves.filter((m) => !nodeById(s, m.toId).collapsing).sort((a, b) => Number(a.battle) - Number(b.battle) || hopsToHeart(s, a.toId) - hopsToHeart(s, b.toId))[0];
+      if (away) {
+        moveArmy(s, army, away.toId);
+        continue;
+      }
+    }
     // A battered army rests (and is repaired) rather than attack.
     const ready = army.damage <= 5;
     const pick = battles.sort((a, b) => strength(a.node) - strength(b.node) || nextRandom(s) - 0.5)[0];
@@ -1385,7 +1491,7 @@ function aiTurn(s: CampaignState, f: Faction) {
     }
     // No fight: step through its own systems towards the Heart.
     const here = hopsToHeart(s, army.nodeId);
-    const step = moves.filter((m) => !m.battle).find((m) => hopsToHeart(s, m.toId) < here);
+    const step = moves.filter((m) => !m.battle && !nodeById(s, m.toId).collapsing).find((m) => hopsToHeart(s, m.toId) < here);
     if (step && ready) moveArmy(s, army, step.toId);
   }
 }
@@ -1440,6 +1546,13 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       raiseArmy(s, f, action.general, n.id);
       clog(s, `${f.name} raises an army in ${n.name} under ${cardDef(action.general).name}. It can march next turn.`);
       tell(s, recruitScene(action.general, f.id));
+      break;
+    }
+    case 'stabilise': {
+      const n = nodeById(s, action.nodeId);
+      const problem = stabiliseProblem(f, n);
+      if (problem) throw new GameError(problem);
+      stabilise(s, f, n);
       break;
     }
     case 'healArmy': {

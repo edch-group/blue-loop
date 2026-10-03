@@ -18,6 +18,9 @@ import {
   armyById,
   armyMoves,
   recruitCost,
+  regionalStability,
+  collapsesPerTurn,
+  stabiliseProblem,
   GENERALS,
   HEART_NAME,
   ORACLE_NAME,
@@ -344,6 +347,9 @@ export class CampaignView {
         }
         break;
       }
+      case 'cmp-stabilise':
+        if (this.apply({ type: 'stabilise', nodeId: arg })) sound.shield();
+        break;
       case 'cmp-heal-army':
         if (this.apply({ type: 'healArmy', armyId: arg })) sound.upgrade();
         break;
@@ -527,6 +533,7 @@ export class CampaignView {
         <div class="cmp-sky" aria-hidden="true"></div>
         <header class="cmp-top">
           <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" title="Game overview: every faction and its systems"><small>turn</small><b>${s.turn}/${CAMPAIGN.turnLimit}</b><i>›</i></button>
+          ${this.renderStability()}
           <div class="cmp-purse">
             <span title="Credits (+${inc.credits} a turn): earned from your systems each turn, battles and missions. Spent on repairing damage and fortifying systems.">${CREDITS}<b>${me.credits}</b><small>(+${inc.credits})</small></span>
             <span title="Materials (+${inc.materials} a turn): earned from your systems each turn, battles and missions. Spent on buying cards in the armory.">${MATERIALS}<b>${me.materials}</b><small>(+${inc.materials})</small></span>
@@ -600,6 +607,23 @@ export class CampaignView {
       </main>`;
   }
 
+  /** Regional stability: the lead-up's turns draining away, then how fast the universe is collapsing. */
+  private renderStability(): string {
+    const s = this.state!;
+    const left = regionalStability(s);
+    const total = CAMPAIGN.stabilityTurns;
+    const segments = Array.from({ length: total }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
+    const rate = collapsesPerTurn(s);
+    const title = left
+      ? `Regional stability: ${left} turn${left === 1 ? '' : 's'} left. Then solar systems start to collapse, from the rim inwards, one a turn, each marked a turn before it goes.`
+      : `Regional stability has failed: ${rate} system${rate === 1 ? '' : 's'} collapse${rate === 1 ? 's' : ''} each turn, from the rim inwards. Marked systems go next turn: get out of them, or stabilise one you hold (${CAMPAIGN.stabiliseCost} materials, once).`;
+    return `
+      <div class="cmp-stability ${left ? '' : 'unstable'}" title="${title}">
+        <span class="stability-label">${left ? `regional stability ${left}` : `collapsing · ${rate} a turn`}</span>
+        <div class="stability-bar">${segments}</div>
+      </div>`;
+  }
+
   /**
    * The map is a tilted plane in perspective (CSS 3D). Stars stand upright on
    * it as billboards; links and territory lie flat on the surface. Selecting a
@@ -633,6 +657,7 @@ export class CampaignView {
             const [a, b] = seen.has(n.id) ? [n, m] : [m, n];
             return `<line x1="${a.x}" y1="${a.y}" x2="${(a.x + (b.x - a.x) * 0.45).toFixed(1)}" y2="${(a.y + (b.y - a.y) * 0.45).toFixed(1)}" class="cmp-link cmp-link-fog" />`;
           }
+          if (n.collapsed || m.collapsed) return `<line x1="${n.x}" y1="${n.y}" x2="${m.x}" y2="${m.y}" class="cmp-link cmp-link-gone" />`;
           const same = n.owner && n.owner === m.owner;
           return `<line x1="${n.x}" y1="${n.y}" x2="${m.x}" y2="${m.y}" class="cmp-link ${same ? 'cmp-link-held' : ''}" ${same ? `style="--fc:${this.colourOf(n.owner!)}"` : ''} />`;
         }),
@@ -654,6 +679,8 @@ export class CampaignView {
           n.owner ? 'cmp-owned' : '',
           n.heart ? 'cmp-heart' : '',
           n.dimmed ? 'cmp-dim' : '',
+          n.collapsing ? 'cmp-collapsing' : '',
+          n.collapsed ? 'cmp-collapsed' : '',
           targets.has(n.id) ? 'cmp-target' : '',
           marches.has(n.id) ? 'cmp-march' : '',
           this.selected === n.id ? 'cmp-selected' : '',
@@ -665,6 +692,7 @@ export class CampaignView {
           n.garrison.length ? `<i class="cmp-badge">▣${n.garrison.length}</i>` : '',
           n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
           n.scanner ? `<i class="cmp-badge cmp-scan" title="Scanner array">${SCANNER}</i>` : '',
+          n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
           (n.stellaria ?? 0) > 0 ? `<i class="cmp-badge cmp-bloom" title="A Finite Stellaria bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}">${BLOOM}${n.stellaria}</i>` : '',
         ].join('');
         const army = armyAt(s, n.id);
@@ -675,6 +703,7 @@ export class CampaignView {
             ${marches.has(n.id) ? '<div class="cmp-ring cmp-ring-march"></div>' : ''}
             ${n.heart ? `<div class="cmp-heart-glow"></div><div class="cmp-stellaria" title="The ${esc(STELLARIA)}">${stellariaFlower()}</div>` : ''}
             ${n.hazard.length ? '<div class="cmp-ring cmp-ring-hazard"></div>' : ''}
+            ${n.collapsing ? '<div class="cmp-ring cmp-ring-collapse"></div>' : ''}
             ${n.home ? '<div class="cmp-ring cmp-ring-home"></div>' : ''}
             ${this.selected === n.id || leaving?.id === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
@@ -1092,6 +1121,9 @@ export class CampaignView {
       ? `<div class="cmp-actions">${attackers.map((id) => `<button class="btn-primary" data-act="cmp-attack-pick" data-arg="${n.id}" data-army="${id}">attack with ${lower(cardDef(armyById(s, id).general).name)}</button>`).join('')}</div>`
       : '';
     const status = [
+      n.collapsed ? '<p class="cmp-warn">Collapsed. Nothing is left here: no world, no star, no route through.</p>' : '',
+      n.collapsing ? `<p class="cmp-warn">Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.</p>` : '',
+      (n.stableUntil ?? 0) > s.turn ? `<p class="cmp-lore">Stabilised: it holds until turn ${n.stableUntil}.</p>` : '',
       n.hazard.length ? '<p class="cmp-warn">Supernova remnant: rivals cannot advance into it this turn.</p>' : '',
       n.heart ? `<p class="cmp-lore">The oldest star, at the centre of everything. The ${esc(STELLARIA)} is said to grow in its light. Whoever claims it wins the campaign. ${n.owner ? '' : `Guarded by the Heart Wardens: +${CAMPAIGN.heartWardenHealth} max health.`}</p>` : '',
       (n.stellaria ?? 0) > 0 ? `<p class="cmp-lore">${BLOOM} A Finite Stellaria bloom: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}. Then it wilts.</p>` : n.stellaria === 0 ? '<p class="cmp-lore muted">A wilted Stellaria bloom.</p>' : '',
@@ -1125,6 +1157,7 @@ export class CampaignView {
         <button class="icon-btn" data-act="cmp-select" data-arg="${n.id}" aria-label="Close">×</button>
       </div>
       ${status}
+      ${n.collapsing && mine ? `<div class="cmp-actions"><button class="btn" data-act="cmp-stabilise" data-arg="${n.id}" ${stabiliseProblem(me, n) ? `disabled title="${esc(stabiliseProblem(me, n)!)}"` : ''}>stabilise · ${MATERIALS}${CAMPAIGN.stabiliseCost} <small>holds ${CAMPAIGN.stabiliseTurns} more turns, once</small></button></div>` : ''}
       ${attack}
       ${armyPanel}
       ${nodeAnomalies(s, n)
@@ -1301,6 +1334,7 @@ export class CampaignView {
             <li>An army's sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits in a system you hold. <b>Fortify</b> a system for +${CAMPAIGN.fortifyHealth} max health per level when it defends.</li>
             <li>${BLOOM} <b>Finite Stellaria</b> bloom on a few systems: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds one, for ${CAMPAIGN.stellariaTurns} turns. Then they wilt.</li>
             <li><b>The universe is dying:</b> every ${CAMPAIGN.dimEvery} turns a star gutters, and its system yields less.</li>
+            <li><b>Regional stability</b> lasts ${CAMPAIGN.stabilityTurns} turns. Then solar systems collapse, from the rim inwards: one a turn, one more every ${CAMPAIGN.collapseRamp} turns. Each is marked (⚠) a turn before it goes, and anything still in it is lost, so keep moving towards the Heart. Stabilise a marked system you hold for ${CAMPAIGN.stabiliseCost} materials to hold it ${CAMPAIGN.stabiliseTurns} turns more (once per system).</li>
             <li>Win cards from missions and buy them in the armory with ${MATERIALS} materials; they wait in your reserve until you swap them into an army's deck.</li>
             <li><b>Fog of war:</b> you only see systems linked to yours. Hold a system with a <b>scanner</b> to see two links out from it.</li>
             <li><b>Your base</b> holds your deck, the armory and your missions. The armory restocks every turn and whenever you conquer a system. <b>Fusion</b> merges two reserve cards into one that does both, for ${MATERIALS} materials; it cannot be undone.</li>

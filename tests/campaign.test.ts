@@ -22,6 +22,8 @@ import {
   recruitCost,
   factionIncome,
   GENERALS,
+  regionalStability,
+  stabiliseProblem,
   type CampaignState,
 } from '../src/engine';
 
@@ -415,5 +417,59 @@ describe('armies and generals', () => {
     for (let i = 0; i < CAMPAIGN.dimEvery && !s.winner; i++) s = settle(applyCampaignAction(s, { type: 'endTurn' }));
     expect(s.nodes.some((n) => n.dimmed)).toBe(true);
     expect(total(s)).toBeLessThan(before + 10); // (absorbs can lower it too; it never grows)
+  });
+
+  it('holds together for a lead-up, then collapses systems from the rim inwards, a turn after marking them', () => {
+    let s = fresh();
+    expect(regionalStability(s)).toBe(CAMPAIGN.stabilityTurns - 1);
+    s.turn = CAMPAIGN.stabilityTurns - 1;
+    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
+    expect(regionalStability(s)).toBe(0);
+    const marked = s.nodes.filter((n) => n.collapsing);
+    expect(marked).toHaveLength(1);
+    const rim = Math.max(...s.nodes.filter((n) => !n.heart).map((n) => n.ring ?? 0));
+    expect(marked[0].ring).toBe(rim);
+    expect(s.nodes.some((n) => n.collapsed)).toBe(false);
+    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
+    const gone = nodeById(s, marked[0].id);
+    expect(gone.collapsed).toBe(true);
+    expect(gone.owner).toBeNull();
+    expect(armyAt(s, gone.id)).toBeNull();
+    // Nothing can march into it, or through it.
+    for (const a of s.armies) expect(armyMoves(s, a).some((m) => m.toId === gone.id)).toBe(false);
+    expect(s.nodes.filter((n) => n.collapsing)).toHaveLength(1);
+  });
+
+  it('loses an army caught in a collapse, unless it can fall back', () => {
+    let s = fresh();
+    const a = myArmy(s);
+    const at = nodeById(s, a.nodeId);
+    at.collapsing = true;
+    s.turn = 3;
+    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
+    expect(nodeById(s, at.id).collapsed).toBe(true);
+    // Its only system is gone: the player is out.
+    expect(s.armies.some((x) => x.id === a.id)).toBe(false);
+    expect(s.winner).not.toBeNull();
+  });
+
+  it('can stabilise a collapsing system once, for materials, holding it a few turns more', () => {
+    let s = fresh();
+    const h = home(s);
+    h.collapsing = true;
+    const me = campaignPlayer(s);
+    me.materials = 0;
+    expect(stabiliseProblem(me, h)).toMatch(/materials/);
+    me.materials = CAMPAIGN.stabiliseCost;
+    s = applyCampaignAction(s, { type: 'stabilise', nodeId: h.id });
+    expect(campaignPlayer(s).materials).toBe(0);
+    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
+    expect(nodeById(s, h.id).collapsed).toBeFalsy();
+    expect(nodeById(s, h.id).collapsing).toBeFalsy();
+    // Once only.
+    const n = nodeById(s, h.id);
+    n.collapsing = true;
+    campaignPlayer(s).materials = 99;
+    expect(stabiliseProblem(campaignPlayer(s), n)).toMatch(/once/);
   });
 });

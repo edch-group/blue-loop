@@ -3575,3 +3575,20 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-hint-fight { color: #d8452b; }
 /* (Room inside the Heart's billboard for its wide glow: past the billboard's box, the 3D layer cut it square.) */
 .cmp-heart .cmp-bb { padding: 44px 44px 0; }
+
+/* ---- Campaign: regional stability and the collapse ---- */
+.cmp-stability { display: grid; gap: 4px; padding: 6px 12px; border-radius: 999px; background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow); }
+.cmp-stability .stability-bar i { width: clamp(8px, calc(1.6 * var(--vw)), 16px); }
+.cmp-stability.unstable .stability-label { color: #b0544a; font-weight: 700; }
+.cmp-link-gone { stroke: rgba(70, 60, 70, 0.22); stroke-dasharray: 1 10; }
+.cmp-ring-collapse { width: 92px; height: 92px; background: radial-gradient(circle, rgba(60, 20, 30, 0.22), transparent 70%); border: 2px dashed rgba(190, 70, 60, 0.75); animation: cmp-collapse-spin 9s linear infinite; }
+@keyframes cmp-collapse-spin { to { transform: translate(-50%, -50%) rotate(-360deg); } }
+.cmp-badge.cmp-doom { background: #b0544a; color: #fff; }
+.cmp-collapsing .cmp-core { animation: cmp-gutter 1.4s ease-in-out infinite; }
+@keyframes cmp-gutter { 50% { opacity: 0.55; } }
+.cmp-collapsed .cmp-core { background: radial-gradient(circle, #1d1820 30%, #3a2f3a 60%, transparent 72%) !important; box-shadow: 0 0 0 2px rgba(60, 50, 60, 0.25) !important; }
+.cmp-collapsed .cmp-star { filter: grayscale(1); opacity: 0.55; }
+.cmp-collapsed .cmp-label { text-decoration: line-through; opacity: 0.5; }
+.cmp-collapsed .cmp-turf { display: none; }
+@media (max-width: 700px) { .cmp-stability .stability-label { font-size: 0.42rem; } }
+.cmp-actions .btn small { display: block; font-family: var(--body, inherit); text-transform: none; letter-spacing: 0; font-size: 0.68rem; color: var(--ink-soft); }

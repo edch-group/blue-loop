@@ -605,6 +605,8 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - **The core:** the closer a system is to the Heart (in routes), the richer and the better defended it is. Systems 1–3 routes from the Heart give +2/+1/+1 credits and materials and their defenders +6/+4/+2 max health; systems within 2 routes are at least tier 2, within 3 at least tier 1. This pays you back for the worlds lost to the dimming.
 - **Stellaria blooms:** 4 finite Stellaria grow on tier 1+ systems (never a home system or the Heart). Holding one adds 3 credits and 3 materials a turn. Each wilts after 8 turns.
 - **The dimming:** every 7 turns a star gutters, and its system yields less.
+- **Regional stability and the collapse:** a meter in the header counts down an 8-turn lead-up (the oracle warns as it runs low). Then solar systems collapse, from the rim inwards (the systems farthest from the Heart, ties at random): one a turn, one more every 12 turns. Each is marked (⚠, a dashed red ring, always in view) a turn before it goes. A collapsed system is gone: no owner, no yield, no route through it; an army caught there falls back to a free neighbour it holds, or is broken, and a faction left with no systems is out. This keeps everyone moving inwards. Domination counts half of the systems still standing.
+- **Counter, stabilise:** spend 8 materials on a marked system you hold to hold it together 4 turns more, once per system. The AI stabilises its home or a bloom when it can, and pulls its armies out of marked systems.
 - **Fog of war:** you see your systems, the systems around your armies, and those linked to them. About one system in six has a **scanner array**; hold it and you see two links out from it.
 - Tap the turn box (top left) to open the **overview**. The header shows your armies' portraits.
 - The board, the Milky Way sky and the settings work as before.
@@ -633,6 +635,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 
 **Balance notes (simulator).**
 - All-AI campaigns (6 seeds) ended between turns 12 and 32, with a mix of Heart and domination wins. The Wardens' bonus was raised from 8 to 12 health to keep the Heart a late-game goal.
+- With the collapse (8 seeds): campaigns ended on turns 15–29, 7 at the Heart and 1 by domination, with 5–26 systems collapsed.
 - Early auto-resolved attacks on tier-0 sentinels lose fairly often. Watch this.
 
 ## Open design questions
