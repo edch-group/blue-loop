@@ -3033,16 +3033,13 @@ export class App {
             ? `<span class="seat-name">${esc(profile().name || seat.name)}</span>`
             : `<input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" aria-label="Player ${i + 1} name" />`;
         return `
-        <div class="seat-col">
-          <div class="seat-tile">
+        <div class="seat-tile">
+          <div class="seat-main">
             ${factionAvatar(`f${deck.race + 1}`, 'seat-emblem')}
             ${name}
-            <button class="seat-deck" data-act="seat-deck" data-arg="${i}" title="Choose a deck">
-              <small>deck</small><span>${esc(deck.name.toLowerCase())}</span>
-            </button>
             <button class="pill-btn" data-act="seat-ai" data-arg="${i}">${seat.isAI ? 'ai' : 'human'}</button>
           </div>
-          ${this.recentRow(i)}
+          ${this.seatDecks(i)}
         </div>`;
       })
       .join('');
@@ -3055,14 +3052,19 @@ export class App {
     );
   }
 
-  /** A seat's last three decks, for a quick switch. */
-  private recentRow(seat: number): string {
-    const decks = recentDecks(seat).map((id) => deckById(id)).filter((d): d is SavedDeck => !!d);
-    if (!decks.length) return '';
-    const current = this.seats[seat].deckId;
-    return `<div class="seat-recent" aria-label="Recent decks">${decks
-      .map((d) => `<button class="recent-deck ${d.id === current ? 'on' : ''}" data-act="seat-recent" data-arg="${seat}:${d.id}" title="${esc(d.name)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">${deckCover(d)}<span>${esc(d.name.toLowerCase())}</span></button>`)
-      .join('')}</div>`;
+  /**
+   * A seat's decks, as a strip of little deck boxes down its right side: its deck and the last ones it
+   * played (three in all), and a way into every deck.
+   */
+  private seatDecks(seat: number): string {
+    const current = deckById(this.seats[seat].deckId) ?? PRESETS[seat];
+    const recent = recentDecks(seat).map((id) => deckById(id)).filter((d): d is SavedDeck => !!d);
+    const decks = (recent.some((d) => d.id === current.id) ? recent : [current, ...recent]).slice(0, 3);
+    const box = (d: SavedDeck) => `
+      <button class="lobby-deck ${d.id === current.id ? 'on' : ''}" data-act="seat-recent" data-arg="${seat}:${d.id}" title="${esc(d.name)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">
+        <span class="deck-box"><span class="deck-box-top"></span><span class="deck-box-side"></span><span class="deck-box-front">${deckCover(d)}</span></span>
+      </button>`;
+    return `<div class="seat-decks">${decks.map(box).join('')}<button class="lobby-deck-all" data-act="seat-deck" data-arg="${seat}" title="Choose from all your decks">all decks</button></div>`;
   }
 
   /** Choosing a seat's deck: every deck as a deck box; tap one to take it. */
