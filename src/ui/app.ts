@@ -443,7 +443,7 @@ export class App {
       const card = (e.target as HTMLElement).closest<HTMLElement>('[data-card]');
       if (!card) return;
       e.preventDefault();
-      this.zoom(card.dataset.card!);
+      this.zoom(card.dataset.card!, card.closest('.tableau') ? card.dataset.uid : undefined);
     });
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('keyup', (e) => {
@@ -2485,8 +2485,9 @@ export class App {
   }
 
   /** Read a card large: in a game, the card sheet; elsewhere, a zoomed view over the menu. */
-  private zoom(defId: string) {
-    if (this.screen === 'game' && this.state) this.sheet = { kind: 'card', defId };
+  private zoom(defId: string, table?: string) {
+    // (A card in play shows as it stands: its defence, stability and changed numbers.)
+    if (this.screen === 'game' && this.state) this.sheet = { kind: 'card', defId, table };
     else if (this.screen === 'menu') this.zoomed = defId;
     else return;
     sound.hover();
@@ -3236,7 +3237,7 @@ export class App {
         <div class="card-glyph">${cardArtLite(def, true)}</div>
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${boost ? `<span class="resonance">+${boost}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardTextHtml(def.text)}</div>
+        <div class="card-text">${cardTextHtml(def.text, c?.choice, false, owner && c ? this.liveNumbers(c, { owner }) : {})}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </div>`;
   }
