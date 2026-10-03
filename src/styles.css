@@ -1986,15 +1986,51 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .db-list-body { align-items: start; overflow-y: auto; }
 .db-list { display: grid; gap: 8px; width: min(760px, 100%); justify-self: center; padding-bottom: 8px; }
 .db-list .section-label { justify-self: start; margin-top: 4px; }
-.db-deck {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center;
-  padding: 8px 12px; border-radius: 14px; background: linear-gradient(180deg, #fff, #f6f6f4); border: 1px solid #fff; box-shadow: 0 6px 18px rgba(80, 84, 100, 0.1);
+/* The deck list: a grid of deck boxes, each a little 3D box in its race's colour with its hero on the front. */
+.db-boxes {
+  --bw: clamp(88px, calc(30 * var(--vh)), 150px);
+  display: grid; grid-template-columns: repeat(auto-fill, var(--bw)); justify-content: start;
+  gap: clamp(12px, calc(3.5 * var(--vh)), 22px) clamp(16px, calc(2.6 * var(--vw)), 28px); padding: 8px 14px 14px 0;
 }
+.db-deck { display: grid; justify-items: center; gap: 6px; padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; outline: none; }
 .db-deck-bad { opacity: 0.7; }
-.db-deck .fav { width: clamp(28px, calc(8 * var(--vh)), 40px); height: auto; }
-.db-deck-info { display: grid; gap: 2px; min-width: 0; }
-.db-deck-info b { font-family: var(--display); font-weight: 500; font-size: clamp(0.6rem, calc(2.4 * var(--vh)), 0.8rem); letter-spacing: 0.14em; text-transform: uppercase; }
-.db-deck-info small { font-size: clamp(0.56rem, calc(2 * var(--vh)), 0.7rem); color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deck-box {
+  --d: calc(var(--bw) * 0.08); /* the box's depth */
+  position: relative; width: 100%; aspect-ratio: 0.72; margin: var(--d) var(--d) 0 0;
+  transition: transform 0.2s ease;
+}
+.deck-box-front {
+  position: absolute; inset: 0; z-index: 2; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; align-items: center; gap: 2px;
+  padding: 14% 8% 9%; border-radius: 8px; text-align: center;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--dc) 22%, #fff), color-mix(in srgb, var(--dc) 55%, #4b5466) 120%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55), inset 0 -18px 30px rgba(30, 34, 44, 0.12), 0 14px 24px rgba(60, 64, 80, 0.22);
+}
+/* The lid and the right side, drawn as slanted faces behind the front. */
+.deck-box-top, .deck-box-side { position: absolute; z-index: 1; pointer-events: none; }
+.deck-box-top {
+  left: 0; right: 0; top: calc(var(--d) * -1); height: var(--d); border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dc) 15%, #fff), color-mix(in srgb, var(--dc) 35%, #fff));
+  transform-origin: bottom left; transform: skewX(-45deg); transform-origin: 0 100%;
+}
+.deck-box-side {
+  top: 0; bottom: 0; right: calc(var(--d) * -1); width: var(--d); border-radius: 0 6px 6px 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--dc) 60%, #4b5466), color-mix(in srgb, var(--dc) 40%, #3a4150));
+  transform: skewY(-45deg); transform-origin: 0 0;
+}
+.deck-box-cover {
+  width: 72%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; align-self: center;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 0 4px color-mix(in srgb, var(--dc) 70%, #fff), 0 6px 14px rgba(30, 34, 44, 0.3);
+  background: #fff; display: grid; place-items: center;
+}
+.deck-box-cover .art-wrap, .deck-box-cover .art-frame { display: block; width: 100%; height: 100%; border-radius: 50%; }
+.deck-box-cover .art { width: 100%; height: 100%; object-fit: cover; display: block; }
+.deck-box-cover .fav { width: 70%; height: auto; }
+.deck-box-name { font-family: var(--display); font-weight: 500; font-size: clamp(0.5rem, calc(2.1 * var(--vh)), 0.72rem); letter-spacing: 0.14em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 3px rgba(30, 34, 44, 0.45); line-height: 1.25; margin-top: 8%; }
+.deck-box-race { font-size: clamp(0.45rem, calc(1.7 * var(--vh)), 0.58rem); letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); }
+.db-deck .pill-btn { padding: 4px 10px; font-size: clamp(0.45rem, calc(1.7 * var(--vh)), 0.6rem); }
+.db-deck-sub { font-size: clamp(0.5rem, calc(1.8 * var(--vh)), 0.62rem); color: var(--ink-soft); white-space: nowrap; }
+@media (hover: hover) { .db-deck-open:hover .deck-box { transform: translateY(-4px); } }
+.db-deck-open:focus-visible .deck-box-front { box-shadow: 0 0 0 2px #d4a52a, 0 14px 24px rgba(60, 64, 80, 0.22); }
 .db-deck-actions { display: flex; gap: 6px; }
 .menu.setup-page.menu-decks { gap: clamp(6px, calc(2 * var(--vh)), 14px); }
 .db-editor { grid-template-columns: minmax(0, 1fr) clamp(170px, calc(26 * var(--vw)), 290px); gap: clamp(8px, calc(1.6 * var(--vw)), 16px); align-items: stretch; height: 100%; min-height: 0; width: 100%; max-width: none; }
@@ -3004,7 +3040,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* Deck list rows open the deck (a starter opens to look through; changes save as a copy). */
 .db-deck-open { cursor: pointer; transition: background 0.15s, box-shadow 0.15s; }
-@media (hover: hover) { .db-deck-open:hover { box-shadow: 0 0 0 1.5px rgba(140, 150, 175, 0.35), var(--shadow); } }
+
 .db-starter-note { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: #96690f; background: rgba(212, 165, 42, 0.12); border-radius: 999px; padding: 4px 10px; text-align: center; }
 /* What a card costs to play, in energy: one dot per energy, lit like the energy lights, in a column down the
    left of its picture (centred). Dots past the usual most energy in a day are amber. */
