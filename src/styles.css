@@ -2056,6 +2056,13 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .db-deck .pill-btn { padding: 4px 10px; font-size: clamp(0.45rem, calc(1.7 * var(--vh)), 0.6rem); }
 .db-deck-sub { font-size: clamp(0.5rem, calc(1.8 * var(--vh)), 0.62rem); color: var(--ink-soft); white-space: nowrap; }
 @media (hover: hover) { .db-deck-open:hover .deck-box { transform: translateY(-4px); } }
+/* ...and a tick on its front, so there's no doubt. */
+.db-deck-on .deck-box-front::after, .lobby-deck.on .deck-box-front::after {
+  content: '✓'; position: absolute; top: 6%; right: 7%; z-index: 3;
+  width: max(16px, calc(var(--bw, 120px) * 0.2)); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  background: #5d6a8c; color: #fff; font-size: max(10px, calc(var(--bw, 120px) * 0.12)); font-weight: 700; line-height: 1;
+  box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(40, 46, 70, 0.3);
+}
 /* The chosen deck: the box as one object, lifted and lit by a soft halo that follows its whole outline
    (front, lid and side together), in the slate blue that marks a choice elsewhere. */
 .deck-box { transition: transform 0.2s ease, filter 0.2s ease, opacity 0.2s ease; }
