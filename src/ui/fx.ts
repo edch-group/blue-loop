@@ -216,7 +216,7 @@ let beamIds = 0;
  * last, softly blurred, so together they shade like a glowing tube, with no hard edge anywhere.
  */
 const BEAM_LAYERS = [
-  { cls: 'bl-glow', scale: 2.6, head: 1.5 },
+  { cls: 'bl-glow', scale: 2.2, head: 1.35 },
   { cls: 'bl-rim', scale: 1.15, head: 1.08 },
   { cls: 'bl-body', scale: 0.92, head: 0.92 },
   { cls: 'bl-mid', scale: 0.62, head: 0.7 },
@@ -233,8 +233,8 @@ class Beam {
     const n = this.id;
     const layer = (l: (typeof BEAM_LAYERS)[number]) => `<g class="${l.cls}"><path class="bl-tail"/><path class="bl-head"/></g>`;
     this.svg.innerHTML = `<defs>
-        <filter id="bs${n}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.15"/></filter>
-        <filter id="bg${n}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5"/></filter>
+        <filter id="bs${n}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="0.55"/></filter>
+        <filter id="bg${n}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter>
         <linearGradient id="bf${n}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.28" stop-color="#fff" stop-opacity="1"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
         <mask id="bm${n}" maskUnits="userSpaceOnUse" x="-10000" y="-10000" width="30000" height="30000"><rect x="-10000" y="-10000" width="30000" height="30000" fill="url(#bf${n})"/></mask>
       </defs>
@@ -276,16 +276,17 @@ class Beam {
     fade.setAttribute('y1', y0.toFixed(1));
     fade.setAttribute('x2', hx.toFixed(1));
     fade.setAttribute('y2', hy.toFixed(1));
-    const W = Math.max(8, Math.min(13, len / 30));
+    const W = Math.max(5, Math.min(8, len / 45));
     const [hx0, hy0] = at(Math.max(0, end - 0.02));
     const ang = Math.atan2(hy - hy0, hx - hx0);
     const cos = Math.cos(ang), sin = Math.sin(ang);
     const pt = (fwd: number, side: number) => `${(hx + cos * fwd - sin * side).toFixed(1)} ${(hy + sin * fwd + cos * side).toFixed(1)}`;
-    // The head's length: the tail stops inside it, so the two run together.
-    const HL = W * 2.9;
-    const tailEnd = Math.max(0, end - (HL * 0.5) / len);
-    /** A ribbon along the arc, `scale` of the beam's width, pushed `shift` widths to one side. */
-    const ribbon = (scale: number, shift = 0) => {
+    // The head's length. Each layer of the line runs on into the middle of the head, where the head's own
+    // layer (wider there) covers its end, so line and head run together with no seam.
+    const HL = W * 2.6;
+    const tailEnd = end;
+    /** A ribbon along the arc, `scale` of the beam's width, pushed `shift` widths to one side (`fade`: narrowing to nothing at its end). */
+    const ribbon = (scale: number, shift = 0, fade = false) => {
       const n = 30;
       const left: string[] = [], right: string[] = [];
       for (let i = 0; i <= n; i++) {
@@ -295,18 +296,22 @@ class Beam {
         const tl = Math.hypot(qx - px, qy - py) || 1;
         const nx = -(qy - py) / tl, ny = (qx - px) / tl;
         // Fine at the start, swelling towards the head (eased, so most of the width comes late).
-        const full = (0.15 + 0.85 * (i / n) ** 1.3) * W;
+        const full = (0.15 + 0.85 * (i / n) ** 1.3) * W * (fade ? Math.min(1, (n - i) / 6) : 1);
         const w = full * scale * 0.5, o = full * shift;
         left.push(`${(px + nx * (o + w)).toFixed(1)} ${(py + ny * (o + w)).toFixed(1)}`);
         right.unshift(`${(px + nx * (o - w)).toFixed(1)} ${(py + ny * (o - w)).toFixed(1)}`);
       }
       return `M${left.join(' L')} L${right.join(' L')} Z`;
     };
-    /** The arrowhead, `k` of its full size: a rounded, swept-back point, so the layers bevel it. */
+    /**
+     * The arrowhead, `k` of its full size: a diamond, its widest points well forward and its back drawn out
+     * along the line (softly rounded, so the layers bevel it).
+     */
     const head = (k: number) => {
-      const l = HL * k, w = W * 1.75 * k;
-      const tip = pt(l * 0.62, 0);
-      return `M${tip} Q${pt(l * 0.05, w * 0.7)} ${pt(-l * 0.36, w)} Q${pt(-l * 0.26, w * 0.4)} ${pt(-l * 0.2, 0)} Q${pt(-l * 0.26, -w * 0.4)} ${pt(-l * 0.36, -w)} Q${pt(l * 0.05, -w * 0.7)} ${tip} Z`;
+      const l = HL * k, w = W * 1.15 * k;
+      const tip = pt(l * 0.55, 0), back = pt(-l * 0.45, 0);
+      const left = pt(-l * 0.02, w), right = pt(-l * 0.02, -w);
+      return `M${tip} Q${pt(l * 0.2, w * 0.62)} ${left} Q${pt(-l * 0.2, w * 0.55)} ${back} Q${pt(-l * 0.2, -w * 0.55)} ${right} Q${pt(l * 0.2, -w * 0.62)} ${tip} Z`;
     };
     for (const l of BEAM_LAYERS) {
       const g = this.svg.querySelector(`.${l.cls}`)!;
@@ -314,7 +319,7 @@ class Beam {
       g.querySelector('.bl-head')!.setAttribute('d', head(l.head));
     }
     // A highlight along the upper side of the tube, where the light catches it.
-    this.svg.querySelector('.bl-shine')!.setAttribute('d', ribbon(0.12, 0.2));
+    this.svg.querySelector('.bl-shine')!.setAttribute('d', ribbon(0.12, 0.2, true));
   }
 }
 
