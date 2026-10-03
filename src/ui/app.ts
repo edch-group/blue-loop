@@ -66,7 +66,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { allDecks, deckById, PRESETS } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardArtLite, cardGlyph, cardTextHtml, costBadge, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, symbolIcon, typeLine } from './glyphs';
+import { cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
@@ -214,6 +214,21 @@ interface MenuSeat {
  * leading it (top right of yours; the rival's is the same shape turned round, so its bump is bottom left).
  * Measured after each redraw, in the row's own (untransformed) layout.
  */
+/**
+ * The game's result floats flat above the tilted board (so nothing on the board can show through it),
+ * centred on the spot the board keeps for it between the two tableaus.
+ */
+function placeResult(root: HTMLElement) {
+  const result = root.querySelector<HTMLElement>('.game-result');
+  const anchor = root.querySelector<HTMLElement>('.result-anchor');
+  if (!result || !anchor) return;
+  const r = anchor.getBoundingClientRect();
+  // The page may be zoomed (CSS zoom), so screen pixels are turned back into the page's own.
+  const zoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
+  result.style.left = `${(r.left + r.width / 2) / zoom}px`;
+  result.style.top = `${(r.top + r.height / 2) / zoom}px`;
+}
+
 function frameTableaus(root: HTMLElement) {
   for (const row of root.querySelectorAll<HTMLElement>('.tableau-row')) {
     const svg = row.querySelector<SVGSVGElement>('.tableau-frame');
@@ -2174,6 +2189,7 @@ export class App {
     }
     animateSuns();
     frameTableaus(this.root);
+    placeResult(this.root);
     if (!this.press?.shown) this.preview.classList.remove('show');
   }
 
@@ -2657,6 +2673,7 @@ export class App {
         ${this.renderHud()}
         ${this.renderTurnControls()}
         ${this.renderStage()}
+        ${this.renderResult()}
         ${this.renderOverlay(s)}
       </main>`;
   }
@@ -2803,7 +2820,7 @@ export class App {
             <div class="board-floor"></div>
             <div class="board-star-slot"></div>
             ${rival ? this.renderTableau(rival, 'rival') : ''}
-            ${this.renderResult()}
+            ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
             ${this.renderTableau(me, 'mine')}
           </div>
@@ -3010,7 +3027,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `${costBadge(def)}${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<span class="card-stats"><b class="stat-def ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">◷${c.stability ?? 0}</b></span>`
+        ? `${opts.incoming !== undefined ? `<span class="aim-in" title="${opts.incoming ? `${opts.incoming} heat aimed at this card this dawn, after its defence: it wears away its stability` : 'Heat aimed at this card this dawn: its defence turns all of it aside'}">◎${opts.incoming}</span>` : ''}${opts.aimsAtCard ? '<span class="aim-out" title="Its heat is aimed at a rival card, not their sun">⌖</span>' : ''}<span class="card-stats"><b class="stat-def ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">⛨${cardDefence(opts.owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">◷${c.stability ?? 0}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
@@ -3044,7 +3061,7 @@ export class App {
     const boost = owner && c && boostable(c.defId) ? resonanceBonus(owner, c) : 0;
     const stats =
       owner && c
-        ? `${costBadge(cardDef(c.defId))}<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">◷${c.stability ?? 0}</b></span>`
+        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">◷${c.stability ?? 0}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `

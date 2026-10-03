@@ -293,19 +293,21 @@ function aimedCard(state: GameState, p: PlayerState, card: CardInstance): CardIn
 }
 
 /** Heat on a card wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
-function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string) {
+function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string, sting = false) {
   // Shields cover their owner's whole side, cards as well as the sun (pierce heat gets past them).
   const blocked = Math.min(pierce ? Math.floor(owner.shields * BALANCE.pierceShieldShare) : owner.shields, amount);
   owner.shields -= blocked;
   if (blocked > 0) {
     log(state, `${owner.name}'s shields absorb ${blocked} heat.`);
-    shieldsAnswer(state, owner, source, cardUid);
+    // (A sting answered by shields doesn't sting back.)
+    if (!sting) shieldsAnswer(state, owner, source, cardUid);
   }
   amount -= blocked;
   if (amount <= 0 || !owner.tableau.includes(victim)) return;
   // The card's defence (its slot's, and its own) takes the heat first (not pierce heat), and stays dented
   // that much for the rest of the day: more heat today finds less defence in its way.
-  const turned = pierce ? 0 : Math.min(amount, cardDefence(owner, victim));
+  // A sting ignores it too: the attacking card left its defences to attack.
+  const turned = pierce || sting ? 0 : Math.min(amount, cardDefence(owner, victim));
   if (turned > 0) {
     victim.dented = (victim.dented ?? 0) + turned;
     log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${turned} heat on its defence (defence ${cardDefence(owner, victim)} left today).`);
@@ -734,8 +736,15 @@ function shieldsAnswer(state: GameState, target: PlayerState, source: PlayerStat
     target.stung.ids.push(key);
     if (soothe > 0) cool(state, target, soothe);
     if (sting > 0) {
-      log(state, `${target.name}'s veil stings ${source.name} for ${sting}.`);
-      applyHeat(state, source, sting, target, true);
+      // The sting hits the card that attacked, past its defence; with no such card on the table, its owner's sun.
+      const attacker = cardUid ? source.tableau.find((c) => c.uid === cardUid) : undefined;
+      if (attacker) {
+        log(state, `${target.name}'s veil stings ${source.name}'s ${cardDef(attacker.defId).name} for ${sting}.`);
+        heatCard(state, source, attacker, sting, target, false, '', true);
+      } else {
+        log(state, `${target.name}'s veil stings ${source.name} for ${sting}.`);
+        applyHeat(state, source, sting, target, true);
+      }
     }
   }
 }

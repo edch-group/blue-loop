@@ -2146,11 +2146,13 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
 .card-back small { font-family: var(--display); letter-spacing: 0.24em; text-transform: uppercase; font-size: calc(var(--cw) * 0.07); }
 .stage-sprung .stage-caption { color: #a86d10; border-color: rgba(212, 149, 42, 0.6); box-shadow: 0 0 18px rgba(212, 149, 42, 0.4); }
 /* Game over: the result lies on the board between the tableaus, with the way out beneath it. */
-.board .game-result { grid-row: 2; }
+.board .result-anchor { grid-row: 2; align-self: center; justify-self: center; width: 1px; height: 1px; }
+/* The result floats flat over the board (placed by placeResult), centred between the two tableaus, so
+   nothing on the tilted board can show through it. */
 .game-result {
-  position: relative; z-index: 3; justify-self: center; align-self: center; display: grid; justify-items: center; gap: 6px;
+  position: fixed; z-index: 14; left: 50%; top: 45%; transform: translate(-50%, -50%) scale(0.75); justify-self: center; align-self: center; display: grid; justify-items: center; gap: 6px;
   padding: clamp(10px, calc(2 * var(--vh)), 18px) clamp(18px, calc(3 * var(--vw)), 36px); border-radius: 22px;
-  background: rgba(255, 255, 255, 0.92); box-shadow: 0 0 0 1px #fff, 0 10px 30px rgba(70, 76, 100, 0.18);
+  background: #fff; box-shadow: 0 0 0 1px #fff, 0 10px 30px rgba(70, 76, 100, 0.18);
   text-align: center; animation: result-in 0.6s cubic-bezier(.2,.8,.2,1);
 }
 .game-result h2 { margin: 0; font-family: var(--display); font-size: clamp(1.4rem, calc(7 * var(--vh)), 2.8rem); letter-spacing: 0.32em; text-transform: uppercase; color: var(--ink); }
@@ -2158,7 +2160,7 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
 .result-loss h2 { color: #6b7590; }
 .game-result p { margin: 0; color: var(--ink-soft); font-size: clamp(0.62rem, calc(2.3 * var(--vh)), 0.9rem); }
 .result-actions { display: flex; gap: 8px; }
-@keyframes result-in { from { opacity: 0; transform: translateY(10px) scale(0.96); } }
+@keyframes result-in { from { opacity: 0; transform: translate(-50%, -50%) translateY(10px) scale(0.7); } }
 .stage.stage-out { opacity: 0; transition: opacity 0.4s ease; }
 /* A rival's card waits here until you've read it. */
 .stage-confirm { pointer-events: auto; }
@@ -2931,21 +2933,25 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .db-deck-open { cursor: pointer; transition: background 0.15s, box-shadow 0.15s; }
 @media (hover: hover) { .db-deck-open:hover { box-shadow: 0 0 0 1.5px rgba(140, 150, 175, 0.35), var(--shadow); } }
 .db-starter-note { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: #96690f; background: rgba(212, 165, 42, 0.12); border-radius: 999px; padding: 4px 10px; text-align: center; }
-/* What a card costs to play, in energy: a green gem with the number, on its picture's top-left corner. */
-.card-cost {
-  position: absolute; z-index: 2; top: max(3px, calc(var(--cw, 100px) * 0.045)); left: max(3px, calc(var(--cw, 100px) * 0.055));
-  display: grid; place-items: center; width: max(14px, calc(var(--cw, 100px) * 0.17)); height: max(14px, calc(var(--cw, 100px) * 0.17));
-  border-radius: 50%; font-family: var(--display); font-weight: 800; font-size: max(8px, calc(var(--cw, 100px) * 0.1)); line-height: 1; color: #fff;
-  background: radial-gradient(circle at 35% 30%, #a8e8c0, #4fae78 60%, #2f8a58); border: 1.5px solid #fff; box-shadow: 0 1px 4px rgba(30, 60, 40, 0.4);
-  text-shadow: 0 1px 1px rgba(0, 60, 30, 0.5);
+/* What a card costs to play, in energy: one dot per energy, lit like the energy lights, in a column down the
+   left of its picture (centred). Dots past the usual most energy in a day are amber. */
+.cost-dots {
+  position: absolute; z-index: 2; left: calc(var(--cw, 100px) * 0.04); top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--cw, 100px) * 0.022);
 }
-.card-cost-0 { background: radial-gradient(circle at 35% 30%, #e6ecf2, #a7b3c2 60%, #7d8a9c); }
-.card-cost-3 { background: radial-gradient(circle at 35% 30%, #ffe3a0, #e0a640 60%, #b97a1a); }
-.card-cost-x { background: radial-gradient(circle at 35% 30%, #e7c8ff, #9a5fd6 60%, #6d3aa8); }
-.card-cost-4 { background: radial-gradient(circle at 35% 30%, #ffc0b0, #e2604a 60%, #b23a28); }
+.cost-dots i {
+  display: block; width: max(5px, calc(var(--cw, 100px) * 0.062)); height: max(5px, calc(var(--cw, 100px) * 0.062)); border-radius: 50%;
+  background: #7cc79a; border: max(1px, calc(var(--cw, 100px) * 0.009)) solid #fff;
+  box-shadow: 0 0 6px rgba(110, 196, 146, 0.75), 0 1px 2px rgba(20, 40, 30, 0.35);
+}
+.cost-dots i.over { background: #f2b544; box-shadow: 0 0 6px rgba(242, 181, 68, 0.75), 0 1px 2px rgba(60, 40, 10, 0.35); }
+.cost-dots .cost-x {
+  width: auto; height: auto; padding: 0.15em 0.35em; border-radius: 999px; font-style: normal; font-family: var(--display); font-weight: 800;
+  font-size: max(7px, calc(var(--cw, 100px) * 0.07)); line-height: 1; color: #fff;
+}
 /* Too costly to play right now: still a solid card, its colours muted and its cost gem greyed. */
 .hand .card.card-pricey .card-glyph, .hand .card.card-pricey .card-text { filter: saturate(0.4); }
-.hand .card.card-pricey .card-cost { background: radial-gradient(circle at 35% 30%, #e6e9ee, #a3aab5 60%, #7f8794); }
+.hand .card.card-pricey .cost-dots i { background: #a3aab5; box-shadow: 0 1px 2px rgba(20, 30, 40, 0.3); }
 
 /* Aiming. Heat headed for a card: a red reticle on it, with how much. A card aimed at a rival card: a crosshair. */
 .aim-in, .aim-out { position: absolute; z-index: 3; font-family: var(--display); font-weight: 800; line-height: 1; border-radius: 999px; pointer-events: auto; }
@@ -3055,7 +3061,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .board .mid-hint { grid-row: 2; }
 .mid-hint {
   position: relative; z-index: 3; justify-self: center; align-self: center; display: grid; justify-items: center; gap: 4px;
-  pointer-events: none; transform: translateZ(4px);
+  pointer-events: none; transform: translateZ(30px);
 }
 .mid-hint b {
   font-family: var(--display); font-weight: 500; text-transform: uppercase; letter-spacing: 0.32em;
@@ -3107,8 +3113,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-table .card-kind { font-size: max(4px, calc(var(--cw) * 0.036)); }
 .card-table .card-type { font-size: max(4px, calc(var(--cw) * 0.045)); padding: 0.2em 0.6em; }
 
-/* The picture's top-left corner curves round the cost gem that sits on it (the gem's radius: 0.17 / 2 of the
-   card's width), and the card's own top-left corner curves round the picture's, the same distance out. */
+/* The picture's top-left corner is well rounded, and the card's own top-left corner curves round it, the
+   same distance out. */
 .card:not(.card-landscape) .art-frame { border-top-left-radius: calc(var(--cw, 100px) * 0.085); }
 .card:not(.card-landscape) { border-top-left-radius: calc(var(--cw, 100px) * 0.14); }
 /* The type pill's word sits in its middle (the display face rides high in its line box otherwise). */

@@ -1,4 +1,4 @@
-import { baseStability, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseStability, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -139,7 +139,7 @@ export function cardGlyph(defId: string, kind: CardKind): string {
  * race). With `gem`, the rarity gem sits in a notch cut from its top corner.
  */
 export function cardArt(def: CardDef, gem = false): string {
-  return `<span class="art-wrap"><span class="art-frame ${gem ? 'art-notched' : ''}">${cardScene(def)}</span>${gem ? rarityGem(def) : ''}</span>`;
+  return `<span class="art-wrap"><span class="art-frame ${gem ? 'art-notched' : ''}">${cardScene(def)}</span>${gem ? rarityGem(def) + costDots(def) : ''}</span>`;
 }
 
 /** Each card's picture as an image (drawn once, then reused). */
@@ -159,7 +159,7 @@ function sceneImage(def: CardDef): string {
  * where hundreds of live pictures would make every redraw slow.
  */
 export function cardArtLite(def: CardDef, gem = false): string {
-  return `<span class="art-wrap"><span class="art-frame ${gem ? 'art-notched' : ''}">${sceneImage(def)}</span>${gem ? rarityGem(def) : ''}</span>`;
+  return `<span class="art-wrap"><span class="art-frame ${gem ? 'art-notched' : ''}">${sceneImage(def)}</span>${gem ? rarityGem(def) + costDots(def) : ''}</span>`;
 }
 
 const RARITY_TITLE: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly (one per deck)' };
@@ -267,14 +267,21 @@ document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad'
 
 /** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
 export function stabilityBadge(def: CardDef): string {
-  return costBadge(def) + (persists(def.id) ? `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your days, then fades into your discard pile">◷${baseStability(def.id)}</b></span>` : '');
+  return (persists(def.id) ? `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your days, then fades into your discard pile">◷${baseStability(def.id)}</b></span>` : '');
 }
 
 /** What a card costs to play, in energy: a green gem with the number, on its picture's top-left corner. */
-export function costBadge(def: CardDef): string {
-  if (def.spendAll) return '<span class="card-cost card-cost-x" title="Spends all your energy (at least 1)">X</span>';
+/**
+ * What a card costs to play, in energy, as the energy lights show it: one green dot per energy, in a column
+ * down the left of its picture. Dots past the usual most energy in a day (4) are amber: the extra a planet or
+ * a card gives. Free cards have none; a card that spends all your energy shows an X.
+ */
+export function costDots(def: CardDef): string {
+  if (def.spendAll) return '<span class="cost-dots" title="Spends all your energy (at least 1)"><i class="cost-x">X</i></span>';
   const n = cardCost(def.id);
-  return `<span class="card-cost card-cost-${n}" title="Costs ${n} energy to play">${n}</span>`;
+  if (n <= 0) return '';
+  const dots = Array.from({ length: n }, (_, i) => `<i${i >= BALANCE.maxPlays ? ' class="over"' : ''}></i>`).join('');
+  return `<span class="cost-dots" title="Costs ${n} energy to play">${dots}</span>`;
 }
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

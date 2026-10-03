@@ -372,26 +372,29 @@ describe('synergies', () => {
     expect(s.players[1].shields).toBe(3);
   });
 
-  it('Stinging Veil stings each attacking card once per turn', () => {
+  it('Stinging Veil stings each attacking card once per turn, on the card itself and past its defence', () => {
     let s = twoPlayer();
     const BALANCE_VEIL = 3; // Stinging Veil's sting
     // Ada's Overload Core, overheated, hits twice at the start of Ada's turn.
     const ada = s.players[0];
-    give(ada, ['overload_core'], 'tableau');
+    const [core] = give(ada, ['overload_core'], 'tableau');
+    core.stability = 6;
     ada.heat = 16;
     give(s.players[1], ['stinging_veil'], 'tableau');
     s = endTurn(s); // Bo's turn: Bo's shields are up when Ada's turn begins.
     s.players[1].shields = 10;
     s = endTurn(s);
     expect(s.players[1].shields).toBe(10 - 2 - 1);
-    expect(s.players[0].heat).toBe(16 + BALANCE_VEIL);
-    // Two different cards each get stung.
+    // One sting for the card's two hits, on the card (6 → 3, then -1 for the dawn), not on Ada's sun.
+    expect(s.players[0].heat).toBe(16);
+    expect(s.players[0].tableau.find((c) => c.uid === core.uid)?.stability).toBe(6 - BALANCE_VEIL - 1);
+    // A card played into the tableau is stung too: a Coronal Lance (stability 1) burns away.
     const me = activePlayer(s);
     me.playsLeft = 2;
-    give(me, ['coronal_lance', 'coronal_lance']);
+    give(me, ['coronal_lance']);
     s = play(s, 'coronal_lance');
-    s = play(s, 'coronal_lance');
-    expect(s.players[0].heat).toBe(16 + 3 * BALANCE_VEIL);
+    expect(s.players[0].tableau.some((c) => c.defId === 'coronal_lance')).toBe(false);
+    expect(s.players[0].heat).toBe(16);
   });
 });
 
