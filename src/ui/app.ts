@@ -2989,8 +2989,8 @@ export class App {
     // At the viewer's dawn, as they aim it: where each card's dawn heat is going, and (while one card is
     // being aimed) what its heat would leave of each rival card it could hit.
     const preview = new Map<string, { defence: number; stability: number }>();
-    // The cards heat is aimed at (your dawn's, or a staged card's): rings round their edges. (Not the sun:
-    // that is where heat goes by default.)
+    // What heat is aimed at (your dawn's, or a staged card's): rings round those cards' edges, and round the sun
+    // when a card was aimed at it on purpose (not by default).
     const targeted = new Set<string>();
     let sunTargeted = false;
     if (this.stage?.confirm && this.stage.target) targeted.add(this.stage.target);
