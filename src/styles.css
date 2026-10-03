@@ -2021,9 +2021,9 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .lobby-deck.on small { color: var(--ink); }
 .lobby-deck .deck-box { display: block; width: 100%; margin: 0; }
 .lobby-deck .deck-box-front::before { inset: 6%; border-radius: 3px; }
-.lobby-deck .deck-box-front { border-radius: 5px; padding: 0; display: grid; place-items: center; grid-template-rows: none; }
-.lobby-deck .deck-box-top { border-radius: 4px 4px 0 0; }
-.lobby-deck .deck-box-side { border-radius: 0 4px 4px 0; }
+.lobby-deck .deck-box-front { border-radius: 5px 1px 1px 5px; padding: 0; display: grid; place-items: center; grid-template-rows: none; }
+.lobby-deck .deck-box-top { border-radius: 4px 1px 0 0; }
+.lobby-deck .deck-box-side { border-radius: 0 1px 4px 0; }
 .lobby-deck .deck-box-cover { width: 68%; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--dc) 60%, #fff), 0 3px 8px rgba(20, 24, 34, 0.4); }
 .lobby-deck:not(.on) .deck-box { opacity: 0.72; }
 @media (hover: hover) { .lobby-deck:not(.on):hover .deck-box { opacity: 1; transform: translateY(-3px); } }
@@ -2032,6 +2032,11 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 
 /* ---------- Deck builder ---------- */
 .db-list-body { align-items: start; overflow-y: auto; }
+/* The deck lists have no footer: the list runs to the foot of the screen and scrolls off its edge. */
+.menu.setup-page:has(> .db-list-body) { grid-template-rows: auto minmax(0, 1fr); padding-bottom: 0; }
+.menu.setup-page > .db-list-body { align-self: stretch; height: 100%; width: 100%; }
+.db-list-body .db-list { padding-bottom: max(18px, var(--sa-b)); }
+.setup-top > .btn-new-deck { justify-self: end; }
 .db-list { display: grid; gap: 8px; width: min(760px, 100%); justify-self: center; padding-bottom: 8px; }
 .db-list .section-label { justify-self: start; margin-top: 4px; }
 /* The deck list: a grid of deck boxes, each a little 3D box in its race's colour with its hero on the front. */
@@ -2049,7 +2054,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 }
 .deck-box-front {
   position: absolute; inset: 0; z-index: 2; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; align-items: center; gap: 2px;
-  padding: 14% 8% 9%; border-radius: 8px; text-align: center;
+  padding: 14% 8% 9%; border-radius: 8px 1px 1px 8px; text-align: center;
   /* The Command cards' slate stock, tinted by the deck's race, with a band of the race's colour just
      under the lid and a thin printed frame inside the edge. */
   background:
@@ -2066,12 +2071,13 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 /* The lid and the right side, drawn as slanted faces behind the front. */
 .deck-box-top, .deck-box-side { position: absolute; z-index: 1; pointer-events: none; }
 .deck-box-top {
-  left: 0; right: 0; top: calc(var(--d) * -1); height: var(--d); border-radius: 6px 6px 0 0;
+  /* (Square where it meets the side and the front, so the three faces join with no gap.) */
+  left: 0; right: 0; top: calc(var(--d) * -1); height: var(--d); border-radius: 6px 1px 0 0;
   background: linear-gradient(180deg, color-mix(in srgb, var(--dc) 14%, #9aa3b5), color-mix(in srgb, var(--dc) 14%, #7a8498));
   transform-origin: bottom left; transform: skewX(-45deg); transform-origin: 0 100%;
 }
 .deck-box-side {
-  top: 0; bottom: 0; right: calc(var(--d) * -1); width: var(--d); border-radius: 0 6px 6px 0;
+  top: 0; bottom: 0; right: calc(var(--d) * -1); width: var(--d); border-radius: 0 1px 6px 0;
   background: linear-gradient(90deg, color-mix(in srgb, var(--dc) 12%, #434b5b), color-mix(in srgb, var(--dc) 8%, #343a47));
   transform: skewY(-45deg); transform-origin: 0 0;
 }

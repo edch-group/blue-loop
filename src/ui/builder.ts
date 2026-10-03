@@ -240,12 +240,12 @@ export class DeckBuilder {
     return this.editing ? this.renderEditor(this.editing) : this.renderList();
   }
 
-  private header(title: string): string {
+  private header(title: string, action = '<span></span>'): string {
     return `
       <header class="setup-top">
         <button class="btn btn-small" data-act="db-back">‹ back</button>
         <h2 class="menu-heading">${title}</h2>
-        <span></span>
+        ${action}
       </header>`;
   }
 
@@ -260,7 +260,7 @@ export class DeckBuilder {
       });
     const mine = customDecks();
     return `
-      ${this.header('decks')}
+      ${this.header('decks', '<button class="btn btn-small btn-new-deck" data-act="db-new">+ new deck</button>')}
       <div class="setup-body db-list-body">
         <div class="db-list">
           <div class="section-label">race starters</div>
@@ -268,8 +268,7 @@ export class DeckBuilder {
           <div class="section-label">your decks</div>
           ${mine.length ? `<div class="db-boxes">${mine.map(box).join('')}</div>` : '<p class="muted">No decks of your own yet. Start a new one, or copy a starter to change it.</p>'}
         </div>
-      </div>
-      <footer class="setup-foot"><button class="btn-primary" data-act="db-new">new deck</button></footer>`;
+      </div>`;
   }
 
   private renderEditor(d: SavedDeck): string {

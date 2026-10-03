@@ -24,8 +24,12 @@ import { ScreenOrientation } from '@capacitor/screen-orientation';
 export const VIEWPORT_EVENT = 'bl-viewport';
 
 let rotated = false;
-/** Whether the current page must be landscape (the landing and sign-in pages need not be). */
-let forced = true;
+/**
+ * Whether the current page must be landscape (the landing and sign-in pages need not be). Off until
+ * the app's first page says otherwise: on, an upright phone would flash the "turn sideways" screen
+ * (and a landscape layout) while the fonts load, then jump to the landing page.
+ */
+let forced = false;
 let remeasure = () => undefined as void;
 // (An earlier build let players turn the page sideways themselves, with no way back: forget that choice.)
 try {

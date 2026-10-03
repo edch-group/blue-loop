@@ -3091,8 +3091,7 @@ export class App {
           <div class="db-boxes">${PRESETS.map(box).join('')}</div>
           ${mine.length ? `<div class="section-label">your decks</div><div class="db-boxes">${mine.map(box).join('')}</div>` : ''}
         </div>
-      </div>
-      <footer class="setup-foot"></footer>`;
+      </div>`;
   }
 
   /** Online 1v1: create a room or join one; then the room code, the invite and who is in. */
