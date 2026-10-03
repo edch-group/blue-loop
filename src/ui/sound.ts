@@ -5,8 +5,8 @@ import { markDirty } from './account';
  * Every effect uses soft waveforms, slow attacks and a long shared "space"
  * reverb, so actions swell and bloom rather than click. A generative ambient
  * score (drone, slowly shifting pad chords and distant chimes; just synths,
- * no noise) plays underneath the menus; matches get a darker, pulsing take on
- * it, opened by the sound of a ship powering down. Each effect is one method, so recorded audio can replace
+ * no noise) plays underneath the menus; matches get an understated, driving
+ * bass and heartbeat, opened by the sound of a ship powering down. Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -43,12 +43,11 @@ const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 export type MusicScene = 'ambient' | 'battle';
 
 // ---- Battle theme -----------------------------------------------------------
-// The ambient score made tense rather than replaced: the same kind of breathing
-// drone (now gliding through B minor chords), distant low drums in a 3-3-2 feel
-// that come and go, and a three-note bell motif echoing into the hall. Each
-// 16-bar loop drifts, builds a pulse, rises, and drops back with a boom.
+// No melody: an understated, driving bass and a heartbeat kick that sit under
+// the board's own sounds. The bass pulses in eighths through one slowly
+// breathing filter, with a dark echo and a little of the hall around it.
 
-const BATTLE_BPM = 88;
+const BATTLE_BPM = 96;
 const NOTE_INDEX: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
 const midi = (name: string) => {
   const m = /^([A-G]#?)(-?\d)$/.exec(name)!;
@@ -56,37 +55,10 @@ const midi = (name: string) => {
 };
 const hz = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
-type BattlePart = 'drift' | 'pulse' | 'rise';
-/**
- * Per bar: which part of the arc it is, the drone chord (low to high; the drone glides to it), and the bell
- * motif, if any (three notes, a dotted eighth apart, like the drums).
- */
-const BATTLE_BARS: { part: BattlePart; chord: string[]; motif?: string[] }[] = [
-  { part: 'drift', chord: ['B1', 'F#2', 'B2', 'D3'] },
-  { part: 'drift', chord: ['B1', 'F#2', 'B2', 'D3'], motif: ['F#5', 'D5', 'B4'] },
-  { part: 'drift', chord: ['G1', 'D2', 'B2', 'D3'] },
-  { part: 'drift', chord: ['G1', 'D2', 'B2', 'D3'], motif: ['G5', 'D5', 'B4'] },
-  { part: 'pulse', chord: ['B1', 'F#2', 'B2', 'D3'], motif: ['F#5', 'D5', 'B4'] },
-  { part: 'pulse', chord: ['B1', 'F#2', 'B2', 'D3'] },
-  { part: 'pulse', chord: ['G1', 'D2', 'B2', 'D3'], motif: ['G5', 'D5', 'B4'] },
-  { part: 'pulse', chord: ['G1', 'D2', 'B2', 'D3'] },
-  { part: 'pulse', chord: ['E1', 'B1', 'G2', 'B2'], motif: ['B5', 'G5', 'E5'] },
-  { part: 'pulse', chord: ['E1', 'B1', 'G2', 'B2'] },
-  { part: 'pulse', chord: ['F#1', 'C#2', 'A#2', 'C#3'], motif: ['A#4', 'C#5', 'F#5'] },
-  { part: 'pulse', chord: ['F#1', 'C#2', 'A#2', 'E3'] },
-  { part: 'rise', chord: ['G1', 'D2', 'B2', 'D3'], motif: ['D6', 'B5', 'G5'] },
-  { part: 'rise', chord: ['A1', 'E2', 'C#3', 'E3'], motif: ['E6', 'C#6', 'A5'] },
-  { part: 'rise', chord: ['F#1', 'C#2', 'A#2', 'C#3'], motif: ['C#6', 'A#5', 'F#5'] },
-  { part: 'rise', chord: ['F#1', 'C#2', 'A#2', 'E3'] },
-];
-/** Drum patterns (sixteenth steps): 3-3-3-3-2-2 and sparser cousins of it. */
-const DRUMS = {
-  sparse: [0, 6, 10],
-  middle: [0, 3, 6, 10, 12],
-  full: [0, 3, 6, 9, 12, 14],
-};
-/** B minor pentatonic glints for the far-off chimes (as in the menus, but darker). */
-const BATTLE_CHIMES = ['B5', 'D6', 'E6', 'F#6', 'A6', 'B6'].map((n) => hz(midi(n)));
+/** The bass root per bar: two bars on each, B minor (Bm G Em F#, then G A Bm F#). */
+const BATTLE_ROOTS = ['B1', 'B1', 'G1', 'G1', 'E1', 'E1', 'F#1', 'F#1', 'G1', 'G1', 'A1', 'A1', 'B1', 'B1', 'F#1', 'F#1'].map(midi);
+/** Accents across the bar's eighths: it drives, but stays soft. */
+const BASS_ACCENTS = [1, 0.5, 0.7, 0.5, 0.85, 0.5, 0.7, 0.6];
 
 class SoundBoard {
   private ctx: AudioContext | null = null;
@@ -619,160 +591,81 @@ class SoundBoard {
     this.breath({ dur: 1.2, freq: 500, to: 80, type: 'lowpass', q: 0.8, gain: 0.05, attack: 0.01, delay: d + 3.1, out });
   }
 
-  /** A distant low drum: a falling sine body, a little skin, a puff of air. */
-  private drum(at: number, gain: number, out: AudioNode, pitch = 82) {
-    const d = this.until(at);
-    this.voice(pitch, { dur: 0.9, attack: 0.004, gain, to: pitch * 0.55, cutoff: 320, delay: d, out });
-    this.voice(pitch * 2.3, { dur: 0.18, attack: 0.002, gain: gain * 0.25, to: pitch * 1.4, type: 'triangle', cutoff: 900, delay: d, out });
-    this.breath({ dur: 0.3, freq: 600, to: 160, type: 'lowpass', q: 0.7, gain: gain * 0.35, attack: 0.004, delay: d, out });
-  }
-
-  /** A glass bell for the motif and chimes: fundamental and a quiet inharmonic partial. */
-  private glass(at: number, freq: number, gain: number, out: AudioNode, dur = 3) {
-    const d = this.until(at);
-    this.voice(freq, { dur, attack: 0.015, gain, vibrato: 1.5, delay: d, out });
-    this.voice(freq * 2.76, { dur: dur * 0.4, attack: 0.01, gain: gain * 0.22, delay: d, out });
-  }
-
   /**
-   * The battle theme: the ship powers down, the drone rises out of the silence, and a 16-bar arc loops (drift,
-   * pulse, rise, a beat of silence, then a boom back to the drift). Bars are scheduled just ahead of the clock.
+   * The battle theme: the ship powers down, the bass and heartbeat rise out of the dark, then a 16-bar loop of
+   * them. Bars are scheduled just ahead of the audio clock.
    */
   private battleScore(ctx: AudioContext, bus: GainNode, lush: GainNode) {
     const step = 60 / BATTLE_BPM / 4;
     const barLen = step * 16;
     const t0 = ctx.currentTime + 0.05;
-    const start = t0 + 3.6; // after the power-down
+    const start = t0 + 3.9; // after the power-down
 
-    // The motif's long dotted-eighth echo (in time with the drums), darker on each repeat.
-    const bells = ctx.createGain();
+    // The bass runs through one shared filter that breathes slowly (as the menu drone does) and opens a little in
+    // the second half of the loop, then out dry, into the hall, and into a dark dotted-eighth echo.
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 1.6;
+    filter.frequency.setValueAtTime(140, start);
+    filter.frequency.linearRampToValueAtTime(320, start + barLen * 2);
+    const lfo = ctx.createOscillator();
+    const lfoDepth = ctx.createGain();
+    lfo.frequency.value = 0.05;
+    lfoDepth.gain.value = 110;
+    lfo.connect(lfoDepth).connect(filter.frequency);
+    const hall = ctx.createGain();
+    hall.gain.value = 0.4;
     const echo = ctx.createDelay(2);
     echo.delayTime.value = step * 3;
     const feedback = ctx.createGain();
-    feedback.gain.value = 0.42;
+    feedback.gain.value = 0.3;
     const tone = ctx.createBiquadFilter();
     tone.type = 'lowpass';
-    tone.frequency.value = 1800;
+    tone.frequency.value = 500;
     const wet = ctx.createGain();
-    wet.gain.value = 0.5;
-    bells.connect(lush);
-    bells.connect(echo).connect(tone).connect(feedback).connect(echo);
-    tone.connect(wet).connect(lush);
-
-    // The drone: per chord tone, a pair of detuned triangles and a faint saw for body, all through one slowly
-    // breathing lowpass (as in the menus). It swells up out of the power-down and glides between chords.
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.Q.value = 0.9;
-    filter.frequency.setValueAtTime(160, start);
-    filter.frequency.linearRampToValueAtTime(420, start + barLen * 2);
-    const lfo = ctx.createOscillator();
-    const lfoDepth = ctx.createGain();
-    lfo.frequency.value = 0.06;
-    lfoDepth.gain.value = 140;
-    lfo.connect(lfoDepth).connect(filter.frequency);
-    const droneGain = ctx.createGain();
-    droneGain.gain.setValueAtTime(0.0001, t0);
-    droneGain.gain.setValueAtTime(0.0001, start - 0.5);
-    droneGain.gain.exponentialRampToValueAtTime(0.6, start + barLen * 1.5);
-    filter.connect(droneGain).connect(lush);
-    const first = BATTLE_BARS[0].chord.map((n) => hz(midi(n) + 12));
-    const drones = first.map((f, i) => {
-      const oscs = [-7, 7, 0].map((detune, k) => {
-        const o = ctx.createOscillator();
-        o.type = k < 2 ? 'triangle' : 'sawtooth';
-        o.frequency.value = f;
-        o.detune.value = detune + (i % 2 ? 3 : -3);
-        const g = ctx.createGain();
-        g.gain.value = (k < 2 ? 0.03 : 0.006) * (i === 0 ? 1.2 : 1 - i * 0.12);
-        o.connect(g).connect(filter);
-        o.start(t0);
-        return o;
-      });
-      return oscs;
-    });
+    wet.gain.value = 0.3;
+    filter.connect(bus);
+    filter.connect(hall).connect(lush);
+    filter.connect(echo).connect(tone).connect(feedback).connect(echo);
+    tone.connect(wet).connect(bus);
     lfo.start(t0);
-    this.musicNodes = [bells, echo, feedback, tone, wet, filter, lfo, lfoDepth, droneGain, ...drones.flat()];
-    const glide = (at: number, chord: string[]) =>
-      chord.forEach((n, i) => drones[i].forEach((o) => o.frequency.setTargetAtTime(hz(midi(n) + 12), at, 0.5)));
-    /** The drone's brightness: dark while drifting, opening through the pulse and rise. */
-    const open = (at: number, to: number, over: number) => {
-      filter.frequency.setValueAtTime(filter.frequency.value, at);
-      filter.frequency.linearRampToValueAtTime(to, at + over);
-    };
-
-    /** The drone's loudness follows the arc too. */
-    const swell = (at: number, to: number, time: number) => droneGain.gain.setTargetAtTime(to, at, time);
-
-    const playBar = (index: number, at: number, firstPass: boolean) => {
-      const b = BATTLE_BARS[index];
-      const s = (n: number) => at + n * step;
-      if (index > 0 || !firstPass) glide(at, b.chord);
-      if (index === 0 && !firstPass) swell(at, 0.6, 1.5);
-      if (index === 4) swell(at, 0.85, barLen);
-      if (index === 12) swell(at, 1.4, barLen * 1.5);
-
-      if (b.part === 'drift') {
-        // One deep drum to start each pair of bars, nothing else: room for the game.
-        if (index % 2 === 0) this.drum(at, 0.1, bus, 62);
-        if (index === 0) open(at, 420, barLen * 2);
-      } else if (b.part === 'pulse') {
-        // The drums come in sparse and fill out; every fourth bar ends on a short roll into the next.
-        const n = index - 4;
-        const pattern = n < 2 ? DRUMS.sparse : n < 6 ? (n % 2 ? DRUMS.full : DRUMS.middle) : DRUMS.full;
-        const roll = n % 4 === 3;
-        pattern.forEach((p, i) => {
-          if (roll && p >= 12) return;
-          this.drum(s(p), (i === 0 ? 0.12 : 0.075) + n * 0.004, bus, i === 0 ? 70 : 82);
-        });
-        if (roll) [12, 13, 14, 15].forEach((p, i) => this.drum(s(p), 0.04 + i * 0.02, bus, 96 - i * 4));
-        if (n === 0) open(at, 650, barLen * 8);
-      } else {
-        // The rise: full drums with a high tom answering, a noise riser and a climbing tone across four bars,
-        // then the last beat falls silent before the boom.
-        const last = index === BATTLE_BARS.length - 1;
-        DRUMS.full.forEach((p, i) => {
-          if (last && p >= 12) return;
-          this.drum(s(p), i === 0 ? 0.13 : 0.085, bus, i === 0 ? 70 : 82);
-        });
-        [2, 7, 11].forEach((p) => this.drum(s(p), 0.035, bus, 140));
-        if (index === 12) {
-          open(at, 1400, barLen * 3.75);
-          this.breath({ dur: barLen * 3.75, freq: 200, to: 4200, type: 'bandpass', q: 1.6, gain: 0.05, attack: barLen * 3.7, delay: this.until(at), out: lush });
-          this.voice(hz(midi('F#3')), { dur: barLen * 3.75, attack: barLen * 3.6, gain: 0.018, to: hz(midi('F#5')), type: 'triangle', cutoff: 1800, delay: this.until(at), out: lush });
-        }
-        if (last) {
-          open(s(12), 300, step * 4);
-          swell(s(12), 0.15, 0.12);
-        }
-      }
-
-      // The motif, ringing through the echo.
-      b.motif?.forEach((n, i) => this.glass(s(i * 3), hz(midi(n)), b.part === 'drift' ? 0.026 : 0.032, bells));
-      // Far-off chimes, now and then, as in the menus.
-      if (Math.random() < 0.6) this.glass(s(4 + Math.floor(Math.random() * 10)), BATTLE_CHIMES[Math.floor(Math.random() * BATTLE_CHIMES.length)], 0.009, bells, 4);
-    };
-
-    /** Back at the top after a rise: a boom and a bloom. */
-    const drop = (at: number) => {
-      const d = this.until(at);
-      this.voice(49, { dur: 3, attack: 0.008, gain: 0.2, to: 30, cutoff: 260, delay: d, out: bus });
-      this.breath({ dur: 2.4, freq: 1600, to: 70, type: 'lowpass', q: 0.9, gain: 0.08, attack: 0.02, delay: d, out: lush });
-      ['B4', 'F#5', 'B5', 'D6'].forEach((n, i) => this.glass(at + i * 0.09, hz(midi(n)), 0.022, bells, 4));
-    };
+    this.musicNodes = [filter, lfo, lfoDepth, hall, echo, feedback, tone, wet];
 
     this.powerDown(t0, lush);
+
+    const playBar = (index: number, at: number) => {
+      const root = BATTLE_ROOTS[index] + 12;
+      // Heartbeat: a soft, low double thump on one and three.
+      [0, 3, 8, 11].forEach((s, i) =>
+        this.voice(i % 2 ? 58 : 66, { dur: 0.5, attack: 0.006, gain: i % 2 ? 0.07 : 0.11, to: 36, cutoff: 160, delay: this.until(at + s * step), out: bus }),
+      );
+      // Bass: soft eighths on the root (rising a fifth on the last), a detuned pair long enough to overlap, so
+      // the pulse blurs into a hum; a sine an octave down under each beat.
+      if (index === 8) {
+        filter.frequency.setValueAtTime(filter.frequency.value, at);
+        filter.frequency.linearRampToValueAtTime(440, at + barLen * 2);
+      } else if (index === 0 && at > start + 1) {
+        filter.frequency.setValueAtTime(filter.frequency.value, at);
+        filter.frequency.linearRampToValueAtTime(320, at + barLen);
+      }
+      BASS_ACCENTS.forEach((accent, e) => {
+        const n = e === 7 ? root + 7 : root;
+        const d = this.until(at + e * 2 * step);
+        const opts = { dur: step * 3, attack: 0.025, gain: 0.1 * accent, type: 'triangle' as OscillatorType, cutoff: 2000, delay: d, out: filter };
+        this.voice(hz(n), { ...opts, detune: -6 });
+        this.voice(hz(n), { ...opts, detune: 6, gain: 0.07 * accent });
+        if (e % 2 === 0) this.voice(hz(n - 12), { dur: step * 3.5, attack: 0.02, gain: 0.05 * accent, cutoff: 140, delay: d, out: bus });
+      });
+    };
+
     let next = start;
     let index = 0;
-    let firstPass = true;
     const tick = () => {
       if (this.playing !== 'battle') return;
       while (next < ctx.currentTime + 0.5) {
-        if (index === 0 && !firstPass) drop(next);
-        playBar(index, next, firstPass);
+        playBar(index, next);
         next += barLen;
-        index = (index + 1) % BATTLE_BARS.length;
-        if (index === 0) firstPass = false;
+        index = (index + 1) % BATTLE_ROOTS.length;
       }
     };
     tick();
