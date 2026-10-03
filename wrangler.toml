@@ -23,3 +23,10 @@ class_name = "Ladder"
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["Ladder"]
+
+# Accounts: sign-in, sessions and each account's saved progress (see server/accounts.ts, migrations/).
+[[d1_databases]]
+binding = "DB"
+database_name = "blue-loop-accounts"
+database_id = "05efecd8-80f3-4419-9434-8a56ca95ca14"
+migrations_dir = "migrations"

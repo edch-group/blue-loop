@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { emptyLadder, enqueue, leaveQueue, recordResult, standing, type LadderData, type LadderPlayer, type Queued } from './ladder';
 import { rankName } from '../src/engine/progression';
 import { emptyRoom, handle, views, type ClientMessage, type RankedReport, type RoomData, type ServerMessage } from './room';
+import { accountOf, handleAccounts } from './accounts';
 
 /**
  * The Blue Loop server: the game's static files (built by Vite into dist/)
@@ -12,6 +13,19 @@ interface Env {
   ROOMS: DurableObjectNamespace<Room>;
   LADDER: DurableObjectNamespace<Ladder>;
   ASSETS: Fetcher;
+  DB: D1Database;
+}
+
+/**
+ * A WebSocket upgrade, passed on to its Durable Object with the signed-in account (if any) in a header
+ * the client can't forge (any copy the client sent is dropped). Rooms and the ladder trust only this.
+ */
+async function withAccount(request: Request, env: Env): Promise<Request> {
+  const headers = new Headers(request.headers);
+  headers.delete('X-Account-Id');
+  const account = await accountOf(request, env);
+  if (account) headers.set('X-Account-Id', account.id);
+  return new Request(request, { headers });
 }
 
 /** The one ladder for the whole game. */
@@ -20,14 +34,15 @@ const ladderOf = (env: Env) => env.LADDER.get(env.LADDER.idFromName('ladder'));
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname.startsWith('/api/')) return handleAccounts(request, env);
     const m = /^\/room\/([A-Z0-9]{4,8})$/.exec(url.pathname);
     if (m) {
       if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket.', { status: 426 });
-      return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(request);
+      return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(await withAccount(request, env));
     }
     if (url.pathname === '/ladder') {
       if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket.', { status: 426 });
-      return ladderOf(env).fetch(request);
+      return ladderOf(env).fetch(await withAccount(request, env));
     }
     return env.ASSETS.fetch(request);
   },
@@ -55,7 +70,7 @@ export class Room extends DurableObject<Env> {
     }
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
-    pair[1].serializeAttachment({ seat: null });
+    pair[1].serializeAttachment({ seat: null, account: request.headers.get('X-Account-Id') });
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
@@ -67,9 +82,11 @@ export class Room extends DurableObject<Env> {
       return;
     }
     const room = await this.load();
-    const { seat } = (ws.deserializeAttachment() ?? { seat: null }) as { seat: number | null };
+    const { seat, account } = (ws.deserializeAttachment() ?? { seat: null, account: null }) as { seat: number | null; account: string | null };
+    // Who a player is comes from their session, never from what they say: a ranked seat needs an account.
+    if (msg.t === 'join') msg = { ...msg, profileId: account ?? undefined };
     const out = handle(room, seat, msg);
-    if (out.seat !== seat) ws.serializeAttachment({ seat: out.seat });
+    if (out.seat !== seat) ws.serializeAttachment({ seat: out.seat, account });
     for (const r of out.reply) send(ws, r);
     if (out.broadcast) {
       await this.ctx.storage.put('room', room);
@@ -203,7 +220,7 @@ export class Ladder extends DurableObject<Env> {
     }
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
-    pair[1].serializeAttachment({ id: null });
+    pair[1].serializeAttachment({ id: null, account: request.headers.get('X-Account-Id') });
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
@@ -216,8 +233,11 @@ export class Ladder extends DurableObject<Env> {
     }
     const clean = (v: unknown, n: number) => String(v ?? '').replace(/[^\p{L}\p{N} '’.-]/gu, '').trim().slice(0, n);
     if (msg.t === 'ping') return void ws.send(JSON.stringify({ t: 'pong' }));
+    // Ranked play is for accounts: a player's standing is kept under their account, which only the server knows.
+    const account = (ws.deserializeAttachment() as { account: string | null } | null)?.account ?? null;
+    if ((msg.t === 'standing' || msg.t === 'queue') && !account) return void ws.send(JSON.stringify({ t: 'signin' }));
     if (msg.t === 'standing') {
-      const id = clean(msg.id, 40);
+      const id = account!;
       const data = await this.ladder([id]);
       const p = data.players[id];
       return void ws.send(JSON.stringify({ t: 'standing', rankPoints: p?.rankPoints ?? 0, rankName: rankName(p?.rankPoints ?? 0) }));
@@ -231,10 +251,9 @@ export class Ladder extends DurableObject<Env> {
       return;
     }
     if (msg.t === 'queue') {
-      const id = clean(msg.id, 40);
+      const id = account!;
       const name = clean(msg.name, 18) || 'Player';
-      if (!id) return;
-      ws.serializeAttachment({ id });
+      ws.serializeAttachment({ id, account });
       // Only players still connected can be matched.
       const live = new Set(this.ctx.getWebSockets().map((w) => (w.deserializeAttachment() as { id: string | null })?.id).filter(Boolean));
       const data = await this.ladder([id, ...(this.queue ?? (await this.ctx.storage.get<Queued[]>('queue')) ?? []).map((q) => q.id)]);
