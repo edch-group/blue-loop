@@ -20,24 +20,24 @@ export interface Keyword {
 const n = (v: string | undefined, d = 'N') => v ?? d;
 
 export const KEYWORDS: Record<string, Keyword> = {
-  dawn: { name: 'dawn', group: 'timing', explain: () => 'Happens at dawn (the start of each of your days) while the card is in your tableau.' },
+  dawn: { name: 'dawn', group: 'timing', explain: () => 'At the start of each of your days.' },
   heat: {
     name: 'heat',
     group: 'heat',
     symbol: true,
-    explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more heat, on top of the card's own.` : `Heats your rival's sun${v ? ` by ${v}` : ''}, unless the card names another ("to your sun"). Shields absorb heat from enemies; at max health a sun goes supernova.`),
+    explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more heat.` : `Heat your rival's sun${v ? ` by ${v}` : ''}, or a card you aim at.`),
   },
-  pierce: { name: 'pierce', group: 'heat', explain: () => 'This card\'s heat gets past half of the shields in its way (rounded down), whether it is aimed at a sun or a card. Aimed at a card, it ignores the card\'s defence too.' },
-  cool: { name: 'cool', group: 'cool', symbol: true, explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more cooling, on top of the card's own.` : `Cool your sun${v ? ` by ${v}` : ''}, taking heat off it.`) },
-  shield: { name: 'shields', group: 'shields', symbol: true, explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more shield${v === '+1' ? '' : 's'}, on top of the card's own.` : `Gain ${v ? `${v} shield${v === '1' ? '' : 's'}` : 'shields'}: each absorbs 1 heat from an enemy. Shields fade at your dawn.`) },
-  guard: { name: 'guard', group: 'defence', explain: () => "While this is in play, your rival's cards can only aim their heat at your Guard cards, not at your sun or your other cards. Your shields still absorb heat aimed at them." },
-  sturdy: { name: 'sturdy', group: 'defence', explain: (v) => `This card has +${n(v)} defence, on top of its slot's. Heat aimed at the card hits its defence first, and dents it for the rest of that day (it is whole again the next day). Removal can only reach cards with low enough defence.` },
+  pierce: { name: 'pierce', group: 'heat', explain: () => 'Gets past half of shields, and ignores defence.' },
+  cool: { name: 'cool', group: 'cool', symbol: true, explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more cooling.` : `Take ${v ?? 'some'} heat off your sun.`) },
+  shield: { name: 'shields', group: 'shields', symbol: true, explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more shield${v === '+1' ? '' : 's'}.` : `Each blocks 1 enemy heat. They fade at your dawn.`) },
+  guard: { name: 'guard', group: 'defence', explain: () => 'Rival heat must be aimed at your Guards.' },
+  sturdy: { name: 'sturdy', group: 'defence', explain: (v) => `+${n(v)} defence.` },
   bulwark: {
     name: 'bulwark',
     group: 'defence',
     explain: (v) => {
       const [a, b] = n(v).split('/');
-      return `Cards next to this one get +${a} defence${b ? `; cards two slots away get +${b}` : ''}.`;
+      return b ? `+${a} defence next to it, +${b} two away.` : `+${a} defence to cards next to it.`;
     },
   },
   resonance: {
@@ -45,34 +45,34 @@ export const KEYWORDS: Record<string, Keyword> = {
     group: 'resonance',
     explain: (v) => {
       const [a, b] = n(v).split('/');
-      return `Your cards next to this one get +${a} to their heat, cooling and shields${b ? `; cards two places away get +${b}` : ''}. An empty slot between them breaks it.`;
+      return b ? `+${a} heat, cooling and shields to cards next to it, +${b} two away.` : `+${a} heat, cooling and shields to cards next to it.`;
     },
   },
-  forge: { name: 'forge', group: 'resonance', explain: (v) => `Resonance for attack cards only: your attack cards next to this one deal +${n(v)} heat.` },
-  anchor: { name: 'anchor', group: 'stability', explain: () => 'Your cards next to this one lose no stability (this card still does).' },
-  erode: { name: 'erode', group: 'stability', explain: (v) => `A card of your choice in your rival's tableau loses ${n(v)} stability. At 0 it fades into their discard pile.` },
-  decay: { name: 'decay', group: 'stability', explain: (v) => `Every card in your rival's tableau loses ${n(v)} stability. At 0 they fade into the discard pile.` },
-  restore: { name: 'restore', group: 'stability', explain: (v) => `Another card of yours (your choice) regains ${n(v)} stability (up to 6).` },
-  renew: { name: 'renew', group: 'stability', explain: (v) => `Every other card of yours regains ${n(v)} stability (up to 6).` },
+  forge: { name: 'forge', group: 'resonance', explain: (v) => `+${n(v)} heat to attack cards next to it.` },
+  anchor: { name: 'anchor', group: 'stability', explain: () => 'Cards next to it lose no stability.' },
+  erode: { name: 'erode', group: 'stability', explain: (v) => `A rival card loses ${n(v)} stability.` },
+  decay: { name: 'decay', group: 'stability', explain: (v) => `Every rival card loses ${n(v)} stability.` },
+  restore: { name: 'restore', group: 'stability', explain: (v) => `Another card of yours gains ${n(v)} stability.` },
+  renew: { name: 'renew', group: 'stability', explain: (v) => `Your other cards gain ${n(v)} stability.` },
   recover: {
     name: 'recover',
     group: 'recovery',
-    explain: (v) => `Return ${v ? `a${/^[aeiou]/.test(v) ? 'n' : ''} ${v} card` : 'a card'} of your choice from your discard pile to your hand. With none there, draw a card instead.`,
+    explain: (v) => `Take ${v ? `a${/^[aeiou]/.test(v) ? 'n' : ''} ${v} card` : 'a card'} from your discard pile into your hand (or draw 1).`,
   },
-  recall: { name: 'recall', group: 'recovery', explain: () => 'Return another card of yours from your tableau to your hand, to play it again (its leave effects fire, and the slot is free).' },
-  destroy: { name: 'destroy', group: 'removal', explain: (v) => (v && v !== 'any' ? `Destroy a card of your choice in your rival's tableau with ${v} or less defence.` : "Destroy a card of your choice in your rival's tableau, whatever its defence.") },
-  eject: { name: 'eject', group: 'removal', explain: (v) => `Return a card of your choice in your rival's tableau with ${n(v)} or less defence to its owner's hand.` },
-  sting: { name: 'sting', group: 'shields', explain: (v) => `When your shields absorb an enemy's heat, the card that attacked takes ${n(v)} heat, past its defence (never a sun: heat from a card not in play goes unanswered). Once per attacking card each day.` },
-  soothe: { name: 'soothe', group: 'shields', explain: (v) => `When your shields absorb an enemy's heat, cool your sun by ${n(v)} (once per attacking card each day).` },
-  hold: { name: 'hold', group: 'shields', explain: (v) => `Your shields no longer fade at your dawn (they keep, up to ${n(v, '12')}).` },
-  overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or hotter.' },
-  grows: { name: 'grows', group: 'tempo', explain: (v) => `At each of your dawns this card grows by 1, up to ${n(v)}.` },
-  plays: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy each day while this is in play.` },
-  spend: { name: 'spend all', group: 'tempo', explain: () => 'Costs all the energy you have left (at least 1). The more you spend, the bigger it is.' },
-  energy: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy to spend today.` },
-  orbit: { name: 'orbit', group: 'orbit', explain: (v) => `Moves the planets round a sun by ${n(v)} turn${v === '+1' || v === '-1' || v === '−1' ? '' : 's'} (each planet faces it for 3).` },
-  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Played face down in your Lightspeed slot (one at a time). It springs during an enemy's day when its trigger happens, then goes to your discard pile." },
-  global: { name: 'global', group: 'global', explain: () => 'Changes the table for both players while it is in play. Only one global card can be in play: a new one replaces it.' },
+  recall: { name: 'recall', group: 'recovery', explain: () => 'Return another of your cards to your hand.' },
+  destroy: { name: 'destroy', group: 'removal', explain: (v) => (v && v !== 'any' ? `Destroy a rival card with ${v} or less defence.` : 'Destroy any rival card.') },
+  eject: { name: 'eject', group: 'removal', explain: (v) => `Send a rival card with ${n(v)} or less defence back to its owner's hand.` },
+  sting: { name: 'sting', group: 'shields', explain: (v) => `When your shields block a card's heat, that card takes ${n(v)} heat. Once per card a day.` },
+  soothe: { name: 'soothe', group: 'shields', explain: (v) => `When your shields block heat, cool your sun by ${n(v)}. Once per card a day.` },
+  hold: { name: 'hold', group: 'shields', explain: (v) => `Your shields don't fade (up to ${n(v, '12')}).` },
+  overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or more.' },
+  grows: { name: 'grows', group: 'tempo', explain: (v) => `+1 at each of your dawns, up to ${n(v)}.` },
+  plays: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy each day.` },
+  spend: { name: 'spend all', group: 'tempo', explain: () => 'Spends all your energy. Stronger the more you spend.' },
+  energy: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy today.` },
+  orbit: { name: 'orbit', group: 'orbit', explain: (v) => `Moves a sun's planets by ${n(v)}.` },
+  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Set face down. Springs on your rival's day when its trigger happens." },
+  global: { name: 'global', group: 'global', explain: () => 'Affects both players. Only one at a time.' },
 };
 
 /**
@@ -80,11 +80,11 @@ export const KEYWORDS: Record<string, Keyword> = {
  * the zoomed card explains them too, whenever its text mentions one.
  */
 export const TEXT_RULES: { name: string; group: Keyword['group']; pattern: RegExp; explain: string }[] = [
-  { name: 'One Of', group: 'tempo', pattern: /one of:/, explain: 'Pick one as you play the card: it does that at each of your dawns for as long as it stays.' },
-  { name: 'Command Card', group: 'tempo', pattern: /\bCommand card|^Dawn, one of/, explain: 'Every deck has exactly 2. They stay 3 days, and can never be recovered or recalled to your hand (a rival can still send them back).' },
-  { name: 'Leaves Your Tableau', group: 'stability', pattern: /leaves? your tableau/, explain: 'When the card fades, is destroyed, or returns to a hand. It goes to the discard pile (or the hand).' },
-  { name: 'Facing A Planet', group: 'orbit', pattern: /facing the (dead|abundant|industrial) planet/, explain: 'The planet facing your sun right now. Each faces it for 3 of your days: dead, then abundant, then industrial.' },
-  { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'The card or heat has no effect. A cancelled card goes to its owner’s discard pile.' },
+  { name: 'One Of', group: 'tempo', pattern: /one of:/, explain: 'Pick one when played. It happens every dawn.' },
+  { name: 'Command Card', group: 'tempo', pattern: /\bCommand card|^Dawn, one of/, explain: 'Goes in your Command slot. One at a time.' },
+  { name: 'Leaves Your Tableau', group: 'stability', pattern: /leaves? your tableau/, explain: 'Fades, is destroyed, or is returned to hand.' },
+  { name: 'Facing A Planet', group: 'orbit', pattern: /facing the (dead|abundant|industrial) planet/, explain: 'The planet now facing your sun.' },
+  { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'It has no effect.' },
   { name: 'Max Health', group: 'heat', pattern: /max health/, explain: 'The heat at which your sun goes supernova.' },
 ];
 

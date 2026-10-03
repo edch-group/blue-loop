@@ -381,7 +381,7 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   for (const k of keywordsIn(text)) if (KEYWORDS[k.id]) row(keywordHtml(k.id, k.value, { named: true }), KEYWORDS[k.id].explain(k.value));
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
-  if (stats.stability !== undefined) row(`<b class="kw kw-stability">◷ Stability ${stats.stability}</b>`, `Stays in your tableau for ${stats.stability} more of your days: it loses 1 each dawn, and at 0 fades into your discard pile.`);
-  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence ${stats.defence}</b>`, `Removal only reaches it if it allows ${stats.defence} or more (${keywordLabel('destroy', String(stats.defence))} does). It comes from the slot, plus Sturdy and Bulwark.`);
+  if (stats.stability !== undefined) row(`<b class="kw kw-stability">◷ Stability ${stats.stability}</b>`, 'Loses 1 each dawn. Fades at 0.');
+  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence ${stats.defence}</b>`, 'Takes heat before stability. Blocks weaker removal.');
   return rows.length ? `<div class="kw-list">${rows.join('')}</div>` : '';
 }
