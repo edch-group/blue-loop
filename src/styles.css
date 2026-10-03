@@ -2370,7 +2370,6 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .tether-glow { stroke: rgba(255, 255, 255, 0.9); stroke-width: 12; filter: blur(5px) drop-shadow(0 0 10px rgba(190, 215, 255, 0.95)); }
 .tether-line { stroke: #fff; stroke-width: 3.5; filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 10px rgba(170, 200, 255, 0.9)); }
 .tether-tip { fill: none; stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 8px #fff); }
-.tether-halo { position: fixed; z-index: 46; pointer-events: none; border-radius: 10px; box-shadow: 0 0 0 3px #fff, 0 0 26px 8px rgba(255, 255, 255, 0.95), 0 0 50px 14px rgba(180, 205, 255, 0.7); }
 
 /* ---------- Start-of-turn forecast: symbols centred between the tableaus ---------- */
 /* Yours above your row, your rival's beneath theirs, so both sit in the middle of the board. */
@@ -2918,7 +2917,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* The day's controls: off the board, at the bottom right of the screen. */
 .turn-corner { position: fixed; right: var(--pad-r, 16px); bottom: max(14px, var(--pad-b, 14px)); z-index: 30; width: clamp(120px, calc(14 * var(--vw)), 190px); margin: 0 !important; }
 /* A staged rival card's aim at the card it will remove: under the stage, over the board. */
-.tether.tether-aim, .tether-halo.tether-aim { z-index: 14; }
+.tether.tether-aim { z-index: 14; }
 
 /* Supernova: flash, shockwaves and sparks over the board (see supernovaBurst). */
 .nova-burst { position: fixed; width: 0; height: 0; z-index: 60; pointer-events: none; }
@@ -2971,6 +2970,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   content: ''; position: absolute; inset: 2%; border-radius: 50%; pointer-events: none;
   border: 3px solid rgba(216, 69, 43, 0.85); box-shadow: 0 0 0 2px #fff, 0 0 18px rgba(216, 69, 43, 0.45);
   animation: aim-throb 1.4s ease-in-out infinite;
+}
+/* Heat aimed at a card or a sun (your dawn's aims, or a staged card's): a ring round its edge. */
+.card.card-targeted, .board-plane .card.card-table.card-targeted { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.85), 0 0 18px rgba(216, 69, 43, 0.45); }
+.vitals-targeted .vit::after {
+  content: ''; position: absolute; inset: 2%; border-radius: 50%; pointer-events: none;
+  border: 3px solid rgba(216, 69, 43, 0.85); box-shadow: 0 0 0 2px #fff, 0 0 18px rgba(216, 69, 43, 0.45);
 }
 @media (prefers-reduced-motion: reduce) { .aim-in, .vitals-choosable .vit::after { animation: none; } }
 .fx-hit-card { animation: hit-card 0.6s ease-out; }

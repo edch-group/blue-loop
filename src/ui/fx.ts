@@ -233,12 +233,6 @@ function drawTether(from: DOMRect, to: DOMRect, draw: number, hold: number) {
   });
   const out = svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, delay: delay + draw + hold, fill: 'both' });
   out.onfinish = () => svg.remove();
-  // A glow on the target itself while the arc holds it.
-  const halo = document.createElement('div');
-  halo.className = 'tether-halo';
-  Object.assign(halo.style, { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px` });
-  document.body.appendChild(halo);
-  halo.animate([{ opacity: 0 }, { opacity: 1, offset: 0.3 }, { opacity: 0 }], { duration: hold + 300, delay: delay + draw - 80, fill: 'both' }).onfinish = () => halo.remove();
 }
 
 /**
@@ -250,14 +244,13 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('class', 'tether tether-aim');
   svg.innerHTML = '<path class="tether-glow"/><path class="tether-line"/>';
-  const halo = document.createElement('div');
-  halo.className = 'tether-halo tether-aim';
   let frame = 0;
   let gone = false;
   const place = () => {
     if (opts.alive && !opts.alive()) return stop();
     const from = source(), to = target();
-    svg.style.visibility = halo.style.visibility = from && to ? '' : 'hidden';
+    // (The target itself is marked on the board: a ring round the card's or the sun's edge.)
+    svg.style.visibility = from && to ? '' : 'hidden';
     if (from && to) {
       const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2;
       const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
@@ -267,27 +260,24 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
       const cx = (x0 + x1) / 2 - (dy / len) * bow, cy = (y0 + y1) / 2 + (dx / len) * bow - bow * 0.3;
       const d = `M${x0.toFixed(1)} ${y0.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
       for (const path of svg.querySelectorAll('path')) path.setAttribute('d', d);
-      Object.assign(halo.style, { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px` });
     }
     frame = requestAnimationFrame(place);
   };
   const start = window.setTimeout(() => {
     if (gone) return;
-    document.body.append(svg, halo);
+    document.body.append(svg);
     place();
     if (reducedMotion()) return;
     for (const path of svg.querySelectorAll('path')) {
       const L = path.getTotalLength();
       path.animate([{ strokeDasharray: `0 ${L + 1}` }, { strokeDasharray: `${L + 1} 0` }], { duration: 420, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'both' });
     }
-    halo.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 340, fill: 'both' });
   }, opts.delay ?? 0);
   const stop = () => {
     gone = true;
     window.clearTimeout(start);
     cancelAnimationFrame(frame);
     svg.remove();
-    halo.remove();
   };
   return stop;
 }

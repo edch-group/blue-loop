@@ -2955,9 +2955,19 @@ export class App {
     // At the viewer's dawn, as they aim it: where each card's dawn heat is going, and (while one card is
     // being aimed) what its heat would leave of each rival card it could hit.
     const preview = new Map<string, { defence: number; stability: number }>();
+    // What heat is aimed at (your dawn's, or a staged card's): rings round those cards' edges, or the sun's.
+    const targeted = new Set<string>();
+    let sunTargeted = false;
+    if (this.stage?.confirm && this.stage.target) targeted.add(this.stage.target);
     if (this.dawnTurn()) {
       const o = activePlayer(st);
       const aims = this.draftAims(st, o);
+      if (o.id !== p.id) {
+        for (const t of Object.values(aims)) {
+          if (t) targeted.add(t);
+          else sunTargeted = true;
+        }
+      }
       if (o.id === p.id) {
         for (const card of o.tableau) if (dawnAimable(card) && aims[card.uid]) aiming.set(card.uid, true);
       } else {
@@ -2982,7 +2992,7 @@ export class App {
       : `<div class="slot-empty slot-cmd" title="Command slot: your one Command card leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>command</small></div>`;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
-      if (c) return this.renderCard(c, { tableau: side, owner: p, incoming: incoming.get(c.uid), aimsAtCard: !!aiming.get(c.uid), preview: preview.get(c.uid) });
+      if (c) return this.renderCard(c, { tableau: side, owner: p, incoming: incoming.get(c.uid), aimsAtCard: !!aiming.get(c.uid), preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
       const def = BALANCE.slotDefence[i];
       return choosingSlot
         ? `<button class="slot-empty slot-choosable" data-act="choose-slot" data-arg="${i}" title="Place it here: defence ${def}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
@@ -3000,7 +3010,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''} ${sunTargeted && !sunAim ? 'vitals-targeted' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: p.eliminated, id: p.id, orbit: p.orbit })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
           ${this.renderForecast(p)}
@@ -3092,7 +3102,7 @@ export class App {
       </div>`;
   }
 
-  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; incoming?: number; aimsAtCard?: boolean; landscape?: boolean; preview?: { defence: number; stability: number } }): string {
+  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; incoming?: number; aimsAtCard?: boolean; landscape?: boolean; preview?: { defence: number; stability: number }; targeted?: boolean }): string {
     const def = cardDef(c.defId);
     const act = this.canAct();
     const p = this.pending;
@@ -3149,7 +3159,7 @@ export class App {
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
     return `
-      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape || (opts.hand && def.kind === 'command') ? 'card-landscape' : ''} ${state}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
+      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape || (opts.hand && def.kind === 'command') ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArtLite(def, true)}</div>
         ${growth}${resonance}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
