@@ -2593,7 +2593,7 @@ img.art { object-fit: cover; }
   padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; text-align: left;
 }
 /* Command cards: landscape, in a row of their own across the top of the pool. */
-.db-pool-cmds { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, min(calc(var(--dbw) * 1.4), calc((100% - 10px) / 2))); gap: inherit; padding-bottom: 4px; }
+.db-pool-cmds { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, min(calc(var(--dbw) * 1.3), calc((100% - 10px) / 2))); gap: inherit; padding-bottom: 4px; }
 /* (At least two side by side, however large the cards: each sizes from its width.) */
 .db-card.db-card-cmd { container-type: inline-size; width: 100%; height: auto; aspect-ratio: 1.4; }
 .db-card.db-card-cmd > .card { --cw: calc(100cqw / 1.4); }
