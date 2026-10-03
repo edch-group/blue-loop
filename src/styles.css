@@ -2059,6 +2059,27 @@ html.rotated body {
   overflow: hidden;
 }
 
+/* Held upright past the sign-in page: ask for the device to be turned (or, with rotation
+   locked, offer to turn the page instead). */
+.rotate-hint { display: none; }
+html.rotate-ask .rotate-hint {
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; text-align: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, #faf9f6, #f3f2ee 55%, #e0dfdb);
+}
+html.rotate-ask body { overflow: hidden; }
+.rotate-hint-body { display: grid; justify-items: center; gap: 14px; }
+.rotate-hint .title { margin: 6px 0 0; font-size: 1.6rem; }
+.rotate-hint p { margin: 0; font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft); }
+.rotate-hint .link-btn { margin-top: 18px; }
+.rotate-phone {
+  width: 34px; height: 58px; border: 2px solid #8a8f99; border-radius: 8px; position: relative;
+  animation: rotatePhone 2.6s ease-in-out infinite;
+}
+.rotate-phone::after { content: ''; position: absolute; left: 50%; bottom: 4px; width: 8px; height: 2px; margin-left: -4px; border-radius: 1px; background: #8a8f99; }
+@keyframes rotatePhone { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .rotate-phone { animation: none; transform: rotate(-90deg); } }
+
 /* ---------- Rarity gems ---------- */
 /* A tiny polished cabochon in the card's top corner (see rarityGem in glyphs.ts). Layers
    are pre-rendered images; each one moves a little, out of step with other cards. */
