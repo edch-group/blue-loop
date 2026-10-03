@@ -431,8 +431,8 @@ Each player is one of four non-humanoid alien races. The race sets the faction e
 
 ## Always landscape
 
-The game is always landscape.
-- **Native iOS app** (`ios/`): landscape is its only orientation, so iOS locks it like any App Store game.
+The game is landscape from the game mode menu on. The landing and sign-in pages lie whichever way the screen does, so a player can sign up holding the phone upright.
+- **Native iOS app** (`ios/`): allows portrait for the landing and sign-in pages, then locks to landscape from the game mode menu on.
 - **Web version held upright** (browsers can't lock orientation on iPhone): the page draws itself sideways. It re-measures until a rotation settles, then re-lays out the hand and map.
 - **Android and full-screen browsers that allow it:** the app also requests a real lock.
 

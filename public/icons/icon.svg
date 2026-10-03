@@ -1,25 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- The landing page's white dwarf on its sky: no ring, just the star and its white glare. -->
   <defs>
-    <radialGradient id="bg" cx="50%" cy="40%" r="75%">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.6" stop-color="#f3f2ee"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#faf9f6"/>
+      <stop offset="0.55" stop-color="#f3f2ee"/>
       <stop offset="1" stop-color="#e0dfdb"/>
-    </radialGradient>
+    </linearGradient>
     <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0.35" stop-color="#ffffff" stop-opacity="1"/>
-      <stop offset="0.7" stop-color="#ffffff" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="#d2dae4" stop-opacity="0"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="0.7" stop-color="#ffffff" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="dwarf" cx="40%" cy="36%" r="68%">
+    <radialGradient id="dwarf" cx="40%" cy="36%" r="64%">
       <stop offset="0" stop-color="#ffffff"/>
       <stop offset="0.4" stop-color="#fbfcfd"/>
       <stop offset="0.8" stop-color="#e4e8ed"/>
       <stop offset="1" stop-color="#d9dee4"/>
     </radialGradient>
-    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3"/></filter>
   </defs>
   <rect width="512" height="512" fill="url(#bg)"/>
-  <circle cx="256" cy="256" r="236" fill="url(#glow)"/>
-  <circle cx="256" cy="262" r="124" fill="#c9d0da" opacity="0.35" filter="url(#soft)"/>
-  <circle cx="256" cy="256" r="120" fill="url(#dwarf)"/>
+  <circle cx="256" cy="256" r="230" fill="url(#glow)"/>
+  <circle cx="256" cy="256" r="128" fill="url(#dwarf)"/>
 </svg>

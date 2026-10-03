@@ -1,7 +1,9 @@
 /**
- * The page is always landscape. On a portrait screen (a phone held upright,
- * with rotation locked or not) the whole page is turned a quarter-turn
- * clockwise and laid out as landscape, so the game simply plays sideways.
+ * From the game mode menu on, the page is always landscape. On a portrait
+ * screen (a phone held upright, with rotation locked or not) the whole page is
+ * turned a quarter-turn clockwise and laid out as landscape, so the game simply
+ * plays sideways. The landing and sign-in pages are not forced: they lay out
+ * upright too (see forceLandscape).
  * Browsers cannot lock orientation on iPhone, so this is the only way to
  * guarantee it; where a real lock is allowed (Android, full screen) we ask for
  * one too.
@@ -25,6 +27,9 @@ import { ScreenOrientation } from '@capacitor/screen-orientation';
 export const VIEWPORT_EVENT = 'bl-viewport';
 
 let rotated = false;
+/** Whether the current page must be landscape (the landing and sign-in pages need not be). */
+let forced = true;
+let remeasure = () => undefined as void;
 /** How much the page is scaled up on a big screen (1 on phones and tablets). */
 let zoom = 1;
 /** The page is designed to read well at about this size; bigger screens scale it up, to at most MAX_ZOOM. */
@@ -52,7 +57,7 @@ export function trackViewport() {
       if (Math.abs(w - fullW) <= 2) h = Math.max(h, fullH);
     }
     // The same test as the CSS media queries use, so the two always agree.
-    rotated = portraitQuery.matches;
+    rotated = forced && portraitQuery.matches;
     screenW = w;
     zoom = rotated ? 1 : Math.max(1, Math.min(MAX_ZOOM, w / DESIGN.w, h / DESIGN.h));
     // Round, so text and borders land on whole pixels at common sizes.
@@ -79,12 +84,25 @@ export function trackViewport() {
     timers = [60, 180, 400, 800].map((ms) => window.setTimeout(update, ms));
   };
   let lastKey = '';
+  remeasure = update;
   update();
   window.addEventListener('resize', settle);
   window.addEventListener('orientationchange', settle);
   window.visualViewport?.addEventListener('resize', settle);
   portraitQuery.addEventListener?.('change', settle);
-  lockLandscape();
+  if (forced) lockLandscape();
+}
+
+/**
+ * Force landscape (turning the page on a portrait screen, and locking the
+ * screen where allowed) or let the page lie whichever way the screen does.
+ */
+export function forceLandscape(on: boolean) {
+  if (on === forced) return;
+  forced = on;
+  if (on) lockLandscape();
+  else ScreenOrientation.unlock().catch(() => undefined);
+  remeasure();
 }
 
 /**

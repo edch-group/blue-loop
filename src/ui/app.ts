@@ -78,7 +78,7 @@ import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient
 import { fitCardText, fitWhenSeen } from './fittext';
 import { refreshLift, trackLift } from './lift';
 import { animateSuns } from './sun3d';
-import { appSize, pageRect, VIEWPORT_EVENT } from './viewport';
+import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
 type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop';
@@ -2487,6 +2487,8 @@ export class App {
     // hand doesn't flicker and re-settle every time anything on the page changes.
     const held = new Map([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].map((el) => [el.dataset.uid!, el]));
     this.keptHand = new WeakSet();
+    // Only the landing and sign-in pages may lie upright; from the game mode menu on, it's landscape.
+    forceLandscape(!(this.screen === 'menu' && (this.menuPage === 'title' || this.menuPage === 'signin')));
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
     this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]').forEach((el) => {
       const inner = el.innerHTML;

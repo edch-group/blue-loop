@@ -76,11 +76,11 @@ The Terms of Service and Privacy Policy are `public/terms.html` and `public/priv
 | `GOOGLE_CLIENT_ID` | Variable | Sign in with Google. In Google Cloud Console → APIs & Services → Credentials, create an OAuth client ID of type **Web application**, and add your game's address (e.g. `https://blue-loop.<you>.workers.dev`) to **Authorised JavaScript origins**. |
 | `APPLE_SERVICE_ID` | Variable | Sign in with Apple. In the Apple Developer portal → Identifiers, create a **Services ID**, enable Sign in with Apple, and add your game's domain and its address (as the return URL). Needs a paid Apple Developer account. |
 
-## Native iPhone / iPad app (locked to landscape)
+## Native iPhone / iPad app (landscape in play)
 
 A web app added from Safari cannot lock its orientation: iOS doesn't allow it. The native app can,
 like any App Store game. `ios/` is a native Xcode project ([Capacitor](https://capacitorjs.com))
-that wraps the same game and declares **landscape as its only orientation**, with the status
+that wraps the same game: upright for the landing and sign-in pages, **locked to landscape** from the game mode menu on, with the status
 bar hidden.
 
 You need a Mac with Xcode, and an Apple ID. A free Apple ID runs the app on your own iPhone for a
@@ -118,7 +118,7 @@ the page sideways instead.
 | `electron/` | Desktop shell for the Steam build. |
 | `scripts/simulate.ts` | Balance simulator. |
 | `scripts/render_gems.py` | Renders the rarity gem images into `src/ui/gems/`. |
-| `ios/`, `capacitor.config.ts` | The native iOS app (landscape only). |
+| `ios/`, `capacitor.config.ts` | The native iOS app (landscape from the game mode menu on). |
 | `docs/GAME_DESIGN.md` | Rules as implemented, and open design questions. |
 | `docs/STEAM.md` | Steam release roadmap. |
 

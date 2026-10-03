@@ -1,6 +1,6 @@
 // Offline support for the web app. Built assets have hashed names, so they are
 // served cache-first; the page itself is network-first so updates arrive.
-const CACHE = 'blue-loop-v3';
+const CACHE = 'blue-loop-v4';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {

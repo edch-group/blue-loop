@@ -2,8 +2,8 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
  * Native iPhone / iPad (and later Android) builds: the web game in a native
- * shell. The iOS project (ios/) declares landscape as the only orientation,
- * so the app is locked to landscape like any App Store game.
+ * shell. The iOS project (ios/) allows portrait for the landing and sign-in
+ * pages; from the game mode menu on the app locks itself to landscape.
  */
 const config: CapacitorConfig = {
   appId: 'com.coronalmassgames.blueloop',
