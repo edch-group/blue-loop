@@ -57,7 +57,7 @@ export const CARDS: CardDef[] = [
     id: 'standing_orders',
     name: 'Standing Orders',
     kind: 'growth',
-    text: 'Draw 1. {dawn}: with a Command card, draw 1.',
+    text: 'Draw 1. {dawn}: with a Hero, draw 1.',
     onPlay: [{ type: 'draw', amount: 1 }],
     onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
@@ -65,7 +65,7 @@ export const CARDS: CardDef[] = [
     id: 'chain_of_command',
     name: 'Chain of Command',
     kind: 'defence',
-    text: '{dawn}: {cool:1}. {cool:+1} with a Command card.',
+    text: '{dawn}: {cool:1}. {cool:+1} with a Hero.',
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
 
@@ -149,9 +149,9 @@ export const CARDS: CardDef[] = [
   },
   {
     id: 'command_breaker',
-    name: 'Command Breaker',
+    name: 'Hero Breaker',
     kind: 'attack',
-    text: '{heat:2}. {destroy:3}: Command cards only.',
+    text: '{heat:2}. {destroy:3}: Heroes only.',
     onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'destroy', kind: 'command', maxDefence: 3 }],
   },
   {
@@ -380,7 +380,7 @@ export const CARDS: CardDef[] = [
     name: 'Aureline War-Herald',
     kind: 'attack',
     race: 0,
-    text: '{dawn}: {heat:1}. With a Command card, {heat:+1} and {shield:1}.',
+    text: '{dawn}: {heat:1}. With a Hero, {heat:+1} and {shield:1}.',
     onTurn: [
       { type: 'heat', amount: 1, to: 'target' },
       { type: 'heat', amount: 1, to: 'target', if: { minKind: 'command', n: 1 } },
@@ -735,7 +735,7 @@ function choiceKinds(def: CardDef): Set<string> {
 export function unfusable(id: string): string | null {
   const d = BY_ID.get(id);
   if (!d) return 'A fused card cannot be fused again.';
-  if (d.kind === 'command') return 'Command cards cannot be fused (a deck needs exactly two).';
+  if (d.kind === 'command') return 'Heroes cannot be fused (a deck needs exactly two).';
   if (d.kind === 'global') return 'Global cards cannot be fused.';
   if (d.kind === 'lightspeed') return 'Lightspeed cards cannot be fused.';
   return null;
@@ -890,6 +890,6 @@ export function deckProblems(cards: string[]): string[] {
   }
   const commands = cards.filter((id) => BY_ID.get(id)?.kind === 'command').length;
   const need = commandCardsFor(cards.length);
-  if (commands !== need) problems.push(`A deck of ${cards.length} needs exactly ${need} Command cards: one per ${BALANCE.cardsPerCommand} cards (this has ${commands}).`);
+  if (commands !== need) problems.push(`A deck of ${cards.length} needs exactly ${need} Heroes: one per ${BALANCE.cardsPerCommand} cards (this has ${commands}).`);
   return problems;
 }

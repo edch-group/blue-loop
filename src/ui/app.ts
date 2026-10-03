@@ -3251,7 +3251,7 @@ export class App {
             fact('Two suns', `Both start at ${B.startingHeat} heat. ${kw('heat')} heats, ${kw('cool')} cools, ${kw('shield')} blocks.`),
             fact('Days', 'Players take turns, called days. Each of your days starts at Dawn.'),
             fact('Cards stay', 'Played cards sit in your tableau and act every Dawn, until they fade.'),
-            fact('Your deck', `${B.deckSize}–${B.maxDeckSize} cards: up to ${B.maxCopies} of each, and one Command card per ${B.cardsPerCommand} cards.`),
+            fact('Your deck', `${B.deckSize}–${B.maxDeckSize} cards: up to ${B.maxCopies} of each, and one Hero per ${B.cardsPerCommand} cards.`),
             fact('Your hand', `Start with ${B.openingHand} cards. Draw ${B.drawPerTurn} every Dawn after the first.`),
           ),
       ],
@@ -3298,7 +3298,7 @@ export class App {
             kind('attack', 'Attack', `Heat your rival's sun.`),
             kind('defence', 'Defence', 'Cool your sun, raise shields, guard your tableau.'),
             kind('growth', 'Growth', 'Draw, recover, grow and play more.'),
-            kind('command', 'Command', `Two in every deck. Pick a dawn effect as you play one; it stays ${B.stabilityCommand} days, and never returns to your hand.`),
+            kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. Pick a dawn effect as you play one; it stays ${B.stabilityCommand} days, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
             kind('lightspeed', 'Lightspeed', "Set face down. Springs during your rival's day."),
           ),
@@ -3553,7 +3553,7 @@ export class App {
     const cmd = commandCard(p);
     const cmdHtml = cmd
       ? this.renderCard(cmd, { tableau: side, owner: p, landscape: true })
-      : `<div class="slot-empty slot-cmd" title="Command slot: your one Command card leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>command</small></div>`;
+      : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>hero</small></div>`;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
       if (c) return this.renderCard(c, { tableau: side, owner: p, incoming: incoming.get(c.uid), aimsAtCard: !!aiming.get(c.uid), preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
@@ -3743,9 +3743,13 @@ export class App {
     const def = cardDef(c.defId);
     const inPlay = c.slot !== undefined && owner.tableau.some((x) => x.uid === c.uid);
     if (!inPlay && !opts.hand) return {};
+    const when = inPlay ? 'turn' : 'play';
     const effects = (inPlay ? dawnEffects(c) : def.onPlay ?? []).flatMap((e) =>
       e.type === 'heat' || e.type === 'cool' || e.type === 'shield'
-        ? [{ type: e.type, amount: e.amount, now: e.amount + effectAmount(s, owner, c, { ...e, amount: 1, plus: undefined, max: undefined }, inPlay ? 'turn' : 'play') - 1 }]
+        ? // Thermosiphon: the number on the card is per point below zero; shown as the total it now comes to.
+          e.plus?.of === 'cold'
+          ? [{ type: e.type, amount: e.amount || (e.plus.times ?? 1), now: effectAmount(s, owner, c, e, when) }]
+          : [{ type: e.type, amount: e.amount, now: e.amount + effectAmount(s, owner, c, { ...e, amount: 1, plus: undefined, max: undefined }, when) - 1 }]
         : [],
     );
     return liveValues(def.text, effects, inPlay);
@@ -3946,7 +3950,7 @@ export class App {
             <div class="sys-kicker">${p.id === me.id ? 'you' : esc(p.name.toLowerCase())} · ${esc(RACE_NAMES[p.species].toLowerCase())}</div>
             ${factionAvatar(`f${p.species + 1}`, 'player-emblem')}
             <h2 class="sys-name">${esc((p.deckName ?? 'custom deck').toLowerCase())}</h2>
-            ${commands ? `<p class="muted center-text">Command cards in play: ${commands}</p>` : ''}
+            ${commands ? `<p class="muted center-text">Heroes in play: ${commands}</p>` : ''}
             ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A Lightspeed card is set face down.'}</p>` : ''}
             ${p.conditions?.length ? `<div class="sys-conditions">${p.conditions.map((c) => `<div><b>${esc(c.name.toLowerCase())}</b>${esc(c.text)}</div>`).join('')}</div>` : ''}
             <div class="sys-stats">

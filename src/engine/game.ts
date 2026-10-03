@@ -511,7 +511,7 @@ function neighbours(p: PlayerState, card: CardInstance): CardInstance[] {
   return p.tableau.filter((c) => distance(c, card) === 1);
 }
 
-function countOf(p: PlayerState, card: CardInstance, c: Count): number {
+function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState): number {
   const per = 'per' in c && c.per ? c.per : 1;
   switch (c.of) {
     case 'kind':
@@ -528,6 +528,10 @@ function countOf(p: PlayerState, card: CardInstance, c: Count): number {
       return currentPlanet(p) === c.planet ? c.amount : 0;
     case 'spent':
       return (card.spent ?? 0) * (c.times ?? 1);
+    case 'cold': {
+      const sun = c.rival ? (state ? targetOf(state, p) : undefined) : p;
+      return sun ? Math.max(0, -sun.heat) * (c.times ?? 1) : 0;
+    }
   }
 }
 
@@ -547,7 +551,7 @@ export function conditionMet(p: PlayerState, cond: Condition | undefined): boole
 export function effectAmount(state: GameState, p: PlayerState, card: CardInstance, e: Effect, when: Timing = 'play'): number {
   if (e.type !== 'heat' && e.type !== 'cool' && e.type !== 'shield' && e.type !== 'selfHeat' && e.type !== 'draw') return 0;
   let base = e.amount;
-  if ((e.type === 'heat' || e.type === 'cool' || e.type === 'shield') && e.plus) base += countOf(p, card, e.plus);
+  if ((e.type === 'heat' || e.type === 'cool' || e.type === 'shield') && e.plus) base += countOf(p, card, e.plus, state);
   if ((e.type === 'heat' || e.type === 'cool' || e.type === 'shield') && e.max !== undefined) base = Math.min(base, e.max);
   if (base <= 0) return 0;
   if (e.type !== 'draw' && e.type !== 'selfHeat') base += resonanceBonus(p, card);
@@ -917,7 +921,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         break;
       }
       case 'draw': {
-        const n = e.amount + (e.plus ? countOf(p, card, e.plus) : 0);
+        const n = e.amount + (e.plus ? countOf(p, card, e.plus, state) : 0);
         drawCards(state, p, n);
         if (when === 'turn') notePulse(state, p, card, 'draw', p, n);
         break;

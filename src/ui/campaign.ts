@@ -1051,7 +1051,7 @@ export class CampaignView {
             <li><b>Attack</b> one system per turn: any system linked to one you control. The battle is a normal game, played from your system against theirs.</li>
             <li><b>Win</b> and choose: <b>Settle</b> it, <b>Absorb</b> its resources, or <b>Supernova</b> it to block rivals for a turn.</li>
             <li>A winner's sun carries its heat home as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits, and <b>fortify</b> a system for +${CAMPAIGN.fortifyHealth} max health per level when it defends.</li>
-            <li>Your battle <b>deck is 20 cards</b> with exactly 2 Command cards. Win cards from missions and buy them in the armory with ${MATERIALS} materials; they wait in your reserve until you swap them into your deck.</li>
+            <li>Your battle <b>deck is 20 cards</b> with exactly 2 Heroes. Win cards from missions and buy them in the armory with ${MATERIALS} materials; they wait in your reserve until you swap them into your deck.</li>
             <li><b>Fog of war:</b> you only see systems linked to yours. Hold a system with a <b>scanner</b> to see two links out from it.</li>
             <li><b>Your base</b> holds your deck, the armory and your missions. The armory restocks every turn and whenever you conquer a system. <b>Fusion</b> merges two reserve cards into one that does both, for ${MATERIALS} materials; it cannot be undone.</li>
             <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play in its tableau (a Lightspeed card starts set face down). Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
@@ -1110,7 +1110,7 @@ export class CampaignView {
         .join('');
       return this.modal(
         `swap out ${lower(cardDef(current).name)}`,
-        `<p class="muted center-text">Choose a reserve card to take its place (${esc(cardDef(current).name)} goes to your reserve). The deck keeps 20 cards, at most 2 of each, and exactly 2 Command cards.</p>
+        `<p class="muted center-text">Choose a reserve card to take its place (${esc(cardDef(current).name)} goes to your reserve). The deck keeps 20 cards, at most 2 of each, and exactly 2 Heroes.</p>
          <div class="cmp-cards">${options || '<p class="muted">Your reserve is empty.</p>'}</div>
          <div class="center-row"><button class="btn" data-act="cmp-close">back</button></div>`,
       );
@@ -1160,7 +1160,7 @@ export class CampaignView {
       <div class="section-label">fusion</div>
       ${result}
       <div class="cmp-cards cmp-deck">${cards || '<p class="muted">Your reserve is empty. Buy or win cards to fuse them.</p>'}</div>
-      <p class="muted center-text">Command, global and Lightspeed cards cannot be fused, nor can a fused card be fused again.</p>`;
+      <p class="muted center-text">Heroes, global and Lightspeed cards cannot be fused, nor can a fused card be fused again.</p>`;
   }
 
   /** The base: deck, armory and missions, as tabs of one overlay. */

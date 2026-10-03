@@ -684,6 +684,13 @@ const ART2: Record<string, Draw> = {
   // ---- Neutral Command ----
   war_council: (S) => S.ground(92, '#1b0c24') + xelnaru(S, 62, 30, 1.4, { item: 'reliquary', crown: true, cape: '#c9a2ff', shard: '#ffc8e0', core: '#fff0c0' }),
   logistics_command: (S) => S.ground(92, '#0e0a1c') + S.planet(136, 26, 12, '#9cd2a0', '#3d2b5e') + ixquor(S, 64, 68, 1.15, { item: 'spores', crown: true, arms: 5, cap: '#c5ff8a' }),
+  // Thermosiphon: cold suns, and what they drive.
+  absolute_zero: (S) => S.planet(80, 50, 26, '#ffffff', '#3a6ea8') + [0, 30, 60, 90, 120, 150].map((a) => `<line x1="80" y1="14" x2="80" y2="86" stroke="#e6f6ff" stroke-width="1.4" stroke-opacity="0.8" transform="rotate(${a} 80 50)"/>`).join('') + S.rings(80, 50, 32, 3, 9, '#9fd0ff', 0.6) + S.bolt(80, 50, 150, 12, '#bfe6ff', 4, 1.6) + S.glow(80, 50, 16, '#ffffff', 0.9),
+  cryo_lance: (S) => S.sun(36, 70, 9, '#bfe6ff') + S.crystal(96, 40, 70, 10, 55, '#bfe6ff') + S.beam(36, 70, 150, 14, 1.8, '#e6f6ff') + S.motes(110, 34, 10, 40, '#ffffff'),
+  rime_bastion: (S) => S.ground(88, '#0f1a28') + [52, 80, 108].map((x, i) => S.crystal(x, 58 - (i === 1 ? 10 : 0), i === 1 ? 54 : 40, 14, (i - 1) * 12, '#cfeaff')).join('') + S.dome(80, 88, 58, '#bfe6ff'),
+  frostbound_sentinel: (S) => S.sun(130, 22, 5, '#bfe6ff') + xelnaru(S, 74, 34, 1.3, { item: 'blade', pauldrons: true, shard: '#cfeaff', core: '#ffffff', cape: '#5d86c0' }) + S.dome(74, 92, 50, '#bfe6ff'),
+  glacier_hull: (S) => S.waves(90, '#7fd8f0', 2, 2, 0.5) + `<path d="M24 72 L48 30 L70 50 L92 22 L118 46 L138 72 Z" fill="${S.linear([[0, '#ffffff'], [1, '#6aa0d0']])}" stroke="#fff" stroke-width="1"/>` + S.dome(80, 76, 64, '#9ff0e0'),
+  thaw_beam: (S) => S.planet(118, 56, 22, '#e6f6ff', '#6aa0d0') + S.beam(0, 20, 108, 52, 2.4, '#ffb070') + S.glow(104, 52, 14, '#ffd98a', 0.9) + S.motes(112, 56, 12, 30, '#ffe0a0'),
   // Bomb Commands: the greatest of each race, in grander scenes.
   empress_solenne: (S) => S.sun(80, 26, 16, '#ffd98a', 16) + S.rings(80, 26, 26, 3, 9, '#ffe7a8', 0.5) + aureline(S, 80, 36, 1.5, { item: 'banner', crown: true, halos: 3, garb: 'vestment', eye: '#ffb000', cloak: '#ffcf80', sash: '#c0392b' }),
   the_shardmind: (S) => S.glow(80, 40, 74, '#c9a2ff', 0.35) + [[34, 40, 0.75], [126, 40, 0.75]].map(([x, y, sc]) => xelnaru(S, x, y, sc, { item: 'none', shard: '#8fb8e8', core: '#e6f6ff', cracked: true })).join('') + xelnaru(S, 80, 30, 1.45, { item: 'lens', crown: true, pauldrons: true, bulk: 1.2, cape: '#7a5cc8', shard: '#e6d8ff', core: '#ffffff' }) + S.motes(80, 40, 20, 80, '#e6d8ff'),

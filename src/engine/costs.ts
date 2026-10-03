@@ -8,6 +8,9 @@ export const CARD_COSTS: Record<string, number> = {
   coolant_array: 0,
   relay_station: 0,
   // 2
+  cryo_lance: 2,
+  rime_bastion: 2,
+  frostbound_sentinel: 2,
   riptide_sentinel: 2,
   dawn_rampart: 2,
   frost_bulwark: 2,
@@ -104,7 +107,9 @@ export const CARD_COSTS: Record<string, number> = {
   sunspear: 3,
   temporal_snare: 3,
   the_admiralty: 3,
+  glacier_hull: 3,
   // 4
+  absolute_zero: 4,
   empress_solenne: 4,
   the_shardmind: 4,
   leviathan_thoross: 4,

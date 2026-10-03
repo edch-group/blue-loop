@@ -1,4 +1,4 @@
-import { BALANCE, coverCard, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, coverCard, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { cardArtLite, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
@@ -210,7 +210,7 @@ export class DeckBuilder {
           this.host.toast(owned(arg) ? `You own ${owned(arg)} ${cardDef(arg).name}: craft another to add it.` : `You don't own ${cardDef(arg).name} yet: craft it with flux, or find it in a booster.`);
         } else if (d.cards.length >= BALANCE.maxDeckSize) this.host.toast(`A deck holds at most ${BALANCE.maxDeckSize} cards.`);
         else if (copies >= copyLimit(arg)) this.host.toast(copyLimit(arg) === 1 ? `${cardDef(arg).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`);
-        else if (cardDef(arg).kind === 'command' && commands >= commandCardsFor(BALANCE.maxDeckSize)) this.host.toast(`A deck holds at most ${commandCardsFor(BALANCE.maxDeckSize)} Command cards (one per ${BALANCE.cardsPerCommand} cards).`);
+        else if (cardDef(arg).kind === 'command' && commands >= commandCardsFor(BALANCE.maxDeckSize)) this.host.toast(`A deck holds at most ${commandCardsFor(BALANCE.maxDeckSize)} Heroes (one per ${BALANCE.cardsPerCommand} cards).`);
         else d.cards.push(arg);
         d.race = deckRace(d);
         // (Unless a craft prompt just opened, which needs the panel redrawn.)
@@ -329,7 +329,7 @@ export class DeckBuilder {
   /** The deck's count of cards and of Command cards, against what it needs. */
   private tallyHtml(d: SavedDeck): string {
     const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
-    return `<div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Command card per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> command</div>`;
+    return `<div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Hero per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> ${commandCardsFor(d.cards.length) === 1 ? 'hero' : 'heroes'}</div>`;
   }
 
   /** The deck, card by card: a slim row in the card's own colours with its picture, by type then name. */
@@ -503,7 +503,7 @@ export class DeckBuilder {
       return drop(key, label, rows, (v) => f[key].has(v), 'db-opt', on.length === 0 ? none : on.length === 1 ? on[0] : `${on.length} picked`);
     };
     const races: [string, string][] = [['deck', `${RACE_NAMES[d.race].toLowerCase()} + neutral`], ['neutral', 'neutral'], ...RACE_NAMES.map((n, i): [string, string] => [String(i), n.toLowerCase()])];
-    const kinds: [string, string][] = CARD_KINDS.map((k): [string, string] => [k, k]);
+    const kinds: [string, string][] = CARD_KINDS.map((k): [string, string] => [k, KIND_NAME[k]]);
     const rarities: [string, string][] = RARITIES.map((r): [string, string] => [r, RARITY_NAME[r].toLowerCase()]);
     const costs: [string, string][] = [['0', 'free'], ['1', '1 energy'], ['2', '2 energy'], ['3', '3 energy'], ['4', '4 or more'], ['x', 'X (all you have)']];
     const owns: [string, string][] = [['owned', 'owned'], ['missing', 'not owned'], ['craftable', 'craftable now']];

@@ -16,7 +16,7 @@ was replaced by this design in design review.
 
 ## Decks
 
-- A deck is **30 to 40 cards**, with **at most 2 copies** of any card and **one Command card per 10 cards** (3 in a 30-card deck, 4 in 40), so a deck runs at least two different Command cards. The starter decks are 30. [design review: 30–40 cards so a deck has room for a balanced curve and its big cards; proposed: 2 copies]
+- A deck is **30 to 40 cards**, with **at most 2 copies** of any card and **one Hero per 10 cards** (3 in a 30-card deck, 4 in 40), so a deck runs at least two different Heroes. The starter decks are 30. [design review: 30–40 cards so a deck has room for a balanced curve and its big cards; proposed: 2 copies]
 - Players build decks in the **deck builder** (Quickplay → deck builder) from the whole card pool, or pick one of the four **race starter decks**. The builder shows real cards, always the same shape and size as on the table. The AI plays the starters. [design review]
 - Each deck carries a race emblem. Cards can be mixed freely across races. [proposed]
 
@@ -29,7 +29,7 @@ was replaced by this design in design review.
    - The global card applies, if there is one.
    - Your tableau's **dawn effects** trigger, left to right.
    - Then every card in your tableau loses **1 stability**. A card at 0 fades into your discard pile.
-2. **Play cards** with your **energy**: 1 on your first day, then 2, 3, and **4 a day** from your fourth day. The industrial planet, a Command card's energy option and cards like Hive Relay add more on top, with no ceiling (5+ is normal). [design review: a cap of 4, because big cards are fun]
+2. **Play cards** with your **energy**: 1 on your first day, then 2, 3, and **4 a day** from your fourth day. The industrial planet, a Hero's energy option and cards like Hive Relay add more on top, with no ceiling (5+ is normal). [design review: a cap of 4, because big cards are fun]
 3. **End day.** Unplayed cards stay in your hand. [proposed]
 
 **Second seat head start** [proposed]: the second player starts with 1 extra card (with 4 energy and 30-card decks the first seat won 55–58% without it; with it, seats are about 48/52). The old head start (2 cooler, 1 extra card, 1 extra play) let the second seat win 68%; a sun 1 cooler was still worth too much with the current decks. With 1 extra card, seats are 46/54.
@@ -45,12 +45,12 @@ was replaced by this design in design review.
   - Bulwarks guard their neighbours: Bulwark Plating gives +1 to the cards either side. Aegis Monolith (Anomaly) gives +2 either side and +1 two slots away.
   - Removal can only reach cards with low enough defence:
     - Ion Cannon: 2 or less.
-    - Tractor Beam and Command Breaker: 3 or less.
+    - Tractor Beam and Hero Breaker: 3 or less.
     - Event Horizon (Anomaly): any.
 - **Stability** is how many of your days a card stays in play. Its dawn effects trigger that many times, then it fades into your discard pile. [design review: stability on each card; the discard pile takes everything that leaves play]
   - **Standard stability:** 3.
   - **Cards with only a one-time effect** (no Dawn effect, nothing passive), Command Directive included: 1. They stay through your rival's day and fade at your next dawn: the slot is part of their cost, but they never stay past the day they are played. A card with a leave effect (Xel'Naru Martyr) fires it then.
-  - **Command cards** with a Dawn effect or a passive: 3.
+  - **Heroes** with a Dawn effect or a passive: 3.
   - **Cards with their own stability:** Mycelium Tower 4 (it grows over time), Aegis Monolith 4.
   - **Restoring it (at a price):**
     - Stasis Field: +2 to a card, heat your own sun 1.
@@ -134,15 +134,15 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 - **Guard** cards draw heat: while a rival has any, your heat must go at one of them (a Guard that was not aimed at takes it on the most worn Guard). Pierce gets through shields, never past a Guard. Shields still cover cards, so stings and soothes answer heat aimed at a Guard too.
 - **Shields** absorb your rival's heat point for point. They fade at your dawn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields. [proposed]
 
-## Command cards
+## Heroes
 
-Command cards **lead the tableau**. Each player has **one Command slot**, out in front of their five tableau slots (top right of your tableau; your rival's is bottom left, the board being a mirror), so only one Command card is in play at a time: **a new one replaces the old** (which goes to the discard pile). It takes no tableau slot, has no neighbours, and its slot has defence 2. On the board it lies landscape, and a line round each tableau bumps out round it. [design review]
+Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of their five tableau slots (top right of your tableau; your rival's is bottom left, the board being a mirror), so only one Hero is in play at a time: **a new one replaces the old** (which goes to the discard pile). It takes no tableau slot, has no neighbours, and its slot has defence 2. On the board it lies landscape, and a line round each tableau bumps out round it. [design review]
 
-- **Utility, chosen as you play it.** Every Command card offers **+1 energy** or **draw 1** each dawn, or a **third option of its own**. The card keeps the option picked for as long as it stays; the card shows all three, with the one picked highlighted. [design review: heat and cool options lost to energy almost every time, so the first two are utility for all, and the third varies]
-- **A full term.** Every Command card has stability 3, whatever it does, so cards that want a Command card in play can count on one.
-- **Never back to your own hand.** Command cards can't be recalled (Phase Shift, Recall Beacon, Shard Recall) or recovered from the discard pile (Salvage Drone and the rest). A rival can still send one back to its owner's hand (Tractor Beam, Event Horizon), and Command Breaker destroys one.
+- **Utility, chosen as you play it.** Every Hero offers **+1 energy** or **draw 1** each dawn, or a **third option of its own**. The card keeps the option picked for as long as it stays; the card shows all three, with the one picked highlighted. [design review: heat and cool options lost to energy almost every time, so the first two are utility for all, and the third varies]
+- **A full term.** Every Hero has stability 3, whatever it does, so cards that want a Hero in play can count on one.
+- **Never back to your own hand.** Heroes can't be recalled (Phase Shift, Recall Beacon, Shard Recall) or recovered from the discard pile (Salvage Drone and the rest). A rival can still send one back to its owner's hand (Tractor Beam, Event Horizon), and Hero Breaker destroys one.
 
-**Heroes.** Every Command card is a hero: a character who leads their race, with their own picture. Each race has two, so a deck's three Command cards can be its own race's (two of one, one of the other), plus one bomb.
+**Heroes.** Every Hero is a hero: a character who leads their race, with their own picture. Each race has two, so a deck's three Heroes can be its own race's (two of one, one of the other), plus one bomb.
 
 | Hero | Race | Rarity | Dawn, one of |
 | --- | --- | --- | --- |
@@ -155,7 +155,7 @@ Command cards **lead the tableau**. Each player has **one Command slot**, out in
 | Hive-Speaker Zyth | Ixquor | White Dwarf | +1 energy, draw 1, or your orbit +1 |
 | Broodmother Ul'Kha | Ixquor | Stellar | +1 energy, draw 1, or renew 1 |
 
-**Bomb Commands.** One per race, cost 4 (so they need a day's bonus energy), Anomaly. Each has a big effect as it takes the field, then a dawn option stronger than the regular heroes'. [design review: Command cards felt limited; these give each race a high-cost swing]
+**Bomb Heroes.** One per race, cost 4 (so they need a day's bonus energy), Anomaly. Each has a big effect as it takes the field, then a dawn option stronger than the regular heroes'. [design review: Heroes felt limited; these give each race a high-cost swing]
 
 | Hero | Race | As it enters | Dawn, one of |
 | --- | --- | --- | --- |
@@ -164,31 +164,48 @@ Command cards **lead the tableau**. Each player has **one Command slot**, out in
 | Leviathan Thoross | Vorthane | 6 shields, eject (defence 3 or less) | +1 energy, draw 1, or 5 shields |
 | The Worldroot | Ixquor | draw 3, renew 2 | +1 energy, draw 1, or renew 2 |
 
-Counters: each is still a Command card, so Tractor Beam and Event Horizon send it back to hand (4 energy wasted) and Command Breaker destroys it.
+Counters: each is still a Hero, so Tractor Beam and Event Horizon send it back to hand (4 energy wasted) and Hero Breaker destroys it.
 
-(They keep the ids of the Command cards they replaced, so collections and saved decks carry over.)
+(They keep the ids of the Heroes they replaced, so collections and saved decks carry over.)
 
-**Heroes speak.** As a Command card takes the field, one of its hero's lines appears as a caption beside the card (src/ui/voice.ts). Text only for now; recorded voice lines may come later.
+**Heroes speak.** As a Hero takes the field, one of its hero's lines appears as a caption beside the card (src/ui/voice.ts). Text only for now; recorded voice lines may come later.
 
-**Keeping Command cards in play** is rewarded by:
-- Standing Orders: draw 1; dawn, draw 1 if you control a Command card.
-- Chain of Command: dawn, cool 1, or 2 if you control a Command card.
-- Aureline War-Herald: dawn, heat 1; gain 1 shield if you control a Command card.
+**Keeping Heroes in play** is rewarded by:
+- Standing Orders: draw 1; dawn, draw 1 if you control a Hero.
+- Chain of Command: dawn, cool 1, or 2 if you control a Hero.
+- Aureline War-Herald: dawn, heat 1; gain 1 shield if you control a Hero.
 
-Only one Command card is in play at a time, so these ask for one, and do something without one.
+Only one Hero is in play at a time, so these ask for one, and do something without one.
 
-**Answering Command cards.** Command Breaker destroys a Command card in your target's tableau; Tractor Beam and Event Horizon can send one back to its owner's hand (it can be played again, with a new choice).
+**Answering Heroes.** Hero Breaker destroys a Hero in your target's tableau; Tractor Beam and Event Horizon can send one back to its owner's hand (it can be played again, with a new choice).
 
-**Why the change, and what the simulator says (1000 games).** Permanent upgrades were opaque and snowballed, and a Command card fading after a day made the cards that want one in play weak. As choose-one dawn cards with a full term, they are easier to read. But the upgrades did one useful job: Solar Flare's +1 on every attack was what let attack-heavy decks break through shield decks. Without it, Abyssal Tide sits behind its shields at 0–4 heat (and the AI mostly picks cool 3 for its Commands), so Tide beats Shard Overload about 85% of the time. Tried and kept: Bell Warden 2 shields a dawn (was 3), Shard Reactor heats its own sun by 1 (was 2), Ember Shard 3 heat (was 2), and no extra opening card for the second seat (seats were 43/57 with it, as games run longer now). Result: Tide 60%, Hive 52%, Lancers 49%, Overload 42%; seats 49/51; about 13 rounds a game (was 11). Cool 2 in place of cool 3 sinks Hive Bloom (~20%), which leans on cooling; raising max health to 27 or 30 only made games longer. **Pierce: the counter to shields.** Every mechanic should have a counter. Shields answer heat, Sting and Soothe punish heat into shields, and **Pierce** answers shields: piercing heat goes straight past them (and so sets off no Sting or Soothe), though a Lightspeed card can still cancel it. On Shard Reactor's dawn heat, the Xel'Naru Martyr's burst, and Ignition Protocol. With them, Tide vs Overload went from 85/15 to about 55/45.
+**Why the change, and what the simulator says (1000 games).** Permanent upgrades were opaque and snowballed, and a Hero fading after a day made the cards that want one in play weak. As choose-one dawn cards with a full term, they are easier to read. But the upgrades did one useful job: Solar Flare's +1 on every attack was what let attack-heavy decks break through shield decks. Without it, Abyssal Tide sits behind its shields at 0–4 heat (and the AI mostly picks cool 3 for its Commands), so Tide beats Shard Overload about 85% of the time. Tried and kept: Bell Warden 2 shields a dawn (was 3), Shard Reactor heats its own sun by 1 (was 2), Ember Shard 3 heat (was 2), and no extra opening card for the second seat (seats were 43/57 with it, as games run longer now). Result: Tide 60%, Hive 52%, Lancers 49%, Overload 42%; seats 49/51; about 13 rounds a game (was 11). Cool 2 in place of cool 3 sinks Hive Bloom (~20%), which leans on cooling; raising max health to 27 or 30 only made games longer. **Pierce: the counter to shields.** Every mechanic should have a counter. Shields answer heat, Sting and Soothe punish heat into shields, and **Pierce** answers shields: piercing heat goes straight past them (and so sets off no Sting or Soothe), though a Lightspeed card can still cancel it. On Shard Reactor's dawn heat, the Xel'Naru Martyr's burst, and Ignition Protocol. With them, Tide vs Overload went from 85/15 to about 55/45.
 
 **Rarity review.** No card should be strictly worse than a commoner one:
 - Chorus of Dawn (Stellar): 1 heat per attack card you control, up to 4 (it was up to 2, worse than a plain Coronal Lance).
-- Aureline Lancer (White Dwarf) is a plain dawn heat 2; Aureline War-Herald (Stellar) is dawn heat 1, and with a Command card heat +1 and a shield (it was strictly worse than the Lancer).
+- Aureline Lancer (White Dwarf) is a plain dawn heat 2; Aureline War-Herald (Stellar) is dawn heat 1, and with a Hero heat +1 and a shield (it was strictly worse than the Lancer).
 - Aurelia, the First Light (Anomaly): dawn heat 1, +1 per attack card you control (up to 5).
 - Ommarath, the Deep Bell (Anomaly): dawn 2 shields, Soothe 1.
 - The protocols now beat Command Directive's matching option: Ignition heat 1, dawn heat 2 with Pierce; Coolant cool 2, dawn cool 3; Chamber 3 shields, dawn 3 shields.
 
 Result (1000 games): Tide 54%, Lancers 53%, Overload 49%, Hive 44%; seats 49/51; about 12.5 rounds a game.
+
+## Thermosiphon [design review]
+
+A sun runs from −5 to its max health, and starts at 0. **Thermosiphon** cards draw on the cold: the number beside the keyword is **per point your sun is below zero**, and at 0 or hotter the effect does nothing. In play, the card shows the total its number now comes to. (Thermosiphon was once an action that cooled your sun; it now names the payoff for getting there.)
+
+It gives cooling decks a way to win, and a new kind of defensive deck: cool hard, then sit behind shields that grow with the cold.
+
+| Card | Race | Cost | Rarity | Text |
+| --- | --- | --- | --- | --- |
+| Absolute Zero | Xel'Naru | 4 | Anomaly | Cool 2. Dawn: Thermosiphon heat 2 (up to 10 heat a dawn at −5) |
+| Cryo Lance | Xel'Naru | 2 | White Dwarf | Thermosiphon heat 1, pierce |
+| Frostbound Sentinel | Xel'Naru | 2 | White Dwarf | Guard, sturdy 1. Dawn: cool 1, Thermosiphon shield 1 |
+| Rime Bastion | Neutral | 2 | White Dwarf | Sturdy 1. Dawn: Thermosiphon shield 1 |
+| Glacier Hull | Vorthane | 3 | Stellar | 2 shields, hold. Dawn: Thermosiphon shield 1 |
+| Thaw Beam | Neutral | 1 | White Dwarf | Heat 1, pierce; +1 per point the target's sun is below zero |
+
+**Counters.** Any heat that lands warms a cold sun, so every point of heat through the shields also weakens its Thermosiphon cards; pierce is the natural answer. Thaw Beam is the direct one: cheap, piercing, and stronger the colder its target.
 
 ## Resonance [design review]
 
@@ -198,7 +215,7 @@ Resonance cards power up their neighbours in your tableau (by slot: an empty slo
 | --- | --- | --- |
 | Resonance Lattice | White Dwarf | +1 to the cards either side |
 | Sunforge (Aureline) | Stellar | +1 to attack cards either side, and dawn: heat 1 |
-| The Admiralty | Anomaly | +1 to the cards either side (a Command card) |
+| The Admiralty | Anomaly | +1 to the cards either side (a Hero) |
 | Harmonic Singularity | Anomaly | +2 to the cards either side, +1 to the cards two places away |
 
 Some cards count their own neighbours instead:
@@ -222,13 +239,13 @@ Some cards count their own neighbours instead:
   - Shard Recall (Xel'Naru): and heat your rival by 1 (recalling a Martyr fires it too).
 - **Removal** of cards in your target's tableau:
   - Ion Cannon destroys a card.
-  - Command Breaker heats 2, and destroys a Command card if there is one.
+  - Hero Breaker heats 2, and destroys a Hero if there is one.
   - Tractor Beam returns a card to its owner's hand, and heats 1.
   - Event Horizon (Anomaly) destroys a card and flings the cards either side of it back to their owner's hand.
 
 ## Every card does something on its own [design review]
 
-Cards that only worked alongside others (a count of a card type, Command cards, neighbours, a planet) left hands full of cards that did nothing, and a deck had to be almost all of one type to use them. Now each has a **floor**: it always does something, and its synergy makes it better.
+Cards that only worked alongside others (a count of a card type, Heroes, neighbours, a planet) left hands full of cards that did nothing, and a deck had to be almost all of one type to use them. Now each has a **floor**: it always does something, and its synergy makes it better.
 
 | Card | Before | Now |
 | --- | --- | --- |
@@ -239,9 +256,9 @@ Cards that only worked alongside others (a count of a card type, Command cards, 
 | Aurelia, the First Light | 1 heat per 2 attack cards (up to 3) | 1 heat, +1 per 2 attack cards (up to 4) |
 | Dawn Beacon (Aureline) | dawn, draw 1 with 3+ attack cards | with 2+ attack cards |
 | Prism Conduit (Xel'Naru) | cool 1 per attack card next to it | cool 1, +1 per attack card next to it |
-| Standing Orders, Chain of Command, War-Herald | needed one or two Command cards | see Command cards |
-| Command Breaker | heat 1, destroy a Command card | heat 2, destroy a Command card if there is one |
-| Signal Jammer | cancels a Command card (decks hold 2) | cancels a growth card |
+| Standing Orders, Chain of Command, War-Herald | needed one or two Heroes | see Heroes |
+| Hero Breaker | heat 1, destroy a Hero | heat 2, destroy a Hero if there is one |
+| Signal Jammer | cancels a Hero (decks hold 2) | cancels a growth card |
 | Dead World Mine | only while the dead planet faces your sun | also cool 1 every day |
 | Orbit Root | only while the dead planet faces your sun | also 1 shield every day |
 | Recovery cards | nothing with an empty discard pile | draw 1 instead |
@@ -250,7 +267,7 @@ Cards that only worked alongside others (a count of a card type, Command cards, 
 
 The game's recurring mechanics are **keywords**: a coloured word on the card with its number, always in title case (**Sturdy 1**, **Resonance 2 · 1**, **Erode 2**, **Recover Attack**, **Destroy 2** (2 or less defence)). The three most common effects are **symbols** instead of words, so card text stays very short: **heat** (two red chevrons up), **cool** (two blue chevrons down) and **shields** (a shield), each with its number. "At dawn, heat your rival's sun by 3" reads **Dawn: ⏶3**. Heat goes to the rival's sun unless the card says "to your sun".
 
-Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoomed card (with no hover pop-up there, since the explanations are already beside it); in the deck builder and the shop, on hover; and on the rules page (How to Play → Keywords), which lists them all. The zoomed card also explains its stability and defence badges, and the rules its text names in plain words (`TEXT_RULES`: choose-one cards, Command cards, leaving the tableau, facing a planet, cancelling, max health).
+Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoomed card (with no hover pop-up there, since the explanations are already beside it); in the deck builder and the shop, on hover; and on the rules page (How to Play → Keywords), which lists them all. The zoomed card also explains its stability and defence badges, and the rules its text names in plain words (`TEXT_RULES`: choose-one cards, Heroes, leaving the tableau, facing a planet, cancelling, max health).
 
 **How to Play** is a sheet of tabs (Overview, Your Day, Tableau, Sun & Orbit, Card Types, Keywords, Progress), each a handful of short facts rather than paragraphs.
 
@@ -270,7 +287,7 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | restore N / renew N | Another card / every other card of yours regains N stability |
 | recover (type) | A card (of that type) from your discard pile to your hand; with none there, draw |
 | abundance +N | Draw N more at each of your dawns, while the card is in play (a one-off draw just says "Draw N"). |
-| industry +N | N more energy every day, while the card is in play (a one-off boost reads "Gain" and a green energy dot per energy). A Command card's energy option is Industry, and its draw option Abundance, since a Command card's choice repeats at every dawn. |
+| industry +N | N more energy every day, while the card is in play (a one-off boost reads "Gain" and a green energy dot per energy). A Hero's energy option is Industry, and its draw option Abundance, since a Hero's choice repeats at every dawn. |
 | recall | Another card of yours from your tableau to your hand |
 | destroy N / eject N | Destroy / return to hand a rival card with at most N defence |
 | sting N / soothe N | When your shields absorb heat: heat the attacking card N, past its defence (never a sun) / cool your sun N |
@@ -336,18 +353,18 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 ## The card pool [proposed content]
 
-**89 cards:** 41 neutral (27 others, 3 globals, 5 Command cards and 6 Lightspeed cards), and 11–13 for each race. Cards have no cost: the number of plays per turn is the only limit, so no single card is a bomb. The power is in combinations. The full list and exact wording are in `src/engine/cards.ts`. Rarity and characters are set in one table there (`CARD_META`).
+**89 cards:** 41 neutral (27 others, 3 globals, 5 Heroes and 6 Lightspeed cards), and 11–13 for each race. Cards have no cost: the number of plays per turn is the only limit, so no single card is a bomb. The power is in combinations. The full list and exact wording are in `src/engine/cards.ts`. Rarity and characters are set in one table there (`CARD_META`).
 
 | Race | Theme | Its cards |
 | --- | --- | --- |
-| Aureline | Lancers: many attack cards, each making the others hit harder | Aureline Lancer, Focusing Array (other attack cards +1 at dawn; copies don't stack), Chorus of Dawn (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Warden, Sun-Priest (cools more with your attack cards), Aurelia (heat that grows with your attack cards), War-Herald (heat, and a shield while you hold a Command card), Sunforge (resonance for attack cards), Sunlit Return (recovers an attack card) |
+| Aureline | Lancers: many attack cards, each making the others hit harder | Aureline Lancer, Focusing Array (other attack cards +1 at dawn; copies don't stack), Chorus of Dawn (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Warden, Sun-Priest (cools more with your attack cards), Aurelia (heat that grows with your attack cards), War-Herald (heat, and a shield while you hold a Hero), Sunforge (resonance for attack cards), Sunlit Return (recovers an attack card) |
 | Xel'Naru | Overload: big bursts of heat, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm (3 heat, or 4 while you are overheated), Overload Core (harder while overheated), Xel'Naru Martyr (burst when it leaves play), Prism Vent, Fracture Seer, Champion (harder while overheated), Kyr'Vessa (strikes whenever another of your cards leaves play), Ember Shard (burst when recovered), Reliquarist (recovers an attack card), Prism Conduit (cools more with neighbouring attack cards), Shard Recall (recalls a card) |
 | Vorthane | Tides: build shields, keep them, and sting attackers | Bellwarden, Stinging Veil (once per attacking card each day), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Vorthanian Commoners, Hero of Rathune (shields from your defence cards), Ommarath (cools your sun when your shields absorb a hit), Tide Pylon (shields from neighbouring defence cards), Riptide Ambushers (Lightspeed: turn aside a big hit), Returning Tide (recovers a defence card) |
 | Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each day), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and hits harder once you're wide), Regrowth Pod (recovers a growth card), Spore Husk (draws when recovered), Compost Cycle (recovers any card, steadies the rest) |
 
 **Neutral cards:**
 - Coronal Lance, Plasma Relay, Gravity Sling, Thermal Exchange, Solar Battery, Coolant Array, Cryo Vault, Deflector Grid, Heat Sink and Deep-Space Scanners.
-- Removal: Ion Cannon, Tractor Beam, Command Breaker and Event Horizon.
+- Removal: Ion Cannon, Tractor Beam, Hero Breaker and Event Horizon.
 - Resonance: Resonance Lattice and Harmonic Singularity.
 - Recovery and recall: Salvage Drone, Phase Shift and Recall Beacon.
 - Command synergies: Standing Orders and Chain of Command.
@@ -364,7 +381,7 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 | Deck | Built around |
 | --- | --- |
-| Solar Lancers | Attack cards that boost each other: a Sunforge and a Focusing Array, Lancer Squadrons and Sunlance Charges; a Halo Sentinel (Guard); Command cards kept in play for the War-Herald; Sunlit Return and a Recall Beacon to bring attack cards back; Ion Cannon; Prism of Dawn set face down |
+| Solar Lancers | Attack cards that boost each other: a Sunforge and a Focusing Array, Lancer Squadrons and Sunlance Charges; a Halo Sentinel (Guard); Heroes kept in play for the War-Herald; Sunlit Return and a Recall Beacon to bring attack cards back; Ion Cannon; Prism of Dawn set face down |
 | Shard Overload | Martyrs, Echo Shard, Prism Wards and Kyr'Vessa paying off as cards leave play; Phase Shift, Shard Echo and Shard Recall to recall and replay them; an Ember Shard and the Reliquarist; Prism Conduit |
 | Abyssal Tide | Wardens flanked by Tide Pylons, a Trench-Warden and the Aegis Monolith guarding the line; Undertows to erode rival cards away; Returning Tide to bring a fallen defence card back; a Riptide Ambusher and an Ink Cloud |
 | Hive Bloom | The ramp deck: Sporelings, Overgrowth, a Hive Relay and the Brood Queen for more energy, so it can run a higher curve (a Chitin Fortress); Hive Rooting and Compost Cycle to stay wide; Spore Husks recovered (by the Compost Cycle and a Regrowth Pod) to draw more |
@@ -387,7 +404,7 @@ Recovery used to be rare because cards that faded went back into the deck, so th
 - Xel'Naru Martyr: 4 heat when it leaves (was 3), now that it leaves sooner.
 - Abyssal Tide's starter deck: Deep Current in place of Tidal Brake (its held shields feed the Abyssal Choirs).
 
-Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its cooling did. Result: Overload 52.5%, Tide 51.1%, Bloom 50.7%, Lancers 46.0%; seats 48/52; games about 11 rounds. Lancers lost the most from Command Directive fading fast (War-Herald and Standing Orders want a Command card in play), and Overload beats it 60/40. The other lopsided matchup is Tide vs Overload (74/26), as before.
+Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its cooling did. Result: Overload 52.5%, Tide 51.1%, Bloom 50.7%, Lancers 46.0%; seats 48/52; games about 11 rounds. Lancers lost the most from Command Directive fading fast (War-Herald and Standing Orders want a Hero in play), and Overload beats it 60/40. The other lopsided matchup is Tide vs Overload (74/26), as before.
 
 **After the discard pile and the card floors (1000 games).** Cards recovered from the discard pile went from 0.2 to 1.7 a game, and cards returned to hand to 1.9. Deck win rates are 46–55%: Lancers 54.7%, Overload 49.0%, Tide 49.6%, Bloom 46.3%. Seats are 49/51, and games last about 11.5 rounds.
 - The floors made Solar Lancers far too strong at first (about 80%). Their attack cards now all hit every day, and Focusing Array and Sunforge add to every one of them. Lancers now run one Sunforge (and a Recall Beacon), Coronal Chorus hits for up to 2, Sunlit Return cools 1, the Sun-Priest cools at most 2, and the War-Herald's Command bonus is a shield rather than more heat.
@@ -402,7 +419,7 @@ Nerfing Hive's plays or its "cards you control" attacks hardly moved it; its coo
 
 **Heroes, recall and pierce (600 games).** A recall card can now be put in the slot of the card it recalls (that card shows "replace" as you place it), not only into a full tableau, and every starter deck runs 2–4 recall cards (new: Tactical Withdrawal, Rally Banner, Spore Return). Abyssal Tide still lost about 89% of games to Shard Overload, so **pierce heat now gets past half the shields in its way** (rounded down) rather than all of them. Win rates: Lancers 53.8%, Overload 51.1%, Tide 42.4%, Bloom 51.0%; seats 46/54; Tide vs Overload 27/73. Lancers swapped its Sunspear for a Dawn Rampart.
 
-**Energy 4, 30-card decks and the Command slot (600 games).** Games got faster (about 13 rounds) and Abyssal Tide fell to 25% (7% against Shard Overload, whose pierce heat ignores its shields). It came back to 43% with more attack cards in its list (two each of Riptide, Brine Lash, Jelly Swarm and Coronal Lance), Abyssal Choir at heat 3 (up to 6), Bell Warden at 3 shields and Tide Pylon at 2; Shard Overload lost its Fracture Burst, Shard Lancer, Searing Core and Shard Mother. Shield buffs alone hardly moved Tide; heat did. Win rates: Lancers 46.5%, Overload 55.5%, Tide 42.8%, Bloom 53.9%; seats 47/53 (with the second seat's extra card). The AI still picks +1 energy for almost every Command card. It also leaves about 1.7 energy unspent a day, often because its five tableau slots are full: with 4 energy a day, the five slots may now be the limit.
+**Energy 4, 30-card decks and the Hero slot (600 games).** Games got faster (about 13 rounds) and Abyssal Tide fell to 25% (7% against Shard Overload, whose pierce heat ignores its shields). It came back to 43% with more attack cards in its list (two each of Riptide, Brine Lash, Jelly Swarm and Coronal Lance), Abyssal Choir at heat 3 (up to 6), Bell Warden at 3 shields and Tide Pylon at 2; Shard Overload lost its Fracture Burst, Shard Lancer, Searing Core and Shard Mother. Shield buffs alone hardly moved Tide; heat did. Win rates: Lancers 46.5%, Overload 55.5%, Tide 42.8%, Bloom 53.9%; seats 47/53 (with the second seat's extra card). The AI still picks +1 energy for almost every Hero. It also leaves about 1.7 energy unspent a day, often because its five tableau slots are full: with 4 energy a day, the five slots may now be the limit.
 
 **After dawn aiming and defence against heat (300 games).** Win rates: Lancers 53.4%, Overload 51.2%, Tide 47.2%, Bloom 47.4%; seats 45/55; about 15 rounds. The widest match-ups are Lancers over Tide and over Bloom (59/41).
 
@@ -528,7 +545,7 @@ On the table:
   - The sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring.
   - When your own sun takes enemy heat, the edges of the screen burn red with a heavy low blow. Heat you deal lands with a bright crack, and shields that block ring with a glassy clang.
   - Numbers on a sun keep their old value until the bolt lands.
-- **Dawn forecast, symbols centred between the tableaus.** They show what that player's next dawn will do, net of all their cards. Heat at their rival, shields, cooling, heat to their own sun, extra cards and extra plays, each as a symbol and number. The totals include resonance, Command cards' choices, growth, conditions, the global card, regional instability and the map, before shields or Lightspeed cards answer. Everyone can see what's coming and respond to it. [design review]
+- **Dawn forecast, symbols centred between the tableaus.** They show what that player's next dawn will do, net of all their cards. Heat at their rival, shields, cooling, heat to their own sun, extra cards and extra plays, each as a symbol and number. The totals include resonance, Heroes' choices, growth, conditions, the global card, regional instability and the map, before shields or Lightspeed cards answer. Everyone can see what's coming and respond to it. [design review]
 - **Removal is shown before it happens.** A glowing white arc draws from the removing card to each card it destroys, returns or erodes. The target glows under it while the arc holds, then a destroyed card dissolves in its slot and a returned card flies back to its owner's hand. [design review]
 - The rotating white star lies on the right of the table.
 - Your hand fans along the bottom, with your deck and discard piles either side.
@@ -578,11 +595,11 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 
 **Economy.**
 - **Credits** repair damage (1 per point) and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +4 max health.
-- **Materials** buy cards in the armory by rarity: 3 for a White Dwarf, 5 for a Stellar, 8 for an Anomaly, +1 for a race card. The armory and mission rewards offer mostly your own race's cards, and Anomalies least often. The fine-tuned Command cards are on offer too, to swap for a standard Command Directive.
+- **Materials** buy cards in the armory by rarity: 3 for a White Dwarf, 5 for a Stellar, 8 for an Anomaly, +1 for a race card. The armory and mission rewards offer mostly your own race's cards, and Anomalies least often. The fine-tuned Heroes are on offer too, to swap for a standard Command Directive.
 
 **The deck.** Your campaign deck is always a legal 20-card deck. Cards you win or buy wait in your **reserve**. You swap a reserve card in for a deck card, as long as the deck stays legal.
 
-**Garrisons.** Send up to 3 reserve cards to a system you control. They take a day to arrive and a day to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau** (a Command card with its first choice), and a stationed Lightspeed card starts the battle set face down (only one). If the system falls, the conqueror takes them. [design review: garrisoned cards defend a system]
+**Garrisons.** Send up to 3 reserve cards to a system you control. They take a day to arrive and a day to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau** (a Hero with its first choice), and a stationed Lightspeed card starts the battle set face down (only one). If the system falls, the conqueror takes them. [design review: garrisoned cards defend a system]
 
 **Anomalies** now give battle modifiers:
 
@@ -633,7 +650,7 @@ Universe domination on a map of 48 linked solar systems, played with the card ga
 - **After simulating:** Hive Bloom won 83% at first. Its cheap engine was underpriced, so Rot Bloom, Compost Cycle, Hive Rooting and Spore Husk went to 2, and Hive Relay (+1 energy every day) to 3.
 - **Result (AI games):** starters 46–57% (400 games), seats 52/48, games 14 rounds. The expensive synergy-attack deck wins 31% against the starters, a cheap all-attack deck 67%, and the shield/sting wall deck 14% (its key cards now cost 2–3). Curve matters: a deck of bombs can't play them fast enough.
 
-**Command cards: heat, cool or energy.** The draw option was never picked in simulation (0 times a game), so it became **+1 energy** at each dawn. Dawn energy is banked and added once the day's energy is set. The AI values it at an energy's worth, scaled down when it holds fewer than 4 cards to spend it on. In 400 games it picks heat 0.8 times a game, cool 2.9 and energy 1.3. Starters sit at 44–57%, seats 50/50.
+**Heroes: heat, cool or energy.** The draw option was never picked in simulation (0 times a game), so it became **+1 energy** at each dawn. Dawn energy is banked and added once the day's energy is set. The AI values it at an energy's worth, scaled down when it holds fewer than 4 cards to spend it on. In 400 games it picks heat 0.8 times a game, cool 2.9 and energy 1.3. Starters sit at 44–57%, seats 50/50.
 
 **Defence that answers at once.** Walls fell to 14% once energy came in, because their persistent cards cost 2–3 and took days to pay off. Eight new defence cards protect as they land, and keep going:
 - Frost Bulwark (2): Cool 2, Shield 2.

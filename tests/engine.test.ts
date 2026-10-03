@@ -63,7 +63,7 @@ describe('content', () => {
     expect(deckProblems(good.slice(1))).not.toEqual([]);
     expect(deckProblems([...good.slice(0, 17), 'plasma_relay', 'plasma_relay', 'plasma_relay'].slice(0, 20))).not.toEqual([]);
     const noCommands = [...good.filter((id) => cardDef(id).kind !== 'command'), 'coolant_array', 'cryo_vault'];
-    expect(deckProblems(noCommands).some((p) => p.includes('Command'))).toBe(true);
+    expect(deckProblems(noCommands).some((p) => p.includes('Heroes'))).toBe(true);
   });
 
   it('allows only one copy of an Anomaly', () => {
@@ -484,6 +484,37 @@ describe('card costs', () => {
     me.playsLeft = 4;
     s = applyAction(s, { type: 'playCard', cardUid: spear.uid });
     expect(activePlayer(s).playsLeft).toBe(1);
+  });
+});
+
+describe('Thermosiphon', () => {
+  it('scales with how far your sun is below zero, and does nothing at 0 or hotter', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    rival.shields = 0;
+    me.playsLeft = 9;
+    me.heat = 0;
+    give(me, ['cryo_lance', 'cryo_lance']);
+    const before = rival.heat;
+    s = play(s, 'cryo_lance');
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(before);
+    const cold = activePlayer(s);
+    cold.heat = -3;
+    s = play(s, 'cryo_lance');
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(before + 3);
+  });
+
+  it("Thaw Beam hits harder the colder its target's sun", () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    rival.shields = 0;
+    rival.heat = -4;
+    me.playsLeft = 9;
+    give(me, ['thaw_beam']);
+    s = play(s, 'thaw_beam');
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(-4 + 1 + 4);
   });
 });
 

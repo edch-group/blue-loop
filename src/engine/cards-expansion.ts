@@ -152,7 +152,14 @@ export const EXPANSION: CardDef[] = [
   // Hero leaders (Command cards): a Xel'Naru Archon and an Ixquor Hive-Speaker.
   { id: 'war_council', name: 'Archon Seris', kind: 'command', race: 1, text: '{dawn}, one of: {options:energy1|draw1|recover1}', choices: commandChoices('energy1', 'draw1', 'recover1') },
   { id: 'logistics_command', name: 'Hive-Speaker Zyth', kind: 'command', race: 3, text: '{dawn}, one of: {options:energy1|draw1|orbit1}', choices: commandChoices('energy1', 'draw1', 'orbit1') },
-  // ---- Bomb Commands: a big entrance for a big price ----
+  // ---- Thermosiphon: stronger the further your sun is below zero ----
+  { id: 'absolute_zero', name: 'Absolute Zero', kind: 'attack', race: 1, text: '{cool:2}. {dawn}: {thermosiphon} {heat:2}.', onPlay: [{ type: 'cool', amount: 2 }], onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cold', times: 2 } }] },
+  { id: 'cryo_lance', name: 'Cryo Lance', kind: 'attack', race: 1, text: '{thermosiphon} {heat:1}, {pierce}.', onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cold' }, pierce: true }] },
+  { id: 'rime_bastion', name: 'Rime Bastion', kind: 'defence', text: '{sturdy:1}. {dawn}: {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }] },
+  { id: 'frostbound_sentinel', name: 'Frostbound Sentinel', kind: 'defence', race: 1, text: '{guard}. {sturdy:1}. {dawn}: {cool:1}. {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'cool', amount: 1 }, { type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'taunt' }] },
+  { id: 'glacier_hull', name: 'Glacier Hull', kind: 'defence', race: 2, text: '{shield:2}. {hold}. {dawn}: {thermosiphon} {shield:1}.', onPlay: [{ type: 'shield', amount: 2 }], onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'keepShields' }] },
+  { id: 'thaw_beam', name: 'Thaw Beam', kind: 'attack', text: "{heat:1}, {pierce}. {heat:+1} per point your target's sun is below zero.", onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cold', rival: true }, pierce: true }] },
+  // ---- Bomb Heroes: a big entrance for a big price ----
   { id: 'empress_solenne', name: 'Empress Solenne', kind: 'command', race: 0, text: '{heat:4}, {pierce}. {dawn}, one of: {options:energy1|draw1|heat3}', onPlay: [{ type: 'heat', amount: 4, to: 'target', pierce: true }], choices: commandChoices('energy1', 'draw1', 'heat3') },
   { id: 'the_shardmind', name: 'The Shardmind', kind: 'command', race: 1, text: '{cool:4}, {recover}. {dawn}, one of: {options:energy1|draw1|cool3}', onPlay: [{ type: 'cool', amount: 4 }, { type: 'recover', orDraw: 1 }], choices: commandChoices('energy1', 'draw1', 'cool3') },
   { id: 'leviathan_thoross', name: 'Leviathan Thoross', kind: 'command', race: 2, text: '{shield:6}, {eject:3}. {dawn}, one of: {options:energy1|draw1|shield5}', onPlay: [{ type: 'shield', amount: 6 }, { type: 'bounce', maxDefence: 3 }], choices: commandChoices('energy1', 'draw1', 'shield5') },
@@ -189,7 +196,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Aureline Archon',
     kind: 'attack',
     race: 0,
-    text: '{dawn}: {heat:3}. {heat:+1} with a Command card.',
+    text: '{dawn}: {heat:3}. {heat:+1} with a Hero.',
     onTurn: [{ type: 'heat', amount: 3, to: 'target' }, { type: 'heat', amount: 1, to: 'target', if: { minKind: 'command', n: 1 } }],
   },
   {
@@ -215,7 +222,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Radiant Hymn',
     kind: 'growth',
     race: 0,
-    text: 'Draw 1. {dawn}: with a Command card, {cool:1}.',
+    text: 'Draw 1. {dawn}: with a Hero, {cool:1}.',
     onPlay: [{ type: 'draw', amount: 1 }],
     onTurn: [{ type: 'cool', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
@@ -258,7 +265,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Halo Sentinel',
     kind: 'defence',
     race: 0,
-    text: '{guard}. {sturdy:1}. {dawn}: {shield:1}. {shield:+1} with a Command card.',
+    text: '{guard}. {sturdy:1}. {dawn}: {shield:1}. {shield:+1} with a Hero.',
     defence: 1,
     onTurn: [{ type: 'shield', amount: 1 }, { type: 'shield', amount: 1, if: { minKind: 'command', n: 1 } }], passive: [{ type: 'taunt' }] },
   {
@@ -309,7 +316,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Sunlance Charge',
     kind: 'attack',
     race: 0,
-    text: '{heat:2}. {heat:+2} with a Command card.',
+    text: '{heat:2}. {heat:+2} with a Hero.',
     onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minKind: 'command', n: 1 } }],
   },
 
@@ -886,6 +893,9 @@ export const EXPANSION_META: Record<string, { rarity?: Rarity; character?: boole
   counter_pulse: { rarity: 'stellar' },
   war_council: { character: true },
   logistics_command: { character: true },
+  absolute_zero: { rarity: 'anomaly' },
+  frostbound_sentinel: { character: true },
+  glacier_hull: { rarity: 'stellar' },
   empress_solenne: { character: true, rarity: 'anomaly' },
   the_shardmind: { character: true, rarity: 'anomaly' },
   leviathan_thoross: { character: true, rarity: 'anomaly' },

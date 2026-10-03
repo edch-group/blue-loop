@@ -58,6 +58,14 @@ const INCOMING_WEIGHT = tuning('INCOMING', 0.8);
 /** What a face-down Lightspeed card is worth to its owner (a counter waiting to spring). */
 const LIGHTSPEED_VALUE = tuning('LSV', 3);
 
+/** How far below zero the AI counts on its sun getting, when valuing a Thermosiphon card. */
+const COLD_HOPE = tuning('COLD', 1);
+
+/** Whether a player has a Thermosiphon card in play (so a sun below zero is worth keeping cold). */
+function runsCold(p: PlayerState): boolean {
+  return p.tableau.some((c) => [...(cardDef(c.defId).onTurn ?? []), ...(cardDef(c.defId).onPlay ?? [])].some((e) => 'plus' in e && e.plus?.of === 'cold' && !e.plus.rival));
+}
+
 /** Roughly what a card in play is worth to its owner each day from now on. */
 function cardValue(state: GameState, p: PlayerState, card: CardInstance): number {
   const def = cardDef(card.defId);
@@ -68,13 +76,14 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
     const scale = conditionMet(p, e.if) ? 1 : 0.4;
     switch (e.type) {
       case 'heat':
-        perTurn += scale * Math.max(effectAmount(state, p, card, e, 'turn'), e.plus?.of === 'growth' ? 2 : 0);
+        perTurn += scale * Math.max(effectAmount(state, p, card, e, 'turn'), e.plus?.of === 'growth' ? 2 : e.plus?.of === 'cold' ? COLD_HOPE * (e.plus.times ?? 1) : 0);
         break;
       case 'cool':
-        perTurn += scale * effectAmount(state, p, card, e, 'turn') * (p.heat > 0 ? 0.9 : 0.35);
+        // Below zero, cooling still pays when Thermosiphon cards feed on the cold.
+        perTurn += scale * effectAmount(state, p, card, e, 'turn') * (p.heat > 0 || runsCold(p) ? 0.9 : 0.35);
         break;
       case 'shield':
-        perTurn += scale * effectAmount(state, p, card, e, 'turn') * 0.45;
+        perTurn += scale * Math.max(effectAmount(state, p, card, e, 'turn'), e.plus?.of === 'cold' ? COLD_HOPE * (e.plus.times ?? 1) : 0) * 0.45;
         break;
       case 'draw':
         perTurn += scale * e.amount * 0.7;

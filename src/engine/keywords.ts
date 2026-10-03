@@ -45,6 +45,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   sting: { name: 'sting', group: 'shields', explain: () => "When your shields block a card's heat, that card takes heat back. Once per card a day." },
   soothe: { name: 'soothe', group: 'shields', explain: () => 'When your shields block heat, your sun cools. Once per card a day.' },
   hold: { name: 'hold', group: 'shields', explain: () => "Your shields don't fade at your dawn." },
+  thermosiphon: { name: 'thermosiphon', group: 'cool', explain: () => 'Its number is per point your sun is below zero. At 0 or hotter, it does nothing.' },
   overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or more.' },
   grows: { name: 'grows', group: 'tempo', explain: () => 'Its numbers rise at each of your dawns, up to a limit.' },
   plays: { name: 'industry', group: 'tempo', explain: () => 'Extra energy every day, while it is in play.' },
@@ -62,7 +63,7 @@ export const KEYWORDS: Record<string, Keyword> = {
  */
 export const TEXT_RULES: { name: string; group: Keyword['group']; pattern: RegExp; explain: string }[] = [
   { name: 'One Of', group: 'tempo', pattern: /one of:/, explain: 'Pick one when played. It happens every dawn.' },
-  { name: 'Command Card', group: 'tempo', pattern: /\bCommand card|Dawn, one of/, explain: 'Goes in your Command slot. One at a time.' },
+  { name: 'Hero', group: 'tempo', pattern: /\bHero(es)?\b|Dawn, one of/, explain: 'Goes in your Hero slot. One at a time.' },
   { name: 'Leaves Your Tableau', group: 'stability', pattern: /leaves? your tableau/, explain: 'Fades, is destroyed, or is returned to hand.' },
   { name: 'Facing A Planet', group: 'orbit', pattern: /facing the (dead|abundant|industrial) planet/, explain: 'The planet now facing your sun.' },
   { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'It has no effect.' },

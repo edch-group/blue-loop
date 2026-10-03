@@ -11,6 +11,8 @@
  */
 export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'lightspeed';
 export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'global', 'command', 'lightspeed'];
+/** A kind as players read it: Command cards are Heroes (the id stays, so saved decks carry over). */
+export const KIND_NAME: Record<CardKind, string> = { attack: 'attack', defence: 'defence', growth: 'growth', global: 'global', command: 'hero', lightspeed: 'lightspeed' };
 
 /**
  * How rare a card is, shown by a gem at the top of the card: a White Dwarf
@@ -38,7 +40,12 @@ export type Count =
   /** `amount` while this planet faces your sun, otherwise nothing. */
   | { of: 'planet'; planet: Planet; amount: number }
   /** The energy spent on this card as it was played (cards that spend all your energy), times `times`. */
-  | { of: 'spent'; times?: number };
+  | { of: 'spent'; times?: number }
+  /**
+   * Thermosiphon: how far your sun is below zero (`rival`: your target's sun), times `times`. The
+   * colder the sun, the stronger the card; at 0 or hotter, nothing.
+   */
+  | { of: 'cold'; times?: number; rival?: boolean };
 
 /** Only resolve an effect when this holds. */
 export type Condition =

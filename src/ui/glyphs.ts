@@ -1,4 +1,4 @@
-import { BALANCE, baseStability, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseStability, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -23,7 +23,7 @@ export const KIND_COLOUR: Record<CardKind, string> = {
   defence: '#3f93dc', // blue
   growth: '#3a9e6a', // green: draw, growth and extra plays
   global: '#9265d6', // purple
-  command: '#8b909b', // silver: each deck's two Command cards
+  command: '#8b909b', // silver: each deck's Heroes
   lightspeed: '#d4952a', // amber: set face down, springs on the enemy's day
 };
 
@@ -68,6 +68,12 @@ const GLYPHS: Record<string, string> = {
   chamber_protocol: `<rect x="34" y="14" width="32" height="32" rx="4"/>${[42, 48, 54].map((x) => `<rect class="fill" x="${x}" y="22" width="4" height="16" rx="2"/>`).join('')}`,
   command_directive: `<rect x="34" y="14" width="32" height="32" rx="4"/>${chevrons(2, 20, 9)}`,
   the_admiralty: `<rect x="34" y="14" width="32" height="32" rx="4"/>${chevrons(3, 17, 9)}<line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  absolute_zero: `${ring(12)}${rays(6, 4, 12)}${ring(3, 'class="dot"')}`,
+  cryo_lance: `<polygon class="fill" points="30,44 64,18 70,24"/>${rays(6, 3, 7)}`,
+  rime_bastion: `<path d="M34 44 V24 L50 16 L66 24 V44"/>${rays(6, 3, 8)}`,
+  frostbound_sentinel: `<path d="M34 44 V24 L50 16 L66 24 V44"/><polygon class="fill" points="50,22 56,30 50,38 44,30"/>`,
+  glacier_hull: `<polyline points="26,42 38,24 48,34 58,18 74,42"/><path d="M22 46 Q50 38 78 46"/>`,
+  thaw_beam: `${ring(9)}<line class="fill" x1="20" y1="14" x2="42" y2="26"/>`,
   empress_solenne: `<rect x="34" y="14" width="32" height="32" rx="4"/>${ring(6, 'class="fill"')}${rays(8, 12, 18)}`,
   the_shardmind: `<rect x="34" y="14" width="32" height="32" rx="4"/><polygon class="fill" points="50,19 59,30 50,41 41,30"/><line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
   leviathan_thoross: `<rect x="34" y="14" width="32" height="32" rx="4"/><path class="fill" d="M41 36 Q41 22 50 22 Q59 22 59 36 Z"/><line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
@@ -206,12 +212,12 @@ const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<'
  */
 export function typeLine(def: CardDef): string {
   const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
-  return `<span class="card-type">${escType(def.kind)}</span>${race}`;
+  return `<span class="card-type">${escType(KIND_NAME[def.kind])}</span>${race}`;
 }
 
 /** The same as plain words ("attack · aureline"), for lists. */
 export function typeWords(def: CardDef): string {
-  return escType(def.race !== undefined ? `${def.kind} · ${RACE_NAMES[def.race].toLowerCase()}` : def.kind);
+  return escType(def.race !== undefined ? `${KIND_NAME[def.kind]} · ${RACE_NAMES[def.race].toLowerCase()}` : KIND_NAME[def.kind]);
 }
 
 /**

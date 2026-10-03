@@ -166,7 +166,7 @@ describe('garrisons', () => {
     expect(() => applyCampaignAction(s, { type: 'station', nodeId: home(s).id, index: 0 })).toThrow(/garrison/);
     // Swapping a Command card out for a normal card would leave the deck one Command short.
     const cmd = f.deck.indexOf('command_directive');
-    expect(() => applyCampaignAction(s, { type: 'deckSwap', slot: cmd, reserveIndex: 1 })).toThrow(/Command/);
+    expect(() => applyCampaignAction(s, { type: 'deckSwap', slot: cmd, reserveIndex: 1 })).toThrow(/Heroes/);
     s = applyCampaignAction(s, { type: 'deckSwap', slot: 0, reserveIndex: 1 });
     expect(campaignPlayer(s).deck[0]).toBe('helio_lancer');
     expect(campaignPlayer(s).reserve).toContain(f.deck[0]);
