@@ -67,10 +67,10 @@ export const KEYWORDS: Record<string, Keyword> = {
   hold: { name: 'hold', group: 'shields', explain: (v) => `Your shields don't fade (up to ${n(v, '12')}).` },
   overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or more.' },
   grows: { name: 'grows', group: 'tempo', explain: (v) => `+1 at each of your dawns, up to ${n(v)}.` },
-  plays: { name: 'industry', group: 'tempo', explain: (v) => `+${n(v, '1')} energy every day.` },
+  plays: { name: 'industry', group: 'tempo', explain: (v) => `+${n(v, '1')} energy every day, while it is in play.` },
   spend: { name: 'spend all', group: 'tempo', explain: () => 'Spends all your energy. Stronger the more you spend.' },
-  energy: { name: 'industry', group: 'tempo', explain: (v) => `+${n(v, '1')} energy today.` },
-  draw: { name: 'abundance', group: 'tempo', explain: (v) => `Draw ${v ? `${v} card${v === '1' ? '' : 's'}` : 'cards'}.` },
+  energy: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy today.` },
+  abundance: { name: 'abundance', group: 'tempo', explain: (v) => `Draw ${n(v, '1')} more at each of your dawns, while it is in play.` },
   orbit: { name: 'orbit', group: 'orbit', explain: (v) => `Moves a sun's planets by ${n(v)}.` },
   lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Set face down. Springs on your rival's day when its trigger happens." },
   global: { name: 'global', group: 'global', explain: () => 'Affects both players. Only one at a time.' },
@@ -118,6 +118,8 @@ function rawLabel(id: string, value?: string): string {
 export function optionText(id: string): string {
   const m = /^([a-z]+)(\d+)$/.exec(id);
   if (!m) return id;
+  if (m[1] === 'energy') return `Gain ${m[2]} energy`;
+  if (m[1] === 'draw') return `Draw ${m[2]}`;
   if (m[1] === 'recover') return '{recover} your last discarded card';
   if (m[1] === 'orbit') return `Your {orbit:+${m[2]}}`;
   return KEYWORDS[m[1]] ? `{${m[1]}:${m[2]}}` : `${m[1]} ${m[2]}`;
