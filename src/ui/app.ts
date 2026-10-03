@@ -2513,6 +2513,9 @@ export class App {
       if (under) this.showPeek(under, under.closest('.db-deck-side'));
       else this.preview.classList.remove('show');
     }
+    // The password is never written into the markup, so put what's been typed back after a redraw (ticking a box, an error).
+    const pw = this.root.querySelector<HTMLInputElement>('[data-auth-password]');
+    if (pw) pw.value = this.authPassword;
     if (typing !== null) {
       const box = this.root.querySelector<HTMLInputElement>('[data-db-search]');
       box?.focus();
