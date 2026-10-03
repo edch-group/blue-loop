@@ -338,16 +338,19 @@ export class DeckBuilder {
       }`;
   }
 
-  /** The card pool's tiles, as the filters let them through. */
+  /**
+   * The card pool's tiles, as the filters let them through: Command cards first, lying landscape in a
+   * row of their own, then everything else (one scrolling grid).
+   */
   private poolCards(d: SavedDeck): string[] {
     const count = (id: string) => d.cards.filter((x) => x === id).length;
-    return this.filtered(d)
-      .map((c) => {
-        const n = count(c.id);
-        const have = owned(c.id);
-        return `
-          <button class="db-card ${n ? 'db-card-in' : ''} ${have ? '' : 'db-card-locked'} ${this.focus === c.id ? 'db-card-focus' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
-            <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}">
+    const tile = (c: CardDef) => {
+      const n = count(c.id);
+      const have = owned(c.id);
+      const cmd = c.kind === 'command';
+      return `
+          <button class="db-card ${cmd ? 'db-card-cmd' : ''} ${n ? 'db-card-in' : ''} ${have ? '' : 'db-card-locked'} ${this.focus === c.id ? 'db-card-focus' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
+            <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}${cmd ? ' card-landscape' : ''}">
               <span class="card-glyph">${cardArtLite(c, true)}</span>${stabilityBadge(c)}
               <span class="card-name">${esc(c.name.toLowerCase())}</span>
               <span class="card-text">${cardTextHtml(c.text)}</span>
@@ -356,7 +359,11 @@ export class DeckBuilder {
             <span class="db-have ${n ? 'on' : ''}" data-act="db-focus" data-arg="${c.id}" title="${n} in this deck, ${have} owned: tap to craft or break down">${n}/${have}</span>
             <span class="db-zoom" data-act="db-zoom" data-arg="${c.id}" title="Read it large (or right-click the card)">⤢</span>
           </button>`;
-      });
+    };
+    const list = this.filtered(d);
+    const commands = list.filter((c) => c.kind === 'command');
+    const rest = list.filter((c) => c.kind !== 'command');
+    return [...(commands.length ? [`<div class="db-pool-cmds">${commands.map(tile).join('')}</div>`] : []), ...rest.map(tile)];
   }
 
   /** After a filter changes: the pool, the ticks and the filter count update in place (no redraw). */

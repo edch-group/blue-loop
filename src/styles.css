@@ -2592,6 +2592,11 @@ img.art { object-fit: cover; }
   container-type: size; position: relative; display: block; width: var(--dbw); height: calc(var(--dbw) * 1.4); min-height: 0;
   padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; text-align: left;
 }
+/* Command cards: landscape, in a row of their own across the top of the pool. */
+.db-pool-cmds { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, calc(var(--dbw) * 1.4)); gap: inherit; padding-bottom: 4px; }
+.db-card.db-card-cmd { width: calc(var(--dbw) * 1.4); height: var(--dbw); }
+.db-card.db-card-cmd > .card { --cw: 100cqh; }
+.db-card.db-card-cmd .card-name { font-size: max(6px, calc(var(--cmdw) * 0.052)); overflow-wrap: anywhere; padding-right: 0; }
 /* The card itself is laid out exactly like one on the table (5:7), scaled to the column. */
 .db-card > .card { --cw: 100cqw; width: 100%; height: 100%; }
 .db-card > .card .card-text { display: block; overflow: hidden; }
