@@ -213,6 +213,8 @@ export class DeckBuilder {
         else if (cardDef(arg).kind === 'command' && commands >= commandCardsFor(BALANCE.maxDeckSize)) this.host.toast(`A deck holds at most ${commandCardsFor(BALANCE.maxDeckSize)} Command cards (one per ${BALANCE.cardsPerCommand} cards).`);
         else d.cards.push(arg);
         d.race = deckRace(d);
+        // (Unless a craft prompt just opened, which needs the panel redrawn.)
+        if (this.focus !== arg && this.updateDeckInPlace(d, arg)) return true;
         break;
       }
       case 'db-remove': {
@@ -220,6 +222,7 @@ export class DeckBuilder {
         const i = d.cards.lastIndexOf(arg);
         if (i >= 0) d.cards.splice(i, 1);
         d.race = deckRace(d);
+        if (this.updateDeckInPlace(d, arg)) return true;
         break;
       }
       case 'db-save': {
@@ -296,22 +299,7 @@ export class DeckBuilder {
   }
 
   private renderEditor(d: SavedDeck): string {
-    const count = (id: string) => d.cards.filter((x) => x === id).length;
     const pool = this.poolCards(d);
-    // The deck, card by card: a pill in the card's own colours with its picture, by type then name.
-    const grouped = [...new Set(d.cards)]
-      .sort((a, b) => cardDef(a).kind.localeCompare(cardDef(b).kind) || cardDef(a).name.localeCompare(cardDef(b).name))
-      .map((id) => {
-        const c = cardDef(id);
-        return `
-        <button class="db-row rarity-${c.rarity ?? 'dwarf'}" data-act="db-remove" data-arg="${id}" data-card="${id}" style="--kc:${KIND_COLOUR[c.kind]}" title="Tap to remove one">
-          <span class="db-row-art">${cardArtLite(c)}</span>
-          <span class="db-row-name"><b>${esc(c.name.toLowerCase())}</b><small>${typeWords(c)}</small></span>
-          <b class="db-row-n">×${count(id)}</b><i>−</i>
-        </button>`;
-      })
-      .join('');
-    const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
     // (Saving a deck that isn't ready yet says what it still needs.)
     return `
       <div class="setup-body db-editor">
@@ -321,9 +309,9 @@ export class DeckBuilder {
         </div>
         <aside class="db-deck-side">
           <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
-          <div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Command card per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> command</div>
+          ${this.tallyHtml(d)}
           ${this.focus ? this.renderFocus(this.focus) : ''}
-          <div class="db-rows">${grouped || '<p class="muted">Tap cards on the left to add them.</p>'}</div>
+          <div class="db-rows">${this.rowsHtml(d)}</div>
           <div class="db-actions"><button class="btn btn-small btn-exit" data-act="db-exit">exit</button><button class="btn-primary btn-small" data-act="db-save">save</button></div>
         </aside>
       </div>
@@ -336,6 +324,56 @@ export class DeckBuilder {
             </div></div>`
           : ''
       }`;
+  }
+
+  /** The deck's count of cards and of Command cards, against what it needs. */
+  private tallyHtml(d: SavedDeck): string {
+    const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
+    return `<div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Command card per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> command</div>`;
+  }
+
+  /** The deck, card by card: a slim row in the card's own colours with its picture, by type then name. */
+  private rowsHtml(d: SavedDeck): string {
+    const count = (id: string) => d.cards.filter((x) => x === id).length;
+    const rows = [...new Set(d.cards)]
+      .sort((a, b) => cardDef(a).kind.localeCompare(cardDef(b).kind) || cardDef(a).name.localeCompare(cardDef(b).name))
+      .map((id) => {
+        const c = cardDef(id);
+        return `
+        <button class="db-row rarity-${c.rarity ?? 'dwarf'}" data-act="db-remove" data-arg="${id}" data-card="${id}" style="--kc:${KIND_COLOUR[c.kind]}" title="Tap to remove one">
+          <span class="db-row-art">${cardArtLite(c)}</span>
+          <span class="db-row-name"><b>${esc(c.name.toLowerCase())}</b><small>${typeWords(c)}</small></span>
+          <b class="db-row-n">×${count(id)}</b><i>−</i>
+        </button>`;
+      })
+      .join('');
+    return rows || '<p class="muted">Tap cards on the left to add them.</p>';
+  }
+
+  /**
+   * A card added or removed: update the deck's list and count, and that one card's tile in the pool, where
+   * they stand (redrawing the whole pool, hundreds of cards, made every tap slow). False if it can't.
+   */
+  private updateDeckInPlace(d: SavedDeck, id: string): boolean {
+    const side = document.querySelector<HTMLElement>('.db-deck-side');
+    const rows = side?.querySelector<HTMLElement>('.db-rows');
+    const tally = side?.querySelector<HTMLElement>('.db-tally');
+    if (!side || !rows || !tally) return false;
+    const top = rows.scrollTop;
+    tally.outerHTML = this.tallyHtml(d);
+    rows.innerHTML = this.rowsHtml(d);
+    rows.scrollTop = top;
+    const n = d.cards.filter((x) => x === id).length;
+    document.querySelectorAll<HTMLElement>(`.db-pool .db-card[data-card="${id}"]`).forEach((tile) => {
+      tile.classList.toggle('db-card-in', n > 0);
+      const have = tile.querySelector<HTMLElement>('.db-have');
+      if (have) {
+        have.classList.toggle('on', n > 0);
+        have.textContent = `${n}/${owned(id)}`;
+        have.title = `${n} in this deck, ${owned(id)} owned: tap to craft or break down`;
+      }
+    });
+    return true;
   }
 
   /**
