@@ -155,8 +155,11 @@ export function beam(from: DOMRect, to: DOMRect, colour: string, opts: { delay?:
   const duration = opts.duration ?? 420;
   const delay = opts.delay ?? 0;
   if (reducedMotion()) return delay;
-  const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2;
-  const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
+  const ax = from.left + from.width / 2, ay = from.top + from.height / 2;
+  const bx = to.left + to.width / 2, by = to.top + to.height / 2;
+  // From edge to edge, never over either card's text.
+  const [x0, y0] = edge(from, ax, ay, bx, by, 4);
+  const [x1, y1] = edge(to, bx, by, ax, ay, 3);
   const len = Math.hypot(x1 - x0, y1 - y0);
   const el = document.createElement('div');
   el.className = 'beam';

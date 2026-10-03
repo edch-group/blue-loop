@@ -753,8 +753,8 @@ input { font: inherit; }
 
 /* ---------- Effects ---------- */
 .beam {
-  position: fixed; left: 0; top: 0; z-index: 45; pointer-events: none; transform-origin: 0 50%; margin-top: -3px; border-radius: 999px;
-  background: linear-gradient(90deg, transparent, var(--c) 18%, #fff 70%, var(--c)); box-shadow: 0 0 14px 3px var(--c);
+  position: fixed; left: 0; top: 0; z-index: 45; pointer-events: none; transform-origin: 0 50%; margin-top: -1px; border-radius: 999px;
+  height: 2px !important; background: var(--c); box-shadow: 0 0 1px rgba(70, 80, 110, 0.35), 0 0 6px color-mix(in srgb, var(--c) 55%, transparent);
 }
 .bolt { position: fixed; left: 0; top: 0; z-index: 45; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #fff 0 30%, var(--c) 60%, transparent 72%); box-shadow: 0 0 22px 6px var(--c); }
 .fx-hot .orb-core { animation: hitHot 0.8s ease-out; }
@@ -2521,18 +2521,13 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 /* Removal: a glowing white arc from the removing card to its target. */
 .tether { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 47; pointer-events: none; overflow: visible; }
 .tether path { fill: none; stroke-linecap: round; }
-/* Beams are pure light, feathered like a box shadow: no hard edge or line anywhere, just three soft
-   layers of one colour, widest and faintest outside, a little brighter towards the middle. */
-.tether { --beam: 160, 120, 250; }
-.tether.tether-aim { --beam: 255, 125, 90; }
-.tether-glow { stroke: rgba(var(--beam), 0.28); stroke-width: 26; filter: blur(10px); }
-.tether-tube { stroke: rgba(var(--beam), 0.4); stroke-width: 12; filter: blur(5px); }
-.tether-line { stroke: rgba(var(--beam), 0.55); stroke-width: 5; filter: blur(2.5px); }
-.tether-tip { fill: none; stroke: rgba(var(--beam), 0.6); stroke-width: 5; filter: blur(3px); }
-/* A slow breath, so it reads as light rather than paint. */
-.tether-aim svg, .tether-aim .tether-tube, .tether-aim .tether-glow { animation: beamBreath 2.6s ease-in-out infinite; }
-@keyframes beamBreath { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
-@media (prefers-reduced-motion: reduce) { .tether-aim .tether-tube, .tether-aim .tether-glow { animation: none; } }
+/* Beams are thin lines with a faint glow: red for an attack, blue for cooling, white for anything else
+   (a white one carries a faint grey edge so it reads on the pale board). */
+.tether { --beam: #ffffff; --beam-glow: rgba(70, 80, 110, 0.35); }
+.tether.tether-aim { --beam: #e0452f; --beam-glow: rgba(224, 69, 47, 0.45); }
+.tether-glow, .tether-tube { display: none; }
+.tether-line { stroke: var(--beam); stroke-width: 2; filter: drop-shadow(0 0 1px var(--beam-glow)) drop-shadow(0 0 5px var(--beam-glow)); }
+.tether-tip { fill: none; stroke: var(--beam); stroke-width: 2; filter: drop-shadow(0 0 4px var(--beam-glow)); }
 
 /* ---------- Start-of-turn forecast: symbols centred between the tableaus ---------- */
 /* Yours above your row, your rival's beneath theirs, so both sit in the middle of the board. */
