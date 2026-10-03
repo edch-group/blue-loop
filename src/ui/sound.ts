@@ -46,6 +46,7 @@ class SoundBoard {
   private reverb: ConvolverNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private lastHover = 0;
+  private lastRustle = 0;
   private musicTimers: number[] = [];
   private musicNodes: AudioNode[] = [];
   private musicPlaying = false;
@@ -295,6 +296,15 @@ class SoundBoard {
     if (now - this.lastHover < 90) return;
     this.lastHover = now;
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
+  }
+  /** A card or deck under the pointer: the dry rustle of paper (a few tiny bright crackles over a soft brush). */
+  rustle() {
+    const now = performance.now();
+    if (now - this.lastRustle < 70) return;
+    this.lastRustle = now;
+    this.breath({ dur: 0.16, freq: 2400, to: 3600, q: 0.7, gain: 0.022, attack: 0.03, type: 'bandpass' });
+    for (let i = 0; i < 3; i++)
+      this.breath({ dur: 0.035 + Math.random() * 0.03, freq: 4200 + Math.random() * 2600, q: 1.6, gain: 0.014 + Math.random() * 0.01, attack: 0.004, delay: 0.015 + i * 0.03 + Math.random() * 0.02, type: 'bandpass' });
   }
   /** A button press in the menus: a soft glassy tick. */
   click() {

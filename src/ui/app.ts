@@ -2243,9 +2243,11 @@ export class App {
       if (row) this.showPeek(row, row.closest('.db-deck-side'));
       else if (!this.press?.shown) this.preview.classList.remove('show');
     }
-    const el = (e.target as HTMLElement).closest<HTMLElement>('.hand [data-card]');
-    const from = (e.relatedTarget as HTMLElement | null)?.closest?.('[data-card]');
-    if (el && from !== el) sound.hover(); // the card lifts via CSS
+    // Cards (in the hand, on the table, in the builder's grid and deck list) and deck boxes rustle like paper.
+    const PAPER = '[data-card], .deck-box';
+    const el = (e.target as HTMLElement).closest<HTMLElement>(PAPER);
+    const from = (e.relatedTarget as HTMLElement | null)?.closest?.(PAPER);
+    if (el && from !== el) sound.rustle();
   }
 
   // ---- Long press (touch): hold a card to read it; release to dismiss ----
