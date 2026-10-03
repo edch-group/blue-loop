@@ -67,6 +67,10 @@ export class DeckBuilder {
   private openedAs: SavedDeck | null = null;
   private openedSnap = '';
   private confirmExit = false;
+  /** The page of the card pool shown, and how many cards a page held when it was drawn. */
+  private page = 0;
+  /** The pool's layout the pages were cut to (unset: cut afresh at the next draw). */
+  private layout: PoolLayout | null = null;
   /** How big the cards in the pool are (small fits more on a screen). Remembered on this device. */
   private grid: 'sm' | 'md' | 'lg' = (() => {
     try {
@@ -90,7 +94,8 @@ export class DeckBuilder {
   /** The card search, as it is typed. */
   onSearch(value: string) {
     this.filters.q = value.slice(0, 40);
-    this.host.render();
+    this.page = 0;
+    this.refreshPool();
   }
 
   /** Handle a `db-` action; returns true if it was one. */
@@ -120,12 +125,14 @@ export class DeckBuilder {
         this.starter = src;
         this.editing = { id: `deck-${Date.now().toString(36)}`, name: src.name, race: src.race, cards: [...src.cards] };
         this.filters = noFilters();
+        this.page = 0;
         break;
       }
       case 'db-new':
         this.starter = null;
         this.editing = { id: `deck-${Date.now().toString(36)}`, name: 'New deck', race: 0, cards: [] };
         this.filters = noFilters();
+        this.page = 0;
         break;
       case 'db-copy': {
         const src = deckById(arg);
@@ -156,8 +163,23 @@ export class DeckBuilder {
           } catch {
             // only a convenience
           }
+          // In place: the pool takes its new size and is paged afresh (the rest of the page stays as it is).
+          const pool = document.querySelector<HTMLElement>('.db-pool');
+          if (!pool) break;
+          pool.dataset.grid = arg;
+          document.querySelectorAll<HTMLElement>('.db-grid-btn').forEach((b) => b.classList.toggle('on', b.dataset.arg === arg));
+          const first = this.firstShown();
+          this.layout = null;
+          this.refreshPool(first);
         }
-        break;
+        return true;
+      case 'db-page': {
+        const pages = Math.max(1, this.pages(d!).length);
+        this.page = Math.max(0, Math.min(pages - 1, arg === 'next' ? this.page + 1 : arg === 'prev' ? this.page - 1 : Number(arg)));
+        this.refreshPool();
+        document.querySelector('.db-pool')?.scrollTo({ top: 0 });
+        return true;
+      }
       // The filters change in place: the popover stays as it is, and only the cards (and the ticks) update.
       case 'db-drop':
         this.dropOpen = this.dropOpen === arg ? null : arg;
@@ -168,19 +190,23 @@ export class DeckBuilder {
         const set = this.filters[key];
         if (set.has(value)) set.delete(value);
         else set.add(value);
+        this.page = 0;
         this.refreshPool();
         return true;
       }
       case 'db-sort':
         if (['race', 'name', 'type', 'rarity', 'cost'].includes(arg)) this.filters.sort = arg as Filters['sort'];
+        this.page = 0;
         this.refreshPool();
         return true;
       case 'db-toggle':
         if (arg === 'characters' || arg === 'inDeck') this.filters[arg] = !this.filters[arg];
+        this.page = 0;
         this.refreshPool();
         return true;
       case 'db-clear':
         this.filters = { ...noFilters(), q: this.filters.q };
+        this.page = 0;
         this.refreshPool();
         return true;
       case 'db-race':
@@ -191,13 +217,17 @@ export class DeckBuilder {
         return true;
       case 'db-focus':
         this.focus = this.focus === arg ? null : arg;
+        if (this.refreshFocus()) return true;
         break;
       // Crafting and breaking down are the server's to do (it keeps the collection); the page updates once it answers.
       case 'db-craft':
       case 'db-break':
         void (act === 'db-craft' ? craftCard(arg) : breakCard(arg)).then((why) => {
           if (why) this.host.toast(why);
-          this.host.render();
+          // Only the pool's tiles (owned counts, locks) and the craft panel change.
+          if (!this.editing || !document.querySelector('.db-pool')) return this.host.render();
+          this.refreshPool();
+          this.refreshFocus();
         });
         return true;
       case 'db-add': {
@@ -213,8 +243,10 @@ export class DeckBuilder {
         else if (cardDef(arg).kind === 'command' && commands >= commandCardsFor(BALANCE.maxDeckSize)) this.host.toast(`A deck holds at most ${commandCardsFor(BALANCE.maxDeckSize)} Heroes (one per ${BALANCE.cardsPerCommand} cards).`);
         else d.cards.push(arg);
         d.race = deckRace(d);
-        // (Unless a craft prompt just opened, which needs the panel redrawn.)
-        if (this.focus !== arg && this.updateDeckInPlace(d, arg)) return true;
+        // (A craft prompt that just opened is drawn in place too.)
+        if (this.focus === arg) {
+          if (this.refreshFocus()) return true;
+        } else if (this.updateDeckInPlace(d, arg)) return true;
         break;
       }
       case 'db-remove': {
@@ -306,11 +338,12 @@ export class DeckBuilder {
         <div class="db-pool-side">
           ${this.renderFilters(d)}
           <div class="db-pool" data-grid="${this.grid}">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
+          ${this.pagerHtml(d)}
         </div>
         <aside class="db-deck-side">
           <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
           ${this.tallyHtml(d)}
-          ${this.focus ? this.renderFocus(this.focus) : ''}
+          <div class="db-focus-slot">${this.focus ? this.renderFocus(this.focus) : ''}</div>
           <div class="db-rows">${this.rowsHtml(d)}</div>
           <div class="db-actions"><button class="btn btn-small btn-exit" data-act="db-exit">exit</button><button class="btn-primary btn-small" data-act="db-save">save</button></div>
         </aside>
@@ -347,7 +380,7 @@ export class DeckBuilder {
         </button>`;
       })
       .join('');
-    return rows || '<p class="muted">Tap cards on the left to add them.</p>';
+    return rows || '<div class="db-rows-empty">No cards yet.<br />Tap a card to add it.</div>';
   }
 
   /**
@@ -398,20 +431,28 @@ export class DeckBuilder {
             <span class="db-zoom" data-act="db-zoom" data-arg="${c.id}" title="Read it large (or right-click the card)">⤢</span>
           </button>`;
     };
-    const list = this.filtered(d);
+    // One page at a time: drawing every card at once (hundreds of pictures) made the builder slow.
+    const pages = this.pages(d);
+    this.page = Math.max(0, Math.min(this.page, pages.length - 1));
+    const list = pages[this.page] ?? [];
     const commands = list.filter((c) => c.kind === 'command');
     const rest = list.filter((c) => c.kind !== 'command');
     return [...(commands.length ? [`<div class="db-pool-cmds">${commands.map(tile).join('')}</div>`] : []), ...rest.map(tile)];
   }
 
   /** After a filter changes: the pool, the ticks and the filter count update in place (no redraw). */
-  private refreshPool() {
+  private refreshPool(keepCard?: string): void {
     const d = this.editing;
     const pool = document.querySelector<HTMLElement>('.db-pool');
     if (!d || !pool) return this.host.render();
+    // (Pages cut to a new size keep the card that led the old page in view.)
+    if (keepCard) this.page = this.pageOf(d, keepCard);
     pool.innerHTML = this.poolCards(d).join('') || '<p class="muted">No cards match these filters.</p>';
     sizePool();
     fitWhenSeen(pool.querySelectorAll<HTMLElement>('.db-card'));
+    this.updatePager(d);
+    // Now laid out: if a page holds a different number of cards than guessed, draw it again to fit.
+    if (this.settlePage()) return this.refreshPool();
     const pop = document.querySelector<HTMLElement>('.db-filters-pop');
     const btn = document.querySelector<HTMLElement>('.db-filter-btn');
     const html = document.createElement('div');
@@ -433,6 +474,95 @@ export class DeckBuilder {
       btn.className = freshBtn.className;
       btn.textContent = freshBtn.textContent;
     }
+  }
+
+  /**
+   * The pool cut into pages, a page being as many rows as fit the pool's height: Heroes first, in rows of
+   * their own (they lie landscape, so fewer to a row), then the rest.
+   */
+  private pages(d: SavedDeck): CardDef[][] {
+    const L = (this.layout ??= poolLayout(this.grid));
+    const all = this.filtered(d);
+    const rows: { cards: CardDef[]; h: number }[] = [];
+    const chunk = (list: CardDef[], n: number, h: number) => {
+      for (let i = 0; i < list.length; i += n) rows.push({ cards: list.slice(i, i + n), h });
+    };
+    chunk(all.filter((c) => c.kind === 'command'), L.cmdCols, L.cmdH);
+    chunk(all.filter((c) => c.kind !== 'command'), L.cols, L.cardH);
+    // Rows go onto a page while they fit its height, and until it holds a fair few cards (on a small
+    // screen a page then scrolls a little, rather than there being a hundred pages of two cards).
+    const pages: CardDef[][] = [];
+    let page: CardDef[] = [];
+    let used = 0;
+    for (const row of rows) {
+      if (page.length >= MIN_PAGE && used + L.gap + row.h > L.height) {
+        pages.push(page);
+        page = [];
+        used = 0;
+      }
+      used += (page.length ? L.gap : 0) + row.h;
+      page.push(...row.cards);
+    }
+    if (page.length) pages.push(page);
+    return pages;
+  }
+
+  /** The page a card is on (the first page if it isn't shown). */
+  private pageOf(d: SavedDeck, id: string): number {
+    return Math.max(0, this.pages(d).findIndex((page) => page.some((c) => c.id === id)));
+  }
+
+  /** The card leading the page shown. */
+  private firstShown(): string | undefined {
+    return document.querySelector<HTMLElement>('.db-pool .db-card')?.dataset.card;
+  }
+
+  /** After the pool is laid out: true if the pages should be cut to a different size (the pool is redrawn). */
+  settlePage(): boolean {
+    const fit = poolLayout(this.grid);
+    const d = this.editing;
+    if (!d || !this.layout || sameLayout(fit, this.layout)) return false;
+    const first = this.firstShown();
+    this.layout = fit;
+    if (first) this.page = this.pageOf(d, first);
+    return true;
+  }
+
+  /** Called once the page is drawn: page the pool to fit the screen it got. */
+  afterRender() {
+    if (this.editing && this.settlePage()) this.refreshPool();
+  }
+
+  /** A swipe across the pool turns the page (left: the next one). True if it did. */
+  swipe(dx: number): boolean {
+    if (!this.editing || !document.querySelector('.db-pager:not([hidden])')) return false;
+    return this.onClick('db-page', dx < 0 ? 'next' : 'prev');
+  }
+
+  /** The page buttons beneath the pool (none with a single page). */
+  private pagerHtml(d: SavedDeck): string {
+    const pages = this.pages(d).length;
+    if (pages <= 1) return '<nav class="db-pager" hidden></nav>';
+    const dots = Array.from({ length: pages }, (_, i) => `<button class="db-page-dot ${i === this.page ? 'on' : ''}" data-act="db-page" data-arg="${i}" aria-label="Page ${i + 1}"></button>`).join('');
+    return `<nav class="db-pager" aria-label="Card pages">
+        <button class="db-page-btn" data-act="db-page" data-arg="prev" ${this.page === 0 ? 'disabled' : ''} aria-label="Previous page">‹</button>
+        <span class="db-page-dots">${dots}</span><small class="db-page-n">${this.page + 1} / ${pages}</small>
+        <button class="db-page-btn" data-act="db-page" data-arg="next" ${this.page >= pages - 1 ? 'disabled' : ''} aria-label="Next page">›</button>
+      </nav>`;
+  }
+
+  private updatePager(d: SavedDeck) {
+    const nav = document.querySelector<HTMLElement>('.db-pager');
+    if (nav) nav.outerHTML = this.pagerHtml(d);
+  }
+
+  /** The craft panel opened, changed or shut, in place: the panel and the pool's highlighted card. False if it can't. */
+  private refreshFocus(): boolean {
+    const slot = document.querySelector<HTMLElement>('.db-focus-slot');
+    if (!slot) return false;
+    slot.innerHTML = this.focus ? this.renderFocus(this.focus) : '';
+    document.querySelectorAll<HTMLElement>('.db-pool .db-card').forEach((t) => t.classList.toggle('db-card-focus', t.dataset.card === this.focus));
+    return true;
   }
 
   /** Crafting: make another copy with flux, or break a spare one down for half its cost. */
@@ -590,6 +720,30 @@ function deckRace(d: SavedDeck): number {
  * Command cards, which lie landscape, get their own columns: at least two, about as many as three fit
  * where four cards do.
  */
+/** The pool's last layout: columns, and how many rows of cards its height holds, by grid size. */
+/** The pool as last laid out: cards to a row, and the heights of a row and of the pool (in pixels). */
+interface PoolLayout {
+  cols: number;
+  cmdCols: number;
+  cardH: number;
+  cmdH: number;
+  height: number;
+  gap: number;
+}
+const fitted: Partial<Record<string, PoolLayout>> = {};
+/** The fewest cards a page holds. */
+const MIN_PAGE = 16;
+const GUESS: Record<string, PoolLayout> = {
+  sm: { cols: 8, cmdCols: 6, cardH: 160, cmdH: 100, height: 600, gap: 6 },
+  md: { cols: 5, cmdCols: 4, cardH: 240, cmdH: 150, height: 600, gap: 10 },
+  lg: { cols: 3, cmdCols: 2, cardH: 340, cmdH: 210, height: 600, gap: 10 },
+};
+function poolLayout(grid: string): PoolLayout {
+  return fitted[grid] ?? GUESS[grid] ?? GUESS.md;
+}
+const sameLayout = (a: PoolLayout, b: PoolLayout) =>
+  a.cols === b.cols && a.cmdCols === b.cmdCols && Math.abs(a.cardH - b.cardH) < 2 && Math.abs(a.cmdH - b.cmdH) < 2 && Math.abs(a.height - b.height) < 2;
+
 export function sizePool(root: ParentNode = document) {
   const pool = root.querySelector<HTMLElement>('.db-pool');
   if (!pool) return;
@@ -610,9 +764,23 @@ export function sizePool(root: ParentNode = document) {
   const card = fit(base);
   pool.style.gridTemplateColumns = `repeat(${card.cols}, ${card.w}px)`;
   pool.style.setProperty('--cardw', `${card.w}px`);
+  // How many rows fill the pool's height, from a card as now laid out (a page is that many full rows).
+  const grid = pool.dataset.grid ?? 'md';
+  const cmd = fit(base * 1.3, 2);
+  // Row heights, from the cards as now laid out (or as last seen, for a kind not on this page).
+  const was = fitted[grid] ?? GUESS[grid] ?? GUESS.md;
+  const one = pool.querySelector<HTMLElement>(':scope > .db-card');
+  const hero = pool.querySelector<HTMLElement>('.db-pool-cmds > .db-card');
+  fitted[grid] = {
+    cols: card.cols,
+    cmdCols: cmd.cols,
+    cardH: one?.offsetHeight || was.cardH,
+    cmdH: hero?.offsetHeight || was.cmdH,
+    height: pool.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom),
+    gap: parseFloat(css.rowGap) || gap,
+  };
   const cmds = pool.querySelector<HTMLElement>('.db-pool-cmds');
   if (cmds) {
-    const cmd = fit(base * 1.3, 2);
     cmds.style.gridTemplateColumns = `repeat(${cmd.cols}, ${cmd.w}px)`;
     cmds.style.setProperty('--cmdcw', `${cmd.w}px`);
   }

@@ -62,7 +62,6 @@ export const KEYWORDS: Record<string, Keyword> = {
  * the zoomed card explains them too, whenever its text mentions one.
  */
 export const TEXT_RULES: { name: string; group: Keyword['group']; pattern: RegExp; explain: string }[] = [
-  { name: 'One Of', group: 'tempo', pattern: /one of:/, explain: 'Pick one when played. It happens every dawn.' },
   { name: 'Hero', group: 'tempo', pattern: /\bHero(es)?\b|Dawn, one of/, explain: 'Goes in your Hero slot. One at a time.' },
   { name: 'Leaves Your Tableau', group: 'stability', pattern: /leaves? your tableau/, explain: 'Fades, is destroyed, or is returned to hand.' },
   { name: 'Facing A Planet', group: 'orbit', pattern: /facing the (dead|abundant|industrial) planet/, explain: 'The planet now facing your sun.' },

@@ -212,9 +212,8 @@ input { font: inherit; }
   border-radius: 50%;
   background: radial-gradient(circle at 36% 32%, #ffffff 0%, #ffffff 30%, var(--tint) 100%);
   box-shadow: 0 0 calc(var(--size) * 0.3) var(--glow), inset 0 -4px 10px rgba(0, 0, 0, 0.05);
-  animation: breathe 5s ease-in-out infinite;
 }
-@keyframes breathe { 50% { filter: brightness(1.04); } }
+/* (No breathing brightness: an animated filter repaints every frame, for a change too faint to see.) */
 .orb-label {
   position: absolute;
   inset: 0;
@@ -253,7 +252,6 @@ input { font: inherit; }
   border-radius: 50%;
   background: radial-gradient(circle at 40% 36%, #fff 0%, #fbfcfd 40%, #e4e8ed 80%, #d9dee4 100%);
   box-shadow: 0 0 70px 26px rgba(255, 255, 255, 0.95), 0 0 120px 40px rgba(210, 218, 228, 0.5);
-  animation: breathe 6s ease-in-out infinite;
 }
 .title { font-size: clamp(1.6rem, calc(7 * var(--vh)), 3rem); font-weight: 400; letter-spacing: 0.32em; text-transform: uppercase; margin: 22px 0 6px; padding-left: 0.32em; color: #555a63; }
 .menu-body { padding: 14px; }
@@ -1238,8 +1236,6 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
   position: absolute; inset: 0; border-radius: 50%;
   background: radial-gradient(circle at 40% 36%, #fff 0 18%, #eef0f4 40%, #c3c9d4 70%, #959cab 100%);
   box-shadow: 0 0 3px 1px rgba(255, 255, 255, 0.85), 0 1px 3px rgba(60, 66, 84, 0.3);
-  animation: star-flicker calc(3.4s + var(--seed, 0) * 3s) ease-in-out infinite;
-  animation-delay: calc(var(--seed, 0) * -7s);
 }
 /* A controlled system's star burns in its faction's colour. */
 .cmp-owned .cmp-core {
@@ -1256,7 +1252,7 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
   animation-delay: calc(var(--seed, 0) * -6s);
 }
 @keyframes star-companion { from { transform: rotate(0deg) translateX(165%) rotate(0deg); } to { transform: rotate(360deg) translateX(165%) rotate(-360deg); } }
-@keyframes star-flicker { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.04); } }
+/* (Stars don't flicker their brightness: a filter animated on every star repainted the whole map each frame.) */
 @keyframes star-breathe { 0%, 100% { transform: scale(0.97); opacity: 0.88; } 50% { transform: scale(1.03); opacity: 1; } }
 
 /* Faction portraits: beside every owned star, and in the panels. */
@@ -2122,7 +2118,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .db-deck-actions { display: flex; gap: 6px; }
 .menu.setup-page.menu-decks { gap: clamp(6px, calc(2 * var(--vh)), 14px); }
 .db-editor { grid-template-columns: minmax(0, 1fr) clamp(170px, calc(26 * var(--vw)), 290px); gap: clamp(8px, calc(1.6 * var(--vw)), 16px); align-items: stretch; height: 100%; min-height: 0; width: 100%; max-width: none; }
-.db-pool-side { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; min-height: 0; }
+.db-pool-side { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; min-height: 0; }
 .db-filters { display: flex; gap: 5px; flex-wrap: wrap; }
 .db-filters .pill-btn { padding: 4px 9px; font-size: 0.5rem; }
 .db-pool { overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(104px, calc(15 * var(--vw)), 150px), 1fr)); gap: 8px; align-content: start; padding: 2px 4px 12px; }
@@ -2131,7 +2127,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   display: flex; flex-direction: column; gap: 8px; min-height: 0;
   padding: 10px; border-radius: 14px; background: rgba(255, 255, 255, 0.7); border: 1px solid #fff; box-shadow: var(--shadow);
 }
-.db-name { width: 100%; min-width: 0; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); background: #fff; border: 1px solid #eceae6; border-radius: 8px; padding: 6px 8px; }
+.db-name { text-align: center; width: 100%; min-width: 0; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); background: #fff; border: 1px solid #eceae6; border-radius: 8px; padding: 6px 8px; }
 .db-races { display: flex; gap: 6px; justify-content: center; }
 .db-race { width: clamp(26px, calc(7 * var(--vh)), 34px); opacity: 0.45; border-radius: 50%; transition: opacity 0.15s; }
 .db-race.on { opacity: 1; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px rgba(111, 159, 216, 0.7); }
@@ -2242,7 +2238,8 @@ html.rotate-ask body { overflow: hidden; }
   --gs: max(9px, calc(var(--cw, 100px) * 0.1));
   position: absolute; z-index: 2; top: calc(var(--cw, 100px) * 0.05); right: calc(var(--cw, 100px) * 0.05);
   width: var(--gs); height: var(--gs); border-radius: 50%; pointer-events: none;
-  filter: drop-shadow(0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.08) rgba(40, 40, 60, 0.35));
+  /* (A box-shadow, not a drop-shadow filter: a filter round the gem's moving insides repainted every frame.) */
+  box-shadow: 0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.08) rgba(40, 40, 60, 0.35);
 }
 .card-big .gem { --gs: max(14px, calc(var(--cw, 140px) * 0.085)); }
 .gem .g, .gem .gem-window, .gem .g-disk { position: absolute; inset: 0; display: block; background-size: 100% 100%; }
@@ -2260,7 +2257,9 @@ html.rotate-ask body { overflow: hidden; }
 /* White dwarf: a searing point whose glare breathes and twinkles. */
 .g-dwarf { background-image: var(--gem-dwarf); animation: gemFlare 3.8s ease-in-out infinite; animation-delay: calc(var(--gp) * -3.8s); }
 .g-dwarf-glow { background-image: var(--gem-dwarfGlow); animation: gemTwinkle 2.3s ease-in-out infinite; animation-delay: calc(var(--gp) * -2.3s); }
-@keyframes gemFlare { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.06); filter: brightness(1.18); } }
+/* (Gem animations move only transform and opacity, which the compositor runs off the main thread;
+   animating a filter repainted every gem on the screen every frame.) */
+@keyframes gemFlare { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.06); opacity: 1; } }
 @keyframes gemTwinkle { 0%, 100% { opacity: 0.75; transform: scale(0.94); } 35% { opacity: 1; transform: scale(1.06); } 60% { opacity: 0.85; } }
 
 /* Stellar: the sun turns slowly inside a gently breathing corona. */
@@ -2276,7 +2275,7 @@ html.rotate-ask body { overflow: hidden; }
 .gem .g-disk { transform: rotate(-14deg) scaleY(0.3); }
 .gem .g-disk-front { clip-path: inset(50% 0 0 0); }
 .g-disk-spin { background-image: var(--gem-disk); animation: gemTurn 5s linear infinite; }
-@keyframes gemSimmer { 0%, 100% { opacity: 0.88; filter: brightness(1); } 50% { opacity: 1; filter: brightness(1.15); } }
+@keyframes gemSimmer { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .g-dwarf, .g-dwarf-glow, .g-sun-corona, .g-hole-back { animation: none; }
   .g-sun-disc { animation-duration: 200s; }
@@ -2673,7 +2672,7 @@ img.art { object-fit: cover; }
 
 /* The gem sits straight on the picture's corner: no cutout. */
 .art-notched { -webkit-mask: none; mask: none; }
-.card .art-wrap .gem { filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.45)); }
+.card .art-wrap .gem { box-shadow: 0 0 1.5px rgba(0, 0, 0, 0.45); }
 /* Out of play, the stability badge sits alone at the right, over the picture's lower corner. */
 .card-stats-base { justify-content: flex-end; }
 .card-stats-base b { min-width: max(14px, calc(var(--cw, 100px) * 0.19)); height: max(11px, calc(var(--cw, 100px) * 0.125)); font-size: max(7px, calc(var(--cw, 100px) * 0.075)); }
@@ -3440,3 +3439,17 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* The type pill's word sits in its middle (the display face rides high in its line box otherwise). */
 .card-type { display: inline-flex; align-items: center; line-height: 1; height: 1.7em; padding: 0.1em 0.8em 0; box-sizing: border-box; }
 .card-table .card-type { padding: 0.1em 0.65em 0; }
+
+/* The deck builder's card pages: arrows either side of a dot per page (the dots give way to a count when there are many). */
+.db-pager { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 4px max(4px, var(--sa-b)); }
+.db-pager[hidden] { display: none; }
+.db-page-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #e4e1dc; background: #fff; color: var(--ink); font-size: 1.1rem; line-height: 1; display: grid; place-items: center; cursor: pointer; }
+.db-page-btn:disabled { opacity: 0.35; cursor: default; }
+.db-page-dots { display: flex; gap: 6px; align-items: center; }
+.db-page-dot { width: 7px; height: 7px; padding: 0; border-radius: 50%; border: 0; background: #d6d3ce; cursor: pointer; }
+.db-page-dot.on { background: var(--ink); transform: scale(1.25); }
+.db-page-n { display: none; color: var(--muted, #8a8f99); font-variant-numeric: tabular-nums; }
+.db-page-dots:has(> :nth-child(13)) { display: none; }
+.db-page-dots:has(> :nth-child(13)) + .db-page-n { display: inline; }
+/* An empty deck: a dashed box saying what to do. */
+.db-rows-empty { margin: 4px 0; padding: 18px 12px; border: 1.5px dashed #d6d3ce; border-radius: 10px; text-align: center; color: var(--muted, #8a8f99); font-size: 0.8rem; line-height: 1.5; }

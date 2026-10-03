@@ -65,6 +65,9 @@ function surface(): Float32Array {
 }
 
 type RGB = [number, number, number];
+/** The sun's white-hot limb, and a living world's glowing air. */
+const LIMB: RGB = [255, 248, 222];
+const AIR: RGB = [170, 220, 255];
 
 /** The sun's palette by heat: deep, mid and bright, from the canvas's data attributes. */
 function palette(t: number, cold: number): RGB[] {
@@ -79,6 +82,27 @@ function palette(t: number, cold: number): RGB[] {
 const sunsDrawn = new WeakMap<HTMLCanvasElement, ImageData>();
 let running = false;
 const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * Each pixel of a corona canvas, by size: how far it is from the sun's centre (in sun radii) and which
+ * of the flames' directions it lies in. Fixed for a size, so worked out once, not every frame.
+ */
+const coronaGrids = new Map<number, { rad: Float32Array; dir: Int16Array }>();
+function coronaGrid(size: number, c: number, R: number) {
+  let g = coronaGrids.get(size);
+  if (g) return g;
+  const rad = new Float32Array(size * size), dir = new Int16Array(size * size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (x - c + 0.5) / R, dy = (y - c + 0.5) / R;
+      rad[y * size + x] = Math.sqrt(dx * dx + dy * dy);
+      dir[y * size + x] = Math.floor(((Math.atan2(dy, dx) / (Math.PI * 2) + 1) % 1) * FLAMES);
+    }
+  }
+  g = { rad, dir };
+  coronaGrids.set(size, g);
+  return g;
+}
 
 /** The sun's base radius, as a share of the canvas (the dome in art.ts is 0.27 of the gauge; the canvas is 0.88 of it). */
 const RADIUS = 0.27 / 0.88;
@@ -115,11 +139,12 @@ function draw(canvas: HTMLCanvasElement, time: number) {
     const ang = (k / FLAMES) * Math.PI * 2;
     flames[k] = fbm3(Math.cos(ang) * 2.6 + flick, Math.sin(ang) * 2.6, flick * 0.6 + seed, 4);
   }
+  const { rad, dir } = coronaGrid(size, c, R);
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const i = (y * size + x) * 4;
-      const dx = (x - c + 0.5) / R, dy = (y - c + 0.5) / R;
-      const r = Math.sqrt(dx * dx + dy * dy);
+      const p = y * size + x;
+      const i = p * 4;
+      const r = rad[p];
       if (r <= 1) {
         // Under the dome: solid and white-hot, so no board shows through between its facets.
         px[i] = bright[0];
@@ -132,8 +157,7 @@ function draw(canvas: HTMLCanvasElement, time: number) {
         px[i + 3] = 0;
         continue;
       }
-      const ang = Math.atan2(dy, dx);
-      const f = Math.floor(((ang / (Math.PI * 2) + 1) % 1) * FLAMES);
+      const f = dir[p];
       // Ragged wisps: the surface texture, sampled along the flame, frays its edge.
       const wisp = tex[(Math.floor(r * 37 + flick * 20) % TH) * TW + ((f * 2 + Math.floor(flick * 30)) % TW)];
       const flame = flames[f] * (0.7 + 0.6 * wisp);
@@ -292,16 +316,16 @@ function planetMap(pl: string): Uint8ClampedArray {
   return out;
 }
 
-/** A planet's surface colour in a direction (`n`, from its centre), turned by `spin`. */
-function planetAt(map: Uint8ClampedArray, n: V3, spin: number): RGB {
-  const u = (Math.atan2(n[1], n[0]) + spin) / (Math.PI * 2);
-  const v = Math.asin(Math.min(1, n[2])) / Math.PI + 0.5;
+/** A planet's surface colour at a longitude and height (`v`, 0–1), turned by `spin`. */
+function planetAt(map: Uint8ClampedArray, lon: number, v: number, spin: number, out: RGB = [0, 0, 0]): RGB {
+  const u = (lon + spin) / (Math.PI * 2);
   // Bilinear, so the texture stays smooth however big the planet is drawn.
   const fx = (u - Math.floor(u)) * PW, fy = Math.min(PH - 1.001, v * (PH - 1));
   const x0 = Math.floor(fx) % PW, x1 = (x0 + 1) % PW, y0 = Math.floor(fy), y1 = y0 + 1;
   const tx = fx - Math.floor(fx), ty = fy - y0;
-  const at = (x: number, y: number, q: number) => map[(y * PW + x) * 3 + q];
-  return [0, 1, 2].map((q) => (at(x0, y0, q) * (1 - tx) + at(x1, y0, q) * tx) * (1 - ty) + (at(x0, y1, q) * (1 - tx) + at(x1, y1, q) * tx) * ty) as RGB;
+  const a = (y0 * PW + x0) * 3, b = (y0 * PW + x1) * 3, c = (y1 * PW + x0) * 3, d = (y1 * PW + x1) * 3;
+  for (let q = 0; q < 3; q++) out[q] = (map[a + q] * (1 - tx) + map[b + q] * tx) * (1 - ty) + (map[c + q] * (1 - tx) + map[d + q] * tx) * ty;
+  return out;
 }
 /** Each planet's trail along the orbit, and its notches: deeper than the planet, to read on the white board. */
 const TRAIL_RGB: Record<string, RGB> = { dead: [112, 118, 132], abundant: [40, 158, 112], industrial: [214, 120, 36] };
@@ -351,7 +375,8 @@ function notchEase(o: number): number {
 }
 
 /** A half-sphere sitting in the board: its centre on the board, its colour at a point of its surface. */
-type Ball = { ctr: V3; r: number; shade: (n: V3, mu: number) => RGB };
+/** `lon` and `v`: where on the ball the point is (longitude, radians; height, 0 at the base to 1 at the top), for its texture. */
+type Ball = { ctr: V3; r: number; shade: (n: V3, mu: number, lon: number, v: number) => RGB };
 
 /**
  * Ray-traces the visible half-spheres (the sun and its planets) into the
@@ -361,62 +386,103 @@ type Ball = { ctr: V3; r: number; shade: (n: V3, mu: number) => RGB };
  * to the viewer exactly like the solids themselves (the trick of 3D pavement
  * art), smooth and in the board's own perspective, while the board stays flat.
  */
+/**
+ * Each ball's ray-traced geometry, by everything it depends on (the canvas size, the eye, the ball's
+ * place and size): for every pixel it covers, how much, the surface's normal there, and how squarely it
+ * faces the eye. The eye and the balls stay put between frames (unless an orbit swings), so the tracing
+ * is done once and each frame only shades the surface as it turns.
+ */
+type Geometry = { idx: Int32Array; cover: Float32Array; normal: Float32Array; mu: Float32Array; lon: Float32Array; v: Float32Array };
+const geometries = new Map<string, Geometry>();
+const GEOMETRIES_KEPT = 24;
+
+function traceGeometry(W: number, s: number, pad: number, cam: V3, ctr: V3, r: number): Geometry {
+  const key = `${W}|${s.toFixed(5)}|${pad.toFixed(3)}|${cam.map((v) => v.toFixed(3)).join(',')}|${ctr.map((v) => v.toFixed(3)).join(',')}|${r.toFixed(4)}`;
+  const hit = geometries.get(key);
+  if (hit) return hit;
+  // The ball's outline on the board, from points round its surface.
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let la = 0; la <= 90; la += 15) {
+    for (let lo = 0; lo < 360; lo += 15) {
+      const a = (la * Math.PI) / 180, o = (lo * Math.PI) / 180;
+      const [qx, qy] = onBoard(cam, [ctr[0] + r * Math.cos(a) * Math.cos(o), ctr[1] + r * Math.cos(a) * Math.sin(o), r * Math.sin(a)]);
+      x0 = Math.min(x0, qx); y0 = Math.min(y0, qy); x1 = Math.max(x1, qx); y1 = Math.max(y1, qy);
+    }
+  }
+  const pa = Math.max(0, Math.floor((x0 + pad) * s) - 2), pb = Math.min(W - 1, Math.ceil((x1 + pad) * s) + 2);
+  const qa = Math.max(0, Math.floor((y0 + pad) * s) - 2), qb = Math.min(W - 1, Math.ceil((y1 + pad) * s) + 2);
+  const most = Math.max(0, (pb - pa + 1) * (qb - qa + 1));
+  const idx = new Int32Array(most), cover = new Float32Array(most), normal = new Float32Array(most * 3), mus = new Float32Array(most);
+  const lons = new Float32Array(most), vs = new Float32Array(most);
+  let n = 0;
+  const ox = cam[0] - ctr[0], oy = cam[1] - ctr[1], oz = cam[2] - ctr[2];
+  const oo = ox * ox + oy * oy + oz * oz;
+  for (let y = qa; y <= qb; y++) {
+    for (let x = pa; x <= pb; x++) {
+      // The line of sight from the eye to this point of the board.
+      const dx = (x + 0.5) / s - pad - cam[0], dy = (y + 0.5) / s - pad - cam[1], dz = -cam[2];
+      const a = dx * dx + dy * dy + dz * dz, b = ox * dx + oy * dy + oz * dz;
+      // How close the line passes to the ball's centre, and how big a pixel is out there (for smooth edges).
+      const near = Math.sqrt(Math.max(0, oo - (b * b) / a));
+      const reach = Math.sqrt(oo / a) / s;
+      const cov = Math.min(1, Math.max(0, (r - near) / reach + 0.5));
+      if (cov <= 0) continue;
+      const disc = b * b - a * (oo - r * r);
+      const t = disc > 0 ? (-b - Math.sqrt(disc)) / a : -b / a;
+      const Px = cam[0] + dx * t, Py = cam[1] + dy * t;
+      let Pz = cam[2] + dz * t;
+      // Where the ball meets the board on the near side, smooth its edge too: by how far this point of
+      // the board lies inside the ball's base (a ball cut off by the board would otherwise be jagged there).
+      const qx = (x + 0.5) / s - pad - ctr[0], qy = (y + 0.5) / s - pad - ctr[1];
+      let edge = 1;
+      if (Pz < r * 0.25 && qx * ox + qy * oy > 0) edge = Math.min(1, Math.max(0, (r - Math.hypot(qx, qy)) * s + 0.5));
+      const all = Math.min(cov, edge);
+      if (all <= 0) continue;
+      if (Pz < 0) Pz = 0;
+      let nx = Px - ctr[0], ny = Py - ctr[1], nz = Pz - ctr[2];
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      nx /= nl; ny /= nl; nz /= nl;
+      if (nz < 0) nz = 0;
+      let vx = cam[0] - Px, vy = cam[1] - Py, vz = cam[2] - Pz;
+      const vl = Math.hypot(vx, vy, vz) || 1;
+      vx /= vl; vy /= vl; vz /= vl;
+      idx[n] = (y * W + x) * 4;
+      cover[n] = all;
+      normal[n * 3] = nx; normal[n * 3 + 1] = ny; normal[n * 3 + 2] = nz;
+      mus[n] = Math.max(0, nx * vx + ny * vy + nz * vz);
+      lons[n] = Math.atan2(ny, nx);
+      vs[n] = Math.asin(Math.min(1, nz)) / Math.PI + 0.5;
+      n++;
+    }
+  }
+  const g: Geometry = { idx: idx.slice(0, n), cover: cover.slice(0, n), normal: normal.slice(0, n * 3), mu: mus.slice(0, n), lon: lons.slice(0, n), v: vs.slice(0, n) };
+  geometries.set(key, g);
+  if (geometries.size > GEOMETRIES_KEPT) geometries.delete(geometries.keys().next().value!);
+  return g;
+}
+
 function traceBalls(img: ImageData, s: number, pad: number, cam: V3, balls: Ball[]) {
   const W = img.width;
   const px = img.data;
+  const nv: V3 = [0, 0, 0];
   // Farthest first, so nearer balls paint over farther ones.
   const order = balls.slice().sort((a, b) => Math.hypot(...sub3(cam, b.ctr)) - Math.hypot(...sub3(cam, a.ctr)));
   for (const ball of order) {
-    const { ctr, r } = ball;
-    // The ball's outline on the board, from points round its surface.
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (let la = 0; la <= 90; la += 15) {
-      for (let lo = 0; lo < 360; lo += 15) {
-        const a = (la * Math.PI) / 180, o = (lo * Math.PI) / 180;
-        const [qx, qy] = onBoard(cam, [ctr[0] + r * Math.cos(a) * Math.cos(o), ctr[1] + r * Math.cos(a) * Math.sin(o), r * Math.sin(a)]);
-        x0 = Math.min(x0, qx); y0 = Math.min(y0, qy); x1 = Math.max(x1, qx); y1 = Math.max(y1, qy);
-      }
-    }
-    const pa = Math.max(0, Math.floor((x0 + pad) * s) - 2), pb = Math.min(W - 1, Math.ceil((x1 + pad) * s) + 2);
-    const qa = Math.max(0, Math.floor((y0 + pad) * s) - 2), qb = Math.min(W - 1, Math.ceil((y1 + pad) * s) + 2);
-    const o: V3 = sub3(cam, ctr);
-    const oo = dot3(o, o);
-    for (let y = qa; y <= qb; y++) {
-      for (let x = pa; x <= pb; x++) {
-        // The line of sight from the eye to this point of the board.
-        const D: V3 = [(x + 0.5) / s - pad - cam[0], (y + 0.5) / s - pad - cam[1], -cam[2]];
-        const a = dot3(D, D), b = dot3(o, D);
-        // How close the line passes to the ball's centre, and how big a pixel is out there (for smooth edges).
-        const near = Math.sqrt(Math.max(0, oo - (b * b) / a));
-        const reach = Math.sqrt(oo / a) / s;
-        const cover = Math.min(1, Math.max(0, (r - near) / reach + 0.5));
-        if (cover <= 0) continue;
-        const disc = b * b - a * (oo - r * r);
-        const t = disc > 0 ? (-b - Math.sqrt(disc)) / a : -b / a;
-        const P: V3 = add3(cam, mul3(D, t));
-        // Where the ball meets the board on the near side, smooth its edge too: by how far this point of
-        // the board lies inside the ball's base (a ball cut off by the board would otherwise be jagged there).
-        const qx = (x + 0.5) / s - pad - ctr[0], qy = (y + 0.5) / s - pad - ctr[1];
-        let edge = 1;
-        if (P[2] < r * 0.25 && qx * o[0] + qy * o[1] > 0) edge = Math.min(1, Math.max(0, (r - Math.hypot(qx, qy)) * s + 0.5));
-        const coverAll = Math.min(cover, edge);
-        if (coverAll <= 0) continue;
-        if (P[2] < 0) P[2] = 0;
-        const n = norm3(sub3(P, ctr));
-        if (n[2] < 0) n[2] = 0;
-        const mu = Math.max(0, dot3(n, norm3(sub3(cam, P))));
-        const col = ball.shade(n, mu);
-        const i = (y * W + x) * 4;
-        const da = px[i + 3] / 255;
-        if (da === 0 || coverAll >= 1) {
-          px[i] = col[0]; px[i + 1] = col[1]; px[i + 2] = col[2];
-          px[i + 3] = coverAll * 255;
-        } else {
-          px[i] = px[i] + (col[0] - px[i]) * coverAll;
-          px[i + 1] = px[i + 1] + (col[1] - px[i + 1]) * coverAll;
-          px[i + 2] = px[i + 2] + (col[2] - px[i + 2]) * coverAll;
-          px[i + 3] = Math.min(255, px[i + 3] + (255 - px[i + 3]) * coverAll);
-        }
+    const g = traceGeometry(W, s, pad, cam, ball.ctr, ball.r);
+    for (let k = 0; k < g.idx.length; k++) {
+      nv[0] = g.normal[k * 3]; nv[1] = g.normal[k * 3 + 1]; nv[2] = g.normal[k * 3 + 2];
+      const col = ball.shade(nv, g.mu[k], g.lon[k], g.v[k]);
+      const i = g.idx[k];
+      const coverAll = g.cover[k];
+      const da = px[i + 3] / 255;
+      if (da === 0 || coverAll >= 1) {
+        px[i] = col[0]; px[i + 1] = col[1]; px[i + 2] = col[2];
+        px[i + 3] = coverAll * 255;
+      } else {
+        px[i] = px[i] + (col[0] - px[i]) * coverAll;
+        px[i + 1] = px[i + 1] + (col[1] - px[i + 1]) * coverAll;
+        px[i + 2] = px[i + 2] + (col[2] - px[i + 2]) * coverAll;
+        px[i + 3] = Math.min(255, px[i + 3] + (255 - px[i + 3]) * coverAll);
       }
     }
   }
@@ -460,25 +526,26 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   const c: V3 = [vs / 2, vs / 2, 0];
   const R = vs * DOME_R;
   const spin = time * 0.00004 + seed;
+  // (Each shade writes into one array, read straight away: no new array for every pixel.)
+  const sunOut: RGB = [0, 0, 0];
   const balls: Ball[] = [
     {
       ctr: c,
       r: R,
-      shade: (n, mu) => {
+      shade: (_n, mu, lon, v) => {
         // The granulation, turning with the sun.
-        const lon = Math.atan2(n[1], n[0]) + spin;
-        const u = lon / (Math.PI * 2);
-        const v = Math.asin(Math.min(1, n[2])) / Math.PI + 0.5;
+        const u = (lon + spin) / (Math.PI * 2);
         const raw = tex[Math.min(TH - 1, Math.floor(v * TH)) * TW + (Math.floor((u - Math.floor(u)) * TW) % TW)];
         const g = Math.min(1, Math.max(0, (raw - 0.3) * 1.6));
         const k = Math.min(1, g * (0.6 + 0.4 * Math.sqrt(mu)));
         const a = k < 0.5 ? k / 0.5 : (k - 0.5) / 0.5;
         const lo = k < 0.5 ? deep : mid, hi = k < 0.5 ? mid : bright;
         const w = dead ? 0 : Math.min(1, Math.pow(1 - mu, 4) * 1.3);
-        return [0, 1, 2].map((q) => {
+        for (let q = 0; q < 3; q++) {
           const base = lo[q] + (hi[q] - lo[q]) * a;
-          return base + ([255, 248, 222][q] - base) * w;
-        }) as RGB;
+          sunOut[q] = base + (LIMB[q] - base) * w;
+        }
+        return sunOut;
       },
     },
   ];
@@ -544,19 +611,24 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
         ctx.arc(ctr[0], ctr[1], out, 0, Math.PI * 2);
         ctx.fill();
       });
+      const texOut: RGB = [0, 0, 0];
+      const planetOut: RGB = [0, 0, 0];
       balls.push({
         ctr,
         r: pr,
-        shade: (n, mu) => {
-          const tex = planetAt(map, n, turn);
+        shade: (n, mu, lon, v) => {
+          const tex = planetAt(map, lon, v, turn, texOut);
           // Lit from the sun: a soft terminator, darker towards the outline, and a glint of sunlight.
           const sun = Math.max(0, dot3(n, light));
           const lit = 0.5 + 0.62 * Math.pow(sun, 0.8) - 0.16 * (1 - mu);
           const spec = Math.pow(Math.max(0, dot3(n, half)), pl === 'abundant' ? 40 : 18) * (pl === 'abundant' ? 90 : 36);
-          let col = tex.map((q) => Math.min(255, q * lit + spec)) as RGB;
+          for (let q = 0; q < 3; q++) planetOut[q] = Math.min(255, tex[q] * lit + spec);
           // The living world's air glows at its rim.
-          if (pl === 'abundant') col = mix(col, [170, 220, 255], Math.pow(1 - mu, 3) * 0.6);
-          return col;
+          if (pl === 'abundant') {
+            const k = Math.pow(1 - mu, 3) * 0.6;
+            for (let q = 0; q < 3; q++) planetOut[q] += (AIR[q] - planetOut[q]) * k;
+          }
+          return planetOut;
         },
       });
     });

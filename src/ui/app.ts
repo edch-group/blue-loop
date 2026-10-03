@@ -574,6 +574,17 @@ export class App {
     window.addEventListener('pointermove', (e) => this.onPressMove(e));
     window.addEventListener('pointerup', () => this.onPressEnd());
     window.addEventListener('pointercancel', () => this.onPressEnd());
+    // A swipe across the deck builder's card pool turns its page.
+    let swipeFrom: { x: number; y: number } | null = null;
+    root.addEventListener('pointerdown', (e) => {
+      swipeFrom = e.pointerType !== 'mouse' && (e.target as HTMLElement).closest('.db-pool') ? { x: e.clientX, y: e.clientY } : null;
+    });
+    window.addEventListener('pointerup', (e) => {
+      if (!swipeFrom) return;
+      const dx = e.clientX - swipeFrom.x, dy = e.clientY - swipeFrom.y;
+      swipeFrom = null;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) this.builder.swipe(dx);
+    });
     // Right-click a card (anywhere) to read it large.
     root.addEventListener('contextmenu', (e) => {
       const card = (e.target as HTMLElement).closest<HTMLElement>('[data-card]');
@@ -2103,6 +2114,10 @@ export class App {
     }
     if (e.key !== 'Escape') return;
     if (this.peeking) return this.setPeek(false);
+    if (this.zoomed) {
+      this.zoomed = null;
+      return this.root.querySelector('.zoom-view')?.remove();
+    }
     if (this.pending || this.sheet) {
       this.pending = null;
       this.sheet = null;
@@ -2349,9 +2364,12 @@ export class App {
       case 'close-booster':
         this.opened = null;
         return this.render();
-      case 'zoom-close':
+      case 'zoom-close': {
         this.zoomed = null;
+        const view = this.root.querySelector('.zoom-view');
+        if (view) return view.remove();
         return this.render();
+      }
       case 'profile-open':
         this.profileOpen = true;
         return this.render();
@@ -2637,6 +2655,7 @@ export class App {
     fitCardText(this.root);
     sizePool(this.root);
     fitWhenSeen(this.root.querySelectorAll<HTMLElement>('.db-pool .db-card'));
+    this.builder.afterRender();
     refreshLift();
     const page = this.screen === 'menu' ? `menu:${this.menuPage}` : this.screen;
     if (page !== this.shownPage) {
@@ -2833,8 +2852,18 @@ export class App {
   private zoom(defId: string, table?: string) {
     // (A card in play shows as it stands: its defence, stability and changed numbers.)
     if (this.screen === 'game' && this.state) this.sheet = { kind: 'card', defId, table };
-    else if (this.screen === 'menu') this.zoomed = defId;
-    else return;
+    else if (this.screen === 'menu') {
+      this.zoomed = defId;
+      sound.hover();
+      // Over the menu, the zoomed card is laid on top where it is (redrawing a page full of cards beneath it was slow).
+      const menu = this.root.querySelector<HTMLElement>('main.menu');
+      if (menu) {
+        menu.querySelector('.zoom-view')?.remove();
+        menu.insertAdjacentHTML('beforeend', this.renderZoom());
+        fitCardText(menu.querySelector<HTMLElement>('.zoom-view')!);
+        return;
+      }
+    } else return;
     sound.hover();
     this.render();
   }

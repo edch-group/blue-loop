@@ -385,7 +385,7 @@ const PARA = '<span class="card-para"></span>';
 
 /**
  * The explanations beside a zoomed card: its keywords (Dawn included), the
- * rules its text names in plain words, and its stability and defence badges.
+ * rules its text names in plain words, and its defence badge.
  */
 export function keywordList(text: string, stats: { stability?: number; defence?: number } = {}): string {
   const rows: string[] = [];
@@ -396,7 +396,6 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
-  if (stats.stability !== undefined) row(`<b class="kw kw-stability">◷ Stability</b>`, 'Loses 1 each dawn. The card fades at 0.');
   if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability, and blocks weaker removal.');
   return rows.length ? `<div class="kw-list">${rows.join('')}</div>` : '';
 }
