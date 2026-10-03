@@ -1980,30 +1980,32 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .seat-deck small { font-size: 0.44rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
 .seat-deck span { font-family: var(--display); font-size: clamp(0.5rem, calc(2 * var(--vh)), 0.66rem); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .seat-tile { grid-template-rows: auto 1fr auto auto auto; }
-/* A seat: who plays on the left, a strip of little deck boxes down the right (its deck lifted, in gold). */
-.seat-tile:has(.seat-decks) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: none; align-items: stretch; gap: clamp(8px, calc(2 * var(--vw)), 18px); }
-.seat-main { display: grid; grid-template-rows: 1fr auto auto; justify-items: center; align-items: center; gap: clamp(6px, calc(2 * var(--vh)), 12px); min-width: 0; }
-.seat-name { font-family: var(--display); font-size: clamp(0.6rem, calc(2.4 * var(--vh)), 0.8rem); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); padding: 7px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.seat-decks {
-  --bw: clamp(24px, calc(8.5 * var(--vh)), 46px);
-  display: grid; grid-auto-rows: auto; align-content: center; justify-items: center; gap: clamp(6px, calc(2 * var(--vh)), 14px);
-  padding: 6px calc(var(--bw) * 0.1) 0 4px; border-left: 1px solid #eceae6;
-  padding-left: clamp(8px, calc(1.6 * var(--vw)), 14px);
+/* Quickplay: a card per seat. Who plays across the top; their decks in a row beneath; a way into every deck. */
+.qp-seat {
+  display: grid; grid-template-rows: auto 1fr auto; justify-items: center; align-items: center; gap: clamp(6px, calc(2 * var(--vh)), 14px);
+  padding: clamp(10px, calc(3 * var(--vh)), 18px) clamp(10px, calc(2 * var(--vw)), 18px); border-radius: 16px; min-height: 0;
+  background: linear-gradient(180deg, #fff, #f6f6f4); border: 1px solid #fff;
+  box-shadow: 0 12px 30px rgba(80, 84, 100, 0.12), 0 2px 6px rgba(80, 84, 100, 0.07);
 }
-.lobby-deck { display: block; width: var(--bw); padding: 0; border: 0; background: none; cursor: pointer; }
-.lobby-deck .deck-box { display: block; margin-top: calc(var(--bw) * 0.08); }
-.lobby-deck .deck-box-front { border-radius: 4px; padding: 0; display: grid; place-items: center; grid-template-rows: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55), 0 6px 12px rgba(60, 64, 80, 0.2); }
-.lobby-deck .deck-box-top { border-radius: 3px 3px 0 0; }
-.lobby-deck .deck-box-side { border-radius: 0 3px 3px 0; }
-.lobby-deck .deck-box-cover { width: 74%; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.9), 0 2px 6px rgba(30, 34, 44, 0.3); }
-.lobby-deck:not(.on) { opacity: 0.8; }
-@media (hover: hover) { .lobby-deck:not(.on):hover { opacity: 1; } .lobby-deck:not(.on):hover .deck-box { transform: translateY(-3px); } }
-.lobby-deck .deck-box { transition: transform 0.2s ease; }
-.lobby-deck-all {
-  width: calc(var(--bw) * 1.15); padding: 5px 2px; border-radius: 8px; border: 1px dashed #cfd3db; background: rgba(255, 255, 255, 0.6);
-  font-family: var(--display); font-size: clamp(0.38rem, calc(1.4 * var(--vh)), 0.5rem); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.3;
+.qp-head { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-width: 0; }
+.qp-head input { flex: 1; min-width: 0; max-width: 220px; text-align: center; color: var(--ink); background: rgba(255, 255, 255, 0.8); border: 1px solid #eceae6; border-radius: 8px; padding: 6px 8px; box-shadow: inset 0 1px 3px rgba(90, 90, 110, 0.1); }
+.seat-name { font-family: var(--display); font-size: clamp(0.66rem, calc(2.8 * var(--vh)), 0.9rem); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.qp-mode { flex: none; padding: 3px 10px; font-size: 0.5rem; }
+.qp-decks {
+  --bw: clamp(46px, calc(19 * var(--vh)), 92px);
+  display: flex; justify-content: center; align-items: flex-end; gap: clamp(14px, calc(2.6 * var(--vw)), 26px); padding-top: calc(var(--bw) * 0.12);
 }
-@media (hover: hover) { .lobby-deck-all:hover { background: #fff; color: var(--ink); } }
+.lobby-deck { display: grid; justify-items: center; gap: 6px; width: var(--bw); padding: 0; border: 0; background: none; cursor: pointer; }
+.lobby-deck small { max-width: calc(var(--bw) + 10px); font-family: var(--display); font-size: clamp(0.4rem, calc(1.5 * var(--vh)), 0.52rem); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lobby-deck.on small { color: var(--ink); }
+.lobby-deck .deck-box { display: block; width: 100%; margin: 0; }
+.lobby-deck .deck-box-front { border-radius: 5px; padding: 0; display: grid; place-items: center; grid-template-rows: none; }
+.lobby-deck .deck-box-top { border-radius: 4px 4px 0 0; }
+.lobby-deck .deck-box-side { border-radius: 0 4px 4px 0; }
+.lobby-deck .deck-box-cover { width: 72%; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 3px 8px rgba(30, 34, 44, 0.3); }
+.lobby-deck:not(.on) .deck-box { opacity: 0.72; }
+@media (hover: hover) { .lobby-deck:not(.on):hover .deck-box { opacity: 1; transform: translateY(-3px); } }
+.qp-all { padding: 2px 4px; }
 .setup-spacer { flex: 1; }
 
 /* ---------- Deck builder ---------- */
@@ -2054,13 +2056,17 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .db-deck .pill-btn { padding: 4px 10px; font-size: clamp(0.45rem, calc(1.7 * var(--vh)), 0.6rem); }
 .db-deck-sub { font-size: clamp(0.5rem, calc(1.8 * var(--vh)), 0.62rem); color: var(--ink-soft); white-space: nowrap; }
 @media (hover: hover) { .db-deck-open:hover .deck-box { transform: translateY(-4px); } }
-/* The chosen deck: the whole box (front, lid and side) edged in gold, lifted, on a warm glow. */
-.db-deck-on .deck-box, .lobby-deck.on .deck-box { transform: translateY(-5px); }
-.db-deck-on .deck-box-front, .lobby-deck.on .deck-box-front { box-shadow: inset 0 0 0 2px #d4a52a, 0 16px 28px rgba(212, 165, 42, 0.35); }
-.db-deck-on .deck-box-top, .lobby-deck.on .deck-box-top, .db-deck-on .deck-box-side, .lobby-deck.on .deck-box-side { box-shadow: inset 0 0 0 2px #d4a52a; }
-.db-deck-on .db-deck-sub::before { content: '✓ '; color: #b9861a; }
+/* The chosen deck: the box as one object, lifted and lit by a soft halo that follows its whole outline
+   (front, lid and side together), in the slate blue that marks a choice elsewhere. */
+.deck-box { transition: transform 0.2s ease, filter 0.2s ease, opacity 0.2s ease; }
+.db-deck-on .deck-box, .lobby-deck.on .deck-box {
+  transform: translateY(-5px);
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 10px rgba(93, 106, 140, 0.6)) drop-shadow(0 12px 14px rgba(60, 70, 100, 0.25));
+}
+.db-deck-on .db-deck-sub { color: var(--ink); }
+.db-deck-on .db-deck-sub::before { content: '✓ '; color: #5d6a8c; }
 .db-deck[aria-disabled="true"] { cursor: default; opacity: 0.45; }
-.db-deck-open:focus-visible .deck-box-front { box-shadow: 0 0 0 2px #d4a52a, 0 14px 24px rgba(60, 64, 80, 0.22); }
+.db-deck-open:focus-visible .deck-box { filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 6px rgba(93, 106, 140, 0.6)); }
 .db-deck-actions { display: flex; gap: 6px; }
 .menu.setup-page.menu-decks { gap: clamp(6px, calc(2 * var(--vh)), 14px); }
 .db-editor { grid-template-columns: minmax(0, 1fr) clamp(170px, calc(26 * var(--vw)), 290px); gap: clamp(8px, calc(1.6 * var(--vw)), 16px); align-items: stretch; height: 100%; min-height: 0; width: 100%; max-width: none; }

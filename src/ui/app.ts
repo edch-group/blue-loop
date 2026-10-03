@@ -3025,7 +3025,6 @@ export class App {
     const hasSave = loadSave() !== null;
     const seats = this.seats
       .map((seat, i) => {
-        const deck = deckById(seat.deckId) ?? PRESETS[i];
         // Only a second human types a name: you play as yourself, and the AI as a bot.
         const name = seat.isAI
           ? `<span class="seat-name" title="The AI plays as ${esc(seat.bot)}">${esc(seat.bot)}</span>`
@@ -3033,13 +3032,13 @@ export class App {
             ? `<span class="seat-name">${esc(profile().name || seat.name)}</span>`
             : `<input data-seat-name="${i}" value="${esc(seat.name)}" maxlength="18" aria-label="Player ${i + 1} name" />`;
         return `
-        <div class="seat-tile">
-          <div class="seat-main">
-            ${factionAvatar(`f${deck.race + 1}`, 'seat-emblem')}
+        <div class="qp-seat">
+          <div class="qp-head">
             ${name}
-            <button class="pill-btn" data-act="seat-ai" data-arg="${i}">${seat.isAI ? 'ai' : 'human'}</button>
+            <button class="pill-btn qp-mode" data-act="seat-ai" data-arg="${i}" title="Switch between a human and the AI">${seat.isAI ? 'ai' : 'human'}</button>
           </div>
           ${this.seatDecks(i)}
+          <button class="link-btn qp-all" data-act="seat-deck" data-arg="${i}">view decks</button>
         </div>`;
       })
       .join('');
@@ -3052,10 +3051,7 @@ export class App {
     );
   }
 
-  /**
-   * A seat's decks, as a strip of little deck boxes down its right side: its deck and the last ones it
-   * played (three in all), and a way into every deck.
-   */
+  /** A seat's decks, as a row of deck boxes: its deck and the last ones it played, three in all. */
   private seatDecks(seat: number): string {
     const current = deckById(this.seats[seat].deckId) ?? PRESETS[seat];
     const recent = recentDecks(seat).map((id) => deckById(id)).filter((d): d is SavedDeck => !!d);
@@ -3063,8 +3059,9 @@ export class App {
     const box = (d: SavedDeck) => `
       <button class="lobby-deck ${d.id === current.id ? 'on' : ''}" data-act="seat-recent" data-arg="${seat}:${d.id}" title="${esc(d.name)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">
         <span class="deck-box"><span class="deck-box-top"></span><span class="deck-box-side"></span><span class="deck-box-front">${deckCover(d)}</span></span>
+        <small>${esc(d.name.toLowerCase())}</small>
       </button>`;
-    return `<div class="seat-decks">${decks.map(box).join('')}<button class="lobby-deck-all" data-act="seat-deck" data-arg="${seat}" title="Choose from all your decks">all decks</button></div>`;
+    return `<div class="qp-decks">${decks.map(box).join('')}</div>`;
   }
 
   /** Choosing a seat's deck: every deck as a deck box; tap one to take it. */
