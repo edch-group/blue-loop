@@ -2772,6 +2772,8 @@ export class App {
     const me = this.screen === 'game' && this.state ? this.viewer() : null;
     const heat = me && !me.eliminated ? me.heat : 0;
     backdrop.setHeat(!me || heat === 0 ? 0 : heat > 0 ? heat / supernovaThreshold(me) : heat / -BALANCE.minHeat);
+    // A match in play gets the battle theme (its fanfare opens it); everywhere else, the ambient score.
+    sound.setScene(this.screen === 'game' && this.state && !isGameOver(this.state) ? 'battle' : 'ambient');
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
