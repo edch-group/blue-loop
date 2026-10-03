@@ -258,6 +258,8 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | erode N / decay N | A rival card / every rival card loses N stability |
 | restore N / renew N | Another card / every other card of yours regains N stability |
 | recover (type) | A card (of that type) from your discard pile to your hand; with none there, draw |
+| abundance N | Draw N cards. |
+| industry +N | N more energy today ("industry +N every day": each day, while the card is in play). |
 | recall | Another card of yours from your tableau to your hand |
 | destroy N / eject N | Destroy / return to hand a rival card with at most N defence |
 | sting N / soothe N | When your shields absorb heat: heat the attacking card N, past its defence (never a sun) / cool your sun N |

@@ -331,7 +331,7 @@ export function cardTextHtml(text: string, chosen?: string, inline = false, live
       // A card's choices, one per line: the one picked (as the card is played) stands out.
       if (p.kw === 'options')
         return `<span class="card-opts${chosen ? ' card-opts-chosen' : ''}">${optionList(p.value)
-          .map((o) => `<span class="card-opt${o === chosen ? ' on' : ''}" data-opt="${escText(o)}">${cardTextHtml(optionText(o), undefined, true)}</span>`)
+          .map((o) => `<span class="card-opt${o === chosen ? ' on' : ''}" data-opt="${escText(o)}"><span>${cardTextHtml(optionText(o), undefined, true)}</span></span>`)
           .join('')}</span>`;
       // A number its card's neighbours or the table have changed: shown as it now stands.
       if (i in live && p.value !== undefined) {

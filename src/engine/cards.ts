@@ -16,7 +16,7 @@ export const CARDS: CardDef[] = [
   // ---- Neutral ------------------------------------------------------------
   { id: 'coronal_lance', name: 'Coronal Lance', kind: 'attack', text: '{heat:3}.', onPlay: [{ type: 'heat', amount: 3, to: 'target' }] },
   { id: 'plasma_relay', name: 'Plasma Relay', kind: 'attack', text: '{sturdy:1}. {dawn}: {heat:1}.', defence: 1, onTurn: [{ type: 'heat', amount: 1, to: 'target' }] },
-  { id: 'gravity_sling', name: 'Gravity Sling', kind: 'attack', text: '{heat:1}. Draw 1.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'draw', amount: 1 }] },
+  { id: 'gravity_sling', name: 'Gravity Sling', kind: 'attack', text: '{heat:1}. {draw:1}.', onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'draw', amount: 1 }] },
   { id: 'thermal_exchange', name: 'Thermal Exchange', kind: 'attack', text: '{heat:2}. {cool:1}.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'cool', amount: 1 }] },
   {
     id: 'solar_battery',
@@ -29,8 +29,8 @@ export const CARDS: CardDef[] = [
   { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: '{dawn}: {cool:1}.', onTurn: [{ type: 'cool', amount: 1 }] },
   { id: 'cryo_vault', name: 'Cryo Vault', kind: 'defence', text: '{cool:3}.', onPlay: [{ type: 'cool', amount: 3 }] },
   { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: '{dawn}: {shield:2}.', onTurn: [{ type: 'shield', amount: 2 }] },
-  { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: '{cool:1}. Draw 1.', onPlay: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1 }] },
-  { id: 'deep_scanners', name: 'Deep-Space Scanners', kind: 'growth', text: 'Draw 2.', onPlay: [{ type: 'draw', amount: 2 }] },
+  { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: '{cool:1}. {draw:1}.', onPlay: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1 }] },
+  { id: 'deep_scanners', name: 'Deep-Space Scanners', kind: 'growth', text: '{draw:2}.', onPlay: [{ type: 'draw', amount: 2 }] },
 
   // ---- Global: one at a time on the whole table; a new one replaces it ----
   { id: 'solar_storm', name: 'Solar Storm', kind: 'global', text: '{global}. Every sun takes {heat:1} at its dawn.', passive: [{ type: 'field', field: 'solarStorm' }] },
@@ -57,7 +57,7 @@ export const CARDS: CardDef[] = [
     id: 'standing_orders',
     name: 'Standing Orders',
     kind: 'growth',
-    text: 'Draw 1. {dawn}: with a Command card, draw 1.',
+    text: '{draw:1}. {dawn}: with a Command card, {draw:1}.',
     onPlay: [{ type: 'draw', amount: 1 }],
     onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
@@ -135,7 +135,7 @@ export const CARDS: CardDef[] = [
     id: 'phase_shift',
     name: 'Phase Shift',
     kind: 'growth',
-    text: '{recall}. {energy:1} today.',
+    text: '{recall}. {energy:1}.',
     onPlay: [{ type: 'recall' }, { type: 'plays', amount: 1 }],
   },
 
@@ -174,7 +174,7 @@ export const CARDS: CardDef[] = [
     id: 'signal_jammer',
     name: 'Signal Jammer',
     kind: 'lightspeed',
-    text: '{lightspeed}. When an enemy plays a growth card, cancel it. Draw 1.',
+    text: '{lightspeed}. When an enemy plays a growth card, cancel it. {draw:1}.',
     lightspeed: { trigger: { on: 'enemyPlays', kind: 'growth' }, counter: true, effects: [{ type: 'draw', amount: 1 }] },
   },
   {
@@ -195,14 +195,14 @@ export const CARDS: CardDef[] = [
     id: 'decoy_array',
     name: 'Decoy Array',
     kind: 'lightspeed',
-    text: '{lightspeed}. When an enemy is about to destroy or return one of your cards, cancel it. Draw 1.',
+    text: '{lightspeed}. When an enemy is about to destroy or return one of your cards, cancel it. {draw:1}.',
     lightspeed: { trigger: { on: 'targeted' }, counter: true, effects: [{ type: 'draw', amount: 1 }] },
   },
   {
     id: 'temporal_snare',
     name: 'Temporal Snare',
     kind: 'lightspeed',
-    text: "{lightspeed}. When an enemy plays a card, cancel it. They may play no more cards today. Draw 1.",
+    text: "{lightspeed}. When an enemy plays a card, cancel it. They may play no more cards today. {draw:1}.",
     lightspeed: { trigger: { on: 'enemyPlays' }, counter: true, effects: [{ type: 'halt' }, { type: 'draw', amount: 1 }] },
   },
 
@@ -230,7 +230,7 @@ export const CARDS: CardDef[] = [
     name: 'Dawn Beacon',
     kind: 'growth',
     race: 0,
-    text: 'Draw 1. {dawn}: with 2+ attack cards, draw 1.',
+    text: '{draw:1}. {dawn}: with 2+ attack cards, {draw:1}.',
     onPlay: [{ type: 'draw', amount: 1 }],
     onTurn: [{ type: 'draw', amount: 1, if: { minKind: 'attack', n: 2 } }],
   },
@@ -281,7 +281,7 @@ export const CARDS: CardDef[] = [
     onPlay: [{ type: 'cool', amount: 3 }],
     onTurn: [{ type: 'cool', amount: 1 }],
   },
-  { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 3. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 1 }] },
+  { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: '{draw:3}. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 1 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
   { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:1}. {dawn}: {shield:3}.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }], passive: [{ type: 'taunt' }] },
@@ -311,7 +311,7 @@ export const CARDS: CardDef[] = [
     onPlay: [{ type: 'shield', amount: 2 }],
     passive: [{ type: 'keepShields' }],
   },
-  { id: 'lure_jelly', name: 'Lure Jelly', kind: 'growth', race: 2, text: '{cool:2}. Draw 1.', onPlay: [{ type: 'cool', amount: 2 }, { type: 'draw', amount: 1 }] },
+  { id: 'lure_jelly', name: 'Lure Jelly', kind: 'growth', race: 2, text: '{cool:2}. {draw:1}.', onPlay: [{ type: 'cool', amount: 2 }, { type: 'draw', amount: 1 }] },
 
   // ---- Ixquor: the hive. Grow, go wide, and play more each day ----
   {
@@ -323,8 +323,8 @@ export const CARDS: CardDef[] = [
     text: '{dawn}: {grows:4}, then {heat} equal to its growth.',
     onTurn: [{ type: 'grow', max: 4 }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'growth' } }],
   },
-  { id: 'hive_relay', name: 'Hive Relay', kind: 'growth', race: 3, text: "{plays:1}.", passive: [{ type: 'extraPlay', amount: 1 }] },
-  { id: 'sporecaster', name: 'Sporecaster', kind: 'growth', race: 3, text: '{dawn}: draw 1.', onTurn: [{ type: 'draw', amount: 1 }] },
+  { id: 'hive_relay', name: 'Hive Relay', kind: 'growth', race: 3, text: "{plays:1} every day.", passive: [{ type: 'extraPlay', amount: 1 }] },
+  { id: 'sporecaster', name: 'Sporecaster', kind: 'growth', race: 3, text: '{dawn}: {draw:1}.', onTurn: [{ type: 'draw', amount: 1 }] },
   {
     id: 'rot_bloom',
     name: 'Rot Bloom',
@@ -372,7 +372,7 @@ export const CARDS: CardDef[] = [
     name: 'Hive Rooting',
     kind: 'growth',
     race: 3,
-    text: '{renew:1}. Draw 1.',
+    text: '{renew:1}. {draw:1}.',
     onPlay: [{ type: 'restore', amount: 1, all: true }, { type: 'draw', amount: 1 }],
   },
   {
@@ -401,7 +401,7 @@ export const CARDS: CardDef[] = [
     name: 'Ember Shard',
     kind: 'attack',
     race: 1,
-    text: '{heat:2}. When you recover this, {heat:1}.',
+    text: '{heat:2}. When you {recover} this, {heat:1}.',
     onPlay: [{ type: 'heat', amount: 2, to: 'target' }],
     onRecover: [{ type: 'heat', amount: 1, to: 'target' }],
   },
@@ -410,7 +410,7 @@ export const CARDS: CardDef[] = [
     name: "Xel'Naru Reliquarist",
     kind: 'growth',
     race: 1,
-    text: '{recover:attack}. Draw 1.',
+    text: '{recover:attack}. {draw:1}.',
     onPlay: [{ type: 'recover', kind: 'attack', orDraw: 1 }, { type: 'draw', amount: 1 }],
   },
   {
@@ -450,7 +450,7 @@ export const CARDS: CardDef[] = [
     name: 'Spore Husk',
     kind: 'growth',
     race: 3,
-    text: '{dawn}: {cool:1}. When you recover this, draw 2.',
+    text: '{dawn}: {cool:1}. When you {recover} this, {draw:2}.',
     onTurn: [{ type: 'cool', amount: 1 }],
     onRecover: [{ type: 'draw', amount: 2 }],
   },
@@ -513,7 +513,7 @@ export const CARDS: CardDef[] = [
     name: 'Ixquor Brood-Tender',
     kind: 'growth',
     race: 3,
-    text: 'Draw 1. {dawn}: your other growing cards grow by 1.',
+    text: '{draw:1}. {dawn}: your other growing cards grow by 1.',
     onPlay: [{ type: 'draw', amount: 1 }],
     onTurn: [{ type: 'growOthers' }],
   },
@@ -522,19 +522,19 @@ export const CARDS: CardDef[] = [
     name: 'The Brood Queen',
     kind: 'growth',
     race: 3,
-    text: '{plays:1}. {dawn}: {heat:2}. {heat:+2} with 4+ cards.',
+    text: '{plays:1} every day. {dawn}: {heat:2}. {heat:+2} with 4+ cards.',
     passive: [{ type: 'extraPlay', amount: 1 }],
     onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
   // ---- Orbit: cards that move the planets round a sun (dead → abundant → industrial, three turns each) ----
   { id: 'gravity_assist', name: 'Gravity Assist', kind: 'attack', text: '{heat:2}. Your {orbit:+1}.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'orbit', amount: 1, who: 'self' }] },
-  { id: 'orbital_slingshot', name: 'Orbital Slingshot', kind: 'growth', text: 'Your {orbit:+3}: the next planet swings round. Draw 1.', onPlay: [{ type: 'orbit', amount: 3, who: 'self' }, { type: 'draw', amount: 1 }] },
+  { id: 'orbital_slingshot', name: 'Orbital Slingshot', kind: 'growth', text: 'Your {orbit:+3}: the next planet swings round. {draw:1}.', onPlay: [{ type: 'orbit', amount: 3, who: 'self' }, { type: 'draw', amount: 1 }] },
   { id: 'tidal_brake', name: 'Tidal Brake', kind: 'defence', text: "{shield:2}. Your rival's {orbit:−2}.", onPlay: [{ type: 'shield', amount: 2 }, { type: 'orbit', amount: -2, who: 'rival' }] },
   {
     id: 'dead_world_mine',
     name: 'Dead World Mine',
     kind: 'growth',
-    text: '{dawn}: {cool:1}. While facing the dead planet, also draw 1.',
+    text: '{dawn}: {cool:1}. While facing the dead planet, also {draw:1}.',
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1, if: { planet: 'dead' } }],
   },
   {
@@ -582,7 +582,7 @@ export const CARDS: CardDef[] = [
     id: 'recall_beacon',
     name: 'Recall Beacon',
     kind: 'growth',
-    text: '{recall}. Draw 1.',
+    text: '{recall}. {draw:1}.',
     onPlay: [{ type: 'recall' }, { type: 'draw', amount: 1 }],
   },
   {
