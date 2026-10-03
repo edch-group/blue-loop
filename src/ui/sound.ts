@@ -5,8 +5,8 @@ import { markDirty } from './account';
  * Every effect uses soft waveforms, slow attacks and a long shared "space"
  * reverb, so actions swell and bloom rather than click. A generative ambient
  * score (drone, slowly shifting pad chords and distant chimes; just synths,
- * no noise) plays underneath the menus; matches get a low, minimal pulse,
- * opened by the sound of a ship powering down. Each effect is one method, so recorded audio can replace
+ * no noise) plays underneath the menus; matches get a gliding, wobbling synth
+ * score, opened by the sound of a ship powering down. Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -43,11 +43,12 @@ const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 export type MusicScene = 'ambient' | 'battle';
 
 // ---- Battle theme -----------------------------------------------------------
-// Low, pulsing and minimal, so it sits under the board's own sounds: a soft bass
-// pulse holds one chord for about fifteen seconds, then the music splashes for a
-// few bars, in the power-down's voices (gliding triangles, rushing filtered
-// air): it crashes in with a dive-bomb, a low synth wobbles under the bass, and
-// it rises back out home. After a couple of rounds the splashes grow longer.
+// Built from the power-down's voices (gliding, detuned triangles and rushing
+// filtered air) and generated as it plays, so it never loops the same way: a
+// gliding bass whose resonant filter wobbles in time, its pattern changing bar
+// to bar; a mid-range synth pulsing on the chord most of the time; and, from
+// the second bar on, a varied stream of low gestures (dives, rises, swoops,
+// wobbles, gated stutters, bends, slides, air) panned around the field.
 
 const BATTLE_BPM = 96;
 const NOTE_INDEX: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
@@ -57,18 +58,27 @@ const midi = (name: string) => {
 };
 const hz = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
-/** The chord the pulse holds (B minor), and the splashes away from it: a bass root per bar. */
-const HOME = midi('B1');
-const SPLASHES: number[][] = [
-  // Early rounds: two bars on G.
-  ['G1', 'G1'].map(midi),
-  // Later rounds: G, G, then A, leaning back home.
-  ['G1', 'G1', 'A1'].map(midi),
+type Chord = { root: number; third: number };
+const minor = (n: string): Chord => ({ root: midi(n), third: 3 });
+const major = (n: string): Chord => ({ root: midi(n), third: 4 });
+/** Eight-bar phrases, alternating: home on B minor for four bars (10s), then a turn. */
+const PHRASES: Chord[][] = [
+  [minor('B1'), minor('B1'), minor('B1'), minor('B1'), major('G1'), major('G1'), major('A1'), major('A1')],
+  [minor('B1'), minor('B1'), minor('B1'), minor('B1'), minor('E1'), minor('E1'), major('G1'), major('F#1')],
 ];
-/** Bars the pulse holds home before each shift (2.5s a bar). */
-const HOLD_BARS = 6;
-/** Accents across the bar's eighths: the beat is felt, the rest barely there. */
-const BASS_ACCENTS = [1, 0.35, 0.55, 0.35, 0.8, 0.35, 0.55, 0.4];
+
+/** Bass patterns over a bar's sixteenths: [step, pitch (root, octave, fifth, third), length, accent, glide]. */
+type BassNote = [number, 'r' | 'o' | 'f' | 't', number, number, boolean?];
+const BASS: Record<'drive' | 'octave' | 'sync' | 'slide' | 'breathe' | 'pickup', BassNote[]> = {
+  drive: [[0, 'r', 2, 1], [2, 'r', 2, 0.5], [4, 'r', 2, 0.7], [6, 'r', 2, 0.5], [8, 'r', 2, 0.85], [10, 'r', 2, 0.5], [12, 'r', 2, 0.7], [14, 'r', 2, 0.55]],
+  octave: [[0, 'r', 2, 1], [2, 'r', 2, 0.5], [4, 'r', 2, 0.7], [6, 'o', 2, 0.6, true], [8, 'r', 2, 0.85, true], [10, 'r', 2, 0.5], [12, 'r', 2, 0.7], [14, 'o', 2, 0.6, true]],
+  sync: [[0, 'r', 3, 1], [3, 'r', 3, 0.7], [6, 'r', 2, 0.6], [8, 'r', 3, 0.9], [11, 'r', 3, 0.7], [14, 'f', 2, 0.6, true]],
+  slide: [[0, 'r', 2, 1], [2, 'r', 2, 0.5], [4, 'o', 2, 0.7, true], [6, 'r', 2, 0.5, true], [8, 'r', 2, 0.85], [10, 't', 2, 0.55, true], [12, 'f', 2, 0.7, true], [14, 'r', 2, 0.6, true]],
+  breathe: [[0, 'r', 4, 1], [6, 'r', 2, 0.6], [8, 'r', 4, 0.9], [14, 'f', 2, 0.6, true]],
+  pickup: [[0, 'r', 2, 1], [2, 'r', 2, 0.5], [4, 'r', 2, 0.7], [6, 'r', 2, 0.5], [8, 'r', 2, 0.85], [10, 'r', 2, 0.5], [12, 'r', 1, 0.6], [13, 'f', 1, 0.55, true], [14, 'o', 1, 0.6, true], [15, 'f', 1, 0.6, true]],
+};
+type Gesture = 'dive' | 'rise' | 'swoop' | 'wobble' | 'gate' | 'bend' | 'slides' | 'air';
+const GESTURES: Gesture[] = ['dive', 'rise', 'swoop', 'wobble', 'gate', 'bend', 'slides', 'air'];
 
 class SoundBoard {
   private ctx: AudioContext | null = null;
@@ -494,7 +504,7 @@ class SoundBoard {
     this.playing = this.scene;
     const now = ctx.currentTime;
     const buses: [GainNode, number, number][] =
-      this.scene === 'battle' ? [[this.battleBus, 0.85, 0.05], [this.battleLush, 0.8, 0.05]] : [[this.musicBus, 0.5, 6]];
+      this.scene === 'battle' ? [[this.battleBus, 0.48, 0.05], [this.battleLush, 0.45, 0.05]] : [[this.musicBus, 0.5, 6]];
     for (const [bus, level, fade] of buses) {
       bus.gain.cancelScheduledValues(now);
       bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), now);
@@ -612,148 +622,258 @@ class SoundBoard {
   }
 
   /**
-   * The battle theme: the ship powers down, the pulse rises out of the dark, then rounds of holding home and
-   * briefly shifting. Bars are scheduled just ahead of the audio clock.
+   * The battle theme: the ship powers down, then the bass, the mid synth and the gestures come in within a few
+   * bars, all generated bar by bar just ahead of the audio clock.
    */
   private battleScore(ctx: AudioContext, bus: GainNode, lush: GainNode) {
     const step = 60 / BATTLE_BPM / 4;
     const barLen = step * 16;
     const t0 = ctx.currentTime + 0.05;
-    const start = t0 + 3.6; // after the power-down
-
-    // The bass runs through one shared filter that breathes slowly (as the menu drone does), then out dry, into
-    // the hall, and into a faint, dark echo.
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.Q.value = 1.2;
-    filter.frequency.setValueAtTime(120, start);
-    filter.frequency.linearRampToValueAtTime(260, start + barLen * 3);
-    const lfo = ctx.createOscillator();
-    const lfoDepth = ctx.createGain();
-    lfo.frequency.value = 0.05;
-    lfoDepth.gain.value = 70;
-    lfo.connect(lfoDepth).connect(filter.frequency);
-    const hall = ctx.createGain();
-    hall.gain.value = 0.4;
-    const echo = ctx.createDelay(2);
-    echo.delayTime.value = step * 3;
-    const feedback = ctx.createGain();
-    feedback.gain.value = 0.25;
-    const tone = ctx.createBiquadFilter();
-    tone.type = 'lowpass';
-    tone.frequency.value = 400;
-    const wet = ctx.createGain();
-    wet.gain.value = 0.18;
-    filter.connect(bus);
-    filter.connect(hall).connect(lush);
-    filter.connect(echo).connect(tone).connect(feedback).connect(echo);
-    tone.connect(wet).connect(bus);
-    lfo.start(t0);
-    this.musicNodes = [filter, lfo, lfoDepth, hall, echo, feedback, tone, wet];
-    const brighten = (at: number, to: number, over: number) => {
-      filter.frequency.setValueAtTime(filter.frequency.value, at);
-      filter.frequency.linearRampToValueAtTime(to, at + over);
+    const start = t0 + 3.4; // after the power-down
+    const pick = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)];
+    const nodes: AudioNode[] = [];
+    const osc = (type: OscillatorType, freq: number, detune = 0) => {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = freq;
+      o.detune.value = detune;
+      o.start(t0);
+      nodes.push(o);
+      return o;
+    };
+    const lfo = (rate: number, depth: number, target: AudioParam) => {
+      const o = osc('sine', rate);
+      const g = ctx.createGain();
+      g.gain.value = depth;
+      o.connect(g).connect(target);
+      nodes.push(g);
+      return o;
     };
 
-    this.powerDown(t0, lush);
+    // ---- The bass: one gliding voice (a detuned triangle pair and a sine an octave down) gated note by note,
+    // through a resonant lowpass that wobbles in time.
+    const bassFilter = ctx.createBiquadFilter();
+    bassFilter.type = 'lowpass';
+    bassFilter.Q.value = 5;
+    bassFilter.frequency.value = 260;
+    const bassWob = lfo(BATTLE_BPM / 30, 140, bassFilter.frequency);
+    const bassGate = ctx.createGain();
+    bassGate.gain.value = 0;
+    const subGate = ctx.createGain();
+    subGate.gain.value = 0;
+    const bassHall = ctx.createGain();
+    bassHall.gain.value = 0.3;
+    const bassOscs = [osc('triangle', 60, -8), osc('triangle', 60, 8)];
+    const sub = osc('sine', 30);
+    bassOscs.forEach((o) => o.connect(bassFilter));
+    bassFilter.connect(bassGate).connect(bus);
+    bassGate.connect(bassHall).connect(lush);
+    sub.connect(subGate).connect(bus);
+    nodes.push(bassFilter, bassGate, subGate, bassHall);
+    const bassNote = (at: number, n: number, len: number, accent: number, glide: boolean) => {
+      const f = hz(n);
+      for (const o of bassOscs) glide ? o.frequency.setTargetAtTime(f, at, 0.035) : o.frequency.setValueAtTime(f, at);
+      glide ? sub.frequency.setTargetAtTime(f / 2, at, 0.035) : sub.frequency.setValueAtTime(f / 2, at);
+      const peak = 0.13 * accent;
+      bassGate.gain.setTargetAtTime(peak, at, 0.006);
+      bassGate.gain.setTargetAtTime(peak * 0.4, at + 0.03, len * 0.35);
+      bassGate.gain.setTargetAtTime(0, at + len * 0.92, 0.025);
+      subGate.gain.setTargetAtTime(0.07 * accent, at, 0.01);
+      subGate.gain.setTargetAtTime(0, at + len * 0.9, 0.04);
+    };
 
-    /** One bar of the pulse: soft eighths, a detuned pair long enough to blur into a hum, a sine under the beat. */
-    const pulse = (at: number, rootNote: number, more: boolean) => {
-      const root = rootNote + 12;
-      BASS_ACCENTS.forEach((accent, e) => {
-        // In later rounds the last eighth lifts to the fifth.
-        const n = more && e === 7 ? root + 7 : root;
-        const d = this.until(at + e * 2 * step);
-        const opts = { dur: step * 3, attack: 0.03, gain: 0.08 * accent, type: 'triangle' as OscillatorType, cutoff: 2000, delay: d, out: filter };
-        this.voice(hz(n), { ...opts, detune: -6 });
-        this.voice(hz(n), { ...opts, detune: 6, gain: 0.055 * accent });
+    // ---- The mid synth: the chord's third and fifth around middle C, two detuned triangles and a faint saw
+    // each, gliding between chords, through a slowly sweeping filter and a tremolo whose rate changes by phrase.
+    const midFilter = ctx.createBiquadFilter();
+    midFilter.type = 'lowpass';
+    midFilter.Q.value = 2;
+    midFilter.frequency.value = 900;
+    lfo(0.09, 350, midFilter.frequency);
+    const trem = ctx.createGain();
+    trem.gain.value = 0.6;
+    const tremLfo = lfo(BATTLE_BPM / 15, 0.4, trem.gain);
+    const midGate = ctx.createGain();
+    midGate.gain.value = 0;
+    midFilter.connect(trem).connect(midGate).connect(lush);
+    nodes.push(midFilter, trem, midGate);
+    const midVoices = [0, 1].map(() => {
+      const os = [osc('triangle', 220, -9), osc('triangle', 220, 9), osc('sawtooth', 220, 3)];
+      os.forEach((o, k) => {
+        const g = ctx.createGain();
+        g.gain.value = k < 2 ? 0.022 : 0.006;
+        o.connect(g).connect(midFilter);
+        nodes.push(g);
       });
-      this.voice(hz(root - 12), { dur: step * 6, attack: 0.03, gain: 0.06, cutoff: 140, delay: this.until(at), out: bus });
+      return os;
+    });
+    /** A chord tone placed in the mid range (A3 to A4). */
+    const mid = (c: Chord, interval: number) => {
+      let n = c.root + interval;
+      while (n < midi('A3')) n += 12;
+      return n;
     };
+    const midChord = (at: number, c: Chord) =>
+      [mid(c, c.third), mid(c, 7)].forEach((n, i) => midVoices[i].forEach((o) => o.frequency.setTargetAtTime(hz(n), at, 0.12)));
 
-    /** A low synth that wobbles: a detuned triangle pair with a slow pitch wobble and a filter that sways. */
-    const wobble = (at: number, freq: number, len: number, rate: number, gain: number) => {
+    // ---- Gestures: each through its own panner, somewhere in the field.
+    const panned = () => {
+      const p = ctx.createStereoPanner();
+      p.pan.value = (Math.random() * 2 - 1) * 0.6;
+      p.connect(lush);
+      return p;
+    };
+    /** A detuned triangle pair whose pitch follows a path of [seconds, Hz] points, optionally wobbling. */
+    const glider = (at: number, path: [number, number][], o: { gain: number; cutoff?: number; wob?: [number, number]; attack?: number; release?: number; out: AudioNode }) => {
+      const end = at + path[path.length - 1][0];
       const f = ctx.createBiquadFilter();
       f.type = 'lowpass';
-      f.Q.value = 3;
-      f.frequency.value = 380;
-      const sway = ctx.createOscillator();
-      const swayDepth = ctx.createGain();
-      sway.frequency.value = rate / 2;
-      swayDepth.gain.value = 240;
-      sway.connect(swayDepth).connect(f.frequency);
-      const wob = ctx.createOscillator();
-      const wobDepth = ctx.createGain();
-      wob.frequency.value = rate;
-      wobDepth.gain.setValueAtTime(freq * 0.004, at);
-      wobDepth.gain.linearRampToValueAtTime(freq * 0.02, at + len);
+      f.frequency.value = o.cutoff ?? 1800;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, at);
-      g.gain.linearRampToValueAtTime(gain, at + len * 0.3);
-      g.gain.setValueAtTime(gain, at + len * 0.7);
-      g.gain.linearRampToValueAtTime(0, at + len);
-      [-10, 10].forEach((detune) => {
-        const o = ctx.createOscillator();
-        o.type = 'triangle';
-        o.frequency.value = freq;
-        o.detune.value = detune;
-        wob.connect(wobDepth).connect(o.frequency);
-        o.connect(f);
-        o.start(at);
-        o.stop(at + len + 0.1);
+      g.gain.linearRampToValueAtTime(o.gain, at + (o.attack ?? 0.05));
+      g.gain.setValueAtTime(o.gain, Math.max(at + (o.attack ?? 0.05), end - (o.release ?? 0.4)));
+      g.gain.linearRampToValueAtTime(0, end);
+      f.connect(g).connect(o.out);
+      let wob: OscillatorNode | null = null;
+      let wobDepth: GainNode | null = null;
+      if (o.wob) {
+        wob = ctx.createOscillator();
+        wob.frequency.setValueAtTime(o.wob[0], at);
+        wob.frequency.linearRampToValueAtTime(o.wob[1], end);
+        wobDepth = ctx.createGain();
+        wobDepth.gain.value = path[0][1] * 0.025;
+        wob.connect(wobDepth);
+        wob.start(at);
+        wob.stop(end + 0.05);
+      }
+      [-9, 9].forEach((detune) => {
+        const v = ctx.createOscillator();
+        v.type = 'triangle';
+        v.detune.value = detune;
+        v.frequency.setValueAtTime(path[0][1], at);
+        for (const [t, hzv] of path.slice(1)) v.frequency.exponentialRampToValueAtTime(hzv, at + t);
+        if (wobDepth) wobDepth.connect(v.frequency);
+        v.connect(f);
+        v.start(at);
+        v.stop(end + 0.05);
       });
-      f.connect(g).connect(lush);
-      sway.start(at);
-      wob.start(at);
-      sway.stop(at + len + 0.1);
-      wob.stop(at + len + 0.1);
+    };
+    const air = (at: number, from: number, to: number, dur: number, gain: number, rising: boolean, out: AudioNode) =>
+      this.breath({ dur, freq: from, to, type: rising ? 'bandpass' : 'lowpass', q: rising ? 1.4 : 1.2, gain, attack: rising ? dur * 0.9 : 0.05, delay: this.until(at), out });
+    /** A chord tone in a given octave band (MIDI low..low+12). */
+    const tone = (c: Chord, low: number) => {
+      let n = c.root + pick([0, c.third, 7]);
+      while (n < low) n += 12;
+      return hz(n);
     };
 
-    /** The power-down's dive-bomb, lower: a triangle and a sine a fifth up, gliding down, over rushing air falling. */
-    const crash = (at: number, from: number) => {
-      this.note(at, from, 1.8, { gain: 0.042, to: 50, attack: 0.03, release: 1.0, cutoff: 2400, out: lush });
-      this.note(at, from * 1.5, 1.6, { gain: 0.014, type: 'sine', to: 75, attack: 0.03, release: 0.9, out: lush });
-      this.breath({ dur: 3.2, freq: 2400, to: 110, type: 'lowpass', q: 1.2, gain: 0.085, attack: 0.05, delay: this.until(at), out: lush });
+    const gesture = (g: Gesture, at: number, c: Chord) => {
+      const out = panned();
+      switch (g) {
+        case 'dive': {
+          const f = tone(c, midi('E5')) * (Math.random() < 0.5 ? 1 : 0.75);
+          const d = 1.2 + Math.random() * 1.2;
+          glider(at, [[0, f], [d, f / 10]], { gain: 0.04, cutoff: 2400, release: d * 0.6, out });
+          air(at, 2400, 110, d + 1, 0.07, false, out);
+          break;
+        }
+        case 'rise': {
+          const f = tone(c, midi('E2'));
+          const d = barLen * (0.5 + Math.random() * 0.5);
+          glider(at, [[0, f], [d, f * 4]], { gain: 0.034, cutoff: 1600, attack: d * 0.6, release: 0.15, wob: [2, 7], out });
+          air(at, 140, 1500, d, 0.055, true, out);
+          break;
+        }
+        case 'swoop': {
+          const f = tone(c, midi('E3'));
+          glider(at, [[0, f], [0.5, f * 2.5], [1.6, f * 0.7]], { gain: 0.035, cutoff: 2000, attack: 0.3, release: 0.6, out });
+          break;
+        }
+        case 'wobble': {
+          const f = tone(c, midi('B2'));
+          const d = barLen * (0.75 + Math.random() * 0.75);
+          const [a, b] = Math.random() < 0.5 ? [1.5, 8] : [8, 1.5];
+          glider(at, [[0, f], [d, f]], { gain: 0.04, cutoff: 900, attack: d * 0.3, release: d * 0.3, wob: [a, b], out });
+          break;
+        }
+        case 'gate': {
+          // A stutter: sixteenths on one tone, swelling then fading, the filter opening as it goes.
+          const f = tone(c, midi('E3'));
+          const n = 8 + Math.floor(Math.random() * 3) * 4;
+          for (let i = 0; i < n; i++) {
+            const env = Math.sin((Math.PI * (i + 0.5)) / n);
+            this.note(at + i * step, f, step * 0.55, { gain: 0.032 * env, cutoff: 500 + 2200 * (i / n), attack: 0.005, release: 0.05, out });
+          }
+          break;
+        }
+        case 'bend': {
+          // Slides up a fourth into a chord tone and hangs there, wobbling, then sags away.
+          const f = tone(c, midi('B2'));
+          glider(at, [[0, f * 0.75], [0.25, f], [1.8, f], [2.6, f * 0.84]], { gain: 0.036, cutoff: 1500, attack: 0.08, release: 0.8, wob: [5, 3], out });
+          break;
+        }
+        case 'slides': {
+          // Glides back and forth between two chord tones in eighths.
+          const a = hz(c.root + 24), b = hz(c.root + 24 + 7);
+          const path: [number, number][] = [[0, a]];
+          for (let i = 1; i <= 6; i++) path.push([i * step * 2, i % 2 ? b : a]);
+          glider(at, path, { gain: 0.03, cutoff: 1400, attack: 0.1, release: 0.3, out });
+          break;
+        }
+        case 'air':
+          air(at, 3000, 120, 2.6, 0.075, false, out);
+          if (Math.random() < 0.5) air(at + 1.2, 160, 1800, 1.8, 0.04, true, out);
+          break;
+      }
     };
 
-    /** And the reverse, back out: a triangle gliding up with a growing wobble, under air rising. */
-    const rise = (at: number, from: number, len: number) => {
-      this.note(at, from, len, { gain: 0.036, to: from * 4, attack: len * 0.6, release: 0.25, cutoff: 1600, vibrato: true, out: lush });
-      this.breath({ dur: len, freq: 140, to: 1500, type: 'bandpass', q: 1.4, gain: 0.065, attack: len * 0.92, delay: this.until(at), out: lush });
-    };
-
-    /** A splash: the bass keeps driving on new roots while it crashes in, wobbles, and rises back out. */
-    const splash = (at: number, roots: number[], more: boolean) => {
-      const len = roots.length * barLen;
-      roots.forEach((r, i) => pulse(at + i * barLen, r, more));
-      brighten(at, 420, barLen * 0.5);
-      brighten(at + len - barLen * 0.5, 260, barLen);
-      crash(at, more ? 820 : 640);
-      const root = hz(roots[0] + 24);
-      wobble(at + 0.2, root, len - 0.2, more ? 4.5 : 3, 0.045);
-      wobble(at + barLen * 0.5, root * 1.5, len - barLen * 0.5, more ? 3 : 2, 0.02);
-      rise(at + len - barLen, hz(roots[roots.length - 1] + 12), barLen);
-    };
-
-    // The plan, bar by bar: hold home, then splash; two rounds with short splashes, then two with longer ones.
-    type Bar = { splash?: number[]; more: boolean };
-    const plan: Bar[] = [];
-    for (let round = 0; round < 4; round++) {
-      const more = round >= 2;
-      for (let b = 0; b < HOLD_BARS; b++) plan.push({ more });
-      plan.push({ splash: SPLASHES[more ? 1 : 0], more });
-    }
-
+    // ---- The plan, generated as it plays.
+    this.powerDown(t0, lush);
+    this.musicNodes = nodes;
+    let bar = 0;
     let next = start;
-    let index = 0;
+    let lastGestures: Gesture[] = [];
+    let midOn = false;
+    const playBar = (at: number) => {
+      const phrase = PHRASES[Math.floor(bar / 8) % PHRASES.length];
+      const inPhrase = bar % 8;
+      const c = phrase[inPhrase];
+      const turn = inPhrase >= 4;
+
+      // Bass: plain to begin with, then varied; it breathes before a turn now and then, with a pickup into it.
+      const pattern = bar === 0 ? 'drive' : inPhrase === 3 ? pick(['breathe', 'pickup', 'sync'] as const) : turn ? pick(['octave', 'slide', 'sync', 'pickup'] as const) : pick(['drive', 'octave', 'sync', 'slide'] as const);
+      const at16 = (s: number) => at + s * step;
+      for (const [s, p, len, accent, glide] of BASS[pattern]) {
+        const n = c.root + 12 + (p === 'o' ? 12 : p === 'f' ? 7 : p === 't' ? c.third : 0);
+        bassNote(at16(s), n, len * step, accent, !!glide);
+      }
+      // The bass filter's wobble: in eighths, quarters, dotted eighths or (in a turn) sixteenths, every two bars.
+      if (bar % 2 === 0) bassWob.frequency.setValueAtTime((BATTLE_BPM / 60) * pick(turn ? [2, 4, 4 / 3] : [1, 2, 4 / 3]), at);
+      bassFilter.frequency.setTargetAtTime(turn ? 340 : 250, at, barLen * 0.5);
+
+      // Mid synth: in from the second bar, out for the odd bar so it breathes; its tremolo changes by phrase.
+      midChord(at, c);
+      const want = bar >= 1 && !(inPhrase === 3 && Math.random() < 0.35) && !(inPhrase === 0 && bar > 0 && Math.random() < 0.25);
+      if (want !== midOn) {
+        midGate.gain.setTargetAtTime(want ? 1 : 0, at, want ? 0.6 : 0.4);
+        midOn = want;
+      }
+      if (inPhrase === 0) tremLfo.frequency.setValueAtTime((BATTLE_BPM / 60) * pick([4, 3, 2, 4 / 3]), at);
+
+      // Gestures: from the second bar, one most bars and two in a turn, never the same one twice running.
+      const count = bar < 2 ? (bar === 1 ? 1 : 0) : turn ? 1 + (Math.random() < 0.6 ? 1 : 0) : Math.random() < 0.8 ? 1 : 0;
+      for (let k = 0; k < count; k++) {
+        const g = pick(GESTURES.filter((x) => !lastGestures.includes(x)));
+        lastGestures = [...lastGestures, g].slice(-2);
+        gesture(g, at16(k === 0 ? pick([0, 4, 8]) : pick([8, 10, 12])), c);
+      }
+      bar++;
+    };
     const tick = () => {
       if (this.playing !== 'battle') return;
       while (next < ctx.currentTime + 0.5) {
-        const bar = plan[index];
-        if (bar.splash) splash(next, bar.splash, bar.more);
-        else pulse(next, HOME, bar.more);
-        next += barLen * (bar.splash?.length ?? 1);
-        index = (index + 1) % plan.length;
+        playBar(next);
+        next += barLen;
       }
     };
     tick();
