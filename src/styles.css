@@ -3908,3 +3908,28 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   background: radial-gradient(circle, #fff 0 1px, rgba(200, 220, 255, 0.5) 1.6px, transparent 4px), linear-gradient(90deg, transparent, rgba(220, 232, 255, 0.55) 50%, transparent) center / 100% 1px no-repeat, linear-gradient(0deg, transparent, rgba(220, 232, 255, 0.55) 50%, transparent) center / 1px 100% no-repeat;
   animation: hv-glint var(--d) ease-in-out infinite; }
 @keyframes hv-glint { 50% { opacity: 0.35; transform: scale(0.8); } }
+
+/* ---- Ships: each army sails the map in a little ship of its race, lying on the plane beside its system,
+   its general's portrait flying above it. Moving, it sails down the route (left/top transition). ---- */
+.cmp-ship { position: absolute; width: 0; height: 0; transform-style: preserve-3d; transition: left var(--dur, 1s) cubic-bezier(0.45, 0, 0.3, 1), top var(--dur, 1s) cubic-bezier(0.45, 0, 0.3, 1); pointer-events: none; }
+.cmp-ship-hull { position: absolute; left: 0; top: 0; width: 54px; height: 32px; transform: translate(-50%, -50%) scale(var(--ui)); transform-style: preserve-3d; pointer-events: auto; cursor: pointer; }
+.cmp-ship-shadow { position: absolute; inset: 4px 6px; border-radius: 50%; background: rgba(40, 46, 70, 0.28); filter: blur(3px); transform: rotate(var(--rot)); transition: transform 0.5s ease; }
+.cmp-ship-float { position: absolute; inset: 0; transform-style: preserve-3d; animation: cmp-ship-bob 3.2s ease-in-out infinite; }
+@keyframes cmp-ship-bob { 0%, 100% { transform: translateZ(7px); } 50% { transform: translateZ(10px); } }
+.cmp-ship-svg { display: block; width: 100%; height: 100%; overflow: visible; transform: rotate(var(--rot)); transition: transform 0.5s ease; }
+.cmp-ship-svg .ship-hull { fill: #f7f5f0; stroke: var(--ac); stroke-width: 1.4; stroke-linejoin: round; }
+.cmp-ship-svg .ship-trim { fill: none; stroke: color-mix(in srgb, var(--ac) 75%, #2a3048); stroke-width: 0.9; stroke-linecap: round; stroke-linejoin: round; }
+.cmp-ship-svg .ship-tails { stroke: color-mix(in srgb, var(--ac) 60%, #fff); stroke-width: 1.2; opacity: 0.8; }
+.cmp-ship-svg .ship-core { fill: var(--ac); }
+.cmp-ship-svg .ship-glow { fill: color-mix(in srgb, var(--ac) 35%, #fff); }
+.cmp-ship-svg .ship-flame { fill: color-mix(in srgb, var(--ac) 50%, #fff); opacity: 0.35; filter: blur(1.2px); transform-origin: 3px 12px; transition: opacity 0.4s, transform 0.4s; }
+.cmp-ship.sailing .ship-flame { opacity: 1; transform: translateX(-4px) scaleX(2.2); animation: cmp-ship-burn 0.18s ease-in-out infinite alternate; }
+@keyframes cmp-ship-burn { to { opacity: 0.7; } }
+.cmp-ship-lost .cmp-ship-svg .ship-hull { fill: #dcd9e2; }
+.cmp-ship-hull:hover .cmp-ship-svg { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--ac) 80%, transparent)); }
+.cmp-ship-on .cmp-ship-svg { filter: drop-shadow(0 0 5px var(--ac)) drop-shadow(0 0 2px #fff); }
+/* The portrait: a billboard standing above the ship, like the stars. */
+.cmp-ship-bb { position: absolute; left: 0; top: 0; padding-bottom: 8px; transform-origin: 50% 100%; transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt))) scale(var(--ui)); pointer-events: none; }
+.cmp-ship-bb .cmp-army { width: 24px; height: 24px; margin: 0; pointer-events: auto; }
+.cmp-ship-bb::after { content: ''; position: absolute; left: 50%; bottom: 1px; width: 1.5px; height: 7px; margin-left: -0.75px; background: linear-gradient(var(--ac), transparent); opacity: 0.7; }
+.cmp-ship.sailing .cmp-ship-bb .cmp-army { animation: none; }

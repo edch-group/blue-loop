@@ -70,6 +70,7 @@ import {
 import { markDirty } from './account';
 import { DeckBuilder, type BuilderMode } from './builder';
 import { heroFigure, skillTree } from './heroview';
+import { shipSvg } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
 import { cardArtLite, cardGlyph, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
@@ -320,6 +321,7 @@ export class CampaignView {
   openSetup() {
     this.state = null;
     this.sheet = null;
+    this.ships.clear();
   }
 
   /** "turn 12 of 60", for the banner on entering the campaign. */
@@ -331,6 +333,7 @@ export class CampaignView {
     const s = loadCampaign();
     if (!s) return false;
     this.state = s;
+    this.ships.clear();
     this.sheet = null;
     this.selected = null;
     this.view = null;
@@ -715,13 +718,19 @@ export class CampaignView {
         const { armyId, toId } = this.sheet;
         this.sheet = null;
         this.army = null;
-        if (!this.apply({ type: 'move', armyId, toId })) break;
+        // The army's ship sets out down the route first; the battle opens as it gets halfway.
+        this.advance = { armyId, toId };
         sound.flare();
-        if (act === 'cmp-auto') {
-          this.finishBattle(this.state!.battle!.game, true);
-          // (Auto-resolved here, so the map redraws with the result.)
-          this.host.render();
-        } else this.host.playBattle(this.state!.battle!.game);
+        this.host.render();
+        setTimeout(() => {
+          this.advance = null;
+          if (!this.state || this.state.battle || !this.apply({ type: 'move', armyId, toId })) return this.host.render();
+          if (act === 'cmp-auto') {
+            this.finishBattle(this.state!.battle!.game, true);
+            // (Auto-resolved here, so the map redraws with the result.)
+            this.host.render();
+          } else this.host.playBattle(this.state!.battle!.game);
+        }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1150);
         return true;
       }
       case 'cmp-defend':
@@ -813,6 +822,8 @@ export class CampaignView {
     const s = this.state!;
     // A dialog up (a battle, a conquest, a sheet) takes the stage: the guide waits until it closes.
     const overlay = this.renderOverlay();
+    // Ships hold still under a dialog, and sail once it closes (so a march after a battle is seen).
+    this.fleetHeld = !!overlay && !this.waiting;
     const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
     const leaving = this.leavingFocus();
     const me = campaignPlayer(s);
@@ -988,7 +999,6 @@ export class CampaignView {
           n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
           (n.stellaria ?? 0) > 0 ? `<i class="cmp-badge cmp-bloom" title="A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}">${BLOOM}${n.stellaria}</i>` : '',
         ].join('');
-        const army = armyAt(s, n.id);
         return `
           <div class="${cls}" style="left:${n.x}px;top:${n.y}px;--fc:${colour}">
             <div class="cmp-turf"></div>
@@ -1000,7 +1010,6 @@ export class CampaignView {
             ${n.home ? '<div class="cmp-ring cmp-ring-home"></div>' : ''}
             ${this.selected === n.id || leaving?.id === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
-              ${army ? this.armyToken(army) : ''}
               <span class="cmp-badges">${badges}</span>
               <span class="cmp-star" style="--seed:${seedOf(n.id)}"><i class="cmp-core"></i>${
                 n.owner ? this.avatarOf(n.owner, 'cmp-owner') : ''
@@ -1017,6 +1026,7 @@ export class CampaignView {
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
           ${this.renderAnomalies(focus, prev, seen)}
           ${nodes}
+          ${this.renderFleet(seen)}
         </div>
       </div>`;
   }
@@ -1058,6 +1068,89 @@ export class CampaignView {
     return `<button class="pill-btn" data-act="${act}" data-arg="${id}" ${dis(cost)}>repair 1 · ${CREDITS}${cost}</button>${
       damage > 1 ? `<button class="pill-btn" data-act="${act}" data-arg="${id}" data-all="1" ${dis(cost)}>repair all · ${CREDITS}${Math.max(1, all) * cost}</button>` : ''
     }`;
+  }
+
+  /** Where each army's ship was last drawn, and the way it faces (radians), to sail it on from there. */
+  private ships = new Map<string, { node: string; angle: number; x: number; y: number; dur: number; out?: boolean }>();
+  /** Ships to set sailing once the map is drawn: where to, and how long it takes. */
+  private sails = new Map<string, { x: number; y: number }>();
+  /** An army setting out to attack: its ship runs halfway down the route before the battle opens. */
+  private advance: { armyId: string; toId: string } | null = null;
+  /** A dialog is up: ships stay where they were drawn. */
+  private fleetHeld = false;
+
+  /**
+   * The armies' ships, lying on the map beside their systems with their generals' portraits flying above.
+   * A ship rests just short of its star on the route it came in by, facing the star; when its army moves,
+   * the ship sails down the route to its new system (drawn where it was, then sent on in afterRender).
+   */
+  private renderFleet(seen: Set<string>): string {
+    const s = this.state!;
+    const DOCK = 50;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const live = new Set<string>();
+    const out = s.armies
+      .filter((a) => seen.has(a.nodeId))
+      .map((a) => {
+        live.add(a.id);
+        const n = nodeById(s, a.nodeId);
+        const mem = this.ships.get(a.id);
+        if (mem && this.fleetHeld) return this.shipHtml(a, mem.x, mem.y, mem.angle, mem.dur);
+        const from = mem && mem.node !== a.nodeId ? s.nodes.find((m) => m.id === mem.node) : undefined;
+        let angle = mem?.angle ?? -Math.PI / 2;
+        if (from) angle = Math.atan2(n.y - from.y, n.x - from.x);
+        // Back from an attack that didn't take the system: it turns round and comes home up the same route.
+        else if (mem?.out && this.advance?.armyId !== a.id) angle += Math.PI;
+        let x = n.x - Math.cos(angle) * DOCK;
+        let y = n.y - Math.sin(angle) * DOCK;
+        // Setting out to attack: halfway down the route, facing the enemy.
+        const adv = this.advance?.armyId === a.id ? s.nodes.find((m) => m.id === this.advance!.toId) : undefined;
+        if (adv) {
+          angle = Math.atan2(adv.y - n.y, adv.x - n.x);
+          x = n.x + (adv.x - n.x) * 0.5;
+          y = n.y + (adv.y - n.y) * 0.5;
+        }
+        let shown = { x, y };
+        let dur = mem?.dur ?? 1;
+        if (mem && (mem.x !== x || mem.y !== y) && !reduce && (from ? seen.has(from.id) : true)) {
+          dur = Math.min(1.8, Math.max(0.9, Math.hypot(x - mem.x, y - mem.y) / 180));
+          shown = { x: mem.x, y: mem.y };
+          this.sails.set(a.id, { x, y });
+        }
+        this.ships.set(a.id, { node: a.nodeId, angle, x, y, dur, out: !!adv });
+        return this.shipHtml(a, shown.x, shown.y, angle, dur);
+      })
+      .join('');
+    for (const id of [...this.ships.keys()]) if (!live.has(id) && !s.armies.some((a) => a.id === id)) this.ships.delete(id);
+    return out;
+  }
+
+  /** One army's ship (and the portrait flying above it), drawn at (x, y) facing angle. */
+  private shipHtml(a: Army, x: number, y: number, angle: number, dur: number): string {
+    const s = this.state!;
+    const mine = a.owner === s.playerId;
+    const cls = ['cmp-ship', mine ? 'cmp-ship-mine' : '', a.lost ? 'cmp-ship-lost' : '', this.army === a.id ? 'cmp-ship-on' : '', this.sails.has(a.id) ? 'sailing' : ''].join(' ');
+    const race = a.lost ? 0 : factionById(s, a.owner).race;
+    return `<div class="${cls}" data-key="ship-${a.id}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;--rot:${((angle * 180) / Math.PI).toFixed(1)}deg;--dur:${dur.toFixed(2)}s;--ac:${this.colourOf(a.owner)}">
+        <div class="cmp-ship-hull" data-act="cmp-army" data-arg="${a.id}"><i class="cmp-ship-shadow"></i><div class="cmp-ship-float">${shipSvg(race, !!a.lost)}</div></div>
+        <div class="cmp-ship-bb">${this.armyToken(a)}</div>
+      </div>`;
+  }
+
+  /** Send the ships drawn where they were on to where they are going (the CSS transition does the sailing). */
+  private sailShips(root: HTMLElement) {
+    for (const [id, to] of this.sails) {
+      const el = root.querySelector<HTMLElement>(`[data-key="ship-${id}"]`);
+      if (!el) continue;
+      void el.offsetWidth;
+      el.classList.add('sailing');
+      el.style.left = `${to.x.toFixed(1)}px`;
+      el.style.top = `${to.y.toFixed(1)}px`;
+      const done = () => el.classList.remove('sailing');
+      el.addEventListener('transitionend', (e) => e.propertyName === 'left' && done(), { once: false });
+      setTimeout(done, 2200);
+    }
+    this.sails.clear();
   }
 
   /** An army on the map: its general's portrait in a ring of its faction's colour (dimmed once it has moved). */
@@ -1190,6 +1283,8 @@ export class CampaignView {
   afterRender(root: HTMLElement) {
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
+    if (stage) this.sailShips(stage);
+    else this.sails.clear();
     if (!stage || !this.state) {
       this.cam = null;
       this.glide = null;
