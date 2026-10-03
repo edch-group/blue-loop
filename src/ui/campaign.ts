@@ -1,6 +1,5 @@
 import {
   ANOMALIES,
-  anomalyEffects,
   applyCampaignAction,
   armoryPrice,
   attackOptions,
@@ -19,6 +18,17 @@ import {
   armyMoves,
   recruitCost,
   regionalStability,
+  heroState,
+  heroLevel,
+  nextLevelXp,
+  skillPoints,
+  learnProblem,
+  SKILL_TREES,
+  RACE_SLOTS,
+  SLOT_NAME,
+  XP_LEVELS,
+  type Item,
+  battleOdds,
   logInSight,
   collapsesPerTurn,
   stabiliseProblem,
@@ -239,6 +249,8 @@ type Sheet =
   /** The base's armoury: buying, recycling or fusing; the card picked (or, fusing, the two). */
   | { kind: 'armory'; tab: ArmoryTab; pick?: string; fuse?: string[] }
   | { kind: 'missions' }
+  /** The base's heroes: one hero at a time (their skills and gear). */
+  | { kind: 'heroes'; hero?: string }
   | { kind: 'log' }
   | { kind: 'station'; nodeId: string }
   | { kind: 'attack'; armyId: string; toId: string }
@@ -279,7 +291,7 @@ export class CampaignView {
   private report: { title: string; lines: string[] } | null = null;
   private sheet: Sheet | null = null;
   /** The base's tab last open (deck, armory or missions). */
-  private baseTab: 'deck' | 'armory' | 'missions' = 'deck';
+  private baseTab: 'deck' | 'heroes' | 'armory' | 'missions' = 'deck';
   /** New-campaign setup choices. */
   private setup = { rivals: 3, race: 0 };
   /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
@@ -580,6 +592,36 @@ export class CampaignView {
         this.baseTab = 'deck';
         this.sheet = { kind: 'deck', armyId: arg };
         break;
+      case 'cmp-hero-open':
+        this.baseTab = 'heroes';
+        this.sheet = { kind: 'heroes', hero: arg };
+        break;
+      case 'cmp-hero':
+        this.sheet = { kind: 'heroes', hero: arg };
+        sound.hover();
+        break;
+      case 'cmp-learn':
+        if (this.sheet?.kind === 'heroes' && this.apply({ type: 'learnSkill', hero: this.pickedHero(), skill: arg })) sound.upgrade();
+        break;
+      case 'cmp-equip': {
+        if (this.sheet?.kind !== 'heroes') break;
+        const me = campaignPlayer(s!);
+        const hero = this.pickedHero();
+        const item = (me.items ?? []).find((x) => x.id === arg);
+        const h = heroState(me, hero);
+        // Into an empty slot of its kind, else the first of its kind (swapping).
+        const fit = RACE_SLOTS[me.race].filter((x) => item && x.kind === item.slot);
+        const slot = fit.find((x) => !h.gear[x.id]) ?? fit[0];
+        if (slot && this.apply({ type: 'equip', hero, itemId: arg, slot: slot.id })) sound.shield();
+        break;
+      }
+      case 'cmp-unequip':
+        if (this.sheet?.kind === 'heroes') {
+          const me = campaignPlayer(s!);
+          const hero = this.pickedHero();
+          if (me && this.apply({ type: 'unequip', hero, slot: arg })) sound.hover();
+        }
+        break;
       case 'cmp-armory-tab':
         if (arg === 'buy' || arg === 'recycle' || arg === 'fuse') {
           this.sheet = { kind: 'armory', tab: arg };
@@ -624,7 +666,11 @@ export class CampaignView {
       case 'cmp-sheet':
         // "base" reopens the base on the tab last used.
         if (arg === 'base') arg = this.baseTab;
-        if (arg === 'deck' || arg === 'armory' || arg === 'missions') this.baseTab = arg;
+        if (arg === 'deck' || arg === 'heroes' || arg === 'armory' || arg === 'missions') this.baseTab = arg;
+        if (arg === 'heroes') {
+          this.sheet = { kind: 'heroes', hero: this.sheet?.kind === 'heroes' ? this.sheet.hero : undefined };
+          break;
+        }
         if (arg === 'armory') {
           this.keeperVisit++;
           this.markArmorySeen();
@@ -987,8 +1033,8 @@ export class CampaignView {
       <p class="cmp-hint">${hint}</p>
       <div class="cmp-army-row" style="--ac:${this.colourOf(a.owner)}">
         ${armyFace(a)}
-        <span><b>${a.deck.length} cards</b><small>${a.damage ? `✸ ${a.damage} damage: its sun starts ${a.damage} hotter` : 'no damage'}</small></span>
-        <span class="cmp-army-acts">${a.damage && here.owner === me.id ? this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '') : ''}<button class="pill-btn" data-act="cmp-deck-army" data-arg="${a.id}">deck</button><button class="pill-btn" data-act="cmp-select" data-arg="${here.id}">its system</button></span>
+        <span><b>${a.lost ? '' : `level ${heroLevel(heroState(me, a.general).xp)} · `}${a.deck.length} cards</b><small>${a.damage ? `✸ ${a.damage} damage: its sun starts ${a.damage} hotter` : 'no damage'}</small></span>
+        <span class="cmp-army-acts">${a.damage && here.owner === me.id ? this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '') : ''}<button class="pill-btn" data-act="cmp-deck-army" data-arg="${a.id}">deck</button>${a.owner === me.id ? `<button class="pill-btn ${skillPoints(heroState(me, a.general)) > 0 ? 'pill-on' : ''}" data-act="cmp-hero-open" data-arg="${a.general}">hero${skillPoints(heroState(me, a.general)) > 0 ? ' ●' : ''}</button>` : ''}<button class="pill-btn" data-act="cmp-select" data-arg="${here.id}">its system</button></span>
       </div>`;
   }
 
@@ -1482,6 +1528,7 @@ export class CampaignView {
     if (!sh) return '';
     switch (sh.kind) {
       case 'deck':
+      case 'heroes':
       case 'armory':
       case 'missions':
         return this.renderBase(sh);
@@ -1606,22 +1653,30 @@ export class CampaignView {
       const colour = army ? this.colourOf(army.owner) : n.owner ? this.colourOf(n.owner) : NEUTRAL;
       return `<div class="cmp-vs-side" style="--fc:${colour}">${face}<b>${lower(name)}</b></div>`;
     };
-    // What tips the fight, said plainly.
+    // What tips the fight, said plainly: each side's sun and modifiers, as the battle would start them.
     const tips: string[] = [];
     // (Said from the player's side: attacking, or defending.)
-    const [mine, theirs, good, bad] = defending ? ['The attacker\'s', 'Your', 'bad', 'good'] : ['Your', 'Their', 'good', 'bad'];
-    const theirHeat = (defender ? defender.damage : to.damage) + (!to.owner && !to.heart && !defender ? (CAMPAIGN.sentinelHeat[to.tier] ?? 0) + (to.gate ? CAMPAIGN.gateHeat : 0) : 0);
-    if (attacker?.damage) tips.push(`<li class="${bad}">${mine} sun starts ${attacker.damage} hotter (damage).</li>`);
-    if (theirHeat) tips.push(`<li class="${good}">${theirs} sun starts ${theirHeat} hotter${to.gate && !to.owner ? ': they are weakened' : ''}.</li>`);
-    const health = to.fortification * CAMPAIGN.fortifyHealth + (to.heart && !to.owner ? CAMPAIGN.heartWardenHealth : 0) + (to.heart ? 0 : CAMPAIGN.coreHealth[to.ring ?? 99] ?? 0) + (to.star === 'brown' ? 6 : 0);
-    if (health) tips.push(`<li class="${bad}">${defending ? 'You have' : 'They have'} +${health} health.</li>`);
+    const odds = attacker ? battleOdds(s, attacker, to) : null;
+    const sides = odds ? ([[defending ? 'They' : 'You', defending ? 'Their' : 'Your', odds.attacker], [defending ? 'You' : 'They', defending ? 'Your' : 'Their', odds.defender]] as const) : [];
+    for (const [who, whose, side] of sides) {
+      const mine = (who === 'You') === true;
+      const tone = (good: boolean) => (good === mine ? 'good' : 'bad');
+      const m = side.mods;
+      if (side.heat > 0) tips.push(`<li class="${tone(false)}">${whose} sun starts ${side.heat} hotter${!mine && to.gate && !to.owner && !defending ? ': they are weakened' : ''}.</li>`);
+      if (side.heat < 0) tips.push(`<li class="${tone(true)}">${whose} sun starts ${-side.heat} cooler.</li>`);
+      if (m.maxHealthDelta) tips.push(`<li class="${tone(m.maxHealthDelta > 0)}">${who} ${who === 'You' ? 'have' : 'have'} ${m.maxHealthDelta > 0 ? '+' : ''}${m.maxHealthDelta} health.</li>`);
+      if (m.shieldPerTurn) tips.push(`<li class="${tone(true)}">${who} gain ${m.shieldPerTurn} shield${m.shieldPerTurn === 1 ? '' : 's'} every day.</li>`);
+      if (m.coolPerTurn) tips.push(`<li class="${tone(true)}">${whose} sun cools by ${m.coolPerTurn} every day.</li>`);
+      if (m.heatPerTurn) tips.push(`<li class="${tone(false)}">${whose} sun heats by ${m.heatPerTurn} every day.</li>`);
+      if (m.extraDraw) tips.push(`<li class="${tone(m.extraDraw > 0)}">${who} draw ${Math.abs(m.extraDraw)} ${m.extraDraw > 0 ? 'more' : 'fewer'} every day.</li>`);
+      if (m.openingHand) tips.push(`<li class="${tone(m.openingHand > 0)}">${who} start with ${Math.abs(m.openingHand)} ${m.openingHand > 0 ? 'more' : 'fewer'} card${Math.abs(m.openingHand) === 1 ? '' : 's'} in hand.</li>`);
+    }
     const g = garrisonBonus(to);
     const held = g.tableau.length + (g.lightspeed ? 1 : 0);
-    if (held) tips.push(`<li class="${bad}">${held} of ${defending ? 'your' : 'their'} cards start in play.</li>`);
-    if (to.star === 'white') tips.push('<li>Both suns start 3 cooler: a long fight.</li>');
-    if (to.star === 'neutron') tips.push('<li>Both suns heat by 1 each day.</li>');
-    for (const c of anomalyEffects(s, to)?.conditions ?? []) tips.push(`<li>${esc(c.name)}: ${esc(c.text)}</li>`);
+    if (held) tips.push(`<li class="${defending ? 'good' : 'bad'}">${held} of ${defending ? 'your' : 'their'} cards start in play.</li>`);
     if (defender?.lost) tips.push(`<li class="good">Win to take their relics: ${MATERIALS} ${CAMPAIGN.lostRelicMaterials} and a card.</li>`);
+    const why = odds ? [...new Set([...odds.attacker.sources, ...odds.defender.sources])] : [];
+    if (why.length) tips.push(`<li class="cmp-tips-why">From: ${esc(why.join(', '))}.</li>`);
     return `
       <div class="cmp-vs-row">${side(attacker, attacker ? nodeById(s, attacker.nodeId) : to)}<span class="cmp-vs">vs</span>${side(defender, to)}</div>
       <ul class="cmp-tips">${tips.join('') || '<li>An even fight.</li>'}</ul>`;
@@ -1663,11 +1718,12 @@ export class CampaignView {
    * The base, full screen: a tab for each army's deck and the armoury (both in the main deck builder),
    * and the missions.
    */
-  private renderBase(sh: Extract<Sheet, { kind: 'deck' | 'armory' | 'missions' }>): string {
+  private renderBase(sh: Extract<Sheet, { kind: 'deck' | 'heroes' | 'armory' | 'missions' }>): string {
     const s = this.state!;
     const me = campaignPlayer(s);
-    const tabs = (['deck', 'armory', 'missions'] as const)
-      .map((t) => `<button class="cmp-tab ${t === sh.kind ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${t === 'armory' ? 'armoury' : t}</button>`)
+    const points = GENERALS[me.race].some((g) => skillPoints(heroState(me, g)) > 0);
+    const tabs = (['deck', 'heroes', 'armory', 'missions'] as const)
+      .map((t) => `<button class="cmp-tab ${t === sh.kind ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${t === 'armory' ? 'armoury' : t}${t === 'heroes' && (points || (me.items ?? []).length) ? '<i class="cmp-tab-dot"></i>' : ''}</button>`)
       .join('');
     let body: string;
     if (sh.kind === 'missions') {
@@ -1676,6 +1732,8 @@ export class CampaignView {
           <div class="cmp-missions">${active || '<p class="muted">All missions complete.</p>'}</div>
           <p class="muted">Each completed mission pays ${CREDITS} ${CAMPAIGN.missionCredits} and ${MATERIALS} ${CAMPAIGN.missionMaterials}, and lets you choose a new card. ${CAMPAIGN_MISSIONS.length} missions in all.</p>
         </div>`;
+    } else if (sh.kind === 'heroes') {
+      body = this.renderHeroes(this.pickedHero());
     } else if (sh.kind === 'deck' && !armiesOf(s, me.id).length) {
       body = '<div class="cmp-base-missions"><p class="muted center-text">You have no armies. Recruit a general in one of your systems to raise one.</p></div>';
     } else {
@@ -1690,6 +1748,83 @@ export class CampaignView {
           <button class="icon-btn" data-act="cmp-close" aria-label="Back to the map" title="Back to the map">×</button>
         </header>
         ${body}
+      </div>`;
+  }
+
+  /** The hero shown in the heroes tab: the one picked, else the first army's general, else the first. */
+  private pickedHero(): string {
+    const s = this.state!;
+    const me = campaignPlayer(s);
+    return (this.sheet?.kind === 'heroes' && this.sheet.hero) || armiesOf(s, me.id)[0]?.general || GENERALS[me.race][0];
+  }
+
+  /**
+   * The heroes: each of your race's generals on the left (level, experience, points to spend); the one
+   * picked on the right, with their gear (weapon and race's armour) and their skill tree.
+   */
+  private renderHeroes(pick: string): string {
+    const s = this.state!;
+    const me = campaignPlayer(s);
+    const bar = (xp: number) => {
+      const lvl = heroLevel(xp);
+      const lo = XP_LEVELS[lvl - 1] ?? 0;
+      const hi = nextLevelXp(xp);
+      return hi === null ? '<span class="cmp-xp"><i style="width:100%"></i></span>' : `<span class="cmp-xp" title="${xp} / ${hi} experience"><i style="width:${Math.round(((xp - lo) / (hi - lo)) * 100)}%"></i></span>`;
+    };
+    const list = GENERALS[me.race]
+      .map((g) => {
+        const h = heroState(me, g);
+        const army = s.armies.find((a) => a.owner === me.id && a.general === g);
+        const pts = skillPoints(h);
+        return `<button class="cmp-hero-row ${g === pick ? 'on' : ''}" data-act="cmp-hero" data-arg="${g}">
+          ${portrait(g)}
+          <span><b>${lower(cardDef(g).name)}</b><small>level ${heroLevel(h.xp)} · ${army ? 'leads an army' : 'not in the field'}</small>${bar(h.xp)}</span>
+          ${pts > 0 ? `<i class="cmp-points" title="Skill points to spend">${pts}</i>` : ''}
+        </button>`;
+      })
+      .join('');
+    const h = heroState(me, pick);
+    const pts = skillPoints(h);
+    const slots = RACE_SLOTS[me.race]
+      .map((sl) => {
+        const it = h.gear[sl.id];
+        return it
+          ? `<button class="cmp-slot cmp-slot-full rarity-${it.rarity}" data-act="cmp-unequip" data-arg="${sl.id}" title="Take it off">
+              <small>${lower(SLOT_NAME[sl.kind])}</small><b>${esc(it.name)}</b><span>${esc(it.text)}</span></button>`
+          : `<div class="cmp-slot"><small>${lower(SLOT_NAME[sl.kind])}</small><span class="muted">empty</span></div>`;
+      })
+      .join('');
+    const fits = (it: Item) => RACE_SLOTS[me.race].some((sl) => sl.kind === it.slot);
+    const stores = (me.items ?? [])
+      .map((it) => `<button class="cmp-item rarity-${it.rarity}" data-act="cmp-equip" data-arg="${it.id}" ${fits(it) ? '' : 'disabled'} title="Put it on ${esc(cardDef(pick).name)}"><small>${lower(SLOT_NAME[it.slot])}</small><b>${esc(it.name)}</b><span>${esc(it.text)}</span></button>`)
+      .join('');
+    const tree = SKILL_TREES[pick] ?? [];
+    const branch = (b: 0 | 1) =>
+      tree
+        .filter((k) => k.branch === b)
+        .sort((x, y) => x.tier - y.tier)
+        .map((k) => {
+          const learned = h.skills.includes(k.id);
+          const why = learned ? null : learnProblem(pick, h, k.id);
+          const kind = { mod: 'in battle', march: 'on the map', sight: 'on the map', mend: 'on the map', loot: 'on the map', card: 'signature card', battle: k.effect.kind === 'battle' ? (k.effect.once ? 'once a battle' : `each day · ${k.effect.cost} energy`) : '' }[k.effect.kind];
+          return `<button class="cmp-skill ${learned ? 'learned' : why ? 'locked' : 'open'}" data-act="cmp-learn" data-arg="${k.id}" ${learned || why ? `disabled title="${esc(learned ? 'Learned' : why!)}"` : 'title="Learn it (1 point)"'}>
+            <small>${kind}</small><b>${esc(k.name)}</b><span>${esc(k.text)}</span></button>`;
+        })
+        .join('<i class="cmp-skill-link"></i>');
+    return `
+      <div class="cmp-heroes">
+        <aside class="cmp-hero-list">${list}</aside>
+        <section class="cmp-hero">
+          <div class="cmp-hero-head">${portrait(pick)}<div><h3>${lower(cardDef(pick).name)}</h3><small>level ${heroLevel(h.xp)} · ${h.xp} experience${nextLevelXp(h.xp) !== null ? ` (next level at ${nextLevelXp(h.xp)})` : ''}</small>${bar(h.xp)}</div>
+            <span class="cmp-hero-pts ${pts > 0 ? 'on' : ''}">${pts} skill point${pts === 1 ? '' : 's'}</span></div>
+          <div class="section-label">gear</div>
+          <div class="cmp-slots">${slots}</div>
+          <div class="section-label">stores</div>
+          <div class="cmp-items">${stores || '<p class="muted">Nothing found yet. Armies find gear when they take systems: more, and better, the deeper they go.</p>'}</div>
+          <div class="section-label">skills</div>
+          <div class="cmp-tree"><div class="cmp-branch">${branch(0)}</div><div class="cmp-branch">${branch(1)}</div></div>
+          <p class="muted">Heroes gain experience from every battle they fight, most from a win, and a skill point with each level. Each branch is learned in order.</p>
+        </section>
       </div>`;
   }
 

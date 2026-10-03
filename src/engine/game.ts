@@ -65,6 +65,7 @@ export function createGame(setup: GameSetup): GameState {
       turn: emptyTurn(),
       modifiers: ps.modifiers,
       conditions: ps.conditions,
+      ...(ps.skills?.length ? { skills: ps.skills.map((k) => ({ ...k })) } : {}),
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
     // A garrison takes the safest slots first.
@@ -1396,8 +1397,31 @@ export function applyAction(prev: GameState, action: Action): GameState {
     case 'endTurn':
       advanceTurn(state);
       break;
+    case 'heroSkill': {
+      const why = heroSkillProblem(state, p, action.index);
+      if (why) throw new GameError(why);
+      const k = p.skills![action.index];
+      p.playsLeft -= k.cost;
+      if (k.once) k.spent = true;
+      else k.usedTurn = state.turnNumber;
+      log(state, `${p.name} calls on ${cardDef(k.hero).name}: ${k.name}.`);
+      resolveEffects(state, p, { uid: `skill-${k.id}`, defId: k.hero }, k.effects, 'play');
+      if (p.eliminated) passOn(state);
+      break;
+    }
   }
   return state;
+}
+
+/** Why a hero's battle skill can't be used now (null if it can). */
+export function heroSkillProblem(state: GameState, p: PlayerState, index: number): string | null {
+  const k = p.skills?.[index];
+  if (!k) return 'No such skill.';
+  if (activePlayer(state).id !== p.id) return 'Only on your own day.';
+  if (k.spent) return `${k.name} has been used this battle.`;
+  if (!k.once && k.usedTurn === state.turnNumber) return `${k.name} has been used today.`;
+  if (k.cost > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
+  return null;
 }
 
 export function isGameOver(state: GameState): boolean {

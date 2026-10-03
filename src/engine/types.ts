@@ -277,6 +277,8 @@ export interface PlayerState {
   modifiers?: BattleModifiers;
   /** What the modifiers are, for display ("Nebula: +1 shield each day"). */
   conditions?: { name: string; text: string }[];
+  /** A campaign hero's battle skills: spent (once), or the turn last used (daily). */
+  skills?: (BattleSkill & { spent?: boolean; usedTurn?: number })[];
 }
 
 export interface LogEntry {
@@ -326,6 +328,21 @@ export interface TurnPulse {
   together?: boolean;
 }
 
+/**
+ * A hero's skill in battle (campaign): used on your own day. `once`: a single use in the battle;
+ * otherwise once a day. `cost`: energy, paid like a card's.
+ */
+export interface BattleSkill {
+  id: string;
+  name: string;
+  text: string;
+  /** The hero (a Hero card id) whose skill it is. */
+  hero: string;
+  effects: Effect[];
+  cost: number;
+  once?: boolean;
+}
+
 export interface PlayerSetup {
   name: string;
   isAI: boolean;
@@ -344,6 +361,8 @@ export interface PlayerSetup {
   lightspeed?: string;
   modifiers?: BattleModifiers;
   conditions?: { name: string; text: string }[];
+  /** Campaign battles: the leading hero's skills that can be used in battle. */
+  skills?: BattleSkill[];
 }
 
 export interface GameSetup {
@@ -374,5 +393,7 @@ export type Action =
   | { type: 'dawn'; aims: Record<string, string | null> }
   | { type: 'setTarget'; targetId: string }
   | { type: 'endTurn' }
+  /** Use one of your hero's battle skills (campaign), on your own day. */
+  | { type: 'heroSkill'; index: number }
   /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string };

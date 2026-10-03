@@ -1,6 +1,7 @@
 import { cardDef } from './cards';
 import {
   activePlayer,
+  heroSkillProblem,
   applyAction,
   canSetLightspeed,
   canSetFaceDown,
@@ -300,11 +301,28 @@ function dawnAims(state: GameState, me: PlayerState): Record<string, string | nu
  * rival nearest to supernova, then plays whichever card leaves it best off,
  * until it has no plays (or nothing worth playing) left.
  */
+/** A hero's battle skill worth using now: defensive ones when running hot, others when they pay. */
+function aiSkill(state: GameState, me: PlayerState): number | null {
+  const rival = targetOf(state, me);
+  const mine = Math.max(0, me.heat) / supernovaThreshold(me);
+  const theirs = rival ? Math.max(0, rival.heat) / supernovaThreshold(rival) : 0;
+  for (const [i, k] of (me.skills ?? []).entries()) {
+    if (heroSkillProblem(state, me, i)) continue;
+    const guards = k.effects.some((e) => e.type === 'cool' || e.type === 'shield');
+    const strikes = k.effects.some((e) => e.type === 'heat' || e.type === 'draw' || e.type === 'plays');
+    if (guards && mine >= 0.55) return i;
+    if (strikes && (!k.once || theirs >= 0.5 || state.round >= 6)) return i;
+  }
+  return null;
+}
+
 export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
   if (state.awaitingDawn) return { type: 'dawn', aims: dawnAims(state, me) };
   const focus = bestTarget(state, me);
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
+  const skill = aiSkill(state, me);
+  if (skill !== null) return { type: 'heroSkill', index: skill };
   if (!me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
   // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.

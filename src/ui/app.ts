@@ -1,6 +1,7 @@
 import {
   activeGlobal,
   activePlayer,
+  heroSkillProblem,
   applyAction,
   BALANCE,
   boosterPool,
@@ -211,7 +212,7 @@ const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0, heroSkill: 1400 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -929,7 +930,8 @@ export class App {
     this.entranceHeard = true;
     // Auto-confirm: the card is shown for a moment, then lands by itself.
     const stage = this.stage;
-    if (this.autoConfirm && stage?.confirm) window.setTimeout(() => this.stage === stage && this.confirmStage(), AUTO_CONFIRM_MS);
+    // (A card set face down needs no reading: there is nothing to read. It confirms itself after a moment.)
+    if ((this.autoConfirm || stage?.faceDown) && stage?.confirm) window.setTimeout(() => this.stage === stage && this.confirmStage(), stage.faceDown ? 1100 : AUTO_CONFIRM_MS);
     const card = this.root.querySelector<HTMLElement>('.stage .card');
     const side = this.root.querySelector<HTMLElement>(`.tableau[data-owner="${actorId}"] .tableau-row`) ?? this.root.querySelector<HTMLElement>(`[data-anchor="pill:${actorId}"]`);
     if (card && side) {
@@ -2678,6 +2680,12 @@ export class App {
       case 'end-day-confirm':
         this.sheet = null;
         return this.dispatch({ type: 'endTurn' });
+      case 'hero-skill': {
+        const why = heroSkillProblem(this.state!, this.viewer(), Number(arg));
+        if (why) return this.showToast(why, 'info');
+        sound.hero();
+        return this.dispatch({ type: 'heroSkill', index: Number(arg) });
+      }
       case 'choose-option':
         if (this.pending) this.pending.choice = arg;
         return this.advancePlay();
@@ -3807,7 +3815,17 @@ export class App {
     const total = Math.max(me.playsLeft, myTurn ? me.turn.energyTotal ?? playsAllowed(s, me) : 0);
     const base = me.turn.energyBase ?? total;
     const pips = myTurn ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''} ${i >= base ? 'bonus' : ''}"></i>`).join('') : '';
+    // A campaign hero's battle skills, above End Day: each a button with its cost (and spent, once used).
+    const skills = (me.skills ?? [])
+      .map((k, i) => {
+        const why = heroSkillProblem(s, me, i);
+        const spent = k.spent || (!k.once && k.usedTurn === s.turnNumber);
+        return `<button class="hero-skill ${spent ? 'spent' : ''}" data-act="hero-skill" data-arg="${i}" ${why || !act || busy ? `disabled title="${esc(why ?? k.text)}"` : `title="${esc(k.text)}"`}>
+          <span class="hero-skill-face">${cardArtLite(cardDef(k.hero))}</span><b>${esc(k.name.toLowerCase())}</b><small>${k.once ? 'once' : 'daily'}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
+      })
+      .join('');
     return `
+      ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn ? '' : 'plays-off'}" title="Energy left today: each card costs the number on its gem">
           <small>${myTurn ? 'energy' : 'waiting'}</small>
@@ -3973,7 +3991,7 @@ export class App {
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
         ${card}
         <div class="stage-caption">${esc(st.caption ?? `${actor.name.toLowerCase()} plays`)}</div>
-        ${st.confirm ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}
+        ${st.confirm && !st.faceDown ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}
       </div>`;
   }
 

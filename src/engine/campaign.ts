@@ -17,6 +17,7 @@ import { BALANCE } from './balance';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup } from './types';
+import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeItem, RACE_SLOTS, itemValue, SKILL_TREES, type HeroState, type Item, type ItemRarity, type SlotKind } from './heroes';
 import {
   armyLostScene,
   contactScene,
@@ -348,6 +349,10 @@ export interface Faction {
   eliminated: boolean;
   /** The Lost Races: rogue armies with no worlds of their own (never eliminated, never winning). */
   lost?: boolean;
+  /** Its heroes' progress (experience, skills, gear), by Hero card id. */
+  heroes?: Record<string, HeroState>;
+  /** Gear found, not yet worn. */
+  items?: Item[];
 }
 
 /** An army: a general (a Hero card) and their deck, standing in a system. One army to a system. */
@@ -365,8 +370,22 @@ export interface Army {
   moved: boolean;
   /** Has refitted (its deck changed, or repaired) this turn: it can't move until the next. */
   refit?: boolean;
+  /** Routes marched this turn (a hero's skill can allow more than one). */
+  steps?: number;
   /** One of the Lost Races: the name of the people it is the last of. */
   lost?: string;
+}
+
+/** A hero's progress, kept by their faction (made the first time it is asked for). */
+export function heroState(f: Faction, hero: string): HeroState {
+  f.heroes ??= {};
+  return (f.heroes[hero] ??= { xp: 0, skills: [], gear: {} });
+}
+
+/** What a faction's hero brings (nothing for the Lost Races). */
+export function armyBonus(s: CampaignState, a: Army) {
+  const f = s.factions.find((x) => x.id === a.owner);
+  return heroBonus(a.general, a.lost || !f ? undefined : f.heroes?.[a.general]);
 }
 
 /** Who leads an army, as it is named: its general, or (a lost army) the last of its people. */
@@ -451,6 +470,11 @@ export type CampaignAction =
   | { type: 'deckRemove'; armyId: string; defId: string }
   /** Break a reserve card down for materials. */
   | { type: 'recycle'; defId: string }
+  /** A hero spends a skill point. */
+  | { type: 'learnSkill'; hero: string; skill: string }
+  /** A hero puts on gear (from the faction's finds), in a slot it fits; or takes it off. */
+  | { type: 'equip'; hero: string; itemId: string; slot: string }
+  | { type: 'unequip'; hero: string; slot: string }
   | { type: 'healArmy'; armyId: string; all?: boolean }
   /** The oldest story scene has been read. */
   | { type: 'readStory' }
@@ -562,7 +586,7 @@ export function visibleNodes(s: CampaignState, factionId: string): Set<string> {
   };
   for (const n of s.nodes) if (n.owner === factionId) look(n, !!n.scanner || n.star === 'neutron');
   // An army sees the routes out of wherever it stands.
-  for (const a of s.armies) if (a.owner === factionId) look(byId.get(a.nodeId)!, false);
+  for (const a of s.armies) if (a.owner === factionId) look(byId.get(a.nodeId)!, armyBonus(s, a).sight);
   if (s.battle) seen.add(s.battle.nodeId);
   // The collapse is felt everywhere: a system about to go is always in view.
   for (const n of s.nodes) if (n.collapsing) seen.add(n.id);
@@ -586,7 +610,7 @@ export function recruitCost(s: CampaignState, f: Faction, general: string): numb
 
 /** Where an army can go this turn: each linked system, and whether going there is a battle. */
 export function armyMoves(s: CampaignState, army: Army): { toId: string; battle: boolean }[] {
-  if (army.moved || army.refit) return [];
+  if (army.moved || army.refit || (army.steps ?? 0) >= 1 + armyBonus(s, army).march) return [];
   const here = nodeById(s, army.nodeId);
   const out: { toId: string; battle: boolean }[] = [];
   for (const id of here.links) {
@@ -1168,6 +1192,42 @@ function wardenDeck(s: CampaignState): string[] {
   return deck;
 }
 
+/**
+ * Each side of a battle as it would start: its sun's head start (positive: hotter) and its modifiers, with
+ * the names of what made them (anomalies, the star, heroes...). The same sums as battleSetup, for showing.
+ */
+export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
+  const owner = target.owner ? factionById(s, target.owner) : null;
+  const guard = armyAt(s, target.id);
+  const from = nodeById(s, army.nodeId);
+  const fromFx = anomalyEffects(s, from);
+  const targetFx = anomalyEffects(s, target);
+  const atk = armyBonus(s, army);
+  const def = guard && guard.id !== army.id ? armyBonus(s, guard) : null;
+  const starBoth: BattleModifiers = target.star === 'white' ? { startingHeat: -3 } : target.star === 'neutron' ? { heatPerTurn: 1 } : {};
+  const coreHealth = target.heart ? 0 : CAMPAIGN.coreHealth[target.ring ?? 99] ?? 0;
+  const defMods = [
+    target.fortification ? { maxHealthDelta: target.fortification * CAMPAIGN.fortifyHealth } : {},
+    target.heart && !owner ? { maxHealthDelta: CAMPAIGN.heartWardenHealth } : {},
+    coreHealth ? { maxHealthDelta: coreHealth } : {},
+    starBoth,
+    target.star === 'brown' ? { maxHealthDelta: 6 } : {},
+    def?.mods ?? {},
+  ].reduce(mergeModifiers, targetFx?.modifiers ?? {});
+  const atkMods = [starBoth, atk.mods].reduce(mergeModifiers, fromFx?.modifiers ?? {});
+  const defHeat = (guard && guard.id !== army.id ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat + (defMods.startingHeat ?? 0);
+  const atkHeat = army.damage + (def?.foeHeat ?? 0) + (atkMods.startingHeat ?? 0);
+  const names = (fx: ReturnType<typeof anomalyEffects>) => (fx?.conditions ?? []).map((c) => c.name);
+  return {
+    attacker: { heat: atkHeat, mods: atkMods, sources: [...names(fromFx), ...(target.star === 'white' || target.star === 'neutron' ? [STAR_TYPES[target.star].name] : [])] },
+    defender: {
+      heat: defHeat,
+      mods: defMods,
+      sources: [...names(targetFx), ...(target.star && target.star !== 'red' ? [STAR_TYPES[target.star].name] : []), ...(target.fortification ? ['Fortified'] : []), ...(coreHealth ? ['The core'] : []), ...(target.heart && !owner ? ['Heart Wardens'] : [])],
+    },
+  };
+}
+
 /** Everything that shapes a battle for a system: the army attacking it, and whoever holds it. */
 function battleSetup(s: CampaignState, army: Army, target: CampaignNode): PlayerSetup[] {
   const attacker = factionById(s, army.owner);
@@ -1194,6 +1254,9 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
     ...(g.tableau.length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
   ];
+  // Heroes: the attacking army's general, and a defending army's, bring their skills and gear.
+  const atk = armyBonus(s, army);
+  const def = guard ? armyBonus(s, guard) : null;
   // The defender: an army standing there (its own deck), else the system's own guard (its race's plain
   // deck), else neutral sentinels, or at the Heart its Wardens.
   const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s army`) : owner ? `${target.name} Guard` : target.heart ? 'The Heart Wardens' : `${target.name} Sentinels`;
@@ -1205,8 +1268,9 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       isAI: attacker.isAI,
       deck: army.deck,
       deckName: `${armyLeader(army)}'s army`,
-      heatDelta: army.damage,
-      modifiers: mergeModifiers(fromFx?.modifiers ?? {}, starBoth),
+      heatDelta: army.damage + (def?.foeHeat ?? 0),
+      modifiers: [starBoth, atk.mods].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
+      ...(atk.skills.length ? { skills: atk.skills } : {}),
       conditions: [...(fromFx?.conditions ?? []), ...(target.star === 'white' || target.star === 'neutron' ? starCond : [])],
     },
     {
@@ -1215,10 +1279,11 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       isAI: owner ? owner.isAI : true,
       deck: defenderDeck,
       // (The sentinels' heat, and a gate's weakness, are theirs: an army standing there brings its own.)
-      heatDelta: guard ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0),
+      heatDelta: (guard ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat,
       tableau: g.tableau,
       lightspeed: g.lightspeed,
-      modifiers: [fortified, wardens, core, starBoth, starDef].reduce(mergeModifiers, targetFx?.modifiers ?? {}),
+      modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}].reduce(mergeModifiers, targetFx?.modifiers ?? {}),
+      ...(def?.skills.length ? { skills: def.skills } : {}),
       conditions: defenceConditions.length ? defenceConditions : undefined,
     },
   ];
@@ -1237,7 +1302,7 @@ export function simulateBattle(game: GameState): GameState {
 /** An army marches one route: into a system its faction holds, or into battle for one it doesn't. */
 function moveArmy(s: CampaignState, army: Army, toId: string) {
   const f = factionById(s, army.owner);
-  if (army.moved) throw new GameError(`${armyLeader(army)}'s army has already moved this turn.`);
+  if (army.moved || (army.steps ?? 0) >= 1 + armyBonus(s, army).march) throw new GameError(`${armyLeader(army)}'s army has already moved this turn.`);
   if (army.refit) throw new GameError(`${armyLeader(army)}'s army is refitting this turn: it can march next turn.`);
   const here = nodeById(s, army.nodeId);
   const target = nodeById(s, toId);
@@ -1246,7 +1311,9 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   if (target.owner === f.id) {
     if (armyAt(s, toId)) throw new GameError(`An army already stands in ${target.name}.`);
     army.nodeId = toId;
-    army.moved = true;
+    army.steps = (army.steps ?? 0) + 1;
+    // (A hero who marches fast may go on, but not after a battle.)
+    if (army.steps >= 1 + armyBonus(s, army).march) army.moved = true;
     clog(s, `${armyLeader(army)}'s army marches to ${target.name}.`, [here.id, toId], f.id);
     return;
   }
@@ -1310,6 +1377,24 @@ function resolveBattle(s: CampaignState, game: GameState) {
     if (army) army.damage = Math.min(CAMPAIGN.maxDamage, army.damage + CAMPAIGN.armyRepelledDamage);
   }
 
+  // Heroes learn from every battle: most from a win.
+  const xp = (a: Army | undefined, amount: number) => {
+    if (!a || a.lost) return;
+    const f = s.factions.find((x) => x.id === a.owner);
+    if (!f) return;
+    const h = heroState(f, a.general);
+    const before = heroLevel(h.xp);
+    h.xp += amount;
+    if (heroLevel(h.xp) > before) clog(s, `${cardDef(a.general).name} reaches level ${heroLevel(h.xp)}.`, a.nodeId, f.id);
+  };
+  if (attackerWon) {
+    xp(army, HEROES.winXp);
+    xp(guard, HEROES.lossXp);
+  } else {
+    xp(army, HEROES.lossXp);
+    xp(guard, HEROES.defendXp);
+  }
+
   if (winner) {
     winner.credits += CAMPAIGN.winCredits;
     winner.materials += CAMPAIGN.winMaterials;
@@ -1359,6 +1444,8 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
   n.gate = undefined;
   // A conquest brings new stock to the player's armory.
   if (f.id === s.playerId) refreshArmory(s, f);
+  // The army that took it may find gear among the spoils.
+  if (army && !army.lost && nextRandom(s) < HEROES.itemChance + armyBonus(s, army).loot) findItem(s, f, army, n);
 
   if (choice === 'settle') {
     n.owner = f.id;
@@ -1398,6 +1485,51 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
     return;
   }
   checkVictory(s);
+}
+
+/** Gear found by an army in a system it took: better the deeper the system lies. */
+function findItem(s: CampaignState, f: Faction, army: Army, n: CampaignNode) {
+  const r = nextRandom(s);
+  const rarity: ItemRarity = n.heart || (n.ring ?? 9) <= 2 ? (r < 0.4 ? 'anomaly' : 'stellar') : n.tier >= 1 ? (r < 0.15 ? 'anomaly' : r < 0.6 ? 'stellar' : 'dwarf') : r < 0.25 ? 'stellar' : 'dwarf';
+  const slots = RACE_SLOTS[f.race];
+  const kind: SlotKind = slots[randomInt(s, slots.length)].kind;
+  const item = makeItem(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s));
+  (f.items ??= []).push(item);
+  clog(s, `${cardDef(army.general).name}'s army finds ${item.name} in ${n.name}.`, n.id, f.id);
+  if (f.isAI) aiEquip(f);
+}
+
+/** The AI wears its best gear: each find goes to the hero it suits best (an empty or weaker slot). */
+function aiEquip(f: Faction) {
+  for (const item of [...(f.items ?? [])]) {
+    for (const hero of GENERALS[f.race]) {
+      const h = heroState(f, hero);
+      const slot = RACE_SLOTS[f.race].find((x) => x.kind === item.slot && (!h.gear[x.id] || itemValue(h.gear[x.id]) < itemValue(item)));
+      if (!slot) continue;
+      const old = h.gear[slot.id];
+      h.gear[slot.id] = item;
+      f.items = f.items!.filter((x) => x !== item);
+      if (old) f.items.push(old);
+      break;
+    }
+  }
+}
+
+/** The AI spends its heroes' skill points: down the first branch, then the second. */
+function aiLearn(f: Faction) {
+  for (const hero of GENERALS[f.race]) {
+    const h = heroState(f, hero);
+    for (const k of [...(SKILL_TREES[hero] ?? [])].sort((a, b) => a.branch - b.branch || a.tier - b.tier)) {
+      if (learnProblem(hero, h, k.id) === null) learn(f, hero, h, k.id);
+    }
+  }
+}
+
+function learn(f: Faction, hero: string, h: HeroState, id: string) {
+  h.skills.push(id);
+  const k = heroSkill(hero, id)!;
+  // A signature card joins the reserve.
+  if (k.effect.kind === 'card') f.reserve.push(k.effect.card);
 }
 
 /** A faction with no systems left is out: with no worlds to supply them, its armies scatter. */
@@ -1519,7 +1651,13 @@ function newTurn(s: CampaignState) {
     f.credits += inc.credits;
     f.materials += inc.materials;
   }
-  for (const a of s.armies) a.moved = a.refit = false;
+  for (const a of s.armies) {
+    a.moved = a.refit = false;
+    a.steps = 0;
+    // A hero who mends repairs their army as the turn begins.
+    const mend = armyBonus(s, a).mend;
+    if (mend && a.damage) a.damage = Math.max(0, a.damage - mend);
+  }
   // Stellari blooms held this turn give their last, and wilt in time.
   for (const n of s.nodes) {
     if (!n.owner || !((n.stellaria ?? 0) > 0)) continue;
@@ -1721,6 +1859,9 @@ function aiTurn(s: CampaignState, f: Faction) {
     raiseArmy(s, f, next, muster.id);
     clog(s, `${f.name} raises an army under ${cardDef(next).name}.`, muster.id, f.id);
   }
+  // 3a. Its heroes learn, and wear what they have found.
+  aiLearn(f);
+  aiEquip(f);
   // 3b. Hold a collapsing home or bloom together, if it can.
   for (const n of mine) if ((n.home === f.id || (n.stellaria ?? 0) > 0) && stabiliseProblem(f, n) === null) stabilise(s, f, n);
   // 4. Improve its armies' decks: swap race cards in for neutral ones.
@@ -1778,7 +1919,7 @@ function aiTurn(s: CampaignState, f: Faction) {
 
 /** An army that has marched this turn can't refit (its deck, its repairs) until the next. */
 function refitCheck(army: Army) {
-  if (army.moved) throw new GameError(`${armyLeader(army)}'s army has marched this turn: it can refit next turn.`);
+  if (army.moved || (army.steps ?? 0) > 0) throw new GameError(`${armyLeader(army)}'s army has marched this turn: it can refit next turn.`);
 }
 
 function requireOwned(s: CampaignState, f: Faction, nodeId: string): CampaignNode {
@@ -1858,6 +1999,36 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       const value = recycleValue(action.defId);
       f.materials += value;
       clog(s, `${f.name} recycles ${cardDef(action.defId).name} for ${value} materials.`);
+      break;
+    }
+    case 'learnSkill': {
+      if (!GENERALS[f.race].includes(action.hero)) throw new GameError('That is not one of your heroes.');
+      const h = heroState(f, action.hero);
+      const why = learnProblem(action.hero, h, action.skill);
+      if (why) throw new GameError(why);
+      learn(f, action.hero, h, action.skill);
+      clog(s, `${cardDef(action.hero).name} learns ${heroSkill(action.hero, action.skill)!.name}.`, undefined, f.id);
+      break;
+    }
+    case 'equip': {
+      if (!GENERALS[f.race].includes(action.hero)) throw new GameError('That is not one of your heroes.');
+      const item = (f.items ?? []).find((x) => x.id === action.itemId);
+      if (!item) throw new GameError('That gear is not in your stores.');
+      const slot = RACE_SLOTS[f.race].find((x) => x.id === action.slot);
+      if (!slot || slot.kind !== item.slot) throw new GameError(`${item.name} does not fit there.`);
+      const h = heroState(f, action.hero);
+      const old = h.gear[slot.id];
+      h.gear[slot.id] = item;
+      f.items = f.items!.filter((x) => x !== item);
+      if (old) f.items.push(old);
+      break;
+    }
+    case 'unequip': {
+      const h = heroState(f, action.hero);
+      const old = h.gear[action.slot];
+      if (!old) throw new GameError('Nothing is worn there.');
+      delete h.gear[action.slot];
+      (f.items ??= []).push(old);
       break;
     }
     case 'stabilise': {

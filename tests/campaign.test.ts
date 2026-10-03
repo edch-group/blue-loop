@@ -23,6 +23,15 @@ import {
   factionIncome,
   GENERALS,
   regionalStability,
+  heroState,
+  heroLevel,
+  SKILL_TREES,
+  makeItem,
+  RACE_SLOTS,
+  heroSkillProblem,
+  applyAction,
+  activePlayer,
+  cardCost,
   logInSight,
   visibleNodes as seenBy,
   supernovaThreshold,
@@ -448,7 +457,8 @@ describe('armies and generals', () => {
     expect(armyAt(s, gone.id)).toBeNull();
     // Nothing can march into it, or through it.
     for (const a of s.armies) expect(armyMoves(s, a).some((m) => m.toId === gone.id)).toBe(false);
-    expect(s.nodes.filter((n) => n.collapsing)).toHaveLength(1);
+    // (Unless the collapse took the player's last world, and with it the campaign.)
+    if (!s.winner) expect(s.nodes.filter((n) => n.collapsing)).toHaveLength(1);
   });
 
   it('loses an army caught in a collapse, unless it can fall back', () => {
@@ -598,5 +608,67 @@ describe('armies and generals', () => {
     expect(logInSight(s, { seq: 0, turn: 1, text: 'x', at: [far.id], who: 'f2' }, s.playerId)).toBe(false);
     expect(logInSight(s, { seq: 0, turn: 1, text: 'x', at: [far.id], who: s.playerId }, s.playerId)).toBe(true);
     expect(logInSight(s, { seq: 0, turn: 1, text: 'x' }, s.playerId)).toBe(true);
+  });
+
+  it('grows heroes: experience from battles, skill points, gear, and skills in battle and on the map', () => {
+    let s = fresh();
+    const me = campaignPlayer(s);
+    const hero = myArmy(s).general;
+    s = winBattle(attack(s));
+    expect(heroState(campaignPlayer(s), hero).xp).toBeGreaterThan(0);
+    s = settle(s);
+    // Enough experience for a level: one point to spend, down a branch in order.
+    let t = fresh();
+    const h = heroState(campaignPlayer(t), hero);
+    h.xp = 60; // level 3: two points
+    expect(heroLevel(h.xp)).toBe(3);
+    const tree = SKILL_TREES[hero];
+    const t2 = tree.find((k) => k.branch === 0 && k.tier === 2)!;
+    expect(() => applyCampaignAction(t, { type: 'learnSkill', hero, skill: t2.id })).toThrow(/before it/);
+    const march = tree.find((k) => k.effect.kind === 'march')!;
+    t = applyCampaignAction(t, { type: 'learnSkill', hero, skill: march.id });
+    expect(heroState(campaignPlayer(t), hero).skills).toContain(march.id);
+    // A marching hero moves two routes (into its own systems) before it stops.
+    const a = myArmy(t);
+    const homeNode = home(t);
+    const gate = nodeById(t, homeNode.links[0]);
+    gate.owner = t.playerId;
+    t = applyCampaignAction(t, { type: 'move', armyId: a.id, toId: gate.id });
+    expect(myArmy(t).moved).toBe(false);
+    t = applyCampaignAction(t, { type: 'move', armyId: a.id, toId: homeNode.id });
+    expect(myArmy(t).moved).toBe(true);
+    // Gear: equipped in a slot of its kind, then worn into battle.
+    let g = fresh();
+    const item = makeItem('i1', 'weapon', 'anomaly', me.race, 0.2);
+    campaignPlayer(g).items = [item];
+    expect(() => applyCampaignAction(g, { type: 'equip', hero, itemId: 'i1', slot: RACE_SLOTS[me.race][1].id })).toThrow(/fit/);
+    g = applyCampaignAction(g, { type: 'equip', hero, itemId: 'i1', slot: 'weapon' });
+    const plain = fresh();
+    const withGear = attack(g), without = attack(plain);
+    expect(withGear.battle!.game.players[1].heat).toBe(without.battle!.game.players[1].heat + 3);
+    // A battle skill: used once, for its cost, on your own day.
+    let b = fresh();
+    const bh = heroState(campaignPlayer(b), hero);
+    bh.xp = 500;
+    const once = tree.filter((k) => k.branch === 0).sort((x, y) => x.tier - y.tier);
+    for (const k of once) b = applyCampaignAction(b, { type: 'learnSkill', hero, skill: k.id });
+    b = attack(b);
+    const game = b.battle!.game;
+    const skills = game.players[0].skills ?? [];
+    expect(skills.length).toBeGreaterThan(0);
+    // On the hero's own day (after its dawn), a once-a-battle skill can be used, then not again.
+    let gs = game;
+    if (gs.awaitingDawn) gs = applyAction(gs, { type: 'dawn', aims: {} });
+    const i = skills.findIndex((k) => k.once && k.cost === 0);
+    if (activePlayer(gs).id === gs.players[0].id && i >= 0) {
+      expect(heroSkillProblem(gs, gs.players[0], i)).toBeNull();
+      gs = applyAction(gs, { type: 'heroSkill', index: i });
+      expect(heroSkillProblem(gs, gs.players[0], i)).toMatch(/used/);
+    }
+  });
+
+  it('fuses cards at the cost of both', () => {
+    expect(cardCost(fusedId('coronal_lance', 'cryo_vault'))).toBe(cardCost('coronal_lance') + cardCost('cryo_vault'));
+    expect(fusionProblem('hymn_of_the_sun', 'coronal_lance')).toMatch(/energy/);
   });
 });

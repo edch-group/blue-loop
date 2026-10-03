@@ -748,6 +748,9 @@ export function fusionProblem(a: string, b: string): string | null {
   const [da, db] = [BY_ID.get(a)!, BY_ID.get(b)!];
   const ka = choiceKinds(da);
   if ([...choiceKinds(db)].some((k) => ka.has(k))) return 'Both cards ask for the same kind of choice when played.';
+  if (da.spendAll || db.spendAll) return 'Cards that spend all your energy cannot be fused.';
+  // A fused card costs both its parts: it must be one a day's energy can pay for.
+  if ((da.cost ?? 1) + (db.cost ?? 1) > BALANCE.maxPlays) return `Together they would cost ${(da.cost ?? 1) + (db.cost ?? 1)} energy: more than a day ever gives (${BALANCE.maxPlays}).`;
   return null;
 }
 
@@ -773,6 +776,8 @@ function fusedDef(id: string): CardDef | undefined {
     id,
     name: fusedName(da, db),
     kind: da.kind,
+    // Both effects for the price of both cards (in one card, and one slot).
+    cost: (da.cost ?? 1) + (db.cost ?? 1),
     race: da.race === db.race ? da.race : undefined,
     rarity: RARITY_RANK[db.rarity ?? 'dwarf'] > RARITY_RANK[da.rarity ?? 'dwarf'] ? db.rarity : da.rarity,
     text: `${da.text} ${db.text}`,

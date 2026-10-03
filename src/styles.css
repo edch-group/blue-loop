@@ -3747,3 +3747,55 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @keyframes cmp-dot { 50% { opacity: 1; } }
 .cmp-waiting-feed { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
 .cmp-waiting-feed li { font-size: 0.74rem; line-height: 1.4; color: var(--ink-soft); padding: 4px 8px; border-radius: 8px; background: #f4f3f0; animation: cmp-guide-in 0.25s ease-out both; }
+.cmp-tips li.cmp-tips-why { background: none; padding: 2px 10px; font-size: 0.66rem; color: var(--ink-faint); }
+
+/* ---- Campaign base: heroes (a list on the left, the hero picked on the right: gear, stores, skills) ---- */
+.cmp-tab { position: relative; }
+.cmp-tab-dot { position: absolute; top: 3px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: #5f8fc4; }
+.cmp-heroes { display: grid; grid-template-columns: clamp(200px, calc(26 * var(--vw)), 280px) minmax(0, 1fr); gap: 16px; min-height: 0; padding-bottom: 16px; }
+.cmp-hero-list { display: grid; gap: 8px; align-content: start; overflow-y: auto; }
+.cmp-hero-row { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 10px; border-radius: 14px; background: rgba(255, 255, 255, 0.7); border: 1px solid #fff; box-shadow: var(--shadow); text-align: left; cursor: pointer; }
+.cmp-hero-row.on { box-shadow: 0 0 0 2px #5f8fc4, var(--shadow); }
+.cmp-hero-row .cmp-portrait { width: 44px; height: 44px; }
+.cmp-hero-row b, .cmp-hero-head h3 { font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); display: block; margin: 0; }
+.cmp-hero-row small, .cmp-hero-head small { display: block; font-size: 0.66rem; color: var(--ink-faint); margin: 2px 0 4px; }
+.cmp-points { position: absolute; top: 6px; right: 8px; min-width: 18px; height: 18px; border-radius: 9px; background: #5f8fc4; color: #fff; font-style: normal; font-size: 0.6rem; display: grid; place-items: center; }
+.cmp-xp { display: block; height: 5px; border-radius: 3px; background: #ebeae6; overflow: hidden; }
+.cmp-xp i { display: block; height: 100%; background: linear-gradient(90deg, #9cc0e6, #5f8fc4); border-radius: 3px; }
+.cmp-hero { overflow-y: auto; display: grid; gap: 8px; align-content: start; padding: 12px 16px; border-radius: 16px; background: rgba(255, 255, 255, 0.7); border: 1px solid #fff; box-shadow: var(--shadow); }
+.cmp-hero-head { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.cmp-hero-head .cmp-portrait { width: 64px; height: 64px; }
+.cmp-hero-head h3 { font-size: 0.8rem; }
+.cmp-hero-pts { font-size: 0.66rem; color: var(--ink-faint); padding: 4px 10px; border-radius: 999px; background: #f2f1ee; }
+.cmp-hero-pts.on { color: #fff; background: #5f8fc4; }
+.cmp-slots, .cmp-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.cmp-slot, .cmp-item { display: grid; gap: 2px; align-content: start; min-height: 64px; padding: 8px 10px; border-radius: 12px; text-align: left; background: #fff; border: 1px dashed #dedbd5; font-size: 0.7rem; color: var(--ink-soft); }
+.cmp-slot-full, .cmp-item { border-style: solid; border-color: #ebe8e3; cursor: pointer; }
+.cmp-slot small, .cmp-item small { font-size: 0.5rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+.cmp-slot b, .cmp-item b { font-size: 0.72rem; color: var(--ink); }
+.cmp-slot-full.rarity-stellar, .cmp-item.rarity-stellar { box-shadow: inset 3px 0 0 #d9b25a; }
+.cmp-slot-full.rarity-anomaly, .cmp-item.rarity-anomaly { box-shadow: inset 3px 0 0 #8c5ad6; }
+.cmp-slot-full:hover, .cmp-item:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(80, 84, 100, 0.14); }
+.cmp-item:disabled { opacity: 0.45; cursor: default; }
+.cmp-tree { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.cmp-branch { display: grid; justify-items: stretch; }
+.cmp-skill { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border-radius: 12px; background: #fff; border: 1px solid #ebe8e3; font-size: 0.7rem; color: var(--ink-soft); cursor: pointer; }
+.cmp-skill small { font-size: 0.5rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+.cmp-skill b { font-size: 0.74rem; color: var(--ink); }
+.cmp-skill.learned { background: #eef4fb; border-color: #9cc0e6; }
+.cmp-skill.open { box-shadow: 0 0 0 1.5px #5f8fc4; animation: cmp-skill-open 2s ease-in-out infinite; }
+@keyframes cmp-skill-open { 50% { box-shadow: 0 0 0 3px rgba(95, 143, 196, 0.35); } }
+.cmp-skill.locked { opacity: 0.55; cursor: default; }
+.cmp-skill-link { justify-self: center; width: 2px; height: 10px; background: #dcd9d3; }
+@media (max-width: 700px) { .cmp-heroes { grid-template-columns: 1fr; } .cmp-hero-list { grid-auto-flow: column; overflow-x: auto; } }
+
+/* ---- Battle: a campaign hero's skills, stacked above End Day ---- */
+.hero-skills { position: fixed; right: var(--pad-r, 16px); bottom: calc(max(14px, var(--pad-b, 14px)) + clamp(96px, calc(18 * var(--vh)), 124px)); z-index: 16; width: clamp(120px, calc(14 * var(--vw)), 190px); display: grid; gap: 6px; }
+.hero-skill { display: grid; grid-template-columns: 26px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 6px 10px 6px 6px; border-radius: 14px; background: rgba(255, 255, 255, 0.92); border: 1px solid #fff; box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.55), var(--shadow); text-align: left; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+.hero-skill:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.8), 0 0 16px rgba(212, 165, 42, 0.35), var(--shadow); }
+.hero-skill-face { grid-row: 1 / 3; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; display: block; }
+.hero-skill-face svg { width: 100%; height: 100%; display: block; }
+.hero-skill b { font-family: var(--display); font-weight: 600; font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); line-height: 1.2; }
+.hero-skill small { font-size: 0.56rem; color: #a86d10; letter-spacing: 0.08em; }
+.hero-skill:disabled { opacity: 0.5; cursor: default; box-shadow: var(--shadow); }
+.hero-skill.spent { opacity: 0.35; }
