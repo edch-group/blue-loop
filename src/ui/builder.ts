@@ -320,12 +320,11 @@ export class DeckBuilder {
           <div class="db-pool" data-grid="${this.grid}">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
         </div>
         <aside class="db-deck-side">
-          ${this.starter ? `<div class="db-starter-note">${esc(RACE_NAMES[this.starter.race].toLowerCase())} starter · any change saves as a copy</div>` : ''}
           <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
           <div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Command card per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> command</div>
           ${this.focus ? this.renderFocus(this.focus) : ''}
           <div class="db-rows">${grouped || '<p class="muted">Tap cards on the left to add them.</p>'}</div>
-          <div class="db-actions"><button class="btn btn-small" data-act="db-exit">exit</button><button class="btn-primary btn-small" data-act="db-save">save</button></div>
+          <div class="db-actions"><button class="btn btn-small btn-exit" data-act="db-exit">exit</button><button class="btn-primary btn-small" data-act="db-save">save</button></div>
         </aside>
       </div>
       ${

@@ -2133,8 +2133,9 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .db-row-name b { flex: 0 1 auto; }
 /* Exit and save, at the foot of the deck. */
 .db-actions { display: flex; justify-content: flex-end; gap: 6px; }
-.db-actions .btn-small { padding: 6px 14px; }
-.db-actions .btn-primary.btn-small { min-width: 0; letter-spacing: 0.18em; font-size: 0.58rem; }
+.db-actions .btn-small { padding: 6px 14px; min-width: 72px; letter-spacing: 0.18em; font-size: 0.58rem; font-weight: 700; }
+/* Exit: red, with the same ring as save beside it, so the two match. */
+.db-actions .btn-exit { color: #b23c24; box-shadow: 0 0 0 1px rgba(192, 86, 61, 0.45), 0 6px 20px rgba(120, 124, 134, 0.18); }
 /* The deck builder has no header or footer: the pool and the deck start at the top, and the pool scrolls
    off the foot of the screen. */
 .menu.setup-page:has(> .db-editor) { grid-template-rows: minmax(0, 1fr); padding-bottom: 0; }
