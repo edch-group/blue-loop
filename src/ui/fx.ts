@@ -211,6 +211,19 @@ export function tether(source: DOMRect | (() => DOMRect | null), to: DOMRect, op
  */
 type BeamKind = 'attack' | 'cool' | 'plain';
 let beamIds = 0;
+/**
+ * The layers of a beam, outside in: each a ribbon (and arrowhead) a little narrower and brighter than the
+ * last, softly blurred, so together they shade like a glowing tube, with no hard edge anywhere.
+ */
+const BEAM_LAYERS = [
+  { cls: 'bl-glow', scale: 2.6, head: 1.5 },
+  { cls: 'bl-rim', scale: 1.15, head: 1.08 },
+  { cls: 'bl-body', scale: 0.92, head: 0.92 },
+  { cls: 'bl-mid', scale: 0.62, head: 0.7 },
+  { cls: 'bl-inner', scale: 0.36, head: 0.48 },
+  { cls: 'bl-core', scale: 0.16, head: 0.26 },
+];
+
 class Beam {
   readonly svg: SVGSVGElement;
   private id = ++beamIds;
@@ -218,11 +231,17 @@ class Beam {
     this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     this.svg.setAttribute('class', `beam-arc beam-${kind}`);
     const n = this.id;
+    const layer = (l: (typeof BEAM_LAYERS)[number]) => `<g class="${l.cls}"><path class="bl-tail"/><path class="bl-head"/></g>`;
     this.svg.innerHTML = `<defs>
-        <linearGradient id="bb${n}" gradientUnits="userSpaceOnUse"><stop offset="0" class="bb-0"/><stop offset="0.45" class="bb-1"/><stop offset="1" class="bb-2"/></linearGradient>
-        <linearGradient id="bc${n}" gradientUnits="userSpaceOnUse"><stop offset="0" class="bc-0"/><stop offset="0.6" class="bc-1"/><stop offset="1" class="bc-2"/></linearGradient>
+        <filter id="bs${n}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.15"/></filter>
+        <filter id="bg${n}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5"/></filter>
+        <linearGradient id="bf${n}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.28" stop-color="#fff" stop-opacity="1"/><stop offset="1" stop-color="#fff" stop-opacity="1"/></linearGradient>
+        <mask id="bm${n}" maskUnits="userSpaceOnUse" x="-10000" y="-10000" width="30000" height="30000"><rect x="-10000" y="-10000" width="30000" height="30000" fill="url(#bf${n})"/></mask>
       </defs>
-      <path class="beam-halo" fill="url(#bb${n})"/><path class="beam-body" fill="url(#bb${n})"/><path class="beam-core" fill="url(#bc${n})"/><path class="beam-head"/><path class="beam-head-core"/>`;
+      <g mask="url(#bm${n})">
+        <g filter="url(#bg${n})">${layer(BEAM_LAYERS[0])}</g>
+        <g filter="url(#bs${n})">${BEAM_LAYERS.slice(1).map(layer).join('')}<path class="bl-shine"/></g>
+      </g>`;
   }
   mount() {
     document.body.appendChild(this.svg);
@@ -251,45 +270,51 @@ class Beam {
     };
     const end = Math.max(0.02, progress);
     const [hx, hy] = at(end);
-    // Gradients run from the start to the head as it stands.
-    for (const g of this.svg.querySelectorAll('linearGradient')) {
-      g.setAttribute('x1', x0.toFixed(1));
-      g.setAttribute('y1', y0.toFixed(1));
-      g.setAttribute('x2', hx.toFixed(1));
-      g.setAttribute('y2', hy.toFixed(1));
-    }
-    const W = Math.max(5, Math.min(9, len / 40));
-    const ribbon = (scale: number, from = 0.6) => {
-      const n = 28;
+    // The fade-in from the source runs from the start to the head as it stands.
+    const fade = this.svg.querySelector('linearGradient')!;
+    fade.setAttribute('x1', x0.toFixed(1));
+    fade.setAttribute('y1', y0.toFixed(1));
+    fade.setAttribute('x2', hx.toFixed(1));
+    fade.setAttribute('y2', hy.toFixed(1));
+    const W = Math.max(8, Math.min(13, len / 30));
+    const [hx0, hy0] = at(Math.max(0, end - 0.02));
+    const ang = Math.atan2(hy - hy0, hx - hx0);
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const pt = (fwd: number, side: number) => `${(hx + cos * fwd - sin * side).toFixed(1)} ${(hy + sin * fwd + cos * side).toFixed(1)}`;
+    // The head's length: the tail stops inside it, so the two run together.
+    const HL = W * 2.9;
+    const tailEnd = Math.max(0, end - (HL * 0.5) / len);
+    /** A ribbon along the arc, `scale` of the beam's width, pushed `shift` widths to one side. */
+    const ribbon = (scale: number, shift = 0) => {
+      const n = 30;
       const left: string[] = [], right: string[] = [];
       for (let i = 0; i <= n; i++) {
-        const t = (i / n) * end;
+        const t = (i / n) * tailEnd;
         const [px, py] = at(t);
         const [qx, qy] = at(Math.min(1, t + 0.01));
         const tl = Math.hypot(qx - px, qy - py) || 1;
         const nx = -(qy - py) / tl, ny = (qx - px) / tl;
-        // Hairline at the start, widening towards the head (eased, so most of the width comes late).
-        const w = (from + (W - from) * (i / n) ** 1.6) * scale * 0.5;
-        left.push(`${(px + nx * w).toFixed(1)} ${(py + ny * w).toFixed(1)}`);
-        right.unshift(`${(px - nx * w).toFixed(1)} ${(py - ny * w).toFixed(1)}`);
+        // Fine at the start, swelling towards the head (eased, so most of the width comes late).
+        const full = (0.15 + 0.85 * (i / n) ** 1.3) * W;
+        const w = full * scale * 0.5, o = full * shift;
+        left.push(`${(px + nx * (o + w)).toFixed(1)} ${(py + ny * (o + w)).toFixed(1)}`);
+        right.unshift(`${(px + nx * (o - w)).toFixed(1)} ${(py + ny * (o - w)).toFixed(1)}`);
       }
       return `M${left.join(' L')} L${right.join(' L')} Z`;
     };
-    const [hx0, hy0] = at(Math.max(0, end - 0.02));
-    const ang = Math.atan2(hy - hy0, hx - hx0);
-    // The head: a chevron pointing along the beam, a little wider than the beam there.
-    const hw = W * 1.35, hl = W * 1.7;
-    const pt = (fwd: number, side: number) => `${(hx + Math.cos(ang) * fwd - Math.sin(ang) * side).toFixed(1)} ${(hy + Math.sin(ang) * fwd + Math.cos(ang) * side).toFixed(1)}`;
-    const head = `M${pt(hl * 0.55, 0)} L${pt(-hl * 0.45, hw)} L${pt(-hl * 0.15, 0)} L${pt(-hl * 0.45, -hw)} Z`;
-    const [halo, body, core, chev, chevCore] = this.svg.querySelectorAll('path');
-    // A bright inner chevron, as the core runs into the head.
-    const ihw = hw * 0.45, ihl = hl * 0.5;
-    const ipt = (fwd: number, side: number) => `${(hx + Math.cos(ang) * fwd - Math.sin(ang) * side).toFixed(1)} ${(hy + Math.sin(ang) * fwd + Math.cos(ang) * side).toFixed(1)}`;
-    chevCore.setAttribute('d', `M${ipt(ihl * 0.5, 0)} L${ipt(-ihl * 0.45, ihw)} L${ipt(-ihl * 0.15, 0)} L${ipt(-ihl * 0.45, -ihw)} Z`);
-    halo.setAttribute('d', ribbon(2.4, 1.5));
-    body.setAttribute('d', ribbon(1));
-    core.setAttribute('d', ribbon(0.38, 0.4));
-    chev.setAttribute('d', head);
+    /** The arrowhead, `k` of its full size: a rounded, swept-back point, so the layers bevel it. */
+    const head = (k: number) => {
+      const l = HL * k, w = W * 1.75 * k;
+      const tip = pt(l * 0.62, 0);
+      return `M${tip} Q${pt(l * 0.05, w * 0.7)} ${pt(-l * 0.36, w)} Q${pt(-l * 0.26, w * 0.4)} ${pt(-l * 0.2, 0)} Q${pt(-l * 0.26, -w * 0.4)} ${pt(-l * 0.36, -w)} Q${pt(l * 0.05, -w * 0.7)} ${tip} Z`;
+    };
+    for (const l of BEAM_LAYERS) {
+      const g = this.svg.querySelector(`.${l.cls}`)!;
+      g.querySelector('.bl-tail')!.setAttribute('d', ribbon(l.scale));
+      g.querySelector('.bl-head')!.setAttribute('d', head(l.head));
+    }
+    // A highlight along the upper side of the tube, where the light catches it.
+    this.svg.querySelector('.bl-shine')!.setAttribute('d', ribbon(0.12, 0.2));
   }
 }
 

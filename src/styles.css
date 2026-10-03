@@ -2557,18 +2557,19 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 /* Removal: a glowing white arc from the removing card to its target. */
 .tether { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 47; pointer-events: none; overflow: visible; }
 .tether path { fill: none; stroke-linecap: round; }
-/* Beams (see Beam in fx.ts): a halo, a translucent body brightening along its length, a white-hot core
-   and a chevron head. Red for an attack, blue for cooling, white for anything else. */
+/* Beams (see Beam in fx.ts): soft layers from a dark rim to a white-hot core, shading it like a glowing tube,
+   with a rounded, bevelled head. Red for an attack, blue for cooling, white for anything else. */
 .beam-arc { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 47; pointer-events: none; overflow: visible; }
-.beam-arc.beam-attack { z-index: 14; --b0: rgba(235, 50, 35, 0); --b1: rgba(232, 52, 36, 0.8); --b2: rgba(250, 70, 45, 0.95); --c0: rgba(255, 210, 190, 0.2); --c1: #ffd2c2; --c2: #fff6f0; --head: #f2442e; --glow: rgba(230, 50, 30, 0.5); }
-.beam-arc.beam-cool { --b0: rgba(40, 140, 255, 0); --b1: rgba(40, 140, 255, 0.72); --b2: rgba(70, 175, 255, 0.95); --c0: rgba(200, 235, 255, 0.2); --c1: #c9ecff; --c2: #f4fbff; --head: #3d9dff; --glow: rgba(40, 140, 255, 0.5); }
-.beam-arc.beam-plain { --b0: rgba(150, 165, 200, 0); --b1: rgba(170, 182, 210, 0.7); --b2: rgba(196, 206, 228, 0.95); --c0: rgba(255, 255, 255, 0.3); --c1: #fff; --c2: #fff; --head: #c4cee4; --glow: rgba(110, 125, 160, 0.4); }
-.bb-0 { stop-color: var(--b0); } .bb-1 { stop-color: var(--b1); } .bb-2 { stop-color: var(--b2); }
-.bc-0 { stop-color: var(--c0); } .bc-1 { stop-color: var(--c1); } .bc-2 { stop-color: var(--c2); }
-.beam-halo { opacity: 0.35; filter: blur(3px); }
-.beam-body { filter: drop-shadow(0 0 2px var(--glow)); }
-.beam-head-core { fill: var(--c2); }
-.beam-head { fill: var(--head); filter: drop-shadow(0 0 2px var(--glow)) drop-shadow(0 0 1px var(--glow)); }
+.beam-arc.beam-attack { z-index: 14; --l0: #ff2a12; --l1: #d41e12; --l2: #ee3220; --l3: #ff5a2e; --l4: #ffb08a; --l5: #fff4ec; }
+.beam-arc.beam-cool { --l0: #1e8cff; --l1: #1564dc; --l2: #2a88f2; --l3: #4fb0ff; --l4: #b4e2ff; --l5: #f6fcff; }
+.beam-arc.beam-plain { --l0: #b9c6e4; --l1: #8a97b6; --l2: #a9b5cf; --l3: #c9d3e8; --l4: #edf1f9; --l5: #fff; }
+.bl-glow { fill: var(--l0); opacity: 0.4; }
+.bl-rim { fill: var(--l1); opacity: 0.6; }
+.bl-body { fill: var(--l2); }
+.bl-mid { fill: var(--l3); opacity: 0.9; }
+.bl-inner { fill: var(--l4); opacity: 0.9; }
+.bl-core { fill: var(--l5); }
+.bl-shine { fill: #fff; opacity: 0.55; }
 
 /* ---------- Start-of-turn forecast: symbols centred between the tableaus ---------- */
 /* Yours above your row, your rival's beneath theirs, so both sit in the middle of the board. */
