@@ -3019,7 +3019,6 @@ export class App {
   }
 
   private renderQuickplay(): string {
-    const hasSave = loadSave() !== null;
     const seats = this.seats
       .map((seat, i) => {
         // Only a second human types a name: you play as yourself, and the AI as a bot.
@@ -3042,9 +3041,7 @@ export class App {
     return this.setupPage(
       'quickplay',
       `<div class="seat-row">${seats}</div>`,
-      `<button class="btn" data-act="open-decks">edit decks</button>
-       ${hasSave ? '<button class="btn" data-act="continue">continue game</button>' : ''}
-       <button class="btn-primary" data-act="new-game">launch</button>`,
+      '<button class="btn-primary" data-act="new-game">launch</button>',
     );
   }
 
