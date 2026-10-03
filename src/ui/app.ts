@@ -90,9 +90,12 @@ const HUB_ICONS = {
   /** The general booster pack's emblem: a pack with a star. */
   pack: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 10h20l2 30H12z"/><path d="M14 10l4 6h12l4-6M24 22l2.4 4.8 5.3.8-3.8 3.7.9 5.2-4.8-2.5-4.8 2.5.9-5.2-3.8-3.7 5.3-.8z"/></svg>`,
   shop: `<svg viewBox="0 0 48 48" aria-hidden="true"><path class="ic-bag" d="M11 17h26l-2 23H13z"/><path class="ic-handle" d="M18 20v-6a6 6 0 0 1 12 0v6"/></svg>`,
-  campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle cx="10" cy="34" r="3.2"/><circle cx="22" cy="26" r="2.6"/><circle cx="36" cy="32" r="3.6"/><circle cx="26" cy="12" r="3"/><circle cx="14" cy="16" r="2.4"/></svg>`,
-  quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="17" cy="24" r="8"/><circle cx="36" cy="24" r="4.5"/><path d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
-  online: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="14"/><path d="M10 24h28M24 10c-5 4-7 9-7 14s2 10 7 14M24 10c5 4 7 9 7 14s-2 10-7 14"/></svg>`,
+  /** The map: routes between systems, each held by a faction (in its colour), the Heart's gold the largest. */
+  campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path class="ic-route" d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle class="ic-f1" cx="10" cy="34" r="3.2"/><circle class="ic-f2" cx="22" cy="26" r="2.6"/><circle class="ic-heart" cx="36" cy="32" r="3.6"/><circle class="ic-f3" cx="26" cy="12" r="3"/><circle class="ic-f4" cx="14" cy="16" r="2.4"/></svg>`,
+  /** A sun (warm) sending heat at a cool planet. */
+  quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle class="ic-sun" cx="17" cy="24" r="8"/><circle class="ic-planet" cx="36" cy="24" r="4.5"/><path class="ic-heat" d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
+  /** The world, its sea and meridians. */
+  online: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle class="ic-globe" cx="24" cy="24" r="14"/><path class="ic-lines" d="M10 24h28M24 10c-5 4-7 9-7 14s2 10 7 14M24 10c5 4 7 9 7 14s-2 10-7 14"/></svg>`,
   options: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 15h28M10 24h28M10 33h28"/><circle cx="18" cy="15" r="3.2"/><circle cx="31" cy="24" r="3.2"/><circle cx="22" cy="33" r="3.2"/></svg>`,
 };
 type Speed = 'slow' | 'normal' | 'fast';
