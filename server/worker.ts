@@ -1,15 +1,18 @@
 import { DurableObject } from 'cloudflare:workers';
 import { emptyLadder, enqueue, leaveQueue, recordResult, standing, type LadderData, type LadderPlayer, type Queued } from './ladder';
 import { rankName } from '../src/engine/progression';
-import { emptyRoom, handle, views, type ClientMessage, type RankedReport, type RoomData, type ServerMessage } from './room';
-import { accountOf, handleAccounts } from './accounts';
+import { emptyRoom, handle, playerIndex, views, type ClientMessage, type Payout, type RankedReport, type RoomData, type ServerMessage } from './room';
+
+/** An unranked online game pays out only once it has gone at least this many rounds. */
+const MIN_REWARD_ROUNDS = 3;
+import { accountOf, creditGame, creditRanked, handleAccounts, type AccountsEnv } from './accounts';
 
 /**
  * The Blue Loop server: the game's static files (built by Vite into dist/)
  * and, at /room/<CODE>, a WebSocket into that room's Durable Object.
  */
 
-interface Env {
+interface Env extends AccountsEnv {
   ROOMS: DurableObjectNamespace<Room>;
   LADDER: DurableObjectNamespace<Ladder>;
   ASSETS: Fetcher;
@@ -98,6 +101,7 @@ export class Room extends DurableObject<Env> {
     }
     if (msg.t === 'join') this.presence();
     if (out.report) await this.reportRanked(room, out.report);
+    else await this.payUnranked(room);
     // Rooms tidy themselves away: an hour after a game ends, or after a day without play.
     await this.ctx.storage.setAlarm(Date.now() + (room.game?.winnerId ? 3600 : 24 * 3600) * 1000);
   }
@@ -112,9 +116,38 @@ export class Room extends DurableObject<Env> {
     this.presence(ws);
   }
 
+  /**
+   * An unranked game ended: the server pays each signed-in player's reward into their account (once per
+   * game, and only for a game that went at least a few rounds, so a pair can't farm quick concessions).
+   */
+  private async payUnranked(room: RoomData) {
+    const g = room.game;
+    if (room.ranked || room.rewarded || !g?.winnerId) return;
+    room.rewarded = true;
+    await this.ctx.storage.put('room', room);
+    const counts = g.round >= MIN_REWARD_ROUNDS;
+    for (const ws of this.ctx.getWebSockets()) {
+      const s = seatOf(ws);
+      if (s === null) continue;
+      const me = g.players[playerIndex(room, s)];
+      const account = room.seats[s]?.profileId;
+      if (!me) continue;
+      const won = g.winnerId === me.id;
+      let reward = null;
+      if (account && counts) {
+        try {
+          reward = await creditGame(this.env.DB, account, 'online', won, g.concededBy === me.id);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      send(ws, { t: 'reward', won, reward });
+    }
+  }
+
   /** A ranked game ended: the ladder moves both players and says what each earned; each hears their own result. */
   private async reportRanked(room: RoomData, report: RankedReport) {
-    let outcomes: { id: string; won: boolean; reward: { stardust: number; flux: number; xp: number; rank?: number }; rankPoints: number; rankName: string }[] = [];
+    let outcomes: { id: string; won: boolean; reward: Payout; rankPoints: number; rankName: string }[] = [];
     try {
       const res = await ladderOf(this.env).fetch('https://ladder/result', { method: 'POST', body: JSON.stringify(report) });
       outcomes = await res.json();
@@ -216,7 +249,17 @@ export class Ladder extends DurableObject<Env> {
       const data = await this.ladder([r.winner, r.loser]);
       const outcomes = recordResult(data, r.winner, r.loser, r.conceded);
       await this.save(data);
-      return Response.json(outcomes);
+      // Each account is paid (and its rank kept) by the server; the players hear what they were paid.
+      const paid = [];
+      for (const o of outcomes) {
+        try {
+          paid.push({ ...o, reward: await creditRanked(this.env.DB, o.id, o.reward, o.won, o.rankPoints) });
+        } catch (e) {
+          console.error(e);
+          paid.push({ ...o, reward: { ...o.reward, levelsGained: 0, bonus: { stardust: 0, flux: 0 } } });
+        }
+      }
+      return Response.json(paid);
     }
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);

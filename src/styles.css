@@ -2707,6 +2707,21 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pv-delete { display: grid; gap: 8px; justify-items: start; }
 .pv-delete small { color: var(--ink-soft); }
 .btn.btn-danger { color: #b23c24; }
+/* Signing up: two tick boxes (the Terms, the Privacy Policy), each a whole clickable line. */
+.auth-agree { display: grid; gap: 6px; width: min(320px, 84vw); }
+.auth-tick { display: flex; align-items: flex-start; gap: 9px; padding: 4px 2px; border: 0; background: none; cursor: pointer; text-align: left; font: inherit; font-size: 0.74rem; line-height: 1.4; color: var(--ink-soft); }
+.auth-tick .db-check { margin-top: 2px; }
+.auth-tick.on { color: var(--ink); }
+.auth-tick.on .db-check { border-color: #5d6a8c; background: #5d6a8c; }
+.auth-tick.on .db-check::after { content: ''; width: 5px; height: 3px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: translateY(-1px) rotate(-45deg); }
+.auth-tick a { color: var(--ink); text-underline-offset: 2px; }
+/* Apple and Google: full-width buttons above the email form, with an "or" between. */
+.auth-social { display: grid; gap: 8px; width: min(280px, 80vw); }
+.auth-sso { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
+.sso-mark { width: 14px; height: 14px; border-radius: 50%; background: #111; display: inline-block; }
+.sso-mark.sso-g { display: inline-grid; place-items: center; background: none; color: #4285f4; font-weight: 700; font-family: Arial, sans-serif; font-size: 13px; }
+.auth-or { display: flex; align-items: center; gap: 10px; width: min(280px, 80vw); color: var(--ink-faint); font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.3em; text-transform: uppercase; }
+.auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: rgba(150, 160, 185, 0.35); }
 
 /* ---------- The shop: booster packs to rip open ---------- */
 .shop-body { display: grid; align-content: center; justify-items: center; gap: clamp(10px, calc(2.4 * var(--vh)), 20px); }

@@ -1,4 +1,4 @@
-import { withSession } from './account';
+import { withSession, type Payout } from './account';
 import type { Action, GameState } from '../engine';
 
 /**
@@ -28,6 +28,8 @@ export interface OnlineEvents {
   state(state: GameState, you: string, last: LastMove | null, waitFor: 'you' | 'rival' | null, ranked: boolean): void;
   /** A ranked game's result for you, from the ladder. */
   ranked?(result: RankedResult): void;
+  /** An unranked game's result for you: what the server paid into your account (null: nothing). */
+  reward?(won: boolean, reward: Payout | null): void;
   error(message: string): void;
   /** Whether the rival is connected right now. */
   presence(rivalOnline: boolean): void;
@@ -46,7 +48,8 @@ export interface JoinInfo {
 
 export interface RankedResult {
   won: boolean;
-  reward: { stardust: number; flux: number; xp: number; rank?: number };
+  /** What the server paid into your account. */
+  reward: Payout;
   rankPoints: number;
   rankName: string;
 }
@@ -144,6 +147,9 @@ export class OnlineClient {
           break;
         case 'ranked':
           this.on.ranked?.(msg as unknown as RankedResult);
+          break;
+        case 'reward':
+          this.on.reward?.(!!msg.won, (msg.reward as Payout | null) ?? null);
           break;
         case 'error':
           this.on.error(String(msg.message));

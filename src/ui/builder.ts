@@ -3,7 +3,8 @@ import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } 
 import { factionAvatar } from './factions';
 import { cardArtLite, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
 import { fitWhenSeen } from './fittext';
-import { breakDown, craft, owned, profile } from './profile';
+import { owned, profile } from './profile';
+import { breakCard, craftCard } from './account';
 
 interface BuilderHost {
   render(): void;
@@ -175,16 +176,14 @@ export class DeckBuilder {
       case 'db-focus':
         this.focus = this.focus === arg ? null : arg;
         break;
-      case 'db-craft': {
-        const why = craft(arg);
-        if (why) this.host.toast(why);
-        break;
-      }
-      case 'db-break': {
-        const why = breakDown(arg);
-        if (why) this.host.toast(why);
-        break;
-      }
+      // Crafting and breaking down are the server's to do (it keeps the collection); the page updates once it answers.
+      case 'db-craft':
+      case 'db-break':
+        void (act === 'db-craft' ? craftCard(arg) : breakCard(arg)).then((why) => {
+          if (why) this.host.toast(why);
+          this.host.render();
+        });
+        return true;
       case 'db-add': {
         if (!d) return true;
         const copies = d.cards.filter((id) => id === arg).length;

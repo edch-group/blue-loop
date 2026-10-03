@@ -1,23 +1,10 @@
-import {
-  addXp,
-  breakable,
-  breakdownValue,
-  cardDef,
-  craftCost,
-  openBooster,
-  PROGRESSION,
-  starterGrant,
-  type BoosterCard,
-  type BoosterKind,
-  type Collection,
-  type Reward,
-} from '../engine';
-import { markDirty } from './account';
+import { PROGRESSION, starterGrant, type Collection } from '../engine';
+import { account, markDirty } from './account';
 
 /**
- * The player's profile on this device: level, experience, both currencies and
- * the card collection (see src/engine/progression.ts for the rules). Ranked
- * standing lives on the server; `rankPoints` is the last one it told us.
+ * The player's profile on this device: the name and emblem they go by (theirs, synced to their account),
+ * and a copy of their account's economy (level, experience, currencies, collection, rank), which only the
+ * server changes (see src/ui/account.ts). Rules: src/engine/progression.ts.
  */
 export interface Profile {
   /** Identifies this player to the ranked server. */
@@ -80,28 +67,32 @@ export function owned(id: string): number {
   return profile().collection[id] ?? 0;
 }
 
-export interface RewardResult extends Reward {
-  levelsGained: number;
-  /** The level-up bonus included in the totals above. */
-  bonus: { stardust: number; flux: number };
-}
+/** The economy's fields, as the server sends them (it alone changes them: see src/ui/account.ts). */
+export type EconomyFields = Pick<Profile, 'level' | 'xp' | 'stardust' | 'flux' | 'collection' | 'rankPoints' | 'played' | 'won'>;
 
-/** Pay out a game's reward (and any level-up bonus). */
-export function grantReward(r: Reward, won: boolean): RewardResult {
+/** Take up the account's economy, as the server has it. */
+export function setEconomy(e: EconomyFields | null | undefined) {
+  if (!e || typeof e !== 'object') return;
   const p = profile();
-  const lv = addXp(p.level, p.xp, r.xp);
-  const bonus = { stardust: PROGRESSION.levelReward.stardust * lv.levelsGained, flux: PROGRESSION.levelReward.flux * lv.levelsGained };
-  p.level = lv.level;
-  p.xp = lv.xp;
-  p.stardust += r.stardust + bonus.stardust;
-  p.flux += r.flux + bonus.flux;
-  p.played += 1;
-  if (won) p.won += 1;
+  Object.assign(p, {
+    level: e.level,
+    xp: e.xp,
+    stardust: e.stardust,
+    flux: e.flux,
+    collection: { ...e.collection },
+    rankPoints: e.rankPoints,
+    played: e.played,
+    won: e.won,
+  });
   store();
-  return { ...r, levelsGained: lv.levelsGained, bonus };
 }
 
-/** Sign in on this device: the name and emblem the player goes by. */
+/** Read the profile afresh from this device's storage (after the account's copy was put there). */
+export function reloadProfile() {
+  cached = null;
+}
+
+/** Set the name and emblem the player goes by. */
 export function signIn(name: string, avatar: number) {
   const p = profile();
   p.name = name.replace(/[^\p{L}\p{N} '’.-]/gu, '').trim().slice(0, 18) || 'Commander';
@@ -110,53 +101,7 @@ export function signIn(name: string, avatar: number) {
   store();
 }
 
-export function signOut() {
-  profile().signedIn = false;
-  store();
-}
-
-/** Whether the player has signed in (and not out since). */
+/** Whether the player is signed in to an account and has named themselves. */
 export function signedIn(): boolean {
-  const p = profile();
-  return !!p.name && p.signedIn !== false;
-}
-
-export function setRankPoints(rp: number) {
-  profile().rankPoints = rp;
-  store();
-}
-
-/** Buy and open a booster: its cards join the collection (surplus copies come as flux). Null if you can't afford it. */
-export function buyBooster(kind: BoosterKind): BoosterCard[] | null {
-  const p = profile();
-  if (p.stardust < PROGRESSION.boosterPrice) return null;
-  p.stardust -= PROGRESSION.boosterPrice;
-  const cards = openBooster(kind, p.collection, Math.random);
-  for (const c of cards) {
-    if (c.flux) p.flux += c.flux;
-    else p.collection[c.id] = (p.collection[c.id] ?? 0) + 1;
-  }
-  store();
-  return cards;
-}
-
-/** Craft a copy of a card with flux. Returns why not, or null once done. */
-export function craft(id: string): string | null {
-  const p = profile();
-  const cost = craftCost(id);
-  if (p.flux < cost) return `Crafting ${cardDef(id).name} takes ⟁${cost} flux.`;
-  p.flux -= cost;
-  p.collection[id] = (p.collection[id] ?? 0) + 1;
-  store();
-  return null;
-}
-
-/** Break a copy of a card down for flux (starter cards can't be). Returns why not, or null once done. */
-export function breakDown(id: string): string | null {
-  const p = profile();
-  if (breakable(p.collection, id) <= 0) return `${cardDef(id).name} is one of your starter cards: it can't be broken down.`;
-  p.collection[id] -= 1;
-  p.flux += breakdownValue(id);
-  store();
-  return null;
+  return !!account() && !!profile().name;
 }

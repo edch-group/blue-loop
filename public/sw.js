@@ -1,6 +1,6 @@
 // Offline support for the web app. Built assets have hashed names, so they are
 // served cache-first; the page itself is network-first so updates arrive.
-const CACHE = 'blue-loop-v2';
+const CACHE = 'blue-loop-v3';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
@@ -14,7 +14,10 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  // The account API is always live (never served from the cache).
+  if (url.pathname.startsWith('/api/')) return;
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)

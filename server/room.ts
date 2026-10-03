@@ -40,6 +40,8 @@ export interface RoomData {
   waitingOn?: number | null;
   /** A ranked room: the profile ids of the two players the ladder matched, and whether the result has gone back to it. */
   ranked?: { ids: string[]; reported?: boolean };
+  /** An unranked game's rewards have been paid (to each signed-in player), once per game. */
+  rewarded?: boolean;
 }
 
 export interface LastMove {
@@ -48,6 +50,16 @@ export interface LastMove {
   /** The card that was played (unless it was set face down). */
   played?: string;
   faceDown?: boolean;
+}
+
+/** What a game paid an account: the reward with any level-up bonus (see server/economy.ts). */
+export interface Payout {
+  stardust: number;
+  flux: number;
+  xp: number;
+  rank?: number;
+  levelsGained: number;
+  bonus: { stardust: number; flux: number };
 }
 
 /** What a client may send. */
@@ -70,7 +82,9 @@ export type ServerMessage =
   /** `waitFor`: 'you' when you must confirm your rival's card, 'rival' while they read yours. */
   | { t: 'state'; state: GameState; you: string; last: LastMove | null; names: string[]; waitFor: 'you' | 'rival' | null; ranked: boolean }
   /** A ranked game's result for you: what it earned, and where it left you on the ladder. */
-  | { t: 'ranked'; won: boolean; reward: { stardust: number; flux: number; xp: number; rank?: number }; rankPoints: number; rankName: string }
+  | { t: 'ranked'; won: boolean; reward: Payout; rankPoints: number; rankName: string }
+  /** An unranked game's result for you: what the server paid into your account (null: nothing, e.g. not signed in). */
+  | { t: 'reward'; won: boolean; reward: Payout | null }
   | { t: 'error'; message: string }
   | { t: 'pong' }
   /** Whether the other player is connected right now (sent by the worker as connections come and go). */
@@ -221,6 +235,7 @@ function start(room: RoomData, random: () => number) {
   // A coin toss for the first game; after that, whoever went second goes first.
   room.first = room.played ? 1 - room.first : random() < 0.5 ? 0 : 1;
   room.played = true;
+  room.rewarded = false;
   for (const s of room.seats) s.ready = false;
   const order = [room.seats[room.first], room.seats[1 - room.first]];
   room.game = createGame({

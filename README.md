@@ -58,14 +58,23 @@ Wrangler prints the address, e.g. `https://blue-loop.<your-subdomain>.workers.de
 
 ## Accounts
 
-Accounts (email and password) live in a Cloudflare **D1** database, `blue-loop-accounts`, bound to the Worker as `DB` in `wrangler.toml`. The schema is in `migrations/`; it is already applied to the live database. A new migration is applied with:
+Accounts live in a Cloudflare **D1** database, `blue-loop-accounts`, bound to the Worker as `DB` in `wrangler.toml`. The schema is in `migrations/` (already applied to the live database). Apply a new migration with:
 
 ```bash
 npx wrangler d1 migrations apply blue-loop-accounts --remote   # the live database
 npx wrangler d1 migrations apply blue-loop-accounts --local    # the one `npm run server` uses
 ```
 
-The API is at `/api/*` on the Worker (sign up, sign in, sign out, load and save progress, delete account). See "Accounts" in `docs/GAME_DESIGN.md`.
+The Terms of Service and Privacy Policy are `public/terms.html` and `public/privacy.html` (drafts: fill in the bracketed details and have them reviewed). If you change either, bump `TERMS_VERSION` / `PRIVACY_VERSION` in `server/accounts.ts`.
+
+**Optional sign-in features** are switched on by settings on the Worker (Cloudflare dashboard → Workers → blue-loop → Settings → Variables and Secrets). `keep_vars` in `wrangler.toml` keeps them across deploys. For local testing, put the same names in a `.dev.vars` file (it's git-ignored).
+
+| Setting | Type | What it turns on |
+| --- | --- | --- |
+| `RESEND_API_KEY` | Secret | Password reset emails, sent through [Resend](https://resend.com). Verify your sending domain there first. |
+| `MAIL_FROM` | Variable | The sender, e.g. `Blue Loop <noreply@yourdomain.com>` (on the domain you verified). |
+| `GOOGLE_CLIENT_ID` | Variable | Sign in with Google. In Google Cloud Console → APIs & Services → Credentials, create an OAuth client ID of type **Web application**, and add your game's address (e.g. `https://blue-loop.<you>.workers.dev`) to **Authorised JavaScript origins**. |
+| `APPLE_SERVICE_ID` | Variable | Sign in with Apple. In the Apple Developer portal → Identifiers, create a **Services ID**, enable Sign in with Apple, and add your game's domain and its address (as the return URL). Needs a paid Apple Developer account. |
 
 ## Native iPhone / iPad app (locked to landscape)
 

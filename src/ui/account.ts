@@ -1,13 +1,13 @@
 /**
- * Your account (see server/accounts.ts): sign up or sign in with an email and a
- * password, and your progress (profile, decks, campaign and settings) is kept
- * on the server, so it follows you to any device. Without one you play as a
- * guest, and progress stays on this device.
+ * Your account (see server/accounts.ts): everyone plays with one. Sign up with an email and a password
+ * (agreeing to the Terms and the Privacy Policy), or with Apple or Google.
  *
- * This device keeps a copy of everything (the game reads it as before); a
- * change is pushed to the account a moment later. Signing in loads the
- * account's copy; signing up takes this device's progress into the new account.
+ * - The save (name and emblem, decks, campaign, settings) lives on this device too, and is pushed to the
+ *   account a moment after each change; signing in loads the account's copy.
+ * - The economy (level, experience, currencies, collection, rank) is the server's: this device only keeps
+ *   a copy to show, and every change to it (boosters, crafting, rewards) is asked of the server.
  */
+import { reloadProfile, setEconomy, type EconomyFields } from './profile';
 
 /** What an account's progress is made of: these keys of this device's storage. */
 const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v2', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:ai-speed', 'blue-loop:auto-confirm'];
@@ -20,6 +20,8 @@ const PUSH_DELAY_MS = 2500;
 export interface AccountInfo {
   id: string;
   email: string;
+  /** Signs in with a password (false: with Apple or Google only). */
+  password?: boolean;
   /** The server's version of the progress this device has (for spotting a newer copy elsewhere). */
   updated: number;
 }
@@ -100,6 +102,12 @@ function collect(): Save {
   return out;
 }
 
+/** Whether two saves hold the same progress. */
+function sameSave(a: unknown, b: Save): boolean {
+  if (!a || typeof a !== 'object') return false;
+  return SYNCED.every((k) => ((a as Save)[k] ?? null) === (b[k] ?? null));
+}
+
 /** Take a copy of the account's progress onto this device (in place of what was here). */
 function apply(save: unknown) {
   if (!save || typeof save !== 'object') return;
@@ -114,36 +122,156 @@ function apply(save: unknown) {
   }
 }
 
-function remember(a: { id: string; email: string }, updated: number, token?: unknown) {
-  write(ACCOUNT_KEY, { id: a.id, email: a.email, updated });
-  if (isNative() && typeof token === 'string') write(TOKEN_KEY, token);
+/** A session began (signed up, signed in, or a new password set): keep it, and take up the account's progress. */
+function began(d: Record<string, unknown>) {
+  const a = d.account as AccountInfo;
+  write(ACCOUNT_KEY, { id: a.id, email: a.email, password: a.password, updated: Number(d.updated) });
+  if (isNative() && typeof d.token === 'string') write(TOKEN_KEY, d.token);
+  if (d.save) apply(d.save);
+  reloadProfile();
+  setEconomy(d.economy as EconomyFields);
+  if (!d.save) schedulePush(0);
 }
 
-/**
- * Create an account: this device's progress becomes the account's. Returns why not, or null once done.
- * (The page reloads after a sign-in or sign-out, so everything reads the new progress.)
- */
-export async function signUp(email: string, password: string): Promise<string | null> {
+/** What went wrong, and whether it was that a new account must agree to the Terms and the Privacy Policy first. */
+export interface AuthResult {
+  error: string | null;
+  needsAgreement?: boolean;
+}
+
+async function session(path: string, payload: unknown): Promise<AuthResult> {
   try {
-    const d = await api('signup', 'POST', { email, password, save: collect() });
-    remember(d.account as AccountInfo, Number(d.updated), d.token);
+    began(await api(path, 'POST', payload));
+    return { error: null };
+  } catch (e) {
+    const err = e as ApiError;
+    return { error: err.message, needsAgreement: !!err.data?.needsAgreement };
+  }
+}
+
+/** Create an account (this device's settings and decks come along). The page reloads after, to read it all. */
+export function signUp(email: string, password: string, acceptTerms: boolean, acceptPrivacy: boolean): Promise<AuthResult> {
+  return session('signup', { email, password, acceptTerms, acceptPrivacy, save: collect() });
+}
+
+/** Sign in: the account's progress replaces this device's. */
+export function logIn(email: string, password: string): Promise<AuthResult> {
+  return session('login', { email, password });
+}
+
+/** Sign in with Apple or Google (a new account needs `accept` true: the Terms and the Privacy Policy agreed to). */
+export function logInWith(provider: 'apple' | 'google', idToken: string, nonce: string, accept = false): Promise<AuthResult> {
+  return session('oauth', { provider, idToken, nonce, acceptTerms: accept, acceptPrivacy: accept, save: collect() });
+}
+
+/** Ask for a password-reset email. Returns why not, or null (sent, if the account exists). */
+export async function requestReset(email: string): Promise<string | null> {
+  try {
+    await api('reset/request', 'POST', { email });
     return null;
   } catch (e) {
     return (e as Error).message;
   }
 }
 
-/** Sign in: the account's progress replaces this device's (a new account with none takes this device's). */
-export async function logIn(email: string, password: string): Promise<string | null> {
+/** Set a new password from a reset link's token (and sign in). */
+export function confirmReset(token: string, password: string): Promise<AuthResult> {
+  return session('reset/confirm', { token, password });
+}
+
+/** What the server offers: Apple and Google sign-in (their app ids), password reset by email, and the documents' versions. */
+export interface ServerConfig {
+  google: string | null;
+  apple: string | null;
+  reset: boolean;
+}
+let configCache: Promise<ServerConfig> | null = null;
+export function serverConfig(): Promise<ServerConfig> {
+  configCache ??= api('config').then(
+    (d) => ({ google: (d.google as string) || null, apple: (d.apple as string) || null, reset: !!d.reset }),
+    () => {
+      configCache = null;
+      return { google: null, apple: null, reset: false };
+    },
+  );
+  return configCache;
+}
+
+// ---------------------------------------------------------------------------
+// The economy: asked of the server
+// ---------------------------------------------------------------------------
+
+/** Ask the server to change the economy; the copy here takes up its answer. Returns the answer, or throws why not. */
+async function economyCall(path: string, payload: unknown): Promise<Record<string, unknown>> {
+  const d = await api(path, 'POST', payload);
+  if (d.economy) setEconomy(d.economy as EconomyFields);
+  return d;
+}
+
+/** Buy and open a booster. Its cards, or why not. */
+export async function buyBooster(kind: number | 'general'): Promise<{ cards: { id: string; isNew: boolean; flux: number }[] } | { error: string }> {
   try {
-    const d = await api('login', 'POST', { email, password });
-    remember(d.account as AccountInfo, Number(d.updated), d.token);
-    if (d.save) apply(d.save);
-    else schedulePush(0);
+    const d = await economyCall('booster', { kind });
+    return { cards: d.cards as { id: string; isNew: boolean; flux: number }[] };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/** Craft a copy of a card, or break one down. Why not, or null once done. */
+export async function craftCard(id: string): Promise<string | null> {
+  try {
+    await economyCall('craft', { id });
     return null;
   } catch (e) {
     return (e as Error).message;
   }
+}
+export async function breakCard(id: string): Promise<string | null> {
+  try {
+    await economyCall('breakdown', { id });
+    return null;
+  } catch (e) {
+    return (e as Error).message;
+  }
+}
+
+/** A game against the AI begins: the server notes it, so its reward can be paid once it ends. Its id (null: offline). */
+export async function startAiGame(): Promise<string | null> {
+  try {
+    return String((await api('game/start', 'POST', { kind: 'ai' })).gameId);
+  } catch {
+    return null;
+  }
+}
+
+/** A game against the AI ended: the server pays its reward (null: none, e.g. too short, or today's limit reached). */
+export async function finishAiGame(gameId: string, won: boolean, conceded: boolean): Promise<Payout | null> {
+  try {
+    return ((await economyCall('game/finish', { gameId, won, conceded })).payout as Payout | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Take up the account's economy as the server has it now (after an online game, which the server paid). */
+export async function refreshEconomy() {
+  try {
+    const d = await api('me');
+    setEconomy(d.economy as EconomyFields);
+  } catch {
+    // Offline: the copy here stands.
+  }
+}
+
+/** What a game paid (the reward, with any level-up bonus). */
+export interface Payout {
+  stardust: number;
+  flux: number;
+  xp: number;
+  rank?: number;
+  levelsGained: number;
+  bonus: { stardust: number; flux: number };
 }
 
 /** Sign out: the account's progress leaves this device (it is on the server), and you're a new guest here. */
@@ -162,7 +290,7 @@ export async function logOut() {
 /** Delete the account and everything in it. Returns why not, or null once done. */
 export async function deleteAccount(password: string): Promise<string | null> {
   try {
-    await api('delete', 'POST', { password });
+    await api('delete', 'POST', { password, confirm: password });
   } catch (e) {
     return (e as Error).message;
   }
@@ -241,9 +369,13 @@ export async function checkIn(): Promise<boolean> {
   try {
     const d = await api('me');
     const updated = Number(d.updated);
+    // The economy is the server's: take it up every time.
+    setEconomy(d.economy as EconomyFields);
     if (updated > a.updated && d.save) {
-      apply(d.save);
       write(ACCOUNT_KEY, { ...a, updated });
+      // Only a copy that differs from this device's needs taking up (and a reload to read it).
+      if (sameSave(d.save, collect())) return false;
+      apply(d.save);
       return true;
     }
     if (updated < a.updated || !d.save) schedulePush(0);

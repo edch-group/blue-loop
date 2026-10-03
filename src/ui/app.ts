@@ -6,7 +6,6 @@ import {
   boostable,
   boosterPool,
   BOOSTERS,
-  gameReward,
   PROGRESSION,
   rankName,
   RANK_TIERS,
@@ -71,8 +70,8 @@ import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, puls
 import { cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
-import { buyBooster, grantReward, profile, setRankPoints, signedIn, signIn, signOut, type RewardResult } from './profile';
-import { account, checkIn, deleteAccount, logIn, logOut, markDirty, onProgressReplaced, signUp } from './account';
+import { profile, signedIn, signIn } from './profile';
+import { account, buyBooster, checkIn, flush, confirmReset, deleteAccount, finishAiGame, logIn, logInWith, logOut, markDirty, onProgressReplaced, refreshEconomy, requestReset, serverConfig, signUp, startAiGame, type AuthResult, type Payout, type ServerConfig } from './account';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
@@ -156,6 +155,50 @@ type Sheet =
 const MENU_NAV = new Set(['menu-page', 'open-decks', 'campaign-new', 'campaign-continue', 'continue', 'new-game', 'to-menu']);
 const MENU_LEAVE_MS = 300;
 const SPEED_KEY = 'blue-loop:ai-speed';
+/** Load a script from another site once (Apple's and Google's sign-in). */
+const scripts = new Map<string, Promise<void>>();
+function loadScript(src: string): Promise<void> {
+  let p = scripts.get(src);
+  if (!p) {
+    p = new Promise<void>((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = src;
+      el.async = true;
+      el.onload = () => resolve();
+      el.onerror = () => {
+        scripts.delete(src);
+        reject(new Error(src));
+      };
+      document.head.appendChild(el);
+    });
+    scripts.set(src, p);
+  }
+  return p;
+}
+
+/** The native app (Apple's and Google's web sign-ins don't run in its web view). */
+function isNativeApp(): boolean {
+  return location.protocol === 'capacitor:' || !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+}
+
+/** The parts of Google's and Apple's sign-in scripts the game uses. */
+interface GoogleId {
+  accounts: {
+    id: {
+      initialize(o: { client_id: string; nonce: string; callback: (r: { credential?: string }) => void; use_fedcm_for_prompt?: boolean }): void;
+      prompt(cb?: (n: { isNotDisplayed?: () => boolean; isSkippedMoment?: () => boolean }) => void): void;
+    };
+  };
+}
+interface AppleId {
+  auth: {
+    init(o: { clientId: string; scope: string; redirectURI: string; usePopup: boolean; nonce: string }): void;
+    signIn(): Promise<{ authorization?: { id_token?: string } }>;
+  };
+}
+
+/** The server's id for the saved game against the AI (see begin). */
+const AI_GAME_KEY = 'blue-loop:ai-game';
 /** A rival's cards land by themselves after a moment, rather than waiting for OK. */
 const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
@@ -293,11 +336,24 @@ export class App {
    * The sign-in page: an account to sign in to (or create), or (for a guest, or once signed in) the name
    * and emblem you go by.
    */
-  private authMode: 'signin' | 'signup' | 'name' = 'signin';
+  private authMode: 'signin' | 'signup' | 'name' | 'forgot' | 'reset' = 'signin';
   private authEmail = '';
   private authPassword = '';
   private authError = '';
+  private authNote = '';
   private authBusy = false;
+  /** Signing up: the Terms of Service and the Privacy Policy, each agreed to (ticked). */
+  private agreeTerms = false;
+  private agreePrivacy = false;
+  /** A password-reset link's token (from ?reset=), while setting the new password. */
+  private resetToken = '';
+  /** An Apple or Google sign-in waiting for a new account to agree to the Terms and the Privacy Policy. */
+  private pendingOAuth: { provider: 'apple' | 'google'; idToken: string; nonce: string } | null = null;
+  /** What the server offers (Apple and Google sign-in, password reset), once it has said. */
+  private serverOffers: ServerConfig = { google: null, apple: null, reset: false };
+  /** The server's id for the game against the AI being played (its reward is claimed with it). */
+  private aiGameId: string | null = null;
+  private gamesBegun = 0;
   /** The profile view's delete-account step, and the password typed for it. */
   private deleting = false;
   private deletePassword = '';
@@ -501,6 +557,19 @@ export class App {
     }
     if (after) this.menuPage = signedIn() ? 'hub' : 'signin';
     if (after && !signedIn()) this.authMode = 'name';
+    // What sign-ins the server offers (Apple, Google, password reset).
+    void serverConfig().then((c) => {
+      this.serverOffers = c;
+      if (this.menuPage === 'signin') this.render();
+    });
+    // A password-reset link (?reset=TOKEN): choose a new password.
+    const reset = new URLSearchParams(location.search).get('reset');
+    if (reset && /^[a-f0-9]{64}$/.test(reset)) {
+      this.resetToken = reset;
+      this.authMode = 'reset';
+      this.menuPage = 'signin';
+      history.replaceState(null, '', location.pathname);
+    }
     // An invite link (?room=CODE) opens the online page, ready to join.
     const invited = cleanCode(new URLSearchParams(location.search).get('room') ?? '');
     if (invited) {
@@ -555,10 +624,18 @@ export class App {
           this.onRemoteState(state, you, last);
         },
         ranked: (r) => {
-          // The ladder's word on a ranked game: what it earned, and where it left you.
-          setRankPoints(r.rankPoints);
-          this.resultExtra = this.rewardLine(grantReward(r.reward, r.won));
-          this.render();
+          // The ladder's word on a ranked game: what the server paid you, and where it left you.
+          void refreshEconomy().then(() => {
+            this.resultExtra = this.rewardLine(r.reward);
+            this.render();
+          });
+        },
+        reward: (_won, r) => {
+          // An unranked online game: the server paid it into your account.
+          void refreshEconomy().then(() => {
+            this.resultExtra = r ? this.rewardLine(r) : '';
+            this.render();
+          });
         },
         presence: (rivalOnline) => {
           if (this.net.rivalOnline === rivalOnline) return;
@@ -599,12 +676,10 @@ export class App {
     const p = profile();
     this.net.searching = true;
     this.ladder = new LadderClient(p.id, this.joinInfo().name, {
-      queued: (rp) => {
-        setRankPoints(rp);
+      queued: () => {
         this.render();
       },
-      match: (room, rival, rp) => {
-        setRankPoints(rp);
+      match: (room, rival) => {
         this.ladder?.close();
         this.ladder = null;
         this.net.searching = false;
@@ -908,7 +983,38 @@ export class App {
     if (saved) this.begin(saved);
   }
 
+  /** Which server game a saved game against the AI is (so a continued game can still claim its reward). */
+  private rememberAiGame(id: string | null) {
+    try {
+      if (id) localStorage.setItem(AI_GAME_KEY, id);
+      else localStorage.removeItem(AI_GAME_KEY);
+    } catch {
+      // Not available.
+    }
+  }
+
   private begin(state: GameState) {
+    this.gamesBegun++;
+    // A game against the AI: a new one is noted by the server (for its reward); a continued one keeps its id.
+    const humans = state.players.filter((p) => !p.isAI).length;
+    if (humans === 1 && !state.winnerId) {
+      if (state.turnNumber <= 1) {
+        this.aiGameId = null;
+        this.rememberAiGame(null);
+        const begun = this.gamesBegun;
+        void startAiGame().then((id) => {
+          if (begun !== this.gamesBegun) return;
+          this.aiGameId = id;
+          this.rememberAiGame(id);
+        });
+      } else {
+        try {
+          this.aiGameId = localStorage.getItem(AI_GAME_KEY);
+        } catch {
+          this.aiGameId = null;
+        }
+      }
+    } else this.aiGameId = null;
     this.state = state;
     this.revealedFor = null;
     this.viewerId = null;
@@ -1437,7 +1543,7 @@ export class App {
   private resultExtra = '';
 
   /** What a reward came to, for under the result. */
-  private rewardLine(r: RewardResult): string {
+  private rewardLine(r: Payout): string {
     const parts = [`✦ +${r.stardust}`, `⟁ +${r.flux}`, `+${r.xp} xp`];
     const up = r.levelsGained ? `<b class="rw-level">level ${profile().level}!</b>` : '';
     const rank = r.rank !== undefined && profile().rankPoints !== null ? `<span class="rw-rank">${r.rank >= 0 ? '+' : ''}${r.rank} rank · ${esc(rankName(profile().rankPoints!).toLowerCase())}</span>` : '';
@@ -1453,10 +1559,16 @@ export class App {
     this.resultExtra = '';
     const viewer = next.players.find((p) => p.id === this.viewer().id);
     const humans = next.players.filter((p) => !p.isAI).length;
-    const kind = this.online ? (this.net.ranked ? null : 'online') : humans === 1 ? 'ai' : null;
-    if (viewer && kind) {
+    // Against the AI: the server pays the reward for the game it saw start (an online game's, it pays by itself).
+    const gameId = this.aiGameId;
+    if (viewer && !this.online && humans === 1 && gameId) {
+      this.aiGameId = null;
+      this.rememberAiGame(null);
       const won = next.winnerId === viewer.id;
-      this.resultExtra = this.rewardLine(grantReward(gameReward(kind, won, { conceded: next.concededBy === viewer.id }), won));
+      void finishAiGame(gameId, won, next.concededBy === viewer.id).then((p) => {
+        this.resultExtra = p ? this.rewardLine(p) : '<div class="result-rewards"><span>no reward for this game</span></div>';
+        this.render();
+      });
     }
     const wait = reducedMotion() ? 300 : (action.type === 'endTurn' || action.type === 'dawn' ? this.replayLength(next) : 900) + 1800;
     this.resultAt = Date.now() + wait;
@@ -2123,15 +2235,18 @@ export class App {
         return this.findRanked();
       case 'buy-booster': {
         const kind: BoosterKind = arg === 'general' ? 'general' : (Number(arg) as BoosterKind);
-        const cards = buyBooster(kind);
-        if (!cards) {
-          this.showToast(`A booster costs ✦${PROGRESSION.boosterPrice} stardust.`, 'info');
-          sound.error();
-          return;
-        }
-        this.opened = { kind, cards };
-        sound.shuffle();
-        return this.render();
+        // The server opens it (it keeps your collection); the pack tears open once it answers.
+        void buyBooster(kind).then((res) => {
+          if ('error' in res) {
+            this.showToast(res.error, 'info');
+            sound.error();
+            return this.render();
+          }
+          this.opened = { kind, cards: res.cards as BoosterCard[] };
+          sound.shuffle();
+          this.render();
+        });
+        return;
       }
       case 'close-booster':
         this.opened = null;
@@ -2146,25 +2261,13 @@ export class App {
         this.profileOpen = false;
         return this.render();
       case 'profile-logout':
+        // Signing out: the account's progress leaves this device with it (it's safe on the server).
         this.profileOpen = false;
-        // Signed in to an account: its progress leaves this device with it.
-        if (account()) {
-          void logOut().then(() => location.reload());
-          return;
-        }
-        signOut();
-        this.menuPage = 'title';
-        return this.render();
+        void logOut().then(() => location.reload());
+        return;
       case 'profile-rename':
         this.profileOpen = false;
         this.authMode = 'name';
-        this.menuPage = 'signin';
-        return this.render();
-      case 'profile-account':
-        // A guest saves their progress to a new account.
-        this.profileOpen = false;
-        this.authMode = 'signup';
-        this.authError = '';
         this.menuPage = 'signin';
         return this.render();
       case 'profile-delete':
@@ -2186,42 +2289,19 @@ export class App {
         });
         return;
       case 'auth-mode':
-        this.authMode = arg === 'signup' ? 'signup' : arg === 'name' ? 'name' : 'signin';
-        this.authError = '';
+        this.authMode = arg === 'signup' ? 'signup' : arg === 'forgot' ? 'forgot' : 'signin';
+        this.authError = this.authNote = '';
+        this.pendingOAuth = null;
         return this.render();
-      case 'auth-go': {
-        if (this.authBusy) return;
-        const up = this.authMode === 'signup';
-        this.authBusy = true;
-        this.authError = '';
-        this.render();
-        void (up ? signUp(this.authEmail, this.authPassword) : logIn(this.authEmail, this.authPassword)).then((why) => {
-          this.authBusy = false;
-          this.authPassword = '';
-          if (why) {
-            this.authError = why;
-            return this.render();
-          }
-          if (up) {
-            // This device's progress is the account's now: name yourself if you haven't, then on to the hub.
-            if (!signedIn()) {
-              this.authMode = 'name';
-              return this.render();
-            }
-            this.menuPage = 'hub';
-            this.showToast('Account created: your progress is saved to it.', 'info');
-            return this.render();
-          }
-          // Signed in: reload to read the account's progress.
-          try {
-            sessionStorage.setItem('blue-loop:signed-in', '1');
-          } catch {
-            // Not available.
-          }
-          location.reload();
-        });
-        return;
-      }
+      case 'auth-agree':
+        if (arg === 'terms') this.agreeTerms = !this.agreeTerms;
+        else this.agreePrivacy = !this.agreePrivacy;
+        return this.render();
+      case 'auth-go':
+        return this.submitAuth();
+      case 'auth-google':
+      case 'auth-apple':
+        return this.socialSignIn(act === 'auth-apple' ? 'apple' : 'google');
       case 'signin-avatar':
         this.signinAvatar = Number(arg);
         return this.render();
@@ -2239,6 +2319,7 @@ export class App {
         return this.render();
       case 'menu-page':
         // Players sign in before they reach the hub.
+        // Everyone plays with an account: sign in (or make one), then name yourself.
         if (arg === 'hub' && !signedIn()) {
           this.authMode = account() ? 'name' : 'signin';
           this.menuPage = 'signin';
@@ -2611,20 +2692,19 @@ export class App {
             <div class="pv-box"><small>rank</small><b>${rank === null ? 'unranked' : esc(rankName(rank).toLowerCase())}</b>${r ? `<span class="pf-xp"><i style="width:${r.points}%"></i></span><small>${r.points} / ${PROGRESSION.stagePoints} to the next stage</small>` : '<span></span><small>play ranked online</small>'}</div>
           </div>
           ${this.accountRow()}
-          <div class="pv-actions"><button class="btn" data-act="profile-logout">${account() ? 'sign out' : 'log out'}</button><span class="setup-spacer"></span><button class="btn" data-act="profile-rename">change name or emblem</button><button class="btn-primary" data-act="profile-close">close</button></div>
+          <div class="pv-actions"><button class="btn" data-act="profile-logout">sign out</button><span class="setup-spacer"></span><button class="btn" data-act="profile-rename">change name or emblem</button><button class="btn-primary" data-act="profile-close">close</button></div>
         </div>
       </div>`;
   }
 
-  /** In the profile view: the account your progress is saved to (or, for a guest, the offer to make one). */
+  /** In the profile view: the account your progress is saved to, and deleting it. */
   private accountRow(): string {
     const a = account();
-    if (!a) {
-      return `<div class="pv-account"><span><b>guest</b><small>Your progress is only on this device.</small></span><button class="btn-primary" data-act="profile-account">create an account</button></div>`;
-    }
+    if (!a) return '';
+    const withPassword = a.password !== false;
     const del = this.deleting
-      ? `<div class="pv-delete"><small>This deletes your account and all its progress, for good. Enter your password to confirm.</small>
-          <input class="signin-name" type="password" data-delete-password value="" placeholder="password" autocomplete="current-password" aria-label="Password" />
+      ? `<div class="pv-delete"><small>This deletes your account and all its progress, for good. ${withPassword ? 'Enter your password' : 'Type DELETE'} to confirm.</small>
+          <input class="signin-name" type="${withPassword ? 'password' : 'text'}" data-delete-password value="" placeholder="${withPassword ? 'password' : 'DELETE'}" ${withPassword ? 'autocomplete="current-password"' : ''} aria-label="Confirm" />
           ${this.authError ? `<span class="auth-error">${esc(this.authError)}</span>` : ''}
           <div class="pv-actions"><button class="btn" data-act="profile-delete">cancel</button><button class="btn btn-danger" data-act="profile-delete-go" ${this.authBusy ? 'disabled' : ''}>delete account</button></div></div>`
       : '';
@@ -2645,9 +2725,112 @@ export class App {
     return `<div class="overlay overlay-soft zoom-view" data-act="zoom-close"><div class="zoom-card" data-act="zoom-close">${this.bigCard(this.zoomed!)}${this.explainCard(this.zoomed!)}</div><small class="muted">tap anywhere to close</small></div>`;
   }
 
+  /** After a sign-in, sign-up or new password: on to the hub (reloading, so everything reads the account's progress). */
+  private signedInNow() {
+    try {
+      sessionStorage.setItem('blue-loop:signed-in', '1');
+    } catch {
+      // Not available.
+    }
+    // (Anything still to send goes first, so the reloaded page doesn't find a newer copy and reload again.)
+    void flush().then(() => location.reload());
+  }
+
+  /** The sign-in page's form, sent: sign in, create an account, ask for a reset email, or set a new password. */
+  private submitAuth() {
+    if (this.authBusy) return;
+    const mode = this.authMode;
+    const signingUp = mode === 'signup' || !!this.pendingOAuth;
+    if (signingUp && !(this.agreeTerms && this.agreePrivacy)) {
+      this.authError = 'Agree to the Terms of Service and the Privacy Policy to create an account.';
+      return this.render();
+    }
+    this.authBusy = true;
+    this.authError = this.authNote = '';
+    this.render();
+    const done = (res: AuthResult) => {
+      this.authBusy = false;
+      this.authPassword = '';
+      if (res.error) {
+        this.authError = res.error;
+        // A new account, signing in with Apple or Google: agree first (the form shows the boxes), then go on.
+        if (!res.needsAgreement) this.pendingOAuth = null;
+        return this.render();
+      }
+      this.pendingOAuth = null;
+      this.signedInNow();
+    };
+    if (this.pendingOAuth) {
+      const o = this.pendingOAuth;
+      void logInWith(o.provider, o.idToken, o.nonce, true).then(done);
+    } else if (mode === 'signup') void signUp(this.authEmail, this.authPassword, this.agreeTerms, this.agreePrivacy).then(done);
+    else if (mode === 'reset') void confirmReset(this.resetToken, this.authPassword).then(done);
+    else if (mode === 'forgot') {
+      void requestReset(this.authEmail).then((why) => {
+        this.authBusy = false;
+        if (why) this.authError = why;
+        else this.authNote = `If there's an account for ${this.authEmail}, an email with a link to choose a new password is on its way.`;
+        this.render();
+      });
+    } else void logIn(this.authEmail, this.authPassword).then(done);
+  }
+
   /**
-   * Signing in: to an account (email and password), or creating one, or playing as a guest; then the
-   * name and emblem you go by.
+   * Sign in with Apple or Google: their own sign-in (a popup), whose signed token the server checks. A new
+   * account is made on the spot, once its player has agreed to the Terms and the Privacy Policy.
+   */
+  private socialSignIn(provider: 'apple' | 'google') {
+    const clientId = provider === 'apple' ? this.serverOffers.apple : this.serverOffers.google;
+    if (!clientId || this.authBusy) return;
+    const nonce = crypto.getRandomValues(new Uint32Array(4)).join('');
+    this.authError = '';
+    const go = (idToken: string) => {
+      this.authBusy = true;
+      this.render();
+      void logInWith(provider, idToken, nonce, this.agreeTerms && this.agreePrivacy).then((res) => {
+        this.authBusy = false;
+        if (!res.error) return this.signedInNow();
+        if (res.needsAgreement) {
+          // New here: tick the boxes, then carry on (the sign-in is kept meanwhile).
+          this.pendingOAuth = { provider, idToken, nonce };
+          this.authMode = 'signup';
+        }
+        this.authError = res.error;
+        this.render();
+      });
+    };
+    const fail = (why = `Couldn't sign in with ${provider === 'apple' ? 'Apple' : 'Google'}.`) => {
+      this.authError = why;
+      this.render();
+    };
+    if (provider === 'google') {
+      void loadScript('https://accounts.google.com/gsi/client').then(() => {
+        const g = (window as unknown as { google?: GoogleId }).google;
+        if (!g) return fail();
+        g.accounts.id.initialize({ client_id: clientId, nonce, callback: (r) => (r.credential ? go(r.credential) : fail()), use_fedcm_for_prompt: true });
+        g.accounts.id.prompt((n) => {
+          if (n.isNotDisplayed?.() || n.isSkippedMoment?.()) fail('Google sign-in was closed. Allow pop-ups and try again.');
+        });
+      }, () => fail());
+    } else {
+      void loadScript('https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js').then(async () => {
+        const apple = (window as unknown as { AppleID?: AppleId }).AppleID;
+        if (!apple) return fail();
+        apple.auth.init({ clientId, scope: 'email', redirectURI: location.origin, usePopup: true, nonce });
+        try {
+          const r = await apple.auth.signIn();
+          if (r?.authorization?.id_token) go(r.authorization.id_token);
+          else fail();
+        } catch {
+          fail('Apple sign-in was closed.');
+        }
+      }, () => fail());
+    }
+  }
+
+  /**
+   * Signing in: to your account (email and password, or Apple or Google), creating one (agreeing to the
+   * Terms and the Privacy Policy), or a new password; then the name and emblem you go by.
    */
   private renderSignIn(): string {
     const p = profile();
@@ -2663,20 +2846,48 @@ export class App {
         <button class="btn-primary" data-act="signin-go">continue</button>
       </div>`;
     }
-    const up = this.authMode === 'signup';
+    const mode = this.authMode;
+    const o = this.serverOffers;
+    const heading = { signin: 'sign in', signup: 'create account', forgot: 'reset password', reset: 'new password' }[mode];
+    const email = mode === 'reset' || this.pendingOAuth ? '' : `<input class="signin-name" type="email" data-auth-email value="${esc(this.authEmail)}" placeholder="email" autocomplete="email" aria-label="Email" />`;
+    const password =
+      mode === 'forgot' || this.pendingOAuth
+        ? ''
+        : `<input class="signin-name" type="password" data-auth-password value="" placeholder="${mode === 'signin' ? 'password' : 'password (8+ characters)'}" autocomplete="${mode === 'signin' ? 'current-password' : 'new-password'}" aria-label="Password" />`;
+    const tick = (key: 'terms' | 'privacy', on: boolean, label: string) =>
+      `<button class="auth-tick ${on ? 'on' : ''}" type="button" data-act="auth-agree" data-arg="${key}" role="checkbox" aria-checked="${on}"><i class="db-check"></i><span>${label}</span></button>`;
+    const agree =
+      mode === 'signup'
+        ? `<div class="auth-agree">
+            ${tick('terms', this.agreeTerms, 'I agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a>')}
+            ${tick('privacy', this.agreePrivacy, 'I have read and accept the <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>')}
+          </div>`
+        : '';
+    const action = { signin: 'sign in', signup: this.pendingOAuth ? 'create account' : 'create account', forgot: 'send link', reset: 'set password' }[mode];
+    // Apple and Google, where the server offers them (not in the native app, whose web view they don't allow).
+    const social =
+      (mode === 'signin' || mode === 'signup') && !this.pendingOAuth && !isNativeApp() && (o.apple || o.google)
+        ? `<div class="auth-social">
+            ${o.apple ? '<button class="btn auth-sso" type="button" data-act="auth-apple"><span class="sso-mark"></span>continue with Apple</button>' : ''}
+            ${o.google ? '<button class="btn auth-sso" type="button" data-act="auth-google"><span class="sso-mark sso-g">G</span>continue with Google</button>' : ''}
+          </div><div class="auth-or"><span>or</span></div>`
+        : '';
+    const links =
+      mode === 'signin'
+        ? `<button class="link-btn" type="button" data-act="auth-mode" data-arg="signup">new here? create an account</button>${o.reset ? '<button class="link-btn" type="button" data-act="auth-mode" data-arg="forgot">forgot password?</button>' : ''}`
+        : `<button class="link-btn" type="button" data-act="auth-mode" data-arg="signin">${mode === 'signup' ? 'I have an account: sign in' : 'back to sign in'}</button>`;
     return `
       ${back}
       <form class="signin" onsubmit="return false">
         ${this.titleBlock(true)}
-        <h2 class="menu-heading">${up ? 'create account' : 'sign in'}</h2>
-        <input class="signin-name" type="email" data-auth-email value="${esc(this.authEmail)}" placeholder="email" autocomplete="email" aria-label="Email" />
-        <input class="signin-name" type="password" data-auth-password value="" placeholder="${up ? 'password (8+ characters)' : 'password'}" autocomplete="${up ? 'new-password' : 'current-password'}" aria-label="Password" />
-        ${this.authError ? `<span class="auth-error">${esc(this.authError)}</span>` : up && signedIn() ? '<small class="auth-note">Your progress on this device goes into the new account.</small>' : ''}
-        <button class="btn-primary" type="submit" data-act="auth-go" ${this.authBusy ? 'disabled' : ''}>${this.authBusy ? '…' : up ? 'create account' : 'sign in'}</button>
-        <div class="auth-alt">
-          <button class="link-btn" type="button" data-act="auth-mode" data-arg="${up ? 'signin' : 'signup'}">${up ? 'I have an account: sign in' : 'new here? create an account'}</button>
-          ${account() ? '' : '<button class="link-btn" type="button" data-act="auth-mode" data-arg="name">play as a guest</button>'}
-        </div>
+        <h2 class="menu-heading">${heading}</h2>
+        ${this.pendingOAuth ? `<small class="auth-note">One last thing before your account is made:</small>` : social}
+        ${email}
+        ${password}
+        ${agree}
+        ${this.authError ? `<span class="auth-error">${esc(this.authError)}</span>` : this.authNote ? `<small class="auth-note">${esc(this.authNote)}</small>` : ''}
+        <button class="btn-primary" type="submit" data-act="auth-go" ${this.authBusy ? 'disabled' : ''}>${this.authBusy ? '…' : action}</button>
+        <div class="auth-alt">${links}</div>
       </form>`;
   }
 

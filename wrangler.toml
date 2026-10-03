@@ -3,6 +3,8 @@
 name = "blue-loop"
 main = "server/worker.ts"
 compatibility_date = "2025-09-01"
+# Variables set in the Cloudflare dashboard (MAIL_FROM, GOOGLE_CLIENT_ID, APPLE_SERVICE_ID) survive each deploy.
+keep_vars = true
 
 [assets]
 directory = "./dist"
