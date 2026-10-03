@@ -27,7 +27,6 @@ import {
   RACE_SLOTS,
   SLOT_NAME,
   XP_LEVELS,
-  type Item,
   battleOdds,
   logInSight,
   collapsesPerTurn,
@@ -70,6 +69,7 @@ import {
 } from '../engine';
 import { markDirty } from './account';
 import { DeckBuilder, type BuilderMode } from './builder';
+import { heroFigure, skillTree } from './heroview';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
 import { cardArtLite, cardGlyph, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
@@ -296,6 +296,9 @@ export class CampaignView {
   private setup = { rivals: 3, race: 0 };
   /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
   private waiting: { factionId: string | null; lines: string[] } | null = null;
+  /** In the heroes tab: the skill and the gear slot picked. */
+  private skillPick: string | null = null;
+  private slotPick: string | null = null;
   /** Visits to the armoury's keepers (each visit, they say something else). */
   private keeperVisit = 0;
   /** The base's deck and armoury: the main deck builder, put to the campaign's use. */
@@ -598,6 +601,15 @@ export class CampaignView {
         break;
       case 'cmp-hero':
         this.sheet = { kind: 'heroes', hero: arg };
+        this.skillPick = this.slotPick = null;
+        sound.hover();
+        break;
+      case 'cmp-skill-pick':
+        this.skillPick = arg;
+        sound.hover();
+        break;
+      case 'cmp-slot-pick':
+        this.slotPick = arg || null;
         sound.hover();
         break;
       case 'cmp-learn':
@@ -611,7 +623,7 @@ export class CampaignView {
         const h = heroState(me, hero);
         // Into an empty slot of its kind, else the first of its kind (swapping).
         const fit = RACE_SLOTS[me.race].filter((x) => item && x.kind === item.slot);
-        const slot = fit.find((x) => !h.gear[x.id]) ?? fit[0];
+        const slot = fit.find((x) => x.id === this.slotPick) ?? fit.find((x) => !h.gear[x.id]) ?? fit[0];
         if (slot && this.apply({ type: 'equip', hero, itemId: arg, slot: slot.id })) sound.shield();
         break;
       }
@@ -1778,52 +1790,31 @@ export class CampaignView {
         const pts = skillPoints(h);
         return `<button class="cmp-hero-row ${g === pick ? 'on' : ''}" data-act="cmp-hero" data-arg="${g}">
           ${portrait(g)}
-          <span><b>${lower(cardDef(g).name)}</b><small>level ${heroLevel(h.xp)} · ${army ? 'leads an army' : 'not in the field'}</small>${bar(h.xp)}</span>
+          <span><b>${lower(cardDef(g).name)}</b><small>level ${heroLevel(h.xp)} · ${army ? 'in the field' : 'at rest'}</small>${bar(h.xp)}</span>
           ${pts > 0 ? `<i class="cmp-points" title="Skill points to spend">${pts}</i>` : ''}
         </button>`;
       })
       .join('');
     const h = heroState(me, pick);
     const pts = skillPoints(h);
-    const slots = RACE_SLOTS[me.race]
-      .map((sl) => {
-        const it = h.gear[sl.id];
-        return it
-          ? `<button class="cmp-slot cmp-slot-full rarity-${it.rarity}" data-act="cmp-unequip" data-arg="${sl.id}" title="Take it off">
-              <small>${lower(SLOT_NAME[sl.kind])}</small><b>${esc(it.name)}</b><span>${esc(it.text)}</span></button>`
-          : `<div class="cmp-slot"><small>${lower(SLOT_NAME[sl.kind])}</small><span class="muted">empty</span></div>`;
-      })
+    const slots = RACE_SLOTS[me.race].map((sl) => ({ ...sl, name: SLOT_NAME[sl.kind] }));
+    const picked = this.slotPick && slots.some((x) => x.id === this.slotPick) ? this.slotPick : null;
+    const pickedKind = picked ? slots.find((x) => x.id === picked)!.kind : null;
+    const items = (me.items ?? []).filter((it) => !pickedKind || it.slot === pickedKind);
+    const stores = items
+      .map((it) => `<button class="hv-item rarity-${it.rarity}" data-act="cmp-equip" data-arg="${it.id}" title="Put it on ${esc(cardDef(pick).name)}"><small>${lower(SLOT_NAME[it.slot])}</small><b>${esc(it.name)}</b><span>${esc(it.text)}</span></button>`)
       .join('');
-    const fits = (it: Item) => RACE_SLOTS[me.race].some((sl) => sl.kind === it.slot);
-    const stores = (me.items ?? [])
-      .map((it) => `<button class="cmp-item rarity-${it.rarity}" data-act="cmp-equip" data-arg="${it.id}" ${fits(it) ? '' : 'disabled'} title="Put it on ${esc(cardDef(pick).name)}"><small>${lower(SLOT_NAME[it.slot])}</small><b>${esc(it.name)}</b><span>${esc(it.text)}</span></button>`)
-      .join('');
-    const tree = SKILL_TREES[pick] ?? [];
-    const branch = (b: 0 | 1) =>
-      tree
-        .filter((k) => k.branch === b)
-        .sort((x, y) => x.tier - y.tier)
-        .map((k) => {
-          const learned = h.skills.includes(k.id);
-          const why = learned ? null : learnProblem(pick, h, k.id);
-          const kind = { mod: 'in battle', march: 'on the map', sight: 'on the map', mend: 'on the map', loot: 'on the map', card: 'signature card', battle: k.effect.kind === 'battle' ? (k.effect.once ? 'once a battle' : `each day · ${k.effect.cost} energy`) : '' }[k.effect.kind];
-          return `<button class="cmp-skill ${learned ? 'learned' : why ? 'locked' : 'open'}" data-act="cmp-learn" data-arg="${k.id}" ${learned || why ? `disabled title="${esc(learned ? 'Learned' : why!)}"` : 'title="Learn it (1 point)"'}>
-            <small>${kind}</small><b>${esc(k.name)}</b><span>${esc(k.text)}</span></button>`;
-        })
-        .join('<i class="cmp-skill-link"></i>');
     return `
       <div class="cmp-heroes">
         <aside class="cmp-hero-list">${list}</aside>
-        <section class="cmp-hero">
-          <div class="cmp-hero-head">${portrait(pick)}<div><h3>${lower(cardDef(pick).name)}</h3><small>level ${heroLevel(h.xp)} · ${h.xp} experience${nextLevelXp(h.xp) !== null ? ` (next level at ${nextLevelXp(h.xp)})` : ''}</small>${bar(h.xp)}</div>
-            <span class="cmp-hero-pts ${pts > 0 ? 'on' : ''}">${pts} skill point${pts === 1 ? '' : 's'}</span></div>
-          <div class="section-label">gear</div>
-          <div class="cmp-slots">${slots}</div>
-          <div class="section-label">stores</div>
-          <div class="cmp-items">${stores || '<p class="muted">Nothing found yet. Armies find gear when they take systems: more, and better, the deeper they go.</p>'}</div>
-          <div class="section-label">skills</div>
-          <div class="cmp-tree"><div class="cmp-branch">${branch(0)}</div><div class="cmp-branch">${branch(1)}</div></div>
-          <p class="muted">Heroes gain experience from every battle they fight, most from a win, and a skill point with each level. Each branch is learned in order.</p>
+        <section class="hv-gear">
+          <div class="hv-gear-head"><b>${lower(cardDef(pick).name)}</b><small>level ${heroLevel(h.xp)} · ${h.xp} xp${nextLevelXp(h.xp) !== null ? ` · next at ${nextLevelXp(h.xp)}` : ''}</small>${bar(h.xp)}</div>
+          ${heroFigure({ race: me.race, slots, gear: h.gear, picked })}
+          <div class="hv-stores-head"><span>${picked ? `stores · ${lower(SLOT_NAME[pickedKind!])}` : 'stores'}</span>${picked ? '<button class="link-btn" data-act="cmp-slot-pick" data-arg="">show all</button>' : ''}</div>
+          <div class="hv-stores">${stores || `<p class="muted">${picked ? 'Nothing found for this slot yet.' : 'Nothing found yet. Armies find gear when they take systems: more, and better, the deeper they go.'}</p>`}</div>
+        </section>
+        <section class="hv-tree">
+          ${skillTree({ hero: pick, portrait: portrait(pick), tree: SKILL_TREES[pick] ?? [], learned: h.skills, problem: (id) => learnProblem(pick, h, id), points: pts, picked: this.skillPick })}
         </section>
       </div>`;
   }
