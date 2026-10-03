@@ -943,9 +943,11 @@ export class App {
     const newLeft = parseFloat(el.style.left);
     if (!Number.isFinite(oldLeft) || !Number.isFinite(newLeft) || Math.abs(oldLeft - newLeft) < 1) return;
     const rest = getComputedStyle(el).transform;
+    // (A Command card is held on its side: it stays so as it slides.)
+    const side = parseFloat(getComputedStyle(el).getPropertyValue('--side')) || 0;
     el.animate(
       [
-        { transform: `translate(${oldLeft - newLeft}px, ${Number.isFinite(oldFy) ? oldFy : 0}px) rotate(${Number.isFinite(oldRot) ? oldRot : 0}deg)` },
+        { transform: `translate(${oldLeft - newLeft}px, ${Number.isFinite(oldFy) ? oldFy : 0}px) rotate(${(Number.isFinite(oldRot) ? oldRot : 0) + side}deg)` },
         { transform: rest === 'none' ? 'none' : rest },
       ],
       { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' },
@@ -1180,8 +1182,9 @@ export class App {
       const uid = el.dataset.uid!;
       const old = before.cards.get(uid);
       if (old && el.parentElement?.classList.contains('hand') && old.html.includes('data-hand=')) {
-        // A card already in hand that the fan moved: slide it along the fan, in the hand's own space.
-        this.refan(el, old.html);
+        // A card already in hand that the fan moved: slide it along the fan, in the hand's own space. (A card
+        // kept through the redraw slides by itself: the fan's own transitions move it.)
+        if (!this.keptHand.has(el)) this.refan(el, old.html);
         return;
       }
       if (old) {
@@ -2265,6 +2268,8 @@ export class App {
   // Rendering
   // -------------------------------------------------------------------------
 
+  /** Cards in hand kept through the last redraw (not rebuilt). */
+  private keptHand = new WeakSet<HTMLElement>();
   /** Each card in hand's contents as drawn, to tell whether a redraw changed it. */
   private handMarkup = new WeakMap<HTMLElement, string>();
 
@@ -2277,11 +2282,13 @@ export class App {
     // Cards in hand that come out of the redraw unchanged are kept as they were (not rebuilt), so the
     // hand doesn't flicker and re-settle every time anything on the page changes.
     const held = new Map([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].map((el) => [el.dataset.uid!, el]));
+    this.keptHand = new WeakSet();
     this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
     this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]').forEach((el) => {
       const inner = el.innerHTML;
       const old = held.get(el.dataset.uid!);
       if (!old || this.handMarkup.get(old) !== inner) return this.handMarkup.set(el, inner);
+      this.keptHand.add(old);
       // The same card: only its own attributes (state classes, what a click does) can have changed. The
       // layout the fan gave it (left, angle) stays, and a hovered card stays lifted.
       const wasLifted = old.classList.contains('lifted');

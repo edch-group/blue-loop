@@ -917,7 +917,8 @@ input { font: inherit; }
   top: 8px;
   transform-origin: 50% 50%;
   transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg)));
-  transition: transform 0.18s ease-out, box-shadow 0.2s;
+  /* (A card kept in hand as the fan changes slides along to its new place: left and angle together.) */
+  transition: transform 0.24s cubic-bezier(.2,.8,.2,1), left 0.3s cubic-bezier(.2,.8,.2,1), box-shadow 0.2s;
   box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18);
 }
 .hand > .card.lifted, .hand > .card:focus-visible {
