@@ -258,7 +258,7 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | erode N / decay N | A rival card / every rival card loses N stability |
 | restore N / renew N | Another card / every other card of yours regains N stability |
 | recover (type) | A card (of that type) from your discard pile to your hand; with none there, draw |
-| abundance N | Draw N more at each of your dawns, while the card is in play (a one-off draw just says "Draw N"). |
+| abundance +N | Draw N more at each of your dawns, while the card is in play (a one-off draw just says "Draw N"). |
 | industry +N | N more energy every day, while the card is in play (a one-off boost reads "Gain" and a green energy dot per energy). A Command card's energy option is Industry, and its draw option Abundance, since a Command card's choice repeats at every dawn. |
 | recall | Another card of yours from your tableau to your hand |
 | destroy N / eject N | Destroy / return to hand a rival card with at most N defence |

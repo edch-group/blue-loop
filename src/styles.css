@@ -3203,7 +3203,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* "Gain" energy in card text: green energy dots, one per energy, like the energy lights. */
 .kw-gain { white-space: nowrap; }
 .kw-gain .gain-dots { display: inline-flex; gap: 0.18em; margin-left: 0.3em; vertical-align: -0.05em; }
-.kw-gain .gain-dots i { width: 0.72em; height: 0.72em; border-radius: 50%; background: #7cc79a; border: 0.1em solid #fff; box-shadow: 0 0 0.35em rgba(110, 196, 146, 0.75), 0 0.06em 0.12em rgba(20, 40, 30, 0.35); }
+.kw-gain .gain-dots i { width: 0.72em; height: 0.72em; border-radius: 50%; background: #7cc79a; border: 0.1em solid #fff; }
 .cost-dots .cost-x {
   width: auto; height: auto; padding: 0.15em 0.35em; border-radius: 999px; font-style: normal; font-family: var(--display); font-weight: 800;
   font-size: max(7px, calc(var(--cw, 100px) * 0.07)); line-height: 1; color: #fff;

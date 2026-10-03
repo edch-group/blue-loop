@@ -84,7 +84,7 @@ function rawLabel(id: string, value?: string): string {
   if (!k) return value ?? id;
   if (!value) return k.name;
   if (id === 'destroy' || id === 'eject') return `${k.name} ${value}`;
-  if (id === 'plays') return `${k.name} +${value}`;
+  if (id === 'plays' || id === 'abundance') return `${k.name} +${value}`;
   if (id === 'energy') return `gain ${value} energy`;
   if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
   return `${k.name} ${value}`;
