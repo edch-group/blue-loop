@@ -592,22 +592,36 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - An army is its general plus a **30-card deck** built round them. Starting decks lean to attack: seven neutral attack pairs (Coronal Lance, Thermal Exchange, Photon Drill, Scatter Shot, Plasma Relay, Gravity Sling, Nova Shell), three defence pairs (Cryo Vault, Heat Sink, Deflector Grid), Deep Scanners and Solar Mirror, then three of the race's own cards (attacks first) and three Heroes. (With the old defence-heavy deck, opening battles against the weakened gate ran past regional stability 75–100% of the time; now 13–35%, in 6–8 rounds.) The general's copies can't be swapped out of it.
 - **One move per army per turn.** An army steps along a route into one of your own systems, or attacks a linked system. Tap an army's token to pick it: its routes light up (marches in blue, attacks in red).
 - **Recruit** a general in a system you hold, for credits: 8, plus 5 for each army you already have, plus 6 for a bomb Hero. A general who already leads an army can't be recruited twice. A new army moves next turn.
-- **Damage** stays with the army. Heal it for 1 credit a point.
+- **Damage** stays with the army. Repair it for 1 credit a point, or all at once (**repair all**; systems too).
+- **March or refit:** each turn an army either marches (or fights), or refits: changes its deck or is repaired. Not both. A newly raised army refits on its first turn. Buying, recycling and fusing cards are the whole faction's, and tie up no army. (The AI refits only battered armies, and one army every fifth turn.)
 - An army that loses a battle is **routed**: it falls back to a free neighbouring system you hold. With nowhere to go, it is **broken**: the general leaves, and the army's non-standard cards go back to your reserve.
 
 **Battles.**
 - An attack is a 1v1 game. The attacking army plays its own deck. The defender is the army standing in the system if there is one; otherwise the owner's guard (the race's starter deck); otherwise the neutral sentinels; at the Heart, the **Heart Wardens**.
 - After a win, choose Settle, Absorb or Supernova, as before. Only Settle moves the army in.
+- **The attack dialog:** your army against the defender (portraits and names), then a few plain lines on whatever tips the fight (your damage, their weakness, their extra health, cards already in play, the star, anomalies, relics to win), and three buttons: fight, auto, back. Defending shows the same, from your side.
 - Battle modifiers stack: the system's anomaly, its fortifications, the Wardens and the core (below).
 
 **The map.**
 - About 48 systems in loose clusters, linked by routes that never cross, on a tilted 3D board you pan and zoom. The Heart sits in the middle with clear space round it.
 - **The core:** the closer a system is to the Heart (in routes), the richer and the better defended it is. Systems 1–3 routes from the Heart give +2/+1/+1 credits and materials and their defenders +6/+4/+2 max health; systems within 2 routes are at least tier 2, within 3 at least tier 1. This pays you back for the worlds lost to the dimming.
 - **Stellari blooms:** 4 finite Stellari grow on tier 1+ systems (never a home system or the Heart). Holding one adds 3 credits and 3 materials a turn. Each wilts after 8 turns.
-- **The dimming:** every 7 turns a star gutters, and its system yields less.
+- **The dimming:** every 7 turns a star gutters, and its system yields less. (Red dwarfs never do.)
+- **Kinds of star** (about 42% of systems; never a home, a gate or the Heart). Each has a gift and a cost:
+
+| Star | Gift | Cost |
+| --- | --- | --- |
+| Red dwarf | Never dims; the last of its ring to collapse | 1 credit less |
+| White dwarf | +2 materials | Battles there are long: every sun starts 3 cooler |
+| Brown dwarf | Its defender has +6 max health | 1 less of each |
+| Neutron star | +2 credits, +1 material; its holder sees two links out | Battles there are volatile: every sun heats 1 a day |
+
+  On the map, an unheld star takes its kind's colour, and the kinds differ in size; a neutron star's beam sweeps round.
+- **The Lost Races:** the last of peoples the dimming has already taken (the Vessan, the Orrim, the Quiet Choir...). Three wander the middle reaches at the start, and when a star dims in unheld space another takes to the dark (up to 5). They drift through unheld systems, and raid a held system beside them now and then (35%): a raid they win strips the system (garrison, fortifications, 1 of each yield) and leaves it neutral. They hold nothing, so they are never eliminated. An army standing in a neutral system defends it instead of its sentinels. Beat one for its relics: 6 materials and (for the player) a card. Oriel introduces them the first time one is seen.
 - **Regional stability and the collapse:** a meter in the header counts down an 8-turn lead-up (the oracle warns as it runs low). Then solar systems collapse, from the rim inwards (the systems farthest from the Heart, ties at random): one a turn, one more every 12 turns. Each is marked (⚠, a dashed red ring, always in view) a turn before it goes. A collapsed system is gone: no owner, no yield, no route through it; an army caught there falls back to a free neighbour it holds, or is broken, and a faction left with no systems is out. This keeps everyone moving inwards. Domination counts half of the systems still standing.
 - **Counter, stabilise:** spend 8 materials on a marked system you hold to hold it together 4 turns more, once per system. The AI stabilises its home or a bloom when it can, and pulls its armies out of marked systems.
 - **Fog of war:** you see your systems, the systems around your armies, and those linked to them. About one system in six has a **scanner array**; hold it and you see two links out from it.
+- Selecting a system no longer moves the camera: the system shows its planets orbiting where it stands, and the map around it stays as it was.
 - Tap the turn box (top left) to open the **overview**. Beside it, the regional stability meter (the same height); the resources and your armies' portraits are centred; the buttons sit on the right.
 - **Guidance:** story lines appear in a small panel under the turn box, never blocking play: read on, or dismiss. While a dialog is open (a battle, a conquest, a sheet) the panel waits; it never sits over one.
 - **Conquest:** a small dialog of three choices, each with one line (what it pays); the rest is in its tooltip. Settings can turn Oriel off entirely (generals still speak).

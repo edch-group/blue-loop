@@ -277,3 +277,29 @@ export const RECYCLER_LINES: string[] = [
   "Nothing is ever really thrown away. It's only put where you can't see it, for a while.",
   'Bring me what you will not use. Half of something is better than all of nothing.',
 ];
+
+/**
+ * The Lost Races: the last of peoples whose stars went dark in the dimming. Their homes are gone; a few
+ * ships wander still, taking what they can. Some carry relics of the worlds they lost.
+ */
+export const LOST_RACES = ['Vessan', 'Orrim', 'Quiet Choir', 'Embrin', 'Thalassi', 'Sorrowkin', 'Ashen Fold', 'Mirelight', 'Hollow Kings', 'Glasswrights'];
+
+export function lostSightedScene(name: string): StoryScene {
+  return {
+    id: 'lost-sighted',
+    title: 'The Lost Races',
+    lines: [
+      oracle(`Do you see that fleet? The last of the ${name}. Their star went dark in the dimming, and took their worlds with it.`),
+      oracle('There are others like them: the Lost Races, the last of peoples the dark has already taken. They have no home to defend, and nothing left to lose. They wander, and they take what they can.'),
+      oracle('Some still carry relics of the worlds they lost. Bring one of them down, and the relics are yours. Leave them be, and they may come for your worlds instead.'),
+    ],
+  };
+}
+
+export function lostRaidScene(name: string, system: string): StoryScene {
+  return {
+    id: 'lost-raid',
+    title: 'A raid',
+    lines: [oracle(`The ${name} have stripped ${system}. They do not keep what they take. They only need it for a little longer than you do.`)],
+  };
+}

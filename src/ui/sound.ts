@@ -372,6 +372,10 @@ class SoundBoard {
     for (let i = 0; i < 3; i++)
       this.breath({ dur: 0.035 + Math.random() * 0.03, freq: 4200 + Math.random() * 2600, q: 1.6, gain: 0.014 + Math.random() * 0.01, attack: 0.004, delay: 0.015 + i * 0.03 + Math.random() * 0.02, type: 'bandpass' });
   }
+  /** One point repaired: a single short, soft tick. */
+  repair() {
+    this.voice(1046.5, { dur: 0.09, attack: 0.003, gain: 0.022, cutoff: 4200 });
+  }
   /** A button press in the menus: a soft glassy tick. */
   click() {
     this.voice(1760, { dur: 0.16, attack: 0.004, gain: 0.03, cutoff: 5200 });

@@ -23,6 +23,7 @@ import {
   factionIncome,
   GENERALS,
   regionalStability,
+  supernovaThreshold,
   recycleValue,
   deckProblems as problemsOf,
   stabiliseProblem,
@@ -63,19 +64,24 @@ describe('campaign setup', () => {
     const queue = [s.nodes[0].id];
     while (queue.length) for (const l of nodeById(s, queue.shift()!).links) if (!seen.has(l)) { seen.add(l); queue.push(l); }
     expect(seen.size).toBe(s.nodes.length);
-    expect(s.factions).toHaveLength(4);
-    for (const f of s.factions) expect(ownedNodes(s, f.id)).toHaveLength(1);
+    const rivals = s.factions.filter((f) => !f.lost);
+    expect(rivals).toHaveLength(4);
+    for (const f of rivals) expect(ownedNodes(s, f.id)).toHaveLength(1);
     // Links are symmetric.
     for (const n of s.nodes) for (const l of n.links) expect(nodeById(s, l).links).toContain(n.id);
     // Each faction starts with one army at home, led by its race's first general, with a legal deck.
-    for (const f of s.factions) {
+    for (const f of rivals) {
       const armies = armiesOf(s, f.id);
       expect(armies).toHaveLength(1);
       expect(armies[0].nodeId).toBe(ownedNodes(s, f.id)[0].id);
       expect(armies[0].general).toBe(GENERALS[f.race][0]);
       expect(deckProblems(armies[0].deck)).toEqual([]);
     }
-    expect(new Set(s.factions.map((f) => f.race)).size).toBe(4);
+    expect(new Set(rivals.map((f) => f.race)).size).toBe(4);
+    // The Lost Races wander the middle reaches, with legal decks.
+    const lost = s.armies.filter((a) => a.lost);
+    expect(lost).toHaveLength(CAMPAIGN.lostArmies);
+    for (const a of lost) expect(deckProblems(a.deck)).toEqual([]);
     expect(campaignPlayer(s).missions).toHaveLength(CAMPAIGN.activeMissions);
   });
 
@@ -164,7 +170,7 @@ describe('battles and conquest', () => {
     const n = win(fresh(), 'supernova');
     const node = nodeById(n.s, n.target);
     expect(node.owner).toBeNull();
-    expect(node.hazard).toHaveLength(3);
+    expect(node.hazard).toHaveLength(4); // the three rivals, and the Lost Races
     expect(node.hazard).not.toContain(n.s.playerId);
   });
 });
@@ -364,7 +370,8 @@ describe('armies and generals', () => {
     const armies = armiesOf(s, s.playerId);
     expect(armies).toHaveLength(2);
     expect(armies[1].general).toBe(next);
-    expect(armies[1].moved).toBe(true); // it marches next turn
+    expect(armies[1].refit).toBe(true); // refitting: it marches next turn
+    expect(armyMoves(s, armies[1])).toEqual([]);
     expect(deckProblems(armies[1].deck)).toEqual([]);
     expect(armies[1].deck).toContain(next);
     expect(s.story.queue.some((x) => x.id === `recruit:${next}`)).toBe(true);
@@ -506,7 +513,13 @@ describe('armies and generals', () => {
     expect(myArmy(s).deck).toHaveLength(army.deck.length - 1);
     expect(campaignPlayer(s).reserve).toContain(out);
     expect(problemsOf(myArmy(s).deck).length).toBeGreaterThan(0);
-    expect(() => attack(s)).toThrow(/isn't ready/);
+    // Refitting this turn: it can't march until the next (and then not into battle with a short deck).
+    expect(armyMoves(s, myArmy(s))).toEqual([]);
+    const target = nodeById(s, home(s).links[0]).id;
+    expect(() => applyCampaignAction(s, { type: 'move', armyId: army.id, toId: target })).toThrow(/refitting/);
+    const short = structuredClone(s);
+    myArmy(short).refit = false;
+    expect(() => applyCampaignAction(short, { type: 'move', armyId: army.id, toId: target })).toThrow(/isn't ready/);
     // The general's last card stays.
     const g = myArmy(s).general;
     let t = s;
@@ -514,7 +527,11 @@ describe('armies and generals', () => {
     expect(() => applyCampaignAction(t, { type: 'deckRemove', armyId: army.id, defId: g })).toThrow(/leads this army/);
     s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: out });
     expect(problemsOf(myArmy(s).deck)).toEqual([]);
+    myArmy(s).refit = false; // (as next turn)
     expect(() => attack(s)).not.toThrow();
+    // And an army that has marched can't refit until the next turn.
+    const marched = attack(s);
+    expect(() => applyCampaignAction(structuredClone({ ...marched, battle: null }), { type: 'deckRemove', armyId: army.id, defId: out })).toThrow(/marched/);
   });
 
   it('recycles a reserve card for half its armory price in materials', () => {
@@ -526,5 +543,37 @@ describe('armies and generals', () => {
     expect(recycleValue('coronal_lance')).toBe(Math.max(1, Math.floor(armoryPrice('coronal_lance') / 2)));
     expect(campaignPlayer(s).reserve).not.toContain('coronal_lance');
     expect(() => applyCampaignAction(s, { type: 'recycle', defId: 'coronal_lance' })).toThrow();
+  });
+
+  it('has stars of every kind, each with its gift and cost', () => {
+    const s = fresh();
+    const kinds = new Set(s.nodes.map((n) => n.star).filter(Boolean));
+    for (const k of ['red', 'white', 'brown', 'neutron']) expect(kinds.has(k as never)).toBe(true);
+    // Never at home, a gate, or the Heart.
+    for (const n of s.nodes) if (n.home || n.gate || n.heart) expect(n.star).toBeUndefined();
+    // A brown dwarf shelters its defender; a neutron star heats every sun.
+    let t = fresh();
+    const gate = nodeById(t, home(t).links[0]);
+    gate.star = 'brown';
+    t = attack(t);
+    expect(supernovaThreshold(t.battle!.game.players[1])).toBeGreaterThan(supernovaThreshold(t.battle!.game.players[0]));
+  });
+
+  it('repairs all at once, and lets the Lost Races wander, raid and be hunted for relics', () => {
+    let s = fresh();
+    const h = home(s);
+    h.damage = 4;
+    campaignPlayer(s).credits = 100;
+    s = applyCampaignAction(s, { type: 'heal', nodeId: h.id, all: true });
+    expect(home(s).damage).toBe(0);
+    // A lost army beside the player's gate: beat it and take its relics.
+    const gate = nodeById(s, home(s).links[0]);
+    const lost = s.armies.find((a) => a.lost)!;
+    lost.nodeId = gate.id;
+    const before = campaignPlayer(s).materials;
+    s = winBattle(attack(s));
+    expect(s.armies.some((a) => a.id === lost.id)).toBe(false);
+    expect(campaignPlayer(s).materials).toBeGreaterThanOrEqual(before + CAMPAIGN.winMaterials + CAMPAIGN.lostRelicMaterials);
+    expect(s.cardRewards.some((r) => r.source.startsWith('Relics'))).toBe(true);
   });
 });

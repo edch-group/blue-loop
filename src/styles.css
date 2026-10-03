@@ -3669,3 +3669,39 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-modal-narrow .cmp-choice { justify-items: center; text-align: center; padding: 14px 10px; }
 .cmp-modal-narrow .cmp-choice b { font-size: 0.72rem; }
 .cmp-modal-narrow .cmp-choice span { display: inline-flex; align-items: center; gap: 3px; font-size: 0.74rem; white-space: nowrap; }
+
+/* ---- Campaign: the attack dialog (two sides, a few plain words, three buttons) ---- */
+.cmp-attack .modal-body { display: grid; gap: 12px; }
+.cmp-vs-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; }
+.cmp-vs-side { display: grid; justify-items: center; gap: 6px; text-align: center; }
+.cmp-vs-side .cmp-portrait, .cmp-vs-side .fav { width: 56px; height: 56px; box-shadow: 0 0 0 2.5px var(--fc), var(--shadow); border-radius: 50%; }
+.cmp-vs-blank { background: radial-gradient(circle at 40% 36%, #fff 0 18%, #e3e6ec 50%, #b9bfcc 100%); }
+.cmp-vs-side b { font-family: var(--display); font-weight: 500; font-size: 0.64rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); }
+.cmp-vs-row .cmp-vs { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.2em; color: var(--ink-faint); }
+.cmp-tips { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.cmp-tips li { font-size: 0.76rem; line-height: 1.4; color: var(--ink-soft); padding: 5px 10px; border-radius: 8px; background: #f4f3f0; }
+.cmp-tips li.good { color: #2f7f55; background: #eaf5ee; }
+.cmp-tips li.bad { color: #a4523f; background: #f8ece8; }
+.cmp-attack-go { display: flex; justify-content: center; gap: 8px; }
+.cmp-attack-go .btn, .cmp-attack-go .btn-primary { min-width: 92px; }
+
+/* ---- Campaign: kinds of star (unheld cores take the star's colour; size tells the kind too) ---- */
+.cmp-st-red .cmp-star { width: 19px; height: 19px; }
+.cmp-st-red:not(.cmp-owned) .cmp-core { background: radial-gradient(circle at 40% 36%, #fff 0 12%, #ffc9b0 36%, #e8735a 72%, #a8402e 100%); }
+.cmp-st-white .cmp-star { width: 15px; height: 15px; }
+.cmp-st-white:not(.cmp-owned) .cmp-core { background: radial-gradient(circle at 40% 36%, #fff 0 30%, #e8f1ff 55%, #b4cdf2 100%); box-shadow: 0 0 6px 2px rgba(190, 215, 255, 0.9); }
+.cmp-st-brown .cmp-star { width: 21px; height: 21px; }
+.cmp-st-brown:not(.cmp-owned) .cmp-core { background: radial-gradient(circle at 40% 36%, #e9d3cf 0 10%, #a77768 40%, #6a4440 75%, #43282a 100%); box-shadow: 0 1px 3px rgba(60, 40, 40, 0.35); }
+.cmp-st-neutron .cmp-star { width: 12px; height: 12px; }
+.cmp-st-neutron:not(.cmp-owned) .cmp-core { background: radial-gradient(circle, #fff 0 35%, #dcd6ff 60%, #9b8ff0 100%); }
+/* A neutron star's beam: a thin line of light that sweeps round. */
+.cmp-st-neutron .cmp-star::before { content: ''; position: absolute; left: 50%; top: 50%; width: 46px; height: 2px; margin: -1px 0 0 -23px; border-radius: 2px; background: linear-gradient(90deg, transparent, rgba(190, 180, 255, 0.9) 40%, #fff 50%, rgba(190, 180, 255, 0.9) 60%, transparent); animation: cmp-beam 2.4s linear infinite; }
+@keyframes cmp-beam { to { transform: rotate(360deg); } }
+.cmp-star-lore b { font-family: var(--display); font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.62rem; margin-right: 4px; }
+.cmp-star-lore .cmp-boon { display: block; color: #2f7f55; }
+.cmp-star-lore .cmp-cost { display: block; color: #a4523f; }
+
+/* ---- Campaign: the Lost Races ---- */
+.cmp-army-lost .cmp-portrait { filter: saturate(0.6); opacity: 0.92; }
+.fav-lost { display: inline-block; border-radius: 50%; overflow: hidden; }
+.fav-lost .cmp-portrait { width: 100%; height: 100%; }

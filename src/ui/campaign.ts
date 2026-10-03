@@ -26,6 +26,8 @@ import {
   ORACLE_NAME,
   STELLARIA_NAME,
   QUARTERMASTER,
+  armyLeader,
+  STAR_TYPES,
   QUARTERMASTER_LINES,
   RECYCLER,
   RECYCLER_LINES,
@@ -116,6 +118,24 @@ const BLOOM =
 function portrait(cardId: string): string {
   return `<span class="cmp-portrait">${cardArtLite(cardDef(cardId))}</span>`;
 }
+
+/** One of the Lost Races: a faded figure, half gone into the dark. */
+const LOST_PORTRAIT = `<span class="cmp-portrait cmp-portrait-lost"><svg viewBox="0 0 80 80" aria-hidden="true">
+  <defs><radialGradient id="lost-bg" cx=".5" cy=".35"><stop offset="0" stop-color="#4a4658"/><stop offset="1" stop-color="#15131c"/></radialGradient>
+  <linearGradient id="lost-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9c4dc" stop-opacity=".85"/><stop offset="1" stop-color="#c9c4dc" stop-opacity="0"/></linearGradient></defs>
+  <rect width="80" height="80" fill="url(#lost-bg)"/>
+  <path d="M40 20c-10 0-15 8-15 18 0 8-6 18-12 42h54c-6-24-12-34-12-42 0-10-5-18-15-18z" fill="url(#lost-fade)"/>
+  <circle cx="35.5" cy="37" r="1.4" fill="#fff" opacity=".8"/><circle cx="44.5" cy="37" r="1.4" fill="#fff" opacity=".8"/>
+  ${[[14, 16], [64, 22], [22, 58], [60, 54]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="0.9" fill="#fff" opacity=".35"/>`).join('')}
+</svg></span>`;
+
+/** An army's face: its general, or (one of the Lost Races) a faded figure. */
+function armyFace(a: Army): string {
+  return a.lost ? LOST_PORTRAIT : portrait(a.general);
+}
+
+/** The Lost Races' colour on the map: a pale, washed-out violet. */
+const LOST_COLOUR = '#9a94b0';
 
 /** Oriel the Wanderer: a hooded figure carrying a lantern, under a scatter of failing stars. */
 const ORACLE_PORTRAIT = `<span class="cmp-portrait cmp-portrait-oracle"><svg viewBox="0 0 80 80" aria-hidden="true">
@@ -448,7 +468,7 @@ export class CampaignView {
         if (this.apply({ type: 'stabilise', nodeId: arg })) sound.shield();
         break;
       case 'cmp-heal-army':
-        if (this.apply({ type: 'healArmy', armyId: arg })) sound.upgrade();
+        if (this.apply({ type: 'healArmy', armyId: arg, all: el.dataset.all === '1' })) el.dataset.all === '1' ? sound.upgrade() : sound.repair();
         break;
       case 'cmp-deck-army':
         this.baseTab = 'deck';
@@ -491,11 +511,7 @@ export class CampaignView {
             break;
           }
         }
-        if (this.selected !== arg && this.view) {
-          // Zoom out to where the system is, so leaving it returns the camera there.
-          const target = nodeById(s!, arg);
-          this.view = { ...this.view, x: target.x, y: target.y };
-        }
+        // (The camera stays where it is: a focused system just shows its planets.)
         this.selected = this.selected === arg ? null : arg;
         sound.hover();
         break;
@@ -556,7 +572,7 @@ export class CampaignView {
         if (this.apply({ type: 'chooseCard', defId: arg || null })) sound.buy();
         break;
       case 'cmp-heal':
-        if (this.apply({ type: 'heal', nodeId: arg })) sound.upgrade();
+        if (this.apply({ type: 'heal', nodeId: arg, all: el.dataset.all === '1' })) el.dataset.all === '1' ? sound.upgrade() : sound.repair();
         break;
       case 'cmp-fortify':
         if (this.apply({ type: 'fortify', nodeId: arg })) sound.upgrade();
@@ -607,10 +623,10 @@ export class CampaignView {
     return `f${(f?.race ?? 0) + 1}`;
   }
   private avatarOf(factionId: string, cls = ''): string {
-    return factionAvatar(this.raceKey(factionId), cls);
+    return factionId === 'lost' ? `<span class="fav ${cls} fav-lost">${LOST_PORTRAIT}</span>` : factionAvatar(this.raceKey(factionId), cls);
   }
   private colourOf(factionId: string): string {
-    return FACTION_COLOUR[this.raceKey(factionId)];
+    return factionId === 'lost' ? LOST_COLOUR : FACTION_COLOUR[this.raceKey(factionId)];
   }
 
   render(): string {
@@ -647,7 +663,7 @@ export class CampaignView {
             <span title="Materials (+${inc.materials} a turn): earned from your systems each turn, battles and missions. Spent on cards in the armoury.">${MATERIALS}<b>${me.materials}</b><small>(+${inc.materials})</small></span>
             <span title="Systems you hold, of ${s.nodes.length}">${SYSTEMS}<b>${ownedNodes(s, me.id).length}</b></span>
             <span class="cmp-purse-armies" title="Your armies: ${armiesOf(s, me.id).filter((a) => !a.moved).length} still to march this turn">${armiesOf(s, me.id)
-              .map((a) => `<i class="cmp-mini-army ${a.moved ? 'moved' : ''}" data-act="cmp-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${portrait(a.general)}</i>`)
+              .map((a) => `<i class="cmp-mini-army ${a.moved ? 'moved' : ''}" data-act="cmp-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${armyFace(a)}</i>`)
               .join('')}</span>
           </div>
           <nav class="cmp-nav">
@@ -745,9 +761,10 @@ export class CampaignView {
     const moves = picked && s.phase === 'player' && !s.battle ? armyMoves(s, picked) : [];
     const targets = new Set(moves.filter((m) => m.battle).map((m) => m.toId));
     const marches = new Set(moves.filter((m) => !m.battle).map((m) => m.toId));
-    const focus = this.selected ? nodeById(s, this.selected) : null;
-    // The focus before this render: systems that change between near and far fade rather than pop.
-    const prev = this.lastFocus ? nodeById(s, this.lastFocus) : null;
+    // Focusing a system no longer zooms the camera into it, so nothing else on the map fades away from it
+    // either (no "far" systems, no links masked out): the focused system just shows its planets.
+    const focus = null as CampaignNode | null;
+    const prev = null as CampaignNode | null;
     const leaving = this.leavingFocus();
     const farFrom = (f: CampaignNode | null, x: number, y: number, id: string, r: number) => !!f && f.id !== id && Math.hypot(x - f.x, y - f.y) > r;
     // Fog of war: only systems linked to yours (two links from a scanner) are drawn; routes into the fog fade out.
@@ -787,6 +804,7 @@ export class CampaignView {
           n.owner ? 'cmp-owned' : '',
           n.heart ? 'cmp-heart' : '',
           n.dimmed ? 'cmp-dim' : '',
+          n.star ? `cmp-st-${n.star}` : '',
           n.collapsing ? 'cmp-collapsing' : '',
           n.collapsed ? 'cmp-collapsed' : '',
           targets.has(n.id) ? 'cmp-target' : '',
@@ -850,33 +868,44 @@ export class CampaignView {
     const fights = moves.filter((m) => m.battle).length;
     const marches = moves.length - fights;
     const hint = a.moved
-      ? 'This army has marched this turn. It can move again next turn.'
+      ? 'This army has marched this turn. It can refit or move again next turn.'
+      : a.refit
+        ? 'This army is refitting this turn (its deck or repairs). It can march next turn.'
       : moves.length
         ? `Tap a system next to ${esc(here.name)}: ${marches ? `a <b class="cmp-hint-march">green</b> ring to march there` : ''}${marches && fights ? ', or ' : ''}${fights ? `a <b class="cmp-hint-fight">red</b> ring to fight for it` : ''}.`
         : 'No route is open to this army.';
     return `
       <div class="cmp-node-head" style="--fc:${this.colourOf(a.owner)}">
-        ${portrait(a.general)}
-        <div><h3>${lower(cardDef(a.general).name)}</h3><small>army · in ${lower(here.name)}</small></div>
+        ${armyFace(a)}
+        <div><h3>${lower(armyLeader(a))}</h3><small>army · in ${lower(here.name)}</small></div>
         <button class="icon-btn" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <p class="cmp-hint">${hint}</p>
       <div class="cmp-army-row" style="--ac:${this.colourOf(a.owner)}">
-        ${portrait(a.general)}
+        ${armyFace(a)}
         <span><b>${a.deck.length} cards</b><small>${a.damage ? `✸ ${a.damage} damage: its sun starts ${a.damage} hotter` : 'no damage'}</small></span>
-        <span class="cmp-army-acts">${
-          a.damage && here.owner === me.id ? `<button class="pill-btn" data-act="cmp-heal-army" data-arg="${a.id}" ${me.credits < CAMPAIGN.armyHealCost ? 'disabled' : ''}>repair 1 · ${CREDITS}${CAMPAIGN.armyHealCost}</button>` : ''
-        }<button class="pill-btn" data-act="cmp-deck-army" data-arg="${a.id}">deck</button><button class="pill-btn" data-act="cmp-select" data-arg="${here.id}">its system</button></span>
+        <span class="cmp-army-acts">${a.damage && here.owner === me.id ? this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '') : ''}<button class="pill-btn" data-act="cmp-deck-army" data-arg="${a.id}">deck</button><button class="pill-btn" data-act="cmp-select" data-arg="${here.id}">its system</button></span>
       </div>`;
+  }
+
+  /** Repair one point, or all of it (as far as the credits go). */
+  private repairButtons(act: string, id: string, damage: number, cost: number, blocked: string): string {
+    const credits = campaignPlayer(this.state!).credits;
+    const all = Math.min(damage, Math.floor(credits / cost));
+    const dis = (need: number) => (blocked ? `disabled title="${esc(blocked)}"` : credits < need ? 'disabled' : '');
+    return `<button class="pill-btn" data-act="${act}" data-arg="${id}" ${dis(cost)}>repair 1 · ${CREDITS}${cost}</button>${
+      damage > 1 ? `<button class="pill-btn" data-act="${act}" data-arg="${id}" data-all="1" ${dis(cost)}>repair all · ${CREDITS}${Math.max(1, all) * cost}</button>` : ''
+    }`;
   }
 
   /** An army on the map: its general's portrait in a ring of its faction's colour (dimmed once it has moved). */
   private armyToken(a: Army): string {
-    const def = cardDef(a.general);
     const mine = a.owner === this.state!.playerId;
-    const cls = ['cmp-army', mine ? 'cmp-army-mine' : '', a.moved ? 'cmp-army-moved' : '', this.army === a.id ? 'cmp-army-on' : ''].join(' ');
-    const title = `${def.name}'s army${mine ? (a.moved ? ' (has moved this turn)' : ': tap to march') : ` (${factionById(this.state!, a.owner).name})`}${a.damage ? `, ${a.damage} damage` : ''}`;
-    return `<span class="${cls}" style="--ac:${this.colourOf(a.owner)}" data-act="cmp-army" data-arg="${a.id}" title="${esc(title)}">${portrait(a.general)}${a.damage ? `<i class="cmp-army-dmg">${a.damage}</i>` : ''}</span>`;
+    const cls = ['cmp-army', mine ? 'cmp-army-mine' : '', a.lost ? 'cmp-army-lost' : '', a.moved || (mine && a.refit) ? 'cmp-army-moved' : '', this.army === a.id ? 'cmp-army-on' : ''].join(' ');
+    const title = a.lost
+      ? `${armyLeader(a)}: one of the Lost Races. Beat them for their relics.`
+      : `${armyLeader(a)}'s army${mine ? (a.moved ? ' (has moved this turn)' : a.refit ? ' (refitting this turn)' : ': tap to march') : ` (${factionById(this.state!, a.owner).name})`}${a.damage ? `, ${a.damage} damage` : ''}`;
+    return `<span class="${cls}" style="--ac:${this.colourOf(a.owner)}" data-act="cmp-army" data-arg="${a.id}" title="${esc(title)}">${armyFace(a)}${a.damage ? `<i class="cmp-army-dmg">${a.damage}</i>` : ''}</span>`;
   }
 
   /** Anomalies: flat phenomena on the plane (discs, clouds, rings), with an upright marker to tap. */
@@ -973,7 +1002,6 @@ export class CampaignView {
   private stageEl: HTMLElement | null = null;
 
   private static readonly TILT = 44;
-  private static readonly FOCUS_TILT = 56;
   private static readonly MAX_ZOOM = 5.5;
   private static readonly GLIDE_MS = 1000;
   /** How far behind the map the sky lies: over the whole map it slides this fraction of the map's fitted width. */
@@ -1028,15 +1056,11 @@ export class CampaignView {
    * or wherever the free camera looks.
    */
   private cameraTarget(stage: HTMLElement): Cam {
-    const focus = this.selected ? nodeById(this.state!, this.selected) : null;
     const fit = this.fitScale(stage, CampaignView.TILT);
     const v = this.view!;
-    // Stars keep a readable size at any free zoom; zooming into a system leaves that alone, so they grow with it.
+    // Stars keep a readable size at any zoom. (Focusing a system no longer moves the camera.)
     const ui = Math.min(2.2, Math.max(0.7, 1 / (fit * v.zoom)));
-    return focus
-      ? // Zoomed on a system the stars still grow, just not as much as the map (so the star stays on screen).
-        { x: focus.x, y: focus.y, scale: Math.max(fit * v.zoom, 1) * 2.4, tilt: CampaignView.FOCUS_TILT, ui: ui * 0.6 }
-      : { x: v.x, y: v.y, scale: fit * v.zoom, tilt: CampaignView.TILT, ui };
+    return { x: v.x, y: v.y, scale: fit * v.zoom, tilt: CampaignView.TILT, ui };
   }
 
   /**
@@ -1226,7 +1250,7 @@ export class CampaignView {
     // Your armies that can strike it this turn, each with its own button.
     const attackers = s.phase === 'player' && !s.battle ? attackOptions(s, me.id).find((o) => o.toId === n.id)?.armyIds ?? [] : [];
     const attack = attackers.length
-      ? `<div class="cmp-actions">${attackers.map((id) => `<button class="btn-primary" data-act="cmp-attack-pick" data-arg="${n.id}" data-army="${id}">attack with ${lower(cardDef(armyById(s, id).general).name)}</button>`).join('')}</div>`
+      ? `<div class="cmp-actions">${attackers.map((id) => `<button class="btn-primary" data-act="cmp-attack-pick" data-arg="${n.id}" data-army="${id}">attack with ${lower(armyLeader(armyById(s, id)))}</button>`).join('')}</div>`
       : '';
     const status = [
       n.collapsed ? '<p class="cmp-warn">Collapsed. Nothing is left here: no world, no star, no route through.</p>' : '',
@@ -1235,6 +1259,7 @@ export class CampaignView {
       n.hazard.length ? '<p class="cmp-warn">Supernova remnant: rivals cannot advance into it this turn.</p>' : '',
       n.heart ? `<p class="cmp-lore">The oldest star, at the centre of everything. The ${esc(STELLARIA)} is said to grow in its light. Whoever claims it wins the campaign. ${n.owner ? '' : `Guarded by the Heart Wardens: +${CAMPAIGN.heartWardenHealth} max health.`}</p>` : '',
       (n.stellaria ?? 0) > 0 ? `<p class="cmp-lore">${BLOOM} A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}. Then it wilts.</p>` : n.stellaria === 0 ? '<p class="cmp-lore muted">A wilted Stellari bloom.</p>' : '',
+      n.star ? `<p class="cmp-lore cmp-star-lore cmp-st-${n.star}"><b>${lower(STAR_TYPES[n.star].name)}</b> ${esc(STAR_TYPES[n.star].text)} <span class="cmp-boon">+ ${esc(STAR_TYPES[n.star].boon)}</span> <span class="cmp-cost">− ${esc(STAR_TYPES[n.star].cost)}</span></p>` : '',
       n.dimmed ? '<p class="cmp-lore muted">Its star has guttered: it yields less than it did.</p>' : '',
       !n.heart && (CAMPAIGN.coreHealth[n.ring ?? 99] ?? 0) > 0
         ? `<p class="cmp-lore">${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart: richer worlds (+${CAMPAIGN.coreYield[n.ring!] ?? 0} of each a turn) and deeper defences (+${CAMPAIGN.coreHealth[n.ring!]} max health to whoever defends it).</p>`
@@ -1245,12 +1270,12 @@ export class CampaignView {
     const armyPanel = here
       ? `<div class="section-label">army</div>
         <div class="cmp-army-row" style="--ac:${this.colourOf(here.owner)}">
-          ${portrait(here.general)}
-          <span><b>${lower(cardDef(here.general).name)}</b><small>${here.owner === me.id ? (here.moved ? 'has moved this turn' : 'ready to march') : lower(factionById(s, here.owner).name)}${here.damage ? ` · ✸ ${here.damage} damage` : ''}</small></span>
+          ${armyFace(here)}
+          <span><b>${lower(armyLeader(here))}</b><small>${here.owner === me.id ? (here.moved ? 'has marched this turn' : here.refit ? 'refitting: marches next turn' : 'ready to march') : here.lost ? 'one of the lost races: beat them for their relics' : lower(factionById(s, here.owner).name)}${here.damage ? ` · ✸ ${here.damage} damage` : ''}</small></span>
           ${
             here.owner === me.id
-              ? `<span class="cmp-army-acts">${!here.moved && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}${
-                  here.damage && mine ? `<button class="pill-btn" data-act="cmp-heal-army" data-arg="${here.id}" ${me.credits < CAMPAIGN.armyHealCost ? 'disabled' : ''}>repair · ${CREDITS}${CAMPAIGN.armyHealCost}</button>` : ''
+              ? `<span class="cmp-army-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}${
+                  here.damage && mine ? this.repairButtons('cmp-heal-army', here.id, here.damage, CAMPAIGN.armyHealCost, here.moved ? 'It has marched this turn: repair it next turn.' : '') : ''
                 }<button class="pill-btn" data-act="cmp-deck-army" data-arg="${here.id}">deck</button></span>`
               : ''
           }
@@ -1277,7 +1302,7 @@ export class CampaignView {
       ${
         n.damage || mine
           ? `<div class="cmp-damage"><span>damage ✸ ${n.damage}${n.damage ? ` <small>(its sun starts ${n.damage} hotter)</small>` : ''}</span>${
-              mine && n.damage ? `<button class="pill-btn" data-act="cmp-heal" data-arg="${n.id}" ${me.credits < CAMPAIGN.healCostPerPoint ? 'disabled' : ''}>repair 1 · ${CREDITS}${CAMPAIGN.healCostPerPoint}</button>` : ''
+              mine && n.damage ? this.repairButtons('cmp-heal', n.id, n.damage, CAMPAIGN.healCostPerPoint, '') : ''
             }</div>`
           : ''
       }
@@ -1308,13 +1333,14 @@ export class CampaignView {
       const node = nodeById(s, b.nodeId);
       const attacker = factionById(s, b.attacker);
       const mine = b.attacker === me.id;
-      const general = s.armies.find((a) => a.id === b.armyId)?.general;
+      const army = s.armies.find((a) => a.id === b.armyId);
       return this.modal(
-        mine ? 'battle in progress' : 'incoming attack',
-        `<div class="center"><h2>${mine ? `the battle for ${lower(node.name)}` : `${general ? lower(cardDef(general).name) : lower(attacker.name)} attacks ${lower(node.name)}`}</h2>
-          <p>${mine ? 'Return to the battle, or let your commanders finish it.' : 'Defend your system in battle, or let your commanders resolve it automatically.'}</p>
-          ${this.matchup(b.armyId, node)}
-          <div class="menu-actions center-row"><button class="btn-primary" data-act="cmp-defend">${mine ? 'resume battle' : 'defend'}</button><button class="btn" data-act="cmp-defend-auto">auto-resolve</button></div></div>`,
+        mine ? `the battle for ${lower(node.name)}` : `${lower(army ? armyLeader(army) : attacker.name)} attack${army?.lost ? '' : 's'} ${lower(node.name)}`,
+        `${this.matchup(b.armyId, node, b.defender === s.playerId)}
+          <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-defend">${mine ? 'back to it' : 'defend'}</button><button class="btn" data-act="cmp-defend-auto" title="Let the battle play itself out">auto</button></div>`,
+        false,
+        '',
+        'cmp-modal-narrow cmp-attack',
       );
     }
     if (s.conquest) {
@@ -1380,7 +1406,8 @@ export class CampaignView {
       case 'overview': {
         const me = campaignPlayer(s);
         const goal = Math.ceil(s.nodes.length * CAMPAIGN.dominationShare);
-        const factions = [...s.factions]
+        const factions = s.factions
+          .filter((f) => !f.lost)
           .sort((a, b) => ownedNodes(s, b.id).length - ownedNodes(s, a.id).length)
           .map((f) => {
             const held = ownedNodes(s, f.id).length;
@@ -1418,6 +1445,9 @@ export class CampaignView {
           <ul class="rules">
             <li><b>The goal:</b> claim ${esc(HEART_NAME)}, the star at the centre of the universe, where the ${esc(STELLARIA)} grows. Its Wardens are the strongest defenders anywhere (+${CAMPAIGN.heartWardenHealth} max health). Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of all systems, or outlasting every rival, wins too; otherwise the most systems after ${CAMPAIGN.turnLimit} turns.</li>
             <li><b>Armies</b> march one route a turn. Tap an army, then a system next to it: into one you hold, it simply moves; into any other, it fights. One army to a system.</li>
+            <li>Each turn an army either <b>marches</b> or <b>refits</b> (its deck changed, or repaired), not both. Buying, recycling and fusing cards are for your whole people, and don't tie up an army.</li>
+            <li><b>Stars</b> differ. ${(['red', 'white', 'brown', 'neutron'] as const).map((k) => `<b>${STAR_TYPES[k].name}:</b> ${esc(STAR_TYPES[k].boon)} ${esc(STAR_TYPES[k].cost)}`).join(' ')}</li>
+            <li><b>The Lost Races</b> are the last of peoples the dimming has already taken. They wander unheld space and raid held systems beside them, stripping them. Beat one for its relics: ${MATERIALS} ${CAMPAIGN.lostRelicMaterials} and a card.</li>
             <li>Each army is led by a <b>general</b>, one of your race's heroes, and fights with its own <b>deck</b> (30 cards, the general's card among them). Recruit more generals in your systems with ${CREDITS} credits; each army costs more than the last.</li>
             <li>A system with no army defends itself with its race's plain deck, its garrison and its fortifications. Neutral systems have sentinels, stronger towards the centre.</li>
             <li><b>Win</b> and choose: <b>Settle</b> it (your army marches in), <b>Absorb</b> its resources, or <b>Supernova</b> it to block rivals for a turn. A beaten army falls back to a free system of yours next door, or is broken.</li>
@@ -1449,34 +1479,48 @@ export class CampaignView {
       case 'attack': {
         const to = nodeById(s, sh.toId);
         return this.modal(
-          `attack ${lower(to.name)}`,
-          `<div class="center">${this.matchup(sh.armyId, to)}
-            <div class="menu-actions center-row"><button class="btn-primary" data-act="cmp-fight">fight</button><button class="btn" data-act="cmp-auto">auto-resolve</button><button class="btn" data-act="cmp-close">cancel</button></div></div>`,
+          `attack ${lower(to.name)}?`,
+          `${this.matchup(sh.armyId, to)}
+           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-fight">fight</button><button class="btn" data-act="cmp-auto" title="Let the battle play itself out">auto</button><button class="btn" data-act="cmp-close">back</button></div>`,
+          false,
+          '',
+          'cmp-modal-narrow cmp-attack',
         );
       }
     }
   }
 
-  /** The two sides of a battle: an army, against whoever holds the system (its army, or its own defenders). */
-  private matchup(armyId: string, to: CampaignNode): string {
+  /** The two sides of a battle, and, in a few plain words, whatever tips it. */
+  private matchup(armyId: string, to: CampaignNode, defending = false): string {
     const s = this.state!;
-    const attacker = s.armies.find((a) => a.id === armyId);
-    const from = attacker ? nodeById(s, attacker.nodeId) : to;
-    const side = (n: CampaignNode, label: string, army: Army | null) => {
-      const who = army ? `${cardDef(army.general).name}` : n.owner ? `${factionById(s, n.owner).name} guard` : n.heart ? 'The Heart Wardens' : `${n.name} Sentinels`;
-      const fx = anomalyEffects(s, n);
-      const damage = army ? army.damage : n.damage;
-      const colour = army ? this.colourOf(army.owner) : n.owner ? this.colourOf(n.owner) : NEUTRAL;
-      return `<div class="cmp-side-card" style="--fc:${colour}"><small>${label}</small>${army ? portrait(army.general) : ''}<b>${!army && n.owner ? this.avatarOf(n.owner, 'fav-inline') : ''}${lower(who)}</b><span>${army ? `army · ${lower(factionById(s, army.owner).name)}` : lower(n.name)}${n.fortification && label === 'defender' ? ` · fortified ${n.fortification}` : ''}</span>${damage ? `<span class="cmp-dmg">✸ ${damage} damage</span>` : ''}${
-        fx ? fx.conditions.map((c) => `<span class="cmp-anom-tag">${lower(c.name)}</span>`).join('') : ''
-      }</div>`;
-    };
-    const g = garrisonBonus(to);
-    const def = g.tableau.map((id) => cardDef(id).name);
+    const attacker = s.armies.find((a) => a.id === armyId) ?? null;
     const guard = armyAt(s, to.id);
-    return `<div class="cmp-matchup">${side(from, 'attacker', attacker ?? null)}<span class="cmp-vs">vs</span>${side(to, 'defender', guard && guard.id !== armyId ? guard : null)}</div>${
-      def.length ? `<p class="cmp-bonus">The defender starts with ${def.join(', ')} in play.</p>` : ''
-    }`;
+    const defender = guard && guard.id !== armyId ? guard : null;
+    const side = (army: Army | null, n: CampaignNode) => {
+      const name = army ? armyLeader(army) : n.owner ? `${factionById(s, n.owner).name} guard` : n.heart ? 'the Heart Wardens' : `${n.name} sentinels`;
+      const face = army ? armyFace(army) : n.owner ? this.avatarOf(n.owner, 'cmp-vs-av') : '<span class="cmp-portrait cmp-vs-blank"></span>';
+      const colour = army ? this.colourOf(army.owner) : n.owner ? this.colourOf(n.owner) : NEUTRAL;
+      return `<div class="cmp-vs-side" style="--fc:${colour}">${face}<b>${lower(name)}</b></div>`;
+    };
+    // What tips the fight, said plainly.
+    const tips: string[] = [];
+    // (Said from the player's side: attacking, or defending.)
+    const [mine, theirs, good, bad] = defending ? ['The attacker\'s', 'Your', 'bad', 'good'] : ['Your', 'Their', 'good', 'bad'];
+    const theirHeat = (defender ? defender.damage : to.damage) + (!to.owner && !to.heart && !defender ? (CAMPAIGN.sentinelHeat[to.tier] ?? 0) + (to.gate ? CAMPAIGN.gateHeat : 0) : 0);
+    if (attacker?.damage) tips.push(`<li class="${bad}">${mine} sun starts ${attacker.damage} hotter (damage).</li>`);
+    if (theirHeat) tips.push(`<li class="${good}">${theirs} sun starts ${theirHeat} hotter${to.gate && !to.owner ? ': they are weakened' : ''}.</li>`);
+    const health = to.fortification * CAMPAIGN.fortifyHealth + (to.heart && !to.owner ? CAMPAIGN.heartWardenHealth : 0) + (to.heart ? 0 : CAMPAIGN.coreHealth[to.ring ?? 99] ?? 0) + (to.star === 'brown' ? 6 : 0);
+    if (health) tips.push(`<li class="${bad}">${defending ? 'You have' : 'They have'} +${health} health.</li>`);
+    const g = garrisonBonus(to);
+    const held = g.tableau.length + (g.lightspeed ? 1 : 0);
+    if (held) tips.push(`<li class="${bad}">${held} of ${defending ? 'your' : 'their'} cards start in play.</li>`);
+    if (to.star === 'white') tips.push('<li>Both suns start 3 cooler: a long fight.</li>');
+    if (to.star === 'neutron') tips.push('<li>Both suns heat by 1 each day.</li>');
+    for (const c of anomalyEffects(s, to)?.conditions ?? []) tips.push(`<li>${esc(c.name)}: ${esc(c.text)}</li>`);
+    if (defender?.lost) tips.push(`<li class="good">Win to take their relics: ${MATERIALS} ${CAMPAIGN.lostRelicMaterials} and a card.</li>`);
+    return `
+      <div class="cmp-vs-row">${side(attacker, attacker ? nodeById(s, attacker.nodeId) : to)}<span class="cmp-vs">vs</span>${side(defender, to)}</div>
+      <ul class="cmp-tips">${tips.join('') || '<li>An even fight.</li>'}</ul>`;
   }
 
   /** A story scene, one line at a time: the speaker's portrait, name and words. */
@@ -1560,13 +1604,16 @@ export class CampaignView {
       badge: (id, n) => ({ text: `${n}/${count(army().deck, id) + count(me().reserve, id)}`, title: `${n} in this deck, ${count(me().reserve, id)} in your reserve`, on: n > 0 }),
       head: () => {
         const tabs = armiesOf(this.state!, me().id)
-          .map((a) => `<button class="cmp-army-tab ${a.id === armyId ? 'on' : ''}" data-act="cmp-deck-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${portrait(a.general)}<span>${lower(cardDef(a.general).name)}</span></button>`)
+          .map((a) => `<button class="cmp-army-tab ${a.id === armyId ? 'on' : ''}" data-act="cmp-deck-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${armyFace(a)}<span>${lower(cardDef(a.general).name)}</span></button>`)
           .join('');
         return `<div class="cmp-army-tabs">${tabs}</div>`;
       },
       foot: () => {
-        const problem = deckProblems(army().deck)[0];
-        return problem ? `<p class="cmp-warn">Not ready to fight: ${esc(problem)}</p>` : '<p class="cmp-ok">Ready to fight.</p>';
+        const a = army();
+        if (a.moved) return '<p class="cmp-warn">This army has marched this turn: its deck can change next turn.</p>';
+        const problem = deckProblems(a.deck)[0];
+        const note = a.refit ? '<p class="muted">Refitting: this army marches next turn.</p>' : '<p class="muted">Changing its deck refits this army: it can\'t march this turn.</p>';
+        return (problem ? `<p class="cmp-warn">Not ready to fight: ${esc(problem)}</p>` : '<p class="cmp-ok">Ready to fight.</p>') + note;
       },
     };
   }
