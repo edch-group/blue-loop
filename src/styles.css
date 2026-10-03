@@ -1737,6 +1737,12 @@ body.screen-campaign .backdrop { display: none; }
 .hub-link-icon svg, .hub-options svg { width: 100%; height: 100%; display: block; }
 .hub-link-icon svg *, .hub-options svg * { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 @media (hover: hover) { .hub-link:hover, .hub-options:hover { color: var(--ink); } }
+/* A little colour: the collection's cards in three races' colours, the shop's bag in gold. */
+.hub-link-icon svg .ic-c1 { fill: #b9cdea; stroke: #6f9fd8; }
+.hub-link-icon svg .ic-c2 { fill: #f0c9c1; stroke: #d48a7c; }
+.hub-link-icon svg .ic-c3 { fill: #e8d8ae; stroke: #c9a95e; }
+.hub-link-icon svg .ic-bag { fill: #f1d48d; stroke: #c39a3c; }
+.hub-link-icon svg .ic-handle { fill: none; stroke: #c39a3c; }
 /* You and options, top right. */
 .menu.menu-hub > .hub-corner { position: absolute; top: max(12px, var(--sa-t)); right: max(18px, var(--sa-r, 0px)); z-index: 2; display: flex; align-items: stretch; gap: 8px; }
 /* Options: the player card's own pill, as tall as it, as wide as its icon needs. */

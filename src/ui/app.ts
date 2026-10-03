@@ -84,8 +84,10 @@ type Screen = 'menu' | 'game' | 'campaign';
 type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop' | 'pickdeck';
 
 const HUB_ICONS = {
-  collection: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="12" width="18" height="26" rx="3" transform="rotate(-10 17 25)"/><rect x="16" y="10" width="18" height="26" rx="3"/><rect x="24" y="12" width="18" height="26" rx="3" transform="rotate(10 33 25)"/></svg>`,
-  shop: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 10h20l2 30H12z"/><path d="M14 10l4 6h12l4-6M24 22l2.4 4.8 5.3.8-3.8 3.7.9 5.2-4.8-2.5-4.8 2.5.9-5.2-3.8-3.7 5.3-.8z"/></svg>`,
+  collection: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect class="ic-c1" x="8" y="12" width="18" height="26" rx="3" transform="rotate(-10 17 25)"/><rect class="ic-c2" x="16" y="10" width="18" height="26" rx="3"/><rect class="ic-c3" x="24" y="12" width="18" height="26" rx="3" transform="rotate(10 33 25)"/></svg>`,
+  /** The general booster pack's emblem: a pack with a star. */
+  pack: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 10h20l2 30H12z"/><path d="M14 10l4 6h12l4-6M24 22l2.4 4.8 5.3.8-3.8 3.7.9 5.2-4.8-2.5-4.8 2.5.9-5.2-3.8-3.7 5.3-.8z"/></svg>`,
+  shop: `<svg viewBox="0 0 48 48" aria-hidden="true"><path class="ic-bag" d="M11 17h26l-2 23H13z"/><path class="ic-handle" d="M18 20v-6a6 6 0 0 1 12 0v6"/></svg>`,
   campaign: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 34 22 26 36 32M22 26 26 12 36 32M10 34 14 16 26 12"/><circle cx="10" cy="34" r="3.2"/><circle cx="22" cy="26" r="2.6"/><circle cx="36" cy="32" r="3.6"/><circle cx="26" cy="12" r="3"/><circle cx="14" cy="16" r="2.4"/></svg>`,
   quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="17" cy="24" r="8"/><circle cx="36" cy="24" r="4.5"/><path d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
   online: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="14"/><path d="M10 24h28M24 10c-5 4-7 9-7 14s2 10 7 14M24 10c5 4 7 9 7 14s-2 10-7 14"/></svg>`,
@@ -3038,7 +3040,7 @@ export class App {
   /** A booster pack: a foil wrapper, crimped top and bottom, with its race's emblem and a tear strip. */
   private packFace(k: BoosterKind): string {
     const name = k === 'general' ? 'general' : RACE_NAMES[k].toLowerCase();
-    const emblem = k === 'general' ? `<span class="pack-icon">${HUB_ICONS.shop}</span>` : factionAvatar(`f${k + 1}`, 'pack-emblem');
+    const emblem = k === 'general' ? `<span class="pack-icon">${HUB_ICONS.pack}</span>` : factionAvatar(`f${k + 1}`, 'pack-emblem');
     return `<span class="pack-tear"></span><span class="pack-body"><span class="pack-brand">blue loop</span>${emblem}<span class="pack-name">${esc(name)}</span><span class="pack-count">${PROGRESSION.boosterSize} cards</span></span><span class="pack-shine"></span>`;
   }
 
