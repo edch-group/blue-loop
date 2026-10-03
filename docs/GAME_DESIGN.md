@@ -45,7 +45,7 @@ was replaced by this design in design review.
   - Bulwarks guard their neighbours: Bulwark Plating gives +1 to the cards either side. Aegis Monolith (Anomaly) gives +2 either side and +1 two slots away.
   - Removal can only reach cards with low enough defence:
     - Ion Cannon: 2 or less.
-    - Tractor Beam and Hero Breaker: 3 or less.
+    - Tractor Beam and Command Breaker: 3 or less.
     - Event Horizon (Anomaly): any.
 - **Stability** is how many of your days a card stays in play. Its dawn effects trigger that many times, then it fades into your discard pile. [design review: stability on each card; the discard pile takes everything that leaves play]
   - **Standard stability:** 3.
@@ -140,7 +140,7 @@ Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of 
 
 - **Utility, chosen as you play it.** Every Hero offers **+1 energy** or **draw 1** each dawn, or a **third option of its own**. The card keeps the option picked for as long as it stays; the card shows all three, with the one picked highlighted. [design review: heat and cool options lost to energy almost every time, so the first two are utility for all, and the third varies]
 - **A full term.** Every Hero has stability 3, whatever it does, so cards that want a Hero in play can count on one.
-- **Never back to your own hand.** Heroes can't be recalled (Phase Shift, Recall Beacon, Shard Recall) or recovered from the discard pile (Salvage Drone and the rest). A rival can still send one back to its owner's hand (Tractor Beam, Event Horizon), and Hero Breaker destroys one.
+- **Never back to your own hand.** Heroes can't be recalled (Phase Shift, Recall Beacon, Shard Recall) or recovered from the discard pile (Salvage Drone and the rest). A rival can still send one back to its owner's hand (Tractor Beam, Event Horizon), and Command Breaker destroys one.
 
 **Heroes.** Every Hero is a hero: a character who leads their race, with their own picture. Each race has two, so a deck's three Heroes can be its own race's (two of one, one of the other), plus one bomb.
 
@@ -164,7 +164,7 @@ Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of 
 | Leviathan Thoross | Vorthane | 6 shields, eject (defence 3 or less) | +1 energy, draw 1, or 5 shields |
 | The Worldroot | Ixquor | draw 3, renew 2 | +1 energy, draw 1, or renew 2 |
 
-Counters: each is still a Hero, so Tractor Beam and Event Horizon send it back to hand (4 energy wasted) and Hero Breaker destroys it.
+Counters: each is still a Hero, so Tractor Beam and Event Horizon send it back to hand (4 energy wasted) and Command Breaker destroys it.
 
 (They keep the ids of the Heroes they replaced, so collections and saved decks carry over.)
 
@@ -177,7 +177,7 @@ Counters: each is still a Hero, so Tractor Beam and Event Horizon send it back t
 
 Only one Hero is in play at a time, so these ask for one, and do something without one.
 
-**Answering Heroes.** Hero Breaker destroys a Hero in your target's tableau; Tractor Beam and Event Horizon can send one back to its owner's hand (it can be played again, with a new choice).
+**Answering Heroes.** Command Breaker destroys a Hero in your target's tableau; Tractor Beam and Event Horizon can send one back to its owner's hand (it can be played again, with a new choice).
 
 **Why the change, and what the simulator says (1000 games).** Permanent upgrades were opaque and snowballed, and a Hero fading after a day made the cards that want one in play weak. As choose-one dawn cards with a full term, they are easier to read. But the upgrades did one useful job: Solar Flare's +1 on every attack was what let attack-heavy decks break through shield decks. Without it, Abyssal Tide sits behind its shields at 0–4 heat (and the AI mostly picks cool 3 for its Commands), so Tide beats Shard Overload about 85% of the time. Tried and kept: Bell Warden 2 shields a dawn (was 3), Shard Reactor heats its own sun by 1 (was 2), Ember Shard 3 heat (was 2), and no extra opening card for the second seat (seats were 43/57 with it, as games run longer now). Result: Tide 60%, Hive 52%, Lancers 49%, Overload 42%; seats 49/51; about 13 rounds a game (was 11). Cool 2 in place of cool 3 sinks Hive Bloom (~20%), which leans on cooling; raising max health to 27 or 30 only made games longer. **Pierce: the counter to shields.** Every mechanic should have a counter. Shields answer heat, Sting and Soothe punish heat into shields, and **Pierce** answers shields: piercing heat goes straight past them (and so sets off no Sting or Soothe), though a Lightspeed card can still cancel it. On Shard Reactor's dawn heat, the Xel'Naru Martyr's burst, and Ignition Protocol. With them, Tide vs Overload went from 85/15 to about 55/45.
 
@@ -239,7 +239,7 @@ Some cards count their own neighbours instead:
   - Shard Recall (Xel'Naru): and heat your rival by 1 (recalling a Martyr fires it too).
 - **Removal** of cards in your target's tableau:
   - Ion Cannon destroys a card.
-  - Hero Breaker heats 2, and destroys a Hero if there is one.
+  - Command Breaker heats 2, and destroys a Hero if there is one.
   - Tractor Beam returns a card to its owner's hand, and heats 1.
   - Event Horizon (Anomaly) destroys a card and flings the cards either side of it back to their owner's hand.
 
@@ -257,7 +257,7 @@ Cards that only worked alongside others (a count of a card type, Heroes, neighbo
 | Dawn Beacon (Aureline) | dawn, draw 1 with 3+ attack cards | with 2+ attack cards |
 | Prism Conduit (Xel'Naru) | cool 1 per attack card next to it | cool 1, +1 per attack card next to it |
 | Standing Orders, Chain of Command, War-Herald | needed one or two Heroes | see Heroes |
-| Hero Breaker | heat 1, destroy a Hero | heat 2, destroy a Hero if there is one |
+| Command Breaker | heat 1, destroy a Hero | heat 2, destroy a Hero if there is one |
 | Signal Jammer | cancels a Hero (decks hold 2) | cancels a growth card |
 | Dead World Mine | only while the dead planet faces your sun | also cool 1 every day |
 | Orbit Root | only while the dead planet faces your sun | also 1 shield every day |
@@ -364,7 +364,7 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 **Neutral cards:**
 - Coronal Lance, Plasma Relay, Gravity Sling, Thermal Exchange, Solar Battery, Coolant Array, Cryo Vault, Deflector Grid, Heat Sink and Deep-Space Scanners.
-- Removal: Ion Cannon, Tractor Beam, Hero Breaker and Event Horizon.
+- Removal: Ion Cannon, Tractor Beam, Command Breaker and Event Horizon.
 - Resonance: Resonance Lattice and Harmonic Singularity.
 - Recovery and recall: Salvage Drone, Phase Shift and Recall Beacon.
 - Command synergies: Standing Orders and Chain of Command.

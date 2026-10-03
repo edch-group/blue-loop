@@ -78,6 +78,7 @@ import { fitCardText, fitWhenSeen } from './fittext';
 import { refreshLift, trackLift } from './lift';
 import { animateSuns } from './sun3d';
 import { voices } from './voice';
+import { morphInto } from './morph';
 import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
 
 type Screen = 'menu' | 'game' | 'campaign';
@@ -2593,35 +2594,20 @@ export class App {
 
   /** Cards in hand kept through the last redraw (not rebuilt). */
   private keptHand = new WeakSet<HTMLElement>();
-  /** Each card in hand's contents as drawn, to tell whether a redraw changed it. */
-  private handMarkup = new WeakMap<HTMLElement, string>();
-
   private render() {
     // Typing in the deck builder's search re-renders the page: keep the caret in the box.
     const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.dbSearch !== undefined ? document.activeElement.selectionStart : null;
     // Lists that scroll (the deck builder's card pool and deck, piles, setup pages) keep their place across a redraw.
     const scrolled = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)].map((el) => [el.scrollTop, el.scrollLeft]);
     const pageY = window.scrollY;
-    // Cards in hand that come out of the redraw unchanged are kept as they were (not rebuilt), so the
-    // hand doesn't flicker and re-settle every time anything on the page changes.
-    const held = new Map([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].map((el) => [el.dataset.uid!, el]));
-    this.keptHand = new WeakSet();
+    // The cards in hand before the redraw: those still there after it were kept (and slide along the fan by themselves).
+    const held = new Set(this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]'));
     // Only the landing and sign-in pages may lie upright; from the game mode menu on, it's landscape.
     forceLandscape(!(this.screen === 'menu' && (this.menuPage === 'title' || this.menuPage === 'signin')));
-    this.root.innerHTML = this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame();
-    this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]').forEach((el) => {
-      const inner = el.innerHTML;
-      const old = held.get(el.dataset.uid!);
-      if (!old || this.handMarkup.get(old) !== inner) return this.handMarkup.set(el, inner);
-      this.keptHand.add(old);
-      // The same card: only its own attributes (state classes, what a click does) can have changed. The
-      // layout the fan gave it (left, angle) stays, and a hovered card stays lifted.
-      const wasLifted = old.classList.contains('lifted');
-      for (const a of [...old.attributes]) if (a.name !== 'style' && !el.hasAttribute(a.name)) old.removeAttribute(a.name);
-      for (const a of [...el.attributes]) if (a.name !== 'style' && old.getAttribute(a.name) !== a.value) old.setAttribute(a.name, a.value);
-      if (wasLifted) old.classList.add('lifted');
-      el.replaceWith(old);
-    });
+    // The page is morphed into its new markup, not rebuilt: only what changed is touched, so the board,
+    // its cards and canvases stay as they are between moves (rebuilding it all made every action slow).
+    morphInto(this.root, this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame());
+    this.keptHand = new WeakSet([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].filter((el) => held.has(el)));
     const again = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)];
     if (again.length === scrolled.length) again.forEach((el, i) => ((el.scrollTop = scrolled[i][0]), (el.scrollLeft = scrolled[i][1])));
     if (window.scrollY !== pageY) window.scrollTo(0, pageY);
@@ -3526,7 +3512,7 @@ export class App {
         <div class="board3d">
           <div class="board-plane">
             <div class="board-floor"></div>
-            <div class="board-star-slot"></div>
+            <div class="board-star-slot" data-morph-keep></div>
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}

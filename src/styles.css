@@ -1563,7 +1563,9 @@ body.screen-campaign .backdrop { display: none; }
   position: fixed; inset: 0;
   perspective: calc(200 * var(--vh));
   perspective-origin: 50% 24%;
+  /* Clipped, never scrolled: the board stays between moves now, so a focus or a stray scroll would shift it for good. */
   overflow: hidden;
+  overflow: clip;
 }
 .table-view > .game {
   /* Tip the whole board away from the viewer and shrink it so the table sits in the room. */
@@ -2445,7 +2447,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
   border: 2px solid rgba(150, 164, 190, 0.5); box-shadow: 0 2px 8px rgba(60, 80, 120, 0.18);
   font-family: var(--display); line-height: 1; white-space: nowrap;
 }
-.vit-shields { gap: 2px; color: #3d5a8c; font-weight: 800; font-size: calc(var(--vs) * 0.12); }
+.vit-shields { gap: 2px; color: #3d5a8c; font-weight: 800; font-size: max(9px, calc(var(--vs) * 0.085)); }
 .vit-shielded .vit-shields { border-color: rgba(109, 140, 194, 0.65); }
 .vit:not(.vit-shielded) .vit-shields { color: #9aa6ba; }
 .vit-shields i { font-style: normal; font-size: 0.9em; }

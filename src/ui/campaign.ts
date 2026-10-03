@@ -129,6 +129,9 @@ type Sheet =
   /** The game overview: every faction, its systems and its share of the universe. */
   | { kind: 'overview' };
 
+/** Map stages already listening for drags and zooms (kept through redraws, which no longer rebuild them). */
+const boundStages = new WeakSet<HTMLElement>();
+
 export class CampaignView {
   state: CampaignState | null = null;
   private selected: string | null = null;
@@ -677,8 +680,8 @@ export class CampaignView {
       this.glide = null;
       return;
     }
-    if (!stage.dataset.bound) {
-      stage.dataset.bound = '1';
+    if (!boundStages.has(stage)) {
+      boundStages.add(stage);
       stage.addEventListener('pointerdown', (e) => this.onPointerDown(e));
       stage.addEventListener('pointermove', (e) => this.onPointerMove(e));
       stage.addEventListener('pointerup', (e) => this.onPointerUp(e));

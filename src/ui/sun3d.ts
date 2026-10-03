@@ -501,7 +501,7 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   if (vs < 8) return;
   const span = vs * (1 + 2 * DOME_PAD);
   // A little finer than the screen's own pixels, so edges stay smooth however the board scales it.
-  const size = Math.round(Math.min(760, span * Math.min(2, window.devicePixelRatio || 1) * 1.5));
+  const size = Math.round(Math.min(760, span * Math.min(2, window.devicePixelRatio || 1) * 1.15));
   if (canvas.width !== size) {
     canvas.width = size;
     canvas.height = size;
@@ -732,9 +732,14 @@ export function animateSuns() {
   document.querySelectorAll<HTMLCanvasElement>('canvas.sun3d, canvas.vit-dome').forEach((fresh) => {
     const cv = adopt(fresh);
     const dome = cv.classList.contains('vit-dome');
-    // The corona is cheap: always painted at once, so a redrawn gauge never shows a sun without its flames.
-    if (!dome) return draw(cv, now);
     const sig = signature(cv);
+    // The corona: painted at once when new or changed (so a gauge never shows a sun without its flames);
+    // a canvas kept through the redraw just carries on with the animation.
+    if (!dome) {
+      if (shown.get(cv) === sig) return;
+      shown.set(cv, sig);
+      return draw(cv, now);
+    }
     if (shown.get(cv) === sig) {
       // The sun and planets are kept as they were; the new label goes straight to its place on the sun
       // (otherwise it sits in the gauge's corner until the next frame draws it).

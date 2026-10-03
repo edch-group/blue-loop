@@ -149,7 +149,7 @@ export const CARDS: CardDef[] = [
   },
   {
     id: 'command_breaker',
-    name: 'Hero Breaker',
+    name: 'Command Breaker',
     kind: 'attack',
     text: '{heat:2}. {destroy:3}: Heroes only.',
     onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'destroy', kind: 'command', maxDefence: 3 }],
