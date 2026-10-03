@@ -513,6 +513,7 @@ export class App {
     },
     settingsButtons: () => this.settingsButtons(),
     banner: (text, sub) => this.showBanner(text, sub, 120, 'campaign'),
+    zoom: (id) => this.zoom(id),
     toMenu: () => {
       this.campaignBattle = false;
       this.screen = 'menu';
@@ -538,6 +539,11 @@ export class App {
     /** Online: 'you' must confirm the rival's card; the 'rival' is reading yours (you wait). */
     waitFor: null as 'you' | 'rival' | null,
   };
+  /** The deck builder in use: the campaign base's while it is open, else the menu's. */
+  private activeBuilder(): DeckBuilder {
+    return this.screen === 'campaign' ? this.campaign.builder : this.builder;
+  }
+
   private builder = new DeckBuilder({
     render: () => this.render(),
     zoom: (id) => this.zoom(id),
@@ -627,7 +633,7 @@ export class App {
       if (!swipeFrom) return;
       const dx = e.clientX - swipeFrom.x, dy = e.clientY - swipeFrom.y;
       swipeFrom = null;
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) this.builder.swipe(dx);
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) this.activeBuilder().swipe(dx);
     });
     // Right-click a card (anywhere) to read it large.
     root.addEventListener('contextmenu', (e) => {
@@ -2161,8 +2167,8 @@ export class App {
     const el = e.target as HTMLInputElement;
     const seat = el.dataset.seatName;
     if (seat !== undefined) this.seats[Number(seat)].name = el.value;
-    if (el.dataset.dbName !== undefined) this.builder.onInput(el.value);
-    if (el.dataset.dbSearch !== undefined) this.builder.onSearch(el.value);
+    if (el.dataset.dbName !== undefined) this.activeBuilder().onInput(el.value);
+    if (el.dataset.dbSearch !== undefined) this.activeBuilder().onSearch(el.value);
     if (el.dataset.joinCode !== undefined) this.net.joinCode = el.value;
     if (el.dataset.signinName !== undefined) this.signinName = el.value;
     if (el.dataset.authEmail !== undefined) this.authEmail = el.value;
@@ -2358,7 +2364,7 @@ export class App {
     // Buttons tick; moves on the table (and map selections) have sounds of their own.
     if (!leaving && !QUIET_ACTS.has(act) && !el.classList.contains('overlay') && !el.classList.contains('cmp-stage')) sound.click();
     if (act.startsWith('cmp-') && this.campaign.onClick(act, arg, el)) return;
-    if (act.startsWith('db-') && this.builder.onClick(act, arg)) return;
+    if (act.startsWith('db-') && this.activeBuilder().onClick(act, arg)) return;
 
     switch (act) {
       case 'seat-ai': {
@@ -2716,7 +2722,7 @@ export class App {
     forceLandscape(!(this.screen === 'menu' && (this.menuPage === 'title' || this.menuPage === 'signin')));
     // The page is morphed into its new markup, not rebuilt: only what changed is touched, so the board,
     // its cards and canvases stay as they are between moves (rebuilding it all made every action slow).
-    morphInto(this.root, this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() : this.renderGame());
+    morphInto(this.root, this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() + (this.zoomed ? this.renderZoom() : '') : this.renderGame());
     this.keptHand = new WeakSet([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].filter((el) => held.has(el)));
     const again = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)];
     if (again.length === scrolled.length) again.forEach((el, i) => ((el.scrollTop = scrolled[i][0]), (el.scrollLeft = scrolled[i][1])));
@@ -2751,7 +2757,7 @@ export class App {
     fitCardText(this.root);
     sizePool(this.root);
     fitWhenSeen(this.root.querySelectorAll<HTMLElement>('.db-pool .db-card'));
-    this.builder.afterRender();
+    this.activeBuilder().afterRender();
     refreshLift();
     const page = this.screen === 'menu' ? `menu:${this.menuPage}` : this.screen;
     if (page !== this.shownPage) {
@@ -2959,7 +2965,8 @@ export class App {
         fitCardText(menu.querySelector<HTMLElement>('.zoom-view')!);
         return;
       }
-    } else return;
+    } else if (this.screen === 'campaign') this.zoomed = defId;
+    else return;
     sound.hover();
     this.render();
   }

@@ -16,6 +16,33 @@ interface BuilderHost {
 }
 
 /**
+ * The builder put to another use (the campaign's base): its own pool of cards and counts, a deck that
+ * changes as you tap (each change made at once, in the campaign), or no deck at all (the armoury), and
+ * its own side panel and card panel.
+ */
+export interface BuilderMode {
+  /** Copies of a card there are to build with (in the deck and spare). */
+  owned(id: string): number;
+  /** The cards the pool offers. */
+  cards(): CardDef[];
+  /** The deck being built, as it now stands; null for none (the side shows only `head`). */
+  deck(): { name: string; race: number; cards: string[] } | null;
+  /** Put a card in, take one out: why not, or null once done. */
+  add?(id: string): string | null;
+  remove?(id: string): string | null;
+  /** With no deck: a card tapped (the mode redraws). */
+  tap?(id: string): void;
+  /** A card's corner badge, in place of "in the deck / owned". */
+  badge?(id: string, inDeck: number): { text: string; title: string; on: boolean };
+  /** Whether a card is picked (outlined). */
+  picked?(id: string): boolean;
+  /** The side panel's head: army tabs, a character. */
+  head(): string;
+  /** The side panel's foot: the card picked, what can be done with it. */
+  foot?(): string;
+}
+
+/**
  * The card view's filters: a search, and for race, type, rarity, cost and collection any number of
  * values ticked (none ticked lets everything through), an order, and two toggles.
  */
@@ -44,6 +71,9 @@ const GRID_ICON = {
   md: `<svg viewBox="0 0 14 14" aria-hidden="true">${[0, 7.5].flatMap((y) => [0, 7.5].map((x) => `<rect x="${x}" y="${y}" width="6.5" height="6.5" rx="1.5"/>`)).join('')}</svg>`,
   lg: '<svg viewBox="0 0 14 14" aria-hidden="true"><rect width="14" height="14" rx="2.5"/></svg>',
 };
+
+/** A page arrow, drawn (a text ‹ › sits off-centre in the font). */
+const CHEVRON = (way: 'left' | 'right') => `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="${way === 'left' ? 'M7.5 2.5 4 6l3.5 3.5' : 'M4.5 2.5 8 6 4.5 9.5'}"/></svg>`;
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -81,7 +111,32 @@ export class DeckBuilder {
     }
   })();
 
+  /** Put to another use (the campaign's base), or the menu's own deck builder (null). */
+  private mode: BuilderMode | null = null;
+
   constructor(private host: BuilderHost) {}
+
+  /** Use the builder for something else (or, with null, for the menu's decks again). */
+  setMode(mode: BuilderMode | null) {
+    if (mode !== this.mode) {
+      this.page = 0;
+      this.focus = null;
+      this.filtersOpen = false;
+    }
+    this.mode = mode;
+    this.syncMode();
+  }
+
+  /** In a mode, the deck shown is always the mode's deck as it now stands. */
+  private syncMode() {
+    if (!this.mode) return;
+    const d = this.mode.deck();
+    this.editing = { id: 'mode', name: d?.name ?? '', race: d?.race ?? 0, cards: d ? [...d.cards] : [] };
+  }
+
+  private owned(id: string): number {
+    return this.mode ? this.mode.owned(id) : owned(id);
+  }
 
   open() {
     this.editing = this.starter = null;
@@ -232,6 +287,7 @@ export class DeckBuilder {
         return true;
       case 'db-add': {
         if (!d) return true;
+        if (this.mode) return this.modeAdd(d, arg);
         const copies = d.cards.filter((id) => id === arg).length;
         const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
         // A card you don't own (or not enough copies of): offer to craft it.
@@ -251,6 +307,13 @@ export class DeckBuilder {
       }
       case 'db-remove': {
         if (!d) return true;
+        if (this.mode) {
+          const why = this.mode.remove?.(arg);
+          if (why) this.host.toast(why);
+          this.syncMode();
+          if (this.updateDeckInPlace(this.editing!, arg)) return true;
+          break;
+        }
         const i = d.cards.lastIndexOf(arg);
         if (i >= 0) d.cards.splice(i, 1);
         d.race = deckRace(d);
@@ -289,7 +352,26 @@ export class DeckBuilder {
     return true;
   }
 
+  /** A card tapped in a mode: put in the deck at once, or (with no deck) handed to the mode. */
+  private modeAdd(d: SavedDeck, id: string): boolean {
+    const m = this.mode!;
+    if (!m.deck()) {
+      m.tap?.(id);
+      return true;
+    }
+    const copies = d.cards.filter((x) => x === id).length;
+    const why = copies >= this.owned(id) && copies < copyLimit(id) ? `No spare ${cardDef(id).name} in your reserve.` : m.add?.(id) ?? null;
+    if (why) this.host.toast(why);
+    this.syncMode();
+    if (!this.updateDeckInPlace(this.editing!, id)) this.host.render();
+    return true;
+  }
+
   render(): string {
+    if (this.mode) {
+      this.syncMode();
+      return this.renderEditor(this.editing!);
+    }
     // A deck just opened: remember it as it was.
     if (this.editing && this.editing !== this.openedAs) {
       this.openedAs = this.editing;
@@ -340,13 +422,13 @@ export class DeckBuilder {
           <div class="db-pool" data-grid="${this.grid}">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
           ${this.pagerHtml(d)}
         </div>
-        <aside class="db-deck-side">
+        ${this.mode ? this.modeSide(d) : `<aside class="db-deck-side">
           <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
           ${this.tallyHtml(d)}
           <div class="db-focus-slot">${this.focus ? this.renderFocus(this.focus) : ''}</div>
           <div class="db-rows">${this.rowsHtml(d)}</div>
           <div class="db-actions"><button class="btn btn-small btn-exit" data-act="db-exit">exit</button><button class="btn-primary btn-small" data-act="db-save">save</button></div>
-        </aside>
+        </aside>`}
       </div>
       ${
         this.confirmExit
@@ -357,6 +439,18 @@ export class DeckBuilder {
             </div></div>`
           : ''
       }`;
+  }
+
+  /** A mode's side panel: its head, then the deck (if it has one), then its foot. */
+  private modeSide(d: SavedDeck): string {
+    const m = this.mode!;
+    const deck = m.deck();
+    return `
+        <aside class="db-deck-side db-mode-side ${deck ? '' : 'db-keeper-side'}">
+          ${m.head()}
+          ${deck ? `<b class="db-mode-title">${esc(d.name.toLowerCase())}</b>${this.tallyHtml(d)}<div class="db-rows">${this.rowsHtml(d)}</div>` : ''}
+          <div class="db-mode-foot">${m.foot?.() ?? ''}</div>
+        </aside>`;
   }
 
   /** The deck's count of cards and of Command cards, against what it needs. */
@@ -402,8 +496,8 @@ export class DeckBuilder {
       const have = tile.querySelector<HTMLElement>('.db-have');
       if (have) {
         have.classList.toggle('on', n > 0);
-        have.textContent = `${n}/${owned(id)}`;
-        have.title = `${n} in this deck, ${owned(id)} owned: tap to craft or break down`;
+        have.textContent = this.badge(id, n).text;
+        have.title = this.badge(id, n).title;
       }
     });
     return true;
@@ -417,17 +511,18 @@ export class DeckBuilder {
     const count = (id: string) => d.cards.filter((x) => x === id).length;
     const tile = (c: CardDef) => {
       const n = count(c.id);
-      const have = owned(c.id);
+      const have = this.owned(c.id);
       const cmd = c.kind === 'command';
+      const badge = this.badge(c.id, n);
       return `
-          <button class="db-card ${cmd ? 'db-card-cmd' : ''} ${n ? 'db-card-in' : ''} ${have ? '' : 'db-card-locked'} ${this.focus === c.id ? 'db-card-focus' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
+          <button class="db-card ${cmd ? 'db-card-cmd' : ''} ${n ? 'db-card-in' : ''} ${have ? '' : 'db-card-locked'} ${this.focus === c.id || this.mode?.picked?.(c.id) ? 'db-card-focus' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
             <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}${cmd ? ' card-landscape' : ''}">
               <span class="card-glyph">${cardArtLite(c, true)}</span>${stabilityBadge(c)}
               <span class="card-name">${esc(c.name.toLowerCase())}</span>
               <span class="card-text">${cardTextHtml(c.text)}</span>
               <span class="card-kind">${typeLine(c)}</span>
             </span>
-            <span class="db-have ${n ? 'on' : ''}" data-act="db-focus" data-arg="${c.id}" title="${n} in this deck, ${have} owned: tap to craft or break down">${n}/${have}</span>
+            <span class="db-have ${badge.on ? 'on' : ''}" ${this.mode ? '' : `data-act="db-focus" data-arg="${c.id}"`} title="${esc(badge.title)}">${badge.text}</span>
             <span class="db-zoom" data-act="db-zoom" data-arg="${c.id}" title="Read it large (or right-click the card)">⤢</span>
           </button>`;
     };
@@ -438,6 +533,13 @@ export class DeckBuilder {
     const commands = list.filter((c) => c.kind === 'command');
     const rest = list.filter((c) => c.kind !== 'command');
     return [...(commands.length ? [`<div class="db-pool-cmds">${commands.map(tile).join('')}</div>`] : []), ...rest.map(tile)];
+  }
+
+  /** A tile's corner badge: by default, copies in the deck of copies owned. */
+  private badge(id: string, n: number): { text: string; title: string; on: boolean } {
+    if (this.mode?.badge) return this.mode.badge(id, n);
+    const have = this.owned(id);
+    return { text: `${n}/${have}`, title: this.mode ? `${n} in this deck, ${have} in all` : `${n} in this deck, ${have} owned: tap to craft or break down`, on: n > 0 };
   }
 
   /** After a filter changes: the pool, the ticks and the filter count update in place (no redraw). */
@@ -545,9 +647,9 @@ export class DeckBuilder {
     if (pages <= 1) return '<nav class="db-pager" hidden></nav>';
     const dots = Array.from({ length: pages }, (_, i) => `<button class="db-page-dot ${i === this.page ? 'on' : ''}" data-act="db-page" data-arg="${i}" aria-label="Page ${i + 1}"></button>`).join('');
     return `<nav class="db-pager" aria-label="Card pages">
-        <button class="db-page-btn" data-act="db-page" data-arg="prev" ${this.page === 0 ? 'disabled' : ''} aria-label="Previous page">‹</button>
+        <button class="db-page-btn" data-act="db-page" data-arg="prev" ${this.page === 0 ? 'disabled' : ''} aria-label="Previous page">${CHEVRON('left')}</button>
         <span class="db-page-dots">${dots}</span><small class="db-page-n">${this.page + 1} / ${pages}</small>
-        <button class="db-page-btn" data-act="db-page" data-arg="next" ${this.page >= pages - 1 ? 'disabled' : ''} aria-label="Next page">›</button>
+        <button class="db-page-btn" data-act="db-page" data-arg="next" ${this.page >= pages - 1 ? 'disabled' : ''} aria-label="Next page">${CHEVRON('right')}</button>
       </nav>`;
   }
 
@@ -589,7 +691,7 @@ export class DeckBuilder {
     const q = f.q.trim().toLowerCase();
     const inDeck = new Set(d.cards);
     const flux = profile().flux;
-    const list = CARDS.filter((c) => {
+    const list = (this.mode ? this.mode.cards() : CARDS).filter((c) => {
       if (q && !`${c.name} ${plainText(c.text)} ${c.kind} ${c.race !== undefined ? RACE_NAMES[c.race] : 'neutral'}`.toLowerCase().includes(q)) return false;
       const race = c.race === undefined ? 'neutral' : String(c.race);
       if (f.race.size && !f.race.has(race) && !(f.race.has('deck') && (c.race === undefined || c.race === d.race))) return false;
@@ -597,7 +699,7 @@ export class DeckBuilder {
       if (f.rarity.size && !f.rarity.has(c.rarity ?? 'dwarf')) return false;
       if (f.cost.size && !f.cost.has(costGroup(c))) return false;
       if (f.own.size) {
-        const have = owned(c.id);
+        const have = this.owned(c.id);
         const ok = (f.own.has('owned') && have > 0) || (f.own.has('missing') && have === 0) || (f.own.has('craftable') && have < copyLimit(c.id) && craftCost(c.id) <= flux);
         if (!ok) return false;
       }
@@ -656,7 +758,7 @@ export class DeckBuilder {
           ${multi('kind', 'type', kinds, 'every type')}
           ${multi('cost', 'cost', costs, 'any cost')}
           ${multi('rarity', 'rarity', rarities, 'every rarity')}
-          ${multi('own', 'collection', owns, 'all cards')}
+          ${this.mode ? '' : multi('own', 'collection', owns, 'all cards')}
           ${drop('sort', 'order', sorts, (v) => f.sort === v, 'db-sort', sorts.find(([v]) => v === f.sort)?.[1] ?? '')}
           <div class="db-filters-toggles">${toggle('characters', 'characters')}${toggle('inDeck', 'in this deck')}</div>
           <div class="db-filters-foot">${set ? '<button class="pill-btn" data-act="db-clear">clear</button>' : ''}<button class="pill-btn" data-act="db-filters">done</button></div>

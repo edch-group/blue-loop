@@ -246,3 +246,34 @@ export function defeatScene(winnerRace: number, heart: boolean): StoryScene {
     ],
   };
 }
+
+/**
+ * The armoury's keepers. The quartermaster sells; the recycler breaks cards down for what they're made of.
+ * Both have watched the universe run down, and say so (the dying stars stand, quietly, for our own world's
+ * spent resources and warming).
+ */
+export const QUARTERMASTER = { name: 'Quartermaster Hesk', role: 'the armoury' };
+export const RECYCLER = { name: 'Mother Tallow', role: 'the recycler' };
+
+export const QUARTERMASTER_LINES: string[] = [
+  'Prices are up. Everything is up, except the light.',
+  "The supply chain's fine. It's the supply that's gone.",
+  'Mined that from a moon that isn\'t there any more. Don\'t ask which.',
+  'Buy it now. The world that made it may not be there next turn.',
+  'We were told there would always be more. There was always more, right up until there wasn\'t.',
+  'Everyone wants growth. Nobody asks what it grows out of.',
+  'Half my stock came from stars we burned too hot, too fast. Cheap at the time.',
+  'Quarterly yields were excellent, right up until the last quarter.',
+];
+
+export const RECYCLER_LINES: string[] = [
+  'Everything you throw away goes somewhere. Out here, it comes back round and orbits you.',
+  "My mother had a banner: reduce, reuse, recycle. We kept the banner. We didn't keep the habit.",
+  'Every card is made of something that was once a world. Mind how you waste it.',
+  "Single-use starships. Who thought that was a good idea? Everybody, that's who.",
+  'They said the dimming was a natural cycle. Some of it was. Most of it was us.',
+  'Every degree we added to the suns, we said we would fix later. It is later.',
+  'The seas on the tide worlds rose a hand a year. They built higher docks, and never asked why.',
+  "Nothing is ever really thrown away. It's only put where you can't see it, for a while.",
+  'Bring me what you will not use. Half of something is better than all of nothing.',
+];

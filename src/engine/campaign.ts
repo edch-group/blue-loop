@@ -12,7 +12,8 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
-import { CARDS, cardDef, copyLimit, deckProblems, fusedId, fusionProblem, RACE_NAMES } from './cards';
+import { CARDS, cardDef, commandCardsFor, copyLimit, deckProblems, fusedId, fusionProblem, RACE_NAMES } from './cards';
+import { BALANCE } from './balance';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup } from './types';
@@ -116,6 +117,10 @@ export const CAMPAIGN = {
   /** The counter: stabilise a collapsing system you hold, for materials, holding it together this many turns more (once per system). */
   stabiliseCost: 8,
   stabiliseTurns: 4,
+  /** Each home has one route out, to a system whose sentinels start this much hotter (a weakened first foe). */
+  gateHeat: 10,
+  /** Recycling a reserve card pays this share of its armory price, in materials (at least 1). */
+  recycleShare: 0.5,
   /** The Heart: its yield, and its Wardens' extra max health. */
   heartYield: 6,
   heartWardenHealth: 12,
@@ -190,6 +195,8 @@ export interface CampaignNode {
   collapsed?: boolean;
   /** Stabilised (once only): it holds until this turn. */
   stableUntil?: number;
+  /** The one system a home's route leads to: its defenders start weakened (much hotter), until it is taken. */
+  gate?: boolean;
 }
 
 export type AnomalyKind = 'blackHole' | 'nebula' | 'darkMatter' | 'pulsar';
@@ -378,6 +385,11 @@ export type CampaignAction =
   | { type: 'recruit'; general: string; nodeId: string }
   /** Hold a collapsing system together a few turns more. */
   | { type: 'stabilise'; nodeId: string }
+  /** Move a reserve card into an army's deck, or a deck card back to the reserve (a deck must be legal to attack). */
+  | { type: 'deckAdd'; armyId: string; defId: string }
+  | { type: 'deckRemove'; armyId: string; defId: string }
+  /** Break a reserve card down for materials. */
+  | { type: 'recycle'; defId: string }
   | { type: 'healArmy'; armyId: string }
   /** The oldest story scene has been read. */
   | { type: 'readStory' }
@@ -537,6 +549,29 @@ export function stabiliseProblem(f: Faction, n: CampaignNode): string | null {
   if (n.stableUntil !== undefined) return `${n.name} has been stabilised once already: it cannot be again.`;
   if (f.materials < CAMPAIGN.stabiliseCost) return `Not enough materials (need ${CAMPAIGN.stabiliseCost}, have ${f.materials}).`;
   return null;
+}
+
+/** Why a card can't go into an army's deck from the reserve (null if it can). The deck may be short, not over. */
+export function deckAddProblem(f: Faction, army: Army, defId: string): string | null {
+  if (!f.reserve.includes(defId)) return `${cardDef(defId).name} is not in your reserve.`;
+  const copies = army.deck.filter((id) => id === defId).length;
+  if (army.deck.length >= BALANCE.maxDeckSize) return `A deck holds at most ${BALANCE.maxDeckSize} cards.`;
+  if (copies >= copyLimit(defId)) return copyLimit(defId) === 1 ? `${cardDef(defId).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`;
+  if (cardDef(defId).kind === 'command' && army.deck.filter((id) => cardDef(id).kind === 'command').length >= commandCardsFor(BALANCE.maxDeckSize))
+    return `A deck holds at most ${commandCardsFor(BALANCE.maxDeckSize)} Heroes.`;
+  return null;
+}
+
+/** Why a card can't come out of an army's deck (null if it can). */
+export function deckRemoveProblem(army: Army, defId: string): string | null {
+  if (!army.deck.includes(defId)) return `${cardDef(defId).name} is not in that deck.`;
+  if (defId === army.general && army.deck.filter((x) => x === defId).length === 1) return `${cardDef(defId).name} leads this army: their card stays in its deck.`;
+  return null;
+}
+
+/** Materials for recycling a card: half its armory price (at least 1). */
+export function recycleValue(defId: string): number {
+  return Math.max(1, Math.floor(armoryPrice(defId) * CAMPAIGN.recycleShare));
 }
 
 /** Older saves have no scanners: place them as a new campaign would (about one system in six, never a home). */
@@ -848,6 +883,9 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     for (let k = 0; k < CAMPAIGN.activeMissions; k++) drawMission(s, f);
   }
 
+  // Each home has exactly one route out, towards the Heart, to a weakened neutral system.
+  for (const home of s.nodes.filter((n) => n.home)) openGate(s, home, heart);
+
   // Anomalies settle in the voids between systems: away from the starting
   // systems and each other, but close enough to reach at least one system.
   const kinds: AnomalyKind[] = ['blackHole', 'nebula', 'darkMatter', 'pulsar'];
@@ -880,6 +918,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     n.tier = d <= 1 ? 0 : d <= 3 ? 1 : 2;
     if (n.ring <= 2) n.tier = 2;
     else if (n.ring <= 3) n.tier = Math.max(n.tier, 1);
+    // A home's one route always leads to the weakest foe.
+    if (n.gate) n.tier = 0;
     const bonus = CAMPAIGN.coreYield[n.ring] ?? 0;
     n.yield = { credits: n.yield.credits + bonus, materials: n.yield.materials + bonus };
   }
@@ -895,6 +935,32 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   tell(s, introScene(me.race, me.id));
   noticeStory(s);
   return s;
+}
+
+/**
+ * Cut a home's routes down to one: the neighbour nearest the Heart, which becomes its gate. Any system
+ * left cut off by that is linked back to the nearest system still joined up (other than the home).
+ */
+function openGate(s: CampaignState, home: CampaignNode, heart: CampaignNode) {
+  const near = (n: CampaignNode) => Math.hypot(n.x - heart.x, n.y - heart.y);
+  const neighbours = home.links.map((id) => nodeById(s, id)).filter((n) => !n.home);
+  const gate = neighbours.sort((a, b) => near(a) - near(b))[0];
+  if (!gate) return;
+  for (const id of home.links) if (id !== gate.id) nodeById(s, id).links = nodeById(s, id).links.filter((x) => x !== home.id);
+  home.links = [gate.id];
+  gate.gate = true;
+  gate.owner = null;
+  // Rejoin anything the cut left stranded.
+  for (;;) {
+    const joined = new Set([heart.id]);
+    const queue = [heart.id];
+    while (queue.length) for (const l of nodeById(s, queue.shift()!).links) if (!joined.has(l)) joined.add(l), queue.push(l);
+    const lost = s.nodes.find((n) => !joined.has(n.id));
+    if (!lost) return;
+    const to = s.nodes.filter((n) => joined.has(n.id) && !n.home).sort((a, b) => Math.hypot(a.x - lost.x, a.y - lost.y) - Math.hypot(b.x - lost.x, b.y - lost.y))[0];
+    lost.links.push(to.id);
+    to.links.push(lost.id);
+  }
 }
 
 /** A new army, led by `general`, standing in `nodeId`. */
@@ -1018,6 +1084,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
     ...(targetFx?.conditions ?? []),
     ...(target.heart && !owner ? [{ name: 'Heart Wardens', text: `The oldest guardians: +${CAMPAIGN.heartWardenHealth} max health.` }] : []),
     ...(coreHealth ? [{ name: 'The core', text: `Close to the Heart, its defences are old and deep: +${coreHealth} max health.` }] : []),
+    ...(target.gate && !owner ? [{ name: 'Weakened', text: `Cut off and failing: the sentinels' sun starts ${CAMPAIGN.gateHeat} hotter.` }] : []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
     ...(g.tableau.length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
   ];
@@ -1041,7 +1108,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       species: owner ? owner.race : target.tier % 4,
       isAI: owner ? owner.isAI : true,
       deck: defenderDeck,
-      heatDelta: (guard ? guard.damage : target.damage) + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0),
+      heatDelta: (guard ? guard.damage : target.damage) + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0),
       tableau: g.tableau,
       lightspeed: g.lightspeed,
       modifiers: mergeModifiers(mergeModifiers(mergeModifiers(targetFx?.modifiers ?? {}, fortified), wardens), core),
@@ -1075,6 +1142,8 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     return;
   }
   if (hazardBlocks(target, f.id)) throw new GameError(`${target.name} is still reeling from a supernova.`);
+  const problem = deckProblems(army.deck)[0];
+  if (problem) throw new GameError(`${cardDef(army.general).name}'s deck isn't ready to fight: ${problem}`);
   army.moved = true;
   const players = battleSetup(s, army, target);
   const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players });
@@ -1164,6 +1233,7 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
   if (spoils.length) clog(s, `${f.name} seizes ${spoils.map((id) => cardDef(id).name).join(', ')} from ${n.name}.`);
   if (prevOwner) f.stats.rivalsTaken += 1;
   n.home = undefined;
+  n.gate = undefined;
   // A conquest brings new stock to the player's armory.
   if (f.id === s.playerId) refreshArmory(s, f);
 
@@ -1546,6 +1616,33 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       raiseArmy(s, f, action.general, n.id);
       clog(s, `${f.name} raises an army in ${n.name} under ${cardDef(action.general).name}. It can march next turn.`);
       tell(s, recruitScene(action.general, f.id));
+      break;
+    }
+    case 'deckAdd': {
+      const army = armyById(s, action.armyId);
+      if (army.owner !== f.id) throw new GameError('That army is not yours.');
+      const problem = deckAddProblem(f, army, action.defId);
+      if (problem) throw new GameError(problem);
+      f.reserve.splice(f.reserve.indexOf(action.defId), 1);
+      army.deck.push(action.defId);
+      break;
+    }
+    case 'deckRemove': {
+      const army = armyById(s, action.armyId);
+      if (army.owner !== f.id) throw new GameError('That army is not yours.');
+      const problem = deckRemoveProblem(army, action.defId);
+      if (problem) throw new GameError(problem);
+      army.deck.splice(army.deck.lastIndexOf(action.defId), 1);
+      f.reserve.push(action.defId);
+      break;
+    }
+    case 'recycle': {
+      const i = f.reserve.indexOf(action.defId);
+      if (i < 0) throw new GameError(`${cardDef(action.defId).name} is not in your reserve.`);
+      f.reserve.splice(i, 1);
+      const value = recycleValue(action.defId);
+      f.materials += value;
+      clog(s, `${f.name} recycles ${cardDef(action.defId).name} for ${value} materials.`);
       break;
     }
     case 'stabilise': {

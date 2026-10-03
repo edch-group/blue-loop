@@ -583,9 +583,9 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - The **Aureline** were the flower's first keepers. They called it **Vitalia** ("life-giver"), lost it, and were nearly wiped out in the war that followed. What is left of them is coming home.
 - The Xel'Naru need light for the crystal that holds their memories; the Vorthane's oceans are freezing; the Ixquor hive is starving.
 - The guide is **Oriel the Wanderer**, a neutral oracle who speaks to every race alike. Oriel opens the campaign and comments at each moment that matters: the first conquest, a Stellaria bloom sighted, claimed or wilted, the first star to dim, the Heart sighted, an army broken, a rival race met or fallen, victory and defeat. Generals speak too: on joining, and when a rival race is first met (its general taunts, yours answers).
-- Each moment plays once, as a dialogue overlay with portraits. Tap to advance, or skip the scene.
+- Each moment plays once, in the guidance panel under the turn count (a portrait, the speaker and the line), never blocking play. Read on, or dismiss it.
 
-**Setup.** Choose your race and 1–3 rivals. Factions start in the corners with one army.
+**Setup.** Choose your race and 1–3 rivals. Factions start in the corners with one army. Each home has exactly **one route out**, towards the Heart, to a cut-off neutral system (tier 0) whose sentinels start 10 heat hotter: every campaign opens with one winnable battle. (Any system the cut strands is linked back to its nearest neighbour.)
 
 **Armies and generals.**
 - Each army is led by a **general**: one of the race's Hero cards. Each race has three generals, in the order they join: the two leaders, then the race's bomb Hero (Empress Solenne, The Shardmind, Leviathan Thoross, The Worldroot).
@@ -608,7 +608,8 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - **Regional stability and the collapse:** a meter in the header counts down an 8-turn lead-up (the oracle warns as it runs low). Then solar systems collapse, from the rim inwards (the systems farthest from the Heart, ties at random): one a turn, one more every 12 turns. Each is marked (⚠, a dashed red ring, always in view) a turn before it goes. A collapsed system is gone: no owner, no yield, no route through it; an army caught there falls back to a free neighbour it holds, or is broken, and a faction left with no systems is out. This keeps everyone moving inwards. Domination counts half of the systems still standing.
 - **Counter, stabilise:** spend 8 materials on a marked system you hold to hold it together 4 turns more, once per system. The AI stabilises its home or a bloom when it can, and pulls its armies out of marked systems.
 - **Fog of war:** you see your systems, the systems around your armies, and those linked to them. About one system in six has a **scanner array**; hold it and you see two links out from it.
-- Tap the turn box (top left) to open the **overview**. The header shows your armies' portraits.
+- Tap the turn box (top left) to open the **overview**. Beside it, the regional stability meter (the same height); the resources and your armies' portraits are centred; the buttons sit on the right.
+- **Guidance:** story lines appear in a small panel under the turn box, never blocking play: read on, or dismiss. Settings can turn Oriel off entirely (generals still speak).
 - The board, the Milky Way sky and the settings work as before.
 
 **Winning.**
@@ -619,7 +620,9 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 **Economy.**
 - **Credits** recruit generals, heal armies and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +4 max health.
 - **Materials** buy cards in the armory by rarity: 3 for a White Dwarf, 5 for a Stellar, 8 for an Anomaly, +1 for a race card. The armory restocks every day and whenever you conquer a system.
-- **Base:** one button opens your armies' decks (a tab per army), the armory and your missions. Cards you win or buy wait in your **reserve**, to be swapped into any army's deck as long as it stays legal.
+- **Base:** a full-screen view with three tabs. **Deck** is the main deck builder (filters, pages, card sizes) on an army's deck, with a tab per army: its pool is that deck plus your reserve, and each tap moves one card in or out at once. A deck may fall short while you work on it; an army whose deck is not legal can march but not attack. The general's last copy stays. **Armoury** is the same screen without the deck list: the side panel holds its keeper and the card picked. **Missions** lists your missions.
+- **Armoury keepers:** Quartermaster Hesk sells the stock; Mother Tallow recycles and fuses. Each greets you with a line on the state of the universe (quietly echoing our own: spent resources, recycling, warming), a different one each visit.
+- **Recycle (armoury):** break a reserve card down for half its armory price in materials (at least 1). The counter to a reserve full of cards you won't use.
 - **Fusion (armory):** merge two reserve cards into one that does both, for materials (4 plus both cards' armory prices by rarity). It cannot be undone. Command, global and Lightspeed cards can't be fused, a fused card can't be fused again, and two cards that ask for the same kind of choice can't be fused together.
 
 **Garrisons.** Send up to 3 reserve cards to a system you control. They take a day to arrive and a day to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau**, and a stationed Lightspeed card starts set face down (only one). If the system falls, the conqueror takes them.

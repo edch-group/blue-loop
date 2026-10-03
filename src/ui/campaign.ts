@@ -25,14 +25,18 @@ import {
   HEART_NAME,
   ORACLE_NAME,
   STELLARIA_NAME,
+  QUARTERMASTER,
+  QUARTERMASTER_LINES,
+  RECYCLER,
+  RECYCLER_LINES,
+  recycleValue,
+  deckProblems,
   type Army,
   type StoryScene,
   fusionCost,
   fusionProblem,
   fusedId,
-  unfusable,
   createCampaign,
-  deckSwapProblem,
   factionById,
   factionIncome,
   GameError,
@@ -52,6 +56,7 @@ import {
   type GameState,
 } from '../engine';
 import { markDirty } from './account';
+import { DeckBuilder, type BuilderMode } from './builder';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
 import { cardArtLite, cardGlyph, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
@@ -129,6 +134,45 @@ const ORACLE_PORTRAIT = `<span class="cmp-portrait cmp-portrait-oracle"><svg vie
   <rect x="55" y="55" width="6" height="9" rx="1.5" fill="#fff3c4" stroke="#c9b27a" stroke-width="1"/>
 </svg></span>`;
 
+/** The armoury's quartermaster: a broad figure in work goggles, behind a crate, under a hanging lamp. */
+const QUARTERMASTER_PORTRAIT = `<span class="cmp-portrait cmp-portrait-keeper"><svg viewBox="0 0 80 80" aria-hidden="true">
+  <defs>
+    <linearGradient id="qm-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a3a2c"/><stop offset="1" stop-color="#1c1510"/></linearGradient>
+    <radialGradient id="qm-lamp" cx=".5" cy="0"><stop offset="0" stop-color="#ffd28a" stop-opacity=".55"/><stop offset="1" stop-color="#ffd28a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="80" height="80" fill="url(#qm-bg)"/>
+  <rect width="80" height="60" fill="url(#qm-lamp)"/>
+  <path d="M14 80c2-16 12-24 26-24s24 8 26 24z" fill="#7a5a3c"/>
+  <path d="M30 58l10 8 10-8" fill="none" stroke="#5a4029" stroke-width="2"/>
+  <circle cx="40" cy="38" r="14" fill="#c99a74"/>
+  <path d="M26 34c2-10 26-10 28 0" fill="#3a2a1e"/>
+  <rect x="27" y="33" width="26" height="7" rx="3.5" fill="#2a2420"/>
+  <circle cx="34" cy="36.5" r="3.2" fill="#9fd4e8" stroke="#c9a46a" stroke-width="1.2"/>
+  <circle cx="46" cy="36.5" r="3.2" fill="#9fd4e8" stroke="#c9a46a" stroke-width="1.2"/>
+  <path d="M33 46c4 3 10 3 14 0" fill="none" stroke="#6b4632" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M30 48c3 6 17 6 20 0" fill="#8a6a50" opacity=".7"/>
+  <rect x="48" y="62" width="26" height="18" rx="2" fill="#9a7b4f" stroke="#5a4029" stroke-width="1.5"/>
+  <path d="M48 70h26M61 62v18" stroke="#5a4029" stroke-width="1.2"/>
+</svg></span>`;
+
+/** The recycler: an old woman in a patched hood and scarf, a ring of salvage glowing behind her. */
+const RECYCLER_PORTRAIT = `<span class="cmp-portrait cmp-portrait-keeper"><svg viewBox="0 0 80 80" aria-hidden="true">
+  <defs>
+    <radialGradient id="rc-bg" cx=".5" cy=".4"><stop offset="0" stop-color="#2f4a3a"/><stop offset="1" stop-color="#101a14"/></radialGradient>
+  </defs>
+  <rect width="80" height="80" fill="url(#rc-bg)"/>
+  <circle cx="40" cy="36" r="27" fill="none" stroke="#8fd1a4" stroke-width="2" stroke-dasharray="10 5" opacity=".55"/>
+  ${[0, 120, 240].map((r) => `<path d="M40 7l4 5h-8z" fill="#8fd1a4" opacity=".7" transform="rotate(${r} 40 36)"/>`).join('')}
+  <path d="M16 80c2-18 11-26 24-26s22 8 24 26z" fill="#6d6458"/>
+  <path d="M22 62c6 6 30 6 36 0l-3 8c-8 4-22 4-30 0z" fill="#b5623e"/>
+  <path d="M40 18c-12 0-18 10-18 22 0 4 2 8 4 10h28c2-2 4-6 4-10 0-12-6-22-18-22z" fill="#857a6a"/>
+  <circle cx="40" cy="40" r="11" fill="#d8b49a"/>
+  <path d="M33 39q2-2 4 0M43 39q2-2 4 0" fill="none" stroke="#4a3426" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M35 46q5 3 10 0" fill="none" stroke="#7a4c3a" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M30 34q3-3 6-2M44 32q3-1 6 2" fill="none" stroke="#efe6da" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="29" y="24" width="7" height="5" rx="1" fill="#a39684" transform="rotate(-12 32 26)"/>
+</svg></span>`;
+
 const STELLARIA = STELLARIA_NAME;
 
 /** A stable 0–1 value per id, to spread animation phases so stars never pulse in step. */
@@ -157,15 +201,19 @@ export interface CampaignHost {
   settingsButtons(): string;
   /** The big centred announcement, as on the battle screen's "your turn". */
   banner(text: string, sub: string): void;
+  /** Show a card large. */
+  zoom(id: string): void;
 }
 
+type ArmoryTab = 'buy' | 'recycle' | 'fuse';
+
 type Sheet =
-  /** An army's deck (the first army's if none is named), and a slot being swapped. */
-  | { kind: 'deck'; armyId?: string; slot?: number }
+  /** The base, full screen: an army's deck (the first army's if none is named), in the deck builder. */
+  | { kind: 'deck'; armyId?: string }
   /** Raising a new army in a system. */
   | { kind: 'recruit'; nodeId: string }
-  /** `fuse`: the reserve cards picked for a fusion (up to two). */
-  | { kind: 'armory'; fuse?: number[] }
+  /** The base's armoury: buying, recycling or fusing; the card picked (or, fusing, the two). */
+  | { kind: 'armory'; tab: ArmoryTab; pick?: string; fuse?: string[] }
   | { kind: 'missions' }
   | { kind: 'log' }
   | { kind: 'station'; nodeId: string }
@@ -177,6 +225,22 @@ type Sheet =
 
 /** Map stages already listening for drags and zooms (kept through redraws, which no longer rebuild them). */
 const boundStages = new WeakSet<HTMLElement>();
+
+/** Whether the guide, Oriel, speaks (a setting, remembered on this device). */
+function guideOn(): boolean {
+  try {
+    return localStorage.getItem('blue-loop:guide') !== 'off';
+  } catch {
+    return true;
+  }
+}
+function setGuide(on: boolean) {
+  try {
+    localStorage.setItem('blue-loop:guide', on ? 'on' : 'off');
+  } catch {
+    // only a convenience
+  }
+}
 
 export class CampaignView {
   state: CampaignState | null = null;
@@ -194,6 +258,18 @@ export class CampaignView {
   private baseTab: 'deck' | 'armory' | 'missions' = 'deck';
   /** New-campaign setup choices. */
   private setup = { rivals: 3, race: 0 };
+  /** Visits to the armoury's keepers (each visit, they say something else). */
+  private keeperVisit = 0;
+  /** The base's deck and armoury: the main deck builder, put to the campaign's use. */
+  readonly builder = new DeckBuilder({
+    render: () => this.host.render(),
+    toast: (text) => this.host.toast(text),
+    zoom: (id) => this.host.zoom(id),
+    done: () => {
+      this.sheet = null;
+      this.host.render();
+    },
+  });
 
   constructor(private host: CampaignHost) {}
 
@@ -217,6 +293,7 @@ export class CampaignView {
     this.sheet = null;
     this.selected = null;
     this.view = null;
+    this.skipSilentScenes();
     return true;
   }
 
@@ -254,8 +331,22 @@ export class CampaignView {
       sound.error();
       return false;
     }
+    this.skipSilentScenes();
     saveCampaign(this.state);
     return true;
+  }
+
+  /** The lines of a scene that are shown: all of them, or (with the guide turned off) only the generals'. */
+  private shownLines(scene: StoryScene) {
+    return guideOn() ? scene.lines : scene.lines.filter((l) => l.speaker.kind !== 'oracle');
+  }
+
+  /** Scenes with nothing left to show (the guide turned off) are passed over. */
+  private skipSilentScenes() {
+    while (this.state && this.state.story.queue[0] && !this.shownLines(this.state.story.queue[0]).length) {
+      this.state = applyCampaignAction(this.state, { type: 'readStory' });
+      this.storyLine = 0;
+    }
   }
 
   // ---- Clicks -----------------------------------------------------------------
@@ -275,6 +366,7 @@ export class CampaignView {
         this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, rivals: this.setup.rivals, race: this.setup.race });
         this.selected = null;
         this.view = null;
+        this.skipSilentScenes();
         saveCampaign(this.state);
         sound.objective();
         this.army = null;
@@ -319,10 +411,15 @@ export class CampaignView {
         sound.hover();
         break;
       }
+      case 'cmp-guide':
+        setGuide(!guideOn());
+        this.skipSilentScenes();
+        if (this.state) saveCampaign(this.state);
+        break;
       case 'cmp-story-next': {
         const scene = s?.story.queue[0];
         if (!scene) break;
-        if (this.storyLine < scene.lines.length - 1) this.storyLine++;
+        if (this.storyLine < this.shownLines(scene).length - 1) this.storyLine++;
         else {
           this.storyLine = 0;
           this.apply({ type: 'readStory' });
@@ -357,6 +454,26 @@ export class CampaignView {
         this.baseTab = 'deck';
         this.sheet = { kind: 'deck', armyId: arg };
         break;
+      case 'cmp-armory-tab':
+        if (arg === 'buy' || arg === 'recycle' || arg === 'fuse') {
+          this.sheet = { kind: 'armory', tab: arg };
+          this.keeperVisit++;
+        }
+        break;
+      case 'cmp-buy': {
+        const slot = s!.armory.indexOf(arg);
+        if (slot >= 0 && this.apply({ type: 'buyCard', slot })) {
+          sound.buy();
+          if (this.sheet?.kind === 'armory') this.sheet = { kind: 'armory', tab: 'buy', pick: this.state!.armory.includes(arg) ? arg : undefined };
+        }
+        break;
+      }
+      case 'cmp-recycle':
+        if (this.apply({ type: 'recycle', defId: arg })) {
+          sound.shuffle();
+          if (this.sheet?.kind === 'armory') this.sheet = { kind: 'armory', tab: 'recycle', pick: campaignPlayer(this.state!).reserve.includes(arg) ? arg : undefined };
+        }
+        break;
       case 'cmp-select':
         this.anomaly = null;
         if (this.swallowClick) return true;
@@ -386,28 +503,26 @@ export class CampaignView {
         // "base" reopens the base on the tab last used.
         if (arg === 'base') arg = this.baseTab;
         if (arg === 'deck' || arg === 'armory' || arg === 'missions') this.baseTab = arg;
-        this.sheet = { kind: arg as 'deck' | 'armory' | 'missions' | 'log' | 'help' | 'overview' };
+        if (arg === 'armory') {
+          this.keeperVisit++;
+          this.sheet = { kind: 'armory', tab: 'buy' };
+        } else if (arg === 'deck') this.sheet = { kind: 'deck', armyId: this.sheet?.kind === 'deck' ? this.sheet.armyId : undefined };
+        else this.sheet = { kind: arg as 'missions' | 'log' | 'help' | 'overview' };
         break;
-      case 'cmp-fuse-pick': {
-        if (this.sheet?.kind !== 'armory') break;
-        const i = n();
-        const picks = this.sheet.fuse ?? [];
-        // Tap to pick, tap again to put back; a third pick replaces the second.
-        this.sheet = { kind: 'armory', fuse: picks.includes(i) ? picks.filter((x) => x !== i) : [...picks.slice(0, 1), i] };
-        break;
-      }
       case 'cmp-fuse': {
         if (this.sheet?.kind !== 'armory' || this.sheet.fuse?.length !== 2) break;
-        const [a, b] = this.sheet.fuse;
-        if (this.apply({ type: 'fuse', a, b })) {
+        const reserve = campaignPlayer(s!).reserve;
+        const [x, y] = this.sheet.fuse;
+        const a = reserve.indexOf(x);
+        const b = reserve.findIndex((id, k) => id === y && k !== a);
+        if (a >= 0 && b >= 0 && this.apply({ type: 'fuse', a, b })) {
           sound.upgrade();
-          this.sheet = { kind: 'armory' };
+          this.sheet = { kind: 'armory', tab: 'fuse' };
         }
         break;
       }
       case 'cmp-close':
         if (this.report && !this.sheet) this.report = null;
-        else if (this.sheet?.kind === 'deck' && this.sheet.slot !== undefined) this.sheet = { kind: 'deck', armyId: this.sheet.armyId };
         else this.sheet = null;
         break;
       case 'cmp-attack-pick':
@@ -446,19 +561,6 @@ export class CampaignView {
       case 'cmp-fortify':
         if (this.apply({ type: 'fortify', nodeId: arg })) sound.upgrade();
         break;
-      case 'cmp-buy':
-        if (this.apply({ type: 'buyCard', slot: n() })) sound.buy();
-        break;
-      case 'cmp-slot':
-        if (this.sheet?.kind === 'deck') this.sheet = { kind: 'deck', armyId: this.sheet.armyId, slot: n() };
-        break;
-      case 'cmp-swap': {
-        if (this.sheet?.kind !== 'deck' || this.sheet.slot === undefined) break;
-        const armyId = this.sheet.armyId ?? armiesOf(s!, s!.playerId)[0]?.id;
-        if (armyId && this.apply({ type: 'deckSwap', armyId, slot: this.sheet.slot, reserveIndex: n() })) sound.play();
-        this.sheet = { kind: 'deck', armyId };
-        break;
-      }
       case 'cmp-station-open':
         this.sheet = { kind: 'station', nodeId: arg };
         break;
@@ -532,18 +634,21 @@ export class CampaignView {
       <main class="cmp">
         <div class="cmp-sky" aria-hidden="true"></div>
         <header class="cmp-top">
-          <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" title="Game overview: every faction and its systems"><small>turn</small><b>${s.turn}/${CAMPAIGN.turnLimit}</b><i>›</i></button>
-          ${this.renderStability()}
+          <div class="cmp-top-left">
+            <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" title="Game overview: every faction and its systems"><small>turn</small><b>${s.turn}/${CAMPAIGN.turnLimit}</b><i>›</i></button>
+            ${this.renderStability()}
+            ${s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? this.renderStory(s.story.queue[0]) : ''}
+          </div>
           <div class="cmp-purse">
             <span title="Credits (+${inc.credits} a turn): earned from your systems each turn, battles and missions. Spent on repairing damage and fortifying systems.">${CREDITS}<b>${me.credits}</b><small>(+${inc.credits})</small></span>
-            <span title="Materials (+${inc.materials} a turn): earned from your systems each turn, battles and missions. Spent on buying cards in the armory.">${MATERIALS}<b>${me.materials}</b><small>(+${inc.materials})</small></span>
+            <span title="Materials (+${inc.materials} a turn): earned from your systems each turn, battles and missions. Spent on cards in the armoury.">${MATERIALS}<b>${me.materials}</b><small>(+${inc.materials})</small></span>
             <span title="Systems you hold, of ${s.nodes.length}">${SYSTEMS}<b>${ownedNodes(s, me.id).length}</b></span>
             <span class="cmp-purse-armies" title="Your armies: ${armiesOf(s, me.id).filter((a) => !a.moved).length} still to march this turn">${armiesOf(s, me.id)
               .map((a) => `<i class="cmp-mini-army ${a.moved ? 'moved' : ''}" data-act="cmp-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${portrait(a.general)}</i>`)
               .join('')}</span>
           </div>
           <nav class="cmp-nav">
-            <button class="pill-btn" data-act="cmp-sheet" data-arg="base" title="Your deck, the armory and missions">base</button>
+            <button class="pill-btn" data-act="cmp-sheet" data-arg="base" title="Your armies' decks, the armoury and missions">base</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="log">log</button>
             <button class="pill-btn" data-act="cmp-sheet" data-arg="help">?</button>
             <button class="icon-btn" data-act="cmp-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
@@ -1184,9 +1289,6 @@ export class CampaignView {
   private renderOverlay(): string {
     const s = this.state!;
     const me = campaignPlayer(s);
-    // The story comes first: a scene waiting to be told plays before anything else asks for attention.
-    const scene = s.story.queue[0];
-    if (scene) return this.renderStory(scene);
     if (s.winner) {
       const won = s.winner === me.id;
       const heart = s.nodes.find((n) => n.heart);
@@ -1243,7 +1345,9 @@ export class CampaignView {
     if (!sh) return '';
     switch (sh.kind) {
       case 'deck':
-        return this.renderDeck(sh.armyId, sh.slot);
+      case 'armory':
+      case 'missions':
+        return this.renderBase(sh);
       case 'recruit': {
         const n = nodeById(s, sh.nodeId);
         const rows = GENERALS[me.race]
@@ -1263,28 +1367,6 @@ export class CampaignView {
            <div class="cmp-recruits">${rows}</div>`,
           true,
         );
-      }
-      case 'armory': {
-        const cards = s.armory
-          .map(
-            (id, i) =>
-              `<button class="cmp-pick" data-act="cmp-buy" data-arg="${i}" ${me.materials < armoryPrice(id) ? 'disabled' : ''}>${cardHtml(id)}<span class="cmp-price">${MATERIALS} ${armoryPrice(id)}</span></button>`,
-          )
-          .join('');
-        return this.base(
-          'armory',
-          `<div class="cmp-cards">${cards || '<p class="muted">Sold out. New stock arrives next turn, or when you conquer a system.</p>'}</div>
-           <p class="muted center-text">Bought cards join your reserve. Stock changes every turn and with every conquest. You have ${MATERIALS} ${me.materials}.</p>
-           ${this.renderFusion(sh.fuse ?? [])}`,
-        );
-      }
-      case 'missions': {
-        const active = me.missions.map((m) => this.missionRow(m.id, missionProgress(s, me, m))).join('');
-        return this.base(
-          'missions',
-          `<div class="cmp-missions">${active || '<p class="muted">All missions complete.</p>'}</div>
-           <p class="muted">Each completed mission pays ${CREDITS} ${CAMPAIGN.missionCredits} and ${MATERIALS} ${CAMPAIGN.missionMaterials}, and lets you choose a new card. ${CAMPAIGN_MISSIONS.length} missions in all.</p>`,
-                  );
       }
       case 'log':
         return this.modal('campaign log', `<div class="log-list">${s.log.map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>`, true);
@@ -1312,6 +1394,7 @@ export class CampaignView {
           `settings · turn ${s.turn}`,
           `<div class="menu-list">
             ${this.host.settingsButtons()}
+            <button class="btn" data-act="cmp-guide" title="Oriel the Wanderer's guidance, under the turn count">${esc(ORACLE_NAME.toLowerCase())}: ${guideOn() ? 'on' : 'off'}</button>
             <button class="btn" data-act="cmp-sheet" data-arg="help">how the campaign works</button>
             <button class="btn" data-act="cmp-exit">main menu</button>
           </div>
@@ -1323,7 +1406,7 @@ export class CampaignView {
           'how the campaign works',
           `<div class="cmp-legend">
             <div>${CREDITS}<span><b>Credits</b> run your systems. Earned: each system's yield every turn, winning battles, missions. Spent: repairing damage, fortifying systems.</span></div>
-            <div>${MATERIALS}<span><b>Materials</b> build your collection. Earned the same ways. Spent: buying cards in the armory.</span></div>
+            <div>${MATERIALS}<span><b>Materials</b> build your collection. Earned the same ways. Spent: cards in the armoury.</span></div>
           </div>
           <ul class="rules">
             <li><b>The goal:</b> claim ${esc(HEART_NAME)}, the star at the centre of the universe, where the ${esc(STELLARIA)} grows. Its Wardens are the strongest defenders anywhere (+${CAMPAIGN.heartWardenHealth} max health). Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of all systems, or outlasting every rival, wins too; otherwise the most systems after ${CAMPAIGN.turnLimit} turns.</li>
@@ -1335,9 +1418,11 @@ export class CampaignView {
             <li>${BLOOM} <b>Finite Stellaria</b> bloom on a few systems: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds one, for ${CAMPAIGN.stellariaTurns} turns. Then they wilt.</li>
             <li><b>The universe is dying:</b> every ${CAMPAIGN.dimEvery} turns a star gutters, and its system yields less.</li>
             <li><b>Regional stability</b> lasts ${CAMPAIGN.stabilityTurns} turns. Then solar systems collapse, from the rim inwards: one a turn, one more every ${CAMPAIGN.collapseRamp} turns. Each is marked (⚠) a turn before it goes, and anything still in it is lost, so keep moving towards the Heart. Stabilise a marked system you hold for ${CAMPAIGN.stabiliseCost} materials to hold it ${CAMPAIGN.stabiliseTurns} turns more (once per system).</li>
-            <li>Win cards from missions and buy them in the armory with ${MATERIALS} materials; they wait in your reserve until you swap them into an army's deck.</li>
+            <li>Win cards from missions and buy them in the armoury with ${MATERIALS} materials; they wait in your reserve until you put them in an army's deck. A deck that falls short of 30 cards (or its Heroes) can still march, but not fight.</li>
             <li><b>Fog of war:</b> you only see systems linked to yours. Hold a system with a <b>scanner</b> to see two links out from it.</li>
-            <li><b>Your base</b> holds your deck, the armory and your missions. The armory restocks every turn and whenever you conquer a system. <b>Fusion</b> merges two reserve cards into one that does both, for ${MATERIALS} materials; it cannot be undone.</li>
+            <li><b>Your base</b> holds your armies' decks (in the deck builder), the armoury and your missions. ${esc(QUARTERMASTER.name)} sells new stock every turn and whenever you conquer a system. ${esc(RECYCLER.name)} breaks reserve cards down for half their price, and fuses two into one that does both, for ${MATERIALS} materials (that cannot be undone).</li>
+            <li><b>Your first route:</b> home has one way out, to a cut-off system whose sentinels start ${CAMPAIGN.gateHeat} hotter. Take it.</li>
+            <li><b>${esc(ORACLE_NAME)}</b> offers guidance under the turn count. Read it or dismiss it; turn it off in settings.</li>
             <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play in its tableau (a Lightspeed card starts set face down). Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
           </ul>`,
           true,
@@ -1387,51 +1472,12 @@ export class CampaignView {
     }`;
   }
 
-  private renderDeck(armyId?: string, slot?: number): string {
-    const s = this.state!;
-    const me = campaignPlayer(s);
-    const armies = armiesOf(s, me.id);
-    const army = armies.find((a) => a.id === armyId) ?? armies[0];
-    if (!army) {
-      return this.base('deck', '<p class="muted center-text">You have no armies. Recruit a general in one of your systems to raise one.</p>');
-    }
-    if (slot !== undefined) {
-      const current = army.deck[slot];
-      const options = me.reserve
-        .map((id, i) => {
-          const problem = deckSwapProblem(me, army, slot, i);
-          return `<button class="cmp-pick" data-act="cmp-swap" data-arg="${i}" ${problem ? `disabled title="${esc(problem)}"` : ''}>${cardHtml(id)}${problem ? '<span class="cmp-price">not allowed</span>' : ''}</button>`;
-        })
-        .join('');
-      return this.modal(
-        `swap out ${lower(cardDef(current).name)}`,
-        `<p class="muted center-text">Choose a reserve card to take its place in ${esc(cardDef(army.general).name)}'s army (${esc(cardDef(current).name)} goes to your reserve). A deck keeps 30 to 40 cards, at most 2 of each, and one Hero per 10 cards; the general's own card stays.</p>
-         <div class="cmp-cards">${options || '<p class="muted">Your reserve is empty.</p>'}</div>
-         <div class="center-row"><button class="btn" data-act="cmp-close">back</button></div>`,
-      );
-    }
-    // One tab per army, then that army's deck, and the reserve all armies share.
-    const tabs = armies
-      .map((a) => `<button class="cmp-army-tab ${a.id === army.id ? 'on' : ''}" data-act="cmp-deck-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${portrait(a.general)}<span>${lower(cardDef(a.general).name)}</span></button>`)
-      .join('');
-    const deck = army.deck.map((id, i) => `<div class="cmp-deck-slot"><button class="cmp-pick" data-act="cmp-slot" data-arg="${i}">${cardHtml(id)}</button></div>`).join('');
-    const reserve = me.reserve.map((id) => `<div class="cmp-deck-slot">${cardHtml(id)}</div>`).join('');
-    return this.base(
-      'deck',
-      `<div class="cmp-army-tabs">${tabs}</div>
-       <div class="section-label">${lower(cardDef(army.general).name)}'s deck · ${army.deck.length} cards</div>
-       <p class="muted center-text">Tap a card to swap a reserve card in for it.</p>
-       <div class="cmp-cards cmp-deck">${deck}</div>
-       <div class="section-label">reserve · ${me.reserve.length}</div>
-       <div class="cmp-cards cmp-deck">${reserve || '<p class="muted">Cards you win or buy wait here until you swap them into an army\'s deck.</p>'}</div>`,
-    );
-  }
-
   /** A story scene, one line at a time: the speaker's portrait, name and words. */
   private renderStory(scene: StoryScene): string {
     const s = this.state!;
-    const i = Math.min(this.storyLine, scene.lines.length - 1);
-    const line = scene.lines[i];
+    const lines = this.shownLines(scene);
+    const i = Math.min(this.storyLine, lines.length - 1);
+    const line = lines[i];
     const sp = line.speaker;
     const who =
       sp.kind === 'oracle'
@@ -1440,64 +1486,145 @@ export class CampaignView {
             const f = s.factions.find((x) => x.id === sp.faction);
             return { name: cardDef(sp.card).name, sub: f ? (f.id === s.playerId ? `your general · ${RACE_NAMES[f.race]}` : RACE_NAMES[f.race]) : '', face: portrait(sp.card), colour: f ? this.colourOf(f.id) : NEUTRAL };
           })();
-    const last = i >= scene.lines.length - 1;
-    const dots = scene.lines.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('');
+    const last = i >= lines.length - 1;
+    const more = s.story.queue.length - 1;
+    // Guidance, not a gate: it sits under the turn count, and the game goes on around it.
     return `
-      <div class="overlay overlay-soft cmp-story-overlay" data-act="cmp-story-next">
-        <div class="cmp-story ${sp.kind === 'oracle' ? 'cmp-story-oracle' : ''}" style="--sc:${who.colour}">
-          <div class="cmp-story-face">${who.face}</div>
-          <div class="cmp-story-body">
-            <small class="cmp-story-title">${lower(scene.title)}</small>
-            <b class="cmp-story-name">${esc(who.name)}</b><small class="cmp-story-sub">${esc(who.sub.toLowerCase())}</small>
-            <p class="cmp-story-text">${esc(line.text)}</p>
-            <div class="cmp-story-foot"><span class="cmp-story-dots">${dots}</span>${scene.lines.length > 1 && !last ? '<button class="link-btn" data-act="cmp-story-skip">skip</button>' : ''}<button class="btn-primary btn-small" data-act="cmp-story-next">${last ? 'continue' : 'next ›'}</button></div>
+      <aside class="cmp-guide ${sp.kind === 'oracle' ? 'cmp-guide-oracle' : ''}" data-key="guide:${esc(scene.id)}:${i}" style="--sc:${who.colour}">
+        <div class="cmp-guide-face">${who.face}</div>
+        <div class="cmp-guide-body">
+          <small class="cmp-guide-who"><b>${esc(who.name.toLowerCase())}</b> · ${esc(who.sub.toLowerCase())}</small>
+          <p class="cmp-guide-text">${esc(line.text)}</p>
+          <div class="cmp-guide-foot">
+            <small>${lower(scene.title)}${lines.length > 1 ? ` · ${i + 1}/${lines.length}` : ''}${more > 0 ? ` · ${more} more` : ''}</small>
+            <button class="link-btn" data-act="cmp-story-skip" title="Dismiss">dismiss</button>
+            <button class="pill-btn" data-act="cmp-story-next">${last ? 'ok' : 'next ›'}</button>
           </div>
         </div>
-      </div>`;
+      </aside>`;
   }
 
   /**
-   * Fusion, in the armory: pick two reserve cards to merge into one that does
-   * both, for materials. It cannot be undone.
+   * The base, full screen: a tab for each army's deck and the armoury (both in the main deck builder),
+   * and the missions.
    */
-  private renderFusion(picks: number[]): string {
-    const me = campaignPlayer(this.state!);
-    const cards = me.reserve
-      .map((id, i) => {
-        const on = picks.includes(i);
-        // Once one card is picked, cards that cannot fuse with it are marked.
-        const problem = picks.length && !on ? fusionProblem(me.reserve[picks[0]], id) : unfusable(id);
-        return `<button class="cmp-pick ${on ? 'cmp-pick-on' : ''}" data-act="cmp-fuse-pick" data-arg="${i}" ${problem && !on ? `disabled title="${esc(problem)}"` : ''}>${cardHtml(id)}</button>`;
-      })
+  private renderBase(sh: Extract<Sheet, { kind: 'deck' | 'armory' | 'missions' }>): string {
+    const s = this.state!;
+    const me = campaignPlayer(s);
+    const tabs = (['deck', 'armory', 'missions'] as const)
+      .map((t) => `<button class="cmp-tab ${t === sh.kind ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${t === 'armory' ? 'armoury' : t}</button>`)
       .join('');
-    let result = '<p class="muted center-text">Pick two reserve cards to fuse.</p>';
-    if (picks.length === 2) {
-      const [a, b] = picks.map((i) => me.reserve[i]);
-      const problem = fusionProblem(a, b);
-      const cost = fusionCost(a, b);
-      result = problem
-        ? `<p class="cmp-warn center-text">${esc(problem)}</p>`
-        : `<div class="cmp-fuse-result">
-            <div class="cmp-deck-slot">${cardHtml(fusedId(a, b))}</div>
-            <div class="cmp-fuse-go">
-              <p>${esc(cardDef(a).name)} and ${esc(cardDef(b).name)} become one card that does both. <b>This cannot be undone.</b></p>
-              <button class="btn-primary" data-act="cmp-fuse" ${me.materials < cost ? 'disabled' : ''}>fuse · ${MATERIALS} ${cost}</button>
-            </div>
-          </div>`;
+    let body: string;
+    if (sh.kind === 'missions') {
+      const active = me.missions.map((m) => this.missionRow(m.id, missionProgress(s, me, m))).join('');
+      body = `<div class="cmp-base-missions">
+          <div class="cmp-missions">${active || '<p class="muted">All missions complete.</p>'}</div>
+          <p class="muted">Each completed mission pays ${CREDITS} ${CAMPAIGN.missionCredits} and ${MATERIALS} ${CAMPAIGN.missionMaterials}, and lets you choose a new card. ${CAMPAIGN_MISSIONS.length} missions in all.</p>
+        </div>`;
+    } else if (sh.kind === 'deck' && !armiesOf(s, me.id).length) {
+      body = '<div class="cmp-base-missions"><p class="muted center-text">You have no armies. Recruit a general in one of your systems to raise one.</p></div>';
+    } else {
+      this.builder.setMode(sh.kind === 'deck' ? this.deckMode(sh.armyId ?? armiesOf(s, me.id)[0].id) : this.armoryMode(sh));
+      body = this.builder.render();
     }
     return `
-      <div class="section-label">fusion</div>
-      ${result}
-      <div class="cmp-cards cmp-deck">${cards || '<p class="muted">Your reserve is empty. Buy or win cards to fuse them.</p>'}</div>
-      <p class="muted center-text">Heroes, global and Lightspeed cards cannot be fused, nor can a fused card be fused again.</p>`;
+      <div class="cmp-base">
+        <header class="cmp-base-top">
+          <nav class="cmp-tabs">${tabs}</nav>
+          <div class="cmp-purse"><span title="Credits">${CREDITS}<b>${me.credits}</b></span><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Cards in your reserve, waiting for a deck">▤<b>${me.reserve.length}</b></span></div>
+          <button class="icon-btn" data-act="cmp-close" aria-label="Back to the map" title="Back to the map">×</button>
+        </header>
+        ${body}
+      </div>`;
   }
 
-  /** The base: deck, armory and missions, as tabs of one overlay. */
-  private base(tab: 'deck' | 'armory' | 'missions', body: string): string {
-    const tabs = (['deck', 'armory', 'missions'] as const)
-      .map((t) => `<button class="cmp-tab ${t === tab ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${t}</button>`)
-      .join('');
-    return this.modal('base', body, true, `<nav class="cmp-tabs">${tabs}</nav>`);
+  /** An army's deck in the deck builder: its cards and the reserve's make the pool; each tap moves a card at once. */
+  private deckMode(armyId: string): BuilderMode {
+    const army = () => armyById(this.state!, armyId);
+    const me = () => campaignPlayer(this.state!);
+    const count = (list: string[], id: string) => list.filter((x) => x === id).length;
+    return {
+      owned: (id) => count(army().deck, id) + count(me().reserve, id),
+      cards: () => [...new Set([...army().deck, ...me().reserve])].map((id) => cardDef(id)),
+      deck: () => ({ name: `${cardDef(army().general).name}'s army`, race: me().race, cards: army().deck }),
+      // (A refusal has been said already, by the toast.)
+      add: (id) => (this.apply({ type: 'deckAdd', armyId, defId: id }) ? null : ''),
+      remove: (id) => (this.apply({ type: 'deckRemove', armyId, defId: id }) ? null : ''),
+      badge: (id, n) => ({ text: `${n}/${count(army().deck, id) + count(me().reserve, id)}`, title: `${n} in this deck, ${count(me().reserve, id)} in your reserve`, on: n > 0 }),
+      head: () => {
+        const tabs = armiesOf(this.state!, me().id)
+          .map((a) => `<button class="cmp-army-tab ${a.id === armyId ? 'on' : ''}" data-act="cmp-deck-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${portrait(a.general)}<span>${lower(cardDef(a.general).name)}</span></button>`)
+          .join('');
+        return `<div class="cmp-army-tabs">${tabs}</div>`;
+      },
+      foot: () => {
+        const problem = deckProblems(army().deck)[0];
+        return problem ? `<p class="cmp-warn">Not ready to fight: ${esc(problem)}</p>` : '<p class="cmp-ok">Ready to fight.</p>';
+      },
+    };
+  }
+
+  /** The armoury in the deck builder (no deck): its stock to buy, or your reserve to recycle or fuse, run by its keepers. */
+  private armoryMode(sh: Extract<Sheet, { kind: 'armory' }>): BuilderMode {
+    const s = () => this.state!;
+    const me = () => campaignPlayer(s());
+    const count = (list: string[], id: string) => list.filter((x) => x === id).length;
+    const tab = sh.tab;
+    const list = () => (tab === 'buy' ? s().armory : me().reserve);
+    const picks = sh.fuse ?? [];
+    return {
+      owned: (id) => count(list(), id),
+      cards: () => [...new Set(list())].map((id) => cardDef(id)),
+      deck: () => null,
+      tap: (id) => {
+        if (tab === 'fuse') {
+          const at = picks.lastIndexOf(id);
+          const next = at >= 0 ? picks.filter((_, k) => k !== at) : picks.length < 2 && count(picks, id) < count(me().reserve, id) ? [...picks, id] : [...picks.slice(0, 1), id];
+          this.sheet = { kind: 'armory', tab, fuse: next };
+        } else this.sheet = { kind: 'armory', tab, pick: sh.pick === id ? undefined : id };
+        sound.hover();
+        this.host.render();
+      },
+      picked: (id) => (tab === 'fuse' ? picks.includes(id) : sh.pick === id),
+      badge: (id) =>
+        tab === 'buy'
+          ? { text: `${MATERIALS}${armoryPrice(id)}`, title: `${armoryPrice(id)} materials`, on: me().materials >= armoryPrice(id) }
+          : tab === 'recycle'
+            ? { text: `×${count(me().reserve, id)}`, title: `${count(me().reserve, id)} in your reserve: recycles for ${recycleValue(id)} materials each`, on: true }
+            : { text: `×${count(me().reserve, id)}`, title: `${count(me().reserve, id)} in your reserve`, on: picks.includes(id) },
+      head: () => {
+        const keeper = tab === 'buy' ? QUARTERMASTER : RECYCLER;
+        const lines = tab === 'buy' ? QUARTERMASTER_LINES : RECYCLER_LINES;
+        const line = lines[(s().turn * 3 + this.keeperVisit) % lines.length];
+        const sub = (['buy', 'recycle', 'fuse'] as const).map((t) => `<button class="cmp-tab ${t === tab ? 'cmp-tab-on' : ''}" data-act="cmp-armory-tab" data-arg="${t}">${t}</button>`).join('');
+        return `
+          <nav class="cmp-tabs cmp-armory-tabs">${sub}</nav>
+          <div class="cmp-keeper">
+            ${tab === 'buy' ? QUARTERMASTER_PORTRAIT : RECYCLER_PORTRAIT}
+            <div><b>${esc(keeper.name.toLowerCase())}</b><small>${esc(keeper.role)}</small></div>
+          </div>
+          <p class="cmp-keeper-line">“${esc(line)}”</p>`;
+      },
+      foot: () => {
+        if (tab === 'fuse') {
+          if (picks.length < 2) return `<p class="muted">Pick two reserve cards to fuse into one that does both, for materials. Heroes, global and Lightspeed cards can't be fused, nor can a fused card again.</p>`;
+          const [a, b] = picks;
+          const problem = fusionProblem(a, b);
+          if (problem) return `<p class="cmp-warn">${esc(problem)}</p>`;
+          const cost = fusionCost(a, b);
+          return `<div class="cmp-keeper-pick">${cardHtml(fusedId(a, b))}</div>
+            <p class="muted">${esc(cardDef(a).name)} and ${esc(cardDef(b).name)} become one card. <b>This cannot be undone.</b></p>
+            <button class="btn-primary" data-act="cmp-fuse" ${me().materials < cost ? 'disabled' : ''}>fuse · ${MATERIALS} ${cost}</button>`;
+        }
+        const id = sh.pick && list().includes(sh.pick) ? sh.pick : null;
+        if (!id) return `<p class="muted">${tab === 'buy' ? 'Tap a card to look it over. Bought cards wait in your reserve. New stock arrives every turn, and with every conquest.' : 'Tap a reserve card to break it down for half its armoury price, in materials.'}</p>`;
+        return `<div class="cmp-keeper-pick">${cardHtml(id)}</div>${
+          tab === 'buy'
+            ? `<button class="btn-primary" data-act="cmp-buy" data-arg="${id}" ${me().materials < armoryPrice(id) ? 'disabled' : ''}>buy · ${MATERIALS} ${armoryPrice(id)}</button>`
+            : `<button class="btn-primary" data-act="cmp-recycle" data-arg="${id}">recycle · +${MATERIALS} ${recycleValue(id)}</button>`
+        }`;
+      },
+    };
   }
 
   private modal(title: string, body: string, closable = false, tabs = ''): string {

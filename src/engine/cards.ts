@@ -885,10 +885,10 @@ export function deckProblems(cards: string[]): string[] {
   const counts = new Map<string, number>();
   for (const id of cards) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const [id, n] of counts) {
-    if (!BY_ID.has(id)) problems.push(`Unknown card: ${id}.`);
+    if (!BY_ID.has(id) && !fusedDef(id)) problems.push(`Unknown card: ${id}.`);
     else if (n > copyLimit(id)) problems.push(copyLimit(id) === 1 ? `${cardDef(id).name} is an Anomaly: only one copy per deck.` : `At most ${BALANCE.maxCopies} copies of ${cardDef(id).name}.`);
   }
-  const commands = cards.filter((id) => BY_ID.get(id)?.kind === 'command').length;
+  const commands = cards.filter((id) => (BY_ID.get(id) ?? fusedDef(id))?.kind === 'command').length;
   const need = commandCardsFor(cards.length);
   if (commands !== need) problems.push(`A deck of ${cards.length} needs exactly ${need} Heroes: one per ${BALANCE.cardsPerCommand} cards (this has ${commands}).`);
   return problems;

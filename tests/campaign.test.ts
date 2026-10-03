@@ -23,6 +23,8 @@ import {
   factionIncome,
   GENERALS,
   regionalStability,
+  recycleValue,
+  deckProblems as problemsOf,
   stabiliseProblem,
   type CampaignState,
 } from '../src/engine';
@@ -471,5 +473,58 @@ describe('armies and generals', () => {
     n.collapsing = true;
     campaignPlayer(s).materials = 99;
     expect(stabiliseProblem(campaignPlayer(s), n)).toMatch(/once/);
+  });
+
+  it('gives every home exactly one route out, to a weakened neutral system', () => {
+    for (const seed of [1, 2, 3, 7, 11]) {
+      const s = fresh(seed);
+      for (const h of s.nodes.filter((n) => n.home)) {
+        expect(h.links).toHaveLength(1);
+        const gate = nodeById(s, h.links[0]);
+        expect(gate.gate).toBe(true);
+        expect(gate.owner).toBeNull();
+        expect(gate.tier).toBe(0);
+      }
+      // Still one connected map.
+      const seen = new Set([s.nodes[0].id]);
+      const queue = [s.nodes[0].id];
+      while (queue.length) for (const l of nodeById(s, queue.shift()!).links) if (!seen.has(l)) seen.add(l), queue.push(l);
+      expect(seen.size).toBe(s.nodes.length);
+    }
+    let s = fresh();
+    expect(armyMoves(s, myArmy(s)).filter((m) => m.battle)).toHaveLength(1);
+    s = attack(s);
+    const plain = s.battle!.game.players[1].heat;
+    expect(plain).toBeGreaterThanOrEqual(CAMPAIGN.gateHeat);
+  });
+
+  it('moves cards between an army deck and the reserve one at a time; a short deck cannot attack', () => {
+    let s = fresh();
+    const army = myArmy(s);
+    const out = army.deck.find((id) => id !== army.general)!;
+    s = applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: out });
+    expect(myArmy(s).deck).toHaveLength(army.deck.length - 1);
+    expect(campaignPlayer(s).reserve).toContain(out);
+    expect(problemsOf(myArmy(s).deck).length).toBeGreaterThan(0);
+    expect(() => attack(s)).toThrow(/isn't ready/);
+    // The general's last card stays.
+    const g = myArmy(s).general;
+    let t = s;
+    while (myArmy(t).deck.filter((x) => x === g).length > 1) t = applyCampaignAction(t, { type: 'deckRemove', armyId: army.id, defId: g });
+    expect(() => applyCampaignAction(t, { type: 'deckRemove', armyId: army.id, defId: g })).toThrow(/leads this army/);
+    s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: out });
+    expect(problemsOf(myArmy(s).deck)).toEqual([]);
+    expect(() => attack(s)).not.toThrow();
+  });
+
+  it('recycles a reserve card for half its armory price in materials', () => {
+    let s = fresh();
+    campaignPlayer(s).reserve.push('coronal_lance');
+    const before = campaignPlayer(s).materials;
+    s = applyCampaignAction(s, { type: 'recycle', defId: 'coronal_lance' });
+    expect(campaignPlayer(s).materials).toBe(before + recycleValue('coronal_lance'));
+    expect(recycleValue('coronal_lance')).toBe(Math.max(1, Math.floor(armoryPrice('coronal_lance') / 2)));
+    expect(campaignPlayer(s).reserve).not.toContain('coronal_lance');
+    expect(() => applyCampaignAction(s, { type: 'recycle', defId: 'coronal_lance' })).toThrow();
   });
 });

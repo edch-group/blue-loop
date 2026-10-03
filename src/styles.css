@@ -3441,9 +3441,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-table .card-type { padding: 0.1em 0.65em 0; }
 
 /* The deck builder's card pages: arrows either side of a dot per page (the dots give way to a count when there are many). */
-.db-pager { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 4px max(4px, var(--sa-b)); }
+.db-pager { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 4px 4px max(16px, calc(var(--sa-b) + 10px)); }
 .db-pager[hidden] { display: none; }
 .db-page-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #e4e1dc; background: #fff; color: var(--ink); font-size: 1.1rem; line-height: 1; display: grid; place-items: center; cursor: pointer; }
+.db-page-btn { padding: 0; }
+.db-page-btn svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
 .db-page-btn:disabled { opacity: 0.35; cursor: default; }
 .db-page-dots { display: flex; gap: 6px; align-items: center; }
 .db-page-dot { width: 7px; height: 7px; padding: 0; border-radius: 50%; border: 0; background: #d6d3ce; cursor: pointer; }
@@ -3592,3 +3594,69 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-collapsed .cmp-turf { display: none; }
 @media (max-width: 700px) { .cmp-stability .stability-label { font-size: 0.42rem; } }
 .cmp-actions .btn small { display: block; font-family: var(--body, inherit); text-transform: none; letter-spacing: 0; font-size: 0.68rem; color: var(--ink-soft); }
+
+/* ---- Campaign: the base, full screen (the deck builder, the armoury and its keepers, missions) ---- */
+.cmp-base {
+  position: fixed; inset: 0; z-index: 60; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px;
+  padding: max(12px, var(--sa-t)) max(18px, var(--sa-r)) 0 max(18px, var(--sa-l));
+  background: radial-gradient(ellipse 70% 60% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0.6) 40%, transparent 75%), linear-gradient(180deg, #faf9f6, var(--paper) 55%, #e0dfdb);
+  animation: cmp-base-in 0.22s ease-out both;
+}
+@keyframes cmp-base-in { from { opacity: 0; transform: translateY(8px); } }
+.cmp-base-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+.cmp-base-top .cmp-tabs { justify-content: flex-start; padding: 0; }
+.cmp-base-top .icon-btn { justify-self: end; }
+.cmp-base > .db-editor { height: 100%; width: 100%; max-width: none; justify-self: stretch; }
+.cmp-base-missions { overflow-y: auto; width: min(760px, 100%); justify-self: center; padding-bottom: 20px; }
+.db-mode-side .cmp-army-tabs { margin: 0; }
+.db-mode-side .cmp-army-tab { font-size: 0.5rem; padding: 3px 10px 3px 3px; }
+.db-mode-side .cmp-army-tab .cmp-portrait { width: 24px; height: 24px; }
+.db-mode-title { font-family: var(--display); font-weight: 500; font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; color: var(--ink); }
+.db-mode-side .db-rows { flex: 1; }
+.db-mode-foot { display: grid; gap: 8px; }
+.db-mode-foot p { margin: 0; font-size: 0.72rem; line-height: 1.4; }
+.cmp-ok { color: #3a9e6a; font-size: 0.72rem; text-align: center; }
+.db-keeper-side { overflow-y: auto; }
+.cmp-armory-tabs { padding: 0; }
+.cmp-armory-tabs .cmp-tab { padding: 6px 12px; font-size: 0.54rem; }
+.cmp-keeper { display: flex; align-items: center; gap: 10px; }
+.cmp-keeper .cmp-portrait { width: 64px; height: 64px; flex: none; }
+.cmp-keeper b { display: block; font-family: var(--display); font-weight: 500; font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); }
+.cmp-keeper small { font-size: 0.66rem; color: var(--ink-faint); }
+.cmp-keeper-line { margin: 0; padding: 8px 10px; border-radius: 10px; background: #f2f1ee; font-size: 0.74rem; line-height: 1.45; font-style: italic; color: var(--ink-soft); }
+.cmp-keeper-pick { width: min(150px, 70%); justify-self: center; }
+.cmp-keeper-pick .card { --cw: 150px; width: 100%; }
+.db-mode-foot .btn-primary { justify-self: stretch; }
+
+/* ---- Campaign header: turn and stability on the left (the same height), resources centred, buttons right ---- */
+.cmp-top { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
+.cmp-top-left { position: relative; display: flex; align-items: stretch; gap: 8px; justify-self: start; }
+.cmp-top-left > button.cmp-turn, .cmp-top-left > .cmp-stability { height: 44px; box-sizing: border-box; }
+.cmp-top-left > button.cmp-turn { display: flex; align-items: center; gap: 6px; padding: 0 16px; border-radius: 999px; }
+.cmp-top-left > .cmp-stability { align-content: center; }
+.cmp-top > .cmp-purse { justify-self: center; }
+.cmp-top > .cmp-nav { justify-self: end; margin-left: 0; }
+
+/* ---- Campaign guide: optional, under the turn count, never in the way of play ---- */
+.cmp-guide {
+  position: absolute; top: calc(100% + 10px); left: 0; z-index: 2; width: min(400px, calc(100 * var(--vw) - 36px));
+  display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: start;
+  padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.86); border: 1px solid #fff;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--sc) 45%, transparent), var(--shadow);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  animation: cmp-guide-in 0.28s ease-out both;
+}
+@keyframes cmp-guide-in { from { opacity: 0; transform: translateY(-6px); } }
+.cmp-guide-face .cmp-portrait { width: 52px; height: 52px; }
+.cmp-guide-who { display: block; font-size: 0.62rem; color: var(--ink-faint); letter-spacing: 0.04em; }
+.cmp-guide-who b { font-family: var(--display); font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); }
+.cmp-guide-text { margin: 4px 0 6px; font-size: 0.78rem; line-height: 1.45; color: var(--ink); }
+.cmp-guide-foot { display: flex; align-items: center; gap: 10px; }
+.cmp-guide-foot small { margin-right: auto; font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+.cmp-guide-foot .pill-btn { padding: 4px 12px; font-size: 0.54rem; }
+@media (max-width: 700px) {
+  .cmp-top-left > button.cmp-turn, .cmp-top-left > .cmp-stability { height: 36px; }
+  .cmp-guide { grid-template-columns: 40px minmax(0, 1fr); }
+  .cmp-guide-face .cmp-portrait { width: 40px; height: 40px; }
+  .cmp-guide-text { font-size: 0.7rem; }
+}
