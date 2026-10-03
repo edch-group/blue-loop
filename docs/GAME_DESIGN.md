@@ -142,7 +142,7 @@ Command cards **lead the tableau**. Each player has **one Command slot**, out in
 - **A full term.** Every Command card has stability 3, whatever it does, so cards that want a Command card in play can count on one.
 - **Never back to your own hand.** Command cards can't be recalled (Phase Shift, Recall Beacon, Shard Recall) or recovered from the discard pile (Salvage Drone and the rest). A rival can still send one back to its owner's hand (Tractor Beam, Event Horizon), and Command Breaker destroys one.
 
-**Heroes.** Every Command card is a hero: a character who leads their race, with their own picture. Each race has two, so a deck's three Command cards can be its own race's (two of one, one of the other).
+**Heroes.** Every Command card is a hero: a character who leads their race, with their own picture. Each race has two, so a deck's three Command cards can be its own race's (two of one, one of the other), plus one bomb.
 
 | Hero | Race | Rarity | Dawn, one of |
 | --- | --- | --- | --- |
@@ -154,6 +154,17 @@ Command cards **lead the tableau**. Each player has **one Command slot**, out in
 | The Admiralty (the deep fleet's elders) | Vorthane | Anomaly | +2 energy, draw 2, or 4 shields |
 | Hive-Speaker Zyth | Ixquor | White Dwarf | +1 energy, draw 1, or your orbit +1 |
 | Broodmother Ul'Kha | Ixquor | Stellar | +1 energy, draw 1, or renew 1 |
+
+**Bomb Commands.** One per race, cost 4 (so they need a day's bonus energy), Anomaly. Each has a big effect as it takes the field, then a dawn option stronger than the regular heroes'. [design review: Command cards felt limited; these give each race a high-cost swing]
+
+| Hero | Race | As it enters | Dawn, one of |
+| --- | --- | --- | --- |
+| Empress Solenne | Aureline | heat 4, pierce | +1 energy, draw 1, or heat 3 |
+| The Shardmind | Xel'Naru | cool 4, recover | +1 energy, draw 1, or cool 3 |
+| Leviathan Thoross | Vorthane | 6 shields, eject (defence 3 or less) | +1 energy, draw 1, or 5 shields |
+| The Worldroot | Ixquor | draw 3, renew 2 | +1 energy, draw 1, or renew 2 |
+
+Counters: each is still a Command card, so Tractor Beam and Event Horizon send it back to hand (4 energy wasted) and Command Breaker destroys it.
 
 (They keep the ids of the Command cards they replaced, so collections and saved decks carry over.)
 

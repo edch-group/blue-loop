@@ -62,7 +62,7 @@ export const KEYWORDS: Record<string, Keyword> = {
  */
 export const TEXT_RULES: { name: string; group: Keyword['group']; pattern: RegExp; explain: string }[] = [
   { name: 'One Of', group: 'tempo', pattern: /one of:/, explain: 'Pick one when played. It happens every dawn.' },
-  { name: 'Command Card', group: 'tempo', pattern: /\bCommand card|^Dawn, one of/, explain: 'Goes in your Command slot. One at a time.' },
+  { name: 'Command Card', group: 'tempo', pattern: /\bCommand card|Dawn, one of/, explain: 'Goes in your Command slot. One at a time.' },
   { name: 'Leaves Your Tableau', group: 'stability', pattern: /leaves? your tableau/, explain: 'Fades, is destroyed, or is returned to hand.' },
   { name: 'Facing A Planet', group: 'orbit', pattern: /facing the (dead|abundant|industrial) planet/, explain: 'The planet now facing your sun.' },
   { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'It has no effect.' },

@@ -152,6 +152,11 @@ export const EXPANSION: CardDef[] = [
   // Hero leaders (Command cards): a Xel'Naru Archon and an Ixquor Hive-Speaker.
   { id: 'war_council', name: 'Archon Seris', kind: 'command', race: 1, text: '{dawn}, one of: {options:energy1|draw1|recover1}', choices: commandChoices('energy1', 'draw1', 'recover1') },
   { id: 'logistics_command', name: 'Hive-Speaker Zyth', kind: 'command', race: 3, text: '{dawn}, one of: {options:energy1|draw1|orbit1}', choices: commandChoices('energy1', 'draw1', 'orbit1') },
+  // ---- Bomb Commands: a big entrance for a big price ----
+  { id: 'empress_solenne', name: 'Empress Solenne', kind: 'command', race: 0, text: '{heat:4}, {pierce}. {dawn}, one of: {options:energy1|draw1|heat3}', onPlay: [{ type: 'heat', amount: 4, to: 'target', pierce: true }], choices: commandChoices('energy1', 'draw1', 'heat3') },
+  { id: 'the_shardmind', name: 'The Shardmind', kind: 'command', race: 1, text: '{cool:4}, {recover}. {dawn}, one of: {options:energy1|draw1|cool3}', onPlay: [{ type: 'cool', amount: 4 }, { type: 'recover', orDraw: 1 }], choices: commandChoices('energy1', 'draw1', 'cool3') },
+  { id: 'leviathan_thoross', name: 'Leviathan Thoross', kind: 'command', race: 2, text: '{shield:6}, {eject:3}. {dawn}, one of: {options:energy1|draw1|shield5}', onPlay: [{ type: 'shield', amount: 6 }, { type: 'bounce', maxDefence: 3 }], choices: commandChoices('energy1', 'draw1', 'shield5') },
+  { id: 'the_worldroot', name: 'The Worldroot', kind: 'command', race: 3, text: 'Draw 3, {renew:2}. {dawn}, one of: {options:energy1|draw1|renew2}', onPlay: [{ type: 'draw', amount: 3 }, { type: 'restore', amount: 2, all: true }], choices: commandChoices('energy1', 'draw1', 'renew2') },
 
   // ---- Aureline ----
   {
@@ -881,6 +886,10 @@ export const EXPANSION_META: Record<string, { rarity?: Rarity; character?: boole
   counter_pulse: { rarity: 'stellar' },
   war_council: { character: true },
   logistics_command: { character: true },
+  empress_solenne: { character: true, rarity: 'anomaly' },
+  the_shardmind: { character: true, rarity: 'anomaly' },
+  leviathan_thoross: { character: true, rarity: 'anomaly' },
+  the_worldroot: { character: true, rarity: 'anomaly' },
   // Aureline
   aureline_skirmisher: { character: true },
   lancer_squadron: { character: true, rarity: 'stellar' },

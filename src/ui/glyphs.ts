@@ -68,6 +68,10 @@ const GLYPHS: Record<string, string> = {
   chamber_protocol: `<rect x="34" y="14" width="32" height="32" rx="4"/>${[42, 48, 54].map((x) => `<rect class="fill" x="${x}" y="22" width="4" height="16" rx="2"/>`).join('')}`,
   command_directive: `<rect x="34" y="14" width="32" height="32" rx="4"/>${chevrons(2, 20, 9)}`,
   the_admiralty: `<rect x="34" y="14" width="32" height="32" rx="4"/>${chevrons(3, 17, 9)}<line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  empress_solenne: `<rect x="34" y="14" width="32" height="32" rx="4"/>${ring(6, 'class="fill"')}${rays(8, 12, 18)}`,
+  the_shardmind: `<rect x="34" y="14" width="32" height="32" rx="4"/><polygon class="fill" points="50,19 59,30 50,41 41,30"/><line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  leviathan_thoross: `<rect x="34" y="14" width="32" height="32" rx="4"/><path class="fill" d="M41 36 Q41 22 50 22 Q59 22 59 36 Z"/><line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  the_worldroot: `<rect x="34" y="14" width="32" height="32" rx="4"/><path d="M50 40 V22M50 30 L43 23M50 34 L57 26"/>${ring(3, 'class="dot"')}`,
   standing_orders: `<rect x="36" y="12" width="28" height="36" rx="3"/><line class="fill" x1="41" y1="21" x2="59" y2="21"/><line x1="41" y1="29" x2="59" y2="29"/><line x1="41" y1="37" x2="53" y2="37"/>`,
   chain_of_command: `${[28, 50, 72].map((x, i) => `<rect ${i === 1 ? 'class="fill"' : ''} x="${x - 8}" y="24" width="16" height="12" rx="6"/>`).join('')}`,
 

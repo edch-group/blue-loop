@@ -105,6 +105,10 @@ export const CARD_COSTS: Record<string, number> = {
   temporal_snare: 3,
   the_admiralty: 3,
   // 4
+  empress_solenne: 4,
+  the_shardmind: 4,
+  leviathan_thoross: 4,
+  the_worldroot: 4,
   leviathan_shell: 4,
   solar_bastion: 4,
   stellar_aegis: 4,

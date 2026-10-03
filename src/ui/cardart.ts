@@ -684,6 +684,11 @@ const ART2: Record<string, Draw> = {
   // ---- Neutral Command ----
   war_council: (S) => S.ground(92, '#1b0c24') + xelnaru(S, 62, 30, 1.4, { item: 'reliquary', crown: true, cape: '#c9a2ff', shard: '#ffc8e0', core: '#fff0c0' }),
   logistics_command: (S) => S.ground(92, '#0e0a1c') + S.planet(136, 26, 12, '#9cd2a0', '#3d2b5e') + ixquor(S, 64, 68, 1.15, { item: 'spores', crown: true, arms: 5, cap: '#c5ff8a' }),
+  // Bomb Commands: the greatest of each race, in grander scenes.
+  empress_solenne: (S) => S.sun(80, 26, 16, '#ffd98a', 16) + S.rings(80, 26, 26, 3, 9, '#ffe7a8', 0.5) + aureline(S, 80, 36, 1.5, { item: 'banner', crown: true, halos: 3, garb: 'vestment', eye: '#ffb000', cloak: '#ffcf80', sash: '#c0392b' }),
+  the_shardmind: (S) => S.glow(80, 40, 74, '#c9a2ff', 0.35) + [[34, 40, 0.75], [126, 40, 0.75]].map(([x, y, sc]) => xelnaru(S, x, y, sc, { item: 'none', shard: '#8fb8e8', core: '#e6f6ff', cracked: true })).join('') + xelnaru(S, 80, 30, 1.45, { item: 'lens', crown: true, pauldrons: true, bulk: 1.2, cape: '#7a5cc8', shard: '#e6d8ff', core: '#ffffff' }) + S.motes(80, 40, 20, 80, '#e6d8ff'),
+  leviathan_thoross: (S) => S.waves(88, S.p.accent, 3, 2, 0.6) + S.glow(80, 40, 80, '#3fd0c0', 0.3) + vorthane(S, 80, 26, 1.7, { item: 'bell', crown: true, helm: true, eyes: 9, reach: 1.2, bell: '#dffcf6' }),
+  the_worldroot: (S) => S.ground(90, '#0b1410') + S.glow(80, 70, 70, '#8cff9a', 0.3) + [[30, 76, 0.7], [130, 76, 0.7]].map(([x, y, sc]) => ixquor(S, x, y, sc, { item: 'none', arms: 3, cap: '#9cd2a0' })).join('') + ixquor(S, 80, 72, 1.35, { item: 'spores', crown: true, arms: 8, cap: '#8cff9a', tall: 1.3 }) + S.motes(80, 40, 24, 90, '#c5ff8a', 1),
 
   // ---- Aureline ----
   aureline_skirmisher: (S) => S.ground(90, '#132446') + aureline(S, 70, 32, 1.1, { item: 'lance', lean: 1, halos: 1, garb: 'robe', cloak: '#ffe0a0' }),

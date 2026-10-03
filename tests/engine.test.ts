@@ -49,8 +49,10 @@ describe('content', () => {
       const own = CARDS.filter((c) => c.race === race);
       expect(own.length).toBeGreaterThanOrEqual(10);
       expect(own.filter((c) => c.rarity === 'anomaly' && c.character).length).toBeGreaterThanOrEqual(1);
-      // Two hero leaders (Command cards) of its own.
-      expect(own.filter((c) => c.kind === 'command' && c.character)).toHaveLength(2);
+      // Three hero leaders (Command cards) of its own: two regulars and a cost-4 bomb.
+      const heroes = own.filter((c) => c.kind === 'command' && c.character);
+      expect(heroes).toHaveLength(3);
+      expect(heroes.filter((c) => cardCost(c.id) === 4)).toHaveLength(1);
       expect(own.some((c) => c.character)).toBe(true);
     }
     for (const d of PRESET_DECKS) expect(deckProblems(d.cards)).toEqual([]);

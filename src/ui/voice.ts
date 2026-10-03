@@ -22,6 +22,11 @@ const HEROES: Record<string, Hero> = {
   // Ixquor: the hive.
   chamber_protocol: { lines: ['Grow, my children. Grow.', "Ul'Kha wakes. The brood follows.", 'Every root, a promise.'] },
   logistics_command: { lines: ['The hive speaks through me.', 'Zyth hears. Zyth obeys. Zyth spreads.', 'Many voices. One will.'] },
+  // The greatest of each race: a big price, a bigger entrance.
+  empress_solenne: { lines: ['Kneel before the dawn.', 'Empress Solenne. Burn.', 'I am the light that ends you.'] },
+  the_shardmind: { lines: ['We are many. We are one. We are cold.', 'The Shardmind wakes.', 'All that was lost, returns.'] },
+  leviathan_thoross: { lines: ['The deep has come for you.', 'Thoross rises. The sea follows.', 'Nothing passes the Leviathan.'] },
+  the_worldroot: { lines: ['Every world is soil.', 'The Worldroot stirs. Grow.', 'From one root, a thousand.'] },
 };
 
 class HeroLines {
