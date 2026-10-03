@@ -513,7 +513,7 @@ export class App {
       if (!k) return;
       tipTimer = window.setTimeout(() => {
         if (tipFor !== kw || !kw.isConnected) return;
-        tip.innerHTML = `${keywordHtml(kw.dataset.kw!, kw.dataset.kv, { named: true })} ${esc(k.explain(kw.dataset.kv))}`;
+        tip.innerHTML = `${keywordHtml(kw.dataset.kw!, undefined, { named: true })} ${esc(k.explain())}`;
         const r = pageRect(kw);
         const page = appSize();
         tip.classList.add('show');
@@ -3261,9 +3261,7 @@ export class App {
         () => `<p class="rule-note">Hover a keyword on a card, or zoom the card, to read it there.</p>
           <dl class="kw-rules">${Object.entries(KEYWORDS)
             .map(([id, k]) => {
-              // Shown with a stand-in value where the keyword takes one.
-              const v = ['dawn', 'anchor', 'recall', 'recover', 'overheated', 'lightspeed', 'global'].includes(id) ? undefined : id === 'orbit' ? '±N' : 'N';
-              return `<div><dt>${keywordHtml(id, v, { named: true })}</dt><dd>${esc(k.explain(v))}${id === 'recover' ? ` Some name a type: ${keywordLabel('recover', 'attack')}.` : ''}</dd></div>`;
+              return `<div><dt>${keywordHtml(id, undefined, { named: true })}</dt><dd>${esc(k.explain())}${id === 'recover' ? ` Some name a type: ${keywordLabel('recover', 'attack')}.` : ''}</dd></div>`;
             })
             .join('')}</dl>`,
       ],

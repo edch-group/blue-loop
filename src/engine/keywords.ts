@@ -17,61 +17,41 @@ export interface Keyword {
   explain: (value?: string) => string;
 }
 
-const n = (v: string | undefined, d = 'N') => v ?? d;
 
+/**
+ * Each keyword's explanation says what the mechanic does, never its numbers: the card shows those, and
+ * one card's "Heat 1" and "Heat +1" are explained once, as Heat.
+ */
 export const KEYWORDS: Record<string, Keyword> = {
-  dawn: { name: 'dawn', group: 'timing', explain: () => 'At the start of each of your days.' },
-  heat: {
-    name: 'heat',
-    group: 'heat',
-    symbol: true,
-    explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more heat.` : `Heat your rival's sun${v ? ` by ${v}` : ''}, or a card you aim at.`),
-  },
-  pierce: { name: 'pierce', group: 'heat', explain: () => 'Gets past half of shields, and ignores defence.' },
-  cool: { name: 'cool', group: 'cool', symbol: true, explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more cooling.` : `Take ${v ?? 'some'} heat off your sun.`) },
-  shield: { name: 'shields', group: 'shields', symbol: true, explain: (v) => (v?.startsWith('+') ? `${v.slice(1)} more shield${v === '+1' ? '' : 's'}.` : `Each blocks 1 enemy heat. They fade at your dawn.`) },
+  dawn: { name: 'dawn', group: 'timing', explain: () => 'Happens at the start of each of your days.' },
+  heat: { name: 'heat', group: 'heat', symbol: true, explain: () => "Raises a sun's heat: at its max health it goes supernova. Aimed at a card, it wears down its defence, then its stability." },
+  pierce: { name: 'pierce', group: 'heat', explain: () => 'Heat that gets past half of shields and ignores defence.' },
+  cool: { name: 'cool', group: 'cool', symbol: true, explain: () => 'Takes heat off your sun.' },
+  shield: { name: 'shields', group: 'shields', symbol: true, explain: () => 'Each blocks 1 enemy heat. They fade at your dawn.' },
   guard: { name: 'guard', group: 'defence', explain: () => 'Rival heat must be aimed at your Guards.' },
-  sturdy: { name: 'sturdy', group: 'defence', explain: (v) => `+${n(v)} defence.` },
-  bulwark: {
-    name: 'bulwark',
-    group: 'defence',
-    explain: (v) => {
-      const [a, b] = n(v).split('/');
-      return b ? `+${a} defence next to it, +${b} two away.` : `+${a} defence to cards next to it.`;
-    },
-  },
-  resonance: {
-    name: 'resonance',
-    group: 'resonance',
-    explain: (v) => {
-      const [a, b] = n(v).split('/');
-      return b ? `+${a} heat, cooling and shields to cards next to it, +${b} two away.` : `+${a} heat, cooling and shields to cards next to it.`;
-    },
-  },
-  forge: { name: 'forge', group: 'resonance', explain: (v) => `+${n(v)} heat to attack cards next to it.` },
+  sturdy: { name: 'sturdy', group: 'defence', explain: () => 'Extra defence for this card.' },
+  bulwark: { name: 'bulwark', group: 'defence', explain: () => 'Extra defence for the cards next to it (and, for some, two away).' },
+  resonance: { name: 'resonance', group: 'resonance', explain: () => 'Boosts the heat, cooling and shields of the cards next to it.' },
+  forge: { name: 'forge', group: 'resonance', explain: () => 'Boosts the heat of attack cards next to it.' },
   anchor: { name: 'anchor', group: 'stability', explain: () => 'Cards next to it lose no stability.' },
-  erode: { name: 'erode', group: 'stability', explain: (v) => `A rival card loses ${n(v)} stability.` },
-  decay: { name: 'decay', group: 'stability', explain: (v) => `Every rival card loses ${n(v)} stability.` },
-  restore: { name: 'restore', group: 'stability', explain: (v) => `Another card of yours gains ${n(v)} stability.` },
-  renew: { name: 'renew', group: 'stability', explain: (v) => `Your other cards gain ${n(v)} stability.` },
-  recover: {
-    name: 'recover',
-    group: 'recovery',
-    explain: (v) => `Take ${v ? `a${/^[aeiou]/.test(v) ? 'n' : ''} ${v} card` : 'a card'} from your discard pile into your hand (or draw 1).`,
-  },
+  erode: { name: 'erode', group: 'stability', explain: () => 'A rival card loses stability.' },
+  decay: { name: 'decay', group: 'stability', explain: () => 'Every rival card loses stability.' },
+  restore: { name: 'restore', group: 'stability', explain: () => 'Another card of yours gains stability.' },
+  renew: { name: 'renew', group: 'stability', explain: () => 'Your other cards gain stability.' },
+  recover: { name: 'recover', group: 'recovery', explain: () => 'Take a card from your discard pile into your hand (with none there, draw instead).' },
   recall: { name: 'recall', group: 'recovery', explain: () => 'Return another of your cards to your hand.' },
-  destroy: { name: 'destroy', group: 'removal', explain: (v) => (v && v !== 'any' ? `Destroy a rival card with ${v} or less defence.` : 'Destroy any rival card.') },
-  eject: { name: 'eject', group: 'removal', explain: (v) => `Send a rival card with ${n(v)} or less defence back to its owner's hand.` },
-  sting: { name: 'sting', group: 'shields', explain: (v) => `When your shields block a card's heat, that card takes ${n(v)} heat. Once per card a day.` },
-  soothe: { name: 'soothe', group: 'shields', explain: (v) => `When your shields block heat, cool your sun by ${n(v)}. Once per card a day.` },
-  hold: { name: 'hold', group: 'shields', explain: (v) => `Your shields don't fade (up to ${n(v, '12')}).` },
+  destroy: { name: 'destroy', group: 'removal', explain: () => 'Destroys a rival card, if its defence is no higher than the number.' },
+  eject: { name: 'eject', group: 'removal', explain: () => "Sends a rival card back to its owner's hand, if its defence is no higher than the number." },
+  sting: { name: 'sting', group: 'shields', explain: () => "When your shields block a card's heat, that card takes heat back. Once per card a day." },
+  soothe: { name: 'soothe', group: 'shields', explain: () => 'When your shields block heat, your sun cools. Once per card a day.' },
+  hold: { name: 'hold', group: 'shields', explain: () => "Your shields don't fade at your dawn." },
   overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or more.' },
-  grows: { name: 'grows', group: 'tempo', explain: (v) => `+1 at each of your dawns, up to ${n(v)}.` },
-  plays: { name: 'industry', group: 'tempo', explain: (v) => `+${n(v, '1')} energy every day, while it is in play.` },
+  grows: { name: 'grows', group: 'tempo', explain: () => 'Its numbers rise at each of your dawns, up to a limit.' },
+  plays: { name: 'industry', group: 'tempo', explain: () => 'Extra energy every day, while it is in play.' },
   spend: { name: 'spend all', group: 'tempo', explain: () => 'Spends all your energy. Stronger the more you spend.' },
-  energy: { name: 'energy', group: 'tempo', explain: (v) => `+${n(v, '1')} energy today.` },
-  abundance: { name: 'abundance', group: 'tempo', explain: (v) => `Draw ${n(v, '1')} more at each of your dawns, while it is in play.` },
-  orbit: { name: 'orbit', group: 'orbit', explain: (v) => `Moves a sun's planets by ${n(v)}.` },
+  energy: { name: 'energy', group: 'tempo', explain: () => 'Extra energy today.' },
+  abundance: { name: 'abundance', group: 'tempo', explain: () => 'Extra cards at each of your dawns, while it is in play.' },
+  orbit: { name: 'orbit', group: 'orbit', explain: () => "Moves a sun's planets round." },
   lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Set face down. Springs on your rival's day when its trigger happens." },
   global: { name: 'global', group: 'global', explain: () => 'Affects both players. Only one at a time.' },
 };
@@ -150,13 +130,13 @@ export function plainText(text: string): string {
     .replace(/^./, (c) => c.toUpperCase());
 }
 
-/** The keywords a card's text uses (each once), with their values. */
+/** The keywords a card's text uses, each once (whatever its numbers), in order. */
 export function keywordsIn(text: string): { id: string; value?: string }[] {
   const seen = new Set<string>();
   const out: { id: string; value?: string }[] = [];
   for (const p of textParts(text)) {
-    if ('kw' in p && !seen.has(`${p.kw}:${p.value}`)) {
-      seen.add(`${p.kw}:${p.value}`);
+    if ('kw' in p && p.kw !== 'options' && !seen.has(p.kw)) {
+      seen.add(p.kw);
       out.push({ id: p.kw, value: p.value });
     }
   }

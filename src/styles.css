@@ -3032,7 +3032,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .kw-list .kw { font-size: 0.86rem; }
 .inspector-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .zoom-card { display: flex; align-items: center; gap: 16px; }
-.card-preview .kw-list { position: absolute; right: calc(100% + 12px); top: 0; width: 220px; }
+.card-preview .kw-list { position: absolute; right: calc(100% + 12px); top: 0; width: 220px; max-height: 100%; overflow: hidden; gap: 6px; padding: 10px 12px; font-size: 0.68rem; }
+/* Never taller than the card it sits beside. */
+.card-preview .kw-list .kw { font-size: 0.78rem; }
 .kw-rules { display: grid; gap: 8px; margin: 8px 0 0; }
 .kw-rules > div { display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 10px; align-items: baseline; }
 .kw-rules dt, .kw-rules dd { margin: 0; }

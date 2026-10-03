@@ -378,10 +378,12 @@ const PARA = '<span class="card-para"></span>';
 export function keywordList(text: string, stats: { stability?: number; defence?: number } = {}): string {
   const rows: string[] = [];
   const row = (head: string, body: string) => rows.push(`<div>${head}<span>${escText(body)}</span></div>`);
-  for (const k of keywordsIn(text)) if (KEYWORDS[k.id]) row(keywordHtml(k.id, k.value, { named: true }), KEYWORDS[k.id].explain(k.value));
+  // Each mechanic once, by name alone (no numbers): "Heat", not "Heat 1" and "Heat +1".
+  const texts = [text, ...[...text.matchAll(/\{options:([^}]+)\}/g)].flatMap((m) => optionList(m[1]).map(optionText))].join(' ');
+  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id]) row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
-  if (stats.stability !== undefined) row(`<b class="kw kw-stability">◷ Stability ${stats.stability}</b>`, 'Loses 1 each dawn. Fades at 0.');
-  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence ${stats.defence}</b>`, 'Takes heat before stability. Blocks weaker removal.');
+  if (stats.stability !== undefined) row(`<b class="kw kw-stability">◷ Stability</b>`, 'Loses 1 each dawn. The card fades at 0.');
+  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability, and blocks weaker removal.');
   return rows.length ? `<div class="kw-list">${rows.join('')}</div>` : '';
 }
