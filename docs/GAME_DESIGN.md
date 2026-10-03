@@ -259,7 +259,7 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | recover (type) | A card (of that type) from your discard pile to your hand; with none there, draw |
 | recall | Another card of yours from your tableau to your hand |
 | destroy N / eject N | Destroy / return to hand a rival card with at most N defence |
-| sting N / soothe N | When your shields absorb heat: heat the attacker N / cool your sun N |
+| sting N / soothe N | When your shields absorb heat: heat the attacking card N, past its defence (its sun, if that card isn't in play) / cool your sun N |
 | hold N | Your shields don't fade (up to N) |
 | overheated | Half your max health or hotter |
 | grows N | Grows by 1 each day, up to N |
@@ -282,6 +282,8 @@ Lightspeed cards are played **face down**. They don't take a slot, and **only on
 | Temporal Snare | Anomaly | plays any card | Cancel it; they may play no more cards today |
 
 A cancelled card still uses the play and goes to its owner's discard pile. The AI plans without seeing its rivals' face-down cards.
+
+**Lightspeed guards.** Blink Bulwark (neutral), Sunflash Aegis (Aureline) and Riptide Sentinel (Vorthane) are Guards that can be played either way: into a slot as an ordinary Guard, or set face down in the Lightspeed slot for **1 more energy**. Face down, one springs when an enemy's heat is about to strike one of your cards (aimed heat, at their dawn or as they play a card): it lands in your safest free slot and takes that heat instead (on its defence first). With no free slot it can't land and stays face down. It answers aimed heat the way Guards do, but unseen, so aiming at a rival's weak cards is never quite safe.
 
 ## Rarity [design review]
 

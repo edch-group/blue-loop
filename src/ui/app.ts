@@ -13,6 +13,7 @@ import {
   rankOf,
   xpToNext,
   canSetLightspeed,
+  canSetFaceDown,
   cardDef,
   chooseAIAction,
   createGame,
@@ -111,6 +112,8 @@ interface Pending {
   allyUid?: string;
   recoverUid?: string;
   slot?: number;
+  /** A Lightspeed guard set face down instead (its Lightspeed slot chosen). */
+  faceDown?: boolean;
 }
 
 /** What an AI player just played (or a Lightspeed card that just sprang), shown large at the middle right. */
@@ -740,7 +743,7 @@ export class App {
 
   /** Whether a card in hand could be played now (energy, room in the tableau, a free Lightspeed slot). */
   private canPlayNow(me: PlayerState, defId: string): boolean {
-    return cardCost(defId) <= me.playsLeft && hasRoomFor(me, defId) && (cardDef(defId).kind !== 'lightspeed' || canSetLightspeed(me));
+    return (cardCost(defId) <= me.playsLeft && hasRoomFor(me, defId) && (cardDef(defId).kind !== 'lightspeed' || canSetLightspeed(me))) || canSetFaceDown(me, defId);
   }
 
   /** End the day, checking first if there are still cards that could be played. */
@@ -1003,7 +1006,7 @@ export class App {
     if (action.type !== 'playCard') return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
-    if (cardDef(card.defId).kind === 'lightspeed') return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
+    if (cardDef(card.defId).kind === 'lightspeed' || action.faceDown) return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
     return { defId: card.defId, actorId: actor.id, option: action.choice, target: action.enemyUid };
   }
 
@@ -1013,13 +1016,14 @@ export class App {
       const card = was.lightspeed;
       const now = next.players.find((p) => p.id === was.id)!;
       if (!card || now.lightspeed || now.eliminated) continue;
-      // A rival's face-down card is hidden (online); the one that sprang is now on top of their discard pile.
-      const defId = now.discard[now.discard.length - 1]?.defId ?? card.defId;
+      // What sprang it: the enemy card it answers (the card played, the heat's card, or the removal).
+      const why = [...(next.sprung ?? [])].reverse().find((x) => x.ownerId === now.id);
+      // A rival's face-down card is hidden (online): the record of what sprang says what it was (it is now on
+      // top of their discard pile, or in their tableau for a Lightspeed guard).
+      const defId = why?.defId ?? now.discard[now.discard.length - 1]?.defId ?? card.defId;
       const name = cardDef(defId).name;
       this.showBanner('lightspeed!', `${now.name} springs ${name}`, 150);
       sound.flare();
-      // What sprang it: the enemy card it answers (the card played, the heat's card, or the removal).
-      const why = next.sprung?.find((x) => x.ownerId === now.id);
       const stage: Stage = { defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs`, against: why?.against };
       // It shows for a few seconds, then fades away by itself (not lingering until someone acts).
       window.setTimeout(() => {
@@ -1631,7 +1635,7 @@ export class App {
     const card = me.hand.find((c) => c.uid === uid);
     if (!card) return;
     // (A card that costs 0 can still be played with no energy left.)
-    if (cardCost(card.defId) > me.playsLeft) {
+    if (cardCost(card.defId) > me.playsLeft && !canSetFaceDown(me, card.defId)) {
       this.showToast(`${cardDef(card.defId).name} costs ${cardCost(card.defId)} energy: you have ${me.playsLeft} left today.`, 'info');
       sound.error();
       return;
@@ -1641,7 +1645,7 @@ export class App {
       sound.error();
       return;
     }
-    if (!hasRoomFor(me, card.defId)) {
+    if (!hasRoomFor(me, card.defId) && !canSetFaceDown(me, card.defId)) {
       this.showToast('Your tableau is full: a card can only go in once one fades (or is recalled or removed). A recall card can take the place of the card it recalls.', 'info');
       sound.error();
       return;
@@ -1666,6 +1670,10 @@ export class App {
       p.step = step;
       this.render();
     };
+    // A Lightspeed guard: set face down (its Lightspeed slot was chosen), or played as a Guard. It is
+    // placed like any card, with the Lightspeed slot open too (or only that, if it can't be played as a Guard).
+    if (p.faceDown) return this.dispatch({ type: 'playCard', cardUid: p.uid, faceDown: true });
+    if (canSetFaceDown(me, card.defId) && p.slot === undefined) return ask('slot');
     if (cardChoices(card.defId).length > 0 && !p.choice) return ask('choice');
     if (enemyChoices(s, me, card.defId).length > 0 && !p.enemyUid) {
       if (target) this.viewRivalId = target.id;
@@ -2140,7 +2148,10 @@ export class App {
         if (this.pending) this.pending.recoverUid = arg;
         return this.advancePlay();
       case 'choose-slot':
-        if (this.pending) this.pending.slot = Number(arg);
+        if (this.pending) {
+          if (arg === 'ls') this.pending.faceDown = true;
+          else this.pending.slot = Number(arg);
+        }
         return this.advancePlay();
     }
   }
@@ -2883,7 +2894,9 @@ export class App {
       ? side === 'mine'
         ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}"><span>⚡</span><small>lightspeed</small></button>`
         : '<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your day."><span>⚡</span><small>lightspeed</small></div>'
-      : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
+      : choosingSlot && pend && canSetFaceDown(p, activePlayer(st).hand.find((h) => h.uid === pend.uid)?.defId ?? '')
+        ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down at lightspeed, for 1 more energy: it springs into your tableau to take heat aimed at your cards"><span class="slot-def">⚡</span><i>face down +1</i></button>`
+        : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
     return `
       <div class="tableau tableau-${side} ${p.eliminated ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
@@ -3112,7 +3125,7 @@ export class App {
           .replace(/ data-card="[^"]*"/, '');
     // A sprung Lightspeed card: the card it answered, smaller, beside it.
     const against = st.against
-      ? `<div class="stage-against"><span>${{ enemyPlays: 'in answer to', heated: 'against the heat of', targeted: 'against' }[s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays'] ?? 'in answer to'}</span>${this.renderCard({ uid: 'stage-against', defId: st.against }, { static: true })
+      ? `<div class="stage-against"><span>${{ enemyPlays: 'in answer to', heated: 'against the heat of', targeted: 'against', cardHeated: 'against the heat of' }[s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays'] ?? 'in answer to'}</span>${this.renderCard({ uid: 'stage-against', defId: st.against }, { static: true })
           .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
           .replace(/<\/button>\s*$/, '</div>')
           .replace(/ data-act="[^"]*"/, '')

@@ -455,6 +455,22 @@ export function canSetLightspeed(p: PlayerState): boolean {
   return p.lightspeed === null;
 }
 
+/** A card of another kind that can also be set face down at lightspeed (a Lightspeed guard). */
+export function dualLightspeed(defId: string): boolean {
+  const def = cardDef(defId);
+  return def.kind !== 'lightspeed' && !!def.lightspeed;
+}
+
+/** What a card costs: set face down at lightspeed, a Lightspeed guard costs 1 more. */
+export function playCost(defId: string, faceDown = false): number {
+  return cardCost(defId) + (faceDown && dualLightspeed(defId) ? 1 : 0);
+}
+
+/** Whether a Lightspeed guard could be set face down now (its slot free, the energy there). */
+export function canSetFaceDown(p: PlayerState, defId: string): boolean {
+  return dualLightspeed(defId) && canSetLightspeed(p) && playCost(defId, true) <= p.playsLeft;
+}
+
 /** The choices a card is played with (Command cards), or none. */
 export function cardChoices(defId: string): string[] {
   return (cardDef(defId).choices ?? []).map((c) => c.id);
@@ -723,6 +739,26 @@ function reshuffle(state: GameState, p: PlayerState) {
  * that enemy and goes to the discard pile. Returns true if it cancels what
  * sprang it.
  */
+/**
+ * An enemy's heat is about to strike one of this player's cards: a face-down Lightspeed guard springs into
+ * a free slot of their tableau to take it. Returns the card that landed (none if nothing sprang).
+ */
+function springGuard(state: GameState, owner: PlayerState, enemy: PlayerState, cause?: string): CardInstance | null {
+  const card = owner.lightspeed;
+  if (!card || owner.eliminated || owner.id === enemy.id || activePlayer(state).id !== enemy.id) return null;
+  const ls = cardDef(card.defId).lightspeed;
+  if (!ls?.deploy || ls.trigger.on !== 'cardHeated') return null;
+  const open = freeSlots(owner);
+  const slot = slotsBySafety().find((i) => open.includes(i));
+  if (slot === undefined) return null;
+  owner.lightspeed = null;
+  place(owner, card, slot);
+  log(state, `⚡ Lightspeed! ${owner.name}'s ${cardDef(card.defId).name} lands in their tableau${cause ? ` in answer to ${enemy.name}'s ${cardDef(cause).name}` : ''}, and takes the heat.`);
+  (state.sprung ??= []).push({ ownerId: owner.id, defId: card.defId, against: cause, enemyId: enemy.id, trigger: 'cardHeated' });
+  resolveEffects(state, owner, card, ls.effects, 'spring', { against: enemy });
+  return owner.tableau.includes(card) ? card : null;
+}
+
 function spring(state: GameState, owner: PlayerState, enemy: PlayerState, matches: (t: LightspeedTrigger) => boolean, cause?: string): boolean {
   const card = owner.lightspeed;
   if (!card || owner.eliminated || owner.id === enemy.id || activePlayer(state).id !== enemy.id) return false;
@@ -850,7 +886,10 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (!main) break;
         // A card's heat goes where it is aimed: a rival card, or their sun (a card that has left play aims
         // at the sun). Guards draw it all in. Only Lightspeed cards, springing on a rival's day, go straight to the sun.
-        const victim = !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, card) : null;
+        const aimed = !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, card) : null;
+        // A face-down Lightspeed guard can spring in front of the card the heat was aimed at.
+        const victim = aimed ? springGuard(state, main, p, card.defId) ?? aimed : null;
+        if (state.winnerId || p.eliminated) break;
         if (victim) {
           if (when === 'turn') notePulse(state, p, card, 'heat', main, amount, victim.uid);
           heatCard(state, main, victim, amount, p, !!e.pierce, card.uid);
@@ -1178,10 +1217,12 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const card = p.hand.find((c) => c.uid === action.cardUid);
   if (!card) throw new GameError('That card is not in your hand.');
   const def: CardDef = cardDef(card.defId);
-  const cost = cardCost(def.id);
+  // A Lightspeed guard can be set face down instead, for 1 more energy.
+  const lightspeed = def.kind === 'lightspeed' || (!!action.faceDown && dualLightspeed(def.id));
+  const cost = playCost(def.id, lightspeed);
   if (p.playsLeft < cost) throw new GameError(p.playsLeft <= 0 ? 'You have no energy left today.' : `${def.name} costs ${cost} energy: you have ${p.playsLeft} left today.`);
-  const lightspeed = def.kind === 'lightspeed';
   if (lightspeed && !canSetLightspeed(p)) throw new GameError('You already have a Lightspeed card face down.');
+  const slotted = inSlots(def.id) && !lightspeed;
 
   const choices = cardChoices(def.id);
   if (choices.length && !choices.includes(action.choice ?? '')) throw new GameError('Choose one of its options.');
@@ -1194,10 +1235,10 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   // A recall card can take the place of the card it recalls: when the tableau is full, or whenever its
   // player puts it in that card's slot.
   const recalled = allyEffectKind(def.id) === 'recall' ? p.tableau.find((c) => c.uid === action.allyUid && returnable(c) && c.slot !== COMMAND_SLOT) : undefined;
-  const swap = inSlots(def.id) && (tableauFull(p) ? recallsInto(p, def.id) : !!recalled && action.slot === recalled.slot);
-  if (inSlots(def.id) && tableauFull(p) && !swap) throw new GameError('Your tableau is full: a card can only go in once one fades, or is recalled or removed.');
+  const swap = slotted && (tableauFull(p) ? recallsInto(p, def.id) : !!recalled && action.slot === recalled.slot);
+  if (slotted && tableauFull(p) && !swap) throw new GameError('Your tableau is full: a card can only go in once one fades, or is recalled or removed.');
   const free = freeSlots(p);
-  if (inSlots(def.id) && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
+  if (slotted && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
   const allies = allyChoices(p, def.id);
   if (allies.length > 0 && !allies.some((c) => c.uid === action.allyUid)) throw new GameError('Choose a card of yours.');
   const recovers = recoverChoices(p, def.id);
@@ -1220,7 +1261,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
 
   // Rivals' face-down Lightspeed cards may answer the card before it resolves.
   for (const o of othersInOrder(state, p)) {
-    const cancelled = spring(state, o, p, (t) => t.on === 'enemyPlays' && (!t.kind || t.kind === def.kind), lightspeed ? undefined : def.id);
+    const cancelled = spring(state, o, p, (t) => t.on === 'enemyPlays' && (!t.kind || t.kind === (lightspeed ? 'lightspeed' : def.kind)), lightspeed ? undefined : def.id);
     if (state.winnerId || p.eliminated) {
       p.discard.push(card);
       return;

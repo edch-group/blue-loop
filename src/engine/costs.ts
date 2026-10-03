@@ -8,6 +8,7 @@ export const CARD_COSTS: Record<string, number> = {
   coolant_array: 0,
   relay_station: 0,
   // 2
+  riptide_sentinel: 2,
   dawn_rampart: 2,
   frost_bulwark: 2,
   abyssal_snap: 2,

@@ -4,6 +4,7 @@ import {
   activePlayer,
   applyAction,
   canSetLightspeed,
+  canSetFaceDown,
   cardChoices,
   cardCost,
   conditionMet,
@@ -189,6 +190,8 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
   for (const card of me.hand) {
     if (seen.has(card.defId)) continue;
     seen.add(card.defId);
+    // A Lightspeed guard can also be set face down (for 1 more energy).
+    if (canSetFaceDown(me, card.defId)) plays.push({ type: 'playCard', cardUid: card.uid, faceDown: true });
     if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) continue;
     if (cardCost(card.defId) > me.playsLeft) continue;
     const choices = opt(cardChoices(card.defId));

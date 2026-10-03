@@ -398,6 +398,42 @@ describe('synergies', () => {
   });
 });
 
+describe('Lightspeed guards', () => {
+  it('can be set face down for 1 more energy, and spring in front of a card heat is aimed at', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    // The rival sets a Blink Bulwark face down (1 + 1 energy) instead of playing it as a Guard.
+    const [lancerTarget] = give(rival, ['star_chart'], 'tableau');
+    lancerTarget.stability = 5;
+    rival.shields = 0;
+    const [bw] = give(rival, ['blink_bulwark']);
+    s.activePlayerIndex = s.players.indexOf(rival);
+    rival.playsLeft = 1;
+    expect(() => applyAction(s, { type: 'playCard', cardUid: bw.uid, faceDown: true })).toThrow();
+    rival.playsLeft = 2;
+    s = applyAction(s, { type: 'playCard', cardUid: bw.uid, faceDown: true });
+    const r = s.players.find((p) => p.id === rival.id)!;
+    expect(r.lightspeed?.defId).toBe('blink_bulwark');
+    expect(r.playsLeft).toBe(0);
+    expect(r.tableau.some((c) => c.defId === 'blink_bulwark')).toBe(false);
+    // My Coronal Lance, aimed at their Star Chart: the Bulwark springs into their tableau and takes the heat.
+    s.activePlayerIndex = s.players.indexOf(s.players.find((p) => p.id === me.id)!);
+    const m = activePlayer(s);
+    m.playsLeft = 3;
+    give(m, ['coronal_lance']);
+    s = play(s, 'coronal_lance', { aimUid: lancerTarget.uid });
+    const after = s.players.find((p) => p.id === rival.id)!;
+    expect(after.lightspeed).toBeNull();
+    const guard = after.tableau.find((c) => c.defId === 'blink_bulwark');
+    expect(guard).toBeDefined();
+    expect(after.tableau.find((c) => c.uid === lancerTarget.uid)?.stability).toBe(5);
+    // 3 heat: its defence (slot and sturdy) turns some aside, the rest wears its stability.
+    expect(guard!.dented ?? 0).toBeGreaterThan(0);
+    expect(s.sprung?.some((x) => x.trigger === 'cardHeated' && x.defId === 'blink_bulwark')).toBe(true);
+  });
+});
+
 describe('the day\'s heat limit', () => {
   it('lands at most maxHeatPerDay on a rival sun in a day, and starts again the next day', () => {
     let s = twoPlayer();

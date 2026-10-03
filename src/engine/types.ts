@@ -126,9 +126,10 @@ export type Passive =
  * What springs a face-down Lightspeed card, during an enemy's day:
  * - `enemyPlays`: an enemy plays a card (of a kind, if given), before it resolves;
  * - `heated`: an enemy's card is about to heat your sun (by at least `min`);
- * - `targeted`: an enemy is about to destroy or return one of your cards.
+ * - `targeted`: an enemy is about to destroy or return one of your cards;
+ * - `cardHeated`: an enemy's heat is about to strike one of your cards.
  */
-export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'heated'; /** Only heat of at least this much. */ min?: number } | { on: 'targeted' };
+export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'heated'; /** Only heat of at least this much. */ min?: number } | { on: 'targeted' } | { on: 'cardHeated' };
 
 export interface Lightspeed {
   trigger: LightspeedTrigger;
@@ -136,6 +137,11 @@ export interface Lightspeed {
   counter?: boolean;
   /** Resolved as the card springs (before the enemy's card, if it is not cancelled). "Your target" is the enemy who sprang it. */
   effects?: Effect[];
+  /**
+   * A Lightspeed guard (a card of another kind that can also be set face down, for 1 more energy): as it
+   * springs it lands in a free slot of your tableau, and the heat that sprang it strikes it instead.
+   */
+  deploy?: boolean;
 }
 
 export interface CardDef {
@@ -344,6 +350,8 @@ export type Action =
       cardUid: string;
       /** Which empty slot of your tableau the card goes in (default: the most defended one free). */
       slot?: number;
+      /** A card that can also be set at lightspeed (a Lightspeed guard): set it face down instead, for 1 more energy. */
+      faceDown?: boolean;
       /** A card with choices (Command cards): the one picked. */
       choice?: string;
       /** Destroy and bounce effects: the card in your target's tableau. */

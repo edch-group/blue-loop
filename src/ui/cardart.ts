@@ -665,6 +665,9 @@ const ART2: Record<string, Draw> = {
   cold_front: (S) => S.waves(30, '#dff2ff', 4, 4, 0.8) + S.dome(80, 92, 40, '#bfe6ff') + S.motes(80, 40, 30, 70, '#fff', 1),
   radiator_fins: (S) => S.glow(80, 70, 30, '#ffb070', 0.6) + [44, 56, 68, 80, 92, 104, 116].map((x) => `<rect x="${x}" y="24" width="6" height="56" rx="2" fill="${S.linear([[0, '#ffffff'], [1, '#5aa0e0']])}"/>`).join(''),
   bastion_node: (S) => S.ground(86) + S.hex(80, 52, 30, S.linear([[0, '#e6ecf5'], [1, '#56657e']]), '#fff') + S.hex(80, 52, 16, S.radial([[0, '#ffffff'], [1, '#9fd0ff']]), '#fff') + S.dome(80, 86, 56, '#bfe6ff'),
+  blink_bulwark: (S) => S.ground(86) + S.bolt(14, 14, 62, 50, '#ffe9a8', 6, 1.6) + S.hex(92, 52, 28, S.linear([[0, '#e6ecf5'], [1, '#56657e']]), '#fff') + S.hex(92, 52, 14, S.radial([[0, '#ffffff'], [1, '#ffe9a8']]), '#fff') + S.motes(56, 46, 22, 14, '#fff3c4', 1.2),
+  sunflash_aegis: (S) => S.glow(80, 52, 40, '#ffd27a', 0.5) + S.bolt(10, 20, 58, 52, '#fff3c4', 6, 1.6) + S.dome(84, 88, 50, '#ffe2a8') + S.hex(84, 50, 20, S.radial([[0, '#ffffff'], [1, '#ffc46a']]), '#fff'),
+  riptide_sentinel: (S) => S.waves(70, '#bfe6ff', 3, 5, 0.7) + S.bolt(12, 16, 60, 50, '#dff2ff', 6, 1.6) + S.hex(96, 50, 26, S.linear([[0, '#d8f0ff'], [1, '#2a5a8a']]), '#fff') + S.dome(96, 84, 44, '#9fd0ff'),
   debris_field: (S) => S.motes(80, 50, 26, 70, '#c8d0dc', 2.4) + S.dome(80, 80, 44, '#bfe6ff') + S.planet(80, 100, 26, '#9fb8d8', '#2a4a7a'),
   // ---- Neutral growth ----
   survey_probe: (S) => S.panel(30, 44, 20, 12, 4) + `<line x1="40" y1="44" x2="40" y2="30" stroke="#dfe6f0" stroke-width="1.4"/>` + S.rings(40, 30, 6, 3, 6, '#c8ffd0', 0.7) + S.orbit(110, 50, 34, 12, -10, '#fff', 1, 0.6) + S.planet(110, 50, 10, '#c8ffd0', '#23584a'),
