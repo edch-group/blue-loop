@@ -155,27 +155,20 @@ export function beam(from: DOMRect, to: DOMRect, colour: string, opts: { delay?:
   const duration = opts.duration ?? 420;
   const delay = opts.delay ?? 0;
   if (reducedMotion()) return delay;
-  const ax = from.left + from.width / 2, ay = from.top + from.height / 2;
-  const bx = to.left + to.width / 2, by = to.top + to.height / 2;
-  // From edge to edge, never over either card's text.
-  const [x0, y0] = edge(from, ax, ay, bx, by, 4);
-  const [x1, y1] = edge(to, bx, by, ax, ay, 3);
-  const len = Math.hypot(x1 - x0, y1 - y0);
-  const el = document.createElement('div');
-  el.className = 'beam';
-  el.style.setProperty('--c', colour);
-  Object.assign(el.style, { width: `${len}px`, height: `${opts.width ?? 6}px`, transform: `translate(${x0}px, ${y0}px) rotate(${Math.atan2(y1 - y0, x1 - x0)}rad)` });
-  document.body.appendChild(el);
-  const anim = el.animate(
-    [
-      { clipPath: 'inset(0 100% 0 0)', opacity: 1 },
-      { clipPath: 'inset(0 0 0 0)', opacity: 1, offset: 0.55 },
-      { clipPath: 'inset(0 0 0 0)', opacity: 1, offset: 0.75 },
-      { clipPath: 'inset(0 0 0 100%)', opacity: 0 },
-    ],
-    { duration: duration / 0.55, delay, easing: 'ease-out', fill: 'both' },
-  );
-  anim.onfinish = () => el.remove();
+  // (The cooling beam is blue; anything else drawn this way is white.)
+  const kind = colour === 'cool' ? 'cool' : 'plain';
+  window.setTimeout(() => {
+    const b = new Beam(kind, 0.12);
+    b.mount();
+    const t0 = performance.now();
+    const grow = (now: number) => {
+      const k = Math.min(1, (now - t0) / duration);
+      b.draw(from, to, 1 - (1 - k) ** 3);
+      if (k < 1) requestAnimationFrame(grow);
+      else b.fadeOut(duration * 0.6, 220);
+    };
+    requestAnimationFrame(grow);
+  }, delay);
   return delay + duration;
 }
 
@@ -209,47 +202,94 @@ export function tether(source: DOMRect | (() => DOMRect | null), to: DOMRect, op
 }
 
 /**
- * The arc a beam takes from one rectangle to another: bowed sideways by a third of its length, and
- * starting and ending just outside each one's edge, so it never lies over the text of the card it
- * leaves (or lands on).
+ * Beams, after the arcs in digital card games: light, not a drawn line. Each is a filled shape laid
+ * along a curve, hairline where it leaves its card and widening towards its target, in layers: a soft
+ * halo, a translucent body in the beam's colour that brightens along its length, a white-hot core
+ * that brightens towards the head, and a chevron at the head. It starts and ends just outside each
+ * card's edge, so it never lies over the text of the card it leaves (or lands on). Red for an attack,
+ * blue for cooling, white for anything else.
  */
-function arcPath(from: DOMRect, to: DOMRect): { d: string; x0: number; y0: number; x1: number; y1: number } {
-  const ax = from.left + from.width / 2, ay = from.top + from.height / 2;
-  const bx = to.left + to.width / 2, by = to.top + to.height / 2;
-  const dx = bx - ax, dy = by - ay;
-  const len = Math.hypot(dx, dy) || 1;
-  const bow = Math.min(160, len * 0.32);
-  const cx = (ax + bx) / 2 - (dy / len) * bow, cy = (ay + by) / 2 + (dx / len) * bow - bow * 0.3;
-  // Leave each rectangle along the curve's own heading there (towards the control point), a little clear of it.
-  const [x0, y0] = edge(from, ax, ay, cx, cy, 5);
-  const [x1, y1] = edge(to, bx, by, cx, cy, 3);
-  const d = `M${x0.toFixed(1)} ${y0.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`;
-  return { d, x0, y0, x1, y1 };
-}
-
-/**
- * A beam's paths, like a glowstick: a body (evenly translucent, two bands of gently shifting tint laid
- * over each other, so it reads as light rather than a painted line) and a thin core of the beam's key
- * colour down its middle, with its own glow. The bands' gradients run along the arc (see placeBeam).
- */
+type BeamKind = 'attack' | 'cool' | 'plain';
 let beamIds = 0;
-function beamMarkup(d = ''): string {
-  const n = ++beamIds;
-  const stops = (pattern: string[]) => pattern.map((c, i) => `<stop offset="${(i / (pattern.length - 1)).toFixed(2)}" class="beam-${c}"/>`).join('');
-  return `<defs>
-      <linearGradient id="beam-a${n}" gradientUnits="userSpaceOnUse">${stops(['a', 'b', 'a', 'b', 'a'])}</linearGradient>
-      <linearGradient id="beam-b${n}" gradientUnits="userSpaceOnUse">${stops(['b', 'a', 'a', 'b'])}</linearGradient>
-    </defs>
-    <path class="tether-glow" d="${d}" stroke="url(#beam-a${n})"/><path class="tether-tube" d="${d}" stroke="url(#beam-b${n})"/><path class="tether-line" d="${d}"/>`;
-}
-
-/** Lay a beam's gradient along its arc, from start to end. */
-function placeBeam(svg: SVGSVGElement, a: { x0: number; y0: number; x1: number; y1: number }) {
-  for (const g of svg.querySelectorAll('linearGradient')) {
-    g.setAttribute('x1', a.x0.toFixed(1));
-    g.setAttribute('y1', a.y0.toFixed(1));
-    g.setAttribute('x2', a.x1.toFixed(1));
-    g.setAttribute('y2', a.y1.toFixed(1));
+class Beam {
+  readonly svg: SVGSVGElement;
+  private id = ++beamIds;
+  constructor(kind: BeamKind, private bowShare = 0.36) {
+    this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    this.svg.setAttribute('class', `beam-arc beam-${kind}`);
+    const n = this.id;
+    this.svg.innerHTML = `<defs>
+        <linearGradient id="bb${n}" gradientUnits="userSpaceOnUse"><stop offset="0" class="bb-0"/><stop offset="0.45" class="bb-1"/><stop offset="1" class="bb-2"/></linearGradient>
+        <linearGradient id="bc${n}" gradientUnits="userSpaceOnUse"><stop offset="0" class="bc-0"/><stop offset="0.6" class="bc-1"/><stop offset="1" class="bc-2"/></linearGradient>
+      </defs>
+      <path class="beam-halo" fill="url(#bb${n})"/><path class="beam-body" fill="url(#bb${n})"/><path class="beam-core" fill="url(#bc${n})"/><path class="beam-head"/><path class="beam-head-core"/>`;
+  }
+  mount() {
+    document.body.appendChild(this.svg);
+  }
+  remove() {
+    this.svg.remove();
+  }
+  fadeOut(delay: number, duration: number) {
+    const out = this.svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration, delay, fill: 'both' });
+    out.onfinish = () => this.remove();
+  }
+  /** Lay the beam from one rectangle to another, drawn out to `progress` (0–1) of its length. */
+  draw(from: DOMRect, to: DOMRect, progress = 1) {
+    const ax = from.left + from.width / 2, ay = from.top + from.height / 2;
+    const bx = to.left + to.width / 2, by = to.top + to.height / 2;
+    const dx = bx - ax, dy = by - ay;
+    const len = Math.hypot(dx, dy) || 1;
+    const bow = Math.min(200, len * this.bowShare);
+    // Bow upwards-ish (to the left of the direction of travel), and a little higher, as an arc thrown.
+    const cx = (ax + bx) / 2 - (dy / len) * bow, cy = (ay + by) / 2 + (dx / len) * bow - bow * 0.35;
+    const [x0, y0] = edge(from, ax, ay, cx, cy, 5);
+    const [x1, y1] = edge(to, bx, by, cx, cy, 4);
+    const at = (t: number): [number, number] => {
+      const u = 1 - t;
+      return [u * u * x0 + 2 * u * t * cx + t * t * x1, u * u * y0 + 2 * u * t * cy + t * t * y1];
+    };
+    const end = Math.max(0.02, progress);
+    const [hx, hy] = at(end);
+    // Gradients run from the start to the head as it stands.
+    for (const g of this.svg.querySelectorAll('linearGradient')) {
+      g.setAttribute('x1', x0.toFixed(1));
+      g.setAttribute('y1', y0.toFixed(1));
+      g.setAttribute('x2', hx.toFixed(1));
+      g.setAttribute('y2', hy.toFixed(1));
+    }
+    const W = Math.max(5, Math.min(9, len / 40));
+    const ribbon = (scale: number, from = 0.6) => {
+      const n = 28;
+      const left: string[] = [], right: string[] = [];
+      for (let i = 0; i <= n; i++) {
+        const t = (i / n) * end;
+        const [px, py] = at(t);
+        const [qx, qy] = at(Math.min(1, t + 0.01));
+        const tl = Math.hypot(qx - px, qy - py) || 1;
+        const nx = -(qy - py) / tl, ny = (qx - px) / tl;
+        // Hairline at the start, widening towards the head (eased, so most of the width comes late).
+        const w = (from + (W - from) * (i / n) ** 1.6) * scale * 0.5;
+        left.push(`${(px + nx * w).toFixed(1)} ${(py + ny * w).toFixed(1)}`);
+        right.unshift(`${(px - nx * w).toFixed(1)} ${(py - ny * w).toFixed(1)}`);
+      }
+      return `M${left.join(' L')} L${right.join(' L')} Z`;
+    };
+    const [hx0, hy0] = at(Math.max(0, end - 0.02));
+    const ang = Math.atan2(hy - hy0, hx - hx0);
+    // The head: a chevron pointing along the beam, a little wider than the beam there.
+    const hw = W * 1.35, hl = W * 1.7;
+    const pt = (fwd: number, side: number) => `${(hx + Math.cos(ang) * fwd - Math.sin(ang) * side).toFixed(1)} ${(hy + Math.sin(ang) * fwd + Math.cos(ang) * side).toFixed(1)}`;
+    const head = `M${pt(hl * 0.55, 0)} L${pt(-hl * 0.45, hw)} L${pt(-hl * 0.15, 0)} L${pt(-hl * 0.45, -hw)} Z`;
+    const [halo, body, core, chev, chevCore] = this.svg.querySelectorAll('path');
+    // A bright inner chevron, as the core runs into the head.
+    const ihw = hw * 0.45, ihl = hl * 0.5;
+    const ipt = (fwd: number, side: number) => `${(hx + Math.cos(ang) * fwd - Math.sin(ang) * side).toFixed(1)} ${(hy + Math.sin(ang) * fwd + Math.cos(ang) * side).toFixed(1)}`;
+    chevCore.setAttribute('d', `M${ipt(ihl * 0.5, 0)} L${ipt(-ihl * 0.45, ihw)} L${ipt(-ihl * 0.15, 0)} L${ipt(-ihl * 0.45, -ihw)} Z`);
+    halo.setAttribute('d', ribbon(2.4, 1.5));
+    body.setAttribute('d', ribbon(1));
+    core.setAttribute('d', ribbon(0.38, 0.4));
+    chev.setAttribute('d', head);
   }
 }
 
@@ -265,70 +305,47 @@ function edge(r: DOMRect, x: number, y: number, tx: number, ty: number, gap: num
 }
 
 function drawTether(from: DOMRect, to: DOMRect, draw: number, hold: number) {
-  const delay = 0;
-  const arc = arcPath(from, to);
-  const d = arc.d;
-  // (The ring that marks the target swells round its centre.)
-  const x1 = to.left + to.width / 2, y1 = to.top + to.height / 2;
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('class', 'tether');
-  svg.innerHTML = `${beamMarkup(d)}<circle class="tether-tip" cx="${x1.toFixed(1)}" cy="${y1.toFixed(1)}" r="0"/>`;
-  placeBeam(svg, arc);
-  document.body.appendChild(svg);
-  for (const path of svg.querySelectorAll('path')) {
-    const L = path.getTotalLength();
-    path.style.strokeDasharray = `${L}`;
-    path.animate([{ strokeDashoffset: L }, { strokeDashoffset: 0 }], { duration: draw, delay, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'both' });
-  }
-  svg.querySelector('circle')!.animate([{ r: 0, opacity: 0 }, { r: Math.max(to.width, to.height) * 0.62, opacity: 0.9, offset: 0.4 }, { r: Math.max(to.width, to.height) * 0.7, opacity: 0 }], {
-    duration: hold + 200,
-    delay: delay + draw - 60,
-    easing: 'ease-out',
-    fill: 'both',
-  });
-  const out = svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, delay: delay + draw + hold, fill: 'both' });
-  out.onfinish = () => svg.remove();
+  const b = new Beam('plain');
+  b.mount();
+  const t0 = performance.now();
+  const grow = (now: number) => {
+    const k = Math.min(1, (now - t0) / draw);
+    b.draw(from, to, 1 - (1 - k) ** 3);
+    if (k < 1) requestAnimationFrame(grow);
+    else b.fadeOut(hold, 260);
+  };
+  requestAnimationFrame(grow);
 }
 
 /**
- * A held aim: the arc from a card waiting on the stage to the card it will remove, drawn once and kept
+ * A held aim: the arc from a card waiting to the card (or sun) it is aimed at, drawn out once and kept
  * (following both as the board moves) until the returned function takes it away.
  */
-export function aim(source: () => DOMRect | null, target: () => DOMRect | null, opts: { delay?: number; alive?: () => boolean } = {}): () => void {
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('class', 'tether tether-aim');
-  svg.innerHTML = beamMarkup();
+export function aim(source: () => DOMRect | null, target: () => DOMRect | null, opts: { delay?: number; alive?: () => boolean; kind?: BeamKind } = {}): () => void {
+  const b = new Beam(opts.kind ?? 'attack');
   let frame = 0;
   let gone = false;
-  const place = () => {
+  let t0 = 0;
+  const place = (now: number) => {
     if (opts.alive && !opts.alive()) return stop();
     const from = source(), to = target();
     // (The target itself is marked on the board: a ring round the card's or the sun's edge.)
-    svg.style.visibility = from && to ? '' : 'hidden';
-    if (from && to) {
-      const arc = arcPath(from, to);
-      for (const path of svg.querySelectorAll('path')) path.setAttribute('d', arc.d);
-      placeBeam(svg, arc);
-    }
+    b.svg.style.visibility = from && to ? '' : 'hidden';
+    const k = reducedMotion() ? 1 : Math.min(1, (now - t0) / 420);
+    if (from && to) b.draw(from, to, 1 - (1 - k) ** 3);
     frame = requestAnimationFrame(place);
   };
   const start = window.setTimeout(() => {
     if (gone) return;
-    document.body.append(svg);
-    place();
-    if (reducedMotion()) return;
-    for (const path of svg.querySelectorAll('path')) {
-      const L = path.getTotalLength();
-      path.animate([{ strokeDasharray: `0 ${L + 1}` }, { strokeDasharray: `${L + 1} 0` }], { duration: 420, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'both' });
-    }
+    b.mount();
+    t0 = performance.now();
+    frame = requestAnimationFrame(place);
   }, opts.delay ?? 0);
   const stop = () => {
     gone = true;
     window.clearTimeout(start);
     cancelAnimationFrame(frame);
-    svg.remove();
+    b.remove();
   };
   return stop;
 }

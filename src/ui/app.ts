@@ -211,8 +211,6 @@ const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
 const HOT = '#f0a07a';
-const COOLING = '#2f8fe0';
-const SHIELDING = '#ffffff';
 /** How long each dawn effect gets on the table, before the next fires (scaled by the game speed). */
 const PULSE_STEP = 720;
 /** The log button: lines of text in a page. */
@@ -853,7 +851,9 @@ export class App {
         const el = this.root.querySelector(sel);
         return el ? pageRect(el) : null;
       };
-      this.unaim = aim(() => rect('.stage .card'), () => rect(`.tableau [data-uid="${target}"]`), { delay: 640, alive: () => this.stage === stage });
+      // (Heat aimed at a card is an attack, in red; a removal is white.)
+      const removal = (cardDef(stage.defId).onPlay ?? []).some((e) => e.type === 'destroy' || e.type === 'bounce');
+      this.unaim = aim(() => rect('.stage .card'), () => rect(`.tableau [data-uid="${target}"]`), { delay: 640, alive: () => this.stage === stage, kind: removal ? 'plain' : 'attack' });
     }
   }
 
@@ -1683,8 +1683,8 @@ export class App {
       let land = at + 300;
       if (from && to) {
         if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') land = projectile(from, to, HOT, { delay: at + 120, size: ps.kind === 'heat' ? 34 : 26, duration: 520 });
-        else if (ps.kind === 'cool') land = beam(from, to, COOLING, { delay: at + 120 });
-        else if (ps.kind === 'shield') land = beam(from, to, SHIELDING, { delay: at + 120, width: 5 });
+        else if (ps.kind === 'cool') land = beam(from, to, 'cool', { delay: at + 120 });
+        else if (ps.kind === 'shield') land = beam(from, to, 'plain', { delay: at + 120 });
       }
       if (!ps.together) window.setTimeout(() => {
         if (id !== this.replayId) return;

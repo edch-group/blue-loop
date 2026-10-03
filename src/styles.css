@@ -752,20 +752,6 @@ input { font: inherit; }
 .toast-error { color: #9a5a55; box-shadow: 0 0 0 1px rgba(201, 138, 134, 0.5), 0 10px 30px rgba(80, 80, 100, 0.2); }
 
 /* ---------- Effects ---------- */
-.beam {
-  /* The same glowstick, straight: a translucent body of two overlapping tint bands, and a core line. */
-  position: fixed; left: 0; top: 0; z-index: 45; pointer-events: none; transform-origin: 0 50%; margin-top: -3.5px; border-radius: 999px;
-  height: 7px !important;
-  --ba: color-mix(in srgb, var(--c) 80%, #fff); --bb: color-mix(in srgb, var(--c) 45%, #fff);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--bb) 55%, transparent), color-mix(in srgb, var(--ba) 55%, transparent), color-mix(in srgb, var(--bb) 55%, transparent)) center / 100% 4px no-repeat,
-    linear-gradient(90deg, color-mix(in srgb, var(--ba) 45%, transparent), color-mix(in srgb, var(--bb) 45%, transparent), color-mix(in srgb, var(--ba) 45%, transparent), color-mix(in srgb, var(--bb) 45%, transparent));
-}
-.beam { box-shadow: 0 0 1px color-mix(in srgb, var(--c) 22%, transparent); }
-.beam::after {
-  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 0.8px; margin-top: -0.4px; border-radius: 999px; opacity: 0.9;
-  background: color-mix(in srgb, var(--c) 55%, #fff); box-shadow: 0 0 0.6px color-mix(in srgb, var(--c) 30%, transparent);
-}
 .bolt { position: fixed; left: 0; top: 0; z-index: 45; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #fff 0 30%, var(--c) 60%, transparent 72%); box-shadow: 0 0 22px 6px var(--c); }
 .fx-hot .orb-core { animation: hitHot 0.8s ease-out; }
 .fx-cold .orb-core { animation: hitCold 0.9s ease-out; }
@@ -2531,18 +2517,18 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 /* Removal: a glowing white arc from the removing card to its target. */
 .tether { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 47; pointer-events: none; overflow: visible; }
 .tether path { fill: none; stroke-linecap: round; }
-/* Beams are like glowsticks: an evenly translucent body of two overlapping bands of shifting tint (no
-   fade, no hard edge) round a thin core of the key colour, which glows on its own. Red for an attack,
-   blue for cooling, white for anything else. */
-.tether { --beam: #ffffff; --beam-a: #c9d2e6; --beam-b: #e9eef8; --beam-glow: rgba(90, 104, 140, 0.22); }
-.tether.tether-aim { --beam: #ffe2d8; --beam-a: #ec6447; --beam-b: #ff9a80; --beam-glow: rgba(200, 50, 30, 0.25); }
-.beam-a { stop-color: var(--beam-a); }
-.beam-b { stop-color: var(--beam-b); }
-.tether-glow { stroke-width: 8; opacity: 0.5; filter: drop-shadow(0 0 1px var(--beam-glow)); }
-.tether-tube { stroke-width: 5; opacity: 0.55; }
-/* The core: a hairline, a lighter tint of the key colour (the bright heart of a glowstick), a tight faint shadow. */
-.tether-line { stroke: var(--beam); stroke-width: 0.8; opacity: 0.9; filter: drop-shadow(0 0 0.6px var(--beam-glow)); }
-.tether-tip { fill: none; stroke: var(--beam); stroke-width: 1; opacity: 0.6; filter: drop-shadow(0 0 1px var(--beam-glow)); }
+/* Beams (see Beam in fx.ts): a halo, a translucent body brightening along its length, a white-hot core
+   and a chevron head. Red for an attack, blue for cooling, white for anything else. */
+.beam-arc { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 47; pointer-events: none; overflow: visible; }
+.beam-arc.beam-attack { z-index: 14; --b0: rgba(235, 50, 35, 0); --b1: rgba(232, 52, 36, 0.8); --b2: rgba(250, 70, 45, 0.95); --c0: rgba(255, 210, 190, 0.2); --c1: #ffd2c2; --c2: #fff6f0; --head: #f2442e; --glow: rgba(230, 50, 30, 0.5); }
+.beam-arc.beam-cool { --b0: rgba(40, 140, 255, 0); --b1: rgba(40, 140, 255, 0.72); --b2: rgba(70, 175, 255, 0.95); --c0: rgba(200, 235, 255, 0.2); --c1: #c9ecff; --c2: #f4fbff; --head: #3d9dff; --glow: rgba(40, 140, 255, 0.5); }
+.beam-arc.beam-plain { --b0: rgba(150, 165, 200, 0); --b1: rgba(170, 182, 210, 0.7); --b2: rgba(196, 206, 228, 0.95); --c0: rgba(255, 255, 255, 0.3); --c1: #fff; --c2: #fff; --head: #c4cee4; --glow: rgba(110, 125, 160, 0.4); }
+.bb-0 { stop-color: var(--b0); } .bb-1 { stop-color: var(--b1); } .bb-2 { stop-color: var(--b2); }
+.bc-0 { stop-color: var(--c0); } .bc-1 { stop-color: var(--c1); } .bc-2 { stop-color: var(--c2); }
+.beam-halo { opacity: 0.35; filter: blur(3px); }
+.beam-body { filter: drop-shadow(0 0 2px var(--glow)); }
+.beam-head-core { fill: var(--c2); }
+.beam-head { fill: var(--head); filter: drop-shadow(0 0 2px var(--glow)) drop-shadow(0 0 1px var(--glow)); }
 
 /* ---------- Start-of-turn forecast: symbols centred between the tableaus ---------- */
 /* Yours above your row, your rival's beneath theirs, so both sit in the middle of the board. */
