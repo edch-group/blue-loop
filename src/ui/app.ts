@@ -2924,6 +2924,7 @@ export class App {
       case 'hero-ability': {
         const why = heroAbilityProblem(this.state!, this.viewer(), Number(arg));
         if (why) return this.showToast(why, 'info');
+        this.sheet = null;
         sound.hero();
         return this.dispatch({ type: 'heroAbility', index: Number(arg) });
       }
@@ -4090,20 +4091,8 @@ export class App {
           <span class="hero-skill-face">${cardArtLite(cardDef(k.hero))}</span><b>${esc(k.name.toLowerCase())}</b><small>${k.once ? 'once' : 'daily'}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
       })
       .join('');
-    // The abilities of the Hero leading your tableau: one a day, each a button with its cost.
-    const lead = commandCard(me);
-    const abilities = lead
-      ? (cardDef(lead.defId).abilities ?? [])
-          .map((k, i) => {
-            const why = heroAbilityProblem(s, me, i);
-            const used = me.abilityTurn === s.turnNumber;
-            return `<button class="hero-skill hero-ability ${used ? 'spent' : ''}" data-act="hero-ability" data-arg="${i}" ${why || !act || busy ? `disabled title="${esc(why ?? plainText(k.text))}"` : `title="${esc(plainText(k.text))}"`}>
-          <span class="hero-skill-face">${cardArtLite(cardDef(lead.defId))}</span><b>${esc(k.name.toLowerCase())}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
-          })
-          .join('')
-      : '';
     return `
-      ${skills || abilities ? `<div class="hero-skills">${abilities}${skills}</div>` : ''}
+      ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn ? '' : 'plays-off'}" title="Energy left today: each card costs the number on its gem">
           <small>${myTurn ? 'energy' : 'waiting'}</small>
@@ -4413,10 +4402,23 @@ export class App {
         const me = s ? activePlayer(s) : null;
         const playable = !!(sh.uid && me && me.hand.some((c) => c.uid === sh.uid) && this.canAct() && !this.pending);
         const button = sh.uid ? `<button class="btn-primary" data-act="play" data-arg="${sh.uid}" ${playable && cardCost(sh.defId ?? '') <= me!.playsLeft ? '' : 'disabled'}>play</button>` : '';
+        // Your Hero leading your tableau: its abilities, to use one from here (one a day).
+        const viewer = s ? this.viewer() : null;
+        const lead = viewer ? commandCard(viewer) : undefined;
+        const abilities =
+          s && viewer && lead && sh.table === lead.uid && !(sh.tab ?? 0)
+            ? `<div class="insp-abilities">${(cardDef(lead.defId).abilities ?? [])
+                .map((k, i) => {
+                  const why = heroAbilityProblem(s, viewer, i) ?? (this.canAct() ? null : 'Not now.');
+                  return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${esc(k.name)}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
+                })
+                .join('')}</div>`
+            : '';
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
               <div class="inspector-row">${this.inspectorCard(sh)}</div>
+              ${abilities}
               <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
             </div>
           </div>`;
