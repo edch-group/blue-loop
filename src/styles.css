@@ -4325,7 +4325,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 
 /* Your Hero's abilities, in the inspector: one a day. */
-.insp-abilities { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.insp-abilities { display: grid; align-content: center; gap: 8px; width: clamp(150px, 22vw, 240px); flex: none; align-self: center; }
 .insp-ability { display: grid; gap: 2px; text-align: left; padding: 8px 12px; }
 .insp-ability b { font-family: var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: #b8801f; }
 .insp-ability small { font-size: 0.72rem; color: var(--ink-soft); text-transform: none; letter-spacing: 0; }

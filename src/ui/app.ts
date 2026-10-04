@@ -4417,8 +4417,7 @@ export class App {
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
-              <div class="inspector-row">${this.inspectorCard(sh)}</div>
-              ${abilities}
+              <div class="inspector-row">${this.inspectorCard(sh, abilities)}</div>
               <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
             </div>
           </div>`;
@@ -4430,17 +4429,18 @@ export class App {
    * The magnified card in the inspector, with its explanations. A card in play with Fusion cards on it gets a
    * column of tabs by its top right edge: the card itself, then each fused card (purple), to read each one.
    */
-  private inspectorCard(sh: Extract<Sheet, { kind: 'card' }>): string {
+  private inspectorCard(sh: Extract<Sheet, { kind: 'card' }>, abilities = ''): string {
     const host = sh.table ? this.state?.players.flatMap((p) => p.tableau).find((c) => c.uid === sh.table) : undefined;
     const fused = host?.fused ?? [];
-    if (!fused.length) return this.bigCard(sh.defId, sh.table) + this.explainCard(sh.defId, sh.table);
+    // (A Hero's abilities stand right beside it, before the explanations, so they are never off screen.)
+    if (!fused.length) return this.bigCard(sh.defId, sh.table) + abilities + this.explainCard(sh.defId, sh.table);
     const tab = Math.min(Math.max(0, sh.tab ?? 0), fused.length);
     const shown = tab === 0 ? this.bigCard(sh.defId, sh.table) : this.bigCard(fused[tab - 1].defId);
     const explain = tab === 0 ? this.explainCard(sh.defId, sh.table) : this.explainCard(fused[tab - 1].defId);
     const tabs = [host!, ...fused]
       .map((c, i) => `<button class="insp-tab ${i ? 'insp-tab-fused' : ''} ${i === tab ? 'on' : ''}" data-act="inspect-tab" data-arg="${i}">${esc(cardDef(c.defId).name.toLowerCase())}</button>`)
       .join('');
-    return `<div class="insp-tabbed">${shown}<div class="insp-tabs">${tabs}</div></div>${explain}`;
+    return `<div class="insp-tabbed">${shown}<div class="insp-tabs">${tabs}</div></div>${tab === 0 ? abilities : ''}${explain}`;
   }
 
   /** A player's summary: their deck, Command cards and the conditions they fight under. */
