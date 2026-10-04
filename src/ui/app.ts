@@ -3848,7 +3848,7 @@ export class App {
     // bottom left of your rival's: a mirror across the board), lying landscape.
     const cmd = commandCard(p);
     const cmdHtml = cmd
-      ? this.renderCard(cmd, { tableau: side, owner: p, landscape: true })
+      ? this.renderCard(cmd, { tableau: side, owner: p })
       : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>hero</small></div>`;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
@@ -4069,7 +4069,7 @@ export class App {
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
     return `
-      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape || (opts.hand && def.kind === 'command') ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
+      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArtLite(def, true)}</div>
         ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
@@ -4134,7 +4134,7 @@ export class App {
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
-      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}${def.kind === 'command' ? ' card-landscape' : ''}" style="--kc:${KIND_COLOUR[def.kind]}">
+      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArtLite(def, true)}</div>
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
@@ -4152,7 +4152,7 @@ export class App {
     const actor = s.players.find((p) => p.id === st.actorId)!;
     // A card large and still (already the zoomed view: only its keywords respond, explaining themselves).
     const still = (uid: string, defId: string, option?: string) =>
-      this.renderCard({ uid, defId }, { static: true, option, landscape: cardDef(defId).kind === 'command' })
+      this.renderCard({ uid, defId }, { static: true, option })
         .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
         .replace(/<\/button>\s*$/, '</div>')
         .replace(/ data-act="[^"]*"/, '')

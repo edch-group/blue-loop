@@ -2633,11 +2633,7 @@ img.art { object-fit: cover; }
   padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; text-align: left;
 }
 /* Command cards: landscape, in a row of their own across the top of the pool. */
-.db-pool-cmds { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, calc(var(--dbw) * 1.3)); gap: inherit; padding-bottom: 4px; }
-/* (sizePool sets their width, --cmdcw: at least two side by side, filling the row.) */
-.db-card.db-card-cmd { width: var(--cmdcw, calc(var(--dbw) * 1.3)); height: calc(var(--cmdcw, calc(var(--dbw) * 1.3)) / 1.4); }
-.db-card.db-card-cmd > .card { --cw: 100cqh; }
-.db-card.db-card-cmd .card-name { font-size: max(6px, calc(var(--cmdw) * 0.052)); overflow-wrap: anywhere; padding-right: 0; }
+.db-pool-cmds { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; gap: inherit; padding-bottom: 4px; }
 /* The card itself is laid out exactly like one on the table (5:7), scaled to the column. */
 .db-card > .card { --cw: 100cqw; width: 100%; height: 100%; }
 .db-card > .card .card-text { display: block; overflow: hidden; }
@@ -3296,7 +3292,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* Yours stands above the right end of your row; your rival's below the left end of theirs (the board is a mirror). */
 .tableau-row { --frame-pad: clamp(10px, calc(1.8 * var(--vh)), 16px); }
 /* Exactly a table card turned on its side. */
-.cmd-slot { --cmdw: calc(var(--tcw) * 1.4); --cmdgap: calc(var(--frame-pad) + 4px); position: absolute; width: var(--cmdw); height: var(--tcw); transform-style: preserve-3d; z-index: 1; }
+.cmd-slot { --cmdw: var(--tcw); --cmdgap: calc(var(--frame-pad) + 4px); position: absolute; width: var(--tcw); height: calc(var(--tcw) * 1.4); transform-style: preserve-3d; z-index: 1; }
 .tableau-mine .cmd-slot { right: 0; bottom: calc(100% + var(--cmdgap)); }
 .tableau-rival .cmd-slot { left: 0; top: calc(100% + var(--cmdgap)); }
 

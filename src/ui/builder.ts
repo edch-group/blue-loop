@@ -521,7 +521,7 @@ export class DeckBuilder {
       const badge = this.badge(c.id, n);
       return `
           <button class="db-card ${cmd ? 'db-card-cmd' : ''} ${n ? 'db-card-in' : ''} ${have ? '' : 'db-card-locked'} ${this.focus === c.id || this.mode?.picked?.(c.id) ? 'db-card-focus' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
-            <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}${cmd ? ' card-landscape' : ''}">
+            <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}">
               <span class="card-glyph">${cardArtLite(c, true)}</span>${stabilityBadge(c)}
               <span class="card-name">${esc(c.name.toLowerCase())}</span>
               <span class="card-text">${cardTextHtml(c.text)}</span>
@@ -594,7 +594,7 @@ export class DeckBuilder {
     const chunk = (list: CardDef[], n: number, h: number) => {
       for (let i = 0; i < list.length; i += n) rows.push({ cards: list.slice(i, i + n), h });
     };
-    chunk(all.filter((c) => c.kind === 'command'), L.cmdCols, L.cmdH);
+    chunk(all.filter((c) => c.kind === 'command'), L.cols, L.cardH);
     chunk(all.filter((c) => c.kind !== 'command'), L.cols, L.cardH);
     // Rows go onto a page while they fit its height, and until it holds a fair few cards (on a small
     // screen a page then scrolls a little, rather than there being a hundred pages of two cards).
