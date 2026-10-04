@@ -235,6 +235,8 @@ export interface BattleModifiers {
   extraDraw?: number;
   /** Extra cards in the opening hand. */
   openingHand?: number;
+  /** Extra energy every day. */
+  extraPlays?: number;
 }
 
 export interface TurnStats {

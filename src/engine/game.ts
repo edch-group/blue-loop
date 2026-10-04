@@ -68,9 +68,16 @@ export function createGame(setup: GameSetup): GameState {
       ...(ps.skills?.length ? { skills: ps.skills.map((k) => ({ ...k })) } : {}),
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
-    // A garrison takes the safest slots first.
+    // A garrison takes the safest slots first; a Hero already in play (a campaign hero's Herald) leads from the
+    // Hero slot, taken out of the deck if a copy is there.
     const safest = slotsBySafety();
-    for (const id of (ps.tableau ?? []).filter(persists).slice(0, BALANCE.tableauSlots)) place(p, newCard(state, id), safest.shift()!);
+    for (const id of (ps.tableau ?? []).filter(persists)) {
+      const k = p.deck.findIndex((c) => c.defId === id);
+      const card = k >= 0 && cardDef(id).kind === 'command' ? p.deck.splice(k, 1)[0] : newCard(state, id);
+      if (cardDef(id).kind === 'command') {
+        if (!commandCard(p)) place(p, card, COMMAND_SLOT);
+      } else if (safest.length) place(p, card, safest.shift()!);
+    }
     if (ps.lightspeed && cardDef(ps.lightspeed).kind === 'lightspeed') p.lightspeed = newCard(state, ps.lightspeed);
     state.players.push(p);
     // Later seats start a little ahead to make up for moving second.
@@ -194,7 +201,7 @@ export function playsAllowed(state: GameState, p: PlayerState): number {
   // Later seats get an extra play on their first day to make up for moving second.
   const catchUp = p.turnsTaken === 1 && state.players.indexOf(p) > 0 && state.players.length <= BALANCE.catchUpMaxPlayers ? BALANCE.laterSeatPlays : 0;
   const industry = currentPlanet(p, state) === 'industrial' ? BALANCE.industrialPlays : 0;
-  return Math.min(p.turnsTaken, BALANCE.maxPlays) + extra + catchUp + industry;
+  return Math.min(p.turnsTaken, BALANCE.maxPlays) + extra + catchUp + industry + (p.modifiers?.extraPlays ?? 0);
 }
 
 /** The Command slot: a player's one Command card leads their tableau from its own slot, outside the five. */

@@ -3999,3 +3999,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pop-head-army > .cmp-portrait { width: 30px; height: 30px; box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px var(--fc); }
 .cmp-pop .cmp-hint { font-size: 0.7rem; margin: 0; }
 .slot-worn .slot-def { color: #c0563d; font-weight: 600; }
+/* Three branches of six: a taller sky, and each branch named at its foot. */
+.hv-sky { min-height: 440px; }
+.hv-branch { position: absolute; bottom: 8px; transform: translateX(-50%); font-style: normal; font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(200, 215, 255, 0.35); pointer-events: none; }

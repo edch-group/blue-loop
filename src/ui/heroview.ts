@@ -3,7 +3,7 @@
  * sits on the body; and their skill tree, a constellation that grows up from the hero in two branches,
  * each skill a star (the bigger the skill, the bigger the star).
  */
-import { cardDef, type HeroSkill, type Item, type SlotKind } from '../engine';
+import { cardDef, skillCost, type HeroSkill, type Item, type SlotKind } from '../engine';
 import { cardScene } from './cardart';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -105,15 +105,21 @@ const SKILL_ICON: Record<string, string> = {
   mend: '<path d="M12 5v14M5 12h14"/>',
   loot: '<path d="M6 9l6-5 6 5-6 11z"/><path d="M6 9h12"/>',
   card: '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 8h6M9 12h6"/>',
+  start: '<path d="M4 17h16l-1.5-9-4.5 4-2-6-2 6-4.5-4z"/><path d="M5 20h14"/>',
+  dread: '<path d="M12 3c-4.5 0-7 3-7 7 0 2.5 1.2 4 3 5v3h8v-3c1.8-1 3-2.5 3-5 0-4-2.5-7-7-7z"/><circle cx="9.5" cy="10.5" r="1.3"/><circle cx="14.5" cy="10.5" r="1.3"/><path d="M11 18v2M13 18v2"/>',
 };
 
-/** Where each star of a branch sits (x%, y%), from the hero at the foot up to the crown of the branch. */
-const STARS: Record<0 | 1, [number, number][]> = {
-  0: [[36, 67], [27, 44], [36, 19]],
-  1: [[64, 67], [73, 44], [64, 19]],
+/** Where each star of a branch sits (x%, y%), from the hero at the foot up to the branch's capstone. */
+const STARS: Record<0 | 1 | 2, [number, number][]> = {
+  0: [[36, 77], [27, 64], [20, 51], [17, 38], [20, 25], [25, 10]],
+  1: [[50, 75], [50, 62], [50, 49], [50, 36], [50, 23], [50, 9]],
+  2: [[64, 77], [73, 64], [80, 51], [83, 38], [80, 25], [75, 10]],
 };
-const ROOT: [number, number] = [50, 87];
-const TIER_NAME = ['', 'minor', 'major', 'legendary'];
+const ROOT: [number, number] = [50, 91];
+const BRANCH_NAME = ['might', 'command', 'legacy'];
+/** How big a skill looks: tiers 1–3 minor, 4–5 major, 6 the capstone. */
+const look = (tier: number) => (tier <= 3 ? 1 : tier <= 5 ? 2 : 3);
+const TIER_NAME = ['', 'minor', 'major', 'capstone'];
 
 export interface TreeData {
   hero: string;
@@ -129,7 +135,7 @@ export interface TreeData {
 /** What kind of skill it is, in words (and when it acts). */
 export function skillKind(k: HeroSkill): string {
   const e = k.effect;
-  return e.kind === 'battle' ? (e.once ? 'battle · once a battle' : `battle · daily, ${e.cost} energy`) : e.kind === 'mod' ? 'battle · always' : e.kind === 'card' ? 'signature card' : 'campaign map';
+  return e.kind === 'battle' ? (e.once ? 'battle · once a battle' : `battle · daily, ${e.cost} energy`) : e.kind === 'mod' || e.kind === 'start' ? 'battle · always' : e.kind === 'card' ? 'signature card' : 'campaign map';
 }
 
 /**
@@ -167,14 +173,14 @@ export function skillTree(d: TreeData): string {
   const pos = (k: HeroSkill) => STARS[k.branch][k.tier - 1];
   // The lines between stars: from the hero to each branch's first star, then up the branch.
   const lines: string[] = [];
-  for (const b of [0, 1] as const) {
+  for (const b of [0, 1, 2] as const) {
     const branch = d.tree.filter((k) => k.branch === b).sort((x, y) => x.tier - y.tier);
     let from = ROOT;
     let lit = true;
     for (const k of branch) {
       const to = pos(k);
       lit = lit && d.learned.includes(k.id);
-      const mx = (from[0] + to[0]) / 2 + (b === 0 ? -4 : 4);
+      const mx = (from[0] + to[0]) / 2 + (b === 0 ? -3 : b === 2 ? 3 : 0);
       const my = (from[1] + to[1]) / 2;
       lines.push(`<path class="hv-link ${lit ? 'lit' : state(k) === 'open' ? 'next' : ''}" d="M${from[0]} ${from[1]} Q${mx} ${my} ${to[0]} ${to[1]}"/>`);
       from = to;
@@ -185,8 +191,8 @@ export function skillTree(d: TreeData): string {
     .map((k) => {
       const [x, y] = pos(k);
       const st = state(k);
-      const rays = k.tier === 3 ? `<svg class="hv-rays" viewBox="0 0 100 100" aria-hidden="true">${Array.from({ length: 12 }, (_, i) => `<path d="M50 50 L${(50 + 48 * Math.cos((i * Math.PI) / 6)).toFixed(1)} ${(50 + 48 * Math.sin((i * Math.PI) / 6)).toFixed(1)}" />`).join('')}</svg>` : '';
-      return `<button class="hv-star tier-${k.tier} ${st} ${d.picked === k.id ? 'picked' : ''}" style="left:${x}%;top:${y}%" data-act="cmp-skill-pick" data-arg="${k.id}" title="${esc(`${k.name}: ${k.text}`)}" aria-label="${esc(`${k.name} (${st}): ${k.text}`)}">
+      const rays = look(k.tier) === 3 ? `<svg class="hv-rays" viewBox="0 0 100 100" aria-hidden="true">${Array.from({ length: 12 }, (_, i) => `<path d="M50 50 L${(50 + 48 * Math.cos((i * Math.PI) / 6)).toFixed(1)} ${(50 + 48 * Math.sin((i * Math.PI) / 6)).toFixed(1)}" />`).join('')}</svg>` : '';
+      return `<button class="hv-star tier-${look(k.tier)} ${st} ${d.picked === k.id ? 'picked' : ''}" style="left:${x}%;top:${y}%" data-act="cmp-skill-pick" data-arg="${k.id}" title="${esc(`${k.name}: ${k.text}`)}" aria-label="${esc(`${k.name} (${st}): ${k.text}`)}">
           ${rays}<span class="hv-star-core">${icon(SKILL_ICON[k.effect.kind] ?? SKILL_ICON.mod)}</span>
           <i class="hv-star-name">${esc(k.name)}</i>
         </button>`;
@@ -196,14 +202,14 @@ export function skillTree(d: TreeData): string {
   const pst = pick ? state(pick) : 'locked';
   const why = pick ? d.problem(pick.id) : null;
   const detail = pick
-    ? `<div class="hv-detail tier-${pick.tier} ${pst}">
+    ? `<div class="hv-detail tier-${look(pick.tier)} ${pst}">
         <span class="hv-detail-icon">${icon(SKILL_ICON[pick.effect.kind] ?? SKILL_ICON.mod)}</span>
         <div class="hv-detail-body">
-          <small>${TIER_NAME[pick.tier]} · ${esc(skillKind(pick))}</small>
+          <small>${BRANCH_NAME[pick.branch]} ${pick.tier} · ${TIER_NAME[look(pick.tier)]} · ${esc(skillKind(pick))}</small>
           <b>${esc(pick.name)}</b>
           <p>${esc(pick.text)}</p>
         </div>
-        ${pst === 'learned' ? '<span class="hv-learned">learned</span>' : `<button class="hv-learn" data-act="cmp-learn" data-arg="${pick.id}" ${why ? `disabled title="${esc(why)}"` : ''}>${why ? esc(why.replace(/\.$/, '').toLowerCase()) : 'learn · 1 point'}</button>`}
+        ${pst === 'learned' ? '<span class="hv-learned">learned</span>' : `<button class="hv-learn" data-act="cmp-learn" data-arg="${pick.id}" ${why ? `disabled title="${esc(why)}"` : ''}>${why ? esc(why.replace(/\.$/, '').toLowerCase()) : `learn · ${skillCost(pick)} point${skillCost(pick) === 1 ? '' : 's'}`}</button>`}
       </div>`
     : '';
   return `
@@ -211,6 +217,7 @@ export function skillTree(d: TreeData): string {
       <div class="hv-dust" aria-hidden="true">${dust}</div>
       <svg class="hv-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${lines.join('')}</svg>
       <div class="hv-root" style="left:${ROOT[0]}%;top:${ROOT[1]}%">${d.portrait}${d.points > 0 ? `<i class="hv-root-pts">${d.points}</i>` : ''}</div>
+      ${['might', 'command', 'legacy'].map((n, i) => `<i class="hv-branch" style="left:${[20, 50, 80][i]}%">${n}</i>`).join('')}
       ${stars}
     </div>
     ${detail}`;

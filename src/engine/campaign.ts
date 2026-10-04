@@ -611,10 +611,10 @@ export function recruitCost(s: CampaignState, f: Faction, general: string): numb
 }
 
 /** Where an army can go this turn: each linked system, and whether going there is a battle. */
-export function armyMoves(s: CampaignState, army: Army): { toId: string; battle: boolean }[] {
+export function armyMoves(s: CampaignState, army: Army): { toId: string; battle: boolean; surrender?: boolean }[] {
   if (army.moved || army.refit || (army.steps ?? 0) >= 1 + armyBonus(s, army).march) return [];
   const here = nodeById(s, army.nodeId);
-  const out: { toId: string; battle: boolean }[] = [];
+  const out: { toId: string; battle: boolean; surrender?: boolean }[] = [];
   for (const id of here.links) {
     const n = nodeById(s, id);
     if (n.collapsed) continue;
@@ -624,9 +624,14 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
       continue;
     }
     if (hazardBlocks(n, army.owner)) continue;
-    out.push({ toId: id, battle: true });
+    out.push(surrenders(s, army, n) ? { toId: id, battle: false, surrender: true } : { toId: id, battle: true });
   }
   return out;
+}
+
+/** Whether a neutral system gives itself up to this army without a fight (a hero's Dread). */
+export function surrenders(s: CampaignState, army: Army, n: CampaignNode): boolean {
+  return !n.owner && !n.heart && !armyAt(s, n.id) && n.tier < armyBonus(s, army).dread;
 }
 
 /** Turns of regional stability left before systems start to collapse (0: they are collapsing). */
@@ -1215,8 +1220,9 @@ export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
     starBoth,
     target.star === 'brown' ? { maxHealthDelta: 6 } : {},
     def?.mods ?? {},
+    atk.foeMods,
   ].reduce(mergeModifiers, targetFx?.modifiers ?? {});
-  const atkMods = [starBoth, atk.mods].reduce(mergeModifiers, fromFx?.modifiers ?? {});
+  const atkMods = [starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fromFx?.modifiers ?? {});
   const defHeat = (guard && guard.id !== army.id ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat + (defMods.startingHeat ?? 0);
   const atkHeat = army.damage + (def?.foeHeat ?? 0) + (atkMods.startingHeat ?? 0);
   const names = (fx: ReturnType<typeof anomalyEffects>) => (fx?.conditions ?? []).map((c) => c.name);
@@ -1271,9 +1277,10 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       deck: army.deck,
       deckName: `${armyLeader(army)}'s army`,
       heatDelta: army.damage + (def?.foeHeat ?? 0),
-      modifiers: [starBoth, atk.mods].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
+      modifiers: [starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
       ...(atk.skills.length ? { skills: atk.skills } : {}),
-      conditions: [...(fromFx?.conditions ?? []), ...(target.star === 'white' || target.star === 'neutron' ? starCond : [])],
+      ...(atk.start ? { tableau: [army.general] } : {}),
+      conditions: [...(fromFx?.conditions ?? []), ...(target.star === 'white' || target.star === 'neutron' ? starCond : []), ...(def?.foeConditions ?? [])],
     },
     {
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
@@ -1282,11 +1289,11 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       deck: defenderDeck,
       // (The sentinels' heat, and a gate's weakness, are theirs: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat,
-      tableau: g.tableau,
+      tableau: [...(def?.start && guard ? [guard.general] : []), ...g.tableau],
       lightspeed: g.lightspeed,
-      modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}].reduce(mergeModifiers, targetFx?.modifiers ?? {}),
+      modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}, atk.foeMods].reduce(mergeModifiers, targetFx?.modifiers ?? {}),
       ...(def?.skills.length ? { skills: def.skills } : {}),
-      conditions: defenceConditions.length ? defenceConditions : undefined,
+      conditions: [...defenceConditions, ...atk.foeConditions].length ? [...defenceConditions, ...atk.foeConditions] : undefined,
     },
   ];
 }
@@ -1320,6 +1327,17 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     return;
   }
   if (hazardBlocks(target, f.id)) throw new GameError(`${target.name} is still reeling from a supernova.`);
+  // A hero's Dread: a weak neutral system surrenders, as if beaten, with no battle.
+  if (surrenders(s, army, target)) {
+    army.moved = true;
+    clog(s, `${target.name}'s sentinels surrender to ${armyLeader(army)} without a fight.`, [here.id, target.id], f.id);
+    const h = !army.lost ? heroState(f, army.general) : null;
+    if (h) h.xp += HEROES.lossXp;
+    if (!f.isAI) s.conquest = { nodeId: target.id, armyId: army.id };
+    else conquer(s, f, target, aiConquestChoice(s, target), army);
+    checkMissions(s);
+    return;
+  }
   const problem = deckProblems(army.deck)[0];
   if (problem) throw new GameError(`${armyLeader(army)}'s deck isn't ready to fight: ${problem}`);
   army.moved = true;

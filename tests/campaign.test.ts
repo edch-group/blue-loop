@@ -26,6 +26,12 @@ import {
   heroState,
   heroLevel,
   SKILL_TREES,
+  COMMAND_SLOT,
+  armyBonus,
+  heroBonus,
+  XP_LEVELS,
+  skillCost,
+  skillPoints,
   makeItem,
   RACE_SLOTS,
   heroSkillProblem,
@@ -621,7 +627,7 @@ describe('armies and generals', () => {
     // Enough experience for a level: one point to spend, down a branch in order.
     let t = fresh();
     const h = heroState(campaignPlayer(t), hero);
-    h.xp = 60; // level 3: two points
+    h.xp = 25; // level 3: two points
     expect(heroLevel(h.xp)).toBe(3);
     const tree = SKILL_TREES[hero];
     const t2 = tree.find((k) => k.branch === 0 && k.tier === 2)!;
@@ -666,6 +672,55 @@ describe('armies and generals', () => {
       gs = applyAction(gs, { type: 'heroSkill', index: i });
       expect(heroSkillProblem(gs, gs.players[0], i)).toMatch(/used/);
     }
+  });
+
+  it('gives each hero eighteen skills in three branches, deeper ones costing more, over twenty-one levels', () => {
+    const hero = myArmy(fresh()).general;
+    const tree = SKILL_TREES[hero];
+    expect(tree.length).toBe(18);
+    for (const b of [0, 1, 2]) expect(tree.filter((k) => k.branch === b).map((k) => k.tier).sort()).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(XP_LEVELS.length).toBe(21);
+    const total = tree.reduce((t, k) => t + skillCost(k), 0);
+    expect(total).toBeGreaterThan(XP_LEVELS.length - 1);
+    // A capstone costs 3 points.
+    let t = fresh();
+    const h = heroState(campaignPlayer(t), hero);
+    h.xp = XP_LEVELS[XP_LEVELS.length - 1];
+    for (const k of tree.filter((x) => x.branch === 0 && x.tier < 6).sort((a, b) => a.tier - b.tier)) t = applyCampaignAction(t, { type: 'learnSkill', hero, skill: k.id });
+    const before = skillPoints(heroState(campaignPlayer(t), hero), hero);
+    const cap = tree.find((x) => x.branch === 0 && x.tier === 6)!;
+    t = applyCampaignAction(t, { type: 'learnSkill', hero, skill: cap.id });
+    expect(skillPoints(heroState(campaignPlayer(t), hero), hero)).toBe(before - 3);
+  });
+
+  it("brings a hero's Herald into play from the start, and their rival-side capstones onto the rival", () => {
+    let s = fresh();
+    const hero = myArmy(s).general;
+    const h = heroState(campaignPlayer(s), hero);
+    h.xp = XP_LEVELS[XP_LEVELS.length - 1];
+    for (const k of SKILL_TREES[hero].filter((x) => x.branch === 2).sort((a, b) => a.tier - b.tier)) s = applyCampaignAction(s, { type: 'learnSkill', hero, skill: k.id });
+    s = attack(s);
+    const me = s.battle!.game.players[0];
+    expect(me.tableau.some((c) => c.defId === hero && c.slot === COMMAND_SLOT)).toBe(true);
+    expect(me.deck.filter((c) => c.defId === hero).length + me.hand.filter((c) => c.defId === hero).length).toBeLessThan(myArmy(s).deck.filter((id) => id === hero).length);
+    // An Ixquor hero's Spore Haze heats the rival's sun every day.
+    const ix = { ...armyBonus(s, myArmy(s)) };
+    expect(ix).toBeTruthy();
+    const plague = heroBonus('logistics_command', { xp: 999, skills: ['zyth_spores', 'zyth_swarm', 'zyth_bloom', 'might4'], gear: {} });
+    expect(plague.foeMods.heatPerTurn).toBe(1);
+  });
+
+  it("lets a hero's Dread take weak neutral systems without a fight", () => {
+    let s = fresh();
+    const hero = myArmy(s).general;
+    const h = heroState(campaignPlayer(s), hero);
+    h.xp = XP_LEVELS[XP_LEVELS.length - 1];
+    for (const k of SKILL_TREES[hero].filter((x) => x.branch === 1).sort((a, b) => a.tier - b.tier)) s = applyCampaignAction(s, { type: 'learnSkill', hero, skill: k.id });
+    const gate = nodeById(s, home(s).links[0]);
+    expect(armyMoves(s, myArmy(s)).find((m) => m.toId === gate.id)?.surrender).toBe(true);
+    s = applyCampaignAction(s, { type: 'move', armyId: myArmy(s).id, toId: gate.id });
+    expect(s.battle).toBeFalsy();
+    expect(s.conquest?.nodeId).toBe(gate.id);
   });
 
   it('fuses cards at the cost of both', () => {

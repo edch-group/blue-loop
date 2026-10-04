@@ -408,14 +408,12 @@ export class CampaignView {
     const begun = this.state;
     if (!begun) return;
     const turn = begun.turn;
-    let shown = false;
     for (;;) {
       const s = this.state;
       if (!s || s.phase !== 'ai' || s.battle || s.winner || s.turn !== turn) break;
       const next = s.aiQueue[0] ?? null;
       const inSight = next !== null && this.factionInSight(next);
       if (inSight) {
-        shown = true;
         this.waiting = { factionId: next, lines: this.waiting?.lines ?? [] };
         this.host.render();
         await pause(700);
@@ -438,7 +436,8 @@ export class CampaignView {
     }
     this.waiting = null;
     const s = this.state;
-    if (shown && s && s.turn !== turn) this.host.banner(`turn ${s.turn}`, 'your move');
+    // Like the dawn in battle: every new turn of yours is announced.
+    if (s && s.turn !== turn && !s.winner) this.host.banner('your turn', `turn ${s.turn}`);
     this.host.render();
   }
 

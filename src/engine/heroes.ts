@@ -40,10 +40,14 @@ export interface Item {
 
 /** What a skill does. */
 export type SkillEffect =
-  /** In every battle its hero fights: modifiers for their side, and heat their rival starts with. */
-  | { kind: 'mod'; mods?: BattleModifiers; foeHeat?: number }
+  /** In every battle its hero fights: modifiers for their side (and `foe`: for their rival's), and heat their rival starts with. */
+  | { kind: 'mod'; mods?: BattleModifiers; foeHeat?: number; foe?: BattleModifiers }
   /** Its army may move one more route a turn. */
   | { kind: 'march' }
+  /** The hero starts every battle in play, in their side's Hero slot. */
+  | { kind: 'start' }
+  /** Neutral systems up to this tier surrender to its army without a fight. */
+  | { kind: 'dread'; tier: number }
   /** Its army sees two links out from where it stands. */
   | { kind: 'sight' }
   /** Its army repairs this much damage at the start of each turn. */
@@ -59,9 +63,10 @@ export interface HeroSkill {
   id: string;
   name: string;
   text: string;
-  /** 0 or 1: the two branches of the tree. Tier 2 needs tier 1 of its branch, tier 3 needs tier 2. */
-  branch: 0 | 1;
-  tier: 1 | 2 | 3;
+  /** The tree's three branches: 0 Might (battle), 1 Command (the map), 2 Legacy (the race's way of war). */
+  branch: 0 | 1 | 2;
+  /** 1–6, from the hero up: each needs the one before it in its branch. Deeper tiers cost more (SKILL_COST). */
+  tier: 1 | 2 | 3 | 4 | 5 | 6;
   effect: SkillEffect;
 }
 
@@ -73,13 +78,19 @@ export interface HeroState {
   gear: Record<string, Item>;
 }
 
-/** Experience needed for each level (level 1 at 0). Each level after the first gives a skill point. */
-export const XP_LEVELS = [0, 20, 50, 90, 140, 200, 270];
+/**
+ * Experience needed for each level (level 1 at 0): 21 levels, each a little further than the last. Each level
+ * after the first gives a skill point: 20 in all, fewer than the tree costs, so every hero is a choice.
+ */
+export const XP_LEVELS = Array.from({ length: 21 }, (_, i) => i * 9 + i * i);
+/** Skill points a skill costs, by tier: the deep skills, and above all the capstones, cost more. */
+export const SKILL_COST = [0, 1, 1, 1, 2, 2, 3] as const;
+export const skillCost = (k: HeroSkill) => SKILL_COST[k.tier];
 export const HEROES = {
   /** Experience from a battle won, attacking or defending; and from one lost. */
-  winXp: 12,
-  defendXp: 10,
-  lossXp: 3,
+  winXp: 20,
+  defendXp: 16,
+  lossXp: 6,
   /** Chance an army finds gear when it takes a system (a skill can add to it). */
   itemChance: 0.35,
 } as const;
@@ -94,10 +105,11 @@ const cool = (amount: number): Effect => ({ type: 'cool', amount });
 const shield = (amount: number): Effect => ({ type: 'shield', amount });
 const draw = (amount: number): Effect => ({ type: 'draw', amount });
 const plays = (amount: number): Effect => ({ type: 'plays', amount });
-const s = (id: string, branch: 0 | 1, tier: 1 | 2 | 3, name: string, text: string, effect: SkillEffect): HeroSkill => ({ id, name, text, branch, tier, effect });
+const s = (id: string, branch: 0 | 1 | 2, tier: HeroSkill['tier'], name: string, text: string, effect: SkillEffect): HeroSkill => ({ id, name, text, branch, tier, effect });
+const foe = (m: BattleModifiers, mods: BattleModifiers = {}): SkillEffect => ({ kind: 'mod', mods, foe: m });
 
-/** Each hero's own tree: two branches of three (heroes of a race share some ground). */
-export const SKILL_TREES: Record<string, HeroSkill[]> = {
+/** The first three tiers of each hero's Might and Command branches, their own (heroes of a race share some ground). */
+const ROOTS: Record<string, HeroSkill[]> = {
   // ---- Aureline ----
   command_directive: [
     s('veyra_ward', 0, 1, 'Solar Ward', '+1 shield at the start of every day in battle.', mod({ shieldPerTurn: 1 })),
@@ -200,6 +212,130 @@ export const SKILL_TREES: Record<string, HeroSkill[]> = {
   ],
 };
 
+/** What each race brings to the deep tiers of Might and Command, and its whole Legacy branch. */
+const RACE_TIERS: { might: [string, string, SkillEffect][]; command: [string, string, SkillEffect][]; dread: string; legacy: [string, string, SkillEffect][] }[] = [
+  // Aureline: the light, carried home.
+  {
+    might: [
+      ['Solar Doctrine', "Your rival's sun starts 3 hotter in battle.", mod({}, 3)],
+      ['Second Sunrise', '+1 energy every day in battle.', mod({ extraPlays: 1 })],
+    ],
+    command: [
+      ["Pilgrim's Road", 'This army can move one more route a turn.', { kind: 'march' }],
+      ['Field Sanctum', 'This army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }],
+    ],
+    dread: 'Sovereign Light',
+    legacy: [
+      ['Gilded Plate', '+4 max health in battle.', mod({ maxHealthDelta: 4 })],
+      ['Sun Choir', 'Each day, for 1 energy: cool 2 and raise 2 shields.', battle('Sun Choir', 1, [cool(2), shield(2)])],
+      ['Dawnbreak', 'Your sun starts 2 cooler in battle.', mod({ startingHeat: -2 })],
+      ['Aureate Legion', '+8 max health in battle.', mod({ maxHealthDelta: 8 })],
+      ['Hymn Eternal', 'Your sun cools by 1, and you raise 1 shield, every day in battle.', mod({ coolPerTurn: 1, shieldPerTurn: 1 })],
+    ],
+  },
+  // Xel'Naru: minds of crystal, remembering everything.
+  {
+    might: [
+      ['Lattice Mind', 'Draw 1 extra card every day in battle.', mod({ extraDraw: 1 })],
+      ['Overclock', '+1 energy every day in battle.', mod({ extraPlays: 1 })],
+    ],
+    command: [
+      ['Phase Step', 'This army can move one more route a turn.', { kind: 'march' }],
+      ['Self-Repair', 'This army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }],
+    ],
+    dread: 'Inevitability',
+    legacy: [
+      ['Facet Polish', 'Your sun starts 2 cooler in battle.', mod({ startingHeat: -2 })],
+      ['Mind Spike', 'Each day, for 1 energy: heat 2 and draw 1.', battle('Mind Spike', 1, [heat(2), draw(1)])],
+      ['Echo', 'Draw 1 more card in your opening hand.', mod({ openingHand: 1 })],
+      ['Prism Array', '+2 shields at the start of every day in battle.', mod({ shieldPerTurn: 2 })],
+      ['Recursive Thought', 'Once a battle: play 3 more cards today.', battle('Recursive Thought', 0, [plays(3)], true)],
+    ],
+  },
+  // Vorthane: the weight of the deep.
+  {
+    might: [
+      ['Pressure Hull', '+2 shields at the start of every day in battle.', mod({ shieldPerTurn: 2 })],
+      ["Tidecaller's Rhythm", '+1 energy every day in battle.', mod({ extraPlays: 1 })],
+    ],
+    command: [
+      ['Deep Currents', 'This army can move one more route a turn.', { kind: 'march' }],
+      ['Brine Cradle', 'This army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }],
+    ],
+    dread: 'The Drowning Dread',
+    legacy: [
+      ['Brine Skin', '+4 max health in battle.', mod({ maxHealthDelta: 4 })],
+      ['Undertow', 'Each day, for 1 energy: heat 2 and raise 2 shields.', battle('Undertow', 1, [heat(2), shield(2)])],
+      ['Cold Deeps', 'Your sun cools by 1 every day in battle.', mod({ coolPerTurn: 1 })],
+      ["Kraken's Grip", "Your rival's sun has 6 less max health.", foe({ maxHealthDelta: -6 })],
+      ['Abyssal Fortitude', '+10 max health in battle.', mod({ maxHealthDelta: 10 })],
+    ],
+  },
+  // Ixquor: the hive that does not stop.
+  {
+    might: [
+      ['Spore Haze', "Your rival's sun heats by 1 every day in battle.", foe({ heatPerTurn: 1 })],
+      ['Hive Surge', '+1 energy every day in battle.', mod({ extraPlays: 1 })],
+    ],
+    command: [
+      ['Swarm Tunnels', 'This army can move one more route a turn.', { kind: 'march' }],
+      ['Regrowth Vats', 'This army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }],
+    ],
+    dread: 'Consume',
+    legacy: [
+      ['Chitin', '+4 max health in battle.', mod({ maxHealthDelta: 4 })],
+      ['Feeding Frenzy', 'Each day, for 1 energy: heat 2 and draw 1.', battle('Feeding Frenzy', 1, [heat(2), draw(1)])],
+      ['Broodlings', 'Draw 1 more card in your opening hand.', mod({ openingHand: 1 })],
+      ['Acid Blood', "Your rival's sun starts 4 hotter in battle.", mod({}, 4)],
+      ['Endless Swarm', 'Draw 1 extra card every day in battle.', mod({ extraDraw: 1 })],
+    ],
+  },
+];
+
+/** Each hero's Might capstone: the upgrade that changes how their battles go. */
+const CAPSTONES: Record<string, [string, string, SkillEffect]> = {
+  command_directive: ['Eternal Dawn', '+1 energy and +3 shields every day in battle.', mod({ extraPlays: 1, shieldPerTurn: 3 })],
+  ignition_protocol: ['Nova Doctrine', "Your rival's sun heats by 2 every day in battle.", foe({ heatPerTurn: 2 })],
+  empress_solenne: ['Empire of Light', '+2 energy every day in battle.', mod({ extraPlays: 2 })],
+  war_council: ['Total Recall', 'Draw 2 extra cards every day, and 2 more in your opening hand.', mod({ extraDraw: 2, openingHand: 2 })],
+  coolant_protocol: ['Heat Death', "Your sun cools by 2 every day; your rival's heats by 1.", foe({ heatPerTurn: 1 }, { coolPerTurn: 2 })],
+  the_shardmind: ['Singularity', 'Once a battle: play 5 more cards today, and draw 5.', battle('Singularity', 0, [plays(5), draw(5)], true)],
+  tide_regent: ['Endless Tide', '+5 shields every day, and +10 max health, in battle.', mod({ shieldPerTurn: 5, maxHealthDelta: 10 })],
+  the_admiralty: ['Armada', 'Each day, for 1 energy: heat 6, piercing shields.', battle('Armada', 1, [heat(6, true)])],
+  leviathan_thoross: ['Leviathan Ascendant', "+20 max health in battle, and your rival's sun starts 4 hotter.", mod({ maxHealthDelta: 20 }, 4)],
+  logistics_command: ['Plague Bloom', "Your rival's sun heats by 2 every day in battle.", foe({ heatPerTurn: 2 })],
+  chamber_protocol: ['Brood Mother', '+1 energy and 1 extra card every day in battle.', mod({ extraPlays: 1, extraDraw: 1 })],
+  the_worldroot: ['World Tree', 'Your sun cools by 3, and +1 energy, every day in battle.', mod({ coolPerTurn: 3, extraPlays: 1 })],
+};
+
+/** The heroes of each race, in order (to find a hero's race without the card pool). */
+const RACE_OF: Record<string, number> = {
+  command_directive: 0, ignition_protocol: 0, empress_solenne: 0,
+  war_council: 1, coolant_protocol: 1, the_shardmind: 1,
+  tide_regent: 2, the_admiralty: 2, leviathan_thoross: 2,
+  logistics_command: 3, chamber_protocol: 3, the_worldroot: 3,
+};
+
+/** A hero's whole tree: three branches of six, from the hero up to a capstone. */
+function buildTree(hero: string): HeroSkill[] {
+  const r = RACE_TIERS[RACE_OF[hero] ?? 0];
+  const [cn, ct, ce] = CAPSTONES[hero];
+  return [
+    ...ROOTS[hero],
+    s('might4', 0, 4, ...r.might[0]),
+    s('might5', 0, 5, ...r.might[1]),
+    s('might6', 0, 6, cn, ct, ce),
+    s('command4', 1, 4, ...r.command[0]),
+    s('command5', 1, 5, ...r.command[1]),
+    s('command6', 1, 6, r.dread, 'Neutral systems up to tier 3 surrender to this army without a fight.', { kind: 'dread', tier: 3 }),
+    ...r.legacy.map(([n, t, e], i) => s(`legacy${i + 1}`, 2, (i + 1) as HeroSkill['tier'], n, t, e)),
+    s('legacy6', 2, 6, 'Herald', 'This hero starts every battle in play, already leading from your Hero slot.', { kind: 'start' }),
+  ];
+}
+
+/** Each hero's own tree. */
+export const SKILL_TREES: Record<string, HeroSkill[]> = Object.fromEntries(Object.keys(ROOTS).map((h) => [h, buildTree(h)]));
+
 export function heroSkill(hero: string, id: string): HeroSkill | undefined {
   return SKILL_TREES[hero]?.find((k) => k.id === id);
 }
@@ -209,25 +345,41 @@ export function learnProblem(hero: string, h: HeroState, id: string): string | n
   const k = heroSkill(hero, id);
   if (!k) return 'No such skill.';
   if (h.skills.includes(id)) return 'Already learned.';
-  if (skillPoints(h) < 1) return 'No skill points: win battles to gain levels.';
   if (k.tier > 1 && !SKILL_TREES[hero].some((x) => x.branch === k.branch && x.tier === k.tier - 1 && h.skills.includes(x.id))) return 'Learn the skill before it in this branch first.';
+  const cost = skillCost(k);
+  if (skillPoints(h, hero) < cost) return skillPoints(h, hero) < 1 ? 'No skill points: win battles to gain levels.' : `Needs ${cost} skill points.`;
   return null;
 }
 
-/** Skill points not yet spent: one per level after the first. */
-export const skillPoints = (h: HeroState) => heroLevel(h.xp) - 1 - h.skills.length;
+/** Skill points not yet spent: one per level after the first, less what the skills learned cost. */
+export const skillPoints = (h: HeroState, hero?: string) =>
+  heroLevel(h.xp) - 1 - h.skills.reduce((t, id) => t + (hero ? (heroSkill(hero, id) ? skillCost(heroSkill(hero, id)!) : 1) : spentCost(id)), 0);
+
+/** What a learned skill cost, from its id alone (for callers without the hero to hand). */
+function spentCost(id: string): number {
+  for (const tree of Object.values(SKILL_TREES)) {
+    const k = tree.find((x) => x.id === id);
+    if (k) return skillCost(k);
+  }
+  return 1;
+}
 
 /** Everything a hero brings: battle modifiers, heat for the rival, battle skills, and on the map. */
 export function heroBonus(hero: string, h: HeroState | undefined) {
   const mods: BattleModifiers = {};
+  const foeMods: BattleModifiers = {};
+  /** What the rival's side is told about it (skills that touch their sun). */
+  const foeConditions: { name: string; text: string }[] = [];
+  let start = false;
+  let dread = 0;
   let foeHeat = 0;
   let march = 0;
   let mend = 0;
   let loot = 0;
   let sight = false;
   const skills: BattleSkill[] = [];
-  const add = (m?: BattleModifiers) => {
-    for (const [k, v] of Object.entries(m ?? {})) (mods as Record<string, number>)[k] = ((mods as Record<string, number>)[k] ?? 0) + (v as number);
+  const add = (m?: BattleModifiers, into: BattleModifiers = mods) => {
+    for (const [k, v] of Object.entries(m ?? {})) (into as Record<string, number>)[k] = ((into as Record<string, number>)[k] ?? 0) + (v as number);
   };
   for (const id of h?.skills ?? []) {
     const k = heroSkill(hero, id);
@@ -236,7 +388,13 @@ export function heroBonus(hero: string, h: HeroState | undefined) {
     if (e.kind === 'mod') {
       add(e.mods);
       foeHeat += e.foeHeat ?? 0;
+      if (e.foe) {
+        add(e.foe, foeMods);
+        foeConditions.push({ name: k.name, text: k.text });
+      }
     } else if (e.kind === 'march') march += 1;
+    else if (e.kind === 'start') start = true;
+    else if (e.kind === 'dread') dread = Math.max(dread, e.tier);
     else if (e.kind === 'sight') sight = true;
     else if (e.kind === 'mend') mend += e.amount;
     else if (e.kind === 'loot') loot += e.chance;
@@ -246,7 +404,7 @@ export function heroBonus(hero: string, h: HeroState | undefined) {
     add(item.mods);
     foeHeat += item.foeHeat ?? 0;
   }
-  return { mods, foeHeat, march, mend, loot, sight, skills };
+  return { mods, foeMods, foeConditions, foeHeat, march, mend, loot, sight, skills, start, dread };
 }
 
 // ---------------------------------------------------------------------------
