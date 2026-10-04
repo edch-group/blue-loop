@@ -1,6 +1,7 @@
 import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
+import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
 import { BOONS } from './boons';
 import { CARD_COSTS } from './costs';
@@ -683,8 +684,8 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION, ...FUSION_CARDS);
-for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? 1 });
+CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS);
+for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? 1 });
 
 /** Display names for the rarities. */
 export const RARITY_NAME: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly' };
@@ -883,17 +884,18 @@ export const PRESET_DECKS: DeckList[] = [
   // Mixed decks, each built round one of the game's mechanics rather than one race (the emblem is the race
   // it leans on most). The first four (one per race) are the races' own, and the campaign's.
   {
-    // The planets: speed your Orbit round to the industrial planet (Sunward Lances, Comet Hail and the
-    // Perihelion Forge hit hardest facing it) and slow your rival's with a Gravity Well and Tidal Brakes,
-    // the Logistics Command keeping the Orbit turning; plain heat and cooling carry it in between.
+    // Attunement: Orreries, Ecliptic Lances, Moon Wardens and Precession Engines take their bonus from where
+    // the Orbit stands (shields at the dead planet, cards at the abundant one, heat at the industrial one),
+    // so the deck steers its Orbit (Slingshots, Gravity Assists, the Solstice Choir, the Grand Orrery) onto
+    // the industrial planet and knocks its rival's off theirs (Gravity Wells, Tidal Brakes).
     name: 'Orbit Riders',
     mixed: true,
-    cover: 'orbital_slingshot',
+    cover: 'grand_orrery',
     race: 3,
     cards: [
-      ...twoOf('logistics_command', 'sunward_lance', 'comet_hail', 'gravity_assist', 'orbital_slingshot', 'perihelion_forge', 'tidal_brake'),
-      ...twoOf('coronal_lance', 'photon_drill', 'helio_lancer', 'cryo_vault'),
-      'command_directive', 'gravity_well', 'comet_shard', 'deflector_grid', 'heat_sink', 'dawnstar_cannon', 'deep_scanners', 'solar_bastion',
+      ...twoOf('logistics_command', 'orrery', 'ecliptic_lance', 'solstice_choir', 'moon_warden', 'precession_engine', 'orbital_slingshot'),
+      ...twoOf('gravity_assist', 'tidal_brake', 'sunward_lance', 'cryo_vault'),
+      'command_directive', 'grand_orrery', 'gravity_well', 'coronal_lance', 'heat_sink', 'photon_drill', 'perihelion_forge', 'deep_scanners',
     ],
   },
   {

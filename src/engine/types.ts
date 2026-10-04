@@ -176,6 +176,8 @@ export interface CardDef {
   onPlay?: Effect[];
   /** At each of your dawns while this card is in your tableau. */
   onTurn?: Effect[];
+  /** Attunement: at each of your dawns it also gains its orbit position's bonus (attunement.ts), this many times over. */
+  attune?: number;
   /**
    * A choice made when the card is played (Command cards): one of these is added to its dawn effects
    * for as long as it stays in your tableau. The ids are written into its text as `{options:id|id|…}`.

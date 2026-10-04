@@ -975,7 +975,7 @@ export class App {
       const chosen = this.dawnAims();
       const rival = targetOf(s, me);
       for (const card of me.tableau) {
-        if (!dawnAimable(card) || !(card.uid in aims)) continue;
+        if (!dawnAimable(card, me, s) || !(card.uid in aims)) continue;
         // Heat aimed at a card, or at the sun when that was chosen (by default it goes there unmarked).
         const hit = aims[card.uid];
         const to = hit ? `.tableau [data-uid="${hit}"]` : rival && card.uid in chosen ? `.tableau [data-anchor="player:${rival.id}"]` : '';
@@ -2079,7 +2079,7 @@ export class App {
     const { sun } = aimChoices(s, me);
     const aims: Record<string, string | null> = {};
     for (const card of me.tableau) {
-      if (!dawnAimable(card)) continue;
+      if (!dawnAimable(card, me, s)) continue;
       const hit = this.dawnHit(s, me, card);
       if (hit !== null || sun) aims[card.uid] = hit;
     }
@@ -3918,7 +3918,7 @@ export class App {
       state = 'card-choosable';
     }
     // At your dawn, your cards with dawn heat are aimed: click one, then its target.
-    if (!p && this.dawnTurn() && me && opts.tableau === 'mine' && opts.owner?.id === me.id && dawnAimable(c)) {
+    if (!p && this.dawnTurn() && me && opts.tableau === 'mine' && opts.owner?.id === me.id && dawnAimable(c, me, s!)) {
       attrs = `data-act="aim-start" data-arg="${c.uid}" title="Aim its dawn heat: click, then a rival card or their sun"`;
       state = 'card-aimer';
     }

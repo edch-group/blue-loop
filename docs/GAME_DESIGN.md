@@ -18,13 +18,31 @@ was replaced by this design in design review.
 
 - A deck is **30 to 40 cards**, with **at most 2 copies** of any card and **one Hero per 10 cards** (3 in a 30-card deck, 4 in 40), so a deck runs at least two different Heroes. The starter decks are 30. [design review: 30–40 cards so a deck has room for a balanced curve and its big cards; proposed: 2 copies]
 - Players build decks in the **deck builder** (Quickplay → deck builder) from the whole card pool, or pick one of the **ten starter decks**: four race decks (Solar Lancers, Shard Overload, Abyssal Tide, Hive Bloom: also the campaign's) and six mixed-race decks, each built round one mechanic:
-  - **Orbit Riders:** the planets. Speed your Orbit round to the industrial planet, slow your rival's; plain heat and cooling in between.
+  - **Orbit Riders:** attunement. Attuned cards take their bonus from where the Orbit stands; steer yours onto the industrial planet, knock your rival's off.
   - **Ambush:** Lightspeed. A trap face down against attack cards, Guards that spring from the Lightspeed slot, forged Aureline attack cards behind them.
   - **Demolition:** removal. Destroy, eject, erode and decay the rival's tableau.
   - **Absolute Zero:** Thermosiphon. Run your sun far below zero; the colder it is, the harder its cards hit and shield.
   - **Graftworks:** Fusion. Sturdy hosts loaded with grafts, so the hand never jams for want of a slot.
   - **Overcharge:** Spend All. Build a big day of energy, then spend it all at once. The builder shows real cards, always the same shape and size as on the table. The AI plays the starters. [design review]
 - Each deck carries a race emblem. Cards can be mixed freely across races. [proposed]
+
+## Attunement
+
+An attuned card gains, at each of its owner's dawns, the bonus of where their Orbit stands: nine positions, three facing each planet, one a day (orbit cards move it on or back). Each planet has its own kind of bonus, growing as the planet comes fully round (`src/engine/attunement.ts`):
+
+| Orbit | Planet | Bonus |
+|---|---|---|
+| 0 | dead | Shields 1 |
+| 1 | dead | Shields 1, Cool 1 |
+| 2 | dead | Shields 2, Cool 1 |
+| 3 | abundant | Cool 1 |
+| 4 | abundant | Draw 1 |
+| 5 | abundant | Draw 1, Cool 1 |
+| 6 | industrial | Heat 1 |
+| 7 | industrial | Heat 2 |
+| 8 | industrial | Heat 3 |
+
+**Attunement ×2** doubles every number. With its planets eaten (Orion), a sun counts as at the same step of the dead planet. The attuned cards: Orrery (just attunement), Ecliptic Lance (Heat 2), Solstice Choir (Aureline: your Orbit +1), Precession Engine (Xel'Naru: attunement ×2), Moon Warden (Vorthane: Guard, Sturdy 1), Seasonal Bloom (Ixquor: Plant 1), and the Grand Orrery (Anomaly: your Orbit +3, attunement ×2). Steering is the skill: Orbital Slingshots, Gravity Assists and the Solstice Choir bring the industrial planet round; Gravity Wells and Tidal Brakes knock a rival's off theirs.
 
 ## Turns
 

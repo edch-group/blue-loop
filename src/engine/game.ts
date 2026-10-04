@@ -1,3 +1,4 @@
+import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
 import { cardDef, presetDeck } from './cards';
 import { randomInt, shuffleInPlace } from './rng';
@@ -285,8 +286,8 @@ export function aimable(defId: string): boolean {
 }
 
 /** Whether a card in your tableau heats your rival at dawn (its heat is aimed afresh each dawn). */
-export function dawnAimable(card: CardInstance): boolean {
-  return dawnEffects(card).some((e) => e.type === 'heat' && e.to === 'target');
+export function dawnAimable(card: CardInstance, p?: PlayerState, state?: GameState): boolean {
+  return dawnEffects(card, p, state).some((e) => e.type === 'heat' && e.to === 'target');
 }
 
 /** A player's Guard cards: while they have any, rival heat can only be aimed at them. */
@@ -308,7 +309,7 @@ export function aimChoices(state: GameState, p: PlayerState): { cards: CardInsta
 
 /** Whether a player's dawn waits for them to aim: they have a card with dawn heat, and it has more than one place to go. */
 export function needsDawnAim(state: GameState, p: PlayerState): boolean {
-  if (!p.tableau.some(dawnAimable)) return false;
+  if (!p.tableau.some((c) => dawnAimable(c, p, state))) return false;
   const { cards, sun } = aimChoices(state, p);
   return cards.length + (sun ? 1 : 0) > 1;
 }
@@ -445,7 +446,7 @@ export function baseStability(defId: string): number {
   // A card that only does something once (when played) stays just until your next dawn: its slot is part of its cost.
   // Command cards stay for their full term, whatever they do.
   if (def.kind === 'command') return BALANCE.stabilityCommand;
-  if (!def.onTurn?.length && !def.passive?.length && !def.choices?.length) return BALANCE.stabilityBurst;
+  if (!def.onTurn?.length && !def.passive?.length && !def.choices?.length && !def.attune) return BALANCE.stabilityBurst;
   return BALANCE.stability;
 }
 
@@ -536,10 +537,14 @@ export function cardChoices(defId: string): string[] {
 }
 
 /** A card's dawn effects: its own, and the choice it was played with (a card placed without one takes the first). */
-export function dawnEffects(card: CardInstance): Effect[] {
+export function dawnEffects(card: CardInstance, p?: PlayerState, state?: GameState): Effect[] {
   const def = cardDef(card.defId);
   const chosen = def.choices?.find((c) => c.id === card.choice) ?? def.choices?.[0];
-  return [...(def.onTurn ?? []), ...(chosen?.onTurn ?? []), ...extras(card).flatMap((d) => d.onTurn ?? [])];
+  const own = [...(def.onTurn ?? []), ...(chosen?.onTurn ?? []), ...extras(card).flatMap((d) => d.onTurn ?? [])];
+  // Attunement: with its owner known, the bonus of where their orbit stands.
+  const attune = (def.attune ?? 0) + extras(card).reduce((n, d) => n + (d.attune ?? 0), 0);
+  if (!attune || !p) return own;
+  return [...own, ...attunedEffects(attunePosition(p.orbit, !!state && planetsEaten(state, p)), attune)];
 }
 
 /** Whether a card stays in the tableau when played (everything but Lightspeed cards, which are set face down). */
@@ -681,7 +686,7 @@ export function turnForecast(state: GameState, p: PlayerState, aims?: Record<str
   // Run the effects on a copy, so growth and the like carry from one effect to the next (aimed as given).
   const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c, ...(aims && c.uid in aims ? { aim: aims[c.uid] ?? undefined } : {}) })) };
   for (const card of me.tableau) {
-    for (const e of dawnEffects(card)) {
+    for (const e of dawnEffects(card, me, state)) {
       if (!conditionMet(me, e.if, state)) continue;
       switch (e.type) {
         case 'grow':
@@ -745,7 +750,7 @@ export function previewDawnHeat(state: GameState, p: PlayerState, aims: Record<s
   const left = (c: CardInstance) => !out.cards[c.uid]?.gone;
   for (const card of p.tableau) {
     const aim = card.uid in aims ? aims[card.uid] : card.aim;
-    for (const e of dawnEffects(card)) {
+    for (const e of dawnEffects(card, p, state)) {
       if (e.type !== 'heat' || !conditionMet(p, e.if, state)) continue;
       let n = effectAmount(state, p, card, e, 'turn');
       if (n <= 0) continue;
@@ -1316,7 +1321,7 @@ function dawn(state: GameState, p: PlayerState) {
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
     if (!p.tableau.includes(card)) continue;
-    resolveEffects(state, p, card, dawnEffects(card), 'turn');
+    resolveEffects(state, p, card, dawnEffects(card, p, state), 'turn');
   }
   // Then every card loses 1 stability (unless anchored); at 0 it fades into your discard pile.
   const fading = p.tableau.filter((c) => !anchored(p, c));
@@ -1524,7 +1529,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       const choices = aimChoices(state, p);
       for (const [uid, aim] of Object.entries(action.aims)) {
         const mine = p.tableau.find((c) => c.uid === uid);
-        if (!mine || !dawnAimable(mine)) throw new GameError('Aim only your cards that heat at dawn.');
+        if (!mine || !dawnAimable(mine, p, state)) throw new GameError('Aim only your cards that heat at dawn.');
         if (aim === null) {
           if (!choices.sun) throw new GameError('Your rival has a Guard in play: aim at it.');
           mine.aim = undefined;

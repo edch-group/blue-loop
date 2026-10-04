@@ -6,6 +6,8 @@
  * explanation appears in the zoomed card, on hover, and on the rules page.
  */
 
+import { ATTUNEMENT } from './attunement';
+
 export interface Keyword {
   /** As it reads on a card. */
   name: string;
@@ -58,6 +60,12 @@ export const KEYWORDS: Record<string, Keyword> = {
   energy: { name: 'gain', group: 'tempo', explain: () => 'Extra energy today, one per dot.' },
   abundance: { name: 'abundance', group: 'tempo', explain: () => 'Extra cards at each of your dawns, while it is in play.' },
   orbit: { name: 'orbit', group: 'orbit', explain: () => "Moves a sun's planets round." },
+  attune: {
+    name: 'attunement',
+    group: 'orbit',
+    explain: (v) =>
+      `At each of your dawns it also gains the bonus of where your Orbit stands${v && v !== '1' ? `, ${v} times over` : ''}. Dead planet: ${ATTUNEMENT.slice(0, 3).map((a) => plainText(a.text)).join(' → ')}. Abundant: ${ATTUNEMENT.slice(3, 6).map((a) => plainText(a.text)).join(' → ')}. Industrial: ${ATTUNEMENT.slice(6).map((a) => plainText(a.text)).join(' → ')}.`,
+  },
   lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Set face down. Springs on your rival's day when its trigger happens." },
   global: { name: 'global', group: 'global', explain: () => 'Affects both players. Only one at a time.' },
 };
@@ -90,6 +98,7 @@ function rawLabel(id: string, value?: string): string {
   if (!value) return k.name;
   if (id === 'destroy' || id === 'eject') return `${k.name} ${value}`;
   if (id === 'plays' || id === 'abundance') return `${k.name} +${value}`;
+  if (id === 'attune') return value === '1' ? k.name : `${k.name} ×${value}`;
   if (id === 'energy') return `gain ${value} energy`;
   if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
   return `${k.name} ${value}`;

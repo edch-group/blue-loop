@@ -74,7 +74,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   const def = cardDef(card.defId);
   const foes = Math.max(1, livingOpponents(state, p).length);
   let perTurn = 0;
-  for (const e of dawnEffects(card)) {
+  for (const e of dawnEffects(card, p, state)) {
     if (!conditionMet(p, e.if, state) && !(e.if && 'minKind' in e.if)) continue;
     const scale = conditionMet(p, e.if, state) ? 1 : 0.4;
     switch (e.type) {
@@ -279,12 +279,12 @@ function dawnAims(state: GameState, me: PlayerState): Record<string, string | nu
     (cardDef(c.defId).onLeave ?? []).reduce((n, e) => n + (e.type === 'heat' ? e.amount : 0), 0) +
     rival.tableau.reduce((n, o) => n + (o.uid === c.uid ? 0 : cardPassives(o).reduce((m, x) => m + (x.type === 'allyLeaves' ? x.effects.reduce((k, e) => k + (e.type === 'heat' ? e.amount : 0), 0) : 0), 0)), 0);
   for (const card of me.tableau) {
-    if (!dawnAimable(card)) continue;
-    const heat = dawnEffects(card).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(me, e.if, state) ? effectAmount(state, me, card, e, 'turn') : 0), 0);
+    if (!dawnAimable(card, me, state)) continue;
+    const heat = dawnEffects(card, me, state).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(me, e.if, state) ? effectAmount(state, me, card, e, 'turn') : 0), 0);
     if (heat <= 0) continue;
     // The sun counts for more the nearer it is to supernova; a card for what it is worth to its owner, if this burns it away.
     let best: { uid: string | null; score: number } = { uid: null, score: sun ? heat * (1 + 3 * danger) : -Infinity };
-    const pierce = dawnEffects(card).some((e) => e.type === 'heat' && e.to === 'target' && e.pierce);
+    const pierce = dawnEffects(card, me, state).some((e) => e.type === 'heat' && e.to === 'target' && e.pierce);
     for (const c of cards) {
       const left = (c.stability ?? 0) - (planned.get(c.uid) ?? 0);
       if (left <= 0) continue;
