@@ -1571,7 +1571,7 @@ body.screen-campaign .backdrop { display: none; }
 .table-view > .game {
   /* Tip the whole board away from the viewer and shrink it so the table sits in the room. */
   transform-origin: 50% 50%;
-  transform: translateY(calc(5 * var(--vh))) rotateX(var(--board-tilt)) scale(0.72);
+  transform: translateY(calc(-1 * var(--vh))) rotateX(var(--board-tilt)) scale(0.82);
   border-radius: 34px;
   background:
     radial-gradient(circle, rgba(120, 135, 170, 0.18) 0 1px, transparent 1.6px) 0 0 / 38px 38px,
@@ -1673,7 +1673,7 @@ body.screen-campaign .backdrop { display: none; }
   .hud-players .rival .orb { --size: 24px !important; }
   .hud-players .rival-stats { display: flex; gap: 6px; font-size: 0.5rem; }
   .hud-players .rival-name { font-size: 0.46rem; }
-  .table-view > .game { transform: translateY(calc(9 * var(--vh))) rotateX(var(--board-tilt)) scale(0.72); }
+  .table-view > .game { transform: translateY(calc(1 * var(--vh))) rotateX(var(--board-tilt)) scale(0.82); }
 }
 
 /* ---------- Board, round 3 ---------- */
@@ -4283,3 +4283,38 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-big .card-name { font-size: max(11px, calc(var(--cw) * 0.06)); }
 .card-table .card-name { font-size: max(5px, calc(var(--cw) * 0.066)); }
 .card-racerow { font-size: max(3.5px, calc(var(--cw, 100px) * 0.032)); }
+
+/* ---------- The round, in the petal's heart, ringed by regional stability ---------- */
+.round-ring {
+  position: absolute; left: 50%; top: 50%; width: clamp(70px, calc(15 * var(--vh)), 130px); aspect-ratio: 1;
+  transform: translate(-50%, -50%) translateZ(2px); z-index: 1; display: grid; place-items: center; pointer-events: auto;
+  /* (Not the old header box's look.) */
+  padding: 0; background: none; border: 0; box-shadow: none; border-radius: 50%;
+}
+.round-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.round-ring path { fill: none; stroke: rgba(150, 160, 180, 0.28); stroke-width: 5; stroke-linecap: round; transition: stroke 0.6s; }
+.round-ring path.on { stroke: #7fa6dc; filter: drop-shadow(0 0 2px rgba(127, 166, 220, 0.6)); }
+.round-ring.unstable path { stroke: rgba(220, 90, 66, 0.55); }
+.round-ring-num { display: grid; justify-items: center; line-height: 1; font-family: var(--display); color: #4a5468; }
+.round-ring-num small { font-size: clamp(6px, calc(1.1 * var(--vh)), 9px); letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.7; }
+.round-ring-num b { font-size: clamp(16px, calc(4.4 * var(--vh)), 34px); font-weight: 600; margin-top: 2px; }
+.round-ring-num em { font-style: normal; font-size: clamp(8px, calc(1.6 * var(--vh)), 12px); color: #c0563d; letter-spacing: 0.1em; margin-top: 2px; }
+
+/* A player's name by their hand count (above yours, below theirs). */
+.tpile-name {
+  display: flex; align-items: center; gap: 6px; justify-content: center; width: 100%; padding: 2px 4px; border: 0; background: none; cursor: pointer;
+  font-family: var(--display); font-size: clamp(8px, calc(1.6 * var(--vh)), 12px); letter-spacing: 0.18em; text-transform: uppercase; color: #3a4256;
+}
+.tpile-name .tpile-emblem { width: clamp(14px, calc(2.6 * var(--vh)), 22px); height: clamp(14px, calc(2.6 * var(--vh)), 22px); flex: none; }
+.tpile-name-dead { opacity: 0.45; text-decoration: line-through; }
+
+/* Whose turn it is, above the phase tracker. */
+.phase-whose { justify-self: end; margin-bottom: 4px; font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; color: #8a91a0; }
+.phase-whose.phase-whose-mine { color: #2f8a5a; }
+.tableau-piles .tpile-name { position: absolute; left: 0; right: 0; width: auto; justify-content: flex-start; padding: 0 6px; }
+.tpile-name-mine { bottom: calc(100% + 14px + max(20px, calc(var(--pw) * 0.26))); }
+.tpile-name-rival { top: calc(100% + 14px + max(20px, calc(var(--pw) * 0.26))); }
+@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
+  /* (Clear of the Hero's ability buttons above End Day.) */
+  .phase-track { top: 36%; }
+}

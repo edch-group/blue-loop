@@ -1294,7 +1294,7 @@ export class App {
     if (isGameOver(s)) return '';
     const p = activePlayer(s);
     const whose = p.id === this.viewer().id ? 'your turn' : `${p.name.toLowerCase()}'s turn`;
-    return `<div class="phase-track" title="${esc(whose)}: dawn, then day, then dusk">${(['dawn', 'day', 'dusk'] as const).map((k) => `<div class="phase-step ${this.phase === k ? 'on' : ''}" data-phase="${k}"><span>${k}</span><i></i></div>`).join('')}</div>`;
+    return `<div class="phase-track" title="${esc(whose)}: dawn, then day, then dusk"><div class="phase-whose ${p.id === this.viewer().id ? 'phase-whose-mine' : ''}">${p.id === this.viewer().id ? 'your turn' : "opponent's turn"}</div>${(['dawn', 'day', 'dusk'] as const).map((k) => `<div class="phase-step ${this.phase === k ? 'on' : ''}" data-phase="${k}"><span>${k}</span><i></i></div>`).join('')}</div>`;
   }
 
   /** When the next banner may show (each gets its moment: dusk, dawn and day follow one another). */
@@ -3037,10 +3037,15 @@ export class App {
     backdrop.attach(this.root.querySelector<HTMLElement>('.board-star-slot'));
     if (this.screen === 'campaign') this.campaign.afterRender(this.root);
     this.syncPeek();
-    // The backdrop warms (or chills) with the viewer's own sun, not whoever is acting.
-    const me = this.screen === 'game' && this.state ? this.viewer() : null;
-    const heat = me && !me.eliminated ? me.heat : 0;
-    backdrop.setHeat(!me || heat === 0 ? 0 : heat > 0 ? heat / supernovaThreshold(me) : heat / -BALANCE.minHeat);
+    // The petal follows the region's stability: blue while it holds, whitening as it drains, then
+    // redder the more unstable the region grows.
+    if (this.screen === 'game' && this.state) {
+      const s = this.state;
+      const total = BALANCE.instabilityStartsRound - 1;
+      const remaining = Math.max(0, total - (s.round - 1));
+      const instab = instabilityHeat(s);
+      backdrop.setHeat(instab > 0 ? Math.min(1, instab / 5) : -remaining / total);
+    } else backdrop.setHeat(0);
     // A match in play gets the battle theme, the campaign map its exploration score; everywhere else, the ambient score.
     sound.setScene(this.screen === 'game' && this.state && !isGameOver(this.state) ? 'battle' : this.screen === 'campaign' && this.campaign.state ? 'campaign' : 'ambient');
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
@@ -3788,54 +3793,35 @@ export class App {
   }
 
   /** Round and stability, together in one container at the top centre. */
-  private renderRoundBar(): string {
+  /**
+   * The round, in the middle of the board's petal, ringed by regional stability: a segment drains each
+   * round; once it has all gone the ring burns red, and the heat every sun takes at its dawn shows beneath.
+   */
+  private renderRoundRing(): string {
     const s = this.state!;
-    // Regional stability: the whole system's, draining one segment a round (each card also has its own, ◷).
     const total = BALANCE.instabilityStartsRound - 1;
     const remaining = Math.max(0, total - (s.round - 1));
     const instab = instabilityHeat(s);
-    // It grows each round: say what the next round brings too, since whoever moves first in a round takes the new amount.
     const next = instabilityHeat({ ...s, round: s.round + 1 });
-    const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
+    const gap = 4; // degrees between segments
+    const arc = (i: number) => {
+      const a0 = (i / total) * 360 + gap / 2 - 90;
+      const a1 = ((i + 1) / total) * 360 - gap / 2 - 90;
+      const pt = (a: number) => `${(50 + 44 * Math.cos((a * Math.PI) / 180)).toFixed(2)} ${(50 + 44 * Math.sin((a * Math.PI) / 180)).toFixed(2)}`;
+      return `<path class="${i < remaining ? 'on' : ''}" d="M${pt(a0)} A44 44 0 0 1 ${pt(a1)}"/>`;
+    };
+    const title = instab
+      ? `Round ${s.round}. Regional instability: every sun heats by ${instab} at its dawn this round, and by ${next} next round.`
+      : `Round ${s.round}. Regional stability ${remaining}: it drains by one each round; when it runs out, every sun heats at its dawn.`;
     return `
-      <div class="round-box ${instab ? 'unstable' : ''}" title="${instab
-        ? `Round ${s.round}. Regional instability: every sun heats by ${instab} at its dawn this round, and by ${next} next round.`
-        : `Round ${s.round}. Regional stability drains by one each round; when it runs out, every sun heats at its dawn.`}">
-        <div class="round-num"><small>round</small><b>${roman(s.round)}</b></div>
-        <div class="stability">
-          <span class="stability-label">${instab ? `regional instability +${instab} <em>next round +${next}</em>` : `regional stability ${remaining}`}</span>
-          <div class="stability-bar">${segments}</div>
-        </div>
+      <div class="round-ring round-box ${instab ? 'unstable' : ''}" title="${title}">
+        <svg viewBox="0 0 100 100" aria-hidden="true">${Array.from({ length: total }, (_, i) => arc(i)).join('')}</svg>
+        <div class="round-ring-num"><small>round</small><b>${roman(s.round)}</b>${instab ? `<em>+${instab}</em>` : ''}</div>
       </div>`;
   }
 
-  /**
-   * Both players' cards, stacked down the left: yours first, then your rival's.
-   * Whoever's day it is glows green.
-   */
-  private renderPlayers(): string {
-    const s = this.state!;
-    const active = activePlayer(s);
-    const me = this.viewer();
-    const shown = this.shownRival();
-    const playing = !isGameOver(s);
-    const cards = [me, ...s.players.filter((p) => p.id !== me.id)]
-      .map((p) => {
-        const mine = p.id === me.id;
-        const title = mine ? `${p.name} (you)` : p.name;
-        return `
-        <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${this.shownDead(p) ? 'rival-dead' : ''} ${!mine && shown?.id === p.id ? 'rival-shown' : ''}"
-          data-act="view-player" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(title)}">
-          ${factionAvatar(`f${p.species + 1}`, 'rival-emblem')}
-          <div class="rival-info">
-            <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}</span>
-            ${this.shownDead(p) ? '<span class="rival-stats"><em>supernova</em></span>' : p.lightspeed ? '<span class="rival-stats"><em><i class="ls-pip" title="A Lightspeed card is set face down">⚡</i></em></span>' : ''}
-          </div>
-        </button>`;
-      })
-      .join('');
-    return `<aside class="rivals">${cards}</aside>`;
-  }
+
+
 
   private renderHud(): string {
     const s = this.state!;
@@ -3849,8 +3835,7 @@ export class App {
     // Off the table, flat: players top left, round and stability top centre, menu and turn controls top right.
     return `
       <div class="hud">
-        <div class="hud-players">${this.renderPlayers()}</div>
-        <div class="hud-round">${this.renderRoundBar()}</div>
+
         <div class="hud-controls">
           ${field}
           ${this.online && this.net.status === 'connecting' ? '<span class="pill-btn net-pill">reconnecting…</span>' : ''}
@@ -3932,6 +3917,7 @@ export class App {
           <div class="board-plane">
             <div class="board-floor"></div>
             <div class="board-star-slot" data-morph-keep></div>
+            ${this.renderRoundRing()}
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
@@ -4062,8 +4048,10 @@ export class App {
     // How many cards they hold: a little bar above your piles, below theirs (the board stays a mirror).
     const n = p.hand.length;
     const hand = `<div class="tpile-hand tpile-hand-${side}" title="${mine ? 'Cards in your hand' : `Cards in ${esc(p.name)}'s hand`}">${HAND_ICON}<span>hand</span><b>${n}</b></div>`;
+    // Their name by their hand: above yours, below theirs (a mirror). It opens their summary.
+    const name = `<button class="tpile-name tpile-name-${side} ${this.shownDead(p) ? 'tpile-name-dead' : ''}" data-act="view-player" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(mine ? `${p.name} (you)` : p.name)}">${factionAvatar(`f${p.species + 1}`, 'tpile-emblem')}<span>${esc(p.name.toLowerCase())}</span>${p.lightspeed ? '<i class="ls-pip" title="A Lightspeed card is set face down">⚡</i>' : ''}</button>`;
     return `<div class="tableau-piles">
-      ${hand}
+      ${mine ? name + hand : hand + name}
       <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? 'Cards left in your deck (what they are, and their order, stay hidden)' : `Cards left in ${esc(p.name)}'s deck`}">${deck}</div>
       <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile: look through it">${discard}</div>
     </div>`;
