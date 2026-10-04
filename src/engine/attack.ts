@@ -14,6 +14,8 @@ export const ATTACK_OVERRIDES: Record<string, number> = {
   ignition_protocol: 2,
   empress_solenne: 3,
   leviathan_thoross: 2,
+  // A trap that works in the tableau too: it heats at dawn but doesn't fight (with Darkspeed it would strike the day it lands).
+  nyx_night_ambush: 0,
 };
 
 /** Plain dawn heat: heat at the rival every dawn, with no condition and no scaling. */

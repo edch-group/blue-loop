@@ -562,7 +562,7 @@ Each player is one of eight races (races.ts). Every race has a **bonus and a ner
 | Xel'Naru | Crystal overloaders: run hot, pay off as cards leave | Shatter: when one leaves your tableau, heat 1 at the rival | Brittle: −1 stability | |
 | Vorthane | Tidal bells: shields, kept, and stinging | Barbed: Sting 1 | Slow tides: −1 attack (never below 1) | |
 | Ixquor | The hive: go wide, ramp, grow | Regrowth: +1 stability | Soft-bodied: −1 defence | |
-| Nyxari | Void-stalkers | Ambush: they enter ready to act (not dimmed) | Fleeting: −2 stability | Veilwalker (Lightspeed traps), Unmaker (removal) |
+| Nyxari | Void-stalkers | Darkspeed: they can attack or act the day they come into play (not dimmed) | Fleeting: −2 stability | Veilwalker (Lightspeed traps), Unmaker (removal) |
 | Korrath | Forge-smiths | Forged: +2 defence | Ponderous: −1 attack (never below 1) | Forgeborn (Fusion grafts), Bastion-kin (Guards) |
 | Seren | Star-readers | Star-charted: attuned cards attune once more | Frail: −1 stability | Tidecaster (orbit), Seer (draw, recover, attune) |
 | Pyrr | Flare-born | +1 attack, +2 while overheated | Self-immolating: each attack heats their own sun 1 | Flarekin (spend-all bursts), Cinderborn (run hot) |
@@ -571,6 +571,7 @@ The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2
 
 **Balancing the races (1000-game sims, all 14 starters).** The traits as first written put the field at 12.1 mean distance from 50%: Night Court 70.5%, Wildfire 14.5%.
 - Night Court: swapping Phantom Strikes and Unravels for neutral cards was not enough (68%). Ambush alone carried it (without Ambush: 20%), so Fleeting became −2 stability (53%).
+- Night Court, playable traps: only one card can be face down at a time, so a deck of seven Lightspeed-only cards jammed its hand. Umbral Snare (Sting 1, dawn shield 1), Mirror Veil (dawn shield 2) and Night Ambush (dawn heat 1, no attack: with Darkspeed it would strike the day it lands) now go into the tableau as ordinary cards, or face down for 1 more energy as before. Only Null Shroud is still Lightspeed-only. Night Court stays at 51.6% (182 games).
 - Wildfire: swaps (cooling for its self-heat cards) and even removing its self-heat did nothing; the deck lacked pressure and cooling. The Pyrr bonus became +1 attack (+2 while overheated), and the Dancer, Flare Burst, Ember Guard, Pyre Shield and Heat Bloom were strengthened; Radiator Fins replaced its Relay Stations. The AI now prices self-heat by how close the sun is to supernova.
 - Forge Clans: Siege Arrays in place of Tempers (39% → 45%), then Forged +2 defence (53%).
 - The dominance check ignores a race's trait (the trait is the race's price, not the card's).

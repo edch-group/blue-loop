@@ -15,18 +15,22 @@ export const RACE_CARDS: CardDef[] = [
   // ---------------- Nyxari ----------------
   // Veilwalkers
   {
-    id: 'nyx_umbral_snare', name: 'Umbral Snare', kind: 'lightspeed', race: 4, sub: 'veilwalker', cost: 1,
-    text: '{lightspeed}. When an enemy plays an attack card, first {shield:2} and {heat:2} to them.',
+    // Veilwalker traps: each works in your tableau too, or set face down (1 more energy) to spring.
+    id: 'nyx_umbral_snare', name: 'Umbral Snare', kind: 'defence', race: 4, sub: 'veilwalker', cost: 1,
+    text: '{sting:1}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: when an enemy plays an attack card, first {shield:2} and {heat:2} to them.',
+    onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'retaliate', amount: 1 }],
     lightspeed: { trigger: { on: 'enemyPlays', kind: 'attack' }, effects: [{ type: 'shield', amount: 2 }, { type: 'heat', amount: 2, to: 'target' }] },
   },
   {
-    id: 'nyx_mirror_veil', name: 'Mirror Veil', kind: 'lightspeed', race: 4, sub: 'veilwalker', cost: 1,
-    text: "{lightspeed}. When an enemy's card would heat your sun by 2 or more, cancel that.",
+    id: 'nyx_mirror_veil', name: 'Mirror Veil', kind: 'defence', race: 4, sub: 'veilwalker', cost: 1,
+    text: "{dawn}: {shield:2}. {lightspeed} for 1 more energy: when an enemy's card would heat your sun by 2 or more, cancel that.",
+    onTurn: [{ type: 'shield', amount: 2 }],
     lightspeed: { trigger: { on: 'heated', min: 2 }, counter: true },
   },
   {
-    id: 'nyx_night_ambush', name: 'Night Ambush', kind: 'lightspeed', race: 4, sub: 'veilwalker', cost: 1, character: true,
-    text: '{lightspeed}. When an enemy is about to destroy or return one of your cards, cancel it and {heat:2} to them.',
+    id: 'nyx_night_ambush', name: 'Night Ambush', kind: 'attack', race: 4, sub: 'veilwalker', cost: 1, character: true,
+    text: '{dawn}: {heat:1}. {lightspeed} for 1 more energy: when an enemy is about to destroy or return one of your cards, cancel it and {heat:2} to them.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     lightspeed: { trigger: { on: 'targeted' }, counter: true, effects: [{ type: 'heat', amount: 2, to: 'target' }] },
   },
   {

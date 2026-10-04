@@ -226,6 +226,8 @@ const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
 /** An attack: the card's lunge (it strikes a little past halfway; the attack lands once it is back). */
 const LUNGE_MS = 900;
+/** When in the lunge the card strikes (a share of it): the blow lands then. */
+const LUNGE_HIT = 0.58;
 /** Banners in a row (dusk, dawn, day) are this far apart. */
 const BANNER_GAP_MS = 1300;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
@@ -487,6 +489,8 @@ export class App {
   private stage: Stage | null = null;
   /** Your Hero, tapped on your day: its actions (abilities, and attack) shown in the stage's place, middle right. */
   private heroPanel: string | null = null;
+  /** The card mid-attack (its flying copy is out): hidden in its slot until the copy is back. */
+  private lunging: string | null = null;
   /** The board zoomed onto one tableau (the rival's, or yours), to read it close up; null: the whole board. */
   private boardZoom: 'rival' | 'mine' | null = null;
   private sheet: Sheet | null = null;
@@ -979,13 +983,21 @@ export class App {
       return;
     }
     // An attack lands as the attacker strikes.
-    if (last.action.type === 'attack' && this.lunge(prev, last.action)) {
-      this.landing = land;
-      window.setTimeout(() => this.landing === land && this.flushLanding(), LUNGE_MS);
-      return;
-    }
-    land();
+    if (last.action.type === 'attack' && this.lunge(prev, last.action)) this.landAtStrike(land);
+    else land();
   }
+
+  /** A move whose attack lands the moment the attacker strikes (its numbers change as it hits), while the card flies back. */
+  private landAtStrike(land: () => void) {
+    this.landing = land;
+    window.setTimeout(() => {
+      if (this.landing !== land) return;
+      this.flushLanding();
+      // (The redrawn attacker stays hidden until the flying copy is back in its slot.)
+      if (this.lunging) this.root.querySelector<HTMLElement>(`.tableau [data-uid="${this.lunging}"]`)?.style.setProperty('visibility', 'hidden');
+    }, Math.round(LUNGE_MS * LUNGE_HIT));
+  }
+
 
   /** The rival's card just played, online, on the stage (to confirm, if the room is waiting on you to read it). */
   private remoteStage(last: LastMove, state: GameState): Stage | null {
@@ -1435,12 +1447,8 @@ export class App {
       this.stageEntrance(actor.id);
       return;
     }
-    // An attack lands as the attacker strikes.
-    if (action.type === 'attack' && animate && (this.render(), this.lunge(prev, action))) {
-      this.landing = land;
-      window.setTimeout(() => this.landing === land && this.flushLanding(), LUNGE_MS);
-      return;
-    }
+    // An attack lands the moment the attacker strikes.
+    if (action.type === 'attack' && animate && (this.render(), this.lunge(prev, action))) return this.landAtStrike(land);
     land();
   }
 
@@ -1495,9 +1503,12 @@ export class App {
       ],
       { duration: LUNGE_MS, easing: 'linear', fill: 'forwards' },
     );
+    this.lunging = action.attackerUid;
     k.onfinish = k.oncancel = () => {
       holder.remove();
       el.style.visibility = '';
+      if (this.lunging === action.attackerUid) this.lunging = null;
+      this.root.querySelector<HTMLElement>(`.tableau [data-uid="${action.attackerUid}"]`)?.style.removeProperty('visibility');
     };
     // The blow: the target shudders, with a crash.
     window.setTimeout(() => {
@@ -1507,7 +1518,7 @@ export class App {
         { duration: 320, composite: 'add' },
       );
       pulse(target, 'hit-flash');
-    }, Math.round(LUNGE_MS * 0.58));
+    }, Math.round(LUNGE_MS * LUNGE_HIT));
     return true;
   }
 

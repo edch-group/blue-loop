@@ -1446,7 +1446,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   }
   place(p, card, slot);
   // A card comes into play dimmed: it can first act (attack, or a Hero's ability) on its owner's next day.
-  // (Ambush, the Nyxari: their cards come in ready to act.)
+  // (Darkspeed, the Nyxari: their cards come in ready to act.)
   if (!raceTrait(cardDef(card.defId).race)?.ambush) card.dimmed = true;
   if (choices.length) {
     card.choice = action.choice;
@@ -1589,9 +1589,9 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   if (burn > 0) applyHeat(state, p, burn, null);
   if (state.winnerId) return;
   if (targetUid === null) {
+    // (No pulse: the card itself is seen striking the sun.)
     log(state, `${p.name}'s ${name} attacks ${rival.name}'s sun for ${amount}.`);
     applyHeat(state, rival, amount, p, false, card.uid);
-    notePulse(state, p, card, 'heat', rival, amount);
     return;
   }
   // A face-down Lightspeed guard can spring in front of the card attacked, and take the blow.
