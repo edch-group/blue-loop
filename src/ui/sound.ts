@@ -5,8 +5,9 @@ import { markDirty } from './account';
  * Every effect uses soft waveforms, slow attacks and a long shared "space"
  * reverb, so actions swell and bloom rather than click. A generative ambient
  * score (drone, slowly shifting pad chords and distant chimes; just synths,
- * no noise) plays underneath the menus; matches get its tenser sibling: the
- * same pads and hall, with a slow, steady arpeggio and a deep bass. Each effect is one method, so recorded audio can replace
+ * no noise) plays underneath the menus; matches get its tenser sibling (the
+ * same pads and hall, with a slow, steady arpeggio and a deep bass), and the
+ * campaign map an open, wondering one (glassy plucks echoing across the field). Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -40,7 +41,7 @@ const CHORDS: number[][] = [
 /** Pentatonic chime notes for the distant sparkles. */
 const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 
-export type MusicScene = 'ambient' | 'battle';
+export type MusicScene = 'ambient' | 'battle' | 'campaign';
 
 // ---- Battle theme -----------------------------------------------------------
 // The menu score's sibling, in the same key and voices, made tense: a soft,
@@ -71,6 +72,24 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
   },
 ];
 
+// ---- Campaign map -----------------------------------------------------------
+// Exploration: the same pads and hall, opened up into D major with a lydian
+// lift. A slow ostinato of glassy plucks (like the menu's chimes) steps through
+// each chord in quarters and echoes from side to side across the map; a deep
+// held bass; from the second time round, a few long, soft melody notes; and
+// now and then a far-off chime. Four chords, about fifteen seconds each.
+
+const CAMPAIGN_BPM = 66;
+/** Per chord (four bars each): the bass, the pad, two bars of plucks in quarters (repeated), and the melody's long notes ([bar, note, bars]). */
+const CAMPAIGN_CHORDS: { bass: string; pad: string[]; plucks: (string | null)[]; melody: [number, string, number][] }[] = [
+  { bass: 'D2', pad: ['D4', 'F#4', 'A4', 'E5'], plucks: ['A4', null, 'F#5', 'E5', null, 'A4', 'D5', null], melody: [[0, 'F#5', 2], [2, 'E5', 2]] }, // Dmaj9
+  { bass: 'B1', pad: ['B3', 'D4', 'F#4', 'E5'], plucks: ['F#4', null, 'D5', 'C#5', null, 'F#4', 'B4', null], melody: [[0, 'D5', 2], [2, 'C#5', 2]] }, // Bm11
+  { bass: 'G1', pad: ['G3', 'B3', 'F#4', 'C#5'], plucks: ['B4', null, 'F#5', 'E5', null, 'B4', 'C#5', null], melody: [[0, 'B4', 2], [2, 'C#5', 2]] }, // Gmaj7#11
+  { bass: 'A1', pad: ['A3', 'D4', 'E4', 'B4'], plucks: ['E4', null, 'B4', 'A4', null, 'E4', 'D5', null], melody: [[0, 'E5', 3]] }, // A6/9sus
+];
+/** D major pentatonic glints for the far-off chimes. */
+const CAMPAIGN_CHIMES = ['A5', 'B5', 'D6', 'E6', 'F#6', 'A6'].map(hz);
+
 class SoundBoard {
   private ctx: AudioContext | null = null;
   private sfx: GainNode | null = null;
@@ -78,6 +97,8 @@ class SoundBoard {
   /** The battle theme's two faders: one lightly reverbed (bass, kick), one drenched like the ambient score. */
   private battleBus: GainNode | null = null;
   private battleLush: GainNode | null = null;
+  /** The campaign map's fader (its own, so a crossfade from a battle never cuts the battle's tails short). */
+  private campaignBus: GainNode | null = null;
   private reverb: ConvolverNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private lastHover = 0;
@@ -204,6 +225,10 @@ class SoundBoard {
       this.battleLush.gain.value = 0.0001;
       this.battleLush.connect(master);
       this.battleLush.connect(this.reverb);
+      this.campaignBus = ctx.createGain();
+      this.campaignBus.gain.value = 0.0001;
+      this.campaignBus.connect(master);
+      this.campaignBus.connect(this.reverb);
 
       const len = ctx.sampleRate * 2;
       this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -479,7 +504,7 @@ class SoundBoard {
 
   // ---- Score ---------------------------------------------------------------
 
-  /** The screen asks for a score: crossfade to it if music is playing (a battle opens with its fanfare). */
+  /** The screen asks for a score: crossfade to it if music is playing. */
   setScene(scene: MusicScene) {
     if (scene === this.scene) return;
     this.scene = scene;
@@ -489,19 +514,25 @@ class SoundBoard {
     }
   }
 
+  /** Each score's faders, with the level and fade-in time it plays at. */
+  private faders(scene: MusicScene): [GainNode, number, number][] {
+    if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
+    if (scene === 'campaign') return [[this.campaignBus!, 1.5, 4]];
+    return [[this.musicBus!, 0.5, 6]];
+  }
+
   startMusic() {
     const ctx = this.ready();
-    if (!ctx || this.playing || !this.musicBus || !this.battleBus || !this.battleLush) return;
+    if (!ctx || this.playing || !this.musicBus) return;
     this.playing = this.scene;
     const now = ctx.currentTime;
-    const buses: [GainNode, number, number][] =
-      this.scene === 'battle' ? [[this.battleBus, 1.2, 3], [this.battleLush, 1.2, 3]] : [[this.musicBus, 0.5, 6]];
-    for (const [bus, level, fade] of buses) {
+    for (const [bus, level, fade] of this.faders(this.scene)) {
       bus.gain.cancelScheduledValues(now);
       bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), now);
       bus.gain.exponentialRampToValueAtTime(level, now + fade);
     }
-    if (this.scene === 'battle') this.battleScore(ctx, this.battleBus, this.battleLush);
+    if (this.scene === 'battle') this.battleScore(ctx, this.battleBus!, this.battleLush!);
+    else if (this.scene === 'campaign') this.campaignScore(ctx, this.campaignBus!);
     else this.ambientScore(ctx, this.musicBus);
   }
 
@@ -675,10 +706,94 @@ class SoundBoard {
     this.musicTimers.push(window.setInterval(tick, 200));
   }
 
+  /**
+   * The campaign map's score. Pads and bass alone for the first chord; then the plucks join, the melody from the
+   * second time round, and the plucks rest for a chord every third time round. Scheduled a chord at a time, just
+   * ahead of the audio clock.
+   */
+  private campaignScore(ctx: AudioContext, bus: GainNode) {
+    const beat = 60 / CAMPAIGN_BPM;
+    const barLen = beat * 4;
+    const chordLen = barLen * 4;
+
+    // The plucks' echo bounces from one side of the field to the other, a dotted quarter apart, darkening.
+    const plucks = ctx.createGain();
+    const left = ctx.createDelay(2), right = ctx.createDelay(2);
+    left.delayTime.value = right.delayTime.value = beat * 1.5;
+    const panL = ctx.createStereoPanner(), panR = ctx.createStereoPanner();
+    panL.pan.value = -0.7;
+    panR.pan.value = 0.7;
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = 2200;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.42;
+    const wet = ctx.createGain();
+    wet.gain.value = 0.5;
+    plucks.connect(bus);
+    plucks.connect(tone).connect(left);
+    left.connect(panL).connect(wet);
+    left.connect(right).connect(panR).connect(wet);
+    right.connect(feedback).connect(tone);
+    wet.connect(bus);
+    this.musicNodes = [plucks, left, right, panL, panR, tone, feedback, wet];
+
+    /** A glassy pluck: a sine with a quiet inharmonic partial and a faint triangle an octave down for warmth. */
+    const pluck = (at: number, f: number, gain: number, out: AudioNode) => {
+      const delay = this.until(at);
+      this.voice(f, { dur: 2.6, attack: 0.012, gain, delay, out });
+      this.voice(f * 2.76, { dur: 0.9, attack: 0.008, gain: gain * 0.18, delay, out });
+      this.voice(f / 2, { dur: 1.6, attack: 0.02, gain: gain * 0.35, type: 'triangle', cutoff: 1200, delay, out });
+    };
+
+    const playChord = (at: number, index: number, round: number) => {
+      const c = CAMPAIGN_CHORDS[index];
+      const delay = this.until(at);
+      // Pads, as the menu score voices them.
+      c.pad.forEach((n, i) => {
+        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.018, type: 'triangle' as OscillatorType, cutoff: 1000, delay, out: bus };
+        this.voice(hz(n), opts);
+        this.voice(hz(n), { ...opts, detune: 9, gain: 0.012 });
+      });
+      // The bass, deep and soft.
+      this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.045, type: 'triangle', attack: 1.5, release: 2, cutoff: 240, out: bus });
+      // Plucks: two bars, twice, the downbeat a touch stronger.
+      if (!(round === 0 && index === 0) && !(round % 3 === 2 && index === 0)) {
+        for (let rep = 0; rep < 2; rep++)
+          c.plucks.forEach((n, q) => n && pluck(at + rep * barLen * 2 + q * beat, hz(n), q % 4 === 0 ? 0.03 : 0.024, plucks));
+      }
+      // Melody: from the second time round, a few long soft notes on top, with a slow vibrato.
+      if (round >= 1)
+        for (const [b, n, bars] of c.melody) {
+          const t = at + b * barLen + beat * 0.5;
+          this.note(t, hz(n), bars * barLen - beat, { gain: 0.016, attack: 0.9, release: 1.6, cutoff: 1500, vibrato: true, out: bus });
+          this.note(t, hz(n), bars * barLen - beat, { gain: 0.009, attack: 1.1, release: 1.6, cutoff: 1300, detune: 8, vibrato: true, out: bus });
+        }
+      // A far-off chime or two.
+      for (let k = 0; k < 2; k++)
+        if (Math.random() < 0.45) pluck(at + (2 + Math.random() * 12) * beat, CAMPAIGN_CHIMES[Math.floor(Math.random() * CAMPAIGN_CHIMES.length)], 0.008, plucks);
+    };
+
+    let next = ctx.currentTime + 0.1;
+    let chord = 0;
+    let round = 0;
+    const tick = () => {
+      if (this.playing !== 'campaign') return;
+      while (next < ctx.currentTime + 0.5) {
+        playChord(next, chord, round);
+        next += chordLen;
+        chord = (chord + 1) % CAMPAIGN_CHORDS.length;
+        if (chord === 0) round++;
+      }
+    };
+    tick();
+    this.musicTimers.push(window.setInterval(tick, 200));
+  }
+
   /** Fade the score out (or cut it at once, when the app is being hidden). */
   stopMusic(immediate = false) {
-    if (!this.playing || !this.ctx || !this.musicBus || !this.battleBus || !this.battleLush) return;
-    const buses = this.playing === 'battle' ? [this.battleBus, this.battleLush] : [this.musicBus];
+    if (!this.playing || !this.ctx || !this.musicBus) return;
+    const buses = this.faders(this.playing).map(([bus]) => bus);
     this.playing = null;
     // Ids from setTimeout and setInterval share one pool, so clearTimeout ends either.
     this.musicTimers.forEach((t) => window.clearTimeout(t));
