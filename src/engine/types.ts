@@ -31,6 +31,8 @@ export type Count =
   | { of: 'kind'; kind: CardKind; per?: number }
   /** Every card in your tableau, divided by `per`. */
   | { of: 'cards'; per?: number }
+  /** Your cards in play that are not dimmed (that held back today), this one aside, divided by `per`. */
+  | { of: 'rested'; per?: number }
   /** Your tableau cards of a race (or sub-race), divided by `per`. */
   | { of: 'race'; race?: number; sub?: string; per?: number }
   /** Your current shields, divided by `per`. */
@@ -195,6 +197,8 @@ export interface CardDef {
   onPlay?: Effect[];
   /** At each of your dawns while this card is in your tableau. */
   onTurn?: Effect[];
+  /** At each of your dusks (the end of your day, after you have acted) while this card is in your tableau. */
+  onDusk?: Effect[];
   /** Attunement: at each of your dawns it also gains its orbit position's bonus (attunement.ts), this many times over. */
   attune?: number;
   /** A Hero's abilities: while it leads from your Hero slot, once on each of your days, you may use one. */
@@ -367,6 +371,8 @@ export interface GameState {
   log: LogEntry[];
   /** What the latest dawn did, effect by effect, so the table can replay it (only on the state a day starts in). */
   turnPulses?: TurnPulse[];
+  /** Set while a day passes on: the dusk's pulses carry into the next day's replay (dusk, then dawn). */
+  keepPulses?: boolean;
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
   /** The active player's dawn waits for them to aim their cards' dawn heat (a `dawn` action). */

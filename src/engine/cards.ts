@@ -3,6 +3,7 @@ import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { RACE_CARDS } from './cards-races';
+import { DUSK_CARDS } from './cards-dusk';
 import { HERO_CARDS } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
@@ -688,7 +689,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS);
+CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS);
 // The Heroes as they now fight (heroes-battle.ts): lasting, with abilities to choose from each day, in
 // place of the old choice of dawn effect.
 for (const c of CARDS) {
@@ -710,7 +711,7 @@ for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.co
  */
 export function isBurst(def: CardDef): boolean {
   if (def.kind === 'command' || def.kind === 'lightspeed' || def.stability !== undefined) return false;
-  return !def.onTurn?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);
+  return !def.onTurn?.length && !def.onDusk?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);
 }
 
 /** Display names for the rarities. */
@@ -1036,7 +1037,7 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Wildfire',
     race: 7,
     cards: [
-      ...twoOf('pyr_flare_imp', 'pyr_cinder_brute', 'pyr_ash_walker', 'pyr_heat_bloom', 'pyr_ember_guard', 'pyr_flare_burst', 'pyr_pyre_shield', 'pyr_flarekin_dancer', 'pyr_stoker', 'pyr_vent_cooler', 'radiator_fins'),
+      ...twoOf('pyr_flare_imp', 'pyr_cinder_brute', 'pyr_ash_walker', 'pyr_heat_bloom', 'pyr_ember_guard', 'pyr_flare_burst', 'pyr_pyre_shield', 'pyr_flarekin_dancer', 'pyr_stoker', 'pyr_vent_cooler', 'pyr_banked_embers'),
       'pyr_magma_heart', 'pyr_supernova_charge', 'pyr_flare_temple', 'pyr_solar_tyrant', 'coolant_array',
       'pyr_hero_ignis', 'pyr_hero_ashka', 'pyr_hero_pyrrhus',
     ],

@@ -377,6 +377,35 @@ describe('attacks and dimming', () => {
     expect(array().stability).toBe(stab - counterDamage(s, s.players[1], lancer));
   });
 
+  it('resolves dusk effects as a day ends (after acting), and counts the cards that held back', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const [star] = give(me, ['evening_star'], 'tableau');
+    const hand = me.hand.length;
+    s = applyAction(s, { type: 'endTurn' });
+    const after = s.players.find((p) => p.id === me.id)!;
+    expect(after.hand.length).toBe(hand + 1);
+    expect(s.log.some((l) => l.text.startsWith('— Dusk:'))).toBe(true);
+    expect(star.uid).toBeTruthy();
+    // Gloaming Battery: heat per 2 of your other cards not dimmed.
+    let t = twoPlayer();
+    const ada = activePlayer(t);
+    const [battery, x, y] = give(ada, ['gloaming_battery', 'plasma_relay', 'plasma_relay'], 'tableau');
+    t.players[1].shields = 0;
+    const rival = t.players[1].heat;
+    x.dimmed = true;
+    t = applyAction(t, { type: 'endTurn' });
+    expect(t.players[1].heat).toBe(rival); // one rested card: half of 2 rounds down to nothing
+    expect(battery.uid && y.uid).toBeTruthy();
+    // Two rested cards: 1 heat at dusk.
+    let u = twoPlayer();
+    give(activePlayer(u), ['gloaming_battery', 'plasma_relay', 'plasma_relay'], 'tableau');
+    u.players[1].shields = 0;
+    const before = u.players[1].heat;
+    u = applyAction(u, { type: 'endTurn' });
+    expect(u.players[1].heat).toBe(before + 1);
+  });
+
   it('sends cards that do nothing once played straight to the discard pile, taking no slot', () => {
     let s = twoPlayer();
     const me = activePlayer(s);

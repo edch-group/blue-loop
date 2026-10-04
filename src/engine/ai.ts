@@ -27,6 +27,7 @@ import {
   hasRoomFor,
   targetOf,
   dawnEffects,
+  duskEffects,
   turnForecast,
   aimable,
   allyEffectKind,
@@ -77,7 +78,8 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   const def = cardDef(card.defId);
   const foes = Math.max(1, livingOpponents(state, p).length);
   let perTurn = 0;
-  for (const e of dawnEffects(card, p, state)) {
+  // (Dusk effects count as dawn effects do: once a day.)
+  for (const e of [...dawnEffects(card, p, state), ...duskEffects(card)]) {
     if (!conditionMet(p, e.if, state) && !(e.if && 'minKind' in e.if)) continue;
     const scale = conditionMet(p, e.if, state) ? 1 : 0.4;
     switch (e.type) {

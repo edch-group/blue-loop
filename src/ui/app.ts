@@ -226,6 +226,8 @@ const AI_GAME_KEY = 'blue-loop:ai-game';
 /** A rival's cards land by themselves after a moment, rather than waiting for OK. */
 const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
+/** Banners in a row (dusk, dawn, day) are this far apart. */
+const BANNER_GAP_MS = 1300;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
 const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
@@ -918,8 +920,7 @@ export class App {
       this.render();
       this.surfaceLog(prev);
       this.animate(prev, next, last.action, actor, before);
-      if (turnPassed && last.action.type === 'endTurn') this.announceDusk(actor, next);
-      if (turnPassed) this.announceTurn(450);
+      this.announcePhases(actor, next, last.action, turnPassed);
     };
     // The rival's card takes effect once the viewer has read it and said OK.
     if (this.stage?.confirm && !isGameOver(next)) {
@@ -1205,18 +1206,39 @@ export class App {
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
     this.showBanner('dawn', `round ${roman(s.round)}`, delay);
+    if (!s.awaitingDawn) this.showBanner('day', `round ${roman(s.round)}`, delay);
   }
 
-  /** You ended your day: "<rival>'s dawn", as "Dawn" greets the start of yours (not when the next day is yours too, as in hot-seat). */
-  private announceDusk(actor: PlayerState, next: GameState) {
-    if (actor.isAI || isGameOver(next)) return;
+  /**
+   * Each day runs dawn, day, dusk, each with its banner: as a day ends, "dusk" (the dusk's effects), then the
+   * next player's "dawn" (their dawn effects play out, and they aim its heat), then their "day" once the dawn
+   * has played out. The viewer's own read plainly ("dawn"); everyone else's carry their name.
+   */
+  private announcePhases(actor: PlayerState, next: GameState, action: Action, turnPassed: boolean, animate = true) {
+    if (isGameOver(next) || this.needsHandoff()) return;
     const you = this.viewer().id;
-    if (actor.id !== you || activePlayer(next).id === you || !activePlayer(next).isAI && !this.online) return;
-    this.showBanner(`${activePlayer(next).name.toLowerCase()}'s dawn`, `round ${roman(next.round)}`, 0);
+    const named = (p: PlayerState, phase: string) => (p.id === you ? phase : `${p.name.toLowerCase()}'s ${phase}`);
+    const round = `round ${roman(next.round)}`;
+    const now = activePlayer(next);
+    if (turnPassed) {
+      this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, 0);
+      this.showBanner(named(now, 'dawn'), round, 0);
+    }
+    // The day begins once the dawn has played out (and, at your own dawn, once you have aimed its heat).
+    if ((turnPassed || action.type === 'dawn') && !next.awaitingDawn) {
+      const replay = animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0;
+      this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600));
+    }
   }
+
+  /** When the next banner may show (each gets its moment: dusk, dawn and day follow one another). */
+  private bannerFree = 0;
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
   private showBanner(text: string, sub: string, delay = 0, screen: Screen = 'game') {
+    const at = Math.max(Date.now() + delay, this.bannerFree);
+    this.bannerFree = at + BANNER_GAP_MS;
+    delay = at - Date.now();
     window.setTimeout(() => {
       if (this.screen !== screen) return; // left the screen before it showed
       document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
@@ -1330,8 +1352,7 @@ export class App {
         this.surfaceLog(prev);
         this.animate(prev, next, action, actor, before);
       }
-      if (turnPassed && action.type === 'endTurn') this.announceDusk(actor, next);
-      if (turnPassed) this.announceTurn(450);
+      this.announcePhases(actor, next, action, turnPassed, animate);
       // The AI waits for its dawn to play out before it acts.
       this.scheduleAI(AI_PAUSE[action.type] + ((action.type === 'endTurn' || action.type === 'dawn') && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
     };

@@ -454,7 +454,7 @@ function rawStability(def: CardDef): number {
   // A card that only does something once (when played) stays just until your next dawn: its slot is part of its cost.
   // Command cards stay for their full term, whatever they do.
   if (def.kind === 'command') return BALANCE.stabilityCommand;
-  if (!def.onTurn?.length && !def.passive?.length && !def.choices?.length && !def.attune) return BALANCE.stabilityBurst;
+  if (!def.onTurn?.length && !def.onDusk?.length && !def.passive?.length && !def.choices?.length && !def.attune) return BALANCE.stabilityBurst;
   // Straight heat (dawn heat with no conditions) lasts a day less: steady, unconditional damage is the strongest thing in the game.
   if ((def.onTurn ?? []).some((e) => e.type === 'heat' && e.to === 'target' && !e.if && !e.plus)) return BALANCE.stabilityDawnHeat;
   return BALANCE.stability;
@@ -594,6 +594,8 @@ function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState
       return Math.floor(p.tableau.filter((t) => cardDef(t.defId).kind === c.kind).length / per);
     case 'cards':
       return Math.floor(p.tableau.length / per);
+    case 'rested':
+      return Math.floor(p.tableau.filter((t) => t.uid !== card.uid && !t.dimmed && !cardDef(t.defId).token).length / per);
     case 'race':
       return Math.floor(p.tableau.filter((t) => ofRace(cardDef(t.defId), c.race, c.sub)).length / per);
     case 'shields':
@@ -1278,7 +1280,9 @@ function repair(state: GameState, p: PlayerState, amount: number) {
 
 function startTurn(state: GameState) {
   const p = activePlayer(state);
-  state.turnPulses = [];
+  // (After a dusk, its pulses stay: the replay plays the dusk, then this dawn.)
+  if (!state.keepPulses) state.turnPulses = [];
+  delete state.keepPulses;
   p.turnsTaken += 1;
   p.turn = emptyTurn();
   delete state.awaitingDawn;
@@ -1365,6 +1369,24 @@ function dawn(state: GameState, p: PlayerState) {
   // Aims last for the dawn they were made for.
   for (const c of p.tableau) c.aim = undefined;
   if (p.eliminated) passOn(state);
+}
+
+/** A player's dusk: their tableau's dusk effects, left to right, as their day ends. */
+function dusk(state: GameState, p: PlayerState) {
+  const cards = p.tableau.filter((c) => duskEffects(c).length);
+  if (!cards.length) return;
+  log(state, `— Dusk: ${p.name}.`);
+  notePulse(state, p, null, 'start', p, 0);
+  for (const card of cards) {
+    if (state.winnerId || p.eliminated) break;
+    if (!p.tableau.includes(card)) continue;
+    resolveEffects(state, p, card, duskEffects(card), 'turn');
+  }
+}
+
+/** A card's dusk effects (its own and its Fusion cards'). */
+export function duskEffects(card: CardInstance): Effect[] {
+  return [...(cardDef(card.defId).onDusk ?? []), ...extras(card).flatMap((d) => d.onDusk ?? [])];
 }
 
 /** The active player's sun went supernova on their own turn: play moves on. */
@@ -1592,6 +1614,14 @@ export function applyAction(prev: GameState, action: Action): GameState {
       break;
     }
     case 'endTurn':
+      // Dusk: the day's last effects, replayed with the next dawn's.
+      state.turnPulses = [];
+      dusk(state, p);
+      if (p.eliminated) {
+        passOn(state);
+        break;
+      }
+      state.keepPulses = true;
       advanceTurn(state);
       break;
     case 'attack': {

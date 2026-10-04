@@ -18,7 +18,8 @@ export const ATTACK_OVERRIDES: Record<string, number> = {
 
 /** Plain dawn heat: heat at the rival every dawn, with no condition and no scaling. */
 function plainDawnHeat(def: CardDef): number {
-  return (def.onTurn ?? []).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && !e.if && !e.plus ? e.amount : 0), 0);
+  // (Dusk heat counts too: it is just as steady.)
+  return [...(def.onTurn ?? []), ...(def.onDusk ?? [])].reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && !e.if && !e.plus ? e.amount : 0), 0);
 }
 
 /** A card's attack by the rule (given its cost), unless it is set by hand. */

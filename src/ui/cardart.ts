@@ -1528,7 +1528,27 @@ const ART_RACES: Record<string, Draw> = {
   pyr_hero_pyrrhus: (S) =>
     S.glow(80, 40, 80, '#ff6a1e', 0.45) + pyrr(S, 80, 32, 1.38, { wings: true, crown: true, item: 'brand', flame: '#ff3a1a', core: '#fff0a0' }) + S.motes(80, 60, 20, 80, '#ffd060', 1),
 };
-Object.assign(ART, ART_RACES);
+/** Dusk: a sun sinking behind the horizon, the sky banded in its last light. */
+function dusk(S: Scene, x = 80, c = '#ff8a4a'): string {
+  return S.glow(x, 84, 64, c, 0.45) + S.glow(x, 84, 30, '#ffd0a0', 0.5) + S.sun(x, 86, 13, '#ffb070', 10) + S.ground(86, '#120a1a');
+}
+
+const ART_DUSK: Record<string, Draw> = {
+  twilight_sentry: (S) => dusk(S, 118) + `<path d="M50 86 V44 L64 32 L78 44 V86 Z" fill="${S.linear([[0, '#6a7088'], [1, '#1a1c2a']])}" stroke="#ffb070" stroke-width="0.8"/>` + S.glow(64, 48, 6, '#ffd0a0', 0.9) + S.rings(64, 58, 30, 2, 8, '#ffd0a0', 0.4),
+  evening_star: (S) => dusk(S, 50, '#c46aa0') + S.glow(120, 26, 14, '#fff', 0.7) + `<path d="M120 14 L123 23 L132 26 L123 29 L120 38 L117 29 L108 26 L117 23 Z" fill="#fff"/>` + S.card(126, 60, 12, '#ffd0a0', 10),
+  gloaming_battery: (S) => dusk(S, 34) + [70, 92, 114, 136].map((x, i) => `<rect x="${x - 7}" y="${50 + (i % 2) * 6}" width="14" height="${30 - (i % 2) * 6}" rx="2" fill="${S.linear([[0, i % 2 ? '#4a4a58' : '#ffb070'], [1, '#1a1612']])}" stroke="#ffd0a0" stroke-width="0.6"/>`).join('') + S.beam(92, 48, 140, 14, 1.4, '#ffb070'),
+  vesper_bell: (S) => dusk(S, 120, '#8a7ad0') + `<path d="M62 30 Q80 22 98 30 L104 70 H56 Z" fill="${S.linear([[0, '#d8c8a0'], [1, '#6a5030']])}" stroke="#fff3c4" stroke-width="0.8"/>` + `<circle cx="80" cy="74" r="4" fill="#fff3c4"/>` + S.rings(80, 50, 34, 3, 10, '#bfe6ff', 0.45),
+  aureline_vesper_knight: (S) => dusk(S, 124) + aureline(S, 62, 34, 1.15, { item: 'lance', cloak: '#6a3a5a', halos: 2 }),
+  shard_twilight: (S) => dusk(S, 40, '#d06aa0') + [0, 1, 2].map((i) => S.crystal(96 + i * 16, 64 - i * 10, 30 - i * 4, 9, -18 + i * 14, '#ffb3c2')).join('') + S.beam(112, 40, 156, 18, 1.2, '#ffe0ea'),
+  ebb_tide: (S) => S.glow(80, 70, 60, '#ff8a4a', 0.35) + S.sun(80, 72, 12, '#ffb070', 8) + S.waves(74, '#7ff0e0', 4, 3, 0.7) + S.rings(80, 50, 40, 2, 10, '#dffff8', 0.4),
+  night_bloom: (S) => dusk(S, 126, '#a06ad0') + S.mushroom(70, 86, 34, 30, '#d59cff') + S.mushroom(96, 86, 22, 18, '#c5ff8a', 6) + S.motes(80, 50, 30, 30, '#d59cff', 1),
+  nyx_nightfall: (S) => dusk(S, 110, '#6a4ad0') + nyxari(S, 56, 34, 1.1, { item: 'blades', cloak: '#141028', wisps: 5 }),
+  kor_banked_forge: (S) => dusk(S, 126) + anvil(S, 66, 74, 46, true) + S.glow(66, 64, 16, '#ffb040', 0.7) + S.motes(66, 46, 14, 20, '#ffd060', 1),
+  ser_evening_vigil: (S) => dusk(S, 118, '#8a7ad0') + seren(S, 58, 30, 1.1, { item: 'scope', moons: 2, halo: true }),
+  pyr_banked_embers: (S) => dusk(S, 40) + `<path d="M76 86 Q90 70 104 86 Z" fill="#2a1410"/>` + [0, 1, 2, 3].map((i) => S.glow(80 + i * 7, 82 - (i % 2) * 3, 5, '#ff6a1a', 0.9)).join('') + S.motes(92, 60, 16, 24, '#ffb040', 0.8) + S.glow(92, 50, 18, '#9fd0ff', 0.25),
+};
+
+Object.assign(ART, ART_RACES, ART_DUSK);
 
 
 /** The window a card's picture sits in: a sky in its palette, with stars and the picture. */
