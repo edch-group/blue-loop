@@ -3089,7 +3089,8 @@ export class App {
     const span = ws[0] / 2 + centres[n - 1] + ws[n - 1] / 2;
     const start = inset + (W - span) / 2 + ws[0] / 2;
     const spacing = n > 1 ? centres[n - 1] / (n - 1) : 0;
-    const step = Math.min(5, 24 / Math.max(n - 1, 1)); // degrees between neighbours
+    // Degrees between neighbours: a gentle fan (rotated text can't sit on the pixel grid, so it reads softer).
+    const step = Math.min(2.5, 12 / Math.max(n - 1, 1));
     // Freshly drawn cards are placed straight into the fan (with no transition, they would swing out from
     // the middle every time the page is redrawn); a card already placed keeps its smooth move.
     const fresh = cards.filter((c) => !c.style.getPropertyValue('--fr'));
@@ -3100,7 +3101,8 @@ export class App {
     cards.forEach((c, i) => {
       const t = i - (n - 1) / 2;
       const a = (t * step * Math.PI) / 180;
-      c.style.left = `${start + centres[i] - c.offsetWidth / 2}px`;
+      // (On whole pixels, for crisp text.)
+      c.style.left = `${Math.round(start + centres[i] - c.offsetWidth / 2)}px`;
       c.style.setProperty('--fr', `${t * step}deg`);
       c.style.setProperty('--fy', `${(radius * (1 - Math.cos(a)) * 1.25).toFixed(2)}px`);
       c.style.zIndex = String(i + 1);

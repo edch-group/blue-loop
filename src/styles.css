@@ -931,7 +931,8 @@ input { font: inherit; }
 .hand > .card.lifted, .hand > .card:focus-visible {
   /* A subtle lift: the card rises a little out of the fan, keeping its angle. */
   z-index: 50 !important;
-  transform: translateY(calc(var(--fy, 0px) - var(--hh) * 0.08)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg)));
+  /* ...and turns straight, so the card being read is drawn on the pixel grid: crisp. */
+  transform: translateY(round(calc(var(--fy, 0px) - var(--hh) * 0.08), 1px)) rotate(var(--side, 0deg));
   box-shadow: 0 10px 24px rgba(80, 80, 100, 0.22), 0 0 0 1.5px #fff;
 }
 .hand-hidden { position: absolute; inset: 0; display: grid; place-items: center; }
