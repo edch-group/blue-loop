@@ -1284,6 +1284,8 @@ function startTurn(state: GameState) {
   if (!state.keepPulses) state.turnPulses = [];
   delete state.keepPulses;
   p.turnsTaken += 1;
+  // Dawn breaks: every card of theirs is ready to act again (before any heat is aimed).
+  for (const c of p.tableau) delete c.dimmed;
   p.turn = emptyTurn();
   delete state.awaitingDawn;
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
@@ -1347,8 +1349,6 @@ function startTurn(state: GameState) {
 /** A player's dawn: their tableau's dawn effects, cards fading, and the day's energy. */
 function dawn(state: GameState, p: PlayerState) {
   delete state.awaitingDawn;
-  // A new day: every card of theirs is ready to act again.
-  for (const c of p.tableau) delete c.dimmed;
   // Your tableau's dawn effects, left to right (those already resolved as they were aimed aside).
   const done = new Set(state.dawnDone ?? []);
   delete state.dawnDone;

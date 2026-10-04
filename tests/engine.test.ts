@@ -1075,8 +1075,11 @@ describe('aiming heat', () => {
     // (It loses 1 at its own dawn first, and stands at 1 when Ada's dawn comes.)
     weak.stability = 2;
     weak.slot = 0;
+    l1.dimmed = l2.dimmed = true;
     s = applyAction(applyAction(s, { type: 'endTurn' }), { type: 'endTurn' });
     expect(s.awaitingDawn).toBe(true);
+    // Dawn has broken: the cards are ready again while their heat waits to be aimed.
+    expect(activePlayer(s).tableau.some((c) => c.dimmed)).toBe(false);
     // While a Guard stands, the sun is not a choice.
     expect(() => applyAction(s, { type: 'dawnStep', uid: l1.uid, aim: null })).toThrow(GameError);
     s = applyAction(s, { type: 'dawnStep', uid: l1.uid, aim: weak.uid });
