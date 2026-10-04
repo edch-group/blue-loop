@@ -250,8 +250,8 @@ export const CARDS: CardDef[] = [
     name: 'Shard Reactor',
     kind: 'attack',
     race: 1,
-    text: '{dawn}: {heat:2}, {pierce}.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target', pierce: true }],
+    text: '{dawn}: {heat:1}, {pierce}.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', pierce: true }],
   },
   {
     id: 'crystal_storm',

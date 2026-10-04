@@ -338,6 +338,8 @@ Growth fusion: **Sap Graft** and **Thorn Graft** fuse onto a card and make it **
 
 Hive Bloom plays Sap Graft ×2, Seed Burst ×2 and the Spore Catalyst (for its Orbit Roots, Spore Returns and Recall Beacon): 36% → 45% in 600 AI games (against Solar Lancers 23% → 36%). Field: Lancers 48.9%, Overload 61.4%, Tide 42.8%, Bloom 45.1%.
 
+**Shard Overload tuned (400 games a variant, then 600).** With wear lasting, pierce (which skips defence) got stronger, and Overload rose to 61%. Tried: Shard Reactor dawn pierce 1 (was 2), Prism Colossus pierce 2 (was 3), Shard Reactor without pierce, and pierce getting past less of shields (no effect: the edge was the defence it skips, not the shields). Kept: **Shard Reactor dawn: heat 1, pierce**. Field: Lancers 55.4%, Overload 50.8%, Tide 44.4%, Bloom 48.0%.
+
 ## Lightspeed cards [design review]
 
 Lightspeed cards are played **face down**. They don't take a slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies face down in the Lightspeed slot, right of its owner's five (that slot has no defence), and the owner's pill shows ⚡. The card springs **during an enemy's day** when its trigger happens. It is revealed ("Lightspeed!"), resolves against that enemy ("your target" means them), and goes to your discard pile.

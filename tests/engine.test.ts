@@ -983,7 +983,7 @@ describe('aiming heat', () => {
     const next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: a.uid, [reactor.uid]: b.uid } });
     expect(next.awaitingDawn).toBeFalsy();
     expect(stab(next, a.uid)).toBe(sa - (2 - 1)); // Helio Lancer's 2 heat, less defence 1
-    expect(stab(next, b.uid)).toBe(sb - 2); // Shard Reactor's 2 pierce heat, all of it
+    expect(stab(next, b.uid)).toBe(sb - 1); // Shard Reactor's 1 pierce heat, all of it (defence 2 is no help)
     expect(next.players[1].heat).toBe(heatBefore);
     // Aims last for the dawn they were made for.
     expect(activePlayer(next).tableau.every((c) => c.aim === undefined)).toBe(true);
