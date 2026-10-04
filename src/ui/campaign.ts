@@ -1534,35 +1534,40 @@ export class CampaignView {
     const at = node ? { x: node.x, y: node.y, lift: 24 } : ship ? { x: ship.x, y: ship.y, lift: 6 } : an ? { x: an.x, y: an.y, lift: 16 } : null;
     const box = pop.offsetParent as HTMLElement | null;
     if (!at || !box || !this.cam) return;
+    // Everything in the popover's own CSS pixels: the page may be zoomed (body zoom), so screen measurements
+    // are scaled back by how much bigger the popover's box is drawn than it is laid out.
     const st = stage.getBoundingClientRect();
     const b = box.getBoundingClientRect();
-    // (The stage may be drawn scaled: project in its own layout size, then scale to the screen.)
+    const bw = box.offsetWidth || b.width;
+    const bh = box.offsetHeight || b.height;
+    const zx = b.width / bw || 1;
+    const zy = b.height / bh || 1;
     const lw = stage.offsetWidth || st.width;
     const lh = stage.offsetHeight || st.height;
-    const k = st.width / lw;
     const proj = (x: number, y: number, lift: number) => {
       const q = this.project(lw, lh, x, y, lift);
-      return { x: q.x * k, y: q.y * (st.height / lh) };
+      // The stage's layout pixels, drawn on screen, then back into the box's layout pixels.
+      return { x: ((q.x * st.width) / lw + st.left - b.left) / zx, y: ((q.y * st.height) / lh + st.top - b.top) / zy };
     };
     const p = proj(at.x, at.y, at.lift);
     const w = pop.offsetWidth;
     const h = pop.offsetHeight;
     // Clear of the planets' orbits round a selected star.
     const gap = this.selected ? 70 : 34;
-    const cx = p.x + st.left - b.left;
-    const cy = p.y + st.top - b.top;
+    const cx = p.x;
+    const cy = p.y;
     // An army's popover goes on the far side from its routes, so they stay clear to tap.
     let right = true;
     if (this.army && !this.selected) {
       const army = s?.armies.find((a) => a.id === this.army);
       const ends = s && army && s.phase === 'player' ? armyMoves(s, army).map((m) => nodeById(s, m.toId)) : [];
-      if (ends.length) right = ends.reduce((t, n) => t + proj(n.x, n.y, 0).x + st.left - b.left, 0) / ends.length < cx;
+      if (ends.length) right = ends.reduce((t, n) => t + proj(n.x, n.y, 0).x, 0) / ends.length < cx;
     }
     let x = right ? cx + gap : cx - gap - w;
-    if (x + w > b.width - 12) x = cx - gap - w;
+    if (x + w > bw - 12) x = cx - gap - w;
     if (x < 12) x = cx + gap;
-    x = Math.max(12, Math.min(b.width - w - 12, x));
-    const y = Math.max(64, Math.min(b.height - h - 84, cy - h / 2));
+    x = Math.max(12, Math.min(bw - w - 12, x));
+    const y = Math.max(64, Math.min(bh - h - 84, cy - h / 2));
     this.popPos = { x: Math.round(x), y: Math.round(y) };
     pop.style.left = `${this.popPos.x}px`;
     pop.style.top = `${this.popPos.y}px`;
