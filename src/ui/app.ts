@@ -1208,8 +1208,9 @@ export class App {
     if (!s || isGameOver(s) || this.needsHandoff()) return;
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
-    this.showBanner('dawn', `round ${roman(s.round)}`, delay);
-    if (!s.awaitingDawn) this.showBanner('day', `round ${roman(s.round)}`, delay);
+    // (A dawn with nothing to do is passed over: straight to the day.)
+    if (s.awaitingDawn) this.showBanner('dawn', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('dawn'));
+    else this.showBanner('day', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('day'));
   }
 
   /**
@@ -1223,27 +1224,63 @@ export class App {
     const named = (p: PlayerState, phase: string) => (p.id === you ? phase : `${p.name.toLowerCase()}'s ${phase}`);
     const round = `round ${roman(next.round)}`;
     const now = activePlayer(next);
+    // A dusk or dawn in which nothing happened (and nothing is asked) is passed over, banner and all.
     if (turnPassed) {
-      this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, 0);
-      this.showBanner(named(now, 'dawn'), round, 0);
+      if (this.duskHappened(next, actor)) this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, 0, 'game', () => this.setPhase('dusk'));
+      if (next.awaitingDawn || this.dawnHappened(next, now)) this.showBanner(named(now, 'dawn'), round, 0, 'game', () => this.setPhase('dawn'));
     }
     // The day begins once the dawn has played out (and, at your own dawn, once you have aimed its heat).
     if ((turnPassed || action.type === 'dawn') && !next.awaitingDawn) {
       const replay = animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0;
-      this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600));
+      this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600), 'game', () => this.setPhase('day'));
     }
+  }
+
+  /** Whether this player's day just ended with a dusk that did something (their dusk effects resolved). */
+  private duskHappened(next: GameState, actor: PlayerState): boolean {
+    // Back through the log to the day before this one's start: a "— Dusk" line for them in between.
+    let days = 0;
+    for (let i = next.log.length - 1; i >= 0 && days < 2; i--) {
+      const t = next.log[i].text;
+      if (t.startsWith('— Day ')) days++;
+      else if (days === 1 && t === `— Dusk: ${actor.name}.`) return true;
+    }
+    return false;
+  }
+
+  /** Whether this player's dawn did something (its effects, or the table's, played out on the board). */
+  private dawnHappened(next: GameState, now: PlayerState): boolean {
+    return (next.turnPulses ?? []).some((p) => p.kind !== 'start' && (p.source === now.id || !p.uid));
+  }
+
+  /** The phase of the day under way (shown by the phase tracker, middle right). */
+  private phase: 'dawn' | 'day' | 'dusk' = 'day';
+
+  private setPhase(phase: 'dawn' | 'day' | 'dusk') {
+    this.phase = phase;
+    this.root.querySelectorAll<HTMLElement>('.phase-track [data-phase]').forEach((el) => el.classList.toggle('on', el.dataset.phase === phase));
+  }
+
+  /** Dawn, day and dusk, as three dots down the right of the board (the phase under way lit, the others grey). */
+  private renderPhaseTrack(): string {
+    const s = this.state!;
+    if (isGameOver(s)) return '';
+    const p = activePlayer(s);
+    const whose = p.id === this.viewer().id ? 'your turn' : `${p.name.toLowerCase()}'s turn`;
+    return `<div class="phase-track" title="${esc(whose)}: dawn, then day, then dusk">${(['dawn', 'day', 'dusk'] as const).map((k) => `<div class="phase-step ${this.phase === k ? 'on' : ''}" data-phase="${k}"><span>${k}</span><i></i></div>`).join('')}</div>`;
   }
 
   /** When the next banner may show (each gets its moment: dusk, dawn and day follow one another). */
   private bannerFree = 0;
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
-  private showBanner(text: string, sub: string, delay = 0, screen: Screen = 'game') {
+  private showBanner(text: string, sub: string, delay = 0, screen: Screen = 'game', onShow?: () => void) {
     const at = Math.max(Date.now() + delay, this.bannerFree);
     this.bannerFree = at + BANNER_GAP_MS;
     delay = at - Date.now();
     window.setTimeout(() => {
       if (this.screen !== screen) return; // left the screen before it showed
+      onShow?.();
       document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
       const el = document.createElement('div');
       el.className = `turn-banner ${text.length > 12 ? 'turn-banner-long' : ''}`;
@@ -3617,6 +3654,7 @@ export class App {
         </div>
         ${this.renderHud()}
         ${this.renderTurnControls()}
+        ${this.renderPhaseTrack()}
         ${this.renderStage()}
         ${this.renderResult()}
         ${this.renderOverlay(s)}

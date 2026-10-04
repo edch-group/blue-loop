@@ -4195,3 +4195,16 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card.card-table.card-dimmed::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; background: rgba(40, 46, 60, 0.16); pointer-events: none;
 }
+
+/* ---------- Phase tracker: dawn, day, dusk, down the right of the board ---------- */
+.phase-track {
+  position: absolute; right: clamp(8px, calc(1.4 * var(--vw)), 18px); top: 50%; transform: translateY(-50%); z-index: 6;
+  display: grid; gap: clamp(6px, calc(1.6 * var(--vh)), 12px); pointer-events: auto;
+}
+.phase-step { display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: #a3aab5; transition: color 0.4s; }
+.phase-step span { font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; }
+.phase-step i { width: 9px; height: 9px; border-radius: 50%; background: #c9ced8; box-shadow: 0 0 0 1.5px #fff; transition: background 0.4s, box-shadow 0.4s; }
+.phase-step.on { color: #2f3a52; }
+.phase-step.on[data-phase='dawn'] i { background: #f0a040; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(240, 160, 64, 0.8); }
+.phase-step.on[data-phase='day'] i { background: #e8c23a; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(232, 194, 58, 0.8); }
+.phase-step.on[data-phase='dusk'] i { background: #8a6ad0; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(138, 106, 208, 0.8); }
