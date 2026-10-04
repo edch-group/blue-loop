@@ -15,6 +15,11 @@ const DEFS = `<defs>
   <linearGradient id="sg-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b88a3a"/><stop offset="0.45" stop-color="#fff2cf"/><stop offset="0.62" stop-color="#e8c47a"/><stop offset="1" stop-color="#8d6526"/></linearGradient>
   <linearGradient id="sg-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a3c7e"/><stop offset="0.45" stop-color="#d9cff5"/><stop offset="0.55" stop-color="#9a87d0"/><stop offset="1" stop-color="#2f2558"/></linearGradient>
   <linearGradient id="sg-reef" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f5d66"/><stop offset="0.5" stop-color="#7fc2bf"/><stop offset="1" stop-color="#244b55"/></linearGradient>
+  <linearGradient id="sg-void" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0c0a18"/><stop offset="0.45" stop-color="#4a4080"/><stop offset="0.58" stop-color="#2a2450"/><stop offset="1" stop-color="#07060f"/></linearGradient>
+  <linearGradient id="sg-iron" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a42"/><stop offset="0.45" stop-color="#a4a8b2"/><stop offset="0.6" stop-color="#7a7e88"/><stop offset="1" stop-color="#2a2a30"/></linearGradient>
+  <linearGradient id="sg-bronze" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a3e14"/><stop offset="0.45" stop-color="#f0c080"/><stop offset="0.62" stop-color="#c9893a"/><stop offset="1" stop-color="#5a3412"/></linearGradient>
+  <linearGradient id="sg-pearl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a9ac8"/><stop offset="0.42" stop-color="#ffffff"/><stop offset="0.6" stop-color="#dfe6fa"/><stop offset="1" stop-color="#6a7aa8"/></linearGradient>
+  <linearGradient id="sg-ember" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a1a0a"/><stop offset="0.4" stop-color="#ffd060"/><stop offset="0.6" stop-color="#ff7a1e"/><stop offset="1" stop-color="#7a1206"/></linearGradient>
   <linearGradient id="sg-rust" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b5560"/><stop offset="0.5" stop-color="#a8a2a8"/><stop offset="1" stop-color="#4a4450"/></linearGradient>
 </defs>`;
 
@@ -23,7 +28,7 @@ const DEFS = `<defs>
  * like a real hull's), shaded darker going down; the top slice is the deck, filled with `deck` (a gradient)
  * and carrying the deck's detail.
  */
-function hull(path: string, detail: string, o: { slices?: number; step?: number; z0?: number; deck?: string; side?: string; taper?: number } = {}): Part {
+function hull(path: string, detail: string, o: { slices?: number; step?: number; z0?: number; deck?: string; side?: string; taper?: number; sideFill?: string } = {}): Part {
   const n = o.slices ?? 10;
   const step = o.step ?? 0.62;
   const z0 = o.z0 ?? 0;
@@ -32,7 +37,7 @@ function hull(path: string, detail: string, o: { slices?: number; step?: number;
   for (let i = 0; i < n; i++) {
     const t = i / n;
     const sc = 1 - taper * (1 - Math.sin((t * Math.PI) / 2));
-    out += `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(${(z0 + i * step).toFixed(1)}px) scale(${sc.toFixed(3)})" aria-hidden="true"><path class="${o.side ?? 's-side'}" style="--k:${t.toFixed(2)}" d="${path}"/></svg>`;
+    out += `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(${(z0 + i * step).toFixed(1)}px) scale(${sc.toFixed(3)})" aria-hidden="true"><path class="${o.side ?? 's-side'}" style="--k:${t.toFixed(2)}${o.sideFill ? `;fill:color-mix(in srgb, ${o.sideFill} calc(35% + var(--k) * 55%), #0a0810)` : ''}" d="${path}"/></svg>`;
   }
   out += `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(${(z0 + n * step).toFixed(1)}px)" aria-hidden="true">${DEFS}<path class="s-deck" fill="url(#${o.deck ?? 'sg-deck'})" d="${path}"/>${detail}</svg>`;
   return out;
@@ -47,7 +52,7 @@ function block(path: string, z0: number, height: number, top = 'sg-deck', detail
  * A round body made of stacked discs: centred at (x, y) in the 40 x 24 box, radius r (box units), from height
  * z0 up; a full sphere, or (dome) only its upper half. Each disc is shaded a little lighter going up.
  */
-function orb(x: number, y: number, r: number, z0: number, cls: string, opts: { dome?: boolean; rx?: number; slices?: number; h?: number } = {}): Part {
+function orb(x: number, y: number, r: number, z0: number, cls: string, opts: { dome?: boolean; rx?: number; slices?: number; h?: number; bg?: string } = {}): Part {
   const n = opts.slices ?? 8;
   const sx = (opts.rx ?? r) / r;
   let out = '';
@@ -57,22 +62,22 @@ function orb(x: number, y: number, r: number, z0: number, cls: string, opts: { d
     const rr = r * Math.sqrt(Math.max(0, 1 - t * t));
     if (rr < 0.4) continue;
     const z = z0 + (opts.dome ? t * r : (t + 1) * r) * 1.6 * (opts.h ?? 1);
-    out += disc(x, y, rr * sx, rr, z, `${cls}`, i / n);
+    out += disc(x, y, rr * sx, rr, z, `${cls}`, i / n, opts.bg);
   }
   return out;
 }
 
-function disc(x: number, y: number, rx: number, ry: number, z: number, cls: string, k: number): string {
-  return `<i class="s-disc ${cls}" style="left:${(((x - rx) / 40) * 100).toFixed(2)}%;top:${(((y - ry) / 24) * 100).toFixed(2)}%;width:${(((rx * 2) / 40) * 100).toFixed(2)}%;height:${(((ry * 2) / 24) * 100).toFixed(2)}%;transform:translateZ(${z.toFixed(1)}px);--k:${k.toFixed(2)}"></i>`;
+function disc(x: number, y: number, rx: number, ry: number, z: number, cls: string, k: number, bg?: string): string {
+  return `<i class="s-disc ${cls}" style="left:${(((x - rx) / 40) * 100).toFixed(2)}%;top:${(((y - ry) / 24) * 100).toFixed(2)}%;width:${(((rx * 2) / 40) * 100).toFixed(2)}%;height:${(((ry * 2) / 24) * 100).toFixed(2)}%;transform:translateZ(${z.toFixed(1)}px);--k:${k.toFixed(2)}${bg ? `;background:${bg}` : ''}"></i>`;
 }
 
 /** A spire: stacked diamonds narrowing to a point. */
-function spire(x: number, y: number, w: number, z0: number, height: number, cls: string, slices = 6): Part {
+function spire(x: number, y: number, w: number, z0: number, height: number, cls: string, slices = 6, bg?: string): Part {
   let out = '';
   for (let i = 0; i < slices; i++) {
     const t = i / slices;
     const ww = w * (1 - t);
-    out += `<i class="s-gem ${cls}" style="left:${(((x - ww / 2) / 40) * 100).toFixed(2)}%;top:${(((y - ww / 2) / 24) * 100).toFixed(2)}%;width:${((ww / 40) * 100).toFixed(2)}%;height:${((ww / 24) * 100).toFixed(2)}%;transform:translateZ(${(z0 + t * height).toFixed(1)}px) rotate(45deg);--k:${t.toFixed(2)}"></i>`;
+    out += `<i class="s-gem ${cls}" style="left:${(((x - ww / 2) / 40) * 100).toFixed(2)}%;top:${(((y - ww / 2) / 24) * 100).toFixed(2)}%;width:${((ww / 40) * 100).toFixed(2)}%;height:${((ww / 24) * 100).toFixed(2)}%;transform:translateZ(${(z0 + t * height).toFixed(1)}px) rotate(45deg);--k:${t.toFixed(2)}${bg ? `;background:${bg}` : ''}"></i>`;
   }
   return out;
 }
@@ -120,6 +125,45 @@ const MODELS: (() => string)[] = [
     orb(21, 12, 7, 0.5, 's-pod', { rx: 15, slices: 9, h: 0.55 }) +
     `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(8.4px)" aria-hidden="true"><path class="s-plates" d="M11 8.5c1.5 2 1.5 5 0 7M15 6.8c2 3 2 7.4 0 10.4M19.5 6.2c2 3.4 2 8.2 0 11.6"/></svg>` +
     orb(28, 12, 5, 8, 's-cap', { dome: true, slices: 6 }),
+  // Nyxari: a low black blade of a ship, swept crescent wings either side of a hooded dome with one violet eye.
+  () =>
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(0.6px)" aria-hidden="true"><path d="M8 3c-3 1-5 .6-7 1.6M8 21c-3-1-5-.6-7-1.6M14 12H2" fill="none" stroke="#9d8cff" stroke-width="0.7" stroke-linecap="round" stroke-opacity="0.5"/></svg>` +
+    hull('M39 12C30 9.4 22 5.4 7 1.5c6 4.4 8.6 7.4 8.6 10.5S13 18.1 7 22.5C22 18.6 30 14.6 39 12z', '<path class="s-facet" d="M39 12H16M30 9.6 15.6 12 30 14.4M22 6.4 15.6 12 22 17.6"/><path d="M8.5 2.6c5 3.6 7.6 6.4 7.6 9.4s-2.6 5.8-7.6 9.4" fill="none" stroke="#b8a8ff" stroke-width="0.5"/>', { slices: 5, step: 0.55, deck: 'sg-void', sideFill: '#3a3270', taper: 0.35 }) +
+    orb(22, 12, 3.8, 3.2, 's-dome', { dome: true, rx: 5.6, slices: 6, bg: 'radial-gradient(circle at 40% 35%, #6a5ca8, #1d1838 65%, #07060f)' }) +
+    disc(25.4, 12, 1.1, 0.8, 7.2, 's-eye', 0.5, 'radial-gradient(circle, #fff, #c8b8ff 40%, rgba(157, 140, 255, 0) 75%)') +
+    exhaust(15, 12, 1.1, 3.4),
+  // Korrath: a squat armoured forge-barge of dark iron banded in bronze, a ram at the bow, smokestacks and a
+  // furnace glowing amidships, two great engines astern.
+  () =>
+    hull('M38.5 12 35 6.4 26 5 9 5.4 3.5 7.6v8.8L9 18.6l17 .4 9-1.4z', '<path d="M9 5.6v12.8M18 5.2v13.6M26 5.2v13.6" fill="none" stroke="#c9893a" stroke-width="0.8"/><path class="s-panel" d="M4 12h31M35 6.4 38.5 12 35 17.6"/>' + windows([[30, 9], [31.6, 9], [30, 15], [31.6, 15]]), { slices: 10, step: 0.6, deck: 'sg-iron', sideFill: '#6a6460', taper: 0.12 }) +
+    block('M35 8.6 38.4 12 35 15.4 33 15.4V8.6z', 6.4, 1.6, 'sg-bronze') +
+    block('M24 9h5v6h-5z', 6.4, 2.6, 'sg-iron', windows([[28, 10.6], [28, 13.4]])) +
+    orb(19, 12, 2.6, 6.4, 's-furnace', { dome: true, slices: 4, bg: 'radial-gradient(circle at 45% 40%, #fff3c4, #ffa040 45%, #c8401a 75%, #5a1a08)' }) +
+    block('M12 7.4h2.4v2.4H12zM12 14.2h2.4v2.4H12z', 6.4, 6, 'sg-bronze') +
+    disc(13.2, 8.6, 1, 1, 12.8, 's-smoke', 0.5, 'radial-gradient(circle, rgba(200, 190, 180, 0.7), rgba(120, 110, 100, 0) 70%)') +
+    disc(13.2, 15.4, 1, 1, 12.8, 's-smoke', 0.5, 'radial-gradient(circle, rgba(200, 190, 180, 0.7), rgba(120, 110, 100, 0) 70%)') +
+    exhaust(3.6, 9, 1.4, 3.8) +
+    exhaust(3.6, 15, 1.4, 3.8),
+  // Seren: a slender pale star-skiff under a crescent sail, an orrery turning above its deck, two moons on its rings.
+  () =>
+    hull('M39.5 12C33 9.4 22 8.4 10 9.2L4 11v2l6 1.8c12 .8 23-.2 29.5-2.8z', '<path d="M8 12h30" fill="none" stroke="#a9c4ff" stroke-width="0.5"/>' + windows([[33, 12], [30, 12], [27, 12]]), { slices: 6, step: 0.6, deck: 'sg-pearl', sideFill: '#8a9ac8', taper: 0.3 }) +
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(9px)" aria-hidden="true"><path d="M15 4.6a7.4 7.4 0 1 0 0 14.8 5.6 5.6 0 0 1 0-14.8z" fill="#e8eeff" fill-opacity="0.85" stroke="#fff" stroke-width="0.3"/></svg>` +
+    block('M12.4 11.4h1.2v1.2h-1.2z', 3.7, 5.4, 'sg-pearl') +
+    orb(21, 12, 2, 6.4, 's-star', { slices: 6, bg: 'radial-gradient(circle at 40% 35%, #fff, #e8f0ff 45%, #a9c4ff)' }) +
+    disc(21, 12, 6.5, 2.4, 8, 's-ring', 0.5, 'transparent;border:0.35px solid rgba(232, 240, 255, 0.9);box-sizing:border-box') +
+    disc(21, 12, 4.6, 4.6, 8.8, 's-ring', 0.5, 'transparent;border:0.3px solid rgba(255, 217, 138, 0.9);box-sizing:border-box') +
+    orb(27.2, 13.2, 0.9, 7.2, 's-moon', { slices: 3, bg: 'radial-gradient(circle at 40% 35%, #fff, #8a9ad0)' }) +
+    orb(17.6, 8.6, 0.7, 8, 's-moon', { slices: 3, bg: 'radial-gradient(circle at 40% 35%, #fff, #8a9ad0)' }) +
+    exhaust(4, 12, 1.1, 2.4),
+  // Pyrr: a living flare, a hull like a flame laid on its side, its tongues streaming astern round a white-hot heart.
+  () =>
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(0.8px)" aria-hidden="true"><path d="M12 7C8 5 5 7 1 4.5M10 12c-4-1-6 1-9 0M12 17c-4 2-7 0-11 2.5" fill="none" stroke="#ff7a1e" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.8"/><path d="M12 7C8 5 5 7 1 4.5M10 12c-4-1-6 1-9 0M12 17c-4 2-7 0-11 2.5" fill="none" stroke="#ffe27a" stroke-width="0.5" stroke-linecap="round"/></svg>` +
+    hull('M39 12C36.4 7.4 29 5.2 21 6.6 16 4.2 12 5 7 2.6c3 3.4 3.8 5.4-2 6.8 4 1.4 4 3.8 0 5.2 5.8 1.4 5 3.4 2 6.8 5-2.4 9-1.6 14-4 8 1.4 15.4-.8 18-5.4z', '<path d="M38 12C30 10.6 22 9 14 6M38 12c-8 1.4-16 3-24 6M38 12H9" fill="none" stroke="#fff3c4" stroke-width="0.45" stroke-opacity="0.8"/>', { slices: 6, step: 0.6, deck: 'sg-ember', sideFill: '#c8401a', taper: 0.3 }) +
+    orb(24, 12, 3.2, 3.4, 's-heart', { slices: 7, bg: 'radial-gradient(circle at 42% 38%, #ffffff, #fff0a0 30%, #ff9a2a 60%, #e8301a)' }) +
+    spire(16, 12, 3.2, 3.8, 6, 's-tongue', 5, 'linear-gradient(135deg, #fff3c4, #ff7a1e 60%, #c8201a)') +
+    spire(12, 8.6, 2, 3.8, 3.6, 's-tongue', 4, 'linear-gradient(135deg, #fff3c4, #ff7a1e 60%, #c8201a)') +
+    spire(12, 15.4, 2, 3.8, 3.6, 's-tongue', 4, 'linear-gradient(135deg, #fff3c4, #ff7a1e 60%, #c8201a)') +
+    exhaust(6, 12, 1.6, 3),
 ];
 
 /** The Lost Races: a battered derelict, holed and listing, a broken mast stump on its deck. */

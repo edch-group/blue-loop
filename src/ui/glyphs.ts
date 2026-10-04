@@ -137,6 +137,37 @@ const GLYPHS: Record<string, string> = {
   canopy: `<path d="M22 34 C22 20 36 14 50 14 S78 20 78 34 Z"/><path d="M50 34 V48M38 34 V42M62 34 V42"/>`,
   regrowth_pod: `<path class="fill" d="M50 16 C60 22 60 36 50 44 C40 36 40 22 50 16 Z"/><path d="M50 44 V50M34 30 A16 16 0 0 1 42 18"/><polyline points="38,16 42,18 40,23"/>`,
   spore_husk: `<path d="M36 44 C32 30 40 16 50 16 S68 30 64 44 Z"/>${[[-6, 0], [6, 4], [0, 12]].map(([dx, dy]) => `<circle class="dot" cx="${50 + dx}" cy="${28 + dy}" r="2.4"/>`).join('')}`,
+  // Nyxari: hoods, veils and blades
+  nyx_hero_vesh: `<rect x="34" y="14" width="32" height="32" rx="4"/><path d="M40 40 C40 26 44 20 50 18 C56 20 60 26 60 40"/><path class="fill" d="M44 30 L49 28 L49 31 Z M56 30 L51 28 L51 31 Z"/>`,
+  nyx_hero_kael: `<rect x="34" y="14" width="32" height="32" rx="4"/><path class="fill" d="M42 42 C38 32 40 24 46 18 C44 26 46 34 50 40 Z"/><path d="M58 42 C62 32 60 24 54 18 C56 26 54 34 50 40"/>`,
+  nyx_hero_nyxara: `<rect x="34" y="14" width="32" height="32" rx="4"/>${ring(8, 'class="fill"')}${ring(11)}<line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  nyx_night_ambush: `<path d="M38 44 C38 28 44 18 50 16 C56 18 62 28 62 44"/><path class="fill" d="M43 30 L48 28 L48 31 Z M57 30 L52 28 L52 31 Z"/>`,
+  nyx_hollow_reaper: `<line x1="40" y1="48" x2="58" y2="14"/><path class="fill" d="M58 14 Q46 12 36 22 Q46 18 57 20 Z"/>`,
+  nyx_eclipse_rite: `${ring(9, 'class="fill"')}${ring(13)}${rays(8, 16, 22)}`,
+
+  // Korrath: helms, hammers and anvils
+  kor_hero_durga: `<rect x="34" y="14" width="32" height="32" rx="4"/><path class="fill" d="M38 34 H58 Q62 34 64 31 Q62 38 56 38 L55 42 H43 L42 38 Q38 38 38 34 Z"/>`,
+  kor_hero_brannoc: `<rect x="34" y="14" width="32" height="32" rx="4"/><path class="fill" d="M42 20 H58 V34 Q50 44 42 34 Z"/><line x1="50" y1="22" x2="50" y2="38"/>`,
+  kor_hero_anvil_king: `<rect x="34" y="14" width="32" height="32" rx="4"/><rect class="fill" x="42" y="26" width="16" height="10" rx="1.5"/><line x1="50" y1="36" x2="50" y2="44"/><line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  kor_master_smith: `<rect class="fill" x="36" y="18" width="20" height="12" rx="2"/><line x1="46" y1="30" x2="58" y2="46"/>`,
+  kor_shieldwall: [30, 50, 70].map((x, i) => `<path ${i === 1 ? 'class="fill"' : ''} d="M${x - 8} 18 H${x + 8} V34 Q${x} 44 ${x - 8} 34 Z"/>`).join(''),
+  kor_foundry: `<path d="M32 46 V30 Q50 16 68 30 V46"/><path class="fill" d="M44 46 V38 Q50 32 56 38 V46 Z"/>`,
+
+  // Seren: moons and orbits
+  ser_hero_ilyath: `<rect x="34" y="14" width="32" height="32" rx="4"/><line x1="40" y1="40" x2="58" y2="22"/>${ring(2.5, 'class="dot" transform="translate(10 -10)"')}`,
+  ser_hero_maren: `<rect x="34" y="14" width="32" height="32" rx="4"/><ellipse cx="50" cy="30" rx="12" ry="5"/>${ring(5, 'class="fill"')}`,
+  ser_hero_aster: `<rect x="34" y="14" width="32" height="32" rx="4"/><polyline points="40,38 45,24 52,30 60,20"/>${[[40, 38], [45, 24], [52, 30], [60, 20]].map(([x, y]) => `<circle class="dot" cx="${x}" cy="${y}" r="2"/>`).join('')}<line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  ser_orrery_keeper: `${ring(4, 'class="fill"')}<ellipse cx="50" cy="30" rx="18" ry="6" transform="rotate(-20 50 30)"/><ellipse cx="50" cy="30" rx="18" ry="6" transform="rotate(40 50 30)"/>`,
+  ser_twin_moons: `${ring(9, 'class="fill" transform="translate(-10 0)"')}${ring(6, 'transform="translate(14 -4)"')}`,
+  ser_star_chart: `<rect x="30" y="16" width="40" height="28" rx="2"/><polyline class="fill" points="36,38 44,24 52,30 64,20"/>`,
+
+  // Pyrr: flames
+  pyr_hero_ignis: `<rect x="34" y="14" width="32" height="32" rx="4"/><path class="fill" d="M50 18 C56 26 58 32 54 40 C52 36 50 36 48 40 C42 32 44 26 50 18 Z"/>`,
+  pyr_hero_ashka: `<rect x="34" y="14" width="32" height="32" rx="4"/><path class="fill" d="M40 40 L44 30 L50 34 L56 26 L60 40 Z"/><path d="M50 26 L52 18"/>`,
+  pyr_hero_pyrrhus: `<rect x="34" y="14" width="32" height="32" rx="4"/><path class="fill" d="M50 16 C58 24 60 32 54 42 C52 38 48 38 46 42 C40 32 42 24 50 16 Z"/><line x1="22" y1="30" x2="30" y2="30"/><line x1="70" y1="30" x2="78" y2="30"/>`,
+  pyr_cinder_brute: `<path class="fill" d="M50 12 C62 24 64 34 56 46 C54 40 46 40 44 46 C36 34 38 24 50 12 Z"/><polyline points="40,34 46,30 50,36 56,30 60,34"/>`,
+  pyr_flare_burst: `${ring(7, 'class="fill"')}${rays(10, 11, 20)}<path d="M54 22 C60 8 74 10 70 24"/>`,
+  pyr_supernova_charge: `${ring(5, 'class="fill"')}${ring(11)}${ring(17, 'stroke-dasharray="3 3"')}${rays(8, 19, 24)}`,
   spore_cloud: `${[[-16, -6], [0, -10], [14, -4], [-8, 6], [8, 8]].map(([dx, dy], i) => `<circle ${i === 1 ? 'class="fill"' : ''} cx="${50 + dx}" cy="${30 + dy}" r="${6 + (i % 2) * 2}"/>`).join('')}`,
 };
 

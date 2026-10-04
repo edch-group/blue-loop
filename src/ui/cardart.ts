@@ -9,7 +9,10 @@ import { cardDef, type CardDef } from '../engine';
  * and soft glows. Character cards show a figure of their race: an Aureline is
  * a plasma-cloaked being with one great eye inside tilted halos; a Xel'Naru a
  * figure of floating crystal shards round a core of light; a Vorthane a bell
- * of living jelly rimmed with eyes; an Ixquor a walking fungal hive. Each
+ * of living jelly rimmed with eyes; an Ixquor a walking fungal hive; a Nyxari
+ * a hooded void-stalker with slit eyes in an empty hood; a Korrath a squat
+ * smith in iron plate with a fiery T-slit visor; a Seren a robed astronomer
+ * with a face of stars under a crescent moon; a Pyrr a living flame. Each
  * character has its own pose, props, markings and colouring.
  *
  * Glows are radial gradients (no SVG filters), so a table full of cards stays
@@ -573,16 +576,23 @@ function nyxari(S: Scene, x: number, y: number, s: number, o: NyxOpts = {}): str
   if (o.crown) {
     out += eclipse(S, x + 1 * s, y - 6 * s, 12 * s, '#efe6ff');
     for (let i = -3; i <= 3; i++) {
-      const a = -Math.PI / 2 + i * 0.32, r1 = 9 * s, r2 = (17 - Math.abs(i) * 1.6) * s;
-      out += `<polygon points="${f(x + Math.cos(a - 0.1) * r1)},${f(y - 4 * s + Math.sin(a - 0.1) * r1)} ${f(x + Math.cos(a) * r2)},${f(y - 4 * s + Math.sin(a) * r2)} ${f(x + Math.cos(a + 0.1) * r1)},${f(y - 4 * s + Math.sin(a + 0.1) * r1)}" fill="#0b0918" stroke="${rim}" stroke-width="${f(0.5 * s)}" stroke-opacity="0.8"/>`;
+      const a = -Math.PI / 2 + i * 0.3, r1 = 9 * s, r2 = (23 - Math.abs(i) * 2.2) * s;
+      out += `<polygon points="${f(x + Math.cos(a - 0.1) * r1)},${f(y - 4 * s + Math.sin(a - 0.1) * r1)} ${f(x + Math.cos(a) * r2)},${f(y - 4 * s + Math.sin(a) * r2)} ${f(x + Math.cos(a + 0.1) * r1)},${f(y - 4 * s + Math.sin(a + 0.1) * r1)}" fill="#0b0918" stroke="#efe6ff" stroke-width="${f(0.6 * s)}" stroke-opacity="0.9"/>`;
     }
+  }
+  const hand: [number, number] = [x + 16 * s, y + 15 * s];
+  const left: [number, number] = [x - 16 * s, y + 17 * s];
+  if (o.item === 'veil') {
+    // A veil spread wide behind, held up by both hands, falling to the ground.
+    out += `<path d="M${f(left[0])} ${f(left[1])} C${f(x - 26 * s)} ${f(y - 18 * s)} ${f(x + 26 * s)} ${f(y - 18 * s)} ${f(hand[0])} ${f(hand[1])} C${f(hand[0] + 12 * s)} ${f(y + 26 * s)} ${f(x + 30 * s)} ${f(y + 40 * s)} ${f(x + 26 * s)} ${f(y + 46 * s)} L${f(x - 26 * s)} ${f(y + 46 * s)} C${f(x - 30 * s)} ${f(y + 40 * s)} ${f(left[0] - 12 * s)} ${f(y + 26 * s)} ${f(left[0])} ${f(left[1])} Z" fill="${S.linear([[0, rim, 0.42], [1, rim, 0.05]])}" stroke="#e8e0ff" stroke-width="${f(0.6 * s)}" stroke-opacity="0.7"/>`;
+    for (const k of [-1, -0.5, 0.5, 1]) out += `<path d="M${f(x + k * 14 * s)} ${f(y - 9 * s)} Q${f(x + k * 30 * s)} ${f(y + 14 * s)} ${f(x + k * 24 * s)} ${f(y + 45 * s)}" fill="none" stroke="#fff" stroke-width="${f(0.4 * s)}" stroke-opacity="0.35"/>`;
   }
   // Smoke fraying from the hem.
   const wisps = o.wisps ?? 4;
   for (let i = 0; i < wisps; i++) {
     const wx = x - 14 * s + lean + (i * 28 * s) / Math.max(1, wisps - 1);
     const dir = i % 2 ? 1 : -1;
-    out += `<path d="M${f(wx)} ${f(y + 36 * s)} q${f(dir * 6 * s)} ${f(6 * s)} ${f(dir * 2 * s)} ${f(12 * s)} t${f(dir * 8 * s)} ${f(6 * s)}" fill="none" stroke="${rim}" stroke-width="${f(1.6 * s)}" stroke-linecap="round" stroke-opacity="0.3"/>`;
+    out += `<path d="M${f(wx)} ${f(y + 38 * s)} q${f(dir * 7 * s)} ${f(2 * s)} ${f(dir * 11 * s)} ${f(5 * s)} t${f(dir * 10 * s)} ${f(-1 * s)}" fill="none" stroke="${rim}" stroke-width="${f(1.4 * s)}" stroke-linecap="round" stroke-opacity="0.22"/>`;
   }
   // The cloak, its hem torn into points.
   let hem = '';
@@ -591,8 +601,6 @@ function nyxari(S: Scene, x: number, y: number, s: number, o: NyxOpts = {}): str
   out += `<path d="M${f(x)} ${f(y + 8 * s)} L${f(x - 3.5 * s + lean)} ${f(y + 38 * s)} L${f(x + 3.5 * s + lean)} ${f(y + 38 * s)} Z" fill="#07060f" opacity="0.85"/>`;
   for (const k of [-1, 1]) out += `<path d="M${f(x + k * 4 * s)} ${f(y + 9 * s)} Q${f(x + k * 9 * s)} ${f(y + 22 * s)} ${f(x + k * 10 * s + lean)} ${f(y + 37 * s)}" fill="none" stroke="${rim}" stroke-width="${f(0.5 * s)}" stroke-opacity="0.35"/>`;
   // Sleeves reaching to the hands.
-  const hand: [number, number] = [x + 16 * s, y + 15 * s];
-  const left: [number, number] = [x - 16 * s, y + 17 * s];
   if (o.item && o.item !== 'none') {
     out += `<path d="M${f(x + 6 * s)} ${f(y + 6 * s)} Q${f(x + 12 * s)} ${f(y + 8 * s)} ${f(hand[0])} ${f(hand[1] - 1.5 * s)} L${f(hand[0] - 1 * s)} ${f(hand[1] + 2.5 * s)} Q${f(x + 9 * s)} ${f(y + 16 * s)} ${f(x + 6 * s)} ${f(y + 14 * s)} Z" fill="${cloak}" stroke="${rim}" stroke-width="${f(0.5 * s)}" stroke-opacity="0.7"/>`;
     out += `<path d="M${f(x - 6 * s)} ${f(y + 6 * s)} Q${f(x - 12 * s)} ${f(y + 9 * s)} ${f(left[0])} ${f(left[1] - 1.5 * s)} L${f(left[0] + 1 * s)} ${f(left[1] + 2.5 * s)} Q${f(x - 9 * s)} ${f(y + 17 * s)} ${f(x - 6 * s)} ${f(y + 15 * s)} Z" fill="${cloak}" stroke="${rim}" stroke-width="${f(0.5 * s)}" stroke-opacity="0.7"/>`;
@@ -620,10 +628,6 @@ function nyxari(S: Scene, x: number, y: number, s: number, o: NyxOpts = {}): str
       out += `<path d="M${f(tx)} ${f(ty)} Q${f(tx - 14 * s)} ${f(ty - 4 * s)} ${f(tx - 26 * s)} ${f(ty + 9 * s)} Q${f(tx - 13 * s)} ${f(ty + 1 * s)} ${f(tx + 0.5 * s)} ${f(ty + 4 * s)} Z" fill="${S.linear([[0, '#ffffff'], [1, '#8a7cd0']], 0, 0, 1, 1)}" stroke="#fff" stroke-width="${f(0.4 * s)}"/>`;
       break;
     }
-    case 'veil':
-      out += `<path d="M${f(left[0])} ${f(left[1])} C${f(x - 22 * s)} ${f(y - 14 * s)} ${f(x + 22 * s)} ${f(y - 14 * s)} ${f(hand[0])} ${f(hand[1])} C${f(hand[0] + 6 * s)} ${f(y + 30 * s)} ${f(x + 10 * s)} ${f(y + 34 * s)} ${f(x)} ${f(y + 40 * s)} C${f(x - 10 * s)} ${f(y + 34 * s)} ${f(left[0] - 6 * s)} ${f(y + 30 * s)} ${f(left[0])} ${f(left[1])} Z" fill="${S.linear([[0, rim, 0.3], [1, rim, 0.04]])}" stroke="${rim}" stroke-width="${f(0.6 * s)}" stroke-opacity="0.6"/>`;
-      for (const k of [-0.6, 0, 0.6]) out += `<path d="M${f(x + k * 16 * s)} ${f(y - 7 * s)} Q${f(x + k * 22 * s)} ${f(y + 14 * s)} ${f(x + k * 10 * s)} ${f(y + 36 * s)}" fill="none" stroke="#fff" stroke-width="${f(0.4 * s)}" stroke-opacity="0.35"/>`;
-      break;
     case 'lantern': {
       const [lx, ly] = [hand[0] + 1 * s, hand[1] + 9 * s];
       out += `<line x1="${f(hand[0])}" y1="${f(hand[1])}" x2="${f(lx)}" y2="${f(ly - 4 * s)}" stroke="#b8b0d8" stroke-width="${f(0.5 * s)}"/>`;
@@ -755,7 +759,7 @@ function seren(S: Scene, x: number, y: number, s: number, o: SerOpts = {}): stri
   const robe = o.robe ?? '#d6e0ff';
   const night = '#141c48';
   let out = S.glow(x, y + 14 * s, 36 * s, S.p.glow, 0.3);
-  if (o.halo !== false) out += S.glow(x - 3 * s, y - 2 * s, 14 * s, '#ffffff', 0.35) + crescent(S, x + 1 * s, y - 1 * s, 12.5 * s, 28, '#e8eeff', 0.62);
+  if (o.halo !== false) out += S.glow(x - 4 * s, y - 4 * s, 18 * s, '#ffffff', 0.35) + crescent(S, x + 2 * s, y - 2 * s, 16 * s, 32, '#e8eeff', 0.42);
   if (o.crown) {
     out += S.orbit(x, y - 13 * s, 12 * s, 3 * s, 0, '#ffffff', 0.7 * s, 0.7);
     for (let i = -2; i <= 2; i++) out += S.sun(x + i * 4.6 * s, y - 14 * s - (2 - Math.abs(i)) * 1.8 * s, (i ? 0.8 : 1.3) * s, '#e8f0ff', i ? 0 : 6);
@@ -851,7 +855,7 @@ function pyrr(S: Scene, x: number, y: number, s: number, o: PyrOpts = {}): strin
   const b = o.bulk ?? 1;
   const pose = o.pose ?? 'stand';
   let out = S.glow(x, y + 12 * s, 40 * s, fl, 0.42);
-  if (o.wings) for (const k of [-1, 1]) for (let i = 0; i < 5; i++) out += tongue(S, x + k * 6 * s, y + 10 * s, (22 - i * 2.5) * s, 6 * s, k * (12 + i * 6) * s, i % 2 ? mid : fl, 0.85);
+  if (o.wings) for (const k of [-1, 1]) for (let i = 0; i < 6; i++) out += tongue(S, x + k * 7 * s, y + 10 * s, (28 - i * 3) * s, 8 * s, k * (14 + i * 7) * s, i % 2 ? mid : fl, 0.9);
   if (o.crown) {
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2;
@@ -873,6 +877,7 @@ function pyrr(S: Scene, x: number, y: number, s: number, o: PyrOpts = {}): strin
   // The body: a flame turned on its head, white-hot within.
   out += `<path d="M${f(x - 11 * s * b)} ${f(y + 5 * s)} Q${f(x - 9 * s * b)} ${f(y + 18 * s)} ${f(x)} ${f(y + 27 * s)} Q${f(x + 9 * s * b)} ${f(y + 18 * s)} ${f(x + 11 * s * b)} ${f(y + 5 * s)} Q${f(x)} ${f(y + 1 * s)} ${f(x - 11 * s * b)} ${f(y + 5 * s)} Z" fill="${S.radial([[0, '#fffbe0'], [0.35, core], [0.7, mid], [1, fl]], 0.5, 0.35, 0.7)}"/>`;
   for (const k of [-1, 1]) out += tongue(S, x + k * 9 * s * b, y + 7 * s, 8 * s, 4 * s, k * 3 * s, fl, 0.9);
+  out += tongue(S, x, y + 25 * s, 20 * s, 12 * s * b, 0, mid, 0.55) + tongue(S, x - 3 * s * b, y + 22 * s, 12 * s, 5 * s, -1 * s, fl, 0.5) + tongue(S, x + 3 * s * b, y + 22 * s, 12 * s, 5 * s, 1 * s, fl, 0.5);
   if (o.ember) {
     const rock = S.linear([[0, '#5a3a32'], [1, '#1a0c0a']], 0, 0, 1, 1);
     for (const k of [-1, 1]) out += `<path d="M${f(x + k * 3 * s)} ${f(y + 4 * s)} L${f(x + k * 11.5 * s * b)} ${f(y + 4.5 * s)} L${f(x + k * 10 * s * b)} ${f(y + 11 * s)} L${f(x + k * 4 * s)} ${f(y + 9 * s)} Z" fill="${rock}" stroke="${core}" stroke-width="${f(0.7 * s)}" stroke-linejoin="round"/>`;
@@ -884,7 +889,6 @@ function pyrr(S: Scene, x: number, y: number, s: number, o: PyrOpts = {}): strin
   // The head and its coal eyes.
   out += `<ellipse cx="${f(x)}" cy="${f(y)}" rx="${f(6 * s)}" ry="${f(6.6 * s)}" fill="${S.radial([[0, '#ffffff'], [0.45, core], [1, mid]], 0.45, 0.4, 0.65)}"/>`;
   for (const k of [-1, 1]) out += `<path d="M${f(x + k * 0.9 * s)} ${f(y + 0.6 * s)} Q${f(x + k * 2.6 * s)} ${f(y - 1.6 * s)} ${f(x + k * 4.2 * s)} ${f(y - 1.2 * s)} Q${f(x + k * 3 * s)} ${f(y + 1.4 * s)} ${f(x + k * 0.9 * s)} ${f(y + 0.6 * s)} Z" fill="#4a0800"/>`;
-  if (o.ember) out += `<path d="M${f(x - 6 * s)} ${f(y - 1 * s)} Q${f(x - 6 * s)} ${f(y - 6.6 * s)} ${f(x)} ${f(y - 6.8 * s)} Q${f(x + 6 * s)} ${f(y - 6.6 * s)} ${f(x + 6 * s)} ${f(y - 1 * s)} L${f(x + 3 * s)} ${f(y - 3.4 * s)} L${f(x)} ${f(y - 2.4 * s)} L${f(x - 3 * s)} ${f(y - 3.4 * s)} Z" fill="${S.linear([[0, '#6a4a40'], [1, '#2a1410']])}" stroke="${core}" stroke-width="${f(0.5 * s)}" stroke-linejoin="round"/>`;
   out += S.motes(x, y - 14 * s, 10, 22 * s, core, 0.8 * s);
   const [hx, hy] = hands[0];
   switch (o.item) {
@@ -1261,7 +1265,7 @@ const ART_RACES: Record<string, Draw> = {
   nyx_null_shroud: (S) =>
     S.glow(80, 40, 40, '#ffd98a', 0.4) +
     `<path d="M62 44 L58 22 L68 34 L74 16 L80 32 L86 16 L92 34 L102 22 L98 44 Z" fill="${S.linear([[0, '#fff3c4'], [1, '#b8862a']])}"/>` +
-    `<path d="M40 30 C50 20 70 24 80 34 C92 24 112 22 124 34 C128 56 120 80 128 96 L32 96 C40 80 34 56 40 30 Z" fill="${S.linear([[0, '#1d1838', 0.96], [1, '#06050e']])}" stroke="${S.p.accent}" stroke-width="0.9" stroke-opacity="0.8"/>` +
+    `<path d="M32 96 C40 76 34 54 46 40 Q56 30 64 36 L74 24 L80 34 L86 24 L96 36 Q104 30 114 40 C126 54 120 76 128 96 Z" fill="${S.linear([[0, '#1d1838', 0.96], [1, '#06050e']])}" stroke="${S.p.accent}" stroke-width="0.9" stroke-opacity="0.8"/>` +
     [52, 68, 92, 108].map((x) => `<path d="M${x} 36 Q${x - 3} 64 ${x + 2} 94" fill="none" stroke="${S.p.accent}" stroke-width="0.5" stroke-opacity="0.4"/>`).join('') +
     S.card(136, 26, 14, S.p.glow, 13) + S.motes(80, 70, 12, 50, S.p.glow, 0.9),
   nyx_veil_sentry: (S) =>
@@ -1351,13 +1355,13 @@ const ART_RACES: Record<string, Draw> = {
     [54, 76, 98].map((x) => `<circle cx="${x}" cy="82" r="6" fill="#24252c" stroke="#c9893a" stroke-width="1.4"/>`).join('') +
     `<rect x="112" y="58" width="16" height="20" rx="2" fill="#5a5c66"/>` + S.glow(124, 64, 5, S.p.glow, 0.9) + S.motes(80, 40, 8, 26, '#ffe0a0', 0.9),
   kor_master_smith: (S) =>
-    S.ground(92, S.p.deep) + anvil(S, 112, 92, 40) + korrath(S, 58, 34, 1.15, { item: 'hammer' }) + S.motes(108, 66, 14, 16, '#ffe0a0', 0.9),
+    S.ground(92, S.p.deep) + anvil(S, 120, 92, 40) + korrath(S, 54, 36, 1.4, { item: 'hammer' }) + S.motes(116, 66, 14, 16, '#ffe0a0', 0.9),
   // ---- Korrath: Bastion-kin ----
   kor_shieldwall: (S) =>
     S.ground(88, S.p.deep) +
     [18, 46, 74, 102, 130].map((x, i) => `<path d="M${x} ${30 + (i % 2) * 4} H${x + 26} V${70 + (i % 2) * 4} Q${x + 13} ${90 + (i % 2) * 4} ${x} ${70 + (i % 2) * 4} Z" fill="${S.linear([[0, '#e4e8f0'], [0.35, '#8a8f9c'], [1, '#24252c']], 0, 0, 1, 1)}" stroke="#c9893a" stroke-width="1.6"/>` + S.glow(x + 13, 46 + (i % 2) * 4, 5, S.p.glow, 0.8) + `<circle cx="${x + 13}" cy="${46 + (i % 2) * 4}" r="3" fill="#c9893a"/>`).join(''),
   kor_bastion_kin: (S) =>
-    S.ground(92, S.p.deep) + korrath(S, 60, 36, 1.12, { item: 'shield', trim: '#d8a050' }),
+    S.ground(92, S.p.deep) + korrath(S, 62, 36, 1.4, { item: 'shield', trim: '#d8a050' }),
   kor_iron_sentinel: (S) =>
     S.ground(90, S.p.deep) +
     `<path d="M58 92 L60 30 Q80 16 100 30 L102 92 Z" fill="${S.linear([[0, '#e4e8f0'], [0.35, '#7a7f8c'], [1, '#1c1d22']], 0, 0, 1, 1)}" stroke="#16161c"/>` +
@@ -1366,7 +1370,7 @@ const ART_RACES: Record<string, Draw> = {
     `<path d="M62 60 Q80 64 98 60" fill="none" stroke="#c9893a" stroke-width="2"/>`,
   kor_rampart_lord: (S) =>
     `<path d="M-5 70 H20 V62 H32 V70 H128 V62 H140 V70 H165 V105 H-5 Z" fill="${S.linear([[0, '#6a6460'], [1, '#1a1612']])}" stroke="#c9893a" stroke-width="0.8"/>` +
-    korrath(S, 80, 26, 1.15, { item: 'shield', crown: true, cape: '#7a2a14', bulk: 1.1 }),
+    korrath(S, 74, 26, 1.32, { item: 'shield', crown: true, cape: '#7a2a14', bulk: 1.1 }),
   kor_siege_ram: (S) =>
     S.dome(140, 96, 40, '#bfe6ff') + S.glow(116, 60, 18, '#fff3c4', 0.8) +
     `<polygon points="10,46 92,46 116,60 92,74 10,74" fill="${S.linear([[0, '#e4e8f0'], [0.4, '#7a7f8c'], [1, '#1c1d22']])}" stroke="#c9893a" stroke-width="1.2"/>` +
@@ -1387,14 +1391,14 @@ const ART_RACES: Record<string, Draw> = {
     `<path d="M-5 70 H165 V105 H-5 Z" fill="${S.linear([[0, '#3a6a8a', 0.8], [1, '#0a1a2a']])}"/>` + S.waves(70, '#bfe6ff', 1.6, 2, 0.6) +
     `<path d="M70 10 L90 10 L88 80 L80 92 L72 80 Z" fill="${S.linear([[0, '#ffe0a0'], [0.45, '#ff8a3a'], [0.6, '#8aa8c8'], [1, '#bfe6ff']])}" stroke="#fff" stroke-width="0.6"/>` +
     `<rect x="64" y="4" width="32" height="6" rx="2" fill="#c9893a"/>` +
-    [-1, 1].map((k) => [0, 1, 2].map((i) => S.glow(80 + k * (16 + i * 10), 62 - i * 12, 10 - i * 2, '#e6ecf5', 0.5)).join('')).join('') + S.dome(80, 70, 40, '#bfe6ff'),
+    [-1, 1].map((k) => [0, 1, 2, 3].map((i) => S.glow(80 + k * (12 + i * 9), 62 - i * 12, 12 - i * 2, '#e6ecf5', 0.55)).join('')).join('') + S.rings(80, 70, 14, 3, 7, '#bfe6ff', 0.5),
   // ---- Korrath: Heroes ----
   kor_hero_durga: (S) =>
-    S.ground(92, S.p.deep) + anvil(S, 122, 92, 34) + korrath(S, 60, 32, 1.2, { item: 'tongs', crown: true, beard: false, cape: '#5a2a3a', trim: '#e0a860' }),
+    S.ground(92, S.p.deep) + anvil(S, 128, 92, 34) + korrath(S, 54, 36, 1.4, { item: 'tongs', crown: true, beard: false, cape: '#5a2a3a', trim: '#e0a860' }),
   kor_hero_brannoc: (S) =>
-    S.ground(92, S.p.deep) + S.dome(66, 92, 58, '#ffd08a') + korrath(S, 66, 32, 1.22, { item: 'shield', horns: true, cape: '#2a3a5a', plate: '#9aa0ae' }),
+    S.ground(92, S.p.deep) + S.dome(66, 92, 58, '#ffd08a') + korrath(S, 64, 36, 1.4, { item: 'shield', horns: true, cape: '#2a3a5a', plate: '#9aa0ae' }),
   kor_hero_anvil_king: (S) =>
-    S.glow(80, 30, 70, S.p.glow, 0.3) + S.ground(94, S.p.deep) + anvil(S, 30, 96, 30) + korrath(S, 76, 28, 1.3, { item: 'hammer', crown: true, cape: '#7a1a0a', bulk: 1.18, plate: '#6a6e7a' }) + S.motes(80, 50, 14, 70, '#ffe0a0', 0.9),
+    S.glow(80, 30, 70, S.p.glow, 0.3) + S.ground(94, S.p.deep) + anvil(S, 24, 96, 30) + korrath(S, 76, 32, 1.48, { item: 'hammer', crown: true, cape: '#7a1a0a', bulk: 1.18, plate: '#6a6e7a' }) + S.motes(80, 50, 14, 70, '#ffe0a0', 0.9),
 
   // ---- Seren: Tidecasters ----
   ser_astral_lance: (S) =>
@@ -1424,7 +1428,7 @@ const ART_RACES: Record<string, Draw> = {
     S.ground(94, S.p.deep) + seren(S, 58, 30, 1.2, { item: 'orrery', robe: '#c8d6ff' }),
   ser_stargazer: (S) =>
     S.ground(80, S.p.deep) +
-    `<path d="M40 86 V64 Q60 44 80 64 V86 Z" fill="${S.linear([[0, '#d6e0ff'], [1, '#3a4a8a']], 0, 0, 1, 1)}"/>` +
+    `<rect x="36" y="64" width="48" height="24" fill="${S.linear([[0, '#9aa8d8'], [1, '#2a3460']])}"/><path d="M38 64 A22 22 0 0 1 82 64 Z" fill="${S.linear([[0, '#ffffff'], [1, '#6a7ab8']], 0, 0, 1, 1)}"/><path d="M56 64 L58 44 L66 43 L64 64 Z" fill="#0a1030"/>` + [44, 56, 68].map((x) => S.glow(x, 76, 2.4, '#ffe2a0', 0.9)).join('') +
     `<line x1="62" y1="58" x2="104" y2="28" stroke="#5a4320" stroke-width="6" stroke-linecap="round"/><line x1="62" y1="58" x2="104" y2="28" stroke="#e8c47a" stroke-width="4" stroke-linecap="round"/>` +
     S.sun(130, 14, 3, '#e8f0ff', 8) + S.beam(130, 14, 106, 28, 1.2, '#e8f0ff') + S.beam(108, 26, 160, 60, 1.4, '#ffd8a0'),
   ser_oracle: (S) =>
@@ -1458,7 +1462,7 @@ const ART_RACES: Record<string, Draw> = {
   ser_hero_ilyath: (S) =>
     S.ground(94, S.p.deep) + seren(S, 56, 30, 1.25, { item: 'scope', robe: '#dce4ff' }) + S.planet(140, 18, 6, '#ffe2a0', '#8a5a2a', true),
   ser_hero_maren: (S) =>
-    S.planet(130, 80, 26, '#9fd8e8', '#1a3a6a', true) + seren(S, 60, 26, 1.2, { item: 'staff', moons: 4, robe: '#c0dcff' }),
+    S.planet(130, 80, 26, '#9fd8e8', '#1a3a6a', true) + seren(S, 60, 34, 1.15, { item: 'staff', moons: 4, robe: '#c0dcff' }),
   ser_hero_aster: (S) => {
     const pts: [number, number][] = [[18, 20], [34, 12], [30, 40], [130, 14], [146, 30], [138, 48]];
     return S.glow(80, 34, 74, S.p.accent, 0.35) + `<polyline points="${pts.slice(0, 3).map((p) => p.join(',')).join(' ')}" fill="none" stroke="#c8d6ff" stroke-width="0.6"/><polyline points="${pts.slice(3).map((p) => p.join(',')).join(' ')}" fill="none" stroke="#c8d6ff" stroke-width="0.6"/>` + pts.map(([x, y]) => S.sun(x, y, 1.2, '#e8f0ff')).join('') + seren(S, 80, 32, 1.4, { item: 'orrery', crown: true, moons: 5, robe: '#eef2ff' });
@@ -1469,15 +1473,15 @@ const ART_RACES: Record<string, Draw> = {
     S.ground(88, S.p.deep) + blaze(S, 70, 80, 36, 26, -4) + `<ellipse cx="66" cy="68" rx="2" ry="2.6" fill="#4a0800"/><ellipse cx="76" cy="68" rx="2" ry="2.6" fill="#4a0800"/><path d="M66 75 Q71 78 76 75" fill="none" stroke="#4a0800" stroke-width="1"/>` +
     blaze(S, 112, 86, 14, 10, 3) + S.motes(80, 50, 12, 40, '#ffe27a', 1),
   pyr_cinder_brute: (S) =>
-    S.ground(92, S.p.deep) + pyrr(S, 70, 32, 1.25, { ember: true, bulk: 1.3, flame: '#e8301a' }),
+    S.ground(92, S.p.deep) + pyrr(S, 74, 30, 1.42, { ember: true, bulk: 1.3, flame: '#e8301a' }),
   pyr_ash_walker: (S) =>
     `<path d="M-5 84 Q80 76 165 86 V105 H-5 Z" fill="${S.linear([[0, '#8a7a74'], [1, '#2a2020']])}"/>` + S.motes(80, 40, 30, 80, '#c8bcb4', 1) +
-    pyrr(S, 76, 32, 1.15, { ember: true, flame: '#c8401a', core: '#ffc860' }) +
+    pyrr(S, 76, 30, 1.36, { ember: true, flame: '#c8401a', core: '#ffc860' }) +
     [[30, 92], [50, 90]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="4" ry="1.4" fill="#ff8a1e" opacity="0.8"/>`).join(''),
   pyr_heat_bloom: (S) =>
     S.ground(84, S.p.deep) + `<path d="M80 92 C80 80 78 74 80 64" stroke="#5a2a1a" stroke-width="2.6" fill="none"/>` +
-    [-70, -35, 0, 35, 70].map((a) => { const r = (a * Math.PI) / 180; return tongue(S, 80, 62, 26, 12, Math.sin(r) * 26, a === 0 ? '#ff8a1e' : '#e8301a').replace('<path', `<path transform="rotate(${a * 0.6} 80 62)"`); }).join('') +
-    S.sun(80, 60, 4, '#ffe27a') + S.dome(80, 86, 44, '#ffb070'),
+    [-70, -35, 0, 35, 70].map((a) => { return `<g transform="rotate(${a} 80 62)">${blaze(S, 80, 62, 30, 13, 0, '#e8301a')}</g>`; }).join('') +
+    S.sun(80, 62, 4.4, '#ffe27a') + S.rings(80, 62, 36, 2, 6, '#ffb070', 0.45),
   pyr_ember_guard: (S) =>
     S.ground(88, S.p.deep) +
     `<path d="M24 92 L30 50 L52 44 L66 54 L86 42 L108 52 L128 46 L136 92 Z" fill="${S.linear([[0, '#5a3a32'], [1, '#140806']])}" stroke="#ffb040" stroke-width="0.8"/>` +
@@ -1498,7 +1502,7 @@ const ART_RACES: Record<string, Draw> = {
     S.ground(88, S.p.deep) + [16, 32, 48, 64, 80, 96, 112, 128, 144].map((x, i) => blaze(S, x, 88 - Math.sin((i / 8) * Math.PI) * 4, 30 + Math.sin((i / 8) * Math.PI) * 26, 16, (x - 80) * 0.08)).join('') + S.dome(80, 88, 58, '#ffd060'),
   pyr_flarekin_dancer: (S) =>
     S.ground(94, S.p.deep) + [0, 1, 2].map((i) => `<path d="M${30 + i * 10} 90 C${50 + i * 10} 60 ${110 - i * 6} 80 ${130 - i * 4} ${40 + i * 10}" fill="none" stroke="#ffb040" stroke-width="${1.6 - i * 0.4}" stroke-opacity="0.6"/>`).join('') +
-    pyrr(S, 78, 38, 1.05, { pose: 'dance', flame: '#ff4a1a' }),
+    pyrr(S, 80, 34, 1.3, { pose: 'dance', flame: '#ff4a1a' }),
   pyr_stoker: (S) =>
     S.ground(86, S.p.deep) +
     `<path d="M50 70 H110 L104 88 H56 Z" fill="${S.linear([[0, '#6a5a50'], [1, '#1a1210']])}" stroke="#c9893a" stroke-width="1"/>` +
@@ -1518,11 +1522,11 @@ const ART_RACES: Record<string, Draw> = {
     [-2, -1, 0, 1, 2].map((i) => tongue(S, 80 + i * 8, 30 + Math.abs(i) * 3, 16 - Math.abs(i) * 3, 6, i * 2, '#ffd060')).join(''),
   // ---- Pyrr: Heroes ----
   pyr_hero_ignis: (S) =>
-    S.ground(94, S.p.deep) + pyrr(S, 62, 34, 1.2, { pose: 'cast', item: 'fireball', flame: '#ff5a1a' }) + S.beam(98, 37, 160, 20, 1.2, '#ffd060'),
+    S.ground(94, S.p.deep) + pyrr(S, 56, 32, 1.36, { pose: 'cast', item: 'fireball', flame: '#ff5a1a' }) + S.beam(92, 36, 160, 16, 1.2, '#ffd060'),
   pyr_hero_ashka: (S) =>
-    `<path d="M-5 90 Q80 82 165 92 V105 H-5 Z" fill="${S.linear([[0, '#6a4a40'], [1, '#1a0c0a']])}"/>` + pyrr(S, 64, 34, 1.25, { ember: true, crown: true, item: 'whip', flame: '#d8281a', core: '#ffc040' }),
+    `<path d="M-5 90 Q80 82 165 92 V105 H-5 Z" fill="${S.linear([[0, '#6a4a40'], [1, '#1a0c0a']])}"/>` + pyrr(S, 60, 32, 1.36, { ember: true, crown: true, item: 'whip', flame: '#d8281a', core: '#ffc040' }),
   pyr_hero_pyrrhus: (S) =>
-    S.glow(80, 40, 80, '#ff6a1e', 0.45) + pyrr(S, 80, 34, 1.3, { wings: true, crown: true, item: 'brand', flame: '#ff3a1a', core: '#fff0a0' }) + S.motes(80, 60, 20, 80, '#ffd060', 1),
+    S.glow(80, 40, 80, '#ff6a1e', 0.45) + pyrr(S, 80, 32, 1.38, { wings: true, crown: true, item: 'brand', flame: '#ff3a1a', core: '#fff0a0' }) + S.motes(80, 60, 20, 80, '#ffd060', 1),
 };
 Object.assign(ART, ART_RACES);
 
