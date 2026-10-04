@@ -4275,3 +4275,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .dock.dock-space { visibility: hidden; pointer-events: none; }
 .table-view > .dock { --hh: min(calc(26 * var(--vh)), 210px); bottom: calc(var(--hh) * 0.09); }
 .dock-space .hand-space { height: var(--hvis); }
+
+/* Card titles a size down (they took the room the rules text needed), and the race row kept small on small
+   cards too (its old floor made it outsize on a phone). */
+.card .card-name { font-size: max(6px, calc(var(--cw) * 0.062)); line-height: 1.15; padding-right: 0; }
+.card-big .card-name { font-size: max(11px, calc(var(--cw) * 0.06)); }
+.card-table .card-name { font-size: max(5px, calc(var(--cw) * 0.066)); }
+.card-racerow { font-size: max(3.5px, calc(var(--cw, 100px) * 0.032)); }
