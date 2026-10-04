@@ -4352,5 +4352,5 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* Your Hero's actions, in the stage's place: the card, its abilities (and attack) beneath. */
 .stage.stage-hero { pointer-events: auto; }
-.stage-hero-actions { display: grid; gap: 6px; width: 100%; margin-top: 8px; }
+.stage-hero-actions { display: grid; gap: 6px; width: 100%; margin-top: 4px; }
 .stage-hero-actions .insp-ability { width: 100%; }

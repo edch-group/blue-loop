@@ -4250,7 +4250,7 @@ export class App {
     if (!t) return '';
     const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
     const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race!])}${esc(sub)}</b>`;
-    return `<div class="kw-list kw-race-list"><div>${head}<span>${esc(plainText(t.bonus))} ${esc(plainText(t.nerf))}${sub ? ` ${esc(SUBRACES[def.sub!].theme)}.` : ''}</span></div></div>`;
+    return `<div class="kw-list kw-race-list"><div>${head}<span>${esc(plainText(t.bonus))} ${esc(plainText(t.nerf))}</span></div></div>`;
   }
 
   /**
@@ -4295,10 +4295,6 @@ export class App {
     const hero = commandCard(me);
     if (!hero || hero.uid !== this.heroPanel) return '';
     const def = cardDef(hero.defId);
-    const card = this.renderCard(hero, { static: true })
-      .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
-      .replace(/<\/button>\s*$/, '</div>')
-      .replace(/ data-act="[^"]*"/, '');
     const abilities = (def.abilities ?? [])
       .map((k, i) => {
         const why = heroAbilityProblem(s, me, i);
@@ -4306,11 +4302,11 @@ export class App {
       })
       .join('');
     const attack = this.heroActions(me).includes('attack') ? `<button class="btn insp-ability" data-act="attack-start" data-arg="${hero.uid}"><b>Attack</b><small>${cardAttack(s, me, hero)} at a rival card or their sun</small></button>` : '';
+    // Just the choices, to play one quickly (hold or right-click the Hero to read it).
     return `
       <div class="stage stage-hero">
-        ${card}
+        <div class="stage-caption">${esc(def.name.toLowerCase())}</div>
         <div class="stage-hero-actions">${abilities}${attack}</div>
-        <div class="stage-caption">${esc(def.name.toLowerCase())}: choose one</div>
       </div>`;
   }
 

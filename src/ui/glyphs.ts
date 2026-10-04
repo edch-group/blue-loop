@@ -448,9 +448,10 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   // Each mechanic once, by name alone (no numbers): "Heat", not "Heat 1" and "Heat +1".
   const texts = [text, ...[...text.matchAll(/\{options:([^}]+)\}/g)].flatMap((m) => optionList(m[1]).map(optionText))].join(' ');
   // (Gaining energy explains itself.)
-  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
+  // (Gaining energy explains itself; a Hero's ability names are not keywords.)
+  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'act') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
-  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability, and blocks weaker removal.');
+  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');
   return rows.length ? `<div class="kw-list">${rows.join('')}</div>` : '';
 }
