@@ -1014,7 +1014,7 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Forge Clans',
     race: 5,
     cards: [
-      ...twoOf('kor_rivet_graft', 'kor_slag_graft', 'kor_anvil_graft', 'kor_forge_hammer', 'kor_shieldwall', 'kor_bastion_kin', 'kor_iron_sentinel', 'kor_siege_ram', 'kor_molten_pour', 'kor_temper', 'plasma_relay'),
+      ...twoOf('kor_rivet_graft', 'kor_slag_graft', 'kor_anvil_graft', 'kor_forge_hammer', 'kor_shieldwall', 'kor_bastion_kin', 'kor_iron_sentinel', 'kor_siege_ram', 'kor_molten_pour', 'siege_array', 'plasma_relay'),
       'kor_master_smith', 'kor_rampart_lord', 'kor_foundry', 'kor_ore_hauler', 'coronal_lance',
       'kor_hero_durga', 'kor_hero_brannoc', 'kor_hero_anvil_king',
     ],
