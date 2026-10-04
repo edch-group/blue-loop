@@ -4329,3 +4329,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .insp-ability { display: grid; gap: 2px; text-align: left; padding: 8px 12px; }
 .insp-ability b { font-family: var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: #b8801f; }
 .insp-ability small { font-size: 0.72rem; color: var(--ink-soft); text-transform: none; letter-spacing: 0; }
+/* Small: the round sits in the flower's own heart (about a quarter of its width), the ticks just around it. */
+.round-ring { width: 42px; }
+.round-ring path { stroke-width: 7; }
+.round-ring-num { width: 72%; box-shadow: 0 1px 4px rgba(90, 90, 110, 0.18); }
+.round-ring-num small { display: none; }
+.round-ring-num b { font-size: 13px; margin-top: 0; }
+.round-ring-num em { font-size: 7px; margin-top: 0; }
