@@ -1640,7 +1640,7 @@ function startResearch(f: Faction, id: string) {
 /** The AI researches what helps its armies most, cheapest first among what it can start. */
 function aiResearch(f: Faction) {
   if (f.research?.current) return;
-  const order = ['march1', 'hull1', 'mend1', 'energy1', 'hand1', 'cool1', 'sight1', 'loot1', 'hull2', 'march2', 'mend2', 'energy2', 'dread1', 'dread2'];
+  const order = ['hull1', 'sight1', 'march1', 'mend1', 'cool1', 'energy1', 'loot1', 'hand1', 'hull2', 'march2', 'mend2', 'energy2', 'dread1', 'dread2'];
   // (It keeps some materials for cards, early on.)
   const id = order.find((x) => researchProblem(f.research, f.materials - 4, x) === null);
   if (id) startResearch(f, id);

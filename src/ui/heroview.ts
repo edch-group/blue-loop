@@ -3,7 +3,7 @@
  * sits on the body; and their skill tree, a constellation that grows up from the hero in two branches,
  * each skill a star (the bigger the skill, the bigger the star).
  */
-import { cardDef, skillCost, type HeroSkill, type Item, type SlotKind } from '../engine';
+import { cardDef, skillCost, RESEARCH_BRANCHES, type HeroSkill, type Item, type ResearchProject, type SlotKind } from '../engine';
 import { cardScene } from './cardart';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -222,6 +222,91 @@ export function skillTree(d: TreeData): string {
       <svg class="hv-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${lines.join('')}</svg>
       <div class="hv-root" style="left:${ROOT[0]}%;top:${ROOT[1]}%">${d.portrait}${d.points > 0 ? `<i class="hv-root-pts">${d.points}</i>` : ''}</div>
       ${BRANCH_NAME.map((n, i) => `<i class="hv-branch" style="left:${[20, 50, 80][i]}%">${n}</i>`).join('')}
+      ${stars}
+    </div>
+    ${detail}`;
+}
+
+// ---------------------------------------------------------------------------
+// The research tree: the same night sky, four branches rising from the research core
+// ---------------------------------------------------------------------------
+
+/** Where each project of a branch sits (x%, y%), from the core at the foot outward and up. */
+const RS_STARS: [number, number][][] = [
+  [[31, 75], [21, 58], [13, 41], [8, 23]],
+  [[42, 64], [37, 47], [33, 30], [30, 13]],
+  [[58, 64], [63, 47], [67, 30], [70, 13]],
+  [[69, 75], [79, 58], [87, 41], [92, 23]],
+];
+const RS_ROOT: [number, number] = [50, 89];
+/** The research core at the foot of the tree: an atom of three orbits. */
+const RS_CORE = '<svg class="rs-core-art" viewBox="0 0 48 48" aria-hidden="true"><ellipse cx="24" cy="24" rx="19" ry="7"/><ellipse cx="24" cy="24" rx="19" ry="7" transform="rotate(60 24 24)"/><ellipse cx="24" cy="24" rx="19" ry="7" transform="rotate(-60 24 24)"/><circle class="rs-nucleus" cx="24" cy="24" r="4"/></svg>';
+
+export interface ResearchTreeData {
+  projects: ResearchProject[];
+  done: string[];
+  current?: { id: string; left: number };
+  /** Why each project can't be started now (null: it can). */
+  problem: (id: string) => string | null;
+  picked: string | null;
+  materialsIcon: string;
+}
+
+/** The research constellation: the core at its foot, a branch for each field, and the picked project below. */
+export function researchTree(d: ResearchTreeData): string {
+  const state = (p: ResearchProject) => (d.done.includes(p.id) ? 'learned' : d.current?.id === p.id ? 'current' : d.problem(p.id) ? 'locked' : 'open');
+  const pos = (p: ResearchProject) => RS_STARS[p.branch][p.tier - 1];
+  const last = (p: ResearchProject) => !d.projects.some((x) => x.branch === p.branch && x.tier > p.tier);
+  const size = (p: ResearchProject) => (last(p) ? 3 : p.tier === 1 ? 1 : 2);
+  const lines: string[] = [];
+  for (const b of [0, 1, 2, 3]) {
+    let from = RS_ROOT;
+    let lit = true;
+    for (const p of d.projects.filter((x) => x.branch === b).sort((x, y) => x.tier - y.tier)) {
+      const to = pos(p);
+      const st = state(p);
+      lit = lit && st === 'learned';
+      const bend = [-4, -2, 2, 4][b];
+      lines.push(`<path class="hv-link ${lit ? 'lit' : st === 'open' || st === 'current' ? 'next' : ''}" d="M${from[0]} ${from[1]} Q${(from[0] + to[0]) / 2 + bend} ${(from[1] + to[1]) / 2} ${to[0]} ${to[1]}"/>`);
+      from = to;
+    }
+  }
+  const stars = d.projects
+    .map((p) => {
+      const [x, y] = pos(p);
+      const st = state(p);
+      const rays = size(p) === 3 ? `<svg class="hv-rays" viewBox="0 0 100 100" aria-hidden="true">${Array.from({ length: 12 }, (_, i) => `<path d="M50 50 L${(50 + 48 * Math.cos((i * Math.PI) / 6)).toFixed(1)} ${(50 + 48 * Math.sin((i * Math.PI) / 6)).toFixed(1)}" />`).join('')}</svg>` : '';
+      const ring = st === 'current' ? `<svg class="rs-ring" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18" pathLength="100" style="stroke-dasharray:${Math.round(((p.turns - d.current!.left) / p.turns) * 100)} 100"/></svg><i class="rs-left">${d.current!.left}</i>` : '';
+      return `<button class="hv-star tier-${size(p)} ${st} ${d.picked === p.id ? 'picked' : ''}" style="left:${x}%;top:${y}%" data-act="cmp-research-pick" data-arg="${p.id}" title="${esc(`${p.name}: ${p.text}`)}" aria-label="${esc(`${p.name} (${st}): ${p.text}`)}">
+          ${rays}${ring}<span class="hv-star-core">${icon(SKILL_ICON[p.icon] ?? SKILL_ICON.ward)}</span>
+          <i class="hv-star-name">${esc(p.name)}</i>
+        </button>`;
+    })
+    .join('');
+  const pick = d.projects.find((p) => p.id === d.picked) ?? d.projects.find((p) => state(p) === 'current') ?? d.projects.find((p) => state(p) === 'open') ?? d.projects[0];
+  const pst = state(pick);
+  const why = d.problem(pick.id);
+  const action =
+    pst === 'learned'
+      ? '<span class="hv-learned">researched</span>'
+      : pst === 'current'
+        ? `<span class="hv-learned rs-under">${d.current!.left} turn${d.current!.left === 1 ? '' : 's'} left</span>`
+        : `<button class="hv-learn" data-act="cmp-research" data-arg="${pick.id}" ${why ? `disabled title="${esc(why)}"` : ''}>${why ? esc(why.replace(/\.$/, '').toLowerCase()) : `research · ${d.materialsIcon} ${pick.cost} · ${pick.turns} turns`}</button>`;
+  const detail = `<div class="hv-detail tier-${size(pick)} ${pst === 'current' ? 'open' : pst}">
+      <span class="hv-detail-icon">${icon(SKILL_ICON[pick.icon] ?? SKILL_ICON.ward)}</span>
+      <div class="hv-detail-body">
+        <small>${RESEARCH_BRANCHES[pick.branch]} ${pick.tier} · every army · ${pick.cost} materials, ${pick.turns} turns</small>
+        <b>${esc(pick.name)}</b>
+        <p>${esc(pick.text)}</p>
+      </div>
+      ${action}
+    </div>`;
+  return `
+    <div class="hv-sky rs-sky">
+      <div class="hv-dust" aria-hidden="true">${SKY_DUST}</div>
+      <svg class="hv-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${lines.join('')}</svg>
+      <div class="hv-root rs-root ${d.current ? 'busy' : ''}" style="left:${RS_ROOT[0]}%;top:${RS_ROOT[1]}%">${RS_CORE}</div>
+      ${RESEARCH_BRANCHES.map((n, i) => `<i class="hv-branch" style="left:${[14, 36, 64, 86][i]}%">${n}</i>`).join('')}
       ${stars}
     </div>
     ${detail}`;

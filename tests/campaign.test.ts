@@ -689,16 +689,19 @@ describe('armies and generals', () => {
     let s = fresh();
     const f = campaignPlayer(s);
     f.materials = 0;
-    expect(() => applyCampaignAction(s, { type: 'research', id: 'march1' })).toThrow(/materials/);
-    expect(() => applyCampaignAction(s, { type: 'research', id: 'march2' })).toThrow(/first/);
+    expect(() => applyCampaignAction(s, { type: 'research', id: 'sight1' })).toThrow(/materials/);
+    expect(() => applyCampaignAction(s, { type: 'research', id: 'march1' })).toThrow(/first/);
     campaignPlayer(s).materials = 50;
-    s = applyCampaignAction(s, { type: 'research', id: 'march1' });
-    expect(campaignPlayer(s).materials).toBe(50 - researchProject('march1')!.cost);
+    s = applyCampaignAction(s, { type: 'research', id: 'sight1' });
+    expect(campaignPlayer(s).materials).toBe(50 - researchProject('sight1')!.cost);
     expect(() => applyCampaignAction(s, { type: 'research', id: 'hull1' })).toThrow(/Already researching/);
-    // It is done after its turns, and its armies then march one route further.
-    for (let i = 0; i < researchProject('march1')!.turns; i++) s = settle(applyCampaignAction(s, { type: 'endTurn' }));
-    expect(campaignPlayer(s).research?.done).toContain('march1');
+    // It is done after its turns, and its armies then see further.
+    for (let i = 0; i < researchProject('sight1')!.turns; i++) s = settle(applyCampaignAction(s, { type: 'endTurn' }));
+    expect(campaignPlayer(s).research?.done).toContain('sight1');
     expect(campaignPlayer(s).research?.current).toBeUndefined();
+    expect(armyBonus(s, myArmy(s)).sight).toBe(1);
+    // The next project up the branch can start now: marching a route further.
+    campaignPlayer(s).research = { done: ['sight1', 'march1'] };
     expect(armyBonus(s, myArmy(s)).march).toBe(1);
     // Hulls and energy reach the battle as the army's modifiers.
     let b = fresh();

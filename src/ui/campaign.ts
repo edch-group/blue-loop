@@ -75,7 +75,7 @@ import {
 } from '../engine';
 import { markDirty } from './account';
 import { DeckBuilder, type BuilderMode } from './builder';
-import { heroFigure, skillTree, SKILL_ICON } from './heroview';
+import { heroFigure, researchTree, skillTree } from './heroview';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
@@ -299,6 +299,8 @@ export class CampaignView {
   private report: { title: string; lines: string[] } | null = null;
   private sheet: Sheet | null = null;
   /** The base's tab last open (deck, armory or missions). */
+  /** In the research tab: the project picked. */
+  private researchPick: string | null = null;
   private baseTab: 'deck' | 'heroes' | 'research' | 'armory' | 'missions' = 'deck';
   /** New-campaign setup choices. */
   private setup = { rivals: 3, race: 0 };
@@ -610,6 +612,10 @@ export class CampaignView {
         break;
       case 'cmp-research':
         if (this.apply({ type: 'research', id: arg })) sound.upgrade();
+        break;
+      case 'cmp-research-pick':
+        this.researchPick = arg;
+        sound.hover();
         break;
       case 'cmp-hero':
         this.sheet = { kind: 'heroes', hero: arg };
@@ -1964,26 +1970,6 @@ export class CampaignView {
   private renderResearch(): string {
     const me = campaignPlayer(this.state!);
     const r = me.research ?? { done: [] };
-    const cur = r.current ? researchProject(r.current.id) : undefined;
-    const glyph = (k: string) => `<svg class="cmp-rs-icon" viewBox="0 0 24 24" aria-hidden="true">${SKILL_ICON[k] ?? SKILL_ICON.ward}</svg>`;
-    const now = cur
-      ? `<div class="cmp-rs-now">${glyph(cur.icon)}<span><small>researching</small><b>${esc(cur.name)}</b><em>${esc(cur.text)}</em></span>
-          <span class="cmp-rs-left"><b>${r.current!.left}</b><small>turn${r.current!.left === 1 ? '' : 's'} left</small></span>
-          <span class="cmp-xp cmp-rs-bar"><i style="width:${Math.round(((cur.turns - r.current!.left) / cur.turns) * 100)}%"></i></span></div>`
-      : '<div class="cmp-rs-now cmp-rs-idle"><span><small>researching</small><b>nothing</b><em>Start a project below: it is paid for now, and is done in a few turns.</em></span></div>';
-    const rows = RESEARCH.map((p) => {
-      const done = r.done.includes(p.id);
-      const on = r.current?.id === p.id;
-      const why = done || on ? null : researchProblem(r, me.materials, p.id);
-      const locked = !done && !on && !!p.needs && !r.done.includes(p.needs);
-      const state = done ? 'done' : on ? 'on' : locked ? 'locked' : '';
-      const action = done
-        ? '<span class="cmp-rs-tag">done</span>'
-        : on
-          ? '<span class="cmp-rs-tag">under way</span>'
-          : `<button class="btn-primary btn-small" data-act="cmp-research" data-arg="${p.id}" ${why ? `disabled title="${esc(why)}"` : ''}>${MATERIALS} ${p.cost} · ${p.turns} turns</button>`;
-      return `<div class="cmp-rs-row ${state}">${glyph(p.icon)}<span><b>${esc(p.name)}</b><em>${esc(p.text)}</em>${locked ? `<small>needs ${esc(researchProject(p.needs!)!.name)}</small>` : ''}</span>${action}</div>`;
-    }).join('');
     const b = researchBonus(r);
     const sums = [
       b.mods.extraPlays ? `+${b.mods.extraPlays} energy a day` : '',
@@ -1996,10 +1982,14 @@ export class CampaignView {
       b.loot ? 'more gear found' : '',
       b.dread ? 'the weak surrender' : '',
     ].filter(Boolean);
-    return `<div class="cmp-base-missions cmp-research">
-        ${now}
-        <p class="muted">${sums.length ? `Every army: ${sums.join(' · ')}.` : 'Research is shared by every one of your armies.'}</p>
-        <div class="cmp-rs-list">${rows}</div>
+    const cur = r.current ? researchProject(r.current.id) : undefined;
+    const head = cur ? `researching <b>${esc(cur.name)}</b> · ${r.current!.left} turn${r.current!.left === 1 ? '' : 's'} left` : 'nothing under way: pick a star to research. One project at a time, paid for when it starts.';
+    return `<div class="cmp-research">
+        <p class="cmp-rs-head">${head}</p>
+        <section class="hv-tree rs-tree">
+          ${researchTree({ projects: RESEARCH, done: r.done, current: r.current, problem: (id) => researchProblem(r, me.materials, id), picked: this.researchPick, materialsIcon: MATERIALS })}
+        </section>
+        <p class="cmp-rs-sum">${sums.length ? `Every army: ${sums.join(' · ')}` : 'What is researched, every one of your armies shares.'}</p>
       </div>`;
   }
 
