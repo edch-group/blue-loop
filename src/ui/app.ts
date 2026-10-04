@@ -487,6 +487,8 @@ export class App {
   private stage: Stage | null = null;
   /** Your Hero, tapped on your day: its actions (abilities, and attack) shown in the stage's place, middle right. */
   private heroPanel: string | null = null;
+  /** The board zoomed onto one tableau (the rival's, or yours), to read it close up; null: the whole board. */
+  private boardZoom: 'rival' | 'mine' | null = null;
   private sheet: Sheet | null = null;
   /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
   private landing: (() => void) | null = null;
@@ -682,6 +684,46 @@ export class App {
       { capture: true },
     );
     window.addEventListener('touchstart', () => (this.touch = true), { capture: true, passive: true });
+    // Zooming the board: double-tap (or double-click) a tableau's open table to zoom onto it (again to zoom out),
+    // or pinch it open (and closed again) on a touch screen.
+    const half = (y: number): 'rival' | 'mine' => {
+      const rival = this.root.querySelector('.tableau-rival')?.getBoundingClientRect();
+      const mine = this.root.querySelector('.tableau-mine')?.getBoundingClientRect();
+      if (!rival || !mine) return y < window.innerHeight / 2 ? 'rival' : 'mine';
+      return Math.abs(y - (rival.top + rival.bottom) / 2) < Math.abs(y - (mine.top + mine.bottom) / 2) ? 'rival' : 'mine';
+    };
+    root.addEventListener('dblclick', (e) => {
+      if (this.screen !== 'game' || this.sheet || (e.target as HTMLElement).closest('[data-act], .dock, .hud, .stage, .overlay')) return;
+      this.setBoardZoom(this.boardZoom ? null : half(e.clientY));
+    });
+    let pinch: { d: number; y: number } | null = null;
+    const spread = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    root.addEventListener(
+      'touchstart',
+      (e) => {
+        if (this.screen === 'game' && e.touches.length === 2) {
+          pinch = { d: spread(e.touches), y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+          this.cancelPress();
+        }
+      },
+      { passive: true },
+    );
+    root.addEventListener(
+      'touchmove',
+      (e) => {
+        if (!pinch || e.touches.length !== 2) return;
+        e.preventDefault();
+        const ratio = spread(e.touches) / pinch.d;
+        if (ratio > 1.25) this.setBoardZoom(half(pinch.y));
+        else if (ratio < 0.8) this.setBoardZoom(null);
+        else return;
+        pinch = null;
+      },
+      { passive: false },
+    );
+    root.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) pinch = null;
+    });
     // Re-lay out whenever the page's size settles (after a rotation the first resize event can be stale).
     window.addEventListener(VIEWPORT_EVENT, () => {
       this.fitHand();
@@ -1151,6 +1193,7 @@ export class App {
   }
 
   private begin(state: GameState) {
+    this.boardZoom = null;
     this.gamesBegun++;
     // A game against the AI: a new one is noted by the server (for its reward); a continued one keeps its id.
     const humans = state.players.filter((p) => !p.isAI).length;
@@ -2368,6 +2411,7 @@ export class App {
     }
     if (e.key !== 'Escape') return;
     if (this.peeking) return this.setPeek(false);
+    if (this.boardZoom && !this.zoomed && !this.pending && !this.sheet) return this.setBoardZoom(null);
     if (this.zoomed) {
       this.zoomed = null;
       return this.root.querySelector('.zoom-view')?.remove();
@@ -2486,7 +2530,7 @@ export class App {
     // recalls or fuses onto, its target), another card in hand, or cancel puts it back in the hand.
     if (this.screen === 'game' && this.pending && !(e.target as HTMLElement).closest?.('.overlay, .modal, .sheet, .hud, .zoom-view, .peek-toggle, .peek-shield')) {
       const a = el && !el.hasAttribute('disabled') ? el.dataset.act ?? '' : '';
-      if (a !== 'play' && a !== 'cancel' && a !== 'attack-start' && !a.startsWith('choose-')) {
+      if (a !== 'play' && a !== 'cancel' && a !== 'attack-start' && a !== 'board-zoom' && !a.startsWith('choose-')) {
         this.pending = null;
         this.render();
         return;
@@ -2830,6 +2874,8 @@ export class App {
       case 'end-day-confirm':
         this.sheet = null;
         return this.dispatch({ type: 'endTurn' });
+      case 'board-zoom':
+        return this.setBoardZoom(this.boardZoom === arg ? null : (arg as 'rival' | 'mine'));
       case 'hero-panel':
         this.heroPanel = this.heroPanel === arg ? null : arg;
         sound.hover();
@@ -3693,7 +3739,7 @@ export class App {
     // The whole play area is a table seen in perspective; pop-ups and the
     // played-card stage sit outside it so they stay flat and readable.
     return `
-      <main class="table-view">
+      <main class="table-view${this.boardZoom ? ` zoom-${this.boardZoom}` : ''}">
         <div class="game">
           <header class="top"></header>
           ${this.renderBoard()}
@@ -3704,10 +3750,32 @@ export class App {
         ${this.renderHud()}
         ${this.renderTurnControls()}
         ${this.renderPhaseTrack()}
+        ${this.renderZoomControls()}
         ${this.renderStage()}
         ${this.renderResult()}
         ${this.renderOverlay(s)}
       </main>`;
+  }
+
+  /** Zoom onto a tableau (theirs above, yours below), or back out to the whole board. */
+  private renderZoomControls(): string {
+    const z = this.boardZoom;
+    const btn = (side: 'rival' | 'mine', label: string) =>
+      `<button class="zoom-btn${z === side ? ' on' : ''}" data-act="board-zoom" data-arg="${side}" title="${z === side ? 'Zoom back out (Esc)' : `Zoom in on ${label} (or double-tap it; pinch on a phone)`}">${z === side ? '<span>⤡</span>' : '<span>⤢</span>'}<small>${z === side ? 'back' : label}</small></button>`;
+    return `<div class="board-zoom">${btn('rival', 'theirs')}${btn('mine', 'yours')}</div>`;
+  }
+
+  /** Zoom the board onto one tableau, or out (null): the board itself moves, so everything on it still works. */
+  private setBoardZoom(side: 'rival' | 'mine' | null) {
+    if (this.boardZoom === side) return;
+    this.boardZoom = side;
+    sound.hover();
+    const view = this.root.querySelector('.table-view');
+    if (!view) return;
+    view.classList.toggle('zoom-rival', side === 'rival');
+    view.classList.toggle('zoom-mine', side === 'mine');
+    const ctl = this.root.querySelector('.board-zoom');
+    if (ctl) ctl.outerHTML = this.renderZoomControls();
   }
 
   /** Round and stability, together in one container at the top centre. */

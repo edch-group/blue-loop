@@ -1558,8 +1558,9 @@ body.screen-campaign .backdrop { display: none; }
 .table-view {
   /* The table keeps one shape whatever the window: no wider than its height allows, no taller than its width
      allows, centred in the window. */
-  --gw: min(calc(100 * var(--vw)), calc(var(--app-h, calc(100 * var(--vh))) * 2.2));
-  --gh: min(calc(112 * var(--vh)), calc(var(--gw) * 0.64));
+  /* (--bz: how far the board is zoomed onto one tableau: it is laid out larger, not scaled, so it stays sharp.) */
+  --gw: calc(min(calc(100 * var(--vw)), calc(var(--app-h, calc(100 * var(--vh))) * 2.2)) * var(--bz, 1));
+  --gh: calc(min(calc(112 * var(--vh)), calc(var(--gw) / var(--bz, 1) * 0.64)) * var(--bz, 1));
   /* How far the board tips away from the viewer. */
   --board-tilt: 34deg;
   position: fixed; inset: 0;
@@ -4365,3 +4366,20 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .stage-hero .card-ability-on:hover { background: rgba(240, 170, 60, 0.3); }
 .stage-hero .card-ability-off { opacity: 0.45; }
 .stage-hero .stat-atk-on { pointer-events: auto; cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 10px 2px rgba(230, 90, 70, 0.7); }
+
+/* ---------- Zooming onto a tableau: the board tips flatter and comes closer, centred on that side ---------- */
+.table-view > .game { transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.table-view > .dock { transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.table-view.zoom-rival, .table-view.zoom-mine { --bz: 1.45; }
+/* (Wider than the window now: kept centred, its sides running off both edges alike.) */
+.table-view.zoom-rival > .game, .table-view.zoom-mine > .game { margin-left: calc((100% - var(--gw)) / 2); }
+.table-view.zoom-rival > .game { transform: translateY(calc(var(--gh) * 0.25)) rotateX(10deg) scale(0.82); }
+.table-view.zoom-mine > .game { transform: translateY(calc(var(--gh) * -0.2)) rotateX(10deg) scale(0.82); }
+/* (Your hand steps aside, mostly out of view, while you look closely; it is back as you zoom out.) */
+.table-view.zoom-rival > .dock, .table-view.zoom-mine > .dock { transform: translateY(62%); }
+.board-zoom { position: fixed; left: max(10px, var(--sa-l, 0px)); top: 50%; transform: translateY(-50%); z-index: 13; display: grid; gap: 10px; }
+.zoom-btn { display: grid; justify-items: center; gap: 1px; width: 46px; padding: 6px 0 5px; border: 1px solid #fff; border-radius: 14px; background: rgba(255, 255, 255, 0.85); box-shadow: var(--shadow); color: var(--ink-soft); cursor: pointer; font-family: var(--display); }
+.zoom-btn span { font-size: 1rem; line-height: 1; }
+.zoom-btn small { font-size: 0.46rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.zoom-btn.on { background: #3a4256; color: #fff; border-color: #3a4256; }
+@media (prefers-reduced-motion: reduce) { .table-view > .dock { transition: none; } }
