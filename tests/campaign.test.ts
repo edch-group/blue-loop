@@ -338,12 +338,13 @@ describe('the armory', () => {
 });
 
 describe('fog of war', () => {
-  it('shows only your systems and those linked to them, two links out from a scanner', () => {
+  it('shows only your systems and those linked to them (and the Heart), two links out from a scanner', () => {
     const s = fresh();
     const h = home(s);
     for (const n of s.nodes) n.scanner = false;
     const seen = visibleNodes(s, s.playerId);
-    expect([...seen].sort()).toEqual([h.id, ...h.links].sort());
+    const heart = s.nodes.find((n) => n.heart)!;
+    expect([...seen].sort()).toEqual([...new Set([h.id, ...h.links, heart.id])].sort());
     // An army sees the routes out of where it stands.
     const out = nodeById(s, h.links[0]);
     myArmy(s).nodeId = out.id;
