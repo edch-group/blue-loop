@@ -45,6 +45,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   eject: { name: 'eject', group: 'removal', explain: () => "Sends a rival card back to its owner's hand, if its defence is no higher than the number." },
   sting: { name: 'sting', group: 'shields', explain: () => "When your shields block a card's heat, that card takes heat back. Once per card a day." },
   soothe: { name: 'soothe', group: 'shields', explain: () => 'When your shields block heat, your sun cools. Once per card a day.' },
+  fusion: { name: 'fusion', group: 'tempo', explain: () => 'Played onto one of your cards in play, not into a slot: that card gains its dawn effects, Sturdy and stability. They leave together.' },
   tidewall: { name: 'tidewall', group: 'shields', explain: () => 'While this is in play, your shields guard your cards too (not just your sun).' },
   hold: { name: 'hold', group: 'shields', explain: () => "Your shields don't fade at your dawn." },
   thermosiphon: { name: 'thermosiphon', group: 'cool', explain: () => 'Its number is per point your sun is below zero. At 0 or hotter, it does nothing.' },

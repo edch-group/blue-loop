@@ -28,6 +28,7 @@ import {
   persists,
   commandCard,
   inSlots,
+  fusionHosts,
   fullDefence,
   baseStability,
   playsAllowed,
@@ -111,7 +112,9 @@ type Speed = 'slow' | 'normal' | 'fast';
  */
 interface Pending {
   uid: string;
-  step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot';
+  step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot' | 'host';
+  /** A Fusion card: the card of yours it fuses onto. */
+  hostUid?: string;
   /** Where its heat goes: a rival card's uid, or 'sun'. */
   aimUid?: string;
   /** Aiming the dawn heat of a card already in your tableau (uid is that card), not playing one. */
@@ -231,7 +234,7 @@ const KW_TIP_DELAY_MS = 350;
 const SCROLL_KEEP = '.db-pool, .db-rows, .db-list-body, .setup-body, .pile-grid, .log-list';
 const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
 /** Clicks that make their own sound (or none): moves on the table and picks on the map. */
-const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
+const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-host', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
 
 /** A number that pops out of a sun and rises away: heat taken, cooling, shields. Outside the re-rendered root. */
 function floatNumber(at: DOMRect, text: string, tone: 'hot' | 'cool' | 'block', row: number) {
@@ -2166,9 +2169,11 @@ export class App {
     if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
     // Even the last open slot is clicked to confirm (a misclicked card is never played outright).
     // (A recall card can also go into the slot of the card it recalls.)
+    // A Fusion card: the card of yours it fuses onto.
+    if (cardDef(card.defId).fusion && !p.hostUid) return ask('host');
     const replaces = allyEffectKind(card.defId) === 'recall' && !!p.allyUid;
     if (inSlots(card.defId) && (freeSlots(me).length > 0 || replaces) && p.slot === undefined) return ask('slot');
-    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined });
+    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.hostUid ? { hostUid: p.hostUid } : {}) });
   }
 
   // -------------------------------------------------------------------------
@@ -2713,6 +2718,9 @@ export class App {
         return this.breakDawn();
       case 'choose-ally':
         if (this.pending) this.pending.allyUid = arg;
+        return this.advancePlay();
+      case 'choose-host':
+        if (this.pending) this.pending.hostUid = arg;
         return this.advancePlay();
       case 'choose-recover':
         if (this.pending) this.pending.recoverUid = arg;
@@ -3610,6 +3618,7 @@ export class App {
     if (p.step === 'aim') return hint(aimChoices(s, activePlayer(s)).sun ? 'aim heat' : 'aim at a guard');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
+    if (p.step === 'host') return hint('fuse onto a card');
     return '';
   }
 
@@ -3878,6 +3887,10 @@ export class App {
       attrs = `data-act="choose-ally" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
+    if (p && opts.tableau === 'mine' && p.step === 'host' && opts.owner && fusionHosts(opts.owner).some((h) => h.uid === c.uid)) {
+      attrs = `data-act="choose-host" data-arg="${c.uid}" title="Fuse it onto ${esc(cardDef(c.defId).name)}"`;
+      state = 'card-choosable';
+    }
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
     // On your day, a card that costs more energy than you have left is dimmed.
     if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
@@ -3891,6 +3904,10 @@ export class App {
       return hover === undefined || hover === shown ? base : `<span class="pv-now">${base}</span><span class="pv-after">${icon}${hover}</span>`;
     };
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
+    // Fusion cards fused onto it: a tag for each, its text on hover.
+    const fusedTags = c.fused?.length
+      ? `<span class="fused-tags">${c.fused.map((f) => `<i title="${esc(`${cardDef(f.defId).name} (fused): ${plainText(cardDef(f.defId).text).replace(/^Fusion\. /, '')}`)}">${esc(cardDef(f.defId).name)}</i>`).join('')}</span>`
+      : '';
     // (Resonance and forge show in the card's own numbers, not as a badge.)
     const resonance = '';
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
@@ -3903,7 +3920,7 @@ export class App {
     return `
       <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape || (opts.hand && def.kind === 'command') ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArtLite(def, true)}</div>
-        ${growth}${resonance}${stats}
+        ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardTextHtml(def.text, opts.option ?? c.choice, false, this.liveNumbers(c, opts))}</div>
         <div class="card-kind">${typeLine(def)}</div>

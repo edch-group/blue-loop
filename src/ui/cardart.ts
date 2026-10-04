@@ -828,6 +828,22 @@ const ART2: Record<string, Draw> = {
 };
 Object.assign(ART, ART2);
 
+/** Fusion cards: a piece grafted onto another, shown as a part joining a plate with a seam of light. */
+const ART_FUSION: Record<string, Draw> = {
+  thermal_graft: (S) => S.panel(40, 44, 50, 34, 6) + S.glow(98, 60, 22, '#ffb070', 0.8) + S.sun(98, 60, 8, '#ffd98a', 8) + S.beam(90, 60, 66, 60, 1.6, '#ffd98a'),
+  shield_lattice: (S) => S.panel(30, 40, 50, 38, 6) + S.hex(102, 58, 15, 'rgba(160,210,255,0.35)', '#cfe6ff') + S.hex(102, 58, 9, 'rgba(160,210,255,0.25)', '#cfe6ff') + S.beam(88, 58, 80, 58, 1.4, '#cfe6ff'),
+  reinforced_plating: (S) => S.panel(36, 32, 60, 46, 4) + S.panel(46, 40, 60, 46, 4) + S.motes(76, 56, 10, 20, '#e6ecf5', 1.2),
+  coolant_shunt: (S) => S.panel(30, 42, 48, 36, 6) + S.orbit(104, 60, 16, 6, 0, '#9fe0ff', 1.6) + S.glow(104, 60, 12, '#9fe0ff', 0.6) + S.beam(92, 60, 78, 60, 1.4, '#9fe0ff'),
+  data_splice: (S) => S.card(52, 52, -8) + S.card(96, 50, 8) + S.bolt(66, 50, 86, 50, '#d6c8ff', 4, 1.4),
+  sunforged_lens: (S) => S.sun(46, 46, 12, '#ffd98a', 12) + S.rings(104, 56, 6, 3, 5, '#ffe7a8', 0.8) + S.beam(58, 48, 98, 56, 2.2, '#ffe7a8'),
+  shard_splice: (S) => S.crystal(56, 74, 34, 14, -8, '#e8d6ff') + S.crystal(96, 74, 30, 12, 10, '#ffd0e8') + S.bolt(64, 50, 90, 52, '#fff', 4, 1.2),
+  tidal_graft: (S) => S.ground(86, '#031520') + S.dome(58, 80, 26, '#7ff0e0') + S.dome(104, 80, 16, '#bff8f0') + S.waves(84, '#9ff0f0', 2, 2, 0.6),
+  barnacle_shell: (S) => S.dome(80, 78, 34, '#9fd8d0') + [56, 70, 84, 98].map((x, i) => S.dome(x, 78 - (i % 2) * 4, 7, '#e6fff8')).join('') + S.motes(80, 50, 10, 30, '#bff8f0', 1),
+  siphon_tendril: (S) => S.dome(56, 74, 22, '#7ff0e0') + `<path d="M74 70 Q96 52 118 64 T142 50" fill="none" stroke="#9ff0f0" stroke-width="3" stroke-linecap="round"/>` + S.glow(142, 50, 8, '#ffb070', 0.8),
+  spore_graft: (S) => S.ground(86, '#0e0a1c') + S.mushroom(58, 86, 30, 18, '#c5ff8a') + S.mushroom(98, 86, 22, 14, '#d59cff', 6) + S.motes(80, 48, 14, 30, '#c5ff8a', 1.2),
+};
+Object.assign(ART, ART_FUSION);
+
 /** The window a card's picture sits in: a sky in its palette, with stars and the picture. */
 export function cardScene(def: CardDef): string {
   if (def.fusedFrom) return fusedScene(def);

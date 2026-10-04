@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+import { activePlayer, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -1084,5 +1084,44 @@ describe('lightspeed', () => {
     expect(next.log.some((l) => /springs Null Field in answer to .*Coronal Lance/.test(l.text))).toBe(true);
     // Only the move it sprang on carries it.
     expect(applyAction(next, { type: 'endTurn' }).sprung).toBeUndefined();
+  });
+});
+
+describe('fusion', () => {
+  it('fuses a Fusion card onto a card in play: no slot, its dawn effects and stability join the host', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const [host] = give(me, ['deflector_grid'], 'tableau');
+    const before = host.stability ?? 0;
+    give(me, ['tidal_graft']);
+    me.playsLeft = 9;
+    expect(() => play(s, 'tidal_graft')).toThrow(/fuse/);
+    s = play(s, 'tidal_graft', { hostUid: host.uid });
+    const h = activePlayer(s).tableau.find((c) => c.uid === host.uid)!;
+    expect(activePlayer(s).tableau.length).toBe(1);
+    expect(h.fused?.map((f) => f.defId)).toEqual(['tidal_graft']);
+    expect(h.stability).toBe(before + 2);
+    // Its dawn: the host's own 2 shields, and the graft's 2 more.
+    expect(dawnEffects(h).filter((e) => e.type === 'shield').length).toBe(2);
+  });
+
+  it('cannot be played with nothing in play to fuse onto, and leaves with its host', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['reinforced_plating']);
+    me.playsLeft = 9;
+    expect(hasRoomFor(me, 'reinforced_plating')).toBe(false);
+    const [host] = give(me, ['coronal_lance'], 'tableau');
+    const def0 = cardDefence(me, host);
+    s = play(s, 'reinforced_plating', { hostUid: host.uid });
+    const p = activePlayer(s);
+    expect(cardDefence(p, p.tableau[0])).toBe(def0 + 2);
+    // Burn the host away: its fusion card goes to the discard pile with it.
+    p.tableau[0].stability = 1;
+    const rival = s.players[1];
+    give(p, ['coronal_lance']);
+    s.players[1] = rival;
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players[0].discard.some((c) => c.defId === 'reinforced_plating') || s.players[0].tableau.some((c) => c.fused?.length)).toBe(true);
   });
 });

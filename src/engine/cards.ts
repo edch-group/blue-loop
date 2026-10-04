@@ -1,6 +1,7 @@
 import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
+import { FUSION_CARDS, FUSION_COSTS } from './cards-fusion';
 import { CARD_COSTS } from './costs';
 import { commandChoices } from './commands';
 
@@ -681,8 +682,8 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION);
-for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? 1 });
+CARDS.push(...EXPANSION, ...FUSION_CARDS);
+for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? 1 });
 
 /** Display names for the rarities. */
 export const RARITY_NAME: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly' };
@@ -852,8 +853,8 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Abyssal Tide',
     race: 2,
     cards: [
-      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'tide_regent', 'riptide', 'brine_lash', 'sunken_bell'),
-      'tidal_wave', 'jelly_swarm', 'abyssal_titan', 'coronal_lance', 'the_admiralty', 'riptide_ambush',
+      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'tide_regent', 'riptide', 'brine_lash', 'tidal_graft'),
+      'tidal_wave', 'jelly_swarm', 'abyssal_titan', 'siphon_tendril', 'the_admiralty', 'riptide_ambush',
       'trench_warden', 'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide', 'aegis_monolith',
       'tidebreaker', 'leviathan_shell',
     ],

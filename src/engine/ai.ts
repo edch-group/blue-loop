@@ -16,6 +16,8 @@ import {
   planetAt,
   allyChoices,
   cardDefence,
+  cardPassives,
+  fusionHosts,
   freeSlots,
   recoverChoices,
   supernovaThreshold,
@@ -112,7 +114,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
       }
     }
   }
-  for (const ps of def.passive ?? []) {
+  for (const ps of cardPassives(card)) {
     switch (ps.type) {
       case 'kindBonus': {
         const matching = p.tableau.filter((c) => c.uid !== card.uid && cardDef(c.defId).kind === ps.kind && (cardDef(c.defId).onTurn ?? []).some((e) => e.type === 'heat')).length;
@@ -219,6 +221,8 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
     if (!hasRoomFor(me, card.defId)) continue;
     const slots = needsSlot(me, card.defId) ? freeSlots(me) : [undefined];
+    // A Fusion card: onto each card it could join.
+    const hosts = opt(cardDef(card.defId).fusion ? fusionHosts(me).map((c) => c.uid) : []);
     // Recovering: one of each card in the discard pile.
     const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);
     const allies = opt(allyChoices(me, card.defId).map((c) => c.uid));
@@ -233,7 +237,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
         for (const allyUid of allies) {
           const back = recalls ? me.tableau.find((c) => c.uid === allyUid) : undefined;
           const here: (number | undefined)[] = back && back.slot !== undefined && !(slots as (number | undefined)[]).includes(back.slot) ? [...slots, back.slot] : slots;
-          for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid });
+          for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) for (const hostUid of hosts) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid, ...(hostUid ? { hostUid } : {}) });
         }
   }
   return plays;
@@ -273,7 +277,7 @@ function dawnAims(state: GameState, me: PlayerState): Record<string, string | nu
   // What burning a card away sets off against you: its own leave heat, and its owner's cards that answer a card leaving.
   const payback = (c: CardInstance) =>
     (cardDef(c.defId).onLeave ?? []).reduce((n, e) => n + (e.type === 'heat' ? e.amount : 0), 0) +
-    rival.tableau.reduce((n, o) => n + (o.uid === c.uid ? 0 : (cardDef(o.defId).passive ?? []).reduce((m, x) => m + (x.type === 'allyLeaves' ? x.effects.reduce((k, e) => k + (e.type === 'heat' ? e.amount : 0), 0) : 0), 0)), 0);
+    rival.tableau.reduce((n, o) => n + (o.uid === c.uid ? 0 : cardPassives(o).reduce((m, x) => m + (x.type === 'allyLeaves' ? x.effects.reduce((k, e) => k + (e.type === 'heat' ? e.amount : 0), 0) : 0), 0)), 0);
   for (const card of me.tableau) {
     if (!dawnAimable(card)) continue;
     const heat = dawnEffects(card).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(me, e.if, state) ? effectAmount(state, me, card, e, 'turn') : 0), 0);

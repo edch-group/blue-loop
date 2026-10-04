@@ -307,6 +307,26 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | orbit ±N | Moves the planets round a sun |
 | lightspeed, global | Card types (see below) |
 
+## Fusion [design review]
+
+**Fusion** cards are played onto one of your cards in play instead of into a slot. That card gains the Fusion card's dawn effects, passives, Sturdy and stability (its stability is added to the host's); the Fusion card's play effects resolve as it is played. A card can carry 2. When the host leaves play, its Fusion cards go with it (their leave effects fire too). It gives decks that draw more cards than they have slots for (Abyssal Tide above all) somewhere to put them, and lets a strong card be built up, at the risk of losing it all at once. With nothing in play to fuse onto, a Fusion card can't be played.
+
+| Card | Race | Cost | Fused, it adds |
+|---|---|---|---|
+| Thermal Graft | Neutral | 1 | Dawn: heat 1. Stability 2 |
+| Shield Lattice | Neutral | 1 | Dawn: shield 1. Stability 2 |
+| Reinforced Plating | Neutral | 1 | Sturdy 2. Stability 3 |
+| Coolant Shunt | Neutral | 1 | Dawn: cool 1. Stability 2 |
+| Data Splice | Neutral | 1 | Draw 1 (as played). Stability 2 |
+| Sunforged Lens | Aureline | 2 | Dawn: heat 2. Stability 2 |
+| Shard Splice | Xel'Naru | 1 | Dawn: heat 1, cool 1. Stability 2 |
+| Tidal Graft | Vorthane | 1 | Dawn: shield 2. Stability 2 |
+| Barnacle Shell | Vorthane | 1 | Sturdy 1, dawn: repair 1. Stability 3 |
+| Siphon Tendril | Vorthane | 2 | Dawn: heat 1 per 2 shields (up to 3). Stability 2 |
+| Spore Graft | Ixquor | 1 | Dawn: draw 1. Stability 2 |
+
+Abyssal Tide plays two Tidal Grafts and a Siphon Tendril (for its Sunken Bells and a Coronal Lance): 38% → 50% in 600 AI games.
+
 ## Lightspeed cards [design review]
 
 Lightspeed cards are played **face down**. They don't take a slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies face down in the Lightspeed slot, right of its owner's five (that slot has no defence), and the owner's pill shows ⚡. The card springs **during an enemy's day** when its trigger happens. It is revealed ("Lightspeed!"), resolves against that enemy ("your target" means them), and goes to your discard pile.

@@ -187,6 +187,11 @@ export interface CardDef {
   cost?: number;
   /** Spends all your energy as it is played (at least 1): its effects count how much (an X cost). */
   spendAll?: boolean;
+  /**
+   * Fusion: played onto one of your cards in play rather than into a slot. That card gains this one's dawn
+   * effects, passives, Sturdy and stability; this one goes with it when it leaves.
+   */
+  fusion?: boolean;
   /** Extra defence on top of its slot's (sturdy cards). */
   defence?: number;
   /** Turns it stays in your tableau before it fades into your discard pile (default: see BALANCE.stability). */
@@ -211,6 +216,8 @@ export interface CardInstance {
    * (plus its Sturdy), or by Repair; and the wear on its slot's own defence stays in the slot when it leaves.
    */
   dented?: number;
+  /** In a tableau: Fusion cards fused onto it (their effects, passives, Sturdy and stability are its own now). */
+  fused?: CardInstance[];
   /** In a tableau: the choice it was played with (Command cards), which it keeps until it leaves. */
   choice?: string;
   /** The energy spent on it as it was played (cards that spend all your energy). */
@@ -385,6 +392,8 @@ export type Action =
   | {
       type: 'playCard';
       cardUid: string;
+      /** A Fusion card: the card of yours in play it fuses onto. */
+      hostUid?: string;
       /** Which empty slot of your tableau the card goes in (default: the most defended one free). */
       slot?: number;
       /** A card that can also be set at lightspeed (a Lightspeed guard): set it face down instead, for 1 more energy. */

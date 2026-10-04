@@ -156,7 +156,22 @@ export function instabilityHeat(state: GameState): number {
 }
 
 function passives(p: PlayerState): { card: CardInstance; passive: Passive }[] {
-  return p.tableau.flatMap((card) => (cardDef(card.defId).passive ?? []).map((passive) => ({ card, passive })));
+  return p.tableau.flatMap((card) => cardPassives(card).map((passive) => ({ card, passive })));
+}
+
+/** A card's passives: its own, and those of the Fusion cards fused onto it. */
+export function cardPassives(card: CardInstance): Passive[] {
+  return [...(cardDef(card.defId).passive ?? []), ...(card.fused ?? []).flatMap((f) => cardDef(f.defId).passive ?? [])];
+}
+
+/** A card's Sturdy: its own, and its Fusion cards'. */
+export function cardSturdy(card: CardInstance): number {
+  return (cardDef(card.defId).defence ?? 0) + (card.fused ?? []).reduce((t, f) => t + (cardDef(f.defId).defence ?? 0), 0);
+}
+
+/** Cards of yours a Fusion card can fuse onto: any in play with room for another (not Lightspeed cards). */
+export function fusionHosts(p: PlayerState): CardInstance[] {
+  return p.tableau.filter((c) => (c.fused?.length ?? 0) < BALANCE.maxFused);
 }
 
 /** Cards this player may play on a day (before any have been played). */
@@ -214,7 +229,7 @@ export function commandCard(p: PlayerState): CardInstance | undefined {
 
 /** Whether a card goes into one of the five tableau slots (not the Command slot, nor face down). */
 export function inSlots(defId: string): boolean {
-  return persists(defId) && cardDef(defId).kind !== 'command';
+  return persists(defId) && cardDef(defId).kind !== 'command' && !cardDef(defId).fusion;
 }
 
 export function tableauFull(p: PlayerState): boolean {
@@ -269,7 +284,7 @@ export function dawnAimable(card: CardInstance): boolean {
 
 /** A player's Guard cards: while they have any, rival heat can only be aimed at them. */
 export function guards(p: PlayerState): CardInstance[] {
-  return p.tableau.filter((c) => (cardDef(c.defId).passive ?? []).some((x) => x.type === 'taunt'));
+  return p.tableau.filter((c) => cardPassives(c).some((x) => x.type === 'taunt'));
 }
 
 /**
@@ -310,7 +325,7 @@ function aimedCard(state: GameState, p: PlayerState, card: CardInstance): CardIn
 
 /** Whether a player's shields guard their cards too (a Tidewall card in play). */
 export function tidewall(p: PlayerState): boolean {
-  return p.tableau.some((c) => (cardDef(c.defId).passive ?? []).some((x) => x.type === 'tidewall'));
+  return p.tableau.some((c) => cardPassives(c).some((x) => x.type === 'tidewall'));
 }
 
 /** Heat on a card wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
@@ -370,6 +385,7 @@ export function recallsInto(p: PlayerState, defId: string): boolean {
 
 /** Whether a card can be played into this tableau now: a free slot, a recall to make one, or no slot needed. */
 export function hasRoomFor(p: PlayerState, defId: string): boolean {
+  if (cardDef(defId).fusion) return fusionHosts(p).length > 0;
   return !inSlots(defId) || !tableauFull(p) || recallsInto(p, defId);
 }
 
@@ -456,11 +472,11 @@ function distance(a: CardInstance, b: CardInstance): number {
  * reach cards with low enough defence.
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
-  let d = slotDefence(card.slot) + (cardDef(card.defId).defence ?? 0);
+  let d = slotDefence(card.slot) + cardSturdy(card);
   for (const src of p.tableau) {
     const k = distance(src, card);
     if (k === 0) continue;
-    for (const ps of cardDef(src.defId).passive ?? []) if (ps.type === 'guard' && k <= ps.amounts.length) d += ps.amounts[k - 1];
+    for (const ps of cardPassives(src)) if (ps.type === 'guard' && k <= ps.amounts.length) d += ps.amounts[k - 1];
   }
   // Heat wears defence away, and the wear lasts (see mendDefences).
   return Math.max(0, d - (card.dented ?? 0));
@@ -478,7 +494,7 @@ export function fullDefence(p: PlayerState, card: CardInstance): number {
 
 /** Whether a card is anchored (a neighbour stops it losing stability). */
 function anchored(p: PlayerState, card: CardInstance): boolean {
-  return p.tableau.some((src) => distance(src, card) === 1 && (cardDef(src.defId).passive ?? []).some((ps) => ps.type === 'anchor'));
+  return p.tableau.some((src) => distance(src, card) === 1 && cardPassives(src).some((ps) => ps.type === 'anchor'));
 }
 
 /** Whether the player may set this Lightspeed card now (only one can be face down at a time). */
@@ -511,7 +527,7 @@ export function cardChoices(defId: string): string[] {
 export function dawnEffects(card: CardInstance): Effect[] {
   const def = cardDef(card.defId);
   const chosen = def.choices?.find((c) => c.id === card.choice) ?? def.choices?.[0];
-  return [...(def.onTurn ?? []), ...(chosen?.onTurn ?? [])];
+  return [...(def.onTurn ?? []), ...(chosen?.onTurn ?? []), ...(card.fused ?? []).flatMap((f) => cardDef(f.defId).onTurn ?? [])];
 }
 
 /** Whether a card stays in the tableau when played (everything but Lightspeed cards, which are set face down). */
@@ -530,7 +546,7 @@ export function resonanceBonus(p: PlayerState, card: CardInstance): number {
   p.tableau.forEach((src) => {
     const d = distance(src, card);
     if (d === 0) return;
-    for (const ps of cardDef(src.defId).passive ?? []) {
+    for (const ps of cardPassives(src)) {
       if (ps.type === 'adjacent' && d <= ps.amounts.length && (!ps.kind || ps.kind === kind)) bonus += ps.amounts[d - 1];
     }
   });
@@ -1099,6 +1115,13 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
   else (to === 'hand' ? owner.hand : owner.discard).push(card);
   resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
+  // Its Fusion cards go with it (and their leave effects fire too).
+  const fused = card.fused ?? [];
+  delete card.fused;
+  for (const f of fused) {
+    owner.discard.push(f);
+    if (!state.winnerId && !owner.eliminated) resolveEffects(state, owner, card, cardDef(f.defId).onLeave, 'leave');
+  }
   // Cards that answer another card leaving (Kyr'Vessa).
   for (const { card: watcher, passive } of passives(owner)) {
     if (passive.type === 'allyLeaves' && owner.tableau.includes(watcher)) resolveEffects(state, owner, watcher, passive.effects, 'leave');
@@ -1145,7 +1168,7 @@ function regionalInstability(state: GameState, roundStarter: PlayerState) {
 function mendDefences(state: GameState, p: PlayerState) {
   for (const c of p.tableau) {
     if (!c.dented) continue;
-    const by = Math.min(c.dented, BALANCE.defenceMend + (cardDef(c.defId).defence ?? 0));
+    const by = Math.min(c.dented, BALANCE.defenceMend + cardSturdy(c));
     c.dented -= by;
     if (!c.dented) delete c.dented;
     log(state, `${p.name}'s ${cardDef(c.defId).name} mends ${by} defence (defence ${cardDefence(p, c)}).`);
@@ -1317,6 +1340,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (slotted && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
   const allies = allyChoices(p, def.id);
   if (allies.length > 0 && !allies.some((c) => c.uid === action.allyUid)) throw new GameError('Choose a card of yours.');
+  const host = def.fusion && !lightspeed ? fusionHosts(p).find((c) => c.uid === action.hostUid) : undefined;
+  if (def.fusion && !lightspeed && !host) throw new GameError(fusionHosts(p).length ? 'Choose a card of yours in play to fuse it onto.' : 'A Fusion card needs a card of yours in play to fuse onto.');
   const recovers = recoverChoices(p, def.id);
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
 
@@ -1388,6 +1413,16 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       }
       action = { ...action, slot: at };
     }
+  }
+  // A Fusion card fuses onto its host: its stability adds to the host's, and its play effects resolve.
+  if (host) {
+    (host.fused ??= []).push(card);
+    host.stability = Math.min(BALANCE.maxStability, (host.stability ?? 0) + baseStability(def.id));
+    log(state, `${p.name} fuses ${def.name} onto ${cardDef(host.defId).name} (stability ${host.stability}).`);
+    if (action.aimUid && aimable(def.id)) host.aim = action.aimUid;
+    resolveEffects(state, p, host, def.onPlay, 'play', action);
+    host.aim = undefined;
+    return;
   }
   // The chosen slot, or else the safest one free.
   const open = freeSlots(p);

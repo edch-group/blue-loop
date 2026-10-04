@@ -54,6 +54,8 @@ export const BALANCE = {
   pierceShieldShare: 0.5,
   /** The Command slot's defence (it leads the tableau, out in front of the five). */
   commandSlotDefence: 2,
+  /** Fusion cards one card in play can carry. */
+  maxFused: 2,
   /** Worn defence each card (and empty slot) mends at its owner's dawn (Sturdy cards mend their Sturdy more). */
   defenceMend: 1,
   /**
