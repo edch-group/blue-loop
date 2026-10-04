@@ -1503,33 +1503,60 @@ export class CampaignView {
     return `<aside class="cmp-pop glass" data-key="pop-${key}" style="${at}">${body}</aside>`;
   }
 
+  /**
+   * Where a point of the map's plane (lifted this many pixels, upright, as a star stands on it) shows on the
+   * stage: the plane's own transform (translate, scale, tilt about its origin at 50% 54%), then the stage's
+   * perspective (1500px, seen from 50% 40%). The same sums the browser does to draw it.
+   */
+  private project(w: number, h: number, px: number, py: number, lift: number): { x: number; y: number } {
+    const c = this.cam!;
+    const t = (c.tilt * Math.PI) / 180;
+    const X = w * 0.5 + c.scale * (px - c.x);
+    const Y = c.scale * (py - c.y);
+    const z = Y * Math.sin(t);
+    const y0 = h * 0.54 + Y * Math.cos(t);
+    const ox = w * 0.5, oy = h * 0.4, d = 1500;
+    const f = d / (d - z);
+    return { x: ox + (X - ox) * f, y: oy + (y0 - oy) * f - lift * c.ui * c.scale * f };
+  }
+
   /** Put the popover beside what it is about: to its right if there is room, else to its left, kept on screen. */
   private placePop() {
     const stage = this.stageEl;
     const pop = stage?.closest('.cmp')?.querySelector<HTMLElement>('.cmp-pop');
     if (!stage || !pop) return;
-    const anchor = this.selected
-      ? stage.querySelector<HTMLElement>('.cmp-selected .cmp-star')
-      : this.army
-        ? stage.querySelector<HTMLElement>(`[data-key="ship-${this.army}"] .cmp-ship-hull`)
-        : this.anomaly
-          ? stage.querySelector<HTMLElement>('.cmp-an.an-on .an-bb > span') ?? stage.querySelector<HTMLElement>('.cmp-an.an-on')
-          : null;
+    // Where the subject is: worked out from the camera, as the map itself is drawn (measuring elements inside
+    // the tilted 3D plane is unreliable in some browsers, which put the popover by the wrong system).
+    const s = this.state;
+    const node = this.selected && s ? s.nodes.find((n) => n.id === this.selected) : undefined;
+    const ship = !node && this.army ? this.ships.get(this.army) : undefined;
+    const an = !node && !ship && this.anomaly && s ? (s.anomalies ?? []).find((a) => a.id === this.anomaly) : undefined;
+    const at = node ? { x: node.x, y: node.y, lift: 24 } : ship ? { x: ship.x, y: ship.y, lift: 6 } : an ? { x: an.x, y: an.y, lift: 16 } : null;
     const box = pop.offsetParent as HTMLElement | null;
-    if (!anchor || !box) return;
-    const a = anchor.getBoundingClientRect();
+    if (!at || !box || !this.cam) return;
+    const st = stage.getBoundingClientRect();
     const b = box.getBoundingClientRect();
+    // (The stage may be drawn scaled: project in its own layout size, then scale to the screen.)
+    const lw = stage.offsetWidth || st.width;
+    const lh = stage.offsetHeight || st.height;
+    const k = st.width / lw;
+    const proj = (x: number, y: number, lift: number) => {
+      const q = this.project(lw, lh, x, y, lift);
+      return { x: q.x * k, y: q.y * (st.height / lh) };
+    };
+    const p = proj(at.x, at.y, at.lift);
     const w = pop.offsetWidth;
     const h = pop.offsetHeight;
     // Clear of the planets' orbits round a selected star.
     const gap = this.selected ? 70 : 34;
-    const cx = a.left + a.width / 2 - b.left;
-    const cy = a.top + a.height / 2 - b.top;
+    const cx = p.x + st.left - b.left;
+    const cy = p.y + st.top - b.top;
     // An army's popover goes on the far side from its routes, so they stay clear to tap.
     let right = true;
     if (this.army && !this.selected) {
-      const ends = [...stage.querySelectorAll<HTMLElement>('.cmp-target .cmp-star, .cmp-march .cmp-star')].map((e) => e.getBoundingClientRect());
-      if (ends.length) right = ends.reduce((t, r) => t + r.left + r.width / 2 - b.left, 0) / ends.length < cx;
+      const army = s?.armies.find((a) => a.id === this.army);
+      const ends = s && army && s.phase === 'player' ? armyMoves(s, army).map((m) => nodeById(s, m.toId)) : [];
+      if (ends.length) right = ends.reduce((t, n) => t + proj(n.x, n.y, 0).x + st.left - b.left, 0) / ends.length < cx;
     }
     let x = right ? cx + gap : cx - gap - w;
     if (x + w > b.width - 12) x = cx - gap - w;
