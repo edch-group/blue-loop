@@ -514,8 +514,10 @@ export function cardTextHtml(text: string, chosen?: string, inline = false, live
       if (p.kw === 'act') {
         const close = open ? '</span>' : '';
         open = true;
-        return `${close}<span class="card-ability" data-ability="${++ability}">${keywordHtml(p.kw, p.value, { data: true })}`;
+        return `${close}<span class="card-ability" data-ability="${++ability}">`;
       }
+      // A Hero's abilities: a divider under what it does as it leads, and the heading over them.
+      if (p.kw === 'abilities') return `<span class="card-abilities-head">each turn, one of:</span>`;
       // A card's choices, one per line: the one picked (as the card is played) stands out.
       if (p.kw === 'options')
         return `<span class="card-opts${chosen ? ' card-opts-chosen' : ''}">${optionList(p.value)
@@ -570,7 +572,7 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   const texts = [text, ...[...text.matchAll(/\{options:([^}]+)\}/g)].flatMap((m) => optionList(m[1]).map(optionText))].join(' ');
   // (Gaining energy explains itself.)
   // (Gaining energy explains itself; a Hero's ability names are not keywords.)
-  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'cost' && k.id !== 'act') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
+  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'cost' && k.id !== 'act' && k.id !== 'abilities') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
   if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');

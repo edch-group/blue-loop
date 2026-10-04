@@ -63,6 +63,8 @@ export const KEYWORDS: Record<string, Keyword> = {
   energy: { name: 'gain', group: 'tempo', explain: () => 'Extra energy today.' },
   // What an ability costs: shown as green energy dots, like a card's cost.
   cost: { name: 'energy', group: 'tempo', explain: () => 'Costs this much energy.' },
+  // A Hero's abilities follow it: one a day.
+  abilities: { name: 'each turn, one of:', group: 'timing', explain: () => 'Use one of these on your day.' },
   abundance: { name: 'abundance', group: 'tempo', explain: () => 'Extra cards each dawn.' },
   orbit: { name: 'orbit', group: 'orbit', explain: () => 'Moves the planets round.' },
   act: { name: 'act', group: 'timing', explain: () => 'A Hero ability.' },
@@ -95,7 +97,7 @@ const titleCase = (s: string) => s.replace(/(^|\s)(\p{Ll})/gu, (_, sp: string, c
 
 /** A keyword as it reads on a card, in title case: its name and value ("Sturdy 1", "Destroy 2", "Recover Attack"). */
 export function keywordLabel(id: string, value?: string): string {
-  return titleCase(rawLabel(id, value));
+  return id === 'abilities' ? 'Each turn, one of:' : titleCase(rawLabel(id, value));
 }
 
 function rawLabel(id: string, value?: string): string {
@@ -105,7 +107,8 @@ function rawLabel(id: string, value?: string): string {
   if (id === 'destroy' || id === 'eject') return `${k.name} ${value}`;
   if (id === 'plays' || id === 'abundance') return `${k.name} +${value}`;
   if (id === 'attune') return value === '1' ? k.name : `${k.name} ×${value}`;
-  if (id === 'act') return value;
+  if (id === 'act') return '';
+  if (id === 'abilities') return 'each turn, one of:';
   if (id === 'energy') return `gain ${value} energy`;
   if (id === 'cost') return `(${value} energy)`;
   if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;

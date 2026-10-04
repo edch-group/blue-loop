@@ -4416,7 +4416,7 @@ export class App {
             ? `<div class="insp-abilities">${(cardDef(lead.defId).abilities ?? [])
                 .map((k, i) => {
                   const why = heroAbilityProblem(s, viewer, i) ?? (this.canAct() ? null : 'Not now.');
-                  return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${esc(k.name)}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` ${keywordHtml('cost', String(k.cost))}` : ''}</small></button>`;
+                  return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${cardTextHtml(k.text, undefined, true)}${k.cost ? ` ${keywordHtml('cost', String(k.cost))}` : ''}</b></button>`;
                 })
                 .join('')}</div>`
             : '';
