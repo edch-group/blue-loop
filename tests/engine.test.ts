@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+import { activePlayer, attackProblem, cardAttack, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -160,8 +160,8 @@ describe('the tableau', () => {
     const me = activePlayer(s);
     me.playsLeft = 2;
     give(me, Array(BALANCE.tableauSlots).fill('coolant_array'), 'tableau');
-    give(me, ['cryo_vault', 'null_field']);
-    expect(() => play(s, 'cryo_vault')).toThrow(/full/);
+    give(me, ['plasma_relay', 'null_field']);
+    expect(() => play(s, 'plasma_relay')).toThrow(/full/);
     s = play(s, 'null_field');
     expect(s.players[0].lightspeed?.defId).toBe('null_field');
   });
@@ -256,6 +256,9 @@ describe('commands', () => {
     me.playsLeft = 5;
     give(me, ['chamber_protocol']);
     s = play(s, 'chamber_protocol');
+    // (A Hero comes into play dimmed: its abilities wait for the next day.)
+    expect(heroAbilityProblem(s, activePlayer(s), 1)).toMatch(/dimmed/);
+    s = endTurn(endTurn(s));
     const hero = () => activePlayer(s).tableau.find((c) => c.defId === 'chamber_protocol')!;
     hero().stability = 5;
     s = applyAction(s, { type: 'heroAbility', index: 1 }); // Nurture: renew 1, and she regains 2
@@ -300,6 +303,7 @@ describe('commands', () => {
     me.playsLeft = 3;
     give(me, ['war_council']);
     s = play(s, 'war_council');
+    s = endTurn(endTurn(s));
     const ada = s.players[0];
     ada.discard.push({ uid: 'd1', defId: 'coronal_lance' }, { uid: 'd2', defId: 'gravity_sling' }, { uid: 'd3', defId: 'command_directive' });
     s = applyAction(s, { type: 'heroAbility', index: 0 });
@@ -330,7 +334,7 @@ describe('commands', () => {
 });
 
 describe('recall', () => {
-  it('lets a recall card into a full tableau, in the place of the card it recalls', () => {
+  it('lets a recall card into a full tableau: it recalls a card and goes to the discard pile, taking no slot', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     me.playsLeft = 2;
@@ -340,25 +344,46 @@ describe('recall', () => {
     give(me, ['recall_beacon']);
     s = play(s, 'recall_beacon', { allyUid: back.uid });
     const t = s.players[0].tableau;
-    expect(t).toHaveLength(BALANCE.tableauSlots);
-    expect(t.find((c) => c.defId === 'recall_beacon')!.slot).toBe(back.slot);
+    expect(t).toHaveLength(BALANCE.tableauSlots - 1);
+    expect(s.players[0].discard.some((c) => c.defId === 'recall_beacon')).toBe(true);
     expect(s.players[0].hand.some((c) => c.uid === back.uid)).toBe(true);
-    // Any other card still can't go in.
-    give(activePlayer(s), ['coronal_lance']);
-    expect(() => play(s, 'coronal_lance')).toThrow(/full/);
   });
+});
 
-  it('lets a recall card take the slot of the card it recalls, with free slots elsewhere', () => {
+describe('attacks and dimming', () => {
+  it("lets a card attack once a day: it comes in dimmed, attacks the sun or a card, dims, and is hit back", () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    me.playsLeft = 2;
-    const [relay] = give(me, ['plasma_relay'], 'tableau');
-    give(me, ['recall_beacon']);
-    s = play(s, 'recall_beacon', { allyUid: relay.uid, slot: relay.slot! });
-    const t = s.players[0].tableau;
-    expect(t.map((c) => c.defId)).toEqual(['recall_beacon']);
-    expect(t[0].slot).toBe(relay.slot);
-    expect(s.players[0].hand.some((c) => c.uid === relay.uid)).toBe(true);
+    me.playsLeft = 5;
+    give(me, ['siege_array']);
+    s = play(s, 'siege_array');
+    const array = () => s.players[0].tableau.find((c) => c.defId === 'siege_array')!;
+    expect(cardDef('siege_array').attack).toBeGreaterThan(0);
+    expect(attackProblem(s, activePlayer(s), array().uid, null)).toMatch(/dimmed/);
+    s = endTurn(endTurn(s));
+    array().stability = 6;
+    // At the sun: its attack lands as heat, past shields.
+    s.players[1].shields = 0;
+    const before = s.players[1].heat;
+    s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: null });
+    expect(s.players[1].heat).toBe(before + cardAttack(s, s.players[0], array()));
+    expect(array().dimmed).toBe(true);
+    expect(() => applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: null })).toThrow(/dimmed/);
+    // Next day, at a card with an attack of its own: that card hits back, at the attacker's stability.
+    s = endTurn(endTurn(s));
+    const [lancer] = give(s.players[1], ['helio_lancer'], 'tableau');
+    const stab = array().stability!;
+    s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: lancer.uid });
+    expect(array().stability).toBe(stab - cardDef('helio_lancer').attack!);
+  });
+
+  it('sends cards that do nothing once played straight to the discard pile, taking no slot', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['coronal_lance']);
+    s = play(s, 'coronal_lance');
+    expect(s.players[0].tableau).toHaveLength(0);
+    expect(s.players[0].discard.some((c) => c.defId === 'coronal_lance')).toBe(true);
   });
 });
 
@@ -399,29 +424,17 @@ describe('synergies', () => {
     expect(s.players[1].shields).toBe(3);
   });
 
-  it('Stinging Veil stings each attacking card once per turn, on the card itself and past its defence', () => {
+  it('Stinging Veil, a Guard, stings the card that attacks it, at its stability', () => {
     let s = twoPlayer();
-    const BALANCE_VEIL = 3; // Stinging Veil's sting
-    // Ada's Overload Core, overheated, hits twice at the start of Ada's turn.
-    const ada = s.players[0];
-    const [core] = give(ada, ['overload_core'], 'tableau');
-    core.stability = 6;
-    ada.heat = 16;
-    give(s.players[1], ['stinging_veil'], 'tableau');
-    s = endTurn(s); // Bo's turn: Bo's shields are up when Ada's turn begins.
-    s.players[1].shields = 10;
-    s = endTurn(s);
-    expect(s.players[1].shields).toBe(10 - 2 - 1);
-    // One sting for the card's two hits, on the card (6 → 3, then -1 for the dawn), not on Ada's sun.
-    expect(s.players[0].heat).toBe(16);
-    expect(s.players[0].tableau.find((c) => c.uid === core.uid)?.stability).toBe(6 - BALANCE_VEIL - 1);
-    // A card played into the tableau is stung too: a Coronal Lance (stability 1) burns away.
-    const me = activePlayer(s);
-    me.playsLeft = 2;
-    give(me, ['coronal_lance']);
-    s = play(s, 'coronal_lance');
-    expect(s.players[0].tableau.some((c) => c.defId === 'coronal_lance')).toBe(false);
-    expect(s.players[0].heat).toBe(16);
+    const ada = activePlayer(s);
+    const [lancer] = give(ada, ['helio_lancer'], 'tableau');
+    lancer.stability = 2;
+    const [veil] = give(s.players[1], ['stinging_veil'], 'tableau');
+    // The Veil is a Guard: the sun can't be attacked past it.
+    expect(attackProblem(s, ada, lancer.uid, null)).toMatch(/Guard/);
+    s = applyAction(s, { type: 'attack', attackerUid: lancer.uid, targetUid: veil.uid });
+    // Sting 3 hits back: the Lancer (stability 2) burns away.
+    expect(s.players[0].tableau.some((c) => c.uid === lancer.uid)).toBe(false);
   });
 });
 
@@ -492,6 +505,7 @@ describe('card costs', () => {
     me.playsLeft = 5;
     give(me, ['the_admiralty']);
     s = play(s, 'the_admiralty');
+    s = endTurn(endTurn(s));
     const before = activePlayer(s).playsLeft;
     s = applyAction(s, { type: 'heroAbility', index: 1 });
     expect(activePlayer(s).playsLeft).toBe(before + 1);
@@ -701,7 +715,7 @@ describe('AI', () => {
     const me = activePlayer(s);
     give(me, Array(BALANCE.tableauSlots).fill('coolant_array'), 'tableau');
     me.hand = [];
-    give(me, ['coronal_lance']);
+    give(me, ['plasma_relay']);
     expect(chooseAIAction(s).type).toBe('endTurn');
   });
 });

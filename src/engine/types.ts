@@ -192,6 +192,12 @@ export interface CardDef {
   /** A Hero's abilities: while it leads from your Hero slot, once on each of your days, you may use one. */
   abilities?: HeroAbility[];
   /**
+   * Attack: while it is in play and not dimmed, on its owner's day it may attack the rival's sun or one of
+   * their cards for this much (as heat), and is then dimmed. A card it attacks that has an attack of its own
+   * (or Sting) hits back, at its stability. Set from a rule at load (attack.ts) unless given.
+   */
+  attack?: number;
+  /**
    * A choice made when the card is played (Command cards): one of these is added to its dawn effects
    * for as long as it stays in your tableau. The ids are written into its text as `{options:id|id|…}`.
    */
@@ -238,6 +244,8 @@ export interface CardInstance {
    */
   dented?: number;
   /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
+  /** Dimmed: it has taken its action (attacked, or a Hero used an ability) and can't act again until its owner's next dawn. Cards come into play dimmed. */
+  dimmed?: boolean;
   boons?: string[];
   /** In a tableau: Fusion cards fused onto it (their effects, passives, Sturdy and stability are its own now). */
   fused?: CardInstance[];
@@ -459,5 +467,7 @@ export type Action =
   | { type: 'heroSkill'; index: number }
   /** Use one of the abilities of the Hero leading from your Hero slot (one a day). */
   | { type: 'heroAbility'; index: number }
+  /** One of your cards attacks: the rival's sun (target null) or one of their cards. */
+  | { type: 'attack'; attackerUid: string; targetUid: string | null }
   /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string };

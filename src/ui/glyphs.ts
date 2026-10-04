@@ -280,7 +280,16 @@ document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad'
 export function stabilityBadge(def: CardDef): string {
   if (!persists(def.id)) return '';
   const title = def.kind === 'command' ? 'Stability: a Hero never fades by itself; heat past its defence wears this down, and at 0 it falls' : 'Stability: it stays in play for this many of your days, then fades into your discard pile';
-  return `<span class="card-stats card-stats-base"><b class="stat-stab" title="${title}">◷${baseStability(def.id)}</b></span>`;
+  const atk = def.attack ?? 0;
+  return `<span class="card-stats card-stats-base${atk > 0 ? ' card-stats-split' : ''}">${atk > 0 ? attackBadge(atk) : ''}<b class="stat-stab" title="${title}">◷${baseStability(def.id)}</b></span>`;
+}
+
+const SWORD = '<svg class="atk-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 1.5 6.2 8.8M14.5 1.5v2.8L7.4 11.4 4.6 8.6 11.7 1.5zM3.6 9.6l2.8 2.8M2 14l3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/** A card's attack (bottom left, beside its stability): what it deals when it attacks, and what it hits back with. */
+export function attackBadge(n: number, dimmed = false): string {
+  const title = `Attack ${n}: once each of your days it can attack a rival card or their sun for ${n} heat (shields block it at a sun), then it is dimmed until your next day. A card it attacks hits back with its own attack and Sting.${dimmed ? ' Dimmed: it has acted today.' : ''}`;
+  return `<b class="stat-atk${dimmed ? ' stat-atk-dim' : ''}" title="${title}">${SWORD}${n}</b>`;
 }
 
 /** What a card costs to play, in energy: a green gem with the number, on its picture's top-left corner. */

@@ -49,6 +49,8 @@ const MECHANICS: [string, RegExp][] = [
   ['orbit card played', /plays (Gravity Assist|Orbital Slingshot|Tidal Brake|Dead World Mine|Perihelion Forge|Sunward Lance|Comet Shard|Tide Lock|Orbit Root)/],
   ['hero played', new RegExp(`plays (${CARDS.filter((c) => c.kind === 'command' && !c.token).map((c) => c.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`)],
   ['hero ability used', /'s [^:]+: [^.]+\.$/],
+  ['attacks', / attacks /],
+  ['hit back', / hits back: /],
   ['command chose heat', /chooses: heat/],
   ['command chose cool', /chooses: cool/],
   ['command chose energy', /chooses: energy/],

@@ -1,6 +1,6 @@
 import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
-import { cardDef, presetDeck } from './cards';
+import { cardDef, isBurst, presetDeck } from './cards';
 import { randomInt, shuffleInPlace } from './rng';
 import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnPulse, TurnStats } from './types';
 
@@ -237,7 +237,7 @@ export function commandCard(p: PlayerState): CardInstance | undefined {
 
 /** Whether a card goes into one of the five tableau slots (not the Command slot, nor face down). */
 export function inSlots(defId: string): boolean {
-  return persists(defId) && cardDef(defId).kind !== 'command';
+  return persists(defId) && cardDef(defId).kind !== 'command' && !isBurst(cardDef(defId));
 }
 
 export function tableauFull(p: PlayerState): boolean {
@@ -894,7 +894,7 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
 function shieldsAnswer(state: GameState, target: PlayerState, source: PlayerState, cardUid?: string) {
   const sum = (type: 'retaliate' | 'absorbCool') =>
     passives(target).reduce((n, { passive }) => n + (passive.type === type ? passive.amount : 0), 0);
-  const sting = sum('retaliate');
+  const sting = 0; // (Sting is now a card's own: it hits back when that card is attacked; see counterDamage.)
   const soothe = sum('absorbCool');
   const key = cardUid ?? source.id;
   if (target.stung?.turn !== state.turnNumber) target.stung = { turn: state.turnNumber, ids: [] };
@@ -1323,6 +1323,8 @@ function startTurn(state: GameState) {
 /** A player's dawn: their tableau's dawn effects, cards fading, and the day's energy. */
 function dawn(state: GameState, p: PlayerState) {
   delete state.awaitingDawn;
+  // A new day: every card of theirs is ready to act again.
+  for (const c of p.tableau) delete c.dimmed;
   // Your tableau's dawn effects, left to right.
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
@@ -1481,6 +1483,13 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     host.aim = undefined;
     return;
   }
+  // A card that does nothing once played resolves and goes straight to the discard pile.
+  if (isBurst(def)) {
+    resolveEffects(state, p, card, def.onPlay, 'play', action);
+    card.aim = undefined;
+    if (!p.discard.includes(card)) p.discard.push(card);
+    return;
+  }
   // The chosen slot, or else the safest one free.
   const open = freeSlots(p);
   const slot = def.kind === 'command' ? COMMAND_SLOT : action.slot !== undefined && open.includes(action.slot) ? action.slot : slotsBySafety().find((i) => open.includes(i));
@@ -1489,6 +1498,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     return;
   }
   place(p, card, slot);
+  // A card comes into play dimmed: it can first act (attack, or a Hero's ability) on its owner's next day.
+  card.dimmed = true;
   if (choices.length) {
     card.choice = action.choice;
     log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);
@@ -1562,6 +1573,13 @@ export function applyAction(prev: GameState, action: Action): GameState {
     case 'endTurn':
       advanceTurn(state);
       break;
+    case 'attack': {
+      const why = attackProblem(state, p, action.attackerUid, action.targetUid);
+      if (why) throw new GameError(why);
+      attack(state, p, p.tableau.find((c) => c.uid === action.attackerUid)!, action.targetUid);
+      if (p.eliminated) passOn(state);
+      break;
+    }
     case 'heroAbility': {
       const why = heroAbilityProblem(state, p, action.index);
       if (why) throw new GameError(why);
@@ -1569,6 +1587,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       const k = cardDef(hero.defId).abilities![action.index];
       p.playsLeft -= k.cost ?? 0;
       p.abilityTurn = state.turnNumber;
+      hero.dimmed = true;
       log(state, `${p.name}'s ${cardDef(hero.defId).name}: ${k.name}.`);
       resolveEffects(state, p, hero, k.effects, 'play');
       if (p.eliminated) passOn(state);
@@ -1590,13 +1609,68 @@ export function applyAction(prev: GameState, action: Action): GameState {
   return state;
 }
 
+/** A card's attack as it stands: its rating, with whatever boosts heat (Forge, a Hero's racial buff...). */
+export function cardAttack(state: GameState, p: PlayerState, card: CardInstance): number {
+  const base = cardDef(card.defId).attack ?? 0;
+  if (base <= 0) return 0;
+  return effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play');
+}
+
+/** What a card hits back with when it is attacked: its own attack, and its Sting. */
+export function counterDamage(state: GameState, owner: PlayerState, card: CardInstance): number {
+  const sting = cardPassives(card).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0);
+  return cardAttack(state, owner, card) + sting;
+}
+
+/** Why a card can't attack this target now (null if it can). `targetUid` null: the rival's sun. */
+export function attackProblem(state: GameState, p: PlayerState, attackerUid: string, targetUid: string | null): string | null {
+  const card = p.tableau.find((c) => c.uid === attackerUid);
+  if (!card) return 'That card is not in play.';
+  if (activePlayer(state).id !== p.id || state.awaitingDawn) return 'Only on your own day.';
+  if ((cardDef(card.defId).attack ?? 0) <= 0) return `${cardDef(card.defId).name} has no attack.`;
+  if (card.dimmed) return `${cardDef(card.defId).name} is dimmed: it acts again from your next day.`;
+  const { cards, sun } = aimChoices(state, p);
+  if (targetUid === null) return sun ? null : 'Your rival has a Guard in play: attack it.';
+  return cards.some((c) => c.uid === targetUid) ? null : "Attack a card in your rival's tableau, or their sun.";
+}
+
+/**
+ * A card attacks: its attack lands as heat (on the sun, past shields, or on a card, past its defence), and
+ * the card it attacks hits back with its own attack and Sting, at the attacker's stability. Then it is dimmed.
+ */
+function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid: string | null) {
+  const rival = targetOf(state, p);
+  if (!rival) return;
+  const amount = cardAttack(state, p, card);
+  const name = cardDef(card.defId).name;
+  card.dimmed = true;
+  const victim = targetUid ? rival.tableau.find((c) => c.uid === targetUid) : undefined;
+  if (!victim) {
+    log(state, `${p.name}'s ${name} attacks ${rival.name}'s sun for ${amount}.`);
+    applyHeat(state, rival, amount, p, false, card.uid);
+    notePulse(state, p, card, 'heat', rival, amount);
+    return;
+  }
+  const back = counterDamage(state, rival, victim);
+  log(state, `${p.name}'s ${name} attacks ${rival.name}'s ${cardDef(victim.defId).name} for ${amount}.`);
+  heatCard(state, rival, victim, amount, p, false, card.uid);
+  if (back > 0 && p.tableau.includes(card)) {
+    card.stability = Math.max(0, (card.stability ?? 0) - back);
+    log(state, `${cardDef(victim.defId).name} hits back: ${name} takes ${back} (stability ${card.stability}).`);
+    if (card.stability <= 0) {
+      log(state, `${p.name}'s ${name} burns away.`);
+      leaveTableau(state, p, card);
+    }
+  }
+}
+
 /** Why the ability of the Hero leading a player's tableau can't be used now (null if it can). */
 export function heroAbilityProblem(state: GameState, p: PlayerState, index: number): string | null {
   const hero = commandCard(p);
   const k = hero ? cardDef(hero.defId).abilities?.[index] : undefined;
   if (!hero || !k) return 'No Hero leads your tableau.';
   if (activePlayer(state).id !== p.id || state.awaitingDawn) return 'Only on your own day.';
-  if (p.abilityTurn === state.turnNumber) return `${cardDef(hero.defId).name} has acted today.`;
+  if (hero.dimmed) return p.abilityTurn === state.turnNumber ? `${cardDef(hero.defId).name} has acted today.` : `${cardDef(hero.defId).name} is dimmed: it acts from your next day.`;
   if ((k.cost ?? 0) > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
   return null;
 }

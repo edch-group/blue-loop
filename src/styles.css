@@ -2402,6 +2402,9 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 }
 .stat-def { background: linear-gradient(135deg, #7c8aa6, #4d5b78); }
 .stat-stab { background: linear-gradient(135deg, #e0b25a, #b8801f); }
+.stat-atk { background: linear-gradient(135deg, #e0694c, #a8361f); grid-auto-flow: column; gap: 1px; }
+.stat-atk .atk-icon { width: 0.95em; height: 0.95em; }
+.stat-atk.stat-atk-dim { background: linear-gradient(135deg, #a3aab5, #6f7686); }
 .stat-stab.stat-low { background: linear-gradient(135deg, #e88a6c, #c0563d); animation: blink 1.6s ease-in-out infinite; }
 .card-table .resonance { top: calc(var(--cw, 100px) * 0.2); }
 /* A card in play: stability on the right, and its defence on the card's foot, half on and half off it
@@ -2682,6 +2685,7 @@ img.art { object-fit: cover; }
 .card .art-wrap .gem { box-shadow: 0 0 1.5px rgba(0, 0, 0, 0.45); }
 /* Out of play, the stability badge sits alone at the right, over the picture's lower corner. */
 .card-stats-base { justify-content: flex-end; }
+.card-stats-base.card-stats-split { justify-content: space-between; }
 .card-stats-base b { min-width: max(14px, calc(var(--cw, 100px) * 0.19)); height: max(11px, calc(var(--cw, 100px) * 0.125)); font-size: max(7px, calc(var(--cw, 100px) * 0.075)); }
 
 /* ---------- Online 1v1 ---------- */
@@ -4147,3 +4151,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* A card being played, placed in its slot while its abilities are chosen: there, but not yet down. */
 .card.card-placing { opacity: 0.9; pointer-events: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--kc) 70%, transparent), 0 0 22px color-mix(in srgb, var(--kc) 55%, transparent); animation: card-placing 1.4s ease-in-out infinite; }
 @keyframes card-placing { 50% { box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--kc) 40%, transparent), 0 0 10px color-mix(in srgb, var(--kc) 30%, transparent); } }
+
+/* ---------- Attacks and dimming ---------- */
+/* A card of yours that can attack today: a red ring (click it, then a rival card or their sun). */
+.card.card-attacker, .board-plane .card.card-table.card-attacker { cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.7), 0 0 14px rgba(216, 69, 43, 0.3); }
+/* A dimmed card has acted today (or just arrived): greyed until its controller's next day. */
+.card.card-table.card-dimmed .card-glyph, .card.card-table.card-dimmed .card-text, .card.card-table.card-dimmed .card-name { filter: saturate(0.25) brightness(0.86); }
+.card.card-table.card-dimmed::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; background: rgba(40, 46, 60, 0.16); pointer-events: none;
+}

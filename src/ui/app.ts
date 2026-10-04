@@ -3,6 +3,8 @@ import {
   activePlayer,
   heroSkillProblem,
   heroAbilityProblem,
+  attackProblem,
+  cardAttack,
   applyAction,
   BALANCE,
   boosterPool,
@@ -70,7 +72,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, symbolIcon, typeLine } from './glyphs';
+import { attackBadge, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, symbolIcon, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -120,6 +122,8 @@ interface Pending {
   aimUid?: string;
   /** Aiming the dawn heat of a card already in your tableau (uid is that card), not playing one. */
   dawn?: boolean;
+  /** A card of yours in play attacking (uid is that card): its target is chosen like an aim. */
+  attack?: boolean;
   /** A Command card's option. */
   choice?: string;
   enemyUid?: string;
@@ -216,7 +220,7 @@ const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -2374,7 +2378,7 @@ export class App {
     // recalls or fuses onto, its target), another card in hand, or cancel puts it back in the hand.
     if (this.screen === 'game' && this.pending && !this.pending.dawn && !(e.target as HTMLElement).closest?.('.overlay, .modal, .sheet, .hud, .zoom-view, .peek-toggle, .peek-shield')) {
       const a = el && !el.hasAttribute('disabled') ? el.dataset.act ?? '' : '';
-      if (a !== 'play' && a !== 'cancel' && !a.startsWith('choose-')) {
+      if (a !== 'play' && a !== 'cancel' && a !== 'attack-start' && !a.startsWith('choose-')) {
         this.pending = null;
         this.render();
         return;
@@ -2726,9 +2730,28 @@ export class App {
         if (!this.dawnTurn()) return;
         this.pending = { uid: arg, step: 'aim', dawn: true };
         return this.render();
+      case 'attack-start': {
+        // On your day, a card of yours with attack that has not acted yet: choose what it attacks.
+        if (this.pending?.attack && this.pending.uid === arg) {
+          this.pending = null;
+          return this.render();
+        }
+        const why = attackProblem(this.state!, this.viewer(), arg, null);
+        if (why && !why.startsWith('Your rival has a Guard')) return this.showToast(why, 'info');
+        this.pending = { uid: arg, step: 'aim', attack: true };
+        sound.hover();
+        return this.render();
+      }
       case 'choose-aim': {
         const pend = this.pending;
         if (!pend) return;
+        if (pend.attack) {
+          this.pending = null;
+          const target = arg === 'sun' ? null : arg;
+          const why = attackProblem(this.state!, this.viewer(), pend.uid, target);
+          if (why) return this.showToast(why, 'info');
+          return this.dispatch({ type: 'attack', attackerUid: pend.uid, targetUid: target });
+        }
         if (pend.dawn) {
           this.dawnAims()[pend.uid] = arg === 'sun' ? null : arg;
           this.pending = null;
@@ -3639,8 +3662,9 @@ export class App {
     // Your dawn: aim each card's dawn heat (the button lets it break).
     if (!p && this.dawnTurn()) return hint('assign heat', false);
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
-    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.dawn ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
+    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.dawn || p.attack ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
+    if (p.step === 'aim' && p.attack) return hint(aimChoices(s, activePlayer(s)).sun ? `attack with ${esc(cardDef(card.defId).name.toLowerCase())}` : 'attack a guard');
     if (p.step === 'aim') return hint(aimChoices(s, activePlayer(s)).sun ? 'aim heat' : 'aim at a guard');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
@@ -3765,7 +3789,7 @@ export class App {
         ? this.renderCard({ ...placing, slot: i, stability: baseStability(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
         : null;
     const viewer = this.state ? activePlayer(this.state) : null;
-    const aimingDef = pend?.step === 'aim' && viewer ? (pend.dawn ? viewer.tableau : viewer.hand).find((h) => h.uid === pend.uid)?.defId : undefined;
+    const aimingDef = pend?.step === 'aim' && viewer ? (pend.dawn || pend.attack ? viewer.tableau : viewer.hand).find((h) => h.uid === pend.uid)?.defId : undefined;
     const sunAim = side === 'rival' && !!aimingDef && !!viewer && aimChoices(this.state!, viewer).sun;
     // The Command slot: the one Command card leads the tableau from out in front (top right of yours,
     // bottom left of your rival's: a mirror across the board), lying landscape.
@@ -3933,7 +3957,7 @@ export class App {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    const aimDef = p?.step === 'aim' && me ? (p.dawn ? me.tableau : me.hand).find((h) => h.uid === p.uid)?.defId : undefined;
+    const aimDef = p?.step === 'aim' && me ? (p.dawn || p.attack ? me.tableau : me.hand).find((h) => h.uid === p.uid)?.defId : undefined;
     if (aimDef && me && opts.tableau === 'rival' && aimChoices(s!, me).cards.some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-aim" data-arg="${c.uid}"`;
       state = 'card-choosable';
@@ -3943,7 +3967,13 @@ export class App {
       attrs = `data-act="aim-start" data-arg="${c.uid}" title="Aim its dawn heat: click, then a rival card or their sun"`;
       state = 'card-aimer';
     }
-    if (p?.dawn && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
+    // On your day, your cards with attack that have not acted yet: click one, then what it attacks.
+    if ((!p || p.attack) && !this.dawnTurn() && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && !c.dimmed && cardAttack(s, me, c) > 0 && !isGameOver(s)) {
+      attrs = `data-act="attack-start" data-arg="${c.uid}" title="Attack: click, then a rival card or their sun"`;
+      state = 'card-attacker';
+    }
+    if ((p?.dawn || p?.attack) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
+    if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';
     // Placing a recall card: the card it recalls can make way for it.
     if (p && pendingDef && opts.tableau === 'mine' && p.step === 'slot' && p.allyUid === c.uid && allyEffectKind(pendingDef) === 'recall' && c.slot !== undefined) {
       attrs = `data-act="choose-slot" data-arg="${c.slot}" title="Put it here, in place of the card it recalls"`;
@@ -3981,7 +4011,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by heat. It mends 1 at each of its owner's dawns (more with Sturdy or Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats card-stats-stab"><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by heat. It mends 1 at each of its owner's dawns (more with Sturdy or Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
@@ -4037,7 +4067,7 @@ export class App {
     const c = owner?.tableau.find((x) => x.uid === uid);
     const stats =
       owner && c
-        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">◷${c.stability ?? 0}</b></span>`
+        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b>${(def.attack ?? 0) > 0 ? attackBadge(cardAttack(this.state!, owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">◷${c.stability ?? 0}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `

@@ -3,6 +3,7 @@ import {
   activePlayer,
   heroSkillProblem,
   heroAbilityProblem,
+  cardAttack,
   commandCard,
   applyAction,
   canSetLightspeed,
@@ -159,6 +160,8 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
     }
   }
   if (def.onLeave?.length) perTurn += 0.35;
+  // An attack: about that much heat a day, at the sun or a card.
+  if ((def.attack ?? 0) > 0) perTurn += 0.8 * cardAttack(state, p, card);
   // A Hero's abilities: the best of them, once a day, less its energy.
   if (def.abilities?.length) perTurn += 0.8 * Math.max(...def.abilities.map((k) => abilityValue(p, k.effects) - (k.cost ?? 0) * ACTION_VALUE * 0.6));
   // Worth as many turns as it has left (roughly), and a little more where removal cannot reach it. A Hero
@@ -245,7 +248,9 @@ function evaluate(state: GameState, meId: string): number {
   // past its shields (so a tableau stacked with attack cards is seen coming, and answered in time).
   const incoming = state.players.reduce((sum, o) => {
     if (o.id === meId || o.eliminated || targetOf(state, o)?.id !== meId) return sum;
-    return sum + turnForecast(state, o).heat;
+    // (And their cards' attacks, all ready again at their dawn: most of it is likely to come at this sun.)
+    const attacks = o.tableau.reduce((n, c) => n + cardAttack(state, o, c), 0);
+    return sum + turnForecast(state, o).heat + 0.7 * attacks;
   }, 0);
   const landing = Math.max(0, incoming - me.shields);
   const coming = landing * INCOMING_WEIGHT;
@@ -388,7 +393,15 @@ export function chooseAIAction(state: GameState): Action {
   // Its Hero's abilities (one a day): weighed like any card it could play.
   const hero = commandCard(me);
   const abilities: Action[] = hero ? (cardDef(hero.defId).abilities ?? []).flatMap((_, index) => (heroAbilityProblem(state, me, index) === null ? [{ type: 'heroAbility' as const, index }] : [])) : [];
-  if (!abilities.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
+  // Its cards' attacks (each ready card, at the sun or each card it may hit).
+  const attacks: Action[] = [];
+  const targets = aimChoices(state, me);
+  for (const c of me.tableau) {
+    if (c.dimmed || (cardDef(c.defId).attack ?? 0) <= 0) continue;
+    if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
+    for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
+  }
+  if (!abilities.length && !attacks.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
   // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.
   let view = state;
@@ -398,7 +411,7 @@ export function chooseAIAction(state: GameState): Action {
   }
   const baseline = evaluate(view, me.id);
   let best: { action: Action; score: number } | null = null;
-  for (const action of [...abilities, ...candidatePlays(view, me)]) {
+  for (const action of [...attacks, ...abilities, ...candidatePlays(view, me)]) {
     let next: GameState;
     try {
       next = applyAction(view, action);

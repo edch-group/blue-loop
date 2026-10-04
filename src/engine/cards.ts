@@ -3,6 +3,7 @@ import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { HERO_CARDS } from './heroes-battle';
+import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
 import { BOONS } from './boons';
 import { CARD_COSTS } from './costs';
@@ -290,7 +291,7 @@ export const CARDS: CardDef[] = [
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
   { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:1}. {tidewall}. {dawn}: {shield:3}.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }], passive: [{ type: 'taunt' }, { type: 'tidewall' }] },
-  { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: "{sting:3}.", passive: [{ type: 'retaliate', amount: 3 }] },
+  { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: "{guard}. {sting:3}.", passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 3 }] },
   {
     id: 'tidal_bloom',
     name: 'Tidal Bloom',
@@ -699,6 +700,17 @@ for (const c of CARDS) {
   Object.assign(c, h);
 }
 for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? 1 });
+// Attack ratings (attack.ts): by rule, unless a card gives its own.
+for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.cost ?? 1, !isBurst(c));
+
+/**
+ * A card that does nothing once it has been played (no dawn effects, passives, attack or anything for when it
+ * leaves): it resolves and goes straight to the discard pile, taking no slot.
+ */
+export function isBurst(def: CardDef): boolean {
+  if (def.kind === 'command' || def.kind === 'lightspeed' || def.stability !== undefined) return false;
+  return !def.onTurn?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);
+}
 
 /** Display names for the rarities. */
 export const RARITY_NAME: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly' };
