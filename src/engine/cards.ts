@@ -809,6 +809,10 @@ export interface DeckList {
   /** The race whose emblem the deck carries. */
   race: number;
   cards: string[];
+  /** A starter built round a mechanic, from several races (shown as "mixed"). */
+  mixed?: boolean;
+  /** The card whose picture is on its box (else its biggest Hero's). */
+  cover?: string;
 }
 
 const twoOf = (...ids: string[]) => ids.flatMap((id) => [id, id]);
@@ -874,6 +878,92 @@ export const PRESET_DECKS: DeckList[] = [
       'hive_colossus', 'hive_warrior', 'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings',
       'overgrowth', 'chitin_fortress', 'great_mycelium', 'ixquor_brood_tender', 'the_brood_queen', 'sporestorm',
       'hive_tyrant', 'spore_drone', 'spore_catalyst', 'solar_bastion',
+    ],
+  },
+  // Mixed decks, each built round one of the game's mechanics rather than one race (the emblem is the race
+  // it leans on most). The first four (one per race) are the races' own, and the campaign's.
+  {
+    // The planets: speed your Orbit round to the industrial planet (Sunward Lances, Comet Hail and the
+    // Perihelion Forge hit hardest facing it) and slow your rival's with a Gravity Well and Tidal Brakes,
+    // the Logistics Command keeping the Orbit turning; plain heat and cooling carry it in between.
+    name: 'Orbit Riders',
+    mixed: true,
+    cover: 'orbital_slingshot',
+    race: 3,
+    cards: [
+      ...twoOf('logistics_command', 'sunward_lance', 'comet_hail', 'gravity_assist', 'orbital_slingshot', 'perihelion_forge', 'tidal_brake'),
+      ...twoOf('coronal_lance', 'photon_drill', 'helio_lancer', 'cryo_vault'),
+      'command_directive', 'gravity_well', 'comet_shard', 'deflector_grid', 'heat_sink', 'dawnstar_cannon', 'deep_scanners', 'solar_bastion',
+    ],
+  },
+  {
+    // Lightspeed: a trap face down (Prisms of Dawn and Counter Pulses against attack cards), Guards that
+    // spring out of the Lightspeed slot to take a hit (Sunflash Aegis, Blink Bulwarks, a Riptide Sentinel),
+    // and Aureline attack cards forged and boosted behind them.
+    name: 'Ambush',
+    mixed: true,
+    cover: 'prism_of_dawn',
+    race: 0,
+    cards: [
+      ...twoOf('command_directive', 'prism_of_dawn', 'counter_pulse', 'sunflash_aegis', 'blink_bulwark', 'helio_lancer', 'shard_reactor', 'plasma_relay'),
+      ...twoOf('coronal_lance', 'cryo_vault', 'photon_drill'),
+      'tide_regent', 'riptide_sentinel', 'dawnstar_cannon', 'aureline_archon', 'sunforge', 'focusing_array', 'deep_scanners', 'deflector_grid',
+    ],
+  },
+  {
+    // Removal: tear the rival's tableau down faster than they build it. Ion Cannons, Void Bolts and
+    // Shatter Points destroy, Tractor Beams and Tidebreakers eject, Entropy Pulses and Fault Lines erode,
+    // the Maelstrom wears everything; the Star Breaker and the Event Horizon finish the job.
+    name: 'Demolition',
+    mixed: true,
+    cover: 'event_horizon',
+    race: 1,
+    cards: [
+      ...twoOf('war_council', 'ion_cannon', 'void_bolt', 'entropy_pulse', 'scatter_shot', 'tidebreaker', 'cryo_vault', 'shard_reactor'),
+      'command_breaker', 'tractor_beam', 'shatter_point', 'fault_line', 'maelstrom', 'star_breaker',
+      'event_horizon', 'the_shardmind', 'heat_sink', 'deflector_grid', 'deep_scanners', 'xelnaru_warden', 'photon_drill', 'coronal_lance',
+    ],
+  },
+  {
+    // Thermosiphon: run your own sun far below zero (Cryo Vaults, Cold Fronts, the Ice Age) and every
+    // Thermosiphon card gets stronger the colder it is: Cryo Lances and Absolute Zero for heat, Frostbound
+    // Sentinels, Rime Bastions and the Glacier Hull for shields.
+    name: 'Absolute Zero',
+    mixed: true,
+    cover: 'absolute_zero',
+    race: 1,
+    cards: [
+      ...twoOf('coolant_protocol', 'cryo_lance', 'frostbound_sentinel', 'rime_bastion', 'cryo_vault', 'cold_front', 'frost_lattice', 'coolant_array', 'shard_reactor'),
+      'absolute_zero', 'glacier_hull', 'ice_age', 'deep_freeze', 'prism_vent', 'the_shardmind',
+      'heat_sink', 'photon_drill', 'helio_lancer', 'dawnstar_cannon', 'gravity_sling', 'deep_scanners',
+    ],
+  },
+  {
+    // Fusion: a few sturdy hosts (Plasma Relays, Vanguards, Dawnstar Cannons, Trench Wardens), and grafts to
+    // stack on them, each adding its dawn effect to the host's: no free slots needed, so the hand never
+    // jams. Reinforced Plating and Barnacle Shells keep the loaded hosts standing.
+    name: 'Graftworks',
+    mixed: true,
+    cover: 'sunforged_lens',
+    race: 2,
+    cards: [
+      ...twoOf('tide_regent', 'plasma_relay', 'aureline_vanguard', 'thermal_graft', 'sunforged_lens', 'shield_lattice', 'reinforced_plating', 'shard_splice', 'tidal_graft'),
+      'the_admiralty', 'dawnstar_cannon', 'trench_warden', 'bastion_node', 'barnacle_shell', 'coolant_shunt',
+      'data_splice', 'siphon_tendril', 'deep_scanners', 'coronal_lance', 'photon_drill', 'helio_lancer',
+    ],
+  },
+  {
+    // Spend All: cheap cards and energy (Relay Stations, Overcharges, Glory Charges, Phase Shifts) build a
+    // big day, then a Solar Torrent, a Meltdown or a Radiant Barrage spends it all at once; Deep Freeze and
+    // the Abyssal Rampart do the same for defence, the Overflow Archive and Hive Surge for cards.
+    name: 'Overcharge',
+    mixed: true,
+    cover: 'solar_torrent',
+    race: 0,
+    cards: [
+      ...twoOf('ignition_protocol', 'solar_torrent', 'meltdown', 'radiant_barrage', 'relay_station', 'overcharge', 'glory_charge', 'deep_freeze', 'gravity_sling'),
+      'chamber_protocol', 'overflow_archive', 'abyssal_rampart', 'hive_surge', 'overgrowth', 'phase_shift',
+      'coronal_lance', 'cryo_vault', 'heat_sink', 'deep_scanners', 'fracture_lens', 'sporelings',
     ],
   },
 ];

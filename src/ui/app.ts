@@ -3316,7 +3316,9 @@ export class App {
       <div class="setup-body db-list-body">
         <div class="db-list">
           <div class="section-label">race starters</div>
-          <div class="db-boxes">${PRESETS.map(box).join('')}</div>
+          <div class="db-boxes">${PRESETS.filter((d) => !d.mixed).map(box).join('')}</div>
+          <div class="section-label">mechanic starters</div>
+          <div class="db-boxes">${PRESETS.filter((d) => d.mixed).map(box).join('')}</div>
           ${mine.length ? `<div class="section-label">your decks</div><div class="db-boxes">${mine.map(box).join('')}</div>` : ''}
         </div>
       </div>`;

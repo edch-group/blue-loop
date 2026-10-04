@@ -41,12 +41,12 @@ export interface Payout extends Reward {
   bonus: { stardust: number; flux: number };
 }
 
-/** A new account's economy: the starter decks' cards, and enough stardust for a first booster. */
+/** A new account's economy: every card, and enough stardust for a first booster. */
 export function freshEconomy(): Economy {
   return { level: 1, xp: 0, stardust: PROGRESSION.boosterPrice, flux: 0, collection: starterGrant(), rankPoints: null, played: 0, won: 0 };
 }
 
-/** An economy read back from storage, made whole (cards added to the starter decks since are granted too). */
+/** An economy read back from storage, made whole (every card is unlocked: the collection is topped up to the full set). */
 export function normaliseEconomy(raw: unknown): Economy {
   const e = { ...freshEconomy(), ...(raw && typeof raw === 'object' ? (raw as Partial<Economy>) : {}) };
   const known = new Set(CARDS.map((c) => c.id));

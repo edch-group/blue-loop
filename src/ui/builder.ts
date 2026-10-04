@@ -81,7 +81,7 @@ const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /**
- * The deck builder: a list of decks (the four race presets, which can be
+ * The deck builder: a list of decks (the starters, which can be
  * copied, and the player's own), and an editor with the whole card pool on the
  * left and the deck on the right. A deck saves once it is legal.
  */
@@ -407,7 +407,9 @@ export class DeckBuilder {
       <div class="setup-body db-list-body">
         <div class="db-list">
           <div class="section-label">race starters</div>
-          <div class="db-boxes">${PRESETS.map(box).join('')}</div>
+          <div class="db-boxes">${PRESETS.filter((d) => !d.mixed).map(box).join('')}</div>
+          <div class="section-label">mechanic starters</div>
+          <div class="db-boxes">${PRESETS.filter((d) => d.mixed).map(box).join('')}</div>
           <div class="section-label">your decks</div>
           ${mine.length ? `<div class="db-boxes">${mine.map(box).join('')}</div>` : '<p class="muted">No decks of your own yet. Start a new one, or copy a starter to change it.</p>'}
         </div>
@@ -786,7 +788,7 @@ export function deckBox(d: SavedDeck, opts: { act: string; title: string; action
         <div class="deck-box-front">
           ${deckCover(d)}
           <b class="deck-box-name">${esc(d.name.toLowerCase())}</b>
-          <small class="deck-box-race">${esc(RACE_NAMES[d.race].toLowerCase())}</small>
+          <small class="deck-box-race">${d.mixed ? 'mixed' : esc(RACE_NAMES[d.race].toLowerCase())}</small>
         </div>
       </div>
       <small class="db-deck-sub">${d.preset ? 'starter' : legal ? `${d.cards.length} cards` : 'incomplete'} · ${counts('attack')} atk · ${counts('defence')} def · ${counts('growth')} gro</small>
@@ -796,7 +798,7 @@ export function deckBox(d: SavedDeck, opts: { act: string; title: string; action
 
 /** A deck's round cover: its hero's picture, or its race's emblem. */
 export function deckCover(d: SavedDeck): string {
-  const hero = coverCard(d.cards);
+  const hero = d.cover ? cardDef(d.cover) : coverCard(d.cards);
   return `<span class="deck-box-cover">${hero ? cardArtLite(hero) : factionAvatar(`f${d.race + 1}`, 'db-emblem')}</span>`;
 }
 

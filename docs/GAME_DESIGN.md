@@ -17,7 +17,13 @@ was replaced by this design in design review.
 ## Decks
 
 - A deck is **30 to 40 cards**, with **at most 2 copies** of any card and **one Hero per 10 cards** (3 in a 30-card deck, 4 in 40), so a deck runs at least two different Heroes. The starter decks are 30. [design review: 30–40 cards so a deck has room for a balanced curve and its big cards; proposed: 2 copies]
-- Players build decks in the **deck builder** (Quickplay → deck builder) from the whole card pool, or pick one of the four **race starter decks**. The builder shows real cards, always the same shape and size as on the table. The AI plays the starters. [design review]
+- Players build decks in the **deck builder** (Quickplay → deck builder) from the whole card pool, or pick one of the **ten starter decks**: four race decks (Solar Lancers, Shard Overload, Abyssal Tide, Hive Bloom: also the campaign's) and six mixed-race decks, each built round one mechanic:
+  - **Orbit Riders:** the planets. Speed your Orbit round to the industrial planet, slow your rival's; plain heat and cooling in between.
+  - **Ambush:** Lightspeed. A trap face down against attack cards, Guards that spring from the Lightspeed slot, forged Aureline attack cards behind them.
+  - **Demolition:** removal. Destroy, eject, erode and decay the rival's tableau.
+  - **Absolute Zero:** Thermosiphon. Run your sun far below zero; the colder it is, the harder its cards hit and shield.
+  - **Graftworks:** Fusion. Sturdy hosts loaded with grafts, so the hand never jams for want of a slot.
+  - **Overcharge:** Spend All. Build a big day of energy, then spend it all at once. The builder shows real cards, always the same shape and size as on the table. The AI plays the starters. [design review]
 - Each deck carries a race emblem. Cards can be mixed freely across races. [proposed]
 
 ## Turns
@@ -417,7 +423,15 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 ## Balance (AI simulations)
 
-`npm run simulate -- [games]` plays AI-versus-AI 1v1 games with the four starter decks.
+`npm run simulate -- [games]` plays AI-versus-AI 1v1 games with the starter decks.
+
+`npm run gauntlet -- [games]` plays one deck (`NAME='Orbit Riders'`, or `DECK='[...]'`) against each of the four race starters, seats alternating: a quick check of a deck list against a fixed benchmark.
+
+**Ten starters (1000 games, decks swapped only, no card changed).** Solar Lancers 49.7%, Shard Overload 50.9%, Abyssal Tide 34.1%, Hive Bloom 45.5%, Orbit Riders 26.6%, Ambush 44.1%, Demolition 45.4%, Absolute Zero 75.5%, Graftworks 74.6%, Overcharge 62.8%; seats 49.7/50.3, about 12.5 rounds. The mechanic decks are there to show up tactics that are too strong or too weak:
+- **Too strong:** Thermosiphon (Absolute Zero beats Abyssal Tide 96%, Demolition 97%) and Fusion (Graftworks beats Shard Overload 83%, Abyssal Tide 85%, Ambush 93%), both from stacked dawn effects that come back every day. Spend All (Overcharge) is strong too. Their lists were left as built, so the field shows it.
+- **Lightspeed traps are weak:** the Ambush list with eight traps won 23% against the race starters; the same deck with no traps at all won 68%, and with four (as now) 45–49%. No deck swap can make a trap deck work: the traps themselves (or the AI's use of them) need looking at.
+- **Orbit cards are weak on their own:** Orbit Riders with mostly orbit cards won 9%; trading its weakest orbit cards (Survey Probes, Tide Locks, Orbit Root, Dead World Mine, Fusion Reactor, Orion) for plain heat and cooling took it to 43% against the race starters, but it still loses most games to the strong mechanic decks.
+- A plain deck of neutral dawn heat, Guards and cooling beats the race starters about two games in three: steady dawn heat is worth more than most synergies.
 
 **The starter decks** were rebuilt so every race plays with the newer mechanics. [design review: in play, the old starters never used them]
 
@@ -553,7 +567,7 @@ Outside a single game, each player has a **profile** (kept on their device): a l
 
   Hot-seat games pay nothing (both players share one profile). Conceding earns half the experience and no currency. The reward shows under the result on the board.
 
-**The collection.** You start with the cards of the four starter decks (enough to play each). The deck builder greys out cards you don't own and lets a deck use only as many copies as you own.
+**The collection.** Every card is unlocked: every player has every card, as many copies as a deck can hold (two, or one of an Anomaly). Saved collections are topped up to the full set on load (on the client and the server). Boosters and crafting still work, but every copy now comes as flux.
 - **The deck builder:** the deck is a column of pills, one per card, each in its card's colours (by rarity) with its picture, type and count; tap one to take a copy out. The card view has a search (name and text) and filters for race (any, this deck's race with neutrals, neutral only, or one race), type, rarity, collection (owned, not owned, or craftable now), characters, and cards already in the deck, sorted by race, name, type or rarity. The ⟁ tag under each card opens crafting. Each card's ⤢ button (or a right-click on any card, anywhere; a long press on touch) shows it large.
 - **Card text always fits:** text too long for its card shrinks until it fits (down to half size), on every card everywhere: hands, the table, menus and zoomed views (`src/ui/fittext.ts`). Nothing is cut off.
 - **Booster packs (✦100):** one for each race (only that race's cards) and a general one (every card of no race: neutral cards, Command, global and Lightspeed cards). Five cards: three White Dwarfs, a fourth that is Stellar 30% of the time, and a fifth that is Stellar, or an Anomaly 18% of the time. A copy beyond what a deck can use (2, or 1 for an Anomaly) comes as its breakdown value in flux instead.

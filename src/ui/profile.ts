@@ -47,7 +47,7 @@ export function profile(): Profile {
   if (!p || typeof p.id !== 'string' || typeof p.collection !== 'object') p = fresh();
   p.name ??= '';
   p.avatar ??= 0;
-  // Cards added to the starter decks since are granted too.
+  // Every card is unlocked: a saved collection is topped up to the full set.
   for (const [id, n] of Object.entries(starterGrant())) p.collection[id] = Math.max(p.collection[id] ?? 0, n);
   cached = p;
   store();

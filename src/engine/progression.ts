@@ -165,9 +165,14 @@ export function addXp(level: number, xp: number, gain: number): { level: number;
 /** Card id → copies owned. */
 export type Collection = Record<string, number>;
 
-/** The copies every player starts with: enough of each card to play every race's starter deck. */
+/**
+ * The copies every player has: every card in the game, as many as a deck can hold (two of each, one of an
+ * Anomaly). Every card is unlocked from the start; boosters and crafting only ever add flux now.
+ */
 export function starterGrant(): Collection {
   const grant: Collection = {};
+  for (const c of CARDS) if (!c.token) grant[c.id] = copyLimit(c.id);
+  // (And whatever the starter decks hold, should one ever run a card outside the pool.)
   for (const d of PRESET_DECKS) {
     const counts: Collection = {};
     for (const id of d.cards) counts[id] = (counts[id] ?? 0) + 1;
