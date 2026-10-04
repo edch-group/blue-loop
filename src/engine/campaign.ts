@@ -588,6 +588,8 @@ export function visibleNodes(s: CampaignState, factionId: string): Set<string> {
   // An army sees the routes out of wherever it stands.
   for (const a of s.armies) if (a.owner === factionId) look(byId.get(a.nodeId)!, armyBonus(s, a).sight);
   if (s.battle) seen.add(s.battle.nodeId);
+  // The Heart's light reaches everywhere: the supermassive star at the centre is always in view.
+  for (const n of s.nodes) if (n.heart) seen.add(n.id);
   // The collapse is felt everywhere: a system about to go is always in view.
   for (const n of s.nodes) if (n.collapsing) seen.add(n.id);
   return seen;

@@ -70,7 +70,7 @@ import {
 import { markDirty } from './account';
 import { DeckBuilder, type BuilderMode } from './builder';
 import { heroFigure, skillTree } from './heroview';
-import { shipSvg } from './ships';
+import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
 import { cardArtLite, cardGlyph, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
@@ -1125,7 +1125,7 @@ export class CampaignView {
     const cls = ['cmp-ship', mine ? 'cmp-ship-mine' : '', a.lost ? 'cmp-ship-lost' : '', this.army === a.id ? 'cmp-ship-on' : '', this.sails.has(a.id) ? 'sailing' : ''].join(' ');
     const race = a.lost ? 0 : factionById(s, a.owner).race;
     return `<div class="${cls}" data-key="ship-${a.id}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;--rot:${((angle * 180) / Math.PI).toFixed(1)}deg;--dur:${dur.toFixed(2)}s;--ac:${this.colourOf(a.owner)}">
-        <div class="cmp-ship-hull" data-act="cmp-army" data-arg="${a.id}"><i class="cmp-ship-shadow"></i><div class="cmp-ship-float">${shipSvg(race, !!a.lost)}</div></div>
+        <div class="cmp-ship-hull" data-act="cmp-army" data-arg="${a.id}"><i class="cmp-ship-shadow"></i><div class="cmp-ship-float">${shipModel(race, !!a.lost)}</div></div>
         <div class="cmp-ship-bb">${this.armyToken(a)}</div>
       </div>`;
   }

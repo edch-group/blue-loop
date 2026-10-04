@@ -1,39 +1,96 @@
 /**
- * The little ships armies sail the campaign map in, one look per race, seen from above and pointing along
- * +x (they lie flat on the map and turn to face the way they last travelled). Light hulls trimmed in the
- * faction's colour (--ac), with an engine glow at the stern.
+ * The little ships armies sail the campaign map in, one model per race, built in CSS 3D inside the map's
+ * tilted plane: the hull is its top-down outline stacked in slices (so it has real thickness, darker down
+ * its sides), and domes, spheres and spires are stacks of shrinking shapes. It is all static markup: no
+ * script runs per frame, so the camera moving them costs no more than moving any other element.
+ *
+ * Models point along +x in a 40 x 24 box (the hull's viewBox), and turn as a whole with --rot.
  */
 
-/** The engine glow, at the stern (left). */
-const FLAME = '<ellipse class="ship-flame" cx="3" cy="12" rx="5" ry="2.6"/>';
+type Part = string;
 
-const SHIPS: string[] = [
-  // Aureline: a sun-barque, a long golden leaf of a hull carrying a sun-disc.
-  `<path class="ship-hull" d="M39 12C31 4.5 14 3.5 5 7l3 5-3 5c9 3.5 26 2.5 34-5z"/>
-   <path class="ship-trim" d="M9 12h26"/>
-   <circle class="ship-glow" cx="21" cy="12" r="4.4"/><circle class="ship-core" cx="21" cy="12" r="2"/>`,
-  // Xel'Naru: a crystal shard, all facets.
-  `<path class="ship-hull" d="M39 12 23 3.5 9 6.5 4 12l5 5.5 14 3z"/>
-   <path class="ship-trim" d="M39 12 23 3.5 18 12l5 8.5M18 12H4M9 6.5l9 5.5-9 5.5"/>
-   <path class="ship-core" d="M27 12l-3-2.4-3 2.4 3 2.4z"/>`,
-  // Vorthane: a jellyfish bell leading a trail of tentacles.
-  `<path class="ship-trim ship-tails" d="M17 7c-5 0-6 2-11 1M16 10.5c-5 0-6 1.5-12 1M16 13.5c-5 0-6-1.5-12-1M17 17c-5 0-6-2-11-1"/>
-   <path class="ship-hull" d="M17 4.5c11-1 20 2.5 21 7.5-1 5-10 8.5-21 7.5-1.5-5-1.5-10 0-15z"/>
-   <path class="ship-trim" d="M17 4.5c3 2.5 3 12.5 0 15M22 5c2 3 2 11 0 14"/>
-   ${[7, 10, 14, 17].map((y) => `<circle class="ship-core" cx="${y === 7 || y === 17 ? 18.6 : 19.6}" cy="${y}" r="0.9"/>`).join('')}`,
-  // Ixquor: a seed pod on spined legs, its cap glowing.
-  `<path class="ship-trim" d="M14 7 8 3M20 6.5l-3-5M14 17l-6 4M20 17.5l-3 5"/>
-   <ellipse class="ship-hull" cx="21" cy="12" rx="16" ry="7.2"/>
-   <ellipse class="ship-glow" cx="29" cy="12" rx="6" ry="5"/>
-   <path class="ship-trim" d="M13 8.5c2 2 2 5 0 7M19 7c2 3 2 7 0 10"/>`,
+/** A hull: its outline stacked in slices from the waterline up; the top slice carries the deck detail. */
+function hull(path: string, deck: string, slices = 6, step = 1.1): Part {
+  let out = '';
+  for (let i = 0; i < slices; i++) {
+    out += `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(${(i * step).toFixed(1)}px)" aria-hidden="true"><path class="s-side" style="--k:${(i / slices).toFixed(2)}" d="${path}"/></svg>`;
+  }
+  out += `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(${(slices * step).toFixed(1)}px)" aria-hidden="true"><path class="s-top" d="${path}"/>${deck}</svg>`;
+  return out;
+}
+
+/**
+ * A round body made of stacked discs: centred at (x, y) in the 40 x 24 box, radius r (box units), from height
+ * z0 up; a full sphere, or (dome) only its upper half. Each disc is shaded a little lighter going up.
+ */
+function orb(x: number, y: number, r: number, z0: number, cls: string, opts: { dome?: boolean; rx?: number; slices?: number; h?: number } = {}): Part {
+  const n = opts.slices ?? 8;
+  const sx = (opts.rx ?? r) / r;
+  let out = '';
+  for (let i = 0; i <= n; i++) {
+    // From the bottom (-1) or the equator (0) up to the top (1).
+    const t = opts.dome ? i / n : -1 + (2 * i) / n;
+    const rr = r * Math.sqrt(Math.max(0, 1 - t * t));
+    if (rr < 0.4) continue;
+    const z = z0 + (opts.dome ? t * r : (t + 1) * r) * 1.6 * (opts.h ?? 1);
+    out += disc(x, y, rr * sx, rr, z, `${cls}`, i / n);
+  }
+  return out;
+}
+
+function disc(x: number, y: number, rx: number, ry: number, z: number, cls: string, k: number): string {
+  return `<i class="s-disc ${cls}" style="left:${(((x - rx) / 40) * 100).toFixed(2)}%;top:${(((y - ry) / 24) * 100).toFixed(2)}%;width:${(((rx * 2) / 40) * 100).toFixed(2)}%;height:${(((ry * 2) / 24) * 100).toFixed(2)}%;transform:translateZ(${z.toFixed(1)}px);--k:${k.toFixed(2)}"></i>`;
+}
+
+/** A spire: stacked diamonds narrowing to a point. */
+function spire(x: number, y: number, w: number, z0: number, height: number, cls: string, slices = 6): Part {
+  let out = '';
+  for (let i = 0; i < slices; i++) {
+    const t = i / slices;
+    const ww = w * (1 - t);
+    out += `<i class="s-gem ${cls}" style="left:${(((x - ww / 2) / 40) * 100).toFixed(2)}%;top:${(((y - ww / 2) / 24) * 100).toFixed(2)}%;width:${((ww / 40) * 100).toFixed(2)}%;height:${((ww / 24) * 100).toFixed(2)}%;transform:translateZ(${(z0 + t * height).toFixed(1)}px) rotate(45deg);--k:${t.toFixed(2)}"></i>`;
+  }
+  return out;
+}
+
+/** The engine glow at the stern (brighter while sailing). */
+const FLAME = `<i class="s-flame"></i>`;
+
+const MODELS: (() => string)[] = [
+  // Aureline: a sun-barque, a long golden leaf of a hull carrying a glowing sun-sphere amidships.
+  () =>
+    hull('M39 12C31 4.5 14 3.5 5 7l3 5-3 5c9 3.5 26 2.5 34-5z', '<path class="s-trim" d="M9 12h26"/>') +
+    orb(21, 12, 4.6, 8, 's-sun'),
+  // Xel'Naru: a crystal shard of a hull, a spire of crystal rising from it.
+  () =>
+    hull('M39 12 23 3.5 9 6.5 4 12l5 5.5 14 3z', '<path class="s-trim" d="M39 12 23 3.5 18 12l5 8.5M18 12H4"/>', 5) +
+    spire(22, 12, 11, 5, 22, 's-crystal', 9),
+  // Vorthane: a low raft trailing tentacles, under a great translucent bell.
+  () =>
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(1px)" aria-hidden="true"><path class="s-tails" d="M17 7c-5 0-6 2-11 1M16 10.5c-5 0-6 1.5-12 1M16 13.5c-5 0-6-1.5-12-1M17 17c-5 0-6-2-11-1"/></svg>` +
+    hull('M17 5c11-1 20 2.5 21 7-1 4.5-10 8-21 7-1.5-4.5-1.5-9.5 0-14z', '', 3, 1) +
+    orb(26, 12, 7.4, 3, 's-bell', { dome: true, rx: 9.5, slices: 8 }),
+  // Ixquor: a seed pod on spined legs, its living cap swelling up from the bow.
+  () =>
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(0.5px)" aria-hidden="true"><path class="s-legs" d="M14 8 8 3M20 7l-3-5.5M14 16l-6 5M20 17l-3 5.5"/></svg>` +
+    orb(21, 12, 7, 0.5, 's-pod', { rx: 15, slices: 8, h: 0.55 }) +
+    orb(28, 12, 5, 9, 's-cap', { dome: true, slices: 5 }),
 ];
 
-/** The Lost Races: a battered derelict, its hull holed and its plates sprung. */
-const DERELICT = `<path class="ship-hull" d="M38 12 30 5 12 6 6 9l2 3-2 3 6 3 18 1z"/>
-  <path class="ship-trim" d="M30 5l-3 7 3 7M12 6l4 6-4 6M20 9l2 2-2 2"/>
-  <circle class="ship-core" cx="33" cy="12" r="1.4"/>`;
+/** The Lost Races: a battered derelict, holed and listing, a broken mast stump on its deck. */
+const DERELICT = () =>
+  hull('M38 12 30 5 12 6 6 9l2 3-2 3 6 3 18 1z', '<path class="s-trim" d="M30 5l-3 7 3 7M12 6l4 6-4 6"/><circle class="s-hole" cx="21" cy="10" r="2"/>', 5) +
+  spire(31, 12, 3, 5, 6, 's-mast', 3);
 
-/** A ship for an army of this race (or a Lost Races derelict). */
-export function shipSvg(race: number, lost: boolean): string {
-  return `<svg class="cmp-ship-svg" viewBox="0 0 40 24" aria-hidden="true">${FLAME}${lost ? DERELICT : SHIPS[race] ?? SHIPS[0]}</svg>`;
+const cache = new Map<string, string>();
+
+/** A ship for an army of this race (or a Lost Races derelict): a 3D model to sit in the map's plane. */
+export function shipModel(race: number, lost: boolean): string {
+  const key = lost ? 'lost' : String(race);
+  let html = cache.get(key);
+  if (!html) {
+    html = `<div class="ship3d ship3d-${lost ? 'lost' : race}">${FLAME}${lost ? DERELICT() : (MODELS[race] ?? MODELS[0])()}</div>`;
+    cache.set(key, html);
+  }
+  return html;
 }
