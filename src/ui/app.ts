@@ -56,6 +56,7 @@ import {
   hasRoomFor,
   targetOf,
   planetsEaten,
+  currentPlanet,
   type Action,
   type BoosterCard,
   type BoosterKind,
@@ -1254,7 +1255,19 @@ export class App {
     if (!s || isGameOver(s) || this.needsHandoff()) return;
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
-    this.showBanner('day', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('day'));
+    this.showBanner('day', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('day'), this.orbitLine(s, p));
+  }
+
+  /** For the day's banner: the planet facing the player's sun today, and what it gives (a card drawn, or energy). */
+  private orbitLine(s: GameState, p: PlayerState): string {
+    const planet = currentPlanet(p, s);
+    const gives =
+      planet === 'abundant'
+        ? `<i class="tb-gift" title="Draw ${BALANCE.abundantDraw} more at dawn">${HAND_ICON}+${BALANCE.abundantDraw}</i>`
+        : planet === 'industrial'
+          ? `<i class="tb-gift" title="${BALANCE.industrialPlays} more energy today"><b class="tb-energy"></b>+${BALANCE.industrialPlays}</i>`
+          : '';
+    return `<div class="turn-banner-orbit">${planet} orbit${gives}</div>`;
   }
 
   /**
@@ -1276,7 +1289,7 @@ export class App {
     // The day begins once the dawn has played out.
     if (turnPassed) {
       const replay = animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0;
-      this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600), 'game', () => this.setPhase('day'));
+      this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600), 'game', () => this.setPhase('day'), this.orbitLine(next, now));
     }
   }
 
@@ -1318,7 +1331,7 @@ export class App {
   private bannerFree = 0;
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
-  private showBanner(text: string, sub: string, delay = 0, screen: Screen = 'game', onShow?: () => void) {
+  private showBanner(text: string, sub: string, delay = 0, screen: Screen = 'game', onShow?: () => void, extra = '') {
     const at = Math.max(Date.now() + delay, this.bannerFree);
     this.bannerFree = at + BANNER_GAP_MS;
     delay = at - Date.now();
@@ -1328,7 +1341,7 @@ export class App {
       document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
       const el = document.createElement('div');
       el.className = `turn-banner ${text.length > 12 ? 'turn-banner-long' : ''}`;
-      el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">${esc(text)}</div><div class="turn-banner-sub">${esc(sub.toLowerCase())}</div>`;
+      el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">${esc(text)}</div><div class="turn-banner-sub">${esc(sub.toLowerCase())}</div>${extra}`;
       document.body.appendChild(el);
       sound.turn();
       window.setTimeout(() => el.remove(), 2000);
@@ -4058,7 +4071,7 @@ export class App {
         const why = heroSkillProblem(s, me, i);
         const spent = k.spent || (!k.once && k.usedTurn === s.turnNumber);
         return `<button class="hero-skill ${spent ? 'spent' : ''}" data-act="hero-skill" data-arg="${i}" ${why || !act || busy ? `disabled title="${esc(why ?? k.text)}"` : `title="${esc(k.text)}"`}>
-          <span class="hero-skill-face">${cardArtLite(cardDef(k.hero))}</span><b>${esc(k.name.toLowerCase())}</b><small>${k.once ? 'once' : 'daily'}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
+          <span class="hero-skill-face">${cardArtLite(cardDef(k.hero))}</span><b>${esc(k.name.toLowerCase())}</b><small>${k.once ? 'once' : 'daily'}${k.cost ? ` ${keywordHtml('cost', String(k.cost))}` : ''}</small></button>`;
       })
       .join('');
     return `
@@ -4403,7 +4416,7 @@ export class App {
             ? `<div class="insp-abilities">${(cardDef(lead.defId).abilities ?? [])
                 .map((k, i) => {
                   const why = heroAbilityProblem(s, viewer, i) ?? (this.canAct() ? null : 'Not now.');
-                  return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${esc(k.name)}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
+                  return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${esc(k.name)}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` ${keywordHtml('cost', String(k.cost))}` : ''}</small></button>`;
                 })
                 .join('')}</div>`
             : '';

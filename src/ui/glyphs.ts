@@ -481,6 +481,8 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
   const label = keywordLabel(id, value);
   // Energy gained: "Gain" and a green dot per energy.
   if (id === 'energy' && value) return `<b class="kw kw-${k.group} kw-gain"${data} aria-label="${escText(label)}">Gain<span class="gain-dots">${'<i></i>'.repeat(Math.max(1, Number(value) || 1))}</span></b>`;
+  // An energy cost: a green dot per energy (never a lightning bolt: that is Lightspeed's).
+  if (id === 'cost' && value) return `<b class="kw kw-${k.group} kw-gain kw-cost"${data} aria-label="${escText(label)}"><span class="gain-dots">${'<i></i>'.repeat(Math.max(1, Number(value) || 1))}</span></b>`;
   if (!k.symbol) return `<b class="kw kw-${k.group}"${data}>${escText(label)}</b>`;
   const icon = symbolIcon(id);
   const shown = opts.named ? label : value ?? '';
@@ -568,7 +570,7 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   const texts = [text, ...[...text.matchAll(/\{options:([^}]+)\}/g)].flatMap((m) => optionList(m[1]).map(optionText))].join(' ');
   // (Gaining energy explains itself.)
   // (Gaining energy explains itself; a Hero's ability names are not keywords.)
-  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'act') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
+  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'cost' && k.id !== 'act') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
   if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');

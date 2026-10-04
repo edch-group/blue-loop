@@ -49,7 +49,7 @@ function outcome(text: string): { icon: string; tone: string; chip: Chip | null 
   if (/replaces/.test(text)) return { icon: '⇄', tone: 'play', chip: { cls: 'play', html: '⇄ swapped' } };
   if (/chooses:/.test(text)) return { icon: '◆', tone: 'play', chip: null };
   if (/is cancelled|misses|never reaches/.test(text)) return { icon: '⦸', tone: 'fade', chip: { cls: 'fade', html: 'no effect' } };
-  if ((m = text.match(/gains (\d+) energy/))) return { icon: '⚡', tone: 'play', chip: { cls: 'play', html: `+${m[1]} energy` } };
+  if ((m = text.match(/gains (\d+) energy/))) return { icon: '●', tone: 'play', chip: { cls: 'play', html: `+${m[1]} energy` } };
   if (/may play no more/.test(text)) return { icon: '⦸', tone: 'remove', chip: { cls: 'remove', html: 'no more plays' } };
   if (/draws/.test(text)) return { icon: '⇡', tone: 'move', chip: { cls: 'move', html: `${ARROW} hand` } };
   if (/planet|orbit/.test(text)) return { icon: '◍', tone: 'orbit', chip: null };

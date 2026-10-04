@@ -61,6 +61,8 @@ export const KEYWORDS: Record<string, Keyword> = {
   plays: { name: 'industry', group: 'tempo', explain: () => 'Extra energy each day.' },
   spend: { name: 'spend all', group: 'tempo', explain: () => 'Spends all your energy.' },
   energy: { name: 'gain', group: 'tempo', explain: () => 'Extra energy today.' },
+  // What an ability costs: shown as green energy dots, like a card's cost.
+  cost: { name: 'energy', group: 'tempo', explain: () => 'Costs this much energy.' },
   abundance: { name: 'abundance', group: 'tempo', explain: () => 'Extra cards each dawn.' },
   orbit: { name: 'orbit', group: 'orbit', explain: () => 'Moves the planets round.' },
   act: { name: 'act', group: 'timing', explain: () => 'A Hero ability.' },
@@ -105,6 +107,7 @@ function rawLabel(id: string, value?: string): string {
   if (id === 'attune') return value === '1' ? k.name : `${k.name} ×${value}`;
   if (id === 'act') return value;
   if (id === 'energy') return `gain ${value} energy`;
+  if (id === 'cost') return `(${value} energy)`;
   if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
   return `${k.name} ${value}`;
 }

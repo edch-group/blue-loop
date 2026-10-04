@@ -1017,6 +1017,14 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
   color: var(--ink-soft);
   animation: bannerText 2s cubic-bezier(.2, .8, .2, 1) 0.1s both;
 }
+/* The day's orbit, under the round: the planet facing your sun, and what it gives. */
+.turn-banner-orbit {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px;
+  font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.32em; text-transform: uppercase; color: #6d7a8e;
+  animation: bannerText 2s cubic-bezier(.2, .8, .2, 1) 0.2s both;
+}
+.turn-banner-orbit .tb-gift { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 4px rgba(90, 90, 110, 0.18); font-style: normal; letter-spacing: 0.08em; color: #3a4256; }
+.turn-banner-orbit .tb-energy { width: 0.8em; height: 0.8em; border-radius: 50%; background: #7cc79a; border: 0.1em solid #fff; box-shadow: 0 0 0 1px rgba(90, 150, 110, 0.4); }
 .turn-banner-glow::before {
   /* thin line under the words that grows outward */
   content: '';
@@ -2991,7 +2999,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* The foil wrapper: tinted by race, crimped top and bottom, with a sheen that slides across it. */
 .pack {
   --pk: #8f9ab4; --pk2: #dfe4ef;
-  position: relative; display: block; width: clamp(92px, calc(12 * var(--vw)), 132px); aspect-ratio: 5 / 8;
+  position: relative; display: block; aspect-ratio: 5 / 8;
+  /* As wide as the window allows, and short enough that two rows (with their labels) fit under the page's header. */
+  width: max(56px, min(calc(12 * var(--vw)), 132px, calc(((var(--app-h, calc(100 * var(--vh))) - 120px) / 2 - 56px) * 0.625)));
   transform-style: preserve-3d; transform: rotateY(-14deg) rotateX(6deg); transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
   filter: drop-shadow(10px 14px 14px rgba(60, 64, 90, 0.25));
 }
