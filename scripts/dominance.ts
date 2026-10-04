@@ -6,6 +6,7 @@
  */
 import { CARDS } from '../src/engine/cards';
 import { baseStability, cardCost } from '../src/engine/game';
+import { raceTrait } from '../src/engine/races';
 import type { CardDef, Effect, Passive } from '../src/engine/types';
 
 type Vec = Map<string, number>;
@@ -43,7 +44,7 @@ function vec(c: CardDef): Vec {
   if (c.defence) bump(v, 'defence', c.defence);
   if (c.attune) bump(v, 'attune', c.attune);
   if (c.fusion) bump(v, 'fusion', 1);
-  if (c.onTurn?.length || c.passive?.length || c.attune) bump(v, 'stability', baseStability(c.id));
+  if (c.onTurn?.length || c.passive?.length || c.attune) bump(v, 'stability', baseStability(c.id) - (c.kind === 'command' ? 0 : raceTrait(c.race)?.stability ?? 0)); // (a race's trait is the race's, not the card's)
   return v;
 }
 export function dominatedPairs(raceOverNeutral = false): string[] {

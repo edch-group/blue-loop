@@ -9,10 +9,10 @@ import type { CardDef, Effect, HeroAbility } from './types';
  * may use one of them, for the energy shown (like a planeswalker's).
  */
 
-const act = (id: string, name: string, text: string, effects: Effect[], cost = 0): HeroAbility => ({ id, name, text, effects, ...(cost ? { cost } : {}) });
+export const act = (id: string, name: string, text: string, effects: Effect[], cost = 0): HeroAbility => ({ id, name, text, effects, ...(cost ? { cost } : {}) });
 /** "{act:Rally} {shield:2}." – an ability as it reads on the card (with its energy cost, if any). */
 const line = (a: HeroAbility) => `{act:${a.name}}${a.cost ? ` (${a.cost}⚡)` : ''} ${a.text}`;
-const hero = (d: Omit<CardDef, 'kind' | 'text'> & { lead?: string }, abilities: HeroAbility[]): CardDef => {
+export const hero = (d: Omit<CardDef, 'kind' | 'text'> & { lead?: string }, abilities: HeroAbility[]): CardDef => {
   const { lead, ...def } = d;
   return { ...def, kind: 'command', abilities, text: [lead, ...abilities.map(line)].filter(Boolean).join(' ') };
 };

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, attackProblem, cardAttack, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+import { activePlayer, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -374,7 +374,7 @@ describe('attacks and dimming', () => {
     const [lancer] = give(s.players[1], ['helio_lancer'], 'tableau');
     const stab = array().stability!;
     s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: lancer.uid });
-    expect(array().stability).toBe(stab - cardDef('helio_lancer').attack!);
+    expect(array().stability).toBe(stab - counterDamage(s, s.players[1], lancer));
   });
 
   it('sends cards that do nothing once played straight to the discard pile, taking no slot', () => {
@@ -1017,6 +1017,8 @@ describe('aiming heat', () => {
     let s = twoPlayer();
     const [ada, bo] = s.players;
     const [lancer, reactor] = give(ada, ['helio_lancer', 'shard_reactor'], 'tableau');
+    // (Long-lived, so nothing fades at this dawn: a Xel'Naru card fading would Shatter.)
+    lancer.stability = reactor.stability = 6;
     const [a, b] = give(bo, ['coolant_array', 'coolant_array'], 'tableau');
     s = applyAction(s, { type: 'endTurn' }); // Bo's day: nothing to aim.
     expect(s.awaitingDawn).toBeFalsy();

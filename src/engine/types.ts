@@ -31,6 +31,8 @@ export type Count =
   | { of: 'kind'; kind: CardKind; per?: number }
   /** Every card in your tableau, divided by `per`. */
   | { of: 'cards'; per?: number }
+  /** Your tableau cards of a race (or sub-race), divided by `per`. */
+  | { of: 'race'; race?: number; sub?: string; per?: number }
   /** Your current shields, divided by `per`. */
   | { of: 'shields'; per?: number }
   /** This card's growth counter. */
@@ -55,6 +57,8 @@ export type Condition =
   | { minKind: CardKind; n: number }
   /** You control at least `n` cards. */
   | { minCards: number }
+  /** You control at least `n` cards of this race (or sub-race), this one included. */
+  | { minRace: number; sub?: string; n: number }
   /** The planet facing your sun today (see Orbit). */
   | { planet: Planet };
 
@@ -113,6 +117,8 @@ export type Passive =
       kind?: CardKind;
       /** Only this race's cards: a hero's racial buff ("your Vorthane cards shield +1"). */
       race?: number;
+      /** Only this sub-race's cards ("your Flarekin cards heat +1"). */
+      sub?: string;
       /** What it adds to: heat (the default), cooling or shields. */
       stat?: 'heat' | 'cool' | 'shield';
       amount: number;
@@ -176,8 +182,10 @@ export interface CardDef {
   id: string;
   name: string;
   kind: CardKind;
-  /** Which race's card this is (0 Aureline, 1 Xel'Naru, 2 Vorthane, 3 Ixquor); neutral if unset. */
+  /** Which race's card this is (0 Aureline, 1 Xel'Naru, 2 Vorthane, 3 Ixquor, 4 Nyxari, 5 Korrath, 6 Seren, 7 Pyrr; see races.ts); neutral if unset. */
   race?: number;
+  /** Its sub-race (races.ts SUBRACES), for the newer races. */
+  sub?: string;
   /** White Dwarf (the default), Stellar or Anomaly. */
   rarity?: Rarity;
   /** A character card: a person (or people) of its race, who features in its picture. */
