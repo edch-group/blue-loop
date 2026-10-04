@@ -1078,7 +1078,7 @@ export class CampaignView {
    */
   private renderFleet(seen: Set<string>): string {
     const s = this.state!;
-    const DOCK = 50;
+    const DOCK = 62;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const live = new Set<string>();
     const out = s.armies
