@@ -12,7 +12,7 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
-import { CARDS, cardDef, commandCardsFor, copyLimit, deckProblems, fusedId, fusionProblem, RACE_NAMES } from './cards';
+import { CARDS, cardDef, commandCardsFor, copyLimit, deckProblems, fusedId, fusionProblem, presetDeck, RACE_NAMES } from './cards';
 import { BALANCE } from './balance';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
@@ -873,10 +873,14 @@ const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, de
 // deck heavy with defence could not finish even a weakened foe before regional stability ran out.
 const STARTER_NEUTRALS = ['coronal_lance', 'thermal_exchange', 'photon_drill', 'scatter_shot', 'plasma_relay', 'gravity_sling', 'nova_shell', 'cryo_vault', 'heat_sink', 'deflector_grid', 'deep_scanners', 'solar_mirror'];
 
+/** Neutral cards each later general's army trades for its race's own: the second general 6, the third 12. */
+const VETERAN_CARDS = 6;
+
 /**
  * An army's starting deck (30 cards): mostly neutral cards, a first taste of the race's own, and three
  * Hero cards led by its general (twice, unless one copy is all a deck may hold), with the race's other
- * generals making up the rest.
+ * generals making up the rest. Generals who join later bring better armies: the weakest neutral cards
+ * give way to the race's own best (from its tuned preset deck), more for each general after the first.
  */
 export function armyDeck(race: number, general: string): string[] {
   const r = ((race % 4) + 4) % 4;
@@ -885,7 +889,19 @@ export function armyDeck(race: number, general: string): string[] {
   const own = [...mine.filter((c) => c.kind === 'attack'), ...mine.filter((c) => c.kind !== 'attack')].slice(0, 3).map((c) => c.id);
   const others = GENERALS[r].filter((g) => g !== general);
   const heroes = copyLimit(general) > 1 ? [general, general, others[0]] : [general, ...others.slice(0, 2)];
-  return [...STARTER_NEUTRALS.flatMap((id) => [id, id]), ...own, ...heroes];
+  const upgrades = Math.max(0, GENERALS[r].indexOf(general)) * VETERAN_CARDS;
+  const neutrals = STARTER_NEUTRALS.flatMap((id) => [id, id]);
+  const deck = [...neutrals.slice(0, neutrals.length - upgrades), ...own, ...heroes];
+  const count = (id: string) => deck.filter((x) => x === id).length;
+  for (const id of presetDeck(r).cards) {
+    if (deck.length >= 30) break;
+    const def = cardDef(id);
+    if (def.kind === 'command' || def.rarity === 'anomaly' || count(id) >= copyLimit(id)) continue;
+    deck.push(id);
+  }
+  // (Should the preset run short, the neutral cards it would have replaced fill the deck back up.)
+  for (const id of neutrals.slice(neutrals.length - upgrades)) if (deck.length < 30) deck.push(id);
+  return deck;
 }
 
 /** A race's plain deck: its first general's (neutral sentinels, and systems defending without an army, use it). */
