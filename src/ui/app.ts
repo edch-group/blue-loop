@@ -3772,8 +3772,10 @@ export class App {
         <div class="game">
           <header class="top"></header>
           ${this.renderBoard()}
-          ${this.renderDock()}
+          <section class="dock dock-space" aria-hidden="true"><div class="hand-zone"><div class="hand-space"></div></div></section>
         </div>
+        ${/* The hand lies flat in front of the tilted board (on it, its text was drawn small and stretched: blurry). */ ''}
+        ${this.renderDock()}
         ${this.renderHud()}
         ${this.renderTurnControls()}
         ${this.renderPhaseTrack()}

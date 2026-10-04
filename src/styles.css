@@ -4263,3 +4263,15 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   bottom: calc(var(--cw, 100px) * 0.035); transform: none;
 }
 .card:not(.card-table):has(.card-stats) { padding-bottom: calc(var(--cw, 100px) * 0.2); }
+
+/* The hand, flat at the foot of the screen in front of the tilted board (text on the tilted board is drawn at
+   the board's size and stretched by its tilt, so a hand on it came out blurry close up). */
+.table-view > .dock {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0; padding: 0;
+  pointer-events: none;
+}
+.table-view > .dock .hand-zone { pointer-events: auto; }
+/* Where the hand used to be on the board: kept empty, so the board keeps its place. */
+.dock.dock-space { visibility: hidden; pointer-events: none; }
+.table-view > .dock { --hh: min(calc(26 * var(--vh)), 210px); bottom: calc(var(--hh) * 0.09); }
+.dock-space .hand-space { height: var(--hvis); }
