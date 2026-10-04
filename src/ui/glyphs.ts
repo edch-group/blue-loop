@@ -402,10 +402,23 @@ export function cardTextHtml(text: string, chosen?: string, inline = false, live
   // Nothing but a few symbols ("Heat 2", "Heat 2. Cool 1"): they sit in the middle of the text box.
   const symbols = parts.filter((p) => 'kw' in p);
   const only = symbols.length > 0 && symbols.length <= 3 && parts.every((p) => ('kw' in p ? KEYWORDS[p.kw]?.symbol : /^[\s.,]*$/.test(p.text)));
+  // A Hero's abilities: each line wrapped as one (`data-ability`, its index), so a Hero's line can be its button.
+  let ability = -1;
+  let open = false;
   const html = parts
     .map((p, i) => {
       // Each sentence is a paragraph of its own: a full stop becomes a break (and the last one just ends it).
-      if ('text' in p) return escText(p.text).replace(/\.(\s+|$)/g, (_, sp: string, at: number, str: string) => (sp || (at + 1 === str.length && i < parts.length - 1) ? PARA : ''));
+      if ('text' in p) {
+        const t = escText(p.text).replace(/\.(\s+|$)/g, (_, sp: string, at: number, str: string) => (sp || (at + 1 === str.length && i < parts.length - 1) ? PARA : ''));
+        if (!open || !t.includes(PARA)) return t;
+        open = false;
+        return t.replace(PARA, `</span>${PARA}`);
+      }
+      if (p.kw === 'act') {
+        const close = open ? '</span>' : '';
+        open = true;
+        return `${close}<span class="card-ability" data-ability="${++ability}">${keywordHtml(p.kw, p.value, { data: true })}`;
+      }
       // A card's choices, one per line: the one picked (as the card is played) stands out.
       if (p.kw === 'options')
         return `<span class="card-opts${chosen ? ' card-opts-chosen' : ''}">${optionList(p.value)
@@ -419,7 +432,7 @@ export function cardTextHtml(text: string, chosen?: string, inline = false, live
       }
       return keywordHtml(p.kw, p.value, { data: true });
     })
-    .join('');
+    .join('') + (open ? '</span>' : '');
   return only && !inline ? `<span class="card-text-mid">${html}</span>` : html;
 }
 

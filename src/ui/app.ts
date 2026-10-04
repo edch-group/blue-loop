@@ -4105,26 +4105,26 @@ export class App {
     return out;
   }
 
-  /** Your Hero's actions, in the stage's place (middle right): each ability as a button, and its attack. */
+  /**
+   * Your Hero, in the stage's place (middle right), full size like any card there: tap one of its ability
+   * lines to use it, or its attack (bottom left) to attack with it.
+   */
   private renderHeroPanel(): string {
     const s = this.state!;
     const me = this.viewer();
     const hero = commandCard(me);
     if (!hero || hero.uid !== this.heroPanel) return '';
-    const def = cardDef(hero.defId);
-    const abilities = (def.abilities ?? [])
-      .map((k, i) => {
-        const why = heroAbilityProblem(s, me, i);
-        return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${esc(k.name)}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
+    const attack = this.heroActions(me).includes('attack');
+    const card = this.renderCard(hero, { static: true })
+      .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+      .replace(/<\/button>\s*$/, '</div>')
+      .replace(/ data-act="[^"]*"/, '')
+      .replace(/<span class="card-ability" data-ability="(\d+)">/g, (_, i: string) => {
+        const why = heroAbilityProblem(s, me, Number(i));
+        return why ? `<span class="card-ability card-ability-off" title="${esc(why)}">` : `<span class="card-ability card-ability-on" data-act="hero-ability" data-arg="${i}" role="button">`;
       })
-      .join('');
-    const attack = this.heroActions(me).includes('attack') ? `<button class="btn insp-ability" data-act="attack-start" data-arg="${hero.uid}"><b>Attack</b><small>${cardAttack(s, me, hero)} at a rival card</small></button>` : '';
-    // Just the choices, to play one quickly (hold or right-click the Hero to read it).
-    return `
-      <div class="stage stage-hero">
-        <div class="stage-caption">${esc(def.name.toLowerCase())}</div>
-        <div class="stage-hero-actions">${abilities}${attack}</div>
-      </div>`;
+      .replace(/<b class="stat-atk"/, (m) => (attack ? `<b class="stat-atk stat-atk-on" data-act="attack-start" data-arg="${hero.uid}" role="button"` : m));
+    return `<div class="stage stage-hero">${card}</div>`;
   }
 
   private renderStage(): string {
