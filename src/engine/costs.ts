@@ -4,6 +4,9 @@
  * stronger ones 2, bombs 3, and a few 4 (which need a day's bonus energy). Cards not listed cost 1.
  */
 export const CARD_COSTS: Record<string, number> = {
+  // (Strictly better than a neutral card of the same cost: they cost more.)
+  bell_warden: 2,
+  bastion_node: 2,
   // 0
   coolant_array: 0,
   // (Lightspeed traps cost a little less: a trap sits idle until the rival walks into it.)
@@ -83,7 +86,7 @@ export const CARD_COSTS: Record<string, number> = {
   shatter_point: 2,
   siege_array: 2,
   signal_jammer: 1,
-  solar_battery: 2,
+  solar_battery: 1,
   solar_maximum: 2,
   solar_storm: 2,
   spore_cloud: 2,
@@ -148,5 +151,5 @@ export const CARD_COSTS: Record<string, number> = {
   great_mycelium: 3,
   dreadnought: 5,
   star_breaker: 4,
-  fusion_reactor: 3,
+  fusion_reactor: 2,
 };

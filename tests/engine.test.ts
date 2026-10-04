@@ -980,7 +980,7 @@ describe('aiming heat', () => {
     let s = twoPlayer();
     const [ada, bo] = s.players;
     const [lancer, reactor] = give(ada, ['helio_lancer', 'shard_reactor'], 'tableau');
-    const [a, b] = give(bo, ['deflector_grid', 'deflector_grid'], 'tableau');
+    const [a, b] = give(bo, ['coolant_array', 'coolant_array'], 'tableau');
     s = applyAction(s, { type: 'endTurn' }); // Bo's day: nothing to aim.
     expect(s.awaitingDawn).toBeFalsy();
     s = applyAction(s, { type: 'endTurn' }); // Ada's dawn waits for her to aim.
@@ -1042,7 +1042,7 @@ describe('aiming heat', () => {
     s.players[1].shields = 5;
     const next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
     // The Lancer's heat wore the card's defence, though Bo had shields up (they only took heat at the sun).
-    expect(next.log.some((l) => /Deflector Grid takes 2 heat on its defence/.test(l.text))).toBe(true);
+    expect(next.log.some((l) => /Coolant Array takes 2 heat on its defence/.test(l.text))).toBe(true);
     expect(cardDefence(next.players[1], next.players[1].tableau.find((c) => c.uid === b.uid)!)).toBe(0);
   });
 

@@ -78,14 +78,14 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
   - **Heroes** with a Dawn effect or a passive: 3.
   - **Cards with their own stability:** Mycelium Tower 4 (it grows over time), Aegis Monolith 4.
   - **Restoring it (at a price):**
-    - Stasis Field: +2 to a card, heat your own sun 1.
+    - Stasis Field: +2 to a card, cool 1.
     - Shard Renewal (Xel'Naru): +3, heat your own sun 2.
     - Hive Rooting (Ixquor): +1 to all your others, draw 1.
     - Chrono Anchor: the cards next to it lose none. The Anchor itself still fades.
   - **Eroding it:**
     - Entropy Pulse: −2 to a rival card, heat 1.
     - Undertow (Vorthane): −2, gain 2 shields.
-    - Decay Wave: −1 to every card in the target's tableau, heat your own sun 2.
+    - Decay Wave: −1 to every card in the target's tableau, heat 2.
   - Erosion ignores defence. A card eroded to 0 fades into its owner's discard pile.
 - Every card that stays in play shows its stability (◷) in your hand, zoomed and in the deck builder too.
 - On the board, each card in play shows ⛨ defence and ◷ stability. The badge turns red on its last turn. Empty slots show their defence.
@@ -232,7 +232,7 @@ It gives cooling decks a way to win, and a new kind of defensive deck: cool hard
 | Absolute Zero | Xel'Naru | 4 | Anomaly | Cool 2. Dawn: Thermosiphon heat 1 (up to 3 heat a dawn at −3) |
 | Cryo Lance | Xel'Naru | 2 | White Dwarf | Thermosiphon heat 1, pierce |
 | Frostbound Sentinel | Xel'Naru | 2 | White Dwarf | Guard, sturdy 1. Dawn: Thermosiphon shield 1 |
-| Rime Bastion | Neutral | 2 | White Dwarf | Sturdy 1. Dawn: Thermosiphon shield 1 |
+| Rime Bastion | Neutral | 2 | White Dwarf | Sturdy 2. Dawn: Thermosiphon shield 1 |
 | Glacier Hull | Vorthane | 3 | Stellar | 2 shields, hold. Dawn: Thermosiphon shield 1 |
 | Thaw Beam | Neutral | 1 | White Dwarf | Heat 1, pierce; +1 per point the target's sun is below zero |
 
@@ -346,8 +346,8 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | Coolant Shunt | Neutral | 1 | Dawn: cool 1. Stability 2 |
 | Data Splice | Neutral | 1 | Draw 1 (as played). Stability 2 |
 | Sunforged Lens | Aureline | 2 | Dawn: heat 2. Stability 2 |
-| Shard Splice | Xel'Naru | 1 | Dawn: heat 1, cool 1. Stability 2 |
-| Tidal Graft | Vorthane | 1 | Dawn: shield 2. Stability 2 |
+| Shard Splice | Xel'Naru | 2 | Dawn: heat 1, cool 1. Stability 1 |
+| Tidal Graft | Vorthane | 2 | Dawn: shield 2. Stability 2 |
 | Barnacle Shell | Vorthane | 1 | Sturdy 1, dawn: repair 1. Stability 3 |
 | Siphon Tendril | Vorthane | 2 | Dawn: heat 1 per 2 shields (up to 3). Stability 2 |
 | Spore Graft | Ixquor | 1 | Dawn: draw 1. Stability 2 |
@@ -802,6 +802,12 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 A wall deck built with them wins 50% against the starters and 86% against the cheap all-attack deck (67% against the starters), so aggro has a counter again.
 
 **Supernova flicker.** The explosion's pulse animated `transform: scale(...)` on the sun's holder. That wiped out the `translateY(-50%)` centring it, so the sun dropped half its height for the length of the burst. It now animates `scale` on its own, which adds to the transform instead of replacing it.
+
+**Race cards over neutral ones (second sweep).** A race card that does everything a neutral card does, and more, for the same energy makes the neutral card dead weight in that race's decks (Shard Splice was Thermal Graft with a free Cool 1). `RACE=1 npm run dominated` now counts those too (and attunement), and found 19 pairs; `tests/dominance.test.ts` keeps it at none. Where the race card was simply too good for its cost, it costs more; otherwise the neutral card got an edge of its own:
+- **Cost more:** Shard Splice 2 (was 1: beat Thermal Graft), Tidal Graft 2 (beat Shield Lattice), Bell Warden 2 (Guard, Sturdy, Tidewall and 3 shields a dawn for 1), Bastion Node 2 (beat the Trench-Warden). Cheaper: Solar Battery 1 (beaten by the Helio Lancer), Fusion Reactor 2 (beaten by the Hive Relay; it keeps its drawback).
+- **An edge of their own:** Shard Reactor Sturdy 2, Deflector Grid Sturdy 1, Rime Bastion Sturdy 2, Orrery Sturdy 1, Precession Engine Sturdy 2; Heat Sink also Shields 1; Mirror Plating Shields 4; Star Chart also Cool 1; Stasis Field Restore 2 and Cool 1 (no self-heat); Decay Wave's heat goes to the rival, not your own sun.
+- Cheaper fusion was part of why Graftworks was so strong: with Shard Splice and Tidal Graft at 2 it fell to 36%; it now plays Coolant Shunts and Barnacle Shells instead of Tidal Grafts. A first try made the Shard Reactor cost 1 and Heat Sink cool 2, and Absolute Zero (which plays both) jumped from 63% to 78%: those fixes were changed to ones that don't feed the cold.
+- Result (1000 games): mean distance from 50% **3.7** (was 4.9). Solar Lancers 47.9%, Shard Overload 47.6%, Abyssal Tide 48.1%, Hive Bloom 49.2%, Orbit Riders 45.7%, Ambush 51.1%, Demolition 50.2%, Absolute Zero 64.1%, Graftworks 41.5%, Overcharge 51.2%. Absolute Zero is the one left standing out.
 
 **No strictly worse cards.** `npm run dominated` lists every card another card beats outright: no higher cost, every effect at least as strong, no extra drawback, and able to go in the same decks. An unconditional effect counts as covering the same effect with a condition. It found 15 pairs, then 6 more once conditions were counted. Each was fixed by giving the weaker card an edge of its own, not by nerfing the stronger one:
 - Focusing Array is Forge 2.

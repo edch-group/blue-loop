@@ -46,7 +46,7 @@ export const EXPANSION: CardDef[] = [
 
   // ---- Neutral defence ----
   { id: 'frost_lattice', name: 'Frost Lattice', kind: 'defence', text: '{dawn}: {cool:1}. {shield:1}.', onTurn: [{ type: 'cool', amount: 1 }, { type: 'shield', amount: 1 }] },
-  { id: 'mirror_plating', name: 'Mirror Plating', kind: 'defence', text: '{shield:3}.', onPlay: [{ type: 'shield', amount: 3 }] },
+  { id: 'mirror_plating', name: 'Mirror Plating', kind: 'defence', text: '{shield:4}.', onPlay: [{ type: 'shield', amount: 4 }] },
   { id: 'cold_front', name: 'Cold Front', kind: 'defence', text: '{cool:2}. {shield:1}.', onPlay: [{ type: 'cool', amount: 2 }, { type: 'shield', amount: 1 }] },
   {
     id: 'radiator_fins',
@@ -100,7 +100,7 @@ export const EXPANSION: CardDef[] = [
 
   // ---- Neutral growth ----
   { id: 'survey_probe', name: 'Survey Probe', kind: 'growth', text: 'Draw 1. Your {orbit:+1}. {shield:1}.', onPlay: [{ type: 'draw', amount: 1 }, { type: 'orbit', amount: 1, who: 'self' }, { type: 'shield', amount: 1 }] },
-  { id: 'star_chart', name: 'Star Chart', kind: 'growth', text: 'Draw 1. {restore:1}.', onPlay: [{ type: 'draw', amount: 1 }, { type: 'restore', amount: 1 }] },
+  { id: 'star_chart', name: 'Star Chart', kind: 'growth', text: 'Draw 1. {restore:1}. {cool:1}.', onPlay: [{ type: 'draw', amount: 1 }, { type: 'restore', amount: 1 }, { type: 'cool', amount: 1 }] },
   {
     id: 'gravity_well',
     name: 'Gravity Well',
@@ -155,7 +155,7 @@ export const EXPANSION: CardDef[] = [
   // ---- Thermosiphon: stronger the further your sun is below zero ----
   { id: 'absolute_zero', name: 'Absolute Zero', kind: 'attack', race: 1, text: '{cool:2}. {dawn}: {thermosiphon} {heat:1}.', onPlay: [{ type: 'cool', amount: 2 }], onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cold' } }] },
   { id: 'cryo_lance', name: 'Cryo Lance', kind: 'attack', race: 1, text: '{thermosiphon} {heat:1}, {pierce}.', onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cold' }, pierce: true }] },
-  { id: 'rime_bastion', name: 'Rime Bastion', kind: 'defence', text: '{sturdy:1}. {dawn}: {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }] },
+  { id: 'rime_bastion', name: 'Rime Bastion', kind: 'defence', text: '{sturdy:2}. {dawn}: {thermosiphon} {shield:1}.', defence: 2, onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }] },
   { id: 'frostbound_sentinel', name: 'Frostbound Sentinel', kind: 'defence', race: 1, text: '{guard}. {sturdy:1}. {dawn}: {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'taunt' }] },
   { id: 'glacier_hull', name: 'Glacier Hull', kind: 'defence', race: 2, text: '{shield:2}. {hold}. {dawn}: {thermosiphon} {shield:1}.', onPlay: [{ type: 'shield', amount: 2 }], onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'keepShields' }] },
   { id: 'thaw_beam', name: 'Thaw Beam', kind: 'attack', text: "{heat:1}, {pierce}. {heat:+1} per point your target's sun is below zero.", onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cold', rival: true }, pierce: true }] },

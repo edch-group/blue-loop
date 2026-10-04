@@ -31,8 +31,8 @@ export const CARDS: CardDef[] = [
   { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: "{destroy:2}.", onPlay: [{ type: 'destroy', maxDefence: 2 }] },
   { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: '{dawn}: {cool:1}.', onTurn: [{ type: 'cool', amount: 1 }] },
   { id: 'cryo_vault', name: 'Cryo Vault', kind: 'defence', text: '{cool:3}.', onPlay: [{ type: 'cool', amount: 3 }] },
-  { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: '{dawn}: {shield:2}.', onTurn: [{ type: 'shield', amount: 2 }] },
-  { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: '{cool:1}. Draw 1.', onPlay: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1 }] },
+  { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: '{sturdy:1}. {dawn}: {shield:2}.', defence: 1, onTurn: [{ type: 'shield', amount: 2 }] },
+  { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: '{cool:1}. Draw 1. {shield:1}.', onPlay: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1 }, { type: 'shield', amount: 1 }] },
   { id: 'deep_scanners', name: 'Deep-Space Scanners', kind: 'growth', text: 'Draw 2.', onPlay: [{ type: 'draw', amount: 2 }] },
 
   // ---- Global: one at a time on the whole table; a new one replaces it ----
@@ -114,8 +114,8 @@ export const CARDS: CardDef[] = [
     id: 'stasis_field',
     name: 'Stasis Field',
     kind: 'growth',
-    text: '{restore:2}. {heat:1} to your sun.',
-    onPlay: [{ type: 'restore', amount: 2 }, { type: 'selfHeat', amount: 1 }],
+    text: '{restore:2}. {cool:1}.',
+    onPlay: [{ type: 'restore', amount: 2 }, { type: 'cool', amount: 1 }],
   },
   {
     id: 'entropy_pulse',
@@ -128,8 +128,8 @@ export const CARDS: CardDef[] = [
     id: 'decay_wave',
     name: 'Decay Wave',
     kind: 'attack',
-    text: '{decay:1}. {heat:2} to your sun.',
-    onPlay: [{ type: 'erode', amount: 1, all: true }, { type: 'selfHeat', amount: 2 }],
+    text: '{decay:1}. {heat:2}.',
+    onPlay: [{ type: 'erode', amount: 1, all: true }, { type: 'heat', amount: 2, to: 'target' }],
   },
 
   // ---- Recovery and recall: getting cards back to use again ----
@@ -252,7 +252,8 @@ export const CARDS: CardDef[] = [
     name: 'Shard Reactor',
     kind: 'attack',
     race: 1,
-    text: '{dawn}: {heat:1}, {pierce}.',
+    text: '{sturdy:2}. {dawn}: {heat:1}, {pierce}.',
+    defence: 2,
     onTurn: [{ type: 'heat', amount: 1, to: 'target', pierce: true }],
   },
   {
@@ -950,8 +951,9 @@ export const PRESET_DECKS: DeckList[] = [
     cover: 'sunforged_lens',
     race: 2,
     cards: [
-      ...twoOf('tide_regent', 'plasma_relay', 'aureline_vanguard', 'thermal_graft', 'sunforged_lens', 'shield_lattice', 'reinforced_plating', 'shard_splice', 'tidal_graft'),
-      'the_admiralty', 'dawnstar_cannon', 'trench_warden', 'bastion_node', 'barnacle_shell', 'coolant_shunt',
+      ...twoOf('tide_regent', 'plasma_relay', 'aureline_vanguard', 'thermal_graft', 'sunforged_lens', 'shield_lattice', 'reinforced_plating', 'shard_splice'),
+      ...twoOf('barnacle_shell', 'coolant_shunt'),
+      'the_admiralty', 'dawnstar_cannon', 'trench_warden', 'bastion_node',
       'data_splice', 'siphon_tendril', 'deep_scanners', 'coronal_lance', 'photon_drill', 'helio_lancer',
     ],
   },
