@@ -1,4 +1,4 @@
-import { PROGRESSION, starterGrant, type Collection } from '../engine';
+import { PROGRESSION, RACE_NAMES, starterGrant, type Collection } from '../engine';
 import { account, markDirty } from './account';
 
 /**
@@ -96,7 +96,7 @@ export function reloadProfile() {
 export function signIn(name: string, avatar: number) {
   const p = profile();
   p.name = name.replace(/[^\p{L}\p{N} '’.-]/gu, '').trim().slice(0, 18) || 'Commander';
-  p.avatar = ((avatar % 4) + 4) % 4;
+  p.avatar = ((avatar % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
   p.signedIn = true;
   store();
 }

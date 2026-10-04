@@ -61,6 +61,8 @@ import {
   ownedNodes,
   fortifyCost,
   RACE_NAMES,
+  RACE_TRAITS,
+  plainText,
   type Anomaly,
   type CampaignAction,
   type CampaignNode,
@@ -229,6 +231,10 @@ const RACE_BLURB = [
   'Crystal overloaders: big bursts of heat, and run your own sun hot to hit harder still.',
   'Tidal bells: stack shields, keep them, and sting whoever strikes them.',
   'The hive: grow, spread wide, and play more cards each turn.',
+  'Void-stalkers: spring traps from the dark, and unmake whatever your rival builds.',
+  'Forge-smiths: hammer grafts onto each other behind walls that will not fall.',
+  'Star-readers: move the planets, read what is coming, and attune again and again.',
+  'Flare-born: spend everything in one burst, and run your own sun hot to thrive.',
 ];
 
 /** What the campaign screen needs from the app that hosts it. */
@@ -880,13 +886,14 @@ export class CampaignView {
   }
 
   private renderSetup(): string {
-    const races = [0, 1, 2, 3]
+    const races = RACE_NAMES.map((_, r) => r)
       .map(
         (r) => `
         <button class="cmp-home-pick cmp-race-pick ${this.setup.race === r ? 'on' : ''}" data-act="cmp-race" data-arg="${r}">
           ${factionAvatar(`f${r + 1}`, 'cmp-race-emblem')}
           <b>${lower(RACE_NAMES[r])}</b>
           <span>${esc(RACE_BLURB[r])}</span>
+          <span class="cmp-race-trait"><em class="cmp-trait-bonus">+ ${esc(plainText(RACE_TRAITS[r].bonus))}</em><em class="cmp-trait-nerf">− ${esc(plainText(RACE_TRAITS[r].nerf))}</em></span>
         </button>`,
       )
       .join('');
@@ -903,7 +910,7 @@ export class CampaignView {
         <div class="setup-body cmp-setup-body">
           <aside class="cmp-setup-aside">
             <div class="cmp-label">a dying universe</div>
-            <p class="muted">The stars are going out. Four races fight over the last warm worlds, and every one of them is marching on ${esc(HEART_NAME)}, the vast star at the centre of everything, where the ${esc(STELLARIA)} is said to grow: a flower whose bloom gives energy without end.</p>
+            <p class="muted">The stars are going out. The races fight over the last warm worlds, and every one of them is marching on ${esc(HEART_NAME)}, the vast star at the centre of everything, where the ${esc(STELLARIA)} is said to grow: a flower whose bloom gives energy without end.</p>
             <p class="muted">Lead armies, each under one of your race's heroes with a deck of their own. Take systems for their resources, find the lesser Stellari blooms on the way, and claim the Heart to win. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe wins too.</p>
             <div class="cmp-label">rival factions</div>
             <div class="cmp-rivals">${rivals}</div>

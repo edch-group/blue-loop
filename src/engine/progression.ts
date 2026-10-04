@@ -211,8 +211,8 @@ export function ownsDeck(collection: Collection, cards: string[]): boolean {
 // ---------------------------------------------------------------------------
 
 /** One booster per race (its cards), and a general booster (every card of no race). */
-export type BoosterKind = 0 | 1 | 2 | 3 | 'general';
-export const BOOSTERS: BoosterKind[] = [0, 1, 2, 3, 'general'];
+export type BoosterKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 'general';
+export const BOOSTERS: BoosterKind[] = [0, 1, 2, 3, 4, 5, 6, 7, 'general'];
 
 /** The cards a booster can hold. */
 export function boosterPool(kind: BoosterKind): CardDef[] {

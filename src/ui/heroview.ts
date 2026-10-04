@@ -33,6 +33,23 @@ const PORTRAITS: Record<string, { x0: number; at: Record<string, [number, number
   logistics_command: { x0: 26, at: { carapace: [66, 30], gland1: [60, 58], gland2: [72, 66], weapon: [92, 36] } },
   chamber_protocol: { x0: 32, at: { carapace: [72, 31], gland1: [66, 52], gland2: [78, 62], weapon: [96, 64] } },
   the_worldroot: { x0: 40, at: { carapace: [80, 24], gland1: [74, 52], gland2: [86, 62], weapon: [100, 44] } },
+  // The newer races' heroes stand at the centre of their scenes (the figure about x 80, head near the top).
+  // Nyxari: the mask on the face, the shroud at the shoulders, the sigil at the breast, a blade in hand.
+  nyx_hero_vesh: { x0: 40, at: { mask: [80, 18], mantle: [70, 46], sigil: [80, 58], weapon: [104, 50] } },
+  nyx_hero_kael: { x0: 40, at: { mask: [80, 18], mantle: [70, 46], sigil: [80, 58], weapon: [104, 50] } },
+  nyx_hero_nyxara: { x0: 40, at: { mask: [80, 16], mantle: [68, 44], sigil: [80, 56], weapon: [106, 46] } },
+  // Korrath: the helm, the plate across the body, the forge burning in the chest, the hammer.
+  kor_hero_durga: { x0: 40, at: { helm: [80, 16], plate: [70, 56], core: [82, 44], weapon: [106, 46] } },
+  kor_hero_brannoc: { x0: 40, at: { helm: [80, 16], plate: [70, 56], core: [82, 44], weapon: [106, 46] } },
+  kor_hero_anvil_king: { x0: 40, at: { helm: [80, 14], plate: [70, 56], core: [82, 44], weapon: [108, 48] } },
+  // Seren: the circlet, three stars circling, the staff.
+  ser_hero_ilyath: { x0: 40, at: { helm: [80, 14], star1: [58, 30], star2: [102, 26], star3: [62, 70], weapon: [102, 56] } },
+  ser_hero_maren: { x0: 40, at: { helm: [80, 14], star1: [58, 30], star2: [102, 26], star3: [62, 70], weapon: [102, 56] } },
+  ser_hero_aster: { x0: 40, at: { helm: [80, 12], star1: [56, 28], star2: [104, 24], star3: [60, 72], weapon: [104, 56] } },
+  // Pyrr: the heart of fire, two embers dancing about it, the brand.
+  pyr_hero_ignis: { x0: 40, at: { core: [80, 44], ember1: [62, 26], ember2: [98, 30], weapon: [104, 60] } },
+  pyr_hero_ashka: { x0: 40, at: { core: [80, 44], ember1: [62, 26], ember2: [98, 30], weapon: [104, 60] } },
+  pyr_hero_pyrrhus: { x0: 40, at: { core: [80, 44], ember1: [60, 24], ember2: [100, 28], weapon: [106, 60] } },
 };
 
 const portraitArt = new Map<string, string>();
@@ -58,6 +75,10 @@ const SLOT_ICON: Record<SlotKind, string> = {
   ring: '<circle cx="12" cy="13" r="6"/><path d="M10 6l2-2 2 2"/>',
   carapace: '<path d="M6 9c2-4 10-4 12 0l-1 9c-3 2-7 2-10 0z"/>',
   gland: '<path d="M12 4c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z"/>',
+  mask: '<path d="M5 7c4-2 10-2 14 0 0 7-3 12-7 13-4-1-7-6-7-13z"/><path d="M8 11l3 1M16 11l-3 1"/>',
+  plate: '<path d="M5 6h14v7c0 4-3 6-7 7-4-1-7-3-7-7z"/><path d="M5 10h14M12 6v14"/>',
+  star: '<path d="M12 4l2 6h6l-5 3.6 2 6.4-5-4-5 4 2-6.4L4 10h6z"/>',
+  ember: '<path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-9z"/>',
 };
 
 const icon = (body: string, cls = '') => `<svg class="hv-icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;

@@ -39,6 +39,22 @@ const HEROES: Record<string, Hero> = {
   the_shardmind: { lines: ['We are many. We are one. We are cold.', 'The Shardmind wakes.', 'All that was lost, returns.'] },
   leviathan_thoross: { lines: ['The deep has come for you.', 'Thoross rises. The sea follows.', 'Nothing passes the Leviathan.'] },
   the_worldroot: { lines: ['Every world is soil.', 'The Worldroot stirs. Grow.', 'From one root, a thousand.'] },
+  // Nyxari: the void-stalkers.
+  nyx_hero_vesh: { lines: ['You never saw us coming.', 'Shade-Queen Vesh. The trap is already set.', 'Look closer. No: closer.'] },
+  nyx_hero_kael: { lines: ['Everything can be unmade.', 'Unmaker Kael. Let me take that apart.', 'What you build, I break.'] },
+  nyx_hero_nyxara: { lines: ['I was old when the first star woke.', 'Nyxara. The light ends here.', 'Your star is small, and going out.'] },
+  // Korrath: the forge-smiths.
+  kor_hero_durga: { lines: ['Bring me the broken.', 'Forgemother Durga. To the anvil!', 'Harder than before.'] },
+  kor_hero_brannoc: { lines: ['Stand behind me.', 'Warden Brannoc. The wall holds.', 'Nothing gets past.'] },
+  kor_hero_anvil_king: { lines: ['Light the forges.', 'The Anvil-King wakes.', 'Every world is ore.'] },
+  // Seren: the star-readers.
+  ser_hero_ilyath: { lines: ['I have read how this ends.', 'Star-Reader Ilyath. The stars agree.', 'It is written in the light.'] },
+  ser_hero_maren: { lines: ['The worlds turn where I ask.', 'Tidecaster Maren. Turn, and turn again.', 'Your orbit is mine now.'] },
+  ser_hero_aster: { lines: ['Every star shines on in me.', 'Aster rises. Follow the light.', 'You are in none of my stars.'] },
+  // Pyrr: the flare-born.
+  pyr_hero_ignis: { lines: ['Everything. All at once.', 'Flame-Herald Ignis. Burn bright!', 'Burn bright, or not at all.'] },
+  pyr_hero_ashka: { lines: ['Stoke the sun. We thrive.', 'Cinder-Queen Ashka. Feel the heat.', 'Hotter. Hotter still.'] },
+  pyr_hero_pyrrhus: { lines: ['I always rise again.', 'Pyrrhus. The Undying Flare.', 'We burn, and only one of us rises.'] },
 };
 
 class HeroLines {

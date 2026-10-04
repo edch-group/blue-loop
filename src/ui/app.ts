@@ -3175,7 +3175,7 @@ export class App {
         ${this.titleBlock(true)}
         <h2 class="menu-heading">your name</h2>
         <input class="signin-name" data-signin-name value="${esc(this.signinName ?? p.name)}" maxlength="18" placeholder="your name" aria-label="Your name" />
-        <div class="signin-emblems">${[0, 1, 2, 3].map((r) => `<button class="db-race ${(this.signinAvatar ?? p.avatar) === r ? 'on' : ''}" data-act="signin-avatar" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
+        <div class="signin-emblems">${RACE_NAMES.map((_, r) => `<button class="db-race ${(this.signinAvatar ?? p.avatar) === r ? 'on' : ''}" data-act="signin-avatar" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
         <button class="btn-primary" data-act="signin-go">continue</button>
       </div>`;
     }

@@ -42,6 +42,7 @@ import {
   recycleValue,
   deckProblems as problemsOf,
   stabiliseProblem,
+  RACE_NAMES,
   type CampaignState,
 } from '../src/engine';
 
@@ -135,6 +136,44 @@ describe('campaign setup', () => {
     s = applyCampaignAction(s, { type: 'readStory' });
     expect(s.story.queue.find((x) => x.id === 'intro')).toBeUndefined();
     expect(s.story.told).toContain('intro');
+  });
+
+  it('lets the player lead any race, and draws the rivals from all the others', () => {
+    const seen = new Set<number>();
+    for (let race = 0; race < RACE_NAMES.length; race++) {
+      for (const seed of [1, 2, 3]) {
+        const s = createCampaign({ seed: seed * 101 + race, race, rivals: 3 });
+        const factions = s.factions.filter((f) => !f.lost);
+        expect(campaignPlayer(s).race).toBe(race);
+        expect(new Set(factions.map((f) => f.race)).size).toBe(4);
+        for (const f of factions) {
+          if (f.isAI) seen.add(f.race);
+          const [army] = armiesOf(s, f.id);
+          expect(army.general).toBe(GENERALS[f.race][0]);
+          expect(armyDeckProblems(army.deck, army.general)).toEqual([]);
+          // Every one of its generals has a skill tree, and its slots take gear named for it.
+          for (const g of GENERALS[f.race]) expect(SKILL_TREES[g]).toHaveLength(18);
+          for (const sl of RACE_SLOTS[f.race]) expect(makeItem('x', sl.kind, 'stellar', f.race).name).toMatch(/^Bright /);
+        }
+        expect(s.story.queue[0].id).toBe('intro');
+      }
+    }
+    // Every race turns up as a rival somewhere.
+    expect([...seen].sort()).toEqual(RACE_NAMES.map((_, r) => r));
+    // The rivals depend on the seed, not only on the player's race.
+    const rivalsOf = (seed: number) => createCampaign({ seed, race: 7, rivals: 3 }).factions.filter((f) => f.isAI && !f.lost).map((f) => f.race).join();
+    expect(new Set([1, 2, 3, 4, 5, 6, 7, 8].map(rivalsOf)).size).toBeGreaterThan(1);
+  });
+
+  it('plays a new race through a battle: Pyrr armies march, fight and gain experience', () => {
+    let s = createCampaign({ seed: 5, race: 7, rivals: 3 });
+    s = applyCampaignAction(s, { type: 'readStory' });
+    expect(cardDef(myArmy(s).general).race).toBe(7);
+    s = attack(s);
+    expect(s.battle).not.toBeNull();
+    expect(s.battle!.game.players[0].species).toBe(7);
+    s = settle(winBattle(s));
+    expect(heroState(campaignPlayer(s), GENERALS[7][0]).xp).toBeGreaterThan(0);
   });
 });
 

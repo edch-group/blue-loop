@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
-import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
+import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
 import { activePlayer, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
@@ -45,7 +45,7 @@ describe('content', () => {
   });
 
   it('gives every race at least ten cards, with a Stellar hero and an Anomaly, and a legal starter deck', () => {
-    for (let race = 0; race < 4; race++) {
+    for (let race = 0; race < RACE_NAMES.length; race++) {
       const own = CARDS.filter((c) => c.race === race);
       expect(own.length).toBeGreaterThanOrEqual(10);
       expect(own.filter((c) => c.rarity === 'anomaly' && c.character).length).toBeGreaterThanOrEqual(1);
