@@ -7,7 +7,7 @@ import { markDirty } from './account';
  * score (drone, slowly shifting pad chords and distant chimes; just synths,
  * no noise) plays underneath the menus; matches get its tenser sibling (the
  * same pads and hall, with a slow, steady arpeggio and a deep bass), and the
- * campaign map an open, wondering one (glassy plucks echoing across the field). Each effect is one method, so recorded audio can replace
+ * campaign map an open, wondering one (soft synth plucks echoing across the field). Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -73,11 +73,11 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 ];
 
 // ---- Campaign map -----------------------------------------------------------
-// Exploration: the same pads and hall, opened up into D major with a lydian
-// lift. A slow ostinato of glassy plucks (like the menu's chimes) steps through
-// each chord in quarters and echoes from side to side across the map; a deep
-// held bass; from the second time round, a few long, soft melody notes; and
-// now and then a far-off chime. Four chords, about fifteen seconds each.
+// Exploration: the same pads and hall (kept low), opened up into D major with a
+// lydian lift. A slow ostinato of soft analogue-style synth plucks steps
+// through each chord in quarters and echoes from side to side across the map;
+// a deep held bass; and from the second time round, a few long notes on a warm
+// detuned-saw lead. Four chords, about fifteen seconds each.
 
 const CAMPAIGN_BPM = 66;
 /** Per chord (four bars each): the bass, the pad, two bars of plucks in quarters (repeated), and the melody's long notes ([bar, note, bars]). */
@@ -87,8 +87,6 @@ const CAMPAIGN_CHORDS: { bass: string; pad: string[]; plucks: (string | null)[];
   { bass: 'G1', pad: ['G3', 'B3', 'F#4', 'C#5'], plucks: ['B4', null, 'F#5', 'E5', null, 'B4', 'C#5', null], melody: [[0, 'B4', 2], [2, 'C#5', 2]] }, // Gmaj7#11
   { bass: 'A1', pad: ['A3', 'D4', 'E4', 'B4'], plucks: ['E4', null, 'B4', 'A4', null, 'E4', 'D5', null], melody: [[0, 'E5', 3]] }, // A6/9sus
 ];
-/** D major pentatonic glints for the far-off chimes. */
-const CAMPAIGN_CHIMES = ['A5', 'B5', 'D6', 'E6', 'F#6', 'A6'].map(hz);
 
 class SoundBoard {
   private ctx: AudioContext | null = null;
@@ -738,12 +736,34 @@ class SoundBoard {
     wet.connect(bus);
     this.musicNodes = [plucks, left, right, panL, panR, tone, feedback, wet];
 
-    /** A glassy pluck: a sine with a quiet inharmonic partial and a faint triangle an octave down for warmth. */
+    /**
+     * A soft analogue-style pluck: two detuned saws and a triangle an octave down through a resonant lowpass whose
+     * cutoff falls quickly after the attack, so each note blooms bright and settles warm.
+     */
     const pluck = (at: number, f: number, gain: number, out: AudioNode) => {
-      const delay = this.until(at);
-      this.voice(f, { dur: 2.6, attack: 0.012, gain, delay, out });
-      this.voice(f * 2.76, { dur: 0.9, attack: 0.008, gain: gain * 0.18, delay, out });
-      this.voice(f / 2, { dur: 1.6, attack: 0.02, gain: gain * 0.35, type: 'triangle', cutoff: 1200, delay, out });
+      const end = at + 2.4;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.Q.value = 3;
+      filter.frequency.setValueAtTime(Math.min(f * 5, 3600), at);
+      filter.frequency.exponentialRampToValueAtTime(f * 1.3, at + 0.45);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(gain, at + 0.01);
+      g.gain.exponentialRampToValueAtTime(gain * 0.3, at + 0.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, end);
+      filter.connect(g).connect(out);
+      ([['sawtooth', 1, -7, 0.5], ['sawtooth', 1, 7, 0.5], ['triangle', 0.5, 0, 0.6]] as const).forEach(([type, mult, detune, level]) => {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = f * mult;
+        o.detune.value = detune;
+        const lv = ctx.createGain();
+        lv.gain.value = level;
+        o.connect(lv).connect(filter);
+        o.start(at);
+        o.stop(end + 0.05);
+      });
     };
 
     const playChord = (at: number, index: number, round: number) => {
@@ -751,27 +771,27 @@ class SoundBoard {
       const delay = this.until(at);
       // Pads, as the menu score voices them.
       c.pad.forEach((n, i) => {
-        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.018, type: 'triangle' as OscillatorType, cutoff: 1000, delay, out: bus };
+        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 1000, delay, out: bus };
         this.voice(hz(n), opts);
-        this.voice(hz(n), { ...opts, detune: 9, gain: 0.012 });
+        this.voice(hz(n), { ...opts, detune: 9, gain: 0.007 });
       });
       // The bass, deep and soft.
       this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.045, type: 'triangle', attack: 1.5, release: 2, cutoff: 240, out: bus });
       // Plucks: two bars, twice, the downbeat a touch stronger.
       if (!(round === 0 && index === 0) && !(round % 3 === 2 && index === 0)) {
         for (let rep = 0; rep < 2; rep++)
-          c.plucks.forEach((n, q) => n && pluck(at + rep * barLen * 2 + q * beat, hz(n), q % 4 === 0 ? 0.03 : 0.024, plucks));
+          c.plucks.forEach((n, q) => n && pluck(at + rep * barLen * 2 + q * beat, hz(n), q % 4 === 0 ? 0.026 : 0.02, plucks));
       }
-      // Melody: from the second time round, a few long soft notes on top, with a slow vibrato.
+      // Melody: from the second time round, a few long notes on a warm lead (detuned saws, softly filtered, with a
+      // slow vibrato), into the plucks' echo.
       if (round >= 1)
         for (const [b, n, bars] of c.melody) {
           const t = at + b * barLen + beat * 0.5;
-          this.note(t, hz(n), bars * barLen - beat, { gain: 0.016, attack: 0.9, release: 1.6, cutoff: 1500, vibrato: true, out: bus });
-          this.note(t, hz(n), bars * barLen - beat, { gain: 0.009, attack: 1.1, release: 1.6, cutoff: 1300, detune: 8, vibrato: true, out: bus });
+          const len = bars * barLen - beat;
+          this.note(t, hz(n), len, { gain: 0.011, type: 'sawtooth', attack: 0.7, release: 1.4, cutoff: 1300, detune: -8, vibrato: true, out: plucks });
+          this.note(t, hz(n), len, { gain: 0.011, type: 'sawtooth', attack: 0.8, release: 1.4, cutoff: 1300, detune: 8, vibrato: true, out: plucks });
+          this.note(t, hz(n) / 2, len, { gain: 0.008, attack: 0.8, release: 1.4, cutoff: 900, out: plucks });
         }
-      // A far-off chime or two.
-      for (let k = 0; k < 2; k++)
-        if (Math.random() < 0.45) pluck(at + (2 + Math.random() * 12) * beat, CAMPAIGN_CHIMES[Math.floor(Math.random() * CAMPAIGN_CHIMES.length)], 0.008, plucks);
     };
 
     let next = ctx.currentTime + 0.1;
