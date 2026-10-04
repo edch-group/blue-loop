@@ -5,8 +5,8 @@ import { markDirty } from './account';
  * Every effect uses soft waveforms, slow attacks and a long shared "space"
  * reverb, so actions swell and bloom rather than click. A generative ambient
  * score (drone, slowly shifting pad chords and distant chimes; just synths,
- * no noise) plays underneath the menus; matches get a gliding, wobbling synth
- * score, opened by the sound of a ship powering down. Each effect is one method, so recorded audio can replace
+ * no noise) plays underneath the menus; matches get its tenser sibling: the
+ * same pads and hall, with a slow, steady arpeggio and a deep bass. Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -43,42 +43,33 @@ const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 export type MusicScene = 'ambient' | 'battle';
 
 // ---- Battle theme -----------------------------------------------------------
-// Built from the power-down's voices (gliding, detuned triangles and rushing
-// filtered air) and generated as it plays, so it never loops the same way: a
-// gliding bass whose resonant filter wobbles in time, its pattern changing bar
-// to bar; a mid-range synth pulsing on the chord most of the time; and, from
-// the second bar on, a varied stream of low gestures (dives, rises, swoops,
-// wobbles, gated stutters, bends, slides, air) panned around the field.
+// The menu score's sibling, in the same key and voices, made tense: a soft,
+// plucked arpeggio ticks steadily in eighths through a filter that opens and
+// closes over the better part of a minute, over the same long pads and a deep
+// held bass. Four chords, twelve seconds each, the last leaning hard on E
+// major so it always wants to come back round.
 
-const BATTLE_BPM = 96;
+const BATTLE_BPM = 80;
 const NOTE_INDEX: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
-const midi = (name: string) => {
+const hz = (name: string) => {
   const m = /^([A-G]#?)(-?\d)$/.exec(name)!;
-  return (Number(m[2]) + 1) * 12 + NOTE_INDEX[m[1]];
+  return 440 * Math.pow(2, ((Number(m[2]) + 1) * 12 + NOTE_INDEX[m[1]] - 69) / 12);
 };
-const hz = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
-type Chord = { root: number; third: number };
-const minor = (n: string): Chord => ({ root: midi(n), third: 3 });
-const major = (n: string): Chord => ({ root: midi(n), third: 4 });
-/** Eight-bar phrases, alternating: home on B minor for four bars (10s), then a turn. */
-const PHRASES: Chord[][] = [
-  [minor('B1'), minor('B1'), minor('B1'), minor('B1'), major('G1'), major('G1'), major('A1'), major('A1')],
-  [minor('B1'), minor('B1'), minor('B1'), minor('B1'), minor('E1'), minor('E1'), major('G1'), major('F#1')],
+/** Per chord (four bars each): the held bass, the pad, and the arpeggio's eight eighths per bar (two halves for the turn). */
+const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
+  { bass: 'A1', pad: ['A3', 'E4', 'B4', 'C5'], arp: [['A3', 'E4', 'A4', 'B4', 'C5', 'B4', 'A4', 'E4']] }, // Am(add9)
+  { bass: 'F1', pad: ['F3', 'C4', 'E4', 'A4'], arp: [['F3', 'C4', 'E4', 'A4', 'C5', 'A4', 'E4', 'C4']] }, // Fmaj7
+  { bass: 'D2', pad: ['D3', 'A3', 'E4', 'F4'], arp: [['D3', 'A3', 'C4', 'E4', 'F4', 'E4', 'C4', 'A3']] }, // Dm9
+  {
+    bass: 'E1',
+    pad: ['E3', 'B3', 'D4', 'A4'],
+    arp: [
+      ['E3', 'B3', 'D4', 'A4', 'B4', 'A4', 'D4', 'B3'], // Esus4...
+      ['E3', 'B3', 'D4', 'G#4', 'B4', 'G#4', 'D4', 'B3'], // ...resolving to E7
+    ],
+  },
 ];
-
-/** Bass patterns over a bar's sixteenths: [step, pitch (root, octave, fifth, third), length, accent, glide]. */
-type BassNote = [number, 'r' | 'o' | 'f' | 't', number, number, boolean?];
-const BASS: Record<'drive' | 'octave' | 'sync' | 'slide' | 'breathe' | 'pickup', BassNote[]> = {
-  drive: [[0, 'r', 2, 1], [2, 'r', 2, 0.5], [4, 'r', 2, 0.7], [6, 'r', 2, 0.5], [8, 'r', 2, 0.85], [10, 'r', 2, 0.5], [12, 'r', 2, 0.7], [14, 'r', 2, 0.55]],
-  octave: [[0, 'r', 2, 1], [2, 'r', 2, 0.5], [4, 'r', 2, 0.7], [6, 'o', 2, 0.6, true], [8, 'r', 2, 0.85, true], [10, 'r', 2, 0.5], [12, 'r', 2, 0.7], [14, 'o', 2, 0.6, true]],
-  sync: [[0, 'r', 3, 1], [3, 'r', 3, 0.7], [6, 'r', 2, 0.6], [8, 'r', 3, 0.9], [11, 'r', 3, 0.7], [14, 'f', 2, 0.6, true]],
-  slide: [[0, 'r', 2, 1], [2, 'r', 2, 0.5], [4, 'o', 2, 0.7, true], [6, 'r', 2, 0.5, true], [8, 'r', 2, 0.85], [10, 't', 2, 0.55, true], [12, 'f', 2, 0.7, true], [14, 'r', 2, 0.6, true]],
-  breathe: [[0, 'r', 4, 1], [6, 'r', 2, 0.6], [8, 'r', 4, 0.9], [14, 'f', 2, 0.6, true]],
-  pickup: [[0, 'r', 2, 1], [2, 'r', 2, 0.5], [4, 'r', 2, 0.7], [6, 'r', 2, 0.5], [8, 'r', 2, 0.85], [10, 'r', 2, 0.5], [12, 'r', 1, 0.6], [13, 'f', 1, 0.55, true], [14, 'o', 1, 0.6, true], [15, 'f', 1, 0.6, true]],
-};
-type Gesture = 'dive' | 'rise' | 'swoop' | 'wobble' | 'gate' | 'bend' | 'slides' | 'air';
-const GESTURES: Gesture[] = ['dive', 'rise', 'swoop', 'wobble', 'gate', 'bend', 'slides', 'air'];
 
 class SoundBoard {
   private ctx: AudioContext | null = null;
@@ -490,7 +481,7 @@ class SoundBoard {
     this.playing = this.scene;
     const now = ctx.currentTime;
     const buses: [GainNode, number, number][] =
-      this.scene === 'battle' ? [[this.battleBus, 0.48, 0.05], [this.battleLush, 0.45, 0.05]] : [[this.musicBus, 0.5, 6]];
+      this.scene === 'battle' ? [[this.battleBus, 1.2, 3], [this.battleLush, 1.2, 3]] : [[this.musicBus, 0.5, 6]];
     for (const [bus, level, fade] of buses) {
       bus.gain.cancelScheduledValues(now);
       bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), now);
@@ -594,276 +585,80 @@ class SoundBoard {
   }
 
   /**
-   * A ship powering down as the match begins: the turbine whine winding down with its air and hum, and systems
-   * blinking off one by one, into near silence.
-   */
-  private powerDown(t0: number, out: AudioNode) {
-    const d = this.until(t0);
-    // The whine and hum hold, then wind down as they fade.
-    this.note(t0 + 0.05, 1500, 2.4, { gain: 0.028, to: 70, attack: 0.03, release: 1.0, cutoff: 3200, out });
-    this.note(t0 + 0.05, 2250, 2.2, { gain: 0.01, type: 'sine', to: 105, attack: 0.03, release: 0.9, out });
-    this.note(t0, 110, 2.6, { gain: 0.07, to: 38, attack: 0.02, release: 1.0, cutoff: 320, out });
-    this.breath({ dur: 3.4, freq: 2600, to: 110, type: 'lowpass', q: 1.2, gain: 0.07, attack: 0.5, delay: d + 0.05, out });
-    [988, 740, 554, 415].forEach((f, i) => this.voice(f, { dur: 0.35, attack: 0.004, gain: 0.014, to: f * 0.94, delay: d + 0.7 + i * 0.55, out }));
-  }
-
-  /**
-   * The battle theme: the ship powers down, then the bass, the mid synth and the gestures come in within a few
-   * bars, all generated bar by bar just ahead of the audio clock.
+   * The battle theme. Pads and bass only for the first chord, so a match settles in; then the arpeggio joins and
+   * the four chords cycle, the arpeggio resting for a chord every third time round. Chords are scheduled just
+   * ahead of the audio clock.
    */
   private battleScore(ctx: AudioContext, bus: GainNode, lush: GainNode) {
-    const step = 60 / BATTLE_BPM / 4;
-    const barLen = step * 16;
-    const t0 = ctx.currentTime + 0.05;
-    const start = t0 + 3.4; // after the power-down
-    const pick = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)];
-    const nodes: AudioNode[] = [];
-    const osc = (type: OscillatorType, freq: number, detune = 0) => {
-      const o = ctx.createOscillator();
-      o.type = type;
-      o.frequency.value = freq;
-      o.detune.value = detune;
-      o.start(t0);
-      nodes.push(o);
-      return o;
-    };
-    const lfo = (rate: number, depth: number, target: AudioParam) => {
-      const o = osc('sine', rate);
-      const g = ctx.createGain();
-      g.gain.value = depth;
-      o.connect(g).connect(target);
-      nodes.push(g);
-      return o;
-    };
+    const eighth = 60 / BATTLE_BPM / 2;
+    const barLen = eighth * 8;
+    const chordLen = barLen * 4;
 
-    // ---- The bass: one gliding voice (a detuned triangle pair and a sine an octave down) gated note by note,
-    // through a resonant lowpass that wobbles in time.
-    const bassFilter = ctx.createBiquadFilter();
-    bassFilter.type = 'lowpass';
-    bassFilter.Q.value = 5;
-    bassFilter.frequency.value = 260;
-    const bassWob = lfo(BATTLE_BPM / 30, 140, bassFilter.frequency);
-    const bassGate = ctx.createGain();
-    bassGate.gain.value = 0;
-    const subGate = ctx.createGain();
-    subGate.gain.value = 0;
-    const bassHall = ctx.createGain();
-    bassHall.gain.value = 0.3;
-    const bassOscs = [osc('triangle', 60, -8), osc('triangle', 60, 8)];
-    const sub = osc('sine', 30);
-    bassOscs.forEach((o) => o.connect(bassFilter));
-    bassFilter.connect(bassGate).connect(bus);
-    bassGate.connect(bassHall).connect(lush);
-    sub.connect(subGate).connect(bus);
-    nodes.push(bassFilter, bassGate, subGate, bassHall);
-    const bassNote = (at: number, n: number, len: number, accent: number, glide: boolean) => {
-      const f = hz(n);
-      for (const o of bassOscs) glide ? o.frequency.setTargetAtTime(f, at, 0.035) : o.frequency.setValueAtTime(f, at);
-      glide ? sub.frequency.setTargetAtTime(f / 2, at, 0.035) : sub.frequency.setValueAtTime(f / 2, at);
-      const peak = 0.13 * accent;
-      bassGate.gain.setTargetAtTime(peak, at, 0.006);
-      bassGate.gain.setTargetAtTime(peak * 0.4, at + 0.03, len * 0.35);
-      bassGate.gain.setTargetAtTime(0, at + len * 0.92, 0.025);
-      subGate.gain.setTargetAtTime(0.07 * accent, at, 0.01);
-      subGate.gain.setTargetAtTime(0, at + len * 0.9, 0.04);
-    };
+    // The arpeggio's filter breathes over about 45 seconds; its dotted-eighth echo goes into the hall.
+    const arpFilter = ctx.createBiquadFilter();
+    arpFilter.type = 'lowpass';
+    arpFilter.Q.value = 2.5;
+    arpFilter.frequency.value = 1100;
+    const sweep = ctx.createOscillator();
+    sweep.frequency.value = 1 / 45;
+    const sweepDepth = ctx.createGain();
+    sweepDepth.gain.value = 650;
+    sweep.connect(sweepDepth).connect(arpFilter.frequency);
+    const echo = ctx.createDelay(2);
+    echo.delayTime.value = eighth * 1.5;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.35;
+    const echoTone = ctx.createBiquadFilter();
+    echoTone.type = 'lowpass';
+    echoTone.frequency.value = 1800;
+    const echoWet = ctx.createGain();
+    echoWet.gain.value = 0.35;
+    arpFilter.connect(bus);
+    arpFilter.connect(echo).connect(echoTone).connect(feedback).connect(echo);
+    echoTone.connect(echoWet).connect(lush);
+    sweep.start();
+    this.musicNodes = [arpFilter, sweep, sweepDepth, echo, feedback, echoTone, echoWet];
 
-    // ---- The mid synth: the chord's third and fifth around middle C, two detuned triangles and a faint saw
-    // each, gliding between chords, through a slowly sweeping filter and a tremolo whose rate changes by phrase.
-    const midFilter = ctx.createBiquadFilter();
-    midFilter.type = 'lowpass';
-    midFilter.Q.value = 2;
-    midFilter.frequency.value = 900;
-    lfo(0.09, 350, midFilter.frequency);
-    const trem = ctx.createGain();
-    trem.gain.value = 0.6;
-    const tremLfo = lfo(BATTLE_BPM / 15, 0.4, trem.gain);
-    const midGate = ctx.createGain();
-    midGate.gain.value = 0;
-    midFilter.connect(trem).connect(midGate).connect(lush);
-    nodes.push(midFilter, trem, midGate);
-    const midVoices = [0, 1].map(() => {
-      const os = [osc('triangle', 220, -9), osc('triangle', 220, 9), osc('sawtooth', 220, 3)];
-      os.forEach((o, k) => {
-        const g = ctx.createGain();
-        g.gain.value = k < 2 ? 0.022 : 0.006;
-        o.connect(g).connect(midFilter);
-        nodes.push(g);
+    const playChord = (at: number, index: number, round: number) => {
+      const c = BATTLE_CHORDS[index];
+      const delay = this.until(at);
+      // Pads, exactly as the menu score voices them: slow detuned triangle pairs, overlapping the next chord.
+      c.pad.forEach((n, i) => {
+        const opts = { dur: chordLen + 4, attack: 3 + i * 0.5, gain: 0.02, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: lush };
+        this.voice(hz(n), opts);
+        this.voice(hz(n), { ...opts, detune: 9, gain: 0.013 });
       });
-      return os;
-    });
-    /** A chord tone placed in the mid range (A3 to A4). */
-    const mid = (c: Chord, interval: number) => {
-      let n = c.root + interval;
-      while (n < midi('A3')) n += 12;
-      return n;
-    };
-    const midChord = (at: number, c: Chord) =>
-      [mid(c, c.third), mid(c, 7)].forEach((n, i) => midVoices[i].forEach((o) => o.frequency.setTargetAtTime(hz(n), at, 0.12)));
-
-    // ---- Gestures: each through its own panner, somewhere in the field.
-    const panned = () => {
-      const p = ctx.createStereoPanner();
-      p.pan.value = (Math.random() * 2 - 1) * 0.6;
-      p.connect(lush);
-      return p;
-    };
-    /** A detuned triangle pair whose pitch follows a path of [seconds, Hz] points, optionally wobbling. */
-    const glider = (at: number, path: [number, number][], o: { gain: number; cutoff?: number; wob?: [number, number]; attack?: number; release?: number; out: AudioNode }) => {
-      const end = at + path[path.length - 1][0];
-      const f = ctx.createBiquadFilter();
-      f.type = 'lowpass';
-      f.frequency.value = o.cutoff ?? 1800;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0, at);
-      g.gain.linearRampToValueAtTime(o.gain, at + (o.attack ?? 0.05));
-      g.gain.setValueAtTime(o.gain, Math.max(at + (o.attack ?? 0.05), end - (o.release ?? 0.4)));
-      g.gain.linearRampToValueAtTime(0, end);
-      f.connect(g).connect(o.out);
-      let wob: OscillatorNode | null = null;
-      let wobDepth: GainNode | null = null;
-      if (o.wob) {
-        wob = ctx.createOscillator();
-        wob.frequency.setValueAtTime(o.wob[0], at);
-        wob.frequency.linearRampToValueAtTime(o.wob[1], end);
-        wobDepth = ctx.createGain();
-        wobDepth.gain.value = path[0][1] * 0.025;
-        wob.connect(wobDepth);
-        wob.start(at);
-        wob.stop(end + 0.05);
-      }
-      [-9, 9].forEach((detune) => {
-        const v = ctx.createOscillator();
-        v.type = 'triangle';
-        v.detune.value = detune;
-        v.frequency.setValueAtTime(path[0][1], at);
-        for (const [t, hzv] of path.slice(1)) v.frequency.exponentialRampToValueAtTime(hzv, at + t);
-        if (wobDepth) wobDepth.connect(v.frequency);
-        v.connect(f);
-        v.start(at);
-        v.stop(end + 0.05);
-      });
-    };
-    const air = (at: number, from: number, to: number, dur: number, gain: number, rising: boolean, out: AudioNode) =>
-      this.breath({ dur, freq: from, to, type: rising ? 'bandpass' : 'lowpass', q: rising ? 1.4 : 1.2, gain, attack: rising ? dur * 0.9 : 0.05, delay: this.until(at), out });
-    /** A chord tone in a given octave band (MIDI low..low+12). */
-    const tone = (c: Chord, low: number) => {
-      let n = c.root + pick([0, c.third, 7]);
-      while (n < low) n += 12;
-      return hz(n);
-    };
-
-    const gesture = (g: Gesture, at: number, c: Chord) => {
-      const out = panned();
-      switch (g) {
-        case 'dive': {
-          const f = tone(c, midi('E5')) * (Math.random() < 0.5 ? 1 : 0.75);
-          const d = 1.2 + Math.random() * 1.2;
-          glider(at, [[0, f], [d, f / 10]], { gain: 0.04, cutoff: 2400, release: d * 0.6, out });
-          air(at, 2400, 110, d + 1, 0.07, false, out);
-          break;
-        }
-        case 'rise': {
-          const f = tone(c, midi('E2'));
-          const d = barLen * (0.5 + Math.random() * 0.5);
-          glider(at, [[0, f], [d, f * 4]], { gain: 0.034, cutoff: 1600, attack: d * 0.6, release: 0.15, wob: [2, 7], out });
-          air(at, 140, 1500, d, 0.055, true, out);
-          break;
-        }
-        case 'swoop': {
-          const f = tone(c, midi('E3'));
-          glider(at, [[0, f], [0.5, f * 2.5], [1.6, f * 0.7]], { gain: 0.035, cutoff: 2000, attack: 0.3, release: 0.6, out });
-          break;
-        }
-        case 'wobble': {
-          const f = tone(c, midi('B2'));
-          const d = barLen * (0.75 + Math.random() * 0.75);
-          const [a, b] = Math.random() < 0.5 ? [1.5, 8] : [8, 1.5];
-          glider(at, [[0, f], [d, f]], { gain: 0.04, cutoff: 900, attack: d * 0.3, release: d * 0.3, wob: [a, b], out });
-          break;
-        }
-        case 'gate': {
-          // A stutter: sixteenths on one tone, swelling then fading, the filter opening as it goes.
-          const f = tone(c, midi('E3'));
-          const n = 8 + Math.floor(Math.random() * 3) * 4;
-          for (let i = 0; i < n; i++) {
-            const env = Math.sin((Math.PI * (i + 0.5)) / n);
-            this.note(at + i * step, f, step * 0.55, { gain: 0.032 * env, cutoff: 500 + 2200 * (i / n), attack: 0.005, release: 0.05, out });
-          }
-          break;
-        }
-        case 'bend': {
-          // Slides up a fourth into a chord tone and hangs there, wobbling, then sags away.
-          const f = tone(c, midi('B2'));
-          glider(at, [[0, f * 0.75], [0.25, f], [1.8, f], [2.6, f * 0.84]], { gain: 0.036, cutoff: 1500, attack: 0.08, release: 0.8, wob: [5, 3], out });
-          break;
-        }
-        case 'slides': {
-          // Glides back and forth between two chord tones in eighths.
-          const a = hz(c.root + 24), b = hz(c.root + 24 + 7);
-          const path: [number, number][] = [[0, a]];
-          for (let i = 1; i <= 6; i++) path.push([i * step * 2, i % 2 ? b : a]);
-          glider(at, path, { gain: 0.03, cutoff: 1400, attack: 0.1, release: 0.3, out });
-          break;
-        }
-        case 'air':
-          air(at, 3000, 120, 2.6, 0.075, false, out);
-          if (Math.random() < 0.5) air(at + 1.2, 160, 1800, 1.8, 0.04, true, out);
-          break;
+      // The bass: a deep held note, a triangle and a sine an octave apart.
+      this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.05, type: 'triangle', attack: 1.2, release: 1.5, cutoff: 260, out: bus });
+      this.note(at, hz(c.bass) * 2, chordLen - 0.5, { gain: 0.018, type: 'sine', attack: 2, release: 1.5, out: bus });
+      // The arpeggio: soft plucks, a triangle with a quiet saw for edge, accented on the beat.
+      const rests = round === 0 ? index === 0 : round % 3 === 2 && index === 0;
+      if (rests) return;
+      for (let b = 0; b < 4; b++) {
+        const notes = c.arp[c.arp.length > 1 && b >= 2 ? 1 : 0];
+        notes.forEach((n, e) => {
+          const d = this.until(at + b * barLen + e * eighth);
+          const accent = e % 2 === 0 ? 1 : 0.7;
+          this.voice(hz(n), { dur: eighth * 2.4, attack: 0.012, gain: 0.04 * accent, type: 'triangle', cutoff: 5000, delay: d, out: arpFilter });
+          this.voice(hz(n), { dur: eighth * 1.6, attack: 0.012, gain: 0.008 * accent, type: 'sawtooth', cutoff: 5000, detune: 6, delay: d, out: arpFilter });
+        });
       }
     };
 
-    // ---- The plan, generated as it plays.
-    this.powerDown(t0, lush);
-    this.musicNodes = nodes;
-    let bar = 0;
-    let next = start;
-    let lastGestures: Gesture[] = [];
-    let midOn = false;
-    const playBar = (at: number) => {
-      const phrase = PHRASES[Math.floor(bar / 8) % PHRASES.length];
-      const inPhrase = bar % 8;
-      const c = phrase[inPhrase];
-      const turn = inPhrase >= 4;
-
-      // Bass: plain to begin with, then varied; it breathes before a turn now and then, with a pickup into it.
-      const pattern = bar === 0 ? 'drive' : inPhrase === 3 ? pick(['breathe', 'pickup', 'sync'] as const) : turn ? pick(['octave', 'slide', 'sync', 'pickup'] as const) : pick(['drive', 'octave', 'sync', 'slide'] as const);
-      const at16 = (s: number) => at + s * step;
-      for (const [s, p, len, accent, glide] of BASS[pattern]) {
-        const n = c.root + 12 + (p === 'o' ? 12 : p === 'f' ? 7 : p === 't' ? c.third : 0);
-        bassNote(at16(s), n, len * step, accent, !!glide);
-      }
-      // The bass filter's wobble: in eighths, quarters, dotted eighths or (in a turn) sixteenths, every two bars.
-      if (bar % 2 === 0) bassWob.frequency.setValueAtTime((BATTLE_BPM / 60) * pick(turn ? [2, 4, 4 / 3] : [1, 2, 4 / 3]), at);
-      bassFilter.frequency.setTargetAtTime(turn ? 340 : 250, at, barLen * 0.5);
-
-      // Mid synth: in from the second bar, out for the odd bar so it breathes; its tremolo changes by phrase.
-      midChord(at, c);
-      const want = bar >= 1 && !(inPhrase === 3 && Math.random() < 0.35) && !(inPhrase === 0 && bar > 0 && Math.random() < 0.25);
-      if (want !== midOn) {
-        midGate.gain.setTargetAtTime(want ? 1 : 0, at, want ? 0.6 : 0.4);
-        midOn = want;
-      }
-      if (inPhrase === 0) tremLfo.frequency.setValueAtTime((BATTLE_BPM / 60) * pick([4, 3, 2, 4 / 3]), at);
-
-      // Gestures: from the second bar, one most bars and two in a turn, never the same one twice running.
-      const count = bar < 2 ? (bar === 1 ? 1 : 0) : turn ? 1 + (Math.random() < 0.6 ? 1 : 0) : Math.random() < 0.8 ? 1 : 0;
-      for (let k = 0; k < count; k++) {
-        const g = pick(GESTURES.filter((x) => !lastGestures.includes(x)));
-        lastGestures = [...lastGestures, g].slice(-2);
-        gesture(g, at16(k === 0 ? pick([0, 4, 8]) : pick([8, 10, 12])), c);
-      }
-      bar++;
-    };
+    let next = ctx.currentTime + 0.1;
+    let chord = 0;
+    let round = 0;
     const tick = () => {
       if (this.playing !== 'battle') return;
       while (next < ctx.currentTime + 0.5) {
-        playBar(next);
-        next += barLen;
+        playChord(next, chord, round);
+        next += chordLen;
+        chord = (chord + 1) % BATTLE_CHORDS.length;
+        if (chord === 0) round++;
       }
     };
     tick();
-    this.musicTimers.push(window.setInterval(tick, 100));
+    this.musicTimers.push(window.setInterval(tick, 200));
   }
 
   /** Fade the score out (or cut it at once, when the app is being hidden). */
