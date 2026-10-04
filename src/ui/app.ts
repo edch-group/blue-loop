@@ -2124,6 +2124,7 @@ export class App {
       sound.error();
       return;
     }
+    // (Another card in your hand, while one waits to be placed: that one is played instead.)
     if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) {
       this.showToast('You already have a Lightspeed card face down: only one at a time.', 'info');
       sound.error();
@@ -2158,6 +2159,16 @@ export class App {
     // placed like any card, with the Lightspeed slot open too (or only that, if it can't be played as a Guard).
     if (p.faceDown) return this.dispatch({ type: 'playCard', cardUid: p.uid, faceDown: true });
     if (canSetFaceDown(me, card.defId) && p.slot === undefined) return ask('slot');
+    // First the card is placed, so what it does next is seen from where it will stand (its slot's forge and
+    // resonance count in the heat it aims): a recall card first picks the card it recalls (it may take its
+    // place), a Fusion card the card it fuses onto, and any other card its slot. Even the last open slot is
+    // clicked to confirm (a misclicked card is never played outright).
+    const recall = allyEffectKind(card.defId) === 'recall';
+    if (recall && allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
+    if (cardDef(card.defId).fusion && !p.hostUid) return ask('host');
+    const replaces = recall && !!p.allyUid;
+    if (inSlots(card.defId) && (freeSlots(me).length > 0 || replaces) && p.slot === undefined) return ask('slot');
+    // Then its abilities: an option, a rival card to remove, an ally, a card to recover, where its heat goes.
     if (cardChoices(card.defId).length > 0 && !p.choice) return ask('choice');
     if (enemyChoices(s, me, card.defId).length > 0 && !p.enemyUid) {
       if (target) this.viewRivalId = target.id;
@@ -2167,12 +2178,6 @@ export class App {
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
     // A card that heats, with rival cards on the table: where its heat goes (a card, or their sun).
     if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
-    // Even the last open slot is clicked to confirm (a misclicked card is never played outright).
-    // (A recall card can also go into the slot of the card it recalls.)
-    // A Fusion card: the card of yours it fuses onto.
-    if (cardDef(card.defId).fusion && !p.hostUid) return ask('host');
-    const replaces = allyEffectKind(card.defId) === 'recall' && !!p.allyUid;
-    if (inSlots(card.defId) && (freeSlots(me).length > 0 || replaces) && p.slot === undefined) return ask('slot');
     this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.hostUid ? { hostUid: p.hostUid } : {}) });
   }
 
@@ -2362,6 +2367,16 @@ export class App {
       return;
     }
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
+    // A card being played on the board: a click anywhere that isn't its next step (a slot, the card it
+    // recalls or fuses onto, its target), another card in hand, or cancel puts it back in the hand.
+    if (this.screen === 'game' && this.pending && !this.pending.dawn && !(e.target as HTMLElement).closest?.('.overlay, .modal, .sheet, .hud, .zoom-view, .peek-toggle, .peek-shield')) {
+      const a = el && !el.hasAttribute('disabled') ? el.dataset.act ?? '' : '';
+      if (a !== 'play' && a !== 'cancel' && !a.startsWith('choose-')) {
+        this.pending = null;
+        this.render();
+        return;
+      }
+    }
     if (!el || el.hasAttribute('disabled')) return;
     if (el.classList.contains('overlay') && e.target !== el) return;
     const act = el.dataset.act!;
@@ -3612,13 +3627,14 @@ export class App {
     if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
     // Your dawn: aim each card's dawn heat (the button lets it break).
     if (!p && this.dawnTurn()) return hint('assign heat', false);
-    if (!p || p.step === 'choice' || p.step === 'recover' || p.step === 'slot') return '';
+    if (!p || p.step === 'choice' || p.step === 'recover') return '';
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.dawn ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
     if (p.step === 'aim') return hint(aimChoices(s, activePlayer(s)).sun ? 'aim heat' : 'aim at a guard');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
+    if (p.step === 'slot') return hint('place it');
     return '';
   }
 
@@ -3713,6 +3729,30 @@ export class App {
         }
       }
     }
+    // A card being played, once placed: what its heat would leave of each rival card it could hit, worked
+    // out by playing it on a copy of the game (so its slot's forge and resonance count). (Face-down
+    // Lightspeed cards are left out of the copy: the preview must not give them away.)
+    if (pend && !pend.dawn && pend.step === 'aim' && side === 'rival') {
+      const me = activePlayer(st);
+      for (const c of aimChoices(st, me).cards) {
+        try {
+          const g = structuredClone(st);
+          for (const pl of g.players) if (pl.id !== me.id) pl.lightspeed = null;
+          const after = applyAction(g, { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, aimUid: c.uid, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) });
+          const owner = after.players.find((x) => x.id === p.id)!;
+          const left = owner.tableau.find((x) => x.uid === c.uid);
+          preview.set(c.uid, left ? { defence: cardDefence(owner, left), stability: left.stability ?? 0 } : { defence: 0, stability: 0 });
+        } catch {
+          // (A preview that can't be worked out is simply not shown.)
+        }
+      }
+    }
+    // The card being played, once placed: shown standing in its slot (over the card it recalls, if it takes its place).
+    const placing = side === 'mine' && pend && !pend.dawn && pend.slot !== undefined && !pend.faceDown ? activePlayer(st).hand.find((h) => h.uid === pend.uid) : undefined;
+    const ghostAt = (i: number) =>
+      placing && pend!.slot === i
+        ? this.renderCard({ ...placing, slot: i, stability: baseStability(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
+        : null;
     const viewer = this.state ? activePlayer(this.state) : null;
     const aimingDef = pend?.step === 'aim' && viewer ? (pend.dawn ? viewer.tableau : viewer.hand).find((h) => h.uid === pend.uid)?.defId : undefined;
     const sunAim = side === 'rival' && !!aimingDef && !!viewer && aimChoices(this.state!, viewer).sun;
@@ -3724,6 +3764,8 @@ export class App {
       : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>hero</small></div>`;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
+      const g = ghostAt(i);
+      if (g) return g;
       if (c) return this.renderCard(c, { tableau: side, owner: p, settled: settled.get(c.uid), preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
       // A slot keeps the wear of the card that stood in it (mending 1 a day).
       const full = BALANCE.slotDefence[i];
@@ -3857,7 +3899,8 @@ export class App {
     let extra = '';
     if (opts.hand) {
       extra = `data-hand="${c.uid}"`;
-      if ((act && !p) || this.touch) attrs = `data-act="play" data-arg="${c.uid}"`;
+      // (While one card waits to be placed, tapping another plays that one instead.)
+      if (act || this.touch) attrs = `data-act="play" data-arg="${c.uid}"`;
     }
     let state = '';
     const s = this.state;

@@ -4100,3 +4100,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .cmp-research { grid-template-rows: minmax(0, 1fr); }
   .cmp-rs-head, .cmp-rs-sum { display: none; }
 }
+/* A card being played, placed in its slot while its abilities are chosen: there, but not yet down. */
+.card.card-placing { opacity: 0.9; pointer-events: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--kc) 70%, transparent), 0 0 22px color-mix(in srgb, var(--kc) 55%, transparent); animation: card-placing 1.4s ease-in-out infinite; }
+@keyframes card-placing { 50% { box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--kc) 40%, transparent), 0 0 10px color-mix(in srgb, var(--kc) 30%, transparent); } }
