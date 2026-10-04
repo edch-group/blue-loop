@@ -75,7 +75,8 @@ import {
 } from '../engine';
 import { markDirty } from './account';
 import { DeckBuilder, type BuilderMode } from './builder';
-import { heroFigure, researchTree, skillTree } from './heroview';
+import { heroFigure, skillTree } from './heroview';
+import { researchTree } from './researchview';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
@@ -1986,7 +1987,7 @@ export class CampaignView {
     const head = cur ? `researching <b>${esc(cur.name)}</b> · ${r.current!.left} turn${r.current!.left === 1 ? '' : 's'} left` : 'nothing under way: pick a star to research. One project at a time, paid for when it starts.';
     return `<div class="cmp-research">
         <p class="cmp-rs-head">${head}</p>
-        <section class="hv-tree rs-tree">
+        <section class="rt">
           ${researchTree({ projects: RESEARCH, done: r.done, current: r.current, problem: (id) => researchProblem(r, me.materials, id), picked: this.researchPick, materialsIcon: MATERIALS })}
         </section>
         <p class="cmp-rs-sum">${sums.length ? `Every army: ${sums.join(' · ')}` : 'What is researched, every one of your armies shares.'}</p>
