@@ -310,7 +310,7 @@ export function aimChoices(state: GameState, p: PlayerState): { cards: CardInsta
 
 /** Whether a player's dawn waits for them to aim: they have a card with dawn heat, and it has more than one place to go. */
 export function needsDawnAim(state: GameState, p: PlayerState): boolean {
-  if (!p.tableau.some((c) => dawnAimable(c, p, state))) return false;
+  if (!p.tableau.some((c) => dawnAimable(c, p, state) && !state.dawnDone?.includes(c.uid))) return false;
   const { cards, sun } = aimChoices(state, p);
   return cards.length + (sun ? 1 : 0) > 1;
 }
@@ -1240,11 +1240,11 @@ function plant(state: GameState, p: PlayerState, n: number) {
   if (planted) log(state, `${p.name} plants ${planted} Sapling${planted === 1 ? '' : 's'}.`);
 }
 
-/** At its owner's dawn, worn defence mends: 1 on each card (plus its Sturdy), and 1 on each worn empty slot. */
+/** At its owner's dawn, worn defence mends: 1 on each card, and 1 on each worn empty slot. */
 function mendDefences(state: GameState, p: PlayerState) {
   for (const c of p.tableau) {
     if (!c.dented) continue;
-    const by = Math.min(c.dented, BALANCE.defenceMend + cardSturdy(c));
+    const by = Math.min(c.dented, BALANCE.defenceMend);
     c.dented -= by;
     if (!c.dented) delete c.dented;
     log(state, `${p.name}'s ${cardDef(c.defId).name} mends ${by} defence (defence ${cardDefence(p, c)}).`);
@@ -1287,7 +1287,7 @@ function startTurn(state: GameState) {
   p.turn = emptyTurn();
   delete state.awaitingDawn;
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
-  // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy cards mend their Sturdy more).
+  // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy adds defence, not mending: a fused stack of Sturdy cards would wall up for good).
   mendDefences(state, p);
 
   // Shields fade, unless Deep Current holds them.
@@ -1349,10 +1349,12 @@ function dawn(state: GameState, p: PlayerState) {
   delete state.awaitingDawn;
   // A new day: every card of theirs is ready to act again.
   for (const c of p.tableau) delete c.dimmed;
-  // Your tableau's dawn effects, left to right.
+  // Your tableau's dawn effects, left to right (those already resolved as they were aimed aside).
+  const done = new Set(state.dawnDone ?? []);
+  delete state.dawnDone;
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
-    if (!p.tableau.includes(card)) continue;
+    if (!p.tableau.includes(card) || done.has(card.uid)) continue;
     resolveEffects(state, p, card, dawnEffects(card, p, state), 'turn');
   }
   // Then every card loses 1 stability (unless anchored); at 0 it fades into your discard pile.
@@ -1569,7 +1571,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
   delete state.sprung;
   const p = activePlayer(state);
   if (action.type === 'dawn' && !state.awaitingDawn) throw new GameError('Your dawn has already broken.');
-  if (state.awaitingDawn && action.type !== 'dawn' && action.type !== 'concede') throw new GameError('Aim your dawn heat first.');
+  if (state.awaitingDawn && action.type !== 'dawn' && action.type !== 'dawnStep' && action.type !== 'concede') throw new GameError('Aim your dawn heat first.');
   switch (action.type) {
     case 'concede': {
       const quitter = state.players.find((o) => o.id === action.playerId);
@@ -1605,6 +1607,28 @@ export function applyAction(prev: GameState, action: Action): GameState {
       state.turnPulses = [];
       notePulse(state, p, null, 'start', p, 0);
       dawn(state, p);
+      break;
+    }
+    case 'dawnStep': {
+      // One card's dawn, resolved as soon as it is aimed: a Guard it brings down no longer holds the next.
+      if (!state.awaitingDawn) throw new GameError('Only at your dawn.');
+      const card = p.tableau.find((c) => c.uid === action.uid);
+      if (!card || !dawnAimable(card, p, state)) throw new GameError('Aim only your cards that heat at dawn.');
+      if (state.dawnDone?.includes(card.uid)) throw new GameError('That card has already had its dawn.');
+      const choices = aimChoices(state, p);
+      if (action.aim === null ? !choices.sun : !choices.cards.some((c) => c.uid === action.aim)) throw new GameError(choices.sun ? "Aim at a card in your rival's tableau, or at their sun." : 'Your rival has a Guard in play: aim at it.');
+      card.aim = action.aim ?? undefined;
+      state.turnPulses = [];
+      notePulse(state, p, null, 'start', p, 0);
+      (state.dawnDone ??= []).push(card.uid);
+      resolveEffects(state, p, card, dawnEffects(card, p, state), 'turn');
+      if (state.winnerId) break;
+      if (p.eliminated) {
+        passOn(state);
+        break;
+      }
+      // Nothing left to aim (or only one place to aim it): the rest of the dawn plays out.
+      if (!needsDawnAim(state, p)) dawn(state, p);
       break;
     }
     case 'setTarget': {

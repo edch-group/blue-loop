@@ -252,7 +252,7 @@ export interface CardInstance {
   stability?: number;
   /**
    * In a tableau: defence worn away by heat. It lasts: a card recovers 1 at each of its owner's dawns
-   * (plus its Sturdy), or by Repair; and the wear on its slot's own defence stays in the slot when it leaves.
+   * or by Repair; and the wear on its slot's own defence stays in the slot when it leaves.
    */
   dented?: number;
   /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
@@ -377,6 +377,8 @@ export interface GameState {
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
   /** The active player's dawn waits for them to aim their cards' dawn heat (a `dawn` action). */
   awaitingDawn?: boolean;
+  /** At a dawn being aimed: the cards whose dawn effects have already resolved (one at a time, as each is aimed). */
+  dawnDone?: string[];
 }
 
 /** One dawn effect, as it happened: what fired it, where it went, and every sun just after. */
@@ -475,6 +477,8 @@ export type Action =
     }
   /** Your dawn: where each of your cards' dawn heat goes (card uid → rival card uid, or null for their sun; unset: the sun, or a Guard). */
   | { type: 'dawn'; aims: Record<string, string | null> }
+  /** At your dawn: one card's dawn effects resolve now, its heat where you aim it (null: the rival's sun). */
+  | { type: 'dawnStep'; uid: string; aim: string | null }
   | { type: 'setTarget'; targetId: string }
   | { type: 'endTurn' }
   /** Use one of your hero's battle skills (campaign), on your own day. */

@@ -230,7 +230,7 @@ const AUTO_CONFIRM_MS = 2000;
 const BANNER_GAP_MS = 1300;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, dawnStep: 900, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -1230,7 +1230,7 @@ export class App {
       if (next.awaitingDawn || this.dawnHappened(next, now)) this.showBanner(named(now, 'dawn'), round, 0, 'game', () => this.setPhase('dawn'));
     }
     // The day begins once the dawn has played out (and, at your own dawn, once you have aimed its heat).
-    if ((turnPassed || action.type === 'dawn') && !next.awaitingDawn) {
+    if ((turnPassed || action.type === 'dawn' || action.type === 'dawnStep') && !next.awaitingDawn) {
       const replay = animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0;
       this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600), 'game', () => this.setPhase('day'));
     }
@@ -1565,7 +1565,7 @@ export class App {
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
     // A day's start (or its dawn, once aimed) replays its effects.
-    const endingTurn = action.type === 'endTurn' || action.type === 'dawn';
+    const endingTurn = action.type === 'endTurn' || action.type === 'dawn' || action.type === 'dawnStep';
     let drawIndex = 0;
 
     // Removal: a glowing arc from the removing card to each rival card it destroys, returns or
@@ -2177,7 +2177,7 @@ export class App {
     const { sun } = aimChoices(s, me);
     const aims: Record<string, string | null> = {};
     for (const card of me.tableau) {
-      if (!dawnAimable(card, me, s)) continue;
+      if (!dawnAimable(card, me, s) || s.dawnDone?.includes(card.uid)) continue;
       const hit = this.dawnHit(s, me, card);
       if (hit !== null || sun) aims[card.uid] = hit;
     }
@@ -2844,10 +2844,9 @@ export class App {
           return this.dispatch({ type: 'attack', attackerUid: pend.uid, targetUid: target });
         }
         if (pend.dawn) {
-          this.dawnAims()[pend.uid] = arg === 'sun' ? null : arg;
+          // Its dawn resolves now: what it brings down no longer stands in the way of the next.
           this.pending = null;
-          sound.hover();
-          return this.render();
+          return this.dispatch({ type: 'dawnStep', uid: pend.uid, aim: arg === 'sun' ? null : arg });
         }
         pend.aimUid = arg;
         return this.advancePlay();
@@ -4053,7 +4052,7 @@ export class App {
       state = 'card-choosable';
     }
     // At your dawn, your cards with dawn heat are aimed: click one, then its target.
-    if (!p && this.dawnTurn() && me && opts.tableau === 'mine' && opts.owner?.id === me.id && dawnAimable(c, me, s!)) {
+    if (!p && this.dawnTurn() && me && opts.tableau === 'mine' && opts.owner?.id === me.id && dawnAimable(c, me, s!) && !s!.dawnDone?.includes(c.uid)) {
       attrs = `data-act="aim-start" data-arg="${c.uid}" title="Aim its dawn heat: click, then a rival card or their sun"`;
       state = 'card-aimer';
     }
@@ -4092,16 +4091,22 @@ export class App {
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     // A campaign hero's boons (skills and gear), carried while it is in play: one tag, their text on hover.
     const boonTag = c.boons?.length ? `<i class="boon-tag" title="${esc(`From skills and gear: ${c.boons.map((b) => plainText(cardDef(b).text)).join(' ')}`)}">✦ ${c.boons.length} boon${c.boons.length === 1 ? '' : 's'}</i>` : '';
-    // Fusion cards fused onto it: a tag for each, its text on hover.
-    const fusedTags = c.fused?.length || c.boons?.length
-      ? `<span class="fused-tags">${(c.fused ?? []).map((f) => `<i title="${esc(`${cardDef(f.defId).name} (fused): ${plainText(cardDef(f.defId).text).replace(/^Fusion\. /, '')}`)}">${esc(cardDef(f.defId).name)}</i>`).join('')}${boonTag}</span>`
-      : '';
+    // Fusion cards fused onto it: tucked behind it, each a little higher, only its name showing above it
+    // (its text on hover). A campaign hero's boons stay as a tag on the card.
+    const fusedTags =
+      (c.boons?.length ? `<span class="fused-tags">${boonTag}</span>` : '') +
+      (c.fused ?? [])
+        .map((f, i) => {
+          const fd = cardDef(f.defId);
+          return `<span class="fused-behind" style="--fi:${i};--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`${fd.name} (fused): ${plainText(fd.text).replace(/^Fusion\. /, '')}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
+        })
+        .join('');
     // (Resonance and forge show in the card's own numbers, not as a badge.)
     const resonance = '';
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by heat. It mends 1 at each of its owner's dawns (more with Sturdy or Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';

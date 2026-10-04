@@ -144,8 +144,8 @@ export const RACE_CARDS: CardDef[] = [
   // Bastion-kin
   {
     id: 'kor_shieldwall', name: 'Shieldwall', kind: 'defence', race: 5, sub: 'bastionkin', cost: 1,
-    text: '{guard}. {sturdy:3}.',
-    defence: 3, passive: [{ type: 'taunt' }],
+    text: '{guard}. {sturdy:2}.',
+    defence: 2, passive: [{ type: 'taunt' }],
   },
   {
     id: 'kor_bastion_kin', name: 'Bastion-kin Shieldbearer', kind: 'defence', race: 5, sub: 'bastionkin', cost: 2, character: true,

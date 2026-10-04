@@ -56,7 +56,7 @@ export const BALANCE = {
   commandSlotDefence: 2,
   /** Fusion cards one card in play can carry. */
   maxFused: 2,
-  /** Worn defence each card (and empty slot) mends at its owner's dawn (Sturdy cards mend their Sturdy more). */
+  /** Worn defence each card (and empty slot) mends at its owner's dawn (Sturdy adds defence, not mending). */
   defenceMend: 1,
   /**
    * Stability: how many of your days a card stays in your tableau (its dawn effects trigger

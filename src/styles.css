@@ -4208,3 +4208,18 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .phase-step.on[data-phase='dawn'] i { background: #f0a040; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(240, 160, 64, 0.8); }
 .phase-step.on[data-phase='day'] i { background: #e8c23a; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(232, 194, 58, 0.8); }
 .phase-step.on[data-phase='dusk'] i { background: #8a6ad0; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(138, 106, 208, 0.8); }
+
+/* Fusion cards fused onto a card in play: tucked behind it, each peeking a step higher, name only. */
+.fused-behind {
+  --fh: max(11px, calc(var(--tcw, 80px) * 0.15));
+  position: absolute; bottom: 100%; left: calc(5% + var(--fi) * 4%); right: calc(5% + var(--fi) * 4%); height: calc(var(--fh) * (var(--fi) + 1));
+  z-index: calc(1 - var(--fi)); pointer-events: auto; border-radius: 7px 7px 0 0; overflow: hidden;
+  background: linear-gradient(180deg, #fdfdff, #e9ecf3); border: 1px solid color-mix(in srgb, var(--fk) 55%, #c9ced8); border-bottom: 0;
+  box-shadow: 0 -2px 6px rgba(80, 84, 100, 0.12);
+}
+.fused-behind::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--fk); opacity: 0.8; }
+.fused-behind i {
+  position: absolute; left: 6%; right: 6%; top: 0; height: var(--fh); display: grid; place-items: center;
+  font-style: normal; font-family: var(--display); font-size: max(6px, calc(var(--tcw, 80px) * 0.065)); letter-spacing: 0.08em; text-transform: uppercase;
+  color: #3a4256; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

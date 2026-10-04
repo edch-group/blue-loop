@@ -1066,6 +1066,27 @@ describe('aiming heat', () => {
     expect(() => applyAction(s, { type: 'dawn', aims: { [lancer.uid]: lancer.uid } })).toThrow(GameError);
   });
 
+  it('resolves each dawn card as it is aimed: a Guard it brings down no longer holds the next', () => {
+    let s = twoPlayer();
+    const [ada, bo] = s.players;
+    const [l1, l2] = give(ada, ['helio_lancer', 'helio_lancer'], 'tableau');
+    l1.stability = l2.stability = 6;
+    const [weak, wall] = give(bo, ['stinging_veil', 'kor_shieldwall'], 'tableau');
+    // (It loses 1 at its own dawn first, and stands at 1 when Ada's dawn comes.)
+    weak.stability = 2;
+    weak.slot = 0;
+    s = applyAction(applyAction(s, { type: 'endTurn' }), { type: 'endTurn' });
+    expect(s.awaitingDawn).toBe(true);
+    // While a Guard stands, the sun is not a choice.
+    expect(() => applyAction(s, { type: 'dawnStep', uid: l1.uid, aim: null })).toThrow(GameError);
+    s = applyAction(s, { type: 'dawnStep', uid: l1.uid, aim: weak.uid });
+    // The weak Guard burned away at once; one Guard is left, so the rest of the dawn plays out by itself, at it.
+    expect(s.players[1].tableau.some((c) => c.uid === weak.uid)).toBe(false);
+    expect(s.awaitingDawn).toBeFalsy();
+    expect(s.players[1].tableau.find((c) => c.uid === wall.uid)!.dented ?? 0).toBeGreaterThan(0);
+    expect(activePlayer(s).playsLeft).toBeGreaterThan(0);
+  });
+
   it("wears a card's stability by the heat less its defence, and pierce ignores defence", () => {
     const { s, lancer, reactor, a, b } = atAdasDawn();
     const bo = s.players[1];
