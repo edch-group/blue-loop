@@ -55,7 +55,6 @@ import {
   supernovaThreshold,
   hasRoomFor,
   targetOf,
-  turnForecast,
   previewDawnHeat,
   planetsEaten,
   type Action,
@@ -75,7 +74,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, symbolIcon, typeLine } from './glyphs';
+import { attackBadge, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -3461,7 +3460,7 @@ export class App {
   private cardFace(id: string): string {
     const c = cardDef(id);
     return `<div class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}" data-card="${c.id}">
-      <span class="card-glyph">${cardArtLite(c, true)}</span>${stabilityBadge(c)}
+      <span class="card-glyph">${cardArtLite(c, true)}</span>${raceRow(c)}${stabilityBadge(c)}
       <span class="card-name">${esc(c.name.toLowerCase())}</span>
       <span class="card-text">${cardTextHtml(c.text)}</span>
       <span class="card-kind">${typeLine(c)}</span>
@@ -4026,7 +4025,6 @@ export class App {
           <div class="vitals ${sunAim ? 'vitals-choosable' : ''} ${sunTargeted && !sunAim ? 'vitals-targeted' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
-          ${this.renderForecast(p)}
         </div>
       </div>`;
   }
@@ -4053,34 +4051,6 @@ export class App {
     </div>`;
   }
 
-  /**
-   * Above each tableau: what the cards on the table will do at that player's next dawn (heat at their
-   * target, shields, cooling, heat to their own sun, extra cards and energy), so everyone can see it
-   * coming and answer it. Only the table: what the planets will add, and regional instability, show
-   * where they come from (the orbits and the stability bar), not here.
-   */
-  private renderForecast(p: PlayerState): string {
-    const s = this.state!;
-    if (p.eliminated || isGameOver(s)) return '';
-    // At your dawn, the forecast is of this dawn, as you have aimed it.
-    const f = turnForecast(s, p, this.dawnTurn() && activePlayer(s).id === p.id ? this.draftAims(s, p) : undefined);
-    const me = this.viewer();
-    const who = (id: string | null) => (id === me.id ? 'you' : esc((s.players.find((o) => o.id === id)?.name ?? '').toLowerCase()));
-    // Each effect as a symbol and a number, with the detail in its tooltip.
-    const chip = (cls: string, icon: string, n: number, title: string) =>
-      n ? `<span class="fc ${cls}" title="${title}"><i>${icon}</i><b>${cls === 'fc-cool' ? `−${n}` : `+${n}`}</b></span>` : '';
-    const chips = [
-      chip('fc-heat', symbolIcon('heat'), f.heat, `Their dawn: ${f.heat} heat to ${who(f.targetId)} (before shields)`),
-      chip('fc-shield', symbolIcon('shield'), f.shields, `Their dawn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
-      chip('fc-cool', symbolIcon('cool'), f.cool, `Their dawn: their own sun cools by ${f.cool}`),
-      chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
-      chip('fc-draw', HAND_ICON, f.draw - f.planetDraw, `Their dawn: ${f.draw - f.planetDraw} extra card${f.draw - f.planetDraw === 1 ? '' : 's'} drawn, from their cards`),
-      chip('fc-play', '<span class="fc-dot"></span>', f.plays - f.planetPlays, `Their day: +${f.plays - f.planetPlays} energy, from their cards`),
-    ].join('');
-    // Nothing coming: show nothing.
-    if (!chips) return '';
-    return `<div class="forecast ${p.id === me.id ? 'forecast-mine' : ''}" aria-label="${p.id === me.id ? 'your' : 'their'} next dawn">${chips}</div>`;
-  }
 
   private renderDock(): string {
     const me = this.viewer();
@@ -4222,7 +4192,7 @@ export class App {
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
     return `
       <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardArtLite(def, true)}</div>
+        <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardTextHtml(def.text, opts.option ?? c.choice, false, this.liveNumbers(c, opts))}</div>
@@ -4287,7 +4257,7 @@ export class App {
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
       <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardArtLite(def, true)}</div>
+        <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardTextHtml(def.text, c?.choice, false, owner && c ? this.liveNumbers(c, { owner }) : {})}</div>

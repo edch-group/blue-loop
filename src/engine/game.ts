@@ -1738,8 +1738,12 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   log(state, `${p.name}'s ${name} attacks ${rival.name}'s ${cardDef(victim.defId).name} for ${amount}.`);
   heatCard(state, rival, victim, amount, p, false, card.uid);
   if (back > 0 && p.tableau.includes(card)) {
-    card.stability = Math.max(0, (card.stability ?? 0) - back);
-    log(state, `${cardDef(victim.defId).name} hits back: ${name} takes ${back} (stability ${card.stability}).`);
+    // An attacker out of its slot has no slot defence: only its own (Sturdy, and its race's) takes the blow first.
+    const own = Math.max(0, cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0));
+    const absorbed = Math.min(back, own, cardDefence(p, card));
+    if (absorbed > 0) card.dented = (card.dented ?? 0) + absorbed;
+    card.stability = Math.max(0, (card.stability ?? 0) - (back - absorbed));
+    log(state, `${cardDef(victim.defId).name} hits back: ${name} takes ${back}${absorbed ? ` (${absorbed} on its own defence)` : ''} (stability ${card.stability}).`);
     if (card.stability <= 0) {
       log(state, `${p.name}'s ${name} burns away.`);
       leaveTableau(state, p, card);

@@ -406,6 +406,21 @@ describe('attacks and dimming', () => {
     expect(u.players[1].heat).toBe(before + 1);
   });
 
+  it("takes a hit back on the attacker's own defence (Sturdy), never its slot's", () => {
+    let s = twoPlayer();
+    const [relay] = give(s.players[0], ['plasma_relay'], 'tableau');
+    relay.slot = 2; // the middle slot: defence 3 that an attacker out of it does not have
+    relay.stability = 5;
+    const [veil] = give(s.players[1], ['stinging_veil'], 'tableau');
+    veil.stability = 5;
+    const back = counterDamage(s, s.players[1], veil); // Sting 3, and Barbed (Vorthane) 1
+    s = applyAction(s, { type: 'attack', attackerUid: relay.uid, targetUid: veil.uid });
+    const after = s.players[0].tableau.find((c) => c.uid === relay.uid)!;
+    // Its Sturdy 1 takes 1, its stability the rest; the middle slot's 3 does nothing.
+    expect(after.stability).toBe(5 - (back - 1));
+    expect(after.dented).toBe(1);
+  });
+
   it('sends cards that do nothing once played straight to the discard pile, taking no slot', () => {
     let s = twoPlayer();
     const me = activePlayer(s);

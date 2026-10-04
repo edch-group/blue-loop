@@ -1,4 +1,4 @@
-import { BALANCE, baseStability, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseStability, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -245,6 +245,18 @@ const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<'
 export function typeLine(def: CardDef): string {
   const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
   return `<span class="card-type">${escType(KIND_NAME[def.kind])}</span>${race}`;
+}
+
+/**
+ * Under the picture, a race card's race in a row: its race (and sub-race), then its racial bonus and nerf
+ * by name (their full text on hover), which every card of that race carries.
+ */
+export function raceRow(def: CardDef): string {
+  if (def.race === undefined) return '';
+  const t = RACE_TRAITS[def.race];
+  const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
+  const name = (line: string) => line.split(':')[0];
+  return `<span class="card-racerow"><b>${escType(`${RACE_NAMES[def.race]}${sub}`.toLowerCase())}</b><i class="rt-bonus" title="${escType(plainText(t.bonus))}">${escType(name(t.bonus).toLowerCase())}</i><i class="rt-nerf" title="${escType(plainText(t.nerf))}">${escType(name(t.nerf).toLowerCase())}</i></span>`;
 }
 
 /** The same as plain words ("attack · aureline"), for lists. */

@@ -4227,3 +4227,25 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* A card or sun struck by an attack: a hot flash. */
 .hit-flash { animation: hit-flash 0.42s ease-out; }
 @keyframes hit-flash { 0% { filter: brightness(1.9) saturate(1.4); box-shadow: 0 0 0 3px rgba(255, 120, 80, 0.9), 0 0 28px rgba(255, 110, 60, 0.8); } 100% { filter: none; } }
+
+/* ---------- Race row and corner stats ---------- */
+/* Under the picture: the card's race (and sub-race), then its racial bonus (green) and nerf (red). */
+.card-racerow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--cw, 100px) * 0.015) calc(var(--cw, 100px) * 0.03); flex: none; min-width: 0; white-space: nowrap;
+  font-family: var(--display); font-size: max(5px, calc(var(--cw, 100px) * 0.052)); letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.3;
+  margin-top: calc(var(--cw, 100px) * -0.01);
+}
+.card-racerow b { font-weight: 600; color: color-mix(in srgb, var(--kc) 70%, #556); flex: none; }
+.card-racerow i { font-style: normal; padding: 0 0.45em; border-radius: 999px; flex: none; pointer-events: auto; }
+.card-racerow .rt-bonus { color: #2f7a4a; background: rgba(60, 170, 100, 0.13); }
+.card-racerow .rt-nerf { color: #a8442e; background: rgba(208, 101, 75, 0.13); }
+.card.kind-command .card-racerow b { color: #d6dce8; }
+.card.kind-command .card-racerow .rt-bonus { color: #9fe0b0; background: rgba(60, 170, 100, 0.22); }
+.card.kind-command .card-racerow .rt-nerf { color: #ffb0a0; background: rgba(208, 101, 75, 0.22); }
+/* (The race is in that row now, not on the type line.) */
+.card-kind .card-race { display: none; }
+/* Attack bottom left, stability bottom right: on the card's foot, half on and half off it, either side of its defence. */
+.card .card-stats, .card .card-stats.card-stats-stab, .card .card-stats.card-stats-base {
+  top: auto; bottom: 0; left: 4%; right: 4%; transform: translateY(50%); z-index: 3;
+}
+.card-big .card-stats { left: 4%; right: 4%; }
