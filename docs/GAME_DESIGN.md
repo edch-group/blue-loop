@@ -171,6 +171,15 @@ Control over what a card does each day, alongside the dawn effects that happen b
 - First 600-game sim with attacks (AI attacks about 10 times a game): mean distance from 50% 7.9. Lancers 47.5, Shard Overload 63.1, Tide 54.3, Hive 54.7, Orbit Riders 53.0, Ambush 51.8, Demolition 57.3, Absolute Zero 38.3, Graftworks 29.6, Overcharge 39.4.
 - Next: activated abilities on ordinary cards (they will dim too).
 
+## Dawn, day and dusk [design review]
+
+Every player's turn runs in three parts, each announced with a banner ("dawn", "day", "dusk" for your own; "<name>'s dawn" and so on for a rival's):
+- **Dawn**: your cards un-dim, dawn effects resolve (and you aim dawn heat), cards lose a stability, you get the day's energy.
+- **Day**: you play cards, attack, and use your Hero.
+- **Dusk**: as you end your day, your cards' **dusk** effects resolve, left to right, once you have acted. Its effects replay on the board just before the next player's dawn.
+
+Dusk is the opposite of dawn: it comes after your choices, so it can reward them. Some dusk cards count your cards that **held back** (not dimmed today), a reason to keep an attacker home (Gloaming Battery, Vesper Bell). Dusk heat counts against a card's attack exactly as dawn heat does. There are twelve dusk cards (cards-dusk.ts): four neutral (Twilight Sentry, Evening Star, Gloaming Battery, Vesper Bell) and one per race (Vesper Knight, Twilight Shard, Ebb Tide, Night Bloom, Nightfall, Banked Forge, Evening Vigil, Banked Embers). Wildfire runs Banked Embers.
+
 ## Heroes
 
 Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of their five tableau slots (top right of your tableau; your rival's is bottom left, the board being a mirror), so only one Hero is in play at a time: **a new one replaces the old** (which goes to the discard pile). It takes no tableau slot, has no neighbours, and its slot has defence 2. On the board it lies landscape, and a line round each tableau bumps out round it. [design review]
@@ -565,6 +574,7 @@ The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2
 - Wildfire: swaps (cooling for its self-heat cards) and even removing its self-heat did nothing; the deck lacked pressure and cooling. The Pyrr bonus became +1 attack (+2 while overheated), and the Dancer, Flare Burst, Ember Guard, Pyre Shield and Heat Bloom were strengthened; Radiator Fins replaced its Relay Stations. The AI now prices self-heat by how close the sun is to supernova.
 - Forge Clans: Siege Arrays in place of Tempers (39% → 45%), then Forged +2 defence (53%).
 - The dominance check ignores a race's trait (the trait is the race's price, not the card's).
+- Where it stands (1000 games): mean distance 8.8 (from 12.1). Solar Lancers 44.5, Shard Overload 55.1, Abyssal Tide 58.5, Hive Bloom 58.6, Orbit Riders 60.2, Ambush 42.8, Demolition 61.1, Absolute Zero 37.3, Graftworks 54.1, Overcharge 39.8, Night Court 56.8, Forge Clans 46.7, Starwatch 58.6, Wildfire 28.2. Still to do: Wildfire, Absolute Zero and Overcharge are low.
 
 ## Always landscape
 
