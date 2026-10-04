@@ -4349,3 +4349,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .round-ring.unstable .round-track { stroke: rgba(201, 138, 134, 0.25); }
 .round-ring-num { width: auto; aspect-ratio: auto; background: none; border: 0; box-shadow: none; }
 .round-ring-num b { font-size: 15px; }
+
+/* Your Hero's actions, in the stage's place: the card, its abilities (and attack) beneath. */
+.stage.stage-hero { pointer-events: auto; }
+.stage-hero-actions { display: grid; gap: 6px; width: 100%; margin-top: 8px; }
+.stage-hero-actions .insp-ability { width: 100%; }

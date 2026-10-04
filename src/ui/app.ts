@@ -487,6 +487,8 @@ export class App {
   private state: GameState | null = null;
   private pending: Pending | null = null;
   private stage: Stage | null = null;
+  /** Your Hero, tapped on your day: its actions (abilities, and attack) shown in the stage's place, middle right. */
+  private heroPanel: string | null = null;
   private sheet: Sheet | null = null;
   /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
   private landing: (() => void) | null = null;
@@ -2499,8 +2501,9 @@ export class App {
       x: e.clientX,
       y: e.clientY,
       timer: window.setTimeout(() => {
+        // Press and hold always reads the card: the inspector (as a right-click does).
         this.press!.shown = true;
-        this.showPeek(el);
+        this.zoom(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
         sound.hover();
       }, LONG_PRESS_MS),
       shown: false,
@@ -2513,10 +2516,7 @@ export class App {
 
   private onPressEnd() {
     if (!this.press) return;
-    if (this.press.shown) {
-      this.suppressClick = true; // the tap that ends a long press must not also play the card
-      this.preview.classList.remove('show');
-    }
+    if (this.press.shown) this.suppressClick = true; // the tap that ends a long press must not also play the card
     this.cancelPress();
   }
 
@@ -2582,6 +2582,12 @@ export class App {
         this.render();
         return;
       }
+    }
+    // Your Hero's actions close with a click anywhere else.
+    if (this.heroPanel && !(e.target as HTMLElement).closest?.('.stage-hero') && el?.dataset.act !== 'hero-panel') {
+      this.heroPanel = null;
+      this.render();
+      if (!el) return;
     }
     if (!el || el.hasAttribute('disabled')) return;
     if (el.classList.contains('overlay') && e.target !== el) return;
@@ -2921,10 +2927,15 @@ export class App {
       case 'end-day-confirm':
         this.sheet = null;
         return this.dispatch({ type: 'endTurn' });
+      case 'hero-panel':
+        this.heroPanel = this.heroPanel === arg ? null : arg;
+        sound.hover();
+        return this.render();
       case 'hero-ability': {
         const why = heroAbilityProblem(this.state!, this.viewer(), Number(arg));
         if (why) return this.showToast(why, 'info');
         this.sheet = null;
+        this.heroPanel = null;
         sound.hero();
         return this.dispatch({ type: 'heroAbility', index: Number(arg) });
       }
@@ -2946,6 +2957,7 @@ export class App {
         this.pending = { uid: arg, step: 'aim', dawn: true };
         return this.render();
       case 'attack-start': {
+        this.heroPanel = null;
         // On your day, a card of yours with attack that has not acted yet: choose what it attacks.
         if (this.pending?.attack && this.pending.uid === arg) {
           this.pending = null;
@@ -4136,6 +4148,11 @@ export class App {
       attrs = `data-act="attack-start" data-arg="${c.uid}" title="Attack: click, then a rival card or their sun"`;
       state = 'card-attacker';
     }
+    // Your Hero, with something it can do today: a tap opens its actions (middle right).
+    if (!p && !this.dawnTurn() && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && def.kind === 'command' && c.slot === COMMAND_SLOT && this.heroActions(me).length) {
+      attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Choose what ${esc(def.name)} does today (hold or right-click to read it)"`;
+      state = 'card-attacker';
+    }
     if ((p?.dawn || p?.attack) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';
     // Placing a recall card: the card it recalls can make way for it.
@@ -4260,9 +4277,47 @@ export class App {
       </div>`;
   }
 
+  /** What the viewer's Hero can do right now: its usable abilities (by index), and 'attack' if it may attack. */
+  private heroActions(me: PlayerState): (number | 'attack')[] {
+    const s = this.state!;
+    const hero = commandCard(me);
+    if (!hero || hero.dimmed) return [];
+    const out: (number | 'attack')[] = (cardDef(hero.defId).abilities ?? []).map((_, i) => i).filter((i) => !heroAbilityProblem(s, me, i));
+    const { cards, sun } = aimChoices(s, me);
+    if (cardAttack(s, me, hero) > 0 && (sun || cards.length)) out.push('attack');
+    return out;
+  }
+
+  /** Your Hero's actions, in the stage's place (middle right): each ability as a button, and its attack. */
+  private renderHeroPanel(): string {
+    const s = this.state!;
+    const me = this.viewer();
+    const hero = commandCard(me);
+    if (!hero || hero.uid !== this.heroPanel) return '';
+    const def = cardDef(hero.defId);
+    const card = this.renderCard(hero, { static: true })
+      .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+      .replace(/<\/button>\s*$/, '</div>')
+      .replace(/ data-act="[^"]*"/, '');
+    const abilities = (def.abilities ?? [])
+      .map((k, i) => {
+        const why = heroAbilityProblem(s, me, i);
+        return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${esc(k.name)}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
+      })
+      .join('');
+    const attack = this.heroActions(me).includes('attack') ? `<button class="btn insp-ability" data-act="attack-start" data-arg="${hero.uid}"><b>Attack</b><small>${cardAttack(s, me, hero)} at a rival card or their sun</small></button>` : '';
+    return `
+      <div class="stage stage-hero">
+        ${card}
+        <div class="stage-hero-actions">${abilities}${attack}</div>
+        <div class="stage-caption">${esc(def.name.toLowerCase())}: choose one</div>
+      </div>`;
+  }
+
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
+    if (!st && this.heroPanel && !isGameOver(s) && this.canAct() && this.heroActions(this.viewer()).length) return this.renderHeroPanel();
     // Online, while your rival reads your card: say so (you can't act until they have).
 
     if (!st || isGameOver(s)) return '';
