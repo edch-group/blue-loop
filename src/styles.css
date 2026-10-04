@@ -617,11 +617,12 @@ input { font: inherit; }
 .tile .pill { position: absolute; left: 50%; bottom: 5%; transform: translateX(-50%); font-size: max(6px, calc(var(--tw) * 0.052)); letter-spacing: 0.1em; width: max-content; max-width: 92%; white-space: normal; line-height: 1.25; text-align: center; padding: 3px 6px; }
 
 /* ---------- AI spotlight ---------- */
-.stage { --cw: min(161px, calc(32 * var(--vh))); position: fixed; left: min(78%, calc(100% - var(--cw) / 2 - 16px)); top: 50%; transform: translate(-50%, -50%); z-index: 15; display: grid; justify-items: center; gap: 8px; pointer-events: none; animation: stage-in 0.25s ease-out; }
+/* (--scw: the stage's card width; each card sets its own --cw, so the stage's is handed down under another name.) */
+.stage { --scw: min(250px, calc(50 * var(--vh))); position: fixed; left: min(78%, calc(100% - var(--scw) / 2 - 16px)); top: 50%; transform: translate(-50%, -50%); z-index: 15; display: grid; justify-items: center; gap: 8px; pointer-events: none; animation: stage-in 0.25s ease-out; }
 /* Fades in where it stands (its own translate centres it: a moving keyframe would slide it sideways). */
 @keyframes stage-in { from { opacity: 0; } }
 .stage::before { content: ''; position: absolute; inset: -50px -110px; background: radial-gradient(ellipse, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.6) 45%, transparent 70%); z-index: -1; }
-.stage .card { width: var(--cw); height: calc(var(--cw) * 1.4); box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff; }
+.stage .card { --cw: var(--scw); width: var(--scw); height: calc(var(--scw) * 1.4); box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff; }
 .stage .card .card-text { display: block; }
 /* The staged card is a still, zoomed view: no lift, press or pointer; its keywords still explain on hover. */
 .stage .card-still { pointer-events: none; cursor: default; }
@@ -3286,7 +3287,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pill-btn.pill-dawn { background: linear-gradient(135deg, #f1a14d, #d8452b); color: #fff; border-color: transparent; }
 
 /* A sprung Lightspeed card's cause: the enemy card it answered, smaller, to its left. */
-.stage-against { position: absolute; right: calc(100% + 18px); top: 8%; --cw: calc(min(161px, calc(32 * var(--vh))) * 0.62); display: grid; justify-items: center; gap: 6px; animation: stage-in 0.25s ease-out; }
+.stage-against { position: absolute; right: calc(100% + 18px); top: 8%; --scw: calc(min(250px, calc(50 * var(--vh))) * 0.62); display: grid; justify-items: center; gap: 6px; animation: stage-in 0.25s ease-out; }
 .stage-against .card { filter: saturate(0.85); box-shadow: 0 14px 30px rgba(70, 70, 90, 0.22), 0 0 0 2px #fff; }
 .stage-against .card .card-text { display: none; }
 .stage-against span { padding: 3px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #a86d10; letter-spacing: 0.16em; font-size: 0.5rem; text-transform: uppercase; white-space: nowrap; box-shadow: var(--shadow); }
@@ -3366,7 +3367,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card.kind-command .kw-timing { color: #ffd98a; }
 
 /* The stage shows a Command card landscape. */
-.stage .card.card-landscape { width: calc(var(--cw) * 1.4); height: var(--cw); }
+.stage .card.card-landscape { width: calc(var(--scw) * 1.4); height: var(--scw); }
 
 /* What the board waits on you for, in a word or two, lying in the middle of the board. */
 .board .mid-hint { grid-row: 2; }
