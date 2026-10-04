@@ -104,7 +104,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
         perTurn += scale * e.amount * ACTION_VALUE * Math.min(1, Math.max(0.2, (p.hand.length - 1) / ENERGY_HAND));
         break;
       case 'selfHeat':
-        perTurn -= e.amount * (isOverheated(p) ? 1.1 : 0.7);
+        perTurn -= selfHeatCost(p, e.amount);
         break;
       case 'grow':
         perTurn += 0.3;
@@ -171,6 +171,14 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
 }
 
 /** Roughly what a Hero ability's effects are worth, used once. */
+/** What heating your own sun costs: a little while it is cool, a lot close to supernova, everything past it. */
+function selfHeatCost(p: PlayerState, amount: number): number {
+  const room = supernovaThreshold(p) - p.heat;
+  if (amount >= room) return 100;
+  const base = amount * (isOverheated(p) ? 1.1 : 0.7);
+  return room - amount <= 3 ? base * 3 : base;
+}
+
 function abilityValue(p: PlayerState, effects: Effect[]): number {
   let v = 0;
   for (const e of effects) {
@@ -191,7 +199,7 @@ function abilityValue(p: PlayerState, effects: Effect[]): number {
         v += e.amount * ACTION_VALUE * Math.min(1, Math.max(0.2, (p.hand.length - 1) / ENERGY_HAND));
         break;
       case 'selfHeat':
-        v -= e.amount * (isOverheated(p) ? 1.1 : 0.7);
+        v -= selfHeatCost(p, e.amount);
         break;
       case 'restore':
         v += e.self ? 0.35 * e.amount : e.all ? 0.3 * e.amount * Math.max(1, p.tableau.length - 1) : 0.4 * e.amount;

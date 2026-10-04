@@ -1003,8 +1003,8 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Night Court',
     race: 4,
     cards: [
-      ...twoOf('nyx_umbral_snare', 'nyx_mirror_veil', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_gloom_warden', 'nyx_shade_stalker', 'nyx_dusk_raider', 'nyx_unmaker_blade', 'nyx_void_rend', 'nyx_unravel', 'nyx_phantom_strike'),
-      'nyx_hollow_reaper', 'nyx_shadow_court', 'nyx_null_shroud', 'nyx_veil_lantern', 'nyx_eclipse_rite',
+      ...twoOf('nyx_umbral_snare', 'nyx_mirror_veil', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_gloom_warden', 'nyx_shade_stalker', 'nyx_dusk_raider', 'nyx_unmaker_blade', 'nyx_void_rend', 'gravity_sling'),
+      'nyx_hollow_reaper', 'nyx_shadow_court', 'nyx_null_shroud', 'nyx_veil_lantern', 'nyx_eclipse_rite', 'coronal_lance', 'deep_scanners',
       'nyx_hero_vesh', 'nyx_hero_kael', 'nyx_hero_nyxara',
     ],
   },
