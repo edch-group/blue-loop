@@ -4342,7 +4342,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* One white disc: the ticks run round its rim on a faint track (as the old stability bar), the round in the middle;
    the petals spread out from its edge. */
 .round-ring {
-  width: 50px;
+  /* (Sized with the board, so it stays inside the flower's dense heart, where the petals meet.) */
+  width: clamp(26px, calc(4 * var(--vh)), 52px);
   background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 8px rgba(90, 90, 110, 0.18);
 }
 .round-ring .round-track { fill: none; stroke: rgba(120, 124, 134, 0.14); stroke-width: 9; }
@@ -4350,7 +4351,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .round-ring path.on { stroke: #ffffff; filter: drop-shadow(0 0 1.5px rgba(150, 158, 175, 0.95)); }
 .round-ring.unstable .round-track { stroke: rgba(201, 138, 134, 0.25); }
 .round-ring-num { width: auto; aspect-ratio: auto; background: none; border: 0; box-shadow: none; }
-.round-ring-num b { font-size: 15px; }
+.round-ring-num b { font-size: clamp(9px, calc(1.5 * var(--vh)), 17px); }
+.round-ring-num em { font-size: clamp(6px, calc(0.9 * var(--vh)), 10px); }
 
 /* Your Hero's actions, in the stage's place: the card, its abilities (and attack) beneath. */
 .stage.stage-hero { pointer-events: auto; }
