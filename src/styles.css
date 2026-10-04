@@ -4336,3 +4336,16 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .round-ring-num small { display: none; }
 .round-ring-num b { font-size: 13px; margin-top: 0; }
 .round-ring-num em { font-size: 7px; margin-top: 0; }
+
+/* One white disc: the ticks run round its rim on a faint track (as the old stability bar), the round in the middle;
+   the petals spread out from its edge. */
+.round-ring {
+  width: 50px;
+  background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 8px rgba(90, 90, 110, 0.18);
+}
+.round-ring .round-track { fill: none; stroke: rgba(120, 124, 134, 0.14); stroke-width: 9; }
+.round-ring path { stroke: rgba(255, 255, 255, 0.5); stroke-width: 6; }
+.round-ring path.on { stroke: #ffffff; filter: drop-shadow(0 0 1.5px rgba(150, 158, 175, 0.95)); }
+.round-ring.unstable .round-track { stroke: rgba(201, 138, 134, 0.25); }
+.round-ring-num { width: auto; aspect-ratio: auto; background: none; border: 0; box-shadow: none; }
+.round-ring-num b { font-size: 15px; }

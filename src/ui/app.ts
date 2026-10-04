@@ -3816,7 +3816,7 @@ export class App {
       : `Round ${s.round}. Regional stability ${remaining}: it drains by one each round; when it runs out, every sun heats at its dawn.`;
     return `
       <div class="round-ring round-box ${instab ? 'unstable' : ''}" title="${title}">
-        <svg viewBox="0 0 100 100" aria-hidden="true">${Array.from({ length: total }, (_, i) => arc(i)).join('')}</svg>
+        <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="round-track" cx="50" cy="50" r="44"/>${Array.from({ length: total }, (_, i) => arc(i)).join('')}</svg>
         <div class="round-ring-num"><small>round</small><b>${roman(s.round)}</b>${instab ? `<em>+${instab}</em>` : ''}</div>
       </div>`;
   }
