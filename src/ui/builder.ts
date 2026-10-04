@@ -74,6 +74,15 @@ const GRID_ICON = {
   lg: '<svg viewBox="0 0 14 14" aria-hidden="true"><rect width="14" height="14" rx="2.5"/></svg>',
 };
 
+/** The pool's tabs: the cards (a fanned pair), and the Heroes (a crown). */
+const TAB_ICON = {
+  cards: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3.5" width="7.5" height="10.5" rx="1.5" transform="rotate(-10 5.75 8.75)"/><rect x="6.5" y="2" width="7.5" height="10.5" rx="1.5"/></svg>',
+  heroes: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5 5.5 8 8 3.5 10.5 8l3-2.5-1.2 7H3.7z"/><path d="M3.7 14h8.6"/></svg>',
+};
+
+/** The filters button: a funnel. */
+const FILTER_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11L9.2 8.6v4.2l-2.4-1.3V8.6z"/></svg>';
+
 /** A page arrow, drawn (a text ‹ › sits off-centre in the font). */
 const CHEVRON = (way: 'left' | 'right') => `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="${way === 'left' ? 'M7.5 2.5 4 6l3.5 3.5' : 'M4.5 2.5 8 6 4.5 9.5'}"/></svg>`;
 
@@ -94,6 +103,8 @@ export class DeckBuilder {
   private focus: string | null = null;
   /** The filters popover, open or shut, and which of its dropdowns is open. */
   private filtersOpen = false;
+  /** The pool's tab: the cards, or the Heroes (which lie landscape, so they get a page of their own). */
+  private tab: 'cards' | 'heroes' = 'cards';
   private dropOpen: string | null = null;
   /** The deck as it was opened (to tell whether leaving would lose changes), and the leave-without-saving question. */
   private openedAs: SavedDeck | null = null;
@@ -124,6 +135,7 @@ export class DeckBuilder {
       this.page = 0;
       this.focus = null;
       this.filtersOpen = false;
+      this.tab = 'cards';
     }
     this.mode = mode;
     this.syncMode();
@@ -212,6 +224,20 @@ export class DeckBuilder {
       case 'db-filters':
         this.filtersOpen = !this.filtersOpen;
         break;
+      case 'db-tab': {
+        if ((arg !== 'cards' && arg !== 'heroes') || arg === this.tab) return true;
+        this.tab = arg;
+        this.page = 0;
+        const pool = document.querySelector<HTMLElement>('.db-pool');
+        if (!pool) break;
+        pool.dataset.tab = arg;
+        document.querySelectorAll<HTMLElement>('.db-tab').forEach((b) => {
+          b.classList.toggle('on', b.dataset.arg === arg);
+          b.setAttribute('aria-selected', String(b.dataset.arg === arg));
+        });
+        this.refreshPool();
+        return true;
+      }
       case 'db-grid':
         if (arg === 'sm' || arg === 'md' || arg === 'lg') {
           this.grid = arg;
@@ -423,7 +449,7 @@ export class DeckBuilder {
       <div class="setup-body db-editor">
         <div class="db-pool-side">
           ${this.renderFilters(d)}
-          <div class="db-pool" data-grid="${this.grid}">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
+          <div class="db-pool" data-grid="${this.grid}" data-tab="${this.shownTab()}">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
           ${this.pagerHtml(d)}
         </div>
         ${this.mode ? this.modeSide(d) : `<aside class="db-deck-side">
@@ -508,10 +534,7 @@ export class DeckBuilder {
     return true;
   }
 
-  /**
-   * The card pool's tiles, as the filters let them through: Command cards first, lying landscape in a
-   * row of their own, then everything else (one scrolling grid).
-   */
+  /** The card pool's tiles on the page shown, as the filters let them through (the Heroes lie landscape). */
   private poolCards(d: SavedDeck): string[] {
     const count = (id: string) => d.cards.filter((x) => x === id).length;
     const tile = (c: CardDef) => {
@@ -534,10 +557,7 @@ export class DeckBuilder {
     // One page at a time: drawing every card at once (hundreds of pictures) made the builder slow.
     const pages = this.pages(d);
     this.page = Math.max(0, Math.min(this.page, pages.length - 1));
-    const list = pages[this.page] ?? [];
-    const commands = list.filter((c) => c.kind === 'command');
-    const rest = list.filter((c) => c.kind !== 'command');
-    return [...(commands.length ? [`<div class="db-pool-cmds">${commands.map(tile).join('')}</div>`] : []), ...rest.map(tile)];
+    return (pages[this.page] ?? []).map(tile);
   }
 
   /** A tile's corner badge: by default, copies in the deck of copies owned. */
@@ -579,39 +599,36 @@ export class DeckBuilder {
     const freshBtn = html.querySelector<HTMLElement>('.db-filter-btn');
     if (btn && freshBtn) {
       btn.className = freshBtn.className;
-      btn.textContent = freshBtn.textContent;
+      btn.innerHTML = freshBtn.innerHTML;
     }
   }
 
   /**
-   * The pool cut into pages, a page being as many rows as fit the pool's height: Heroes first, in rows of
-   * their own (they lie landscape, so fewer to a row), then the rest.
+   * The pool cut into pages, a page being exactly as many full rows as fit the pool's height (at least
+   * one), so a page never scrolls: the cards on the tab shown, Heroes or the rest.
    */
   private pages(d: SavedDeck): CardDef[][] {
     const L = (this.layout ??= poolLayout(this.grid));
-    const all = this.filtered(d);
-    const rows: { cards: CardDef[]; h: number }[] = [];
-    const chunk = (list: CardDef[], n: number, h: number) => {
-      for (let i = 0; i < list.length; i += n) rows.push({ cards: list.slice(i, i + n), h });
-    };
-    chunk(all.filter((c) => c.kind === 'command'), L.cols, L.cardH);
-    chunk(all.filter((c) => c.kind !== 'command'), L.cols, L.cardH);
-    // Rows go onto a page while they fit its height, and until it holds a fair few cards (on a small
-    // screen a page then scrolls a little, rather than there being a hundred pages of two cards).
+    const heroes = this.shownTab() === 'heroes';
+    const all = this.filtered(d).filter((c) => (c.kind === 'command') === heroes);
+    // (Heroes stand upright like every other card, so they share its columns.)
+    const cols = L.cols;
+    const h = L.cardH;
+    const rows = Math.max(1, Math.floor((L.height + L.gap + 0.5) / (h + L.gap)));
+    const per = cols * rows;
     const pages: CardDef[][] = [];
-    let page: CardDef[] = [];
-    let used = 0;
-    for (const row of rows) {
-      if (page.length >= MIN_PAGE && used + L.gap + row.h > L.height) {
-        pages.push(page);
-        page = [];
-        used = 0;
-      }
-      used += (page.length ? L.gap : 0) + row.h;
-      page.push(...row.cards);
-    }
-    if (page.length) pages.push(page);
+    for (let i = 0; i < all.length; i += per) pages.push(all.slice(i, i + per));
     return pages;
+  }
+
+  /** Whether the pool offers any Heroes (with none, there are no tabs). */
+  private hasHeroes(): boolean {
+    return (this.mode ? this.mode.cards() : CARDS).some((c) => c.kind === 'command');
+  }
+
+  /** The tab shown: the Heroes only if the pool has any. */
+  private shownTab(): 'cards' | 'heroes' {
+    return this.tab === 'heroes' && this.hasHeroes() ? 'heroes' : 'cards';
   }
 
   /** The page a card is on (the first page if it isn't shown). */
@@ -638,6 +655,16 @@ export class DeckBuilder {
   /** Called once the page is drawn: page the pool to fit the screen it got. */
   afterRender() {
     if (this.editing && this.settlePage()) this.refreshPool();
+    this.placeFilters();
+  }
+
+  /** The filters popover opens under its button, pulled back left only as far as keeps it on screen. */
+  private placeFilters() {
+    const pop = document.querySelector<HTMLElement>('.db-filters-pop');
+    if (!pop) return;
+    pop.style.left = '0px';
+    const over = pop.getBoundingClientRect().right - (window.innerWidth - 12);
+    if (over > 0) pop.style.left = `${-over}px`;
   }
 
   /** A swipe across the pool turns the page (left: the next one). True if it did. */
@@ -724,7 +751,10 @@ export class DeckBuilder {
     return list.sort(order[f.sort]);
   }
 
-  /** The card view's toolbar: search, the filters button (its popover: dropdowns of ticks, and toggles), card sizes. */
+  /**
+   * The card view's toolbar: the cards / Heroes tabs, search, the filters button (its popover: dropdowns of
+   * ticks, and toggles), card sizes.
+   */
   private renderFilters(d: SavedDeck): string {
     const f = this.filters;
     // A dropdown in the app's own style: its head names what is ticked; its rows tick on and off.
@@ -749,13 +779,20 @@ export class DeckBuilder {
     // How many filters are set (the search aside), shown on the filter button.
     const set = MULTI.filter((k) => f[k].size).length + (f.sort !== 'race' ? 1 : 0) + (f.characters ? 1 : 0) + (f.inDeck ? 1 : 0);
     const sizes = (['sm', 'md', 'lg'] as const)
-      .map((g) => `<button class="db-grid-btn ${this.grid === g ? 'on' : ''}" data-act="db-grid" data-arg="${g}" title="${{ sm: 'Small cards', md: 'Medium cards', lg: 'Large cards' }[g]}" aria-label="${{ sm: 'Small cards', md: 'Medium cards', lg: 'Large cards' }[g]}">${GRID_ICON[g]}</button>`)
+      .map((g) => `<button class="db-seg-btn db-grid-btn ${this.grid === g ? 'on' : ''}" data-act="db-grid" data-arg="${g}" title="${{ sm: 'Small cards', md: 'Medium cards', lg: 'Large cards' }[g]}" aria-label="${{ sm: 'Small cards', md: 'Medium cards', lg: 'Large cards' }[g]}">${GRID_ICON[g]}</button>`)
       .join('');
+    const tab = this.shownTab();
+    const tabs = this.hasHeroes()
+      ? `<span class="db-seg db-tabs" role="tablist" aria-label="Show">${(['cards', 'heroes'] as const)
+          .map((t) => `<button class="db-seg-btn db-tab ${tab === t ? 'on' : ''}" data-act="db-tab" data-arg="${t}" role="tab" aria-selected="${tab === t}" title="${t === 'cards' ? 'Cards' : 'Heroes'}" aria-label="${t === 'cards' ? 'Cards' : 'Heroes'}">${TAB_ICON[t]}</button>`)
+          .join('')}</span>`
+      : '';
     return `
       <div class="db-toolbar">
+        ${tabs}
         <input class="db-search" data-db-search type="search" value="${esc(f.q)}" placeholder="search cards" aria-label="Search cards" />
-        <button class="pill-btn db-filter-btn ${this.filtersOpen || set ? 'pill-on' : ''}" data-act="db-filters" aria-expanded="${this.filtersOpen}">filters${set ? ` · ${set}` : ''}</button>
-        <span class="db-grid-sizes" role="group" aria-label="Card size">${sizes}</span>
+        <span class="db-filter-wrap">
+        <button class="db-filter-btn ${this.filtersOpen ? 'open' : ''} ${set ? 'set' : ''}" data-act="db-filters" aria-expanded="${this.filtersOpen}" title="Filters" aria-label="Filters${set ? ` (${set} set)` : ''}">${FILTER_ICON}${set ? `<b class="db-filter-n">${set}</b>` : ''}</button>
         ${
           this.filtersOpen
             ? `<div class="db-filters-pop">
@@ -770,6 +807,8 @@ export class DeckBuilder {
         </div>`
             : ''
         }
+        </span>
+        <span class="db-seg db-grid-sizes" role="group" aria-label="Card size">${sizes}</span>
       </div>`;
   }
 }
@@ -820,15 +859,7 @@ function deckRace(d: SavedDeck): number {
   return best > 0 ? counts.indexOf(best) : d.race;
 }
 
-/**
- * Size the deck builder's card pool to fill its width: as many columns as fit at the view's card size
- * (--dbw), each then widened to share the leftover space, so the cards reach both edges at any size.
- * (Fixed sizes, worked out here: cards that stretch themselves made laying out hundreds of them slow.)
- * Command cards, which lie landscape, get their own columns: at least two, about as many as three fit
- * where four cards do.
- */
-/** The pool's last layout: columns, and how many rows of cards its height holds, by grid size. */
-/** The pool as last laid out: cards to a row, and the heights of a row and of the pool (in pixels). */
+/** The pool as last laid out: cards to a row (portrait cards, and Heroes), and the heights of a row and of the pool (in pixels). */
 interface PoolLayout {
   cols: number;
   cmdCols: number;
@@ -838,8 +869,6 @@ interface PoolLayout {
   gap: number;
 }
 const fitted: Partial<Record<string, PoolLayout>> = {};
-/** The fewest cards a page holds. */
-const MIN_PAGE = 16;
 const GUESS: Record<string, PoolLayout> = {
   sm: { cols: 8, cmdCols: 6, cardH: 160, cmdH: 100, height: 600, gap: 6 },
   md: { cols: 5, cmdCols: 4, cardH: 240, cmdH: 150, height: 600, gap: 10 },
@@ -851,6 +880,13 @@ function poolLayout(grid: string): PoolLayout {
 const sameLayout = (a: PoolLayout, b: PoolLayout) =>
   a.cols === b.cols && a.cmdCols === b.cmdCols && Math.abs(a.cardH - b.cardH) < 2 && Math.abs(a.cmdH - b.cmdH) < 2 && Math.abs(a.height - b.height) < 2;
 
+/**
+ * Size the deck builder's card pool to fill its width: as many columns as fit at the view's card size
+ * (--dbw), each then widened to share the leftover space, so the cards reach both edges at any size.
+ * (Fixed sizes, worked out here: cards that stretch themselves made laying out hundreds of them slow.)
+ * Heroes, which lie landscape, get their own columns: at least two, about as many as three fit where
+ * four cards do. The layout is kept, so the pages can be cut to just the rows the pool's height holds.
+ */
 export function sizePool(root: ParentNode = document) {
   const pool = root.querySelector<HTMLElement>('.db-pool');
   if (!pool) return;
@@ -869,26 +905,18 @@ export function sizePool(root: ParentNode = document) {
     return { cols, w: Math.floor(((width - (cols - 1) * gap) / cols) * 10) / 10 };
   };
   const card = fit(base);
-  pool.style.gridTemplateColumns = `repeat(${card.cols}, ${card.w}px)`;
-  pool.style.setProperty('--cardw', `${card.w}px`);
-  // How many rows fill the pool's height, from a card as now laid out (a page is that many full rows).
-  const grid = pool.dataset.grid ?? 'md';
   const cmd = fit(base * 1.3, 2);
-  // Row heights, from the cards as now laid out (or as last seen, for a kind not on this page).
-  const was = fitted[grid] ?? GUESS[grid] ?? GUESS.md;
-  const one = pool.querySelector<HTMLElement>(':scope > .db-card');
-  const hero = pool.querySelector<HTMLElement>('.db-pool-cmds > .db-card');
-  fitted[grid] = {
+  const shown = pool.dataset.tab === 'heroes' ? cmd : card;
+  pool.style.gridTemplateColumns = `repeat(${shown.cols}, ${shown.w}px)`;
+  pool.style.setProperty('--cardw', `${card.w}px`);
+  pool.style.setProperty('--cmdcw', `${cmd.w}px`);
+  // (A card is 5:7, standing for a card and lying for a Hero.)
+  fitted[pool.dataset.grid ?? 'md'] = {
     cols: card.cols,
     cmdCols: cmd.cols,
-    cardH: one?.offsetHeight || was.cardH,
-    cmdH: hero?.offsetHeight || was.cmdH,
+    cardH: card.w * 1.4,
+    cmdH: cmd.w / 1.4,
     height: pool.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom),
     gap: parseFloat(css.rowGap) || gap,
   };
-  const cmds = pool.querySelector<HTMLElement>('.db-pool-cmds');
-  if (cmds) {
-    cmds.style.gridTemplateColumns = `repeat(${cmd.cols}, ${cmd.w}px)`;
-    cmds.style.setProperty('--cmdcw', `${cmd.w}px`);
-  }
 }

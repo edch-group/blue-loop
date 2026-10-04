@@ -323,20 +323,21 @@ function botName(not = ''): string {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-/** Each quickplay seat's three most recently played decks, newest first (seat 0 is the signed-in player). */
+/** Each quickplay seat's last played deck, if it still exists (seat 0 is the signed-in player). */
 const RECENT_KEY = 'blue-loop:recent-decks';
-function recentDecks(seat: number): string[] {
+function lastDeck(seat: number): string | undefined {
   try {
     const all = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '{}') as Record<string, string[]>;
-    return Array.isArray(all[seat]) ? all[seat] : [];
+    const id = Array.isArray(all[seat]) ? all[seat][0] : undefined;
+    return id && deckById(id) ? id : undefined;
   } catch {
-    return [];
+    return undefined;
   }
 }
 function noteRecentDeck(seat: number, deckId: string) {
   try {
     const all = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '{}') as Record<string, string[]>;
-    all[seat] = [deckId, ...(all[seat] ?? []).filter((id) => id !== deckId)].slice(0, 3);
+    all[seat] = [deckId];
     localStorage.setItem(RECENT_KEY, JSON.stringify(all));
     markDirty();
   } catch {
@@ -577,8 +578,8 @@ export class App {
   });
 
   private seats: MenuSeat[] = [
-    { name: profile().name || 'Commander', isAI: false, deckId: PRESETS[0].id, bot: botName() },
-    { name: 'Player 2', isAI: true, deckId: PRESETS[1].id, bot: botName() },
+    { name: profile().name || 'Commander', isAI: false, deckId: lastDeck(0) ?? PRESETS[0].id, bot: botName() },
+    { name: 'Player 2', isAI: true, deckId: lastDeck(1) ?? PRESETS[1].id, bot: botName() },
   ];
   /** Choosing a deck: for which seat, and the page to go back to. */
   private pickSeat = 0;
@@ -684,6 +685,8 @@ export class App {
     window.addEventListener(VIEWPORT_EVENT, () => {
       this.fitHand();
       sizePool(this.root);
+      // (The pool's pages are cut to the rows its new height holds.)
+      this.activeBuilder().afterRender();
       if (this.screen === 'campaign') this.campaign.afterRender(this.root);
     });
   }
@@ -2475,14 +2478,12 @@ export class App {
         this.pickFrom = this.menuPage;
         this.menuPage = 'pickdeck';
         return this.render();
-      case 'pick-deck':
-      case 'seat-recent': {
-        const [seatArg, id] = act === 'seat-recent' ? arg.split(':') : [String(this.pickSeat), arg];
-        const seat = Number(seatArg);
-        if (!deckById(id)) return;
-        this.seats[seat].deckId = id;
+      case 'pick-deck': {
+        const seat = this.pickSeat;
+        if (!deckById(arg)) return;
+        this.seats[seat].deckId = arg;
         if (this.online && seat === 0) this.online.setup(this.joinInfo());
-        if (act === 'pick-deck') this.menuPage = this.pickFrom;
+        this.menuPage = this.pickFrom;
         return this.render();
       }
       case 'pick-back':
@@ -3366,12 +3367,10 @@ export class App {
     );
   }
 
-  /** A seat's decks, as a row of deck boxes: its deck and the last ones it played, three in all. */
+  /** A seat's deck (the last one it played, until another is chosen) as a deck box: tap it to choose another. */
   private seatDecks(seat: number): string {
     const current = deckById(this.seats[seat].deckId) ?? PRESETS[seat];
-    const recent = recentDecks(seat).map((id) => deckById(id)).filter((d): d is SavedDeck => !!d);
-    const decks = (recent.some((d) => d.id === current.id) ? recent : [current, ...recent]).slice(0, 3);
-    return `<div class="qp-decks">${decks.map((d) => this.deckBoxMini(d, d.id === current.id, `data-act="seat-recent" data-arg="${seat}:${d.id}"`)).join('')}</div>`;
+    return `<div class="qp-decks">${this.deckBoxMini(current, true, `data-act="seat-deck" data-arg="${seat}"`)}</div>`;
   }
 
   /** A small deck box with its name beneath: a button when `attrs` give it an action. */
