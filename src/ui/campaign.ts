@@ -657,8 +657,12 @@ export class CampaignView {
           if (this.sheet?.kind === 'armory') this.sheet = { kind: 'armory', tab: 'recycle', pick: campaignPlayer(this.state!).reserve.includes(arg) ? arg : undefined };
         }
         break;
+      case 'cmp-tip':
+        this.popTip = this.popTip === el.dataset.tip ? null : el.dataset.tip ?? null;
+        break;
       case 'cmp-select':
         this.anomaly = null;
+        this.popTip = null;
         if (this.swallowClick) return true;
         // With an army picked, tapping one of its routes sends it (into battle, after a look at the matchup).
         if (this.army && s) {
@@ -825,7 +829,6 @@ export class CampaignView {
     // Ships hold still under a dialog, and sail once it closes (so a march after a battle is seen).
     this.fleetHeld = !!overlay && !this.waiting;
     const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
-    const leaving = this.leavingFocus();
     const me = campaignPlayer(s);
     const inc = factionIncome(s, me.id);
     return `
@@ -851,18 +854,7 @@ export class CampaignView {
           </nav>
         </header>
         <section class="cmp-map">${this.renderMap()}</section>
-        ${
-          // A system's (or anomaly's) details float over the map only while it is selected; missions and the log are behind their buttons.
-          this.selected
-            ? `<aside class="cmp-side glass">${this.renderNode(nodeById(s, this.selected))}</aside>`
-            : this.army && s.armies.some((a) => a.id === this.army)
-              ? `<aside class="cmp-side glass">${this.renderArmy(armyById(s, this.army))}</aside>`
-            : this.anomaly
-              ? `<aside class="cmp-side glass">${this.renderAnomaly((s.anomalies ?? []).find((a) => a.id === this.anomaly)!)}</aside>`
-              : leaving
-                ? `<aside class="cmp-side glass cmp-side-out" aria-hidden="true">${this.renderNode(leaving)}</aside>`
-                : ''
-        }
+        ${this.renderPop()}
         <div class="cmp-base-dock"><button class="cmp-base-btn" data-act="cmp-sheet" data-arg="base" title="Your armies' decks, the armoury and missions">${HOME_ICON}<span>base</span>${this.armoryIsNew() ? '<i class="cmp-new">new</i>' : ''}</button></div>
         <div class="cmp-end">
           <button class="btn-primary ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
@@ -1046,18 +1038,15 @@ export class CampaignView {
       : moves.length
         ? `Tap a system next to ${esc(here.name)}: ${marches ? `a <b class="cmp-hint-march">green</b> ring to march there` : ''}${marches && fights ? ', or ' : ''}${fights ? `a <b class="cmp-hint-fight">red</b> ring to fight for it` : ''}.`
         : 'No route is open to this army.';
+    const lvl = a.lost ? '' : `level ${heroLevel(heroState(me, a.general).xp)} · `;
     return `
-      <div class="cmp-node-head" style="--fc:${this.colourOf(a.owner)}">
+      <div class="pop-head pop-head-army" style="--fc:${this.colourOf(a.owner)}">
         ${armyFace(a)}
-        <div><h3>${lower(armyLeader(a))}</h3><small>army · in ${lower(here.name)}</small></div>
-        <button class="icon-btn" data-act="cmp-deselect" aria-label="Close">×</button>
+        <div><h3>${lower(armyLeader(a))}</h3><small>${lvl}${a.deck.length} cards · in ${lower(here.name)}${a.damage ? ` · ✸${a.damage}` : ''}</small></div>
+        <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <p class="cmp-hint">${hint}</p>
-      <div class="cmp-army-row" style="--ac:${this.colourOf(a.owner)}">
-        ${armyFace(a)}
-        <span><b>${a.lost ? '' : `level ${heroLevel(heroState(me, a.general).xp)} · `}${a.deck.length} cards</b><small>${a.damage ? `✸ ${a.damage} damage: its sun starts ${a.damage} hotter` : 'no damage'}</small></span>
-        <span class="cmp-army-acts">${a.damage && here.owner === me.id ? this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '') : ''}<button class="pill-btn" data-act="cmp-deck-army" data-arg="${a.id}">deck</button>${a.owner === me.id ? `<button class="pill-btn ${skillPoints(heroState(me, a.general)) > 0 ? 'pill-on' : ''}" data-act="cmp-hero-open" data-arg="${a.general}">hero${skillPoints(heroState(me, a.general)) > 0 ? ' ●' : ''}</button>` : ''}<button class="pill-btn" data-act="cmp-select" data-arg="${here.id}">its system</button></span>
-      </div>`;
+      <div class="pop-row">${a.damage && here.owner === me.id ? this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '') : ''}<button class="pill-btn" data-act="cmp-deck-army" data-arg="${a.id}">deck</button>${a.owner === me.id ? `<button class="pill-btn ${skillPoints(heroState(me, a.general)) > 0 ? 'pill-on' : ''}" data-act="cmp-hero-open" data-arg="${a.general}">hero${skillPoints(heroState(me, a.general)) > 0 ? ' ●' : ''}</button>` : ''}<button class="pill-btn" data-act="cmp-select" data-arg="${here.id}">its system</button></div>`;
   }
 
   /** Repair one point, or all of it (as far as the credits go). */
@@ -1076,6 +1065,10 @@ export class CampaignView {
   private sails = new Map<string, { x: number; y: number }>();
   /** An army setting out to attack: its ship runs halfway down the route before the battle opens. */
   private advance: { armyId: string; toId: string } | null = null;
+  /** The words of the chip last tapped in the popover (shown under its chips). */
+  private popTip: string | null = null;
+  /** Where the popover was last placed (in the map's box), so a redraw doesn't jump it. */
+  private popPos: { x: number; y: number } | null = null;
   /** A dialog is up: ships stay where they were drawn. */
   private fleetHeld = false;
 
@@ -1285,6 +1278,7 @@ export class CampaignView {
     this.stageEl = stage;
     if (stage) this.sailShips(stage);
     else this.sails.clear();
+    requestAnimationFrame(() => this.placePop());
     if (!stage || !this.state) {
       this.cam = null;
       this.glide = null;
@@ -1300,6 +1294,7 @@ export class CampaignView {
     }
     this.view ??= this.homeView();
     this.applyCamera(true);
+    this.placePop();
   }
 
   /** Scale at which the whole map fits the stage, for a given tilt. */
@@ -1396,6 +1391,7 @@ export class CampaignView {
     plane.style.transform = `rotateX(${c.tilt.toFixed(2)}deg) scale3d(${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}, ${c.scale.toFixed(4)}) translate(${(-c.x).toFixed(1)}px, ${(-c.y).toFixed(1)}px)`;
     plane.style.setProperty('--tilt', `${c.tilt.toFixed(2)}deg`);
     plane.style.setProperty('--ui', c.ui.toFixed(4));
+    this.placePop();
     this.writeSky(c);
   }
 
@@ -1476,97 +1472,149 @@ export class CampaignView {
     return `<div class="cmp-mission"><b>${lower(def.name)}</b><span>${esc(def.text)}</span><em>${progress}/${def.target}</em></div>`;
   }
 
+  /** What is picked on the map (a system, an army or an anomaly), in a popover beside it. */
+  private renderPop(): string {
+    const s = this.state!;
+    let key = '';
+    let body = '';
+    if (this.selected) {
+      key = `n-${this.selected}`;
+      body = this.renderNode(nodeById(s, this.selected));
+    } else if (this.army && s.armies.some((a) => a.id === this.army)) {
+      key = `a-${this.army}`;
+      body = this.renderArmy(armyById(s, this.army));
+    } else if (this.anomaly) {
+      const an = (s.anomalies ?? []).find((a) => a.id === this.anomaly);
+      if (an) {
+        key = `x-${an.id}`;
+        body = this.renderAnomaly(an);
+      }
+    }
+    if (!body) {
+      this.popPos = null;
+      return '';
+    }
+    const at = this.popPos ? `left:${this.popPos.x}px;top:${this.popPos.y}px` : 'visibility:hidden';
+    return `<aside class="cmp-pop glass" data-key="pop-${key}" style="${at}">${body}</aside>`;
+  }
+
+  /** Put the popover beside what it is about: to its right if there is room, else to its left, kept on screen. */
+  private placePop() {
+    const stage = this.stageEl;
+    const pop = stage?.closest('.cmp')?.querySelector<HTMLElement>('.cmp-pop');
+    if (!stage || !pop) return;
+    const anchor = this.selected
+      ? stage.querySelector<HTMLElement>('.cmp-selected .cmp-star')
+      : this.army
+        ? stage.querySelector<HTMLElement>(`[data-key="ship-${this.army}"] .cmp-ship-hull`)
+        : this.anomaly
+          ? stage.querySelector<HTMLElement>('.cmp-an.an-on .an-bb > span') ?? stage.querySelector<HTMLElement>('.cmp-an.an-on')
+          : null;
+    const box = pop.offsetParent as HTMLElement | null;
+    if (!anchor || !box) return;
+    const a = anchor.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    const h = pop.offsetHeight;
+    // Clear of the planets' orbits round a selected star.
+    const gap = this.selected ? 70 : 34;
+    const cx = a.left + a.width / 2 - b.left;
+    const cy = a.top + a.height / 2 - b.top;
+    // An army's popover goes on the far side from its routes, so they stay clear to tap.
+    let right = true;
+    if (this.army && !this.selected) {
+      const ends = [...stage.querySelectorAll<HTMLElement>('.cmp-target .cmp-star, .cmp-march .cmp-star')].map((e) => e.getBoundingClientRect());
+      if (ends.length) right = ends.reduce((t, r) => t + r.left + r.width / 2 - b.left, 0) / ends.length < cx;
+    }
+    let x = right ? cx + gap : cx - gap - w;
+    if (x + w > b.width - 12) x = cx - gap - w;
+    if (x < 12) x = cx + gap;
+    x = Math.max(12, Math.min(b.width - w - 12, x));
+    const y = Math.max(64, Math.min(b.height - h - 84, cy - h / 2));
+    this.popPos = { x: Math.round(x), y: Math.round(y) };
+    pop.style.left = `${this.popPos.x}px`;
+    pop.style.top = `${this.popPos.y}px`;
+    pop.style.visibility = '';
+  }
+
+  /**
+   * The selected system's popover, beside its star: a header, then what is true of it as a row of icon chips
+   * (tap one, or hover, for its words), then what you can do there.
+   */
   private renderNode(n: CampaignNode): string {
     const s = this.state!;
     const me = campaignPlayer(s);
     const mine = n.owner === me.id;
     const owner = n.owner ? factionById(s, n.owner) : null;
     const fortCost = fortifyCost(n);
-    const fortPips = Array.from({ length: CAMPAIGN.maxFortification }, (_, i) => `<i class="${i < n.fortification ? 'on' : ''}"></i>`).join('');
-    // Fortification: its notches and what they are worth to the defender, and (on your own systems) the next level's price.
-    const fortify = `
-      <div class="cmp-fort" title="Fortification: each level gives this system's defender +${CAMPAIGN.fortifyHealth} max health">
-        <span class="pips">${fortPips}</span><b>+${n.fortification * CAMPAIGN.fortifyHealth} defence</b>${
-          mine && fortCost !== null ? `<button class="pill-btn" data-act="cmp-fortify" data-arg="${n.id}" ${me.credits < fortCost ? 'disabled' : ''} title="Fortify: +${CAMPAIGN.fortifyHealth} defence">+ ${CREDITS}${fortCost}</button>` : ''
-        }
-      </div>`;
+    const chip = (body: string, tip: string, tone = '') => `<button class="pop-chip ${tone}" data-act="cmp-tip" data-tip="${esc(tip)}" title="${esc(tip)}">${body}</button>`;
+    const icon = (body: string) => `<svg class="pi" viewBox="0 0 16 16" aria-hidden="true">${body}</svg>`;
     const g = garrisonBonus(n);
-    const bonus = [
-      g.tableau.length && `${g.tableau.length} card${g.tableau.length > 1 ? 's' : ''} start in play`,
-      n.fortification && `+${n.fortification * CAMPAIGN.fortifyHealth} max health`,
-    ].filter(Boolean);
-    const garrison = n.garrison
-      .map((c) => {
-        const def = cardDef(c.defId);
-        const state = c.status === 'stationed' ? 'stationed' : c.status === 'arriving' ? 'arrives next turn' : 'leaves next turn';
-        const recall = mine && c.status === 'stationed' ? `<button class="pill-btn" data-act="cmp-recall" data-node="${n.id}" data-arg="${c.uid}">recall</button>` : '';
-        return `<div class="cmp-gar ${c.status}" style="--kc:${KIND_COLOUR[def.kind]}"><span class="cmp-gar-glyph">${cardGlyph(def.id, def.kind)}</span><span><b>${lower(def.name)}</b><small>${state}</small></span>${recall}</div>`;
-      })
-      .join('');
-    const slotsFree = CAMPAIGN.garrisonSlots - n.garrison.length;
-    // Your armies that can strike it this turn, each with its own button.
-    const attackers = s.phase === 'player' && !s.battle ? attackOptions(s, me.id).find((o) => o.toId === n.id)?.armyIds ?? [] : [];
-    const attack = attackers.length
-      ? `<div class="cmp-actions">${attackers.map((id) => `<button class="btn-primary" data-act="cmp-attack-pick" data-arg="${n.id}" data-army="${id}">attack with ${lower(armyLeader(armyById(s, id)))}</button>`).join('')}</div>`
-      : '';
-    const status = [
-      n.collapsed ? '<p class="cmp-warn">Collapsed. Nothing is left here: no world, no star, no route through.</p>' : '',
-      n.collapsing ? `<p class="cmp-warn">Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.</p>` : '',
-      (n.stableUntil ?? 0) > s.turn ? `<p class="cmp-lore">Stabilised: it holds until turn ${n.stableUntil}.</p>` : '',
-      n.hazard.length ? '<p class="cmp-warn">Supernova remnant: rivals cannot advance into it this turn.</p>' : '',
-      n.heart ? `<p class="cmp-lore">The oldest star, at the centre of everything. The ${esc(STELLARIA)} is said to grow in its light. Whoever claims it wins the campaign. ${n.owner ? '' : `Guarded by the Heart Wardens: +${CAMPAIGN.heartWardenHealth} max health.`}</p>` : '',
-      (n.stellaria ?? 0) > 0 ? `<p class="cmp-lore">${BLOOM} A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}. Then it wilts.</p>` : n.stellaria === 0 ? '<p class="cmp-lore muted">A wilted Stellari bloom.</p>' : '',
-      n.star ? `<p class="cmp-lore cmp-star-lore cmp-st-${n.star}"><b>${lower(STAR_TYPES[n.star].name)}</b> ${esc(STAR_TYPES[n.star].text)} <span class="cmp-boon">+ ${esc(STAR_TYPES[n.star].boon)}</span> <span class="cmp-cost">− ${esc(STAR_TYPES[n.star].cost)}</span></p>` : '',
-      n.dimmed ? '<p class="cmp-lore muted">Its star has guttered: it yields less than it did.</p>' : '',
-      !n.heart && (CAMPAIGN.coreHealth[n.ring ?? 99] ?? 0) > 0
-        ? `<p class="cmp-lore">${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart: richer worlds (+${CAMPAIGN.coreYield[n.ring!] ?? 0} of each a turn) and deeper defences (+${CAMPAIGN.coreHealth[n.ring!]} max health to whoever defends it).</p>`
-        : '',
+    const ringHp = n.heart ? 0 : CAMPAIGN.coreHealth[n.ring ?? 99] ?? 0;
+    const chips = [
+      chip(`${CREDITS}<b>${n.yield.credits}</b>${MATERIALS}<b>${n.yield.materials}</b>`, `Yields ${n.yield.credits} credits and ${n.yield.materials} materials a turn to whoever holds it.`),
+      n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
+      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>heart</b>`, `The oldest star, at the centre of everything. Whoever claims it wins the campaign.${n.owner ? '' : ` Guarded by the Heart Wardens: +${CAMPAIGN.heartWardenHealth} max health.`}`, 'gold') : '',
+      ringHp > 0 ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${n.ring}</b>`, `${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart: richer worlds (+${CAMPAIGN.coreYield[n.ring!] ?? 0} of each a turn) and deeper defences (+${ringHp} max health to whoever defends it).`) : '',
+      chip(`${icon('<path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/>')}<b>+${n.fortification * CAMPAIGN.fortifyHealth}</b>`, `Fortification ${n.fortification}/${CAMPAIGN.maxFortification}: its defender has +${n.fortification * CAMPAIGN.fortifyHealth} max health. Each level adds ${CAMPAIGN.fortifyHealth}.`),
+      chip(`${icon('<rect x="4" y="2" width="8" height="12" rx="1.6"/><path d="M6.5 6h3"/>')}<b>${n.garrison.length}/${CAMPAIGN.garrisonSlots}</b>`, n.garrison.length ? `Garrison: ${n.garrison.map((c) => cardDef(c.defId).name).join(', ')}. If attacked, ${g.tableau.length} start${g.tableau.length === 1 ? 's' : ''} in play.` : 'Garrison: no cards stationed.'),
+      n.damage ? chip(`${icon('<path d="M8 1.5 9.4 6 14 4.6 10.6 8 14 11.4 9.4 10 8 14.5 6.6 10 2 11.4 5.4 8 2 4.6 6.6 6z"/>')}<b>${n.damage}</b>`, `Damage ${n.damage}: its defender's sun starts ${n.damage} hotter.`, 'bad') : '',
+      n.scanner ? chip(SCANNER, 'Scanner array: whoever holds it sees systems two links away.') : '',
+      (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
+      n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'Its star has guttered: it yields less than it did.', 'muted') : '',
+      n.hazard.length ? chip(icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>'), 'Supernova remnant: rivals cannot advance into it this turn.', 'bad') : '',
+      n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
+      (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, `Stabilised: it holds until turn ${n.stableUntil}.`, 'good') : '',
+      ...nodeAnomalies(s, n).map((x) => chip(`<i class="an-icon an-icon-${x.kind}"></i>`, `${ANOMALIES[x.kind].name} nearby: ${ANOMALIES[x.kind].text}`)),
     ].join('');
-    // The army standing here: its general, damage and deck; or (in a system of yours) room to raise one.
+    // What you can do here.
+    const attackers = s.phase === 'player' && !s.battle ? attackOptions(s, me.id).find((o) => o.toId === n.id)?.armyIds ?? [] : [];
+    const attack = attackers.map((id) => `<button class="btn-primary pop-attack" data-act="cmp-attack-pick" data-arg="${n.id}" data-army="${id}">${armyFace(armyById(s, id))}attack</button>`).join('');
     const here = armyAt(s, n.id);
-    const armyPanel = here
-      ? `<div class="section-label">army</div>
-        <div class="cmp-army-row" style="--ac:${this.colourOf(here.owner)}">
-          ${armyFace(here)}
-          <span><b>${lower(armyLeader(here))}</b><small>${here.owner === me.id ? (here.moved ? 'has marched this turn' : here.refit ? 'refitting: marches next turn' : 'ready to march') : here.lost ? 'one of the lost races: beat them for their relics' : lower(factionById(s, here.owner).name)}${here.damage ? ` · ✸ ${here.damage} damage` : ''}</small></span>
+    const army = here
+      ? `<div class="pop-army" style="--ac:${this.colourOf(here.owner)}">
+          ${armyFace(here)}<span><b>${lower(armyLeader(here))}</b><small>${here.owner === me.id ? (here.moved ? 'marched this turn' : here.refit ? 'refitting' : 'ready') : here.lost ? 'lost race' : lower(factionById(s, here.owner).name)}${here.damage ? ` · ✸${here.damage}` : ''}</small></span>
           ${
             here.owner === me.id
-              ? `<span class="cmp-army-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}${
+              ? `<span class="pop-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}${
                   here.damage && mine ? this.repairButtons('cmp-heal-army', here.id, here.damage, CAMPAIGN.armyHealCost, here.moved ? 'It has marched this turn: repair it next turn.' : '') : ''
                 }<button class="pill-btn" data-act="cmp-deck-army" data-arg="${here.id}">deck</button></span>`
               : ''
           }
         </div>`
-      : mine && s.phase === 'player' && !s.battle
-        ? `<div class="section-label">army</div><button class="btn" data-act="cmp-recruit-open" data-arg="${n.id}">recruit a general here</button>`
-        : '';
+      : '';
+    const garrison = mine
+      ? n.garrison
+          .map((c) => {
+            const def = cardDef(c.defId);
+            const state = c.status === 'stationed' ? 'stationed' : c.status === 'arriving' ? 'arrives next turn' : 'leaves next turn';
+            const recall = c.status === 'stationed' ? ` data-act="cmp-recall" data-node="${n.id}" data-arg="${c.uid}"` : '';
+            return `<button class="pop-gar ${c.status}" style="--kc:${KIND_COLOUR[def.kind]}"${recall} title="${esc(`${def.name}: ${state}${recall ? ' (tap to recall)' : ''}`)}">${cardGlyph(def.id, def.kind)}</button>`;
+          })
+          .join('')
+      : '';
+    const acts = mine
+      ? [
+          fortCost !== null ? `<button class="pill-btn" data-act="cmp-fortify" data-arg="${n.id}" ${me.credits < fortCost ? 'disabled' : ''} title="Fortify: +${CAMPAIGN.fortifyHealth} defence">fortify · ${CREDITS}${fortCost}</button>` : '',
+          n.damage ? this.repairButtons('cmp-heal', n.id, n.damage, CAMPAIGN.healCostPerPoint, '') : '',
+          n.garrison.length < CAMPAIGN.garrisonSlots ? `<button class="pill-btn" data-act="cmp-station-open" data-arg="${n.id}">station a card</button>` : '',
+          !here && s.phase === 'player' && !s.battle ? `<button class="pill-btn" data-act="cmp-recruit-open" data-arg="${n.id}">recruit</button>` : '',
+          n.collapsing ? `<button class="pill-btn" data-act="cmp-stabilise" data-arg="${n.id}" ${stabiliseProblem(me, n) ? `disabled title="${esc(stabiliseProblem(me, n)!)}"` : ''}>stabilise · ${MATERIALS}${CAMPAIGN.stabiliseCost}</button>` : '',
+        ].join('')
+      : '';
+    const tip = this.popTip ? `<p class="pop-tip">${esc(this.popTip)}</p>` : '';
     return `
-      <div class="cmp-node-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
+      <div class="pop-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
         ${n.owner ? this.avatarOf(n.owner, 'cmp-head-av') : '<i></i>'}
-        <div><h3>${lower(n.name)}</h3><small>${owner ? (mine ? 'your system' : lower(owner.name)) : n.heart ? 'the heart wardens' : `neutral · sentinels tier ${n.tier + 1}`}${n.home ? ' · home' : ''}</small></div>
-        <button class="icon-btn" data-act="cmp-select" data-arg="${n.id}" aria-label="Close">×</button>
+        <div><h3>${lower(n.name)}</h3><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? 'heart wardens' : `neutral · tier ${n.tier + 1}`}${n.home ? ' · home' : ''}</small></div>
+        <button class="pop-x" data-act="cmp-select" data-arg="${n.id}" aria-label="Close">×</button>
       </div>
-      ${status}
-      ${n.collapsing && mine ? `<div class="cmp-actions"><button class="btn" data-act="cmp-stabilise" data-arg="${n.id}" ${stabiliseProblem(me, n) ? `disabled title="${esc(stabiliseProblem(me, n)!)}"` : ''}>stabilise · ${MATERIALS}${CAMPAIGN.stabiliseCost} <small>holds ${CAMPAIGN.stabiliseTurns} more turns, once</small></button></div>` : ''}
-      ${attack}
-      ${armyPanel}
-      ${nodeAnomalies(s, n)
-        .map((a) => `<div class="cmp-sys cmp-anom"><b>${lower(ANOMALIES[a.kind].name)} nearby</b><span>${esc(ANOMALIES[a.kind].text)}</span></div>`)
-        .join('')}
-      <div class="cmp-yield" title="Resources this system yields each turn">${CREDITS}<b>${n.yield.credits}</b>${MATERIALS}<b>${n.yield.materials}</b>${n.scanner ? `<span class="cmp-scan-tag" title="Scanner array: whoever holds it sees systems two links away">${SCANNER} scanner</span>` : ''}</div>
-      <div class="section-label">defences</div>
-      <div class="cmp-planets">${fortify}</div>
-      ${
-        n.damage || mine
-          ? `<div class="cmp-damage"><span>damage ✸ ${n.damage}${n.damage ? ` <small>(its sun starts ${n.damage} hotter)</small>` : ''}</span>${
-              mine && n.damage ? this.repairButtons('cmp-heal', n.id, n.damage, CAMPAIGN.healCostPerPoint, '') : ''
-            }</div>`
-          : ''
-      }
-      <div class="section-label">garrison <span>${n.garrison.length}/${CAMPAIGN.garrisonSlots}</span></div>
-      <div class="cmp-garrison">${garrison || '<p class="muted">No cards stationed.</p>'}</div>
-      ${bonus.length ? `<p class="cmp-bonus">If attacked: ${bonus.join(', ')}.</p>` : ''}
-      ${mine && slotsFree > 0 ? `<button class="btn" data-act="cmp-station-open" data-arg="${n.id}">send a card</button>` : ''}`;
+      <div class="pop-chips">${chips}</div>
+      ${tip}
+      ${attack ? `<div class="pop-row">${attack}</div>` : ''}
+      ${army}
+      ${garrison ? `<div class="pop-gars">${garrison}</div>` : ''}
+      ${acts ? `<div class="pop-row">${acts}</div>` : ''}`;
   }
 
   // ---- Overlays -------------------------------------------------------------------
