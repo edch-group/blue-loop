@@ -297,18 +297,18 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'pyr_ash_walker', name: 'Ash-Walker', kind: 'attack', race: 7, sub: 'cinderborn', cost: 2, character: true,
-    text: '{heat:1} to your sun. {dawn}: {heat:1}. {heat:+2} while {overheated}.',
-    onPlay: [{ type: 'selfHeat', amount: 1 }], onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { overheated: true } }],
+    text: '{dawn}: {heat:1}. {heat:+2} while {overheated}.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { overheated: true } }],
   },
   {
-    id: 'pyr_heat_bloom', name: 'Heat Bloom', kind: 'defence', race: 7, sub: 'cinderborn', cost: 1,
-    text: '{dawn}: while {overheated}, {cool:2} and {shield:1}.',
-    onTurn: [{ type: 'cool', amount: 2, if: { overheated: true } }, { type: 'shield', amount: 1, if: { overheated: true } }],
+    id: 'pyr_heat_bloom', name: 'Heat Bloom', kind: 'defence', race: 7, sub: 'cinderborn', cost: 2,
+    text: '{dawn}: {cool:1}. While {overheated}, {cool:+2} and {shield:1}.',
+    onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 2, if: { overheated: true } }, { type: 'shield', amount: 1, if: { overheated: true } }],
   },
   {
     id: 'pyr_ember_guard', name: 'Ember Guard', kind: 'defence', race: 7, sub: 'cinderborn', cost: 2,
-    text: '{guard}. {sting:2}. {dawn}: {cool:1}.',
-    onTurn: [{ type: 'cool', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }],
+    text: '{guard}. {sting:2}. {dawn}: {cool:2}.',
+    onTurn: [{ type: 'cool', amount: 2 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }],
   },
   {
     id: 'pyr_magma_heart', name: 'Magma Heart', kind: 'growth', race: 7, sub: 'cinderborn', cost: 2, rarity: 'stellar',
@@ -318,8 +318,8 @@ export const RACE_CARDS: CardDef[] = [
   // Flarekin
   {
     id: 'pyr_flare_burst', name: 'Flare Burst', kind: 'attack', race: 7, sub: 'flarekin', cost: 1, spendAll: true,
-    text: '{spend}. {heat:1}. {heat:+1} per energy spent. Draw 1.',
-    onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'spent' } }, { type: 'draw', amount: 1 }],
+    text: '{spend}. {heat:2}. {heat:+1} per energy spent. Draw 1.',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'spent' } }, { type: 'draw', amount: 1 }],
   },
   {
     id: 'pyr_supernova_charge', name: 'Supernova Charge', kind: 'attack', race: 7, sub: 'flarekin', cost: 1, spendAll: true, rarity: 'stellar',
@@ -328,13 +328,13 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'pyr_pyre_shield', name: 'Pyre Shield', kind: 'defence', race: 7, sub: 'flarekin', cost: 1, spendAll: true,
-    text: '{spend}. {shield:2} and {cool:1} per energy spent.',
-    onPlay: [{ type: 'shield', amount: 0, plus: { of: 'spent', times: 2 } }, { type: 'cool', amount: 0, plus: { of: 'spent' } }],
+    text: '{spend}. {shield:2} and {cool:2} per energy spent.',
+    onPlay: [{ type: 'shield', amount: 0, plus: { of: 'spent', times: 2 } }, { type: 'cool', amount: 0, plus: { of: 'spent', times: 2 } }],
   },
   {
     id: 'pyr_flarekin_dancer', name: 'Flarekin Dancer', kind: 'attack', race: 7, sub: 'flarekin', cost: 1, character: true,
-    text: '{energy:1}. {heat:1}.',
-    onPlay: [{ type: 'plays', amount: 1 }, { type: 'heat', amount: 1, to: 'target' }],
+    text: '{energy:1}. {heat:2}.',
+    onPlay: [{ type: 'plays', amount: 1 }, { type: 'heat', amount: 2, to: 'target' }],
   },
   {
     id: 'pyr_stoker', name: 'Stoker', kind: 'growth', race: 7, sub: 'flarekin', cost: 1,

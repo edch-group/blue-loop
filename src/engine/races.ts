@@ -38,7 +38,7 @@ export const RACE_TRAITS: RaceTrait[] = [
   { bonus: 'Ambush: they come into play ready to act, not dimmed.', nerf: 'Fleeting: −1 stability.', ambush: true, stability: -1 },
   { bonus: 'Forged: +1 defence.', nerf: 'Ponderous: −1 attack (never below 1).', defence: 1, attack: -1 },
   { bonus: 'Star-charted: they attune once more.', nerf: 'Frail: −1 stability.', attune: 1, stability: -1 },
-  { bonus: 'Flare-born: +1 attack while your sun is {overheated}.', nerf: 'Self-immolating: each of their attacks heats your own sun 1.', attackHot: 1, attackSelfHeat: 1 },
+  { bonus: 'Flare-born: +1 attack, and +2 while your sun is {overheated}.', nerf: 'Self-immolating: each of their attacks heats your own sun 1.', attack: 1, attackHot: 1, attackSelfHeat: 1 },
 ];
 
 /** A race's trait (none for neutral cards). */

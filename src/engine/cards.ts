@@ -1036,7 +1036,7 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Wildfire',
     race: 7,
     cards: [
-      ...twoOf('pyr_flare_imp', 'pyr_cinder_brute', 'pyr_ash_walker', 'pyr_heat_bloom', 'pyr_ember_guard', 'pyr_flare_burst', 'pyr_pyre_shield', 'pyr_flarekin_dancer', 'pyr_stoker', 'pyr_vent_cooler', 'relay_station'),
+      ...twoOf('pyr_flare_imp', 'pyr_cinder_brute', 'pyr_ash_walker', 'pyr_heat_bloom', 'pyr_ember_guard', 'pyr_flare_burst', 'pyr_pyre_shield', 'pyr_flarekin_dancer', 'pyr_stoker', 'pyr_vent_cooler', 'radiator_fins'),
       'pyr_magma_heart', 'pyr_supernova_charge', 'pyr_flare_temple', 'pyr_solar_tyrant', 'coolant_array',
       'pyr_hero_ignis', 'pyr_hero_ashka', 'pyr_hero_pyrrhus',
     ],
