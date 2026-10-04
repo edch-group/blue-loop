@@ -543,16 +543,28 @@ Balance has been sensitive to single cards, removal above all. Adding two Ion Ca
 
 The **regional stability** bar at the top loses one segment each round. From round **10**, every sun heats at its dawn: +1, then +1 more each round after. This guarantees that games end. It works exactly as the old stability bar did; the name distinguishes it from each card's own stability (◷). AI games last about 11 rounds, so it often decides the end. [design review: the stability bar stays, as regional stability]
 
-## The four races
+## The eight races [design review]
 
-Each player is one of four non-humanoid alien races. The race sets the faction emblem and colour, and each has ten or eleven cards of its own.
+Each player is one of eight races (races.ts). Every race has a **bonus and a nerf** that ride on every one of its cards, wherever they are played (a mixed deck's Aureline card is still unarmoured), so similar cards read differently by race. The card inspector and the campaign's race picker show them. The four newer races also split into **sub-races**, which their buff cards and Heroes name ("your Unmaker cards heat +1"), with matching counts and conditions (`{of:'race', sub}`, `minRace`).
 
-| Race | Form | Colour |
-| --- | --- | --- |
-| Aureline | Tilted plasma halos around a single unblinking eye | Blue |
-| Xel'Naru | A choir of floating crystal shards around a core of light | Rose |
-| Vorthane | A drifting jelly-like bell rimmed with glowing eyes | Gold |
-| Ixquor | A branching fungal hive with pulsing nodes | Violet |
+| Race | Theme | Bonus | Nerf | Sub-races |
+| --- | --- | --- | --- | --- |
+| Aureline | Lancers of light: attack cards that power each other | Sun-lances: attack cards +1 attack | Unarmoured: −1 defence | |
+| Xel'Naru | Crystal overloaders: run hot, pay off as cards leave | Shatter: when one leaves your tableau, heat 1 at the rival | Brittle: −1 stability | |
+| Vorthane | Tidal bells: shields, kept, and stinging | Barbed: Sting 1 | Slow tides: −1 attack (never below 1) | |
+| Ixquor | The hive: go wide, ramp, grow | Regrowth: +1 stability | Soft-bodied: −1 defence | |
+| Nyxari | Void-stalkers | Ambush: they enter ready to act (not dimmed) | Fleeting: −2 stability | Veilwalker (Lightspeed traps), Unmaker (removal) |
+| Korrath | Forge-smiths | Forged: +2 defence | Ponderous: −1 attack (never below 1) | Forgeborn (Fusion grafts), Bastion-kin (Guards) |
+| Seren | Star-readers | Star-charted: attuned cards attune once more | Frail: −1 stability | Tidecaster (orbit), Seer (draw, recover, attune) |
+| Pyrr | Flare-born | +1 attack, +2 while overheated | Self-immolating: each attack heats their own sun 1 | Flarekin (spend-all bursts), Cinderborn (run hot) |
+
+The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2, a 3 and a cost-4 Anomaly bomb), and a starter each: Night Court, Forge Clans, Starwatch, Wildfire. All eight are in the campaign: any race can lead, and the rivals are drawn at random (seeded) from the other seven, each with generals, skill trees, gear, ships and emblems of their own.
+
+**Balancing the races (1000-game sims, all 14 starters).** The traits as first written put the field at 12.1 mean distance from 50%: Night Court 70.5%, Wildfire 14.5%.
+- Night Court: swapping Phantom Strikes and Unravels for neutral cards was not enough (68%). Ambush alone carried it (without Ambush: 20%), so Fleeting became −2 stability (53%).
+- Wildfire: swaps (cooling for its self-heat cards) and even removing its self-heat did nothing; the deck lacked pressure and cooling. The Pyrr bonus became +1 attack (+2 while overheated), and the Dancer, Flare Burst, Ember Guard, Pyre Shield and Heat Bloom were strengthened; Radiator Fins replaced its Relay Stations. The AI now prices self-heat by how close the sun is to supernova.
+- Forge Clans: Siege Arrays in place of Tempers (39% → 45%), then Forged +2 defence (53%).
+- The dominance check ignores a race's trait (the trait is the race's price, not the card's).
 
 ## Always landscape
 
