@@ -17,8 +17,8 @@ export const ATTUNEMENT: { planet: Planet; text: string; effects: Effect[] }[] =
   { planet: 'abundant', text: 'Draw 1', effects: [{ type: 'draw', amount: 1 }] },
   { planet: 'abundant', text: 'Draw 1, {cool:1}', effects: [{ type: 'draw', amount: 1 }, { type: 'cool', amount: 1 }] },
   { planet: 'industrial', text: '{heat:1}', effects: [{ type: 'heat', amount: 1, to: 'target' }] },
-  { planet: 'industrial', text: '{heat:2}', effects: [{ type: 'heat', amount: 2, to: 'target' }] },
-  { planet: 'industrial', text: '{heat:3}', effects: [{ type: 'heat', amount: 3, to: 'target' }] },
+  { planet: 'industrial', text: '{heat:1}', effects: [{ type: 'heat', amount: 1, to: 'target' }] },
+  { planet: 'industrial', text: '{heat:2}, {shield:1}', effects: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'shield', amount: 1 }] },
 ];
 
 /** The attunement position for an orbit (0–8); with its planets eaten (Orion), the dead planet's. */

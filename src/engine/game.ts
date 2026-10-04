@@ -447,6 +447,8 @@ export function baseStability(defId: string): number {
   // Command cards stay for their full term, whatever they do.
   if (def.kind === 'command') return BALANCE.stabilityCommand;
   if (!def.onTurn?.length && !def.passive?.length && !def.choices?.length && !def.attune) return BALANCE.stabilityBurst;
+  // Straight heat (dawn heat with no conditions) lasts a day less: steady, unconditional damage is the strongest thing in the game.
+  if ((def.onTurn ?? []).some((e) => e.type === 'heat' && e.to === 'target' && !e.if && !e.plus)) return BALANCE.stabilityDawnHeat;
   return BALANCE.stability;
 }
 

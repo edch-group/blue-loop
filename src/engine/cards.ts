@@ -843,14 +843,15 @@ export const PRESET_DECKS: DeckList[] = [
     // Cards that pay off as they leave play (Martyrs, Echo Shards, Prism Wards, Kyr'Vessa), recalled with
     // Phase Shift and Shard Echo to do it again (and with Shard Recall); Ember Shards recovered by the
     // Reliquarist; a Prism Conduit cooled by the attack cards beside it; a Coolant Protocol, a Prism Vent,
-    // and a Prism Sanctum to run hot safely, with a Shard Mother and a Searing Core to press.
+    // and a Prism Sanctum to run hot safely, with Precession Engines (attuned twice over), a Crystal Storm
+    // and a Searing Core to press.
     name: 'Shard Overload',
     race: 1,
     cards: [
-      ...twoOf('shard_reactor', 'martyr_crystal', 'prism_ward', 'war_council', 'ember_shard', 'echo_shard'),
+      ...twoOf('precession_engine', 'martyr_crystal', 'prism_ward', 'war_council', 'ember_shard', 'echo_shard'),
       'coolant_protocol', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit',
       'phase_shift', 'shard_recall', 'shard_echo', 'prism_colossus', 'tactical_withdrawal', 'star_breaker',
-      'shard_mother', 'xelnaru_warden', 'shard_tempest', 'searing_core', 'prism_sanctum', 'crystal_reliquary',
+      'crystal_storm', 'xelnaru_warden', 'shard_tempest', 'searing_core', 'prism_sanctum', 'crystal_reliquary',
     ],
   },
   {
@@ -871,13 +872,13 @@ export const PRESET_DECKS: DeckList[] = [
     // Go wide, ramp and keep it coming back: Sporelings, Overgrowth, Hive Relays and the Brood Queen for
     // the energy to play more (and bigger: a Chitin Fortress, a Solar Bastion), Hive Rooting and a Compost
     // Cycle to hold the hive in play, and Spore Husks recovered from the discard pile (by the Compost Cycle
-    // and a Regrowth Pod) to draw more.
+    // and a Regrowth Pod) to draw more, and Seasonal Blooms planting Saplings and taking their orbit's bonus.
     name: 'Hive Bloom',
     race: 3,
     cards: [
       ...twoOf('sap_graft', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_relay', 'spore_cloud', 'seed_burst'),
-      'hive_colossus', 'hive_warrior', 'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings',
-      'overgrowth', 'chitin_fortress', 'great_mycelium', 'ixquor_brood_tender', 'the_brood_queen', 'sporestorm',
+      'seasonal_bloom', 'seasonal_bloom', 'hive_warrior', 'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings',
+      'overgrowth', 'chitin_fortress', 'ixquor_brood_tender', 'the_brood_queen', 'sporestorm',
       'hive_tyrant', 'spore_drone', 'spore_catalyst', 'solar_bastion',
     ],
   },
@@ -901,15 +902,15 @@ export const PRESET_DECKS: DeckList[] = [
   {
     // Lightspeed: a trap face down (Prisms of Dawn and Counter Pulses against attack cards), Guards that
     // spring out of the Lightspeed slot to take a hit (Sunflash Aegis, Blink Bulwarks, a Riptide Sentinel),
-    // and Aureline attack cards forged and boosted behind them.
+    // and Aureline attack cards forged and boosted behind them, with an attuned Ecliptic Lance.
     name: 'Ambush',
     mixed: true,
     cover: 'prism_of_dawn',
     race: 0,
     cards: [
-      ...twoOf('command_directive', 'prism_of_dawn', 'counter_pulse', 'sunflash_aegis', 'blink_bulwark', 'helio_lancer', 'shard_reactor', 'plasma_relay'),
+      ...twoOf('command_directive', 'prism_of_dawn', 'counter_pulse', 'sunflash_aegis', 'blink_bulwark', 'helio_lancer', 'shard_reactor'),
       ...twoOf('coronal_lance', 'cryo_vault', 'photon_drill'),
-      'tide_regent', 'riptide_sentinel', 'dawnstar_cannon', 'aureline_archon', 'sunforge', 'focusing_array', 'deep_scanners', 'deflector_grid',
+      'plasma_relay', 'ecliptic_lance', 'tide_regent', 'riptide_sentinel', 'dawnstar_cannon', 'aureline_archon', 'sunforge', 'focusing_array', 'deep_scanners', 'deflector_grid',
     ],
   },
   {

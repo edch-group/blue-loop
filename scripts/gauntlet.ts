@@ -1,13 +1,15 @@
 /**
  * One deck against the four race starters: DECK='["id", ...]' (or NAME='Orbit Riders' for a starter)
- * npm run gauntlet -- [games per starter]. Seats alternate; reports the deck's win rate against each.
+ * npm run gauntlet -- [games per starter]. PATCH and BAL work as in the simulator. Seats alternate; reports the deck's win rate against each.
  */
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
-import { deckProblems, PRESET_DECKS } from '../src/engine/cards';
+import { cardDef, deckProblems, PRESET_DECKS } from '../src/engine/cards';
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
 
-Object.assign(BALANCE, { maxLogEntries: 1e6 });
+// Try card or rules changes too: PATCH='{"card_id": {...}}' BAL='{"minHeat": -3}'.
+for (const [id, patch] of Object.entries(JSON.parse(process.env.PATCH ?? '{}') as Record<string, object>)) Object.assign(cardDef(id), patch);
+Object.assign(BALANCE, { maxLogEntries: 1e6 }, JSON.parse(process.env.BAL ?? '{}'));
 const named = PRESET_DECKS.find((d) => d.name === process.env.NAME);
 const deck = process.env.DECK ? (JSON.parse(process.env.DECK) as string[]) : named?.cards ?? [];
 if (deckProblems(deck).length) throw new Error(deckProblems(deck).join('; '));
@@ -15,7 +17,9 @@ const race = named?.race ?? 0;
 const games = Number(process.argv[2] ?? 60);
 const rows: string[] = [];
 let total = 0;
-for (const foe of PRESET_DECKS.slice(0, 4)) {
+// FIELD=1: against every other starter, not just the four race decks.
+const foes = process.env.FIELD ? PRESET_DECKS.filter((d) => d.name !== process.env.NAME) : PRESET_DECKS.slice(0, 4);
+for (const foe of foes) {
   let wins = 0;
   for (let g = 1; g <= games; g++) {
     const flip = g % 2 === 0;
@@ -28,4 +32,4 @@ for (const foe of PRESET_DECKS.slice(0, 4)) {
   total += wins;
   rows.push(`${foe.name} ${Math.round((wins / games) * 100)}%`);
 }
-console.log(`${process.env.NAME ?? 'deck'}: ${((total / (games * 4)) * 100).toFixed(1)}% · ${rows.join(' · ')}`);
+console.log(`${process.env.NAME ?? 'deck'}: ${((total / (games * foes.length)) * 100).toFixed(1)}% · ${rows.join(' · ')}`);

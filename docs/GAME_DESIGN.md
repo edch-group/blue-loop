@@ -12,7 +12,7 @@ was replaced by this design in design review.
 ## The goal
 
 - **1v1**: two players, always. Every sun starts at **0** heat with **24** max health. Reaching max health makes your sun go supernova, and your rival wins. [proposed numbers; design review: 1v1 across the board]
-- Cooling can take a sun down to **-5**. [proposed]
+- Cooling can take a sun down to **−3**. [balance pass: was −5]
 
 ## Decks
 
@@ -39,8 +39,8 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
 | 4 | abundant | Draw 1 |
 | 5 | abundant | Draw 1, Cool 1 |
 | 6 | industrial | Heat 1 |
-| 7 | industrial | Heat 2 |
-| 8 | industrial | Heat 3 |
+| 7 | industrial | Heat 1 |
+| 8 | industrial | Heat 2, Shields 1 |
 
 **Attunement ×2** doubles every number. With its planets eaten (Orion), a sun counts as at the same step of the dead planet. The attuned cards: Orrery (just attunement), Ecliptic Lance (Heat 2), Solstice Choir (Aureline: your Orbit +1), Precession Engine (Xel'Naru: attunement ×2), Moon Warden (Vorthane: Guard, Sturdy 1), Seasonal Bloom (Ixquor: Plant 1), and the Grand Orrery (Anomaly: your Orbit +3, attunement ×2). Steering is the skill: Orbital Slingshots, Gravity Assists and the Solstice Choir bring the industrial planet round; Gravity Wells and Tidal Brakes knock a rival's off theirs.
 
@@ -223,15 +223,15 @@ Counter: it does nothing on its own, so removal answers it cleanly (its defence 
 
 ## Thermosiphon [design review]
 
-A sun runs from −5 to its max health, and starts at 0. **Thermosiphon** cards draw on the cold: the number beside the keyword is **per point your sun is below zero**, and at 0 or hotter the effect does nothing. In play, the card shows the total its number now comes to. (Thermosiphon was once an action that cooled your sun; it now names the payoff for getting there.)
+A sun runs from −3 to its max health, and starts at 0. **Thermosiphon** cards draw on the cold: the number beside the keyword is **per point your sun is below zero**, and at 0 or hotter the effect does nothing. In play, the card shows the total its number now comes to. (Thermosiphon was once an action that cooled your sun; it now names the payoff for getting there.)
 
 It gives cooling decks a way to win, and a new kind of defensive deck: cool hard, then sit behind shields that grow with the cold.
 
 | Card | Race | Cost | Rarity | Text |
 | --- | --- | --- | --- | --- |
-| Absolute Zero | Xel'Naru | 4 | Anomaly | Cool 2. Dawn: Thermosiphon heat 2 (up to 10 heat a dawn at −5) |
+| Absolute Zero | Xel'Naru | 4 | Anomaly | Cool 2. Dawn: Thermosiphon heat 1 (up to 3 heat a dawn at −3) |
 | Cryo Lance | Xel'Naru | 2 | White Dwarf | Thermosiphon heat 1, pierce |
-| Frostbound Sentinel | Xel'Naru | 2 | White Dwarf | Guard, sturdy 1. Dawn: cool 1, Thermosiphon shield 1 |
+| Frostbound Sentinel | Xel'Naru | 2 | White Dwarf | Guard, sturdy 1. Dawn: Thermosiphon shield 1 |
 | Rime Bastion | Neutral | 2 | White Dwarf | Sturdy 1. Dawn: Thermosiphon shield 1 |
 | Glacier Hull | Vorthane | 3 | Stellar | 2 shields, hold. Dawn: Thermosiphon shield 1 |
 | Thaw Beam | Neutral | 1 | White Dwarf | Heat 1, pierce; +1 per point the target's sun is below zero |
@@ -445,7 +445,16 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 
 `npm run gauntlet -- [games]` plays one deck (`NAME='Orbit Riders'`, or `DECK='[...]'`) against each of the four race starters, seats alternating: a quick check of a deck list against a fixed benchmark.
 
-**Ten starters (1000 games, decks swapped only, no card changed).** Solar Lancers 49.7%, Shard Overload 50.9%, Abyssal Tide 34.1%, Hive Bloom 45.5%, Orbit Riders 26.6%, Ambush 44.1%, Demolition 45.4%, Absolute Zero 75.5%, Graftworks 74.6%, Overcharge 62.8%; seats 49.7/50.3, about 12.5 rounds. The mechanic decks are there to show up tactics that are too strong or too weak:
+**Straight heat (balance pass, 600–1000 games a test across all ten starters).** Measured as the mean distance of the ten starters' win rates from 50%: 12.8 before, 8.7 after the card changes, **4.9** with the deck swaps too (games 12.5 → 13.9 rounds). Final (1000 games): Solar Lancers 47.6%, Shard Overload 48.1%, Abyssal Tide 46.5%, Hive Bloom 44.6%, Orbit Riders 42.2%, Ambush 50.0%, Demolition 49.8%, Absolute Zero 62.7%, Graftworks 60.2%, Overcharge 54.5%. Absolute Zero (cold) and Graftworks (Fusion) are still the strongest: the next places to look. Each change was tested on its own first (the simulator's `PATCH`/`BAL`), then together:
+- **Straight heat lasts a day less.** A card whose dawn heat comes with no conditions now has 2 stability, not 3 (`BALANCE.stabilityDawnHeat`; 20 cards: Plasma Relay, Helio Lancer, the Dawnstar Cannon, Shard Reactor...). The single biggest lever: alone it took the mean distance 12.8 → 11.8, lifting the decks that out-think rather than out-heat (Orbit Riders 27 → 55%, Abyssal Tide 33 → 47%). Keeping it for pierce heat only, or for the Ixquor scalers, made things worse.
+- **Fusion grafts give less stability.** A graft's stability is added to its host, so stacked grafts kept a host (and all its dawn heat) in play for ever. Heat grafts now add 1 (Thermal Graft, Sunforged Lens, Shard Splice), the rest 2 (Reinforced Plating and Barnacle Shell were 3). With none at all, Graftworks fell from 76% to 8%: the stability is the whole engine, so it was trimmed, not removed.
+- **Suns can't go below −3** (was −5). Thermosiphon counts every point below zero: at −5 a Rime Bastion gave 5 shields a dawn for 2 energy. Frostbound Sentinel lost its dawn cooling (a Guard that cooled every day fed the engine); Absolute Zero's dawn heat is Thermosiphon 1, not 2. (Ablation: without Frostbound Sentinels, Absolute Zero lost 15 points; without Absolute Zero itself, 8.)
+- **Meltdown: 2 heat per energy spent, not 3.** Spend All is straight heat too, all at once: with dawn heat trimmed, Overcharge rose to 75%; this brought it to ~50%.
+- **Lightspeed traps cost 1 less** (the 1-energy ones are free). A trap sits idle until the rival walks into it.
+- **Attunement:** the industrial planet's bonus is Heat 1, Heat 1, then Heat 2 and Shields 1 (it was 1/2/3: Orbit Riders won 72% with a stronger top step, 36% with attuned cards lasting only 2 days).
+- **Deck swaps after:** Shard Overload trades its Shard Reactors for Precession Engines and its Shard Mother for a Crystal Storm (36 → ~42% against the field); Hive Bloom its Hive Colossus and Great Mycelium for two Seasonal Blooms (40 → ~55%); Ambush a Plasma Relay for an Ecliptic Lance (38 → ~53%).
+
+**Ten starters, before the straight-heat pass (1000 games, decks swapped only, no card changed).** Solar Lancers 49.7%, Shard Overload 50.9%, Abyssal Tide 34.1%, Hive Bloom 45.5%, Orbit Riders 26.6%, Ambush 44.1%, Demolition 45.4%, Absolute Zero 75.5%, Graftworks 74.6%, Overcharge 62.8%; seats 49.7/50.3, about 12.5 rounds. The mechanic decks are there to show up tactics that are too strong or too weak:
 - **Too strong:** Thermosiphon (Absolute Zero beats Abyssal Tide 96%, Demolition 97%) and Fusion (Graftworks beats Shard Overload 83%, Abyssal Tide 85%, Ambush 93%), both from stacked dawn effects that come back every day. Spend All (Overcharge) is strong too. Their lists were left as built, so the field shows it.
 - **Lightspeed traps are weak:** the Ambush list with eight traps won 23% against the race starters; the same deck with no traps at all won 68%, and with four (as now) 45–49%. No deck swap can make a trap deck work: the traps themselves (or the AI's use of them) need looking at.
 - **Orbit cards are weak on their own:** Orbit Riders with mostly orbit cards won 9%; trading its weakest orbit cards (Survey Probes, Tide Locks, Orbit Root, Dead World Mine, Fusion Reactor, Orion) for plain heat and cooling took it to 43% against the race starters, but it still loses most games to the strong mechanic decks.
@@ -817,7 +826,7 @@ The check now reports none.
 - Deep Freeze: Cool 1, plus Cool 2 and Shield 1 per energy.
 - Overflow Archive: Draw 1 per energy.
 - Radiant Barrage (Aureline): Heat 2 and Shield 1 per energy.
-- Meltdown (Xel'Naru): Heat 3 per energy, pierce, plus Heat 2 to your sun.
+- Meltdown (Xel'Naru): Heat 2 per energy, pierce, plus Heat 2 to your sun.
 - Abyssal Rampart (Vorthane): Shield 3 per energy.
 - Hive Surge (Ixquor): Draw 1 and Cool 1 per energy.
 

@@ -172,14 +172,16 @@ describe('the tableau', () => {
     const [martyr] = give(me, ['martyr_crystal'], 'tableau'); // no start-of-turn or passive effect: it fades fast
     const [relay] = give(me, ['plasma_relay'], 'tableau');
     expect(martyr.stability).toBe(BALANCE.stabilityBurst);
-    expect(relay.stability).toBe(BALANCE.stability);
+    // (Straight heat, dawn heat with no conditions, lasts a day less than other cards.)
+    expect(relay.stability).toBe(BALANCE.stabilityDawnHeat);
+    expect(give(me, ['deflector_grid'], 'hand')[0] && baseStability('deflector_grid')).toBe(BALANCE.stability);
     const bo = s.players[1].heat;
     s = endTurn(endTurn(s)); // Ada's turn 2: relay fires, both lose 1; the one-time Martyr fades and bursts
     expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
-    expect(s.players[0].tableau[0].stability).toBe(BALANCE.stability - 1);
+    expect(s.players[0].tableau[0].stability).toBe(BALANCE.stabilityDawnHeat - 1);
     expect(s.players[0].discard.some((c) => c.uid === martyr.uid)).toBe(true);
     expect(s.players[1].heat).toBeGreaterThanOrEqual(bo + 1 + 4);
-    s = endTurn(endTurn(endTurn(endTurn(s)))); // Ada's turn 4: the relay fires a third time, then fades
+    s = endTurn(endTurn(s)); // Ada's turn 3: the relay fires a second time, then fades
     expect(s.players[0].tableau).toHaveLength(0);
   });
 
@@ -190,7 +192,7 @@ describe('the tableau', () => {
     const [relay, anchor, lance] = give(me, ['plasma_relay', 'chrono_anchor', 'coronal_lance'], 'tableau');
     s = endTurn(endTurn(s));
     const t = s.players[0].tableau;
-    expect(t.find((c) => c.uid === relay.uid)!.stability).toBe(BALANCE.stability);
+    expect(t.find((c) => c.uid === relay.uid)!.stability).toBe(BALANCE.stabilityDawnHeat);
     expect(t.find((c) => c.uid === lance.uid)!.stability).toBe(BALANCE.stabilityBurst);
     give(activePlayer(s), ['stasis_field']);
     s = play(s, 'stasis_field', { allyUid: lance.uid, slot: 3 });
@@ -501,9 +503,9 @@ describe('Attunement', () => {
     expect(at(0)).toBe('shield1');
     expect(at(2)).toBe('shield2,cool1');
     expect(at(4)).toBe('draw1');
-    expect(at(8)).toBe('heat3');
+    expect(at(8)).toBe('heat2,shield1');
     // Attunement 2: every number doubled.
-    expect(at(7, engine)).toBe('heat4');
+    expect(at(8, engine)).toBe('heat4,shield2');
     // Without its owner known (the card's own text), nothing is added.
     expect(dawnEffects(orrery)).toEqual([]);
     // With the planets eaten, the dead planet's bonus (at the same step of it).

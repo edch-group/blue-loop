@@ -9,7 +9,7 @@ export const BALANCE = {
 
   /** Sun temperature bounds. Reaching `supernovaAt` eliminates a player. */
   startingHeat: 0,
-  minHeat: -5,
+  minHeat: -3,
   supernovaAt: 24,
 
   /** Decks: between `deckSize` and `maxDeckSize` cards, at most `maxCopies` of each, and one Command card per `cardsPerCommand` cards. */
@@ -63,6 +63,8 @@ export const BALANCE = {
    * that many times), before it fades into your discard pile. Cards with only a when-played effect fade faster.
    */
   stability: 3,
+  /** A card whose dawn heat comes with no conditions (straight heat) fades sooner: it is the most reliable damage there is. */
+  stabilityDawnHeat: 2,
   stabilityBurst: 1,
   stabilityCommand: 3,
   /** Stability can be restored up to this. */

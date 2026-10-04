@@ -153,10 +153,10 @@ export const EXPANSION: CardDef[] = [
   { id: 'war_council', name: 'Archon Seris', kind: 'command', race: 1, text: '{dawn}, one of: {options:energy1|draw1|recover1}', choices: commandChoices('energy1', 'draw1', 'recover1') },
   { id: 'logistics_command', name: 'Hive-Speaker Zyth', kind: 'command', race: 3, text: '{dawn}, one of: {options:energy1|draw1|orbit1}', choices: commandChoices('energy1', 'draw1', 'orbit1') },
   // ---- Thermosiphon: stronger the further your sun is below zero ----
-  { id: 'absolute_zero', name: 'Absolute Zero', kind: 'attack', race: 1, text: '{cool:2}. {dawn}: {thermosiphon} {heat:2}.', onPlay: [{ type: 'cool', amount: 2 }], onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cold', times: 2 } }] },
+  { id: 'absolute_zero', name: 'Absolute Zero', kind: 'attack', race: 1, text: '{cool:2}. {dawn}: {thermosiphon} {heat:1}.', onPlay: [{ type: 'cool', amount: 2 }], onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cold' } }] },
   { id: 'cryo_lance', name: 'Cryo Lance', kind: 'attack', race: 1, text: '{thermosiphon} {heat:1}, {pierce}.', onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cold' }, pierce: true }] },
   { id: 'rime_bastion', name: 'Rime Bastion', kind: 'defence', text: '{sturdy:1}. {dawn}: {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }] },
-  { id: 'frostbound_sentinel', name: 'Frostbound Sentinel', kind: 'defence', race: 1, text: '{guard}. {sturdy:1}. {dawn}: {cool:1}. {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'cool', amount: 1 }, { type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'taunt' }] },
+  { id: 'frostbound_sentinel', name: 'Frostbound Sentinel', kind: 'defence', race: 1, text: '{guard}. {sturdy:1}. {dawn}: {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'taunt' }] },
   { id: 'glacier_hull', name: 'Glacier Hull', kind: 'defence', race: 2, text: '{shield:2}. {hold}. {dawn}: {thermosiphon} {shield:1}.', onPlay: [{ type: 'shield', amount: 2 }], onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'keepShields' }] },
   { id: 'thaw_beam', name: 'Thaw Beam', kind: 'attack', text: "{heat:1}, {pierce}. {heat:+1} per point your target's sun is below zero.", onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cold', rival: true }, pierce: true }] },
   // ---- The galaxy eater: denies every rival its planets ----
@@ -829,8 +829,8 @@ export const EXPANSION: CardDef[] = [
     kind: 'attack',
     race: 1,
     spendAll: true,
-    text: '{spend}. {heat:3} per energy spent, {pierce}. {heat:2} to your sun.',
-    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'spent', times: 3 }, pierce: true }, { type: 'selfHeat', amount: 2 }],
+    text: '{spend}. {heat:2} per energy spent, {pierce}. {heat:2} to your sun.',
+    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'spent', times: 2 }, pierce: true }, { type: 'selfHeat', amount: 2 }],
   },
   {
     id: 'abyssal_rampart',
