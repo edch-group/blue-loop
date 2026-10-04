@@ -159,6 +159,18 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 - **Guard** cards draw heat: while a rival has any, your heat must go at one of them (a Guard that was not aimed at takes it on the most worn Guard). Pierce gets through shields, never past a Guard.
 - **Shields guard only the sun.** They absorb your rival's heat at your sun point for point (so stings and soothes answer heat at your sun); heat aimed at a card meets its defence instead. **Tidewall** (Vorthane: Bell Warden, the Trench-Warden) spreads them back over your cards while the Tidewall card is in play: the Vorthane wall, answered by taking that card down, or by pierce. They fade at your dawn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields. [design review: shields used to cover cards too, a third wall in front of every card]
 
+## Attack and Dimmed [design review]
+
+Control over what a card does each day, alongside the dawn effects that happen by themselves.
+
+- **Attack** (bottom left of a card, beside its stability at the bottom right). Once on each of its controller's days, a card with attack above 0 can attack the rival's sun or one rival card (Guards first, as with aimed heat). The attack lands as heat: shields block it at a sun; on a card it meets defence first. Click the card, then its target.
+- **Hitting back.** A card attacked hits the attacker's stability with its own attack plus its **Sting** (straight to stability, past defence). Sting is how a card with no attack fights back (Stinging Veil: Guard, Sting 3). Sting no longer fires off shields.
+- **Dimmed.** A card that acts (attacks, or a Hero that uses an ability) is dimmed until its controller's next dawn. New cards enter dimmed, so nothing attacks or uses an ability on the day it lands. Dawn effects do not dim and still happen every dawn.
+- **Who has attack.** Attack cards that stay in play: attack = cost − plain dawn heat, between 1 and 3 (so a card with dawn heat 2 never also has attack 2). A few are set by hand (Ignition Protocol 2, Empress Solenne 3, Leviathan Thoross 2). Defence, cooling and shield cards have none and rely on Sting, Guard and defence.
+- **One-shot cards go straight to the discard pile.** A card with nothing left to do after it is played (no dawn effect, passive, leave effect, attack or attunement) resolves and goes to the discard pile, instead of sitting in a slot at stability 1.
+- First 600-game sim with attacks (AI attacks about 10 times a game): mean distance from 50% 7.9. Lancers 47.5, Shard Overload 63.1, Tide 54.3, Hive 54.7, Orbit Riders 53.0, Ambush 51.8, Demolition 57.3, Absolute Zero 38.3, Graftworks 29.6, Overcharge 39.4.
+- Next: activated abilities on ordinary cards (they will dim too).
+
 ## Heroes
 
 Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of their five tableau slots (top right of your tableau; your rival's is bottom left, the board being a mirror), so only one Hero is in play at a time: **a new one replaces the old** (which goes to the discard pile). It takes no tableau slot, has no neighbours, and its slot has defence 2. On the board it lies landscape, and a line round each tableau bumps out round it. [design review]
@@ -318,7 +330,7 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | industry +N | N more energy every day, while the card is in play (a one-off boost reads "Gain" and a green energy dot per energy). A Hero's energy option is Industry, and its draw option Abundance, since a Hero's choice repeats at every dawn. |
 | recall | Another card of yours from your tableau to your hand |
 | destroy N / eject N | Destroy / return to hand a rival card with at most N defence |
-| sting N / soothe N | When your shields absorb heat: heat the attacking card N, past its defence (never a sun) / cool your sun N |
+| sting N / soothe N | Sting: when a rival card attacks this card, the attacker takes N to its stability / Soothe: when your shields absorb heat, cool your sun N |
 | hold N | Your shields don't fade (up to N) |
 | tidewall | While it is in play, your shields guard your cards too, not just your sun |
 | plant N | Put N Saplings (tokens) in your empty slots, the least defended first |
