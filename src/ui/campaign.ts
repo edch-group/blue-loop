@@ -678,7 +678,7 @@ export class CampaignView {
           }
         }
         // (The camera stays where it is: a focused system just shows its planets.)
-        this.selected = this.selected === arg ? null : arg;
+        this.selected = arg;
         sound.hover();
         break;
       case 'cmp-sheet':
@@ -965,10 +965,11 @@ export class CampaignView {
         const colour = n.owner ? this.colourOf(n.owner) : NEUTRAL;
         const far = farFrom(focus, n.x, n.y, n.id, 250);
         const wasFar = farFrom(prev, n.x, n.y, n.id, 250);
+        // ('cmp-n3' first: it is what the element is, so a redraw keeps the same element for the same system.)
         const cls = [
+          'cmp-n3',
           far !== wasFar ? (far ? 'cmp-fade-out' : 'cmp-fade-in') : '',
           leaving?.id === n.id ? 'cmp-leaving' : '',
-          'cmp-n3',
           n.owner === me.id ? 'cmp-mine' : '',
           n.owner ? 'cmp-owned' : '',
           n.heart ? 'cmp-heart' : '',
@@ -991,7 +992,7 @@ export class CampaignView {
           (n.stellaria ?? 0) > 0 ? `<i class="cmp-badge cmp-bloom" title="A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}">${BLOOM}${n.stellaria}</i>` : '',
         ].join('');
         return `
-          <div class="${cls}" style="left:${n.x}px;top:${n.y}px;--fc:${colour}">
+          <div class="${cls}" data-key="sys-${n.id}" style="left:${n.x}px;top:${n.y}px;--fc:${colour}">
             <div class="cmp-turf"></div>
             ${targets.has(n.id) ? '<div class="cmp-ring cmp-ring-target"></div>' : ''}
             ${marches.has(n.id) ? '<div class="cmp-ring cmp-ring-march"></div>' : ''}
@@ -1068,6 +1069,8 @@ export class CampaignView {
   private popTip: string | null = null;
   /** Where the popover was last placed (in the map's box), so a redraw doesn't jump it. */
   private popPos: { x: number; y: number } | null = null;
+  /** What the popover was last about (a new subject is placed afresh, not where the last one was). */
+  private popKey: string | null = null;
   /** A dialog is up: ships stay where they were drawn. */
   private fleetHeld = false;
 
@@ -1180,7 +1183,7 @@ export class CampaignView {
           pulsar: '<span class="an-pulsar"><i class="an-beam"></i></span>',
         }[a.kind];
         return `
-          <div class="cmp-an an-${a.kind} ${far ? 'cmp-far' : ''} ${fade} ${this.anomaly === a.id ? 'an-on' : ''}" style="left:${a.x}px;top:${a.y}px;--ar:${def.radius}px">
+          <div class="cmp-an an-${a.kind} ${far ? 'cmp-far' : ''} ${fade} ${this.anomaly === a.id ? 'an-on' : ''}" data-key="an-${a.id}" style="left:${a.x}px;top:${a.y}px;--ar:${def.radius}px">
             <div class="an-reach"></div>
             ${flat}
             <button class="cmp-bb an-bb" data-act="cmp-anomaly" data-arg="${a.id}" aria-label="${esc(def.name)}">
@@ -1491,9 +1494,12 @@ export class CampaignView {
     }
     if (!body) {
       this.popPos = null;
+      this.popKey = null;
       return '';
     }
-    const at = this.popPos ? `left:${this.popPos.x}px;top:${this.popPos.y}px` : 'visibility:hidden';
+    if (this.popKey !== key) this.popPos = null;
+    this.popKey = key;
+    const at = this.popPos ? `left:${this.popPos.x}px;top:${this.popPos.y}px` : 'left:0;top:0;visibility:hidden';
     return `<aside class="cmp-pop glass" data-key="pop-${key}" style="${at}">${body}</aside>`;
   }
 
@@ -1606,7 +1612,7 @@ export class CampaignView {
       <div class="pop-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
         ${n.owner ? this.avatarOf(n.owner, 'cmp-head-av') : '<i></i>'}
         <div><h3>${lower(n.name)}</h3><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? 'heart wardens' : `neutral · tier ${n.tier + 1}`}${n.home ? ' · home' : ''}</small></div>
-        <button class="pop-x" data-act="cmp-select" data-arg="${n.id}" aria-label="Close">×</button>
+        <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <div class="pop-chips">${chips}</div>
       ${tip}
