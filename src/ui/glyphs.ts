@@ -196,7 +196,6 @@ function sceneImage(def: CardDef): string {
   return img;
 }
 
-/** A player's picture: their card's artwork, cropped to a circle (a blank disc if there is no such card). */
 /** A picture for a player without an account's (an AI rival, a hot-seat guest): a card picked by their name, so it stays theirs. */
 export function pictureFor(name: string): string {
   const pool = CARDS.filter((c) => !c.token);
@@ -205,6 +204,84 @@ export function pictureFor(name: string): string {
   return pool[h % pool.length].id;
 }
 
+/** How far a player's picture zooms into its card's artwork (1: the artwork's full height fills the circle). */
+const AVATAR_ZOOM = 1.5;
+/** Where each artwork's subject sits (0–1 across and down), found once from its pixels. */
+const avatarFocus = new Map<string, [number, number]>();
+
+/** The artwork placed in its circle: zoomed in, its subject in the middle (as near as the artwork's edges allow). */
+function avatarStyle([fx, fy]: [number, number]): string {
+  const w = 160 * AVATAR_ZOOM;
+  const h = 100 * AVATAR_ZOOM;
+  const left = Math.max(100 - w, Math.min(0, 50 - fx * w));
+  const top = Math.max(100 - h, Math.min(0, 50 - fy * h));
+  return `width:${w}%;height:${h}%;left:${left.toFixed(1)}%;top:${top.toFixed(1)}%`;
+}
+
+/**
+ * Find an artwork's subject: the part of the picture that stands out from its sky (the colour of its edges),
+ * weighted by how much it stands out, so a few stars count for little and the ship or creature for most.
+ */
+function findFocus(img: HTMLImageElement): [number, number] {
+  const W = 80;
+  const H = 50;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return [0.5, 0.5];
+  ctx.drawImage(img, 0, 0, W, H);
+  const px = ctx.getImageData(0, 0, W, H).data;
+  // The sky: the average colour of the border.
+  const sky = [0, 0, 0];
+  let n = 0;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      if (x > 0 && y > 0 && x < W - 1 && y < H - 1) continue;
+      for (let k = 0; k < 3; k++) sky[k] += px[(y * W + x) * 4 + k];
+      n++;
+    }
+  for (let k = 0; k < 3; k++) sky[k] /= n;
+  let sx = 0;
+  let sy = 0;
+  let sw = 0;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const w = Math.max(0, Math.hypot(px[i] - sky[0], px[i + 1] - sky[1], px[i + 2] - sky[2]) - 40) ** 2;
+      sx += w * (x + 0.5);
+      sy += w * (y + 0.5);
+      sw += w;
+    }
+  return sw > 0 ? [sx / sw / W, sy / sw / H] : [0.5, 0.5];
+}
+
+/** Pictures drawn before their artwork's subject was found: placed once it is. */
+function focusPending() {
+  document.querySelectorAll<HTMLElement>('.avatar[data-avatar]').forEach((el) => {
+    const id = el.dataset.avatar!;
+    const img = el.querySelector<HTMLImageElement>('img');
+    if (!img) return;
+    el.removeAttribute('data-avatar');
+    const place = () => {
+      let f = avatarFocus.get(id);
+      if (!f) {
+        try {
+          f = findFocus(img);
+        } catch {
+          f = [0.5, 0.5];
+        }
+        avatarFocus.set(id, f);
+      }
+      img.setAttribute('style', avatarStyle(f));
+    };
+    if (img.complete && img.naturalWidth) place();
+    else img.addEventListener('load', place, { once: true });
+  });
+}
+let watching = false;
+
+/** A player's picture: their card's artwork, cropped to a circle round its subject (a blank disc if there is no such card). */
 export function playerAvatar(cardId: string | undefined, cls = ''): string {
   let def: CardDef | null = null;
   try {
@@ -212,7 +289,17 @@ export function playerAvatar(cardId: string | undefined, cls = ''): string {
   } catch {
     def = null;
   }
-  return `<span class="avatar ${cls}">${def ? sceneImage(def) : ''}</span>`;
+  if (!def) return `<span class="avatar ${cls}"></span>`;
+  const focus = avatarFocus.get(def.id);
+  const img = sceneImage(def).replace('<img ', `<img style="${avatarStyle(focus ?? [0.5, 0.5])}" `);
+  if (focus) return `<span class="avatar ${cls}">${img}</span>`;
+  // Not found yet: drawn centred for now, and placed as soon as it is (once it is in the page).
+  if (!watching && typeof MutationObserver !== 'undefined') {
+    watching = true;
+    new MutationObserver(focusPending).observe(document.body, { childList: true, subtree: true });
+    requestAnimationFrame(focusPending);
+  }
+  return `<span class="avatar ${cls}" data-avatar="${def.id}">${img}</span>`;
 }
 
 /**

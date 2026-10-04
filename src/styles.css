@@ -2912,7 +2912,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .menu.menu-hub > .player-chip { position: absolute; top: max(12px, var(--sa-t)); right: max(18px, var(--sa-r, 0px)); z-index: 2; }
 .setup-top .player-chip { justify-self: end; }
 /* A player's picture: their card's artwork in a circle. */
-.avatar { display: block; flex: none; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: #1a1c2a; box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px #dfe3ec; }
+.avatar { display: block; position: relative; flex: none; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: #1a1c2a; box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px #dfe3ec; }
+/* (Its artwork is placed by its inline style: zoomed, its subject in the middle.) */
+.avatar img { position: absolute; max-width: none; object-fit: cover; }
 .pc-avatar { width: 30px; height: 30px; }
 .pc-who { display: grid; line-height: 1.1; text-align: left; }
 .pc-who b { font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
