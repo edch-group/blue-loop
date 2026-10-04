@@ -500,6 +500,32 @@ class SoundBoard {
     this.voice(146.83, { dur: 0.6, attack: 0.04, gain: 0.05, to: 130, cutoff: 500 });
   }
 
+  /** Decoded recordings, by URL (each is fetched once). */
+  private clips = new Map<string, Promise<AudioBuffer | null>>();
+
+  /** Play a recording (a hero's voice line) through the effects mix, so it sits in the same hall. */
+  clip(url: string, gain = 0.85) {
+    const ctx = this.ready();
+    if (!ctx) return;
+    let buf = this.clips.get(url);
+    if (!buf) {
+      buf = fetch(url)
+        .then((r) => r.arrayBuffer())
+        .then((data) => ctx.decodeAudioData(data))
+        .catch(() => null);
+      this.clips.set(url, buf);
+    }
+    void buf.then((b) => {
+      if (!b || !this.ready()) return;
+      const src = ctx.createBufferSource();
+      src.buffer = b;
+      const g = ctx.createGain();
+      g.gain.value = gain;
+      src.connect(g).connect(this.sfx!);
+      src.start();
+    });
+  }
+
   // ---- Score ---------------------------------------------------------------
 
   /** The screen asks for a score: crossfade to it if music is playing. */

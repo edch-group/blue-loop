@@ -1,9 +1,21 @@
 import { pageRect } from './viewport';
+import { sound } from './sound';
 
 /**
  * Command cards are heroes: each says a line as it takes the field, shown as a
- * caption beside the card (no spoken audio for now).
+ * caption beside the card, and spoken when that line has been recorded.
  */
+
+/**
+ * Recorded lines, found by file name: src/assets/voice/<card id>-<line>.mp3, where <line> counts from 0 in that
+ * hero's lines below. Made from raw takes in voice-raw/ by `npm run voice`.
+ */
+const RECORDED: Record<string, string> = Object.fromEntries(
+  Object.entries(import.meta.glob<string>('../assets/voice/*.mp3', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
+    path.replace(/^.*\/|\.mp3$/g, ''),
+    url,
+  ]),
+);
 
 interface Hero {
   lines: string[];
@@ -43,6 +55,8 @@ class HeroLines {
     if (n > 1 && i === this.last[defId]) i = (i + 1) % n;
     this.last[defId] = i;
     this.showCaption(hero.lines[i], card);
+    const recording = RECORDED[`${defId}-${i}`];
+    if (recording) sound.clip(recording);
   }
 
   private showCaption(text: string, card: Element | null) {
