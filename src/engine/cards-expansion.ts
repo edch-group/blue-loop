@@ -652,8 +652,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Ixquor Sporelings',
     kind: 'growth',
     race: 3,
-    text: 'Draw 1. {energy:1}.',
-    onPlay: [{ type: 'draw', amount: 1 }, { type: 'plays', amount: 1 }],
+    text: 'Draw 1. {energy:1}. {plant:1}.',
+    onPlay: [{ type: 'draw', amount: 1 }, { type: 'plays', amount: 1 }, { type: 'plant', amount: 1 }],
   },
   {
     id: 'brood_chamber',

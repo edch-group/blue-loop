@@ -840,6 +840,11 @@ const ART_FUSION: Record<string, Draw> = {
   tidal_graft: (S) => S.ground(86, '#031520') + S.dome(58, 80, 26, '#7ff0e0') + S.dome(104, 80, 16, '#bff8f0') + S.waves(84, '#9ff0f0', 2, 2, 0.6),
   barnacle_shell: (S) => S.dome(80, 78, 34, '#9fd8d0') + [56, 70, 84, 98].map((x, i) => S.dome(x, 78 - (i % 2) * 4, 7, '#e6fff8')).join('') + S.motes(80, 50, 10, 30, '#bff8f0', 1),
   siphon_tendril: (S) => S.dome(56, 74, 22, '#7ff0e0') + `<path d="M74 70 Q96 52 118 64 T142 50" fill="none" stroke="#9ff0f0" stroke-width="3" stroke-linecap="round"/>` + S.glow(142, 50, 8, '#ffb070', 0.8),
+  sap_graft: (S) => S.ground(86, '#0e0a1c') + S.mushroom(70, 86, 34, 20, '#d59cff') + S.glow(92, 58, 12, '#9fe0ff', 0.7) + S.motes(92, 58, 10, 16, '#9fe0ff', 1.2),
+  thorn_graft: (S) => S.ground(86, '#0e0a1c') + S.mushroom(66, 86, 30, 18, '#c5ff8a') + `<path d="M84 70 L118 46 M92 74 L124 62 M88 60 L110 34" stroke="#ffb070" stroke-width="2.2" stroke-linecap="round"/>` + S.glow(118, 46, 6, '#ffb070', 0.9),
+  spore_catalyst: (S) => S.ground(86, '#0e0a1c') + S.glow(80, 50, 36, '#c5ff8a', 0.45) + S.mushroom(80, 86, 40, 26, '#c5ff8a') + S.rings(80, 48, 14, 3, 9, '#c5ff8a', 0.6) + S.mushroom(46, 86, 16, 10, '#d59cff', -6) + S.mushroom(114, 86, 16, 10, '#d59cff', 6),
+  seed_burst: (S) => S.ground(88, '#0e0a1c') + S.motes(80, 52, 30, 46, '#c5ff8a', 1.6) + S.glow(80, 52, 16, '#c5ff8a', 0.6) + [44, 64, 96, 116].map((x) => S.mushroom(x, 88, 10, 7, '#d59cff')).join(''),
+  sapling: (S) => S.ground(88, '#0e0a1c') + `<path d="M80 88 C80 70 78 62 80 50" stroke="#c9f0a0" stroke-width="2.4" fill="none"/><path d="M80 62 C70 54 62 56 60 50 C70 48 76 52 80 58Z" fill="#9fe07a"/><path d="M80 56 C90 48 98 50 100 44 C90 42 84 46 80 52Z" fill="#b8f08a"/>` + S.glow(80, 50, 10, '#c5ff8a', 0.5),
   spore_graft: (S) => S.ground(86, '#0e0a1c') + S.mushroom(58, 86, 30, 18, '#c5ff8a') + S.mushroom(98, 86, 22, 14, '#d59cff', 6) + S.motes(80, 48, 14, 30, '#c5ff8a', 1.2),
 };
 Object.assign(ART, ART_FUSION);

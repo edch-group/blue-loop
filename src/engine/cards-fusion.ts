@@ -30,9 +30,48 @@ export const FUSION_CARDS: CardDef[] = [
     text: '{fusion}. {dawn}: {heat:1} per 2 shields you have (up to 3).',
     onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'shields', per: 2 }, max: 3 }],
   },
-  // ---- Ixquor ----
+  // ---- Ixquor: saplings, and growth that spreads ----
+  {
+    id: 'sap_graft',
+    name: 'Sap Graft',
+    kind: 'growth',
+    race: 3,
+    fusion: true,
+    stability: 2,
+    text: '{fusion}. It grows now. {dawn}: {grows:3}, then {cool} equal to its growth.',
+    onPlay: [{ type: 'grow', max: 3 }],
+    onTurn: [{ type: 'grow', max: 3 }, { type: 'cool', amount: 0, plus: { of: 'growth' } }],
+  },
+  {
+    id: 'thorn_graft',
+    name: 'Thorn Graft',
+    kind: 'attack',
+    race: 3,
+    fusion: true,
+    stability: 2,
+    text: '{fusion}. It grows now. {dawn}: {grows:3}, then {heat} equal to its growth.',
+    onPlay: [{ type: 'grow', max: 3 }],
+    onTurn: [{ type: 'grow', max: 3 }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'growth' } }],
+  },
   { id: 'spore_graft', name: 'Spore Graft', kind: 'growth', race: 3, fusion: true, stability: 2, text: '{fusion}. {dawn}: Draw 1.', onTurn: [{ type: 'draw', amount: 1 }] },
+  // (Not Fusion, but the cards the hive's saplings and growth need.)
+  {
+    id: 'spore_catalyst',
+    name: 'Spore Catalyst',
+    kind: 'growth',
+    race: 3,
+    stability: 4,
+    text: '{dawn}: {grows:4}, then {cool} equal to its growth. {catalyst}.',
+    onTurn: [{ type: 'grow', max: 4 }, { type: 'cool', amount: 0, plus: { of: 'growth' } }],
+    passive: [{ type: 'catalyst' }],
+  },
+  { id: 'seed_burst', name: 'Seed Burst', kind: 'growth', race: 3, text: '{plant:2}. Draw 1.', onPlay: [{ type: 'plant', amount: 2 }, { type: 'draw', amount: 1 }] },
+];
+
+/** Tokens: made in play by other cards, never in a deck. */
+export const TOKENS: CardDef[] = [
+  { id: 'sapling', name: 'Sapling', kind: 'growth', race: 3, token: true, stability: 3, text: 'A young hive-shoot: a card in play, with nothing of its own until something is fused onto it.' },
 ];
 
 /** What the Fusion cards cost (energy). */
-export const FUSION_COSTS: Record<string, number> = { sunforged_lens: 2, siphon_tendril: 2 };
+export const FUSION_COSTS: Record<string, number> = { sunforged_lens: 2, siphon_tendril: 2, thorn_graft: 2, spore_catalyst: 2 };

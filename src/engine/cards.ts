@@ -1,7 +1,7 @@
 import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
-import { FUSION_CARDS, FUSION_COSTS } from './cards-fusion';
+import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
 import { CARD_COSTS } from './costs';
 import { commandChoices } from './commands';
 
@@ -697,7 +697,9 @@ export function copyLimit(defId: string): number {
   return rarityOf(defId) === 'anomaly' ? BALANCE.maxAnomalyCopies : BALANCE.maxCopies;
 }
 
-const BY_ID = new Map(CARDS.map((c) => [c.id, c]));
+for (const t of TOKENS) Object.assign(t, { cost: 0 });
+// (Tokens are cards in play, but not in the pool: no deck, shop or collection has them.)
+const BY_ID = new Map([...CARDS, ...TOKENS].map((c) => [c.id, c]));
 
 export function cardDef(defId: string): CardDef {
   const def = BY_ID.get(defId) ?? fusedDef(defId);
@@ -867,10 +869,10 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Hive Bloom',
     race: 3,
     cards: [
-      ...twoOf('orbit_root', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_relay', 'spore_cloud', 'spore_return'),
+      ...twoOf('sap_graft', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_relay', 'spore_cloud', 'seed_burst'),
       'hive_colossus', 'hive_warrior', 'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings',
       'overgrowth', 'chitin_fortress', 'great_mycelium', 'ixquor_brood_tender', 'the_brood_queen', 'sporestorm',
-      'hive_tyrant', 'spore_drone', 'recall_beacon', 'solar_bastion',
+      'hive_tyrant', 'spore_drone', 'spore_catalyst', 'solar_bastion',
     ],
   },
 ];
@@ -891,7 +893,7 @@ export function deckProblems(cards: string[]): string[] {
   const counts = new Map<string, number>();
   for (const id of cards) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const [id, n] of counts) {
-    if (!BY_ID.has(id) && !fusedDef(id)) problems.push(`Unknown card: ${id}.`);
+    if ((!BY_ID.has(id) || BY_ID.get(id)!.token) && !fusedDef(id)) problems.push(`Unknown card: ${id}.`);
     else if (n > copyLimit(id)) problems.push(copyLimit(id) === 1 ? `${cardDef(id).name} is an Anomaly: only one copy per deck.` : `At most ${BALANCE.maxCopies} copies of ${cardDef(id).name}.`);
   }
   const commands = cards.filter((id) => (BY_ID.get(id) ?? fusedDef(id))?.kind === 'command').length;

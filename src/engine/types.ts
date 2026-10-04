@@ -91,6 +91,8 @@ export type Effect = (
   | { type: 'restore'; amount: number; all?: boolean }
   /** Mend worn defence on your side: this many points, the most worn cards first, then empty slots. */
   | { type: 'repair'; amount: number }
+  /** Plant this many Saplings (tokens) in your empty slots, the least defended first. */
+  | { type: 'plant'; amount: number }
   /** Return another card of yours from your tableau to your hand (to play it again). */
   | { type: 'recall' }
   /** Return a card of your choice (of a kind, if given) from your discard pile to your hand. */
@@ -110,6 +112,8 @@ export type Passive =
   | { type: 'extraPlay'; amount: number; /** Only while this planet faces your sun. */ planet?: Planet }
   /** Your shields no longer fade at your dawn. */
   | { type: 'keepShields' }
+  /** Catalyst: whenever this card grows, your other growing cards grow too. */
+  | { type: 'catalyst' }
   /** Tidewall: your shields guard your cards too (they otherwise guard only your sun). */
   | { type: 'tidewall' }
   /** When your shields absorb an enemy's heat, heat that enemy's sun. */
@@ -192,6 +196,8 @@ export interface CardDef {
    * effects, passives, Sturdy and stability; this one goes with it when it leaves.
    */
   fusion?: boolean;
+  /** A token (a Sapling): made in play by other cards, never in a deck; when it leaves play it is simply gone. */
+  token?: boolean;
   /** Extra defence on top of its slot's (sturdy cards). */
   defence?: number;
   /** Turns it stays in your tableau before it fades into your discard pile (default: see BALANCE.stability). */

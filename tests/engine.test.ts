@@ -1125,3 +1125,37 @@ describe('fusion', () => {
     expect(s.players[0].discard.some((c) => c.defId === 'reinforced_plating') || s.players[0].tableau.some((c) => c.fused?.length)).toBe(true);
   });
 });
+
+describe('saplings and growth', () => {
+  it('plants Saplings in the least defended empty slots; they count as cards in play, and vanish when they leave', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['seed_burst']);
+    me.playsLeft = 9;
+    s = play(s, 'seed_burst');
+    const p = activePlayer(s);
+    const saplings = p.tableau.filter((c) => c.defId === 'sapling');
+    expect(saplings.length).toBe(2);
+    expect(saplings.map((c) => c.slot).sort()).toEqual([0, 4]);
+    // A token can't go in a deck.
+    expect(deckProblems([...PRESET_DECKS[3].cards.slice(0, 29), 'sapling']).some((x) => /Unknown/.test(x))).toBe(true);
+  });
+
+  it('a growth graft makes its host grow at once, and a Catalyst spreads its growth', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const [sap, drone, cat] = give(me, ['sapling', 'spore_drone', 'spore_catalyst'], 'tableau');
+    give(me, ['sap_graft']);
+    me.playsLeft = 9;
+    s = play(s, 'sap_graft', { hostUid: sap.uid });
+    expect(activePlayer(s).tableau.find((c) => c.uid === sap.uid)!.growth).toBe(1);
+    // The Catalyst's dawn: it grows, and so do the other growing cards (the drone, and the grafted sapling).
+    s = applyAction(s, { type: 'endTurn' });
+    s = applyAction(s, { type: 'endTurn' });
+    if (s.awaitingDawn) s = applyAction(s, { type: 'dawn', aims: {} });
+    const t = s.players[0].tableau;
+    expect(t.find((c) => c.uid === cat.uid)!.growth).toBeGreaterThanOrEqual(1);
+    // The drone grows by its own dawn and again with the Catalyst.
+    expect(t.find((c) => c.uid === drone.uid)!.growth).toBe(2);
+  });
+});

@@ -301,6 +301,9 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | sting N / soothe N | When your shields absorb heat: heat the attacking card N, past its defence (never a sun) / cool your sun N |
 | hold N | Your shields don't fade (up to N) |
 | tidewall | While it is in play, your shields guard your cards too, not just your sun |
+| plant N | Put N Saplings (tokens) in your empty slots, the least defended first |
+| catalyst | Whenever this grows, your other growing cards grow too |
+| fusion | Played onto one of your cards in play, not into a slot: it gains this card's dawn effects, Sturdy and stability |
 | overheated | Half your max health or hotter |
 | grows N | Grows by 1 each day, up to N |
 | plays +N | N extra plays each day |
@@ -326,6 +329,14 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | Spore Graft | Ixquor | 1 | Dawn: draw 1. Stability 2 |
 
 Abyssal Tide plays two Tidal Grafts and a Siphon Tendril (for its Sunken Bells and a Coronal Lance): 38% → 50% in 600 AI games.
+
+## Saplings and growth [design review]
+
+The hive's answer to losing its board. **Saplings** are tokens: a card in play with nothing of its own (stability 3) that counts towards "cards you control" and the 4+ card thresholds, and is a ready host for Fusion cards. They are never in a deck, shop or collection; when one leaves play it is simply gone. **Plant N** puts N Saplings in your empty slots, the least defended first: Seed Burst (plant 2, draw 1) and Ixquor Sporelings (now also plant 1).
+
+Growth fusion: **Sap Graft** and **Thorn Graft** fuse onto a card and make it **grow at once**; from then on it grows each dawn (up to 3) and cools (Sap) or heats (Thorn) by its growth. A sapling grafted this way becomes a real card without taking another slot. Growth never shrinks a card: a lower limit from a graft leaves a higher growth alone. **Spore Catalyst** (growth, cost 2, stability 4) grows each dawn and cools by its growth, and is a **Catalyst**: whenever it grows, your other growing cards grow too.
+
+Hive Bloom plays Sap Graft ×2, Seed Burst ×2 and the Spore Catalyst (for its Orbit Roots, Spore Returns and Recall Beacon): 36% → 45% in 600 AI games (against Solar Lancers 23% → 36%). Field: Lancers 48.9%, Overload 61.4%, Tide 42.8%, Bloom 45.1%.
 
 ## Lightspeed cards [design review]
 

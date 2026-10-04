@@ -673,7 +673,7 @@ export function turnForecast(state: GameState, p: PlayerState, aims?: Record<str
       if (!conditionMet(me, e.if, state)) continue;
       switch (e.type) {
         case 'grow':
-          card.growth = Math.min(e.max, (card.growth ?? 0) + 1);
+          card.growth = Math.max(card.growth ?? 0, Math.min(e.max, (card.growth ?? 0) + 1));
           break;
         case 'heat': {
           // Only the heat headed for the sun: a card aimed at a rival card (or held off by a Guard) is not.
@@ -984,14 +984,13 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         break;
       }
       case 'growOthers':
-        for (const other of p.tableau) {
-          if (other.uid === card.uid) continue;
-          const g = (cardDef(other.defId).onTurn ?? []).find((x) => x.type === 'grow');
-          if (g?.type === 'grow') other.growth = Math.min(g.max, (other.growth ?? 0) + 1);
-        }
+        for (const other of p.tableau) if (other.uid !== card.uid) grow(p, other);
         break;
       case 'grow':
-        card.growth = Math.min(e.max, (card.growth ?? 0) + 1);
+        grow(p, card, e.max);
+        break;
+      case 'plant':
+        plant(state, p, e.amount);
         break;
       case 'destroy':
       case 'bounce': {
@@ -1112,7 +1111,10 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   card.choice = undefined;
   card.spent = undefined;
   card.aim = undefined;
-  if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
+  // (A token is simply gone.)
+  if (cardDef(card.defId).token) {
+    /* nothing to keep */
+  } else if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
   else (to === 'hand' ? owner.hand : owner.discard).push(card);
   resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
   // Its Fusion cards go with it (and their leave effects fire too).
@@ -1162,6 +1164,30 @@ function regionalInstability(state: GameState, roundStarter: PlayerState) {
     const last = state.turnPulses?.[state.turnPulses.length - 1];
     if (last && i > 0) last.together = true;
   });
+}
+
+/**
+ * A card grows by 1, up to the highest limit its growing effects give (its own and its Fusion cards'; a
+ * lower limit never shrinks it). A Catalyst that grows makes your other growing cards grow too.
+ */
+function grow(p: PlayerState, card: CardInstance, max?: number, spread = true) {
+  const limit = Math.max(max ?? 0, ...dawnEffects(card).map((x) => (x.type === 'grow' ? x.max : 0)));
+  if (limit <= 0 || (card.growth ?? 0) >= limit) return;
+  card.growth = (card.growth ?? 0) + 1;
+  if (spread && cardPassives(card).some((x) => x.type === 'catalyst')) for (const other of p.tableau) if (other.uid !== card.uid) grow(p, other, undefined, false);
+}
+
+/** Plant Saplings in your empty slots, the least defended first. */
+function plant(state: GameState, p: PlayerState, n: number) {
+  let planted = 0;
+  for (let i = 0; i < n; i++) {
+    const open = freeSlots(p);
+    if (!open.length) break;
+    const slot = [...open].sort((a, b) => slotDefence(a) - slotDefence(b) || a - b)[0];
+    place(p, newCard(state, 'sapling'), slot);
+    planted++;
+  }
+  if (planted) log(state, `${p.name} plants ${planted} Sapling${planted === 1 ? '' : 's'}.`);
 }
 
 /** At its owner's dawn, worn defence mends: 1 on each card (plus its Sturdy), and 1 on each worn empty slot. */
