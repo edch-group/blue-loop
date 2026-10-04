@@ -3429,7 +3429,7 @@ export class App {
         () =>
           facts(
             fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
-            fact('Defence', `Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
+            fact('Defence', `Heat aimed at a card wears its defence first, and the wear lasts: it mends 1 a day (more with ${kw('sturdy', '1')} or ${kw('repair', '1')}), and stays in the slot if the card leaves. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
             fact('No replacing', 'A full tableau takes nothing new until a card fades or leaves. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
@@ -3442,7 +3442,7 @@ export class App {
           facts(
             fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”."),
             fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun.'),
-            fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
+            fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat aimed at your sun (not at your cards). They fade at your Dawn.'),
             fact('Energy', `Cards cost energy (the green gem). You get 1 on your first day, 2 on your second, then ${B.maxPlays} a day. The industrial planet and energy cards add more on top.`),
             fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),
             fact('The planets', `Dead: nothing. Abundant: draw +${B.abundantDraw}. Industrial: play +${B.industrialPlays}.`),
@@ -3716,10 +3716,15 @@ export class App {
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
       if (c) return this.renderCard(c, { tableau: side, owner: p, settled: settled.get(c.uid), preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
-      const def = BALANCE.slotDefence[i];
+      // A slot keeps the wear of the card that stood in it (mending 1 a day).
+      const full = BALANCE.slotDefence[i];
+      const wear = p.slotWear?.[i] ?? 0;
+      const def = Math.max(0, full - wear);
+      const worn = wear ? ` slot-worn` : '';
+      const why = wear ? `: worn to ${def} of ${full} by heat on the card that stood here (it mends 1 a day)` : ` ${full}`;
       return choosingSlot
-        ? `<button class="slot-empty slot-choosable" data-act="choose-slot" data-arg="${i}" title="Place it here: defence ${def}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
-        : `<div class="slot-empty" title="Slot defence ${def}"><span class="slot-def">⛨${def}</span></div>`;
+        ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
+        : `<div class="slot-empty${worn}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span></div>`;
     }).join('');
     // The Lightspeed slot, right of the tableau: a card set there lies face down (its owner can still read it). It has no defence.
     const ls = p.lightspeed;
@@ -3891,7 +3896,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)} today: heat has dented it (it is whole again at the next day). ` : ''}Defence: heat aimed at this card hits its defence first (pierce ignores it), and dents it for the rest of the day; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats card-stats-stab"><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by heat. It mends 1 at each of its owner's dawns (more with Sturdy or Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats card-stats-stab"><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';

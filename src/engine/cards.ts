@@ -90,18 +90,18 @@ export const CARDS: CardDef[] = [
     id: 'bulwark_plating',
     name: 'Bulwark Plating',
     kind: 'defence',
-    text: '{bulwark:1}. {dawn}: {shield:1}.',
-    onTurn: [{ type: 'shield', amount: 1 }],
+    text: '{bulwark:1}. {dawn}: {shield:1}, {repair:1}.',
+    onTurn: [{ type: 'shield', amount: 1 }, { type: 'repair', amount: 1 }],
     passive: [{ type: 'guard', amounts: [1] }],
   },
   {
     id: 'aegis_monolith',
     name: 'Aegis Monolith',
     kind: 'defence',
-    text: "{guard}. {sturdy:2}. {bulwark:2/2}. {dawn}: {shield:1}.",
+    text: "{guard}. {sturdy:2}. {bulwark:2/2}. {dawn}: {repair:2}.",
     defence: 2,
     stability: 4,
-    onTurn: [{ type: 'shield', amount: 1 }],
+    onTurn: [{ type: 'repair', amount: 2 }],
     passive: [{ type: 'taunt' }, { type: 'guard', amounts: [2, 2] }],
   },
 
@@ -284,7 +284,7 @@ export const CARDS: CardDef[] = [
   { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 3. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 1 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
-  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:1}. {dawn}: {shield:3}.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }], passive: [{ type: 'taunt' }] },
+  { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:1}. {tidewall}. {dawn}: {shield:3}.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }], passive: [{ type: 'taunt' }, { type: 'tidewall' }] },
   { id: 'stinging_veil', name: 'Stinging Veil', kind: 'defence', race: 2, text: "{sting:3}.", passive: [{ type: 'retaliate', amount: 3 }] },
   {
     id: 'tidal_bloom',
@@ -426,8 +426,8 @@ export const CARDS: CardDef[] = [
     name: 'Tide Pylon',
     kind: 'defence',
     race: 2,
-    text: '{dawn}: {shield:2}. {shield:+1} per defence card next to this.',
-    onTurn: [{ type: 'shield', amount: 2, plus: { of: 'adjacent', kind: 'defence' } }],
+    text: '{dawn}: {shield:2}, {repair:1}. {shield:+1} per defence card next to this.',
+    onTurn: [{ type: 'shield', amount: 2, plus: { of: 'adjacent', kind: 'defence' } }, { type: 'repair', amount: 1 }],
   },
   {
     id: 'riptide_ambush',
@@ -495,10 +495,10 @@ export const CARDS: CardDef[] = [
     name: 'Hero of Rathune',
     kind: 'defence',
     race: 2,
-    text: '{guard}. {sturdy:1}. {shield:3}. {dawn}: {shield:1} per 2 defence cards (up to 2).',
+    text: '{guard}. {sturdy:1}. {shield:3}. {dawn}: {repair:1}, {shield:1} per 2 defence cards (up to 2).',
     defence: 1,
     onPlay: [{ type: 'shield', amount: 3 }],
-    onTurn: [{ type: 'shield', amount: 0, plus: { of: 'kind', kind: 'defence', per: 2 }, max: 2 }], passive: [{ type: 'taunt' }] },
+    onTurn: [{ type: 'repair', amount: 1 }, { type: 'shield', amount: 0, plus: { of: 'kind', kind: 'defence', per: 2 }, max: 2 }], passive: [{ type: 'taunt' }] },
   {
     id: 'ommarath_deep_bell',
     name: 'Ommarath, the Deep Bell',

@@ -55,7 +55,7 @@ export const EXPANSION: CardDef[] = [
     text: '{dawn}: {cool:1}. {cool:+1} while {overheated}.',
     onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { overheated: true } }],
   },
-  { id: 'bastion_node', name: 'Bastion Node', kind: 'defence', text: '{guard}. {sturdy:2}. {dawn}: {shield:1}.', defence: 2, onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }] },
+  { id: 'bastion_node', name: 'Bastion Node', kind: 'defence', text: '{guard}. {sturdy:2}. {tidewall}. {dawn}: {shield:1}.', defence: 2, onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'tidewall' }] },
   // Lightspeed guards: played as a Guard, or set face down (1 more energy) to spring in front of an aimed-at card.
   {
     id: 'blink_bulwark',

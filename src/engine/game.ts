@@ -301,25 +301,32 @@ function aimedCard(state: GameState, p: PlayerState, card: CardInstance): CardIn
   return null;
 }
 
+/** Whether a player's shields guard their cards too (a Tidewall card in play). */
+export function tidewall(p: PlayerState): boolean {
+  return p.tableau.some((c) => (cardDef(c.defId).passive ?? []).some((x) => x.type === 'tidewall'));
+}
+
 /** Heat on a card wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
 function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string, sting = false) {
-  // Shields cover their owner's whole side, cards as well as the sun (pierce heat gets past them).
-  const blocked = Math.min(pierce ? Math.floor(owner.shields * BALANCE.pierceShieldShare) : owner.shields, amount);
-  owner.shields -= blocked;
-  if (blocked > 0) {
-    log(state, `${owner.name}'s shields absorb ${blocked} heat.`);
-    // (A sting answered by shields doesn't sting back.)
-    if (!sting) shieldsAnswer(state, owner, source, cardUid);
+  // Shields guard only the sun, unless a Tidewall card spreads them over its owner's cards too.
+  if (tidewall(owner)) {
+    const blocked = Math.min(pierce ? Math.floor(owner.shields * BALANCE.pierceShieldShare) : owner.shields, amount);
+    owner.shields -= blocked;
+    if (blocked > 0) {
+      log(state, `${owner.name}'s Tidewall shields absorb ${blocked} heat.`);
+      // (A sting answered by shields doesn't sting back.)
+      if (!sting) shieldsAnswer(state, owner, source, cardUid);
+    }
+    amount -= blocked;
   }
-  amount -= blocked;
   if (amount <= 0 || !owner.tableau.includes(victim)) return;
-  // The card's defence (its slot's, and its own) takes the heat first (not pierce heat), and stays dented
-  // that much for the rest of the day: more heat today finds less defence in its way.
+  // The card's defence (its slot's, and its own) takes the heat first (not pierce heat), and stays worn:
+  // later heat finds less defence in its way, until it is mended.
   // A sting ignores it too: the attacking card left its defences to attack.
   const turned = pierce || sting ? 0 : Math.min(amount, cardDefence(owner, victim));
   if (turned > 0) {
     victim.dented = (victim.dented ?? 0) + turned;
-    log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${turned} heat on its defence (defence ${cardDefence(owner, victim)} left today).`);
+    log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${turned} heat on its defence (defence ${cardDefence(owner, victim)} left).`);
   }
   amount -= turned;
   if (amount <= 0) return;
@@ -421,6 +428,10 @@ export function cardCost(defId: string): number {
 function place(p: PlayerState, card: CardInstance, slot: number) {
   card.slot = slot;
   card.stability = baseStability(card.defId);
+  // The slot's worn defence is still worn: the new card stands in it.
+  const wear = p.slotWear?.[slot] ?? 0;
+  if (wear > 0) card.dented = wear;
+  if (p.slotWear) delete p.slotWear[slot];
   p.tableau.push(card);
   p.tableau.sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
 }
@@ -438,18 +449,22 @@ function distance(a: CardInstance, b: CardInstance): number {
  * reach cards with low enough defence.
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
-  const slotDef = card.slot === COMMAND_SLOT ? BALANCE.commandSlotDefence : (BALANCE.slotDefence[card.slot ?? 0] ?? 1);
-  let d = slotDef + (cardDef(card.defId).defence ?? 0);
+  let d = slotDefence(card.slot) + (cardDef(card.defId).defence ?? 0);
   for (const src of p.tableau) {
     const k = distance(src, card);
     if (k === 0) continue;
     for (const ps of cardDef(src.defId).passive ?? []) if (ps.type === 'guard' && k <= ps.amounts.length) d += ps.amounts[k - 1];
   }
-  // Heat dents defence for the rest of the day it lands in (it is back to full as the next day starts).
+  // Heat wears defence away, and the wear lasts (see mendDefences).
   return Math.max(0, d - (card.dented ?? 0));
 }
 
-/** A card's defence before any dents this day. */
+/** A slot's own defence: 1 at the edges, 2 inside, 3 in the middle (the Command slot's is its own). */
+export function slotDefence(slot: number | undefined): number {
+  return slot === COMMAND_SLOT ? BALANCE.commandSlotDefence : (BALANCE.slotDefence[slot ?? 0] ?? 1);
+}
+
+/** A card's defence when whole (no wear). */
 export function fullDefence(p: PlayerState, card: CardInstance): number {
   return cardDefence(p, { ...card, dented: 0 });
 }
@@ -684,8 +699,8 @@ export interface DawnHeatPreview {
 
 /**
  * What this player's dawn heat would do, aimed as given (card uid → rival card uid, or null for their sun;
- * cards not listed keep their own aim): shields first, then each card's defence (not for pierce heat),
- * then its stability, card by card in the order the dawn resolves them.
+ * cards not listed keep their own aim): at a card, its defence first (not for pierce heat),
+ * then its stability; at the sun, shields first; card by card in the order the dawn resolves them.
  */
 export function previewDawnHeat(state: GameState, p: PlayerState, aims: Record<string, string | null> = {}): DawnHeatPreview {
   const t = targetOf(state, p);
@@ -703,12 +718,17 @@ export function previewDawnHeat(state: GameState, p: PlayerState, aims: Record<s
       const g = guards(t).filter(left);
       const aimed = aim ? t.tableau.find((c) => c.uid === aim && left(c)) : undefined;
       const victim = aimed && (!g.length || g.includes(aimed)) ? aimed : g.length ? [...g].sort((a, b) => out.cards[a.uid].stability - out.cards[b.uid].stability)[0] : undefined;
-      const blocked = Math.min(e.pierce ? Math.floor(out.shields * BALANCE.pierceShieldShare) : out.shields, n);
-      out.shields -= blocked;
-      n -= blocked;
       if (!victim) {
-        out.sun += n;
+        // Shields guard the sun.
+        const blocked = Math.min(e.pierce ? Math.floor(out.shields * BALANCE.pierceShieldShare) : out.shields, n);
+        out.shields -= blocked;
+        out.sun += n - blocked;
         continue;
+      }
+      if (tidewall(t)) {
+        const blocked = Math.min(e.pierce ? Math.floor(out.shields * BALANCE.pierceShieldShare) : out.shields, n);
+        out.shields -= blocked;
+        n -= blocked;
       }
       const v = out.cards[victim.uid];
       const turned = e.pierce ? 0 : Math.min(n, v.defence);
@@ -1000,6 +1020,9 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         }
         break;
       }
+      case 'repair':
+        repair(state, p, e.amount);
+        break;
       case 'recall': {
         const back = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid && returnable(c));
         if (back) {
@@ -1056,6 +1079,9 @@ function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
 /** A card leaves its tableau for the discard pile (or its owner's hand or deck), triggering its leave effects. */
 function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck' = 'discard') {
   owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
+  // Wear on the slot's own defence stays in the slot (the card's own plating goes with it).
+  const wear = Math.min(card.dented ?? 0, slotDefence(card.slot));
+  if (wear > 0 && card.slot !== undefined) (owner.slotWear ??= {})[card.slot] = wear;
   card.growth = undefined;
   card.slot = undefined;
   delete card.dented;
@@ -1108,15 +1134,53 @@ function regionalInstability(state: GameState, roundStarter: PlayerState) {
   });
 }
 
+/** At its owner's dawn, worn defence mends: 1 on each card (plus its Sturdy), and 1 on each worn empty slot. */
+function mendDefences(state: GameState, p: PlayerState) {
+  for (const c of p.tableau) {
+    if (!c.dented) continue;
+    const by = Math.min(c.dented, BALANCE.defenceMend + (cardDef(c.defId).defence ?? 0));
+    c.dented -= by;
+    if (!c.dented) delete c.dented;
+    log(state, `${p.name}'s ${cardDef(c.defId).name} mends ${by} defence (defence ${cardDefence(p, c)}).`);
+  }
+  for (const k of Object.keys(p.slotWear ?? {})) {
+    const slot = Number(k);
+    const left = p.slotWear![slot] - BALANCE.defenceMend;
+    if (left > 0) p.slotWear![slot] = left;
+    else delete p.slotWear![slot];
+  }
+}
+
+/** Repair: mend this much worn defence on your side, the most worn cards first, then empty slots. */
+function repair(state: GameState, p: PlayerState, amount: number) {
+  let left = amount;
+  while (left > 0) {
+    const worst = [...p.tableau].filter((c) => (c.dented ?? 0) > 0).sort((a, b) => (b.dented ?? 0) - (a.dented ?? 0))[0];
+    if (!worst) break;
+    worst.dented! -= 1;
+    if (!worst.dented) delete worst.dented;
+    left -= 1;
+  }
+  for (const k of Object.keys(p.slotWear ?? {})) {
+    if (left <= 0) break;
+    const slot = Number(k);
+    const by = Math.min(left, p.slotWear![slot]);
+    p.slotWear![slot] -= by;
+    left -= by;
+    if (!p.slotWear![slot]) delete p.slotWear![slot];
+  }
+  if (left < amount) log(state, `${p.name} repairs ${amount - left} defence.`);
+}
+
 function startTurn(state: GameState) {
   const p = activePlayer(state);
   state.turnPulses = [];
   p.turnsTaken += 1;
   p.turn = emptyTurn();
   delete state.awaitingDawn;
-  // A new day: every card's defence is whole again.
-  for (const o of state.players) for (const c of o.tableau) delete c.dented;
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
+  // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy cards mend their Sturdy more).
+  mendDefences(state, p);
 
   // Shields fade, unless Deep Current holds them.
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');

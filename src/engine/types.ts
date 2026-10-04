@@ -89,6 +89,8 @@ export type Effect = (
   | { type: 'erode'; amount: number; all?: boolean }
   /** Restore stability to another card of yours (your choice; `all`: every other card of yours). */
   | { type: 'restore'; amount: number; all?: boolean }
+  /** Mend worn defence on your side: this many points, the most worn cards first, then empty slots. */
+  | { type: 'repair'; amount: number }
   /** Return another card of yours from your tableau to your hand (to play it again). */
   | { type: 'recall' }
   /** Return a card of your choice (of a kind, if given) from your discard pile to your hand. */
@@ -108,6 +110,8 @@ export type Passive =
   | { type: 'extraPlay'; amount: number; /** Only while this planet faces your sun. */ planet?: Planet }
   /** Your shields no longer fade at your dawn. */
   | { type: 'keepShields' }
+  /** Tidewall: your shields guard your cards too (they otherwise guard only your sun). */
+  | { type: 'tidewall' }
   /** When your shields absorb an enemy's heat, heat that enemy's sun. */
   | { type: 'retaliate'; amount: number }
   /** Global cards: a table-wide effect. */
@@ -202,7 +206,10 @@ export interface CardInstance {
   slot?: number;
   /** In a tableau: days left before it fades into its owner's discard pile. */
   stability?: number;
-  /** In a tableau: defence knocked off by heat this day (it comes back as the next day starts). */
+  /**
+   * In a tableau: defence worn away by heat. It lasts: a card recovers 1 at each of its owner's dawns
+   * (plus its Sturdy), or by Repair; and the wear on its slot's own defence stays in the slot when it leaves.
+   */
   dented?: number;
   /** In a tableau: the choice it was played with (Command cards), which it keeps until it leaves. */
   choice?: string;
@@ -252,6 +259,8 @@ export interface PlayerState {
   deckName?: string;
   heat: number;
   shields: number;
+  /** Wear on the defence of empty slots, left by the cards that stood there (slot → points). */
+  slotWear?: Record<number, number>;
   deck: CardInstance[];
   hand: CardInstance[];
   /**

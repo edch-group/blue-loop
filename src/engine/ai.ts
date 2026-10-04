@@ -89,6 +89,11 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
       case 'draw':
         perTurn += scale * e.amount * 0.7;
         break;
+      case 'repair': {
+        const worn = p.tableau.reduce((t, c) => t + (c.dented ?? 0), 0);
+        perTurn += scale * Math.min(e.amount, Math.max(0.5, worn)) * 0.35;
+        break;
+      }
       case 'plays':
         // Energy is worth what it lets you play: about a card's worth, with cards in hand to spend it on.
         perTurn += scale * e.amount * ACTION_VALUE * Math.min(1, Math.max(0.2, (p.hand.length - 1) / ENERGY_HAND));
@@ -119,6 +124,9 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
         break;
       case 'keepShields':
         perTurn += 0.4 + p.shields * 0.1;
+        break;
+      case 'tidewall':
+        perTurn += 0.3 + Math.min(p.shields, 4) * 0.1 * Math.max(0, p.tableau.length - 1);
         break;
       case 'retaliate':
         perTurn += 0.6 * foes;

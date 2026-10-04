@@ -54,6 +54,8 @@ export const BALANCE = {
   pierceShieldShare: 0.5,
   /** The Command slot's defence (it leads the tableau, out in front of the five). */
   commandSlotDefence: 2,
+  /** Worn defence each card (and empty slot) mends at its owner's dawn (Sturdy cards mend their Sturdy more). */
+  defenceMend: 1,
   /**
    * Stability: how many of your days a card stays in your tableau (its dawn effects trigger
    * that many times), before it fades into your discard pile. Cards with only a when-played effect fade faster.

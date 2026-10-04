@@ -953,7 +953,7 @@ describe('aiming heat', () => {
     let s = twoPlayer();
     const [ada, bo] = s.players;
     const [lancer, reactor] = give(ada, ['helio_lancer', 'shard_reactor'], 'tableau');
-    const [a, b] = give(bo, ['tide_pylon', 'tide_pylon'], 'tableau');
+    const [a, b] = give(bo, ['deflector_grid', 'deflector_grid'], 'tableau');
     s = applyAction(s, { type: 'endTurn' }); // Bo's day: nothing to aim.
     expect(s.awaitingDawn).toBeFalsy();
     s = applyAction(s, { type: 'endTurn' }); // Ada's dawn waits for her to aim.
@@ -989,25 +989,63 @@ describe('aiming heat', () => {
     expect(activePlayer(next).tableau.every((c) => c.aim === undefined)).toBe(true);
   });
 
-  it('dents defence for the rest of the day, so more heat that day gets through, and mends it the next day', () => {
+  it('wears defence down for good: more heat later gets through, and it mends only 1 a day', () => {
     const { s, lancer, b } = atAdasDawn();
     s.players[1].shields = 0;
     const stab = (st: GameState) => st.players[1].tableau.find((c) => c.uid === b.uid)?.stability ?? 0;
     const before = stab(s);
-    // Helio Lancer's 2 heat on defence 2: no stability lost, but the defence is down to 0 for today.
+    // Helio Lancer's 2 heat on defence 2: no stability lost, but the defence is worn down to 0.
     let next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
     const bo = () => next.players[1];
     const card = () => bo().tableau.find((c) => c.uid === b.uid)!;
     expect(stab(next)).toBe(before);
     expect(cardDefence(bo(), card())).toBe(0);
-    // Bo's day (the next one) finds it whole again.
+    // Bo's day (the next one) mends only 1 of it.
     const bosDay = applyAction(next, { type: 'endTurn' });
-    expect(cardDefence(bosDay.players[1], bosDay.players[1].tableau.find((c) => c.uid === b.uid)!)).toBe(2);
+    expect(cardDefence(bosDay.players[1], bosDay.players[1].tableau.find((c) => c.uid === b.uid)!)).toBe(1);
     // While today, a Coronal Lance now (3 heat) wears all 3 off its stability.
     activePlayer(next).playsLeft = 9;
     give(activePlayer(next), ['coronal_lance']);
     next = play(next, 'coronal_lance', { aimUid: b.uid });
     expect(stab(next)).toBe(Math.max(0, before - 3));
+  });
+
+  it("guards only the sun with shields: heat aimed at a card meets its defence", () => {
+    const { s, lancer, b } = atAdasDawn();
+    s.players[1].shields = 5;
+    const next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
+    // The Lancer's heat wore the card's defence, though Bo had shields up (they only took heat at the sun).
+    expect(next.log.some((l) => /Deflector Grid takes 2 heat on its defence/.test(l.text))).toBe(true);
+    expect(cardDefence(next.players[1], next.players[1].tableau.find((c) => c.uid === b.uid)!)).toBe(0);
+  });
+
+  it("leaves a destroyed card's wear in its slot, mending 1 a day", () => {
+    const { s, lancer, b } = atAdasDawn();
+    s.players[1].shields = 0;
+    let next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
+    const slot = next.players[1].tableau.find((c) => c.uid === b.uid)!.slot!;
+    next.players[1].tableau.find((c) => c.uid === b.uid)!.stability = 1;
+    activePlayer(next).playsLeft = 9;
+    give(activePlayer(next), ['coronal_lance']);
+    next = play(next, 'coronal_lance', { aimUid: b.uid });
+    expect(next.players[1].tableau.some((c) => c.uid === b.uid)).toBe(false);
+    expect(next.players[1].slotWear?.[slot]).toBe(2);
+    const bosDay = applyAction(next, { type: 'endTurn' });
+    expect(bosDay.players[1].slotWear?.[slot]).toBe(1);
+  });
+
+  it('mends Sturdy cards by their Sturdy as well, and Repair mends more', () => {
+    const { s, lancer, b } = atAdasDawn();
+    s.players[1].shields = 0;
+    const [plating] = give(s.players[1], ['bulwark_plating'], 'tableau');
+    let next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
+    const worn = next.players[1].tableau.find((c) => c.uid === b.uid)!.dented ?? 0;
+    expect(worn).toBeGreaterThan(0);
+    // Bo's day: 1 mends on its own, and Bulwark Plating's Repair 1 mends another.
+    next = applyAction(next, { type: 'endTurn' });
+    const after = next.players[1].tableau.find((c) => c.uid === b.uid)!.dented ?? 0;
+    expect(after).toBe(Math.max(0, worn - 2));
+    expect(plating).toBeTruthy();
   });
 
   it('turns all the heat aside when the defence is as high as the heat', () => {
