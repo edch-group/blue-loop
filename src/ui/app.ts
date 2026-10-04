@@ -172,7 +172,7 @@ type Sheet =
   | { kind: 'quit' }
   /** Ending the day with plays still left: are you sure? */
   | { kind: 'end-day'; dawn?: boolean }
-  | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string };
+  | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string; /** Of a card in play with Fusion cards on it: which is shown (0 the card itself, then each fused card). */ tab?: number };
 
 /** Menu buttons that lead somewhere: the page they're on lifts away (and the star spins up) before the next one comes in. */
 const MENU_NAV = new Set(['menu-page', 'open-decks', 'campaign-new', 'campaign-continue', 'continue', 'new-game', 'to-menu']);
@@ -2888,6 +2888,20 @@ export class App {
     }
 
     if (!s) return;
+    // A card in play's tabs (the card, then the cards fused onto it), or a fused card peeking out behind it.
+    if (act === 'inspect-tab' && this.sheet?.kind === 'card') {
+      this.sheet.tab = Number(el.dataset.arg);
+      sound.hover();
+      return this.render();
+    }
+    if (act === 'inspect-fused') {
+      const [host, tab] = (el.dataset.arg ?? '').split('|');
+      const card = s.players.flatMap((p) => p.tableau).find((c) => c.uid === host);
+      if (!card) return;
+      this.sheet = { kind: 'card', defId: card.defId, table: host, tab: Number(tab) };
+      sound.hover();
+      return this.render();
+    }
     if (act === 'inspect' && !el.closest('.sheet') && el.dataset.card) {
       this.sheet = { kind: 'card', defId: el.dataset.card, uid: el.dataset.hand, table: el.closest('.tableau') ? el.dataset.uid : undefined };
       sound.hover();
@@ -4178,7 +4192,7 @@ export class App {
       (c.fused ?? [])
         .map((f, i) => {
           const fd = cardDef(f.defId);
-          return `<span class="fused-behind" style="--fi:${i};--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`${fd.name} (fused): ${plainText(fd.text).replace(/^Fusion\. /, '')}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
+          return `<span class="fused-behind" data-act="inspect-fused" data-arg="${c.uid}|${i + 1}" style="--fi:${i};--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`${fd.name} (fused): ${plainText(fd.text).replace(/^Fusion\. /, '')}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
         })
         .join('');
     // (Resonance and forge show in the card's own numbers, not as a badge.)
@@ -4410,12 +4424,29 @@ export class App {
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
-              <div class="inspector-row">${this.bigCard(sh.defId, sh.table)}${this.explainCard(sh.defId, sh.table)}</div>
+              <div class="inspector-row">${this.inspectorCard(sh)}</div>
               <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
             </div>
           </div>`;
       }
     }
+  }
+
+  /**
+   * The magnified card in the inspector, with its explanations. A card in play with Fusion cards on it gets a
+   * column of tabs by its top right edge: the card itself, then each fused card (purple), to read each one.
+   */
+  private inspectorCard(sh: Extract<Sheet, { kind: 'card' }>): string {
+    const host = sh.table ? this.state?.players.flatMap((p) => p.tableau).find((c) => c.uid === sh.table) : undefined;
+    const fused = host?.fused ?? [];
+    if (!fused.length) return this.bigCard(sh.defId, sh.table) + this.explainCard(sh.defId, sh.table);
+    const tab = Math.min(Math.max(0, sh.tab ?? 0), fused.length);
+    const shown = tab === 0 ? this.bigCard(sh.defId, sh.table) : this.bigCard(fused[tab - 1].defId);
+    const explain = tab === 0 ? this.explainCard(sh.defId, sh.table) : this.explainCard(fused[tab - 1].defId);
+    const tabs = [host!, ...fused]
+      .map((c, i) => `<button class="insp-tab ${i ? 'insp-tab-fused' : ''} ${i === tab ? 'on' : ''}" data-act="inspect-tab" data-arg="${i}">${esc(cardDef(c.defId).name.toLowerCase())}</button>`)
+      .join('');
+    return `<div class="insp-tabbed">${shown}<div class="insp-tabs">${tabs}</div></div>${explain}`;
   }
 
   /** A player's summary: their deck, Command cards and the conditions they fight under. */
