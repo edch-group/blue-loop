@@ -2911,6 +2911,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 .menu.menu-hub > .player-chip { position: absolute; top: max(12px, var(--sa-t)); right: max(18px, var(--sa-r, 0px)); z-index: 2; }
 .setup-top .player-chip { justify-self: end; }
+/* A player's picture: their card's artwork in a circle. */
+.avatar { display: block; flex: none; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: #1a1c2a; box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px #dfe3ec; }
 .pc-avatar { width: 30px; height: 30px; }
 .pc-who { display: grid; line-height: 1.1; text-align: left; }
 .pc-who b { font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
@@ -2939,8 +2941,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
 
 .signin { display: grid; justify-items: center; gap: 14px; }
+.signin-avatar { width: clamp(56px, calc(14 * var(--vh)), 84px); }
 .signin-name { width: min(280px, 80vw); height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #e3e6ee; background: #fff; text-align: center; font-family: var(--display); letter-spacing: 0.12em; font-size: 0.8rem; color: var(--ink); }
-.signin-emblems { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: min(420px, 90vw); }
 /* Accounts: the sign-in form's notes, its other routes (as quiet text links), and the profile's account row. */
 .auth-error { color: #c0563d; font-size: 0.78rem; max-width: 320px; text-align: center; }
 .auth-note { color: var(--ink-soft); font-size: 0.72rem; max-width: 300px; text-align: center; }

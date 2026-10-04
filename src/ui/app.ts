@@ -42,10 +42,9 @@ import {
   allyChoices,
   cardChoices,
   cardCost,
-  aimable,
-  aimChoices,
+  attackTargets,
+  guards,
   COMMAND_SLOT,
-  dawnAimable,
   dawnEffects,
   effectAmount,
   optionText,
@@ -55,7 +54,6 @@ import {
   supernovaThreshold,
   hasRoomFor,
   targetOf,
-  previewDawnHeat,
   planetsEaten,
   type Action,
   type BoosterCard,
@@ -74,7 +72,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -120,10 +118,6 @@ interface Pending {
   step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot' | 'host';
   /** A Fusion card: the card of yours it fuses onto. */
   hostUid?: string;
-  /** Where its heat goes: a rival card's uid, or 'sun'. */
-  aimUid?: string;
-  /** Aiming the dawn heat of a card already in your tableau (uid is that card), not playing one. */
-  dawn?: boolean;
   /** A card of yours in play attacking (uid is that card): its target is chosen like an aim. */
   attack?: boolean;
   /** A Command card's option. */
@@ -171,7 +165,7 @@ type Sheet =
   /** Tap-to-inspect on touch screens: a readable card with its action. */
   | { kind: 'quit' }
   /** Ending the day with plays still left: are you sure? */
-  | { kind: 'end-day'; dawn?: boolean }
+  | { kind: 'end-day' }
   | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string; /** Of a card in play with Fusion cards on it: which is shown (0 the card itself, then each fused card). */ tab?: number };
 
 /** Menu buttons that lead somewhere: the page they're on lifts away (and the star spins up) before the next one comes in. */
@@ -231,7 +225,7 @@ const LUNGE_MS = 900;
 const BANNER_GAP_MS = 1300;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, dawnStep: 900, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -454,10 +448,9 @@ export class App {
   private profileOpen = false;
   /** Sign-in being filled in. */
   private signinName: string | null = null;
-  private signinAvatar: number | null = null;
   /**
    * The sign-in page: an account to sign in to (or create), or (for a guest, or once signed in) the name
-   * and emblem you go by.
+   * you go by.
    */
   private authMode: 'signin' | 'signup' | 'name' | 'forgot' | 'reset' = 'signin';
   private authEmail = '';
@@ -700,8 +693,11 @@ export class App {
     onProgressReplaced(() => {
       if (this.screen === 'menu') location.reload();
     });
+    const avatar = account()?.avatar;
     void checkIn().then((replaced) => {
       if (replaced && this.screen === 'menu') location.reload();
+      // (An account from before pictures has just been dealt one: show it.)
+      else if (account()?.avatar !== avatar && this.screen === 'menu') this.render();
     });
     // Back from signing in (the page reloads to read the account's progress): on to the hub.
     let after = false;
@@ -926,7 +922,7 @@ export class App {
       this.render();
       this.surfaceLog(prev);
       this.animate(prev, next, last.action, actor, before);
-      this.announcePhases(actor, next, last.action, turnPassed);
+      this.announcePhases(actor, next, turnPassed);
     };
     // The rival's card takes effect once the viewer has read it and said OK.
     if (this.stage?.confirm && !isGameOver(next)) {
@@ -990,39 +986,6 @@ export class App {
   private unaim: (() => void) | null = null;
   /** The card a confirmed stage was aimed at (its beam already shown), for the move as it lands. */
   private aimShown: string | null = null;
-
-  /** At your dawn, a beam from each card with dawn heat to where it is aimed, until the dawn breaks. */
-  private dawnBeams = new Map<string, () => void>();
-  private syncDawnBeams() {
-    const want = new Map<string, [string, string]>();
-    const s = this.state;
-    if (s && this.screen === 'game' && this.dawnTurn()) {
-      const me = activePlayer(s);
-      const aims = this.draftAims(s, me);
-      const chosen = this.dawnAims();
-      const rival = targetOf(s, me);
-      for (const card of me.tableau) {
-        if (!dawnAimable(card, me, s) || !(card.uid in aims)) continue;
-        // Heat aimed at a card, or at the sun when that was chosen (by default it goes there unmarked).
-        const hit = aims[card.uid];
-        const to = hit ? `.tableau [data-uid="${hit}"]` : rival && card.uid in chosen ? `.tableau [data-anchor="player:${rival.id}"]` : '';
-        if (!to) continue;
-        want.set(`${card.uid}>${to}`, [`.tableau [data-uid="${card.uid}"]`, to]);
-      }
-    }
-    for (const [key, stop] of this.dawnBeams) {
-      if (want.has(key)) continue;
-      stop();
-      this.dawnBeams.delete(key);
-    }
-    const rect = (sel: string) => {
-      const el = this.root.querySelector(sel);
-      return el ? pageRect(el) : null;
-    };
-    for (const [key, [from, to]] of want) {
-      if (!this.dawnBeams.has(key)) this.dawnBeams.set(key, aim(() => rect(from), () => targetRect(this.root.querySelector(to))));
-    }
-  }
 
   /**
    * Leaving a menu page: the button pressed lifts up and fades (a quick rise that eases off), the rest of
@@ -1097,7 +1060,6 @@ export class App {
   private requestEndDay() {
     const s = this.state;
     if (!s || !this.canAct() || this.pending) return;
-    if (s.awaitingDawn) return this.breakDawn();
     if (this.leftUndone().length && this.sheet?.kind !== 'end-day') {
       this.sheet = { kind: 'end-day' };
       return this.render();
@@ -1113,19 +1075,12 @@ export class App {
     const out: string[] = [];
     const playable = me.hand.filter((c) => this.canPlayNow(me, c.defId)).length;
     if (playable) out.push(`${playable} playable card${playable === 1 ? '' : 's'}`);
-    const { cards, sun } = aimChoices(s, me);
-    const attackers = me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0 && (sun || cards.length > 0)).length;
+    const targets = attackTargets(s, me).length;
+    const attackers = targets ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
     if (attackers) out.push(`${attackers} card${attackers === 1 ? '' : 's'} that can still attack`);
     const hero = commandCard(me);
     if (hero && (cardDef(hero.defId).abilities ?? []).some((_, i) => !heroAbilityProblem(s, me, i))) out.push(`${cardDef(hero.defId).name}'s ability`);
     return out;
-  }
-
-  /** Dawn cards whose heat is still to be aimed (they would go where they fall by default). */
-  private dawnLeft(): number {
-    const s = this.state!;
-    const me = activePlayer(s);
-    return me.tableau.filter((c) => dawnAimable(c, me, s) && !s.dawnDone?.includes(c.uid)).length;
   }
 
   /** The viewer has read the rival's card on the stage: it goes, and the rival carries on. */
@@ -1237,17 +1192,15 @@ export class App {
     if (!s || isGameOver(s) || this.needsHandoff()) return;
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
-    // (A dawn with nothing to do is passed over: straight to the day.)
-    if (s.awaitingDawn) this.showBanner('dawn', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('dawn'));
-    else this.showBanner('day', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('day'));
+    this.showBanner('day', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('day'));
   }
 
   /**
    * Each day runs dawn, day, dusk, each with its banner: as a day ends, "dusk" (the dusk's effects), then the
-   * next player's "dawn" (their dawn effects play out, and they aim its heat), then their "day" once the dawn
+   * next player's "dawn" (their dawn effects play out), then their "day" once the dawn
    * has played out. The viewer's own read plainly ("dawn"); everyone else's carry their name.
    */
-  private announcePhases(actor: PlayerState, next: GameState, action: Action, turnPassed: boolean, animate = true) {
+  private announcePhases(actor: PlayerState, next: GameState, turnPassed: boolean, animate = true) {
     if (isGameOver(next) || this.needsHandoff()) return;
     const you = this.viewer().id;
     const named = (p: PlayerState, phase: string) => (p.id === you ? phase : `${p.name.toLowerCase()}'s ${phase}`);
@@ -1256,10 +1209,10 @@ export class App {
     // A dusk or dawn in which nothing happened (and nothing is asked) is passed over, banner and all.
     if (turnPassed) {
       if (this.duskHappened(next, actor)) this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, 0, 'game', () => this.setPhase('dusk'));
-      if (next.awaitingDawn || this.dawnHappened(next, now)) this.showBanner(named(now, 'dawn'), round, 0, 'game', () => this.setPhase('dawn'));
+      if (this.dawnHappened(next, now)) this.showBanner(named(now, 'dawn'), round, 0, 'game', () => this.setPhase('dawn'));
     }
-    // The day begins once the dawn has played out (and, at your own dawn, once you have aimed its heat).
-    if ((turnPassed || action.type === 'dawn' || action.type === 'dawnStep') && !next.awaitingDawn) {
+    // The day begins once the dawn has played out.
+    if (turnPassed) {
       const replay = animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0;
       this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600), 'game', () => this.setPhase('day'));
     }
@@ -1421,9 +1374,9 @@ export class App {
         this.surfaceLog(prev);
         this.animate(prev, next, action, actor, before);
       }
-      this.announcePhases(actor, next, action, turnPassed, animate);
+      this.announcePhases(actor, next, turnPassed, animate);
       // The AI waits for its dawn to play out before it acts.
-      this.scheduleAI(AI_PAUSE[action.type] + ((action.type === 'endTurn' || action.type === 'dawn') && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
+      this.scheduleAI(AI_PAUSE[action.type] + (action.type === 'endTurn' && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
     };
     // A card waiting to be read takes effect once the viewer says OK.
     if (this.stage?.confirm) {
@@ -1552,7 +1505,7 @@ export class App {
     if (action.type !== 'playCard' || action.faceDown) return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card || !isBurst(cardDef(card.defId))) return null;
-    const stage: Stage = { defId: card.defId, actorId: actor.id, own: true, caption: 'you play', target: action.enemyUid ?? action.aimUid };
+    const stage: Stage = { defId: card.defId, actorId: actor.id, own: true, caption: 'you play', target: action.enemyUid };
     const since = Date.now();
     const check = () => {
       if (this.stage !== stage) return;
@@ -1572,7 +1525,7 @@ export class App {
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
     if (cardDef(card.defId).kind === 'lightspeed' || action.faceDown) return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
-    return { defId: card.defId, actorId: actor.id, option: action.choice, target: action.enemyUid ?? action.aimUid };
+    return { defId: card.defId, actorId: actor.id, option: action.choice, target: action.enemyUid };
   }
 
   /** A Lightspeed card that just sprang (revealed from face down into its owner's discard pile), announced for everyone. */
@@ -1666,8 +1619,8 @@ export class App {
 
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
-    // A day's start (or its dawn, once aimed) replays its effects.
-    const endingTurn = action.type === 'endTurn' || action.type === 'dawn' || action.type === 'dawnStep';
+    // A day's start replays its effects.
+    const endingTurn = action.type === 'endTurn';
     let drawIndex = 0;
 
     // Removal: a glowing arc from the removing card to each rival card it destroys, returns or
@@ -1683,27 +1636,11 @@ export class App {
         .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.stability ?? 0) < (c.stability ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0))
         .map(([uid]) => uid);
       const from = playedFrom!;
-      const heats = (playedDef?.onPlay ?? []).some((e) => e.type === 'heat');
       hitCards.forEach((uid, i) => {
         const el = root.querySelector<HTMLElement>(`[data-uid="${uid}"]`);
         const to = before.cards.get(uid)?.rect ?? (el ? pageRect(el) : null);
         if (!to) return;
         const delay = (actor.isAI ? 600 : 470) + i * 140;
-        // Heat aimed at a card: an attack, flying from the card played to the card it strikes, whose numbers
-        // change as it lands. (Removal, below, is a white arc.)
-        const wasC = was.get(uid)!, nowC = now.get(uid);
-        const byHeat = heats && uid !== action.enemyUid && (uid === action.aimUid || (nowC?.dented ?? 0) > (wasC.dented ?? 0));
-        if (byHeat) {
-          const land = projectile(from, () => (el?.isConnected ? pageRect(el) : to), HOT, { delay, size: 30, duration: 560 });
-          removalAt.set(uid, land);
-          if (el) {
-            pulse(el, 'fx-hit-card', land);
-            this.holdCardStats(el, before.cards.get(uid)?.html, land);
-          }
-          window.setTimeout(() => sound.launch(), delay);
-          window.setTimeout(() => sound.whoosh(0, !nowC), land - 60);
-          return;
-        }
         // (A card whose aim was shown while it waited to be confirmed already pointed here.)
         removalAt.set(uid, uid === shown ? 160 : tether(from, to, { delay }));
         // The beam whooshes onto the card (and, if it takes it, sweeps it away).
@@ -1878,9 +1815,8 @@ export class App {
         }
         break;
       }
-      case 'endTurn':
-      case 'dawn': {
-        if (action.type === 'endTurn') sound.endTurn();
+      case 'endTurn': {
+        sound.endTurn();
         // The new player's dawn cards light up, oldest first, as they trigger.
         let k = 0;
         if (!replayEnd)
@@ -1978,7 +1914,7 @@ export class App {
         this.render();
       });
     }
-    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' || action.type === 'dawn' ? this.replayLength(next) : 900) + 1800;
+    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' ? this.replayLength(next) : 900) + 1800;
     this.resultAt = Date.now() + wait;
     window.setTimeout(() => {
       if (this.state === next || isGameOver(this.state ?? next)) this.render();
@@ -2252,55 +2188,6 @@ export class App {
     return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff();
   }
 
-  /** The viewer's dawn waits for them to aim their cards' dawn heat. */
-  private dawnTurn(): boolean {
-    return !!this.state?.awaitingDawn && this.canAct();
-  }
-
-  /** Where the viewer has aimed each card's heat for this dawn (so far): card uid → rival card uid, or null for the sun. */
-  private dawnDraft: { turn: number; aims: Record<string, string | null> } | null = null;
-  private dawnAims(): Record<string, string | null> {
-    const turn = this.state?.turnNumber ?? 0;
-    if (this.dawnDraft?.turn !== turn) this.dawnDraft = { turn, aims: {} };
-    return this.dawnDraft.aims;
-  }
-
-  /** Where a card's dawn heat will land this dawn, as aimed so far: a rival card's uid, or null for their sun. */
-  private dawnHit(s: GameState, p: PlayerState, card: CardInstance): string | null {
-    const { cards, sun } = aimChoices(s, p);
-    const d = this.dawnAims()[card.uid];
-    if (d && cards.some((c) => c.uid === d)) return d;
-    if (sun) return null;
-    return [...cards].sort((a, b) => (a.stability ?? 0) - (b.stability ?? 0))[0]?.uid ?? null;
-  }
-
-  /** Where every card's dawn heat lands, as aimed so far (cards not yet aimed go where they would by default). */
-  private draftAims(s: GameState, me: PlayerState): Record<string, string | null> {
-    const { sun } = aimChoices(s, me);
-    const aims: Record<string, string | null> = {};
-    for (const card of me.tableau) {
-      if (!dawnAimable(card, me, s) || s.dawnDone?.includes(card.uid)) continue;
-      const hit = this.dawnHit(s, me, card);
-      if (hit !== null || sun) aims[card.uid] = hit;
-    }
-    return aims;
-  }
-
-  /** Let the dawn break, with the heat aimed as chosen. */
-  private breakDawn(sure = false) {
-    if (!this.dawnTurn()) return;
-    const s = this.state!;
-    // Heat still to aim: ask first (it would go at the sun, or the most worn Guard).
-    if (!sure && this.dawnLeft() > 0 && !(this.sheet?.kind === 'end-day' && this.sheet.dawn)) {
-      this.sheet = { kind: 'end-day', dawn: true };
-      return this.render();
-    }
-    this.sheet = null;
-    const aims = this.draftAims(s, activePlayer(s));
-    this.pending = null;
-    this.dispatch({ type: 'dawn', aims });
-  }
-
   /** Hot-seat: hide the hand until the next human confirms they have the device. */
   private needsHandoff(): boolean {
     if (this.online) return false;
@@ -2384,9 +2271,7 @@ export class App {
     }
     if (allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
-    // A card that heats, with rival cards on the table: where its heat goes (a card, or their sun).
-    if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
-    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.hostUid ? { hostUid: p.hostUid } : {}) });
+    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, ...(p.hostUid ? { hostUid: p.hostUid } : {}) });
   }
 
   // -------------------------------------------------------------------------
@@ -2454,7 +2339,6 @@ export class App {
       }
       if (this.sheet && this.sheet.kind !== 'end-day') return;
       e.preventDefault();
-      if (this.state?.awaitingDawn) return this.breakDawn();
       return this.requestEndDay();
     }
     if (e.key !== 'Escape') return;
@@ -2575,7 +2459,7 @@ export class App {
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     // A card being played on the board: a click anywhere that isn't its next step (a slot, the card it
     // recalls or fuses onto, its target), another card in hand, or cancel puts it back in the hand.
-    if (this.screen === 'game' && this.pending && !this.pending.dawn && !(e.target as HTMLElement).closest?.('.overlay, .modal, .sheet, .hud, .zoom-view, .peek-toggle, .peek-shield')) {
+    if (this.screen === 'game' && this.pending && !(e.target as HTMLElement).closest?.('.overlay, .modal, .sheet, .hud, .zoom-view, .peek-toggle, .peek-shield')) {
       const a = el && !el.hasAttribute('disabled') ? el.dataset.act ?? '' : '';
       if (a !== 'play' && a !== 'cancel' && a !== 'attack-start' && !a.startsWith('choose-')) {
         this.pending = null;
@@ -2781,12 +2665,9 @@ export class App {
       case 'auth-google':
       case 'auth-apple':
         return this.socialSignIn(act === 'auth-apple' ? 'apple' : 'google');
-      case 'signin-avatar':
-        this.signinAvatar = Number(arg);
-        return this.render();
       case 'signin-go':
-        signIn(this.signinName ?? profile().name, this.signinAvatar ?? profile().avatar);
-        this.signinName = this.signinAvatar = null;
+        signIn(this.signinName ?? profile().name);
+        this.signinName = null;
         this.seats[0].name = profile().name;
         if (this.inviteAfterSignIn) {
           const room = this.inviteAfterSignIn;
@@ -2921,9 +2802,6 @@ export class App {
         return this.startPlay(arg);
       case 'end-turn':
         return this.requestEndDay();
-      case 'dawn-confirm':
-        this.sheet = null;
-        return this.breakDawn(true);
       case 'end-day-confirm':
         this.sheet = null;
         return this.dispatch({ type: 'endTurn' });
@@ -2951,11 +2829,6 @@ export class App {
       case 'choose-enemy':
         if (this.pending) this.pending.enemyUid = arg;
         return this.advancePlay();
-      case 'aim-start':
-        // At your dawn, one of your cards with dawn heat: choose where its heat goes this dawn.
-        if (!this.dawnTurn()) return;
-        this.pending = { uid: arg, step: 'aim', dawn: true };
-        return this.render();
       case 'attack-start': {
         this.heroPanel = null;
         // On your day, a card of yours with attack that has not acted yet: choose what it attacks.
@@ -2963,32 +2836,20 @@ export class App {
           this.pending = null;
           return this.render();
         }
-        const why = attackProblem(this.state!, this.viewer(), arg, null);
-        if (why && !why.startsWith('Your rival has a Guard')) return this.showToast(why, 'info');
+        const why = attackProblem(this.state!, this.viewer(), arg);
+        if (why) return this.showToast(why, 'info');
         this.pending = { uid: arg, step: 'aim', attack: true };
         sound.hover();
         return this.render();
       }
       case 'choose-aim': {
         const pend = this.pending;
-        if (!pend) return;
-        if (pend.attack) {
-          this.pending = null;
-          const target = arg === 'sun' ? null : arg;
-          const why = attackProblem(this.state!, this.viewer(), pend.uid, target);
-          if (why) return this.showToast(why, 'info');
-          return this.dispatch({ type: 'attack', attackerUid: pend.uid, targetUid: target });
-        }
-        if (pend.dawn) {
-          // Its dawn resolves now: what it brings down no longer stands in the way of the next.
-          this.pending = null;
-          return this.dispatch({ type: 'dawnStep', uid: pend.uid, aim: arg === 'sun' ? null : arg });
-        }
-        pend.aimUid = arg;
-        return this.advancePlay();
+        if (!pend?.attack) return;
+        this.pending = null;
+        const why = attackProblem(this.state!, this.viewer(), pend.uid, arg);
+        if (why) return this.showToast(why, 'info');
+        return this.dispatch({ type: 'attack', attackerUid: pend.uid, targetUid: arg });
       }
-      case 'dawn-go':
-        return this.breakDawn();
       case 'choose-ally':
         if (this.pending) this.pending.allyUid = arg;
         return this.advancePlay();
@@ -3081,7 +2942,6 @@ export class App {
     frameTableaus(this.root);
     placeResult(this.root);
     this.keepLeaving();
-    this.syncDawnBeams();
     if (!this.press?.shown) this.preview.classList.remove('show');
   }
 
@@ -3213,12 +3073,12 @@ export class App {
       </div>`;
   }
 
-  /** Who you are, top right: your emblem, name, level and currencies. Tap it for your whole profile. */
+  /** Who you are, top right: your picture, name, level and currencies. Tap it for your whole profile. */
   private playerChip(): string {
     const p = profile();
     return `
       <button class="player-chip" data-act="profile-open" title="Your profile">
-        ${factionAvatar(`f${p.avatar + 1}`, 'pc-avatar')}
+        ${playerAvatar(account()?.avatar, 'pc-avatar')}
         <span class="pc-who"><b>${esc(p.name || 'Commander')}</b><small>level ${p.level}</small></span>
         <span class="pc-cur"><span class="pf-dust">✦ ${p.stardust}</span><span class="pf-flux">⟁ ${p.flux}</span></span>
       </button>`;
@@ -3234,7 +3094,7 @@ export class App {
       <div class="overlay overlay-soft" data-act="profile-close">
         <div class="modal sheet profile-view">
           <div class="pv-head">
-            ${factionAvatar(`f${p.avatar + 1}`, 'pv-avatar')}
+            ${playerAvatar(account()?.avatar, 'pv-avatar')}
             <div class="pv-who"><h2>${esc(p.name || 'Commander')}</h2><small>${p.won} won of ${p.played} played</small></div>
             <button class="pill-btn pv-close" data-act="profile-close">close</button>
           </div>
@@ -3245,7 +3105,7 @@ export class App {
             <div class="pv-box" title="${r ? `${r.points} / ${PROGRESSION.stagePoints} to the next stage` : 'Play ranked online'}"><small>rank</small><b>${rank === null ? 'unranked' : esc(rankName(rank).toLowerCase())}</b>${r ? `<span class="pf-xp"><i style="width:${r.points}%"></i></span>` : ''}</div>
           </div>
           ${this.accountRow()}
-          <div class="pv-foot"><button class="link-btn" data-act="profile-rename">change name or emblem</button><button class="link-btn" data-act="profile-logout">sign out</button></div>
+          <div class="pv-foot"><button class="link-btn" data-act="profile-rename">change name</button><button class="link-btn" data-act="profile-logout">sign out</button></div>
         </div>
       </div>`;
   }
@@ -3394,7 +3254,8 @@ export class App {
 
   /**
    * Signing in: to your account (email and password, or Apple or Google), creating one (agreeing to the
-   * Terms and the Privacy Policy), or a new password; then the name and emblem you go by.
+   * Terms and the Privacy Policy), or a new password; then the name you go by (beside the picture the
+   * account was dealt).
    */
   private renderSignIn(): string {
     const p = profile();
@@ -3404,9 +3265,9 @@ export class App {
       ${back}
       <div class="signin">
         ${this.titleBlock(true)}
+        ${playerAvatar(account()?.avatar, 'signin-avatar')}
         <h2 class="menu-heading">your name</h2>
         <input class="signin-name" data-signin-name value="${esc(this.signinName ?? p.name)}" maxlength="18" placeholder="your name" aria-label="Your name" />
-        <div class="signin-emblems">${RACE_NAMES.map((_, r) => `<button class="db-race ${(this.signinAvatar ?? p.avatar) === r ? 'on' : ''}" data-act="signin-avatar" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
         <button class="btn-primary" data-act="signin-go">continue</button>
       </div>`;
     }
@@ -3706,10 +3567,11 @@ export class App {
         () => `<ol class="rule-steps">
           ${step('Dawn', `Your shields fade. The planets move on a notch. Draw ${B.drawPerTurn}.`)}
           ${step('The table', 'Regional instability strikes, then the global card in play.')}
-          ${step('Your cards', `Every card in your tableau fires its ${kw('dawn')} effect, left to right.`)}
+          ${step('Your cards', `Every card in your tableau fires its ${kw('dawn')} effect, left to right: heat strikes your rival's sun.`)}
           ${step('Fade', 'Every card loses 1 ◷ stability. At 0 it goes to your discard pile.')}
           ${step('Play', `Spend your energy on cards: 1 on your first day, 2 on your second, then <b>${B.maxPlays}</b> a day (more with bonuses). Each card goes into a slot you choose.`)}
-          ${step('End', "End your day. Your rival's begins.")}
+          ${step('Attack', 'Each ready card with attack may strike one rival card, once a day.')}
+          ${step('Dusk', `End your day: every ${kw('dusk')} effect fires, cooling your sun. Your rival's day begins.`)}
         </ol>`,
       ],
       tableau: [
@@ -3717,7 +3579,7 @@ export class App {
         () =>
           facts(
             fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
-            fact('Defence', `Heat aimed at a card wears its defence first, and the wear lasts: it mends 1 a day (more with ${kw('sturdy', '1')} or ${kw('repair', '1')}), and stays in the slot if the card leaves. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
+            fact('Defence', `An attack wears a card's defence first, and the wear lasts: it mends 1 a day (more with ${kw('sturdy', '1')} or ${kw('repair', '1')}), and stays in the slot if the card leaves. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
             fact('No replacing', 'A full tableau takes nothing new until a card fades or leaves. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
@@ -3728,9 +3590,10 @@ export class App {
         'Sun & Orbit',
         () =>
           facts(
-            fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”."),
-            fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun.'),
-            fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat aimed at your sun (not at your cards). They fade at your Dawn.'),
+            fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun (never their cards), unless the card says “to your sun”. Passive heat comes at dawn."),
+            fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun. Passive cooling comes at dusk.'),
+            fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
+            fact('Attacks', "A card's attack strikes a rival card, never a sun; the card hits back."),
             fact('Energy', `Cards cost energy (the green gem). You get 1 on your first day, 2 on your second, then ${B.maxPlays} a day. The industrial planet and energy cards add more on top.`),
             fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),
             fact('The planets', `Dead: nothing. Abundant: draw +${B.abundantDraw}. Industrial: play +${B.industrialPlays}.`),
@@ -3741,7 +3604,7 @@ export class App {
         'Card Types',
         () =>
           facts(
-            kind('attack', 'Attack', `Heat your rival's sun.`),
+            kind('attack', 'Attack', `Heat your rival's sun, and attack their cards.`),
             kind('defence', 'Defence', 'Cool your sun, raise shields, guard your tableau.'),
             kind('growth', 'Growth', 'Draw, recover, grow and play more.'),
             kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. Pick a dawn effect as you play one; it stays ${B.stabilityCommand} days, and never returns to your hand.`),
@@ -3873,13 +3736,10 @@ export class App {
     const hint = (text: string, cancel = true) => `<div class="mid-hint"><b>${text}</b>${cancel ? '<button class="mid-cancel" data-act="cancel">cancel</button>' : ''}</div>`;
     // Online, while your rival reads the card you just played.
     if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
-    // Your dawn: aim each card's dawn heat (the button lets it break).
-    if (!p && this.dawnTurn()) return hint('assign heat', false);
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
-    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.dawn || p.attack ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
+    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
-    if (p.step === 'aim' && p.attack) return hint(aimChoices(s, activePlayer(s)).sun ? `attack with ${esc(cardDef(card.defId).name.toLowerCase())}` : 'attack a guard');
-    if (p.step === 'aim') return hint(aimChoices(s, activePlayer(s)).sun ? 'aim heat' : 'aim at a guard');
+    if (p.step === 'aim' && p.attack) return hint(guards(targetOf(s, activePlayer(s))!).length ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
@@ -3943,52 +3803,21 @@ export class App {
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
     const pend = this.pending;
     const choosingSlot = side === 'mine' && pend?.step === 'slot';
-    // The heat rival cards have aimed at each of this player's cards (for its next dawn), and which of this
-    // player's own cards are aimed at a rival card rather than a sun.
     const st = this.state!;
-    // At the viewer's dawn, as they aim it: where each card's dawn heat is going, and (while one card is
-    // being aimed) what its heat would leave of each rival card it could hit.
+    // While an attack is aimed: what it would leave of each rival card it could hit.
     const preview = new Map<string, { defence: number; stability: number }>();
-    // What the heat already aimed will leave each targeted card: shown on the card all the while it is aimed.
-    const settled = new Map<string, { defence: number; stability: number }>();
-    // What heat is aimed at (your dawn's, or a staged card's): rings round those cards' edges, and round the sun
-    // when a card was aimed at it on purpose (not by default).
+    // What a staged card is aimed at: a ring round that card's edge.
     const targeted = new Set<string>();
-    let sunTargeted = false;
     if (this.stage?.confirm && this.stage.target) targeted.add(this.stage.target);
-    if (this.dawnTurn()) {
-      const o = activePlayer(st);
-      const aims = this.draftAims(st, o);
-      if (o.id !== p.id) {
-        for (const t of Object.values(aims)) if (t) targeted.add(t);
-        // The sun is ringed only when a card was aimed at it on purpose.
-        const chosen = this.dawnAims();
-        sunTargeted = Object.keys(chosen).some((uid) => chosen[uid] === null && uid in aims && aims[uid] === null);
-      }
-      if (o.id !== p.id) {
-        const now = previewDawnHeat(st, o, aims);
-        for (const c of p.tableau) {
-          if (!Object.values(aims).includes(c.uid) && !now.cards[c.uid]?.heat) continue;
-          if (now.cards[c.uid]) settled.set(c.uid, now.cards[c.uid]);
-        }
-        if (pend?.dawn && pend.step === 'aim') {
-          for (const c of aimChoices(st, o).cards) {
-            const v = previewDawnHeat(st, o, { ...aims, [pend.uid]: c.uid }).cards[c.uid];
-            if (v) preview.set(c.uid, v);
-          }
-        }
-      }
-    }
-    // A card being played, once placed: what its heat would leave of each rival card it could hit, worked
-    // out by playing it on a copy of the game (so its slot's forge and resonance count). (Face-down
-    // Lightspeed cards are left out of the copy: the preview must not give them away.)
-    if (pend && !pend.dawn && pend.step === 'aim' && side === 'rival') {
+    // An attack being aimed: what it would leave of each rival card it could hit, worked out by making it on a
+    // copy of the game. (Face-down Lightspeed cards are left out of the copy: the preview must not give them away.)
+    if (pend?.attack && pend.step === 'aim' && side === 'rival') {
       const me = activePlayer(st);
-      for (const c of aimChoices(st, me).cards) {
+      for (const c of attackTargets(st, me)) {
         try {
           const g = structuredClone(st);
           for (const pl of g.players) if (pl.id !== me.id) pl.lightspeed = null;
-          const after = applyAction(g, { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, aimUid: c.uid, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) });
+          const after = applyAction(g, { type: 'attack', attackerUid: pend.uid, targetUid: c.uid });
           const owner = after.players.find((x) => x.id === p.id)!;
           const left = owner.tableau.find((x) => x.uid === c.uid);
           preview.set(c.uid, left ? { defence: cardDefence(owner, left), stability: left.stability ?? 0 } : { defence: 0, stability: 0 });
@@ -3998,14 +3827,11 @@ export class App {
       }
     }
     // The card being played, once placed: shown standing in its slot (over the card it recalls, if it takes its place).
-    const placing = side === 'mine' && pend && !pend.dawn && pend.slot !== undefined && !pend.faceDown ? activePlayer(st).hand.find((h) => h.uid === pend.uid) : undefined;
+    const placing = side === 'mine' && pend && !pend.attack && pend.slot !== undefined && !pend.faceDown ? activePlayer(st).hand.find((h) => h.uid === pend.uid) : undefined;
     const ghostAt = (i: number) =>
       placing && pend!.slot === i
         ? this.renderCard({ ...placing, slot: i, stability: baseStability(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
         : null;
-    const viewer = this.state ? activePlayer(this.state) : null;
-    const aimingDef = pend?.step === 'aim' && viewer ? (pend.dawn || pend.attack ? viewer.tableau : viewer.hand).find((h) => h.uid === pend.uid)?.defId : undefined;
-    const sunAim = side === 'rival' && !!aimingDef && !!viewer && aimChoices(this.state!, viewer).sun;
     // The Command slot: the one Command card leads the tableau from out in front (top right of yours,
     // bottom left of your rival's: a mirror across the board), lying landscape.
     const cmd = commandCard(p);
@@ -4016,7 +3842,7 @@ export class App {
       const c = p.tableau.find((x) => x.slot === i);
       const g = ghostAt(i);
       if (g) return g;
-      if (c) return this.renderCard(c, { tableau: side, owner: p, settled: settled.get(c.uid), preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
+      if (c) return this.renderCard(c, { tableau: side, owner: p, preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
       // A slot keeps the wear of the card that stood in it (mending 1 a day).
       const full = BALANCE.slotDefence[i];
       const wear = p.slotWear?.[i] ?? 0;
@@ -4034,12 +3860,12 @@ export class App {
         ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}"><span>⚡</span><small>lightspeed</small></button>`
         : '<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your day."><span>⚡</span><small>lightspeed</small></div>'
       : choosingSlot && pend && canSetFaceDown(p, activePlayer(st).hand.find((h) => h.uid === pend.uid)?.defId ?? '')
-        ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down at lightspeed, for 1 more energy: it springs into your tableau to take heat aimed at your cards"><span class="slot-def">⚡</span><i>face down +1</i></button>`
+        ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down at lightspeed, for 1 more energy"><span class="slot-def">⚡</span><i>face down +1</i></button>`
         : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''} ${sunTargeted && !sunAim ? 'vitals-targeted' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
@@ -4062,7 +3888,7 @@ export class App {
     const n = p.hand.length;
     const hand = `<div class="tpile-hand tpile-hand-${side}" title="${mine ? 'Cards in your hand' : `Cards in ${esc(p.name)}'s hand`}">${HAND_ICON}<span>hand</span><b>${n}</b></div>`;
     // Their name by their hand: above yours, below theirs (a mirror). It opens their summary.
-    const name = `<button class="tpile-name tpile-name-${side} ${this.shownDead(p) ? 'tpile-name-dead' : ''}" data-act="view-player" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(mine ? `${p.name} (you)` : p.name)}">${factionAvatar(`f${p.species + 1}`, 'tpile-emblem')}<span>${esc(p.name.toLowerCase())}</span>${p.lightspeed ? '<i class="ls-pip" title="A Lightspeed card is set face down">⚡</i>' : ''}</button>`;
+    const name = `<button class="tpile-name tpile-name-${side} ${this.shownDead(p) ? 'tpile-name-dead' : ''}" data-act="view-player" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(mine ? `${p.name} (you)` : p.name)}"><span>${esc(p.name.toLowerCase())}</span></button>`;
     return `<div class="tableau-piles">
       ${mine ? name + hand : hand + name}
       <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? 'Cards left in your deck (what they are, and their order, stay hidden)' : `Cards left in ${esc(p.name)}'s deck`}">${deck}</div>
@@ -4110,7 +3936,7 @@ export class App {
           <small>${myTurn ? 'energy' : 'waiting'}</small>
           <span class="plays-pips">${pips}</span>
         </div>
-        <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>${s.awaitingDawn && act ? 'dawn' : 'end day'}</button>
+        <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
       </div>`;
   }
 
@@ -4133,27 +3959,21 @@ export class App {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    const aimDef = p?.step === 'aim' && me ? (p.dawn || p.attack ? me.tableau : me.hand).find((h) => h.uid === p.uid)?.defId : undefined;
-    if (aimDef && me && opts.tableau === 'rival' && aimChoices(s!, me).cards.some((x) => x.uid === c.uid)) {
+    if (p?.attack && p.step === 'aim' && me && opts.tableau === 'rival' && attackTargets(s!, me).some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-aim" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    // At your dawn, your cards with dawn heat are aimed: click one, then its target.
-    if (!p && this.dawnTurn() && me && opts.tableau === 'mine' && opts.owner?.id === me.id && dawnAimable(c, me, s!) && !s!.dawnDone?.includes(c.uid)) {
-      attrs = `data-act="aim-start" data-arg="${c.uid}" title="Aim its dawn heat: click, then a rival card or their sun"`;
-      state = 'card-aimer';
-    }
     // On your day, your cards with attack that have not acted yet: click one, then what it attacks.
-    if ((!p || p.attack) && !this.dawnTurn() && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && !c.dimmed && cardAttack(s, me, c) > 0 && !isGameOver(s)) {
-      attrs = `data-act="attack-start" data-arg="${c.uid}" title="Attack: click, then a rival card or their sun"`;
+    if ((!p || p.attack) && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && !c.dimmed && cardAttack(s, me, c) > 0 && !isGameOver(s)) {
+      attrs = `data-act="attack-start" data-arg="${c.uid}" title="Attack: click, then a rival card"`;
       state = 'card-attacker';
     }
     // Your Hero, with something it can do today: a tap opens its actions (middle right).
-    if (!p && !this.dawnTurn() && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && def.kind === 'command' && c.slot === COMMAND_SLOT && this.heroActions(me).length) {
+    if (!p && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && def.kind === 'command' && c.slot === COMMAND_SLOT && this.heroActions(me).length) {
       attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Choose what ${esc(def.name)} does today (hold or right-click to read it)"`;
       state = 'card-attacker';
     }
-    if ((p?.dawn || p?.attack) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
+    if (p?.attack && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';
     // Placing a recall card: the card it recalls can make way for it.
     if (p && pendingDef && opts.tableau === 'mine' && p.step === 'slot' && p.allyUid === c.uid && allyEffectKind(pendingDef) === 'recall' && c.slot !== undefined) {
@@ -4171,8 +3991,6 @@ export class App {
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
     // On your day, a card that costs more energy than you have left is dimmed.
     if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
-    // While you assign your dawn's heat, your hand waits (greyed out).
-    if (opts.hand && this.dawnTurn()) state = 'card-pricey';
     // A stat as it stands; on a card heat is aimed at, as that heat will leave it (in red, all the while it is
     // aimed); and while aiming more heat, as that would leave it, shown on hover.
     const pv = (icon: string, n: number, settled?: number, hover?: number) => {
@@ -4198,7 +4016,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
@@ -4283,8 +4101,7 @@ export class App {
     const hero = commandCard(me);
     if (!hero || hero.dimmed) return [];
     const out: (number | 'attack')[] = (cardDef(hero.defId).abilities ?? []).map((_, i) => i).filter((i) => !heroAbilityProblem(s, me, i));
-    const { cards, sun } = aimChoices(s, me);
-    if (cardAttack(s, me, hero) > 0 && (sun || cards.length)) out.push('attack');
+    if (cardAttack(s, me, hero) > 0 && attackTargets(s, me).length) out.push('attack');
     return out;
   }
 
@@ -4301,7 +4118,7 @@ export class App {
         return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${esc(k.name)}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
       })
       .join('');
-    const attack = this.heroActions(me).includes('attack') ? `<button class="btn insp-ability" data-act="attack-start" data-arg="${hero.uid}"><b>Attack</b><small>${cardAttack(s, me, hero)} at a rival card or their sun</small></button>` : '';
+    const attack = this.heroActions(me).includes('attack') ? `<button class="btn insp-ability" data-act="attack-start" data-arg="${hero.uid}"><b>Attack</b><small>${cardAttack(s, me, hero)} at a rival card</small></button>` : '';
     // Just the choices, to play one quickly (hold or right-click the Hero to read it).
     return `
       <div class="stage stage-hero">
@@ -4330,7 +4147,7 @@ export class App {
     // and the Lightspeed card beside it on the left, the same size.
     if (st.against) {
       const trigger = s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays';
-      const how = { enemyPlays: 'in answer to this', heated: 'against its heat', targeted: 'against this', cardHeated: 'against its heat' }[trigger] ?? 'in answer to this';
+      const how = { enemyPlays: 'in answer to this', heated: 'against its heat', targeted: 'against this', cardAttacked: 'against its heat' }[trigger] ?? 'in answer to this';
       return `
       <div class="stage stage-sprung stage-pair">
         <div class="stage-ls"><span class="stage-ls-tag">⚡ lightspeed</span>${card}</div>
@@ -4397,14 +4214,6 @@ export class App {
       case 'rules':
         return this.sheetFrame('how to play', this.rulesHtml());
       case 'end-day': {
-        if (sh.dawn) {
-          const n = this.dawnLeft();
-          return this.sheetFrame(
-            'break dawn?',
-            `<p class="center-text">${n} card${n === 1 ? ' has' : 's have'} dawn heat still to aim: it will go at their sun (or their most worn Guard).</p>
-             <div class="end-day-actions"><button class="btn-primary" data-act="dawn-confirm">break dawn <small>⏎</small></button><button class="btn" data-act="cancel">keep aiming <small>esc</small></button></div>`,
-          );
-        }
         const left = this.leftUndone();
         return this.sheetFrame(
           'end your day?',

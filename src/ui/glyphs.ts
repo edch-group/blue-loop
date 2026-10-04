@@ -1,4 +1,4 @@
-import { BALANCE, baseStability, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseStability, cardDef, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -196,6 +196,17 @@ function sceneImage(def: CardDef): string {
   return img;
 }
 
+/** A player's picture: their card's artwork, cropped to a circle (a blank disc if there is no such card). */
+export function playerAvatar(cardId: string | undefined, cls = ''): string {
+  let def: CardDef | null = null;
+  try {
+    def = cardId ? cardDef(cardId) : null;
+  } catch {
+    def = null;
+  }
+  return `<span class="avatar ${cls}">${def ? sceneImage(def) : ''}</span>`;
+}
+
 /**
  * A card's picture as a single image rather than live SVG: for long lists of cards (the deck builder),
  * where hundreds of live pictures would make every redraw slow.
@@ -331,7 +342,7 @@ const SWORD = '<svg class="atk-icon" viewBox="0 0 16 16" aria-hidden="true"><pat
 
 /** A card's attack (bottom left, beside its stability): what it deals when it attacks, and what it hits back with. */
 export function attackBadge(n: number, dimmed = false): string {
-  const title = `Attack ${n}: once each of your days it can attack a rival card or their sun for ${n} heat (shields block it at a sun), then it is dimmed until your next day. A card it attacks hits back with its own attack and Sting.${dimmed ? ' Dimmed: it has acted today.' : ''}`;
+  const title = `Attack ${n}: once each of your days it can strike a rival card for ${n} (never a sun), then it is dimmed until your next day. A card it attacks hits back with its own attack and Sting.${dimmed ? ' Dimmed: it has acted today.' : ''}`;
   return `<b class="stat-atk${dimmed ? ' stat-atk-dim' : ''}" title="${title}">${SWORD}${n}</b>`;
 }
 

@@ -36,8 +36,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'nyx_veil_sentry', name: 'Veil Sentry', kind: 'defence', race: 4, sub: 'veilwalker', cost: 2,
-    text: '{guard}. {sting:2}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: springs into your tableau to take heat aimed at your cards.',
-    onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }], lightspeed: { trigger: { on: 'cardHeated' }, deploy: true },
+    text: '{guard}. {sting:2}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: springs into your tableau to take an attack on your cards.',
+    onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }], lightspeed: { trigger: { on: 'cardAttacked' }, deploy: true },
   },
   {
     id: 'nyx_gloom_warden', name: 'Gloom Warden', kind: 'defence', race: 4, sub: 'veilwalker', cost: 2, character: true,
@@ -123,8 +123,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_anvil_graft', name: 'Anvil Graft', kind: 'defence', race: 5, sub: 'forgeborn', cost: 2, fusion: true,
-    text: '{fusion}. {dawn}: {cool:1}. {shield:1}.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'shield', amount: 1 }],
+    text: '{fusion}. {dawn}: {shield:1}. {dusk}: {cool:1}.',
+    onTurn: [{ type: 'shield', amount: 1 }], onDusk: [{ type: 'cool', amount: 1 }],
   },
   {
     id: 'kor_forge_hammer', name: 'Forge Hammer', kind: 'attack', race: 5, sub: 'forgeborn', cost: 2,
@@ -169,8 +169,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_foundry', name: 'Deep Foundry', kind: 'growth', race: 5, cost: 2,
-    text: '{dawn}: {repair:2}. {cool:1}.',
-    onTurn: [{ type: 'repair', amount: 2 }, { type: 'cool', amount: 1 }],
+    text: '{dawn}: {repair:2}. {dusk}: {cool:1}.',
+    onTurn: [{ type: 'repair', amount: 2 }], onDusk: [{ type: 'cool', amount: 1 }],
   },
   {
     id: 'kor_molten_pour', name: 'Molten Pour', kind: 'attack', race: 5, cost: 1,
@@ -231,8 +231,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'ser_orrery_keeper', name: 'Orrery Keeper', kind: 'defence', race: 6, sub: 'seer', cost: 2, character: true,
-    text: '{dawn}: {cool:1}. {attune}.',
-    onTurn: [{ type: 'cool', amount: 1 }], attune: 1,
+    text: '{dusk}: {cool:1}. {attune}.',
+    onDusk: [{ type: 'cool', amount: 1 }], attune: 1,
   },
   {
     id: 'ser_stargazer', name: 'Stargazer', kind: 'attack', race: 6, sub: 'seer', cost: 2,
@@ -266,8 +266,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'ser_almanac', name: 'Celestial Almanac', kind: 'growth', race: 6, cost: 1,
-    text: '{dawn}: {cool:1}. While facing the abundant planet, draw 1.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1, if: { planet: 'abundant' } }],
+    text: '{dawn}: while facing the abundant planet, draw 1. {dusk}: {cool:1}.',
+    onTurn: [{ type: 'draw', amount: 1, if: { planet: 'abundant' } }], onDusk: [{ type: 'cool', amount: 1 }],
   },
   // Heroes
   hero(
@@ -302,13 +302,13 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'pyr_heat_bloom', name: 'Heat Bloom', kind: 'defence', race: 7, sub: 'cinderborn', cost: 2,
-    text: '{dawn}: {cool:1}. While {overheated}, {cool:+2} and {shield:1}.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 2, if: { overheated: true } }, { type: 'shield', amount: 1, if: { overheated: true } }],
+    text: '{dusk}: {cool:1}. While {overheated}, {cool:+2}. {dawn}: while {overheated}, {shield:1}.',
+    onTurn: [{ type: 'shield', amount: 1, if: { overheated: true } }], onDusk: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 2, if: { overheated: true } }],
   },
   {
     id: 'pyr_ember_guard', name: 'Ember Guard', kind: 'defence', race: 7, sub: 'cinderborn', cost: 2,
-    text: '{guard}. {sting:2}. {dawn}: {cool:2}.',
-    onTurn: [{ type: 'cool', amount: 2 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }],
+    text: '{guard}. {sting:2}. {dusk}: {cool:2}.',
+    onDusk: [{ type: 'cool', amount: 2 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }],
   },
   {
     id: 'pyr_magma_heart', name: 'Magma Heart', kind: 'growth', race: 7, sub: 'cinderborn', cost: 2, rarity: 'stellar',

@@ -153,7 +153,7 @@ export type Passive =
   | { type: 'guard'; amounts: number[] }
   /** Your cards next to this one lose no stability. */
   | { type: 'anchor' }
-  /** Guard: rival cards' heat can only be aimed at your Guard cards while you have one. */
+  /** Guard: rival cards can only attack your Guard cards while you have one. */
   | { type: 'taunt' }
   /** Your rivals' planets all count as the dead planet (no energy or cards from them) while this is in play. */
   | { type: 'eatPlanets' };
@@ -163,9 +163,9 @@ export type Passive =
  * - `enemyPlays`: an enemy plays a card (of a kind, if given), before it resolves;
  * - `heated`: an enemy's card is about to heat your sun (by at least `min`);
  * - `targeted`: an enemy is about to destroy or return one of your cards;
- * - `cardHeated`: an enemy's heat is about to strike one of your cards.
+ * - `cardAttacked`: an enemy card is about to attack one of your cards.
  */
-export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'heated'; /** Only heat of at least this much. */ min?: number } | { on: 'targeted' } | { on: 'cardHeated' };
+export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'heated'; /** Only heat of at least this much. */ min?: number } | { on: 'targeted' } | { on: 'cardAttacked' };
 
 export interface Lightspeed {
   trigger: LightspeedTrigger;
@@ -265,8 +265,6 @@ export interface CardInstance {
   choice?: string;
   /** The energy spent on it as it was played (cards that spend all your energy). */
   spent?: number;
-  /** Where its heat goes (as it is played, and at the dawn it was aimed for): a card in your rival's tableau (its uid), or your rival's sun (unset). */
-  aim?: string;
 }
 
 /** Battle modifiers from the campaign map (anomalies, garrisons). */
@@ -375,10 +373,6 @@ export interface GameState {
   keepPulses?: boolean;
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
-  /** The active player's dawn waits for them to aim their cards' dawn heat (a `dawn` action). */
-  awaitingDawn?: boolean;
-  /** At a dawn being aimed: the cards whose dawn effects have already resolved (one at a time, as each is aimed). */
-  dawnDone?: string[];
 }
 
 /** One dawn effect, as it happened: what fired it, where it went, and every sun just after. */
@@ -472,20 +466,14 @@ export type Action =
       allyUid?: string;
       /** Recover effects: the card in your discard pile to take back. */
       recoverUid?: string;
-      /** A card that heats as it is played: the rival card its heat goes to (unset: their sun). */
-      aimUid?: string;
     }
-  /** Your dawn: where each of your cards' dawn heat goes (card uid → rival card uid, or null for their sun; unset: the sun, or a Guard). */
-  | { type: 'dawn'; aims: Record<string, string | null> }
-  /** At your dawn: one card's dawn effects resolve now, its heat where you aim it (null: the rival's sun). */
-  | { type: 'dawnStep'; uid: string; aim: string | null }
   | { type: 'setTarget'; targetId: string }
   | { type: 'endTurn' }
   /** Use one of your hero's battle skills (campaign), on your own day. */
   | { type: 'heroSkill'; index: number }
   /** Use one of the abilities of the Hero leading from your Hero slot (one a day). */
   | { type: 'heroAbility'; index: number }
-  /** One of your cards attacks: the rival's sun (target null) or one of their cards. */
-  | { type: 'attack'; attackerUid: string; targetUid: string | null }
+  /** One of your cards attacks one of your rival's cards. */
+  | { type: 'attack'; attackerUid: string; targetUid: string }
   /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string };

@@ -11,12 +11,12 @@ export const FUSION_CARDS: CardDef[] = [
   { id: 'thermal_graft', name: 'Thermal Graft', kind: 'attack', fusion: true, stability: 1, text: '{fusion}. {dawn}: {heat:1}.', onTurn: [{ type: 'heat', amount: 1, to: 'target' }] },
   { id: 'shield_lattice', name: 'Shield Lattice', kind: 'defence', fusion: true, stability: 2, text: '{fusion}. {dawn}: {shield:1}.', onTurn: [{ type: 'shield', amount: 1 }] },
   { id: 'reinforced_plating', name: 'Reinforced Plating', kind: 'defence', fusion: true, stability: 2, defence: 2, text: '{fusion}. {sturdy:2}.' },
-  { id: 'coolant_shunt', name: 'Coolant Shunt', kind: 'defence', fusion: true, stability: 2, text: '{fusion}. {dawn}: {cool:1}.', onTurn: [{ type: 'cool', amount: 1 }] },
+  { id: 'coolant_shunt', name: 'Coolant Shunt', kind: 'defence', fusion: true, stability: 2, text: '{fusion}. {dusk}: {cool:1}.', onDusk: [{ type: 'cool', amount: 1 }] },
   { id: 'data_splice', name: 'Data Splice', kind: 'growth', fusion: true, stability: 2, text: '{fusion}. Draw 1.', onPlay: [{ type: 'draw', amount: 1 }] },
   // ---- Aureline ----
   { id: 'sunforged_lens', name: 'Sunforged Lens', kind: 'attack', race: 0, fusion: true, stability: 1, text: '{fusion}. {dawn}: {heat:2}.', onTurn: [{ type: 'heat', amount: 2, to: 'target' }] },
   // ---- Xel'Naru ----
-  { id: 'shard_splice', name: 'Shard Splice', kind: 'attack', race: 1, fusion: true, stability: 1, text: '{fusion}. {dawn}: {heat:1}, {cool:1}.', onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'cool', amount: 1 }] },
+  { id: 'shard_splice', name: 'Shard Splice', kind: 'attack', race: 1, fusion: true, stability: 1, text: '{fusion}. {dawn}: {heat:1}. {dusk}: {cool:1}.', onTurn: [{ type: 'heat', amount: 1, to: 'target' }], onDusk: [{ type: 'cool', amount: 1 }] },
   // ---- Vorthane ----
   { id: 'tidal_graft', name: 'Tidal Graft', kind: 'defence', race: 2, fusion: true, stability: 2, text: '{fusion}. {dawn}: {shield:2}.', onTurn: [{ type: 'shield', amount: 2 }] },
   { id: 'barnacle_shell', name: 'Barnacle Shell', kind: 'defence', race: 2, fusion: true, stability: 2, defence: 1, text: '{fusion}. {sturdy:1}. {dawn}: {repair:1}.', onTurn: [{ type: 'repair', amount: 1 }] },
@@ -38,9 +38,9 @@ export const FUSION_CARDS: CardDef[] = [
     race: 3,
     fusion: true,
     stability: 2,
-    text: '{fusion}. It grows now. {dawn}: {grows:3}, then {cool} equal to its growth.',
+    text: '{fusion}. It grows now. {dawn}: {grows:3}. {dusk}: {cool} equal to its growth.',
     onPlay: [{ type: 'grow', max: 3 }],
-    onTurn: [{ type: 'grow', max: 3 }, { type: 'cool', amount: 0, plus: { of: 'growth' } }],
+    onTurn: [{ type: 'grow', max: 3 }], onDusk: [{ type: 'cool', amount: 0, plus: { of: 'growth' } }],
   },
   {
     id: 'thorn_graft',
@@ -61,8 +61,8 @@ export const FUSION_CARDS: CardDef[] = [
     kind: 'growth',
     race: 3,
     stability: 4,
-    text: '{dawn}: {grows:4}, then {cool} equal to its growth. {catalyst}.',
-    onTurn: [{ type: 'grow', max: 4 }, { type: 'cool', amount: 0, plus: { of: 'growth' } }],
+    text: '{dawn}: {grows:4}. {dusk}: {cool} equal to its growth. {catalyst}.',
+    onTurn: [{ type: 'grow', max: 4 }], onDusk: [{ type: 'cool', amount: 0, plus: { of: 'growth' } }],
     passive: [{ type: 'catalyst' }],
   },
   { id: 'seed_burst', name: 'Seed Burst', kind: 'growth', race: 3, text: '{plant:2}. Draw 1.', onPlay: [{ type: 'plant', amount: 2 }, { type: 'draw', amount: 1 }] },

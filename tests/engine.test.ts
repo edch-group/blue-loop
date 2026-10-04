@@ -32,11 +32,8 @@ function play(s: GameState, defId: string, extra: Record<string, string | number
   return applyAction(s, { type: 'playCard', cardUid: card.uid, ...extra });
 }
 
-// Ends the day; the next dawn breaks with its heat aimed by default (the sun, or a Guard).
-const endTurn = (s: GameState) => {
-  const next = applyAction(s, { type: 'endTurn' });
-  return next.awaitingDawn ? applyAction(next, { type: 'dawn', aims: {} }) : next;
-};
+// Ends the day (the next day's dawn plays out by itself).
+const endTurn = (s: GameState) => applyAction(s, { type: 'endTurn' });
 
 describe('content', () => {
   it('has unique card ids, and every card has rules text', () => {
@@ -351,7 +348,7 @@ describe('recall', () => {
 });
 
 describe('attacks and dimming', () => {
-  it("lets a card attack once a day: it comes in dimmed, attacks the sun or a card, dims, and is hit back", () => {
+  it("lets a card attack once a day: it comes in dimmed, attacks a card, dims, and is hit back", () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     me.playsLeft = 5;
@@ -359,16 +356,14 @@ describe('attacks and dimming', () => {
     s = play(s, 'siege_array');
     const array = () => s.players[0].tableau.find((c) => c.defId === 'siege_array')!;
     expect(cardDef('siege_array').attack).toBeGreaterThan(0);
-    expect(attackProblem(s, activePlayer(s), array().uid, null)).toMatch(/dimmed/);
+    expect(attackProblem(s, activePlayer(s), array().uid)).toMatch(/dimmed/);
     s = endTurn(endTurn(s));
     array().stability = 6;
-    // At the sun: its attack lands as heat, past shields.
-    s.players[1].shields = 0;
-    const before = s.players[1].heat;
-    s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: null });
-    expect(s.players[1].heat).toBe(before + cardAttack(s, s.players[0], array()));
+    const [chart] = give(s.players[1], ['star_chart'], 'tableau');
+    chart.stability = 6;
+    s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: chart.uid });
     expect(array().dimmed).toBe(true);
-    expect(() => applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: null })).toThrow(/dimmed/);
+    expect(() => applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: chart.uid })).toThrow(/dimmed/);
     // Next day, at a card with an attack of its own: that card hits back, at the attacker's stability.
     s = endTurn(endTurn(s));
     const [lancer] = give(s.players[1], ['helio_lancer'], 'tableau');
@@ -474,8 +469,8 @@ describe('synergies', () => {
     const [lancer] = give(ada, ['helio_lancer'], 'tableau');
     lancer.stability = 2;
     const [veil] = give(s.players[1], ['stinging_veil'], 'tableau');
-    // The Veil is a Guard: the sun can't be attacked past it.
-    expect(attackProblem(s, ada, lancer.uid, null)).toMatch(/Guard/);
+    // The Veil is a Guard: nothing behind it can be attacked.
+    expect(attackProblem(s, ada, lancer.uid, 'elsewhere')).toMatch(/Guard/);
     s = applyAction(s, { type: 'attack', attackerUid: lancer.uid, targetUid: veil.uid });
     // Sting 3 hits back: the Lancer (stability 2) burns away.
     expect(s.players[0].tableau.some((c) => c.uid === lancer.uid)).toBe(false);
@@ -483,7 +478,7 @@ describe('synergies', () => {
 });
 
 describe('Lightspeed guards', () => {
-  it('can be set face down for 1 more energy, and spring in front of a card heat is aimed at', () => {
+  it('can be set face down for 1 more energy, and spring in front of a card attacked', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     const rival = s.players.find((p) => p.id !== me.id)!;
@@ -501,20 +496,19 @@ describe('Lightspeed guards', () => {
     expect(r.lightspeed?.defId).toBe('blink_bulwark');
     expect(r.playsLeft).toBe(0);
     expect(r.tableau.some((c) => c.defId === 'blink_bulwark')).toBe(false);
-    // My Coronal Lance, aimed at their Star Chart: the Bulwark springs into their tableau and takes the heat.
+    // My Siege Array attacks their Star Chart: the Bulwark springs into their tableau and takes the attack.
     s.activePlayerIndex = s.players.indexOf(s.players.find((p) => p.id === me.id)!);
-    const m = activePlayer(s);
-    m.playsLeft = 3;
-    give(m, ['coronal_lance']);
-    s = play(s, 'coronal_lance', { aimUid: lancerTarget.uid });
+    const [array] = give(activePlayer(s), ['siege_array'], 'tableau');
+    array.stability = 6;
+    s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: lancerTarget.uid });
     const after = s.players.find((p) => p.id === rival.id)!;
     expect(after.lightspeed).toBeNull();
     const guard = after.tableau.find((c) => c.defId === 'blink_bulwark');
     expect(guard).toBeDefined();
     expect(after.tableau.find((c) => c.uid === lancerTarget.uid)?.stability).toBe(5);
-    // 3 heat: its defence (slot and sturdy) turns some aside, the rest wears its stability.
+    // Its defence (slot and sturdy) takes the blow first.
     expect(guard!.dented ?? 0).toBeGreaterThan(0);
-    expect(s.sprung?.some((x) => x.trigger === 'cardHeated' && x.defId === 'blink_bulwark')).toBe(true);
+    expect(s.sprung?.some((x) => x.trigger === 'cardAttacked' && x.defId === 'blink_bulwark')).toBe(true);
   });
 });
 
@@ -1055,155 +1049,97 @@ describe('regional instability', () => {
   });
 });
 
-describe('aiming heat', () => {
-  /** Ada with two dawn attackers; Bo with two Tide Pylons (slot 0: defence 1, slot 1: defence 2). Returns the state at Ada's next dawn. */
-  function atAdasDawn() {
-    let s = twoPlayer();
+describe('attacks and heat', () => {
+  /** Ada with a ready Siege Array; Bo with two Coolant Arrays (slot 0: defence 1, slot 1: defence 2). */
+  function setUp() {
+    const s = twoPlayer();
     const [ada, bo] = s.players;
-    const [lancer, reactor] = give(ada, ['helio_lancer', 'shard_reactor'], 'tableau');
-    // (Long-lived, so nothing fades at this dawn: a Xel'Naru card fading would Shatter.)
-    lancer.stability = reactor.stability = 6;
+    const [array, lancer] = give(ada, ['siege_array', 'helio_lancer'], 'tableau');
+    array.stability = lancer.stability = 6;
     const [a, b] = give(bo, ['coolant_array', 'coolant_array'], 'tableau');
-    s = applyAction(s, { type: 'endTurn' }); // Bo's day: nothing to aim.
-    expect(s.awaitingDawn).toBeFalsy();
-    s = applyAction(s, { type: 'endTurn' }); // Ada's dawn waits for her to aim.
-    return { s, lancer, reactor, a, b };
-  }
-
-  it("waits at dawn for the player to aim each card's dawn heat, and nothing else can happen until they do", () => {
-    const { s, lancer } = atAdasDawn();
-    expect(s.awaitingDawn).toBe(true);
-    expect(() => applyAction(s, { type: 'endTurn' })).toThrow(GameError);
-    const ada = activePlayer(s);
-    give(ada, ['coronal_lance']);
-    expect(() => play(s, 'coronal_lance')).toThrow(GameError);
-    // Only your own cards with dawn heat can be aimed, and only at rival cards (or their sun).
-    expect(() => applyAction(s, { type: 'dawn', aims: { [lancer.uid]: lancer.uid } })).toThrow(GameError);
-  });
-
-  it('resolves each dawn card as it is aimed: a Guard it brings down no longer holds the next', () => {
-    let s = twoPlayer();
-    const [ada, bo] = s.players;
-    const [l1, l2] = give(ada, ['helio_lancer', 'helio_lancer'], 'tableau');
-    l1.stability = l2.stability = 6;
-    const [weak, wall] = give(bo, ['stinging_veil', 'kor_shieldwall'], 'tableau');
-    // (It loses 1 at its own dawn first, and stands at 1 when Ada's dawn comes.)
-    weak.stability = 2;
-    weak.slot = 0;
-    l1.dimmed = l2.dimmed = true;
-    s = applyAction(applyAction(s, { type: 'endTurn' }), { type: 'endTurn' });
-    expect(s.awaitingDawn).toBe(true);
-    // Dawn has broken: the cards are ready again while their heat waits to be aimed.
-    expect(activePlayer(s).tableau.some((c) => c.dimmed)).toBe(false);
-    // While a Guard stands, the sun is not a choice.
-    expect(() => applyAction(s, { type: 'dawnStep', uid: l1.uid, aim: null })).toThrow(GameError);
-    s = applyAction(s, { type: 'dawnStep', uid: l1.uid, aim: weak.uid });
-    // The weak Guard burned away at once; one Guard is left, so the rest of the dawn plays out by itself, at it.
-    expect(s.players[1].tableau.some((c) => c.uid === weak.uid)).toBe(false);
-    expect(s.awaitingDawn).toBeFalsy();
-    expect(s.players[1].tableau.find((c) => c.uid === wall.uid)!.dented ?? 0).toBeGreaterThan(0);
-    expect(activePlayer(s).playsLeft).toBeGreaterThan(0);
-  });
-
-  it("wears a card's stability by the heat less its defence, and pierce ignores defence", () => {
-    const { s, lancer, reactor, a, b } = atAdasDawn();
-    const bo = s.players[1];
+    a.stability = b.stability = 6;
     bo.shields = 0;
-    const heatBefore = bo.heat;
-    const stab = (st: GameState, uid: string) => st.players[1].tableau.find((c) => c.uid === uid)?.stability ?? 0;
+    return { s, array, lancer, a, b };
+  }
+  const stab = (st: GameState, uid: string) => st.players[1].tableau.find((c) => c.uid === uid)?.stability ?? 0;
+
+  it("strikes the rival's sun with every heat, never their cards: dawn heat and heat as a card is played", () => {
+    let { s, a, b } = setUp();
     const [sa, sb] = [stab(s, a.uid), stab(s, b.uid)];
-    expect(cardDefence(bo, bo.tableau.find((c) => c.uid === a.uid)!)).toBe(1);
-    expect(cardDefence(bo, bo.tableau.find((c) => c.uid === b.uid)!)).toBe(2);
-    const next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: a.uid, [reactor.uid]: b.uid } });
-    expect(next.awaitingDawn).toBeFalsy();
-    expect(stab(next, a.uid)).toBe(sa - (2 - 1)); // Helio Lancer's 2 heat, less defence 1
-    expect(stab(next, b.uid)).toBe(sb - 1); // Shard Reactor's 1 pierce heat, all of it (defence 2 is no help)
-    expect(next.players[1].heat).toBe(heatBefore);
-    // Aims last for the dawn they were made for.
-    expect(activePlayer(next).tableau.every((c) => c.aim === undefined)).toBe(true);
+    // A rival Guard doesn't draw heat in either.
+    give(s.players[1], ['stinging_veil'], 'tableau');
+    s = applyAction(applyAction(s, { type: 'endTurn' }), { type: 'endTurn' });
+    // (Bo's own dawn wore them 1, as every card fades.)
+    expect(stab(s, a.uid)).toBe(sa - 1);
+    expect(stab(s, b.uid)).toBe(sb - 1);
+    s.players[1].shields = 0;
+    const heat = s.players[1].heat;
+    activePlayer(s).playsLeft = 9;
+    give(activePlayer(s), ['coronal_lance']);
+    s = play(s, 'coronal_lance');
+    expect(s.players[1].heat).toBe(heat + 3);
+    expect(stab(s, a.uid)).toBe(sa - 1);
   });
 
-  it('wears defence down for good: more heat later gets through, and it mends only 1 a day', () => {
-    const { s, lancer, b } = atAdasDawn();
-    s.players[1].shields = 0;
-    const stab = (st: GameState) => st.players[1].tableau.find((c) => c.uid === b.uid)?.stability ?? 0;
-    const before = stab(s);
-    // Helio Lancer's 2 heat on defence 2: no stability lost, but the defence is worn down to 0.
-    let next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
-    const bo = () => next.players[1];
+  it("attacks only rival cards (never the sun), Guards first, wearing defence before stability", () => {
+    let { s, array, b } = setUp();
+    const ada = activePlayer(s);
+    expect(attackProblem(s, ada, array.uid)).toBeNull();
+    expect(attackProblem(s, ada, array.uid, 'sun')).toMatch(/Attack a card/);
+    const bo = s.players[1];
+    const card = () => s.players[1].tableau.find((c) => c.uid === b.uid)!;
+    const def = cardDefence(bo, card());
+    const att = cardAttack(s, ada, array);
+    const before = card().stability!;
+    const heat = bo.heat;
+    s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: b.uid });
+    expect(card().stability).toBe(before - Math.max(0, att - def));
+    expect(card().dented ?? 0).toBe(Math.min(att, def));
+    expect(s.players[1].heat).toBe(heat);
+    // A Guard: only it can be attacked.
+    const t = setUp();
+    const [veil] = give(t.s.players[1], ['stinging_veil'], 'tableau');
+    expect(attackProblem(t.s, activePlayer(t.s), t.array.uid, t.a.uid)).toMatch(/Guard/);
+    expect(attackProblem(t.s, activePlayer(t.s), t.array.uid, veil.uid)).toBeNull();
+  });
+
+  it('cannot attack when the rival has no cards in play', () => {
+    const s = twoPlayer();
+    const [array] = give(s.players[0], ['siege_array'], 'tableau');
+    expect(attackProblem(s, s.players[0], array.uid)).toMatch(/no cards/);
+  });
+
+  it("wears defence down for good (mending 1 a day), and leaves a destroyed card's wear in its slot", () => {
+    let { s, b } = setUp();
+    const bo = () => s.players[1];
     const card = () => bo().tableau.find((c) => c.uid === b.uid)!;
-    expect(stab(next)).toBe(before);
+    card().dented = 2;
     expect(cardDefence(bo(), card())).toBe(0);
-    // Bo's day (the next one) mends only 1 of it.
-    const bosDay = applyAction(next, { type: 'endTurn' });
-    expect(cardDefence(bosDay.players[1], bosDay.players[1].tableau.find((c) => c.uid === b.uid)!)).toBe(1);
-    // While today, a Coronal Lance now (3 heat) wears all 3 off its stability.
-    activePlayer(next).playsLeft = 9;
-    give(activePlayer(next), ['coronal_lance']);
-    next = play(next, 'coronal_lance', { aimUid: b.uid });
-    expect(stab(next)).toBe(Math.max(0, before - 3));
-  });
-
-  it("guards only the sun with shields: heat aimed at a card meets its defence", () => {
-    const { s, lancer, b } = atAdasDawn();
-    s.players[1].shields = 5;
-    const next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
-    // The Lancer's heat wore the card's defence, though Bo had shields up (they only took heat at the sun).
-    expect(next.log.some((l) => /Coolant Array takes 2 heat on its defence/.test(l.text))).toBe(true);
-    expect(cardDefence(next.players[1], next.players[1].tableau.find((c) => c.uid === b.uid)!)).toBe(0);
-  });
-
-  it("leaves a destroyed card's wear in its slot, mending 1 a day", () => {
-    const { s, lancer, b } = atAdasDawn();
-    s.players[1].shields = 0;
-    let next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
-    const slot = next.players[1].tableau.find((c) => c.uid === b.uid)!.slot!;
-    next.players[1].tableau.find((c) => c.uid === b.uid)!.stability = 1;
-    activePlayer(next).playsLeft = 9;
-    give(activePlayer(next), ['coronal_lance']);
-    next = play(next, 'coronal_lance', { aimUid: b.uid });
-    expect(next.players[1].tableau.some((c) => c.uid === b.uid)).toBe(false);
-    expect(next.players[1].slotWear?.[slot]).toBe(2);
-    const bosDay = applyAction(next, { type: 'endTurn' });
-    expect(bosDay.players[1].slotWear?.[slot]).toBe(1);
+    // Bo's day mends only 1 of it.
+    s = applyAction(s, { type: 'endTurn' });
+    expect(cardDefence(bo(), card())).toBe(1);
+    // Burned away by an attack: the wear stays in its slot, and mends 1 a day.
+    s = applyAction(s, { type: 'endTurn' });
+    const slot = card().slot!;
+    card().stability = 1;
+    const ada = activePlayer(s);
+    const array = ada.tableau.find((c) => c.defId === 'siege_array')!;
+    s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: b.uid });
+    expect(bo().tableau.some((c) => c.uid === b.uid)).toBe(false);
+    const wear = bo().slotWear?.[slot] ?? 0;
+    expect(wear).toBeGreaterThan(0);
+    s = applyAction(s, { type: 'endTurn' });
+    expect(bo().slotWear?.[slot] ?? 0).toBe(wear - 1);
   });
 
   it('mends Sturdy cards by their Sturdy as well, and Repair mends more', () => {
-    const { s, lancer, b } = atAdasDawn();
-    s.players[1].shields = 0;
+    let { s, b } = setUp();
     const [plating] = give(s.players[1], ['bulwark_plating'], 'tableau');
-    let next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
-    const worn = next.players[1].tableau.find((c) => c.uid === b.uid)!.dented ?? 0;
-    expect(worn).toBeGreaterThan(0);
+    s.players[1].tableau.find((c) => c.uid === b.uid)!.dented = 2;
     // Bo's day: 1 mends on its own, and Bulwark Plating's Repair 1 mends another.
-    next = applyAction(next, { type: 'endTurn' });
-    const after = next.players[1].tableau.find((c) => c.uid === b.uid)!.dented ?? 0;
-    expect(after).toBe(Math.max(0, worn - 2));
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players[1].tableau.find((c) => c.uid === b.uid)!.dented ?? 0).toBe(0);
     expect(plating).toBeTruthy();
-  });
-
-  it('turns all the heat aside when the defence is as high as the heat', () => {
-    const { s, lancer, b } = atAdasDawn();
-    s.players[1].shields = 0;
-    const before = s.players[1].tableau.find((c) => c.uid === b.uid)!.stability;
-    const next = applyAction(s, { type: 'dawn', aims: { [lancer.uid]: b.uid } });
-    expect(next.players[1].tableau.find((c) => c.uid === b.uid)!.stability).toBe(before);
-  });
-
-  it('asks where to aim only for heat a card deals as it is played', () => {
-    let { s } = atAdasDawn();
-    s = applyAction(s, { type: 'dawn', aims: {} });
-    const rivalCard = s.players[1].tableau[0];
-    activePlayer(s).playsLeft = 9;
-    give(activePlayer(s), ['helio_lancer', 'coronal_lance']);
-    // A card with only dawn heat is played without an aim (and keeps none).
-    s = play(s, 'helio_lancer');
-    expect(activePlayer(s).tableau.find((c) => c.defId === 'helio_lancer' && c.aim)).toBeUndefined();
-    // A card with heat as it is played may aim it at a rival card.
-    s.players[1].shields = 0;
-    const before = rivalCard.stability ?? 0;
-    s = play(s, 'coronal_lance', { aimUid: rivalCard.uid });
-    expect(s.players[1].tableau.find((c) => c.uid === rivalCard.uid)?.stability ?? 0).toBe(Math.max(0, before - (3 - 1)));
   });
 });
 
@@ -1304,7 +1240,6 @@ describe('saplings and growth', () => {
     // The Catalyst's dawn: it grows, and so do the other growing cards (the drone, and the grafted sapling).
     s = applyAction(s, { type: 'endTurn' });
     s = applyAction(s, { type: 'endTurn' });
-    if (s.awaitingDawn) s = applyAction(s, { type: 'dawn', aims: {} });
     const t = s.players[0].tableau;
     expect(t.find((c) => c.uid === cat.uid)!.growth).toBeGreaterThanOrEqual(1);
     // The drone grows by its own dawn and again with the Catalyst.

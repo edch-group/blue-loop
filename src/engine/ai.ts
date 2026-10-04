@@ -29,11 +29,9 @@ import {
   dawnEffects,
   duskEffects,
   turnForecast,
-  aimable,
   allyEffectKind,
   inSlots,
-  dawnAimable,
-  aimChoices,
+  attackTargets,
 } from './game';
 import type { Action, CardInstance, Effect, GameState, PlayerState } from './types';
 
@@ -56,8 +54,6 @@ const ACTION_VALUE = tuning('ACTION', 2.5);
 /** A dawn's +1 energy is worth a full energy with this many cards (beyond one) in hand to spend it on, less with fewer. */
 const ENERGY_HAND = tuning('EHAND', 4);
 
-/** How much a card burned away is worth against heat on the sun, when aiming. */
-const AIM_CARD = tuning('AIMCARD', 0.8);
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
 const INCOMING_WEIGHT = tuning('INCOMING', 0.8);
@@ -255,13 +251,8 @@ function evaluate(state: GameState, meId: string): number {
     }
   }
   // Count the heat already on its way: what each rival's tableau will do to this sun at their next dawn,
-  // past its shields (so a tableau stacked with attack cards is seen coming, and answered in time).
-  const incoming = state.players.reduce((sum, o) => {
-    if (o.id === meId || o.eliminated || targetOf(state, o)?.id !== meId) return sum;
-    // (And their cards' attacks, all ready again at their dawn: most of it is likely to come at this sun.)
-    const attacks = o.tableau.reduce((n, c) => n + cardAttack(state, o, c), 0);
-    return sum + turnForecast(state, o).heat + 0.7 * attacks;
-  }, 0);
+  // past its shields (so a tableau stacked with heat cards is seen coming, and answered in time).
+  const incoming = state.players.reduce((sum, o) => (o.id === meId || o.eliminated || targetOf(state, o)?.id !== meId ? sum : sum + turnForecast(state, o).heat), 0);
   const landing = Math.max(0, incoming - me.shields);
   const coming = landing * INCOMING_WEIGHT;
   const mine = Math.max(0, me.heat + coming) / supernovaThreshold(me);
@@ -291,10 +282,6 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     // Recovering: one of each card in the discard pile.
     const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);
     const allies = opt(allyChoices(me, card.defId).map((c) => c.uid));
-    // Heat can go to the rival's sun (unset) or any card it may aim at.
-    const aim = aimable(card.defId) ? aimChoices(state, me) : { sun: true, cards: [] };
-    const aims: (string | undefined)[] = [...(aim.sun ? [undefined] : []), ...aim.cards.map((c) => c.uid)];
-    if (!aims.length) aims.push(undefined);
     // A recall card may also take the slot of the card it recalls.
     const recalls = allyEffectKind(card.defId) === 'recall' && inSlots(card.defId);
     for (const choice of choices)
@@ -302,7 +289,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
         for (const allyUid of allies) {
           const back = recalls ? me.tableau.find((c) => c.uid === allyUid) : undefined;
           const here: (number | undefined)[] = back && back.slot !== undefined && !(slots as (number | undefined)[]).includes(back.slot) ? [...slots, back.slot] : slots;
-          for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) for (const hostUid of hosts) if (!hostUid || slot === here[0]) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid, ...(hostUid ? { hostUid } : {}) });
+          for (const slot of here) for (const recoverUid of recovers) for (const hostUid of hosts) if (!hostUid || slot === here[0]) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, ...(hostUid ? { hostUid } : {}) });
         }
   }
   return plays;
@@ -328,51 +315,6 @@ function bestTarget(state: GameState, me: PlayerState): PlayerState | undefined 
   return left;
 }
 
-/** Where each of your cards' dawn heat does most: a card it can burn away (and that is worth it), or the sun. */
-function dawnAims(state: GameState, me: PlayerState): Record<string, string | null> {
-  const aims: Record<string, string | null> = {};
-  const rival = targetOf(state, me);
-  if (!rival) return aims;
-  const danger = Math.max(0, rival.heat) / supernovaThreshold(rival);
-  const { cards, sun } = aimChoices(state, me);
-  // Heat already aimed at each card this dawn (a card burned away by one attacker needs no more), and
-  // the defence still standing on it (the first hit dents it for the rest of the day).
-  const planned = new Map<string, number>();
-  const guardLeft = new Map(cards.map((c) => [c.uid, cardDefence(rival, c)]));
-  // What burning a card away sets off against you: its own leave heat, and its owner's cards that answer a card leaving.
-  const payback = (c: CardInstance) =>
-    (cardDef(c.defId).onLeave ?? []).reduce((n, e) => n + (e.type === 'heat' ? e.amount : 0), 0) +
-    rival.tableau.reduce((n, o) => n + (o.uid === c.uid ? 0 : cardPassives(o).reduce((m, x) => m + (x.type === 'allyLeaves' ? x.effects.reduce((k, e) => k + (e.type === 'heat' ? e.amount : 0), 0) : 0), 0)), 0);
-  for (const card of me.tableau) {
-    if (!dawnAimable(card, me, state)) continue;
-    const heat = dawnEffects(card, me, state).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(me, e.if, state) ? effectAmount(state, me, card, e, 'turn') : 0), 0);
-    if (heat <= 0) continue;
-    // The sun counts for more the nearer it is to supernova; a card for what it is worth to its owner, if this burns it away.
-    let best: { uid: string | null; score: number } = { uid: null, score: sun ? heat * (1 + 3 * danger) : -Infinity };
-    const pierce = dawnEffects(card, me, state).some((e) => e.type === 'heat' && e.to === 'target' && e.pierce);
-    for (const c of cards) {
-      const left = (c.stability ?? 0) - (planned.get(c.uid) ?? 0);
-      if (left <= 0) continue;
-      // A card's defence takes that much heat first (not pierce heat).
-      const wears = pierce ? heat : heat - (guardLeft.get(c.uid) ?? 0);
-      if (wears <= 0) continue;
-      const kills = wears >= left;
-      const share = kills ? 1 : (wears / Math.max(1, left)) * 0.5;
-      const score = cardValue(state, rival, c) * share * AIM_CARD - (kills ? payback(c) * 1.2 : 0);
-      if (score > best.score) best = { uid: c.uid, score };
-    }
-    if (best.uid === null && !sun) continue;
-    aims[card.uid] = best.uid;
-    if (best.uid) {
-      const hit = cards.find((c) => c.uid === best.uid)!;
-      const stand = pierce ? 0 : guardLeft.get(hit.uid) ?? 0;
-      planned.set(best.uid, (planned.get(best.uid) ?? 0) + Math.max(0, heat - stand));
-      guardLeft.set(hit.uid, stand - Math.min(stand, heat));
-    }
-  }
-  return aims;
-}
-
 /**
  * Heuristic AI: returns the next action for the active player. It focuses the
  * rival nearest to supernova, then plays whichever card leaves it best off,
@@ -395,7 +337,6 @@ function aiSkill(state: GameState, me: PlayerState): number | null {
 
 export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
-  if (state.awaitingDawn) return { type: 'dawn', aims: dawnAims(state, me) };
   const focus = bestTarget(state, me);
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
   const skill = aiSkill(state, me);
@@ -403,13 +344,12 @@ export function chooseAIAction(state: GameState): Action {
   // Its Hero's abilities (one a day): weighed like any card it could play.
   const hero = commandCard(me);
   const abilities: Action[] = hero ? (cardDef(hero.defId).abilities ?? []).flatMap((_, index) => (heroAbilityProblem(state, me, index) === null ? [{ type: 'heroAbility' as const, index }] : [])) : [];
-  // Its cards' attacks (each ready card, at the sun or each card it may hit).
+  // Its cards' attacks (each ready card, at each rival card it may hit).
   const attacks: Action[] = [];
-  const targets = aimChoices(state, me);
+  const targets = attackTargets(state, me);
   for (const c of me.tableau) {
     if (c.dimmed || (cardDef(c.defId).attack ?? 0) <= 0) continue;
-    if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
-    for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
+    for (const t of targets) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
   if (!abilities.length && !attacks.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 

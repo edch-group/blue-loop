@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { AVATARS, isAvatar, randomAvatar } from '../server/avatars';
 import { hashPassword, normaliseEmail, passwordProblem, randomToken, sameHex, sessionToken, sha256 } from '../server/auth';
+import { cardDef } from '../src/engine';
+import { hasOwnArt } from '../src/ui/cardart';
 
 describe('accounts', () => {
   it('hashes a password the same way with the same salt, differently with another', async () => {
@@ -38,5 +41,19 @@ describe('accounts', () => {
     expect(sessionToken(new Request('https://x/api/me'))).toBeNull();
     // The database keeps only the token's hash.
     expect(await sha256(token)).not.toBe(token);
+  });
+
+  it('deals each account a picture: any pool card with art of its own, never a token', () => {
+    expect(AVATARS.length).toBeGreaterThan(50);
+    for (const id of AVATARS) {
+      expect(cardDef(id).token).toBeFalsy();
+      expect(hasOwnArt(id)).toBe(true);
+    }
+    expect(randomAvatar(() => 0)).toBe(AVATARS[0]);
+    expect(randomAvatar(() => 0.9999)).toBe(AVATARS[AVATARS.length - 1]);
+    for (let i = 0; i < 50; i++) expect(isAvatar(randomAvatar())).toBe(true);
+    // An account without one (or whose card has left the game) is dealt a new one.
+    expect(isAvatar(null)).toBe(false);
+    expect(isAvatar('no_such_card')).toBe(false);
   });
 });
