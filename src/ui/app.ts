@@ -2166,9 +2166,11 @@ export class App {
     // clicked to confirm (a misclicked card is never played outright).
     const recall = allyEffectKind(card.defId) === 'recall';
     if (recall && allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
-    if (cardDef(card.defId).fusion && !p.hostUid) return ask('host');
+    // A Fusion card is placed like any card, or fused onto a card in play: both are offered at once.
+    const fusion = !!cardDef(card.defId).fusion;
+    if (fusion && !p.hostUid && p.slot === undefined && (fusionHosts(me).length > 0 || freeSlots(me).length > 0)) return ask('slot');
     const replaces = recall && !!p.allyUid;
-    if (inSlots(card.defId) && (freeSlots(me).length > 0 || replaces) && p.slot === undefined) return ask('slot');
+    if (inSlots(card.defId) && !p.hostUid && (freeSlots(me).length > 0 || replaces) && p.slot === undefined) return ask('slot');
     // Then its abilities: an option, a rival card to remove, an ally, a card to recover, where its heat goes.
     if (cardChoices(card.defId).length > 0 && !p.choice) return ask('choice');
     if (enemyChoices(s, me, card.defId).length > 0 && !p.enemyUid) {
@@ -3643,7 +3645,7 @@ export class App {
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
-    if (p.step === 'slot') return hint('place it');
+    if (p.step === 'slot') return hint(cardDef(card.defId).fusion && fusionHosts(activePlayer(s)).length ? 'place it, or fuse it onto a card' : 'place it');
     return '';
   }
 
@@ -3951,7 +3953,7 @@ export class App {
       attrs = `data-act="choose-ally" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    if (p && opts.tableau === 'mine' && p.step === 'host' && opts.owner && fusionHosts(opts.owner).some((h) => h.uid === c.uid)) {
+    if (p && opts.tableau === 'mine' && (p.step === 'host' || (p.step === 'slot' && pendingDef && cardDef(pendingDef).fusion)) && opts.owner && fusionHosts(opts.owner).some((h) => h.uid === c.uid)) {
       attrs = `data-act="choose-host" data-arg="${c.uid}" title="Fuse it onto ${esc(cardDef(c.defId).name)}"`;
       state = 'card-choosable';
     }

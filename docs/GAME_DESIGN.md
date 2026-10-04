@@ -163,7 +163,7 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 
 Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of their five tableau slots (top right of your tableau; your rival's is bottom left, the board being a mirror), so only one Hero is in play at a time: **a new one replaces the old** (which goes to the discard pile). It takes no tableau slot, has no neighbours, and its slot has defence 2. On the board it lies landscape, and a line round each tableau bumps out round it. [design review]
 
-- **They lead for good.** A Hero never fades: it stays until it is removed (Command Breaker, removal that reaches its defence), sent back (Tractor Beam, Event Horizon), beaten down by heat (its stability is how much heat past its defence it can take: 4, or 5–6 for the Anomalies and bombs) or replaced by your next Hero. [direction: heroes as planeswalkers]
+- **They lead for good.** A Hero never fades: it stays until it is removed (Command Breaker, removal that reaches its defence), sent back (Tractor Beam, Event Horizon), beaten down by heat (its stability is its health: heat past its defence wears it down. It is 8, 9 for the Admiralty and 12 for the bombs, and some Heroes mend their own) or replaced by your next Hero. Mending can take a card past the usual cap of 6, up to its own full stability. [direction: heroes as planeswalkers]
 - **Abilities, chosen each day.** Every Hero has two abilities. Once on each of your days, while it leads, you may use one, for the energy shown (most are free, the strongest cost 1). They show as buttons above End Day, and on the card as coloured names (`{act:Name}`; the keyword **Act** explains them).
 - **A way of leading of its own.** On top of its abilities, most Heroes change your board: a lasting buff (often to their own race's cards: "your Aureline attack cards heat +1", "your Vorthane cards shield +1"; the `kindBonus` passive now takes a race and heat, cooling or shields), a dawn effect, or both.
 - **Never back to your own hand.** Heroes can't be recalled or recovered from the discard pile. A rival can still send one back to its owner's hand.
@@ -176,12 +176,12 @@ Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of 
 | Hierarch Vael | Xel'Naru | Your Xel'Naru cards cool +1 | Vent: cool 2 · Insight: draw 1 |
 | Archon Seris | Xel'Naru | When another of your cards leaves play, heat 1 | Archive (1⚡): recover your last discarded card · Shatter (1⚡): heat 2, pierce |
 | The Shardmind (bomb) | Xel'Naru | As it enters: cool 4, recover. Your Xel'Naru cards heat +1 | Cold Reckoning (1⚡): cool 3 · Overload: draw 2, heat 2 to your sun |
-| Tide-Regent Osshara | Vorthane | Tidewall. Dawn: 1 shield | Swell: 4 shields · Current: draw 1 |
+| Tide-Regent Osshara | Vorthane | Tidewall. Dawn: 1 shield | Swell: 4 shields, it regains 1 stability · Current: draw 1 |
 | The Admiralty (Anomaly) | Vorthane | Your Vorthane cards shield +1. Dawn: 2 shields | Broadside (1⚡): heat 1 per 2 shields (up to 4) · Muster: +1 energy |
-| Leviathan Thoross (bomb) | Vorthane | As it enters: 6 shields, eject 3. Hold | Crush (1⚡): heat 1 per 2 shields (up to 5) · Deep Call: 4 shields |
-| Broodmother Ul'Kha | Ixquor | Dawn: your other growing cards grow by 1 | Spawn: plant 1 · Nurture: renew 1 |
+| Leviathan Thoross (bomb) | Vorthane | As it enters: 6 shields, eject 3. Hold | Crush (1⚡): heat 1 per 2 shields (up to 5) · Deep Call: 4 shields, it regains 2 stability |
+| Broodmother Ul'Kha | Ixquor | Dawn: your other growing cards grow by 1 | Spawn: plant 1 · Nurture: renew 1, she regains 2 stability |
 | Hive-Speaker Zyth | Ixquor | Your Ixquor cards heat +1 | Course: your orbit +1 · Forage: draw 1 |
-| The Worldroot (bomb) | Ixquor | As it enters: draw 3, renew 2. Dawn: draw 1 | Bloom: plant 2 · Deep Roots: renew 2 |
+| The Worldroot (bomb) | Ixquor | As it enters: draw 3, renew 2. Dawn: draw 1, it regains 1 stability | Bloom: plant 2 · Deep Roots: renew 2 |
 
 Balancing the change (600 games a test, all ten starters): the AI first ignored Heroes (it valued a card by its dawn effects and days left), then valued them (abilities, lasting buffs, a whole horizon of play) and Demolition rose to 83%. Its engines were the Shardmind's free daily Cool 3 (12 points) and Command Breaker destroying Heroes for 2 energy now that they are a lasting investment (13 points): Cold Reckoning and Archive now cost 1, Command Breaker costs 3. Overdrive lost its self-heat; Osshara gained a dawn shield and a bigger Swell; Overcharge leads with the Admiralty (Muster: +1 energy) in place of the Broodmother, Orbit Riders with Osshara in place of Veyra. Where it stands (600 games): mean distance from 50% 8.4 (it was 3.7 before Heroes changed). Solar Lancers 61.9%, Shard Overload 47.7%, Abyssal Tide 42.9%, Hive Bloom 53.3%, Orbit Riders 33.0%, Ambush 48.2%, Demolition 64.5%, Absolute Zero 50.4%, Graftworks 43.7%, Overcharge 31.0%. Still to do: Veyra's buff carries Solar Lancers; Overcharge and Orbit Riders miss the old Heroes' daily energy.
 
@@ -332,7 +332,9 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 
 ## Fusion [design review]
 
-**Fusion** cards are played onto one of your cards in play instead of into a slot. That card gains the Fusion card's dawn effects, passives, Sturdy and stability (its stability is added to the host's); the Fusion card's play effects resolve as it is played. A card can carry 2. When the host leaves play, its Fusion cards go with it (their leave effects fire too). It gives decks that draw more cards than they have slots for (Abyssal Tide above all) somewhere to put them, and lets a strong card be built up, at the risk of losing it all at once. With nothing in play to fuse onto, a Fusion card can't be played.
+
+**Fusion cards are cards first.** A Fusion card can be played like any other card, into an empty slot, with its own dawn effects and stability; fusing it onto one of your cards in play is the option (no slot needed, so it can go in when the tableau is full). As it is played, the empty slots and the cards it could fuse onto light up together: tap either.
+**Fused** onto one of your cards in play (instead of into a slot), a Fusion card's host gains the Fusion card's dawn effects, passives, Sturdy and stability (its stability is added to the host's); the Fusion card's play effects resolve as it is played. A card can carry 2. When the host leaves play, its Fusion cards go with it (their leave effects fire too). It gives decks that draw more cards than they have slots for (Abyssal Tide above all) somewhere to put them, and lets a strong card be built up, at the risk of losing it all at once. With nothing in play to fuse onto, a Fusion card can't be played.
 
 | Card | Race | Cost | Fused, it adds |
 |---|---|---|---|

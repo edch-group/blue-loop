@@ -743,7 +743,7 @@ function choiceKinds(def: CardDef): Set<string> {
   const kinds = new Set<string>();
   for (const e of def.onPlay ?? []) {
     if (e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all)) kinds.add('enemy');
-    if (e.type === 'recall' || (e.type === 'restore' && !e.all)) kinds.add('ally');
+    if (e.type === 'recall' || (e.type === 'restore' && !e.all && !e.self)) kinds.add('ally');
     if (e.type === 'recover') kinds.add('recover');
   }
   return kinds;

@@ -237,7 +237,7 @@ export function commandCard(p: PlayerState): CardInstance | undefined {
 
 /** Whether a card goes into one of the five tableau slots (not the Command slot, nor face down). */
 export function inSlots(defId: string): boolean {
-  return persists(defId) && cardDef(defId).kind !== 'command' && !cardDef(defId).fusion;
+  return persists(defId) && cardDef(defId).kind !== 'command';
 }
 
 export function tableauFull(p: PlayerState): boolean {
@@ -376,7 +376,7 @@ export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' |
 
 /** Your other cards this card could return to your hand or restore (empty if it needs no such choice). */
 export function allyChoices(p: PlayerState, defId: string): CardInstance[] {
-  if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || (e.type === 'restore' && !e.all))) return [];
+  if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || (e.type === 'restore' && !e.all && !e.self))) return [];
   // Command cards can't be brought back to your own hand (a rival can still send them back).
   return allyEffectKind(defId) === 'recall' ? p.tableau.filter(returnable) : [...p.tableau];
 }
@@ -393,13 +393,14 @@ export function recallsInto(p: PlayerState, defId: string): boolean {
 
 /** Whether a card can be played into this tableau now: a free slot, a recall to make one, or no slot needed. */
 export function hasRoomFor(p: PlayerState, defId: string): boolean {
-  if (cardDef(defId).fusion) return fusionHosts(p).length > 0;
+  // (A Fusion card can always fuse onto a card in play, full tableau or not.)
+  if (cardDef(defId).fusion && fusionHosts(p).length > 0) return true;
   return !inSlots(defId) || !tableauFull(p) || recallsInto(p, defId);
 }
 
 /** Whether a card's ally choice returns the card to hand (rather than restoring its stability). */
 export function allyEffectKind(defId: string): 'recall' | 'restore' | null {
-  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || (x.type === 'restore' && !x.all));
+  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || (x.type === 'restore' && !x.all && !x.self));
   return e?.type === 'recall' || e?.type === 'restore' ? e.type : null;
 }
 
@@ -1060,9 +1061,10 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         break;
       }
       case 'restore': {
-        const mine = e.all ? p.tableau.filter((c) => c.uid !== card.uid) : p.tableau.filter((c) => c.uid === ctx.allyUid);
+        const mine = e.self ? p.tableau.filter((c) => c.uid === card.uid) : e.all ? p.tableau.filter((c) => c.uid !== card.uid) : p.tableau.filter((c) => c.uid === ctx.allyUid);
         for (const c of mine) {
-          c.stability = Math.min(BALANCE.maxStability, (c.stability ?? 0) + e.amount);
+          // (Up to the usual cap, or a card's own full stability where that is higher: a Hero's.)
+          c.stability = Math.min(Math.max(BALANCE.maxStability, baseStability(c.defId)), (c.stability ?? 0) + e.amount);
           log(state, `${p.name}'s ${cardDef(c.defId).name} steadies (stability ${c.stability}).`);
         }
         break;
@@ -1374,7 +1376,9 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const cost = playCost(def.id, lightspeed);
   if (p.playsLeft < cost) throw new GameError(p.playsLeft <= 0 ? 'You have no energy left today.' : `${def.name} costs ${cost} energy: you have ${p.playsLeft} left today.`);
   if (lightspeed && !canSetLightspeed(p)) throw new GameError('You already have a Lightspeed card face down.');
-  const slotted = inSlots(def.id) && !lightspeed;
+  // A Fusion card is played like any other card, into a slot, or (given a host) fused onto a card in play.
+  const fusing = !!def.fusion && !lightspeed && action.hostUid !== undefined;
+  const slotted = inSlots(def.id) && !lightspeed && !fusing;
 
   const choices = cardChoices(def.id);
   if (choices.length && !choices.includes(action.choice ?? '')) throw new GameError('Choose one of its options.');
@@ -1393,8 +1397,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (slotted && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
   const allies = allyChoices(p, def.id);
   if (allies.length > 0 && !allies.some((c) => c.uid === action.allyUid)) throw new GameError('Choose a card of yours.');
-  const host = def.fusion && !lightspeed ? fusionHosts(p).find((c) => c.uid === action.hostUid) : undefined;
-  if (def.fusion && !lightspeed && !host) throw new GameError(fusionHosts(p).length ? 'Choose a card of yours in play to fuse it onto.' : 'A Fusion card needs a card of yours in play to fuse onto.');
+  const host = fusing ? fusionHosts(p).find((c) => c.uid === action.hostUid) : undefined;
+  if (fusing && !host) throw new GameError('Choose a card of yours in play to fuse it onto.');
   const recovers = recoverChoices(p, def.id);
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
 

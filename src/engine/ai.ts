@@ -191,7 +191,7 @@ function abilityValue(p: PlayerState, effects: Effect[]): number {
         v -= e.amount * (isOverheated(p) ? 1.1 : 0.7);
         break;
       case 'restore':
-        v += e.all ? 0.3 * e.amount * Math.max(1, p.tableau.length - 1) : 0.4 * e.amount;
+        v += e.self ? 0.35 * e.amount : e.all ? 0.3 * e.amount * Math.max(1, p.tableau.length - 1) : 0.4 * e.amount;
         break;
       case 'plant':
         v += 0.5 * e.amount;
@@ -272,7 +272,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     if (!hasRoomFor(me, card.defId)) continue;
     const slots = needsSlot(me, card.defId) ? freeSlots(me) : [undefined];
     // A Fusion card: onto each card it could join.
-    const hosts = opt(cardDef(card.defId).fusion ? fusionHosts(me).map((c) => c.uid) : []);
+    const hosts: (string | undefined)[] = [undefined, ...(cardDef(card.defId).fusion ? fusionHosts(me).map((c) => c.uid) : [])];
     // Recovering: one of each card in the discard pile.
     const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);
     const allies = opt(allyChoices(me, card.defId).map((c) => c.uid));
@@ -287,7 +287,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
         for (const allyUid of allies) {
           const back = recalls ? me.tableau.find((c) => c.uid === allyUid) : undefined;
           const here: (number | undefined)[] = back && back.slot !== undefined && !(slots as (number | undefined)[]).includes(back.slot) ? [...slots, back.slot] : slots;
-          for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) for (const hostUid of hosts) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid, ...(hostUid ? { hostUid } : {}) });
+          for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) for (const hostUid of hosts) if (!hostUid || slot === here[0]) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid, ...(hostUid ? { hostUid } : {}) });
         }
   }
   return plays;

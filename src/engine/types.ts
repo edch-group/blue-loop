@@ -88,7 +88,7 @@ export type Effect = (
   /** Reduce the stability of a card of your choice in your target's tableau (`all`: every card there). At 0 it fades into its owner's discard pile. */
   | { type: 'erode'; amount: number; all?: boolean }
   /** Restore stability to another card of yours (your choice; `all`: every other card of yours). */
-  | { type: 'restore'; amount: number; all?: boolean }
+  | { type: 'restore'; amount: number; all?: boolean; /** This card itself regains stability (a Hero mending). */ self?: boolean }
   /** Mend worn defence on your side: this many points, the most worn cards first, then empty slots. */
   | { type: 'repair'; amount: number }
   /** Plant this many Saplings (tokens) in your empty slots, the least defended first. */

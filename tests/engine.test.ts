@@ -233,11 +233,11 @@ describe('commands', () => {
     s = play(s, 'ignition_protocol');
     const cmd = s.players[0].tableau[0];
     expect(cmd.slot).toBe(COMMAND_SLOT);
-    expect(cmd.stability).toBe(4);
+    expect(cmd.stability).toBe(8);
     // Many days later, it still leads (its dawn heat firing each day).
     for (let i = 0; i < 10; i++) s = endTurn(s);
     expect(s.players[0].tableau.some((c) => c.defId === 'ignition_protocol')).toBe(true);
-    expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.stability).toBe(4);
+    expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.stability).toBe(8);
     // Strafe: heat 3, for 1 energy; then no second ability that day.
     const before = s.players[1].heat;
     activePlayer(s).playsLeft = 3;
@@ -248,6 +248,21 @@ describe('commands', () => {
     expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/acted today/);
     s = endTurn(endTurn(s));
     expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
+  });
+
+  it('mend their own stability (their health), up to their full stability', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.playsLeft = 5;
+    give(me, ['chamber_protocol']);
+    s = play(s, 'chamber_protocol');
+    const hero = () => activePlayer(s).tableau.find((c) => c.defId === 'chamber_protocol')!;
+    hero().stability = 5;
+    s = applyAction(s, { type: 'heroAbility', index: 1 }); // Nurture: renew 1, and she regains 2
+    expect(hero().stability).toBe(7);
+    s = endTurn(endTurn(s));
+    s = applyAction(s, { type: 'heroAbility', index: 1 });
+    expect(hero().stability).toBe(8);
   });
 
   it("give their own race's cards a lasting buff, and only theirs", () => {
@@ -1130,7 +1145,6 @@ describe('fusion', () => {
     const before = host.stability ?? 0;
     give(me, ['tidal_graft']);
     me.playsLeft = 9;
-    expect(() => play(s, 'tidal_graft')).toThrow(/fuse/);
     s = play(s, 'tidal_graft', { hostUid: host.uid });
     const h = activePlayer(s).tableau.find((c) => c.uid === host.uid)!;
     expect(activePlayer(s).tableau.length).toBe(1);
@@ -1140,12 +1154,31 @@ describe('fusion', () => {
     expect(dawnEffects(h).filter((e) => e.type === 'shield').length).toBe(2);
   });
 
-  it('cannot be played with nothing in play to fuse onto, and leaves with its host', () => {
+  it('can also be played as an ordinary card, into a slot', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['deflector_grid'], 'tableau');
+    give(me, ['tidal_graft']);
+    me.playsLeft = 9;
+    s = play(s, 'tidal_graft', { slot: 3 });
+    const p = activePlayer(s);
+    expect(p.tableau.length).toBe(2);
+    expect(p.tableau.find((c) => c.defId === 'tidal_graft')!.slot).toBe(3);
+    // With a full tableau it can still fuse onto a card, but not take a slot.
+    const t = twoPlayer();
+    const m = activePlayer(t);
+    give(m, Array(5).fill('coolant_array'), 'tableau');
+    expect(hasRoomFor(m, 'tidal_graft')).toBe(true);
+    give(m, ['tidal_graft']);
+    m.playsLeft = 9;
+    expect(() => play(t, 'tidal_graft', { slot: 0 })).toThrow(/full/);
+  });
+
+  it('leaves with its host', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     give(me, ['reinforced_plating']);
     me.playsLeft = 9;
-    expect(hasRoomFor(me, 'reinforced_plating')).toBe(false);
     const [host] = give(me, ['coronal_lance'], 'tableau');
     const def0 = cardDefence(me, host);
     s = play(s, 'reinforced_plating', { hostUid: host.uid });
