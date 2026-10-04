@@ -96,16 +96,21 @@ export function heroFigure(d: FigureData): string {
 // The skill tree: a constellation
 // ---------------------------------------------------------------------------
 
-/** A glyph for each kind of skill. */
-const SKILL_ICON: Record<string, string> = {
-  mod: '<path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z"/>',
-  battle: '<path d="M13 2 5 14h6l-1 8 8-12h-6z"/>',
+/** A glyph for each kind of skill (and of research project). */
+export const SKILL_ICON: Record<string, string> = {
+  heat: '<path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-3 2-4 2-6 1.5 1 2 2 2 3 1-2 1-5 1-7z"/>',
+  shield: '<path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z"/>',
+  ward: '<path d="M5 6h14v5c0 5-3 8-7 9-4-1-7-4-7-9z"/><path d="M9 11l2 2 4-4"/>',
+  cool: '<path d="M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9"/>',
+  draw: '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 8h6M9 12h6"/>',
+  energy: '<path d="M13 2 5 14h6l-1 8 8-12h-6z"/>',
+  plant: '<path d="M12 21V10M12 10c0-4 3-6 7-6 0 4-3 6-7 6zM12 13c0-3-2-5-6-5 0 3 2 5 6 5z"/>',
+  start: '<path d="M4 17h16l-1.5-9-4.5 4-2-6-2 6-4.5-4z"/><path d="M5 20h14"/>',
   march: '<path d="M4 17l5-5-5-5M12 17l5-5-5-5"/>',
   sight: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   mend: '<path d="M12 5v14M5 12h14"/>',
+  hull: '<path d="M3 14h18l-3 5H6zM6 14V9h12v5M9 9V5h6v4"/>',
   loot: '<path d="M6 9l6-5 6 5-6 11z"/><path d="M6 9h12"/>',
-  card: '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 8h6M9 12h6"/>',
-  start: '<path d="M4 17h16l-1.5-9-4.5 4-2-6-2 6-4.5-4z"/><path d="M5 20h14"/>',
   dread: '<path d="M12 3c-4.5 0-7 3-7 7 0 2.5 1.2 4 3 5v3h8v-3c1.8-1 3-2.5 3-5 0-4-2.5-7-7-7z"/><circle cx="9.5" cy="10.5" r="1.3"/><circle cx="14.5" cy="10.5" r="1.3"/><path d="M11 18v2M13 18v2"/>',
 };
 
@@ -116,7 +121,7 @@ const STARS: Record<0 | 1 | 2, [number, number][]> = {
   2: [[64, 77], [73, 64], [80, 51], [83, 38], [80, 25], [75, 10]],
 };
 const ROOT: [number, number] = [50, 91];
-const BRANCH_NAME = ['might', 'command', 'legacy'];
+const BRANCH_NAME = ['might', 'ward', 'legacy'];
 /** How big a skill looks: tiers 1–3 minor, 4–5 major, 6 the capstone. */
 const look = (tier: number) => (tier <= 3 ? 1 : tier <= 5 ? 2 : 3);
 const TIER_NAME = ['', 'minor', 'major', 'capstone'];
@@ -132,10 +137,9 @@ export interface TreeData {
   picked: string | null;
 }
 
-/** What kind of skill it is, in words (and when it acts). */
+/** What kind of skill it is, in words. */
 export function skillKind(k: HeroSkill): string {
-  const e = k.effect;
-  return e.kind === 'battle' ? (e.once ? 'battle · once a battle' : `battle · daily, ${e.cost} energy`) : e.kind === 'mod' || e.kind === 'start' ? 'battle · always' : e.kind === 'card' ? 'signature card' : 'campaign map';
+  return k.effect.kind === 'start' ? 'battle · the hero starts in play' : 'hero card';
 }
 
 /**
@@ -193,7 +197,7 @@ export function skillTree(d: TreeData): string {
       const st = state(k);
       const rays = look(k.tier) === 3 ? `<svg class="hv-rays" viewBox="0 0 100 100" aria-hidden="true">${Array.from({ length: 12 }, (_, i) => `<path d="M50 50 L${(50 + 48 * Math.cos((i * Math.PI) / 6)).toFixed(1)} ${(50 + 48 * Math.sin((i * Math.PI) / 6)).toFixed(1)}" />`).join('')}</svg>` : '';
       return `<button class="hv-star tier-${look(k.tier)} ${st} ${d.picked === k.id ? 'picked' : ''}" style="left:${x}%;top:${y}%" data-act="cmp-skill-pick" data-arg="${k.id}" title="${esc(`${k.name}: ${k.text}`)}" aria-label="${esc(`${k.name} (${st}): ${k.text}`)}">
-          ${rays}<span class="hv-star-core">${icon(SKILL_ICON[k.effect.kind] ?? SKILL_ICON.mod)}</span>
+          ${rays}<span class="hv-star-core">${icon(SKILL_ICON[k.icon] ?? SKILL_ICON.ward)}</span>
           <i class="hv-star-name">${esc(k.name)}</i>
         </button>`;
     })
@@ -203,7 +207,7 @@ export function skillTree(d: TreeData): string {
   const why = pick ? d.problem(pick.id) : null;
   const detail = pick
     ? `<div class="hv-detail tier-${look(pick.tier)} ${pst}">
-        <span class="hv-detail-icon">${icon(SKILL_ICON[pick.effect.kind] ?? SKILL_ICON.mod)}</span>
+        <span class="hv-detail-icon">${icon(SKILL_ICON[pick.icon] ?? SKILL_ICON.ward)}</span>
         <div class="hv-detail-body">
           <small>${BRANCH_NAME[pick.branch]} ${pick.tier} · ${TIER_NAME[look(pick.tier)]} · ${esc(skillKind(pick))}</small>
           <b>${esc(pick.name)}</b>
@@ -217,7 +221,7 @@ export function skillTree(d: TreeData): string {
       <div class="hv-dust" aria-hidden="true">${dust}</div>
       <svg class="hv-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${lines.join('')}</svg>
       <div class="hv-root" style="left:${ROOT[0]}%;top:${ROOT[1]}%">${d.portrait}${d.points > 0 ? `<i class="hv-root-pts">${d.points}</i>` : ''}</div>
-      ${['might', 'command', 'legacy'].map((n, i) => `<i class="hv-branch" style="left:${[20, 50, 80][i]}%">${n}</i>`).join('')}
+      ${BRANCH_NAME.map((n, i) => `<i class="hv-branch" style="left:${[20, 50, 80][i]}%">${n}</i>`).join('')}
       ${stars}
     </div>
     ${detail}`;

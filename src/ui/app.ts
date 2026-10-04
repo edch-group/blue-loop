@@ -3904,9 +3904,11 @@ export class App {
       return hover === undefined || hover === shown ? base : `<span class="pv-now">${base}</span><span class="pv-after">${icon}${hover}</span>`;
     };
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
+    // A campaign hero's boons (skills and gear), carried while it is in play: one tag, their text on hover.
+    const boonTag = c.boons?.length ? `<i class="boon-tag" title="${esc(`From skills and gear: ${c.boons.map((b) => plainText(cardDef(b).text)).join(' ')}`)}">✦ ${c.boons.length} boon${c.boons.length === 1 ? '' : 's'}</i>` : '';
     // Fusion cards fused onto it: a tag for each, its text on hover.
-    const fusedTags = c.fused?.length
-      ? `<span class="fused-tags">${c.fused.map((f) => `<i title="${esc(`${cardDef(f.defId).name} (fused): ${plainText(cardDef(f.defId).text).replace(/^Fusion\. /, '')}`)}">${esc(cardDef(f.defId).name)}</i>`).join('')}</span>`
+    const fusedTags = c.fused?.length || c.boons?.length
+      ? `<span class="fused-tags">${(c.fused ?? []).map((f) => `<i title="${esc(`${cardDef(f.defId).name} (fused): ${plainText(cardDef(f.defId).text).replace(/^Fusion\. /, '')}`)}">${esc(cardDef(f.defId).name)}</i>`).join('')}${boonTag}</span>`
       : '';
     // (Resonance and forge show in the card's own numbers, not as a badge.)
     const resonance = '';

@@ -222,6 +222,8 @@ export interface CardInstance {
    * (plus its Sturdy), or by Repair; and the wear on its slot's own defence stays in the slot when it leaves.
    */
   dented?: number;
+  /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
+  boons?: string[];
   /** In a tableau: Fusion cards fused onto it (their effects, passives, Sturdy and stability are its own now). */
   fused?: CardInstance[];
   /** In a tableau: the choice it was played with (Command cards), which it keeps until it leaves. */
@@ -274,6 +276,10 @@ export interface PlayerState {
   deckName?: string;
   heat: number;
   shields: number;
+  /** Shuffling the discard pile back in costs no heat (a campaign army's small deck). */
+  freeReshuffle?: boolean;
+  /** Campaign: the hero whose card carries boons in play, and those boons. */
+  heroBoons?: { hero: string; boons: string[] };
   /** Wear on the defence of empty slots, left by the cards that stood there (slot → points). */
   slotWear?: Record<number, number>;
   deck: CardInstance[];
@@ -377,6 +383,10 @@ export interface PlayerSetup {
   species?: number;
   /** Campaign battles: heat carried in (damage taken earlier, or a garrison's bombardment). */
   heatDelta?: number;
+  /** Campaign armies (small decks): shuffling the discard pile back in costs no heat. */
+  freeReshuffle?: boolean;
+  /** Campaign: the army's hero, and the boons (gear and skills) their card carries while in play. */
+  heroBoons?: { hero: string; boons: string[] };
   /** Campaign battles: a one-off head start (from a garrison). */
   opening?: { shields?: number; draw?: number };
   /** Campaign battles: cards already in the tableau when the battle starts (a garrison). */

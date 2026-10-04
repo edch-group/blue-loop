@@ -4068,3 +4068,31 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* Fusion cards fused onto a card in play: a tag for each, along its foot. */
 .fused-tags { position: absolute; left: 4%; right: 4%; bottom: 18%; display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; pointer-events: auto; z-index: 2; }
 .fused-tags i { font-style: normal; font-family: var(--display); font-size: max(6px, calc(var(--tcw, 80px) * 0.07)); letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 5px; border-radius: 999px; color: #fff; background: linear-gradient(90deg, #8c5ad6, #5f8fc4); box-shadow: 0 0 6px rgba(140, 90, 214, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* Campaign research: army-wide projects, one at a time. */
+.cmp-research { display: grid; gap: 12px; align-content: start; }
+.cmp-research > p { margin: 0; font-size: 0.74rem; text-align: center; }
+.cmp-rs-icon { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: #5f8fc4; flex: none; }
+.cmp-rs-now { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 14px; padding: 14px 16px; border-radius: 14px; background: #fff; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 6px 18px rgba(40, 60, 90, 0.08); }
+.cmp-rs-now .cmp-rs-icon { width: 32px; height: 32px; }
+.cmp-rs-now small { display: block; font-size: 0.56rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
+.cmp-rs-now b { display: block; font-family: var(--display); font-weight: 500; font-size: 0.86rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); }
+.cmp-rs-now em { display: block; font-style: normal; font-size: 0.74rem; color: var(--ink-soft, #555); margin-top: 2px; }
+.cmp-rs-left { text-align: center; }
+.cmp-rs-left b { font-size: 1.3rem; }
+.cmp-rs-bar { grid-column: 1 / -1; margin-top: 6px; }
+.cmp-rs-idle { grid-template-columns: 1fr; text-align: center; }
+.cmp-rs-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 8px; }
+.cmp-rs-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.7); border: 1px solid #e6e4df; }
+.cmp-rs-row b { display: block; font-size: 0.78rem; color: var(--ink); }
+.cmp-rs-row em { display: block; font-style: normal; font-size: 0.68rem; line-height: 1.35; color: var(--ink-faint); }
+.cmp-rs-row small { display: block; font-size: 0.6rem; color: #b07a3a; margin-top: 2px; }
+.cmp-rs-row .btn-small { white-space: nowrap; }
+.cmp-rs-row.done { background: #eef6f0; border-color: #cfe5d6; }
+.cmp-rs-row.done .cmp-rs-icon { color: #3a9e6a; }
+.cmp-rs-row.on { border-color: #9cc0e6; background: #f2f7fd; }
+.cmp-rs-row.locked { opacity: 0.6; }
+.cmp-rs-tag { font-size: 0.56rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+.hv-boons { margin: 6px 0 0; font-size: 0.7rem; line-height: 1.4; color: var(--ink); }
+.hv-boons small { display: block; font-size: 0.54rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
+.fused-tags i.boon-tag { background: linear-gradient(90deg, #d8a840, #c07a2a); box-shadow: 0 0 6px rgba(216, 168, 64, 0.6); }

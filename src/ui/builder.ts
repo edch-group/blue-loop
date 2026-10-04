@@ -38,6 +38,8 @@ export interface BuilderMode {
   picked?(id: string): boolean;
   /** The side panel's head: army tabs, a character. */
   head(): string;
+  /** The deck's tally line, in place of the 30–40 cards and Heroes count (a campaign army's 10 cards). */
+  tally?(cards: string[]): string;
   /** The side panel's foot: the card picked, what can be done with it. */
   foot?(): string;
 }
@@ -455,6 +457,7 @@ export class DeckBuilder {
 
   /** The deck's count of cards and of Command cards, against what it needs. */
   private tallyHtml(d: SavedDeck): string {
+    if (this.mode?.tally) return `<div class="db-tally">${this.mode.tally(d.cards)}</div>`;
     const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
     return `<div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Hero per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> ${commandCardsFor(d.cards.length) === 1 ? 'hero' : 'heroes'}</div>`;
   }

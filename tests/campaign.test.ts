@@ -26,17 +26,15 @@ import {
   heroState,
   heroLevel,
   SKILL_TREES,
+  armyDeckProblems,
   COMMAND_SLOT,
   armyBonus,
-  heroBonus,
+  researchProject,
   XP_LEVELS,
   skillCost,
   skillPoints,
   makeItem,
   RACE_SLOTS,
-  heroSkillProblem,
-  applyAction,
-  activePlayer,
   cardCost,
   logInSight,
   visibleNodes as seenBy,
@@ -92,7 +90,8 @@ describe('campaign setup', () => {
       expect(armies).toHaveLength(1);
       expect(armies[0].nodeId).toBe(ownedNodes(s, f.id)[0].id);
       expect(armies[0].general).toBe(GENERALS[f.race][0]);
-      expect(deckProblems(armies[0].deck)).toEqual([]);
+      expect(armyDeckProblems(armies[0].deck, armies[0].general)).toEqual([]);
+      expect(armies[0].deck).toHaveLength(CAMPAIGN.armySize);
     }
     expect(new Set(rivals.map((f) => f.race)).size).toBe(4);
     // The Lost Races wander the middle reaches, with legal decks.
@@ -236,16 +235,18 @@ describe('garrisons', () => {
   it('only garrisons reserve cards, and keeps the deck legal when swapping', () => {
     let s = fresh();
     const f = campaignPlayer(s);
-    f.reserve.push('ice_age', 'helio_lancer', 'command_directive');
+    f.reserve.push('ice_age', 'helio_lancer', GENERALS[f.race].find((g) => g !== myArmy(s).general)!);
     expect(() => applyCampaignAction(s, { type: 'station', nodeId: home(s).id, index: 0 })).toThrow(/garrison/);
-    // Swapping a Hero out for a normal card would leave the deck one Hero short.
+    // The general stays, and no other Hero joins: an army is led by its own hero.
     const army = myArmy(s);
-    const other = army.deck.findIndex((id) => cardDef(id).kind === 'command' && id !== army.general);
-    expect(() => applyCampaignAction(s, { type: 'deckSwap', armyId: army.id, slot: other, reserveIndex: 1 })).toThrow(/Heroes/);
-    s = applyCampaignAction(s, { type: 'deckSwap', armyId: army.id, slot: 0, reserveIndex: 1 });
-    expect(myArmy(s).deck[0]).toBe('helio_lancer');
-    expect(campaignPlayer(s).reserve).toContain(army.deck[0]);
-    expect(deckProblems(myArmy(s).deck)).toEqual([]);
+    const lead = army.deck.indexOf(army.general);
+    expect(() => applyCampaignAction(s, { type: 'deckSwap', armyId: army.id, slot: lead, reserveIndex: 1 })).toThrow(/leads/);
+    const slot = army.deck.findIndex((id) => id !== army.general);
+    expect(() => applyCampaignAction(s, { type: 'deckSwap', armyId: army.id, slot, reserveIndex: 2 })).toThrow(/own hero/);
+    s = applyCampaignAction(s, { type: 'deckSwap', armyId: army.id, slot, reserveIndex: 1 });
+    expect(myArmy(s).deck[slot]).toBe('helio_lancer');
+    expect(campaignPlayer(s).reserve).toContain(army.deck[slot]);
+    expect(armyDeckProblems(myArmy(s).deck, army.general)).toEqual([]);
   });
 });
 
@@ -337,7 +338,7 @@ describe('the armory', () => {
 
   it('plays a fused card in battle like any other', () => {
     let s = fresh();
-    myArmy(s).deck[0] = fusedId('coronal_lance', 'cryo_vault');
+    myArmy(s).deck[myArmy(s).deck.findIndex((id) => id !== myArmy(s).general)] = fusedId('coronal_lance', 'cryo_vault');
     s = settle(attack(s));
     expect(s.battle).toBeNull();
   });
@@ -390,7 +391,7 @@ describe('armies and generals', () => {
     expect(armies[1].general).toBe(next);
     expect(armies[1].refit).toBe(true); // refitting: it marches next turn
     expect(armyMoves(s, armies[1])).toEqual([]);
-    expect(deckProblems(armies[1].deck)).toEqual([]);
+    expect(armyDeckProblems(armies[1].deck, next)).toEqual([]);
     expect(armies[1].deck).toContain(next);
     expect(s.story.queue.some((x) => x.id === `recruit:${next}`)).toBe(true);
   });
@@ -545,7 +546,7 @@ describe('armies and generals', () => {
     while (myArmy(t).deck.filter((x) => x === g).length > 1) t = applyCampaignAction(t, { type: 'deckRemove', armyId: army.id, defId: g });
     expect(() => applyCampaignAction(t, { type: 'deckRemove', armyId: army.id, defId: g })).toThrow(/leads this army/);
     s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: out });
-    expect(problemsOf(myArmy(s).deck)).toEqual([]);
+    expect(armyDeckProblems(myArmy(s).deck, myArmy(s).general)).toEqual([]);
     myArmy(s).refit = false; // (as next turn)
     expect(() => attack(s)).not.toThrow();
     // And an army that has marched can't refit until the next turn.
@@ -617,7 +618,7 @@ describe('armies and generals', () => {
     expect(logInSight(s, { seq: 0, turn: 1, text: 'x' }, s.playerId)).toBe(true);
   });
 
-  it('grows heroes: experience from battles, skill points, gear, and skills in battle and on the map', () => {
+  it("grows heroes: experience from battles, skill points, and skills and gear that ride on the hero's card", () => {
     let s = fresh();
     const me = campaignPlayer(s);
     const hero = myArmy(s).general;
@@ -632,46 +633,21 @@ describe('armies and generals', () => {
     const tree = SKILL_TREES[hero];
     const t2 = tree.find((k) => k.branch === 0 && k.tier === 2)!;
     expect(() => applyCampaignAction(t, { type: 'learnSkill', hero, skill: t2.id })).toThrow(/before it/);
-    const march = tree.find((k) => k.effect.kind === 'march')!;
-    t = applyCampaignAction(t, { type: 'learnSkill', hero, skill: march.id });
-    expect(heroState(campaignPlayer(t), hero).skills).toContain(march.id);
-    // A marching hero moves two routes (into its own systems) before it stops.
-    const a = myArmy(t);
-    const homeNode = home(t);
-    const gate = nodeById(t, homeNode.links[0]);
-    gate.owner = t.playerId;
-    t = applyCampaignAction(t, { type: 'move', armyId: a.id, toId: gate.id });
-    expect(myArmy(t).moved).toBe(false);
-    t = applyCampaignAction(t, { type: 'move', armyId: a.id, toId: homeNode.id });
-    expect(myArmy(t).moved).toBe(true);
-    // Gear: equipped in a slot of its kind, then worn into battle.
-    let g = fresh();
+    const t1 = tree.find((k) => k.branch === 0 && k.tier === 1)!;
+    t = applyCampaignAction(t, { type: 'learnSkill', hero, skill: t1.id });
+    expect(heroState(campaignPlayer(t), hero).skills).toContain(t1.id);
+    // Gear: equipped in a slot of its kind.
     const item = makeItem('i1', 'weapon', 'anomaly', me.race, 0.2);
-    campaignPlayer(g).items = [item];
-    expect(() => applyCampaignAction(g, { type: 'equip', hero, itemId: 'i1', slot: RACE_SLOTS[me.race][1].id })).toThrow(/fit/);
-    g = applyCampaignAction(g, { type: 'equip', hero, itemId: 'i1', slot: 'weapon' });
-    const plain = fresh();
-    const withGear = attack(g), without = attack(plain);
-    expect(withGear.battle!.game.players[1].heat).toBe(without.battle!.game.players[1].heat + 3);
-    // A battle skill: used once, for its cost, on your own day.
-    let b = fresh();
-    const bh = heroState(campaignPlayer(b), hero);
-    bh.xp = 500;
-    const once = tree.filter((k) => k.branch === 0).sort((x, y) => x.tier - y.tier);
-    for (const k of once) b = applyCampaignAction(b, { type: 'learnSkill', hero, skill: k.id });
-    b = attack(b);
-    const game = b.battle!.game;
-    const skills = game.players[0].skills ?? [];
-    expect(skills.length).toBeGreaterThan(0);
-    // On the hero's own day (after its dawn), a once-a-battle skill can be used, then not again.
-    let gs = game;
-    if (gs.awaitingDawn) gs = applyAction(gs, { type: 'dawn', aims: {} });
-    const i = skills.findIndex((k) => k.once && k.cost === 0);
-    if (activePlayer(gs).id === gs.players[0].id && i >= 0) {
-      expect(heroSkillProblem(gs, gs.players[0], i)).toBeNull();
-      gs = applyAction(gs, { type: 'heroSkill', index: i });
-      expect(heroSkillProblem(gs, gs.players[0], i)).toMatch(/used/);
-    }
+    expect(item.boons!.length).toBeGreaterThan(0);
+    campaignPlayer(t).items = [item];
+    expect(() => applyCampaignAction(t, { type: 'equip', hero, itemId: 'i1', slot: RACE_SLOTS[me.race][1].id })).toThrow(/fit/);
+    t = applyCampaignAction(t, { type: 'equip', hero, itemId: 'i1', slot: 'weapon' });
+    // Both go into battle on the hero's own card: none of the army's other cards are touched.
+    t = attack(t);
+    const p = t.battle!.game.players[0];
+    expect(p.heroBoons?.hero).toBe(hero);
+    expect(p.heroBoons?.boons).toEqual(expect.arrayContaining([...(t1.effect.kind === 'boon' ? t1.effect.boons : []), ...item.boons!]));
+    expect(p.modifiers ?? {}).not.toHaveProperty('extraPlays');
   });
 
   it('gives each hero eighteen skills in three branches, deeper ones costing more, over twenty-one levels', () => {
@@ -703,24 +679,43 @@ describe('armies and generals', () => {
     const me = s.battle!.game.players[0];
     expect(me.tableau.some((c) => c.defId === hero && c.slot === COMMAND_SLOT)).toBe(true);
     expect(me.deck.filter((c) => c.defId === hero).length + me.hand.filter((c) => c.defId === hero).length).toBeLessThan(myArmy(s).deck.filter((id) => id === hero).length);
-    // An Ixquor hero's Spore Haze heats the rival's sun every day.
-    const ix = { ...armyBonus(s, myArmy(s)) };
-    expect(ix).toBeTruthy();
-    const plague = heroBonus('logistics_command', { xp: 999, skills: ['zyth_spores', 'zyth_swarm', 'zyth_bloom', 'might4'], gear: {} });
-    expect(plague.foeMods.heatPerTurn).toBe(1);
+    // The hero's card carries its learned boons while it is in play.
+    const card = me.tableau.find((c) => c.defId === hero)!;
+    expect(card.boons?.length).toBeGreaterThan(0);
+    expect(armyBonus(s, myArmy(s)).boons).toEqual(card.boons);
   });
 
-  it("lets a hero's Dread take weak neutral systems without a fight", () => {
+  it('researches army-wide upgrades: paid up front, done in turns, shared by every army', () => {
     let s = fresh();
-    const hero = myArmy(s).general;
-    const h = heroState(campaignPlayer(s), hero);
-    h.xp = XP_LEVELS[XP_LEVELS.length - 1];
-    for (const k of SKILL_TREES[hero].filter((x) => x.branch === 1).sort((a, b) => a.tier - b.tier)) s = applyCampaignAction(s, { type: 'learnSkill', hero, skill: k.id });
+    const f = campaignPlayer(s);
+    f.materials = 0;
+    expect(() => applyCampaignAction(s, { type: 'research', id: 'march1' })).toThrow(/materials/);
+    expect(() => applyCampaignAction(s, { type: 'research', id: 'march2' })).toThrow(/first/);
+    campaignPlayer(s).materials = 50;
+    s = applyCampaignAction(s, { type: 'research', id: 'march1' });
+    expect(campaignPlayer(s).materials).toBe(50 - researchProject('march1')!.cost);
+    expect(() => applyCampaignAction(s, { type: 'research', id: 'hull1' })).toThrow(/Already researching/);
+    // It is done after its turns, and its armies then march one route further.
+    for (let i = 0; i < researchProject('march1')!.turns; i++) s = settle(applyCampaignAction(s, { type: 'endTurn' }));
+    expect(campaignPlayer(s).research?.done).toContain('march1');
+    expect(campaignPlayer(s).research?.current).toBeUndefined();
+    expect(armyBonus(s, myArmy(s)).march).toBe(1);
+    // Hulls and energy reach the battle as the army's modifiers.
+    let b = fresh();
+    campaignPlayer(b).research = { done: ['hull1', 'energy1'] };
+    b = attack(b);
+    expect(b.battle!.game.players[0].modifiers?.maxHealthDelta).toBe(4);
+    expect(b.battle!.game.players[0].modifiers?.extraPlays).toBe(1);
+  });
+
+  it('lets Dread research take weak neutral systems without a fight', () => {
+    let s = fresh();
+    campaignPlayer(s).research = { done: ['dread1'] };
     const gate = nodeById(s, home(s).links[0]);
-    expect(armyMoves(s, myArmy(s)).find((m) => m.toId === gate.id)?.surrender).toBe(true);
-    s = applyCampaignAction(s, { type: 'move', armyId: myArmy(s).id, toId: gate.id });
-    expect(s.battle).toBeFalsy();
-    expect(s.conquest?.nodeId).toBe(gate.id);
+    expect(armyMoves(s, myArmy(s)).find((m) => m.toId === gate.id)?.surrender).toBe(gate.tier < 1);
+    campaignPlayer(s).research = { done: ['dread1', 'dread2'] };
+    gate.tier = 1;
+    expect(armyMoves(s, myArmy(s)).find((m) => m.toId === gate.id)?.surrender).toBe(!gate.owner && !armyAt(s, gate.id));
   });
 
   it('fuses cards at the cost of both', () => {

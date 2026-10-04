@@ -9,3 +9,5 @@ export * from './keywords';
 export * from './cover';
 export * from './story';
 export * from './heroes';
+export * from './research';
+export * from './boons';

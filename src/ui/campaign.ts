@@ -10,7 +10,8 @@ import {
   canGarrison,
   cardDef,
   migrateGame,
-  ensureScanners,
+  migrateCampaign,
+  armyDeckProblems,
   visibleNodes,
   armiesOf,
   armyAt,
@@ -42,7 +43,6 @@ import {
   RECYCLER,
   RECYCLER_LINES,
   recycleValue,
-  deckProblems,
   type Army,
   type StoryScene,
   fusionCost,
@@ -66,10 +66,16 @@ import {
   type CampaignNode,
   type CampaignState,
   type GameState,
+  RESEARCH,
+  researchProblem,
+  researchProject,
+  researchBonus,
+  heroBonus,
+  boonsText,
 } from '../engine';
 import { markDirty } from './account';
 import { DeckBuilder, type BuilderMode } from './builder';
-import { heroFigure, skillTree } from './heroview';
+import { heroFigure, skillTree, SKILL_ICON } from './heroview';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
@@ -86,8 +92,7 @@ export function loadCampaign(): CampaignState | null {
     // Campaigns from before armies (version 2 and older) cannot be resumed.
     if (!s || s.version !== 3) return null;
     if (s.battle) migrateGame(s.battle.game);
-    ensureScanners(s);
-    return s;
+    return migrateCampaign(s);
   } catch {
     return null;
   }
@@ -250,6 +255,8 @@ type Sheet =
   /** The base's armoury: buying, recycling or fusing; the card picked (or, fusing, the two). */
   | { kind: 'armory'; tab: ArmoryTab; pick?: string; fuse?: string[] }
   | { kind: 'missions' }
+  /** The base's research: army-wide projects, one at a time. */
+  | { kind: 'research' }
   /** The base's heroes: one hero at a time (their skills and gear). */
   | { kind: 'heroes'; hero?: string }
   | { kind: 'log' }
@@ -292,7 +299,7 @@ export class CampaignView {
   private report: { title: string; lines: string[] } | null = null;
   private sheet: Sheet | null = null;
   /** The base's tab last open (deck, armory or missions). */
-  private baseTab: 'deck' | 'heroes' | 'armory' | 'missions' = 'deck';
+  private baseTab: 'deck' | 'heroes' | 'research' | 'armory' | 'missions' = 'deck';
   /** New-campaign setup choices. */
   private setup = { rivals: 3, race: 0 };
   /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
@@ -601,6 +608,9 @@ export class CampaignView {
         this.baseTab = 'heroes';
         this.sheet = { kind: 'heroes', hero: arg };
         break;
+      case 'cmp-research':
+        if (this.apply({ type: 'research', id: arg })) sound.upgrade();
+        break;
       case 'cmp-hero':
         this.sheet = { kind: 'heroes', hero: arg };
         this.skillPick = this.slotPick = null;
@@ -684,7 +694,7 @@ export class CampaignView {
       case 'cmp-sheet':
         // "base" reopens the base on the tab last used.
         if (arg === 'base') arg = this.baseTab;
-        if (arg === 'deck' || arg === 'heroes' || arg === 'armory' || arg === 'missions') this.baseTab = arg;
+        if (arg === 'deck' || arg === 'heroes' || arg === 'research' || arg === 'armory' || arg === 'missions') this.baseTab = arg;
         if (arg === 'heroes') {
           this.sheet = { kind: 'heroes', hero: this.sheet?.kind === 'heroes' ? this.sheet.hero : undefined };
           break;
@@ -694,7 +704,7 @@ export class CampaignView {
           this.markArmorySeen();
           this.sheet = { kind: 'armory', tab: 'buy' };
         } else if (arg === 'deck') this.sheet = { kind: 'deck', armyId: this.sheet?.kind === 'deck' ? this.sheet.armyId : undefined };
-        else this.sheet = { kind: arg as 'missions' | 'log' | 'help' | 'overview' };
+        else this.sheet = { kind: arg as 'missions' | 'research' | 'log' | 'help' | 'overview' };
         break;
       case 'cmp-fuse': {
         if (this.sheet?.kind !== 'armory' || this.sheet.fuse?.length !== 2) break;
@@ -1723,6 +1733,7 @@ export class CampaignView {
       case 'heroes':
       case 'armory':
       case 'missions':
+      case 'research':
         return this.renderBase(sh);
       case 'recruit': {
         const n = nodeById(s, sh.nodeId);
@@ -1910,12 +1921,13 @@ export class CampaignView {
    * The base, full screen: a tab for each army's deck and the armoury (both in the main deck builder),
    * and the missions.
    */
-  private renderBase(sh: Extract<Sheet, { kind: 'deck' | 'heroes' | 'armory' | 'missions' }>): string {
+  private renderBase(sh: Extract<Sheet, { kind: 'deck' | 'heroes' | 'research' | 'armory' | 'missions' }>): string {
     const s = this.state!;
     const me = campaignPlayer(s);
     const points = GENERALS[me.race].some((g) => skillPoints(heroState(me, g)) > 0);
-    const tabs = (['deck', 'heroes', 'armory', 'missions'] as const)
-      .map((t) => `<button class="cmp-tab ${t === sh.kind ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${t === 'armory' ? 'armoury' : t}${t === 'heroes' && (points || (me.items ?? []).length) ? '<i class="cmp-tab-dot"></i>' : ''}</button>`)
+    const idle = !me.research?.current && RESEARCH.some((r) => researchProblem(me.research, me.materials, r.id) === null);
+    const tabs = (['deck', 'heroes', 'research', 'armory', 'missions'] as const)
+      .map((t) => `<button class="cmp-tab ${t === sh.kind ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${t === 'armory' ? 'armoury' : t}${(t === 'heroes' && (points || (me.items ?? []).length)) || (t === 'research' && idle) ? '<i class="cmp-tab-dot"></i>' : ''}</button>`)
       .join('');
     let body: string;
     if (sh.kind === 'missions') {
@@ -1926,6 +1938,8 @@ export class CampaignView {
         </div>`;
     } else if (sh.kind === 'heroes') {
       body = this.renderHeroes(this.pickedHero());
+    } else if (sh.kind === 'research') {
+      body = this.renderResearch();
     } else if (sh.kind === 'deck' && !armiesOf(s, me.id).length) {
       body = '<div class="cmp-base-missions"><p class="muted center-text">You have no armies. Recruit a general in one of your systems to raise one.</p></div>';
     } else {
@@ -1940,6 +1954,52 @@ export class CampaignView {
           <button class="icon-btn" data-act="cmp-close" aria-label="Back to the map" title="Back to the map">×</button>
         </header>
         ${body}
+      </div>`;
+  }
+
+  /**
+   * Research: what every one of your armies shares. The project under way (and how long it has left), what
+   * is done, and what can be started: each paid for in materials when it starts, one at a time.
+   */
+  private renderResearch(): string {
+    const me = campaignPlayer(this.state!);
+    const r = me.research ?? { done: [] };
+    const cur = r.current ? researchProject(r.current.id) : undefined;
+    const glyph = (k: string) => `<svg class="cmp-rs-icon" viewBox="0 0 24 24" aria-hidden="true">${SKILL_ICON[k] ?? SKILL_ICON.ward}</svg>`;
+    const now = cur
+      ? `<div class="cmp-rs-now">${glyph(cur.icon)}<span><small>researching</small><b>${esc(cur.name)}</b><em>${esc(cur.text)}</em></span>
+          <span class="cmp-rs-left"><b>${r.current!.left}</b><small>turn${r.current!.left === 1 ? '' : 's'} left</small></span>
+          <span class="cmp-xp cmp-rs-bar"><i style="width:${Math.round(((cur.turns - r.current!.left) / cur.turns) * 100)}%"></i></span></div>`
+      : '<div class="cmp-rs-now cmp-rs-idle"><span><small>researching</small><b>nothing</b><em>Start a project below: it is paid for now, and is done in a few turns.</em></span></div>';
+    const rows = RESEARCH.map((p) => {
+      const done = r.done.includes(p.id);
+      const on = r.current?.id === p.id;
+      const why = done || on ? null : researchProblem(r, me.materials, p.id);
+      const locked = !done && !on && !!p.needs && !r.done.includes(p.needs);
+      const state = done ? 'done' : on ? 'on' : locked ? 'locked' : '';
+      const action = done
+        ? '<span class="cmp-rs-tag">done</span>'
+        : on
+          ? '<span class="cmp-rs-tag">under way</span>'
+          : `<button class="btn-primary btn-small" data-act="cmp-research" data-arg="${p.id}" ${why ? `disabled title="${esc(why)}"` : ''}>${MATERIALS} ${p.cost} · ${p.turns} turns</button>`;
+      return `<div class="cmp-rs-row ${state}">${glyph(p.icon)}<span><b>${esc(p.name)}</b><em>${esc(p.text)}</em>${locked ? `<small>needs ${esc(researchProject(p.needs!)!.name)}</small>` : ''}</span>${action}</div>`;
+    }).join('');
+    const b = researchBonus(r);
+    const sums = [
+      b.mods.extraPlays ? `+${b.mods.extraPlays} energy a day` : '',
+      b.march ? `+${b.march} march` : '',
+      b.mods.maxHealthDelta ? `+${b.mods.maxHealthDelta} max health` : '',
+      b.mods.openingHand ? `+${b.mods.openingHand} opening hand` : '',
+      b.mods.startingHeat ? `suns start ${-b.mods.startingHeat} cooler` : '',
+      b.mend ? `repair ${b.mend} a turn` : '',
+      b.sight ? 'farther sight' : '',
+      b.loot ? 'more gear found' : '',
+      b.dread ? 'the weak surrender' : '',
+    ].filter(Boolean);
+    return `<div class="cmp-base-missions cmp-research">
+        ${now}
+        <p class="muted">${sums.length ? `Every army: ${sums.join(' · ')}.` : 'Research is shared by every one of your armies.'}</p>
+        <div class="cmp-rs-list">${rows}</div>
       </div>`;
   }
 
@@ -1990,6 +2050,10 @@ export class CampaignView {
         <section class="hv-gear">
           <div class="hv-gear-head"><b>${lower(cardDef(pick).name)}</b><small>level ${heroLevel(h.xp)} · ${h.xp} xp${nextLevelXp(h.xp) !== null ? ` · next at ${nextLevelXp(h.xp)}` : ''}</small>${bar(h.xp)}</div>
           ${heroFigure({ hero: pick, slots, gear: h.gear, picked })}
+          <p class="hv-boons">${(() => {
+            const hb = heroBonus(pick, h);
+            return hb.boons.length ? `<small>on ${esc(cardDef(pick).name)}'s card in battle</small>${esc(boonsText(hb.boons))}` : `<small>on ${esc(cardDef(pick).name)}'s card in battle</small>Nothing yet: skills and gear add to the hero's own card while it is in play.`;
+          })()}</p>
           <div class="hv-stores-head"><span>${picked ? `stores · ${lower(SLOT_NAME[pickedKind!])}` : 'stores'}</span>${picked ? '<button class="link-btn" data-act="cmp-slot-pick" data-arg="">show all</button>' : ''}</div>
           <div class="hv-stores">${stores || `<p class="muted">${picked ? 'Nothing found for this slot yet.' : 'Nothing found yet. Armies find gear when they take systems: more, and better, the deeper they go.'}</p>`}</div>
         </section>
@@ -2011,6 +2075,7 @@ export class CampaignView {
       // (A refusal has been said already, by the toast.)
       add: (id) => (this.apply({ type: 'deckAdd', armyId, defId: id }) ? null : ''),
       remove: (id) => (this.apply({ type: 'deckRemove', armyId, defId: id }) ? null : ''),
+      tally: (cards) => `<b class="${cards.length === CAMPAIGN.armySize ? 'ok' : ''}" title="An army's deck: its hero and up to ${CAMPAIGN.armySize} cards in all">${cards.length}/${CAMPAIGN.armySize}</b> cards · led by ${esc(cardDef(army().general).name)}`,
       badge: (id, n) => ({ text: `${n}/${count(army().deck, id) + count(me().reserve, id)}`, title: `${n} in this deck, ${count(me().reserve, id)} in your reserve`, on: n > 0 }),
       head: () => {
         const tabs = armiesOf(this.state!, me().id)
@@ -2021,7 +2086,7 @@ export class CampaignView {
       foot: () => {
         const a = army();
         if (a.moved) return '<p class="cmp-warn">This army has marched this turn: its deck can change next turn.</p>';
-        const problem = deckProblems(a.deck)[0];
+        const problem = armyDeckProblems(a.deck, a.general)[0];
         const note = a.refit ? '<p class="muted">Refitting: this army marches next turn.</p>' : '<p class="muted">Changing its deck refits this army: it can\'t march this turn.</p>';
         return (problem ? `<p class="cmp-warn">Not ready to fight: ${esc(problem)}</p>` : '<p class="cmp-ok">Ready to fight.</p>') + note;
       },

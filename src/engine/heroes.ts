@@ -2,9 +2,13 @@
  * Campaign heroes: the generals who lead armies grow with them. Each hero gains experience by winning
  * battles, and with each level a point to spend on their own skill tree; and each can carry a weapon and
  * armour shaped to their race (the many-tentacled Vorthane wear a helm and a ring on every arm). Gear is
- * found when an army takes a system.
+ * found when an army takes a system. Skills and gear alike are boons on the hero's own card (boons.ts):
+ * abilities it carries while it is in play. What a whole faction's armies share is research (research.ts).
  */
-import type { BattleModifiers, BattleSkill, Effect } from './types';
+import { boon } from './boons';
+import { cardDef } from './cards';
+import { plainText } from './keywords';
+import type { BattleSkill } from './types';
 
 /** Kinds of gear slot. Every hero has a weapon; the rest are their race's. */
 export type SlotKind = 'weapon' | 'helm' | 'mantle' | 'sigil' | 'core' | 'facet' | 'ring' | 'carapace' | 'gland';
@@ -25,48 +29,32 @@ export const SLOT_NAME: Record<SlotKind, string> = { weapon: 'Weapon', helm: 'He
 
 export type ItemRarity = 'dwarf' | 'stellar' | 'anomaly';
 
-/** A piece of gear: what it gives its hero's army in battle. */
+/** A piece of gear: the boons it gives its hero's card while it is in play. */
 export interface Item {
   id: string;
   name: string;
   slot: SlotKind;
   rarity: ItemRarity;
-  /** Battle modifiers for its hero's side. */
-  mods: BattleModifiers;
-  /** Heat the rival's sun starts with (a weapon's bite). */
-  foeHeat?: number;
+  /** Boons on the hero's card (older saves: worked out from the slot and rarity). */
+  boons?: string[];
   text: string;
 }
 
-/** What a skill does. */
-export type SkillEffect =
-  /** In every battle its hero fights: modifiers for their side (and `foe`: for their rival's), and heat their rival starts with. */
-  | { kind: 'mod'; mods?: BattleModifiers; foeHeat?: number; foe?: BattleModifiers }
-  /** Its army may move one more route a turn. */
-  | { kind: 'march' }
-  /** The hero starts every battle in play, in their side's Hero slot. */
-  | { kind: 'start' }
-  /** Neutral systems up to this tier surrender to its army without a fight. */
-  | { kind: 'dread'; tier: number }
-  /** Its army sees two links out from where it stands. */
-  | { kind: 'sight' }
-  /** Its army repairs this much damage at the start of each turn. */
-  | { kind: 'mend'; amount: number }
-  /** Its army finds gear more often when it takes a system. */
-  | { kind: 'loot'; chance: number }
-  /** A signature card: a copy joins the reserve when it is learned. */
-  | { kind: 'card'; card: string }
-  /** A skill to call on in battle (once, or each day for its cost). */
-  | { kind: 'battle'; name: string; cost: number; once?: boolean; effects: Effect[] };
+/** Which icon a skill shows (the kind of thing it does). */
+export type SkillIcon = 'heat' | 'shield' | 'ward' | 'cool' | 'draw' | 'energy' | 'plant' | 'start';
+
+/** What a skill does: boons on the hero's card, or (Herald) the hero starting every battle in play. */
+export type SkillEffect = { kind: 'boon'; boons: string[] } | { kind: 'start' };
 
 export interface HeroSkill {
   id: string;
   name: string;
   text: string;
-  /** The tree's three branches: 0 Might (battle), 1 Command (the map), 2 Legacy (the race's way of war). */
+  /** The tree's three branches: 0 Might (the card's attack), 1 Ward (its defence), 2 Legacy (the race's way). */
   branch: 0 | 1 | 2;
   /** 1–6, from the hero up: each needs the one before it in its branch. Deeper tiers cost more (SKILL_COST). */
   tier: 1 | 2 | 3 | 4 | 5 | 6;
+  icon: SkillIcon;
   effect: SkillEffect;
 }
 
@@ -91,224 +79,64 @@ export const HEROES = {
   winXp: 20,
   defendXp: 16,
   lossXp: 6,
-  /** Chance an army finds gear when it takes a system (a skill can add to it). */
+  /** Chance an army finds gear when it takes a system (research can add to it). */
   itemChance: 0.35,
 } as const;
 
 export const heroLevel = (xp: number) => XP_LEVELS.filter((x) => xp >= x).length;
 export const nextLevelXp = (xp: number) => XP_LEVELS.find((x) => x > xp) ?? null;
 
-const mod = (mods: BattleModifiers, foeHeat?: number): SkillEffect => ({ kind: 'mod', mods, ...(foeHeat ? { foeHeat } : {}) });
-const battle = (name: string, cost: number, effects: Effect[], once = false): SkillEffect => ({ kind: 'battle', name, cost, effects, ...(once ? { once } : {}) });
-const heat = (amount: number, pierce = false): Effect => ({ type: 'heat', amount, to: 'target', ...(pierce ? { pierce } : {}) });
-const cool = (amount: number): Effect => ({ type: 'cool', amount });
-const shield = (amount: number): Effect => ({ type: 'shield', amount });
-const draw = (amount: number): Effect => ({ type: 'draw', amount });
-const plays = (amount: number): Effect => ({ type: 'plays', amount });
-const s = (id: string, branch: 0 | 1 | 2, tier: HeroSkill['tier'], name: string, text: string, effect: SkillEffect): HeroSkill => ({ id, name, text, branch, tier, effect });
-const foe = (m: BattleModifiers, mods: BattleModifiers = {}): SkillEffect => ({ kind: 'mod', mods, foe: m });
+type B = string;
+/** A tier of a branch: its name, its words, and its boons. */
+type Tier = [string, string, B[]];
+const ICON_OF: Record<string, SkillIcon> = { heat: 'heat', pierce: 'heat', playheat: 'heat', shield: 'shield', playshield: 'shield', tidewall: 'shield', guard: 'shield', sturdy: 'ward', bulwark: 'ward', stability: 'ward', repair: 'ward', cool: 'cool', playcool: 'cool', draw: 'draw', playdraw: 'draw', energy: 'energy', plant: 'plant' };
+const iconOf = (boons: B[]): SkillIcon => ICON_OF[boons[0]?.split('_')[1] ?? ''] ?? 'ward';
 
-/** The first three tiers of each hero's Might and Command branches, their own (heroes of a race share some ground). */
-const ROOTS: Record<string, HeroSkill[]> = {
-  // ---- Aureline ----
-  command_directive: [
-    s('veyra_ward', 0, 1, 'Solar Ward', '+1 shield at the start of every day in battle.', mod({ shieldPerTurn: 1 })),
-    s('veyra_bulwark', 0, 2, 'Bulwark of Dawn', 'Once a battle: raise 8 shields.', battle('Bulwark of Dawn', 0, [shield(8)], true)),
-    s('veyra_resolve', 0, 3, "Keeper's Resolve", '+6 max health in battle.', mod({ maxHealthDelta: 6 })),
-    s('veyra_march', 1, 1, 'Forced March', 'Her army can move two routes a turn.', { kind: 'march' }),
-    s('veyra_sunwatch', 1, 2, 'Sunwatch', 'Her army sees two links out.', { kind: 'sight' }),
-    s('veyra_first_light', 1, 3, 'First Light', 'Signature card: Aurelia, First Light joins your reserve.', { kind: 'card', card: 'aurelia_first_light' }),
-  ],
-  ignition_protocol: [
-    s('aurex_kindling', 0, 1, 'Kindling', "Your rival's sun starts 2 hotter in battle.", mod({}, 2)),
-    s('aurex_ignite', 0, 2, 'Ignite', 'Each day, for 1 energy: heat 3.', battle('Ignite', 1, [heat(3)])),
-    s('aurex_supernal', 0, 3, 'Supernal Strike', 'Once a battle: heat 8, piercing shields.', battle('Supernal Strike', 0, [heat(8, true)], true)),
-    s('aurex_blitz', 1, 1, 'Blitz', 'His army can move two routes a turn.', { kind: 'march' }),
-    s('aurex_plunder', 1, 2, 'Plunder', 'His army finds gear far more often.', { kind: 'loot', chance: 0.3 }),
-    s('aurex_dawnstar', 1, 3, 'Dawnstar', 'Signature card: Dawnstar Cannon joins your reserve.', { kind: 'card', card: 'dawnstar_cannon' }),
-  ],
-  empress_solenne: [
-    s('solenne_radiance', 0, 1, 'Radiance', 'Draw 1 more card in your opening hand.', mod({ openingHand: 1 })),
-    s('solenne_decree', 0, 2, 'Imperial Decree', 'Once a battle: play 2 more cards today, and draw 2.', battle('Imperial Decree', 0, [plays(2), draw(2)], true)),
-    s('solenne_crown', 0, 3, 'Crown of Vitalia', '+8 max health in battle.', mod({ maxHealthDelta: 8 })),
-    s('solenne_progress', 1, 1, 'Royal Progress', 'Her army can move two routes a turn.', { kind: 'march' }),
-    s('solenne_tithe', 1, 2, 'Tithe of Light', 'Her army repairs 2 damage each turn.', { kind: 'mend', amount: 2 }),
-    s('solenne_sunfall', 1, 3, 'Sunfall', 'Each day, for 2 energy: heat 4.', battle('Sunfall', 2, [heat(4)])),
-  ],
-  // ---- Xel'Naru ----
-  war_council: [
-    s('seris_lattice', 0, 1, 'Memory Lattice', 'Draw 1 more card in your opening hand.', mod({ openingHand: 1 })),
-    s('seris_recollection', 0, 2, 'Recollection', 'Once a battle: draw 3.', battle('Recollection', 0, [draw(3)], true)),
-    s('seris_shardshield', 0, 3, 'Shard Shield', 'Each day, for 1 energy: raise 4 shields.', battle('Shard Shield', 1, [shield(4)])),
-    s('seris_path', 1, 1, 'Pathfinder', 'Her army can move two routes a turn.', { kind: 'march' }),
-    s('seris_farsight', 1, 2, 'Far Sight', 'Her army sees two links out.', { kind: 'sight' }),
-    s('seris_archive', 1, 3, 'Archive of Ages', 'Her army finds gear far more often.', { kind: 'loot', chance: 0.3 }),
-  ],
-  coolant_protocol: [
-    s('vael_patience', 0, 1, 'Cold Patience', 'Your sun cools by 1 every day in battle.', mod({ coolPerTurn: 1 })),
-    s('vael_calm', 0, 2, 'Absolute Calm', 'Once a battle: cool 8.', battle('Absolute Calm', 0, [cool(8)], true)),
-    s('vael_frostmind', 0, 3, 'Frost Mind', 'Your sun starts 3 cooler in battle.', mod({ startingHeat: -3 })),
-    s('vael_path', 1, 1, 'Glacial Advance', 'His army can move two routes a turn.', { kind: 'march' }),
-    s('vael_mend', 1, 2, 'Reforging', 'His army repairs 2 damage each turn.', { kind: 'mend', amount: 2 }),
-    s('vael_zero', 1, 3, 'Absolute Zero', 'Signature card: Absolute Zero joins your reserve.', { kind: 'card', card: 'absolute_zero' }),
-  ],
-  the_shardmind: [
-    s('shard_voices', 0, 1, 'Many Voices', 'Draw 1 extra card every day in battle.', mod({ extraDraw: 1 })),
-    s('shard_chorus', 0, 2, 'Chorus', 'Each day, for 2 energy: draw 2 and cool 2.', battle('Chorus', 2, [draw(2), cool(2)])),
-    s('shard_apotheosis', 0, 3, 'Crystal Apotheosis', 'Once a battle: play 2 more cards today, and cool 5.', battle('Crystal Apotheosis', 0, [plays(2), cool(5)], true)),
-    s('shard_sight', 1, 1, 'Lattice Sight', 'Its army sees two links out.', { kind: 'sight' }),
-    s('shard_march', 1, 2, 'Refraction Step', 'Its army can move two routes a turn.', { kind: 'march' }),
-    s('shard_queen', 1, 3, 'The Prism Queen', 'Signature card: Kyrvessa, Prism Queen joins your reserve.', { kind: 'card', card: 'kyrvessa_prism_queen' }),
-  ],
-  // ---- Vorthane ----
-  tide_regent: [
-    s('osshara_tide', 0, 1, 'Rising Tide', '+1 shield at the start of every day in battle.', mod({ shieldPerTurn: 1 })),
-    s('osshara_breakwater', 0, 2, 'Breakwater', 'Once a battle: raise 10 shields.', battle('Breakwater', 0, [shield(10)], true)),
-    s('osshara_current', 0, 3, 'Deep Current', '+6 max health in battle.', mod({ maxHealthDelta: 6 })),
-    s('osshara_march', 1, 1, 'Riding the Swell', 'Her army can move two routes a turn.', { kind: 'march' }),
-    s('osshara_mend', 1, 2, 'Brine Healing', 'Her army repairs 2 damage each turn.', { kind: 'mend', amount: 2 }),
-    s('osshara_bell', 1, 3, 'The Deep Bell', 'Signature card: Ommarath, the Deep Bell joins your reserve.', { kind: 'card', card: 'ommarath_deep_bell' }),
-  ],
-  the_admiralty: [
-    s('admiralty_broadside', 0, 1, 'Broadside', 'Each day, for 1 energy: heat 3.', battle('Broadside', 1, [heat(3)])),
-    s('admiralty_discipline', 0, 2, 'Fleet Discipline', 'Draw 1 more card in your opening hand.', mod({ openingHand: 1 })),
-    s('admiralty_salvo', 0, 3, 'Grand Salvo', 'Once a battle: heat 7.', battle('Grand Salvo', 0, [heat(7)], true)),
-    s('admiralty_logistics', 1, 1, 'Fleet Logistics', 'Its army can move two routes a turn.', { kind: 'march' }),
-    s('admiralty_charts', 1, 2, "Admiral's Charts", 'Its army sees two links out.', { kind: 'sight' }),
-    s('admiralty_prize', 1, 3, 'Prize Crews', 'Its army finds gear far more often.', { kind: 'loot', chance: 0.3 }),
-  ],
-  leviathan_thoross: [
-    s('thoross_hide', 0, 1, 'Thick Hide', '+6 max health in battle.', mod({ maxHealthDelta: 6 })),
-    s('thoross_depths', 0, 2, 'Crushing Depths', 'Once a battle: heat 6 and cool 3.', battle('Crushing Depths', 0, [heat(6), cool(3)], true)),
-    s('thoross_abyss', 0, 3, 'Abyssal', '+2 shields at the start of every day in battle.', mod({ shieldPerTurn: 2 })),
-    s('thoross_march', 1, 1, 'Leviathan Wake', 'His army can move two routes a turn.', { kind: 'march' }),
-    s('thoross_mend', 1, 2, 'Regrowth', 'His army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }),
-    s('thoross_titan', 1, 3, 'Abyssal Titan', 'Signature card: Abyssal Titan joins your reserve.', { kind: 'card', card: 'abyssal_titan' }),
-  ],
-  // ---- Ixquor ----
-  logistics_command: [
-    s('zyth_spores', 0, 1, 'Spore Cloud', "Your rival's sun starts 2 hotter in battle.", mod({}, 2)),
-    s('zyth_swarm', 0, 2, 'Swarm', 'Each day, for 1 energy: draw 1 and play 1 more card today.', battle('Swarm', 1, [draw(1), plays(1)])),
-    s('zyth_bloom', 0, 3, 'Bloom', 'Draw 1 extra card every day in battle.', mod({ extraDraw: 1 })),
-    s('zyth_march', 1, 1, 'Spreading', 'Its army can move two routes a turn.', { kind: 'march' }),
-    s('zyth_loot', 1, 2, 'Scavenge', 'Its army finds gear far more often.', { kind: 'loot', chance: 0.3 }),
-    s('zyth_queen', 1, 3, 'The Brood Queen', 'Signature card: The Brood Queen joins your reserve.', { kind: 'card', card: 'the_brood_queen' }),
-  ],
-  chamber_protocol: [
-    s('ulkha_brood', 0, 1, 'Brood', 'Draw 1 more card in your opening hand.', mod({ openingHand: 1 })),
-    s('ulkha_regrowth', 0, 2, 'Regrowth', 'Once a battle: cool 6 and raise 4 shields.', battle('Regrowth', 0, [cool(6), shield(4)], true)),
-    s('ulkha_heart', 0, 3, 'Hive Heart', '+6 max health in battle.', mod({ maxHealthDelta: 6 })),
-    s('ulkha_mend', 1, 1, 'Nursery', 'Her army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }),
-    s('ulkha_march', 1, 2, 'Creeping Advance', 'Her army can move two routes a turn.', { kind: 'march' }),
-    s('ulkha_sight', 1, 3, 'Spore Scouts', 'Her army sees two links out.', { kind: 'sight' }),
-  ],
-  the_worldroot: [
-    s('root_deep', 0, 1, 'Deep Roots', 'Your sun cools by 1 every day in battle.', mod({ coolPerTurn: 1 })),
-    s('root_overgrowth', 0, 2, 'Overgrowth', 'Each day, for 2 energy: raise 3 shields and draw 1.', battle('Overgrowth', 2, [shield(3), draw(1)])),
-    s('root_worldbloom', 0, 3, 'Worldbloom', 'Once a battle: play 3 more cards today.', battle('Worldbloom', 0, [plays(3)], true)),
-    s('root_march', 1, 1, 'Rootrunner', 'Its army can move two routes a turn.', { kind: 'march' }),
-    s('root_mend', 1, 2, 'Sap', 'Its army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }),
-    s('root_mycelium', 1, 3, 'Great Mycelium', 'Signature card: Great Mycelium joins your reserve.', { kind: 'card', card: 'great_mycelium' }),
-  ],
-};
-
-/** What each race brings to the deep tiers of Might and Command, and its whole Legacy branch. */
-const RACE_TIERS: { might: [string, string, SkillEffect][]; command: [string, string, SkillEffect][]; dread: string; legacy: [string, string, SkillEffect][] }[] = [
+/** Each race's Might, Ward and Legacy branches, tiers 1–5 (the capstones are each hero's own). */
+const RACE_TREES: { might: Tier[]; ward: Tier[]; legacy: Tier[] }[] = [
   // Aureline: the light, carried home.
   {
-    might: [
-      ['Solar Doctrine', "Your rival's sun starts 3 hotter in battle.", mod({}, 3)],
-      ['Second Sunrise', '+1 energy every day in battle.', mod({ extraPlays: 1 })],
-    ],
-    command: [
-      ["Pilgrim's Road", 'This army can move one more route a turn.', { kind: 'march' }],
-      ['Field Sanctum', 'This army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }],
-    ],
-    dread: 'Sovereign Light',
-    legacy: [
-      ['Gilded Plate', '+4 max health in battle.', mod({ maxHealthDelta: 4 })],
-      ['Sun Choir', 'Each day, for 1 energy: cool 2 and raise 2 shields.', battle('Sun Choir', 1, [cool(2), shield(2)])],
-      ['Dawnbreak', 'Your sun starts 2 cooler in battle.', mod({ startingHeat: -2 })],
-      ['Aureate Legion', '+8 max health in battle.', mod({ maxHealthDelta: 8 })],
-      ['Hymn Eternal', 'Your sun cools by 1, and you raise 1 shield, every day in battle.', mod({ coolPerTurn: 1, shieldPerTurn: 1 })],
-    ],
+    might: [['Sunstrike', 'Dawn: heat 1.', [boon('heat', 1)]], ['Radiant Entry', 'As it is played: heat 2. +1 stability.', [boon('playheat', 2), boon('stability', 1)]], ['Searing Light', 'Dawn: heat 1 more.', [boon('heat', 1)]], ['Lance of Dawn', 'Dawn: heat 1, piercing.', [boon('pierce', 1)]], ['Blaze', 'As it is played: heat 3.', [boon('playheat', 3)]]],
+    ward: [['Gilded Plate', 'Sturdy 1.', [boon('sturdy', 1)]], ['Solar Ward', 'Dawn: 1 shield.', [boon('shield', 1)]], ['Steadfast', '+2 stability.', [boon('stability', 2)]], ['Bulwark of Dawn', 'Bulwark 1: the cards beside it +1 defence.', [boon('bulwark', 1)]], ['Mending Light', 'Sturdy 1, and dawn: repair 1.', [boon('repair', 1), boon('sturdy', 1)]]],
+    legacy: [["Herald's Shield", 'As it is played: 2 shields.', [boon('playshield', 2)]], ['Dawn Breeze', 'Dawn: cool 1.', [boon('cool', 1)]], ['Halo', 'Dawn: 1 shield.', [boon('shield', 1)]], ['Insight', 'Dawn: draw 1.', [boon('draw', 1)]], ['Second Sunrise', 'Dawn: +1 energy.', [boon('energy', 1)]]],
   },
   // Xel'Naru: minds of crystal, remembering everything.
   {
-    might: [
-      ['Lattice Mind', 'Draw 1 extra card every day in battle.', mod({ extraDraw: 1 })],
-      ['Overclock', '+1 energy every day in battle.', mod({ extraPlays: 1 })],
-    ],
-    command: [
-      ['Phase Step', 'This army can move one more route a turn.', { kind: 'march' }],
-      ['Self-Repair', 'This army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }],
-    ],
-    dread: 'Inevitability',
-    legacy: [
-      ['Facet Polish', 'Your sun starts 2 cooler in battle.', mod({ startingHeat: -2 })],
-      ['Mind Spike', 'Each day, for 1 energy: heat 2 and draw 1.', battle('Mind Spike', 1, [heat(2), draw(1)])],
-      ['Echo', 'Draw 1 more card in your opening hand.', mod({ openingHand: 1 })],
-      ['Prism Array', '+2 shields at the start of every day in battle.', mod({ shieldPerTurn: 2 })],
-      ['Recursive Thought', 'Once a battle: play 3 more cards today.', battle('Recursive Thought', 0, [plays(3)], true)],
-    ],
+    might: [['Shard Spit', 'Dawn: heat 1.', [boon('heat', 1)]], ['Crystal Burst', 'As it is played: heat 2. +1 stability.', [boon('playheat', 2), boon('stability', 1)]], ['Refraction', 'Dawn: heat 1 more.', [boon('heat', 1)]], ['Splinter', 'Dawn: heat 1, piercing.', [boon('pierce', 1)]], ['Overload', 'As it is played: heat 3.', [boon('playheat', 3)]]],
+    ward: [['Facet Armour', 'Sturdy 1.', [boon('sturdy', 1)]], ['Prism Screen', 'Dawn: 1 shield.', [boon('shield', 1)]], ['Lattice', '+2 stability.', [boon('stability', 2)]], ['Resonant Wall', 'Bulwark 1: the cards beside it +1 defence.', [boon('bulwark', 1)]], ['Regrowth', 'Sturdy 1, and dawn: repair 1.', [boon('repair', 1), boon('sturdy', 1)]]],
+    legacy: [['Recollection', 'As it is played: draw 1.', [boon('playdraw', 1)]], ['Cold Logic', 'Dawn: cool 1.', [boon('cool', 1)]], ['Memory Spike', 'Dawn: heat 1.', [boon('heat', 1)]], ['Archive', 'Dawn: draw 1.', [boon('draw', 1)]], ['Overclock', 'Dawn: +1 energy.', [boon('energy', 1)]]],
   },
   // Vorthane: the weight of the deep.
   {
-    might: [
-      ['Pressure Hull', '+2 shields at the start of every day in battle.', mod({ shieldPerTurn: 2 })],
-      ["Tidecaller's Rhythm", '+1 energy every day in battle.', mod({ extraPlays: 1 })],
-    ],
-    command: [
-      ['Deep Currents', 'This army can move one more route a turn.', { kind: 'march' }],
-      ['Brine Cradle', 'This army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }],
-    ],
-    dread: 'The Drowning Dread',
-    legacy: [
-      ['Brine Skin', '+4 max health in battle.', mod({ maxHealthDelta: 4 })],
-      ['Undertow', 'Each day, for 1 energy: heat 2 and raise 2 shields.', battle('Undertow', 1, [heat(2), shield(2)])],
-      ['Cold Deeps', 'Your sun cools by 1 every day in battle.', mod({ coolPerTurn: 1 })],
-      ["Kraken's Grip", "Your rival's sun has 6 less max health.", foe({ maxHealthDelta: -6 })],
-      ['Abyssal Fortitude', '+10 max health in battle.', mod({ maxHealthDelta: 10 })],
-    ],
+    might: [['Brine Lash', 'Dawn: heat 1.', [boon('heat', 1)]], ['Breaching', 'As it is played: heat 2. +1 stability.', [boon('playheat', 2), boon('stability', 1)]], ['Undertow', 'Dawn: heat 1 more.', [boon('heat', 1)]], ['Pressure Spike', 'Dawn: heat 1, piercing.', [boon('pierce', 1)]], ['Tidal Surge', 'As it is played: heat 3.', [boon('playheat', 3)]]],
+    ward: [['Brine Skin', 'Sturdy 1.', [boon('sturdy', 1)]], ['Bell Song', 'Dawn: 1 shield.', [boon('shield', 1)]], ['Coral Heart', '+2 stability.', [boon('stability', 2)]], ['Reef Wall', 'Bulwark 1: the cards beside it +1 defence.', [boon('bulwark', 1)]], ['Brine Healing', 'Sturdy 1, and dawn: repair 1.', [boon('repair', 1), boon('sturdy', 1)]]],
+    legacy: [['Swell', 'As it is played: 3 shields.', [boon('playshield', 3)]], ['Current', 'Dawn: 1 shield.', [boon('shield', 1)]], ['Tidewall', 'Tidewall: your shields guard your cards too.', [boon('tidewall')]], ['Reef Tending', 'Dawn: repair 1.', [boon('repair', 1)]], ["Tidecaller's Rhythm", 'Dawn: +1 energy.', [boon('energy', 1)]]],
   },
   // Ixquor: the hive that does not stop.
   {
-    might: [
-      ['Spore Haze', "Your rival's sun heats by 1 every day in battle.", foe({ heatPerTurn: 1 })],
-      ['Hive Surge', '+1 energy every day in battle.', mod({ extraPlays: 1 })],
-    ],
-    command: [
-      ['Swarm Tunnels', 'This army can move one more route a turn.', { kind: 'march' }],
-      ['Regrowth Vats', 'This army repairs 3 damage each turn.', { kind: 'mend', amount: 3 }],
-    ],
-    dread: 'Consume',
-    legacy: [
-      ['Chitin', '+4 max health in battle.', mod({ maxHealthDelta: 4 })],
-      ['Feeding Frenzy', 'Each day, for 1 energy: heat 2 and draw 1.', battle('Feeding Frenzy', 1, [heat(2), draw(1)])],
-      ['Broodlings', 'Draw 1 more card in your opening hand.', mod({ openingHand: 1 })],
-      ['Acid Blood', "Your rival's sun starts 4 hotter in battle.", mod({}, 4)],
-      ['Endless Swarm', 'Draw 1 extra card every day in battle.', mod({ extraDraw: 1 })],
-    ],
+    might: [['Barb', 'Dawn: heat 1.', [boon('heat', 1)]], ['Spore Burst', 'As it is played: heat 2. +1 stability.', [boon('playheat', 2), boon('stability', 1)]], ['Venom', 'Dawn: heat 1 more.', [boon('heat', 1)]], ['Acid', 'Dawn: heat 1, piercing.', [boon('pierce', 1)]], ['Swarm Strike', 'As it is played: heat 3.', [boon('playheat', 3)]]],
+    ward: [['Chitin', 'Sturdy 1.', [boon('sturdy', 1)]], ['Spore Veil', 'Dawn: 1 shield.', [boon('shield', 1)]], ['Rooted', '+2 stability.', [boon('stability', 2)]], ['Hive Wall', 'Bulwark 1: the cards beside it +1 defence.', [boon('bulwark', 1)]], ['Sap Mending', 'Sturdy 1, and dawn: repair 1.', [boon('repair', 1), boon('sturdy', 1)]]],
+    legacy: [['Seedling', 'As it is played: plant a Sapling.', [boon('plant', 1)]], ['Damp Earth', 'Dawn: cool 1.', [boon('cool', 1)]], ['Sprouting', 'As it is played: plant another Sapling.', [boon('plant', 1)]], ['Brood Sense', 'Dawn: draw 1.', [boon('draw', 1)]], ['Hive Surge', 'Dawn: +1 energy.', [boon('energy', 1)]]],
   },
 ];
 
-/** Each hero's Might capstone: the upgrade that changes how their battles go. */
-const CAPSTONES: Record<string, [string, string, SkillEffect]> = {
-  command_directive: ['Eternal Dawn', '+1 energy and +3 shields every day in battle.', mod({ extraPlays: 1, shieldPerTurn: 3 })],
-  ignition_protocol: ['Nova Doctrine', "Your rival's sun heats by 2 every day in battle.", foe({ heatPerTurn: 2 })],
-  empress_solenne: ['Empire of Light', '+2 energy every day in battle.', mod({ extraPlays: 2 })],
-  war_council: ['Total Recall', 'Draw 2 extra cards every day, and 2 more in your opening hand.', mod({ extraDraw: 2, openingHand: 2 })],
-  coolant_protocol: ['Heat Death', "Your sun cools by 2 every day; your rival's heats by 1.", foe({ heatPerTurn: 1 }, { coolPerTurn: 2 })],
-  the_shardmind: ['Singularity', 'Once a battle: play 5 more cards today, and draw 5.', battle('Singularity', 0, [plays(5), draw(5)], true)],
-  tide_regent: ['Endless Tide', '+5 shields every day, and +10 max health, in battle.', mod({ shieldPerTurn: 5, maxHealthDelta: 10 })],
-  the_admiralty: ['Armada', 'Each day, for 1 energy: heat 6, piercing shields.', battle('Armada', 1, [heat(6, true)])],
-  leviathan_thoross: ['Leviathan Ascendant', "+20 max health in battle, and your rival's sun starts 4 hotter.", mod({ maxHealthDelta: 20 }, 4)],
-  logistics_command: ['Plague Bloom', "Your rival's sun heats by 2 every day in battle.", foe({ heatPerTurn: 2 })],
-  chamber_protocol: ['Brood Mother', '+1 energy and 1 extra card every day in battle.', mod({ extraPlays: 1, extraDraw: 1 })],
-  the_worldroot: ['World Tree', 'Your sun cools by 3, and +1 energy, every day in battle.', mod({ coolPerTurn: 3, extraPlays: 1 })],
+/** Each hero's two capstones (Might and Ward): the upgrades that change how their battles go. */
+const CAPSTONES: Record<string, [Tier, Tier]> = {
+  command_directive: [['Solar Judgement', 'Dawn: heat 3.', [boon('heat', 3)]], ['Eternal Dawn', 'Dawn: 4 shields. Tidewall: your shields guard your cards too.', [boon('shield', 4), boon('tidewall')]]],
+  ignition_protocol: [['Nova Lance', 'Dawn: heat 3, piercing.', [boon('pierce', 3)]], ['Blazing Aegis', 'Sturdy 3, and dawn: 2 shields.', [boon('sturdy', 3), boon('shield', 2)]]],
+  empress_solenne: [['Sunfall', 'Dawn: heat 2 and +1 energy.', [boon('heat', 2), boon('energy', 1)]], ['Crown of Vitalia', '+4 stability, and dawn: cool 2.', [boon('stability', 4), boon('cool', 2)]]],
+  war_council: [['Shatter Volley', 'Dawn: heat 2. As it is played: heat 4.', [boon('heat', 2), boon('playheat', 4)]], ['Archive Mind', 'Sturdy 2, and dawn: draw 1.', [boon('draw', 1), boon('sturdy', 2)]]],
+  coolant_protocol: [['Heat Death', 'Dawn: heat 2, piercing, and cool 1.', [boon('pierce', 2), boon('cool', 1)]], ['Absolute Zero', 'Dawn: cool 3 and 2 shields.', [boon('cool', 3), boon('shield', 2)]]],
+  the_shardmind: [['Singularity', 'Dawn: +2 energy.', [boon('energy', 2)]], ['Prism Lattice', 'Bulwark 2 and Sturdy 2.', [boon('bulwark', 2), boon('sturdy', 2)]]],
+  tide_regent: [['Riptide', 'Dawn: heat 2 and 2 shields.', [boon('heat', 2), boon('shield', 2)]], ['Endless Tide', 'Dawn: 5 shields. Tidewall.', [boon('shield', 5), boon('tidewall')]]],
+  the_admiralty: [['Armada', 'Dawn: heat 3, piercing. As it is played: heat 2.', [boon('pierce', 3), boon('playheat', 2)]], ['Fleet Bulwark', 'A Guard, with Bulwark 2.', [boon('guard'), boon('bulwark', 2)]]],
+  leviathan_thoross: [['Crushing Depths', 'Dawn: heat 4.', [boon('heat', 4)]], ['Leviathan Hide', 'Sturdy 4 and +4 stability.', [boon('sturdy', 4), boon('stability', 4)]]],
+  logistics_command: [['Plague Bloom', 'Dawn: heat 2. As it is played: plant 2 Saplings.', [boon('heat', 2), boon('plant', 2)]], ['Hive Shell', 'Sturdy 2, and dawn: repair 2.', [boon('sturdy', 2), boon('repair', 2)]]],
+  chamber_protocol: [['Brood Frenzy', 'Dawn: +1 energy and draw 1.', [boon('energy', 1), boon('draw', 1)]], ['Brood Mother', '+3 stability. As it is played: plant 3 Saplings.', [boon('plant', 3), boon('stability', 3)]]],
+  the_worldroot: [['Worldbloom', 'Dawn: heat 3 and cool 1.', [boon('heat', 3), boon('cool', 1)]], ['World Tree', 'Sturdy 2, and dawn: cool 3.', [boon('cool', 3), boon('sturdy', 2)]]],
 };
 
-/** The heroes of each race, in order (to find a hero's race without the card pool). */
+/** The heroes of each race (to find a hero's race without the card pool). */
 const RACE_OF: Record<string, number> = {
   command_directive: 0, ignition_protocol: 0, empress_solenne: 0,
   war_council: 1, coolant_protocol: 1, the_shardmind: 1,
@@ -316,25 +144,24 @@ const RACE_OF: Record<string, number> = {
   logistics_command: 3, chamber_protocol: 3, the_worldroot: 3,
 };
 
+const s = (id: string, branch: 0 | 1 | 2, tier: HeroSkill['tier'], [name, text, boons]: Tier): HeroSkill => ({ id, name, text, branch, tier, icon: iconOf(boons), effect: { kind: 'boon', boons } });
+
 /** A hero's whole tree: three branches of six, from the hero up to a capstone. */
 function buildTree(hero: string): HeroSkill[] {
-  const r = RACE_TIERS[RACE_OF[hero] ?? 0];
-  const [cn, ct, ce] = CAPSTONES[hero];
+  const r = RACE_TREES[RACE_OF[hero] ?? 0];
+  const [might6, ward6] = CAPSTONES[hero];
   return [
-    ...ROOTS[hero],
-    s('might4', 0, 4, ...r.might[0]),
-    s('might5', 0, 5, ...r.might[1]),
-    s('might6', 0, 6, cn, ct, ce),
-    s('command4', 1, 4, ...r.command[0]),
-    s('command5', 1, 5, ...r.command[1]),
-    s('command6', 1, 6, r.dread, 'Neutral systems up to tier 3 surrender to this army without a fight.', { kind: 'dread', tier: 3 }),
-    ...r.legacy.map(([n, t, e], i) => s(`legacy${i + 1}`, 2, (i + 1) as HeroSkill['tier'], n, t, e)),
-    s('legacy6', 2, 6, 'Herald', 'This hero starts every battle in play, already leading from your Hero slot.', { kind: 'start' }),
+    ...r.might.map((t, i) => s(`might${i + 1}`, 0, (i + 1) as HeroSkill['tier'], t)),
+    s('might6', 0, 6, might6),
+    ...r.ward.map((t, i) => s(`ward${i + 1}`, 1, (i + 1) as HeroSkill['tier'], t)),
+    s('ward6', 1, 6, ward6),
+    ...r.legacy.map((t, i) => s(`legacy${i + 1}`, 2, (i + 1) as HeroSkill['tier'], t)),
+    { id: 'legacy6', name: 'Herald', text: 'The hero starts every battle in play, already leading from your Hero slot.', branch: 2, tier: 6, icon: 'start', effect: { kind: 'start' } },
   ];
 }
 
 /** Each hero's own tree. */
-export const SKILL_TREES: Record<string, HeroSkill[]> = Object.fromEntries(Object.keys(ROOTS).map((h) => [h, buildTree(h)]));
+export const SKILL_TREES: Record<string, HeroSkill[]> = Object.fromEntries(Object.keys(RACE_OF).map((h) => [h, buildTree(h)]));
 
 export function heroSkill(hero: string, id: string): HeroSkill | undefined {
   return SKILL_TREES[hero]?.find((k) => k.id === id);
@@ -353,58 +180,31 @@ export function learnProblem(hero: string, h: HeroState, id: string): string | n
 
 /** Skill points not yet spent: one per level after the first, less what the skills learned cost. */
 export const skillPoints = (h: HeroState, hero?: string) =>
-  heroLevel(h.xp) - 1 - h.skills.reduce((t, id) => t + (hero ? (heroSkill(hero, id) ? skillCost(heroSkill(hero, id)!) : 1) : spentCost(id)), 0);
+  heroLevel(h.xp) - 1 - h.skills.reduce((t, id) => t + (hero ? (heroSkill(hero, id) ? skillCost(heroSkill(hero, id)!) : 0) : spentCost(id)), 0);
 
-/** What a learned skill cost, from its id alone (for callers without the hero to hand). */
+/** What a learned skill cost, from its id alone (ids are the same in every hero's tree: "might4"). */
 function spentCost(id: string): number {
-  for (const tree of Object.values(SKILL_TREES)) {
-    const k = tree.find((x) => x.id === id);
-    if (k) return skillCost(k);
-  }
-  return 1;
+  const m = /(\d)$/.exec(id);
+  return m ? SKILL_COST[Number(m[1]) as 1] ?? 0 : 0;
 }
 
-/** Everything a hero brings: battle modifiers, heat for the rival, battle skills, and on the map. */
-export function heroBonus(hero: string, h: HeroState | undefined) {
-  const mods: BattleModifiers = {};
-  const foeMods: BattleModifiers = {};
-  /** What the rival's side is told about it (skills that touch their sun). */
-  const foeConditions: { name: string; text: string }[] = [];
+/** Everything a hero brings to battle: the boons on their card (skills and gear), and whether they start in play. */
+export function heroBonus(hero: string, h: HeroState | undefined): { boons: string[]; start: boolean; skills: BattleSkill[] } {
+  const boons: string[] = [];
   let start = false;
-  let dread = 0;
-  let foeHeat = 0;
-  let march = 0;
-  let mend = 0;
-  let loot = 0;
-  let sight = false;
-  const skills: BattleSkill[] = [];
-  const add = (m?: BattleModifiers, into: BattleModifiers = mods) => {
-    for (const [k, v] of Object.entries(m ?? {})) (into as Record<string, number>)[k] = ((into as Record<string, number>)[k] ?? 0) + (v as number);
-  };
   for (const id of h?.skills ?? []) {
     const k = heroSkill(hero, id);
     if (!k) continue;
-    const e = k.effect;
-    if (e.kind === 'mod') {
-      add(e.mods);
-      foeHeat += e.foeHeat ?? 0;
-      if (e.foe) {
-        add(e.foe, foeMods);
-        foeConditions.push({ name: k.name, text: k.text });
-      }
-    } else if (e.kind === 'march') march += 1;
-    else if (e.kind === 'start') start = true;
-    else if (e.kind === 'dread') dread = Math.max(dread, e.tier);
-    else if (e.kind === 'sight') sight = true;
-    else if (e.kind === 'mend') mend += e.amount;
-    else if (e.kind === 'loot') loot += e.chance;
-    else if (e.kind === 'battle') skills.push({ id: k.id, name: e.name, text: k.text, hero, effects: e.effects, cost: e.cost, ...(e.once ? { once: true } : {}) });
+    if (k.effect.kind === 'boon') boons.push(...k.effect.boons);
+    else start = true;
   }
-  for (const item of Object.values(h?.gear ?? {})) {
-    add(item.mods);
-    foeHeat += item.foeHeat ?? 0;
-  }
-  return { mods, foeMods, foeConditions, foeHeat, march, mend, loot, sight, skills, start, dread };
+  for (const item of Object.values(h?.gear ?? {})) boons.push(...itemBoons(item));
+  return { boons, start, skills: [] };
+}
+
+/** A list of boons, in words ("Dawn: heat 2. Sturdy 1."). */
+export function boonsText(boons: string[]): string {
+  return boons.map((b) => plainText(cardDef(b).text)).join(' ');
 }
 
 // ---------------------------------------------------------------------------
@@ -426,37 +226,46 @@ const GEAR_NAMES: Record<SlotKind, string[]> = {
 const QUALITY: Record<ItemRarity, string> = { dwarf: 'Worn', stellar: 'Bright', anomaly: 'Starforged' };
 const STEP: Record<ItemRarity, number> = { dwarf: 1, stellar: 2, anomaly: 3 };
 
-/** A piece of gear for a slot, of a rarity: what it gives grows with its rarity. */
-export function makeItem(id: string, slot: SlotKind, rarity: ItemRarity, race: number, roll: number): Item {
-  const n = STEP[rarity];
-  const name = `${QUALITY[rarity]} ${GEAR_NAMES[slot][race] ?? GEAR_NAMES[slot][0]}`;
-  const base = { id, name, slot, rarity };
+/** What a piece of gear puts on its hero's card, by slot and quality (1 worn, 2 bright, 3 starforged). */
+function gearBoons(slot: SlotKind, n: number): string[] {
   switch (slot) {
     case 'weapon':
-      return { ...base, mods: {}, foeHeat: n, text: `Your rival's sun starts ${n} hotter.` };
+      return [n === 3 ? boon('pierce', 2) : boon('heat', n)];
     case 'helm':
-    case 'core':
     case 'carapace':
-      return { ...base, mods: { maxHealthDelta: 2 * n }, text: `+${2 * n} max health.` };
+      return [boon('sturdy', n)];
     case 'mantle':
-    case 'facet':
-    case 'gland':
-      return roll < 0.5 || n === 1
-        ? { ...base, mods: { startingHeat: -(n + 1) }, text: `Your sun starts ${n + 1} cooler.` }
-        : { ...base, mods: { shieldPerTurn: n - 1 }, text: `+${n - 1} shield${n - 1 === 1 ? '' : 's'} every day.` };
+      return [boon('shield', n)];
+    case 'core':
+      return [boon('cool', n)];
     case 'sigil':
-      return n === 3 ? { ...base, mods: { extraDraw: 1 }, text: 'Draw 1 extra card every day.' } : { ...base, mods: { openingHand: 1, maxHealthDelta: n - 1 }, text: `1 more card in your opening hand${n > 1 ? `, +${n - 1} max health` : ''}.` };
+      return [n === 1 ? boon('playdraw', 1) : n === 2 ? boon('draw', 1) : boon('energy', 1)];
+    case 'facet':
+      return [n === 1 ? boon('stability', 1) : n === 2 ? boon('heat', 1) : boon('pierce', 1)];
     case 'ring':
       // Many rings, each a little.
-      return { ...base, mods: { maxHealthDelta: n }, text: `+${n} max health.` };
+      return [n === 1 ? boon('stability', 1) : n === 2 ? boon('shield', 1) : boon('repair', 1)];
+    case 'gland':
+      return [n === 1 ? boon('cool', 1) : boon('plant', n - 1)];
   }
+}
+
+/** The boons a piece of gear gives (an older save's item: worked out from its slot and quality). */
+export function itemBoons(i: Item): string[] {
+  return i.boons ?? gearBoons(i.slot, STEP[i.rarity]);
+}
+
+/** A piece of gear for a slot, of a rarity: what it puts on its hero's card grows with its rarity. */
+export function makeItem(id: string, slot: SlotKind, rarity: ItemRarity, race: number, _roll = 0): Item {
+  const boons = gearBoons(slot, STEP[rarity]);
+  return { id, name: `${QUALITY[rarity]} ${GEAR_NAMES[slot][race] ?? GEAR_NAMES[slot][0]}`, slot, rarity, boons, text: `Hero card: ${boonsText(boons)}` };
 }
 
 /** A gear slot of a race's that an item fits (null if none). */
 export const slotsFor = (race: number, kind: SlotKind) => RACE_SLOTS[race].filter((x) => x.kind === kind);
 
 /** A short line for what an item does in battle. */
-export const itemText = (i: Item) => i.text;
+export const itemText = (i: Item) => (i.boons ? i.text : `Hero card: ${boonsText(itemBoons(i))}`);
 
 /** How strong an item is, for the AI's choosing. */
-export const itemValue = (i: Item) => STEP[i.rarity] * 10 + (i.foeHeat ?? 0);
+export const itemValue = (i: Item) => STEP[i.rarity] * 10;

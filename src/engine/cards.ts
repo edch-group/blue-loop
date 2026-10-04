@@ -2,6 +2,7 @@ import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
+import { BOONS } from './boons';
 import { CARD_COSTS } from './costs';
 import { commandChoices } from './commands';
 
@@ -699,7 +700,7 @@ export function copyLimit(defId: string): number {
 
 for (const t of TOKENS) Object.assign(t, { cost: 0 });
 // (Tokens are cards in play, but not in the pool: no deck, shop or collection has them.)
-const BY_ID = new Map([...CARDS, ...TOKENS].map((c) => [c.id, c]));
+const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS].map((c) => [c.id, c]));
 
 export function cardDef(defId: string): CardDef {
   const def = BY_ID.get(defId) ?? fusedDef(defId);

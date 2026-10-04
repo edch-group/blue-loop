@@ -65,6 +65,8 @@ export function createGame(setup: GameSetup): GameState {
       turn: emptyTurn(),
       modifiers: ps.modifiers,
       conditions: ps.conditions,
+      ...(ps.freeReshuffle ? { freeReshuffle: true } : {}),
+      ...(ps.heroBoons?.boons.length ? { heroBoons: ps.heroBoons } : {}),
       ...(ps.skills?.length ? { skills: ps.skills.map((k) => ({ ...k })) } : {}),
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
@@ -159,14 +161,19 @@ function passives(p: PlayerState): { card: CardInstance; passive: Passive }[] {
   return p.tableau.flatMap((card) => cardPassives(card).map((passive) => ({ card, passive })));
 }
 
-/** A card's passives: its own, and those of the Fusion cards fused onto it. */
-export function cardPassives(card: CardInstance): Passive[] {
-  return [...(cardDef(card.defId).passive ?? []), ...(card.fused ?? []).flatMap((f) => cardDef(f.defId).passive ?? [])];
+/** What a card carries on top of its own text: its Fusion cards and a campaign hero's boons. */
+function extras(card: CardInstance): CardDef[] {
+  return [...(card.fused ?? []).map((f) => cardDef(f.defId)), ...(card.boons ?? []).map((b) => cardDef(b))];
 }
 
-/** A card's Sturdy: its own, and its Fusion cards'. */
+/** A card's passives: its own, and those of what it carries (Fusion cards, boons). */
+export function cardPassives(card: CardInstance): Passive[] {
+  return [...(cardDef(card.defId).passive ?? []), ...extras(card).flatMap((d) => d.passive ?? [])];
+}
+
+/** A card's Sturdy: its own, and what it carries. */
 export function cardSturdy(card: CardInstance): number {
-  return (cardDef(card.defId).defence ?? 0) + (card.fused ?? []).reduce((t, f) => t + (cardDef(f.defId).defence ?? 0), 0);
+  return (cardDef(card.defId).defence ?? 0) + extras(card).reduce((t, d) => t + (d.defence ?? 0), 0);
 }
 
 /** Cards of yours a Fusion card can fuse onto: any in play with room for another (not Lightspeed cards). */
@@ -451,6 +458,11 @@ export function cardCost(defId: string): number {
 function place(p: PlayerState, card: CardInstance, slot: number) {
   card.slot = slot;
   card.stability = baseStability(card.defId);
+  // A campaign hero's card carries their boons (gear and skills) while it is in play.
+  if (p.heroBoons && card.defId === p.heroBoons.hero) {
+    card.boons = [...p.heroBoons.boons];
+    card.stability = Math.min(BALANCE.maxStability, card.stability + card.boons.reduce((t, b) => t + (cardDef(b).stability ?? 0), 0));
+  }
   // The slot's worn defence is still worn: the new card stands in it.
   const wear = p.slotWear?.[slot] ?? 0;
   if (wear > 0) card.dented = wear;
@@ -527,7 +539,7 @@ export function cardChoices(defId: string): string[] {
 export function dawnEffects(card: CardInstance): Effect[] {
   const def = cardDef(card.defId);
   const chosen = def.choices?.find((c) => c.id === card.choice) ?? def.choices?.[0];
-  return [...(def.onTurn ?? []), ...(chosen?.onTurn ?? []), ...(card.fused ?? []).flatMap((f) => cardDef(f.defId).onTurn ?? [])];
+  return [...(def.onTurn ?? []), ...(chosen?.onTurn ?? []), ...extras(card).flatMap((d) => d.onTurn ?? [])];
 }
 
 /** Whether a card stays in the tableau when played (everything but Lightspeed cards, which are set face down). */
@@ -789,6 +801,10 @@ function drawCards(state: GameState, p: PlayerState, count: number) {
 function reshuffle(state: GameState, p: PlayerState) {
   p.deck = shuffleInPlace(state, p.discard);
   p.discard = [];
+  if (p.freeReshuffle) {
+    log(state, `${p.name} shuffles their discard pile back into their deck.`);
+    return;
+  }
   log(state, `${p.name} shuffles their discard pile back into their deck: the strain heats their sun by ${BALANCE.reshuffleHeat}.`);
   applyHeat(state, p, BALANCE.reshuffleHeat, null);
 }
@@ -1106,6 +1122,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   if (wear > 0 && card.slot !== undefined) (owner.slotWear ??= {})[card.slot] = wear;
   card.growth = undefined;
   card.slot = undefined;
+  delete card.boons;
   delete card.dented;
   card.stability = undefined;
   card.choice = undefined;
@@ -1463,6 +1480,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);
   }
   resolveEffects(state, p, card, def.onPlay, 'play', action);
+  // A campaign hero's boons that act as the card is played.
+  for (const b of card.boons ?? []) if (!state.winnerId && !p.eliminated && cardDef(b).onPlay) resolveEffects(state, p, card, cardDef(b).onPlay, 'play');
   // The aim was for this play: later heat (its dawn, or as it leaves) is aimed afresh.
   card.aim = undefined;
 }
