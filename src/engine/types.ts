@@ -153,7 +153,7 @@ export type Passive =
   | { type: 'guard'; amounts: number[] }
   /** Your cards next to this one lose no stability. */
   | { type: 'anchor' }
-  /** Guard: rival cards can only attack your Guard cards while you have one. */
+  /** Guard: rival attacks and aimed heat can only target your Guard cards while you have one. */
   | { type: 'taunt' }
   /** Your rivals' planets all count as the dead planet (no energy or cards from them) while this is in play. */
   | { type: 'eatPlanets' };
@@ -307,6 +307,8 @@ export interface PlayerState {
   species: number;
   /** The deck's name, for display. */
   deckName?: string;
+  /** The player's picture: a card (its id), whose artwork stands for them. */
+  avatar?: string;
   heat: number;
   shields: number;
   /** Shuffling the discard pile back in costs no heat (a campaign army's small deck). */
@@ -423,6 +425,8 @@ export interface PlayerSetup {
   /** The deck, as card ids (default: the race's starter deck). */
   deck?: string[];
   deckName?: string;
+  /** The player's picture: a card (its id). */
+  avatar?: string;
   /** Which of the alien races this player is (an index into RACE_NAMES, 0–7). Defaults to the seat order. */
   species?: number;
   /** Campaign battles: heat carried in (damage taken earlier, or a garrison's bombardment). */
@@ -466,14 +470,16 @@ export type Action =
       allyUid?: string;
       /** Recover effects: the card in your discard pile to take back. */
       recoverUid?: string;
+      /** A card that heats as it is played: the rival card its heat goes to (unset: their sun, or a Guard). */
+      aimUid?: string;
     }
   | { type: 'setTarget'; targetId: string }
   | { type: 'endTurn' }
   /** Use one of your hero's battle skills (campaign), on your own day. */
   | { type: 'heroSkill'; index: number }
   /** Use one of the abilities of the Hero leading from your Hero slot (one a day). */
-  | { type: 'heroAbility'; index: number }
-  /** One of your cards attacks one of your rival's cards. */
-  | { type: 'attack'; attackerUid: string; targetUid: string }
+  | { type: 'heroAbility'; index: number; /** An ability that heats: the rival card it goes to (unset: their sun, or a Guard). */ aimUid?: string }
+  /** One of your cards attacks: one of your rival's cards, or their sun (target null). */
+  | { type: 'attack'; attackerUid: string; targetUid: string | null }
   /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string };

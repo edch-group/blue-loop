@@ -1063,29 +1063,38 @@ describe('attacks and heat', () => {
   }
   const stab = (st: GameState, uid: string) => st.players[1].tableau.find((c) => c.uid === uid)?.stability ?? 0;
 
-  it("strikes the rival's sun with every heat, never their cards: dawn heat and heat as a card is played", () => {
+  it("strikes the sun with dawn heat (past Guards), while heat as a card is played can be aimed at a card", () => {
     let { s, a, b } = setUp();
     const [sa, sb] = [stab(s, a.uid), stab(s, b.uid)];
-    // A rival Guard doesn't draw heat in either.
-    give(s.players[1], ['stinging_veil'], 'tableau');
+    // A rival Guard doesn't draw dawn heat in.
+    const [veil] = give(s.players[1], ['stinging_veil'], 'tableau');
+    veil.stability = 6;
     s = applyAction(applyAction(s, { type: 'endTurn' }), { type: 'endTurn' });
     // (Bo's own dawn wore them 1, as every card fades.)
     expect(stab(s, a.uid)).toBe(sa - 1);
     expect(stab(s, b.uid)).toBe(sb - 1);
+    expect(stab(s, veil.uid)).toBe(5);
+    // A Coronal Lance, aimed: with a Guard up, only the Guard can be aimed at.
+    activePlayer(s).playsLeft = 9;
+    give(activePlayer(s), ['coronal_lance', 'coronal_lance']);
+    expect(() => play(s, 'coronal_lance', { aimUid: a.uid })).toThrow(GameError);
+    s = play(s, 'coronal_lance', { aimUid: veil.uid });
+    const struck = s.players[1].tableau.find((c) => c.uid === veil.uid)!;
+    expect((struck.dented ?? 0) + (5 - struck.stability!)).toBe(3);
+    // With the Guard gone, at any card: its defence first, then its stability; the sun takes nothing.
+    s.players[1].tableau = s.players[1].tableau.filter((c) => c.uid !== veil.uid);
     s.players[1].shields = 0;
     const heat = s.players[1].heat;
-    activePlayer(s).playsLeft = 9;
-    give(activePlayer(s), ['coronal_lance']);
-    s = play(s, 'coronal_lance');
-    expect(s.players[1].heat).toBe(heat + 3);
-    expect(stab(s, a.uid)).toBe(sa - 1);
+    const def = cardDefence(s.players[1], s.players[1].tableau.find((c) => c.uid === b.uid)!);
+    s = play(s, 'coronal_lance', { aimUid: b.uid });
+    expect(stab(s, b.uid)).toBe(sb - 1 - Math.max(0, 3 - def));
+    expect(s.players[1].heat).toBe(heat);
   });
 
-  it("attacks only rival cards (never the sun), Guards first, wearing defence before stability", () => {
+  it("attacks a rival card, Guards first, wearing defence before stability", () => {
     let { s, array, b } = setUp();
     const ada = activePlayer(s);
     expect(attackProblem(s, ada, array.uid)).toBeNull();
-    expect(attackProblem(s, ada, array.uid, 'sun')).toMatch(/Attack a card/);
     const bo = s.players[1];
     const card = () => s.players[1].tableau.find((c) => c.uid === b.uid)!;
     const def = cardDefence(bo, card());
@@ -1103,10 +1112,14 @@ describe('attacks and heat', () => {
     expect(attackProblem(t.s, activePlayer(t.s), t.array.uid, veil.uid)).toBeNull();
   });
 
-  it('cannot attack when the rival has no cards in play', () => {
-    const s = twoPlayer();
-    const [array] = give(s.players[0], ['siege_array'], 'tableau');
-    expect(attackProblem(s, s.players[0], array.uid)).toMatch(/no cards/);
+  it("attacks the rival's sun past their shields, unless a Guard stands", () => {
+    let { s, array } = setUp();
+    const heat = s.players[1].heat;
+    s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: null });
+    expect(s.players[1].heat).toBe(heat + cardAttack(s, s.players[0], array));
+    const t = setUp();
+    give(t.s.players[1], ['stinging_veil'], 'tableau');
+    expect(attackProblem(t.s, activePlayer(t.s), t.array.uid, null)).toMatch(/Guard/);
   });
 
   it("wears defence down for good (mending 1 a day), and leaves a destroyed card's wear in its slot", () => {

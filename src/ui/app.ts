@@ -42,8 +42,9 @@ import {
   allyChoices,
   cardChoices,
   cardCost,
-  attackTargets,
-  guards,
+  aimChoices,
+  aimable,
+  abilityAimable,
   COMMAND_SLOT,
   dawnEffects,
   effectAmount,
@@ -72,7 +73,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -118,6 +119,10 @@ interface Pending {
   step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot' | 'host';
   /** A Fusion card: the card of yours it fuses onto. */
   hostUid?: string;
+  /** Where its heat goes: a rival card's uid, or 'sun'. */
+  aimUid?: string;
+  /** Your Hero's ability being aimed (uid is the Hero): which one. */
+  ability?: number;
   /** A card of yours in play attacking (uid is that card): its target is chosen like an aim. */
   attack?: boolean;
   /** A Command card's option. */
@@ -745,7 +750,7 @@ export class App {
   private joinInfo() {
     const seat = this.seats[0];
     const deck = deckById(seat.deckId) ?? PRESETS[0];
-    return { name: profile().name || seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race, profileId: profile().id };
+    return { name: profile().name || seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race, avatar: account()?.avatar, profileId: profile().id };
   }
 
   private goOnline(code?: string) {
@@ -1075,8 +1080,8 @@ export class App {
     const out: string[] = [];
     const playable = me.hand.filter((c) => this.canPlayNow(me, c.defId)).length;
     if (playable) out.push(`${playable} playable card${playable === 1 ? '' : 's'}`);
-    const targets = attackTargets(s, me).length;
-    const attackers = targets ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
+    const { cards, sun } = aimChoices(s, me);
+    const attackers = sun || cards.length ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
     if (attackers) out.push(`${attackers} card${attackers === 1 ? '' : 's'} that can still attack`);
     const hero = commandCard(me);
     if (hero && (cardDef(hero.defId).abilities ?? []).some((_, i) => !heroAbilityProblem(s, me, i))) out.push(`${cardDef(hero.defId).name}'s ability`);
@@ -1123,7 +1128,9 @@ export class App {
         const deck = deckById(s.deckId) ?? PRESETS[i];
         noteRecentDeck(i, deck.id);
         const name = s.isAI ? s.bot : i === 0 ? profile().name || s.name : s.name;
-        return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, species: deck.race };
+        // Your own picture is your account's; anyone else's is dealt by their name.
+        const avatar = (!s.isAI && i === 0 ? account()?.avatar : undefined) ?? pictureFor(name.trim() || 'Unnamed');
+        return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, species: deck.race, avatar };
       });
     this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
   }
@@ -1505,7 +1512,7 @@ export class App {
     if (action.type !== 'playCard' || action.faceDown) return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card || !isBurst(cardDef(card.defId))) return null;
-    const stage: Stage = { defId: card.defId, actorId: actor.id, own: true, caption: 'you play', target: action.enemyUid };
+    const stage: Stage = { defId: card.defId, actorId: actor.id, own: true, caption: 'you play', target: action.enemyUid ?? action.aimUid };
     const since = Date.now();
     const check = () => {
       if (this.stage !== stage) return;
@@ -1525,7 +1532,7 @@ export class App {
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
     if (cardDef(card.defId).kind === 'lightspeed' || action.faceDown) return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
-    return { defId: card.defId, actorId: actor.id, option: action.choice, target: action.enemyUid };
+    return { defId: card.defId, actorId: actor.id, option: action.choice, target: action.enemyUid ?? action.aimUid };
   }
 
   /** A Lightspeed card that just sprang (revealed from face down into its owner's discard pile), announced for everyone. */
@@ -1636,11 +1643,27 @@ export class App {
         .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.stability ?? 0) < (c.stability ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0))
         .map(([uid]) => uid);
       const from = playedFrom!;
+      const heats = (playedDef?.onPlay ?? []).some((e) => e.type === 'heat');
       hitCards.forEach((uid, i) => {
         const el = root.querySelector<HTMLElement>(`[data-uid="${uid}"]`);
         const to = before.cards.get(uid)?.rect ?? (el ? pageRect(el) : null);
         if (!to) return;
         const delay = (actor.isAI ? 600 : 470) + i * 140;
+        // Heat aimed at a card: flying from the card played to the card it strikes, whose numbers change as
+        // it lands. (Removal, below, is a white arc.)
+        const wasC = was.get(uid)!, nowC = now.get(uid);
+        const byHeat = heats && uid !== action.enemyUid && (uid === action.aimUid || (nowC?.dented ?? 0) > (wasC.dented ?? 0));
+        if (byHeat) {
+          const land = projectile(from, () => (el?.isConnected ? pageRect(el) : to), HOT, { delay, size: 30, duration: 560 });
+          removalAt.set(uid, land);
+          if (el) {
+            pulse(el, 'fx-hit-card', land);
+            this.holdCardStats(el, before.cards.get(uid)?.html, land);
+          }
+          window.setTimeout(() => sound.launch(), delay);
+          window.setTimeout(() => sound.whoosh(0, !nowC), land - 60);
+          return;
+        }
         // (A card whose aim was shown while it waited to be confirmed already pointed here.)
         removalAt.set(uid, uid === shown ? 160 : tether(from, to, { delay }));
         // The beam whooshes onto the card (and, if it takes it, sweeps it away).
@@ -2271,7 +2294,9 @@ export class App {
     }
     if (allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
-    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, ...(p.hostUid ? { hostUid: p.hostUid } : {}) });
+    // A card that heats, with rival cards on the table: where its heat goes (a card, or their sun).
+    if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
+    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.hostUid ? { hostUid: p.hostUid } : {}) });
   }
 
   // -------------------------------------------------------------------------
@@ -2814,6 +2839,13 @@ export class App {
         if (why) return this.showToast(why, 'info');
         this.sheet = null;
         this.heroPanel = null;
+        // An ability that heats, with rival cards on the table: aim it first (a card, or their sun).
+        const hero = commandCard(this.viewer())!;
+        if (abilityAimable(hero.defId, Number(arg)) && aimChoices(this.state!, this.viewer()).cards.length) {
+          this.pending = { uid: hero.uid, step: 'aim', ability: Number(arg) };
+          sound.hover();
+          return this.render();
+        }
         sound.hero();
         return this.dispatch({ type: 'heroAbility', index: Number(arg) });
       }
@@ -2844,11 +2876,21 @@ export class App {
       }
       case 'choose-aim': {
         const pend = this.pending;
-        if (!pend?.attack) return;
-        this.pending = null;
-        const why = attackProblem(this.state!, this.viewer(), pend.uid, arg);
-        if (why) return this.showToast(why, 'info');
-        return this.dispatch({ type: 'attack', attackerUid: pend.uid, targetUid: arg });
+        if (!pend) return;
+        if (pend.attack) {
+          this.pending = null;
+          const target = arg === 'sun' ? null : arg;
+          const why = attackProblem(this.state!, this.viewer(), pend.uid, target);
+          if (why) return this.showToast(why, 'info');
+          return this.dispatch({ type: 'attack', attackerUid: pend.uid, targetUid: target });
+        }
+        if (pend.ability !== undefined) {
+          this.pending = null;
+          sound.hero();
+          return this.dispatch({ type: 'heroAbility', index: pend.ability, aimUid: arg === 'sun' ? undefined : arg });
+        }
+        pend.aimUid = arg;
+        return this.advancePlay();
       }
       case 'choose-ally':
         if (this.pending) this.pending.allyUid = arg;
@@ -3570,7 +3612,7 @@ export class App {
           ${step('Your cards', `Every card in your tableau fires its ${kw('dawn')} effect, left to right: heat strikes your rival's sun.`)}
           ${step('Fade', 'Every card loses 1 ◷ stability. At 0 it goes to your discard pile.')}
           ${step('Play', `Spend your energy on cards: 1 on your first day, 2 on your second, then <b>${B.maxPlays}</b> a day (more with bonuses). Each card goes into a slot you choose.`)}
-          ${step('Attack', 'Each ready card with attack may strike one rival card, once a day.')}
+          ${step('Attack', "Each ready card with attack may strike the rival's sun or one of their cards, once a day.")}
           ${step('Dusk', `End your day: every ${kw('dusk')} effect fires, cooling your sun. Your rival's day begins.`)}
         </ol>`,
       ],
@@ -3579,7 +3621,7 @@ export class App {
         () =>
           facts(
             fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
-            fact('Defence', `An attack wears a card's defence first, and the wear lasts: it mends 1 a day (more with ${kw('sturdy', '1')} or ${kw('repair', '1')}), and stays in the slot if the card leaves. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
+            fact('Defence', `An attack or aimed heat wears a card's defence first, and the wear lasts: it mends 1 a day (more with ${kw('sturdy', '1')} or ${kw('repair', '1')}), and stays in the slot if the card leaves. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
             fact('No replacing', 'A full tableau takes nothing new until a card fades or leaves. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
@@ -3590,10 +3632,10 @@ export class App {
         'Sun & Orbit',
         () =>
           facts(
-            fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun (never their cards), unless the card says “to your sun”. Passive heat comes at dawn."),
+            fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”. Passive heat comes at dawn and always strikes the sun; heat as a card is played can be aimed at a rival card instead."),
             fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun. Passive cooling comes at dusk.'),
             fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
-            fact('Attacks', "A card's attack strikes a rival card, never a sun; the card hits back."),
+            fact('Attacks', "Once a day, a card's attack strikes the rival's sun or one of their cards (which hits back)."),
             fact('Energy', `Cards cost energy (the green gem). You get 1 on your first day, 2 on your second, then ${B.maxPlays} a day. The industrial planet and energy cards add more on top.`),
             fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),
             fact('The planets', `Dead: nothing. Abundant: draw +${B.abundantDraw}. Industrial: play +${B.industrialPlays}.`),
@@ -3737,9 +3779,11 @@ export class App {
     // Online, while your rival reads the card you just played.
     if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
-    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
+    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack || p.ability !== undefined ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
-    if (p.step === 'aim' && p.attack) return hint(guards(targetOf(s, activePlayer(s))!).length ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
+    const guarded = !aimChoices(s, activePlayer(s)).sun;
+    if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
+    if (p.step === 'aim') return hint(guarded ? 'aim at a guard' : 'aim heat');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
@@ -3809,15 +3853,22 @@ export class App {
     // What a staged card is aimed at: a ring round that card's edge.
     const targeted = new Set<string>();
     if (this.stage?.confirm && this.stage.target) targeted.add(this.stage.target);
-    // An attack being aimed: what it would leave of each rival card it could hit, worked out by making it on a
-    // copy of the game. (Face-down Lightspeed cards are left out of the copy: the preview must not give them away.)
-    if (pend?.attack && pend.step === 'aim' && side === 'rival') {
+    // An attack, a card's heat or a Hero's ability being aimed: what it would leave of each rival card it could
+    // hit, worked out by making the move on a copy of the game (so a slot's forge and resonance count). (Face-down
+    // Lightspeed cards are left out of the copy: the preview must not give them away.)
+    if (pend?.step === 'aim' && side === 'rival') {
       const me = activePlayer(st);
-      for (const c of attackTargets(st, me)) {
+      const move = (aim: string): Action =>
+        pend.attack
+          ? { type: 'attack', attackerUid: pend.uid, targetUid: aim }
+          : pend.ability !== undefined
+            ? { type: 'heroAbility', index: pend.ability, aimUid: aim }
+            : { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, aimUid: aim, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) };
+      for (const c of aimChoices(st, me).cards) {
         try {
           const g = structuredClone(st);
           for (const pl of g.players) if (pl.id !== me.id) pl.lightspeed = null;
-          const after = applyAction(g, { type: 'attack', attackerUid: pend.uid, targetUid: c.uid });
+          const after = applyAction(g, move(c.uid));
           const owner = after.players.find((x) => x.id === p.id)!;
           const left = owner.tableau.find((x) => x.uid === c.uid);
           preview.set(c.uid, left ? { defence: cardDefence(owner, left), stability: left.stability ?? 0 } : { defence: 0, stability: 0 });
@@ -3832,6 +3883,8 @@ export class App {
       placing && pend!.slot === i
         ? this.renderCard({ ...placing, slot: i, stability: baseStability(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
         : null;
+    // Aiming (an attack, a card's heat or a Hero's ability): the rival's sun is a target too, unless a Guard stands.
+    const sunAim = side === 'rival' && pend?.step === 'aim' && aimChoices(st, activePlayer(st)).sun;
     // The Command slot: the one Command card leads the tableau from out in front (top right of yours,
     // bottom left of your rival's: a mirror across the board), lying landscape.
     const cmd = commandCard(p);
@@ -3865,7 +3918,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals" data-anchor="player:${p.id}">${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
@@ -3959,7 +4012,7 @@ export class App {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    if (p?.attack && p.step === 'aim' && me && opts.tableau === 'rival' && attackTargets(s!, me).some((x) => x.uid === c.uid)) {
+    if (p?.step === 'aim' && me && opts.tableau === 'rival' && aimChoices(s!, me).cards.some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-aim" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
@@ -3973,7 +4026,7 @@ export class App {
       attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Choose what ${esc(def.name)} does today (hold or right-click to read it)"`;
       state = 'card-attacker';
     }
-    if (p?.attack && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
+    if ((p?.attack || p?.ability !== undefined) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';
     // Placing a recall card: the card it recalls can make way for it.
     if (p && pendingDef && opts.tableau === 'mine' && p.step === 'slot' && p.allyUid === c.uid && allyEffectKind(pendingDef) === 'recall' && c.slot !== undefined) {
@@ -4016,7 +4069,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
@@ -4101,7 +4154,8 @@ export class App {
     const hero = commandCard(me);
     if (!hero || hero.dimmed) return [];
     const out: (number | 'attack')[] = (cardDef(hero.defId).abilities ?? []).map((_, i) => i).filter((i) => !heroAbilityProblem(s, me, i));
-    if (cardAttack(s, me, hero) > 0 && attackTargets(s, me).length) out.push('attack');
+    const { cards, sun } = aimChoices(s, me);
+    if (cardAttack(s, me, hero) > 0 && (sun || cards.length)) out.push('attack');
     return out;
   }
 
@@ -4326,7 +4380,7 @@ export class App {
           <div class="sys-tabs">${tabs}</div>
           <div class="sys-card player-card">
             <div class="sys-kicker">${p.id === me.id ? 'you' : esc(p.name.toLowerCase())} · ${esc(RACE_NAMES[p.species].toLowerCase())}</div>
-            ${factionAvatar(`f${p.species + 1}`, 'player-emblem')}
+            ${playerAvatar(p.avatar ?? pictureFor(p.name), 'player-emblem')}
             <h2 class="sys-name">${esc((p.deckName ?? 'custom deck').toLowerCase())}</h2>
             ${commands ? `<p class="muted center-text">Heroes in play: ${commands}</p>` : ''}
             ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A Lightspeed card is set face down.'}</p>` : ''}

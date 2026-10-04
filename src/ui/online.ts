@@ -44,6 +44,8 @@ export interface JoinInfo {
   deck: string[];
   deckName: string;
   species: number;
+  /** Your picture (a card id). */
+  avatar?: string;
   /** Your profile id (ranked rooms admit only the two players matched). */
   profileId?: string;
 }

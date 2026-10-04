@@ -36,7 +36,7 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'nyx_veil_sentry', name: 'Veil Sentry', kind: 'defence', race: 4, sub: 'veilwalker', cost: 2,
-    text: '{guard}. {sting:2}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: springs into your tableau to take an attack on your cards.',
+    text: '{guard}. {sting:2}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: springs into your tableau to take an attack or heat aimed at your cards.',
     onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }], lightspeed: { trigger: { on: 'cardAttacked' }, deploy: true },
   },
   {

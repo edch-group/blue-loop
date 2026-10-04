@@ -31,7 +31,9 @@ import {
   turnForecast,
   allyEffectKind,
   inSlots,
-  attackTargets,
+  aimChoices,
+  aimable,
+  abilityAimable,
 } from './game';
 import type { Action, CardInstance, Effect, GameState, PlayerState } from './types';
 
@@ -251,8 +253,13 @@ function evaluate(state: GameState, meId: string): number {
     }
   }
   // Count the heat already on its way: what each rival's tableau will do to this sun at their next dawn,
-  // past its shields (so a tableau stacked with heat cards is seen coming, and answered in time).
-  const incoming = state.players.reduce((sum, o) => (o.id === meId || o.eliminated || targetOf(state, o)?.id !== meId ? sum : sum + turnForecast(state, o).heat), 0);
+  // past its shields (so a tableau stacked with attack cards is seen coming, and answered in time).
+  const incoming = state.players.reduce((sum, o) => {
+    if (o.id === meId || o.eliminated || targetOf(state, o)?.id !== meId) return sum;
+    // (And their cards' attacks, all ready again at their dawn: most of it is likely to come at this sun.)
+    const attacks = o.tableau.reduce((n, c) => n + cardAttack(state, o, c), 0);
+    return sum + turnForecast(state, o).heat + 0.7 * attacks;
+  }, 0);
   const landing = Math.max(0, incoming - me.shields);
   const coming = landing * INCOMING_WEIGHT;
   const mine = Math.max(0, me.heat + coming) / supernovaThreshold(me);
@@ -282,6 +289,10 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     // Recovering: one of each card in the discard pile.
     const recovers = opt([...new Map(recoverChoices(me, card.defId).map((c) => [c.defId, c.uid])).values()]);
     const allies = opt(allyChoices(me, card.defId).map((c) => c.uid));
+    // Heat can go to the rival's sun (unset) or any card it may aim at.
+    const aim = aimable(card.defId) ? aimChoices(state, me) : { sun: true, cards: [] };
+    const aims: (string | undefined)[] = [...(aim.sun ? [undefined] : []), ...aim.cards.map((c) => c.uid)];
+    if (!aims.length) aims.push(undefined);
     // A recall card may also take the slot of the card it recalls.
     const recalls = allyEffectKind(card.defId) === 'recall' && inSlots(card.defId);
     for (const choice of choices)
@@ -289,7 +300,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
         for (const allyUid of allies) {
           const back = recalls ? me.tableau.find((c) => c.uid === allyUid) : undefined;
           const here: (number | undefined)[] = back && back.slot !== undefined && !(slots as (number | undefined)[]).includes(back.slot) ? [...slots, back.slot] : slots;
-          for (const slot of here) for (const recoverUid of recovers) for (const hostUid of hosts) if (!hostUid || slot === here[0]) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, ...(hostUid ? { hostUid } : {}) });
+          for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) for (const hostUid of hosts) if (!hostUid || slot === here[0]) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid, ...(hostUid ? { hostUid } : {}) });
         }
   }
   return plays;
@@ -343,13 +354,20 @@ export function chooseAIAction(state: GameState): Action {
   if (skill !== null) return { type: 'heroSkill', index: skill };
   // Its Hero's abilities (one a day): weighed like any card it could play.
   const hero = commandCard(me);
-  const abilities: Action[] = hero ? (cardDef(hero.defId).abilities ?? []).flatMap((_, index) => (heroAbilityProblem(state, me, index) === null ? [{ type: 'heroAbility' as const, index }] : [])) : [];
-  // Its cards' attacks (each ready card, at each rival card it may hit).
+  // (One that heats: at the sun, or at each card it may be aimed at.)
+  const aimAt = aimChoices(state, me).cards.map((c) => c.uid);
+  const abilities: Action[] = hero
+    ? (cardDef(hero.defId).abilities ?? []).flatMap((_, index) =>
+        heroAbilityProblem(state, me, index) !== null ? [] : [{ type: 'heroAbility' as const, index }, ...(abilityAimable(hero.defId, index) ? aimAt.map((aimUid) => ({ type: 'heroAbility' as const, index, aimUid })) : [])],
+      )
+    : [];
+  // Its cards' attacks (each ready card, at the sun or each card it may hit).
   const attacks: Action[] = [];
-  const targets = attackTargets(state, me);
+  const targets = aimChoices(state, me);
   for (const c of me.tableau) {
     if (c.dimmed || (cardDef(c.defId).attack ?? 0) <= 0) continue;
-    for (const t of targets) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
+    if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
+    for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
   if (!abilities.length && !attacks.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 

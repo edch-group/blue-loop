@@ -52,6 +52,7 @@ export function createGame(setup: GameSetup): GameState {
       isAI: ps.isAI,
       species,
       deckName: ps.deckName ?? (ps.deck ? undefined : presetDeck(species).name),
+      ...(ps.avatar ? { avatar: ps.avatar } : {}),
       heat: BALANCE.startingHeat + (ps.heatDelta ?? 0) + (ps.modifiers?.startingHeat ?? 0) - (catchUp(i) ? BALANCE.laterSeatCool : 0),
       shields: ps.opening?.shields ?? 0,
       deck,
@@ -287,14 +288,36 @@ export function guards(p: PlayerState): CardInstance[] {
 }
 
 /**
- * What your cards may attack: any card in your rival's tableau, or, while they have Guard cards, only those.
- * (Attacks strike cards; heat strikes suns, and is never aimed.)
+ * Where an attack, or heat a card deals as it is played (or a Hero's ability), may be aimed: any card in your
+ * rival's tableau, or their sun; while they have Guard cards, only those. (Dawn heat is never aimed: it
+ * always strikes the sun.)
  */
-export function attackTargets(state: GameState, p: PlayerState): CardInstance[] {
+export function aimChoices(state: GameState, p: PlayerState): { cards: CardInstance[]; sun: boolean } {
   const t = targetOf(state, p);
-  if (!t) return [];
+  if (!t) return { cards: [], sun: true };
   const g = guards(t);
-  return g.length ? g : [...t.tableau];
+  return g.length ? { cards: g, sun: false } : { cards: [...t.tableau], sun: true };
+}
+
+/** Whether a card heats your rival as it is played (it may be aimed then, at their sun or one of their cards). */
+export function aimable(defId: string): boolean {
+  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target');
+}
+
+/** Whether a Hero's ability heats your rival (it may be aimed, as a card played is). */
+export function abilityAimable(defId: string, index: number): boolean {
+  return (cardDef(defId).abilities?.[index]?.effects ?? []).some((e) => e.type === 'heat' && e.to === 'target');
+}
+
+/** Where aimed heat lands: the rival card aimed at (if still there and allowed), else a Guard (the most worn), else the sun (null). */
+function aimedCard(state: GameState, p: PlayerState, aim: string | undefined): CardInstance | null {
+  const t = targetOf(state, p);
+  if (!t) return null;
+  const g = guards(t);
+  const aimed = aim ? t.tableau.find((c) => c.uid === aim) : undefined;
+  if (aimed && (!g.length || g.includes(aimed))) return aimed;
+  if (g.length) return [...g].sort((a, b) => (a.stability ?? 0) - (b.stability ?? 0))[0];
+  return null;
 }
 
 /** Whether a player's shields guard their cards too (a Tidewall card in play). */
@@ -862,6 +885,8 @@ export type Timing = 'play' | 'turn' | 'leave' | 'recover' | 'spring';
 
 interface PlayContext {
   enemyUid?: string;
+  /** Heat as it is played (or a Hero's ability): the rival card aimed at (unset: their sun, or a Guard). */
+  aimUid?: string;
   allyUid?: string;
   recoverUid?: string;
   /** Lightspeed: the enemy who sprang the card (the effects' target). */
@@ -881,7 +906,16 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (amount <= 0) break;
         const main = ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p);
         if (!main) break;
-        // Heat always strikes the sun (cards are struck by attacks).
+        // Heat as a card is played (or a Hero's ability) goes where it was aimed: a rival card, or their sun
+        // (Guards draw it in). Dawn heat, and heat from anything else, strikes the sun.
+        const aimed = when === 'play' && !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, ctx.aimUid) : null;
+        // A face-down Lightspeed guard can spring in front of the card the heat was aimed at.
+        const victim = aimed ? springGuard(state, main, p, card.defId) ?? aimed : null;
+        if (state.winnerId || p.eliminated) break;
+        if (victim) {
+          strikeCard(state, main, victim, amount, p, !!e.pierce, card.uid);
+          break;
+        }
         applyHeat(state, main, amount, p, false, card.uid, e.pierce);
         if (when === 'turn') notePulse(state, p, card, 'heat', main, amount);
         break;
@@ -1325,6 +1359,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const recovers = recoverChoices(p, def.id);
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
 
+  if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau (a Guard, while they have one), or at their sun.");
+
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
   // An X card spends all the energy left; its effects count how much.
   const spend = def.spendAll ? p.playsLeft : cost;
@@ -1485,8 +1521,9 @@ export function applyAction(prev: GameState, action: Action): GameState {
       p.playsLeft -= k.cost ?? 0;
       p.abilityTurn = state.turnNumber;
       hero.dimmed = true;
+      if (action.aimUid && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau (a Guard, while they have one), or at their sun.");
       log(state, `${p.name}'s ${cardDef(hero.defId).name}: ${k.name}.`);
-      resolveEffects(state, p, hero, k.effects, 'play');
+      resolveEffects(state, p, hero, k.effects, 'play', { aimUid: action.aimUid });
       if (p.eliminated) passOn(state);
       break;
     }
@@ -1523,24 +1560,25 @@ export function counterDamage(state: GameState, owner: PlayerState, card: CardIn
   return cardAttack(state, owner, card) + sting;
 }
 
-/** Why a card can't attack this card now (null if it can). With no target given: whether it can attack at all. */
-export function attackProblem(state: GameState, p: PlayerState, attackerUid: string, targetUid?: string): string | null {
+/** Why a card can't attack this target now (null if it can). `targetUid` null: the rival's sun; unset: whether it can attack at all. */
+export function attackProblem(state: GameState, p: PlayerState, attackerUid: string, targetUid?: string | null): string | null {
   const card = p.tableau.find((c) => c.uid === attackerUid);
   if (!card) return 'That card is not in play.';
   if (activePlayer(state).id !== p.id) return 'Only on your own day.';
   if ((cardDef(card.defId).attack ?? 0) <= 0) return `${cardDef(card.defId).name} has no attack.`;
   if (card.dimmed) return `${cardDef(card.defId).name} is dimmed: it acts again from your next day.`;
-  const targets = attackTargets(state, p);
-  if (!targets.length) return 'Your rival has no cards in play to attack.';
-  if (targetUid === undefined || targets.some((c) => c.uid === targetUid)) return null;
-  return guards(targetOf(state, p)!).length ? 'Your rival has a Guard in play: attack it.' : "Attack a card in your rival's tableau.";
+  const { cards, sun } = aimChoices(state, p);
+  if (targetUid === undefined) return null;
+  if (targetUid === null) return sun ? null : 'Your rival has a Guard in play: attack it.';
+  return cards.some((c) => c.uid === targetUid) ? null : sun ? "Attack a card in your rival's tableau, or their sun." : 'Your rival has a Guard in play: attack it.';
 }
 
 /**
- * A card attacks a rival card: its attack strikes the card's defence, then its stability, and the card hits
- * back with its own attack and Sting, at the attacker's stability. Then it is dimmed. (Attacks never reach a sun.)
+ * A card attacks: its attack lands as heat on the rival's sun (past shields), or strikes a rival card (its
+ * defence, then its stability), and that card hits back with its own attack and Sting, at the attacker's
+ * stability. Then it is dimmed.
  */
-function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid: string) {
+function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid: string | null) {
   const rival = targetOf(state, p);
   if (!rival) return;
   const amount = cardAttack(state, p, card);
@@ -1550,6 +1588,12 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   const burn = raceTrait(cardDef(card.defId).race)?.attackSelfHeat ?? 0;
   if (burn > 0) applyHeat(state, p, burn, null);
   if (state.winnerId) return;
+  if (targetUid === null) {
+    log(state, `${p.name}'s ${name} attacks ${rival.name}'s sun for ${amount}.`);
+    applyHeat(state, rival, amount, p, false, card.uid);
+    notePulse(state, p, card, 'heat', rival, amount);
+    return;
+  }
   // A face-down Lightspeed guard can spring in front of the card attacked, and take the blow.
   const attacked = rival.tableau.find((c) => c.uid === targetUid);
   const victim = springGuard(state, rival, p, card.defId) ?? attacked;
