@@ -5,7 +5,7 @@
  */
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
-import { CARDS, cardDef, commandCardsFor, copyLimit } from '../src/engine/cards';
+import { CARDS, cardDef, commandCardsFor, copyLimit, RACE_NAMES } from '../src/engine/cards';
 import { EXPANSION } from '../src/engine/cards-expansion';
 import { deckProblems } from '../src/engine/cards';
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
@@ -39,7 +39,7 @@ const seat = [0, 0];
 let rounds = 0;
 let errors = 0;
 for (let g = 1; g <= games; g++) {
-  const races = [Math.floor(rand() * 4), Math.floor(rand() * 4)];
+  const races = [Math.floor(rand() * RACE_NAMES.length), Math.floor(rand() * RACE_NAMES.length)];
   const decks = races.map(randomDeck);
   for (const d of decks) if (deckProblems(d).length) throw new Error(deckProblems(d)[0]);
   let s = createGame({ seed: g, players: decks.map((deck, i) => ({ name: `AI ${i + 1}`, isAI: true, species: races[i], deck })) });

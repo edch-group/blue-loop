@@ -1,4 +1,4 @@
-import { applyAction, cardDef, coverCard, createGame, deckProblems, GameError, presetDeck, type Action, type CardInstance, type GameState } from '../src/engine';
+import { applyAction, cardDef, coverCard, createGame, deckProblems, GameError, presetDeck, RACE_NAMES, type Action, type CardInstance, type GameState } from '../src/engine';
 
 /**
  * An online 1v1 room: the whole game, run on the server with the same engine
@@ -221,7 +221,7 @@ export function playerIndex(room: RoomData, seat: number): number {
 /** A seat's name, deck and race from a join or setup message (an illegal deck falls back to that race's starter). */
 function seatSetup(msg: { name: string; deck: string[]; deckName: string; species: number }, index: number): Omit<Seat, 'token'> {
   const deck = Array.isArray(msg.deck) ? msg.deck.map(String) : [];
-  const species = Number.isInteger(msg.species) && msg.species >= 0 && msg.species < 4 ? msg.species : 0;
+  const species = Number.isInteger(msg.species) && msg.species >= 0 && msg.species < RACE_NAMES.length ? msg.species : 0;
   const legal = deck.length > 0 && deckProblems(deck).length === 0;
   return {
     name: clean(msg.name, 18) || `Player ${index + 1}`,

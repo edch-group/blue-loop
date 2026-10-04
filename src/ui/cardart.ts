@@ -9,7 +9,10 @@ import { cardDef, type CardDef } from '../engine';
  * and soft glows. Character cards show a figure of their race: an Aureline is
  * a plasma-cloaked being with one great eye inside tilted halos; a Xel'Naru a
  * figure of floating crystal shards round a core of light; a Vorthane a bell
- * of living jelly rimmed with eyes; an Ixquor a walking fungal hive. Each
+ * of living jelly rimmed with eyes; an Ixquor a walking fungal hive; a Nyxari
+ * a hooded void-stalker with slit eyes in an empty hood; a Korrath a squat
+ * smith in iron plate with a fiery T-slit visor; a Seren a robed astronomer
+ * with a face of stars under a crescent moon; a Pyrr a living flame. Each
  * character has its own pose, props, markings and colouring.
  *
  * Glows are radial gradients (no SVG filters), so a table full of cards stays
@@ -38,10 +41,14 @@ const PAL: Record<string, Pal> = {
   growth: { sky: ['#0f2a24', '#23584a', '#9cd2a0'], glow: '#c8ffd0', accent: '#fff3b0', deep: '#07181a' },
   global: { sky: ['#1a1036', '#4a2a7a', '#c79ae8'], glow: '#f0d0ff', accent: '#ffd98a', deep: '#0c0820' },
   command: { sky: ['#1a1f2a', '#3c4658', '#a9b3c4'], glow: '#e6ecf5', accent: '#ffd98a', deep: '#0d1016' },
+  nyxari: { sky: ['#06050e', '#1b1638', '#4e4280'], glow: '#e2d8ff', accent: '#9d8cff', deep: '#03020a' },
+  korrath: { sky: ['#141110', '#3a302a', '#a8602e'], glow: '#ffa040', accent: '#e2b06a', deep: '#0c0907' },
+  seren: { sky: ['#070c24', '#22306a', '#9aa8d8'], glow: '#f0f4ff', accent: '#a9c4ff', deep: '#050920' },
+  pyrr: { sky: ['#1c0505', '#6a140c', '#f06a24'], glow: '#ffd060', accent: '#ff6a1e', deep: '#160302' },
   lightspeed: { sky: ['#2a1a08', '#6a4210', '#e8b45a'], glow: '#ffe2a0', accent: '#fff6dc', deep: '#170d03' },
 };
 
-const RACE_PAL = ['aureline', 'xelnaru', 'vorthane', 'ixquor'];
+const RACE_PAL = ['aureline', 'xelnaru', 'vorthane', 'ixquor', 'nyxari', 'korrath', 'seren', 'pyrr'];
 
 /** A small seeded random stream, so each card's stars and scatter are always the same. */
 function rng(seed: string) {
@@ -515,6 +522,391 @@ function ixquor(S: Scene, x: number, y: number, s: number, o: IxOpts = {}): stri
   return out;
 }
 
+/** A tongue of flame, its base at (x, y) and its tip h above (below, for negative h), white-hot at the base. */
+function tongue(S: Scene, x: number, y: number, h: number, w: number, lean = 0, c = S.p.accent, a = 1): string {
+  const tx = x + lean, ty = y - h, d = Math.sign(h) || 1;
+  const fill = d > 0 ? S.linear([[0, c, 0.2], [0.45, c, 0.9], [1, '#fff3c4', 0.95]]) : S.linear([[0, '#fff3c4', 0.95], [0.55, c, 0.9], [1, c, 0.2]]);
+  return `<path d="M${f(x - w / 2)} ${f(y)} C${f(x - w * 0.6)} ${f(y - h * 0.45)} ${f(tx - w * 0.2)} ${f(y - h * 0.72)} ${f(tx)} ${f(ty)} C${f(tx + w * 0.3)} ${f(y - h * 0.62)} ${f(x + w * 0.62)} ${f(y - h * 0.4)} ${f(x + w / 2)} ${f(y)} Q${f(x)} ${f(y + w * 0.35 * d)} ${f(x - w / 2)} ${f(y)} Z" fill="${fill}" opacity="${a}"/>`;
+}
+
+/** A flame in three layers: red outside, orange, a yellow heart. */
+function blaze(S: Scene, x: number, y: number, h: number, w: number, lean = 0, outer = '#e8301a'): string {
+  return tongue(S, x, y, h, w, lean, outer) + tongue(S, x, y, h * 0.72, w * 0.68, lean * 0.7, '#ff8a1e') + tongue(S, x, y, h * 0.42, w * 0.4, lean * 0.4, '#ffe27a');
+}
+
+/** A crescent moon of radius r, lit on its left before rotating by rot degrees. */
+function crescent(S: Scene, x: number, y: number, r: number, rot = 0, c = '#f4f7ff', k = 0.55): string {
+  return `<path d="M${f(x)} ${f(y - r)} A${f(r)} ${f(r)} 0 1 0 ${f(x)} ${f(y + r)} A${f(r * k)} ${f(r)} 0 1 1 ${f(x)} ${f(y - r)} Z" transform="rotate(${f(rot)} ${f(x)} ${f(y)})" fill="${S.linear([[0, '#ffffff'], [1, c]], 0, 0, 1, 1)}"/>`;
+}
+
+/** An eclipse: a black disc rimmed in a corona of pale light. */
+function eclipse(S: Scene, x: number, y: number, r: number, c = '#f0e8ff'): string {
+  return S.glow(x, y, r * 2.6, c, 0.6) + `<circle cx="${f(x)}" cy="${f(y)}" r="${f(r * 1.08)}" fill="${c}" opacity="0.9"/><circle cx="${f(x + r * 0.06)}" cy="${f(y + r * 0.04)}" r="${f(r)}" fill="${S.radial([[0, '#000000'], [0.85, '#07050f'], [1, '#1a1430']])}"/>`;
+}
+
+/** An anvil standing on the ground at (x, y) (its foot), w wide. */
+function anvil(S: Scene, x: number, y: number, w: number, hot = true): string {
+  const u = w / 30;
+  let out = `<path d="M${f(x - 15 * u)} ${f(y - 16 * u)} H${f(x + 9 * u)} Q${f(x + 16 * u)} ${f(y - 16 * u)} ${f(x + 19 * u)} ${f(y - 19 * u)} Q${f(x + 15 * u)} ${f(y - 11 * u)} ${f(x + 6 * u)} ${f(y - 10 * u)} L${f(x + 4 * u)} ${f(y - 5 * u)} H${f(x + 9 * u)} V${f(y)} H${f(x - 11 * u)} V${f(y - 5 * u)} H${f(x - 6 * u)} L${f(x - 8 * u)} ${f(y - 10 * u)} Q${f(x - 13 * u)} ${f(y - 11 * u)} ${f(x - 15 * u)} ${f(y - 16 * u)} Z" fill="${S.linear([[0, '#d4d8e2'], [0.3, '#7a7f8c'], [1, '#202128']])}" stroke="#121216" stroke-width="${f(0.5 * u)}"/>`;
+  out += `<path d="M${f(x - 14 * u)} ${f(y - 16 * u)} H${f(x + 9 * u)}" stroke="#fff" stroke-width="${f(0.6 * u)}" stroke-opacity="0.7"/>`;
+  if (hot) out += S.glow(x - 2 * u, y - 18 * u, 8 * u, '#ffa040', 0.9) + `<rect x="${f(x - 7 * u)}" y="${f(y - 19 * u)}" width="${f(10 * u)}" height="${f(3 * u)}" rx="${f(0.8 * u)}" fill="${S.linear([[0, '#fff3c4'], [1, '#ff6a1a']])}"/>`;
+  return out;
+}
+
+interface NyxOpts {
+  /** Cloak colour (a shade of ink). */
+  cloak?: string;
+  eye?: string;
+  item?: 'blades' | 'veil' | 'scythe' | 'lantern' | 'orb' | 'none';
+  /** An eclipse behind the head and a crown of shadow thorns. */
+  crown?: boolean;
+  /** A pale silver mask in the hood. */
+  mask?: boolean;
+  lean?: number;
+  wisps?: number;
+}
+
+/** A Nyxari: a tall hooded void-stalker, a cloak of ink fraying into smoke, slit eyes of pale light in an empty hood. */
+function nyxari(S: Scene, x: number, y: number, s: number, o: NyxOpts = {}): string {
+  const cloak = o.cloak ?? '#1d1838';
+  const eye = o.eye ?? S.p.glow;
+  const rim = S.p.accent;
+  const lean = (o.lean ?? 0) * s;
+  let out = S.glow(x, y + 16 * s, 38 * s, rim, 0.34);
+  if (o.crown) {
+    out += eclipse(S, x + 1 * s, y - 6 * s, 12 * s, '#efe6ff');
+    for (let i = -3; i <= 3; i++) {
+      const a = -Math.PI / 2 + i * 0.3, r1 = 9 * s, r2 = (23 - Math.abs(i) * 2.2) * s;
+      out += `<polygon points="${f(x + Math.cos(a - 0.1) * r1)},${f(y - 4 * s + Math.sin(a - 0.1) * r1)} ${f(x + Math.cos(a) * r2)},${f(y - 4 * s + Math.sin(a) * r2)} ${f(x + Math.cos(a + 0.1) * r1)},${f(y - 4 * s + Math.sin(a + 0.1) * r1)}" fill="#0b0918" stroke="#efe6ff" stroke-width="${f(0.6 * s)}" stroke-opacity="0.9"/>`;
+    }
+  }
+  const hand: [number, number] = [x + 16 * s, y + 15 * s];
+  const left: [number, number] = [x - 16 * s, y + 17 * s];
+  if (o.item === 'veil') {
+    // A veil spread wide behind, held up by both hands, falling to the ground.
+    out += `<path d="M${f(left[0])} ${f(left[1])} C${f(x - 26 * s)} ${f(y - 18 * s)} ${f(x + 26 * s)} ${f(y - 18 * s)} ${f(hand[0])} ${f(hand[1])} C${f(hand[0] + 12 * s)} ${f(y + 26 * s)} ${f(x + 30 * s)} ${f(y + 40 * s)} ${f(x + 26 * s)} ${f(y + 46 * s)} L${f(x - 26 * s)} ${f(y + 46 * s)} C${f(x - 30 * s)} ${f(y + 40 * s)} ${f(left[0] - 12 * s)} ${f(y + 26 * s)} ${f(left[0])} ${f(left[1])} Z" fill="${S.linear([[0, rim, 0.42], [1, rim, 0.05]])}" stroke="#e8e0ff" stroke-width="${f(0.6 * s)}" stroke-opacity="0.7"/>`;
+    for (const k of [-1, -0.5, 0.5, 1]) out += `<path d="M${f(x + k * 14 * s)} ${f(y - 9 * s)} Q${f(x + k * 30 * s)} ${f(y + 14 * s)} ${f(x + k * 24 * s)} ${f(y + 45 * s)}" fill="none" stroke="#fff" stroke-width="${f(0.4 * s)}" stroke-opacity="0.35"/>`;
+  }
+  // Smoke fraying from the hem.
+  const wisps = o.wisps ?? 4;
+  for (let i = 0; i < wisps; i++) {
+    const wx = x - 14 * s + lean + (i * 28 * s) / Math.max(1, wisps - 1);
+    const dir = i % 2 ? 1 : -1;
+    out += `<path d="M${f(wx)} ${f(y + 38 * s)} q${f(dir * 7 * s)} ${f(2 * s)} ${f(dir * 11 * s)} ${f(5 * s)} t${f(dir * 10 * s)} ${f(-1 * s)}" fill="none" stroke="${rim}" stroke-width="${f(1.4 * s)}" stroke-linecap="round" stroke-opacity="0.22"/>`;
+  }
+  // The cloak, its hem torn into points.
+  let hem = '';
+  for (let i = 1; i <= 6; i++) hem += ` L${f(x - 18 * s + (i * 36 * s) / 6 + lean)} ${f(y + (i % 2 ? 35 : 42) * s)}`;
+  out += `<path d="M${f(x - 8 * s)} ${f(y + 4 * s)} C${f(x - 13 * s)} ${f(y + 12 * s)} ${f(x - 18 * s + lean * 0.5)} ${f(y + 26 * s)} ${f(x - 18 * s + lean)} ${f(y + 42 * s)}${hem} C${f(x + 18 * s + lean * 0.5)} ${f(y + 26 * s)} ${f(x + 13 * s)} ${f(y + 12 * s)} ${f(x + 8 * s)} ${f(y + 4 * s)} Z" fill="${S.linear([[0, cloak], [0.75, cloak, 0.95], [1, cloak, 0.3]])}" stroke="${rim}" stroke-width="${f(0.6 * s)}" stroke-opacity="0.75"/>`;
+  out += `<path d="M${f(x)} ${f(y + 8 * s)} L${f(x - 3.5 * s + lean)} ${f(y + 38 * s)} L${f(x + 3.5 * s + lean)} ${f(y + 38 * s)} Z" fill="#07060f" opacity="0.85"/>`;
+  for (const k of [-1, 1]) out += `<path d="M${f(x + k * 4 * s)} ${f(y + 9 * s)} Q${f(x + k * 9 * s)} ${f(y + 22 * s)} ${f(x + k * 10 * s + lean)} ${f(y + 37 * s)}" fill="none" stroke="${rim}" stroke-width="${f(0.5 * s)}" stroke-opacity="0.35"/>`;
+  // Sleeves reaching to the hands.
+  if (o.item && o.item !== 'none') {
+    out += `<path d="M${f(x + 6 * s)} ${f(y + 6 * s)} Q${f(x + 12 * s)} ${f(y + 8 * s)} ${f(hand[0])} ${f(hand[1] - 1.5 * s)} L${f(hand[0] - 1 * s)} ${f(hand[1] + 2.5 * s)} Q${f(x + 9 * s)} ${f(y + 16 * s)} ${f(x + 6 * s)} ${f(y + 14 * s)} Z" fill="${cloak}" stroke="${rim}" stroke-width="${f(0.5 * s)}" stroke-opacity="0.7"/>`;
+    out += `<path d="M${f(x - 6 * s)} ${f(y + 6 * s)} Q${f(x - 12 * s)} ${f(y + 9 * s)} ${f(left[0])} ${f(left[1] - 1.5 * s)} L${f(left[0] + 1 * s)} ${f(left[1] + 2.5 * s)} Q${f(x - 9 * s)} ${f(y + 17 * s)} ${f(x - 6 * s)} ${f(y + 15 * s)} Z" fill="${cloak}" stroke="${rim}" stroke-width="${f(0.5 * s)}" stroke-opacity="0.7"/>`;
+    for (const [hx, hy] of [hand, left]) out += `<circle cx="${f(hx)}" cy="${f(hy + 0.5 * s)}" r="${f(1.3 * s)}" fill="#b8b0d8"/>`;
+  }
+  // The hood, pointed and swept back, and the emptiness inside it.
+  out += `<path d="M${f(x - 10 * s)} ${f(y + 6 * s)} C${f(x - 11 * s)} ${f(y - 4 * s)} ${f(x - 8 * s)} ${f(y - 11 * s)} ${f(x - 4 * s - lean * 0.3)} ${f(y - 15 * s)} C${f(x + 4 * s)} ${f(y - 10 * s)} ${f(x + 10 * s)} ${f(y - 4 * s)} ${f(x + 10 * s)} ${f(y + 6 * s)} Q${f(x)} ${f(y + 9 * s)} ${f(x - 10 * s)} ${f(y + 6 * s)} Z" fill="${S.linear([[0, '#2c2654'], [1, cloak]], 0, 0, 1, 1)}" stroke="${rim}" stroke-width="${f(0.7 * s)}" stroke-opacity="0.9"/>`;
+  out += `<ellipse cx="${f(x + 0.5 * s)}" cy="${f(y + 1 * s)}" rx="${f(5 * s)}" ry="${f(6 * s)}" fill="${S.radial([[0, '#000000'], [0.8, '#05040c'], [1, cloak]])}"/>`;
+  if (o.mask) out += `<path d="M${f(x - 3.8 * s)} ${f(y - 3 * s)} Q${f(x + 0.5 * s)} ${f(y - 6 * s)} ${f(x + 4.8 * s)} ${f(y - 3 * s)} L${f(x + 3.4 * s)} ${f(y + 4 * s)} Q${f(x + 0.5 * s)} ${f(y + 7.5 * s)} ${f(x - 2.4 * s)} ${f(y + 4 * s)} Z" fill="${S.linear([[0, '#f6f2ff'], [1, '#8a80b8']], 0, 0, 1, 1)}"/>`;
+  out += S.glow(x + 0.5 * s, y, 5 * s, eye, 0.5);
+  for (const k of [-1, 1]) out += `<path d="M${f(x + 0.5 * s + k * 0.9 * s)} ${f(y + 0.4 * s)} L${f(x + 0.5 * s + k * 3.6 * s)} ${f(y - 1.4 * s)} L${f(x + 0.5 * s + k * 3.2 * s)} ${f(y + 0.5 * s)} Z" fill="${o.mask ? S.p.deep : eye}"/>`;
+  if (o.mask) for (const k of [-1, 1]) out += `<circle cx="${f(x + 0.5 * s + k * 2.4 * s)}" cy="${f(y - 0.3 * s)}" r="${f(0.6 * s)}" fill="${eye}"/>`;
+  out += `<path d="M${f(x)} ${f(y + 6.5 * s)} l${f(1.4 * s)} ${f(1.4 * s)} l${f(-1.4 * s)} ${f(1.4 * s)} l${f(-1.4 * s)} ${f(-1.4 * s)} Z" fill="#e8e0ff"/>`;
+  switch (o.item) {
+    case 'blades':
+      for (const [[hx, hy], k] of [[hand, 1], [left, -1]] as [[number, number], number][]) {
+        out += S.glow(hx + k * 8 * s, hy - 12 * s, 10 * s, rim, 0.5);
+        out += `<path d="M${f(hx)} ${f(hy)} C${f(hx + k * 10 * s)} ${f(hy - 4 * s)} ${f(hx + k * 14 * s)} ${f(hy - 16 * s)} ${f(hx + k * 8 * s)} ${f(hy - 26 * s)} C${f(hx + k * 10 * s)} ${f(hy - 14 * s)} ${f(hx + k * 6 * s)} ${f(hy - 6 * s)} ${f(hx)} ${f(hy)} Z" fill="${S.linear([[0, '#ffffff'], [0.6, '#c8bcff'], [1, '#5a4c9a']], 0, 0, 1, 1)}" stroke="#fff" stroke-width="${f(0.4 * s)}"/>`;
+      }
+      break;
+    case 'scythe': {
+      const [bx, by, tx, ty] = [hand[0] - 7 * s, hand[1] + 24 * s, hand[0] + 5 * s, hand[1] - 28 * s];
+      out += `<line x1="${f(bx)}" y1="${f(by)}" x2="${f(tx)}" y2="${f(ty)}" stroke="#2a2440" stroke-width="${f(1.8 * s)}" stroke-linecap="round"/><line x1="${f(bx)}" y1="${f(by)}" x2="${f(tx)}" y2="${f(ty)}" stroke="${rim}" stroke-width="${f(0.5 * s)}" stroke-opacity="0.6"/>`;
+      out += S.glow(tx - 12 * s, ty + 4 * s, 14 * s, rim, 0.45);
+      out += `<path d="M${f(tx)} ${f(ty)} Q${f(tx - 14 * s)} ${f(ty - 4 * s)} ${f(tx - 26 * s)} ${f(ty + 9 * s)} Q${f(tx - 13 * s)} ${f(ty + 1 * s)} ${f(tx + 0.5 * s)} ${f(ty + 4 * s)} Z" fill="${S.linear([[0, '#ffffff'], [1, '#8a7cd0']], 0, 0, 1, 1)}" stroke="#fff" stroke-width="${f(0.4 * s)}"/>`;
+      break;
+    }
+    case 'lantern': {
+      const [lx, ly] = [hand[0] + 1 * s, hand[1] + 9 * s];
+      out += `<line x1="${f(hand[0])}" y1="${f(hand[1])}" x2="${f(lx)}" y2="${f(ly - 4 * s)}" stroke="#b8b0d8" stroke-width="${f(0.5 * s)}"/>`;
+      out += S.glow(lx, ly, 12 * s, eye, 0.7) + `<path d="M${f(lx - 3 * s)} ${f(ly - 4 * s)} H${f(lx + 3 * s)} L${f(lx + 2.2 * s)} ${f(ly + 4 * s)} H${f(lx - 2.2 * s)} Z" fill="${eye}" fill-opacity="0.35" stroke="#e8e0ff" stroke-width="${f(0.5 * s)}"/>` + S.sun(lx, ly, 1.5 * s, eye);
+      break;
+    }
+    case 'orb':
+      out += eclipse(S, hand[0] + 1 * s, hand[1] - 5 * s, 4.5 * s, '#efe6ff');
+      break;
+  }
+  return out;
+}
+
+interface KorOpts {
+  /** Iron plate. */
+  plate?: string;
+  /** Bronze trim. */
+  trim?: string;
+  /** The forge-glow of visor and heart. */
+  ember?: string;
+  item?: 'hammer' | 'shield' | 'tongs' | 'none';
+  crown?: boolean;
+  horns?: boolean;
+  beard?: boolean;
+  cape?: string;
+  bulk?: number;
+}
+
+/** A Korrath: a squat smith in iron plate, a T-slit visor and a forge-heart glowing through, a beard of hot braids. */
+function korrath(S: Scene, x: number, y: number, s: number, o: KorOpts = {}): string {
+  const plate = o.plate ?? '#8a8f9c';
+  const trim = o.trim ?? '#c9893a';
+  const ember = o.ember ?? S.p.glow;
+  const b = o.bulk ?? 1;
+  const iron = S.linear([[0, '#e4e8f0'], [0.35, plate], [1, '#24252c']], 0, 0, 1, 1);
+  const bronze = S.linear([[0, '#ffe2a8'], [0.5, trim], [1, '#5a3412']], 0, 0, 1, 1);
+  let out = S.glow(x, y + 18 * s, 36 * s, ember, 0.32);
+  if (o.cape) out += `<path d="M${f(x - 12 * s * b)} ${f(y + 7 * s)} L${f(x - 19 * s * b)} ${f(y + 38 * s)} Q${f(x)} ${f(y + 41 * s)} ${f(x + 19 * s * b)} ${f(y + 38 * s)} L${f(x + 12 * s * b)} ${f(y + 7 * s)} Z" fill="${S.linear([[0, o.cape], [1, '#1a0a06']])}" stroke="${trim}" stroke-width="${f(0.6 * s)}"/>`;
+  // Legs and boots.
+  for (const k of [-1, 1]) {
+    out += `<rect x="${f(x + k * 5.5 * s * b - 3.5 * s)}" y="${f(y + 27 * s)}" width="${f(7 * s)}" height="${f(9 * s)}" rx="${f(1.5 * s)}" fill="${iron}"/>`;
+    out += `<rect x="${f(x + k * 5.5 * s * b - 4.8 * s + k * 0.8 * s)}" y="${f(y + 34.5 * s)}" width="${f(9.6 * s)}" height="${f(4 * s)}" rx="${f(1.4 * s)}" fill="#2a2420" stroke="${trim}" stroke-width="${f(0.5 * s)}"/>`;
+  }
+  // Arms (behind the pauldrons): thick plate, bronze fists.
+  const hand: [number, number] = [x + 18 * s * b, y + 19 * s];
+  const left: [number, number] = [x - 17 * s * b, y + 23 * s];
+  for (const [hx, hy, k] of [[...hand, 1], [...left, -1]] as [number, number, number][]) {
+    out += `<path d="M${f(x + k * 12 * s * b)} ${f(y + 9 * s)} Q${f(x + k * 17 * s * b)} ${f(y + 12 * s)} ${f(hx)} ${f(hy)}" fill="none" stroke="#24252c" stroke-width="${f(7 * s)}" stroke-linecap="round"/>`;
+    out += `<path d="M${f(x + k * 12 * s * b)} ${f(y + 9 * s)} Q${f(x + k * 17 * s * b)} ${f(y + 12 * s)} ${f(hx)} ${f(hy)}" fill="none" stroke="${plate}" stroke-width="${f(5.4 * s)}" stroke-linecap="round"/>`;
+    out += `<circle cx="${f(hx)}" cy="${f(hy)}" r="${f(3 * s)}" fill="${bronze}" stroke="#3a220c" stroke-width="${f(0.4 * s)}"/>`;
+  }
+  // The barrel of a body, banded, with the forge-heart in the chest.
+  out += `<path d="M${f(x - 12 * s * b)} ${f(y + 7 * s)} Q${f(x - 16 * s * b)} ${f(y + 18 * s)} ${f(x - 11 * s * b)} ${f(y + 29 * s)} L${f(x + 11 * s * b)} ${f(y + 29 * s)} Q${f(x + 16 * s * b)} ${f(y + 18 * s)} ${f(x + 12 * s * b)} ${f(y + 7 * s)} Q${f(x)} ${f(y + 4 * s)} ${f(x - 12 * s * b)} ${f(y + 7 * s)} Z" fill="${iron}" stroke="#16161c" stroke-width="${f(0.5 * s)}"/>`;
+  out += `<path d="M${f(x - 14 * s * b)} ${f(y + 13 * s)} Q${f(x)} ${f(y + 16 * s)} ${f(x + 14 * s * b)} ${f(y + 13 * s)}" fill="none" stroke="#2e2f38" stroke-width="${f(0.6 * s)}"/>`;
+  out += `<path d="M${f(x - 13 * s * b)} ${f(y + 23 * s)} Q${f(x)} ${f(y + 26 * s)} ${f(x + 13 * s * b)} ${f(y + 23 * s)} L${f(x + 12 * s * b)} ${f(y + 26.5 * s)} Q${f(x)} ${f(y + 29.5 * s)} ${f(x - 12 * s * b)} ${f(y + 26.5 * s)} Z" fill="${bronze}"/>`;
+  out += S.glow(x, y + 25.5 * s, 4 * s, ember, 0.9) + `<rect x="${f(x - 2 * s)}" y="${f(y + 24 * s)}" width="${f(4 * s)}" height="${f(3.2 * s)}" rx="${f(0.6 * s)}" fill="#ffe0a0"/>`;
+  out += S.glow(x, y + 17 * s, 8 * s, ember, 0.9);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    out += `<line x1="${f(x + Math.cos(a) * 2.4 * s)}" y1="${f(y + 17 * s + Math.sin(a) * 2.4 * s)}" x2="${f(x + Math.cos(a) * 5.5 * s)}" y2="${f(y + 17 * s + Math.sin(a) * 5.5 * s)}" stroke="${ember}" stroke-width="${f(0.7 * s)}"/>`;
+  }
+  out += `<circle cx="${f(x)}" cy="${f(y + 17 * s)}" r="${f(2.4 * s)}" fill="${S.radial([[0, '#ffffff'], [0.5, '#ffe0a0'], [1, ember]])}"/>`;
+  // Pauldrons.
+  for (const k of [-1, 1]) {
+    out += `<path d="M${f(x + k * 5 * s * b)} ${f(y + 6 * s)} Q${f(x + k * 12 * s * b)} ${f(y + 0.5 * s)} ${f(x + k * 19 * s * b)} ${f(y + 8 * s)} Q${f(x + k * 19.5 * s * b)} ${f(y + 13 * s)} ${f(x + k * 15 * s * b)} ${f(y + 14 * s)} Q${f(x + k * 11 * s * b)} ${f(y + 9 * s)} ${f(x + k * 5 * s * b)} ${f(y + 6 * s)} Z" fill="${bronze}" stroke="#3a220c" stroke-width="${f(0.4 * s)}"/>`;
+    for (const t of [0.4, 0.75]) out += `<circle cx="${f(x + k * (8 + t * 9) * s * b)}" cy="${f(y + (4 + t * 4) * s)}" r="${f(0.6 * s)}" fill="#fff3c4"/>`;
+  }
+  // The beard: braids of hot metal, beaded with embers.
+  if (o.beard !== false) {
+    out += `<path d="M${f(x - 6.5 * s)} ${f(y + 3 * s)} Q${f(x - 7.5 * s)} ${f(y + 10 * s)} ${f(x - 3 * s)} ${f(y + 15 * s)} L${f(x)} ${f(y + 18 * s)} L${f(x + 3 * s)} ${f(y + 15 * s)} Q${f(x + 7.5 * s)} ${f(y + 10 * s)} ${f(x + 6.5 * s)} ${f(y + 3 * s)} Z" fill="${S.linear([[0, '#e8904a'], [1, '#6a2e12']])}"/>`;
+    for (const k of [-3, 0, 3]) {
+      out += `<path d="M${f(x + k * s)} ${f(y + 4 * s)} V${f(y + (k ? 14 : 17) * s)}" stroke="#4a1e0a" stroke-width="${f(0.5 * s)}" stroke-dasharray="${f(1.2 * s)} ${f(0.6 * s)}"/>`;
+      out += S.glow(x + k * s, y + (k ? 14.6 : 17.6) * s, 2 * s, ember, 0.9) + `<circle cx="${f(x + k * s)}" cy="${f(y + (k ? 14.6 : 17.6) * s)}" r="${f(0.8 * s)}" fill="#ffe0a0"/>`;
+    }
+  }
+  if (o.horns) for (const k of [-1, 1]) out += `<path d="M${f(x + k * 6.5 * s)} ${f(y - 5 * s)} Q${f(x + k * 15 * s)} ${f(y - 6 * s)} ${f(x + k * 14 * s)} ${f(y - 16 * s)} Q${f(x + k * 11 * s)} ${f(y - 9 * s)} ${f(x + k * 6 * s)} ${f(y - 9 * s)} Z" fill="${bronze}" stroke="#3a220c" stroke-width="${f(0.4 * s)}"/>`;
+  // The helm, with its T-slit visor full of fire.
+  out += `<path d="M${f(x - 7.5 * s)} ${f(y + 4 * s)} L${f(x - 7.5 * s)} ${f(y - 3 * s)} Q${f(x - 7.5 * s)} ${f(y - 11 * s)} ${f(x)} ${f(y - 11 * s)} Q${f(x + 7.5 * s)} ${f(y - 11 * s)} ${f(x + 7.5 * s)} ${f(y - 3 * s)} L${f(x + 7.5 * s)} ${f(y + 4 * s)} Q${f(x)} ${f(y + 6 * s)} ${f(x - 7.5 * s)} ${f(y + 4 * s)} Z" fill="${iron}" stroke="#16161c" stroke-width="${f(0.5 * s)}"/>`;
+  out += `<path d="M${f(x - 7.6 * s)} ${f(y - 5 * s)} Q${f(x)} ${f(y - 6.6 * s)} ${f(x + 7.6 * s)} ${f(y - 5 * s)}" fill="none" stroke="${trim}" stroke-width="${f(1.3 * s)}"/>`;
+  out += `<path d="M${f(x)} ${f(y - 11 * s)} V${f(y - 5.5 * s)}" stroke="${trim}" stroke-width="${f(1.4 * s)}"/>`;
+  out += S.glow(x, y - 1 * s, 8 * s, ember, 0.65) + `<path d="M${f(x - 5.4 * s)} ${f(y - 2 * s)} H${f(x + 5.4 * s)} M${f(x)} ${f(y - 2 * s)} V${f(y + 3 * s)}" stroke="#ffe8b0" stroke-width="${f(1.4 * s)}" stroke-linecap="round"/>`;
+  if (o.crown) {
+    out += S.glow(x, y - 13 * s, 10 * s, ember, 0.6);
+    out += `<path d="M${f(x - 8 * s)} ${f(y - 8 * s)} L${f(x - 8.5 * s)} ${f(y - 15 * s)} L${f(x - 5 * s)} ${f(y - 11 * s)} L${f(x - 2.5 * s)} ${f(y - 17 * s)} L${f(x)} ${f(y - 12 * s)} L${f(x + 2.5 * s)} ${f(y - 17 * s)} L${f(x + 5 * s)} ${f(y - 11 * s)} L${f(x + 8.5 * s)} ${f(y - 15 * s)} L${f(x + 8 * s)} ${f(y - 8 * s)} Q${f(x)} ${f(y - 10 * s)} ${f(x - 8 * s)} ${f(y - 8 * s)} Z" fill="${S.linear([[0, '#5a5c66'], [1, '#1c1c22']])}" stroke="${trim}" stroke-width="${f(0.5 * s)}"/>`;
+    for (const k of [-8.5, -2.5, 2.5, 8.5]) out += S.glow(x + k * s, y - (Math.abs(k) > 5 ? 15 : 17) * s, 2.6 * s, '#ffe0a0', 0.95);
+  }
+  switch (o.item) {
+    case 'hammer': {
+      const [bx, by, tx, ty] = [hand[0] - 3 * s, hand[1] + 9 * s, hand[0] + 7 * s, hand[1] - 22 * s];
+      out += `<line x1="${f(bx)}" y1="${f(by)}" x2="${f(tx)}" y2="${f(ty)}" stroke="#4a2e18" stroke-width="${f(2 * s)}" stroke-linecap="round"/>`;
+      const ang = (Math.atan2(ty - by, tx - bx) * 180) / Math.PI;
+      out += S.glow(tx - 3 * s, ty, 10 * s, ember, 0.7);
+      out += `<g transform="rotate(${f(ang)} ${f(tx)} ${f(ty)})"><rect x="${f(tx - 4.5 * s)}" y="${f(ty - 8 * s)}" width="${f(9 * s)}" height="${f(16 * s)}" rx="${f(1.2 * s)}" fill="${iron}" stroke="#16161c" stroke-width="${f(0.5 * s)}"/><rect x="${f(tx - 4.5 * s)}" y="${f(ty - 8 * s)}" width="${f(9 * s)}" height="${f(2.6 * s)}" rx="${f(1 * s)}" fill="${S.linear([[0, '#fff3c4'], [1, ember]], 0, 0, 1, 0)}"/><rect x="${f(tx - 4.8 * s)}" y="${f(ty - 1 * s)}" width="${f(9.6 * s)}" height="${f(2 * s)}" fill="${bronze}"/></g>`;
+      out += `<circle cx="${f(hand[0])}" cy="${f(hand[1])}" r="${f(3 * s)}" fill="${bronze}"/>`;
+      break;
+    }
+    case 'shield': {
+      const [sx, sy, w, h] = [x + 7 * s * b, y + 5 * s, 18 * s, 30 * s];
+      out += `<path d="M${f(sx)} ${f(sy)} H${f(sx + w)} V${f(sy + h * 0.72)} Q${f(sx + w / 2)} ${f(sy + h * 1.08)} ${f(sx)} ${f(sy + h * 0.72)} Z" fill="${iron}" stroke="${trim}" stroke-width="${f(1.5 * s)}"/>`;
+      out += `<path d="M${f(sx + w / 2)} ${f(sy + 2 * s)} V${f(sy + h * 0.86)} M${f(sx + 2 * s)} ${f(sy + h * 0.36)} H${f(sx + w - 2 * s)}" stroke="${trim}" stroke-width="${f(1 * s)}"/>`;
+      out += S.glow(sx + w / 2, sy + h * 0.36, 6 * s, ember, 0.8) + `<circle cx="${f(sx + w / 2)}" cy="${f(sy + h * 0.36)}" r="${f(3 * s)}" fill="${bronze}" stroke="#3a220c" stroke-width="${f(0.4 * s)}"/>`;
+      for (const [rx, ry] of [[1.6, 1.6], [w - 1.6 * s, 1.6], [1.6, h * 0.62], [w - 1.6 * s, h * 0.62]]) out += `<circle cx="${f(sx + (rx === 1.6 ? 1.8 * s : rx))}" cy="${f(sy + (ry === 1.6 ? 1.8 * s : ry))}" r="${f(0.6 * s)}" fill="#fff3c4"/>`;
+      break;
+    }
+    case 'tongs': {
+      const [tx, ty] = [hand[0] + 12 * s, hand[1] - 8 * s];
+      out += `<path d="M${f(hand[0])} ${f(hand[1])} L${f(tx)} ${f(ty - 1.5 * s)} M${f(hand[0])} ${f(hand[1])} L${f(tx)} ${f(ty + 1.5 * s)}" stroke="#3a3a44" stroke-width="${f(1.1 * s)}" stroke-linecap="round"/>`;
+      out += S.glow(tx + 3 * s, ty, 9 * s, ember, 0.9) + `<rect x="${f(tx)}" y="${f(ty - 2 * s)}" width="${f(8 * s)}" height="${f(4 * s)}" rx="${f(0.8 * s)}" fill="${S.linear([[0, '#ffffff'], [0.5, '#ffe0a0'], [1, ember]], 0, 0, 1, 0)}"/>`;
+      out += S.motes(tx + 4 * s, ty - 4 * s, 8, 8 * s, '#ffe0a0', 0.6 * s);
+      break;
+    }
+  }
+  return out;
+}
+
+interface SerOpts {
+  robe?: string;
+  item?: 'orrery' | 'staff' | 'chart' | 'scope' | 'none';
+  /** Little moons circling the figure. */
+  moons?: number;
+  /** A circlet of stars. */
+  crown?: boolean;
+  /** The crescent moon behind the head. */
+  halo?: boolean;
+}
+
+/** A Seren: a tall, still astronomer in pale robes hemmed with night, a hood full of stars, a crescent moon behind. */
+function seren(S: Scene, x: number, y: number, s: number, o: SerOpts = {}): string {
+  const robe = o.robe ?? '#d6e0ff';
+  const night = '#141c48';
+  let out = S.glow(x, y + 14 * s, 36 * s, S.p.glow, 0.3);
+  if (o.halo !== false) out += S.glow(x - 4 * s, y - 4 * s, 18 * s, '#ffffff', 0.35) + crescent(S, x + 2 * s, y - 2 * s, 16 * s, 32, '#e8eeff', 0.42);
+  if (o.crown) {
+    out += S.orbit(x, y - 13 * s, 12 * s, 3 * s, 0, '#ffffff', 0.7 * s, 0.7);
+    for (let i = -2; i <= 2; i++) out += S.sun(x + i * 4.6 * s, y - 14 * s - (2 - Math.abs(i)) * 1.8 * s, (i ? 0.8 : 1.3) * s, '#e8f0ff', i ? 0 : 6);
+  }
+  const moons = o.moons ?? 0;
+  if (moons) out += S.orbit(x, y + 18 * s, 26 * s, 7 * s, -8, '#e8f0ff', 0.6 * s, 0.45);
+  const moonAt = (i: number) => {
+    const a = Math.PI * (1.05 + (i / Math.max(1, moons)) * 2);
+    return [x + Math.cos(a) * 26 * s, y + 18 * s + Math.sin(a) * 7 * s - Math.cos(a) * 3.6 * s, Math.sin(a)] as const;
+  };
+  for (let i = 0; i < moons; i++) {
+    const [mx, my, z] = moonAt(i);
+    if (z < 0) out += S.planet(mx, my, (1.8 + (i % 2)) * s, '#ffffff', '#8a9ad0');
+  }
+  // The robe, pale, flaring to a hem of night sewn with stars.
+  out += `<path d="M${f(x - 7 * s)} ${f(y + 6 * s)} C${f(x - 10 * s)} ${f(y + 18 * s)} ${f(x - 14 * s)} ${f(y + 32 * s)} ${f(x - 16 * s)} ${f(y + 44 * s)} Q${f(x)} ${f(y + 47 * s)} ${f(x + 16 * s)} ${f(y + 44 * s)} C${f(x + 14 * s)} ${f(y + 32 * s)} ${f(x + 10 * s)} ${f(y + 18 * s)} ${f(x + 7 * s)} ${f(y + 6 * s)} Q${f(x)} ${f(y + 3 * s)} ${f(x - 7 * s)} ${f(y + 6 * s)} Z" fill="${S.linear([[0, '#ffffff'], [0.5, robe], [1, '#5a6cae']], 0, 0, 1, 1)}"/>`;
+  out += `<path d="M${f(x - 14.4 * s)} ${f(y + 36 * s)} Q${f(x)} ${f(y + 39 * s)} ${f(x + 14.4 * s)} ${f(y + 36 * s)} L${f(x + 16 * s)} ${f(y + 44 * s)} Q${f(x)} ${f(y + 47 * s)} ${f(x - 16 * s)} ${f(y + 44 * s)} Z" fill="${night}"/>`;
+  out += `<path d="M${f(x - 14.4 * s)} ${f(y + 36 * s)} Q${f(x)} ${f(y + 39 * s)} ${f(x + 14.4 * s)} ${f(y + 36 * s)}" fill="none" stroke="#e8eeff" stroke-width="${f(0.7 * s)}"/>`;
+  const hemStars: [number, number][] = [[-11, 40.5], [-6, 42.6], [-1, 41], [4, 43], [9, 41.4], [12.5, 42.8]];
+  out += `<polyline points="${hemStars.map(([dx, dy]) => `${f(x + dx * s)},${f(y + dy * s)}`).join(' ')}" fill="none" stroke="#c8d6ff" stroke-width="${f(0.35 * s)}" stroke-opacity="0.7"/>`;
+  for (const [dx, dy] of hemStars) out += `<circle cx="${f(x + dx * s)}" cy="${f(y + dy * s)}" r="${f(0.55 * s)}" fill="#fff"/>`;
+  for (const k of [-1, 1]) out += `<path d="M${f(x + k * 2.2 * s)} ${f(y + 7 * s)} L${f(x + k * 3.2 * s)} ${f(y + 37 * s)}" stroke="#9fb4ff" stroke-width="${f(0.8 * s)}"/>`;
+  // Bell sleeves, the hands folded or holding.
+  const hand: [number, number] = [x + 13 * s, y + 18 * s];
+  for (const k of [-1, 1]) out += `<path d="M${f(x + k * 6 * s)} ${f(y + 7 * s)} Q${f(x + k * 11 * s)} ${f(y + 10 * s)} ${f(x + k * 15 * s)} ${f(y + 21 * s)} Q${f(x + k * 11 * s)} ${f(y + 23 * s)} ${f(x + k * 7.5 * s)} ${f(y + 21 * s)} Z" fill="${S.linear([[0, '#ffffff'], [1, robe]], 0, 0, 1, 1)}" stroke="#9fb4ff" stroke-width="${f(0.4 * s)}"/>`;
+  // The hood, and the night sky where a face would be.
+  out += `<path d="M${f(x - 7.5 * s)} ${f(y + 6 * s)} C${f(x - 9 * s)} ${f(y - 2 * s)} ${f(x - 7 * s)} ${f(y - 9.5 * s)} ${f(x)} ${f(y - 10 * s)} C${f(x + 7 * s)} ${f(y - 9.5 * s)} ${f(x + 9 * s)} ${f(y - 2 * s)} ${f(x + 7.5 * s)} ${f(y + 6 * s)} Q${f(x)} ${f(y + 8 * s)} ${f(x - 7.5 * s)} ${f(y + 6 * s)} Z" fill="${S.linear([[0, '#ffffff'], [1, robe]], 0, 0, 1, 1)}"/>`;
+  out += `<ellipse cx="${f(x)}" cy="${f(y + 0.5 * s)}" rx="${f(4.4 * s)}" ry="${f(5.4 * s)}" fill="${S.radial([[0, '#2a3a80'], [1, '#070c24']], 0.5, 0.4, 0.6)}"/>`;
+  for (const [dx, dy, r] of [[-2.2, 3.6, 0.35], [2.4, 3.2, 0.3], [0.4, 4.6, 0.25], [-0.6, -3.4, 0.3]]) out += `<circle cx="${f(x + dx * s)}" cy="${f(y + dy * s)}" r="${f(r * s)}" fill="#fff"/>`;
+  for (const k of [-1, 1]) out += `<path d="M${f(x + k * 3 * s)} ${f(y)} Q${f(x + k * 1.9 * s)} ${f(y + 1.1 * s)} ${f(x + k * 0.8 * s)} ${f(y)}" fill="none" stroke="#e8f0ff" stroke-width="${f(0.6 * s)}" stroke-linecap="round"/>`;
+  out += S.sun(x, y - 4.4 * s, 0.7 * s, '#e8f0ff', 4);
+  for (let i = 0; i < moons; i++) {
+    const [mx, my, z] = moonAt(i);
+    if (z >= 0) out += S.planet(mx, my, (1.8 + (i % 2)) * s, '#ffffff', '#8a9ad0');
+  }
+  switch (o.item) {
+    case 'orrery': {
+      const [ox, oy] = [hand[0] + 5 * s, hand[1] - 6 * s];
+      out += S.glow(ox, oy, 12 * s, S.p.glow, 0.6);
+      [-22, 38, 96].forEach((rot, i) => {
+        out += S.orbit(ox, oy, (7 + i * 1.2) * s, 2.6 * s, rot, i === 1 ? '#ffd98a' : '#e8f0ff', 0.6 * s, 0.9);
+        const a = rot * 0.05 + i * 2;
+        const px = Math.cos(a) * (7 + i * 1.2) * s, py = Math.sin(a) * 2.6 * s, r = (rot * Math.PI) / 180;
+        out += S.planet(ox + px * Math.cos(r) - py * Math.sin(r), oy + px * Math.sin(r) + py * Math.cos(r), 1.1 * s, i === 1 ? '#ffe2a0' : '#bfd0ff', '#4a5a9a');
+      });
+      out += S.sun(ox, oy, 1.8 * s, '#fff3c4');
+      out += `<line x1="${f(ox)}" y1="${f(oy + 4 * s)}" x2="${f(hand[0])}" y2="${f(hand[1] + 1 * s)}" stroke="#d9b36a" stroke-width="${f(0.7 * s)}"/>`;
+      break;
+    }
+    case 'staff': {
+      const tx = hand[0] + 2 * s, ty = y - 18 * s;
+      out += `<line x1="${f(hand[0] - 1 * s)}" y1="${f(y + 44 * s)}" x2="${f(tx)}" y2="${f(ty)}" stroke="${S.linear([[0, '#ffffff'], [1, '#8a9ad0']], 0, 0, 1, 0)}" stroke-width="${f(1.1 * s)}" stroke-linecap="round"/>`;
+      out += S.glow(tx, ty - 3 * s, 10 * s, '#ffffff', 0.5) + crescent(S, tx, ty - 3 * s, 5 * s, -90, '#e8eeff', 0.5) + S.sun(tx, ty - 4.6 * s, 1.3 * s, '#e8f0ff', 6);
+      break;
+    }
+    case 'chart':
+      out += `<rect x="${f(x - 13 * s)}" y="${f(y + 15 * s)}" width="${f(26 * s)}" height="${f(11 * s)}" rx="${f(0.8 * s)}" fill="${S.linear([[0, '#1d2a66'], [1, '#0b1238']])}" stroke="#e8eeff" stroke-width="${f(0.5 * s)}"/>`;
+      for (const k of [-1, 1]) out += `<rect x="${f(x + k * 13.4 * s - 1.2 * s)}" y="${f(y + 14 * s)}" width="${f(2.4 * s)}" height="${f(13 * s)}" rx="${f(1.2 * s)}" fill="${S.linear([[0, '#fff3c4'], [1, '#9a7a3a']], 0, 0, 1, 0)}"/>`;
+      out += `<polyline points="${f(x - 9 * s)},${f(y + 23 * s)} ${f(x - 4 * s)},${f(y + 18 * s)} ${f(x + 1 * s)},${f(y + 21 * s)} ${f(x + 6 * s)},${f(y + 17.5 * s)} ${f(x + 9 * s)},${f(y + 23 * s)}" fill="none" stroke="#c8d6ff" stroke-width="${f(0.4 * s)}"/>`;
+      for (const [dx, dy] of [[-9, 23], [-4, 18], [1, 21], [6, 17.5], [9, 23]]) out += `<circle cx="${f(x + dx * s)}" cy="${f(y + dy * s)}" r="${f(0.6 * s)}" fill="#fff"/>`;
+      break;
+    case 'scope': {
+      const [bx, by, tx, ty] = [hand[0] - 2 * s, hand[1] + 2 * s, hand[0] + 16 * s, hand[1] - 14 * s];
+      out += `<line x1="${f(bx)}" y1="${f(by)}" x2="${f(tx)}" y2="${f(ty)}" stroke="#5a4320" stroke-width="${f(4.2 * s)}" stroke-linecap="round"/><line x1="${f(bx)}" y1="${f(by)}" x2="${f(tx)}" y2="${f(ty)}" stroke="#e8c47a" stroke-width="${f(3 * s)}" stroke-linecap="round"/>`;
+      out += `<line x1="${f(bx + (tx - bx) * 0.35)}" y1="${f(by + (ty - by) * 0.35)}" x2="${f(bx + (tx - bx) * 0.4)}" y2="${f(by + (ty - by) * 0.4)}" stroke="#7a5a26" stroke-width="${f(3.4 * s)}"/>`;
+      out += S.glow(tx, ty, 6 * s, '#ffffff', 0.9) + S.beam(tx, ty, tx + 16 * s, ty - 18 * s, 0.7 * s, '#e8f0ff');
+      break;
+    }
+  }
+  return out;
+}
+
+interface PyrOpts {
+  /** The outer flame. */
+  flame?: string;
+  /** The white-hot heart. */
+  core?: string;
+  item?: 'fireball' | 'whip' | 'brand' | 'none';
+  /** Plates of cooling magma rock over the body (the Cinderborn). */
+  ember?: boolean;
+  /** A corona of flame round the head. */
+  crown?: boolean;
+  /** Wings of fire. */
+  wings?: boolean;
+  pose?: 'stand' | 'dance' | 'cast';
+  bulk?: number;
+}
+
+/** A Pyrr: a living flame shaped like a dancer, legs of fire, a mane of flame, eyes like coals. */
+function pyrr(S: Scene, x: number, y: number, s: number, o: PyrOpts = {}): string {
+  const fl = o.flame ?? '#ff3a1a';
+  const mid = '#ff9a2a', core = o.core ?? '#ffe27a';
+  const b = o.bulk ?? 1;
+  const pose = o.pose ?? 'stand';
+  let out = S.glow(x, y + 12 * s, 40 * s, fl, 0.42);
+  if (o.wings) for (const k of [-1, 1]) for (let i = 0; i < 6; i++) out += tongue(S, x + k * 7 * s, y + 10 * s, (28 - i * 3) * s, 8 * s, k * (14 + i * 7) * s, i % 2 ? mid : fl, 0.9);
+  if (o.crown) {
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      out += tongue(S, x + Math.cos(a) * 7 * s, y + Math.sin(a) * 7 * s, 9 * s, 4 * s, 0, i % 2 ? mid : fl, 0.9).replace('<path', `<path transform="rotate(${f((a * 180) / Math.PI + 90)} ${f(x + Math.cos(a) * 7 * s)} ${f(y + Math.sin(a) * 7 * s)})"`);
+    }
+    out += S.glow(x, y, 16 * s, core, 0.6);
+  }
+  // Legs: flames pointing down, mid-stride.
+  for (const k of [-1, 1]) out += tongue(S, x + k * 4 * s * b, y + 21 * s, -19 * s, 7.5 * s * b, k * (pose === 'dance' ? 9 : 4) * s, fl) + tongue(S, x + k * 4 * s * b, y + 21 * s, -13 * s, 4.5 * s * b, k * (pose === 'dance' ? 7 : 3) * s, mid);
+  // Arms: streams of fire.
+  const hands: [number, number][] = pose === 'dance' ? [[x + 15 * s * b, y - 13 * s], [x - 15 * s * b, y - 11 * s]] : pose === 'cast' ? [[x + 21 * s * b, y + 6 * s], [x - 15 * s * b, y + 19 * s]] : [[x + 16 * s * b, y + 18 * s], [x - 16 * s * b, y + 18 * s]];
+  hands.forEach(([hx, hy], i) => {
+    const k = i ? -1 : 1, sx = x + k * 9 * s * b, sy = y + 6 * s;
+    const cx = pose === 'dance' ? x + k * 18 * s * b : x + k * 15 * s * b, cy = pose === 'dance' ? y + 4 * s : y + 8 * s;
+    const d = `M${f(sx)} ${f(sy)} Q${f(cx)} ${f(cy)} ${f(hx)} ${f(hy)}`;
+    out += `<path d="${d}" fill="none" stroke="${fl}" stroke-width="${f(4.4 * s * b)}" stroke-linecap="round" stroke-opacity="0.85"/><path d="${d}" fill="none" stroke="${mid}" stroke-width="${f(2.6 * s * b)}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${core}" stroke-width="${f(1 * s)}" stroke-linecap="round"/>`;
+    out += tongue(S, hx, hy, 6 * s, 3.4 * s, k * 1.5 * s, mid) + S.glow(hx, hy, 4 * s, core, 0.9);
+  });
+  // The body: a flame turned on its head, white-hot within.
+  out += `<path d="M${f(x - 11 * s * b)} ${f(y + 5 * s)} Q${f(x - 9 * s * b)} ${f(y + 18 * s)} ${f(x)} ${f(y + 27 * s)} Q${f(x + 9 * s * b)} ${f(y + 18 * s)} ${f(x + 11 * s * b)} ${f(y + 5 * s)} Q${f(x)} ${f(y + 1 * s)} ${f(x - 11 * s * b)} ${f(y + 5 * s)} Z" fill="${S.radial([[0, '#fffbe0'], [0.35, core], [0.7, mid], [1, fl]], 0.5, 0.35, 0.7)}"/>`;
+  for (const k of [-1, 1]) out += tongue(S, x + k * 9 * s * b, y + 7 * s, 8 * s, 4 * s, k * 3 * s, fl, 0.9);
+  out += tongue(S, x, y + 25 * s, 20 * s, 12 * s * b, 0, mid, 0.55) + tongue(S, x - 3 * s * b, y + 22 * s, 12 * s, 5 * s, -1 * s, fl, 0.5) + tongue(S, x + 3 * s * b, y + 22 * s, 12 * s, 5 * s, 1 * s, fl, 0.5);
+  if (o.ember) {
+    const rock = S.linear([[0, '#5a3a32'], [1, '#1a0c0a']], 0, 0, 1, 1);
+    for (const k of [-1, 1]) out += `<path d="M${f(x + k * 3 * s)} ${f(y + 4 * s)} L${f(x + k * 11.5 * s * b)} ${f(y + 4.5 * s)} L${f(x + k * 10 * s * b)} ${f(y + 11 * s)} L${f(x + k * 4 * s)} ${f(y + 9 * s)} Z" fill="${rock}" stroke="${core}" stroke-width="${f(0.7 * s)}" stroke-linejoin="round"/>`;
+    out += `<path d="M${f(x - 5 * s * b)} ${f(y + 12 * s)} L${f(x + 5 * s * b)} ${f(y + 12 * s)} L${f(x + 3 * s)} ${f(y + 19 * s)} L${f(x - 3 * s)} ${f(y + 19 * s)} Z" fill="${rock}" stroke="${core}" stroke-width="${f(0.7 * s)}" stroke-linejoin="round"/>`;
+    out += `<path d="M${f(x - 2 * s)} ${f(y + 12.4 * s)} L${f(x)} ${f(y + 15.5 * s)} L${f(x + 2.5 * s)} ${f(y + 14 * s)}" fill="none" stroke="${core}" stroke-width="${f(0.5 * s)}"/>`;
+  }
+  // The mane: flames streaming up and back.
+  [[-5, 14, -5], [-2.5, 19, -3], [0, 22, -1], [2.5, 18, 1], [5, 13, 3]].forEach(([dx, h, l]) => (out += blaze(S, x + dx * s, y - 2 * s, h * s, 6 * s, l * s, fl)));
+  // The head and its coal eyes.
+  out += `<ellipse cx="${f(x)}" cy="${f(y)}" rx="${f(6 * s)}" ry="${f(6.6 * s)}" fill="${S.radial([[0, '#ffffff'], [0.45, core], [1, mid]], 0.45, 0.4, 0.65)}"/>`;
+  for (const k of [-1, 1]) out += `<path d="M${f(x + k * 0.9 * s)} ${f(y + 0.6 * s)} Q${f(x + k * 2.6 * s)} ${f(y - 1.6 * s)} ${f(x + k * 4.2 * s)} ${f(y - 1.2 * s)} Q${f(x + k * 3 * s)} ${f(y + 1.4 * s)} ${f(x + k * 0.9 * s)} ${f(y + 0.6 * s)} Z" fill="#4a0800"/>`;
+  out += S.motes(x, y - 14 * s, 10, 22 * s, core, 0.8 * s);
+  const [hx, hy] = hands[0];
+  switch (o.item) {
+    case 'fireball':
+      out += S.sun(hx + 2 * s, hy - 3 * s, 3.6 * s, mid, 10);
+      break;
+    case 'whip': {
+      const d = `M${f(hx)} ${f(hy)} C${f(hx + 14 * s)} ${f(hy - 16 * s)} ${f(hx + 2 * s)} ${f(hy - 26 * s)} ${f(hx + 16 * s)} ${f(hy - 34 * s)} S${f(hx + 30 * s)} ${f(hy - 30 * s)} ${f(hx + 28 * s)} ${f(hy - 42 * s)}`;
+      out += `<path d="${d}" fill="none" stroke="${fl}" stroke-width="${f(3 * s)}" stroke-linecap="round" stroke-opacity="0.7"/><path d="${d}" fill="none" stroke="${core}" stroke-width="${f(1.1 * s)}" stroke-linecap="round"/>` + S.glow(hx + 28 * s, hy - 42 * s, 5 * s, core, 0.9);
+      break;
+    }
+    case 'brand':
+      out += S.glow(hx + 6 * s, hy - 14 * s, 12 * s, mid, 0.6) + `<path d="M${f(hx - 1 * s)} ${f(hy + 1 * s)} L${f(hx + 12 * s)} ${f(hy - 26 * s)} L${f(hx + 14 * s)} ${f(hy - 22 * s)} L${f(hx + 2 * s)} ${f(hy + 2 * s)} Z" fill="${S.linear([[0, '#fff3c4'], [0.5, core], [1, fl]], 0, 1, 1, 0)}" stroke="#fff" stroke-width="${f(0.4 * s)}"/>`;
+      break;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Every card's picture
 // ---------------------------------------------------------------------------
@@ -856,6 +1248,308 @@ const ART_FUSION: Record<string, Draw> = {
   spore_graft: (S) => S.ground(86, '#0e0a1c') + S.mushroom(58, 86, 30, 18, '#c5ff8a') + S.mushroom(98, 86, 22, 14, '#d59cff', 6) + S.motes(80, 48, 14, 30, '#c5ff8a', 1.2),
 };
 Object.assign(ART, ART_FUSION);
+
+/** The newer races' pictures: Nyxari, Korrath, Seren and Pyrr. */
+const ART_RACES: Record<string, Draw> = {
+  // ---- Nyxari: Veilwalkers ----
+  nyx_umbral_snare: (S) =>
+    S.beam(166, 14, 92, 46, 1.6, '#ffb070') +
+    [0, 1, 2, 3, 4, 5, 6, 7].map((i) => { const a = (i / 8) * Math.PI * 2 + 0.2; return `<line x1="80" y1="52" x2="${f(80 + Math.cos(a) * 70)}" y2="${f(52 + Math.sin(a) * 50)}" stroke="${S.p.accent}" stroke-width="0.7" stroke-opacity="0.6"/>`; }).join('') +
+    [10, 20, 32, 46].map((r) => `<polygon points="${Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2 + 0.2; return `${f(80 + Math.cos(a) * r * 1.3)},${f(52 + Math.sin(a) * r)}`; }).join(' ')}" fill="none" stroke="${S.p.accent}" stroke-width="0.8" stroke-opacity="0.7"/>`).join('') +
+    S.glow(84, 50, 16, '#ffb070', 0.8) + S.rings(84, 50, 5, 2, 5, S.p.glow, 0.8),
+  nyx_mirror_veil: (S) =>
+    S.sun(20, 26, 6, '#ffb070', 8) + S.beam(26, 30, 72, 50, 1.6, '#ffb070') +
+    S.glow(82, 52, 34, S.p.accent, 0.4) +
+    `<ellipse cx="82" cy="52" rx="18" ry="32" fill="${S.linear([[0, '#3a3270'], [0.5, '#0a0818'], [1, '#2a2450']], 0, 0, 1, 1)}" stroke="#e8e0ff" stroke-width="1.4"/><path d="M72 32 Q70 46 74 62" fill="none" stroke="#fff" stroke-width="1.2" stroke-opacity="0.6"/>` +
+    S.sun(84, 48, 2.6, '#ffb070') + S.beam(76, 50, 24, 74, 1.4, '#ffd0a0'),
+  nyx_null_shroud: (S) =>
+    S.glow(80, 40, 40, '#ffd98a', 0.4) +
+    `<path d="M62 44 L58 22 L68 34 L74 16 L80 32 L86 16 L92 34 L102 22 L98 44 Z" fill="${S.linear([[0, '#fff3c4'], [1, '#b8862a']])}"/>` +
+    `<path d="M32 96 C40 76 34 54 46 40 Q56 30 64 36 L74 24 L80 34 L86 24 L96 36 Q104 30 114 40 C126 54 120 76 128 96 Z" fill="${S.linear([[0, '#1d1838', 0.96], [1, '#06050e']])}" stroke="${S.p.accent}" stroke-width="0.9" stroke-opacity="0.8"/>` +
+    [52, 68, 92, 108].map((x) => `<path d="M${x} 36 Q${x - 3} 64 ${x + 2} 94" fill="none" stroke="${S.p.accent}" stroke-width="0.5" stroke-opacity="0.4"/>`).join('') +
+    S.card(136, 26, 14, S.p.glow, 13) + S.motes(80, 70, 12, 50, S.p.glow, 0.9),
+  nyx_veil_sentry: (S) =>
+    S.ground(84, '#03020a') +
+    `<path d="M70 88 L74 26 L80 14 L86 26 L90 88 Z" fill="${S.linear([[0, '#3a3270'], [1, '#07060f']], 0, 0, 1, 0)}" stroke="${S.p.accent}" stroke-width="0.8"/>` +
+    S.glow(80, 38, 12, S.p.glow, 0.9) + `<path d="M75 38 Q80 34 85 38 Q80 42 75 38 Z" fill="#fff"/><circle cx="80" cy="38" r="1.3" fill="${S.p.deep}"/>` +
+    [-1, 1].map((k) => `<path d="M${80 + k * 8} 30 C${80 + k * 30} 40 ${80 + k * 26} 70 ${80 + k * 40} 90" fill="none" stroke="${S.p.accent}" stroke-width="1.2" stroke-opacity="0.55"/>`).join('') +
+    S.dome(80, 88, 46, S.p.accent),
+  nyx_veil_lantern: (S) =>
+    `<path d="M80 0 V30" stroke="#8a80b8" stroke-width="0.9"/>` + S.glow(80, 50, 40, S.p.glow, 0.5) +
+    `<path d="M70 30 H90 L94 36 V62 L90 68 H70 L66 62 V36 Z" fill="${S.p.glow}" fill-opacity="0.25" stroke="#e8e0ff" stroke-width="1"/><path d="M68 30 H92 M66 68 H94 M80 30 V68" stroke="#e8e0ff" stroke-width="0.7" stroke-opacity="0.6"/>` +
+    S.sun(80, 50, 5, S.p.glow) +
+    [-1, 1].map((k) => `<path d="M${80 + k * 30} 0 C${80 + k * 22} 30 ${80 + k * 40} 60 ${80 + k * 30} 100" fill="none" stroke="${S.p.accent}" stroke-width="5" stroke-opacity="0.18"/>`).join('') +
+    S.motes(80, 52, 14, 34, '#e8e0ff', 0.8),
+  nyx_night_ambush: (S) =>
+    crescent(S, 132, 22, 10, 20, '#e8e0ff') + S.glow(132, 22, 18, '#e8e0ff', 0.3) +
+    nyxari(S, 66, 34, 1.15, { item: 'blades', lean: 1.4, eye: '#ff9ad0', wisps: 5 }) +
+    [[26, 60], [130, 64]].map(([x, y]) => `<path d="M${x - 3} ${y} L${x} ${y - 1.4} L${x + 3} ${y} M${x + 5} ${y} L${x + 8} ${y - 1.4} L${x + 11} ${y}" stroke="${S.p.glow}" stroke-width="1"/>`).join(''),
+  nyx_gloom_warden: (S) =>
+    S.ground(92, '#03020a') + nyxari(S, 62, 30, 1.2, { item: 'scythe', cloak: '#241c44', wisps: 6 }) + S.rings(62, 50, 34, 2, 6, S.p.accent, 0.4),
+  // ---- Nyxari: Unmakers ----
+  nyx_shade_stalker: (S) =>
+    S.ground(90, '#03020a') + S.planet(134, 24, 9, '#8a80b8', '#1b1638') + nyxari(S, 58, 40, 1.0, { item: 'blades', lean: 2, cloak: '#141028', wisps: 3 }),
+  nyx_dusk_raider: (S) =>
+    S.planet(40, 120, 52, '#ff9a6a', '#3a2050') + S.glow(40, 70, 40, '#ff9a6a', 0.35) +
+    S.beam(150, 22, 66, 54, 1.2, S.p.accent) +
+    `<polygon points="60,58 92,44 84,52 104,50 82,60 90,66" fill="${S.linear([[0, '#3a3270'], [1, '#07060f']])}" stroke="${S.p.glow}" stroke-width="0.7"/>` + S.glow(60, 58, 6, S.p.glow, 0.9),
+  nyx_unmaker_blade: (S) =>
+    `<g transform="translate(-4 4)">${S.hex(64, 54, 22, S.linear([[0, '#4e4280'], [1, '#1b1638']]), S.p.accent)}</g>` +
+    `<g transform="translate(6 -4)" clip-path="none">${S.hex(98, 46, 14, S.linear([[0, '#4e4280'], [1, '#1b1638']]), S.p.accent, 0.8)}</g>` +
+    S.glow(84, 50, 26, S.p.glow, 0.5) +
+    `<path d="M24 92 C60 70 100 40 146 8 C108 46 74 70 34 96 Z" fill="${S.linear([[0, '#ffffff'], [0.5, '#c8bcff'], [1, '#2a2450']], 0, 1, 1, 0)}" stroke="#fff" stroke-width="0.6"/>` +
+    `<line x1="18" y1="98" x2="30" y2="90" stroke="#2a2440" stroke-width="4" stroke-linecap="round"/>` + S.motes(90, 50, 12, 24, '#e8e0ff', 0.9),
+  nyx_void_rend: (S) =>
+    S.glow(80, 50, 36, S.p.accent, 0.5) +
+    `<path d="M70 6 L84 24 L74 40 L90 56 L78 72 L88 96 L96 72 L86 56 L100 40 L90 24 Z" fill="#000" stroke="#e8e0ff" stroke-width="1.4" stroke-linejoin="round"/>` +
+    S.motes(86, 50, 14, 10, S.p.glow, 0.8) + S.card(120, 64, 18, S.p.glow, 13) + `<path d="M96 54 Q108 54 114 58" fill="none" stroke="#e8e0ff" stroke-width="0.8" stroke-dasharray="2 2"/>` +
+    [[40, 30], [44, 70], [126, 30]].map(([x, y]) => S.hex(x, y, 3.4, '#2a2450', S.p.accent, 0.7)).join(''),
+  nyx_unravel: (S) =>
+    S.card(50, 50, -10, S.p.glow, 26) +
+    [0, 1, 2, 3, 4].map((i) => `<path d="M${62} ${36 + i * 7} C${82} ${30 + i * 7} ${96} ${50 + i * 4} ${112 + i * 6} ${30 + i * 12} S${140} ${60 - i * 4} ${156} ${40 + i * 10}" fill="none" stroke="${i % 2 ? S.p.accent : '#e8e0ff'}" stroke-width="0.9" stroke-opacity="${0.9 - i * 0.12}"/>`).join('') +
+    S.motes(130, 50, 16, 26, '#e8e0ff', 0.8),
+  nyx_phantom_strike: (S) =>
+    S.planet(132, 64, 18, '#c8a0b8', '#2a1838') + S.glow(118, 58, 12, '#fff', 0.8) +
+    [0, 1, 2].map((i) => `<path d="M${30 + i * 28} ${30 + i * 8} C${44 + i * 28} ${26 + i * 8} ${56 + i * 28} ${36 + i * 8} ${62 + i * 28} ${48 + i * 4} C${52 + i * 28} ${40 + i * 8} ${42 + i * 28} ${34 + i * 8} ${30 + i * 28} ${30 + i * 8} Z" fill="${S.p.glow}" opacity="${f(0.25 + i * 0.3)}"/>`).join('') +
+    S.beam(28, 30, 118, 58, 1, '#e8e0ff'),
+  nyx_hollow_reaper: (S) =>
+    S.glow(80, 40, 60, S.p.accent, 0.3) + S.ground(94, '#03020a') +
+    nyxari(S, 74, 30, 1.35, { item: 'scythe', mask: true, eye: '#ff6a8a', cloak: '#120e22', wisps: 6 }) +
+    S.motes(80, 80, 16, 60, S.p.glow, 0.9),
+  nyx_shadow_court: (S) =>
+    S.ground(84, '#03020a') + eclipse(S, 80, 22, 10) +
+    `<path d="M20 84 L28 70 H132 L140 84 Z" fill="${S.linear([[0, '#3a3270'], [1, '#07060f']])}" stroke="${S.p.accent}" stroke-width="0.6"/>` +
+    [[42, 48, 0.62], [118, 48, 0.62], [80, 42, 0.78]].map(([x, y, s], i) => nyxari(S, x, y, s, { item: 'none', crown: false, wisps: 0, mask: i === 2 })).join(''),
+  nyx_eclipse_rite: (S) =>
+    eclipse(S, 80, 34, 16) + S.ground(82, '#03020a') +
+    `<ellipse cx="80" cy="88" rx="48" ry="8" fill="none" stroke="${S.p.accent}" stroke-width="1.2" stroke-opacity="0.8"/><ellipse cx="80" cy="88" rx="36" ry="5.6" fill="none" stroke="${S.p.glow}" stroke-width="0.6" stroke-dasharray="2 3"/>` +
+    [[46, 66, -12], [80, 62, 0], [114, 66, 12]].map(([x, y, r]) => S.card(x, y, r, S.p.glow, 12)).join('') + S.glow(80, 34, 50, '#ff8a6a', 0.2),
+  // ---- Nyxari: Heroes ----
+  nyx_hero_vesh: (S) =>
+    crescent(S, 30, 22, 9, -20, '#e8e0ff') + nyxari(S, 80, 30, 1.35, { item: 'veil', mask: true, crown: true, eye: '#c8b8ff', cloak: '#2a2050' }),
+  nyx_hero_kael: (S) =>
+    S.glow(80, 40, 60, '#ff6a8a', 0.2) + S.ground(94, '#03020a') + nyxari(S, 74, 30, 1.35, { item: 'blades', mask: true, eye: '#ff4a6a', cloak: '#1a1030', lean: 0.6 }) + S.motes(80, 60, 12, 70, '#ff9ab0', 0.8),
+  nyx_hero_nyxara: (S) =>
+    S.glow(80, 30, 76, S.p.accent, 0.35) + nyxari(S, 80, 34, 1.45, { item: 'orb', crown: true, mask: true, eye: '#ffffff', cloak: '#100c20', wisps: 7 }) + S.motes(80, 50, 20, 76, '#e8e0ff', 0.9),
+
+  // ---- Korrath: Forgeborn ----
+  kor_rivet_graft: (S) =>
+    S.panel(26, 32, 62, 44, 3) + S.panel(70, 40, 62, 44, 3) +
+    [0, 1, 2, 3, 4].map((i) => S.glow(76, 46 + i * 8, 4, S.p.glow, 0.9) + `<circle cx="76" cy="${46 + i * 8}" r="1.6" fill="#ffe0a0"/>`).join('') +
+    [0, 1, 2, 3].map((i) => `<circle cx="34" cy="${40 + i * 10}" r="1.4" fill="#5a5c66"/><circle cx="124" cy="${48 + i * 10}" r="1.4" fill="#5a5c66"/>`).join(''),
+  kor_slag_graft: (S) =>
+    S.panel(30, 30, 100, 40, 4) + S.glow(80, 46, 24, S.p.glow, 0.8) +
+    `<path d="M56 44 Q80 30 104 44 Q100 54 92 52 L90 66 Q86 72 84 66 L82 54 Q76 52 72 56 L70 74 Q66 80 64 74 L64 52 Q58 52 56 44 Z" fill="${S.linear([[0, '#fff3c4'], [0.4, '#ffa040'], [1, '#c8401a']])}"/>` +
+    S.motes(80, 40, 10, 24, '#ffe0a0', 1),
+  kor_anvil_graft: (S) =>
+    S.ground(86, S.p.deep) + anvil(S, 80, 88, 70, false) + S.glow(80, 50, 24, '#9fd0ff', 0.6) + S.rings(80, 52, 30, 2, 8, '#bfe6ff', 0.5) +
+    [-1, 1].map((k) => `<path d="M${80 + k * 10} 46 q${k * 4} -8 0 -16 t0 -16" fill="none" stroke="#e6ecf5" stroke-width="2" stroke-opacity="0.5" stroke-linecap="round"/>`).join(''),
+  kor_forge_hammer: (S) =>
+    S.ground(86, S.p.deep) + anvil(S, 70, 88, 64) + S.glow(66, 54, 26, '#fff3c4', 0.7) +
+    [0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => { const a = -Math.PI + (i / 8) * Math.PI; return `<line x1="${f(66 + Math.cos(a) * 8)}" y1="${f(54 + Math.sin(a) * 6)}" x2="${f(66 + Math.cos(a) * (20 + (i % 3) * 6))}" y2="${f(54 + Math.sin(a) * (16 + (i % 3) * 5))}" stroke="#ffe0a0" stroke-width="1" stroke-linecap="round"/>`; }).join('') +
+    `<line x1="132" y1="10" x2="84" y2="40" stroke="#4a2e18" stroke-width="3.4" stroke-linecap="round"/><g transform="rotate(-32 76 46)"><rect x="66" y="38" width="22" height="14" rx="2" fill="${S.linear([[0, '#e4e8f0'], [0.4, '#8a8f9c'], [1, '#24252c']])}"/><rect x="74" y="38" width="4" height="14" fill="#c9893a"/></g>`,
+  kor_ore_hauler: (S) =>
+    S.ground(80, S.p.deep) + `<path d="M-5 92 L165 86" stroke="#6a6060" stroke-width="1.4"/>` +
+    `<path d="M40 52 H112 L104 78 H48 Z" fill="${S.linear([[0, '#a8a2a8'], [1, '#2e2f36']])}" stroke="#c9893a" stroke-width="1.2"/>` +
+    [[56, 50, 8], [72, 46, 10], [90, 48, 9], [102, 51, 6]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${S.radial([[0, '#ffe0a0'], [0.5, '#c86a2a'], [1, '#3a2010']])}"/>` + S.glow(x, y, r * 1.4, S.p.glow, 0.5)).join('') +
+    [54, 76, 98].map((x) => `<circle cx="${x}" cy="82" r="6" fill="#24252c" stroke="#c9893a" stroke-width="1.4"/>`).join('') +
+    `<rect x="112" y="58" width="16" height="20" rx="2" fill="#5a5c66"/>` + S.glow(124, 64, 5, S.p.glow, 0.9) + S.motes(80, 40, 8, 26, '#ffe0a0', 0.9),
+  kor_master_smith: (S) =>
+    S.ground(92, S.p.deep) + anvil(S, 120, 92, 40) + korrath(S, 54, 36, 1.4, { item: 'hammer' }) + S.motes(116, 66, 14, 16, '#ffe0a0', 0.9),
+  // ---- Korrath: Bastion-kin ----
+  kor_shieldwall: (S) =>
+    S.ground(88, S.p.deep) +
+    [18, 46, 74, 102, 130].map((x, i) => `<path d="M${x} ${30 + (i % 2) * 4} H${x + 26} V${70 + (i % 2) * 4} Q${x + 13} ${90 + (i % 2) * 4} ${x} ${70 + (i % 2) * 4} Z" fill="${S.linear([[0, '#e4e8f0'], [0.35, '#8a8f9c'], [1, '#24252c']], 0, 0, 1, 1)}" stroke="#c9893a" stroke-width="1.6"/>` + S.glow(x + 13, 46 + (i % 2) * 4, 5, S.p.glow, 0.8) + `<circle cx="${x + 13}" cy="${46 + (i % 2) * 4}" r="3" fill="#c9893a"/>`).join(''),
+  kor_bastion_kin: (S) =>
+    S.ground(92, S.p.deep) + korrath(S, 62, 36, 1.4, { item: 'shield', trim: '#d8a050' }),
+  kor_iron_sentinel: (S) =>
+    S.ground(90, S.p.deep) +
+    `<path d="M58 92 L60 30 Q80 16 100 30 L102 92 Z" fill="${S.linear([[0, '#e4e8f0'], [0.35, '#7a7f8c'], [1, '#1c1d22']], 0, 0, 1, 1)}" stroke="#16161c"/>` +
+    S.glow(80, 40, 12, S.p.glow, 0.9) + `<path d="M70 40 H90" stroke="#ffe8b0" stroke-width="2" stroke-linecap="round"/>` +
+    [[56, 50, -1], [56, 70, -1], [104, 50, 1], [104, 70, 1]].map(([x, y, k]) => `<polygon points="${x},${y - 4} ${x + k * 12},${y} ${x},${y + 4}" fill="#c9893a"/>`).join('') +
+    `<path d="M62 60 Q80 64 98 60" fill="none" stroke="#c9893a" stroke-width="2"/>`,
+  kor_rampart_lord: (S) =>
+    `<path d="M-5 70 H20 V62 H32 V70 H128 V62 H140 V70 H165 V105 H-5 Z" fill="${S.linear([[0, '#6a6460'], [1, '#1a1612']])}" stroke="#c9893a" stroke-width="0.8"/>` +
+    korrath(S, 74, 26, 1.32, { item: 'shield', crown: true, cape: '#7a2a14', bulk: 1.1 }),
+  kor_siege_ram: (S) =>
+    S.dome(140, 96, 40, '#bfe6ff') + S.glow(116, 60, 18, '#fff3c4', 0.8) +
+    `<polygon points="10,46 92,46 116,60 92,74 10,74" fill="${S.linear([[0, '#e4e8f0'], [0.4, '#7a7f8c'], [1, '#1c1d22']])}" stroke="#c9893a" stroke-width="1.2"/>` +
+    [30, 50, 70].map((x) => `<rect x="${x}" y="44" width="4" height="32" fill="#c9893a"/>`).join('') +
+    S.glow(12, 60, 10, S.p.glow, 0.9) + [0, 1, 2, 3, 4].map((i) => S.bolt(116, 60, 130 + i * 4, 30 + i * 14, '#ffe0a0', 3, 0.8)).join(''),
+  kor_foundry: (S) =>
+    S.ground(70, S.p.deep) +
+    `<path d="M40 92 V58 Q80 30 120 58 V92 Z" fill="${S.linear([[0, '#6a6460'], [1, '#1a1612']])}" stroke="#c9893a" stroke-width="1"/>` +
+    S.glow(80, 76, 22, S.p.glow, 0.9) + `<path d="M66 92 V74 Q80 62 94 74 V92 Z" fill="${S.linear([[0, '#fff3c4'], [1, '#ff6a1a']])}"/>` +
+    [[50, 22], [110, 16]].map(([x, top]) => `<rect x="${x - 4}" y="${top}" width="8" height="${50 - top}" fill="#3a3330"/>` + S.glow(x, top - 4, 8, '#8a807a', 0.6)).join('') +
+    `<path d="M-5 96 Q40 90 66 92" stroke="#ffa040" stroke-width="2.4" fill="none"/>`,
+  kor_molten_pour: (S) =>
+    S.ground(86, S.p.deep) +
+    `<g transform="rotate(38 56 34)"><path d="M40 22 H72 L68 46 H44 Z" fill="${S.linear([[0, '#a8a2a8'], [1, '#2e2f36']])}" stroke="#c9893a" stroke-width="1"/></g>` +
+    `<path d="M70 40 Q86 46 88 78" fill="none" stroke="#ffa040" stroke-width="5" stroke-linecap="round"/><path d="M70 40 Q86 46 88 78" fill="none" stroke="#fff3c4" stroke-width="1.8" stroke-linecap="round"/>` +
+    `<path d="M68 78 H108 L104 90 H72 Z" fill="#3a3330" stroke="#c9893a"/>` + S.glow(88, 80, 16, S.p.glow, 0.9) + `<ellipse cx="88" cy="79" rx="17" ry="2.6" fill="#ffd08a"/>` + S.motes(88, 72, 10, 16, '#ffe0a0', 0.9),
+  kor_temper: (S) =>
+    `<path d="M-5 70 H165 V105 H-5 Z" fill="${S.linear([[0, '#3a6a8a', 0.8], [1, '#0a1a2a']])}"/>` + S.waves(70, '#bfe6ff', 1.6, 2, 0.6) +
+    `<path d="M70 10 L90 10 L88 80 L80 92 L72 80 Z" fill="${S.linear([[0, '#ffe0a0'], [0.45, '#ff8a3a'], [0.6, '#8aa8c8'], [1, '#bfe6ff']])}" stroke="#fff" stroke-width="0.6"/>` +
+    `<rect x="64" y="4" width="32" height="6" rx="2" fill="#c9893a"/>` +
+    [-1, 1].map((k) => [0, 1, 2, 3].map((i) => S.glow(80 + k * (12 + i * 9), 62 - i * 12, 12 - i * 2, '#e6ecf5', 0.55)).join('')).join('') + S.rings(80, 70, 14, 3, 7, '#bfe6ff', 0.5),
+  // ---- Korrath: Heroes ----
+  kor_hero_durga: (S) =>
+    S.ground(92, S.p.deep) + anvil(S, 128, 92, 34) + korrath(S, 54, 36, 1.4, { item: 'tongs', crown: true, beard: false, cape: '#5a2a3a', trim: '#e0a860' }),
+  kor_hero_brannoc: (S) =>
+    S.ground(92, S.p.deep) + S.dome(66, 92, 58, '#ffd08a') + korrath(S, 64, 36, 1.4, { item: 'shield', horns: true, cape: '#2a3a5a', plate: '#9aa0ae' }),
+  kor_hero_anvil_king: (S) =>
+    S.glow(80, 30, 70, S.p.glow, 0.3) + S.ground(94, S.p.deep) + anvil(S, 24, 96, 30) + korrath(S, 76, 32, 1.48, { item: 'hammer', crown: true, cape: '#7a1a0a', bulk: 1.18, plate: '#6a6e7a' }) + S.motes(80, 50, 14, 70, '#ffe0a0', 0.9),
+
+  // ---- Seren: Tidecasters ----
+  ser_astral_lance: (S) =>
+    crescent(S, 30, 30, 14, 10) + S.glow(30, 30, 24, '#ffffff', 0.4) + S.beam(40, 34, 124, 62, 2.2, '#e8f0ff') +
+    S.planet(132, 66, 12, '#bfd0ff', '#2a3a80') + S.orbit(132, 66, 26, 7, -12, S.p.accent, 0.9, 0.7) + S.glow(124, 62, 10, '#fff', 0.9),
+  ser_tide_turner: (S) =>
+    S.planet(132, 80, 22, '#9fb8e8', '#22306a') + `<path d="M118 50 Q132 30 150 44" fill="none" stroke="#e8f0ff" stroke-width="1.2" stroke-dasharray="3 2"/><polygon points="150,44 143,42 146,48" fill="#e8f0ff"/>` +
+    seren(S, 60, 28, 1.15, { moons: 3, item: 'none' }),
+  ser_planet_shepherd: (S) =>
+    S.orbit(80, 60, 66, 22, -6, S.p.accent, 1.2, 0.6) +
+    [[20, 62, 6, '#bfd0ff'], [60, 80, 8, '#e8c98f'], [112, 78, 7, '#9fd8c8'], [142, 54, 5, '#d8b8ff']].map(([x, y, r, c]) => S.planet(x as number, y as number, r as number, c as string, '#22306a')).join('') +
+    `<path d="M80 92 V30 Q80 18 90 18 Q98 18 98 26" fill="none" stroke="#e8f0ff" stroke-width="2" stroke-linecap="round"/>` + S.glow(98, 28, 6, '#fff', 0.8) + S.motes(80, 60, 10, 60, '#e8f0ff', 0.7),
+  ser_eclipse_caster: (S) =>
+    S.planet(96, 52, 22, '#ffd8a0', '#8a4a2a') + `<circle cx="74" cy="48" r="14" fill="${S.radial([[0, '#2a3060'], [1, '#050920']], 0.6, 0.5, 0.6)}" stroke="#e8f0ff" stroke-width="0.8"/>` +
+    S.glow(84, 50, 30, '#ffffff', 0.25) + `<path d="M40 84 Q70 70 100 84" fill="none" stroke="${S.p.accent}" stroke-width="1.2"/><polygon points="40,84 46,79 47,86" fill="${S.p.accent}"/>` + S.card(136, 26, 10, S.p.glow, 12),
+  ser_twin_moons: (S) =>
+    S.planet(54, 34, 16, '#ffffff', '#8a9ad0') + S.planet(110, 40, 11, '#e8eeff', '#5a6aa8') + S.glow(54, 34, 30, '#fff', 0.3) +
+    S.orbit(82, 38, 44, 10, -6, '#e8f0ff', 0.8, 0.5) + S.ground(86, S.p.deep) + S.dome(80, 90, 52, '#bfd0ff'),
+  // ---- Seren: Seers ----
+  ser_star_chart: (S) =>
+    `<rect x="28" y="22" width="104" height="60" rx="2" fill="${S.linear([[0, '#1d2a66'], [1, '#0b1238']])}" stroke="#e8eeff" stroke-width="0.8"/>` +
+    [24, 136].map((x) => `<rect x="${x}" y="18" width="8" height="68" rx="4" fill="${S.linear([[0, '#fff3c4'], [1, '#9a7a3a']], 0, 0, 1, 0)}"/>`).join('') +
+    S.orbit(80, 52, 30, 30, 0, '#9fb4ff', 0.5, 0.5) + `<path d="M80 26 V78 M54 52 H106" stroke="#9fb4ff" stroke-width="0.4" stroke-opacity="0.6"/>` +
+    `<polyline points="44,66 56,40 72,46 88,30 104,40 116,62" fill="none" stroke="#fff" stroke-width="0.7"/>` +
+    [[44, 66], [56, 40], [72, 46], [88, 30], [104, 40], [116, 62]].map(([x, y]) => S.sun(x, y, 1.2, '#e8f0ff')).join(''),
+  ser_orrery_keeper: (S) =>
+    S.ground(94, S.p.deep) + seren(S, 58, 30, 1.2, { item: 'orrery', robe: '#c8d6ff' }),
+  ser_stargazer: (S) =>
+    S.ground(80, S.p.deep) +
+    `<rect x="36" y="64" width="48" height="24" fill="${S.linear([[0, '#9aa8d8'], [1, '#2a3460']])}"/><path d="M38 64 A22 22 0 0 1 82 64 Z" fill="${S.linear([[0, '#ffffff'], [1, '#6a7ab8']], 0, 0, 1, 1)}"/><path d="M56 64 L58 44 L66 43 L64 64 Z" fill="#0a1030"/>` + [44, 56, 68].map((x) => S.glow(x, 76, 2.4, '#ffe2a0', 0.9)).join('') +
+    `<line x1="62" y1="58" x2="104" y2="28" stroke="#5a4320" stroke-width="6" stroke-linecap="round"/><line x1="62" y1="58" x2="104" y2="28" stroke="#e8c47a" stroke-width="4" stroke-linecap="round"/>` +
+    S.sun(130, 14, 3, '#e8f0ff', 8) + S.beam(130, 14, 106, 28, 1.2, '#e8f0ff') + S.beam(108, 26, 160, 60, 1.4, '#ffd8a0'),
+  ser_oracle: (S) =>
+    S.glow(80, 30, 50, '#ffffff', 0.25) + seren(S, 68, 30, 1.25, { item: 'chart', crown: true, robe: '#e8eeff' }) +
+    [[124, 20], [136, 34], [128, 48], [144, 56]].map(([x, y]) => S.sun(x, y, 1.1, '#e8f0ff')).join('') + `<polyline points="124,20 136,34 128,48 144,56" fill="none" stroke="#c8d6ff" stroke-width="0.6"/>`,
+  ser_lantern_of_ages: (S) =>
+    `<path d="M80 0 V22" stroke="#c8d6ff" stroke-width="0.9"/>` + S.glow(80, 52, 40, '#bfd0ff', 0.45) +
+    `<path d="M66 24 H94 L90 30 V74 L94 80 H66 L70 74 V30 Z" fill="#bfd0ff" fill-opacity="0.18" stroke="#e8eeff" stroke-width="1"/>` +
+    S.orbit(80, 52, 8, 3, -20, '#ffffff', 0.8, 0.9) + S.sun(80, 52, 3, '#e8f0ff') + S.motes(80, 52, 14, 8, '#fff', 0.5) +
+    `<path d="M74 34 H86 L80 44 Z M80 60 L86 70 H74 Z" fill="none" stroke="#d9b36a" stroke-width="0.8"/>`,
+  ser_moonwell: (S) =>
+    S.planet(80, 20, 11, '#ffffff', '#8a9ad0') + S.glow(80, 20, 24, '#fff', 0.35) + S.ground(72, S.p.deep) +
+    `<ellipse cx="80" cy="82" rx="36" ry="9" fill="${S.linear([[0, '#3a4a8a'], [1, '#0a1030']])}" stroke="#e8eeff" stroke-width="1.6"/>` +
+    S.glow(80, 82, 10, '#fff', 0.9) + `<ellipse cx="80" cy="82" rx="6" ry="2" fill="#fff"/>` + S.beam(80, 30, 80, 80, 1.4, '#e8f0ff') +
+    [30, 130].map((x) => `<rect x="${x - 3}" y="56" width="6" height="30" fill="${S.linear([[0, '#e8eeff'], [1, '#5a6aa8']], 0, 0, 1, 0)}"/>`).join('') + S.dome(80, 86, 54, '#bfd0ff'),
+  ser_constellation: (S) => {
+    const pts: [number, number][] = [[80, 18], [80, 32], [66, 42], [56, 56], [94, 42], [108, 30], [80, 56], [70, 76], [64, 94], [90, 76], [100, 92]];
+    const lines = [[0, 1], [1, 2], [2, 3], [1, 4], [4, 5], [1, 6], [6, 7], [7, 8], [6, 9], [9, 10]];
+    return S.glow(80, 50, 50, S.p.accent, 0.3) + lines.map(([a, b]) => `<line x1="${pts[a][0]}" y1="${pts[a][1]}" x2="${pts[b][0]}" y2="${pts[b][1]}" stroke="#c8d6ff" stroke-width="0.9" stroke-opacity="0.8"/>`).join('') + pts.map(([x, y], i) => S.sun(x, y, i === 0 ? 2.6 : 1.4, '#e8f0ff', i === 0 ? 6 : 0)).join('') + S.motes(80, 50, 20, 70, '#ffffff', 0.5);
+  },
+  ser_star_needle: (S) =>
+    S.sun(18, 22, 3, '#e8f0ff', 6) + S.beam(20, 24, 160, 74, 0.6, '#ffffff') +
+    `<path d="M92 36 A22 22 0 0 1 104 74" fill="none" stroke="#bfd0ff" stroke-width="2.4"/><path d="M108 32 A22 22 0 0 1 120 70" fill="none" stroke="#bfd0ff" stroke-width="1.4" stroke-opacity="0.6"/>` +
+    S.glow(102, 52, 8, '#fff', 0.9) + S.motes(104, 52, 8, 12, '#e8f0ff', 0.6) + S.card(140, 26, 12, S.p.glow, 12),
+  ser_almanac: (S) =>
+    `<path d="M80 80 Q56 72 26 78 V36 Q56 30 80 38 Q104 30 134 36 V78 Q104 72 80 80 Z" fill="${S.linear([[0, '#f4f7ff'], [1, '#a8b8e8']])}" stroke="#5a6aa8" stroke-width="0.8"/><path d="M80 38 V80" stroke="#5a6aa8" stroke-width="0.8"/>` +
+    [0, 1, 2, 3].map((i) => `<circle cx="${36 + i * 11}" cy="50" r="4" fill="#1d2a66"/>` + `<path d="M${36 + i * 11} 46 A4 4 0 0 ${i < 2 ? 1 : 0} ${36 + i * 11} 54 A${f(4 * (1 - i / 3))} 4 0 0 ${i < 2 ? 0 : 1} ${36 + i * 11} 46 Z" fill="#fff"/>`).join('') +
+    [0, 1, 2, 3, 4].map((i) => `<line x1="88" y1="${46 + i * 6}" x2="${124 - (i % 2) * 8}" y2="${46 + i * 6}" stroke="#5a6aa8" stroke-width="0.8"/>`).join('') +
+    S.planet(128, 18, 8, '#ffffff', '#8a9ad0') + S.glow(128, 18, 16, '#fff', 0.3),
+  // ---- Seren: Heroes ----
+  ser_hero_ilyath: (S) =>
+    S.ground(94, S.p.deep) + seren(S, 56, 30, 1.25, { item: 'scope', robe: '#dce4ff' }) + S.planet(140, 18, 6, '#ffe2a0', '#8a5a2a', true),
+  ser_hero_maren: (S) =>
+    S.planet(130, 80, 26, '#9fd8e8', '#1a3a6a', true) + seren(S, 60, 34, 1.15, { item: 'staff', moons: 4, robe: '#c0dcff' }),
+  ser_hero_aster: (S) => {
+    const pts: [number, number][] = [[18, 20], [34, 12], [30, 40], [130, 14], [146, 30], [138, 48]];
+    return S.glow(80, 34, 74, S.p.accent, 0.35) + `<polyline points="${pts.slice(0, 3).map((p) => p.join(',')).join(' ')}" fill="none" stroke="#c8d6ff" stroke-width="0.6"/><polyline points="${pts.slice(3).map((p) => p.join(',')).join(' ')}" fill="none" stroke="#c8d6ff" stroke-width="0.6"/>` + pts.map(([x, y]) => S.sun(x, y, 1.2, '#e8f0ff')).join('') + seren(S, 80, 32, 1.4, { item: 'orrery', crown: true, moons: 5, robe: '#eef2ff' });
+  },
+
+  // ---- Pyrr: Cinderborn ----
+  pyr_flare_imp: (S) =>
+    S.ground(88, S.p.deep) + blaze(S, 70, 80, 36, 26, -4) + `<ellipse cx="66" cy="68" rx="2" ry="2.6" fill="#4a0800"/><ellipse cx="76" cy="68" rx="2" ry="2.6" fill="#4a0800"/><path d="M66 75 Q71 78 76 75" fill="none" stroke="#4a0800" stroke-width="1"/>` +
+    blaze(S, 112, 86, 14, 10, 3) + S.motes(80, 50, 12, 40, '#ffe27a', 1),
+  pyr_cinder_brute: (S) =>
+    S.ground(92, S.p.deep) + pyrr(S, 74, 30, 1.42, { ember: true, bulk: 1.3, flame: '#e8301a' }),
+  pyr_ash_walker: (S) =>
+    `<path d="M-5 84 Q80 76 165 86 V105 H-5 Z" fill="${S.linear([[0, '#8a7a74'], [1, '#2a2020']])}"/>` + S.motes(80, 40, 30, 80, '#c8bcb4', 1) +
+    pyrr(S, 76, 30, 1.36, { ember: true, flame: '#c8401a', core: '#ffc860' }) +
+    [[30, 92], [50, 90]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="4" ry="1.4" fill="#ff8a1e" opacity="0.8"/>`).join(''),
+  pyr_heat_bloom: (S) =>
+    S.ground(84, S.p.deep) + `<path d="M80 92 C80 80 78 74 80 64" stroke="#5a2a1a" stroke-width="2.6" fill="none"/>` +
+    [-70, -35, 0, 35, 70].map((a) => { return `<g transform="rotate(${a} 80 62)">${blaze(S, 80, 62, 30, 13, 0, '#e8301a')}</g>`; }).join('') +
+    S.sun(80, 62, 4.4, '#ffe27a') + S.rings(80, 62, 36, 2, 6, '#ffb070', 0.45),
+  pyr_ember_guard: (S) =>
+    S.ground(88, S.p.deep) +
+    `<path d="M24 92 L30 50 L52 44 L66 54 L86 42 L108 52 L128 46 L136 92 Z" fill="${S.linear([[0, '#5a3a32'], [1, '#140806']])}" stroke="#ffb040" stroke-width="0.8"/>` +
+    `<path d="M40 60 L52 70 L46 84 M80 52 L86 66 L76 80 L84 90 M114 58 L106 72 L118 84" fill="none" stroke="#ffd060" stroke-width="1.6"/>` +
+    [52, 86, 128].map((x) => blaze(S, x, x === 86 ? 44 : 48, 18, 10)).join('') + [[34, 50, -1], [134, 48, 1]].map(([x, y, k]) => `<polygon points="${x},${y} ${x + k * 10},${y - 12} ${x + k * 4},${y + 2}" fill="#2a1410" stroke="#ffb040" stroke-width="0.6"/>`).join(''),
+  pyr_magma_heart: (S) =>
+    S.glow(80, 52, 50, '#ff6a1e', 0.6) + `<circle cx="80" cy="52" r="24" fill="${S.radial([[0, '#fffbe0'], [0.3, '#ffd060'], [0.7, '#ff6a1e'], [1, '#8a1a0a']], 0.45, 0.4, 0.6)}"/>` +
+    `<path d="M60 40 L72 46 L70 60 L58 62 Z M84 30 L98 34 L100 48 L88 46 Z M86 58 L100 60 L96 74 L82 70 Z" fill="${S.linear([[0, '#4a2a22'], [1, '#140806']])}" stroke="#ffd060" stroke-width="1"/>` +
+    S.rings(80, 52, 30, 3, 8, '#ff9a2a', 0.5),
+  // ---- Pyrr: Flarekin ----
+  pyr_flare_burst: (S) =>
+    S.sun(52, 66, 18, '#ff8a1e', 14) + `<path d="M58 50 C64 10 120 6 116 44" fill="none" stroke="#ff6a1e" stroke-width="5" stroke-linecap="round" stroke-opacity="0.8"/><path d="M58 50 C64 10 120 6 116 44" fill="none" stroke="#ffe27a" stroke-width="1.8" stroke-linecap="round"/>` +
+    S.motes(116, 44, 16, 22, '#ffd060', 1.2) + S.card(140, 70, 14, S.p.glow, 12),
+  pyr_supernova_charge: (S) =>
+    S.glow(80, 50, 70, '#ff6a1e', 0.6) + S.rings(80, 50, 14, 5, 10, '#ffd060', 0.7) + S.sun(80, 50, 10, '#ffe27a', 16) +
+    [0, 1, 2, 3, 4, 5, 6, 7].map((i) => { const a = (i / 8) * Math.PI * 2 + 0.4; return S.bolt(80 + Math.cos(a) * 12, 50 + Math.sin(a) * 10, 80 + Math.cos(a) * 70, 50 + Math.sin(a) * 48, '#ffe27a', 3, 0.7); }).join(''),
+  pyr_pyre_shield: (S) =>
+    S.ground(88, S.p.deep) + [16, 32, 48, 64, 80, 96, 112, 128, 144].map((x, i) => blaze(S, x, 88 - Math.sin((i / 8) * Math.PI) * 4, 30 + Math.sin((i / 8) * Math.PI) * 26, 16, (x - 80) * 0.08)).join('') + S.dome(80, 88, 58, '#ffd060'),
+  pyr_flarekin_dancer: (S) =>
+    S.ground(94, S.p.deep) + [0, 1, 2].map((i) => `<path d="M${30 + i * 10} 90 C${50 + i * 10} 60 ${110 - i * 6} 80 ${130 - i * 4} ${40 + i * 10}" fill="none" stroke="#ffb040" stroke-width="${1.6 - i * 0.4}" stroke-opacity="0.6"/>`).join('') +
+    pyrr(S, 80, 34, 1.3, { pose: 'dance', flame: '#ff4a1a' }),
+  pyr_stoker: (S) =>
+    S.ground(86, S.p.deep) +
+    `<path d="M50 70 H110 L104 88 H56 Z" fill="${S.linear([[0, '#6a5a50'], [1, '#1a1210']])}" stroke="#c9893a" stroke-width="1"/>` +
+    [[60, 68, 6], [72, 66, 7], [86, 67, 7], [100, 68, 6]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${S.radial([[0, '#ffe27a'], [0.5, '#ff6a1e'], [1, '#3a0a04']])}"/>`).join('') +
+    blaze(S, 80, 64, 26, 30, 2) + `<line x1="124" y1="30" x2="92" y2="64" stroke="#5a5c66" stroke-width="2.4" stroke-linecap="round"/>` + S.motes(80, 30, 18, 30, '#ffd060', 1),
+  pyr_flare_temple: (S) =>
+    S.ground(88, S.p.deep) +
+    [[30, 130, 88, 76], [44, 116, 76, 64], [58, 102, 64, 52]].map(([x1, x2, y1, y2]) => `<path d="M${x1} ${y1} L${x1 + 6} ${y2} H${x2 - 6} L${x2} ${y1} Z" fill="${S.linear([[0, '#a8604a'], [1, '#3a140c']])}" stroke="#ffb040" stroke-width="0.6"/>`).join('') +
+    `<path d="M76 64 V88 H84 V64 Z" fill="#2a0a04"/>` + S.glow(80, 76, 8, '#ffd060', 0.8) + blaze(S, 80, 52, 40, 26, 0) + S.motes(80, 20, 12, 30, '#ffd060', 1),
+  pyr_vent_cooler: (S) =>
+    S.ground(84, S.p.deep) + `<path d="M64 88 L70 66 H90 L96 88 Z" fill="${S.linear([[0, '#5a5c66'], [1, '#1c1d22']])}" stroke="#9fd0ff" stroke-width="0.8"/>` +
+    [0, 1, 2, 3, 4].map((i) => S.glow(80 + (i % 2 ? 8 : -8) * (i / 2), 58 - i * 11, 9 + i * 2.4, '#d8ecff', 0.55)).join('') +
+    S.glow(80, 66, 10, '#9fd0ff', 0.8) + S.card(132, 30, 12, '#bfe6ff', 12),
+  pyr_solar_tyrant: (S) =>
+    S.glow(80, 50, 70, '#ff3a1a', 0.5) + S.sun(80, 50, 22, '#ff4a1a', 18) +
+    `<path d="M70 46 L76 50 L70 52 Z M90 46 L84 50 L90 52 Z" fill="#6a0a00"/><path d="M68 42 L77 46 M92 42 L83 46" stroke="#6a0a00" stroke-width="1.6"/>` +
+    [-2, -1, 0, 1, 2].map((i) => tongue(S, 80 + i * 8, 30 + Math.abs(i) * 3, 16 - Math.abs(i) * 3, 6, i * 2, '#ffd060')).join(''),
+  // ---- Pyrr: Heroes ----
+  pyr_hero_ignis: (S) =>
+    S.ground(94, S.p.deep) + pyrr(S, 56, 32, 1.36, { pose: 'cast', item: 'fireball', flame: '#ff5a1a' }) + S.beam(92, 36, 160, 16, 1.2, '#ffd060'),
+  pyr_hero_ashka: (S) =>
+    `<path d="M-5 90 Q80 82 165 92 V105 H-5 Z" fill="${S.linear([[0, '#6a4a40'], [1, '#1a0c0a']])}"/>` + pyrr(S, 60, 32, 1.36, { ember: true, crown: true, item: 'whip', flame: '#d8281a', core: '#ffc040' }),
+  pyr_hero_pyrrhus: (S) =>
+    S.glow(80, 40, 80, '#ff6a1e', 0.45) + pyrr(S, 80, 32, 1.38, { wings: true, crown: true, item: 'brand', flame: '#ff3a1a', core: '#fff0a0' }) + S.motes(80, 60, 20, 80, '#ffd060', 1),
+};
+/** Dusk: a sun sinking behind the horizon, the sky banded in its last light. */
+function dusk(S: Scene, x = 80, c = '#ff8a4a'): string {
+  return S.glow(x, 84, 64, c, 0.45) + S.glow(x, 84, 30, '#ffd0a0', 0.5) + S.sun(x, 86, 13, '#ffb070', 10) + S.ground(86, '#120a1a');
+}
+
+const ART_DUSK: Record<string, Draw> = {
+  twilight_sentry: (S) => dusk(S, 118) + `<path d="M50 86 V44 L64 32 L78 44 V86 Z" fill="${S.linear([[0, '#6a7088'], [1, '#1a1c2a']])}" stroke="#ffb070" stroke-width="0.8"/>` + S.glow(64, 48, 6, '#ffd0a0', 0.9) + S.rings(64, 58, 30, 2, 8, '#ffd0a0', 0.4),
+  evening_star: (S) => dusk(S, 50, '#c46aa0') + S.glow(120, 26, 14, '#fff', 0.7) + `<path d="M120 14 L123 23 L132 26 L123 29 L120 38 L117 29 L108 26 L117 23 Z" fill="#fff"/>` + S.card(126, 60, 12, '#ffd0a0', 10),
+  gloaming_battery: (S) => dusk(S, 34) + [70, 92, 114, 136].map((x, i) => `<rect x="${x - 7}" y="${50 + (i % 2) * 6}" width="14" height="${30 - (i % 2) * 6}" rx="2" fill="${S.linear([[0, i % 2 ? '#4a4a58' : '#ffb070'], [1, '#1a1612']])}" stroke="#ffd0a0" stroke-width="0.6"/>`).join('') + S.beam(92, 48, 140, 14, 1.4, '#ffb070'),
+  vesper_bell: (S) => dusk(S, 120, '#8a7ad0') + `<path d="M62 30 Q80 22 98 30 L104 70 H56 Z" fill="${S.linear([[0, '#d8c8a0'], [1, '#6a5030']])}" stroke="#fff3c4" stroke-width="0.8"/>` + `<circle cx="80" cy="74" r="4" fill="#fff3c4"/>` + S.rings(80, 50, 34, 3, 10, '#bfe6ff', 0.45),
+  aureline_vesper_knight: (S) => dusk(S, 124) + aureline(S, 62, 34, 1.15, { item: 'lance', cloak: '#6a3a5a', halos: 2 }),
+  shard_twilight: (S) => dusk(S, 40, '#d06aa0') + [0, 1, 2].map((i) => S.crystal(96 + i * 16, 64 - i * 10, 30 - i * 4, 9, -18 + i * 14, '#ffb3c2')).join('') + S.beam(112, 40, 156, 18, 1.2, '#ffe0ea'),
+  ebb_tide: (S) => S.glow(80, 70, 60, '#ff8a4a', 0.35) + S.sun(80, 72, 12, '#ffb070', 8) + S.waves(74, '#7ff0e0', 4, 3, 0.7) + S.rings(80, 50, 40, 2, 10, '#dffff8', 0.4),
+  night_bloom: (S) => dusk(S, 126, '#a06ad0') + S.mushroom(70, 86, 34, 30, '#d59cff') + S.mushroom(96, 86, 22, 18, '#c5ff8a', 6) + S.motes(80, 50, 30, 30, '#d59cff', 1),
+  nyx_nightfall: (S) => dusk(S, 110, '#6a4ad0') + nyxari(S, 56, 34, 1.1, { item: 'blades', cloak: '#141028', wisps: 5 }),
+  kor_banked_forge: (S) => dusk(S, 126) + anvil(S, 66, 74, 46, true) + S.glow(66, 64, 16, '#ffb040', 0.7) + S.motes(66, 46, 14, 20, '#ffd060', 1),
+  ser_evening_vigil: (S) => dusk(S, 118, '#8a7ad0') + seren(S, 58, 30, 1.1, { item: 'scope', moons: 2, halo: true }),
+  pyr_banked_embers: (S) => dusk(S, 40) + `<path d="M76 86 Q90 70 104 86 Z" fill="#2a1410"/>` + [0, 1, 2, 3].map((i) => S.glow(80 + i * 7, 82 - (i % 2) * 3, 5, '#ff6a1a', 0.9)).join('') + S.motes(92, 60, 16, 24, '#ffb040', 0.8) + S.glow(92, 50, 18, '#9fd0ff', 0.25),
+};
+
+Object.assign(ART, ART_RACES, ART_DUSK);
+
 
 /** The window a card's picture sits in: a sky in its palette, with stars and the picture. */
 export function cardScene(def: CardDef): string {

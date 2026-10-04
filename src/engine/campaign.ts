@@ -1,6 +1,6 @@
 /**
- * Campaign mode: a dying universe, four races fighting over its last warm worlds, and a march on the Heart,
- * the star at its centre, where the Infinite Stellari is said to grow (see story.ts).
+ * Campaign mode: a dying universe, up to four of its eight races fighting over its last warm worlds, and a
+ * march on the Heart, the star at its centre, where the Infinite Stellari is said to grow (see story.ts).
  *
  * Each faction fields armies, each led by a general (one of its race's Hero cards) with a deck of its own.
  * Every army moves one route a turn; moving into a system it doesn't hold is a battle. Claiming the Heart
@@ -340,7 +340,7 @@ export interface Faction {
   id: string;
   name: string;
   isAI: boolean;
-  /** Which of the four alien races this faction is (0–3). */
+  /** Which of the alien races this faction is (an index into RACE_NAMES, 0–7). */
   race: number;
   credits: number;
   materials: number;
@@ -460,7 +460,7 @@ export interface CampaignState {
 export interface CampaignSetup {
   seed: number;
   playerName?: string;
-  /** The player's race (0–3); the rivals are the other races. */
+  /** The player's race (an index into RACE_NAMES, 0–7); the rivals are drawn at random from the other races. */
   race?: number;
   /** Rival AI factions, 1–3. */
   rivals?: number;
@@ -919,7 +919,7 @@ const ARMY_NEUTRALS = ['coronal_lance', 'coronal_lance', 'thermal_exchange', 'ph
  * for the second general and all 6 for the third.
  */
 export function armyDeck(race: number, general: string): string[] {
-  const r = ((race % 4) + 4) % 4;
+  const r = ((race % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
   const mine = CARDS.filter((c) => c.race === r && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion);
   const own = [...mine.filter((c) => c.kind === 'attack'), ...mine.filter((c) => c.kind !== 'attack')].slice(0, 3).map((c) => c.id);
   const upgrades = Math.max(0, GENERALS[r].indexOf(general)) * 3;
@@ -958,7 +958,7 @@ const GUARD_NEUTRALS = ['coronal_lance', 'thermal_exchange', 'photon_drill', 'sc
  * guard): neutral pairs, a taste of the race's own, and its first general's Heroes. (Armies fight with 10.)
  */
 export function starterDeck(race: number): string[] {
-  const r = ((race % 4) + 4) % 4;
+  const r = ((race % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
   const mine = CARDS.filter((c) => c.race === r && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion);
   const own = [...mine.filter((c) => c.kind === 'attack'), ...mine.filter((c) => c.kind !== 'attack')].slice(0, 3).map((c) => c.id);
   const [g0, g1] = GENERALS[r];
@@ -1033,8 +1033,9 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     { x: MAP_WIDTH, y: MAP_HEIGHT },
   ];
   const corners = cornerPts.map((c) => s.nodes.filter((n) => !n.heart).sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0]);
-  const playerRace = ((setup.race ?? 0) % 4 + 4) % 4;
-  const races = [playerRace, ...[0, 1, 2, 3].filter((r) => r !== playerRace)];
+  const playerRace = (((setup.race ?? 0) % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
+  // The rivals: drawn at random (by the campaign's own seed) from the other races, so any of them can turn up.
+  const races = [playerRace, ...shuffleInPlace(s, RACE_NAMES.map((_, r) => r).filter((r) => r !== playerRace))];
   for (let i = 0; i <= rivals; i++) {
     const id = `f${i + 1}`;
     const home = corners[i];
@@ -1259,7 +1260,7 @@ function randomCardChoices(s: CampaignState, f: Faction): string[] {
 
 /** Neutral sentinels' decks, by tier: the plain starter at first, then with a pair of each race's cards mixed in. */
 function neutralDeck(s: CampaignState, tier: number): string[] {
-  const deck = starterDeck(randomInt(s, 4));
+  const deck = starterDeck(randomInt(s, RACE_NAMES.length));
   // (None of these is in a starting deck already: a deck holds at most two of a card.)
   const extras = [[], ['solar_battery', 'solar_battery', 'frost_bulwark', 'frost_bulwark'], ['solar_battery', 'solar_battery', 'frost_bulwark', 'frost_bulwark', 'ion_cannon', 'ion_cannon', 'solar_maximum', 'ice_age']][tier] ?? [];
   extras.forEach((id, i) => (deck[i] = id));
@@ -1360,7 +1361,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
     },
     {
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
-      species: owner ? owner.race : target.tier % 4,
+      species: owner ? owner.race : (target.tier + Number(target.id.replace(/\D/g, '') || 0)) % RACE_NAMES.length,
       isAI: owner ? owner.isAI : true,
       deck: defenderDeck,
       ...(guard ? { freeReshuffle: true } : {}),

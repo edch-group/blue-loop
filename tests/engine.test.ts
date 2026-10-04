@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
-import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, attackProblem, cardAttack, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
+import { activePlayer, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -45,7 +45,7 @@ describe('content', () => {
   });
 
   it('gives every race at least ten cards, with a Stellar hero and an Anomaly, and a legal starter deck', () => {
-    for (let race = 0; race < 4; race++) {
+    for (let race = 0; race < RACE_NAMES.length; race++) {
       const own = CARDS.filter((c) => c.race === race);
       expect(own.length).toBeGreaterThanOrEqual(10);
       expect(own.filter((c) => c.rarity === 'anomaly' && c.character).length).toBeGreaterThanOrEqual(1);
@@ -374,7 +374,36 @@ describe('attacks and dimming', () => {
     const [lancer] = give(s.players[1], ['helio_lancer'], 'tableau');
     const stab = array().stability!;
     s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: lancer.uid });
-    expect(array().stability).toBe(stab - cardDef('helio_lancer').attack!);
+    expect(array().stability).toBe(stab - counterDamage(s, s.players[1], lancer));
+  });
+
+  it('resolves dusk effects as a day ends (after acting), and counts the cards that held back', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const [star] = give(me, ['evening_star'], 'tableau');
+    const hand = me.hand.length;
+    s = applyAction(s, { type: 'endTurn' });
+    const after = s.players.find((p) => p.id === me.id)!;
+    expect(after.hand.length).toBe(hand + 1);
+    expect(s.log.some((l) => l.text.startsWith('— Dusk:'))).toBe(true);
+    expect(star.uid).toBeTruthy();
+    // Gloaming Battery: heat per 2 of your other cards not dimmed.
+    let t = twoPlayer();
+    const ada = activePlayer(t);
+    const [battery, x, y] = give(ada, ['gloaming_battery', 'plasma_relay', 'plasma_relay'], 'tableau');
+    t.players[1].shields = 0;
+    const rival = t.players[1].heat;
+    x.dimmed = true;
+    t = applyAction(t, { type: 'endTurn' });
+    expect(t.players[1].heat).toBe(rival); // one rested card: half of 2 rounds down to nothing
+    expect(battery.uid && y.uid).toBeTruthy();
+    // Two rested cards: 1 heat at dusk.
+    let u = twoPlayer();
+    give(activePlayer(u), ['gloaming_battery', 'plasma_relay', 'plasma_relay'], 'tableau');
+    u.players[1].shields = 0;
+    const before = u.players[1].heat;
+    u = applyAction(u, { type: 'endTurn' });
+    expect(u.players[1].heat).toBe(before + 1);
   });
 
   it('sends cards that do nothing once played straight to the discard pile, taking no slot', () => {
@@ -1017,6 +1046,8 @@ describe('aiming heat', () => {
     let s = twoPlayer();
     const [ada, bo] = s.players;
     const [lancer, reactor] = give(ada, ['helio_lancer', 'shard_reactor'], 'tableau');
+    // (Long-lived, so nothing fades at this dawn: a Xel'Naru card fading would Shatter.)
+    lancer.stability = reactor.stability = 6;
     const [a, b] = give(bo, ['coolant_array', 'coolant_array'], 'tableau');
     s = applyAction(s, { type: 'endTurn' }); // Bo's day: nothing to aim.
     expect(s.awaitingDawn).toBeFalsy();

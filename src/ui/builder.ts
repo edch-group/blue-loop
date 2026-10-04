@@ -849,7 +849,7 @@ function snap(d: SavedDeck): string {
 function deckRace(d: SavedDeck): number {
   const hero = coverCard(d.cards);
   if (hero?.race !== undefined) return hero.race;
-  const counts = [0, 0, 0, 0];
+  const counts = RACE_NAMES.map(() => 0);
   for (const id of d.cards) {
     const r = cardDef(id).race;
     if (r !== undefined) counts[r]++;

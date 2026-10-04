@@ -1,7 +1,7 @@
 /**
  * The campaign's story: who speaks, and what they say, at each moment worth a scene.
  *
- * The universe is dying. Its stars gutter one by one, and the four races fight over the last warm worlds.
+ * The universe is dying. Its stars gutter one by one, and the eight races fight over the last warm worlds.
  * All of them are making for the Heart, the vast star at the centre of everything, because of a legend: in
  * its light grows the Infinite Stellari, a flower whose bloom gives energy without end. Lesser blooms, the
  * Finite Stellari, are scattered on the way: rich, but they wilt.
@@ -13,6 +13,8 @@
  * it Vitalia ("life-giver"); then they lost it, and the war that followed nearly wiped them out. The flower
  * itself is the white flower that turns on the game's landing page.
  */
+
+import { RACE_NAMES } from './races';
 
 /** Who speaks a line: the guide, or a hero (by Hero card id) of a faction. */
 export type Speaker = { kind: 'oracle' } | { kind: 'general'; card: string; faction: string };
@@ -42,6 +44,10 @@ export const GENERALS: string[][] = [
   ['war_council', 'coolant_protocol', 'the_shardmind'],
   ['tide_regent', 'the_admiralty', 'leviathan_thoross'],
   ['logistics_command', 'chamber_protocol', 'the_worldroot'],
+  ['nyx_hero_vesh', 'nyx_hero_kael', 'nyx_hero_nyxara'],
+  ['kor_hero_durga', 'kor_hero_brannoc', 'kor_hero_anvil_king'],
+  ['ser_hero_ilyath', 'ser_hero_maren', 'ser_hero_aster'],
+  ['pyr_hero_ignis', 'pyr_hero_ashka', 'pyr_hero_pyrrhus'],
 ];
 
 /** Why each race marches on the Heart. */
@@ -50,9 +56,11 @@ const MOTIVE: string[] = [
   "The Xel'Naru keep every memory of their people in living crystal. The crystal needs light. In the dark, they forget, and then they are gone.",
   "The Vorthane's oceans are freezing from the surface down. The tide fleets have nowhere left to sail but out, and in, towards the Heart.",
   'The Ixquor hive is starving. Its spore-worlds rot under a cooling sun, and the hive does what hives do: it spreads, and it hungers.',
+  "The Nyxari were born in the spaces between the stars, and the dark was always theirs. But the dark is growing, and it is hungry, and even the void-stalkers have learned to fear a night with nothing left in it to hunt.",
+  'The Korrath forges have burned for ten thousand years, and now the coals are cooling. A smith without fire is only a mourner. They march to the Heart for a flame that will never need feeding again.',
+  'The Seren read the future in the stars, and the stars are going out. Every night their charts have fewer lights to read. In the last of them, every reading says the same thing: the Heart, the flower, or nothing.',
+  "The Pyrr are living flame, and their sun is the only thing that has ever kept them burning. It is guttering now, and so are they. They would rather burn out in the Heart's light than fade in the dark.",
 ];
-
-const RACE_NAMES = ['Aureline', "Xel'Naru", 'Vorthane', 'Ixquor'];
 
 /** What a general says on taking command (and on first meeting a rival). */
 const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
@@ -68,6 +76,18 @@ const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
   logistics_command: { join: 'Zyth hears. Zyth obeys. Zyth spreads.', taunt: 'Many voices. One will. Yours is not among them.' },
   chamber_protocol: { join: "Ul'Kha wakes, and the brood with her. Every root, a promise.", taunt: 'Grow, my children. There is so much here to eat.' },
   the_worldroot: { join: 'The Worldroot stirs beneath you. Every world is soil.', taunt: 'From one root, a thousand. From you, nothing.' },
+  nyx_hero_vesh: { join: 'Shade-Queen Vesh. You will not see my people, commander. Neither will they, until it is too late.', taunt: 'Look closer. No: closer. There. You see? You were never alone.' },
+  nyx_hero_kael: { join: 'Unmaker Kael. Whatever they build, I will take apart. It is what I am for.', taunt: 'Everything you have made can be unmade. I will show you how.' },
+  nyx_hero_nyxara: { join: 'I am Nyxara, the Unlit. I was old when the first star woke. I will see the last one through.', taunt: 'Your light is small, and it is going out. I can wait.' },
+  kor_hero_durga: { join: 'Forgemother Durga. Bring me the broken, and I will make them whole, and harder than before.', taunt: 'I have hammered stronger metal than you flat.' },
+  kor_hero_brannoc: { join: 'Warden Brannoc. Stand behind me. Nothing gets past the wall.', taunt: 'Strike, then. The wall has been waiting.' },
+  kor_hero_anvil_king: { join: 'The Anvil-King wakes, and the forges with him. Light the fires. We march.', taunt: 'Every world is ore. Yours will make a fine blade.' },
+  ser_hero_ilyath: { join: 'Star-Reader Ilyath. I have read this war to its end, commander. Shall I tell you how to win it?', taunt: 'I have read your stars. They are very short.' },
+  ser_hero_maren: { join: 'Tidecaster Maren. The worlds turn where I ask them. Tell me where you want them.', taunt: 'Your worlds are turning against you. I made sure of it.' },
+  ser_hero_aster: { join: 'I am Aster, the Last Constellation. Every star that ever shone shines on in me. Follow the light.', taunt: 'You are not in any of my stars.' },
+  pyr_hero_ignis: { join: 'Flame-Herald Ignis. Give me a target, and I will give it everything I have. All at once.', taunt: 'Burn bright, or do not burn at all. You chose the second.' },
+  pyr_hero_ashka: { join: 'Cinder-Queen Ashka. Our sun runs hot, and so do we. Stoke it. We will thrive.', taunt: 'Feel that? That is only the warmth of my coming.' },
+  pyr_hero_pyrrhus: { join: 'Pyrrhus, the Undying Flare. I have burned out a hundred times. I always rise again.', taunt: 'I will burn, and you will burn, and only one of us will rise.' },
 };
 
 const oracle = (text: string): StoryLine => ({ speaker: { kind: 'oracle' }, text });

@@ -1,10 +1,10 @@
 /**
- * One deck against the four race starters: DECK='["id", ...]' (or NAME='Orbit Riders' for a starter)
+ * One deck against every race's starter: DECK='["id", ...]' (or NAME='Orbit Riders' for a starter)
  * npm run gauntlet -- [games per starter]. PATCH and BAL work as in the simulator. Seats alternate; reports the deck's win rate against each.
  */
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
-import { cardDef, deckProblems, PRESET_DECKS } from '../src/engine/cards';
+import { cardDef, deckProblems, PRESET_DECKS, presetDeck, RACE_NAMES } from '../src/engine/cards';
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
 
 // Try card or rules changes too: PATCH='{"card_id": {...}}' BAL='{"minHeat": -3}'.
@@ -17,8 +17,8 @@ const race = named?.race ?? 0;
 const games = Number(process.argv[2] ?? 60);
 const rows: string[] = [];
 let total = 0;
-// FIELD=1: against every other starter, not just the four race decks.
-const foes = process.env.FIELD ? PRESET_DECKS.filter((d) => d.name !== process.env.NAME) : PRESET_DECKS.slice(0, 4);
+// FIELD=1: against every other starter, not just the race decks (each race's own starter).
+const foes = process.env.FIELD ? PRESET_DECKS.filter((d) => d.name !== process.env.NAME) : RACE_NAMES.map((_, k) => presetDeck(k));
 for (const foe of foes) {
   let wins = 0;
   for (let g = 1; g <= games; g++) {

@@ -26,6 +26,7 @@ export interface Keyword {
  */
 export const KEYWORDS: Record<string, Keyword> = {
   dawn: { name: 'dawn', group: 'timing', explain: () => 'Happens at the start of each of your days.' },
+  dusk: { name: 'dusk', group: 'timing', explain: () => "Happens at the end of each of your days, once you have acted (so it can count the cards that held back, not dimmed)." },
   heat: { name: 'heat', group: 'heat', symbol: true, explain: () => "Raises a sun's heat: at its max health it goes supernova. Aimed at a card, it wears down its defence (which stays worn, mending 1 a day), then its stability." },
   pierce: { name: 'pierce', group: 'heat', explain: () => 'Heat that gets past half of shields and ignores defence.' },
   cool: { name: 'cool', group: 'cool', symbol: true, explain: () => 'Takes heat off your sun.' },

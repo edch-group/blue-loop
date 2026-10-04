@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
-import { PRESET_DECKS } from '../src/engine/cards';
+import { PRESET_DECKS, presetDeck, RACE_NAMES } from '../src/engine/cards';
 import { activePlayer } from '../src/engine/game';
 import { emptyRoom, handle, playerIndex, views, type ClientMessage, type RoomData, type ServerMessage } from '../server/room';
 
@@ -151,6 +151,21 @@ describe('online room', () => {
     handle(room, null, { t: 'join', name: '<b>Eve</b>', deck: ['coronal_lance'], deckName: 'x', species: 1 });
     expect(room.seats[0].deck).toEqual(PRESET_DECKS[1].cards);
     expect(room.seats[0].name).toBe('bEveb');
+  });
+
+  it('accepts every race as a species (and falls back to the first for one that does not exist)', () => {
+    for (let race = 4; race < RACE_NAMES.length; race++) {
+      const room = emptyRoom();
+      handle(room, null, { t: 'join', name: 'Nova', deck: presetDeck(race).cards, deckName: presetDeck(race).name, species: race });
+      expect(room.seats[0]).toMatchObject({ species: race, deckName: presetDeck(race).name });
+      // An illegal deck falls back to that race's own starter.
+      const other = emptyRoom();
+      handle(other, null, { t: 'join', name: 'Nova', deck: ['coronal_lance'], deckName: 'x', species: race });
+      expect(other.seats[0].deck).toEqual(presetDeck(race).cards);
+    }
+    const room = emptyRoom();
+    handle(room, null, { t: 'join', name: 'Nova', deck: [], deckName: 'x', species: RACE_NAMES.length });
+    expect(room.seats[0].species).toBe(0);
   });
 });
 

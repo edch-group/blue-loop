@@ -91,7 +91,7 @@ describe('the collection', () => {
   });
 
   it('opens boosters from their own race (or the general pool), turning surplus copies into flux', () => {
-    for (const kind of [0, 1, 2, 3, 'general'] as const) {
+    for (const kind of [0, 1, 2, 3, 4, 5, 6, 7, 'general'] as const) {
       const pack = openBooster(kind, {}, seeded(3));
       expect(pack).toHaveLength(PROGRESSION.boosterSize);
       const pool = new Set(boosterPool(kind).map((c) => c.id));

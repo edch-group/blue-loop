@@ -1,6 +1,7 @@
 import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
 import { cardDef, isBurst, presetDeck } from './cards';
+import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
 import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnPulse, TurnStats } from './types';
 
@@ -443,11 +444,17 @@ export function needsSlot(p: PlayerState, defId: string): boolean {
 /** How long a card stays in play before it fades into its owner's discard pile. */
 export function baseStability(defId: string): number {
   const def = cardDef(defId);
+  const t = def.kind === 'command' ? 0 : raceTrait(def.race)?.stability ?? 0;
+  return Math.max(1, rawStability(def) + t);
+}
+
+/** How long a card lasts before its race's trait. */
+function rawStability(def: CardDef): number {
   if (def.stability !== undefined) return def.stability;
   // A card that only does something once (when played) stays just until your next dawn: its slot is part of its cost.
   // Command cards stay for their full term, whatever they do.
   if (def.kind === 'command') return BALANCE.stabilityCommand;
-  if (!def.onTurn?.length && !def.passive?.length && !def.choices?.length && !def.attune) return BALANCE.stabilityBurst;
+  if (!def.onTurn?.length && !def.onDusk?.length && !def.passive?.length && !def.choices?.length && !def.attune) return BALANCE.stabilityBurst;
   // Straight heat (dawn heat with no conditions) lasts a day less: steady, unconditional damage is the strongest thing in the game.
   if ((def.onTurn ?? []).some((e) => e.type === 'heat' && e.to === 'target' && !e.if && !e.plus)) return BALANCE.stabilityDawnHeat;
   return BALANCE.stability;
@@ -488,14 +495,14 @@ function distance(a: CardInstance, b: CardInstance): number {
  * reach cards with low enough defence.
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
-  let d = slotDefence(card.slot) + cardSturdy(card);
+  let d = slotDefence(card.slot) + cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0);
   for (const src of p.tableau) {
     const k = distance(src, card);
     if (k === 0) continue;
     for (const ps of cardPassives(src)) if (ps.type === 'guard' && k <= ps.amounts.length) d += ps.amounts[k - 1];
   }
   // Heat wears defence away, and the wear lasts (see mendDefences).
-  return Math.max(0, d - (card.dented ?? 0));
+  return Math.max(0, Math.max(0, d) - (card.dented ?? 0));
 }
 
 /** A slot's own defence: 1 at the edges, 2 inside, 3 in the middle (the Command slot's is its own). */
@@ -545,7 +552,9 @@ export function dawnEffects(card: CardInstance, p?: PlayerState, state?: GameSta
   const chosen = def.choices?.find((c) => c.id === card.choice) ?? def.choices?.[0];
   const own = [...(def.onTurn ?? []), ...(chosen?.onTurn ?? []), ...extras(card).flatMap((d) => d.onTurn ?? [])];
   // Attunement: with its owner known, the bonus of where their orbit stands.
-  const attune = (def.attune ?? 0) + extras(card).reduce((n, d) => n + (d.attune ?? 0), 0);
+  let attune = (def.attune ?? 0) + extras(card).reduce((n, d) => n + (d.attune ?? 0), 0);
+  // Star-charted (the Seren): attuned cards attune once more.
+  if (attune) attune += raceTrait(def.race)?.attune ?? 0;
   if (!attune || !p) return own;
   return [...own, ...attunedEffects(attunePosition(p.orbit, !!state && planetsEaten(state, p)), attune)];
 }
@@ -585,6 +594,10 @@ function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState
       return Math.floor(p.tableau.filter((t) => cardDef(t.defId).kind === c.kind).length / per);
     case 'cards':
       return Math.floor(p.tableau.length / per);
+    case 'rested':
+      return Math.floor(p.tableau.filter((t) => t.uid !== card.uid && !t.dimmed && !cardDef(t.defId).token).length / per);
+    case 'race':
+      return Math.floor(p.tableau.filter((t) => ofRace(cardDef(t.defId), c.race, c.sub)).length / per);
     case 'shields':
       return Math.floor(p.shields / per);
     case 'growth':
@@ -607,7 +620,13 @@ export function conditionMet(p: PlayerState, cond: Condition | undefined, state?
   if ('overheated' in cond) return isOverheated(p);
   if ('minKind' in cond) return p.tableau.filter((t) => cardDef(t.defId).kind === cond.minKind).length >= cond.n;
   if ('planet' in cond) return currentPlanet(p, state) === cond.planet;
+  if ('minRace' in cond) return p.tableau.filter((t) => ofRace(cardDef(t.defId), cond.minRace, cond.sub)).length >= cond.n;
   return p.tableau.length >= cond.minCards;
+}
+
+/** Whether a card is of this race (and sub-race, if given). */
+function ofRace(def: CardDef, race: number | undefined, sub?: string): boolean {
+  return (race === undefined || def.race === race) && (!sub || def.sub === sub);
 }
 
 /**
@@ -629,7 +648,7 @@ export function effectAmount(state: GameState, p: PlayerState, card: CardInstanc
     const counted = new Set<string>();
     for (const { card: src, passive } of passives(p)) {
       if (passive.type !== 'kindBonus' || (passive.stat ?? 'heat') !== e.type) continue;
-      if ((passive.kind && passive.kind !== def.kind) || (passive.race !== undefined && passive.race !== def.race)) continue;
+      if ((passive.kind && passive.kind !== def.kind) || (passive.race !== undefined && passive.race !== def.race) || (passive.sub && passive.sub !== def.sub)) continue;
       if ((passive.others && src.uid === card.uid) || (passive.onTurnOnly && when !== 'turn') || counted.has(src.defId)) continue;
       counted.add(src.defId);
       bonus += passive.amount;
@@ -1152,6 +1171,9 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
     owner.discard.push(f);
     if (!state.winnerId && !owner.eliminated) resolveEffects(state, owner, card, cardDef(f.defId).onLeave, 'leave');
   }
+  // Shatter (the Xel'Naru): a card of theirs leaving heats the rival.
+  const shatter = raceTrait(cardDef(card.defId).race)?.shatter ?? 0;
+  if (shatter > 0 && !cardDef(card.defId).token && !state.winnerId && !owner.eliminated) resolveEffects(state, owner, card, [{ type: 'heat', amount: shatter, to: 'target' }], 'leave');
   // Cards that answer another card leaving (Kyr'Vessa).
   for (const { card: watcher, passive } of passives(owner)) {
     if (passive.type === 'allyLeaves' && owner.tableau.includes(watcher)) resolveEffects(state, owner, watcher, passive.effects, 'leave');
@@ -1258,7 +1280,9 @@ function repair(state: GameState, p: PlayerState, amount: number) {
 
 function startTurn(state: GameState) {
   const p = activePlayer(state);
-  state.turnPulses = [];
+  // (After a dusk, its pulses stay: the replay plays the dusk, then this dawn.)
+  if (!state.keepPulses) state.turnPulses = [];
+  delete state.keepPulses;
   p.turnsTaken += 1;
   p.turn = emptyTurn();
   delete state.awaitingDawn;
@@ -1345,6 +1369,24 @@ function dawn(state: GameState, p: PlayerState) {
   // Aims last for the dawn they were made for.
   for (const c of p.tableau) c.aim = undefined;
   if (p.eliminated) passOn(state);
+}
+
+/** A player's dusk: their tableau's dusk effects, left to right, as their day ends. */
+function dusk(state: GameState, p: PlayerState) {
+  const cards = p.tableau.filter((c) => duskEffects(c).length);
+  if (!cards.length) return;
+  log(state, `— Dusk: ${p.name}.`);
+  notePulse(state, p, null, 'start', p, 0);
+  for (const card of cards) {
+    if (state.winnerId || p.eliminated) break;
+    if (!p.tableau.includes(card)) continue;
+    resolveEffects(state, p, card, duskEffects(card), 'turn');
+  }
+}
+
+/** A card's dusk effects (its own and its Fusion cards'). */
+export function duskEffects(card: CardInstance): Effect[] {
+  return [...(cardDef(card.defId).onDusk ?? []), ...extras(card).flatMap((d) => d.onDusk ?? [])];
 }
 
 /** The active player's sun went supernova on their own turn: play moves on. */
@@ -1499,7 +1541,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   }
   place(p, card, slot);
   // A card comes into play dimmed: it can first act (attack, or a Hero's ability) on its owner's next day.
-  card.dimmed = true;
+  // (Ambush, the Nyxari: their cards come in ready to act.)
+  if (!raceTrait(cardDef(card.defId).race)?.ambush) card.dimmed = true;
   if (choices.length) {
     card.choice = action.choice;
     log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);
@@ -1571,6 +1614,14 @@ export function applyAction(prev: GameState, action: Action): GameState {
       break;
     }
     case 'endTurn':
+      // Dusk: the day's last effects, replayed with the next dawn's.
+      state.turnPulses = [];
+      dusk(state, p);
+      if (p.eliminated) {
+        passOn(state);
+        break;
+      }
+      state.keepPulses = true;
       advanceTurn(state);
       break;
     case 'attack': {
@@ -1611,14 +1662,18 @@ export function applyAction(prev: GameState, action: Action): GameState {
 
 /** A card's attack as it stands: its rating, with whatever boosts heat (Forge, a Hero's racial buff...). */
 export function cardAttack(state: GameState, p: PlayerState, card: CardInstance): number {
-  const base = cardDef(card.defId).attack ?? 0;
+  const def = cardDef(card.defId);
+  let base = def.attack ?? 0;
   if (base <= 0) return 0;
+  // The race's trait: Sun-lances, Slow tides, Flare-born...
+  const t = raceTrait(def.race);
+  base = Math.max(1, base + (t?.attack ?? 0) + (t?.attackHot && isOverheated(p) ? t.attackHot : 0));
   return effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play');
 }
 
 /** What a card hits back with when it is attacked: its own attack, and its Sting. */
 export function counterDamage(state: GameState, owner: PlayerState, card: CardInstance): number {
-  const sting = cardPassives(card).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0);
+  const sting = cardPassives(card).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0) + (raceTrait(cardDef(card.defId).race)?.sting ?? 0);
   return cardAttack(state, owner, card) + sting;
 }
 
@@ -1644,6 +1699,10 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   const amount = cardAttack(state, p, card);
   const name = cardDef(card.defId).name;
   card.dimmed = true;
+  // Self-immolating (the Pyrr): each attack heats their own sun.
+  const burn = raceTrait(cardDef(card.defId).race)?.attackSelfHeat ?? 0;
+  if (burn > 0) applyHeat(state, p, burn, null);
+  if (state.winnerId) return;
   const victim = targetUid ? rival.tableau.find((c) => c.uid === targetUid) : undefined;
   if (!victim) {
     log(state, `${p.name}'s ${name} attacks ${rival.name}'s sun for ${amount}.`);

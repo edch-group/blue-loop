@@ -3,6 +3,8 @@ import {
   activePlayer,
   heroSkillProblem,
   heroAbilityProblem,
+  RACE_TRAITS,
+  SUBRACES,
   attackProblem,
   cardAttack,
   applyAction,
@@ -17,6 +19,7 @@ import {
   canSetLightspeed,
   canSetFaceDown,
   cardDef,
+  isBurst,
   chooseAIAction,
   createGame,
   enemyChoices,
@@ -144,6 +147,11 @@ interface Stage {
   faceDown?: boolean;
   /** A rival's card the viewer must confirm they have read before the rival goes on. */
   confirm?: boolean;
+  /**
+   * The viewer's own card that went straight to the discard pile (it takes no slot): shown while the rival
+   * reads it (online), and at least for as long as an auto-confirmed card is.
+   */
+  own?: boolean;
   /** The option the player picked on a card with choices (a Command card's dawn effect): highlighted on it. */
   option?: string;
   /** A sprung Lightspeed card: the enemy card it answered, shown beside it. */
@@ -218,6 +226,8 @@ const AI_GAME_KEY = 'blue-loop:ai-game';
 /** A rival's cards land by themselves after a moment, rather than waiting for OK. */
 const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
+/** Banners in a row (dusk, dawn, day) are this far apart. */
+const BANNER_GAP_MS = 1300;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
 const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
@@ -902,6 +912,7 @@ export class App {
     if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = null;
     if (actor.id !== you && last.action.type === 'playCard') this.stage = this.remoteStage(last, next);
+    else if (actor.id === you) this.stage = this.ownBurstStage(actor, last.action);
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     const land = () => {
@@ -912,8 +923,7 @@ export class App {
       this.render();
       this.surfaceLog(prev);
       this.animate(prev, next, last.action, actor, before);
-      if (turnPassed && last.action.type === 'endTurn') this.announceDusk(actor, next);
-      if (turnPassed) this.announceTurn(450);
+      this.announcePhases(actor, next, last.action, turnPassed);
     };
     // The rival's card takes effect once the viewer has read it and said OK.
     if (this.stage?.confirm && !isGameOver(next)) {
@@ -1199,18 +1209,39 @@ export class App {
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
     this.showBanner('dawn', `round ${roman(s.round)}`, delay);
+    if (!s.awaitingDawn) this.showBanner('day', `round ${roman(s.round)}`, delay);
   }
 
-  /** You ended your day: "<rival>'s dawn", as "Dawn" greets the start of yours (not when the next day is yours too, as in hot-seat). */
-  private announceDusk(actor: PlayerState, next: GameState) {
-    if (actor.isAI || isGameOver(next)) return;
+  /**
+   * Each day runs dawn, day, dusk, each with its banner: as a day ends, "dusk" (the dusk's effects), then the
+   * next player's "dawn" (their dawn effects play out, and they aim its heat), then their "day" once the dawn
+   * has played out. The viewer's own read plainly ("dawn"); everyone else's carry their name.
+   */
+  private announcePhases(actor: PlayerState, next: GameState, action: Action, turnPassed: boolean, animate = true) {
+    if (isGameOver(next) || this.needsHandoff()) return;
     const you = this.viewer().id;
-    if (actor.id !== you || activePlayer(next).id === you || !activePlayer(next).isAI && !this.online) return;
-    this.showBanner(`${activePlayer(next).name.toLowerCase()}'s dawn`, `round ${roman(next.round)}`, 0);
+    const named = (p: PlayerState, phase: string) => (p.id === you ? phase : `${p.name.toLowerCase()}'s ${phase}`);
+    const round = `round ${roman(next.round)}`;
+    const now = activePlayer(next);
+    if (turnPassed) {
+      this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, 0);
+      this.showBanner(named(now, 'dawn'), round, 0);
+    }
+    // The day begins once the dawn has played out (and, at your own dawn, once you have aimed its heat).
+    if ((turnPassed || action.type === 'dawn') && !next.awaitingDawn) {
+      const replay = animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0;
+      this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600));
+    }
   }
+
+  /** When the next banner may show (each gets its moment: dusk, dawn and day follow one another). */
+  private bannerFree = 0;
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
   private showBanner(text: string, sub: string, delay = 0, screen: Screen = 'game') {
+    const at = Math.max(Date.now() + delay, this.bannerFree);
+    this.bannerFree = at + BANNER_GAP_MS;
+    delay = at - Date.now();
     window.setTimeout(() => {
       if (this.screen !== screen) return; // left the screen before it showed
       document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
@@ -1297,9 +1328,9 @@ export class App {
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
-    this.stage = actor.isAI ? this.stageFor(actor, action) : null;
+    this.stage = actor.isAI ? this.stageFor(actor, action) : this.ownBurstStage(actor, action);
     // With someone watching, an AI's card waits on the stage until they have read it.
-    if (this.stage && animate && !isGameOver(next) && next.players.some((p) => !p.isAI)) this.stage.confirm = true;
+    if (this.stage && !this.stage.own && animate && !isGameOver(next) && next.players.some((p) => !p.isAI)) this.stage.confirm = true;
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     const land = () => {
@@ -1324,8 +1355,7 @@ export class App {
         this.surfaceLog(prev);
         this.animate(prev, next, action, actor, before);
       }
-      if (turnPassed && action.type === 'endTurn') this.announceDusk(actor, next);
-      if (turnPassed) this.announceTurn(450);
+      this.announcePhases(actor, next, action, turnPassed, animate);
       // The AI waits for its dawn to play out before it acts.
       this.scheduleAI(AI_PAUSE[action.type] + ((action.type === 'endTurn' || action.type === 'dawn') && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
     };
@@ -1373,6 +1403,29 @@ export class App {
     this.pending = null;
     this.campaign.finishBattle(this.state!, auto);
     this.render();
+  }
+
+  /**
+   * The viewer's own card that resolves and goes straight to the discard pile: it stays on the stage (the
+   * rival's view shows it there too) until the rival has read it online, and for at least the auto-confirm time.
+   */
+  private ownBurstStage(actor: PlayerState, action: Action): Stage | null {
+    if (action.type !== 'playCard' || action.faceDown) return null;
+    const card = actor.hand.find((c) => c.uid === action.cardUid);
+    if (!card || !isBurst(cardDef(card.defId))) return null;
+    const stage: Stage = { defId: card.defId, actorId: actor.id, own: true, caption: 'you play', target: action.enemyUid ?? action.aimUid };
+    const since = Date.now();
+    const check = () => {
+      if (this.stage !== stage) return;
+      if (Date.now() - since < AUTO_CONFIRM_MS || (this.online && this.net.waitFor === 'rival')) return void window.setTimeout(check, 250);
+      this.stage = null;
+      const el = this.root.querySelector<HTMLElement>('.stage');
+      if (!el) return this.render();
+      el.classList.add('stage-out');
+      window.setTimeout(() => this.stage === null && this.render(), 400);
+    };
+    window.setTimeout(check, AUTO_CONFIRM_MS);
+    return stage;
   }
 
   private stageFor(actor: PlayerState, action: Action): Stage | null {
@@ -3174,7 +3227,7 @@ export class App {
         ${this.titleBlock(true)}
         <h2 class="menu-heading">your name</h2>
         <input class="signin-name" data-signin-name value="${esc(this.signinName ?? p.name)}" maxlength="18" placeholder="your name" aria-label="Your name" />
-        <div class="signin-emblems">${[0, 1, 2, 3].map((r) => `<button class="db-race ${(this.signinAvatar ?? p.avatar) === r ? 'on' : ''}" data-act="signin-avatar" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
+        <div class="signin-emblems">${RACE_NAMES.map((_, r) => `<button class="db-race ${(this.signinAvatar ?? p.avatar) === r ? 'on' : ''}" data-act="signin-avatar" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
         <button class="btn-primary" data-act="signin-go">continue</button>
       </div>`;
     }
@@ -4052,7 +4105,17 @@ export class App {
     const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
     const c = owner?.tableau.find((x) => x.uid === uid);
     const stats = owner && c ? { stability: c.stability ?? 0, defence: cardDefence(owner, c) } : persists(defId) ? { stability: baseStability(defId) } : {};
-    return keywordList(cardDef(defId).text, stats);
+    return this.raceNote(defId) + keywordList(cardDef(defId).text, stats);
+  }
+
+  /** A race card's racial bonus and nerf (and its sub-race), which ride on every card of that race. */
+  private raceNote(defId: string): string {
+    const def = cardDef(defId);
+    const t = def.race !== undefined ? RACE_TRAITS[def.race] : undefined;
+    if (!t) return '';
+    const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
+    const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race!])}${esc(sub)}</b>`;
+    return `<div class="kw-list kw-race-list"><div>${head}<span>${esc(plainText(t.bonus))} ${esc(plainText(t.nerf))}${sub ? ` ${esc(SUBRACES[def.sub!].theme)}.` : ''}</span></div></div>`;
   }
 
   /**

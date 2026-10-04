@@ -2,6 +2,8 @@ import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
+import { RACE_CARDS } from './cards-races';
+import { DUSK_CARDS } from './cards-dusk';
 import { HERO_CARDS } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
@@ -687,7 +689,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS);
+CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS);
 // The Heroes as they now fight (heroes-battle.ts): lasting, with abilities to choose from each day, in
 // place of the old choice of dawn effect.
 for (const c of CARDS) {
@@ -699,7 +701,7 @@ for (const c of CARDS) {
   delete c.passive;
   Object.assign(c, h);
 }
-for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? 1 });
+for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? c.cost ?? 1 });
 // Attack ratings (attack.ts): by rule, unless a card gives its own.
 for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.cost ?? 1, !isBurst(c));
 
@@ -709,7 +711,7 @@ for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.co
  */
 export function isBurst(def: CardDef): boolean {
   if (def.kind === 'command' || def.kind === 'lightspeed' || def.stability !== undefined) return false;
-  return !def.onTurn?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);
+  return !def.onTurn?.length && !def.onDusk?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);
 }
 
 /** Display names for the rarities. */
@@ -828,7 +830,7 @@ export function allCardDefs(): CardDef[] {
   return CARDS;
 }
 
-export const RACE_NAMES = ['Aureline', "Xel'Naru", 'Vorthane', 'Ixquor'] as const;
+export { RACE_NAMES } from './races';
 
 export interface DeckList {
   name: string;
@@ -995,10 +997,56 @@ export const PRESET_DECKS: DeckList[] = [
       'coronal_lance', 'cryo_vault', 'heat_sink', 'deep_scanners', 'fracture_lens', 'sporelings',
     ],
   },
+  // ---- The newer races (after the mixed starters, so saved deck picks keep their place) ----
+  {
+    // Nyxari: Veilwalker traps (Umbral Snares, Mirror Veils, a Null Shroud for the rival's Hero) to blunt
+    // the rival's day, and Unmakers to take their board apart; ambushers that strike the day they land.
+    name: 'Night Court',
+    race: 4,
+    cards: [
+      ...twoOf('nyx_umbral_snare', 'nyx_mirror_veil', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_gloom_warden', 'nyx_shade_stalker', 'nyx_dusk_raider', 'nyx_unmaker_blade', 'nyx_void_rend', 'gravity_sling'),
+      'nyx_hollow_reaper', 'nyx_shadow_court', 'nyx_null_shroud', 'nyx_veil_lantern', 'nyx_eclipse_rite', 'coronal_lance', 'deep_scanners',
+      'nyx_hero_vesh', 'nyx_hero_kael', 'nyx_hero_nyxara',
+    ],
+  },
+  {
+    // Korrath: Forgeborn grafts hammered onto a few heavy cards, Bastion-kin Guards in front of them, and
+    // repair to keep the plating whole.
+    name: 'Forge Clans',
+    race: 5,
+    cards: [
+      ...twoOf('kor_rivet_graft', 'kor_slag_graft', 'kor_anvil_graft', 'kor_forge_hammer', 'kor_shieldwall', 'kor_bastion_kin', 'kor_iron_sentinel', 'kor_siege_ram', 'kor_molten_pour', 'siege_array', 'plasma_relay'),
+      'kor_master_smith', 'kor_rampart_lord', 'kor_foundry', 'kor_ore_hauler', 'coronal_lance',
+      'kor_hero_durga', 'kor_hero_brannoc', 'kor_hero_anvil_king',
+    ],
+  },
+  {
+    // Seren: attuned cards (twice over, Star-charted) riding an orbit that Tidecasters push round, and
+    // Seers drawing and recovering.
+    name: 'Starwatch',
+    race: 6,
+    cards: [
+      ...twoOf('ser_astral_lance', 'ser_tide_turner', 'ser_planet_shepherd', 'ser_eclipse_caster', 'ser_twin_moons', 'ser_star_chart', 'ser_orrery_keeper', 'ser_stargazer', 'ser_star_needle', 'ser_moonwell', 'ecliptic_lance'),
+      'ser_oracle', 'ser_lantern_of_ages', 'ser_constellation', 'ser_almanac', 'solstice_choir',
+      'ser_hero_ilyath', 'ser_hero_maren', 'ser_hero_aster',
+    ],
+  },
+  {
+    // Pyrr: Cinderborn running their own sun hot (and hitting harder for it), Flarekin spending a big day
+    // all at once, Heat Blooms and Vent Coolers to stay just short of supernova.
+    name: 'Wildfire',
+    race: 7,
+    cards: [
+      ...twoOf('pyr_flare_imp', 'pyr_cinder_brute', 'pyr_ash_walker', 'pyr_heat_bloom', 'pyr_ember_guard', 'pyr_flare_burst', 'pyr_pyre_shield', 'pyr_flarekin_dancer', 'pyr_stoker', 'pyr_vent_cooler', 'pyr_banked_embers'),
+      'pyr_magma_heart', 'pyr_supernova_charge', 'pyr_flare_temple', 'pyr_solar_tyrant', 'coolant_array',
+      'pyr_hero_ignis', 'pyr_hero_ashka', 'pyr_hero_pyrrhus',
+    ],
+  },
 ];
 
+/** A race's own starter deck (the first race's for anything else). */
 export function presetDeck(race: number): DeckList {
-  return PRESET_DECKS[((race % 4) + 4) % 4];
+  return PRESET_DECKS.find((d) => !d.mixed && d.race === race) ?? PRESET_DECKS[0];
 }
 
 /** How many Command cards a deck of this size runs: one per `cardsPerCommand` cards (3 in 30, 4 in 40). */

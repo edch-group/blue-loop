@@ -31,6 +31,10 @@ export type Count =
   | { of: 'kind'; kind: CardKind; per?: number }
   /** Every card in your tableau, divided by `per`. */
   | { of: 'cards'; per?: number }
+  /** Your cards in play that are not dimmed (that held back today), this one aside, divided by `per`. */
+  | { of: 'rested'; per?: number }
+  /** Your tableau cards of a race (or sub-race), divided by `per`. */
+  | { of: 'race'; race?: number; sub?: string; per?: number }
   /** Your current shields, divided by `per`. */
   | { of: 'shields'; per?: number }
   /** This card's growth counter. */
@@ -55,6 +59,8 @@ export type Condition =
   | { minKind: CardKind; n: number }
   /** You control at least `n` cards. */
   | { minCards: number }
+  /** You control at least `n` cards of this race (or sub-race), this one included. */
+  | { minRace: number; sub?: string; n: number }
   /** The planet facing your sun today (see Orbit). */
   | { planet: Planet };
 
@@ -113,6 +119,8 @@ export type Passive =
       kind?: CardKind;
       /** Only this race's cards: a hero's racial buff ("your Vorthane cards shield +1"). */
       race?: number;
+      /** Only this sub-race's cards ("your Flarekin cards heat +1"). */
+      sub?: string;
       /** What it adds to: heat (the default), cooling or shields. */
       stat?: 'heat' | 'cool' | 'shield';
       amount: number;
@@ -176,8 +184,10 @@ export interface CardDef {
   id: string;
   name: string;
   kind: CardKind;
-  /** Which race's card this is (0 Aureline, 1 Xel'Naru, 2 Vorthane, 3 Ixquor); neutral if unset. */
+  /** Which race's card this is (0 Aureline, 1 Xel'Naru, 2 Vorthane, 3 Ixquor, 4 Nyxari, 5 Korrath, 6 Seren, 7 Pyrr; see races.ts); neutral if unset. */
   race?: number;
+  /** Its sub-race (races.ts SUBRACES), for the newer races. */
+  sub?: string;
   /** White Dwarf (the default), Stellar or Anomaly. */
   rarity?: Rarity;
   /** A character card: a person (or people) of its race, who features in its picture. */
@@ -187,6 +197,8 @@ export interface CardDef {
   onPlay?: Effect[];
   /** At each of your dawns while this card is in your tableau. */
   onTurn?: Effect[];
+  /** At each of your dusks (the end of your day, after you have acted) while this card is in your tableau. */
+  onDusk?: Effect[];
   /** Attunement: at each of your dawns it also gains its orbit position's bonus (attunement.ts), this many times over. */
   attune?: number;
   /** A Hero's abilities: while it leads from your Hero slot, once on each of your days, you may use one. */
@@ -293,7 +305,7 @@ export interface PlayerState {
   id: string;
   name: string;
   isAI: boolean;
-  /** Which of the four alien races this player is (0–3). */
+  /** Which of the alien races this player is (an index into RACE_NAMES, 0–7). */
   species: number;
   /** The deck's name, for display. */
   deckName?: string;
@@ -359,6 +371,8 @@ export interface GameState {
   log: LogEntry[];
   /** What the latest dawn did, effect by effect, so the table can replay it (only on the state a day starts in). */
   turnPulses?: TurnPulse[];
+  /** Set while a day passes on: the dusk's pulses carry into the next day's replay (dusk, then dawn). */
+  keepPulses?: boolean;
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
   /** The active player's dawn waits for them to aim their cards' dawn heat (a `dawn` action). */
@@ -413,7 +427,7 @@ export interface PlayerSetup {
   /** The deck, as card ids (default: the race's starter deck). */
   deck?: string[];
   deckName?: string;
-  /** Which of the four alien races this player is (0–3). Defaults to the seat order. */
+  /** Which of the alien races this player is (an index into RACE_NAMES, 0–7). Defaults to the seat order. */
   species?: number;
   /** Campaign battles: heat carried in (damage taken earlier, or a garrison's bombardment). */
   heatDelta?: number;
