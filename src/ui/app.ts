@@ -19,6 +19,7 @@ import {
   canSetLightspeed,
   canSetFaceDown,
   cardDef,
+  isBurst,
   chooseAIAction,
   createGame,
   enemyChoices,
@@ -146,6 +147,11 @@ interface Stage {
   faceDown?: boolean;
   /** A rival's card the viewer must confirm they have read before the rival goes on. */
   confirm?: boolean;
+  /**
+   * The viewer's own card that went straight to the discard pile (it takes no slot): shown while the rival
+   * reads it (online), and at least for as long as an auto-confirmed card is.
+   */
+  own?: boolean;
   /** The option the player picked on a card with choices (a Command card's dawn effect): highlighted on it. */
   option?: string;
   /** A sprung Lightspeed card: the enemy card it answered, shown beside it. */
@@ -901,6 +907,7 @@ export class App {
     if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = null;
     if (actor.id !== you && last.action.type === 'playCard') this.stage = this.remoteStage(last, next);
+    else if (actor.id === you) this.stage = this.ownBurstStage(actor, last.action);
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     const land = () => {
@@ -1296,9 +1303,9 @@ export class App {
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
-    this.stage = actor.isAI ? this.stageFor(actor, action) : null;
+    this.stage = actor.isAI ? this.stageFor(actor, action) : this.ownBurstStage(actor, action);
     // With someone watching, an AI's card waits on the stage until they have read it.
-    if (this.stage && animate && !isGameOver(next) && next.players.some((p) => !p.isAI)) this.stage.confirm = true;
+    if (this.stage && !this.stage.own && animate && !isGameOver(next) && next.players.some((p) => !p.isAI)) this.stage.confirm = true;
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     const land = () => {
@@ -1372,6 +1379,29 @@ export class App {
     this.pending = null;
     this.campaign.finishBattle(this.state!, auto);
     this.render();
+  }
+
+  /**
+   * The viewer's own card that resolves and goes straight to the discard pile: it stays on the stage (the
+   * rival's view shows it there too) until the rival has read it online, and for at least the auto-confirm time.
+   */
+  private ownBurstStage(actor: PlayerState, action: Action): Stage | null {
+    if (action.type !== 'playCard' || action.faceDown) return null;
+    const card = actor.hand.find((c) => c.uid === action.cardUid);
+    if (!card || !isBurst(cardDef(card.defId))) return null;
+    const stage: Stage = { defId: card.defId, actorId: actor.id, own: true, caption: 'you play', target: action.enemyUid ?? action.aimUid };
+    const since = Date.now();
+    const check = () => {
+      if (this.stage !== stage) return;
+      if (Date.now() - since < AUTO_CONFIRM_MS || (this.online && this.net.waitFor === 'rival')) return void window.setTimeout(check, 250);
+      this.stage = null;
+      const el = this.root.querySelector<HTMLElement>('.stage');
+      if (!el) return this.render();
+      el.classList.add('stage-out');
+      window.setTimeout(() => this.stage === null && this.render(), 400);
+    };
+    window.setTimeout(check, AUTO_CONFIRM_MS);
+    return stage;
   }
 
   private stageFor(actor: PlayerState, action: Action): Stage | null {

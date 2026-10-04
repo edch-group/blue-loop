@@ -1,7 +1,7 @@
 export * from './types';
 export * from './game';
 export { BALANCE } from './balance';
-export { cardDef, fusedId, fusionProblem, isFused, unfusable, allCardDefs, CARDS, copyLimit, PRESET_DECKS, RACE_NAMES, RARITY_NAME, rarityOf, presetDeck, deckProblems, commandCardsFor, type DeckList } from './cards';
+export { cardDef, isBurst, fusedId, fusionProblem, isFused, unfusable, allCardDefs, CARDS, copyLimit, PRESET_DECKS, RACE_NAMES, RARITY_NAME, rarityOf, presetDeck, deckProblems, commandCardsFor, type DeckList } from './cards';
 export { chooseAIAction } from './ai';
 export * from './campaign';
 export * from './progression';
