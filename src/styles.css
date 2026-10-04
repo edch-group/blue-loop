@@ -4223,3 +4223,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   font-style: normal; font-family: var(--display); font-size: max(6px, calc(var(--tcw, 80px) * 0.065)); letter-spacing: 0.08em; text-transform: uppercase;
   color: #3a4256; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* A card or sun struck by an attack: a hot flash. */
+.hit-flash { animation: hit-flash 0.42s ease-out; }
+@keyframes hit-flash { 0% { filter: brightness(1.9) saturate(1.4); box-shadow: 0 0 0 3px rgba(255, 120, 80, 0.9), 0 0 28px rgba(255, 110, 60, 0.8); } 100% { filter: none; } }

@@ -172,7 +172,7 @@ type Sheet =
   /** Tap-to-inspect on touch screens: a readable card with its action. */
   | { kind: 'quit' }
   /** Ending the day with plays still left: are you sure? */
-  | { kind: 'end-day' }
+  | { kind: 'end-day'; dawn?: boolean }
   | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string };
 
 /** Menu buttons that lead somewhere: the page they're on lifts away (and the star spins up) before the next one comes in. */
@@ -226,6 +226,8 @@ const AI_GAME_KEY = 'blue-loop:ai-game';
 /** A rival's cards land by themselves after a moment, rather than waiting for OK. */
 const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
+/** An attack: the card's lunge (it strikes a little past halfway; the attack lands once it is back). */
+const LUNGE_MS = 900;
 /** Banners in a row (dusk, dawn, day) are this far apart. */
 const BANNER_GAP_MS = 1300;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
@@ -932,6 +934,12 @@ export class App {
       this.stageEntrance(actor.id);
       return;
     }
+    // An attack lands as the attacker strikes.
+    if (last.action.type === 'attack' && this.lunge(prev, last.action)) {
+      this.landing = land;
+      window.setTimeout(() => this.landing === land && this.flushLanding(), LUNGE_MS);
+      return;
+    }
     land();
   }
 
@@ -1089,14 +1097,34 @@ export class App {
     const s = this.state;
     if (!s || !this.canAct() || this.pending) return;
     if (s.awaitingDawn) return this.breakDawn();
-    const me = activePlayer(s);
-    const playable = me.hand.some((c) => this.canPlayNow(me, c.defId));
-    if (playable && this.sheet?.kind !== 'end-day') {
+    if (this.leftUndone().length && this.sheet?.kind !== 'end-day') {
       this.sheet = { kind: 'end-day' };
       return this.render();
     }
     this.sheet = null;
     this.dispatch({ type: 'endTurn' });
+  }
+
+  /** What the viewer could still do today (asked about before the day ends): cards to play, attacks, their Hero's ability. */
+  private leftUndone(): string[] {
+    const s = this.state!;
+    const me = activePlayer(s);
+    const out: string[] = [];
+    const playable = me.hand.filter((c) => this.canPlayNow(me, c.defId)).length;
+    if (playable) out.push(`${playable} playable card${playable === 1 ? '' : 's'}`);
+    const { cards, sun } = aimChoices(s, me);
+    const attackers = me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0 && (sun || cards.length > 0)).length;
+    if (attackers) out.push(`${attackers} card${attackers === 1 ? '' : 's'} that can still attack`);
+    const hero = commandCard(me);
+    if (hero && (cardDef(hero.defId).abilities ?? []).some((_, i) => !heroAbilityProblem(s, me, i))) out.push(`${cardDef(hero.defId).name}'s ability`);
+    return out;
+  }
+
+  /** Dawn cards whose heat is still to be aimed (they would go where they fall by default). */
+  private dawnLeft(): number {
+    const s = this.state!;
+    const me = activePlayer(s);
+    return me.tableau.filter((c) => dawnAimable(c, me, s) && !s.dawnDone?.includes(c.uid)).length;
   }
 
   /** The viewer has read the rival's card on the stage: it goes, and the rival carries on. */
@@ -1403,7 +1431,80 @@ export class App {
       this.stageEntrance(actor.id);
       return;
     }
+    // An attack lands as the attacker strikes.
+    if (action.type === 'attack' && animate && (this.render(), this.lunge(prev, action))) {
+      this.landing = land;
+      window.setTimeout(() => this.landing === land && this.flushLanding(), LUNGE_MS);
+      return;
+    }
     land();
+  }
+
+  /**
+   * A card attacking: it lifts off the table, tilts back, and smashes into the card it attacks (or the
+   * rival's sun), which shudders as it lands; then it settles back into its slot. (Unlike heat, which flies
+   * from a card as a flare, the card itself goes.) Returns false when there is nothing to animate.
+   */
+  private lunge(prev: GameState, action: Extract<Action, { type: 'attack' }>): boolean {
+    if (reducedMotion()) return false;
+    const el = this.root.querySelector<HTMLElement>(`.tableau [data-uid="${action.attackerUid}"]`);
+    const owner = prev.players.find((p) => p.tableau.some((c) => c.uid === action.attackerUid));
+    const rival = owner ? targetOf(prev, owner) : undefined;
+    const target = action.targetUid
+      ? this.root.querySelector<HTMLElement>(`.tableau [data-uid="${action.targetUid}"]`)
+      : rival
+        ? this.root.querySelector<HTMLElement>(`[data-anchor="player:${rival.id}"] .vit`) ?? this.root.querySelector<HTMLElement>(`[data-anchor="player:${rival.id}"]`)
+        : null;
+    if (!el || !target) return false;
+    const from = pageRect(el);
+    const to = pageRect(target);
+    // A copy of the card flies over everything (the board's rows would clip the card itself), the card
+    // itself hidden meanwhile: lifted, tilted back, then into the target just short of its centre.
+    const cs = getComputedStyle(el);
+    const ghost = el.cloneNode(true) as HTMLElement;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const k0 = Math.min(from.width / (w || 1), from.height / (h || 1));
+    ghost.removeAttribute('data-uid');
+    ghost.classList.add('lunge-ghost');
+    // (Its sizes are worked out from the card's width: give it that, in pixels.)
+    ghost.style.setProperty('--cw', `${w}px`);
+    ghost.style.setProperty('--tcw', `${w}px`);
+    ghost.style.setProperty('--kc', cs.getPropertyValue('--kc'));
+    // In a holder of the card's own size (its padding is a share of its container's width).
+    const holder = document.createElement('div');
+    Object.assign(holder.style, { position: 'fixed', left: `${from.left + from.width / 2 - w / 2}px`, top: `${from.top + from.height / 2 - h / 2}px`, width: `${w}px`, height: `${h}px`, zIndex: '9000', pointerEvents: 'none' });
+    Object.assign(ghost.style, { position: 'absolute', left: '0', top: '0', width: `${w}px`, height: `${h}px`, margin: '0', visibility: 'visible' });
+    holder.appendChild(ghost);
+    document.body.appendChild(holder);
+    el.style.visibility = 'hidden';
+    const dx = (to.left + to.width / 2 - (from.left + from.width / 2)) * 0.82;
+    const dy = (to.top + to.height / 2 - (from.top + from.height / 2)) * 0.82;
+    const side = dx >= 0 ? 1 : -1;
+    const lift = Math.max(18, h * 0.18);
+    const k = ghost.animate(
+      [
+        { transform: `translate(0, 0) scale(${k0})`, boxShadow: '0 4px 10px rgba(40, 44, 60, 0.15)', offset: 0 },
+        { transform: `translate(${-side * 8}px, ${-lift}px) rotate(${-side * 10}deg) scale(${k0 * 1.16})`, boxShadow: '0 26px 40px rgba(40, 44, 60, 0.35)', offset: 0.3, easing: 'cubic-bezier(.55,0,.95,.45)' },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${side * 8}deg) scale(${k0 * 1.08})`, boxShadow: '0 10px 18px rgba(40, 44, 60, 0.3)', offset: 0.58 },
+        { transform: `translate(${dx * 0.9}px, ${dy * 0.9}px) rotate(${side * 3}deg) scale(${k0 * 1.06})`, offset: 0.66, easing: 'cubic-bezier(.3,.7,.3,1)' },
+        { transform: `translate(0, 0) scale(${k0})`, boxShadow: '0 4px 10px rgba(40, 44, 60, 0.15)', offset: 1 },
+      ],
+      { duration: LUNGE_MS, easing: 'linear', fill: 'forwards' },
+    );
+    k.onfinish = k.oncancel = () => {
+      holder.remove();
+      el.style.visibility = '';
+    };
+    // The blow: the target shudders, with a crash.
+    window.setTimeout(() => {
+      sound.impact(true);
+      target.animate(
+        [{ transform: 'translate(0, 0)' }, { transform: 'translate(-5px, 2px)' }, { transform: 'translate(4px, -2px)' }, { transform: 'translate(-2px, 1px)' }, { transform: 'translate(0, 0)' }],
+        { duration: 320, composite: 'add' },
+      );
+      pulse(target, 'hit-flash');
+    }, Math.round(LUNGE_MS * 0.58));
+    return true;
   }
 
   private quitToMenu() {
@@ -2185,9 +2286,15 @@ export class App {
   }
 
   /** Let the dawn break, with the heat aimed as chosen. */
-  private breakDawn() {
+  private breakDawn(sure = false) {
     if (!this.dawnTurn()) return;
     const s = this.state!;
+    // Heat still to aim: ask first (it would go at the sun, or the most worn Guard).
+    if (!sure && this.dawnLeft() > 0 && !(this.sheet?.kind === 'end-day' && this.sheet.dawn)) {
+      this.sheet = { kind: 'end-day', dawn: true };
+      return this.render();
+    }
+    this.sheet = null;
     const aims = this.draftAims(s, activePlayer(s));
     this.pending = null;
     this.dispatch({ type: 'dawn', aims });
@@ -2795,6 +2902,9 @@ export class App {
         return this.startPlay(arg);
       case 'end-turn':
         return this.requestEndDay();
+      case 'dawn-confirm':
+        this.sheet = null;
+        return this.breakDawn(true);
       case 'end-day-confirm':
         this.sheet = null;
         return this.dispatch({ type: 'endTurn' });
@@ -4271,9 +4381,18 @@ export class App {
       case 'rules':
         return this.sheetFrame('how to play', this.rulesHtml());
       case 'end-day': {
+        if (sh.dawn) {
+          const n = this.dawnLeft();
+          return this.sheetFrame(
+            'break dawn?',
+            `<p class="center-text">${n} card${n === 1 ? ' has' : 's have'} dawn heat still to aim: it will go at their sun (or their most worn Guard).</p>
+             <div class="end-day-actions"><button class="btn-primary" data-act="dawn-confirm">break dawn <small>⏎</small></button><button class="btn" data-act="cancel">keep aiming <small>esc</small></button></div>`,
+          );
+        }
+        const left = this.leftUndone();
         return this.sheetFrame(
           'end your day?',
-          `<p class="center-text">You still have playable cards.</p>
+          `<p class="center-text">You still have ${esc(left.length > 1 ? `${left.slice(0, -1).join(', ')} and ${left[left.length - 1]}` : left[0] ?? 'things to do')}.</p>
            <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
         );
       }
