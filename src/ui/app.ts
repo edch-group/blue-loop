@@ -3,6 +3,8 @@ import {
   activePlayer,
   heroSkillProblem,
   heroAbilityProblem,
+  RACE_TRAITS,
+  SUBRACES,
   attackProblem,
   cardAttack,
   applyAction,
@@ -4053,7 +4055,17 @@ export class App {
     const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
     const c = owner?.tableau.find((x) => x.uid === uid);
     const stats = owner && c ? { stability: c.stability ?? 0, defence: cardDefence(owner, c) } : persists(defId) ? { stability: baseStability(defId) } : {};
-    return keywordList(cardDef(defId).text, stats);
+    return this.raceNote(defId) + keywordList(cardDef(defId).text, stats);
+  }
+
+  /** A race card's racial bonus and nerf (and its sub-race), which ride on every card of that race. */
+  private raceNote(defId: string): string {
+    const def = cardDef(defId);
+    const t = def.race !== undefined ? RACE_TRAITS[def.race] : undefined;
+    if (!t) return '';
+    const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
+    const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race!])}${esc(sub)}</b>`;
+    return `<div class="kw-list kw-race-list"><div>${head}<span>${esc(plainText(t.bonus))} ${esc(plainText(t.nerf))}${sub ? ` ${esc(SUBRACES[def.sub!].theme)}.` : ''}</span></div></div>`;
   }
 
   /**

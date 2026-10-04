@@ -57,7 +57,9 @@ const MECHANICS: [string, RegExp][] = [
 ];
 const mechCount = new Map<string, number>();
 
-for (let seed = 1; seed <= games; seed++) {
+// START=n: seeds from n (to split a long run across processes; JSON=1 prints the tallies to merge).
+const start = Number(process.env.START ?? 1);
+for (let seed = start; seed < start + games; seed++) {
   const decks = pickDecks(seed);
   let s = createGame({ seed, players: decks.map((d, i) => ({ name: `AI ${i + 1}`, isAI: true, species: d.race, deck: d.cards })) });
   let steps = 0;
@@ -91,3 +93,4 @@ if (matchups.size) {
 }
 console.log('\nMechanics per game:');
 for (const [name] of MECHANICS) console.log(`  ${name.padEnd(28)} ${((mechCount.get(name) ?? 0) / games).toFixed(2)}`);
+if (process.env.JSON) console.log('JSON ' + JSON.stringify(Object.fromEntries(PRESET_DECKS.map((d) => [d.name, [deckWins.get(d.name) ?? 0, deckGames.get(d.name) ?? 0]]))));
