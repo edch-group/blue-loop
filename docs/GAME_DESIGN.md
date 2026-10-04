@@ -53,7 +53,7 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
    - The global card applies, if there is one.
    - Your tableau's **dawn effects** trigger, left to right.
    - Then every card in your tableau loses **1 stability**. A card at 0 fades into your discard pile.
-2. **Play cards** with your **energy**: 1 on your first day, then 2, 3, and **4 a day** from your fourth day. The industrial planet, a Hero's energy option and cards like Hive Relay add more on top, with no ceiling (5+ is normal). [design review: a cap of 4, because big cards are fun]
+2. **Play cards** with your **energy**: 1 on your first day, then 2, 3, 4, and **5 a day** from your fifth day. The industrial planet, Hero abilities and cards like Hive Relay add more on top, with no ceiling. [direction: the cap went from 4 to 5, so bigger cards can be made]
 3. **End day.** Unplayed cards stay in your hand. [proposed]
 
 **Second seat head start** [proposed]: the second player starts with 1 extra card (with 4 energy and 30-card decks the first seat won 55–58% without it; with it, seats are about 48/52). The old head start (2 cooler, 1 extra card, 1 extra play) let the second seat win 68%; a sun 1 cooler was still worth too much with the current decks. With 1 extra card, seats are 46/54.
@@ -163,33 +163,29 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 
 Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of their five tableau slots (top right of your tableau; your rival's is bottom left, the board being a mirror), so only one Hero is in play at a time: **a new one replaces the old** (which goes to the discard pile). It takes no tableau slot, has no neighbours, and its slot has defence 2. On the board it lies landscape, and a line round each tableau bumps out round it. [design review]
 
-- **Utility, chosen as you play it.** Every Hero offers **+1 energy** or **draw 1** each dawn, or a **third option of its own**. The card keeps the option picked for as long as it stays; the card shows all three, with the one picked highlighted. [design review: heat and cool options lost to energy almost every time, so the first two are utility for all, and the third varies]
-- **A full term.** Every Hero has stability 3, whatever it does, so cards that want a Hero in play can count on one.
-- **Never back to your own hand.** Heroes can't be recalled (Phase Shift, Recall Beacon, Shard Recall) or recovered from the discard pile (Salvage Drone and the rest). A rival can still send one back to its owner's hand (Tractor Beam, Event Horizon), and Command Breaker destroys one.
+- **They lead for good.** A Hero never fades: it stays until it is removed (Command Breaker, removal that reaches its defence), sent back (Tractor Beam, Event Horizon), beaten down by heat (its stability is how much heat past its defence it can take: 4, or 5–6 for the Anomalies and bombs) or replaced by your next Hero. [direction: heroes as planeswalkers]
+- **Abilities, chosen each day.** Every Hero has two abilities. Once on each of your days, while it leads, you may use one, for the energy shown (most are free, the strongest cost 1). They show as buttons above End Day, and on the card as coloured names (`{act:Name}`; the keyword **Act** explains them).
+- **A way of leading of its own.** On top of its abilities, most Heroes change your board: a lasting buff (often to their own race's cards: "your Aureline attack cards heat +1", "your Vorthane cards shield +1"; the `kindBonus` passive now takes a race and heat, cooling or shields), a dawn effect, or both.
+- **Never back to your own hand.** Heroes can't be recalled or recovered from the discard pile. A rival can still send one back to its owner's hand.
 
-**Heroes.** Every Hero is a hero: a character who leads their race, with their own picture. Each race has two, so a deck's three Heroes can be its own race's (two of one, one of the other), plus one bomb.
-
-| Hero | Race | Rarity | Dawn, one of |
+| Hero | Race | Leads with | Abilities (one a day) |
 | --- | --- | --- | --- |
-| Solarch Veyra | Aureline | White Dwarf | +1 energy, draw 1, or 2 shields |
-| Sol-Marshal Aurex | Aureline | Stellar | +1 energy, draw 1, or heat 2 |
-| Archon Seris | Xel'Naru | White Dwarf | +1 energy, draw 1, or recover your last discarded card |
-| Hierarch Vael | Xel'Naru | Stellar | +1 energy, draw 1, or cool 2 |
-| Tide-Regent Osshara | Vorthane | White Dwarf | +1 energy, draw 1, or 3 shields |
-| The Admiralty (the deep fleet's elders) | Vorthane | Anomaly | +2 energy, draw 2, or 4 shields |
-| Hive-Speaker Zyth | Ixquor | White Dwarf | +1 energy, draw 1, or your orbit +1 |
-| Broodmother Ul'Kha | Ixquor | Stellar | +1 energy, draw 1, or renew 1 |
+| Solarch Veyra | Aureline | Your Aureline attack cards heat +1 | Rally: 2 shields · Counsel: draw 1 |
+| Sol-Marshal Aurex | Aureline | Dawn: heat 1 | Strafe (1⚡): heat 3 · Overdrive: +1 energy |
+| Empress Solenne (bomb) | Aureline | As it enters: heat 4, pierce. Your attack cards heat +1 | Judgement (1⚡): heat 3, pierce · Benediction: renew 1 |
+| Hierarch Vael | Xel'Naru | Your Xel'Naru cards cool +1 | Vent: cool 2 · Insight: draw 1 |
+| Archon Seris | Xel'Naru | When another of your cards leaves play, heat 1 | Archive (1⚡): recover your last discarded card · Shatter (1⚡): heat 2, pierce |
+| The Shardmind (bomb) | Xel'Naru | As it enters: cool 4, recover. Your Xel'Naru cards heat +1 | Cold Reckoning (1⚡): cool 3 · Overload: draw 2, heat 2 to your sun |
+| Tide-Regent Osshara | Vorthane | Tidewall. Dawn: 1 shield | Swell: 4 shields · Current: draw 1 |
+| The Admiralty (Anomaly) | Vorthane | Your Vorthane cards shield +1. Dawn: 2 shields | Broadside (1⚡): heat 1 per 2 shields (up to 4) · Muster: +1 energy |
+| Leviathan Thoross (bomb) | Vorthane | As it enters: 6 shields, eject 3. Hold | Crush (1⚡): heat 1 per 2 shields (up to 5) · Deep Call: 4 shields |
+| Broodmother Ul'Kha | Ixquor | Dawn: your other growing cards grow by 1 | Spawn: plant 1 · Nurture: renew 1 |
+| Hive-Speaker Zyth | Ixquor | Your Ixquor cards heat +1 | Course: your orbit +1 · Forage: draw 1 |
+| The Worldroot (bomb) | Ixquor | As it enters: draw 3, renew 2. Dawn: draw 1 | Bloom: plant 2 · Deep Roots: renew 2 |
 
-**Bomb Heroes.** One per race, cost 4 (so they need a day's bonus energy), Anomaly. Each has a big effect as it takes the field, then a dawn option stronger than the regular heroes'. [design review: Heroes felt limited; these give each race a high-cost swing]
+Balancing the change (600 games a test, all ten starters): the AI first ignored Heroes (it valued a card by its dawn effects and days left), then valued them (abilities, lasting buffs, a whole horizon of play) and Demolition rose to 83%. Its engines were the Shardmind's free daily Cool 3 (12 points) and Command Breaker destroying Heroes for 2 energy now that they are a lasting investment (13 points): Cold Reckoning and Archive now cost 1, Command Breaker costs 3. Overdrive lost its self-heat; Osshara gained a dawn shield and a bigger Swell; Overcharge leads with the Admiralty (Muster: +1 energy) in place of the Broodmother, Orbit Riders with Osshara in place of Veyra. Where it stands (600 games): mean distance from 50% 8.4 (it was 3.7 before Heroes changed). Solar Lancers 61.9%, Shard Overload 47.7%, Abyssal Tide 42.9%, Hive Bloom 53.3%, Orbit Riders 33.0%, Ambush 48.2%, Demolition 64.5%, Absolute Zero 50.4%, Graftworks 43.7%, Overcharge 31.0%. Still to do: Veyra's buff carries Solar Lancers; Overcharge and Orbit Riders miss the old Heroes' daily energy.
 
-| Hero | Race | As it enters | Dawn, one of |
-| --- | --- | --- | --- |
-| Empress Solenne | Aureline | heat 4, pierce | +1 energy, draw 1, or heat 3 |
-| The Shardmind | Xel'Naru | cool 4, recover | +1 energy, draw 1, or cool 3 |
-| Leviathan Thoross | Vorthane | 6 shields, eject (defence 3 or less) | +1 energy, draw 1, or 5 shields |
-| The Worldroot | Ixquor | draw 3, renew 2 | +1 energy, draw 1, or renew 2 |
-
-Counters: each is still a Hero, so Tractor Beam and Event Horizon send it back to hand (4 energy wasted) and Command Breaker destroys it.
+Counters: each bomb is still a Hero, so Tractor Beam and Event Horizon send it back to hand (4 energy wasted) and Command Breaker destroys it.
 
 (They keep the ids of the Heroes they replaced, so collections and saved decks carry over.)
 
@@ -202,7 +198,7 @@ Counters: each is still a Hero, so Tractor Beam and Event Horizon send it back t
 
 Only one Hero is in play at a time, so these ask for one, and do something without one.
 
-**Answering Heroes.** Command Breaker destroys a Hero in your target's tableau; Tractor Beam and Event Horizon can send one back to its owner's hand (it can be played again, with a new choice).
+**Answering Heroes.** Command Breaker (3 energy) destroys a Hero in your target's tableau; Tractor Beam and Event Horizon can send one back to its owner's hand; heat aimed at a Hero wears its defence, then its stability.
 
 **Why the change, and what the simulator says (1000 games).** Permanent upgrades were opaque and snowballed, and a Hero fading after a day made the cards that want one in play weak. As choose-one dawn cards with a full term, they are easier to read. But the upgrades did one useful job: Solar Flare's +1 on every attack was what let attack-heavy decks break through shield decks. Without it, Abyssal Tide sits behind its shields at 0–4 heat (and the AI mostly picks cool 3 for its Commands), so Tide beats Shard Overload about 85% of the time. Tried and kept: Bell Warden 2 shields a dawn (was 3), Shard Reactor heats its own sun by 1 (was 2), Ember Shard 3 heat (was 2), and no extra opening card for the second seat (seats were 43/57 with it, as games run longer now). Result: Tide 60%, Hive 52%, Lancers 49%, Overload 42%; seats 49/51; about 13 rounds a game (was 11). Cool 2 in place of cool 3 sinks Hive Bloom (~20%), which leans on cooling; raising max health to 27 or 30 only made games longer. **Pierce: the counter to shields.** Every mechanic should have a counter. Shields answer heat, Sting and Soothe punish heat into shields, and **Pierce** answers shields: piercing heat goes straight past them (and so sets off no Sting or Soothe), though a Lightspeed card can still cancel it. On Shard Reactor's dawn heat, the Xel'Naru Martyr's burst, and Ignition Protocol. With them, Tide vs Overload went from 85/15 to about 55/45.
 

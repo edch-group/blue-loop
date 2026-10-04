@@ -2,6 +2,8 @@ import { cardDef } from './cards';
 import {
   activePlayer,
   heroSkillProblem,
+  heroAbilityProblem,
+  commandCard,
   applyAction,
   canSetLightspeed,
   canSetFaceDown,
@@ -31,7 +33,7 @@ import {
   dawnAimable,
   aimChoices,
 } from './game';
-import type { Action, CardInstance, GameState, PlayerState } from './types';
+import type { Action, CardInstance, Effect, GameState, PlayerState } from './types';
 
 /** A tuning number, overridable from the environment when simulating (npm run simulate); fixed everywhere else. */
 function tuning(name: string, fallback: number): number {
@@ -117,8 +119,12 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   for (const ps of cardPassives(card)) {
     switch (ps.type) {
       case 'kindBonus': {
-        const matching = p.tableau.filter((c) => c.uid !== card.uid && cardDef(c.defId).kind === ps.kind && (cardDef(c.defId).onTurn ?? []).some((e) => e.type === 'heat')).length;
-        perTurn += ps.amount * (matching + 0.5);
+        // The cards it buffs (by kind, race and what they do), in play now, and some to come.
+        const stat = ps.stat ?? 'heat';
+        const fits = (id: string) => (!ps.kind || cardDef(id).kind === ps.kind) && (ps.race === undefined || cardDef(id).race === ps.race);
+        const matching = p.tableau.filter((c) => c.uid !== card.uid && fits(c.defId) && (cardDef(c.defId).onTurn ?? []).some((e) => e.type === stat)).length;
+        const coming = p.hand.filter((c) => fits(c.defId)).length;
+        perTurn += ps.amount * (matching + 0.5 + 0.25 * coming) * (stat === 'heat' ? 1 : stat === 'cool' ? 0.7 : 0.45);
         break;
       }
       case 'extraPlay':
@@ -153,9 +159,52 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
     }
   }
   if (def.onLeave?.length) perTurn += 0.35;
-  // Worth as many turns as it has left (roughly), and a little more where removal cannot reach it.
-  const turns = Math.min(card.stability ?? HORIZON, HORIZON + 1);
+  // A Hero's abilities: the best of them, once a day, less its energy.
+  if (def.abilities?.length) perTurn += 0.8 * Math.max(...def.abilities.map((k) => abilityValue(p, k.effects) - (k.cost ?? 0) * ACTION_VALUE * 0.6));
+  // Worth as many turns as it has left (roughly), and a little more where removal cannot reach it. A Hero
+  // never fades: it is worth the whole horizon.
+  const turns = def.kind === 'command' ? HORIZON + 1 : Math.min(card.stability ?? HORIZON, HORIZON + 1);
   return perTurn * turns * (0.85 + 0.05 * cardDefence(p, card));
+}
+
+/** Roughly what a Hero ability's effects are worth, used once. */
+function abilityValue(p: PlayerState, effects: Effect[]): number {
+  let v = 0;
+  for (const e of effects) {
+    switch (e.type) {
+      case 'heat':
+        v += e.amount + (e.plus?.of === 'shields' ? Math.min(e.max ?? 9, Math.floor(p.shields / (e.plus.per ?? 1))) : 0) + (e.pierce ? 0.5 : 0);
+        break;
+      case 'cool':
+        v += e.amount * (p.heat > 0 || runsCold(p) ? 0.9 : 0.35);
+        break;
+      case 'shield':
+        v += e.amount * 0.45;
+        break;
+      case 'draw':
+        v += e.amount * 0.7;
+        break;
+      case 'plays':
+        v += e.amount * ACTION_VALUE * Math.min(1, Math.max(0.2, (p.hand.length - 1) / ENERGY_HAND));
+        break;
+      case 'selfHeat':
+        v -= e.amount * (isOverheated(p) ? 1.1 : 0.7);
+        break;
+      case 'restore':
+        v += e.all ? 0.3 * e.amount * Math.max(1, p.tableau.length - 1) : 0.4 * e.amount;
+        break;
+      case 'plant':
+        v += 0.5 * e.amount;
+        break;
+      case 'recover':
+        v += p.discard.length ? 0.9 : 0.5;
+        break;
+      case 'orbit':
+        v += (orbitOutlook(p, e.amount) - orbitOutlook(p)) * 0.5;
+        break;
+    }
+  }
+  return v;
 }
 
 /** What each planet is worth for one turn (an extra card drawn; an extra card played). */
@@ -174,7 +223,8 @@ function orbitOutlook(p: PlayerState, shift = 0): number {
 const SLOT_COST = tuning('SLOT', 0.35);
 
 function tableauValue(state: GameState, p: PlayerState): number {
-  return p.tableau.reduce((sum, c) => sum + cardValue(state, p, c) - SLOT_COST * (c.stability ?? 0), 0);
+  // (A Hero leads from its own slot: it blocks none of the five.)
+  return p.tableau.reduce((sum, c) => sum + cardValue(state, p, c) - (cardDef(c.defId).kind === 'command' ? 0 : SLOT_COST * (c.stability ?? 0)), 0);
 }
 
 /** How good this state is for `meId`: heat on every sun, ongoing value and cards. */
@@ -335,7 +385,10 @@ export function chooseAIAction(state: GameState): Action {
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
   const skill = aiSkill(state, me);
   if (skill !== null) return { type: 'heroSkill', index: skill };
-  if (!me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
+  // Its Hero's abilities (one a day): weighed like any card it could play.
+  const hero = commandCard(me);
+  const abilities: Action[] = hero ? (cardDef(hero.defId).abilities ?? []).flatMap((_, index) => (heroAbilityProblem(state, me, index) === null ? [{ type: 'heroAbility' as const, index }] : [])) : [];
+  if (!abilities.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
   // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.
   let view = state;
@@ -345,7 +398,7 @@ export function chooseAIAction(state: GameState): Action {
   }
   const baseline = evaluate(view, me.id);
   let best: { action: Action; score: number } | null = null;
-  for (const action of candidatePlays(view, me)) {
+  for (const action of [...abilities, ...candidatePlays(view, me)]) {
     let next: GameState;
     try {
       next = applyAction(view, action);
@@ -354,10 +407,12 @@ export function chooseAIAction(state: GameState): Action {
     }
     // Energy spent on a card is energy not spent on another: a costlier card has to be worth it.
     const played = action.type === 'playCard' ? me.hand.find((c) => c.uid === action.cardUid) : undefined;
-    const extra = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) - 1 : 0;
+    // (An ability is a free extra action, but for its energy.)
+    const abilityCost = action.type === 'heroAbility' && hero ? cardDef(hero.defId).abilities![action.index].cost ?? 0 : 0;
+    const extra = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) - 1 : abilityCost;
     // Energy a card gives back today (ramp) is worth what it lets you play: the cards left in hand that it pays for.
     const after = next.players.find((p) => p.id === me.id)!;
-    const spent = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) : 0;
+    const spent = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) : abilityCost;
     const gained = after.playsLeft - (me.playsLeft - spent);
     const ramp = gained > 0 ? gained * ACTION_VALUE * Math.min(1, after.hand.filter((c) => cardCost(c.defId) <= after.playsLeft && cardCost(c.defId) > 0).length / gained) : 0;
     const score = evaluate(next, me.id) - extra * ACTION_VALUE + ramp;

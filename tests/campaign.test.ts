@@ -723,6 +723,6 @@ describe('armies and generals', () => {
 
   it('fuses cards at the cost of both', () => {
     expect(cardCost(fusedId('coronal_lance', 'cryo_vault'))).toBe(cardCost('coronal_lance') + cardCost('cryo_vault'));
-    expect(fusionProblem('hymn_of_the_sun', 'coronal_lance')).toMatch(/energy/);
+    expect(fusionProblem('hymn_of_the_sun', 'dawnstar_cannon')).toMatch(/energy/);
   });
 });

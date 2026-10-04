@@ -621,17 +621,19 @@ export function effectAmount(state: GameState, p: PlayerState, card: CardInstanc
   if ((e.type === 'heat' || e.type === 'cool' || e.type === 'shield') && e.max !== undefined) base = Math.min(base, e.max);
   if (base <= 0) return 0;
   if (e.type !== 'draw' && e.type !== 'selfHeat') base += resonanceBonus(p, card);
-  if (e.type === 'heat') {
-    const kind = cardDef(card.defId).kind;
-    // Bonus cards count once per card name (copies do not stack).
+  if (e.type === 'heat' || e.type === 'cool' || e.type === 'shield') {
+    const def = cardDef(card.defId);
+    // Bonus cards (by kind, or a Hero's racial buff) count once per card name (copies do not stack).
     let bonus = 0;
     const counted = new Set<string>();
     for (const { card: src, passive } of passives(p)) {
-      if (passive.type !== 'kindBonus' || passive.kind !== kind || (passive.others && src.uid === card.uid) || (passive.onTurnOnly && when !== 'turn') || counted.has(src.defId)) continue;
+      if (passive.type !== 'kindBonus' || (passive.stat ?? 'heat') !== e.type) continue;
+      if ((passive.kind && passive.kind !== def.kind) || (passive.race !== undefined && passive.race !== def.race)) continue;
+      if ((passive.others && src.uid === card.uid) || (passive.onTurnOnly && when !== 'turn') || counted.has(src.defId)) continue;
       counted.add(src.defId);
       bonus += passive.amount;
     }
-    if (fieldActive(state, 'solarMaximum')) bonus += 1;
+    if (e.type === 'heat' && fieldActive(state, 'solarMaximum')) bonus += 1;
     return base + bonus;
   }
   return base;
@@ -1326,7 +1328,8 @@ function dawn(state: GameState, p: PlayerState) {
     resolveEffects(state, p, card, dawnEffects(card, p, state), 'turn');
   }
   // Then every card loses 1 stability (unless anchored); at 0 it fades into your discard pile.
-  const fading = p.tableau.filter((c) => !anchored(p, c));
+  // (A Hero never fades: it leads until it is removed, beaten down by heat, or replaced by another.)
+  const fading = p.tableau.filter((c) => !anchored(p, c) && cardDef(c.defId).kind !== 'command');
   for (const card of fading) card.stability = (card.stability ?? 1) - 1;
   for (const card of fading) {
     if (state.winnerId || p.eliminated) break;
@@ -1555,6 +1558,18 @@ export function applyAction(prev: GameState, action: Action): GameState {
     case 'endTurn':
       advanceTurn(state);
       break;
+    case 'heroAbility': {
+      const why = heroAbilityProblem(state, p, action.index);
+      if (why) throw new GameError(why);
+      const hero = commandCard(p)!;
+      const k = cardDef(hero.defId).abilities![action.index];
+      p.playsLeft -= k.cost ?? 0;
+      p.abilityTurn = state.turnNumber;
+      log(state, `${p.name}'s ${cardDef(hero.defId).name}: ${k.name}.`);
+      resolveEffects(state, p, hero, k.effects, 'play');
+      if (p.eliminated) passOn(state);
+      break;
+    }
     case 'heroSkill': {
       const why = heroSkillProblem(state, p, action.index);
       if (why) throw new GameError(why);
@@ -1569,6 +1584,17 @@ export function applyAction(prev: GameState, action: Action): GameState {
     }
   }
   return state;
+}
+
+/** Why the ability of the Hero leading a player's tableau can't be used now (null if it can). */
+export function heroAbilityProblem(state: GameState, p: PlayerState, index: number): string | null {
+  const hero = commandCard(p);
+  const k = hero ? cardDef(hero.defId).abilities?.[index] : undefined;
+  if (!hero || !k) return 'No Hero leads your tableau.';
+  if (activePlayer(state).id !== p.id || state.awaitingDawn) return 'Only on your own day.';
+  if (p.abilityTurn === state.turnNumber) return `${cardDef(hero.defId).name} has acted today.`;
+  if ((k.cost ?? 0) > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
+  return null;
 }
 
 /** Why a hero's battle skill can't be used now (null if it can). */

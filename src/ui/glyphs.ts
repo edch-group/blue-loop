@@ -278,13 +278,15 @@ document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad'
 
 /** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
 export function stabilityBadge(def: CardDef): string {
-  return (persists(def.id) ? `<span class="card-stats card-stats-base"><b class="stat-stab" title="Stability: it stays in play for this many of your days, then fades into your discard pile">◷${baseStability(def.id)}</b></span>` : '');
+  if (!persists(def.id)) return '';
+  const title = def.kind === 'command' ? 'Stability: a Hero never fades by itself; heat past its defence wears this down, and at 0 it falls' : 'Stability: it stays in play for this many of your days, then fades into your discard pile';
+  return `<span class="card-stats card-stats-base"><b class="stat-stab" title="${title}">◷${baseStability(def.id)}</b></span>`;
 }
 
 /** What a card costs to play, in energy: a green gem with the number, on its picture's top-left corner. */
 /**
  * What a card costs to play, in energy, as the energy lights show it: one green dot per energy, in a column
- * down the left of its picture. Dots past the usual most energy in a day (4) are amber: the extra a planet or
+ * down the left of its picture. Dots past the usual most energy in a day (5) are amber: the extra a planet or
  * a card gives. Free cards have none; a card that spends all your energy shows an X.
  */
 export function costDots(def: CardDef): string {

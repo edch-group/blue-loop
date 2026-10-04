@@ -60,6 +60,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   energy: { name: 'gain', group: 'tempo', explain: () => 'Extra energy today, one per dot.' },
   abundance: { name: 'abundance', group: 'tempo', explain: () => 'Extra cards at each of your dawns, while it is in play.' },
   orbit: { name: 'orbit', group: 'orbit', explain: () => "Moves a sun's planets round." },
+  act: { name: 'act', group: 'timing', explain: () => 'A Hero ability: once on each of your days, while this Hero leads your tableau, you may use one of its abilities (named in colour), for the energy shown.' },
   attune: {
     name: 'attunement',
     group: 'orbit',
@@ -99,6 +100,7 @@ function rawLabel(id: string, value?: string): string {
   if (id === 'destroy' || id === 'eject') return `${k.name} ${value}`;
   if (id === 'plays' || id === 'abundance') return `${k.name} +${value}`;
   if (id === 'attune') return value === '1' ? k.name : `${k.name} ×${value}`;
+  if (id === 'act') return value;
   if (id === 'energy') return `gain ${value} energy`;
   if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
   return `${k.name} ${value}`;

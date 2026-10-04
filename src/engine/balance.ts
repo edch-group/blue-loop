@@ -40,7 +40,7 @@ export const BALANCE = {
    * days you have taken, up to `maxPlays` (1, 2, 3, then 4 a day); the industrial planet and energy cards
    * add more on top, with no ceiling.
    */
-  maxPlays: 4,
+  maxPlays: 5,
   /** Orbit: turns each planet faces its sun, and what the abundant and industrial planets give each day. */
   orbitTurns: 3,
   abundantDraw: 1,

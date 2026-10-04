@@ -2,6 +2,7 @@ import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
+import { HERO_CARDS } from './heroes-battle';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
 import { BOONS } from './boons';
 import { CARD_COSTS } from './costs';
@@ -686,6 +687,17 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
 };
 // The second set joins the pool (for building decks; the starters use only the first).
 CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS);
+// The Heroes as they now fight (heroes-battle.ts): lasting, with abilities to choose from each day, in
+// place of the old choice of dawn effect.
+for (const c of CARDS) {
+  const h = HERO_CARDS[c.id];
+  if (!h) continue;
+  delete c.choices;
+  delete c.onPlay;
+  delete c.onTurn;
+  delete c.passive;
+  Object.assign(c, h);
+}
 for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? 1 });
 
 /** Display names for the rarities. */
@@ -897,7 +909,7 @@ export const PRESET_DECKS: DeckList[] = [
     cards: [
       ...twoOf('logistics_command', 'orrery', 'ecliptic_lance', 'solstice_choir', 'moon_warden', 'precession_engine', 'orbital_slingshot'),
       ...twoOf('gravity_assist', 'tidal_brake', 'sunward_lance', 'cryo_vault'),
-      'command_directive', 'grand_orrery', 'gravity_well', 'coronal_lance', 'heat_sink', 'photon_drill', 'perihelion_forge', 'deep_scanners',
+      'tide_regent', 'grand_orrery', 'gravity_well', 'coronal_lance', 'heat_sink', 'photon_drill', 'perihelion_forge', 'deep_scanners',
     ],
   },
   {
@@ -967,7 +979,7 @@ export const PRESET_DECKS: DeckList[] = [
     race: 0,
     cards: [
       ...twoOf('ignition_protocol', 'solar_torrent', 'meltdown', 'radiant_barrage', 'relay_station', 'overcharge', 'glory_charge', 'deep_freeze', 'gravity_sling'),
-      'chamber_protocol', 'overflow_archive', 'abyssal_rampart', 'hive_surge', 'overgrowth', 'phase_shift',
+      'the_admiralty', 'overflow_archive', 'abyssal_rampart', 'hive_surge', 'overgrowth', 'phase_shift',
       'coronal_lance', 'cryo_vault', 'heat_sink', 'deep_scanners', 'fracture_lens', 'sporelings',
     ],
   },

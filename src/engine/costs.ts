@@ -6,6 +6,8 @@
 export const CARD_COSTS: Record<string, number> = {
   // (Strictly better than a neutral card of the same cost: they cost more.)
   bell_warden: 2,
+  // (Heroes now lead for good: a card that destroys one is a big swing.)
+  command_breaker: 3,
   bastion_node: 2,
   // 0
   coolant_array: 0,
@@ -35,7 +37,6 @@ export const CARD_COSTS: Record<string, number> = {
   canopy: 2,
   chamber_protocol: 2,
   chrono_anchor: 2,
-  command_breaker: 2,
   command_directive: 2,
   tide_regent: 2,
   compost_cycle: 2,

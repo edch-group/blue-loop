@@ -2,6 +2,7 @@ import {
   activeGlobal,
   activePlayer,
   heroSkillProblem,
+  heroAbilityProblem,
   applyAction,
   BALANCE,
   boosterPool,
@@ -215,7 +216,7 @@ const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0, heroSkill: 1400 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -2700,6 +2701,12 @@ export class App {
       case 'end-day-confirm':
         this.sheet = null;
         return this.dispatch({ type: 'endTurn' });
+      case 'hero-ability': {
+        const why = heroAbilityProblem(this.state!, this.viewer(), Number(arg));
+        if (why) return this.showToast(why, 'info');
+        sound.hero();
+        return this.dispatch({ type: 'heroAbility', index: Number(arg) });
+      }
       case 'hero-skill': {
         const why = heroSkillProblem(this.state!, this.viewer(), Number(arg));
         if (why) return this.showToast(why, 'info');
@@ -3882,8 +3889,20 @@ export class App {
           <span class="hero-skill-face">${cardArtLite(cardDef(k.hero))}</span><b>${esc(k.name.toLowerCase())}</b><small>${k.once ? 'once' : 'daily'}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
       })
       .join('');
+    // The abilities of the Hero leading your tableau: one a day, each a button with its cost.
+    const lead = commandCard(me);
+    const abilities = lead
+      ? (cardDef(lead.defId).abilities ?? [])
+          .map((k, i) => {
+            const why = heroAbilityProblem(s, me, i);
+            const used = me.abilityTurn === s.turnNumber;
+            return `<button class="hero-skill hero-ability ${used ? 'spent' : ''}" data-act="hero-ability" data-arg="${i}" ${why || !act || busy ? `disabled title="${esc(why ?? plainText(k.text))}"` : `title="${esc(plainText(k.text))}"`}>
+          <span class="hero-skill-face">${cardArtLite(cardDef(lead.defId))}</span><b>${esc(k.name.toLowerCase())}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
+          })
+          .join('')
+      : '';
     return `
-      ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
+      ${skills || abilities ? `<div class="hero-skills">${abilities}${skills}</div>` : ''}
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn ? '' : 'plays-off'}" title="Energy left today: each card costs the number on its gem">
           <small>${myTurn ? 'energy' : 'waiting'}</small>
@@ -3960,7 +3979,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by heat. It mends 1 at each of its owner's dawns (more with Sturdy or Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats card-stats-stab"><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: turns before it fades into the discard pile">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by heat. It mends 1 at each of its owner's dawns (more with Sturdy or Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats card-stats-stab"><b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';

@@ -107,7 +107,18 @@ export type Effect = (
 
 export type Passive =
   /** Heat effects from your cards of this kind deal +amount (optionally not this card's own; optionally only dawn effects). */
-  | { type: 'kindBonus'; kind: CardKind; amount: number; others?: boolean; onTurnOnly?: boolean }
+  | {
+      type: 'kindBonus';
+      /** Only cards of this kind (any kind, if unset). */
+      kind?: CardKind;
+      /** Only this race's cards: a hero's racial buff ("your Vorthane cards shield +1"). */
+      race?: number;
+      /** What it adds to: heat (the default), cooling or shields. */
+      stat?: 'heat' | 'cool' | 'shield';
+      amount: number;
+      others?: boolean;
+      onTurnOnly?: boolean;
+    }
   /** You may play extra cards each day. */
   | { type: 'extraPlay'; amount: number; /** Only while this planet faces your sun. */ planet?: Planet }
   /** Your shields no longer fade at your dawn. */
@@ -178,6 +189,8 @@ export interface CardDef {
   onTurn?: Effect[];
   /** Attunement: at each of your dawns it also gains its orbit position's bonus (attunement.ts), this many times over. */
   attune?: number;
+  /** A Hero's abilities: while it leads from your Hero slot, once on each of your days, you may use one. */
+  abilities?: HeroAbility[];
   /**
    * A choice made when the card is played (Command cards): one of these is added to its dawn effects
    * for as long as it stays in your tableau. The ids are written into its text as `{options:id|id|…}`.
@@ -311,6 +324,8 @@ export interface PlayerState {
   conditions?: { name: string; text: string }[];
   /** A campaign hero's battle skills: spent (once), or the turn last used (daily). */
   skills?: (BattleSkill & { spent?: boolean; usedTurn?: number })[];
+  /** The turn (turnNumber) this player last used their Hero's ability: one a day. */
+  abilityTurn?: number;
 }
 
 export interface LogEntry {
@@ -364,6 +379,15 @@ export interface TurnPulse {
  * A hero's skill in battle (campaign): used on your own day. `once`: a single use in the battle;
  * otherwise once a day. `cost`: energy, paid like a card's.
  */
+/** One of a Hero's abilities: used on your day, at most one a day, for its energy cost (0 if unset). */
+export interface HeroAbility {
+  id: string;
+  name: string;
+  text: string;
+  effects: Effect[];
+  cost?: number;
+}
+
 export interface BattleSkill {
   id: string;
   name: string;
@@ -433,5 +457,7 @@ export type Action =
   | { type: 'endTurn' }
   /** Use one of your hero's battle skills (campaign), on your own day. */
   | { type: 'heroSkill'; index: number }
+  /** Use one of the abilities of the Hero leading from your Hero slot (one a day). */
+  | { type: 'heroAbility'; index: number }
   /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string };

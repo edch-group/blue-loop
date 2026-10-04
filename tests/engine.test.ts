@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS } from '../src/engine/cards';
-import { activePlayer, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+import { activePlayer, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -113,7 +113,7 @@ describe('setup', () => {
 
 describe('plays per turn', () => {
   it('grows by one each turn up to the cap, with a head start for the second seat', () => {
-    // The industrial planet's bonus energy aside: 1, 2, 3, then 4 a day.
+    // The industrial planet's bonus energy aside: 1, 2, 3, 4, then 5 a day.
     const rules = BALANCE as { industrialPlays: number };
     const industry = rules.industrialPlays;
     rules.industrialPlays = 0;
@@ -124,8 +124,8 @@ describe('plays per turn', () => {
       s = endTurn(s);
     }
     rules.industrialPlays = industry;
-    expect(plays.filter((_, i) => i % 2 === 0)).toEqual([1, 2, 3, 4, 4, 4]);
-    expect(plays.filter((_, i) => i % 2 === 1)).toEqual([1 + BALANCE.laterSeatPlays, 2, 3, 4, 4, 4]);
+    expect(plays.filter((_, i) => i % 2 === 0)).toEqual([1, 2, 3, 4, 5, 5]);
+    expect(plays.filter((_, i) => i % 2 === 1)).toEqual([1 + BALANCE.laterSeatPlays, 2, 3, 4, 5, 5]);
   });
 
   it('refuses a play once none are left', () => {
@@ -227,33 +227,40 @@ describe('the tableau', () => {
 });
 
 describe('commands', () => {
-  it('ask for a choice of dawn effect, keep it, and stay their full term, in the Command slot', () => {
+  it('lead from the Hero slot and never fade, and use one of their abilities a day', () => {
     let s = twoPlayer();
     give(activePlayer(s), ['ignition_protocol']);
-    expect(() => play(s, 'ignition_protocol')).toThrow(/options/);
-    s = play(s, 'ignition_protocol', { choice: 'heat2' });
+    s = play(s, 'ignition_protocol');
     const cmd = s.players[0].tableau[0];
-    expect(cmd.choice).toBe('heat2');
     expect(cmd.slot).toBe(COMMAND_SLOT);
-    expect(cmd.stability).toBe(BALANCE.stabilityCommand);
+    expect(cmd.stability).toBe(4);
+    // Many days later, it still leads (its dawn heat firing each day).
+    for (let i = 0; i < 10; i++) s = endTurn(s);
+    expect(s.players[0].tableau.some((c) => c.defId === 'ignition_protocol')).toBe(true);
+    expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.stability).toBe(4);
+    // Strafe: heat 3, for 1 energy; then no second ability that day.
     const before = s.players[1].heat;
-    s = endTurn(endTurn(s)); // Ada's next dawn: the chosen effect fires
-    expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 2);
+    activePlayer(s).playsLeft = 3;
+    expect(heroAbilityProblem(s, activePlayer(s), 0)).toBeNull();
+    s = applyAction(s, { type: 'heroAbility', index: 0 });
+    expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 3 - s.players[1].shields);
+    expect(activePlayer(s).playsLeft).toBe(2);
+    expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/acted today/);
+    s = endTurn(endTurn(s));
+    expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
   });
 
-  it('offer energy, a draw, or their own third option', () => {
-    for (const id of ['command_directive', 'ignition_protocol', 'coolant_protocol', 'chamber_protocol', 'war_council', 'logistics_command']) {
-      const choices = (cardDef(id).choices ?? []).map((c) => c.id);
-      expect(choices.slice(0, 2)).toEqual(['energy1', 'draw1']);
-      expect(choices).toHaveLength(3);
-    }
-    let s = twoPlayer();
+  it("give their own race's cards a lasting buff, and only theirs", () => {
+    const s = twoPlayer();
     const me = activePlayer(s);
-    me.heat = 6;
-    give(me, ['coolant_protocol']);
-    s = play(s, 'coolant_protocol', { choice: 'cool2' });
-    s = endTurn(endTurn(s));
-    expect(s.players[0].heat).toBeLessThanOrEqual(6 - 2 + 1);
+    const [, skirmisher, relay] = give(me, ['command_directive', 'aureline_skirmisher', 'plasma_relay'], 'tableau');
+    const dawnHeat = (c: typeof relay) => effectAmount(s, me, c, cardDef(c.defId).onTurn![0], 'turn');
+    expect(dawnHeat(skirmisher)).toBe(2);
+    expect(dawnHeat(relay)).toBe(1);
+    // Hierarch Vael: the Xel'Naru cool more.
+    const t = twoPlayer();
+    const [, bloom] = give(activePlayer(t), ['coolant_protocol', 'crystal_bloom'], 'tableau');
+    expect(effectAmount(t, activePlayer(t), bloom, cardDef('crystal_bloom').onPlay![0])).toBe(3);
   });
 
   it('take one Command slot: a new one replaces the old, and neither takes a tableau slot', () => {
@@ -263,23 +270,24 @@ describe('commands', () => {
     give(me, ['plasma_relay', 'plasma_relay', 'coolant_array', 'coolant_array', 'deflector_grid'], 'tableau');
     expect(tableauFull(me)).toBe(true);
     give(me, ['command_directive', 'war_council']);
-    s = play(s, 'command_directive', { choice: 'draw1' });
+    s = play(s, 'command_directive');
     expect(activePlayer(s).tableau.filter((c) => c.slot === COMMAND_SLOT).map((c) => c.defId)).toEqual(['command_directive']);
-    s = play(s, 'war_council', { choice: 'recover1' });
+    s = play(s, 'war_council');
     const after = activePlayer(s);
     expect(after.tableau.filter((c) => c.slot === COMMAND_SLOT).map((c) => c.defId)).toEqual(['war_council']);
     expect(after.discard.some((c) => c.defId === 'command_directive')).toBe(true);
     expect(after.tableau).toHaveLength(6);
   });
 
-  it("War Council's recover takes back the card most recently discarded (not a Command card)", () => {
+  it("Archon Seris's Archive takes back the card most recently discarded (not a Hero)", () => {
     let s = twoPlayer();
     const me = activePlayer(s);
+    me.playsLeft = 3;
     give(me, ['war_council']);
-    s = play(s, 'war_council', { choice: 'recover1' });
+    s = play(s, 'war_council');
     const ada = s.players[0];
     ada.discard.push({ uid: 'd1', defId: 'coronal_lance' }, { uid: 'd2', defId: 'gravity_sling' }, { uid: 'd3', defId: 'command_directive' });
-    s = endTurn(endTurn(s));
+    s = applyAction(s, { type: 'heroAbility', index: 0 });
     const now = s.players[0];
     expect(now.hand.some((c) => c.uid === 'd2')).toBe(true);
     expect(now.discard.some((c) => c.uid === 'd3')).toBe(true);
@@ -463,15 +471,15 @@ describe('card costs', () => {
     expect(activePlayer(s).turn.energyTotal).toBe(total + 1);
   });
 
-  it("a Command card's energy option adds 1 energy at each of your dawns", () => {
+  it("a Hero's energy ability adds energy for the day", () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    give(me, ['command_directive']);
-    s = play(s, 'command_directive', { choice: 'energy1', slot: 0 });
-    s = endTurn(s);
-    s = endTurn(s);
-    const back = s.players.find((p) => p.id === me.id)!;
-    expect(back.playsLeft).toBe(playsAllowed(s, back) + 1);
+    me.playsLeft = 5;
+    give(me, ['the_admiralty']);
+    s = play(s, 'the_admiralty');
+    const before = activePlayer(s).playsLeft;
+    s = applyAction(s, { type: 'heroAbility', index: 1 });
+    expect(activePlayer(s).playsLeft).toBe(before + 1);
   });
 
   it('cards cost energy, and a card is refused without enough of it', () => {
