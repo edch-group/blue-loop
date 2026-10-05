@@ -319,6 +319,11 @@ function phase(id: string): string {
   return ((h % 997) / 997).toFixed(3);
 }
 
+/** The back of every card: a white dwarf glowing on the board's faint rings, the game's name beneath it. */
+export function cardBackFace(): string {
+  return '<span class="cback" aria-hidden="true"><span class="cback-star"><i class="g g-dwarf-glow"></i><i class="g g-dwarf"></i></span><span class="cback-title">blue loop</span></span>';
+}
+
 /**
  * The rarity gem in a card's top corner: a tiny cabochon of dark glass in a
  * silver bezel, with a glowing body inside it. A white dwarf (standard) that

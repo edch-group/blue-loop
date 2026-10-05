@@ -74,7 +74,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, cardBodyHtml, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, cardBackFace, cardBodyHtml, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -4308,8 +4308,8 @@ export class App {
     const ls = p.lightspeed;
     const lightspeed = ls
       ? side === 'mine'
-        ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}"><span>⚡</span><small>lightspeed</small></button>`
-        : '<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your day."><span>⚡</span><small>lightspeed</small></div>'
+        ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}">${cardBackFace()}</button>`
+        : `<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your day.">${cardBackFace()}</div>`
       : choosingSlot && pend && canSetFaceDown(p, activePlayer(st).hand.find((h) => h.uid === pend.uid)?.defId ?? '')
         ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down at lightspeed, for 1 more energy"><span class="slot-def">⚡</span><i>face down +1</i></button>`
         : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
@@ -4331,7 +4331,10 @@ export class App {
   private renderPiles(p: PlayerState, side: 'mine' | 'rival'): string {
     const mine = side === 'mine';
     const top = p.discard[p.discard.length - 1];
-    const deck = `<span class="tpile-stack"><i></i><i></i></span><b>${p.deck.length}</b><small>deck</small>`;
+    // (The deck shows its top card's back, how many are left on a badge.)
+    const deck = p.deck.length
+      ? `<span class="tpile-stack"><i></i><i></i></span><span class="tpile-face tpile-back">${cardBackFace()}</span><b class="tpile-count" title="Cards left in the deck">${p.deck.length}</b>`
+      : `<span class="tpile-empty"></span><b>0</b><small>deck</small>`;
     const discard = top
       ? `<span class="tpile-face">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span><b class="tpile-count">${p.discard.length}</b>`
       : `<span class="tpile-empty"></span><b>0</b><small>discard</small>`;
@@ -4623,7 +4626,7 @@ export class App {
         .replace(/ data-act="[^"]*"/, '')
         .replace(/ data-card="[^"]*"/, '');
     // (Your own card keeps its uid here, so it flies from here to where it lands.)
-    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : still('stage', st.defId, st.option).replace('<div class="card ', st.uid ? `<div data-uid="${st.uid}" class="card ` : '<div class="card ');
+    const card = st.faceDown ? `<div class="card card-back">${cardBackFace()}</div>` : still('stage', st.defId, st.option).replace('<div class="card ', st.uid ? `<div data-uid="${st.uid}" class="card ` : '<div class="card ');
     // A sprung Lightspeed card: the card that sprang it stands where a played card does (plain, to be read),
     // and the Lightspeed card beside it on the left, the same size.
     if (st.against) {

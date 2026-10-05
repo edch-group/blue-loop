@@ -2339,8 +2339,6 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
   background: radial-gradient(circle at 50% 42%, #fff3d6, #f0c46c 38%, #b27418 72%, #6b4210);
   color: #fff; border: 2px solid #fff;
 }
-.card-back span { font-size: calc(var(--cw) * 0.34); text-shadow: 0 0 18px rgba(255, 220, 140, 0.9); }
-.card-back small { font-family: var(--display); letter-spacing: 0.24em; text-transform: uppercase; font-size: calc(var(--cw) * 0.07); }
 .stage-sprung .stage-caption { color: #a86d10; border-color: rgba(212, 149, 42, 0.6); box-shadow: 0 0 18px rgba(212, 149, 42, 0.4); }
 /* Game over: the result lies on the board between the tableaus, with the way out beneath it. */
 .board .result-anchor { grid-row: 2; align-self: center; justify-self: center; width: 1px; height: 1px; }
@@ -4497,3 +4495,24 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .stage-ls-btn { background: #d4952a; color: #fff; border: 1px solid #c4851c; box-shadow: 0 6px 18px rgba(170, 110, 20, 0.35); }
 .stage-ls-btn:hover { background: #e0a23a; }
 .stage-ls-btn small { opacity: 0.9; }
+/* The back of every card (the deck, a card set face down): a white dwarf on the board's faint rings, "blue loop" beneath. */
+.card.card-back {
+  background: none; border: 0; padding: 0; overflow: hidden;
+}
+.cback {
+  position: absolute; inset: 0; border-radius: inherit; overflow: hidden; display: block;
+  background:
+    repeating-radial-gradient(circle at 50% 42%, transparent 0 calc(var(--cw, 100px) * 0.09), rgba(120, 150, 205, 0.16) calc(var(--cw, 100px) * 0.09) calc(var(--cw, 100px) * 0.095)),
+    radial-gradient(circle at 50% 42%, #ffffff 0, #f2f5fb 45%, #dde5f2 100%);
+  border: 1.5px solid #fff; box-shadow: inset 0 0 0 1px rgba(150, 170, 205, 0.25);
+}
+.cback-star { position: absolute; left: 50%; top: 42%; width: 56%; aspect-ratio: 1; transform: translate(-50%, -50%); }
+.cback-star .g { position: absolute; inset: 0; display: block; background-size: 100% 100%; --gp: 0.3; }
+.cback-star .g-dwarf-glow { inset: -35%; }
+.cback-title {
+  position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; white-space: nowrap;
+  font-family: var(--display); text-transform: uppercase; letter-spacing: 0.28em; padding-left: 0.28em;
+  font-size: max(5px, calc(var(--cw, 100px) * 0.085)); color: #6c7894;
+}
+.tpile-back { --cw: var(--pw); }
+.tpile-back .cback { border-radius: calc(var(--tcw) * 0.07); box-shadow: 0 4px 12px rgba(80, 84, 100, 0.18), 0 0 0 1.5px #fff; }
