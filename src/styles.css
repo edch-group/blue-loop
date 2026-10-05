@@ -4753,3 +4753,22 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   background-image: radial-gradient(ellipse calc(var(--tw) * 0.7071) calc(var(--th) * 0.9899) at var(--half) calc(var(--th) * 0.3 + var(--half) + 1px), color-mix(in srgb, var(--kc) 12%, transparent), transparent 70%);
   background-size: auto; background-position: 0 0; background-repeat: no-repeat; opacity: 1;
 }
+
+/* Anomaly gems: the black hole and its disk larger, so the streaming disk reads at card size, and the purple
+   glass alive: a lilac glow breathing round the hole, and now and then a sheen sweeping across. */
+.gem-anomaly .g-hole-back, .gem-anomaly .g-hole { transform: scale(1.4); }
+.gem-anomaly .g-disk { transform: scale(1.4) rotate(-14deg) scaleY(0.3); }
+.gem-anomaly .gem-window::before, .gem-anomaly .gem-window::after { content: ''; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; }
+.gem-anomaly .gem-window::before {
+  background: radial-gradient(circle, rgba(215, 175, 255, 0.85) 0%, rgba(160, 95, 255, 0.45) 38%, transparent 72%);
+  animation: gemPurple 3.2s ease-in-out infinite; animation-delay: calc(var(--gp, 0) * -3.2s);
+}
+.gem-anomaly .gem-window::after {
+  background: linear-gradient(115deg, transparent 38%, rgba(235, 215, 255, 0.55) 50%, transparent 62%);
+  transform: translateX(-110%); animation: gemSheen 5.5s ease-in-out infinite; animation-delay: calc(var(--gp, 0) * -5.5s);
+}
+@keyframes gemPurple { 0%, 100% { opacity: 0.45; transform: scale(0.92); } 50% { opacity: 1; transform: scale(1.08); } }
+@keyframes gemSheen { 0%, 62% { transform: translateX(-110%); } 85%, 100% { transform: translateX(110%); } }
+@media (prefers-reduced-motion: reduce) { .gem-anomaly .gem-window::before, .gem-anomaly .gem-window::after { animation: none; } .gem-anomaly .gem-window::after { display: none; } }
+/* (The disk's near half fades in rather than starting on a hard line, which showed across the larger disk.) */
+.gem-anomaly .g-disk-front { clip-path: none; -webkit-mask: linear-gradient(transparent 44%, #000 56%); mask: linear-gradient(transparent 44%, #000 56%); }
