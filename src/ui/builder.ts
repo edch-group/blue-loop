@@ -119,7 +119,19 @@ export class DeckBuilder {
   /** Put to another use (the campaign's base), or the menu's own deck builder (null). */
   private mode: BuilderMode | null = null;
 
-  constructor(private host: BuilderHost) {}
+  constructor(private host: BuilderHost) {
+    // A tap anywhere off the filters popover (and off its button, which toggles it itself) shuts it.
+    document.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (!this.filtersOpen || !document.querySelector('.db-filters-pop')) return;
+        if ((e.target as Element | null)?.closest?.('.db-filter-wrap')) return;
+        this.filtersOpen = false;
+        this.host.render();
+      },
+      true,
+    );
+  }
 
   /** Use the builder for something else (or, with null, for the menu's decks again). */
   setMode(mode: BuilderMode | null) {
