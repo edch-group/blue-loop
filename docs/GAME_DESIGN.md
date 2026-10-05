@@ -604,6 +604,7 @@ The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2
 - Forge Clans: Siege Arrays in place of Tempers (39% → 45%), then +2 defence, now written as +2 Sturdy on each card (53%).
 - The dominance check ignores a race's trait (the trait is the race's price, not the card's).
 - Where it stands (1000 games): mean distance 8.8 (from 12.1). Solar Lancers 44.5, Shard Overload 55.1, Abyssal Tide 58.5, Hive Bloom 58.6, Orbit Riders 60.2, Ambush 42.8, Demolition 61.1, Absolute Zero 37.3, Graftworks 54.1, Overcharge 39.8, Night Court 56.8, Forge Clans 46.7, Starwatch 58.6, Wildfire 28.2. Still to do: Wildfire, Absolute Zero and Overcharge are low.
+- Night Court, no shield cards: Darkspeed (acting the day they land) only helps cards that attack, and in play the deck's shield cards were the ones you never wanted to play. Both Umbral Snares, the Mirror Veil, the Veil Lantern and the Aegis Idol make way for two Nightfalls, a third Shade Stalker, a second Phantom Strike and the Ember Idol (in place of a second Coronal Lance). Night Court against the other 13 starters (40 games each): 35.0% → 45.6%. [play-test]
 
 ## Always landscape
 

@@ -1010,14 +1010,17 @@ export const PRESET_DECKS: DeckList[] = [
   },
   // ---- The newer races (after the mixed starters, so saved deck picks keep their place) ----
   {
-    // Nyxari: Veilwalker traps (Umbral Snares, Mirror Veils, a Null Shroud for the rival's Hero) to blunt
-    // the rival's day, and Unmakers to take their board apart; ambushers that strike the day they land.
+    // Nyxari: cheap attackers that strike the day they land (Darkspeed), wearing the rival's cards down
+    // into the Unmakers' reach; a few Veilwalker traps and Guards, and a Null Shroud for the rival's Hero.
+    // (No shield cards: Darkspeed does nothing for them. Umbral Snares, Mirror Veils, the Veil Lantern and
+    // the Aegis Idol made way for Nightfalls, a third Shade Stalker, a second Phantom Strike and the Ember
+    // Idol: 35% to 46% against the other starters.)
     name: 'Night Court',
     cards: [
-      ...twoOf('nyx_umbral_snare', 'nyx_mirror_veil', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_gloom_warden', 'nyx_shade_stalker', 'nyx_dusk_raider', 'nyx_unmaker_blade', 'nyx_void_rend'),
+      ...twoOf('nyx_nightfall', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_gloom_warden', 'nyx_shade_stalker', 'nyx_dusk_raider', 'nyx_unmaker_blade', 'nyx_void_rend', 'nyx_phantom_strike', 'coronal_lance'),
       // (Attack in place of draw: cheap as the deck is, it drew far more than it could ever play.)
-      'nyx_phantom_strike', 'photon_drill', 'plasma_relay', 'nyx_unravel',
-      'nyx_hollow_reaper', 'nyx_shadow_court', 'nyx_null_shroud', 'nyx_veil_lantern', 'coronal_lance',
+      'nyx_shade_stalker', 'photon_drill', 'plasma_relay', 'nyx_unravel',
+      'nyx_hollow_reaper', 'nyx_shadow_court', 'nyx_null_shroud',
       'nyx_hero_vesh', 'nyx_hero_kael', 'nyx_hero_nyxara',
     ],
   },
@@ -1073,7 +1076,7 @@ const RELIC_SWAPS: Record<string, [string, string][]> = {
   'Shard Overload': [['ember_shard', 'astral_orrery']],
   'Abyssal Tide': [['undertow', 'tide_pearl']],
   'Hive Bloom': [['hive_relay', 'chrono_stone']],
-  'Night Court': [['nyx_mirror_veil', 'aegis_idol']],
+  'Night Court': [['coronal_lance', 'ember_idol']],
   'Forge Clans': [['kor_shieldwall', 'warden_totem']],
   Starwatch: [['ser_twin_moons', 'frost_reliquary']],
   Wildfire: [['pyr_flare_imp', 'ember_idol'], ['pyr_ash_walker', 'crown_first_sun']],
