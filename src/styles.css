@@ -4800,17 +4800,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card .fused-behind::before { display: none; }
 /* (A shade greyer than the card, so the card's own top edge and corners read in front of it.) */
 .card .fused-behind { background: linear-gradient(180deg, #f6f7fa, #eceff4); }
-/* Rarity gems on the board are domes, not decals: the board's tilt flattens what lies on it, but a dome seen
-   from any angle is still round, so its glass, bezel and body are stretched back by the tilt (the bump and its
-   rims stay in the card's plane, foreshortened with it). */
-.board-plane .card .gem .g-socket, .board-plane .card .gem .gem-window, .board-plane .card .gem .g-glass {
-  transform: scaleY(calc(1 / cos(var(--board-tilt, 0deg))));
-}
-/* (Standing on its base, as a dome does: its foot stays where the bezel meets the card, the dome rising
-   above it, so it still sits in the pill's notch.) */
-.board-plane .card .gem .g-socket, .board-plane .card .gem .gem-window, .board-plane .card .gem .g-glass {
-  transform: translateY(calc(var(--gs) * -0.54 * (1 / cos(var(--board-tilt, 0deg)) - 1))) scaleY(calc(1 / cos(var(--board-tilt, 0deg))));
-}
 /* The rims as real borders (crisp, where gradients blurred): the card's outline over the bump is an inset ring
    on the bump's fill, running down past the card's border so it meets the card's edge line with no gap; the
    pill's rim round its notch a 1px circle round the gem, shown only below the pill's top. */
