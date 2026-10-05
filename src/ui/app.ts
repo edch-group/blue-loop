@@ -4820,7 +4820,7 @@ export class App {
     const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race!])}${esc(sub)}</b>`;
     // (Its bonus and nerf follow as keywords, those that apply to this card.)
     const theme = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].theme : `${plainText(t.bonus)} ${plainText(t.nerf)}`;
-    return `<div class="kw-race-row">${head}<span>${esc(theme)}.</span></div>`;
+    return `<div class="kw-race-row">${head}<span>${esc(theme.replace(/\.*$/, '.'))}</span></div>`;
   }
 
   /**

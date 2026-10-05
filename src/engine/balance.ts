@@ -69,6 +69,8 @@ export const BALANCE = {
   stabilityDawnHeat: 2,
   stabilityBurst: 1,
   stabilityCommand: 3,
+  /** A card costing 1 energy or less never has more stability than this (its race's trait included). */
+  cheapMaxStability: 2,
   /** A Relic's: it never fades, and nothing restores it (Brittle); removal reaches it whatever its defence. */
   stabilityRelic: 3,
   /** Stability can be restored up to this. */

@@ -45,7 +45,7 @@ npx wrangler login     # first time only: authorise your Cloudflare account in t
 npm run deploy         # builds the game, then deploys the Worker and its rooms
 ```
 
-Wrangler prints the address, e.g. `https://blue-loop.<your-subdomain>.workers.dev`. Open it, then **Quickplay → play online → create room**, and send your friend the code or the invite link. Once they join, you can both still change name, deck and race. The game starts when you have both tapped **ready**.
+Wrangler prints the address, e.g. `https://blue-loop.<your-subdomain>.workers.dev`. Open it, then **Quickplay → play online → create room**, and send your friend the code or the invite link. Once they join, you can both still change name and deck. The game starts when you have both tapped **ready**.
 - **Dropped connections:** a phone that locks or loses signal reconnects to its seat by itself. Reopening the invite link in the same browser also rejoins.
 - **Dropped connections, for the other player:** while a rival is away, you see "rival disconnected · waiting". Their seat is kept, and the notice clears when they're back.
 - **Quitting:** settings (⚙) → **quit game** asks first. Online, quitting concedes: your rival wins and there is no rematch. Against the AI, a game can be saved and left, or conceded. In a campaign battle, quitting is a retreat, which loses the battle.

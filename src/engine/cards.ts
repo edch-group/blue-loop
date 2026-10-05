@@ -920,7 +920,7 @@ export const PRESET_DECKS: DeckList[] = [
     // and a Regrowth Pod) to draw more, and Seasonal Blooms planting Saplings and taking their orbit's bonus.
     name: 'Hive Bloom',
     cards: [
-      ...twoOf('sap_graft', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_relay', 'spore_cloud', 'seed_burst'),
+      ...twoOf('creeping_vines', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_relay', 'spore_cloud', 'seed_burst'),
       'seasonal_bloom', 'seasonal_bloom', 'hive_warrior', 'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings',
       'overgrowth', 'chitin_fortress', 'ixquor_brood_tender', 'the_brood_queen', 'sporestorm',
       'hive_tyrant', 'spore_drone', 'spore_catalyst', 'solar_bastion',
@@ -944,15 +944,17 @@ export const PRESET_DECKS: DeckList[] = [
   },
   {
     // Lightspeed: a trap face down (Prisms of Dawn and Counter Pulses against attack cards), Guards that
-    // spring out of the Lightspeed slot to take a hit (Sunflash Aegis, Blink Bulwarks, a Riptide Sentinel),
-    // and Aureline attack cards forged and boosted behind them, with an attuned Ecliptic Lance.
+    // spring out of the Lightspeed slot to take a hit (Blink Bulwarks), a Xel'Naru Warden and a Twilight
+    // Sentry standing guard, and Aureline attack cards forged and boosted behind them, with an attuned
+    // Ecliptic Lance. (The Sunflash Aegis pair and the Riptide Sentinel made way when 1-energy cards lost
+    // their third day and the Sentinel went up to 3 energy: 40% to 47% against the other starters.)
     name: 'Ambush',
     mixed: true,
     cover: 'prism_of_dawn',
     cards: [
-      ...twoOf('command_directive', 'prism_of_dawn', 'counter_pulse', 'sunflash_aegis', 'blink_bulwark', 'helio_lancer', 'shard_reactor'),
+      ...twoOf('command_directive', 'prism_of_dawn', 'counter_pulse', 'blink_bulwark', 'helio_lancer', 'shard_reactor'),
       ...twoOf('coronal_lance', 'cryo_vault', 'photon_drill'),
-      'plasma_relay', 'ecliptic_lance', 'tide_regent', 'riptide_sentinel', 'dawnstar_cannon', 'aureline_archon', 'sunforge', 'focusing_array', 'deep_scanners', 'deflector_grid',
+      'xelnaru_warden', 'twilight_sentry', 'plasma_relay', 'ecliptic_lance', 'tide_regent', 'gravity_sling', 'dawnstar_cannon', 'aureline_archon', 'sunforge', 'focusing_array', 'deep_scanners', 'deflector_grid',
     ],
   },
   {
@@ -976,7 +978,7 @@ export const PRESET_DECKS: DeckList[] = [
     mixed: true,
     cover: 'absolute_zero',
     cards: [
-      ...twoOf('coolant_protocol', 'cryo_lance', 'frostbound_sentinel', 'rime_bastion', 'cryo_vault', 'cold_front', 'frost_lattice', 'coolant_array', 'shard_reactor'),
+      ...twoOf('coolant_protocol', 'cryo_lance', 'frostbound_sentinel', 'rime_bastion', 'cryo_vault', 'cold_front', 'glacier_shell', 'coolant_array', 'shard_reactor'),
       'absolute_zero', 'glacier_hull', 'ice_age', 'deep_freeze', 'prism_vent', 'the_shardmind',
       'heat_sink', 'photon_drill', 'helio_lancer', 'dawnstar_cannon', 'gravity_sling', 'deep_scanners',
     ],

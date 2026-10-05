@@ -436,7 +436,9 @@ export function baseStability(defId: string): number {
   const def = cardDef(defId);
   if (def.kind === 'relic') return BALANCE.stabilityRelic;
   const t = def.kind === 'command' ? 0 : raceTrait(def.race)?.stability ?? 0;
-  return Math.max(1, rawStability(def) + t);
+  const s = Math.max(1, rawStability(def) + t);
+  // A 1-energy card (or a free one) never lasts long, whatever its race.
+  return def.kind !== 'command' && (def.cost ?? 1) <= 1 ? Math.min(s, BALANCE.cheapMaxStability) : s;
 }
 
 /** How long a card lasts before its race's trait. */

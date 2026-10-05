@@ -74,4 +74,4 @@ export const TOKENS: CardDef[] = [
 ];
 
 /** What the Fusion cards cost (energy). */
-export const FUSION_COSTS: Record<string, number> = { sunforged_lens: 2, siphon_tendril: 2, thorn_graft: 2, spore_catalyst: 2, shard_splice: 2, tidal_graft: 2 };
+export const FUSION_COSTS: Record<string, number> = { sunforged_lens: 2, siphon_tendril: 2, thorn_graft: 2, sap_graft: 2, spore_graft: 2, spore_catalyst: 2, shard_splice: 2, tidal_graft: 2 };

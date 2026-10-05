@@ -5,7 +5,9 @@
  */
 export const CARD_COSTS: Record<string, number> = {
   // (Strictly better than a neutral card of the same cost: they cost more.)
-  bell_warden: 2,
+  // Guard, Sturdy, Tidewall and 3 shields every dawn (and Sting): a bomb's worth of abilities.
+  bell_warden: 5,
+  riptide_sentinel: 3,
   // (Heroes now lead for good: a card that destroys one is a big swing.)
   command_breaker: 3,
   bastion_node: 2,
@@ -26,7 +28,6 @@ export const CARD_COSTS: Record<string, number> = {
   cryo_lance: 2,
   rime_bastion: 2,
   frostbound_sentinel: 2,
-  riptide_sentinel: 2,
   dawn_rampart: 2,
   frost_bulwark: 2,
   abyssal_snap: 1,

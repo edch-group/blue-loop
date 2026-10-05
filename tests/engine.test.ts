@@ -171,7 +171,9 @@ describe('the tableau', () => {
     expect(martyr.stability).toBe(BALANCE.stabilityBurst);
     // (Straight heat, dawn heat with no conditions, lasts a day less than other cards.)
     expect(relay.stability).toBe(BALANCE.stabilityDawnHeat);
-    expect(give(me, ['deflector_grid'], 'hand')[0] && baseStability('deflector_grid')).toBe(BALANCE.stability);
+    expect(baseStability('standing_orders')).toBe(BALANCE.stability);
+    // (A 1-energy card never lasts longer than cheapMaxStability.)
+    expect(baseStability('deflector_grid')).toBe(BALANCE.cheapMaxStability);
     const bo = s.players[1].heat;
     s = endTurn(endTurn(s)); // Ada's turn 2: relay fires, both lose 1; the one-time Martyr fades and bursts
     expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
