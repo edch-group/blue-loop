@@ -26,6 +26,7 @@ export const KIND_COLOUR: Record<CardKind, string> = {
   global: '#9265d6', // purple
   command: '#8b909b', // silver: each deck's Heroes
   lightspeed: '#d4952a', // amber: set face down, springs on the enemy's day
+  relic: '#1fa6a0', // teal: lasting bonuses, brittle
 };
 
 const ring = (r: number, extra = '') => `<circle cx="50" cy="30" r="${r}" ${extra}/>`;

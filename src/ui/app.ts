@@ -4022,6 +4022,7 @@ export class App {
             kind('attack', 'Attack', `Heat your rival's sun, and attack their cards.`),
             kind('defence', 'Defence', 'Cool your sun, raise shields, guard your tableau.'),
             kind('growth', 'Growth', 'Draw, recover, grow and play more.'),
+            kind('relic', 'Relic', 'No attack, and never fades: a lasting bonus. Brittle: no defence, so any attack, heat or decay breaks it.'),
             kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. Pick a dawn effect as you play one; it stays ${B.stabilityCommand} days, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
             kind('lightspeed', 'Lightspeed', "Set face down. Springs during your rival's day."),
@@ -4596,7 +4597,15 @@ export class App {
           return `<span class="fused-behind" data-act="inspect-fused" data-arg="${c.uid}|${i + 1}" style="--fi:${i};--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`${fd.name} (fused): ${plainText(fd.text).replace(/^Fusion\. /, '')}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
         })
         .join('');
-    // (Resonance and forge show in the card's own numbers, not as a badge.)
+    // What its Fusion cards add, under its own text (a rule above each, in its colour), so the card says all it does.
+    const fusedText = (c.fused ?? [])
+      .map((f) => {
+        const fd = cardDef(f.defId);
+        const text = fd.text.replace(/^\{fusion\}\.\s*/, '');
+        return text ? `<span class="card-fused-text" style="--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`From ${fd.name}, fused onto it`)}">${cardTextHtml(text)}</span>` : '';
+      })
+      .join('');
+    // (Resonance and hammer show in the card's own numbers, not as a badge.)
     const resonance = '';
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
@@ -4604,13 +4613,13 @@ export class App {
         ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
-    const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
+    const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
     return `
       <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardBodyHtml(def, opts.option ?? c.choice, this.liveNumbers(c, opts))}</div>
+        <div class="card-text">${cardBodyHtml(def, opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </button>`;
   }

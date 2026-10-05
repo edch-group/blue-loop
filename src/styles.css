@@ -4643,3 +4643,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
    (which made a stacking context that held the gem beneath the type pill). */
 .card .art-wrap { filter: none; }
 .card .art-wrap .art-frame { box-shadow: 0 0 0 0.6px rgba(255, 255, 255, 0.95), 0 2px 3px rgba(40, 40, 60, 0.16); }
+/* What a card's Fusion cards add: under its own text, a thin rule above each in the fused card's colour. */
+.card .card-fused-text { display: block; margin-top: 0.25em; padding-top: 0.2em; border-top: 1px solid color-mix(in srgb, var(--fk) 55%, transparent); }
+/* A card with Fusion cards behind it: one shape with them. Its top corners square, their tabs exactly its width
+   (over its border too), with its own ring round the outside (cut off at their foot, where they meet it). */
+.card.card-has-fused { border-top-left-radius: 0; border-top-right-radius: 0; }
+.card.card-has-fused .fused-behind {
+  left: -1px; right: -1px; border-color: color-mix(in srgb, var(--fk) 55%, #c9ced8);
+  border-radius: 9px 9px 0 0; box-shadow: inherit; clip-path: inset(-24px -24px 0 -24px);
+}
