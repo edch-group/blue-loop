@@ -1306,9 +1306,28 @@ function dusk(state: GameState, p: PlayerState) {
   notePulse(state, p, null, 'start', p, 0);
   for (const card of cards) {
     if (state.winnerId || p.eliminated) break;
-    if (!p.tableau.includes(card)) continue;
+    // (A dimmed card rests: one played today, or one that attacked or acted, does nothing at dusk.)
+    if (!p.tableau.includes(card) || card.dimmed) continue;
     resolveEffects(state, p, card, duskEffects(card), 'turn');
   }
+}
+
+/**
+ * After dusk, a hand over the limit is discarded down to it: the cards the player picked, then (if still over)
+ * the costliest of the rest (a Hero kept while none leads their tableau).
+ */
+function trimHand(state: GameState, p: PlayerState, picked: string[] = []) {
+  const over = p.hand.length - BALANCE.maxHand;
+  if (over <= 0) return;
+  const chosen = [...new Set(picked)].map((uid) => p.hand.find((c) => c.uid === uid)).filter((c): c is CardInstance => !!c).slice(0, over);
+  const keepHero = !commandCard(p);
+  const rest = p.hand
+    .filter((c) => !chosen.includes(c))
+    .sort((a, b) => Number(keepHero && cardDef(a.defId).kind === 'command') - Number(keepHero && cardDef(b.defId).kind === 'command') || cardCost(b.defId) - cardCost(a.defId));
+  const out = [...chosen, ...rest.slice(0, over - chosen.length)];
+  p.hand = p.hand.filter((c) => !out.includes(c));
+  p.discard.push(...out);
+  log(state, `${p.name} holds more than ${BALANCE.maxHand} cards and discards ${out.map((c) => cardDef(c.defId).name).join(', ')}.`);
 }
 
 /** A card's dusk effects (its own and its Fusion cards'). */
@@ -1517,6 +1536,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
         passOn(state);
         break;
       }
+      trimHand(state, p, action.discard);
       state.keepPulses = true;
       advanceTurn(state);
       break;

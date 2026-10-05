@@ -177,6 +177,8 @@ type Sheet =
   | { kind: 'quit' }
   /** Ending the day with plays still left: are you sure? */
   | { kind: 'end-day' }
+  /** Ending the day holding more than the hand limit: which cards go (`picked`, by uid). */
+  | { kind: 'discard'; picked: string[] }
   | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string; /** Of a card in play with Fusion cards on it: which is shown (0 the card itself, then each fused card). */ tab?: number };
 
 /** Menu buttons that lead somewhere: the page they're on lifts away (and the star spins up) before the next one comes in. */
@@ -1194,6 +1196,16 @@ export class App {
     if (!s || !this.canAct() || this.pending) return;
     if (this.leftUndone().length && this.sheet?.kind !== 'end-day') {
       this.sheet = { kind: 'end-day' };
+      return this.render();
+    }
+    this.finishDay();
+  }
+
+  /** End the day: over the hand limit, the viewer first picks the cards to discard. */
+  private finishDay() {
+    const me = activePlayer(this.state!);
+    if (me.hand.length > BALANCE.maxHand) {
+      this.sheet = { kind: 'discard', picked: [] };
       return this.render();
     }
     this.sheet = null;
@@ -3111,8 +3123,21 @@ export class App {
       case 'end-turn':
         return this.requestEndDay();
       case 'end-day-confirm':
+        return this.finishDay();
+      case 'discard-pick': {
+        if (this.sheet?.kind !== 'discard') return;
+        const over = activePlayer(this.state!).hand.length - BALANCE.maxHand;
+        const picked = this.sheet.picked.includes(arg) ? this.sheet.picked.filter((u) => u !== arg) : [...this.sheet.picked, arg].slice(-over);
+        this.sheet = { kind: 'discard', picked };
+        sound.rustle();
+        return this.render();
+      }
+      case 'discard-confirm': {
+        if (this.sheet?.kind !== 'discard') return;
+        const discard = this.sheet.picked;
         this.sheet = null;
-        return this.dispatch({ type: 'endTurn' });
+        return this.dispatch({ type: 'endTurn', discard });
+      }
       case 'board-zoom':
         return this.setBoardZoom(this.boardZoom === arg ? null : (arg as 'rival' | 'mine'));
       case 'hero-panel':
@@ -4733,6 +4758,27 @@ export class App {
           'end your day?',
           `<p class="center-text">You still have ${esc(left.length > 1 ? `${left.slice(0, -1).join(', ')} and ${left[left.length - 1]}` : left[0] ?? 'things to do')}.</p>
            <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
+        );
+      }
+      case 'discard': {
+        const me = activePlayer(this.state!);
+        const over = me.hand.length - BALANCE.maxHand;
+        const picked = new Set(sh.picked);
+        // (Each card shown still: tapping it marks it to go, tapping again keeps it.)
+        const still = (c: CardInstance) =>
+          this.renderCard(c, { static: true })
+            .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+            .replace(/<\/button>\s*$/, '</div>')
+            .replace(/ data-act="[^"]*"/, '');
+        const cards = me.hand
+          .map((c) => `<button class="discard-pick ${picked.has(c.uid) ? 'on' : ''}" data-act="discard-pick" data-arg="${c.uid}" title="${picked.has(c.uid) ? 'Keep it' : 'Discard it'}">${still(c)}</button>`)
+          .join('');
+        const left = over - picked.size;
+        return this.sheetFrame(
+          `discard ${over} card${over === 1 ? '' : 's'}`,
+          `<p class="center-text">You can hold ${BALANCE.maxHand} cards at the end of your day. Pick ${over === 1 ? 'the card' : `the ${over} cards`} to discard.</p>
+           <div class="discard-grid">${cards}</div>
+           <div class="end-day-actions"><button class="btn-primary" data-act="discard-confirm" ${left ? 'disabled' : ''}>${left ? `pick ${left} more` : 'discard and end day'}</button><button class="btn" data-act="cancel">keep playing</button></div>`,
         );
       }
       case 'quit': {

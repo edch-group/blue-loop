@@ -376,6 +376,7 @@ describe('attacks and dimming', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     const [star] = give(me, ['evening_star'], 'tableau');
+    me.hand = me.hand.slice(0, 3); // (under the hand limit, so the card drawn stays)
     const hand = me.hand.length;
     s = applyAction(s, { type: 'endTurn' });
     const after = s.players.find((p) => p.id === me.id)!;
@@ -828,6 +829,32 @@ describe('recovery and removal', () => {
     expect(s.players[1].tableau).toHaveLength(0);
     expect(s.players[1].discard.map((x) => x.uid)).toContain(b.uid);
     expect(s.players[1].hand.map((x) => x.uid)).toEqual(expect.arrayContaining([a.uid, c.uid]));
+  });
+});
+
+describe('hand limit', () => {
+  it('discards a hand over the limit after dusk: the cards picked, then the costliest', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    give(me, ['coronal_lance', 'ion_cannon', 'star_breaker']);
+    expect(me.hand.length).toBe(BALANCE.maxHand + 3);
+    const lance = me.hand.find((c) => c.defId === 'coronal_lance')!;
+    s = applyAction(s, { type: 'endTurn', discard: [lance.uid] });
+    const after = s.players.find((p) => p.id === me.id)!;
+    expect(after.hand.length).toBe(BALANCE.maxHand);
+    expect(after.discard.map((c) => c.defId)).toContain('coronal_lance');
+    // The other two over the limit: the costliest went (Star Breaker, 4).
+    expect(after.discard.map((c) => c.defId)).toContain('star_breaker');
+  });
+
+  it('rests dimmed cards at dusk: a card played today (or that attacked) does nothing then', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.hand = [];
+    const [star] = give(me, ['evening_star'], 'tableau');
+    star.dimmed = true;
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players.find((p) => p.id === me.id)!.hand.length).toBe(0);
   });
 });
 

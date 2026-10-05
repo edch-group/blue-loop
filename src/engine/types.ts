@@ -474,7 +474,8 @@ export type Action =
       aimUid?: string;
     }
   | { type: 'setTarget'; targetId: string }
-  | { type: 'endTurn' }
+  /** Ends the day. After dusk a hand over the limit is discarded down to it: `discard` names the cards (any still over are picked for them). */
+  | { type: 'endTurn'; discard?: string[] }
   /** Use one of your hero's battle skills (campaign), on your own day. */
   | { type: 'heroSkill'; index: number }
   /** Use one of the abilities of the Hero leading from your Hero slot (one a day). */
