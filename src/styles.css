@@ -4459,11 +4459,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .turn-who span { font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; color: #b9bfca; transition: color 0.4s; }
 .turn-who span.on { color: #2f3a52; }
 .table-view:is(.zoom-rival, .zoom-mine) .board-plane > :is(.phase-track, .turn-who) { opacity: 0; }
-/* The first hover or tap on the hand only raises it: the card under the pointer stays in its place in the fan. */
-.hand > .card.no-lift, .dock:not(.dock-raised) .hand > .card:active {
-  transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg))) !important;
-  z-index: var(--hz) !important; box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18);
-}
 /* The preview pane (and its buttons) above End Day and the Hero's skills. */
 .stage { z-index: 17; }
 /* A card in the hand keeps a card's own shape (its width came from one size and its height from another,
@@ -4624,3 +4619,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* (An Anomaly in the hand: no purple rim, so the green one, "you can play this", reads plainly.) */
 .hand > .card.rarity-anomaly { border-color: #fff; box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18); }
 .hand > .card.rarity-anomaly { --rim: #fff; }
+/* The gem in the middle of the top edge, in a bump of the card itself (its face and its rim, whichever rim the
+   card wears now: green when it can be played, the deck colour in the deck builder...). The type pill moves
+   down a touch to clear it. */
+.card .art-wrap .gem { left: 50%; right: auto; top: calc(var(--cw, 100px) * -0.066); transform: translate(-50%, -50%); }
+.card .art-wrap .gem::after { border: var(--bump-w, 1px) solid var(--bump-ring, var(--rim)); }
+.card .card-type { top: calc(var(--cw, 100px) * 0.072); }
+.hand > .card.card-playable { --bump-ring: rgba(124, 199, 154, 0.8); --bump-w: 1.5px; }
+.db-card-in > .card { --bump-ring: color-mix(in srgb, var(--kc) 75%, transparent); --bump-w: 2px; }
+.card.card-choosable, .card.card-picked { --bump-ring: #fff; --bump-w: 2px; }

@@ -692,10 +692,7 @@ export class App {
     root.addEventListener('mouseover', (e) => {
       if (!mouse.matches || this.touch || this.screen !== 'game' || this.drag) return;
       const over = !!(e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone');
-      // (The card the pointer came in on doesn't lift as the hand rises: only once the pointer moves on to another.)
-      const card = (e.target as HTMLElement).closest?.<HTMLElement>('.hand > .card') ?? null;
-      this.root.querySelectorAll('.hand > .card.no-lift').forEach((c) => c !== card && c.classList.remove('no-lift'));
-      if (over && !this.handRaised && performance.now() >= this.dealtAt) card?.classList.add('no-lift');
+      // (The card under the pointer lifts as the hand rises, both at once.)
       // (Only raised here: it is lowered once the pointer leaves the hand's whole column, below.)
       if (over) this.raiseHand(true);
     });
