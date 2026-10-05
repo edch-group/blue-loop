@@ -90,7 +90,7 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 /** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
 const CAMPAIGN_EIGHTH = 0.42;
 /** The haze's level (the distorted synth that holds long chords in the second half of the form). */
-const CAMPAIGN_HAZE = 0.05;
+const CAMPAIGN_HAZE = 0.012;
 /** The gap between the notes of a rolled chord at the melody's height, in seconds. */
 const CAMPAIGN_ROLL = 0.045;
 /** Per chord (four bars of six eighths): the falling bass, the pad, and the two notes it rocks between. */
@@ -854,38 +854,44 @@ class SoundBoard {
   }
 
   /**
-   * One chord of the campaign score's haze: detuned saws on the chord, through a soft distortion and a gentle
-   * lowpass, swelling in, holding for the whole chord, and fading over the next (more slowly when it first enters).
+   * One chord of the campaign score's haze: per note, a pair of saws detuned very slightly, driven hard into its
+   * own distortion (so the grit is clear without the chord turning to mush), then a brighter lowpass, swelling in,
+   * holding for the whole chord, and fading over the next (more slowly when it first enters).
    */
   private haze(at: number, len: number, chord: string[], curve: Float32Array<ArrayBuffer>, entering: boolean, bus: GainNode) {
     const ctx = this.ctx!;
     const end = at + len;
-    const shaper = ctx.createWaveShaper();
-    shaper.curve = curve;
-    shaper.oversample = '2x';
+    const highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 140;
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.Q.value = 0.7;
-    filter.frequency.value = 1700;
+    filter.Q.value = 0.8;
+    filter.frequency.value = 3400;
     const g = ctx.createGain();
     const attack = entering ? 4 : 1.5;
     g.gain.setValueAtTime(0, at);
     g.gain.linearRampToValueAtTime(CAMPAIGN_HAZE, at + attack);
     g.gain.setValueAtTime(CAMPAIGN_HAZE, end);
     g.gain.linearRampToValueAtTime(0, end + 2.5);
-    shaper.connect(filter).connect(g).connect(bus);
-    for (const n of chord)
-      for (const detune of [-10, 10]) {
+    highpass.connect(filter).connect(g).connect(bus);
+    for (const n of chord) {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = curve;
+      shaper.oversample = '4x';
+      shaper.connect(highpass);
+      for (const detune of [-4, 4]) {
         const o = ctx.createOscillator();
         o.type = 'sawtooth';
         o.frequency.value = hz(n);
         o.detune.value = detune;
         const lv = ctx.createGain();
-        lv.gain.value = 0.07;
+        lv.gain.value = 0.3;
         o.connect(lv).connect(shaper);
         o.start(at);
         o.stop(end + 2.6);
       }
+    }
   }
 
   /**
@@ -927,11 +933,11 @@ class SoundBoard {
     const orbit = ctx.createBiquadFilter();
     orbit.type = 'lowpass';
     orbit.Q.value = 1.5;
-    orbit.frequency.value = 2600;
+    orbit.frequency.value = 1900;
     const sweep = ctx.createOscillator();
     sweep.frequency.value = 1 / 60;
     const sweepDepth = ctx.createGain();
-    sweepDepth.gain.value = 600;
+    sweepDepth.gain.value = 450;
     sweep.connect(sweepDepth).connect(orbit.frequency);
     const echo = ctx.createDelay(2);
     echo.delayTime.value = eighth * 3;
@@ -942,15 +948,21 @@ class SoundBoard {
     echoTone.frequency.value = 1500;
     const echoWet = ctx.createGain();
     echoWet.gain.value = 0.35;
+    // A gentle lowpass ahead of it all, taking a little more of the melody's top end off.
+    const melody = ctx.createBiquadFilter();
+    melody.type = 'lowpass';
+    melody.Q.value = 0.5;
+    melody.frequency.value = 4000;
+    melody.connect(orbit);
     orbit.connect(bus);
     orbit.connect(echo).connect(echoTone).connect(feedback).connect(echo);
     echoTone.connect(echoWet).connect(bus);
     sweep.start(t0);
-    this.musicNodes = [droneFilter, lfo, lfoDepth, droneGain, ...drones, orbit, sweep, sweepDepth, echo, feedback, echoTone, echoWet];
+    this.musicNodes = [droneFilter, lfo, lfoDepth, droneGain, ...drones, melody, orbit, sweep, sweepDepth, echo, feedback, echoTone, echoWet];
 
-    // The haze's gentle distortion: a soft tanh curve.
+    // The haze's distortion: a hard-driven tanh curve, clearly audible.
     const curve = new Float32Array(new ArrayBuffer(1024 * 4));
-    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(2.5 * ((i / (curve.length - 1)) * 2 - 1)) / Math.tanh(2.5);
+    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(6 * ((i / (curve.length - 1)) * 2 - 1)) / Math.tanh(6);
 
     /**
      * The form, four times round the chords and then over again: a minimal opening (the melody joining on the
@@ -989,17 +1001,17 @@ class SoundBoard {
       if (part === 0 && index < 3) return;
       const bell = (t: number, f: number, gain: number, dur = eighth * 5) => {
         const d = this.until(t);
-        this.voice(f, { dur, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: orbit });
-        this.voice(f, { dur: dur / 2, attack: 0.01, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: orbit });
+        this.voice(f, { dur, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: melody });
+        this.voice(f, { dur: dur / 2, attack: 0.01, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: melody });
       };
       const tones = new Set(c.pad.map((n) => midiOf(n) % 12));
       if (rising && index === 2) {
         // Open the melody's filter for the climb (it peaks halfway through the Em7), hold it to the end of the
         // Em7, then settle it back.
-        orbit.frequency.setValueAtTime(2600, at);
-        orbit.frequency.linearRampToValueAtTime(5500, at + chordLen + barLen * 2);
-        orbit.frequency.setValueAtTime(5500, at + chordLen * 2);
-        orbit.frequency.linearRampToValueAtTime(2600, at + chordLen * 2 + 3);
+        orbit.frequency.setValueAtTime(1900, at);
+        orbit.frequency.linearRampToValueAtTime(4000, at + chordLen + barLen * 2);
+        orbit.frequency.setValueAtTime(4000, at + chordLen * 2);
+        orbit.frequency.linearRampToValueAtTime(1900, at + chordLen * 2 + 3);
         return this.crescendo(at, barLen, tones, ['F3', 'C4', 'A4', 'E5'], 0, 4, bus, bell);
       }
       if (rising && index === 3) {
