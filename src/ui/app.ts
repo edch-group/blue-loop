@@ -234,6 +234,8 @@ const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
 /** How long the viewer's own card hangs in the preview pane (at least) before it lands, as the rival reads it. */
 const OWN_HOLD_MS = 1100;
+/** With nothing left to do today, how long the board rests before the day ends by itself. */
+const AUTO_END_MS = 1600;
 /** How much the hand's cards grow while it is raised to be read. */
 const HAND_GROW = 1.14;
 /** An attack: the card's lunge (it strikes a little past halfway; the attack lands once it is back). */
@@ -1202,6 +1204,25 @@ export class App {
       return this.render();
     }
     this.finishDay();
+  }
+
+  /**
+   * With nothing left that the viewer can do today (no card they can play, no attack, no Hero ability), the day
+   * ends by itself, once the board has settled (no choice open, no card in the preview pane, no banner showing).
+   */
+  private autoEndTimer = 0;
+  private scheduleAutoEnd() {
+    window.clearTimeout(this.autoEndTimer);
+    if (!this.canAutoEnd()) return;
+    this.autoEndTimer = window.setTimeout(() => {
+      if (!this.canAutoEnd()) return;
+      if (Date.now() < this.bannerFree || this.root.querySelector('.turn-banner')) return this.scheduleAutoEnd();
+      this.finishDay();
+    }, AUTO_END_MS);
+  }
+  private canAutoEnd(): boolean {
+    const s = this.state;
+    return this.screen === 'game' && !!s && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && this.leftUndone().length === 0;
   }
 
   /** End the day: over the hand limit, the viewer first picks the cards to discard. */
@@ -3230,6 +3251,7 @@ export class App {
   /** Cards in hand kept through the last redraw (not rebuilt). */
   private keptHand = new WeakSet<HTMLElement>();
   private render() {
+    this.scheduleAutoEnd();
     // Typing in the deck builder's search re-renders the page: keep the caret in the box.
     const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.dbSearch !== undefined ? document.activeElement.selectionStart : null;
     // Lists that scroll (the deck builder's card pool and deck, piles, setup pages) keep their place across a redraw.
