@@ -4565,6 +4565,8 @@ export class App {
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
     // On your day, a card that costs more energy than you have left is dimmed.
     if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
+    // ...and one that can be played now has a faint green rim.
+    if (opts.hand && !state && me && act && me.id === this.viewer().id && this.canPlayNow(me, c.defId)) state = 'card-playable';
     // A stat as it stands; on a card heat is aimed at, as that heat will leave it (in red, all the while it is
     // aimed); and while aiming more heat, as that would leave it, shown on hover.
     const pv = (icon: string, n: number, settled?: number, hover?: number) => {
