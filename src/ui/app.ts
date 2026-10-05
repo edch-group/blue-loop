@@ -19,7 +19,6 @@ import {
   canSetLightspeed,
   canSetFaceDown,
   cardDef,
-  isBurst,
   chooseAIAction,
   createGame,
   enemyChoices,
@@ -147,10 +146,12 @@ interface Stage {
   /** A rival's card the viewer must confirm they have read before the rival goes on. */
   confirm?: boolean;
   /**
-   * The viewer's own card that went straight to the discard pile (it takes no slot): shown while the rival
-   * reads it (online), and at least for as long as an auto-confirmed card is.
+   * The viewer's own card, just played: it hangs here until the rival has read it (online), or a moment
+   * (against the AI), and then goes to the board (or the discard pile).
    */
   own?: boolean;
+  /** The card's uid, when it is the viewer's own (so it flies from here to where it lands). */
+  uid?: string;
   /** The option the player picked on a card with choices (a Command card's dawn effect): highlighted on it. */
   option?: string;
   /** A sprung Lightspeed card: the enemy card it answered, shown beside it. */
@@ -225,6 +226,8 @@ const AI_GAME_KEY = 'blue-loop:ai-game';
 /** A rival's cards land by themselves after a moment, rather than waiting for OK. */
 const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
+/** How long the viewer's own card hangs in the preview pane (at least) before it lands, as the rival reads it. */
+const OWN_HOLD_MS = 1100;
 /** An attack: the card's lunge (it strikes a little past halfway; the attack lands once it is back). */
 const LUNGE_MS = 900;
 /** When in the lunge the card strikes (a share of it): the blow lands then. */
@@ -963,11 +966,12 @@ export class App {
     if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = null;
     if (actor.id !== you && last.action.type === 'playCard') this.stage = this.remoteStage(last, next);
-    else if (actor.id === you) this.stage = this.ownBurstStage(actor, last.action);
+    else if (actor.id === you) this.stage = this.ownStage(actor, last.action);
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     const land = () => {
       const before = snapshot(this.root);
+      if (this.stage?.own) this.stage = null;
       if (last.action.type !== 'setTarget') backdrop.spin();
       this.state = next;
       if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, last.action);
@@ -983,6 +987,8 @@ export class App {
       this.stageEntrance(actor.id);
       return;
     }
+    // The viewer's own card hangs in the preview pane until the rival has read it.
+    if (this.stage?.own) return this.holdOwn(land);
     // An attack lands as the attacker strikes.
     if (last.action.type === 'attack' && this.lunge(prev, last.action)) this.landAtStrike(land);
     else land();
@@ -1405,6 +1411,8 @@ export class App {
     // Online, the room plays the move and sends back the result.
     if (this.online) {
       this.online.act(action);
+      // (Your card goes straight to the pane while the room plays it.)
+      if (action.type === 'playCard') this.stage = this.ownStage(activePlayer(prev), action);
       this.pending = null;
       this.render();
       return;
@@ -1422,13 +1430,15 @@ export class App {
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
-    this.stage = actor.isAI ? this.stageFor(actor, action) : this.ownBurstStage(actor, action);
+    this.stage = actor.isAI ? this.stageFor(actor, action) : this.ownStage(actor, action);
     // With someone watching, an AI's card waits on the stage until they have read it.
     if (this.stage && !this.stage.own && animate && !isGameOver(next) && next.players.some((p) => !p.isAI)) this.stage.confirm = true;
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     const land = () => {
       const before = animate ? snapshot(this.root) : null;
+      // (The viewer's own card leaves the pane for the board as the move lands.)
+      if (this.stage?.own) this.stage = null;
       if (animate && action.type !== 'setTarget') backdrop.spin();
       this.state = next;
       // An AI's attacks bring its target's tableau onto the table.
@@ -1460,6 +1470,8 @@ export class App {
       this.stageEntrance(actor.id);
       return;
     }
+    // The viewer's own card hangs in the preview pane a moment before it lands.
+    if (this.stage?.own && animate) return this.holdOwn(land);
     // An attack lands the moment the attacker strikes.
     if (action.type === 'attack' && animate && (this.render(), this.lunge(prev, action))) return this.landAtStrike(land);
     land();
@@ -1571,27 +1583,26 @@ export class App {
     this.render();
   }
 
-  /**
-   * The viewer's own card that resolves and goes straight to the discard pile: it stays on the stage (the
-   * rival's view shows it there too) until the rival has read it online, and for at least the auto-confirm time.
-   */
-  private ownBurstStage(actor: PlayerState, action: Action): Stage | null {
-    if (action.type !== 'playCard' || action.faceDown) return null;
+  /** The viewer's own card, just played: it hangs in the preview pane (see holdOwn) before it lands. */
+  private ownStage(actor: PlayerState, action: Action): Stage | null {
+    if (action.type !== 'playCard') return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
-    if (!card || !isBurst(cardDef(card.defId))) return null;
-    const stage: Stage = { defId: card.defId, actorId: actor.id, own: true, caption: 'you play', target: action.enemyUid ?? action.aimUid };
+    if (!card) return null;
+    const faceDown = !!action.faceDown || cardDef(card.defId).kind === 'lightspeed';
+    return { defId: card.defId, uid: card.uid, actorId: actor.id, own: true, caption: faceDown ? 'you set it face down' : 'you play', option: action.choice, target: action.enemyUid ?? action.aimUid };
+  }
+
+  /** The viewer's own card hangs in the pane until the rival has read it (online), or a moment against the AI; then it lands. */
+  private holdOwn(land: () => void) {
+    this.landing = land;
+    this.render();
     const since = Date.now();
     const check = () => {
-      if (this.stage !== stage) return;
-      if (Date.now() - since < AUTO_CONFIRM_MS || (this.online && this.net.waitFor === 'rival')) return void window.setTimeout(check, 250);
-      this.stage = null;
-      const el = this.root.querySelector<HTMLElement>('.stage');
-      if (!el) return this.render();
-      el.classList.add('stage-out');
-      window.setTimeout(() => this.stage === null && this.render(), 400);
+      if (this.landing !== land) return;
+      if (Date.now() - since < OWN_HOLD_MS || (this.online && this.net.waitFor === 'rival')) return void window.setTimeout(check, 150);
+      this.flushLanding();
     };
-    window.setTimeout(check, AUTO_CONFIRM_MS);
-    return stage;
+    window.setTimeout(check, 150);
   }
 
   private stageFor(actor: PlayerState, action: Action): Stage | null {
@@ -4045,7 +4056,11 @@ export class App {
   private renderDock(): string {
     const me = this.viewer();
     const hidden = this.needsHandoff();
-    const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand.map((c) => this.renderCard(c, { hand: true })).join('');
+    const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand
+          // (The card picked, or just played, is in the preview pane, not the hand.)
+          .filter((c) => c.uid !== this.pending?.uid && c.uid !== this.stage?.uid)
+          .map((c) => this.renderCard(c, { hand: true }))
+          .join('');
     return `
       <section class="dock">
         <div class="hand-zone">
@@ -4277,6 +4292,15 @@ export class App {
     const st = this.stage;
     const s = this.state!;
     if (!st && this.heroPanel && !isGameOver(s) && this.canAct() && this.heroActions(this.viewer()).length) return this.renderHeroPanel();
+    // A card picked from your hand: it waits here while you choose where it goes and what it does.
+    const picked = !st && this.pending && !this.pending.attack && this.pending.ability === undefined ? activePlayer(s).hand.find((c) => c.uid === this.pending!.uid) : undefined;
+    if (picked) {
+      const html = this.renderCard(picked, { static: true, option: this.pending!.choice })
+        .replace(/^(\s*)<button class="card /, `$1<div data-uid="${picked.uid}" class="card card-still `)
+        .replace(/<\/button>\s*$/, '</div>')
+        .replace(/ data-act="[^"]*"/, '');
+      return `<div class="stage stage-picked">${html}</div>`;
+    }
     // Online, while your rival reads your card: say so (you can't act until they have).
 
     if (!st || isGameOver(s)) return '';
@@ -4288,7 +4312,8 @@ export class App {
         .replace(/<\/button>\s*$/, '</div>')
         .replace(/ data-act="[^"]*"/, '')
         .replace(/ data-card="[^"]*"/, '');
-    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : still('stage', st.defId, st.option);
+    // (Your own card keeps its uid here, so it flies from here to where it lands.)
+    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : still('stage', st.defId, st.option).replace('<div class="card ', st.uid ? `<div data-uid="${st.uid}" class="card ` : '<div class="card ');
     // A sprung Lightspeed card: the card that sprang it stands where a played card does (plain, to be read),
     // and the Lightspeed card beside it on the left, the same size.
     if (st.against) {
