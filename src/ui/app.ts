@@ -701,7 +701,13 @@ export class App {
     root.addEventListener(
       'mousemove',
       (e) => {
-        if (!mouse.matches || this.touch || !this.handRaised || this.drag) return;
+        if (!mouse.matches || this.touch || this.drag || this.screen !== 'game') return;
+        // (A hover that came while the hand couldn't rise, still being dealt or with a card in the preview pane,
+        // raises it once it can: the pointer needn't leave and come back.)
+        if (!this.handRaised) {
+          if ((e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone')) this.raiseHand(true);
+          return;
+        }
         const cards = [...this.root.querySelectorAll<HTMLElement>('.table-view > .dock .hand > .card')].map((c) => c.getBoundingClientRect());
         if (!cards.length) return this.raiseHand(false);
         const left = Math.min(...cards.map((r) => r.left)), right = Math.max(...cards.map((r) => r.right));
@@ -1461,6 +1467,12 @@ export class App {
     // (The hand can't be raised while it is being dealt.)
     this.raiseHand(false);
     this.dealtAt = performance.now() + 350 + cards.length * DEAL_STEP_MS + 520;
+    // (A mouse resting on the hand as the deal ends raises it then.)
+    window.setTimeout(() => {
+      const at = this.mouseAt;
+      if (!at || this.touch || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+      if (document.elementFromPoint(at.x, at.y)?.closest('.table-view > .dock .hand-zone')) this.raiseHand(true);
+    }, this.dealtAt - performance.now() + 20);
     cards.forEach((el, i) => {
       this.dealCard(el, 350 + i * DEAL_STEP_MS);
       sound.draw(0.35 + (i * DEAL_STEP_MS) / 1000);
