@@ -4821,3 +4821,16 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 /* (The bump and its rim end exactly at the foot of the card's 1px border, so the rim joins the edge line.) */
 .card.card .art-wrap .gem::before { clip-path: inset(-6px -6px calc(50% - 1px) -6px); }
+/* The card's distinctive top-left curve, larger so it reads as meant: 0.18 of the card's width (50px on the
+   inspector's card), its picture's corner following it; the other corners stay 0.08. */
+.card:not(.card-landscape) { --r-tl: calc(var(--cw, 100px) * 0.18); border-top-left-radius: var(--r-tl); }
+.card:not(.card-landscape) .art-frame { border-top-left-radius: calc(var(--cw, 100px) * 0.125); }
+/* Fused tabs behind follow both top corners: the big curve on the left, the small one on the right. */
+.card .fused-behind {
+  --frl: calc(var(--cw, 100px) * 0.08); --frr: calc(var(--cw, 100px) * 0.08);
+  border-radius: var(--frl) var(--frr) 0 0;
+  height: calc(var(--fh) * (var(--fi) + 1) + var(--frl)); bottom: calc(100% + 1px - var(--frl));
+  -webkit-mask: linear-gradient(#000, #000) 0 0 / 100% calc(100% - var(--frl)) no-repeat, radial-gradient(circle at 100% 100%, transparent calc(var(--frl) - 0.5px), #000 var(--frl)) 0 100% / var(--frl) var(--frl) no-repeat, radial-gradient(circle at 0 100%, transparent calc(var(--frr) - 0.5px), #000 var(--frr)) right 0 bottom calc(var(--frl) - var(--frr)) / var(--frr) var(--frr) no-repeat;
+  mask: linear-gradient(#000, #000) 0 0 / 100% calc(100% - var(--frl)) no-repeat, radial-gradient(circle at 100% 100%, transparent calc(var(--frl) - 0.5px), #000 var(--frl)) 0 100% / var(--frl) var(--frl) no-repeat, radial-gradient(circle at 0 100%, transparent calc(var(--frr) - 0.5px), #000 var(--frr)) right 0 bottom calc(var(--frl) - var(--frr)) / var(--frr) var(--frr) no-repeat;
+}
+.card:not(.card-landscape) .fused-behind { --frl: var(--r-tl); }
