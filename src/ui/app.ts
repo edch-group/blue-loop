@@ -254,6 +254,8 @@ const FADE_OUT = { duration: 520, easing: 'cubic-bezier(.8,.2,.8,.2)', endOpacit
 const KW_TIP_DELAY_MS = 350;
 /** Scrolling areas whose position survives a redraw. */
 const SCROLL_KEEP = '.db-pool, .db-rows, .db-list-body, .setup-body, .pile-grid, .log-list';
+/** An eye: look closely at a tableau. */
+const EYE_ICON = '<svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3.2"/></svg>';
 const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
 /** Clicks that make their own sound (or none): moves on the table and picks on the map. */
 const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-host', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
@@ -3805,12 +3807,15 @@ export class App {
       </main>`;
   }
 
-  /** Zoom onto a tableau (theirs above, yours below), or back out to the whole board. */
+  /** Zoomed onto a tableau: back out to the whole board, or across to the other player's. (Unzoomed, each tableau has its own eye.) */
   private renderZoomControls(): string {
     const z = this.boardZoom;
-    const btn = (side: 'rival' | 'mine', label: string) =>
-      `<button class="zoom-btn${z === side ? ' on' : ''}" data-act="board-zoom" data-arg="${side}" title="${z === side ? 'Zoom back out (Esc)' : `Zoom in on ${label} (or double-tap it; pinch on a phone)`}">${z === side ? '<span>⤡</span>' : '<span>⤢</span>'}<small>${z === side ? 'back' : label}</small></button>`;
-    return `<div class="board-zoom">${btn('rival', 'theirs')}${btn('mine', 'yours')}</div>`;
+    if (!z) return '<div class="board-zoom"></div>';
+    const other = z === 'mine' ? 'rival' : 'mine';
+    return `<div class="board-zoom">
+      <button class="zoom-btn" data-act="board-zoom" data-arg="${z}" title="Back to the whole board (Esc)"><span>‹</span><small>back</small></button>
+      <button class="zoom-btn" data-act="board-zoom" data-arg="${other}" title="Look at ${other === 'mine' ? 'your' : 'their'} tableau instead">${EYE_ICON}<small>${other === 'mine' ? 'you' : 'opponent'}</small></button>
+    </div>`;
   }
 
   /** Zoom the board onto one tableau, or out (null): the board itself moves, so everything on it still works. */
@@ -4084,7 +4089,7 @@ export class App {
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
           <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
-          <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
+          <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
       </div>`;

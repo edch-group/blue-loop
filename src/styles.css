@@ -4395,7 +4395,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .table-view.zoom-mine > :is(.dock, .hud, .turn-controls, .hero-skills, .phase-track, .result-anchor) { opacity: 0; pointer-events: none; transition: opacity 0.25s; }
 .table-view.zoom-rival > .dock, .table-view.zoom-mine > .dock { transform: translateY(80%); }
 .board-zoom { position: fixed; left: max(10px, var(--sa-l, 0px)); top: 50%; transform: translateY(-50%); z-index: 13; display: grid; gap: 10px; }
-.zoom-btn { display: grid; justify-items: center; gap: 1px; width: 46px; padding: 6px 0 5px; border: 1px solid #fff; border-radius: 14px; background: rgba(255, 255, 255, 0.85); box-shadow: var(--shadow); color: var(--ink-soft); cursor: pointer; font-family: var(--display); }
+.zoom-btn { display: grid; justify-items: center; gap: 1px; min-width: 46px; padding: 6px 7px 5px; border: 1px solid #fff; border-radius: 14px; background: rgba(255, 255, 255, 0.85); box-shadow: var(--shadow); color: var(--ink-soft); cursor: pointer; font-family: var(--display); }
 .zoom-btn span { font-size: 1rem; line-height: 1; }
 .zoom-btn small { font-size: 0.46rem; letter-spacing: 0.14em; text-transform: uppercase; }
 .zoom-btn.on { background: #3a4256; color: #fff; border-color: #3a4256; }
@@ -4422,3 +4422,21 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* An ability's energy cost: the card's own cost dots (green, lit, white-rimmed), flush left, then " : ". */
 .kw-cost .gain-dots { margin-left: 0; }
 .kw-cost .gain-dots i { width: 0.78em; height: 0.78em; background: #7cc79a; border: 0.12em solid #fff; box-shadow: 0 0 6px rgba(110, 196, 146, 0.75), 0 1px 2px rgba(20, 40, 30, 0.35); }
+/* Each tableau's eye, on its owner's left (yours on the left of your row; theirs, facing you, on the right of
+   theirs), level with the row: tap to look closely at that tableau. */
+.tableau-eye {
+  position: absolute; top: 50%; z-index: 2; display: grid; place-items: center; padding: 0; cursor: pointer;
+  width: clamp(26px, calc(var(--tcw) * 0.3), 40px); aspect-ratio: 1; margin-top: calc(clamp(26px, calc(var(--tcw) * 0.3), 40px) / -2);
+  border: 1px solid #fff; border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: 0 2px 8px rgba(70, 76, 100, 0.2); color: #5b6170;
+  transition: transform 0.15s, background 0.15s;
+}
+.tableau-eye-mine { right: calc(100% + var(--frame-pad, 12px) + 8px); }
+.tableau-eye-rival { left: calc(100% + var(--frame-pad, 12px) + 8px); }
+.tableau-eye:hover { background: #fff; transform: scale(1.08); }
+.eye-icon { width: 62%; height: auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.zoom-btn .eye-icon { width: 20px; }
+.table-view.zoom-rival .tableau-eye, .table-view.zoom-mine .tableau-eye { display: none; }
+.board-zoom:empty { display: none; }
+/* A Hero's abilities: a light line between each (they can run to more than one line). */
+.card-ability ~ .card-ability { margin-top: 0.3em; padding-top: 0.3em; border-top: 1px solid rgba(255, 255, 255, 0.22); }
+.card:not(.kind-command) .card-ability ~ .card-ability { border-top-color: rgba(90, 96, 110, 0.18); }
