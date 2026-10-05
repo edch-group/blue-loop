@@ -4476,3 +4476,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 /* The preview pane (and its buttons) above End Day and the Hero's skills. */
 .stage { z-index: 17; }
+/* A card in the hand keeps a card's own shape (its width came from one size and its height from another,
+   leaving it short and squat): as tall as its width makes a card, the extra hanging below the screen until raised. */
+.table-view > .dock .hand > .card:not(.card-landscape) { height: calc(var(--hw) * 1.4); }
