@@ -708,11 +708,17 @@ for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] 
 // Attack ratings (attack.ts): by rule, unless a card gives its own.
 for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.cost ?? 1, !isBurst(c));
 // A race's Sturdy (the Korrath) is the cards' own: added to their Sturdy, and written into their text.
+// Its Sting (the Vorthane) is written into theirs too (it still strikes back as the race's, in counterDamage).
+const raiseKeyword = (text: string, kw: string, n: number) =>
+  new RegExp(`\\{${kw}:\\d+\\}`).test(text) ? text.replace(new RegExp(`\\{${kw}:(\\d+)\\}`), (_, k: string) => `{${kw}:${Number(k) + n}}`) : `{${kw}:${n}}. ${text}`;
 for (const c of CARDS) {
-  const n = raceTrait(c.race)?.sturdy ?? 0;
-  if (!n || c.fusion || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
-  c.defence = (c.defence ?? 0) + n;
-  c.text = /\{sturdy:\d+\}/.test(c.text) ? c.text.replace(/\{sturdy:(\d+)\}/, (_, k: string) => `{sturdy:${Number(k) + n}}`) : `{sturdy:${n}}. ${c.text}`;
+  const t = raceTrait(c.race);
+  if (!t || c.fusion || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
+  if (t.sturdy) {
+    c.defence = (c.defence ?? 0) + t.sturdy;
+    c.text = raiseKeyword(c.text, 'sturdy', t.sturdy);
+  }
+  if (t.sting) c.text = raiseKeyword(c.text, 'sting', t.sting);
 }
 
 /**

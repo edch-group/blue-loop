@@ -582,14 +582,14 @@ Each player is one of eight races (races.ts). Every race has a **bonus and a ner
 | --- | --- | --- | --- | --- |
 | Aureline | Lancers of light: attack cards that power each other | Sun-lances: attack cards +1 attack | Unarmoured: −1 defence | |
 | Xel'Naru | Crystal overloaders: run hot, pay off as cards leave | Shatter: when one leaves your tableau, heat 1 at the rival | Brittle: −1 stability | |
-| Vorthane | Tidal bells: shields, kept, and stinging | Barbed: Sting 1 | Slow tides: −1 attack (never below 1) | |
+| Vorthane | Tidal bells: shields, kept, and stinging | Sting: +1 Sting on their cards that stay (written into each card’s own Sting) | Slow tides: −1 attack (never below 1) | |
 | Ixquor | The hive: go wide, ramp, grow | Regrowth: +1 stability | Soft-bodied: −1 defence | |
 | Nyxari | Void-stalkers | Darkspeed: their attackers and Heroes can attack or act the day they come into play (not dimmed); their other cards come in dimmed as anyone's do | Fleeting: −2 stability | Veilwalker (Lightspeed traps), Unmaker (removal) |
 | Korrath | Forge-smiths | Sturdy: +2 Sturdy on their cards that stay (written into each card's own Sturdy) | Ponderous: −1 attack (never below 1) | Forgeborn (Fusion grafts), Bastion-kin (Guards) |
 | Seren | Star-readers | Star-charted: attuned cards attune once more | Frail: −1 stability | Tidecaster (orbit), Seer (draw, recover, attune) |
 | Pyrr | Flare-born | +1 attack, +2 while overheated | Self-immolating: each attack heats their own sun 1 | Flarekin (spend-all bursts), Cinderborn (run hot) |
 
-A trait that only changes a card's own attack or stability (Sun-lances, Fractured, Slow tides, Regrowth, Fleeting, Ponderous, Frail, and Flare-born's +1), and the Korrath's Sturdy (added to each card's own Sturdy), is folded into that card's numbers, not shown as a keyword; the others (the defence nerfs, which depend on the slot, Shatter, Barbed, Darkspeed, Star-charted, Flare-born while overheated, Self-immolating) stay keywords on the card text.
+A trait that only changes a card's own attack or stability (Sun-lances, Fractured, Slow tides, Regrowth, Fleeting, Ponderous, Frail, and Flare-born's +1), the Korrath's Sturdy and the Vorthane's Sting (added to each card's own Sturdy or Sting), is folded into that card's numbers, not shown as a keyword; the others (the defence nerfs, which depend on the slot, Shatter, Darkspeed, Star-charted, Flare-born while overheated, Self-immolating) stay keywords on the card text.
 
 The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2, a 3 and a cost-4 Anomaly bomb), and a starter each: Night Court, Forge Clans, Starwatch, Wildfire. All eight are in the campaign: any race can lead, and the rivals are drawn at random (seeded) from the other seven, each with generals, skill trees, gear, ships and emblems of their own.
 
