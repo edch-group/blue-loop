@@ -4911,8 +4911,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
    each layer on its own clock and out of step with other cards (--gp). Only rotate, scale and opacity move,
    which the compositor runs off the main thread. */
 .gem .gem-light { display: none; }
-/* (The light images are 1 / 0.3 gem-widths across, centred on the gem.) */
-.card .gem .gem-light { display: block; position: absolute; inset: -116.67%; z-index: -2; pointer-events: none; opacity: 0.85; }
+/* (The light images are 1 / 0.26 gem-widths across, centred on the gem.) */
+.card .gem .gem-light { display: block; position: absolute; inset: -142.3%; z-index: -2; pointer-events: none; opacity: 1; }
 .card.kind-command .gem .gem-light { opacity: 1; }
 .gem-light .gl { position: absolute; inset: 0; display: block; background-size: 100% 100%; will-change: transform, opacity; }
 .gl-spikes { background-image: var(--gem-lightDwarfSpikes); animation: glBreathe 3.8s ease-in-out infinite; animation-delay: calc(var(--gp) * -3.8s); }

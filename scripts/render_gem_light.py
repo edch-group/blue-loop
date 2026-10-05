@@ -7,7 +7,7 @@ sun's corona streaming out in curling streamers with prominences looping off its
 accretion streaks spiralling in and its lensed ring. Each is a few layers that CSS turns, breathes and
 flickers out of step (styles.css, "The rarity gem's light"), so the light never repeats.
 
-Each image is a little over three gem-widths across with the gem in the middle (its window, radius G, is left dark: the
+Each image is nearly four gem-widths across with the gem in the middle (its window, radius G, is left dark: the
 gem covers it). Alpha carries the light, so it reads over the white card and over the picture alike.
 """
 import os
@@ -22,7 +22,7 @@ c = (N - 1) / 2
 dx, dy = (x - c) / (N / 2), (y - c) / (N / 2)
 r = np.hypot(dx, dy)
 th = np.arctan2(dy, dx)
-G = 0.3            # the gem's radius, in this image's half-widths (the image is 1 / G gem-widths across)
+G = 0.26           # the gem's radius, in this image's half-widths (the image is 1 / G gem-widths across)
 px = 2 / N         # one pixel, in the same units
 
 
@@ -103,24 +103,24 @@ ICE, WHITE, DEEP = [0.6, 0.78, 1.0], [0.92, 0.97, 1.0], [0.32, 0.5, 0.95]
 near = np.maximum(r - G, 0)
 
 L = Light()   # its glare, with faint diffraction spikes (four, and four fainter between)
-L.add(1.1 * np.exp(-near / 0.07), mix(WHITE, ICE, near / 0.15))
-rays(L, 1, 0, 0.0045, 0.22, WHITE, ICE, 0.7, angles=np.radians([0, 90, 180, 270]))
-rays(L, 2, 0, 0.0035, 0.1, WHITE, ICE, 0.35, angles=np.radians([45, 135, 225, 315]))
+L.add(2.0 * np.exp(-near / 0.08), mix(WHITE, ICE, near / 0.16))
+rays(L, 1, 0, 0.005, 0.26, WHITE, ICE, 1.4, angles=np.radians([0, 90, 180, 270]))
+rays(L, 2, 0, 0.004, 0.12, WHITE, ICE, 0.7, angles=np.radians([45, 135, 225, 315]))
 L.save('light-dwarf-spikes.png')
 
 for i, seed in enumerate([11, 12]):   # two fields of very fine radial grain, turned slowly against each other: shimmer
     L = Light()
     grain = polar_noise(seed, 1440, 128, 0.7, 26)
     grain = np.clip(grain * 1.6 - 0.65, 0, 1) ** 1.8
-    L.add(3.2 * grain * np.exp(-near / 0.13), mix(WHITE, DEEP, near / 0.3))
+    L.add(6.0 * grain * np.exp(-near / 0.15), mix(WHITE, DEEP, near / 0.32))
     L.save(f'light-dwarf-shimmer{i + 1}.png')
 
 L = Light()   # a few motes of light caught in it
 g = np.random.default_rng(21)
-for _ in range(10):
+for _ in range(16):
     rr = G * 1.15 + (0.85 - G * 1.15) * g.random() ** 1.5; aa = g.random() * 2 * np.pi
     d2 = (dx - rr * np.cos(aa)) ** 2 + (dy - rr * np.sin(aa)) ** 2
-    L.add((0.5 + 0.5 * g.random()) * (1.1 - rr) * np.exp(-d2 / (2 * (px * 0.7) ** 2)), WHITE)
+    L.add((1.0 + 1.0 * g.random()) * (1.1 - rr) * np.exp(-d2 / (2 * (px * 0.8) ** 2)), WHITE)
 L.save('light-dwarf-sparks.png')
 
 # ---------------------------------------------------------------- Stellar: a sun's corona spilling over its socket
@@ -136,8 +136,8 @@ for i, (seed, warp) in enumerate([(31, 0.35), (32, -0.28)]):   # the corona: fin
     s = polar_noise(seed, 1080, 128, 1.2, 20, warp)
     s2 = polar_noise(seed + 100, 360, 128, 4, 12, warp * 1.3)
     streak = np.clip(s * 1.5 - 0.66, 0, 1) ** 2 * (0.4 + 0.8 * s2)
-    L.add(5.5 * streak * np.exp(-near / (0.1 + 0.08 * s2)), sun_heat(0.25 + near / 0.3))
-    L.add(0.7 * np.exp(-near / 0.04), CORE)
+    L.add(10.0 * streak * np.exp(-near / (0.12 + 0.09 * s2)), sun_heat(0.25 + near / 0.32))
+    L.add(1.4 * np.exp(-near / 0.05), CORE)
     L.save(f'light-sun-corona{i + 1}.png')
 
 for i, seed in enumerate([41, 42]):   # prominences: thin threads of plasma arching off the rim, broken and faint
@@ -154,25 +154,25 @@ for i, seed in enumerate([41, 42]):   # prominences: thin threads of plasma arch
             pts = np.stack([rr * np.cos(aa), rr * np.sin(aa)], axis=1)
             knots = np.interp(t, np.linspace(0, 1, 12), g.random(12)) ** 2     # brighter and dimmer along it
             w = (0.25 + 0.75 * knots) / len(t) * 90
-            L.add(splat(pts, w, 1.0) * 0.55, sun_heat(np.full((N, N), 0.3)))
-            L.add(splat(pts, w, 3.0) * 0.9, ORANGE)
+            L.add(splat(pts, w, 1.0) * 1.0, sun_heat(np.full((N, N), 0.3)))
+            L.add(splat(pts, w, 3.0) * 1.6, ORANGE)
     L.save(f'light-sun-flares{i + 1}.png')
 
 # ---------------------------------------------------------------- Anomaly: light dragged round a black hole
 LILAC, VIOLET, MAGENTA, NIGHT = [0.9, 0.84, 1.0], [0.6, 0.4, 1.0], [0.82, 0.36, 0.95], [0.26, 0.1, 0.5]
 
-for i, (seed, k, gain) in enumerate([(51, 2.2, 4.2), (52, 1.5, 3.0)]):   # dust lanes along spirals: noise, swirled
+for i, (seed, k, gain) in enumerate([(51, 2.2, 8.0), (52, 1.5, 6.0)]):   # dust lanes along spirals: noise, swirled
     L = Light()
     lanes = polar_noise(seed, 1080, 128, 1.0, 18, k)
     broad = polar_noise(seed + 100, 240, 128, 6, 10, k)
     lane = np.clip(lanes * 1.6 - 0.7, 0, 1) ** 1.8 * (0.3 + 0.9 * broad)
     col = mix(mix(LILAC, VIOLET, near / 0.25), MAGENTA, np.clip(broad - 0.55, 0, 1) * 2)
-    L.add(gain * lane * np.exp(-near / 0.16), col)
+    L.add(gain * lane * np.exp(-near / 0.18), col)
     L.save(f'light-hole-swirl{i + 1}.png')
 
 L = Light()   # the lensed ring just outside the socket, rippling, and a dim violet haze
 ripple = polar_noise(61, 720, 64, 2, 2)
 ring = np.exp(-((r - G * 1.12) / (0.006 + 0.006 * ripple)) ** 2) * (0.4 + 0.8 * ripple)
-L.add(1.2 * ring, mix(LILAC, VIOLET, ripple))
-L.add(0.45 * np.exp(-near / 0.1), mix(VIOLET, NIGHT, near / 0.25))
+L.add(2.2 * ring, mix(LILAC, VIOLET, ripple))
+L.add(0.9 * np.exp(-near / 0.12), mix(VIOLET, NIGHT, near / 0.28))
 L.save('light-hole-lens.png')
