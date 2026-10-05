@@ -132,7 +132,7 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_forge_hammer', name: 'Forge Hammer', kind: 'attack', race: 5, sub: 'forgeborn', cost: 2,
-    text: '{hammer:1}. {sturdy:1}.',
+    text: '{forge:1}. {sturdy:1}.',
     defence: 1, passive: [{ type: 'adjacent', amounts: [1], kind: 'attack' }],
   },
   {

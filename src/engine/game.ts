@@ -1590,7 +1590,7 @@ export function baseAttack(def: CardDef): number {
   return a > 0 ? Math.max(1, a + (raceTrait(def.race)?.attack ?? 0)) : 0;
 }
 
-/** A card's attack as it stands: its rating, with whatever boosts heat (Hammer, a Hero's racial buff...). */
+/** A card's attack as it stands: its rating, with whatever boosts heat (Forge, a Hero's racial buff...). */
 export function cardAttack(state: GameState, p: PlayerState, card: CardInstance): number {
   const def = cardDef(card.defId);
   let base = baseAttack(def);

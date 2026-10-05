@@ -4605,7 +4605,7 @@ export class App {
         return text ? `<span class="card-fused-text" style="--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`From ${fd.name}, fused onto it`)}">${cardTextHtml(text)}</span>` : '';
       })
       .join('');
-    // (Resonance and hammer show in the card's own numbers, not as a badge.)
+    // (Resonance and forge show in the card's own numbers, not as a badge.)
     const resonance = '';
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
@@ -4625,7 +4625,7 @@ export class App {
   }
 
   /**
-   * A card's heat, cooling and shields as they now stand (its neighbours' resonance, Hammer cards, the
+   * A card's heat, cooling and shields as they now stand (its neighbours' resonance, Forge cards, the
    * table): in play its dawn's numbers, in your hand what it would do as you play it.
    */
   private liveNumbers(c: CardInstance, opts: { hand?: boolean; owner?: PlayerState }): Record<number, number> {

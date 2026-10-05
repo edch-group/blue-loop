@@ -225,7 +225,7 @@ export const CARDS: CardDef[] = [
     text: '{dawn}: {heat:2}.',
     onTurn: [{ type: 'heat', amount: 2, to: 'target' }],
   },
-  { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: '{hammer:2}.', passive: [{ type: 'adjacent', amounts: [2], kind: 'attack' }] },
+  { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: '{forge:2}.', passive: [{ type: 'adjacent', amounts: [2], kind: 'attack' }] },
   {
     id: 'coronal_chorus',
     name: 'Coronal Chorus',
@@ -403,7 +403,7 @@ export const CARDS: CardDef[] = [
     name: 'Sunforge',
     kind: 'attack',
     race: 0,
-    text: '{hammer:1}. {dawn}: {heat:1}.',
+    text: '{forge:1}. {dawn}: {heat:1}.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     passive: [{ type: 'adjacent', amounts: [1], kind: 'attack' }],
   },
@@ -707,6 +707,13 @@ for (const c of CARDS) {
 for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? c.cost ?? 1 });
 // Attack ratings (attack.ts): by rule, unless a card gives its own.
 for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.cost ?? 1, !isBurst(c));
+// A race's Sturdy (the Korrath) is the cards' own: added to their Sturdy, and written into their text.
+for (const c of CARDS) {
+  const n = raceTrait(c.race)?.sturdy ?? 0;
+  if (!n || c.fusion || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
+  c.defence = (c.defence ?? 0) + n;
+  c.text = /\{sturdy:\d+\}/.test(c.text) ? c.text.replace(/\{sturdy:(\d+)\}/, (_, k: string) => `{sturdy:${Number(k) + n}}`) : `{sturdy:${n}}. ${c.text}`;
+}
 
 /**
  * A card that does nothing once it has been played (no dawn effects, passives, attack or anything for when it
