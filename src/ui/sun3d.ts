@@ -686,6 +686,14 @@ let holdUntil = 0;
 export function holdSuns(ms: number) {
   holdUntil = Math.max(holdUntil, performance.now() + ms);
 }
+/** Draw every sun and its planets now, at the size they now stand (the board zoomed back out: cheap, and the
+ *  drawing made for the larger board would show wrong meanwhile). */
+export function redrawSuns() {
+  holdUntil = 0;
+  const now = reduce() ? 0 : performance.now();
+  document.querySelectorAll<HTMLCanvasElement>('canvas.sun3d').forEach((cv) => draw(cv, now));
+  document.querySelectorAll<HTMLCanvasElement>('canvas.vit-dome').forEach((cv) => drawDome(cv, now));
+}
 function frame(time: number) {
   const suns = document.querySelectorAll<HTMLCanvasElement>('canvas.sun3d');
   if (!suns.length) {

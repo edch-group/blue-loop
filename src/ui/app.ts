@@ -83,7 +83,7 @@ import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
 import { fitCardText, fitWhenSeen } from './fittext';
 import { refreshLift, trackLift } from './lift';
-import { animateSuns, holdSuns } from './sun3d';
+import { animateSuns, holdSuns, redrawSuns } from './sun3d';
 import { voices } from './voice';
 import { morphInto } from './morph';
 import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
@@ -4145,8 +4145,9 @@ export class App {
     const was = this.boardZoom;
     this.boardZoom = side;
     sound.hover();
-    // (The suns hold still while the board moves: redrawn at their new size, they would stall it.)
-    if (!reducedMotion()) holdSuns(720);
+    // (Zooming in, the suns hold still while the board moves: redrawn at their new, larger size, they would
+    // stall it. Zooming out, they are drawn at their smaller size at once, below.)
+    if (!reducedMotion() && side) holdSuns(720);
     const view = this.root.querySelector('.table-view');
     if (!view) return;
     const game = view.querySelector<HTMLElement>(':scope > .game');
@@ -4203,6 +4204,7 @@ export class App {
     view.classList.toggle('zoom-rival', side === 'rival');
     view.classList.toggle('zoom-mine', side === 'mine');
     this.fitZoom(undefined, undefined, { deferFit: animate });
+    if (!side) redrawSuns();
     if (animate && from && game) {
       game.style.transition = 'none';
       const box = layoutBox(game);
