@@ -2569,7 +2569,7 @@ export class App {
     if (up) {
       this.measureRaise();
       // (Again once it has risen, in case the board was still settling as it began.)
-      setTimeout(() => this.handRaised && this.measureRaise(), 650);
+      setTimeout(() => this.handRaised && this.measureRaise(), 500);
       sound.handLift();
     }
     this.root.querySelector('.table-view > .dock')?.classList.toggle('dock-raised', up);
