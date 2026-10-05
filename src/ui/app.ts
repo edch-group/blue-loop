@@ -413,8 +413,10 @@ function leanPiles(root: HTMLElement) {
     const r1 = face.getBoundingClientRect();
     face.style.translate = '';
     const perX = r0.width / (face.offsetWidth || 1);
-    // (Mirrored: the edges lean the way the perspective carries them, to the right.)
-    const lean = perX ? Math.abs((r1.left + r1.width / 2 - (r0.left + r0.width / 2)) / 20 / perX) : 0;
+    // (The pile climbs to the right: its top card up and right of its foot, the edges stepping down to the left.
+    // The perspective's drift is undone first, then a lean of its own is added.)
+    const drift = perX ? (r1.left + r1.width / 2 - (r0.left + r0.width / 2)) / 20 / perX : 0;
+    const lean = -drift - 0.45;
     face.style.setProperty('--lean', lean.toFixed(3));
   }
 }
