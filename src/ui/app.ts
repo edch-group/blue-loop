@@ -663,6 +663,14 @@ export class App {
     window.addEventListener('pointermove', (e) => this.onPressMove(e));
     window.addEventListener('pointerup', () => this.onPressEnd());
     window.addEventListener('pointercancel', () => this.onPressEnd());
+    // Dragging a card out of the hand plays it (see onDrag*); a tap away from a raised hand lowers it.
+    root.addEventListener('pointerdown', (e) => {
+      this.onDragStart(e);
+      if (this.handRaised && !(e.target as HTMLElement).closest?.('.dock .hand-zone')) this.raiseHand(false);
+    });
+    window.addEventListener('pointermove', (e) => this.onDragMove(e));
+    window.addEventListener('pointerup', (e) => this.onDragEnd(e));
+    window.addEventListener('pointercancel', () => this.onDragEnd(null));
     // A swipe across the deck builder's card pool turns its page.
     let swipeFrom: { x: number; y: number } | null = null;
     root.addEventListener('pointerdown', (e) => {
@@ -2316,6 +2324,8 @@ export class App {
   // -------------------------------------------------------------------------
 
   private startPlay(uid: string) {
+    // (The hand drops back down once a card is picked from it.)
+    this.raiseHand(false);
     // Tapping the card that is waiting to be placed puts it back.
     if (this.pending?.uid === uid) {
       this.pending = null;
@@ -2489,6 +2499,69 @@ export class App {
     const HUB = '.hub-card, .hub-link, .hub-options, .player-chip, .hub-continue';
     const opt = (e.target as HTMLElement).closest<HTMLElement>(HUB);
     if (opt && (e.relatedTarget as HTMLElement | null)?.closest?.(HUB) !== opt) sound.hover();
+  }
+
+  // ---- The hand: raised to read it whole; cards dragged out of it to play them ----
+
+  /** The hand raised clear of the screen's foot (on a touch screen, by a first tap; with a mouse, by hovering it). */
+  private handRaised = false;
+  private raiseHand(up: boolean) {
+    if (this.handRaised === up) return;
+    this.handRaised = up;
+    this.root.querySelector('.table-view > .dock')?.classList.toggle('dock-raised', up);
+  }
+
+  /** A card being dragged out of the hand: where it was picked up, and (once it moves) its flying copy. */
+  private drag: { uid: string; el: HTMLElement; x: number; y: number; dx: number; dy: number; ghost: HTMLElement | null } | null = null;
+
+  private onDragStart(e: PointerEvent) {
+    if (e.button > 0 || this.screen !== 'game') return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>('.hand > .card[data-act="play"]');
+    if (!el || !this.canAct()) return;
+    const r = el.getBoundingClientRect();
+    this.drag = { uid: el.dataset.arg!, el, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, ghost: null };
+  }
+
+  private onDragMove(e: PointerEvent) {
+    const d = this.drag;
+    if (!d) return;
+    if (!d.ghost) {
+      // A drag, not a tap: it has moved a little, mostly upwards (out of the hand).
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 14 || d.y - e.clientY < 8) return;
+      this.cancelPress();
+      const r = d.el.getBoundingClientRect();
+      const ghost = d.el.cloneNode(true) as HTMLElement;
+      ghost.removeAttribute('data-uid');
+      ghost.removeAttribute('data-act');
+      ghost.classList.add('drag-ghost');
+      Object.assign(ghost.style, { position: 'fixed', left: '0', top: '0', width: `${d.el.offsetWidth}px`, height: `${d.el.offsetHeight}px`, margin: '0', zIndex: '9000', pointerEvents: 'none', transition: 'none' });
+      ghost.style.setProperty('--cw', `${d.el.offsetWidth}px`);
+      ghost.style.setProperty('--kc', getComputedStyle(d.el).getPropertyValue('--kc'));
+      document.body.appendChild(ghost);
+      d.ghost = ghost;
+      d.dx = (d.dx / r.width) * d.el.offsetWidth;
+      d.dy = (d.dy / r.height) * d.el.offsetHeight;
+      d.el.classList.add('card-dragging');
+    }
+    d.ghost.style.transform = `translate(${e.clientX - d.dx}px, ${e.clientY - d.dy}px) rotate(-3deg) scale(1.05)`;
+  }
+
+  private onDragEnd(e: PointerEvent | null) {
+    const d = this.drag;
+    this.drag = null;
+    if (!d?.ghost) return;
+    d.ghost.remove();
+    d.el.classList.remove('card-dragging');
+    // (The click that ends a drag must not also tap the card.)
+    this.suppressClick = true;
+    window.setTimeout(() => (this.suppressClick = false), 0);
+    // Let go above the hand: it is played (to the preview pane, and on as any card played); else it goes back.
+    const zone = this.root.querySelector('.table-view > .dock .hand-zone')?.getBoundingClientRect();
+    if (e && zone && e.clientY < zone.top) {
+      this.raiseHand(false);
+      this.sheet = null;
+      this.startPlay(d.uid);
+    }
   }
 
   // ---- Long press (touch): hold a card to read it; release to dismiss ----
@@ -2916,6 +2989,8 @@ export class App {
     switch (act) {
       case 'play':
         this.sheet = null;
+        // On a touch screen the first tap on the hand raises it (to read every card whole); taps after that play.
+        if (this.touch && !this.handRaised) return this.raiseHand(true);
         return this.startPlay(arg);
       case 'end-turn':
         return this.requestEndDay();
@@ -3125,6 +3200,14 @@ export class App {
     if (fresh.length) {
       void hand.offsetWidth;
       fresh.forEach((c) => (c.style.transition = ''));
+    }
+    // How far the hand rises to be read whole: as much of it as hangs below the screen's foot (and a little more).
+    const dock = hand.closest<HTMLElement>('.dock');
+    if (dock) {
+      const raised = parseFloat(dock.style.getPropertyValue('--raise')) || 0;
+      const now = dock.classList.contains('dock-raised') ? raised : 0;
+      const low = Math.max(...cards.map((c) => c.getBoundingClientRect().bottom)) + now;
+      dock.style.setProperty('--raise', `${Math.max(0, Math.round(low - appSize().h + 10))}px`);
     }
   }
 
@@ -4133,7 +4216,7 @@ export class App {
           .map((c) => this.renderCard(c, { hand: true }))
           .join('');
     return `
-      <section class="dock">
+      <section class="dock${this.handRaised ? ' dock-raised' : ''}">
         <div class="hand-zone">
           <div class="hand">${hand}</div>
         </div>

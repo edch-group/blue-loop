@@ -4440,3 +4440,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* A Hero's abilities: a light line between each (they can run to more than one line). */
 .card-ability ~ .card-ability { margin-top: 0.3em; padding-top: 0.3em; border-top: 1px solid rgba(255, 255, 255, 0.22); }
 .card:not(.kind-command) .card-ability ~ .card-ability { border-top-color: rgba(90, 96, 110, 0.18); }
+/* The hand raised to read every card whole: by a first tap on a touch screen, or by hovering it with a mouse. */
+.table-view > .dock { transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.table-view > .dock.dock-raised { transform: translateY(calc(-1 * var(--raise, 0px))); }
+@media (hover: hover) and (pointer: fine) { .table-view > .dock:has(.hand-zone:hover) { transform: translateY(calc(-1 * var(--raise, 0px))); } }
+/* A card dragged out of the hand to play it: its copy follows the pointer, the card itself waits faded. */
+.hand > .card { touch-action: none; }
+.hand > .card.card-dragging { opacity: 0.3; }
+.drag-ghost { box-shadow: 0 24px 50px rgba(70, 70, 90, 0.35), 0 0 0 2px #fff !important; }
