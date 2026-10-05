@@ -384,6 +384,25 @@ Hive Bloom plays Sap Graft ×2, Seed Burst ×2 and the Spore Catalyst (for its O
 
 **Shard Overload tuned (400 games a variant, then 600).** With wear lasting, pierce (which skips defence) got stronger, and Overload rose to 61%. Tried: Shard Reactor dawn pierce 1 (was 2), Prism Colossus pierce 2 (was 3), Shard Reactor without pierce, and pierce getting past less of shields (no effect: the edge was the defence it skips, not the shields). Kept: **Shard Reactor dawn: heat 1, pierce**. Field: Lancers 55.4%, Overload 50.8%, Tide 44.4%, Bloom 48.0%.
 
+## Relics [design review]
+
+Relics (cards-relics.ts, teal) have no attack and never fade: their bonus lasts the whole game. Every one is **Brittle**: it has no defence at all, wherever it stands (no slot defence, no Bulwark), so any removal reaches it and one point of anything breaks it: an attack, aimed heat, decay or erode. Nothing steadies one (Restore and Renew pass it by), and nothing fuses onto it or it onto anything. Stability 1, shown on the card.
+
+The counterplay is to hit them, and a deck that leaves a Relic standing pays for it every day; the AI values one as lasting its whole horizon (as a Hero), so it attacks them when it can. A Guard in front, or Tidewall shields, protect one: counterplay to the counterplay.
+
+| Relic | Cost | Bonus |
+|---|---|---|
+| Ember Idol | 3 | Your attack cards heat +1 (their attacks too) |
+| Frost Reliquary | 2 | Your cards cool +1 |
+| Aegis Idol | 2 | Your cards shield +1 |
+| Chrono Stone | 2 | Anchor |
+| Warden Totem | 2 | Bulwark 2 (1 further) |
+| Tide Pearl | 2 | Tidewall |
+| Astral Orrery (Stellar) | 4 | +1 energy a day |
+| Crown of the First Sun (Anomaly) | 4 | Your cards heat, cool and shield +1 |
+
+The dominance check doesn't compare Relics with other kinds (lasting but brittle is a trade it can't price). Each starter runs one (Wildfire two): see Balancing the races.
+
 ## Lightspeed cards [design review]
 
 Lightspeed cards are played **face down**. They don't take a slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies face down in the Lightspeed slot, right of its owner's five (that slot has no defence), and the owner's pill shows ⚡. The card springs **during an enemy's day** when its trigger happens. It is revealed ("Lightspeed!"), resolves against that enemy ("your target" means them), and goes to your discard pile.
@@ -578,6 +597,7 @@ The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2
 - Night Court, less draw and a live ambush: the deck is cheap but drew far more than it could play (AI games peaked at a 12.5-card hand on average, up to 19), so Eclipse Rite, Deep Scanners and both Gravity Slings make way for Phantom Strike, Photon Drill, Plasma Relay and Unravel (peak hand 8.7, up to 13). Night Ambush face down waited for an enemy to destroy or return one of your cards, which almost never comes; it now springs when an enemy attacks one of your cards or aims heat at it, cancelling the blow and heating them 2. Night Court: 53.1% (240 games).
 - Dusk rests dimmed cards, and a hand limit of 5: the mean distance from 50% goes 9.5 → 8.6, games a little shorter (9.9 → 9.2 rounds), 84 games a deck. Draw-heavy decks lose most (Shard Overload 63.1 → 42.9, Hive Bloom 58.3 → 44.0); Abyssal Tide gains (51.2 → 69.0) and Wildfire (28.6 → 36.9). The dusk rule on its own changes the spread little (9.5).
 - Big cards (cards-big.ts), for the days with five energy: four at 5 (Coronal Storm: heat 6, decay 1; Furnace Engine: Sturdy 2, dawn heat 3 pierce; Bulwark Prime: Guard, Sturdy 3, shield 4, dawn shield 3; Zenith Array: your attack cards deal +2 heat) and four at 6, Anomalies, one to a deck, playable only with a day's bonus energy (Supernova Lance: heat 12 pierce; Great Collapse: decay 3, heat 4; Dyson Sphere: shield 10, cool 5, hold, dawn shield 2; Black Sun: Sturdy 3, dawn heat 5). Each starter swaps one or two cheap duplicates for them; the spread from 50% stays 8.6 → 9.2 (84 games a deck), within the noise. Costs of 4 or more show their dots in two columns (the sixth amber, past the day's most energy).
+- Relics: one in each starter (Solar Lancers: Ember Idol; Shard Overload: Astral Orrery; Abyssal Tide: Tide Pearl; Hive Bloom: Chrono Stone; Night Court: Aegis Idol; Forge Clans: Warden Totem; Starwatch: Frost Reliquary; Wildfire: Ember Idol and Crown of the First Sun), each for a spare copy. The spread from 50% goes 9.2 → 8.6 (84 games a deck): Solar Lancers 47.6, Shard Overload 52.4, Abyssal Tide 75.0, Hive Bloom 52.4, Night Court 47.6, Forge Clans 38.1, Starwatch 54.8, Wildfire 32.1. Abyssal Tide (high) and Wildfire and Forge Clans (low) are still the outliers.
 - Wildfire: swaps (cooling for its self-heat cards) and even removing its self-heat did nothing; the deck lacked pressure and cooling. The Pyrr bonus became +1 attack (+2 while overheated), and the Dancer, Flare Burst, Ember Guard, Pyre Shield and Heat Bloom were strengthened; Radiator Fins replaced its Relay Stations. The AI now prices self-heat by how close the sun is to supernova.
 - Forge Clans: Siege Arrays in place of Tempers (39% → 45%), then +2 defence, now written as +2 Sturdy on each card (53%).
 - The dominance check ignores a race's trait (the trait is the race's price, not the card's).

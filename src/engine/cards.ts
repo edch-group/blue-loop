@@ -1077,8 +1077,19 @@ const BIG_SWAPS: Record<string, [string, string][]> = {
   Starwatch: [['ser_star_needle', 'furnace_engine'], ['ser_star_chart', 'dyson_sphere']],
   Wildfire: [['pyr_banked_embers', 'coronal_storm'], ['pyr_vent_cooler', 'supernova_lance']],
 };
+/** The Relics (cards-relics.ts) in the starters: one each (two in Wildfire), each to its deck's plan. */
+const RELIC_SWAPS: Record<string, [string, string][]> = {
+  'Solar Lancers': [['helio_lancer', 'ember_idol']],
+  'Shard Overload': [['ember_shard', 'astral_orrery']],
+  'Abyssal Tide': [['undertow', 'tide_pearl']],
+  'Hive Bloom': [['hive_relay', 'chrono_stone']],
+  'Night Court': [['nyx_mirror_veil', 'aegis_idol']],
+  'Forge Clans': [['kor_shieldwall', 'warden_totem']],
+  Starwatch: [['ser_twin_moons', 'frost_reliquary']],
+  Wildfire: [['pyr_flare_imp', 'ember_idol'], ['pyr_ash_walker', 'crown_first_sun']],
+};
 for (const d of PRESET_DECKS) {
-  for (const [out, inn] of BIG_SWAPS[d.name] ?? []) {
+  for (const [out, inn] of [...(BIG_SWAPS[d.name] ?? []), ...(RELIC_SWAPS[d.name] ?? [])]) {
     const at = d.cards.lastIndexOf(out);
     if (at >= 0) d.cards[at] = inn;
   }
