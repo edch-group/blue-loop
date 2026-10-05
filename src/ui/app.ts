@@ -4330,13 +4330,18 @@ export class App {
   private renderPiles(p: PlayerState, side: 'mine' | 'rival'): string {
     const mine = side === 'mine';
     const top = p.discard[p.discard.length - 1];
-    // (The deck shows its top card's back, how many are left on a badge.)
+    // A pile stands as tall as the cards in it: its top card raised, their edges stacked beneath (no count).
+    const stack = (n: number) => {
+      const depth = Math.max(1, Math.round(n * 0.4));
+      const edges = Array.from({ length: depth }, (_, i) => `0 ${i + 1}px 0 ${i % 2 ? '#d9dadf' : '#f4f4f2'}`).join(', ');
+      return `--depth:${depth}px;--edges:${edges}, 0 ${depth + 3}px 8px rgba(80, 84, 100, 0.22)`;
+    };
     const deck = p.deck.length
-      ? `<span class="tpile-stack"><i></i><i></i></span><span class="tpile-face tpile-back">${cardBackFace()}</span><b class="tpile-count" title="Cards left in the deck">${p.deck.length}</b>`
-      : `<span class="tpile-empty"></span><b>0</b><small>deck</small>`;
+      ? `<span class="tpile-face tpile-back tpile-stacked" style="${stack(p.deck.length)}">${cardBackFace()}</span>`
+      : `<span class="tpile-empty"></span><small>deck</small>`;
     const discard = top
-      ? `<span class="tpile-face">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span><b class="tpile-count">${p.discard.length}</b>`
-      : `<span class="tpile-empty"></span><b>0</b><small>discard</small>`;
+      ? `<span class="tpile-face tpile-stacked" style="${stack(p.discard.length)}">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span>`
+      : `<span class="tpile-empty"></span><small>discard</small>`;
     // How many cards they hold: a little bar above your piles, below theirs (the board stays a mirror).
     const n = p.hand.length;
     const hand = `<div class="tpile-hand tpile-hand-${side}" title="${mine ? 'Cards in your hand' : `Cards in ${esc(p.name)}'s hand`}">${HAND_ICON}<span>hand</span><b>${n}</b></div>`;
@@ -4344,8 +4349,8 @@ export class App {
     const name = `<button class="tpile-name tpile-name-${side} ${this.shownDead(p) ? 'tpile-name-dead' : ''}" data-act="view-player" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(mine ? `${p.name} (you)` : p.name)}"><span>${esc(p.name.toLowerCase())}</span></button>`;
     return `<div class="tableau-piles">
       ${mine ? name + hand : hand + name}
-      <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? 'Cards left in your deck (what they are, and their order, stay hidden)' : `Cards left in ${esc(p.name)}'s deck`}">${deck}</div>
-      <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile: look through it">${discard}</div>
+      <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? `${p.deck.length} cards left in your deck (what they are, and their order, stay hidden)` : `${p.deck.length} cards left in ${esc(p.name)}'s deck`}">${deck}</div>
+      <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile (${p.discard.length}): look through it">${discard}</div>
     </div>`;
   }
 
