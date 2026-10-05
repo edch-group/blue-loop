@@ -4,7 +4,7 @@
 
 The body inside the gem is trying to break out: a white dwarf's searing spikes and shimmering filaments, a
 sun's corona streaming out in curling streamers and swelling plumes, a black hole's
-accretion streaks spiralling in and its lensed ring. Each is a few layers that CSS turns, breathes and
+dark aura, its dust lanes spiralling in round its bright lensed ring. Each is a few layers that CSS turns, breathes and
 flickers out of step (styles.css, "The rarity gem's light"), so the light never repeats.
 
 Each image is nearly four gem-widths across with the gem in the middle (its window, radius G, is left dark: the
@@ -99,11 +99,14 @@ rays(L, 1, 0, 0.005, 0.26, WHITE, ICE, 1.4, angles=np.radians([0, 90, 180, 270])
 rays(L, 2, 0, 0.004, 0.12, WHITE, ICE, 0.7, angles=np.radians([45, 135, 225, 315]))
 L.save('light-dwarf-spikes.png')
 
-for i, seed in enumerate([11, 12]):   # two fields of very fine radial grain, turned slowly against each other: shimmer
-    L = Light()
-    grain = polar_noise(seed, 1440, 128, 0.7, 26)
-    grain = np.clip(grain * 1.6 - 0.65, 0, 1) ** 1.8
-    L.add(6.0 * grain * np.exp(-near / 0.15), mix(WHITE, DEEP, near / 0.32))
+for i, (seed, warp) in enumerate([(11, 0.3), (12, -0.25)]):   # its corona: soft ice-blue rays reaching well over the card,
+    L = Light()                                                     # with very fine grain over them; two, turned against each other
+    soft = polar_noise(seed, 540, 128, 3.0, 26, warp)
+    broad = polar_noise(seed + 100, 120, 128, 3, 20, warp)
+    ray = (0.35 + 0.65 * np.clip(soft * 1.4 - 0.3, 0, 1) ** 1.5) * (0.4 + 0.8 * broad)
+    L.add(4.5 * ray * np.exp(-near / (0.08 + 0.08 * broad)), mix(WHITE, DEEP, 0.15 + near / 0.45))
+    grain = np.clip(polar_noise(seed + 200, 1440, 128, 0.7, 26) * 1.6 - 0.65, 0, 1) ** 1.8
+    L.add(3.0 * grain * np.exp(-near / 0.15), mix(WHITE, DEEP, near / 0.32))
     L.save(f'light-dwarf-shimmer{i + 1}.png')
 
 L = Light()   # a few motes of light caught in it
@@ -147,20 +150,21 @@ for i, seed in enumerate([41, 42]):   # plumes: two or three broad tongues of co
     L.save(f'light-sun-flares{i + 1}.png')
 
 # ---------------------------------------------------------------- Anomaly: light dragged round a black hole
-LILAC, VIOLET, MAGENTA, NIGHT = [0.9, 0.84, 1.0], [0.6, 0.4, 1.0], [0.82, 0.36, 0.95], [0.26, 0.1, 0.5]
+LILAC, VIOLET, NIGHT, VOID = [0.9, 0.84, 1.0], [0.6, 0.4, 1.0], [0.2, 0.06, 0.34], [0.05, 0.01, 0.1]
 
-for i, (seed, k, gain) in enumerate([(51, 2.2, 8.0), (52, 1.5, 6.0)]):   # dust lanes along spirals: noise, swirled
+# Dark light: what pours out of a black hole is shadow, a violet-black aura reaching over the card as far as a sun's
+# corona does, with darker dust lanes swirling into it; only its thin lensed ring is bright.
+for i, (seed, k, gain) in enumerate([(51, 2.2, 5.5), (52, 1.5, 4.0)]):   # dark dust lanes along spirals: noise, swirled
     L = Light()
-    lanes = polar_noise(seed, 1080, 128, 1.0, 18, k)
+    lanes = polar_noise(seed, 720, 128, 2.0, 18, k)
     broad = polar_noise(seed + 100, 240, 128, 6, 10, k)
-    lane = np.clip(lanes * 1.6 - 0.7, 0, 1) ** 1.8 * (0.3 + 0.9 * broad)
-    col = mix(mix(LILAC, VIOLET, near / 0.25), MAGENTA, np.clip(broad - 0.55, 0, 1) * 2)
-    L.add(gain * lane * np.exp(-near / 0.18), col)
+    lane = (0.25 + 0.75 * np.clip(lanes * 1.6 - 0.6, 0, 1) ** 1.6) * (0.35 + 0.8 * broad)
+    L.add(gain * lane * np.exp(-near / (0.1 + 0.1 * broad)), mix(NIGHT, VOID, near / 0.35))
     L.save(f'light-hole-swirl{i + 1}.png')
 
-L = Light()   # the lensed ring just outside the socket, rippling, and a dim violet haze
+L = Light()   # the bright lensed ring just outside the socket, rippling, inside a soft dark halo
 ripple = polar_noise(61, 720, 64, 2, 2)
 ring = np.exp(-((r - G * 1.12) / (0.006 + 0.006 * ripple)) ** 2) * (0.4 + 0.8 * ripple)
-L.add(2.2 * ring, mix(LILAC, VIOLET, ripple))
-L.add(0.9 * np.exp(-near / 0.12), mix(VIOLET, NIGHT, near / 0.28))
+L.add(1.6 * np.exp(-near / 0.09), mix(NIGHT, VOID, near / 0.2))
+L.add(2.6 * ring, mix(LILAC, VIOLET, ripple))
 L.save('light-hole-lens.png')
