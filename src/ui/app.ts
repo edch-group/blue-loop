@@ -4134,24 +4134,60 @@ export class App {
       if (ctl) ctl.outerHTML = this.renderZoomControls();
       return;
     }
-    const before = side && game && !reducedMotion() ? spanOf(side) : null;
-    if (before) for (const a of game!.getAnimations()) a.cancel();
+    // In or out: the board is laid out at its new size at once (sharp when zoomed), then eased from exactly
+    // how it stood to how it now stands, its pan, scale and tilt all at once: the same list of steps at both
+    // ends (a pan, a tilt, a scale), so it moves step by step, never twisting through a matrix.
+    const animate = !!game && !reducedMotion();
+    const tiltOf = (zoomed: boolean) => (zoomed ? '6deg' : getComputedStyle(view).getPropertyValue('--board-tilt').trim() || '34deg');
+    const layoutBox = (el: HTMLElement) => {
+      const t = el.style.transform;
+      el.style.transform = 'none';
+      const r = el.getBoundingClientRect();
+      el.style.transform = t;
+      return r;
+    };
+    // (Lined up on the tableau zoomed onto, or out from: it starts exactly where it stood on screen.)
+    const which = (side ?? was)!;
+    let from: { box: DOMRect; m: DOMMatrix; tilt: string; span: ReturnType<typeof spanOf> } | null = null;
+    if (animate) {
+      for (const a of game!.getAnimations()) a.cancel();
+      game!.style.transition = 'none';
+      from = { box: layoutBox(game!), m: new DOMMatrix(getComputedStyle(game!).transform), tilt: tiltOf(!!was), span: spanOf(which) };
+    }
     view.classList.toggle('zoom-rival', side === 'rival');
     view.classList.toggle('zoom-mine', side === 'mine');
     this.fitZoom();
-    const after = before && side ? spanOf(side) : null;
-    if (game && before && after && after.w > 0) {
+    if (animate && from && game) {
       game.style.transition = 'none';
-      const end = getComputedStyle(game).transform;
-      // (Its middle as laid out, which a scale put in front of its transform works about.)
-      game.style.transform = 'none';
-      const box = game.getBoundingClientRect();
-      game.style.transform = '';
-      const ox = box.left + box.width / 2, oy = box.top + box.height / 2;
-      const k = before.w / after.w;
-      const dx = before.x - ox - k * (after.x - ox), dy = before.y - oy - k * (after.y - oy);
-      // (Both ends the same list of steps, so it eases step by step: a pan and a scale, never a twist through a matrix.)
-      game.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k}) ${end}` }, { transform: `translate(0px, 0px) scale(1) ${end}` }], { duration: 450, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }).finished.finally(() => (game.style.transition = '')).catch(() => undefined);
+      const box = layoutBox(game);
+      const m = new DOMMatrix(getComputedStyle(game).transform);
+      let k = box.width > 0 ? from.box.width / box.width : 1;
+      let dx = from.box.left + from.box.width / 2 + from.m.m41 - (box.left + box.width / 2);
+      let dy = from.box.top + from.box.height / 2 + from.m.m42 - (box.top + box.height / 2);
+      const start = () => `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotateX(${from!.tilt}) scale(${(0.82 * k).toFixed(5)})`;
+      // Nudged until the tableau stands just where it stood (the two layouts aren't exactly in proportion).
+      if (from.span) {
+        for (let i = 0; i < 4; i++) {
+          game.style.transform = start();
+          const now = spanOf(which);
+          if (!now || now.w <= 0) break;
+          k *= from.span.w / now.w;
+          game.style.transform = start();
+          const again = spanOf(which);
+          if (!again) break;
+          dx += from.span.x - again.x;
+          dy += from.span.y - again.y;
+          if (Math.abs(from.span.x - again.x) < 0.3 && Math.abs(from.span.y - again.y) < 0.3 && Math.abs(from.span.w - again.w) < 0.3) break;
+        }
+        game.style.transform = '';
+      }
+      game
+        .animate([{ transform: start() }, { transform: `translate(${m.m41.toFixed(1)}px, ${m.m42.toFixed(1)}px) rotateX(${tiltOf(!!side)}) scale(0.82)` }], {
+          duration: 520,
+          easing: 'cubic-bezier(0.32, 0, 0.18, 1)',
+        })
+        .finished.finally(() => (game.style.transition = ''))
+        .catch(() => undefined);
     }
     const ctl = this.root.querySelector('.board-zoom');
     if (ctl) ctl.outerHTML = this.renderZoomControls();
