@@ -7,7 +7,8 @@ import { markDirty } from './account';
  * score (drone, slowly shifting pad chords and distant chimes; just synths,
  * no noise) plays underneath the menus; matches get its tenser sibling (the
  * same pads and hall, with a slow, steady arpeggio and a deep bass), and the
- * campaign map an open, wondering one (soft synth plucks echoing across the field). Each effect is one method, so recorded audio can replace
+ * campaign map a slow voyage through a dying universe (a lament over the same
+ * drone, with a rolling arpeggio). Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -73,19 +74,21 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 ];
 
 // ---- Campaign map -----------------------------------------------------------
-// Exploration: the same pads and hall (kept low), opened up into D major with a
-// lydian lift. A slow ostinato of soft analogue-style synth plucks steps
-// through each chord in quarters and echoes from side to side across the map;
-// a deep held bass; and from the second time round, a few long notes on a warm
-// detuned-saw lead. Four chords, about fifteen seconds each.
+// A voyage through a dying universe, in the same key, voices and hall as the
+// menu and battle scores. The menu's breathing drone holds A throughout while
+// a slow lament falls over it (Am, G6, Fmaj7, Em7, ten seconds each, round
+// and round); a soft "orbit" arpeggio rolls through each chord in a lilting
+// six-eight, in the battle theme's pluck voice; the pads stay low; and now and
+// then a single far star swells in, wavers and fades.
 
-const CAMPAIGN_BPM = 66;
-/** Per chord (four bars each): the bass, the pad, two bars of plucks in quarters (repeated), and the melody's long notes ([bar, note, bars]). */
-const CAMPAIGN_CHORDS: { bass: string; pad: string[]; plucks: (string | null)[]; melody: [number, string, number][] }[] = [
-  { bass: 'D2', pad: ['D4', 'F#4', 'A4', 'E5'], plucks: ['A4', null, 'F#5', 'E5', null, 'A4', 'D5', null], melody: [[0, 'F#5', 2], [2, 'E5', 2]] }, // Dmaj9
-  { bass: 'B1', pad: ['B3', 'D4', 'F#4', 'E5'], plucks: ['F#4', null, 'D5', 'C#5', null, 'F#4', 'B4', null], melody: [[0, 'D5', 2], [2, 'C#5', 2]] }, // Bm11
-  { bass: 'G1', pad: ['G3', 'B3', 'F#4', 'C#5'], plucks: ['B4', null, 'F#5', 'E5', null, 'B4', 'C#5', null], melody: [[0, 'B4', 2], [2, 'C#5', 2]] }, // Gmaj7#11
-  { bass: 'A1', pad: ['A3', 'D4', 'E4', 'B4'], plucks: ['E4', null, 'B4', 'A4', null, 'E4', 'D5', null], melody: [[0, 'E5', 3]] }, // A6/9sus
+/** An eighth note of the six-eight orbit, in seconds (a dotted quarter at about 48 bpm). */
+const CAMPAIGN_EIGHTH = 0.42;
+/** Per chord (four bars of six eighths): the falling bass, the pad, the orbit's six eighths, and the far star (if any). */
+const CAMPAIGN_CHORDS: { bass: string; pad: string[]; orbit: string[]; star?: string }[] = [
+  { bass: 'A2', pad: ['A3', 'C4', 'E4', 'B4'], orbit: ['A3', 'E4', 'B4', 'C5', 'B4', 'E4'], star: 'E5' }, // Am(add9)
+  { bass: 'G2', pad: ['G3', 'B3', 'D4', 'E4'], orbit: ['G3', 'D4', 'A4', 'B4', 'A4', 'D4'] }, // G6
+  { bass: 'F2', pad: ['F3', 'A3', 'C4', 'E4'], orbit: ['F3', 'C4', 'G4', 'A4', 'G4', 'C4'], star: 'A5' }, // Fmaj7
+  { bass: 'E2', pad: ['E3', 'G3', 'B3', 'D4'], orbit: ['E3', 'B3', 'F#4', 'G4', 'F#4', 'B3'] }, // Em7
 ];
 
 class SoundBoard {
@@ -554,7 +557,7 @@ class SoundBoard {
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
     if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
-    if (scene === 'campaign') return [[this.campaignBus!, 1.5, 4]];
+    if (scene === 'campaign') return [[this.campaignBus!, 0.6, 4]];
     return [[this.musicBus!, 0.5, 6]];
   }
 
@@ -744,96 +747,99 @@ class SoundBoard {
   }
 
   /**
-   * The campaign map's score. Pads and bass alone for the first chord; then the plucks join, the melody from the
-   * second time round, and the plucks rest for a chord every third time round. Scheduled a chord at a time, just
-   * ahead of the audio clock.
+   * The campaign map's score. The drone, bass and pads alone for the first chord; then the orbit joins, reaching an
+   * octave higher in the second half of every other chord, and resting for a chord every fourth time round.
+   * Scheduled a chord at a time, just ahead of the audio clock.
    */
   private campaignScore(ctx: AudioContext, bus: GainNode) {
-    const beat = 60 / CAMPAIGN_BPM;
-    const barLen = beat * 4;
+    const eighth = CAMPAIGN_EIGHTH;
+    const barLen = eighth * 6;
     const chordLen = barLen * 4;
+    const t0 = ctx.currentTime + 0.1;
 
-    // The plucks' echo bounces from one side of the field to the other, a dotted quarter apart, darkening.
-    const plucks = ctx.createGain();
-    const left = ctx.createDelay(2), right = ctx.createDelay(2);
-    left.delayTime.value = right.delayTime.value = beat * 1.5;
-    const panL = ctx.createStereoPanner(), panR = ctx.createStereoPanner();
-    panL.pan.value = -0.7;
-    panR.pan.value = 0.7;
-    const tone = ctx.createBiquadFilter();
-    tone.type = 'lowpass';
-    tone.frequency.value = 2200;
+    // The drone, as in the menus: detuned triangles on A through a slowly breathing lowpass, held under every chord.
+    const droneFilter = ctx.createBiquadFilter();
+    droneFilter.type = 'lowpass';
+    droneFilter.frequency.value = 240;
+    const lfo = ctx.createOscillator();
+    const lfoDepth = ctx.createGain();
+    lfo.frequency.value = 0.03;
+    lfoDepth.gain.value = 110;
+    lfo.connect(lfoDepth).connect(droneFilter.frequency);
+    const droneGain = ctx.createGain();
+    droneGain.gain.setValueAtTime(0, t0);
+    droneGain.gain.linearRampToValueAtTime(0.06, t0 + 6);
+    droneFilter.connect(droneGain).connect(bus);
+    const drones = [55, 82.41, 110].map((f, i) => {
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      o.detune.value = [-6, 5, 2][i];
+      o.connect(droneFilter);
+      o.start(t0);
+      return o;
+    });
+    lfo.start(t0);
+
+    // The orbit's filter opens and closes over about a minute; its echo lands a dotted quarter later, darker.
+    const orbit = ctx.createBiquadFilter();
+    orbit.type = 'lowpass';
+    orbit.Q.value = 1.5;
+    orbit.frequency.value = 1000;
+    const sweep = ctx.createOscillator();
+    sweep.frequency.value = 1 / 60;
+    const sweepDepth = ctx.createGain();
+    sweepDepth.gain.value = 500;
+    sweep.connect(sweepDepth).connect(orbit.frequency);
+    const echo = ctx.createDelay(2);
+    echo.delayTime.value = eighth * 3;
     const feedback = ctx.createGain();
-    feedback.gain.value = 0.42;
-    const wet = ctx.createGain();
-    wet.gain.value = 0.5;
-    plucks.connect(bus);
-    plucks.connect(tone).connect(left);
-    left.connect(panL).connect(wet);
-    left.connect(right).connect(panR).connect(wet);
-    right.connect(feedback).connect(tone);
-    wet.connect(bus);
-    this.musicNodes = [plucks, left, right, panL, panR, tone, feedback, wet];
-
-    /**
-     * A soft analogue-style pluck: two detuned saws and a triangle an octave down through a resonant lowpass whose
-     * cutoff falls quickly after the attack, so each note blooms bright and settles warm.
-     */
-    const pluck = (at: number, f: number, gain: number, out: AudioNode) => {
-      const end = at + 2.4;
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.Q.value = 3;
-      filter.frequency.setValueAtTime(Math.min(f * 5, 3600), at);
-      filter.frequency.exponentialRampToValueAtTime(f * 1.3, at + 0.45);
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0, at);
-      g.gain.linearRampToValueAtTime(gain, at + 0.01);
-      g.gain.exponentialRampToValueAtTime(gain * 0.3, at + 0.6);
-      g.gain.exponentialRampToValueAtTime(0.0001, end);
-      filter.connect(g).connect(out);
-      ([['sawtooth', 1, -7, 0.5], ['sawtooth', 1, 7, 0.5], ['triangle', 0.5, 0, 0.6]] as const).forEach(([type, mult, detune, level]) => {
-        const o = ctx.createOscillator();
-        o.type = type;
-        o.frequency.value = f * mult;
-        o.detune.value = detune;
-        const lv = ctx.createGain();
-        lv.gain.value = level;
-        o.connect(lv).connect(filter);
-        o.start(at);
-        o.stop(end + 0.05);
-      });
-    };
+    feedback.gain.value = 0.35;
+    const echoTone = ctx.createBiquadFilter();
+    echoTone.type = 'lowpass';
+    echoTone.frequency.value = 1500;
+    const echoWet = ctx.createGain();
+    echoWet.gain.value = 0.35;
+    orbit.connect(bus);
+    orbit.connect(echo).connect(echoTone).connect(feedback).connect(echo);
+    echoTone.connect(echoWet).connect(bus);
+    sweep.start(t0);
+    this.musicNodes = [droneFilter, lfo, lfoDepth, droneGain, ...drones, orbit, sweep, sweepDepth, echo, feedback, echoTone, echoWet];
 
     const playChord = (at: number, index: number, round: number) => {
       const c = CAMPAIGN_CHORDS[index];
       const delay = this.until(at);
-      // Pads, as the menu score voices them.
+      // Pads, as the menu score voices them, but kept low.
       c.pad.forEach((n, i) => {
-        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 1000, delay, out: bus };
+        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
         this.voice(hz(n), opts);
         this.voice(hz(n), { ...opts, detune: 9, gain: 0.007 });
       });
-      // The bass, deep and soft.
-      this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.045, type: 'triangle', attack: 1.5, release: 2, cutoff: 240, out: bus });
-      // Plucks: two bars, twice, the downbeat a touch stronger.
-      if (!(round === 0 && index === 0) && !(round % 3 === 2 && index === 0)) {
-        for (let rep = 0; rep < 2; rep++)
-          c.plucks.forEach((n, q) => n && pluck(at + rep * barLen * 2 + q * beat, hz(n), q % 4 === 0 ? 0.026 : 0.02, plucks));
-      }
-      // Melody: from the second time round, a few long notes on a warm lead (detuned saws, softly filtered, with a
-      // slow vibrato), into the plucks' echo.
-      if (round >= 1)
-        for (const [b, n, bars] of c.melody) {
-          const t = at + b * barLen + beat * 0.5;
-          const len = bars * barLen - beat;
-          this.note(t, hz(n), len, { gain: 0.011, type: 'sawtooth', attack: 0.7, release: 1.4, cutoff: 1300, detune: -8, vibrato: true, out: plucks });
-          this.note(t, hz(n), len, { gain: 0.011, type: 'sawtooth', attack: 0.8, release: 1.4, cutoff: 1300, detune: 8, vibrato: true, out: plucks });
-          this.note(t, hz(n) / 2, len, { gain: 0.008, attack: 0.8, release: 1.4, cutoff: 900, out: plucks });
+      // The falling bass: a held triangle and a soft sine an octave up.
+      this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: bus });
+      this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: bus });
+      // The orbit: soft plucks rolling in six-eight, the first of each three leaning a little.
+      const rests = (round === 0 && index === 0) || (round % 4 === 3 && index === 2);
+      if (!rests)
+        for (let b = 0; b < 4; b++) {
+          const reach = round % 2 === 1 && b >= 2;
+          c.orbit.forEach((n, e) => {
+            const d = this.until(at + b * barLen + e * eighth);
+            const f = hz(n) * (reach && e === 3 ? 2 : 1);
+            const accent = e % 3 === 0 ? 1 : 0.72;
+            this.voice(f, { dur: eighth * 3.2, attack: 0.014, gain: 0.034 * accent, type: 'triangle', cutoff: 5000, delay: d, out: orbit });
+            this.voice(f, { dur: eighth * 2, attack: 0.014, gain: 0.006 * accent, type: 'sawtooth', cutoff: 5000, detune: 6, delay: d, out: orbit });
+          });
         }
+      // A far star: one high note swelling in very slowly, wavering, and fading (not every time round).
+      if (c.star && round > 0 && Math.random() < 0.7) {
+        const t = at + barLen * (0.5 + Math.random());
+        this.note(t, hz(c.star), barLen * 2, { gain: 0.009, attack: 3, release: 3, cutoff: 2200, vibrato: true, out: bus });
+        this.note(t, hz(c.star), barLen * 2, { gain: 0.006, attack: 3.4, release: 3, cutoff: 2000, detune: 9, vibrato: true, out: bus });
+      }
     };
 
-    let next = ctx.currentTime + 0.1;
+    let next = t0;
     let chord = 0;
     let round = 0;
     const tick = () => {
