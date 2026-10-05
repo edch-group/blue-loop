@@ -4526,3 +4526,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* A Lightspeed card springing: a small solid yellow tag above it in the preview pane (no banner over the cards). */
 .stage-ls-tag { background: #d4952a; color: #fff; border: 1px solid #c4851c; box-shadow: 0 4px 12px rgba(170, 110, 20, 0.35); font-weight: 600; z-index: 2; }
 .stage-ls-tag-solo { position: relative; top: auto; justify-self: center; margin-bottom: -2px; }
+/* (As on the landing page, the Stellari's top fades into the white sun's light.) */
+.cback-flower {
+  -webkit-mask-image: radial-gradient(circle at 50% -15%, transparent 26%, rgba(0, 0, 0, 0.45) 40%, #000 58%);
+  mask-image: radial-gradient(circle at 50% -15%, transparent 26%, rgba(0, 0, 0, 0.45) 40%, #000 58%);
+}
