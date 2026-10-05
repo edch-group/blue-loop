@@ -314,6 +314,16 @@ export function playerAvatar(cardId: string | undefined, cls = ''): string {
 }
 
 /**
+ * The card's stock, taking after its picture (styles.css, "card stock"): behind a card with a rendered picture,
+ * its circuit traces carry the picture's colours; behind a Hero, a faint engraving of the picture. Empty for
+ * a card without one, which keeps the plain stock.
+ */
+export function cardStock(def: CardDef): string {
+  const url = def.fusedFrom ? undefined : renderedArt(def.id);
+  return url ? `<span class="card-stock" style="--art:url('${url}')" aria-hidden="true"></span>` : '';
+}
+
+/**
  * A card's picture as a single image rather than live SVG: for long lists of cards (the deck builder),
  * where hundreds of live pictures would make every redraw slow.
  */

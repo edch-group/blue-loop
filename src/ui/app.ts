@@ -73,7 +73,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -3776,7 +3776,7 @@ export class App {
   private cardFace(id: string): string {
     const c = cardDef(id);
     return `<div class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}" data-card="${c.id}">
-      <span class="card-glyph">${cardArtLite(c, true)}</span>${raceRow(c)}${stabilityBadge(c)}
+      ${cardStock(c)}<span class="card-glyph">${cardArtLite(c, true)}</span>${raceRow(c)}${stabilityBadge(c)}
       <span class="card-name">${esc(c.name.toLowerCase())}</span>
       <span class="card-text">${cardBodyHtml(c)}</span>
       <span class="card-kind">${typeLine(c)}</span>
@@ -4726,7 +4726,7 @@ export class App {
     const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
     return `
       <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
+        ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(def, opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
@@ -4813,7 +4813,7 @@ export class App {
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
       <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
+        ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : {})}${this.fusedTextHtml(c)}</div>

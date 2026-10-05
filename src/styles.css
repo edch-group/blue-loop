@@ -4871,3 +4871,33 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @media (hover: hover) { .db-card-in > .card.lifted:not([disabled]) { box-shadow: 0 0 0 2px var(--ring), 0 10px 22px rgba(90, 90, 110, 0.2); } }
 /* (While the zoom is measured ahead of time: nothing on the table may start a transition.) */
 .table-view.no-anim, .table-view.no-anim * { transition: none !important; }
+
+/* ---------- Card stock that takes after its picture (glyphs.ts cardStock) ---------- */
+/* A card with a rendered picture: its circuit traces carry the picture's colours (the picture, blurred, seen only
+   through the traces) in place of the plain grey ones, faded behind the name and rules so they stay easy to read,
+   and gone at the very top, where the gem's bump shows the plain stock. A Hero instead has a faint engraving of
+   its picture under the rules. */
+.card { isolation: isolate; --trace: var(--circuit-dwarf); }
+.card.rarity-stellar { --trace: var(--circuit-stellar); }
+.card.rarity-anomaly { --trace: var(--circuit-anomaly); }
+.card:has(> .card-stock):not(.kind-command) { --bg1: linear-gradient(transparent, transparent); background-image: var(--bg2); }
+.card-stock {
+  --tile: calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05);
+  --fade: radial-gradient(ellipse 72% 30% at 50% 64%, rgba(0, 0, 0, 0.2) 62%, #000 100%);
+  position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: var(--art) center / cover no-repeat;
+  filter: blur(6px) saturate(1.7);
+  opacity: 0.9;
+  -webkit-mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  -webkit-mask-composite: source-in, source-in, source-over;
+  mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  mask-composite: intersect, intersect, add;
+}
+.card.kind-command .card-stock {
+  inset: auto 0 0; height: 58%;
+  background: var(--art) center 70% / cover no-repeat;
+  filter: grayscale(1) contrast(1.6);
+  mix-blend-mode: screen; opacity: 0.16;
+  -webkit-mask: linear-gradient(180deg, transparent, #000 40%); -webkit-mask-composite: source-over;
+  mask: linear-gradient(180deg, transparent, #000 40%); mask-composite: add;
+}
