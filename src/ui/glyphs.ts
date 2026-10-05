@@ -7,6 +7,17 @@ import dwarf from './gems/dwarf.png';
 import glass from './gems/glass.png';
 import holeBack from './gems/hole-back.png';
 import hole from './gems/hole.png';
+import lightDwarfSpikes from './gems/light-dwarf-spikes.png';
+import lightDwarfShimmer1 from './gems/light-dwarf-shimmer1.png';
+import lightDwarfShimmer2 from './gems/light-dwarf-shimmer2.png';
+import lightDwarfSparks from './gems/light-dwarf-sparks.png';
+import lightSunCorona1 from './gems/light-sun-corona1.png';
+import lightSunCorona2 from './gems/light-sun-corona2.png';
+import lightSunFlares1 from './gems/light-sun-flares1.png';
+import lightSunFlares2 from './gems/light-sun-flares2.png';
+import lightHoleSwirl1 from './gems/light-hole-swirl1.png';
+import lightHoleSwirl2 from './gems/light-hole-swirl2.png';
+import lightHoleLens from './gems/light-hole-lens.png';
 import socketAnomaly from './gems/socket-anomaly.png';
 import socketDwarf from './gems/socket-dwarf.png';
 import socketStellar from './gems/socket-stellar.png';
@@ -352,6 +363,12 @@ export function cardBackFace(): string {
  * black hole (Anomaly) whose accretion disk streams around it without rest.
  * The layers are pre-rendered images (scripts/render_gems.py).
  */
+const GEM_LIGHT: Record<Rarity, string[]> = {
+  dwarf: ['shimmer1', 'shimmer2', 'spikes', 'sparks'],
+  stellar: ['corona1', 'corona2', 'flares1', 'flares2'],
+  anomaly: ['swirl2', 'swirl1', 'lens'],
+};
+
 export function rarityGem(def: CardDef): string {
   const r: Rarity = def.rarity ?? 'dwarf';
   const body =
@@ -360,11 +377,16 @@ export function rarityGem(def: CardDef): string {
       : r === 'stellar'
         ? '<i class="g g-sun-corona"></i><i class="g g-sun-disc"></i>'
         : '<i class="g g-dwarf-glow"></i><i class="g g-dwarf"></i>';
-  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}"><i class="gem-light"></i><i class="g g-socket"></i><i class="gem-window">${body}</i><i class="g g-glass"></i></span>`;
+  // The light it throws out onto the card (scripts/render_gem_light.py): layers that turn and flicker out of step.
+  const light = GEM_LIGHT[r].map((l) => `<i class="gl gl-${l}"></i>`).join('');
+  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}"><i class="gem-light">${light}</i><i class="g g-socket"></i><i class="gem-window">${body}</i><i class="g g-glass"></i></span>`;
 }
 
 // The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
-const GEM_IMAGES: Record<string, string> = { socketDwarf, socketStellar, socketAnomaly, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk };
+const GEM_IMAGES: Record<string, string> = {
+  socketDwarf, socketStellar, socketAnomaly, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk,
+  lightDwarfSpikes, lightDwarfShimmer1, lightDwarfShimmer2, lightDwarfSparks, lightSunCorona1, lightSunCorona2, lightSunFlares1, lightSunFlares2, lightHoleSwirl1, lightHoleSwirl2, lightHoleLens,
+};
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
 
 /**
