@@ -497,6 +497,8 @@ export class App {
   private lunging: string | null = null;
   /** The board zoomed onto one tableau (the rival's, or yours), to read it close up; null: the whole board. */
   private boardZoom: 'rival' | 'mine' | null = null;
+  /** How the board is zoomed to fit that tableau to the window (--bz, --zx, --zy), as worked out by fitZoom. */
+  private zoomVars = '';
   private sheet: Sheet | null = null;
   /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
   private landing: (() => void) | null = null;
@@ -735,6 +737,7 @@ export class App {
     // Re-lay out whenever the page's size settles (after a rotation the first resize event can be stale).
     window.addEventListener(VIEWPORT_EVENT, () => {
       this.fitHand();
+      if (this.boardZoom && this.screen === 'game') this.fitZoom();
       sizePool(this.root);
       // (The pool's pages are cut to the rows its new height holds.)
       this.activeBuilder().afterRender();
@@ -3774,7 +3777,7 @@ export class App {
     // The whole play area is a table seen in perspective; pop-ups and the
     // played-card stage sit outside it so they stay flat and readable.
     return `
-      <main class="table-view${this.boardZoom ? ` zoom-${this.boardZoom}` : ''}">
+      <main class="table-view${this.boardZoom ? ` zoom-${this.boardZoom}` : ''}" style="${this.boardZoom ? this.zoomVars : ''}">
         <div class="game">
           <header class="top"></header>
           ${this.renderBoard()}
@@ -3809,8 +3812,57 @@ export class App {
     if (!view) return;
     view.classList.toggle('zoom-rival', side === 'rival');
     view.classList.toggle('zoom-mine', side === 'mine');
+    this.fitZoom();
     const ctl = this.root.querySelector('.board-zoom');
     if (ctl) ctl.outerHTML = this.renderZoomControls();
+  }
+
+  /**
+   * Zoom the board so the tableau zoomed onto (its row of slots and its Hero) spans the window end to end, centred:
+   * the board is laid out larger (--bz, so it stays sharp), then moved (--zx, --zy), measuring as it goes.
+   */
+  private fitZoom() {
+    const view = this.root.querySelector<HTMLElement>('.table-view');
+    const game = view?.querySelector<HTMLElement>(':scope > .game');
+    if (!view || !game) return;
+    if (!this.boardZoom) {
+      this.zoomVars = '';
+      view.removeAttribute('style');
+      return;
+    }
+    const side = this.boardZoom;
+    const span = () => {
+      const parts = [...view.querySelectorAll<HTMLElement>(`.tableau-${side} .tableau-row, .tableau-${side} .cmd-slot`)].map((el) => el.getBoundingClientRect());
+      if (!parts.length) return null;
+      const left = Math.min(...parts.map((r) => r.left)), right = Math.max(...parts.map((r) => r.right));
+      const top = Math.min(...parts.map((r) => r.top)), bottom = Math.max(...parts.map((r) => r.bottom));
+      return { left, top, width: right - left, height: bottom - top };
+    };
+    const set = (bz: number, zx: number, zy: number) => {
+      this.zoomVars = `--bz:${bz.toFixed(3)};--zx:${zx.toFixed(1)}px;--zy:${zy.toFixed(1)}px`;
+      view.setAttribute('style', this.zoomVars);
+    };
+    const w = window.innerWidth, h = window.innerHeight;
+    // (Measured as it will stand, not mid-way through a transition.)
+    game.style.transition = 'none';
+    let bz = 1.6, zx = 0, zy = 0;
+    set(bz, zx, zy);
+    for (let i = 0; i < 3; i++) {
+      const r = span();
+      if (!r) break;
+      // (Clear of the zoom buttons at the left edge, and as far in from the right, so it stays centred.)
+      bz *= Math.min((w - 2 * 76) / r.width, (h * 0.94) / r.height);
+      set(bz, zx, zy);
+    }
+    for (let i = 0; i < 2; i++) {
+      const r = span();
+      if (!r) break;
+      zx += w / 2 - (r.left + r.width / 2);
+      zy += h / 2 - (r.top + r.height / 2);
+      set(bz, zx, zy);
+    }
+    void game.offsetWidth;
+    game.style.transition = '';
   }
 
   /** Round and stability, together in one container at the top centre. */

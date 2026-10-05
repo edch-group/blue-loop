@@ -1901,13 +1901,13 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   /* Five slots and the Lightspeed slot, set a little apart. */
   /* (The height share leaves room between the rows for the Command slots, which stand out a card's width.) */
   --tcw-h: 0.262;
-  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * var(--tcw-h) * 0.714), 150px,
+  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * var(--tcw-h) * 0.714), calc(150px * var(--bz, 1)),
     /* Room across the board for each row's sun on the left (and the same on the right). */
     calc((var(--game-w) - 2 * var(--inset) - 24px - 2 * var(--row-side) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
   /* Each row's ends: its sun on the left, its upgrade pills on the right, the same width each so the slots centre. */
   --row-side: calc(1.3 * var(--row-vs));
   --game-w: calc(var(--gw) * 0.95);
-  --row-vs: clamp(84px, calc(var(--gh) / 112 * 23), 168px);
+  --row-vs: clamp(calc(84px * var(--bz, 1)), calc(var(--gh) / 112 * 23), calc(168px * var(--bz, 1)));
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .table-view > .game { --logw: 0px; --tcw-h: 0.215; }
@@ -4383,13 +4383,14 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* ---------- Zooming onto a tableau: the board tips flatter and comes closer, centred on that side ---------- */
 .table-view > .game { transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .table-view > .dock { transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.table-view.zoom-rival, .table-view.zoom-mine { --bz: 1.45; }
+/* (--bz, --zx and --zy are worked out to fit the tableau to the window: see fitZoom.) */
 /* (Wider than the window now: kept centred, its sides running off both edges alike.) */
 .table-view.zoom-rival > .game, .table-view.zoom-mine > .game { margin-left: calc((100% - var(--gw)) / 2); }
-.table-view.zoom-rival > .game { transform: translateY(calc(var(--gh) * 0.25)) rotateX(10deg) scale(0.82); }
-.table-view.zoom-mine > .game { transform: translateY(calc(var(--gh) * -0.2)) rotateX(10deg) scale(0.82); }
-/* (Your hand steps aside, mostly out of view, while you look closely; it is back as you zoom out.) */
-.table-view.zoom-rival > .dock, .table-view.zoom-mine > .dock { transform: translateY(62%); }
+.table-view.zoom-rival > .game, .table-view.zoom-mine > .game { transform: translate(var(--zx, 0px), var(--zy, 0px)) rotateX(6deg) scale(0.82); }
+/* Zoomed in, the tableau is all there is: everything else steps out of the way (the zoom buttons stay). */
+.table-view.zoom-rival > :is(.dock, .hud, .turn-controls, .hero-skills, .phase-track, .result-anchor),
+.table-view.zoom-mine > :is(.dock, .hud, .turn-controls, .hero-skills, .phase-track, .result-anchor) { opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.table-view.zoom-rival > .dock, .table-view.zoom-mine > .dock { transform: translateY(80%); }
 .board-zoom { position: fixed; left: max(10px, var(--sa-l, 0px)); top: 50%; transform: translateY(-50%); z-index: 13; display: grid; gap: 10px; }
 .zoom-btn { display: grid; justify-items: center; gap: 1px; width: 46px; padding: 6px 0 5px; border: 1px solid #fff; border-radius: 14px; background: rgba(255, 255, 255, 0.85); box-shadow: var(--shadow); color: var(--ink-soft); cursor: pointer; font-family: var(--display); }
 .zoom-btn span { font-size: 1rem; line-height: 1; }
