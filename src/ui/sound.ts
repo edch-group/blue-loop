@@ -8,7 +8,7 @@ import { markDirty } from './account';
  * no noise) plays underneath the menus; matches get its tenser sibling (the
  * same pads and hall, with a slow, steady arpeggio and a deep bass), and the
  * campaign map a slow voyage through a dying universe (a lament over the same
- * drone, with a rolling arpeggio). Each effect is one method, so recorded audio can replace
+ * drone, with a high, slow melody). Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -74,21 +74,20 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 ];
 
 // ---- Campaign map -----------------------------------------------------------
-// A voyage through a dying universe, in the same key, voices and hall as the
-// menu and battle scores. The menu's breathing drone holds A throughout while
-// a slow lament falls over it (Am, G6, Fmaj7, Em7, ten seconds each, round
-// and round); a soft "orbit" arpeggio rolls through each chord in a lilting
-// six-eight, in the battle theme's pluck voice; the pads stay low; and now and
-// then a single far star swells in, wavers and fades.
+// A voyage through a dying universe, in the same key and hall as the menu and
+// battle scores. The menu's breathing drone holds A while a lament falls over
+// it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). Above it sings a
+// high, slow melody of long notes, echoing; beneath, a soft low-high rock on
+// each chord's root and fifth keeps it moving; the pads stay low.
 
-/** An eighth note of the six-eight orbit, in seconds (a dotted quarter at about 48 bpm). */
+/** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
 const CAMPAIGN_EIGHTH = 0.42;
-/** Per chord (four bars of six eighths): the falling bass, the pad, the orbit's six eighths, and the far star (if any). */
-const CAMPAIGN_CHORDS: { bass: string; pad: string[]; orbit: string[]; star?: string }[] = [
-  { bass: 'A2', pad: ['A3', 'C4', 'E4', 'B4'], orbit: ['A3', 'E4', 'B4', 'C5', 'B4', 'E4'], star: 'E5' }, // Am(add9)
-  { bass: 'G2', pad: ['G3', 'B3', 'D4', 'E4'], orbit: ['G3', 'D4', 'A4', 'B4', 'A4', 'D4'] }, // G6
-  { bass: 'F2', pad: ['F3', 'A3', 'C4', 'E4'], orbit: ['F3', 'C4', 'G4', 'A4', 'G4', 'C4'], star: 'A5' }, // Fmaj7
-  { bass: 'E2', pad: ['E3', 'G3', 'B3', 'D4'], orbit: ['E3', 'B3', 'F#4', 'G4', 'F#4', 'B3'] }, // Em7
+/** Per chord (four bars of six eighths): the falling bass, the pad, the two notes it rocks between, and the melody ([bar, note, bars]). */
+const CAMPAIGN_CHORDS: { bass: string; pad: string[]; rock: [string, string]; melody: [number, string, number][] }[] = [
+  { bass: 'A2', pad: ['A3', 'C4', 'E4', 'B4'], rock: ['A3', 'E4'], melody: [[0, 'E5', 2], [2, 'D5', 1], [3, 'C5', 1]] }, // Am(add9)
+  { bass: 'G2', pad: ['G3', 'B3', 'D4', 'E4'], rock: ['G3', 'D4'], melody: [[0, 'B4', 2], [2, 'D5', 2]] }, // G6
+  { bass: 'F2', pad: ['F3', 'A3', 'C4', 'E4'], rock: ['F3', 'C4'], melody: [[0, 'C5', 1], [1, 'E5', 1], [2, 'A5', 2]] }, // Fmaj7
+  { bass: 'E2', pad: ['E3', 'G3', 'B3', 'D4'], rock: ['E3', 'B3'], melody: [[0, 'G5', 2], [2, 'F#5', 1], [3, 'E5', 1]] }, // Em7
 ];
 
 class SoundBoard {
@@ -747,9 +746,9 @@ class SoundBoard {
   }
 
   /**
-   * The campaign map's score. The drone, bass and pads alone for the first chord; then the orbit joins, reaching an
-   * octave higher in the second half of every other chord, and resting for a chord every fourth time round.
-   * Scheduled a chord at a time, just ahead of the audio clock.
+   * The campaign map's score. The drone, bass and pads alone for the first chord; then the rock and the melody
+   * join, the melody gaining a faint shimmer an octave up every other time round, and the rock resting for a chord
+   * every fourth time round. Scheduled a chord at a time, just ahead of the audio clock.
    */
   private campaignScore(ctx: AudioContext, bus: GainNode) {
     const eighth = CAMPAIGN_EIGHTH;
@@ -781,34 +780,26 @@ class SoundBoard {
     });
     lfo.start(t0);
 
-    // The orbit's filter opens and closes over about a minute; its echo lands a dotted quarter later, darker.
-    const orbit = ctx.createBiquadFilter();
-    orbit.type = 'lowpass';
-    orbit.Q.value = 1.5;
-    orbit.frequency.value = 1000;
-    const sweep = ctx.createOscillator();
-    sweep.frequency.value = 1 / 60;
-    const sweepDepth = ctx.createGain();
-    sweepDepth.gain.value = 500;
-    sweep.connect(sweepDepth).connect(orbit.frequency);
-    const echo = ctx.createDelay(2);
-    echo.delayTime.value = eighth * 3;
+    // The melody sings straight into the hall and into a slow, darkening echo a dotted half later.
+    const melody = ctx.createGain();
+    const echo = ctx.createDelay(3);
+    echo.delayTime.value = eighth * 6;
     const feedback = ctx.createGain();
-    feedback.gain.value = 0.35;
+    feedback.gain.value = 0.3;
     const echoTone = ctx.createBiquadFilter();
     echoTone.type = 'lowpass';
-    echoTone.frequency.value = 1500;
+    echoTone.frequency.value = 1600;
     const echoWet = ctx.createGain();
-    echoWet.gain.value = 0.35;
-    orbit.connect(bus);
-    orbit.connect(echo).connect(echoTone).connect(feedback).connect(echo);
+    echoWet.gain.value = 0.4;
+    melody.connect(bus);
+    melody.connect(echo).connect(echoTone).connect(feedback).connect(echo);
     echoTone.connect(echoWet).connect(bus);
-    sweep.start(t0);
-    this.musicNodes = [droneFilter, lfo, lfoDepth, droneGain, ...drones, orbit, sweep, sweepDepth, echo, feedback, echoTone, echoWet];
+    this.musicNodes = [droneFilter, lfo, lfoDepth, droneGain, ...drones, melody, echo, feedback, echoTone, echoWet];
 
     const playChord = (at: number, index: number, round: number) => {
       const c = CAMPAIGN_CHORDS[index];
       const delay = this.until(at);
+      const intro = round === 0 && index === 0;
       // Pads, as the menu score voices them, but kept low.
       c.pad.forEach((n, i) => {
         const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
@@ -818,24 +809,23 @@ class SoundBoard {
       // The falling bass: a held triangle and a soft sine an octave up.
       this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: bus });
       this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: bus });
-      // The orbit: soft plucks rolling in six-eight, the first of each three leaning a little.
-      const rests = (round === 0 && index === 0) || (round % 4 === 3 && index === 2);
-      if (!rests)
-        for (let b = 0; b < 4; b++) {
-          const reach = round % 2 === 1 && b >= 2;
-          c.orbit.forEach((n, e) => {
-            const d = this.until(at + b * barLen + e * eighth);
-            const f = hz(n) * (reach && e === 3 ? 2 : 1);
-            const accent = e % 3 === 0 ? 1 : 0.72;
-            this.voice(f, { dur: eighth * 3.2, attack: 0.014, gain: 0.034 * accent, type: 'triangle', cutoff: 5000, delay: d, out: orbit });
-            this.voice(f, { dur: eighth * 2, attack: 0.014, gain: 0.006 * accent, type: 'sawtooth', cutoff: 5000, detune: 6, delay: d, out: orbit });
+      if (intro) return;
+      // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle).
+      if (round % 4 !== 3 || index !== 2)
+        for (let b = 0; b < 4; b++)
+          c.rock.forEach((n, k) => {
+            const d = this.until(at + b * barLen + k * eighth * 3);
+            this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
+            this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
           });
-        }
-      // A far star: one high note swelling in very slowly, wavering, and fading (not every time round).
-      if (c.star && round > 0 && Math.random() < 0.7) {
-        const t = at + barLen * (0.5 + Math.random());
-        this.note(t, hz(c.star), barLen * 2, { gain: 0.009, attack: 3, release: 3, cutoff: 2200, vibrato: true, out: bus });
-        this.note(t, hz(c.star), barLen * 2, { gain: 0.006, attack: 3.4, release: 3, cutoff: 2000, detune: 9, vibrato: true, out: bus });
+      // The melody: long notes on a detuned triangle pair with a slow vibrato, and every other time round a faint
+      // sine shimmer an octave up.
+      for (const [b, n, bars] of c.melody) {
+        const t = at + b * barLen + eighth * 0.5;
+        const len = bars * barLen - eighth * 0.8;
+        this.note(t, hz(n), len, { gain: 0.017, attack: 0.5, release: 1.4, cutoff: 2400, vibrato: true, out: melody });
+        this.note(t, hz(n), len, { gain: 0.011, attack: 0.6, release: 1.4, cutoff: 2200, detune: 9, vibrato: true, out: melody });
+        if (round % 2 === 1) this.note(t, hz(n) * 2, len, { gain: 0.004, type: 'sine', attack: 0.9, release: 1.4, vibrato: true, out: melody });
       }
     };
 
