@@ -46,6 +46,24 @@ export function saveDeck(deck: SavedDeck) {
   store([...list, { ...deck, preset: undefined }]);
 }
 
+/** Whether the player hides the starter decks from their decks page (kept with their account). */
+const HIDE_KEY = 'blue-loop:hide-starters';
+export function startersHidden(): boolean {
+  try {
+    return localStorage.getItem(HIDE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+export function setStartersHidden(on: boolean) {
+  try {
+    localStorage.setItem(HIDE_KEY, on ? '1' : '0');
+    markDirty();
+  } catch {
+    // Storage unavailable: for this session only.
+  }
+}
+
 export function deleteDeck(id: string) {
   store(customDecks().filter((d) => d.id !== id));
 }

@@ -1,5 +1,5 @@
-import { BALANCE, coverCard, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
-import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
+import { BALANCE, coverCard, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type Rarity } from '../engine';
+import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { raceRow, cardArtLite, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
 import { fitWhenSeen } from './fittext';
@@ -212,6 +212,9 @@ export class DeckBuilder {
       case 'db-delete':
         deleteDeck(arg);
         break;
+      case 'db-hide-starters':
+        setStartersHidden(!startersHidden());
+        break;
       case 'db-filters':
         this.filtersOpen = !this.filtersOpen;
         break;
@@ -400,21 +403,21 @@ export class DeckBuilder {
       deckBox(d, {
         act: d.preset ? 'db-view' : 'db-edit',
         title: d.preset ? 'Look through it (changes save as a copy)' : 'Edit it',
-        actions: d.preset
-          ? `<button class="pill-btn" data-act="db-view" data-arg="${d.id}">view</button><button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>`
-          : `<button class="pill-btn" data-act="db-edit" data-arg="${d.id}">edit</button><button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`,
+        // (Open it by tapping the box: a starter to look through, your own to edit.)
+        actions: `<button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>${d.preset ? '' : `<button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}`,
       });
     const mine = customDecks();
+    const hide = startersHidden();
     return `
-      ${this.header('decks', '<button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button>')}
+      ${this.header('decks', `<span class="db-head-actions"><button class="pill-btn ${hide ? 'pill-on' : ''}" data-act="db-hide-starters" aria-pressed="${hide}">hide starters</button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
       <div class="setup-body db-list-body">
         <div class="db-list">
-          <div class="section-label">race starters</div>
+          <div class="section-label db-group">your decks</div>
+          ${mine.length ? `<div class="db-boxes">${mine.map(box).join('')}</div>` : '<p class="muted center-text">No decks of your own yet. Start a new one, or copy a starter to change it.</p>'}
+          ${hide ? '' : `<div class="section-label db-group">races</div>
           <div class="db-boxes">${PRESETS.filter((d) => !d.mixed).map(box).join('')}</div>
-          <div class="section-label">mechanic starters</div>
-          <div class="db-boxes">${PRESETS.filter((d) => d.mixed).map(box).join('')}</div>
-          <div class="section-label">your decks</div>
-          ${mine.length ? `<div class="db-boxes">${mine.map(box).join('')}</div>` : '<p class="muted">No decks of your own yet. Start a new one, or copy a starter to change it.</p>'}
+          <div class="section-label db-group">mechanics</div>
+          <div class="db-boxes">${PRESETS.filter((d) => d.mixed).map(box).join('')}</div>`}
         </div>
       </div>`;
   }
@@ -777,7 +780,6 @@ export class DeckBuilder {
  * Command card (its emblem if it has none), the deck's make-up beneath and any buttons under that.
  */
 export function deckBox(d: SavedDeck, opts: { act: string; title: string; actions?: string; selected?: boolean; disabled?: boolean }): string {
-  const counts = (kind: CardKind) => d.cards.filter((id) => cardDef(id).kind === kind).length;
   const legal = deckProblems(d.cards).length === 0;
   return `
     <div class="db-deck db-deck-open ${legal ? '' : 'db-deck-bad'} ${opts.selected ? 'db-deck-on' : ''}" ${opts.disabled ? 'aria-disabled="true"' : `data-act="${opts.act}" data-arg="${d.id}"`} role="button" tabindex="0" title="${esc(opts.title)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">
@@ -789,7 +791,6 @@ export function deckBox(d: SavedDeck, opts: { act: string; title: string; action
           <small class="deck-box-race">${d.mixed ? 'mixed' : esc(RACE_NAMES[d.race].toLowerCase())}</small>
         </div>
       </div>
-      <small class="db-deck-sub">${d.preset ? 'starter' : legal ? `${d.cards.length} cards` : 'incomplete'} · ${counts('attack')} atk · ${counts('defence')} def · ${counts('growth')} gro</small>
       ${opts.actions ? `<div class="db-deck-actions">${opts.actions}</div>` : ''}
     </div>`;
 }
