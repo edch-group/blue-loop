@@ -4579,3 +4579,5 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* The decks page's groups (your decks, races, mechanics): titled in the middle. */
 .db-list .section-label.db-group { text-align: center; justify-self: center; width: 100%; }
 .db-list .section-label.db-group:not(:first-child) { margin-top: clamp(22px, calc(6 * var(--vh)), 48px); }
+/* The deck builder's card grid sits in the middle of its space (a short page no longer clings to the top). */
+.db-editor .db-pool { align-content: center; }
