@@ -4495,24 +4495,31 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .stage-ls-btn { background: #d4952a; color: #fff; border: 1px solid #c4851c; box-shadow: 0 6px 18px rgba(170, 110, 20, 0.35); }
 .stage-ls-btn:hover { background: #e0a23a; }
 .stage-ls-btn small { opacity: 0.9; }
-/* The back of every card (the deck, a card set face down): a white dwarf on the board's faint rings, "blue loop" beneath. */
-.card.card-back {
-  background: none; border: 0; padding: 0; overflow: hidden;
-}
+/* The back of every card (the deck, a card set face down): the landing page in small. Its paper (white light
+   from the top, a warm grey settling at the foot), its white sun with the name beneath, and the Stellari rising
+   from the foot, only its top half on the card. */
+.card.card-back { background: none; border: 0; padding: 0; overflow: hidden; }
 .cback {
-  position: absolute; inset: 0; border-radius: inherit; overflow: hidden; display: block;
+  position: absolute; inset: 0; border-radius: inherit; overflow: hidden; display: block; container-type: inline-size;
   background:
-    repeating-radial-gradient(circle at 50% 42%, transparent 0 calc(var(--cw, 100px) * 0.09), rgba(120, 150, 205, 0.16) calc(var(--cw, 100px) * 0.09) calc(var(--cw, 100px) * 0.095)),
-    radial-gradient(circle at 50% 42%, #ffffff 0, #f2f5fb 45%, #dde5f2 100%);
-  border: 1.5px solid #fff; box-shadow: inset 0 0 0 1px rgba(150, 170, 205, 0.25);
+    radial-gradient(ellipse 70% 60% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0.6) 40%, transparent 75%),
+    radial-gradient(ellipse 120% 90% at 50% 110%, #dedcd8 0%, transparent 60%),
+    linear-gradient(180deg, #faf9f6, #f3f2ee 55%, #e0dfdb);
+  border: 1.5px solid #fff; box-shadow: inset 0 0 0 1px rgba(160, 165, 175, 0.18);
 }
-.cback-star { position: absolute; left: 50%; top: 42%; width: 56%; aspect-ratio: 1; transform: translate(-50%, -50%); }
-.cback-star .g { position: absolute; inset: 0; display: block; background-size: 100% 100%; --gp: 0.3; }
-.cback-star .g-dwarf-glow { inset: -35%; }
+.cback-sun {
+  position: absolute; left: 50%; top: 30%; width: 34%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle at 40% 36%, #fff 0%, #fbfcfd 40%, #e4e8ed 80%, #d9dee4 100%);
+  box-shadow: 0 0 8cqw 3cqw rgba(255, 255, 255, 0.95), 0 0 14cqw 5cqw rgba(210, 218, 228, 0.5);
+}
 .cback-title {
-  position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; white-space: nowrap;
-  font-family: var(--display); text-transform: uppercase; letter-spacing: 0.28em; padding-left: 0.28em;
-  font-size: max(5px, calc(var(--cw, 100px) * 0.085)); color: #6c7894;
+  position: absolute; left: 0; right: 0; top: 50%; text-align: center; white-space: nowrap; line-height: 1;
+  font-family: var(--display); font-weight: 400; text-transform: uppercase; letter-spacing: 0.32em; padding-left: 0.32em;
+  font-size: 9cqw; color: #555a63;
 }
+/* (The flower's box is square: centred on the card's foot, half of it is on the card.) */
+.cback-flower { position: absolute; left: 50%; top: 100%; width: 150%; aspect-ratio: 1; transform: translate(-50%, -50%); }
+.cback-flower svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 0 0.6cqw rgba(150, 150, 160, 0.35)); }
+.cback .stellaria-flower ellipse, .cback .stellaria-flower path { fill: rgba(255, 255, 255, 0.28); stroke: #fff; stroke-width: 5; }
 .tpile-back { --cw: var(--pw); }
 .tpile-back .cback { border-radius: calc(var(--tcw) * 0.07); box-shadow: 0 4px 12px rgba(80, 84, 100, 0.18), 0 0 0 1.5px #fff; }

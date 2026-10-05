@@ -1,4 +1,5 @@
 import { BALANCE, baseStability, CARDS, cardDef, hasDarkspeed, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { stellariaFlower } from './art';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -319,9 +320,9 @@ function phase(id: string): string {
   return ((h % 997) / 997).toFixed(3);
 }
 
-/** The back of every card: a white dwarf glowing on the board's faint rings, the game's name beneath it. */
+/** The back of every card: the landing page in small (its white sun, the name beneath, the Stellari rising from the foot, half of it showing). */
 export function cardBackFace(): string {
-  return '<span class="cback" aria-hidden="true"><span class="cback-star"><i class="g g-dwarf-glow"></i><i class="g g-dwarf"></i></span><span class="cback-title">blue loop</span></span>';
+  return `<span class="cback" aria-hidden="true"><span class="cback-flower">${stellariaFlower()}</span><span class="cback-sun"></span><span class="cback-title">blue loop</span></span>`;
 }
 
 /**
