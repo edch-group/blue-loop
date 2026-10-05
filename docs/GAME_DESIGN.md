@@ -564,7 +564,7 @@ Each player is one of eight races (races.ts). Every race has a **bonus and a ner
 | Vorthane | Tidal bells: shields, kept, and stinging | Barbed: Sting 1 | Slow tides: −1 attack (never below 1) | |
 | Ixquor | The hive: go wide, ramp, grow | Regrowth: +1 stability | Soft-bodied: −1 defence | |
 | Nyxari | Void-stalkers | Darkspeed: their attackers and Heroes can attack or act the day they come into play (not dimmed); their other cards come in dimmed as anyone's do | Fleeting: −2 stability | Veilwalker (Lightspeed traps), Unmaker (removal) |
-| Korrath | Forge-smiths | Forged: +2 defence | Ponderous: −1 attack (never below 1) | Forgeborn (Fusion grafts), Bastion-kin (Guards) |
+| Korrath | Forge-smiths | Anvil: +2 defence | Ponderous: −1 attack (never below 1) | Forgeborn (Fusion grafts), Bastion-kin (Guards) |
 | Seren | Star-readers | Star-charted: attuned cards attune once more | Frail: −1 stability | Tidecaster (orbit), Seer (draw, recover, attune) |
 | Pyrr | Flare-born | +1 attack, +2 while overheated | Self-immolating: each attack heats their own sun 1 | Flarekin (spend-all bursts), Cinderborn (run hot) |
 
@@ -579,7 +579,7 @@ The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2
 - Dusk rests dimmed cards, and a hand limit of 5: the mean distance from 50% goes 9.5 → 8.6, games a little shorter (9.9 → 9.2 rounds), 84 games a deck. Draw-heavy decks lose most (Shard Overload 63.1 → 42.9, Hive Bloom 58.3 → 44.0); Abyssal Tide gains (51.2 → 69.0) and Wildfire (28.6 → 36.9). The dusk rule on its own changes the spread little (9.5).
 - Big cards (cards-big.ts), for the days with five energy: four at 5 (Coronal Storm: heat 6, decay 1; Furnace Engine: Sturdy 2, dawn heat 3 pierce; Bulwark Prime: Guard, Sturdy 3, shield 4, dawn shield 3; Zenith Array: your attack cards deal +2 heat) and four at 6, Anomalies, one to a deck, playable only with a day's bonus energy (Supernova Lance: heat 12 pierce; Great Collapse: decay 3, heat 4; Dyson Sphere: shield 10, cool 5, hold, dawn shield 2; Black Sun: Sturdy 3, dawn heat 5). Each starter swaps one or two cheap duplicates for them; the spread from 50% stays 8.6 → 9.2 (84 games a deck), within the noise. Costs of 4 or more show their dots in two columns (the sixth amber, past the day's most energy).
 - Wildfire: swaps (cooling for its self-heat cards) and even removing its self-heat did nothing; the deck lacked pressure and cooling. The Pyrr bonus became +1 attack (+2 while overheated), and the Dancer, Flare Burst, Ember Guard, Pyre Shield and Heat Bloom were strengthened; Radiator Fins replaced its Relay Stations. The AI now prices self-heat by how close the sun is to supernova.
-- Forge Clans: Siege Arrays in place of Tempers (39% → 45%), then Forged +2 defence (53%).
+- Forge Clans: Siege Arrays in place of Tempers (39% → 45%), then Anvil +2 defence (53%).
 - The dominance check ignores a race's trait (the trait is the race's price, not the card's).
 - Where it stands (1000 games): mean distance 8.8 (from 12.1). Solar Lancers 44.5, Shard Overload 55.1, Abyssal Tide 58.5, Hive Bloom 58.6, Orbit Riders 60.2, Ambush 42.8, Demolition 61.1, Absolute Zero 37.3, Graftworks 54.1, Overcharge 39.8, Night Court 56.8, Forge Clans 46.7, Starwatch 58.6, Wildfire 28.2. Still to do: Wildfire, Absolute Zero and Overcharge are low.
 
@@ -814,7 +814,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - A dedicated wall deck (Chamber Protocols, Stinging Veils, Null Fields, Ion Cannons) did beat it (74% before the changes, 94% after). The counter existed, but the starters couldn't reach it in time.
 - What worked was a **day's heat limit**: on a player's own day (their dawn and their plays), at most **8** heat lands on the rival's sun, after shields. Stings and Lightspeed cards on the rival's day are not limited. With the card changes below, the pure-attack deck wins 57% against the starters (it was 99%). It still beats Hive Bloom, loses to Shard Overload, and loses to shields and stings (5/95 against the wall deck). The wall deck is 46% against the starters. The starters themselves sit at 46–53% (500 games), with seats 50/50. The forecast shows at most 8, with the full figure in its tooltip, and the log says when a sun can take no more heat that day.
 - **The limit is gone (later).** It read as a bug in play: a card played after a big dawn simply did nothing. Without it, 400 starter games run 11.8 rounds (12.3 with it) and the starters' win rates move by a point or two. A pure-attack Aureline deck (2 Sol-Marshal Aurex, Solarch Veyra, Lancers, Archons, Focusing Arrays, Chorus, War-Heralds, Sunforges, Dawnblades, Siege Arrays, Squadrons) goes from 56% to 64% against the starters (100 games each, about 8 rounds): Solar Lancers 66%, Shard Overload 76%, Hive Bloom 83%, and Abyssal Tide still beats it 70% of the time. Its counters are shields with Sting and Soothe, Guards and Lightspeed guards, and cooling.
-- Alongside the limit: Focusing Array is now Forge 1 (attack cards next to it +1, not every attack card), Aurelia +1 per 2 attack cards (up to 3), Chorus of Dawn up to 3, Solar Battery +1 with 3+ attack cards, and Siege Array +1 per 3 attack cards (up to 2). Shard Reactor no longer heats its own sun: the limit took the edge off the Xel'Naru burst plan, and Shard Overload fell to 38% without this.
+- Alongside the limit: Focusing Array is now Hammer 1 (attack cards next to it +1, not every attack card), Aurelia +1 per 2 attack cards (up to 3), Chorus of Dawn up to 3, Solar Battery +1 with 3+ attack cards, and Siege Array +1 per 3 attack cards (up to 2). Shard Reactor no longer heats its own sun: the limit took the edge off the Xel'Naru burst plan, and Shard Overload fell to 38% without this.
 
 **Card costs.** Each card takes 1 of your day's actions. Anomalies take 2, as do Sunspear (6, pierce) and Fracture Burst (7, pierce), and each is buffed to match. Your first day has only 1 action, so these come out from day 2. The AI weighs the second card it gives up. With costs, the starters sit at 47–53% (400 games), with seats 50/50, and the pure-attack deck is at 50.5% against them.
 
@@ -849,7 +849,7 @@ A wall deck built with them wins 50% against the starters and 86% against the ch
 - Result (1000 games): mean distance from 50% **3.7** (was 4.9). Solar Lancers 47.9%, Shard Overload 47.6%, Abyssal Tide 48.1%, Hive Bloom 49.2%, Orbit Riders 45.7%, Ambush 51.1%, Demolition 50.2%, Absolute Zero 64.1%, Graftworks 41.5%, Overcharge 51.2%. Absolute Zero is the one left standing out.
 
 **No strictly worse cards.** `npm run dominated` lists every card another card beats outright: no higher cost, every effect at least as strong, no extra drawback, and able to go in the same decks. An unconditional effect counts as covering the same effect with a condition. It found 15 pairs, then 6 more once conditions were counted. Each was fixed by giving the weaker card an edge of its own, not by nerfing the stronger one:
-- Focusing Array is Forge 2.
+- Focusing Array is Hammer 2.
 - Coolant Array is free.
 - Plasma Relay is Sturdy 1.
 - Chorus of Dawn hits up to 5.

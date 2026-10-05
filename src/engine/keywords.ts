@@ -36,7 +36,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   repair: { name: 'repair', group: 'defence', explain: () => 'Mends worn defence.' },
   bulwark: { name: 'bulwark', group: 'defence', explain: () => 'Extra defence for neighbours.' },
   resonance: { name: 'resonance', group: 'resonance', explain: () => 'Boosts neighbours.' },
-  forge: { name: 'forge', group: 'resonance', explain: () => 'Boosts neighbouring attack cards.' },
+  hammer: { name: 'hammer', group: 'resonance', explain: () => 'Boosts neighbouring attack cards.' },
   anchor: { name: 'anchor', group: 'stability', explain: () => 'Neighbours lose no stability.' },
   erode: { name: 'erode', group: 'stability', explain: () => 'A rival card loses stability.' },
   decay: { name: 'decay', group: 'stability', explain: () => 'Every rival card loses stability.' },
@@ -112,7 +112,7 @@ function rawLabel(id: string, value?: string): string {
   if (id === 'abilities') return 'each turn, one of:';
   if (id === 'energy') return `gain ${value} energy`;
   if (id === 'cost') return `(${value} energy)`;
-  if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
+  if (id === 'resonance' || id === 'bulwark' || id === 'hammer' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
   return `${k.name} ${value}`;
 }
 

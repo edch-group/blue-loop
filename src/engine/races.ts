@@ -45,7 +45,7 @@ export const RACE_TRAITS: RaceTrait[] = [
   { bonus: 'Barbed: {sting:1}.', nerf: 'Slow tides: −1 attack (never below 1).', bonusOn: 'stays', nerfOn: 'value', sting: 1, attack: -1 },
   { bonus: 'Regrowth: +1 stability.', nerf: 'Soft-bodied: −1 defence.', bonusOn: 'value', nerfOn: 'stays', stability: 1, defence: -1 },
   { bonus: 'Darkspeed: their attackers and Heroes can attack or act the day they come into play.', nerf: 'Fleeting: −2 stability.', bonusOn: 'darkspeed', nerfOn: 'value', ambush: true, stability: -2 },
-  { bonus: 'Forged: +2 defence.', nerf: 'Ponderous: −1 attack (never below 1).', bonusOn: 'stays', nerfOn: 'value', defence: 2, attack: -1 },
+  { bonus: 'Anvil: +2 defence.', nerf: 'Ponderous: −1 attack (never below 1).', bonusOn: 'stays', nerfOn: 'value', defence: 2, attack: -1 },
   { bonus: 'Star-charted: they attune once more.', nerf: 'Frail: −1 stability.', bonusOn: 'attune', nerfOn: 'value', attune: 1, stability: -1 },
   { bonus: 'Flare-born: +1 attack, and +2 while your sun is {overheated}.', nerf: 'Self-immolating: each of their attacks heats your own sun 1.', bonusOn: 'attack', nerfOn: 'attack', bonusTag: 'Flare-born: +1 attack while your sun is {overheated}.', attack: 1, attackHot: 1, attackSelfHeat: 1 },
 ];

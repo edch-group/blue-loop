@@ -4616,7 +4616,7 @@ export class App {
   }
 
   /**
-   * A card's heat, cooling and shields as they now stand (its neighbours' resonance, Forge cards, the
+   * A card's heat, cooling and shields as they now stand (its neighbours' resonance, Hammer cards, the
    * table): in play its dawn's numbers, in your hand what it would do as you play it.
    */
   private liveNumbers(c: CardInstance, opts: { hand?: boolean; owner?: PlayerState }): Record<number, number> {

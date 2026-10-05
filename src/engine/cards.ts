@@ -224,7 +224,7 @@ export const CARDS: CardDef[] = [
     text: '{dawn}: {heat:2}.',
     onTurn: [{ type: 'heat', amount: 2, to: 'target' }],
   },
-  { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: '{forge:2}.', passive: [{ type: 'adjacent', amounts: [2], kind: 'attack' }] },
+  { id: 'focusing_array', name: 'Focusing Array', kind: 'attack', race: 0, text: '{hammer:2}.', passive: [{ type: 'adjacent', amounts: [2], kind: 'attack' }] },
   {
     id: 'coronal_chorus',
     name: 'Coronal Chorus',
@@ -402,7 +402,7 @@ export const CARDS: CardDef[] = [
     name: 'Sunforge',
     kind: 'attack',
     race: 0,
-    text: '{forge:1}. {dawn}: {heat:1}.',
+    text: '{hammer:1}. {dawn}: {heat:1}.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     passive: [{ type: 'adjacent', amounts: [1], kind: 'attack' }],
   },
