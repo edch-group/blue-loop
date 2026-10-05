@@ -3256,7 +3256,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   font-size: max(7px, calc(var(--cw, 100px) * 0.07)); line-height: 1; color: #fff;
 }
 /* Too costly to play right now: still a solid card, its colours muted and its cost gem greyed. */
-.hand .card.card-pricey .card-glyph, .hand .card.card-pricey .card-text { filter: saturate(0.4); }
+.hand .card.card-pricey .card-glyph > :not(.art-wrap), .hand .card.card-pricey .art-wrap > *, .hand .card.card-pricey .card-text { filter: saturate(0.4); }
 .hand .card.card-pricey .cost-dots i { background: #a3aab5; box-shadow: 0 1px 2px rgba(20, 30, 40, 0.3); }
 
 /* Guard cards: a bright rim, so it's plain which cards stand in front of the sun. */
@@ -4200,7 +4200,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* A card of yours that can attack today: a red ring (click it, then a rival card or their sun). */
 .card.card-attacker, .board-plane .card.card-table.card-attacker { cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.7), 0 0 14px rgba(216, 69, 43, 0.3); }
 /* A dimmed card has acted today (or just arrived): greyed until its controller's next day. */
-.card.card-table.card-dimmed .card-glyph, .card.card-table.card-dimmed .card-text, .card.card-table.card-dimmed .card-name { filter: saturate(0.25) brightness(0.86); }
+.card.card-table.card-dimmed .card-glyph > :not(.art-wrap), .card.card-table.card-dimmed .art-wrap > *, .card.card-table.card-dimmed .card-text, .card.card-table.card-dimmed .card-name { filter: saturate(0.25) brightness(0.86); }
 .card.card-table.card-dimmed::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; background: rgba(40, 46, 60, 0.16); pointer-events: none;
 }
@@ -4635,3 +4635,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card .card-type { top: calc(var(--cw, 100px) * 0.06); transform: translate(-50%, -50%); }
 .card .art-wrap .gem { top: calc(var(--cw, 100px) * -0.082); }
 .card-table .card-type { top: calc(var(--cw, 100px) * 0.06); }
+/* The gem's centre exactly on the card's outer edge (past its 1px border), so its bump's two halves meet the rim;
+   and over the type pill: no filter on the gem's wrappers (a muted card mutes their children instead), since a
+   filter there had kept the gem beneath everything outside the picture. */
+.card .art-wrap .gem { top: calc(var(--cw, 100px) * -0.06 - 1px); z-index: 6; }
+/* The picture's notch is gone, so its frame casts a plain box-shadow instead of its wrapper's filter
+   (which made a stacking context that held the gem beneath the type pill). */
+.card .art-wrap { filter: none; }
+.card .art-wrap .art-frame { box-shadow: 0 0 0 0.6px rgba(255, 255, 255, 0.95), 0 2px 3px rgba(40, 40, 60, 0.16); }
