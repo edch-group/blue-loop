@@ -4872,3 +4872,5 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* A bigger black hole in the Anomaly gem, its glow widened to match. */
 .g-ah-core { background: radial-gradient(circle, #000 0 22%, rgba(0, 0, 0, 0.85) 23.2%, rgba(10, 6, 20, 0.35) 25.5%, transparent 28.5%); }
 .g-ah-glow { background: radial-gradient(circle, #ffffff 0 24%, rgba(240, 232, 255, 0.95) 28%, rgba(190, 168, 245, 0.7) 35%, rgba(120, 100, 190, 0.42) 47%, rgba(60, 50, 110, 0.22) 61%, transparent 76%); }
+/* (The deck builder's pool: a set number of rows, the columns centred across.) */
+.db-editor .db-pool { justify-content: center; }

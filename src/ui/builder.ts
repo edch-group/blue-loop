@@ -605,7 +605,8 @@ export class DeckBuilder {
     // (Heroes stand upright like every other card, so they share its columns.)
     const cols = L.cols;
     const h = L.cardH;
-    const rows = Math.max(1, Math.floor((L.height + L.gap + 0.5) / (h + L.gap)));
+    void h;
+    const rows = ROWS[this.grid] ?? 2;
     const per = cols * rows;
     const pages: CardDef[][] = [];
     for (let i = 0; i < all.length; i += per) pages.push(all.slice(i, i + per));
@@ -844,6 +845,8 @@ interface PoolLayout {
   gap: number;
 }
 const fitted: Partial<Record<string, PoolLayout>> = {};
+/** Rows of cards each view shows. */
+const ROWS: Record<string, number> = { sm: 3, md: 2, lg: 1 };
 const GUESS: Record<string, PoolLayout> = {
   sm: { cols: 8, cmdCols: 6, cardH: 160, cmdH: 100, height: 600, gap: 6 },
   md: { cols: 5, cmdCols: 4, cardH: 240, cmdH: 150, height: 600, gap: 10 },
@@ -879,7 +882,16 @@ export function sizePool(root: ParentNode = document) {
     const cols = Math.max(least, Math.floor((width + gap) / (min + gap)));
     return { cols, w: Math.floor(((width - (cols - 1) * gap) / cols) * 10) / 10 };
   };
-  const card = fit(base);
+  // Each view shows a set number of rows (small 3, medium 2, large 1): the cards are sized to the pool's
+  // height for them, with as many columns as then fit across (and never wider than the view's own size
+  // would make them fill the width).
+  const height = pool.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom);
+  const rowGap = parseFloat(css.rowGap) || gap;
+  const rows = ROWS[pool.dataset.grid ?? 'md'] ?? 2;
+  // (A card is 1.4 times as tall as it is wide; a little more room each, for its gem standing above it.)
+  const byHeight = Math.floor((((height - (rows - 1) * rowGap) / rows) / 1.52) * 10) / 10;
+  const card = height > 0 && byHeight > 0 ? { cols: Math.max(1, Math.floor((width + gap) / (byHeight + gap))), w: byHeight } : fit(base);
+  if (card.cols * card.w + (card.cols - 1) * gap > width) card.w = Math.floor(((width - (card.cols - 1) * gap) / card.cols) * 10) / 10;
   const cmd = fit(base * 1.3, 2);
   pool.style.gridTemplateColumns = `repeat(${card.cols}, ${card.w}px)`;
   pool.style.setProperty('--cardw', `${card.w}px`);
@@ -890,7 +902,7 @@ export function sizePool(root: ParentNode = document) {
     cmdCols: cmd.cols,
     cardH: card.w * 1.4,
     cmdH: cmd.w / 1.4,
-    height: pool.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom),
-    gap: parseFloat(css.rowGap) || gap,
+    height,
+    gap: rowGap,
   };
 }
