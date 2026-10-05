@@ -1,4 +1,4 @@
-import { applyAction, cardDef, coverCard, createGame, deckProblems, GameError, presetDeck, RACE_NAMES, type Action, type CardInstance, type GameState } from '../src/engine';
+import { applyAction, beginStats, cardDef, coverCard, createGame, deckProblems, finishStats, GameError, noteMove, presetDeck, RACE_NAMES, type Action, type CardInstance, type GameState, type GameStats } from '../src/engine';
 import { isAvatar } from './avatars';
 
 /**
@@ -45,6 +45,9 @@ export interface RoomData {
   ranked?: { ids: string[]; reported?: boolean };
   /** An unranked game's rewards have been paid (to each signed-in player), once per game. */
   rewarded?: boolean;
+  /** This game's anonymous summary, for balancing (kept by the worker once the game is over), and whether it has been. */
+  stats?: GameStats | null;
+  statsKept?: boolean;
 }
 
 export interface LastMove {
@@ -175,6 +178,7 @@ function handleMessage(room: RoomData, seat: number | null, msg: ClientMessage, 
         room.waitingOn = null;
         room.game = applyAction(g, { type: 'concede', playerId: me.id });
         room.last = { action: { type: 'concede', playerId: me.id }, actorId: me.id };
+        if (room.stats) finishStats(room.stats, room.game);
         return { seat, reply: [], broadcast: true };
       }
       if (g.players[g.activePlayerIndex].id !== me.id) return { seat, reply: [{ t: 'error', message: "It's not your day." }], broadcast: false };
@@ -183,6 +187,10 @@ function handleMessage(room: RoomData, seat: number | null, msg: ClientMessage, 
         const next = applyAction(g, msg.action);
         room.last = describe(g, next, msg.action, me.id);
         room.game = next;
+        if (room.stats) {
+          noteMove(room.stats, g, next, msg.action);
+          if (next.winnerId) finishStats(room.stats, next);
+        }
         // A card that landed (in play, or set face down) waits for the rival to read it before its player goes on.
         if (msg.action.type === 'playCard' && !next.winnerId) {
           const cardUid = msg.action.cardUid;
@@ -248,6 +256,8 @@ function start(room: RoomData, random: () => number) {
   });
   room.last = null;
   room.waitingOn = null;
+  room.stats = beginStats(room.game, room.ranked ? 'ranked' : 'online');
+  room.statsKept = false;
 }
 
 function describe(prev: GameState, next: GameState, action: Action, actorId: string): LastMove {

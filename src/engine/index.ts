@@ -8,6 +8,7 @@ export * from './progression';
 export * from './keywords';
 export * from './cover';
 export * from './story';
+export * from './stats';
 export * from './heroes';
 export * from './research';
 export * from './boons';

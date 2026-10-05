@@ -24,6 +24,8 @@
 import { COOKIE, hashPassword, normaliseEmail, passwordProblem, PROVIDERS, randomToken, sameHex, sessionToken, sha256, verifyIdToken } from './auth';
 import { breakDown, buyBooster, craft, freshEconomy, isBoosterKind, normaliseEconomy, payReward, rewardFor, type Economy, type Payout } from './economy';
 import { AVATARS, isAvatar, randomAvatar } from './avatars';
+import { cleanStats } from './stats';
+export { cleanStats };
 import type { GameKind, Reward } from '../src/engine';
 
 export interface AccountsEnv {
@@ -35,11 +37,13 @@ export interface AccountsEnv {
   GOOGLE_CLIENT_ID?: string;
   /** Sign in with Apple: the Services ID. */
   APPLE_SERVICE_ID?: string;
+  /** Reading the anonymous game summaries (GET /api/admin/stats): a long random secret, sent as a Bearer token. Unset, there is no such route. */
+  ADMIN_TOKEN?: string;
 }
 
 /** The versions of the Terms of Service and the Privacy Policy a new account agrees to (public/terms.html, privacy.html). */
 export const TERMS_VERSION = '2026-10-03';
-export const PRIVACY_VERSION = '2026-10-03';
+export const PRIVACY_VERSION = '2026-10-05';
 
 const SESSION_DAYS = 90;
 /** At most this many attempts per email, and per address, in a window. */
@@ -83,6 +87,8 @@ class HttpError extends Error {
  *   POST /api/breakdown { id }                           → { economy }
  *   POST /api/game/start  { kind: 'ai' }                 → { gameId }
  *   POST /api/game/finish { gameId, won, conceded }      → { payout, economy }
+ *   POST /api/stats    { stats, version }                → { ok }   (an anonymous game summary: nothing of who sent it is kept)
+ *   GET  /api/admin/stats?after=&limit=                  → { stats } (Bearer ADMIN_TOKEN)
  * A session response is { account, token, save, updated, economy }; `account` is { id, email, password, avatar }.
  */
 export async function handleAccounts(request: Request, env: AccountsEnv): Promise<Response> {
@@ -106,6 +112,8 @@ export async function handleAccounts(request: Request, env: AccountsEnv): Promis
       'POST /api/breakdown': breakCard,
       'POST /api/game/start': gameStart,
       'POST /api/game/finish': gameFinish,
+      'POST /api/stats': postStats,
+      'GET /api/admin/stats': adminStats,
     };
     const route = routes[`${request.method} ${url.pathname}`];
     if (!route) throw new HttpError(404, 'Not found.');
@@ -530,4 +538,49 @@ async function gameFinish(request: Request, env: AccountsEnv): Promise<Response>
   const won = b.won === true;
   const { economy, result } = await changeEconomy(env.DB, a.id, (e) => payReward(e, rewardFor('ai', won, b.conceded === true), won));
   return Response.json({ payout: result, economy });
+}
+
+// ---------------------------------------------------------------------------
+// Anonymous game summaries, for balancing (src/engine/stats.ts; see the Privacy Policy)
+// ---------------------------------------------------------------------------
+
+/** Keep an anonymous summary (a day, never a time; no account, no player). */
+export async function keepStats(db: D1Database, stats: Record<string, unknown>, version: string) {
+  const day = Math.floor(Date.now() / 86_400_000) * 86_400_000;
+  await db
+    .prepare('INSERT INTO game_stats (day, version, mode, winner_seat, end_reason, rounds, data) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(day, version.slice(0, 40), String(stats.mode), stats.winner ?? null, String(stats.end), Number(stats.rounds) || 0, JSON.stringify(stats))
+    .run();
+}
+
+/** A game's summary, from the game on a device. Signed in to send one (so they can't be flooded), but who sent it isn't kept. */
+async function postStats(request: Request, env: AccountsEnv): Promise<Response> {
+  const a = await requireAccount(request, env);
+  // (A few dozen games an hour is plenty; the limit's key is gone a quarter of an hour later.)
+  await limitStats(env, `stats:${await sha256(a.id)}`);
+  const b = await body(request);
+  const stats = cleanStats(b.stats);
+  if (!stats) throw new HttpError(400, 'Bad summary.');
+  await keepStats(env.DB, stats, String(b.version ?? ''));
+  return Response.json({ ok: true });
+}
+
+async function limitStats(env: AccountsEnv, key: string) {
+  const now = Date.now();
+  const row = await env.DB.prepare('SELECT count, window_start FROM attempts WHERE key = ?').bind(key).first<{ count: number; window_start: number }>();
+  if (row && now - row.window_start < ATTEMPT_WINDOW_MS) {
+    if (row.count >= 30) throw new HttpError(429, 'Too many games at once.');
+    await env.DB.prepare('UPDATE attempts SET count = count + 1 WHERE key = ?').bind(key).run();
+  } else await env.DB.prepare('INSERT OR REPLACE INTO attempts (key, count, window_start) VALUES (?, 1, ?)').bind(key, now).run();
+}
+
+/** The summaries after a given one, oldest first, for whoever holds the admin secret. */
+async function adminStats(request: Request, env: AccountsEnv): Promise<Response> {
+  const given = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  if (!env.ADMIN_TOKEN || env.ADMIN_TOKEN.length < 24 || !sameHex(await sha256(given), await sha256(env.ADMIN_TOKEN))) throw new HttpError(404, 'Not found.');
+  const url = new URL(request.url);
+  const after = Number(url.searchParams.get('after') ?? 0) || 0;
+  const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit') ?? 200) || 200));
+  const rows = await env.DB.prepare('SELECT id, day, version, data FROM game_stats WHERE id > ? ORDER BY id LIMIT ?').bind(after, limit).all<{ id: number; day: number; version: string; data: string }>();
+  return Response.json({ stats: (rows.results ?? []).map((r) => ({ id: r.id, day: r.day, version: r.version, ...JSON.parse(r.data) })) });
 }

@@ -5,7 +5,7 @@ import { emptyRoom, handle, playerIndex, views, type ClientMessage, type Payout,
 
 /** An unranked online game pays out only once it has gone at least this many rounds. */
 const MIN_REWARD_ROUNDS = 3;
-import { accountOf, creditGame, creditRanked, handleAccounts, type AccountsEnv } from './accounts';
+import { accountOf, cleanStats, creditGame, creditRanked, handleAccounts, keepStats, type AccountsEnv } from './accounts';
 
 /**
  * The Blue Loop server: the game's static files (built by Vite into dist/)
@@ -100,6 +100,13 @@ export class Room extends DurableObject<Env> {
       }
     }
     if (msg.t === 'join') this.presence();
+    // A finished game's anonymous summary, kept once (for balancing: no player or account in it).
+    if (room.game?.winnerId && room.stats && !room.statsKept) {
+      room.statsKept = true;
+      await this.ctx.storage.put('room', room);
+      const clean = cleanStats(room.stats);
+      if (clean) await keepStats(this.env.DB, clean, 'server').catch((e) => console.error(e));
+    }
     if (out.report) await this.reportRanked(room, out.report);
     else await this.payUnranked(room);
     // Rooms tidy themselves away: an hour after a game ends, or after a day without play.

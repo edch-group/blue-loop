@@ -4871,3 +4871,4 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @media (hover: hover) { .db-card-in > .card.lifted:not([disabled]) { box-shadow: 0 0 0 2px var(--ring), 0 10px 22px rgba(90, 90, 110, 0.2); } }
 /* (While the zoom is measured ahead of time: nothing on the table may start a transition.) */
 .table-view.no-anim, .table-view.no-anim * { transition: none !important; }
+.opt-note { text-align: center; max-width: 520px; margin: 14px auto 0; font-size: 0.76rem; line-height: 1.4; }

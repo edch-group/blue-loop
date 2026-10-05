@@ -10,7 +10,7 @@
 import { reloadProfile, setEconomy, type EconomyFields } from './profile';
 
 /** What an account's progress is made of: these keys of this device's storage. */
-const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v3', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm', 'blue-loop:hide-starters'];
+const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v3', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm', 'blue-loop:hide-starters', 'blue-loop:share-stats'];
 /** The account signed in on this device, and the version of its progress this device last had. */
 const ACCOUNT_KEY = 'blue-loop:account';
 /** The native app's session token (a browser keeps its session in a cookie that pages can't read). */
@@ -250,6 +250,35 @@ export async function startAiGame(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+const SHARE_STATS_KEY = 'blue-loop:share-stats';
+declare const __GAME_VERSION__: string;
+
+/** Whether anonymous game summaries are sent (on unless switched off in the settings). */
+export function sharingStats(): boolean {
+  try {
+    return localStorage.getItem(SHARE_STATS_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+export function setSharingStats(on: boolean) {
+  try {
+    localStorage.setItem(SHARE_STATS_KEY, on ? '1' : '0');
+  } catch {
+    // Not available.
+  }
+}
+
+/**
+ * A finished game's anonymous summary (src/engine/stats.ts: the decks, the result, the cards played; nothing
+ * about the players), sent for balancing unless switched off. Never in the way: a failure is just dropped.
+ */
+export function sendGameStats(stats: unknown) {
+  if (!sharingStats() || !account()) return;
+  const version = typeof __GAME_VERSION__ === 'string' ? __GAME_VERSION__ : 'dev';
+  void api('stats', 'POST', { stats, version }).catch(() => undefined);
 }
 
 /** A game against the AI ended: the server pays its reward (null: none, e.g. too short, or today's limit reached). */

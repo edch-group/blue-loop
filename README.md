@@ -75,6 +75,20 @@ The Terms of Service and Privacy Policy are `public/terms.html` and `public/priv
 | `MAIL_FROM` | Variable | The sender, e.g. `Blue Loop <noreply@yourdomain.com>` (on the domain you verified). |
 | `GOOGLE_CLIENT_ID` | Variable | Sign in with Google. In Google Cloud Console → APIs & Services → Credentials, create an OAuth client ID of type **Web application**, and add your game's address (e.g. `https://blue-loop.<you>.workers.dev`) to **Authorised JavaScript origins**. |
 | `APPLE_SERVICE_ID` | Variable | Sign in with Apple. In the Apple Developer portal → Identifiers, create a **Services ID**, enable Sign in with Apple, and add your game's domain and its address (as the return URL). Needs a paid Apple Developer account. |
+| `ADMIN_TOKEN` | Secret | Downloading the anonymous game statistics (below). Any long random string (24+ characters), e.g. from `openssl rand -hex 32`. |
+
+## Game statistics (for balancing)
+
+When a game ends, an anonymous summary of it is kept: the cards in each deck (and the starter's name, if it is one), the cards played and when, who went first and who won, and the length (`src/engine/stats.ts`). Nothing about who played: no name, account or time of day (only the day). Games on a device are sent by the game (players can switch it off in the options: "share game stats"); online and ranked games are summarised by the room server. They are kept in the `game_stats` table (`migrations/0004_game_stats.sql`: apply it as above).
+
+To read them, set `ADMIN_TOKEN` on the Worker, then:
+
+```bash
+ADMIN_TOKEN=… npx tsx scripts/stats-report.ts https://blue-loop.<you>.workers.dev            # everything
+ADMIN_TOKEN=… npx tsx scripts/stats-report.ts https://… --mode=ai --since=2026-10-05           # games against the AI, since a day
+```
+
+It prints each deck's win rate (and played by a person), the match-ups, the most played cards and their side's win rate when played, cards that sit in decks unplayed, first-player advantage, game length, and how many decks people built themselves. (It caches what it has fetched in `.stats-cache.json`.)
 
 ## Native iPhone / iPad app (landscape in play)
 

@@ -65,6 +65,10 @@ import {
   type PlayerSetup,
   type PlayerState,
   deckProblems,
+  beginStats,
+  finishStats,
+  noteMove,
+  type GameStats,
 } from '../engine';
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
@@ -77,7 +81,7 @@ import { attackBadge, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardAr
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
-import { account, buyBooster, checkIn, flush, confirmReset, deleteAccount, finishAiGame, logIn, logInWith, logOut, markDirty, onProgressReplaced, refreshEconomy, requestReset, serverConfig, signUp, startAiGame, type AuthResult, type Payout, type ServerConfig } from './account';
+import { account, buyBooster, checkIn, flush, confirmReset, deleteAccount, finishAiGame, logIn, logInWith, logOut, markDirty, onProgressReplaced, refreshEconomy, requestReset, sendGameStats, serverConfig, setSharingStats, sharingStats, signUp, startAiGame, type AuthResult, type Payout, type ServerConfig } from './account';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
@@ -556,6 +560,8 @@ export class App {
   private shownPage = '';
   /** Auto-confirm: a rival's card waits on the stage for a moment, then lands by itself. */
   private autoConfirm = false;
+  /** This game's anonymous summary, for balancing (a fresh game on this device; sent when it ends). */
+  private statsRec: GameStats | null = null;
   /** The How to Play tab showing. */
   private rulesTab = 'overview';
   /** The rival whose tableau is shown across the table (defaults to the viewer's target). */
@@ -1343,6 +1349,8 @@ export class App {
         }
       }
     } else this.aiGameId = null;
+    // A fresh game on this device is summed up as it is played (online, the room does it).
+    this.statsRec = state.turnNumber <= 1 && !state.winnerId && humans > 0 ? beginStats(state, this.campaignBattle ? 'campaign' : humans === 1 ? 'ai' : 'hotseat') : null;
     this.state = state;
     this.revealedFor = null;
     this.viewerId = null;
@@ -1548,6 +1556,7 @@ export class App {
       sound.error();
       return;
     }
+    if (this.statsRec) noteMove(this.statsRec, prev, next, action);
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
@@ -1687,6 +1696,11 @@ export class App {
   /** Autosave: a campaign battle is saved inside its campaign; a normal game on its own. */
   private persist(state: GameState) {
     if (this.online) return; // the room keeps online games
+    // Over: its anonymous summary goes off (once).
+    if (this.statsRec && isGameOver(state)) {
+      sendGameStats(finishStats(this.statsRec, state));
+      this.statsRec = null;
+    }
     if (this.campaignBattle) this.campaign.saveBattle(state);
     else if (isGameOver(state)) clearSave();
     else save(state);
@@ -1790,7 +1804,12 @@ export class App {
     }
     let s = this.state!;
     let guard = 0;
-    while (!isGameOver(s) && activePlayer(s).isAI && guard++ < 5000) s = applyAction(s, chooseAIAction(s));
+    while (!isGameOver(s) && activePlayer(s).isAI && guard++ < 5000) {
+      const action = chooseAIAction(s);
+      const next = applyAction(s, action);
+      if (this.statsRec) noteMove(this.statsRec, s, next, action);
+      s = next;
+    }
     this.state = s;
     this.stage = null;
     this.sheet = null;
@@ -3086,6 +3105,11 @@ export class App {
       case 'toggle-music':
         sound.toggleMusic();
         return this.refreshSettings();
+      case 'toggle-stats':
+        setSharingStats(!sharingStats());
+        markDirty();
+        this.render();
+        return;
       case 'toggle-autoconfirm':
         this.autoConfirm = !this.autoConfirm;
         try {
@@ -3956,8 +3980,10 @@ export class App {
         ${tile('toggle-music', 'music', sound.musicOn && !sound.muted ? 'on' : 'off', sound.muted)}
         ${tile('speed', 'ai speed', this.speed)}
         ${tile('toggle-autoconfirm', 'auto-confirm', this.autoConfirm ? 'on' : 'off')}
+        ${tile('toggle-stats', 'share game stats', sharingStats() ? 'on' : 'off')}
         ${tile('rules', 'how to play', 'read')}
-      </div>`,
+      </div>
+      <p class="opt-note muted">Game stats are anonymous: the decks played, the cards used and who won, never who played. They help us balance the game.</p>`,
       '',
     );
   }
