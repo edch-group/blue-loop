@@ -4494,3 +4494,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @media (hover: hover) { .stage-hero .card-ability-on:hover { background: rgba(255, 255, 255, 0.08); } }
 /* Where a card dragged out of the hand would land on your tableau. */
 .tableau-mine .drop-over { outline: 2px solid color-mix(in srgb, #3f8f6a 70%, #fff); outline-offset: 3px; border-radius: calc(var(--tcw, 60px) * 0.08); }
+/* The preview pane's buttons: solid, so they stand out over the board. */
+.stage-ok { background: #2f3a52; color: #fff; border: 1px solid #2f3a52; box-shadow: 0 6px 18px rgba(30, 40, 60, 0.35); font-weight: 600; }
+.stage-ok:hover { background: #3c4968; }
+.stage-ls-btn { background: #d4952a; color: #fff; border: 1px solid #c4851c; box-shadow: 0 6px 18px rgba(170, 110, 20, 0.35); }
+.stage-ls-btn:hover { background: #e0a23a; }
+.stage-ls-btn small { opacity: 0.9; }
