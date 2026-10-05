@@ -671,7 +671,7 @@ export class App {
       // (The card the pointer came in on doesn't lift as the hand rises: only once the pointer moves on to another.)
       const card = (e.target as HTMLElement).closest?.<HTMLElement>('.hand > .card') ?? null;
       this.root.querySelectorAll('.hand > .card.no-lift').forEach((c) => c !== card && c.classList.remove('no-lift'));
-      if (over && !this.handRaised) card?.classList.add('no-lift');
+      if (over && !this.handRaised && performance.now() >= this.dealtAt) card?.classList.add('no-lift');
       this.raiseHand(over);
     });
     root.addEventListener('mouseleave', () => mouse.matches && !this.touch && !this.drag && this.raiseHand(false));
@@ -1392,7 +1392,11 @@ export class App {
   /** Opening hand: shuffle, then deal the viewer's cards in one by one. */
   private dealOpening() {
     sound.shuffle();
-    this.root.querySelectorAll<HTMLElement>('.hand [data-uid]').forEach((el, i) => {
+    const cards = this.root.querySelectorAll<HTMLElement>('.hand [data-uid]');
+    // (The hand can't be raised while it is being dealt.)
+    this.raiseHand(false);
+    this.dealtAt = performance.now() + 350 + cards.length * DEAL_STEP_MS + 520;
+    cards.forEach((el, i) => {
       this.dealCard(el, 350 + i * DEAL_STEP_MS);
       sound.draw(0.35 + (i * DEAL_STEP_MS) / 1000);
     });
@@ -2355,21 +2359,26 @@ export class App {
     const card = me.hand.find((c) => c.uid === uid);
     if (!card) return;
     // (A card that costs 0 can still be played with no energy left.)
+    // (A card that can't be played now shakes its head, with the blocker's thud.)
+    const refuse = () => {
+      sound.blocked();
+      this.root.querySelector<HTMLElement>(`.hand > .card[data-uid="${uid}"]`)?.animate(
+        [{ translate: '0' }, { translate: '-7px 0' }, { translate: '6px 0' }, { translate: '-4px 0' }, { translate: '2px 0' }, { translate: '0' }],
+        { duration: 380, easing: 'ease-out' },
+      );
+    };
     if (cardCost(card.defId) > me.playsLeft && !canSetFaceDown(me, card.defId)) {
       this.showToast(`${cardDef(card.defId).name} costs ${cardCost(card.defId)} energy: you have ${me.playsLeft} left today.`, 'info');
-      sound.error();
-      return;
+      return refuse();
     }
     // (Another card in your hand, while one waits to be placed: that one is played instead.)
     if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) {
       this.showToast('You already have a Lightspeed card face down: only one at a time.', 'info');
-      sound.error();
-      return;
+      return refuse();
     }
     if (!hasRoomFor(me, card.defId) && !canSetFaceDown(me, card.defId)) {
       this.showToast('Your tableau is full: a card can only go in once one fades (or is recalled or removed). A recall card can take the place of the card it recalls.', 'info');
-      sound.error();
-      return;
+      return refuse();
     }
     this.pending = { uid, step: 'choice', drop };
     this.advancePlay();
@@ -2536,7 +2545,10 @@ export class App {
 
   /** The hand raised clear of the screen's foot (on a touch screen, by a first tap; with a mouse, by hovering it). */
   private handRaised = false;
+  /** When the opening hand has been dealt (until then it can't be raised). */
+  private dealtAt = 0;
   private raiseHand(up: boolean) {
+    if (up && performance.now() < this.dealtAt) return;
     if (this.handRaised === up) return;
     this.handRaised = up;
     if (up) {

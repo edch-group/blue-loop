@@ -465,12 +465,9 @@ input { font: inherit; }
 }
 .card:active:not([disabled]) { transform: scale(0.97); }
 .card-affordable { box-shadow: 0 0 0 1.5px #fff, 0 0 16px color-mix(in srgb, var(--kc) 30%, rgba(255, 255, 255, 0.9)), 0 5px 16px rgba(90, 90, 110, 0.15); }
-/* Can't afford it yet: the card keeps its colours but has no glow and does not lift. */
-.card.card-pricey { cursor: not-allowed; }
+/* Can't afford it yet: the card keeps its colours but has no glow (in the hand it still lifts as any card does). */
 @media (hover: hover) {
   .card.card-pricey.lifted { transform: none; }
-  /* In the hand it keeps its place in the fan, and its angle (a Command card stays on its side). */
-  .hand > .card.card-pricey.lifted { transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg))); }
 }
 /* Display cards float slightly above the board. */
 .display .card { box-shadow: 0 6px 18px rgba(80, 84, 100, 0.16), 0 1px 3px rgba(80, 84, 100, 0.1); }
