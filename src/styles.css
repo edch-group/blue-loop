@@ -4938,3 +4938,36 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @keyframes glPlume { 0% { scale: 0.85; opacity: 0; } 25% { opacity: 1; } 70% { opacity: 0.6; } 100% { scale: 1.2; opacity: 0; } }
 @keyframes glLens { 0%, 100% { scale: 0.98; opacity: 0.7; } 50% { scale: 1.03; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .gem-light .gl { animation-duration: 600s, 20s; } .gl-spikes, .gl-lens { animation-duration: 20s; } }
+
+/* ---------- The gem's setting: a ring bezel, and the night it shines into ---------- */
+/* Every gem sits in a metal bezel like a ring's, in its rarity's metal (silver for a White Dwarf, gold for a
+   Stellar, violet silver for an Anomaly), the same on every card, Heroes included: a bevelled band, lit from the
+   top left, with a dark groove where it grips the stone. (It replaces the bump of card stock the gem sat in.) */
+.card .art-wrap .gem.gem-dwarf { --m-hi: #ffffff; --m-mid: #c9d0dd; --m-lo: #7d8699; }
+.card .art-wrap .gem.gem-stellar { --m-hi: #fff4cf; --m-mid: #e1b453; --m-lo: #99671b; }
+.card .art-wrap .gem.gem-anomaly { --m-hi: #f6efff; --m-mid: #b9a6e0; --m-lo: #6c5a98; }
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+  inset: calc(var(--gs) * -0.17); clip-path: none; border-radius: 50%;
+  background: conic-gradient(from 200deg, var(--m-hi), var(--m-mid) 18%, var(--m-lo) 34%, var(--m-mid) 50%, var(--m-hi) 62%, var(--m-mid) 76%, var(--m-lo) 90%, var(--m-hi));
+  box-shadow: inset 0 0 0 calc(var(--gs) * 0.035) rgba(255, 255, 255, 0.55), inset 0 0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.06) rgba(0, 0, 0, 0.18), 0 calc(var(--gs) * 0.05) calc(var(--gs) * 0.12) rgba(20, 22, 34, 0.45);
+}
+.card .art-wrap .gem.gem-dwarf::after, .card .art-wrap .gem.gem-stellar::after, .card .art-wrap .gem.gem-anomaly::after {
+  inset: calc(var(--gs) * -0.17); clip-path: none; border-radius: 50%; box-shadow: none;
+  border: var(--bump-w, 1px) solid var(--bump-ring, rgba(30, 32, 48, 0.4));
+}
+/* The light cards' top strip, behind the gem, deepens into a band of night toward it, lit by the gem right where
+   it sits (an Anomaly's stays dark), so the gem shines as it does on a Hero's dark face. */
+.card:not(.kind-command) {
+  --skyband: radial-gradient(ellipse 40% 230% at 50% 0%, var(--sky-lit), color-mix(in srgb, var(--sky-night) 90%, transparent) 28%, color-mix(in srgb, var(--sky-night) 50%, transparent) 55%, transparent 88%);
+  --sky-lit: #9cc0ff; --sky-night: #1d2f63;
+  background-image: var(--skyband), linear-gradient(var(--bgtop), var(--bgtop)), var(--bg1), var(--bg2);
+  background-size: 100% var(--strip), 100% var(--strip), calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05), 100% 100%;
+  background-position: 0 0, 0 0, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+}
+.card.rarity-stellar { --sky-lit: #ffc460; --sky-night: #5c2f0c; }
+.card.rarity-anomaly { --sky-lit: #0e061a; --sky-night: #2a1046; }
+.card:has(> .card-stock):not(.kind-command) {
+  background-image: var(--skyband), var(--bg2);
+  background-size: 100% var(--strip), 100% 100%; background-position: 0 0, 0 0; background-repeat: no-repeat, no-repeat;
+}
