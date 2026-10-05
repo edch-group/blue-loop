@@ -25,3 +25,25 @@ crest, what it wears and how it stands all vary from card to card, drawn from th
 figure's place on the card, so the members of a group differ from each other too). A scene can still pin
 any trait (`look=dict(...)`) where the card calls for something in particular. Each race's figure is
 built with this range of traits from the start.
+
+## Generated pictures (fal.ai)
+
+`generate.py` paints a card with an image model on fal.ai instead: its prompt is the card's scene in
+`prompts/<race>.json` plus the race's look, the house style and the framing, and the race's reference images
+(`refs/<race>-*.jpg`) go with it. The full picture is kept in `generated/<id>.png`; the card's 640x400 picture
+goes to `src/assets/cards/<id>.webp`.
+
+The fal.ai key is a repository secret (`FAL_API_KEY`), so generation runs on GitHub Actions
+(`.github/workflows/cardart.yml`): write `<race> [card ids...]` into `request.txt` and push. The pictures are
+committed back to the same branch and the request is emptied. Each picture costs money; ask only for the ones
+you need.
+
+The card's type badge covers the top centre of its picture. When it hides a head, `reframe.py` re-cuts the
+card's picture from the full one with more sky on top, so the figure sits lower:
+
+```
+python3 scripts/cardart/reframe.py halo_ward 128          # 128px more sky
+python3 scripts/cardart/reframe.py halo_ward 128 --look   # also writes generated/<id>.reframed.png to check
+```
+
+Re-framed so far: `halo_ward` 128, `aureline_sun_priest` 112, `ignition_protocol` 100, `aurelia_first_light` 112.
