@@ -4114,8 +4114,10 @@ export class App {
     if (!this.boardZoom) {
       this.zoomVars = '';
       view.removeAttribute('style');
-      // (Its cards are their own size again: their text fits afresh.)
+      // (Its cards are their own size again: their text fits afresh, and the outlines are drawn round them again.)
       fitCardText(view);
+      frameTableaus(this.root);
+      leanPiles(this.root);
       return;
     }
     const side = this.boardZoom;
@@ -4153,8 +4155,11 @@ export class App {
     }
     void game.offsetWidth;
     game.style.transition = '';
-    // Card text was fitted to the cards at their old size (a long one shrunk to fit): fit it again at this size.
+    // Card text was fitted to the cards at their old size (a long one shrunk to fit): fit it again at this size,
+    // and the tableaus' outlines (and the piles' lean) drawn again round them.
     fitCardText(view);
+    frameTableaus(this.root);
+    leanPiles(this.root);
   }
 
   /** Round and stability, together in one container at the top centre. */

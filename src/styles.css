@@ -1505,14 +1505,16 @@ body.screen-campaign .backdrop { display: none; }
 .board-floor {
   position: absolute; inset: -38% -48%; border-radius: 50%;
   pointer-events: none;
+  /* (Its dots and rings are sized with the board: zoomed in, they grow with everything else.) */
+  --fz: var(--bz, 1);
   background:
-    radial-gradient(circle, rgba(120, 135, 170, 0.32) 0 1px, transparent 1.5px) 0 0 / 34px 34px,
-    repeating-radial-gradient(circle at 50% 50%, transparent 0 58px, rgba(140, 150, 175, 0.16) 58px 59px),
+    radial-gradient(circle, rgba(120, 135, 170, 0.32) 0 calc(1px * var(--fz)), transparent calc(1.5px * var(--fz))) 0 0 / calc(34px * var(--fz)) calc(34px * var(--fz)),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 calc(58px * var(--fz)), rgba(140, 150, 175, 0.16) calc(58px * var(--fz)) calc(59px * var(--fz))),
     radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.55), rgba(236, 240, 248, 0.25) 45%, transparent 70%);
   /* Fading out at the edges, and clear in the middle (no innermost ring or dots), where the star lies. */
-  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%), radial-gradient(circle at 50% 50%, transparent 0 86px, #000 92px);
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%), radial-gradient(circle at 50% 50%, transparent 0 calc(86px * var(--fz)), #000 calc(92px * var(--fz)));
   -webkit-mask-composite: source-in;
-  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%), radial-gradient(circle at 50% 50%, transparent 0 86px, #000 92px);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%), radial-gradient(circle at 50% 50%, transparent 0 calc(86px * var(--fz)), #000 calc(92px * var(--fz)));
   mask-composite: intersect;
   transform: translateZ(-1px);
 }
@@ -1918,7 +1920,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 }
 .board .board-star-slot { width: min(calc(46 * var(--vh)), 70%); }
 /* The star lies flat in the middle of the board's rings (the innermost ring and its dots make way for it). */
-.board-plane > .board-star-slot { width: 160px; z-index: 0; transform: translate(-50%, -50%) translateZ(-0.5px); }
+.board-plane > .board-star-slot { width: calc(160px * var(--bz, 1)); z-index: 0; transform: translate(-50%, -50%) translateZ(-0.5px); }
 .tableau { position: relative; display: grid; gap: 4px; justify-items: center; transform-style: preserve-3d; }
 .tableau-rival { grid-row: 1; }
 .tableau-mine { grid-row: 3; }
@@ -4343,7 +4345,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
    the petals spread out from its edge. */
 .round-ring {
   /* (Sized with the board, so it stays inside the flower's dense heart, where the petals meet.) */
-  width: clamp(26px, calc(4 * var(--vh)), 52px);
+  width: calc(clamp(26px, calc(4 * var(--vh)), 52px) * var(--bz, 1));
   background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 8px rgba(90, 90, 110, 0.18);
 }
 .round-ring .round-track { fill: none; stroke: rgba(120, 124, 134, 0.14); stroke-width: 9; }
@@ -4351,7 +4353,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .round-ring path.on { stroke: #ffffff; filter: drop-shadow(0 0 1.5px rgba(150, 158, 175, 0.95)); }
 .round-ring.unstable .round-track { stroke: rgba(201, 138, 134, 0.25); }
 .round-ring-num { width: auto; aspect-ratio: auto; background: none; border: 0; box-shadow: none; }
-.round-ring-num b { font-size: clamp(9px, calc(1.5 * var(--vh)), 17px); }
+.round-ring-num b { font-size: calc(clamp(9px, calc(1.5 * var(--vh)), 17px) * var(--bz, 1)); }
 .round-ring-num em { font-size: clamp(6px, calc(0.9 * var(--vh)), 10px); }
 
 /* Your Hero's actions, in the stage's place: the card, its abilities (and attack) beneath. */
@@ -4470,9 +4472,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* Short (phone) screens: the Stellari, the round and the labels either side of it a size down, to sit within
    the space the two tableaus' outlines leave between them. */
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .board-plane > .board-star-slot { width: 104px; }
-  .round-ring { width: 20px; }
-  .round-ring-num b { font-size: 8px; }
+  .board-plane > .board-star-slot { width: calc(104px * var(--bz, 1)); }
+  .round-ring { width: calc(20px * var(--bz, 1)); }
+  .round-ring-num b { font-size: calc(8px * var(--bz, 1)); }
   .board-plane > .phase-track, .board-plane > .turn-who { --stellari-r: 48px; gap: 4px; }
   .turn-who span, .phase-step span { font-size: 7px; letter-spacing: 0.18em; }
   .phase-step { gap: 5px; }
