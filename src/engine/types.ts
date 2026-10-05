@@ -8,11 +8,12 @@
 /**
  * Card types. They matter for synergies ("your attack cards deal +1 heat").
  * Lightspeed cards are played face down and spring during an enemy's day.
+ * Relics have no attack and never fade, but are Brittle: no defence, and any blow, heat or decay breaks them.
  */
-export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'lightspeed';
-export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'global', 'command', 'lightspeed'];
+export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'lightspeed' | 'relic';
+export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'relic', 'global', 'command', 'lightspeed'];
 /** A kind as players read it: Command cards are Heroes (the id stays, so saved decks carry over). */
-export const KIND_NAME: Record<CardKind, string> = { attack: 'attack', defence: 'defence', growth: 'growth', global: 'global', command: 'hero', lightspeed: 'lightspeed' };
+export const KIND_NAME: Record<CardKind, string> = { attack: 'attack', defence: 'defence', growth: 'growth', global: 'global', command: 'hero', lightspeed: 'lightspeed', relic: 'relic' };
 
 /**
  * How rare a card is, shown by a gem at the top of the card: a White Dwarf

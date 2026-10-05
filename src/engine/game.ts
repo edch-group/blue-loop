@@ -181,7 +181,8 @@ export function cardSturdy(card: CardInstance): number {
 
 /** Cards of yours a Fusion card can fuse onto: any in play with room for another (not Lightspeed cards). */
 export function fusionHosts(p: PlayerState): CardInstance[] {
-  return p.tableau.filter((c) => (c.fused?.length ?? 0) < BALANCE.maxFused);
+  // (Not a Relic: nothing fused onto it would steady it, so it would only break the pair.)
+  return p.tableau.filter((c) => (c.fused?.length ?? 0) < BALANCE.maxFused && cardDef(c.defId).kind !== 'relic');
 }
 
 /** Cards this player may play on a day (before any have been played). */
@@ -432,6 +433,7 @@ export function needsSlot(p: PlayerState, defId: string): boolean {
 /** How long a card stays in play before it fades into its owner's discard pile. */
 export function baseStability(defId: string): number {
   const def = cardDef(defId);
+  if (def.kind === 'relic') return BALANCE.stabilityRelic;
   const t = def.kind === 'command' ? 0 : raceTrait(def.race)?.stability ?? 0;
   return Math.max(1, rawStability(def) + t);
 }
@@ -483,6 +485,8 @@ function distance(a: CardInstance, b: CardInstance): number {
  * reach cards with low enough defence.
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
+  // Brittle: a Relic has no defence at all, wherever it stands (so any removal reaches it, and any blow lands).
+  if (cardDef(card.defId).kind === 'relic') return 0;
   let d = slotDefence(card.slot) + cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0);
   for (const src of p.tableau) {
     const k = distance(src, card);
@@ -1021,6 +1025,8 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const mine = e.self ? p.tableau.filter((c) => c.uid === card.uid) : e.all ? p.tableau.filter((c) => c.uid !== card.uid) : p.tableau.filter((c) => c.uid === ctx.allyUid);
         for (const c of mine) {
           // (Up to the usual cap, or a card's own full stability where that is higher: a Hero's.)
+          // (A Relic stays brittle: nothing steadies it.)
+          if (cardDef(c.defId).kind === 'relic') continue;
           c.stability = Math.min(Math.max(BALANCE.maxStability, baseStability(c.defId)), (c.stability ?? 0) + e.amount);
           log(state, `${p.name}'s ${cardDef(c.defId).name} steadies (stability ${c.stability}).`);
         }
@@ -1285,8 +1291,9 @@ function dawn(state: GameState, p: PlayerState) {
     resolveEffects(state, p, card, dawnEffects(card, p, state), 'turn');
   }
   // Then every card loses 1 stability (unless anchored); at 0 it fades into your discard pile.
-  // (A Hero never fades: it leads until it is removed, beaten down by heat, or replaced by another.)
-  const fading = p.tableau.filter((c) => !anchored(p, c) && cardDef(c.defId).kind !== 'command');
+  // (A Hero never fades: it leads until it is removed, beaten down by heat, or replaced by another. Nor
+  // does a Relic: it stays until something breaks it.)
+  const fading = p.tableau.filter((c) => !anchored(p, c) && cardDef(c.defId).kind !== 'command' && cardDef(c.defId).kind !== 'relic');
   for (const card of fading) card.stability = (card.stability ?? 1) - 1;
   for (const card of fading) {
     if (state.winnerId || p.eliminated) break;

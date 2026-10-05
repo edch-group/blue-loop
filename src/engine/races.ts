@@ -41,7 +41,7 @@ export interface RaceTrait {
 
 export const RACE_TRAITS: RaceTrait[] = [
   { bonus: 'Sun-lances: their attack cards have +1 attack.', nerf: 'Unarmoured: −1 defence.', bonusOn: 'value', nerfOn: 'stays', attack: 1, defence: -1 },
-  { bonus: 'Shatter: when one leaves your tableau, {heat:1} at your rival.', nerf: 'Brittle: −1 stability.', bonusOn: 'stays', nerfOn: 'value', shatter: 1, stability: -1 },
+  { bonus: 'Shatter: when one leaves your tableau, {heat:1} at your rival.', nerf: 'Fractured: −1 stability.', bonusOn: 'stays', nerfOn: 'value', shatter: 1, stability: -1 },
   { bonus: 'Barbed: {sting:1}.', nerf: 'Slow tides: −1 attack (never below 1).', bonusOn: 'stays', nerfOn: 'value', sting: 1, attack: -1 },
   { bonus: 'Regrowth: +1 stability.', nerf: 'Soft-bodied: −1 defence.', bonusOn: 'value', nerfOn: 'stays', stability: 1, defence: -1 },
   { bonus: 'Darkspeed: their attackers and Heroes can attack or act the day they come into play.', nerf: 'Fleeting: −2 stability.', bonusOn: 'darkspeed', nerfOn: 'value', ambush: true, stability: -2 },

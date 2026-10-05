@@ -166,7 +166,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   if (def.abilities?.length) perTurn += 0.8 * Math.max(...def.abilities.map((k) => abilityValue(p, k.effects) - (k.cost ?? 0) * ACTION_VALUE * 0.6));
   // Worth as many turns as it has left (roughly), and a little more where removal cannot reach it. A Hero
   // never fades: it is worth the whole horizon.
-  const turns = def.kind === 'command' ? HORIZON + 1 : Math.min(card.stability ?? HORIZON, HORIZON + 1);
+  const turns = def.kind === 'command' || def.kind === 'relic' ? HORIZON + 1 : Math.min(card.stability ?? HORIZON, HORIZON + 1);
   return perTurn * turns * (0.85 + 0.05 * cardDefence(p, card));
 }
 

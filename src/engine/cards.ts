@@ -5,6 +5,7 @@ import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { RACE_CARDS } from './cards-races';
 import { DUSK_CARDS } from './cards-dusk';
 import { BIG_CARDS } from './cards-big';
+import { RELIC_CARDS } from './cards-relics';
 import { HERO_CARDS } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
@@ -691,7 +692,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS);
+CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS, ...RELIC_CARDS);
 // The Heroes as they now fight (heroes-battle.ts): lasting, with abilities to choose from each day, in
 // place of the old choice of dawn effect.
 for (const c of CARDS) {
@@ -718,7 +719,7 @@ export function hasDarkspeed(def: CardDef): boolean {
 }
 
 export function isBurst(def: CardDef): boolean {
-  if (def.kind === 'command' || def.kind === 'lightspeed' || def.stability !== undefined) return false;
+  if (def.kind === 'command' || def.kind === 'lightspeed' || def.kind === 'relic' || def.stability !== undefined) return false;
   return !def.onTurn?.length && !def.onDusk?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);
 }
 
@@ -778,6 +779,7 @@ export function unfusable(id: string): string | null {
   if (d.kind === 'command') return 'Heroes cannot be fused (a deck needs exactly two).';
   if (d.kind === 'global') return 'Global cards cannot be fused.';
   if (d.kind === 'lightspeed') return 'Lightspeed cards cannot be fused.';
+  if (d.kind === 'relic') return 'Relics cannot be fused.';
   return null;
 }
 

@@ -37,6 +37,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   bulwark: { name: 'bulwark', group: 'defence', explain: () => 'Extra defence for neighbours.' },
   resonance: { name: 'resonance', group: 'resonance', explain: () => 'Boosts neighbours.' },
   hammer: { name: 'hammer', group: 'resonance', explain: () => 'Boosts neighbouring attack cards.' },
+  brittle: { name: 'brittle', group: 'stability', explain: () => 'Never fades, but has no defence: any attack, heat or decay breaks it.' },
   anchor: { name: 'anchor', group: 'stability', explain: () => 'Neighbours lose no stability.' },
   erode: { name: 'erode', group: 'stability', explain: () => 'A rival card loses stability.' },
   decay: { name: 'decay', group: 'stability', explain: () => 'Every rival card loses stability.' },

@@ -1303,3 +1303,32 @@ describe('saplings and growth', () => {
     expect(t.find((c) => c.uid === drone.uid)!.growth).toBe(2);
   });
 });
+
+describe('relics', () => {
+  it('never fade, have no defence, and lend their bonus', () => {
+    let s = twoPlayer(3);
+    const me = activePlayer(s);
+    const [relic] = give(me, ['ember_idol'], 'tableau');
+    const [relay] = give(me, ['plasma_relay'], 'tableau');
+    expect(cardAttack(s, me, relic)).toBe(0);
+    expect(cardDefence(me, relic)).toBe(0);
+    expect(relic.stability).toBe(1);
+    // Its bonus: your attack cards heat 1 more.
+    expect(effectAmount(s, me, relay, { type: 'heat', amount: 1, to: 'target' }, 'turn')).toBe(2);
+    // Days pass: it stays.
+    for (let i = 0; i < 8 && !isGameOver(s); i++) s = endTurn(s);
+    const mine = s.players.find((p) => p.id === me.id)!;
+    const still = mine.tableau.find((c) => c.uid === relic.uid);
+    expect(still?.stability).toBe(1);
+  });
+
+  it('break to the weakest removal', () => {
+    let s = twoPlayer(4);
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    const [relic] = give(rival, ['astral_orrery'], 'tableau');
+    give(me, ['ion_cannon']);
+    s = play(s, 'ion_cannon', { enemyUid: relic.uid });
+    expect(s.players.find((p) => p.id === rival.id)!.tableau.some((c) => c.uid === relic.uid)).toBe(false);
+  });
+});
