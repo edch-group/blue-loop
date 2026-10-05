@@ -89,6 +89,8 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 
 /** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
 const CAMPAIGN_EIGHTH = 0.42;
+/** The haze's level (the distorted synth that holds long chords in the second half of the form). */
+const CAMPAIGN_HAZE = 0.05;
 /** The gap between the notes of a rolled chord at the melody's height, in seconds. */
 const CAMPAIGN_ROLL = 0.045;
 /** Per chord (four bars of six eighths): the falling bass, the pad, and the two notes it rocks between. */
@@ -837,21 +839,58 @@ class SoundBoard {
     if (from + bars === total) this.breath({ dur: barLen * 2 + 0.3, freq: 300, to: 5000, type: 'bandpass', q: 1.2, gain: 0.05, attack: barLen * 2, delay: this.until(end - barLen * 2), out: bus });
   }
 
-  /** The crescendo's peak: one high bell, with the chord rolled softly up into it. */
-  private climax(at: number, tones: Set<number>, bell: (t: number, f: number, gain: number, dur?: number) => void) {
-    const top = midiOf('E7');
-    const roll: number[] = [];
-    for (let n = top - 1; roll.length < 3; n--) if (tones.has(n % 12)) roll.push(n);
-    roll.reverse().forEach((n, j) => bell(at - (3 - j) * CAMPAIGN_ROLL, hzOf(n), 0.02));
-    bell(at, hzOf(top), 0.04, CAMPAIGN_EIGHTH * 8);
+  /** After the crescendo's peak, the arpeggio carries on for two more bars in eighths, drifting down and easing off. */
+  private afterglow(at: number, barLen: number, tones: Set<number>, bell: (t: number, f: number, gain: number, dur?: number) => void) {
+    const ladder: number[] = [];
+    for (let n = midiOf('E5'); n <= midiOf('E7'); n++) if (tones.has(n % 12)) ladder.push(n);
+    const len = barLen * 2;
+    for (let b = 0; b < 2; b++) {
+      const lo = Math.max(0, ladder.length - 5 - b);
+      const window = [...ladder.slice(lo, lo + 5), ...ladder.slice(lo + 1, lo + 4).reverse()];
+      let k = 0;
+      for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += CAMPAIGN_EIGHTH, k++)
+        bell(t, hzOf(window[k % window.length]), 0.038 - 0.02 * ((t - at) / len), CAMPAIGN_EIGHTH * 2.4);
+    }
   }
 
   /**
-   * The campaign map's score. The drone, bass, pads and rock alone for the first chord; then the high melody joins
-   * (its call and answer alternating by round), and the rock rests for a chord every fourth time round. Every third
-   * time round from the second, the melody turns into a long crescendo of steady eighths from the Fmaj7, peaking
-   * halfway through the Em7.
-   * Scheduled a chord at a time, just ahead of the audio clock.
+   * One chord of the campaign score's haze: detuned saws on the chord, through a soft distortion and a gentle
+   * lowpass, swelling in, holding for the whole chord, and fading over the next (more slowly when it first enters).
+   */
+  private haze(at: number, len: number, chord: string[], curve: Float32Array<ArrayBuffer>, entering: boolean, bus: GainNode) {
+    const ctx = this.ctx!;
+    const end = at + len;
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = curve;
+    shaper.oversample = '2x';
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 0.7;
+    filter.frequency.value = 1700;
+    const g = ctx.createGain();
+    const attack = entering ? 4 : 1.5;
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(CAMPAIGN_HAZE, at + attack);
+    g.gain.setValueAtTime(CAMPAIGN_HAZE, end);
+    g.gain.linearRampToValueAtTime(0, end + 2.5);
+    shaper.connect(filter).connect(g).connect(bus);
+    for (const n of chord)
+      for (const detune of [-10, 10]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = hz(n);
+        o.detune.value = detune;
+        const lv = ctx.createGain();
+        lv.gain.value = 0.07;
+        o.connect(lv).connect(shaper);
+        o.start(at);
+        o.stop(end + 2.6);
+      }
+  }
+
+  /**
+   * The campaign map's score, in a form four times round the chords long (see playChord below). Scheduled a chord
+   * at a time, just ahead of the audio clock.
    */
   private campaignScore(ctx: AudioContext, bus: GainNode) {
     const eighth = CAMPAIGN_EIGHTH;
@@ -909,10 +948,22 @@ class SoundBoard {
     sweep.start(t0);
     this.musicNodes = [droneFilter, lfo, lfoDepth, droneGain, ...drones, orbit, sweep, sweepDepth, echo, feedback, echoTone, echoWet];
 
+    // The haze's gentle distortion: a soft tanh curve.
+    const curve = new Float32Array(new ArrayBuffer(1024 * 4));
+    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(2.5 * ((i / (curve.length - 1)) * 2 - 1)) / Math.tanh(2.5);
+
+    /**
+     * The form, four times round the chords and then over again: a minimal opening (the melody joining on the
+     * fourth chord); the melody, then a crescendo; the haze (a slightly distorted synth holding long chords) under
+     * the melody for a whole time round; and the haze still there under a second crescendo, after which it all
+     * falls back to the minimal opening.
+     */
     const playChord = (at: number, index: number, round: number) => {
       const c = CAMPAIGN_CHORDS[index];
       const delay = this.until(at);
-      const intro = round === 0 && index === 0;
+      const part = round % 4;
+      const rising = part === 1 || part === 3; // a crescendo through the Fmaj7 and the Em7 this time round
+      const hazy = part >= 2;
       // Pads, as the menu score voices them, but kept low.
       c.pad.forEach((n, i) => {
         const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
@@ -922,43 +973,46 @@ class SoundBoard {
       // The falling bass: a held triangle and a soft sine an octave up.
       this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: bus });
       this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: bus });
-      // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle).
-      if (round % 4 !== 3 || index !== 2)
+      // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle). It rests
+      // for one chord while the haze holds.
+      if (!(part === 2 && index === 2))
         for (let b = 0; b < 4; b++)
           c.rock.forEach((n, k) => {
             const d = this.until(at + b * barLen + k * eighth * 3);
             this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
             this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
           });
-      // The melody (from the second chord, so a match opens on the drone, bass and rock alone): bell-like plucks
-      // (a triangle with a little saw), left to ring into the echo.
-      if (intro) return;
+      // The haze: long, drawn-out chords on detuned saws, gently distorted and softly filtered, overlapping.
+      if (hazy) this.haze(at, chordLen, c.pad, curve, part === 2 && index === 0, bus);
+      // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo. In the opening
+      // it waits for the fourth chord.
+      if (part === 0 && index < 3) return;
       const bell = (t: number, f: number, gain: number, dur = eighth * 5) => {
         const d = this.until(t);
         this.voice(f, { dur, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: orbit });
         this.voice(f, { dur: dur / 2, attack: 0.01, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: orbit });
       };
       const tones = new Set(c.pad.map((n) => midiOf(n) % 12));
-      const rising = round % 3 === 1; // a crescendo through the Fmaj7 this time round, peaking on the Em7
       if (rising && index === 2) {
-        // Open the melody's filter for the climb (it peaks halfway through the Em7), then settle it back.
-        const peak = at + chordLen + barLen * 2;
+        // Open the melody's filter for the climb (it peaks halfway through the Em7), hold it to the end of the
+        // Em7, then settle it back.
         orbit.frequency.setValueAtTime(2600, at);
-        orbit.frequency.linearRampToValueAtTime(5500, peak);
-        orbit.frequency.setValueAtTime(5500, peak + 2);
-        orbit.frequency.linearRampToValueAtTime(2600, peak + 5);
+        orbit.frequency.linearRampToValueAtTime(5500, at + chordLen + barLen * 2);
+        orbit.frequency.setValueAtTime(5500, at + chordLen * 2);
+        orbit.frequency.linearRampToValueAtTime(2600, at + chordLen * 2 + 3);
         return this.crescendo(at, barLen, tones, ['F3', 'C4', 'A4', 'E5'], 0, 4, bus, bell);
       }
       if (rising && index === 3) {
+        // The peak, then the arpeggio carries on through the rest of the Em7, easing down.
         this.crescendo(at, barLen, tones, ['E3', 'B3', 'G4', 'D5'], 4, 2, bus, bell);
-        this.climax(at + barLen * 2, tones, bell);
+        return this.afterglow(at + barLen * 2, barLen, tones, bell);
       }
-      const phrase = CAMPAIGN_PHRASES[round % 2][index].filter(([e]) => !(rising && index === 3 && e <= 12));
+      const phrase = CAMPAIGN_PHRASES[part % 2][index];
       const pitches = phrase.map(([, n]) => midiOf(n));
       const top = pitches.indexOf(Math.max(...pitches));
       phrase.forEach(([e, n], i) => {
         const t = at + e * eighth;
-        // Once a time round, at the melody's height (on the Fmaj7), the note arrives as a near-instant rolled chord.
+        // At the melody's height on the Fmaj7, the note arrives as a near-instant rolled chord.
         if (index === 2 && i === top) {
           const roll: number[] = [];
           for (let k = pitches[i] - 1; roll.length < 3; k--) if (tones.has(k % 12)) roll.push(k);
