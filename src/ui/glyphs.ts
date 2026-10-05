@@ -1,4 +1,4 @@
-import { BALANCE, baseStability, CARDS, cardDef, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseStability, CARDS, cardDef, hasDarkspeed, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -494,6 +494,12 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
  * and heat, cool and shields as symbols. Hovering one (in the deck builder and
  * the shop) explains it; in a game the zoomed card lists the explanations alongside.
  */
+/** A card's text as it reads on the card: its own, after any keyword its race gives it (Darkspeed). */
+export function cardBodyHtml(def: CardDef, chosen?: string, live: Record<number, number> = {}): string {
+  const dark = hasDarkspeed(def) ? `${keywordHtml('darkspeed', undefined, { data: true })}${PARA}` : '';
+  return dark + cardTextHtml(def.text, chosen, false, live);
+}
+
 export function cardTextHtml(text: string, chosen?: string, inline = false, live: Record<number, number> = {}): string {
   const parts = textParts(text);
   // Nothing but a few symbols ("Heat 2", "Heat 2. Cool 1"): they sit in the middle of the text box.
@@ -565,8 +571,9 @@ const PARA = '<span class="card-para"></span>';
  * The explanations beside a zoomed card: its keywords (Dawn included), the
  * rules its text names in plain words, and its defence badge.
  */
-export function keywordList(text: string, stats: { stability?: number; defence?: number } = {}): string {
-  const rows: string[] = [];
+export function keywordList(text: string, stats: { stability?: number; defence?: number } = {}, first: string[] = []): string {
+  // (`first`: rows that lead the list, already drawn: the card's race, and what it gives the card.)
+  const rows: string[] = [...first];
   const row = (head: string, body: string) => rows.push(`<div>${head}<span>${escText(body)}</span></div>`);
   // Each mechanic once, by name alone (no numbers): "Heat", not "Heat 1" and "Heat +1".
   const texts = [text, ...[...text.matchAll(/\{options:([^}]+)\}/g)].flatMap((m) => optionList(m[1]).map(optionText))].join(' ');
@@ -576,5 +583,6 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
   if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');
-  return rows.length ? `<div class="kw-list">${rows.join('')}</div>` : '';
+  // (In a column no taller than the card: it scrolls, and an arrow bobs at its foot while there is more below.)
+  return rows.length ? `<div class="kw-wrap"><div class="kw-list">${rows.join('')}</div><i class="kw-more" aria-hidden="true"></i></div>` : '';
 }

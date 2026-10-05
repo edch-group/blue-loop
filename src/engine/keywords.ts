@@ -62,6 +62,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   spend: { name: 'spend all', group: 'tempo', explain: () => 'Spends all your energy.' },
   energy: { name: 'gain', group: 'tempo', explain: () => 'Extra energy today.' },
   // What an ability costs: shown as green energy dots, like a card's cost.
+  darkspeed: { name: 'darkspeed', group: 'tempo', explain: () => 'Can attack or act the day it comes into play.' },
   cost: { name: 'energy', group: 'tempo', explain: () => 'Costs this much energy.' },
   // A Hero's abilities follow it: one a day.
   abilities: { name: 'each turn, one of:', group: 'timing', explain: () => 'Use one of these on your day.' },

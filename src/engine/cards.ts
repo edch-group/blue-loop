@@ -8,6 +8,7 @@ import { HERO_CARDS } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
 import { BOONS } from './boons';
+import { raceTrait } from './races';
 import { CARD_COSTS } from './costs';
 import { commandChoices } from './commands';
 
@@ -709,6 +710,11 @@ for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.co
  * A card that does nothing once it has been played (no dawn effects, passives, attack or anything for when it
  * leaves): it resolves and goes straight to the discard pile, taking no slot.
  */
+/** Whether a card has Darkspeed (its race's trait: the Nyxari): it can act the day it comes into play. Cards that never stand in play don't. */
+export function hasDarkspeed(def: CardDef): boolean {
+  return !!raceTrait(def.race)?.ambush && def.kind !== 'lightspeed' && !isBurst(def);
+}
+
 export function isBurst(def: CardDef): boolean {
   if (def.kind === 'command' || def.kind === 'lightspeed' || def.stability !== undefined) return false;
   return !def.onTurn?.length && !def.onDusk?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);

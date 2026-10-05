@@ -26,6 +26,7 @@ import {
   GameError,
   instabilityHeat,
   KEYWORDS,
+  hasDarkspeed,
   keywordLabel,
   plainText,
   isGameOver,
@@ -73,7 +74,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, cardBodyHtml, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -679,6 +680,8 @@ export class App {
       this.zoom(card.dataset.card!, card.closest('.tableau') ? card.dataset.uid : undefined);
     });
     window.addEventListener('keydown', (e) => this.onKey(e));
+    // (A keyword column scrolled to its foot loses its arrow.)
+    document.addEventListener('scroll', (e) => (e.target as HTMLElement).matches?.('.kw-wrap > .kw-list') && this.markKwMore((e.target as HTMLElement).parentElement!.parentElement!), true);
     window.addEventListener('keyup', (e) => {
       if (e.code === 'Space' && this.peekHeld) {
         this.peekHeld = false;
@@ -3057,6 +3060,7 @@ export class App {
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
     fitCardText(this.root);
+    this.markKwMore(this.root);
     sizePool(this.root);
     fitWhenSeen(this.root.querySelectorAll<HTMLElement>('.db-pool .db-card'));
     this.activeBuilder().afterRender();
@@ -3268,6 +3272,7 @@ export class App {
         menu.querySelector('.zoom-view')?.remove();
         menu.insertAdjacentHTML('beforeend', this.renderZoom());
         fitCardText(menu.querySelector<HTMLElement>('.zoom-view')!);
+        this.markKwMore(menu);
         return;
       }
     } else if (this.screen === 'campaign') this.zoomed = defId;
@@ -3488,7 +3493,7 @@ export class App {
     return `<div class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}" data-card="${c.id}">
       <span class="card-glyph">${cardArtLite(c, true)}</span>${raceRow(c)}${stabilityBadge(c)}
       <span class="card-name">${esc(c.name.toLowerCase())}</span>
-      <span class="card-text">${cardTextHtml(c.text)}</span>
+      <span class="card-text">${cardBodyHtml(c)}</span>
       <span class="card-kind">${typeLine(c)}</span>
     </div>`;
   }
@@ -4242,7 +4247,7 @@ export class App {
         <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardTextHtml(def.text, opts.option ?? c.choice, false, this.liveNumbers(c, opts))}</div>
+        <div class="card-text">${cardBodyHtml(def, opts.option ?? c.choice, this.liveNumbers(c, opts))}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </button>`;
   }
@@ -4275,7 +4280,16 @@ export class App {
     const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
     const c = owner?.tableau.find((x) => x.uid === uid);
     const stats = owner && c ? { stability: c.stability ?? 0, defence: cardDefence(owner, c) } : persists(defId) ? { stability: baseStability(defId) } : {};
-    return this.raceNote(defId) + keywordList(cardDef(defId).text, stats);
+    const def = cardDef(defId);
+    const first = [this.raceNote(defId), hasDarkspeed(def) ? `<div>${keywordHtml('darkspeed', undefined, { named: true })}<span>${esc(KEYWORDS.darkspeed.explain())}</span></div>` : ''].filter(Boolean);
+    return keywordList(def.text, stats, first);
+  }
+
+  /** Keyword columns that run longer than the card: the arrow at their foot shows while there is more below. */
+  private markKwMore(root: ParentNode = document) {
+    root.querySelectorAll<HTMLElement>('.kw-wrap > .kw-list').forEach((list) => {
+      list.parentElement!.classList.toggle('more', list.scrollTop + list.clientHeight < list.scrollHeight - 4);
+    });
   }
 
   /** A race card's racial bonus and nerf (and its sub-race), which ride on every card of that race. */
@@ -4285,7 +4299,7 @@ export class App {
     if (!t) return '';
     const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
     const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race!])}${esc(sub)}</b>`;
-    return `<div class="kw-list kw-race-list"><div>${head}<span>${esc(plainText(t.bonus))} ${esc(plainText(t.nerf))}</span></div></div>`;
+    return `<div class="kw-race-row">${head}<span>${esc(plainText(t.bonus))} ${esc(plainText(t.nerf))}</span></div>`;
   }
 
   /**
@@ -4307,7 +4321,7 @@ export class App {
         <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardTextHtml(def.text, c?.choice, false, owner && c ? this.liveNumbers(c, { owner }) : {})}</div>
+        <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : {})}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </div>`;
   }
@@ -4498,7 +4512,7 @@ export class App {
             ? `<div class="insp-abilities">${(cardDef(lead.defId).abilities ?? [])
                 .map((k, i) => {
                   const why = heroAbilityProblem(s, viewer, i) ?? (this.canAct() ? null : 'Not now.');
-                  return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${cardTextHtml(k.text, undefined, true)}${k.cost ? ` ${keywordHtml('cost', String(k.cost))}` : ''}</b></button>`;
+                  return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${k.cost ? `${keywordHtml('cost', String(k.cost))} : ` : ''}${cardTextHtml(k.text, undefined, true)}</b></button>`;
                 })
                 .join('')}</div>`
             : '';

@@ -12,9 +12,9 @@ import type { CardDef, Effect, HeroAbility } from './types';
 export const act = (id: string, name: string, text: string, effects: Effect[], cost = 0): HeroAbility => ({ id, name, text, effects, ...(cost ? { cost } : {}) });
 /**
  * "{act:Rally} {shield:2}." – an ability as it reads on the card: its effect alone (the name is the game's, not
- * the card's), with its energy cost, if any, first: green dots, then a colon ("●: Heat 3"). `{act}` marks where each one starts.
+ * the card's), with its energy cost, if any, first: green dots, then a colon ("● : Heat 3"). `{act}` marks where each one starts.
  */
-const line = (a: HeroAbility) => `{act:${a.name}}${a.cost ? `{cost:${a.cost}}: ${a.text}` : a.text}`;
+const line = (a: HeroAbility) => `{act:${a.name}}${a.cost ? `{cost:${a.cost}} : ${a.text}` : a.text}`;
 /** A Hero's text: what it does as it leads (in play, at dawn or dusk), a divider, then "each turn, one of:" its abilities. */
 export const hero = (d: Omit<CardDef, 'kind' | 'text'> & { lead?: string }, abilities: HeroAbility[]): CardDef => {
   const { lead, ...def } = d;

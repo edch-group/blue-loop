@@ -1,7 +1,7 @@
 import { BALANCE, coverCard, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type CardKind, type Rarity } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
-import { raceRow, cardArtLite, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
+import { raceRow, cardArtLite, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
 import { fitWhenSeen } from './fittext';
 import { owned, profile } from './profile';
 import { breakCard, craftCard } from './account';
@@ -547,7 +547,7 @@ export class DeckBuilder {
             <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}">
               <span class="card-glyph">${cardArtLite(c, true)}</span>${raceRow(c)}${stabilityBadge(c)}
               <span class="card-name">${esc(c.name.toLowerCase())}</span>
-              <span class="card-text">${cardTextHtml(c.text)}</span>
+              <span class="card-text">${cardBodyHtml(c)}</span>
               <span class="card-kind">${typeLine(c)}</span>
             </span>
             <span class="db-have ${badge.on ? 'on' : ''}" ${this.mode ? '' : `data-act="db-focus" data-arg="${c.id}"`} title="${esc(badge.title)}">${badge.text}</span>

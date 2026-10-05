@@ -3108,7 +3108,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .kw-list .kw { font-size: 0.86rem; }
 .inspector-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .zoom-card { display: flex; align-items: center; gap: 16px; }
-.card-preview .kw-list { position: absolute; right: calc(100% + 12px); top: 0; width: 220px; max-height: 100%; overflow: hidden; gap: 6px; padding: 10px 12px; font-size: 0.68rem; }
+.card-preview .kw-wrap { position: absolute; right: calc(100% + 12px); top: 0; width: 220px; max-height: 100%; }
+.card-preview .kw-list { gap: 6px; padding: 10px 12px; font-size: 0.68rem; }
 /* Never taller than the card it sits beside. */
 .card-preview .kw-list .kw { font-size: 0.78rem; }
 .kw-rules { display: grid; gap: 8px; margin: 8px 0 0; }
@@ -3362,7 +3363,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card.kind-command .card-kind { color: #d6dce8; }
 .card.kind-command .card-opt { background: rgba(255, 255, 255, 0.14); color: #ffffff; }
 /* Keyword colours are made for pale cards: lift them on a Command card's slate. */
-.card.kind-command .card-text .kw:not(.kw-timing) { filter: brightness(1.9) saturate(1.15); }
+.card.kind-command .card-text .kw:not(.kw-timing):not(.kw-gain) { filter: brightness(1.9) saturate(1.15); }
+/* (Energy keeps its own green dots, as on every card's cost; only the word "Gain" is brightened.) */
+.card.kind-command .card-text .kw-gain { color: #e3f07a; }
 .card.kind-command .card-opts-chosen .card-opt.on, .card.kind-command .card-opt.on { background: rgba(255, 217, 138, 0.22); color: #fff; box-shadow: inset 0 0 0 1.5px #d4a52a; }
 /* In hand it is held upright like every other card: the same landscape card, turned on its side
    (anticlockwise, so its name and options are on the edge the next card in the fan leaves showing), in
@@ -4402,3 +4405,20 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-abilities-head { display: block; margin-top: 0.35em; padding-top: 0.3em; border-top: 1px solid currentColor; opacity: 0.75; font-size: 0.82em; letter-spacing: 0.04em; }
 .card-abilities-head:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .card-ability { display: block; }
+
+/* Keyword explanations, beside a card: a column no taller than the card, scrolling when there is more;
+   an arrow bobs at its foot while some of it is still below. The card's race leads it. */
+.kw-wrap { position: relative; display: flex; flex-direction: column; min-height: 0; flex: none; align-self: center; }
+.kw-wrap > .kw-list { max-height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.inspector-row { --pw: min(280px, calc(56 * var(--vh))); }
+.inspector-row .kw-wrap, .zoom-card .kw-wrap { max-height: calc(var(--pw, 300px) * 1.4); }
+.kw-more { position: absolute; left: 50%; bottom: 6px; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  background: rgba(255, 255, 255, 0.95) no-repeat center / 14px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 6l5 5 5-5' fill='none' stroke='%235b6170' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  box-shadow: 0 2px 8px rgba(70, 76, 100, 0.25); }
+.kw-wrap.more .kw-more { opacity: 1; animation: kw-bob 1.6s ease-in-out infinite; }
+@keyframes kw-bob { 50% { transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .kw-wrap.more .kw-more { animation: none; } }
+.kw-race-row { display: grid; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid rgba(120, 126, 140, 0.18); }
+/* An ability's energy cost: the card's own cost dots (green, lit, white-rimmed), flush left, then " : ". */
+.kw-cost .gain-dots { margin-left: 0; }
+.kw-cost .gain-dots i { width: 0.78em; height: 0.78em; background: #7cc79a; border: 0.12em solid #fff; box-shadow: 0 0 6px rgba(110, 196, 146, 0.75), 0 1px 2px rgba(20, 40, 30, 0.35); }
