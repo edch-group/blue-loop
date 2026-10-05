@@ -1,12 +1,23 @@
 import { BALANCE, baseAttack, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { stellariaFlower } from './art';
-import { cardScene } from './cardart';
+import { cardScene, renderedArt } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
 import dwarf from './gems/dwarf.png';
 import glass from './gems/glass.png';
 import holeBack from './gems/hole-back.png';
 import hole from './gems/hole.png';
+import lightDwarfSpikes from './gems/light-dwarf-spikes.png';
+import lightDwarfShimmer1 from './gems/light-dwarf-shimmer1.png';
+import lightDwarfShimmer2 from './gems/light-dwarf-shimmer2.png';
+import lightDwarfSparks from './gems/light-dwarf-sparks.png';
+import lightSunCorona1 from './gems/light-sun-corona1.png';
+import lightSunCorona2 from './gems/light-sun-corona2.png';
+import lightSunFlares1 from './gems/light-sun-flares1.png';
+import lightSunFlares2 from './gems/light-sun-flares2.png';
+import lightHoleSwirl1 from './gems/light-hole-swirl1.png';
+import lightHoleSwirl2 from './gems/light-hole-swirl2.png';
+import lightHoleLens from './gems/light-hole-lens.png';
 import socketAnomaly from './gems/socket-anomaly.png';
 import socketDwarf from './gems/socket-dwarf.png';
 import socketStellar from './gems/socket-stellar.png';
@@ -191,6 +202,15 @@ const sceneImages = new Map<string, string>();
 function sceneImage(def: CardDef): string {
   let img = sceneImages.get(def.id);
   if (!img) {
+    const painted = !def.fusedFrom && renderedArt(def.id);
+    // A rendered picture is an image already; a fused card made from one draws inline (an SVG used as an
+    // image can't load the pictures inside it).
+    if (painted) img = `<img class="art" alt="" loading="lazy" decoding="async" draggable="false" src="${painted}" />`;
+    else if (def.fusedFrom?.some((id) => renderedArt(id))) img = cardScene(def);
+    if (img) {
+      sceneImages.set(def.id, img);
+      return img;
+    }
     const svg = cardScene(def).replace('<svg class="art"', '<svg xmlns="http://www.w3.org/2000/svg"');
     img = `<img class="art" alt="" decoding="async" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" />`;
     sceneImages.set(def.id, img);
@@ -305,6 +325,16 @@ export function playerAvatar(cardId: string | undefined, cls = ''): string {
 }
 
 /**
+ * The card's stock, taking after its picture (styles.css, "card stock"): behind a card with a rendered picture,
+ * its circuit traces carry the picture's colours; behind a Hero, a faint engraving of the picture. Empty for
+ * a card without one, which keeps the plain stock.
+ */
+export function cardStock(def: CardDef): string {
+  const url = def.fusedFrom ? undefined : renderedArt(def.id);
+  return url ? `<span class="card-stock" style="--art:url('${url}')" aria-hidden="true"></span>` : '';
+}
+
+/**
  * A card's picture as a single image rather than live SVG: for long lists of cards (the deck builder),
  * where hundreds of live pictures would make every redraw slow.
  */
@@ -333,6 +363,12 @@ export function cardBackFace(): string {
  * black hole (Anomaly) whose accretion disk streams around it without rest.
  * The layers are pre-rendered images (scripts/render_gems.py).
  */
+const GEM_LIGHT: Record<Rarity, string[]> = {
+  dwarf: ['shimmer1', 'shimmer2', 'spikes', 'sparks'],
+  stellar: ['corona1', 'corona2', 'flares1', 'flares2'],
+  anomaly: ['swirl2', 'swirl1', 'lens'],
+};
+
 export function rarityGem(def: CardDef): string {
   const r: Rarity = def.rarity ?? 'dwarf';
   const body =
@@ -341,11 +377,16 @@ export function rarityGem(def: CardDef): string {
       : r === 'stellar'
         ? '<i class="g g-sun-corona"></i><i class="g g-sun-disc"></i>'
         : '<i class="g g-dwarf-glow"></i><i class="g g-dwarf"></i>';
-  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}"><i class="g g-socket"></i><i class="gem-window">${body}</i><i class="g g-glass"></i></span>`;
+  // The light it throws out onto the card (scripts/render_gem_light.py): layers that turn and flicker out of step.
+  const light = GEM_LIGHT[r].map((l) => `<i class="gl gl-${l}"></i>`).join('');
+  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}"><i class="gem-light">${light}</i><i class="g g-socket"></i><i class="gem-window">${body}</i><i class="g g-glass"></i></span>`;
 }
 
 // The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
-const GEM_IMAGES: Record<string, string> = { socketDwarf, socketStellar, socketAnomaly, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk };
+const GEM_IMAGES: Record<string, string> = {
+  socketDwarf, socketStellar, socketAnomaly, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk,
+  lightDwarfSpikes, lightDwarfShimmer1, lightDwarfShimmer2, lightDwarfSparks, lightSunCorona1, lightSunCorona2, lightSunFlares1, lightSunFlares2, lightHoleSwirl1, lightHoleSwirl2, lightHoleLens,
+};
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
 
 /**
