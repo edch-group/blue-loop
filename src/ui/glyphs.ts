@@ -556,7 +556,7 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
 export function cardBodyHtml(def: CardDef, chosen?: string, live: Record<number, number> = {}): string {
   // Its race's keywords that apply to it, side by side on one row.
   const tags = raceTraitTags(def);
-  const row = tags.length ? `<span class="card-traits">${tags.map((g) => `<b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}" title="${escText(g.text)}">${escText(g.name)}</b>`).join(' ')}</span>${PARA}` : '';
+  const row = tags.length ? `<span class="card-traits">${tags.map((g) => `<b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}" data-tip="${escText(g.text)}">${escText(g.name)}</b>`).join(' ')}</span>${PARA}` : '';
   return row + cardTextHtml(def.text, chosen, false, live);
 }
 

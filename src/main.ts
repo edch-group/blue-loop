@@ -9,8 +9,10 @@ import '@fontsource/exo-2/latin-600.css';
 import './styles.css';
 import { App } from './ui/app';
 import { trackViewport } from './ui/viewport';
+import { noNativeTooltips } from './ui/notitles';
 
 trackViewport();
+noNativeTooltips();
 
 // Nothing in the game is dragged as a picture (a long press on iOS lifts an image onto the fingertip).
 document.addEventListener('dragstart', (e) => e.preventDefault());

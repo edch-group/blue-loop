@@ -654,18 +654,19 @@ export class App {
     let tipFor: HTMLElement | null = null;
     let tipTimer = 0;
     document.addEventListener('mouseover', (e) => {
-      const kw = (e.target as HTMLElement).closest?.<HTMLElement>('.kw[data-kw]');
+      const kw = (e.target as HTMLElement).closest?.<HTMLElement>('.kw[data-kw], .kw[data-tip]');
       if (kw === tipFor) return;
       tipFor = kw;
       window.clearTimeout(tipTimer);
       tip.classList.remove('show');
       // Not where the card's explanations are already laid out beside it.
       if (!kw || this.touch || kw.closest('.zoom-card, .inspector-row, .card-preview')?.querySelector('.kw-list')) return;
-      const k = KEYWORDS[kw.dataset.kw!];
-      if (!k) return;
+      // (A keyword explains itself; a race's trait, named on the card, carries its own words.)
+      const k = kw.dataset.kw ? KEYWORDS[kw.dataset.kw] : undefined;
+      if (!k && !kw.dataset.tip) return;
       tipTimer = window.setTimeout(() => {
         if (tipFor !== kw || !kw.isConnected) return;
-        tip.innerHTML = `${keywordHtml(kw.dataset.kw!, undefined, { named: true })} ${esc(k.explain())}`;
+        tip.innerHTML = k ? `${keywordHtml(kw.dataset.kw!, undefined, { named: true })} ${esc(k.explain())}` : `${kw.outerHTML.replace(/ data-tip="[^"]*"/, '')} ${esc(kw.dataset.tip!)}`;
         const r = pageRect(kw);
         const page = appSize();
         tip.classList.add('show');
