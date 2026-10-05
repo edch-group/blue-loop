@@ -403,7 +403,9 @@ function frameTableaus(root: HTMLElement) {
     const bw = cmd.offsetWidth + 2 * pad;
     // How far the bump stands out past the row's outline (the slot sits just outside the row).
     const rival = row.closest('.tableau-rival') !== null;
-    const bh = rival ? cmd.offsetTop + cmd.offsetHeight - row.offsetHeight : -cmd.offsetTop;
+    // (The rival's Lightspeed slot hangs under their Hero: the bump takes it in too.)
+    const ls = rival ? row.querySelector<HTMLElement>('.ls-slot') : null;
+    const bh = rival ? Math.max(cmd.offsetTop + cmd.offsetHeight, ls ? ls.offsetTop + ls.offsetHeight : 0) - row.offsetHeight : -cmd.offsetTop;
     const r = 12, rc = 8;
     const x0 = W - bw;
     const d = `M${r},0 H${x0 - rc} Q${x0},0 ${x0},${-rc} V${-bh + r} Q${x0},${-bh} ${x0 + r},${-bh} H${W - r} Q${W},${-bh} ${W},${-bh + r} V${H - r} Q${W},${H} ${W - r},${H} H${r} Q0,${H} 0,${H - r} V${r} Q0,0 ${r},0 Z`;
@@ -3932,7 +3934,7 @@ export class App {
     }
     const side = this.boardZoom;
     const span = () => {
-      const parts = [...view.querySelectorAll<HTMLElement>(`.tableau-${side} .tableau-row, .tableau-${side} .cmd-slot`)].map((el) => el.getBoundingClientRect());
+      const parts = [...view.querySelectorAll<HTMLElement>(`.tableau-${side} .tableau-row, .tableau-${side} .cmd-slot, .tableau-${side} .ls-slot`)].map((el) => el.getBoundingClientRect());
       if (!parts.length) return null;
       const left = Math.min(...parts.map((r) => r.left)), right = Math.max(...parts.map((r) => r.right));
       const top = Math.min(...parts.map((r) => r.top)), bottom = Math.max(...parts.map((r) => r.bottom));
@@ -4596,22 +4598,10 @@ export class App {
         const me = s ? activePlayer(s) : null;
         const playable = !!(sh.uid && me && me.hand.some((c) => c.uid === sh.uid) && this.canAct() && !this.pending);
         const button = sh.uid ? `<button class="btn-primary" data-act="play" data-arg="${sh.uid}" ${playable && cardCost(sh.defId ?? '') <= me!.playsLeft ? '' : 'disabled'}>play</button>` : '';
-        // Your Hero leading your tableau: its abilities, to use one from here (one a day).
-        const viewer = s ? this.viewer() : null;
-        const lead = viewer ? commandCard(viewer) : undefined;
-        const abilities =
-          s && viewer && lead && sh.table === lead.uid && !(sh.tab ?? 0)
-            ? `<div class="insp-abilities">${(cardDef(lead.defId).abilities ?? [])
-                .map((k, i) => {
-                  const why = heroAbilityProblem(s, viewer, i) ?? (this.canAct() ? null : 'Not now.');
-                  return `<button class="btn insp-ability" data-act="hero-ability" data-arg="${i}" ${why ? `disabled title="${esc(why)}"` : ''}><b>${k.cost ? `${keywordHtml('cost', String(k.cost))} : ` : ''}${cardTextHtml(k.text, undefined, true)}</b></button>`;
-                })
-                .join('')}</div>`
-            : '';
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
-              <div class="inspector-row">${this.inspectorCard(sh, abilities)}</div>
+              <div class="inspector-row">${this.inspectorCard(sh)}</div>
               <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
             </div>
           </div>`;
@@ -4623,18 +4613,18 @@ export class App {
    * The magnified card in the inspector, with its explanations. A card in play with Fusion cards on it gets a
    * column of tabs by its top right edge: the card itself, then each fused card (purple), to read each one.
    */
-  private inspectorCard(sh: Extract<Sheet, { kind: 'card' }>, abilities = ''): string {
+  private inspectorCard(sh: Extract<Sheet, { kind: 'card' }>): string {
     const host = sh.table ? this.state?.players.flatMap((p) => p.tableau).find((c) => c.uid === sh.table) : undefined;
     const fused = host?.fused ?? [];
     // (A Hero's abilities stand right beside it, before the explanations, so they are never off screen.)
-    if (!fused.length) return this.bigCard(sh.defId, sh.table) + abilities + this.explainCard(sh.defId, sh.table);
+    if (!fused.length) return this.bigCard(sh.defId, sh.table) + this.explainCard(sh.defId, sh.table);
     const tab = Math.min(Math.max(0, sh.tab ?? 0), fused.length);
     const shown = tab === 0 ? this.bigCard(sh.defId, sh.table) : this.bigCard(fused[tab - 1].defId);
     const explain = tab === 0 ? this.explainCard(sh.defId, sh.table) : this.explainCard(fused[tab - 1].defId);
     const tabs = [host!, ...fused]
       .map((c, i) => `<button class="insp-tab ${i ? 'insp-tab-fused' : ''} ${i === tab ? 'on' : ''}" data-act="inspect-tab" data-arg="${i}">${esc(cardDef(c.defId).name.toLowerCase())}</button>`)
       .join('');
-    return `<div class="insp-tabbed">${shown}<div class="insp-tabs">${tabs}</div></div>${tab === 0 ? abilities : ''}${explain}`;
+    return `<div class="insp-tabbed">${shown}<div class="insp-tabs">${tabs}</div></div>${explain}`;
   }
 
   /** A player's summary: their deck, Command cards and the conditions they fight under. */

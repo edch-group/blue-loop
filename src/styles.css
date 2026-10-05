@@ -4448,3 +4448,15 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .hand > .card { touch-action: none; }
 .hand > .card.card-dragging { opacity: 0.3; }
 .drag-ghost { box-shadow: 0 24px 50px rgba(70, 70, 90, 0.35), 0 0 0 2px #fff !important; }
+/* A Hero carries the most text of any card (what it does as it leads, then its abilities): on the small
+   cards (hand, table) its picture gives up some height and its lines sit closer, so the text stays readable. */
+.card.kind-command:not(.card-big) .card-glyph { height: 27% !important; }
+.card.kind-command:not(.card-big) .card-para { height: 0.25em; }
+.card.kind-command:not(.card-big) .card-abilities-head { margin-top: 0.2em; padding-top: 0.2em; }
+.card.kind-command:not(.card-big) .card-ability ~ .card-ability { margin-top: 0.15em; padding-top: 0.15em; }
+/* The rival's Lightspeed slot: under their Hero (out of their row of five), within the same outline. */
+.tableau-rival .tableau-row { grid-template-columns: repeat(5, var(--tcw)); }
+.tableau-rival .ls-slot { position: absolute; left: calc(var(--tcw) * 0.14); width: calc(var(--tcw) * 0.72); height: calc(var(--tcw) * 1.4 * 0.72); top: calc(100% + var(--frame-pad) + 10px + var(--tcw) * 1.4); }
+.tableau-rival .ls-slot > * { width: 100% !important; height: 100% !important; }
+/* Both eyes on the viewer's left of each row. */
+.tableau-eye-rival { left: auto; right: calc(100% + var(--frame-pad, 12px) + 8px); }
