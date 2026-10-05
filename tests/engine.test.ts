@@ -6,7 +6,7 @@ import { activePlayer, attackProblem, cardAttack, counterDamage, heroAbilityProb
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
-  createGame({ seed, players: [{ name: 'Ada', isAI: false, species: 0 }, { name: 'Bo', isAI: false, species: 1 }] });
+  createGame({ seed, players: [{ name: 'Ada', isAI: false }, { name: 'Bo', isAI: false }] });
 
 let uid = 1000;
 /** Put specific cards in a player's hand (or tableau), for testing exact situations. */

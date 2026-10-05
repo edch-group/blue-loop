@@ -1,4 +1,4 @@
-import { BALANCE, coverCard, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type Rarity } from '../engine';
+import { BALANCE, coverCard, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type Rarity } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { raceRow, cardArtLite, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
@@ -148,7 +148,7 @@ export class DeckBuilder {
   private syncMode() {
     if (!this.mode) return;
     const d = this.mode.deck();
-    this.editing = { id: 'mode', name: d?.name ?? '', race: d?.race ?? 0, cards: d ? [...d.cards] : [] };
+    this.editing = { id: 'mode', name: d?.name ?? '', cards: d ? [...d.cards] : [] };
   }
 
   private owned(id: string): number {
@@ -195,14 +195,14 @@ export class DeckBuilder {
         const src = deckById(arg);
         if (!src) return true;
         this.starter = src;
-        this.editing = { id: `deck-${Date.now().toString(36)}`, name: src.name, race: src.race, cards: [...src.cards] };
+        this.editing = { id: `deck-${Date.now().toString(36)}`, name: src.name, cards: [...src.cards] };
         this.filters = noFilters();
         this.page = 0;
         break;
       }
       case 'db-new':
         this.starter = null;
-        this.editing = { id: `deck-${Date.now().toString(36)}`, name: 'New deck', race: 0, cards: [] };
+        this.editing = { id: `deck-${Date.now().toString(36)}`, name: 'New deck', cards: [] };
         this.filters = noFilters();
         this.page = 0;
         break;
@@ -210,7 +210,7 @@ export class DeckBuilder {
         const src = deckById(arg);
         if (!src) return true;
         this.starter = null;
-        this.editing = { id: `deck-${Date.now().toString(36)}`, name: `${src.name} copy`, race: src.race, cards: [...src.cards] };
+        this.editing = { id: `deck-${Date.now().toString(36)}`, name: `${src.name} copy`, cards: [...src.cards] };
         break;
       }
       case 'db-edit': {
@@ -284,9 +284,6 @@ export class DeckBuilder {
         this.page = 0;
         this.refreshPool();
         return true;
-      case 'db-race':
-        if (d) d.race = Number(arg);
-        break;
       case 'db-zoom':
         this.host.zoom(arg);
         return true;
@@ -318,7 +315,6 @@ export class DeckBuilder {
         else if (copies >= copyLimit(arg)) this.host.toast(copyLimit(arg) === 1 ? `${cardDef(arg).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`);
         else if (cardDef(arg).kind === 'command' && commands >= commandCardsFor(BALANCE.maxDeckSize)) this.host.toast(`A deck holds at most ${commandCardsFor(BALANCE.maxDeckSize)} Heroes (one per ${BALANCE.cardsPerCommand} cards).`);
         else d.cards.push(arg);
-        d.race = deckRace(d);
         // (A craft prompt that just opened is drawn in place too.)
         if (this.focus === arg) {
           if (this.refreshFocus()) return true;
@@ -336,7 +332,6 @@ export class DeckBuilder {
         }
         const i = d.cards.lastIndexOf(arg);
         if (i >= 0) d.cards.splice(i, 1);
-        d.race = deckRace(d);
         if (this.updateDeckInPlace(d, arg)) return true;
         break;
       }
@@ -353,7 +348,7 @@ export class DeckBuilder {
         }
         d.name = d.name.trim() || 'Unnamed deck';
         const st = this.starter;
-        const changed = !st || d.name !== st.name || d.race !== st.race || [...d.cards].sort().join() !== [...st.cards].sort().join();
+        const changed = !st || d.name !== st.name || [...d.cards].sort().join() !== [...st.cards].sort().join();
         if (st && !changed) {
           // Nothing to keep: the starter is still there as it was.
           this.editing = this.starter = null;
@@ -704,11 +699,13 @@ export class DeckBuilder {
     const f = this.filters;
     const q = f.q.trim().toLowerCase();
     const inDeck = new Set(d.cards);
+    // (The races this deck's cards come from: the "this deck's races" filter.)
+    const deckRaces = new Set(d.cards.map((id) => cardDef(id).race).filter((r): r is number => r !== undefined));
     const flux = profile().flux;
     const list = (this.mode ? this.mode.cards() : CARDS).filter((c) => {
       if (q && !`${c.name} ${plainText(c.text)} ${c.kind} ${c.race !== undefined ? RACE_NAMES[c.race] : 'neutral'}`.toLowerCase().includes(q)) return false;
       const race = c.race === undefined ? 'neutral' : String(c.race);
-      if (f.race.size && !f.race.has(race) && !(f.race.has('deck') && (c.race === undefined || c.race === d.race))) return false;
+      if (f.race.size && !f.race.has(race) && !(f.race.has('deck') && (c.race === undefined || deckRaces.has(c.race)))) return false;
       if (f.kind.size && !f.kind.has(c.kind)) return false;
       if (f.rarity.size && !f.rarity.has(c.rarity ?? 'dwarf')) return false;
       if (f.cost.size && !f.cost.has(costGroup(c))) return false;
@@ -737,7 +734,7 @@ export class DeckBuilder {
    * The card view's toolbar: search, the filters button (its popover: dropdowns of
    * ticks, and toggles), card sizes.
    */
-  private renderFilters(d: SavedDeck): string {
+  private renderFilters(_d: SavedDeck): string {
     const f = this.filters;
     // A dropdown in the app's own style: its head names what is ticked; its rows tick on and off.
     const drop = (key: string, label: string, rows: [string, string][], picked: (v: string) => boolean, act: string, summary: string) => `
@@ -751,7 +748,7 @@ export class DeckBuilder {
       const on = rows.filter(([v]) => f[key].has(v)).map(([, t]) => t);
       return drop(key, label, rows, (v) => f[key].has(v), 'db-opt', on.length === 0 ? none : on.length === 1 ? on[0] : `${on.length} picked`);
     };
-    const races: [string, string][] = [['deck', `${RACE_NAMES[d.race].toLowerCase()} + neutral`], ['neutral', 'neutral'], ...RACE_NAMES.map((n, i): [string, string] => [String(i), n.toLowerCase()])];
+    const races: [string, string][] = [['deck', "this deck's races + neutral"], ['neutral', 'neutral'], ...RACE_NAMES.map((n, i): [string, string] => [String(i), n.toLowerCase()])];
     const kinds: [string, string][] = CARD_KINDS.map((k): [string, string] => [k, KIND_NAME[k]]);
     const rarities: [string, string][] = RARITIES.map((r): [string, string] => [r, RARITY_NAME[r].toLowerCase()]);
     const costs: [string, string][] = [['0', 'free'], ['1', '1 energy'], ['2', '2 energy'], ['3', '3 energy'], ['4', '4 or more'], ['x', 'X (all you have)']];
@@ -795,41 +792,47 @@ export class DeckBuilder {
 export function deckBox(d: SavedDeck, opts: { act: string; title: string; actions?: string; selected?: boolean; disabled?: boolean }): string {
   const legal = deckProblems(d.cards).length === 0;
   return `
-    <div class="db-deck db-deck-open ${legal ? '' : 'db-deck-bad'} ${opts.selected ? 'db-deck-on' : ''}" ${opts.disabled ? 'aria-disabled="true"' : `data-act="${opts.act}" data-arg="${d.id}"`} role="button" tabindex="0" title="${esc(opts.title)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">
+    <div class="db-deck db-deck-open ${legal ? '' : 'db-deck-bad'} ${opts.selected ? 'db-deck-on' : ''}" ${opts.disabled ? 'aria-disabled="true"' : `data-act="${opts.act}" data-arg="${d.id}"`} role="button" tabindex="0" title="${esc(opts.title)}" style="--dc:${deckColour(d)}">
       <div class="deck-box">
         <span class="deck-box-top"></span><span class="deck-box-side"></span>
         <div class="deck-box-front">
           ${deckCover(d)}
           <b class="deck-box-name">${esc(d.name.toLowerCase())}</b>
-          <small class="deck-box-race">${d.mixed ? 'mixed' : esc(RACE_NAMES[d.race].toLowerCase())}</small>
+          <small class="deck-box-race">${esc(deckRacesLabel(d))}</small>
         </div>
       </div>
       ${opts.actions ? `<div class="db-deck-actions">${opts.actions}</div>` : ''}
     </div>`;
 }
 
-/** A deck's round cover: its hero's picture, or its race's emblem. */
+/** A deck's round cover: its hero's picture, or the emblem of the race most of its cards are from. */
 export function deckCover(d: SavedDeck): string {
   const hero = d.cover ? cardDef(d.cover) : coverCard(d.cards);
-  return `<span class="deck-box-cover">${hero ? cardArtLite(hero) : factionAvatar(`f${d.race + 1}`, 'db-emblem')}</span>`;
+  const race = mainRace(d.cards);
+  return `<span class="deck-box-cover">${hero ? cardArtLite(hero) : factionAvatar(race === undefined ? 'neutral' : `f${race + 1}`, 'db-emblem')}</span>`;
+}
+
+/** A deck box's colour: that of the race most of its cards are from (a deck has no race of its own), else grey. */
+export function deckColour(d: { cards: string[] }): string {
+  const race = mainRace(d.cards);
+  return (race !== undefined && FACTION_COLOUR[`f${race + 1}`]) || '#9aa0ac';
+}
+
+/** What a deck's cards are, in a word or two: the races they come from (most first), or neutral. */
+function deckRacesLabel(d: SavedDeck): string {
+  const counts = new Map<number, number>();
+  for (const id of d.cards) {
+    const r = cardDef(id).race;
+    if (r !== undefined) counts.set(r, (counts.get(r) ?? 0) + 1);
+  }
+  const races = [...counts].sort((a, b) => b[1] - a[1]).map(([r]) => RACE_NAMES[r].toLowerCase());
+  if (!races.length) return 'neutral';
+  return races.length > 2 ? `${races.slice(0, 2).join(' · ')} +${races.length - 2}` : races.join(' · ');
 }
 
 /** A deck as it stands, to compare (its name and cards, in any order). */
 function snap(d: SavedDeck): string {
   return `${d.name.trim()}|${[...d.cards].sort().join(',')}`;
-}
-
-/** A deck's race, from its cards: its cover hero's, or else its most common race (unchanged with neither). */
-function deckRace(d: SavedDeck): number {
-  const hero = coverCard(d.cards);
-  if (hero?.race !== undefined) return hero.race;
-  const counts = RACE_NAMES.map(() => 0);
-  for (const id of d.cards) {
-    const r = cardDef(id).race;
-    if (r !== undefined) counts[r]++;
-  }
-  const best = Math.max(...counts);
-  return best > 0 ? counts.indexOf(best) : d.race;
 }
 
 /** Where a card falls in energy-cost order (X, spending all you have, last). */

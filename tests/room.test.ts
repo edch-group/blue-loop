@@ -10,12 +10,11 @@ function seeded(seed: number) {
   return () => ((h = (Math.imul(h, 1103515245) + 12345) >>> 0) / 4294967296);
 }
 
-const join = (name: string, race: number, token?: string): ClientMessage => ({
+const join = (name: string, deck: number, token?: string): ClientMessage => ({
   t: 'join',
   name,
-  deck: PRESET_DECKS[race].cards,
-  deckName: PRESET_DECKS[race].name,
-  species: race,
+  deck: PRESET_DECKS[deck].cards,
+  deckName: PRESET_DECKS[deck].name,
   token,
 });
 
@@ -49,17 +48,17 @@ describe('online room', () => {
     expect(room.game!.players.map((p) => p.name).sort()).toEqual(['Ada', 'Bo']);
   });
 
-  it('lets a player change deck and race in the lobby, which takes back their ready', () => {
+  it('lets a player change deck in the lobby, which takes back their ready', () => {
     const room = emptyRoom();
     handle(room, null, join('Ada', 0));
     handle(room, null, join('Bo', 2));
     handle(room, 1, { t: 'ready', ready: true });
-    handle(room, 1, { t: 'setup', name: 'Bo', deck: PRESET_DECKS[3].cards, deckName: PRESET_DECKS[3].name, species: 3 });
-    expect(room.seats[1]).toMatchObject({ species: 3, deckName: PRESET_DECKS[3].name, ready: false });
+    handle(room, 1, { t: 'setup', name: 'Bo', deck: PRESET_DECKS[3].cards, deckName: PRESET_DECKS[3].name });
+    expect(room.seats[1]).toMatchObject({ deckName: PRESET_DECKS[3].name, ready: false });
     handle(room, 0, { t: 'ready', ready: true });
     expect(room.game).toBeNull();
     handle(room, 1, { t: 'ready', ready: true });
-    expect(room.game!.players.find((p) => p.name === 'Bo')!.species).toBe(3);
+    expect(room.game!.players.find((p) => p.name === 'Bo')!.deckName).toBe(PRESET_DECKS[3].name);
   });
 
   it('is 1v1: a third player is turned away', () => {
@@ -148,24 +147,17 @@ describe('online room', () => {
 
   it('falls back to a starter deck if a player sends an illegal one', () => {
     const room = emptyRoom();
-    handle(room, null, { t: 'join', name: '<b>Eve</b>', deck: ['coronal_lance'], deckName: 'x', species: 1 });
-    expect(room.seats[0].deck).toEqual(PRESET_DECKS[1].cards);
+    handle(room, null, { t: 'join', name: '<b>Eve</b>', deck: ['coronal_lance'], deckName: 'x' });
+    expect(room.seats[0].deck).toEqual(PRESET_DECKS[0].cards);
     expect(room.seats[0].name).toBe('bEveb');
   });
 
-  it('accepts every race as a species (and falls back to the first for one that does not exist)', () => {
+  it('takes any legal deck, whichever races its cards are from', () => {
     for (let race = 4; race < RACE_NAMES.length; race++) {
       const room = emptyRoom();
-      handle(room, null, { t: 'join', name: 'Nova', deck: presetDeck(race).cards, deckName: presetDeck(race).name, species: race });
-      expect(room.seats[0]).toMatchObject({ species: race, deckName: presetDeck(race).name });
-      // An illegal deck falls back to that race's own starter.
-      const other = emptyRoom();
-      handle(other, null, { t: 'join', name: 'Nova', deck: ['coronal_lance'], deckName: 'x', species: race });
-      expect(other.seats[0].deck).toEqual(presetDeck(race).cards);
+      handle(room, null, { t: 'join', name: 'Nova', deck: presetDeck(race).cards, deckName: presetDeck(race).name });
+      expect(room.seats[0]).toMatchObject({ deck: presetDeck(race).cards, deckName: presetDeck(race).name });
     }
-    const room = emptyRoom();
-    handle(room, null, { t: 'join', name: 'Nova', deck: [], deckName: 'x', species: RACE_NAMES.length });
-    expect(room.seats[0].species).toBe(0);
   });
 });
 

@@ -34,7 +34,7 @@ describe('the ranked ladder', () => {
 });
 
 describe('a ranked room', () => {
-  const join = (name: string, profileId: string): ClientMessage => ({ t: 'join', name, deck: PRESET_DECKS[0].cards, deckName: 'x', species: 0, profileId });
+  const join = (name: string, profileId: string): ClientMessage => ({ t: 'join', name, deck: PRESET_DECKS[0].cards, deckName: 'x', profileId });
 
   it('admits only the two matched players, reports the result once, and offers no rematch', () => {
     const room = emptyRoom();

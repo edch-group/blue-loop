@@ -18,7 +18,6 @@ export interface LastMove {
 export interface LobbySeat {
   name: string;
   deckName: string;
-  species: number;
   ready: boolean;
   /** Their deck's cover card (see coverCard). */
   cover?: string | null;
@@ -43,7 +42,6 @@ export interface JoinInfo {
   name: string;
   deck: string[];
   deckName: string;
-  species: number;
   /** Your picture (a card id). */
   avatar?: string;
   /** Your profile id (ranked rooms admit only the two players matched). */

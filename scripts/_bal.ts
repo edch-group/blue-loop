@@ -14,7 +14,7 @@ let wins = 0, games = 0;
 for (const foe of PRESET_DECKS) {
   if (foe === me) continue;
   for (let g = 1; g <= n; g++) {
-    const ps = [{ name: 'P', isAI: true, species: me.race, deck: cards }, { name: 'F', isAI: true, species: foe.race, deck: foe.cards }];
+    const ps = [{ name: 'P', isAI: true, deck: cards }, { name: 'F', isAI: true, deck: foe.cards }];
     let s = createGame({ seed: g * 7919 + 13, players: g % 2 ? ps : ps.reverse() });
     let k = 0;
     while (!isGameOver(s) && k++ < 5000) s = applyAction(s, chooseAIAction(s));

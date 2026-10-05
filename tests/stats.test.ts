@@ -8,7 +8,7 @@ import { cleanStats } from '../server/stats';
 describe('anonymous game summaries', () => {
   it('sum up a game: the starters, every card played, the winner; nothing about the players', () => {
     const [a, b] = [PRESET_DECKS[0], PRESET_DECKS[2]];
-    let s = createGame({ seed: 7, players: [a, b].map((d, i) => ({ name: `Secret Name ${i}`, isAI: true, deck: d.cards, species: d.race })) });
+    let s = createGame({ seed: 7, players: [a, b].map((d, i) => ({ name: `Secret Name ${i}`, isAI: true, deck: d.cards })) });
     const stats = beginStats(s, 'ai');
     expect(stats.seats.map((x) => x.starter)).toEqual([a.name, b.name]);
     expect(stats.seats[0].cards).toHaveLength(a.cards.length);

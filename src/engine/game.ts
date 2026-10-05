@@ -1,6 +1,6 @@
 import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
-import { cardDef, hasDarkspeed, isBurst, presetDeck } from './cards';
+import { cardDef, hasDarkspeed, isBurst, PRESET_DECKS } from './cards';
 import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
 import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnPulse, TurnStats } from './types';
@@ -43,15 +43,15 @@ export function createGame(setup: GameSetup): GameState {
 
   const catchUp = (i: number) => i > 0 && n <= BALANCE.catchUpMaxPlayers;
   setup.players.forEach((ps, i) => {
-    const species = ps.species ?? i % 4;
-    const list = ps.deck ?? presetDeck(species).cards;
+    // (No deck given: a starter, by seat.)
+    const fallback = PRESET_DECKS.filter((d) => !d.mixed)[i % 4];
+    const list = ps.deck ?? fallback.cards;
     const deck = shuffleInPlace(state, list.map((id) => newCard(state, id)));
     const p: PlayerState = {
       id: `p${i + 1}`,
       name: ps.name,
       isAI: ps.isAI,
-      species,
-      deckName: ps.deckName ?? (ps.deck ? undefined : presetDeck(species).name),
+      deckName: ps.deckName ?? (ps.deck ? undefined : fallback.name),
       ...(ps.avatar ? { avatar: ps.avatar } : {}),
       heat: BALANCE.startingHeat + (ps.heatDelta ?? 0) + (ps.modifiers?.startingHeat ?? 0) - (catchUp(i) ? BALANCE.laterSeatCool : 0),
       shields: ps.opening?.shields ?? 0,

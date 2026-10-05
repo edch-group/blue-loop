@@ -72,10 +72,10 @@ import {
 } from '../engine';
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
-import { DeckBuilder, deckBox, deckCover, sizePool } from './builder';
+import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
-import { FACTION_COLOUR, factionAvatar } from './factions';
+import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { attackBadge, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
@@ -882,11 +882,11 @@ export class App {
   // -------------------------------------------------------------------------
 
   /** Create a room (no code) or join one, with the first seat's name and deck. */
-  /** Your name, deck and race, as the room needs them. */
+  /** Your name and deck, as the room needs them. */
   private joinInfo() {
     const seat = this.seats[0];
     const deck = deckById(seat.deckId) ?? PRESETS[0];
-    return { name: profile().name || seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race, avatar: account()?.avatar, profileId: profile().id };
+    return { name: profile().name || seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, avatar: account()?.avatar, profileId: profile().id };
   }
 
   private goOnline(code?: string) {
@@ -1306,7 +1306,7 @@ export class App {
         const name = s.isAI ? s.bot : i === 0 ? profile().name || s.name : s.name;
         // Your own picture is your account's; anyone else's is dealt by their name.
         const avatar = (!s.isAI && i === 0 ? account()?.avatar : undefined) ?? pictureFor(name.trim() || 'Unnamed');
-        return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, species: deck.race, avatar };
+        return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, avatar };
       });
     this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
   }
@@ -3862,7 +3862,7 @@ export class App {
   private deckBoxMini(d: SavedDeck, on: boolean, attrs = ''): string {
     const tag = attrs ? 'button' : 'div';
     return `
-      <${tag} class="lobby-deck ${on ? 'on' : ''}" ${attrs} title="${esc(d.name)}" style="--dc:${FACTION_COLOUR[`f${d.race + 1}`] ?? '#9aa0ac'}">
+      <${tag} class="lobby-deck ${on ? 'on' : ''}" ${attrs} title="${esc(d.name)}" style="--dc:${deckColour(d)}">
         <span class="deck-box"><span class="deck-box-top"></span><span class="deck-box-side"></span><span class="deck-box-front">${deckCover(d)}</span></span>
         <small>${esc(d.name.toLowerCase())}</small>
       </${tag}>`;
@@ -3942,7 +3942,7 @@ export class App {
     const rivalSeat = rival
       ? `<div class="qp-seat online-rival">
           <div class="qp-head"><span class="seat-name">${esc(rival.name)}</span>${tag(rival.ready, 'choosing')}</div>
-          <div class="qp-decks">${this.deckBoxMini({ id: 'rival', name: rival.deckName, race: rival.species, cards: rival.cover ? [rival.cover] : [] } as SavedDeck, false)}</div>
+          <div class="qp-decks">${this.deckBoxMini({ id: 'rival', name: rival.deckName, cards: rival.cover ? [rival.cover] : [] } as SavedDeck, false)}</div>
           <span class="qp-all muted">their deck</span>
         </div>`
       : '<div class="qp-seat online-rival online-waiting"><span class="online-pulse"></span><b>waiting for your opponent</b><small>send them the code or the link</small></div>';
@@ -5104,7 +5104,7 @@ export class App {
         <div class="sys-wrap sheet">
           <div class="sys-tabs">${tabs}</div>
           <div class="sys-card player-card">
-            <div class="sys-kicker">${p.id === me.id ? 'you' : esc(p.name.toLowerCase())} · ${esc(RACE_NAMES[p.species].toLowerCase())}</div>
+            <div class="sys-kicker">${p.id === me.id ? 'you' : esc(p.name.toLowerCase())}</div>
             ${playerAvatar(p.avatar ?? pictureFor(p.name), 'player-emblem')}
             <h2 class="sys-name">${esc((p.deckName ?? 'custom deck').toLowerCase())}</h2>
             ${commands ? `<p class="muted center-text">Heroes in play: ${commands}</p>` : ''}

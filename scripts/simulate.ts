@@ -61,7 +61,7 @@ const mechCount = new Map<string, number>();
 const start = Number(process.env.START ?? 1);
 for (let seed = start; seed < start + games; seed++) {
   const decks = pickDecks(seed);
-  let s = createGame({ seed, players: decks.map((d, i) => ({ name: `AI ${i + 1}`, isAI: true, species: d.race, deck: d.cards })) });
+  let s = createGame({ seed, players: decks.map((d, i) => ({ name: `AI ${i + 1}`, isAI: true, deck: d.cards })) });
   let steps = 0;
   while (!isGameOver(s) && steps++ < 5000) s = applyAction(s, chooseAIAction(s));
   totalRounds += s.round;

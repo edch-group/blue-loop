@@ -2076,7 +2076,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .deck-box-front {
   position: absolute; inset: 0; z-index: 2; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; align-items: center; gap: 2px;
   padding: 14% 8% 9%; border-radius: 1px 1px 1px 8px; text-align: center;
-  /* The Command cards' slate stock, tinted by the deck's race, with a band of the race's colour just
+  /* The Command cards' slate stock, tinted by the race most of its cards come from, with a band of that colour just
      under the lid and a thin printed frame inside the edge. */
   background:
     linear-gradient(180deg, transparent 2.2%, color-mix(in srgb, var(--dc) 75%, #fff) 2.2%, color-mix(in srgb, var(--dc) 75%, #fff) 3.2%, transparent 3.2%),

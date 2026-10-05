@@ -13,12 +13,11 @@ const A = JSON.parse(process.env.DECK_A ?? '[]') as string[];
 const B = JSON.parse(process.env.DECK_B ?? '[]') as string[];
 for (const d of [A, B]) if (deckProblems(d).length) throw new Error(deckProblems(d).join('; '));
 const games = Number(process.argv[2] ?? 200);
-const races = [Number(process.argv[3] ?? 0), Number(process.argv[4] ?? 2)];
 let aWins = 0, rounds = 0;
 for (let g = 1; g <= games; g++) {
   const flip = g % 2 === 0;
   const seats = flip ? [1, 0] : [0, 1];
-  let s = createGame({ seed: g, players: seats.map((k) => ({ name: k ? 'B' : 'A', isAI: true, species: races[k], deck: k ? B : A })) });
+  let s = createGame({ seed: g, players: seats.map((k) => ({ name: k ? 'B' : 'A', isAI: true, deck: k ? B : A })) });
   let n = 0;
   while (!isGameOver(s) && n++ < 5000) s = applyAction(s, chooseAIAction(s));
   rounds += s.round;

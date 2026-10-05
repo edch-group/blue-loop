@@ -42,7 +42,7 @@ for (let g = 1; g <= games; g++) {
   const races = [Math.floor(rand() * RACE_NAMES.length), Math.floor(rand() * RACE_NAMES.length)];
   const decks = races.map(randomDeck);
   for (const d of decks) if (deckProblems(d).length) throw new Error(deckProblems(d)[0]);
-  let s = createGame({ seed: g, players: decks.map((deck, i) => ({ name: `AI ${i + 1}`, isAI: true, species: races[i], deck })) });
+  let s = createGame({ seed: g, players: decks.map((deck, i) => ({ name: `AI ${i + 1}`, isAI: true, deck })) });
   let steps = 0;
   try {
     while (!isGameOver(s) && steps++ < 5000) s = applyAction(s, chooseAIAction(s));

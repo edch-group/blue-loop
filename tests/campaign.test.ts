@@ -171,7 +171,7 @@ describe('campaign setup', () => {
     expect(cardDef(myArmy(s).general).race).toBe(7);
     s = attack(s);
     expect(s.battle).not.toBeNull();
-    expect(s.battle!.game.players[0].species).toBe(7);
+    expect(s.battle!.game.players[0].deck.concat(s.battle!.game.players[0].hand).some((c) => cardDef(c.defId).race === 7)).toBe(true);
     s = settle(winBattle(s));
     expect(heroState(campaignPlayer(s), GENERALS[7][0]).xp).toBeGreaterThan(0);
   });

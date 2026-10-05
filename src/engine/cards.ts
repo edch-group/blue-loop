@@ -857,8 +857,6 @@ export { RACE_NAMES } from './races';
 
 export interface DeckList {
   name: string;
-  /** The race whose emblem the deck carries. */
-  race: number;
   cards: string[];
   /** A starter built round a mechanic, from several races (shown as "mixed"). */
   mixed?: boolean;
@@ -880,7 +878,6 @@ export const PRESET_DECKS: DeckList[] = [
     // an Ion Cannon, Rally Banners to recall a card and play it again, and a Prism of Dawn set face down
     // against the counter-attack. At the top: Aurelia, the Archon and the Sun Throne.
     name: 'Solar Lancers',
-    race: 0,
     cards: [
       ...twoOf('command_directive', 'helio_lancer', 'rally_banner'),
       'sunlance_charge', 'lancer_squadron', 'aureline_cantor', 'solar_aegis', 'ignition_protocol', 'coronal_chorus',
@@ -896,7 +893,6 @@ export const PRESET_DECKS: DeckList[] = [
     // and a Prism Sanctum to run hot safely, with Precession Engines (attuned twice over), a Crystal Storm
     // and a Searing Core to press.
     name: 'Shard Overload',
-    race: 1,
     cards: [
       ...twoOf('precession_engine', 'martyr_crystal', 'prism_ward', 'war_council', 'ember_shard', 'echo_shard'),
       'coolant_protocol', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit',
@@ -910,7 +906,6 @@ export const PRESET_DECKS: DeckList[] = [
     // wear rival cards away, Brine Lashes, Riptides and Jelly Swarms hitting harder behind shields, and a
     // Riptide Ambusher and an Ink Cloud set face down against a big hit.
     name: 'Abyssal Tide',
-    race: 2,
     cards: [
       ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'tide_regent', 'riptide', 'brine_lash', 'tidal_graft'),
       'tidal_wave', 'jelly_swarm', 'abyssal_titan', 'siphon_tendril', 'the_admiralty', 'riptide_ambush',
@@ -924,7 +919,6 @@ export const PRESET_DECKS: DeckList[] = [
     // Cycle to hold the hive in play, and Spore Husks recovered from the discard pile (by the Compost Cycle
     // and a Regrowth Pod) to draw more, and Seasonal Blooms planting Saplings and taking their orbit's bonus.
     name: 'Hive Bloom',
-    race: 3,
     cards: [
       ...twoOf('sap_graft', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_relay', 'spore_cloud', 'seed_burst'),
       'seasonal_bloom', 'seasonal_bloom', 'hive_warrior', 'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings',
@@ -942,7 +936,6 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Orbit Riders',
     mixed: true,
     cover: 'grand_orrery',
-    race: 3,
     cards: [
       ...twoOf('logistics_command', 'orrery', 'ecliptic_lance', 'solstice_choir', 'moon_warden', 'precession_engine', 'orbital_slingshot'),
       ...twoOf('gravity_assist', 'tidal_brake', 'sunward_lance', 'cryo_vault'),
@@ -956,7 +949,6 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Ambush',
     mixed: true,
     cover: 'prism_of_dawn',
-    race: 0,
     cards: [
       ...twoOf('command_directive', 'prism_of_dawn', 'counter_pulse', 'sunflash_aegis', 'blink_bulwark', 'helio_lancer', 'shard_reactor'),
       ...twoOf('coronal_lance', 'cryo_vault', 'photon_drill'),
@@ -970,7 +962,6 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Demolition',
     mixed: true,
     cover: 'event_horizon',
-    race: 1,
     cards: [
       ...twoOf('war_council', 'ion_cannon', 'void_bolt', 'entropy_pulse', 'scatter_shot', 'tidebreaker', 'cryo_vault', 'shard_reactor'),
       'command_breaker', 'tractor_beam', 'shatter_point', 'fault_line', 'maelstrom', 'star_breaker',
@@ -984,7 +975,6 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Absolute Zero',
     mixed: true,
     cover: 'absolute_zero',
-    race: 1,
     cards: [
       ...twoOf('coolant_protocol', 'cryo_lance', 'frostbound_sentinel', 'rime_bastion', 'cryo_vault', 'cold_front', 'frost_lattice', 'coolant_array', 'shard_reactor'),
       'absolute_zero', 'glacier_hull', 'ice_age', 'deep_freeze', 'prism_vent', 'the_shardmind',
@@ -998,7 +988,6 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Graftworks',
     mixed: true,
     cover: 'sunforged_lens',
-    race: 2,
     cards: [
       ...twoOf('tide_regent', 'plasma_relay', 'aureline_vanguard', 'thermal_graft', 'sunforged_lens', 'shield_lattice', 'reinforced_plating', 'shard_splice'),
       ...twoOf('barnacle_shell', 'coolant_shunt'),
@@ -1013,7 +1002,6 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Overcharge',
     mixed: true,
     cover: 'solar_torrent',
-    race: 0,
     cards: [
       ...twoOf('ignition_protocol', 'solar_torrent', 'meltdown', 'radiant_barrage', 'relay_station', 'overcharge', 'glory_charge', 'deep_freeze', 'gravity_sling'),
       'the_admiralty', 'overflow_archive', 'abyssal_rampart', 'hive_surge', 'overgrowth', 'phase_shift',
@@ -1025,7 +1013,6 @@ export const PRESET_DECKS: DeckList[] = [
     // Nyxari: Veilwalker traps (Umbral Snares, Mirror Veils, a Null Shroud for the rival's Hero) to blunt
     // the rival's day, and Unmakers to take their board apart; ambushers that strike the day they land.
     name: 'Night Court',
-    race: 4,
     cards: [
       ...twoOf('nyx_umbral_snare', 'nyx_mirror_veil', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_gloom_warden', 'nyx_shade_stalker', 'nyx_dusk_raider', 'nyx_unmaker_blade', 'nyx_void_rend'),
       // (Attack in place of draw: cheap as the deck is, it drew far more than it could ever play.)
@@ -1038,7 +1025,6 @@ export const PRESET_DECKS: DeckList[] = [
     // Korrath: Forgeborn grafts hammered onto a few heavy cards, Bastion-kin Guards in front of them, and
     // repair to keep the plating whole.
     name: 'Forge Clans',
-    race: 5,
     cards: [
       ...twoOf('kor_rivet_graft', 'kor_slag_graft', 'kor_anvil_graft', 'kor_forge_hammer', 'kor_shieldwall', 'kor_bastion_kin', 'kor_iron_sentinel', 'kor_siege_ram', 'kor_molten_pour', 'siege_array', 'plasma_relay'),
       'kor_master_smith', 'kor_rampart_lord', 'kor_foundry', 'kor_ore_hauler', 'coronal_lance',
@@ -1049,7 +1035,6 @@ export const PRESET_DECKS: DeckList[] = [
     // Seren: attuned cards (twice over, Star-charted) riding an orbit that Tidecasters push round, and
     // Seers drawing and recovering.
     name: 'Starwatch',
-    race: 6,
     cards: [
       ...twoOf('ser_astral_lance', 'ser_tide_turner', 'ser_planet_shepherd', 'ser_eclipse_caster', 'ser_twin_moons', 'ser_star_chart', 'ser_orrery_keeper', 'ser_stargazer', 'ser_star_needle', 'ser_moonwell', 'ecliptic_lance'),
       'ser_oracle', 'ser_lantern_of_ages', 'ser_constellation', 'ser_almanac', 'solstice_choir',
@@ -1060,7 +1045,6 @@ export const PRESET_DECKS: DeckList[] = [
     // Pyrr: Cinderborn running their own sun hot (and hitting harder for it), Flarekin spending a big day
     // all at once, Heat Blooms and Vent Coolers to stay just short of supernova.
     name: 'Wildfire',
-    race: 7,
     cards: [
       ...twoOf('pyr_flare_imp', 'pyr_cinder_brute', 'pyr_ash_walker', 'pyr_heat_bloom', 'pyr_ember_guard', 'pyr_flare_burst', 'pyr_pyre_shield', 'pyr_flarekin_dancer', 'pyr_stoker', 'pyr_vent_cooler', 'pyr_banked_embers'),
       'pyr_magma_heart', 'pyr_supernova_charge', 'pyr_flare_temple', 'pyr_solar_tyrant', 'coolant_array',
@@ -1101,9 +1085,28 @@ for (const d of PRESET_DECKS) {
   }
 }
 
-/** A race's own starter deck (the first race's for anything else). */
+/**
+ * The race most of these cards belong to (its costliest Hero's on a tie; undefined for all-neutral cards). A deck
+ * has no race of its own: this only says what its cards are, for its box's colour and emblem.
+ */
+export function mainRace(cards: string[]): number | undefined {
+  const counts = new Map<number, number>();
+  for (const id of cards) {
+    const r = BY_ID.get(id)?.race;
+    if (r !== undefined) counts.set(r, (counts.get(r) ?? 0) + 1);
+  }
+  if (!counts.size) return undefined;
+  const best = Math.max(...counts.values());
+  const tied = [...counts].filter(([, n]) => n === best).map(([r]) => r);
+  // (On a tie, its costliest Hero's race.)
+  const heroes = cards.map((id) => BY_ID.get(id)).filter((c): c is CardDef => c?.kind === 'command' && c.race !== undefined && tied.includes(c.race));
+  heroes.sort((x, y) => (y.cost ?? 1) - (x.cost ?? 1));
+  return heroes[0]?.race ?? tied[0];
+}
+
+/** The starter deck built from one race's cards (the first starter for anything else): for the campaign's factions. */
 export function presetDeck(race: number): DeckList {
-  return PRESET_DECKS.find((d) => !d.mixed && d.race === race) ?? PRESET_DECKS[0];
+  return PRESET_DECKS.find((d) => !d.mixed && mainRace(d.cards) === race) ?? PRESET_DECKS[0];
 }
 
 /** How many Command cards a deck of this size runs: one per `cardsPerCommand` cards (3 in 30, 4 in 40). */

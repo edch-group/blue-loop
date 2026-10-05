@@ -42,7 +42,7 @@ for (let d = 0; d < decks; d++) {
   for (let g = 0; g < per; g++) {
     const opp = STARTERS[g % STARTERS.length];
     const first = Math.floor(g / STARTERS.length) % 2 === 0;
-    const players = [{ name: 'X', isAI: true, species: race, deck }, { name: 'S', isAI: true, species: opp.race, deck: opp.cards }];
+    const players = [{ name: 'X', isAI: true, deck }, { name: 'S', isAI: true, deck: opp.cards }];
     let s = createGame({ seed: d * 1000 + g, players: first ? players : players.reverse() });
     let n = 0;
     while (!isGameOver(s) && n++ < 5000) s = applyAction(s, chooseAIAction(s));

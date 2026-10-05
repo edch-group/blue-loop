@@ -1,4 +1,4 @@
-import { applyAction, beginStats, cardDef, coverCard, createGame, deckProblems, finishStats, GameError, noteMove, presetDeck, RACE_NAMES, type Action, type CardInstance, type GameState, type GameStats } from '../src/engine';
+import { applyAction, beginStats, cardDef, coverCard, createGame, deckProblems, finishStats, GameError, noteMove, PRESET_DECKS, type Action, type CardInstance, type GameState, type GameStats } from '../src/engine';
 import { isAvatar } from './avatars';
 
 /**
@@ -18,7 +18,6 @@ export interface Seat {
   name: string;
   deck: string[];
   deckName: string;
-  species: number;
   /** The player's picture (a card id). */
   avatar?: string;
   /** Confirmed in the lobby: the game starts once both seats are ready. */
@@ -70,11 +69,11 @@ export interface Payout {
 
 /** What a client may send. */
 export type ClientMessage =
-  | { t: 'join'; name: string; deck: string[]; deckName: string; species: number; avatar?: string; token?: string; profileId?: string }
+  | { t: 'join'; name: string; deck: string[]; deckName: string; avatar?: string; token?: string; profileId?: string }
   | { t: 'action'; action: Action }
   | { t: 'rematch' }
   /** In the lobby: change your name, deck or race (this un-readies you). */
-  | { t: 'setup'; name: string; deck: string[]; deckName: string; species: number; avatar?: string }
+  | { t: 'setup'; name: string; deck: string[]; deckName: string; avatar?: string }
   /** In the lobby: confirm (or take back) that you are ready to start. */
   | { t: 'ready'; ready: boolean }
   /** In a game: you have read the card your rival just played (they may carry on). */
@@ -84,7 +83,7 @@ export type ClientMessage =
 /** What the room sends. */
 export type ServerMessage =
   | { t: 'joined'; seat: number; token: string }
-  | { t: 'lobby'; seats: { name: string; deckName: string; species: number; ready: boolean; cover: string | null }[]; you: number; ranked: boolean }
+  | { t: 'lobby'; seats: { name: string; deckName: string; ready: boolean; cover: string | null }[]; you: number; ranked: boolean }
   /** `waitFor`: 'you' when you must confirm your rival's card, 'rival' while they read yours. */
   | { t: 'state'; state: GameState; you: string; last: LastMove | null; names: string[]; waitFor: 'you' | 'rival' | null; ranked: boolean }
   /** A ranked game's result for you: what it earned, and where it left you on the ladder. */
@@ -229,16 +228,14 @@ export function playerIndex(room: RoomData, seat: number): number {
   return (seat - room.first + 2) % 2;
 }
 
-/** A seat's name, deck and race from a join or setup message (an illegal deck falls back to that race's starter). */
-function seatSetup(msg: { name: string; deck: string[]; deckName: string; species: number; avatar?: string }, index: number): Omit<Seat, 'token'> {
+/** A seat's name and deck from a join or setup message (an illegal deck falls back to the first starter). */
+function seatSetup(msg: { name: string; deck: string[]; deckName: string; avatar?: string }, index: number): Omit<Seat, 'token'> {
   const deck = Array.isArray(msg.deck) ? msg.deck.map(String) : [];
-  const species = Number.isInteger(msg.species) && msg.species >= 0 && msg.species < RACE_NAMES.length ? msg.species : 0;
   const legal = deck.length > 0 && deckProblems(deck).length === 0;
   return {
     name: clean(msg.name, 18) || `Player ${index + 1}`,
-    deck: legal ? deck : presetDeck(species).cards,
-    deckName: legal ? clean(msg.deckName, 24) || 'Custom deck' : presetDeck(species).name,
-    species,
+    deck: legal ? deck : PRESET_DECKS[0].cards,
+    deckName: legal ? clean(msg.deckName, 24) || 'Custom deck' : PRESET_DECKS[0].name,
     ...(isAvatar(msg.avatar) ? { avatar: msg.avatar } : {}),
   };
 }
@@ -252,7 +249,7 @@ function start(room: RoomData, random: () => number) {
   const order = [room.seats[room.first], room.seats[1 - room.first]];
   room.game = createGame({
     seed: Math.floor(random() * 2 ** 31),
-    players: order.map((s) => ({ name: s.name, isAI: false, deck: s.deck, deckName: s.deckName, species: s.species, avatar: s.avatar })),
+    players: order.map((s) => ({ name: s.name, isAI: false, deck: s.deck, deckName: s.deckName, avatar: s.avatar })),
   });
   room.last = null;
   room.waitingOn = null;
@@ -300,7 +297,7 @@ export function viewFor(game: GameState, me: number): GameState {
 export function views(room: RoomData): ServerMessage[] {
   const g = room.game;
   if (!g) {
-    const seats = room.seats.map((s) => ({ name: s.name, deckName: s.deckName, species: s.species, ready: !!s.ready, cover: coverCard(s.deck)?.id ?? null }));
+    const seats = room.seats.map((s) => ({ name: s.name, deckName: s.deckName, ready: !!s.ready, cover: coverCard(s.deck)?.id ?? null }));
     return room.seats.map((_, i) => ({ t: 'lobby', seats, you: i, ranked: !!room.ranked }));
   }
   return room.seats.map((_, seat) => {

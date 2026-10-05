@@ -1347,7 +1347,6 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   return [
     {
       name: army.lost ? armyLeader(army) : `${armyLeader(army)} (${attacker.name})`,
-      species: attacker.race,
       isAI: attacker.isAI,
       deck: army.deck,
       deckName: `${armyLeader(army)}'s army`,
@@ -1361,7 +1360,6 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
     },
     {
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
-      species: owner ? owner.race : (target.tier + Number(target.id.replace(/\D/g, '') || 0)) % RACE_NAMES.length,
       isAI: owner ? owner.isAI : true,
       deck: defenderDeck,
       ...(guard ? { freeReshuffle: true } : {}),

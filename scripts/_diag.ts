@@ -9,7 +9,7 @@ const stats = { heatDealt: 0, heatTaken: 0, shields: 0, rounds: 0, energyLeft: 0
 for (let g = 0; g < N; g++) {
   const first = g % 2 === 0;
   const decks = first ? [A, B] : [B, A];
-  let s = createGame({ seed: 1000 + g, players: decks.map((d, i) => ({ name: `P${i}`, isAI: true, species: PRESET_DECKS[d].race, deck: PRESET_DECKS[d].cards, deckName: PRESET_DECKS[d].name })) });
+  let s = createGame({ seed: 1000 + g, players: decks.map((d, i) => ({ name: `P${i}`, isAI: true, deck: PRESET_DECKS[d].cards, deckName: PRESET_DECKS[d].name })) });
   const me = first ? 0 : 1;
   const played: string[] = [];
   let n = 0;

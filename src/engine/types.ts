@@ -304,8 +304,6 @@ export interface PlayerState {
   id: string;
   name: string;
   isAI: boolean;
-  /** Which of the alien races this player is (an index into RACE_NAMES, 0–7). */
-  species: number;
   /** The deck's name, for display. */
   deckName?: string;
   /** The player's picture: a card (its id), whose artwork stands for them. */
@@ -423,13 +421,11 @@ export interface BattleSkill {
 export interface PlayerSetup {
   name: string;
   isAI: boolean;
-  /** The deck, as card ids (default: the race's starter deck). */
+  /** The deck, as card ids (default: a starter, by seat). */
   deck?: string[];
   deckName?: string;
   /** The player's picture: a card (its id). */
   avatar?: string;
-  /** Which of the alien races this player is (an index into RACE_NAMES, 0–7). Defaults to the seat order. */
-  species?: number;
   /** Campaign battles: heat carried in (damage taken earlier, or a garrison's bombardment). */
   heatDelta?: number;
   /** Campaign armies (small decks): shuffling the discard pile back in costs no heat. */
