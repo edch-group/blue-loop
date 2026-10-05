@@ -4487,3 +4487,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .phase-step { gap: 5px; }
   .phase-step i { width: 6px; height: 6px; }
 }
+/* Your Hero in the preview pane: its abilities as rows with no gap between them, tall enough to tap easily,
+   split only by the light line (no highlight). */
+.stage-hero .card-ability, .stage-hero .card-ability ~ .card-ability { margin: 0 -4px; padding: 0.55em 4px; border-radius: 0; }
+.stage-hero .card-ability-on { background: none; box-shadow: none; }
+@media (hover: hover) { .stage-hero .card-ability-on:hover { background: rgba(255, 255, 255, 0.08); } }
