@@ -4854,3 +4854,15 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .db-card-in > .card.lifted:not([disabled]) { box-shadow: 0 0 0 2px color-mix(in srgb, var(--kc) 75%, transparent), 0 10px 22px rgba(90, 90, 110, 0.2); }
   .db-card-focus > .card.lifted:not([disabled]) { box-shadow: 0 0 0 2px #9fb4ff, 0 10px 22px rgba(90, 90, 110, 0.2); }
 }
+
+/* ---------- Anomaly gem: a black hole seen from above ---------- */
+/* Deep space behind, a glow rising to white round the hole, the disk's streaks swirling round it (two layers
+   turning at different speeds, the inner faster), and the hole itself, a black disc with a soft lip. */
+.gem-anomaly .gem-window { background: radial-gradient(circle, #2c2448 0%, #141026 45%, #07050d 75%); }
+.gem-anomaly .gem-window::before { background: radial-gradient(circle, rgba(200, 170, 255, 0.55) 0%, rgba(140, 100, 240, 0.3) 40%, transparent 70%); }
+.g-ah-glow { background: radial-gradient(circle, #ffffff 0 17%, rgba(240, 232, 255, 0.95) 21%, rgba(190, 168, 245, 0.7) 29%, rgba(120, 100, 190, 0.42) 42%, rgba(60, 50, 110, 0.22) 58%, transparent 74%); }
+.g-ah-swirl { background-image: var(--gem-swirl); animation: gemTurn 9s linear infinite; animation-delay: calc(var(--gp) * -9s); }
+.g-ah-swirl2 { background-image: var(--gem-swirl2); animation-duration: 16s; transform: scale(1.12); animation-name: gemTurnWide; opacity: 0.8; }
+@keyframes gemTurnWide { from { transform: scale(1.12) rotate(0deg); } to { transform: scale(1.12) rotate(360deg); } }
+.g-ah-core { background: radial-gradient(circle, #000 0 14.5%, rgba(0, 0, 0, 0.85) 15.5%, rgba(10, 6, 20, 0.35) 17.5%, transparent 20%); }
+@media (prefers-reduced-motion: reduce) { .g-ah-swirl { animation-duration: 40s; } .g-ah-swirl2 { animation-duration: 70s; } }

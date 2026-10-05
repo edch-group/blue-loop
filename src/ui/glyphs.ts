@@ -337,7 +337,7 @@ export function rarityGem(def: CardDef): string {
   const r: Rarity = def.rarity ?? 'dwarf';
   const body =
     r === 'anomaly'
-      ? '<i class="g g-hole-back"></i><i class="g-disk"><i class="g g-disk-spin"></i></i><i class="g g-hole"></i><i class="g-disk g-disk-front"><i class="g g-disk-spin"></i></i>'
+      ? '<i class="g g-ah-glow"></i><i class="g g-ah-swirl"></i><i class="g g-ah-swirl g-ah-swirl2"></i><i class="g g-ah-core"></i>'
       : r === 'stellar'
         ? '<i class="g g-sun-corona"></i><i class="g g-sun-disc"></i>'
         : '<i class="g g-dwarf-glow"></i><i class="g g-dwarf"></i>';
@@ -347,6 +347,39 @@ export function rarityGem(def: CardDef): string {
 // The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
 const GEM_IMAGES: Record<string, string> = { socketDwarf, socketStellar, socketAnomaly, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk };
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
+
+/**
+ * The Anomaly's black hole, seen from above: its accretion disk as streaks of light circling the hole,
+ * each a short arc spiralling inward, white and dense near the hole, sparse and dim further out. Drawn once,
+ * then turned (two copies at different speeds) so the disk swirls.
+ */
+function swirlTile(seed: number, n: number): string {
+  let h = seed;
+  const rnd = () => ((h = (h * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  let paths = '';
+  for (let i = 0; i < n; i++) {
+    const t = Math.pow(rnd(), 0.75);
+    const r0 = 15 + t * 33;
+    const a0 = rnd() * Math.PI * 2;
+    const span = (0.5 + rnd() * 1.6) * (1.1 - t * 0.5);
+    const steps = 8;
+    let d = '';
+    for (let k = 0; k <= steps; k++) {
+      const f = k / steps;
+      const a = a0 + span * f;
+      const r = r0 * (1 - 0.1 * f);
+      d += `${k ? 'L' : 'M'}${(50 + r * Math.cos(a)).toFixed(2)} ${(50 + r * Math.sin(a)).toFixed(2)}`;
+    }
+    const op = (0.08 + 0.85 * Math.pow(1 - t, 1.6)).toFixed(2);
+    const w = (0.35 + rnd() * 0.9 * (1 - t * 0.5)).toFixed(2);
+    const c = rnd() < 0.3 ? '#cdb8ff' : rnd() < 0.5 ? '#e9e2ff' : '#ffffff';
+    paths += `<path d="${d}" stroke="${c}" stroke-width="${w}" opacity="${op}"/>`;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="none" stroke-linecap="round">${paths}</g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+document.documentElement.style.setProperty('--gem-swirl', swirlTile(41, 170));
+document.documentElement.style.setProperty('--gem-swirl2', swirlTile(97, 110));
 
 /** The small line at the bottom of a card: just its type and race (rarity shows in the gem). */
 const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
