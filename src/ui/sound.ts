@@ -83,7 +83,7 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 // sparse melody of bell-like plucks (soft triangles, bright, with a dotted-
 // quarter echo filling the gaps) sings short phrases with room between them,
 // rolling a quick chord into its height once a time round, and every third
-// time round breaking into a long, climbing run of triplets over swelling synths,
+// time round breaking into a long, climbing run of eighths over swelling synths,
 // one set of phrases answered by another the next time round; beneath, a soft
 // low-high rock on each chord's root and fifth; the pads stay low.
 
@@ -774,8 +774,8 @@ class SoundBoard {
 
   /**
    * Part of the campaign score's crescendo, which runs six bars from the start of the Fmaj7 to halfway through the
-   * Em7 (`from` is the bar of those six this part starts on, `bars` how many it covers). The melody plays one bar
-   * of eighths, then triplets all the way, slowly climbing the chord and growing louder, over a chord of detuned
+   * Em7 (`from` is the bar of those six this part starts on, `bars` how many it covers). The melody runs in steady
+   * eighths, three to each note of the rock, slowly climbing the chord and growing louder, over a chord of detuned
    * saws whose filter opens as it swells; in the last two bars a rush of air rises into the peak.
    */
   private crescendo(
@@ -798,7 +798,7 @@ class SoundBoard {
     const base = Math.max(0, ladder.findIndex((n) => n >= startAt));
     for (let b = 0; b < bars; b++) {
       const bar = from + b;
-      const gap = bar === 0 ? CAMPAIGN_EIGHTH : CAMPAIGN_EIGHTH * (2 / 3);
+      const gap = CAMPAIGN_EIGHTH;
       const lo = Math.min(ladder.length - 5, base + Math.floor(b * 0.75));
       const window = [...ladder.slice(lo, lo + 5), ...ladder.slice(lo + 1, lo + 4).reverse()];
       let k = 0;
@@ -847,10 +847,10 @@ class SoundBoard {
   }
 
   /**
-   * The campaign map's score. The drone, bass and pads alone for the first chord; then the rock and the high
-   * melody join (its call and answer alternating by round), and the rock rests for a chord every fourth time round.
-   * Every third time round from the second, the melody turns into a long crescendo of triplets from the Fmaj7,
-   * peaking halfway through the Em7.
+   * The campaign map's score. The drone, bass, pads and rock alone for the first chord; then the high melody joins
+   * (its call and answer alternating by round), and the rock rests for a chord every fourth time round. Every third
+   * time round from the second, the melody turns into a long crescendo of steady eighths from the Fmaj7, peaking
+   * halfway through the Em7.
    * Scheduled a chord at a time, just ahead of the audio clock.
    */
   private campaignScore(ctx: AudioContext, bus: GainNode) {
@@ -922,7 +922,6 @@ class SoundBoard {
       // The falling bass: a held triangle and a soft sine an octave up.
       this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: bus });
       this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: bus });
-      if (intro) return;
       // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle).
       if (round % 4 !== 3 || index !== 2)
         for (let b = 0; b < 4; b++)
@@ -931,7 +930,9 @@ class SoundBoard {
             this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
             this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
           });
-      // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo.
+      // The melody (from the second chord, so a match opens on the drone, bass and rock alone): bell-like plucks
+      // (a triangle with a little saw), left to ring into the echo.
+      if (intro) return;
       const bell = (t: number, f: number, gain: number, dur = eighth * 5) => {
         const d = this.until(t);
         this.voice(f, { dur, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: orbit });
