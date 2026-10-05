@@ -34,8 +34,8 @@ export const KEYWORDS: Record<string, Keyword> = {
   guard: { name: 'guard', group: 'defence', explain: () => 'Must be targeted first.' },
   sturdy: { name: 'sturdy', group: 'defence', explain: () => 'Extra defence.' },
   repair: { name: 'repair', group: 'defence', explain: () => 'Mends worn defence.' },
-  bulwark: { name: 'bulwark', group: 'defence', explain: () => 'Extra defence for neighbours.' },
-  resonance: { name: 'resonance', group: 'resonance', explain: () => 'Boosts neighbours.' },
+  bulwark: { name: 'bulwark', group: 'defence', explain: () => 'Extra defence for neighbours (any number in brackets: for the cards two slots away).' },
+  resonance: { name: 'resonance', group: 'resonance', explain: () => 'Boosts neighbours (any number in brackets: the cards two slots away).' },
   forge: { name: 'forge', group: 'resonance', explain: () => 'Boosts neighbouring attack cards.' },
   brittle: { name: 'brittle', group: 'stability', explain: () => 'Never fades, but has no defence: any attack, heat or decay breaks it.' },
   anchor: { name: 'anchor', group: 'stability', explain: () => 'Neighbours lose no stability.' },
@@ -113,7 +113,11 @@ function rawLabel(id: string, value?: string): string {
   if (id === 'abilities') return 'each turn, one of:';
   if (id === 'energy') return `gain ${value} energy`;
   if (id === 'cost') return `(${value} energy)`;
-  if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
+  if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') {
+    // A split value ("2/1", resonance and bulwark): the cards right beside it, then those two slots away.
+    const [near, far] = value.split('/');
+    return far === undefined ? `${k.name} ${near}` : `${k.name} ${near} (${far} further)`;
+  }
   return `${k.name} ${value}`;
 }
 
