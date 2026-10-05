@@ -80,13 +80,14 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 // A voyage through a dying universe, in the same key and hall as the menu and
 // battle scores. The menu's breathing drone holds A while a lament falls over
 // it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High above, a
-// sparse melody on a sustained, slightly distorted synth (with a dotted-quarter
-// echo filling the gaps) sings short phrases with room between them, rolling a
+// sparse melody of bell-like plucks layered with a sustained, slightly distorted
+// synth (a dotted-quarter echo filling the gaps) sings short phrases, rolling a
 // quick chord into its height once a time round and breaking into long,
 // climbing runs of eighths over swelling synths; one set of phrases answered by
-// another the next time round. At the top of every chord a beacon sounds: one
-// high, heavily wavering note thrown far into delay and reverb. Beneath, a
-// soft low-high rock on each chord's root and fifth; the pads stay low.
+// another the next time round. Once the haze is in, a beacon sounds at the top
+// of every chord: one high, heavily wavering note washed in delay and reverb.
+// Beneath, a soft low-high rock on each chord's root and fifth; the pads stay
+// low.
 
 /** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
 const CAMPAIGN_EIGHTH = 0.42;
@@ -975,10 +976,15 @@ class SoundBoard {
     const mild = new Float32Array(new ArrayBuffer(1024 * 4));
     for (let i = 0; i < mild.length; i++) mild[i] = Math.tanh(3 * ((i / (mild.length - 1)) * 2 - 1)) / Math.tanh(3);
     /**
-     * The melody's synth: a held, slightly distorted pair of saws, into the melody's filter and echo. `gain` is
-     * relative (0.03 is a full note), `len` how long it holds.
+     * The melody's voice: the bell-like pluck, layered with a held, slightly distorted pair of saws, both into the
+     * melody's filter and echo. `gain` is relative (0.03 is a full note), `len` how long the saws hold.
      */
     const lead = (t: number, f: number, gain: number, len = eighth * 5) => {
+      // The original voice underneath: a bell-like pluck (a triangle with a little saw), ringing into the echo.
+      const d = this.until(t);
+      const pluck = Math.max(eighth * 2.4, Math.min(len, eighth * 5));
+      this.voice(f, { dur: pluck, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: melody });
+      this.voice(f, { dur: pluck / 2, attack: 0.01, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: melody });
       const level = CAMPAIGN_LEAD * (gain / 0.03);
       const release = Math.min(0.6, len * 0.6);
       const shaper = ctx.createWaveShaper();
@@ -1006,29 +1012,35 @@ class SoundBoard {
       }
     };
 
-    // The beacon's space: a little dry, and a long echo bouncing between the sides, darkening, into the hall.
+    // The beacon's space: a little dry, and a dense wash of delays at irregular times (so the echoes blur into
+    // one long tail rather than repeating in time with the rock), spread across the sides, darkening, into the hall.
     const beacon = ctx.createGain();
     const beaconDry = ctx.createGain();
-    beaconDry.gain.value = 0.4;
-    const left = ctx.createDelay(3), right = ctx.createDelay(3);
-    left.delayTime.value = right.delayTime.value = eighth * 3;
-    const panL = ctx.createStereoPanner(), panR = ctx.createStereoPanner();
-    panL.pan.value = -0.8;
-    panR.pan.value = 0.8;
+    beaconDry.gain.value = 0.35;
     const beaconTone = ctx.createBiquadFilter();
     beaconTone.type = 'lowpass';
     beaconTone.frequency.value = 2600;
-    const beaconFeedback = ctx.createGain();
-    beaconFeedback.gain.value = 0.55;
     const beaconWet = ctx.createGain();
-    beaconWet.gain.value = 0.8;
+    beaconWet.gain.value = 0.5;
     beacon.connect(beaconDry).connect(bus);
-    beacon.connect(beaconTone).connect(left);
-    left.connect(panL).connect(beaconWet);
-    left.connect(right).connect(panR).connect(beaconWet);
-    right.connect(beaconFeedback).connect(beaconTone);
+    beacon.connect(beaconTone);
     beaconWet.connect(bus);
-    this.musicNodes.push(beacon, beaconDry, left, right, panL, panR, beaconTone, beaconFeedback, beaconWet);
+    this.musicNodes.push(beacon, beaconDry, beaconTone, beaconWet);
+    [0.137, 0.211, 0.293, 0.389, 0.463].forEach((time, i) => {
+      const d = ctx.createDelay(1);
+      d.delayTime.value = time;
+      const fb = ctx.createGain();
+      fb.gain.value = 0.62;
+      const damp = ctx.createBiquadFilter();
+      damp.type = 'lowpass';
+      damp.frequency.value = 2200;
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = [-0.8, 0.6, -0.4, 0.9, -0.1][i];
+      beaconTone.connect(d);
+      d.connect(damp).connect(fb).connect(d);
+      d.connect(pan).connect(beaconWet);
+      this.musicNodes.push(d, fb, damp, pan);
+    });
     /** The beacon: one high note, a sine and a triangle wavering heavily in pitch and level, ringing off slowly. */
     const ring = (t: number, f: number) => {
       const g = ctx.createGain();
@@ -1096,9 +1108,10 @@ class SoundBoard {
         });
       // The haze: long, drawn-out chords on saws, hard-distorted and filtered, overlapping (off the rock's notes).
       if (hazy) this.haze(at, chordLen, c.haze, curve, part === 2 && index === 0, bus);
-      // The melody and the beacon wait, in the opening, for the fourth chord.
+      // The beacon comes in with the haze, at the top of every chord.
+      if (hazy) ring(at, hz(c.beacon));
+      // The melody waits, in the opening, for the fourth chord.
       if (part === 0 && index < 3) return;
-      ring(at, hz(c.beacon));
       const tones = new Set(c.pad.map((n) => midiOf(n) % 12));
       if (rising && index === 2) {
         // Open the melody's filter for the climb (it peaks halfway through the Em7), hold it to the end of the
