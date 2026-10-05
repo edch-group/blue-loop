@@ -5002,3 +5002,19 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
     conic-gradient(from 315deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 10%, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0) 60%, rgba(255, 255, 255, 0) 90%, rgba(255, 255, 255, 0.5)),
     radial-gradient(circle closest-side, var(--m-lo) 0 74%, color-mix(in srgb, var(--m-lo) 70%, #000) 76.5%, var(--m-mid) 81%, var(--m-hi) 86%, var(--m-mid) 92%, var(--m-lo) 97.5%, color-mix(in srgb, var(--m-lo) 60%, #000) 100%);
 }
+/* Layers, bottom to top: the setting's shadow (::after), the gem's light, the bezel (::before), the stone. The
+   shadow sits under the light so it never dims it; and the ::after is whole (no mask or clip left over from when
+   the gem sat on the card's top edge), so the setting is a true circle. */
+.card .art-wrap .gem.gem-dwarf::after, .card .art-wrap .gem.gem-stellar::after, .card .art-wrap .gem.gem-anomaly::after {
+  z-index: -3; -webkit-mask: none; mask: none; clip-path: none; background: none;
+  border: var(--bump-w, 0px) solid var(--bump-ring, transparent);
+  box-shadow: 0 0 0 calc(var(--gs) * 0.04) rgba(14, 16, 26, 0.45), 0 0 calc(var(--gs) * 0.14) calc(var(--gs) * 0.03) rgba(14, 16, 26, 0.5),
+    0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.22) rgba(14, 16, 26, 0.55);
+}
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+  -webkit-mask: none; mask: none;
+  box-shadow: inset 0 calc(var(--gs) * 0.03) 0 rgba(255, 255, 255, 0.6), inset 0 calc(var(--gs) * -0.03) 0 rgba(0, 0, 0, 0.18);
+}
+/* At the foot of the picture the light spills round the whole gem, a little onto the card below too, fading out
+   before the card's name. */
+.card .gem .gem-light { -webkit-mask: linear-gradient(180deg, #000 56%, transparent 74%); mask: linear-gradient(180deg, #000 56%, transparent 74%); }
