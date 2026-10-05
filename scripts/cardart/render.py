@@ -26,10 +26,15 @@ def render(cid):
     return cid, time.time() - t
 
 
+# Cards whose picture was supplied (painted elsewhere, not rendered here): never overwritten by a batch,
+# only when named on their own.
+SUPPLIED = {'empress_solenne'}
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
     args = sys.argv[1:] or list(SCENES)
-    ids = [c for a in args for c in ([k for k, r in RACE.items() if r == a] if a in RACE.values() else [a])]
+    ids = [c for a in args for c in ([k for k, r in RACE.items() if r == a and k not in SUPPLIED] if a in RACE.values() else [a])]
+    if not sys.argv[1:]: ids = [c for c in ids if c not in SUPPLIED]
     with Pool(int(os.environ.get('JOBS', os.cpu_count() or 2))) as pool:
         for cid, dt in pool.imap_unordered(render, ids):
             print(f'{cid} {dt:.1f}s', flush=True)
