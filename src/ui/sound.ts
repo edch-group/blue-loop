@@ -1115,38 +1115,47 @@ class SoundBoard {
       }
     };
 
-    // The backing synth (before the haze): its echo repeats every eighth, the spacing of the crescendo's runs.
+    // The backing synth (before the haze): it swells into its beat, and an echo repeating every eighth (the
+    // rhythm of the crescendo's runs) carries the beat on afterwards, darkening.
     const backing = ctx.createGain();
+    const backSend = ctx.createGain();
     const backEcho = ctx.createDelay(1);
     backEcho.delayTime.value = eighth;
     const backTone = ctx.createBiquadFilter();
     backTone.type = 'lowpass';
-    backTone.frequency.value = 2000;
+    backTone.frequency.value = 2600;
     const backFeedback = ctx.createGain();
-    backFeedback.gain.value = 0.38;
+    backFeedback.gain.value = 0.55;
     const backWet = ctx.createGain();
-    backWet.gain.value = 0.5;
+    backWet.gain.value = 1.6;
     backing.connect(mix);
-    backing.connect(backEcho).connect(backTone).connect(backFeedback).connect(backEcho);
+    backSend.connect(backEcho).connect(backTone).connect(backFeedback).connect(backEcho);
     backTone.connect(backWet).connect(mix);
-    this.musicNodes.push(backing, backEcho, backTone, backFeedback, backWet);
+    this.musicNodes.push(backing, backSend, backEcho, backTone, backFeedback, backWet);
     /**
-     * A backing chord: detuned saws with a softened attack, through a resonant lowpass that opens from dark to its
-     * full range over one rock note, fading as it goes.
+     * A backing chord landing on `beat`: detuned saws that start one rock note early, swelling in as their resonant
+     * lowpass opens from dark to fully open, both arriving on the beat, where the chord stops. Only that moment
+     * of arrival goes into the echo, which carries the beat on in eighths.
      */
-    const backChord = (t: number, notes: number[]) => {
-      const rockNote = eighth * 3;
+    const backChord = (beat: number, notes: number[]) => {
+      const t = beat - eighth * 3;
       const f = ctx.createBiquadFilter();
       f.type = 'lowpass';
       f.Q.value = 6;
-      f.frequency.setValueAtTime(280, t);
-      f.frequency.exponentialRampToValueAtTime(8000, t + rockNote);
+      f.frequency.setValueAtTime(200, t);
+      f.frequency.exponentialRampToValueAtTime(9000, beat);
       const g = ctx.createGain();
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(CAMPAIGN_BACKING, t + 0.07);
-      g.gain.setValueAtTime(CAMPAIGN_BACKING, t + rockNote * 0.6);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + rockNote * 1.3);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(CAMPAIGN_BACKING, beat);
+      g.gain.linearRampToValueAtTime(0, beat + 0.09);
       f.connect(g).connect(backing);
+      // The send to the echo: open only for the arrival.
+      const send = ctx.createGain();
+      send.gain.setValueAtTime(0, t);
+      send.gain.setValueAtTime(0, beat - 0.12);
+      send.gain.linearRampToValueAtTime(1, beat);
+      send.gain.linearRampToValueAtTime(0, beat + 0.09);
+      g.connect(send).connect(backSend);
       for (const n of notes)
         for (const detune of [-6, 6]) {
           const o = ctx.createOscillator();
@@ -1155,7 +1164,7 @@ class SoundBoard {
           o.detune.value = detune;
           o.connect(f);
           o.start(t);
-          o.stop(t + rockNote * 1.35);
+          o.stop(beat + 0.12);
         }
     };
     /** In the second crescendo, a synth in the rock's voice follows the runs two octaves down (unducked, like the rock). */
@@ -1219,8 +1228,8 @@ class SoundBoard {
         this.crescendo(at, barLen, tones, c.swell, 4, 2, mix, lead, barLen * 2, part === 3, part === 3 ? follow : undefined);
         return this.afterglow(at + barLen * 2, barLen, tones, lead, part === 3 ? follow : undefined);
       }
-      // Before the haze, a backing chord under the melody on the second and fourth bar of every chord it plays
-      // (outside the crescendo): two notes of the chord, an octave above the pads.
+      // Before the haze, a backing chord under the melody, landing on the second and fourth bar of every chord it
+      // plays (outside the crescendo): two notes of the chord, an octave above the pads.
       if (!hazy) for (const e of [6, 18]) backChord(at + e * eighth, [c.pad[1], c.pad[2]].map((n) => hzOf(midiOf(n) + 12)));
       const phrase = CAMPAIGN_PHRASES[part % 2][index];
       const pitches = phrase.map(([, n]) => midiOf(n));
