@@ -122,8 +122,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_slag_graft', name: 'Slag Graft', kind: 'attack', race: 5, sub: 'forgeborn', cost: 2, fusion: true,
-    text: '{fusion}. {dawn}: {heat:1}. {heat:+1} per 2 Forgeborn cards (up to 3).',
-    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'race', race: 5, sub: 'forgeborn', per: 2 }, max: 3 }],
+    text: '{fusion}. {dawn}: {heat:1}. {heat:+1} per 4 defence on your cards (up to 3).',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'defence', per: 4 }, max: 3 }],
   },
   {
     id: 'kor_anvil_graft', name: 'Anvil Graft', kind: 'defence', race: 5, sub: 'forgeborn', cost: 2, fusion: true,
@@ -168,8 +168,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_siege_ram', name: 'Siege Ram', kind: 'attack', race: 5, cost: 3,
-    text: '{heat:2}. {sturdy:2}. {dawn}: {heat:1}.',
-    defence: 2, onPlay: [{ type: 'heat', amount: 2, to: 'target' }], onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
+    text: '{heat:2}. {sturdy:2}. {dawn}: {heat:1}. {heat:+1} per 4 defence on your cards (up to 3).',
+    defence: 2, onPlay: [{ type: 'heat', amount: 2, to: 'target' }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'defence', per: 4 }, max: 3 }],
   },
   {
     id: 'kor_foundry', name: 'Deep Foundry', kind: 'growth', race: 5, cost: 2,
@@ -178,8 +178,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_molten_pour', name: 'Molten Pour', kind: 'attack', race: 5, cost: 1,
-    text: '{heat:1}. {heat:+1} per 2 Korrath cards (up to 3). {repair:1}.',
-    onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'race', race: 5, per: 2 }, max: 3 }, { type: 'repair', amount: 1 }],
+    text: '{heat:1}. {heat:+1} per 4 defence on your cards (up to 3). {repair:1}.',
+    onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'defence', per: 4 }, max: 3 }, { type: 'repair', amount: 1 }],
   },
   {
     id: 'kor_temper', name: 'Temper', kind: 'defence', race: 5, cost: 1,

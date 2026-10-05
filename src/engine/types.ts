@@ -36,6 +36,8 @@ export type Count =
   | { of: 'rested'; per?: number }
   /** Your tableau cards of a race (or sub-race), divided by `per`. */
   | { of: 'race'; race?: number; sub?: string; per?: number }
+  /** The defence on your cards in play (as it stands now: wear counts against it), divided by `per`. */
+  | { of: 'defence'; per?: number }
   /** Your current shields, divided by `per`. */
   | { of: 'shields'; per?: number }
   /** This card's growth counter. */

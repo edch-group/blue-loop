@@ -610,6 +610,22 @@ describe('Orion, Galaxy Eater', () => {
   });
 });
 
+describe('Forge Clans: walls become weapons', () => {
+  it('a Siege Ram hits harder at dawn for the defence on your cards, and wear takes it back', () => {
+    const s = twoPlayer();
+    const me = activePlayer(s);
+    const [ram] = give(me, ['kor_siege_ram'], 'tableau');
+    const wall = give(me, ['kor_shieldwall', 'kor_iron_sentinel'], 'tableau');
+    const total = () => me.tableau.reduce((n, t) => n + cardDefence(me, t), 0);
+    const dawnHeat = () => effectAmount(s, me, ram, cardDef('kor_siege_ram').onTurn![0], 'turn');
+    expect(dawnHeat()).toBe(Math.min(3, 1 + Math.floor(total() / 4)));
+    expect(dawnHeat()).toBeGreaterThan(1);
+    for (const c of [ram, ...wall]) c.dented = 99;
+    expect(total()).toBe(0);
+    expect(dawnHeat()).toBe(1);
+  });
+});
+
 describe('Thermosiphon', () => {
   it('adds 1 per 2 points your sun is below zero, on top of what the card does warm', () => {
     let s = twoPlayer();

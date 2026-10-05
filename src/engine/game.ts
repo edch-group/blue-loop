@@ -593,6 +593,8 @@ function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState
       return Math.floor(p.tableau.filter((t) => ofRace(cardDef(t.defId), c.race, c.sub)).length / per);
     case 'shields':
       return Math.floor(p.shields / per);
+    case 'defence':
+      return Math.floor(p.tableau.reduce((n, t) => n + cardDefence(p, t), 0) / per);
     case 'growth':
       return card.growth ?? 0;
     case 'adjacent':
