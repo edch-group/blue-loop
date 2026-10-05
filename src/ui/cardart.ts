@@ -1056,7 +1056,12 @@ Object.assign(ART, {
   supernova_lance: ART.fracture_burst,
   great_collapse: ART.event_horizon,
   dyson_sphere: ART.stellar_aegis,
-  black_sun: ART.star_breaker,
+  // A dead star, burning black: a dark disc in a ragged violet-white corona, shedding dark flares.
+  black_sun: (S: Scene) =>
+    S.glow(80, 52, 70, '#5a3a8a', 0.5) +
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => { const a = (i / 12) * Math.PI * 2 + 0.2; const l = 30 + (i % 3) * 9; return `<path d="M${(80 + Math.cos(a) * 20).toFixed(1)} ${(52 + Math.sin(a) * 20).toFixed(1)} L${(80 + Math.cos(a + 0.09) * l).toFixed(1)} ${(52 + Math.sin(a + 0.09) * l).toFixed(1)} L${(80 + Math.cos(a + 0.2) * 20).toFixed(1)} ${(52 + Math.sin(a + 0.2) * 20).toFixed(1)} Z" fill="#c9b4ff" opacity="${(0.25 + (i % 3) * 0.12).toFixed(2)}"/>`; }).join('') +
+    eclipse(S, 80, 52, 20, '#e8dcff') +
+    S.motes(80, 52, 14, 60, '#d8c8ff', 1.1),
 });
 
 /** A Relic: an old artefact afloat over a worn stone plinth, lit from within, with a crack (Brittle) across it. */
