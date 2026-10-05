@@ -4772,3 +4772,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @media (prefers-reduced-motion: reduce) { .gem-anomaly .gem-window::before, .gem-anomaly .gem-window::after { animation: none; } .gem-anomaly .gem-window::after { display: none; } }
 /* (The disk's near half fades in rather than starting on a hard line, which showed across the larger disk.) */
 .gem-anomaly .g-disk-front { clip-path: none; -webkit-mask: linear-gradient(transparent 44%, #000 56%); mask: linear-gradient(transparent 44%, #000 56%); }
+/* The type pill: taller, its text smaller, so the notch round the gem sits in a pill with room for it. */
+.card { --pill-h: calc(var(--cw, 100px) * 0.105); }
+.card .card-type, .card-table .card-type {
+  height: var(--pill-h); font-size: max(4.5px, calc(var(--cw, 100px) * 0.034)); padding: 0.12em 1.1em 0; letter-spacing: 0.18em;
+}
+.card .card-type::before { clip-path: inset(calc(var(--pill-y) + var(--notch) - var(--pill-h) / 2) 0 0 0); }
