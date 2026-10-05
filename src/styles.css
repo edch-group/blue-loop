@@ -4972,3 +4972,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   background-image: var(--skyband), var(--bg2);
   background-size: 100% var(--strip), 100% 100%; background-position: 0 0, 0 0; background-repeat: no-repeat, no-repeat;
 }
+
+/* ---------- The gem at the foot of the picture ---------- */
+/* The rarity gem sits in the middle of the picture's bottom edge, mostly over the picture with a little of its
+   bezel standing out over the card below; its light rises over the picture (never over the name and rules). The
+   card's top edge is plain again: no bump, and no night strip, which only backlit the gem up there. */
+.card .art-wrap .gem { top: auto; bottom: 0; left: 50%; right: auto; transform: translate(-50%, 28%); }
+.card:not(.kind-command) { --skyband: linear-gradient(transparent, transparent); }
+/* (With the gem gone from the top, the type pill is whole: no notch out of its top for the gem.) */
+.card .card-type { -webkit-mask: none; mask: none; }
+.card .card-type::before { display: none; }
