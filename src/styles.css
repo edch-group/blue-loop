@@ -4989,6 +4989,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   background: linear-gradient(180deg, var(--m-hi) 0%, var(--m-mid) 42%, var(--m-lo) 100%);
   box-shadow:
     inset 0 calc(var(--gs) * 0.03) 0 rgba(255, 255, 255, 0.6), inset 0 calc(var(--gs) * -0.03) 0 rgba(0, 0, 0, 0.18),
-    0 0 0 calc(var(--gs) * 0.02) rgba(20, 22, 34, 0.18), 0 calc(var(--gs) * 0.03) calc(var(--gs) * 0.16) rgba(20, 22, 34, 0.32);
+    0 0 0 calc(var(--gs) * 0.04) rgba(14, 16, 26, 0.45), 0 0 calc(var(--gs) * 0.14) calc(var(--gs) * 0.03) rgba(14, 16, 26, 0.5),
+    0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.22) rgba(14, 16, 26, 0.55);
 }
-.card .art-wrap .gem .gem-window { box-shadow: inset 0 calc(var(--gs) * 0.07) calc(var(--gs) * 0.09) rgba(0, 0, 0, 0.45); }
+.card .art-wrap .gem .gem-window { box-shadow: inset 0 calc(var(--gs) * 0.09) calc(var(--gs) * 0.11) rgba(0, 0, 0, 0.7); }
