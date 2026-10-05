@@ -793,7 +793,7 @@ class SoundBoard {
    * Part of the campaign score's crescendo, which runs six bars from the start of the Fmaj7 to halfway through the
    * Em7 (`from` is the bar of those six this part starts on, `bars` how many it covers). The melody runs in steady
    * eighths, three to each note of the rock, slowly climbing the chord and growing louder, over a chord of detuned
-   * saws whose filter opens as it swells into the peak.
+   * saws whose filter opens as it swells into the peak (and, given `hold`, holds there to the climax).
    */
   private crescendo(
     at: number,
@@ -804,6 +804,8 @@ class SoundBoard {
     bars: number,
     bus: GainNode,
     bell: (t: number, f: number, gain: number, dur?: number) => void,
+    hold = 0,
+    turning = false,
   ) {
     const ctx = this.ctx!;
     const total = 6;
@@ -816,13 +818,16 @@ class SoundBoard {
     for (let b = 0; b < bars; b++) {
       const bar = from + b;
       const gap = CAMPAIGN_EIGHTH;
+      // Five notes of the chord, climbing as the bars go by. Every bar runs up them (1 2 3 4 5 4); when `turning`
+      // (the second crescendo of the form), every bar after the first turns back first (3 2 1 4 5 4).
       const lo = Math.min(ladder.length - 5, base + Math.floor(b * 0.75));
-      const window = [...ladder.slice(lo, lo + 5), ...ladder.slice(lo + 1, lo + 4).reverse()];
-      let k = 0;
-      for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += gap, k++) {
-        const progress = (bar + (t - at - b * barLen) / barLen) / total;
-        bell(t, hzOf(window[k % window.length]), 0.016 + 0.022 * progress, CAMPAIGN_EIGHTH * 0.95);
-      }
+      const five = ladder.slice(lo, lo + 5);
+      const order = turning && bar > 0 ? [2, 1, 0, 3, 4, 3] : [0, 1, 2, 3, 4, 3];
+      order.forEach((k, e) => {
+        const t = at + b * barLen + e * gap;
+        const progress = (bar + e / 6) / total;
+        bell(t, hzOf(five[k]), 0.016 + 0.022 * progress, CAMPAIGN_EIGHTH * 0.95);
+      });
     }
     // The supporting chord: detuned saws through a lowpass that opens, swelling across the whole crescendo.
     const filter = ctx.createBiquadFilter();
@@ -836,7 +841,9 @@ class SoundBoard {
     g.gain.setValueAtTime(0, at);
     g.gain.linearRampToValueAtTime(level(from), at + (from === 0 ? barLen : 0.4));
     g.gain.linearRampToValueAtTime(level(from + bars), end);
-    g.gain.linearRampToValueAtTime(0, end + (from + bars === total ? 1.6 : 0.4));
+    // At the peak it holds (for `hold` seconds, through the arpeggio's tail) until the climax, then lets go.
+    g.gain.setValueAtTime(level(from + bars), end + hold);
+    g.gain.linearRampToValueAtTime(0, end + hold + (from + bars === total ? 1.6 : 0.4));
     filter.connect(g).connect(bus);
     for (const n of chord)
       for (const detune of [-9, 9]) {
@@ -848,7 +855,7 @@ class SoundBoard {
         lv.gain.value = 0.008;
         o.connect(lv).connect(filter);
         o.start(at);
-        o.stop(end + 2);
+        o.stop(end + hold + 2);
       }
   }
 
@@ -880,7 +887,7 @@ class SoundBoard {
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.Q.value = 0.8;
-    filter.frequency.value = 3400;
+    filter.frequency.value = 1400;
     const g = ctx.createGain();
     const attack = entering ? 4 : 1.5;
     g.gain.setValueAtTime(0, at);
@@ -984,7 +991,14 @@ class SoundBoard {
      * The melody's voice: the bell-like pluck, layered with a held, slightly distorted pair of saws, both into the
      * melody's filter and echo. `gain` is relative (0.03 is a full note), `len` how long the saws hold.
      */
+    // Before the haze comes in the melody's synth only holds briefly (it stays plucky, with a quiet sine an octave
+    // down for a little more body); with the haze, in full.
+    let held = false;
     const lead = (t: number, f: number, gain: number, len = eighth * 5) => {
+      if (!held) {
+        len = Math.min(len, eighth * 1.6);
+        this.note(t, f / 2, len, { gain: gain * 0.22, type: 'sine', attack: 0.02, release: 0.5, out: melody });
+      }
       // The original voice underneath: a bell-like pluck (a triangle with a little saw), ringing into the echo.
       const d = this.until(t);
       const pluck = Math.max(eighth * 2.4, Math.min(len, eighth * 5));
@@ -1095,6 +1109,7 @@ class SoundBoard {
       const part = round % 4;
       const rising = part === 1 || part === 3; // a crescendo through the Fmaj7 and the Em7 this time round
       const hazy = part >= 2;
+      held = hazy;
       // Pads, as the menu score voices them, but kept low (they swell in, from the first chord on, under the rock).
       c.pad.forEach((n, i) => {
         const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
@@ -1125,11 +1140,11 @@ class SoundBoard {
         orbit.frequency.linearRampToValueAtTime(4000, at + chordLen + barLen * 2);
         orbit.frequency.setValueAtTime(4000, at + chordLen * 2);
         orbit.frequency.linearRampToValueAtTime(1900, at + chordLen * 2 + 3);
-        return this.crescendo(at, barLen, tones, c.swell, 0, 4, bus, lead);
+        return this.crescendo(at, barLen, tones, c.swell, 0, 4, bus, lead, 0, part === 3);
       }
       if (rising && index === 3) {
         // The peak, then the arpeggio carries on through the rest of the Em7, easing down.
-        this.crescendo(at, barLen, tones, c.swell, 4, 2, bus, lead);
+        this.crescendo(at, barLen, tones, c.swell, 4, 2, bus, lead, barLen * 2, part === 3);
         return this.afterglow(at + barLen * 2, barLen, tones, lead);
       }
       const phrase = CAMPAIGN_PHRASES[part % 2][index];
