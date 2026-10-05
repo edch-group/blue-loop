@@ -4476,3 +4476,14 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* A card in the hand keeps a card's own shape (its width came from one size and its height from another,
    leaving it short and squat): as tall as its width makes a card, the extra hanging below the screen until raised. */
 .table-view > .dock .hand > .card:not(.card-landscape) { height: calc(var(--hw) * 1.4); }
+/* Short (phone) screens: the Stellari, the round and the labels either side of it a size down, to sit within
+   the space the two tableaus' outlines leave between them. */
+@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
+  .board-plane > .board-star-slot { width: 104px; }
+  .round-ring { width: 20px; }
+  .round-ring-num b { font-size: 8px; }
+  .board-plane > .phase-track, .board-plane > .turn-who { --stellari-r: 48px; gap: 4px; }
+  .turn-who span, .phase-step span { font-size: 7px; letter-spacing: 0.18em; }
+  .phase-step { gap: 5px; }
+  .phase-step i { width: 6px; height: 6px; }
+}
