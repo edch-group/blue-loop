@@ -4628,3 +4628,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .hand > .card.card-playable { --bump-ring: rgba(124, 199, 154, 0.8); --bump-w: 1.5px; }
 .db-card-in > .card { --bump-ring: color-mix(in srgb, var(--kc) 75%, transparent); --bump-w: 2px; }
 .card.card-choosable, .card.card-picked { --bump-ring: #fff; --bump-w: 2px; }
+/* (The gem's old halo was switched off with display: none: the mount, which uses the same place, is shown.) */
+.card .art-wrap .gem::before, .card .art-wrap .gem::after { display: block; }
+/* The type pill straddles the picture's top edge (half on it, half above); the gem sits a touch higher, its bump
+   clear of the pill. */
+.card .card-type { top: calc(var(--cw, 100px) * 0.06); transform: translate(-50%, -50%); }
+.card .art-wrap .gem { top: calc(var(--cw, 100px) * -0.082); }
+.card-table .card-type { top: calc(var(--cw, 100px) * 0.06); }
