@@ -24,6 +24,17 @@ export interface Keyword {
  * Each keyword's explanation says what the mechanic does, never its numbers: the card shows those, and
  * one card's "Heat 1" and "Heat +1" are explained once, as Heat.
  */
+/**
+ * Bulwark and Resonance reach further than the cards beside them, less each slot away ("2/1": 2 beside it, 1
+ * two slots away). The card shows only the most; the explanation, with the card's numbers, says the rest.
+ */
+function reach(value: string | undefined, what: string): string {
+  const n = (value ?? '').split('/').filter(Boolean);
+  if (n.length < 2) return `${what}.`;
+  const away = ['the cards beside it', 'those two slots away', 'those three slots away'];
+  return `${what}: ${n.map((x, i) => `+${x} for ${away[i] ?? `those ${i + 1} slots away`}`).join(', ')}.`;
+}
+
 export const KEYWORDS: Record<string, Keyword> = {
   dawn: { name: 'dawn', group: 'timing', explain: () => 'Start of your day.' },
   dusk: { name: 'dusk', group: 'timing', explain: () => 'End of your day.' },
@@ -34,8 +45,8 @@ export const KEYWORDS: Record<string, Keyword> = {
   guard: { name: 'guard', group: 'defence', explain: () => 'Must be targeted first.' },
   sturdy: { name: 'sturdy', group: 'defence', explain: () => 'Extra defence.' },
   repair: { name: 'repair', group: 'defence', explain: () => 'Mends worn defence.' },
-  bulwark: { name: 'bulwark', group: 'defence', explain: () => 'Extra defence for neighbours (any number in brackets: for the cards two slots away).' },
-  resonance: { name: 'resonance', group: 'resonance', explain: () => 'Boosts neighbours (any number in brackets: the cards two slots away).' },
+  bulwark: { name: 'bulwark', group: 'defence', explain: (v) => reach(v, 'Extra defence for neighbours') },
+  resonance: { name: 'resonance', group: 'resonance', explain: (v) => reach(v, "Boosts neighbours' heat, cooling and shields") },
   forge: { name: 'forge', group: 'resonance', explain: () => 'Boosts neighbouring attack cards.' },
   brittle: { name: 'brittle', group: 'stability', explain: () => 'Never fades, but has no defence: any attack, heat or decay breaks it.' },
   anchor: { name: 'anchor', group: 'stability', explain: () => 'Neighbours lose no stability.' },
@@ -114,9 +125,8 @@ function rawLabel(id: string, value?: string): string {
   if (id === 'energy') return `gain ${value} energy`;
   if (id === 'cost') return `(${value} energy)`;
   if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') {
-    // A split value ("2/1", resonance and bulwark): the cards right beside it, then those two slots away.
-    const [near, far] = value.split('/');
-    return far === undefined ? `${k.name} ${near}` : `${k.name} ${near} (${far} further)`;
+    // A split value ("2/1", resonance and bulwark): only the most (beside it); its explanation has the rest.
+    return `${k.name} ${value.split('/')[0]}`;
   }
   return `${k.name} ${value}`;
 }

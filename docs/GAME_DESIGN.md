@@ -396,7 +396,7 @@ The counterplay is to hit them, and a deck that leaves a Relic standing pays for
 | Frost Reliquary | 2 | Your cards cool +1 |
 | Aegis Idol | 2 | Your cards shield +1 |
 | Chrono Stone | 2 | Anchor |
-| Warden Totem | 2 | Bulwark 2 (1 further) |
+| Warden Totem | 2 | Bulwark 2 (+2 defence beside it, +1 two slots away) |
 | Tide Pearl | 2 | Tidewall |
 | Astral Orrery (Stellar) | 4 | +1 energy a day |
 | Crown of the First Sun (Anomaly) | 4 | Your cards heat, cool and shield +1 |

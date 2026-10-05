@@ -606,7 +606,7 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   const texts = [text, ...[...text.matchAll(/\{options:([^}]+)\}/g)].flatMap((m) => optionList(m[1]).map(optionText))].join(' ');
   // (Gaining energy explains itself.)
   // (Gaining energy explains itself; a Hero's ability names are not keywords.)
-  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'cost' && k.id !== 'act' && k.id !== 'abilities') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
+  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'cost' && k.id !== 'act' && k.id !== 'abilities') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain(k.value));
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
   if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');
