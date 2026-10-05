@@ -413,7 +413,8 @@ function leanPiles(root: HTMLElement) {
     const r1 = face.getBoundingClientRect();
     face.style.translate = '';
     const perX = r0.width / (face.offsetWidth || 1);
-    const lean = perX ? -((r1.left + r1.width / 2 - (r0.left + r0.width / 2)) / 20) / perX : 0;
+    // (Mirrored: the edges lean the way the perspective carries them, to the right.)
+    const lean = perX ? Math.abs((r1.left + r1.width / 2 - (r0.left + r0.width / 2)) / 20 / perX) : 0;
     face.style.setProperty('--lean', lean.toFixed(3));
   }
 }
