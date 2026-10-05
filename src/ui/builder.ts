@@ -62,7 +62,7 @@ interface Filters {
 
 type MultiKey = 'race' | 'kind' | 'rarity' | 'cost' | 'own';
 const MULTI: MultiKey[] = ['race', 'kind', 'rarity', 'cost', 'own'];
-const noFilters = (): Filters => ({ q: '', race: new Set(), kind: new Set(), rarity: new Set(), cost: new Set(), own: new Set(), sort: 'race', characters: false, inDeck: false });
+const noFilters = (): Filters => ({ q: '', race: new Set(), kind: new Set(), rarity: new Set(), cost: new Set(), own: new Set(), sort: 'cost', characters: false, inDeck: false });
 /** A card's cost as the cost filter groups it: 0–3, 4+ or X. */
 const costGroup = (c: CardDef) => (c.spendAll ? 'x' : String(Math.min(4, cardCost(c.id))));
 const RARITY_ORDER: Record<Rarity, number> = { dwarf: 0, stellar: 1, anomaly: 2 };
@@ -72,12 +72,6 @@ const GRID_ICON = {
   sm: `<svg viewBox="0 0 14 14" aria-hidden="true">${[0, 5, 10].flatMap((y) => [0, 5, 10].map((x) => `<rect x="${x}" y="${y}" width="4" height="4" rx="1"/>`)).join('')}</svg>`,
   md: `<svg viewBox="0 0 14 14" aria-hidden="true">${[0, 7.5].flatMap((y) => [0, 7.5].map((x) => `<rect x="${x}" y="${y}" width="6.5" height="6.5" rx="1.5"/>`)).join('')}</svg>`,
   lg: '<svg viewBox="0 0 14 14" aria-hidden="true"><rect width="14" height="14" rx="2.5"/></svg>',
-};
-
-/** The pool's tabs: the cards (a fanned pair), and the Heroes (a crown). */
-const TAB_ICON = {
-  cards: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3.5" width="7.5" height="10.5" rx="1.5" transform="rotate(-10 5.75 8.75)"/><rect x="6.5" y="2" width="7.5" height="10.5" rx="1.5"/></svg>',
-  heroes: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5 5.5 8 8 3.5 10.5 8l3-2.5-1.2 7H3.7z"/><path d="M3.7 14h8.6"/></svg>',
 };
 
 /** The filters button: a funnel. */
@@ -103,8 +97,6 @@ export class DeckBuilder {
   private focus: string | null = null;
   /** The filters popover, open or shut, and which of its dropdowns is open. */
   private filtersOpen = false;
-  /** The pool's tab: the cards, or the Heroes (which lie landscape, so they get a page of their own). */
-  private tab: 'cards' | 'heroes' = 'cards';
   private dropOpen: string | null = null;
   /** The deck as it was opened (to tell whether leaving would lose changes), and the leave-without-saving question. */
   private openedAs: SavedDeck | null = null;
@@ -135,7 +127,6 @@ export class DeckBuilder {
       this.page = 0;
       this.focus = null;
       this.filtersOpen = false;
-      this.tab = 'cards';
     }
     this.mode = mode;
     this.syncMode();
@@ -224,20 +215,6 @@ export class DeckBuilder {
       case 'db-filters':
         this.filtersOpen = !this.filtersOpen;
         break;
-      case 'db-tab': {
-        if ((arg !== 'cards' && arg !== 'heroes') || arg === this.tab) return true;
-        this.tab = arg;
-        this.page = 0;
-        const pool = document.querySelector<HTMLElement>('.db-pool');
-        if (!pool) break;
-        pool.dataset.tab = arg;
-        document.querySelectorAll<HTMLElement>('.db-tab').forEach((b) => {
-          b.classList.toggle('on', b.dataset.arg === arg);
-          b.setAttribute('aria-selected', String(b.dataset.arg === arg));
-        });
-        this.refreshPool();
-        return true;
-      }
       case 'db-grid':
         if (arg === 'sm' || arg === 'md' || arg === 'lg') {
           this.grid = arg;
@@ -449,7 +426,7 @@ export class DeckBuilder {
       <div class="setup-body db-editor">
         <div class="db-pool-side">
           ${this.renderFilters(d)}
-          <div class="db-pool" data-grid="${this.grid}" data-tab="${this.shownTab()}">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
+          <div class="db-pool" data-grid="${this.grid}">${pool.join('') || '<p class="muted">No cards match these filters.</p>'}</div>
           ${this.pagerHtml(d)}
         </div>
         ${this.mode ? this.modeSide(d) : `<aside class="db-deck-side">
@@ -490,11 +467,11 @@ export class DeckBuilder {
     return `<div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Hero per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> ${commandCardsFor(d.cards.length) === 1 ? 'hero' : 'heroes'}</div>`;
   }
 
-  /** The deck, card by card: a slim row in the card's own colours with its picture, by type then name. */
+  /** The deck, card by card: a slim row in the card's own colours with its picture, by energy cost then name. */
   private rowsHtml(d: SavedDeck): string {
     const count = (id: string) => d.cards.filter((x) => x === id).length;
     const rows = [...new Set(d.cards)]
-      .sort((a, b) => cardDef(a).kind.localeCompare(cardDef(b).kind) || cardDef(a).name.localeCompare(cardDef(b).name))
+      .sort((a, b) => costOrder(cardDef(a)) - costOrder(cardDef(b)) || cardDef(a).name.localeCompare(cardDef(b).name))
       .map((id) => {
         const c = cardDef(id);
         return `
@@ -605,12 +582,11 @@ export class DeckBuilder {
 
   /**
    * The pool cut into pages, a page being exactly as many full rows as fit the pool's height (at least
-   * one), so a page never scrolls: the cards on the tab shown, Heroes or the rest.
+   * one), so a page never scrolls: Heroes among the other cards, in the order picked (by cost unless changed).
    */
   private pages(d: SavedDeck): CardDef[][] {
     const L = (this.layout ??= poolLayout(this.grid));
-    const heroes = this.shownTab() === 'heroes';
-    const all = this.filtered(d).filter((c) => (c.kind === 'command') === heroes);
+    const all = this.filtered(d);
     // (Heroes stand upright like every other card, so they share its columns.)
     const cols = L.cols;
     const h = L.cardH;
@@ -619,16 +595,6 @@ export class DeckBuilder {
     const pages: CardDef[][] = [];
     for (let i = 0; i < all.length; i += per) pages.push(all.slice(i, i + per));
     return pages;
-  }
-
-  /** Whether the pool offers any Heroes (with none, there are no tabs). */
-  private hasHeroes(): boolean {
-    return (this.mode ? this.mode.cards() : CARDS).some((c) => c.kind === 'command');
-  }
-
-  /** The tab shown: the Heroes only if the pool has any. */
-  private shownTab(): 'cards' | 'heroes' {
-    return this.tab === 'heroes' && this.hasHeroes() ? 'heroes' : 'cards';
   }
 
   /** The page a card is on (the first page if it isn't shown). */
@@ -746,13 +712,13 @@ export class DeckBuilder {
       name: (a, b) => a.name.localeCompare(b.name),
       type: (a, b) => CARD_KINDS.indexOf(a.kind) - CARD_KINDS.indexOf(b.kind) || a.name.localeCompare(b.name),
       rarity: (a, b) => RARITY_ORDER[b.rarity ?? 'dwarf'] - RARITY_ORDER[a.rarity ?? 'dwarf'] || a.name.localeCompare(b.name),
-      cost: (a, b) => (a.spendAll ? 9 : cardCost(a.id)) - (b.spendAll ? 9 : cardCost(b.id)) || a.name.localeCompare(b.name),
+      cost: (a, b) => costOrder(a) - costOrder(b) || a.name.localeCompare(b.name),
     };
     return list.sort(order[f.sort]);
   }
 
   /**
-   * The card view's toolbar: the cards / Heroes tabs, search, the filters button (its popover: dropdowns of
+   * The card view's toolbar: search, the filters button (its popover: dropdowns of
    * ticks, and toggles), card sizes.
    */
   private renderFilters(d: SavedDeck): string {
@@ -774,22 +740,15 @@ export class DeckBuilder {
     const rarities: [string, string][] = RARITIES.map((r): [string, string] => [r, RARITY_NAME[r].toLowerCase()]);
     const costs: [string, string][] = [['0', 'free'], ['1', '1 energy'], ['2', '2 energy'], ['3', '3 energy'], ['4', '4 or more'], ['x', 'X (all you have)']];
     const owns: [string, string][] = [['owned', 'owned'], ['missing', 'not owned'], ['craftable', 'craftable now']];
-    const sorts: [string, string][] = [['race', 'by race'], ['name', 'by name'], ['type', 'by type'], ['cost', 'by cost'], ['rarity', 'by rarity']];
+    const sorts: [string, string][] = [['cost', 'by cost'], ['race', 'by race'], ['name', 'by name'], ['type', 'by type'], ['rarity', 'by rarity']];
     const toggle = (key: 'characters' | 'inDeck', label: string) => `<button class="pill-btn ${f[key] ? 'pill-on' : ''}" data-act="db-toggle" data-arg="${key}">${label}</button>`;
     // How many filters are set (the search aside), shown on the filter button.
-    const set = MULTI.filter((k) => f[k].size).length + (f.sort !== 'race' ? 1 : 0) + (f.characters ? 1 : 0) + (f.inDeck ? 1 : 0);
+    const set = MULTI.filter((k) => f[k].size).length + (f.sort !== 'cost' ? 1 : 0) + (f.characters ? 1 : 0) + (f.inDeck ? 1 : 0);
     const sizes = (['sm', 'md', 'lg'] as const)
       .map((g) => `<button class="db-seg-btn db-grid-btn ${this.grid === g ? 'on' : ''}" data-act="db-grid" data-arg="${g}" title="${{ sm: 'Small cards', md: 'Medium cards', lg: 'Large cards' }[g]}" aria-label="${{ sm: 'Small cards', md: 'Medium cards', lg: 'Large cards' }[g]}">${GRID_ICON[g]}</button>`)
       .join('');
-    const tab = this.shownTab();
-    const tabs = this.hasHeroes()
-      ? `<span class="db-seg db-tabs" role="tablist" aria-label="Show">${(['cards', 'heroes'] as const)
-          .map((t) => `<button class="db-seg-btn db-tab ${tab === t ? 'on' : ''}" data-act="db-tab" data-arg="${t}" role="tab" aria-selected="${tab === t}" title="${t === 'cards' ? 'Cards' : 'Heroes'}" aria-label="${t === 'cards' ? 'Cards' : 'Heroes'}">${TAB_ICON[t]}</button>`)
-          .join('')}</span>`
-      : '';
     return `
       <div class="db-toolbar">
-        ${tabs}
         <input class="db-search" data-db-search type="search" value="${esc(f.q)}" placeholder="search cards" aria-label="Search cards" />
         <span class="db-filter-wrap">
         <button class="db-filter-btn ${this.filtersOpen ? 'open' : ''} ${set ? 'set' : ''}" data-act="db-filters" aria-expanded="${this.filtersOpen}" title="Filters" aria-label="Filters${set ? ` (${set} set)` : ''}">${FILTER_ICON}${set ? `<b class="db-filter-n">${set}</b>` : ''}</button>
@@ -859,6 +818,9 @@ function deckRace(d: SavedDeck): number {
   return best > 0 ? counts.indexOf(best) : d.race;
 }
 
+/** Where a card falls in energy-cost order (X, spending all you have, last). */
+const costOrder = (c: CardDef) => (c.spendAll ? 9 : cardCost(c.id));
+
 /** The pool as last laid out: cards to a row (portrait cards, and Heroes), and the heights of a row and of the pool (in pixels). */
 interface PoolLayout {
   cols: number;
@@ -906,8 +868,7 @@ export function sizePool(root: ParentNode = document) {
   };
   const card = fit(base);
   const cmd = fit(base * 1.3, 2);
-  const shown = pool.dataset.tab === 'heroes' ? cmd : card;
-  pool.style.gridTemplateColumns = `repeat(${shown.cols}, ${shown.w}px)`;
+  pool.style.gridTemplateColumns = `repeat(${card.cols}, ${card.w}px)`;
   pool.style.setProperty('--cardw', `${card.w}px`);
   pool.style.setProperty('--cmdcw', `${cmd.w}px`);
   // (A card is 5:7, standing for a card and lying for a Hero.)

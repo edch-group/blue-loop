@@ -3417,10 +3417,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .db-seg-btn.on { background: #fff; box-shadow: 0 1px 4px rgba(70, 76, 100, 0.2); }
 .db-seg-btn svg { width: 14px; height: 14px; fill: var(--ink-soft); }
 .db-seg-btn.on svg { fill: var(--ink); }
-.db-tab { width: 32px; }
-.db-tab svg { width: 16px; height: 16px; stroke: rgba(255, 255, 255, 0.9); stroke-width: 0.8; stroke-linejoin: round; }
-.db-tab[data-arg="heroes"] svg path + path { fill: none; stroke: var(--ink-soft); stroke-width: 1.4; stroke-linecap: round; }
-.db-tab.on[data-arg="heroes"] svg path + path { stroke: var(--ink); }
 /* The filter button: a funnel, with a count of the filters set. Its popover opens beneath it. */
 .db-filter-wrap { position: relative; flex: none; display: flex; }
 .db-filter-btn {
@@ -4335,16 +4331,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .tpile-name .tpile-emblem { width: clamp(14px, calc(2.6 * var(--vh)), 22px); height: clamp(14px, calc(2.6 * var(--vh)), 22px); flex: none; }
 .tpile-name-dead { opacity: 0.45; text-decoration: line-through; }
 
-/* Whose turn it is, above the phase tracker. */
-.phase-whose { justify-self: end; margin-bottom: 4px; font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; color: #8a91a0; }
-.phase-whose.phase-whose-mine { color: #2f8a5a; }
 .tableau-piles .tpile-name { position: absolute; left: 0; right: 0; width: auto; justify-content: flex-start; padding: 0 6px; }
 .tpile-name-mine { bottom: calc(100% + 14px + max(20px, calc(var(--pw) * 0.26))); }
 .tpile-name-rival { top: calc(100% + 14px + max(20px, calc(var(--pw) * 0.26))); }
-@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  /* (Clear of the Hero's ability buttons above End Day.) */
-  .phase-track { top: 36%; }
-}
 
 /* Your Hero's abilities, in the inspector: one a day. */
 .insp-abilities { display: grid; align-content: center; gap: 8px; width: clamp(150px, 22vw, 240px); flex: none; align-self: center; }
@@ -4455,9 +4444,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card.kind-command:not(.card-big) .card-para { height: 0.25em; }
 .card.kind-command:not(.card-big) .card-abilities-head { margin-top: 0.2em; padding-top: 0.2em; }
 .card.kind-command:not(.card-big) .card-ability ~ .card-ability { margin-top: 0.15em; padding-top: 0.15em; }
-/* The rival's Lightspeed slot: under their Hero (out of their row of five), within the same outline. */
+/* The rival's Lightspeed slot: out of their row of five, by their Hero, within the same outline. */
 .tableau-rival .tableau-row { grid-template-columns: repeat(5, var(--tcw)); }
-.tableau-rival .ls-slot { position: absolute; left: calc(var(--tcw) * 0.14); width: calc(var(--tcw) * 0.72); height: calc(var(--tcw) * 1.4 * 0.72); top: calc(100% + var(--frame-pad) + 10px + var(--tcw) * 1.4); }
+.tableau-rival .ls-slot { position: absolute; left: calc(var(--tcw) * 0.14); width: calc(var(--tcw) * 0.72); height: calc(var(--tcw) * 1.4 * 0.72); top: calc(100% + var(--frame-pad) + 4px); }
+/* (The boards mirror: from the viewer's side, the rival's Lightspeed slot sits between their row and their Hero.) */
+.tableau-rival .cmd-slot { top: calc(100% + var(--frame-pad) + 4px + var(--tcw) * 1.4 * 0.72 + 8px); }
 .tableau-rival .ls-slot > * { width: 100% !important; height: 100% !important; }
 /* Both eyes on the viewer's left of each row. */
 .tableau-eye-rival { left: auto; right: calc(100% + var(--frame-pad, 12px) + 8px); }
@@ -4466,3 +4457,22 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .stage-ls-btn small { font-size: 0.8em; opacity: 0.8; letter-spacing: 0.06em; }
 /* (With the choice under it, the card on the stage gives up a little height so it all fits.) */
 .stage-picked:has(.stage-ls-btn) { --scw: min(250px, calc(44 * var(--vh))); gap: 6px; }
+
+/* Beside the Stellari in the board's middle: whose turn it is on its left, the phase of the day on its right. */
+.board-plane > .phase-track, .board-plane > .turn-who {
+  position: absolute; top: 50%; right: auto; z-index: 1; display: grid; gap: clamp(5px, calc(1.4 * var(--vh)), 10px);
+  --stellari-r: 74px; /* (clear of the flower, which keeps its size) */
+}
+.board-plane > .phase-track { left: calc(50% + var(--stellari-r)); transform: translateY(-50%) translateZ(2px); justify-items: start; }
+.board-plane > .turn-who { right: calc(50% + var(--stellari-r)); transform: translateY(-50%) translateZ(2px); justify-items: end; }
+.phase-step { justify-content: flex-start; }
+.turn-who span { font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; color: #b9bfca; transition: color 0.4s; }
+.turn-who span.on { color: #2f3a52; }
+.table-view:is(.zoom-rival, .zoom-mine) .board-plane > :is(.phase-track, .turn-who) { opacity: 0; }
+/* The first hover or tap on the hand only raises it: the card under the pointer stays in its place in the fan. */
+.hand > .card.no-lift, .dock:not(.dock-raised) .hand > .card:active {
+  transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg))) !important;
+  z-index: var(--hz) !important; box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18);
+}
+/* The preview pane (and its buttons) above End Day and the Hero's skills. */
+.stage { z-index: 17; }

@@ -405,7 +405,7 @@ function frameTableaus(root: HTMLElement) {
     const bw = cmd.offsetWidth + 2 * pad;
     // How far the bump stands out past the row's outline (the slot sits just outside the row).
     const rival = row.closest('.tableau-rival') !== null;
-    // (The rival's Lightspeed slot hangs under their Hero: the bump takes it in too.)
+    // (The rival's Lightspeed slot hangs by their Hero: the bump takes it in too.)
     const ls = rival ? row.querySelector<HTMLElement>('.ls-slot') : null;
     const bh = rival ? Math.max(cmd.offsetTop + cmd.offsetHeight, ls ? ls.offsetTop + ls.offsetHeight : 0) - row.offsetHeight : -cmd.offsetTop;
     const r = 12, rc = 8;
@@ -666,7 +666,12 @@ export class App {
     const mouse = matchMedia('(hover: hover) and (pointer: fine)');
     root.addEventListener('mouseover', (e) => {
       if (!mouse.matches || this.touch || this.screen !== 'game' || this.drag) return;
-      this.raiseHand(!!(e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone'));
+      const over = !!(e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone');
+      // (The card the pointer came in on doesn't lift as the hand rises: only once the pointer moves on to another.)
+      const card = (e.target as HTMLElement).closest?.<HTMLElement>('.hand > .card') ?? null;
+      this.root.querySelectorAll('.hand > .card.no-lift').forEach((c) => c !== card && c.classList.remove('no-lift'));
+      if (over && !this.handRaised) card?.classList.add('no-lift');
+      this.raiseHand(over);
     });
     root.addEventListener('mouseleave', () => mouse.matches && !this.touch && !this.drag && this.raiseHand(false));
     root.addEventListener('mousemove', (e) => (this.mouseAt = { x: e.clientX, y: e.clientY }), { passive: true });
@@ -1351,13 +1356,15 @@ export class App {
     this.root.querySelectorAll<HTMLElement>('.phase-track [data-phase]').forEach((el) => el.classList.toggle('on', el.dataset.phase === phase));
   }
 
-  /** Dawn, day and dusk, as three dots down the right of the board (the phase under way lit, the others grey). */
+  /** Beside the Stellari in the board's middle: whose turn it is on its left (the rival above you, the one whose turn
+   *  it isn't greyed), and dawn, day and dusk on its right (the phase under way lit, the others grey). */
   private renderPhaseTrack(): string {
     const s = this.state!;
     if (isGameOver(s)) return '';
-    const p = activePlayer(s);
-    const whose = p.id === this.viewer().id ? 'your turn' : `${p.name.toLowerCase()}'s turn`;
-    return `<div class="phase-track" title="${esc(whose)}: dawn, then day, then dusk"><div class="phase-whose ${p.id === this.viewer().id ? 'phase-whose-mine' : ''}">${p.id === this.viewer().id ? 'your turn' : "opponent's turn"}</div>${(['dawn', 'day', 'dusk'] as const).map((k) => `<div class="phase-step ${this.phase === k ? 'on' : ''}" data-phase="${k}"><span>${k}</span><i></i></div>`).join('')}</div>`;
+    const mine = activePlayer(s).id === this.viewer().id;
+    const who = `<div class="turn-who" title="${mine ? 'Your turn' : "Your opponent's turn"}"><span class="${mine ? '' : 'on'}">opponent</span><span class="${mine ? 'on' : ''}">you</span></div>`;
+    const phases = `<div class="phase-track" title="Dawn, then day, then dusk">${(['dawn', 'day', 'dusk'] as const).map((k) => `<div class="phase-step ${this.phase === k ? 'on' : ''}" data-phase="${k}"><i></i><span>${k}</span></div>`).join('')}</div>`;
+    return who + phases;
   }
 
   /** When the next banner may show (each gets its moment: dusk, dawn and day follow one another). */
@@ -3213,6 +3220,7 @@ export class App {
       c.style.setProperty('--fr', `${t * step}deg`);
       c.style.setProperty('--fy', `${(radius * (1 - Math.cos(a)) * 1.25).toFixed(2)}px`);
       c.style.zIndex = String(i + 1);
+      c.style.setProperty('--hz', String(i + 1));
     });
     if (fresh.length) {
       void hand.offsetWidth;
@@ -3917,7 +3925,6 @@ export class App {
         ${this.renderDock()}
         ${this.renderHud()}
         ${this.renderTurnControls()}
-        ${this.renderPhaseTrack()}
         ${this.renderZoomControls()}
         ${this.renderStage()}
         ${this.renderResult()}
@@ -4127,6 +4134,7 @@ export class App {
             <div class="board-floor"></div>
             <div class="board-star-slot" data-morph-keep></div>
             ${this.renderRoundRing()}
+            ${this.renderPhaseTrack()}
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
