@@ -4593,3 +4593,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-landscape .card-glyph { height: 100%; }
 /* The count in your deck (top left of each card in the deck builder): half its old size. */
 .db-card .db-have { padding: 1px 4px; font-size: max(6px, calc(var(--dbw, 120px) * 0.045)); letter-spacing: 0.04em; }
+/* "Hide starters": a switch, as tall as "new deck" beside it. */
+.db-head-actions { align-items: stretch; }
+.db-switch { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+.switch-track { position: relative; width: 30px; height: 17px; border-radius: 999px; background: #d3d6dd; box-shadow: inset 0 1px 2px rgba(60, 64, 80, 0.2); transition: background 0.2s; flex: none; }
+.switch-track i { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(60, 64, 80, 0.3); transition: transform 0.2s; }
+.db-switch.on .switch-track { background: #7cc79a; }
+.db-switch.on .switch-track i { transform: translateX(13px); }
