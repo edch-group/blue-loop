@@ -4982,3 +4982,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* (With the gem gone from the top, the type pill is whole: no notch out of its top for the gem.) */
 .card .card-type { -webkit-mask: none; mask: none; }
 .card .card-type::before { display: none; }
+/* The bezel lit evenly from above (a band of light round the top, shade toward the bottom), so it reads as a flat
+   round ring and not a tilted one; and set into the card: a very soft shadow just round its rim, and the rim's own
+   shadow falling on the top of the stone, as the suns and planets sit in the board. */
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+  background: linear-gradient(180deg, var(--m-hi) 0%, var(--m-mid) 42%, var(--m-lo) 100%);
+  box-shadow:
+    inset 0 calc(var(--gs) * 0.03) 0 rgba(255, 255, 255, 0.6), inset 0 calc(var(--gs) * -0.03) 0 rgba(0, 0, 0, 0.18),
+    0 0 0 calc(var(--gs) * 0.02) rgba(20, 22, 34, 0.18), 0 calc(var(--gs) * 0.03) calc(var(--gs) * 0.16) rgba(20, 22, 34, 0.32);
+}
+.card .art-wrap .gem .gem-window { box-shadow: inset 0 calc(var(--gs) * 0.07) calc(var(--gs) * 0.09) rgba(0, 0, 0, 0.45); }
