@@ -5,7 +5,7 @@ import os, sys, time
 from multiprocessing import Pool
 sys.path.insert(0, os.path.dirname(__file__))
 from kit import Scene
-import cards_aureline, aureline_moments, cards_misc  # (the moments register into the Aureline set)
+import cards_aureline, aureline_moments, solenne, cards_misc  # (these register into the Aureline set)
 
 SCENES = {}
 RACE = {}

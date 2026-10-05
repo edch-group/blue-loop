@@ -4,7 +4,10 @@ import numpy as np
 from scipy.ndimage import gaussian_filter
 from PIL import Image
 
-W, H = 960, 600
+import os
+# The working resolution (CARDART_SCALE renders larger, for cleaner edges once scaled down).
+SCALE = float(os.environ.get('CARDART_SCALE', '1'))
+W, H = int(960 * SCALE), int(600 * SCALE)
 K = W / 160  # pixels per art unit
 yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
 X = (xx + 0.5) / K
@@ -322,7 +325,7 @@ def bloom(c, strength=0.6, threshold=0.8):
     bright = np.clip(c - threshold, 0, None)
     acc = np.zeros_like(c)
     for s, w in ((3, 0.5), (9, 0.35), (24, 0.25), (60, 0.18)):
-        acc += gaussian_filter(bright, (s, s, 0)) * w
+        acc += gaussian_filter(bright, (s * SCALE, s * SCALE, 0)) * w
     return c + acc * strength
 
 
