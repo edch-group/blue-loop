@@ -80,27 +80,34 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 // A voyage through a dying universe, in the same key and hall as the menu and
 // battle scores. The menu's breathing drone holds A while a lament falls over
 // it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High above, a
-// sparse melody of bell-like plucks (soft triangles, bright, with a dotted-
-// quarter echo filling the gaps) sings short phrases with room between them,
-// rolling a quick chord into its height once a time round, and every third
-// time round breaking into a long, climbing run of eighths over swelling synths,
-// one set of phrases answered by another the next time round; beneath, a soft
-// low-high rock on each chord's root and fifth; the pads stay low.
+// sparse melody on a sustained, slightly distorted synth (with a dotted-quarter
+// echo filling the gaps) sings short phrases with room between them, rolling a
+// quick chord into its height once a time round and breaking into long,
+// climbing runs of eighths over swelling synths; one set of phrases answered by
+// another the next time round. At the top of every chord a beacon sounds: one
+// high, heavily wavering note thrown far into delay and reverb. Beneath, a
+// soft low-high rock on each chord's root and fifth; the pads stay low.
 
 /** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
 const CAMPAIGN_EIGHTH = 0.42;
 /** The haze's level (the distorted synth that holds long chords in the second half of the form). */
 const CAMPAIGN_HAZE = 0.004;
-/** The level of the sustained, slightly distorted synth that doubles the melody while the haze is in. */
-const CAMPAIGN_DOUBLE = 0.012;
+/** The level of the melody's synth (sustained, slightly distorted saws). */
+const CAMPAIGN_LEAD = 0.012;
+/** The level of the beacon, the wavering high note at the top of every chord. */
+const CAMPAIGN_BEACON = 0.02;
 /** The gap between the notes of a rolled chord at the melody's height, in seconds. */
 const CAMPAIGN_ROLL = 0.045;
-/** Per chord (four bars of six eighths): the falling bass, the pad, and the two notes it rocks between. */
-const CAMPAIGN_CHORDS: { bass: string; pad: string[]; rock: [string, string] }[] = [
-  { bass: 'A2', pad: ['A3', 'C4', 'E4', 'B4'], rock: ['A3', 'E4'] }, // Am(add9)
-  { bass: 'G2', pad: ['G3', 'B3', 'D4', 'E4'], rock: ['G3', 'D4'] }, // G6
-  { bass: 'F2', pad: ['F3', 'A3', 'C4', 'E4'], rock: ['F3', 'C4'] }, // Fmaj7
-  { bass: 'E2', pad: ['E3', 'G3', 'B3', 'D4'], rock: ['E3', 'B3'] }, // Em7
+/**
+ * Per chord (four bars of six eighths): the falling bass, the pad, the two notes it rocks between, the haze's
+ * chord (kept off the rock's notes, so the rock is never covered), the crescendo's swelling chord (likewise), and
+ * the beacon's note.
+ */
+const CAMPAIGN_CHORDS: { bass: string; pad: string[]; rock: [string, string]; haze: string[]; swell: string[]; beacon: string }[] = [
+  { bass: 'A2', pad: ['A3', 'C4', 'E4', 'B4'], rock: ['A3', 'E4'], haze: ['C4', 'A4', 'B4'], swell: [], beacon: 'E6' }, // Am(add9)
+  { bass: 'G2', pad: ['G3', 'B3', 'D4', 'E4'], rock: ['G3', 'D4'], haze: ['B3', 'E4', 'G4'], swell: [], beacon: 'D6' }, // G6
+  { bass: 'F2', pad: ['F3', 'A3', 'C4', 'E4'], rock: ['F3', 'C4'], haze: ['A3', 'E4', 'F4'], swell: ['A3', 'E4', 'A4', 'C5'], beacon: 'C6' }, // Fmaj7
+  { bass: 'E2', pad: ['E3', 'G3', 'B3', 'D4'], rock: ['E3', 'B3'], haze: ['G3', 'D4', 'E4'], swell: ['G3', 'D4', 'G4', 'B4'], beacon: 'B5' }, // Em7
 ];
 /**
  * The melody's phrases, per chord, as [eighth (0-23 across the chord's four bars), note]: a call, and the answer
@@ -587,7 +594,7 @@ class SoundBoard {
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
     if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
-    if (scene === 'campaign') return [[this.campaignBus!, 0.6, 4]];
+    if (scene === 'campaign') return [[this.campaignBus!, 0.6, 0.05]];
     return [[this.musicBus!, 0.5, 6]];
   }
 
@@ -808,7 +815,7 @@ class SoundBoard {
       let k = 0;
       for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += gap, k++) {
         const progress = (bar + (t - at - b * barLen) / barLen) / total;
-        bell(t, hzOf(window[k % window.length]), 0.016 + 0.022 * progress, CAMPAIGN_EIGHTH * 2.4);
+        bell(t, hzOf(window[k % window.length]), 0.016 + 0.022 * progress, CAMPAIGN_EIGHTH * 0.95);
       }
     }
     // The supporting chord: detuned saws through a lowpass that opens, swelling across the whole crescendo.
@@ -849,12 +856,12 @@ class SoundBoard {
       const window = [...ladder.slice(lo, lo + 5), ...ladder.slice(lo + 1, lo + 4).reverse()];
       let k = 0;
       for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += CAMPAIGN_EIGHTH, k++)
-        bell(t, hzOf(window[k % window.length]), 0.038 - 0.02 * ((t - at) / len), CAMPAIGN_EIGHTH * 2.4);
+        bell(t, hzOf(window[k % window.length]), 0.038 - 0.02 * ((t - at) / len), CAMPAIGN_EIGHTH * 0.95);
     }
   }
 
   /**
-   * One chord of the campaign score's haze: per note, a pair of saws detuned very slightly, driven hard into its
+   * One chord of the campaign score's haze: per note, a pair of saws barely detuned, driven hard into its
    * own distortion (so the grit is clear without the chord turning to mush), then a brighter lowpass, swelling in,
    * holding for the whole chord, and fading over the next (more slowly when it first enters).
    */
@@ -880,7 +887,7 @@ class SoundBoard {
       shaper.curve = curve;
       shaper.oversample = '4x';
       shaper.connect(highpass);
-      for (const detune of [-4, 4]) {
+      for (const detune of [-1.5, 1.5]) {
         const o = ctx.createOscillator();
         o.type = 'sawtooth';
         o.frequency.value = hz(n);
@@ -914,8 +921,7 @@ class SoundBoard {
     lfoDepth.gain.value = 110;
     lfo.connect(lfoDepth).connect(droneFilter.frequency);
     const droneGain = ctx.createGain();
-    droneGain.gain.setValueAtTime(0, t0);
-    droneGain.gain.linearRampToValueAtTime(0.06, t0 + 6);
+    droneGain.gain.value = 0.06;
     droneFilter.connect(droneGain).connect(bus);
     const drones = [55, 82.41, 110].map((f, i) => {
       const o = ctx.createOscillator();
@@ -963,11 +969,16 @@ class SoundBoard {
     // The haze's distortion: a hard-driven tanh curve, clearly audible.
     const curve = new Float32Array(new ArrayBuffer(1024 * 4));
     for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(9 * ((i / (curve.length - 1)) * 2 - 1)) / Math.tanh(9);
-    // And a milder one for the synth that doubles the melody while the haze is in.
+    // And a milder one for the melody's synth.
     const mild = new Float32Array(new ArrayBuffer(1024 * 4));
     for (let i = 0; i < mild.length; i++) mild[i] = Math.tanh(3 * ((i / (mild.length - 1)) * 2 - 1)) / Math.tanh(3);
-    /** The doubling synth: a held, slightly distorted pair of saws on a melody note, into the melody's filter and echo. */
-    const double = (t: number, f: number, len: number) => {
+    /**
+     * The melody's synth: a held, slightly distorted pair of saws, into the melody's filter and echo. `gain` is
+     * relative (0.03 is a full note), `len` how long it holds.
+     */
+    const lead = (t: number, f: number, gain: number, len = eighth * 5) => {
+      const level = CAMPAIGN_LEAD * (gain / 0.03);
+      const release = Math.min(0.6, len * 0.6);
       const shaper = ctx.createWaveShaper();
       shaper.curve = mild;
       shaper.oversample = '2x';
@@ -976,9 +987,9 @@ class SoundBoard {
       lp.frequency.value = 2400;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(CAMPAIGN_DOUBLE, t + 0.08);
-      g.gain.linearRampToValueAtTime(CAMPAIGN_DOUBLE * 0.75, t + len);
-      g.gain.linearRampToValueAtTime(0, t + len + 0.6);
+      g.gain.linearRampToValueAtTime(level, t + Math.min(0.08, len / 3));
+      g.gain.linearRampToValueAtTime(level * 0.75, t + len);
+      g.gain.linearRampToValueAtTime(0, t + len + release);
       shaper.connect(lp).connect(g).connect(melody);
       for (const detune of [-4, 4]) {
         const o = ctx.createOscillator();
@@ -989,7 +1000,67 @@ class SoundBoard {
         lv.gain.value = 0.25;
         o.connect(lv).connect(shaper);
         o.start(t);
-        o.stop(t + len + 0.7);
+        o.stop(t + len + release + 0.05);
+      }
+    };
+
+    // The beacon's space: a little dry, and a long echo bouncing between the sides, darkening, into the hall.
+    const beacon = ctx.createGain();
+    const beaconDry = ctx.createGain();
+    beaconDry.gain.value = 0.4;
+    const left = ctx.createDelay(3), right = ctx.createDelay(3);
+    left.delayTime.value = right.delayTime.value = eighth * 3;
+    const panL = ctx.createStereoPanner(), panR = ctx.createStereoPanner();
+    panL.pan.value = -0.8;
+    panR.pan.value = 0.8;
+    const beaconTone = ctx.createBiquadFilter();
+    beaconTone.type = 'lowpass';
+    beaconTone.frequency.value = 2600;
+    const beaconFeedback = ctx.createGain();
+    beaconFeedback.gain.value = 0.55;
+    const beaconWet = ctx.createGain();
+    beaconWet.gain.value = 0.8;
+    beacon.connect(beaconDry).connect(bus);
+    beacon.connect(beaconTone).connect(left);
+    left.connect(panL).connect(beaconWet);
+    left.connect(right).connect(panR).connect(beaconWet);
+    right.connect(beaconFeedback).connect(beaconTone);
+    beaconWet.connect(bus);
+    this.musicNodes.push(beacon, beaconDry, left, right, panL, panR, beaconTone, beaconFeedback, beaconWet);
+    /** The beacon: one high note, a sine and a triangle wavering heavily in pitch and level, ringing off slowly. */
+    const ring = (t: number, f: number) => {
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(CAMPAIGN_BEACON, t + 0.04);
+      g.gain.setValueAtTime(CAMPAIGN_BEACON, t + 0.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+      const trem = ctx.createGain();
+      trem.gain.value = 0.55;
+      const tremLfo = ctx.createOscillator();
+      tremLfo.frequency.value = 3.4;
+      const tremDepth = ctx.createGain();
+      tremDepth.gain.value = 0.45;
+      tremLfo.connect(tremDepth).connect(trem.gain);
+      const vib = ctx.createOscillator();
+      vib.frequency.value = 5.5;
+      const vibDepth = ctx.createGain();
+      vibDepth.gain.value = f * 0.025;
+      vib.connect(vibDepth);
+      trem.connect(g).connect(beacon);
+      for (const [type, level] of [['sine', 1], ['triangle', 0.4]] as const) {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = f;
+        vibDepth.connect(o.frequency);
+        const lv = ctx.createGain();
+        lv.gain.value = level;
+        o.connect(lv).connect(trem);
+        o.start(t);
+        o.stop(t + 3.7);
+      }
+      for (const o of [tremLfo, vib]) {
+        o.start(t);
+        o.stop(t + 3.7);
       }
     };
 
@@ -1005,15 +1076,17 @@ class SoundBoard {
       const part = round % 4;
       const rising = part === 1 || part === 3; // a crescendo through the Fmaj7 and the Em7 this time round
       const hazy = part >= 2;
+      // The very first chord comes in at once (no fade, so you never lose your place).
+      const first = round === 0 && index === 0;
       // Pads, as the menu score voices them, but kept low.
       c.pad.forEach((n, i) => {
-        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
+        const opts = { dur: chordLen + 4, attack: first ? 0.3 : 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
         this.voice(hz(n), opts);
         this.voice(hz(n), { ...opts, detune: 9, gain: 0.007 });
       });
       // The falling bass: a held triangle and a soft sine an octave up.
-      this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: bus });
-      this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: bus });
+      this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: first ? 0.05 : 1.4, release: 1.6, cutoff: 320, out: bus });
+      this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: first ? 0.05 : 2, release: 1.6, out: bus });
       // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle).
       for (let b = 0; b < 4; b++)
         c.rock.forEach((n, k) => {
@@ -1021,16 +1094,11 @@ class SoundBoard {
           this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
           this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
         });
-      // The haze: long, drawn-out chords on detuned saws, gently distorted and softly filtered, overlapping.
-      if (hazy) this.haze(at, chordLen, c.pad, curve, part === 2 && index === 0, bus);
-      // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo. In the opening
-      // it waits for the fourth chord.
+      // The haze: long, drawn-out chords on saws, hard-distorted and filtered, overlapping (off the rock's notes).
+      if (hazy) this.haze(at, chordLen, c.haze, curve, part === 2 && index === 0, bus);
+      // The melody and the beacon wait, in the opening, for the fourth chord.
       if (part === 0 && index < 3) return;
-      const bell = (t: number, f: number, gain: number, dur = eighth * 5) => {
-        const d = this.until(t);
-        this.voice(f, { dur, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: melody });
-        this.voice(f, { dur: dur / 2, attack: 0.01, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: melody });
-      };
+      ring(at, hz(c.beacon));
       const tones = new Set(c.pad.map((n) => midiOf(n) % 12));
       if (rising && index === 2) {
         // Open the melody's filter for the climb (it peaks halfway through the Em7), hold it to the end of the
@@ -1039,27 +1107,26 @@ class SoundBoard {
         orbit.frequency.linearRampToValueAtTime(4000, at + chordLen + barLen * 2);
         orbit.frequency.setValueAtTime(4000, at + chordLen * 2);
         orbit.frequency.linearRampToValueAtTime(1900, at + chordLen * 2 + 3);
-        return this.crescendo(at, barLen, tones, ['F3', 'C4', 'A4', 'E5'], 0, 4, bus, bell);
+        return this.crescendo(at, barLen, tones, c.swell, 0, 4, bus, lead);
       }
       if (rising && index === 3) {
         // The peak, then the arpeggio carries on through the rest of the Em7, easing down.
-        this.crescendo(at, barLen, tones, ['E3', 'B3', 'G4', 'D5'], 4, 2, bus, bell);
-        return this.afterglow(at + barLen * 2, barLen, tones, bell);
+        this.crescendo(at, barLen, tones, c.swell, 4, 2, bus, lead);
+        return this.afterglow(at + barLen * 2, barLen, tones, lead);
       }
       const phrase = CAMPAIGN_PHRASES[part % 2][index];
       const pitches = phrase.map(([, n]) => midiOf(n));
       const top = pitches.indexOf(Math.max(...pitches));
       phrase.forEach(([e, n], i) => {
         const t = at + e * eighth;
-        // While the haze is in, the doubling synth holds each note until the next (at most two bars).
-        if (hazy) double(t, hz(n), Math.min((phrase[i + 1]?.[0] ?? 24) - e, 12) * eighth - 0.1);
         // At the melody's height on the Fmaj7, the note arrives as a near-instant rolled chord.
         if (index === 2 && i === top) {
           const roll: number[] = [];
           for (let k = pitches[i] - 1; roll.length < 3; k--) if (tones.has(k % 12)) roll.push(k);
-          roll.reverse().forEach((r, j) => bell(t - (3 - j) * CAMPAIGN_ROLL, hzOf(r), 0.018));
+          roll.reverse().forEach((r, j) => lead(t - (3 - j) * CAMPAIGN_ROLL, hzOf(r), 0.018, 0.15));
         }
-        bell(t, hz(n), 0.03 * (e % 6 === 0 ? 1 : 0.8));
+        // Each note holds until the next (at most two bars).
+        lead(t, hz(n), 0.03 * (e % 6 === 0 ? 1 : 0.8), Math.min((phrase[i + 1]?.[0] ?? 24) - e, 12) * eighth - 0.1);
       });
     };
 
