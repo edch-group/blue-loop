@@ -806,6 +806,16 @@ function spring(state: GameState, owner: PlayerState, enemy: PlayerState, matche
   return !!ls.counter;
 }
 
+/**
+ * An enemy attacks one of this player's cards, or aims heat at it: a face-down Lightspeed card waiting for that
+ * (not a guard, which springs into the tableau instead) springs. True if it cancels the blow.
+ */
+function springAmbush(state: GameState, owner: PlayerState, enemy: PlayerState, cause?: string): boolean {
+  const ls = owner.lightspeed ? cardDef(owner.lightspeed.defId).lightspeed : undefined;
+  if (!ls || ls.deploy) return false;
+  return spring(state, owner, enemy, (t) => t.on === 'cardAttacked', cause);
+}
+
 /** A player's card by uid, wherever it is. */
 function cardIn(p: PlayerState, uid: string): CardInstance | undefined {
   return [...p.tableau, ...p.hand, ...p.discard, ...p.deck].find((c) => c.uid === uid);
@@ -910,6 +920,10 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         // (Guards draw it in). Dawn heat, and heat from anything else, strikes the sun.
         const aimed = when === 'play' && !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, ctx.aimUid) : null;
         // A face-down Lightspeed guard can spring in front of the card the heat was aimed at.
+        if (aimed && springAmbush(state, main, p, card.defId)) {
+          log(state, `The heat never reaches ${main.name}'s ${cardDef(aimed.defId).name}.`);
+          break;
+        }
         const victim = aimed ? springGuard(state, main, p, card.defId) ?? aimed : null;
         if (state.winnerId || p.eliminated) break;
         if (victim) {
@@ -1596,6 +1610,10 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   }
   // A face-down Lightspeed guard can spring in front of the card attacked, and take the blow.
   const attacked = rival.tableau.find((c) => c.uid === targetUid);
+  if (attacked && springAmbush(state, rival, p, card.defId)) {
+    log(state, `${p.name}'s ${name} never reaches ${rival.name}'s ${cardDef(attacked.defId).name}.`);
+    return;
+  }
   const victim = springGuard(state, rival, p, card.defId) ?? attacked;
   if (!victim || state.winnerId || p.eliminated) return;
   const back = counterDamage(state, rival, victim);

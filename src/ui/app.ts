@@ -4631,7 +4631,7 @@ export class App {
     // and the Lightspeed card beside it on the left, the same size.
     if (st.against) {
       const trigger = s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays';
-      const how = { enemyPlays: 'in answer to this', heated: 'against its heat', targeted: 'against this', cardAttacked: 'against its heat' }[trigger] ?? 'in answer to this';
+      const how = { enemyPlays: 'in answer to this', heated: 'against its heat', targeted: 'against this', cardAttacked: 'against its attack' }[trigger] ?? 'in answer to this';
       return `
       <div class="stage stage-sprung stage-pair">
         <div class="stage-ls"><span class="stage-ls-tag">⚡ lightspeed</span>${card}</div>

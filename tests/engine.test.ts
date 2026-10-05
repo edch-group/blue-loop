@@ -1168,6 +1168,23 @@ describe('lightspeed', () => {
     // Only the move it sprang on carries it.
     expect(applyAction(next, { type: 'endTurn' }).sprung).toBeUndefined();
   });
+  it('Night Ambush springs when an enemy attacks one of your cards: the attack never lands, and they take 2', () => {
+    let s = twoPlayer();
+    const [array] = give(s.players[0], ['siege_array'], 'tableau');
+    const [b] = give(s.players[1], ['coolant_array'], 'tableau');
+    array.stability = b.stability = 6;
+    const t = { array, b };
+    const bo = s.players[1];
+    bo.lightspeed = { uid: 'ls2', defId: 'nyx_night_ambush' };
+    const ada = activePlayer(s);
+    const heatBefore = ada.heat, shields = ada.shields;
+    const stab = bo.tableau.find((c) => c.uid === t.b.uid)!.stability;
+    s = applyAction(s, { type: 'attack', attackerUid: t.array.uid, targetUid: t.b.uid });
+    expect(s.players[1].lightspeed).toBeNull();
+    expect(s.players[1].tableau.find((c) => c.uid === t.b.uid)!.stability).toBe(stab);
+    expect(activePlayer(s).heat + Math.max(0, shields - activePlayer(s).shields)).toBe(heatBefore + 2);
+    expect(s.log.some((l) => /never reaches/.test(l.text))).toBe(true);
+  });
 });
 
 describe('fusion', () => {
