@@ -114,14 +114,19 @@ def specular(n, power=40):
 class Scene:
     """One card's picture: a sky in its palette (nebula, stars), then whatever the card draws, then the finish."""
 
-    def __init__(self, card_id, pal, light_at=(80, 40), light_r=60, bright=0.8, dust=1.0, stars=True, warp=1.0):
+    def __init__(self, card_id, pal, light_at=(80, 40), light_r=60, bright=0.8, dust=1.0, stars=True, warp=1.0, space=True, scale=1.0):
         self.id = card_id
         self.p = PAL[pal] if isinstance(pal, str) else pal
         self.seed = int(hashlib.md5(card_id.encode()).hexdigest()[:7], 16)
         self.g = np.random.default_rng(self.seed)
         self.cv = P.Canvas()
-        P.nebula(self.cv, self.p, self.seed % 9973, glow_at=light_at, glow_r=light_r, bright=bright, dust=dust, warp=warp)
-        if stars: P.stars(self.cv, self.seed % 7919, bright=0.75, count=700)
+        if space:
+            P.nebula(self.cv, self.p, self.seed % 9973, glow_at=light_at, glow_r=light_r, bright=bright, dust=dust, warp=warp, scale=scale)
+            if stars: P.stars(self.cv, self.seed % 7919, bright=0.75, count=700)
+
+    def defocus(self, r=1.5):
+        """Blur what is drawn so far (the far distance, behind a close subject)."""
+        self.cv.c = gaussian_filter(self.cv.c, (r * K, r * K, 0))
 
     @property
     def c(self):

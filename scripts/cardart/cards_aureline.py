@@ -1,6 +1,7 @@
 """The Aureline cards: the same layouts as in src/ui/cardart.ts, painted with light."""
 import numpy as np
-from aureline import aureline
+from aureline import aureline, mini
+import env
 from kit import mix, quad, rounded_rect
 
 SCENES = {}
@@ -33,131 +34,6 @@ def S_Y():
     return Y
 
 
-# ---- Heroes ----
-@scene('command_directive', light_at=(110, 25))
-def _(S):
-    S.sun(132, 20, 6, '#fff3c4', rays=9)
-    aureline(S, 66, 32, 1.35, item='shield', crown=True, halos=3, garb='armour', eye='#2a6fd0', cloak='#ffe7b0', sash='#2f5fb8')
-
-
-@scene('ignition_protocol', light_at=(60, 30))
-def _(S):
-    S.planet(140, 88, 22, '#e08a5a', '#4d6fae')
-    aureline(S, 58, 30, 1.35, item='lance', crown=True, halos=2, garb='armour', eye='#c0392b', cloak='#ffb070', sash='#c0392b', lean=-1)
-
-
-@scene('empress_solenne', light_at=(80, 26), light_r=70, bright=1.0)
-def _(S):
-    S.sun(80, 26, 16, '#ffd98a', rays=16)
-    S.rings(80, 26, 26, 3, 9, '#ffe7a8', 0.5)
-    aureline(S, 80, 36, 1.5, item='banner', crown=True, halos=3, garb='vestment', eye='#ffb000', cloak='#ffcf80', sash='#c0392b')
-
-
-# ---- Characters ----
-@scene('helio_lancer', light_at=(54, 30))
-def _(S):
-    S.planet(140, 86, 22, '#e8c98f', '#4d6fae')
-    aureline(S, 54, 30, 1.3, item='lance', lean=-1, garb='armour')
-
-
-@scene('coronal_chorus', light_at=(80, 10), light_r=70)
-def _(S):
-    S.sun(80, 10, 5, '#fff3c4', rays=10)
-    S.ground(88, '#132446')
-    for x, y, s, c in ((36, 44, 0.85, '#ffd98a'), (80, 32, 1.0, '#fff3c4'), (124, 44, 0.85, '#ffc78a')):
-        aureline(S, x, y, s, cloak=c, halos=1, item='none', garb='vestment', sash='#e0a020')
-        S.rings(x, y, 12 * s, 2, 5, '#fff3c4', 0.35)
-
-
-@scene('halo_ward', light_at=(62, 30))
-def _(S):
-    aureline(S, 62, 30, 1.25, item='shield', halos=3, eye='#3aa0a0', cloak='#bfe6ff', sash='#3a7ab8')
-
-
-@scene('aureline_war_herald', light_at=(60, 30))
-def _(S):
-    S.ground(90, '#132446')
-    aureline(S, 50, 32, 1.2, item='banner', halos=2, eye='#c0392b', cloak='#ffc78a', garb='armour', sash='#2f5fb8')
-
-
-@scene('aureline_sun_priest', light_at=(120, 20))
-def _(S):
-    S.sun(130, 18, 7, rays=10)
-    aureline(S, 60, 28, 1.25, item='staff', halos=1, eye='#d08a2a', cloak='#ffe7b0', garb='vestment', sash='#c0392b')
-
-
-@scene('aurelia_first_light', light_at=(74, 36), light_r=70, bright=1.0)
-def _(S):
-    S.glow(80, 34, 70, '#fff3c4', 0.3)
-    aureline(S, 74, 40, 1.4, item='orb', halos=2, crown=True, eye='#e0a020', cloak='#fff1c8', garb='vestment', sash='#e0a020')
-
-
-@scene('aureline_skirmisher', light_at=(70, 30))
-def _(S):
-    S.ground(90, '#132446')
-    aureline(S, 70, 32, 1.1, item='lance', lean=1, halos=1, garb='robe', cloak='#ffe0a0')
-
-
-@scene('lancer_squadron', light_at=(80, 30))
-def _(S):
-    S.ground(90, '#132446')
-    for x, y, s in ((34, 40, 0.8), (126, 40, 0.8), (80, 30, 0.95)):
-        aureline(S, x, y, s, item='lance', garb='armour', halos=1, lean=-0.6)
-
-
-@scene('aureline_archon', light_at=(70, 30), bright=0.95)
-def _(S):
-    S.glow(80, 30, 50, '#ffd98a', 0.3)
-    aureline(S, 64, 30, 1.3, item='staff', halos=3, crown=True, eye='#c0392b', cloak='#ffcf8a', garb='armour', sash='#8a2be2')
-
-
-@scene('aureline_cantor', light_at=(100, 30))
-def _(S):
-    S.rings(110, 30, 6, 4, 7, '#ffd98a', 0.5)
-    aureline(S, 60, 30, 1.2, item='orb', halos=2, eye='#2a9fd0', cloak='#dff2ff', garb='vestment', sash='#ffd98a')
-
-
-@scene('halo_sentinel', light_at=(70, 30))
-def _(S):
-    aureline(S, 66, 30, 1.25, item='shield', halos=2, eye='#2a6fd0', cloak='#c8dcff', garb='armour', sash='#ffd98a')
-
-
-@scene('aureline_quartermaster', light_at=(80, 30))
-def _(S):
-    S.ground(92, '#132446')
-    aureline(S, 52, 32, 1.15, item='none', halos=1, cloak='#e9c98f', garb='robe', sash='#2f5fb8')
-    # Lances racked and ready.
-    for i, x in enumerate((110, 124, 138)):
-        S.tube([(x, 88), (x + 4, 30 + i * 6)], 0.75, '#5a3a0e', '#ffe7a8', shine=1.2)
-        S.energy([(x + 4 - 1.6, 30 + i * 6 + 1), (x + 4.3, 30 + i * 6 - 6), (x + 4 + 1.6, 30 + i * 6 + 1)], '#ffe7a8', 1.0, fill=1.0)
-        S.glow(x + 4.2, 26 + i * 6, 4, '#fff3c4', 0.5)
-
-
-@scene('aureline_vanguard', light_at=(80, 30))
-def _(S):
-    S.planet(24, 88, 20, '#e8c98f', '#4d6fae')
-    aureline(S, 80, 32, 1.25, item='shield', lean=1, halos=1, eye='#c0392b', cloak='#ffcf8a', garb='armour')
-
-
-@scene('aureline_sunguard', light_at=(80, 34))
-def _(S):
-    S.dome(80, 92, 70, '#ffe7b0')
-    aureline(S, 80, 34, 1.3, item='shield', halos=3, garb='armour', eye='#2a6fd0', cloak='#ffe7b0')
-
-
-@scene('aureline_vesper_knight', light_at=(124, 84), light_r=70)
-def _(S):
-    dusk(S, 124)
-    aureline(S, 62, 34, 1.15, item='lance', cloak='#c06a8a', halos=2)
-
-
-# ---- Things ----
-@scene('focusing_array', light_at=(80, 52))
-def _(S):
-    S.rings(80, 52, 10, 4, 9, '#fff3c4', 0.8)
-    for d in (-40, 40):
-        S.beam(80 + d * 1.9, 52 + d * 0.3, 80 + d * 0.2, 52, 1.6)
-    S.sun(80, 52, 6, rays=8)
 
 
 @scene('sunspear', light_at=(30, 60), light_r=70)
@@ -375,3 +251,13 @@ def _(S):
     for x in (56, 72, 88, 104):
         S.dome(x, 92, 7, '#fff3b0')
     S.motes(80, 70, 14, 30, '#ffffff')
+
+
+@scene('focusing_array', light_at=(80, 52))
+def _(S):
+    S.rings(80, 52, 10, 4, 9, '#fff3c4', 0.8)
+    for d in (-40, 40):
+        S.beam(80 + d * 1.9, 52 + d * 0.3, 80 + d * 0.2, 52, 1.6)
+    S.sun(80, 52, 6, rays=8)
+
+

@@ -35,7 +35,7 @@ def traits(S, key, force=None):
         armour=pick(['chevrons', 'scales', 'breastplate', 'bands']), pauldrons=pick(['round', 'spiked', 'wing', 'none']),
         robe=pick(['#fffaf0', '#f2ede2', '#e6eef8', '#fff1d0', '#f2e8ff']), trim=pick(['#ffe08a', '#e0a020', '#9fd0ff', '#ffffff']),
         stole=pick(['pair', 'single', 'cross']), mantle=g.random() < 0.5, girdle=g.random() < 0.5,
-        crown_style=pick(['sunburst', 'circlet', 'spires']),
+        crown_style=pick(['sunburst', 'circlet', 'spires']), helm=pick(['none', 'none', 'visor', 'plume']),
         # How they stand and hold things.
         pose=pick(['high', 'level', 'rest', 'low']), free=pick(['down', 'palm', 'chest']),
         shield_style=pick(['disc', 'kite', 'hex']), staff_top=pick(['sun', 'crescent', 'ring']), flag=pick(['swallow', 'straight', 'pennant']),
@@ -50,8 +50,22 @@ def warm(c, k):
     return mix(c, '#ff8a30', k) if k > 0 else mix(c, '#e8f2ff', -k)
 
 
-def aureline(S, x, y, s, item=None, halos=2, cloak=None, eye='#2a6fd0', crown=False, lean=0, garb='robe', sash=None, look=None, key=None):
+def aureline(S, x, y, s, item=None, halos=2, cloak=None, eye='#2a6fd0', crown=False, lean=0, garb='robe', sash=None, look=None, key=None,
+             facing=1, back=False, stature=1.0, arms=None, helm=None, hold=None):
+    """Draw an Aureline with its head at (x, y), at scale s. `facing` -1 turns it to face left; `back` shows it
+    from behind; `stature` below 1 kneels or crouches it; `arms` 'raise' lifts both arms (in worship)."""
     T = traits(S, key if key is not None else f'{x:.0f},{y:.0f}', look)
+    if helm is not None: T['helm'] = helm
+    if facing < 0:
+        # Drawn mirrored: the picture is flipped, the figure drawn where its mirror image stands, and flipped back.
+        S.cv.c = S.cv.c[:, ::-1].copy()
+        _draw(S, T, 160 - x, y, s, item, halos, cloak, eye, crown, -lean, garb, sash, back, stature, arms, hold and (160 - hold[0], hold[1]))
+        S.cv.c = S.cv.c[:, ::-1].copy()
+    else:
+        _draw(S, T, x, y, s, item, halos, cloak, eye, crown, lean, garb, sash, back, stature, arms, hold)
+
+
+def _draw(S, T, x, y, s, item, halos, cloak, eye, crown, lean, garb, sash, back, stature, arms, hold=None):
     cl = warm(col(cloak or S.p['glow']), T['warmth'])
     lean = lean * s + T['sway'] * s * 1.5
     hr = 7.5 * s                      # the body's scale
@@ -62,15 +76,19 @@ def aureline(S, x, y, s, item=None, halos=2, cloak=None, eye='#2a6fd0', crown=Fa
     S.glow(x, y + hr * 1.5, hr * 5, cl, 0.2)
 
     # ---- The cloak.
+    T['st'] = stature
+    T['cloak_k'] = 0.45 if garb == 'vestment' else 1.0
     _cloak(S, T, x, y, hr, s, sw, lean, cl)
 
     # ---- What they wear over the plasma.
     cx = x + turn
     if garb == 'armour':
-        _armour(S, T, cx, y, hr, s, sw)
+        _armour(S, T, cx, y, hr, s, sw, back)
     elif garb == 'vestment':
-        _vestment(S, T, cx, y, hr, s, sw, sash)
-    if sash and garb != 'vestment':
+        _vestment(S, T, cx, y, hr, s, sw, sash, cl, lean, back)
+    if back:
+        pass
+    elif sash and garb != 'vestment':
         S.tube(quad((cx - hr * 1.5 * sw, y + hr * 1.3), (cx, y + hr * 3.2), (cx + hr * 1.7 * sw, y + hr * 2.4)), 1.1 * s, mix(sash, '#000000', 0.55), sash, shine=0.35, power=12)
     elif garb == 'robe' and T['girdle']:
         S.tube(quad((cx - hr * 1.3 * sw, y + hr * 2.6), (cx, y + hr * 3.1), (cx + hr * 1.3 * sw, y + hr * 2.6)), 0.55 * s, '#5a3a0e', '#ffe7a8', shine=1.2)
@@ -79,16 +97,30 @@ def aureline(S, x, y, s, item=None, halos=2, cloak=None, eye='#2a6fd0', crown=Fa
     hand, ang = _hand(T, item, x, y, hr)
     if item and item != 'none':
         S.plasma(quad((cx + hr * 1.2 * sw, y + hr * 1.0), ((cx + hr * 1.2 * sw + hand[0]) / 2 + hr * 0.3, min(y + hr * 0.8, hand[1] + hr * 0.6)), hand), 0.75 * s, cl, 0.9, taper=0.3)
-    free = {'down': (cx - hr * 1.6 * sw, y + hr * 2.8), 'palm': (cx - hr * 2.6 * sw, y - hr * 0.2), 'chest': (cx - hr * 0.2, y + hr * 1.9)}[T['free']]
-    S.plasma(quad((cx - hr * 1.2 * sw, y + hr * 1.0), (cx - hr * 2.1 * sw, y + hr * 1.4), free), 0.7 * s, cl, 0.75, taper=0.5)
-    if T['free'] == 'palm':
-        S.glow(free[0], free[1] - hr * 0.3, hr * 0.8, '#fff3c4', 0.6)
+    if arms == 'offer' and hold:
+        # Both hands held out together, cradling something.
+        for k in (-1, 1):
+            hnd = (hold[0] + k * hr * 0.6, hold[1] + hr * 0.25)
+            S.plasma(quad((cx + k * hr * 1.2 * sw, y + hr * 1.0), (cx + k * hr * 1.6 * sw, hold[1] + hr * 0.6), hnd), 0.7 * s, cl, 0.85, taper=0.35)
+    elif arms == 'raise':
+        # Both arms lifted to the sky, light in the open hands.
+        for k in (-1, 1):
+            hnd = (cx + k * hr * 2.7 * sw, y - hr * 1.9)
+            S.plasma(quad((cx + k * hr * 1.2 * sw, y + hr * 1.0), (cx + k * hr * 2.9 * sw, y + hr * 0.4), hnd), 0.7 * s, cl, 0.85, taper=0.4)
+            S.glow(hnd[0], hnd[1] - hr * 0.2, hr * 0.7, '#fff3c4', 0.7)
+    else:
+        free = {'down': (cx - hr * 1.6 * sw, y + hr * 2.8), 'palm': (cx - hr * 2.6 * sw, y - hr * 0.2), 'chest': (cx - hr * 0.2, y + hr * 1.9)}[T['free']]
+        S.plasma(quad((cx - hr * 1.2 * sw, y + hr * 1.0), (cx - hr * 2.1 * sw, y + hr * 1.4), free), 0.7 * s, cl, 0.75, taper=0.5)
+        if T['free'] == 'palm':
+            S.glow(free[0], free[1] - hr * 0.3, hr * 0.8, '#fff3c4', 0.6)
 
     # ---- The head: flares and halos behind, the sphere, the eye, then the near halos and the crown.
     rings = _halos(S, T, x, y, hh, halos)
     _flares(S, T, x, y, hh, s, cl, behind=True)
     for r in rings: _ring(S, T, r, s, front=False)
-    _head(S, T, x, y, hh, s, cl, eye)
+    _head(S, T, x, y, hh, s, cl, eye, back)
+    if T['helm'] != 'none' and garb == 'armour':
+        _helm(S, T, x, y, hh, s, cl)
     for r in rings: _ring(S, T, r, s, front=True)
     if T['crest']:
         tip = (x - np.sin(yaw) * hh * 0.4, y - hh * 2.3)
@@ -101,7 +133,7 @@ def aureline(S, x, y, s, item=None, halos=2, cloak=None, eye='#2a6fd0', crown=Fa
 
 
 def _cloak(S, T, x, y, hr, s, sw, lean, cl):
-    w, L = 2.4 * T['cloak_w'] * sw, 6 * T['cloak_len']
+    w, L = 2.4 * T['cloak_w'] * sw, 6 * T['cloak_len'] * T.get('st', 1.0)
     style = T['cloak_style']
     tail = (x + lean * 1.6, y + hr * L)
     if style == 'wings':
@@ -138,15 +170,18 @@ def _cloak(S, T, x, y, hr, s, sw, lean, cl):
     body = m * eaten
     heat = (1 - v) ** 1.3
     S.absorb(body * 0.55 * (1 - v), tint=(0.7, 0.85, 1.2))
-    S.add('#fff6dc', body * heat ** 2 * (0.2 + 0.6 * flow) * 0.6)
-    S.add(mix(cl, '#ff9a30', 0.35), body * (0.3 + 0.7 * heat) * (0.4 + 1.1 * streak) * 0.75)
+    k = T.get('cloak_k', 1.0)
+    S.add('#fff6dc', body * heat ** 2 * (0.2 + 0.6 * flow) * 0.6 * k)
+    S.add(mix(cl, '#ff9a30', 0.35), body * (0.3 + 0.7 * heat) * (0.4 + 1.1 * streak) * 0.75 * k)
     S.add(cl, gaussian_filter(body, 3 * s * 6) * 0.2)
     S.plasma(quad((x - hr * 0.6, y + hr * 1.2), (x + lean * 0.5, y + hr * 3.2), (x + lean * 1.4, y + hr * L * 0.85)), 0.25 * s, '#fff6dc', 0.5, taper=0.8)
 
 
-def _armour(S, T, x, y, hr, s, sw):
-    style = T['armour']
-    if style == 'chevrons':
+def _armour(S, T, x, y, hr, s, sw, back=False):
+    style = 'none' if back else T['armour']
+    if style == 'none':
+        pass
+    elif style == 'chevrons':
         for i in range(3):
             w = hr * (1.3 - i * 0.15) * sw
             yy = y + hr * (1.4 + i * 0.75)
@@ -182,22 +217,60 @@ def _armour(S, T, x, y, hr, s, sw):
                 S.gold([a0, (a0[0] + k * hr * (1.8 - f * 0.3), a0[1] - hr * (0.9 - f * 0.25)), (a0[0] + k * hr * 0.5, a0[1] + hr * 0.45)], bevel=0.4 * s)
 
 
-def _vestment(S, T, x, y, hr, s, sw, sash):
-    robe = [(x - hr * 1.2 * sw, y + hr * 0.9), (x - hr * 2.1 * sw, y + hr * 5.4)] + quad((x - hr * 2.1 * sw, y + hr * 5.4), (x, y + hr * 6), (x + hr * 2.1 * sw, y + hr * 5.4)) + [(x + hr * 1.2 * sw, y + hr * 0.9)] + quad((x + hr * 1.2 * sw, y + hr * 0.9), (x, y + hr * 0.3), (x - hr * 1.2 * sw, y + hr * 0.9))
-    S.cloth(robe, T['robe'], mix(T['robe'], '#8a7454', 0.55), folds=5, bevel=1.2 * s, alpha=0.97, fan=(x, y - hr * 2))
-    S.tube(quad((x - hr * 2.05 * sw, y + hr * 5.3), (x, y + hr * 5.9), (x + hr * 2.05 * sw, y + hr * 5.3)), 0.7 * s, mix(T['trim'], '#000000', 0.6), T['trim'], shine=1.2)
-    st = sash or '#c0392b'
-    if T['stole'] == 'pair':
-        for k in (-1, 1):
-            S.cloth([(x + k * hr * 0.2, y + hr * 1.0), (x + k * hr * 0.5, y + hr * 1.0), (x + k * hr * 0.68, y + hr * 5.6), (x + k * hr * 0.32, y + hr * 5.65)], st, mix(st, '#000000', 0.45), folds=2, fold_dir=(0, 1), bevel=0.4 * s)
-    elif T['stole'] == 'single':
-        S.cloth([(x - hr * 0.35, y + hr * 1.0), (x + hr * 0.35, y + hr * 1.0), (x + hr * 0.45, y + hr * 5.7), (x - hr * 0.45, y + hr * 5.7)], st, mix(st, '#000000', 0.45), folds=2, fold_dir=(0, 1), bevel=0.5 * s)
-    else:
-        S.cloth([(x - hr * 1.1 * sw, y + hr * 1.0), (x - hr * 0.7 * sw, y + hr * 0.95), (x + hr * 1.6 * sw, y + hr * 4.2), (x + hr * 1.1 * sw, y + hr * 4.5)], st, mix(st, '#000000', 0.45), folds=3, fold_dir=(1, 1), bevel=0.5 * s)
+def _vestment(S, T, x, y, hr, s, sw, sash, cl, lean, back=False):
+    """Long robes that hang from the shoulders, sway with the body, and burn away into the plasma below."""
+    st = T.get('st', 1.0)
+    bot = y + hr * 5.6 * st
+    sway = lean * 1.2
+    robe = (quad((x - hr * 1.15 * sw, y + hr * 0.9), (x - hr * 1.9 * sw, y + hr * 3.0 * st), (x - hr * 2.3 * sw + sway, bot))
+            + quad((x - hr * 2.3 * sw + sway, bot), (x + sway, bot + hr * 0.5), (x + hr * 2.3 * sw + sway, bot))
+            + quad((x + hr * 2.3 * sw + sway, bot), (x + hr * 1.9 * sw, y + hr * 3.0 * st), (x + hr * 1.15 * sw, y + hr * 0.9))
+            + quad((x + hr * 1.15 * sw, y + hr * 0.9), (x, y + hr * 0.3), (x - hr * 1.15 * sw, y + hr * 0.9)))
+    # Where the cloth gives way to light: a ragged line, low on the robe.
+    v = (Y - (y + hr * 0.9)) / (bot - y - hr * 0.9)
+    edge = 0.62 + 0.22 * (fbm2(X * 0.25 / s, Y * 0.04, 3, S.seed % 29) - 0.5) * 2
+    alpha = 1 - smooth(edge - 0.1, edge + 0.04, v)
+    m = S.cloth(robe, T['robe'], mix(T['robe'], '#8a7454', 0.5), folds=5, bevel=1.2 * s, alpha=0.97 * alpha, fan=(x, y - hr * 2))
+    burn = poly_mask(robe) * np.exp(-((v - edge) / 0.05) ** 2)
+    S.add(mix(cl, '#ff9a30', 0.4), burn * 0.7)
+    S.add('#fff6dc', burn * 0.2)
+    # A collar of gold.
+    S.tube(quad((x - hr * 1.0 * sw, y + hr * 0.95), (x, y + hr * 1.5), (x + hr * 1.0 * sw, y + hr * 0.95)), 0.45 * s, mix(T['trim'], '#000000', 0.6), T['trim'], shine=1.2)
+    if not back:
+        stc = sash or '#c0392b'
+        if T['stole'] == 'pair':
+            for k in (-1, 1):
+                S.cloth([(x + k * hr * 0.2, y + hr * 1.0), (x + k * hr * 0.5, y + hr * 1.0), (x + k * hr * 0.7 + sway * 0.5, bot - hr * 0.2), (x + k * hr * 0.3 + sway * 0.5, bot - hr * 0.1)], stc, mix(stc, '#000000', 0.45), folds=2, fold_dir=(0, 1), bevel=0.4 * s, alpha=alpha)
+        elif T['stole'] == 'single':
+            S.cloth([(x - hr * 0.35, y + hr * 1.0), (x + hr * 0.35, y + hr * 1.0), (x + hr * 0.5 + sway * 0.5, bot), (x - hr * 0.5 + sway * 0.5, bot)], stc, mix(stc, '#000000', 0.45), folds=2, fold_dir=(0, 1), bevel=0.5 * s, alpha=alpha)
+        else:
+            S.cloth([(x - hr * 1.1 * sw, y + hr * 1.0), (x - hr * 0.7 * sw, y + hr * 0.95), (x + hr * 1.6 * sw, y + hr * 4.0 * st), (x + hr * 1.1 * sw, y + hr * 4.3 * st)], stc, mix(stc, '#000000', 0.45), folds=3, fold_dir=(1, 1), bevel=0.5 * s, alpha=alpha)
     if T['mantle']:
         mant = quad((x - hr * 1.9 * sw, y + hr * 2.0), (x - hr * 1.5 * sw, y + hr * 0.4), (x, y + hr * 0.45)) + quad((x, y + hr * 0.45), (x + hr * 1.5 * sw, y + hr * 0.4), (x + hr * 1.9 * sw, y + hr * 2.0)) + quad((x + hr * 1.9 * sw, y + hr * 2.0), (x, y + hr * 2.5), (x - hr * 1.9 * sw, y + hr * 2.0))
         S.cloth(mant, T['trim'], mix(T['trim'], '#3a2408', 0.6), folds=4, bevel=0.8 * s, fan=(x, y - hr))
-    S.sun(x, y + hr * (2.9 if T['mantle'] else 2.6), 1.3 * s, '#ffd98a', rays=6)
+    if not back:
+        S.sun(x, y + hr * (2.9 if T['mantle'] else 2.6), 1.3 * s, '#ffd98a', rays=6)
+
+
+def _helm(S, T, x, y, hh, s, cl):
+    """A helm of gold over the crown of the head, the eye left bare beneath its brim."""
+    dx, dy = (X - x) / hh, (Y - y) / (hh * T['oval'])
+    d = np.hypot(dx * 1.06, dy * 1.06)
+    nz = np.sqrt(np.clip(1 - d * d, 0, 1))
+    brim = -0.42 + 0.18 * dx * dx + np.sin(T['pitch']) * 0.3
+    m = smooth(1.0, 0.97, d) * smooth(brim + 0.03, brim - 0.03, dy)
+    n = np.stack([dx, dy, nz], -1)
+    from kit import LIGHT, HALF
+    lit = np.clip((n * LIGHT).sum(-1), 0, None)
+    spec = np.clip((n * HALF).sum(-1), 0, None) ** 30
+    gold = mix('#5a3a0e', '#ffe3a0', lit[..., None] ** 0.7) * (0.3 + 0.9 * lit[..., None]) + spec[..., None] * 1.5
+    S.over(gold, m)
+    S.add('#fff3c4', np.exp(-((dy - brim) / 0.04) ** 2) * smooth(1.0, 0.9, d) * 1.0)
+    if T['helm'] == 'visor':
+        S.gold([(x - hh * 0.12, y - hh * 0.85), (x - np.sin(T['yaw']) * hh * 0.3, y - hh * 2.0), (x + hh * 0.18, y - hh * 0.9)], bevel=0.3 * s)
+    else:
+        top = (x, y - hh * 1.0)
+        S.plasma(quad(top, (x - hh * 1.2, y - hh * 1.9), (x - hh * 2.6, y - hh * 1.3)), 0.9 * s, mix(cl, '#ff8a30', 0.5), 0.9, core='#fff3c4', taper=0.9)
 
 
 def _hand(T, item, x, y, hr):
@@ -263,7 +336,7 @@ def _flares(S, T, x, y, hh, s, cl, behind):
         S.plasma(quad(p0, p1, p2), 1.15 * s, mix(cl, '#ff9a30', 0.4), 0.8, core='#fff3c4', taper=0.9)
 
 
-def _head(S, T, x, y, hh, s, cl, eye):
+def _head(S, T, x, y, hh, s, cl, eye, back=False):
     yaw, pitch = T['yaw'], T['pitch']
     dx, dy = (X - x) / hh, (Y - y) / (hh * T['oval'])
     d = np.hypot(dx, dy)
@@ -275,6 +348,8 @@ def _head(S, T, x, y, hh, s, cl, eye):
     S.over(headc, m)
     S.add(cl, m * (1 - nz) ** 3 * 1.0)
     S.glow(x, y, hh * 2.2, cl, 0.25)
+    if back:
+        return
 
     # The eye sits where the head is looking: foreshortened as it turns away.
     fx, fy = np.cos(yaw) * 0.85 + 0.15, np.cos(pitch)
@@ -380,16 +455,7 @@ def _crown(S, T, x, y, hh, s):
 
 def _item(S, T, item, hand, ang, hr, s):
     if item == 'lance':
-        a = np.radians(ang)
-        dx, dy = np.cos(a), np.sin(a)
-        bx, by = hand[0] - dx * hr * 2.8, hand[1] - dy * hr * 2.8
-        tx, ty = hand[0] + dx * hr * 5.3, hand[1] + dy * hr * 5.3
-        S.tube([(bx, by), (tx, ty)], 0.75 * s, '#5a3a0e', '#ffe7a8', shine=1.4, power=24)
-        L, Wd = hr * 1.6, hr * 0.45
-        nx_, ny_ = -dy, dx
-        S.glow(tx + dx * L * 0.5, ty + dy * L * 0.5, hr * 1.4, '#fff3c4', 0.7)
-        S.energy([(tx - nx_ * Wd, ty - ny_ * Wd), (tx + dx * L, ty + dy * L), (tx + nx_ * Wd, ty + ny_ * Wd), (tx - dx * Wd * 0.8, ty - dy * Wd * 0.8)], '#ffe7a8', 1.2, rim=1.4, fill=1.2, bevel=0.6 * s)
-        S.beam(tx + dx * L, ty + dy * L, tx + dx * L * 3.4, ty + dy * L * 3.4, 0.9 * s, '#fff3c4')
+        _lance(S, hand, ang, hr, s)
     elif item == 'shield':
         cx_, cy_ = hand[0] + hr * 0.6, hand[1]
         st = T['shield_style']
@@ -437,3 +503,49 @@ def _item(S, T, item, hand, ang, hr, s):
         S.add('#ffffff', 2 * np.exp(-np.hypot(X - px_, Y - top_) ** 2 / (0.8 * s) ** 2))
     elif item == 'orb':
         S.sun(hand[0], hand[1] - hr * 0.4, 2.8 * s, S.p['glow'], rays=10)
+
+
+def _lance(S, hand, ang, hr, s):
+    """A sun-lance: a shaft of white metal banded in gold, a wrapped grip, a swept guard, and a long leaf
+    of hard light for a blade, a ridge of fire down its middle."""
+    a = np.radians(ang)
+    dx, dy = np.cos(a), np.sin(a)
+    nx, ny = -dy, dx
+    P = lambda u, v: (hand[0] + (dx * u + nx * v) * hr, hand[1] + (dy * u + ny * v) * hr)
+    r = 0.36 * s
+    S.tube([P(-2.1, 0), P(2.75, 0)], r, '#6a6458', '#fbf8f0', shine=1.0, power=30)
+    for u in (-1.9, -0.9, 1.2, 2.45):
+        S.tube([P(u - 0.07, 0), P(u + 0.07, 0)], r * 1.35, '#5a3a0e', '#ffe3a0', shine=1.4)
+    S.tube([P(-0.5, 0), P(0.55, 0)], r * 1.12, '#2a1c12', '#8a6a48', shine=0.3, power=10)
+    for u in np.linspace(-0.45, 0.5, 7):
+        S.tube([P(u, -0.08), P(u + 0.06, 0.08)], r * 0.25, '#1a120a', '#5a4630', shine=0.1)
+    S.gold([P(-2.1, -0.12), P(-2.55, 0), P(-2.1, 0.12)], bevel=0.2 * s)
+    S.gold([P(2.7, -0.1), P(2.55, -0.7), P(2.95, -0.32), P(3.05, 0), P(2.95, 0.32), P(2.55, 0.7), P(2.7, 0.1)], bevel=0.25 * s)
+    blade = quad(P(3.0, 0), P(3.6, -0.55), P(5.0, 0)) + quad(P(5.0, 0), P(3.6, 0.55), P(3.0, 0))
+    S.glow(*P(3.9, 0), hr * 1.1, '#fff3c4', 0.55)
+    S.energy(blade, '#ffe7a8', 1.0, rim=1.5, fill=0.5, bevel=0.35 * s)
+    S.plasma([P(3.05, 0), P(4.85, 0)], 0.16 * s, '#ffd98a', 1.0, core='#ffffff', flicker=False, taper=0.7)
+    S.add('#ffffff', 2.5 * np.exp(-((X - P(5.0, 0)[0]) ** 2 + (Y - P(5.0, 0)[1]) ** 2) / (0.5 * s) ** 2))
+
+
+def mini(S, x, y, s, cloak='#ffd98a', back=True, lance=False, kneel=False, seed=0):
+    """A far-off Aureline, a few pixels high: a dark robed shape, rim-lit, under a small bright head and halo."""
+    g = np.random.default_rng(int(x * 97 + y * 13) + seed)
+    hr = 7.5 * s
+    h = hr * (2.6 if kneel else 4.8) * g.uniform(0.85, 1.1)
+    w = hr * g.uniform(1.1, 1.5) * (1.25 if kneel else 1.0)
+    lean = g.uniform(-0.25, 0.25) * hr
+    body = cubic((x - w * 0.45, y + hr * 0.8), (x - w * 0.9, y + h * 0.45), (x - w * 1.0 + lean, y + h), (x + lean, y + h)) + cubic((x + lean, y + h), (x + w * 1.0 + lean, y + h), (x + w * 0.9, y + h * 0.45), (x + w * 0.45, y + hr * 0.8))
+    m = poly_mask(body, 0.12 * s)
+    S.over(col('#120e0c'), m * 0.9)
+    # Rim light down the side facing the light, and a little glow through the cloth.
+    rim = np.clip(m - gaussian_filter(m, max(0.4 * s * 6, 0.6)), 0, 1)
+    S.add(cloak, rim * 2.0 + m * 0.08)
+    d = np.hypot(X - x, Y - y) / (hr * 0.75)
+    S.over(mix(cloak, '#fff1c8', 0.6) * 1.2, smooth(1.0, 0.8, d))
+    S.glow(x, y, hr * 1.4, cloak, 0.25)
+    e = np.sqrt(((X - x) / (hr * 1.5)) ** 2 + ((Y - (y - hr * 0.1)) / (hr * 0.4)) ** 2)
+    S.add('#fff3c4', np.exp(-((e - 1) / 0.08) ** 2) * 0.6)
+    if lance:
+        S.tube([(x + w * 0.9, y + h * 0.9), (x + w * 1.1, y - hr * 3)], max(0.22 * s, 0.14), '#5a5448', '#fbf8f0', shine=0.6)
+        S.add('#fff3c4', 2.5 * np.exp(-((X - (x + w * 1.12)) ** 2 + (Y - (y - hr * 3.3)) ** 2) / max(0.5 * s, 0.14) ** 2))
