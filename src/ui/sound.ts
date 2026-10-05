@@ -95,6 +95,8 @@ const CAMPAIGN_EIGHTH = 0.42;
 const CAMPAIGN_HAZE = 0.004;
 /** The level of the melody's synth (sustained, slightly distorted saws). */
 const CAMPAIGN_LEAD = 0.012;
+/** The level of the backing chords that keep the melody company before the haze. */
+const CAMPAIGN_BACKING = 0.03;
 /** The level of the beacon, the wavering high note at the top of every chord. */
 const CAMPAIGN_BEACON = 0.02;
 /** The gap between the notes of a rolled chord at the melody's height, in seconds. */
@@ -806,6 +808,7 @@ class SoundBoard {
     bell: (t: number, f: number, gain: number, dur?: number) => void,
     hold = 0,
     turning = false,
+    follow?: (t: number, f: number) => void,
   ) {
     const ctx = this.ctx!;
     const total = 6;
@@ -827,6 +830,7 @@ class SoundBoard {
         const t = at + b * barLen + e * gap;
         const progress = (bar + e / 6) / total;
         bell(t, hzOf(five[k]), 0.016 + 0.022 * progress, CAMPAIGN_EIGHTH * 0.95);
+        follow?.(t, hzOf(five[k] - 24));
       });
     }
     // The supporting chord: detuned saws through a lowpass that opens, swelling across the whole crescendo.
@@ -860,7 +864,13 @@ class SoundBoard {
   }
 
   /** After the crescendo's peak, the arpeggio carries on for two more bars in eighths, drifting down and easing off. */
-  private afterglow(at: number, barLen: number, tones: Set<number>, bell: (t: number, f: number, gain: number, dur?: number) => void) {
+  private afterglow(
+    at: number,
+    barLen: number,
+    tones: Set<number>,
+    bell: (t: number, f: number, gain: number, dur?: number) => void,
+    follow?: (t: number, f: number) => void,
+  ) {
     const ladder: number[] = [];
     for (let n = midiOf('E5'); n <= midiOf('E7'); n++) if (tones.has(n % 12)) ladder.push(n);
     const len = barLen * 2;
@@ -868,8 +878,10 @@ class SoundBoard {
       const lo = Math.max(0, ladder.length - 5 - b);
       const window = [...ladder.slice(lo, lo + 5), ...ladder.slice(lo + 1, lo + 4).reverse()];
       let k = 0;
-      for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += CAMPAIGN_EIGHTH, k++)
+      for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += CAMPAIGN_EIGHTH, k++) {
         bell(t, hzOf(window[k % window.length]), 0.038 - 0.02 * ((t - at) / len), CAMPAIGN_EIGHTH * 0.95);
+        follow?.(t, hzOf(window[k % window.length] - 24));
+      }
     }
   }
 
@@ -1103,6 +1115,56 @@ class SoundBoard {
       }
     };
 
+    // The backing synth (before the haze): its echo repeats every eighth, the spacing of the crescendo's runs.
+    const backing = ctx.createGain();
+    const backEcho = ctx.createDelay(1);
+    backEcho.delayTime.value = eighth;
+    const backTone = ctx.createBiquadFilter();
+    backTone.type = 'lowpass';
+    backTone.frequency.value = 2000;
+    const backFeedback = ctx.createGain();
+    backFeedback.gain.value = 0.38;
+    const backWet = ctx.createGain();
+    backWet.gain.value = 0.5;
+    backing.connect(mix);
+    backing.connect(backEcho).connect(backTone).connect(backFeedback).connect(backEcho);
+    backTone.connect(backWet).connect(mix);
+    this.musicNodes.push(backing, backEcho, backTone, backFeedback, backWet);
+    /**
+     * A backing chord: detuned saws with a softened attack, through a resonant lowpass that opens from dark to its
+     * full range over one rock note, fading as it goes.
+     */
+    const backChord = (t: number, notes: number[]) => {
+      const rockNote = eighth * 3;
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 6;
+      f.frequency.setValueAtTime(280, t);
+      f.frequency.exponentialRampToValueAtTime(8000, t + rockNote);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(CAMPAIGN_BACKING, t + 0.07);
+      g.gain.setValueAtTime(CAMPAIGN_BACKING, t + rockNote * 0.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + rockNote * 1.3);
+      f.connect(g).connect(backing);
+      for (const n of notes)
+        for (const detune of [-6, 6]) {
+          const o = ctx.createOscillator();
+          o.type = 'sawtooth';
+          o.frequency.value = n;
+          o.detune.value = detune;
+          o.connect(f);
+          o.start(t);
+          o.stop(t + rockNote * 1.35);
+        }
+    };
+    /** In the second crescendo, a synth in the rock's voice follows the runs two octaves down (unducked, like the rock). */
+    const follow = (t: number, f: number) => {
+      const d = this.until(t);
+      this.voice(f, { dur: eighth * 1.6, attack: 0.02, gain: 0.026, delay: d, out: bus });
+      this.voice(f, { dur: eighth * 1.2, attack: 0.02, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
+    };
+
     /**
      * The form, four times round the chords and then over again: a minimal opening (the melody joining on the
      * fourth chord); the melody, then a crescendo; the haze (a slightly distorted synth holding long chords) under
@@ -1150,13 +1212,16 @@ class SoundBoard {
         orbit.frequency.linearRampToValueAtTime(4000, at + chordLen + barLen * 2);
         orbit.frequency.setValueAtTime(4000, at + chordLen * 2);
         orbit.frequency.linearRampToValueAtTime(1900, at + chordLen * 2 + 3);
-        return this.crescendo(at, barLen, tones, c.swell, 0, 4, mix, lead, 0, part === 3);
+        return this.crescendo(at, barLen, tones, c.swell, 0, 4, mix, lead, 0, part === 3, part === 3 ? follow : undefined);
       }
       if (rising && index === 3) {
         // The peak, then the arpeggio carries on through the rest of the Em7, easing down.
-        this.crescendo(at, barLen, tones, c.swell, 4, 2, mix, lead, barLen * 2, part === 3);
-        return this.afterglow(at + barLen * 2, barLen, tones, lead);
+        this.crescendo(at, barLen, tones, c.swell, 4, 2, mix, lead, barLen * 2, part === 3, part === 3 ? follow : undefined);
+        return this.afterglow(at + barLen * 2, barLen, tones, lead, part === 3 ? follow : undefined);
       }
+      // Before the haze, a backing chord under the melody on the second and fourth bar of every chord it plays
+      // (outside the crescendo): two notes of the chord, an octave above the pads.
+      if (!hazy) for (const e of [6, 18]) backChord(at + e * eighth, [c.pad[1], c.pad[2]].map((n) => hzOf(midiOf(n) + 12)));
       const phrase = CAMPAIGN_PHRASES[part % 2][index];
       const pitches = phrase.map(([, n]) => midiOf(n));
       const top = pitches.indexOf(Math.max(...pitches));
