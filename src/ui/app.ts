@@ -405,9 +405,7 @@ function frameTableaus(root: HTMLElement) {
     const bw = cmd.offsetWidth + 2 * pad;
     // How far the bump stands out past the row's outline (the slot sits just outside the row).
     const rival = row.closest('.tableau-rival') !== null;
-    // (The rival's Lightspeed slot hangs by their Hero: the bump takes it in too.)
-    const ls = rival ? row.querySelector<HTMLElement>('.ls-slot') : null;
-    const bh = rival ? Math.max(cmd.offsetTop + cmd.offsetHeight, ls ? ls.offsetTop + ls.offsetHeight : 0) - row.offsetHeight : -cmd.offsetTop;
+    const bh = rival ? cmd.offsetTop + cmd.offsetHeight - row.offsetHeight : -cmd.offsetTop;
     const r = 12, rc = 8;
     const x0 = W - bw;
     const d = `M${r},0 H${x0 - rc} Q${x0},0 ${x0},${-rc} V${-bh + r} Q${x0},${-bh} ${x0 + r},${-bh} H${W - r} Q${W},${-bh} ${W},${-bh + r} V${H - r} Q${W},${H} ${W - r},${H} H${r} Q0,${H} 0,${H - r} V${r} Q0,0 ${r},0 Z`;

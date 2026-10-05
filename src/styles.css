@@ -4444,12 +4444,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card.kind-command:not(.card-big) .card-para { height: 0.25em; }
 .card.kind-command:not(.card-big) .card-abilities-head { margin-top: 0.2em; padding-top: 0.2em; }
 .card.kind-command:not(.card-big) .card-ability ~ .card-ability { margin-top: 0.15em; padding-top: 0.15em; }
-/* The rival's Lightspeed slot: out of their row of five, by their Hero, within the same outline. */
-.tableau-rival .tableau-row { grid-template-columns: repeat(5, var(--tcw)); }
-.tableau-rival .ls-slot { position: absolute; left: calc(var(--tcw) * 0.14); width: calc(var(--tcw) * 0.72); height: calc(var(--tcw) * 1.4 * 0.72); top: calc(100% + var(--frame-pad) + 4px); }
-/* (The boards mirror: from the viewer's side, the rival's Lightspeed slot sits between their row and their Hero.) */
-.tableau-rival .cmd-slot { top: calc(100% + var(--frame-pad) + 4px + var(--tcw) * 1.4 * 0.72 + 8px); }
-.tableau-rival .ls-slot > * { width: 100% !important; height: 100% !important; }
+/* The boards mirror: the rival's Lightspeed slot ends their row on the viewer's left, under their Hero
+   (as yours ends your row on the right, under yours). */
+.tableau-rival .ls-slot { grid-column: 1; grid-row: 1; }
 /* Both eyes on the viewer's left of each row. */
 .tableau-eye-rival { left: auto; right: calc(100% + var(--frame-pad, 12px) + 8px); }
 /* A card picked that can also go face down: the choice in the pane, under the card. */
