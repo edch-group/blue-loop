@@ -6,10 +6,16 @@
 
 export const RACE_NAMES = ['Aureline', "Xel'Naru", 'Vorthane', 'Ixquor', 'Nyxari', 'Korrath', 'Seren', 'Pyrr'] as const;
 
+export type TraitReach = 'attack' | 'stays' | 'darkspeed' | 'attune';
+
 export interface RaceTrait {
-  /** The bonus and the nerf, as a player reads them. */
+  /** The bonus and the nerf, as a player reads them ("Name: what it does."). */
   bonus: string;
   nerf: string;
+  /** Which of its cards each touches (shown on them as a keyword): those that attack, those that stay in play,
+   *  those with Darkspeed, those that attune. */
+  bonusOn: TraitReach;
+  nerfOn: TraitReach;
   /** Attack on its cards that have attack (never below 1). */
   attack?: number;
   /** Attack on its cards that have attack, while their owner's sun is overheated. */
@@ -31,14 +37,14 @@ export interface RaceTrait {
 }
 
 export const RACE_TRAITS: RaceTrait[] = [
-  { bonus: 'Sun-lances: their attack cards have +1 attack.', nerf: 'Unarmoured: −1 defence.', attack: 1, defence: -1 },
-  { bonus: 'Shatter: when one leaves your tableau, {heat:1} at your rival.', nerf: 'Brittle: −1 stability.', shatter: 1, stability: -1 },
-  { bonus: 'Barbed: {sting:1}.', nerf: 'Slow tides: −1 attack (never below 1).', sting: 1, attack: -1 },
-  { bonus: 'Regrowth: +1 stability.', nerf: 'Soft-bodied: −1 defence.', stability: 1, defence: -1 },
-  { bonus: 'Darkspeed: their attackers and Heroes can attack or act the day they come into play.', nerf: 'Fleeting: −2 stability.', ambush: true, stability: -2 },
-  { bonus: 'Forged: +2 defence.', nerf: 'Ponderous: −1 attack (never below 1).', defence: 2, attack: -1 },
-  { bonus: 'Star-charted: they attune once more.', nerf: 'Frail: −1 stability.', attune: 1, stability: -1 },
-  { bonus: 'Flare-born: +1 attack, and +2 while your sun is {overheated}.', nerf: 'Self-immolating: each of their attacks heats your own sun 1.', attack: 1, attackHot: 1, attackSelfHeat: 1 },
+  { bonus: 'Sun-lances: their attack cards have +1 attack.', nerf: 'Unarmoured: −1 defence.', bonusOn: 'attack', nerfOn: 'stays', attack: 1, defence: -1 },
+  { bonus: 'Shatter: when one leaves your tableau, {heat:1} at your rival.', nerf: 'Brittle: −1 stability.', bonusOn: 'stays', nerfOn: 'stays', shatter: 1, stability: -1 },
+  { bonus: 'Barbed: {sting:1}.', nerf: 'Slow tides: −1 attack (never below 1).', bonusOn: 'stays', nerfOn: 'attack', sting: 1, attack: -1 },
+  { bonus: 'Regrowth: +1 stability.', nerf: 'Soft-bodied: −1 defence.', bonusOn: 'stays', nerfOn: 'stays', stability: 1, defence: -1 },
+  { bonus: 'Darkspeed: their attackers and Heroes can attack or act the day they come into play.', nerf: 'Fleeting: −2 stability.', bonusOn: 'darkspeed', nerfOn: 'stays', ambush: true, stability: -2 },
+  { bonus: 'Forged: +2 defence.', nerf: 'Ponderous: −1 attack (never below 1).', bonusOn: 'stays', nerfOn: 'attack', defence: 2, attack: -1 },
+  { bonus: 'Star-charted: they attune once more.', nerf: 'Frail: −1 stability.', bonusOn: 'attune', nerfOn: 'stays', attune: 1, stability: -1 },
+  { bonus: 'Flare-born: +1 attack, and +2 while your sun is {overheated}.', nerf: 'Self-immolating: each of their attacks heats your own sun 1.', bonusOn: 'attack', nerfOn: 'attack', attack: 1, attackHot: 1, attackSelfHeat: 1 },
 ];
 
 /** A race's trait (none for neutral cards). */

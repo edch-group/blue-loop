@@ -367,8 +367,23 @@ export function raceRow(def: CardDef): string {
   if (def.race === undefined) return '';
   const t = RACE_TRAITS[def.race];
   const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
-  const name = (line: string) => line.split(':')[0];
-  return `<span class="card-racerow"><b>${escType(`${RACE_NAMES[def.race]}${sub}`.toLowerCase())}</b><i class="rt-bonus" title="${escType(plainText(t.bonus))}">${escType(name(t.bonus).toLowerCase())}</i><i class="rt-nerf" title="${escType(plainText(t.nerf))}">${escType(name(t.nerf).toLowerCase())}</i></span>`;
+  // (The race's bonus and nerf are keywords on the card's text, where they apply: see raceTraitTags.)
+  void t;
+  return `<span class="card-racerow"><b>${escType(`${RACE_NAMES[def.race]}${sub}`.toLowerCase())}</b></span>`;
+}
+
+/**
+ * The race's bonus and nerf that touch this card, as keywords ("Darkspeed", "Fleeting"): each only where it
+ * applies (an attack bonus on cards that attack, a stability nerf on cards that stay in play...).
+ */
+export function raceTraitTags(def: CardDef): { name: string; text: string; nerf: boolean }[] {
+  const t = def.race !== undefined ? RACE_TRAITS[def.race] : undefined;
+  if (!t) return [];
+  const stays = persists(def.id) && !isBurst(def);
+  const reaches = (on: string) =>
+    on === 'attack' ? (def.attack ?? 0) > 0 : on === 'stays' ? stays : on === 'darkspeed' ? hasDarkspeed(def) : on === 'attune' ? !!def.attune : false;
+  const tag = (line: string, nerf: boolean) => ({ name: line.split(':')[0], text: plainText(line.slice(line.indexOf(':') + 1).trim()), nerf });
+  return [...(reaches(t.bonusOn) ? [tag(t.bonus, false)] : []), ...(reaches(t.nerfOn) ? [tag(t.nerf, true)] : [])];
 }
 
 /** The same as plain words ("attack · aureline"), for lists. */
@@ -505,8 +520,10 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
  */
 /** A card's text as it reads on the card: its own, after any keyword its race gives it (Darkspeed). */
 export function cardBodyHtml(def: CardDef, chosen?: string, live: Record<number, number> = {}): string {
-  const dark = hasDarkspeed(def) ? `${keywordHtml('darkspeed', undefined, { data: true })}${PARA}` : '';
-  return dark + cardTextHtml(def.text, chosen, false, live);
+  // Its race's keywords that apply to it, side by side on one row.
+  const tags = raceTraitTags(def);
+  const row = tags.length ? `<span class="card-traits">${tags.map((g) => `<b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}" title="${escText(g.text)}">${escText(g.name)}</b>`).join(' ')}</span>${PARA}` : '';
+  return row + cardTextHtml(def.text, chosen, false, live);
 }
 
 export function cardTextHtml(text: string, chosen?: string, inline = false, live: Record<number, number> = {}): string {

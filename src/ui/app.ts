@@ -26,7 +26,6 @@ import {
   GameError,
   instabilityHeat,
   KEYWORDS,
-  hasDarkspeed,
   keywordLabel,
   plainText,
   isGameOver,
@@ -74,7 +73,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, cardBackFace, cardBodyHtml, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -4634,7 +4633,7 @@ export class App {
     const c = owner?.tableau.find((x) => x.uid === uid);
     const stats = owner && c ? { stability: c.stability ?? 0, defence: cardDefence(owner, c) } : persists(defId) ? { stability: baseStability(defId) } : {};
     const def = cardDef(defId);
-    const first = [this.raceNote(defId), hasDarkspeed(def) ? `<div>${keywordHtml('darkspeed', undefined, { named: true })}<span>${esc(KEYWORDS.darkspeed.explain())}</span></div>` : ''].filter(Boolean);
+    const first = [this.raceNote(defId), ...raceTraitTags(def).map((g) => `<div><b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}">${esc(g.name)}</b><span>${esc(g.text)}</span></div>`)].filter(Boolean);
     return keywordList(def.text, stats, first);
   }
 
@@ -4652,7 +4651,9 @@ export class App {
     if (!t) return '';
     const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
     const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race!])}${esc(sub)}</b>`;
-    return `<div class="kw-race-row">${head}<span>${esc(plainText(t.bonus))} ${esc(plainText(t.nerf))}</span></div>`;
+    // (Its bonus and nerf follow as keywords, those that apply to this card.)
+    const theme = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].theme : `${plainText(t.bonus)} ${plainText(t.nerf)}`;
+    return `<div class="kw-race-row">${head}<span>${esc(theme)}.</span></div>`;
   }
 
   /**
