@@ -8,7 +8,7 @@
 /**
  * Card types. They matter for synergies ("your attack cards deal +1 heat").
  * Lightspeed cards are played face down and spring during an enemy's day.
- * Relics have no attack and never fade, but are Brittle: no defence, and any blow, heat or decay breaks them.
+ * Relics have no attack and never fade, but are Brittle: nothing restores them, and removal reaches them whatever their defence.
  */
 export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'lightspeed' | 'relic';
 export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'relic', 'global', 'command', 'lightspeed'];

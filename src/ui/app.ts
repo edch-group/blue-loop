@@ -4028,7 +4028,7 @@ export class App {
             kind('attack', 'Attack', `Heat your rival's sun, and attack their cards.`),
             kind('defence', 'Defence', 'Cool your sun, raise shields, guard your tableau.'),
             kind('growth', 'Growth', 'Draw, recover, grow and play more.'),
-            kind('relic', 'Relic', 'No attack, and never fades: a lasting bonus. Brittle: no defence, so any attack, heat or decay breaks it.'),
+            kind('relic', 'Relic', 'No attack, and never fades: a lasting bonus. Brittle: nothing restores it, and removal reaches it whatever its defence.'),
             kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. Pick a dawn effect as you play one; it stays ${B.stabilityCommand} days, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
             kind('lightspeed', 'Lightspeed', "Set face down. Springs during your rival's day."),

@@ -1,9 +1,9 @@
 import type { CardDef } from './types';
 
 /**
- * Relics: no attack, and they never fade, so their bonuses last the whole game; but every one is Brittle
- * (no defence: any attack, aimed heat, decay or removal breaks it). The answer is to hit them: one point
- * of anything does it, so a deck that leaves a Relic standing pays for it every day.
+ * Relics: no attack, and they never fade, so their bonuses last the whole game; but every one is Brittle:
+ * nothing restores it, and removal reaches it whatever its defence. They stand like other cards (their
+ * slot's defence, 3 stability), so attacks wear them down over a few days; removal ends one at once.
  */
 export const RELIC_CARDS: CardDef[] = [
   {

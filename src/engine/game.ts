@@ -271,7 +271,8 @@ function enemyEffect(defId: string): EnemyEffect | undefined {
 
 function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect): boolean {
   if (e.type === 'destroy' && e.kind && cardDef(c.defId).kind !== e.kind) return false;
-  if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) > e.maxDefence) return false;
+  // (Brittle: removal reaches a Relic whatever its defence.)
+  if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) > e.maxDefence && cardDef(c.defId).kind !== 'relic') return false;
   return true;
 }
 
@@ -485,8 +486,6 @@ function distance(a: CardInstance, b: CardInstance): number {
  * reach cards with low enough defence.
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
-  // Brittle: a Relic has no defence at all, wherever it stands (so any removal reaches it, and any blow lands).
-  if (cardDef(card.defId).kind === 'relic') return 0;
   let d = slotDefence(card.slot) + cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0);
   for (const src of p.tableau) {
     const k = distance(src, card);

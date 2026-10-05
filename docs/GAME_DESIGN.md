@@ -386,9 +386,11 @@ Hive Bloom plays Sap Graft ×2, Seed Burst ×2 and the Spore Catalyst (for its O
 
 ## Relics [design review]
 
-Relics (cards-relics.ts, teal) have no attack and never fade: their bonus lasts the whole game. Every one is **Brittle**: it has no defence at all, wherever it stands (no slot defence, no Bulwark), so any removal reaches it and one point of anything breaks it: an attack, aimed heat, decay or erode. Nothing steadies one (Restore and Renew pass it by), and nothing fuses onto it or it onto anything. Stability 1, shown on the card.
+Relics (cards-relics.ts, teal) have no attack and never fade: their bonus lasts the whole game. Every one is **Brittle**: nothing restores it (Restore and Renew pass it by), nothing fuses onto it or it onto anything, and removal reaches it whatever its defence (an Ion Cannon takes one beside a Bulwark). Otherwise it stands like any card: its slot's defence, and 3 stability.
 
-The counterplay is to hit them, and a deck that leaves a Relic standing pays for it every day; the AI values one as lasting its whole horizon (as a Hero), so it attacks them when it can. A Guard in front, or Tidewall shields, protect one: counterplay to the counterplay.
+The counterplay is to hit them: attacks and aimed heat wear one down over a few days, and removal ends it at once. The AI values one as lasting its whole horizon (as a Hero), so it goes after them.
+
+**Play-testing them (168 AI games, all starters).** As first written (no defence, 1 stability: any point of anything broke them), Relics were far too squishy: most lasted 1.4 rounds (gone at the rival's next day, to a free attack), the Crown under one; only Tide Pearl, its Tidewall shields guarding it, lasted (4.7). 3 stability alone helped a little (Ember Idol still 1.75, the Crown 0.9). With their slot's defence too (removal still reaching them), they last 2.2-5 rounds (Ember Idol 2.25, Crown 2.9, Frost Reliquary 4.0, Aegis Idol 4.75, Tide Pearl 5.1), more of them falling to removal, the answer meant for them; and the spread from 50% goes 8.6 → 7.1 (84 games a deck: Solar Lancers 51.2, Shard Overload 50.0, Abyssal Tide 71.4, Hive Bloom 51.2, Night Court 51.2, Forge Clans 39.3, Starwatch 53.6, Wildfire 32.1).
 
 | Relic | Cost | Bonus |
 |---|---|---|

@@ -69,8 +69,8 @@ export const BALANCE = {
   stabilityDawnHeat: 2,
   stabilityBurst: 1,
   stabilityCommand: 3,
-  /** A Relic's: it never fades, but any blow breaks it (Brittle). */
-  stabilityRelic: 1,
+  /** A Relic's: it never fades, and nothing restores it (Brittle); removal reaches it whatever its defence. */
+  stabilityRelic: 3,
   /** Stability can be restored up to this. */
   maxStability: 6,
   /** Kept shields (Deep Current) never exceed this. */
