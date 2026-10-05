@@ -3,7 +3,7 @@
 """Render the light each rarity gem throws out onto its card (src/ui/gems/light-*.png).
 
 The body inside the gem is trying to break out: a white dwarf's searing spikes and shimmering filaments, a
-sun's corona streaming out in curling streamers with prominences looping off its edge, a black hole's
+sun's corona streaming out in curling streamers and swelling plumes, a black hole's
 accretion streaks spiralling in and its lensed ring. Each is a few layers that CSS turns, breathes and
 flickers out of step (styles.css, "The rarity gem's light"), so the light never repeats.
 
@@ -72,15 +72,6 @@ def polar_noise(seed, n_th, n_r, sig_th, sig_r, warp=0.0):
     return map_coordinates(P, [ang / (2 * np.pi) * n_th, np.clip(r, 0, 1) * (n_r - 1)], order=1, mode='wrap')
 
 
-def splat(points, weights, sigma):
-    """Points (in image units) drawn as soft dots, summed."""
-    img = np.zeros((N, N))
-    xs = np.clip(((points[:, 0] + 1) / 2 * N).astype(int), 0, N - 1)
-    ys = np.clip(((points[:, 1] + 1) / 2 * N).astype(int), 0, N - 1)
-    np.add.at(img, (ys, xs), weights)
-    return gaussian_filter(img, sigma)
-
-
 def rays(light, seed, n, width, length, colour_in, colour_out, bright, angles=None):
     """Thin straight rays out of the gem: random filaments, or set spikes when `angles` is given."""
     g = np.random.default_rng(seed)
@@ -131,31 +122,28 @@ def sun_heat(t):
     t = np.clip(t, 0, 1)[..., None]
     return np.where(t < 0.33, mix(CORE, GOLD, t[..., 0] / 0.33), np.where(t < 0.66, mix(GOLD, ORANGE, (t[..., 0] - 0.33) / 0.33), mix(ORANGE, RED, (t[..., 0] - 0.66) / 0.34)))
 
-for i, (seed, warp) in enumerate([(31, 0.35), (32, -0.28)]):   # the corona: fine streamers, curling a little as they leave
+def around(seed, n, blur, turn=0.0):
+    """Noise that varies only round the circle (the same all the way out), 0 to 1, turned by `turn` radians."""
+    g = np.random.default_rng(seed)
+    ring = gaussian_filter(g.random(n), blur, mode='wrap'); ring = (ring - ring.min()) / (ring.max() - ring.min())
+    return np.interp(((th - turn) % (2 * np.pi)) / (2 * np.pi) * n, np.arange(n + 1), np.append(ring, ring[0]))
+
+for i, (seed, warp) in enumerate([(31, 0.3), (32, -0.25)]):   # the corona: soft rays, brighter and dimmer round it, curling a little
     L = Light()
-    s = polar_noise(seed, 1080, 128, 1.2, 20, warp)
-    s2 = polar_noise(seed + 100, 360, 128, 4, 12, warp * 1.3)
-    streak = np.clip(s * 1.5 - 0.66, 0, 1) ** 2 * (0.4 + 0.8 * s2)
-    L.add(10.0 * streak * np.exp(-near / (0.12 + 0.09 * s2)), sun_heat(0.25 + near / 0.32))
+    soft = polar_noise(seed, 540, 128, 3.0, 26, warp)                # soft rays
+    broad = polar_noise(seed + 100, 120, 128, 3, 20, warp)          # where the corona is thicker
+    ray = (0.35 + 0.65 * np.clip(soft * 1.4 - 0.3, 0, 1) ** 1.5) * (0.4 + 0.8 * broad)
+    L.add(5.0 * ray * np.exp(-near / (0.08 + 0.08 * broad)), sun_heat(0.15 + near / 0.5))
     L.add(1.4 * np.exp(-near / 0.05), CORE)
     L.save(f'light-sun-corona{i + 1}.png')
 
-for i, seed in enumerate([41, 42]):   # prominences: thin threads of plasma arching off the rim, broken and faint
-    g = np.random.default_rng(seed)
+for i, seed in enumerate([41, 42]):   # plumes: two or three broad tongues of corona rooted at the rim, which CSS swells and fades
     L = Light()
-    for _ in range(3):
-        a0, span, h = g.random() * 2 * np.pi, 0.1 + 0.16 * g.random(), 0.06 + 0.1 * g.random()
-        lean = (g.random() - 0.5) * 0.3
-        t = np.linspace(0, 1, 1400)
-        for strand in range(3):   # each loop a few threads, a hair apart
-            off = (strand - 1) * 0.006
-            rr = G * 0.98 + (h + off) * np.sin(np.pi * t)
-            aa = a0 + span * (t - 0.5) + lean * np.sin(np.pi * t) ** 2 + off
-            pts = np.stack([rr * np.cos(aa), rr * np.sin(aa)], axis=1)
-            knots = np.interp(t, np.linspace(0, 1, 12), g.random(12)) ** 2     # brighter and dimmer along it
-            w = (0.25 + 0.75 * knots) / len(t) * 90
-            L.add(splat(pts, w, 1.0) * 1.0, sun_heat(np.full((N, N), 0.3)))
-            L.add(splat(pts, w, 3.0) * 1.6, ORANGE)
+    tongue = around(seed, 360, 9, turn=np.pi * 0.85 * i)          # (the second set faces another way)
+    q = np.quantile(tongue, 0.8)
+    tongue = np.clip((tongue - q) / (1 - q), 0, 1) ** 1.3
+    texture = polar_noise(seed + 50, 540, 128, 2.5, 18, 0.25 if i == 0 else -0.25)
+    L.add(7.0 * tongue * (0.6 + 0.5 * texture) * np.exp(-near / (0.14 + 0.1 * tongue)), sun_heat(0.1 + near / 0.5))
     L.save(f'light-sun-flares{i + 1}.png')
 
 # ---------------------------------------------------------------- Anomaly: light dragged round a black hole

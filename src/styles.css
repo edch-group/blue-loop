@@ -4903,34 +4903,38 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 
 /* ---------- The rarity gem's light ---------- */
-/* The body in each gem is breaking out of it: its light spills faintly over the card, in the same fine detail as
-   the gem itself (scripts/render_gem_light.py). A white dwarf's glare and faint diffraction spikes breathe with
-   the gem while two fields of fine radial grain turn slowly against each other and shimmer; a sun's corona
-   streams out in fine streamers while thin threads of plasma arch off its rim and slowly swell; a black hole's
-   dust lanes are dragged round it, inward, past its rippling lensed ring. Everything moves slowly and by little,
-   each layer on its own clock and out of step with other cards (--gp). Only rotate, scale and opacity move,
-   which the compositor runs off the main thread. */
+/* The body in each gem is breaking out of it: its light spills over the card, in the same fine detail as the gem
+   itself (scripts/render_gem_light.py). A white dwarf's glare and diffraction spikes breathe with the gem while two
+   fields of fine radial grain turn against each other and shimmer; a sun's soft corona turns and breathes while
+   broad plumes swell out of it and fade, one after another; a black hole's dust lanes are dragged round it, inward,
+   past its rippling lensed ring. Each layer on its own clock, out of step with other cards (--gp). Only rotate,
+   scale and opacity move, which the compositor runs off the main thread. */
 .gem .gem-light { display: none; }
 /* (The light images are 1 / 0.26 gem-widths across, centred on the gem.) */
-.card .gem .gem-light { display: block; position: absolute; inset: -142.3%; z-index: -2; pointer-events: none; opacity: 1; }
-.card.kind-command .gem .gem-light { opacity: 1; }
+.card .gem .gem-light {
+  display: block; position: absolute; inset: -142.3%; z-index: -2; pointer-events: none;
+  /* Up and round the gem only: it fades out just below the gem, so it never crosses the type pill's word. */
+  -webkit-mask: linear-gradient(180deg, #000 50%, transparent 63%); mask: linear-gradient(180deg, #000 50%, transparent 63%);
+}
 .gem-light .gl { position: absolute; inset: 0; display: block; background-size: 100% 100%; will-change: transform, opacity; }
 .gl-spikes { background-image: var(--gem-lightDwarfSpikes); animation: glBreathe 3.8s ease-in-out infinite; animation-delay: calc(var(--gp) * -3.8s); }
-.gl-shimmer1 { background-image: var(--gem-lightDwarfShimmer1); animation: glTurn 300s linear infinite, glShimmer 7s ease-in-out infinite; animation-delay: calc(var(--gp) * -300s), calc(var(--gp) * -7s); }
-.gl-shimmer2 { background-image: var(--gem-lightDwarfShimmer2); animation: glTurnBack 220s linear infinite, glShimmer 9.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -220s), calc(var(--gp) * -9.5s - 3s); }
-.gl-sparks { background-image: var(--gem-lightDwarfSparks); animation: glTurn 480s linear infinite, glShimmer 6s ease-in-out infinite; animation-delay: calc(var(--gp) * -480s), calc(var(--gp) * -6s); }
-.gl-corona1 { background-image: var(--gem-lightSunCorona1); animation: glTurn 360s linear infinite, glBreathe 5.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -360s), calc(var(--gp) * -5.5s); }
-.gl-corona2 { background-image: var(--gem-lightSunCorona2); animation: glTurnBack 480s linear infinite, glShimmer 8s ease-in-out infinite; animation-delay: calc(var(--gp) * -480s), calc(var(--gp) * -8s); }
-.gl-flares1 { background-image: var(--gem-lightSunFlares1); animation: glTurn 600s linear infinite, glSwell 11s ease-in-out infinite; animation-delay: calc(var(--gp) * -600s), calc(var(--gp) * -11s); }
-.gl-flares2 { background-image: var(--gem-lightSunFlares2); animation: glTurnBack 780s linear infinite, glSwell 14s ease-in-out infinite; animation-delay: calc(var(--gp) * -780s), calc(var(--gp) * -14s - 5s); }
+.gl-shimmer1 { background-image: var(--gem-lightDwarfShimmer1); animation: glTurn 90s linear infinite, glShimmer 4.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -90s), calc(var(--gp) * -4.5s); }
+.gl-shimmer2 { background-image: var(--gem-lightDwarfShimmer2); animation: glTurnBack 65s linear infinite, glShimmer 6s ease-in-out infinite; animation-delay: calc(var(--gp) * -65s), calc(var(--gp) * -6s - 2s); }
+.gl-sparks { background-image: var(--gem-lightDwarfSparks); animation: glTurn 150s linear infinite, glTwinkle 3.2s ease-in-out infinite; animation-delay: calc(var(--gp) * -150s), calc(var(--gp) * -3.2s); }
+.gl-corona1 { background-image: var(--gem-lightSunCorona1); animation: glTurn 120s linear infinite, glBreathe 5.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -120s), calc(var(--gp) * -5.5s); }
+.gl-corona2 { background-image: var(--gem-lightSunCorona2); animation: glTurnBack 160s linear infinite, glShimmer 7s ease-in-out infinite; animation-delay: calc(var(--gp) * -160s), calc(var(--gp) * -7s); }
+/* The plumes: each swells outward from the rim and fades, then the other, as if the sun were pushing out. */
+.gl-flares1 { background-image: var(--gem-lightSunFlares1); animation: glTurn 200s linear infinite, glPlume 7s ease-out infinite; animation-delay: calc(var(--gp) * -200s), calc(var(--gp) * -7s); }
+.gl-flares2 { background-image: var(--gem-lightSunFlares2); animation: glTurnBack 260s linear infinite, glPlume 9s ease-out infinite; animation-delay: calc(var(--gp) * -260s), calc(var(--gp) * -9s - 4s); }
 /* (Turning forward, the lanes' spirals sweep inward: the hole is pulling the light in.) */
-.gl-swirl1 { background-image: var(--gem-lightHoleSwirl1); animation: glTurn 60s linear infinite, glShimmer 8s ease-in-out infinite; animation-delay: calc(var(--gp) * -60s), calc(var(--gp) * -8s); }
-.gl-swirl2 { background-image: var(--gem-lightHoleSwirl2); animation: glTurn 110s linear infinite, glShimmer 12s ease-in-out infinite; animation-delay: calc(var(--gp) * -110s), calc(var(--gp) * -12s - 4s); }
-.gl-lens { background-image: var(--gem-lightHoleLens); animation: glLens 6s ease-in-out infinite; animation-delay: calc(var(--gp) * -6s); }
+.gl-swirl1 { background-image: var(--gem-lightHoleSwirl1); animation: glTurn 24s linear infinite, glShimmer 5s ease-in-out infinite; animation-delay: calc(var(--gp) * -24s), calc(var(--gp) * -5s); }
+.gl-swirl2 { background-image: var(--gem-lightHoleSwirl2); animation: glTurn 42s linear infinite, glShimmer 7.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -42s), calc(var(--gp) * -7.5s - 3s); }
+.gl-lens { background-image: var(--gem-lightHoleLens); animation: glLens 4s ease-in-out infinite; animation-delay: calc(var(--gp) * -4s); }
 @keyframes glTurn { to { rotate: 360deg; } }
 @keyframes glTurnBack { to { rotate: -360deg; } }
-@keyframes glBreathe { 0%, 100% { scale: 0.97; opacity: 0.8; } 50% { scale: 1.03; opacity: 1; } }
-@keyframes glShimmer { 0%, 100% { opacity: 0.7; } 35% { opacity: 1; } 65% { opacity: 0.8; } }
-@keyframes glSwell { 0%, 100% { scale: 0.98; opacity: 0.7; } 50% { scale: 1.04; opacity: 1; } }
-@keyframes glLens { 0%, 100% { scale: 0.99; opacity: 0.8; } 50% { scale: 1.015; opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .gem-light .gl { animation-duration: 1200s, 30s; } .gl-spikes, .gl-lens { animation-duration: 30s; } }
+@keyframes glBreathe { 0%, 100% { scale: 0.95; opacity: 0.65; } 50% { scale: 1.05; opacity: 1; } }
+@keyframes glShimmer { 0%, 100% { opacity: 0.45; } 35% { opacity: 1; } 65% { opacity: 0.65; } 85% { opacity: 0.9; } }
+@keyframes glTwinkle { 0%, 100% { opacity: 0.3; } 30% { opacity: 1; } 55% { opacity: 0.5; } 75% { opacity: 0.9; } }
+@keyframes glPlume { 0% { scale: 0.85; opacity: 0; } 25% { opacity: 1; } 70% { opacity: 0.6; } 100% { scale: 1.2; opacity: 0; } }
+@keyframes glLens { 0%, 100% { scale: 0.98; opacity: 0.7; } 50% { scale: 1.03; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .gem-light .gl { animation-duration: 600s, 20s; } .gl-spikes, .gl-lens { animation-duration: 20s; } }
