@@ -359,7 +359,7 @@ function swirlTile(seed: number, n: number): string {
   let paths = '';
   for (let i = 0; i < n; i++) {
     const t = Math.pow(rnd(), 0.75);
-    const r0 = 15 + t * 33;
+    const r0 = 23 + t * 26;
     const a0 = rnd() * Math.PI * 2;
     const span = (0.5 + rnd() * 1.6) * (1.1 - t * 0.5);
     const steps = 8;
