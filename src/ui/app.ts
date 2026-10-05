@@ -4464,7 +4464,13 @@ export class App {
         .replace(/^(\s*)<button class="card /, `$1<div data-uid="${picked.uid}" class="card card-still `)
         .replace(/<\/button>\s*$/, '</div>')
         .replace(/ data-act="[^"]*"/, '');
-      return `<div class="stage stage-picked">${html}</div>`;
+      // A card that can also be set face down at Lightspeed: say so here, plainly (its slot can be out of sight).
+      const me = activePlayer(s);
+      const faceDown =
+        this.pending!.step === 'slot' && canSetFaceDown(me, picked.defId)
+          ? `<button class="btn stage-ls-btn" data-act="choose-slot" data-arg="ls" title="Set it face down in your Lightspeed slot: it springs when its trigger comes">⚡ set face down <small>+1 energy</small></button>`
+          : '';
+      return `<div class="stage stage-picked">${html}${faceDown}</div>`;
     }
     // Online, while your rival reads your card: say so (you can't act until they have).
 

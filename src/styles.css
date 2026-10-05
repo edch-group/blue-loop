@@ -4460,3 +4460,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .tableau-rival .ls-slot > * { width: 100% !important; height: 100% !important; }
 /* Both eyes on the viewer's left of each row. */
 .tableau-eye-rival { left: auto; right: calc(100% + var(--frame-pad, 12px) + 8px); }
+/* A card picked that can also go face down: the choice in the pane, under the card. */
+.stage-ls-btn { pointer-events: auto; justify-self: center; width: auto; min-width: 0; white-space: nowrap; font-size: 0.62rem; display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 14px; color: #a86d10; border-color: rgba(212, 149, 42, 0.6); box-shadow: 0 0 14px rgba(212, 149, 42, 0.35); }
+.stage-ls-btn small { font-size: 0.8em; opacity: 0.8; letter-spacing: 0.06em; }
+/* (With the choice under it, the card on the stage gives up a little height so it all fits.) */
+.stage-picked:has(.stage-ls-btn) { --scw: min(250px, calc(44 * var(--vh))); gap: 6px; }
