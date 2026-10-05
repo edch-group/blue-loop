@@ -4993,3 +4993,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
     0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.22) rgba(14, 16, 26, 0.55);
 }
 .card .art-wrap .gem .gem-window { box-shadow: inset 0 calc(var(--gs) * 0.09) calc(var(--gs) * 0.11) rgba(0, 0, 0, 0.7); }
+/* The bezel's metalwork: a raised band across its width (a dark groove where it grips the stone, a bright crest,
+   a darker outer edge), the same all the way round so it never looks tilted, under the light from above and a
+   faint glint at the top left and bottom right. */
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.22)),
+    conic-gradient(from 315deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 10%, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0) 60%, rgba(255, 255, 255, 0) 90%, rgba(255, 255, 255, 0.5)),
+    radial-gradient(circle closest-side, var(--m-lo) 0 74%, color-mix(in srgb, var(--m-lo) 70%, #000) 76.5%, var(--m-mid) 81%, var(--m-hi) 86%, var(--m-mid) 92%, var(--m-lo) 97.5%, color-mix(in srgb, var(--m-lo) 60%, #000) 100%);
+}
