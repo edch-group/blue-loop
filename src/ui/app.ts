@@ -4006,9 +4006,34 @@ export class App {
     sound.hover();
     const view = this.root.querySelector('.table-view');
     if (!view) return;
+    const game = view.querySelector<HTMLElement>(':scope > .game');
+    // Zooming in: the board is laid out at its zoomed size at once (to stay sharp), then shown easing in from where
+    // the tableau stood, tilting up as it comes (as zooming out tilts it back down).
+    const spanOf = (which: 'rival' | 'mine') => {
+      const parts = [...view.querySelectorAll<HTMLElement>(`.tableau-${which} .tableau-row, .tableau-${which} .cmd-slot, .tableau-${which} .ls-slot`)].map((el) => el.getBoundingClientRect());
+      if (!parts.length) return null;
+      const left = Math.min(...parts.map((r) => r.left)), right = Math.max(...parts.map((r) => r.right));
+      const top = Math.min(...parts.map((r) => r.top)), bottom = Math.max(...parts.map((r) => r.bottom));
+      return { x: (left + right) / 2, y: (top + bottom) / 2, w: right - left };
+    };
+    const before = side && game && !reducedMotion() ? spanOf(side) : null;
+    if (before) for (const a of game!.getAnimations()) a.cancel();
     view.classList.toggle('zoom-rival', side === 'rival');
     view.classList.toggle('zoom-mine', side === 'mine');
     this.fitZoom();
+    const after = before && side ? spanOf(side) : null;
+    if (game && before && after && after.w > 0) {
+      game.style.transition = 'none';
+      const end = getComputedStyle(game).transform;
+      // (Its middle as laid out, which a scale put in front of its transform works about.)
+      game.style.transform = 'none';
+      const box = game.getBoundingClientRect();
+      game.style.transform = '';
+      const ox = box.left + box.width / 2, oy = box.top + box.height / 2;
+      const k = before.w / after.w;
+      const dx = before.x - ox - k * (after.x - ox), dy = before.y - oy - k * (after.y - oy);
+      game.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k}) ${end}` }, { transform: end }], { duration: 450, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }).finished.finally(() => (game.style.transition = '')).catch(() => undefined);
+    }
     const ctl = this.root.querySelector('.board-zoom');
     if (ctl) ctl.outerHTML = this.renderZoomControls();
   }
@@ -4052,9 +4077,11 @@ export class App {
       bz *= Math.min((w - 2 * 76) / r.width, (h * 0.94) / r.height);
       set(bz, zx, zy);
     }
-    for (let i = 0; i < 2; i++) {
+    // (The board is tilted: a move comes out a little short on screen, so it is measured and moved again.)
+    for (let i = 0; i < 6; i++) {
       const r = span();
       if (!r) break;
+      if (Math.abs(w / 2 - (r.left + r.width / 2)) < 0.5 && Math.abs(h / 2 - (r.top + r.height / 2)) < 0.5) break;
       zx += w / 2 - (r.left + r.width / 2);
       zy += h / 2 - (r.top + r.height / 2);
       set(bz, zx, zy);
