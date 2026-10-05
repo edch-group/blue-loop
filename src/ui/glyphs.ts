@@ -360,7 +360,7 @@ export function rarityGem(def: CardDef): string {
       : r === 'stellar'
         ? '<i class="g g-sun-corona"></i><i class="g g-sun-disc"></i>'
         : '<i class="g g-dwarf-glow"></i><i class="g g-dwarf"></i>';
-  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}"><i class="g g-socket"></i><i class="gem-window">${body}</i><i class="g g-glass"></i></span>`;
+  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}"><i class="gem-light"></i><i class="g g-socket"></i><i class="gem-window">${body}</i><i class="g g-glass"></i></span>`;
 }
 
 // The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
