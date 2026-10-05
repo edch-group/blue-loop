@@ -4645,13 +4645,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card .art-wrap .art-frame { box-shadow: 0 0 0 0.6px rgba(255, 255, 255, 0.95), 0 2px 3px rgba(40, 40, 60, 0.16); }
 /* What a card's Fusion cards add: under its own text, a thin rule above each in the fused card's colour. */
 .card .card-fused-text { display: block; margin-top: 0.25em; padding-top: 0.2em; border-top: 1px solid color-mix(in srgb, var(--fk) 55%, transparent); }
-/* A card with Fusion cards behind it: one shape with them. Its top corners square, their tabs exactly its width
-   (over its border too), with its own ring round the outside (cut off at their foot, where they meet it). */
-.card.card-has-fused { border-top-left-radius: 0; border-top-right-radius: 0; }
-.card.card-has-fused .fused-behind {
-  left: -1px; right: -1px; border-color: color-mix(in srgb, var(--fk) 55%, #c9ced8);
-  border-radius: 9px 9px 0 0; box-shadow: inherit; clip-path: inset(-24px -24px 0 -24px);
-}
 /* The gem's bump, as part of the card: its fill only above the card's edge (none over the picture or the
    type pill), its rim ending exactly where the card's own edge line does (over its 1px border), so the
    card's outline runs up and round the gem. A touch smaller, and the pill a touch lower, so the gem
@@ -4712,4 +4705,51 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   /* Only within the pill (and its rim, 1px above it). */
   clip-path: inset(calc(var(--pill-y) + var(--notch) - 0.85em) 0 0 0);
   pointer-events: none;
+}
+/* No circuit traces in the strip along the card's top, between its edge and its picture (where the gem's bump
+   and the type pill sit): a plain band of the card's top colour, which the bump shares exactly. And the pill's
+   notch is the bump's own circle. */
+.card { --bgtop: #fefefe; --strip: calc(var(--cw, 100px) * 0.06); }
+.card.rarity-stellar { --bgtop: #fffdf6; }
+.card.rarity-anomaly { --bgtop: #fdfaff; }
+.card:not(.kind-command) {
+  background-image: linear-gradient(var(--bgtop), var(--bgtop)), var(--bg1), var(--bg2);
+  background-size: 100% var(--strip), calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05), 100% 100%;
+  background-position: 0 0, 0 0, 0 0;
+  background-repeat: no-repeat, repeat, no-repeat;
+}
+.card:not(.kind-command) .art-wrap .gem::before {
+  background-color: var(--bgtop);
+  background-image: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--kc) 12%, transparent), transparent 70%);
+  background-repeat: no-repeat;
+  background-size: calc(var(--cw, 100px) - 2px) calc((var(--cw, 100px) * 1.4 - 2px) * 0.45);
+}
+.card .card-type { --notch: calc(var(--gem-s) * 0.66); }
+.card .art-wrap .gem::before, .card .art-wrap .gem::after { opacity: 1; }
+/* (The kind tint, the card's ::before, covers only the card: the bump, above its edge, draws the very same
+   ellipse itself, centred where the card's is, so it runs on past the edge. Heroes' gradient, at their top
+   middle, is this grey.) */
+.card .art-wrap .gem::before {
+  --tw: calc(var(--cw, 100px) - 2px);
+  --th: calc((var(--cw, 100px) * 1.4 - 2px) * 0.45);
+  background-image: radial-gradient(ellipse calc(var(--tw) * 0.7071) calc(var(--th) * 0.9899) at var(--half) calc(var(--th) * 0.3 + var(--half) + 1px), color-mix(in srgb, var(--kc) 12%, transparent), transparent 70%);
+  background-size: auto; background-position: 0 0; background-repeat: no-repeat;
+}
+.card:not(.kind-command) .art-wrap .gem::before { background-color: var(--bgtop); }
+.card.kind-command .art-wrap .gem::before { background-color: #677083; }
+
+/* Fusion cards behind a card: an extension of it, the card itself unchanged. Each tab is exactly the card's
+   width (over its border), with the card's own top corners, and reaches down behind the card's rounded top
+   corners (shown only outside them), so no gap opens either side where the two meet. */
+.card .fused-behind {
+  --fr: calc(var(--cw, 100px) * 0.08);
+  left: -1px; right: -1px; bottom: calc(100% + 1px - var(--fr)); height: calc(var(--fh) * (var(--fi) + 1) + var(--fr));
+  border-radius: var(--fr) var(--fr) 0 0; border-bottom: 0;
+  -webkit-mask: linear-gradient(#000, #000) 0 0 / 100% calc(100% - var(--fr)) no-repeat, radial-gradient(circle at 100% 100%, transparent calc(var(--fr) - 0.5px), #000 var(--fr)) 0 100% / var(--fr) var(--fr) no-repeat, radial-gradient(circle at 0 100%, transparent calc(var(--fr) - 0.5px), #000 var(--fr)) 100% 100% / var(--fr) var(--fr) no-repeat;
+  mask: linear-gradient(#000, #000) 0 0 / 100% calc(100% - var(--fr)) no-repeat, radial-gradient(circle at 100% 100%, transparent calc(var(--fr) - 0.5px), #000 var(--fr)) 0 100% / var(--fr) var(--fr) no-repeat, radial-gradient(circle at 0 100%, transparent calc(var(--fr) - 0.5px), #000 var(--fr)) 100% 100% / var(--fr) var(--fr) no-repeat;
+}
+/* (The kind tint the bump draws itself; above a rule of the same layers it must win over.) */
+.card.card .art-wrap .gem::before {
+  background-image: radial-gradient(ellipse calc(var(--tw) * 0.7071) calc(var(--th) * 0.9899) at var(--half) calc(var(--th) * 0.3 + var(--half) + 1px), color-mix(in srgb, var(--kc) 12%, transparent), transparent 70%);
+  background-size: auto; background-position: 0 0; background-repeat: no-repeat; opacity: 1;
 }
