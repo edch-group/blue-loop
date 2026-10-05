@@ -1,0 +1,48 @@
+# Generates card art on fal.ai, so the API key stays a repository secret and never reaches a dev machine or agent.
+# To run it, write "<race> [card ids...]" into scripts/cardart/request.txt and push; the pictures are committed
+# back to the same branch and the request file is emptied.
+name: Card art
+
+on:
+  push:
+    paths: [scripts/cardart/request.txt]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cardart-${{ github.ref }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read request
+        id: req
+        run: echo "args=$(tr -s '[:space:]' ' ' < scripts/cardart/request.txt | sed 's/^ *//;s/ *$//')" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v5
+        if: steps.req.outputs.args != ''
+        with:
+          python-version: '3.12'
+      - name: Generate
+        if: steps.req.outputs.args != ''
+        env:
+          FAL_API_KEY: ${{ secrets.FAL_API_KEY }}
+          ARGS: ${{ steps.req.outputs.args }}
+        run: |
+          pip install pillow
+          python3 scripts/cardart/generate.py $ARGS
+      - name: Commit pictures
+        if: always() && steps.req.outputs.args != ''
+        env:
+          ARGS: ${{ steps.req.outputs.args }}
+        run: |
+          : > scripts/cardart/request.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/cardart/request.txt
+          for d in scripts/cardart/generated src/assets/cards; do [ -e "$d" ] && git add "$d"; done
+          git commit -m "Card art generated: $ARGS" || exit 0
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
