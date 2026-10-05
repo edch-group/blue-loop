@@ -83,7 +83,7 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 // sparse melody of bell-like plucks (soft triangles, bright, with a dotted-
 // quarter echo filling the gaps) sings short phrases with room between them,
 // rolling a quick chord into its height once a time round, and every third
-// time round breaking into a climbing, quickening crescendo over swelling synths,
+// time round breaking into a long, climbing run of triplets over swelling synths,
 // one set of phrases answered by another the next time round; beneath, a soft
 // low-high rock on each chord's root and fifth; the pads stay low.
 
@@ -773,68 +773,84 @@ class SoundBoard {
   }
 
   /**
-   * A crescendo across one chord of the campaign score: the melody breaks into an arpeggio that climbs and
-   * quickens bar by bar (eighths, then triplets, sixteenths and thirty-seconds, rising towards E7), over a chord of
-   * detuned saws whose filter opens as it swells, a rising rush of air and a deep swell beneath.
+   * Part of the campaign score's crescendo, which runs six bars from the start of the Fmaj7 to halfway through the
+   * Em7 (`from` is the bar of those six this part starts on, `bars` how many it covers). The melody plays one bar
+   * of eighths, then triplets all the way, slowly climbing the chord and growing louder, over a chord of detuned
+   * saws whose filter opens as it swells; in the last two bars a rush of air rises into the peak.
    */
-  private crescendo(at: number, len: number, barLen: number, tones: Set<number>, bell: (t: number, f: number, gain: number, dur?: number) => void, bus: GainNode) {
+  private crescendo(
+    at: number,
+    barLen: number,
+    tones: Set<number>,
+    chord: string[],
+    from: number,
+    bars: number,
+    bus: GainNode,
+    bell: (t: number, f: number, gain: number, dur?: number) => void,
+  ) {
     const ctx = this.ctx!;
-    const end = at + len;
-    // The arpeggio: up and down a window of chord tones that climbs as the gaps shrink and the notes grow louder.
+    const total = 6;
+    const end = at + bars * barLen;
     const ladder: number[] = [];
     for (let n = midiOf('E5'); n <= midiOf('E7'); n++) if (tones.has(n % 12)) ladder.push(n);
-    const gaps = [0.42, 0.28, 0.14, 0.07];
-    for (let b = 0; b < 4; b++) {
-      const lo = b * 2, hi = Math.min(ladder.length - 1, lo + 4 + b * 2);
-      const window = [...ladder.slice(lo, hi + 1), ...ladder.slice(lo + 1, hi).reverse()];
+    // Start where the climb has got to: the ladder's position by bar, in either chord.
+    const startAt = midiOf('E5') + from * 2.5;
+    const base = Math.max(0, ladder.findIndex((n) => n >= startAt));
+    for (let b = 0; b < bars; b++) {
+      const bar = from + b;
+      const gap = bar === 0 ? CAMPAIGN_EIGHTH : CAMPAIGN_EIGHTH * (2 / 3);
+      const lo = Math.min(ladder.length - 5, base + Math.floor(b * 0.75));
+      const window = [...ladder.slice(lo, lo + 5), ...ladder.slice(lo + 1, lo + 4).reverse()];
       let k = 0;
-      for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += gaps[b], k++) {
-        const progress = (t - at) / len;
-        bell(t, hzOf(window[k % window.length]), 0.016 + 0.04 * progress, Math.max(0.35, gaps[b] * 5));
+      for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += gap, k++) {
+        const progress = (bar + (t - at - b * barLen) / barLen) / total;
+        bell(t, hzOf(window[k % window.length]), 0.016 + 0.022 * progress, CAMPAIGN_EIGHTH * 2.4);
       }
     }
-    // The supporting chord: detuned saws through a lowpass opening from dark to bright, swelling, then let go.
+    // The supporting chord: detuned saws through a lowpass that opens, swelling across the whole crescendo.
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.Q.value = 2;
-    filter.frequency.setValueAtTime(300, at);
-    filter.frequency.exponentialRampToValueAtTime(3200, end);
+    filter.Q.value = 1.5;
+    const level = (bar: number) => 0.15 + 0.85 * (bar / total);
+    const cutoff = (bar: number) => 400 * Math.pow(7, bar / total);
+    filter.frequency.setValueAtTime(cutoff(from), at);
+    filter.frequency.exponentialRampToValueAtTime(cutoff(from + bars), end);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, at);
-    g.gain.linearRampToValueAtTime(1, end);
-    g.gain.linearRampToValueAtTime(0, end + 0.8);
+    g.gain.linearRampToValueAtTime(level(from), at + (from === 0 ? barLen : 0.4));
+    g.gain.linearRampToValueAtTime(level(from + bars), end);
+    g.gain.linearRampToValueAtTime(0, end + (from + bars === total ? 1.6 : 0.4));
     filter.connect(g).connect(bus);
-    for (const n of ['F3', 'C4', 'A4', 'E5']) {
+    for (const n of chord)
       for (const detune of [-9, 9]) {
         const o = ctx.createOscillator();
         o.type = 'sawtooth';
         o.frequency.value = hz(n);
         o.detune.value = detune;
         const lv = ctx.createGain();
-        lv.gain.value = 0.011;
+        lv.gain.value = 0.008;
         o.connect(lv).connect(filter);
         o.start(at);
-        o.stop(end + 1);
+        o.stop(end + 2);
       }
-    }
-    // A rush of air rising into the peak, and a deep swell beneath.
-    this.breath({ dur: len + 0.3, freq: 300, to: 6000, type: 'bandpass', q: 1.2, gain: 0.07, attack: len, delay: this.until(at), out: bus });
-    this.note(at, hz('F1'), len, { gain: 0.05, type: 'triangle', attack: len * 0.9, release: 0.8, cutoff: 220, out: bus });
+    // The swell at the end: a rush of air rising over the last two bars into the peak.
+    if (from + bars === total) this.breath({ dur: barLen * 2 + 0.3, freq: 300, to: 5000, type: 'bandpass', q: 1.2, gain: 0.05, attack: barLen * 2, delay: this.until(end - barLen * 2), out: bus });
   }
 
-  /** The crescendo's peak: one high bell, and the chord cascading down from it. */
+  /** The crescendo's peak: one high bell, with the chord rolled softly up into it. */
   private climax(at: number, tones: Set<number>, bell: (t: number, f: number, gain: number, dur?: number) => void) {
     const top = midiOf('E7');
-    bell(at, hzOf(top), 0.05, CAMPAIGN_EIGHTH * 8);
-    const fall: number[] = [];
-    for (let n = top - 1; fall.length < 9; n--) if (tones.has(n % 12)) fall.push(n);
-    fall.forEach((n, j) => bell(at + 0.12 + j * 0.06, hzOf(n), 0.034 - j * 0.002, 1.4));
+    const roll: number[] = [];
+    for (let n = top - 1; roll.length < 3; n--) if (tones.has(n % 12)) roll.push(n);
+    roll.reverse().forEach((n, j) => bell(at - (3 - j) * CAMPAIGN_ROLL, hzOf(n), 0.02));
+    bell(at, hzOf(top), 0.04, CAMPAIGN_EIGHTH * 8);
   }
 
   /**
    * The campaign map's score. The drone, bass and pads alone for the first chord; then the rock and the high
    * melody join (its call and answer alternating by round), and the rock rests for a chord every fourth time round.
-   * Every third time round from the second, the melody's Fmaj7 becomes a crescendo, peaking on the Em7.
+   * Every third time round from the second, the melody turns into a long crescendo of triplets from the Fmaj7,
+   * peaking halfway through the Em7.
    * Scheduled a chord at a time, just ahead of the audio clock.
    */
   private campaignScore(ctx: AudioContext, bus: GainNode) {
@@ -924,15 +940,19 @@ class SoundBoard {
       const tones = new Set(c.pad.map((n) => midiOf(n) % 12));
       const rising = round % 3 === 1; // a crescendo through the Fmaj7 this time round, peaking on the Em7
       if (rising && index === 2) {
-        // Open the melody's filter right up for the climb, and settle it back a few seconds after the peak.
+        // Open the melody's filter for the climb (it peaks halfway through the Em7), then settle it back.
+        const peak = at + chordLen + barLen * 2;
         orbit.frequency.setValueAtTime(2600, at);
-        orbit.frequency.linearRampToValueAtTime(7000, at + chordLen);
-        orbit.frequency.setValueAtTime(7000, at + chordLen + 3);
-        orbit.frequency.linearRampToValueAtTime(2600, at + chordLen + 6);
-        return this.crescendo(at, chordLen, barLen, tones, bell, bus);
+        orbit.frequency.linearRampToValueAtTime(5500, peak);
+        orbit.frequency.setValueAtTime(5500, peak + 2);
+        orbit.frequency.linearRampToValueAtTime(2600, peak + 5);
+        return this.crescendo(at, barLen, tones, ['F3', 'C4', 'A4', 'E5'], 0, 4, bus, bell);
       }
-      if (rising && index === 3) this.climax(at, tones, bell);
-      const phrase = CAMPAIGN_PHRASES[round % 2][index].filter(([e]) => !(rising && index === 3 && e < 12));
+      if (rising && index === 3) {
+        this.crescendo(at, barLen, tones, ['E3', 'B3', 'G4', 'D5'], 4, 2, bus, bell);
+        this.climax(at + barLen * 2, tones, bell);
+      }
+      const phrase = CAMPAIGN_PHRASES[round % 2][index].filter(([e]) => !(rising && index === 3 && e <= 12));
       const pitches = phrase.map(([, n]) => midiOf(n));
       const top = pitches.indexOf(Math.max(...pitches));
       phrase.forEach(([e, n], i) => {
