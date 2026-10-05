@@ -147,7 +147,7 @@ class Scene:
     # ---------------------------------------------------------------- light
     def glow(self, x, y, r, c=None, a=0.8):
         """A soft round glow (a pool of light, not a hard disc)."""
-        c = c or self.p['glow']
+        c = self.p['glow'] if c is None else c
         d = np.hypot(X - x, Y - y) / max(r, 1e-3)
         self.add(c, a * 0.9 * (np.exp(-d * d * 3) * 0.8 + 0.25 / (1 + 12 * d * d)))
 
@@ -160,7 +160,7 @@ class Scene:
         self.add(c, a * np.exp(-(rel * d / width) ** 2) * np.exp(-d / lens) * smooth(0, 2, d))
 
     def sun(self, x, y, r, c=None, rays=0, corona=1.0):
-        c = c or self.p['glow']
+        c = self.p['glow'] if c is None else c
         cc = col(c)
         hot = ('#fffaf0', c, '#%02x%02x%02x' % tuple(int(v) for v in np.clip((cc ** (1 / 2.2)) * 255 * np.array([1.0, 0.7, 0.45]), 0, 255)))
         if r < 5:
@@ -176,7 +176,7 @@ class Scene:
 
     def beam(self, x1, y1, x2, y2, w, c=None, fade=True, core='#ffffff', a=1.0):
         """A tapering beam of light from (x1, y1), hot white at its root, fading out toward (x2, y2)."""
-        c = c or self.p['glow']
+        c = self.p['glow'] if c is None else c
         pts = [(x1, y1), (x2, y2)]
         sl = roi(pts, w * 14 + 12)
         if sl is None: return
@@ -199,7 +199,7 @@ class Scene:
         if core: self.add(core, a * f * 1.8 * np.exp(-(d / (width * 0.35 + 0.04)) ** 2), sl)
 
     def bolt(self, x1, y1, x2, y2, c=None, kinks=5, w=1.6):
-        c = c or self.p['accent']
+        c = self.p['accent'] if c is None else c
         def jag(a, b, depth):
             if depth == 0: return [a, b]
             mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
@@ -218,7 +218,7 @@ class Scene:
 
     def rings(self, x, y, r0, n, gap, c=None, a=0.7):
         """Concentric rings of light: a pulse, a sound, a field."""
-        c = c or self.p['accent']
+        c = self.p['accent'] if c is None else c
         d = np.hypot(X - x, Y - y)
         for i in range(n):
             r = r0 + i * gap; w = max(0.25, 0.55 - i * 0.08)
@@ -229,7 +229,7 @@ class Scene:
 
     def orbit(self, x, y, rx, ry, rot, c=None, w=1.2, a=0.8):
         """A tilted orbit: a fine ring of light."""
-        c = c or self.p['accent']
+        c = self.p['accent'] if c is None else c
         t = np.radians(rot)
         u = (X - x) * np.cos(t) + (Y - y) * np.sin(t); v = -(X - x) * np.sin(t) + (Y - y) * np.cos(t)
         e = np.sqrt((u / rx) ** 2 + (v / ry) ** 2)
@@ -239,7 +239,7 @@ class Scene:
         self.add(c, a * (1.2 * np.exp(-(d / ww) ** 2) + 0.1 * np.exp(-d / (ww * 5))))
 
     def motes(self, x, y, n, spread, c=None, size=1.4):
-        c = c or self.p['glow']
+        c = self.p['glow'] if c is None else c
         buf = np.zeros((H, W), np.float32)
         for _ in range(n):
             a = self.g.random() * 2 * np.pi; d = spread * np.sqrt(self.g.random())
@@ -347,7 +347,7 @@ class Scene:
 
     def ground(self, y, c=None, bulge=8):
         """A world's curve across the foot of the picture, its rim lit by its atmosphere."""
-        c = c or self.p['deep']
+        c = self.p['deep'] if c is None else c
         R = (85 ** 2 + bulge ** 2) / (2 * bulge)
         cx, cy = 80, y + R
         d = np.hypot(X - cx, Y - cy)
@@ -364,7 +364,7 @@ class Scene:
 
     def dome(self, x, y, r, c=None):
         """A dome of hard light: clear at the middle, bright at the rim, with a fine lattice."""
-        c = c or self.p['glow']
+        c = self.p['glow'] if c is None else c
         nx, ny = (X - x) / r, (y - Y) / r
         rr = np.sqrt(nx * nx + ny * ny)
         inside = (rr < 1) & (ny > 0)
@@ -382,7 +382,7 @@ class Scene:
 
     def shield_disc(self, x, y, r, c=None):
         """A round shield of hard light, seen face on."""
-        c = c or self.p['accent']
+        c = self.p['accent'] if c is None else c
         d = np.hypot(X - x, Y - y) / r
         m = smooth(1.0, 0.96, d)
         nz = np.sqrt(np.clip(1 - d * d * 0.85, 0, 1))
@@ -395,14 +395,17 @@ class Scene:
         self.glow(x, y, r * 1.5, c, 0.25)
 
     def hexagon(self, x, y, r, c=None, stroke='#ffffff'):
-        c = c or self.p['glow']
+        c = self.p['glow'] if c is None else c
         pts = [(x + np.cos(np.radians(i * 60 + 30)) * r, y + np.sin(np.radians(i * 60 + 30)) * r) for i in range(6)]
-        self.energy(pts, c, 1.0, rim=0.9, fill=0.5)
+        self.energy(pts, c, 1.0, rim=1.3, fill=0.12, bevel=r * 0.12)
+        inner = [(x + (px - x) * 0.6, y + (py - y) * 0.6) for px, py in pts]
+        self.plasma(inner + [inner[0]], 0.25, c, 0.5, flicker=False)
         self.plasma(pts + [pts[0]], 0.35, stroke, 0.7, flicker=False)
+        self.add('#ffffff', 1.0 * np.exp(-(((X - (x - r * 0.35)) / (r * 0.25)) ** 2 + ((Y - (y - r * 0.4)) / (r * 0.15)) ** 2)))
 
     def crystal(self, x, y, h, w, rot=0, c=None, a=1.0):
         """A faceted crystal (a hexagonal prism with pointed ends), raymarched and lit, the sky seen through it."""
-        c = c or self.p['glow']
+        c = self.p['glow'] if c is None else c
         r = w / 2 / 10; L = h * 0.18 / 10; T = h * 0.32 / 10
         Rz = P_rot(0.35, 0.5, np.radians(-rot))
         sdf = shard_sdf([(np.zeros(3, np.float32), Rz, r, L, T)])
@@ -433,7 +436,7 @@ class Scene:
 
     def card(self, x, y, rot, c=None, w=18):
         """A playing card, lit, with a glowing picture window."""
-        c = c or self.p['glow']
+        c = self.p['glow'] if c is None else c
         h = w * 1.4
         pts = rotate_pts([(x - w / 2, y - h / 2), (x + w / 2, y - h / 2), (x + w / 2, y + h / 2), (x - w / 2, y + h / 2)], rot, x, y)
         self.solid(pts, mix('#fffaf0', c, 0.35), bevel=0.5, shine=0.5, edge='#ffffff')
@@ -460,7 +463,7 @@ class Scene:
             self.glow(x + w * (0.2 + i * 0.12), y + h * 0.25, 0.9, self.p['glow'], 0.9)
 
     def waves(self, y, c=None, amp=3, n=3, a=0.8):
-        c = c or self.p['accent']
+        c = self.p['accent'] if c is None else c
         for k in range(n):
             yy = y + k * amp * 2.2
             line = yy + amp * 0.5 * np.sin(X / 20 * 2 * np.pi + k)
@@ -469,7 +472,7 @@ class Scene:
             self.add(c, a * (1 - k * 0.25) * (1.2 * np.exp(-(d / w) ** 2) + 0.15 * np.exp(-d / (w * 4))))
 
     def mushroom(self, x, y, h, w, cap=None, lean=0):
-        cap = cap or self.p['accent']
+        cap = self.p['accent'] if cap is None else cap
         tx = x + lean
         stalk = quad((x - w * 0.09, y), (x + lean * 0.4, y - h * 0.5), (tx - w * 0.07, y - h)) + quad((tx + w * 0.07, y - h), (x + lean * 0.4 + w * 0.12, y - h * 0.5), (x + w * 0.09, y))
         self.solid(stalk, '#d8d0e0', bevel=1.2, shine=0.3)
