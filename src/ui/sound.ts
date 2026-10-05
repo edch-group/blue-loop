@@ -924,6 +924,10 @@ class SoundBoard {
     const chordLen = barLen * 4;
     // A breath before the first note, so the rock's opening note lands whole.
     const t0 = ctx.currentTime + 0.3;
+    // Everything but the rock goes through this, which dips gently on every rock note and recovers: a sidechain,
+    // so the whole score seems to breathe with the bass.
+    const mix = ctx.createGain();
+    mix.connect(bus);
 
     // The drone, as in the menus: detuned triangles on A through a slowly breathing lowpass, held under every chord.
     const droneFilter = ctx.createBiquadFilter();
@@ -937,7 +941,7 @@ class SoundBoard {
     const droneGain = ctx.createGain();
     droneGain.gain.setValueAtTime(0, t0);
     droneGain.gain.linearRampToValueAtTime(0.06, t0 + 4);
-    droneFilter.connect(droneGain).connect(bus);
+    droneFilter.connect(droneGain).connect(mix);
     const drones = [55, 82.41, 110].map((f, i) => {
       const o = ctx.createOscillator();
       o.type = 'triangle';
@@ -975,11 +979,11 @@ class SoundBoard {
     melody.Q.value = 0.5;
     melody.frequency.value = 4000;
     melody.connect(orbit);
-    orbit.connect(bus);
+    orbit.connect(mix);
     orbit.connect(echo).connect(echoTone).connect(feedback).connect(echo);
-    echoTone.connect(echoWet).connect(bus);
+    echoTone.connect(echoWet).connect(mix);
     sweep.start(t0);
-    this.musicNodes = [droneFilter, lfo, lfoDepth, droneGain, ...drones, melody, orbit, sweep, sweepDepth, echo, feedback, echoTone, echoWet];
+    this.musicNodes = [mix, droneFilter, lfo, lfoDepth, droneGain, ...drones, melody, orbit, sweep, sweepDepth, echo, feedback, echoTone, echoWet];
 
     // The haze's distortion: a hard-driven tanh curve, clearly audible.
     const curve = new Float32Array(new ArrayBuffer(1024 * 4));
@@ -997,7 +1001,7 @@ class SoundBoard {
     const lead = (t: number, f: number, gain: number, len = eighth * 5) => {
       if (!held) {
         len = Math.min(len, eighth * 1.6);
-        this.note(t, f / 2, len, { gain: gain * 0.22, type: 'sine', attack: 0.02, release: 0.5, out: melody });
+        this.note(t, f / 2, len, { gain: gain * 0.22, type: 'sine', attack: 0.01, release: 0.5, out: melody });
       }
       // The original voice underneath: a bell-like pluck (a triangle with a little saw), ringing into the echo.
       const d = this.until(t);
@@ -1014,7 +1018,9 @@ class SoundBoard {
       lp.frequency.value = 2400;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(level, t + Math.min(0.08, len / 3));
+      // In the opening it strikes with the pluck and the sine (all reach full in 10 ms, so they land as one note,
+      // not a flam); with the haze it swells in a little.
+      g.gain.linearRampToValueAtTime(level, t + (held ? Math.min(0.08, len / 3) : 0.01));
       g.gain.linearRampToValueAtTime(level * 0.75, t + len);
       g.gain.linearRampToValueAtTime(0, t + len + release);
       shaper.connect(lp).connect(g).connect(melody);
@@ -1041,9 +1047,9 @@ class SoundBoard {
     beaconTone.frequency.value = 2600;
     const beaconWet = ctx.createGain();
     beaconWet.gain.value = 0.5;
-    beacon.connect(beaconDry).connect(bus);
+    beacon.connect(beaconDry).connect(mix);
     beacon.connect(beaconTone);
-    beaconWet.connect(bus);
+    beaconWet.connect(mix);
     this.musicNodes.push(beacon, beaconDry, beaconTone, beaconWet);
     [0.137, 0.211, 0.293, 0.389, 0.463].forEach((time, i) => {
       const d = ctx.createDelay(1);
@@ -1112,22 +1118,26 @@ class SoundBoard {
       held = hazy;
       // Pads, as the menu score voices them, but kept low (they swell in, from the first chord on, under the rock).
       c.pad.forEach((n, i) => {
-        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
+        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: mix };
         this.voice(hz(n), opts);
         this.voice(hz(n), { ...opts, detune: 9, gain: 0.007 });
       });
       // The falling bass: a held triangle and a soft sine an octave up.
-      this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: bus });
-      this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: bus });
+      this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: mix });
+      this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: mix });
       // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle).
       for (let b = 0; b < 4; b++)
         c.rock.forEach((n, k) => {
-          const d = this.until(at + b * barLen + k * eighth * 3);
+          const t = at + b * barLen + k * eighth * 3;
+          const d = this.until(t);
+          // The sidechain: everything else dips about 2 dB as the note lands, then breathes back up.
+          mix.gain.setTargetAtTime(0.8, t, 0.012);
+          mix.gain.setTargetAtTime(1, t + 0.06, 0.28);
           this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
           this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
         });
       // The haze: long, drawn-out chords on saws, hard-distorted and filtered, overlapping (off the rock's notes).
-      if (hazy) this.haze(at, chordLen, c.haze, curve, part === 2 && index === 0, bus);
+      if (hazy) this.haze(at, chordLen, c.haze, curve, part === 2 && index === 0, mix);
       // The beacon comes in with the haze, at the top of every chord.
       if (hazy) ring(at, hz(c.beacon));
       // The melody waits, in the opening, for the fourth chord.
@@ -1140,11 +1150,11 @@ class SoundBoard {
         orbit.frequency.linearRampToValueAtTime(4000, at + chordLen + barLen * 2);
         orbit.frequency.setValueAtTime(4000, at + chordLen * 2);
         orbit.frequency.linearRampToValueAtTime(1900, at + chordLen * 2 + 3);
-        return this.crescendo(at, barLen, tones, c.swell, 0, 4, bus, lead, 0, part === 3);
+        return this.crescendo(at, barLen, tones, c.swell, 0, 4, mix, lead, 0, part === 3);
       }
       if (rising && index === 3) {
         // The peak, then the arpeggio carries on through the rest of the Em7, easing down.
-        this.crescendo(at, barLen, tones, c.swell, 4, 2, bus, lead, barLen * 2, part === 3);
+        this.crescendo(at, barLen, tones, c.swell, 4, 2, mix, lead, barLen * 2, part === 3);
         return this.afterglow(at + barLen * 2, barLen, tones, lead);
       }
       const phrase = CAMPAIGN_PHRASES[part % 2][index];
