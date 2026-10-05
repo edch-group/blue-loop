@@ -672,8 +672,23 @@ export class App {
       const card = (e.target as HTMLElement).closest?.<HTMLElement>('.hand > .card') ?? null;
       this.root.querySelectorAll('.hand > .card.no-lift').forEach((c) => c !== card && c.classList.remove('no-lift'));
       if (over && !this.handRaised && performance.now() >= this.dealtAt) card?.classList.add('no-lift');
-      this.raiseHand(over);
+      // (Only raised here: it is lowered once the pointer leaves the hand's whole column, below.)
+      if (over) this.raiseHand(true);
     });
+    // Raised, the hand stays up while the pointer is anywhere from its cards' tops down to the screen's foot
+    // (over the strip it rose out of too: lowering there brought it back under the pointer, and it jittered).
+    root.addEventListener(
+      'mousemove',
+      (e) => {
+        if (!mouse.matches || this.touch || !this.handRaised || this.drag) return;
+        const cards = [...this.root.querySelectorAll<HTMLElement>('.table-view > .dock .hand > .card')].map((c) => c.getBoundingClientRect());
+        if (!cards.length) return this.raiseHand(false);
+        const left = Math.min(...cards.map((r) => r.left)), right = Math.max(...cards.map((r) => r.right));
+        const top = Math.min(...cards.map((r) => r.top));
+        if (e.clientX < left || e.clientX > right || e.clientY < top) this.raiseHand(false);
+      },
+      { passive: true },
+    );
     root.addEventListener('mouseleave', () => mouse.matches && !this.touch && !this.drag && this.raiseHand(false));
     root.addEventListener('mousemove', (e) => (this.mouseAt = { x: e.clientX, y: e.clientY }), { passive: true });
     root.addEventListener('pointerdown', (e) => this.onPressStart(e));
@@ -2554,7 +2569,7 @@ export class App {
     if (up) {
       this.measureRaise();
       // (Again once it has risen, in case the board was still settling as it began.)
-      setTimeout(() => this.handRaised && this.measureRaise(), 350);
+      setTimeout(() => this.handRaised && this.measureRaise(), 650);
       sound.handLift();
     }
     this.root.querySelector('.table-view > .dock')?.classList.toggle('dock-raised', up);
