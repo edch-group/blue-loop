@@ -8,7 +8,7 @@ import { markDirty } from './account';
  * no noise) plays underneath the menus; matches get its tenser sibling (the
  * same pads and hall, with a slow, steady arpeggio and a deep bass), and the
  * campaign map a slow voyage through a dying universe (a lament over the same
- * drone, with a high, bell-like arpeggio). Each effect is one method, so recorded audio can replace
+ * drone, with a sparse, high, bell-like melody). Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -76,22 +76,38 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 // ---- Campaign map -----------------------------------------------------------
 // A voyage through a dying universe, in the same key and hall as the menu and
 // battle scores. The menu's breathing drone holds A while a lament falls over
-// it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). Up high, a
-// bell-like arpeggio (soft triangle plucks, bright, with a dotted-quarter
-// echo) climbs and falls through each chord, three notes a bar; beneath, a
-// soft low-high rock on each chord's root and fifth; the pads stay low.
+// it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High above, a
+// sparse melody of bell-like plucks (soft triangles, bright, with a dotted-
+// quarter echo filling the gaps) sings short phrases with room between them,
+// one set of phrases answered by another the next time round; beneath, a soft
+// low-high rock on each chord's root and fifth; the pads stay low.
 
 /** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
 const CAMPAIGN_EIGHTH = 0.42;
+/** Per chord (four bars of six eighths): the falling bass, the pad, and the two notes it rocks between. */
+const CAMPAIGN_CHORDS: { bass: string; pad: string[]; rock: [string, string] }[] = [
+  { bass: 'A2', pad: ['A3', 'C4', 'E4', 'B4'], rock: ['A3', 'E4'] }, // Am(add9)
+  { bass: 'G2', pad: ['G3', 'B3', 'D4', 'E4'], rock: ['G3', 'D4'] }, // G6
+  { bass: 'F2', pad: ['F3', 'A3', 'C4', 'E4'], rock: ['F3', 'C4'] }, // Fmaj7
+  { bass: 'E2', pad: ['E3', 'G3', 'B3', 'D4'], rock: ['E3', 'B3'] }, // Em7
+];
 /**
- * Per chord (four bars of six eighths): the falling bass, the pad, the two notes it rocks between, and the high
- * arpeggio's three notes (climbed on odd bars, fallen back down on even ones).
+ * The melody's phrases, per chord, as [eighth (0-23 across the chord's four bars), note]: a call, and the answer
+ * played the next time round.
  */
-const CAMPAIGN_CHORDS: { bass: string; pad: string[]; rock: [string, string]; arp: [string, string, string] }[] = [
-  { bass: 'A2', pad: ['A3', 'C4', 'E4', 'B4'], rock: ['A3', 'E4'], arp: ['E5', 'A5', 'C6'] }, // Am(add9)
-  { bass: 'G2', pad: ['G3', 'B3', 'D4', 'E4'], rock: ['G3', 'D4'], arp: ['D5', 'G5', 'B5'] }, // G6
-  { bass: 'F2', pad: ['F3', 'A3', 'C4', 'E4'], rock: ['F3', 'C4'], arp: ['E5', 'A5', 'C6'] }, // Fmaj7
-  { bass: 'E2', pad: ['E3', 'G3', 'B3', 'D4'], rock: ['E3', 'B3'], arp: ['B4', 'E5', 'G5'] }, // Em7
+const CAMPAIGN_PHRASES: [number, string][][][] = [
+  [
+    [[0, 'E6'], [3, 'D6'], [6, 'C6'], [21, 'B5']],
+    [[6, 'D6'], [9, 'B5'], [18, 'A5']],
+    [[0, 'C6'], [3, 'E6'], [6, 'A6'], [15, 'G6']],
+    [[0, 'G6'], [9, 'F#6'], [12, 'E6'], [18, 'B5']],
+  ],
+  [
+    [[0, 'C6'], [6, 'E6'], [9, 'D6'], [12, 'C6']],
+    [[6, 'B5'], [12, 'D6'], [18, 'G6']],
+    [[0, 'A6'], [3, 'G6'], [6, 'E6'], [12, 'C6']],
+    [[0, 'B5'], [6, 'G6'], [12, 'F#6'], [18, 'E6']],
+  ],
 ];
 
 class SoundBoard {
@@ -751,7 +767,7 @@ class SoundBoard {
 
   /**
    * The campaign map's score. The drone, bass and pads alone for the first chord; then the rock and the high
-   * arpeggio join, and the rock rests for a chord every fourth time round.
+   * melody join (its call and answer alternating by round), and the rock rests for a chord every fourth time round.
    * Scheduled a chord at a time, just ahead of the audio clock.
    */
   private campaignScore(ctx: AudioContext, bus: GainNode) {
@@ -784,7 +800,7 @@ class SoundBoard {
     });
     lfo.start(t0);
 
-    // The arpeggio's filter stays bright (it breathes a little over a minute); its echo lands a dotted quarter
+    // The melody's filter stays bright (it breathes a little over a minute); its echo lands a dotted quarter
     // later, darker.
     const orbit = ctx.createBiquadFilter();
     orbit.type = 'lowpass';
@@ -832,16 +848,12 @@ class SoundBoard {
             this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
             this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
           });
-      // The arpeggio: bell-like plucks (a triangle with a little saw), three a bar on the first, third and fifth
-      // eighths, climbing the chord and then falling back.
-      for (let b = 0; b < 4; b++) {
-        const notes = b % 2 === 0 ? c.arp : [...c.arp].reverse();
-        notes.forEach((n, k) => {
-          const d = this.until(at + b * barLen + k * eighth * 2);
-          const accent = k === 0 ? 1 : 0.75;
-          this.voice(hz(n), { dur: eighth * 3.6, attack: 0.012, gain: 0.032 * accent, type: 'triangle', cutoff: 6000, delay: d, out: orbit });
-          this.voice(hz(n), { dur: eighth * 2, attack: 0.012, gain: 0.006 * accent, type: 'sawtooth', cutoff: 6000, detune: 6, delay: d, out: orbit });
-        });
+      // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo.
+      for (const [e, n] of CAMPAIGN_PHRASES[round % 2][index]) {
+        const d = this.until(at + e * eighth);
+        const accent = e % 6 === 0 ? 1 : 0.8;
+        this.voice(hz(n), { dur: eighth * 5, attack: 0.012, gain: 0.03 * accent, type: 'triangle', cutoff: 7000, delay: d, out: orbit });
+        this.voice(hz(n), { dur: eighth * 2.5, attack: 0.012, gain: 0.005 * accent, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: orbit });
       }
     };
 
