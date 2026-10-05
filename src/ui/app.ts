@@ -4539,7 +4539,7 @@ export class App {
     return `
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
         ${card}
-        <div class="stage-caption">${esc(st.caption ?? `${actor.name.toLowerCase()} plays`)}</div>
+        ${/* (A plain play needs no words: only a card set face down, or sprung, says what happened.) */ st.caption && st.caption !== 'you play' ? `<div class="stage-caption">${esc(st.caption)}</div>` : ''}
         ${st.confirm && !st.faceDown ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}
       </div>`;
   }
