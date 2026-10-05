@@ -1430,7 +1430,7 @@ export class App {
       document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
       const el = document.createElement('div');
       el.className = `turn-banner ${text.length > 12 ? 'turn-banner-long' : ''}`;
-      el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">${esc(text)}</div><div class="turn-banner-sub">${esc(sub.toLowerCase())}</div>${extra}`;
+      el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">${esc(text)}</div><div class="turn-banner-sub">${esc(sub.toLowerCase())}</div>${extra ? `<div class="turn-banner-line"></div>${extra}` : ''}`;
       document.body.appendChild(el);
       sound.turn();
       window.setTimeout(() => el.remove(), 2000);

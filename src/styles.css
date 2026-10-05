@@ -4550,3 +4550,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @media (hover: hover) { .discard-pick:not(.on):hover { transform: translateY(-3px); } }
 /* (Zoom being fitted: the board laid flat for a moment, to measure where the tableau stands.) */
 .table-view.zoom-measuring > .game { transform: translate(var(--zx, 0px), var(--zy, 0px)) scale(0.82) !important; transition: none !important; }
+/* The banner's thin line: between the round and the day's orbit (none across the words). */
+.turn-banner-glow::before { display: none; }
+.turn-banner-line {
+  position: relative; width: min(420px, calc(60 * var(--vw))); height: 1px; margin: 4px 0 0;
+  background: linear-gradient(90deg, transparent, #9ea1a8, transparent);
+  transform: scaleX(0); animation: bannerLineGrow 1.6s ease-out 0.2s forwards;
+}
+.turn-banner-line + .turn-banner-orbit { margin-top: 2px; }
+@keyframes bannerLineGrow { to { transform: scaleX(1); } }

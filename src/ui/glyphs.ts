@@ -1,4 +1,4 @@
-import { BALANCE, baseStability, CARDS, cardDef, hasDarkspeed, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { stellariaFlower } from './art';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
@@ -433,7 +433,8 @@ document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad'
 
 /** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
 export function stabilityBadge(def: CardDef): string {
-  if (!persists(def.id)) return '';
+  // (A card that goes straight to the discard pile once played never stands in play: no stability to show.)
+  if (!persists(def.id) || isBurst(def)) return '';
   const title = def.kind === 'command' ? 'Stability: a Hero never fades by itself; heat past its defence wears this down, and at 0 it falls' : 'Stability: it stays in play for this many of your days, then fades into your discard pile';
   const atk = def.attack ?? 0;
   return `<span class="card-stats card-stats-base${atk > 0 ? ' card-stats-split' : ''}">${atk > 0 ? attackBadge(atk) : ''}<b class="stat-stab" title="${title}">◷${baseStability(def.id)}</b></span>`;
