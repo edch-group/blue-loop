@@ -4792,3 +4792,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   -webkit-mask: linear-gradient(#000 calc(50% + 1px), transparent calc(50% + 1px), transparent var(--gap), #000 var(--gap));
   mask: linear-gradient(#000 calc(50% + 1px), transparent calc(50% + 1px), transparent var(--gap), #000 var(--gap));
 }
+/* (Cards' top corners are 0.14 of their width: the tabs behind take the same, so their sides run straight
+   down into the card's. No coloured band along their top: a plain card edge, a fine grey line, and the
+   card's own face colour, so nothing reads as a line where they meet.) */
+.card:not(.card-landscape) .fused-behind { --fr: calc(var(--cw, 100px) * 0.14); }
+.card .fused-behind { background: var(--bgtop, #fefefe); border: 1px solid rgba(178, 186, 202, 0.75); border-bottom: 0; box-shadow: none; }
+.card .fused-behind::before { display: none; }
+/* (A shade greyer than the card, so the card's own top edge and corners read in front of it.) */
+.card .fused-behind { background: linear-gradient(180deg, #f6f7fa, #eceff4); }
