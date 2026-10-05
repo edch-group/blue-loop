@@ -1892,6 +1892,11 @@ export class App {
         const struck = p.heat > was.heat || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
         if (!struck) continue;
         // From the card that struck (if a card was played), else from the striking sun; to the sun as drawn.
+        // (A card attacking a sun is its own blow: the move lands as it strikes, so the sun is hit there and then.)
+        if (action.type === 'attack') {
+          hit(p.id, 0, true);
+          continue;
+        }
         const a = playedFrom && (playedDef?.onPlay ?? []).some((e) => e.type === 'heat') ? playedFrom : orbRect(source.id);
         const at = a ? projectile(a, () => sunAt(p.id), HOT, { delay: delay + 110 * volley++, size: 34 }) : delay;
         hit(p.id, at, true);
