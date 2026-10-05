@@ -91,6 +91,8 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 const CAMPAIGN_EIGHTH = 0.42;
 /** The haze's level (the distorted synth that holds long chords in the second half of the form). */
 const CAMPAIGN_HAZE = 0.004;
+/** The level of the sustained, slightly distorted synth that doubles the melody while the haze is in. */
+const CAMPAIGN_DOUBLE = 0.012;
 /** The gap between the notes of a rolled chord at the melody's height, in seconds. */
 const CAMPAIGN_ROLL = 0.045;
 /** Per chord (four bars of six eighths): the falling bass, the pad, and the two notes it rocks between. */
@@ -961,6 +963,35 @@ class SoundBoard {
     // The haze's distortion: a hard-driven tanh curve, clearly audible.
     const curve = new Float32Array(new ArrayBuffer(1024 * 4));
     for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(9 * ((i / (curve.length - 1)) * 2 - 1)) / Math.tanh(9);
+    // And a milder one for the synth that doubles the melody while the haze is in.
+    const mild = new Float32Array(new ArrayBuffer(1024 * 4));
+    for (let i = 0; i < mild.length; i++) mild[i] = Math.tanh(3 * ((i / (mild.length - 1)) * 2 - 1)) / Math.tanh(3);
+    /** The doubling synth: a held, slightly distorted pair of saws on a melody note, into the melody's filter and echo. */
+    const double = (t: number, f: number, len: number) => {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = mild;
+      shaper.oversample = '2x';
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 2400;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(CAMPAIGN_DOUBLE, t + 0.08);
+      g.gain.linearRampToValueAtTime(CAMPAIGN_DOUBLE * 0.75, t + len);
+      g.gain.linearRampToValueAtTime(0, t + len + 0.6);
+      shaper.connect(lp).connect(g).connect(melody);
+      for (const detune of [-4, 4]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = f;
+        o.detune.value = detune;
+        const lv = ctx.createGain();
+        lv.gain.value = 0.25;
+        o.connect(lv).connect(shaper);
+        o.start(t);
+        o.stop(t + len + 0.7);
+      }
+    };
 
     /**
      * The form, four times round the chords and then over again: a minimal opening (the melody joining on the
@@ -983,15 +1014,13 @@ class SoundBoard {
       // The falling bass: a held triangle and a soft sine an octave up.
       this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: bus });
       this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: bus });
-      // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle). It rests
-      // for one chord while the haze holds.
-      if (!(part === 2 && index === 2))
-        for (let b = 0; b < 4; b++)
-          c.rock.forEach((n, k) => {
-            const d = this.until(at + b * barLen + k * eighth * 3);
-            this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
-            this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
-          });
+      // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle).
+      for (let b = 0; b < 4; b++)
+        c.rock.forEach((n, k) => {
+          const d = this.until(at + b * barLen + k * eighth * 3);
+          this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
+          this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
+        });
       // The haze: long, drawn-out chords on detuned saws, gently distorted and softly filtered, overlapping.
       if (hazy) this.haze(at, chordLen, c.pad, curve, part === 2 && index === 0, bus);
       // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo. In the opening
@@ -1022,6 +1051,8 @@ class SoundBoard {
       const top = pitches.indexOf(Math.max(...pitches));
       phrase.forEach(([e, n], i) => {
         const t = at + e * eighth;
+        // While the haze is in, the doubling synth holds each note until the next (at most two bars).
+        if (hazy) double(t, hz(n), Math.min((phrase[i + 1]?.[0] ?? 24) - e, 12) * eighth - 0.1);
         // At the melody's height on the Fmaj7, the note arrives as a near-instant rolled chord.
         if (index === 2 && i === top) {
           const roll: number[] = [];
