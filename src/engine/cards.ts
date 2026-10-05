@@ -954,7 +954,7 @@ export const PRESET_DECKS: DeckList[] = [
     cards: [
       ...twoOf('command_directive', 'prism_of_dawn', 'counter_pulse', 'blink_bulwark', 'helio_lancer', 'shard_reactor'),
       ...twoOf('coronal_lance', 'cryo_vault', 'photon_drill'),
-      'xelnaru_warden', 'twilight_sentry', 'plasma_relay', 'ecliptic_lance', 'tide_regent', 'gravity_sling', 'dawnstar_cannon', 'aureline_archon', 'sunforge', 'focusing_array', 'deep_scanners', 'deflector_grid',
+      'xelnaru_warden', 'twilight_sentry', 'plasma_relay', 'ecliptic_lance', 'war_council', 'gravity_sling', 'dawnstar_cannon', 'aureline_archon', 'sunforge', 'focusing_array', 'deep_scanners', 'deflector_grid',
     ],
   },
   {

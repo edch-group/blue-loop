@@ -12,7 +12,7 @@ was replaced by this design in design review.
 ## The goal
 
 - **1v1**: two players, always. Every sun starts at **0** heat with **24** max health. Reaching max health makes your sun go supernova, and your rival wins. [proposed numbers; design review: 1v1 across the board]
-- Cooling can take a sun down to **−3**. [balance pass: was −5]
+- Cooling can take a sun down to **−10**. [direction: the deep cold is Absolute Zero's whole point; a balance pass had cut it to −5, then −3]
 
 ## Decks
 
@@ -157,7 +157,7 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 - **Defence takes the blow first, and the wear lasts.** An attack or aimed heat on a card hits its defence (its slot's, plus Sturdy and Bulwark) point for point; what gets past wears its stability. The wear stays: each card mends only **1 a day** (at its owner's dawn), plus any Repair. Wear on the slot's own defence stays in the slot when the card leaves, so the next card there starts worn too (an empty slot mends 1 a day as well; the card's own plating, Sturdy and Bulwark, goes with it). So chip damage adds up: a single small attack is never wasted, and worn cards fall within reach of removal. [design review: replaces defence that was whole again every day, which made walls spring back and left many days with nothing worth doing]
 - Heat on a card wears its **stability** point for point; at 0 the card burns away (its leave effects fire, so killing a Martyr or a card beside Kyr'Vessa has a price, and the AI weighs it).
 - **Guard** cards draw attacks and aimed heat: while a rival has any, those can only target one of them (not the sun, nor the cards behind). Dawn heat goes past Guards to the sun.
-- **Shields guard the sun.** They absorb your rival's heat point for point (so stings and soothes answer heat at your sun). **Tidewall** (Vorthane: Bell Warden, the Trench-Warden) spreads them over your cards too, against attacks, while the Tidewall card is in play: answered by taking that card down, or by pierce. They fade at your dawn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields.
+- **Shields guard the sun.** They absorb your rival's heat point for point (so stings and soothes answer heat at your sun). **Tidewall** (rare and dear: the Vorthanian Bellwarden at 5 energy, the Tide Pearl relic at 4) spreads them over your cards too, against attacks, while the Tidewall card is in play: answered by taking that card down, or by pierce. They fade at your dawn. Heat you deal to your own sun (drawbacks, fatigue, instability) ignores shields.
 
 ## Attack and Dimmed [design review]
 
@@ -198,7 +198,7 @@ Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of 
 | Hierarch Vael | Xel'Naru | Your Xel'Naru cards cool +1 | Vent: cool 2 · Insight: draw 1 |
 | Archon Seris | Xel'Naru | When another of your cards leaves play, heat 1 | Archive (1⚡): recover your last discarded card · Shatter (1⚡): heat 2, pierce |
 | The Shardmind (bomb) | Xel'Naru | As it enters: cool 4, recover. Your Xel'Naru cards heat +1 | Cold Reckoning (1⚡): cool 3 · Overload: draw 2, heat 2 to your sun |
-| Tide-Regent Osshara | Vorthane | Tidewall. Dawn: 1 shield | Swell: 4 shields, it regains 1 stability · Current: draw 1 |
+| Tide-Regent Osshara | Vorthane | Dawn: 2 shields | Swell: 4 shields, it regains 1 stability · Current: draw 1 |
 | The Admiralty (Anomaly) | Vorthane | Your Vorthane cards shield +1. Dawn: 2 shields | Broadside (1⚡): heat 1 per 2 shields (up to 4) · Muster: +1 energy |
 | Leviathan Thoross (bomb) | Vorthane | As it enters: 6 shields, eject 3. Hold | Crush (1⚡): heat 1 per 2 shields (up to 5) · Deep Call: 4 shields, it regains 2 stability |
 | Broodmother Ul'Kha | Ixquor | Dawn: your other growing cards grow by 1 | Spawn: plant 1 · Nurture: renew 1, she regains 2 stability |
@@ -241,18 +241,18 @@ Counter: it does nothing on its own, so removal answers it cleanly (its defence 
 
 ## Thermosiphon [design review]
 
-A sun runs from −3 to its max health, and starts at 0. **Thermosiphon** cards draw on the cold: the number beside the keyword is **per point your sun is below zero**, and at 0 or hotter the effect does nothing. In play, the card shows the total its number now comes to. (Thermosiphon was once an action that cooled your sun; it now names the payoff for getting there.)
+A sun runs from −10 to its max health, and starts at 0. **Thermosiphon** cards draw on the cold: the number beside the keyword is **per 2 points your sun is below zero** (up to 5 times at −10). Every Thermosiphon card also does something warm, so a rival who heats you out of the cold blunts the deck without silencing it. [direction: the cards should still do something when the sun is warm] In play, the card shows the total its number now comes to. (Thermosiphon was once an action that cooled your sun; it now names the payoff for getting there.)
 
 It gives cooling decks a way to win, and a new kind of defensive deck: cool hard, then sit behind shields that grow with the cold.
 
 | Card | Race | Cost | Rarity | Text |
 | --- | --- | --- | --- | --- |
-| Absolute Zero | Xel'Naru | 4 | Anomaly | Cool 2. Dawn: Thermosiphon heat 1 (up to 3 heat a dawn at −3) |
-| Cryo Lance | Xel'Naru | 2 | White Dwarf | Thermosiphon heat 1, pierce |
-| Frostbound Sentinel | Xel'Naru | 2 | White Dwarf | Guard, sturdy 1. Dawn: Thermosiphon shield 1 |
-| Rime Bastion | Neutral | 2 | White Dwarf | Sturdy 2. Dawn: Thermosiphon shield 1 |
-| Glacier Hull | Vorthane | 3 | Stellar | 2 shields, hold. Dawn: Thermosiphon shield 1 |
-| Thaw Beam | Neutral | 1 | White Dwarf | Heat 1, pierce; +1 per point the target's sun is below zero |
+| Absolute Zero | Xel'Naru | 4 | Anomaly | Cool 2. Dawn: heat 1; Thermosiphon heat 1 (up to 6 heat a dawn at −10) |
+| Cryo Lance | Xel'Naru | 2 | White Dwarf | Heat 2, pierce; Thermosiphon heat 1, pierce |
+| Frostbound Sentinel | Xel'Naru | 2 | White Dwarf | Guard, sturdy 1. Dawn: 1 shield; Thermosiphon shield 1 |
+| Rime Bastion | Neutral | 2 | White Dwarf | Sturdy 2. Dawn: 1 shield; Thermosiphon shield 1 |
+| Glacier Hull | Vorthane | 3 | Stellar | 2 shields, hold. Dawn: 1 shield; Thermosiphon shield 1 |
+| Thaw Beam | Neutral | 1 | White Dwarf | Heat 1, pierce; +1 per 2 points the target's sun is below zero |
 
 **Counters.** Any heat that lands warms a cold sun, so every point of heat through the shields also weakens its Thermosiphon cards; pierce is the natural answer. Thaw Beam is the direct one: cheap, piercing, and stronger the colder its target.
 
@@ -399,7 +399,7 @@ The counterplay is to hit them: attacks and aimed heat wear one down over a few 
 | Aegis Idol | 2 | Your cards shield +1 |
 | Chrono Stone | 2 | Anchor |
 | Warden Totem | 2 | Bulwark 2 (+2 defence beside it, +1 two slots away) |
-| Tide Pearl | 2 | Tidewall |
+| Tide Pearl | 4 | Tidewall |
 | Astral Orrery (Stellar) | 4 | +1 energy a day |
 | Crown of the First Sun (Anomaly) | 4 | Your cards heat, cool and shield +1 |
 
@@ -606,6 +606,7 @@ The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2
 - Where it stands (1000 games): mean distance 8.8 (from 12.1). Solar Lancers 44.5, Shard Overload 55.1, Abyssal Tide 58.5, Hive Bloom 58.6, Orbit Riders 60.2, Ambush 42.8, Demolition 61.1, Absolute Zero 37.3, Graftworks 54.1, Overcharge 39.8, Night Court 56.8, Forge Clans 46.7, Starwatch 58.6, Wildfire 28.2. Still to do: Wildfire, Absolute Zero and Overcharge are low.
 - Night Court, no shield cards: Darkspeed (acting the day they land) only helps cards that attack, and in play the deck's shield cards were the ones you never wanted to play. Both Umbral Snares, the Mirror Veil, the Veil Lantern and the Aegis Idol make way for two Nightfalls, a third Shade Stalker, a second Phantom Strike and the Ember Idol (in place of a second Coronal Lance). Night Court against the other 13 starters (40 games each): 35.0% → 45.6%. [play-test]
 - Costs that match what a card does, and no cheap card lasting three days. The Vorthanian Bellwarden (Guard, Sturdy 1, Tidewall, 3 shields every dawn and Sting 1) cost 2: a rough points audit of every card put it at 2.65× the median card of its cost, the most overloaded card in the game, and level with the 4–5 energy cards. It now costs **5**; the Riptide Sentinel (Guard, Sturdy, 2 shields a dawn, Lightspeed) goes 2 → 3. Sap Graft and Spore Graft go 1 → 2, like the Thorn Graft (they take no slot of their own). And a card costing 1 energy or less never has more than 2 stability, its race's trait included (`BALANCE.cheapMaxStability`). Repricing Korrath's cheap guards too was tried and dropped: Forge Clans, already the weakest deck, fell 26 → 20%. Deck swaps for the decks the stability cap hit: Hive Bloom's Sap Grafts for Creeping Vines (42.7 → 48.1% against the field), Absolute Zero's Frost Lattices for Glacier Shells (26.5 → 28.3%), Ambush's Sunflash Aegis pair and Riptide Sentinel for a Xel'Naru Warden, a Twilight Sentry and a Gravity Sling (40.0 → 46.9%). The field (1400 games): spread from 50% 9.5 → 9.3; Abyssal Tide 69.2 → 60.6%, Wildfire 36.1 → 42.8%, Hive Bloom 51.0 → 46.9%, Absolute Zero 28.2 → 25.0% (no swap rescues it: it needs a fix of its own). [direction: cards with many abilities cost more; 1-energy cards never have 3 stability]
+- **Tidewall made rare, and the deep cold back.** Tidewall (your shields guard your cards) was too easy to get for what it does: the Tide-Regent, a 2-energy Hero in four starters, gave it for good (Heroes never fade), and Bastion Node, a 2-energy neutral card, put it in any deck. The Tide-Regent now leads with 2 shields a dawn and no Tidewall; Bastion Node loses it (Sturdy 3 in its place); the Tide Pearl relic costs 4 (was 2); the Bellwarden costs 5. And suns cool down to **−10** again (a balance pass had cut it to −3, which left Absolute Zero nothing to build towards), with Thermosiphon counting per 2 points below zero, and every Thermosiphon card doing something warm too (Cryo Lance heat 2, pierce; Absolute Zero dawn heat 1; the shield cards 1 shield a dawn). Ambush takes Archon Seris in place of its Tide-Regent (43.7 → 46.2% against the field). The field (1400 games): Absolute Zero 25.0 → 59.7%, Abyssal Tide 60.6 → 45.5%, Graftworks 51.9 → 39.3%, Ambush 50.8 → 41.6%, spread from 50% 9.3 → 8.6. [direction: Tidewall too easy to get; Absolute Zero needs the deep cold, and its cards should still do something warm]
 
 ## Always landscape
 

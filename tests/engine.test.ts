@@ -611,7 +611,7 @@ describe('Orion, Galaxy Eater', () => {
 });
 
 describe('Thermosiphon', () => {
-  it('scales with how far your sun is below zero, and does nothing at 0 or hotter', () => {
+  it('adds 1 per 2 points your sun is below zero, on top of what the card does warm', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     const rival = s.players.find((p) => p.id !== me.id)!;
@@ -621,11 +621,11 @@ describe('Thermosiphon', () => {
     give(me, ['cryo_lance', 'cryo_lance']);
     const before = rival.heat;
     s = play(s, 'cryo_lance');
-    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(before);
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(before + 2);
     const cold = activePlayer(s);
-    cold.heat = -3;
+    cold.heat = -5;
     s = play(s, 'cryo_lance');
-    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(before + 3);
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(before + 2 + 2 + 2);
   });
 
   it("Thaw Beam hits harder the colder its target's sun", () => {
@@ -637,7 +637,7 @@ describe('Thermosiphon', () => {
     me.playsLeft = 9;
     give(me, ['thaw_beam']);
     s = play(s, 'thaw_beam');
-    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(-4 + 1 + 4);
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBe(-4 + 1 + 2);
   });
 });
 

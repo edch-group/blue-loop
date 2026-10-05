@@ -50,7 +50,7 @@ export type Count =
    * Thermosiphon: how far your sun is below zero (`rival`: your target's sun), times `times`. The
    * colder the sun, the stronger the card; at 0 or hotter, nothing.
    */
-  | { of: 'cold'; times?: number; rival?: boolean };
+  | { of: 'cold'; times?: number; rival?: boolean; per?: number };
 
 /** Only resolve an effect when this holds. */
 export type Condition =

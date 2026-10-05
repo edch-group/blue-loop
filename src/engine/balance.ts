@@ -9,7 +9,7 @@ export const BALANCE = {
 
   /** Sun temperature bounds. Reaching `supernovaAt` eliminates a player. */
   startingHeat: 0,
-  minHeat: -3,
+  minHeat: -10,
   supernovaAt: 24,
 
   /** Decks: between `deckSize` and `maxDeckSize` cards, at most `maxCopies` of each, and one Command card per `cardsPerCommand` cards. */

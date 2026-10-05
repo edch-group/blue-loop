@@ -67,7 +67,7 @@ export const HERO_CARDS: Record<string, CardDef> = Object.fromEntries(
     ),
     // ---- Vorthane: the weight of the deep ----
     hero(
-      { id: 'tide_regent', name: 'Tide-Regent Osshara', race: 2, stability: 8, lead: '{tidewall}. {dawn}: {shield:1}.', passive: [{ type: 'tidewall' }], onTurn: [{ type: 'shield', amount: 1 }] },
+      { id: 'tide_regent', name: 'Tide-Regent Osshara', race: 2, stability: 8, lead: '{dawn}: {shield:2}.', onTurn: [{ type: 'shield', amount: 2 }] },
       [act('swell', 'Swell', '{shield:4}. It regains 1 stability.', [{ type: 'shield', amount: 4 }, { type: 'restore', amount: 1, self: true }]), act('current', 'Current', 'Draw 1.', [{ type: 'draw', amount: 1 }])],
     ),
     hero(

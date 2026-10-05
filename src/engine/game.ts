@@ -603,7 +603,7 @@ function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState
       return (card.spent ?? 0) * (c.times ?? 1);
     case 'cold': {
       const sun = c.rival ? (state ? targetOf(state, p) : undefined) : p;
-      return sun ? Math.max(0, -sun.heat) * (c.times ?? 1) : 0;
+      return sun ? Math.floor(Math.max(0, -sun.heat) / per) * (c.times ?? 1) : 0;
     }
   }
 }

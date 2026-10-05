@@ -55,7 +55,7 @@ export const EXPANSION: CardDef[] = [
     text: '{dusk}: {cool:1}. {cool:+1} while {overheated}.',
     onDusk: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { overheated: true } }],
   },
-  { id: 'bastion_node', name: 'Bastion Node', kind: 'defence', text: '{guard}. {sturdy:2}. {tidewall}. {dawn}: {shield:1}.', defence: 2, onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'tidewall' }] },
+  { id: 'bastion_node', name: 'Bastion Node', kind: 'defence', text: '{guard}. {sturdy:3}. {dawn}: {shield:1}.', defence: 3, onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }] },
   // Lightspeed guards: played as a Guard, or set face down (1 more energy) to spring in front of an aimed-at card.
   {
     id: 'blink_bulwark',
@@ -153,12 +153,12 @@ export const EXPANSION: CardDef[] = [
   { id: 'war_council', name: 'Archon Seris', kind: 'command', race: 1, text: '{dawn}, one of: {options:energy1|draw1|recover1}', choices: commandChoices('energy1', 'draw1', 'recover1') },
   { id: 'logistics_command', name: 'Hive-Speaker Zyth', kind: 'command', race: 3, text: '{dawn}, one of: {options:energy1|draw1|orbit1}', choices: commandChoices('energy1', 'draw1', 'orbit1') },
   // ---- Thermosiphon: stronger the further your sun is below zero ----
-  { id: 'absolute_zero', name: 'Absolute Zero', kind: 'attack', race: 1, text: '{cool:2}. {dawn}: {thermosiphon} {heat:1}.', onPlay: [{ type: 'cool', amount: 2 }], onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cold' } }] },
-  { id: 'cryo_lance', name: 'Cryo Lance', kind: 'attack', race: 1, text: '{thermosiphon} {heat:1}, {pierce}.', onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cold' }, pierce: true }] },
-  { id: 'rime_bastion', name: 'Rime Bastion', kind: 'defence', text: '{sturdy:2}. {dawn}: {thermosiphon} {shield:1}.', defence: 2, onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }] },
-  { id: 'frostbound_sentinel', name: 'Frostbound Sentinel', kind: 'defence', race: 1, text: '{guard}. {sturdy:1}. {dawn}: {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'taunt' }] },
-  { id: 'glacier_hull', name: 'Glacier Hull', kind: 'defence', race: 2, text: '{shield:2}. {hold}. {dawn}: {thermosiphon} {shield:1}.', onPlay: [{ type: 'shield', amount: 2 }], onTurn: [{ type: 'shield', amount: 0, plus: { of: 'cold' } }], passive: [{ type: 'keepShields' }] },
-  { id: 'thaw_beam', name: 'Thaw Beam', kind: 'attack', text: "{heat:1}, {pierce}. {heat:+1} per point your target's sun is below zero.", onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cold', rival: true }, pierce: true }] },
+  { id: 'absolute_zero', name: 'Absolute Zero', kind: 'attack', race: 1, text: '{cool:2}. {dawn}: {heat:1}. {thermosiphon} {heat:1}.', onPlay: [{ type: 'cool', amount: 2 }], onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'cold', per: 2 } }] },
+  { id: 'cryo_lance', name: 'Cryo Lance', kind: 'attack', race: 1, text: '{heat:2}, {pierce}. {thermosiphon} {heat:1}, {pierce}.', onPlay: [{ type: 'heat', amount: 2, to: 'target', pierce: true }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'cold', per: 2 }, pierce: true }] },
+  { id: 'rime_bastion', name: 'Rime Bastion', kind: 'defence', text: '{sturdy:2}. {dawn}: {shield:1}. {thermosiphon} {shield:1}.', defence: 2, onTurn: [{ type: 'shield', amount: 1 }, { type: 'shield', amount: 0, plus: { of: 'cold', per: 2 } }] },
+  { id: 'frostbound_sentinel', name: 'Frostbound Sentinel', kind: 'defence', race: 1, text: '{guard}. {sturdy:1}. {dawn}: {shield:1}. {thermosiphon} {shield:1}.', defence: 1, onTurn: [{ type: 'shield', amount: 1 }, { type: 'shield', amount: 0, plus: { of: 'cold', per: 2 } }], passive: [{ type: 'taunt' }] },
+  { id: 'glacier_hull', name: 'Glacier Hull', kind: 'defence', race: 2, text: '{shield:2}. {hold}. {dawn}: {shield:1}. {thermosiphon} {shield:1}.', onPlay: [{ type: 'shield', amount: 2 }], onTurn: [{ type: 'shield', amount: 1 }, { type: 'shield', amount: 0, plus: { of: 'cold', per: 2 } }], passive: [{ type: 'keepShields' }] },
+  { id: 'thaw_beam', name: 'Thaw Beam', kind: 'attack', text: "{heat:1}, {pierce}. {heat:+1} per 2 points your target's sun is below zero.", onPlay: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'cold', rival: true, per: 2 }, pierce: true }] },
   // ---- The galaxy eater: denies every rival its planets ----
   { id: 'orion_galaxy_eater', name: 'Orion, Galaxy Eater', kind: 'growth', text: "{sturdy:1}. Your rivals' planets are all dead planets: no Industry or Abundance from them.", defence: 1, passive: [{ type: 'eatPlanets' }] },
   // ---- Bomb Heroes: a big entrance for a big price ----
@@ -584,7 +584,7 @@ export const EXPANSION: CardDef[] = [
     text: '{lightspeed}. When an enemy is about to destroy or return one of your cards, cancel it and {shield:3}.',
     lightspeed: { trigger: { on: 'targeted' }, counter: true, effects: [{ type: 'shield', amount: 3 }] },
   },
-  { id: 'trench_warden', name: 'Vorthanian Trench-Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:2}. {dawn}: {shield:1}.', defence: 2, onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }] },
+  { id: 'trench_warden', name: 'Vorthanian Trench-Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:3}. {dawn}: {shield:1}.', defence: 3, onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }] },
   { id: 'tidebreaker', name: 'Tidebreaker', kind: 'attack', race: 2, text: '{eject:2}. {shield:2}.', onPlay: [{ type: 'bounce', maxDefence: 2 }, { type: 'shield', amount: 2 }] },
 
   // ---- Ixquor ----

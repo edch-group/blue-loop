@@ -32,7 +32,7 @@ export const RELIC_CARDS: CardDef[] = [
     passive: [{ type: 'guard', amounts: [2, 1] }],
   },
   {
-    id: 'tide_pearl', name: 'Tide Pearl', kind: 'relic', cost: 2,
+    id: 'tide_pearl', name: 'Tide Pearl', kind: 'relic', cost: 4,
     text: '{brittle}. {tidewall}.',
     passive: [{ type: 'tidewall' }],
   },
