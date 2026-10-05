@@ -1,6 +1,6 @@
 import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
-import { cardDef, isBurst, presetDeck } from './cards';
+import { cardDef, hasDarkspeed, isBurst, presetDeck } from './cards';
 import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
 import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnPulse, TurnStats } from './types';
@@ -1479,8 +1479,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   }
   place(p, card, slot);
   // A card comes into play dimmed: it can first act (attack, or a Hero's ability) on its owner's next day.
-  // (Darkspeed, the Nyxari: their cards come in ready to act.)
-  if (!raceTrait(cardDef(card.defId).race)?.ambush) card.dimmed = true;
+  // (Darkspeed, the Nyxari: their cards that can act, attackers and Heroes, come in ready to.)
+  if (!hasDarkspeed(cardDef(card.defId))) card.dimmed = true;
   if (choices.length) {
     card.choice = action.choice;
     log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);

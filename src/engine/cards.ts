@@ -711,8 +711,9 @@ for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.co
  * leaves): it resolves and goes straight to the discard pile, taking no slot.
  */
 /** Whether a card has Darkspeed (its race's trait: the Nyxari): it can act the day it comes into play. Cards that never stand in play don't. */
+/** Darkspeed (the Nyxari): only cards that can act have it, those that attack and Heroes (abilities). */
 export function hasDarkspeed(def: CardDef): boolean {
-  return !!raceTrait(def.race)?.ambush && def.kind !== 'lightspeed' && !isBurst(def);
+  return !!raceTrait(def.race)?.ambush && def.kind !== 'lightspeed' && !isBurst(def) && ((def.attack ?? 0) > 0 || def.kind === 'command');
 }
 
 export function isBurst(def: CardDef): boolean {

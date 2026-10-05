@@ -451,7 +451,7 @@ export function attackBadge(n: number, dimmed = false): string {
 /** What a card costs to play, in energy: a green gem with the number, on its picture's top-left corner. */
 /**
  * What a card costs to play, in energy, as the energy lights show it: one green dot per energy, in a column
- * down the left of its picture. Dots past the usual most energy in a day (5) are amber: the extra a planet or
+ * down the left of its picture (two columns from 4). Dots past the usual most energy in a day (5) are amber: the extra a planet or
  * a card gives. Free cards have none; a card that spends all your energy shows an X.
  */
 export function costDots(def: CardDef): string {
@@ -459,7 +459,9 @@ export function costDots(def: CardDef): string {
   const n = cardCost(def.id);
   if (n <= 0) return '';
   const dots = Array.from({ length: n }, (_, i) => `<i${i >= BALANCE.maxPlays ? ' class="over"' : ''}></i>`).join('');
-  return `<span class="cost-dots" title="Costs ${n} energy to play">${dots}</span>`;
+  // (Up to 3 in one column; from 4, two columns filled row by row: 4 a square, 5 with one hanging below on the
+  // left, 6 two columns of three, the last (past the day's most energy) amber.)
+  return `<span class="cost-dots${n > 3 ? ' cost-dots-2col' : ''}" title="Costs ${n} energy to play">${dots}</span>`;
 }
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

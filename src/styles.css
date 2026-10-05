@@ -4559,3 +4559,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 .turn-banner-line + .turn-banner-orbit { margin-top: 2px; }
 @keyframes bannerLineGrow { to { transform: scaleX(1); } }
+/* Costs of 4 or more: the dots in two columns, row by row (4 a square, 5 with one hanging below on the left, 6 two
+   columns of three), so they stay within the picture. */
+.cost-dots.cost-dots-2col { display: grid; grid-template-columns: repeat(2, auto); justify-items: center; column-gap: calc(var(--cw, 100px) * 0.022); row-gap: calc(var(--cw, 100px) * 0.022); }
