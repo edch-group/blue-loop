@@ -805,6 +805,7 @@ class SoundBoard {
     bus: GainNode,
     bell: (t: number, f: number, gain: number, dur?: number) => void,
     hold = 0,
+    turning = false,
   ) {
     const ctx = this.ctx!;
     const total = 6;
@@ -817,11 +818,11 @@ class SoundBoard {
     for (let b = 0; b < bars; b++) {
       const bar = from + b;
       const gap = CAMPAIGN_EIGHTH;
-      // Five notes of the chord, climbing as the bars go by; the first bar runs up them (1 2 3 4 5 4), every bar
-      // after turns back first (3 2 1 4 5 4).
+      // Five notes of the chord, climbing as the bars go by. Every bar runs up them (1 2 3 4 5 4); when `turning`
+      // (the second crescendo of the form), every bar after the first turns back first (3 2 1 4 5 4).
       const lo = Math.min(ladder.length - 5, base + Math.floor(b * 0.75));
       const five = ladder.slice(lo, lo + 5);
-      const order = bar === 0 ? [0, 1, 2, 3, 4, 3] : [2, 1, 0, 3, 4, 3];
+      const order = turning && bar > 0 ? [2, 1, 0, 3, 4, 3] : [0, 1, 2, 3, 4, 3];
       order.forEach((k, e) => {
         const t = at + b * barLen + e * gap;
         const progress = (bar + e / 6) / total;
@@ -886,7 +887,7 @@ class SoundBoard {
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.Q.value = 0.8;
-    filter.frequency.value = 2200;
+    filter.frequency.value = 1400;
     const g = ctx.createGain();
     const attack = entering ? 4 : 1.5;
     g.gain.setValueAtTime(0, at);
@@ -990,10 +991,14 @@ class SoundBoard {
      * The melody's voice: the bell-like pluck, layered with a held, slightly distorted pair of saws, both into the
      * melody's filter and echo. `gain` is relative (0.03 is a full note), `len` how long the saws hold.
      */
-    // Before the haze comes in the melody's synth only holds briefly (it stays plucky); with the haze, in full.
+    // Before the haze comes in the melody's synth only holds briefly (it stays plucky, with a quiet sine an octave
+    // down for a little more body); with the haze, in full.
     let held = false;
     const lead = (t: number, f: number, gain: number, len = eighth * 5) => {
-      if (!held) len = Math.min(len, eighth * 1.1);
+      if (!held) {
+        len = Math.min(len, eighth * 1.6);
+        this.note(t, f / 2, len, { gain: gain * 0.22, type: 'sine', attack: 0.02, release: 0.5, out: melody });
+      }
       // The original voice underneath: a bell-like pluck (a triangle with a little saw), ringing into the echo.
       const d = this.until(t);
       const pluck = Math.max(eighth * 2.4, Math.min(len, eighth * 5));
@@ -1135,11 +1140,11 @@ class SoundBoard {
         orbit.frequency.linearRampToValueAtTime(4000, at + chordLen + barLen * 2);
         orbit.frequency.setValueAtTime(4000, at + chordLen * 2);
         orbit.frequency.linearRampToValueAtTime(1900, at + chordLen * 2 + 3);
-        return this.crescendo(at, barLen, tones, c.swell, 0, 4, bus, lead);
+        return this.crescendo(at, barLen, tones, c.swell, 0, 4, bus, lead, 0, part === 3);
       }
       if (rising && index === 3) {
         // The peak, then the arpeggio carries on through the rest of the Em7, easing down.
-        this.crescendo(at, barLen, tones, c.swell, 4, 2, bus, lead, barLen * 2);
+        this.crescendo(at, barLen, tones, c.swell, 4, 2, bus, lead, barLen * 2, part === 3);
         return this.afterglow(at + barLen * 2, barLen, tones, lead);
       }
       const phrase = CAMPAIGN_PHRASES[part % 2][index];
