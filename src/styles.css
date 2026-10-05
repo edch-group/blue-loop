@@ -4778,3 +4778,17 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   height: var(--pill-h); font-size: max(4.5px, calc(var(--cw, 100px) * 0.034)); padding: 0.12em 1.1em 0; letter-spacing: 0.18em;
 }
 .card .card-type::before { clip-path: inset(calc(var(--pill-y) + var(--notch) - var(--pill-h) / 2) 0 0 0); }
+/* The rims round the gem, drawn by the gem itself so they are exactly round it: its top half the card's own
+   outline running up round the bump; its bottom half, where it sits in the type pill's notch, the pill's
+   white rim (and nothing in the strip between the card's edge and the pill's top). */
+.card .card-type::before { display: none; }
+.card.card .art-wrap .gem::after {
+  --R: calc(var(--gs) * 0.66);
+  border: 0; box-shadow: none; clip-path: none;
+  background:
+    radial-gradient(circle at 50% calc(100% - 1px), transparent calc(var(--R) - var(--bump-w, 1px)), var(--bump-ring, var(--rim)) calc(var(--R) - var(--bump-w, 1px) + 0.3px), var(--bump-ring, var(--rim)) calc(var(--R) - 0.3px), transparent var(--R)) 0 0 / 100% calc(50% + 1px) no-repeat,
+    radial-gradient(circle at 50% 0, transparent calc(var(--R) - 1px), rgba(255, 255, 255, 0.9) calc(var(--R) - 0.7px), rgba(255, 255, 255, 0.9) calc(var(--R) - 0.3px), transparent var(--R)) 0 100% / 100% 50% no-repeat;
+  --gap: calc(50% + var(--pill-y) - var(--pill-h) / 2 - 1px);
+  -webkit-mask: linear-gradient(#000 calc(50% + 1px), transparent calc(50% + 1px), transparent var(--gap), #000 var(--gap));
+  mask: linear-gradient(#000 calc(50% + 1px), transparent calc(50% + 1px), transparent var(--gap), #000 var(--gap));
+}
