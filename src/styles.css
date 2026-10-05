@@ -4872,3 +4872,103 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* (While the zoom is measured ahead of time: nothing on the table may start a transition.) */
 .table-view.no-anim, .table-view.no-anim * { transition: none !important; }
 .opt-note { text-align: center; max-width: 520px; margin: 14px auto 0; font-size: 0.76rem; line-height: 1.4; }
+
+/* ---------- Card stock that takes after its picture (glyphs.ts cardStock) ---------- */
+/* A card with a rendered picture: its circuit traces carry the picture's colours (the picture, blurred, seen only
+   through the traces) in place of the plain grey ones, faded behind the name and rules so they stay easy to read,
+   and gone at the very top, where the gem's bump shows the plain stock. A Hero instead has a faint engraving of
+   its picture under the rules. */
+.card { isolation: isolate; --trace: var(--circuit-dwarf); }
+.card.rarity-stellar { --trace: var(--circuit-stellar); }
+.card.rarity-anomaly { --trace: var(--circuit-anomaly); }
+.card:has(> .card-stock):not(.kind-command) { --bg1: linear-gradient(transparent, transparent); background-image: var(--bg2); }
+.card-stock {
+  --tile: calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05);
+  --fade: radial-gradient(ellipse 72% 30% at 50% 64%, rgba(0, 0, 0, 0.2) 62%, #000 100%);
+  position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: var(--art) center / cover no-repeat;
+  filter: blur(6px) saturate(1.7);
+  opacity: 0.9;
+  -webkit-mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  -webkit-mask-composite: source-in, source-in, source-over;
+  mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  mask-composite: intersect, intersect, add;
+}
+.card.kind-command .card-stock {
+  inset: auto 0 0; height: 58%;
+  background: var(--art) center 70% / cover no-repeat;
+  filter: grayscale(1) contrast(1.6);
+  mix-blend-mode: screen; opacity: 0.16;
+  -webkit-mask: linear-gradient(180deg, transparent, #000 40%); -webkit-mask-composite: source-over;
+  mask: linear-gradient(180deg, transparent, #000 40%); mask-composite: add;
+}
+
+/* ---------- The rarity gem's light ---------- */
+/* The body in each gem is breaking out of it: its light spills over the card, in the same fine detail as the gem
+   itself (scripts/render_gem_light.py). A white dwarf's glare and diffraction spikes breathe with the gem while two
+   fields of fine radial grain turn against each other and shimmer; a sun's soft corona turns and breathes while
+   broad plumes swell out of it and fade, one after another; a black hole's dust lanes are dragged round it, inward,
+   past its rippling lensed ring. Each layer on its own clock, out of step with other cards (--gp). Only rotate,
+   scale and opacity move, which the compositor runs off the main thread. */
+.gem .gem-light { display: none; }
+/* (The light images are 1 / 0.26 gem-widths across, centred on the gem.) */
+.card .gem .gem-light {
+  display: block; position: absolute; inset: -142.3%; z-index: -2; pointer-events: none;
+  /* Up and round the gem only: it fades out just below the gem, so it never crosses the type pill's word. */
+  -webkit-mask: linear-gradient(180deg, #000 50%, transparent 63%); mask: linear-gradient(180deg, #000 50%, transparent 63%);
+}
+.gem-light .gl { position: absolute; inset: 0; display: block; background-size: 100% 100%; will-change: transform, opacity; }
+.gl-spikes { background-image: var(--gem-lightDwarfSpikes); animation: glBreathe 3.8s ease-in-out infinite; animation-delay: calc(var(--gp) * -3.8s); }
+.gl-shimmer1 { background-image: var(--gem-lightDwarfShimmer1); animation: glTurn 90s linear infinite, glShimmer 4.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -90s), calc(var(--gp) * -4.5s); }
+.gl-shimmer2 { background-image: var(--gem-lightDwarfShimmer2); animation: glTurnBack 65s linear infinite, glShimmer 6s ease-in-out infinite; animation-delay: calc(var(--gp) * -65s), calc(var(--gp) * -6s - 2s); }
+.gl-sparks { background-image: var(--gem-lightDwarfSparks); animation: glTurn 150s linear infinite, glTwinkle 3.2s ease-in-out infinite; animation-delay: calc(var(--gp) * -150s), calc(var(--gp) * -3.2s); }
+.gl-corona1 { background-image: var(--gem-lightSunCorona1); animation: glTurn 120s linear infinite, glBreathe 5.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -120s), calc(var(--gp) * -5.5s); }
+.gl-corona2 { background-image: var(--gem-lightSunCorona2); animation: glTurnBack 160s linear infinite, glShimmer 7s ease-in-out infinite; animation-delay: calc(var(--gp) * -160s), calc(var(--gp) * -7s); }
+/* The plumes: each swells outward from the rim and fades, then the other, as if the sun were pushing out. */
+.gl-flares1 { background-image: var(--gem-lightSunFlares1); animation: glTurn 200s linear infinite, glPlume 7s ease-out infinite; animation-delay: calc(var(--gp) * -200s), calc(var(--gp) * -7s); }
+.gl-flares2 { background-image: var(--gem-lightSunFlares2); animation: glTurnBack 260s linear infinite, glPlume 9s ease-out infinite; animation-delay: calc(var(--gp) * -260s), calc(var(--gp) * -9s - 4s); }
+/* (Turning forward, the lanes' spirals sweep inward: the hole is pulling the light in.) */
+.gl-swirl1 { background-image: var(--gem-lightHoleSwirl1); animation: glTurn 24s linear infinite, glShimmer 5s ease-in-out infinite; animation-delay: calc(var(--gp) * -24s), calc(var(--gp) * -5s); }
+.gl-swirl2 { background-image: var(--gem-lightHoleSwirl2); animation: glTurn 42s linear infinite, glShimmer 7.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -42s), calc(var(--gp) * -7.5s - 3s); }
+.gl-lens { background-image: var(--gem-lightHoleLens); animation: glLens 4s ease-in-out infinite; animation-delay: calc(var(--gp) * -4s); }
+@keyframes glTurn { to { rotate: 360deg; } }
+@keyframes glTurnBack { to { rotate: -360deg; } }
+@keyframes glBreathe { 0%, 100% { scale: 0.95; opacity: 0.65; } 50% { scale: 1.05; opacity: 1; } }
+@keyframes glShimmer { 0%, 100% { opacity: 0.45; } 35% { opacity: 1; } 65% { opacity: 0.65; } 85% { opacity: 0.9; } }
+@keyframes glTwinkle { 0%, 100% { opacity: 0.3; } 30% { opacity: 1; } 55% { opacity: 0.5; } 75% { opacity: 0.9; } }
+@keyframes glPlume { 0% { scale: 0.85; opacity: 0; } 25% { opacity: 1; } 70% { opacity: 0.6; } 100% { scale: 1.2; opacity: 0; } }
+@keyframes glLens { 0%, 100% { scale: 0.98; opacity: 0.7; } 50% { scale: 1.03; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .gem-light .gl { animation-duration: 600s, 20s; } .gl-spikes, .gl-lens { animation-duration: 20s; } }
+
+/* ---------- The gem's setting: a ring bezel, and the night it shines into ---------- */
+/* Every gem sits in a metal bezel like a ring's, in its rarity's metal (silver for a White Dwarf, gold for a
+   Stellar, violet silver for an Anomaly), the same on every card, Heroes included: a bevelled band, lit from the
+   top left, with a dark groove where it grips the stone. (It replaces the bump of card stock the gem sat in.) */
+.card .art-wrap .gem.gem-dwarf { --m-hi: #ffffff; --m-mid: #c9d0dd; --m-lo: #7d8699; }
+.card .art-wrap .gem.gem-stellar { --m-hi: #fff4cf; --m-mid: #e1b453; --m-lo: #99671b; }
+.card .art-wrap .gem.gem-anomaly { --m-hi: #f6efff; --m-mid: #b9a6e0; --m-lo: #6c5a98; }
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+  inset: calc(var(--gs) * -0.17); clip-path: none; border-radius: 50%;
+  background: conic-gradient(from 200deg, var(--m-hi), var(--m-mid) 18%, var(--m-lo) 34%, var(--m-mid) 50%, var(--m-hi) 62%, var(--m-mid) 76%, var(--m-lo) 90%, var(--m-hi));
+  box-shadow: inset 0 0 0 calc(var(--gs) * 0.035) rgba(255, 255, 255, 0.55), inset 0 0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.06) rgba(0, 0, 0, 0.18), 0 calc(var(--gs) * 0.05) calc(var(--gs) * 0.12) rgba(20, 22, 34, 0.45);
+}
+.card .art-wrap .gem.gem-dwarf::after, .card .art-wrap .gem.gem-stellar::after, .card .art-wrap .gem.gem-anomaly::after {
+  inset: calc(var(--gs) * -0.17); clip-path: none; border-radius: 50%; box-shadow: none;
+  border: var(--bump-w, 1px) solid var(--bump-ring, rgba(30, 32, 48, 0.4));
+}
+/* The light cards' top strip, behind the gem, deepens into a band of night toward it, lit by the gem right where
+   it sits (an Anomaly's stays dark), so the gem shines as it does on a Hero's dark face. */
+.card:not(.kind-command) {
+  --skyband: radial-gradient(ellipse 40% 230% at 50% 0%, var(--sky-lit), color-mix(in srgb, var(--sky-night) 90%, transparent) 28%, color-mix(in srgb, var(--sky-night) 50%, transparent) 55%, transparent 88%);
+  --sky-lit: #9cc0ff; --sky-night: #1d2f63;
+  background-image: var(--skyband), linear-gradient(var(--bgtop), var(--bgtop)), var(--bg1), var(--bg2);
+  background-size: 100% var(--strip), 100% var(--strip), calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05), 100% 100%;
+  background-position: 0 0, 0 0, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+}
+.card.rarity-stellar { --sky-lit: #ffc460; --sky-night: #5c2f0c; }
+.card.rarity-anomaly { --sky-lit: #0e061a; --sky-night: #2a1046; }
+.card:has(> .card-stock):not(.kind-command) {
+  background-image: var(--skyband), var(--bg2);
+  background-size: 100% var(--strip), 100% 100%; background-position: 0 0, 0 0; background-repeat: no-repeat, no-repeat;
+}

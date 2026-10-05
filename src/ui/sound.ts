@@ -95,8 +95,6 @@ const CAMPAIGN_EIGHTH = 0.42;
 const CAMPAIGN_HAZE = 0.004;
 /** The level of the melody's synth (sustained, slightly distorted saws). */
 const CAMPAIGN_LEAD = 0.012;
-/** The level of the backing chords that keep the melody company before the haze. */
-const CAMPAIGN_BACKING = 0.03;
 /** The level of the beacon, the wavering high note at the top of every chord. */
 const CAMPAIGN_BEACON = 0.02;
 /** The gap between the notes of a rolled chord at the melody's height, in seconds. */
@@ -1115,49 +1113,6 @@ class SoundBoard {
       }
     };
 
-    // The backing synth (before the haze): its echo repeats every eighth, the spacing of the crescendo's runs.
-    const backing = ctx.createGain();
-    const backEcho = ctx.createDelay(1);
-    backEcho.delayTime.value = eighth;
-    const backTone = ctx.createBiquadFilter();
-    backTone.type = 'lowpass';
-    backTone.frequency.value = 2000;
-    const backFeedback = ctx.createGain();
-    backFeedback.gain.value = 0.38;
-    const backWet = ctx.createGain();
-    backWet.gain.value = 0.5;
-    backing.connect(mix);
-    backing.connect(backEcho).connect(backTone).connect(backFeedback).connect(backEcho);
-    backTone.connect(backWet).connect(mix);
-    this.musicNodes.push(backing, backEcho, backTone, backFeedback, backWet);
-    /**
-     * A backing chord: detuned saws with a softened attack, through a resonant lowpass that opens from dark to its
-     * full range over one rock note, fading as it goes.
-     */
-    const backChord = (t: number, notes: number[]) => {
-      const rockNote = eighth * 3;
-      const f = ctx.createBiquadFilter();
-      f.type = 'lowpass';
-      f.Q.value = 6;
-      f.frequency.setValueAtTime(280, t);
-      f.frequency.exponentialRampToValueAtTime(8000, t + rockNote);
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(CAMPAIGN_BACKING, t + 0.07);
-      g.gain.setValueAtTime(CAMPAIGN_BACKING, t + rockNote * 0.6);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + rockNote * 1.3);
-      f.connect(g).connect(backing);
-      for (const n of notes)
-        for (const detune of [-6, 6]) {
-          const o = ctx.createOscillator();
-          o.type = 'sawtooth';
-          o.frequency.value = n;
-          o.detune.value = detune;
-          o.connect(f);
-          o.start(t);
-          o.stop(t + rockNote * 1.35);
-        }
-    };
     /** In the second crescendo, a synth in the rock's voice follows the runs two octaves down (unducked, like the rock). */
     const follow = (t: number, f: number) => {
       const d = this.until(t);
@@ -1219,9 +1174,6 @@ class SoundBoard {
         this.crescendo(at, barLen, tones, c.swell, 4, 2, mix, lead, barLen * 2, part === 3, part === 3 ? follow : undefined);
         return this.afterglow(at + barLen * 2, barLen, tones, lead, part === 3 ? follow : undefined);
       }
-      // Before the haze, a backing chord under the melody on the second and fourth bar of every chord it plays
-      // (outside the crescendo): two notes of the chord, an octave above the pads.
-      if (!hazy) for (const e of [6, 18]) backChord(at + e * eighth, [c.pad[1], c.pad[2]].map((n) => hzOf(midiOf(n) + 12)));
       const phrase = CAMPAIGN_PHRASES[part % 2][index];
       const pitches = phrase.map(([, n]) => midiOf(n));
       const top = pitches.indexOf(Math.max(...pitches));

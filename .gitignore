@@ -6,3 +6,4 @@ release/
 .wrangler/
 .dev.vars
 .stats-cache.json
+__pycache__/
