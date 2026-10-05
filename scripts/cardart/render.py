@@ -28,7 +28,7 @@ def render(cid):
 
 # Cards whose picture was supplied (painted elsewhere, not rendered here): never overwritten by a batch,
 # only when named on their own.
-SUPPLIED = {'empress_solenne'}
+SUPPLIED = {'empress_solenne', 'coronal_chorus'}
 
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
