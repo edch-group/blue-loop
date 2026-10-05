@@ -3395,7 +3395,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .mid-cancel:hover { color: var(--ink); }
 
 /* The deck builder's pool: cards off screen are not laid out or painted until scrolled to. */
-.db-pool .db-card { content-visibility: auto; contain-intrinsic-size: auto 200px; }
+/* (No content-visibility here: it clipped each card's shadow square at its box. The pool shows a page at a time anyway.) */
 /* A page holds just the rows that fit (see pages in builder.ts): it never scrolls. */
 .db-editor .db-pool { overflow: hidden; }
 
