@@ -4597,14 +4597,7 @@ export class App {
           return `<span class="fused-behind" data-act="inspect-fused" data-arg="${c.uid}|${i + 1}" style="--fi:${i};--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`${fd.name} (fused): ${plainText(fd.text).replace(/^Fusion\. /, '')}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
         })
         .join('');
-    // What its Fusion cards add, under its own text (a rule above each, in its colour), so the card says all it does.
-    const fusedText = (c.fused ?? [])
-      .map((f) => {
-        const fd = cardDef(f.defId);
-        const text = fd.text.replace(/^\{fusion\}\.\s*/, '');
-        return text ? `<span class="card-fused-text" style="--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`From ${fd.name}, fused onto it`)}">${cardTextHtml(text)}</span>` : '';
-      })
-      .join('');
+    const fusedText = this.fusedTextHtml(c);
     // (Resonance and forge show in the card's own numbers, not as a badge.)
     const resonance = '';
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
@@ -4622,6 +4615,17 @@ export class App {
         <div class="card-text">${cardBodyHtml(def, opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </button>`;
+  }
+
+  /** What a card's Fusion cards add, under its own text (a rule above each, in its colour), so the card says all it does. */
+  private fusedTextHtml(c: CardInstance | undefined): string {
+    return (c?.fused ?? [])
+      .map((f) => {
+        const fd = cardDef(f.defId);
+        const text = fd.text.replace(/^\{fusion\}\.\s*/, '');
+        return text ? `<span class="card-fused-text" style="--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`From ${fd.name}, fused onto it`)}">${cardTextHtml(text)}</span>` : '';
+      })
+      .join('');
   }
 
   /**
@@ -4695,7 +4699,7 @@ export class App {
         <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : {})}</div>
+        <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : {})}${this.fusedTextHtml(c)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </div>`;
   }
@@ -4932,7 +4936,7 @@ export class App {
     const tabs = [host!, ...fused]
       .map((c, i) => `<button class="insp-tab ${i ? 'insp-tab-fused' : ''} ${i === tab ? 'on' : ''}" data-act="inspect-tab" data-arg="${i}">${esc(cardDef(c.defId).name.toLowerCase())}</button>`)
       .join('');
-    return `<div class="insp-tabbed">${shown}<div class="insp-tabs">${tabs}</div></div>${explain}`;
+    return `<div class="insp-tabbed"><div class="insp-tabs">${tabs}</div>${shown}</div>${explain}`;
   }
 
   /** A player's summary: their deck, Command cards and the conditions they fight under. */

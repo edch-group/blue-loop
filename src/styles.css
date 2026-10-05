@@ -4659,3 +4659,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card .art-wrap .gem { --gs: max(9px, calc(var(--cw, 100px) * 0.08)); }
 .card .art-wrap .gem::before, .card .art-wrap .gem::after { inset: calc(var(--gs) * -0.12); clip-path: inset(-6px -6px calc(50% - 1px) -6px); }
 .card .card-type, .card-table .card-type { top: calc(var(--cw, 100px) * 0.072); }
+/* The inspector, for a card with Fusion cards on it: tabs along its top (the card, then each fused card), as
+   they sit above it on the board. And the keywords beside a card in the inspector: a fixed width, about the card's. */
+.insp-tabbed { flex-direction: column; align-items: stretch; }
+.insp-tabs { display: flex; gap: 4px; margin: 0 4% 12px; flex-wrap: wrap; justify-content: center; position: relative; z-index: 0; }
+.insp-tab { flex: 1 1 0; min-width: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; padding: 6px 10px; border-radius: 10px; }
+.insp-tabbed > .card-big { position: relative; z-index: 1; }
+.inspector-row .kw-wrap { width: var(--pw, 280px); }
+.inspector-row .kw-wrap > .kw-list { width: 100%; max-width: none; box-sizing: border-box; }
