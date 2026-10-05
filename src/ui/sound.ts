@@ -90,7 +90,7 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 /** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
 const CAMPAIGN_EIGHTH = 0.42;
 /** The haze's level (the distorted synth that holds long chords in the second half of the form). */
-const CAMPAIGN_HAZE = 0.012;
+const CAMPAIGN_HAZE = 0.004;
 /** The gap between the notes of a rolled chord at the melody's height, in seconds. */
 const CAMPAIGN_ROLL = 0.045;
 /** Per chord (four bars of six eighths): the falling bass, the pad, and the two notes it rocks between. */
@@ -778,7 +778,7 @@ class SoundBoard {
    * Part of the campaign score's crescendo, which runs six bars from the start of the Fmaj7 to halfway through the
    * Em7 (`from` is the bar of those six this part starts on, `bars` how many it covers). The melody runs in steady
    * eighths, three to each note of the rock, slowly climbing the chord and growing louder, over a chord of detuned
-   * saws whose filter opens as it swells; in the last two bars a rush of air rises into the peak.
+   * saws whose filter opens as it swells into the peak.
    */
   private crescendo(
     at: number,
@@ -835,8 +835,6 @@ class SoundBoard {
         o.start(at);
         o.stop(end + 2);
       }
-    // The swell at the end: a rush of air rising over the last two bars into the peak.
-    if (from + bars === total) this.breath({ dur: barLen * 2 + 0.3, freq: 300, to: 5000, type: 'bandpass', q: 1.2, gain: 0.05, attack: barLen * 2, delay: this.until(end - barLen * 2), out: bus });
   }
 
   /** After the crescendo's peak, the arpeggio carries on for two more bars in eighths, drifting down and easing off. */
@@ -962,7 +960,7 @@ class SoundBoard {
 
     // The haze's distortion: a hard-driven tanh curve, clearly audible.
     const curve = new Float32Array(new ArrayBuffer(1024 * 4));
-    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(6 * ((i / (curve.length - 1)) * 2 - 1)) / Math.tanh(6);
+    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(9 * ((i / (curve.length - 1)) * 2 - 1)) / Math.tanh(9);
 
     /**
      * The form, four times round the chords and then over again: a minimal opening (the melody joining on the
