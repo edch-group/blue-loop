@@ -4,7 +4,7 @@
  * each skill a star (the bigger the skill, the bigger the star).
  */
 import { cardDef, skillCost, type HeroSkill, type Item, type SlotKind } from '../engine';
-import { cardScene } from './cardart';
+import { cardScene, renderedArt } from './cardart';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -56,6 +56,12 @@ const portraitArt = new Map<string, string>();
 /** The hero's scene, cropped to their portrait window, as an image. */
 function portraitImage(hero: string, x0: number): string {
   let img = portraitArt.get(hero);
+  const painted = renderedArt(hero);
+  if (!img && painted) {
+    // The rendered picture, cropped to the same window (the scene is twice the window's width).
+    img = `<img class="hv-portrait" alt="" draggable="false" src="${painted}" style="object-position:${(x0 / 80) * 100}% 50%" />`;
+    portraitArt.set(hero, img);
+  }
   if (!img) {
     const svg = cardScene(cardDef(hero)).replace('<svg class="art"', '<svg xmlns="http://www.w3.org/2000/svg"').replace('viewBox="0 0 160 100"', `viewBox="${x0} 0 80 100"`);
     img = `<img class="hv-portrait" alt="" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" />`;

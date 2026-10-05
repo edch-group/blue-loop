@@ -1,5 +1,5 @@
 import { BALANCE, baseStability, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
-import { cardScene } from './cardart';
+import { cardScene, renderedArt } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
 import dwarf from './gems/dwarf.png';
@@ -189,6 +189,15 @@ const sceneImages = new Map<string, string>();
 function sceneImage(def: CardDef): string {
   let img = sceneImages.get(def.id);
   if (!img) {
+    const painted = !def.fusedFrom && renderedArt(def.id);
+    // A rendered picture is an image already; a fused card made from one draws inline (an SVG used as an
+    // image can't load the pictures inside it).
+    if (painted) img = `<img class="art" alt="" loading="lazy" decoding="async" draggable="false" src="${painted}" />`;
+    else if (def.fusedFrom?.some((id) => renderedArt(id))) img = cardScene(def);
+    if (img) {
+      sceneImages.set(def.id, img);
+      return img;
+    }
     const svg = cardScene(def).replace('<svg class="art"', '<svg xmlns="http://www.w3.org/2000/svg"');
     img = `<img class="art" alt="" decoding="async" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" />`;
     sceneImages.set(def.id, img);

@@ -1551,9 +1551,27 @@ const ART_DUSK: Record<string, Draw> = {
 Object.assign(ART, ART_RACES, ART_DUSK);
 
 
+/**
+ * Cards with a rendered picture (painted with light by scripts/cardart, in place of the SVG scene): their
+ * image's URL, by card id.
+ */
+const RENDERED: Record<string, string> = Object.fromEntries(
+  Object.entries(import.meta.glob<string>('../assets/cards/*.webp', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
+    path.slice(path.lastIndexOf('/') + 1, -'.webp'.length),
+    url,
+  ]),
+);
+
+/** A card's rendered picture, if it has one. */
+export function renderedArt(id: string): string | undefined {
+  return RENDERED[id];
+}
+
 /** The window a card's picture sits in: a sky in its palette, with stars and the picture. */
 export function cardScene(def: CardDef): string {
   if (def.fusedFrom) return fusedScene(def);
+  const painted = RENDERED[def.id];
+  if (painted) return `<svg class="art" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><image href="${painted}" width="160" height="100" preserveAspectRatio="xMidYMid slice"/></svg>`;
   const palette = PAL[def.race !== undefined ? RACE_PAL[def.race] : def.kind] ?? PAL.command;
   const S = new Scene(`a-${def.id}`, palette);
   const p = S.p;
@@ -1581,5 +1599,5 @@ function fusedScene(def: CardDef): string {
 
 /** Whether a card has a picture of its own (rather than the fallback). */
 export function hasOwnArt(defId: string): boolean {
-  return defId in ART;
+  return defId in ART || defId in RENDERED;
 }
