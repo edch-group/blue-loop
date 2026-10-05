@@ -909,7 +909,8 @@ class SoundBoard {
     const eighth = CAMPAIGN_EIGHTH;
     const barLen = eighth * 6;
     const chordLen = barLen * 4;
-    const t0 = ctx.currentTime + 0.1;
+    // A breath before the first note, so the rock's opening note lands whole.
+    const t0 = ctx.currentTime + 0.3;
 
     // The drone, as in the menus: detuned triangles on A through a slowly breathing lowpass, held under every chord.
     const droneFilter = ctx.createBiquadFilter();
@@ -921,7 +922,8 @@ class SoundBoard {
     lfoDepth.gain.value = 110;
     lfo.connect(lfoDepth).connect(droneFilter.frequency);
     const droneGain = ctx.createGain();
-    droneGain.gain.value = 0.06;
+    droneGain.gain.setValueAtTime(0, t0);
+    droneGain.gain.linearRampToValueAtTime(0.06, t0 + 4);
     droneFilter.connect(droneGain).connect(bus);
     const drones = [55, 82.41, 110].map((f, i) => {
       const o = ctx.createOscillator();
@@ -1076,17 +1078,15 @@ class SoundBoard {
       const part = round % 4;
       const rising = part === 1 || part === 3; // a crescendo through the Fmaj7 and the Em7 this time round
       const hazy = part >= 2;
-      // The very first chord comes in at once (no fade, so you never lose your place).
-      const first = round === 0 && index === 0;
-      // Pads, as the menu score voices them, but kept low.
+      // Pads, as the menu score voices them, but kept low (they swell in, from the first chord on, under the rock).
       c.pad.forEach((n, i) => {
-        const opts = { dur: chordLen + 4, attack: first ? 0.3 : 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
+        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
         this.voice(hz(n), opts);
         this.voice(hz(n), { ...opts, detune: 9, gain: 0.007 });
       });
       // The falling bass: a held triangle and a soft sine an octave up.
-      this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: first ? 0.05 : 1.4, release: 1.6, cutoff: 320, out: bus });
-      this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: first ? 0.05 : 2, release: 1.6, out: bus });
+      this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: bus });
+      this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: bus });
       // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle).
       for (let b = 0; b < 4; b++)
         c.rock.forEach((n, k) => {
