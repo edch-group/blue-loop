@@ -83,7 +83,7 @@ import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
 import { fitCardText, fitWhenSeen } from './fittext';
 import { refreshLift, trackLift } from './lift';
-import { animateSuns } from './sun3d';
+import { animateSuns, holdSuns } from './sun3d';
 import { voices } from './voice';
 import { morphInto } from './morph';
 import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
@@ -531,6 +531,10 @@ export class App {
   private boardZoom: 'rival' | 'mine' | null = null;
   /** How the board is zoomed to fit that tableau to the window (--bz, --zx, --zy), as worked out by fitZoom. */
   private zoomVars = '';
+  /** The zoom worked out for each tableau at each window size, so zooming again needs no measuring. */
+  private zoomFits = new Map<string, { bz: number; zx: number; zy: number }>();
+  /** Card text to fit again once the zoom's easing is over (it would stall the easing mid-way). */
+  private pendingRefit: (() => void) | null = null;
   private sheet: Sheet | null = null;
   /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
   private landing: (() => void) | null = null;
@@ -3316,6 +3320,7 @@ export class App {
     fitWhenSeen(this.root.querySelectorAll<HTMLElement>('.db-pool .db-card'));
     this.activeBuilder().afterRender();
     refreshLift();
+    this.prefitZooms();
     const page = this.screen === 'menu' ? `menu:${this.menuPage}` : this.screen;
     if (page !== this.shownPage) {
       // The page left behind faded out and stayed faded; redraws keep elements, so those fades are cleared.
@@ -4095,12 +4100,53 @@ export class App {
     </div>`;
   }
 
+  /**
+   * Work out the zoom onto each tableau ahead of time, while nothing is happening (all in one task, put back
+   * before the screen is drawn, so nothing on it changes): the first zoom then starts at once, as later ones do.
+   */
+  private prefitQueued = false;
+  private prefitZooms() {
+    if (this.prefitQueued || this.screen !== 'game' || this.boardZoom || reducedMotion()) return;
+    const key = (side: string) => `${side}:${window.innerWidth}x${window.innerHeight}`;
+    if (this.zoomFits.has(key('mine')) && this.zoomFits.has(key('rival'))) return;
+    this.prefitQueued = true;
+    const idle = (window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 300));
+    idle(
+      () => {
+        this.prefitQueued = false;
+        const view = this.root.querySelector<HTMLElement>('.table-view');
+        if (!view || this.screen !== 'game' || this.boardZoom) return;
+        const style = view.getAttribute('style');
+        // (No transitions while it is measured: the zoom's own styles, come and gone, would set them off.)
+        view.classList.add('no-anim');
+        for (const side of ['mine', 'rival'] as const) {
+          if (this.zoomFits.has(key(side))) continue;
+          this.boardZoom = side;
+          view.classList.add(`zoom-${side}`);
+          this.fitZoom(undefined, undefined, { measureOnly: true });
+          view.classList.remove(`zoom-${side}`);
+          this.boardZoom = null;
+        }
+        this.zoomVars = '';
+        if (style === null) view.removeAttribute('style');
+        else view.setAttribute('style', style);
+        const game = view.querySelector<HTMLElement>(':scope > .game');
+        void view.offsetWidth;
+        if (game) game.style.transition = '';
+        view.classList.remove('no-anim');
+      },
+      { timeout: 2000 },
+    );
+  }
+
   /** Zoom the board onto one tableau, or out (null): the board itself moves, so everything on it still works. */
   private setBoardZoom(side: 'rival' | 'mine' | null) {
     if (this.boardZoom === side) return;
     const was = this.boardZoom;
     this.boardZoom = side;
     sound.hover();
+    // (The suns hold still while the board moves: redrawn at their new size, they would stall it.)
+    if (!reducedMotion()) holdSuns(720);
     const view = this.root.querySelector('.table-view');
     if (!view) return;
     const game = view.querySelector<HTMLElement>(':scope > .game');
@@ -4156,7 +4202,7 @@ export class App {
     }
     view.classList.toggle('zoom-rival', side === 'rival');
     view.classList.toggle('zoom-mine', side === 'mine');
-    this.fitZoom();
+    this.fitZoom(undefined, undefined, { deferFit: animate });
     if (animate && from && game) {
       game.style.transition = 'none';
       const box = layoutBox(game);
@@ -4181,33 +4227,55 @@ export class App {
         }
         game.style.transform = '';
       }
-      game
-        .animate([{ transform: start() }, { transform: `translate(${m.m41.toFixed(1)}px, ${m.m42.toFixed(1)}px) rotateX(${tiltOf(!!side)}) scale(0.82)` }], {
-          duration: 520,
-          easing: 'cubic-bezier(0.32, 0, 0.18, 1)',
+      // Held on its first frame until that frame is drawn (the board at its new size takes a moment to paint),
+      // then run, so none of the easing is lost to the paint; on its own layer while it moves.
+      game.style.willChange = 'transform';
+      const anim = game.animate([{ transform: start() }, { transform: `translate(${m.m41.toFixed(1)}px, ${m.m42.toFixed(1)}px) rotateX(${tiltOf(!!side)}) scale(0.82)` }], {
+        duration: 520,
+        easing: 'cubic-bezier(0.32, 0, 0.18, 1)',
+      });
+      anim.pause();
+      requestAnimationFrame(() => requestAnimationFrame(() => anim.play()));
+      anim.finished
+        .finally(() => {
+          game.style.transition = '';
+          game.style.willChange = '';
+          this.runRefit();
         })
-        .finished.finally(() => (game.style.transition = ''))
         .catch(() => undefined);
-    }
+    } else this.runRefit();
     const ctl = this.root.querySelector('.board-zoom');
     if (ctl) ctl.outerHTML = this.renderZoomControls();
+  }
+
+  /** The card text fitting held back for the zoom, now. */
+  private runRefit() {
+    const f = this.pendingRefit;
+    this.pendingRefit = null;
+    f?.();
   }
 
   /**
    * Zoom the board so the tableau zoomed onto (its row of slots and its Hero) spans the window end to end, centred:
    * the board is laid out larger (--bz, so it stays sharp), then moved (--zx, --zy), measuring as it goes.
    */
-  private fitZoom(keepBz?: number, from?: { zx: number; zy: number }) {
+  private fitZoom(keepBz?: number, from?: { zx: number; zy: number }, opts: { deferFit?: boolean; measureOnly?: boolean } = {}) {
     const view = this.root.querySelector<HTMLElement>('.table-view');
     const game = view?.querySelector<HTMLElement>(':scope > .game');
     if (!view || !game) return;
-    if (!this.boardZoom) {
-      this.zoomVars = '';
-      view.removeAttribute('style');
-      // (Its cards are their own size again: their text fits afresh, and the outlines are drawn round them again.)
+    // (Card text fitted afresh to the cards' new size, and the tableaus' outlines and the piles' lean drawn
+    // again: at once, or once the zoom's easing is done, so none of it holds up its first frame.)
+    const refit = () => {
       fitCardText(view);
       frameTableaus(this.root);
       leanPiles(this.root);
+    };
+    const settle = () => (opts.deferFit ? (this.pendingRefit = refit) : refit());
+    if (!this.boardZoom) {
+      this.zoomVars = '';
+      view.removeAttribute('style');
+      frameTableaus(this.root);
+      settle();
       return;
     }
     const side = this.boardZoom;
@@ -4226,6 +4294,17 @@ export class App {
     // (Measured as it will stand, not mid-way through a transition, nor under a zoom's easing still running.)
     game.style.transition = 'none';
     for (const a of game.getAnimations()) a.cancel();
+    // Already worked out for this tableau at this size: no measuring (each step lays the whole board out again).
+    const key = `${side}:${w}x${h}`;
+    const known = keepBz === undefined && !from ? this.zoomFits.get(key) : undefined;
+    if (known) {
+      set(known.bz, known.zx, known.zy);
+      void game.offsetWidth;
+      game.style.transition = '';
+      frameTableaus(this.root);
+      settle();
+      return;
+    }
     let bz = keepBz ?? 1.6, zx = from?.zx ?? 0, zy = from?.zy ?? 0;
     set(bz, zx, zy);
     // First measured with the board laid flat (no tilt, no perspective to throw a far tableau's measure off),
@@ -4253,13 +4332,12 @@ export class App {
     view.classList.remove('zoom-measuring');
     // (The board is tilted: a move comes out a little short on screen, so it is measured and moved again.)
     centre(6);
+    if (keepBz === undefined) this.zoomFits.set(key, { bz, zx, zy });
+    if (opts.measureOnly) return;
     void game.offsetWidth;
     game.style.transition = '';
-    // Card text was fitted to the cards at their old size (a long one shrunk to fit): fit it again at this size,
-    // and the tableaus' outlines (and the piles' lean) drawn again round them.
-    fitCardText(view);
     frameTableaus(this.root);
-    leanPiles(this.root);
+    settle();
   }
 
   /** Round and stability, together in one container at the top centre. */

@@ -681,10 +681,19 @@ const labelPlace = new Map<string, string>();
 
 let last = 0;
 let lastDome = 0;
+/** Until when the suns hold still (not redrawn): while the board zooms, redrawing them at their new size would stall it. */
+let holdUntil = 0;
+export function holdSuns(ms: number) {
+  holdUntil = Math.max(holdUntil, performance.now() + ms);
+}
 function frame(time: number) {
   const suns = document.querySelectorAll<HTMLCanvasElement>('canvas.sun3d');
   if (!suns.length) {
     running = false;
+    return;
+  }
+  if (time < holdUntil) {
+    requestAnimationFrame(frame);
     return;
   }
   // About 20 frames a second is plenty for a slow turn and a lazy flicker; a swinging orbit gets every frame.
