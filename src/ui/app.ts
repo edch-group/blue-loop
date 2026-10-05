@@ -1678,8 +1678,7 @@ export class App {
       // A rival's face-down card is hidden (online): the record of what sprang says what it was (it is now on
       // top of their discard pile, or in their tableau for a Lightspeed guard).
       const defId = why?.defId ?? now.discard[now.discard.length - 1]?.defId ?? card.defId;
-      const name = cardDef(defId).name;
-      this.showBanner('lightspeed!', `${now.name} springs ${name}`, 150);
+      // (Announced by a small tag above the card in the preview pane: a banner across the screen hid what happened.)
       sound.flare();
       const stage: Stage = { defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs`, against: why?.against };
       // It shows for a few seconds, then fades away by itself (not lingering until someone acts).
@@ -4641,6 +4640,7 @@ export class App {
     }
     return `
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
+        ${st.caption && !st.faceDown && st.caption.startsWith('⚡') ? '<span class="stage-ls-tag stage-ls-tag-solo">⚡ lightspeed</span>' : ''}
         ${card}
         ${/* (A plain play needs no words: only a card set face down, or sprung, says what happened.) */ st.caption && st.caption !== 'you play' ? `<div class="stage-caption">${esc(st.caption)}</div>` : ''}
         ${st.confirm && !st.faceDown ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}

@@ -4523,3 +4523,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cback .stellaria-flower ellipse, .cback .stellaria-flower path { fill: rgba(255, 255, 255, 0.28); stroke: #fff; stroke-width: 5; }
 .tpile-back { --cw: var(--pw); }
 .tpile-back .cback { border-radius: calc(var(--tcw) * 0.07); box-shadow: 0 4px 12px rgba(80, 84, 100, 0.18), 0 0 0 1.5px #fff; }
+/* A Lightspeed card springing: a small solid yellow tag above it in the preview pane (no banner over the cards). */
+.stage-ls-tag { background: #d4952a; color: #fff; border: 1px solid #c4851c; box-shadow: 0 4px 12px rgba(170, 110, 20, 0.35); font-weight: 600; z-index: 2; }
+.stage-ls-tag-solo { position: relative; top: auto; justify-self: center; margin-bottom: -2px; }
