@@ -1,4 +1,5 @@
 import { applyAction, cardDef, coverCard, createGame, deckProblems, GameError, presetDeck, RACE_NAMES, type Action, type CardInstance, type GameState } from '../src/engine';
+import { isAvatar } from './avatars';
 
 /**
  * An online 1v1 room: the whole game, run on the server with the same engine
@@ -18,6 +19,8 @@ export interface Seat {
   deck: string[];
   deckName: string;
   species: number;
+  /** The player's picture (a card id). */
+  avatar?: string;
   /** Confirmed in the lobby: the game starts once both seats are ready. */
   ready?: boolean;
   /** The player's profile id (ranked rooms admit only the two players matched). */
@@ -64,11 +67,11 @@ export interface Payout {
 
 /** What a client may send. */
 export type ClientMessage =
-  | { t: 'join'; name: string; deck: string[]; deckName: string; species: number; token?: string; profileId?: string }
+  | { t: 'join'; name: string; deck: string[]; deckName: string; species: number; avatar?: string; token?: string; profileId?: string }
   | { t: 'action'; action: Action }
   | { t: 'rematch' }
   /** In the lobby: change your name, deck or race (this un-readies you). */
-  | { t: 'setup'; name: string; deck: string[]; deckName: string; species: number }
+  | { t: 'setup'; name: string; deck: string[]; deckName: string; species: number; avatar?: string }
   /** In the lobby: confirm (or take back) that you are ready to start. */
   | { t: 'ready'; ready: boolean }
   /** In a game: you have read the card your rival just played (they may carry on). */
@@ -219,7 +222,7 @@ export function playerIndex(room: RoomData, seat: number): number {
 }
 
 /** A seat's name, deck and race from a join or setup message (an illegal deck falls back to that race's starter). */
-function seatSetup(msg: { name: string; deck: string[]; deckName: string; species: number }, index: number): Omit<Seat, 'token'> {
+function seatSetup(msg: { name: string; deck: string[]; deckName: string; species: number; avatar?: string }, index: number): Omit<Seat, 'token'> {
   const deck = Array.isArray(msg.deck) ? msg.deck.map(String) : [];
   const species = Number.isInteger(msg.species) && msg.species >= 0 && msg.species < RACE_NAMES.length ? msg.species : 0;
   const legal = deck.length > 0 && deckProblems(deck).length === 0;
@@ -228,6 +231,7 @@ function seatSetup(msg: { name: string; deck: string[]; deckName: string; specie
     deck: legal ? deck : presetDeck(species).cards,
     deckName: legal ? clean(msg.deckName, 24) || 'Custom deck' : presetDeck(species).name,
     species,
+    ...(isAvatar(msg.avatar) ? { avatar: msg.avatar } : {}),
   };
 }
 
@@ -240,7 +244,7 @@ function start(room: RoomData, random: () => number) {
   const order = [room.seats[room.first], room.seats[1 - room.first]];
   room.game = createGame({
     seed: Math.floor(random() * 2 ** 31),
-    players: order.map((s) => ({ name: s.name, isAI: false, deck: s.deck, deckName: s.deckName, species: s.species })),
+    players: order.map((s) => ({ name: s.name, isAI: false, deck: s.deck, deckName: s.deckName, species: s.species, avatar: s.avatar })),
   });
   room.last = null;
   room.waitingOn = null;

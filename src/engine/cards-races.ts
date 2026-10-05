@@ -15,19 +15,23 @@ export const RACE_CARDS: CardDef[] = [
   // ---------------- Nyxari ----------------
   // Veilwalkers
   {
-    id: 'nyx_umbral_snare', name: 'Umbral Snare', kind: 'lightspeed', race: 4, sub: 'veilwalker', cost: 1,
-    text: '{lightspeed}. When an enemy plays an attack card, first {shield:2} and {heat:2} to them.',
+    // Veilwalker traps: each works in your tableau too, or set face down (1 more energy) to spring.
+    id: 'nyx_umbral_snare', name: 'Umbral Snare', kind: 'defence', race: 4, sub: 'veilwalker', cost: 1,
+    text: '{sting:1}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: when an enemy plays an attack card, first {shield:2} and {heat:2} to them.',
+    onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'retaliate', amount: 1 }],
     lightspeed: { trigger: { on: 'enemyPlays', kind: 'attack' }, effects: [{ type: 'shield', amount: 2 }, { type: 'heat', amount: 2, to: 'target' }] },
   },
   {
-    id: 'nyx_mirror_veil', name: 'Mirror Veil', kind: 'lightspeed', race: 4, sub: 'veilwalker', cost: 1,
-    text: "{lightspeed}. When an enemy's card would heat your sun by 2 or more, cancel that.",
+    id: 'nyx_mirror_veil', name: 'Mirror Veil', kind: 'defence', race: 4, sub: 'veilwalker', cost: 1,
+    text: "{dawn}: {shield:2}. {lightspeed} for 1 more energy: when an enemy's card would heat your sun by 2 or more, cancel that.",
+    onTurn: [{ type: 'shield', amount: 2 }],
     lightspeed: { trigger: { on: 'heated', min: 2 }, counter: true },
   },
   {
-    id: 'nyx_night_ambush', name: 'Night Ambush', kind: 'lightspeed', race: 4, sub: 'veilwalker', cost: 1, character: true,
-    text: '{lightspeed}. When an enemy is about to destroy or return one of your cards, cancel it and {heat:2} to them.',
-    lightspeed: { trigger: { on: 'targeted' }, counter: true, effects: [{ type: 'heat', amount: 2, to: 'target' }] },
+    id: 'nyx_night_ambush', name: 'Night Ambush', kind: 'attack', race: 4, sub: 'veilwalker', cost: 1, character: true,
+    text: '{dawn}: {heat:1}. {lightspeed} for 1 more energy: when an enemy attacks one of your cards (or aims heat at it), cancel that and {heat:2} to them.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
+    lightspeed: { trigger: { on: 'cardAttacked' }, counter: true, effects: [{ type: 'heat', amount: 2, to: 'target' }] },
   },
   {
     id: 'nyx_null_shroud', name: 'Null Shroud', kind: 'lightspeed', race: 4, sub: 'veilwalker', cost: 1, rarity: 'stellar',
@@ -36,8 +40,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'nyx_veil_sentry', name: 'Veil Sentry', kind: 'defence', race: 4, sub: 'veilwalker', cost: 2,
-    text: '{guard}. {sting:2}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: springs into your tableau to take heat aimed at your cards.',
-    onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }], lightspeed: { trigger: { on: 'cardHeated' }, deploy: true },
+    text: '{guard}. {sting:2}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: springs into your tableau to take an attack or heat aimed at your cards.',
+    onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }], lightspeed: { trigger: { on: 'cardAttacked' }, deploy: true },
   },
   {
     id: 'nyx_gloom_warden', name: 'Gloom Warden', kind: 'defence', race: 4, sub: 'veilwalker', cost: 2, character: true,
@@ -123,8 +127,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_anvil_graft', name: 'Anvil Graft', kind: 'defence', race: 5, sub: 'forgeborn', cost: 2, fusion: true,
-    text: '{fusion}. {dawn}: {cool:1}. {shield:1}.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'shield', amount: 1 }],
+    text: '{fusion}. {dawn}: {shield:1}. {dusk}: {cool:1}.',
+    onTurn: [{ type: 'shield', amount: 1 }], onDusk: [{ type: 'cool', amount: 1 }],
   },
   {
     id: 'kor_forge_hammer', name: 'Forge Hammer', kind: 'attack', race: 5, sub: 'forgeborn', cost: 2,
@@ -144,8 +148,8 @@ export const RACE_CARDS: CardDef[] = [
   // Bastion-kin
   {
     id: 'kor_shieldwall', name: 'Shieldwall', kind: 'defence', race: 5, sub: 'bastionkin', cost: 1,
-    text: '{guard}. {sturdy:3}.',
-    defence: 3, passive: [{ type: 'taunt' }],
+    text: '{guard}. {sturdy:2}.',
+    defence: 2, passive: [{ type: 'taunt' }],
   },
   {
     id: 'kor_bastion_kin', name: 'Bastion-kin Shieldbearer', kind: 'defence', race: 5, sub: 'bastionkin', cost: 2, character: true,
@@ -169,8 +173,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_foundry', name: 'Deep Foundry', kind: 'growth', race: 5, cost: 2,
-    text: '{dawn}: {repair:2}. {cool:1}.',
-    onTurn: [{ type: 'repair', amount: 2 }, { type: 'cool', amount: 1 }],
+    text: '{dawn}: {repair:2}. {dusk}: {cool:1}.',
+    onTurn: [{ type: 'repair', amount: 2 }], onDusk: [{ type: 'cool', amount: 1 }],
   },
   {
     id: 'kor_molten_pour', name: 'Molten Pour', kind: 'attack', race: 5, cost: 1,
@@ -231,8 +235,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'ser_orrery_keeper', name: 'Orrery Keeper', kind: 'defence', race: 6, sub: 'seer', cost: 2, character: true,
-    text: '{dawn}: {cool:1}. {attune}.',
-    onTurn: [{ type: 'cool', amount: 1 }], attune: 1,
+    text: '{dusk}: {cool:1}. {attune}.',
+    onDusk: [{ type: 'cool', amount: 1 }], attune: 1,
   },
   {
     id: 'ser_stargazer', name: 'Stargazer', kind: 'attack', race: 6, sub: 'seer', cost: 2,
@@ -266,8 +270,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'ser_almanac', name: 'Celestial Almanac', kind: 'growth', race: 6, cost: 1,
-    text: '{dawn}: {cool:1}. While facing the abundant planet, draw 1.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1, if: { planet: 'abundant' } }],
+    text: '{dawn}: while facing the abundant planet, draw 1. {dusk}: {cool:1}.',
+    onTurn: [{ type: 'draw', amount: 1, if: { planet: 'abundant' } }], onDusk: [{ type: 'cool', amount: 1 }],
   },
   // Heroes
   hero(
@@ -302,13 +306,13 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'pyr_heat_bloom', name: 'Heat Bloom', kind: 'defence', race: 7, sub: 'cinderborn', cost: 2,
-    text: '{dawn}: {cool:1}. While {overheated}, {cool:+2} and {shield:1}.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 2, if: { overheated: true } }, { type: 'shield', amount: 1, if: { overheated: true } }],
+    text: '{dusk}: {cool:1}. While {overheated}, {cool:+2}. {dawn}: while {overheated}, {shield:1}.',
+    onTurn: [{ type: 'shield', amount: 1, if: { overheated: true } }], onDusk: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 2, if: { overheated: true } }],
   },
   {
     id: 'pyr_ember_guard', name: 'Ember Guard', kind: 'defence', race: 7, sub: 'cinderborn', cost: 2,
-    text: '{guard}. {sting:2}. {dawn}: {cool:2}.',
-    onTurn: [{ type: 'cool', amount: 2 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }],
+    text: '{guard}. {sting:2}. {dusk}: {cool:2}.',
+    onDusk: [{ type: 'cool', amount: 2 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }],
   },
   {
     id: 'pyr_magma_heart', name: 'Magma Heart', kind: 'growth', race: 7, sub: 'cinderborn', cost: 2, rarity: 'stellar',

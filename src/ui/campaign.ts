@@ -82,7 +82,7 @@ import { researchTree } from './researchview';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
-import { cardArtLite, cardGlyph, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { raceRow, cardArtLite, cardGlyph, cardBodyHtml, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { toPageDelta } from './viewport';
 
@@ -2171,9 +2171,9 @@ function cardHtml(defId: string): string {
   const def = cardDef(defId);
   return `
     <div class="card cmp-card kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
-      <div class="card-glyph">${cardArtLite(def, true)}</div>${stabilityBadge(def)}
+      <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}${stabilityBadge(def)}
       <div class="card-name">${lower(def.name)}</div>
-      <div class="card-text">${cardTextHtml(def.text)}</div>
+      <div class="card-text">${cardBodyHtml(def)}</div>
       <div class="card-kind">${typeLine(def)}</div>
     </div>`;
 }

@@ -465,12 +465,9 @@ input { font: inherit; }
 }
 .card:active:not([disabled]) { transform: scale(0.97); }
 .card-affordable { box-shadow: 0 0 0 1.5px #fff, 0 0 16px color-mix(in srgb, var(--kc) 30%, rgba(255, 255, 255, 0.9)), 0 5px 16px rgba(90, 90, 110, 0.15); }
-/* Can't afford it yet: the card keeps its colours but has no glow and does not lift. */
-.card.card-pricey { cursor: not-allowed; }
+/* Can't afford it yet: the card keeps its colours but has no glow (in the hand it still lifts as any card does). */
 @media (hover: hover) {
   .card.card-pricey.lifted { transform: none; }
-  /* In the hand it keeps its place in the fan, and its angle (a Command card stays on its side). */
-  .hand > .card.card-pricey.lifted { transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg))); }
 }
 /* Display cards float slightly above the board. */
 .display .card { box-shadow: 0 6px 18px rgba(80, 84, 100, 0.16), 0 1px 3px rgba(80, 84, 100, 0.1); }
@@ -617,11 +614,12 @@ input { font: inherit; }
 .tile .pill { position: absolute; left: 50%; bottom: 5%; transform: translateX(-50%); font-size: max(6px, calc(var(--tw) * 0.052)); letter-spacing: 0.1em; width: max-content; max-width: 92%; white-space: normal; line-height: 1.25; text-align: center; padding: 3px 6px; }
 
 /* ---------- AI spotlight ---------- */
-.stage { --cw: min(161px, calc(32 * var(--vh))); position: fixed; left: min(78%, calc(100% - var(--cw) / 2 - 16px)); top: 50%; transform: translate(-50%, -50%); z-index: 15; display: grid; justify-items: center; gap: 8px; pointer-events: none; animation: stage-in 0.25s ease-out; }
+/* (--scw: the stage's card width; each card sets its own --cw, so the stage's is handed down under another name.) */
+.stage { --scw: min(250px, calc(50 * var(--vh))); position: fixed; left: min(78%, calc(100% - var(--scw) / 2 - 16px)); top: 50%; transform: translate(-50%, -50%); z-index: 15; display: grid; justify-items: center; gap: 8px; pointer-events: none; animation: stage-in 0.25s ease-out; }
 /* Fades in where it stands (its own translate centres it: a moving keyframe would slide it sideways). */
 @keyframes stage-in { from { opacity: 0; } }
 .stage::before { content: ''; position: absolute; inset: -50px -110px; background: radial-gradient(ellipse, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.6) 45%, transparent 70%); z-index: -1; }
-.stage .card { width: var(--cw); height: calc(var(--cw) * 1.4); box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff; }
+.stage .card { --cw: var(--scw); width: var(--scw); height: calc(var(--scw) * 1.4); box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff; }
 .stage .card .card-text { display: block; }
 /* The staged card is a still, zoomed view: no lift, press or pointer; its keywords still explain on hover. */
 .stage .card-still { pointer-events: none; cursor: default; }
@@ -931,7 +929,8 @@ input { font: inherit; }
 .hand > .card.lifted, .hand > .card:focus-visible {
   /* A subtle lift: the card rises a little out of the fan, keeping its angle. */
   z-index: 50 !important;
-  transform: translateY(calc(var(--fy, 0px) - var(--hh) * 0.08)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg)));
+  /* ...and turns straight, so the card being read is drawn on the pixel grid: crisp. */
+  transform: translateY(round(calc(var(--fy, 0px) - var(--hh) * 0.08), 1px)) rotate(var(--side, 0deg));
   box-shadow: 0 10px 24px rgba(80, 80, 100, 0.22), 0 0 0 1.5px #fff;
 }
 .hand-hidden { position: absolute; inset: 0; display: grid; place-items: center; }
@@ -1015,6 +1014,14 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
   color: var(--ink-soft);
   animation: bannerText 2s cubic-bezier(.2, .8, .2, 1) 0.1s both;
 }
+/* The day's orbit, under the round: the planet facing your sun, and what it gives. */
+.turn-banner-orbit {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px;
+  font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.32em; text-transform: uppercase; color: #6d7a8e;
+  animation: bannerText 2s cubic-bezier(.2, .8, .2, 1) 0.2s both;
+}
+.turn-banner-orbit .tb-gift { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 4px rgba(90, 90, 110, 0.18); font-style: normal; letter-spacing: 0.08em; color: #3a4256; }
+.turn-banner-orbit .tb-energy { width: 0.8em; height: 0.8em; border-radius: 50%; background: #7cc79a; border: 0.1em solid #fff; box-shadow: 0 0 0 1px rgba(90, 150, 110, 0.4); }
 .turn-banner-glow::before {
   /* thin line under the words that grows outward */
   content: '';
@@ -1498,14 +1505,16 @@ body.screen-campaign .backdrop { display: none; }
 .board-floor {
   position: absolute; inset: -38% -48%; border-radius: 50%;
   pointer-events: none;
+  /* (Its dots and rings are sized with the board: zoomed in, they grow with everything else.) */
+  --fz: var(--bz, 1);
   background:
-    radial-gradient(circle, rgba(120, 135, 170, 0.32) 0 1px, transparent 1.5px) 0 0 / 34px 34px,
-    repeating-radial-gradient(circle at 50% 50%, transparent 0 58px, rgba(140, 150, 175, 0.16) 58px 59px),
+    radial-gradient(circle, rgba(120, 135, 170, 0.32) 0 calc(1px * var(--fz)), transparent calc(1.5px * var(--fz))) 0 0 / calc(34px * var(--fz)) calc(34px * var(--fz)),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 calc(58px * var(--fz)), rgba(140, 150, 175, 0.16) calc(58px * var(--fz)) calc(59px * var(--fz))),
     radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.55), rgba(236, 240, 248, 0.25) 45%, transparent 70%);
   /* Fading out at the edges, and clear in the middle (no innermost ring or dots), where the star lies. */
-  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%), radial-gradient(circle at 50% 50%, transparent 0 86px, #000 92px);
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%), radial-gradient(circle at 50% 50%, transparent 0 calc(86px * var(--fz)), #000 calc(92px * var(--fz)));
   -webkit-mask-composite: source-in;
-  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%), radial-gradient(circle at 50% 50%, transparent 0 86px, #000 92px);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%), radial-gradient(circle at 50% 50%, transparent 0 calc(86px * var(--fz)), #000 calc(92px * var(--fz)));
   mask-composite: intersect;
   transform: translateZ(-1px);
 }
@@ -1556,8 +1565,9 @@ body.screen-campaign .backdrop { display: none; }
 .table-view {
   /* The table keeps one shape whatever the window: no wider than its height allows, no taller than its width
      allows, centred in the window. */
-  --gw: min(calc(100 * var(--vw)), calc(var(--app-h, calc(100 * var(--vh))) * 2.2));
-  --gh: min(calc(112 * var(--vh)), calc(var(--gw) * 0.64));
+  /* (--bz: how far the board is zoomed onto one tableau: it is laid out larger, not scaled, so it stays sharp.) */
+  --gw: calc(min(calc(100 * var(--vw)), calc(var(--app-h, calc(100 * var(--vh))) * 2.2)) * var(--bz, 1));
+  --gh: calc(min(calc(112 * var(--vh)), calc(var(--gw) / var(--bz, 1) * 0.64)) * var(--bz, 1));
   /* How far the board tips away from the viewer. */
   --board-tilt: 34deg;
   position: fixed; inset: 0;
@@ -1570,7 +1580,7 @@ body.screen-campaign .backdrop { display: none; }
 .table-view > .game {
   /* Tip the whole board away from the viewer and shrink it so the table sits in the room. */
   transform-origin: 50% 50%;
-  transform: translateY(calc(5 * var(--vh))) rotateX(var(--board-tilt)) scale(0.72);
+  transform: translateY(calc(-1 * var(--vh))) rotateX(var(--board-tilt)) scale(0.82);
   border-radius: 34px;
   background:
     radial-gradient(circle, rgba(120, 135, 170, 0.18) 0 1px, transparent 1.6px) 0 0 / 38px 38px,
@@ -1672,7 +1682,7 @@ body.screen-campaign .backdrop { display: none; }
   .hud-players .rival .orb { --size: 24px !important; }
   .hud-players .rival-stats { display: flex; gap: 6px; font-size: 0.5rem; }
   .hud-players .rival-name { font-size: 0.46rem; }
-  .table-view > .game { transform: translateY(calc(9 * var(--vh))) rotateX(var(--board-tilt)) scale(0.72); }
+  .table-view > .game { transform: translateY(calc(1 * var(--vh))) rotateX(var(--board-tilt)) scale(0.82); }
 }
 
 /* ---------- Board, round 3 ---------- */
@@ -1890,13 +1900,13 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   /* Five slots and the Lightspeed slot, set a little apart. */
   /* (The height share leaves room between the rows for the Command slots, which stand out a card's width.) */
   --tcw-h: 0.262;
-  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * var(--tcw-h) * 0.714), 150px,
+  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * var(--tcw-h) * 0.714), calc(150px * var(--bz, 1)),
     /* Room across the board for each row's sun on the left (and the same on the right). */
     calc((var(--game-w) - 2 * var(--inset) - 24px - 2 * var(--row-side) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
   /* Each row's ends: its sun on the left, its upgrade pills on the right, the same width each so the slots centre. */
   --row-side: calc(1.3 * var(--row-vs));
   --game-w: calc(var(--gw) * 0.95);
-  --row-vs: clamp(84px, calc(var(--gh) / 112 * 23), 168px);
+  --row-vs: clamp(calc(84px * var(--bz, 1)), calc(var(--gh) / 112 * 23), calc(168px * var(--bz, 1)));
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .table-view > .game { --logw: 0px; --tcw-h: 0.215; }
@@ -1910,7 +1920,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 }
 .board .board-star-slot { width: min(calc(46 * var(--vh)), 70%); }
 /* The star lies flat in the middle of the board's rings (the innermost ring and its dots make way for it). */
-.board-plane > .board-star-slot { width: 160px; z-index: 0; transform: translate(-50%, -50%) translateZ(-0.5px); }
+.board-plane > .board-star-slot { width: calc(160px * var(--bz, 1)); z-index: 0; transform: translate(-50%, -50%) translateZ(-0.5px); }
 .tableau { position: relative; display: grid; gap: 4px; justify-items: center; transform-style: preserve-3d; }
 .tableau-rival { grid-row: 1; }
 .tableau-mine { grid-row: 3; }
@@ -1934,7 +1944,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 /* On the table the cards are small: the name shrinks with them (the same share of the card as in the
    hand), so the ability below it gets the room, set larger and tighter to stay readable. */
 .card-table .card-glyph { height: 38%; }
-.card-table .card-name { font-size: max(6px, calc(var(--cw) * 0.078)); letter-spacing: 0.03em; line-height: 1.12; padding-right: 0; margin-top: calc(var(--cw) * 0.085); }
+.card-table .card-name { font-size: max(6px, calc(var(--cw) * 0.078)); letter-spacing: 0.03em; line-height: 1.12; padding-right: 0; margin-top: calc(var(--cw) * 0.03); }
 .card-table .card-text { font-size: max(7px, calc(var(--cw) * 0.088)); line-height: 1.18; }
 .card-table .card-para { height: 0.2em; }
 .card-table .card-kind { font-size: max(5px, calc(var(--cw) * 0.045)); letter-spacing: 0.12em; }
@@ -1943,7 +1953,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
      (symbols and keywords keep it short; it shrinks to fit). Press and hold one for the full card. */
   .card-table .card-kind { display: none; }
   .card-table .card-glyph { height: 40%; }
-  .card-table .card-name { margin-top: max(6px, calc(var(--cw) * 0.08)); font-size: max(5px, calc(var(--cw) * 0.085)); letter-spacing: 0.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 0; }
+  .card-table .card-name { margin-top: calc(var(--cw) * 0.03); font-size: max(5px, calc(var(--cw) * 0.085)); letter-spacing: 0.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 0; }
   .card-table .card-text { display: block; font-size: max(5px, calc(var(--cw) * 0.085)); line-height: 1.2; }
   .card-table .card-para { height: 0.25em; }
   .card-table .card-opts { gap: 1px; }
@@ -2331,8 +2341,6 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
   background: radial-gradient(circle at 50% 42%, #fff3d6, #f0c46c 38%, #b27418 72%, #6b4210);
   color: #fff; border: 2px solid #fff;
 }
-.card-back span { font-size: calc(var(--cw) * 0.34); text-shadow: 0 0 18px rgba(255, 220, 140, 0.9); }
-.card-back small { font-family: var(--display); letter-spacing: 0.24em; text-transform: uppercase; font-size: calc(var(--cw) * 0.07); }
 .stage-sprung .stage-caption { color: #a86d10; border-color: rgba(212, 149, 42, 0.6); box-shadow: 0 0 18px rgba(212, 149, 42, 0.4); }
 /* Game over: the result lies on the board between the tableaus, with the way out beneath it. */
 .board .result-anchor { grid-row: 2; align-self: center; justify-self: center; width: 1px; height: 1px; }
@@ -2632,10 +2640,7 @@ img.art { object-fit: cover; }
   container-type: size; position: relative; display: block; width: var(--cardw, var(--dbw)); height: calc(var(--cardw, var(--dbw)) * 1.4); min-height: 0;
   padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; text-align: left;
 }
-/* Heroes: landscape, on a tab of their own. (sizePool sets their width, --cmdcw: at least two side by side, filling the row.) */
-.db-card.db-card-cmd { width: var(--cmdcw, calc(var(--dbw) * 1.3)); height: calc(var(--cmdcw, calc(var(--dbw) * 1.3)) / 1.4); }
-.db-card.db-card-cmd > .card { --cw: 100cqh; }
-.db-card.db-card-cmd .card-name { font-size: max(6px, calc(var(--cmdw) * 0.052)); overflow-wrap: anywhere; padding-right: 0; }
+/* Heroes: on a tab of their own, upright like every other card. */
 /* The card itself is laid out exactly like one on the table (5:7), scaled to the column. */
 .db-card > .card { --cw: 100cqw; width: 100%; height: 100%; }
 .db-card > .card .card-text { display: block; overflow: hidden; }
@@ -2913,6 +2918,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 .menu.menu-hub > .player-chip { position: absolute; top: max(12px, var(--sa-t)); right: max(18px, var(--sa-r, 0px)); z-index: 2; }
 .setup-top .player-chip { justify-self: end; }
+/* A player's picture: their card's artwork in a circle. */
+.avatar { display: block; position: relative; flex: none; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: #1a1c2a; box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px #dfe3ec; }
+/* (Its artwork is placed by its inline style: zoomed, its subject in the middle.) */
+.avatar img { position: absolute; max-width: none; object-fit: cover; }
 .pc-avatar { width: 30px; height: 30px; }
 .pc-who { display: grid; line-height: 1.1; text-align: left; }
 .pc-who b { font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
@@ -2941,8 +2950,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
 
 .signin { display: grid; justify-items: center; gap: 14px; }
+.signin-avatar { width: clamp(56px, calc(14 * var(--vh)), 84px); }
 .signin-name { width: min(280px, 80vw); height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #e3e6ee; background: #fff; text-align: center; font-family: var(--display); letter-spacing: 0.12em; font-size: 0.8rem; color: var(--ink); }
-.signin-emblems { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: min(420px, 90vw); }
 /* Accounts: the sign-in form's notes, its other routes (as quiet text links), and the profile's account row. */
 .auth-error { color: #c0563d; font-size: 0.78rem; max-width: 320px; text-align: center; }
 .auth-note { color: var(--ink-soft); font-size: 0.72rem; max-width: 300px; text-align: center; }
@@ -2987,7 +2996,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* The foil wrapper: tinted by race, crimped top and bottom, with a sheen that slides across it. */
 .pack {
   --pk: #8f9ab4; --pk2: #dfe4ef;
-  position: relative; display: block; width: clamp(92px, calc(12 * var(--vw)), 132px); aspect-ratio: 5 / 8;
+  position: relative; display: block; aspect-ratio: 5 / 8;
+  /* As wide as the window allows, and short enough that two rows (with their labels) fit under the page's header. */
+  width: max(56px, min(calc(12 * var(--vw)), 132px, calc(((var(--app-h, calc(100 * var(--vh))) - 120px) / 2 - 56px) * 0.625)));
   transform-style: preserve-3d; transform: rotateY(-14deg) rotateX(6deg); transition: transform 0.35s cubic-bezier(.2,.8,.2,1);
   filter: drop-shadow(10px 14px 14px rgba(60, 64, 90, 0.25));
 }
@@ -3094,7 +3105,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .kw-list .kw { font-size: 0.86rem; }
 .inspector-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .zoom-card { display: flex; align-items: center; gap: 16px; }
-.card-preview .kw-list { position: absolute; right: calc(100% + 12px); top: 0; width: 220px; max-height: 100%; overflow: hidden; gap: 6px; padding: 10px 12px; font-size: 0.68rem; }
+.card-preview .kw-wrap { position: absolute; right: calc(100% + 12px); top: 0; width: 220px; max-height: 100%; }
+.card-preview .kw-list { gap: 6px; padding: 10px 12px; font-size: 0.68rem; }
 /* Never taller than the card it sits beside. */
 .card-preview .kw-list .kw { font-size: 0.78rem; }
 .kw-rules { display: grid; gap: 8px; margin: 8px 0 0; }
@@ -3171,7 +3183,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   display: grid; justify-items: center; align-content: center; padding: 0; border: 0; background: none;
   font-family: var(--display); color: var(--ink);
 }
-.tpile-stack, .tpile-empty { position: absolute; inset: 0; }
+.tpile-empty { position: absolute; inset: 0; }
 /* The hand count: a slim bar spanning both piles, above yours and below theirs, off the piles' centre line. */
 .tpile-hand {
   position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 6px; height: max(20px, calc(var(--pw) * 0.26)); padding: 0 10px;
@@ -3182,9 +3194,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .tpile-hand-rival { top: calc(100% + 8px); }
 .tpile-hand .hand-icon { width: 1.3em; height: 1.15em; flex: none; }
 .tpile-hand b { margin-left: auto; color: var(--ink); font-weight: 700; font-size: 1.25em; letter-spacing: 0; }
-.tpile-stack i { position: absolute; inset: 0; border-radius: calc(var(--tcw) * 0.07); background: linear-gradient(160deg, #ffffff, #e9e9e7); border: 1px solid #fff; box-shadow: 0 3px 10px rgba(90, 90, 110, 0.16); }
-.tpile-stack i:first-child { transform: rotate(-5deg) translate(-2px, 2px); }
-.tpile-stack i:last-child { transform: rotate(3deg); }
 .tpile-empty { border-radius: calc(var(--tcw) * 0.07); border: 1px dashed rgba(140, 150, 175, 0.4); background: rgba(250, 251, 253, 0.6); }
 .tpile > b { position: relative; font-size: max(11px, calc(var(--pw) * 0.28)); font-weight: 700; }
 .tpile > small { position: relative; font-size: max(6px, calc(var(--pw) * 0.085)); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); }
@@ -3194,9 +3203,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .tpile .tpile-face .card .card-text, .tpile .tpile-face .card .card-kind, .tpile .tpile-face .card .card-stats { display: none !important; }
 .tpile-face .card-glyph { height: 52%; }
 .tpile-face .card-name { font-size: max(5px, calc(var(--cw) * 0.1)); line-height: 1.15; }
-.tpile-count { position: absolute !important; right: -6px; bottom: -6px; min-width: 22px; padding: 1px 6px; border-radius: 999px; background: #8a8c91; color: #fff !important; font-size: 0.72rem !important; border: 2px solid #fff; text-align: center; }
 .tpile-open { cursor: pointer; }
-@media (hover: hover) { .tpile-open:hover .tpile-stack i:last-child, .tpile-open:hover .tpile-face .card { transform: translateY(-3px); } }
+@media (hover: hover) { .tpile-open:hover .tpile-face .card { transform: translateY(-3px); } }
 
 /* A Command card's choice: the card itself, magnified; its options are what you click. */
 .choice-view { display: grid; gap: 14px; justify-items: center; animation: rise 0.2s ease-out; }
@@ -3248,7 +3256,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   font-size: max(7px, calc(var(--cw, 100px) * 0.07)); line-height: 1; color: #fff;
 }
 /* Too costly to play right now: still a solid card, its colours muted and its cost gem greyed. */
-.hand .card.card-pricey .card-glyph, .hand .card.card-pricey .card-text { filter: saturate(0.4); }
+.hand .card.card-pricey .card-glyph > :not(.art-wrap), .hand .card.card-pricey .art-wrap > *, .hand .card.card-pricey .card-text { filter: saturate(0.4); }
 .hand .card.card-pricey .cost-dots i { background: #a3aab5; box-shadow: 0 1px 2px rgba(20, 30, 40, 0.3); }
 
 /* Guard cards: a bright rim, so it's plain which cards stand in front of the sun. */
@@ -3284,7 +3292,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pill-btn.pill-dawn { background: linear-gradient(135deg, #f1a14d, #d8452b); color: #fff; border-color: transparent; }
 
 /* A sprung Lightspeed card's cause: the enemy card it answered, smaller, to its left. */
-.stage-against { position: absolute; right: calc(100% + 18px); top: 8%; --cw: calc(min(161px, calc(32 * var(--vh))) * 0.62); display: grid; justify-items: center; gap: 6px; animation: stage-in 0.25s ease-out; }
+.stage-against { position: absolute; right: calc(100% + 18px); top: 8%; --scw: calc(min(250px, calc(50 * var(--vh))) * 0.62); display: grid; justify-items: center; gap: 6px; animation: stage-in 0.25s ease-out; }
 .stage-against .card { filter: saturate(0.85); box-shadow: 0 14px 30px rgba(70, 70, 90, 0.22), 0 0 0 2px #fff; }
 .stage-against .card .card-text { display: none; }
 .stage-against span { padding: 3px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #a86d10; letter-spacing: 0.16em; font-size: 0.5rem; text-transform: uppercase; white-space: nowrap; box-shadow: var(--shadow); }
@@ -3294,7 +3302,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* Yours stands above the right end of your row; your rival's below the left end of theirs (the board is a mirror). */
 .tableau-row { --frame-pad: clamp(10px, calc(1.8 * var(--vh)), 16px); }
 /* Exactly a table card turned on its side. */
-.cmd-slot { --cmdw: calc(var(--tcw) * 1.4); --cmdgap: calc(var(--frame-pad) + 4px); position: absolute; width: var(--cmdw); height: var(--tcw); transform-style: preserve-3d; z-index: 1; }
+.cmd-slot { --cmdw: var(--tcw); --cmdgap: calc(var(--frame-pad) + 4px); position: absolute; width: var(--tcw); height: calc(var(--tcw) * 1.4); transform-style: preserve-3d; z-index: 1; }
 .tableau-mine .cmd-slot { right: 0; bottom: calc(100% + var(--cmdgap)); }
 .tableau-rival .cmd-slot { left: 0; top: calc(100% + var(--cmdgap)); }
 
@@ -3348,7 +3356,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card.kind-command .card-kind { color: #d6dce8; }
 .card.kind-command .card-opt { background: rgba(255, 255, 255, 0.14); color: #ffffff; }
 /* Keyword colours are made for pale cards: lift them on a Command card's slate. */
-.card.kind-command .card-text .kw:not(.kw-timing) { filter: brightness(1.9) saturate(1.15); }
+.card.kind-command .card-text .kw:not(.kw-timing):not(.kw-gain) { filter: brightness(1.9) saturate(1.15); }
+/* (Energy keeps its own green dots, as on every card's cost; only the word "Gain" is brightened.) */
+.card.kind-command .card-text .kw-gain { color: #e3f07a; }
 .card.kind-command .card-opts-chosen .card-opt.on, .card.kind-command .card-opt.on { background: rgba(255, 217, 138, 0.22); color: #fff; box-shadow: inset 0 0 0 1.5px #d4a52a; }
 /* In hand it is held upright like every other card: the same landscape card, turned on its side
    (anticlockwise, so its name and options are on the edge the next card in the fan leaves showing), in
@@ -3364,7 +3374,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card.kind-command .kw-timing { color: #ffd98a; }
 
 /* The stage shows a Command card landscape. */
-.stage .card.card-landscape { width: calc(var(--cw) * 1.4); height: var(--cw); }
+.stage .card.card-landscape { width: calc(var(--scw) * 1.4); height: var(--scw); }
 
 /* What the board waits on you for, in a word or two, lying in the middle of the board. */
 .board .mid-hint { grid-row: 2; }
@@ -3385,7 +3395,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .mid-cancel:hover { color: var(--ink); }
 
 /* The deck builder's pool: cards off screen are not laid out or painted until scrolled to. */
-.db-pool .db-card { content-visibility: auto; contain-intrinsic-size: auto 200px; }
+/* (No content-visibility here: it clipped each card's shadow square at its box. The pool shows a page at a time anyway.) */
 /* A page holds just the rows that fit (see pages in builder.ts): it never scrolls. */
 .db-editor .db-pool { overflow: hidden; }
 
@@ -3400,10 +3410,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .db-seg-btn.on { background: #fff; box-shadow: 0 1px 4px rgba(70, 76, 100, 0.2); }
 .db-seg-btn svg { width: 14px; height: 14px; fill: var(--ink-soft); }
 .db-seg-btn.on svg { fill: var(--ink); }
-.db-tab { width: 32px; }
-.db-tab svg { width: 16px; height: 16px; stroke: rgba(255, 255, 255, 0.9); stroke-width: 0.8; stroke-linejoin: round; }
-.db-tab[data-arg="heroes"] svg path + path { fill: none; stroke: var(--ink-soft); stroke-width: 1.4; stroke-linecap: round; }
-.db-tab.on[data-arg="heroes"] svg path + path { stroke: var(--ink); }
 /* The filter button: a funnel, with a count of the filters set. Its popover opens beneath it. */
 .db-filter-wrap { position: relative; flex: none; display: flex; }
 .db-filter-btn {
@@ -4194,7 +4200,674 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* A card of yours that can attack today: a red ring (click it, then a rival card or their sun). */
 .card.card-attacker, .board-plane .card.card-table.card-attacker { cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.7), 0 0 14px rgba(216, 69, 43, 0.3); }
 /* A dimmed card has acted today (or just arrived): greyed until its controller's next day. */
-.card.card-table.card-dimmed .card-glyph, .card.card-table.card-dimmed .card-text, .card.card-table.card-dimmed .card-name { filter: saturate(0.25) brightness(0.86); }
+.card.card-table.card-dimmed .card-glyph > :not(.art-wrap), .card.card-table.card-dimmed .art-wrap > *, .card.card-table.card-dimmed .card-text, .card.card-table.card-dimmed .card-name { filter: saturate(0.25) brightness(0.86); }
 .card.card-table.card-dimmed::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; background: rgba(40, 46, 60, 0.16); pointer-events: none;
 }
+
+/* ---------- Phase tracker: dawn, day, dusk, down the right of the board ---------- */
+.phase-track {
+  position: absolute; right: clamp(8px, calc(1.4 * var(--vw)), 18px); top: 50%; transform: translateY(-50%); z-index: 6;
+  display: grid; gap: clamp(6px, calc(1.6 * var(--vh)), 12px); pointer-events: auto;
+}
+.phase-step { display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: #a3aab5; transition: color 0.4s; }
+.phase-step span { font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; }
+.phase-step i { width: 9px; height: 9px; border-radius: 50%; background: #c9ced8; box-shadow: 0 0 0 1.5px #fff; transition: background 0.4s, box-shadow 0.4s; }
+.phase-step.on { color: #2f3a52; }
+.phase-step.on[data-phase='dawn'] i { background: #f0a040; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(240, 160, 64, 0.8); }
+.phase-step.on[data-phase='day'] i { background: #e8c23a; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(232, 194, 58, 0.8); }
+.phase-step.on[data-phase='dusk'] i { background: #8a6ad0; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(138, 106, 208, 0.8); }
+
+/* Fusion cards fused onto a card in play: tucked behind it, each peeking a step higher, name only. */
+.fused-behind {
+  --fh: max(11px, calc(var(--tcw, 80px) * 0.15));
+  position: absolute; bottom: 100%; left: 0; right: 0; height: calc(var(--fh) * (var(--fi) + 1));
+  z-index: calc(1 - var(--fi)); pointer-events: auto; border-radius: 7px 7px 0 0; overflow: hidden;
+  background: linear-gradient(180deg, #fdfdff, #e9ecf3); border: 1px solid color-mix(in srgb, var(--fk) 55%, #c9ced8); border-bottom: 0;
+  box-shadow: 0 -2px 6px rgba(80, 84, 100, 0.12);
+}
+.fused-behind::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--fk); opacity: 0.8; }
+.fused-behind i {
+  position: absolute; left: 6%; right: 6%; top: 0; height: var(--fh); display: grid; place-items: center;
+  font-style: normal; font-family: var(--display); font-size: max(6px, calc(var(--tcw, 80px) * 0.065)); letter-spacing: 0.08em; text-transform: uppercase;
+  color: #3a4256; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* A card or sun struck by an attack: a hot flash. */
+.hit-flash { animation: hit-flash 0.42s ease-out; }
+/* (A sun struck: it flares, with no square ring round its box.) */
+.vit.hit-flash { animation: sun-hit 0.42s ease-out; }
+@keyframes sun-hit { 0% { filter: brightness(1.7) saturate(1.3) drop-shadow(0 0 16px rgba(255, 110, 60, 0.9)); } 100% { filter: none; } }
+@keyframes hit-flash { 0% { filter: brightness(1.9) saturate(1.4); box-shadow: 0 0 0 3px rgba(255, 120, 80, 0.9), 0 0 28px rgba(255, 110, 60, 0.8); } 100% { filter: none; } }
+
+/* ---------- Race row and corner stats ---------- */
+/* Under the picture, in the race label's thin type, on one row: the card's race (and sub-race), then its racial bonus and nerf. */
+.card-racerow {
+  display: block; flex: none; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-family: var(--display); font-size: max(5px, calc(var(--cw, 100px) * 0.032)); letter-spacing: 0.03em; text-transform: uppercase; line-height: 1.3;
+  color: color-mix(in srgb, var(--kc) 70%, #888);
+}
+.card-racerow b, .card-racerow i { font-weight: inherit; font-style: normal; }
+.card-racerow i { pointer-events: auto; }
+.card-racerow i::before { content: '·'; margin: 0 0.25em; }
+.card.kind-command .card-racerow { color: #d6dce8; }
+/* (The race is in that row now, not on the type line.) */
+.card-kind .card-race { display: none; }
+/* Attack bottom left, stability bottom right: on the card's foot, half on and half off it, either side of its defence. */
+.card .card-stats, .card .card-stats.card-stats-stab, .card .card-stats.card-stats-base {
+  top: auto; bottom: 0; left: 4%; right: 4%; transform: translateY(50%); z-index: 3;
+}
+.card-big .card-stats { left: 4%; right: 4%; }
+
+/* The inspector, for a card with Fusion cards on it: tabs down its top right edge (the card, then each fused card). */
+.insp-tabbed { position: relative; display: flex; align-items: flex-start; }
+.insp-tabs { display: grid; gap: 4px; margin-left: -2px; margin-top: 10%; }
+.insp-tab {
+  font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; text-align: left; white-space: nowrap;
+  padding: 6px 12px 6px 10px; border-radius: 0 10px 10px 0; border: 0; cursor: pointer;
+  background: #eef1f6; color: #5a6274; box-shadow: 0 2px 6px rgba(80, 84, 100, 0.15);
+}
+.insp-tab.on { background: #fff; color: #2f3a52; box-shadow: 0 2px 10px rgba(80, 84, 100, 0.25); }
+.insp-tab-fused { background: linear-gradient(90deg, #8c5ad6, #5f8fc4); color: #f2ecff; }
+.insp-tab-fused.on { background: linear-gradient(90deg, #7a44d0, #4f7fbe); color: #fff; box-shadow: 0 0 0 2px #fff, 0 2px 10px rgba(140, 90, 214, 0.5); }
+/* Off the table (hand, builder, zoom, stage) the card clips what overhangs it: the stats sit just inside its foot, and the text stops short of them. */
+.card:not(.card-table) .card-stats, .card:not(.card-table) .card-stats.card-stats-base {
+  bottom: calc(var(--cw, 100px) * 0.035); transform: none;
+}
+.card:not(.card-table):has(.card-stats) { padding-bottom: calc(var(--cw, 100px) * 0.2); }
+
+/* The hand, flat at the foot of the screen in front of the tilted board (text on the tilted board is drawn at
+   the board's size and stretched by its tilt, so a hand on it came out blurry close up). */
+.table-view > .dock {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0; padding: 0;
+  pointer-events: none;
+}
+.table-view > .dock .hand-zone { pointer-events: auto; }
+/* Where the hand used to be on the board: kept empty, so the board keeps its place. */
+.dock.dock-space { visibility: hidden; pointer-events: none; }
+.table-view > .dock { --hh: min(calc(26 * var(--vh)), 210px); bottom: calc(var(--hh) * 0.09); }
+.dock-space .hand-space { height: var(--hvis); }
+
+/* Card titles a size down (they took the room the rules text needed), and the race row kept small on small
+   cards too (its old floor made it outsize on a phone). */
+.card .card-name { font-size: max(6px, calc(var(--cw) * 0.062)); line-height: 1.15; padding-right: 0; }
+.card-big .card-name { font-size: max(11px, calc(var(--cw) * 0.06)); }
+.card-table .card-name { font-size: max(5px, calc(var(--cw) * 0.066)); }
+.card-racerow { font-size: max(3.5px, calc(var(--cw, 100px) * 0.032)); }
+
+/* ---------- The round, in the petal's heart, ringed by regional stability ---------- */
+.round-ring {
+  position: absolute; left: 50%; top: 50%; width: clamp(70px, calc(15 * var(--vh)), 130px); aspect-ratio: 1;
+  transform: translate(-50%, -50%) translateZ(2px); z-index: 1; display: grid; place-items: center; pointer-events: auto;
+  /* (Not the old header box's look.) */
+  padding: 0; background: none; border: 0; box-shadow: none; border-radius: 50%;
+}
+.round-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.round-ring path { fill: none; stroke: rgba(255, 255, 255, 0.35); stroke-width: 5; stroke-linecap: round; transition: stroke 0.6s; }
+.round-ring path.on { stroke: #ffffff; filter: drop-shadow(0 0 2px rgba(150, 160, 178, 0.9)); }
+.round-ring.unstable path { stroke: rgba(240, 190, 180, 0.6); animation: blink 1.8s ease-in-out infinite; }
+/* The round itself: a white disc filling the flower's heart, inside the ring of ticks. */
+.round-ring-num {
+  width: 76%; aspect-ratio: 1; border-radius: 50%; display: grid; justify-items: center; align-content: center; line-height: 1;
+  background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 10px rgba(90, 90, 110, 0.16);
+  font-family: var(--display); color: #5b5f67;
+}
+.round-ring-num small { font-size: clamp(6px, calc(1.1 * var(--vh)), 9px); letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
+.round-ring-num b { font-size: clamp(16px, calc(4.2 * var(--vh)), 32px); font-weight: 700; margin-top: 2px; }
+.round-ring-num em { font-style: normal; font-size: clamp(8px, calc(1.5 * var(--vh)), 12px); color: #c0563d; letter-spacing: 0.1em; margin-top: 2px; }
+
+/* A player's name by their hand count (above yours, below theirs). */
+.tpile-name {
+  display: flex; align-items: center; gap: 6px; justify-content: center; width: 100%; padding: 2px 4px; border: 0; background: none; cursor: pointer;
+  font-family: var(--display); font-size: clamp(8px, calc(1.6 * var(--vh)), 12px); letter-spacing: 0.18em; text-transform: uppercase; color: #3a4256;
+}
+.tpile-name .tpile-emblem { width: clamp(14px, calc(2.6 * var(--vh)), 22px); height: clamp(14px, calc(2.6 * var(--vh)), 22px); flex: none; }
+.tpile-name-dead { opacity: 0.45; text-decoration: line-through; }
+
+.tableau-piles .tpile-name { position: absolute; left: 0; right: 0; width: auto; justify-content: flex-start; padding: 0 6px; }
+.tpile-name-mine { bottom: calc(100% + 14px + max(20px, calc(var(--pw) * 0.26))); }
+.tpile-name-rival { top: calc(100% + 14px + max(20px, calc(var(--pw) * 0.26))); }
+
+/* Your Hero's abilities, in the inspector: one a day. */
+.insp-abilities { display: grid; align-content: center; gap: 8px; width: clamp(150px, 22vw, 240px); flex: none; align-self: center; }
+.insp-ability { display: grid; gap: 2px; text-align: left; padding: 8px 12px; }
+.insp-ability b { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.insp-ability small { font-size: 0.72rem; color: var(--ink-soft); text-transform: none; letter-spacing: 0; }
+/* Small: the round sits in the flower's own heart (about a quarter of its width), the ticks just around it. */
+.round-ring { width: 42px; }
+.round-ring path { stroke-width: 7; }
+.round-ring-num { width: 72%; box-shadow: 0 1px 4px rgba(90, 90, 110, 0.18); }
+.round-ring-num small { display: none; }
+.round-ring-num b { font-size: 13px; margin-top: 0; }
+.round-ring-num em { font-size: 7px; margin-top: 0; }
+
+/* One white disc: the ticks run round its rim on a faint track (as the old stability bar), the round in the middle;
+   the petals spread out from its edge. */
+.round-ring {
+  /* (Sized with the board, so it stays inside the flower's dense heart, where the petals meet.) */
+  width: calc(clamp(26px, calc(4 * var(--vh)), 52px) * var(--bz, 1));
+  background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 8px rgba(90, 90, 110, 0.18);
+}
+.round-ring .round-track { fill: none; stroke: rgba(120, 124, 134, 0.14); stroke-width: 9; }
+.round-ring path { stroke: rgba(255, 255, 255, 0.5); stroke-width: 6; }
+.round-ring path.on { stroke: #ffffff; filter: drop-shadow(0 0 1.5px rgba(150, 158, 175, 0.95)); }
+.round-ring.unstable .round-track { stroke: rgba(201, 138, 134, 0.25); }
+.round-ring-num { width: auto; aspect-ratio: auto; background: none; border: 0; box-shadow: none; }
+.round-ring-num b { font-size: calc(clamp(9px, calc(1.5 * var(--vh)), 17px) * var(--bz, 1)); }
+.round-ring-num em { font-size: clamp(6px, calc(0.9 * var(--vh)), 10px); }
+
+/* Your Hero's actions, in the stage's place: the card, its abilities (and attack) beneath. */
+.stage.stage-hero { pointer-events: auto; }
+/* Your Hero on the stage: each ability line (and its attack) is a button. */
+.stage-hero .card-ability { display: block; border-radius: 6px; margin: 1px -4px; padding: 1px 4px; }
+.stage-hero .card-ability-on { pointer-events: auto; cursor: pointer; background: rgba(240, 170, 60, 0.14); box-shadow: inset 0 0 0 1px rgba(240, 170, 60, 0.55); transition: background 0.15s; }
+.stage-hero .card-ability-on:hover { background: rgba(240, 170, 60, 0.3); }
+.stage-hero .card-ability-off { opacity: 0.45; }
+.stage-hero .stat-atk-on { pointer-events: auto; cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 10px 2px rgba(230, 90, 70, 0.7); }
+
+/* ---------- Zooming onto a tableau: the board tips flatter and comes closer, centred on that side ---------- */
+.table-view > .game { transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.table-view > .dock { transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+/* (--bz, --zx and --zy are worked out to fit the tableau to the window: see fitZoom.) */
+/* (Wider than the window now: kept centred, its sides running off both edges alike.) */
+.table-view.zoom-rival > .game, .table-view.zoom-mine > .game { margin-left: calc((100% - var(--gw)) / 2); }
+.table-view.zoom-rival > .game, .table-view.zoom-mine > .game { transform: translate(var(--zx, 0px), var(--zy, 0px)) rotateX(6deg) scale(0.82); }
+/* Zoomed in, the tableau is all there is: everything else steps out of the way (the zoom buttons stay). */
+.table-view.zoom-rival > :is(.dock, .hud, .turn-controls, .hero-skills, .phase-track, .result-anchor),
+.table-view.zoom-mine > :is(.dock, .hud, .turn-controls, .hero-skills, .phase-track, .result-anchor) { opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.table-view.zoom-rival > .dock, .table-view.zoom-mine > .dock { transform: translateY(80%); }
+.board-zoom { position: fixed; left: max(10px, var(--sa-l, 0px)); top: 50%; transform: translateY(-50%); z-index: 13; display: grid; gap: 10px; }
+.zoom-btn { display: grid; justify-items: center; gap: 1px; min-width: 46px; padding: 6px 7px 5px; border: 1px solid #fff; border-radius: 14px; background: rgba(255, 255, 255, 0.85); box-shadow: var(--shadow); color: var(--ink-soft); cursor: pointer; font-family: var(--display); }
+.zoom-btn span { font-size: 1rem; line-height: 1; }
+.zoom-btn small { font-size: 0.46rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.zoom-btn.on { background: #3a4256; color: #fff; border-color: #3a4256; }
+@media (prefers-reduced-motion: reduce) { .table-view > .dock { transition: none; } }
+
+/* A Hero's abilities: under a divider (below what it does as it leads), "each turn, one of:", then one line each. */
+.card-abilities-head { display: block; margin-top: 0.35em; padding-top: 0.3em; border-top: 1px solid currentColor; opacity: 0.75; font-size: 0.82em; letter-spacing: 0.04em; }
+.card-abilities-head:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.card-ability { display: block; }
+
+/* Keyword explanations, beside a card: a column no taller than the card, scrolling when there is more;
+   an arrow bobs at its foot while some of it is still below. The card's race leads it. */
+.kw-wrap { position: relative; display: flex; flex-direction: column; min-height: 0; flex: none; align-self: center; }
+.kw-wrap > .kw-list { max-height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.inspector-row { --pw: min(280px, calc(56 * var(--vh))); }
+.inspector-row .kw-wrap, .zoom-card .kw-wrap { max-height: calc(var(--pw, 300px) * 1.4); }
+.kw-more { position: absolute; left: 50%; bottom: 6px; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  background: rgba(255, 255, 255, 0.95) no-repeat center / 14px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 6l5 5 5-5' fill='none' stroke='%235b6170' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  box-shadow: 0 2px 8px rgba(70, 76, 100, 0.25); }
+.kw-wrap.more .kw-more { opacity: 1; animation: kw-bob 1.6s ease-in-out infinite; }
+@keyframes kw-bob { 50% { transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .kw-wrap.more .kw-more { animation: none; } }
+.kw-race-row { display: grid; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid rgba(120, 126, 140, 0.18); }
+/* An ability's energy cost: the card's own cost dots (green, lit, white-rimmed), flush left, then " : ". */
+.kw-cost .gain-dots { margin-left: 0; }
+.kw-cost .gain-dots i { width: 0.78em; height: 0.78em; background: #7cc79a; border: 0.12em solid #fff; box-shadow: 0 0 6px rgba(110, 196, 146, 0.75), 0 1px 2px rgba(20, 40, 30, 0.35); }
+/* Each tableau's eye, on its owner's left (yours on the left of your row; theirs, facing you, on the right of
+   theirs), level with the row: tap to look closely at that tableau. */
+.tableau-eye {
+  position: absolute; top: 50%; z-index: 2; display: grid; place-items: center; padding: 0; cursor: pointer;
+  width: clamp(26px, calc(var(--tcw) * 0.3), 40px); aspect-ratio: 1; margin-top: calc(clamp(26px, calc(var(--tcw) * 0.3), 40px) / -2);
+  border: 1px solid #fff; border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: 0 2px 8px rgba(70, 76, 100, 0.2); color: #5b6170;
+  transition: transform 0.15s, background 0.15s;
+}
+.tableau-eye-mine { right: calc(100% + var(--frame-pad, 12px) + 8px); }
+.tableau-eye-rival { left: calc(100% + var(--frame-pad, 12px) + 8px); }
+.tableau-eye:hover { background: #fff; transform: scale(1.08); }
+.eye-icon { width: 62%; height: auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.zoom-btn .eye-icon { width: 20px; }
+.table-view.zoom-rival .tableau-eye, .table-view.zoom-mine .tableau-eye { display: none; }
+.board-zoom:empty { display: none; }
+/* A Hero's abilities: a light line between each (they can run to more than one line). */
+.card-ability ~ .card-ability { margin-top: 0.3em; padding-top: 0.3em; border-top: 1px solid rgba(255, 255, 255, 0.22); }
+.card:not(.kind-command) .card-ability ~ .card-ability { border-top-color: rgba(90, 96, 110, 0.18); }
+/* The hand raised to read every card whole: by a first tap on a touch screen, or by hovering it with a mouse. */
+.table-view > .dock { transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.3, 1); }
+.table-view > .dock.dock-raised { transform: translateY(calc(-1 * var(--raise, 0px))); }
+.table-view > .dock .hand { transform-origin: 50% 100%; transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.3, 1); }
+.table-view > .dock.dock-raised .hand { transform: scale(var(--hgrow, 1)); }
+/* A card dragged out of the hand to play it: its copy follows the pointer, the card itself waits faded. */
+.hand > .card { touch-action: none; }
+.hand > .card.card-dragging { opacity: 0.3; }
+.drag-ghost { box-shadow: 0 24px 50px rgba(70, 70, 90, 0.35), 0 0 0 2px #fff !important; }
+/* A Hero carries the most text of any card (what it does as it leads, then its abilities): on the small
+   cards (hand, table) its lines sit closer, so the text stays readable. */
+/* (Its picture keeps the same height as every card's: long text shrinks instead, title and all.) */
+.card.kind-command:not(.card-big) .card-para { height: 0.25em; }
+.card.kind-command:not(.card-big) .card-abilities-head { margin-top: 0.2em; padding-top: 0.2em; }
+.card.kind-command:not(.card-big) .card-ability ~ .card-ability { margin-top: 0.15em; padding-top: 0.15em; }
+/* The boards mirror: the rival's Lightspeed slot ends their row on the viewer's left, under their Hero
+   (as yours ends your row on the right, under yours). */
+.tableau-rival .ls-slot { grid-column: 1; grid-row: 1; }
+/* Both eyes on the viewer's left of each row. */
+.tableau-eye-rival { left: auto; right: calc(100% + var(--frame-pad, 12px) + 8px); }
+/* A card picked that can also go face down: the choice in the pane, under the card. */
+.stage-ls-btn { pointer-events: auto; justify-self: center; width: auto; min-width: 0; white-space: nowrap; font-size: 0.62rem; display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 14px; color: #a86d10; border-color: rgba(212, 149, 42, 0.6); box-shadow: 0 0 14px rgba(212, 149, 42, 0.35); }
+.stage-ls-btn small { font-size: 0.8em; opacity: 0.8; letter-spacing: 0.06em; }
+/* (With the choice under it, the card on the stage gives up a little height so it all fits.) */
+.stage-picked:has(.stage-ls-btn) { --scw: min(250px, calc(44 * var(--vh))); gap: 6px; }
+
+/* Beside the Stellari in the board's middle: whose turn it is on its left, the phase of the day on its right. */
+.board-plane > .phase-track, .board-plane > .turn-who {
+  position: absolute; top: 50%; right: auto; z-index: 1; display: grid; gap: clamp(5px, calc(1.4 * var(--vh)), 10px);
+  --stellari-r: 74px; /* (clear of the flower, which keeps its size) */
+}
+.board-plane > .phase-track { left: calc(50% + var(--stellari-r)); transform: translateY(-50%) translateZ(2px); justify-items: start; }
+.board-plane > .turn-who { right: calc(50% + var(--stellari-r)); transform: translateY(-50%) translateZ(2px); justify-items: end; }
+.phase-step { justify-content: flex-start; }
+.turn-who span { font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; color: #b9bfca; transition: color 0.4s; }
+.turn-who span.on { color: #2f3a52; }
+.table-view:is(.zoom-rival, .zoom-mine) .board-plane > :is(.phase-track, .turn-who) { opacity: 0; }
+/* The preview pane (and its buttons) above End Day and the Hero's skills. */
+.stage { z-index: 17; }
+/* A card in the hand keeps a card's own shape (its width came from one size and its height from another,
+   leaving it short and squat): as tall as its width makes a card, the extra hanging below the screen until raised. */
+.table-view > .dock .hand > .card:not(.card-landscape) { height: calc(var(--hw) * 1.4); }
+/* Short (phone) screens: the Stellari, the round and the labels either side of it a size down, to sit within
+   the space the two tableaus' outlines leave between them. */
+@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
+  .board-plane > .board-star-slot { width: calc(104px * var(--bz, 1)); }
+  .round-ring { width: calc(20px * var(--bz, 1)); }
+  .round-ring-num b { font-size: calc(8px * var(--bz, 1)); }
+  .board-plane > .phase-track, .board-plane > .turn-who { --stellari-r: 48px; gap: 4px; }
+  .turn-who span, .phase-step span { font-size: 7px; letter-spacing: 0.18em; }
+  .phase-step { gap: 5px; }
+  .phase-step i { width: 6px; height: 6px; }
+}
+/* Your Hero in the preview pane: its abilities as rows with no gap between them, tall enough to tap easily,
+   split only by the light line (no highlight). */
+.stage-hero .card-ability, .stage-hero .card-ability ~ .card-ability { margin: 0 -4px; padding: 0.55em 4px; border-radius: 0; }
+.stage-hero .card-ability-on { background: none; box-shadow: none; }
+@media (hover: hover) { .stage-hero .card-ability-on:hover { background: rgba(255, 255, 255, 0.08); } }
+/* Where a card dragged out of the hand would land on your tableau. */
+.tableau-mine .drop-over { outline: 2px solid color-mix(in srgb, #3f8f6a 70%, #fff); outline-offset: 3px; border-radius: calc(var(--tcw, 60px) * 0.08); }
+/* The preview pane's buttons: solid, so they stand out over the board. */
+.stage-ok { background: #2f3a52; color: #fff; border: 1px solid #2f3a52; box-shadow: 0 6px 18px rgba(30, 40, 60, 0.35); font-weight: 600; }
+.stage-ok:hover { background: #3c4968; }
+.stage-ls-btn { background: #d4952a; color: #fff; border: 1px solid #c4851c; box-shadow: 0 6px 18px rgba(170, 110, 20, 0.35); }
+.stage-ls-btn:hover { background: #e0a23a; }
+.stage-ls-btn small { opacity: 0.9; }
+/* The back of every card (the deck, a card set face down): the landing page in small. Its paper (white light
+   from the top, a warm grey settling at the foot), its white sun with the name beneath, and the Stellari rising
+   from the foot, only its top half on the card. */
+.card.card-back { background: none; border: 0; padding: 0; overflow: hidden; }
+.cback {
+  position: absolute; inset: 0; border-radius: inherit; overflow: hidden; display: block; container-type: inline-size;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0.6) 40%, transparent 75%),
+    radial-gradient(ellipse 120% 90% at 50% 110%, #dedcd8 0%, transparent 60%),
+    linear-gradient(180deg, #faf9f6, #f3f2ee 55%, #e0dfdb);
+  border: 1.5px solid #fff; box-shadow: inset 0 0 0 1px rgba(160, 165, 175, 0.18);
+}
+.cback-sun {
+  position: absolute; left: 50%; top: 30%; width: 34%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle at 40% 36%, #fff 0%, #fbfcfd 40%, #e4e8ed 80%, #d9dee4 100%);
+  box-shadow: 0 0 8cqw 3cqw rgba(255, 255, 255, 0.95), 0 0 14cqw 5cqw rgba(210, 218, 228, 0.5);
+}
+.cback-title {
+  position: absolute; left: 0; right: 0; top: 50%; text-align: center; white-space: nowrap; line-height: 1;
+  font-family: var(--display); font-weight: 400; text-transform: uppercase; letter-spacing: 0.32em; padding-left: 0.32em;
+  font-size: 6.5cqw; color: #555a63;
+}
+/* (The flower's box is square: centred on the card's foot, half of it is on the card.) */
+.cback-flower { position: absolute; left: 50%; top: 100%; width: 150%; aspect-ratio: 1; transform: translate(-50%, -50%); }
+.cback-flower svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 0 0.6cqw rgba(150, 150, 160, 0.35)); }
+.cback .stellaria-flower ellipse, .cback .stellaria-flower path { fill: rgba(255, 255, 255, 0.28); stroke: #fff; stroke-width: 5; }
+.tpile-back { --cw: var(--pw); }
+.tpile-back .cback { border-radius: calc(var(--tcw) * 0.07); box-shadow: 0 4px 12px rgba(80, 84, 100, 0.18), 0 0 0 1.5px #fff; }
+/* A Lightspeed card springing: a small solid yellow tag above it in the preview pane (no banner over the cards). */
+.stage-ls-tag { background: #d4952a; color: #fff; border: 1px solid #c4851c; box-shadow: 0 4px 12px rgba(170, 110, 20, 0.35); font-weight: 600; z-index: 2; }
+.stage-ls-tag-solo { position: relative; top: auto; justify-self: center; margin-bottom: -2px; }
+/* (As on the landing page, the Stellari's top fades into the white sun's light.) */
+.cback-flower {
+  -webkit-mask-image: radial-gradient(circle at 50% -15%, transparent 26%, rgba(0, 0, 0, 0.45) 40%, #000 58%);
+  mask-image: radial-gradient(circle at 50% -15%, transparent 26%, rgba(0, 0, 0, 0.45) 40%, #000 58%);
+}
+/* A pile as tall as the cards in it: its top card raised by the pile's depth, their edges stacked beneath. */
+/* (Raised by its depth, against the lean, so its foot stays where the pile lies.) */
+.tpile-stacked { transform: translate(calc(var(--lean, 0) * var(--depth, 1) * -1px), calc(var(--depth, 1) * -1px)); }
+.tpile .tpile-stacked > .card, .tpile-back.tpile-stacked .cback { box-shadow: 0 0 0 1px #fff, var(--edges) !important; }
+.tpile:has(.tpile-stacked) > small { display: none; }
+/* A card's name sits just under its race row (the space above it was for cards before the race row). */
+.card .card-racerow ~ .card-name { margin-top: calc(var(--cw, 100px) * 0.012) !important; }
+/* A card in the preview pane: the hand keeps still (no card lifts under the pointer). */
+.dock-still .hand > .card.lifted { transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg))) !important; z-index: var(--hz) !important; box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18); }
+/* Over the hand limit at the end of the day: the hand laid out, the cards picked to go marked. */
+.discard-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 12px 0 16px; }
+.discard-pick { position: relative; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 10px; transition: transform 0.15s, opacity 0.15s; }
+.discard-pick .card { --cw: clamp(78px, calc(16 * var(--vh)), 110px); width: var(--cw); height: calc(var(--cw) * 1.4); pointer-events: none; }
+.discard-pick.on { transform: translateY(6px) scale(0.95); opacity: 0.55; }
+.discard-pick.on::after {
+  content: '✕'; position: absolute; inset: 0; display: grid; place-items: center; border-radius: 10px;
+  font-size: 2rem; color: #c0563d; background: rgba(255, 255, 255, 0.35); box-shadow: inset 0 0 0 2px #c0563d;
+}
+@media (hover: hover) { .discard-pick:not(.on):hover { transform: translateY(-3px); } }
+/* (Zoom being fitted: the board laid flat for a moment, to measure where the tableau stands.) */
+.table-view.zoom-measuring > .game { transform: translate(var(--zx, 0px), var(--zy, 0px)) scale(0.82) !important; transition: none !important; }
+/* The banner's thin line: between the round and the day's orbit (none across the words). */
+.turn-banner-glow::before { display: none; }
+.turn-banner-line {
+  position: relative; width: min(420px, calc(60 * var(--vw))); height: 1px; margin: 4px 0 0;
+  background: linear-gradient(90deg, transparent, #9ea1a8, transparent);
+  transform: scaleX(0); animation: bannerLineGrow 1.6s ease-out 0.2s forwards;
+}
+.turn-banner-line + .turn-banner-orbit { margin-top: 2px; }
+@keyframes bannerLineGrow { to { transform: scaleX(1); } }
+/* Costs of 4 or more: the dots in two columns, row by row (4 a square, 5 with one hanging below on the left, 6 two
+   columns of three), so they stay within the picture. */
+.cost-dots.cost-dots-2col { display: grid; grid-template-columns: repeat(2, auto); justify-items: center; column-gap: calc(var(--cw, 100px) * 0.022); row-gap: calc(var(--cw, 100px) * 0.022); }
+/* A race's bonus and nerf on its cards: keywords side by side on one row (the bonus in the race's tempo green,
+   the nerf greyed), in place of the race row's old tags. */
+.kw-trait { --kwc: #7a9a2a; }
+.kw-trait-nerf { --kwc: #8a8f9a; }
+.card-traits { display: inline; }
+.card-traits .kw-trait + .kw-trait { margin-left: 0.45em; }
+/* A card in your hand you can play now: a faint green rim (the energy dots' green). */
+.hand > .card.card-playable { box-shadow: 0 0 0 1.5px rgba(124, 199, 154, 0.75), 0 0 10px rgba(124, 199, 154, 0.35), -4px 4px 16px rgba(90, 90, 110, 0.18); }
+.hand > .card.card-playable.lifted { box-shadow: 0 0 0 1.5px rgba(124, 199, 154, 0.85), 0 0 12px rgba(124, 199, 154, 0.4), 0 10px 24px rgba(80, 80, 100, 0.22); }
+/* The decks page's head: "hide starters" beside "new deck". */
+.db-head-actions { display: inline-flex; align-items: center; gap: 8px; }
+.setup-top > .db-head-actions { justify-self: end; }
+.db-head-actions .btn-new-deck { display: inline-flex; align-items: center; gap: 8px; padding-left: 6px; white-space: nowrap; }
+.db-head-actions .pill-btn { white-space: nowrap; }
+/* The decks page's groups (your decks, races, mechanics): titled in the middle. */
+.db-list .section-label.db-group { text-align: center; justify-self: center; width: 100%; }
+.db-list .section-label.db-group:not(:first-child) { margin-top: clamp(22px, calc(6 * var(--vh)), 48px); }
+/* The deck builder's card grid sits in the middle of its space (a short page no longer clings to the top). */
+.db-editor .db-pool { align-content: center; }
+/* Every card's picture the same height for its size: measured from the card's width (a card is 5:7), not as a
+   share of its inner height, which the stats strip at a card's foot (on some cards, not others) cut short. */
+.card .card-glyph { height: calc(var(--cw, 100px) * 0.532); }
+.display .card .card-glyph, .hand .card .card-glyph { height: calc(var(--cw, 100px) * 0.476); }
+.card-table .card-glyph { height: calc(var(--cw, 100px) * 0.532); }
+@media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
+  .card-table .card-glyph { height: calc(var(--cw, 100px) * 0.56); }
+}
+.tpile-face .card .card-glyph { height: 52%; }
+.card-landscape .card-glyph { height: 100%; }
+/* The count in your deck (top left of each card in the deck builder): half its old size. */
+.db-card .db-have { padding: 1px 4px; font-size: max(6px, calc(var(--dbw, 120px) * 0.045)); letter-spacing: 0.04em; }
+/* "Hide starters": a switch, as tall as "new deck" beside it. */
+.db-head-actions { align-items: stretch; }
+.db-switch { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+.switch-track { position: relative; width: 30px; height: 17px; border-radius: 999px; background: #d3d6dd; box-shadow: inset 0 1px 2px rgba(60, 64, 80, 0.2); transition: background 0.2s; flex: none; }
+.switch-track i { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(60, 64, 80, 0.3); transition: transform 0.2s; }
+.db-switch.on .switch-track { background: #7cc79a; }
+.db-switch.on .switch-track i { transform: translateX(13px); }
+/* ---------- The rarity gem, set into the card's top edge ----------
+   Twice its old size, its centre on the top edge, in a mount of the card's own face and rim, so the edge bulges
+   round it (the card no longer clips what stands over its edge). The picture needs no notch for it now. */
+.card { overflow: visible; --face: #fbfbfc; --rim: #fff; }
+.card.rarity-stellar { --face: #fdf6e8; --rim: rgba(255, 214, 140, 0.9); }
+.card.rarity-anomaly { --face: #f7f1fe; --rim: rgba(190, 160, 255, 0.85); }
+.card.kind-command { --face: #6a7487; --rim: #7a8498; }
+.card .card-glyph { padding-top: calc(var(--cw, 100px) * 0.06); }
+.art-notched { -webkit-mask: none; mask: none; }
+.card .art-wrap .gem {
+  --gs: max(9px, calc(var(--cw, 100px) * 0.09));
+  top: calc(var(--cw, 100px) * -0.06); right: calc(var(--cw, 100px) * 0.17); transform: translate(50%, -50%); z-index: 4;
+  box-shadow: none;
+}
+.card .art-wrap .gem::before, .card .art-wrap .gem::after {
+  content: ''; position: absolute; inset: calc(var(--gs) * -0.16); border-radius: 50%; z-index: -1;
+}
+/* The mount: the card's face, covering its edge where the gem sits... */
+.card .art-wrap .gem::before { background: var(--face); }
+/* ...and the rim carried round the half that stands above the card. */
+.card .art-wrap .gem::after { border: 1px solid var(--rim); clip-path: inset(-2px -2px 50% -2px); box-shadow: 0 -1px 3px rgba(80, 84, 100, 0.12); }
+/* (An Anomaly in the hand: no purple rim, so the green one, "you can play this", reads plainly.) */
+.hand > .card.rarity-anomaly { border-color: #fff; box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18); }
+.hand > .card.rarity-anomaly { --rim: #fff; }
+/* The gem in the middle of the top edge, in a bump of the card itself (its face and its rim, whichever rim the
+   card wears now: green when it can be played, the deck colour in the deck builder...). The type pill moves
+   down a touch to clear it. */
+.card .art-wrap .gem { left: 50%; right: auto; top: calc(var(--cw, 100px) * -0.066); transform: translate(-50%, -50%); }
+.card .art-wrap .gem::after { border: var(--bump-w, 1px) solid var(--bump-ring, var(--rim)); }
+.card .card-type { top: calc(var(--cw, 100px) * 0.072); }
+.hand > .card.card-playable { --bump-ring: rgba(124, 199, 154, 0.8); --bump-w: 1.5px; }
+.db-card-in > .card { --bump-ring: color-mix(in srgb, var(--kc) 75%, transparent); --bump-w: 2px; }
+.card.card-choosable, .card.card-picked { --bump-ring: #fff; --bump-w: 2px; }
+/* (The gem's old halo was switched off with display: none: the mount, which uses the same place, is shown.) */
+.card .art-wrap .gem::before, .card .art-wrap .gem::after { display: block; }
+/* The type pill straddles the picture's top edge (half on it, half above); the gem sits a touch higher, its bump
+   clear of the pill. */
+.card .card-type { top: calc(var(--cw, 100px) * 0.06); transform: translate(-50%, -50%); }
+.card .art-wrap .gem { top: calc(var(--cw, 100px) * -0.082); }
+.card-table .card-type { top: calc(var(--cw, 100px) * 0.06); }
+/* The gem's centre exactly on the card's outer edge (past its 1px border), so its bump's two halves meet the rim;
+   and over the type pill: no filter on the gem's wrappers (a muted card mutes their children instead), since a
+   filter there had kept the gem beneath everything outside the picture. */
+.card .art-wrap .gem { top: calc(var(--cw, 100px) * -0.06 - 1px); z-index: 6; }
+/* The picture's notch is gone, so its frame casts a plain box-shadow instead of its wrapper's filter
+   (which made a stacking context that held the gem beneath the type pill). */
+.card .art-wrap { filter: none; }
+.card .art-wrap .art-frame { box-shadow: 0 0 0 0.6px rgba(255, 255, 255, 0.95), 0 2px 3px rgba(40, 40, 60, 0.16); }
+/* What a card's Fusion cards add: under its own text, a thin rule above each in the fused card's colour. */
+.card .card-fused-text { display: block; margin-top: 0.25em; padding-top: 0.2em; border-top: 1px solid color-mix(in srgb, var(--fk) 55%, transparent); }
+/* The gem's bump, as part of the card: its fill only above the card's edge (none over the picture or the
+   type pill), its rim ending exactly where the card's own edge line does (over its 1px border), so the
+   card's outline runs up and round the gem. A touch smaller, and the pill a touch lower, so the gem
+   only just overlaps the pill. */
+.card .art-wrap .gem { --gs: max(9px, calc(var(--cw, 100px) * 0.08)); }
+.card .art-wrap .gem::before, .card .art-wrap .gem::after { inset: calc(var(--gs) * -0.12); clip-path: inset(-6px -6px calc(50% - 1px) -6px); }
+.card .card-type, .card-table .card-type { top: calc(var(--cw, 100px) * 0.072); }
+/* The inspector, for a card with Fusion cards on it: tabs along its top (the card, then each fused card), as
+   they sit above it on the board. And the keywords beside a card in the inspector: a fixed width, about the card's. */
+.insp-tabbed { flex-direction: column; align-items: stretch; }
+.insp-tabs { display: flex; gap: 4px; margin: 0 4% 12px; flex-wrap: wrap; justify-content: center; position: relative; z-index: 0; }
+.insp-tab { flex: 1 1 0; min-width: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; padding: 6px 10px; border-radius: 10px; }
+.insp-tabbed > .card-big { position: relative; z-index: 1; }
+.inspector-row .kw-wrap { width: var(--pw, 280px); }
+.inspector-row .kw-wrap > .kw-list { width: 100%; max-width: none; box-sizing: border-box; }
+
+/* ---------- The gem's bump: the card's own stock, exactly ---------- */
+/* The card's background as layers it shares with its gem's bump (which paints the very same layers, offset so
+   they line up: the bump looks cut from the card, its kind tint and circuit traces running on unbroken). */
+.card {
+  --bgc: #fbfbfc;
+  --bg1: var(--circuit-dwarf);
+  --bg2: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(240, 243, 248, 0.95));
+  background-color: var(--bgc); background-image: var(--bg1), var(--bg2);
+  /* The gem: its size, and how far below its centre (the card's outer top edge) the type pill's centre sits. */
+  --gem-s: max(9px, calc(var(--cw, 100px) * 0.08));
+  --pill-y: calc(var(--cw, 100px) * 0.072 + 1px);
+}
+.card.rarity-stellar { --bg1: var(--circuit-stellar); --bg2: linear-gradient(180deg, rgba(255, 253, 246, 0.98), rgba(250, 240, 218, 0.95)); background-image: var(--bg1), var(--bg2); }
+.card.rarity-anomaly { --bg1: var(--circuit-anomaly); --bg2: linear-gradient(180deg, rgba(253, 250, 255, 0.98), rgba(238, 229, 251, 0.95)); background-image: var(--bg1), var(--bg2); }
+.card.kind-command, .card.kind-command.rarity-stellar, .card.kind-command.rarity-anomaly { --bgc: #4b5466; --bg1: linear-gradient(transparent, transparent); --bg2: linear-gradient(160deg, #6b7588, #4b5466 75%); background-image: var(--bg2); }
+.card .art-wrap .gem { --gs: var(--gem-s); }
+.card .art-wrap .gem::before {
+  /* (Its box: the gem's, 1.08 of --gs, and 0.12 more each side; centred on the card's top middle, 1px above
+     the card's padding box, where the background starts.) */
+  --half: calc(var(--gs) * 0.66);
+  background-color: var(--bgc);
+  background-image: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--kc) 12%, transparent), transparent 70%), var(--bg1), var(--bg2);
+  background-repeat: no-repeat, repeat, no-repeat;
+  background-size: calc(var(--cw, 100px) - 2px) calc((var(--cw, 100px) * 1.4 - 2px) * 0.45), calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05), calc(var(--cw, 100px) - 2px) calc(var(--cw, 100px) * 1.4 - 2px);
+  background-position: calc(var(--half) - var(--cw, 100px) / 2 + 1px) calc(var(--half) + 1px);
+  /* Solid down past the card's border, so no edge line shows through it. */
+  clip-path: inset(-6px -6px calc(50% - 3px) -6px);
+}
+.card.kind-command .art-wrap .gem::before { background-image: var(--bg2); background-repeat: no-repeat; background-size: calc(var(--cw, 100px) - 2px) calc(var(--cw, 100px) * 1.4 - 2px); }
+
+/* The type pill wraps round the gem: a round notch out of its top middle, its white rim bending round it. */
+.card .card-type {
+  --notch: calc(var(--gem-s) * 0.54 + var(--cw, 100px) * 0.012);
+  --nc: calc(50% - var(--pill-y));
+  -webkit-mask: radial-gradient(circle at 50% var(--nc), transparent var(--notch), #000 calc(var(--notch) + 0.5px)) -6px -6px / calc(100% + 12px) calc(100% + 12px) no-repeat;
+  mask: radial-gradient(circle at 50% var(--nc), transparent var(--notch), #000 calc(var(--notch) + 0.5px)) -6px -6px / calc(100% + 12px) calc(100% + 12px) no-repeat;
+  -webkit-mask-clip: no-clip; mask-clip: no-clip;
+}
+.card .card-type::before {
+  content: ''; position: absolute; left: 50%; top: var(--nc); width: calc(var(--notch) * 2 + 2px); height: calc(var(--notch) * 2 + 2px);
+  transform: translate(-50%, -50%); border-radius: 50%; box-sizing: border-box; border: 1px solid rgba(255, 255, 255, 0.85);
+  /* Only within the pill (and its rim, 1px above it). */
+  clip-path: inset(calc(var(--pill-y) + var(--notch) - 0.85em) 0 0 0);
+  pointer-events: none;
+}
+/* No circuit traces in the strip along the card's top, between its edge and its picture (where the gem's bump
+   and the type pill sit): a plain band of the card's top colour, which the bump shares exactly. And the pill's
+   notch is the bump's own circle. */
+.card { --bgtop: #fefefe; --strip: calc(var(--cw, 100px) * 0.06); }
+.card.rarity-stellar { --bgtop: #fffdf6; }
+.card.rarity-anomaly { --bgtop: #fdfaff; }
+.card:not(.kind-command) {
+  background-image: linear-gradient(var(--bgtop), var(--bgtop)), var(--bg1), var(--bg2);
+  background-size: 100% var(--strip), calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05), 100% 100%;
+  background-position: 0 0, 0 0, 0 0;
+  background-repeat: no-repeat, repeat, no-repeat;
+}
+.card:not(.kind-command) .art-wrap .gem::before {
+  background-color: var(--bgtop);
+  background-image: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--kc) 12%, transparent), transparent 70%);
+  background-repeat: no-repeat;
+  background-size: calc(var(--cw, 100px) - 2px) calc((var(--cw, 100px) * 1.4 - 2px) * 0.45);
+}
+.card .card-type { --notch: calc(var(--gem-s) * 0.66); }
+.card .art-wrap .gem::before, .card .art-wrap .gem::after { opacity: 1; }
+/* (The kind tint, the card's ::before, covers only the card: the bump, above its edge, draws the very same
+   ellipse itself, centred where the card's is, so it runs on past the edge. Heroes' gradient, at their top
+   middle, is this grey.) */
+.card .art-wrap .gem::before {
+  --tw: calc(var(--cw, 100px) - 2px);
+  --th: calc((var(--cw, 100px) * 1.4 - 2px) * 0.45);
+  background-image: radial-gradient(ellipse calc(var(--tw) * 0.7071) calc(var(--th) * 0.9899) at var(--half) calc(var(--th) * 0.3 + var(--half) + 1px), color-mix(in srgb, var(--kc) 12%, transparent), transparent 70%);
+  background-size: auto; background-position: 0 0; background-repeat: no-repeat;
+}
+.card:not(.kind-command) .art-wrap .gem::before { background-color: var(--bgtop); }
+.card.kind-command .art-wrap .gem::before { background-color: #677083; }
+
+/* Fusion cards behind a card: an extension of it, the card itself unchanged. Each tab is exactly the card's
+   width (over its border), with the card's own top corners, and reaches down behind the card's rounded top
+   corners (shown only outside them), so no gap opens either side where the two meet. */
+.card .fused-behind {
+  --fr: calc(var(--cw, 100px) * 0.08);
+  left: -1px; right: -1px; bottom: calc(100% + 1px - var(--fr)); height: calc(var(--fh) * (var(--fi) + 1) + var(--fr));
+  border-radius: var(--fr) var(--fr) 0 0; border-bottom: 0;
+  -webkit-mask: linear-gradient(#000, #000) 0 0 / 100% calc(100% - var(--fr)) no-repeat, radial-gradient(circle at 100% 100%, transparent calc(var(--fr) - 0.5px), #000 var(--fr)) 0 100% / var(--fr) var(--fr) no-repeat, radial-gradient(circle at 0 100%, transparent calc(var(--fr) - 0.5px), #000 var(--fr)) 100% 100% / var(--fr) var(--fr) no-repeat;
+  mask: linear-gradient(#000, #000) 0 0 / 100% calc(100% - var(--fr)) no-repeat, radial-gradient(circle at 100% 100%, transparent calc(var(--fr) - 0.5px), #000 var(--fr)) 0 100% / var(--fr) var(--fr) no-repeat, radial-gradient(circle at 0 100%, transparent calc(var(--fr) - 0.5px), #000 var(--fr)) 100% 100% / var(--fr) var(--fr) no-repeat;
+}
+/* (The kind tint the bump draws itself; above a rule of the same layers it must win over.) */
+.card.card .art-wrap .gem::before {
+  background-image: radial-gradient(ellipse calc(var(--tw) * 0.7071) calc(var(--th) * 0.9899) at var(--half) calc(var(--th) * 0.3 + var(--half) + 1px), color-mix(in srgb, var(--kc) 12%, transparent), transparent 70%);
+  background-size: auto; background-position: 0 0; background-repeat: no-repeat; opacity: 1;
+}
+
+/* Anomaly gems: the black hole and its disk larger, so the streaming disk reads at card size, and the purple
+   glass alive: a lilac glow breathing round the hole, and now and then a sheen sweeping across. */
+.gem-anomaly .g-hole-back, .gem-anomaly .g-hole { transform: scale(1.4); }
+.gem-anomaly .g-disk { transform: scale(1.4) rotate(-14deg) scaleY(0.3); }
+.gem-anomaly .gem-window::before, .gem-anomaly .gem-window::after { content: ''; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; }
+.gem-anomaly .gem-window::before {
+  background: radial-gradient(circle, rgba(215, 175, 255, 0.85) 0%, rgba(160, 95, 255, 0.45) 38%, transparent 72%);
+  animation: gemPurple 3.2s ease-in-out infinite; animation-delay: calc(var(--gp, 0) * -3.2s);
+}
+.gem-anomaly .gem-window::after {
+  background: linear-gradient(115deg, transparent 38%, rgba(235, 215, 255, 0.55) 50%, transparent 62%);
+  transform: translateX(-110%); animation: gemSheen 5.5s ease-in-out infinite; animation-delay: calc(var(--gp, 0) * -5.5s);
+}
+@keyframes gemPurple { 0%, 100% { opacity: 0.45; transform: scale(0.92); } 50% { opacity: 1; transform: scale(1.08); } }
+@keyframes gemSheen { 0%, 62% { transform: translateX(-110%); } 85%, 100% { transform: translateX(110%); } }
+@media (prefers-reduced-motion: reduce) { .gem-anomaly .gem-window::before, .gem-anomaly .gem-window::after { animation: none; } .gem-anomaly .gem-window::after { display: none; } }
+/* (The disk's near half fades in rather than starting on a hard line, which showed across the larger disk.) */
+.gem-anomaly .g-disk-front { clip-path: none; -webkit-mask: linear-gradient(transparent 44%, #000 56%); mask: linear-gradient(transparent 44%, #000 56%); }
+/* The type pill: taller, its text smaller, so the notch round the gem sits in a pill with room for it. */
+.card { --pill-h: calc(var(--cw, 100px) * 0.105); }
+.card .card-type, .card-table .card-type {
+  height: var(--pill-h); font-size: max(4.5px, calc(var(--cw, 100px) * 0.034)); padding: 0.12em 1.1em 0; letter-spacing: 0.18em;
+}
+.card .card-type::before { clip-path: inset(calc(var(--pill-y) + var(--notch) - var(--pill-h) / 2) 0 0 0); }
+/* The rims round the gem, drawn by the gem itself so they are exactly round it: its top half the card's own
+   outline running up round the bump; its bottom half, where it sits in the type pill's notch, the pill's
+   white rim (and nothing in the strip between the card's edge and the pill's top). */
+.card .card-type::before { display: none; }
+.card.card .art-wrap .gem::after {
+  --R: calc(var(--gs) * 0.66);
+  border: 0; box-shadow: none; clip-path: none;
+  background:
+    radial-gradient(circle at 50% calc(100% - 1px), transparent calc(var(--R) - var(--bump-w, 1px)), var(--bump-ring, var(--rim)) calc(var(--R) - var(--bump-w, 1px) + 0.3px), var(--bump-ring, var(--rim)) calc(var(--R) - 0.3px), transparent var(--R)) 0 0 / 100% calc(50% + 1px) no-repeat,
+    radial-gradient(circle at 50% 0, transparent calc(var(--R) - 1px), rgba(255, 255, 255, 0.9) calc(var(--R) - 0.7px), rgba(255, 255, 255, 0.9) calc(var(--R) - 0.3px), transparent var(--R)) 0 100% / 100% 50% no-repeat;
+  --gap: calc(50% + var(--pill-y) - var(--pill-h) / 2 - 1px);
+  -webkit-mask: linear-gradient(#000 calc(50% + 1px), transparent calc(50% + 1px), transparent var(--gap), #000 var(--gap));
+  mask: linear-gradient(#000 calc(50% + 1px), transparent calc(50% + 1px), transparent var(--gap), #000 var(--gap));
+}
+/* (Cards' top corners are 0.14 of their width: the tabs behind take the same, so their sides run straight
+   down into the card's. No coloured band along their top: a plain card edge, a fine grey line, and the
+   card's own face colour, so nothing reads as a line where they meet.) */
+.card:not(.card-landscape) .fused-behind { --fr: calc(var(--cw, 100px) * 0.14); }
+.card .fused-behind { background: var(--bgtop, #fefefe); border: 1px solid rgba(178, 186, 202, 0.75); border-bottom: 0; box-shadow: none; }
+.card .fused-behind::before { display: none; }
+/* (A shade greyer than the card, so the card's own top edge and corners read in front of it.) */
+.card .fused-behind { background: linear-gradient(180deg, #f6f7fa, #eceff4); }
+/* The rims as real borders (crisp, where gradients blurred): the card's outline over the bump is an inset ring
+   on the bump's fill, running down past the card's border so it meets the card's edge line with no gap; the
+   pill's rim round its notch a 1px circle round the gem, shown only below the pill's top. */
+.card.card .art-wrap .gem::before { box-shadow: inset 0 0 0 var(--bump-w, 1px) var(--bump-ring, var(--rim)); }
+.card.card .art-wrap .gem::after {
+  background: none; border: 1px solid rgba(255, 255, 255, 0.9); box-sizing: border-box;
+  -webkit-mask: linear-gradient(transparent var(--gap), #000 var(--gap)); mask: linear-gradient(transparent var(--gap), #000 var(--gap));
+}
+/* (The bump and its rim end exactly at the foot of the card's 1px border, so the rim joins the edge line.) */
+.card.card .art-wrap .gem::before { clip-path: inset(-6px -6px calc(50% - 1px) -6px); }
+/* The card's distinctive top-left curve, larger so it reads as meant: 0.18 of the card's width (50px on the
+   inspector's card), its picture's corner following it; the other corners stay 0.08. */
+.card:not(.card-landscape) { --r-tl: calc(var(--cw, 100px) * 0.18); border-top-left-radius: var(--r-tl); }
+.card:not(.card-landscape) .art-frame { border-top-left-radius: calc(var(--cw, 100px) * 0.125); }
+/* Fused tabs behind follow both top corners: the big curve on the left, the small one on the right. */
+.card .fused-behind {
+  --frl: calc(var(--cw, 100px) * 0.08); --frr: calc(var(--cw, 100px) * 0.08);
+  border-radius: var(--frl) var(--frr) 0 0;
+  height: calc(var(--fh) * (var(--fi) + 1) + var(--frl)); bottom: calc(100% + 1px - var(--frl));
+  -webkit-mask: linear-gradient(#000, #000) 0 0 / 100% calc(100% - var(--frl)) no-repeat, radial-gradient(circle at 100% 100%, transparent calc(var(--frl) - 0.5px), #000 var(--frl)) 0 100% / var(--frl) var(--frl) no-repeat, radial-gradient(circle at 0 100%, transparent calc(var(--frr) - 0.5px), #000 var(--frr)) right 0 bottom calc(var(--frl) - var(--frr)) / var(--frr) var(--frr) no-repeat;
+  mask: linear-gradient(#000, #000) 0 0 / 100% calc(100% - var(--frl)) no-repeat, radial-gradient(circle at 100% 100%, transparent calc(var(--frl) - 0.5px), #000 var(--frl)) 0 100% / var(--frl) var(--frl) no-repeat, radial-gradient(circle at 0 100%, transparent calc(var(--frr) - 0.5px), #000 var(--frr)) right 0 bottom calc(var(--frl) - var(--frr)) / var(--frr) var(--frr) no-repeat;
+}
+.card:not(.card-landscape) .fused-behind { --frl: var(--r-tl); }
+/* The bump's rims as the card's own: the card's border (its rim colour) inside the bump's edge, and a ring
+   round the card (playable, in the deck, focused, picked) outside it, just as the card's ring lies outside
+   its border, so the two run on unbroken. */
+.card.card .art-wrap .gem::before { box-shadow: inset 0 0 0 1px var(--rim), 0 0 0 var(--bump-w, 0px) var(--bump-ring, transparent); }
+
+/* Deck builder: a card you don't own is greyed and faded by a veil over it (not a filter on the card, which
+   turned its ring grey and its gem's bump see-through), and the one picked to craft takes a ring of the
+   card's own shape. */
+.db-card-locked .card { filter: none; }
+.db-card-locked .card > :not(.card-glyph), .db-card-locked .card-glyph > :not(.art-wrap), .db-card-locked .art-wrap > :not(.gem) { filter: grayscale(1); }
+.db-card-locked .card::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; background: rgba(248, 248, 250, 0.55); z-index: 5; pointer-events: none; }
+/* (The gem stands over the veil, so it is greyed and faded itself: its glass, not its bump.) */
+.db-card-locked .card .gem > i { filter: grayscale(1); opacity: 0.45; }
+.db-card-focus { outline: none; }
+.db-card-focus > .card { box-shadow: 0 0 0 2px #9fb4ff, 0 5px 16px rgba(90, 90, 110, 0.15); --bump-ring: #9fb4ff; --bump-w: 2px; }
+/* (Hovered, a card in the deck or picked to craft keeps its ring: the lift's shadow joins it rather than replacing it.) */
+@media (hover: hover) {
+  .db-card-in > .card.lifted:not([disabled]) { box-shadow: 0 0 0 2px color-mix(in srgb, var(--kc) 75%, transparent), 0 10px 22px rgba(90, 90, 110, 0.2); }
+  .db-card-focus > .card.lifted:not([disabled]) { box-shadow: 0 0 0 2px #9fb4ff, 0 10px 22px rgba(90, 90, 110, 0.2); }
+}
+
+/* ---------- Anomaly gem: a black hole seen from above ---------- */
+/* Deep space behind, a glow rising to white round the hole, the disk's streaks swirling round it (two layers
+   turning at different speeds, the inner faster), and the hole itself, a black disc with a soft lip. */
+.gem-anomaly .gem-window { background: radial-gradient(circle, #2c2448 0%, #141026 45%, #07050d 75%); }
+.gem-anomaly .gem-window::before { background: radial-gradient(circle, rgba(200, 170, 255, 0.55) 0%, rgba(140, 100, 240, 0.3) 40%, transparent 70%); }
+.g-ah-glow { background: radial-gradient(circle, #ffffff 0 17%, rgba(240, 232, 255, 0.95) 21%, rgba(190, 168, 245, 0.7) 29%, rgba(120, 100, 190, 0.42) 42%, rgba(60, 50, 110, 0.22) 58%, transparent 74%); }
+.g-ah-swirl { background-image: var(--gem-swirl); animation: gemTurn 9s linear infinite; animation-delay: calc(var(--gp) * -9s); }
+.g-ah-swirl2 { background-image: var(--gem-swirl2); animation-duration: 16s; transform: scale(1.12); animation-name: gemTurnWide; opacity: 0.8; }
+@keyframes gemTurnWide { from { transform: scale(1.12) rotate(0deg); } to { transform: scale(1.12) rotate(360deg); } }
+.g-ah-core { background: radial-gradient(circle, #000 0 14.5%, rgba(0, 0, 0, 0.85) 15.5%, rgba(10, 6, 20, 0.35) 17.5%, transparent 20%); }
+@media (prefers-reduced-motion: reduce) { .g-ah-swirl { animation-duration: 40s; } .g-ah-swirl2 { animation-duration: 70s; } }
+/* All four corners alike again, on the card and on its picture. */
+.card:not(.card-landscape) { --r-tl: calc(var(--cw, 100px) * 0.08); border-top-left-radius: var(--r-tl); }
+.card:not(.card-landscape) .art-frame { border-top-left-radius: calc(var(--cw, 100px) * 0.05); }
+/* A bigger black hole in the Anomaly gem, its glow widened to match. */
+.g-ah-core { background: radial-gradient(circle, #000 0 22%, rgba(0, 0, 0, 0.85) 23.2%, rgba(10, 6, 20, 0.35) 25.5%, transparent 28.5%); }
+.g-ah-glow { background: radial-gradient(circle, #ffffff 0 24%, rgba(240, 232, 255, 0.95) 28%, rgba(190, 168, 245, 0.7) 35%, rgba(120, 100, 190, 0.42) 47%, rgba(60, 50, 110, 0.22) 61%, transparent 76%); }
+/* (The deck builder's pool: a set number of rows, the columns centred across.) */
+.db-editor .db-pool { justify-content: center; }
+/* Rings round cards in solid colours (a translucent one took on what lay beneath it, so the card's line and
+   its gem bump's arc never quite matched): the same solid colour on both. */
+.hand > .card.card-playable { --ring: #93cfab; --bump-ring: var(--ring); --bump-w: 1.5px; box-shadow: 0 0 0 1.5px var(--ring), 0 0 10px rgba(124, 199, 154, 0.35), -4px 4px 16px rgba(90, 90, 110, 0.18); }
+.hand > .card.card-playable.lifted { box-shadow: 0 0 0 1.5px var(--ring), 0 0 12px rgba(124, 199, 154, 0.4), 0 10px 24px rgba(80, 80, 100, 0.22); }
+.db-card-in > .card { --ring: color-mix(in srgb, var(--kc) 75%, #fff); --bump-ring: var(--ring); box-shadow: 0 0 0 2px var(--ring), 0 5px 16px rgba(90, 90, 110, 0.15); }
+@media (hover: hover) { .db-card-in > .card.lifted:not([disabled]) { box-shadow: 0 0 0 2px var(--ring), 0 10px 22px rgba(90, 90, 110, 0.2); } }
+/* (While the zoom is measured ahead of time: nothing on the table may start a transition.) */
+.table-view.no-anim, .table-view.no-anim * { transition: none !important; }

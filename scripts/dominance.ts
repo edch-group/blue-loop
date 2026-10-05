@@ -57,7 +57,7 @@ const vecs = new Map(cards.map((c) => [c.id, vec(c)]));
 const found: string[] = [];
 for (const a of cards) {
   for (const b of cards) {
-    if (a === b || !fits(a, b) || cardCost(b.id) > cardCost(a.id) || (a.kind === 'lightspeed') !== (b.kind === 'lightspeed') || (a.kind === 'command') !== (b.kind === 'command')) continue;
+    if (a === b || !fits(a, b) || cardCost(b.id) > cardCost(a.id) || (a.kind === 'lightspeed') !== (b.kind === 'lightspeed') || (a.kind === 'command') !== (b.kind === 'command') || (a.kind === 'relic') !== (b.kind === 'relic')) continue; // (A Relic lasts but is brittle: no match for anything else)
     const va = vecs.get(a.id)!, vb = vecs.get(b.id)!;
     let better = cardCost(b.id) < cardCost(a.id);
     let ok = true;

@@ -29,11 +29,11 @@ import {
   dawnEffects,
   duskEffects,
   turnForecast,
-  aimable,
   allyEffectKind,
   inSlots,
-  dawnAimable,
   aimChoices,
+  aimable,
+  abilityAimable,
 } from './game';
 import type { Action, CardInstance, Effect, GameState, PlayerState } from './types';
 
@@ -56,8 +56,6 @@ const ACTION_VALUE = tuning('ACTION', 2.5);
 /** A dawn's +1 energy is worth a full energy with this many cards (beyond one) in hand to spend it on, less with fewer. */
 const ENERGY_HAND = tuning('EHAND', 4);
 
-/** How much a card burned away is worth against heat on the sun, when aiming. */
-const AIM_CARD = tuning('AIMCARD', 0.8);
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
 const INCOMING_WEIGHT = tuning('INCOMING', 0.8);
@@ -168,7 +166,7 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   if (def.abilities?.length) perTurn += 0.8 * Math.max(...def.abilities.map((k) => abilityValue(p, k.effects) - (k.cost ?? 0) * ACTION_VALUE * 0.6));
   // Worth as many turns as it has left (roughly), and a little more where removal cannot reach it. A Hero
   // never fades: it is worth the whole horizon.
-  const turns = def.kind === 'command' ? HORIZON + 1 : Math.min(card.stability ?? HORIZON, HORIZON + 1);
+  const turns = def.kind === 'command' || def.kind === 'relic' ? HORIZON + 1 : Math.min(card.stability ?? HORIZON, HORIZON + 1);
   return perTurn * turns * (0.85 + 0.05 * cardDefence(p, card));
 }
 
@@ -328,51 +326,6 @@ function bestTarget(state: GameState, me: PlayerState): PlayerState | undefined 
   return left;
 }
 
-/** Where each of your cards' dawn heat does most: a card it can burn away (and that is worth it), or the sun. */
-function dawnAims(state: GameState, me: PlayerState): Record<string, string | null> {
-  const aims: Record<string, string | null> = {};
-  const rival = targetOf(state, me);
-  if (!rival) return aims;
-  const danger = Math.max(0, rival.heat) / supernovaThreshold(rival);
-  const { cards, sun } = aimChoices(state, me);
-  // Heat already aimed at each card this dawn (a card burned away by one attacker needs no more), and
-  // the defence still standing on it (the first hit dents it for the rest of the day).
-  const planned = new Map<string, number>();
-  const guardLeft = new Map(cards.map((c) => [c.uid, cardDefence(rival, c)]));
-  // What burning a card away sets off against you: its own leave heat, and its owner's cards that answer a card leaving.
-  const payback = (c: CardInstance) =>
-    (cardDef(c.defId).onLeave ?? []).reduce((n, e) => n + (e.type === 'heat' ? e.amount : 0), 0) +
-    rival.tableau.reduce((n, o) => n + (o.uid === c.uid ? 0 : cardPassives(o).reduce((m, x) => m + (x.type === 'allyLeaves' ? x.effects.reduce((k, e) => k + (e.type === 'heat' ? e.amount : 0), 0) : 0), 0)), 0);
-  for (const card of me.tableau) {
-    if (!dawnAimable(card, me, state)) continue;
-    const heat = dawnEffects(card, me, state).reduce((n, e) => n + (e.type === 'heat' && e.to === 'target' && conditionMet(me, e.if, state) ? effectAmount(state, me, card, e, 'turn') : 0), 0);
-    if (heat <= 0) continue;
-    // The sun counts for more the nearer it is to supernova; a card for what it is worth to its owner, if this burns it away.
-    let best: { uid: string | null; score: number } = { uid: null, score: sun ? heat * (1 + 3 * danger) : -Infinity };
-    const pierce = dawnEffects(card, me, state).some((e) => e.type === 'heat' && e.to === 'target' && e.pierce);
-    for (const c of cards) {
-      const left = (c.stability ?? 0) - (planned.get(c.uid) ?? 0);
-      if (left <= 0) continue;
-      // A card's defence takes that much heat first (not pierce heat).
-      const wears = pierce ? heat : heat - (guardLeft.get(c.uid) ?? 0);
-      if (wears <= 0) continue;
-      const kills = wears >= left;
-      const share = kills ? 1 : (wears / Math.max(1, left)) * 0.5;
-      const score = cardValue(state, rival, c) * share * AIM_CARD - (kills ? payback(c) * 1.2 : 0);
-      if (score > best.score) best = { uid: c.uid, score };
-    }
-    if (best.uid === null && !sun) continue;
-    aims[card.uid] = best.uid;
-    if (best.uid) {
-      const hit = cards.find((c) => c.uid === best.uid)!;
-      const stand = pierce ? 0 : guardLeft.get(hit.uid) ?? 0;
-      planned.set(best.uid, (planned.get(best.uid) ?? 0) + Math.max(0, heat - stand));
-      guardLeft.set(hit.uid, stand - Math.min(stand, heat));
-    }
-  }
-  return aims;
-}
-
 /**
  * Heuristic AI: returns the next action for the active player. It focuses the
  * rival nearest to supernova, then plays whichever card leaves it best off,
@@ -395,14 +348,19 @@ function aiSkill(state: GameState, me: PlayerState): number | null {
 
 export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
-  if (state.awaitingDawn) return { type: 'dawn', aims: dawnAims(state, me) };
   const focus = bestTarget(state, me);
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
   const skill = aiSkill(state, me);
   if (skill !== null) return { type: 'heroSkill', index: skill };
   // Its Hero's abilities (one a day): weighed like any card it could play.
   const hero = commandCard(me);
-  const abilities: Action[] = hero ? (cardDef(hero.defId).abilities ?? []).flatMap((_, index) => (heroAbilityProblem(state, me, index) === null ? [{ type: 'heroAbility' as const, index }] : [])) : [];
+  // (One that heats: at the sun, or at each card it may be aimed at.)
+  const aimAt = aimChoices(state, me).cards.map((c) => c.uid);
+  const abilities: Action[] = hero
+    ? (cardDef(hero.defId).abilities ?? []).flatMap((_, index) =>
+        heroAbilityProblem(state, me, index) !== null ? [] : [{ type: 'heroAbility' as const, index }, ...(abilityAimable(hero.defId, index) ? aimAt.map((aimUid) => ({ type: 'heroAbility' as const, index, aimUid })) : [])],
+      )
+    : [];
   // Its cards' attacks (each ready card, at the sun or each card it may hit).
   const attacks: Action[] = [];
   const targets = aimChoices(state, me);

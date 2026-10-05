@@ -34,8 +34,8 @@ function outcome(text: string): { icon: string; tone: string; chip: Chip | null 
   if ((m = text.match(/shields absorb (\d+)/))) return { icon: sym('shield'), tone: 'shield', chip: { cls: 'shield', html: `${sym('shield')}−${m[1]}` } };
   if ((m = text.match(/raises (\d+) shield/))) return { icon: sym('shield'), tone: 'shield', chip: { cls: 'shield', html: `${sym('shield')}+${m[1]}` } };
   if ((m = text.match(/stings .+ for (\d+)/))) return { icon: '⚔', tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')}+${m[1]}` } };
-  if ((m = text.match(/takes (\d+) heat on its defence \(defence (\d+) left/))) return { icon: '⛨', tone: 'shield', chip: { cls: 'shield', html: `⛨−${m[1]} ${ARROW} ${m[2]}` } };
-  if ((m = text.match(/heat strikes .* \(stability (\d+)\)/))) return { icon: sym('heat'), tone: 'heat', chip: { cls: 'remove', html: `◷ ${ARROW} ${m[1]}` } };
+  if ((m = text.match(/takes (\d+) on its defence \(defence (\d+) left/))) return { icon: '⛨', tone: 'shield', chip: { cls: 'shield', html: `⛨−${m[1]} ${ARROW} ${m[2]}` } };
+  if ((m = text.match(/'s .* takes \d+ \(stability (\d+)\)\.$/))) return { icon: sym('heat'), tone: 'heat', chip: { cls: 'remove', html: `◷ ${ARROW} ${m[1]}` } };
   if (/burns away/.test(text)) return { icon: '✕', tone: 'remove', chip: { cls: 'remove', html: '✕ burned' } };
   if (/destroys/.test(text)) return { icon: '✕', tone: 'remove', chip: { cls: 'remove', html: `✕ destroyed` } };
   if (/flung back|returns .+ to their hand/.test(text)) return { icon: '↩', tone: 'remove', chip: { cls: 'move', html: `${ARROW} hand` } };
@@ -49,7 +49,7 @@ function outcome(text: string): { icon: string; tone: string; chip: Chip | null 
   if (/replaces/.test(text)) return { icon: '⇄', tone: 'play', chip: { cls: 'play', html: '⇄ swapped' } };
   if (/chooses:/.test(text)) return { icon: '◆', tone: 'play', chip: null };
   if (/is cancelled|misses|never reaches/.test(text)) return { icon: '⦸', tone: 'fade', chip: { cls: 'fade', html: 'no effect' } };
-  if ((m = text.match(/gains (\d+) energy/))) return { icon: '⚡', tone: 'play', chip: { cls: 'play', html: `+${m[1]} energy` } };
+  if ((m = text.match(/gains (\d+) energy/))) return { icon: '●', tone: 'play', chip: { cls: 'play', html: `+${m[1]} energy` } };
   if (/may play no more/.test(text)) return { icon: '⦸', tone: 'remove', chip: { cls: 'remove', html: 'no more plays' } };
   if (/draws/.test(text)) return { icon: '⇡', tone: 'move', chip: { cls: 'move', html: `${ARROW} hand` } };
   if (/planet|orbit/.test(text)) return { icon: '◍', tone: 'orbit', chip: null };

@@ -19,7 +19,6 @@ import {
   canSetLightspeed,
   canSetFaceDown,
   cardDef,
-  isBurst,
   chooseAIAction,
   createGame,
   enemyChoices,
@@ -42,10 +41,10 @@ import {
   allyChoices,
   cardChoices,
   cardCost,
-  aimable,
   aimChoices,
+  aimable,
+  abilityAimable,
   COMMAND_SLOT,
-  dawnAimable,
   dawnEffects,
   effectAmount,
   optionText,
@@ -55,9 +54,8 @@ import {
   supernovaThreshold,
   hasRoomFor,
   targetOf,
-  turnForecast,
-  previewDawnHeat,
   planetsEaten,
+  currentPlanet,
   type Action,
   type BoosterCard,
   type BoosterKind,
@@ -75,7 +73,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, stabilityBadge, symbolIcon, typeLine } from './glyphs';
+import { attackBadge, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -85,7 +83,7 @@ import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
 import { fitCardText, fitWhenSeen } from './fittext';
 import { refreshLift, trackLift } from './lift';
-import { animateSuns } from './sun3d';
+import { animateSuns, holdSuns, redrawSuns } from './sun3d';
 import { voices } from './voice';
 import { morphInto } from './morph';
 import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
@@ -123,8 +121,8 @@ interface Pending {
   hostUid?: string;
   /** Where its heat goes: a rival card's uid, or 'sun'. */
   aimUid?: string;
-  /** Aiming the dawn heat of a card already in your tableau (uid is that card), not playing one. */
-  dawn?: boolean;
+  /** Your Hero's ability being aimed (uid is the Hero): which one. */
+  ability?: number;
   /** A card of yours in play attacking (uid is that card): its target is chosen like an aim. */
   attack?: boolean;
   /** A Command card's option. */
@@ -133,6 +131,9 @@ interface Pending {
   allyUid?: string;
   recoverUid?: string;
   slot?: number;
+  /** Where the card was dropped, dragged out of the hand onto your tableau: a slot, your Lightspeed slot, or a
+   *  card of yours (to recall or fuse onto). Used for whichever of those choices it fits; the rest are asked. */
+  drop?: { slot?: number | 'ls'; uid?: string };
   /** A Lightspeed guard set face down instead (its Lightspeed slot chosen). */
   faceDown?: boolean;
 }
@@ -148,10 +149,12 @@ interface Stage {
   /** A rival's card the viewer must confirm they have read before the rival goes on. */
   confirm?: boolean;
   /**
-   * The viewer's own card that went straight to the discard pile (it takes no slot): shown while the rival
-   * reads it (online), and at least for as long as an auto-confirmed card is.
+   * The viewer's own card, just played: it hangs here until the rival has read it (online), or a moment
+   * (against the AI), and then goes to the board (or the discard pile).
    */
   own?: boolean;
+  /** The card's uid, when it is the viewer's own (so it flies from here to where it lands). */
+  uid?: string;
   /** The option the player picked on a card with choices (a Command card's dawn effect): highlighted on it. */
   option?: string;
   /** A sprung Lightspeed card: the enemy card it answered, shown beside it. */
@@ -173,7 +176,9 @@ type Sheet =
   | { kind: 'quit' }
   /** Ending the day with plays still left: are you sure? */
   | { kind: 'end-day' }
-  | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string };
+  /** Ending the day holding more than the hand limit: which cards go (`picked`, by uid). */
+  | { kind: 'discard'; picked: string[] }
+  | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string; /** Of a card in play with Fusion cards on it: which is shown (0 the card itself, then each fused card). */ tab?: number };
 
 /** Menu buttons that lead somewhere: the page they're on lifts away (and the star spins up) before the next one comes in. */
 const MENU_NAV = new Set(['menu-page', 'open-decks', 'campaign-new', 'campaign-continue', 'continue', 'new-game', 'to-menu']);
@@ -226,11 +231,21 @@ const AI_GAME_KEY = 'blue-loop:ai-game';
 /** A rival's cards land by themselves after a moment, rather than waiting for OK. */
 const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
+/** How long the viewer's own card hangs in the preview pane (at least) before it lands, as the rival reads it. */
+const OWN_HOLD_MS = 1100;
+/** With nothing left to do today, how long the board rests before the day ends by itself. */
+const AUTO_END_MS = 1600;
+/** How much the hand's cards grow while it is raised to be read. */
+const HAND_GROW = 1.14;
+/** An attack: the card's lunge (it strikes a little past halfway; the attack lands once it is back). */
+const LUNGE_MS = 900;
+/** When in the lunge the card strikes (a share of it): the blow lands then. */
+const LUNGE_HIT = 0.58;
 /** Banners in a row (dusk, dawn, day) are this far apart. */
 const BANNER_GAP_MS = 1300;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, dawn: 350, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -247,6 +262,8 @@ const FADE_OUT = { duration: 520, easing: 'cubic-bezier(.8,.2,.8,.2)', endOpacit
 const KW_TIP_DELAY_MS = 350;
 /** Scrolling areas whose position survives a redraw. */
 const SCROLL_KEEP = '.db-pool, .db-rows, .db-list-body, .setup-body, .pile-grid, .log-list';
+/** An eye: look closely at a tableau. */
+const EYE_ICON = '<svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3.2"/></svg>';
 const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
 /** Clicks that make their own sound (or none): moves on the table and picks on the map. */
 const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-host', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
@@ -384,6 +401,27 @@ function placeResult(root: HTMLElement) {
   result.style.top = `${(r.top + r.height / 2) / zoom}px`;
 }
 
+/**
+ * Piles on the tilted board: how far their stacked edges must lean sideways (per pixel down the board) to stand
+ * upright on screen. Moving down the board, a pile drifts outwards as the perspective widens: measured, then undone.
+ */
+function leanPiles(root: HTMLElement) {
+  for (const face of root.querySelectorAll<HTMLElement>('.tpile-stacked')) {
+    face.style.setProperty('--lean', '0');
+    face.style.translate = 'none';
+    const r0 = face.getBoundingClientRect();
+    face.style.translate = '0 20px';
+    const r1 = face.getBoundingClientRect();
+    face.style.translate = '';
+    const perX = r0.width / (face.offsetWidth || 1);
+    // (The pile climbs to the right: its top card up and right of its foot, the edges stepping down to the left.
+    // The perspective's drift is undone first, then a lean of its own is added.)
+    const drift = perX ? (r1.left + r1.width / 2 - (r0.left + r0.width / 2)) / 20 / perX : 0;
+    const lean = -drift - 0.45;
+    face.style.setProperty('--lean', lean.toFixed(3));
+  }
+}
+
 function frameTableaus(root: HTMLElement) {
   for (const row of root.querySelectorAll<HTMLElement>('.tableau-row')) {
     const svg = row.querySelector<SVGSVGElement>('.tableau-frame');
@@ -453,10 +491,9 @@ export class App {
   private profileOpen = false;
   /** Sign-in being filled in. */
   private signinName: string | null = null;
-  private signinAvatar: number | null = null;
   /**
    * The sign-in page: an account to sign in to (or create), or (for a guest, or once signed in) the name
-   * and emblem you go by.
+   * you go by.
    */
   private authMode: 'signin' | 'signup' | 'name' | 'forgot' | 'reset' = 'signin';
   private authEmail = '';
@@ -486,6 +523,18 @@ export class App {
   private state: GameState | null = null;
   private pending: Pending | null = null;
   private stage: Stage | null = null;
+  /** Your Hero, tapped on your day: its actions (abilities, and attack) shown in the stage's place, middle right. */
+  private heroPanel: string | null = null;
+  /** The card mid-attack (its flying copy is out): hidden in its slot until the copy is back. */
+  private lunging: string | null = null;
+  /** The board zoomed onto one tableau (the rival's, or yours), to read it close up; null: the whole board. */
+  private boardZoom: 'rival' | 'mine' | null = null;
+  /** How the board is zoomed to fit that tableau to the window (--bz, --zx, --zy), as worked out by fitZoom. */
+  private zoomVars = '';
+  /** The zoom worked out for each tableau at each window size, so zooming again needs no measuring. */
+  private zoomFits = new Map<string, { bz: number; zx: number; zy: number }>();
+  /** Card text to fit again once the zoom's easing is over (it would stall the easing mid-way). */
+  private pendingRefit: (() => void) | null = null;
   private sheet: Sheet | null = null;
   /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
   private landing: (() => void) | null = null;
@@ -605,18 +654,19 @@ export class App {
     let tipFor: HTMLElement | null = null;
     let tipTimer = 0;
     document.addEventListener('mouseover', (e) => {
-      const kw = (e.target as HTMLElement).closest?.<HTMLElement>('.kw[data-kw]');
+      const kw = (e.target as HTMLElement).closest?.<HTMLElement>('.kw[data-kw], .kw[data-tip]');
       if (kw === tipFor) return;
       tipFor = kw;
       window.clearTimeout(tipTimer);
       tip.classList.remove('show');
       // Not where the card's explanations are already laid out beside it.
       if (!kw || this.touch || kw.closest('.zoom-card, .inspector-row, .card-preview')?.querySelector('.kw-list')) return;
-      const k = KEYWORDS[kw.dataset.kw!];
-      if (!k) return;
+      // (A keyword explains itself; a race's trait, named on the card, carries its own words.)
+      const k = kw.dataset.kw ? KEYWORDS[kw.dataset.kw] : undefined;
+      if (!k && !kw.dataset.tip) return;
       tipTimer = window.setTimeout(() => {
         if (tipFor !== kw || !kw.isConnected) return;
-        tip.innerHTML = `${keywordHtml(kw.dataset.kw!, undefined, { named: true })} ${esc(k.explain())}`;
+        tip.innerHTML = k ? `${keywordHtml(kw.dataset.kw!, undefined, { named: true })} ${esc(k.explain())}` : `${kw.outerHTML.replace(/ data-tip="[^"]*"/, '')} ${esc(kw.dataset.tip!)}`;
         const r = pageRect(kw);
         const page = appSize();
         tip.classList.add('show');
@@ -642,11 +692,49 @@ export class App {
       if ((e.target as HTMLElement).dataset.seatName === '0' && this.online && this.screen === 'menu') this.online.setup(this.joinInfo());
     });
     root.addEventListener('mouseover', (e) => this.onHover(e));
+    // With a mouse, hovering the hand raises it (and leaving it lowers it).
+    const mouse = matchMedia('(hover: hover) and (pointer: fine)');
+    root.addEventListener('mouseover', (e) => {
+      if (!mouse.matches || this.touch || this.screen !== 'game' || this.drag) return;
+      const over = !!(e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone');
+      // (The card under the pointer lifts as the hand rises, both at once.)
+      // (Only raised here: it is lowered once the pointer leaves the hand's whole column, below.)
+      if (over) this.raiseHand(true);
+    });
+    // Raised, the hand stays up while the pointer is anywhere from its cards' tops down to the screen's foot
+    // (over the strip it rose out of too: lowering there brought it back under the pointer, and it jittered).
+    root.addEventListener(
+      'mousemove',
+      (e) => {
+        if (!mouse.matches || this.touch || this.drag || this.screen !== 'game') return;
+        // (A hover that came while the hand couldn't rise, still being dealt or with a card in the preview pane,
+        // raises it once it can: the pointer needn't leave and come back.)
+        if (!this.handRaised) {
+          if ((e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone')) this.raiseHand(true);
+          return;
+        }
+        const cards = [...this.root.querySelectorAll<HTMLElement>('.table-view > .dock .hand > .card')].map((c) => c.getBoundingClientRect());
+        if (!cards.length) return this.raiseHand(false);
+        const left = Math.min(...cards.map((r) => r.left)), right = Math.max(...cards.map((r) => r.right));
+        const top = Math.min(...cards.map((r) => r.top));
+        if (e.clientX < left || e.clientX > right || e.clientY < top) this.raiseHand(false);
+      },
+      { passive: true },
+    );
+    root.addEventListener('mouseleave', () => mouse.matches && !this.touch && !this.drag && this.raiseHand(false));
     root.addEventListener('mousemove', (e) => (this.mouseAt = { x: e.clientX, y: e.clientY }), { passive: true });
     root.addEventListener('pointerdown', (e) => this.onPressStart(e));
     window.addEventListener('pointermove', (e) => this.onPressMove(e));
     window.addEventListener('pointerup', () => this.onPressEnd());
     window.addEventListener('pointercancel', () => this.onPressEnd());
+    // Dragging a card out of the hand plays it (see onDrag*); a tap away from a raised hand lowers it.
+    root.addEventListener('pointerdown', (e) => {
+      this.onDragStart(e);
+      if (this.handRaised && !(e.target as HTMLElement).closest?.('.dock .hand-zone')) this.raiseHand(false);
+    });
+    window.addEventListener('pointermove', (e) => this.onDragMove(e));
+    window.addEventListener('pointerup', (e) => this.onDragEnd(e));
+    window.addEventListener('pointercancel', () => this.onDragEnd(null));
     // A swipe across the deck builder's card pool turns its page.
     let swipeFrom: { x: number; y: number } | null = null;
     root.addEventListener('pointerdown', (e) => {
@@ -666,6 +754,8 @@ export class App {
       this.zoom(card.dataset.card!, card.closest('.tableau') ? card.dataset.uid : undefined);
     });
     window.addEventListener('keydown', (e) => this.onKey(e));
+    // (A keyword column scrolled to its foot loses its arrow.)
+    document.addEventListener('scroll', (e) => (e.target as HTMLElement).matches?.('.kw-wrap > .kw-list') && this.markKwMore((e.target as HTMLElement).parentElement!.parentElement!), true);
     window.addEventListener('keyup', (e) => {
       if (e.code === 'Space' && this.peekHeld) {
         this.peekHeld = false;
@@ -681,9 +771,50 @@ export class App {
       { capture: true },
     );
     window.addEventListener('touchstart', () => (this.touch = true), { capture: true, passive: true });
+    // Zooming the board: double-tap (or double-click) a tableau's open table to zoom onto it (again to zoom out),
+    // or pinch it open (and closed again) on a touch screen.
+    const half = (y: number): 'rival' | 'mine' => {
+      const rival = this.root.querySelector('.tableau-rival')?.getBoundingClientRect();
+      const mine = this.root.querySelector('.tableau-mine')?.getBoundingClientRect();
+      if (!rival || !mine) return y < window.innerHeight / 2 ? 'rival' : 'mine';
+      return Math.abs(y - (rival.top + rival.bottom) / 2) < Math.abs(y - (mine.top + mine.bottom) / 2) ? 'rival' : 'mine';
+    };
+    root.addEventListener('dblclick', (e) => {
+      if (this.screen !== 'game' || this.sheet || (e.target as HTMLElement).closest('[data-act], .dock, .hud, .stage, .overlay')) return;
+      this.setBoardZoom(this.boardZoom ? null : half(e.clientY));
+    });
+    let pinch: { d: number; y: number } | null = null;
+    const spread = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    root.addEventListener(
+      'touchstart',
+      (e) => {
+        if (this.screen === 'game' && e.touches.length === 2) {
+          pinch = { d: spread(e.touches), y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+          this.cancelPress();
+        }
+      },
+      { passive: true },
+    );
+    root.addEventListener(
+      'touchmove',
+      (e) => {
+        if (!pinch || e.touches.length !== 2) return;
+        e.preventDefault();
+        const ratio = spread(e.touches) / pinch.d;
+        if (ratio > 1.25) this.setBoardZoom(half(pinch.y));
+        else if (ratio < 0.8) this.setBoardZoom(null);
+        else return;
+        pinch = null;
+      },
+      { passive: false },
+    );
+    root.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) pinch = null;
+    });
     // Re-lay out whenever the page's size settles (after a rotation the first resize event can be stale).
     window.addEventListener(VIEWPORT_EVENT, () => {
       this.fitHand();
+      if (this.boardZoom && this.screen === 'game') this.fitZoom();
       sizePool(this.root);
       // (The pool's pages are cut to the rows its new height holds.)
       this.activeBuilder().afterRender();
@@ -697,8 +828,11 @@ export class App {
     onProgressReplaced(() => {
       if (this.screen === 'menu') location.reload();
     });
+    const avatar = account()?.avatar;
     void checkIn().then((replaced) => {
       if (replaced && this.screen === 'menu') location.reload();
+      // (An account from before pictures has just been dealt one: show it.)
+      else if (account()?.avatar !== avatar && this.screen === 'menu') this.render();
     });
     // Back from signing in (the page reloads to read the account's progress): on to the hub.
     let after = false;
@@ -746,7 +880,7 @@ export class App {
   private joinInfo() {
     const seat = this.seats[0];
     const deck = deckById(seat.deckId) ?? PRESETS[0];
-    return { name: profile().name || seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race, profileId: profile().id };
+    return { name: profile().name || seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, species: deck.race, avatar: account()?.avatar, profileId: profile().id };
   }
 
   private goOnline(code?: string) {
@@ -912,18 +1046,19 @@ export class App {
     if (this.sheet?.kind === 'card') this.sheet = null;
     this.stage = null;
     if (actor.id !== you && last.action.type === 'playCard') this.stage = this.remoteStage(last, next);
-    else if (actor.id === you) this.stage = this.ownBurstStage(actor, last.action);
+    else if (actor.id === you) this.stage = this.ownStage(actor, last.action);
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     const land = () => {
       const before = snapshot(this.root);
+      if (this.stage?.own) this.stage = null;
       if (last.action.type !== 'setTarget') backdrop.spin();
       this.state = next;
       if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, last.action);
       this.render();
       this.surfaceLog(prev);
       this.animate(prev, next, last.action, actor, before);
-      this.announcePhases(actor, next, last.action, turnPassed);
+      this.announcePhases(actor, next, turnPassed);
     };
     // The rival's card takes effect once the viewer has read it and said OK.
     if (this.stage?.confirm && !isGameOver(next)) {
@@ -932,8 +1067,24 @@ export class App {
       this.stageEntrance(actor.id);
       return;
     }
-    land();
+    // The viewer's own card hangs in the preview pane until the rival has read it.
+    if (this.stage?.own) return this.holdOwn(land);
+    // An attack lands as the attacker strikes.
+    if (last.action.type === 'attack' && this.lunge(prev, last.action)) this.landAtStrike(land);
+    else land();
   }
+
+  /** A move whose attack lands the moment the attacker strikes (its numbers change as it hits), while the card flies back. */
+  private landAtStrike(land: () => void) {
+    this.landing = land;
+    window.setTimeout(() => {
+      if (this.landing !== land) return;
+      this.flushLanding();
+      // (The redrawn attacker stays hidden until the flying copy is back in its slot.)
+      if (this.lunging) this.root.querySelector<HTMLElement>(`.tableau [data-uid="${this.lunging}"]`)?.style.setProperty('visibility', 'hidden');
+    }, Math.round(LUNGE_MS * LUNGE_HIT));
+  }
+
 
   /** The rival's card just played, online, on the stage (to confirm, if the room is waiting on you to read it). */
   private remoteStage(last: LastMove, state: GameState): Stage | null {
@@ -981,39 +1132,6 @@ export class App {
   private unaim: (() => void) | null = null;
   /** The card a confirmed stage was aimed at (its beam already shown), for the move as it lands. */
   private aimShown: string | null = null;
-
-  /** At your dawn, a beam from each card with dawn heat to where it is aimed, until the dawn breaks. */
-  private dawnBeams = new Map<string, () => void>();
-  private syncDawnBeams() {
-    const want = new Map<string, [string, string]>();
-    const s = this.state;
-    if (s && this.screen === 'game' && this.dawnTurn()) {
-      const me = activePlayer(s);
-      const aims = this.draftAims(s, me);
-      const chosen = this.dawnAims();
-      const rival = targetOf(s, me);
-      for (const card of me.tableau) {
-        if (!dawnAimable(card, me, s) || !(card.uid in aims)) continue;
-        // Heat aimed at a card, or at the sun when that was chosen (by default it goes there unmarked).
-        const hit = aims[card.uid];
-        const to = hit ? `.tableau [data-uid="${hit}"]` : rival && card.uid in chosen ? `.tableau [data-anchor="player:${rival.id}"]` : '';
-        if (!to) continue;
-        want.set(`${card.uid}>${to}`, [`.tableau [data-uid="${card.uid}"]`, to]);
-      }
-    }
-    for (const [key, stop] of this.dawnBeams) {
-      if (want.has(key)) continue;
-      stop();
-      this.dawnBeams.delete(key);
-    }
-    const rect = (sel: string) => {
-      const el = this.root.querySelector(sel);
-      return el ? pageRect(el) : null;
-    };
-    for (const [key, [from, to]] of want) {
-      if (!this.dawnBeams.has(key)) this.dawnBeams.set(key, aim(() => rect(from), () => targetRect(this.root.querySelector(to))));
-    }
-  }
 
   /**
    * Leaving a menu page: the button pressed lifts up and fades (a quick rise that eases off), the rest of
@@ -1088,15 +1206,56 @@ export class App {
   private requestEndDay() {
     const s = this.state;
     if (!s || !this.canAct() || this.pending) return;
-    if (s.awaitingDawn) return this.breakDawn();
-    const me = activePlayer(s);
-    const playable = me.hand.some((c) => this.canPlayNow(me, c.defId));
-    if (playable && this.sheet?.kind !== 'end-day') {
+    if (this.leftUndone().length && this.sheet?.kind !== 'end-day') {
       this.sheet = { kind: 'end-day' };
+      return this.render();
+    }
+    this.finishDay();
+  }
+
+  /**
+   * With nothing left that the viewer can do today (no card they can play, no attack, no Hero ability), the day
+   * ends by itself, once the board has settled (no choice open, no card in the preview pane, no banner showing).
+   */
+  private autoEndTimer = 0;
+  private scheduleAutoEnd() {
+    window.clearTimeout(this.autoEndTimer);
+    if (!this.canAutoEnd()) return;
+    this.autoEndTimer = window.setTimeout(() => {
+      if (!this.canAutoEnd()) return;
+      if (Date.now() < this.bannerFree || this.root.querySelector('.turn-banner')) return this.scheduleAutoEnd();
+      this.finishDay();
+    }, AUTO_END_MS);
+  }
+  private canAutoEnd(): boolean {
+    const s = this.state;
+    return this.screen === 'game' && !!s && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && this.leftUndone().length === 0;
+  }
+
+  /** End the day: over the hand limit, the viewer first picks the cards to discard. */
+  private finishDay() {
+    const me = activePlayer(this.state!);
+    if (me.hand.length > BALANCE.maxHand) {
+      this.sheet = { kind: 'discard', picked: [] };
       return this.render();
     }
     this.sheet = null;
     this.dispatch({ type: 'endTurn' });
+  }
+
+  /** What the viewer could still do today (asked about before the day ends): cards to play, attacks, their Hero's ability. */
+  private leftUndone(): string[] {
+    const s = this.state!;
+    const me = activePlayer(s);
+    const out: string[] = [];
+    const playable = me.hand.filter((c) => this.canPlayNow(me, c.defId)).length;
+    if (playable) out.push(`${playable} playable card${playable === 1 ? '' : 's'}`);
+    const { cards, sun } = aimChoices(s, me);
+    const attackers = sun || cards.length ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
+    if (attackers) out.push(`${attackers} card${attackers === 1 ? '' : 's'} that can still attack`);
+    const hero = commandCard(me);
+    if (hero && (cardDef(hero.defId).abilities ?? []).some((_, i) => !heroAbilityProblem(s, me, i))) out.push(`${cardDef(hero.defId).name}'s ability`);
+    return out;
   }
 
   /** The viewer has read the rival's card on the stage: it goes, and the rival carries on. */
@@ -1139,7 +1298,9 @@ export class App {
         const deck = deckById(s.deckId) ?? PRESETS[i];
         noteRecentDeck(i, deck.id);
         const name = s.isAI ? s.bot : i === 0 ? profile().name || s.name : s.name;
-        return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, species: deck.race };
+        // Your own picture is your account's; anyone else's is dealt by their name.
+        const avatar = (!s.isAI && i === 0 ? account()?.avatar : undefined) ?? pictureFor(name.trim() || 'Unnamed');
+        return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, species: deck.race, avatar };
       });
     this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
   }
@@ -1160,6 +1321,7 @@ export class App {
   }
 
   private begin(state: GameState) {
+    this.boardZoom = null;
     this.gamesBegun++;
     // A game against the AI: a new one is noted by the server (for its reward); a continued one keeps its id.
     const humans = state.players.filter((p) => !p.isAI).length;
@@ -1208,46 +1370,95 @@ export class App {
     if (!s || isGameOver(s) || this.needsHandoff()) return;
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
-    this.showBanner('dawn', `round ${roman(s.round)}`, delay);
-    if (!s.awaitingDawn) this.showBanner('day', `round ${roman(s.round)}`, delay);
+    this.showBanner('day', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('day'), this.orbitLine(s, p));
+  }
+
+  /** For the day's banner: the planet facing the player's sun today, and what it gives (a card drawn, or energy). */
+  private orbitLine(s: GameState, p: PlayerState): string {
+    const planet = currentPlanet(p, s);
+    const gives =
+      planet === 'abundant'
+        ? `<i class="tb-gift" title="Draw ${BALANCE.abundantDraw} more at dawn">${HAND_ICON}+${BALANCE.abundantDraw}</i>`
+        : planet === 'industrial'
+          ? `<i class="tb-gift" title="${BALANCE.industrialPlays} more energy today"><b class="tb-energy"></b>+${BALANCE.industrialPlays}</i>`
+          : '';
+    return `<div class="turn-banner-orbit">${planet} orbit${gives}</div>`;
   }
 
   /**
    * Each day runs dawn, day, dusk, each with its banner: as a day ends, "dusk" (the dusk's effects), then the
-   * next player's "dawn" (their dawn effects play out, and they aim its heat), then their "day" once the dawn
+   * next player's "dawn" (their dawn effects play out), then their "day" once the dawn
    * has played out. The viewer's own read plainly ("dawn"); everyone else's carry their name.
    */
-  private announcePhases(actor: PlayerState, next: GameState, action: Action, turnPassed: boolean, animate = true) {
+  private announcePhases(actor: PlayerState, next: GameState, turnPassed: boolean, animate = true) {
     if (isGameOver(next) || this.needsHandoff()) return;
     const you = this.viewer().id;
     const named = (p: PlayerState, phase: string) => (p.id === you ? phase : `${p.name.toLowerCase()}'s ${phase}`);
     const round = `round ${roman(next.round)}`;
     const now = activePlayer(next);
+    // A dusk or dawn in which nothing happened (and nothing is asked) is passed over, banner and all.
     if (turnPassed) {
-      this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, 0);
-      this.showBanner(named(now, 'dawn'), round, 0);
+      if (this.duskHappened(next, actor)) this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, 0, 'game', () => this.setPhase('dusk'));
+      if (this.dawnHappened(next, now)) this.showBanner(named(now, 'dawn'), round, 0, 'game', () => this.setPhase('dawn'));
     }
-    // The day begins once the dawn has played out (and, at your own dawn, once you have aimed its heat).
-    if ((turnPassed || action.type === 'dawn') && !next.awaitingDawn) {
+    // The day begins once the dawn has played out.
+    if (turnPassed) {
       const replay = animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0;
-      this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600));
+      this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600), 'game', () => this.setPhase('day'), this.orbitLine(next, now));
     }
+  }
+
+  /** Whether this player's day just ended with a dusk that did something (their dusk effects resolved). */
+  private duskHappened(next: GameState, actor: PlayerState): boolean {
+    // Back through the log to the day before this one's start: a "— Dusk" line for them in between.
+    let days = 0;
+    for (let i = next.log.length - 1; i >= 0 && days < 2; i--) {
+      const t = next.log[i].text;
+      if (t.startsWith('— Day ')) days++;
+      else if (days === 1 && t === `— Dusk: ${actor.name}.`) return true;
+    }
+    return false;
+  }
+
+  /** Whether this player's dawn did something (its effects, or the table's, played out on the board). */
+  private dawnHappened(next: GameState, now: PlayerState): boolean {
+    return (next.turnPulses ?? []).some((p) => p.kind !== 'start' && (p.source === now.id || !p.uid));
+  }
+
+  /** The phase of the day under way (shown by the phase tracker, middle right). */
+  private phase: 'dawn' | 'day' | 'dusk' = 'day';
+
+  private setPhase(phase: 'dawn' | 'day' | 'dusk') {
+    this.phase = phase;
+    this.root.querySelectorAll<HTMLElement>('.phase-track [data-phase]').forEach((el) => el.classList.toggle('on', el.dataset.phase === phase));
+  }
+
+  /** Beside the Stellari in the board's middle: whose turn it is on its left (the rival above you, the one whose turn
+   *  it isn't greyed), and dawn, day and dusk on its right (the phase under way lit, the others grey). */
+  private renderPhaseTrack(): string {
+    const s = this.state!;
+    if (isGameOver(s)) return '';
+    const mine = activePlayer(s).id === this.viewer().id;
+    const who = `<div class="turn-who" title="${mine ? 'Your turn' : "Your opponent's turn"}"><span class="${mine ? '' : 'on'}">opponent</span><span class="${mine ? 'on' : ''}">you</span></div>`;
+    const phases = `<div class="phase-track" title="Dawn, then day, then dusk">${(['dawn', 'day', 'dusk'] as const).map((k) => `<div class="phase-step ${this.phase === k ? 'on' : ''}" data-phase="${k}"><i></i><span>${k}</span></div>`).join('')}</div>`;
+    return who + phases;
   }
 
   /** When the next banner may show (each gets its moment: dusk, dawn and day follow one another). */
   private bannerFree = 0;
 
   /** Large centred announcement (bloom, sweep, chord), outside the re-rendered root. */
-  private showBanner(text: string, sub: string, delay = 0, screen: Screen = 'game') {
+  private showBanner(text: string, sub: string, delay = 0, screen: Screen = 'game', onShow?: () => void, extra = '') {
     const at = Math.max(Date.now() + delay, this.bannerFree);
     this.bannerFree = at + BANNER_GAP_MS;
     delay = at - Date.now();
     window.setTimeout(() => {
       if (this.screen !== screen) return; // left the screen before it showed
+      onShow?.();
       document.querySelectorAll('.turn-banner').forEach((b) => b.remove());
       const el = document.createElement('div');
       el.className = `turn-banner ${text.length > 12 ? 'turn-banner-long' : ''}`;
-      el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">${esc(text)}</div><div class="turn-banner-sub">${esc(sub.toLowerCase())}</div>`;
+      el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">${esc(text)}</div><div class="turn-banner-sub">${esc(sub.toLowerCase())}</div>${extra ? `<div class="turn-banner-line"></div>${extra}` : ''}`;
       document.body.appendChild(el);
       sound.turn();
       window.setTimeout(() => el.remove(), 2000);
@@ -1257,7 +1468,17 @@ export class App {
   /** Opening hand: shuffle, then deal the viewer's cards in one by one. */
   private dealOpening() {
     sound.shuffle();
-    this.root.querySelectorAll<HTMLElement>('.hand [data-uid]').forEach((el, i) => {
+    const cards = this.root.querySelectorAll<HTMLElement>('.hand [data-uid]');
+    // (The hand can't be raised while it is being dealt.)
+    this.raiseHand(false);
+    this.dealtAt = performance.now() + 350 + cards.length * DEAL_STEP_MS + 520;
+    // (A mouse resting on the hand as the deal ends raises it then.)
+    window.setTimeout(() => {
+      const at = this.mouseAt;
+      if (!at || this.touch || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+      if (document.elementFromPoint(at.x, at.y)?.closest('.table-view > .dock .hand-zone')) this.raiseHand(true);
+    }, this.dealtAt - performance.now() + 20);
+    cards.forEach((el, i) => {
       this.dealCard(el, 350 + i * DEAL_STEP_MS);
       sound.draw(0.35 + (i * DEAL_STEP_MS) / 1000);
     });
@@ -1311,6 +1532,8 @@ export class App {
     // Online, the room plays the move and sends back the result.
     if (this.online) {
       this.online.act(action);
+      // (Your card goes straight to the pane while the room plays it.)
+      if (action.type === 'playCard') this.stage = this.ownStage(activePlayer(prev), action);
       this.pending = null;
       this.render();
       return;
@@ -1328,13 +1551,15 @@ export class App {
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
-    this.stage = actor.isAI ? this.stageFor(actor, action) : this.ownBurstStage(actor, action);
+    this.stage = actor.isAI ? this.stageFor(actor, action) : this.ownStage(actor, action);
     // With someone watching, an AI's card waits on the stage until they have read it.
     if (this.stage && !this.stage.own && animate && !isGameOver(next) && next.players.some((p) => !p.isAI)) this.stage.confirm = true;
     const sprung = this.sprungLightspeed(prev, next);
     if (sprung) this.stage = sprung;
     const land = () => {
       const before = animate ? snapshot(this.root) : null;
+      // (The viewer's own card leaves the pane for the board as the move lands.)
+      if (this.stage?.own) this.stage = null;
       if (animate && action.type !== 'setTarget') backdrop.spin();
       this.state = next;
       // An AI's attacks bring its target's tableau onto the table.
@@ -1355,9 +1580,9 @@ export class App {
         this.surfaceLog(prev);
         this.animate(prev, next, action, actor, before);
       }
-      this.announcePhases(actor, next, action, turnPassed, animate);
+      this.announcePhases(actor, next, turnPassed, animate);
       // The AI waits for its dawn to play out before it acts.
-      this.scheduleAI(AI_PAUSE[action.type] + ((action.type === 'endTurn' || action.type === 'dawn') && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
+      this.scheduleAI(AI_PAUSE[action.type] + (action.type === 'endTurn' && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
     };
     // A card waiting to be read takes effect once the viewer says OK.
     if (this.stage?.confirm) {
@@ -1366,7 +1591,81 @@ export class App {
       this.stageEntrance(actor.id);
       return;
     }
+    // The viewer's own card hangs in the preview pane a moment before it lands.
+    if (this.stage?.own && animate) return this.holdOwn(land);
+    // An attack lands the moment the attacker strikes.
+    if (action.type === 'attack' && animate && (this.render(), this.lunge(prev, action))) return this.landAtStrike(land);
     land();
+  }
+
+  /**
+   * A card attacking: it lifts off the table, tilts back, and smashes into the card it attacks (or the
+   * rival's sun), which shudders as it lands; then it settles back into its slot. (Unlike heat, which flies
+   * from a card as a flare, the card itself goes.) Returns false when there is nothing to animate.
+   */
+  private lunge(prev: GameState, action: Extract<Action, { type: 'attack' }>): boolean {
+    if (reducedMotion()) return false;
+    const el = this.root.querySelector<HTMLElement>(`.tableau [data-uid="${action.attackerUid}"]`);
+    const owner = prev.players.find((p) => p.tableau.some((c) => c.uid === action.attackerUid));
+    const rival = owner ? targetOf(prev, owner) : undefined;
+    const target = action.targetUid
+      ? this.root.querySelector<HTMLElement>(`.tableau [data-uid="${action.targetUid}"]`)
+      : rival
+        ? this.root.querySelector<HTMLElement>(`[data-anchor="player:${rival.id}"] .vit`) ?? this.root.querySelector<HTMLElement>(`[data-anchor="player:${rival.id}"]`)
+        : null;
+    if (!el || !target) return false;
+    const from = pageRect(el);
+    const to = pageRect(target);
+    // A copy of the card flies over everything (the board's rows would clip the card itself), the card
+    // itself hidden meanwhile: lifted, tilted back, then into the target just short of its centre.
+    const cs = getComputedStyle(el);
+    const ghost = el.cloneNode(true) as HTMLElement;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const k0 = Math.min(from.width / (w || 1), from.height / (h || 1));
+    ghost.removeAttribute('data-uid');
+    ghost.classList.add('lunge-ghost');
+    // (Its sizes are worked out from the card's width: give it that, in pixels.)
+    ghost.style.setProperty('--cw', `${w}px`);
+    ghost.style.setProperty('--tcw', `${w}px`);
+    ghost.style.setProperty('--kc', cs.getPropertyValue('--kc'));
+    // In a holder of the card's own size (its padding is a share of its container's width).
+    const holder = document.createElement('div');
+    Object.assign(holder.style, { position: 'fixed', left: `${from.left + from.width / 2 - w / 2}px`, top: `${from.top + from.height / 2 - h / 2}px`, width: `${w}px`, height: `${h}px`, zIndex: '9000', pointerEvents: 'none' });
+    Object.assign(ghost.style, { position: 'absolute', left: '0', top: '0', width: `${w}px`, height: `${h}px`, margin: '0', visibility: 'visible' });
+    holder.appendChild(ghost);
+    document.body.appendChild(holder);
+    el.style.visibility = 'hidden';
+    const dx = (to.left + to.width / 2 - (from.left + from.width / 2)) * 0.82;
+    const dy = (to.top + to.height / 2 - (from.top + from.height / 2)) * 0.82;
+    const side = dx >= 0 ? 1 : -1;
+    const lift = Math.max(18, h * 0.18);
+    const k = ghost.animate(
+      [
+        { transform: `translate(0, 0) scale(${k0})`, boxShadow: '0 4px 10px rgba(40, 44, 60, 0.15)', offset: 0 },
+        { transform: `translate(${-side * 8}px, ${-lift}px) rotate(${-side * 10}deg) scale(${k0 * 1.16})`, boxShadow: '0 26px 40px rgba(40, 44, 60, 0.35)', offset: 0.3, easing: 'cubic-bezier(.55,0,.95,.45)' },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${side * 8}deg) scale(${k0 * 1.08})`, boxShadow: '0 10px 18px rgba(40, 44, 60, 0.3)', offset: 0.58 },
+        { transform: `translate(${dx * 0.9}px, ${dy * 0.9}px) rotate(${side * 3}deg) scale(${k0 * 1.06})`, offset: 0.66, easing: 'cubic-bezier(.3,.7,.3,1)' },
+        { transform: `translate(0, 0) scale(${k0})`, boxShadow: '0 4px 10px rgba(40, 44, 60, 0.15)', offset: 1 },
+      ],
+      { duration: LUNGE_MS, easing: 'linear', fill: 'forwards' },
+    );
+    this.lunging = action.attackerUid;
+    k.onfinish = k.oncancel = () => {
+      holder.remove();
+      el.style.visibility = '';
+      if (this.lunging === action.attackerUid) this.lunging = null;
+      this.root.querySelector<HTMLElement>(`.tableau [data-uid="${action.attackerUid}"]`)?.style.removeProperty('visibility');
+    };
+    // The blow: the target shudders, with a crash.
+    window.setTimeout(() => {
+      sound.impact(true);
+      target.animate(
+        [{ transform: 'translate(0, 0)' }, { transform: 'translate(-5px, 2px)' }, { transform: 'translate(4px, -2px)' }, { transform: 'translate(-2px, 1px)' }, { transform: 'translate(0, 0)' }],
+        { duration: 320, composite: 'add' },
+      );
+      pulse(target, 'hit-flash');
+    }, Math.round(LUNGE_MS * LUNGE_HIT));
+    return true;
   }
 
   private quitToMenu() {
@@ -1405,27 +1704,26 @@ export class App {
     this.render();
   }
 
-  /**
-   * The viewer's own card that resolves and goes straight to the discard pile: it stays on the stage (the
-   * rival's view shows it there too) until the rival has read it online, and for at least the auto-confirm time.
-   */
-  private ownBurstStage(actor: PlayerState, action: Action): Stage | null {
-    if (action.type !== 'playCard' || action.faceDown) return null;
+  /** The viewer's own card, just played: it hangs in the preview pane (see holdOwn) before it lands. */
+  private ownStage(actor: PlayerState, action: Action): Stage | null {
+    if (action.type !== 'playCard') return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
-    if (!card || !isBurst(cardDef(card.defId))) return null;
-    const stage: Stage = { defId: card.defId, actorId: actor.id, own: true, caption: 'you play', target: action.enemyUid ?? action.aimUid };
+    if (!card) return null;
+    const faceDown = !!action.faceDown || cardDef(card.defId).kind === 'lightspeed';
+    return { defId: card.defId, uid: card.uid, actorId: actor.id, own: true, caption: faceDown ? 'you set it face down' : 'you play', option: action.choice, target: action.enemyUid ?? action.aimUid };
+  }
+
+  /** The viewer's own card hangs in the pane until the rival has read it (online), or a moment against the AI; then it lands. */
+  private holdOwn(land: () => void) {
+    this.landing = land;
+    this.render();
     const since = Date.now();
     const check = () => {
-      if (this.stage !== stage) return;
-      if (Date.now() - since < AUTO_CONFIRM_MS || (this.online && this.net.waitFor === 'rival')) return void window.setTimeout(check, 250);
-      this.stage = null;
-      const el = this.root.querySelector<HTMLElement>('.stage');
-      if (!el) return this.render();
-      el.classList.add('stage-out');
-      window.setTimeout(() => this.stage === null && this.render(), 400);
+      if (this.landing !== land) return;
+      if (Date.now() - since < OWN_HOLD_MS || (this.online && this.net.waitFor === 'rival')) return void window.setTimeout(check, 150);
+      this.flushLanding();
     };
-    window.setTimeout(check, AUTO_CONFIRM_MS);
-    return stage;
+    window.setTimeout(check, 150);
   }
 
   private stageFor(actor: PlayerState, action: Action): Stage | null {
@@ -1447,8 +1745,7 @@ export class App {
       // A rival's face-down card is hidden (online): the record of what sprang says what it was (it is now on
       // top of their discard pile, or in their tableau for a Lightspeed guard).
       const defId = why?.defId ?? now.discard[now.discard.length - 1]?.defId ?? card.defId;
-      const name = cardDef(defId).name;
-      this.showBanner('lightspeed!', `${now.name} springs ${name}`, 150);
+      // (Announced by a small tag above the card in the preview pane: a banner across the screen hid what happened.)
       sound.flare();
       const stage: Stage = { defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs`, against: why?.against };
       // It shows for a few seconds, then fades away by itself (not lingering until someone acts).
@@ -1527,8 +1824,8 @@ export class App {
 
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
-    // A day's start (or its dawn, once aimed) replays its effects.
-    const endingTurn = action.type === 'endTurn' || action.type === 'dawn';
+    // A day's start replays its effects.
+    const endingTurn = action.type === 'endTurn';
     let drawIndex = 0;
 
     // Removal: a glowing arc from the removing card to each rival card it destroys, returns or
@@ -1550,8 +1847,8 @@ export class App {
         const to = before.cards.get(uid)?.rect ?? (el ? pageRect(el) : null);
         if (!to) return;
         const delay = (actor.isAI ? 600 : 470) + i * 140;
-        // Heat aimed at a card: an attack, flying from the card played to the card it strikes, whose numbers
-        // change as it lands. (Removal, below, is a white arc.)
+        // Heat aimed at a card: flying from the card played to the card it strikes, whose numbers change as
+        // it lands. (Removal, below, is a white arc.)
         const wasC = was.get(uid)!, nowC = now.get(uid);
         const byHeat = heats && uid !== action.enemyUid && (uid === action.aimUid || (nowC?.dented ?? 0) > (wasC.dented ?? 0));
         if (byHeat) {
@@ -1712,6 +2009,11 @@ export class App {
         const struck = p.heat > was.heat || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
         if (!struck) continue;
         // From the card that struck (if a card was played), else from the striking sun; to the sun as drawn.
+        // (A card attacking a sun is its own blow: the move lands as it strikes, so the sun is hit there and then.)
+        if (action.type === 'attack') {
+          hit(p.id, 0, true);
+          continue;
+        }
         const a = playedFrom && (playedDef?.onPlay ?? []).some((e) => e.type === 'heat') ? playedFrom : orbRect(source.id);
         const at = a ? projectile(a, () => sunAt(p.id), HOT, { delay: delay + 110 * volley++, size: 34 }) : delay;
         hit(p.id, at, true);
@@ -1739,9 +2041,8 @@ export class App {
         }
         break;
       }
-      case 'endTurn':
-      case 'dawn': {
-        if (action.type === 'endTurn') sound.endTurn();
+      case 'endTurn': {
+        sound.endTurn();
         // The new player's dawn cards light up, oldest first, as they trigger.
         let k = 0;
         if (!replayEnd)
@@ -1839,7 +2140,7 @@ export class App {
         this.render();
       });
     }
-    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' || action.type === 'dawn' ? this.replayLength(next) : 900) + 1800;
+    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' ? this.replayLength(next) : 900) + 1800;
     this.resultAt = Date.now() + wait;
     window.setTimeout(() => {
       if (this.state === next || isGameOver(this.state ?? next)) this.render();
@@ -2113,49 +2414,6 @@ export class App {
     return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff();
   }
 
-  /** The viewer's dawn waits for them to aim their cards' dawn heat. */
-  private dawnTurn(): boolean {
-    return !!this.state?.awaitingDawn && this.canAct();
-  }
-
-  /** Where the viewer has aimed each card's heat for this dawn (so far): card uid → rival card uid, or null for the sun. */
-  private dawnDraft: { turn: number; aims: Record<string, string | null> } | null = null;
-  private dawnAims(): Record<string, string | null> {
-    const turn = this.state?.turnNumber ?? 0;
-    if (this.dawnDraft?.turn !== turn) this.dawnDraft = { turn, aims: {} };
-    return this.dawnDraft.aims;
-  }
-
-  /** Where a card's dawn heat will land this dawn, as aimed so far: a rival card's uid, or null for their sun. */
-  private dawnHit(s: GameState, p: PlayerState, card: CardInstance): string | null {
-    const { cards, sun } = aimChoices(s, p);
-    const d = this.dawnAims()[card.uid];
-    if (d && cards.some((c) => c.uid === d)) return d;
-    if (sun) return null;
-    return [...cards].sort((a, b) => (a.stability ?? 0) - (b.stability ?? 0))[0]?.uid ?? null;
-  }
-
-  /** Where every card's dawn heat lands, as aimed so far (cards not yet aimed go where they would by default). */
-  private draftAims(s: GameState, me: PlayerState): Record<string, string | null> {
-    const { sun } = aimChoices(s, me);
-    const aims: Record<string, string | null> = {};
-    for (const card of me.tableau) {
-      if (!dawnAimable(card, me, s)) continue;
-      const hit = this.dawnHit(s, me, card);
-      if (hit !== null || sun) aims[card.uid] = hit;
-    }
-    return aims;
-  }
-
-  /** Let the dawn break, with the heat aimed as chosen. */
-  private breakDawn() {
-    if (!this.dawnTurn()) return;
-    const s = this.state!;
-    const aims = this.draftAims(s, activePlayer(s));
-    this.pending = null;
-    this.dispatch({ type: 'dawn', aims });
-  }
-
   /** Hot-seat: hide the hand until the next human confirms they have the device. */
   private needsHandoff(): boolean {
     if (this.online) return false;
@@ -2169,7 +2427,9 @@ export class App {
   // Playing a card: collect any choices it needs, then play it
   // -------------------------------------------------------------------------
 
-  private startPlay(uid: string) {
+  private startPlay(uid: string, drop?: Pending['drop']) {
+    // (The hand drops back down once a card is picked from it.)
+    this.raiseHand(false);
     // Tapping the card that is waiting to be placed puts it back.
     if (this.pending?.uid === uid) {
       this.pending = null;
@@ -2180,23 +2440,28 @@ export class App {
     const card = me.hand.find((c) => c.uid === uid);
     if (!card) return;
     // (A card that costs 0 can still be played with no energy left.)
+    // (A card that can't be played now shakes its head, with the blocker's thud.)
+    const refuse = () => {
+      sound.blocked();
+      this.root.querySelector<HTMLElement>(`.hand > .card[data-uid="${uid}"]`)?.animate(
+        [{ translate: '0' }, { translate: '-7px 0' }, { translate: '6px 0' }, { translate: '-4px 0' }, { translate: '2px 0' }, { translate: '0' }],
+        { duration: 380, easing: 'ease-out' },
+      );
+    };
     if (cardCost(card.defId) > me.playsLeft && !canSetFaceDown(me, card.defId)) {
       this.showToast(`${cardDef(card.defId).name} costs ${cardCost(card.defId)} energy: you have ${me.playsLeft} left today.`, 'info');
-      sound.error();
-      return;
+      return refuse();
     }
     // (Another card in your hand, while one waits to be placed: that one is played instead.)
     if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) {
       this.showToast('You already have a Lightspeed card face down: only one at a time.', 'info');
-      sound.error();
-      return;
+      return refuse();
     }
     if (!hasRoomFor(me, card.defId) && !canSetFaceDown(me, card.defId)) {
       this.showToast('Your tableau is full: a card can only go in once one fades (or is recalled or removed). A recall card can take the place of the card it recalls.', 'info');
-      sound.error();
-      return;
+      return refuse();
     }
-    this.pending = { uid, step: 'choice' };
+    this.pending = { uid, step: 'choice', drop };
     this.advancePlay();
   }
 
@@ -2218,16 +2483,28 @@ export class App {
     };
     // A Lightspeed guard: set face down (its Lightspeed slot was chosen), or played as a Guard. It is
     // placed like any card, with the Lightspeed slot open too (or only that, if it can't be played as a Guard).
+    // (Dragged onto your tableau: what the drop answers is taken as chosen.)
+    const drop = p.drop;
+    const dropped = drop?.uid ? me.tableau.find((c) => c.uid === drop.uid) : undefined;
+    const dropSlot = typeof drop?.slot === 'number' ? drop.slot : dropped?.slot;
+    if (drop?.slot === 'ls' && canSetFaceDown(me, card.defId)) p.faceDown = true;
     if (p.faceDown) return this.dispatch({ type: 'playCard', cardUid: p.uid, faceDown: true });
+    if (dropSlot !== undefined && p.slot === undefined && freeSlots(me).includes(dropSlot)) p.slot = dropSlot;
     if (canSetFaceDown(me, card.defId) && p.slot === undefined) return ask('slot');
     // First the card is placed, so what it does next is seen from where it will stand (its slot's forge and
     // resonance count in the heat it aims): a recall card first picks the card it recalls (it may take its
     // place), a Fusion card the card it fuses onto, and any other card its slot. Even the last open slot is
     // clicked to confirm (a misclicked card is never played outright).
     const recall = allyEffectKind(card.defId) === 'recall';
+    // (A recall card dropped on a card it can recall recalls that one, and takes its place.)
+    if (recall && dropped && !p.allyUid && allyChoices(me, card.defId).some((c) => c.uid === dropped.uid)) {
+      p.allyUid = dropped.uid;
+      if (p.slot === undefined && dropped.slot !== undefined) p.slot = dropped.slot;
+    }
     if (recall && allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
     // A Fusion card is placed like any card, or fused onto a card in play: both are offered at once.
     const fusion = !!cardDef(card.defId).fusion;
+    if (fusion && dropped && !p.hostUid && p.slot === undefined && fusionHosts(me).some((c) => c.uid === dropped.uid)) p.hostUid = dropped.uid;
     if (fusion && !p.hostUid && p.slot === undefined && (fusionHosts(me).length > 0 || freeSlots(me).length > 0)) return ask('slot');
     const replaces = recall && !!p.allyUid;
     if (inSlots(card.defId) && !p.hostUid && (freeSlots(me).length > 0 || replaces) && p.slot === undefined) return ask('slot');
@@ -2309,11 +2586,11 @@ export class App {
       }
       if (this.sheet && this.sheet.kind !== 'end-day') return;
       e.preventDefault();
-      if (this.state?.awaitingDawn) return this.breakDawn();
       return this.requestEndDay();
     }
     if (e.key !== 'Escape') return;
     if (this.peeking) return this.setPeek(false);
+    if (this.boardZoom && !this.zoomed && !this.pending && !this.sheet) return this.setBoardZoom(null);
     if (this.zoomed) {
       this.zoomed = null;
       return this.root.querySelector('.zoom-view')?.remove();
@@ -2345,6 +2622,113 @@ export class App {
     if (opt && (e.relatedTarget as HTMLElement | null)?.closest?.(HUB) !== opt) sound.hover();
   }
 
+  // ---- The hand: raised to read it whole; cards dragged out of it to play them ----
+
+  /** The hand raised clear of the screen's foot (on a touch screen, by a first tap; with a mouse, by hovering it). */
+  private handRaised = false;
+  /** When the opening hand has been dealt (until then it can't be raised). */
+  private dealtAt = 0;
+  /** A card is in the preview pane (picked to play, landing, a Hero's abilities): the hand keeps still meanwhile. */
+  private handStill(): boolean {
+    return !!(this.pending || this.stage || this.heroPanel);
+  }
+  private raiseHand(up: boolean) {
+    if (up && (performance.now() < this.dealtAt || this.handStill())) return;
+    if (this.handRaised === up) return;
+    this.handRaised = up;
+    if (up) {
+      this.measureRaise();
+      // (Again once it has risen, in case the board was still settling as it began.)
+      setTimeout(() => this.handRaised && this.measureRaise(), 500);
+      sound.handLift();
+    }
+    this.root.querySelector('.table-view > .dock')?.classList.toggle('dock-raised', up);
+  }
+
+  /** A card being dragged out of the hand: where it was picked up, and (once it moves) its flying copy. */
+  private drag: { uid: string; el: HTMLElement; x: number; y: number; dx: number; dy: number; ghost: HTMLElement | null } | null = null;
+
+  private onDragStart(e: PointerEvent) {
+    if (e.button > 0 || this.screen !== 'game') return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>('.hand > .card[data-act="play"]');
+    if (!el || !this.canAct()) return;
+    const r = el.getBoundingClientRect();
+    this.drag = { uid: el.dataset.arg!, el, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, ghost: null };
+  }
+
+  private onDragMove(e: PointerEvent) {
+    const d = this.drag;
+    if (!d) return;
+    if (!d.ghost) {
+      // A drag, not a tap: it has moved a little, mostly upwards (out of the hand).
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 14 || d.y - e.clientY < 8) return;
+      this.cancelPress();
+      const r = d.el.getBoundingClientRect();
+      const ghost = d.el.cloneNode(true) as HTMLElement;
+      ghost.removeAttribute('data-uid');
+      ghost.removeAttribute('data-act');
+      ghost.classList.add('drag-ghost');
+      Object.assign(ghost.style, { position: 'fixed', left: '0', top: '0', width: `${d.el.offsetWidth}px`, height: `${d.el.offsetHeight}px`, margin: '0', zIndex: '9000', pointerEvents: 'none', transition: 'none' });
+      ghost.style.setProperty('--cw', `${d.el.offsetWidth}px`);
+      ghost.style.setProperty('--kc', getComputedStyle(d.el).getPropertyValue('--kc'));
+      document.body.appendChild(ghost);
+      d.ghost = ghost;
+      sound.handLift();
+      d.dx = (d.dx / r.width) * d.el.offsetWidth;
+      d.dy = (d.dy / r.height) * d.el.offsetHeight;
+      d.el.classList.add('card-dragging');
+    }
+    d.ghost.style.transform = `translate(${e.clientX - d.dx}px, ${e.clientY - d.dy}px) rotate(-3deg) scale(1.05)`;
+    this.markDrop(this.dropEl(e.clientX, e.clientY));
+  }
+
+  /** What on your tableau is under a dragged card: a slot, your Lightspeed slot, or a card of yours. */
+  private dropEl(x: number, y: number): HTMLElement | null {
+    for (const el of document.elementsFromPoint(x, y)) {
+      const hit = el.closest<HTMLElement>('.tableau-mine [data-slot], .tableau-mine .card[data-uid], .tableau-mine .ls-slot');
+      if (hit) return hit;
+      if (el.closest('.tableau-mine .tableau-row')) break;
+    }
+    return null;
+  }
+
+  private dropAt(x: number, y: number): Pending['drop'] {
+    const el = this.dropEl(x, y);
+    if (!el) return undefined;
+    if (el.classList.contains('ls-slot')) return { slot: 'ls' };
+    if (el.dataset.slot !== undefined) return { slot: Number(el.dataset.slot) };
+    return el.dataset.uid ? { uid: el.dataset.uid } : undefined;
+  }
+
+  /** The spot a dragged card would land on, outlined. */
+  private dropMarked: HTMLElement | null = null;
+  private markDrop(el: HTMLElement | null) {
+    if (el === this.dropMarked) return;
+    this.dropMarked?.classList.remove('drop-over');
+    this.dropMarked = el;
+    el?.classList.add('drop-over');
+  }
+
+  private onDragEnd(e: PointerEvent | null) {
+    const d = this.drag;
+    this.drag = null;
+    if (!d?.ghost) return;
+    d.ghost.remove();
+    d.el.classList.remove('card-dragging');
+    // (The click that ends a drag must not also tap the card.)
+    this.suppressClick = true;
+    window.setTimeout(() => (this.suppressClick = false), 0);
+    // Let go above the hand: it is played (to the preview pane, and on as any card played); else it goes back.
+    this.markDrop(null);
+    const zone = this.root.querySelector('.table-view > .dock .hand-zone')?.getBoundingClientRect();
+    if (e && zone && e.clientY < zone.top) {
+      this.raiseHand(false);
+      this.sheet = null;
+      sound.rustle();
+      this.startPlay(d.uid, this.dropAt(e.clientX, e.clientY));
+    }
+  }
+
   // ---- Long press (touch): hold a card to read it; release to dismiss ----
 
   private onPressStart(e: PointerEvent) {
@@ -2356,8 +2740,9 @@ export class App {
       x: e.clientX,
       y: e.clientY,
       timer: window.setTimeout(() => {
+        // Press and hold always reads the card: the inspector (as a right-click does).
         this.press!.shown = true;
-        this.showPeek(el);
+        this.zoom(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
         sound.hover();
       }, LONG_PRESS_MS),
       shown: false,
@@ -2370,10 +2755,7 @@ export class App {
 
   private onPressEnd() {
     if (!this.press) return;
-    if (this.press.shown) {
-      this.suppressClick = true; // the tap that ends a long press must not also play the card
-      this.preview.classList.remove('show');
-    }
+    if (this.press.shown) this.suppressClick = true; // the tap that ends a long press must not also play the card
     this.cancelPress();
   }
 
@@ -2432,13 +2814,19 @@ export class App {
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     // A card being played on the board: a click anywhere that isn't its next step (a slot, the card it
     // recalls or fuses onto, its target), another card in hand, or cancel puts it back in the hand.
-    if (this.screen === 'game' && this.pending && !this.pending.dawn && !(e.target as HTMLElement).closest?.('.overlay, .modal, .sheet, .hud, .zoom-view, .peek-toggle, .peek-shield')) {
+    if (this.screen === 'game' && this.pending && !(e.target as HTMLElement).closest?.('.overlay, .modal, .sheet, .hud, .zoom-view, .peek-toggle, .peek-shield')) {
       const a = el && !el.hasAttribute('disabled') ? el.dataset.act ?? '' : '';
-      if (a !== 'play' && a !== 'cancel' && a !== 'attack-start' && !a.startsWith('choose-')) {
+      if (a !== 'play' && a !== 'cancel' && a !== 'attack-start' && a !== 'board-zoom' && !a.startsWith('choose-')) {
         this.pending = null;
         this.render();
         return;
       }
+    }
+    // Your Hero's actions close with a click anywhere else.
+    if (this.heroPanel && !(e.target as HTMLElement).closest?.('.stage-hero') && el?.dataset.act !== 'hero-panel') {
+      this.heroPanel = null;
+      this.render();
+      if (!el) return;
     }
     if (!el || el.hasAttribute('disabled')) return;
     if (el.classList.contains('overlay') && e.target !== el) return;
@@ -2632,12 +3020,9 @@ export class App {
       case 'auth-google':
       case 'auth-apple':
         return this.socialSignIn(act === 'auth-apple' ? 'apple' : 'google');
-      case 'signin-avatar':
-        this.signinAvatar = Number(arg);
-        return this.render();
       case 'signin-go':
-        signIn(this.signinName ?? profile().name, this.signinAvatar ?? profile().avatar);
-        this.signinName = this.signinAvatar = null;
+        signIn(this.signinName ?? profile().name);
+        this.signinName = null;
         this.seats[0].name = profile().name;
         if (this.inviteAfterSignIn) {
           const room = this.inviteAfterSignIn;
@@ -2745,6 +3130,20 @@ export class App {
     }
 
     if (!s) return;
+    // A card in play's tabs (the card, then the cards fused onto it), or a fused card peeking out behind it.
+    if (act === 'inspect-tab' && this.sheet?.kind === 'card') {
+      this.sheet.tab = Number(el.dataset.arg);
+      sound.hover();
+      return this.render();
+    }
+    if (act === 'inspect-fused') {
+      const [host, tab] = (el.dataset.arg ?? '').split('|');
+      const card = s.players.flatMap((p) => p.tableau).find((c) => c.uid === host);
+      if (!card) return;
+      this.sheet = { kind: 'card', defId: card.defId, table: host, tab: Number(tab) };
+      sound.hover();
+      return this.render();
+    }
     if (act === 'inspect' && !el.closest('.sheet') && el.dataset.card) {
       this.sheet = { kind: 'card', defId: el.dataset.card, uid: el.dataset.hand, table: el.closest('.tableau') ? el.dataset.uid : undefined };
       sound.hover();
@@ -2755,15 +3154,45 @@ export class App {
     switch (act) {
       case 'play':
         this.sheet = null;
+        // On a touch screen the first tap on the hand raises it (to read every card whole); taps after that play.
+        if (this.touch && !this.handRaised && !this.handStill()) return this.raiseHand(true);
         return this.startPlay(arg);
       case 'end-turn':
         return this.requestEndDay();
       case 'end-day-confirm':
+        return this.finishDay();
+      case 'discard-pick': {
+        if (this.sheet?.kind !== 'discard') return;
+        const over = activePlayer(this.state!).hand.length - BALANCE.maxHand;
+        const picked = this.sheet.picked.includes(arg) ? this.sheet.picked.filter((u) => u !== arg) : [...this.sheet.picked, arg].slice(-over);
+        this.sheet = { kind: 'discard', picked };
+        sound.rustle();
+        return this.render();
+      }
+      case 'discard-confirm': {
+        if (this.sheet?.kind !== 'discard') return;
+        const discard = this.sheet.picked;
         this.sheet = null;
-        return this.dispatch({ type: 'endTurn' });
+        return this.dispatch({ type: 'endTurn', discard });
+      }
+      case 'board-zoom':
+        return this.setBoardZoom(this.boardZoom === arg ? null : (arg as 'rival' | 'mine'));
+      case 'hero-panel':
+        this.heroPanel = this.heroPanel === arg ? null : arg;
+        sound.hover();
+        return this.render();
       case 'hero-ability': {
         const why = heroAbilityProblem(this.state!, this.viewer(), Number(arg));
         if (why) return this.showToast(why, 'info');
+        this.sheet = null;
+        this.heroPanel = null;
+        // An ability that heats, with rival cards on the table: aim it first (a card, or their sun).
+        const hero = commandCard(this.viewer())!;
+        if (abilityAimable(hero.defId, Number(arg)) && aimChoices(this.state!, this.viewer()).cards.length) {
+          this.pending = { uid: hero.uid, step: 'aim', ability: Number(arg) };
+          sound.hover();
+          return this.render();
+        }
         sound.hero();
         return this.dispatch({ type: 'heroAbility', index: Number(arg) });
       }
@@ -2779,19 +3208,15 @@ export class App {
       case 'choose-enemy':
         if (this.pending) this.pending.enemyUid = arg;
         return this.advancePlay();
-      case 'aim-start':
-        // At your dawn, one of your cards with dawn heat: choose where its heat goes this dawn.
-        if (!this.dawnTurn()) return;
-        this.pending = { uid: arg, step: 'aim', dawn: true };
-        return this.render();
       case 'attack-start': {
+        this.heroPanel = null;
         // On your day, a card of yours with attack that has not acted yet: choose what it attacks.
         if (this.pending?.attack && this.pending.uid === arg) {
           this.pending = null;
           return this.render();
         }
-        const why = attackProblem(this.state!, this.viewer(), arg, null);
-        if (why && !why.startsWith('Your rival has a Guard')) return this.showToast(why, 'info');
+        const why = attackProblem(this.state!, this.viewer(), arg);
+        if (why) return this.showToast(why, 'info');
         this.pending = { uid: arg, step: 'aim', attack: true };
         sound.hover();
         return this.render();
@@ -2806,17 +3231,14 @@ export class App {
           if (why) return this.showToast(why, 'info');
           return this.dispatch({ type: 'attack', attackerUid: pend.uid, targetUid: target });
         }
-        if (pend.dawn) {
-          this.dawnAims()[pend.uid] = arg === 'sun' ? null : arg;
+        if (pend.ability !== undefined) {
           this.pending = null;
-          sound.hover();
-          return this.render();
+          sound.hero();
+          return this.dispatch({ type: 'heroAbility', index: pend.ability, aimUid: arg === 'sun' ? undefined : arg });
         }
         pend.aimUid = arg;
         return this.advancePlay();
       }
-      case 'dawn-go':
-        return this.breakDawn();
       case 'choose-ally':
         if (this.pending) this.pending.allyUid = arg;
         return this.advancePlay();
@@ -2842,6 +3264,7 @@ export class App {
   /** Cards in hand kept through the last redraw (not rebuilt). */
   private keptHand = new WeakSet<HTMLElement>();
   private render() {
+    this.scheduleAutoEnd();
     // Typing in the deck builder's search re-renders the page: keep the caret in the box.
     const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.dbSearch !== undefined ? document.activeElement.selectionStart : null;
     // Lists that scroll (the deck builder's card pool and deck, piles, setup pages) keep their place across a redraw.
@@ -2878,20 +3301,27 @@ export class App {
     backdrop.attach(this.root.querySelector<HTMLElement>('.board-star-slot'));
     if (this.screen === 'campaign') this.campaign.afterRender(this.root);
     this.syncPeek();
-    // The backdrop warms (or chills) with the viewer's own sun, not whoever is acting.
-    const me = this.screen === 'game' && this.state ? this.viewer() : null;
-    const heat = me && !me.eliminated ? me.heat : 0;
-    backdrop.setHeat(!me || heat === 0 ? 0 : heat > 0 ? heat / supernovaThreshold(me) : heat / -BALANCE.minHeat);
+    // The petal follows the region's stability: blue while it holds, whitening as it drains, then
+    // redder the more unstable the region grows.
+    if (this.screen === 'game' && this.state) {
+      const s = this.state;
+      const total = BALANCE.instabilityStartsRound - 1;
+      const remaining = Math.max(0, total - (s.round - 1));
+      const instab = instabilityHeat(s);
+      backdrop.setHeat(instab > 0 ? Math.min(1, instab / 5) : -remaining / total);
+    } else backdrop.setHeat(0);
     // A match in play gets the battle theme, the campaign map its exploration score; everywhere else, the ambient score.
     sound.setScene(this.screen === 'game' && this.state && !isGameOver(this.state) ? 'battle' : this.screen === 'campaign' && this.campaign.state ? 'campaign' : 'ambient');
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
     fitCardText(this.root);
+    this.markKwMore(this.root);
     sizePool(this.root);
     fitWhenSeen(this.root.querySelectorAll<HTMLElement>('.db-pool .db-card'));
     this.activeBuilder().afterRender();
     refreshLift();
+    this.prefitZooms();
     const page = this.screen === 'menu' ? `menu:${this.menuPage}` : this.screen;
     if (page !== this.shownPage) {
       // The page left behind faded out and stayed faded; redraws keep elements, so those fades are cleared.
@@ -2902,9 +3332,9 @@ export class App {
     }
     animateSuns();
     frameTableaus(this.root);
+    leanPiles(this.root);
     placeResult(this.root);
     this.keepLeaving();
-    this.syncDawnBeams();
     if (!this.press?.shown) this.preview.classList.remove('show');
   }
 
@@ -2930,7 +3360,8 @@ export class App {
     const span = ws[0] / 2 + centres[n - 1] + ws[n - 1] / 2;
     const start = inset + (W - span) / 2 + ws[0] / 2;
     const spacing = n > 1 ? centres[n - 1] / (n - 1) : 0;
-    const step = Math.min(5, 24 / Math.max(n - 1, 1)); // degrees between neighbours
+    // Degrees between neighbours: a gentle fan (rotated text can't sit on the pixel grid, so it reads softer).
+    const step = Math.min(2.5, 12 / Math.max(n - 1, 1));
     // Freshly drawn cards are placed straight into the fan (with no transition, they would swing out from
     // the middle every time the page is redrawn); a card already placed keeps its smooth move.
     const fresh = cards.filter((c) => !c.style.getPropertyValue('--fr'));
@@ -2941,15 +3372,43 @@ export class App {
     cards.forEach((c, i) => {
       const t = i - (n - 1) / 2;
       const a = (t * step * Math.PI) / 180;
-      c.style.left = `${start + centres[i] - c.offsetWidth / 2}px`;
+      // (On whole pixels, for crisp text.)
+      c.style.left = `${Math.round(start + centres[i] - c.offsetWidth / 2)}px`;
       c.style.setProperty('--fr', `${t * step}deg`);
       c.style.setProperty('--fy', `${(radius * (1 - Math.cos(a)) * 1.25).toFixed(2)}px`);
       c.style.zIndex = String(i + 1);
+      c.style.setProperty('--hz', String(i + 1));
     });
     if (fresh.length) {
       void hand.offsetWidth;
       fresh.forEach((c) => (c.style.transition = ''));
     }
+    this.measureRaise();
+  }
+
+  /** How far the hand rises to be read whole: raised, its cards also grow a little (from the hand's foot), and the
+   *  lowest card's foot just clears the screen's foot. (Measured in layout, where the lift doesn't show.) */
+  private measureRaise() {
+    const dock = this.root.querySelector<HTMLElement>('.table-view > .dock');
+    const hand = dock?.querySelector<HTMLElement>('.hand');
+    const cards = hand ? [...hand.querySelectorAll<HTMLElement>(':scope > .card')] : [];
+    if (!dock || !hand || !cards.length) return;
+    // (A card lifted under the pointer, or still moving into place, is measured where it rests.)
+    const low = Math.max(
+      ...cards.map((c) => {
+        const a = ((parseFloat(c.style.getPropertyValue('--fr')) || 0) * Math.PI) / 180;
+        const [w, h] = [c.offsetWidth, c.offsetHeight];
+        return c.offsetTop + (parseFloat(c.style.getPropertyValue('--fy')) || 0) + h / 2 + (w * Math.abs(Math.sin(a)) + h * Math.cos(a)) / 2;
+      }),
+    );
+    // (In layout pixels, within the table view: the page may be turned or zoomed on screen.)
+    const view = dock.parentElement!;
+    let top = 0;
+    for (let el: HTMLElement | null = hand; el && el !== view; el = el.offsetParent as HTMLElement | null) top += el.offsetTop;
+    const foot = top + hand.offsetHeight;
+    const bottom = top + low;
+    dock.style.setProperty('--hgrow', String(HAND_GROW));
+    dock.style.setProperty('--raise', `${Math.max(0, Math.round(foot + (bottom - foot) * HAND_GROW - view.clientHeight + 8))}px`);
   }
 
   // ---- Front end -------------------------------------------------------------
@@ -3034,12 +3493,12 @@ export class App {
       </div>`;
   }
 
-  /** Who you are, top right: your emblem, name, level and currencies. Tap it for your whole profile. */
+  /** Who you are, top right: your picture, name, level and currencies. Tap it for your whole profile. */
   private playerChip(): string {
     const p = profile();
     return `
       <button class="player-chip" data-act="profile-open" title="Your profile">
-        ${factionAvatar(`f${p.avatar + 1}`, 'pc-avatar')}
+        ${playerAvatar(account()?.avatar, 'pc-avatar')}
         <span class="pc-who"><b>${esc(p.name || 'Commander')}</b><small>level ${p.level}</small></span>
         <span class="pc-cur"><span class="pf-dust">✦ ${p.stardust}</span><span class="pf-flux">⟁ ${p.flux}</span></span>
       </button>`;
@@ -3055,7 +3514,7 @@ export class App {
       <div class="overlay overlay-soft" data-act="profile-close">
         <div class="modal sheet profile-view">
           <div class="pv-head">
-            ${factionAvatar(`f${p.avatar + 1}`, 'pv-avatar')}
+            ${playerAvatar(account()?.avatar, 'pv-avatar')}
             <div class="pv-who"><h2>${esc(p.name || 'Commander')}</h2><small>${p.won} won of ${p.played} played</small></div>
             <button class="pill-btn pv-close" data-act="profile-close">close</button>
           </div>
@@ -3066,7 +3525,7 @@ export class App {
             <div class="pv-box" title="${r ? `${r.points} / ${PROGRESSION.stagePoints} to the next stage` : 'Play ranked online'}"><small>rank</small><b>${rank === null ? 'unranked' : esc(rankName(rank).toLowerCase())}</b>${r ? `<span class="pf-xp"><i style="width:${r.points}%"></i></span>` : ''}</div>
           </div>
           ${this.accountRow()}
-          <div class="pv-foot"><button class="link-btn" data-act="profile-rename">change name or emblem</button><button class="link-btn" data-act="profile-logout">sign out</button></div>
+          <div class="pv-foot"><button class="link-btn" data-act="profile-rename">change name</button><button class="link-btn" data-act="profile-logout">sign out</button></div>
         </div>
       </div>`;
   }
@@ -3098,6 +3557,7 @@ export class App {
         menu.querySelector('.zoom-view')?.remove();
         menu.insertAdjacentHTML('beforeend', this.renderZoom());
         fitCardText(menu.querySelector<HTMLElement>('.zoom-view')!);
+        this.markKwMore(menu);
         return;
       }
     } else if (this.screen === 'campaign') this.zoomed = defId;
@@ -3215,7 +3675,8 @@ export class App {
 
   /**
    * Signing in: to your account (email and password, or Apple or Google), creating one (agreeing to the
-   * Terms and the Privacy Policy), or a new password; then the name and emblem you go by.
+   * Terms and the Privacy Policy), or a new password; then the name you go by (beside the picture the
+   * account was dealt).
    */
   private renderSignIn(): string {
     const p = profile();
@@ -3225,9 +3686,9 @@ export class App {
       ${back}
       <div class="signin">
         ${this.titleBlock(true)}
+        ${playerAvatar(account()?.avatar, 'signin-avatar')}
         <h2 class="menu-heading">your name</h2>
         <input class="signin-name" data-signin-name value="${esc(this.signinName ?? p.name)}" maxlength="18" placeholder="your name" aria-label="Your name" />
-        <div class="signin-emblems">${RACE_NAMES.map((_, r) => `<button class="db-race ${(this.signinAvatar ?? p.avatar) === r ? 'on' : ''}" data-act="signin-avatar" data-arg="${r}" title="${esc(RACE_NAMES[r])}">${factionAvatar(`f${r + 1}`, 'db-race-emblem')}</button>`).join('')}</div>
         <button class="btn-primary" data-act="signin-go">continue</button>
       </div>`;
     }
@@ -3315,9 +3776,9 @@ export class App {
   private cardFace(id: string): string {
     const c = cardDef(id);
     return `<div class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}" data-card="${c.id}">
-      <span class="card-glyph">${cardArtLite(c, true)}</span>${stabilityBadge(c)}
+      <span class="card-glyph">${cardArtLite(c, true)}</span>${raceRow(c)}${stabilityBadge(c)}
       <span class="card-name">${esc(c.name.toLowerCase())}</span>
-      <span class="card-text">${cardTextHtml(c.text)}</span>
+      <span class="card-text">${cardBodyHtml(c)}</span>
       <span class="card-kind">${typeLine(c)}</span>
     </div>`;
   }
@@ -3527,10 +3988,11 @@ export class App {
         () => `<ol class="rule-steps">
           ${step('Dawn', `Your shields fade. The planets move on a notch. Draw ${B.drawPerTurn}.`)}
           ${step('The table', 'Regional instability strikes, then the global card in play.')}
-          ${step('Your cards', `Every card in your tableau fires its ${kw('dawn')} effect, left to right.`)}
+          ${step('Your cards', `Every card in your tableau fires its ${kw('dawn')} effect, left to right: heat strikes your rival's sun.`)}
           ${step('Fade', 'Every card loses 1 ◷ stability. At 0 it goes to your discard pile.')}
           ${step('Play', `Spend your energy on cards: 1 on your first day, 2 on your second, then <b>${B.maxPlays}</b> a day (more with bonuses). Each card goes into a slot you choose.`)}
-          ${step('End', "End your day. Your rival's begins.")}
+          ${step('Attack', "Each ready card with attack may strike the rival's sun or one of their cards, once a day.")}
+          ${step('Dusk', `End your day: every ${kw('dusk')} effect fires, cooling your sun. Your rival's day begins.`)}
         </ol>`,
       ],
       tableau: [
@@ -3538,7 +4000,7 @@ export class App {
         () =>
           facts(
             fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
-            fact('Defence', `Heat aimed at a card wears its defence first, and the wear lasts: it mends 1 a day (more with ${kw('sturdy', '1')} or ${kw('repair', '1')}), and stays in the slot if the card leaves. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
+            fact('Defence', `An attack or aimed heat wears a card's defence first, and the wear lasts: it mends 1 a day (more with ${kw('sturdy', '1')} or ${kw('repair', '1')}), and stays in the slot if the card leaves. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
             fact('No replacing', 'A full tableau takes nothing new until a card fades or leaves. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
@@ -3549,9 +4011,10 @@ export class App {
         'Sun & Orbit',
         () =>
           facts(
-            fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”."),
-            fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun.'),
-            fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat aimed at your sun (not at your cards). They fade at your Dawn.'),
+            fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”. Passive heat comes at dawn and always strikes the sun; heat as a card is played can be aimed at a rival card instead."),
+            fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun. Passive cooling comes at dusk.'),
+            fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
+            fact('Attacks', "Once a day, a card's attack strikes the rival's sun or one of their cards (which hits back)."),
             fact('Energy', `Cards cost energy (the green gem). You get 1 on your first day, 2 on your second, then ${B.maxPlays} a day. The industrial planet and energy cards add more on top.`),
             fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),
             fact('The planets', `Dead: nothing. Abundant: draw +${B.abundantDraw}. Industrial: play +${B.industrialPlays}.`),
@@ -3562,9 +4025,10 @@ export class App {
         'Card Types',
         () =>
           facts(
-            kind('attack', 'Attack', `Heat your rival's sun.`),
+            kind('attack', 'Attack', `Heat your rival's sun, and attack their cards.`),
             kind('defence', 'Defence', 'Cool your sun, raise shields, guard your tableau.'),
             kind('growth', 'Growth', 'Draw, recover, grow and play more.'),
+            kind('relic', 'Relic', 'No attack, and never fades: a lasting bonus. Brittle: nothing restores it, and removal reaches it whatever its defence.'),
             kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. Pick a dawn effect as you play one; it stays ${B.stabilityCommand} days, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
             kind('lightspeed', 'Lightspeed', "Set face down. Springs during your rival's day."),
@@ -3609,69 +4073,306 @@ export class App {
     // The whole play area is a table seen in perspective; pop-ups and the
     // played-card stage sit outside it so they stay flat and readable.
     return `
-      <main class="table-view">
+      <main class="table-view${this.boardZoom ? ` zoom-${this.boardZoom}` : ''}" style="${this.boardZoom ? this.zoomVars : ''}">
         <div class="game">
           <header class="top"></header>
           ${this.renderBoard()}
-          ${this.renderDock()}
+          <section class="dock dock-space" aria-hidden="true"><div class="hand-zone"><div class="hand-space"></div></div></section>
         </div>
+        ${/* The hand lies flat in front of the tilted board (on it, its text was drawn small and stretched: blurry). */ ''}
+        ${this.renderDock()}
         ${this.renderHud()}
         ${this.renderTurnControls()}
+        ${this.renderZoomControls()}
         ${this.renderStage()}
         ${this.renderResult()}
         ${this.renderOverlay(s)}
       </main>`;
   }
 
-  /** Round and stability, together in one container at the top centre. */
-  private renderRoundBar(): string {
-    const s = this.state!;
-    // Regional stability: the whole system's, draining one segment a round (each card also has its own, ◷).
-    const total = BALANCE.instabilityStartsRound - 1;
-    const remaining = Math.max(0, total - (s.round - 1));
-    const instab = instabilityHeat(s);
-    // It grows each round: say what the next round brings too, since whoever moves first in a round takes the new amount.
-    const next = instabilityHeat({ ...s, round: s.round + 1 });
-    const segments = Array.from({ length: total }, (_, i) => `<i class="${i < remaining ? 'on' : ''}"></i>`).join('');
-    return `
-      <div class="round-box ${instab ? 'unstable' : ''}" title="${instab
-        ? `Round ${s.round}. Regional instability: every sun heats by ${instab} at its dawn this round, and by ${next} next round.`
-        : `Round ${s.round}. Regional stability drains by one each round; when it runs out, every sun heats at its dawn.`}">
-        <div class="round-num"><small>round</small><b>${roman(s.round)}</b></div>
-        <div class="stability">
-          <span class="stability-label">${instab ? `regional instability +${instab} <em>next round +${next}</em>` : `regional stability ${remaining}`}</span>
-          <div class="stability-bar">${segments}</div>
-        </div>
-      </div>`;
+  /** Zoomed onto a tableau: back out to the whole board, or across to the other player's. (Unzoomed, each tableau has its own eye.) */
+  private renderZoomControls(): string {
+    const z = this.boardZoom;
+    if (!z) return '<div class="board-zoom"></div>';
+    const other = z === 'mine' ? 'rival' : 'mine';
+    return `<div class="board-zoom">
+      <button class="zoom-btn" data-act="board-zoom" data-arg="${z}" title="Back to the whole board (Esc)"><span>‹</span><small>back</small></button>
+      <button class="zoom-btn" data-act="board-zoom" data-arg="${other}" title="Look at ${other === 'mine' ? 'your' : 'their'} tableau instead">${EYE_ICON}<small>${other === 'mine' ? 'you' : 'opponent'}</small></button>
+    </div>`;
   }
 
   /**
-   * Both players' cards, stacked down the left: yours first, then your rival's.
-   * Whoever's day it is glows green.
+   * Work out the zoom onto each tableau ahead of time, while nothing is happening (all in one task, put back
+   * before the screen is drawn, so nothing on it changes): the first zoom then starts at once, as later ones do.
    */
-  private renderPlayers(): string {
-    const s = this.state!;
-    const active = activePlayer(s);
-    const me = this.viewer();
-    const shown = this.shownRival();
-    const playing = !isGameOver(s);
-    const cards = [me, ...s.players.filter((p) => p.id !== me.id)]
-      .map((p) => {
-        const mine = p.id === me.id;
-        const title = mine ? `${p.name} (you)` : p.name;
-        return `
-        <button class="rival ${mine ? 'rival-me' : ''} ${playing && p.id === active.id ? 'rival-active' : ''} ${this.shownDead(p) ? 'rival-dead' : ''} ${!mine && shown?.id === p.id ? 'rival-shown' : ''}"
-          data-act="view-player" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(title)}">
-          ${factionAvatar(`f${p.species + 1}`, 'rival-emblem')}
-          <div class="rival-info">
-            <span class="rival-name">${esc(p.name.toLowerCase())}${mine ? '<i class="rival-you">you</i>' : ''}</span>
-            ${this.shownDead(p) ? '<span class="rival-stats"><em>supernova</em></span>' : p.lightspeed ? '<span class="rival-stats"><em><i class="ls-pip" title="A Lightspeed card is set face down">⚡</i></em></span>' : ''}
-          </div>
-        </button>`;
-      })
-      .join('');
-    return `<aside class="rivals">${cards}</aside>`;
+  private prefitQueued = false;
+  private prefitZooms() {
+    if (this.prefitQueued || this.screen !== 'game' || this.boardZoom || reducedMotion()) return;
+    const key = (side: string) => `${side}:${window.innerWidth}x${window.innerHeight}`;
+    if (this.zoomFits.has(key('mine')) && this.zoomFits.has(key('rival'))) return;
+    this.prefitQueued = true;
+    const idle = (window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 300));
+    idle(
+      () => {
+        this.prefitQueued = false;
+        const view = this.root.querySelector<HTMLElement>('.table-view');
+        if (!view || this.screen !== 'game' || this.boardZoom) return;
+        const style = view.getAttribute('style');
+        // (No transitions while it is measured: the zoom's own styles, come and gone, would set them off.)
+        view.classList.add('no-anim');
+        for (const side of ['mine', 'rival'] as const) {
+          if (this.zoomFits.has(key(side))) continue;
+          this.boardZoom = side;
+          view.classList.add(`zoom-${side}`);
+          this.fitZoom(undefined, undefined, { measureOnly: true });
+          view.classList.remove(`zoom-${side}`);
+          this.boardZoom = null;
+        }
+        this.zoomVars = '';
+        if (style === null) view.removeAttribute('style');
+        else view.setAttribute('style', style);
+        const game = view.querySelector<HTMLElement>(':scope > .game');
+        void view.offsetWidth;
+        if (game) game.style.transition = '';
+        view.classList.remove('no-anim');
+      },
+      { timeout: 2000 },
+    );
   }
+
+  /** Zoom the board onto one tableau, or out (null): the board itself moves, so everything on it still works. */
+  private setBoardZoom(side: 'rival' | 'mine' | null) {
+    if (this.boardZoom === side) return;
+    const was = this.boardZoom;
+    this.boardZoom = side;
+    sound.hover();
+    // (Zooming in, the suns hold still while the board moves: redrawn at their new, larger size, they would
+    // stall it. Zooming out, they are drawn at their smaller size at once, below.)
+    if (!reducedMotion() && side) holdSuns(720);
+    const view = this.root.querySelector('.table-view');
+    if (!view) return;
+    const game = view.querySelector<HTMLElement>(':scope > .game');
+    // Zooming in: the board is laid out at its zoomed size at once (to stay sharp), then shown easing in from where
+    // the tableau stood, tilting up as it comes (as zooming out tilts it back down).
+    const spanOf = (which: 'rival' | 'mine') => {
+      const parts = [...view.querySelectorAll<HTMLElement>(`.tableau-${which} .tableau-row, .tableau-${which} .cmd-slot, .tableau-${which} .ls-slot`)].map((el) => el.getBoundingClientRect());
+      if (!parts.length) return null;
+      const left = Math.min(...parts.map((r) => r.left)), right = Math.max(...parts.map((r) => r.right));
+      const top = Math.min(...parts.map((r) => r.top)), bottom = Math.max(...parts.map((r) => r.bottom));
+      return { x: (left + right) / 2, y: (top + bottom) / 2, w: right - left };
+    };
+    // Across from one tableau to the other: the board keeps its zoom and glides over (the other tableau, off
+    // the screen in the tilted view, can't be measured where it stands).
+    if (was && side && game) {
+      const num = (k: string) => Number(new RegExp(`--${k}:(-?[\\d.]+)`).exec(this.zoomVars)?.[1] ?? NaN);
+      const [bz, zx, zy] = [num('bz'), num('zx'), num('zy')];
+      view.classList.toggle('zoom-rival', side === 'rival');
+      view.classList.toggle('zoom-mine', side === 'mine');
+      this.fitZoom(Number.isFinite(bz) ? bz : undefined);
+      if (Number.isFinite(zx) && Number.isFinite(zy) && !reducedMotion()) {
+        const to = this.zoomVars;
+        game.style.transition = 'none';
+        (view as HTMLElement).style.setProperty('--zx', `${zx}px`);
+        (view as HTMLElement).style.setProperty('--zy', `${zy}px`);
+        void game.offsetWidth;
+        game.style.transition = '';
+        view.setAttribute('style', to);
+      }
+      const ctl = this.root.querySelector('.board-zoom');
+      if (ctl) ctl.outerHTML = this.renderZoomControls();
+      return;
+    }
+    // In or out: the board is laid out at its new size at once (sharp when zoomed), then eased from exactly
+    // how it stood to how it now stands, its pan, scale and tilt all at once: the same list of steps at both
+    // ends (a pan, a tilt, a scale), so it moves step by step, never twisting through a matrix.
+    const animate = !!game && !reducedMotion();
+    const tiltOf = (zoomed: boolean) => (zoomed ? '6deg' : getComputedStyle(view).getPropertyValue('--board-tilt').trim() || '34deg');
+    const layoutBox = (el: HTMLElement) => {
+      const t = el.style.transform;
+      el.style.transform = 'none';
+      const r = el.getBoundingClientRect();
+      el.style.transform = t;
+      return r;
+    };
+    // (Lined up on the tableau zoomed onto, or out from: it starts exactly where it stood on screen.)
+    const which = (side ?? was)!;
+    let from: { box: DOMRect; m: DOMMatrix; tilt: string; span: ReturnType<typeof spanOf> } | null = null;
+    if (animate) {
+      for (const a of game!.getAnimations()) a.cancel();
+      game!.style.transition = 'none';
+      from = { box: layoutBox(game!), m: new DOMMatrix(getComputedStyle(game!).transform), tilt: tiltOf(!!was), span: spanOf(which) };
+    }
+    view.classList.toggle('zoom-rival', side === 'rival');
+    view.classList.toggle('zoom-mine', side === 'mine');
+    this.fitZoom(undefined, undefined, { deferFit: animate });
+    if (!side) redrawSuns();
+    if (animate && from && game) {
+      game.style.transition = 'none';
+      const box = layoutBox(game);
+      const m = new DOMMatrix(getComputedStyle(game).transform);
+      let k = box.width > 0 ? from.box.width / box.width : 1;
+      let dx = from.box.left + from.box.width / 2 + from.m.m41 - (box.left + box.width / 2);
+      let dy = from.box.top + from.box.height / 2 + from.m.m42 - (box.top + box.height / 2);
+      const start = () => `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotateX(${from!.tilt}) scale(${(0.82 * k).toFixed(5)})`;
+      // Nudged until the tableau stands just where it stood (the two layouts aren't exactly in proportion).
+      if (from.span) {
+        for (let i = 0; i < 4; i++) {
+          game.style.transform = start();
+          const now = spanOf(which);
+          if (!now || now.w <= 0) break;
+          k *= from.span.w / now.w;
+          game.style.transform = start();
+          const again = spanOf(which);
+          if (!again) break;
+          dx += from.span.x - again.x;
+          dy += from.span.y - again.y;
+          if (Math.abs(from.span.x - again.x) < 0.3 && Math.abs(from.span.y - again.y) < 0.3 && Math.abs(from.span.w - again.w) < 0.3) break;
+        }
+        game.style.transform = '';
+      }
+      // Held on its first frame until that frame is drawn (the board at its new size takes a moment to paint),
+      // then run, so none of the easing is lost to the paint; on its own layer while it moves.
+      game.style.willChange = 'transform';
+      const anim = game.animate([{ transform: start() }, { transform: `translate(${m.m41.toFixed(1)}px, ${m.m42.toFixed(1)}px) rotateX(${tiltOf(!!side)}) scale(0.82)` }], {
+        duration: 520,
+        easing: 'cubic-bezier(0.32, 0, 0.18, 1)',
+      });
+      anim.pause();
+      requestAnimationFrame(() => requestAnimationFrame(() => anim.play()));
+      anim.finished
+        .finally(() => {
+          game.style.transition = '';
+          game.style.willChange = '';
+          this.runRefit();
+        })
+        .catch(() => undefined);
+    } else this.runRefit();
+    const ctl = this.root.querySelector('.board-zoom');
+    if (ctl) ctl.outerHTML = this.renderZoomControls();
+  }
+
+  /** The card text fitting held back for the zoom, now. */
+  private runRefit() {
+    const f = this.pendingRefit;
+    this.pendingRefit = null;
+    f?.();
+  }
+
+  /**
+   * Zoom the board so the tableau zoomed onto (its row of slots and its Hero) spans the window end to end, centred:
+   * the board is laid out larger (--bz, so it stays sharp), then moved (--zx, --zy), measuring as it goes.
+   */
+  private fitZoom(keepBz?: number, from?: { zx: number; zy: number }, opts: { deferFit?: boolean; measureOnly?: boolean } = {}) {
+    const view = this.root.querySelector<HTMLElement>('.table-view');
+    const game = view?.querySelector<HTMLElement>(':scope > .game');
+    if (!view || !game) return;
+    // (Card text fitted afresh to the cards' new size, and the tableaus' outlines and the piles' lean drawn
+    // again: at once, or once the zoom's easing is done, so none of it holds up its first frame.)
+    const refit = () => {
+      fitCardText(view);
+      frameTableaus(this.root);
+      leanPiles(this.root);
+    };
+    const settle = () => (opts.deferFit ? (this.pendingRefit = refit) : refit());
+    if (!this.boardZoom) {
+      this.zoomVars = '';
+      view.removeAttribute('style');
+      frameTableaus(this.root);
+      settle();
+      return;
+    }
+    const side = this.boardZoom;
+    const span = () => {
+      const parts = [...view.querySelectorAll<HTMLElement>(`.tableau-${side} .tableau-row, .tableau-${side} .cmd-slot, .tableau-${side} .ls-slot`)].map((el) => el.getBoundingClientRect());
+      if (!parts.length) return null;
+      const left = Math.min(...parts.map((r) => r.left)), right = Math.max(...parts.map((r) => r.right));
+      const top = Math.min(...parts.map((r) => r.top)), bottom = Math.max(...parts.map((r) => r.bottom));
+      return { left, top, width: right - left, height: bottom - top };
+    };
+    const set = (bz: number, zx: number, zy: number) => {
+      this.zoomVars = `--bz:${bz.toFixed(3)};--zx:${zx.toFixed(1)}px;--zy:${zy.toFixed(1)}px`;
+      view.setAttribute('style', this.zoomVars);
+    };
+    const w = window.innerWidth, h = window.innerHeight;
+    // (Measured as it will stand, not mid-way through a transition, nor under a zoom's easing still running.)
+    game.style.transition = 'none';
+    for (const a of game.getAnimations()) a.cancel();
+    // Already worked out for this tableau at this size: no measuring (each step lays the whole board out again).
+    const key = `${side}:${w}x${h}`;
+    const known = keepBz === undefined && !from ? this.zoomFits.get(key) : undefined;
+    if (known) {
+      set(known.bz, known.zx, known.zy);
+      void game.offsetWidth;
+      game.style.transition = '';
+      frameTableaus(this.root);
+      settle();
+      return;
+    }
+    let bz = keepBz ?? 1.6, zx = from?.zx ?? 0, zy = from?.zy ?? 0;
+    set(bz, zx, zy);
+    // First measured with the board laid flat (no tilt, no perspective to throw a far tableau's measure off),
+    // then with its tilt for the last step.
+    view.classList.add('zoom-measuring');
+    const centre = (tries: number) => {
+      for (let i = 0; i < tries; i++) {
+        const r = span();
+        if (!r) break;
+        if (Math.abs(w / 2 - (r.left + r.width / 2)) < 0.5 && Math.abs(h / 2 - (r.top + r.height / 2)) < 0.5) break;
+        zx += w / 2 - (r.left + r.width / 2);
+        zy += h / 2 - (r.top + r.height / 2);
+        set(bz, zx, zy);
+      }
+    };
+    centre(3);
+    for (let i = 0; i < (keepBz ? 0 : 3); i++) {
+      const r = span();
+      if (!r) break;
+      // (Clear of the zoom buttons at the left edge, and as far in from the right, so it stays centred.)
+      bz *= Math.min((w - 2 * 76) / r.width, (h * 0.94) / r.height);
+      set(bz, zx, zy);
+    }
+    centre(3);
+    view.classList.remove('zoom-measuring');
+    // (The board is tilted: a move comes out a little short on screen, so it is measured and moved again.)
+    centre(6);
+    if (keepBz === undefined) this.zoomFits.set(key, { bz, zx, zy });
+    if (opts.measureOnly) return;
+    void game.offsetWidth;
+    game.style.transition = '';
+    frameTableaus(this.root);
+    settle();
+  }
+
+  /** Round and stability, together in one container at the top centre. */
+  /**
+   * The round, in the middle of the board's petal, ringed by regional stability: a segment drains each
+   * round; once it has all gone the ring burns red, and the heat every sun takes at its dawn shows beneath.
+   */
+  private renderRoundRing(): string {
+    const s = this.state!;
+    const total = BALANCE.instabilityStartsRound - 1;
+    const remaining = Math.max(0, total - (s.round - 1));
+    const instab = instabilityHeat(s);
+    const next = instabilityHeat({ ...s, round: s.round + 1 });
+    const gap = 4; // degrees between segments
+    const arc = (i: number) => {
+      const a0 = (i / total) * 360 + gap / 2 - 90;
+      const a1 = ((i + 1) / total) * 360 - gap / 2 - 90;
+      const pt = (a: number) => `${(50 + 44 * Math.cos((a * Math.PI) / 180)).toFixed(2)} ${(50 + 44 * Math.sin((a * Math.PI) / 180)).toFixed(2)}`;
+      return `<path class="${i < remaining ? 'on' : ''}" d="M${pt(a0)} A44 44 0 0 1 ${pt(a1)}"/>`;
+    };
+    const title = instab
+      ? `Round ${s.round}. Regional instability: every sun heats by ${instab} at its dawn this round, and by ${next} next round.`
+      : `Round ${s.round}. Regional stability ${remaining}: it drains by one each round; when it runs out, every sun heats at its dawn.`;
+    return `
+      <div class="round-ring round-box ${instab ? 'unstable' : ''}" title="${title}">
+        <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="round-track" cx="50" cy="50" r="44"/>${Array.from({ length: total }, (_, i) => arc(i)).join('')}</svg>
+        <div class="round-ring-num"><small>round</small><b>${roman(s.round)}</b>${instab ? `<em>+${instab}</em>` : ''}</div>
+      </div>`;
+  }
+
+
+
 
   private renderHud(): string {
     const s = this.state!;
@@ -3685,8 +4386,7 @@ export class App {
     // Off the table, flat: players top left, round and stability top centre, menu and turn controls top right.
     return `
       <div class="hud">
-        <div class="hud-players">${this.renderPlayers()}</div>
-        <div class="hud-round">${this.renderRoundBar()}</div>
+
         <div class="hud-controls">
           ${field}
           ${this.online && this.net.status === 'connecting' ? '<span class="pill-btn net-pill">reconnecting…</span>' : ''}
@@ -3711,13 +4411,12 @@ export class App {
     const hint = (text: string, cancel = true) => `<div class="mid-hint"><b>${text}</b>${cancel ? '<button class="mid-cancel" data-act="cancel">cancel</button>' : ''}</div>`;
     // Online, while your rival reads the card you just played.
     if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
-    // Your dawn: aim each card's dawn heat (the button lets it break).
-    if (!p && this.dawnTurn()) return hint('assign heat', false);
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
-    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.dawn || p.attack ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
+    const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack || p.ability !== undefined ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
-    if (p.step === 'aim' && p.attack) return hint(aimChoices(s, activePlayer(s)).sun ? `attack with ${esc(cardDef(card.defId).name.toLowerCase())}` : 'attack a guard');
-    if (p.step === 'aim') return hint(aimChoices(s, activePlayer(s)).sun ? 'aim heat' : 'aim at a guard');
+    const guarded = !aimChoices(s, activePlayer(s)).sun;
+    if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
+    if (p.step === 'aim') return hint(guarded ? 'aim at a guard' : 'aim heat');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
@@ -3768,6 +4467,8 @@ export class App {
           <div class="board-plane">
             <div class="board-floor"></div>
             <div class="board-star-slot" data-morph-keep></div>
+            ${this.renderRoundRing()}
+            ${this.renderPhaseTrack()}
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
@@ -3780,52 +4481,28 @@ export class App {
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
     const pend = this.pending;
     const choosingSlot = side === 'mine' && pend?.step === 'slot';
-    // The heat rival cards have aimed at each of this player's cards (for its next dawn), and which of this
-    // player's own cards are aimed at a rival card rather than a sun.
     const st = this.state!;
-    // At the viewer's dawn, as they aim it: where each card's dawn heat is going, and (while one card is
-    // being aimed) what its heat would leave of each rival card it could hit.
+    // While an attack is aimed: what it would leave of each rival card it could hit.
     const preview = new Map<string, { defence: number; stability: number }>();
-    // What the heat already aimed will leave each targeted card: shown on the card all the while it is aimed.
-    const settled = new Map<string, { defence: number; stability: number }>();
-    // What heat is aimed at (your dawn's, or a staged card's): rings round those cards' edges, and round the sun
-    // when a card was aimed at it on purpose (not by default).
+    // What a staged card is aimed at: a ring round that card's edge.
     const targeted = new Set<string>();
-    let sunTargeted = false;
     if (this.stage?.confirm && this.stage.target) targeted.add(this.stage.target);
-    if (this.dawnTurn()) {
-      const o = activePlayer(st);
-      const aims = this.draftAims(st, o);
-      if (o.id !== p.id) {
-        for (const t of Object.values(aims)) if (t) targeted.add(t);
-        // The sun is ringed only when a card was aimed at it on purpose.
-        const chosen = this.dawnAims();
-        sunTargeted = Object.keys(chosen).some((uid) => chosen[uid] === null && uid in aims && aims[uid] === null);
-      }
-      if (o.id !== p.id) {
-        const now = previewDawnHeat(st, o, aims);
-        for (const c of p.tableau) {
-          if (!Object.values(aims).includes(c.uid) && !now.cards[c.uid]?.heat) continue;
-          if (now.cards[c.uid]) settled.set(c.uid, now.cards[c.uid]);
-        }
-        if (pend?.dawn && pend.step === 'aim') {
-          for (const c of aimChoices(st, o).cards) {
-            const v = previewDawnHeat(st, o, { ...aims, [pend.uid]: c.uid }).cards[c.uid];
-            if (v) preview.set(c.uid, v);
-          }
-        }
-      }
-    }
-    // A card being played, once placed: what its heat would leave of each rival card it could hit, worked
-    // out by playing it on a copy of the game (so its slot's forge and resonance count). (Face-down
+    // An attack, a card's heat or a Hero's ability being aimed: what it would leave of each rival card it could
+    // hit, worked out by making the move on a copy of the game (so a slot's forge and resonance count). (Face-down
     // Lightspeed cards are left out of the copy: the preview must not give them away.)
-    if (pend && !pend.dawn && pend.step === 'aim' && side === 'rival') {
+    if (pend?.step === 'aim' && side === 'rival') {
       const me = activePlayer(st);
+      const move = (aim: string): Action =>
+        pend.attack
+          ? { type: 'attack', attackerUid: pend.uid, targetUid: aim }
+          : pend.ability !== undefined
+            ? { type: 'heroAbility', index: pend.ability, aimUid: aim }
+            : { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, aimUid: aim, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) };
       for (const c of aimChoices(st, me).cards) {
         try {
           const g = structuredClone(st);
           for (const pl of g.players) if (pl.id !== me.id) pl.lightspeed = null;
-          const after = applyAction(g, { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, aimUid: c.uid, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) });
+          const after = applyAction(g, move(c.uid));
           const owner = after.players.find((x) => x.id === p.id)!;
           const left = owner.tableau.find((x) => x.uid === c.uid);
           preview.set(c.uid, left ? { defence: cardDefence(owner, left), stability: left.stability ?? 0 } : { defence: 0, stability: 0 });
@@ -3835,25 +4512,24 @@ export class App {
       }
     }
     // The card being played, once placed: shown standing in its slot (over the card it recalls, if it takes its place).
-    const placing = side === 'mine' && pend && !pend.dawn && pend.slot !== undefined && !pend.faceDown ? activePlayer(st).hand.find((h) => h.uid === pend.uid) : undefined;
+    const placing = side === 'mine' && pend && !pend.attack && pend.slot !== undefined && !pend.faceDown ? activePlayer(st).hand.find((h) => h.uid === pend.uid) : undefined;
     const ghostAt = (i: number) =>
       placing && pend!.slot === i
         ? this.renderCard({ ...placing, slot: i, stability: baseStability(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
         : null;
-    const viewer = this.state ? activePlayer(this.state) : null;
-    const aimingDef = pend?.step === 'aim' && viewer ? (pend.dawn || pend.attack ? viewer.tableau : viewer.hand).find((h) => h.uid === pend.uid)?.defId : undefined;
-    const sunAim = side === 'rival' && !!aimingDef && !!viewer && aimChoices(this.state!, viewer).sun;
+    // Aiming (an attack, a card's heat or a Hero's ability): the rival's sun is a target too, unless a Guard stands.
+    const sunAim = side === 'rival' && pend?.step === 'aim' && aimChoices(st, activePlayer(st)).sun;
     // The Command slot: the one Command card leads the tableau from out in front (top right of yours,
     // bottom left of your rival's: a mirror across the board), lying landscape.
     const cmd = commandCard(p);
     const cmdHtml = cmd
-      ? this.renderCard(cmd, { tableau: side, owner: p, landscape: true })
+      ? this.renderCard(cmd, { tableau: side, owner: p })
       : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>hero</small></div>`;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
       const g = ghostAt(i);
       if (g) return g;
-      if (c) return this.renderCard(c, { tableau: side, owner: p, settled: settled.get(c.uid), preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
+      if (c) return this.renderCard(c, { tableau: side, owner: p, preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
       // A slot keeps the wear of the card that stood in it (mending 1 a day).
       const full = BALANCE.slotDefence[i];
       const wear = p.slotWear?.[i] ?? 0;
@@ -3861,25 +4537,24 @@ export class App {
       const worn = wear ? ` slot-worn` : '';
       const why = wear ? `: worn to ${def} of ${full} by heat on the card that stood here (it mends 1 a day)` : ` ${full}`;
       return choosingSlot
-        ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
-        : `<div class="slot-empty${worn}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span></div>`;
+        ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" data-slot="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
+        : `<div class="slot-empty${worn}" data-slot="${i}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span></div>`;
     }).join('');
     // The Lightspeed slot, right of the tableau: a card set there lies face down (its owner can still read it). It has no defence.
     const ls = p.lightspeed;
     const lightspeed = ls
       ? side === 'mine'
-        ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}"><span>⚡</span><small>lightspeed</small></button>`
-        : '<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your day."><span>⚡</span><small>lightspeed</small></div>'
+        ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}">${cardBackFace()}</button>`
+        : `<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your day.">${cardBackFace()}</div>`
       : choosingSlot && pend && canSetFaceDown(p, activePlayer(st).hand.find((h) => h.uid === pend.uid)?.defId ?? '')
-        ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down at lightspeed, for 1 more energy: it springs into your tableau to take heat aimed at your cards"><span class="slot-def">⚡</span><i>face down +1</i></button>`
+        ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down at lightspeed, for 1 more energy"><span class="slot-def">⚡</span><i>face down +1</i></button>`
         : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''} ${sunTargeted && !sunAim ? 'vitals-targeted' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
-          <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
-          ${this.renderForecast(p)}
         </div>
       </div>`;
   }
@@ -3892,55 +4567,43 @@ export class App {
   private renderPiles(p: PlayerState, side: 'mine' | 'rival'): string {
     const mine = side === 'mine';
     const top = p.discard[p.discard.length - 1];
-    const deck = `<span class="tpile-stack"><i></i><i></i></span><b>${p.deck.length}</b><small>deck</small>`;
+    // A pile stands as tall as the cards in it: its top card raised, their edges stacked beneath it (no count).
+    // (The board is seen in perspective: each pile's edges lean by --lean, measured so they stand upright on screen.)
+    const stack = (n: number) => {
+      const depth = Math.max(1, Math.round(n * 0.45));
+      const edges = Array.from({ length: depth }, (_, i) => `calc(var(--lean, 0) * ${i + 1}px) ${i + 1}px 0 ${i % 2 ? '#d9dadf' : '#f4f4f2'}`).join(', ');
+      return { style: `--depth:${depth};--edges:${edges}, calc(var(--lean, 0) * ${depth + 3}px) ${depth + 3}px 8px rgba(80, 84, 100, 0.22)`, layers: '' };
+    };
+    const deckStack = stack(p.deck.length), discardStack = stack(p.discard.length);
+    const deck = p.deck.length
+      ? `${deckStack.layers}<span class="tpile-face tpile-back tpile-stacked" style="${deckStack.style}">${cardBackFace()}</span>`
+      : `<span class="tpile-empty"></span><small>deck</small>`;
     const discard = top
-      ? `<span class="tpile-face">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span><b class="tpile-count">${p.discard.length}</b>`
-      : `<span class="tpile-empty"></span><b>0</b><small>discard</small>`;
+      ? `${discardStack.layers}<span class="tpile-face tpile-stacked" style="${discardStack.style}">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span>`
+      : `<span class="tpile-empty"></span><small>discard</small>`;
     // How many cards they hold: a little bar above your piles, below theirs (the board stays a mirror).
     const n = p.hand.length;
     const hand = `<div class="tpile-hand tpile-hand-${side}" title="${mine ? 'Cards in your hand' : `Cards in ${esc(p.name)}'s hand`}">${HAND_ICON}<span>hand</span><b>${n}</b></div>`;
+    // Their name by their hand: above yours, below theirs (a mirror). It opens their summary.
+    const name = `<button class="tpile-name tpile-name-${side} ${this.shownDead(p) ? 'tpile-name-dead' : ''}" data-act="view-player" data-arg="${p.id}" data-anchor="pill:${p.id}" title="${esc(mine ? `${p.name} (you)` : p.name)}"><span>${esc(p.name.toLowerCase())}</span></button>`;
     return `<div class="tableau-piles">
-      ${hand}
-      <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? 'Cards left in your deck (what they are, and their order, stay hidden)' : `Cards left in ${esc(p.name)}'s deck`}">${deck}</div>
-      <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile: look through it">${discard}</div>
+      ${mine ? name + hand : hand + name}
+      <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? `${p.deck.length} cards left in your deck (what they are, and their order, stay hidden)` : `${p.deck.length} cards left in ${esc(p.name)}'s deck`}">${deck}</div>
+      <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile (${p.discard.length}): look through it">${discard}</div>
     </div>`;
   }
 
-  /**
-   * Above each tableau: what the cards on the table will do at that player's next dawn (heat at their
-   * target, shields, cooling, heat to their own sun, extra cards and energy), so everyone can see it
-   * coming and answer it. Only the table: what the planets will add, and regional instability, show
-   * where they come from (the orbits and the stability bar), not here.
-   */
-  private renderForecast(p: PlayerState): string {
-    const s = this.state!;
-    if (p.eliminated || isGameOver(s)) return '';
-    // At your dawn, the forecast is of this dawn, as you have aimed it.
-    const f = turnForecast(s, p, this.dawnTurn() && activePlayer(s).id === p.id ? this.draftAims(s, p) : undefined);
-    const me = this.viewer();
-    const who = (id: string | null) => (id === me.id ? 'you' : esc((s.players.find((o) => o.id === id)?.name ?? '').toLowerCase()));
-    // Each effect as a symbol and a number, with the detail in its tooltip.
-    const chip = (cls: string, icon: string, n: number, title: string) =>
-      n ? `<span class="fc ${cls}" title="${title}"><i>${icon}</i><b>${cls === 'fc-cool' ? `−${n}` : `+${n}`}</b></span>` : '';
-    const chips = [
-      chip('fc-heat', symbolIcon('heat'), f.heat, `Their dawn: ${f.heat} heat to ${who(f.targetId)} (before shields)`),
-      chip('fc-shield', symbolIcon('shield'), f.shields, `Their dawn: ${f.shields} shield${f.shields === 1 ? '' : 's'} raised`),
-      chip('fc-cool', symbolIcon('cool'), f.cool, `Their dawn: their own sun cools by ${f.cool}`),
-      chip('fc-self', '☀', f.selfHeat, `Their dawn: ${f.selfHeat} heat to their own sun from their cards' drawbacks and the table`),
-      chip('fc-draw', HAND_ICON, f.draw - f.planetDraw, `Their dawn: ${f.draw - f.planetDraw} extra card${f.draw - f.planetDraw === 1 ? '' : 's'} drawn, from their cards`),
-      chip('fc-play', '<span class="fc-dot"></span>', f.plays - f.planetPlays, `Their day: +${f.plays - f.planetPlays} energy, from their cards`),
-    ].join('');
-    // Nothing coming: show nothing.
-    if (!chips) return '';
-    return `<div class="forecast ${p.id === me.id ? 'forecast-mine' : ''}" aria-label="${p.id === me.id ? 'your' : 'their'} next dawn">${chips}</div>`;
-  }
 
   private renderDock(): string {
     const me = this.viewer();
     const hidden = this.needsHandoff();
-    const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand.map((c) => this.renderCard(c, { hand: true })).join('');
+    const hand = hidden ? '<div class="hand-hidden">hand hidden</div>' : me.hand
+          // (The card picked, or just played, is in the preview pane, not the hand.)
+          .filter((c) => c.uid !== this.pending?.uid && c.uid !== this.stage?.uid)
+          .map((c) => this.renderCard(c, { hand: true }))
+          .join('');
     return `
-      <section class="dock">
+      <section class="dock${this.handRaised ? ' dock-raised' : ''}${this.handStill() ? ' dock-still' : ''}">
         <div class="hand-zone">
           <div class="hand">${hand}</div>
         </div>
@@ -3964,29 +4627,17 @@ export class App {
         const why = heroSkillProblem(s, me, i);
         const spent = k.spent || (!k.once && k.usedTurn === s.turnNumber);
         return `<button class="hero-skill ${spent ? 'spent' : ''}" data-act="hero-skill" data-arg="${i}" ${why || !act || busy ? `disabled title="${esc(why ?? k.text)}"` : `title="${esc(k.text)}"`}>
-          <span class="hero-skill-face">${cardArtLite(cardDef(k.hero))}</span><b>${esc(k.name.toLowerCase())}</b><small>${k.once ? 'once' : 'daily'}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
+          <span class="hero-skill-face">${cardArtLite(cardDef(k.hero))}</span><b>${esc(k.name.toLowerCase())}</b><small>${k.once ? 'once' : 'daily'}${k.cost ? ` ${keywordHtml('cost', String(k.cost))}` : ''}</small></button>`;
       })
       .join('');
-    // The abilities of the Hero leading your tableau: one a day, each a button with its cost.
-    const lead = commandCard(me);
-    const abilities = lead
-      ? (cardDef(lead.defId).abilities ?? [])
-          .map((k, i) => {
-            const why = heroAbilityProblem(s, me, i);
-            const used = me.abilityTurn === s.turnNumber;
-            return `<button class="hero-skill hero-ability ${used ? 'spent' : ''}" data-act="hero-ability" data-arg="${i}" ${why || !act || busy ? `disabled title="${esc(why ?? plainText(k.text))}"` : `title="${esc(plainText(k.text))}"`}>
-          <span class="hero-skill-face">${cardArtLite(cardDef(lead.defId))}</span><b>${esc(k.name.toLowerCase())}</b><small>${esc(plainText(k.text).replace(/\.$/, ''))}${k.cost ? ` · ${k.cost}⚡` : ''}</small></button>`;
-          })
-          .join('')
-      : '';
     return `
-      ${skills || abilities ? `<div class="hero-skills">${abilities}${skills}</div>` : ''}
+      ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn ? '' : 'plays-off'}" title="Energy left today: each card costs the number on its gem">
           <small>${myTurn ? 'energy' : 'waiting'}</small>
           <span class="plays-pips">${pips}</span>
         </div>
-        <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>${s.awaitingDawn && act ? 'dawn' : 'end day'}</button>
+        <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
       </div>`;
   }
 
@@ -4009,22 +4660,21 @@ export class App {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    const aimDef = p?.step === 'aim' && me ? (p.dawn || p.attack ? me.tableau : me.hand).find((h) => h.uid === p.uid)?.defId : undefined;
-    if (aimDef && me && opts.tableau === 'rival' && aimChoices(s!, me).cards.some((x) => x.uid === c.uid)) {
+    if (p?.step === 'aim' && me && opts.tableau === 'rival' && aimChoices(s!, me).cards.some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-aim" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    // At your dawn, your cards with dawn heat are aimed: click one, then its target.
-    if (!p && this.dawnTurn() && me && opts.tableau === 'mine' && opts.owner?.id === me.id && dawnAimable(c, me, s!)) {
-      attrs = `data-act="aim-start" data-arg="${c.uid}" title="Aim its dawn heat: click, then a rival card or their sun"`;
-      state = 'card-aimer';
-    }
     // On your day, your cards with attack that have not acted yet: click one, then what it attacks.
-    if ((!p || p.attack) && !this.dawnTurn() && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && !c.dimmed && cardAttack(s, me, c) > 0 && !isGameOver(s)) {
-      attrs = `data-act="attack-start" data-arg="${c.uid}" title="Attack: click, then a rival card or their sun"`;
+    if ((!p || p.attack) && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && !c.dimmed && cardAttack(s, me, c) > 0 && !isGameOver(s)) {
+      attrs = `data-act="attack-start" data-arg="${c.uid}" title="Attack: click, then a rival card"`;
       state = 'card-attacker';
     }
-    if ((p?.dawn || p?.attack) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
+    // Your Hero, with something it can do today: a tap opens its actions (middle right).
+    if (!p && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && def.kind === 'command' && c.slot === COMMAND_SLOT && this.heroActions(me).length) {
+      attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Choose what ${esc(def.name)} does today (hold or right-click to read it)"`;
+      state = 'card-attacker';
+    }
+    if ((p?.attack || p?.ability !== undefined) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';
     // Placing a recall card: the card it recalls can make way for it.
     if (p && pendingDef && opts.tableau === 'mine' && p.step === 'slot' && p.allyUid === c.uid && allyEffectKind(pendingDef) === 'recall' && c.slot !== undefined) {
@@ -4042,8 +4692,8 @@ export class App {
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
     // On your day, a card that costs more energy than you have left is dimmed.
     if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
-    // While you assign your dawn's heat, your hand waits (greyed out).
-    if (opts.hand && this.dawnTurn()) state = 'card-pricey';
+    // ...and one that can be played now has a faint green rim.
+    if (opts.hand && !state && me && act && me.id === this.viewer().id && this.canPlayNow(me, c.defId)) state = 'card-playable';
     // A stat as it stands; on a card heat is aimed at, as that heat will leave it (in red, all the while it is
     // aimed); and while aiming more heat, as that would leave it, shown on hover.
     const pv = (icon: string, n: number, settled?: number, hover?: number) => {
@@ -4054,27 +4704,45 @@ export class App {
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     // A campaign hero's boons (skills and gear), carried while it is in play: one tag, their text on hover.
     const boonTag = c.boons?.length ? `<i class="boon-tag" title="${esc(`From skills and gear: ${c.boons.map((b) => plainText(cardDef(b).text)).join(' ')}`)}">✦ ${c.boons.length} boon${c.boons.length === 1 ? '' : 's'}</i>` : '';
-    // Fusion cards fused onto it: a tag for each, its text on hover.
-    const fusedTags = c.fused?.length || c.boons?.length
-      ? `<span class="fused-tags">${(c.fused ?? []).map((f) => `<i title="${esc(`${cardDef(f.defId).name} (fused): ${plainText(cardDef(f.defId).text).replace(/^Fusion\. /, '')}`)}">${esc(cardDef(f.defId).name)}</i>`).join('')}${boonTag}</span>`
-      : '';
+    // Fusion cards fused onto it: tucked behind it, each a little higher, only its name showing above it
+    // (its text on hover). A campaign hero's boons stay as a tag on the card.
+    const fusedTags =
+      (c.boons?.length ? `<span class="fused-tags">${boonTag}</span>` : '') +
+      (c.fused ?? [])
+        .map((f, i) => {
+          const fd = cardDef(f.defId);
+          return `<span class="fused-behind" data-act="inspect-fused" data-arg="${c.uid}|${i + 1}" style="--fi:${i};--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`${fd.name} (fused): ${plainText(fd.text).replace(/^Fusion\. /, '')}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
+        })
+        .join('');
+    const fusedText = this.fusedTextHtml(c);
     // (Resonance and forge show in the card's own numbers, not as a badge.)
     const resonance = '';
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by heat. It mends 1 at each of its owner's dawns (more with Sturdy or Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv('◷', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
-    const guard = opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '';
+    const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
     return `
-      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape || (opts.hand && def.kind === 'command') ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardArtLite(def, true)}</div>
+      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
+        <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardTextHtml(def.text, opts.option ?? c.choice, false, this.liveNumbers(c, opts))}</div>
+        <div class="card-text">${cardBodyHtml(def, opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </button>`;
+  }
+
+  /** What a card's Fusion cards add, under its own text (a rule above each, in its colour), so the card says all it does. */
+  private fusedTextHtml(c: CardInstance | undefined): string {
+    return (c?.fused ?? [])
+      .map((f) => {
+        const fd = cardDef(f.defId);
+        const text = fd.text.replace(/^\{fusion\}\.\s*/, '');
+        return text ? `<span class="card-fused-text" style="--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`From ${fd.name}, fused onto it`)}">${cardTextHtml(text)}</span>` : '';
+      })
+      .join('');
   }
 
   /**
@@ -4105,7 +4773,16 @@ export class App {
     const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
     const c = owner?.tableau.find((x) => x.uid === uid);
     const stats = owner && c ? { stability: c.stability ?? 0, defence: cardDefence(owner, c) } : persists(defId) ? { stability: baseStability(defId) } : {};
-    return this.raceNote(defId) + keywordList(cardDef(defId).text, stats);
+    const def = cardDef(defId);
+    const first = [this.raceNote(defId), ...raceTraitTags(def).map((g) => `<div><b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}">${esc(g.name)}</b><span>${esc(g.text)}</span></div>`)].filter(Boolean);
+    return keywordList(def.text, stats, first);
+  }
+
+  /** Keyword columns that run longer than the card: the arrow at their foot shows while there is more below. */
+  private markKwMore(root: ParentNode = document) {
+    root.querySelectorAll<HTMLElement>('.kw-wrap > .kw-list').forEach((list) => {
+      list.parentElement!.classList.toggle('more', list.scrollTop + list.clientHeight < list.scrollHeight - 4);
+    });
   }
 
   /** A race card's racial bonus and nerf (and its sub-race), which ride on every card of that race. */
@@ -4115,7 +4792,9 @@ export class App {
     if (!t) return '';
     const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
     const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race!])}${esc(sub)}</b>`;
-    return `<div class="kw-list kw-race-list"><div>${head}<span>${esc(plainText(t.bonus))} ${esc(plainText(t.nerf))}${sub ? ` ${esc(SUBRACES[def.sub!].theme)}.` : ''}</span></div></div>`;
+    // (Its bonus and nerf follow as keywords, those that apply to this card.)
+    const theme = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].theme : `${plainText(t.bonus)} ${plainText(t.nerf)}`;
+    return `<div class="kw-race-row">${head}<span>${esc(theme)}.</span></div>`;
   }
 
   /**
@@ -4133,35 +4812,85 @@ export class App {
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
-      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}${def.kind === 'command' ? ' card-landscape' : ''}" style="--kc:${KIND_COLOUR[def.kind]}">
-        <div class="card-glyph">${cardArtLite(def, true)}</div>
+      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
+        <div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardTextHtml(def.text, c?.choice, false, owner && c ? this.liveNumbers(c, { owner }) : {})}</div>
+        <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : {})}${this.fusedTextHtml(c)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </div>`;
+  }
+
+  /** What the viewer's Hero can do right now: its usable abilities (by index), and 'attack' if it may attack. */
+  private heroActions(me: PlayerState): (number | 'attack')[] {
+    const s = this.state!;
+    const hero = commandCard(me);
+    if (!hero || hero.dimmed) return [];
+    const out: (number | 'attack')[] = (cardDef(hero.defId).abilities ?? []).map((_, i) => i).filter((i) => !heroAbilityProblem(s, me, i));
+    const { cards, sun } = aimChoices(s, me);
+    if (cardAttack(s, me, hero) > 0 && (sun || cards.length)) out.push('attack');
+    return out;
+  }
+
+  /**
+   * Your Hero, in the stage's place (middle right), full size like any card there: tap one of its ability
+   * lines to use it, or its attack (bottom left) to attack with it.
+   */
+  private renderHeroPanel(): string {
+    const s = this.state!;
+    const me = this.viewer();
+    const hero = commandCard(me);
+    if (!hero || hero.uid !== this.heroPanel) return '';
+    const attack = this.heroActions(me).includes('attack');
+    const card = this.renderCard(hero, { static: true })
+      .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+      .replace(/<\/button>\s*$/, '</div>')
+      .replace(/ data-act="[^"]*"/, '')
+      .replace(/<span class="card-ability" data-ability="(\d+)">/g, (_, i: string) => {
+        const why = heroAbilityProblem(s, me, Number(i));
+        return why ? `<span class="card-ability card-ability-off" title="${esc(why)}">` : `<span class="card-ability card-ability-on" data-act="hero-ability" data-arg="${i}" role="button">`;
+      })
+      .replace(/<b class="stat-atk"/, (m) => (attack ? `<b class="stat-atk stat-atk-on" data-act="attack-start" data-arg="${hero.uid}" role="button"` : m));
+    return `<div class="stage stage-hero">${card}</div>`;
   }
 
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
+    if (!st && this.heroPanel && !isGameOver(s) && this.canAct() && this.heroActions(this.viewer()).length) return this.renderHeroPanel();
+    // A card picked from your hand: it waits here while you choose where it goes and what it does.
+    const picked = !st && this.pending && !this.pending.attack && this.pending.ability === undefined ? activePlayer(s).hand.find((c) => c.uid === this.pending!.uid) : undefined;
+    if (picked) {
+      const html = this.renderCard(picked, { static: true, option: this.pending!.choice })
+        .replace(/^(\s*)<button class="card /, `$1<div data-uid="${picked.uid}" class="card card-still `)
+        .replace(/<\/button>\s*$/, '</div>')
+        .replace(/ data-act="[^"]*"/, '');
+      // A card that can also be set face down at Lightspeed: say so here, plainly (its slot can be out of sight).
+      const me = activePlayer(s);
+      const faceDown =
+        this.pending!.step === 'slot' && canSetFaceDown(me, picked.defId)
+          ? `<button class="btn stage-ls-btn" data-act="choose-slot" data-arg="ls" title="Set it face down in your Lightspeed slot: it springs when its trigger comes">⚡ set face down <small>+1 energy</small></button>`
+          : '';
+      return `<div class="stage stage-picked">${html}${faceDown}</div>`;
+    }
     // Online, while your rival reads your card: say so (you can't act until they have).
 
     if (!st || isGameOver(s)) return '';
     const actor = s.players.find((p) => p.id === st.actorId)!;
     // A card large and still (already the zoomed view: only its keywords respond, explaining themselves).
     const still = (uid: string, defId: string, option?: string) =>
-      this.renderCard({ uid, defId }, { static: true, option, landscape: cardDef(defId).kind === 'command' })
+      this.renderCard({ uid, defId }, { static: true, option })
         .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
         .replace(/<\/button>\s*$/, '</div>')
         .replace(/ data-act="[^"]*"/, '')
         .replace(/ data-card="[^"]*"/, '');
-    const card = st.faceDown ? '<div class="card card-back"><span>⚡</span><small>lightspeed</small></div>' : still('stage', st.defId, st.option);
+    // (Your own card keeps its uid here, so it flies from here to where it lands.)
+    const card = st.faceDown ? `<div class="card card-back">${cardBackFace()}</div>` : still('stage', st.defId, st.option).replace('<div class="card ', st.uid ? `<div data-uid="${st.uid}" class="card ` : '<div class="card ');
     // A sprung Lightspeed card: the card that sprang it stands where a played card does (plain, to be read),
     // and the Lightspeed card beside it on the left, the same size.
     if (st.against) {
       const trigger = s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays';
-      const how = { enemyPlays: 'in answer to this', heated: 'against its heat', targeted: 'against this', cardHeated: 'against its heat' }[trigger] ?? 'in answer to this';
+      const how = { enemyPlays: 'in answer to this', heated: 'against its heat', targeted: 'against this', cardAttacked: 'against its attack' }[trigger] ?? 'in answer to this';
       return `
       <div class="stage stage-sprung stage-pair">
         <div class="stage-ls"><span class="stage-ls-tag">⚡ lightspeed</span>${card}</div>
@@ -4171,8 +4900,9 @@ export class App {
     }
     return `
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
+        ${st.caption && !st.faceDown && st.caption.startsWith('⚡') ? '<span class="stage-ls-tag stage-ls-tag-solo">⚡ lightspeed</span>' : ''}
         ${card}
-        <div class="stage-caption">${esc(st.caption ?? `${actor.name.toLowerCase()} plays`)}</div>
+        ${/* (A plain play needs no words: only a card set face down, or sprung, says what happened.) */ st.caption && st.caption !== 'you play' ? `<div class="stage-caption">${esc(st.caption)}</div>` : ''}
         ${st.confirm && !st.faceDown ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}
       </div>`;
   }
@@ -4228,10 +4958,32 @@ export class App {
       case 'rules':
         return this.sheetFrame('how to play', this.rulesHtml());
       case 'end-day': {
+        const left = this.leftUndone();
         return this.sheetFrame(
           'end your day?',
-          `<p class="center-text">You still have playable cards.</p>
+          `<p class="center-text">You still have ${esc(left.length > 1 ? `${left.slice(0, -1).join(', ')} and ${left[left.length - 1]}` : left[0] ?? 'things to do')}.</p>
            <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
+        );
+      }
+      case 'discard': {
+        const me = activePlayer(this.state!);
+        const over = me.hand.length - BALANCE.maxHand;
+        const picked = new Set(sh.picked);
+        // (Each card shown still: tapping it marks it to go, tapping again keeps it.)
+        const still = (c: CardInstance) =>
+          this.renderCard(c, { static: true })
+            .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+            .replace(/<\/button>\s*$/, '</div>')
+            .replace(/ data-act="[^"]*"/, '');
+        const cards = me.hand
+          .map((c) => `<button class="discard-pick ${picked.has(c.uid) ? 'on' : ''}" data-act="discard-pick" data-arg="${c.uid}" title="${picked.has(c.uid) ? 'Keep it' : 'Discard it'}">${still(c)}</button>`)
+          .join('');
+        const left = over - picked.size;
+        return this.sheetFrame(
+          `discard ${over} card${over === 1 ? '' : 's'}`,
+          `<p class="center-text">You can hold ${BALANCE.maxHand} cards at the end of your day. Pick ${over === 1 ? 'the card' : `the ${over} cards`} to discard.</p>
+           <div class="discard-grid">${cards}</div>
+           <div class="end-day-actions"><button class="btn-primary" data-act="discard-confirm" ${left ? 'disabled' : ''}>${left ? `pick ${left} more` : 'discard and end day'}</button><button class="btn" data-act="cancel">keep playing</button></div>`,
         );
       }
       case 'quit': {
@@ -4278,12 +5030,30 @@ export class App {
         return `
           <div class="overlay overlay-inspect" data-act="cancel">
             <div class="inspector sheet">
-              <div class="inspector-row">${this.bigCard(sh.defId, sh.table)}${this.explainCard(sh.defId, sh.table)}</div>
+              <div class="inspector-row">${this.inspectorCard(sh)}</div>
               <div class="inspector-actions">${button}<button class="btn" data-act="cancel">close</button></div>
             </div>
           </div>`;
       }
     }
+  }
+
+  /**
+   * The magnified card in the inspector, with its explanations. A card in play with Fusion cards on it gets a
+   * column of tabs by its top right edge: the card itself, then each fused card (purple), to read each one.
+   */
+  private inspectorCard(sh: Extract<Sheet, { kind: 'card' }>): string {
+    const host = sh.table ? this.state?.players.flatMap((p) => p.tableau).find((c) => c.uid === sh.table) : undefined;
+    const fused = host?.fused ?? [];
+    // (A Hero's abilities stand right beside it, before the explanations, so they are never off screen.)
+    if (!fused.length) return this.bigCard(sh.defId, sh.table) + this.explainCard(sh.defId, sh.table);
+    const tab = Math.min(Math.max(0, sh.tab ?? 0), fused.length);
+    const shown = tab === 0 ? this.bigCard(sh.defId, sh.table) : this.bigCard(fused[tab - 1].defId);
+    const explain = tab === 0 ? this.explainCard(sh.defId, sh.table) : this.explainCard(fused[tab - 1].defId);
+    const tabs = [host!, ...fused]
+      .map((c, i) => `<button class="insp-tab ${i ? 'insp-tab-fused' : ''} ${i === tab ? 'on' : ''}" data-act="inspect-tab" data-arg="${i}">${esc(cardDef(c.defId).name.toLowerCase())}</button>`)
+      .join('');
+    return `<div class="insp-tabbed"><div class="insp-tabs">${tabs}</div>${shown}</div>${explain}`;
   }
 
   /** A player's summary: their deck, Command cards and the conditions they fight under. */
@@ -4309,7 +5079,7 @@ export class App {
           <div class="sys-tabs">${tabs}</div>
           <div class="sys-card player-card">
             <div class="sys-kicker">${p.id === me.id ? 'you' : esc(p.name.toLowerCase())} · ${esc(RACE_NAMES[p.species].toLowerCase())}</div>
-            ${factionAvatar(`f${p.species + 1}`, 'player-emblem')}
+            ${playerAvatar(p.avatar ?? pictureFor(p.name), 'player-emblem')}
             <h2 class="sys-name">${esc((p.deckName ?? 'custom deck').toLowerCase())}</h2>
             ${commands ? `<p class="muted center-text">Heroes in play: ${commands}</p>` : ''}
             ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A Lightspeed card is set face down.'}</p>` : ''}

@@ -64,7 +64,9 @@ export const DUSK_CARDS: CardDef[] = [
   },
   {
     id: 'pyr_banked_embers', name: 'Banked Embers', kind: 'defence', race: 7, sub: 'cinderborn', cost: 1,
-    text: '{dusk}: {cool:2}.',
+    // Banked for the night, stoked again at dawn: the sun runs hot through the Pyrr's own day.
+    text: '{dusk}: {cool:2}. {dawn}: {heat:1} to your sun.',
+    onTurn: [{ type: 'selfHeat', amount: 1 }],
     onDusk: [{ type: 'cool', amount: 2 }],
   },
 ];

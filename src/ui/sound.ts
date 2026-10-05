@@ -7,7 +7,8 @@ import { markDirty } from './account';
  * score (drone, slowly shifting pad chords and distant chimes; just synths,
  * no noise) plays underneath the menus; matches get its tenser sibling (the
  * same pads and hall, with a slow, steady arpeggio and a deep bass), and the
- * campaign map an open, wondering one (soft synth plucks echoing across the field). Each effect is one method, so recorded audio can replace
+ * campaign map a slow voyage through a dying universe (a lament over the same
+ * drone, with a sparse, high, bell-like melody). Each effect is one method, so recorded audio can replace
  * any of them later without touching the rest of the game.
  */
 
@@ -52,10 +53,13 @@ export type MusicScene = 'ambient' | 'battle' | 'campaign';
 
 const BATTLE_BPM = 80;
 const NOTE_INDEX: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
-const hz = (name: string) => {
+/** A note name as a MIDI number, and a MIDI number as a frequency. */
+const midiOf = (name: string) => {
   const m = /^([A-G]#?)(-?\d)$/.exec(name)!;
-  return 440 * Math.pow(2, ((Number(m[2]) + 1) * 12 + NOTE_INDEX[m[1]] - 69) / 12);
+  return (Number(m[2]) + 1) * 12 + NOTE_INDEX[m[1]];
 };
+const hzOf = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
+const hz = (name: string) => hzOf(midiOf(name));
 
 /** Per chord (four bars each): the held bass, the pad, and the arpeggio's eight eighths per bar (two halves for the turn). */
 const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
@@ -73,19 +77,46 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 ];
 
 // ---- Campaign map -----------------------------------------------------------
-// Exploration: the same pads and hall (kept low), opened up into D major with a
-// lydian lift. A slow ostinato of soft analogue-style synth plucks steps
-// through each chord in quarters and echoes from side to side across the map;
-// a deep held bass; and from the second time round, a few long notes on a warm
-// detuned-saw lead. Four chords, about fifteen seconds each.
+// A voyage through a dying universe, in the same key and hall as the menu and
+// battle scores. The menu's breathing drone holds A while a lament falls over
+// it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High above, a
+// sparse melody of bell-like plucks (soft triangles, bright, with a dotted-
+// quarter echo filling the gaps) sings short phrases with room between them,
+// rolling a quick chord into its height once a time round, and every third
+// time round breaking into a long, climbing run of eighths over swelling synths,
+// one set of phrases answered by another the next time round; beneath, a soft
+// low-high rock on each chord's root and fifth; the pads stay low.
 
-const CAMPAIGN_BPM = 66;
-/** Per chord (four bars each): the bass, the pad, two bars of plucks in quarters (repeated), and the melody's long notes ([bar, note, bars]). */
-const CAMPAIGN_CHORDS: { bass: string; pad: string[]; plucks: (string | null)[]; melody: [number, string, number][] }[] = [
-  { bass: 'D2', pad: ['D4', 'F#4', 'A4', 'E5'], plucks: ['A4', null, 'F#5', 'E5', null, 'A4', 'D5', null], melody: [[0, 'F#5', 2], [2, 'E5', 2]] }, // Dmaj9
-  { bass: 'B1', pad: ['B3', 'D4', 'F#4', 'E5'], plucks: ['F#4', null, 'D5', 'C#5', null, 'F#4', 'B4', null], melody: [[0, 'D5', 2], [2, 'C#5', 2]] }, // Bm11
-  { bass: 'G1', pad: ['G3', 'B3', 'F#4', 'C#5'], plucks: ['B4', null, 'F#5', 'E5', null, 'B4', 'C#5', null], melody: [[0, 'B4', 2], [2, 'C#5', 2]] }, // Gmaj7#11
-  { bass: 'A1', pad: ['A3', 'D4', 'E4', 'B4'], plucks: ['E4', null, 'B4', 'A4', null, 'E4', 'D5', null], melody: [[0, 'E5', 3]] }, // A6/9sus
+/** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
+const CAMPAIGN_EIGHTH = 0.42;
+/** The haze's level (the distorted synth that holds long chords in the second half of the form). */
+const CAMPAIGN_HAZE = 0.012;
+/** The gap between the notes of a rolled chord at the melody's height, in seconds. */
+const CAMPAIGN_ROLL = 0.045;
+/** Per chord (four bars of six eighths): the falling bass, the pad, and the two notes it rocks between. */
+const CAMPAIGN_CHORDS: { bass: string; pad: string[]; rock: [string, string] }[] = [
+  { bass: 'A2', pad: ['A3', 'C4', 'E4', 'B4'], rock: ['A3', 'E4'] }, // Am(add9)
+  { bass: 'G2', pad: ['G3', 'B3', 'D4', 'E4'], rock: ['G3', 'D4'] }, // G6
+  { bass: 'F2', pad: ['F3', 'A3', 'C4', 'E4'], rock: ['F3', 'C4'] }, // Fmaj7
+  { bass: 'E2', pad: ['E3', 'G3', 'B3', 'D4'], rock: ['E3', 'B3'] }, // Em7
+];
+/**
+ * The melody's phrases, per chord, as [eighth (0-23 across the chord's four bars), note]: a call, and the answer
+ * played the next time round.
+ */
+const CAMPAIGN_PHRASES: [number, string][][][] = [
+  [
+    [[0, 'E6'], [3, 'D6'], [6, 'C6'], [21, 'B5']],
+    [[6, 'D6'], [9, 'B5'], [18, 'A5']],
+    [[0, 'C6'], [3, 'E6'], [6, 'A6'], [15, 'G6']],
+    [[0, 'G6'], [9, 'F#6'], [12, 'E6'], [18, 'B5']],
+  ],
+  [
+    [[0, 'C6'], [6, 'E6'], [9, 'D6'], [12, 'C6']],
+    [[6, 'B5'], [12, 'D6'], [18, 'G6']],
+    [[0, 'A6'], [3, 'G6'], [6, 'E6'], [12, 'C6']],
+    [[0, 'B5'], [6, 'G6'], [12, 'F#6'], [18, 'E6']],
+  ],
 ];
 
 class SoundBoard {
@@ -378,6 +409,13 @@ class SoundBoard {
     for (let i = 0; i < 3; i++)
       this.breath({ dur: 0.035 + Math.random() * 0.03, freq: 4200 + Math.random() * 2600, q: 1.6, gain: 0.014 + Math.random() * 0.01, attack: 0.004, delay: 0.015 + i * 0.03 + Math.random() * 0.02, type: 'bandpass' });
   }
+  /** The hand lifted to be read: a fan of cards sliding against each other (a longer brush, a spill of crackles). */
+  handLift() {
+    this.lastRustle = performance.now();
+    this.breath({ dur: 0.34, freq: 1800, to: 3800, q: 0.6, gain: 0.03, attack: 0.06, type: 'bandpass' });
+    for (let i = 0; i < 7; i++)
+      this.breath({ dur: 0.03 + Math.random() * 0.04, freq: 3600 + Math.random() * 3200, q: 1.5, gain: 0.012 + Math.random() * 0.012, attack: 0.004, delay: 0.02 + i * 0.035 + Math.random() * 0.02, type: 'bandpass' });
+  }
   /** One point repaired: a single short, soft tick. */
   repair() {
     this.voice(1046.5, { dur: 0.09, attack: 0.003, gain: 0.022, cutoff: 4200 });
@@ -496,6 +534,12 @@ class SoundBoard {
     this.voice(41.2, { dur: 4.5, attack: 0.4, gain: 0.28, to: 27.5, cutoff: 200 });
     this.voice(82.4, { dur: 3.5, attack: 1.2, gain: 0.08, type: 'triangle', cutoff: 600 });
   }
+  /** A card that can't be played: two short, low, muffled knocks (a door that won't open). */
+  blocked() {
+    this.voice(155.56, { dur: 0.16, attack: 0.004, gain: 0.09, to: 120, type: 'triangle', cutoff: 700 });
+    this.voice(130.81, { dur: 0.2, attack: 0.004, gain: 0.08, to: 98, type: 'triangle', cutoff: 600, delay: 0.11 });
+    this.breath({ dur: 0.08, freq: 420, q: 1.4, gain: 0.03, attack: 0.003, type: 'bandpass' });
+  }
   error() {
     this.voice(146.83, { dur: 0.6, attack: 0.04, gain: 0.05, to: 130, cutoff: 500 });
   }
@@ -541,7 +585,7 @@ class SoundBoard {
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
     if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
-    if (scene === 'campaign') return [[this.campaignBus!, 1.5, 4]];
+    if (scene === 'campaign') return [[this.campaignBus!, 0.6, 4]];
     return [[this.musicBus!, 0.5, 6]];
   }
 
@@ -731,96 +775,266 @@ class SoundBoard {
   }
 
   /**
-   * The campaign map's score. Pads and bass alone for the first chord; then the plucks join, the melody from the
-   * second time round, and the plucks rest for a chord every third time round. Scheduled a chord at a time, just
-   * ahead of the audio clock.
+   * Part of the campaign score's crescendo, which runs six bars from the start of the Fmaj7 to halfway through the
+   * Em7 (`from` is the bar of those six this part starts on, `bars` how many it covers). The melody runs in steady
+   * eighths, three to each note of the rock, slowly climbing the chord and growing louder, over a chord of detuned
+   * saws whose filter opens as it swells; in the last two bars a rush of air rises into the peak.
    */
-  private campaignScore(ctx: AudioContext, bus: GainNode) {
-    const beat = 60 / CAMPAIGN_BPM;
-    const barLen = beat * 4;
-    const chordLen = barLen * 4;
-
-    // The plucks' echo bounces from one side of the field to the other, a dotted quarter apart, darkening.
-    const plucks = ctx.createGain();
-    const left = ctx.createDelay(2), right = ctx.createDelay(2);
-    left.delayTime.value = right.delayTime.value = beat * 1.5;
-    const panL = ctx.createStereoPanner(), panR = ctx.createStereoPanner();
-    panL.pan.value = -0.7;
-    panR.pan.value = 0.7;
-    const tone = ctx.createBiquadFilter();
-    tone.type = 'lowpass';
-    tone.frequency.value = 2200;
-    const feedback = ctx.createGain();
-    feedback.gain.value = 0.42;
-    const wet = ctx.createGain();
-    wet.gain.value = 0.5;
-    plucks.connect(bus);
-    plucks.connect(tone).connect(left);
-    left.connect(panL).connect(wet);
-    left.connect(right).connect(panR).connect(wet);
-    right.connect(feedback).connect(tone);
-    wet.connect(bus);
-    this.musicNodes = [plucks, left, right, panL, panR, tone, feedback, wet];
-
-    /**
-     * A soft analogue-style pluck: two detuned saws and a triangle an octave down through a resonant lowpass whose
-     * cutoff falls quickly after the attack, so each note blooms bright and settles warm.
-     */
-    const pluck = (at: number, f: number, gain: number, out: AudioNode) => {
-      const end = at + 2.4;
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.Q.value = 3;
-      filter.frequency.setValueAtTime(Math.min(f * 5, 3600), at);
-      filter.frequency.exponentialRampToValueAtTime(f * 1.3, at + 0.45);
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0, at);
-      g.gain.linearRampToValueAtTime(gain, at + 0.01);
-      g.gain.exponentialRampToValueAtTime(gain * 0.3, at + 0.6);
-      g.gain.exponentialRampToValueAtTime(0.0001, end);
-      filter.connect(g).connect(out);
-      ([['sawtooth', 1, -7, 0.5], ['sawtooth', 1, 7, 0.5], ['triangle', 0.5, 0, 0.6]] as const).forEach(([type, mult, detune, level]) => {
+  private crescendo(
+    at: number,
+    barLen: number,
+    tones: Set<number>,
+    chord: string[],
+    from: number,
+    bars: number,
+    bus: GainNode,
+    bell: (t: number, f: number, gain: number, dur?: number) => void,
+  ) {
+    const ctx = this.ctx!;
+    const total = 6;
+    const end = at + bars * barLen;
+    const ladder: number[] = [];
+    for (let n = midiOf('E5'); n <= midiOf('E7'); n++) if (tones.has(n % 12)) ladder.push(n);
+    // Start where the climb has got to: the ladder's position by bar, in either chord.
+    const startAt = midiOf('E5') + from * 2.5;
+    const base = Math.max(0, ladder.findIndex((n) => n >= startAt));
+    for (let b = 0; b < bars; b++) {
+      const bar = from + b;
+      const gap = CAMPAIGN_EIGHTH;
+      const lo = Math.min(ladder.length - 5, base + Math.floor(b * 0.75));
+      const window = [...ladder.slice(lo, lo + 5), ...ladder.slice(lo + 1, lo + 4).reverse()];
+      let k = 0;
+      for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += gap, k++) {
+        const progress = (bar + (t - at - b * barLen) / barLen) / total;
+        bell(t, hzOf(window[k % window.length]), 0.016 + 0.022 * progress, CAMPAIGN_EIGHTH * 2.4);
+      }
+    }
+    // The supporting chord: detuned saws through a lowpass that opens, swelling across the whole crescendo.
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 1.5;
+    const level = (bar: number) => 0.15 + 0.85 * (bar / total);
+    const cutoff = (bar: number) => 400 * Math.pow(7, bar / total);
+    filter.frequency.setValueAtTime(cutoff(from), at);
+    filter.frequency.exponentialRampToValueAtTime(cutoff(from + bars), end);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(level(from), at + (from === 0 ? barLen : 0.4));
+    g.gain.linearRampToValueAtTime(level(from + bars), end);
+    g.gain.linearRampToValueAtTime(0, end + (from + bars === total ? 1.6 : 0.4));
+    filter.connect(g).connect(bus);
+    for (const n of chord)
+      for (const detune of [-9, 9]) {
         const o = ctx.createOscillator();
-        o.type = type;
-        o.frequency.value = f * mult;
+        o.type = 'sawtooth';
+        o.frequency.value = hz(n);
         o.detune.value = detune;
         const lv = ctx.createGain();
-        lv.gain.value = level;
+        lv.gain.value = 0.008;
         o.connect(lv).connect(filter);
         o.start(at);
-        o.stop(end + 0.05);
-      });
-    };
+        o.stop(end + 2);
+      }
+    // The swell at the end: a rush of air rising over the last two bars into the peak.
+    if (from + bars === total) this.breath({ dur: barLen * 2 + 0.3, freq: 300, to: 5000, type: 'bandpass', q: 1.2, gain: 0.05, attack: barLen * 2, delay: this.until(end - barLen * 2), out: bus });
+  }
 
+  /** After the crescendo's peak, the arpeggio carries on for two more bars in eighths, drifting down and easing off. */
+  private afterglow(at: number, barLen: number, tones: Set<number>, bell: (t: number, f: number, gain: number, dur?: number) => void) {
+    const ladder: number[] = [];
+    for (let n = midiOf('E5'); n <= midiOf('E7'); n++) if (tones.has(n % 12)) ladder.push(n);
+    const len = barLen * 2;
+    for (let b = 0; b < 2; b++) {
+      const lo = Math.max(0, ladder.length - 5 - b);
+      const window = [...ladder.slice(lo, lo + 5), ...ladder.slice(lo + 1, lo + 4).reverse()];
+      let k = 0;
+      for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += CAMPAIGN_EIGHTH, k++)
+        bell(t, hzOf(window[k % window.length]), 0.038 - 0.02 * ((t - at) / len), CAMPAIGN_EIGHTH * 2.4);
+    }
+  }
+
+  /**
+   * One chord of the campaign score's haze: per note, a pair of saws detuned very slightly, driven hard into its
+   * own distortion (so the grit is clear without the chord turning to mush), then a brighter lowpass, swelling in,
+   * holding for the whole chord, and fading over the next (more slowly when it first enters).
+   */
+  private haze(at: number, len: number, chord: string[], curve: Float32Array<ArrayBuffer>, entering: boolean, bus: GainNode) {
+    const ctx = this.ctx!;
+    const end = at + len;
+    const highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 140;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 0.8;
+    filter.frequency.value = 3400;
+    const g = ctx.createGain();
+    const attack = entering ? 4 : 1.5;
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(CAMPAIGN_HAZE, at + attack);
+    g.gain.setValueAtTime(CAMPAIGN_HAZE, end);
+    g.gain.linearRampToValueAtTime(0, end + 2.5);
+    highpass.connect(filter).connect(g).connect(bus);
+    for (const n of chord) {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = curve;
+      shaper.oversample = '4x';
+      shaper.connect(highpass);
+      for (const detune of [-4, 4]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = hz(n);
+        o.detune.value = detune;
+        const lv = ctx.createGain();
+        lv.gain.value = 0.3;
+        o.connect(lv).connect(shaper);
+        o.start(at);
+        o.stop(end + 2.6);
+      }
+    }
+  }
+
+  /**
+   * The campaign map's score, in a form four times round the chords long (see playChord below). Scheduled a chord
+   * at a time, just ahead of the audio clock.
+   */
+  private campaignScore(ctx: AudioContext, bus: GainNode) {
+    const eighth = CAMPAIGN_EIGHTH;
+    const barLen = eighth * 6;
+    const chordLen = barLen * 4;
+    const t0 = ctx.currentTime + 0.1;
+
+    // The drone, as in the menus: detuned triangles on A through a slowly breathing lowpass, held under every chord.
+    const droneFilter = ctx.createBiquadFilter();
+    droneFilter.type = 'lowpass';
+    droneFilter.frequency.value = 240;
+    const lfo = ctx.createOscillator();
+    const lfoDepth = ctx.createGain();
+    lfo.frequency.value = 0.03;
+    lfoDepth.gain.value = 110;
+    lfo.connect(lfoDepth).connect(droneFilter.frequency);
+    const droneGain = ctx.createGain();
+    droneGain.gain.setValueAtTime(0, t0);
+    droneGain.gain.linearRampToValueAtTime(0.06, t0 + 6);
+    droneFilter.connect(droneGain).connect(bus);
+    const drones = [55, 82.41, 110].map((f, i) => {
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      o.detune.value = [-6, 5, 2][i];
+      o.connect(droneFilter);
+      o.start(t0);
+      return o;
+    });
+    lfo.start(t0);
+
+    // The melody's filter stays bright (it breathes a little over a minute); its echo lands a dotted quarter
+    // later, darker.
+    const orbit = ctx.createBiquadFilter();
+    orbit.type = 'lowpass';
+    orbit.Q.value = 1.5;
+    orbit.frequency.value = 1900;
+    const sweep = ctx.createOscillator();
+    sweep.frequency.value = 1 / 60;
+    const sweepDepth = ctx.createGain();
+    sweepDepth.gain.value = 450;
+    sweep.connect(sweepDepth).connect(orbit.frequency);
+    const echo = ctx.createDelay(2);
+    echo.delayTime.value = eighth * 3;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.35;
+    const echoTone = ctx.createBiquadFilter();
+    echoTone.type = 'lowpass';
+    echoTone.frequency.value = 1500;
+    const echoWet = ctx.createGain();
+    echoWet.gain.value = 0.35;
+    // A gentle lowpass ahead of it all, taking a little more of the melody's top end off.
+    const melody = ctx.createBiquadFilter();
+    melody.type = 'lowpass';
+    melody.Q.value = 0.5;
+    melody.frequency.value = 4000;
+    melody.connect(orbit);
+    orbit.connect(bus);
+    orbit.connect(echo).connect(echoTone).connect(feedback).connect(echo);
+    echoTone.connect(echoWet).connect(bus);
+    sweep.start(t0);
+    this.musicNodes = [droneFilter, lfo, lfoDepth, droneGain, ...drones, melody, orbit, sweep, sweepDepth, echo, feedback, echoTone, echoWet];
+
+    // The haze's distortion: a hard-driven tanh curve, clearly audible.
+    const curve = new Float32Array(new ArrayBuffer(1024 * 4));
+    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(6 * ((i / (curve.length - 1)) * 2 - 1)) / Math.tanh(6);
+
+    /**
+     * The form, four times round the chords and then over again: a minimal opening (the melody joining on the
+     * fourth chord); the melody, then a crescendo; the haze (a slightly distorted synth holding long chords) under
+     * the melody for a whole time round; and the haze still there under a second crescendo, after which it all
+     * falls back to the minimal opening.
+     */
     const playChord = (at: number, index: number, round: number) => {
       const c = CAMPAIGN_CHORDS[index];
       const delay = this.until(at);
-      // Pads, as the menu score voices them.
+      const part = round % 4;
+      const rising = part === 1 || part === 3; // a crescendo through the Fmaj7 and the Em7 this time round
+      const hazy = part >= 2;
+      // Pads, as the menu score voices them, but kept low.
       c.pad.forEach((n, i) => {
-        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 1000, delay, out: bus };
+        const opts = { dur: chordLen + 4, attack: 3.5 + i * 0.5, gain: 0.011, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: bus };
         this.voice(hz(n), opts);
         this.voice(hz(n), { ...opts, detune: 9, gain: 0.007 });
       });
-      // The bass, deep and soft.
-      this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.045, type: 'triangle', attack: 1.5, release: 2, cutoff: 240, out: bus });
-      // Plucks: two bars, twice, the downbeat a touch stronger.
-      if (!(round === 0 && index === 0) && !(round % 3 === 2 && index === 0)) {
-        for (let rep = 0; rep < 2; rep++)
-          c.plucks.forEach((n, q) => n && pluck(at + rep * barLen * 2 + q * beat, hz(n), q % 4 === 0 ? 0.026 : 0.02, plucks));
+      // The falling bass: a held triangle and a soft sine an octave up.
+      this.note(at, hz(c.bass), chordLen - 0.4, { gain: 0.04, type: 'triangle', attack: 1.4, release: 1.6, cutoff: 320, out: bus });
+      this.note(at, hz(c.bass) * 2, chordLen - 0.4, { gain: 0.012, type: 'sine', attack: 2, release: 1.6, out: bus });
+      // The rock: root then fifth, a dotted quarter apart, round and soft (a sine with a little triangle). It rests
+      // for one chord while the haze holds.
+      if (!(part === 2 && index === 2))
+        for (let b = 0; b < 4; b++)
+          c.rock.forEach((n, k) => {
+            const d = this.until(at + b * barLen + k * eighth * 3);
+            this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
+            this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
+          });
+      // The haze: long, drawn-out chords on detuned saws, gently distorted and softly filtered, overlapping.
+      if (hazy) this.haze(at, chordLen, c.pad, curve, part === 2 && index === 0, bus);
+      // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo. In the opening
+      // it waits for the fourth chord.
+      if (part === 0 && index < 3) return;
+      const bell = (t: number, f: number, gain: number, dur = eighth * 5) => {
+        const d = this.until(t);
+        this.voice(f, { dur, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: melody });
+        this.voice(f, { dur: dur / 2, attack: 0.01, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: melody });
+      };
+      const tones = new Set(c.pad.map((n) => midiOf(n) % 12));
+      if (rising && index === 2) {
+        // Open the melody's filter for the climb (it peaks halfway through the Em7), hold it to the end of the
+        // Em7, then settle it back.
+        orbit.frequency.setValueAtTime(1900, at);
+        orbit.frequency.linearRampToValueAtTime(4000, at + chordLen + barLen * 2);
+        orbit.frequency.setValueAtTime(4000, at + chordLen * 2);
+        orbit.frequency.linearRampToValueAtTime(1900, at + chordLen * 2 + 3);
+        return this.crescendo(at, barLen, tones, ['F3', 'C4', 'A4', 'E5'], 0, 4, bus, bell);
       }
-      // Melody: from the second time round, a few long notes on a warm lead (detuned saws, softly filtered, with a
-      // slow vibrato), into the plucks' echo.
-      if (round >= 1)
-        for (const [b, n, bars] of c.melody) {
-          const t = at + b * barLen + beat * 0.5;
-          const len = bars * barLen - beat;
-          this.note(t, hz(n), len, { gain: 0.011, type: 'sawtooth', attack: 0.7, release: 1.4, cutoff: 1300, detune: -8, vibrato: true, out: plucks });
-          this.note(t, hz(n), len, { gain: 0.011, type: 'sawtooth', attack: 0.8, release: 1.4, cutoff: 1300, detune: 8, vibrato: true, out: plucks });
-          this.note(t, hz(n) / 2, len, { gain: 0.008, attack: 0.8, release: 1.4, cutoff: 900, out: plucks });
+      if (rising && index === 3) {
+        // The peak, then the arpeggio carries on through the rest of the Em7, easing down.
+        this.crescendo(at, barLen, tones, ['E3', 'B3', 'G4', 'D5'], 4, 2, bus, bell);
+        return this.afterglow(at + barLen * 2, barLen, tones, bell);
+      }
+      const phrase = CAMPAIGN_PHRASES[part % 2][index];
+      const pitches = phrase.map(([, n]) => midiOf(n));
+      const top = pitches.indexOf(Math.max(...pitches));
+      phrase.forEach(([e, n], i) => {
+        const t = at + e * eighth;
+        // At the melody's height on the Fmaj7, the note arrives as a near-instant rolled chord.
+        if (index === 2 && i === top) {
+          const roll: number[] = [];
+          for (let k = pitches[i] - 1; roll.length < 3; k--) if (tones.has(k % 12)) roll.push(k);
+          roll.reverse().forEach((r, j) => bell(t - (3 - j) * CAMPAIGN_ROLL, hzOf(r), 0.018));
         }
+        bell(t, hz(n), 0.03 * (e % 6 === 0 ? 1 : 0.8));
+      });
     };
 
-    let next = ctx.currentTime + 0.1;
+    let next = t0;
     let chord = 0;
     let round = 0;
     const tick = () => {

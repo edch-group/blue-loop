@@ -24,54 +24,71 @@ export interface Keyword {
  * Each keyword's explanation says what the mechanic does, never its numbers: the card shows those, and
  * one card's "Heat 1" and "Heat +1" are explained once, as Heat.
  */
+/**
+ * Bulwark and Resonance reach further than the cards beside them, less each slot away ("2/1": 2 beside it, 1
+ * two slots away). The card shows only the most; the explanation, with the card's numbers, says the rest.
+ */
+function reach(value: string | undefined, what: string): string {
+  const n = (value ?? '').split('/').filter(Boolean);
+  if (n.length < 2) return `${what}.`;
+  const away = ['the cards beside it', 'those two slots away', 'those three slots away'];
+  return `${what}: ${n.map((x, i) => `+${x} for ${away[i] ?? `those ${i + 1} slots away`}`).join(', ')}.`;
+}
+
 export const KEYWORDS: Record<string, Keyword> = {
-  dawn: { name: 'dawn', group: 'timing', explain: () => 'Happens at the start of each of your days.' },
-  dusk: { name: 'dusk', group: 'timing', explain: () => "Happens at the end of each of your days, once you have acted (so it can count the cards that held back, not dimmed)." },
-  heat: { name: 'heat', group: 'heat', symbol: true, explain: () => "Raises a sun's heat: at its max health it goes supernova. Aimed at a card, it wears down its defence (which stays worn, mending 1 a day), then its stability." },
-  pierce: { name: 'pierce', group: 'heat', explain: () => 'Heat that gets past half of shields and ignores defence.' },
-  cool: { name: 'cool', group: 'cool', symbol: true, explain: () => 'Takes heat off your sun.' },
-  shield: { name: 'shields', group: 'shields', symbol: true, explain: () => 'Each blocks 1 enemy heat aimed at your sun. They fade at your dawn.' },
-  guard: { name: 'guard', group: 'defence', explain: () => 'Rival heat must be aimed at your Guards.' },
-  sturdy: { name: 'sturdy', group: 'defence', explain: () => 'Extra defence for this card, and it mends that much more worn defence at each of your dawns.' },
-  repair: { name: 'repair', group: 'defence', explain: () => 'Mends worn defence on your cards, the most worn first.' },
-  bulwark: { name: 'bulwark', group: 'defence', explain: () => 'Extra defence for the cards next to it (and, for some, two away).' },
-  resonance: { name: 'resonance', group: 'resonance', explain: () => 'Boosts the heat, cooling and shields of the cards next to it.' },
-  forge: { name: 'forge', group: 'resonance', explain: () => 'Boosts the heat of attack cards next to it.' },
-  anchor: { name: 'anchor', group: 'stability', explain: () => 'Cards next to it lose no stability.' },
+  dawn: { name: 'dawn', group: 'timing', explain: () => 'Start of your day.' },
+  dusk: { name: 'dusk', group: 'timing', explain: () => 'End of your day.' },
+  heat: { name: 'heat', group: 'heat', symbol: true, explain: () => "Heats your rival's sun (or, as a card is played, a card)." },
+  pierce: { name: 'pierce', group: 'heat', explain: () => 'Ignores defence.' },
+  cool: { name: 'cool', group: 'cool', symbol: true, explain: () => 'Cools your sun.' },
+  shield: { name: 'shields', group: 'shields', symbol: true, explain: () => 'Blocks heat on your sun. Fades at dawn.' },
+  guard: { name: 'guard', group: 'defence', explain: () => 'Must be targeted first.' },
+  sturdy: { name: 'sturdy', group: 'defence', explain: () => 'Extra defence.' },
+  repair: { name: 'repair', group: 'defence', explain: () => 'Mends worn defence.' },
+  bulwark: { name: 'bulwark', group: 'defence', explain: (v) => reach(v, 'Extra defence for neighbours') },
+  resonance: { name: 'resonance', group: 'resonance', explain: (v) => reach(v, "Boosts neighbours' heat, cooling and shields") },
+  forge: { name: 'forge', group: 'resonance', explain: () => 'Boosts neighbouring attack cards.' },
+  brittle: { name: 'brittle', group: 'stability', explain: () => 'Never fades, but nothing restores it, and removal reaches it whatever its defence.' },
+  anchor: { name: 'anchor', group: 'stability', explain: () => 'Neighbours lose no stability.' },
   erode: { name: 'erode', group: 'stability', explain: () => 'A rival card loses stability.' },
   decay: { name: 'decay', group: 'stability', explain: () => 'Every rival card loses stability.' },
-  restore: { name: 'restore', group: 'stability', explain: () => 'Another card of yours gains stability.' },
+  restore: { name: 'restore', group: 'stability', explain: () => 'One of your cards gains stability.' },
   renew: { name: 'renew', group: 'stability', explain: () => 'Your other cards gain stability.' },
-  recover: { name: 'recover', group: 'recovery', explain: () => 'Take a card from your discard pile into your hand (with none there, draw instead).' },
-  recall: { name: 'recall', group: 'recovery', explain: () => 'Return another of your cards to your hand.' },
-  destroy: { name: 'destroy', group: 'removal', explain: () => 'Destroys a rival card, if its defence is no higher than the number.' },
-  eject: { name: 'eject', group: 'removal', explain: () => "Sends a rival card back to its owner's hand, if its defence is no higher than the number." },
-  sting: { name: 'sting', group: 'defence', explain: () => 'When a rival card attacks this card, the attacker takes this much damage to its stability: how a card with no attack fights back.' },
-  attack: { name: 'attack', group: 'heat', explain: () => "Once on each of your days, a card with attack may attack your rival's sun (shields block it) or one of their cards (its defence takes it first); then it is dimmed. A card it attacks that has attack or Sting hits back, at its stability." },
-  dimmed: { name: 'dimmed', group: 'timing', explain: () => 'It has acted this day (attacked, or a Hero used an ability), and acts again from its owner\'s next dawn. Cards come into play dimmed. Dawn effects still happen.' },
-  soothe: { name: 'soothe', group: 'shields', explain: () => 'When your shields block heat, your sun cools. Once per card a day.' },
-  fusion: { name: 'fusion', group: 'tempo', explain: () => 'Play it like any card, into a slot, or fuse it onto one of your cards in play instead (no slot needed): that card gains its dawn effects, Sturdy and stability, and they leave together.' },
-  plant: { name: 'plant', group: 'tempo', explain: () => 'Put Saplings in your empty slots: cards in play with nothing of their own (they count for "cards you control"), ready for Fusion cards. When one leaves, it is gone.' },
-  catalyst: { name: 'catalyst', group: 'tempo', explain: () => 'Whenever this grows, your other growing cards grow too.' },
-  tidewall: { name: 'tidewall', group: 'shields', explain: () => 'While this is in play, your shields guard your cards too (not just your sun).' },
-  hold: { name: 'hold', group: 'shields', explain: () => "Your shields don't fade at your dawn." },
-  thermosiphon: { name: 'thermosiphon', group: 'cool', explain: () => 'Its number is per point your sun is below zero. At 0 or hotter, it does nothing.' },
-  overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half its max health or more.' },
-  grows: { name: 'grows', group: 'tempo', explain: () => 'Its numbers rise at each of your dawns, up to a limit.' },
-  plays: { name: 'industry', group: 'tempo', explain: () => 'Extra energy every day, while it is in play.' },
-  spend: { name: 'spend all', group: 'tempo', explain: () => 'Spends all your energy. Stronger the more you spend.' },
-  energy: { name: 'gain', group: 'tempo', explain: () => 'Extra energy today, one per dot.' },
-  abundance: { name: 'abundance', group: 'tempo', explain: () => 'Extra cards at each of your dawns, while it is in play.' },
-  orbit: { name: 'orbit', group: 'orbit', explain: () => "Moves a sun's planets round." },
-  act: { name: 'act', group: 'timing', explain: () => 'A Hero ability: once on each of your days, while this Hero leads your tableau, you may use one of its abilities (named in colour), for the energy shown.' },
+  recover: { name: 'recover', group: 'recovery', explain: () => 'Discard pile to hand.' },
+  recall: { name: 'recall', group: 'recovery', explain: () => 'One of your cards back to hand.' },
+  destroy: { name: 'destroy', group: 'removal', explain: () => 'Destroys a rival card with this much defence or less.' },
+  eject: { name: 'eject', group: 'removal', explain: () => 'Returns a rival card with this much defence or less to hand.' },
+  sting: { name: 'sting', group: 'defence', explain: () => 'Hits back at attackers.' },
+  attack: { name: 'attack', group: 'heat', explain: () => 'Once a day, hit a rival card or sun.' },
+  dimmed: { name: 'dimmed', group: 'timing', explain: () => 'Has acted today.' },
+  soothe: { name: 'soothe', group: 'shields', explain: () => 'Cools your sun when shields block.' },
+  fusion: { name: 'fusion', group: 'tempo', explain: () => 'Play it, or fuse it onto one of your cards.' },
+  plant: { name: 'plant', group: 'tempo', explain: () => 'Fills empty slots with Saplings.' },
+  catalyst: { name: 'catalyst', group: 'tempo', explain: () => 'Your other growing cards grow with it.' },
+  tidewall: { name: 'tidewall', group: 'shields', explain: () => 'Your shields also guard your cards.' },
+  hold: { name: 'hold', group: 'shields', explain: () => "Your shields don't fade." },
+  thermosiphon: { name: 'thermosiphon', group: 'cool', explain: () => 'Per point your sun is below zero.' },
+  overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half health or hotter.' },
+  grows: { name: 'grows', group: 'tempo', explain: () => 'Rises each dawn, up to a limit.' },
+  plays: { name: 'industry', group: 'tempo', explain: () => 'Extra energy each day.' },
+  spend: { name: 'spend all', group: 'tempo', explain: () => 'Spends all your energy.' },
+  energy: { name: 'gain', group: 'tempo', explain: () => 'Extra energy today.' },
+  // What an ability costs: shown as green energy dots, like a card's cost.
+  darkspeed: { name: 'darkspeed', group: 'tempo', explain: () => 'Can attack or act the day it comes into play.' },
+  cost: { name: 'energy', group: 'tempo', explain: () => 'Costs this much energy.' },
+  // A Hero's abilities follow it: one a day.
+  abilities: { name: 'each turn, one of:', group: 'timing', explain: () => 'Use one of these on your day.' },
+  abundance: { name: 'abundance', group: 'tempo', explain: () => 'Extra cards each dawn.' },
+  orbit: { name: 'orbit', group: 'orbit', explain: () => 'Moves the planets round.' },
+  act: { name: 'act', group: 'timing', explain: () => 'A Hero ability.' },
   attune: {
     name: 'attunement',
     group: 'orbit',
     explain: (v) =>
-      `At each of your dawns it also gains the bonus of where your Orbit stands${v && v !== '1' ? `, ${v} times over` : ''}. Dead planet: ${ATTUNEMENT.slice(0, 3).map((a) => plainText(a.text)).join(' → ')}. Abundant: ${ATTUNEMENT.slice(3, 6).map((a) => plainText(a.text)).join(' → ')}. Industrial: ${ATTUNEMENT.slice(6).map((a) => plainText(a.text)).join(' → ')}.`,
+      `Each dawn, gains your orbit's bonus${v && v !== '1' ? ` (×${v})` : ''}. Dead planet: ${ATTUNEMENT.slice(0, 3).map((a) => plainText(a.text)).join(' → ')}. Abundant: ${ATTUNEMENT.slice(3, 6).map((a) => plainText(a.text)).join(' → ')}. Industrial: ${ATTUNEMENT.slice(6).map((a) => plainText(a.text)).join(' → ')}.`,
   },
-  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Set face down. Springs on your rival's day when its trigger happens." },
-  global: { name: 'global', group: 'global', explain: () => 'Affects both players. Only one at a time.' },
+  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => 'Set face down; springs on its trigger.' },
+  global: { name: 'global', group: 'global', explain: () => 'Affects both players.' },
 };
 
 /**
@@ -93,7 +110,7 @@ const titleCase = (s: string) => s.replace(/(^|\s)(\p{Ll})/gu, (_, sp: string, c
 
 /** A keyword as it reads on a card, in title case: its name and value ("Sturdy 1", "Destroy 2", "Recover Attack"). */
 export function keywordLabel(id: string, value?: string): string {
-  return titleCase(rawLabel(id, value));
+  return id === 'abilities' ? 'Each turn, one of:' : titleCase(rawLabel(id, value));
 }
 
 function rawLabel(id: string, value?: string): string {
@@ -103,9 +120,14 @@ function rawLabel(id: string, value?: string): string {
   if (id === 'destroy' || id === 'eject') return `${k.name} ${value}`;
   if (id === 'plays' || id === 'abundance') return `${k.name} +${value}`;
   if (id === 'attune') return value === '1' ? k.name : `${k.name} ×${value}`;
-  if (id === 'act') return value;
+  if (id === 'act') return '';
+  if (id === 'abilities') return 'each turn, one of:';
   if (id === 'energy') return `gain ${value} energy`;
-  if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') return `${k.name} ${value.replace('/', ' · ')}`;
+  if (id === 'cost') return `(${value} energy)`;
+  if (id === 'resonance' || id === 'bulwark' || id === 'forge' || id === 'sting' || id === 'soothe' || id === 'restore' || id === 'renew' || id === 'erode' || id === 'decay') {
+    // A split value ("2/1", resonance and bulwark): only the most (beside it); its explanation has the rest.
+    return `${k.name} ${value.split('/')[0]}`;
+  }
   return `${k.name} ${value}`;
 }
 

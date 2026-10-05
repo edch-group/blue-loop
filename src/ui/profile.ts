@@ -1,17 +1,17 @@
-import { PROGRESSION, RACE_NAMES, starterGrant, type Collection } from '../engine';
+import { PROGRESSION, starterGrant, type Collection } from '../engine';
 import { account, markDirty } from './account';
 
 /**
- * The player's profile on this device: the name and emblem they go by (theirs, synced to their account),
- * and a copy of their account's economy (level, experience, currencies, collection, rank), which only the
- * server changes (see src/ui/account.ts). Rules: src/engine/progression.ts.
+ * The player's profile on this device: the name they go by (theirs, synced to their account), and a copy
+ * of their account's economy (level, experience, currencies, collection, rank), which only the server
+ * changes (see src/ui/account.ts). Their picture is the account's own (`account().avatar`).
+ * Rules: src/engine/progression.ts.
  */
 export interface Profile {
   /** Identifies this player to the ranked server. */
   id: string;
-  /** The name and emblem (a race, 0–3) they signed in with (empty: not signed in yet). */
+  /** The name they signed in with (empty: not signed in yet). */
   name: string;
-  avatar: number;
   /** Signed in on this device right now (signing out returns to the title screen). */
   signedIn?: boolean;
   level: number;
@@ -32,7 +32,7 @@ let cached: Profile | null = null;
 function fresh(): Profile {
   const id = Array.from({ length: 24 }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('');
   // Every player starts with the starter decks' cards, and enough stardust for a first booster.
-  return { id, name: '', avatar: 0, level: 1, xp: 0, stardust: PROGRESSION.boosterPrice, flux: 0, collection: starterGrant(), rankPoints: null, played: 0, won: 0 };
+  return { id, name: '', level: 1, xp: 0, stardust: PROGRESSION.boosterPrice, flux: 0, collection: starterGrant(), rankPoints: null, played: 0, won: 0 };
 }
 
 export function profile(): Profile {
@@ -46,7 +46,6 @@ export function profile(): Profile {
   }
   if (!p || typeof p.id !== 'string' || typeof p.collection !== 'object') p = fresh();
   p.name ??= '';
-  p.avatar ??= 0;
   // Every card is unlocked: a saved collection is topped up to the full set.
   for (const [id, n] of Object.entries(starterGrant())) p.collection[id] = Math.max(p.collection[id] ?? 0, n);
   cached = p;
@@ -92,11 +91,10 @@ export function reloadProfile() {
   cached = null;
 }
 
-/** Set the name and emblem the player goes by. */
-export function signIn(name: string, avatar: number) {
+/** Set the name the player goes by. */
+export function signIn(name: string) {
   const p = profile();
   p.name = name.replace(/[^\p{L}\p{N} '’.-]/gu, '').trim().slice(0, 18) || 'Commander';
-  p.avatar = ((avatar % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
   p.signedIn = true;
   store();
 }

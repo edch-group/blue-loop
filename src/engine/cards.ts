@@ -4,10 +4,13 @@ import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { RACE_CARDS } from './cards-races';
 import { DUSK_CARDS } from './cards-dusk';
+import { BIG_CARDS } from './cards-big';
+import { RELIC_CARDS } from './cards-relics';
 import { HERO_CARDS } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
 import { BOONS } from './boons';
+import { raceTrait } from './races';
 import { CARD_COSTS } from './costs';
 import { commandChoices } from './commands';
 
@@ -33,7 +36,7 @@ export const CARDS: CardDef[] = [
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 1, to: 'target', if: { minKind: 'attack', n: 3 } }],
   },
   { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: "{destroy:2}.", onPlay: [{ type: 'destroy', maxDefence: 2 }] },
-  { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: '{dawn}: {cool:1}.', onTurn: [{ type: 'cool', amount: 1 }] },
+  { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: '{dusk}: {cool:1}.', onDusk: [{ type: 'cool', amount: 1 }] },
   { id: 'cryo_vault', name: 'Cryo Vault', kind: 'defence', text: '{cool:3}.', onPlay: [{ type: 'cool', amount: 3 }] },
   { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: '{sturdy:1}. {dawn}: {shield:2}.', defence: 1, onTurn: [{ type: 'shield', amount: 2 }] },
   { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: '{cool:1}. Draw 1. {shield:1}.', onPlay: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1 }, { type: 'shield', amount: 1 }] },
@@ -72,8 +75,8 @@ export const CARDS: CardDef[] = [
     id: 'chain_of_command',
     name: 'Chain of Command',
     kind: 'defence',
-    text: '{dawn}: {cool:1}. {cool:+1} with a Hero.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minKind: 'command', n: 1 } }],
+    text: '{dusk}: {cool:1}. {cool:+1} with a Hero.',
+    onDusk: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minKind: 'command', n: 1 } }],
   },
 
   // ---- Resonance: cards that power up their neighbours ----
@@ -285,9 +288,9 @@ export const CARDS: CardDef[] = [
     name: 'Prism Vent',
     kind: 'defence',
     race: 1,
-    text: '{cool:3}. {dawn}: {cool:1}.',
+    text: '{cool:3}. {dusk}: {cool:1}.',
     onPlay: [{ type: 'cool', amount: 3 }],
-    onTurn: [{ type: 'cool', amount: 1 }],
+    onDusk: [{ type: 'cool', amount: 1 }],
   },
   { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 3. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 1 }] },
 
@@ -299,8 +302,8 @@ export const CARDS: CardDef[] = [
     name: 'Tidal Bloom',
     kind: 'defence',
     race: 2,
-    text: '{dawn}: {cool:1}. {cool:+1} with 3+ defence cards.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minKind: 'defence', n: 3 } }],
+    text: '{dusk}: {cool:1}. {cool:+1} with 3+ defence cards.',
+    onDusk: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minKind: 'defence', n: 3 } }],
   },
   {
     id: 'abyssal_choir',
@@ -346,8 +349,8 @@ export const CARDS: CardDef[] = [
     name: 'Canopy',
     kind: 'defence',
     race: 3,
-    text: '{dawn}: {cool:1}. {cool:+1} per 3 cards you control.',
-    onTurn: [{ type: 'cool', amount: 1, plus: { of: 'cards', per: 3 } }],
+    text: '{dusk}: {cool:1}. {cool:+1} per 3 cards you control.',
+    onDusk: [{ type: 'cool', amount: 1, plus: { of: 'cards', per: 3 } }],
   },
   {
     id: 'spore_cloud',
@@ -426,8 +429,8 @@ export const CARDS: CardDef[] = [
     name: 'Prism Conduit',
     kind: 'defence',
     race: 1,
-    text: '{dawn}: {cool:1}. {cool:+1} per attack card next to this.',
-    onTurn: [{ type: 'cool', amount: 1, plus: { of: 'adjacent', kind: 'attack' } }],
+    text: '{dusk}: {cool:1}. {cool:+1} per attack card next to this.',
+    onDusk: [{ type: 'cool', amount: 1, plus: { of: 'adjacent', kind: 'attack' } }],
   },
   {
     id: 'tide_pylon',
@@ -458,8 +461,8 @@ export const CARDS: CardDef[] = [
     name: 'Spore Husk',
     kind: 'growth',
     race: 3,
-    text: '{dawn}: {cool:1}. When you {recover} this, draw 2.',
-    onTurn: [{ type: 'cool', amount: 1 }],
+    text: '{dusk}: {cool:1}. When you {recover} this, draw 2.',
+    onDusk: [{ type: 'cool', amount: 1 }],
     onRecover: [{ type: 'draw', amount: 2 }],
   },
 
@@ -469,8 +472,8 @@ export const CARDS: CardDef[] = [
     name: 'Aureline Sun-Priest',
     kind: 'defence',
     race: 0,
-    text: '{dawn}: {cool:1}. {cool:+1} with 2+ attack cards.',
-    onTurn: [{ type: 'cool', amount: 1, plus: { of: 'kind', kind: 'attack', per: 2 }, max: 2 }],
+    text: '{dusk}: {cool:1}. {cool:+1} with 2+ attack cards.',
+    onDusk: [{ type: 'cool', amount: 1, plus: { of: 'kind', kind: 'attack', per: 2 }, max: 2 }],
   },
   {
     id: 'aurelia_first_light',
@@ -542,8 +545,8 @@ export const CARDS: CardDef[] = [
     id: 'dead_world_mine',
     name: 'Dead World Mine',
     kind: 'growth',
-    text: '{dawn}: {cool:1}. While facing the dead planet, also draw 1.',
-    onTurn: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1, if: { planet: 'dead' } }],
+    text: '{dawn}: while facing the dead planet, draw 1. {dusk}: {cool:1}.',
+    onTurn: [{ type: 'draw', amount: 1, if: { planet: 'dead' } }], onDusk: [{ type: 'cool', amount: 1 }],
   },
   {
     id: 'perihelion_forge',
@@ -689,7 +692,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS);
+CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS, ...RELIC_CARDS);
 // The Heroes as they now fight (heroes-battle.ts): lasting, with abilities to choose from each day, in
 // place of the old choice of dawn effect.
 for (const c of CARDS) {
@@ -704,13 +707,26 @@ for (const c of CARDS) {
 for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? c.cost ?? 1 });
 // Attack ratings (attack.ts): by rule, unless a card gives its own.
 for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.cost ?? 1, !isBurst(c));
+// A race's Sturdy (the Korrath) is the cards' own: added to their Sturdy, and written into their text.
+for (const c of CARDS) {
+  const n = raceTrait(c.race)?.sturdy ?? 0;
+  if (!n || c.fusion || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
+  c.defence = (c.defence ?? 0) + n;
+  c.text = /\{sturdy:\d+\}/.test(c.text) ? c.text.replace(/\{sturdy:(\d+)\}/, (_, k: string) => `{sturdy:${Number(k) + n}}`) : `{sturdy:${n}}. ${c.text}`;
+}
 
 /**
  * A card that does nothing once it has been played (no dawn effects, passives, attack or anything for when it
  * leaves): it resolves and goes straight to the discard pile, taking no slot.
  */
+/** Whether a card has Darkspeed (its race's trait: the Nyxari): it can act the day it comes into play. Cards that never stand in play don't. */
+/** Darkspeed (the Nyxari): only cards that can act have it, those that attack and Heroes (abilities). */
+export function hasDarkspeed(def: CardDef): boolean {
+  return !!raceTrait(def.race)?.ambush && def.kind !== 'lightspeed' && !isBurst(def) && ((def.attack ?? 0) > 0 || def.kind === 'command');
+}
+
 export function isBurst(def: CardDef): boolean {
-  if (def.kind === 'command' || def.kind === 'lightspeed' || def.stability !== undefined) return false;
+  if (def.kind === 'command' || def.kind === 'lightspeed' || def.kind === 'relic' || def.stability !== undefined) return false;
   return !def.onTurn?.length && !def.onDusk?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);
 }
 
@@ -770,6 +786,7 @@ export function unfusable(id: string): string | null {
   if (d.kind === 'command') return 'Heroes cannot be fused (a deck needs exactly two).';
   if (d.kind === 'global') return 'Global cards cannot be fused.';
   if (d.kind === 'lightspeed') return 'Lightspeed cards cannot be fused.';
+  if (d.kind === 'relic') return 'Relics cannot be fused.';
   return null;
 }
 
@@ -1004,8 +1021,10 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Night Court',
     race: 4,
     cards: [
-      ...twoOf('nyx_umbral_snare', 'nyx_mirror_veil', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_gloom_warden', 'nyx_shade_stalker', 'nyx_dusk_raider', 'nyx_unmaker_blade', 'nyx_void_rend', 'gravity_sling'),
-      'nyx_hollow_reaper', 'nyx_shadow_court', 'nyx_null_shroud', 'nyx_veil_lantern', 'nyx_eclipse_rite', 'coronal_lance', 'deep_scanners',
+      ...twoOf('nyx_umbral_snare', 'nyx_mirror_veil', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_gloom_warden', 'nyx_shade_stalker', 'nyx_dusk_raider', 'nyx_unmaker_blade', 'nyx_void_rend'),
+      // (Attack in place of draw: cheap as the deck is, it drew far more than it could ever play.)
+      'nyx_phantom_strike', 'photon_drill', 'plasma_relay', 'nyx_unravel',
+      'nyx_hollow_reaper', 'nyx_shadow_court', 'nyx_null_shroud', 'nyx_veil_lantern', 'coronal_lance',
       'nyx_hero_vesh', 'nyx_hero_kael', 'nyx_hero_nyxara',
     ],
   },
@@ -1043,6 +1062,38 @@ export const PRESET_DECKS: DeckList[] = [
     ],
   },
 ];
+
+/**
+ * The big cards (cards-big.ts) in the starters: one copy of a cheap card each makes way for one, so the
+ * days with five energy (and more, with bonus energy) have something to spend it on.
+ */
+const BIG_SWAPS: Record<string, [string, string][]> = {
+  'Solar Lancers': [['rally_banner', 'zenith_array']],
+  'Shard Overload': [['echo_shard', 'coronal_storm'], ['prism_ward', 'great_collapse']],
+  'Abyssal Tide': [['brine_lash', 'bulwark_prime']],
+  'Hive Bloom': [['seasonal_bloom', 'furnace_engine'], ['seed_burst', 'black_sun']],
+  'Night Court': [['nyx_void_rend', 'coronal_storm'], ['nyx_shade_stalker', 'great_collapse']],
+  'Forge Clans': [['plasma_relay', 'bulwark_prime'], ['kor_molten_pour', 'black_sun']],
+  Starwatch: [['ser_star_needle', 'furnace_engine'], ['ser_star_chart', 'dyson_sphere']],
+  Wildfire: [['pyr_banked_embers', 'coronal_storm'], ['pyr_vent_cooler', 'supernova_lance']],
+};
+/** The Relics (cards-relics.ts) in the starters: one each (two in Wildfire), each to its deck's plan. */
+const RELIC_SWAPS: Record<string, [string, string][]> = {
+  'Solar Lancers': [['helio_lancer', 'ember_idol']],
+  'Shard Overload': [['ember_shard', 'astral_orrery']],
+  'Abyssal Tide': [['undertow', 'tide_pearl']],
+  'Hive Bloom': [['hive_relay', 'chrono_stone']],
+  'Night Court': [['nyx_mirror_veil', 'aegis_idol']],
+  'Forge Clans': [['kor_shieldwall', 'warden_totem']],
+  Starwatch: [['ser_twin_moons', 'frost_reliquary']],
+  Wildfire: [['pyr_flare_imp', 'ember_idol'], ['pyr_ash_walker', 'crown_first_sun']],
+};
+for (const d of PRESET_DECKS) {
+  for (const [out, inn] of [...(BIG_SWAPS[d.name] ?? []), ...(RELIC_SWAPS[d.name] ?? [])]) {
+    const at = d.cards.lastIndexOf(out);
+    if (at >= 0) d.cards[at] = inn;
+  }
+}
 
 /** A race's own starter deck (the first race's for anything else). */
 export function presetDeck(race: number): DeckList {

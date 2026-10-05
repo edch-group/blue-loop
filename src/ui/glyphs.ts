@@ -1,4 +1,5 @@
-import { BALANCE, baseStability, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseAttack, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { stellariaFlower } from './art';
 import { cardScene, renderedArt } from './cardart';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
@@ -25,6 +26,7 @@ export const KIND_COLOUR: Record<CardKind, string> = {
   global: '#9265d6', // purple
   command: '#8b909b', // silver: each deck's Heroes
   lightspeed: '#d4952a', // amber: set face down, springs on the enemy's day
+  relic: '#1fa6a0', // teal: lasting bonuses, brittle
 };
 
 const ring = (r: number, extra = '') => `<circle cx="50" cy="30" r="${r}" ${extra}/>`;
@@ -205,6 +207,112 @@ function sceneImage(def: CardDef): string {
   return img;
 }
 
+/** A picture for a player without an account's (an AI rival, a hot-seat guest): a card picked by their name, so it stays theirs. */
+export function pictureFor(name: string): string {
+  const pool = CARDS.filter((c) => !c.token);
+  let h = 0;
+  for (const ch of name.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return pool[h % pool.length].id;
+}
+
+/** How far a player's picture zooms into its card's artwork (1: the artwork's full height fills the circle). */
+const AVATAR_ZOOM = 1.5;
+/** Where each artwork's subject sits (0–1 across and down), found once from its pixels. */
+const avatarFocus = new Map<string, [number, number]>();
+
+/** The artwork placed in its circle: zoomed in, its subject in the middle (as near as the artwork's edges allow). */
+function avatarStyle([fx, fy]: [number, number]): string {
+  const w = 160 * AVATAR_ZOOM;
+  const h = 100 * AVATAR_ZOOM;
+  const left = Math.max(100 - w, Math.min(0, 50 - fx * w));
+  const top = Math.max(100 - h, Math.min(0, 50 - fy * h));
+  return `width:${w}%;height:${h}%;left:${left.toFixed(1)}%;top:${top.toFixed(1)}%`;
+}
+
+/**
+ * Find an artwork's subject: the part of the picture that stands out from its sky (the colour of its edges),
+ * weighted by how much it stands out, so a few stars count for little and the ship or creature for most.
+ */
+function findFocus(img: HTMLImageElement): [number, number] {
+  const W = 80;
+  const H = 50;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return [0.5, 0.5];
+  ctx.drawImage(img, 0, 0, W, H);
+  const px = ctx.getImageData(0, 0, W, H).data;
+  // The sky: the average colour of the border.
+  const sky = [0, 0, 0];
+  let n = 0;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      if (x > 0 && y > 0 && x < W - 1 && y < H - 1) continue;
+      for (let k = 0; k < 3; k++) sky[k] += px[(y * W + x) * 4 + k];
+      n++;
+    }
+  for (let k = 0; k < 3; k++) sky[k] /= n;
+  let sx = 0;
+  let sy = 0;
+  let sw = 0;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const w = Math.max(0, Math.hypot(px[i] - sky[0], px[i + 1] - sky[1], px[i + 2] - sky[2]) - 40) ** 2;
+      sx += w * (x + 0.5);
+      sy += w * (y + 0.5);
+      sw += w;
+    }
+  return sw > 0 ? [sx / sw / W, sy / sw / H] : [0.5, 0.5];
+}
+
+/** Pictures drawn before their artwork's subject was found: placed once it is. */
+function focusPending() {
+  document.querySelectorAll<HTMLElement>('.avatar[data-avatar]').forEach((el) => {
+    const id = el.dataset.avatar!;
+    const img = el.querySelector<HTMLImageElement>('img');
+    if (!img) return;
+    el.removeAttribute('data-avatar');
+    const place = () => {
+      let f = avatarFocus.get(id);
+      if (!f) {
+        try {
+          f = findFocus(img);
+        } catch {
+          f = [0.5, 0.5];
+        }
+        avatarFocus.set(id, f);
+      }
+      img.setAttribute('style', avatarStyle(f));
+    };
+    if (img.complete && img.naturalWidth) place();
+    else img.addEventListener('load', place, { once: true });
+  });
+}
+let watching = false;
+
+/** A player's picture: their card's artwork, cropped to a circle round its subject (a blank disc if there is no such card). */
+export function playerAvatar(cardId: string | undefined, cls = ''): string {
+  let def: CardDef | null = null;
+  try {
+    def = cardId ? cardDef(cardId) : null;
+  } catch {
+    def = null;
+  }
+  if (!def) return `<span class="avatar ${cls}"></span>`;
+  const focus = avatarFocus.get(def.id);
+  const img = sceneImage(def).replace('<img ', `<img style="${avatarStyle(focus ?? [0.5, 0.5])}" `);
+  if (focus) return `<span class="avatar ${cls}">${img}</span>`;
+  // Not found yet: drawn centred for now, and placed as soon as it is (once it is in the page).
+  if (!watching && typeof MutationObserver !== 'undefined') {
+    watching = true;
+    new MutationObserver(focusPending).observe(document.body, { childList: true, subtree: true });
+    requestAnimationFrame(focusPending);
+  }
+  return `<span class="avatar ${cls}" data-avatar="${def.id}">${img}</span>`;
+}
+
 /**
  * A card's picture as a single image rather than live SVG: for long lists of cards (the deck builder),
  * where hundreds of live pictures would make every redraw slow.
@@ -222,6 +330,11 @@ function phase(id: string): string {
   return ((h % 997) / 997).toFixed(3);
 }
 
+/** The back of every card: the landing page in small (its white sun, the name beneath, the Stellari rising from the foot, half of it showing). */
+export function cardBackFace(): string {
+  return `<span class="cback" aria-hidden="true"><span class="cback-flower">${stellariaFlower()}</span><span class="cback-sun"></span><span class="cback-title">blue loop</span></span>`;
+}
+
 /**
  * The rarity gem in a card's top corner: a tiny cabochon of dark glass in a
  * silver bezel, with a glowing body inside it. A white dwarf (standard) that
@@ -233,7 +346,7 @@ export function rarityGem(def: CardDef): string {
   const r: Rarity = def.rarity ?? 'dwarf';
   const body =
     r === 'anomaly'
-      ? '<i class="g g-hole-back"></i><i class="g-disk"><i class="g g-disk-spin"></i></i><i class="g g-hole"></i><i class="g-disk g-disk-front"><i class="g g-disk-spin"></i></i>'
+      ? '<i class="g g-ah-glow"></i><i class="g g-ah-swirl"></i><i class="g g-ah-swirl g-ah-swirl2"></i><i class="g g-ah-core"></i>'
       : r === 'stellar'
         ? '<i class="g g-sun-corona"></i><i class="g g-sun-disc"></i>'
         : '<i class="g g-dwarf-glow"></i><i class="g g-dwarf"></i>';
@@ -243,6 +356,39 @@ export function rarityGem(def: CardDef): string {
 // The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
 const GEM_IMAGES: Record<string, string> = { socketDwarf, socketStellar, socketAnomaly, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk };
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
+
+/**
+ * The Anomaly's black hole, seen from above: its accretion disk as streaks of light circling the hole,
+ * each a short arc spiralling inward, white and dense near the hole, sparse and dim further out. Drawn once,
+ * then turned (two copies at different speeds) so the disk swirls.
+ */
+function swirlTile(seed: number, n: number): string {
+  let h = seed;
+  const rnd = () => ((h = (h * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  let paths = '';
+  for (let i = 0; i < n; i++) {
+    const t = Math.pow(rnd(), 0.75);
+    const r0 = 23 + t * 26;
+    const a0 = rnd() * Math.PI * 2;
+    const span = (0.5 + rnd() * 1.6) * (1.1 - t * 0.5);
+    const steps = 8;
+    let d = '';
+    for (let k = 0; k <= steps; k++) {
+      const f = k / steps;
+      const a = a0 + span * f;
+      const r = r0 * (1 - 0.1 * f);
+      d += `${k ? 'L' : 'M'}${(50 + r * Math.cos(a)).toFixed(2)} ${(50 + r * Math.sin(a)).toFixed(2)}`;
+    }
+    const op = (0.08 + 0.85 * Math.pow(1 - t, 1.6)).toFixed(2);
+    const w = (0.35 + rnd() * 0.9 * (1 - t * 0.5)).toFixed(2);
+    const c = rnd() < 0.3 ? '#cdb8ff' : rnd() < 0.5 ? '#e9e2ff' : '#ffffff';
+    paths += `<path d="${d}" stroke="${c}" stroke-width="${w}" opacity="${op}"/>`;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="none" stroke-linecap="round">${paths}</g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+document.documentElement.style.setProperty('--gem-swirl', swirlTile(41, 170));
+document.documentElement.style.setProperty('--gem-swirl2', swirlTile(97, 110));
 
 /** The small line at the bottom of a card: just its type and race (rarity shows in the gem). */
 const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -254,6 +400,33 @@ const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<'
 export function typeLine(def: CardDef): string {
   const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
   return `<span class="card-type">${escType(KIND_NAME[def.kind])}</span>${race}`;
+}
+
+/**
+ * Under the picture, a race card's race in a row: its race (and sub-race), then its racial bonus and nerf
+ * by name (their full text on hover), which every card of that race carries.
+ */
+export function raceRow(def: CardDef): string {
+  if (def.race === undefined) return '';
+  const t = RACE_TRAITS[def.race];
+  const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
+  // (The race's bonus and nerf are keywords on the card's text, where they apply: see raceTraitTags.)
+  void t;
+  return `<span class="card-racerow"><b>${escType(`${RACE_NAMES[def.race]}${sub}`.toLowerCase())}</b></span>`;
+}
+
+/**
+ * The race's bonus and nerf that touch this card, as keywords ("Darkspeed", "Shatter"): each only where it
+ * applies. Those that only change the card's own attack or stability are in its numbers instead.
+ */
+export function raceTraitTags(def: CardDef): { name: string; text: string; nerf: boolean }[] {
+  const t = def.race !== undefined ? RACE_TRAITS[def.race] : undefined;
+  if (!t) return [];
+  const stays = persists(def.id) && !isBurst(def);
+  const reaches = (on: string) =>
+    on === 'attack' ? (def.attack ?? 0) > 0 : on === 'stays' ? stays : on === 'darkspeed' ? hasDarkspeed(def) : on === 'attune' ? !!def.attune : false;
+  const tag = (line: string, nerf: boolean) => ({ name: line.split(':')[0], text: plainText(line.slice(line.indexOf(':') + 1).trim()), nerf });
+  return [...(reaches(t.bonusOn) ? [tag(t.bonusTag ?? t.bonus, false)] : []), ...(reaches(t.nerfOn) ? [tag(t.nerf, true)] : [])];
 }
 
 /** The same as plain words ("attack · aureline"), for lists. */
@@ -318,9 +491,10 @@ document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad'
 
 /** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
 export function stabilityBadge(def: CardDef): string {
-  if (!persists(def.id)) return '';
+  // (A card that goes straight to the discard pile once played never stands in play: no stability to show.)
+  if (!persists(def.id) || isBurst(def)) return '';
   const title = def.kind === 'command' ? 'Stability: a Hero never fades by itself; heat past its defence wears this down, and at 0 it falls' : 'Stability: it stays in play for this many of your days, then fades into your discard pile';
-  const atk = def.attack ?? 0;
+  const atk = baseAttack(def);
   return `<span class="card-stats card-stats-base${atk > 0 ? ' card-stats-split' : ''}">${atk > 0 ? attackBadge(atk) : ''}<b class="stat-stab" title="${title}">◷${baseStability(def.id)}</b></span>`;
 }
 
@@ -328,14 +502,14 @@ const SWORD = '<svg class="atk-icon" viewBox="0 0 16 16" aria-hidden="true"><pat
 
 /** A card's attack (bottom left, beside its stability): what it deals when it attacks, and what it hits back with. */
 export function attackBadge(n: number, dimmed = false): string {
-  const title = `Attack ${n}: once each of your days it can attack a rival card or their sun for ${n} heat (shields block it at a sun), then it is dimmed until your next day. A card it attacks hits back with its own attack and Sting.${dimmed ? ' Dimmed: it has acted today.' : ''}`;
+  const title = `Attack ${n}: once each of your days it can attack a rival card or their sun for ${n}, then it is dimmed until your next day. A card it attacks hits back with its own attack and Sting.${dimmed ? ' Dimmed: it has acted today.' : ''}`;
   return `<b class="stat-atk${dimmed ? ' stat-atk-dim' : ''}" title="${title}">${SWORD}${n}</b>`;
 }
 
 /** What a card costs to play, in energy: a green gem with the number, on its picture's top-left corner. */
 /**
  * What a card costs to play, in energy, as the energy lights show it: one green dot per energy, in a column
- * down the left of its picture. Dots past the usual most energy in a day (5) are amber: the extra a planet or
+ * down the left of its picture (two columns from 4). Dots past the usual most energy in a day (5) are amber: the extra a planet or
  * a card gives. Free cards have none; a card that spends all your energy shows an X.
  */
 export function costDots(def: CardDef): string {
@@ -343,7 +517,9 @@ export function costDots(def: CardDef): string {
   const n = cardCost(def.id);
   if (n <= 0) return '';
   const dots = Array.from({ length: n }, (_, i) => `<i${i >= BALANCE.maxPlays ? ' class="over"' : ''}></i>`).join('');
-  return `<span class="cost-dots" title="Costs ${n} energy to play">${dots}</span>`;
+  // (Up to 3 in one column; from 4, two columns filled row by row: 4 a square, 5 with one hanging below on the
+  // left, 6 two columns of three, the last (past the day's most energy) amber.)
+  return `<span class="cost-dots${n > 3 ? ' cost-dots-2col' : ''}" title="Costs ${n} energy to play">${dots}</span>`;
 }
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -372,6 +548,8 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
   const label = keywordLabel(id, value);
   // Energy gained: "Gain" and a green dot per energy.
   if (id === 'energy' && value) return `<b class="kw kw-${k.group} kw-gain"${data} aria-label="${escText(label)}">Gain<span class="gain-dots">${'<i></i>'.repeat(Math.max(1, Number(value) || 1))}</span></b>`;
+  // An energy cost: a green dot per energy (never a lightning bolt: that is Lightspeed's).
+  if (id === 'cost' && value) return `<b class="kw kw-${k.group} kw-gain kw-cost"${data} aria-label="${escText(label)}"><span class="gain-dots">${'<i></i>'.repeat(Math.max(1, Number(value) || 1))}</span></b>`;
   if (!k.symbol) return `<b class="kw kw-${k.group}"${data}>${escText(label)}</b>`;
   const icon = symbolIcon(id);
   const shown = opts.named ? label : value ?? '';
@@ -383,15 +561,38 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
  * and heat, cool and shields as symbols. Hovering one (in the deck builder and
  * the shop) explains it; in a game the zoomed card lists the explanations alongside.
  */
+/** A card's text as it reads on the card: its own, after any keyword its race gives it (Darkspeed). */
+export function cardBodyHtml(def: CardDef, chosen?: string, live: Record<number, number> = {}): string {
+  // Its race's keywords that apply to it, side by side on one row.
+  const tags = raceTraitTags(def);
+  const row = tags.length ? `<span class="card-traits">${tags.map((g) => `<b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}" data-tip="${escText(g.text)}">${escText(g.name)}</b>`).join(' ')}</span>${PARA}` : '';
+  return row + cardTextHtml(def.text, chosen, false, live);
+}
+
 export function cardTextHtml(text: string, chosen?: string, inline = false, live: Record<number, number> = {}): string {
   const parts = textParts(text);
   // Nothing but a few symbols ("Heat 2", "Heat 2. Cool 1"): they sit in the middle of the text box.
   const symbols = parts.filter((p) => 'kw' in p);
   const only = symbols.length > 0 && symbols.length <= 3 && parts.every((p) => ('kw' in p ? KEYWORDS[p.kw]?.symbol : /^[\s.,]*$/.test(p.text)));
+  // A Hero's abilities: each line wrapped as one (`data-ability`, its index), so a Hero's line can be its button.
+  let ability = -1;
+  let open = false;
   const html = parts
     .map((p, i) => {
       // Each sentence is a paragraph of its own: a full stop becomes a break (and the last one just ends it).
-      if ('text' in p) return escText(p.text).replace(/\.(\s+|$)/g, (_, sp: string, at: number, str: string) => (sp || (at + 1 === str.length && i < parts.length - 1) ? PARA : ''));
+      if ('text' in p) {
+        const t = escText(p.text).replace(/\.(\s+|$)/g, (_, sp: string, at: number, str: string) => (sp || (at + 1 === str.length && i < parts.length - 1) ? PARA : ''));
+        if (!open || !t.includes(PARA)) return t;
+        open = false;
+        return t.replace(PARA, `</span>${PARA}`);
+      }
+      if (p.kw === 'act') {
+        const close = open ? '</span>' : '';
+        open = true;
+        return `${close}<span class="card-ability" data-ability="${++ability}">`;
+      }
+      // A Hero's abilities: a divider under what it does as it leads, and the heading over them.
+      if (p.kw === 'abilities') return `<span class="card-abilities-head">each turn, one of:</span>`;
       // A card's choices, one per line: the one picked (as the card is played) stands out.
       if (p.kw === 'options')
         return `<span class="card-opts${chosen ? ' card-opts-chosen' : ''}">${optionList(p.value)
@@ -405,7 +606,7 @@ export function cardTextHtml(text: string, chosen?: string, inline = false, live
       }
       return keywordHtml(p.kw, p.value, { data: true });
     })
-    .join('');
+    .join('') + (open ? '</span>' : '');
   return only && !inline ? `<span class="card-text-mid">${html}</span>` : html;
 }
 
@@ -439,15 +640,18 @@ const PARA = '<span class="card-para"></span>';
  * The explanations beside a zoomed card: its keywords (Dawn included), the
  * rules its text names in plain words, and its defence badge.
  */
-export function keywordList(text: string, stats: { stability?: number; defence?: number } = {}): string {
-  const rows: string[] = [];
+export function keywordList(text: string, stats: { stability?: number; defence?: number } = {}, first: string[] = []): string {
+  // (`first`: rows that lead the list, already drawn: the card's race, and what it gives the card.)
+  const rows: string[] = [...first];
   const row = (head: string, body: string) => rows.push(`<div>${head}<span>${escText(body)}</span></div>`);
   // Each mechanic once, by name alone (no numbers): "Heat", not "Heat 1" and "Heat +1".
   const texts = [text, ...[...text.matchAll(/\{options:([^}]+)\}/g)].flatMap((m) => optionList(m[1]).map(optionText))].join(' ');
   // (Gaining energy explains itself.)
-  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain());
+  // (Gaining energy explains itself; a Hero's ability names are not keywords.)
+  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'cost' && k.id !== 'act' && k.id !== 'abilities') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain(k.value));
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
-  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability, and blocks weaker removal.');
-  return rows.length ? `<div class="kw-list">${rows.join('')}</div>` : '';
+  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');
+  // (In a column no taller than the card: it scrolls, and an arrow bobs at its foot while there is more below.)
+  return rows.length ? `<div class="kw-wrap"><div class="kw-list">${rows.join('')}</div><i class="kw-more" aria-hidden="true"></i></div>` : '';
 }

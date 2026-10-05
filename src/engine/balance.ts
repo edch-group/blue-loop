@@ -23,6 +23,8 @@ export const BALANCE = {
   /** Cards in the opening hand, and drawn at each dawn after the first. */
   openingHand: 5,
   drawPerTurn: 1,
+  /** The most cards a player may hold: after their dusk, any more are discarded (they pick which). */
+  maxHand: 5,
   /** Seats after the first: extra cards in the opening hand, and extra plays on their first day. */
   laterSeatCards: 1,
   laterSeatPlays: 0,
@@ -56,7 +58,7 @@ export const BALANCE = {
   commandSlotDefence: 2,
   /** Fusion cards one card in play can carry. */
   maxFused: 2,
-  /** Worn defence each card (and empty slot) mends at its owner's dawn (Sturdy cards mend their Sturdy more). */
+  /** Worn defence each card (and empty slot) mends at its owner's dawn (Sturdy adds defence, not mending). */
   defenceMend: 1,
   /**
    * Stability: how many of your days a card stays in your tableau (its dawn effects trigger
@@ -67,6 +69,8 @@ export const BALANCE = {
   stabilityDawnHeat: 2,
   stabilityBurst: 1,
   stabilityCommand: 3,
+  /** A Relic's: it never fades, and nothing restores it (Brittle); removal reaches it whatever its defence. */
+  stabilityRelic: 3,
   /** Stability can be restored up to this. */
   maxStability: 6,
   /** Kept shields (Deep Current) never exceed this. */

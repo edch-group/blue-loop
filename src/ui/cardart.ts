@@ -1047,6 +1047,39 @@ const ART: Record<string, Draw> = {
   ixquor_brood_tender: (S) => S.ground(92, '#0e0a1c') + ixquor(S, 58, 66, 1.05, { item: 'pods', arms: 3, cap: '#d59cff' }),
   the_brood_queen: (S) => S.glow(80, 30, 70, '#c5ff8a', 0.35) + ixquor(S, 80, 70, 1.25, { crown: true, arms: 6, tall: 1.05 }) + S.motes(80, 40, 20, 70, '#c5ff8a', 1.1),
 };
+// The big cards borrow the pictures of their smaller kin.
+Object.assign(ART, {
+  coronal_storm: ART.coronal_lance,
+  furnace_engine: ART.dreadnought,
+  bulwark_prime: ART.solar_bastion,
+  zenith_array: ART.overcharge,
+  supernova_lance: ART.fracture_burst,
+  great_collapse: ART.event_horizon,
+  dyson_sphere: ART.stellar_aegis,
+  // A dead star, burning black: a dark disc in a ragged violet-white corona, shedding dark flares.
+  black_sun: (S: Scene) =>
+    S.glow(80, 52, 70, '#5a3a8a', 0.5) +
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => { const a = (i / 12) * Math.PI * 2 + 0.2; const l = 30 + (i % 3) * 9; return `<path d="M${(80 + Math.cos(a) * 20).toFixed(1)} ${(52 + Math.sin(a) * 20).toFixed(1)} L${(80 + Math.cos(a + 0.09) * l).toFixed(1)} ${(52 + Math.sin(a + 0.09) * l).toFixed(1)} L${(80 + Math.cos(a + 0.2) * 20).toFixed(1)} ${(52 + Math.sin(a + 0.2) * 20).toFixed(1)} Z" fill="#c9b4ff" opacity="${(0.25 + (i % 3) * 0.12).toFixed(2)}"/>`; }).join('') +
+    eclipse(S, 80, 52, 20, '#e8dcff') +
+    S.motes(80, 52, 14, 60, '#d8c8ff', 1.1),
+});
+
+/** A Relic: an old artefact afloat over a worn stone plinth, lit from within, with a crack (Brittle) across it. */
+function relicScene(S: Scene, core: string, top: string): string {
+  const plinth = `<path d="M58 94 L64 78 L96 78 L102 94 Z" fill="${S.linear([[0, '#8a8478'], [1, '#2e2a26']])}"/><rect x="62" y="74" width="36" height="5" rx="1.5" fill="#a49d8e"/>`;
+  return S.ground(94) + plinth + S.glow(80, 46, 30, core, 0.55) + top + `<path d="M74 34 L79 42 L76 48 L82 56" fill="none" stroke="#1a1820" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>` + S.motes(80, 46, 12, 34, core, 1.1);
+}
+// Relics.
+Object.assign(ART, {
+  ember_idol: (S: Scene) => relicScene(S, '#ffb070', S.crystal(80, 46, 30, 14, 0, '#ffb070') + S.sun(80, 46, 5, '#fff2d0')),
+  frost_reliquary: (S: Scene) => relicScene(S, '#bfe6ff', S.crystal(72, 48, 22, 9, -14, '#bfe6ff') + S.crystal(88, 48, 22, 9, 14, '#bfe6ff') + S.crystal(80, 44, 30, 11, 0, '#e8f6ff')),
+  aegis_idol: (S: Scene) => relicScene(S, '#8fc8ff', S.dome(80, 58, 18, '#8fc8ff') + S.crystal(80, 40, 18, 8, 0, '#d8ecff')),
+  chrono_stone: (S: Scene) => relicScene(S, '#c8b8ff', `<circle cx="80" cy="46" r="15" fill="#3a3550" stroke="#c8b8ff" stroke-width="1.6"/>` + S.rings(80, 46, 6, 2, 4, '#c8b8ff', 0.8)),
+  warden_totem: (S: Scene) => relicScene(S, '#9fd0ff', S.hex(80, 46, 15, '#2e3a50', '#9fd0ff') + S.hex(80, 46, 8, '#9fd0ff', '#ffffff', 0.7)),
+  tide_pearl: (S: Scene) => relicScene(S, '#8ff0e0', S.waves(64, '#8ff0e0', 2, 2, 0.6) + `<circle cx="80" cy="46" r="12" fill="${S.radial([[0, '#ffffff'], [0.6, '#bff6ee'], [1, '#4aa8a0']], 0.38, 0.35)}"/>`),
+  astral_orrery: (S: Scene) => relicScene(S, '#ffe0a0', S.sun(80, 46, 6, '#ffe0a0') + S.orbit(80, 46, 22, 8, -15, '#ffe0a0') + S.orbit(80, 46, 16, 14, 30, '#ffd080', 1) + S.planet(100, 41, 3, '#d8a070', '#5a2a1a')),
+  crown_first_sun: (S: Scene) => relicScene(S, '#fff2b0', `<path d="M62 56 L64 38 L72 48 L80 32 L88 48 L96 38 L98 56 Z" fill="${S.linear([[0, '#ffe08a'], [1, '#b07a18']])}" stroke="#fff2c0" stroke-width="1"/>` + S.sun(80, 46, 4, '#ffffff')),
+});
 
 /** The second set's pictures. */
 const ART2: Record<string, Draw> = {

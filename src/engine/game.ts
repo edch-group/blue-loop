@@ -1,6 +1,6 @@
 import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
-import { cardDef, isBurst, presetDeck } from './cards';
+import { cardDef, hasDarkspeed, isBurst, presetDeck } from './cards';
 import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
 import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnPulse, TurnStats } from './types';
@@ -52,6 +52,7 @@ export function createGame(setup: GameSetup): GameState {
       isAI: ps.isAI,
       species,
       deckName: ps.deckName ?? (ps.deck ? undefined : presetDeck(species).name),
+      ...(ps.avatar ? { avatar: ps.avatar } : {}),
       heat: BALANCE.startingHeat + (ps.heatDelta ?? 0) + (ps.modifiers?.startingHeat ?? 0) - (catchUp(i) ? BALANCE.laterSeatCool : 0),
       shields: ps.opening?.shields ?? 0,
       deck,
@@ -180,7 +181,8 @@ export function cardSturdy(card: CardInstance): number {
 
 /** Cards of yours a Fusion card can fuse onto: any in play with room for another (not Lightspeed cards). */
 export function fusionHosts(p: PlayerState): CardInstance[] {
-  return p.tableau.filter((c) => (c.fused?.length ?? 0) < BALANCE.maxFused);
+  // (Not a Relic: nothing fused onto it would steady it, so it would only break the pair.)
+  return p.tableau.filter((c) => (c.fused?.length ?? 0) < BALANCE.maxFused && cardDef(c.defId).kind !== 'relic');
 }
 
 /** Cards this player may play on a day (before any have been played). */
@@ -269,7 +271,8 @@ function enemyEffect(defId: string): EnemyEffect | undefined {
 
 function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect): boolean {
   if (e.type === 'destroy' && e.kind && cardDef(c.defId).kind !== e.kind) return false;
-  if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) > e.maxDefence) return false;
+  // (Brittle: removal reaches a Relic whatever its defence.)
+  if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) > e.maxDefence && cardDef(c.defId).kind !== 'relic') return false;
   return true;
 }
 
@@ -281,53 +284,40 @@ export function enemyChoices(state: GameState, p: PlayerState, defId: string): C
   return t.tableau.filter((c) => canReach(t, c, e));
 }
 
-/** Whether a card heats your rival as it is played (it is aimed then, at their sun or one of their cards). */
-export function aimable(defId: string): boolean {
-  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target');
-}
-
-/** Whether a card in your tableau heats your rival at dawn (its heat is aimed afresh each dawn). */
-export function dawnAimable(card: CardInstance, p?: PlayerState, state?: GameState): boolean {
-  return dawnEffects(card, p, state).some((e) => e.type === 'heat' && e.to === 'target');
-}
-
-/** A player's Guard cards: while they have any, rival heat can only be aimed at them. */
+/** A player's Guard cards: while they have any, rival attacks can only strike them. */
 export function guards(p: PlayerState): CardInstance[] {
   return p.tableau.filter((c) => cardPassives(c).some((x) => x.type === 'taunt'));
 }
 
 /**
- * Where your heat may be aimed: any card in your rival's tableau, or their sun. While they have Guard
- * cards, only those. `sun` says whether their sun is a choice.
+ * Where an attack, or heat a card deals as it is played (or a Hero's ability), may be aimed: any card in your
+ * rival's tableau, or their sun; while they have Guard cards, only those. (Dawn heat is never aimed: it
+ * always strikes the sun.)
  */
 export function aimChoices(state: GameState, p: PlayerState): { cards: CardInstance[]; sun: boolean } {
   const t = targetOf(state, p);
   if (!t) return { cards: [], sun: true };
   const g = guards(t);
-  if (g.length) return { cards: g, sun: false };
-  return { cards: [...t.tableau], sun: true };
+  return g.length ? { cards: g, sun: false } : { cards: [...t.tableau], sun: true };
 }
 
-/** Whether a player's dawn waits for them to aim: they have a card with dawn heat, and it has more than one place to go. */
-export function needsDawnAim(state: GameState, p: PlayerState): boolean {
-  if (!p.tableau.some((c) => dawnAimable(c, p, state))) return false;
-  const { cards, sun } = aimChoices(state, p);
-  return cards.length + (sun ? 1 : 0) > 1;
+/** Whether a card heats your rival as it is played (it may be aimed then, at their sun or one of their cards). */
+export function aimable(defId: string): boolean {
+  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target');
 }
 
-/** Where a card's dawn heat lands now: a rival card (its aim, or a Guard), or null for their sun. */
-export function heatTarget(state: GameState, p: PlayerState, card: CardInstance): CardInstance | null {
-  return aimedCard(state, p, card);
+/** Whether a Hero's ability heats your rival (it may be aimed, as a card played is). */
+export function abilityAimable(defId: string, index: number): boolean {
+  return (cardDef(defId).abilities?.[index]?.effects ?? []).some((e) => e.type === 'heat' && e.to === 'target');
 }
 
-/** Where this card's heat lands now: the rival card it is aimed at (if still there and allowed), a Guard, or the sun (null). */
-function aimedCard(state: GameState, p: PlayerState, card: CardInstance): CardInstance | null {
+/** Where aimed heat lands: the rival card aimed at (if still there and allowed), else a Guard (the most worn), else the sun (null). */
+function aimedCard(state: GameState, p: PlayerState, aim: string | undefined): CardInstance | null {
   const t = targetOf(state, p);
   if (!t) return null;
   const g = guards(t);
-  const aimed = card.aim ? t.tableau.find((c) => c.uid === card.aim) : undefined;
+  const aimed = aim ? t.tableau.find((c) => c.uid === aim) : undefined;
   if (aimed && (!g.length || g.includes(aimed))) return aimed;
-  // Guards take the heat meant for the sun or for the cards behind them: the most worn one first.
   if (g.length) return [...g].sort((a, b) => (a.stability ?? 0) - (b.stability ?? 0))[0];
   return null;
 }
@@ -337,33 +327,33 @@ export function tidewall(p: PlayerState): boolean {
   return p.tableau.some((c) => cardPassives(c).some((x) => x.type === 'tidewall'));
 }
 
-/** Heat on a card wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
-function heatCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string, sting = false) {
+/** A blow on a card (an attack, or a sting) wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
+function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string, sting = false) {
   // Shields guard only the sun, unless a Tidewall card spreads them over its owner's cards too.
   if (tidewall(owner)) {
     const blocked = Math.min(pierce ? Math.floor(owner.shields * BALANCE.pierceShieldShare) : owner.shields, amount);
     owner.shields -= blocked;
     if (blocked > 0) {
-      log(state, `${owner.name}'s Tidewall shields absorb ${blocked} heat.`);
+      log(state, `${owner.name}'s Tidewall shields absorb ${blocked}.`);
       // (A sting answered by shields doesn't sting back.)
       if (!sting) shieldsAnswer(state, owner, source, cardUid);
     }
     amount -= blocked;
   }
   if (amount <= 0 || !owner.tableau.includes(victim)) return;
-  // The card's defence (its slot's, and its own) takes the heat first (not pierce heat), and stays worn:
-  // later heat finds less defence in its way, until it is mended.
+  // The card's defence (its slot's, and its own) takes the blow first (not a pierce one), and stays worn:
+  // later blows find less defence in their way, until it is mended.
   // A sting ignores it too: the attacking card left its defences to attack.
   const turned = pierce || sting ? 0 : Math.min(amount, cardDefence(owner, victim));
   if (turned > 0) {
     victim.dented = (victim.dented ?? 0) + turned;
-    log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${turned} heat on its defence (defence ${cardDefence(owner, victim)} left).`);
+    log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${turned} on its defence (defence ${cardDefence(owner, victim)} left).`);
   }
   amount -= turned;
   if (amount <= 0) return;
   const before = victim.stability ?? 0;
   victim.stability = Math.max(0, before - amount);
-  log(state, `${source.name}'s heat strikes ${owner.name}'s ${cardDef(victim.defId).name} (stability ${victim.stability}).`);
+  log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${amount} (stability ${victim.stability}).`);
   if (victim.stability <= 0) {
     log(state, `${owner.name}'s ${cardDef(victim.defId).name} burns away.`);
     leaveTableau(state, owner, victim);
@@ -444,6 +434,7 @@ export function needsSlot(p: PlayerState, defId: string): boolean {
 /** How long a card stays in play before it fades into its owner's discard pile. */
 export function baseStability(defId: string): number {
   const def = cardDef(defId);
+  if (def.kind === 'relic') return BALANCE.stabilityRelic;
   const t = def.kind === 'command' ? 0 : raceTrait(def.race)?.stability ?? 0;
   return Math.max(1, rawStability(def) + t);
 }
@@ -691,38 +682,31 @@ export interface TurnForecast {
  * (growing cards grow first), plus the global card, regional instability and
  * the map's conditions.
  */
-export function turnForecast(state: GameState, p: PlayerState, aims?: Record<string, string | null>): TurnForecast {
+export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   const target = targetOf(state, p);
-  // While this player's dawn waits on their aim, it is this dawn being forecast: the day has begun (the
-  // planet has moved, the cards are drawn, the table has had its say), so only the tableau's dawn is left.
-  const now = !!state.awaitingDawn && activePlayer(state) === p;
   // Their next day's planet (their first day starts at the dead planet).
-  const orbit = !now && p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
+  const orbit = p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
   const planet = planetsEaten(state, p) ? 'dead' : planetAt(orbit);
   // Their day comes this round if they sit after the active player, else next round.
-  const round = now ? state.round : state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
+  const round = state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
   const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, unstableRound: state.round + 1, round, draw: 0, plays: 0, planet, planetDraw: 0, planetPlays: 0 };
   if (p.eliminated) return f;
-  if (!now && planet === 'abundant' && p.turnsTaken > 0) f.planetDraw = BALANCE.abundantDraw;
+  if (planet === 'abundant' && p.turnsTaken > 0) f.planetDraw = BALANCE.abundantDraw;
   if (planet === 'industrial') f.planetPlays = BALANCE.industrialPlays;
   f.draw += f.planetDraw;
   f.plays += f.planetPlays;
-  // Run the effects on a copy, so growth and the like carry from one effect to the next (aimed as given).
-  const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c, ...(aims && c.uid in aims ? { aim: aims[c.uid] ?? undefined } : {}) })) };
+  // Run the effects on a copy, so growth and the like carry from one effect to the next (its dawn, then its dusk).
+  const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c })) };
   for (const card of me.tableau) {
-    for (const e of dawnEffects(card, me, state)) {
+    for (const e of [...dawnEffects(card, me, state), ...duskEffects(card)]) {
       if (!conditionMet(me, e.if, state)) continue;
       switch (e.type) {
         case 'grow':
           card.growth = Math.max(card.growth ?? 0, Math.min(e.max, (card.growth ?? 0) + 1));
           break;
-        case 'heat': {
-          // Only the heat headed for the sun: a card aimed at a rival card (or held off by a Guard) is not.
-          if (aimedCard(state, me, card)) break;
-          const n = effectAmount(state, me, card, e, 'turn');
-          f.heat += n;
+        case 'heat':
+          f.heat += effectAmount(state, me, card, e, 'turn');
           break;
-        }
         case 'selfHeat':
           f.selfHeat += e.amount;
           break;
@@ -742,7 +726,6 @@ export function turnForecast(state: GameState, p: PlayerState, aims?: Record<str
     }
   }
   f.unstable = instabilityHeat({ ...state, round: f.unstableRound });
-  if (now) return f;
   if (fieldActive(state, 'solarStorm')) f.selfHeat += 1;
   if (fieldActive(state, 'iceAge')) f.cool += 1;
   const m = p.modifiers;
@@ -751,59 +734,6 @@ export function turnForecast(state: GameState, p: PlayerState, aims?: Record<str
   f.shields += m?.shieldPerTurn ?? 0;
   f.draw += m?.extraDraw ?? 0;
   return f;
-}
-
-/** How a dawn's heat would leave each rival card it reaches: what defence and stability it has left. */
-export interface DawnHeatPreview {
-  cards: Record<string, { defence: number; stability: number; heat: number; gone: boolean }>;
-  /** Heat that reaches the rival's sun (after shields), and the shields they have left. */
-  sun: number;
-  shields: number;
-}
-
-/**
- * What this player's dawn heat would do, aimed as given (card uid → rival card uid, or null for their sun;
- * cards not listed keep their own aim): at a card, its defence first (not for pierce heat),
- * then its stability; at the sun, shields first; card by card in the order the dawn resolves them.
- */
-export function previewDawnHeat(state: GameState, p: PlayerState, aims: Record<string, string | null> = {}): DawnHeatPreview {
-  const t = targetOf(state, p);
-  const out: DawnHeatPreview = { cards: {}, sun: 0, shields: t?.shields ?? 0 };
-  if (!t) return out;
-  for (const c of t.tableau) out.cards[c.uid] = { defence: cardDefence(t, c), stability: c.stability ?? 0, heat: 0, gone: false };
-  const left = (c: CardInstance) => !out.cards[c.uid]?.gone;
-  for (const card of p.tableau) {
-    const aim = card.uid in aims ? aims[card.uid] : card.aim;
-    for (const e of dawnEffects(card, p, state)) {
-      if (e.type !== 'heat' || !conditionMet(p, e.if, state)) continue;
-      let n = effectAmount(state, p, card, e, 'turn');
-      if (n <= 0) continue;
-      // Where it lands, as aimedCard decides it (burnt-away cards no longer draw it).
-      const g = guards(t).filter(left);
-      const aimed = aim ? t.tableau.find((c) => c.uid === aim && left(c)) : undefined;
-      const victim = aimed && (!g.length || g.includes(aimed)) ? aimed : g.length ? [...g].sort((a, b) => out.cards[a.uid].stability - out.cards[b.uid].stability)[0] : undefined;
-      if (!victim) {
-        // Shields guard the sun.
-        const blocked = Math.min(e.pierce ? Math.floor(out.shields * BALANCE.pierceShieldShare) : out.shields, n);
-        out.shields -= blocked;
-        out.sun += n - blocked;
-        continue;
-      }
-      if (tidewall(t)) {
-        const blocked = Math.min(e.pierce ? Math.floor(out.shields * BALANCE.pierceShieldShare) : out.shields, n);
-        out.shields -= blocked;
-        n -= blocked;
-      }
-      const v = out.cards[victim.uid];
-      const turned = e.pierce ? 0 : Math.min(n, v.defence);
-      v.defence -= turned;
-      n -= turned;
-      v.stability = Math.max(0, v.stability - n);
-      v.heat += n;
-      if (v.stability <= 0) v.gone = true;
-    }
-  }
-  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -852,14 +782,14 @@ function springGuard(state: GameState, owner: PlayerState, enemy: PlayerState, c
   const card = owner.lightspeed;
   if (!card || owner.eliminated || owner.id === enemy.id || activePlayer(state).id !== enemy.id) return null;
   const ls = cardDef(card.defId).lightspeed;
-  if (!ls?.deploy || ls.trigger.on !== 'cardHeated') return null;
+  if (!ls?.deploy || ls.trigger.on !== 'cardAttacked') return null;
   const open = freeSlots(owner);
   const slot = slotsBySafety().find((i) => open.includes(i));
   if (slot === undefined) return null;
   owner.lightspeed = null;
   place(owner, card, slot);
-  log(state, `⚡ Lightspeed! ${owner.name}'s ${cardDef(card.defId).name} lands in their tableau${cause ? ` in answer to ${enemy.name}'s ${cardDef(cause).name}` : ''}, and takes the heat.`);
-  (state.sprung ??= []).push({ ownerId: owner.id, defId: card.defId, against: cause, enemyId: enemy.id, trigger: 'cardHeated' });
+  log(state, `⚡ Lightspeed! ${owner.name}'s ${cardDef(card.defId).name} lands in their tableau${cause ? ` in answer to ${enemy.name}'s ${cardDef(cause).name}` : ''}, and takes the attack.`);
+  (state.sprung ??= []).push({ ownerId: owner.id, defId: card.defId, against: cause, enemyId: enemy.id, trigger: 'cardAttacked' });
   resolveEffects(state, owner, card, ls.effects, 'spring', { against: enemy });
   return owner.tableau.includes(card) ? card : null;
 }
@@ -877,6 +807,16 @@ function spring(state: GameState, owner: PlayerState, enemy: PlayerState, matche
   (state.sprung ??= []).push({ ownerId: owner.id, defId: card.defId, against: cause, enemyId: enemy.id, trigger: ls.trigger.on });
   resolveEffects(state, owner, card, ls.effects, 'spring', { against: enemy });
   return !!ls.counter;
+}
+
+/**
+ * An enemy attacks one of this player's cards, or aims heat at it: a face-down Lightspeed card waiting for that
+ * (not a guard, which springs into the tableau instead) springs. True if it cancels the blow.
+ */
+function springAmbush(state: GameState, owner: PlayerState, enemy: PlayerState, cause?: string): boolean {
+  const ls = owner.lightspeed ? cardDef(owner.lightspeed.defId).lightspeed : undefined;
+  if (!ls || ls.deploy) return false;
+  return spring(state, owner, enemy, (t) => t.on === 'cardAttacked', cause);
 }
 
 /** A player's card by uid, wherever it is. */
@@ -925,7 +865,7 @@ function shieldsAnswer(state: GameState, target: PlayerState, source: PlayerStat
       const attacker = cardUid ? source.tableau.find((c) => c.uid === cardUid) : undefined;
       if (attacker) {
         log(state, `${target.name}'s veil stings ${source.name}'s ${cardDef(attacker.defId).name} for ${sting}.`);
-        heatCard(state, source, attacker, sting, target, false, '', true);
+        strikeCard(state, source, attacker, sting, target, false, '', true);
       }
     }
   }
@@ -958,6 +898,8 @@ export type Timing = 'play' | 'turn' | 'leave' | 'recover' | 'spring';
 
 interface PlayContext {
   enemyUid?: string;
+  /** Heat as it is played (or a Hero's ability): the rival card aimed at (unset: their sun, or a Guard). */
+  aimUid?: string;
   allyUid?: string;
   recoverUid?: string;
   /** Lightspeed: the enemy who sprang the card (the effects' target). */
@@ -977,19 +919,18 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (amount <= 0) break;
         const main = ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p);
         if (!main) break;
-        // A card's heat goes where it is aimed: a rival card, or their sun (a card that has left play aims
-        // at the sun). Guards draw it all in. Only Lightspeed cards, springing on a rival's day, go straight to the sun.
-        const aimed = !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, card) : null;
+        // Heat as a card is played (or a Hero's ability) goes where it was aimed: a rival card, or their sun
+        // (Guards draw it in). Dawn heat, and heat from anything else, strikes the sun.
+        const aimed = when === 'play' && !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, ctx.aimUid) : null;
         // A face-down Lightspeed guard can spring in front of the card the heat was aimed at.
+        if (aimed && springAmbush(state, main, p, card.defId)) {
+          log(state, `The heat never reaches ${main.name}'s ${cardDef(aimed.defId).name}.`);
+          break;
+        }
         const victim = aimed ? springGuard(state, main, p, card.defId) ?? aimed : null;
         if (state.winnerId || p.eliminated) break;
         if (victim) {
-          if (when === 'turn') notePulse(state, p, card, 'heat', main, amount, victim.uid);
-          heatCard(state, main, victim, amount, p, !!e.pierce, card.uid);
-          if (when === 'turn' && state.turnPulses) {
-            const last = state.turnPulses[state.turnPulses.length - 1];
-            last.suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated }]));
-          }
+          strikeCard(state, main, victim, amount, p, !!e.pierce, card.uid);
           break;
         }
         applyHeat(state, main, amount, p, false, card.uid, e.pierce);
@@ -1083,6 +1024,8 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const mine = e.self ? p.tableau.filter((c) => c.uid === card.uid) : e.all ? p.tableau.filter((c) => c.uid !== card.uid) : p.tableau.filter((c) => c.uid === ctx.allyUid);
         for (const c of mine) {
           // (Up to the usual cap, or a card's own full stability where that is higher: a Hero's.)
+          // (A Relic stays brittle: nothing steadies it.)
+          if (cardDef(c.defId).kind === 'relic') continue;
           c.stability = Math.min(Math.max(BALANCE.maxStability, baseStability(c.defId)), (c.stability ?? 0) + e.amount);
           log(state, `${p.name}'s ${cardDef(c.defId).name} steadies (stability ${c.stability}).`);
         }
@@ -1157,7 +1100,6 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   card.stability = undefined;
   card.choice = undefined;
   card.spent = undefined;
-  card.aim = undefined;
   // (A token is simply gone.)
   if (cardDef(card.defId).token) {
     /* nothing to keep */
@@ -1240,11 +1182,11 @@ function plant(state: GameState, p: PlayerState, n: number) {
   if (planted) log(state, `${p.name} plants ${planted} Sapling${planted === 1 ? '' : 's'}.`);
 }
 
-/** At its owner's dawn, worn defence mends: 1 on each card (plus its Sturdy), and 1 on each worn empty slot. */
+/** At its owner's dawn, worn defence mends: 1 on each card, and 1 on each worn empty slot. */
 function mendDefences(state: GameState, p: PlayerState) {
   for (const c of p.tableau) {
     if (!c.dented) continue;
-    const by = Math.min(c.dented, BALANCE.defenceMend + cardSturdy(c));
+    const by = Math.min(c.dented, BALANCE.defenceMend);
     c.dented -= by;
     if (!c.dented) delete c.dented;
     log(state, `${p.name}'s ${cardDef(c.defId).name} mends ${by} defence (defence ${cardDefence(p, c)}).`);
@@ -1284,10 +1226,11 @@ function startTurn(state: GameState) {
   if (!state.keepPulses) state.turnPulses = [];
   delete state.keepPulses;
   p.turnsTaken += 1;
+  // Dawn breaks: every card of theirs is ready to act again.
+  for (const c of p.tableau) delete c.dimmed;
   p.turn = emptyTurn();
-  delete state.awaitingDawn;
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
-  // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy cards mend their Sturdy more).
+  // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy adds defence, not mending: a fused stack of Sturdy cards would wall up for good).
   mendDefences(state, p);
 
   // Shields fade, unless Deep Current holds them.
@@ -1335,20 +1278,11 @@ function startTurn(state: GameState) {
     notePulse(state, p, activeGlobal(state)?.card ?? null, 'cool', p, 1);
   }
 
-  // Your dawn heat waits for you to aim it (a `dawn` action), when there is a choice to make.
-  for (const c of p.tableau) c.aim = undefined;
-  if (needsDawnAim(state, p)) {
-    state.awaitingDawn = true;
-    return;
-  }
   dawn(state, p);
 }
 
 /** A player's dawn: their tableau's dawn effects, cards fading, and the day's energy. */
 function dawn(state: GameState, p: PlayerState) {
-  delete state.awaitingDawn;
-  // A new day: every card of theirs is ready to act again.
-  for (const c of p.tableau) delete c.dimmed;
   // Your tableau's dawn effects, left to right.
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
@@ -1356,8 +1290,9 @@ function dawn(state: GameState, p: PlayerState) {
     resolveEffects(state, p, card, dawnEffects(card, p, state), 'turn');
   }
   // Then every card loses 1 stability (unless anchored); at 0 it fades into your discard pile.
-  // (A Hero never fades: it leads until it is removed, beaten down by heat, or replaced by another.)
-  const fading = p.tableau.filter((c) => !anchored(p, c) && cardDef(c.defId).kind !== 'command');
+  // (A Hero never fades: it leads until it is removed, beaten down by heat, or replaced by another. Nor
+  // does a Relic: it stays until something breaks it.)
+  const fading = p.tableau.filter((c) => !anchored(p, c) && cardDef(c.defId).kind !== 'command' && cardDef(c.defId).kind !== 'relic');
   for (const card of fading) card.stability = (card.stability ?? 1) - 1;
   for (const card of fading) {
     if (state.winnerId || p.eliminated) break;
@@ -1366,8 +1301,6 @@ function dawn(state: GameState, p: PlayerState) {
   p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
   p.turn.energyTotal = p.playsLeft;
   p.turn.energyBase = Math.min(p.playsLeft, Math.min(p.turnsTaken, BALANCE.maxPlays));
-  // Aims last for the dawn they were made for.
-  for (const c of p.tableau) c.aim = undefined;
   if (p.eliminated) passOn(state);
 }
 
@@ -1379,9 +1312,28 @@ function dusk(state: GameState, p: PlayerState) {
   notePulse(state, p, null, 'start', p, 0);
   for (const card of cards) {
     if (state.winnerId || p.eliminated) break;
-    if (!p.tableau.includes(card)) continue;
+    // (A dimmed card rests: one played today, or one that attacked or acted, does nothing at dusk.)
+    if (!p.tableau.includes(card) || card.dimmed) continue;
     resolveEffects(state, p, card, duskEffects(card), 'turn');
   }
+}
+
+/**
+ * After dusk, a hand over the limit is discarded down to it: the cards the player picked, then (if still over)
+ * the costliest of the rest (a Hero kept while none leads their tableau).
+ */
+function trimHand(state: GameState, p: PlayerState, picked: string[] = []) {
+  const over = p.hand.length - BALANCE.maxHand;
+  if (over <= 0) return;
+  const chosen = [...new Set(picked)].map((uid) => p.hand.find((c) => c.uid === uid)).filter((c): c is CardInstance => !!c).slice(0, over);
+  const keepHero = !commandCard(p);
+  const rest = p.hand
+    .filter((c) => !chosen.includes(c))
+    .sort((a, b) => Number(keepHero && cardDef(a.defId).kind === 'command') - Number(keepHero && cardDef(b.defId).kind === 'command') || cardCost(b.defId) - cardCost(a.defId));
+  const out = [...chosen, ...rest.slice(0, over - chosen.length)];
+  p.hand = p.hand.filter((c) => !out.includes(c));
+  p.discard.push(...out);
+  log(state, `${p.name} holds more than ${BALANCE.maxHand} cards and discards ${out.map((c) => cardDef(c.defId).name).join(', ')}.`);
 }
 
 /** A card's dusk effects (its own and its Fusion cards'). */
@@ -1446,14 +1398,9 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const recovers = recoverChoices(p, def.id);
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
 
-  const aims = aimChoices(state, p);
-  if (aimable(def.id) && target) {
-    if (action.aimUid && !aims.cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
-    if (!action.aimUid && !aims.sun && aims.cards.length) throw new GameError(`${target.name} has a Guard in play: aim at it.`);
-  }
+  if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau (a Guard, while they have one), or at their sun.");
 
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
-  if (action.aimUid && aimable(def.id)) card.aim = action.aimUid;
   // An X card spends all the energy left; its effects count how much.
   const spend = def.spendAll ? p.playsLeft : cost;
   if (def.spendAll) card.spent = spend;
@@ -1520,15 +1467,12 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     (host.fused ??= []).push(card);
     host.stability = Math.min(BALANCE.maxStability, (host.stability ?? 0) + baseStability(def.id));
     log(state, `${p.name} fuses ${def.name} onto ${cardDef(host.defId).name} (stability ${host.stability}).`);
-    if (action.aimUid && aimable(def.id)) host.aim = action.aimUid;
     resolveEffects(state, p, host, def.onPlay, 'play', action);
-    host.aim = undefined;
     return;
   }
   // A card that does nothing once played resolves and goes straight to the discard pile.
   if (isBurst(def)) {
     resolveEffects(state, p, card, def.onPlay, 'play', action);
-    card.aim = undefined;
     if (!p.discard.includes(card)) p.discard.push(card);
     return;
   }
@@ -1541,8 +1485,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   }
   place(p, card, slot);
   // A card comes into play dimmed: it can first act (attack, or a Hero's ability) on its owner's next day.
-  // (Ambush, the Nyxari: their cards come in ready to act.)
-  if (!raceTrait(cardDef(card.defId).race)?.ambush) card.dimmed = true;
+  // (Darkspeed, the Nyxari: their cards that can act, attackers and Heroes, come in ready to.)
+  if (!hasDarkspeed(cardDef(card.defId))) card.dimmed = true;
   if (choices.length) {
     card.choice = action.choice;
     log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);
@@ -1550,8 +1494,6 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   resolveEffects(state, p, card, def.onPlay, 'play', action);
   // A campaign hero's boons that act as the card is played.
   for (const b of card.boons ?? []) if (!state.winnerId && !p.eliminated && cardDef(b).onPlay) resolveEffects(state, p, card, cardDef(b).onPlay, 'play');
-  // The aim was for this play: later heat (its dawn, or as it leaves) is aimed afresh.
-  card.aim = undefined;
 }
 
 /** A choice as words, for the log ("heat 2", "draw 1"). */
@@ -1568,8 +1510,6 @@ export function applyAction(prev: GameState, action: Action): GameState {
   delete state.turnPulses;
   delete state.sprung;
   const p = activePlayer(state);
-  if (action.type === 'dawn' && !state.awaitingDawn) throw new GameError('Your dawn has already broken.');
-  if (state.awaitingDawn && action.type !== 'dawn' && action.type !== 'concede') throw new GameError('Aim your dawn heat first.');
   switch (action.type) {
     case 'concede': {
       const quitter = state.players.find((o) => o.id === action.playerId);
@@ -1588,25 +1528,6 @@ export function applyAction(prev: GameState, action: Action): GameState {
       playCard(state, p, action);
       if (p.eliminated) passOn(state);
       break;
-    case 'dawn': {
-      const choices = aimChoices(state, p);
-      for (const [uid, aim] of Object.entries(action.aims)) {
-        const mine = p.tableau.find((c) => c.uid === uid);
-        if (!mine || !dawnAimable(mine, p, state)) throw new GameError('Aim only your cards that heat at dawn.');
-        if (aim === null) {
-          if (!choices.sun) throw new GameError('Your rival has a Guard in play: aim at it.');
-          mine.aim = undefined;
-        } else {
-          if (!choices.cards.some((c) => c.uid === aim)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
-          mine.aim = aim;
-        }
-      }
-      // The dawn's replay starts from the suns as they are now.
-      state.turnPulses = [];
-      notePulse(state, p, null, 'start', p, 0);
-      dawn(state, p);
-      break;
-    }
     case 'setTarget': {
       const t = state.players.find((o) => o.id === action.targetId);
       if (!t || t.eliminated || t.id === p.id) throw new GameError('Choose a living rival to target.');
@@ -1621,6 +1542,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
         passOn(state);
         break;
       }
+      trimHand(state, p, action.discard);
       state.keepPulses = true;
       advanceTurn(state);
       break;
@@ -1639,8 +1561,9 @@ export function applyAction(prev: GameState, action: Action): GameState {
       p.playsLeft -= k.cost ?? 0;
       p.abilityTurn = state.turnNumber;
       hero.dimmed = true;
+      if (action.aimUid && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau (a Guard, while they have one), or at their sun.");
       log(state, `${p.name}'s ${cardDef(hero.defId).name}: ${k.name}.`);
-      resolveEffects(state, p, hero, k.effects, 'play');
+      resolveEffects(state, p, hero, k.effects, 'play', { aimUid: action.aimUid });
       if (p.eliminated) passOn(state);
       break;
     }
@@ -1660,14 +1583,20 @@ export function applyAction(prev: GameState, action: Action): GameState {
   return state;
 }
 
+/** A card's printed attack: its rating with its race's trait folded in (Sun-lances, Slow tides...; never below 1). */
+export function baseAttack(def: CardDef): number {
+  const a = def.attack ?? 0;
+  return a > 0 ? Math.max(1, a + (raceTrait(def.race)?.attack ?? 0)) : 0;
+}
+
 /** A card's attack as it stands: its rating, with whatever boosts heat (Forge, a Hero's racial buff...). */
 export function cardAttack(state: GameState, p: PlayerState, card: CardInstance): number {
   const def = cardDef(card.defId);
-  let base = def.attack ?? 0;
+  let base = baseAttack(def);
   if (base <= 0) return 0;
-  // The race's trait: Sun-lances, Slow tides, Flare-born...
+  // Flare-born: more while its owner's sun is overheated.
   const t = raceTrait(def.race);
-  base = Math.max(1, base + (t?.attack ?? 0) + (t?.attackHot && isOverheated(p) ? t.attackHot : 0));
+  if (t?.attackHot && isOverheated(p)) base += t.attackHot;
   return effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play');
 }
 
@@ -1677,21 +1606,23 @@ export function counterDamage(state: GameState, owner: PlayerState, card: CardIn
   return cardAttack(state, owner, card) + sting;
 }
 
-/** Why a card can't attack this target now (null if it can). `targetUid` null: the rival's sun. */
-export function attackProblem(state: GameState, p: PlayerState, attackerUid: string, targetUid: string | null): string | null {
+/** Why a card can't attack this target now (null if it can). `targetUid` null: the rival's sun; unset: whether it can attack at all. */
+export function attackProblem(state: GameState, p: PlayerState, attackerUid: string, targetUid?: string | null): string | null {
   const card = p.tableau.find((c) => c.uid === attackerUid);
   if (!card) return 'That card is not in play.';
-  if (activePlayer(state).id !== p.id || state.awaitingDawn) return 'Only on your own day.';
+  if (activePlayer(state).id !== p.id) return 'Only on your own day.';
   if ((cardDef(card.defId).attack ?? 0) <= 0) return `${cardDef(card.defId).name} has no attack.`;
   if (card.dimmed) return `${cardDef(card.defId).name} is dimmed: it acts again from your next day.`;
   const { cards, sun } = aimChoices(state, p);
+  if (targetUid === undefined) return null;
   if (targetUid === null) return sun ? null : 'Your rival has a Guard in play: attack it.';
-  return cards.some((c) => c.uid === targetUid) ? null : "Attack a card in your rival's tableau, or their sun.";
+  return cards.some((c) => c.uid === targetUid) ? null : sun ? "Attack a card in your rival's tableau, or their sun." : 'Your rival has a Guard in play: attack it.';
 }
 
 /**
- * A card attacks: its attack lands as heat (on the sun, past shields, or on a card, past its defence), and
- * the card it attacks hits back with its own attack and Sting, at the attacker's stability. Then it is dimmed.
+ * A card attacks: its attack lands as heat on the rival's sun (past shields), or strikes a rival card (its
+ * defence, then its stability), and that card hits back with its own attack and Sting, at the attacker's
+ * stability. Then it is dimmed.
  */
 function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid: string | null) {
   const rival = targetOf(state, p);
@@ -1703,19 +1634,30 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   const burn = raceTrait(cardDef(card.defId).race)?.attackSelfHeat ?? 0;
   if (burn > 0) applyHeat(state, p, burn, null);
   if (state.winnerId) return;
-  const victim = targetUid ? rival.tableau.find((c) => c.uid === targetUid) : undefined;
-  if (!victim) {
+  if (targetUid === null) {
+    // (No pulse: the card itself is seen striking the sun.)
     log(state, `${p.name}'s ${name} attacks ${rival.name}'s sun for ${amount}.`);
     applyHeat(state, rival, amount, p, false, card.uid);
-    notePulse(state, p, card, 'heat', rival, amount);
     return;
   }
+  // A face-down Lightspeed guard can spring in front of the card attacked, and take the blow.
+  const attacked = rival.tableau.find((c) => c.uid === targetUid);
+  if (attacked && springAmbush(state, rival, p, card.defId)) {
+    log(state, `${p.name}'s ${name} never reaches ${rival.name}'s ${cardDef(attacked.defId).name}.`);
+    return;
+  }
+  const victim = springGuard(state, rival, p, card.defId) ?? attacked;
+  if (!victim || state.winnerId || p.eliminated) return;
   const back = counterDamage(state, rival, victim);
   log(state, `${p.name}'s ${name} attacks ${rival.name}'s ${cardDef(victim.defId).name} for ${amount}.`);
-  heatCard(state, rival, victim, amount, p, false, card.uid);
+  strikeCard(state, rival, victim, amount, p, false, card.uid);
   if (back > 0 && p.tableau.includes(card)) {
-    card.stability = Math.max(0, (card.stability ?? 0) - back);
-    log(state, `${cardDef(victim.defId).name} hits back: ${name} takes ${back} (stability ${card.stability}).`);
+    // An attacker out of its slot has no slot defence: only its own (Sturdy, and its race's) takes the blow first.
+    const own = Math.max(0, cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0));
+    const absorbed = Math.min(back, own, cardDefence(p, card));
+    if (absorbed > 0) card.dented = (card.dented ?? 0) + absorbed;
+    card.stability = Math.max(0, (card.stability ?? 0) - (back - absorbed));
+    log(state, `${cardDef(victim.defId).name} hits back: ${name} takes ${back}${absorbed ? ` (${absorbed} on its own defence)` : ''} (stability ${card.stability}).`);
     if (card.stability <= 0) {
       log(state, `${p.name}'s ${name} burns away.`);
       leaveTableau(state, p, card);
@@ -1728,7 +1670,7 @@ export function heroAbilityProblem(state: GameState, p: PlayerState, index: numb
   const hero = commandCard(p);
   const k = hero ? cardDef(hero.defId).abilities?.[index] : undefined;
   if (!hero || !k) return 'No Hero leads your tableau.';
-  if (activePlayer(state).id !== p.id || state.awaitingDawn) return 'Only on your own day.';
+  if (activePlayer(state).id !== p.id) return 'Only on your own day.';
   if (hero.dimmed) return p.abilityTurn === state.turnNumber ? `${cardDef(hero.defId).name} has acted today.` : `${cardDef(hero.defId).name} is dimmed: it acts from your next day.`;
   if ((k.cost ?? 0) > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
   return null;

@@ -2,7 +2,7 @@
  * Your account (see server/accounts.ts): everyone plays with one. Sign up with an email and a password
  * (agreeing to the Terms and the Privacy Policy), or with Apple or Google.
  *
- * - The save (name and emblem, decks, campaign, settings) lives on this device too, and is pushed to the
+ * - The save (name, decks, campaign, settings) lives on this device too, and is pushed to the
  *   account a moment after each change; signing in loads the account's copy.
  * - The economy (level, experience, currencies, collection, rank) is the server's: this device only keeps
  *   a copy to show, and every change to it (boosters, crafting, rewards) is asked of the server.
@@ -10,7 +10,7 @@
 import { reloadProfile, setEconomy, type EconomyFields } from './profile';
 
 /** What an account's progress is made of: these keys of this device's storage. */
-const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v3', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm'];
+const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v3', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm', 'blue-loop:hide-starters'];
 /** The account signed in on this device, and the version of its progress this device last had. */
 const ACCOUNT_KEY = 'blue-loop:account';
 /** The native app's session token (a browser keeps its session in a cookie that pages can't read). */
@@ -22,6 +22,8 @@ export interface AccountInfo {
   email: string;
   /** Signs in with a password (false: with Apple or Google only). */
   password?: boolean;
+  /** The account's picture: a card (its id), dealt by the server when the account was made. */
+  avatar?: string;
   /** The server's version of the progress this device has (for spotting a newer copy elsewhere). */
   updated: number;
 }
@@ -130,7 +132,7 @@ function apply(save: unknown) {
 /** A session began (signed up, signed in, or a new password set): keep it, and take up the account's progress. */
 function began(d: Record<string, unknown>) {
   const a = d.account as AccountInfo;
-  write(ACCOUNT_KEY, { id: a.id, email: a.email, password: a.password, updated: Number(d.updated) });
+  write(ACCOUNT_KEY, { id: a.id, email: a.email, password: a.password, avatar: a.avatar, updated: Number(d.updated) });
   if (isNative() && typeof d.token === 'string') write(TOKEN_KEY, d.token);
   if (d.save) apply(d.save);
   reloadProfile();
@@ -374,8 +376,10 @@ export async function checkIn(): Promise<boolean> {
   try {
     const d = await api('me');
     const updated = Number(d.updated);
-    // The economy is the server's: take it up every time.
+    // The economy and the picture are the server's: take them up every time.
     setEconomy(d.economy as EconomyFields);
+    a.avatar = (d.account as AccountInfo | undefined)?.avatar ?? a.avatar;
+    write(ACCOUNT_KEY, a);
     if (updated > a.updated && d.save) {
       write(ACCOUNT_KEY, { ...a, updated });
       // Only a copy that differs from this device's needs taking up (and a reload to read it).

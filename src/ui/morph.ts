@@ -15,7 +15,7 @@
 /** What each element's markup last said its style was (to tell markup styles from script ones). */
 const markupStyle = new WeakMap<Element, string>();
 
-/** Classes added from script that a redraw keeps (a hand card lifted under the pointer). */
+/** Classes added from script that a redraw keeps (a hand card lifted under the pointer, or held still as the hand rises). */
 const KEEP_CLASSES = ['lifted'];
 
 const keyOf = (n: Node): string | null => {

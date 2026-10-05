@@ -8,11 +8,12 @@
 /**
  * Card types. They matter for synergies ("your attack cards deal +1 heat").
  * Lightspeed cards are played face down and spring during an enemy's day.
+ * Relics have no attack and never fade, but are Brittle: nothing restores them, and removal reaches them whatever their defence.
  */
-export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'lightspeed';
-export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'global', 'command', 'lightspeed'];
+export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'lightspeed' | 'relic';
+export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'relic', 'global', 'command', 'lightspeed'];
 /** A kind as players read it: Command cards are Heroes (the id stays, so saved decks carry over). */
-export const KIND_NAME: Record<CardKind, string> = { attack: 'attack', defence: 'defence', growth: 'growth', global: 'global', command: 'hero', lightspeed: 'lightspeed' };
+export const KIND_NAME: Record<CardKind, string> = { attack: 'attack', defence: 'defence', growth: 'growth', global: 'global', command: 'hero', lightspeed: 'lightspeed', relic: 'relic' };
 
 /**
  * How rare a card is, shown by a gem at the top of the card: a White Dwarf
@@ -153,7 +154,7 @@ export type Passive =
   | { type: 'guard'; amounts: number[] }
   /** Your cards next to this one lose no stability. */
   | { type: 'anchor' }
-  /** Guard: rival cards' heat can only be aimed at your Guard cards while you have one. */
+  /** Guard: rival attacks and aimed heat can only target your Guard cards while you have one. */
   | { type: 'taunt' }
   /** Your rivals' planets all count as the dead planet (no energy or cards from them) while this is in play. */
   | { type: 'eatPlanets' };
@@ -163,9 +164,9 @@ export type Passive =
  * - `enemyPlays`: an enemy plays a card (of a kind, if given), before it resolves;
  * - `heated`: an enemy's card is about to heat your sun (by at least `min`);
  * - `targeted`: an enemy is about to destroy or return one of your cards;
- * - `cardHeated`: an enemy's heat is about to strike one of your cards.
+ * - `cardAttacked`: an enemy card is about to attack one of your cards.
  */
-export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'heated'; /** Only heat of at least this much. */ min?: number } | { on: 'targeted' } | { on: 'cardHeated' };
+export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'heated'; /** Only heat of at least this much. */ min?: number } | { on: 'targeted' } | { on: 'cardAttacked' };
 
 export interface Lightspeed {
   trigger: LightspeedTrigger;
@@ -252,7 +253,7 @@ export interface CardInstance {
   stability?: number;
   /**
    * In a tableau: defence worn away by heat. It lasts: a card recovers 1 at each of its owner's dawns
-   * (plus its Sturdy), or by Repair; and the wear on its slot's own defence stays in the slot when it leaves.
+   * or by Repair; and the wear on its slot's own defence stays in the slot when it leaves.
    */
   dented?: number;
   /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
@@ -265,8 +266,6 @@ export interface CardInstance {
   choice?: string;
   /** The energy spent on it as it was played (cards that spend all your energy). */
   spent?: number;
-  /** Where its heat goes (as it is played, and at the dawn it was aimed for): a card in your rival's tableau (its uid), or your rival's sun (unset). */
-  aim?: string;
 }
 
 /** Battle modifiers from the campaign map (anomalies, garrisons). */
@@ -309,6 +308,8 @@ export interface PlayerState {
   species: number;
   /** The deck's name, for display. */
   deckName?: string;
+  /** The player's picture: a card (its id), whose artwork stands for them. */
+  avatar?: string;
   heat: number;
   shields: number;
   /** Shuffling the discard pile back in costs no heat (a campaign army's small deck). */
@@ -375,8 +376,6 @@ export interface GameState {
   keepPulses?: boolean;
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
-  /** The active player's dawn waits for them to aim their cards' dawn heat (a `dawn` action). */
-  awaitingDawn?: boolean;
 }
 
 /** One dawn effect, as it happened: what fired it, where it went, and every sun just after. */
@@ -427,6 +426,8 @@ export interface PlayerSetup {
   /** The deck, as card ids (default: the race's starter deck). */
   deck?: string[];
   deckName?: string;
+  /** The player's picture: a card (its id). */
+  avatar?: string;
   /** Which of the alien races this player is (an index into RACE_NAMES, 0–7). Defaults to the seat order. */
   species?: number;
   /** Campaign battles: heat carried in (damage taken earlier, or a garrison's bombardment). */
@@ -470,18 +471,17 @@ export type Action =
       allyUid?: string;
       /** Recover effects: the card in your discard pile to take back. */
       recoverUid?: string;
-      /** A card that heats as it is played: the rival card its heat goes to (unset: their sun). */
+      /** A card that heats as it is played: the rival card its heat goes to (unset: their sun, or a Guard). */
       aimUid?: string;
     }
-  /** Your dawn: where each of your cards' dawn heat goes (card uid → rival card uid, or null for their sun; unset: the sun, or a Guard). */
-  | { type: 'dawn'; aims: Record<string, string | null> }
   | { type: 'setTarget'; targetId: string }
-  | { type: 'endTurn' }
+  /** Ends the day. After dusk a hand over the limit is discarded down to it: `discard` names the cards (any still over are picked for them). */
+  | { type: 'endTurn'; discard?: string[] }
   /** Use one of your hero's battle skills (campaign), on your own day. */
   | { type: 'heroSkill'; index: number }
   /** Use one of the abilities of the Hero leading from your Hero slot (one a day). */
-  | { type: 'heroAbility'; index: number }
-  /** One of your cards attacks: the rival's sun (target null) or one of their cards. */
+  | { type: 'heroAbility'; index: number; /** An ability that heats: the rival card it goes to (unset: their sun, or a Guard). */ aimUid?: string }
+  /** One of your cards attacks: one of your rival's cards, or their sun (target null). */
   | { type: 'attack'; attackerUid: string; targetUid: string | null }
   /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string };

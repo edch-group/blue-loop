@@ -3,8 +3,10 @@
  * Apple or Google), agreeing to the Terms and the Privacy Policy; the account keeps the player's progress
  * in D1 so it follows them to any device.
  *
+ * Each account has a picture too: a card's artwork, dealt at random when it is made (see server/avatars.ts).
+ *
  * Two kinds of progress:
- * - **The save** (name and emblem, decks, campaign, settings): the device's own, synced as it changes.
+ * - **The save** (name, decks, campaign, settings): the device's own, synced as it changes.
  * - **The economy** (level, experience, stardust, flux, the collection, rank, record): the server's alone.
  *   It changes only through the server's actions here (boosters, crafting, breaking down, rewards), so
  *   editing a device's storage changes nothing that counts.
@@ -21,6 +23,7 @@
 
 import { COOKIE, hashPassword, normaliseEmail, passwordProblem, PROVIDERS, randomToken, sameHex, sessionToken, sha256, verifyIdToken } from './auth';
 import { breakDown, buyBooster, craft, freshEconomy, isBoosterKind, normaliseEconomy, payReward, rewardFor, type Economy, type Payout } from './economy';
+import { AVATARS, isAvatar, randomAvatar } from './avatars';
 import type { GameKind, Reward } from '../src/engine';
 
 export interface AccountsEnv {
@@ -80,7 +83,7 @@ class HttpError extends Error {
  *   POST /api/breakdown { id }                           → { economy }
  *   POST /api/game/start  { kind: 'ai' }                 → { gameId }
  *   POST /api/game/finish { gameId, won, conceded }      → { payout, economy }
- * A session response is { account, token, save, updated, economy }.
+ * A session response is { account, token, save, updated, economy }; `account` is { id, email, password, avatar }.
  */
 export async function handleAccounts(request: Request, env: AccountsEnv): Promise<Response> {
   const url = new URL(request.url);
@@ -184,10 +187,20 @@ async function startSession(env: AccountsEnv, account: Account, request: Request
   return res;
 }
 
-/** An account as the game sees it: its id and email, and whether it has a password (or signs in with Apple or Google only). */
-async function accountInfo(env: AccountsEnv, a: Account): Promise<Account & { password: boolean }> {
-  const row = await env.DB.prepare("SELECT pass_hash != '' AS has FROM users WHERE id = ?").bind(a.id).first<{ has: number }>();
-  return { id: a.id, email: a.email, password: !!row?.has };
+/**
+ * An account as the game sees it: its id and email, whether it has a password (or signs in with Apple or
+ * Google only), and its picture (a card id). An account made before pictures, or whose card has left the
+ * game, is dealt one now, and keeps it.
+ */
+async function accountInfo(env: AccountsEnv, a: Account): Promise<Account & { password: boolean; avatar: string }> {
+  const row = await env.DB.prepare("SELECT pass_hash != '' AS has, avatar FROM users WHERE id = ?").bind(a.id).first<{ has: number; avatar: string | null }>();
+  let avatar = row?.avatar;
+  if (!isAvatar(avatar)) {
+    // (Unless another request dealt one first: then that one stands.)
+    await env.DB.prepare('UPDATE users SET avatar = ? WHERE id = ? AND avatar IS ?').bind(randomAvatar(), a.id, avatar ?? null).run();
+    avatar = (await env.DB.prepare('SELECT avatar FROM users WHERE id = ?').bind(a.id).first<{ avatar: string | null }>())?.avatar;
+  }
+  return { id: a.id, email: a.email, password: !!row?.has, avatar: isAvatar(avatar) ? avatar : AVATARS[0] };
 }
 
 /** The signed-in account behind a request, or null. */
@@ -281,12 +294,12 @@ function requireAgreement(b: Record<string, unknown>) {
   if (b.acceptTerms !== true || b.acceptPrivacy !== true) throw new HttpError(428, 'Agree to the Terms of Service and the Privacy Policy to create an account.', { needsAgreement: true });
 }
 
-/** Make an account (a new economy comes with it). */
+/** Make an account (a new economy, and a picture dealt at random, come with it). */
 async function createUser(env: AccountsEnv, email: string, passHash: string, salt: string): Promise<Account> {
   const id = randomToken(12);
   const now = Date.now();
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO users (id, email, pass_hash, salt, created, terms_version, privacy_version, accepted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, email, passHash, salt, now, TERMS_VERSION, PRIVACY_VERSION, now),
+    env.DB.prepare('INSERT INTO users (id, email, pass_hash, salt, created, terms_version, privacy_version, accepted_at, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, email, passHash, salt, now, TERMS_VERSION, PRIVACY_VERSION, now, randomAvatar()),
     env.DB.prepare('INSERT INTO economy (user_id, data, updated) VALUES (?, ?, ?)').bind(id, JSON.stringify(freshEconomy()), now),
   ]);
   return { id, email };
