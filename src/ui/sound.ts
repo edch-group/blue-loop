@@ -378,6 +378,13 @@ class SoundBoard {
     for (let i = 0; i < 3; i++)
       this.breath({ dur: 0.035 + Math.random() * 0.03, freq: 4200 + Math.random() * 2600, q: 1.6, gain: 0.014 + Math.random() * 0.01, attack: 0.004, delay: 0.015 + i * 0.03 + Math.random() * 0.02, type: 'bandpass' });
   }
+  /** The hand lifted to be read: a fan of cards sliding against each other (a longer brush, a spill of crackles). */
+  handLift() {
+    this.lastRustle = performance.now();
+    this.breath({ dur: 0.34, freq: 1800, to: 3800, q: 0.6, gain: 0.03, attack: 0.06, type: 'bandpass' });
+    for (let i = 0; i < 7; i++)
+      this.breath({ dur: 0.03 + Math.random() * 0.04, freq: 3600 + Math.random() * 3200, q: 1.5, gain: 0.012 + Math.random() * 0.012, attack: 0.004, delay: 0.02 + i * 0.035 + Math.random() * 0.02, type: 'bandpass' });
+  }
   /** One point repaired: a single short, soft tick. */
   repair() {
     this.voice(1046.5, { dur: 0.09, attack: 0.003, gain: 0.022, cutoff: 4200 });

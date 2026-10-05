@@ -229,6 +229,8 @@ const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
 /** How long the viewer's own card hangs in the preview pane (at least) before it lands, as the rival reads it. */
 const OWN_HOLD_MS = 1100;
+/** How much the hand's cards grow while it is raised to be read. */
+const HAND_GROW = 1.14;
 /** An attack: the card's lunge (it strikes a little past halfway; the attack lands once it is back). */
 const LUNGE_MS = 900;
 /** When in the lunge the card strikes (a share of it): the blow lands then. */
@@ -660,6 +662,13 @@ export class App {
       if ((e.target as HTMLElement).dataset.seatName === '0' && this.online && this.screen === 'menu') this.online.setup(this.joinInfo());
     });
     root.addEventListener('mouseover', (e) => this.onHover(e));
+    // With a mouse, hovering the hand raises it (and leaving it lowers it).
+    const mouse = matchMedia('(hover: hover) and (pointer: fine)');
+    root.addEventListener('mouseover', (e) => {
+      if (!mouse.matches || this.touch || this.screen !== 'game' || this.drag) return;
+      this.raiseHand(!!(e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone'));
+    });
+    root.addEventListener('mouseleave', () => mouse.matches && !this.touch && !this.drag && this.raiseHand(false));
     root.addEventListener('mousemove', (e) => (this.mouseAt = { x: e.clientX, y: e.clientY }), { passive: true });
     root.addEventListener('pointerdown', (e) => this.onPressStart(e));
     window.addEventListener('pointermove', (e) => this.onPressMove(e));
@@ -2510,6 +2519,12 @@ export class App {
   private raiseHand(up: boolean) {
     if (this.handRaised === up) return;
     this.handRaised = up;
+    if (up) {
+      this.measureRaise();
+      // (Again once it has risen, in case the board was still settling as it began.)
+      setTimeout(() => this.handRaised && this.measureRaise(), 350);
+      sound.handLift();
+    }
     this.root.querySelector('.table-view > .dock')?.classList.toggle('dock-raised', up);
   }
 
@@ -3203,14 +3218,32 @@ export class App {
       void hand.offsetWidth;
       fresh.forEach((c) => (c.style.transition = ''));
     }
-    // How far the hand rises to be read whole: as much of it as hangs below the screen's foot (and a little more).
-    const dock = hand.closest<HTMLElement>('.dock');
-    if (dock) {
-      const raised = parseFloat(dock.style.getPropertyValue('--raise')) || 0;
-      const now = dock.classList.contains('dock-raised') ? raised : 0;
-      const low = Math.max(...cards.map((c) => c.getBoundingClientRect().bottom)) + now;
-      dock.style.setProperty('--raise', `${Math.max(0, Math.round(low - appSize().h + 10))}px`);
-    }
+    this.measureRaise();
+  }
+
+  /** How far the hand rises to be read whole: raised, its cards also grow a little (from the hand's foot), and the
+   *  lowest card's foot just clears the screen's foot. (Measured in layout, where the lift doesn't show.) */
+  private measureRaise() {
+    const dock = this.root.querySelector<HTMLElement>('.table-view > .dock');
+    const hand = dock?.querySelector<HTMLElement>('.hand');
+    const cards = hand ? [...hand.querySelectorAll<HTMLElement>(':scope > .card')] : [];
+    if (!dock || !hand || !cards.length) return;
+    // (A card lifted under the pointer, or still moving into place, is measured where it rests.)
+    const low = Math.max(
+      ...cards.map((c) => {
+        const a = ((parseFloat(c.style.getPropertyValue('--fr')) || 0) * Math.PI) / 180;
+        const [w, h] = [c.offsetWidth, c.offsetHeight];
+        return c.offsetTop + (parseFloat(c.style.getPropertyValue('--fy')) || 0) + h / 2 + (w * Math.abs(Math.sin(a)) + h * Math.cos(a)) / 2;
+      }),
+    );
+    // (In layout pixels, within the table view: the page may be turned or zoomed on screen.)
+    const view = dock.parentElement!;
+    let top = 0;
+    for (let el: HTMLElement | null = hand; el && el !== view; el = el.offsetParent as HTMLElement | null) top += el.offsetTop;
+    const foot = top + hand.offsetHeight;
+    const bottom = top + low;
+    dock.style.setProperty('--hgrow', String(HAND_GROW));
+    dock.style.setProperty('--raise', `${Math.max(0, Math.round(foot + (bottom - foot) * HAND_GROW - view.clientHeight + 8))}px`);
   }
 
   // ---- Front end -------------------------------------------------------------

@@ -4443,7 +4443,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* The hand raised to read every card whole: by a first tap on a touch screen, or by hovering it with a mouse. */
 .table-view > .dock { transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .table-view > .dock.dock-raised { transform: translateY(calc(-1 * var(--raise, 0px))); }
-@media (hover: hover) and (pointer: fine) { .table-view > .dock:has(.hand-zone:hover) { transform: translateY(calc(-1 * var(--raise, 0px))); } }
+.table-view > .dock .hand { transform-origin: 50% 100%; transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.table-view > .dock.dock-raised .hand { transform: scale(var(--hgrow, 1)); }
 /* A card dragged out of the hand to play it: its copy follows the pointer, the card itself waits faded. */
 .hand > .card { touch-action: none; }
 .hand > .card.card-dragging { opacity: 0.3; }
