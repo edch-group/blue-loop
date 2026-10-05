@@ -568,6 +568,8 @@ Each player is one of eight races (races.ts). Every race has a **bonus and a ner
 | Seren | Star-readers | Star-charted: attuned cards attune once more | Frail: −1 stability | Tidecaster (orbit), Seer (draw, recover, attune) |
 | Pyrr | Flare-born | +1 attack, +2 while overheated | Self-immolating: each attack heats their own sun 1 | Flarekin (spend-all bursts), Cinderborn (run hot) |
 
+A trait that only changes a card's own attack or stability (Sun-lances, Brittle, Slow tides, Regrowth, Fleeting, Ponderous, Frail, and Flare-born's +1) is folded into that card's numbers, not shown as a keyword; the others (defence, which depends on the slot, Shatter, Barbed, Darkspeed, Star-charted, Flare-born while overheated, Self-immolating) stay keywords on the card text.
+
 The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2, a 3 and a cost-4 Anomaly bomb), and a starter each: Night Court, Forge Clans, Starwatch, Wildfire. All eight are in the campaign: any race can lead, and the rivals are drawn at random (seeded) from the other seven, each with generals, skill trees, gear, ships and emblems of their own.
 
 **Balancing the races (1000-game sims, all 14 starters).** The traits as first written put the field at 12.1 mean distance from 50%: Night Court 70.5%, Wildfire 14.5%.

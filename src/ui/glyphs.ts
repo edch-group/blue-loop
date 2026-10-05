@@ -1,4 +1,4 @@
-import { BALANCE, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseAttack, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { stellariaFlower } from './art';
 import { cardScene } from './cardart';
 import disk from './gems/disk.png';
@@ -373,8 +373,8 @@ export function raceRow(def: CardDef): string {
 }
 
 /**
- * The race's bonus and nerf that touch this card, as keywords ("Darkspeed", "Fleeting"): each only where it
- * applies (an attack bonus on cards that attack, a stability nerf on cards that stay in play...).
+ * The race's bonus and nerf that touch this card, as keywords ("Darkspeed", "Shatter"): each only where it
+ * applies. Those that only change the card's own attack or stability are in its numbers instead.
  */
 export function raceTraitTags(def: CardDef): { name: string; text: string; nerf: boolean }[] {
   const t = def.race !== undefined ? RACE_TRAITS[def.race] : undefined;
@@ -383,7 +383,7 @@ export function raceTraitTags(def: CardDef): { name: string; text: string; nerf:
   const reaches = (on: string) =>
     on === 'attack' ? (def.attack ?? 0) > 0 : on === 'stays' ? stays : on === 'darkspeed' ? hasDarkspeed(def) : on === 'attune' ? !!def.attune : false;
   const tag = (line: string, nerf: boolean) => ({ name: line.split(':')[0], text: plainText(line.slice(line.indexOf(':') + 1).trim()), nerf });
-  return [...(reaches(t.bonusOn) ? [tag(t.bonus, false)] : []), ...(reaches(t.nerfOn) ? [tag(t.nerf, true)] : [])];
+  return [...(reaches(t.bonusOn) ? [tag(t.bonusTag ?? t.bonus, false)] : []), ...(reaches(t.nerfOn) ? [tag(t.nerf, true)] : [])];
 }
 
 /** The same as plain words ("attack · aureline"), for lists. */
@@ -451,7 +451,7 @@ export function stabilityBadge(def: CardDef): string {
   // (A card that goes straight to the discard pile once played never stands in play: no stability to show.)
   if (!persists(def.id) || isBurst(def)) return '';
   const title = def.kind === 'command' ? 'Stability: a Hero never fades by itself; heat past its defence wears this down, and at 0 it falls' : 'Stability: it stays in play for this many of your days, then fades into your discard pile';
-  const atk = def.attack ?? 0;
+  const atk = baseAttack(def);
   return `<span class="card-stats card-stats-base${atk > 0 ? ' card-stats-split' : ''}">${atk > 0 ? attackBadge(atk) : ''}<b class="stat-stab" title="${title}">◷${baseStability(def.id)}</b></span>`;
 }
 

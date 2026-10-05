@@ -1577,14 +1577,20 @@ export function applyAction(prev: GameState, action: Action): GameState {
   return state;
 }
 
+/** A card's printed attack: its rating with its race's trait folded in (Sun-lances, Slow tides...; never below 1). */
+export function baseAttack(def: CardDef): number {
+  const a = def.attack ?? 0;
+  return a > 0 ? Math.max(1, a + (raceTrait(def.race)?.attack ?? 0)) : 0;
+}
+
 /** A card's attack as it stands: its rating, with whatever boosts heat (Forge, a Hero's racial buff...). */
 export function cardAttack(state: GameState, p: PlayerState, card: CardInstance): number {
   const def = cardDef(card.defId);
-  let base = def.attack ?? 0;
+  let base = baseAttack(def);
   if (base <= 0) return 0;
-  // The race's trait: Sun-lances, Slow tides, Flare-born...
+  // Flare-born: more while its owner's sun is overheated.
   const t = raceTrait(def.race);
-  base = Math.max(1, base + (t?.attack ?? 0) + (t?.attackHot && isOverheated(p) ? t.attackHot : 0));
+  if (t?.attackHot && isOverheated(p)) base += t.attackHot;
   return effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play');
 }
 
