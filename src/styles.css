@@ -4834,3 +4834,23 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   mask: linear-gradient(#000, #000) 0 0 / 100% calc(100% - var(--frl)) no-repeat, radial-gradient(circle at 100% 100%, transparent calc(var(--frl) - 0.5px), #000 var(--frl)) 0 100% / var(--frl) var(--frl) no-repeat, radial-gradient(circle at 0 100%, transparent calc(var(--frr) - 0.5px), #000 var(--frr)) right 0 bottom calc(var(--frl) - var(--frr)) / var(--frr) var(--frr) no-repeat;
 }
 .card:not(.card-landscape) .fused-behind { --frl: var(--r-tl); }
+/* The bump's rims as the card's own: the card's border (its rim colour) inside the bump's edge, and a ring
+   round the card (playable, in the deck, focused, picked) outside it, just as the card's ring lies outside
+   its border, so the two run on unbroken. */
+.card.card .art-wrap .gem::before { box-shadow: inset 0 0 0 1px var(--rim), 0 0 0 var(--bump-w, 0px) var(--bump-ring, transparent); }
+
+/* Deck builder: a card you don't own is greyed and faded by a veil over it (not a filter on the card, which
+   turned its ring grey and its gem's bump see-through), and the one picked to craft takes a ring of the
+   card's own shape. */
+.db-card-locked .card { filter: none; }
+.db-card-locked .card > :not(.card-glyph), .db-card-locked .card-glyph > :not(.art-wrap), .db-card-locked .art-wrap > :not(.gem) { filter: grayscale(1); }
+.db-card-locked .card::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; background: rgba(248, 248, 250, 0.55); z-index: 5; pointer-events: none; }
+/* (The gem stands over the veil, so it is greyed and faded itself: its glass, not its bump.) */
+.db-card-locked .card .gem > i { filter: grayscale(1); opacity: 0.45; }
+.db-card-focus { outline: none; }
+.db-card-focus > .card { box-shadow: 0 0 0 2px #9fb4ff, 0 5px 16px rgba(90, 90, 110, 0.15); --bump-ring: #9fb4ff; --bump-w: 2px; }
+/* (Hovered, a card in the deck or picked to craft keeps its ring: the lift's shadow joins it rather than replacing it.) */
+@media (hover: hover) {
+  .db-card-in > .card.lifted:not([disabled]) { box-shadow: 0 0 0 2px color-mix(in srgb, var(--kc) 75%, transparent), 0 10px 22px rgba(90, 90, 110, 0.2); }
+  .db-card-focus > .card.lifted:not([disabled]) { box-shadow: 0 0 0 2px #9fb4ff, 0 10px 22px rgba(90, 90, 110, 0.2); }
+}
