@@ -4600,3 +4600,27 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .switch-track i { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(60, 64, 80, 0.3); transition: transform 0.2s; }
 .db-switch.on .switch-track { background: #7cc79a; }
 .db-switch.on .switch-track i { transform: translateX(13px); }
+/* ---------- The rarity gem, set into the card's top edge ----------
+   Twice its old size, its centre on the top edge, in a mount of the card's own face and rim, so the edge bulges
+   round it (the card no longer clips what stands over its edge). The picture needs no notch for it now. */
+.card { overflow: visible; --face: #fbfbfc; --rim: #fff; }
+.card.rarity-stellar { --face: #fdf6e8; --rim: rgba(255, 214, 140, 0.9); }
+.card.rarity-anomaly { --face: #f7f1fe; --rim: rgba(190, 160, 255, 0.85); }
+.card.kind-command { --face: #6a7487; --rim: #7a8498; }
+.card .card-glyph { padding-top: calc(var(--cw, 100px) * 0.06); }
+.art-notched { -webkit-mask: none; mask: none; }
+.card .art-wrap .gem {
+  --gs: max(9px, calc(var(--cw, 100px) * 0.09));
+  top: calc(var(--cw, 100px) * -0.06); right: calc(var(--cw, 100px) * 0.17); transform: translate(50%, -50%); z-index: 4;
+  box-shadow: none;
+}
+.card .art-wrap .gem::before, .card .art-wrap .gem::after {
+  content: ''; position: absolute; inset: calc(var(--gs) * -0.16); border-radius: 50%; z-index: -1;
+}
+/* The mount: the card's face, covering its edge where the gem sits... */
+.card .art-wrap .gem::before { background: var(--face); }
+/* ...and the rim carried round the half that stands above the card. */
+.card .art-wrap .gem::after { border: 1px solid var(--rim); clip-path: inset(-2px -2px 50% -2px); box-shadow: 0 -1px 3px rgba(80, 84, 100, 0.12); }
+/* (An Anomaly in the hand: no purple rim, so the green one, "you can play this", reads plainly.) */
+.hand > .card.rarity-anomaly { border-color: #fff; box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18); }
+.hand > .card.rarity-anomaly { --rim: #fff; }
