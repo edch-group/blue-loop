@@ -4811,3 +4811,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .board-plane .card .gem .g-socket, .board-plane .card .gem .gem-window, .board-plane .card .gem .g-glass {
   transform: translateY(calc(var(--gs) * -0.54 * (1 / cos(var(--board-tilt, 0deg)) - 1))) scaleY(calc(1 / cos(var(--board-tilt, 0deg))));
 }
+/* The rims as real borders (crisp, where gradients blurred): the card's outline over the bump is an inset ring
+   on the bump's fill, running down past the card's border so it meets the card's edge line with no gap; the
+   pill's rim round its notch a 1px circle round the gem, shown only below the pill's top. */
+.card.card .art-wrap .gem::before { box-shadow: inset 0 0 0 var(--bump-w, 1px) var(--bump-ring, var(--rim)); }
+.card.card .art-wrap .gem::after {
+  background: none; border: 1px solid rgba(255, 255, 255, 0.9); box-sizing: border-box;
+  -webkit-mask: linear-gradient(transparent var(--gap), #000 var(--gap)); mask: linear-gradient(transparent var(--gap), #000 var(--gap));
+}
+/* (The bump and its rim end exactly at the foot of the card's 1px border, so the rim joins the edge line.) */
+.card.card .art-wrap .gem::before { clip-path: inset(-6px -6px calc(50% - 1px) -6px); }
