@@ -4,6 +4,7 @@ import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { RACE_CARDS } from './cards-races';
 import { DUSK_CARDS } from './cards-dusk';
+import { BIG_CARDS } from './cards-big';
 import { HERO_CARDS } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
@@ -690,7 +691,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS);
+CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS);
 // The Heroes as they now fight (heroes-battle.ts): lasting, with abilities to choose from each day, in
 // place of the old choice of dawn effect.
 for (const c of CARDS) {
@@ -1052,6 +1053,27 @@ export const PRESET_DECKS: DeckList[] = [
     ],
   },
 ];
+
+/**
+ * The big cards (cards-big.ts) in the starters: one copy of a cheap card each makes way for one, so the
+ * days with five energy (and more, with bonus energy) have something to spend it on.
+ */
+const BIG_SWAPS: Record<string, [string, string][]> = {
+  'Solar Lancers': [['rally_banner', 'zenith_array']],
+  'Shard Overload': [['echo_shard', 'coronal_storm'], ['prism_ward', 'great_collapse']],
+  'Abyssal Tide': [['brine_lash', 'bulwark_prime']],
+  'Hive Bloom': [['seasonal_bloom', 'furnace_engine'], ['seed_burst', 'black_sun']],
+  'Night Court': [['nyx_void_rend', 'coronal_storm'], ['nyx_shade_stalker', 'great_collapse']],
+  'Forge Clans': [['plasma_relay', 'bulwark_prime'], ['kor_molten_pour', 'black_sun']],
+  Starwatch: [['ser_star_needle', 'furnace_engine'], ['ser_star_chart', 'dyson_sphere']],
+  Wildfire: [['pyr_banked_embers', 'coronal_storm'], ['pyr_vent_cooler', 'supernova_lance']],
+};
+for (const d of PRESET_DECKS) {
+  for (const [out, inn] of BIG_SWAPS[d.name] ?? []) {
+    const at = d.cards.lastIndexOf(out);
+    if (at >= 0) d.cards[at] = inn;
+  }
+}
 
 /** A race's own starter deck (the first race's for anything else). */
 export function presetDeck(race: number): DeckList {

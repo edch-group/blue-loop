@@ -1047,6 +1047,17 @@ const ART: Record<string, Draw> = {
   ixquor_brood_tender: (S) => S.ground(92, '#0e0a1c') + ixquor(S, 58, 66, 1.05, { item: 'pods', arms: 3, cap: '#d59cff' }),
   the_brood_queen: (S) => S.glow(80, 30, 70, '#c5ff8a', 0.35) + ixquor(S, 80, 70, 1.25, { crown: true, arms: 6, tall: 1.05 }) + S.motes(80, 40, 20, 70, '#c5ff8a', 1.1),
 };
+// The big cards borrow the pictures of their smaller kin.
+Object.assign(ART, {
+  coronal_storm: ART.coronal_lance,
+  furnace_engine: ART.dreadnought,
+  bulwark_prime: ART.solar_bastion,
+  zenith_array: ART.overcharge,
+  supernova_lance: ART.fracture_burst,
+  great_collapse: ART.event_horizon,
+  dyson_sphere: ART.stellar_aegis,
+  black_sun: ART.star_breaker,
+});
 
 /** The second set's pictures. */
 const ART2: Record<string, Draw> = {
