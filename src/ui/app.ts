@@ -3843,6 +3843,8 @@ export class App {
     if (!this.boardZoom) {
       this.zoomVars = '';
       view.removeAttribute('style');
+      // (Its cards are their own size again: their text fits afresh.)
+      fitCardText(view);
       return;
     }
     const side = this.boardZoom;
@@ -3878,6 +3880,8 @@ export class App {
     }
     void game.offsetWidth;
     game.style.transition = '';
+    // Card text was fitted to the cards at their old size (a long one shrunk to fit): fit it again at this size.
+    fitCardText(view);
   }
 
   /** Round and stability, together in one container at the top centre. */
