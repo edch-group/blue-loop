@@ -265,7 +265,7 @@ function fieldActive(state: GameState, field: FieldId): boolean {
 type EnemyEffect = Extract<Effect, { type: 'destroy' | 'bounce' | 'erode' }>;
 
 /** The effect a card aims at one card in a rival's tableau (destroy, return or erode), if any. */
-function enemyEffect(defId: string): EnemyEffect | undefined {
+export function enemyEffect(defId: string): EnemyEffect | undefined {
   return (cardDef(defId).onPlay ?? []).find((e): e is EnemyEffect => e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all));
 }
 

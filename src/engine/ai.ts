@@ -59,6 +59,17 @@ const ENERGY_HAND = tuning('EHAND', 4);
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
 const INCOMING_WEIGHT = tuning('INCOMING', 0.8);
+/** How much a rival's board counts against it (what taking a card from it is worth, against heat on its sun). */
+let RIVAL_BOARD = tuning('RIVAL_BOARD', 0.45);
+/** For simulations that pit two AI settings against each other. */
+export function setRivalBoardWeight(v: number) {
+  RIVAL_BOARD = v;
+}
+let COMBOS = true;
+/** For simulations: the AI with or without its attack-then-remove look-ahead. */
+export function setAICombos(on: boolean) {
+  COMBOS = on;
+}
 
 /** What a face-down Lightspeed card is worth to its owner (a counter waiting to spring). */
 const LIGHTSPEED_VALUE = tuning('LSV', 3);
@@ -249,7 +260,7 @@ function evaluate(state: GameState, meId: string): number {
     if (o.eliminated) score += 16;
     else {
       const danger = Math.max(0, o.heat) / supernovaThreshold(o);
-      score += 12 * danger + 5 * danger * danger - 0.45 * tableauValue(state, o) - 0.6 * orbitOutlook(o);
+      score += 12 * danger + 5 * danger * danger - RIVAL_BOARD * tableauValue(state, o) - 0.6 * orbitOutlook(o);
     }
   }
   // Count the heat already on its way: what each rival's tableau will do to this sun at their next dawn,
@@ -399,7 +410,81 @@ export function chooseAIAction(state: GameState): Action {
     const score = evaluate(next, me.id) - extra * ACTION_VALUE + ramp;
     if (!best || score > best.score) best = { action, score };
   }
+  // Set-ups a move at a time can't see: wear a card's defence down with an attack or two, then remove it
+  // (the attacks alone gain little; the card they bring into reach is the point).
+  const combo = COMBOS ? removalCombo(view, me, attacks) : null;
+  if (combo && best) {
+    // (Weighed against as many moves the plain way: the best move now, then the best removal after it.)
+    let plain = best.score;
+    try {
+      const s1 = applyAction(view, best.action);
+      const p1 = s1.players.find((x) => x.id === me.id)!;
+      if (activePlayer(s1).id === me.id)
+        for (const play of candidatePlays(s1, p1)) {
+          if (play.type !== 'playCard' || !play.enemyUid) continue;
+          const card = p1.hand.find((c) => c.uid === play.cardUid);
+          if (!card) continue;
+          plain = Math.max(plain, evaluate(applyAction(s1, play), me.id) - (cardCost(card.defId) - 1) * ACTION_VALUE);
+        }
+    } catch {
+      // (The plain way stands as it is.)
+    }
+    if (combo.score > plain + 0.5) return combo.action;
+  }
   // Holding a card is only better than playing it when every play would hurt.
   if (!best || best.score < baseline - 1.5) return { type: 'endTurn' };
   return best.action;
+}
+
+/**
+ * The best "attack, (attack,) then remove" this turn: for each rival card the attacks may strike, one or two
+ * attacks on it, then a removal card from hand that reaches it now. Scored as the whole sequence would leave
+ * things; the first attack is the move (the removal follows, found by the usual search once in reach).
+ */
+function removalCombo(view: GameState, me: PlayerState, attacks: Action[]): { action: Action; score: number } | null {
+  if (!me.hand.some((c) => enemyChoices(view, me, c.defId).length || (cardDef(c.defId).onPlay ?? []).some((e) => e.type === 'destroy' || e.type === 'bounce'))) return null;
+  const onCards = attacks.filter((a): a is Extract<Action, { type: 'attack' }> => a.type === 'attack' && !!a.targetUid);
+  if (!onCards.length) return null;
+  const tryApply = (s: GameState, a: Action) => {
+    try {
+      return applyAction(s, a);
+    } catch {
+      return null;
+    }
+  };
+  // The best removal play on this card from this state, scored (null if none reaches it).
+  const finish = (s: GameState, uid: string): number | null => {
+    const p = s.players.find((x) => x.id === me.id)!;
+    if (activePlayer(s).id !== me.id) return null;
+    let top: number | null = null;
+    for (const play of candidatePlays(s, p)) {
+      if (play.type !== 'playCard' || play.enemyUid !== uid) continue;
+      const card = p.hand.find((c) => c.uid === play.cardUid);
+      const after = tryApply(s, play);
+      if (!card || !after) continue;
+      const sc = evaluate(after, me.id) - (cardCost(card.defId) - 1) * ACTION_VALUE;
+      if (top === null || sc > top) top = sc;
+    }
+    return top;
+  };
+  let best: { action: Action; score: number } | null = null;
+  for (const a1 of onCards) {
+    const s1 = tryApply(view, a1);
+    if (!s1) continue;
+    const uid = a1.targetUid!;
+    let sc = finish(s1, uid);
+    if (sc === null) {
+      // Two attacks on it, then the removal.
+      const p1 = s1.players.find((x) => x.id === me.id)!;
+      for (const a2 of onCards) {
+        if (a2.attackerUid === a1.attackerUid || a2.targetUid !== uid || p1.tableau.find((c) => c.uid === a2.attackerUid)?.dimmed) continue;
+        const s2 = tryApply(s1, a2);
+        if (!s2) continue;
+        const sc2 = finish(s2, uid);
+        if (sc2 !== null && (sc === null || sc2 > sc)) sc = sc2;
+      }
+    }
+    if (sc !== null && (!best || sc > best.score)) best = { action: a1, score: sc };
+  }
+  return best;
 }
