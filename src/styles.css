@@ -1942,7 +1942,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 /* On the table the cards are small: the name shrinks with them (the same share of the card as in the
    hand), so the ability below it gets the room, set larger and tighter to stay readable. */
 .card-table .card-glyph { height: 38%; }
-.card-table .card-name { font-size: max(6px, calc(var(--cw) * 0.078)); letter-spacing: 0.03em; line-height: 1.12; padding-right: 0; margin-top: calc(var(--cw) * 0.085); }
+.card-table .card-name { font-size: max(6px, calc(var(--cw) * 0.078)); letter-spacing: 0.03em; line-height: 1.12; padding-right: 0; margin-top: calc(var(--cw) * 0.03); }
 .card-table .card-text { font-size: max(7px, calc(var(--cw) * 0.088)); line-height: 1.18; }
 .card-table .card-para { height: 0.2em; }
 .card-table .card-kind { font-size: max(5px, calc(var(--cw) * 0.045)); letter-spacing: 0.12em; }
@@ -1951,7 +1951,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
      (symbols and keywords keep it short; it shrinks to fit). Press and hold one for the full card. */
   .card-table .card-kind { display: none; }
   .card-table .card-glyph { height: 40%; }
-  .card-table .card-name { margin-top: max(6px, calc(var(--cw) * 0.08)); font-size: max(5px, calc(var(--cw) * 0.085)); letter-spacing: 0.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 0; }
+  .card-table .card-name { margin-top: calc(var(--cw) * 0.03); font-size: max(5px, calc(var(--cw) * 0.085)); letter-spacing: 0.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 0; }
   .card-table .card-text { display: block; font-size: max(5px, calc(var(--cw) * 0.085)); line-height: 1.2; }
   .card-table .card-para { height: 0.25em; }
   .card-table .card-opts { gap: 1px; }
@@ -4531,3 +4531,5 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .tpile-stacked { transform: translateY(calc(-1 * var(--depth, 1px))); }
 .tpile .tpile-stacked > .card, .tpile-back.tpile-stacked .cback { box-shadow: 0 0 0 1px #fff, var(--edges) !important; }
 .tpile:has(.tpile-stacked) > small { display: none; }
+/* A card's name sits just under its race row (the space above it was for cards before the race row). */
+.card .card-racerow ~ .card-name { margin-top: calc(var(--cw, 100px) * 0.012) !important; }
