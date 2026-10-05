@@ -4067,6 +4067,7 @@ export class App {
   /** Zoom the board onto one tableau, or out (null): the board itself moves, so everything on it still works. */
   private setBoardZoom(side: 'rival' | 'mine' | null) {
     if (this.boardZoom === side) return;
+    const was = this.boardZoom;
     this.boardZoom = side;
     sound.hover();
     const view = this.root.querySelector('.table-view');
@@ -4081,6 +4082,27 @@ export class App {
       const top = Math.min(...parts.map((r) => r.top)), bottom = Math.max(...parts.map((r) => r.bottom));
       return { x: (left + right) / 2, y: (top + bottom) / 2, w: right - left };
     };
+    // Across from one tableau to the other: the board keeps its zoom and glides over (the other tableau, off
+    // the screen in the tilted view, can't be measured where it stands).
+    if (was && side && game) {
+      const num = (k: string) => Number(new RegExp(`--${k}:(-?[\\d.]+)`).exec(this.zoomVars)?.[1] ?? NaN);
+      const [bz, zx, zy] = [num('bz'), num('zx'), num('zy')];
+      view.classList.toggle('zoom-rival', side === 'rival');
+      view.classList.toggle('zoom-mine', side === 'mine');
+      this.fitZoom(Number.isFinite(bz) ? bz : undefined);
+      if (Number.isFinite(zx) && Number.isFinite(zy) && !reducedMotion()) {
+        const to = this.zoomVars;
+        game.style.transition = 'none';
+        (view as HTMLElement).style.setProperty('--zx', `${zx}px`);
+        (view as HTMLElement).style.setProperty('--zy', `${zy}px`);
+        void game.offsetWidth;
+        game.style.transition = '';
+        view.setAttribute('style', to);
+      }
+      const ctl = this.root.querySelector('.board-zoom');
+      if (ctl) ctl.outerHTML = this.renderZoomControls();
+      return;
+    }
     const before = side && game && !reducedMotion() ? spanOf(side) : null;
     if (before) for (const a of game!.getAnimations()) a.cancel();
     view.classList.toggle('zoom-rival', side === 'rival');
@@ -4097,7 +4119,8 @@ export class App {
       const ox = box.left + box.width / 2, oy = box.top + box.height / 2;
       const k = before.w / after.w;
       const dx = before.x - ox - k * (after.x - ox), dy = before.y - oy - k * (after.y - oy);
-      game.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k}) ${end}` }, { transform: end }], { duration: 450, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }).finished.finally(() => (game.style.transition = '')).catch(() => undefined);
+      // (Both ends the same list of steps, so it eases step by step: a pan and a scale, never a twist through a matrix.)
+      game.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${k}) ${end}` }, { transform: `translate(0px, 0px) scale(1) ${end}` }], { duration: 450, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }).finished.finally(() => (game.style.transition = '')).catch(() => undefined);
     }
     const ctl = this.root.querySelector('.board-zoom');
     if (ctl) ctl.outerHTML = this.renderZoomControls();
@@ -4107,7 +4130,7 @@ export class App {
    * Zoom the board so the tableau zoomed onto (its row of slots and its Hero) spans the window end to end, centred:
    * the board is laid out larger (--bz, so it stays sharp), then moved (--zx, --zy), measuring as it goes.
    */
-  private fitZoom() {
+  private fitZoom(keepBz?: number, from?: { zx: number; zy: number }) {
     const view = this.root.querySelector<HTMLElement>('.table-view');
     const game = view?.querySelector<HTMLElement>(':scope > .game');
     if (!view || !game) return;
@@ -4133,26 +4156,36 @@ export class App {
       view.setAttribute('style', this.zoomVars);
     };
     const w = window.innerWidth, h = window.innerHeight;
-    // (Measured as it will stand, not mid-way through a transition.)
+    // (Measured as it will stand, not mid-way through a transition, nor under a zoom's easing still running.)
     game.style.transition = 'none';
-    let bz = 1.6, zx = 0, zy = 0;
+    for (const a of game.getAnimations()) a.cancel();
+    let bz = keepBz ?? 1.6, zx = from?.zx ?? 0, zy = from?.zy ?? 0;
     set(bz, zx, zy);
-    for (let i = 0; i < 3; i++) {
+    // First measured with the board laid flat (no tilt, no perspective to throw a far tableau's measure off),
+    // then with its tilt for the last step.
+    view.classList.add('zoom-measuring');
+    const centre = (tries: number) => {
+      for (let i = 0; i < tries; i++) {
+        const r = span();
+        if (!r) break;
+        if (Math.abs(w / 2 - (r.left + r.width / 2)) < 0.5 && Math.abs(h / 2 - (r.top + r.height / 2)) < 0.5) break;
+        zx += w / 2 - (r.left + r.width / 2);
+        zy += h / 2 - (r.top + r.height / 2);
+        set(bz, zx, zy);
+      }
+    };
+    centre(3);
+    for (let i = 0; i < (keepBz ? 0 : 3); i++) {
       const r = span();
       if (!r) break;
       // (Clear of the zoom buttons at the left edge, and as far in from the right, so it stays centred.)
       bz *= Math.min((w - 2 * 76) / r.width, (h * 0.94) / r.height);
       set(bz, zx, zy);
     }
+    centre(3);
+    view.classList.remove('zoom-measuring');
     // (The board is tilted: a move comes out a little short on screen, so it is measured and moved again.)
-    for (let i = 0; i < 6; i++) {
-      const r = span();
-      if (!r) break;
-      if (Math.abs(w / 2 - (r.left + r.width / 2)) < 0.5 && Math.abs(h / 2 - (r.top + r.height / 2)) < 0.5) break;
-      zx += w / 2 - (r.left + r.width / 2);
-      zy += h / 2 - (r.top + r.height / 2);
-      set(bz, zx, zy);
-    }
+    centre(6);
     void game.offsetWidth;
     game.style.transition = '';
     // Card text was fitted to the cards at their old size (a long one shrunk to fit): fit it again at this size,
