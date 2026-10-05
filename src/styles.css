@@ -4492,3 +4492,5 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .stage-hero .card-ability, .stage-hero .card-ability ~ .card-ability { margin: 0 -4px; padding: 0.55em 4px; border-radius: 0; }
 .stage-hero .card-ability-on { background: none; box-shadow: none; }
 @media (hover: hover) { .stage-hero .card-ability-on:hover { background: rgba(255, 255, 255, 0.08); } }
+/* Where a card dragged out of the hand would land on your tableau. */
+.tableau-mine .drop-over { outline: 2px solid color-mix(in srgb, #3f8f6a 70%, #fff); outline-offset: 3px; border-radius: calc(var(--tcw, 60px) * 0.08); }

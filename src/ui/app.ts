@@ -132,6 +132,9 @@ interface Pending {
   allyUid?: string;
   recoverUid?: string;
   slot?: number;
+  /** Where the card was dropped, dragged out of the hand onto your tableau: a slot, your Lightspeed slot, or a
+   *  card of yours (to recall or fuse onto). Used for whichever of those choices it fits; the rest are asked. */
+  drop?: { slot?: number | 'ls'; uid?: string };
   /** A Lightspeed guard set face down instead (its Lightspeed slot chosen). */
   faceDown?: boolean;
 }
@@ -2339,7 +2342,7 @@ export class App {
   // Playing a card: collect any choices it needs, then play it
   // -------------------------------------------------------------------------
 
-  private startPlay(uid: string) {
+  private startPlay(uid: string, drop?: Pending['drop']) {
     // (The hand drops back down once a card is picked from it.)
     this.raiseHand(false);
     // Tapping the card that is waiting to be placed puts it back.
@@ -2368,7 +2371,7 @@ export class App {
       sound.error();
       return;
     }
-    this.pending = { uid, step: 'choice' };
+    this.pending = { uid, step: 'choice', drop };
     this.advancePlay();
   }
 
@@ -2390,16 +2393,28 @@ export class App {
     };
     // A Lightspeed guard: set face down (its Lightspeed slot was chosen), or played as a Guard. It is
     // placed like any card, with the Lightspeed slot open too (or only that, if it can't be played as a Guard).
+    // (Dragged onto your tableau: what the drop answers is taken as chosen.)
+    const drop = p.drop;
+    const dropped = drop?.uid ? me.tableau.find((c) => c.uid === drop.uid) : undefined;
+    const dropSlot = typeof drop?.slot === 'number' ? drop.slot : dropped?.slot;
+    if (drop?.slot === 'ls' && canSetFaceDown(me, card.defId)) p.faceDown = true;
     if (p.faceDown) return this.dispatch({ type: 'playCard', cardUid: p.uid, faceDown: true });
+    if (dropSlot !== undefined && p.slot === undefined && freeSlots(me).includes(dropSlot)) p.slot = dropSlot;
     if (canSetFaceDown(me, card.defId) && p.slot === undefined) return ask('slot');
     // First the card is placed, so what it does next is seen from where it will stand (its slot's forge and
     // resonance count in the heat it aims): a recall card first picks the card it recalls (it may take its
     // place), a Fusion card the card it fuses onto, and any other card its slot. Even the last open slot is
     // clicked to confirm (a misclicked card is never played outright).
     const recall = allyEffectKind(card.defId) === 'recall';
+    // (A recall card dropped on a card it can recall recalls that one, and takes its place.)
+    if (recall && dropped && !p.allyUid && allyChoices(me, card.defId).some((c) => c.uid === dropped.uid)) {
+      p.allyUid = dropped.uid;
+      if (p.slot === undefined && dropped.slot !== undefined) p.slot = dropped.slot;
+    }
     if (recall && allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
     // A Fusion card is placed like any card, or fused onto a card in play: both are offered at once.
     const fusion = !!cardDef(card.defId).fusion;
+    if (fusion && dropped && !p.hostUid && p.slot === undefined && fusionHosts(me).some((c) => c.uid === dropped.uid)) p.hostUid = dropped.uid;
     if (fusion && !p.hostUid && p.slot === undefined && (fusionHosts(me).length > 0 || freeSlots(me).length > 0)) return ask('slot');
     const replaces = recall && !!p.allyUid;
     if (inSlots(card.defId) && !p.hostUid && (freeSlots(me).length > 0 || replaces) && p.slot === undefined) return ask('slot');
@@ -2561,11 +2576,40 @@ export class App {
       ghost.style.setProperty('--kc', getComputedStyle(d.el).getPropertyValue('--kc'));
       document.body.appendChild(ghost);
       d.ghost = ghost;
+      sound.handLift();
       d.dx = (d.dx / r.width) * d.el.offsetWidth;
       d.dy = (d.dy / r.height) * d.el.offsetHeight;
       d.el.classList.add('card-dragging');
     }
     d.ghost.style.transform = `translate(${e.clientX - d.dx}px, ${e.clientY - d.dy}px) rotate(-3deg) scale(1.05)`;
+    this.markDrop(this.dropEl(e.clientX, e.clientY));
+  }
+
+  /** What on your tableau is under a dragged card: a slot, your Lightspeed slot, or a card of yours. */
+  private dropEl(x: number, y: number): HTMLElement | null {
+    for (const el of document.elementsFromPoint(x, y)) {
+      const hit = el.closest<HTMLElement>('.tableau-mine [data-slot], .tableau-mine .card[data-uid], .tableau-mine .ls-slot');
+      if (hit) return hit;
+      if (el.closest('.tableau-mine .tableau-row')) break;
+    }
+    return null;
+  }
+
+  private dropAt(x: number, y: number): Pending['drop'] {
+    const el = this.dropEl(x, y);
+    if (!el) return undefined;
+    if (el.classList.contains('ls-slot')) return { slot: 'ls' };
+    if (el.dataset.slot !== undefined) return { slot: Number(el.dataset.slot) };
+    return el.dataset.uid ? { uid: el.dataset.uid } : undefined;
+  }
+
+  /** The spot a dragged card would land on, outlined. */
+  private dropMarked: HTMLElement | null = null;
+  private markDrop(el: HTMLElement | null) {
+    if (el === this.dropMarked) return;
+    this.dropMarked?.classList.remove('drop-over');
+    this.dropMarked = el;
+    el?.classList.add('drop-over');
   }
 
   private onDragEnd(e: PointerEvent | null) {
@@ -2578,11 +2622,13 @@ export class App {
     this.suppressClick = true;
     window.setTimeout(() => (this.suppressClick = false), 0);
     // Let go above the hand: it is played (to the preview pane, and on as any card played); else it goes back.
+    this.markDrop(null);
     const zone = this.root.querySelector('.table-view > .dock .hand-zone')?.getBoundingClientRect();
     if (e && zone && e.clientY < zone.top) {
       this.raiseHand(false);
       this.sheet = null;
-      this.startPlay(d.uid);
+      sound.rustle();
+      this.startPlay(d.uid, this.dropAt(e.clientX, e.clientY));
     }
   }
 
@@ -4201,8 +4247,8 @@ export class App {
       const worn = wear ? ` slot-worn` : '';
       const why = wear ? `: worn to ${def} of ${full} by heat on the card that stood here (it mends 1 a day)` : ` ${full}`;
       return choosingSlot
-        ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
-        : `<div class="slot-empty${worn}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span></div>`;
+        ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" data-slot="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
+        : `<div class="slot-empty${worn}" data-slot="${i}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span></div>`;
     }).join('');
     // The Lightspeed slot, right of the tableau: a card set there lies face down (its owner can still read it). It has no defence.
     const ls = p.lightspeed;
