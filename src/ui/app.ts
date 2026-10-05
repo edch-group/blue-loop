@@ -398,6 +398,24 @@ function placeResult(root: HTMLElement) {
   result.style.top = `${(r.top + r.height / 2) / zoom}px`;
 }
 
+/**
+ * Piles on the tilted board: how far their stacked edges must lean sideways (per pixel down the board) to stand
+ * upright on screen. Moving down the board, a pile drifts outwards as the perspective widens: measured, then undone.
+ */
+function leanPiles(root: HTMLElement) {
+  for (const face of root.querySelectorAll<HTMLElement>('.tpile-stacked')) {
+    face.style.setProperty('--lean', '0');
+    face.style.translate = 'none';
+    const r0 = face.getBoundingClientRect();
+    face.style.translate = '0 20px';
+    const r1 = face.getBoundingClientRect();
+    face.style.translate = '';
+    const perX = r0.width / (face.offsetWidth || 1);
+    const lean = perX ? -((r1.left + r1.width / 2 - (r0.left + r0.width / 2)) / 20) / perX : 0;
+    face.style.setProperty('--lean', lean.toFixed(3));
+  }
+}
+
 function frameTableaus(root: HTMLElement) {
   for (const row of root.querySelectorAll<HTMLElement>('.tableau-row')) {
     const svg = row.querySelector<SVGSVGElement>('.tableau-frame');
@@ -2561,8 +2579,12 @@ export class App {
   private handRaised = false;
   /** When the opening hand has been dealt (until then it can't be raised). */
   private dealtAt = 0;
+  /** A card is in the preview pane (picked to play, landing, a Hero's abilities): the hand keeps still meanwhile. */
+  private handStill(): boolean {
+    return !!(this.pending || this.stage || this.heroPanel);
+  }
   private raiseHand(up: boolean) {
-    if (up && performance.now() < this.dealtAt) return;
+    if (up && (performance.now() < this.dealtAt || this.handStill())) return;
     if (this.handRaised === up) return;
     this.handRaised = up;
     if (up) {
@@ -3084,7 +3106,7 @@ export class App {
       case 'play':
         this.sheet = null;
         // On a touch screen the first tap on the hand raises it (to read every card whole); taps after that play.
-        if (this.touch && !this.handRaised) return this.raiseHand(true);
+        if (this.touch && !this.handRaised && !this.handStill()) return this.raiseHand(true);
         return this.startPlay(arg);
       case 'end-turn':
         return this.requestEndDay();
@@ -3246,6 +3268,7 @@ export class App {
     }
     animateSuns();
     frameTableaus(this.root);
+    leanPiles(this.root);
     placeResult(this.root);
     this.keepLeaving();
     if (!this.press?.shown) this.preview.classList.remove('show');
@@ -4330,17 +4353,19 @@ export class App {
   private renderPiles(p: PlayerState, side: 'mine' | 'rival'): string {
     const mine = side === 'mine';
     const top = p.discard[p.discard.length - 1];
-    // A pile stands as tall as the cards in it: its top card raised, their edges stacked beneath (no count).
+    // A pile stands as tall as the cards in it: its top card raised, their edges stacked beneath it (no count).
+    // (The board is seen in perspective: each pile's edges lean by --lean, measured so they stand upright on screen.)
     const stack = (n: number) => {
-      const depth = Math.max(1, Math.round(n * 0.4));
-      const edges = Array.from({ length: depth }, (_, i) => `0 ${i + 1}px 0 ${i % 2 ? '#d9dadf' : '#f4f4f2'}`).join(', ');
-      return `--depth:${depth}px;--edges:${edges}, 0 ${depth + 3}px 8px rgba(80, 84, 100, 0.22)`;
+      const depth = Math.max(1, Math.round(n * 0.45));
+      const edges = Array.from({ length: depth }, (_, i) => `calc(var(--lean, 0) * ${i + 1}px) ${i + 1}px 0 ${i % 2 ? '#d9dadf' : '#f4f4f2'}`).join(', ');
+      return { style: `--depth:${depth};--edges:${edges}, calc(var(--lean, 0) * ${depth + 3}px) ${depth + 3}px 8px rgba(80, 84, 100, 0.22)`, layers: '' };
     };
+    const deckStack = stack(p.deck.length), discardStack = stack(p.discard.length);
     const deck = p.deck.length
-      ? `<span class="tpile-face tpile-back tpile-stacked" style="${stack(p.deck.length)}">${cardBackFace()}</span>`
+      ? `${deckStack.layers}<span class="tpile-face tpile-back tpile-stacked" style="${deckStack.style}">${cardBackFace()}</span>`
       : `<span class="tpile-empty"></span><small>deck</small>`;
     const discard = top
-      ? `<span class="tpile-face tpile-stacked" style="${stack(p.discard.length)}">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span>`
+      ? `${discardStack.layers}<span class="tpile-face tpile-stacked" style="${discardStack.style}">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span>`
       : `<span class="tpile-empty"></span><small>discard</small>`;
     // How many cards they hold: a little bar above your piles, below theirs (the board stays a mirror).
     const n = p.hand.length;
@@ -4364,7 +4389,7 @@ export class App {
           .map((c) => this.renderCard(c, { hand: true }))
           .join('');
     return `
-      <section class="dock${this.handRaised ? ' dock-raised' : ''}">
+      <section class="dock${this.handRaised ? ' dock-raised' : ''}${this.handStill() ? ' dock-still' : ''}">
         <div class="hand-zone">
           <div class="hand">${hand}</div>
         </div>

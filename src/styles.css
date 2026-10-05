@@ -4528,8 +4528,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   mask-image: radial-gradient(circle at 50% -15%, transparent 26%, rgba(0, 0, 0, 0.45) 40%, #000 58%);
 }
 /* A pile as tall as the cards in it: its top card raised by the pile's depth, their edges stacked beneath. */
-.tpile-stacked { transform: translateY(calc(-1 * var(--depth, 1px))); }
+/* (Raised by its depth, against the lean, so its foot stays where the pile lies.) */
+.tpile-stacked { transform: translate(calc(var(--lean, 0) * var(--depth, 1) * -1px), calc(var(--depth, 1) * -1px)); }
 .tpile .tpile-stacked > .card, .tpile-back.tpile-stacked .cback { box-shadow: 0 0 0 1px #fff, var(--edges) !important; }
 .tpile:has(.tpile-stacked) > small { display: none; }
 /* A card's name sits just under its race row (the space above it was for cards before the race row). */
 .card .card-racerow ~ .card-name { margin-top: calc(var(--cw, 100px) * 0.012) !important; }
+/* A card in the preview pane: the hand keeps still (no card lifts under the pointer). */
+.dock-still .hand > .card.lifted { transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg))) !important; z-index: var(--hz) !important; box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18); }
