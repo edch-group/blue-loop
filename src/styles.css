@@ -4652,3 +4652,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   left: -1px; right: -1px; border-color: color-mix(in srgb, var(--fk) 55%, #c9ced8);
   border-radius: 9px 9px 0 0; box-shadow: inherit; clip-path: inset(-24px -24px 0 -24px);
 }
+/* The gem's bump, as part of the card: its fill only above the card's edge (none over the picture or the
+   type pill), its rim ending exactly where the card's own edge line does (over its 1px border), so the
+   card's outline runs up and round the gem. A touch smaller, and the pill a touch lower, so the gem
+   only just overlaps the pill. */
+.card .art-wrap .gem { --gs: max(9px, calc(var(--cw, 100px) * 0.08)); }
+.card .art-wrap .gem::before, .card .art-wrap .gem::after { inset: calc(var(--gs) * -0.12); clip-path: inset(-6px -6px calc(50% - 1px) -6px); }
+.card .card-type, .card-table .card-type { top: calc(var(--cw, 100px) * 0.072); }
