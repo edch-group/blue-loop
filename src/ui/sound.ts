@@ -120,6 +120,8 @@ const CAMPAIGN_PHRASES: [number, string][][][] = [
 class SoundBoard {
   private ctx: AudioContext | null = null;
   private sfx: GainNode | null = null;
+  /** Sounds kept out of the reverb: paper on paper is close and dry (in the hall, a sweep across the hand swelled into a roar). */
+  private sfxDry: GainNode | null = null;
   private musicBus: GainNode | null = null;
   /** The battle theme's two faders: one lightly reverbed (bass, kick), one drenched like the ambient score. */
   private battleBus: GainNode | null = null;
@@ -236,6 +238,9 @@ class SoundBoard {
       this.sfx.gain.value = 0.9;
       this.sfx.connect(master);
       this.sfx.connect(this.reverb);
+      this.sfxDry = ctx.createGain();
+      this.sfxDry.gain.value = 0.9;
+      this.sfxDry.connect(master);
 
       this.musicBus = ctx.createGain();
       this.musicBus.gain.value = 0.0001;
@@ -403,16 +408,16 @@ class SoundBoard {
     const now = performance.now();
     if (now - this.lastRustle < 70) return;
     this.lastRustle = now;
-    this.breath({ dur: 0.16, freq: 2400, to: 3600, q: 0.7, gain: 0.022, attack: 0.03, type: 'bandpass' });
+    this.breath({ dur: 0.16, freq: 2400, to: 3600, q: 0.7, gain: 0.022, attack: 0.03, type: 'bandpass', out: this.sfxDry ?? undefined });
     for (let i = 0; i < 3; i++)
-      this.breath({ dur: 0.035 + Math.random() * 0.03, freq: 4200 + Math.random() * 2600, q: 1.6, gain: 0.014 + Math.random() * 0.01, attack: 0.004, delay: 0.015 + i * 0.03 + Math.random() * 0.02, type: 'bandpass' });
+      this.breath({ dur: 0.035 + Math.random() * 0.03, freq: 4200 + Math.random() * 2600, q: 1.6, gain: 0.014 + Math.random() * 0.01, attack: 0.004, delay: 0.015 + i * 0.03 + Math.random() * 0.02, type: 'bandpass', out: this.sfxDry ?? undefined });
   }
   /** The hand lifted to be read: a fan of cards sliding against each other (a longer brush, a spill of crackles). */
   handLift() {
     this.lastRustle = performance.now();
-    this.breath({ dur: 0.34, freq: 1800, to: 3800, q: 0.6, gain: 0.03, attack: 0.06, type: 'bandpass' });
+    this.breath({ dur: 0.34, freq: 1800, to: 3800, q: 0.6, gain: 0.03, attack: 0.06, type: 'bandpass', out: this.sfxDry ?? undefined });
     for (let i = 0; i < 7; i++)
-      this.breath({ dur: 0.03 + Math.random() * 0.04, freq: 3600 + Math.random() * 3200, q: 1.5, gain: 0.012 + Math.random() * 0.012, attack: 0.004, delay: 0.02 + i * 0.035 + Math.random() * 0.02, type: 'bandpass' });
+      this.breath({ dur: 0.03 + Math.random() * 0.04, freq: 3600 + Math.random() * 3200, q: 1.5, gain: 0.012 + Math.random() * 0.012, attack: 0.004, delay: 0.02 + i * 0.035 + Math.random() * 0.02, type: 'bandpass', out: this.sfxDry ?? undefined });
   }
   /** One point repaired: a single short, soft tick. */
   repair() {
