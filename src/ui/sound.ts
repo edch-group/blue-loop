@@ -82,13 +82,14 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 // it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High above, a
 // sparse melody of bell-like plucks (soft triangles, bright, with a dotted-
 // quarter echo filling the gaps) sings short phrases with room between them,
-// rolling a quick chord into each phrase's highest and lowest notes,
+// rolling a quick chord into its height once a time round, and every third
+// time round breaking into a climbing, quickening crescendo over swelling synths,
 // one set of phrases answered by another the next time round; beneath, a soft
 // low-high rock on each chord's root and fifth; the pads stay low.
 
 /** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
 const CAMPAIGN_EIGHTH = 0.42;
-/** The gap between the notes of a rolled chord at the top or bottom of a phrase, in seconds. */
+/** The gap between the notes of a rolled chord at the melody's height, in seconds. */
 const CAMPAIGN_ROLL = 0.045;
 /** Per chord (four bars of six eighths): the falling bass, the pad, and the two notes it rocks between. */
 const CAMPAIGN_CHORDS: { bass: string; pad: string[]; rock: [string, string] }[] = [
@@ -772,8 +773,68 @@ class SoundBoard {
   }
 
   /**
+   * A crescendo across one chord of the campaign score: the melody breaks into an arpeggio that climbs and
+   * quickens bar by bar (eighths, then triplets, sixteenths and thirty-seconds, rising towards E7), over a chord of
+   * detuned saws whose filter opens as it swells, a rising rush of air and a deep swell beneath.
+   */
+  private crescendo(at: number, len: number, barLen: number, tones: Set<number>, bell: (t: number, f: number, gain: number, dur?: number) => void, bus: GainNode) {
+    const ctx = this.ctx!;
+    const end = at + len;
+    // The arpeggio: up and down a window of chord tones that climbs as the gaps shrink and the notes grow louder.
+    const ladder: number[] = [];
+    for (let n = midiOf('E5'); n <= midiOf('E7'); n++) if (tones.has(n % 12)) ladder.push(n);
+    const gaps = [0.42, 0.28, 0.14, 0.07];
+    for (let b = 0; b < 4; b++) {
+      const lo = b * 2, hi = Math.min(ladder.length - 1, lo + 4 + b * 2);
+      const window = [...ladder.slice(lo, hi + 1), ...ladder.slice(lo + 1, hi).reverse()];
+      let k = 0;
+      for (let t = at + b * barLen; t < at + (b + 1) * barLen - 0.01; t += gaps[b], k++) {
+        const progress = (t - at) / len;
+        bell(t, hzOf(window[k % window.length]), 0.016 + 0.04 * progress, Math.max(0.35, gaps[b] * 5));
+      }
+    }
+    // The supporting chord: detuned saws through a lowpass opening from dark to bright, swelling, then let go.
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 2;
+    filter.frequency.setValueAtTime(300, at);
+    filter.frequency.exponentialRampToValueAtTime(3200, end);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(1, end);
+    g.gain.linearRampToValueAtTime(0, end + 0.8);
+    filter.connect(g).connect(bus);
+    for (const n of ['F3', 'C4', 'A4', 'E5']) {
+      for (const detune of [-9, 9]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = hz(n);
+        o.detune.value = detune;
+        const lv = ctx.createGain();
+        lv.gain.value = 0.011;
+        o.connect(lv).connect(filter);
+        o.start(at);
+        o.stop(end + 1);
+      }
+    }
+    // A rush of air rising into the peak, and a deep swell beneath.
+    this.breath({ dur: len + 0.3, freq: 300, to: 6000, type: 'bandpass', q: 1.2, gain: 0.07, attack: len, delay: this.until(at), out: bus });
+    this.note(at, hz('F1'), len, { gain: 0.05, type: 'triangle', attack: len * 0.9, release: 0.8, cutoff: 220, out: bus });
+  }
+
+  /** The crescendo's peak: one high bell, and the chord cascading down from it. */
+  private climax(at: number, tones: Set<number>, bell: (t: number, f: number, gain: number, dur?: number) => void) {
+    const top = midiOf('E7');
+    bell(at, hzOf(top), 0.05, CAMPAIGN_EIGHTH * 8);
+    const fall: number[] = [];
+    for (let n = top - 1; fall.length < 9; n--) if (tones.has(n % 12)) fall.push(n);
+    fall.forEach((n, j) => bell(at + 0.12 + j * 0.06, hzOf(n), 0.034 - j * 0.002, 1.4));
+  }
+
+  /**
    * The campaign map's score. The drone, bass and pads alone for the first chord; then the rock and the high
    * melody join (its call and answer alternating by round), and the rock rests for a chord every fourth time round.
+   * Every third time round from the second, the melody's Fmaj7 becomes a crescendo, peaking on the Em7.
    * Scheduled a chord at a time, just ahead of the audio clock.
    */
   private campaignScore(ctx: AudioContext, bus: GainNode) {
@@ -854,30 +915,35 @@ class SoundBoard {
             this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
             this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
           });
-      // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo. Its highest and
-      // lowest notes in each phrase arrive as a near-instant rolled chord: up into the top, down into the bottom.
-      const bell = (t: number, f: number, gain: number) => {
+      // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo.
+      const bell = (t: number, f: number, gain: number, dur = eighth * 5) => {
         const d = this.until(t);
-        this.voice(f, { dur: eighth * 5, attack: 0.012, gain, type: 'triangle', cutoff: 7000, delay: d, out: orbit });
-        this.voice(f, { dur: eighth * 2.5, attack: 0.012, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: orbit });
+        this.voice(f, { dur, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: orbit });
+        this.voice(f, { dur: dur / 2, attack: 0.01, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: orbit });
       };
-      const phrase = CAMPAIGN_PHRASES[round % 2][index];
+      const tones = new Set(c.pad.map((n) => midiOf(n) % 12));
+      const rising = round % 3 === 1; // a crescendo through the Fmaj7 this time round, peaking on the Em7
+      if (rising && index === 2) {
+        // Open the melody's filter right up for the climb, and settle it back a few seconds after the peak.
+        orbit.frequency.setValueAtTime(2600, at);
+        orbit.frequency.linearRampToValueAtTime(7000, at + chordLen);
+        orbit.frequency.setValueAtTime(7000, at + chordLen + 3);
+        orbit.frequency.linearRampToValueAtTime(2600, at + chordLen + 6);
+        return this.crescendo(at, chordLen, barLen, tones, bell, bus);
+      }
+      if (rising && index === 3) this.climax(at, tones, bell);
+      const phrase = CAMPAIGN_PHRASES[round % 2][index].filter(([e]) => !(rising && index === 3 && e < 12));
       const pitches = phrase.map(([, n]) => midiOf(n));
       const top = pitches.indexOf(Math.max(...pitches));
-      const bottom = pitches.indexOf(Math.min(...pitches));
-      const tones = new Set(c.pad.map((n) => midiOf(n) % 12));
       phrase.forEach(([e, n], i) => {
         const t = at + e * eighth;
-        const m = pitches[i];
-        const accent = e % 6 === 0 ? 1 : 0.8;
-        if (i === top || i === bottom) {
-          // The three chord tones below the note (for the top) or above it (for the bottom), rolled into it.
-          const up = i === top;
+        // Once a time round, at the melody's height (on the Fmaj7), the note arrives as a near-instant rolled chord.
+        if (index === 2 && i === top) {
           const roll: number[] = [];
-          for (let k = m + (up ? -1 : 1); roll.length < 3; k += up ? -1 : 1) if (tones.has(k % 12)) roll.push(k);
+          for (let k = pitches[i] - 1; roll.length < 3; k--) if (tones.has(k % 12)) roll.push(k);
           roll.reverse().forEach((r, j) => bell(t - (3 - j) * CAMPAIGN_ROLL, hzOf(r), 0.018));
         }
-        bell(t, hz(n), 0.03 * accent);
+        bell(t, hz(n), 0.03 * (e % 6 === 0 ? 1 : 0.8));
       });
     };
 
