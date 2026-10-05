@@ -53,10 +53,13 @@ export type MusicScene = 'ambient' | 'battle' | 'campaign';
 
 const BATTLE_BPM = 80;
 const NOTE_INDEX: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
-const hz = (name: string) => {
+/** A note name as a MIDI number, and a MIDI number as a frequency. */
+const midiOf = (name: string) => {
   const m = /^([A-G]#?)(-?\d)$/.exec(name)!;
-  return 440 * Math.pow(2, ((Number(m[2]) + 1) * 12 + NOTE_INDEX[m[1]] - 69) / 12);
+  return (Number(m[2]) + 1) * 12 + NOTE_INDEX[m[1]];
 };
+const hzOf = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
+const hz = (name: string) => hzOf(midiOf(name));
 
 /** Per chord (four bars each): the held bass, the pad, and the arpeggio's eight eighths per bar (two halves for the turn). */
 const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
@@ -79,11 +82,14 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 // it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High above, a
 // sparse melody of bell-like plucks (soft triangles, bright, with a dotted-
 // quarter echo filling the gaps) sings short phrases with room between them,
+// rolling a quick chord into each phrase's highest and lowest notes,
 // one set of phrases answered by another the next time round; beneath, a soft
 // low-high rock on each chord's root and fifth; the pads stay low.
 
 /** An eighth note of the six-eight bar, in seconds (a dotted quarter at about 48 bpm). */
 const CAMPAIGN_EIGHTH = 0.42;
+/** The gap between the notes of a rolled chord at the top or bottom of a phrase, in seconds. */
+const CAMPAIGN_ROLL = 0.045;
 /** Per chord (four bars of six eighths): the falling bass, the pad, and the two notes it rocks between. */
 const CAMPAIGN_CHORDS: { bass: string; pad: string[]; rock: [string, string] }[] = [
   { bass: 'A2', pad: ['A3', 'C4', 'E4', 'B4'], rock: ['A3', 'E4'] }, // Am(add9)
@@ -848,13 +854,31 @@ class SoundBoard {
             this.voice(hz(n), { dur: eighth * 4.5, attack: 0.03, gain: k === 0 ? 0.03 : 0.022, delay: d, out: bus });
             this.voice(hz(n), { dur: eighth * 3, attack: 0.03, gain: 0.008, type: 'triangle', cutoff: 1400, delay: d, out: bus });
           });
-      // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo.
-      for (const [e, n] of CAMPAIGN_PHRASES[round % 2][index]) {
-        const d = this.until(at + e * eighth);
+      // The melody: bell-like plucks (a triangle with a little saw), left to ring into the echo. Its highest and
+      // lowest notes in each phrase arrive as a near-instant rolled chord: up into the top, down into the bottom.
+      const bell = (t: number, f: number, gain: number) => {
+        const d = this.until(t);
+        this.voice(f, { dur: eighth * 5, attack: 0.012, gain, type: 'triangle', cutoff: 7000, delay: d, out: orbit });
+        this.voice(f, { dur: eighth * 2.5, attack: 0.012, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: orbit });
+      };
+      const phrase = CAMPAIGN_PHRASES[round % 2][index];
+      const pitches = phrase.map(([, n]) => midiOf(n));
+      const top = pitches.indexOf(Math.max(...pitches));
+      const bottom = pitches.indexOf(Math.min(...pitches));
+      const tones = new Set(c.pad.map((n) => midiOf(n) % 12));
+      phrase.forEach(([e, n], i) => {
+        const t = at + e * eighth;
+        const m = pitches[i];
         const accent = e % 6 === 0 ? 1 : 0.8;
-        this.voice(hz(n), { dur: eighth * 5, attack: 0.012, gain: 0.03 * accent, type: 'triangle', cutoff: 7000, delay: d, out: orbit });
-        this.voice(hz(n), { dur: eighth * 2.5, attack: 0.012, gain: 0.005 * accent, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: orbit });
-      }
+        if (i === top || i === bottom) {
+          // The three chord tones below the note (for the top) or above it (for the bottom), rolled into it.
+          const up = i === top;
+          const roll: number[] = [];
+          for (let k = m + (up ? -1 : 1); roll.length < 3; k += up ? -1 : 1) if (tones.has(k % 12)) roll.push(k);
+          roll.reverse().forEach((r, j) => bell(t - (3 - j) * CAMPAIGN_ROLL, hzOf(r), 0.018));
+        }
+        bell(t, hz(n), 0.03 * accent);
+      });
     };
 
     let next = t0;
