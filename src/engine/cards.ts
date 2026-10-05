@@ -184,7 +184,7 @@ export const CARDS: CardDef[] = [
     id: 'signal_jammer',
     name: 'Signal Jammer',
     kind: 'lightspeed',
-    text: '{lightspeed}. When an enemy plays a growth card, cancel it. Draw 1.',
+    text: '{lightspeed}. When an enemy plays a support card, cancel it. Draw 1.',
     lightspeed: { trigger: { on: 'enemyPlays', kind: 'growth' }, counter: true, effects: [{ type: 'draw', amount: 1 }] },
   },
   {
@@ -453,7 +453,7 @@ export const CARDS: CardDef[] = [
     name: 'Regrowth Pod',
     kind: 'growth',
     race: 3,
-    text: '{recover:growth}. {cool:1}.',
+    text: '{recover:support}. {cool:1}.',
     onPlay: [{ type: 'recover', kind: 'growth', orDraw: 1 }, { type: 'cool', amount: 1 }],
   },
   {
