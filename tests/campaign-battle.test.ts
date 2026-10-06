@@ -110,3 +110,28 @@ describe('campaign battles', () => {
     }
   });
 });
+
+describe('a sun with its own planets', () => {
+  const planets = [
+    { name: 'Vega I', kind: 'shielded' as const },
+    { name: 'Vega II', kind: 'armed' as const },
+  ];
+  it('orbits them in turn, three days each, and each gives its own: shields at dawn, then attack', () => {
+    let s = battle({ me: { planets } });
+    const me = () => s.players[0];
+    // Day one: the shielded planet faces the sun from its first dawn.
+    expect(me().shields).toBe(1);
+    const lance = (st: GameState) => st.players[0].tableau.find((c) => c.defId === C('focusing_array'));
+    // Three days on, the armed one: its cards hit harder.
+    for (let k = 0; k < 3; k++) s = endTurn(endTurn(s));
+    expect(me().orbit).toBe(3);
+    const card = lance(s) ?? me().tableau[0];
+    const armedAttack = cardAttack(s, me(), card);
+    const plain = cardAttack(s, { ...me(), planets: [{ name: 'Dust', kind: 'dead' }], orbit: 0 }, card);
+    expect(plain).toBeGreaterThan(0);
+    expect(armedAttack).toBe(plain + 1);
+    // And round again after six days in all (two planets).
+    for (let k = 0; k < 3; k++) s = endTurn(endTurn(s));
+    expect(me().orbit).toBe(0);
+  });
+});

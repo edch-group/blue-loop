@@ -48,6 +48,9 @@ export const BALANCE = {
   abundantDraw: 1,
   /** The industrial planet: +1 energy each day it faces your sun. */
   industrialPlays: 1,
+  /** A sun's own planets (the space adventure): an armed one adds to its cards' attack, a shielded one shields it at dawn. */
+  armedAttack: 1,
+  shieldedShields: 1,
   /** Tableau slots. A full tableau takes no new card until one leaves. */
   tableauSlots: 5,
   /** Each slot's defence, left to right: the middle is safest. Removal cards can only reach cards with low enough defence. */

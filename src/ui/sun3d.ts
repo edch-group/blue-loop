@@ -251,6 +251,7 @@ function sunPalette(t: number, cold: number, dead: boolean): RGB[] {
   return palette(t, cold);
 }
 
+/** The card game's three planets (a sun with its own lists them in data-planets). */
 const PLANETS = ['dead', 'abundant', 'industrial'];
 
 /** Each planet's surface, as colour over longitude × latitude (painted once, on first use). */
@@ -297,6 +298,21 @@ function planetMap(pl: string): Uint8ClampedArray {
         col = mix(col, [236, 244, 250], ice);
         const cloud = clamp01((fbm3(x * 3.2 + 20, y * 6.5, z * 3.2, 5) - 0.55) * 3.2);
         col = mix(col, [250, 252, 255], cloud * 0.85);
+      } else if (pl === 'armed') {
+        // A war world: black basalt split by glowing magma, and the sparks of its foundries.
+        const rock = fbm3(x * 3 + 2, y * 3, z * 3 + 9, 4);
+        const crack = 1 - Math.abs(fbm3(x * 4.5 + 7, y * 4.5, z * 4.5, 4) - 0.5) * 2;
+        col = mix([34, 28, 30], [92, 74, 70], clamp01(rock * 1.2));
+        const lava = clamp01((crack - 0.86) * 9);
+        col = mix(col, [255, 92, 40], lava);
+        col = mix(col, [255, 200, 120], clamp01((crack - 0.95) * 18));
+      } else if (pl === 'shielded') {
+        // An ice world: pale blue sheets, deep blue fractures, and a bright frost at the poles.
+        const sheet = fbm3(x * 2.2 + 5, y * 2.2, z * 2.2, 5);
+        const crack = 1 - Math.abs(fbm3(x * 6 + 3, y * 6, z * 6, 3) - 0.5) * 2;
+        col = mix([150, 196, 232], [226, 240, 252], clamp01(sheet * 1.3 - 0.1));
+        col = mix(col, [62, 120, 190], clamp01((crack - 0.9) * 8) * 0.8);
+        col = mix(col, [250, 253, 255], clamp01((Math.abs(y) - 0.7) * 5));
       } else {
         // An industrial world: rust-and-ochre bands, smoke swirls, and a lattice of glowing works.
         const warp = fbm3(x * 3, y * 3, z * 3 + 5, 4);
@@ -328,7 +344,7 @@ function planetAt(map: Uint8ClampedArray, lon: number, v: number, spin: number, 
   return out;
 }
 /** Each planet's trail along the orbit, and its notches: deeper than the planet, to read on the white board. */
-const TRAIL_RGB: Record<string, RGB> = { dead: [112, 118, 132], abundant: [40, 158, 112], industrial: [214, 120, 36] };
+const TRAIL_RGB: Record<string, RGB> = { dead: [112, 118, 132], abundant: [40, 158, 112], industrial: [214, 120, 36], armed: [206, 64, 40], shielded: [70, 140, 210] };
 /**
  * Each sun's orbit as drawn, by player: it follows the real orbit a notch at
  * a time (each step easing in and out), so a change at the start of a day,
@@ -341,11 +357,13 @@ const ORBIT_STEP_MS = 1400;
 let orbitsMoving = false;
 const domeImages = new WeakMap<HTMLCanvasElement, ImageData>();
 const ballLayers = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
+/** One notch of an orbit of `n` planets (three per planet, all the way round), in degrees: 40 for the card game's three. */
+const notchStep = (n: number) => 360 / (n * 3);
 /** The three notches on the orbit's near side (degrees, in turn): where the facing planet spends each of its turns. The orbit runs clockwise. */
-const NOTCHES = [50, 90, 130];
+const notches = (n: number) => [90 - notchStep(n), 90, 90 + notchStep(n)];
 
 /** Moves a sun's shown orbit on towards its real one, and returns it (fractional while swinging). */
-function shownOrbit(pid: string, orbit: number, now: number): number {
+function shownOrbit(pid: string, orbit: number, now: number, n = 3): number {
   const was = orbitsShown.get(pid);
   // A sun not seen for a while (a new game, say) starts where it is.
   if (!was || now - was.seen > 3000 || reduce()) {
@@ -354,8 +372,9 @@ function shownOrbit(pid: string, orbit: number, now: number): number {
   }
   const dt = Math.max(0, now - was.seen);
   // The way round to the real orbit: forward, unless it moved back (cards can turn it back).
-  let gap = (((orbit - was.at) % 9) + 9) % 9;
-  if (gap > 4.5) gap -= 9;
+  const len = n * 3;
+  let gap = (((orbit - was.at) % len) + len) % len;
+  if (gap > len / 2) gap -= len;
   if (Math.abs(gap) < 1e-3) {
     orbitsShown.set(pid, { at: orbit, seen: now });
     return orbit;
@@ -555,10 +574,14 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   // Flat on the board under the balls: the trail the facing planet leaves along its notches, and the notches.
   const flat: (() => void)[] = [];
   if (!dead && isFinite(real)) {
-    const o = notchEase(shownOrbit(canvas.dataset.pid ?? '', real, performance.now()));
-    const wrap = ((o % 9) + 9) % 9;
-    const fi = Math.min(2, Math.floor(wrap / 3));
-    const facing = PLANETS[fi];
+    const planets = canvas.dataset.planets ? canvas.dataset.planets.split(',') : PLANETS;
+    const n = planets.length;
+    const step = notchStep(n);
+    const NOTCHES = notches(n);
+    const o = notchEase(shownOrbit(canvas.dataset.pid ?? '', real, performance.now(), n));
+    const wrap = ((o % (n * 3)) + n * 3) % (n * 3);
+    const fi = Math.min(n - 1, Math.floor(wrap / 3));
+    const facing = planets[fi];
     const stage = wrap - fi * 3;
     const ringAt = (deg: number): [number, number] => [c[0] + Math.cos((deg * Math.PI) / 180) * ORBIT_R * vs, c[1] + Math.sin((deg * Math.PI) / 180) * ORBIT_R * vs];
     const colour = (pl: string, a: number) => `rgba(${TRAIL_RGB[pl].join(', ')}, ${a})`;
@@ -573,7 +596,7 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
         ctx.stroke();
       };
       // As the planet swings on past its last notch, its trail fades, ready for the next planet to lay its own.
-      arc(facing, NOTCHES[0] + 40 * stage, stage > 2 ? 3 - stage : 1);
+      arc(facing, NOTCHES[0] + step * stage, stage > 2 ? 3 - stage : 1);
       NOTCHES.forEach((deg, k) => {
         const [x, y] = ringAt(deg);
         const reached = stage >= k - 0.02;
@@ -588,9 +611,9 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
       });
     });
     const glow: V3 = [c[0], c[1], R * 0.5];
-    PLANETS.forEach((pl, i) => {
+    planets.forEach((pl, i) => {
       const pr = vs * 0.07;
-      const ang = ((90 - (i * 3 + 1 - o) * 40) * Math.PI) / 180;
+      const ang = ((90 - (i * 3 + 1 - o) * step) * Math.PI) / 180;
       const ctr: V3 = [c[0] + Math.cos(ang) * ORBIT_R * vs, c[1] + Math.sin(ang) * ORBIT_R * vs, 0];
       const map = planetMap(pl);
       const turn = time * 0.00012 + seed + i * 2.1;

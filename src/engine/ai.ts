@@ -241,14 +241,14 @@ function abilityValue(p: PlayerState, effects: Effect[]): number {
 }
 
 /** What each planet is worth for one turn (an extra card drawn; an extra card played). */
-const PLANET_VALUE = { dead: 0, abundant: tuning('ABUND', 0.9), industrial: tuning('INDUS', 1.3) } as const;
+const PLANET_VALUE = { dead: 0, abundant: tuning('ABUND', 0.9), industrial: tuning('INDUS', 1.3), armed: 1, shielded: 0.8 } as const;
 /** Own turns of orbit the AI looks ahead. */
 const ORBIT_HORIZON = 4;
 
 /** What a player's coming turns are worth from their orbit (from their next day, shifted by `shift`). */
 function orbitOutlook(p: PlayerState, shift = 0): number {
   let v = 0;
-  for (let k = 1; k <= ORBIT_HORIZON; k++) v += PLANET_VALUE[planetAt(p.orbit + shift + k)] * (1 - (k - 1) * 0.15);
+  for (let k = 1; k <= ORBIT_HORIZON; k++) v += PLANET_VALUE[planetAt(p.orbit + shift + k, p)] * (1 - (k - 1) * 0.15);
   return v;
 }
 

@@ -2877,6 +2877,8 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .vt-dead { color: #7d828d; }
 .vt-abundant { color: #2f9a72; }
 .vt-industrial { color: #c06d24; }
+.vt-armed { color: #c8462c; }
+.vt-shielded { color: #3f86c8; }
 
 /* ---------- Profile, collection and shop ---------- */
 .pf-xp { width: clamp(60px, calc(10 * var(--vw)), 120px); height: 7px; border-radius: 99px; background: #eef0f5; overflow: hidden; }
@@ -5402,9 +5404,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @keyframes lattice-shimmer { to { opacity: 0.7; } }
 @media (prefers-reduced-motion: reduce) { .vit-lattice-cells { animation: none; } }
 /* The day's ring and track between the ships, at the top. */
-.ship-view .board-plane > .round-ring, .ship-view .board-plane > .board-star-slot, .ship-view .board-plane > .phase-track, .ship-view .board-plane > .turn-who { top: calc(var(--tcw) * 0.7); }
+.ship-view .board-plane > .round-ring, .ship-view .board-plane > .board-star-slot, .ship-view .board-plane > .phase-track, .ship-view .board-plane > .turn-who { top: calc(var(--tcw) * 0.8 + 16px); }
+.ship-view .board-plane > .board-star-slot { width: calc(var(--tcw) * 1.5); }
 .ship-view .board-plane > .round-ring { width: calc(var(--tcw) * 0.95); }
-.ship-view .board-plane > .phase-track, .ship-view .board-plane > .turn-who { --stellari-r: calc(var(--tcw) * 0.72); }
+.ship-view .board-plane > .phase-track, .ship-view .board-plane > .turn-who { --stellari-r: calc(var(--tcw) * 0.85); }
 .ship-view .phase-step span, .ship-view .turn-who span { color: #c9d2ea; }
 .ship-view .turn-who span.on { color: #fff; }
 /* Lasers. */

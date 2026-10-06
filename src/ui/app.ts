@@ -58,6 +58,7 @@ import {
   targetOf,
   planetsEaten,
   currentPlanet,
+  planetIndex,
   type Action,
   type BoosterCard,
   type BoosterKind,
@@ -1374,6 +1375,11 @@ export class App {
     const { cards, sun } = aimChoices(s, me);
     const attackers = sun || cards.length ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
     if (attackers) out.push(`${attackers} card${attackers === 1 ? '' : 's'} that can still attack`);
+    // Aboard a ship: cards in its rooms that can still be activated.
+    if (s.campaign) {
+      const ready = me.tableau.filter((c) => !activateProblem(s, me, c.uid)).length;
+      if (ready) out.push(`${ready} card${ready === 1 ? '' : 's'} to activate`);
+    }
     const hero = commandCard(me);
     if (hero && (cardDef(hero.defId).abilities ?? []).some((_, i) => !heroAbilityProblem(s, me, i))) out.push(`${cardDef(hero.defId).name}'s ability`);
     return out;
@@ -1513,11 +1519,19 @@ export class App {
     const planet = currentPlanet(p, s);
     const gives =
       planet === 'abundant'
-        ? `<i class="tb-gift" title="Draw ${BALANCE.abundantDraw} more at dawn">${HAND_ICON}+${BALANCE.abundantDraw}</i>`
+        ? s.campaign
+          ? `<i class="tb-gift" title="Stabilise ${BALANCE.abundantDraw} at dawn">stabilise ${BALANCE.abundantDraw}</i>`
+          : `<i class="tb-gift" title="Draw ${BALANCE.abundantDraw} more at dawn">${HAND_ICON}+${BALANCE.abundantDraw}</i>`
         : planet === 'industrial'
           ? `<i class="tb-gift" title="${BALANCE.industrialPlays} more energy today"><b class="tb-energy"></b>+${BALANCE.industrialPlays}</i>`
-          : '';
-    return `<div class="turn-banner-orbit">${planet} orbit${gives}</div>`;
+          : planet === 'armed'
+            ? `<i class="tb-gift" title="Your cards have +${BALANCE.armedAttack} attack today">attack +${BALANCE.armedAttack}</i>`
+            : planet === 'shielded'
+              ? `<i class="tb-gift" title="+${BALANCE.shieldedShields} shield at dawn">shield +${BALANCE.shieldedShields}</i>`
+              : '';
+    // A sun's own planet (the space adventure) by its name.
+    const own = p.planets?.length && !planetsEaten(s, p) ? p.planets[planetIndex(p.orbit, p)] : null;
+    return `<div class="turn-banner-orbit">${own ? esc(own.name.toLowerCase()) : `${planet} orbit`}${gives}</div>`;
   }
 
   /**
@@ -1528,7 +1542,8 @@ export class App {
   private announcePhases(actor: PlayerState, next: GameState, turnPassed: boolean, animate = true) {
     if (isGameOver(next) || this.needsHandoff()) return;
     const you = this.viewer().id;
-    const named = (p: PlayerState, phase: string) => (p.id === you ? phase : `${p.name.toLowerCase()}'s ${phase}`);
+    // (A ship battle's rival is long-named, and the only one: the enemy's.)
+    const named = (p: PlayerState, phase: string) => (p.id === you ? phase : next.campaign ? `enemy ${phase}` : `${p.name.toLowerCase()}'s ${phase}`);
     const round = `round ${roman(next.round)}`;
     const now = activePlayer(next);
     // A dusk or dawn in which nothing happened (and nothing is asked) is passed over, banner and all.
@@ -1602,6 +1617,8 @@ export class App {
 
   /** Opening hand: shuffle, then deal the viewer's cards in one by one. */
   private dealOpening() {
+    // (A ship battle has no hand to deal.)
+    if (this.state?.campaign) return;
     sound.shuffle();
     const cards = this.root.querySelectorAll<HTMLElement>('.hand [data-uid]');
     // (The hand can't be raised while it is being dealt.)
@@ -2131,7 +2148,7 @@ export class App {
         const vit = el.querySelector('.vit');
         if (!vit) return;
         const now = el.innerHTML;
-        vit.outerHTML = vitals({ heat: was.heat, threshold: supernovaThreshold(was), shields: was.shields, dead: was.eliminated, id: was.id, orbit: was.orbit });
+        vit.outerHTML = vitals({ heat: was.heat, threshold: supernovaThreshold(was), shields: was.shields, dead: was.eliminated, id: was.id, orbit: was.orbit, planets: was.planets });
         setShieldBadge(root, p.id, was.shields);
         animateSuns();
         window.setTimeout(() => {
@@ -2355,7 +2372,7 @@ export class App {
       if (id !== this.replayId) return;
       const p = next.players.find((x) => x.id === pid)!;
       root.querySelectorAll(`[data-anchor="player:${pid}"] .vit`).forEach((vit) => {
-        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit });
+        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit, planets: p.planets });
       });
       setShieldBadge(root, pid, sun.shields);
       animateSuns();
@@ -4853,7 +4870,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), lattice: !!st.campaign })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), lattice: !!st.campaign, planets: p.planets })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>

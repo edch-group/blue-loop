@@ -20,7 +20,7 @@ import { campaignCardId, VOYAGE_CARDS } from './cards';
 import { BALANCE } from '../balance';
 import { applyAction, createGame, GameError, isGameOver } from '../game';
 import { nextRandom, randomInt, shuffleInPlace } from '../rng';
-import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from '../types';
+import type { BattleModifiers, GameState, OrbitPlanet, Planet, PlayerSetup, ShipRooms } from '../types';
 import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeItem, RACE_SLOTS, itemValue, skillPoints, SKILL_TREES, type HeroState, type Item, type ItemRarity, type SlotKind } from './heroes';
 import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
 import {
@@ -49,10 +49,19 @@ import {
 export { CAMPAIGN, ARMORY_PRICE, OFFER_WEIGHT } from './balance';
 import { CAMPAIGN, ARMORY_PRICE, OFFER_WEIGHT } from './balance';
 
-/** A planet orbiting a map system (cosmetic; the tint names its colour). */
+/** A planet orbiting a map system: the tint names its colour, and what it gives a side fighting from there (PLANET_KIND). */
 export interface MapPlanet {
   name: string;
   tint: 'weapons' | 'defences' | 'economy' | 'resources';
+}
+
+/** What a system's planets give a side fighting from it, by colour: each faces its sun for three days in turn. */
+export const PLANET_KIND: Record<MapPlanet['tint'], Planet> = { weapons: 'armed', defences: 'shielded', economy: 'industrial', resources: 'abundant' };
+
+/** A system's planets as a battle's orbit. */
+function systemPlanets(n: CampaignNode): OrbitPlanet[] {
+  // (A system with none, the Heart: only dust.)
+  return n.planets.length ? n.planets.map((pl) => ({ name: pl.name, kind: PLANET_KIND[pl.tint] })) : [{ name: 'dust', kind: 'dead' }];
 }
 
 // ---------------------------------------------------------------------------
@@ -1404,6 +1413,8 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       deck: army.deck,
       energy: shipOf(army),
       deckName: `${armyLeader(army)}'s flagship`,
+      // Each side's sun has the planets of the system it fights from.
+      planets: systemPlanets(from),
       heatDelta: army.damage + (def?.foeHeat ?? 0),
       modifiers: [starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
       ...(atk.skills.length ? { skills: atk.skills } : {}),
@@ -1416,6 +1427,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       isAI: owner ? owner.isAI : true,
       deck: defenderDeck,
       energy: guard ? shipOf(guard) : stationEnergy,
+      planets: systemPlanets(target),
       // (The sentinels' heat, and a gate's weakness, are theirs: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat,
       ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : { rooms: stationRooms(target) }),

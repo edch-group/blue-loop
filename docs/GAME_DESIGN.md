@@ -766,6 +766,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. I
 - **Energy is the ship's.** Its store starts full, carries over day to day, and regains the reactor's rate each dawn (cards that give energy add to it), never past the store.
 - **Activate** a card in its room: its play effect again, for its cost, once a day (tap it: its panel offers activate and attack). **Attacking** is separate, free, once a day. Dawn and dusk effects work as ever.
 - **Shields stay up** (they don't fade at dawn), and **worn defences stay worn** (no mending).
+- **Each sun has its own planets: those of the system it fights from** (the attacker's, the one it marched from; the defender's, the one under attack), in place of the card game's three. Each faces the sun for three days in turn, and gives by its colour on the map: **economy** (industrial) +1 energy at dawn, **resources** (abundant) Stabilise 1 at dawn, **weapons** (armed) +1 attack for its cards, **defences** (shielded) +1 shield at dawn. A system with none (the Heart) has only dust: nothing. Orion, Galaxy Eater still eats them.
 - **Destroyed is gone** for the battle. A card sent back to "hand" (Bounce) is knocked out of its room for a day instead. **The hero is wounded, not lost**: a day out, then back.
 - **Drawing stabilises** the most worn ally.
 - **Losing:** your sun goes supernova, or every card on your ship is gone (a wounded hero still counts).

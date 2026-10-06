@@ -21,7 +21,7 @@ export interface ShipRules {
   /** Its energy as its day starts. */
   dawnEnergy(state: GameState, p: PlayerState): number;
   /** A draw effect, by these rules. */
-  draw(state: GameState, p: PlayerState, card: CardInstance, amount: number): void;
+  draw(state: GameState, p: PlayerState, card: CardInstance | null, amount: number): void;
   /** A card leaving its room for `to` (its room was `room`): true if these rules have put it somewhere. */
   leaving(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck', room: number | undefined): boolean;
   /** Where a card out of play goes (out for the battle). */
@@ -118,6 +118,7 @@ export function createGame(setup: GameSetup): GameState {
       ...(ps.heroStats ? { heroStats: { ...ps.heroStats } } : {}),
       ...(ps.rooms ? { rooms: { defence: [...ps.rooms.defence], attack: [...ps.rooms.attack], command: ps.rooms.command } } : {}),
       ...(ps.energy ? { energy: { ...ps.energy } } : {}),
+      ...(ps.planets?.length ? { planets: ps.planets.map((x) => ({ ...x })) } : {}),
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
     // A garrison takes the safest slots first; a Hero already in play (a campaign hero's Herald) leads from the
@@ -241,13 +242,29 @@ export function fusionHosts(p: PlayerState): CardInstance[] {
 /** Cards this player may play on a day (before any have been played). */
 // ---- Orbit ------------------------------------------------------------------
 
-const PLANETS: Planet[] = ['dead', 'abundant', 'industrial'];
-/** A whole orbit: three planets, three turns each. */
+export const PLANETS: Planet[] = ['dead', 'abundant', 'industrial'];
+/** A whole orbit of the card game's: three planets, three turns each. */
 export const ORBIT_LENGTH = PLANETS.length * BALANCE.orbitTurns;
 
-/** The planet facing a sun at an orbit position. */
-export function planetAt(orbit: number): Planet {
-  return PLANETS[Math.floor((((orbit % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH) / BALANCE.orbitTurns)];
+/** A sun's planets, in orbit order: its own (the space adventure), else the card game's three. */
+export function planetsOf(p?: Pick<PlayerState, 'planets'>): Planet[] {
+  return p?.planets?.length ? p.planets.map((x) => x.kind) : PLANETS;
+}
+
+/** A whole orbit of a sun's: three turns for each of its planets. */
+export function orbitLength(p?: Pick<PlayerState, 'planets'>): number {
+  return planetsOf(p).length * BALANCE.orbitTurns;
+}
+
+/** Which of a sun's planets faces it at an orbit position (its index in planetsOf). */
+export function planetIndex(orbit: number, p?: Pick<PlayerState, 'planets'>): number {
+  const n = orbitLength(p);
+  return Math.floor((((orbit % n) + n) % n) / BALANCE.orbitTurns);
+}
+
+/** The planet facing a sun at an orbit position (given the player, their own planets). */
+export function planetAt(orbit: number, p?: Pick<PlayerState, 'planets'>): Planet {
+  return planetsOf(p)[planetIndex(orbit, p)];
 }
 
 /**
@@ -255,7 +272,7 @@ export function planetAt(orbit: number): Planet {
  * has a planet-eater in play (Orion, Galaxy Eater).
  */
 export function currentPlanet(p: PlayerState, state?: GameState): Planet {
-  return state && planetsEaten(state, p) ? 'dead' : planetAt(p.orbit);
+  return state && planetsEaten(state, p) ? 'dead' : planetAt(p.orbit, p);
 }
 
 /** Whether a rival still in the game has a card in play that eats this player's planets. */
@@ -270,7 +287,8 @@ export function planetTurnsLeft(p: PlayerState): number {
 
 function moveOrbit(state: GameState, p: PlayerState, by: number) {
   const before = currentPlanet(p);
-  p.orbit = (((p.orbit + by) % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH;
+  const n = orbitLength(p);
+  p.orbit = (((p.orbit + by) % n) + n) % n;
   const now = currentPlanet(p);
   log(state, `${p.name}'s orbit ${by > 0 ? 'speeds on' : 'slips back'} ${Math.abs(by)}: the ${now} planet${now === before ? '' : ' swings round'} (${planetTurnsLeft(p)} turn${planetTurnsLeft(p) === 1 ? '' : 's'} left).`);
 }
@@ -744,14 +762,15 @@ export interface TurnForecast {
 export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   const target = targetOf(state, p);
   // Their next day's planet (their first day starts at the dead planet).
-  const orbit = p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
-  const planet = planetsEaten(state, p) ? 'dead' : planetAt(orbit);
+  const orbit = p.turnsTaken > 0 ? (p.orbit + 1) % orbitLength(p) : p.orbit;
+  const planet = planetsEaten(state, p) ? 'dead' : planetAt(orbit, p);
   // Their day comes this round if they sit after the active player, else next round.
   const round = state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
   const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, unstableRound: state.round + 1, round, draw: 0, plays: 0, planet, planetDraw: 0, planetPlays: 0 };
   if (p.eliminated) return f;
   if (planet === 'abundant' && p.turnsTaken > 0) f.planetDraw = BALANCE.abundantDraw;
   if (planet === 'industrial') f.planetPlays = BALANCE.industrialPlays;
+  if (planet === 'shielded') f.shields += BALANCE.shieldedShields;
   f.draw += f.planetDraw;
   f.plays += f.planetPlays;
   // Run the effects on a copy, so growth and the like carry from one effect to the next (its dawn, then its dusk).
@@ -1318,12 +1337,20 @@ function startTurn(state: GameState) {
   // The planets move on a day (your first day starts at the dead planet).
   if (p.turnsTaken > 1) {
     const before = currentPlanet(p);
-    p.orbit = (p.orbit + 1) % ORBIT_LENGTH;
+    p.orbit = (p.orbit + 1) % orbitLength(p);
     if (currentPlanet(p) !== before) log(state, `The ${currentPlanet(p)} planet swings round to face ${p.name}'s sun.`);
   }
   const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw : 0;
-  // Draw (your opening hand covers your first day).
-  if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
+  // Draw (your opening hand covers your first day). Aboard a ship there's no deck: an abundant planet's draw is its rules' own.
+  const rules = ship(state);
+  if (rules) {
+    if (p.turnsTaken > 1 && abundance) rules.draw(state, p, null, abundance);
+  } else if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
+  // A shielded planet facing the sun.
+  if (currentPlanet(p, state) === 'shielded') {
+    p.shields += BALANCE.shieldedShields;
+    log(state, `The shielded planet shields ${p.name}'s sun (+${BALANCE.shieldedShields}).`);
+  }
   ship(state)?.afterLeave(state, p);
   if (state.winnerId) return;
   if (p.eliminated) return passOn(state);
@@ -1688,6 +1715,8 @@ export function cardAttack(state: GameState, p: PlayerState, card: CardInstance)
   const rules = aboard(p);
   if (rules) base = rules.attack(p, card, base);
   if (base <= 0) return 0;
+  // An armed planet facing its sun.
+  if (currentPlanet(p, state) === 'armed') base += BALANCE.armedAttack;
   // Flare-born: more while its owner's sun is overheated.
   const t = raceTrait(def.race);
   if (t?.attackHot && isOverheated(p)) base += t.attackHot;

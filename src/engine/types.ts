@@ -72,7 +72,15 @@ export type Condition =
  * owner's turns in turn: a dead planet (nothing), an abundant one (draw an
  * extra card each day) and an industrial one (play an extra card each day).
  */
-export type Planet = 'dead' | 'abundant' | 'industrial';
+export type Planet = 'dead' | 'abundant' | 'industrial' | 'armed' | 'shielded';
+/**
+ * A planet of a sun's own (the space adventure: the planets of the system a side fights from, in place of the
+ * card game's three). Armed: your cards +1 attack today. Shielded: +1 shield at dawn.
+ */
+export interface OrbitPlanet {
+  name: string;
+  kind: Planet;
+}
 
 export type Effect = (
   /** Heat your target's sun, or every enemy sun. */
@@ -307,6 +315,8 @@ export interface TurnStats {
 }
 
 export interface PlayerState {
+  /** Its sun's own planets, in orbit order (the card game's three if none). */
+  planets?: OrbitPlanet[];
   id: string;
   name: string;
   isAI: boolean;
@@ -351,7 +361,7 @@ export interface PlayerState {
   turnsTaken: number;
   /** Cards this player may still play today. */
   playsLeft: number;
-  /** Where this player's planets are: 0–8, three turns per planet (0–2 dead, 3–5 abundant, 6–8 industrial), moving on one each day. */
+  /** Where this player's planets are: three turns per planet (the card game's: 0–2 dead, 3–5 abundant, 6–8 industrial), moving on one each day. */
   orbit: number;
   turn: TurnStats;
   /** Rivals this player's Stinging Veil has already stung today (the turn number, and who). */
@@ -439,6 +449,8 @@ export interface BattleSkill {
 }
 
 export interface PlayerSetup {
+  /** Its sun's own planets, in orbit order (the card game's three if none). */
+  planets?: OrbitPlanet[];
   name: string;
   isAI: boolean;
   /** The deck, as card ids (default: a starter, by seat). */
