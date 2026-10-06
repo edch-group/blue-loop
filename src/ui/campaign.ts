@@ -92,6 +92,8 @@ import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
 import { raceRow, cardArtLite, cardStock, cardGlyph, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
+import { setTutorial, startTour, tourDue, tutorialOn } from './tour';
+import { mapTour } from './tutorial';
 import { toPageDelta } from './viewport';
 
 const KEY = 'blue-loop:campaign:v4';
@@ -177,7 +179,7 @@ function armyFace(a: Army): string {
 const LOST_COLOUR = '#9a94b0';
 
 /** Oriel the Wanderer: a hooded figure carrying a lantern, under a scatter of failing stars. */
-const ORACLE_PORTRAIT = `<span class="cmp-portrait cmp-portrait-oracle"><svg viewBox="0 0 80 80" aria-hidden="true">
+export const ORACLE_PORTRAIT = `<span class="cmp-portrait cmp-portrait-oracle"><svg viewBox="0 0 80 80" aria-hidden="true">
   <defs>
     <radialGradient id="or-sky" cx=".5" cy=".3"><stop offset="0" stop-color="#2c2550"/><stop offset="1" stop-color="#0d0b1c"/></radialGradient>
     <radialGradient id="or-lamp"><stop offset="0" stop-color="#fffbe6"/><stop offset=".4" stop-color="#ffd98a"/><stop offset="1" stop-color="#ffb04a" stop-opacity="0"/></radialGradient>
@@ -371,6 +373,22 @@ export class CampaignView {
     // Left while the others were moving: they carry on.
     if (s.phase === 'ai' && s.aiStepwise && !s.battle) window.setTimeout(() => void this.runOthers(), 0);
     return true;
+  }
+
+  /** The tutorial's tour of the map: once the map is up, clear of dialogs, on the player's turn. */
+  private tourTimer = 0;
+  private maybeMapTour() {
+    const s = this.state;
+    if (!s || !tourDue('map') || this.tourTimer) return;
+    this.tourTimer = window.setTimeout(() => {
+      this.tourTimer = 0;
+      const st = this.state;
+      if (!st || !tourDue('map') || st.phase !== 'player' || st.battle || st.conquest || st.cardRewards.length || this.sheet || !document.querySelector('.cmp-stage')) return;
+      const home = st.nodes.find((n) => n.home === st.playerId);
+      if (!home) return;
+      const gate = home.links.find((id) => nodeById(st, id).owner !== st.playerId) ?? null;
+      startTour('map', mapTour(home.id, gate), { face: ORACLE_PORTRAIT, name: ORACLE_NAME });
+    }, 900);
   }
 
   /** The battle screen hands back a battle in progress (to save) or finished. */
@@ -581,6 +599,9 @@ export class CampaignView {
         sound.hover();
         break;
       }
+      case 'cmp-tutorial':
+        setTutorial(!tutorialOn());
+        break;
       case 'cmp-guide':
         setGuide(!guideOn());
         this.skipSilentScenes();
@@ -1327,6 +1348,7 @@ export class CampaignView {
 
   /** Fit the map to its stage and move the camera (called after every render and on resize). */
   afterRender(root: HTMLElement) {
+    this.maybeMapTour();
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
     if (stage) this.sailShips(stage);
@@ -1815,6 +1837,7 @@ export class CampaignView {
           `settings · turn ${s.turn}`,
           `<div class="menu-list">
             ${this.host.settingsButtons()}
+            <button class="btn" data-act="cmp-tutorial" title="The oracle's guided tours of the map and the battle board (turned back on, they play again)">tutorial: ${tutorialOn() ? 'on' : 'off'}</button>
             <button class="btn" data-act="cmp-guide" title="Oriel the Wanderer's guidance, under the turn count">${esc(ORACLE_NAME.toLowerCase())}: ${guideOn() ? 'on' : 'off'}</button>
             <button class="btn" data-act="cmp-sheet" data-arg="help">how the campaign works</button>
             <button class="btn" data-act="cmp-exit">main menu</button>

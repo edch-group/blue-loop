@@ -5342,3 +5342,30 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .sh-rooms { gap: 4px; }
 }
 .slot-empty.slot-wounded { color: #e88a80; border-color: rgba(232, 138, 128, 0.6); background: rgba(176, 84, 74, 0.12); }
+
+/* The tutorial: the oracle's tour, the screen dimmed but for what he talks about, outlined (tour.ts). */
+.tour { position: fixed; inset: 0; z-index: 9500; animation: tour-in 0.3s ease-out; }
+.tour.tour-out { opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+@keyframes tour-in { from { opacity: 0; } }
+.tour-veil { position: absolute; left: 0; top: 0; overflow: visible; }
+.tour-dim { fill: rgba(22, 24, 44, 0.58); transition: fill 0.3s; }
+.tour-open .tour-dim { fill: rgba(22, 24, 44, 0.4); }
+.tour-glow { fill: none; stroke: #b9a6ff; stroke-width: 9; stroke-linejoin: round; opacity: 0.65; animation: tour-pulse 1.6s ease-in-out infinite alternate; }
+.tour-line { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linejoin: round; }
+@keyframes tour-pulse { to { opacity: 0.25; stroke-width: 14; } }
+@media (prefers-reduced-motion: reduce) { .tour-glow { animation: none; } }
+.tour-bubble {
+  position: absolute; width: min(440px, calc(100% - 32px)); display: flex; gap: 14px; align-items: flex-start;
+  padding: 14px 16px 12px; border-radius: 18px; background: #fff; box-shadow: 0 0 0 1.5px #b9a6ff, 0 14px 40px rgba(20, 20, 50, 0.35);
+  transition: left 0.3s cubic-bezier(.2,.8,.2,1), top 0.3s cubic-bezier(.2,.8,.2,1);
+}
+.tour-face { flex: none; width: 58px; height: 58px; }
+.tour-face .cmp-portrait { width: 58px; height: 58px; }
+.tour-body { display: grid; gap: 6px; min-width: 0; flex: 1; }
+.tour-who { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); }
+.tour-who b { color: #6f5fc0; font-weight: 500; }
+.tour-text { margin: 0; font-size: 0.86rem; line-height: 1.45; color: var(--ink); }
+.tour-foot { display: flex; align-items: center; gap: 8px; }
+.tour-count { flex: 1; font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.14em; color: var(--ink-soft); }
+.tour-back[disabled] { opacity: 0.35; pointer-events: none; }
+.tour-skip { font-size: 0.62rem; }
