@@ -1,10 +1,10 @@
 import {
   ANOMALIES,
+  MODULES,
   armyBonus,
   BALANCE,
   battleFinds,
   itemText,
-  type ShipModule,
   sunHealth,
   salvageOptions,
   salvageToDeck,
@@ -717,7 +717,7 @@ export class CampaignView {
         if ((arg === 'attack' || arg === 'defence') && this.apply({ type: 'train', hero: this.pickedHero(), stat: arg })) sound.upgrade();
         break;
       case 'cmp-ship-pick':
-        if (this.sheet?.kind === 'ship') this.sheet = { kind: 'ship', pick: this.sheet.pick === arg ? undefined : arg };
+        if (this.sheet?.kind === 'ship') this.sheet = { kind: 'ship', pick: arg };
         sound.hover();
         break;
       case 'cmp-fit': {
@@ -2179,77 +2179,64 @@ export class CampaignView {
     const s = this.state!;
     const me = campaignPlayer(s);
     const ship = me.ship;
-    const part = (p: ShipPart, label: string, now: string) => {
+    // An upgrade as a round icon: its mark, its level in pips; tap to buy the next level (its cost on hover).
+    const up = (p: ShipPart, icon: string, name: string, does: string) => {
       const cost = shipUpgradeCost(ship, p);
       const arg = p.part === 'defence' || p.part === 'attack' ? `${p.part}:${p.room}` : p.part;
       const lvl = shipLevel(ship, p);
       const max = CAMPAIGN.shipMax[p.part];
       const pips = Array.from({ length: max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('');
-      return `<div class="sh-part"><span class="sh-part-name">${label}<small>${now}</small></span><span class="sh-pips">${pips}</span>${
-        cost === null ? '<span class="sh-max">full</span>' : `<button class="pill-btn" data-act="cmp-ship" data-arg="${arg}" ${me.credits < cost ? 'disabled' : ''}>+1 · ${CREDITS}${cost}</button>`
-      }</div>`;
+      const can = cost !== null && me.credits >= cost;
+      const note = cost === null ? 'Fully upgraded.' : `+1 for ${cost} credits${can ? '' : ' (not enough)'}.`;
+      return `<button class="sh-up sh-up-${p.part} ${cost === null ? 'sh-up-max' : can ? 'sh-up-can' : ''}" ${can ? `data-act="cmp-ship" data-arg="${arg}"` : 'aria-disabled="true"'} data-tip-title="${esc(name)}" data-tip="${esc(does)}" data-tip-note="${esc(note)}" aria-label="${esc(`${name}: ${does} ${note}`)}">${SH_ICON[icon]}<span class="sh-pips">${pips}</span></button>`;
     };
-    // The rooms, left to right as on the battle board (the middle one the safest), and the command room.
+    const mods = ship.modules ?? [];
+    // The room that modules go into: the one picked, else the first without one.
+    const target = pick !== undefined && pick !== 'command' ? Number(pick) : Math.max(0, [2, 1, 3, 0, 4].find((r) => !mods[r]) ?? 2);
     const slotDef = [1, 2, 3, 2, 1];
+    // The rooms, along the hull from stern to bow as on the board (the middle the safest), then the command room.
     const rooms = [0, 1, 2, 3, 4]
       .map((i) => {
-        const d = ship.rooms.defence[i];
-        const a = ship.rooms.attack[i];
-        const m = ship.modules?.[i];
-        return `<button class="sh-room ${pick === String(i) ? 'on' : ''} ${m ? `sh-room-mod rarity-${m.rarity}` : ''}" data-act="cmp-ship-pick" data-arg="${i}" style="--i:${i}" title="Room ${i + 1}: +${d} defence, +${a} attack for the card in it${m ? `. ${m.name}: ${m.text}` : ''}">
-          <b>${i + 1}</b><span class="sh-room-stats"><em class="def">◆${slotDef[i] + d}</em><em class="atk">✦+${a}</em></span>${m ? `<i class="sh-mod-pip" aria-hidden="true">${MODULE_ICON}</i>` : ''}
-        </button>`;
+        const m = mods[i];
+        const socket = m
+          ? `<span class="sh-socket sh-socket-full rarity-${m.rarity}" data-tip-title="${esc(lower(m.name))}" data-tip="${esc(m.text)}">${effectMark(m.boons[0]?.replace(/^boon_/, '').replace(/_\d+$/, '') ?? 'star')}<button class="sh-socket-x" data-act="cmp-unfit" data-arg="${i}" aria-label="Take it out">×</button></span>`
+          : `<span class="sh-socket" data-tip-title="module" data-tip="Empty. Fit a module from your stores."></span>`;
+        return `<div class="sh-room ${target === i ? 'on' : ''}" style="--x:${18 + i * 12.5}%" data-act="cmp-ship-pick" data-arg="${i}">
+          <b class="sh-room-n" data-tip-title="room ${i + 1}" data-tip="The card standing here: {sturdy:${slotDef[i] + ship.rooms.defence[i]}} defence in all, +${ship.rooms.attack[i]} attack if it attacks.">${i + 1}</b>
+          <span class="sh-room-ups">${up({ part: 'defence', room: i }, 'walls', 'walls', 'The card in this room: +1 defence a level.')}${up({ part: 'attack', room: i }, 'guns', 'guns', 'A card in this room that attacks: +1 attack a level.')}</span>
+          ${socket}
+        </div>`;
       })
       .join('');
     const hero = this.pickedHero();
-    const hs = heroStats(me, hero);
-    const command = `<button class="sh-room sh-command ${pick === 'command' ? 'on' : ''}" data-act="cmp-ship-pick" data-arg="command" title="The command room: your hero's, +${ship.rooms.command} defence">
-        ${portrait(hero)}<span class="sh-room-stats"><em class="def">◆${2 + ship.rooms.command + hs.defence}</em><em class="atk">✦${cardDef(hero).attack ?? 0}${hs.attack ? `+${hs.attack}` : ''}</em></span>
-      </button>`;
-    const room = pick !== undefined && pick !== 'command' ? Number(pick) : null;
-    const detail =
-      room !== null && room >= 0 && room < 5
-        ? `<h4>room ${room + 1}</h4>
-           ${part({ part: 'defence', room }, 'walls', `+${ship.rooms.defence[room]} defence for the card in it`)}
-           ${part({ part: 'attack', room }, 'guns', `+${ship.rooms.attack[room]} attack for a card in it that attacks`)}
-           ${this.renderModuleSlot(room)}`
-        : pick === 'command'
-          ? `<h4>command room</h4>
-             ${part({ part: 'command' }, 'bulkheads', `+${ship.rooms.command} defence for your hero`)}
-             <p class="muted">Your hero's own attack and defence train in the hero tab.</p>`
-          : '<p class="muted">Pick a room on the ship to upgrade it.</p>';
+    const command = `<div class="sh-room sh-command" style="--x:84%">
+        ${portrait(hero)}
+        <span class="sh-room-ups">${up({ part: 'command' }, 'walls', 'bulkheads', 'Your hero: +1 defence a level.')}</span>
+      </div>`;
+    const stores = me.modules ?? [];
+    const grid = stores
+      .map((m) => {
+        const kind = m.boons[0]?.replace(/^boon_/, '').replace(/_\d+$/, '') ?? 'star';
+        const n = Number(m.boons[0]?.match(/_(\d+)$/)?.[1] ?? 0);
+        return `<button class="sh-mod-tile rarity-${m.rarity}" data-act="cmp-fit" data-arg="${m.id}:${target}" data-tip-title="${esc(lower(m.name))}" data-tip="${esc(m.text)}" data-tip-note="Fit it in room ${target + 1}.">
+          <span class="sh-mod-face">${effectMark(kind)}${n ? `<small>${n}</small>` : ''}</span><b>${esc(lower(MODULES[m.kind].name))}</b>
+        </button>`;
+      })
+      .join('');
     return `
       <div class="cmp-shipyard">
-        <section class="sh-hull">
-          <div class="sh-model"><div class="sh-model-in" style="--ac:${this.colourOf(me.id)};--rot:0deg">${shipModel(me.race, false)}</div></div>
-          <div class="sh-rooms">${rooms}</div>
-          ${command}
+        <section class="sh-stage">
+          <div class="sh-ship" style="--ac:${this.colourOf(me.id)}">
+            <div class="sh-top"><div class="sh-model-in" style="--rot:0deg">${shipModel(me.race, false)}</div></div>
+            ${rooms}${command}
+          </div>
+          <div class="sh-whole">${up({ part: 'shields' }, 'shields', 'shields', 'Up as each battle begins: +1 a level.')}${up({ part: 'hull' }, 'hull', 'hull', `Your sun: +${CAMPAIGN.hullHealth} max health a level.`)}</div>
         </section>
-        <section class="sh-side">
-          ${detail}
-          <h4>the ship</h4>
-          ${part({ part: 'shields' }, 'shields', `${ship.shields} up as each battle begins`)}
-          ${part({ part: 'hull' }, 'hull', `+${ship.hull * CAMPAIGN.hullHealth} max health`)}
-          <p class="muted">Upgrades last the whole campaign. In battle, each card stands in a room of your ship: the room's walls add to its defence, its guns to its attack, and its module gives it the module's power.</p>
+        <section class="sh-mods">
+          <h4>modules</h4>
+          ${grid ? `<div class="sh-mod-grid">${grid}</div>` : '<p class="muted sh-mod-empty">Found in the wreckage of battles you win.</p>'}
         </section>
       </div>`;
-  }
-
-  /** A room's module: the one fitted (and what it does for the card standing there), and those in the stores to fit. */
-  private renderModuleSlot(room: number): string {
-    const me = campaignPlayer(this.state!);
-    const fitted = me.ship.modules?.[room] ?? null;
-    const stores = me.modules ?? [];
-    const row = (m: ShipModule, act: string) => `
-      <div class="sh-mod rarity-${m.rarity}">
-        <i class="sh-mod-icon" aria-hidden="true">${MODULE_ICON}</i>
-        <span class="sh-mod-name">${esc(lower(m.name))}<small>${esc(m.text)}</small></span>
-        ${act}
-      </div>`;
-    return `
-      <h4 class="sh-mod-head">module</h4>
-      ${fitted ? row(fitted, `<button class="pill-btn" data-act="cmp-unfit" data-arg="${room}">remove</button>`) : '<p class="muted sh-mod-empty">No module fitted: whatever card stands in this room carries the module you fit here.</p>'}
-      ${stores.length ? `<div class="sh-mod-stores"><small>in your stores</small>${stores.map((m) => row(m, `<button class="pill-btn" data-act="cmp-fit" data-arg="${m.id}:${room}">${fitted ? 'swap in' : 'fit'}</button>`)).join('')}</div>` : '<p class="muted sh-mod-empty">Modules are found in the wreckage of battles you win.</p>'}`;
   }
 
   /**
@@ -2447,6 +2434,14 @@ export class CampaignView {
       </div>`;
   }
 }
+
+/** The shipyard's upgrade marks. */
+const SH_ICON: Record<string, string> = {
+  walls: '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>',
+  guns: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.6"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/></svg>',
+  shields: '<svg viewBox="0 0 16 16"><path d="M2.5 11.5a5.5 5.5 0 0 1 11 0"/><path d="M5 11.5a3 3 0 0 1 6 0"/><path d="M1.5 11.5h13"/></svg>',
+  hull: '<svg viewBox="0 0 16 16"><path d="M2 8c2-3.2 6-4.2 12-2.6V10.6C8 12.2 4 11.2 2 8z"/><path d="M6 6.4v3.2M9.5 5.9v4.2"/></svg>',
+};
 
 /** Hero gear's mark. */
 export const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';

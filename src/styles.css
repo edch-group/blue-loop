@@ -5491,3 +5491,57 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .br-bad { color: #b3523a; }
 .br-card { display: grid; justify-items: center; gap: 6px; }
 .br-card small { font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+/* ---- The shipyard: the flagship from above, each room's upgrades and module on it; ship-wide upgrades beside;
+   the modules in store as a grid of icons. ---- */
+.cmp-shipyard { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 300px); gap: 24px; align-items: center; padding: 16px 24px; }
+.sh-stage { display: flex; align-items: center; justify-content: center; gap: 18px; min-width: 0; }
+.sh-ship { --k: 16; position: relative; width: calc(40px * var(--k)); height: calc(24px * var(--k)); flex: none; }
+.sh-top { position: absolute; inset: 0; pointer-events: none; }
+.sh-top .sh-model-in { position: absolute; left: 0; top: 0; width: 40px; height: 24px; transform-origin: 0 0; transform: scale3d(var(--k), var(--k), var(--k)); transform-style: preserve-3d; }
+.cmp-shipyard .sh-room {
+  position: absolute; left: var(--x); top: 50%; transform: translate(-50%, -50%); width: calc(var(--k) * 4.6px);
+  display: grid; justify-items: center; gap: 5px; padding: 8px 4px 7px; border-radius: 16px; border: 0;
+  background: rgba(255, 255, 255, 0.82); box-shadow: 0 4px 14px rgba(30, 36, 60, 0.22); color: var(--ink); cursor: pointer;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); transition: box-shadow 0.15s, transform 0.15s;
+}
+.cmp-shipyard .sh-room:hover { transform: translate(-50%, -52%); }
+.cmp-shipyard .sh-room.on { box-shadow: 0 0 0 2px #8a6fe0, 0 6px 18px rgba(138, 111, 224, 0.35); }
+.sh-room-n { font-family: var(--display); font-weight: 500; font-size: 0.7rem; color: var(--ink-faint); }
+.sh-room-ups { display: flex; gap: 4px; }
+.cmp-shipyard .sh-command { cursor: default; }
+.cmp-shipyard .sh-command .cmp-portrait { width: 34px; height: 34px; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--ac); }
+/* An upgrade: a round mark, its level as pips beneath. */
+.sh-up { position: relative; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: #f2f1f6; color: #8a8fa8; cursor: default; }
+.sh-up svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.sh-up .sh-pips { position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); display: flex; gap: 1.5px; }
+.sh-up .sh-pips i { width: 4px; height: 4px; border-radius: 50%; background: #d9d8e2; }
+.sh-up .sh-pips i.on { background: #d4a52a; }
+.sh-up-can { background: #fff; color: #a07a2a; box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.6); cursor: pointer; }
+.sh-up-can:hover { box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.95), 0 0 10px rgba(212, 165, 42, 0.4); }
+.sh-up-max { color: #b08a3a; background: #fbf6ea; }
+/* A room's module socket: empty (dashed), or its module's mark. */
+.sh-socket { position: relative; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed #cfd2dc; margin-top: 3px; }
+.sh-socket-full { border: 0; background: #fff; box-shadow: 0 0 0 2px #c9ccd6; }
+.sh-socket-full.rarity-stellar { box-shadow: 0 0 0 2px #4f86c6; }
+.sh-socket-full.rarity-anomaly { box-shadow: 0 0 0 2px #8a6fe0, 0 0 10px rgba(138, 111, 224, 0.4); }
+.sh-socket .kw-ico, .sh-mod-face .kw-ico { width: 55%; height: 55%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sh-socket .kw-ico .kw-ico-fill, .sh-mod-face .kw-ico .kw-ico-fill { fill: currentColor; fill-opacity: 1; stroke: none; }
+.sh-socket-x { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: var(--ink-soft); font-size: 0.7rem; line-height: 1; cursor: pointer; box-shadow: 0 1px 4px rgba(40, 46, 70, 0.25); opacity: 0; transition: opacity 0.15s; }
+.sh-room:hover .sh-socket-x { opacity: 1; }
+:is(.sh-socket, .sh-mod-face) .eff-heat { color: #d9662f; } :is(.sh-socket, .sh-mod-face) :is(.eff-cool, .eff-shield) { color: #4f86c6; } :is(.sh-socket, .sh-mod-face) :is(.eff-draw, .eff-energy, .eff-plant) { color: #3f9a68; } :is(.sh-socket, .sh-mod-face) :is(.eff-wall, .eff-repair, .eff-time) { color: #7a7f8f; } :is(.sh-socket, .sh-mod-face) .eff-star { color: #b08a3a; }
+/* Ship-wide: shields and hull, by the stern. */
+.sh-whole { display: grid; gap: 14px; order: -1; }
+.sh-whole .sh-up { width: 40px; height: 40px; }
+.sh-whole .sh-up svg { width: 21px; height: 21px; }
+/* The modules in store: a grid of icon tiles, a short name under each. */
+.sh-mods h4 { margin: 0 0 10px; font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
+.sh-mod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 12px 8px; }
+.sh-mod-tile { display: grid; justify-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; }
+.sh-mod-face { position: relative; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 2px #c9ccd6, 0 4px 10px rgba(60, 70, 100, 0.12); transition: transform 0.15s; }
+.sh-mod-tile.rarity-stellar .sh-mod-face { box-shadow: 0 0 0 2px #4f86c6, 0 4px 10px rgba(79, 134, 198, 0.2); }
+.sh-mod-tile.rarity-anomaly .sh-mod-face { box-shadow: 0 0 0 2px #8a6fe0, 0 0 12px rgba(138, 111, 224, 0.4); }
+.sh-mod-tile:hover .sh-mod-face { transform: translateY(-2px); }
+.sh-mod-face small { position: absolute; right: -3px; bottom: -3px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 999px; background: #fff; font-family: var(--display); font-size: 0.56rem; display: grid; place-items: center; box-shadow: 0 1px 3px rgba(60, 70, 100, 0.2); }
+.sh-mod-tile b { font-family: var(--display); font-weight: 500; font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); text-align: center; line-height: 1.3; }
+@media (max-width: 1000px) { .sh-ship { --k: 11; } .cmp-shipyard { grid-template-columns: 1fr; } }
