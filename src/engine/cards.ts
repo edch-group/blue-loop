@@ -149,6 +149,10 @@ export const CARDS: CardDef[] = [
     onPlay: [{ type: 'recall' }, { type: 'plays', amount: 1 }],
   },
 
+  // ---- Shift: moving cards between slots (yours, or with Displace your rival's) ----
+  { id: 'gravity_tether', name: 'Gravity Tether', kind: 'defence', text: '{shift}. {shield:2}.', onPlay: [{ type: 'shift' }, { type: 'shield', amount: 2 }] },
+  { id: 'orbital_tug', name: 'Orbital Tug', kind: 'attack', text: '{displace}. {heat:3}.', onPlay: [{ type: 'shift', enemy: true }, { type: 'heat', amount: 3, to: 'target' }] },
+
   // ---- Removal: aimed at your rival's tableau ----
   {
     id: 'tractor_beam',
@@ -780,8 +784,8 @@ export function isFused(defId: string): boolean {
 function choiceKinds(def: CardDef): Set<string> {
   const kinds = new Set<string>();
   for (const e of def.onPlay ?? []) {
-    if (e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all)) kinds.add('enemy');
-    if (e.type === 'recall' || (e.type === 'restore' && !e.all && !e.self)) kinds.add('ally');
+    if (e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all) || (e.type === 'shift' && e.enemy)) kinds.add('enemy');
+    if (e.type === 'recall' || e.type === 'empower' || (e.type === 'restore' && !e.all && !e.self) || (e.type === 'shift' && !e.enemy)) kinds.add('ally');
     if (e.type === 'recover') kinds.add('recover');
   }
   return kinds;

@@ -288,6 +288,12 @@ Some cards count their own neighbours instead:
   - Phase Shift: and 1 extra play today.
   - Recall Beacon: and draw 1.
   - Shard Recall (Xel'Naru): and heat your rival by 1 (recalling a Martyr fires it too).
+- **Shift** (move one of your cards to another slot; into an occupied slot, the two swap places) and **Displace** (the same, to a card in your rival's tableau). Position matters: slot defence (1/2/3/2/1), neighbours' resonance, Bulwark and Forge, and where a removal or attack can reach. A Hero leads from its own slot and can't be moved. The card to move is chosen, then the slot.
+  - Gravity Tether (neutral, 1): Shift, shields 2.
+  - Orbital Tug (neutral, 2): Displace, heat 3.
+  - Umbral Drift (Nyxari, 1): Displace, draw 1.
+  - Realignment (Seren, 2): Shift, cool 3, draw 1.
+  - Wall Rotation (Korrath, 1): Shift, repair 3.
 - **Removal** of cards in your target's tableau:
   - Ion Cannon destroys a card.
   - Command Breaker heats 2, and destroys a Hero if there is one.

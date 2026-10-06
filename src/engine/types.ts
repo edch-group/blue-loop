@@ -106,6 +106,11 @@ export type Effect = (
   | { type: 'plant'; amount: number }
   /** Return another card of yours from your tableau to your hand (to play it again). */
   | { type: 'recall' }
+  /**
+   * Shift: move a card into another slot of its tableau (swapping places with any card there): one of your own,
+   * or (`enemy`) one of your rival's. A Hero can't be moved.
+   */
+  | { type: 'shift'; enemy?: boolean }
   /** Return a card of your choice (of a kind, if given) from your discard pile to your hand. */
   | { type: 'recover'; kind?: CardKind; /** With nothing (of that kind) in your discard pile, draw this many cards instead. */ orDraw?: number; /** No choice: the card most recently discarded (a Command card's dawn). */ latest?: boolean }
   /** You may play this many extra cards today. */
@@ -505,6 +510,8 @@ export type Action =
       enemyUid?: string;
       /** Recall and restore effects: the card of yours they act on. */
       allyUid?: string;
+      /** Shift effects: the slot the card chosen (yours, or your rival's) moves into. */
+      shiftTo?: number;
       /** Recover effects: the card in your discard pile to take back. */
       recoverUid?: string;
       /** A card that heats as it is played: the rival card its heat goes to (unset: their sun, or a Guard). */

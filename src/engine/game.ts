@@ -267,14 +267,16 @@ function fieldActive(state: GameState, field: FieldId): boolean {
   return !!g && (cardDef(g.card.defId).passive ?? []).some((ps) => ps.type === 'field' && ps.field === field);
 }
 
-type EnemyEffect = Extract<Effect, { type: 'destroy' | 'bounce' | 'erode' }>;
+type EnemyEffect = Extract<Effect, { type: 'destroy' | 'bounce' | 'erode' | 'shift' }>;
 
 /** The effect a card aims at one card in a rival's tableau (destroy, return or erode), if any. */
 export function enemyEffect(defId: string): EnemyEffect | undefined {
-  return (cardDef(defId).onPlay ?? []).find((e): e is EnemyEffect => e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all));
+  return (cardDef(defId).onPlay ?? []).find((e): e is EnemyEffect => e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all) || (e.type === 'shift' && !!e.enemy));
 }
 
 function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect): boolean {
+  // (A Hero leads from its own slot: it can't be shifted.)
+  if (e.type === 'shift') return c.slot !== COMMAND_SLOT;
   if (e.type === 'destroy' && e.kind && cardDef(c.defId).kind !== e.kind) return false;
   // (Brittle: removal reaches a Relic whatever its defence.)
   if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) > e.maxDefence && cardDef(c.defId).kind !== 'relic') return false;
@@ -367,12 +369,13 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
 }
 
 /** What a card's removal does to the chosen card. */
-export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' | null {
+export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' | 'shift' | null {
   return enemyEffect(defId)?.type ?? null;
 }
 
 /** Your other cards this card could return to your hand or restore (empty if it needs no such choice). */
 export function allyChoices(p: PlayerState, defId: string): CardInstance[] {
+  if (allyEffectKind(defId) === 'shift') return p.tableau.filter((c) => c.slot !== COMMAND_SLOT);
   if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || e.type === 'empower' || (e.type === 'restore' && !e.all && !e.self))) return [];
   // Command cards can't be brought back to your own hand (a rival can still send them back).
   return allyEffectKind(defId) === 'recall' ? p.tableau.filter(returnable) : [...p.tableau];
@@ -396,9 +399,20 @@ export function hasRoomFor(p: PlayerState, defId: string): boolean {
 }
 
 /** Whether a card's ally choice returns the card to hand (rather than restoring its stability). */
-export function allyEffectKind(defId: string): 'recall' | 'restore' | 'empower' | null {
-  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || x.type === 'empower' || (x.type === 'restore' && !x.all && !x.self));
-  return e?.type === 'recall' || e?.type === 'restore' || e?.type === 'empower' ? e.type : null;
+export function allyEffectKind(defId: string): 'recall' | 'restore' | 'empower' | 'shift' | null {
+  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || x.type === 'empower' || (x.type === 'restore' && !x.all && !x.self) || (x.type === 'shift' && !x.enemy));
+  return e?.type === 'recall' || e?.type === 'restore' || e?.type === 'empower' || e?.type === 'shift' ? e.type : null;
+}
+
+/** Whether a card shifts a card as it is played (one of its owner's, or of their rival's), and whose. */
+export function shiftEffect(defId: string): 'mine' | 'rival' | null {
+  const e = (cardDef(defId).onPlay ?? []).find((x): x is Extract<Effect, { type: 'shift' }> => x.type === 'shift');
+  return e ? (e.enemy ? 'rival' : 'mine') : null;
+}
+
+/** The slots a shifted card may move into: any of its tableau's five but its own (a card there swaps places). */
+export function shiftSlots(card: CardInstance): number[] {
+  return Array.from({ length: BALANCE.tableauSlots }, (_, i) => i).filter((i) => i !== card.slot);
 }
 
 /** Cards in your discard pile this card could recover (empty if it has no recover). */
@@ -928,6 +942,8 @@ interface PlayContext {
   aimUid?: string;
   allyUid?: string;
   recoverUid?: string;
+  /** Shift: the slot the chosen card moves into. */
+  shiftTo?: number;
   /** Lightspeed: the enemy who sprang the card (the effects' target). */
   against?: PlayerState;
 }
@@ -1066,6 +1082,18 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (!chosen) break;
         chosen.attackBonus = (chosen.attackBonus ?? 0) + e.amount;
         log(state, `${p.name}'s ${cardDef(chosen.defId).name} is chosen: +${e.amount} attack.`);
+        break;
+      }
+      case 'shift': {
+        // (Against a rival: the target, or the enemy who sprang it.)
+        const owner = e.enemy ? (ctx.against ?? targetOf(state, p)) : p;
+        const moved = owner?.tableau.find((c) => c.uid === (e.enemy ? ctx.enemyUid : ctx.allyUid) && c.slot !== COMMAND_SLOT);
+        const to = ctx.shiftTo;
+        if (!owner || !moved || to === undefined || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots) break;
+        const other = owner.tableau.find((c) => c.slot === to);
+        if (other) other.slot = moved.slot;
+        moved.slot = to;
+        log(state, other ? `${owner.name}'s ${cardDef(moved.defId).name} and ${cardDef(other.defId).name} swap places.` : `${owner.name}'s ${cardDef(moved.defId).name} shifts to slot ${to + 1}.`);
         break;
       }
       case 'recall': {
@@ -1437,6 +1465,11 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (fusing && !host) throw new GameError('Choose a card of yours in play to fuse it onto.');
   const recovers = recoverChoices(p, def.id);
   if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
+
+  // Shift: the card chosen moves into another slot of its tableau.
+  const shifts = shiftEffect(def.id);
+  const shifted = shifts === 'rival' ? target?.tableau.find((c) => c.uid === action.enemyUid) : shifts === 'mine' ? p.tableau.find((c) => c.uid === action.allyUid) : undefined;
+  if (shifted && (action.shiftTo === undefined || !shiftSlots(shifted).includes(action.shiftTo))) throw new GameError('Choose a slot to move it into.');
 
   if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau (a Guard, while they have one), or at their sun.");
 

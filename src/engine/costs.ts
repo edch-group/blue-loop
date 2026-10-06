@@ -101,6 +101,7 @@ export const CARD_COSTS: Record<string, number> = {
   sunforge: 2,
   thorn_hedge: 2,
   tractor_beam: 2,
+  orbital_tug: 2,
   undertow: 2,
   undertow_shrine: 2,
   void_bolt: 2,

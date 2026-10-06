@@ -1438,7 +1438,8 @@ function pickResearch(s: CampaignState, n: CampaignNode, taken: Set<string>): st
   const near = nodeAnomalies(s, n).length > 0;
   const free = RESEARCH.filter((r) => !taken.has(r.id));
   const fits = free.filter((r) => (near ? r.tier >= 2 : r.tier <= 2));
-  const pool = fits.length ? fits : free.length ? free : RESEARCH;
+  // (Once the deeper projects have all been placed, one near an anomaly repeats one of them: it is never shallow.)
+  const pool = fits.length ? fits : near ? RESEARCH.filter((r) => r.tier >= 2) : free.length ? free : RESEARCH;
   return pool[randomInt(s, pool.length)].id;
 }
 

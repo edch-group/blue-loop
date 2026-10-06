@@ -34,6 +34,8 @@ import {
   aimChoices,
   aimable,
   abilityAimable,
+  shiftEffect,
+  shiftSlots,
 } from './game';
 import type { Action, CardInstance, Effect, GameState, PlayerState } from './types';
 
@@ -375,7 +377,11 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
         for (const allyUid of allies) {
           const back = recalls ? me.tableau.find((c) => c.uid === allyUid) : undefined;
           const here: (number | undefined)[] = back && back.slot !== undefined && !(slots as (number | undefined)[]).includes(back.slot) ? [...slots, back.slot] : slots;
-          for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) for (const hostUid of hosts) if (!hostUid || slot === here[0]) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid, ...(hostUid ? { hostUid } : {}) });
+          // Shift: each slot the chosen card could move into (its tableau's other four).
+          const shifts = shiftEffect(card.defId);
+          const moved = shifts === 'mine' ? me.tableau.find((c) => c.uid === allyUid) : shifts === 'rival' ? state.players.flatMap((pl) => pl.tableau).find((c) => c.uid === enemyUid) : undefined;
+          const tos: (number | undefined)[] = moved ? shiftSlots(moved) : [undefined];
+          for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) for (const hostUid of hosts) for (const shiftTo of tos) if (!hostUid || slot === here[0]) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid, ...(hostUid ? { hostUid } : {}), ...(shiftTo !== undefined ? { shiftTo } : {}) });
         }
   }
   return plays;

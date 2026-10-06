@@ -75,6 +75,11 @@ export const RACE_CARDS: CardDef[] = [
     onPlay: [{ type: 'erode', amount: 2 }, { type: 'draw', amount: 1 }],
   },
   {
+    id: 'nyx_umbral_drift', name: 'Umbral Drift', kind: 'growth', race: 4, sub: 'veilwalker', cost: 1,
+    text: '{displace}. Draw 1.',
+    onPlay: [{ type: 'shift', enemy: true }, { type: 'draw', amount: 1 }],
+  },
+  {
     id: 'nyx_unravel', name: 'Unravel', kind: 'attack', race: 4, sub: 'unmaker', cost: 2,
     text: '{eject:2}. {heat:2}.',
     onPlay: [{ type: 'bounce', maxDefence: 2 }, { type: 'heat', amount: 2, to: 'target' }],
@@ -146,6 +151,11 @@ export const RACE_CARDS: CardDef[] = [
     defence: 2, onTurn: [{ type: 'selfHeat', amount: 2 }], passive: [{ type: 'extraPlay', amount: 1 }],
   },
   // Bastion-kin
+  {
+    id: 'kor_rotation', name: 'Wall Rotation', kind: 'defence', race: 5, sub: 'bastionkin', cost: 1,
+    text: '{shift}. {repair:3}.',
+    onPlay: [{ type: 'shift' }, { type: 'repair', amount: 3 }],
+  },
   {
     id: 'kor_shieldwall', name: 'Shieldwall', kind: 'defence', race: 5, sub: 'bastionkin', cost: 1,
     text: '{guard}. {sturdy:2}.',
@@ -228,6 +238,11 @@ export const RACE_CARDS: CardDef[] = [
     onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }], attune: 1,
   },
   // Seers
+  {
+    id: 'ser_realignment', name: 'Realignment', kind: 'growth', race: 6, sub: 'seer', cost: 2,
+    text: '{shift}. {cool:3}. Draw 1.',
+    onPlay: [{ type: 'shift' }, { type: 'cool', amount: 3 }, { type: 'draw', amount: 1 }],
+  },
   {
     id: 'ser_star_chart', name: 'Sky Chart', kind: 'growth', race: 6, sub: 'seer', cost: 1,
     text: 'Draw 1. {attune}.',

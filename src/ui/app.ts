@@ -51,6 +51,7 @@ import {
   effectAmount,
   optionText,
   allyEffectKind,
+  shiftEffect,
   cardDefence,
   recoverChoices,
   supernovaThreshold,
@@ -134,7 +135,7 @@ type Speed = 'slow' | 'normal' | 'fast';
  */
 interface Pending {
   uid: string;
-  step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot' | 'host';
+  step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot' | 'host' | 'shift';
   /** A Fusion card: the card of yours it fuses onto. */
   hostUid?: string;
   /** Where its heat goes: a rival card's uid, or 'sun'. */
@@ -149,6 +150,8 @@ interface Pending {
   allyUid?: string;
   recoverUid?: string;
   slot?: number;
+  /** Shift: the slot the card chosen moves into. */
+  shiftTo?: number;
   /** Where the card was dropped, dragged out of the hand onto your tableau: a slot, your Lightspeed slot, or a
    *  card of yours (to recall or fuse onto). Used for whichever of those choices it fits; the rest are asked. */
   drop?: { slot?: number | 'ls'; uid?: string };
@@ -2786,10 +2789,12 @@ export class App {
       return ask('enemy');
     }
     if (allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
+    // Shift: then the slot the card chosen moves into (in its own tableau).
+    if (shiftEffect(card.defId) && (p.enemyUid || p.allyUid) && p.shiftTo === undefined) return ask('shift');
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
     // A card that heats, with rival cards on the table: where its heat goes (a card, or their sun).
     if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
-    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.hostUid ? { hostUid: p.hostUid } : {}) });
+    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, shiftTo: p.shiftTo, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.hostUid ? { hostUid: p.hostUid } : {}) });
   }
 
   // -------------------------------------------------------------------------
@@ -3543,6 +3548,9 @@ export class App {
       }
       case 'choose-ally':
         if (this.pending) this.pending.allyUid = arg;
+        return this.advancePlay();
+      case 'choose-shift':
+        if (this.pending) this.pending.shiftTo = Number(arg);
         return this.advancePlay();
       case 'choose-host':
         if (this.pending) this.pending.hostUid = arg;
@@ -4733,9 +4741,10 @@ export class App {
     const guarded = !aimChoices(s, activePlayer(s)).sun;
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'aim') return hint(guarded ? 'aim at a guard' : 'aim heat');
-    if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
+    if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card', shift: 'move a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : allyEffectKind(card.defId) === 'empower' ? 'choose a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
+    if (p.step === 'shift') return hint('choose where it moves');
     if (p.step === 'slot') return hint(cardDef(card.defId).fusion && fusionHosts(activePlayer(s)).length ? 'place it, or fuse it onto a card' : 'place it');
     return '';
   }
@@ -4826,6 +4835,9 @@ export class App {
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
     const pend = this.pending;
     const choosingSlot = side === 'mine' && pend?.step === 'slot';
+    // Shifting: the slots of the tableau the chosen card stands in (it moves there, swapping with any card there).
+    const shiftDef = pend?.step === 'shift' ? activePlayer(this.state!).hand.find((h) => h.uid === pend.uid)?.defId : undefined;
+    const shifting = !!shiftDef && (shiftEffect(shiftDef) === 'mine') === (side === 'mine');
     const st = this.state!;
     // While an attack is aimed: what it would leave of each rival card it could hit.
     const preview = new Map<string, { defence: number; stability: number }>();
@@ -4842,7 +4854,7 @@ export class App {
           ? { type: 'attack', attackerUid: pend.uid, targetUid: aim }
           : pend.ability !== undefined
             ? { type: 'heroAbility', index: pend.ability, aimUid: aim }
-            : { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, aimUid: aim, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) };
+            : { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, shiftTo: pend.shiftTo, aimUid: aim, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) };
       for (const c of aimChoices(st, me).cards) {
         try {
           const g = structuredClone(st);
@@ -4885,6 +4897,7 @@ export class App {
       const def = Math.max(0, full - wear);
       const worn = wear ? ` slot-worn` : '';
       const why = wear ? `: worn to ${def} of ${full} by heat on the card that stood here (it mends 1 a day)` : ` ${full}`;
+      if (shifting) return `<button class="slot-empty slot-choosable${worn}" data-act="choose-shift" data-arg="${i}" data-slot="${i}" title="Move it here: defence${why}"><span class="slot-def">⛨${def}</span><i>move here</i></button>`;
       return choosingSlot
         ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" data-slot="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i>${p.rooms ? `<span class="slot-room">${this.roomMarks(p, i, true)}</span>` : ''}</button>`
         : `<div class="slot-empty${worn}" data-slot="${i}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span>${p.rooms ? `<span class="slot-room">${this.roomMarks(p, i, true)}</span>` : ''}</div>`;
@@ -5028,6 +5041,15 @@ export class App {
     if (p && opts.tableau === 'mine' && p.step === 'ally') {
       attrs = `data-act="choose-ally" data-arg="${c.uid}"`;
       state = 'card-choosable';
+    }
+    // Shifting: the card chosen stands out; the others of its tableau (not its Hero) are where it can swap to.
+    if (p?.step === 'shift' && pendingDef && opts.tableau && (shiftEffect(pendingDef) === 'mine') === (opts.tableau === 'mine')) {
+      const movedUid = shiftEffect(pendingDef) === 'mine' ? p.allyUid : p.enemyUid;
+      if (c.uid === movedUid) state = 'card-picked';
+      else if (c.slot !== undefined && c.slot !== COMMAND_SLOT) {
+        attrs = `data-act="choose-shift" data-arg="${c.slot}" title="Swap places with ${esc(cardDef(c.defId).name)}"`;
+        state = 'card-choosable';
+      } else attrs = '';
     }
     if (p && opts.tableau === 'mine' && (p.step === 'host' || (p.step === 'slot' && pendingDef && cardDef(pendingDef).fusion)) && opts.owner && fusionHosts(opts.owner).some((h) => h.uid === c.uid)) {
       attrs = `data-act="choose-host" data-arg="${c.uid}" title="Fuse it onto ${esc(cardDef(c.defId).name)}"`;

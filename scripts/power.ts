@@ -39,6 +39,8 @@ function once(e: Effect): number {
     case 'selfHeat': v = a * (HOT_RACE ? -0.6 : -1); break;
     case 'destroy': v = 1.5 + 0.5 * (e.maxDefence ?? 4) + (e.neighbours ? 1.5 : 0); break;
     case 'bounce': v = 1 + 0.4 * (e.maxDefence ?? 4); break;
+    // (Moving a card: a better slot or neighbours for one of yours; a rival's out of its resonance, or into reach.)
+    case 'shift': v = e.enemy ? 1.5 : 1; break;
     case 'erode': v = a * W.erode * (e.all ? 2 : 1); break;
     case 'restore': v = a * W.restore * (e.all ? 2.5 : 1); break;
     case 'recover': case 'recall': v = W[e.type]; break;
