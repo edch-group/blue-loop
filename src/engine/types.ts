@@ -467,6 +467,8 @@ export interface ShipRooms {
   defence: number[];
   attack: number[];
   command: number;
+  /** Each room's module (campaign): boons carried by whichever card stands in it. */
+  boons?: string[][];
 }
 
 export interface GameSetup {

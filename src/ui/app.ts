@@ -72,7 +72,10 @@ import {
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
-import { CampaignView, cardHtml, loadCampaign, ORACLE_PORTRAIT } from './campaign';
+import { CampaignView, cardHtml, loadCampaign, MODULE_ICON, ORACLE_PORTRAIT } from './campaign';
+
+/** Hero gear's mark, in a battle's finds. */
+const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
 import { closeTour, startTour, tourDue, tourShowing } from './tour';
 import { battleTour } from './tutorial';
 import { ORACLE_NAME } from '../engine';
@@ -4644,6 +4647,17 @@ export class App {
             .join('')}</div>
         </div>`
       : '';
+    // And whatever turned up in the wreckage: gear for your hero, modules for your ship.
+    const finds = this.campaignBattle ? this.campaign.findsFor(s) : [];
+    const findsHtml = finds.length
+      ? `<div class="salvage finds">
+          <div class="salvage-title">found in the wreckage</div>
+          <div class="finds-list">${finds
+            .map((f) => `<div class="find rarity-${f.rarity}"><i class="find-icon" aria-hidden="true">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i><span><b>${esc(f.name.toLowerCase())}</b><small>${f.kind === 'module' ? 'ship module' : 'hero gear'} · ${esc(f.text)}</small></span></div>`)
+            .join('')}</div>
+          <small class="finds-note">${finds.some((f) => f.kind === 'module') ? 'Fit modules into your ship’s rooms in the base’s ship tab. ' : ''}${finds.some((f) => f.kind === 'gear') ? 'Equip gear in the hero tab.' : ''}</small>
+        </div>`
+      : '';
     const actions = this.campaignBattle
       ? salvage.length
         ? `<div class="result-actions"><button class="btn-primary" data-act="campaign-return" ${pick ? '' : 'disabled'}>${pick ? `take ${esc(cardDef(pick.id).name.toLowerCase())} and return` : 'pick a card to salvage'}</button><button class="btn" data-act="campaign-return-none">leave it</button></div>`
@@ -4660,6 +4674,7 @@ export class App {
         <h2>${title}</h2>
         <p>${why}</p>
         ${this.resultExtra}
+        ${findsHtml}
         ${salvageHtml}
         ${actions}
       </div>`;

@@ -22,6 +22,7 @@ import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types';
 import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeItem, RACE_SLOTS, itemValue, skillPoints, SKILL_TREES, type HeroState, type Item, type ItemRarity, type SlotKind } from './heroes';
 import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
+import { makeModule, MODULE_KINDS, moduleValue, type ShipModule } from './modules';
 import {
   contactScene,
   defeatScene,
@@ -54,6 +55,8 @@ export const CAMPAIGN = {
   armySize: 10,
   /** Cards offered to salvage from a beaten side (the player takes one). */
   salvageChoices: 3,
+  /** Chance the winner of a battle finds a ship module in the wreckage (gear: HEROES.itemChance). */
+  moduleChance: 0.35,
   /** Wisdom gained each turn (spent on research stations' upgrades). */
   wisdomPerTurn: 1,
   /** Armouries and research stations on the map, and how many cards an armoury stocks (each sold once). */
@@ -253,6 +256,8 @@ export type Station = { kind: 'armory'; cards: string[] } | { kind: 'research'; 
 /** A flagship: its rooms (the five card slots and the command room), its shields and its hull. */
 export interface Ship {
   rooms: ShipRooms;
+  /** The module fitted in each of the five rooms (null: none). */
+  modules?: (ShipModule | null)[];
   /** Shields up as each battle begins. */
   shields: number;
   /** Hull levels: each is more max health. */
@@ -408,6 +413,8 @@ export interface Faction {
   heroes?: Record<string, HeroState>;
   /** Gear found, not yet worn. */
   items?: Item[];
+  /** Ship modules in its stores (not fitted). */
+  modules?: ShipModule[];
   /** The upgrades its flagship has taken from research stations. */
   research?: ResearchState;
 }
@@ -541,6 +548,9 @@ export type CampaignAction =
   | { type: 'train'; hero: string; stat: 'attack' | 'defence' }
   /** Upgrade a part of the flagship, for credits. */
   | ({ type: 'upgradeShip' } & ShipPart)
+  /** Fit a module from the stores into a room (one already there goes back to the stores), or take one out. */
+  | { type: 'fitModule'; moduleId: string; room: number }
+  | { type: 'unfitModule'; room: number }
   /** A hero puts on gear (from the faction's finds), in a slot it fits; or takes it off. */
   | { type: 'equip'; hero: string; itemId: string; slot: string }
   | { type: 'unequip'; hero: string; slot: string }
@@ -1420,7 +1430,7 @@ function flagshipSetup(s: CampaignState, army: Army): Pick<PlayerSetup, 'hero' |
     hero: army.general,
     tableau: [army.general],
     heroStats: heroStats(f, army.general),
-    rooms: ship.rooms,
+    rooms: ship.modules?.some(Boolean) ? { ...ship.rooms, boons: [0, 1, 2, 3, 4].map((r) => ship.modules?.[r]?.boons ?? []) } : ship.rooms,
     ...(ship.shields ? { opening: { shields: ship.shields } } : {}),
     hull: ship.hull ? { maxHealthDelta: ship.hull * CAMPAIGN.hullHealth } : {},
   };
@@ -1587,6 +1597,8 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     clog(s, `${target.name}'s sentinels surrender to ${armyLeader(army)} without a fight.`, [here.id, target.id], f.id);
     const h = !army.lost ? heroState(f, army.general) : null;
     if (h) h.xp += HEROES.lossXp;
+    // (Taken without a fight, it may still hold gear.)
+    if (!army.lost && nextRandom(s) < HEROES.itemChance + armyBonus(s, army).loot) findItem(s, f, army, target);
     if (!f.isAI) s.conquest = { nodeId: target.id, armyId: army.id };
     else conquer(s, f, target, aiConquestChoice(s, target), army);
     checkMissions(s);
@@ -1649,14 +1661,67 @@ export function salvageOptions(s: CampaignState, game: GameState): string[] {
     })
     .sort();
   // (A fixed shuffle, from the battle's own seed and place.)
-  let h = game.rngState ^ 0x9e3779b9;
-  for (const ch of b.nodeId) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193);
-  const next = () => ((h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) ^ 0x6a09e667) >>> 0) / 2 ** 32;
+  const next = spoilsRng(game, b.nodeId);
   for (let i = ids.length - 1; i > 0; i--) {
     const j = Math.floor(next() * (i + 1));
     [ids[i], ids[j]] = [ids[j], ids[i]];
   }
   return ids.slice(0, CAMPAIGN.salvageChoices);
+}
+
+/** A battle's own random numbers for its spoils: the same every time they're asked for (shown, then taken). */
+function spoilsRng(game: GameState, salt: string): () => number {
+  let h = game.rngState ^ 0x9e3779b9;
+  for (const ch of salt) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193);
+  return () => ((h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) ^ 0x6a09e667) >>> 0) / 2 ** 32;
+}
+
+/** How fine a find is, by where it was found (r: a roll, 0–1): better the deeper the system lies. */
+function findRarity(n: CampaignNode, r: number): ItemRarity {
+  return n.heart || (n.ring ?? 9) <= 2 ? (r < 0.4 ? 'anomaly' : 'stellar') : n.tier >= 1 ? (r < 0.15 ? 'anomaly' : r < 0.6 ? 'stellar' : 'dwarf') : r < 0.25 ? 'stellar' : 'dwarf';
+}
+
+/**
+ * What the winner of a battle finds in the wreckage: perhaps gear for its hero, perhaps a module for its
+ * ship. Worked out from the finished battle, so the battle screen can show it before it is taken (the same
+ * finds, the same ids). None for neutral defenders or the Lost Races.
+ */
+export function battleFinds(s: CampaignState, game: GameState): { items: Item[]; modules: ShipModule[] } {
+  const none = { items: [], modules: [] };
+  const b = s.battle;
+  if (!b || !isGameOver(game) || !game.winnerId) return none;
+  const attackerWon = game.winnerId === game.players[0].id;
+  const fid = attackerWon ? b.attacker : b.defender;
+  const f = fid ? s.factions.find((x) => x.id === fid) : undefined;
+  if (!f || f.lost) return none;
+  const army = s.armies.find((a) => a.id === (attackerWon ? b.armyId : b.defenderArmyId));
+  const n = nodeById(s, b.nodeId);
+  const next = spoilsRng(game, `${b.nodeId}:finds`);
+  let uid = s.uidCounter;
+  const items: Item[] = [];
+  const modules: ShipModule[] = [];
+  if (next() < HEROES.itemChance + (army ? armyBonus(s, army).loot : 0)) {
+    const slots = RACE_SLOTS[f.race];
+    items.push(makeItem(`item${++uid}`, slots[Math.floor(next() * slots.length)].kind, findRarity(n, next()), f.race, next()));
+  }
+  if (next() < CAMPAIGN.moduleChance) modules.push(makeModule(`mod${++uid}`, MODULE_KINDS[Math.floor(next() * MODULE_KINDS.length)], findRarity(n, next())));
+  return { items, modules };
+}
+
+/** Take a battle's finds: into the winner's stores (the AI wears and fits them at once). */
+function takeFinds(s: CampaignState, game: GameState) {
+  const { items, modules } = battleFinds(s, game);
+  if (!items.length && !modules.length) return;
+  const b = s.battle!;
+  const f = factionById(s, game.winnerId === game.players[0].id ? b.attacker : b.defender!);
+  s.uidCounter += items.length + modules.length;
+  (f.items ??= []).push(...items);
+  (f.modules ??= []).push(...modules);
+  clog(s, `${f.name} finds ${[...items, ...modules].map((x) => x.name).join(' and ')} in the wreckage.`, b.nodeId, f.id);
+  if (f.isAI) {
+    aiEquip(f);
+    aiFitModules(f);
+  }
 }
 
 /** Whether a card salvaged from this battle would go straight into the player's army's deck (else the reserve). */
@@ -1684,6 +1749,7 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   if (!isGameOver(game)) throw new GameError('That battle is not over yet.');
   const salvageable = salvageOptions(s, game);
   if (salvage && !salvageable.includes(salvage)) throw new GameError('That card is not there to salvage.');
+  takeFinds(s, game);
   s.battle = null;
   const attacker = factionById(s, b.attacker);
   const defender = b.defender ? factionById(s, b.defender) : null;
@@ -1777,8 +1843,6 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
   if (f.id === s.playerId && f.stats.settled + f.stats.absorbed + f.stats.novas === 0) tell(s, firstConquestScene());
   n.home = undefined;
   n.gate = undefined;
-  // The army that took it may find gear among the spoils.
-  if (army && !army.lost && nextRandom(s) < HEROES.itemChance + armyBonus(s, army).loot) findItem(s, f, army, n);
 
   if (choice === 'settle') {
     n.owner = f.id;
@@ -1822,14 +1886,30 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
 
 /** Gear found by an army in a system it took: better the deeper the system lies. */
 function findItem(s: CampaignState, f: Faction, army: Army, n: CampaignNode) {
-  const r = nextRandom(s);
-  const rarity: ItemRarity = n.heart || (n.ring ?? 9) <= 2 ? (r < 0.4 ? 'anomaly' : 'stellar') : n.tier >= 1 ? (r < 0.15 ? 'anomaly' : r < 0.6 ? 'stellar' : 'dwarf') : r < 0.25 ? 'stellar' : 'dwarf';
+  const rarity = findRarity(n, nextRandom(s));
   const slots = RACE_SLOTS[f.race];
   const kind: SlotKind = slots[randomInt(s, slots.length)].kind;
   const item = makeItem(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s));
   (f.items ??= []).push(item);
   clog(s, `${cardDef(army.general).name}'s army finds ${item.name} in ${n.name}.`, n.id, f.id);
   if (f.isAI) aiEquip(f);
+}
+
+/** Fit a module into a room: one already there goes back to the stores. */
+function fitModule(f: Faction, m: ShipModule, room: number) {
+  const mods = (f.ship.modules ??= [null, null, null, null, null]);
+  const old = mods[room];
+  mods[room] = m;
+  f.modules = (f.modules ?? []).filter((x) => x !== m);
+  if (old) f.modules.push(old);
+}
+
+/** The AI fits its best modules, the safest rooms first (an empty or weaker one). */
+function aiFitModules(f: Faction) {
+  for (const m of [...(f.modules ?? [])].sort((a, b) => moduleValue(b) - moduleValue(a))) {
+    const room = [2, 1, 3, 0, 4].find((r) => !f.ship.modules?.[r] || moduleValue(f.ship.modules[r]!) < moduleValue(m));
+    if (room !== undefined) fitModule(f, m, room);
+  }
 }
 
 /** The AI wears its best gear: each find goes to the hero it suits best (an empty or weaker slot). */
@@ -2405,6 +2485,20 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       if (why) throw new GameError(why);
       train(heroState(f, action.hero), action.stat);
       clog(s, `${cardDef(action.hero).name} trains: +1 ${action.stat}.`, undefined, f.id);
+      break;
+    }
+    case 'fitModule': {
+      const m = (f.modules ?? []).find((x) => x.id === action.moduleId);
+      if (!m) throw new GameError('That module is not in your stores.');
+      if (!Number.isInteger(action.room) || action.room < 0 || action.room > 4) throw new GameError('No such room.');
+      fitModule(f, m, action.room);
+      break;
+    }
+    case 'unfitModule': {
+      const old = f.ship.modules?.[action.room];
+      if (!old) throw new GameError('There is no module in that room.');
+      f.ship.modules![action.room] = null;
+      (f.modules ??= []).push(old);
       break;
     }
     case 'upgradeShip': {

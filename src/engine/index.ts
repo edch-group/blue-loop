@@ -12,6 +12,7 @@ export * from './stats';
 export * from './deckcode';
 export * from './profanity';
 export * from './heroes';
+export * from './modules';
 export * from './research';
 export * from './boons';
 export * from './races';

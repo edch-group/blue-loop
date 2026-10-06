@@ -1,5 +1,8 @@
 import {
   ANOMALIES,
+  battleFinds,
+  itemText,
+  type ShipModule,
   sunHealth,
   salvageOptions,
   salvageToDeck,
@@ -398,6 +401,17 @@ export class CampaignView {
     saveCampaign(this.state);
   }
 
+  /** What the player found in the wreckage of a battle just won (gear for their hero, modules for their ship). */
+  findsFor(game: GameState): { name: string; text: string; rarity: string; kind: 'gear' | 'module' }[] {
+    const s = this.state;
+    if (!s?.battle || !game.winnerId) return [];
+    const b = s.battle;
+    const winner = game.winnerId === game.players[0].id ? b.attacker : b.defender;
+    if (winner !== s.playerId) return [];
+    const { items, modules } = battleFinds(s, game);
+    return [...items.map((i) => ({ name: i.name, text: itemText(i), rarity: i.rarity, kind: 'gear' as const })), ...modules.map((m) => ({ name: m.name, text: m.text, rarity: m.rarity, kind: 'module' as const }))];
+  }
+
   /** The cards the player may salvage from a battle just won (on the battle screen), each with where it would go. */
   salvageFor(game: GameState): { id: string; toDeck: boolean }[] {
     const s = this.state;
@@ -655,6 +669,14 @@ export class CampaignView {
       case 'cmp-ship-pick':
         if (this.sheet?.kind === 'ship') this.sheet = { kind: 'ship', pick: this.sheet.pick === arg ? undefined : arg };
         sound.hover();
+        break;
+      case 'cmp-fit': {
+        const [moduleId, room] = arg.split(':');
+        if (this.apply({ type: 'fitModule', moduleId, room: Number(room) })) sound.upgrade();
+        break;
+      }
+      case 'cmp-unfit':
+        this.apply({ type: 'unfitModule', room: Number(arg) });
         break;
       case 'cmp-ship': {
         const [part, room] = arg.split(':');
@@ -2110,8 +2132,9 @@ export class CampaignView {
       .map((i) => {
         const d = ship.rooms.defence[i];
         const a = ship.rooms.attack[i];
-        return `<button class="sh-room ${pick === String(i) ? 'on' : ''}" data-act="cmp-ship-pick" data-arg="${i}" style="--i:${i}" title="Room ${i + 1}: +${d} defence, +${a} attack for the card in it">
-          <b>${i + 1}</b><span class="sh-room-stats"><em class="def">◆${slotDef[i] + d}</em><em class="atk">✦+${a}</em></span>
+        const m = ship.modules?.[i];
+        return `<button class="sh-room ${pick === String(i) ? 'on' : ''} ${m ? `sh-room-mod rarity-${m.rarity}` : ''}" data-act="cmp-ship-pick" data-arg="${i}" style="--i:${i}" title="Room ${i + 1}: +${d} defence, +${a} attack for the card in it${m ? `. ${m.name}: ${m.text}` : ''}">
+          <b>${i + 1}</b><span class="sh-room-stats"><em class="def">◆${slotDef[i] + d}</em><em class="atk">✦+${a}</em></span>${m ? `<i class="sh-mod-pip" aria-hidden="true">${MODULE_ICON}</i>` : ''}
         </button>`;
       })
       .join('');
@@ -2125,7 +2148,8 @@ export class CampaignView {
       room !== null && room >= 0 && room < 5
         ? `<h4>room ${room + 1}</h4>
            ${part({ part: 'defence', room }, 'walls', `+${ship.rooms.defence[room]} defence for the card in it`)}
-           ${part({ part: 'attack', room }, 'guns', `+${ship.rooms.attack[room]} attack for a card in it that attacks`)}`
+           ${part({ part: 'attack', room }, 'guns', `+${ship.rooms.attack[room]} attack for a card in it that attacks`)}
+           ${this.renderModuleSlot(room)}`
         : pick === 'command'
           ? `<h4>command room</h4>
              ${part({ part: 'command' }, 'bulkheads', `+${ship.rooms.command} defence for your hero`)}
@@ -2143,9 +2167,26 @@ export class CampaignView {
           <h4>the ship</h4>
           ${part({ part: 'shields' }, 'shields', `${ship.shields} up as each battle begins`)}
           ${part({ part: 'hull' }, 'hull', `+${ship.hull * CAMPAIGN.hullHealth} max health`)}
-          <p class="muted">Upgrades last the whole campaign. In battle, each card stands in a room of your ship: the room's walls add to its defence, and its guns to its attack.</p>
+          <p class="muted">Upgrades last the whole campaign. In battle, each card stands in a room of your ship: the room's walls add to its defence, its guns to its attack, and its module gives it the module's power.</p>
         </section>
       </div>`;
+  }
+
+  /** A room's module: the one fitted (and what it does for the card standing there), and those in the stores to fit. */
+  private renderModuleSlot(room: number): string {
+    const me = campaignPlayer(this.state!);
+    const fitted = me.ship.modules?.[room] ?? null;
+    const stores = me.modules ?? [];
+    const row = (m: ShipModule, act: string) => `
+      <div class="sh-mod rarity-${m.rarity}">
+        <i class="sh-mod-icon" aria-hidden="true">${MODULE_ICON}</i>
+        <span class="sh-mod-name">${esc(lower(m.name))}<small>${esc(m.text)}</small></span>
+        ${act}
+      </div>`;
+    return `
+      <h4 class="sh-mod-head">module</h4>
+      ${fitted ? row(fitted, `<button class="pill-btn" data-act="cmp-unfit" data-arg="${room}">remove</button>`) : '<p class="muted sh-mod-empty">No module fitted: whatever card stands in this room carries the module you fit here.</p>'}
+      ${stores.length ? `<div class="sh-mod-stores"><small>in your stores</small>${stores.map((m) => row(m, `<button class="pill-btn" data-act="cmp-fit" data-arg="${m.id}:${room}">${fitted ? 'swap in' : 'fit'}</button>`)).join('')}</div>` : '<p class="muted sh-mod-empty">Modules are found in the wreckage of battles you win.</p>'}`;
   }
 
   /** The hero shown in the heroes tab: the one picked, else the first army's general, else the first. */
@@ -2311,6 +2352,9 @@ export class CampaignView {
       </div>`;
   }
 }
+
+/** A ship module's mark: a chip in a room. */
+export const MODULE_ICON = '<svg viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1.6"/><path d="M6 1.5v2M10 1.5v2M6 12.5v2M10 12.5v2M1.5 6h2M1.5 10h2M12.5 6h2M12.5 10h2"/><circle cx="8" cy="8" r="1.6"/></svg>';
 
 /** A small read-only card face. */
 export function cardHtml(defId: string): string {

@@ -74,7 +74,7 @@ export function createGame(setup: GameSetup): GameState {
       ...(ps.skills?.length ? { skills: ps.skills.map((k) => ({ ...k })) } : {}),
       ...(ps.hero ? { hero: ps.hero } : {}),
       ...(ps.heroStats ? { heroStats: { ...ps.heroStats } } : {}),
-      ...(ps.rooms ? { rooms: { defence: [...ps.rooms.defence], attack: [...ps.rooms.attack], command: ps.rooms.command } } : {}),
+      ...(ps.rooms ? { rooms: { defence: [...ps.rooms.defence], attack: [...ps.rooms.attack], command: ps.rooms.command, ...(ps.rooms.boons ? { boons: ps.rooms.boons.map((b) => [...b]) } : {}) } } : {}),
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
     // A garrison takes the safest slots first; a Hero already in play (a campaign hero's Herald) leads from the
@@ -472,6 +472,9 @@ function place(p: PlayerState, card: CardInstance, slot: number) {
     card.boons = [...p.heroBoons.boons];
     card.stability = Math.min(BALANCE.maxStability, card.stability + card.boons.reduce((t, b) => t + (cardDef(b).stability ?? 0), 0));
   }
+  // A campaign ship's room with a module in it: the card standing there carries the module's boons.
+  const roomBoons = slot !== COMMAND_SLOT ? p.rooms?.boons?.[slot] : undefined;
+  if (roomBoons?.length) card.boons = [...(card.boons ?? []), ...roomBoons];
   // The slot's worn defence is still worn: the new card stands in it.
   const wear = p.slotWear?.[slot] ?? 0;
   if (wear > 0) card.dented = wear;

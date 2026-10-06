@@ -871,3 +871,46 @@ describe('salvage', () => {
     expect(t.cardRewards[0]?.source).toBe('Salvage');
   });
 });
+
+describe('ship modules and finds', () => {
+  it('fits a module into a room (one there goes back to the stores), and the card standing there carries it', async () => {
+    const { makeModule } = await import('../src/engine/modules');
+    let s = fresh();
+    const me = campaignPlayer(s);
+    me.modules = [makeModule('m1', 'coolant', 'stellar'), makeModule('m2', 'lances', 'dwarf')];
+    s = applyCampaignAction(s, { type: 'fitModule', moduleId: 'm1', room: 2 });
+    expect(campaignPlayer(s).ship.modules?.[2]?.id).toBe('m1');
+    s = applyCampaignAction(s, { type: 'fitModule', moduleId: 'm2', room: 2 });
+    expect(campaignPlayer(s).ship.modules?.[2]?.id).toBe('m2');
+    expect(campaignPlayer(s).modules?.map((m) => m.id)).toEqual(['m1']);
+    s = applyCampaignAction(s, { type: 'fitModule', moduleId: 'm1', room: 0 });
+    s = attack(s);
+    const p = s.battle!.game.players[0];
+    expect(p.rooms?.boons?.[2]).toEqual(['boon_heat_1']);
+    expect(p.rooms?.boons?.[0]).toEqual(['boon_cool_2']);
+    // A card placed in room 2 carries the lances; leaving, it drops them.
+    const { createGame } = await import('../src/engine/game');
+    const g = createGame({ seed: 1, campaign: true, players: [{ name: 'A', isAI: false, deck: ['coolant_array', 'coolant_array'], tableau: ['coolant_array'], rooms: p.rooms }, { name: 'B', isAI: true, deck: ['coolant_array'] }] });
+    const placed = g.players[0].tableau.find((c) => c.slot === 2);
+    expect(placed?.boons).toContain('boon_heat_1');
+  });
+
+  it("shows a battle's finds before they are taken, and takes the same ones", async () => {
+    const { applyAction } = await import('../src/engine/game');
+    const { battleFinds } = await import('../src/engine/campaign');
+    let found = false;
+    for (let seed = 1; seed < 40 && !found; seed++) {
+      let s = attack(fresh(seed));
+      const game = applyAction(s.battle!.game, { type: 'concede', playerId: s.battle!.game.players[1].id });
+      const finds = battleFinds(s, game);
+      if (!finds.items.length && !finds.modules.length) continue;
+      found = true;
+      expect(battleFinds(s, game)).toEqual(finds);
+      s = applyCampaignAction(s, { type: 'finishBattle', game, salvage: null });
+      const me = campaignPlayer(s);
+      for (const m of finds.modules) expect(me.modules?.map((x) => x.id)).toContain(m.id);
+      for (const i of finds.items) expect(me.items?.map((x) => x.id)).toContain(i.id);
+    }
+    expect(found).toBe(true);
+  });
+});
