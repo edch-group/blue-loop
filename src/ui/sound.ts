@@ -31,6 +31,8 @@ function silentWav(): string {
   return `data:audio/wav;base64,${btoa(bin)}`;
 }
 const MUSIC_KEY = 'blue-loop:music';
+/** Where the score had got to when the app was hidden (or the page left), kept for the tab's session. */
+const MUSIC_AT_KEY = 'blue-loop:music-at';
 
 /** A-aeolian flavoured chords (frequencies in Hz) the score drifts between. */
 const CHORDS: number[][] = [
@@ -153,6 +155,10 @@ class SoundBoard {
   /** Which score the current screen wants. */
   private scene: MusicScene = 'ambient';
   private silent: HTMLAudioElement | null = null;
+  /** The chords the score has scheduled lately (when each starts), to know where it is. */
+  private placed: { scene: MusicScene; chord: number; round: number; at: number }[] = [];
+  /** Where to pick the score up again, once it comes back. */
+  private resumeAt: { scene: MusicScene; chord: number; round: number } | null = null;
   muted = false;
   musicOn = true;
 
@@ -162,6 +168,12 @@ class SoundBoard {
       this.musicOn = localStorage.getItem(MUSIC_KEY) !== 'off';
     } catch {
       // Storage unavailable: defaults.
+    }
+    try {
+      const at = JSON.parse(sessionStorage.getItem(MUSIC_AT_KEY) ?? 'null');
+      if (at && typeof at.chord === 'number' && typeof at.round === 'number') this.resumeAt = at;
+    } catch {
+      // ignore
     }
     // Phones only allow audio to start from a completed gesture: on iOS a finger
     // going down does not count, lifting it (or a click or key press) does. Keep
@@ -177,6 +189,7 @@ class SoundBoard {
   }
 
   private sleep() {
+    this.keepPlace();
     this.stopMusic(true);
     this.releasePlayback();
     if (this.ctx && this.ctx.state === 'running') void this.ctx.suspend().catch(() => undefined);
@@ -198,6 +211,39 @@ class SoundBoard {
       this.mediaPlayback();
       if (this.musicOn) this.startMusic();
     }
+  }
+
+  /** Note the chord the score is on, so coming back picks it up there rather than at the top. */
+  private keepPlace() {
+    if (!this.ctx || !this.playing) return;
+    const now = this.ctx.currentTime;
+    const at = [...this.placed].reverse().find((p) => p.scene === this.playing && p.at <= now);
+    if (!at) return;
+    this.resumeAt = { scene: at.scene, chord: at.chord, round: at.round };
+    try {
+      sessionStorage.setItem(MUSIC_AT_KEY, JSON.stringify(this.resumeAt));
+    } catch {
+      // ignore
+    }
+  }
+
+  /** Where a score starts: where it was left, if it was this one, else the top. */
+  private startPlace(scene: MusicScene): { chord: number; round: number } {
+    const at = this.resumeAt;
+    this.resumeAt = null;
+    this.placed = [];
+    try {
+      sessionStorage.removeItem(MUSIC_AT_KEY);
+    } catch {
+      // ignore
+    }
+    return at && at.scene === scene ? at : { chord: 0, round: 0 };
+  }
+
+  /** A chord scheduled: remembered (the last few) so the score's place can be kept. */
+  private place(scene: MusicScene, chord: number, round: number, at: number) {
+    this.placed.push({ scene, chord, round, at });
+    if (this.placed.length > 4) this.placed.shift();
   }
 
   /** Muted: stop claiming media playback, so the phone's other audio can carry on. */
@@ -779,11 +825,11 @@ class SoundBoard {
     };
 
     let next = ctx.currentTime + 0.1;
-    let chord = 0;
-    let round = 0;
+    let { chord, round } = this.startPlace('battle');
     const tick = () => {
       if (this.playing !== 'battle') return;
       while (next < ctx.currentTime + 0.5) {
+        this.place('battle', chord, round, next);
         playChord(next, chord, round);
         next += chordLen;
         chord = (chord + 1) % BATTLE_CHORDS.length;
@@ -1196,11 +1242,13 @@ class SoundBoard {
     };
 
     let next = t0;
-    let chord = 0;
-    let round = 0;
+    let { chord, round } = this.startPlace('voyage');
+    // (A crescendo climbs over two chords: picked up halfway, it starts from its foot.)
+    if (chord === 3 && round % 2 === 1) chord = 2;
     const tick = () => {
       if (this.playing !== 'voyage') return;
       while (next < ctx.currentTime + 0.5) {
+        this.place('voyage', chord, round, next);
         playChord(next, chord, round);
         next += chordLen;
         chord = (chord + 1) % CAMPAIGN_CHORDS.length;

@@ -7,6 +7,7 @@ import {
   SUBRACES,
   attackProblem,
   cardAttack,
+  duskEffects,
   applyAction,
   BALANCE,
   boosterPool,
@@ -4964,7 +4965,9 @@ export class App {
     // (A hero's boons stand on the rail beside its slot; any other card's, from a ship module, as marks on it.)
     // (A campaign card standing in a ship's room: the room's walls and guns on it too.)
     const roomTag = opts.tableau && opts.owner && c.slot !== undefined && c.slot !== COMMAND_SLOT ? this.roomMarks(opts.owner, c.slot, false) : '';
-    const boonTag = roomTag + (c.boons?.length && !(def.kind === 'command' && c.slot === COMMAND_SLOT) ? this.boonMarks(c.boons) : '');
+    // A dimmed card with a dusk effect rests tonight: marked, so a quiet dusk is no surprise.
+    const restTag = opts.tableau && c.fresh && c.slot !== undefined && duskEffects(c).length ? `<i class="boon-mark rest-mark" data-tip-title="resting" data-tip="${esc('It came into play today: its dusk effect starts tomorrow.')}"><svg viewBox="0 0 16 16"><path d="M10.5 2.5a5.5 5.5 0 1 0 3 9.6A6 6 0 0 1 10.5 2.5Z"/></svg></i>` : '';
+    const boonTag = restTag + roomTag + (c.boons?.length && !(def.kind === 'command' && c.slot === COMMAND_SLOT) ? this.boonMarks(c.boons) : '');
     // Fusion cards fused onto it: tucked behind it, each a little higher, only its name showing above it
     // (its text on hover). A campaign hero's boons stay as a tag on the card.
     const fusedTags =

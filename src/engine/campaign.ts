@@ -60,8 +60,8 @@ export const CAMPAIGN = {
   /** Wisdom gained each turn (spent on research stations' upgrades). */
   wisdomPerTurn: 1,
   /** Armouries and research stations on the map, and how many cards an armoury stocks (each sold once). */
-  armories: 7,
-  researchStations: 10,
+  armories: 20,
+  researchStations: 26,
   armoryStock: 6,
   /** Wisdom for a research station's upgrade, by the upgrade's tier (1–4). */
   researchWisdom: [3, 5, 8, 12],
@@ -112,17 +112,22 @@ export const CAMPAIGN = {
   /** Control this share of all systems to win outright. */
   dominationShare: 0.5,
   /** When this turn ends, the faction controlling the most systems wins. */
-  turnLimit: 60,
+  turnLimit: 160,
   /** The map: this many systems scattered in loose clusters over this area (map units). */
-  mapSystems: 48,
-  mapWidth: 3500,
-  mapHeight: 2250,
+  mapSystems: 320,
+  mapWidth: 7800,
+  mapHeight: 5000,
   mapMargin: 170,
   /** Systems are never closer than this; routes longer than this are dropped unless needed to connect. */
   minSystemGap: 160,
   maxRoute: 690,
+  /** Of the routes beyond those that keep the map connected, the share that are open. */
+  extraRoutes: 0.12,
+  /** Routes from each home to the Heart (as near as the map allows). */
+  homeRing: 30,
+  homeRingSlack: 3,
   /** Anomalies scattered between systems; each changes battles fought from the systems within its reach. */
-  anomalies: 8,
+  anomalies: 16,
   /** Safety cap on simulated (auto-resolved) battles. */
   battleActionCap: 6000,
   /** Damage (heat carried) an army takes when its attack is repelled, and the most it can carry. */
@@ -130,7 +135,7 @@ export const CAMPAIGN = {
   /** Credits to repair one point of an army's damage (in a system you hold). */
   armyHealCost: 1,
   /** Finite Stellari: blooms on this many systems, each giving this much a turn to whoever holds it, for this many turns. */
-  stellariaBlooms: 4,
+  stellariaBlooms: 10,
   stellariaCredits: 3,
   stellariaMaterials: 3,
   stellariaTurns: 8,
@@ -141,8 +146,8 @@ export const CAMPAIGN = {
    * from the rim inwards: one a turn, one more every `collapseRamp` turns after that. Each is marked a turn
    * before it goes. Whatever stands there is lost (an army falls back, if it can).
    */
-  stabilityTurns: 8,
-  collapseRamp: 12,
+  stabilityTurns: 30,
+  collapseRamp: 30,
   /** The counter: stabilise a collapsing system you hold, for materials, holding it together this many turns more (once per system). */
   stabiliseCost: 8,
   stabiliseTurns: 4,
@@ -151,8 +156,8 @@ export const CAMPAIGN = {
   /** Recycling a reserve card pays this share of its armory price, in materials (at least 1). */
   recycleShare: 0.5,
   /** The Lost Races: rogue armies at the start, the most there can be, and what beating one pays. */
-  lostArmies: 3,
-  lostMax: 5,
+  lostArmies: 6,
+  lostMax: 10,
   lostRelicMaterials: 6,
   /** Chance a lost army wanders on a turn, and that it raids a held system next to it when it can. */
   lostWander: 0.6,
@@ -485,7 +490,7 @@ export interface CampaignLogEntry {
 }
 
 export interface CampaignState {
-  version: 4;
+  version: 5;
   rngState: number;
   uidCounter: number;
   logSeq: number;
@@ -974,11 +979,14 @@ function scatterSystems(s: CampaignState): { x: number; y: number }[] {
  * on their route as diameter), which is planar so routes never cross. Overlong
  * routes are dropped unless they are needed to keep the map connected.
  */
-function routeSystems(pts: { x: number; y: number }[]): [number, number][] {
+function routeSystems(s: CampaignState, pts: { x: number; y: number }[]): [number, number][] {
   const d2 = (a: number, b: number) => (pts[a].x - pts[b].x) ** 2 + (pts[a].y - pts[b].y) ** 2;
   const gabriel: [number, number, number][] = [];
+  // (Only pairs within reach of each other, and only the systems near them, need checking.)
+  const reach2 = (CAMPAIGN.maxRoute * 1.6) ** 2;
   for (let a = 0; a < pts.length; a++) {
     for (let b = a + 1; b < pts.length; b++) {
+      if (d2(a, b) > reach2) continue;
       const mx = (pts[a].x + pts[b].x) / 2;
       const my = (pts[a].y + pts[b].y) / 2;
       const r2 = d2(a, b) / 4;
@@ -997,7 +1005,9 @@ function routeSystems(pts: { x: number; y: number }[]): [number, number][] {
       tree.add(`${a}-${b}`);
     }
   }
-  return gabriel.filter(([a, b, len]) => len <= CAMPAIGN.maxRoute || tree.has(`${a}-${b}`)).map(([a, b]) => [a, b]);
+  // The tree, and only some of the other routes: a sparse web whose routes wind, so the Heart lies far from
+  // every home (CAMPAIGN.homeRing routes), with choices of way all along it.
+  return gabriel.filter(([a, b, len]) => tree.has(`${a}-${b}`) || (len <= CAMPAIGN.maxRoute && nextRandom(s) < CAMPAIGN.extraRoutes)).map(([a, b]) => [a, b]);
 }
 const SYLLABLES = ['ka', 'ren', 'thu', 'vo', 'lis', 'ar', 'mek', 'ssa', 'dor', 'ix', 'ul', 'phe', 'nar', 'zo', 'qua', 'tir', 'bel', 'osh', 'ven', 'cy'];
 
@@ -1066,7 +1076,7 @@ export function starterDeck(race: number): string[] {
 export function createCampaign(setup: CampaignSetup): CampaignState {
   const rivals = Math.max(1, Math.min(3, setup.rivals ?? 3));
   const s: CampaignState = {
-    version: 4,
+    version: 5,
     rngState: setup.seed | 0,
     uidCounter: 0,
     logSeq: 0,
@@ -1086,49 +1096,64 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     log: [],
   };
 
-  // Systems in loose clusters, linked by routes that never cross.
-  const used = new Set<string>();
-  const pts = scatterSystems(s);
-  const tints: MapPlanet['tint'][] = ['weapons', 'defences', 'economy', 'resources'];
-  pts.forEach((pt, i) => {
-    const name = nodeName(s, used);
-    const planets = Array.from({ length: 2 + randomInt(s, 3) }, (_, j) => ({ name: `${name} ${['I', 'II', 'III', 'IV'][j]}`, tint: tints[randomInt(s, tints.length)] }));
-    s.nodes.push({
-      id: `n${i}`,
-      name,
-      x: pt.x,
-      y: pt.y,
-      planets,
-      owner: null,
-      links: [],
-      fortification: 0,
-      damage: 0,
-      garrison: [],
-      hazard: [],
-      yield: { credits: 1 + randomInt(s, 2), materials: 1 + randomInt(s, 2) },
-      tier: 0,
+  // The map: drawn again (a few times at most) until every home lies about as far from the Heart as the others.
+  let corners: CampaignNode[] = [];
+  for (let attempt = 0; attempt < 24; attempt++) {
+    s.nodes = [];
+    // Systems in loose clusters, linked by routes that never cross.
+    const used = new Set<string>();
+    const pts = scatterSystems(s);
+    const tints: MapPlanet['tint'][] = ['weapons', 'defences', 'economy', 'resources'];
+    pts.forEach((pt, i) => {
+      const name = nodeName(s, used);
+      const planets = Array.from({ length: 2 + randomInt(s, 3) }, (_, j) => ({ name: `${name} ${['I', 'II', 'III', 'IV'][j]}`, tint: tints[randomInt(s, tints.length)] }));
+      s.nodes.push({
+        id: `n${i}`,
+        name,
+        x: pt.x,
+        y: pt.y,
+        planets,
+        owner: null,
+        links: [],
+        fortification: 0,
+        damage: 0,
+        garrison: [],
+        hazard: [],
+        yield: { credits: 1 + randomInt(s, 2), materials: 1 + randomInt(s, 2) },
+        tier: 0,
+      });
     });
-  });
-  for (const [a, b] of routeSystems(pts)) {
-    s.nodes[a].links.push(s.nodes[b].id);
-    s.nodes[b].links.push(s.nodes[a].id);
-  }
-  // The Heart: the first system placed, at the centre.
-  const heart = s.nodes[0];
-  heart.name = HEART_NAME;
-  heart.heart = true;
-  heart.tier = 3;
-  heart.yield = { credits: CAMPAIGN.heartYield, materials: CAMPAIGN.heartYield };
-  heart.planets = [];
+    for (const [a, b] of routeSystems(s, pts)) {
+      s.nodes[a].links.push(s.nodes[b].id);
+      s.nodes[b].links.push(s.nodes[a].id);
+    }
+    // The Heart: the first system placed, at the centre.
+    const heart = s.nodes[0];
+    heart.name = HEART_NAME;
+    heart.heart = true;
+    heart.tier = 3;
+    heart.yield = { credits: CAMPAIGN.heartYield, materials: CAMPAIGN.heartYield };
+    heart.planets = [];
 
-  // Factions start in the corners: the system nearest each one.
-  const cornerPts = [
-    { x: 0, y: MAP_HEIGHT },
-    { x: MAP_WIDTH, y: 0 },
-    { x: 0, y: 0 },
-    { x: MAP_WIDTH, y: MAP_HEIGHT },
-  ];
-  const corners = cornerPts.map((c) => s.nodes.filter((n) => !n.heart).sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0]);
+    // Factions start in the corners: the system nearest each one.
+    const cornerPts = [
+      { x: 0, y: MAP_HEIGHT },
+      { x: MAP_WIDTH, y: 0 },
+      { x: 0, y: 0 },
+      { x: MAP_WIDTH, y: MAP_HEIGHT },
+    ];
+    // Each home: in its corner of the map, the system nearest CAMPAIGN.homeRing routes from the Heart (the
+    // nearer the corner, the better, among those as far), so every race has as far to go.
+    const fromHeart = hopsFrom(s, s.nodes[0].id);
+    corners = cornerPts.map((c) =>
+      s.nodes
+        .filter((n) => !n.heart && Math.abs(n.x - c.x) < MAP_WIDTH / 2 && Math.abs(n.y - c.y) < MAP_HEIGHT / 2)
+        .sort((a, b) => Math.abs((fromHeart.get(a.id) ?? 0) - CAMPAIGN.homeRing) - Math.abs((fromHeart.get(b.id) ?? 0) - CAMPAIGN.homeRing) || Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0],
+    );
+    const rings = corners.map((n) => fromHeart.get(n.id) ?? 0);
+    if (rings.every((r) => Math.abs(r - CAMPAIGN.homeRing) <= CAMPAIGN.homeRingSlack)) break;
+  }
+  const heart = s.nodes[0];
   const playerRace = (((setup.race ?? 0) % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
   // The rivals: drawn at random (by the campaign's own seed) from the other races, so any of them can turn up.
   const races = [playerRace, ...shuffleInPlace(s, RACE_NAMES.map((_, r) => r).filter((r) => r !== playerRace))];
@@ -1193,16 +1218,19 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   // Neutral systems grow stronger away from the starting corners, and towards the Heart. The core is
   // richer too: it makes up for the worlds the dimming takes from the rim.
   const homes = s.nodes.filter((n) => n.home);
+  const ringOf = hopsFrom(s, heart.id);
+  const fromHomes = homes.map((h) => hopsFrom(s, h.id));
   for (const n of s.nodes) {
-    n.ring = hops(s, heart.id, n.id);
+    n.ring = ringOf.get(n.id) ?? Infinity;
     if (n.home || n.heart) continue;
-    const d = Math.min(...homes.map((h) => hops(s, h.id, n.id)));
-    n.tier = d <= 1 ? 0 : d <= 3 ? 1 : 2;
-    if (n.ring <= 2) n.tier = 2;
-    else if (n.ring <= 3) n.tier = Math.max(n.tier, 1);
+    const d = Math.min(...fromHomes.map((m) => m.get(n.id) ?? Infinity));
+    const far = band(d);
+    n.tier = far <= 1 ? 0 : far <= 3 ? 1 : 2;
+    if (depth(n) <= 2) n.tier = 2;
+    else if (depth(n) <= 3) n.tier = Math.max(n.tier, 1);
     // A home's one route always leads to the weakest foe.
     if (n.gate) n.tier = 0;
-    const bonus = CAMPAIGN.coreYield[n.ring] ?? 0;
+    const bonus = CAMPAIGN.coreYield[depth(n)] ?? 0;
     n.yield = { credits: n.yield.credits + bonus, materials: n.yield.materials + bonus };
   }
   // Stars of every kind: red, white and brown dwarfs and neutron stars among the ordinary yellow ones
@@ -1228,7 +1256,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   // The Lost Races: the last of peoples the dimming has already taken, wandering the middle reaches.
   s.factions.push({ id: 'lost', name: 'Lost Races', isAI: true, race: 0, credits: 0, materials: 0, wisdom: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
   const homesNear = (n: CampaignNode) => s.nodes.some((h) => h.home && (h.id === n.id || h.links.includes(n.id)));
-  const haunts = shuffleInPlace(s, s.nodes.filter((n) => !n.home && !n.heart && !n.gate && !homesNear(n) && (n.ring ?? 0) >= 2 && !armyAt(s, n.id)));
+  const haunts = shuffleInPlace(s, s.nodes.filter((n) => !n.home && !n.heart && !n.gate && !homesNear(n) && depth(n) >= 2 && !armyAt(s, n.id)));
   for (const n of haunts.slice(0, CAMPAIGN.lostArmies)) raiseLost(s, n);
 
   // Armouries and research stations, dotted about the map (never at home, a home's gate or the Heart).
@@ -1255,7 +1283,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
  * left cut off by that is linked back to the nearest system still joined up (other than the home).
  */
 function openGate(s: CampaignState, home: CampaignNode, heart: CampaignNode) {
-  const near = (n: CampaignNode) => Math.hypot(n.x - heart.x, n.y - heart.y);
+  const hops = hopsFrom(s, heart.id);
+  const near = (n: CampaignNode) => (hops.get(n.id) ?? Infinity) * 1e6 + Math.hypot(n.x - heart.x, n.y - heart.y);
   const neighbours = home.links.map((id) => nodeById(s, id)).filter((n) => !n.home);
   const gate = neighbours.sort((a, b) => near(a) - near(b))[0];
   if (!gate) return;
@@ -1268,8 +1297,10 @@ function openGate(s: CampaignState, home: CampaignNode, heart: CampaignNode) {
     const joined = new Set([heart.id]);
     const queue = [heart.id];
     while (queue.length) for (const l of nodeById(s, queue.shift()!).links) if (!joined.has(l)) joined.add(l), queue.push(l);
-    const lost = s.nodes.find((n) => !joined.has(n.id));
-    if (!lost) return;
+    const stray = s.nodes.find((n) => !joined.has(n.id));
+    if (!stray) return;
+    // (A home cut off with its gate rejoins by the gate: a home keeps its one route.)
+    const lost = stray.home ? nodeById(s, stray.links[0]) : stray;
     const to = s.nodes.filter((n) => joined.has(n.id) && !n.home).sort((a, b) => Math.hypot(a.x - lost.x, a.y - lost.y) - Math.hypot(b.x - lost.x, b.y - lost.y))[0];
     lost.links.push(to.id);
     to.links.push(lost.id);
@@ -1310,6 +1341,23 @@ function noticeStory(s: CampaignState) {
       tell(s, contactScene(rival.race, rivalGeneral, rival.id, myGeneral, me.id));
     }
   }
+}
+
+/** Routes from one system to every other (one sweep; collapsed systems block the way). */
+function hopsFrom(s: CampaignState, from: string): Map<string, number> {
+  const byId = new Map(s.nodes.map((n) => [n.id, n]));
+  const seen = new Map<string, number>([[from, 0]]);
+  const queue = [from];
+  for (let q = 0; q < queue.length; q++) {
+    const id = queue[q];
+    for (const next of byId.get(id)!.links) {
+      if (!seen.has(next) && !byId.get(next)!.collapsed) {
+        seen.set(next, seen.get(id)! + 1);
+        queue.push(next);
+      }
+    }
+  }
+  return seen;
 }
 
 function hops(s: CampaignState, from: string, to: string): number {
@@ -1453,10 +1501,20 @@ function wardenDeck(s: CampaignState): string[] {
   return deck;
 }
 
+/**
+ * How deep in the map a system lies, in bands of the old, small map's routes: 0 at the Heart, 5 out where the
+ * homes are (each band is a sixth of the way home). Sun health, tiers, rich worlds and finds go by it.
+ */
+export function depth(n: CampaignNode): number {
+  if (n.heart) return 0;
+  return Math.ceil(((n.ring ?? Infinity) * 5) / CAMPAIGN.homeRing);
+}
+const band = (hops: number) => Math.ceil((hops * 5) / CAMPAIGN.homeRing);
+
 /** A battle's suns' max health, from how near the Heart its system lies (as a change to the card game's). */
 export function sunHealth(n: CampaignNode): number {
   const t = CAMPAIGN.sunHealth;
-  return n.heart ? t[0] : t[Math.min(t.length - 1, Math.max(1, n.ring ?? t.length))];
+  return n.heart ? t[0] : t[Math.min(t.length - 1, Math.max(1, depth(n)))];
 }
 function sunBase(n: CampaignNode): BattleModifiers {
   return { maxHealthDelta: sunHealth(n) - BALANCE.supernovaAt };
@@ -1468,7 +1526,7 @@ function sunBase(n: CampaignNode): BattleModifiers {
  */
 export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
   const owner = target.owner ? factionById(s, target.owner) : null;
-  const guard = armyAt(s, target.id);
+  const guard = defenderOf(s, target, army);
   const from = nodeById(s, army.nodeId);
   const fromFx = anomalyEffects(s, from);
   const targetFx = anomalyEffects(s, target);
@@ -1499,12 +1557,24 @@ export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
   };
 }
 
+/**
+ * Who defends a system: an army standing in it, else a hero of the system's owner one route away (the
+ * least battered, coming to its aid). None for an unheld, unguarded system.
+ */
+export function defenderOf(s: CampaignState, target: CampaignNode, attacker?: Army): Army | null {
+  const here = armyAt(s, target.id);
+  if (here) return here.id === attacker?.id ? null : here;
+  if (!target.owner) return null;
+  const near = s.armies.filter((a) => a.owner === target.owner && !a.lost && a !== attacker && target.links.includes(a.nodeId));
+  return near.sort((a, b) => a.damage - b.damage || a.id.localeCompare(b.id))[0] ?? null;
+}
+
 /** Everything that shapes a battle for a system: the army attacking it, and whoever holds it. */
 function battleSetup(s: CampaignState, army: Army, target: CampaignNode): PlayerSetup[] {
   const attacker = factionById(s, army.owner);
   const from = nodeById(s, army.nodeId);
   const owner = target.owner ? factionById(s, target.owner) : null;
-  const guard = armyAt(s, target.id);
+  const guard = defenderOf(s, target, army);
   const g = garrisonBonus(target);
   const fromFx = anomalyEffects(s, from);
   const targetFx = anomalyEffects(s, target);
@@ -1610,7 +1680,8 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   army.moved = true;
   const players = battleSetup(s, army, target);
   const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players, campaign: true });
-  const guard = armyAt(s, toId);
+  const guard = defenderOf(s, target, army);
+  if (guard && guard.nodeId !== toId) clog(s, `${armyLeader(guard)} comes from ${nodeById(s, guard.nodeId).name} to defend ${target.name}.`, [guard.nodeId, toId], guard.owner);
   clog(s, army.lost ? `${armyLeader(army)} strike from ${here.name} at ${target.name} (${players[1].name}).` : `${armyLeader(army)} leads ${f.name}'s army from ${here.name} against ${target.name} (${players[1].name}).`, [here.id, target.id], f.id);
   s.battle = { attacker: f.id, defender: target.owner, fromId: here.id, nodeId: toId, armyId: army.id, defenderArmyId: guard?.id ?? null, game };
   // Battles between AI factions (or neutrals) are resolved at once; a human fights their own.
@@ -1679,7 +1750,7 @@ function spoilsRng(game: GameState, salt: string): () => number {
 
 /** How fine a find is, by where it was found (r: a roll, 0–1): better the deeper the system lies. */
 function findRarity(n: CampaignNode, r: number): ItemRarity {
-  return n.heart || (n.ring ?? 9) <= 2 ? (r < 0.4 ? 'anomaly' : 'stellar') : n.tier >= 1 ? (r < 0.15 ? 'anomaly' : r < 0.6 ? 'stellar' : 'dwarf') : r < 0.25 ? 'stellar' : 'dwarf';
+  return n.heart || depth(n) <= 2 ? (r < 0.4 ? 'anomaly' : 'stellar') : n.tier >= 1 ? (r < 0.15 ? 'anomaly' : r < 0.6 ? 'stellar' : 'dwarf') : r < 0.25 ? 'stellar' : 'dwarf';
 }
 
 /**
@@ -1815,7 +1886,9 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
       if (!attacker.isAI) s.cardRewards.push({ source: `Relics of the ${guard.lost}`, options: randomCardChoices(s, attacker) });
     }
     // A defending army is routed; the victors march in, if the system is settled.
-    if (guard) rout(s, guard);
+    // (A hero who came to its aid from next door goes home battered.)
+    if (guard?.nodeId === target.id) rout(s, guard);
+    else if (guard) guard.damage = CAMPAIGN.maxDamage;
     // The Lost Races take what they can and keep nothing: a raided system is stripped and left neutral.
     if (attacker.lost) {
       raid(s, target, army);

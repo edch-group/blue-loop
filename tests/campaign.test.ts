@@ -171,7 +171,7 @@ describe('campaign setup', () => {
     // The rivals depend on the seed, not only on the player's race.
     const rivalsOf = (seed: number) => createCampaign({ seed, race: 7, rivals: 3 }).factions.filter((f) => f.isAI && !f.lost).map((f) => f.race).join();
     expect(new Set([1, 2, 3, 4, 5, 6, 7, 8].map(rivalsOf)).size).toBeGreaterThan(1);
-  });
+  }, 30000);
 
   it('plays a new race through a battle: Pyrr armies march, fight and gain experience', () => {
     let s = createCampaign({ seed: 5, race: 7, rivals: 3 });
@@ -834,10 +834,13 @@ describe('armies and generals', () => {
 
 describe('sun health and salvage', () => {
   it('gives every sun 10 max health at the rim, more nearer the Heart, the same base for both sides', () => {
-    expect(sunHealth({ ring: 9 } as never)).toBe(10);
-    expect(sunHealth({ ring: 5 } as never)).toBe(10);
-    expect(sunHealth({ ring: 4 } as never)).toBe(10);
-    expect(sunHealth({ ring: 3 } as never)).toBe(12);
+    // (By depth: the way from the Heart out to the homes, in five bands.)
+    const at = (bands: number) => sunHealth({ ring: Math.round(bands * CAMPAIGN.homeRing / 5) } as never);
+    expect(sunHealth({ ring: CAMPAIGN.homeRing + 9 } as never)).toBe(10);
+    expect(at(5)).toBe(10);
+    expect(at(4)).toBe(10);
+    expect(at(3)).toBe(12);
+    expect(at(1)).toBe(19);
     expect(sunHealth({ ring: 1 } as never)).toBe(19);
     expect(sunHealth({ heart: true, ring: 0 } as never)).toBe(24);
   });
@@ -912,5 +915,29 @@ describe('ship modules and finds', () => {
       for (const i of finds.items) expect(me.items?.map((x) => x.id)).toContain(i.id);
     }
     expect(found).toBe(true);
+  });
+});
+
+describe('defending a neighbour', () => {
+  it('sends a hero one route away to defend a held system with no army in it, and no farther', async () => {
+    const { defenderOf } = await import('../src/engine/campaign');
+    const s = fresh();
+    const mine = myArmy(s);
+    const at = nodeById(s, mine.nodeId);
+    // A neighbour the player holds, with a rival army one route beyond it.
+    const near = nodeById(s, at.links[0]);
+    near.owner = s.playerId;
+    const rival = s.armies.find((a) => a.owner !== s.playerId && !a.lost)!;
+    const beyond = near.links.map((id) => nodeById(s, id)).find((n) => n.id !== at.id)!;
+    rival.nodeId = beyond.id;
+    expect(defenderOf(s, near, rival)).toBe(mine);
+    // Two routes away is too far.
+    const far = beyond.links.map((id) => nodeById(s, id)).find((n) => n.id !== near.id && !n.links.includes(at.id) && n.id !== at.id)!;
+    far.owner = s.playerId;
+    if (!far.links.includes(mine.nodeId)) expect(defenderOf(s, far, rival)).toBeNull();
+    // An army standing in the system defends it first.
+    const other = { ...structuredClone(mine), id: 'armyX', nodeId: near.id };
+    s.armies.push(other);
+    expect(defenderOf(s, near, rival)).toBe(other);
   });
 });

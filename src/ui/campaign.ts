@@ -6,6 +6,8 @@ import {
   battleFinds,
   itemText,
   sunHealth,
+  depth,
+  defenderOf,
   salvageOptions,
   salvageToDeck,
   applyCampaignAction,
@@ -101,14 +103,14 @@ import { setTutorial, startTour, tourDue, tutorialOn } from './tour';
 import { mapTour } from './tutorial';
 import { toPageDelta } from './viewport';
 
-const KEY = 'blue-loop:campaign:v4';
+const KEY = 'blue-loop:campaign:v5';
 
 export function loadCampaign(): CampaignState | null {
   try {
     const raw = localStorage.getItem(KEY);
     const s = raw ? (JSON.parse(raw) as CampaignState) : null;
     // Campaigns from before flagships and stations (version 3 and older) cannot be resumed.
-    if (!s || s.version !== 4) return null;
+    if (!s || s.version !== 5) return null;
     if (s.battle) migrateGame(s.battle.game);
     return migrateCampaign(s);
   } catch {
@@ -1161,7 +1163,7 @@ export class CampaignView {
     return `
       <div class="cmp-stage ${focus ? 'cmp-zoomed' : ''}" data-act="cmp-deselect">
         <div class="cmp-plane" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">
-          <div class="cmp-grid"></div>
+          <div class="cmp-grid" style="--gk:${(MAP_WIDTH / 3500).toFixed(3)}"></div>
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
           ${this.renderAnomalies(focus, prev, seen)}
           ${nodes}
@@ -1409,7 +1411,7 @@ export class CampaignView {
   private stageEl: HTMLElement | null = null;
 
   private static readonly TILT = 44;
-  private static readonly MAX_ZOOM = 5.5;
+  private static readonly MAX_ZOOM = 12;
   private static readonly GLIDE_MS = 1000;
   /** How far behind the map the sky lies: over the whole map it slides this fraction of the map's fitted width. */
   private static readonly SKY_DEPTH = 0.55;
@@ -1422,13 +1424,13 @@ export class CampaignView {
     const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
     const x = (Math.min(...xs) + Math.max(...xs)) / 2, y = (Math.min(...ys) + Math.max(...ys)) / 2;
     // Room for the spread, with a margin (and the side panel), in the map's own proportions.
-    const spread = Math.max((Math.max(...xs) - Math.min(...xs)) / MAP_WIDTH, (Math.max(...ys) - Math.min(...ys)) / MAP_HEIGHT, 0.08);
-    return { x, y, zoom: Math.max(1, Math.min(3, 0.55 / spread)) };
+    const spread = Math.max((Math.max(...xs) - Math.min(...xs)) / MAP_WIDTH, (Math.max(...ys) - Math.min(...ys)) / MAP_HEIGHT, 0.036);
+    return { x, y, zoom: Math.max(1, Math.min(6.5, 0.55 / spread)) };
   }
 
   private homeView() {
     const home = ownedNodes(this.state!, this.state!.playerId)[0] ?? this.state!.nodes[0];
-    return { x: home.x, y: home.y, zoom: 2.8 };
+    return { x: home.x, y: home.y, zoom: 6 };
   }
 
   /** Fit the map to its stage and move the camera (called after every render and on resize). */
@@ -1471,7 +1473,7 @@ export class CampaignView {
     const fit = this.fitScale(stage, CampaignView.TILT);
     const v = this.view!;
     // Stars keep a readable size at any zoom. (Focusing a system no longer moves the camera.)
-    const ui = Math.min(2.2, Math.max(0.7, 1 / (fit * v.zoom)));
+    const ui = Math.min(5, Math.max(0.7, 1 / (fit * v.zoom)));
     return { x: v.x, y: v.y, scale: fit * v.zoom, tilt: CampaignView.TILT, ui };
   }
 
@@ -1750,7 +1752,7 @@ export class CampaignView {
       chip(`${CREDITS}<b>${n.yield.credits}</b>${MATERIALS}<b>${n.yield.materials}</b>`, `Yields ${n.yield.credits} credits and ${n.yield.materials} materials a turn to whoever holds it.`),
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
       n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>heart</b>`, `The oldest star, at the centre of everything. Whoever claims it wins the campaign.${n.owner ? '' : ` Guarded by the Heart Wardens: +${CAMPAIGN.heartWardenHealth} max health.`}`, 'gold') : '',
-      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before fortification, the star, anomalies and ships' hulls): ${n.heart ? 'the most, at the Heart' : `${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart, and more the nearer it lies`}.${(CAMPAIGN.coreYield[n.ring ?? 99] ?? 0) > 0 ? ` A rich world too: +${CAMPAIGN.coreYield[n.ring!]} of each a turn.` : ''}`),
+      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before fortification, the star, anomalies and ships' hulls): ${n.heart ? 'the most, at the Heart' : `${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart, and more the nearer it lies`}.${(CAMPAIGN.coreYield[depth(n)] ?? 0) > 0 ? ` A rich world too: +${CAMPAIGN.coreYield[depth(n)]} of each a turn.` : ''}`),
       !n.fortification ? '' : chip(`${icon('<path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/>')}<b>+${n.fortification * CAMPAIGN.fortifyHealth}</b>`, `Fortification ${n.fortification}/${CAMPAIGN.maxFortification}: its defender has +${n.fortification * CAMPAIGN.fortifyHealth} max health. Each level adds ${CAMPAIGN.fortifyHealth}.`),
       !n.garrison.length && !mine ? '' : chip(`${icon('<rect x="4" y="2" width="8" height="12" rx="1.6"/><path d="M6.5 6h3"/>')}<b>${n.garrison.length}/${CAMPAIGN.garrisonSlots}</b>`, n.garrison.length ? `Garrison: ${n.garrison.map((c) => cardDef(c.defId).name).join(', ')}. If attacked, ${g.tableau.length} start${g.tableau.length === 1 ? 's' : ''} in play.` : 'Garrison: no cards stationed.'),
       n.damage ? chip(`${icon('<path d="M8 1.5 9.4 6 14 4.6 10.6 8 14 11.4 9.4 10 8 14.5 6.6 10 2 11.4 5.4 8 2 4.6 6.6 6z"/>')}<b>${n.damage}</b>`, `Damage ${n.damage}: its defender's sun starts ${n.damage} hotter.`, 'bad') : '',
@@ -1990,8 +1992,7 @@ export class CampaignView {
   private matchup(armyId: string, to: CampaignNode, defending = false): string {
     const s = this.state!;
     const attacker = s.armies.find((a) => a.id === armyId) ?? null;
-    const guard = armyAt(s, to.id);
-    const defender = guard && guard.id !== armyId ? guard : null;
+    const defender = defenderOf(s, to, s.armies.find((a) => a.id === armyId));
     const odds = attacker ? battleOdds(s, attacker, to) : null;
     // Each side's sun as the battle starts it: its heat, of its max health.
     const sun = (o: { heat: number; mods: { maxHealthDelta?: number } } | undefined) =>

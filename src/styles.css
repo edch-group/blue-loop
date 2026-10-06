@@ -1190,7 +1190,12 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
 .cmp-grid {
   /* The board the systems sit on, like the battle board: a rounded slab with a dotted grid, a bright rim and
      a front edge, translucent enough for the galaxy to show through. */
-  position: absolute; inset: -90px; border-radius: 72px;
+  /* Painted at a smaller size and scaled up to the map (--gk): the slab looks as it always has, and a big map
+     costs no more to draw. */
+  --gk: 1;
+  position: absolute; left: -90px; top: -90px; border-radius: 72px;
+  width: calc((100% + 180px) / var(--gk)); height: calc((100% + 180px) / var(--gk));
+  transform: scale(var(--gk)); transform-origin: 0 0;
   background:
     radial-gradient(circle, rgba(120, 135, 170, 0.2) 0 1.2px, transparent 1.8px) 0 0 / 40px 40px,
     repeating-linear-gradient(0deg, rgba(140, 150, 175, 0.07) 0 1px, transparent 1px 160px),
@@ -5555,4 +5560,5 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* What a card carries from its room (walls, guns, a module's boons): marks along its top edge. */
 .card-room { position: absolute; top: -7%; left: 0; right: 0; display: flex; justify-content: center; gap: 3px; z-index: 3; pointer-events: auto; }
+.rest-mark svg { width: 1em; height: 1em; fill: #6a5ac8; }
 .card-room .boon-mark { background: #fff; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.45), 0 2px 5px rgba(60, 70, 100, 0.18); }

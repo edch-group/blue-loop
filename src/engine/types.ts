@@ -261,6 +261,8 @@ export interface CardInstance {
   /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
   /** Dimmed: it has taken its action (attacked, or a Hero used an ability) and can't act again until its owner's next dawn. Cards come into play dimmed. */
   dimmed?: boolean;
+  /** Came into play today (dimmed, not Darkspeed): its dusk effects rest until tomorrow. */
+  fresh?: boolean;
   boons?: string[];
   /** In a tableau: Fusion cards fused onto it (their effects, passives, Sturdy and stability are its own now). */
   fused?: CardInstance[];

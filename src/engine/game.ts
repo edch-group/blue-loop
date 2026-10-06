@@ -1264,7 +1264,10 @@ function startTurn(state: GameState) {
   p.turnsTaken += 1;
   if ((p.reshuffleIn ?? 0) > 0) p.reshuffleIn! -= 1;
   // Dawn breaks: every card of theirs is ready to act again.
-  for (const c of p.tableau) delete c.dimmed;
+  for (const c of p.tableau) {
+    delete c.dimmed;
+    delete c.fresh;
+  }
   p.turn = emptyTurn();
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
   // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy adds defence, not mending: a fused stack of Sturdy cards would wall up for good).
@@ -1351,8 +1354,8 @@ function dusk(state: GameState, p: PlayerState) {
   notePulse(state, p, null, 'start', p, 0);
   for (const card of cards) {
     if (state.winnerId || p.eliminated) break;
-    // (A dimmed card rests: one played today, or one that attacked or acted, does nothing at dusk.)
-    if (!p.tableau.includes(card) || card.dimmed) continue;
+    // (A card played today rests: its dusk first works the dusk after it lands. Attacking or acting doesn't stop it.)
+    if (!p.tableau.includes(card) || card.fresh) continue;
     resolveEffects(state, p, card, duskEffects(card), 'turn');
   }
 }
@@ -1525,7 +1528,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   place(p, card, slot);
   // A card comes into play dimmed: it can first act (attack, or a Hero's ability) on its owner's next day.
   // (Darkspeed, the Nyxari: their cards that can act, attackers and Heroes, come in ready to.)
-  if (!hasDarkspeed(cardDef(card.defId))) card.dimmed = true;
+  if (!hasDarkspeed(cardDef(card.defId))) card.dimmed = card.fresh = true;
   if (choices.length) {
     card.choice = action.choice;
     log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);

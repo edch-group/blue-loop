@@ -891,14 +891,38 @@ describe('hand limit', () => {
     expect(after.discard.map((c) => c.defId)).toContain('star_breaker');
   });
 
-  it('rests dimmed cards at dusk: a card played today (or that attacked) does nothing then', () => {
+  it('rests a card played today at dusk; one that attacked or acted still has its dusk', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     me.hand = [];
     const [star] = give(me, ['evening_star'], 'tableau');
-    star.dimmed = true;
+    star.dimmed = star.fresh = true;
     s = applyAction(s, { type: 'endTurn' });
     expect(s.players.find((p) => p.id === me.id)!.hand.length).toBe(0);
+    // (Dimmed by acting, not new: its dusk goes ahead.)
+    let t = twoPlayer();
+    const you = activePlayer(t);
+    you.hand = [];
+    const [star2] = give(you, ['evening_star'], 'tableau');
+    star2.dimmed = true;
+    t = applyAction(t, { type: 'endTurn' });
+    expect(t.players.find((p) => p.id === you.id)!.hand.length).toBeGreaterThan(0);
+  });
+
+  it('lets a Darkspeed attacker attack the day it lands and still fire its dusk (Nightfall)', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.hand = [];
+    me.playsLeft = 4;
+    give(me, ['nyx_nightfall']);
+    s = play(s, 'nyx_nightfall');
+    const nf = activePlayer(s).tableau.find((c) => c.defId === 'nyx_nightfall')!;
+    expect(nf.fresh).toBeUndefined();
+    s = applyAction(s, { type: 'attack', attackerUid: nf.uid, targetUid: null } as never);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    const before = rival.heat;
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBeGreaterThan(before);
   });
 });
 
