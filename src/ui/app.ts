@@ -3081,7 +3081,7 @@ export class App {
     // While a rival's card waits on the stage to be read, only the stage takes clicks (and a tap on its OK
     // must not fall through to whatever is under it once the stage has gone).
     // (The menu, settings and log stay usable.)
-    const onStage = !!(e.target as HTMLElement).closest?.('.stage, .hud, .overlay, .modal');
+    const onStage = !!(e.target as HTMLElement).closest?.('.stage, .hud, .overlay, .modal, .sheet, .log-pop-overlay, .hero-panel');
     if ((this.stage?.confirm && !onStage) || Date.now() < this.clickShieldUntil) {
       e.preventDefault();
       e.stopPropagation();

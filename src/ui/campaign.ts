@@ -513,6 +513,16 @@ export class CampaignView {
     return guideOn() ? scene.lines : scene.lines.filter((l) => l.speaker.kind !== 'oracle');
   }
 
+  /**
+   * Going into a battle, the lines still waiting to be read (the first `n` scenes) count as read: they are not
+   * left to pile up for after it. (Anything the battle itself brings on still shows.)
+   */
+  private readWaiting(n: number) {
+    for (let i = 0; i < n && this.state?.story.queue.length; i++) this.state = applyCampaignAction(this.state, { type: 'readStory' });
+    this.storyLine = 0;
+    if (this.state) saveCampaign(this.state);
+  }
+
   /** Scenes with nothing left to show (the guide turned off) are passed over. */
   private skipSilentScenes() {
     while (this.state && this.state.story.queue[0] && !this.shownLines(this.state.story.queue[0]).length) {
@@ -887,7 +897,9 @@ export class CampaignView {
         this.host.render();
         setTimeout(() => {
           this.advance = null;
+          const waiting = this.state?.story.queue.length ?? 0;
           if (!this.state || this.state.battle || !this.apply({ type: 'move', armyId, toId })) return this.host.render();
+          this.readWaiting(waiting);
           if (act === 'cmp-auto') {
             this.finishBattle(this.state!.battle!.game, true);
             // (Auto-resolved here, so the map redraws with the result.)
@@ -897,9 +909,11 @@ export class CampaignView {
         return true;
       }
       case 'cmp-defend':
+        this.readWaiting(s!.story.queue.length);
         this.host.playBattle(s!.battle!.game);
         return true;
       case 'cmp-defend-auto':
+        this.readWaiting(s!.story.queue.length);
         this.finishBattle(s!.battle!.game, true);
         break;
       case 'cmp-conquer':
