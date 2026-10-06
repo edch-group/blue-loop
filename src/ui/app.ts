@@ -91,6 +91,7 @@ import { animateSuns, holdSuns, redrawSuns } from './sun3d';
 import { voices } from './voice';
 import { morphInto } from './morph';
 import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
+import { artIdsIn, preloadArt } from './cardart';
 
 type Screen = 'menu' | 'game' | 'campaign';
 type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop' | 'pickdeck';
@@ -645,7 +646,7 @@ export class App {
     toast: (text) => this.showToast(text, 'error'),
     playBattle: (game) => {
       this.campaignBattle = true;
-      this.begin(game);
+      this.beginWithArt(game);
     },
     settingsButtons: () => this.settingsButtons(),
     banner: (text, sub) => this.showBanner(text, sub, 120, 'campaign'),
@@ -921,6 +922,10 @@ export class App {
       this.menuPage = 'signin';
       history.replaceState(null, '', location.pathname);
     }
+    // Every card's picture fetched and decoded in the background while the menus are up (a game waits for its own
+    // cards' pictures anyway: beginWithArt), so cards show their pictures at once wherever they are drawn.
+    const idle = (window as { requestIdleCallback?: (f: () => void) => void }).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 1500));
+    idle(() => void preloadArt(undefined, 60_000));
     // An invite link (?room=CODE) opens the online page, ready to join.
     const invited = cleanCode(new URLSearchParams(location.search).get('room') ?? '');
     if (invited) {
@@ -1080,6 +1085,7 @@ export class App {
     const prev = this.state;
     const sameGame = this.screen === 'game' && prev && prev.players.every((p, i) => next.players[i]?.id === p.id) && next.turnNumber >= prev.turnNumber && !(prev.winnerId && !next.winnerId);
     if (!sameGame || !prev) {
+      void preloadArt(artIdsIn(next));
       this.state = next;
       this.viewerId = you;
       this.revealedFor = you;
@@ -1366,12 +1372,12 @@ export class App {
         const avatar = (!s.isAI && i === 0 ? account()?.avatar : undefined) ?? pictureFor(name.trim() || 'Unnamed');
         return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, avatar };
       });
-    this.begin(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
+    this.beginWithArt(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
   }
 
   private continueGame() {
     const saved = loadSave();
-    if (saved) this.begin(saved);
+    if (saved) this.beginWithArt(saved);
   }
 
   /** Which server game a saved game against the AI is (so a continued game can still claim its reward). */
@@ -1383,6 +1389,15 @@ export class App {
       // Not available.
     }
   }
+
+  /** Start a game once its cards' pictures are fetched and decoded (at most a few seconds), so none shows blank. */
+  private beginWithArt(state: GameState) {
+    const begun = ++this.artWaits;
+    void preloadArt(artIdsIn(state)).then(() => {
+      if (begun === this.artWaits) this.begin(state);
+    });
+  }
+  private artWaits = 0;
 
   private begin(state: GameState) {
     this.boardZoom = null;

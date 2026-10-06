@@ -1595,6 +1595,46 @@ const RENDERED: Record<string, string> = Object.fromEntries(
   ]),
 );
 
+/**
+ * Pictures fetched and decoded ahead of time, kept for the whole session so a card's picture shows at once whenever
+ * it is drawn (the game redraws often, and a picture still loading or decoding showed as a blank slot).
+ */
+const warmed = new Map<string, Promise<void>>();
+const held: HTMLImageElement[] = [];
+function warm(url: string): Promise<void> {
+  let p = warmed.get(url);
+  if (!p) {
+    const img = new Image();
+    img.src = url;
+    held.push(img);
+    p = img.decode().catch(() => undefined);
+    warmed.set(url, p);
+  }
+  return p;
+}
+
+/** Fetch and decode these cards' pictures (all of them, by default); resolves once they are ready, or after `capMs`. */
+export function preloadArt(ids?: Iterable<string>, capMs = 4000): Promise<void> {
+  const urls = new Set<string>();
+  for (const id of ids ?? Object.keys(RENDERED)) if (RENDERED[id]) urls.add(RENDERED[id]);
+  const all = Promise.all([...urls].map(warm)).then(() => undefined);
+  return Promise.race([all, new Promise<void>((r) => setTimeout(r, capMs))]);
+}
+
+/** Every card with a picture that a value (a game, a deck) mentions anywhere in it. */
+export function artIdsIn(value: unknown): Set<string> {
+  const ids = new Set<string>();
+  const seen = new Set<object>();
+  const walk = (v: unknown) => {
+    if (typeof v === 'string') { if (v in RENDERED) ids.add(v); return; }
+    if (!v || typeof v !== 'object' || seen.has(v)) return;
+    seen.add(v);
+    for (const x of Array.isArray(v) ? v : Object.values(v)) walk(x);
+  };
+  walk(value);
+  return ids;
+}
+
 /** A card's rendered picture, if it has one. */
 export function renderedArt(id: string): string | undefined {
   return RENDERED[id];
