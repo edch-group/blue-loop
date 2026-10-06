@@ -599,7 +599,7 @@ class SoundBoard {
 
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
-    if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
+    if (scene === 'battle') return [[this.battleBus!, 1.2, 0.05], [this.battleLush!, 1.2, 0.05]];
     if (scene === 'campaign') return [[this.campaignBus!, 0.6, 0.05]];
     return [[this.musicBus!, 0.5, 6]];
   }
@@ -757,7 +757,9 @@ class SoundBoard {
         this.voice(hz(n), { ...opts, detune: 9, gain: 0.013 });
       });
       // The bass: a deep held note, a triangle and a sine an octave apart.
-      this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.05, type: 'triangle', attack: 1.2, release: 1.5, cutoff: 260, out: bus });
+      // The very first bass note lands at once, as the pulse a match opens on; the arpeggio follows a bar later.
+      const first = round === 0 && index === 0;
+      this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.05, type: 'triangle', attack: first ? 0.03 : 1.2, release: 1.5, cutoff: 260, out: bus });
       this.note(at, hz(c.bass) * 2, chordLen - 0.5, { gain: 0.018, type: 'sine', attack: 2, release: 1.5, out: bus });
       // The arpeggio: soft plucks, a triangle with a quiet saw for edge, accented on the beat.
       // It rests for the first chord every third time round; at the very start it joins after one bar.
