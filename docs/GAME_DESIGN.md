@@ -88,7 +88,7 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
     - Decay Wave: −1 to every card in the target's tableau, heat 2.
   - Erosion ignores defence. A card eroded to 0 fades into its owner's discard pile.
 - Every card that stays in play shows its stability (◷) in your hand, zoomed and in the deck builder too.
-- On the board, each card in play shows ⛨ defence and ◷ stability. The badge turns red on its last turn. Empty slots show their defence.
+- On the board, each card in play shows its attack and ◷ stability in its bottom corners as printed (live values; stability turns red on its last turn), and its defence as a silver shield standing on its foot (reddened while worn). Empty slots show their defence.
 - Cards have up to three kinds of effect:
   - **When played**: a one-off effect.
   - **Dawn**: triggers at each of your dawns while the card is in play.
@@ -686,7 +686,7 @@ On the table:
 - **Suns, large, beside their tableaus.** Your rival's sun is left of their row, and yours is left of yours. Each shows:
   - its heat in the middle, out of max health;
   - a heat arc around it;
-  - a blue shield ring around that. The shield count itself is a big shield badge in the board's middle, the rival's above the Stellari and yours below: a heater shield with a bevelled silver rim, a polished silver face lit from the top left, a centre ridge and a glint that sweeps across it every few seconds (and at once, with a little pop, when shields go up); pale steel and faint at none (on the sun it was easy to miss). [direction: shields easy to miss]
+  - a blue shield ring around that. The shield count itself is a shield badge in the board's middle, the rival's above the Stellari and yours below, drawn as the shields symbol printed in card text (outlined in the shields blue, the number inside); it pops when shields go up, and is pale and faint at none (on the sun it was easy to miss). [direction: shields easy to miss]
 
   The sun burns from pale gold to amber to red as it nears supernova, frosts blue below 0, and pulses when within 4 of supernova. [design review]
 - **Hits read clearly.** [design review]

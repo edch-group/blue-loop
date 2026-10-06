@@ -488,13 +488,12 @@ function sunRect(root: ParentNode, id: string): DOMRect | null {
  * miss on the sun). Faint at none.
  */
 function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
-  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" title="${side === 'mine' ? 'Your' : 'Their'} shields: they absorb enemy heat, and fade at dawn">${SHIELD_SVG}<b>${n}</b></div>`;
+  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" title="${side === 'mine' ? 'Your' : 'Their'} shields: they absorb enemy heat, and fade at dawn"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/></svg><b>${n}</b></div>`;
 }
 
 /**
- * The badge's shield: a heater shield with a bevelled rim, a polished silver face lit from the top left, a
- * centre ridge (its right half in shade), a highlight, and a glint that sweeps across it now and then. Its
- * colours are CSS variables, so the same drawing serves raised (silver) and down (pale steel, faint).
+ * A card's defence on the board: a heater shield with a bevelled rim, a polished silver face lit from the top
+ * left, a centre ridge (its right half in shade) and a highlight. Its colours are CSS variables (worn: reddened).
  */
 const SHIELD_PATH = 'M50 3 L93 15 V50 C93 79 75 97 50 107 C25 97 7 79 7 50 V15 Z';
 const SHIELD_FACE = 'M50 12 L84 21.5 V50 C84 73 70 88 50 96.5 C30 88 16 73 16 50 V21.5 Z';
@@ -2150,7 +2149,7 @@ export class App {
     tmp.innerHTML = oldHtml;
     const was = tmp.firstElementChild;
     if (!was) return;
-    for (const sel of ['.stat-def-floor', '.card-stats-stab']) {
+    for (const sel of ['.stat-def-floor', '.card-stats']) {
       const cur = el.querySelector<HTMLElement>(sel), old = was.querySelector<HTMLElement>(sel);
       if (!cur || !old || cur.outerHTML === old.outerHTML) continue;
       const html = cur.innerHTML, cls = cur.className;
@@ -4808,7 +4807,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv(STAB_ICON, c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b><span class="card-stats card-stats-base${(def.attack ?? 0) > 0 && s ? ' card-stats-split' : ''}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv(STAB_ICON, c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
