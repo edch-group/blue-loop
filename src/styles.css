@@ -5278,3 +5278,59 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .db-row-missing .db-row-art { filter: grayscale(0.8); opacity: 0.7; }
 .db-row-need { font-size: 0.8em; letter-spacing: 0.06em; color: #a8641c; white-space: nowrap; }
 .db-tally-need { display: block; margin-bottom: 2px; color: #a8641c; font-weight: 600; }
+
+/* ---- Campaign: Wisdom, stations, the ship and the hero's training ---- */
+.cur-wisdom, .cur-station { width: 1.15em; height: 1.15em; vertical-align: -0.22em; }
+.cmp-badge .cur-station { width: 14px; height: 14px; vertical-align: -3px; }
+.cmp-station-badge.spent { opacity: 0.45; filter: grayscale(1); }
+.pop-attack .cur-station { margin-right: 6px; }
+.cmp-hero-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cmp-hero-choice { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 14px; border: 1px solid rgba(0, 0, 0, 0.08); background: #fff; text-align: left; cursor: pointer; min-width: 0; }
+.cmp-hero-choice .cmp-portrait { width: 44px; height: 44px; flex: none; }
+.cmp-hero-choice b { display: block; font-family: var(--display); font-size: 0.78rem; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-hero-choice small { color: var(--ink-faint); font-size: 0.68rem; }
+.cmp-hero-choice > span { min-width: 0; }
+.cmp-hero-choice.on { border-color: #c9a14a; box-shadow: 0 0 0 2px rgba(201, 161, 74, 0.35); }
+.cmp-rs-station { display: flex; flex-direction: column; gap: 12px; }
+.cmp-rs-offer { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 12px; background: rgba(169, 143, 224, 0.12); border: 1px solid rgba(169, 143, 224, 0.4); }
+.cmp-rs-offer .cur-station { width: 40px; height: 40px; flex: none; }
+.cmp-rs-offer b { display: block; font-family: var(--display); }
+.cmp-rs-offer small { color: var(--ink-faint); }
+.cmp-rs-offer p { margin: 6px 0 0; }
+.cmp-rs-offer.taken { opacity: 0.55; }
+.hv-train { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.hv-train p { margin: 0 0 4px; font-size: 0.8rem; }
+.hv-train-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); }
+.hv-train-row > span { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; font-family: var(--display); }
+.hv-train-row > span small { grid-column: 1 / -1; }
+.hv-train-row .pill-btn { white-space: nowrap; }
+.hv-train-row b { font-size: 1.1rem; }
+.hv-train-row small { color: var(--ink-faint); font-size: 0.7rem; }
+.cmp-shipyard { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr); gap: 16px; padding: 12px 16px; overflow: auto; flex: 1; min-height: 0; }
+.sh-hull { position: relative; min-height: 300px; border-radius: 16px; background: radial-gradient(ellipse at 50% 55%, rgba(120, 140, 200, 0.18), transparent 70%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; }
+.sh-model { width: 100%; height: 210px; position: relative; perspective: 900px; pointer-events: none; }
+.sh-model-in { position: absolute; left: 50%; top: 50%; width: 40px; height: 24px; transform-style: preserve-3d; transform: translate(-50%, -50%) rotateX(52deg) rotateZ(-8deg) scale3d(7, 7, 7); }
+.sh-rooms { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 560px; }
+.sh-room { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(20, 22, 34, 0.55); color: #fff; cursor: pointer; font-family: var(--display); }
+.sh-room.on { border-color: #e8c47a; box-shadow: 0 0 0 2px rgba(232, 196, 122, 0.4); }
+.sh-room > b { font-size: 1rem; }
+.sh-room-stats { display: flex; gap: 6px; font-size: 0.75rem; }
+.sh-room-stats em { font-style: normal; }
+.sh-room-stats .def { color: #c9d6ee; }
+.sh-room-stats .atk { color: #f0b48a; }
+.sh-command { flex-direction: row; gap: 10px; padding: 6px 14px 6px 6px; }
+.sh-command .cmp-portrait { width: 44px; height: 44px; }
+.sh-side { display: flex; flex-direction: column; gap: 8px; }
+.sh-side h4 { margin: 8px 0 2px; font-family: var(--display); font-weight: 600; text-transform: lowercase; }
+.sh-part { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); }
+.sh-part-name { flex: 1; display: flex; flex-direction: column; font-family: var(--display); }
+.sh-part-name small { font-family: var(--body, inherit); color: var(--ink-faint); font-size: 0.72rem; }
+.sh-pips { display: flex; gap: 3px; }
+.sh-pips i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); }
+.sh-pips i.on { background: #e8c47a; }
+.sh-max { font-size: 0.72rem; color: var(--ink-faint); }
+@media (max-width: 760px) {
+  .cmp-shipyard { grid-template-columns: 1fr; }
+  .sh-rooms { gap: 4px; }
+}
+.slot-empty.slot-wounded { color: #e88a80; border-color: rgba(232, 138, 128, 0.6); background: rgba(176, 84, 74, 0.12); }

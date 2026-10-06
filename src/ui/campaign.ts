@@ -17,7 +17,14 @@ import {
   armyAt,
   armyById,
   armyMoves,
-  recruitCost,
+  buyProblem,
+  flagship,
+  heroStats,
+  trainProblem,
+  shipLevel,
+  shipUpgradeCost,
+  researchWisdom,
+  type ShipPart,
   regionalStability,
   heroState,
   heroLevel,
@@ -68,7 +75,6 @@ import {
   type CampaignNode,
   type CampaignState,
   type GameState,
-  RESEARCH,
   researchProblem,
   researchProject,
   researchBonus,
@@ -78,22 +84,21 @@ import {
 import { markDirty } from './account';
 import { DeckBuilder, type BuilderMode } from './builder';
 import { heroFigure, skillTree } from './heroview';
-import { researchTree } from './researchview';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
-import { raceRow, cardArtLite, cardStock, cardGlyph, cardBodyHtml, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { raceRow, cardArtLite, cardStock, cardGlyph, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { toPageDelta } from './viewport';
 
-const KEY = 'blue-loop:campaign:v3';
+const KEY = 'blue-loop:campaign:v4';
 
 export function loadCampaign(): CampaignState | null {
   try {
     const raw = localStorage.getItem(KEY);
     const s = raw ? (JSON.parse(raw) as CampaignState) : null;
-    // Campaigns from before armies (version 2 and older) cannot be resumed.
-    if (!s || s.version !== 3) return null;
+    // Campaigns from before flagships and stations (version 3 and older) cannot be resumed.
+    if (!s || s.version !== 4) return null;
     if (s.battle) migrateGame(s.battle.game);
     return migrateCampaign(s);
   } catch {
@@ -125,6 +130,14 @@ const MATERIALS =
 /** Systems held: a white dwarf, a small hot white star with a pale blue glow. */
 const SYSTEMS =
   '<svg class="cur cur-systems" viewBox="0 0 20 20" aria-label="systems"><defs><radialGradient id="wd-glow"><stop offset=".3" stop-color="#9fbcf2" stop-opacity=".75"/><stop offset=".65" stop-color="#b9cff5" stop-opacity=".28"/><stop offset="1" stop-color="#b9cff5" stop-opacity="0"/></radialGradient><radialGradient id="wd-core" cx=".4" cy=".36"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#eef3ff"/><stop offset="1" stop-color="#b4c6ec"/></radialGradient></defs><circle cx="10" cy="10" r="9.8" fill="url(#wd-glow)"/><path d="M10 .8 10.9 7.6 10 9 9.1 7.6ZM10 19.2 9.1 12.4 10 11 10.9 12.4ZM.8 10 7.6 9.1 9 10 7.6 10.9ZM19.2 10 12.4 10.9 11 10 12.4 9.1Z" fill="#a9bfea" opacity=".9"/><circle cx="10" cy="10" r="5.3" fill="url(#wd-core)" stroke="#7f98cc" stroke-width=".7"/></svg>';
+/** Wisdom: a soft violet eye-star. It builds a point a turn; research stations' upgrades cost it. */
+const WISDOM =
+  '<svg class="cur cur-wisdom" viewBox="0 0 20 20" aria-label="wisdom"><path d="M10 1.2 12 8 18.8 10 12 12 10 18.8 8 12 1.2 10 8 8Z" fill="#a98fe0" stroke="#6e55b0" stroke-width=".8" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.6" fill="#f1eaff"/><circle cx="10" cy="10" r="1.1" fill="#6e55b0"/></svg>';
+/** A station on the map: an armoury (a crate) or a research station (a ringed flask). */
+const ARMORY_ICON =
+  '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
+const RESEARCH_ICON =
+  '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 2.5h4M8.8 2.5v5L4.5 15a1.6 1.6 0 0 0 1.4 2.4h8.2a1.6 1.6 0 0 0 1.4-2.4l-4.3-7.5v-5" fill="#9fd3d9" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/><ellipse cx="10" cy="12.5" rx="7.5" ry="2.4" fill="none" stroke="#a98fe0" stroke-width="1"/></svg>';
 /** A scanner array: a dish with two rings of signal. */
 const SCANNER =
   '<svg class="cur cur-scanner" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5 9.2 10.3" stroke="#6e7f9f" stroke-width="1.4" stroke-linecap="round"/><path d="M3 11a6 6 0 0 0 6 6L3 11Z" fill="#8fa3c6" stroke="#6e7f9f" stroke-width=".9" stroke-linejoin="round"/><path d="M11.2 6.8a3.4 3.4 0 0 1 2 2M11.6 3.6a6.6 6.6 0 0 1 4.8 4.8" fill="none" stroke="#6fb3bc" stroke-width="1.3" stroke-linecap="round"/><circle cx="9.6" cy="9.9" r="1.2" fill="#6fb3bc"/></svg>';
@@ -257,15 +270,15 @@ type ArmoryTab = 'buy' | 'recycle' | 'fuse';
 type Sheet =
   /** The base, full screen: an army's deck (the first army's if none is named), in the deck builder. */
   | { kind: 'deck'; armyId?: string }
-  /** Raising a new army in a system. */
-  | { kind: 'recruit'; nodeId: string }
-  /** The base's armoury: buying, recycling or fusing; the card picked (or, fusing, the two). */
-  | { kind: 'armory'; tab: ArmoryTab; pick?: string; fuse?: string[] }
+  /** An armoury on the map, the flagship visiting: buying its stock, recycling or fusing; the card picked (or, fusing, the two). */
+  | { kind: 'armory'; nodeId: string; tab: ArmoryTab; pick?: string; fuse?: string[] }
   | { kind: 'missions' }
-  /** The base's research: army-wide projects, one at a time. */
-  | { kind: 'research' }
-  /** The base's heroes: one hero at a time (their skills and gear). */
+  /** A research station on the map: its one upgrade. */
+  | { kind: 'research'; nodeId: string }
+  /** The base's hero: their training, skills and gear. */
   | { kind: 'heroes'; hero?: string }
+  /** The base's ship: its rooms, shields and hull, to upgrade. */
+  | { kind: 'ship'; pick?: string }
   | { kind: 'log' }
   | { kind: 'station'; nodeId: string }
   | { kind: 'attack'; armyId: string; toId: string }
@@ -305,12 +318,10 @@ export class CampaignView {
   /** What happened in the last battle or turn, shown once the player is free to read it. */
   private report: { title: string; lines: string[] } | null = null;
   private sheet: Sheet | null = null;
-  /** The base's tab last open (deck, armory or missions). */
-  /** In the research tab: the project picked. */
-  private researchPick: string | null = null;
-  private baseTab: 'deck' | 'heroes' | 'research' | 'armory' | 'missions' = 'deck';
-  /** New-campaign setup choices. */
-  private setup = { rivals: 3, race: 0 };
+  /** The base's tab last open. */
+  private baseTab: 'deck' | 'heroes' | 'ship' | 'missions' = 'deck';
+  /** New-campaign setup choices (the hero: an index into the race's heroes). */
+  private setup = { rivals: 3, race: 0, hero: 0 };
   /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
   private waiting: { factionId: string | null; lines: string[] } | null = null;
   /** In the heroes tab: the skill and the gear slot picked. */
@@ -486,26 +497,10 @@ export class CampaignView {
     return armiesOf(s, s.playerId).every((a) => armyMoves(s, a).length === 0);
   }
 
-  /** The armoury's stock as last seen (to tag the base "new" when it changes). */
-  private armoryKey(): string {
-    const s = this.state!;
-    return `${s.turn}:${s.armory.join(',')}`;
-  }
-  private armoryIsNew(): boolean {
-    if (!this.state?.armory.length) return false;
-    try {
-      const seen = localStorage.getItem('blue-loop:armory-seen');
-      return seen !== null ? seen.split(':').slice(1).join(':') !== this.state.armory.join(',') : true;
-    } catch {
-      return false;
-    }
-  }
-  private markArmorySeen() {
-    try {
-      localStorage.setItem('blue-loop:armory-seen', this.armoryKey());
-    } catch {
-      // only a convenience
-    }
+  /** Something waits in the base: skill points to spend, or gear found and not yet worn. */
+  private baseIsNew(): boolean {
+    const me = campaignPlayer(this.state!);
+    return !!me.hero && (skillPoints(heroState(me, me.hero), me.hero) > 0 || (me.items ?? []).length > 0);
   }
 
   // ---- Clicks -----------------------------------------------------------------
@@ -519,10 +514,15 @@ export class CampaignView {
         this.setup.rivals = n();
         break;
       case 'cmp-race':
+        if (this.setup.race !== n()) this.setup.hero = 0;
         this.setup.race = n();
         break;
+      case 'cmp-hero-pick':
+        this.setup.hero = n();
+        sound.hover();
+        break;
       case 'cmp-start':
-        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, rivals: this.setup.rivals, race: this.setup.race });
+        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, rivals: this.setup.rivals, race: this.setup.race, hero: GENERALS[this.setup.race][this.setup.hero] });
         this.selected = null;
         this.view = null;
         this.skipSilentScenes();
@@ -590,19 +590,6 @@ export class CampaignView {
         this.storyLine = 0;
         this.apply({ type: 'readStory' });
         break;
-      case 'cmp-recruit-open':
-        this.sheet = { kind: 'recruit', nodeId: arg };
-        break;
-      case 'cmp-recruit': {
-        if (this.sheet?.kind !== 'recruit') break;
-        const nodeId = this.sheet.nodeId;
-        if (this.apply({ type: 'recruit', general: arg, nodeId })) {
-          sound.hero();
-          this.sheet = null;
-          this.army = armiesOf(this.state!, this.state!.playerId).find((a) => a.general === arg)?.id ?? null;
-        }
-        break;
-      }
       case 'cmp-stabilise':
         if (this.apply({ type: 'stabilise', nodeId: arg })) sound.shield();
         break;
@@ -618,12 +605,31 @@ export class CampaignView {
         this.sheet = { kind: 'heroes', hero: arg };
         break;
       case 'cmp-research':
-        if (this.apply({ type: 'research', id: arg })) sound.upgrade();
+        if (this.apply({ type: 'research', nodeId: arg })) sound.upgrade();
         break;
-      case 'cmp-research-pick':
-        this.researchPick = arg;
+      case 'cmp-visit': {
+        // A station the flagship stands in: its armoury, or its research.
+        const node = nodeById(s!, arg);
+        if (node.station?.kind === 'armory') {
+          this.keeperVisit++;
+          this.sheet = { kind: 'armory', nodeId: arg, tab: 'buy' };
+        } else if (node.station?.kind === 'research') this.sheet = { kind: 'research', nodeId: arg };
         sound.hover();
         break;
+      }
+      case 'cmp-train':
+        if ((arg === 'attack' || arg === 'defence') && this.apply({ type: 'train', hero: this.pickedHero(), stat: arg })) sound.upgrade();
+        break;
+      case 'cmp-ship-pick':
+        if (this.sheet?.kind === 'ship') this.sheet = { kind: 'ship', pick: this.sheet.pick === arg ? undefined : arg };
+        sound.hover();
+        break;
+      case 'cmp-ship': {
+        const [part, room] = arg.split(':');
+        const action = (part === 'defence' || part === 'attack' ? { type: 'upgradeShip', part, room: Number(room) } : { type: 'upgradeShip', part }) as CampaignAction;
+        if (this.apply(action)) sound.upgrade();
+        break;
+      }
       case 'cmp-hero':
         this.sheet = { kind: 'heroes', hero: arg };
         this.skillPick = this.slotPick = null;
@@ -660,23 +666,26 @@ export class CampaignView {
         }
         break;
       case 'cmp-armory-tab':
-        if (arg === 'buy' || arg === 'recycle' || arg === 'fuse') {
-          this.sheet = { kind: 'armory', tab: arg };
+        if (this.sheet?.kind === 'armory' && (arg === 'buy' || arg === 'recycle' || arg === 'fuse')) {
+          this.sheet = { kind: 'armory', nodeId: this.sheet.nodeId, tab: arg };
           this.keeperVisit++;
         }
         break;
       case 'cmp-buy': {
-        const slot = s!.armory.indexOf(arg);
-        if (slot >= 0 && this.apply({ type: 'buyCard', slot })) {
+        if (this.sheet?.kind !== 'armory') break;
+        const nodeId = this.sheet.nodeId;
+        const index = this.stock(nodeId).indexOf(arg);
+        if (index >= 0 && this.apply({ type: 'buyCard', nodeId, index })) {
           sound.buy();
-          if (this.sheet?.kind === 'armory') this.sheet = { kind: 'armory', tab: 'buy', pick: this.state!.armory.includes(arg) ? arg : undefined };
+          this.sheet = { kind: 'armory', nodeId, tab: 'buy' };
         }
         break;
       }
       case 'cmp-recycle':
+        if (this.sheet?.kind !== 'armory') break;
         if (this.apply({ type: 'recycle', defId: arg })) {
           sound.shuffle();
-          if (this.sheet?.kind === 'armory') this.sheet = { kind: 'armory', tab: 'recycle', pick: campaignPlayer(this.state!).reserve.includes(arg) ? arg : undefined };
+          if (this.sheet?.kind === 'armory') this.sheet = { kind: 'armory', nodeId: this.sheet.nodeId, tab: 'recycle', pick: campaignPlayer(this.state!).reserve.includes(arg) ? arg : undefined };
         }
         break;
       case 'cmp-tip':
@@ -707,17 +716,11 @@ export class CampaignView {
       case 'cmp-sheet':
         // "base" reopens the base on the tab last used.
         if (arg === 'base') arg = this.baseTab;
-        if (arg === 'deck' || arg === 'heroes' || arg === 'research' || arg === 'armory' || arg === 'missions') this.baseTab = arg;
-        if (arg === 'heroes') {
-          this.sheet = { kind: 'heroes', hero: this.sheet?.kind === 'heroes' ? this.sheet.hero : undefined };
-          break;
-        }
-        if (arg === 'armory') {
-          this.keeperVisit++;
-          this.markArmorySeen();
-          this.sheet = { kind: 'armory', tab: 'buy' };
-        } else if (arg === 'deck') this.sheet = { kind: 'deck', armyId: this.sheet?.kind === 'deck' ? this.sheet.armyId : undefined };
-        else this.sheet = { kind: arg as 'missions' | 'research' | 'log' | 'help' | 'overview' };
+        if (arg === 'deck' || arg === 'heroes' || arg === 'ship' || arg === 'missions') this.baseTab = arg;
+        if (arg === 'heroes') this.sheet = { kind: 'heroes' };
+        else if (arg === 'ship') this.sheet = { kind: 'ship' };
+        else if (arg === 'deck') this.sheet = { kind: 'deck', armyId: this.sheet?.kind === 'deck' ? this.sheet.armyId : undefined };
+        else this.sheet = { kind: arg as 'missions' | 'log' | 'help' | 'overview' };
         break;
       case 'cmp-fuse': {
         if (this.sheet?.kind !== 'armory' || this.sheet.fuse?.length !== 2) break;
@@ -727,7 +730,7 @@ export class CampaignView {
         const b = reserve.findIndex((id, k) => id === y && k !== a);
         if (a >= 0 && b >= 0 && this.apply({ type: 'fuse', a, b })) {
           sound.upgrade();
-          this.sheet = { kind: 'armory', tab: 'fuse' };
+          this.sheet = { kind: 'armory', nodeId: this.sheet.nodeId, tab: 'fuse' };
         }
         break;
       }
@@ -864,7 +867,8 @@ export class CampaignView {
           </div>
           <div class="cmp-purse">
             <span title="Credits (+${inc.credits} a turn): earned from your systems each turn, battles and missions. Spent on repairing damage and fortifying systems.">${CREDITS}<b>${me.credits}</b><small>(+${inc.credits})</small></span>
-            <span title="Materials (+${inc.materials} a turn): earned from your systems each turn, battles and missions. Spent on cards in the armoury.">${MATERIALS}<b>${me.materials}</b><small>(+${inc.materials})</small></span>
+            <span title="Materials (+${inc.materials} a turn): earned from your systems each turn, battles and missions. Spent on cards at armouries.">${MATERIALS}<b>${me.materials}</b><small>(+${inc.materials})</small></span>
+            <span title="Wisdom (+${CAMPAIGN.wisdomPerTurn} a turn): spent on research stations' upgrades.">${WISDOM}<b>${me.wisdom}</b><small>(+${CAMPAIGN.wisdomPerTurn})</small></span>
             <span title="Systems you hold, of ${s.nodes.length}">${SYSTEMS}<b>${ownedNodes(s, me.id).length}</b></span>
             <span class="cmp-purse-armies" title="Your armies: ${armiesOf(s, me.id).filter((a) => !a.moved).length} still to march this turn">${armiesOf(s, me.id)
               .map((a) => `<i class="cmp-mini-army ${a.moved ? 'moved' : ''}" data-act="cmp-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${armyFace(a)}</i>`)
@@ -877,7 +881,7 @@ export class CampaignView {
         </header>
         <section class="cmp-map">${this.renderMap()}</section>
         ${this.renderPop()}
-        <div class="cmp-base-dock"><button class="cmp-base-btn" data-act="cmp-sheet" data-arg="base" title="Your armies' decks, the armoury and missions">${HOME_ICON}<span>base</span>${this.armoryIsNew() ? '<i class="cmp-new">new</i>' : ''}</button></div>
+        <div class="cmp-base-dock"><button class="cmp-base-btn" data-act="cmp-sheet" data-arg="base" title="Your flagship's deck, your hero, your ship and missions">${HOME_ICON}<span>base</span>${this.baseIsNew() ? '<i class="cmp-new">new</i>' : ''}</button></div>
         <div class="cmp-end">
           <button class="btn-primary ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
         </div>
@@ -900,6 +904,14 @@ export class CampaignView {
     const rivals = [1, 2, 3]
       .map((r) => `<button class="pill-btn ${this.setup.rivals === r ? 'pill-on' : ''}" data-act="cmp-rivals" data-arg="${r}">${r}</button>`)
       .join('');
+    const heroes = GENERALS[this.setup.race]
+      .map(
+        (g, i) => `<button class="cmp-hero-choice ${this.setup.hero === i ? 'on' : ''}" data-act="cmp-hero-pick" data-arg="${i}" title="${esc(plainText(cardDef(g).text))}">
+          ${portrait(g)}
+          <span><b>${lower(cardDef(g).name)}</b><small>${cardDef(g).rarity ?? 'dwarf'}</small></span>
+        </button>`,
+      )
+      .join('');
     return `
       <main class="cmp-setup setup-page">
         <header class="setup-top">
@@ -911,13 +923,15 @@ export class CampaignView {
           <aside class="cmp-setup-aside">
             <div class="cmp-label">a dying universe</div>
             <p class="muted">The stars are going out. The races fight over the last warm worlds, and every one of them is marching on ${esc(HEART_NAME)}, the vast star at the centre of everything, where the ${esc(STELLARIA)} is said to grow: a flower whose bloom gives energy without end.</p>
-            <p class="muted">Lead armies, each under one of your race's heroes with a deck of their own. Take systems for their resources, find the lesser Stellari blooms on the way, and claim the Heart to win. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe wins too.</p>
+            <p class="muted">Fly one flagship, led by the hero you choose, with a deck that starts small (your hero, a defence and an attack) and grows to ${CAMPAIGN.armySize} cards. Take systems for their resources, find armouries and research stations on the way, and claim the Heart to win. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe wins too.</p>
             <div class="cmp-label">rival factions</div>
             <div class="cmp-rivals">${rivals}</div>
           </aside>
           <div class="cmp-setup-homes">
             <div class="cmp-label">choose your race</div>
             <div class="cmp-home-row cmp-race-row">${races}</div>
+            <div class="cmp-label">choose your hero</div>
+            <div class="cmp-hero-choices">${heroes}</div>
           </div>
         </div>
         <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start">begin campaign</button></footer>
@@ -1012,6 +1026,8 @@ export class CampaignView {
           n.garrison.length ? `<i class="cmp-badge">▣${n.garrison.length}</i>` : '',
           n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
           n.scanner ? `<i class="cmp-badge cmp-scan" title="Scanner array">${SCANNER}</i>` : '',
+          n.station?.kind === 'armory' ? `<i class="cmp-badge cmp-scan cmp-station-badge ${n.station.cards.length ? '' : 'spent'}" title="Armoury: ${n.station.cards.length ? `${n.station.cards.length} cards for sale` : 'sold out'}">${ARMORY_ICON}</i>` : '',
+          n.station?.kind === 'research' ? `<i class="cmp-badge cmp-scan cmp-station-badge ${n.station.takenBy ? 'spent' : ''}" title="Research station${n.station.takenBy ? ': taken' : ''}">${RESEARCH_ICON}</i>` : '',
           n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
           (n.stellaria ?? 0) > 0 ? `<i class="cmp-badge cmp-bloom" title="A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}">${BLOOM}${n.stellaria}</i>` : '',
         ].join('');
@@ -1627,6 +1643,12 @@ export class CampaignView {
       n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
       (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, `Stabilised: it holds until turn ${n.stableUntil}.`, 'good') : '',
       ...nodeAnomalies(s, n).map((x) => chip(`<i class="an-icon an-icon-${x.kind}"></i>`, `${ANOMALIES[x.kind].name} nearby: ${ANOMALIES[x.kind].text}`)),
+      n.station?.kind === 'armory'
+        ? chip(`${ARMORY_ICON}<b>${n.station.cards.length ? `armoury · ${n.station.cards.length}` : 'armoury · sold out'}</b>`, n.station.cards.length ? `An armoury: ${n.station.cards.length} card${n.station.cards.length === 1 ? '' : 's'} for sale, each only once. Bring your flagship here to buy.` : 'An armoury, sold out.', n.station.cards.length ? 'gold' : 'muted')
+        : '',
+      n.station?.kind === 'research'
+        ? chip(`${RESEARCH_ICON}<b>${n.station.takenBy ? 'research · taken' : lower(researchProject(n.station.project)?.name ?? 'research')}</b>`, n.station.takenBy ? `A research station. Its upgrade has been taken${n.station.takenBy === me.id ? ' (by you)' : ''}.` : `A research station: ${researchProject(n.station.project)?.name}. ${researchProject(n.station.project)?.text} Bring your flagship here and spend ${researchWisdom(n.station.project)} Wisdom to take it.`, n.station.takenBy ? 'muted' : 'good')
+        : '',
     ].join('');
     // What you can do here.
     const attackers = s.phase === 'player' && !s.battle ? attackOptions(s, me.id).find((o) => o.toId === n.id)?.armyIds ?? [] : [];
@@ -1659,11 +1681,13 @@ export class CampaignView {
           fortCost !== null ? `<button class="pill-btn" data-act="cmp-fortify" data-arg="${n.id}" ${me.credits < fortCost ? 'disabled' : ''} title="Fortify: +${CAMPAIGN.fortifyHealth} defence">fortify · ${CREDITS}${fortCost}</button>` : '',
           n.damage ? this.repairButtons('cmp-heal', n.id, n.damage, CAMPAIGN.healCostPerPoint, '') : '',
           n.garrison.length < CAMPAIGN.garrisonSlots ? `<button class="pill-btn" data-act="cmp-station-open" data-arg="${n.id}">station a card</button>` : '',
-          !here && s.phase === 'player' && !s.battle ? `<button class="pill-btn" data-act="cmp-recruit-open" data-arg="${n.id}">recruit</button>` : '',
           n.collapsing ? `<button class="pill-btn" data-act="cmp-stabilise" data-arg="${n.id}" ${stabiliseProblem(me, n) ? `disabled title="${esc(stabiliseProblem(me, n)!)}"` : ''}>stabilise · ${MATERIALS}${CAMPAIGN.stabiliseCost}</button>` : '',
         ].join('')
       : '';
     const tip = this.popTip ? `<p class="pop-tip">${esc(this.popTip)}</p>` : '';
+    // A station your flagship stands in: visit it.
+    const atStation = n.station && flagship(s, me.id)?.nodeId === n.id && s.phase === 'player' && !s.battle;
+    const visit = atStation ? `<button class="btn-primary pop-attack" data-act="cmp-visit" data-arg="${n.id}">${n.station!.kind === 'armory' ? `${ARMORY_ICON}visit the armoury` : `${RESEARCH_ICON}visit the research station`}</button>` : '';
     return `
       <div class="pop-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
         ${n.owner ? this.avatarOf(n.owner, 'cmp-head-av') : '<i></i>'}
@@ -1673,6 +1697,7 @@ export class CampaignView {
       <div class="pop-chips">${chips}</div>
       ${tip}
       ${attack ? `<div class="pop-row">${attack}</div>` : ''}
+      ${visit ? `<div class="pop-row">${visit}</div>` : ''}
       ${army}
       ${garrison ? `<div class="pop-gars">${garrison}</div>` : ''}
       ${acts ? `<div class="pop-row">${acts}</div>` : ''}`;
@@ -1745,30 +1770,13 @@ export class CampaignView {
     switch (sh.kind) {
       case 'deck':
       case 'heroes':
-      case 'armory':
+      case 'ship':
       case 'missions':
-      case 'research':
         return this.renderBase(sh);
-      case 'recruit': {
-        const n = nodeById(s, sh.nodeId);
-        const rows = GENERALS[me.race]
-          .map((g) => {
-            const cost = recruitCost(s, me, g);
-            const leading = s.armies.some((a) => a.owner === me.id && a.general === g);
-            return `<button class="cmp-recruit" data-act="cmp-recruit" data-arg="${g}" ${cost === null || me.credits < cost ? 'disabled' : ''}>
-              ${portrait(g)}
-              <span><b>${lower(cardDef(g).name)}</b><small>${leading ? 'already leads an army' : `${CREDITS} ${cost}`}</small></span>
-              <span class="cmp-recruit-text">${cardTextHtml(cardDef(g).text)}</span>
-            </button>`;
-          })
-          .join('');
-        return this.modal(
-          `recruit a general in ${lower(n.name)}`,
-          `<p class="muted center-text">Each general leads an army of their own, with a deck built round them. A new army can march next turn. You have ${CREDITS} ${me.credits}.</p>
-           <div class="cmp-recruits">${rows}</div>`,
-          true,
-        );
-      }
+      case 'armory':
+        return this.renderArmory(sh);
+      case 'research':
+        return this.renderResearch(sh.nodeId);
       case 'log':
         return this.modal('campaign log', `<div class="log-list">${s.log.map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>`, true);
       case 'overview': {
@@ -1807,28 +1815,28 @@ export class CampaignView {
         return this.modal(
           'how the campaign works',
           `<div class="cmp-legend">
-            <div>${CREDITS}<span><b>Credits</b> run your systems. Earned: each system's yield every turn, winning battles, missions. Spent: repairing damage, fortifying systems.</span></div>
-            <div>${MATERIALS}<span><b>Materials</b> build your collection. Earned the same ways. Spent: cards in the armoury.</span></div>
+            <div>${CREDITS}<span><b>Credits</b> run your systems and your ship. Earned: each system's yield every turn, winning battles, missions. Spent: upgrading your ship, repairs, fortifying systems.</span></div>
+            <div>${MATERIALS}<span><b>Materials</b> build your deck. Earned the same ways. Spent: cards at armouries, fusing cards.</span></div>
+            <div>${WISDOM}<span><b>Wisdom</b> builds ${CAMPAIGN.wisdomPerTurn} a turn. Spent: research stations' upgrades.</span></div>
           </div>
           <ul class="rules">
-            <li><b>The goal:</b> claim ${esc(HEART_NAME)}, the star at the centre of the universe, where the ${esc(STELLARIA)} grows. Its Wardens are the strongest defenders anywhere (+${CAMPAIGN.heartWardenHealth} max health). Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of all systems, or outlasting every rival, wins too; otherwise the most systems after ${CAMPAIGN.turnLimit} turns.</li>
-            <li><b>Armies</b> march one route a turn. Tap an army, then a system next to it: into one you hold, it simply moves; into any other, it fights. One army to a system.</li>
-            <li>Each turn an army either <b>marches</b> or <b>refits</b> (its deck changed, or repaired), not both. Buying, recycling and fusing cards are for your whole people, and don't tie up an army.</li>
+            <li><b>The goal:</b> claim ${esc(HEART_NAME)}, the star at the centre of the universe, where the ${esc(STELLARIA)} grows. Its Wardens are the strongest defenders anywhere. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of all systems, or outlasting every rival, wins too; otherwise the most systems after ${CAMPAIGN.turnLimit} turns.</li>
+            <li><b>Your flagship</b> flies one route a turn, led by your hero. Tap it, then a system next to it: into one you hold, it simply moves; into any other, it fights. Each turn it either <b>moves</b> or <b>refits</b> (its deck changed, or repaired), not both.</li>
+            <li><b>Its deck</b> starts with your hero, a defence and an attack, and holds up to ${CAMPAIGN.armySize} cards. Find more at armouries and as mission rewards; they wait in your reserve until you put them in.</li>
+            <li><b>Battles</b> are fought ship to ship. Your cards stand in your ship's rooms, and your hero always holds the command room. Cards don't fade day by day: they stand until destroyed, and a destroyed card is out for the rest of the battle (no shuffling back). Your hero, beaten, is wounded for a turn, then returns. Drawing a card becomes <b>stabilising</b> an ally. You lose if your sun goes supernova; a station with nothing left to play is beaten.</li>
+            <li>${ARMORY_ICON} <b>Armouries</b> sell ${CAMPAIGN.armoryStock} cards each, every one only once: mostly dwarf cards, often a rare one among them. ${RESEARCH_ICON} <b>Research stations</b> have one upgrade each, taken for Wisdom by the first to get there. Both are better within an anomaly's reach. Bring your flagship to one to use it.</li>
+            <li><b>Your base:</b> your deck, your <b>hero</b> (train their attack and defence, learn skills, wear gear) and your <b>ship</b> (upgrade each room's walls and guns, the command room, shields and hull), and your missions.</li>
+            <li>A system with no flagship in it fights as a <b>station</b>: a few cards (more the stronger it is), thick walls, its garrison and fortifications, and no hero. Neutral systems are stronger towards the centre.</li>
             <li><b>Stars</b> differ. ${(['red', 'white', 'brown', 'neutron'] as const).map((k) => `<b>${STAR_TYPES[k].name}:</b> ${esc(STAR_TYPES[k].boon)} ${esc(STAR_TYPES[k].cost)}`).join(' ')}</li>
             <li><b>The Lost Races</b> are the last of peoples the dimming has already taken. They wander unheld space and raid held systems beside them, stripping them. Beat one for its relics: ${MATERIALS} ${CAMPAIGN.lostRelicMaterials} and a card.</li>
-            <li>Each army is led by a <b>general</b>, one of your race's heroes, and fights with its own <b>deck</b> (30 cards, the general's card among them). Recruit more generals in your systems with ${CREDITS} credits; each army costs more than the last.</li>
-            <li>A system with no army defends itself with its race's plain deck, its garrison and its fortifications. Neutral systems have sentinels, stronger towards the centre.</li>
-            <li><b>Win</b> and choose: <b>Settle</b> it (your army marches in), <b>Absorb</b> its resources, or <b>Supernova</b> it to block rivals for a turn. A beaten army falls back to a free system of yours next door, or is broken.</li>
-            <li>An army's sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits in a system you hold. <b>Fortify</b> a system for +${CAMPAIGN.fortifyHealth} max health per level when it defends.</li>
+            <li><b>Win</b> and choose: <b>Settle</b> it (your flagship moves in), <b>Absorb</b> its resources, or <b>Supernova</b> it to block rivals for a turn. A beaten flagship falls back to the nearest free system you hold.</li>
+            <li>Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits in a system you hold. <b>Fortify</b> a system for +${CAMPAIGN.fortifyHealth} max health per level when it defends.</li>
             <li>${BLOOM} <b>Finite Stellari</b> bloom on a few systems: +${CAMPAIGN.stellariaCredits} ${CREDITS} and +${CAMPAIGN.stellariaMaterials} ${MATERIALS} a turn to whoever holds one, for ${CAMPAIGN.stellariaTurns} turns. Then they wilt.</li>
-            <li><b>The universe is dying:</b> every ${CAMPAIGN.dimEvery} turns a star gutters, and its system yields less.</li>
-            <li><b>Regional stability</b> lasts ${CAMPAIGN.stabilityTurns} turns. Then solar systems collapse, from the rim inwards: one a turn, one more every ${CAMPAIGN.collapseRamp} turns. Each is marked (⚠) a turn before it goes, and anything still in it is lost, so keep moving towards the Heart. Stabilise a marked system you hold for ${CAMPAIGN.stabiliseCost} materials to hold it ${CAMPAIGN.stabiliseTurns} turns more (once per system).</li>
-            <li>Win cards from missions and buy them in the armoury with ${MATERIALS} materials; they wait in your reserve until you put them in an army's deck. A deck that falls short of 30 cards (or its Heroes) can still march, but not fight.</li>
+            <li><b>The universe is dying:</b> every ${CAMPAIGN.dimEvery} turns a star gutters, and its system yields less. <b>Regional stability</b> lasts ${CAMPAIGN.stabilityTurns} turns. Then systems collapse, from the rim inwards, each marked (⚠) a turn before. Stabilise a marked system you hold for ${CAMPAIGN.stabiliseCost} materials to hold it ${CAMPAIGN.stabiliseTurns} turns more (once per system).</li>
             <li><b>Fog of war:</b> you only see systems linked to yours. Hold a system with a <b>scanner</b> to see two links out from it.</li>
-            <li><b>Your base</b> holds your armies' decks (in the deck builder), the armoury and your missions. ${esc(QUARTERMASTER.name)} sells new stock every turn and whenever you conquer a system. ${esc(RECYCLER.name)} breaks reserve cards down for half their price, and fuses two into one that does both, for ${MATERIALS} materials (that cannot be undone).</li>
             <li><b>Your first route:</b> home has one way out, to a cut-off system whose sentinels start ${CAMPAIGN.gateHeat} hotter. Take it.</li>
+            <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play. Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
             <li><b>${esc(ORACLE_NAME)}</b> offers guidance under the turn count. Read it or dismiss it; turn it off in settings.</li>
-            <li><b>Send reserve cards</b> to a system's garrison (up to ${CAMPAIGN.garrisonSlots}) to defend it: they start the battle already in play in its tableau (a Lightspeed card starts set face down). Cards take a turn to arrive and a turn to return. If the system falls, the conqueror takes them.</li>
           </ul>`,
           true,
         );
@@ -1935,13 +1943,14 @@ export class CampaignView {
    * The base, full screen: a tab for each army's deck and the armoury (both in the main deck builder),
    * and the missions.
    */
-  private renderBase(sh: Extract<Sheet, { kind: 'deck' | 'heroes' | 'research' | 'armory' | 'missions' }>): string {
+  private renderBase(sh: Extract<Sheet, { kind: 'deck' | 'heroes' | 'ship' | 'missions' }>): string {
     const s = this.state!;
     const me = campaignPlayer(s);
-    const points = GENERALS[me.race].some((g) => skillPoints(heroState(me, g)) > 0);
-    const idle = !me.research?.current && RESEARCH.some((r) => researchProblem(me.research, me.materials, r.id) === null);
-    const tabs = (['deck', 'heroes', 'research', 'armory', 'missions'] as const)
-      .map((t) => `<button class="cmp-tab ${t === sh.kind ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${t === 'armory' ? 'armoury' : t}${(t === 'heroes' && (points || (me.items ?? []).length)) || (t === 'research' && idle) ? '<i class="cmp-tab-dot"></i>' : ''}</button>`)
+    const hero = this.pickedHero();
+    const points = skillPoints(heroState(me, hero), hero) > 0 || (me.items ?? []).length > 0;
+    const names = { deck: 'deck', heroes: 'hero', ship: 'ship', missions: 'missions' } as const;
+    const tabs = (['deck', 'heroes', 'ship', 'missions'] as const)
+      .map((t) => `<button class="cmp-tab ${t === sh.kind ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${names[t]}${t === 'heroes' && points ? '<i class="cmp-tab-dot"></i>' : ''}</button>`)
       .join('');
     let body: string;
     if (sh.kind === 'missions') {
@@ -1951,53 +1960,157 @@ export class CampaignView {
           <p class="muted">Each completed mission pays ${CREDITS} ${CAMPAIGN.missionCredits} and ${MATERIALS} ${CAMPAIGN.missionMaterials}, and lets you choose a new card. ${CAMPAIGN_MISSIONS.length} missions in all.</p>
         </div>`;
     } else if (sh.kind === 'heroes') {
-      body = this.renderHeroes(this.pickedHero());
-    } else if (sh.kind === 'research') {
-      body = this.renderResearch();
-    } else if (sh.kind === 'deck' && !armiesOf(s, me.id).length) {
-      body = '<div class="cmp-base-missions"><p class="muted center-text">You have no armies. Recruit a general in one of your systems to raise one.</p></div>';
+      body = this.renderHeroes(hero);
+    } else if (sh.kind === 'ship') {
+      body = this.renderShip(sh.pick);
+    } else if (!flagship(s, me.id)) {
+      body = '<div class="cmp-base-missions"><p class="muted center-text">Your flagship is gone.</p></div>';
     } else {
-      this.builder.setMode(sh.kind === 'deck' ? this.deckMode(sh.armyId ?? armiesOf(s, me.id)[0].id) : this.armoryMode(sh));
+      this.builder.setMode(this.deckMode(flagship(s, me.id)!.id));
       body = this.builder.render();
     }
     return `
       <div class="cmp-base">
         <header class="cmp-base-top">
           <nav class="cmp-tabs">${tabs}</nav>
-          <div class="cmp-purse"><span title="Credits">${CREDITS}<b>${me.credits}</b></span><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Cards in your reserve, waiting for a deck">▤<b>${me.reserve.length}</b></span></div>
+          ${this.purse()}
           <button class="icon-btn" data-act="cmp-close" aria-label="Back to the map" title="Back to the map">×</button>
         </header>
         ${body}
       </div>`;
   }
 
-  /**
-   * Research: what every one of your armies shares. The project under way (and how long it has left), what
-   * is done, and what can be started: each paid for in materials when it starts, one at a time.
-   */
-  private renderResearch(): string {
+  /** What the player has to spend, for the base's and the stations' headers. */
+  private purse(): string {
     const me = campaignPlayer(this.state!);
-    const r = me.research ?? { done: [] };
-    const b = researchBonus(r);
+    return `<div class="cmp-purse"><span title="Credits">${CREDITS}<b>${me.credits}</b></span><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Wisdom">${WISDOM}<b>${me.wisdom}</b></span><span title="Cards in your reserve, waiting for your deck">▤<b>${me.reserve.length}</b></span></div>`;
+  }
+
+  /** An armoury's stock (empty if the node has none). */
+  private stock(nodeId: string): string[] {
+    const st = nodeById(this.state!, nodeId).station;
+    return st?.kind === 'armory' ? st.cards : [];
+  }
+
+  /** An armoury on the map, full screen like the base: its stock to buy (each card once), and its keepers to recycle and fuse. */
+  private renderArmory(sh: Extract<Sheet, { kind: 'armory' }>): string {
+    const n = nodeById(this.state!, sh.nodeId);
+    this.builder.setMode(this.armoryMode(sh));
+    return `
+      <div class="cmp-base">
+        <header class="cmp-base-top">
+          <nav class="cmp-tabs"><span class="cmp-tab cmp-tab-on">${ARMORY_ICON} ${lower(n.name)} armoury</span></nav>
+          ${this.purse()}
+          <button class="icon-btn" data-act="cmp-close" aria-label="Back to the map" title="Back to the map">×</button>
+        </header>
+        ${this.builder.render()}
+      </div>`;
+  }
+
+  /** A research station on the map: its one upgrade, for Wisdom, and the upgrades your flagship carries already. */
+  private renderResearch(nodeId: string): string {
+    const s = this.state!;
+    const me = campaignPlayer(s);
+    const n = nodeById(s, nodeId);
+    if (n.station?.kind !== 'research') return '';
+    const p = researchProject(n.station.project)!;
+    const cost = researchWisdom(p.id);
+    const why = researchProblem(s, me, n);
+    const near = nodeAnomalies(s, n).length > 0;
+    const done = (me.research?.done ?? []).map((id) => researchProject(id)).filter((x) => !!x);
+    const b = researchBonus(me.research);
     const sums = [
       b.mods.extraPlays ? `+${b.mods.extraPlays} energy a day` : '',
       b.march ? `+${b.march} march` : '',
       b.mods.maxHealthDelta ? `+${b.mods.maxHealthDelta} max health` : '',
       b.mods.openingHand ? `+${b.mods.openingHand} opening hand` : '',
-      b.mods.startingHeat ? `suns start ${-b.mods.startingHeat} cooler` : '',
+      b.mods.startingHeat ? `sun starts ${-b.mods.startingHeat} cooler` : '',
       b.mend ? `repair ${b.mend} a turn` : '',
       b.sight ? 'farther sight' : '',
       b.loot ? 'more gear found' : '',
       b.dread ? 'the weak surrender' : '',
     ].filter(Boolean);
-    const cur = r.current ? researchProject(r.current.id) : undefined;
-    const head = cur ? `researching <b>${esc(cur.name)}</b> · ${r.current!.left} turn${r.current!.left === 1 ? '' : 's'} left` : 'nothing under way: pick a star to research. One project at a time, paid for when it starts.';
-    return `<div class="cmp-research">
-        <p class="cmp-rs-head">${head}</p>
-        <section class="rt">
-          ${researchTree({ projects: RESEARCH, done: r.done, current: r.current, problem: (id) => researchProblem(r, me.materials, id), picked: this.researchPick, materialsIcon: MATERIALS })}
+    const taken = n.station.takenBy;
+    return this.modal(
+      `${lower(n.name)} research station`,
+      `<div class="cmp-rs-station">
+          <div class="cmp-rs-offer ${taken ? 'taken' : ''}">
+            ${RESEARCH_ICON}
+            <div><b>${esc(p.name)}</b><small>tier ${p.tier}${near ? ' · in an anomaly\'s reach' : ''}</small><p>${esc(p.text)}</p></div>
+          </div>
+          ${
+            taken
+              ? `<p class="muted center-text">${taken === me.id ? 'You have taken this upgrade.' : `Taken already, by ${esc(factionById(s, taken).name)}.`}</p>`
+              : `<div class="center-row"><button class="btn-primary" data-act="cmp-research" data-arg="${n.id}" ${why ? `disabled title="${esc(why)}"` : ''}>take it · ${WISDOM} ${cost}</button></div>${why ? `<p class="muted center-text">${esc(why)}</p>` : ''}`
+          }
+          <p class="cmp-rs-sum">${done.length ? `Your flagship carries: ${done.map((x) => esc(x!.name)).join(', ')}.${sums.length ? ` (${sums.join(' · ')})` : ''}` : 'Each research station has one upgrade, taken by the first to pay for it. Wisdom builds a point a turn.'}</p>
+        </div>`,
+      true,
+      '',
+      'cmp-modal-narrow',
+    );
+  }
+
+  /**
+   * The ship: the flagship drawn large, its five rooms (where its cards stand) and its command room (the
+   * hero's) laid over it. Pick a room to upgrade its walls (defence) or its guns (attack), and the ship's
+   * shields and hull below.
+   */
+  private renderShip(pick?: string): string {
+    const s = this.state!;
+    const me = campaignPlayer(s);
+    const ship = me.ship;
+    const part = (p: ShipPart, label: string, now: string) => {
+      const cost = shipUpgradeCost(ship, p);
+      const arg = p.part === 'defence' || p.part === 'attack' ? `${p.part}:${p.room}` : p.part;
+      const lvl = shipLevel(ship, p);
+      const max = CAMPAIGN.shipMax[p.part];
+      const pips = Array.from({ length: max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('');
+      return `<div class="sh-part"><span class="sh-part-name">${label}<small>${now}</small></span><span class="sh-pips">${pips}</span>${
+        cost === null ? '<span class="sh-max">full</span>' : `<button class="pill-btn" data-act="cmp-ship" data-arg="${arg}" ${me.credits < cost ? 'disabled' : ''}>+1 · ${CREDITS}${cost}</button>`
+      }</div>`;
+    };
+    // The rooms, left to right as on the battle board (the middle one the safest), and the command room.
+    const slotDef = [1, 2, 3, 2, 1];
+    const rooms = [0, 1, 2, 3, 4]
+      .map((i) => {
+        const d = ship.rooms.defence[i];
+        const a = ship.rooms.attack[i];
+        return `<button class="sh-room ${pick === String(i) ? 'on' : ''}" data-act="cmp-ship-pick" data-arg="${i}" style="--i:${i}" title="Room ${i + 1}: +${d} defence, +${a} attack for the card in it">
+          <b>${i + 1}</b><span class="sh-room-stats"><em class="def">◆${slotDef[i] + d}</em><em class="atk">✦+${a}</em></span>
+        </button>`;
+      })
+      .join('');
+    const hero = this.pickedHero();
+    const hs = heroStats(me, hero);
+    const command = `<button class="sh-room sh-command ${pick === 'command' ? 'on' : ''}" data-act="cmp-ship-pick" data-arg="command" title="The command room: your hero's, +${ship.rooms.command} defence">
+        ${portrait(hero)}<span class="sh-room-stats"><em class="def">◆${2 + ship.rooms.command + hs.defence}</em><em class="atk">✦${cardDef(hero).attack ?? 0}${hs.attack ? `+${hs.attack}` : ''}</em></span>
+      </button>`;
+    const room = pick !== undefined && pick !== 'command' ? Number(pick) : null;
+    const detail =
+      room !== null && room >= 0 && room < 5
+        ? `<h4>room ${room + 1}</h4>
+           ${part({ part: 'defence', room }, 'walls', `+${ship.rooms.defence[room]} defence for the card in it`)}
+           ${part({ part: 'attack', room }, 'guns', `+${ship.rooms.attack[room]} attack for a card in it that attacks`)}`
+        : pick === 'command'
+          ? `<h4>command room</h4>
+             ${part({ part: 'command' }, 'bulkheads', `+${ship.rooms.command} defence for your hero`)}
+             <p class="muted">Your hero's own attack and defence train in the hero tab.</p>`
+          : '<p class="muted">Pick a room on the ship to upgrade it.</p>';
+    return `
+      <div class="cmp-shipyard">
+        <section class="sh-hull">
+          <div class="sh-model"><div class="sh-model-in" style="--ac:${this.colourOf(me.id)};--rot:0deg">${shipModel(me.race, false)}</div></div>
+          <div class="sh-rooms">${rooms}</div>
+          ${command}
         </section>
-        <p class="cmp-rs-sum">${sums.length ? `Every army: ${sums.join(' · ')}` : 'What is researched, every one of your armies shares.'}</p>
+        <section class="sh-side">
+          ${detail}
+          <h4>the ship</h4>
+          ${part({ part: 'shields' }, 'shields', `${ship.shields} up as each battle begins`)}
+          ${part({ part: 'hull' }, 'hull', `+${ship.hull * CAMPAIGN.hullHealth} max health`)}
+          <p class="muted">Upgrades last the whole campaign. In battle, each card stands in a room of your ship: the room's walls add to its defence, and its guns to its attack.</p>
+        </section>
       </div>`;
   }
 
@@ -2005,7 +2118,7 @@ export class CampaignView {
   private pickedHero(): string {
     const s = this.state!;
     const me = campaignPlayer(s);
-    return (this.sheet?.kind === 'heroes' && this.sheet.hero) || armiesOf(s, me.id)[0]?.general || GENERALS[me.race][0];
+    return me.hero ?? flagship(s, me.id)?.general ?? GENERALS[me.race][0];
   }
 
   /**
@@ -2021,19 +2134,22 @@ export class CampaignView {
       const hi = nextLevelXp(xp);
       return hi === null ? '<span class="cmp-xp"><i style="width:100%"></i></span>' : `<span class="cmp-xp" title="${xp} / ${hi} experience"><i style="width:${Math.round(((xp - lo) / (hi - lo)) * 100)}%"></i></span>`;
     };
-    const list = GENERALS[me.race]
-      .map((g) => {
-        const h = heroState(me, g);
-        const army = s.armies.find((a) => a.owner === me.id && a.general === g);
-        const pts = skillPoints(h);
-        return `<button class="cmp-hero-row ${g === pick ? 'on' : ''}" data-act="cmp-hero" data-arg="${g}">
-          ${portrait(g)}
-          <span><b>${lower(cardDef(g).name)}</b><small>level ${heroLevel(h.xp)} · ${army ? 'in the field' : 'at rest'}</small>${bar(h.xp)}</span>
-          ${pts > 0 ? `<i class="cmp-points" title="Skill points to spend">${pts}</i>` : ''}
-        </button>`;
-      })
-      .join('');
     const h = heroState(me, pick);
+    const hs = heroStats(me, pick);
+    const trainRow = (stat: 'attack' | 'defence', label: string) => {
+      const why = trainProblem(me, pick, stat);
+      const done = h.train?.[stat] ?? 0;
+      return `<div class="hv-train-row"><span>${label}<b>${stat === 'attack' ? (cardDef(pick).attack ?? 0) + hs.attack : hs.defence}</b><small>${stat === 'attack' ? `card ${cardDef(pick).attack ?? 0} + trained ${done}` : `+${CAMPAIGN.heroDefence} base, trained ${done}`}</small></span><button class="pill-btn" data-act="cmp-train" data-arg="${stat}" ${why ? `disabled title="${esc(why)}"` : ''}>+1 · 1 point</button></div>`;
+    };
+    const list = `<div class="cmp-hero-row on">
+        ${portrait(pick)}
+        <span><b>${lower(cardDef(pick).name)}</b><small>level ${heroLevel(h.xp)} · ${skillPoints(h, pick)} point${skillPoints(h, pick) === 1 ? '' : 's'} to spend</small>${bar(h.xp)}</span>
+      </div>
+      <div class="hv-train">
+        <p class="muted">Always in your command room, in every battle. Beaten or sent from the field, they are wounded for a turn, then return. Each skill point trains them up (up to ${CAMPAIGN.trainMax} each).</p>
+        ${trainRow('attack', 'attack')}
+        ${trainRow('defence', 'defence')}
+      </div>`;
     const pts = skillPoints(h);
     const slots = RACE_SLOTS[me.race].map((sl) => ({ ...sl, name: SLOT_NAME[sl.kind] }));
     const picked = this.slotPick && slots.some((x) => x.id === this.slotPick) ? this.slotPick : null;
@@ -2069,23 +2185,18 @@ export class CampaignView {
     return {
       owned: (id) => count(army().deck, id) + count(me().reserve, id),
       cards: () => [...new Set([...army().deck, ...me().reserve])].map((id) => cardDef(id)),
-      deck: () => ({ name: `${cardDef(army().general).name}'s army`, race: me().race, cards: army().deck }),
+      deck: () => ({ name: `${cardDef(army().general).name}'s flagship`, race: me().race, cards: army().deck }),
       // (A refusal has been said already, by the toast.)
       add: (id) => (this.apply({ type: 'deckAdd', armyId, defId: id }) ? null : ''),
       remove: (id) => (this.apply({ type: 'deckRemove', armyId, defId: id }) ? null : ''),
-      tally: (cards) => `<b class="${cards.length === CAMPAIGN.armySize ? 'ok' : ''}" title="An army's deck: its hero and up to ${CAMPAIGN.armySize} cards in all">${cards.length}/${CAMPAIGN.armySize}</b> cards · led by ${esc(cardDef(army().general).name)}`,
+      tally: (cards) => `<b class="${cards.length === CAMPAIGN.armySize ? 'ok' : ''}" title="Your flagship's deck: its hero and up to ${CAMPAIGN.armySize} cards in all">${cards.length}/${CAMPAIGN.armySize}</b> cards · led by ${esc(cardDef(army().general).name)}`,
       badge: (id, n) => ({ text: `${n}/${count(army().deck, id) + count(me().reserve, id)}`, title: `${n} in this deck, ${count(me().reserve, id)} in your reserve`, on: n > 0 }),
-      head: () => {
-        const tabs = armiesOf(this.state!, me().id)
-          .map((a) => `<button class="cmp-army-tab ${a.id === armyId ? 'on' : ''}" data-act="cmp-deck-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${armyFace(a)}<span>${lower(cardDef(a.general).name)}</span></button>`)
-          .join('');
-        return `<div class="cmp-army-tabs">${tabs}</div>`;
-      },
+      head: () => '',
       foot: () => {
         const a = army();
-        if (a.moved) return '<p class="cmp-warn">This army has marched this turn: its deck can change next turn.</p>';
+        if (a.moved) return '<p class="cmp-warn">Your flagship has moved this turn: its deck can change next turn.</p>';
         const problem = armyDeckProblems(a.deck, a.general)[0];
-        const note = a.refit ? '<p class="muted">Refitting: this army marches next turn.</p>' : '<p class="muted">Changing its deck refits this army: it can\'t march this turn.</p>';
+        const note = a.refit ? '<p class="muted">Refitting: your flagship moves next turn.</p>' : '<p class="muted">Changing its deck refits your flagship: it can\'t move this turn.</p>';
         return (problem ? `<p class="cmp-warn">Not ready to fight: ${esc(problem)}</p>` : '<p class="cmp-ok">Ready to fight.</p>') + note;
       },
     };
@@ -2097,7 +2208,7 @@ export class CampaignView {
     const me = () => campaignPlayer(s());
     const count = (list: string[], id: string) => list.filter((x) => x === id).length;
     const tab = sh.tab;
-    const list = () => (tab === 'buy' ? s().armory : me().reserve);
+    const list = () => (tab === 'buy' ? this.stock(sh.nodeId) : me().reserve);
     const picks = sh.fuse ?? [];
     return {
       owned: (id) => count(list(), id),
@@ -2107,8 +2218,8 @@ export class CampaignView {
         if (tab === 'fuse') {
           const at = picks.lastIndexOf(id);
           const next = at >= 0 ? picks.filter((_, k) => k !== at) : picks.length < 2 && count(picks, id) < count(me().reserve, id) ? [...picks, id] : [...picks.slice(0, 1), id];
-          this.sheet = { kind: 'armory', tab, fuse: next };
-        } else this.sheet = { kind: 'armory', tab, pick: sh.pick === id ? undefined : id };
+          this.sheet = { kind: 'armory', nodeId: sh.nodeId, tab, fuse: next };
+        } else this.sheet = { kind: 'armory', nodeId: sh.nodeId, tab, pick: sh.pick === id ? undefined : id };
         sound.hover();
         this.host.render();
       },
@@ -2144,10 +2255,11 @@ export class CampaignView {
             <button class="btn-primary" data-act="cmp-fuse" ${me().materials < cost ? 'disabled' : ''}>fuse · ${MATERIALS} ${cost}</button>`;
         }
         const id = sh.pick && list().includes(sh.pick) ? sh.pick : null;
-        if (!id) return `<p class="muted">${tab === 'buy' ? 'Tap a card to look it over. Bought cards wait in your reserve. New stock arrives every turn, and with every conquest.' : 'Tap a reserve card to break it down for half its armoury price, in materials.'}</p>`;
+        if (!id) return `<p class="muted">${tab === 'buy' ? 'Tap a card to look it over. Each is sold once: what you buy waits in your reserve, and is gone from here for good.' : 'Tap a reserve card to break it down for half its armoury price, in materials.'}</p>`;
+        const why = tab === 'buy' ? buyProblem(s(), me(), nodeById(s(), sh.nodeId), this.stock(sh.nodeId).indexOf(id)) : null;
         return `<div class="cmp-keeper-pick">${cardHtml(id)}</div>${
           tab === 'buy'
-            ? `<button class="btn-primary" data-act="cmp-buy" data-arg="${id}" ${me().materials < armoryPrice(id) ? 'disabled' : ''}>buy · ${MATERIALS} ${armoryPrice(id)}</button>`
+            ? `<button class="btn-primary" data-act="cmp-buy" data-arg="${id}" ${why ? `disabled title="${esc(why)}"` : ''}>buy · ${MATERIALS} ${armoryPrice(id)}</button>`
             : `<button class="btn-primary" data-act="cmp-recycle" data-arg="${id}">recycle · +${MATERIALS} ${recycleValue(id)}</button>`
         }`;
       },

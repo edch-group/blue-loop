@@ -76,7 +76,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine, setCampaignText } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -3429,6 +3429,8 @@ export class App {
     forceLandscape(!(this.screen === 'menu' && (this.menuPage === 'title' || this.menuPage === 'signin')));
     // The page is morphed into its new markup, not rebuilt: only what changed is touched, so the board,
     // its cards and canvases stay as they are between moves (rebuilding it all made every action slow).
+    // (A campaign battle's cards read "Stabilise" where others read "Draw".)
+    setCampaignText(this.screen !== 'menu' && this.screen !== 'campaign' && !!this.state?.campaign);
     morphInto(this.root, this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() + (this.zoomed ? this.renderZoom() : '') : this.renderGame());
     this.keptHand = new WeakSet([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].filter((el) => held.has(el)));
     const again = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)];
@@ -4678,16 +4680,20 @@ export class App {
     // The Command slot: the one Command card leads the tableau from out in front (top right of yours,
     // bottom left of your rival's: a mirror across the board), lying landscape.
     const cmd = commandCard(p);
+    // (A campaign ship's rooms add to their slots' defence; its hero, wounded, sits a turn out.)
+    const cmdDef = BALANCE.commandSlotDefence + (p.rooms?.command ?? 0);
     const cmdHtml = cmd
       ? this.renderCard(cmd, { tableau: side, owner: p })
-      : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>hero</small></div>`;
+      : p.wounded
+        ? `<div class="slot-empty slot-cmd slot-wounded" title="${esc(cardDef(p.wounded.card.defId).name)} is wounded: back in the command room ${p.wounded.left > 0 ? 'after their next day' : 'at their next dawn'}."><span class="slot-def">✚</span><small>wounded</small></div>`
+        : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${cmdDef}"><span class="slot-def">⛨${cmdDef}</span><small>hero</small></div>`;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
       const g = ghostAt(i);
       if (g) return g;
       if (c) return this.renderCard(c, { tableau: side, owner: p, preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
       // A slot keeps the wear of the card that stood in it (mending 1 a day).
-      const full = BALANCE.slotDefence[i];
+      const full = BALANCE.slotDefence[i] + (p.rooms?.defence[i] ?? 0);
       const wear = p.slotWear?.[i] ?? 0;
       const def = Math.max(0, full - wear);
       const worn = wear ? ` slot-worn` : '';
