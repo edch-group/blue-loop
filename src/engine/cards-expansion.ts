@@ -803,8 +803,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Deep Freeze',
     kind: 'defence',
     spendAll: true,
-    text: '{spend}. {cool:1}. {cool:+2} and {shield:1} per energy spent.',
-    onPlay: [{ type: 'cool', amount: 1, plus: { of: 'spent', times: 2 } }, { type: 'shield', amount: 0, plus: { of: 'spent' } }],
+    text: '{spend}. {cool:1}. {cool:+1} and {shield:1} per energy spent.',
+    onPlay: [{ type: 'cool', amount: 1, plus: { of: 'spent' } }, { type: 'shield', amount: 0, plus: { of: 'spent' } }],
   },
   {
     id: 'overflow_archive',
@@ -820,8 +820,8 @@ export const EXPANSION: CardDef[] = [
     kind: 'attack',
     race: 0,
     spendAll: true,
-    text: '{spend}. {heat:2} and {shield:1} per energy spent.',
-    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'spent', times: 2 } }, { type: 'shield', amount: 0, plus: { of: 'spent' } }],
+    text: '{spend}. {heat:1} and {shield:1} per energy spent.',
+    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'spent' } }, { type: 'shield', amount: 0, plus: { of: 'spent' } }],
   },
   {
     id: 'meltdown',
@@ -829,8 +829,8 @@ export const EXPANSION: CardDef[] = [
     kind: 'attack',
     race: 1,
     spendAll: true,
-    text: '{spend}. {heat:2} per energy spent, {pierce}. {heat:2} to your sun.',
-    onPlay: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'spent', times: 2 }, pierce: true }, { type: 'selfHeat', amount: 2 }],
+    text: '{spend}. {heat:2}, {pierce}. {heat:+1} per energy spent. {heat:2} to your sun.',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'spent' }, pierce: true }, { type: 'selfHeat', amount: 2 }],
   },
   {
     id: 'abyssal_rampart',
@@ -838,8 +838,8 @@ export const EXPANSION: CardDef[] = [
     kind: 'defence',
     race: 2,
     spendAll: true,
-    text: '{spend}. {shield:3} per energy spent.',
-    onPlay: [{ type: 'shield', amount: 0, plus: { of: 'spent', times: 3 } }],
+    text: '{spend}. {shield:2} per energy spent.',
+    onPlay: [{ type: 'shield', amount: 0, plus: { of: 'spent', times: 2 } }],
   },
   {
     id: 'hive_surge',

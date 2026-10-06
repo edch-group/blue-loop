@@ -322,16 +322,17 @@ function aimedCard(state: GameState, p: PlayerState, aim: string | undefined): C
   return null;
 }
 
-/** Whether a player's shields guard their cards too (a Tidewall card in play). */
+/** Whether a player's shields guard their cards too, against heat aimed at them (a Tidewall card in play). */
 export function tidewall(p: PlayerState): boolean {
   return p.tableau.some((c) => cardPassives(c).some((x) => x.type === 'tidewall'));
 }
 
 /** A blow on a card (an attack, or a sting) wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
-function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string, sting = false) {
-  // Shields guard only the sun, unless a Tidewall card spreads them over its owner's cards too.
-  if (tidewall(owner)) {
-    const blocked = Math.min(pierce ? Math.floor(owner.shields * BALANCE.pierceShieldShare) : owner.shields, amount);
+function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string, sting = false, heat = false) {
+  // Shields guard only the sun, unless a Tidewall card spreads them over its owner's cards too: and then only
+  // against heat aimed at them. An attack, a sting or pierce heat breaches it.
+  if (tidewall(owner) && heat && !pierce) {
+    const blocked = Math.min(owner.shields, amount);
     owner.shields -= blocked;
     if (blocked > 0) {
       log(state, `${owner.name}'s Tidewall shields absorb ${blocked}.`);
@@ -934,7 +935,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const victim = aimed ? springGuard(state, main, p, card.defId) ?? aimed : null;
         if (state.winnerId || p.eliminated) break;
         if (victim) {
-          strikeCard(state, main, victim, amount, p, !!e.pierce, card.uid);
+          strikeCard(state, main, victim, amount, p, !!e.pierce, card.uid, false, true);
           break;
         }
         applyHeat(state, main, amount, p, false, card.uid, e.pierce);
