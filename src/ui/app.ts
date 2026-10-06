@@ -4646,7 +4646,7 @@ export class App {
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'aim') return hint(guarded ? 'aim at a guard' : 'aim heat');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
-    if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
+    if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : allyEffectKind(card.defId) === 'empower' ? 'choose a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
     if (p.step === 'slot') return hint(cardDef(card.defId).fusion && fusionHosts(activePlayer(s)).length ? 'place it, or fuse it onto a card' : 'place it');
     return '';

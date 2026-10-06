@@ -1402,3 +1402,19 @@ describe('relics', () => {
     expect(s.players.find((p) => p.id === rival.id)!.tableau.some((c) => c.uid === relic.uid)).toBe(false);
   });
 });
+
+describe('chosen', () => {
+  it('gives the chosen card +2 attack while it stays in play (Empress Solenne)', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.playsLeft = 9;
+    const [wall] = give(me, ['coolant_array'], 'tableau');
+    give(me, ['empress_solenne']);
+    const before = cardAttack(s, me, wall);
+    const emp = activePlayer(s).hand.find((c) => c.defId === 'empress_solenne')!;
+    s = applyAction(s, { type: 'playCard', cardUid: emp.uid, allyUid: wall.uid } as never);
+    const now = activePlayer(s);
+    const w = now.tableau.find((c) => c.uid === wall.uid)!;
+    expect(cardAttack(s, now, w)).toBe(before + 2);
+  });
+});

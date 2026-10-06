@@ -194,7 +194,9 @@ Heroes **lead the tableau**. Each player has **one Hero slot**, out in front of 
 | --- | --- | --- | --- |
 | Solarch Veyra | Aureline | Your Aureline attack cards heat +1 | Rally: 2 shields · Counsel: draw 1 |
 | Sol-Marshal Aurex | Aureline | Dawn: heat 1 | Strafe (1⚡): heat 3 · Overdrive: +1 energy |
-| Empress Solenne (bomb) | Aureline | As it enters: heat 4, pierce. Your attack cards heat +1 | Judgement (1⚡): heat 3, pierce · Benediction: renew 1 |
+| Empress Solenne (bomb) | Aureline | As it enters: heat 4, pierce. **Chosen**: +2 attack to one of your cards (while it stays in play) | Judgement (1⚡): heat 3, pierce · Benediction: renew 1 |
+
+*Empress Solenne's "your attack cards heat +1" made any deck of cheap attackers far too strong (a community Darkspeed deck: 83% against Abyssal Tide, 60% across the starters). Chosen +2 brings it to 60% and 50%.* [direction: replace it with Chosen +2 attack]
 | Hierarch Vael | Xel'Naru | Your Xel'Naru cards cool +1 | Vent: cool 2 · Insight: draw 1 |
 | Archon Seris | Xel'Naru | When another of your cards leaves play, heat 1 | Archive (1⚡): recover your last discarded card · Shatter (1⚡): heat 2, pierce |
 | The Shardmind (bomb) | Xel'Naru | As it enters: cool 4, recover. Your Xel'Naru cards heat +1 | Cold Reckoning (1⚡): cool 3 · Overload: draw 2, heat 2 to your sun |

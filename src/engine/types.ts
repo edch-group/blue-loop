@@ -100,6 +100,8 @@ export type Effect = (
   | { type: 'restore'; amount: number; all?: boolean; /** This card itself regains stability (a Hero mending). */ self?: boolean }
   /** Mend worn defence on your side: this many points, the most worn cards first, then empty slots. */
   | { type: 'repair'; amount: number }
+  /** Chosen: one of your other cards gains this much attack while it stays in play. */
+  | { type: 'empower'; amount: number }
   /** Plant this many Saplings (tokens) in your empty slots, the least defended first. */
   | { type: 'plant'; amount: number }
   /** Return another card of yours from your tableau to your hand (to play it again). */
@@ -261,6 +263,8 @@ export interface CardInstance {
   /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
   /** Dimmed: it has taken its action (attacked, or a Hero used an ability) and can't act again until its owner's next dawn. Cards come into play dimmed. */
   dimmed?: boolean;
+  /** Attack added by a Chosen effect, while it stays in play. */
+  attackBonus?: number;
   /** Came into play today (dimmed, not Darkspeed): its dusk effects rest until tomorrow. */
   fresh?: boolean;
   boons?: string[];

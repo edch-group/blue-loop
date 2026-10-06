@@ -373,7 +373,7 @@ export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' |
 
 /** Your other cards this card could return to your hand or restore (empty if it needs no such choice). */
 export function allyChoices(p: PlayerState, defId: string): CardInstance[] {
-  if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || (e.type === 'restore' && !e.all && !e.self))) return [];
+  if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || e.type === 'empower' || (e.type === 'restore' && !e.all && !e.self))) return [];
   // Command cards can't be brought back to your own hand (a rival can still send them back).
   return allyEffectKind(defId) === 'recall' ? p.tableau.filter(returnable) : [...p.tableau];
 }
@@ -396,9 +396,9 @@ export function hasRoomFor(p: PlayerState, defId: string): boolean {
 }
 
 /** Whether a card's ally choice returns the card to hand (rather than restoring its stability). */
-export function allyEffectKind(defId: string): 'recall' | 'restore' | null {
-  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || (x.type === 'restore' && !x.all && !x.self));
-  return e?.type === 'recall' || e?.type === 'restore' ? e.type : null;
+export function allyEffectKind(defId: string): 'recall' | 'restore' | 'empower' | null {
+  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || x.type === 'empower' || (x.type === 'restore' && !x.all && !x.self));
+  return e?.type === 'recall' || e?.type === 'restore' || e?.type === 'empower' ? e.type : null;
 }
 
 /** Cards in your discard pile this card could recover (empty if it has no recover). */
@@ -468,6 +468,8 @@ export function cardCost(defId: string): number {
 function place(p: PlayerState, card: CardInstance, slot: number) {
   card.slot = slot;
   card.stability = baseStability(card.defId);
+  // (A Chosen card's extra attack goes with it when it leaves: it comes back in as printed.)
+  delete card.attackBonus;
   // A campaign hero's card carries their boons (gear and skills) while it is in play.
   if (p.heroBoons && card.defId === p.heroBoons.hero) {
     card.boons = [...p.heroBoons.boons];
@@ -1076,6 +1078,13 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'repair':
         repair(state, p, e.amount);
         break;
+      case 'empower': {
+        const chosen = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid);
+        if (!chosen) break;
+        chosen.attackBonus = (chosen.attackBonus ?? 0) + e.amount;
+        log(state, `${p.name}'s ${cardDef(chosen.defId).name} is chosen: +${e.amount} attack.`);
+        break;
+      }
       case 'recall': {
         const back = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid && returnable(c));
         if (back) {
@@ -1645,6 +1654,8 @@ export function cardAttack(state: GameState, p: PlayerState, card: CardInstance)
   // Campaign battles: a hero's training lets them fight (even one who doesn't), and a room's guns add to a card that does.
   const hero = !!p.heroStats && card.defId === p.hero;
   if (hero) base += p.heroStats!.attack;
+  // (Chosen: even a card with no attack of its own can fight.)
+  base += card.attackBonus ?? 0;
   if (base <= 0) return 0;
   if (p.rooms && card.slot !== COMMAND_SLOT) base += p.rooms.attack[card.slot ?? -1] ?? 0;
   // Flare-born: more while its owner's sun is overheated.
