@@ -5173,3 +5173,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card.kind-command:not(.card-table) .card-stats-base .stat-atk { color: #ff8a6e; }
 .card.kind-command:not(.card-table) .card-stats-base .stat-stab { color: #f2c86c; }
 .card .card-stats b .atk-icon { width: 1.1em; height: 1.1em; }
+/* The values in from the card's sides as far as its text is; the kind word centred in the strip between the
+   card's top edge and its picture (the display face rides high, so it is nudged down a hair). */
+.card:not(.card-table) .card-stats-base .stat-atk { left: calc(var(--cw, 100px) * 0.08); transform: translateY(50%); }
+.card:not(.card-table) .card-stats-base .stat-stab { right: calc(var(--cw, 100px) * 0.08); transform: translateY(50%); }
+.card .card-type, .card-table .card-type { top: calc(var(--cw, 100px) * 0.03); transform: translate(-50%, -50%); height: auto; padding: 0.1em 1em 0; line-height: 1; }
+/* (The circuit's clearings, moved under the values where they sit now.) */
+.card {
+  --hole-l: radial-gradient(ellipse calc(var(--cut-l) * 0.5) calc(var(--cut-l) * 0.26) at calc(var(--cw, 100px) * 0.155) calc(100% - var(--cw, 100px) * 0.078), transparent 55%, #000 100%);
+  --hole-r: radial-gradient(ellipse calc(var(--cut-r) * 0.5) calc(var(--cut-r) * 0.26) at calc(100% - var(--cw, 100px) * 0.155) calc(100% - var(--cw, 100px) * 0.078), transparent 55%, #000 100%);
+}
