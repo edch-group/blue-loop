@@ -2462,17 +2462,13 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .vit-heat b { font-size: calc(var(--vs) * 0.2); font-weight: 800; }
 .vit-heat small { font-size: calc(var(--vs) * 0.09); font-weight: 700; opacity: 0.8; letter-spacing: 0.06em; }
 /* The shields pill and the planet tag beside it share one look: the same height, a soft border, a light shadow. */
-.vit-shields, .vit-planet-tag {
+.vit-planet-tag {
   box-sizing: border-box; height: max(16px, calc(var(--vs) * 0.16)); display: inline-flex; align-items: center;
   padding: 0 calc(var(--vs) * 0.05); border-radius: 999px; background: #fff;
   border: 2px solid rgba(150, 164, 190, 0.5); box-shadow: 0 2px 8px rgba(60, 80, 120, 0.18);
   font-family: var(--display); line-height: 1; white-space: nowrap;
 }
-.vit-shields { gap: 2px; color: #3d5a8c; font-weight: 800; font-size: max(9px, calc(var(--vs) * 0.085)); }
-.vit-shielded .vit-shields { border-color: rgba(109, 140, 194, 0.65); }
-.vit:not(.vit-shielded) .vit-shields { color: #9aa6ba; }
-.vit-shields i { font-style: normal; font-size: 0.9em; }
-.vit-dead .vit-tracks, .vit-dead .vit-shields, .vit-dead .vit-heat { opacity: 0.5; }
+.vit-dead .vit-tracks, .vit-dead .vit-heat { opacity: 0.5; }
 
 /* Each tableau row has its sun at its left end, on the board (the row moves right to make room). */
 .tableau-row-wrap {
@@ -4456,6 +4452,21 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .board-plane > .phase-track { left: calc(50% + var(--stellari-r)); transform: translateY(-50%) translateZ(2px); justify-items: start; }
 .board-plane > .turn-who { right: calc(50% + var(--stellari-r)); transform: translateY(-50%) translateZ(2px); justify-items: end; }
 .phase-step { justify-content: flex-start; }
+/* Each player's shields, big, in the board's middle: the rival's above the Stellari, yours below. */
+.board-plane > .board-shields {
+  --bs: 52px;
+  position: absolute; left: 50%; top: 50%; z-index: 1; width: var(--bs); height: calc(var(--bs) * 1.08);
+  display: grid; place-items: center; pointer-events: auto; opacity: 0.28; transition: opacity 0.35s, transform 0.35s;
+}
+.board-plane > .board-shields-rival { transform: translate(-50%, calc(-100% - var(--stellari-r, 74px))) translateZ(2px); }
+.board-plane > .board-shields-mine { transform: translate(-50%, var(--stellari-r, 74px)) translateZ(2px); }
+.board-shields svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.board-shields path { fill: #fff; stroke: #9aa6ba; stroke-width: 0.7; stroke-linejoin: round; }
+.board-shields b { position: relative; margin-top: -6%; font-family: var(--display); font-weight: 800; font-size: calc(var(--bs) * 0.4); line-height: 1; color: #9aa6ba; }
+.board-plane > .board-shields.up { opacity: 1; }
+.board-shields.up path { fill: #4f78c4; stroke: #fff; stroke-width: 0.8; filter: drop-shadow(0 0 0.9px rgba(79, 120, 196, 0.9)) drop-shadow(0 1.2px 2px rgba(30, 50, 100, 0.35)); }
+.board-shields.up b { color: #fff; }
+.table-view:is(.zoom-rival, .zoom-mine) .board-plane > .board-shields { opacity: 0; }
 .turn-who span { font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; color: #b9bfca; transition: color 0.4s; }
 .turn-who span.on { color: #2f3a52; }
 .table-view:is(.zoom-rival, .zoom-mine) .board-plane > :is(.phase-track, .turn-who) { opacity: 0; }
@@ -4471,6 +4482,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .round-ring { width: calc(20px * var(--bz, 1)); }
   .round-ring-num b { font-size: calc(8px * var(--bz, 1)); }
   .board-plane > .phase-track, .board-plane > .turn-who { --stellari-r: 48px; gap: 4px; }
+  .board-plane > .board-shields { --bs: 30px; --stellari-r: 42px; }
   .turn-who span, .phase-step span { font-size: 7px; letter-spacing: 0.18em; }
   .phase-step { gap: 5px; }
   .phase-step i { width: 6px; height: 6px; }

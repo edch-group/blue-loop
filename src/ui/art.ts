@@ -36,7 +36,7 @@ export function sunOrb(opts: { heat: number; threshold: number; size: number; de
 /**
  * A player's vitals, large on the board: their sun (its heat, out of max
  * health, in the middle, with a heat arc round it) and their shields as a
- * ring wrapped round the sun, with the shield count on the ring. The sun burns
+ * ring wrapped round the sun (the count is a badge in the board's middle: shieldBadge in app.ts). The sun burns
  * whiter-gold, then orange, then red as it nears supernova; it frosts blue below 0.
  */
 /** The three planets of an orbit: what each looks like and does. */
@@ -128,7 +128,7 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
       <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" data-pid="${opts.id ?? ''}" aria-hidden="true"></canvas>
       ${orbit !== undefined ? orbitPlanets(orbit) : ''}
       <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
-      <div class="vit-under">${orbit !== undefined ? planetTag(orbit, opts.eaten) : ''}<div class="vit-shields" title="Shields: they absorb enemy heat, and fade at your dawn"><i>⛨</i><b ${idAttr('shields')}>${shields}</b></div></div>
+      <div class="vit-under">${orbit !== undefined ? planetTag(orbit, opts.eaten) : ''}</div>
     </div>`;
 }
 

@@ -483,6 +483,23 @@ function sunRect(root: ParentNode, id: string): DOMRect | null {
   return new DOMRect(l.left + l.width / 2 - size / 2, l.top + l.height / 2 - size / 2, size, size);
 }
 
+/**
+ * A player's shields, big, in the board's middle: the rival's above the Stellari, yours below (they are easy to
+ * miss on the sun). Faint at none.
+ */
+function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
+  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" title="${side === 'mine' ? 'Your' : 'Their'} shields: they absorb enemy heat, and fade at dawn"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 0.8 L10.4 2.5 V6 C10.4 8.8 8.4 10.7 6 11.5 C3.6 10.7 1.6 8.8 1.6 6 V2.5 Z"/></svg><b>${n}</b></div>`;
+}
+
+/** Show these shields on a player's badge (kept in step with their sun while a turn plays out). */
+function setShieldBadge(root: ParentNode, pid: string, n: number) {
+  root.querySelectorAll<HTMLElement>(`[data-shields-badge="${CSS.escape(pid)}"]`).forEach((el) => {
+    el.classList.toggle('up', n > 0);
+    const b = el.querySelector('b');
+    if (b) b.textContent = String(n);
+  });
+}
+
 export class App {
   private screen: Screen = 'menu';
   /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
@@ -1976,9 +1993,11 @@ export class App {
         if (!vit) return;
         const now = el.innerHTML;
         vit.outerHTML = vitals({ heat: was.heat, threshold: supernovaThreshold(was), shields: was.shields, dead: was.eliminated, id: was.id, orbit: was.orbit });
+        setShieldBadge(root, p.id, was.shields);
         animateSuns();
         window.setTimeout(() => {
           el.innerHTML = now;
+          setShieldBadge(root, p.id, p.shields);
           animateSuns();
         }, at);
       });
@@ -2199,6 +2218,7 @@ export class App {
       root.querySelectorAll(`[data-anchor="player:${pid}"] .vit`).forEach((vit) => {
         vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit });
       });
+      setShieldBadge(root, pid, sun.shields);
       animateSuns();
     };
     // Every sun starts where it was as the turn began (shields already faded).
@@ -4495,6 +4515,7 @@ export class App {
             <div class="board-star-slot" data-morph-keep></div>
             ${this.renderRoundRing()}
             ${this.renderPhaseTrack()}
+            ${rival ? shieldBadge(rival.id, rival.shields, 'rival') : ''}${shieldBadge(me.id, me.shields, 'mine')}
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
