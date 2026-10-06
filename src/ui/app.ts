@@ -83,7 +83,7 @@ import { ORACLE_NAME } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine, setCampaignText } from './glyphs';
+import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -3501,8 +3501,6 @@ export class App {
     forceLandscape(!(this.screen === 'menu' && (this.menuPage === 'title' || this.menuPage === 'signin')));
     // The page is morphed into its new markup, not rebuilt: only what changed is touched, so the board,
     // its cards and canvases stay as they are between moves (rebuilding it all made every action slow).
-    // (A campaign battle's cards read "Stabilise" where others read "Draw".)
-    setCampaignText(this.screen !== 'menu' && this.screen !== 'campaign' && !!this.state?.campaign);
     morphInto(this.root, this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() + (this.zoomed ? this.renderZoom() : '') : this.renderGame());
     this.keptHand = new WeakSet([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].filter((el) => held.has(el)));
     const again = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)];
@@ -4675,7 +4673,7 @@ export class App {
       ? `<div class="salvage">
           <div class="salvage-title">salvage one card</div>
           <div class="salvage-cards">${salvage
-            .map((x) => `<button class="cmp-pick ${x.id === this.salvagePick ? 'cmp-pick-on' : ''}" data-act="salvage-pick" data-arg="${x.id}">${cardHtml(x.id)}<small>${x.toDeck ? 'into your deck' : 'deck full: to reserve'}</small></button>`)
+            .map((x) => `<button class="cmp-pick ${x.id === this.salvagePick ? 'cmp-pick-on' : ''}" data-act="salvage-pick" data-arg="${x.id}">${cardHtml(x.id)}</button>`)
             .join('')}</div>
         </div>`
       : '';
@@ -4695,7 +4693,7 @@ export class App {
       : '';
     const actions = this.campaignBattle
       ? salvage.length
-        ? `<div class="result-actions"><button class="btn-primary" data-act="campaign-return" ${pick ? '' : 'disabled'}>${pick ? `take ${esc(cardDef(pick.id).name.toLowerCase())} and return` : 'pick a card to salvage'}</button><button class="btn" data-act="campaign-return-none">leave it</button></div>`
+        ? `<div class="result-actions"><button class="btn-primary" data-act="campaign-return" ${pick ? '' : 'disabled'}>confirm</button><button class="btn" data-act="campaign-return-none">leave it</button></div>`
         : '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
       : this.online && this.net.ranked
         ? '<div class="result-actions"><button class="btn-primary" data-act="ranked-again">find another match</button><button class="btn" data-act="to-menu">return to menu</button></div>'

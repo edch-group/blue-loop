@@ -1875,7 +1875,7 @@ export class CampaignView {
       const cards = reward.options.map((id) => `<button class="cmp-pick" data-act="cmp-card" data-arg="${id}">${cardHtml(id)}</button>`).join('');
       return this.modal(
         `★ ${lower(reward.source)} · choose a new card`,
-        `<div class="cmp-cards">${cards}</div><p class="muted center-text">${reward.toDeck !== undefined ? 'Salvaged from the beaten side: it joins your flagship\'s deck if there is room, else your reserve.' : 'It joins your reserve. Put it in your deck from the deck screen.'}</p>
+        `<div class="cmp-cards">${cards}</div>
          <div class="center-row"><button class="btn" data-act="cmp-card" data-arg="">skip</button></div>`,
       );
     }
@@ -1943,7 +1943,7 @@ export class CampaignView {
             <li><b>The goal:</b> claim ${esc(HEART_NAME)}, the star at the centre of the universe, where the ${esc(STELLARIA)} grows. Its Wardens are the strongest defenders anywhere. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of all systems, or outlasting every rival, wins too; otherwise the most systems after ${CAMPAIGN.turnLimit} turns.</li>
             <li><b>Your flagship</b> flies one route a turn, led by your hero. Tap it, then a system next to it: into one you hold, it simply moves; into any other, it fights. Each turn it either <b>moves</b> or <b>refits</b> (its deck changed, or repaired), not both.</li>
             <li><b>Its deck</b> starts with your hero, a defence and an attack, and holds up to ${CAMPAIGN.armySize} cards. Find more at space stations and as mission rewards; they wait in your reserve until you put them in.</li>
-            <li><b>Battles</b> are fought ship to ship. Your cards stand in your ship's rooms, and your hero always holds the command room. Cards don't fade day by day: they stand until destroyed, and a destroyed card is out for the rest of the battle (no shuffling back). Your hero, beaten, is wounded for a turn, then returns. Drawing a card becomes <b>stabilising</b> an ally. You lose if your sun goes supernova; a station with nothing left to play is beaten.</li>
+            <li><b>Battles</b> are the card game, by its rules. Your hero leads from the start, and your ship's rooms add their walls, guns and modules to the cards standing in them.</li>
             <li>${ARMORY_ICON} <b>Space stations</b> sell ${CAMPAIGN.armoryStock} cards each, every one only once: mostly dwarf cards, often a rare one among them. ${RESEARCH_ICON} <b>Research stations</b> have one upgrade each, taken for Wisdom by the first to get there. Both are better within an anomaly's reach. Bring your flagship to one to use it.</li>
             <li><b>Your base:</b> your deck, your <b>hero</b> (train their attack and defence, learn skills, wear gear) and your <b>ship</b> (upgrade each room's walls and guns, the command room, shields and hull), and your missions.</li>
             <li>A system with no flagship in it fights as a <b>station</b>: a few cards (more the stronger it is), thick walls, its garrison and fortifications, and no hero. Neutral systems are stronger towards the centre.</li>
@@ -2266,7 +2266,7 @@ export class CampaignView {
     const finds = r.finds
       .map((f) => `<span class="find rarity-${f.rarity}" data-tip-title="${esc(lower(f.name))}" data-tip="${esc(f.text)}" data-tip-note="${f.kind === 'module' ? 'Ship module: fit it in the ship tab.' : 'Hero gear: equip it in the hero tab.'}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></span>`)
       .join('');
-    const card = r.salvaged ? `<div class="br-card">${cardHtml(r.salvaged.id)}<small>${r.salvaged.toDeck ? 'into your deck' : 'to your reserve'}</small></div>` : '';
+    const card = r.salvaged ? `<div class="br-card">${cardHtml(r.salvaged.id)}</div>` : '';
     return this.modal(
       '',
       `<div class="br ${r.won ? 'br-won' : 'br-lost'}">

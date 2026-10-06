@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activePlayer, applyAction, attackProblem, baseStability, cardAttack, cardCost, cardDefence, COMMAND_SLOT, createGame } from '../src/engine/game';
+import { activePlayer, applyAction, attackProblem, cardAttack, cardCost, cardDefence, COMMAND_SLOT, createGame } from '../src/engine/game';
 import type { GameState, PlayerSetup, ShipRooms } from '../src/engine/types';
 
 const HERO = 'command_directive'; // (no attack of its own)
@@ -51,27 +51,17 @@ describe('campaign battles', () => {
     expect(cardAttack(s, me, wall)).toBe(0);
   });
 
-  it('keeps cards’ stability day to day', () => {
+  it('plays by the card game’s rules: cards fade day by day', () => {
     let s = battle();
     s = playFirst(s, 'coolant_array');
     const wall = s.players[0].tableau.find((c) => c.defId === 'coolant_array')!;
-    const before = wall.stability;
+    const before = wall.stability!;
     s = endTurn(endTurn(s));
-    expect(s.players[0].tableau.find((c) => c.uid === wall.uid)?.stability).toBe(before);
+    const now = s.players[0].tableau.find((c) => c.uid === wall.uid);
+    expect(now ? now.stability : 0).toBeLessThan(before);
   });
 
-  it('never shuffles spent cards back: an empty deck simply gives no more', () => {
-    const s = battle();
-    const me = s.players[0];
-    me.discard.push(...me.hand.splice(0), ...me.deck.splice(0));
-    me.hand.push({ uid: 'h1', defId: 'coolant_array' });
-    const t = endTurn(endTurn(s));
-    expect(t.players[0].deck.length).toBe(0);
-    expect(t.players[0].hand.length).toBe(1);
-    expect(t.players[0].heat).toBe(s.players[0].heat);
-  });
-
-  it('takes destroyed cards out of the battle, and wounds the hero for a turn', () => {
+  it('sends destroyed cards, the hero too, to the discard pile, and shuffles it back when the deck runs out', () => {
     let s = battle({ them: { tableau: [HERO], hero: HERO, rooms: rooms({ attack: [9, 9, 9, 9, 9] }), heroStats: { attack: 20, defence: 2 } } });
     s = endTurn(s); // the station's day: its hero strikes ours
     const them = activePlayer(s);
@@ -79,46 +69,31 @@ describe('campaign battles', () => {
     s = applyAction(s, { type: 'attack', attackerUid: them.tableau[0].uid, targetUid: myHero.uid });
     const me = s.players[0];
     expect(me.tableau.some((c) => c.defId === HERO)).toBe(false);
-    expect(me.wounded?.card.defId).toBe(HERO);
-    expect(me.discard.some((c) => c.defId === HERO)).toBe(false);
-    s = endTurn(s); // our day: the hero sits it out
-    expect(s.players[0].wounded).toBeTruthy();
-    s = endTurn(endTurn(s)); // the next: back in the command room
-    expect(s.players[0].wounded).toBeUndefined();
-    expect(s.players[0].tableau.find((c) => c.slot === COMMAND_SLOT)?.defId).toBe(HERO);
+    expect(me.discard.some((c) => c.defId === HERO)).toBe(true);
+    expect(me.wounded).toBeUndefined();
+    // An empty deck: the discard pile goes back in.
+    me.deck = [];
+    s = endTurn(s);
+    expect(s.players[0].deck.length + s.players[0].hand.length).toBeGreaterThan(0);
   });
 
-  it('beats a side with nothing left, but not one whose hero is only wounded', () => {
-    let s = battle({ me: { heroStats: { attack: 30, defence: 2 } } });
-    const station = s.players[1];
-    station.hand = [];
-    station.deck = [];
-    station.tableau = [{ uid: 'last', defId: 'coolant_array', slot: 2, stability: 1 }];
-    const hero = s.players[0].tableau[0];
-    s = applyAction(s, { type: 'attack', attackerUid: hero.uid, targetUid: 'last' });
-    expect(s.players[1].fallen?.some((c) => c.uid === 'last')).toBe(true);
-    expect(s.winnerId).toBe(s.players[0].id);
+  it('draws cards with draw effects', () => {
+    let s = battle({ me: { deck: ['deep_scanners', 'coolant_array', 'focusing_array', 'coolant_array', 'cryo_vault', 'cryo_vault', 'heat_sink', 'heat_sink', 'photon_drill', 'photon_drill'] } });
+    s.players[0].hand = s.players[0].hand.filter((c) => c.defId === 'deep_scanners').concat(s.players[0].hand.some((c) => c.defId === 'deep_scanners') ? [] : [s.players[0].deck.splice(s.players[0].deck.findIndex((c) => c.defId === 'deep_scanners'), 1)[0]]);
+    const deckBefore = s.players[0].deck.length;
+    s = playFirst(s, 'deep_scanners');
+    expect(s.players[0].deck.length).toBeLessThan(deckBefore);
+  });
 
-    let t = battle();
-    const me = t.players[0];
+  it('a small deck with nothing left to draw or shuffle back gives no more, without burning its sun', () => {
+    const s = battle();
+    const me = s.players[0];
     me.hand = [];
     me.deck = [];
-    const heroCard = me.tableau.splice(0)[0];
-    me.wounded = { card: heroCard, left: 1 };
-    t = endTurn(t);
+    me.discard = [];
+    const t = endTurn(endTurn(s));
+    expect(t.players[0].heat).toBe(s.players[0].heat);
     expect(t.winnerId).toBeNull();
-  });
-
-  it('turns draw effects into stabilising the most worn ally', () => {
-    let s = battle({ me: { deck: ['deep_scanners', 'coolant_array'] } });
-    const me = s.players[0];
-    const worn = { uid: 'worn', defId: 'coolant_array', slot: 0, stability: 1 };
-    me.tableau.push(worn);
-    const handBefore = me.hand.length;
-    s = playFirst(s, 'deep_scanners');
-    const after = s.players[0];
-    expect(after.tableau.find((c) => c.uid === 'worn')?.stability).toBe(Math.min(baseStability('coolant_array'), 3));
-    expect(after.hand.length).toBe(handBefore - 1);
   });
 });
 

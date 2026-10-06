@@ -761,13 +761,10 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 
 **The ship** (the base's ship tab): the flagship drawn large, its five rooms (where its cards stand in battle, left to right as on the board) and its command room (the hero's) beneath. Pick a room to upgrade its **walls** (+1 defence for the card in it, up to 3) or its **guns** (+1 attack for a card in it that attacks, up to 2); the command room's **bulkheads** (+1 defence for the hero, up to 3 more; it starts at +1, so 3 in all with the slot's own 2); and the ship's **shields** (up as each battle begins, up to 3) and **hull** (+1 max health a level, up to 4). Each costs credits: 4, then 4 more for each level built. The AI upgrades its command room and middle room first.
 
-**Battles** are fought under the campaign's own rules (`GameSetup.campaign`, game.ts):
+**Battles** are the card game, on its own board and by its own rules (cards fade, a destroyed card goes to the discard pile, an empty deck shuffles it back in, Draw draws). Only a few things are the campaign's (`GameSetup.campaign`, game.ts):
 - **Ship to ship.** Each card stands in a room of its ship (the tableau's five slots): the room's walls and guns add to its defence and attack. The **hero always starts in the command room** (the Hero slot), with the room's and their training's defence.
-- **Cards don't fade.** Stability doesn't drop day by day: a card stands until destroyed.
-- **Destroyed is gone.** A destroyed card is out for the rest of the battle (no discard pile shuffled back, no strain when the deck runs out: an empty deck simply gives no more).
-- **The hero is wounded, not lost.** Beaten or sent from the field, the hero sits out their side's next day, then is back in the command room (whoever stood in it steps aside to the hand).
-- **Draw becomes stabilise.** Every "Draw N" stabilises an ally instead: the most worn of them gets N stability back, as far as its full stability. The cards say "Stabilise N" in a campaign battle.
-- **Losing:** your sun goes supernova, or you have no cards left to play anywhere (hand, deck, tableau, face down) and no hero, not even a wounded one. So a flagship, with its hero, can only be beaten by its sun; a **station** (below) is beaten when its cards run out too.
+- **Small decks.** A campaign deck is ten cards at most: with nothing left to draw or shuffle back, it gives no more, without the strain (its sun would burn out before the battle began).
+- **Losing:** your sun goes supernova.
 - **Who defends:** the flagship standing in the system, if there is one. Otherwise the system fights as a **station**: a few cards (4, 6 or 8 by tier; the Heart Wardens 10 of their heaviest), walls as thick as its tier (+0 to +2 defence in every room), its garrison and its fortifications, and **no hero**. A held system's station has its owner's race's cards among them. The Lost Races fight with their leader and a few cards.
 - After a win, choose Settle, Absorb or Supernova, as before. Only Settle moves the flagship in.
 - **The attack dialog:** your flagship against the defender (portraits and names), then a few plain lines on whatever tips the fight, and three buttons: fight, auto, back. Defending shows the same, from your side.
