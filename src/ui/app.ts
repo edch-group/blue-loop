@@ -788,8 +788,9 @@ export class App {
       if (!mouse.matches || this.touch || this.screen !== 'game' || this.drag) return;
       const over = !!(e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone');
       // (The card under the pointer lifts as the hand rises, both at once.)
-      // (Only raised here: it is lowered once the pointer leaves the hand's whole column, below.)
-      if (over) this.raiseHand(true);
+      // (Only raised here: it is lowered once the pointer leaves the hand's whole column, below. It rises only
+      // within that column, or it would drop at once and rise again, over and over.)
+      if (over && this.inHandColumn(e.clientX, e.clientY)) this.raiseHand(true);
     });
     // Raised, the hand stays up while the pointer is anywhere from its cards' tops down to the screen's foot
     // (over the strip it rose out of too: lowering there brought it back under the pointer, and it jittered).
@@ -800,14 +801,10 @@ export class App {
         // (A hover that came while the hand couldn't rise, still being dealt or with a card in the preview pane,
         // raises it once it can: the pointer needn't leave and come back.)
         if (!this.handRaised) {
-          if ((e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone')) this.raiseHand(true);
+          if ((e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone') && this.inHandColumn(e.clientX, e.clientY)) this.raiseHand(true);
           return;
         }
-        const cards = [...this.root.querySelectorAll<HTMLElement>('.table-view > .dock .hand > .card')].map((c) => c.getBoundingClientRect());
-        if (!cards.length) return this.raiseHand(false);
-        const left = Math.min(...cards.map((r) => r.left)), right = Math.max(...cards.map((r) => r.right));
-        const top = Math.min(...cards.map((r) => r.top));
-        if (e.clientX < left || e.clientX > right || e.clientY < top) this.raiseHand(false);
+        if (!this.inHandColumn(e.clientX, e.clientY)) this.raiseHand(false);
       },
       { passive: true },
     );
@@ -1604,7 +1601,7 @@ export class App {
     window.setTimeout(() => {
       const at = this.mouseAt;
       if (!at || this.touch || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-      if (document.elementFromPoint(at.x, at.y)?.closest('.table-view > .dock .hand-zone')) this.raiseHand(true);
+      if (document.elementFromPoint(at.x, at.y)?.closest('.table-view > .dock .hand-zone') && this.inHandColumn(at.x, at.y)) this.raiseHand(true);
     }, this.dealtAt - performance.now() + 20);
     cards.forEach((el, i) => {
       this.dealCard(el, 350 + i * DEAL_STEP_MS);
@@ -2776,6 +2773,15 @@ export class App {
   private handStill(): boolean {
     return !!(this.pending || this.stage || this.heroPanel);
   }
+  /** Whether a point is in the hand's column: between its outermost cards, from their tops down (never, with no cards). */
+  private inHandColumn(x: number, y: number): boolean {
+    const cards = [...this.root.querySelectorAll<HTMLElement>('.table-view > .dock .hand > .card')].map((c) => c.getBoundingClientRect());
+    if (!cards.length) return false;
+    const left = Math.min(...cards.map((r) => r.left)), right = Math.max(...cards.map((r) => r.right));
+    const top = Math.min(...cards.map((r) => r.top));
+    return x >= left && x <= right && y >= top;
+  }
+
   private raiseHand(up: boolean) {
     if (up && (performance.now() < this.dealtAt || this.handStill())) return;
     if (this.handRaised === up) return;
