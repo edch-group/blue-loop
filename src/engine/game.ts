@@ -1049,10 +1049,11 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'restore': {
         const mine = e.self ? p.tableau.filter((c) => c.uid === card.uid) : e.all ? p.tableau.filter((c) => c.uid !== card.uid) : p.tableau.filter((c) => c.uid === ctx.allyUid);
         for (const c of mine) {
-          // (Up to the usual cap, or a card's own full stability where that is higher: a Hero's.)
+          // (Up to the usual cap; a Hero, up to its own full stability.)
           // (A Relic stays brittle: nothing steadies it.)
           if (cardDef(c.defId).kind === 'relic') continue;
-          c.stability = Math.min(Math.max(BALANCE.maxStability, baseStability(c.defId)), (c.stability ?? 0) + e.amount);
+          const cap = c.slot === COMMAND_SLOT ? baseStability(c.defId) : Math.max(BALANCE.maxStability, baseStability(c.defId));
+          c.stability = Math.min(cap, (c.stability ?? 0) + e.amount);
           log(state, `${p.name}'s ${cardDef(c.defId).name} steadies (stability ${c.stability}).`);
         }
         break;

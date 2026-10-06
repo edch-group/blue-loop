@@ -232,11 +232,11 @@ describe('commands', () => {
     s = play(s, 'ignition_protocol');
     const cmd = s.players[0].tableau[0];
     expect(cmd.slot).toBe(COMMAND_SLOT);
-    expect(cmd.stability).toBe(8);
+    expect(cmd.stability).toBe(5);
     // Many days later, it still leads (its dawn heat firing each day).
     for (let i = 0; i < 10; i++) s = endTurn(s);
     expect(s.players[0].tableau.some((c) => c.defId === 'ignition_protocol')).toBe(true);
-    expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.stability).toBe(8);
+    expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.stability).toBe(5);
     // Strafe: heat 3, for 2 energy; then no second ability that day.
     const before = s.players[1].heat;
     activePlayer(s).playsLeft = 3;
@@ -259,12 +259,12 @@ describe('commands', () => {
     expect(heroAbilityProblem(s, activePlayer(s), 1)).toMatch(/dimmed/);
     s = endTurn(endTurn(s));
     const hero = () => activePlayer(s).tableau.find((c) => c.defId === 'chamber_protocol')!;
-    hero().stability = 5;
+    hero().stability = 2;
     s = applyAction(s, { type: 'heroAbility', index: 1 }); // Nurture: renew 1, and she regains 2
-    expect(hero().stability).toBe(7);
+    expect(hero().stability).toBe(4);
     s = endTurn(endTurn(s));
     s = applyAction(s, { type: 'heroAbility', index: 1 });
-    expect(hero().stability).toBe(8);
+    expect(hero().stability).toBe(5);
   });
 
   it("give their own race's cards a lasting buff, and only theirs", () => {

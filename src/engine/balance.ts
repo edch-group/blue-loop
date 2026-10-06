@@ -55,7 +55,7 @@ export const BALANCE = {
   /** The share of a player's shields that still stands against pierce heat (0: pierce ignores shields). */
   pierceShieldShare: 0.5,
   /** The Command slot's defence (it leads the tableau, out in front of the five). */
-  commandSlotDefence: 2,
+  commandSlotDefence: 3,
   /** Fusion cards one card in play can carry. */
   maxFused: 2,
   /** Worn defence each card (and empty slot) mends at its owner's dawn (Sturdy adds defence, not mending). */
