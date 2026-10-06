@@ -57,6 +57,7 @@ import {
   planetsEaten,
   currentPlanet,
   type Action,
+  type Effect,
   type BoosterCard,
   type BoosterKind,
   type CardInstance,
@@ -2977,7 +2978,8 @@ export class App {
 
   /** Large, readable copy of a card at the middle right of the screen while held (or, `beside` a panel, to its left). */
   private showPeek(el: HTMLElement, beside: Element | null = null) {
-    this.preview.innerHTML = this.bigCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined) + this.explainCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
+    const uid = el.closest('.tableau, .hand') ? el.dataset.uid : undefined;
+    this.preview.innerHTML = this.bigCard(el.dataset.card!, uid) + this.explainCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
     const page = appSize();
     const h = Math.min(420, page.h - 24) * 0.7;
     const w = h * 0.714;
@@ -5006,21 +5008,25 @@ export class App {
    */
   private liveNumbers(c: CardInstance, opts: { hand?: boolean; owner?: PlayerState }): Record<number, number> {
     const s = this.state;
-    const owner = opts.owner ?? (opts.hand ? this.viewer() : undefined);
+    // (Wherever it is shown, a card of a player's: in play, or in their hand, as it would be played.)
+    const owner = opts.owner ?? (opts.hand ? this.viewer() : s?.players.find((p) => p.tableau.some((x) => x.uid === c.uid) || p.hand.some((x) => x.uid === c.uid)));
     if (!s || !owner) return {};
     const def = cardDef(c.defId);
     const inPlay = c.slot !== undefined && owner.tableau.some((x) => x.uid === c.uid);
-    if (!inPlay && !opts.hand) return {};
-    const when = inPlay ? 'turn' : 'play';
-    const effects = (inPlay ? dawnEffects(c) : def.onPlay ?? []).flatMap((e) =>
-      e.type === 'heat' || e.type === 'cool' || e.type === 'shield'
-        ? // Thermosiphon: the number on the card is per point below zero; shown as the total it now comes to.
-          e.plus?.of === 'cold'
-          ? [{ type: e.type, amount: e.amount || (e.plus.times ?? 1), now: effectAmount(s, owner, c, e, when) }]
-          : [{ type: e.type, amount: e.amount, now: e.amount + effectAmount(s, owner, c, { ...e, amount: 1, plus: undefined, max: undefined }, when) - 1 }]
-        : [],
-    );
-    return liveValues(def.text, effects, inPlay);
+    const inHand = opts.hand || owner.hand.some((x) => x.uid === c.uid);
+    if (!inPlay && !inHand) return {};
+    const numbers = (list: Effect[], when: 'turn' | 'play') =>
+      list.flatMap((e) =>
+        e.type === 'heat' || e.type === 'cool' || e.type === 'shield'
+          ? // Thermosiphon: the number on the card is per point below zero; shown as the total it now comes to.
+            e.plus?.of === 'cold'
+            ? [{ type: e.type, amount: e.amount || (e.plus.times ?? 1), now: effectAmount(s, owner, c, e, when) }]
+            : [{ type: e.type, amount: e.amount, now: e.amount + effectAmount(s, owner, c, { ...e, amount: 1, plus: undefined, max: undefined }, when) - 1 }]
+          : [],
+      );
+    if (inPlay) return liveValues(def.text, numbers(dawnEffects(c), 'turn'), true);
+    // In hand: what it does as it is played, and what its dawns would do once in play (its bonuses already count).
+    return { ...liveValues(def.text, numbers(def.onPlay ?? [], 'play'), false), ...liveValues(def.text, numbers(dawnEffects(c), 'turn'), true) };
   }
 
   /** The explanations beside a magnified card: its keywords, and its stability and defence (live, for a card in play). */
@@ -5061,6 +5067,8 @@ export class App {
     const def = cardDef(defId);
     const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
     const c = owner?.tableau.find((x) => x.uid === uid);
+    // A card in the viewer's hand: its numbers as it would be played.
+    const held = !c && uid ? this.viewer()?.hand.find((x) => x.uid === uid) : undefined;
     const stats =
       owner && c
         ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b>${(def.attack ?? 0) > 0 ? attackBadge(cardAttack(this.state!, owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">${STAB_ICON}${c.stability ?? 0}</b></span>`
@@ -5071,7 +5079,7 @@ export class App {
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : {})}${this.fusedTextHtml(c)}</div>
+        <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : held ? this.liveNumbers(held, { hand: true }) : {})}${this.fusedTextHtml(c)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </div>`;
   }
