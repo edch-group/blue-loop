@@ -5123,16 +5123,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 .card .card-type::before, .card .card-type::after { display: none; }
 
-/* ---------- The energy cost gems (scripts/render_energy.py) ---------- */
-/* Small polished stones in silver bezels, in the rarity gems' manner: green energy, amber past the day's most energy,
-   grey when the card can't be paid for now. Set into the picture with a soft shadow, and a faint glow of their light. */
-.cost-dots i {
-  width: max(6px, calc(var(--cw, 100px) * 0.072)); height: max(6px, calc(var(--cw, 100px) * 0.072));
-  border: 0; background: var(--gem-energyGreen) 0 0 / 100% 100% no-repeat;
-  box-shadow: 0 0 calc(var(--cw, 100px) * 0.03) rgba(90, 220, 140, 0.45), 0 1px 2px rgba(10, 14, 20, 0.55);
-}
-.cost-dots i.over { background-image: var(--gem-energyAmber); box-shadow: 0 0 calc(var(--cw, 100px) * 0.03) rgba(250, 180, 60, 0.5), 0 1px 2px rgba(10, 14, 20, 0.55); }
-.hand .card.card-pricey .cost-dots i { background-image: var(--gem-energyGrey); box-shadow: 0 1px 2px rgba(10, 14, 20, 0.5); }
 /* The corner sections and the kind tab in a deeper shade of the card's own colour (its face, by rarity), not the
    Heroes' dark stock: the values in their colours, bold, stand out on it; the card's own traces run on through. */
 .card { --sect: color-mix(in srgb, var(--face) 84%, #56627c); }
@@ -5171,3 +5161,15 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
     radial-gradient(ellipse calc(var(--cut-l) * 0.42) calc(var(--cut-l) * 0.24) at calc(var(--cut-l) * 0.4) calc(100% - var(--cut-l) * 0.36), var(--sect) 55%, transparent 100%),
     radial-gradient(ellipse calc(var(--cut-r) * 0.42) calc(var(--cut-r) * 0.24) at calc(100% - var(--cut-r) * 0.4) calc(100% - var(--cut-r) * 0.36), var(--sect) 55%, transparent 100%);
 }
+
+/* No backgrounds behind the corner values or the kind: the values and the word sit on the card itself (the card's
+   circuit still stops short of each value). Icons and numbers centred on one line. */
+.card > .card-corners { background: none; }
+.card > .card-corners::before, .card > .card-corners::after { display: none; }
+.card .card-type { background: none; box-shadow: none; top: calc(var(--cw, 100px) * 0.012); padding-top: 0.3em; }
+.card.kind-command .card-type { color: #e3e7ef; }
+.card .card-stats b .atk-icon, .card .card-stats b .stab-icon, .card .stat-def-floor svg { width: 0.95em; height: 0.95em; flex: none; margin: 0; display: block; }
+.card .card-stats b { display: inline-flex; align-items: center; gap: 0.15em; line-height: 1; }
+.card.kind-command:not(.card-table) .card-stats-base .stat-atk { color: #ff8a6e; }
+.card.kind-command:not(.card-table) .card-stats-base .stat-stab { color: #f2c86c; }
+.card .card-stats b .atk-icon { width: 1.1em; height: 1.1em; }

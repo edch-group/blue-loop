@@ -7,9 +7,6 @@ import dwarf from './gems/dwarf.png';
 import glass from './gems/glass.png';
 import holeBack from './gems/hole-back.png';
 import hole from './gems/hole.png';
-import energyGreen from './gems/energy-green.png';
-import energyAmber from './gems/energy-amber.png';
-import energyGrey from './gems/energy-grey.png';
 import lightDwarfSpikes from './gems/light-dwarf-spikes.png';
 import lightDwarfShimmer1 from './gems/light-dwarf-shimmer1.png';
 import lightDwarfShimmer2 from './gems/light-dwarf-shimmer2.png';
@@ -389,7 +386,6 @@ export function rarityGem(def: CardDef): string {
 // The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
 const GEM_IMAGES: Record<string, string> = {
   socketDwarf, socketStellar, socketAnomaly, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk,
-  energyGreen, energyAmber, energyGrey,
   lightDwarfSpikes, lightDwarfShimmer1, lightDwarfShimmer2, lightDwarfSparks, lightSunCorona1, lightSunCorona2, lightSunFlares1, lightSunFlares2, lightHoleSwirl1, lightHoleSwirl2, lightHoleLens,
 };
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
@@ -532,10 +528,13 @@ export function stabilityBadge(def: CardDef): string {
   if (!persists(def.id) || isBurst(def)) return '';
   const title = def.kind === 'command' ? 'Stability: a Hero never fades by itself; heat past its defence wears this down, and at 0 it falls' : 'Stability: it stays in play for this many of your days, then fades into your discard pile';
   const atk = baseAttack(def);
-  return `<span class="card-stats card-stats-base${atk > 0 ? ' card-stats-split' : ''}">${atk > 0 ? attackBadge(atk) : ''}<b class="stat-stab" title="${title}">◷${baseStability(def.id)}</b></span>`;
+  return `<span class="card-stats card-stats-base${atk > 0 ? ' card-stats-split' : ''}">${atk > 0 ? attackBadge(atk) : ''}<b class="stat-stab" title="${title}">${STAB_ICON}${baseStability(def.id)}</b></span>`;
 }
 
-const SWORD = '<svg class="atk-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 1.5 6.2 8.8M14.5 1.5v2.8L7.4 11.4 4.6 8.6 11.7 1.5zM3.6 9.6l2.8 2.8M2 14l3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+// A sword, point straight up: blade, crossguard, grip and pommel.
+const SWORD = '<svg class="atk-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0.6 10 3.2v6.3H6V3.2Z" fill="currentColor"/><rect x="3.4" y="9.5" width="9.2" height="1.9" rx="0.95" fill="currentColor"/><rect x="7" y="11" width="2" height="3" fill="currentColor"/><circle cx="8" cy="14.5" r="1.4" fill="currentColor"/></svg>';
+/** Stability's clock, drawn (not the ◷ character, which sits off-centre beside the number). */
+export const STAB_ICON = '<svg class="stab-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 4.4V8h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** A card's attack (bottom left, beside its stability): what it deals when it attacks, and what it hits back with. */
 export function attackBadge(n: number, dimmed = false): string {
