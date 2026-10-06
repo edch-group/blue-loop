@@ -7,6 +7,9 @@ import dwarf from './gems/dwarf.png';
 import glass from './gems/glass.png';
 import holeBack from './gems/hole-back.png';
 import hole from './gems/hole.png';
+import energyGreen from './gems/energy-green.png';
+import energyAmber from './gems/energy-amber.png';
+import energyGrey from './gems/energy-grey.png';
 import lightDwarfSpikes from './gems/light-dwarf-spikes.png';
 import lightDwarfShimmer1 from './gems/light-dwarf-shimmer1.png';
 import lightDwarfShimmer2 from './gems/light-dwarf-shimmer2.png';
@@ -331,7 +334,8 @@ export function playerAvatar(cardId: string | undefined, cls = ''): string {
  */
 export function cardStock(def: CardDef): string {
   const url = def.fusedFrom ? undefined : renderedArt(def.id);
-  return url ? `<span class="card-stock" style="--art:url('${url}')" aria-hidden="true"></span>` : '';
+  // (Every card also has its dark corner sections, where its attack and stability sit: styles.css, "corners".)
+  return `<span class="card-corners" aria-hidden="true"></span>` + (url ? `<span class="card-stock" style="--art:url('${url}')" aria-hidden="true"></span>` : '');
 }
 
 /**
@@ -385,12 +389,10 @@ export function rarityGem(def: CardDef): string {
 // The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
 const GEM_IMAGES: Record<string, string> = {
   socketDwarf, socketStellar, socketAnomaly, glass, dwarf, dwarfGlow, sunDisc, sunCorona, holeBack, hole, disk,
+  energyGreen, energyAmber, energyGrey,
   lightDwarfSpikes, lightDwarfShimmer1, lightDwarfShimmer2, lightDwarfSparks, lightSunCorona1, lightSunCorona2, lightSunFlares1, lightSunFlares2, lightHoleSwirl1, lightHoleSwirl2, lightHoleLens,
 };
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
-// The markers' stones and rims (scripts/render_markers.py), handed to CSS as --mk-<shape>-<stone or rim-metal>.
-for (const [path, url] of Object.entries(import.meta.glob<string>('./gems/marker-*.webp', { eager: true, query: '?url', import: 'default' })))
-  document.documentElement.style.setProperty(`--mk-${path.slice(path.lastIndexOf('/') + 'marker-'.length + 1, -'.webp'.length)}`, `url("${url}")`);
 
 /**
  * The Anomaly's black hole, seen from above: its accretion disk as streaks of light circling the hole,

@@ -4889,10 +4889,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   background: var(--art) center / cover no-repeat;
   filter: blur(6px) saturate(1.7);
   opacity: 0.9;
-  -webkit-mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
-  -webkit-mask-composite: source-in, source-in, source-over;
-  mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
-  mask-composite: intersect, intersect, add;
+  /* (Not in the dark corner sections, which carry the circuit in light lines of their own.) */
+  -webkit-mask: radial-gradient(circle at 0 100%, transparent var(--cut-l), #000 calc(var(--cut-l) + 0.5px)), radial-gradient(circle at 100% 100%, transparent var(--cut-r), #000 calc(var(--cut-r) + 0.5px)), linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  -webkit-mask-composite: source-in, source-in, source-in, source-in, source-over;
+  mask: radial-gradient(circle at 0 100%, transparent var(--cut-l), #000 calc(var(--cut-l) + 0.5px)), radial-gradient(circle at 100% 100%, transparent var(--cut-r), #000 calc(var(--cut-r) + 0.5px)), linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  mask-composite: intersect, intersect, intersect, intersect, add;
 }
 .card.kind-command .card-stock {
   inset: auto 0 0; height: 58%;
@@ -5063,92 +5064,73 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* (Its light, centred with it, still fades out just below the picture's edge.) */
 .card .gem .gem-light { -webkit-mask: linear-gradient(180deg, #000 50%, transparent 61%); mask: linear-gradient(180deg, #000 50%, transparent 61%); }
 
-/* ---------- The card's markers, in the gems' finish ---------- */
-/* The type pill and the attack, defence and stability badges are domed enamel, lit from above, set in a rim of
-   the card's rarity metal (silver, gold or violet silver, as its gem's bezel) with a setting shadow, so they sit
-   into the card as the gem does. Each keeps its colour (--en); a dimmed or worn state just changes the enamel. */
-.card { --m-hi: #ffffff; --m-mid: #c9d0dd; --m-lo: #7d8699; }
-.card.rarity-stellar { --m-hi: #fff4cf; --m-mid: #e1b453; --m-lo: #99671b; }
-.card.rarity-anomaly { --m-hi: #f6efff; --m-mid: #b9a6e0; --m-lo: #6c5a98; }
-.card .card-stats b, .card .stat-def-floor, .card .card-type {
-  --rim: max(1px, calc(var(--cw, 100px) * 0.011));
-  border: var(--rim) solid transparent; box-sizing: border-box;
-  background:
-    radial-gradient(130% 85% at 50% 0%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 58%) padding-box,
-    linear-gradient(180deg, color-mix(in srgb, var(--en) 78%, #fff), var(--en) 50%, color-mix(in srgb, var(--en) 72%, #000)) padding-box,
-    linear-gradient(180deg, var(--m-hi), var(--m-mid) 45%, var(--m-lo)) border-box;
-  color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
-}
-.card .card-stats b:not(.stat-atk-on), .card .stat-def-floor, .card .card-type {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.2),
-    0 0 0 0.6px rgba(14, 16, 26, 0.45), 0 1px 3px rgba(14, 16, 26, 0.45);
-}
-.card .stat-atk { --en: #d0553a; }
-.card .stat-stab { --en: #cf9a35; }
-.card .stat-def, .card .stat-def-floor { --en: #63718f; }
-.card .card-type { --en: var(--kc); }
-.card .stat-atk.stat-atk-dim { --en: #8a919d; }
-.card .stat-stab.stat-low, .card .stat-def.stat-dented { --en: #d4694a; }
 /* A card with no race line: room under its picture for the half of the gem that stands below it, so the gem
    never sits on the card's name. */
 .card:not(:has(> .card-racerow)) > .card-glyph { margin-bottom: calc(var(--gem-s) * 0.8); }
-/* The markers' size: their numbers about the size of the rules' heat chevrons, the badge just round them, and
-   the number and icon centred in it (the display face rides high, so it is nudged down a touch). */
-.card .card-stats b, .card .card-stats-base b, .card .stat-def-floor {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.12em;
-  height: max(12px, calc(var(--cw, 100px) * 0.085)); min-width: max(18px, calc(var(--cw, 100px) * 0.15));
-  padding: 0.06em 0.45em 0; line-height: 1;
-  font-size: max(7px, calc(var(--cw, 100px) * 0.052));
-}
-.card .card-stats b .atk-icon, .card .card-stats b svg { width: 0.9em; height: 0.9em; flex: none; margin-top: -0.06em; }
-.card-big .card-stats b, .card-big .card-stats-base b { height: calc(var(--cw) * 0.085); min-width: calc(var(--cw) * 0.15); font-size: calc(var(--cw) * 0.052); }
-/* The markers' faces are cut stones, as the gems are, not flat enamel: deep at the edges, lit from within (light
-   through the glass gathers low in the stone), a glassy highlight across the top. Attack is a ruby, stability a
-   topaz, defence a sapphire, the type pill a stone of its kind's colour; a dimmed or worn state changes the stone. */
-.card .card-stats b, .card .stat-def-floor, .card .card-type {
-  --glow: color-mix(in srgb, var(--en) 45%, #fff);
-  --deep: color-mix(in srgb, var(--en) 45%, #000);
-  background:
-    radial-gradient(90% 55% at 50% 4%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.18) 55%, rgba(255, 255, 255, 0) 72%) padding-box,
-    radial-gradient(75% 120% at 50% 108%, var(--glow), color-mix(in srgb, var(--en) 85%, #fff) 30%, var(--en) 55%, var(--deep) 100%) padding-box,
-    linear-gradient(180deg, var(--m-hi), var(--m-mid) 45%, var(--m-lo)) border-box;
-  text-shadow: 0 1px 1.5px var(--deep), 0 0 3px var(--deep);
-}
-.card .card-stats b:not(.stat-atk-on), .card .stat-def-floor, .card .card-type {
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.25), inset 0 -1.5px 3px rgba(0, 0, 0, 0.35),
-    0 0 0 0.6px rgba(14, 16, 26, 0.45), 0 1px 3px rgba(14, 16, 26, 0.45);
-}
-.card .stat-atk { --en: #b8182c; }
-.card .stat-stab { --en: #c27a10; }
-.card .stat-def, .card .stat-def-floor { --en: #2d58a8; }
-.card .stat-atk.stat-atk-dim { --en: #6c7383; }
-.card .stat-stab.stat-low, .card .stat-def.stat-dented { --en: #c8321e; }
 
-/* ---------- The markers' stones (scripts/render_markers.py) ---------- */
-/* Each marker is a rendered cabochon in a rendered rim: the stone by what it marks (a ruby for attack, a topaz for
-   stability, a sapphire for defence; the type pill's by the card's kind), the rim in the card's rarity metal. Both
-   are drawn on the same capsule and stretched to the marker. */
-.card { --mk-rim-badge: var(--mk-badge-rim-silver); --mk-rim-pill: var(--mk-pill-rim-silver); }
-.card.rarity-stellar { --mk-rim-badge: var(--mk-badge-rim-gold); --mk-rim-pill: var(--mk-pill-rim-gold); }
-.card.rarity-anomaly { --mk-rim-badge: var(--mk-badge-rim-violet); --mk-rim-pill: var(--mk-pill-rim-violet); }
-.card .card-stats b, .card .stat-def-floor, .card .card-type {
-  border: 0; background: var(--mk-rim) 0 0 / 100% 100% no-repeat, var(--mk-stone) 0 0 / 100% 100% no-repeat;
-  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.75), 0 0 3px rgba(0, 0, 0, 0.5);
+/* ---------- The card's corners and kind tab ---------- */
+/* Attack and stability sit in quarter-circle sections cut out of the card's bottom corners (attack left, stability
+   right), in the Hero cards' darker stock, the card's circuitry running on through them; the numbers are flat, in
+   their colours. The kind is a tab of the same dark stock hanging from the card's top edge. (The sections are drawn
+   by .card-corners, with the card's circuit traced across them in light lines.) */
+.card {
+  --cut: calc(var(--cw, 100px) * 0.21); --cut-l: 0px; --cut-r: 0px;
+  --sect: #4b5466;
 }
-.card .card-stats b:not(.stat-atk-on), .card .stat-def-floor, .card .card-type { box-shadow: 0 1px 2.5px rgba(14, 16, 26, 0.45); }
-.card .card-stats b, .card .stat-def-floor { --mk-rim: var(--mk-rim-badge); }
-.card .card-type { --mk-rim: var(--mk-rim-pill); }
-.card .stat-atk { --mk-stone: var(--mk-badge-ruby); }
-.card .stat-stab { --mk-stone: var(--mk-badge-topaz); }
-.card .stat-def, .card .stat-def-floor { --mk-stone: var(--mk-badge-sapphire); }
-.card .stat-atk.stat-atk-dim { --mk-stone: var(--mk-badge-smoky); }
-.card .stat-stab.stat-low, .card .stat-def.stat-dented { --mk-stone: var(--mk-badge-garnet); }
-.card.kind-attack .card-type { --mk-stone: var(--mk-pill-ruby); }
-.card.kind-defence .card-type { --mk-stone: var(--mk-pill-sapphire); }
-.card.kind-growth .card-type { --mk-stone: var(--mk-pill-emerald); }
-.card.kind-global .card-type { --mk-stone: var(--mk-pill-amethyst); }
-.card.kind-command .card-type { --mk-stone: var(--mk-pill-moonstone); }
-.card.kind-lightspeed .card-type { --mk-stone: var(--mk-pill-citrine); }
-.card.kind-relic .card-type { --mk-stone: var(--mk-pill-aquamarine); }
-/* (Its word a touch further in from the ends, clear of the rim's curve.) */
-.card .card-type { padding-left: 1em; padding-right: 1em; }
+.card.kind-command { --sect: #3a404d; }
+.card:has(.card-stats-base .stat-atk):not(.card-table) { --cut-l: var(--cut); }
+.card:has(.card-stats-base .stat-stab):not(.card-table) { --cut-r: var(--cut); }
+.card-corners { display: none; }
+.card > .card-corners {
+  display: block; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  --corners: radial-gradient(circle at 0 100%, #000 calc(var(--cut-l) - 0.5px), transparent var(--cut-l)),
+             radial-gradient(circle at 100% 100%, #000 calc(var(--cut-r) - 0.5px), transparent var(--cut-r));
+  background: radial-gradient(circle at 0 100%, var(--sect) calc(var(--cut-l) - 0.5px), transparent var(--cut-l)),
+              radial-gradient(circle at 100% 100%, var(--sect) calc(var(--cut-r) - 0.5px), transparent var(--cut-r));
+}
+/* The card's circuit, carried across the dark sections in light lines (the same tile, in line with the card's). */
+.card > .card-corners::after {
+  content: ''; position: absolute; inset: 0;
+  background: var(--trace, var(--circuit-dwarf)) 0 0 / calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05) repeat;
+  filter: brightness(0) invert(1); opacity: 0.85;
+  -webkit-mask: var(--corners); mask: var(--corners);
+}
+/* The numbers, flat, centred in their sections. */
+.card:not(.card-table) .card-stats.card-stats-base { inset: auto 0 0 0; height: var(--cut); transform: none; }
+.card:not(.card-table) .card-stats-base b {
+  position: absolute; bottom: calc(var(--cut) * 0.36); transform: translate(-50%, 50%);
+  background: none; border: 0; box-shadow: none; min-width: 0; height: auto; padding: 0;
+  font-size: max(8px, calc(var(--cw, 100px) * 0.062)); text-shadow: none;
+}
+.card:not(.card-table) .card-stats-base .stat-atk { left: calc(var(--cut) * 0.4); color: #ff9277; }
+.card:not(.card-table) .card-stats-base .stat-stab { left: auto; right: calc(var(--cut) * 0.4); transform: translate(50%, 50%); color: #f4cd78; }
+.card:not(.card-table) .card-stats-base .stat-atk.stat-atk-dim { color: #a3aab5; }
+.card:not(.card-table) .card-stats-base .stat-stab.stat-low { color: #ff7a5c; }
+/* On the table (its stats on the card's foot): flat badges of the same dark stock. */
+.card.card-table .card-stats b, .card .stat-def-floor {
+  background: var(--sect); border: 0; text-shadow: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 1px 3px rgba(20, 22, 34, 0.3);
+}
+.card.card-table .stat-atk { color: #ff9277; }
+.card.card-table .stat-stab { color: #f4cd78; }
+.card .stat-def-floor, .card.card-table .stat-def { color: #a9c3ff; }
+.card .stat-def.stat-dented { background: #8a3324; color: #fff; }
+/* The kind tab: hanging from the card's top edge, the word in the kind's colour. */
+.card .card-type {
+  top: -1px; transform: translateX(-50%); -webkit-mask: none; mask: none;
+  height: auto; padding: 0.55em 1em 0.45em; line-height: 1;
+  background: var(--sect); border: 0; border-radius: 0 0 0.9em 0.9em; box-shadow: none; text-shadow: none;
+  color: color-mix(in srgb, var(--kc) 55%, #fff);
+}
+.card .card-type::before, .card .card-type::after { display: none; }
+
+/* ---------- The energy cost gems (scripts/render_energy.py) ---------- */
+/* Small polished stones in silver bezels, in the rarity gems' manner: green energy, amber past the day's most energy,
+   grey when the card can't be paid for now. Set into the picture with a soft shadow, and a faint glow of their light. */
+.cost-dots i {
+  width: max(6px, calc(var(--cw, 100px) * 0.072)); height: max(6px, calc(var(--cw, 100px) * 0.072));
+  border: 0; background: var(--gem-energyGreen) 0 0 / 100% 100% no-repeat;
+  box-shadow: 0 0 calc(var(--cw, 100px) * 0.03) rgba(90, 220, 140, 0.45), 0 1px 2px rgba(10, 14, 20, 0.55);
+}
+.cost-dots i.over { background-image: var(--gem-energyAmber); box-shadow: 0 0 calc(var(--cw, 100px) * 0.03) rgba(250, 180, 60, 0.5), 0 1px 2px rgba(10, 14, 20, 0.55); }
+.hand .card.card-pricey .cost-dots i { background-image: var(--gem-energyGrey); box-shadow: 0 1px 2px rgba(10, 14, 20, 0.5); }
