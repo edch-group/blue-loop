@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PRESET_DECKS } from '../src/engine/cards';
+import { cardDef, PRESET_DECKS } from '../src/engine/cards';
 import { decodeDeck, encodeDeck } from '../src/engine/deckcode';
 
 describe('deck codes', () => {
@@ -31,10 +31,24 @@ describe('deck codes', () => {
 import { cleanAuthor, cleanDeckPost } from '../server/decks';
 
 describe('community decks, as the server takes them in', () => {
+  // A starter with one card changed: a deck of the player's own.
+  const own = (() => {
+    const cards = [...PRESET_DECKS[0].cards];
+    const i = cards.findIndex((id) => cardDef(id).kind !== 'command');
+    cards[i] = ['thermal_exchange', 'entropy_pulse'].find((id) => !cards.includes(id))!;
+    return cards;
+  })();
+
   it('take a legal deck, sorted, with a clean name, note and credit', () => {
-    const d = PRESET_DECKS[0];
-    const got = cleanDeckPost({ name: '  My\u0007  deck  ', note: 'line one\nline two', author: 'Bo <script>', cards: d.cards, extra: 'dropped' });
-    expect('deck' in got && got.deck).toEqual({ name: 'My deck', note: 'line one line two', author: 'Bo script', cards: [...d.cards].sort() });
+    const got = cleanDeckPost({ name: '  My\u0007  deck  ', note: 'line one\nline two', author: 'Bo <script>', cards: own, extra: 'dropped' });
+    expect('deck' in got && got.deck).toEqual({ name: 'My deck', note: 'line one line two', author: 'Bo script', cards: [...own].sort() });
+  });
+
+  it('turn away starter decks as they come, and profanity in names and notes', () => {
+    expect(cleanDeckPost({ name: 'Mine', cards: PRESET_DECKS[0].cards })).toHaveProperty('error');
+    expect(cleanDeckPost({ name: 'sh1t deck', cards: own })).toHaveProperty('error');
+    expect(cleanDeckPost({ name: 'Fine', note: 'what the f u c k', cards: own })).toHaveProperty('error');
+    expect(cleanAuthor('Fuckface')).toBe('Commander');
   });
 
   it('turn away illegal decks, unknown cards and nameless ones', () => {

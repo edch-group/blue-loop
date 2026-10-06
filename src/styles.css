@@ -5244,7 +5244,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* ---------- Deck codes, community decks and decks still to collect ---------- */
 /* A deck box's tag on its foot: cards still to collect, or how many of a shared deck's you own. */
 .deck-box-tag {
-  position: absolute; z-index: 3; left: 50%; bottom: 0; transform: translate(-50%, 50%); white-space: nowrap;
+  position: absolute; z-index: 3; left: 50%; top: 9%; transform: translateX(-50%); white-space: nowrap;
   padding: 2px 8px; border-radius: 999px; font-style: normal; font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase;
   background: #fff; color: #a8641c; box-shadow: 0 0 0 1px rgba(212, 149, 42, 0.55), 0 2px 6px rgba(60, 64, 80, 0.18);
 }
@@ -5268,14 +5268,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .db-cboxes { --bw: clamp(96px, calc(28 * var(--vh)), 150px); column-gap: clamp(28px, calc(4 * var(--vw)), 44px); row-gap: 28px; }
 .db-cdeck { display: grid; gap: 6px; justify-items: center; align-content: start; width: var(--bw); }
 .db-cdeck > .db-deck { width: 100%; }
-.db-cdeck .db-credit { margin-top: 16px; }
+.db-cdeck .db-credit { margin-top: 20px; }
 .db-cactions { flex-wrap: wrap; justify-content: center; }
 .db-credit { display: flex; gap: 8px; justify-content: center; font-size: 0.64rem; color: var(--ink-soft); }
 .db-credit span:first-child { font-weight: 600; color: var(--ink); }
-.db-cnote { margin: 0; font-size: 0.62rem; line-height: 1.3; color: var(--ink-soft); text-align: center; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.db-cnote { margin: 0; font-size: 0.62rem; line-height: 1.3; color: var(--ink-soft); text-align: center; }
 /* In the deck: a card you don't own enough of, dashed, with what's still needed. */
 .db-row.db-row-missing { grid-template-columns: auto minmax(0, 1fr) auto auto auto; border-style: dashed; border-color: rgba(212, 149, 42, 0.8); }
 .db-row-missing .db-row-art { filter: grayscale(0.8); opacity: 0.7; }
 .db-row-need { font-size: 0.8em; letter-spacing: 0.06em; color: #a8641c; white-space: nowrap; }
 .db-tally-need { display: block; margin-bottom: 2px; color: #a8641c; font-weight: 600; }
-.db-deck:has(.deck-box-tag) > .db-deck-actions { margin-top: 10px; }

@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { emptyLadder, enqueue, leaveQueue, recordResult, standing, type LadderData, type LadderPlayer, type Queued } from './ladder';
 import { rankName } from '../src/engine/progression';
+import { isProfane } from '../src/engine/profanity';
 import { emptyRoom, handle, playerIndex, views, type ClientMessage, type Payout, type RankedReport, type RoomData, type ServerMessage } from './room';
 
 /** An unranked online game pays out only once it has gone at least this many rounds. */
@@ -302,7 +303,8 @@ export class Ladder extends DurableObject<Env> {
     }
     if (msg.t === 'queue') {
       const id = account!;
-      const name = clean(msg.name, 18) || 'Player';
+      const given = clean(msg.name, 18);
+      const name = given && !isProfane(given) ? given : 'Player';
       ws.serializeAttachment({ id, account });
       // Only players still connected can be matched.
       const live = new Set(this.ctx.getWebSockets().map((w) => (w.deserializeAttachment() as { id: string | null })?.id).filter(Boolean));

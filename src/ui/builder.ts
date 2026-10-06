@@ -1,4 +1,4 @@
-import { BALANCE, coverCard, decodeDeck, encodeDeck, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, type CardDef, type Rarity } from '../engine';
+import { BALANCE, coverCard, decodeDeck, encodeDeck, isProfane, PRESET_DECKS, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, type CardDef, type Rarity } from '../engine';
 import { customDecks, deckWithCards, deleteDeck, deckById, missingCopies, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
@@ -275,9 +275,13 @@ export class DeckBuilder {
       case 'db-publish': {
         const src = deckById(arg);
         if (!src) return true;
-        const why = deckProblems(src.cards)[0];
+        const why = shareProblem(src);
         if (why) {
-          this.host.toast(`Only a finished deck can be shared: ${why}`);
+          this.host.toast(why);
+          return true;
+        }
+        if (isProfane(this.texts.note ?? '')) {
+          this.host.toast('Keep it clean: change the note.');
           return true;
         }
         void shareDeck(src, this.texts.note ?? '', profile().name || 'Commander').then((err) => {
@@ -609,7 +613,7 @@ export class DeckBuilder {
         act: d.preset ? 'db-view' : 'db-edit',
         title: d.preset ? 'Look through it (changes save as a copy)' : 'Edit it',
         // (Open it by tapping the box: a starter to look through, your own to edit.)
-        actions: `<button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button><button class="pill-btn" data-act="db-share-open" data-arg="${d.id}">share</button>${d.preset ? '' : `<button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}`,
+        actions: `<button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>${d.preset ? '' : `<button class="pill-btn" data-act="db-share-open" data-arg="${d.id}">share</button><button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}`,
         tag: d.preset ? undefined : wishTag(d.cards),
       });
     const mine = customDecks();
@@ -640,8 +644,8 @@ export class DeckBuilder {
         <div class="db-confirm-actions"><button class="btn" data-act="db-panel-close">cancel</button><button class="btn-primary btn-small" data-act="db-import">import</button></div>
       </div></div>`;
     const d = deckById(p.id);
-    if (!d) return '';
-    const why = deckProblems(d.cards)[0];
+    if (!d || d.preset) return '';
+    const why = shareProblem(d);
     return `<div class="overlay overlay-soft db-confirm-overlay"><div class="modal db-confirm db-panel">
         <b>share ${esc(d.name.toLowerCase())}</b>
         <p>Its deck code: anyone can paste it into their decks page to get this deck.</p>
@@ -649,7 +653,7 @@ export class DeckBuilder {
         <div class="section-label">share with the community</div>
         ${
           why
-            ? `<p class="muted">Finish the deck to share it: ${esc(why)}</p>`
+            ? `<p class="muted">${esc(why)}</p>`
             : `<p>Anyone can find it on the community page and save a copy, credited to <b>${esc(profile().name || 'Commander')}</b>.</p>
         <textarea class="db-note" data-db-text="note" rows="2" maxlength="160" placeholder="A note: what it does, how to play it (optional)">${esc(this.texts.note ?? '')}</textarea>`
         }
@@ -1075,6 +1079,17 @@ export function deckBox(d: SavedDeck, opts: { act: string; title: string; action
       </div>
       ${opts.actions ? `<div class="db-deck-actions">${opts.actions}</div>` : ''}
     </div>`;
+}
+
+/** Why a deck can't be shared with the community (null if it can): unfinished, a starter as it comes, or a name with profanity. */
+function shareProblem(d: SavedDeck): string | null {
+  if (d.preset) return 'Starter decks can’t be shared.';
+  const why = deckProblems(d.cards)[0];
+  if (why) return `Finish the deck to share it: ${why}`;
+  const key = [...d.cards].sort().join();
+  if (PRESET_DECKS.some((s) => [...s.cards].sort().join() === key)) return 'This is a starter deck as it comes: change it to make it your own, then share it.';
+  if (isProfane(d.name)) return 'Keep it clean: give the deck another name to share it.';
+  return null;
 }
 
 /** A deck of your own that still needs cards you don't own: how many (else nothing). */

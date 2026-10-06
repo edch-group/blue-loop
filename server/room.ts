@@ -1,4 +1,4 @@
-import { applyAction, beginStats, cardDef, coverCard, createGame, deckProblems, finishStats, GameError, noteMove, PRESET_DECKS, type Action, type CardInstance, type GameState, type GameStats } from '../src/engine';
+import { isProfane, applyAction, beginStats, cardDef, coverCard, createGame, deckProblems, finishStats, GameError, noteMove, PRESET_DECKS, type Action, type CardInstance, type GameState, type GameStats } from '../src/engine';
 import { isAvatar } from './avatars';
 
 /**
@@ -233,9 +233,10 @@ function seatSetup(msg: { name: string; deck: string[]; deckName: string; avatar
   const deck = Array.isArray(msg.deck) ? msg.deck.map(String) : [];
   const legal = deck.length > 0 && deckProblems(deck).length === 0;
   return {
-    name: clean(msg.name, 18) || `Player ${index + 1}`,
+    // (Profanity is turned away: shown to the other player as a plain name.)
+    name: (n => (n && !isProfane(n) ? n : `Player ${index + 1}`))(clean(msg.name, 18)),
     deck: legal ? deck : PRESET_DECKS[0].cards,
-    deckName: legal ? clean(msg.deckName, 24) || 'Custom deck' : PRESET_DECKS[0].name,
+    deckName: legal ? (n => (n && !isProfane(n) ? n : 'Custom deck'))(clean(msg.deckName, 24)) : PRESET_DECKS[0].name,
     ...(isAvatar(msg.avatar) ? { avatar: msg.avatar } : {}),
   };
 }

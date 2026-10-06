@@ -68,8 +68,7 @@ import {
   beginStats,
   finishStats,
   noteMove,
-  type GameStats,
-} from '../engine';
+  type GameStats, isProfane } from '../engine';
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
@@ -1412,7 +1411,9 @@ export class App {
       .map((s, i) => {
         const deck = deckById(s.deckId) ?? PRESETS[i];
         noteRecentDeck(i, deck.id);
-        const name = s.isAI ? s.bot : i === 0 ? profile().name || s.name : s.name;
+        const typed = s.isAI ? s.bot : i === 0 ? profile().name || s.name : s.name;
+        // (A name with profanity in it plays as a plain one.)
+        const name = isProfane(typed) ? `Player ${i + 1}` : typed;
         // Your own picture is your account's; anyone else's is dealt by their name.
         const avatar = (!s.isAI && i === 0 ? account()?.avatar : undefined) ?? pictureFor(name.trim() || 'Unnamed');
         return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, avatar };
@@ -3164,6 +3165,10 @@ export class App {
       case 'auth-apple':
         return this.socialSignIn(act === 'auth-apple' ? 'apple' : 'google');
       case 'signin-go':
+        if (isProfane(this.signinName ?? profile().name)) {
+          this.showToast('Keep it clean: pick another name.', 'error');
+          return;
+        }
         signIn(this.signinName ?? profile().name);
         this.signinName = null;
         this.seats[0].name = profile().name;

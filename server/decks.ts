@@ -1,5 +1,5 @@
 /** Community decks: lists players choose to share, as the server takes them in (see accounts.ts for the routes). */
-import { cardDef, deckProblems } from '../src/engine';
+import { cardDef, deckProblems, isProfane, PRESET_DECKS } from '../src/engine';
 
 /** A deck name: no control characters or runs of spaces, at most 24 characters. */
 export function cleanDeckName(raw: unknown): string {
@@ -21,12 +21,11 @@ export function cleanDeckNote(raw: unknown): string {
 
 /** The credit: the name the player goes by in the game (the same letters a name may have there). */
 export function cleanAuthor(raw: unknown): string {
-  return (
-    String(raw ?? '')
-      .replace(/[^\p{L}\p{N} '’.-]/gu, '')
-      .trim()
-      .slice(0, 18) || 'Commander'
-  );
+  const name = String(raw ?? '')
+    .replace(/[^\p{L}\p{N} '’.-]/gu, '')
+    .trim()
+    .slice(0, 18);
+  return name && !isProfane(name) ? name : 'Commander';
 }
 
 /**
@@ -48,5 +47,11 @@ export function cleanDeckPost(raw: unknown): { deck: { name: string; note: strin
   }
   const problems = deckProblems(cards);
   if (problems.length) return { error: problems[0] };
-  return { deck: { name, note: cleanDeckNote(r.note), author: cleanAuthor(r.author), cards: [...cards].sort() } };
+  // A starter deck is everyone's already: only decks players made their own are shared.
+  const key = [...cards].sort().join();
+  if (PRESET_DECKS.some((d) => [...d.cards].sort().join() === key)) return { error: 'That’s a starter deck. Change it to make it your own, then share it.' };
+  if (isProfane(name)) return { error: 'Keep it clean: give the deck another name.' };
+  const note = cleanDeckNote(r.note);
+  if (isProfane(note)) return { error: 'Keep it clean: change the note.' };
+  return { deck: { name, note, author: cleanAuthor(r.author), cards: [...cards].sort() } };
 }
