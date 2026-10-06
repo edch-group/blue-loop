@@ -14,7 +14,8 @@ import { appSize, pageRect } from './viewport';
 
 /** Something to light: an element's own outline (its corners), or a circle in its plane. */
 export type Shape =
-  | { sel: string; all?: boolean; pad?: number }
+  /** An element's own outline, rounded corners and all, `pad` px out; `round`: the corner radius to use (px, or 'pill'). */
+  | { sel: string; all?: boolean; pad?: number; round?: number | 'pill' }
   /** A circle in the element's plane: centre and radius as shares of its width and height (radius of its width). */
   | { sel: string; all?: boolean; circle: { r: number; cx?: number; cy?: number } };
 
@@ -80,8 +81,8 @@ function project(el: HTMLElement, at: { x: string; y: string }[]): Pt[] {
   const wasStatic = style.position === 'static';
   if (wasStatic) el.style.position = 'relative';
   const marks = at.map(({ x, y }) => {
-    const m = document.createElement('i');
-    m.style.cssText = `position:absolute;left:${x};top:${y};width:0;height:0;margin:0;padding:0;border:0;pointer-events:none;transform:none;`;
+    const m = document.createElement('tour-mark');
+    m.style.cssText = `display:block;position:absolute;left:${x};top:${y};width:0;height:0;margin:0;padding:0;border:0;pointer-events:none;transform:none;`;
     el.appendChild(m);
     return m;
   });
@@ -95,6 +96,9 @@ function project(el: HTMLElement, at: { x: string; y: string }[]): Pt[] {
 }
 
 /** A shape's outlines on the page (one per element it covers), as closed polygons. */
+/** Outlines traced round a circle (drawn as a smooth curve; the rest keep their straight sides). */
+const CURVED = new WeakSet<Pt[]>();
+
 function trace(shape: Shape): Pt[][] {
   const els = [...document.querySelectorAll<HTMLElement>(shape.sel)].filter((el) => el.getClientRects().length > 0);
   const used = shape.all ? els : els.slice(0, 1);
@@ -105,27 +109,52 @@ function trace(shape: Shape): Pt[][] {
       const w = el.offsetWidth || 1;
       const h = el.offsetHeight || 1;
       const n = 40;
-      return project(
+      const ring = project(
         el,
         Array.from({ length: n }, (_, k) => {
           const a = (k / n) * Math.PI * 2;
           return { x: `${(cx + Math.cos(a) * r) * 100}%`, y: `${((cy * h + Math.sin(a) * r * w) / h) * 100}%` };
         }),
       );
+      CURVED.add(ring);
+      return ring;
     }
+    // Its own outline: its border-radius (each corner), grown by the padding, traced round in its own plane.
     const p = shape.pad ?? 6;
-    return project(el, [
-      { x: `${-p}px`, y: `${-p}px` },
-      { x: `calc(100% + ${p}px)`, y: `${-p}px` },
-      { x: `calc(100% + ${p}px)`, y: `calc(100% + ${p}px)` },
-      { x: `${-p}px`, y: `calc(100% + ${p}px)` },
-    ]);
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const cs = getComputedStyle(el);
+    const own = (v: string) => {
+      const n = parseFloat(v) || 0;
+      return v.trim().endsWith('%') ? (n / 100) * Math.min(w, h) : n;
+    };
+    const max = Math.min(w, h) / 2;
+    const radius = (v: string) => {
+      const r = shape.round === 'pill' ? max : typeof shape.round === 'number' ? shape.round : Math.min(max, own(v));
+      // (A square element still gets softened corners: the padding's own curve.)
+      return Math.min(max + p, r + p);
+    };
+    const [tl, tr, br, bl] = [cs.borderTopLeftRadius, cs.borderTopRightRadius, cs.borderBottomRightRadius, cs.borderBottomLeftRadius].map(radius);
+    const pts: { x: string; y: string }[] = [];
+    const n = 9;
+    // Each corner: a quarter circle about its centre, clockwise from the top left.
+    const corner = (cx: number, cy: number, r: number, from: number) => {
+      for (let k = 0; k <= n; k++) {
+        const a = ((from + (k / n) * 90) * Math.PI) / 180;
+        pts.push({ x: `${(cx + Math.cos(a) * r).toFixed(2)}px`, y: `${(cy + Math.sin(a) * r).toFixed(2)}px` });
+      }
+    };
+    corner(-p + tl, -p + tl, tl, 180);
+    corner(w + p - tr, -p + tr, tr, 270);
+    corner(w + p - br, h + p - br, br, 0);
+    corner(-p + bl, h + p - bl, bl, 90);
+    return project(el, pts);
   });
 }
 
 /** A polygon as a path: a smooth closed curve for many points (a circle), straight sides with rounded joins for few. */
-function pathOf(pts: Pt[]): string {
-  if (pts.length > 8) {
+function pathOf(pts: Pt[], smooth = CURVED.has(pts)): string {
+  if (smooth) {
     // Catmull-Rom through the points, closed.
     const at = (i: number) => pts[(i + pts.length) % pts.length];
     let d = `M${at(0)[0].toFixed(1)} ${at(0)[1].toFixed(1)}`;
@@ -162,18 +191,15 @@ export function startTour(id: string, steps: TourStep[], who: { face: string; na
     <svg class="tour-veil" aria-hidden="true"><defs><mask id="tour-mask"><rect class="tour-all" fill="#fff"/><g class="tour-holes"></g></mask>
       <filter id="tour-glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4"/></filter></defs>
       <rect class="tour-dim" mask="url(#tour-mask)"/><g class="tour-lines"></g></svg>
-    <aside class="tour-bubble" role="dialog" aria-live="polite">
+    <aside class="tour-bubble" role="dialog" aria-live="polite" aria-label="${who.name}">
       <div class="tour-face">${who.face}</div>
-      <div class="tour-body">
-        <small class="tour-who"><b>${who.name.toLowerCase()}</b> · <span class="tour-title"></span></small>
-        <p class="tour-text"></p>
-        <div class="tour-foot">
-          <small class="tour-count"></small>
-          <button class="link-btn tour-skip">skip tutorial</button>
-          <button class="pill-btn tour-back">‹ back</button>
-          <button class="pill-btn tour-next"></button>
-        </div>
+      <p class="tour-text"></p>
+      <div class="tour-foot">
+        <button class="tour-back" aria-label="Back">‹</button>
+        <span class="tour-dots" aria-hidden="true"></span>
+        <button class="tour-next" aria-label="Next">›</button>
       </div>
+      <button class="tour-skip" aria-label="Skip the tutorial" title="Skip the tutorial">×</button>
     </aside>`;
   document.body.appendChild(root);
   const svg = root.querySelector<SVGSVGElement>('.tour-veil')!;
@@ -198,17 +224,17 @@ export function startTour(id: string, steps: TourStep[], who: { face: string; na
       r.setAttribute('height', String(h));
     }
     const polys = outlines(step);
-    const d = polys.map(pathOf).join('');
+    const d = polys.map((poly) => pathOf(poly)).join('');
     svg.querySelector('.tour-holes')!.innerHTML = d ? `<path d="${d}" fill="#000" stroke="#000" stroke-width="10" stroke-linejoin="round"/>` : '';
     svg.querySelector('.tour-lines')!.innerHTML = d
       ? `<path class="tour-glow" d="${d}" filter="url(#tour-glow)"/><path class="tour-line" d="${d}"/>`
       : '';
     root.classList.toggle('tour-open', !d);
-    root.querySelector('.tour-title')!.textContent = step.title.toLowerCase();
+
     root.querySelector('.tour-text')!.textContent = step.text;
-    root.querySelector('.tour-count')!.textContent = `${i + 1}/${list.length}`;
+    root.querySelector('.tour-dots')!.innerHTML = list.map((_, k) => `<i class="${k === i ? 'on' : k < i ? 'past' : ''}"></i>`).join('');
     root.querySelector<HTMLButtonElement>('.tour-back')!.disabled = i === 0;
-    root.querySelector('.tour-next')!.textContent = i === list.length - 1 ? 'got it' : 'next ›';
+    root.querySelector('.tour-next')!.textContent = i === list.length - 1 ? '✓' : '›';
     place(polys.flat(), w, h);
   };
 

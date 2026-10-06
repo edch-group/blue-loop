@@ -1,5 +1,7 @@
 import {
   ANOMALIES,
+  armyBonus,
+  BALANCE,
   battleFinds,
   itemText,
   type ShipModule,
@@ -1223,7 +1225,17 @@ export class CampaignView {
     return `<div class="${cls}" data-key="ship-${a.id}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;--rot:${((angle * 180) / Math.PI).toFixed(1)}deg;--dur:${dur.toFixed(2)}s;--ac:${this.colourOf(a.owner)}">
         <div class="cmp-ship-hull" data-act="cmp-army" data-arg="${a.id}"><i class="cmp-ship-shadow"></i><div class="cmp-ship-float">${shipModel(race, !!a.lost)}</div></div>
         <div class="cmp-ship-bb">${this.armyToken(a)}</div>
+        ${mine && !a.lost ? this.moveGems(a) : ''}
       </div>`;
+  }
+
+  /** Your flagship's moves this turn, as energy gems standing to its left: lit while there are moves left. */
+  private moveGems(a: Army): string {
+    const s = this.state!;
+    const total = 1 + armyBonus(s, a).march;
+    const left = a.moved || a.refit || s.phase !== 'player' ? 0 : Math.max(0, total - (a.steps ?? 0));
+    const gems = Array.from({ length: total }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
+    return `<div class="cmp-ship-moves" title="${left} move${left === 1 ? '' : 's'} left this turn, of ${total}">${gems}</div>`;
   }
 
   /** Send the ships drawn where they were on to where they are going (the CSS transition does the sailing). */
@@ -1688,8 +1700,8 @@ export class CampaignView {
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
       n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>heart</b>`, `The oldest star, at the centre of everything. Whoever claims it wins the campaign.${n.owner ? '' : ` Guarded by the Heart Wardens: +${CAMPAIGN.heartWardenHealth} max health.`}`, 'gold') : '',
       chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before fortification, the star, anomalies and ships' hulls): ${n.heart ? 'the most, at the Heart' : `${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart, and more the nearer it lies`}.${(CAMPAIGN.coreYield[n.ring ?? 99] ?? 0) > 0 ? ` A rich world too: +${CAMPAIGN.coreYield[n.ring!]} of each a turn.` : ''}`),
-      chip(`${icon('<path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/>')}<b>+${n.fortification * CAMPAIGN.fortifyHealth}</b>`, `Fortification ${n.fortification}/${CAMPAIGN.maxFortification}: its defender has +${n.fortification * CAMPAIGN.fortifyHealth} max health. Each level adds ${CAMPAIGN.fortifyHealth}.`),
-      chip(`${icon('<rect x="4" y="2" width="8" height="12" rx="1.6"/><path d="M6.5 6h3"/>')}<b>${n.garrison.length}/${CAMPAIGN.garrisonSlots}</b>`, n.garrison.length ? `Garrison: ${n.garrison.map((c) => cardDef(c.defId).name).join(', ')}. If attacked, ${g.tableau.length} start${g.tableau.length === 1 ? 's' : ''} in play.` : 'Garrison: no cards stationed.'),
+      !n.fortification ? '' : chip(`${icon('<path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/>')}<b>+${n.fortification * CAMPAIGN.fortifyHealth}</b>`, `Fortification ${n.fortification}/${CAMPAIGN.maxFortification}: its defender has +${n.fortification * CAMPAIGN.fortifyHealth} max health. Each level adds ${CAMPAIGN.fortifyHealth}.`),
+      !n.garrison.length && !mine ? '' : chip(`${icon('<rect x="4" y="2" width="8" height="12" rx="1.6"/><path d="M6.5 6h3"/>')}<b>${n.garrison.length}/${CAMPAIGN.garrisonSlots}</b>`, n.garrison.length ? `Garrison: ${n.garrison.map((c) => cardDef(c.defId).name).join(', ')}. If attacked, ${g.tableau.length} start${g.tableau.length === 1 ? 's' : ''} in play.` : 'Garrison: no cards stationed.'),
       n.damage ? chip(`${icon('<path d="M8 1.5 9.4 6 14 4.6 10.6 8 14 11.4 9.4 10 8 14.5 6.6 10 2 11.4 5.4 8 2 4.6 6.6 6z"/>')}<b>${n.damage}</b>`, `Damage ${n.damage}: its defender's sun starts ${n.damage} hotter.`, 'bad') : '',
       n.scanner ? chip(SCANNER, 'Scanner array: whoever holds it sees systems two links away.') : '',
       (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
@@ -1928,16 +1940,19 @@ export class CampaignView {
     const attacker = s.armies.find((a) => a.id === armyId) ?? null;
     const guard = armyAt(s, to.id);
     const defender = guard && guard.id !== armyId ? guard : null;
-    const side = (army: Army | null, n: CampaignNode) => {
+    const odds = attacker ? battleOdds(s, attacker, to) : null;
+    // Each side's sun as the battle starts it: its heat, of its max health.
+    const sun = (o: { heat: number; mods: { maxHealthDelta?: number } } | undefined) =>
+      o ? `<small class="cmp-vs-sun" title="Its sun starts at ${Math.max(0, o.heat)} heat, of ${BALANCE.supernovaAt + (o.mods.maxHealthDelta ?? 0)} max health">${Math.max(0, o.heat)}<i>/</i>${BALANCE.supernovaAt + (o.mods.maxHealthDelta ?? 0)}</small>` : '';
+    const side = (army: Army | null, n: CampaignNode, o?: { heat: number; mods: { maxHealthDelta?: number } }) => {
       const name = army ? armyLeader(army) : n.owner ? `${factionById(s, n.owner).name} guard` : n.heart ? 'the Heart Wardens' : `${n.name} sentinels`;
       const face = army ? armyFace(army) : n.owner ? this.avatarOf(n.owner, 'cmp-vs-av') : '<span class="cmp-portrait cmp-vs-blank"></span>';
       const colour = army ? this.colourOf(army.owner) : n.owner ? this.colourOf(n.owner) : NEUTRAL;
-      return `<div class="cmp-vs-side" style="--fc:${colour}">${face}<b>${lower(name)}</b></div>`;
+      return `<div class="cmp-vs-side" style="--fc:${colour}">${face}<b>${lower(name)}</b>${sun(o)}</div>`;
     };
     // What tips the fight, said plainly: each side's sun and modifiers, as the battle would start them.
     const tips: string[] = [];
     // (Said from the player's side: attacking, or defending.)
-    const odds = attacker ? battleOdds(s, attacker, to) : null;
     const sides = odds ? ([[defending ? 'They' : 'You', defending ? 'Their' : 'Your', odds.attacker], [defending ? 'You' : 'They', defending ? 'Your' : 'Their', odds.defender]] as const) : [];
     for (const [who, whose, side] of sides) {
       const mine = (who === 'You') === true;
@@ -1945,7 +1960,6 @@ export class CampaignView {
       const m = side.mods;
       if (side.heat > 0) tips.push(`<li class="${tone(false)}">${whose} sun starts ${side.heat} hotter${!mine && to.gate && !to.owner && !defending ? ': they are weakened' : ''}.</li>`);
       if (side.heat < 0) tips.push(`<li class="${tone(true)}">${whose} sun starts ${-side.heat} cooler.</li>`);
-      if (m.maxHealthDelta) tips.push(`<li class="${tone(m.maxHealthDelta > 0)}">${who} ${who === 'You' ? 'have' : 'have'} ${m.maxHealthDelta > 0 ? '+' : ''}${m.maxHealthDelta} health.</li>`);
       if (m.shieldPerTurn) tips.push(`<li class="${tone(true)}">${who} gain ${m.shieldPerTurn} shield${m.shieldPerTurn === 1 ? '' : 's'} every day.</li>`);
       if (m.coolPerTurn) tips.push(`<li class="${tone(true)}">${whose} sun cools by ${m.coolPerTurn} every day.</li>`);
       if (m.heatPerTurn) tips.push(`<li class="${tone(false)}">${whose} sun heats by ${m.heatPerTurn} every day.</li>`);
@@ -1959,8 +1973,8 @@ export class CampaignView {
     const why = odds ? [...new Set([...odds.attacker.sources, ...odds.defender.sources])] : [];
     if (why.length) tips.push(`<li class="cmp-tips-why">From: ${esc(why.join(', '))}.</li>`);
     return `
-      <div class="cmp-vs-row">${side(attacker, attacker ? nodeById(s, attacker.nodeId) : to)}<span class="cmp-vs">vs</span>${side(defender, to)}</div>
-      <ul class="cmp-tips">${tips.join('') || '<li>An even fight.</li>'}</ul>`;
+      <div class="cmp-vs-row">${side(attacker, attacker ? nodeById(s, attacker.nodeId) : to, odds?.attacker)}<span class="cmp-vs">vs</span>${side(defender, to, odds?.defender)}</div>
+      ${tips.length ? `<ul class="cmp-tips">${tips.join('')}</ul>` : ''}`;
   }
 
   /** A story scene, one line at a time: the speaker's portrait, name and words. */
@@ -1982,16 +1996,13 @@ export class CampaignView {
     // Guidance, not a gate: it sits under the turn count, and the game goes on around it.
     return `
       <aside class="cmp-guide ${sp.kind === 'oracle' ? 'cmp-guide-oracle' : ''}" data-key="guide:${esc(scene.id)}:${i}" style="--sc:${who.colour}">
-        <div class="cmp-guide-face">${who.face}</div>
+        <div class="cmp-guide-face" title="${esc(who.name)}${who.sub ? ` · ${esc(who.sub)}` : ''}">${who.face}</div>
         <div class="cmp-guide-body">
-          <small class="cmp-guide-who"><b>${esc(who.name.toLowerCase())}</b> · ${esc(who.sub.toLowerCase())}</small>
+          <small class="cmp-guide-who">${esc(who.name.toLowerCase())}</small>
           <p class="cmp-guide-text">${esc(line.text)}</p>
-          <div class="cmp-guide-foot">
-            <small>${lower(scene.title)}${lines.length > 1 ? ` · ${i + 1}/${lines.length}` : ''}${more > 0 ? ` · ${more} more` : ''}</small>
-            <button class="link-btn" data-act="cmp-story-skip" title="Dismiss">dismiss</button>
-            <button class="pill-btn" data-act="cmp-story-next">${last ? 'ok' : 'next ›'}</button>
-          </div>
         </div>
+        <button class="cmp-guide-next" data-act="cmp-story-next" aria-label="${last ? 'Done' : 'Next'}" title="${lines.length > 1 ? `${i + 1} of ${lines.length}` : ''}${more > 0 ? ` · ${more} more` : ''}">${last ? '✓' : '›'}</button>
+        <button class="cmp-guide-x" data-act="cmp-story-skip" aria-label="Dismiss" title="Dismiss">×</button>
       </aside>`;
   }
 

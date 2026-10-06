@@ -3692,24 +3692,24 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* ---- Campaign guide: optional, under the turn count, never in the way of play ---- */
 .cmp-guide {
-  position: absolute; top: calc(100% + 10px); left: 0; z-index: 2; width: min(400px, calc(100 * var(--vw) - 36px));
-  display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: start;
-  padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.86); border: 1px solid #fff;
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--sc) 45%, transparent), var(--shadow);
+  position: absolute; top: calc(100% + 10px); left: 0; z-index: 2; width: min(330px, calc(100 * var(--vw) - 36px));
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 10px 12px 10px 12px; border-radius: 18px; background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 24px rgba(40, 46, 70, 0.12);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   animation: cmp-guide-in 0.28s ease-out both;
 }
 @keyframes cmp-guide-in { from { opacity: 0; transform: translateY(-6px); } }
-.cmp-guide-face .cmp-portrait { width: 52px; height: 52px; }
-.cmp-guide-who { display: block; font-size: 0.62rem; color: var(--ink-faint); letter-spacing: 0.04em; }
-.cmp-guide-who b { font-family: var(--display); font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); }
-.cmp-guide-text { margin: 4px 0 6px; font-size: 0.78rem; line-height: 1.45; color: var(--ink); }
-.cmp-guide-foot { display: flex; align-items: center; gap: 10px; }
-.cmp-guide-foot small { margin-right: auto; font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
-.cmp-guide-foot .pill-btn { padding: 4px 12px; font-size: 0.54rem; }
+.cmp-guide-face .cmp-portrait { width: 34px; height: 34px; box-shadow: 0 0 0 2px var(--sc); }
+.cmp-guide-who { display: block; font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+.cmp-guide-text { margin: 2px 0 0; font-size: 0.8rem; line-height: 1.4; color: var(--ink); }
+.cmp-guide-next { width: 30px; height: 30px; border: 0; border-radius: 50%; background: #f3f2f8; color: var(--ink); font-size: 1.05rem; line-height: 1; cursor: pointer; }
+.cmp-guide-next:hover { background: #e9e7f3; }
+.cmp-guide-x { position: absolute; top: 4px; right: 6px; width: 18px; height: 18px; border: 0; background: none; color: var(--ink-faint); font-size: 0.8rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
+.cmp-guide:hover .cmp-guide-x { opacity: 1; }
 @media (max-width: 700px) {
   .cmp-top-left > button.cmp-turn, .cmp-top-left > .cmp-stability { height: 36px; }
-  .cmp-guide { grid-template-columns: 40px minmax(0, 1fr); }
+  .cmp-guide { grid-template-columns: 30px minmax(0, 1fr) auto; }
   .cmp-guide-face .cmp-portrait { width: 40px; height: 40px; }
   .cmp-guide-text { font-size: 0.7rem; }
 }
@@ -5355,20 +5355,24 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @keyframes tour-pulse { to { opacity: 0.25; stroke-width: 14; } }
 @media (prefers-reduced-motion: reduce) { .tour-glow { animation: none; } }
 .tour-bubble {
-  position: absolute; width: min(440px, calc(100% - 32px)); display: flex; gap: 14px; align-items: flex-start;
-  padding: 14px 16px 12px; border-radius: 18px; background: #fff; box-shadow: 0 0 0 1.5px #b9a6ff, 0 14px 40px rgba(20, 20, 50, 0.35);
+  position: absolute; width: min(300px, calc(100% - 32px)); display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px;
+  padding: 12px 14px 8px; border-radius: 18px; background: #fff; box-shadow: 0 10px 30px rgba(20, 20, 50, 0.22);
   transition: left 0.3s cubic-bezier(.2,.8,.2,1), top 0.3s cubic-bezier(.2,.8,.2,1);
 }
-.tour-face { flex: none; width: 58px; height: 58px; }
-.tour-face .cmp-portrait { width: 58px; height: 58px; }
-.tour-body { display: grid; gap: 6px; min-width: 0; flex: 1; }
-.tour-who { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); }
-.tour-who b { color: #6f5fc0; font-weight: 500; }
-.tour-text { margin: 0; font-size: 0.86rem; line-height: 1.45; color: var(--ink); }
-.tour-foot { display: flex; align-items: center; gap: 8px; }
-.tour-count { flex: 1; font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.14em; color: var(--ink-soft); }
-.tour-back[disabled] { opacity: 0.35; pointer-events: none; }
-.tour-skip { font-size: 0.62rem; }
+.tour-face { width: 34px; height: 34px; }
+.tour-face .cmp-portrait { width: 34px; height: 34px; }
+.tour-text { margin: 0; padding-right: 10px; font-size: 0.82rem; line-height: 1.4; color: var(--ink); }
+.tour-foot { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
+.tour-foot button { width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; color: var(--ink-soft); font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.tour-foot button:hover { background: #f3f2f8; color: var(--ink); }
+.tour-next { color: #6f5fc0 !important; }
+.tour-back[disabled] { visibility: hidden; }
+.tour-dots { display: flex; gap: 5px; }
+.tour-dots i { width: 5px; height: 5px; border-radius: 50%; background: #e2e0ea; }
+.tour-dots i.past { background: #c9c2ea; }
+.tour-dots i.on { background: #6f5fc0; }
+.tour-skip { position: absolute; top: 6px; right: 8px; width: 20px; height: 20px; border: 0; background: none; color: var(--ink-faint); font-size: 0.9rem; line-height: 1; cursor: pointer; border-radius: 50%; }
+.tour-skip:hover { color: var(--ink); }
 
 /* A battle's finds, on its result (gear and ship modules). */
 .finds-list { display: grid; gap: 6px; width: min(420px, 80vw); }
@@ -5394,3 +5398,27 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .sh-mod-pip svg { width: 13px; height: 13px; }
 .sh-room-mod.rarity-stellar .sh-mod-pip { color: #4f86c6; }
 .sh-room-mod.rarity-anomaly .sh-mod-pip { color: #8a6fe0; }
+
+/* The system popover, kept quiet: facts as plain marks, actions as light buttons, one panel (no cards within it). */
+.cmp-pop { gap: 10px; padding: 12px 14px 12px; }
+.cmp-pop .pop-chips { gap: 2px 10px; }
+.cmp-pop .pop-chip { height: 20px; padding: 0; border: 0; background: none; color: var(--ink-soft); }
+.cmp-pop .pop-chip:hover { transform: none; box-shadow: none; color: var(--ink); }
+.cmp-pop .pop-chip.good, .cmp-pop .pop-chip.bad, .cmp-pop .pop-chip.gold, .cmp-pop .pop-chip.muted { background: none; border: 0; }
+.cmp-pop .pop-army { padding: 0; background: none; border-left: 0; }
+.cmp-pop .pop-army > .cmp-portrait { width: 26px; height: 26px; }
+.cmp-pop .pill-btn { border: 0; box-shadow: none; background: #f4f3f8; color: var(--ink-soft); }
+.cmp-pop .pill-btn:hover:not([disabled]) { background: #ebe9f3; color: var(--ink); }
+.cmp-pop .pop-tip { background: none; border: 0; padding: 0; }
+
+/* The battle's two sides: each sun's start under its name; what tips it, as quiet lines. */
+.cmp-vs-sun { font-family: var(--display); font-size: 0.7rem; letter-spacing: 0.08em; color: var(--ink); }
+.cmp-vs-sun i { font-style: normal; color: var(--ink-faint); margin: 0 1px; }
+.cmp-attack .cmp-tips { gap: 2px; justify-items: center; }
+.cmp-attack .cmp-tips li, .cmp-attack .cmp-tips li.good, .cmp-attack .cmp-tips li.bad { background: none; padding: 1px 0; font-size: 0.74rem; text-align: center; }
+.cmp-attack .cmp-tips li.good::before, .cmp-attack .cmp-tips li.bad::before { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 7px 2px 0; border-radius: 50%; background: currentColor; vertical-align: middle; }
+
+/* Your flagship's moves this turn: energy gems standing on its left, like the stars' labels (a billboard). */
+.cmp-ship-moves { position: absolute; left: -38px; top: 0; display: flex; flex-direction: column-reverse; gap: 3px; transform-origin: 50% 100%; transform: translate(-50%, -50%) rotateX(calc(-1 * var(--tilt))) scale(var(--ui)); pointer-events: auto; }
+.cmp-ship-moves i { width: 9px; height: 9px; border-radius: 50%; background: #dfe3e8; border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(40, 46, 70, 0.25); transition: background 0.3s; }
+.cmp-ship-moves i.on { background: #6cc28e; box-shadow: 0 0 6px rgba(108, 194, 142, 0.7), 0 1px 3px rgba(40, 46, 70, 0.25); }
