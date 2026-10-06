@@ -2,9 +2,12 @@
  * Campaign mode: a dying universe, up to four of its eight races fighting over its last warm worlds, and a
  * march on the Heart, the star at its centre, where the Infinite Stellari is said to grow (see story.ts).
  *
- * Each faction fields armies, each led by a general (one of its race's Hero cards) with a deck of its own.
- * Every army moves one route a turn; moving into a system it doesn't hold is a battle. Claiming the Heart
- * wins; so does holding half the universe.
+ * Each faction flies one flagship, led by its hero (one of its race's Hero cards, picked as the campaign
+ * begins), with a deck of up to ten cards. The flagship moves one route a turn; moving into a system it
+ * doesn't hold is a battle, fought under the campaign's own rules (game.ts: GameSetup.campaign): its cards
+ * stand in the ship's rooms, and the ship can be upgraded room by room. Armouries and research stations
+ * lie about the map: a flagship standing in one can buy its cards (each once) or take its one upgrade (for
+ * Wisdom, which builds a point a turn). Claiming the Heart wins; so does holding half the universe.
  *
  * Pure and deterministic like the battle engine: `applyCampaignAction`
  * clones the state, uses the seeded RNG stored in it, and throws GameError on
@@ -12,15 +15,14 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
-import { CARDS, cardDef, copyLimit, fusedId, fusionProblem, presetDeck, RACE_NAMES } from './cards';
+import { CARDS, cardDef, copyLimit, fusedId, fusionProblem, RACE_NAMES } from './cards';
 import { BALANCE } from './balance';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
-import type { BattleModifiers, GameState, PlayerSetup } from './types';
-import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeItem, RACE_SLOTS, itemValue, SKILL_TREES, type HeroState, type Item, type ItemRarity, type SlotKind } from './heroes';
-import { researchBonus, researchProblem, researchProject, type ResearchState } from './research';
+import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types';
+import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeItem, RACE_SLOTS, itemValue, skillPoints, SKILL_TREES, type HeroState, type Item, type ItemRarity, type SlotKind } from './heroes';
+import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
 import {
-  armyLostScene,
   contactScene,
   defeatScene,
   dimmingScene,
@@ -29,7 +31,6 @@ import {
   HEART_NAME,
   heartSightedScene,
   introScene,
-  recruitScene,
   rivalFallsScene,
   collapseScene,
   instabilityScene,
@@ -49,8 +50,31 @@ import {
 // ---------------------------------------------------------------------------
 
 export const CAMPAIGN = {
-  /** An army's deck: its hero and up to this many cards in all. */
+  /** A flagship's deck: its hero and up to this many cards in all. */
   armySize: 10,
+  /** Wisdom gained each turn (spent on research stations' upgrades). */
+  wisdomPerTurn: 1,
+  /** Armouries and research stations on the map, and how many cards an armoury stocks (each sold once). */
+  armories: 7,
+  researchStations: 10,
+  armoryStock: 6,
+  /** Wisdom for a research station's upgrade, by the upgrade's tier (1–4). */
+  researchWisdom: [3, 5, 8, 12],
+  /** A hero's own attack and defence before training (they sit in the command room, so start sturdier). */
+  heroAttack: 0,
+  heroDefence: 2,
+  /** The most skill points a hero can put into each of attack and defence. */
+  trainMax: 5,
+  /** Ship upgrades: credits for the next level (base + per level already built), and each part's most. */
+  shipBase: 4,
+  shipPerLevel: 4,
+  shipMax: { defence: 3, attack: 2, command: 3, shields: 3, hull: 4 },
+  /** The command room's defence to start with (on top of the slot's own: 3 in all), and the hull's max health a level. */
+  commandRoom: 1,
+  hullHealth: 3,
+  /** Cards a station (a system with no flagship in it) fights with, by tier, and the Heart's Wardens. */
+  stationDeck: [4, 6, 8],
+  heartDeck: 10,
   /** Cards a system can hold as its garrison. They start its defence already in play. */
   garrisonSlots: 3,
   startCredits: 6,
@@ -64,9 +88,6 @@ export const CAMPAIGN = {
   fortifyHealth: 4,
   /** Absorb pays this many turns of the system's yield at once. */
   absorbTurns: 3,
-  /** Armory offers refreshed each turn; buying costs the card's price + this, in materials. */
-  armorySize: 3,
-  armoryMarkup: 1,
   /** Materials for a fusion, before the two cards' prices. */
   fusionBase: 4,
   /** Neutral sentinels' suns start this much hotter, by tier (the outer systems are the easiest to take). */
@@ -99,10 +120,6 @@ export const CAMPAIGN = {
   anomalies: 8,
   /** Safety cap on simulated (auto-resolved) battles. */
   battleActionCap: 6000,
-  /** Recruiting a general and their army: credits, rising with each army already in the field (a bomb hero costs more). */
-  recruitBase: 8,
-  recruitPerArmy: 5,
-  recruitBomb: 6,
   /** Damage (heat carried) an army takes when its attack is repelled, and the most it can carry. */
   armyRepelledDamage: 4,
   /** Credits to repair one point of an army's damage (in a system you hold). */
@@ -215,7 +232,28 @@ export interface CampaignNode {
   gate?: boolean;
   /** What kind of star it is (an ordinary yellow star if unset): see STAR_TYPES. */
   star?: StarType;
+  /** An armoury or a research station: a flagship standing here can use it. */
+  station?: Station;
 }
+
+/**
+ * A station on the map. An armoury sells each of its cards once (for materials); a research station has one
+ * upgrade, taken once by whoever gets there first (for Wisdom). Within an anomaly's reach, both are better.
+ */
+export type Station = { kind: 'armory'; cards: string[] } | { kind: 'research'; project: string; takenBy?: string };
+
+/** A flagship: its rooms (the five card slots and the command room), its shields and its hull. */
+export interface Ship {
+  rooms: ShipRooms;
+  /** Shields up as each battle begins. */
+  shields: number;
+  /** Hull levels: each is more max health. */
+  hull: number;
+}
+
+export type ShipPart = { part: 'defence' | 'attack'; room: number } | { part: 'command' | 'shields' | 'hull' };
+
+export const newShip = (): Ship => ({ rooms: { defence: [0, 0, 0, 0, 0], attack: [0, 0, 0, 0, 0], command: CAMPAIGN.commandRoom }, shields: 0, hull: 0 });
 
 export type StarType = 'red' | 'white' | 'brown' | 'neutron';
 
@@ -344,6 +382,12 @@ export interface Faction {
   race: number;
   credits: number;
   materials: number;
+  /** Builds a point a turn; research stations' upgrades are paid for with it. */
+  wisdom: number;
+  /** The flagship's upgrades. */
+  ship: Ship;
+  /** The hero it picked to lead its flagship. */
+  hero?: string;
   /** Owned cards not in an army's deck or a garrison. */
   reserve: string[];
   missions: ActiveMission[];
@@ -356,7 +400,7 @@ export interface Faction {
   heroes?: Record<string, HeroState>;
   /** Gear found, not yet worn. */
   items?: Item[];
-  /** What it has researched, and what it is researching: shared by all its armies. */
+  /** The upgrades its flagship has taken from research stations. */
   research?: ResearchState;
 }
 
@@ -426,7 +470,7 @@ export interface CampaignLogEntry {
 }
 
 export interface CampaignState {
-  version: 3;
+  version: 4;
   rngState: number;
   uidCounter: number;
   logSeq: number;
@@ -439,8 +483,6 @@ export interface CampaignState {
   story: { queue: StoryScene[]; told: string[] };
   /** Black holes, nebulae and the like, lying between systems (missing in older saves). */
   anomalies?: Anomaly[];
-  /** Cards the player can buy this turn with materials. */
-  armory: string[];
   /** A battle the player is fighting (or can auto-resolve). */
   battle: BattleContext | null;
   /** The player won an attack and must decide the system's fate (the army that won it marches in if it is settled). */
@@ -464,6 +506,8 @@ export interface CampaignSetup {
   race?: number;
   /** Rival AI factions, 1–3. */
   rivals?: number;
+  /** The hero the player leads (one of their race's, GENERALS): the first if unset. */
+  hero?: string;
 }
 
 export type ConquestChoice = 'settle' | 'absorb' | 'supernova';
@@ -471,8 +515,6 @@ export type ConquestChoice = 'settle' | 'absorb' | 'supernova';
 export type CampaignAction =
   /** Move an army one route: into a system you hold, or into battle for one you don't. */
   | { type: 'move'; armyId: string; toId: string }
-  /** Raise a new army in a system you hold, led by one of your race's generals. */
-  | { type: 'recruit'; general: string; nodeId: string }
   /** Hold a collapsing system together a few turns more. */
   | { type: 'stabilise'; nodeId: string }
   /** Move a reserve card into an army's deck, or a deck card back to the reserve (a deck must be legal to attack). */
@@ -480,10 +522,14 @@ export type CampaignAction =
   | { type: 'deckRemove'; armyId: string; defId: string }
   /** Break a reserve card down for materials. */
   | { type: 'recycle'; defId: string }
-  /** Start a research project (one at a time). */
-  | { type: 'research'; id: string }
+  /** Take a research station's upgrade (your flagship must stand there), for Wisdom. */
+  | { type: 'research'; nodeId: string }
   /** A hero spends a skill point. */
   | { type: 'learnSkill'; hero: string; skill: string }
+  /** A hero puts a skill point into their own attack or defence. */
+  | { type: 'train'; hero: string; stat: 'attack' | 'defence' }
+  /** Upgrade a part of the flagship, for credits. */
+  | ({ type: 'upgradeShip' } & ShipPart)
   /** A hero puts on gear (from the faction's finds), in a slot it fits; or takes it off. */
   | { type: 'equip'; hero: string; itemId: string; slot: string }
   | { type: 'unequip'; hero: string; slot: string }
@@ -496,7 +542,8 @@ export type CampaignAction =
   | { type: 'chooseCard'; defId: string | null }
   | { type: 'heal'; nodeId: string; all?: boolean }
   | { type: 'fortify'; nodeId: string }
-  | { type: 'buyCard'; slot: number }
+  /** Buy a card from an armoury your flagship stands in (each card is sold once). */
+  | { type: 'buyCard'; nodeId: string; index: number }
   /** Fuse two reserve cards into one that does both (for materials; it cannot be undone). */
   | { type: 'fuse'; a: number; b: number }
   /** Swap a reserve card into an army's deck slot (the slot's card goes to reserve). The deck must stay legal. */
@@ -615,11 +662,73 @@ export const armyById = (s: CampaignState, id: string) => {
 export const armiesOf = (s: CampaignState, factionId: string) => s.armies.filter((a) => a.owner === factionId);
 export const armyAt = (s: CampaignState, nodeId: string) => s.armies.find((a) => a.nodeId === nodeId) ?? null;
 
-/** Credits to recruit a general (null if they already lead an army, or aren't of this faction's race). */
-export function recruitCost(s: CampaignState, f: Faction, general: string): number | null {
-  if (!GENERALS[f.race]?.includes(general) || s.armies.some((a) => a.owner === f.id && a.general === general)) return null;
-  const bomb = cardDef(general).rarity === 'anomaly' && GENERALS[f.race].indexOf(general) === 2;
-  return CAMPAIGN.recruitBase + CAMPAIGN.recruitPerArmy * armiesOf(s, f.id).length + (bomb ? CAMPAIGN.recruitBomb : 0);
+/** A faction's flagship (null once it is gone: a faction with no worlds left). */
+export const flagship = (s: CampaignState, factionId: string): Army | null => s.armies.find((a) => a.owner === factionId) ?? null;
+
+/** The level a part of a ship is at (rooms and the command room from 0: what has been built on them). */
+export function shipLevel(ship: Ship, p: ShipPart): number {
+  if (p.part === 'defence') return ship.rooms.defence[p.room] ?? 0;
+  if (p.part === 'attack') return ship.rooms.attack[p.room] ?? 0;
+  if (p.part === 'command') return ship.rooms.command - CAMPAIGN.commandRoom;
+  return p.part === 'shields' ? ship.shields : ship.hull;
+}
+
+/** Credits for a ship part's next level (null at its most, or no such room). */
+export function shipUpgradeCost(ship: Ship, p: ShipPart): number | null {
+  if ((p.part === 'defence' || p.part === 'attack') && !(p.room >= 0 && p.room < BALANCE.tableauSlots)) return null;
+  const level = shipLevel(ship, p);
+  if (level >= CAMPAIGN.shipMax[p.part]) return null;
+  return CAMPAIGN.shipBase + level * CAMPAIGN.shipPerLevel;
+}
+
+/** A hero's attack and defence in the command room: the baseline, and what they have trained. */
+export function heroStats(f: Faction | undefined, hero: string): { attack: number; defence: number } {
+  const t = f?.heroes?.[hero]?.train;
+  return { attack: CAMPAIGN.heroAttack + (t?.attack ?? 0), defence: CAMPAIGN.heroDefence + (t?.defence ?? 0) };
+}
+
+/** Why a hero can't train a stat (null if they can). */
+export function trainProblem(f: Faction, hero: string, stat: 'attack' | 'defence'): string | null {
+  if (f.hero && hero !== f.hero) return 'That is not your hero.';
+  const h = heroState(f, hero);
+  if ((h.train?.[stat] ?? 0) >= CAMPAIGN.trainMax) return `${cardDef(hero).name}'s ${stat} is fully trained.`;
+  if (skillPoints(h, hero) < 1) return 'No skill points: win battles to gain levels.';
+  return null;
+}
+
+/** Wisdom a research station's upgrade costs. */
+export function researchWisdom(projectId: string): number {
+  return CAMPAIGN.researchWisdom[(researchProject(projectId)?.tier ?? 1) - 1];
+}
+
+/** Why a faction can't use a station here (null if it can): its flagship has to stand in it. */
+export function stationProblem(s: CampaignState, f: Faction, n: CampaignNode): string | null {
+  if (!n.station) return `${n.name} has no station.`;
+  if (flagship(s, f.id)?.nodeId !== n.id) return `Your flagship must be at ${n.name} to use its ${n.station.kind === 'armory' ? 'armoury' : 'research station'}.`;
+  return null;
+}
+
+/** Why a faction can't take a research station's upgrade (null if it can). */
+export function researchProblem(s: CampaignState, f: Faction, n: CampaignNode): string | null {
+  const why = stationProblem(s, f, n);
+  if (why) return why;
+  if (n.station?.kind !== 'research') return `${n.name} has no research station.`;
+  if (n.station.takenBy) return `${n.name}'s research has already been taken.`;
+  if (f.research?.done.includes(n.station.project)) return 'You have that upgrade already.';
+  const cost = researchWisdom(n.station.project);
+  if (f.wisdom < cost) return `Not enough Wisdom (need ${cost}, have ${f.wisdom}).`;
+  return null;
+}
+
+/** Why a faction can't buy an armoury's card (null if it can). */
+export function buyProblem(s: CampaignState, f: Faction, n: CampaignNode, index: number): string | null {
+  const why = stationProblem(s, f, n);
+  if (why) return why;
+  if (n.station?.kind !== 'armory') return `${n.name} has no armoury.`;
+  const id = n.station.cards[index];
+  if (!id) return 'That card has been sold.';
+  if (f.materials < armoryPrice(id)) return `Not enough materials (need ${armoryPrice(id)}, have ${f.materials}).`;
+  return null;
 }
 
 /** Where an army can go this turn: each linked system, and whether going there is a battle. */
@@ -687,30 +796,9 @@ export function recycleValue(defId: string): number {
   return Math.max(1, Math.floor(armoryPrice(defId) * CAMPAIGN.recycleShare));
 }
 
-/** Bring a saved campaign up to the current rules (older saves: scanners, and armies of more than 10 cards). */
+/** Bring a saved campaign up to the current rules (saves from before version 4 aren't kept: see the UI). */
 export function migrateCampaign(s: CampaignState): CampaignState {
   ensureScanners(s);
-  for (const a of s.armies) {
-    if (a.lost) continue;
-    const f = s.factions.find((x) => x.id === a.owner);
-    if (!f || !armyDeckProblems(a.deck, a.general).length) continue;
-    // Keep the general and the first legal cards; the rest (other Heroes too) go back to the reserve.
-    const keep = [a.general];
-    const rest = [...a.deck];
-    rest.splice(rest.indexOf(a.general), rest.includes(a.general) ? 1 : 0);
-    for (const id of rest) {
-      if (keep.length < CAMPAIGN.armySize && cardDef(id).kind !== 'command' && keep.filter((x) => x === id).length < copyLimit(id)) keep.push(id);
-      else f.reserve.push(id);
-    }
-    a.deck = keep;
-  }
-  // Before research, heroes' skills were army-wide: an older save's heroes have their points back to spend
-  // on their card, and its factions start researching.
-  for (const f of s.factions) {
-    if (f.lost || f.research) continue;
-    f.research = { done: [] };
-    for (const h of Object.values(f.heroes ?? {})) h.skills = [];
-  }
   return s;
 }
 
@@ -909,42 +997,29 @@ const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, de
 /** Neutral cards every campaign deck starts with (twice each), before its race's cards. */
 // Weighted to attack (seven attack pairs to three defence): a campaign is won by taking systems, and a
 // deck heavy with defence could not finish even a weakened foe before regional stability ran out.
-/** The neutral cards an army starts with, alongside its hero and a taste of its race's own. */
-const ARMY_NEUTRALS = ['coronal_lance', 'coronal_lance', 'thermal_exchange', 'photon_drill', 'cryo_vault', 'deflector_grid'];
-
 /**
- * An army's starting deck: its hero and 9 cards (CAMPAIGN.armySize in all): a few neutral cards and a first
- * taste of the race's own (attacks first: every race's opening army has to take systems). Generals who join
- * later bring better armies: their neutral cards give way to the race's own best (from its tuned preset), 3
- * for the second general and all 6 for the third.
+ * A flagship's starting deck: its hero, one defensive card and one attack (the race's own first of each, or
+ * a neutral one). The rest is found on the way, at armouries and as rewards, up to CAMPAIGN.armySize.
  */
 export function armyDeck(race: number, general: string): string[] {
   const r = ((race % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
-  const mine = CARDS.filter((c) => c.race === r && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion);
-  const own = [...mine.filter((c) => c.kind === 'attack'), ...mine.filter((c) => c.kind !== 'attack')].slice(0, 3).map((c) => c.id);
-  const upgrades = Math.max(0, GENERALS[r].indexOf(general)) * 3;
-  const deck = [general, ...ARMY_NEUTRALS.slice(0, ARMY_NEUTRALS.length - upgrades), ...own];
-  const count = (id: string) => deck.filter((x) => x === id).length;
-  for (const id of presetDeck(r).cards) {
-    if (deck.length >= CAMPAIGN.armySize) break;
-    const def = cardDef(id);
-    if (def.kind === 'command' || def.rarity === 'anomaly' || def.fusion || count(id) >= copyLimit(id)) continue;
-    deck.push(id);
-  }
-  for (const id of ARMY_NEUTRALS) if (deck.length < CAMPAIGN.armySize) deck.push(id);
-  return deck.slice(0, CAMPAIGN.armySize);
+  const plain = (c: (typeof CARDS)[number]) => c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll;
+  const mine = CARDS.filter((c) => c.race === r && plain(c));
+  const attack = mine.find((c) => c.kind === 'attack')?.id ?? 'coronal_lance';
+  const defence = mine.find((c) => c.kind === 'defence')?.id ?? 'deflector_grid';
+  return [general, defence, attack];
 }
 
 /**
- * Why an army's deck is not ready to fight (empty if it is): exactly CAMPAIGN.armySize cards, led by its
- * general (the one Hero in it), at most 2 of any card (1 of an Anomaly).
+ * Why a flagship's deck is not ready to fight (empty if it is): its hero (the one Hero in it) and at most
+ * CAMPAIGN.armySize cards in all, at most 2 of any card (1 of an Anomaly).
  */
 export function armyDeckProblems(deck: string[], general: string): string[] {
   const out: string[] = [];
-  if (deck.length !== CAMPAIGN.armySize) out.push(`An army fights with exactly ${CAMPAIGN.armySize} cards, its hero among them (this has ${deck.length}).`);
-  if (!deck.includes(general)) out.push(`${cardDef(general).name} leads this army: their card must be in its deck.`);
+  if (deck.length > CAMPAIGN.armySize) out.push(`A flagship carries at most ${CAMPAIGN.armySize} cards, its hero among them (this has ${deck.length}).`);
+  if (!deck.includes(general)) out.push(`${cardDef(general).name} leads this flagship: their card must be in its deck.`);
   const heroes = deck.filter((id) => cardDef(id).kind === 'command' && id !== general);
-  if (heroes.length) out.push(`An army is led by its own hero: ${cardDef(heroes[0]).name} leads an army of their own.`);
+  if (heroes.length) out.push(`A flagship has one hero: ${cardDef(heroes[0]).name} can't come aboard.`);
   const counts = new Map<string, number>();
   for (const id of deck) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const [id, n] of counts) if (n > copyLimit(id)) out.push(copyLimit(id) === 1 ? `${cardDef(id).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of ${cardDef(id).name}.`);
@@ -969,7 +1044,7 @@ export function starterDeck(race: number): string[] {
 export function createCampaign(setup: CampaignSetup): CampaignState {
   const rivals = Math.max(1, Math.min(3, setup.rivals ?? 3));
   const s: CampaignState = {
-    version: 3,
+    version: 4,
     rngState: setup.seed | 0,
     uidCounter: 0,
     logSeq: 0,
@@ -980,7 +1055,6 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     armies: [],
     story: { queue: [], told: [] },
     anomalies: [],
-    armory: [],
     battle: null,
     conquest: null,
     cardRewards: [],
@@ -1044,6 +1118,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     home.owner = id;
     home.home = id;
     home.yield = { credits: 3, materials: 3 };
+    // The player leads the hero they picked; each rival, its race's first.
+    const hero = !isAI && setup.hero && GENERALS[race].includes(setup.hero) ? setup.hero : GENERALS[race][0];
     const f: Faction = {
       id,
       name: isAI ? RACE_NAMES[race] : setup.playerName || 'Commander',
@@ -1051,6 +1127,9 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
       race,
       credits: CAMPAIGN.startCredits,
       materials: CAMPAIGN.startMaterials,
+      wisdom: 0,
+      ship: newShip(),
+      hero,
       research: { done: [] },
       reserve: [],
       missions: [],
@@ -1059,8 +1138,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
       eliminated: false,
     };
     s.factions.push(f);
-    // Every faction starts with one army, led by its race's first general, at home, ready to march.
-    raiseArmy(s, f, GENERALS[race][0], home.id).refit = false;
+    // Every faction has one flagship, led by its hero, at home, ready to fly.
+    raiseArmy(s, f, hero, home.id).refit = false;
     for (let k = 0; k < CAMPAIGN.activeMissions; k++) drawMission(s, f);
   }
 
@@ -1125,12 +1204,21 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   for (const n of reaches.slice(0, CAMPAIGN.stellariaBlooms)) n.stellaria = CAMPAIGN.stellariaTurns;
 
   // The Lost Races: the last of peoples the dimming has already taken, wandering the middle reaches.
-  s.factions.push({ id: 'lost', name: 'Lost Races', isAI: true, race: 0, credits: 0, materials: 0, reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
+  s.factions.push({ id: 'lost', name: 'Lost Races', isAI: true, race: 0, credits: 0, materials: 0, wisdom: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
   const homesNear = (n: CampaignNode) => s.nodes.some((h) => h.home && (h.id === n.id || h.links.includes(n.id)));
   const haunts = shuffleInPlace(s, s.nodes.filter((n) => !n.home && !n.heart && !n.gate && !homesNear(n) && (n.ring ?? 0) >= 2 && !armyAt(s, n.id)));
   for (const n of haunts.slice(0, CAMPAIGN.lostArmies)) raiseLost(s, n);
 
-  refreshArmory(s, s.factions[0]);
+  // Armouries and research stations, dotted about the map (never at home, a home's gate or the Heart).
+  // Those within an anomaly's reach are better stocked: rarer cards, deeper research.
+  const sites = shuffleInPlace(s, s.nodes.filter((n) => !n.home && !n.heart && !n.gate));
+  for (const n of sites.slice(0, CAMPAIGN.armories)) n.station = { kind: 'armory', cards: armoryStock(s, n) };
+  const projects = new Set<string>();
+  for (const n of sites.slice(CAMPAIGN.armories, CAMPAIGN.armories + CAMPAIGN.researchStations)) {
+    const project = pickResearch(s, n, projects);
+    projects.add(project);
+    n.station = { kind: 'research', project };
+  }
   // Scanner arrays on about one system in six (never a home, nor the Heart).
   for (const n of s.nodes) n.scanner = !n.home && !n.heart && randomInt(s, 6) === 0;
   clog(s, `The campaign begins. ${s.factions.filter((f) => !f.lost).map((f) => `${f.name} holds ${nodeById(s, s.nodes.find((n) => n.home === f.id)!.id).name}`).join('; ')}.`);
@@ -1244,9 +1332,36 @@ function offerPool(f: Faction): string[] {
   );
 }
 
-function refreshArmory(s: CampaignState, f: Faction) {
-  const pool = offerPool(f);
-  s.armory = Array.from({ length: CAMPAIGN.armorySize }, () => pool[randomInt(s, pool.length)]);
+/** Cards an armoury can stock: any card but Heroes, globals and those made in play. */
+const STOCK = CARDS.filter((c) => c.kind !== 'command' && c.kind !== 'global' && !c.fusion);
+
+/**
+ * An armoury's stock: CAMPAIGN.armoryStock different cards, each sold once. Mostly dwarf cards, with a fair
+ * chance of a rare (Stellar) or Anomaly card among them; now and then nothing but dwarfs. Within an
+ * anomaly's reach the odds are better, and there may be two.
+ */
+function armoryStock(s: CampaignState, n: CampaignNode): string[] {
+  const near = nodeAnomalies(s, n).length > 0;
+  const of = (r: ItemRarity) => shuffleInPlace(s, STOCK.filter((c) => (c.rarity ?? 'dwarf') === r).map((c) => c.id));
+  const dwarfs = of('dwarf');
+  const stellar = of('stellar');
+  const anomaly = of('anomaly');
+  const rares: string[] = [];
+  const plain = nextRandom(s) < (near ? 0.1 : 0.25);
+  if (!plain) {
+    const chances = near ? [0.95, 0.45] : [0.6, 0.1];
+    for (const c of chances) if (nextRandom(s) < c) rares.push((nextRandom(s) < (near ? 0.45 : 0.2) ? anomaly : stellar).shift()!);
+  }
+  return shuffleInPlace(s, [...rares, ...dwarfs.slice(0, CAMPAIGN.armoryStock - rares.length)]);
+}
+
+/** A research station's one upgrade: an early one, or (within an anomaly's reach) a deep one; each different while they last. */
+function pickResearch(s: CampaignState, n: CampaignNode, taken: Set<string>): string {
+  const near = nodeAnomalies(s, n).length > 0;
+  const free = RESEARCH.filter((r) => !taken.has(r.id));
+  const fits = free.filter((r) => (near ? r.tier >= 2 : r.tier <= 2));
+  const pool = fits.length ? fits : free.length ? free : RESEARCH;
+  return pool[randomInt(s, pool.length)].id;
 }
 
 function randomCardChoices(s: CampaignState, f: Faction): string[] {
@@ -1257,6 +1372,47 @@ function randomCardChoices(s: CampaignState, f: Faction): string[] {
 // ---------------------------------------------------------------------------
 // Battles
 // ---------------------------------------------------------------------------
+
+/**
+ * A station's deck (a system with no flagship in it: neutral sentinels, a held system's guard): a few cards,
+ * more the stronger it is (CAMPAIGN.stationDeck), drawn from the sentinels' deck of its tier; a held
+ * system's guard has its owner's race's cards among them. No hero: it is beaten when its cards run out.
+ */
+function stationDeck(s: CampaignState, n: CampaignNode, race?: number): string[] {
+  if (n.heart) {
+    const w = wardenDeck(s).filter((id) => cardDef(id).kind !== 'command');
+    return [...w.slice(8, 14), ...shuffleInPlace(s, [...w.slice(0, 8), ...w.slice(14)]).slice(0, CAMPAIGN.heartDeck - 6)];
+  }
+  const tier = Math.max(0, Math.min(2, n.tier));
+  const pool = (race === undefined ? neutralDeck(s, tier) : starterDeck(race)).filter((id) => cardDef(id).kind !== 'command');
+  const deck: string[] = [];
+  for (const id of shuffleInPlace(s, pool)) {
+    if (deck.length >= CAMPAIGN.stationDeck[tier]) break;
+    if (deck.filter((x) => x === id).length < copyLimit(id)) deck.push(id);
+  }
+  return deck;
+}
+
+/** A station's rooms: walls as thick as its tier. */
+function stationRooms(n: CampaignNode): ShipRooms {
+  const d = n.heart ? 2 : Math.max(0, Math.min(2, n.tier));
+  return { defence: [d, d, d, d, d], attack: [0, 0, 0, 0, 0], command: 0 };
+}
+
+/** What a flagship brings to its side of a battle: its hero in the command room, its rooms, shields and hull. */
+function flagshipSetup(s: CampaignState, army: Army): Pick<PlayerSetup, 'hero' | 'heroStats' | 'rooms' | 'opening' | 'tableau'> & { hull: BattleModifiers } {
+  const f = s.factions.find((x) => x.id === army.owner);
+  if (army.lost || !f) return { hero: army.general, tableau: [army.general], heroStats: { attack: CAMPAIGN.heroAttack + 1, defence: CAMPAIGN.heroDefence }, hull: {} };
+  const ship = f.ship ?? newShip();
+  return {
+    hero: army.general,
+    tableau: [army.general],
+    heroStats: heroStats(f, army.general),
+    rooms: ship.rooms,
+    ...(ship.shields ? { opening: { shields: ship.shields } } : {}),
+    hull: ship.hull ? { maxHealthDelta: ship.hull * CAMPAIGN.hullHealth } : {},
+  };
+}
 
 /** Neutral sentinels' decks, by tier: the plain starter at first, then with a pair of each race's cards mixed in. */
 function neutralDeck(s: CampaignState, tier: number): string[] {
@@ -1342,32 +1498,33 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const def = guard ? armyBonus(s, guard) : null;
   // The defender: an army standing there (its own deck), else the system's own guard (its race's plain
   // deck), else neutral sentinels, or at the Heart its Wardens.
-  const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s army`) : owner ? `${target.name} Guard` : target.heart ? 'The Heart Wardens' : `${target.name} Sentinels`;
-  const defenderDeck = guard ? guard.deck : owner ? starterDeck(owner.race) : target.heart ? wardenDeck(s) : neutralDeck(s, target.tier);
+  const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s flagship`) : owner ? `${target.name} Station` : target.heart ? 'The Heart Wardens' : `${target.name} Sentinels`;
+  const defenderDeck = guard ? guard.deck : stationDeck(s, target, owner?.race);
+  const { hull: atkHull, ...atkShip } = flagshipSetup(s, army);
+  const defShip = guard ? flagshipSetup(s, guard) : null;
   return [
     {
       name: army.lost ? armyLeader(army) : `${armyLeader(army)} (${attacker.name})`,
       isAI: attacker.isAI,
       deck: army.deck,
-      deckName: `${armyLeader(army)}'s army`,
-      freeReshuffle: true,
+      deckName: `${armyLeader(army)}'s flagship`,
       heatDelta: army.damage + (def?.foeHeat ?? 0),
-      modifiers: [starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
+      modifiers: [starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
       ...(atk.skills.length ? { skills: atk.skills } : {}),
       ...(atk.boons.length ? { heroBoons: { hero: army.general, boons: atk.boons } } : {}),
-      ...(atk.start ? { tableau: [army.general] } : {}),
+      ...atkShip,
       conditions: [...(fromFx?.conditions ?? []), ...(target.star === 'white' || target.star === 'neutron' ? starCond : []), ...(def?.foeConditions ?? [])],
     },
     {
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
       isAI: owner ? owner.isAI : true,
       deck: defenderDeck,
-      ...(guard ? { freeReshuffle: true } : {}),
       // (The sentinels' heat, and a gate's weakness, are theirs: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat,
-      tableau: [...(def?.start && guard ? [guard.general] : []), ...g.tableau],
+      ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : { rooms: stationRooms(target) }),
+      tableau: [...(defShip ? [guard!.general] : []), ...g.tableau],
       lightspeed: g.lightspeed,
-      modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}, atk.foeMods].reduce(mergeModifiers, targetFx?.modifiers ?? {}),
+      modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, targetFx?.modifiers ?? {}),
       ...(def?.skills.length ? { skills: def.skills } : {}),
       ...(guard && def?.boons.length ? { heroBoons: { hero: guard.general, boons: def.boons } } : {}),
       conditions: [...defenceConditions, ...atk.foeConditions].length ? [...defenceConditions, ...atk.foeConditions] : undefined,
@@ -1419,7 +1576,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   if (problem) throw new GameError(`${armyLeader(army)}'s deck isn't ready to fight: ${problem}`);
   army.moved = true;
   const players = battleSetup(s, army, target);
-  const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players });
+  const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players, campaign: true });
   const guard = armyAt(s, toId);
   clog(s, army.lost ? `${armyLeader(army)} strike from ${here.name} at ${target.name} (${players[1].name}).` : `${armyLeader(army)} leads ${f.name}'s army from ${here.name} against ${target.name} (${players[1].name}).`, [here.id, target.id], f.id);
   s.battle = { attacker: f.id, defender: target.owner, fromId: here.id, nodeId: toId, armyId: army.id, defenderArmyId: guard?.id ?? null, game };
@@ -1428,11 +1585,16 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   if (!playerInvolved) resolveBattle(s, simulateBattle(game));
 }
 
-/** A beaten army falls back to a free system its faction holds next door, battered; with nowhere to go, it is lost. */
+/**
+ * A beaten flagship falls back, battered: to a free system its faction holds next door, else the nearest it
+ * holds at all. A lost army with nowhere to go next door is gone; a faction's flagship only once it holds nothing.
+ */
 function rout(s: CampaignState, army: Army) {
-  const owner = factionById(s, army.owner);
   const here = nodeById(s, army.nodeId);
-  const refuge = here.links.map((id) => nodeById(s, id)).find((n) => n.owner === army.owner && !n.collapsed && !armyAt(s, n.id));
+  const free = (n: CampaignNode) => n.owner === army.owner && !n.collapsed && !armyAt(s, n.id);
+  const refuge =
+    here.links.map((id) => nodeById(s, id)).find(free) ??
+    (army.lost ? undefined : s.nodes.filter(free).sort((a, b) => hops(s, here.id, a.id) - hops(s, here.id, b.id))[0]);
   if (refuge) {
     army.nodeId = refuge.id;
     army.damage = CAMPAIGN.maxDamage;
@@ -1444,10 +1606,7 @@ function rout(s: CampaignState, army: Army) {
     clog(s, `${armyLeader(army)} are gone. Another people the dark has taken.`, here.id, army.owner);
     return;
   }
-  // Its cards go back to the faction (all but the standard issue its next general will bring).
-  owner.reserve.push(...army.deck.filter((id) => !armyDeck(owner.race, army.general).includes(id)));
-  clog(s, `${cardDef(army.general).name}'s army is broken. ${cardDef(army.general).name} can be recruited again.`, here.id, army.owner);
-  if (owner.id === s.playerId) tell(s, armyLostScene());
+  clog(s, `${cardDef(army.general).name}'s flagship has nowhere left to go.`, here.id, army.owner);
 }
 
 function resolveBattle(s: CampaignState, game: GameState) {
@@ -1539,8 +1698,6 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
   if (f.id === s.playerId && f.stats.settled + f.stats.absorbed + f.stats.novas === 0) tell(s, firstConquestScene());
   n.home = undefined;
   n.gate = undefined;
-  // A conquest brings new stock to the player's armory.
-  if (f.id === s.playerId) refreshArmory(s, f);
   // The army that took it may find gear among the spoils.
   if (army && !army.lost && nextRandom(s) < HEROES.itemChance + armyBonus(s, army).loot) findItem(s, f, army, n);
 
@@ -1599,7 +1756,7 @@ function findItem(s: CampaignState, f: Faction, army: Army, n: CampaignNode) {
 /** The AI wears its best gear: each find goes to the hero it suits best (an empty or weaker slot). */
 function aiEquip(f: Faction) {
   for (const item of [...(f.items ?? [])]) {
-    for (const hero of GENERALS[f.race]) {
+    for (const hero of [f.hero ?? GENERALS[f.race][0]]) {
       const h = heroState(f, hero);
       const slot = RACE_SLOTS[f.race].find((x) => x.kind === item.slot && (!h.gear[x.id] || itemValue(h.gear[x.id]) < itemValue(item)));
       if (!slot) continue;
@@ -1612,10 +1769,14 @@ function aiEquip(f: Faction) {
   }
 }
 
-/** The AI spends its heroes' skill points: down the first branch, then the second. */
+/** The AI spends its hero's skill points: training first (defence, then attack, by turns), then down the first branch. */
 function aiLearn(f: Faction) {
-  for (const hero of GENERALS[f.race]) {
+  for (const hero of [f.hero ?? GENERALS[f.race][0]]) {
     const h = heroState(f, hero);
+    for (let i = 0; i < 2; i++) {
+      const stat = (h.train?.defence ?? 0) <= (h.train?.attack ?? 0) ? 'defence' : 'attack';
+      if (trainProblem(f, hero, stat) === null) train(h, stat);
+    }
     for (const k of [...(SKILL_TREES[hero] ?? [])].sort((a, b) => a.branch - b.branch || a.tier - b.tier)) {
       if (learnProblem(hero, h, k.id) === null) learn(h, k.id);
     }
@@ -1626,23 +1787,75 @@ function learn(h: HeroState, id: string) {
   h.skills.push(id);
 }
 
-/** A faction starts a research project: paid now, done in so many turns. */
-function startResearch(f: Faction, id: string) {
-  const problem = researchProblem(f.research, f.materials, id);
-  if (problem) throw new GameError(problem);
-  const p = researchProject(id)!;
-  f.materials -= p.cost;
-  f.research ??= { done: [] };
-  f.research.current = { id, left: p.turns };
+function train(h: HeroState, stat: 'attack' | 'defence') {
+  h.train ??= { attack: 0, defence: 0 };
+  h.train[stat] += 1;
 }
 
-/** The AI researches what helps its armies most, cheapest first among what it can start. */
-function aiResearch(f: Faction) {
-  if (f.research?.current) return;
-  const order = ['hull1', 'sight1', 'march1', 'mend1', 'cool1', 'energy1', 'loot1', 'hand1', 'hull2', 'march2', 'mend2', 'energy2', 'dread1', 'dread2'];
-  // (It keeps some materials for cards, early on.)
-  const id = order.find((x) => researchProblem(f.research, f.materials - 4, x) === null);
-  if (id) startResearch(f, id);
+/** Take a research station's upgrade (the checks are researchProblem's). */
+function takeResearch(s: CampaignState, f: Faction, n: CampaignNode) {
+  const why = researchProblem(s, f, n);
+  if (why) throw new GameError(why);
+  const st = n.station as Extract<Station, { kind: 'research' }>;
+  f.wisdom -= researchWisdom(st.project);
+  st.takenBy = f.id;
+  (f.research ??= { done: [] }).done.push(st.project);
+  clog(s, `${f.name} takes ${researchProject(st.project)!.name} from ${n.name}'s research station.`, n.id, f.id);
+}
+
+/** Buy an armoury's card (the checks are buyProblem's): it goes to the reserve, and is gone from the armoury. */
+function buyCard(s: CampaignState, f: Faction, n: CampaignNode, index: number) {
+  const why = buyProblem(s, f, n, index);
+  if (why) throw new GameError(why);
+  const st = n.station as Extract<Station, { kind: 'armory' }>;
+  const id = st.cards[index];
+  f.materials -= armoryPrice(id);
+  st.cards.splice(index, 1);
+  f.reserve.push(id);
+  clog(s, `${f.name} buys ${cardDef(id).name} at ${n.name}'s armoury.`, n.id, f.id);
+}
+
+/** Upgrade a part of a faction's flagship (for credits). */
+function upgradeShip(f: Faction, part: ShipPart) {
+  f.ship ??= newShip();
+  const cost = shipUpgradeCost(f.ship, part);
+  if (cost === null) throw new GameError('That part of the ship is fully upgraded.');
+  spendCredits(f, cost);
+  const r = f.ship.rooms;
+  if (part.part === 'defence') r.defence[part.room] += 1;
+  else if (part.part === 'attack') r.attack[part.room] += 1;
+  else if (part.part === 'command') r.command += 1;
+  else if (part.part === 'shields') f.ship.shields += 1;
+  else f.ship.hull += 1;
+}
+
+/** The AI at a station: it takes the research if it can, and buys the best card it can afford with room in its deck. */
+function aiStation(s: CampaignState, f: Faction) {
+  const army = flagship(s, f.id);
+  if (!army) return;
+  const n = nodeById(s, army.nodeId);
+  if (n.station?.kind === 'research' && researchProblem(s, f, n) === null) takeResearch(s, f, n);
+  if (n.station?.kind === 'armory') {
+    const rank = (id: string) => ARMORY_PRICE[cardDef(id).rarity ?? 'dwarf'] + (cardDef(id).race === f.race ? 2 : 0);
+    for (let k = 0; k < 2; k++) {
+      const st = n.station as Extract<Station, { kind: 'armory' }>;
+      const best = st.cards.map((id, i) => ({ id, i })).filter(({ i }) => buyProblem(s, f, n, i) === null).sort((a, b) => rank(b.id) - rank(a.id))[0];
+      if (!best) break;
+      buyCard(s, f, n, best.i);
+    }
+  }
+}
+
+/** The AI upgrades its ship with spare credits: the rooms its cards stand in most, then shields and hull. */
+function aiShip(f: Faction) {
+  const order: ShipPart[] = [{ part: 'command' }, { part: 'defence', room: 2 }, { part: 'attack', room: 2 }, { part: 'hull' }, { part: 'defence', room: 1 }, { part: 'defence', room: 3 }, { part: 'shields' }, { part: 'attack', room: 1 }, { part: 'attack', room: 3 }, { part: 'defence', room: 0 }, { part: 'defence', room: 4 }];
+  f.ship ??= newShip();
+  for (const part of order) {
+    const cost = shipUpgradeCost(f.ship, part);
+    if (cost === null) continue;
+    if (f.credits >= cost + 4) upgradeShip(f, part);
+    return;
+  }
 }
 
 /** A faction with no systems left is out: with no worlds to supply them, its armies scatter. */
@@ -1763,17 +1976,7 @@ function newTurn(s: CampaignState) {
     const inc = factionIncome(s, f.id);
     f.credits += inc.credits;
     f.materials += inc.materials;
-  }
-  // Research ticks on: a project whose time is up is done.
-  for (const f of s.factions) {
-    const cur = f.research?.current;
-    if (f.eliminated || !cur) continue;
-    cur.left -= 1;
-    if (cur.left <= 0) {
-      f.research!.done.push(cur.id);
-      delete f.research!.current;
-      clog(s, `${f.name} completes its research: ${researchProject(cur.id)?.name}.`, undefined, f.id);
-    }
+    if (!f.lost) f.wisdom = (f.wisdom ?? 0) + CAMPAIGN.wisdomPerTurn;
   }
   for (const a of s.armies) {
     a.moved = a.refit = false;
@@ -1811,7 +2014,6 @@ function newTurn(s: CampaignState) {
   if (s.winner) return;
   if (s.turn >= CAMPAIGN.stabilityTurns) markCollapses(s);
   else if (regionalStability(s) <= 2) tell(s, instabilityScene());
-  refreshArmory(s, campaignPlayer(s));
   checkMissions(s);
   const p = campaignPlayer(s);
   clog(s, `— Turn ${s.turn}. ${p.name} collects ${factionIncome(s, p.id).credits} credits and ${factionIncome(s, p.id).materials} materials.`);
@@ -1864,8 +2066,11 @@ function aiConquestChoice(s: CampaignState, n: CampaignNode): ConquestChoice {
   return 'settle';
 }
 
-/** AI deck building: swap reserve race cards in for neutral cards in an army's deck, keeping it legal. */
+/** AI deck building: fill the flagship's deck from the reserve, then swap race cards in for neutral ones, keeping it legal. */
 function improveDeck(f: Faction, army: Army) {
+  for (let r = f.reserve.length - 1; r >= 0 && army.deck.length < CAMPAIGN.armySize; r--) {
+    if (deckAddProblem(f, army, f.reserve[r]) === null) army.deck.push(f.reserve.splice(r, 1)[0]);
+  }
   for (let r = 0; r < f.reserve.length; r++) {
     const id = f.reserve[r];
     const def = cardDef(id);
@@ -1891,8 +2096,11 @@ function raiseLost(s: CampaignState, n: CampaignNode): Army | null {
   const taken = new Set(s.armies.map((a) => a.lost));
   const names = LOST_RACES.filter((x) => !taken.has(x));
   const name = names.length ? names[randomInt(s, names.length)] : LOST_RACES[randomInt(s, LOST_RACES.length)];
-  const deck = neutralDeck(s, Math.max(1, Math.min(2, n.tier)));
-  const general = deck.find((id) => cardDef(id).kind === 'command') ?? GENERALS[0][0];
+  const tier = Math.max(1, Math.min(2, n.tier));
+  const full = neutralDeck(s, tier);
+  const general = full.find((id) => cardDef(id).kind === 'command') ?? GENERALS[0][0];
+  // (The last of a people: their leader, and a few cards, more the deeper they wander.)
+  const deck = [general, ...stationDeck(s, { ...n, tier, heart: false })];
   const army: Army = { id: `army${++s.uidCounter}`, owner: lost.id, general, nodeId: n.id, deck, damage: 0, moved: true, lost: name };
   s.armies.push(army);
   return army;
@@ -1965,32 +2173,16 @@ function aiTurn(s: CampaignState, f: Faction) {
       army.damage -= 1;
     }
   });
-  // 2. Buy a race card from its own armory now and then.
-  if (f.materials >= ARMORY_PRICE.stellar + 3 && nextRandom(s) < 0.5) {
-    const pool = offerPool(f);
-    const id = pool[randomInt(s, pool.length)];
-    if (f.materials >= armoryPrice(id)) {
-      f.materials -= armoryPrice(id);
-      f.reserve.push(id);
-    }
-  }
-  // 3. Recruit another general when it can afford one, at home (or any free system it holds).
-  const next = GENERALS[f.race].find((g) => recruitCost(s, f, g) !== null);
-  const cost = next ? recruitCost(s, f, next)! : null;
-  const muster = mine.find((n) => n.home === f.id && !armyAt(s, n.id)) ?? mine.find((n) => !armyAt(s, n.id));
-  if (next && cost !== null && muster && f.credits >= cost + 3) {
-    f.credits -= cost;
-    raiseArmy(s, f, next, muster.id);
-    clog(s, `${f.name} raises an army under ${cardDef(next).name}.`, muster.id, f.id);
-  }
-  // 3a. Its heroes learn, and wear what they have found.
+  // 2. At a station, it buys cards and takes research; with spare credits, it upgrades its ship.
+  aiStation(s, f);
+  aiShip(f);
+  // 3. Its hero trains and learns, and wears what they have found.
   aiLearn(f);
   aiEquip(f);
-  aiResearch(f);
   // 3b. Hold a collapsing home or bloom together, if it can.
   for (const n of mine) if ((n.home === f.id || (n.stellaria ?? 0) > 0) && stabiliseProblem(f, n) === null) stabilise(s, f, n);
-  // 4. Improve its armies' decks: swap race cards in for neutral ones.
-  for (const army of armiesOf(s, f.id)) if (army.refit) improveDeck(f, army);
+  // 4. Improve its flagship's deck: new cards in, race cards for neutral ones (a short deck fills whenever it can).
+  for (const army of armiesOf(s, f.id)) if (army.refit || army.deck.length < CAMPAIGN.armySize) improveDeck(f, army);
   // 5. Fortify the home system with spare credits.
   const home = mine.find((n) => n.home === f.id) ?? mine[0];
   const fcost = home ? fortifyCost(home) : null;
@@ -2011,8 +2203,10 @@ function aiTurn(s: CampaignState, f: Faction) {
     if (s.battle || s.winner || !s.armies.includes(army) || army.moved) continue;
     const moves = armyMoves(s, army);
     if (!moves.length) continue;
+    // (A station still to use draws it: an armoury with stock, research not yet taken.)
+    const lure = (n: CampaignNode) => (n.station?.kind === 'armory' ? (n.station.cards.length ? 1 : 0) : n.station?.kind === 'research' && !n.station.takenBy ? 1 : 0);
     const strength = (n: CampaignNode) =>
-      (n.heart ? 6 : n.owner ? 3 : n.tier) + n.garrison.length + (armyAt(s, n.id) ? 2 - armyAt(s, n.id)!.damage * 0.2 : 0) - n.damage * 0.3 + (n.owner === s.playerId ? 0.5 : 0) - ((n.stellaria ?? 0) > 0 ? 1 : 0);
+      (n.heart ? 6 : n.owner ? 3 : n.tier) + n.garrison.length + (armyAt(s, n.id) ? 2 - armyAt(s, n.id)!.damage * 0.2 : 0) - n.damage * 0.3 + (n.owner === s.playerId ? 0.5 : 0) - ((n.stellaria ?? 0) > 0 ? 1 : 0) - lure(n);
     // Never into a system about to collapse; and out of one, before it does.
     const battles = moves.filter((m) => m.battle && !nodeById(s, m.toId).collapsing).map((m) => ({ ...m, node: nodeById(s, m.toId) }));
     if (nodeById(s, army.nodeId).collapsing) {
@@ -2084,17 +2278,6 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       moveArmy(s, army, action.toId);
       break;
     }
-    case 'recruit': {
-      const n = requireOwned(s, f, action.nodeId);
-      if (armyAt(s, n.id)) throw new GameError(`An army already stands in ${n.name}.`);
-      const cost = recruitCost(s, f, action.general);
-      if (cost === null) throw new GameError(`${cardDef(action.general).name} cannot lead a new army for you.`);
-      spendCredits(f, cost);
-      raiseArmy(s, f, action.general, n.id);
-      clog(s, `${f.name} raises an army in ${n.name} under ${cardDef(action.general).name}. It can march next turn.`);
-      tell(s, recruitScene(action.general, f.id));
-      break;
-    }
     case 'deckAdd': {
       const army = armyById(s, action.armyId);
       if (army.owner !== f.id) throw new GameError('That army is not yours.');
@@ -2135,9 +2318,19 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       clog(s, `${cardDef(action.hero).name} learns ${heroSkill(action.hero, action.skill)!.name}.`, undefined, f.id);
       break;
     }
-    case 'research': {
-      startResearch(f, action.id);
-      clog(s, `${f.name} begins researching ${researchProject(action.id)!.name}.`, undefined, f.id);
+    case 'research':
+      takeResearch(s, f, nodeById(s, action.nodeId));
+      break;
+    case 'train': {
+      const why = trainProblem(f, action.hero, action.stat);
+      if (why) throw new GameError(why);
+      train(heroState(f, action.hero), action.stat);
+      clog(s, `${cardDef(action.hero).name} trains: +1 ${action.stat}.`, undefined, f.id);
+      break;
+    }
+    case 'upgradeShip': {
+      const { type: _t, ...part } = action;
+      upgradeShip(f, part as ShipPart);
       break;
     }
     case 'equip': {
@@ -2230,15 +2423,9 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       clog(s, `${f.name} fortifies ${n.name} to level ${n.fortification}.`);
       break;
     }
-    case 'buyCard': {
-      const id = s.armory[action.slot];
-      if (!id) throw new GameError('That armory slot is empty.');
-      spendMaterials(f, armoryPrice(id));
-      s.armory.splice(action.slot, 1);
-      f.reserve.push(id);
-      clog(s, `${f.name} acquires ${cardDef(id).name}.`);
+    case 'buyCard':
+      buyCard(s, f, nodeById(s, action.nodeId), action.index);
       break;
-    }
     case 'fuse': {
       const [a, b] = [f.reserve[action.a], f.reserve[action.b]];
       if (!a || !b || action.a === action.b) throw new GameError('Choose two different cards from your reserve.');

@@ -1,9 +1,10 @@
 import type { BattleModifiers } from './types';
 
 /**
- * Research: what a faction learns once and every one of its armies shares (more energy a day, longer marches,
- * stronger hulls...). Where a hero's skills and gear are boons on their own card, research is for the whole
- * army. One project at a time: it is paid for in materials when it starts, and is done after so many turns.
+ * Research: upgrades a faction's flagship carries for good (more energy a day, longer marches, stronger
+ * hulls...). Where a hero's skills and gear are boons on their own card, research is for the whole ship.
+ * Each research station on the map has one upgrade, taken for Wisdom by the first flagship to use it
+ * (campaign.ts). (`cost` and `turns` are left from the old research tree; a station's price is by tier.)
  */
 
 /** What a finished project gives every army of its faction. */
@@ -74,17 +75,6 @@ export const researchProject = (id: string) => BY_ID.get(id);
 export interface ResearchState {
   done: string[];
   current?: { id: string; left: number };
-}
-
-/** Why a faction can't start a project (null if it can). */
-export function researchProblem(r: ResearchState | undefined, materials: number, id: string): string | null {
-  const p = researchProject(id);
-  if (!p) return 'No such project.';
-  if (r?.done.includes(id)) return 'Already researched.';
-  if (r?.current) return `Already researching ${researchProject(r.current.id)?.name ?? 'something'}.`;
-  if (p.needs && !r?.done.includes(p.needs)) return `Research ${researchProject(p.needs)!.name} first.`;
-  if (materials < p.cost) return `Not enough materials (need ${p.cost}, have ${materials}).`;
-  return null;
 }
 
 /** Everything a faction's research gives each of its armies. */

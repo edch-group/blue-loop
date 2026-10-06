@@ -72,6 +72,8 @@ export interface HeroState {
   skills: string[];
   /** Equipped gear, by slot id. */
   gear: Record<string, Item>;
+  /** Campaign: skill points put into the hero's own attack and defence (each point +1 in battle). */
+  train?: { attack: number; defence: number };
 }
 
 /**
@@ -228,7 +230,7 @@ export function learnProblem(hero: string, h: HeroState, id: string): string | n
 
 /** Skill points not yet spent: one per level after the first, less what the skills learned cost. */
 export const skillPoints = (h: HeroState, hero?: string) =>
-  heroLevel(h.xp) - 1 - h.skills.reduce((t, id) => t + (hero ? (heroSkill(hero, id) ? skillCost(heroSkill(hero, id)!) : 0) : spentCost(id)), 0);
+  heroLevel(h.xp) - 1 - (h.train?.attack ?? 0) - (h.train?.defence ?? 0) - h.skills.reduce((t, id) => t + (hero ? (heroSkill(hero, id) ? skillCost(heroSkill(hero, id)!) : 0) : spentCost(id)), 0);
 
 /** What a learned skill cost, from its id alone (ids are the same in every hero's tree: "might4"). */
 function spentCost(id: string): number {

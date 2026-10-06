@@ -1318,7 +1318,8 @@ function startTurn(state: GameState) {
 
   // Shields fade, unless Deep Current holds them.
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
-  p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
+  // (A campaign ship's shields are up as the battle begins: they last its first day.)
+  if (!(state.campaign && p.turnsTaken === 1)) p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
 
   // The planets move on a day (your first day starts at the dead planet).
   if (p.turnsTaken > 1) {
