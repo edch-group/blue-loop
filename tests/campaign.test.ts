@@ -100,7 +100,7 @@ describe('campaign setup', () => {
       expect(armies[0].nodeId).toBe(ownedNodes(s, f.id)[0].id);
       expect(armies[0].general).toBe(GENERALS[f.race][0]);
       expect(armyDeckProblems(armies[0].deck, armies[0].general)).toEqual([]);
-      expect(armies[0].deck).toHaveLength(3);
+      expect(armies[0].deck).toHaveLength(CAMPAIGN.armySize);
     }
     expect(new Set(rivals.map((f) => f.race)).size).toBe(4);
     // The Lost Races wander the middle reaches, each with a leader and a few cards.
@@ -484,15 +484,17 @@ describe('fog of war', () => {
 });
 
 describe('armies and generals', () => {
-  it('gives each faction one flagship, led by its hero, with the hero, one defence and one attack', () => {
+  it('gives each faction one flagship, led by its hero, with a ten-card deck of its race\'s attacks and defence', () => {
     const s = createCampaign({ seed: 5, rivals: 3, race: 2, hero: GENERALS[2][1] });
     expect(campaignPlayer(s).hero).toBe(GENERALS[2][1]);
     for (const f of s.factions.filter((x) => !x.lost)) {
       const armies = armiesOf(s, f.id);
       expect(armies).toHaveLength(1);
       expect(armies[0].general).toBe(f.hero);
-      expect(armies[0].deck).toHaveLength(3);
-      expect(armies[0].deck.slice(1).map((id) => cardDef(id).kind).sort()).toEqual(['attack', 'defence']);
+      expect(armies[0].deck).toHaveLength(CAMPAIGN.armySize);
+      expect(armies[0].deck[0]).toBe(f.hero);
+      expect(armies[0].deck.slice(1).some((id) => cardDef(id).kind === 'attack' && cardDef(id).race === f.race)).toBe(true);
+      expect(armies[0].deck.slice(1).some((id) => cardDef(id).kind === 'defence')).toBe(true);
       expect(armyDeckProblems(armies[0].deck, armies[0].general)).toEqual([]);
     }
     // (A hero who isn't the race's is not taken: the first leads.)
@@ -643,30 +645,29 @@ describe('armies and generals', () => {
     expect(plain).toBeGreaterThanOrEqual(CAMPAIGN.gateHeat);
   });
 
-  it('moves cards between the flagship\'s deck and the reserve one at a time, up to ten', () => {
+  it('moves cards between the flagship\'s deck and the reserve one at a time, and keeps it at ten or more', () => {
     let s = fresh();
     const army = myArmy(s);
+    // It starts with ten.
+    expect(army.deck).toHaveLength(CAMPAIGN.armySize);
     const out = army.deck.find((id) => id !== army.general)!;
+    // At ten, nothing comes out.
+    expect(() => applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: out })).toThrow(/at least/);
+    // No most: it goes on taking cards; then one can come back out, down to ten.
+    campaignPlayer(s).reserve.push('scatter_shot');
+    s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: 'scatter_shot' });
+    expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize + 1);
     s = applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: out });
-    expect(myArmy(s).deck).toHaveLength(army.deck.length - 1);
+    expect(myArmy(s).deck).toHaveLength(CAMPAIGN.armySize);
     expect(campaignPlayer(s).reserve).toContain(out);
     // Refitting this turn: it can't march until the next.
     expect(armyMoves(s, myArmy(s))).toEqual([]);
     const target = nodeById(s, home(s).links[0]).id;
     expect(() => applyCampaignAction(s, { type: 'move', armyId: army.id, toId: target })).toThrow(/refitting/);
     // The hero stays.
-    expect(() => applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: army.general })).toThrow(/leads this army/);
     s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: out });
-    // No most: past ten it goes on taking cards; and from ten it keeps at least ten.
-    campaignPlayer(s).reserve.push(...['coronal_lance', 'coronal_lance', 'photon_drill', 'photon_drill', 'cryo_vault', 'cryo_vault', 'thermal_exchange', 'deflector_grid', 'scatter_shot']);
-    for (const id of ['coronal_lance', 'coronal_lance', 'photon_drill', 'photon_drill', 'cryo_vault', 'cryo_vault', 'thermal_exchange']) {
-      if (myArmy(s).deck.filter((x) => x === id).length < 2) s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: id });
-    }
-    while (myArmy(s).deck.length < CAMPAIGN.armySize) s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: 'deflector_grid' });
-    expect(() => applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: myArmy(s).deck.find((id) => id !== army.general)! })).toThrow(/at least/);
-    s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: 'scatter_shot' });
-    expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize + 1);
-    s = applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: 'scatter_shot' });
+    expect(() => applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: army.general })).toThrow(/leads this army/);
+    s = applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: out });
     expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize);
     myArmy(s).refit = false; // (as next turn)
     expect(() => attack(s)).not.toThrow();

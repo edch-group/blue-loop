@@ -1034,16 +1034,21 @@ const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, de
 // Weighted to attack (seven attack pairs to three defence): a campaign is won by taking systems, and a
 // deck heavy with defence could not finish even a weakened foe before regional stability ran out.
 /**
- * A flagship's starting deck: its hero, one defensive card and one attack (the race's own first of each, or
- * a neutral one). The rest is found on the way, at armouries and as rewards.
+ * A flagship's starting deck, ten cards (the size a deck then never drops below): its hero, the race's own first
+ * two attacks and first defence (two of each), and plain neutral cards to fill it. The rest is found on the way,
+ * at armouries and as rewards.
  */
 export function armyDeck(race: number, general: string): string[] {
   const r = ((race % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
   const plain = (c: (typeof CARDS)[number]) => c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll;
   const mine = CARDS.filter((c) => c.race === r && plain(c));
-  const attack = mine.find((c) => c.kind === 'attack')?.id ?? 'coronal_lance';
-  const defence = mine.find((c) => c.kind === 'defence')?.id ?? 'deflector_grid';
-  return [general, defence, attack];
+  const own = [...mine.filter((c) => c.kind === 'attack').slice(0, 2), ...mine.filter((c) => c.kind === 'defence').slice(0, 1)].map((c) => c.id);
+  const deck = [general, ...own.flatMap((id) => [id, id])];
+  for (const id of ['coronal_lance', 'deflector_grid', 'heat_sink', ...GUARD_NEUTRALS]) {
+    if (deck.length >= CAMPAIGN.armySize) break;
+    if (deck.filter((x) => x === id).length < 2) deck.push(id);
+  }
+  return deck.slice(0, CAMPAIGN.armySize);
 }
 
 /**
