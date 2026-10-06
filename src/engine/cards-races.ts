@@ -90,7 +90,7 @@ export const RACE_CARDS: CardDef[] = [
     onPlay: [{ type: 'destroy', maxDefence: 2 }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'race', race: 4, sub: 'unmaker', per: 2 }, max: 3 }],
   },
   {
-    id: 'nyx_shadow_court', name: 'Shadow Court', kind: 'growth', race: 4, cost: 2, rarity: 'stellar',
+    id: 'nyx_shadow_court', name: 'Shadow Court', kind: 'growth', race: 4, cost: 1, rarity: 'stellar',
     text: 'Your Unmaker cards {heat:+1}. Draw 1.',
     onPlay: [{ type: 'draw', amount: 1 }], passive: [{ type: 'kindBonus', sub: 'unmaker', amount: 1 }],
   },
