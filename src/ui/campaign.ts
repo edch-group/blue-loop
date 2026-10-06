@@ -984,13 +984,12 @@ export class CampaignView {
               .join('')}</span>
           </div>
           <nav class="cmp-nav">
-            <button class="pill-btn" data-act="cmp-sheet" data-arg="help">?</button>
+            <button class="cmp-base-btn" data-act="cmp-sheet" data-arg="base">${HOME_ICON}<span>base</span>${this.baseIsNew() ? '<i class="cmp-new">new</i>' : ''}</button>
             <button class="icon-btn" data-act="cmp-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
           </nav>
         </header>
         <section class="cmp-map">${this.renderMap()}</section>
         ${this.renderPop()}
-        <div class="cmp-base-dock"><button class="cmp-base-btn" data-act="cmp-sheet" data-arg="base" title="Your flagship's deck, your hero, your ship and missions">${HOME_ICON}<span>base</span>${this.baseIsNew() ? '<i class="cmp-new">new</i>' : ''}</button></div>
         <div class="cmp-end">
           <button class="btn-primary ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
         </div>
