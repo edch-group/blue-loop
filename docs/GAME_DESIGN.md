@@ -117,14 +117,14 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 | Card | Kind | Text |
 | --- | --- | --- |
 | Gravity Assist | Attack | Heat your rival by 2. Your orbit +1. |
-| Orbital Slingshot | Growth | Your orbit +3 (the next planet swings round). Draw 1 card. |
+| Orbital Slingshot | Support | Your orbit +3 (the next planet swings round). Draw 1 card. |
 | Tidal Brake | Defence | Gain 2 shields. Your rival's orbit −2. |
-| Dead World Mine | Growth | Dawn: cool your sun by 1. While your dead planet faces your sun, also draw 1 card. |
+| Dead World Mine | Support | Dawn: cool your sun by 1. While your dead planet faces your sun, also draw 1 card. |
 | Perihelion Forge (Stellar) | Attack | Dawn: heat your rival by 1, or by 3 while your industrial planet faces your sun. |
 | Sunward Lance (Aureline) | Attack | Heat your rival by 1, or by 3 while your industrial planet faces your sun. Your orbit +1. |
 | Comet Shard (Xel'Naru) | Attack | Heat your rival by 3. Your rival's orbit −1. Heat your own sun by 1. |
 | Tide Lock (Vorthane) | Defence | Dawn: gain 1 shield, or 3 while your abundant planet faces your sun. |
-| Orbit Root (Ixquor, Stellar) | Growth | Dawn: gain 1 shield. While your dead planet faces your sun, your orbit +2 (it moves on in a day, not three). |
+| Orbit Root (Ixquor, Stellar) | Support | Dawn: gain 1 shield. While your dead planet faces your sun, your orbit +2 (it moves on in a day, not three). |
 
 **Starter decks with orbit:**
 - **Solar Lancers:** Gravity Assist and Tidal Brake, in place of a Helio Lancer and Aurelia.
@@ -277,7 +277,7 @@ Some cards count their own neighbours instead:
 - **Recover** (from your discard pile to your hand). With nothing to recover, each of these draws a card instead, so none is ever dead:
   - Salvage Drone: any card, and cool 1.
   - Xel'Naru Reliquarist: an attack card, then draw 1.
-  - Regrowth Pod (Ixquor): a growth card, and cool 1.
+  - Regrowth Pod (Ixquor): a support card, and cool 1.
   - Sunlit Return (Aureline): cool 1, and an attack card.
   - Returning Tide (Vorthane): gain 2 shields, and a defence card.
   - Compost Cycle (Ixquor): any card, and your other cards regain 1 stability.
@@ -307,7 +307,7 @@ Cards that only worked alongside others (a count of a card type, Heroes, neighbo
 | Prism Conduit (Xel'Naru) | cool 1 per attack card next to it | cool 1, +1 per attack card next to it |
 | Standing Orders, Chain of Command, War-Herald | needed one or two Heroes | see Heroes |
 | Command Breaker | heat 1, destroy a Hero | heat 2, destroy a Hero if there is one |
-| Signal Jammer | cancels a Hero (decks hold 2) | cancels a growth card |
+| Signal Jammer | cancels a Hero (decks hold 2) | cancels a support card |
 | Dead World Mine | only while the dead planet faces your sun | also cool 1 every day |
 | Orbit Root | only while the dead planet faces your sun | also 1 shield every day |
 | Recovery cards | nothing with an empty discard pile | draw 1 instead |
@@ -319,6 +319,8 @@ The game's recurring mechanics are **keywords**: a coloured word on the card wit
 Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoomed card (with no hover pop-up there, since the explanations are already beside it); in the deck builder and the shop, on hover; and on the rules page (How to Play → Keywords), which lists them all. The zoomed card also explains its stability and defence badges, and the rules its text names in plain words (`TEXT_RULES`: choose-one cards, Heroes, leaving the tableau, facing a planet, cancelling, max health).
 
 **How to Play** is a sheet of tabs (Overview, Your Day, Tableau, Sun & Orbit, Card Types, Keywords, Progress), each a handful of short facts rather than paragraphs.
+
+**Support, not Growth.** The type of card that draws, recovers, ramps and plays more was called Growth, which read as if it had to do with the Grow mechanic (the Ixquor saplings' growth counters), though most of them don't grow at all. It is shown as **Support** now (the type badge, the type line, the deck builder's filter, How to Play and card text such as Recover Support); the internal id stays `growth`, so saves and decks are unchanged. Grow and growth keep their meaning: a card's growth counter.
 
 | Keyword | Meaning |
 | --- | --- |
@@ -412,7 +414,7 @@ Lightspeed cards are played **face down**. They don't take a slot, and **only on
 | Card | Rarity | Springs when an enemy… | Effect |
 | --- | --- | --- | --- |
 | Null Field | Stellar | plays an attack card | Cancel it |
-| Signal Jammer | White Dwarf | plays a growth card | Cancel it, draw 1 |
+| Signal Jammer | White Dwarf | plays a support card | Cancel it, draw 1 |
 | Frost Snare | White Dwarf | plays a defence card | Cancel it, heat them 1 |
 | Solar Mirror | White Dwarf | is about to heat your sun | First gain 3 shields and heat them 1 |
 | Decoy Array | White Dwarf | is about to destroy or return one of your cards | Cancel it, draw 1 |
@@ -438,7 +440,7 @@ The card stock is a faint circuit board: thin traces running straight and in 45�
 ## Card art [design review]
 
 Every card has its own painted picture, in a window at the top of the card. They are drawn procedurally in SVG by `src/ui/cardart.ts`, as placeholders for commissioned art.
-- **Palettes:** each race has its own sky (Aureline dawn blue and gold, Xel'Naru rose dusk, Vorthane deep teal sea, Ixquor violet and bio-green). Neutral cards take their palette from their type: attack ember, defence ice blue, growth green, global violet, Command steel, Lightspeed amber.
+- **Palettes:** each race has its own sky (Aureline dawn blue and gold, Xel'Naru rose dusk, Vorthane deep teal sea, Ixquor violet and bio-green). Neutral cards take their palette from their type: attack ember, defence ice blue, support green, global violet, Command steel, Lightspeed amber.
 - **Pictures:** each card has a subject of its own, shaded with gradients and soft glows. A test checks that no card falls back to a default and that no two pictures are the same.
 
 ## Characters [design review]
@@ -467,7 +469,7 @@ Rathune is the Vorthane home tide-world. [proposed lore]
 | Aureline | Lancers: many attack cards, each making the others hit harder | Aureline Lancer, Focusing Array (other attack cards +1 at dawn; copies don't stack), Chorus of Dawn (1 heat per attack card you control), Sunspear, Dawn Beacon, Halo Warden, Sun-Priest (cools more with your attack cards), Aurelia (heat that grows with your attack cards), War-Herald (heat, and a shield while you hold a Hero), Sunforge (resonance for attack cards), Sunlit Return (recovers an attack card) |
 | Xel'Naru | Overload: big bursts of heat, and run your own sun hot to hit harder | Shard Reactor, Crystal Storm (3 heat, or 4 while you are overheated), Overload Core (harder while overheated), Xel'Naru Martyr (burst when it leaves play), Prism Vent, Fracture Seer, Champion (harder while overheated), Kyr'Vessa (strikes whenever another of your cards leaves play), Ember Shard (burst when recovered), Reliquarist (recovers an attack card), Prism Conduit (cools more with neighbouring attack cards), Shard Recall (recalls a card) |
 | Vorthane | Tides: build shields, keep them, and sting attackers | Bellwarden, Stinging Veil (once per attacking card each day), Tidal Bloom, Abyssal Choir (heat from your shields), Deep Current (shields no longer fade), Vorthanian Commoners, Hero of Rathune (shields from your defence cards), Ommarath (cools your sun when your shields absorb a hit), Tide Pylon (shields from neighbouring defence cards), Riptide Ambushers (Lightspeed: turn aside a big hit), Returning Tide (recovers a defence card) |
-| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each day), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and hits harder once you're wide), Regrowth Pod (recovers a growth card), Spore Husk (draws when recovered), Compost Cycle (recovers any card, steadies the rest) |
+| Ixquor | The hive: grow, go wide and play more | Mycelium Tower (grows each day), Hive Relay (+1 play), Sporecaster, Rot Bloom and Canopy (both scale with cards in play), Spore Cloud, Brood-Tender (your other cards grow faster), The Brood Queen (+1 play, and hits harder once you're wide), Regrowth Pod (recovers a support card), Spore Husk (draws when recovered), Compost Cycle (recovers any card, steadies the rest) |
 
 **Neutral cards:**
 - Coronal Lance, Plasma Relay, Gravity Sling, Thermal Exchange, Solar Battery, Coolant Array, Cryo Vault, Deflector Grid, Heat Sink and Deep-Space Scanners.

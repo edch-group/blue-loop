@@ -7,7 +7,7 @@ import type { CardDef } from './types';
  *
  * The rule, for attack cards that stay in play: its energy cost less its plain dawn heat, at least 1 and at
  * most 3 (a Helio Lancer, dawn heat 2 for 2 energy, attacks for 1; a Focusing Array, no dawn heat, for 2).
- * Defence and growth cards have no attack (Sting is how they fight back). Some cards are set by hand.
+ * Defence and support cards have no attack (Sting is how they fight back). Some cards are set by hand.
  */
 export const ATTACK_OVERRIDES: Record<string, number> = {
   // Heroes who fight in person (their stability is their health: attacking a card that hits back costs it).

@@ -4920,10 +4920,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   background: var(--art) center / cover no-repeat;
   filter: blur(6px) saturate(1.7);
   opacity: 0.9;
-  -webkit-mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
-  -webkit-mask-composite: source-in, source-in, source-over;
-  mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
-  mask-composite: intersect, intersect, add;
+  -webkit-mask: var(--hole-l), var(--hole-r), linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  -webkit-mask-composite: source-in, source-in, source-in, source-in, source-over;
+  mask: var(--hole-l), var(--hole-r), linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  mask-composite: intersect, intersect, intersect, intersect, add;
 }
 .card.kind-command .card-stock {
   inset: auto 0 0; height: 58%;
@@ -5003,3 +5003,228 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   background-image: var(--skyband), var(--bg2);
   background-size: 100% var(--strip), 100% 100%; background-position: 0 0, 0 0; background-repeat: no-repeat, no-repeat;
 }
+
+/* ---------- The gem at the foot of the picture ---------- */
+/* The rarity gem sits in the middle of the picture's bottom edge, mostly over the picture with a little of its
+   bezel standing out over the card below; its light rises over the picture (never over the name and rules). The
+   card's top edge is plain again: no bump, and no night strip, which only backlit the gem up there. */
+.card .art-wrap .gem { top: auto; bottom: 0; left: 50%; right: auto; transform: translate(-50%, 28%); }
+.card:not(.kind-command) { --skyband: linear-gradient(transparent, transparent); }
+/* (With the gem gone from the top, the type pill is whole: no notch out of its top for the gem.) */
+.card .card-type { -webkit-mask: none; mask: none; }
+.card .card-type::before { display: none; }
+/* The bezel lit evenly from above (a band of light round the top, shade toward the bottom), so it reads as a flat
+   round ring and not a tilted one; and set into the card: a very soft shadow just round its rim, and the rim's own
+   shadow falling on the top of the stone, as the suns and planets sit in the board. */
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+  background: linear-gradient(180deg, var(--m-hi) 0%, var(--m-mid) 42%, var(--m-lo) 100%);
+  box-shadow:
+    inset 0 calc(var(--gs) * 0.03) 0 rgba(255, 255, 255, 0.6), inset 0 calc(var(--gs) * -0.03) 0 rgba(0, 0, 0, 0.18),
+    0 0 0 calc(var(--gs) * 0.04) rgba(14, 16, 26, 0.45), 0 0 calc(var(--gs) * 0.14) calc(var(--gs) * 0.03) rgba(14, 16, 26, 0.5),
+    0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.22) rgba(14, 16, 26, 0.55);
+}
+.card .art-wrap .gem .gem-window { box-shadow: inset 0 calc(var(--gs) * 0.09) calc(var(--gs) * 0.11) rgba(0, 0, 0, 0.7); }
+/* The bezel's metalwork: a raised band across its width (a dark groove where it grips the stone, a bright crest,
+   a darker outer edge), the same all the way round so it never looks tilted, under the light from above and a
+   faint glint at the top left and bottom right. */
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.22)),
+    conic-gradient(from 315deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 10%, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0) 60%, rgba(255, 255, 255, 0) 90%, rgba(255, 255, 255, 0.5)),
+    radial-gradient(circle closest-side, var(--m-lo) 0 74%, color-mix(in srgb, var(--m-lo) 70%, #000) 76.5%, var(--m-mid) 81%, var(--m-hi) 86%, var(--m-mid) 92%, var(--m-lo) 97.5%, color-mix(in srgb, var(--m-lo) 60%, #000) 100%);
+}
+/* Layers, bottom to top: the setting's shadow (::after), the gem's light, the bezel (::before), the stone. The
+   shadow sits under the light so it never dims it; and the ::after is whole (no mask or clip left over from when
+   the gem sat on the card's top edge), so the setting is a true circle. */
+.card .art-wrap .gem.gem-dwarf::after, .card .art-wrap .gem.gem-stellar::after, .card .art-wrap .gem.gem-anomaly::after {
+  z-index: -3; -webkit-mask: none; mask: none; clip-path: none; background: none;
+  border: var(--bump-w, 0px) solid var(--bump-ring, transparent);
+  box-shadow: 0 0 0 calc(var(--gs) * 0.04) rgba(14, 16, 26, 0.45), 0 0 calc(var(--gs) * 0.14) calc(var(--gs) * 0.03) rgba(14, 16, 26, 0.5),
+    0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.22) rgba(14, 16, 26, 0.55);
+}
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+  -webkit-mask: none; mask: none;
+  box-shadow: inset 0 calc(var(--gs) * 0.03) 0 rgba(255, 255, 255, 0.6), inset 0 calc(var(--gs) * -0.03) 0 rgba(0, 0, 0, 0.18);
+}
+/* At the foot of the picture the light spills round the whole gem, a little onto the card below too, fading out
+   before the card's name. */
+.card .gem .gem-light { -webkit-mask: linear-gradient(180deg, #000 56%, transparent 74%); mask: linear-gradient(180deg, #000 56%, transparent 74%); }
+/* The bezel lit only from above, the same on its left and right (no glint: on silver it read as a lopsided ring). */
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.22)),
+    radial-gradient(circle closest-side, var(--m-lo) 0 74%, color-mix(in srgb, var(--m-lo) 70%, #000) 76.5%, var(--m-mid) 81%, var(--m-hi) 86%, var(--m-mid) 92%, var(--m-lo) 97.5%, color-mix(in srgb, var(--m-lo) 60%, #000) 100%);
+}
+/* The gem's seat: the card's face, a little wider than the bezel, so the bottom edge of the picture bends round
+   the gem (its fine white edge line following the curve), under the setting's shadow and the light. */
+.gem .gem-seat { display: none; }
+.card .art-wrap .gem .gem-seat {
+  display: block; position: absolute; inset: calc(var(--gs) * -0.31); z-index: -4; border-radius: 50%; pointer-events: none;
+  background: var(--face); box-shadow: 0 0 0 0.6px rgba(255, 255, 255, 0.95), 0 0 2px 0.6px rgba(40, 40, 60, 0.16);
+  /* (Only its upper half shows: below the picture it is the card already, and no line is wanted there.) */
+  clip-path: inset(-3px -3px calc(var(--gs) * 0.612) -3px);
+}
+/* The picture's own bottom edge bends round the gem: a round notch cut out of the picture (its contents are masked;
+   the frame draws its fine white edge line and soft shadow as drop-shadows of what is left, so they follow the
+   notch). The gem's centre sits 0.2376 gem-sizes above the picture's bottom; the notch clears its bezel by a hair. */
+.card .art-wrap .gem .gem-seat { display: none; }
+.card .art-wrap .art-frame {
+  box-shadow: none;
+  filter: drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 0.4px rgba(255, 255, 255, 0.95)) drop-shadow(0 1.5px 2px rgba(40, 40, 60, 0.2));
+}
+.card .art-wrap .art-frame > * {
+  --notch-r: calc(var(--gem-s) * 0.8);
+  -webkit-mask: radial-gradient(circle at 50% calc(100% - var(--gem-s) * 0.2376), transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
+  mask: radial-gradient(circle at 50% calc(100% - var(--gem-s) * 0.2376), transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
+}
+/* (The light images are now five gem-widths across.) The stellar flares leap out and fade by turns; the anomaly's
+   dark matter turns inward and is drawn down into the hole, over and over. */
+.card .gem .gem-light { inset: -200%; -webkit-mask: linear-gradient(180deg, #000 53%, transparent 64%); mask: linear-gradient(180deg, #000 53%, transparent 64%); }
+.gl-flares1 { animation: glTurn 200s linear infinite, glPlume 5s ease-out infinite; animation-delay: calc(var(--gp) * -200s), calc(var(--gp) * -5s); }
+.gl-flares2 { animation: glTurnBack 260s linear infinite, glPlume 6.5s ease-out infinite; animation-delay: calc(var(--gp) * -260s), calc(var(--gp) * -6.5s - 3s); }
+.gl-swirl1 { animation: glTurn 14s linear infinite, glPull 6s ease-in infinite; animation-delay: calc(var(--gp) * -14s), calc(var(--gp) * -6s); }
+.gl-swirl2 { animation: glTurn 22s linear infinite, glPull 9s ease-in infinite; animation-delay: calc(var(--gp) * -22s), calc(var(--gp) * -9s - 4s); }
+@keyframes glPull { 0% { scale: 1.18; opacity: 0; } 20% { opacity: 1; } 75% { opacity: 0.9; } 100% { scale: 0.82; opacity: 0; } }
+/* The gem centred exactly on the picture's bottom edge, the notch round it centred there too. */
+.card .art-wrap .gem { transform: translate(-50%, 50%); }
+.card .art-wrap .art-frame > * {
+  -webkit-mask: radial-gradient(circle at 50% 100%, transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
+  mask: radial-gradient(circle at 50% 100%, transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
+}
+/* (Its light, centred with it, still fades out just below the picture's edge.) */
+.card .gem .gem-light { -webkit-mask: linear-gradient(180deg, #000 50%, transparent 61%); mask: linear-gradient(180deg, #000 50%, transparent 61%); }
+
+/* A card with no race line: room under its picture for the half of the gem that stands below it, so the gem
+   never sits on the card's name. */
+.card:not(:has(> .card-racerow)) > .card-glyph { margin-bottom: calc(var(--gem-s) * 0.8); }
+
+/* ---------- The card's corners and kind tab ---------- */
+/* Attack and stability sit in quarter-circle sections cut out of the card's bottom corners (attack left, stability
+   right), in the Hero cards' darker stock, the card's circuitry running on through them; the numbers are flat, in
+   their colours. The kind is a tab of the same dark stock hanging from the card's top edge. (The sections are drawn
+   by .card-corners, with the card's circuit traced across them in light lines.) */
+.card {
+  --cut: calc(var(--cw, 100px) * 0.21); --cut-l: 0px; --cut-r: 0px;
+  --sect: #4b5466;
+}
+.card.kind-command { --sect: #3a404d; }
+.card:has(.card-stats-base .stat-atk):not(.card-table) { --cut-l: var(--cut); }
+.card:has(.card-stats-base .stat-stab):not(.card-table) { --cut-r: var(--cut); }
+.card-corners { display: none; }
+.card > .card-corners {
+  display: block; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  --corners: radial-gradient(circle at 0 100%, #000 calc(var(--cut-l) - 0.5px), transparent var(--cut-l)),
+             radial-gradient(circle at 100% 100%, #000 calc(var(--cut-r) - 0.5px), transparent var(--cut-r));
+  background: radial-gradient(circle at 0 100%, var(--sect) calc(var(--cut-l) - 0.5px), transparent var(--cut-l)),
+              radial-gradient(circle at 100% 100%, var(--sect) calc(var(--cut-r) - 0.5px), transparent var(--cut-r));
+}
+/* The card's circuit, carried across the dark sections in light lines (the same tile, in line with the card's). */
+.card > .card-corners::after {
+  content: ''; position: absolute; inset: 0;
+  background: var(--trace, var(--circuit-dwarf)) 0 0 / calc(var(--cw, 100px) * 1.05) calc(var(--cw, 100px) * 1.05) repeat;
+  filter: brightness(0) invert(1); opacity: 0.85;
+  -webkit-mask: var(--corners); mask: var(--corners);
+}
+/* The numbers, flat, centred in their sections. */
+.card:not(.card-table) .card-stats.card-stats-base { inset: auto 0 0 0; height: var(--cut); transform: none; }
+.card:not(.card-table) .card-stats-base b {
+  position: absolute; bottom: calc(var(--cut) * 0.36); transform: translate(-50%, 50%);
+  background: none; border: 0; box-shadow: none; min-width: 0; height: auto; padding: 0;
+  font-size: max(8px, calc(var(--cw, 100px) * 0.062)); text-shadow: none;
+}
+.card:not(.card-table) .card-stats-base .stat-atk { left: calc(var(--cut) * 0.4); color: #ff9277; }
+.card:not(.card-table) .card-stats-base .stat-stab { left: auto; right: calc(var(--cut) * 0.4); transform: translate(50%, 50%); color: #f4cd78; }
+.card:not(.card-table) .card-stats-base .stat-atk.stat-atk-dim { color: #a3aab5; }
+.card:not(.card-table) .card-stats-base .stat-stab.stat-low { color: #ff7a5c; }
+/* On the table (its stats on the card's foot): flat badges of the same dark stock. */
+.card.card-table .card-stats b, .card .stat-def-floor {
+  background: var(--sect); border: 0; text-shadow: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85), 0 1px 3px rgba(20, 22, 34, 0.3);
+}
+.card.card-table .stat-atk { color: #ff9277; }
+.card.card-table .stat-stab { color: #f4cd78; }
+.card .stat-def-floor, .card.card-table .stat-def { color: #a9c3ff; }
+.card .stat-def.stat-dented { background: #8a3324; color: #fff; }
+/* The kind tab: hanging from the card's top edge, the word in the kind's colour. */
+.card .card-type {
+  top: -1px; transform: translateX(-50%); -webkit-mask: none; mask: none;
+  height: auto; padding: 0.55em 1em 0.45em; line-height: 1;
+  background: var(--sect); border: 0; border-radius: 0 0 0.9em 0.9em; box-shadow: none; text-shadow: none;
+  color: color-mix(in srgb, var(--kc) 55%, #fff);
+}
+.card .card-type::before, .card .card-type::after { display: none; }
+
+/* The corner sections and the kind tab in a deeper shade of the card's own colour (its face, by rarity), not the
+   Heroes' dark stock: the values in their colours, bold, stand out on it; the card's own traces run on through. */
+.card { --sect: color-mix(in srgb, var(--face) 84%, #56627c); }
+.card.kind-command { --sect: color-mix(in srgb, var(--face) 70%, #262b36); }
+.card:not(.kind-command) > .card-corners::after { filter: none; opacity: 1; }
+.card:not(.card-table):not(.kind-command) .card-stats-base b { font-weight: 800; }
+.card:not(.card-table):not(.kind-command) .card-stats-base .stat-atk { color: #c13b20; }
+.card:not(.card-table):not(.kind-command) .card-stats-base .stat-stab { color: #9c6a10; }
+.card:not(.card-table):not(.kind-command) .card-stats-base .stat-atk.stat-atk-dim { color: #7d8594; }
+.card:not(.card-table):not(.kind-command) .card-stats-base .stat-stab.stat-low { color: #d23a1c; }
+.card:not(.kind-command) .card-type { color: color-mix(in srgb, var(--kc) 80%, #1a1f2a); font-weight: 700; }
+/* The corner sections and kind tab lighter than the card's face (near white; a paler slate on a Hero), each
+   outlined by a fine line of the card's own colour so the section reads. */
+.card { --sect: color-mix(in srgb, var(--face) 25%, #fff); --sect-edge: color-mix(in srgb, var(--face) 70%, #7c86a0); }
+.card.kind-command { --sect: color-mix(in srgb, var(--face) 62%, #c6ccd8); --sect-edge: color-mix(in srgb, var(--face) 60%, #e6eaf2); }
+.card > .card-corners {
+  background:
+    radial-gradient(circle at 0 100%, var(--sect) calc(var(--cut-l) - 1.2px), var(--sect-edge) calc(var(--cut-l) - 0.9px), var(--sect-edge) calc(var(--cut-l) - 0.3px), transparent var(--cut-l)),
+    radial-gradient(circle at 100% 100%, var(--sect) calc(var(--cut-r) - 1.2px), var(--sect-edge) calc(var(--cut-r) - 0.9px), var(--sect-edge) calc(var(--cut-r) - 0.3px), transparent var(--cut-r));
+}
+.card .card-type { box-shadow: 0 0 0 0.75px var(--sect-edge); }
+/* Values on the pale Hero sections, in deeper tones so they read. */
+.card.kind-command:not(.card-table) .card-stats-base .stat-atk { color: #b53119; }
+.card.kind-command:not(.card-table) .card-stats-base .stat-stab { color: #8a5c08; }
+.card.kind-command:not(.card-table) .card-stats-base b { font-weight: 800; }
+.card.kind-command > .card-corners::after { filter: none; opacity: 0.8; }
+.card.kind-command .card-type { color: #2c3342; font-weight: 700; }
+/* The circuit stops short of the values: a soft clearing round each number, in the section's colour. */
+.card {
+  --hole-l: radial-gradient(ellipse calc(var(--cut-l) * 0.42) calc(var(--cut-l) * 0.24) at calc(var(--cut-l) * 0.4) calc(100% - var(--cut-l) * 0.36), transparent 55%, #000 100%);
+  --hole-r: radial-gradient(ellipse calc(var(--cut-r) * 0.42) calc(var(--cut-r) * 0.24) at calc(100% - var(--cut-r) * 0.4) calc(100% - var(--cut-r) * 0.36), transparent 55%, #000 100%);
+}
+.card > .card-corners::before {
+  content: ''; position: absolute; inset: 0; z-index: 1;
+  background:
+    radial-gradient(ellipse calc(var(--cut-l) * 0.42) calc(var(--cut-l) * 0.24) at calc(var(--cut-l) * 0.4) calc(100% - var(--cut-l) * 0.36), var(--sect) 55%, transparent 100%),
+    radial-gradient(ellipse calc(var(--cut-r) * 0.42) calc(var(--cut-r) * 0.24) at calc(100% - var(--cut-r) * 0.4) calc(100% - var(--cut-r) * 0.36), var(--sect) 55%, transparent 100%);
+}
+
+/* No backgrounds behind the corner values or the kind: the values and the word sit on the card itself (the card's
+   circuit still stops short of each value). Icons and numbers centred on one line. */
+.card > .card-corners { background: none; }
+.card > .card-corners::before, .card > .card-corners::after { display: none; }
+.card .card-type { background: none; box-shadow: none; top: calc(var(--cw, 100px) * 0.012); padding-top: 0.3em; }
+.card.kind-command .card-type { color: #e3e7ef; }
+.card .card-stats b .atk-icon, .card .card-stats b .stab-icon, .card .stat-def-floor svg { width: 0.95em; height: 0.95em; flex: none; margin: 0; display: block; }
+.card .card-stats b { display: inline-flex; align-items: center; gap: 0.15em; line-height: 1; }
+.card.kind-command:not(.card-table) .card-stats-base .stat-atk { color: #ff8a6e; }
+.card.kind-command:not(.card-table) .card-stats-base .stat-stab { color: #f2c86c; }
+.card .card-stats b .atk-icon { width: 1.1em; height: 1.1em; }
+/* The values in from the card's sides as far as its text is; the kind word centred in the strip between the
+   card's top edge and its picture (the display face rides high, so it is nudged down a hair). */
+.card:not(.card-table) .card-stats-base .stat-atk { left: calc(var(--cw, 100px) * 0.08); transform: translateY(50%); }
+.card:not(.card-table) .card-stats-base .stat-stab { right: calc(var(--cw, 100px) * 0.08); transform: translateY(50%); }
+.card .card-type, .card-table .card-type { top: calc(var(--cw, 100px) * 0.03); transform: translate(-50%, -50%); height: auto; padding: 0.1em 1em 0; line-height: 1; }
+/* (The circuit's clearings, moved under the values where they sit now.) */
+.card {
+  --hole-l: radial-gradient(ellipse calc(var(--cut-l) * 0.5) calc(var(--cut-l) * 0.26) at calc(var(--cw, 100px) * 0.155) calc(100% - var(--cw, 100px) * 0.078), transparent 55%, #000 100%);
+  --hole-r: radial-gradient(ellipse calc(var(--cut-r) * 0.5) calc(var(--cut-r) * 0.26) at calc(100% - var(--cw, 100px) * 0.155) calc(100% - var(--cw, 100px) * 0.078), transparent 55%, #000 100%);
+}
+/* The gem sits up in the picture, in a big curved bump of the card rising into its bottom edge (clear of the
+   race line below). The bump is a broad half-ellipse; the picture's edge line follows it. */
+.card .art-wrap .gem { transform: translate(-50%, calc(50% - var(--gs) * 0.72)); }
+.card .art-wrap .art-frame > * {
+  --bump-x: calc(var(--gem-s) * 2.3); --bump-y: calc(var(--gem-s) * 1.55);
+  -webkit-mask: radial-gradient(ellipse var(--bump-x) var(--bump-y) at 50% 100%, transparent calc(100% - 0.6px), #000 100%);
+  mask: radial-gradient(ellipse var(--bump-x) var(--bump-y) at 50% 100%, transparent calc(100% - 0.6px), #000 100%);
+}
+.card .gem .gem-light { -webkit-mask: linear-gradient(180deg, #000 56%, transparent 68%); mask: linear-gradient(180deg, #000 56%, transparent 68%); }
+.card:not(:has(> .card-racerow)) > .card-glyph { margin-bottom: calc(var(--gem-s) * 0.15); }
+/* (A taller, rounder bump: its peak reaches further up into the picture, so the arc rises smoothly.) */
+.card .art-wrap .art-frame > * { --bump-x: calc(var(--gem-s) * 2.25); --bump-y: calc(var(--gem-s) * 2.05); }
+/* (The light images are three gem-widths across now: every glow reaches half as far past its gem.) */
+.card .gem .gem-light { inset: -100%; -webkit-mask: linear-gradient(180deg, #000 62%, transparent 82%); mask: linear-gradient(180deg, #000 62%, transparent 82%); }
