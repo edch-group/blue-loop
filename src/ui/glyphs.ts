@@ -580,7 +580,9 @@ const EFFECT_SVG: Record<string, string> = {
   star: '<path d="M6 1.6 7.2 4.6 10.4 4.8 7.9 6.8 8.7 9.9 6 8.2 3.3 9.9 4.1 6.8 1.6 4.8 4.8 4.6z" class="kw-ico-fill"/>',
 };
 /** What an effect type (or a boon's kind) is marked with. */
-export function effectMark(kind: string): string {
+export function effectMark(raw: string): string {
+  // (A hero's "as the battle begins" boons are marked as what they do.)
+  const kind = raw.replace(/^open/, '');
   const k =
     kind === 'heat' || kind === 'pierce' || kind === 'playheat' ? 'heat'
     : kind === 'cool' || kind === 'playcool' ? 'cool'

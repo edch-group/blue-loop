@@ -121,3 +121,20 @@ describe('campaign battles', () => {
     expect(after.hand.length).toBe(handBefore - 1);
   });
 });
+
+describe('a campaign hero, never played', () => {
+  it('does what it would as played, its boons too, as the battle begins (at its side’s first dawn)', async () => {
+    const { heroBoon } = await import('../src/engine/boons');
+    expect(heroBoon('boon_playheat_3')).toBe('boon_openheat_3');
+    expect(heroBoon('boon_plant_2')).toBe('boon_openplant_2');
+    expect(heroBoon('boon_heat_2')).toBe('boon_heat_2');
+    // Empress Solenne: heat 4, piercing, as she would be played; and a boon of 3 more heat.
+    const s = battle({ me: { tableau: ['empress_solenne'], hero: 'empress_solenne', heroBoons: { hero: 'empress_solenne', boons: ['boon_openheat_3'] } } });
+    const them = s.players[1];
+    expect(s.log.some((l) => l.text.includes('opens the battle'))).toBe(true);
+    expect(them.heat).toBeGreaterThanOrEqual(7);
+    // Only once: not on later days.
+    const later = endTurn(endTurn(s));
+    expect(later.log.filter((l) => l.text.includes('opens the battle')).length).toBe(1);
+  });
+});
