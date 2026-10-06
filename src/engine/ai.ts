@@ -67,6 +67,11 @@ export function setRivalBoardWeight(v: number) {
 }
 let COMBOS = true;
 /** For simulations: the AI with or without its attack-then-remove look-ahead. */
+/** Simulation hook: weigh energy only against the other cards it could buy today (off: the old flat charge). */
+let ENERGY_CONTENTION = true;
+export function setAIEnergyContention(on: boolean) {
+  ENERGY_CONTENTION = on;
+}
 export function setAICombos(on: boolean) {
   COMBOS = on;
 }
@@ -151,6 +156,10 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
         break;
       case 'retaliate':
         perTurn += 0.6 * foes;
+        break;
+      case 'taunt':
+        // A Guard draws the blows meant for the cards behind it.
+        if (ENERGY_CONTENTION) perTurn += 0.3 + 0.25 * Math.max(0, p.tableau.filter((c) => c.uid !== card.uid && cardDef(c.defId).kind !== 'command').length);
         break;
       case 'field':
         perTurn += 0.2;
@@ -358,6 +367,9 @@ function aiSkill(state: GameState, me: PlayerState): number | null {
   return null;
 }
 
+/** The last decision's numbers, for simulations that look into why the AI did what it did. */
+export const aiLastDecision: { baseline: number; best: number | null; bestAction: Action | null } = { baseline: 0, best: null, bestAction: null };
+
 export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
   const focus = bestTarget(state, me);
@@ -391,6 +403,9 @@ export function chooseAIAction(state: GameState): Action {
   }
   const baseline = evaluate(view, me.id);
   let best: { action: Action; score: number } | null = null;
+  // The best gain any move makes, before charging its energy: energy left unspent at day's end is lost, so
+  // ending the day only beats moving when every move hurts in itself.
+  let bestRaw = -Infinity;
   for (const action of [...attacks, ...abilities, ...candidatePlays(view, me)]) {
     let next: GameState;
     try {
@@ -402,13 +417,22 @@ export function chooseAIAction(state: GameState): Action {
     const played = action.type === 'playCard' ? me.hand.find((c) => c.uid === action.cardUid) : undefined;
     // (An ability is a free extra action, but for its energy.)
     const abilityCost = action.type === 'heroAbility' && hero ? cardDef(hero.defId).abilities![action.index].cost ?? 0 : 0;
-    const extra = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) - 1 : abilityCost;
+    let extra = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) - 1 : abilityCost;
+    // Energy left at day's end is lost: it only costs something when other cards in hand want it today (what they
+    // need beyond what is left after this play).
+    if (ENERGY_CONTENTION && extra > 0) {
+      const left = me.playsLeft - (played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) : abilityCost);
+      const wanted = me.hand.filter((c) => c.uid !== played?.uid && cardCost(c.defId) > 0 && cardCost(c.defId) <= me.playsLeft && hasRoomFor(me, c.defId)).reduce((n, c) => n + cardCost(c.defId), 0);
+      extra = Math.min(extra, Math.max(0, wanted - left));
+    }
     // Energy a card gives back today (ramp) is worth what it lets you play: the cards left in hand that it pays for.
     const after = next.players.find((p) => p.id === me.id)!;
     const spent = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) : abilityCost;
     const gained = after.playsLeft - (me.playsLeft - spent);
     const ramp = gained > 0 ? gained * ACTION_VALUE * Math.min(1, after.hand.filter((c) => cardCost(c.defId) <= after.playsLeft && cardCost(c.defId) > 0).length / gained) : 0;
-    const score = evaluate(next, me.id) - extra * ACTION_VALUE + ramp;
+    const raw = evaluate(next, me.id) + ramp;
+    const score = raw - extra * ACTION_VALUE;
+    bestRaw = Math.max(bestRaw, raw);
     if (!best || score > best.score) best = { action, score };
   }
   // Set-ups a move at a time can't see: wear a card's defence down with an attack or two, then remove it
@@ -433,7 +457,10 @@ export function chooseAIAction(state: GameState): Action {
     if (combo.score > plain + 0.5) return combo.action;
   }
   // Holding a card is only better than playing it when every play would hurt.
-  if (!best || best.score < baseline - 1.5) return { type: 'endTurn' };
+  aiLastDecision.baseline = baseline;
+  aiLastDecision.best = best?.score ?? null;
+  aiLastDecision.bestAction = best?.action ?? null;
+  if (!best || (ENERGY_CONTENTION ? bestRaw : best.score) < baseline - 1.5) return { type: 'endTurn' };
   return best.action;
 }
 

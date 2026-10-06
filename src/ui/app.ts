@@ -540,6 +540,29 @@ function setShieldBadge(root: ParentNode, pid: string, n: number) {
   });
 }
 
+/** A game's running summary, kept beside its save so a game resumed after a reload is still summed up. */
+const STATS_REC_KEY = 'blue-loop:stats-rec';
+/** Which game, at which point: the summary kept is the one that goes with the save made at the same move. */
+function gameMark(s: GameState): string {
+  return `${s.turnNumber}|${s.players.map((p) => `${p.id}:${p.heat}:${p.deck.length}:${p.hand.length}`).join(',')}`;
+}
+function keepStatsRec(v: { mark: string; rec: GameStats } | null) {
+  try {
+    if (v) localStorage.setItem(STATS_REC_KEY, JSON.stringify(v));
+    else localStorage.removeItem(STATS_REC_KEY);
+  } catch {
+    // Not available: a resumed game just goes unrecorded.
+  }
+}
+function savedStatsRec(mark: string): GameStats | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(STATS_REC_KEY) ?? 'null') as { mark: string; rec: GameStats } | null;
+    return v && v.mark === mark ? v.rec : null;
+  } catch {
+    return null;
+  }
+}
+
 export class App {
   private screen: Screen = 'menu';
   /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
@@ -1406,8 +1429,9 @@ export class App {
         }
       }
     } else this.aiGameId = null;
-    // A fresh game on this device is summed up as it is played (online, the room does it).
-    this.statsRec = state.turnNumber <= 1 && !state.winnerId && humans > 0 ? beginStats(state, this.campaignBattle ? 'campaign' : humans === 1 ? 'ai' : 'hotseat') : null;
+    // A fresh game on this device is summed up as it is played (online, the room does it); a resumed one picks
+    // its summary up where it was left (kept beside the save).
+    this.statsRec = state.turnNumber <= 1 && !state.winnerId && humans > 0 ? beginStats(state, this.campaignBattle ? 'campaign' : humans === 1 ? 'ai' : 'hotseat') : !state.winnerId && humans > 0 ? savedStatsRec(gameMark(state)) : null;
     this.state = state;
     this.revealedFor = null;
     this.viewerId = null;
@@ -1757,7 +1781,8 @@ export class App {
     if (this.statsRec && isGameOver(state)) {
       sendGameStats(finishStats(this.statsRec, state));
       this.statsRec = null;
-    }
+      keepStatsRec(null);
+    } else if (this.statsRec) keepStatsRec({ mark: gameMark(state), rec: this.statsRec });
     if (this.campaignBattle) this.campaign.saveBattle(state);
     else if (isGameOver(state)) clearSave();
     else save(state);
