@@ -144,7 +144,7 @@ export const EXPANSION: CardDef[] = [
     id: 'ghost_signal',
     name: 'Ghost Signal',
     kind: 'lightspeed',
-    text: '{lightspeed}. When an enemy plays a growth card, {heat:2} to them. Draw 1.',
+    text: '{lightspeed}. When an enemy plays a support card, {heat:2} to them. Draw 1.',
     lightspeed: { trigger: { on: 'enemyPlays', kind: 'growth' }, effects: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'draw', amount: 1 }] },
   },
 

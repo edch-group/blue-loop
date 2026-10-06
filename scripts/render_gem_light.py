@@ -7,7 +7,7 @@ sun's corona streaming out in curling streamers and swelling plumes, a black hol
 dark aura, its dust lanes spiralling in round its bright lensed ring. Each is a few layers that CSS turns, breathes and
 flickers out of step (styles.css, "The rarity gem's light"), so the light never repeats.
 
-Each image is nearly four gem-widths across with the gem in the middle (its window, radius G, is left dark: the
+Each image is five gem-widths across with the gem in the middle (its window, radius G, is left dark: the
 gem covers it). Alpha carries the light, so it reads over the white card and over the picture alike.
 """
 import os
@@ -22,7 +22,7 @@ c = (N - 1) / 2
 dx, dy = (x - c) / (N / 2), (y - c) / (N / 2)
 r = np.hypot(dx, dy)
 th = np.arctan2(dy, dx)
-G = 0.26           # the gem's radius, in this image's half-widths (the image is 1 / G gem-widths across)
+G = 0.2            # the gem's radius, in this image's half-widths (the image is 1 / G gem-widths across)
 px = 2 / N         # one pixel, in the same units
 
 
@@ -140,13 +140,21 @@ for i, (seed, warp) in enumerate([(31, 0.3), (32, -0.25)]):   # the corona: soft
     L.add(1.4 * np.exp(-near / 0.05), CORE)
     L.save(f'light-sun-corona{i + 1}.png')
 
-for i, seed in enumerate([41, 42]):   # plumes: two or three broad tongues of corona rooted at the rim, which CSS swells and fades
-    L = Light()
-    tongue = around(seed, 360, 9, turn=np.pi * 0.85 * i)          # (the second set faces another way)
-    q = np.quantile(tongue, 0.8)
-    tongue = np.clip((tongue - q) / (1 - q), 0, 1) ** 1.3
-    texture = polar_noise(seed + 50, 540, 128, 2.5, 18, 0.25 if i == 0 else -0.25)
-    L.add(7.0 * tongue * (0.6 + 0.5 * texture) * np.exp(-near / (0.14 + 0.1 * tongue)), sun_heat(0.1 + near / 0.5))
+def ring_noise(seed, n, blur):
+    g = np.random.default_rng(seed)
+    ring = gaussian_filter(g.random(n), blur, mode='wrap'); return (ring - ring.min()) / (ring.max() - ring.min())
+
+for i, seed in enumerate([41, 42]):   # flares: three or four tongues of fire leaping off the rim, wide at the root,
+    L = Light()                       # tapering and curling as they go; CSS swells them outward and fades them in turn
+    ring = ring_noise(seed, 360, 5)
+    q = np.quantile(ring, 0.68); ring = np.clip((ring - q) / (1 - q), 0, 1)
+    warp = 0.25 if i == 0 else -0.25
+    ang = ((th - np.pi * 0.85 * i - warp * np.log(np.maximum(r, 1e-3) / G)) % (2 * np.pi)) / (2 * np.pi) * 360
+    tongue = np.interp(ang, np.arange(361), np.append(ring, ring[0]))
+    tongue = tongue ** (1 + near * 3.5)                             # narrower further out
+    texture = polar_noise(seed + 50, 540, 128, 1.8, 16, warp)
+    reach = np.exp(-near / (0.05 + 0.2 * tongue))
+    L.add(20.0 * tongue * (0.6 + 0.5 * texture) * reach, sun_heat(near / 0.75))
     L.save(f'light-sun-flares{i + 1}.png')
 
 # ---------------------------------------------------------------- Anomaly: light dragged round a black hole
@@ -154,12 +162,17 @@ LILAC, VIOLET, NIGHT, VOID = [0.9, 0.84, 1.0], [0.6, 0.4, 1.0], [0.2, 0.06, 0.34
 
 # Dark light: what pours out of a black hole is shadow, a violet-black aura reaching over the card as far as a sun's
 # corona does, with darker dust lanes swirling into it; only its thin lensed ring is bright.
-for i, (seed, k, gain) in enumerate([(51, 2.2, 5.5), (52, 1.5, 4.0)]):   # dark dust lanes along spirals: noise, swirled
+for i, (seed, k) in enumerate([(51, 2.4), (52, 1.7)]):   # arms of dark matter along spirals, rimmed in violet light
     L = Light()
-    lanes = polar_noise(seed, 720, 128, 2.0, 18, k)
-    broad = polar_noise(seed + 100, 240, 128, 6, 10, k)
-    lane = (0.25 + 0.75 * np.clip(lanes * 1.6 - 0.6, 0, 1) ** 1.6) * (0.35 + 0.8 * broad)
-    L.add(gain * lane * np.exp(-near / (0.1 + 0.1 * broad)), mix(NIGHT, VOID, near / 0.35))
+    arms = polar_noise(seed, 360, 128, 6.0, 14, k)               # a few broad arms
+    fine = polar_noise(seed + 100, 1080, 128, 1.2, 18, k)        # streaks within them
+    q = np.quantile(arms[r < 1], 0.55)
+    arm = np.clip((arms - q) / (arms.max() - q), 0, 1)
+    body = arm ** 0.8 * (0.55 + 0.6 * fine)
+    rim = np.clip(arm * (1 - arm) * 4, 0, 1) ** 2 * (0.5 + 0.7 * fine)  # the arms' edges catch the light
+    fall = np.exp(-near / 0.3)
+    L.add(11.0 * body * fall, mix(NIGHT, VOID, near / 0.35))
+    L.add(2.0 * rim * fall, mix(LILAC, VIOLET, near / 0.3))
     L.save(f'light-hole-swirl{i + 1}.png')
 
 L = Light()   # the bright lensed ring just outside the socket, rippling, inside a soft dark halo
