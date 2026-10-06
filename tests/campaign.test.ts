@@ -836,8 +836,9 @@ describe('sun health and salvage', () => {
   it('gives every sun 10 max health at the rim, more nearer the Heart, the same base for both sides', () => {
     expect(sunHealth({ ring: 9 } as never)).toBe(10);
     expect(sunHealth({ ring: 5 } as never)).toBe(10);
-    expect(sunHealth({ ring: 3 } as never)).toBe(14);
-    expect(sunHealth({ ring: 1 } as never)).toBe(20);
+    expect(sunHealth({ ring: 4 } as never)).toBe(10);
+    expect(sunHealth({ ring: 3 } as never)).toBe(12);
+    expect(sunHealth({ ring: 1 } as never)).toBe(19);
     expect(sunHealth({ heart: true, ring: 0 } as never)).toBe(24);
   });
 });

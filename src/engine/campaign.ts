@@ -173,7 +173,7 @@ export const CAMPAIGN = {
    * 24 at the Heart. Both sides start from it; fortification, a brown dwarf, anomalies, the Heart's Wardens
    * and a ship's hull add to it.
    */
-  sunHealth: [24, 20, 17, 14, 12, 10],
+  sunHealth: [24, 19, 15, 12, 10],
 } as const;
 
 /** Armory prices in materials, by rarity (race cards cost 1 more than neutral ones). */
