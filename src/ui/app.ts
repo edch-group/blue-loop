@@ -259,6 +259,8 @@ const LUNGE_MS = 900;
 const LUNGE_HIT = 0.58;
 /** Banners in a row (dusk, dawn, day) are this far apart. */
 const BANNER_GAP_MS = 1300;
+/** How long a phase's banner stays up. */
+const BANNER_SHOWN_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
 const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
@@ -1576,15 +1578,13 @@ export class App {
     const named = (p: PlayerState, phase: string) => (p.id === you ? phase : `${p.name.toLowerCase()}'s ${phase}`);
     const round = `round ${roman(next.round)}`;
     const now = activePlayer(next);
-    // A dusk or dawn in which nothing happened (and nothing is asked) is passed over, banner and all.
+    // A dusk or dawn in which nothing happened (and nothing is asked) is passed over, banner and all. Each
+    // phase's effects play once its banner has gone, and the day's banner comes once they are done (dayTimeline).
     if (turnPassed) {
-      if (this.duskHappened(next, actor)) this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, 0, 'game', () => this.setPhase('dusk'));
-      if (this.dawnHappened(next, now)) this.showBanner(named(now, 'dawn'), round, 0, 'game', () => this.setPhase('dawn'));
-    }
-    // The day begins once the dawn has played out.
-    if (turnPassed) {
-      const replay = animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0;
-      this.showBanner(named(now, 'day'), round, Math.max(0, replay - 600), 'game', () => this.setPhase('day'), this.orbitLine(next, now));
+      const t = this.dayTimeline(next, actor, animate);
+      if (t.dusk !== null) this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, t.dusk, 'game', () => this.setPhase('dusk'));
+      if (t.dawn !== null) this.showBanner(named(now, 'dawn'), round, t.dawn, 'game', () => this.setPhase('dawn'));
+      this.showBanner(named(now, 'day'), round, t.day, 'game', () => this.setPhase('day'), this.orbitLine(next, now));
     }
   }
 
@@ -1641,7 +1641,7 @@ export class App {
       el.innerHTML = `<div class="turn-banner-glow"></div><div class="turn-banner-text">${esc(text)}</div><div class="turn-banner-sub">${esc(sub.toLowerCase())}</div>${extra ? `<div class="turn-banner-line"></div>${extra}` : ''}`;
       document.body.appendChild(el);
       sound.turn();
-      window.setTimeout(() => el.remove(), 2000);
+      window.setTimeout(() => el.remove(), BANNER_SHOWN_MS);
     }, delay);
   }
 
@@ -1762,8 +1762,8 @@ export class App {
         this.animate(prev, next, action, actor, before);
       }
       this.announcePhases(actor, next, turnPassed, animate);
-      // The AI waits for its dawn to play out before it acts.
-      this.scheduleAI(AI_PAUSE[action.type] + (action.type === 'endTurn' && animate ? this.replayLength(next) / SPEED_FACTOR[this.speed] : 0));
+      // The AI waits for the day's banner to have come and gone (after its dusk and dawn have played out) before it acts.
+      this.scheduleAI(turnPassed ? Math.max(AI_PAUSE.endTurn, (this.dayTimeline(next, actor, animate).day + BANNER_SHOWN_MS + 300) / SPEED_FACTOR[this.speed]) : AI_PAUSE[action.type]);
     };
     // A card waiting to be read takes effect once the viewer says OK.
     if (this.stage?.confirm) {
@@ -2110,7 +2110,7 @@ export class App {
       novaDone.add(pid);
       this.supernovaAt(pid);
     };
-    const replayEnd = pulses.length ? this.replayPulses(next, prev, before, nova) : 0;
+    const replayEnd = pulses.length ? this.replayPulses(next, prev, before, nova, this.dayTimeline(next, actor, true).pulses) : 0;
     const hitAt = new Map<string, number>();
     let faded = 0;
     before.cards.forEach((old, uid) => {
@@ -2340,7 +2340,9 @@ export class App {
         this.render();
       });
     }
-    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' ? this.replayLength(next) : 900) + 1800;
+    // (A day's change: its banners and effects, as dayTimeline lays them out, at most.)
+    const pulses = (next.turnPulses ?? []).filter((p) => p.kind !== 'start' && !p.together).length;
+    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' ? (pulses ? 2 * (BANNER_SHOWN_MS + 150) + pulses * PULSE_STEP * SPEED_FACTOR[this.speed] + 700 : 0) : 900) + 1800;
     this.resultAt = Date.now() + wait;
     window.setTimeout(() => {
       if (this.state === next || isGameOver(this.state ?? next)) this.render();
@@ -2350,11 +2352,46 @@ export class App {
   /** Replays in flight (a newer state cancels an older replay's remaining steps). */
   private replayId = 0;
 
-  /** How long a state's dawn replay lasts, in ms (0 if it has none). */
-  private replayLength(state: GameState): number {
-    if (reducedMotion()) return 0;
-    const n = (state.turnPulses ?? []).filter((p) => p.kind !== 'start' && !p.together).length;
-    return n ? 700 + n * PULSE_STEP * SPEED_FACTOR[this.speed] + 400 : 0;
+  /**
+   * When each part of a day's change plays, in ms from now: the dusk's banner (null if it shows none), then its
+   * effects once the banner has gone; the dawn's banner, then its effects once that has gone; then the day's
+   * banner (`day`). `pulses`: when each effect plays, in order (start markers left out). Without animation every
+   * banner just comes in turn, and nothing replays.
+   */
+  private dayTimeline(next: GameState, actor: PlayerState, animate: boolean): { dusk: number | null; dawn: number | null; day: number; pulses: number[] } {
+    const now = activePlayer(next);
+    const wants = { dusk: this.duskHappened(next, actor), dawn: this.dawnHappened(next, now) };
+    if (!animate || reducedMotion()) return { dusk: wants.dusk ? 0 : null, dawn: wants.dawn ? 0 : null, day: 0, pulses: [] };
+    const step = PULSE_STEP * SPEED_FACTOR[this.speed];
+    const at: { dusk: number | null; dawn: number | null } = { dusk: null, dawn: null };
+    let t = 0;
+    // A phase's banner (the dusk's always before the dawn's), then its effects once it has gone.
+    const banner = (phase: 'dusk' | 'dawn') => {
+      if (phase === 'dawn' && wants.dusk && at.dusk === null) banner('dusk');
+      if (!wants[phase] || at[phase] !== null) return;
+      at[phase] = t;
+      t += BANNER_SHOWN_MS + 150;
+    };
+    const pulses: number[] = [];
+    let phase: 'dusk' | 'dawn' = 'dawn';
+    let lastAt = t;
+    let any = false;
+    for (const p of next.turnPulses ?? []) {
+      if (p.kind === 'start') {
+        phase = p.source === now.id ? 'dawn' : 'dusk';
+        continue;
+      }
+      banner(phase);
+      if (!any) t = Math.max(t, 300);
+      any = true;
+      // (Regional instability strikes every sun at once: those share one moment.)
+      const when = p.together ? lastAt : t;
+      lastAt = when;
+      pulses.push(when);
+      if (!p.together) t += step;
+    }
+    banner('dawn');
+    return { ...at, day: any ? t + 400 : t, pulses };
   }
 
   /**
@@ -2364,7 +2401,7 @@ export class App {
    * as it lands. Regional instability and the table strike from the top of the
    * screen. Returns when the last effect has landed.
    */
-  private replayPulses(next: GameState, prev: GameState, before: Snapshot, onNova: (pid: string) => void): number {
+  private replayPulses(next: GameState, prev: GameState, before: Snapshot, onNova: (pid: string) => void, times: number[]): number {
     const root = this.root;
     const id = ++this.replayId;
     const all = next.turnPulses ?? [];
@@ -2387,13 +2424,16 @@ export class App {
     const start = all.find((p) => p.kind === 'start')?.suns ?? Object.fromEntries(prev.players.map((p) => [p.id, { heat: p.heat, shields: p.shields, eliminated: p.eliminated }]));
     for (const p of next.players) show(p.id, start[p.id] ?? { heat: p.heat, shields: p.shields, eliminated: p.eliminated });
     let last = start;
+    // Each effect when the day's timeline plays it (dayTimeline): once its phase's banner has gone.
     let t = 700;
     const cardLands = new Map<HTMLElement, number>();
     let lastAt = t;
+    let index = 0;
     for (const ps of steps) {
       // Regional instability strikes every sun at once: those pulses share one moment.
-      const at = ps.together ? lastAt : t;
+      const at = times[index++] ?? (ps.together ? lastAt : t);
       lastAt = at;
+      t = Math.max(t, at);
       const was = last;
       last = ps.suns;
       const fromEl = ps.uid ? root.querySelector(`.tableau [data-uid="${ps.uid}"]`) : null;
@@ -2780,6 +2820,12 @@ export class App {
       return;
     }
     // Enter: OK the rival's card, or end the day (asking first if cards could still be played).
+    // On the campaign map: Enter ends the turn (asking first if an army could still move), Escape takes it back.
+    if (this.screen === 'campaign' && (e.key === 'Enter' || e.key === 'Escape') && !e.repeat && !(e.target as HTMLElement).closest?.('input, textarea, select') && this.campaign.onKey(e.key)) {
+      e.preventDefault();
+      this.render();
+      return;
+    }
     if (e.key === 'Enter' && !e.repeat && !(e.target as HTMLElement).closest?.('input, textarea, select')) {
       if (this.screen !== 'game') return;
       if (this.stage?.confirm) {

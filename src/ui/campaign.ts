@@ -296,6 +296,8 @@ type Sheet =
   | { kind: 'attack'; armyId: string; toId: string }
   | { kind: 'help' }
   | { kind: 'settings' }
+  /** Enter with moves still to make: end the turn anyway? */
+  | { kind: 'end-turn' }
   /** The game overview: every faction, its systems and its share of the universe. */
   | { kind: 'overview' };
 
@@ -583,6 +585,29 @@ export class CampaignView {
           ${w.lines.length ? `<ul class="cmp-waiting-feed">${w.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
         </div>
       </div>`;
+  }
+
+  /**
+   * A key on the map: Enter ends the turn (asking first while an army could still move; Enter again ends it),
+   * Escape takes the question back. Returns whether it did anything (the screen then redraws).
+   */
+  onKey(key: string): boolean {
+    const s = this.state;
+    if (!s) return false;
+    if (this.sheet?.kind === 'end-turn') {
+      if (key === 'Enter') return this.onClick('cmp-end-turn', '', document.body);
+      if (key === 'Escape') {
+        this.sheet = null;
+        return true;
+      }
+      return false;
+    }
+    if (key !== 'Enter') return false;
+    // (Not while anything else is up: a dialog, a battle, a choice to make, the AI's turn.)
+    if (this.sheet || this.report || this.battleReport || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.winner) return false;
+    if (this.nothingLeft()) return this.onClick('cmp-end-turn', '', document.body);
+    this.sheet = { kind: 'end-turn' };
+    return true;
   }
 
   /** Nothing left to do this turn: no army can move (each has marched, is refitting, or has nowhere to go). */
@@ -1888,6 +1913,18 @@ export class CampaignView {
     }
     if (!sh) return '';
     switch (sh.kind) {
+      case 'end-turn': {
+        const ready = armiesOf(s, s.playerId).filter((x) => armyMoves(s, x).length > 0).map((x) => armyLeader(x));
+        const who = ready.length > 1 ? `${ready.slice(0, -1).join(', ')} and ${ready[ready.length - 1]}` : ready[0] ?? 'Your flagship';
+        return this.modal(
+          'end your turn?',
+          `<p class="center-text">${esc(who)} can still move.</p>
+           <div class="end-day-actions"><button class="btn-primary" data-act="cmp-end-turn">end turn <small>⏎</small></button><button class="btn" data-act="cmp-close">keep playing <small>esc</small></button></div>`,
+          true,
+          '',
+          'cmp-modal-narrow',
+        );
+      }
       case 'deck':
       case 'heroes':
       case 'ship':
