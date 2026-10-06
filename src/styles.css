@@ -5334,3 +5334,85 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .sh-rooms { gap: 4px; }
 }
 .slot-empty.slot-wounded { color: #e88a80; border-color: rgba(232, 138, 128, 0.6); background: rgba(176, 84, 74, 0.12); }
+
+
+/* ---------- Campaign battles: ship to ship, seen side on ---------- */
+/* The table flattens into space: your ship on the left facing right, theirs on the right facing left. Each is
+   its race's 3D model, large, with its rooms set into its hull where that ship has room for them (SHIP_LAYOUTS
+   in ships.ts), a card standing in each. Positions are custom properties in units (--u, a quarter card). */
+.ship-view { perspective: none; background: radial-gradient(ellipse at 50% 40%, #1b2140, #0b0d1c 70%); }
+.ship-view::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 1px, transparent 1.6px) 0 0 / 97px 83px,
+    radial-gradient(circle, rgba(200, 215, 255, 0.6) 0 0.8px, transparent 1.3px) 31px 47px / 61px 71px,
+    radial-gradient(circle, rgba(255, 235, 210, 0.5) 0 1.2px, transparent 1.8px) 12px 9px / 151px 133px;
+  animation: ship-stars 80s linear infinite; }
+@keyframes ship-stars { to { background-position: -970px 0, -579px 47px, -1498px 9px; } }
+@media (prefers-reduced-motion: reduce) { .ship-view::before { animation: none; } }
+.ship-view > .game { transform: none; background: none; box-shadow: none; border-radius: 0; }
+.ship-view .board-floor, .ship-view .tableau-frame, .ship-view .tableau-eye, .ship-view .board-zoom, .ship-view .tableau-label, .ship-view .tableau-piles { display: none !important; }
+.ship-view .board-plane { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; align-items: center; justify-items: center; column-gap: calc(var(--u) * 1.5); padding: calc(var(--tcw) * 1.3) 0 0; }
+.ship-view .tableau-mine { grid-column: 1; grid-row: 1; }
+.ship-view .tableau-rival { grid-column: 2; grid-row: 1; }
+/* The ship's box: the model's 40 units long, 24 across (stretched by --sy); everything placed in it. */
+.ship-view .tableau-row-wrap { position: relative; padding: 0 !important; width: calc(var(--u) * 40); height: calc(var(--u) * 24 * 1.35); }
+.ship-view .tableau-row { position: absolute; inset: 0; display: block; z-index: 2; margin: 0; padding: 0; width: auto; }
+.ship-view .tableau-row > :nth-child(n + 2):nth-child(-n + 6), .ship-view .tableau-row > .ls-slot, .ship-view .tableau-row > .cmd-slot { position: absolute; width: var(--tcw); transform: translate(-50%, -50%); margin: 0; }
+.ship-view .tableau-row > :nth-child(2) { left: var(--p0x); top: var(--p0y); }
+.ship-view .tableau-row > :nth-child(3) { left: var(--p1x); top: var(--p1y); }
+.ship-view .tableau-row > :nth-child(4) { left: var(--p2x); top: var(--p2y); }
+.ship-view .tableau-row > :nth-child(5) { left: var(--p3x); top: var(--p3y); }
+.ship-view .tableau-row > :nth-child(6) { left: var(--p4x); top: var(--p4y); }
+.ship-view .tableau-row > .ls-slot { left: var(--plsx); top: var(--plsy); height: calc(var(--tcw) * 1.4); }
+.ship-view .tableau-row > .cmd-slot { left: var(--pcx); top: var(--pcy); right: auto; bottom: auto; z-index: 3; }
+.ship-view [data-ship="station"] .cmd-slot { display: none; }
+.ship-view .slot-empty { background: transparent; border-color: rgba(200, 215, 245, 0.18); color: rgba(220, 230, 250, 0.75); }
+/* Rooms: compartments cut into the hull, a light in each ceiling, a card standing in each. */
+.ship-room { position: absolute; z-index: 1; width: calc(var(--u) * 4.7); height: calc(var(--u) * 6.1); transform: translate(-50%, -50%); border-radius: calc(var(--u) * 0.45); overflow: hidden;
+  background: linear-gradient(180deg, #1a1e33 0%, #262c47 74%, color-mix(in srgb, var(--ac) 25%, #343b5c) 74.5%, #2d3350 100%);
+  box-shadow: 0 0 0 calc(var(--u) * 0.16) color-mix(in srgb, var(--ac) 30%, #3a4058), 0 0 0 calc(var(--u) * 0.26) color-mix(in srgb, var(--ac) 55%, #c8d0e4), inset 0 calc(var(--u) * 0.4) calc(var(--u) * 0.8) rgba(0, 0, 0, 0.5); }
+.ship-room-light { position: absolute; left: 30%; right: 30%; top: 0; height: 3px; border-radius: 0 0 3px 3px; background: color-mix(in srgb, var(--ac) 40%, #fff6dc); box-shadow: 0 0 12px 4px color-mix(in srgb, var(--ac) 35%, rgba(255, 240, 210, 0.5)); opacity: 0.85; }
+.ship-room-hangar { background: repeating-linear-gradient(135deg, #1b1f33 0 8px, #22273d 8px 16px); }
+.ship-room-hangar .ship-room-light { background: #ffd27a; box-shadow: 0 0 10px 3px rgba(255, 190, 90, 0.5); }
+.ship-room-cmd { border-radius: calc(var(--u) * 0.6) calc(var(--u) * 1.8) calc(var(--u) * 1.8) calc(var(--u) * 0.6); }
+.tableau-rival .ship-room-cmd { border-radius: calc(var(--u) * 1.8) calc(var(--u) * 0.6) calc(var(--u) * 0.6) calc(var(--u) * 1.8); }
+.ship-room small { position: absolute; left: 0; right: 0; bottom: 1px; text-align: center; font-family: var(--display); font-size: max(6px, calc(var(--u) * 0.32)); letter-spacing: 0.1em; text-transform: uppercase; color: color-mix(in srgb, var(--ac) 45%, #fff); opacity: 0.85; }
+/* The 3D model fills the box (sharp: its depth in units too). */
+.ship-model { position: absolute; z-index: 0; left: 0; right: 0; top: 50%; height: calc(var(--u) * 24 * var(--sy)); transform: translateY(-50%); perspective: calc(var(--u) * 120); pointer-events: none; --zu: var(--u); }
+.ship-model-rival { transform: translateY(-50%) scaleX(-1); }
+.ship-model-in { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateX(10deg); }
+.ship-model .ship3d { transform: none; }
+.ship-view .tableau-mine { animation: ship-bob 6s ease-in-out infinite; }
+.ship-view .tableau-rival { animation: ship-bob 6s ease-in-out -3s infinite; }
+@keyframes ship-bob { 50% { transform: translateY(calc(var(--u) * -0.2)); } }
+@media (prefers-reduced-motion: reduce) { .ship-view .tableau-mine, .ship-view .tableau-rival { animation: none; } }
+/* The sun: aboard where the ship carries it, else behind it, above the stern; its shields' count beside it. */
+.ship-view .vitals { z-index: 3; --vs: calc(var(--u) * 6.2); left: var(--psx); top: var(--psy); right: auto; transform: translate(-50%, -50%); }
+.ship-view [data-sun="far"] .vitals { z-index: 1; }
+.ship-view .tableau-row-wrap > .board-shields { position: absolute; z-index: 4; left: var(--pbx); top: var(--pby); transform: translate(-50%, -50%); --bs: calc(var(--u) * 1.7); width: var(--bs); height: calc(var(--bs) * 1.08); display: grid; place-items: center; opacity: 0.35; }
+.ship-view .tableau-row-wrap > .board-shields.up { opacity: 1; }
+/* Shields: a half-sphere lattice of hexagons in front of the sun, towards the enemy. */
+/* (In front of the sun, towards the enemy: the left of the rival's.) */
+.vit-shell { position: absolute; top: -22%; bottom: -22%; left: 8%; right: -36%; pointer-events: none; opacity: 0; transition: opacity 0.5s; z-index: 2; }
+.tableau-rival .vit-shell { left: -36%; right: 8%; transform: scaleX(-1); }
+.vit-shielded .vit-shell { opacity: calc(0.45 + var(--sh, 0) * 0.55); }
+.vit-lattice { width: 100%; height: 100%; overflow: visible; }
+.vit-lattice-cells { animation: lattice-shimmer 3s ease-in-out infinite alternate; }
+.vit-lattice-cells polygon { fill: rgba(150, 200, 255, 0.06); stroke: #bfe4ff; stroke-width: 0.6; stroke-linejoin: round; }
+@keyframes lattice-shimmer { to { opacity: 0.7; } }
+@media (prefers-reduced-motion: reduce) { .vit-lattice-cells { animation: none; } }
+/* The day's ring and track between the ships, at the top. */
+.ship-view .board-plane > .round-ring, .ship-view .board-plane > .board-star-slot, .ship-view .board-plane > .phase-track, .ship-view .board-plane > .turn-who { top: calc(var(--tcw) * 0.7); }
+.ship-view .board-plane > .round-ring { width: calc(var(--tcw) * 0.95); }
+.ship-view .board-plane > .phase-track, .ship-view .board-plane > .turn-who { --stellari-r: calc(var(--tcw) * 0.72); }
+.ship-view .phase-step span, .ship-view .turn-who span { color: #c9d2ea; }
+.ship-view .turn-who span.on { color: #fff; }
+/* Lasers. */
+.laser { position: fixed; z-index: 45; height: 3px; margin-top: -1.5px; transform-origin: 0 50%; pointer-events: none; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--c) 20%, #fff 50%, var(--c) 80%, transparent); box-shadow: 0 0 8px 2px var(--c), 0 0 18px 4px color-mix(in srgb, var(--c) 50%, transparent); }
+.laser-hit { position: fixed; z-index: 46; width: 46px; height: 46px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #fff 0 18%, var(--c) 40%, transparent 70%); }
+.laser-charge { animation: laser-charge 0.5s ease-out; }
+@keyframes laser-charge { 0% { filter: none; } 40% { filter: drop-shadow(0 0 10px #9fe7ff) brightness(1.25); } 100% { filter: none; } }
+/* (A sun carried aboard: its shield curves just past it, clear of the rooms.) */
+.ship-view [data-sun="aboard"] .vit-shell { top: -12%; bottom: -12%; left: 20%; right: -16%; }
+.ship-view .tableau-rival[data-sun="aboard"] .vit-shell { left: -16%; right: 20%; }

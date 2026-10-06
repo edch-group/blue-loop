@@ -105,7 +105,53 @@ function planetTag(orbit: number, eaten = false): string {
   return `<div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more day${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
 }
 
-export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number; eaten?: boolean }): string {
+/**
+ * Shields as a half-sphere of hexagons in front of a sun (campaign battles), its curve facing the enemy: a
+ * lattice of hex cells laid over the half of a globe that faces right (the rival's is mirrored), seen from the
+ * side, so the cells crowd and thin as they curve away, those on the far side faint. Brighter the more shields
+ * are up; hidden with none.
+ */
+let latticeSvg = '';
+function shieldLattice(): string {
+  if (latticeSvg) return latticeSvg;
+  const R = 50;
+  const tilt = (22 * Math.PI) / 180;
+  const deg = Math.PI / 180;
+  // A point on the globe (longitude, latitude), tilted towards the viewer, seen from the front: x, y and depth.
+  const project = (lon: number, lat: number) => {
+    const x = Math.cos(lat) * Math.sin(lon);
+    const y0 = Math.sin(lat);
+    const z0 = Math.cos(lat) * Math.cos(lon);
+    const y = y0 * Math.cos(tilt) - z0 * Math.sin(tilt);
+    const z = y0 * Math.sin(tilt) + z0 * Math.cos(tilt);
+    return { x: x * R, y: -y * R, z };
+  };
+  const cells: string[] = [];
+  const size = 9 * deg;
+  const dx = size * 1.5;
+  const dy = size * Math.sqrt(3);
+  for (let col = -Math.ceil(Math.PI / dx); col <= Math.ceil(Math.PI / dx); col++) {
+    for (let row = -9; row <= 9; row++) {
+      const lon = col * dx;
+      const lat = row * dy + (col % 2 ? dy / 2 : 0);
+      if (Math.abs(lat) > 82 * deg) continue;
+      const c = project(lon, lat);
+      // (Only the half facing the enemy: the cap of the globe towards +x.)
+      if (c.x < R * 0.05) continue;
+      // (Cells are wider in longitude towards the poles, so they keep their shape on the globe.)
+      const pts = Array.from({ length: 6 }, (_, k) => {
+        const a = (k * Math.PI) / 3;
+        const p = project(lon + (Math.cos(a) * size * 0.92) / Math.max(0.25, Math.cos(lat)), lat + Math.sin(a) * size * 0.92);
+        return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+      }).join(' ');
+      cells.push(`<polygon points="${pts}" style="opacity:${(0.18 + Math.max(0, (c.z + 1) / 2) * 0.82).toFixed(2)}"/>`);
+    }
+  }
+  latticeSvg = `<svg class="vit-lattice" viewBox="-52 -52 104 104" aria-hidden="true"><defs><radialGradient id="lat-glow"><stop offset="0.72" stop-color="#bfe4ff" stop-opacity="0"/><stop offset="0.97" stop-color="#bfe4ff" stop-opacity="0.45"/><stop offset="1" stop-color="#bfe4ff" stop-opacity="0"/></radialGradient></defs><path d="M0 -51A51 51 0 0 1 0 51Z" fill="url(#lat-glow)"/><g class="vit-lattice-cells">${cells.join('')}</g></svg>`;
+  return latticeSvg;
+}
+
+export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number; eaten?: boolean; lattice?: boolean }): string {
   const { heat, threshold, shields, dead } = opts;
   const t = Math.max(0, Math.min(1, heat / threshold));
   const cold = heat < 0 ? Math.min(1, heat / BALANCE.minHeat) : 0;
@@ -127,6 +173,7 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
       ${ringTracks(heatArc, shieldArc, orbit)}
       <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" data-pid="${opts.id ?? ''}" aria-hidden="true"></canvas>
       ${orbit !== undefined ? orbitPlanets(orbit) : ''}
+      ${opts.lattice ? `<div class="vit-shell" style="--sh:${Math.min(1, shields / 4).toFixed(2)}">${shieldLattice()}</div>` : ''}
       <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
       <div class="vit-under">${orbit !== undefined ? planetTag(orbit, opts.eaten) : ''}</div>
     </div>`;

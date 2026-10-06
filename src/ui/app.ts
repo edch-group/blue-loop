@@ -74,8 +74,9 @@ import { backdrop } from './backdrop';
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
-import { factionAvatar } from './factions';
-import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
+import { FACTION_COLOUR, factionAvatar } from './factions';
+import { shipModel, SHIP_LAYOUTS, STATION_LAYOUT } from './ships';
+import { aim, anchorRect, beam, laser, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine, setCampaignText } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
@@ -566,6 +567,8 @@ function savedStatsRec(mark: string): GameStats | null {
     return null;
   }
 }
+
+
 
 export class App {
   private screen: Screen = 'menu';
@@ -1745,6 +1748,8 @@ export class App {
     if (!el || !target) return false;
     const from = pageRect(el);
     const to = pageRect(target);
+    // Campaign battles are ship to ship: the card's room fires on the target instead of the card flying at it.
+    if (this.state?.campaign) return this.laserStrike(el, target, from, to, owner?.id === this.viewer().id);
     // A copy of the card flies over everything (the board's rows would clip the card itself), the card
     // itself hidden meanwhile: lifted, tilted back, then into the target just short of its centre.
     const cs = getComputedStyle(el);
@@ -1794,6 +1799,27 @@ export class App {
       );
       pulse(target, 'hit-flash');
     }, Math.round(LUNGE_MS * LUNGE_HIT));
+    return true;
+  }
+
+  /** A campaign attack: the attacker's guns charge and fire a volley across, landing as the blow does. */
+  private laserStrike(el: HTMLElement, target: HTMLElement, from: DOMRect, to: DOMRect, mine: boolean): boolean {
+    const hitAt = Math.round(LUNGE_MS * LUNGE_HIT);
+    const shots = 3;
+    const gap = 90;
+    // (Timed so the last bolt lands as the move does.)
+    const start = Math.max(0, hitAt - ((shots - 1) * gap + 110));
+    pulse(el, 'laser-charge');
+    window.setTimeout(() => sound.flare(), start);
+    laser(from, to, mine ? '#7fe3ff' : '#ff7a5c', { delay: start, shots, gap });
+    window.setTimeout(() => {
+      sound.impact(true);
+      target.animate(
+        [{ transform: 'translate(0, 0)' }, { transform: 'translate(-5px, 2px)' }, { transform: 'translate(4px, -2px)' }, { transform: 'translate(-2px, 1px)' }, { transform: 'translate(0, 0)' }],
+        { duration: 320, composite: 'add' },
+      );
+      pulse(target, 'hit-flash');
+    }, hitAt);
     return true;
   }
 
@@ -4230,7 +4256,7 @@ export class App {
     // The whole play area is a table seen in perspective; pop-ups and the
     // played-card stage sit outside it so they stay flat and readable.
     return `
-      <main class="table-view${this.boardZoom ? ` zoom-${this.boardZoom}` : ''}" style="${this.boardZoom ? this.zoomVars : ''}">
+      <main class="table-view${s.campaign ? ' ship-view' : ''}${this.boardZoom ? ` zoom-${this.boardZoom}` : ''}" style="${this.boardZoom ? this.zoomVars : ''}">
         <div class="game">
           <header class="top"></header>
           ${this.renderBoard()}
@@ -4621,19 +4647,91 @@ export class App {
     return `
       <section class="display board">
         <div class="board3d">
-          <div class="board-plane">
+          <div class="board-plane" ${this.state?.campaign ? `style="${this.shipSizes()}"` : ''}>
             <div class="board-floor"></div>
             <div class="board-star-slot" data-morph-keep></div>
             ${this.renderRoundRing()}
             ${this.renderPhaseTrack()}
-            ${rival ? shieldBadge(rival.id, rival.shields, 'rival') : ''}${shieldBadge(me.id, me.shields, 'mine')}
-            ${rival ? this.renderTableau(rival, 'rival') : ''}
+            ${this.state?.campaign ? '' : `${rival ? shieldBadge(rival.id, rival.shields, 'rival') : ''}${shieldBadge(me.id, me.shields, 'mine')}`}
+            ${rival ? this.shipped(rival, 'rival', this.renderTableau(rival, 'rival')) : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
-            ${this.renderTableau(me, 'mine')}
+            ${this.shipped(me, 'mine', this.renderTableau(me, 'mine'))}
           </div>
         </div>
       </section>`;
+  }
+
+  /**
+   * Campaign battles: a tableau as a ship seen side on (yours on the left, facing right; theirs on the right,
+   * facing left), its rooms the card slots, its command room at the bow. Its hull is drawn behind them, in its
+   * race's colours (a station, with no hero, is a squat platform); some races carry their sun aboard, the rest
+   * fight in front of it. Off campaign, the tableau as it is.
+   */
+  /**
+   * The ship view's sizes, from the window: the rooms' card width (each ship, its rooms, bow and stern, takes
+   * a little under half the width, and two decks of cards fit above the hand), and the 3D model's scale (its
+   * models are 40 units long), so the rooms sit inside the hull.
+   */
+  private shipSizes(): string {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    // (Each ship is 10 cards long: its model is 40 units, a card 4.)
+    const tcw = Math.round(Math.max(40, Math.min(w / 21, h * 0.105, 104)));
+    return `--tcw:${tcw}px;--u:${(tcw / 4).toFixed(2)}px`;
+  }
+
+  /**
+   * Campaign battles: a tableau as a ship seen side on (yours on the left, facing right; theirs on the right,
+   * facing left): its race's 3D model, its rooms set into the hull where that ship has room for them (see
+   * SHIP_LAYOUTS), a card standing in each, the command room at the bow. Some races carry their sun aboard;
+   * the rest fight in front of it. Off campaign, the tableau as it is.
+   */
+  private shipped(p: PlayerState, side: 'mine' | 'rival', html: string): string {
+    if (!this.state?.campaign) return html;
+    const race = p.hero ? cardDef(p.hero).race : undefined;
+    const kind = race === undefined ? 'station' : 'ship';
+    const colour = (race !== undefined && FACTION_COLOUR[`f${race + 1}`]) || '#8d93a3';
+    const L = race === undefined ? STATION_LAYOUT : SHIP_LAYOUTS[race] ?? SHIP_LAYOUTS[0];
+    const sun = L.sun !== null ? 'aboard' : 'far';
+    // Positions in units (u: a quarter of a card's width): x along the ship (mirrored for theirs), y across it.
+    const X = (x: number) => (side === 'mine' ? x : 40 - x);
+    // (The box is the same height for every ship, 24 units at 1.35; a slim hull's model is stretched within it.)
+    const mid = 12 * 1.35;
+    const at = (x: number, y: number) => `calc(var(--u) * ${X(x).toFixed(2)}) ; calc(var(--u) * ${y.toFixed(2)})`;
+    // Rooms, stern to bow: in each column of two, the upper first. Slots in the order the board's were laid
+    // out before (the middle one, the safest, amidships), the hangar (the Lightspeed slot) among them.
+    const places: [number, number][] = [];
+    for (const [x, rows] of L.cols) {
+      if (rows === 1) places.push([x, mid]);
+      else places.push([x, mid - 3.25], [x, mid + 3.25]);
+    }
+    const order: (number | 'ls')[] = [1, 0, 2, 'ls', 3, 4];
+    const vars: string[] = [`--ac:${colour}`, '--rot:0deg', `--sy:${L.sy}`];
+    const rooms: string[] = [];
+    const r = p.rooms;
+    order.forEach((slot, i) => {
+      const [x, y] = places[i] ?? places[places.length - 1];
+      const [vx, vy] = at(x, y).split(' ; ');
+      vars.push(`--p${slot}x:${vx}`, `--p${slot}y:${vy}`);
+      const d = slot === 'ls' ? 0 : r?.defence[slot] ?? 0;
+      const a = slot === 'ls' ? 0 : r?.attack[slot] ?? 0;
+      const tag = slot === 'ls' ? 'hangar' : `${d ? `walls +${d}` : ''}${d && a ? ' · ' : ''}${a ? `guns +${a}` : ''}`;
+      rooms.push(`<div class="ship-room ${slot === 'ls' ? 'ship-room-hangar' : ''}" style="left:${vx};top:${vy}"><i class="ship-room-light"></i>${tag ? `<small>${tag}</small>` : ''}</div>`);
+    });
+    if (L.cmd !== null) {
+      const [cx, cy] = at(L.cmd, mid).split(' ; ');
+      vars.push(`--pcx:${cx}`, `--pcy:${cy}`);
+      rooms.push(`<div class="ship-room ship-room-cmd" style="left:${cx};top:${cy}"><i class="ship-room-light"></i></div>`);
+    }
+    // The sun: aboard, where the ship carries it; else behind it, above the stern. Its shields beside it.
+    const [sx, sy] = (L.sun !== null ? at(L.sun, mid) : at(5, mid - 6.2)).split(' ; ');
+    const [bx, by] = (L.sun !== null ? at(L.sun + 4.2, mid + 3.6) : at(9.6, mid - 3.2)).split(' ; ');
+    vars.push(`--psx:${sx}`, `--psy:${sy}`, `--pbx:${bx}`, `--pby:${by}`);
+    const model = `<div class="ship-model ship-model-${side}" aria-hidden="true"><div class="ship-model-in">${shipModel(race ?? 0, kind === 'station')}</div></div>`;
+    return html
+      .replace(`data-owner="${p.id}">`, `data-owner="${p.id}" data-ship="${kind}" data-sun="${sun}" style="${vars.join(';')}">`)
+      .replace('<div class="tableau-row-wrap">', `<div class="tableau-row-wrap">${model}${rooms.join('')}${shieldBadge(p.id, p.shields, side)}`);
   }
 
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
@@ -4714,7 +4812,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), lattice: !!st.campaign })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
