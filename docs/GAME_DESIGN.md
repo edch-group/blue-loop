@@ -684,7 +684,7 @@ On the table:
 - **Suns, large, beside their tableaus.** Your rival's sun is left of their row, and yours is left of yours. Each shows:
   - its heat in the middle, out of max health;
   - a heat arc around it;
-  - a blue shield ring around that. The shield count itself is a big shield badge in the board's middle, the rival's above the Stellari and yours below, bright blue while any are up and faint at none (on the sun it was easy to miss). [direction: shields easy to miss]
+  - a blue shield ring around that. The shield count itself is a big shield badge in the board's middle, the rival's above the Stellari and yours below: a heater shield with a bevelled silver rim, a blue enamel face lit from the top left, a centre ridge and a glint that sweeps across it every few seconds (and at once, with a little pop, when shields go up); pale steel and faint at none (on the sun it was easy to miss). [direction: shields easy to miss]
 
   The sun burns from pale gold to amber to red as it nears supernova, frosts blue below 0, and pulses when within 4 of supernova. [design review]
 - **Hits read clearly.** [design review]

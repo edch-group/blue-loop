@@ -488,15 +488,56 @@ function sunRect(root: ParentNode, id: string): DOMRect | null {
  * miss on the sun). Faint at none.
  */
 function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
-  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" title="${side === 'mine' ? 'Your' : 'Their'} shields: they absorb enemy heat, and fade at dawn"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 0.8 L10.4 2.5 V6 C10.4 8.8 8.4 10.7 6 11.5 C3.6 10.7 1.6 8.8 1.6 6 V2.5 Z"/></svg><b>${n}</b></div>`;
+  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" title="${side === 'mine' ? 'Your' : 'Their'} shields: they absorb enemy heat, and fade at dawn">${SHIELD_SVG}<b>${n}</b></div>`;
 }
+
+/**
+ * The badge's shield: a heater shield with a bevelled silver rim, an enamel face lit from the top left, a
+ * centre ridge (its right half in shade), a highlight, and a glint that sweeps across it now and then. Its
+ * colours are CSS variables, so the same drawing serves raised (blue) and down (pale steel).
+ */
+const SHIELD_PATH = 'M50 3 L93 15 V50 C93 79 75 97 50 107 C25 97 7 79 7 50 V15 Z';
+const SHIELD_FACE = 'M50 12 L84 21.5 V50 C84 73 70 88 50 96.5 C30 88 16 73 16 50 V21.5 Z';
+const SHIELD_SVG = `<svg viewBox="0 0 100 110" aria-hidden="true">
+  <defs>
+    <linearGradient id="bs-rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" style="stop-color:var(--rim1)"/><stop offset="0.35" style="stop-color:var(--rim2)"/>
+      <stop offset="0.6" style="stop-color:var(--rim3)"/><stop offset="1" style="stop-color:var(--rim4)"/>
+    </linearGradient>
+    <linearGradient id="bs-face" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" style="stop-color:var(--face1)"/><stop offset="0.55" style="stop-color:var(--face2)"/><stop offset="1" style="stop-color:var(--face3)"/>
+    </linearGradient>
+    <radialGradient id="bs-spec" cx="0.32" cy="0.2" r="0.5">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bs-glint" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="bs-clip"><path d="${SHIELD_PATH}"/></clipPath>
+  </defs>
+  <path class="bs-rim" d="${SHIELD_PATH}" fill="url(#bs-rim)"/>
+  <path class="bs-face" d="${SHIELD_FACE}" fill="url(#bs-face)"/>
+  <path d="M50 12 L84 21.5 V50 C84 73 70 88 50 96.5 Z" fill="#0b1630" opacity="0.2"/>
+  <path d="M50 13 V96" stroke="#fff" stroke-opacity="0.45" stroke-width="1.4"/>
+  <path d="${SHIELD_FACE}" fill="none" stroke="#0b1630" stroke-opacity="0.35" stroke-width="1.6"/>
+  <path d="M50 5.5 L90.5 17 V50" fill="none" stroke="#fff" stroke-opacity="0.8" stroke-width="1.6" stroke-linecap="round"/>
+  <ellipse cx="36" cy="32" rx="22" ry="16" fill="url(#bs-spec)"/>
+  <g clip-path="url(#bs-clip)"><rect class="bs-glint" x="-40" y="-20" width="26" height="160" fill="url(#bs-glint)" transform="rotate(20 50 55)"/></g>
+</svg>`;
 
 /** Show these shields on a player's badge (kept in step with their sun while a turn plays out). */
 function setShieldBadge(root: ParentNode, pid: string, n: number) {
   root.querySelectorAll<HTMLElement>(`[data-shields-badge="${CSS.escape(pid)}"]`).forEach((el) => {
-    el.classList.toggle('up', n > 0);
     const b = el.querySelector('b');
+    const was = Number(b?.textContent ?? 0);
+    el.classList.toggle('up', n > 0);
     if (b) b.textContent = String(n);
+    // Raised (or raised further): the shield flashes, its glint sweeping at once.
+    if (n > was) {
+      el.classList.remove('raised');
+      void el.offsetWidth;
+      el.classList.add('raised');
+    }
   });
 }
 
