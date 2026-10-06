@@ -27,19 +27,8 @@ const SPECS: Record<string, (n: number) => Spec> = {
   playcool: (n) => ({ text: `As it is played: {cool:${n}}.`, onPlay: [{ type: 'cool', amount: n }] }),
   playdraw: (n) => ({ text: `As it is played: Draw ${n}.`, onPlay: [{ type: 'draw', amount: n }] }),
   plant: (n) => ({ text: `As it is played: {plant:${n}}.`, onPlay: [{ type: 'plant', amount: n }] }),
-  // A campaign hero isn't played: they lead from the start, so what they'd do as played, they do as the battle begins.
-  openheat: (n) => ({ text: `As the battle begins: {heat:${n}}.`, onPlay: [{ type: 'heat', amount: n, to: 'target' }] }),
-  openshield: (n) => ({ text: `As the battle begins: {shield:${n}}.`, onPlay: [{ type: 'shield', amount: n }] }),
-  opencool: (n) => ({ text: `As the battle begins: {cool:${n}}.`, onPlay: [{ type: 'cool', amount: n }] }),
-  opendraw: (n) => ({ text: `As the battle begins: Draw ${n}.`, onPlay: [{ type: 'draw', amount: n }] }),
-  openplant: (n) => ({ text: `As the battle begins: {plant:${n}}.`, onPlay: [{ type: 'plant', amount: n }] }),
 };
 
-/** A boon as a campaign hero carries it: what it would do as played, it does as the battle begins. */
-export function heroBoon(id: string): string {
-  const m = id.match(/^boon_(?:play(heat|shield|cool|draw)|(plant))_(\d+)$/);
-  return m ? `boon_open${m[1] ?? m[2]}_${m[3]}` : id;
-}
 
 /** A boon's id: what it does and how much ("boon_heat_2"; "boon_tidewall" for those without a number). */
 export const boon = (kind: keyof typeof SPECS, n = 0) => (n ? `boon_${kind}_${n}` : `boon_${kind}`);

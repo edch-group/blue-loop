@@ -479,10 +479,8 @@ export interface GameSetup {
   seed: number;
   players: PlayerSetup[];
   /**
-   * Campaign battle rules: cards don't lose stability day by day (they stand until destroyed), and a card
-   * destroyed is out of the battle (no discard pile shuffled back, and no strain on an empty deck). Each
-   * side's hero always starts in their command room and, beaten, is wounded for a turn rather than lost.
-   * Draw effects stabilise an ally instead. A side with no cards left anywhere, and no hero, is beaten.
+   * A campaign battle: the card game's rules, but a small deck (ten cards at most) with nothing left to draw or
+   * shuffle back gives no more without the strain, and a ship's opening shields hold through its first day.
    */
   campaign?: boolean;
 }

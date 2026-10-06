@@ -1316,18 +1316,6 @@ function startTurn(state: GameState) {
     cool(state, p, 1);
     notePulse(state, p, activeGlobal(state)?.card ?? null, 'cool', p, 1);
   }
-  // A campaign hero leads from the start, never played: what they'd do as played (their own card's, and their
-  // boons'), they do as the battle begins, at their side's first dawn.
-  if (state.campaign && p.turnsTaken === 1) {
-    const hero = commandCard(p);
-    const opening = hero ? [...(cardDef(hero.defId).onPlay ?? []), ...(hero.boons ?? []).flatMap((b) => cardDef(b).onPlay ?? [])] : [];
-    if (hero && opening.length) {
-      log(state, `${cardDef(hero.defId).name} opens the battle.`);
-      resolveEffects(state, p, hero, opening, 'play');
-      if (state.winnerId) return;
-    }
-  }
-
   dawn(state, p);
 }
 

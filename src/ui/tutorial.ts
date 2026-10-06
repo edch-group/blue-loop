@@ -40,7 +40,7 @@ export function battleTour(): TourStep[] {
     { title: 'this planet', text: 'The one facing you now, and the days it stays.', shapes: [{ sel: `${mine} .vit-planet-tag` }] },
     { title: 'shields', text: 'Shields catch heat before it reaches your sun. They fade at dawn.', shapes: [{ sel: '.board-shields-mine', circle: { r: 0.6 } }] },
     { title: 'your slots', text: 'Your cards stand here. The middle guards them best.', shapes: [{ sel: `${mine} .tableau-row [data-slot]`, all: true, pad: 3 }] },
-    { title: 'your hero', text: 'Your hero leads from here.', shapes: [{ sel: `${mine} .cmd-slot`, pad: 4 }] },
+    { title: 'your hero', text: 'Play your hero here, and they lead.', shapes: [{ sel: `${mine} .cmd-slot`, pad: 4 }] },
     { title: 'lightspeed', text: "A hidden trap. It springs on your rival's day.", shapes: [{ sel: `${mine} .ls-slot`, pad: 4 }] },
     { title: 'your hand', text: 'Drag a card onto a slot to play it.', shapes: [{ sel: '.table-view > .dock:not(.dock-space) .hand > .card', all: true, pad: 3 }] },
     { title: 'energy', text: 'Energy pays for cards. Spent, end your day.', shapes: [{ sel: '.turn-controls' }] },

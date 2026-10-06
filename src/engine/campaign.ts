@@ -1424,11 +1424,12 @@ function stationRooms(n: CampaignNode): ShipRooms {
 /** What a flagship brings to its side of a battle: its hero in the command room, its rooms, shields and hull. */
 function flagshipSetup(s: CampaignState, army: Army): Pick<PlayerSetup, 'hero' | 'heroStats' | 'rooms' | 'opening' | 'tableau'> & { hull: BattleModifiers } {
   const f = s.factions.find((x) => x.id === army.owner);
-  if (army.lost || !f) return { hero: army.general, tableau: [army.general], heroStats: { attack: CAMPAIGN.heroAttack + 1, defence: CAMPAIGN.heroDefence }, hull: {} };
+  // The hero is in the deck, drawn and played like any card: only one who has learned Herald starts in play.
+  if (army.lost || !f) return { hero: army.general, tableau: [], heroStats: { attack: CAMPAIGN.heroAttack + 1, defence: CAMPAIGN.heroDefence }, hull: {} };
   const ship = f.ship ?? newShip();
   return {
     hero: army.general,
-    tableau: [army.general],
+    tableau: armyBonus(s, army).start ? [army.general] : [],
     heroStats: heroStats(f, army.general),
     rooms: ship.modules?.some(Boolean) ? { ...ship.rooms, boons: [0, 1, 2, 3, 4].map((r) => ship.modules?.[r]?.boons ?? []) } : ship.rooms,
     ...(ship.shields ? { opening: { shields: ship.shields } } : {}),
@@ -1552,7 +1553,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       // (The sentinels' heat, and a gate's weakness, are theirs: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat,
       ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : { rooms: stationRooms(target) }),
-      tableau: [...(defShip ? [guard!.general] : []), ...g.tableau],
+      tableau: [...(defShip?.tableau ?? []), ...g.tableau],
       lightspeed: g.lightspeed,
       modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, targetFx?.modifiers ?? {}),
       ...(def?.skills.length ? { skills: def.skills } : {}),
