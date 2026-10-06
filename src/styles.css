@@ -5046,3 +5046,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   -webkit-mask: radial-gradient(circle at 50% calc(100% - var(--gem-s) * 0.2376), transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
   mask: radial-gradient(circle at 50% calc(100% - var(--gem-s) * 0.2376), transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
 }
+/* (The light images are now five gem-widths across.) The stellar flares leap out and fade by turns; the anomaly's
+   dark matter turns inward and is drawn down into the hole, over and over. */
+.card .gem .gem-light { inset: -200%; -webkit-mask: linear-gradient(180deg, #000 53%, transparent 64%); mask: linear-gradient(180deg, #000 53%, transparent 64%); }
+.gl-flares1 { animation: glTurn 200s linear infinite, glPlume 5s ease-out infinite; animation-delay: calc(var(--gp) * -200s), calc(var(--gp) * -5s); }
+.gl-flares2 { animation: glTurnBack 260s linear infinite, glPlume 6.5s ease-out infinite; animation-delay: calc(var(--gp) * -260s), calc(var(--gp) * -6.5s - 3s); }
+.gl-swirl1 { animation: glTurn 14s linear infinite, glPull 6s ease-in infinite; animation-delay: calc(var(--gp) * -14s), calc(var(--gp) * -6s); }
+.gl-swirl2 { animation: glTurn 22s linear infinite, glPull 9s ease-in infinite; animation-delay: calc(var(--gp) * -22s), calc(var(--gp) * -9s - 4s); }
+@keyframes glPull { 0% { scale: 1.18; opacity: 0; } 20% { opacity: 1; } 75% { opacity: 0.9; } 100% { scale: 0.82; opacity: 0; } }
