@@ -431,3 +431,46 @@ if (typeof window !== 'undefined') {
     if (document.visibilityState === 'hidden') void flush();
   });
 }
+
+/** A deck someone shared with the community: credited to the name they go by in the game. */
+export interface CommunityDeck {
+  id: string;
+  author: string;
+  name: string;
+  note: string;
+  cards: string[];
+  saves: number;
+  created: number;
+  mine: boolean;
+}
+
+/** The community's shared decks: most saved or newest first, matching a search; or only your own. */
+export async function communityDecks(sort: 'popular' | 'new', q: string, mine: boolean): Promise<CommunityDeck[]> {
+  const params = new URLSearchParams({ sort, q, ...(mine ? { mine: '1' } : {}) });
+  return ((await api(`decks?${params}`)).decks as CommunityDeck[]) ?? [];
+}
+
+/** Share a deck with the community (the same cards again update the one already shared). Null once done, else why not. */
+export async function shareDeck(deck: { name: string; cards: string[] }, note: string, author: string): Promise<string | null> {
+  try {
+    await api('decks', 'POST', { name: deck.name, cards: deck.cards, note, author });
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Something went wrong.';
+  }
+}
+
+/** Count a save of a shared deck (once per player). Never in the way: a failure is dropped. */
+export function countDeckSave(id: string) {
+  void api('decks/save', 'POST', { id }).catch(() => undefined);
+}
+
+/** Take a deck you shared down. */
+export async function unshareDeck(id: string): Promise<string | null> {
+  try {
+    await api('decks/remove', 'POST', { id });
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Something went wrong.';
+  }
+}

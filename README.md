@@ -90,6 +90,19 @@ ADMIN_TOKEN=… npx tsx scripts/stats-report.ts https://… --mode=ai --since=20
 
 It prints each deck's win rate (and played by a person), the match-ups, the most played cards and their side's win rate when played, cards that sit in decks unplayed, first-player advantage, game length, and how many decks people built themselves. (It caches what it has fetched in `.stats-cache.json`.)
 
+## Deck codes and community decks
+
+Every deck has a **deck code** (decks page → share): `BL1-` and the deck, name and cards, as URL-safe text (`src/engine/deckcode.ts`). Anyone can paste one into **import** on their decks page. Card ids, not positions, so codes keep working as cards are added.
+
+Players can also **share** a deck with the community: it shows on the **community** page (most saved, newest, or their own), credited to the name they go by in the game, with an optional note. Anyone signed in can look through a shared deck or save a copy (counted once per player). A deck saved with cards a player doesn't own yet is kept as something to work towards: its box and the builder say how many cards are still to collect and what crafting them would cost, and it can't be picked to play until it's complete. Shared decks live in `community_decks` (`migrations/0005_community_decks.sql`); a player's are taken down with their account. To hide one (moderation), set `hidden = 1` on its row.
+
+To try a deck in the simulator, give its code to the gauntlet:
+
+```bash
+CODE='BL1-…' npm run gauntlet -- 40            # the deck against each race's starter
+CODE='BL1-…' FIELD=1 npm run gauntlet -- 40    # ...against every starter
+```
+
 ## Native iPhone / iPad app (landscape in play)
 
 A web app added from Safari cannot lock its orientation: iOS doesn't allow it. The native app can,

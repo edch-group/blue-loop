@@ -1,10 +1,10 @@
-import { BALANCE, coverCard, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type Rarity } from '../engine';
-import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
+import { BALANCE, coverCard, decodeDeck, encodeDeck, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type Rarity } from '../engine';
+import { customDecks, deckWithCards, deleteDeck, deckById, missingCopies, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
 import { fitWhenSeen } from './fittext';
 import { owned, profile } from './profile';
-import { breakCard, craftCard } from './account';
+import { breakCard, communityDecks, countDeckSave, craftCard, shareDeck, unshareDeck, type CommunityDeck } from './account';
 
 interface BuilderHost {
   render(): void;
@@ -119,6 +119,15 @@ export class DeckBuilder {
   /** Put to another use (the campaign's base), or the menu's own deck builder (null). */
   private mode: BuilderMode | null = null;
 
+  /** A panel over the deck list: pasting in a deck code, or sharing one of your decks (its code, and the community). */
+  private panel: { kind: 'import' } | { kind: 'share'; id: string } | null = null;
+  /** What's typed in the panels and the community search (kept across redraws). */
+  private texts: Record<string, string> = {};
+  /** The community page: how it's sorted, what it's searching for, and the decks it has (null: still loading). */
+  private community: { sort: 'popular' | 'new' | 'mine'; q: string; decks: CommunityDeck[] | null; error?: string } | null = null;
+  /** The shared deck the deck being edited was opened from (its save counts towards the deck). */
+  private fromCommunity: string | null = null;
+
   constructor(private host: BuilderHost) {
     // A tap anywhere off the filters popover (and off its button, which toggles it itself) shuts it.
     document.addEventListener(
@@ -163,6 +172,11 @@ export class DeckBuilder {
     if (this.editing) this.editing.name = value.slice(0, 24);
   }
 
+  /** Typing in a panel (a deck code, a note) or the community search. */
+  onText(key: string, value: string) {
+    this.texts[key] = value.slice(0, key === 'code' ? 4000 : 160);
+  }
+
   /** The card search, as it is typed. */
   onSearch(value: string) {
     this.filters.q = value.slice(0, 40);
@@ -176,8 +190,110 @@ export class DeckBuilder {
     switch (act) {
       case 'db-back':
         if (this.editing) this.editing = this.starter = null;
+        else if (this.community) this.community = null;
         else this.host.done();
         break;
+      case 'db-panel-close':
+        this.panel = null;
+        break;
+      case 'db-import-open':
+        this.panel = { kind: 'import' };
+        this.texts.code = '';
+        break;
+      case 'db-import': {
+        const got = decodeDeck(this.texts.code ?? '');
+        if (!got) {
+          this.host.toast("That isn't a deck code. Deck codes start with BL1-.");
+          return true;
+        }
+        if (!got.cards.length) {
+          this.host.toast("None of that deck's cards are in this game.");
+          return true;
+        }
+        this.panel = null;
+        this.keepDeck(got.name, got.cards, got.unknown.length ? ` (${got.unknown.length} card${got.unknown.length === 1 ? '' : 's'} this game doesn't know left out)` : '');
+        break;
+      }
+      case 'db-share-open':
+        this.panel = { kind: 'share', id: arg };
+        this.texts.note = '';
+        break;
+      case 'db-copy-code': {
+        const src = deckById(arg);
+        if (!src) return true;
+        const code = encodeDeck(src);
+        if (!navigator.clipboard) this.host.toast('Copy the code from the box.');
+        else
+          void navigator.clipboard.writeText(code).then(
+            () => this.host.toast('Deck code copied: send it to a friend, who imports it from their decks page.'),
+            () => this.host.toast('Copy the code from the box.'),
+          );
+        return true;
+      }
+      case 'db-publish': {
+        const src = deckById(arg);
+        if (!src) return true;
+        const why = deckProblems(src.cards)[0];
+        if (why) {
+          this.host.toast(`Only a finished deck can be shared: ${why}`);
+          return true;
+        }
+        void shareDeck(src, this.texts.note ?? '', profile().name || 'Commander').then((err) => {
+          if (err) return this.host.toast(err);
+          this.panel = null;
+          this.host.toast(`Shared with the community, credited to ${profile().name || 'Commander'}.`);
+          if (this.community) void this.loadCommunity();
+          this.host.render();
+        });
+        return true;
+      }
+      case 'db-community':
+        this.community = { sort: 'popular', q: '', decks: null };
+        this.texts.cq = '';
+        void this.loadCommunity();
+        break;
+      case 'db-csort':
+        if (!this.community || !['popular', 'new', 'mine'].includes(arg)) return true;
+        this.community.sort = arg as 'popular' | 'new' | 'mine';
+        this.community.decks = null;
+        void this.loadCommunity();
+        break;
+      case 'db-csearch':
+        if (!this.community) return true;
+        this.community.q = (this.texts.cq ?? '').trim();
+        this.community.decks = null;
+        void this.loadCommunity();
+        break;
+      case 'db-csave': {
+        const c = this.community?.decks?.find((x) => x.id === arg);
+        if (!c) return true;
+        if (deckWithCards(c.cards)) {
+          this.host.toast('You already have a deck with these cards.');
+          return true;
+        }
+        countDeckSave(c.id);
+        c.saves += c.mine ? 0 : 1;
+        this.keepDeck(c.name, c.cards, '');
+        break;
+      }
+      case 'db-copen': {
+        const c = this.community?.decks?.find((x) => x.id === arg);
+        if (!c) return true;
+        this.starter = null;
+        this.fromCommunity = c.mine ? null : c.id;
+        this.editing = { id: `deck-${Date.now().toString(36)}`, name: c.name, cards: [...c.cards] };
+        this.filters = noFilters();
+        this.page = 0;
+        break;
+      }
+      case 'db-cremove':
+        void unshareDeck(arg).then((err) => {
+          if (err) return this.host.toast(err);
+          if (this.community?.decks) this.community.decks = this.community.decks.filter((x) => x.id !== arg);
+          this.host.toast('Taken down. Copies others saved stay theirs.');
+          this.host.render();
+        });
+        return true;
       case 'db-exit':
         // Leave the deck: ask first if that would lose changes.
         if (d && snap(d) !== this.openedSnap) this.confirmExit = true;
@@ -342,10 +458,6 @@ export class DeckBuilder {
           this.host.toast(problems[0]);
           return true;
         }
-        if (!ownsDeck(profile().collection, d.cards)) {
-          this.host.toast('This deck uses cards you no longer own.');
-          return true;
-        }
         d.name = d.name.trim() || 'Unnamed deck';
         const st = this.starter;
         const changed = !st || d.name !== st.name || [...d.cards].sort().join() !== [...st.cards].sort().join();
@@ -355,8 +467,13 @@ export class DeckBuilder {
           break;
         }
         if (st && d.name === st.name) d.name = `${st.name} copy`.slice(0, 24);
+        const dup = customDecks().some((x) => x.id !== d.id && [...x.cards].sort().join() === [...d.cards].sort().join());
         saveDeck(d);
-        if (st) this.host.toast(`Saved as a new deck: ${d.name}. The starter stays as it was.`);
+        if (this.fromCommunity && !dup) countDeckSave(this.fromCommunity);
+        this.fromCommunity = null;
+        const short = this.toCollect(d.cards);
+        if (short) this.host.toast(`Saved. ${short}`);
+        else if (st) this.host.toast(`Saved as a new deck: ${d.name}. The starter stays as it was.`);
         this.editing = this.starter = null;
         break;
       }
@@ -365,6 +482,45 @@ export class DeckBuilder {
     }
     this.host.render();
     return true;
+  }
+
+  /** A deck from elsewhere (a code, a shared list) kept among your own: what it still needs said, if anything. */
+  private keepDeck(name: string, cards: string[], extra: string) {
+    const same = deckWithCards(cards);
+    if (same) {
+      this.host.toast(`You already have this deck: ${same.name}.`);
+      return;
+    }
+    saveDeck({ id: `deck-${Date.now().toString(36)}`, name: name.slice(0, 24) || 'Imported deck', cards: [...cards] });
+    const short = this.toCollect(cards);
+    const why = deckProblems(cards)[0];
+    this.host.toast(`Added to your decks${extra}. ${short || (why ? `Not finished yet: ${why}` : 'Ready to play.')}`);
+  }
+
+  /** What a deck still needs before you can play it: the cards to collect, and the flux crafting them would take. */
+  private toCollect(cards: string[]): string {
+    const missing = missingCopies(cards);
+    if (!missing.length) return '';
+    const n = missing.reduce((t, m) => t + m.n, 0);
+    const flux = missing.reduce((t, m) => t + m.n * craftCost(m.id), 0);
+    return `${n} card${n === 1 ? '' : 's'} still to collect before you can play it (⟁${flux} to craft them all; you have ⟁${profile().flux}).`;
+  }
+
+  /** Fetch the community's decks for the page as it's set. */
+  private async loadCommunity() {
+    const c = this.community;
+    if (!c) return;
+    try {
+      const decks = await communityDecks(c.sort === 'new' ? 'new' : 'popular', c.q, c.sort === 'mine');
+      if (this.community !== c) return;
+      c.decks = decks;
+      c.error = undefined;
+    } catch (e) {
+      if (this.community !== c) return;
+      c.decks = [];
+      c.error = e instanceof Error ? e.message : 'Couldn’t load the community decks.';
+    }
+    this.host.render();
   }
 
   /** A card tapped in a mode: put in the deck at once, or (with no deck) handed to the mode. */
@@ -393,7 +549,7 @@ export class DeckBuilder {
       this.openedSnap = snap(this.editing);
       this.confirmExit = false;
     }
-    return this.editing ? this.renderEditor(this.editing) : this.renderList();
+    return this.editing ? this.renderEditor(this.editing) : this.community ? this.renderCommunity() : this.renderList() + this.renderPanel();
   }
 
   private header(title: string, action = '<span></span>'): string {
@@ -411,12 +567,13 @@ export class DeckBuilder {
         act: d.preset ? 'db-view' : 'db-edit',
         title: d.preset ? 'Look through it (changes save as a copy)' : 'Edit it',
         // (Open it by tapping the box: a starter to look through, your own to edit.)
-        actions: `<button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>${d.preset ? '' : `<button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}`,
+        actions: `<button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button><button class="pill-btn" data-act="db-share-open" data-arg="${d.id}">share</button>${d.preset ? '' : `<button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}`,
+        tag: d.preset ? undefined : wishTag(d.cards),
       });
     const mine = customDecks();
     const hide = startersHidden();
     return `
-      ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small db-switch ${hide ? 'on' : ''}" data-act="db-hide-starters" role="switch" aria-checked="${hide}">hide starters<span class="switch-track" aria-hidden="true"><i></i></span></button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
+      ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small db-switch ${hide ? 'on' : ''}" data-act="db-hide-starters" role="switch" aria-checked="${hide}">hide starters<span class="switch-track" aria-hidden="true"><i></i></span></button><button class="btn btn-small" data-act="db-community">community</button><button class="btn btn-small" data-act="db-import-open">import</button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
       <div class="setup-body db-list-body">
         <div class="db-list">
           <div class="section-label db-group">your decks</div>
@@ -425,6 +582,73 @@ export class DeckBuilder {
           <div class="db-boxes">${PRESETS.filter((d) => !d.mixed).map(box).join('')}</div>
           <div class="section-label db-group">mechanics</div>
           <div class="db-boxes">${PRESETS.filter((d) => d.mixed).map(box).join('')}</div>`}
+        </div>
+      </div>`;
+  }
+
+  /** The panel over the deck list, if one is open: import a deck code, or share a deck. */
+  private renderPanel(): string {
+    const p = this.panel;
+    if (!p) return '';
+    if (p.kind === 'import')
+      return `<div class="overlay overlay-soft db-confirm-overlay"><div class="modal db-confirm db-panel">
+        <b>import a deck</b>
+        <p>Paste a deck code (it starts with BL1-). The deck joins your decks; any cards you don't own yet show as still to collect.</p>
+        <textarea class="db-code" data-db-text="code" rows="3" placeholder="BL1-…" spellcheck="false">${esc(this.texts.code ?? '')}</textarea>
+        <div class="db-confirm-actions"><button class="btn" data-act="db-panel-close">cancel</button><button class="btn-primary btn-small" data-act="db-import">import</button></div>
+      </div></div>`;
+    const d = deckById(p.id);
+    if (!d) return '';
+    const why = deckProblems(d.cards)[0];
+    return `<div class="overlay overlay-soft db-confirm-overlay"><div class="modal db-confirm db-panel">
+        <b>share ${esc(d.name.toLowerCase())}</b>
+        <p>Its deck code: anyone can paste it into their decks page to get this deck.</p>
+        <div class="db-code-row"><input class="db-code" readonly value="${esc(encodeDeck(d))}" aria-label="Deck code" /><button class="btn btn-small" data-act="db-copy-code" data-arg="${d.id}">copy</button></div>
+        <div class="section-label">share with the community</div>
+        ${
+          why
+            ? `<p class="muted">Finish the deck to share it: ${esc(why)}</p>`
+            : `<p>Anyone can find it on the community page and save a copy, credited to <b>${esc(profile().name || 'Commander')}</b>.</p>
+        <textarea class="db-note" data-db-text="note" rows="2" maxlength="160" placeholder="A note: what it does, how to play it (optional)">${esc(this.texts.note ?? '')}</textarea>`
+        }
+        <div class="db-confirm-actions"><button class="btn" data-act="db-panel-close">close</button>${why ? '' : `<button class="btn-primary btn-small" data-act="db-publish" data-arg="${d.id}">share</button>`}</div>
+      </div></div>`;
+  }
+
+  /** The community's decks: shared lists to look through and save, credited to who shared them. */
+  private renderCommunity(): string {
+    const c = this.community!;
+    const tab = (k: string, label: string) => `<button class="pill-btn ${c.sort === k ? 'on' : ''}" data-act="db-csort" data-arg="${k}">${label}</button>`;
+    const box = (x: CommunityDeck) => {
+      const missing = missingCopies(x.cards).reduce((t, m) => t + m.n, 0);
+      const have = x.cards.length - missing;
+      return `<div class="db-cdeck">${deckBox(
+        { id: x.id, name: x.name, cards: x.cards },
+        {
+          act: 'db-copen',
+          title: x.note ? `${x.note} (tap to look through it)` : 'Look through it',
+          tag: missing ? `${have}/${x.cards.length} owned` : 'all owned',
+        },
+      )}<div class="db-credit"><span>by ${esc(x.author)}</span><span title="Players who saved it">★ ${x.saves}</span></div>${x.note ? `<p class="db-cnote">${esc(x.note)}</p>` : ''}<div class="db-deck-actions db-cactions"><button class="pill-btn" data-act="db-csave" data-arg="${x.id}">save</button>${x.mine ? `<button class="pill-btn" data-act="db-cremove" data-arg="${x.id}" title="Take it off the community page (copies others saved stay theirs)">unshare</button>` : ''}</div></div>`;
+    };
+    const body =
+      c.decks === null
+        ? '<p class="muted center-text">Loading…</p>'
+        : c.error
+          ? `<p class="muted center-text">${esc(c.error)}</p>`
+          : c.decks.length
+            ? `<div class="db-boxes db-cboxes">${c.decks.map(box).join('')}</div>`
+            : `<p class="muted center-text">${c.sort === 'mine' ? 'You haven’t shared a deck yet. Share one from your decks page.' : c.q ? 'No shared decks match that.' : 'No decks shared yet. Be the first: share one from your decks page.'}</p>`;
+    return `
+      ${this.header('community decks')}
+      <div class="setup-body db-list-body">
+        <div class="db-list">
+        <div class="db-community-bar">
+          <span class="db-ctabs">${tab('popular', 'most saved')}${tab('new', 'newest')}${tab('mine', 'shared by me')}</span>
+          <span class="db-csearch"><input data-db-text="cq" value="${esc(this.texts.cq ?? '')}" maxlength="40" placeholder="search names and players" aria-label="Search the community decks" /><button class="btn btn-small" data-act="db-csearch">search</button></span>
+        </div>
+        <p class="muted db-chint">Save a deck to keep it with your own. Cards you don't own yet show as still to collect: craft them with flux or find them in boosters, and the deck is yours to play.</p>
+        ${body}
         </div>
       </div>`;
   }
@@ -474,7 +698,11 @@ export class DeckBuilder {
   private tallyHtml(d: SavedDeck): string {
     if (this.mode?.tally) return `<div class="db-tally">${this.mode.tally(d.cards)}</div>`;
     const commands = d.cards.filter((id) => cardDef(id).kind === 'command').length;
-    return `<div class="db-tally"><b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Hero per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> ${commandCardsFor(d.cards.length) === 1 ? 'hero' : 'heroes'}</div>`;
+    const missing = missingCopies(d.cards);
+    const need = missing.reduce((t, m) => t + m.n, 0);
+    const flux = missing.reduce((t, m) => t + m.n * craftCost(m.id), 0);
+    const collect = need ? `<span class="db-tally-need" title="Cards in this deck you don't own yet: craft them with flux (you have ⟁${profile().flux}), or find them in boosters">${need} to collect · ⟁${flux}</span>` : '';
+    return `<div class="db-tally">${collect}<b class="${d.cards.length >= BALANCE.deckSize && d.cards.length <= BALANCE.maxDeckSize ? 'ok' : ''}" title="${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards">${d.cards.length}/${d.cards.length > BALANCE.deckSize ? BALANCE.maxDeckSize : BALANCE.deckSize}</b> cards · <b class="${commands === commandCardsFor(d.cards.length) ? 'ok' : ''}" title="One Hero per ${BALANCE.cardsPerCommand} cards">${commands}/${commandCardsFor(d.cards.length)}</b> ${commandCardsFor(d.cards.length) === 1 ? 'hero' : 'heroes'}</div>`;
   }
 
   /** The deck, card by card: a slim row in the card's own colours with its picture, by energy cost then name. */
@@ -484,11 +712,12 @@ export class DeckBuilder {
       .sort((a, b) => costOrder(cardDef(a)) - costOrder(cardDef(b)) || cardDef(a).name.localeCompare(cardDef(b).name))
       .map((id) => {
         const c = cardDef(id);
+        const short = this.mode ? 0 : Math.max(0, count(id) - this.owned(id));
         return `
-        <button class="db-row rarity-${c.rarity ?? 'dwarf'}" data-act="db-remove" data-arg="${id}" data-card="${id}" style="--kc:${KIND_COLOUR[c.kind]}" title="Tap to remove one">
+        <button class="db-row rarity-${c.rarity ?? 'dwarf'} ${short ? 'db-row-missing' : ''}" data-act="db-remove" data-arg="${id}" data-card="${id}" style="--kc:${KIND_COLOUR[c.kind]}" title="${short ? `${short} still to collect (tap it in the cards to craft it). ` : ''}Tap to remove one">
           <span class="db-row-art">${cardArtLite(c)}</span>
           <span class="db-row-name"><b>${esc(c.name.toLowerCase())}</b><small>${typeWords(c)}</small></span>
-          <b class="db-row-n">×${count(id)}</b><i>−</i>
+          ${short ? `<small class="db-row-need">need ${short}</small>` : ''}<b class="db-row-n">×${count(id)}</b><i>−</i>
         </button>`;
       })
       .join('');
@@ -789,7 +1018,7 @@ export class DeckBuilder {
  * A deck as a deck box: a little 3D box in its race's colour, its cover the hero of its most expensive
  * Command card (its emblem if it has none), the deck's make-up beneath and any buttons under that.
  */
-export function deckBox(d: SavedDeck, opts: { act: string; title: string; actions?: string; selected?: boolean; disabled?: boolean }): string {
+export function deckBox(d: SavedDeck, opts: { act: string; title: string; actions?: string; selected?: boolean; disabled?: boolean; tag?: string }): string {
   const legal = deckProblems(d.cards).length === 0;
   return `
     <div class="db-deck db-deck-open ${legal ? '' : 'db-deck-bad'} ${opts.selected ? 'db-deck-on' : ''}" ${opts.disabled ? 'aria-disabled="true"' : `data-act="${opts.act}" data-arg="${d.id}"`} role="button" tabindex="0" title="${esc(opts.title)}" style="--dc:${deckColour(d)}">
@@ -800,9 +1029,16 @@ export function deckBox(d: SavedDeck, opts: { act: string; title: string; action
           <b class="deck-box-name">${esc(d.name.toLowerCase())}</b>
           <small class="deck-box-race">${esc(deckRacesLabel(d))}</small>
         </div>
+        ${opts.tag ? `<i class="deck-box-tag">${esc(opts.tag)}</i>` : ''}
       </div>
       ${opts.actions ? `<div class="db-deck-actions">${opts.actions}</div>` : ''}
     </div>`;
+}
+
+/** A deck of your own that still needs cards you don't own: how many (else nothing). */
+function wishTag(cards: string[]): string | undefined {
+  const n = missingCopies(cards).reduce((t, m) => t + m.n, 0);
+  return n ? `${n} to collect` : undefined;
 }
 
 /** A deck's round cover: its hero's picture, or the emblem of the race most of its cards are from. */

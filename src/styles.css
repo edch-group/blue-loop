@@ -5240,3 +5240,42 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card .stat-def-floor .bs-glint { opacity: 0; }
 /* Worn: the face reddens, the number in red. */
 .card .stat-def.stat-def-floor.stat-dented { background: none; color: #a8301a; --face1: #fff1ec; --face2: #e9b3a3; --face3: #c07763; }
+
+/* ---------- Deck codes, community decks and decks still to collect ---------- */
+/* A deck box's tag on its foot: cards still to collect, or how many of a shared deck's you own. */
+.deck-box-tag {
+  position: absolute; z-index: 3; left: 50%; bottom: 0; transform: translate(-50%, 50%); white-space: nowrap;
+  padding: 2px 8px; border-radius: 999px; font-style: normal; font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase;
+  background: #fff; color: #a8641c; box-shadow: 0 0 0 1px rgba(212, 149, 42, 0.55), 0 2px 6px rgba(60, 64, 80, 0.18);
+}
+.db-panel { width: min(440px, calc(100% - 24px)); text-align: left; justify-items: stretch; }
+.db-panel > b { text-align: center; }
+.db-panel .section-label { margin-top: 6px; }
+.db-panel .db-confirm-actions { justify-content: center; }
+.db-panel textarea, .db-panel .db-code {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 0.74rem; color: var(--ink); resize: vertical;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(150, 164, 190, 0.5); background: #fbfcfe;
+}
+.db-panel .db-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.66rem; word-break: break-all; }
+.db-code-row { display: flex; gap: 6px; align-items: center; }
+.db-code-row .db-code { flex: 1; min-width: 0; }
+.db-community-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 6px 16px 0 10px; }
+.db-ctabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.db-ctabs .pill-btn.on { background: #2f3a52; color: #fff; }
+.db-csearch { display: flex; gap: 6px; align-items: center; }
+.db-csearch input { font: inherit; font-size: 0.74rem; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(150, 164, 190, 0.5); background: #fff; width: min(220px, 50vw); }
+.db-chint { margin: 8px 16px 0 10px; font-size: 0.7rem; }
+.db-cboxes { --bw: clamp(96px, calc(28 * var(--vh)), 150px); column-gap: clamp(28px, calc(4 * var(--vw)), 44px); row-gap: 28px; }
+.db-cdeck { display: grid; gap: 6px; justify-items: center; align-content: start; width: var(--bw); }
+.db-cdeck > .db-deck { width: 100%; }
+.db-cdeck .db-credit { margin-top: 16px; }
+.db-cactions { flex-wrap: wrap; justify-content: center; }
+.db-credit { display: flex; gap: 8px; justify-content: center; font-size: 0.64rem; color: var(--ink-soft); }
+.db-credit span:first-child { font-weight: 600; color: var(--ink); }
+.db-cnote { margin: 0; font-size: 0.62rem; line-height: 1.3; color: var(--ink-soft); text-align: center; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+/* In the deck: a card you don't own enough of, dashed, with what's still needed. */
+.db-row.db-row-missing { grid-template-columns: auto minmax(0, 1fr) auto auto auto; border-style: dashed; border-color: rgba(212, 149, 42, 0.8); }
+.db-row-missing .db-row-art { filter: grayscale(0.8); opacity: 0.7; }
+.db-row-need { font-size: 0.8em; letter-spacing: 0.06em; color: #a8641c; white-space: nowrap; }
+.db-tally-need { display: block; margin-bottom: 2px; color: #a8641c; font-weight: 600; }
+.db-deck:has(.deck-box-tag) > .db-deck-actions { margin-top: 10px; }

@@ -9,6 +9,7 @@ export * from './keywords';
 export * from './cover';
 export * from './story';
 export * from './stats';
+export * from './deckcode';
 export * from './heroes';
 export * from './research';
 export * from './boons';

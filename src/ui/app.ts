@@ -2635,6 +2635,7 @@ export class App {
     if (seat !== undefined) this.seats[Number(seat)].name = el.value;
     if (el.dataset.dbName !== undefined) this.activeBuilder().onInput(el.value);
     if (el.dataset.dbSearch !== undefined) this.activeBuilder().onSearch(el.value);
+    if (el.dataset.dbText !== undefined) this.activeBuilder().onText(el.dataset.dbText, el.value);
     if (el.dataset.joinCode !== undefined) this.net.joinCode = el.value;
     if (el.dataset.signinName !== undefined) this.signinName = el.value;
     if (el.dataset.authEmail !== undefined) this.authEmail = el.value;
