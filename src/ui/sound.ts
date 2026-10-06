@@ -599,7 +599,7 @@ class SoundBoard {
 
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
-    if (scene === 'battle') return [[this.battleBus!, 1.2, 0.05], [this.battleLush!, 1.2, 0.05]];
+    if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
     if (scene === 'campaign') return [[this.campaignBus!, 0.6, 0.05]];
     return [[this.musicBus!, 0.5, 6]];
   }
@@ -713,7 +713,7 @@ class SoundBoard {
   }
 
   /**
-   * The battle theme. Pads and bass for one bar, so a match settles in; then the arpeggio joins and the four
+   * The battle theme. Pads and bass for two bars, so a match settles in; then the arpeggio joins and the four
    * chords cycle, the arpeggio resting for a chord every third time round. Chords are scheduled just
    * ahead of the audio clock.
    */
@@ -757,14 +757,13 @@ class SoundBoard {
         this.voice(hz(n), { ...opts, detune: 9, gain: 0.013 });
       });
       // The bass: a deep held note, a triangle and a sine an octave apart.
-      // The very first bass note lands at once, as the pulse a match opens on; the arpeggio follows a bar later.
-      const first = round === 0 && index === 0;
-      this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.05, type: 'triangle', attack: first ? 0.03 : 1.2, release: 1.5, cutoff: 260, out: bus });
+      this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.05, type: 'triangle', attack: 1.2, release: 1.5, cutoff: 260, out: bus });
       this.note(at, hz(c.bass) * 2, chordLen - 0.5, { gain: 0.018, type: 'sine', attack: 2, release: 1.5, out: bus });
       // The arpeggio: soft plucks, a triangle with a quiet saw for edge, accented on the beat.
-      // It rests for the first chord every third time round; at the very start it joins after one bar.
+      // It rests for the first chord every third time round; at the very start it joins after two bars, a bar
+      // after the opening swell has arrived.
       if (round % 3 === 2 && index === 0) return;
-      for (let b = round === 0 && index === 0 ? 1 : 0; b < 4; b++) {
+      for (let b = round === 0 && index === 0 ? 2 : 0; b < 4; b++) {
         const notes = c.arp[c.arp.length > 1 && b >= 2 ? 1 : 0];
         notes.forEach((n, e) => {
           const d = this.until(at + b * barLen + e * eighth);
