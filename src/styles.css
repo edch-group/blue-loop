@@ -5033,3 +5033,16 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   /* (Only its upper half shows: below the picture it is the card already, and no line is wanted there.) */
   clip-path: inset(-3px -3px calc(var(--gs) * 0.612) -3px);
 }
+/* The picture's own bottom edge bends round the gem: a round notch cut out of the picture (its contents are masked;
+   the frame draws its fine white edge line and soft shadow as drop-shadows of what is left, so they follow the
+   notch). The gem's centre sits 0.2376 gem-sizes above the picture's bottom; the notch clears its bezel by a hair. */
+.card .art-wrap .gem .gem-seat { display: none; }
+.card .art-wrap .art-frame {
+  box-shadow: none;
+  filter: drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 0.4px rgba(255, 255, 255, 0.95)) drop-shadow(0 1.5px 2px rgba(40, 40, 60, 0.2));
+}
+.card .art-wrap .art-frame > * {
+  --notch-r: calc(var(--gem-s) * 0.8);
+  -webkit-mask: radial-gradient(circle at 50% calc(100% - var(--gem-s) * 0.2376), transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
+  mask: radial-gradient(circle at 50% calc(100% - var(--gem-s) * 0.2376), transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
+}
