@@ -3,13 +3,14 @@ import { markDirty } from './account';
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
  * Every effect uses soft waveforms, slow attacks and a long shared "space"
- * reverb, so actions swell and bloom rather than click. A generative ambient
- * score (drone, slowly shifting pad chords and distant chimes; just synths,
- * no noise) plays underneath the menus; matches get its tenser sibling (the
- * same pads and hall, with a slow, steady arpeggio and a deep bass), and the
- * campaign map a slow voyage through a dying universe (a lament over the same
- * drone, with a sparse, high, bell-like melody). Each effect is one method, so recorded audio can replace
- * any of them later without touching the rest of the game.
+ * reverb, so actions swell and bloom rather than click. Three scores play
+ * underneath: on the menus, the voyage, a slow journey through a dying
+ * universe (a lament over a breathing drone, with a sparse, high, bell-like
+ * melody); on the campaign map, a generative ambient score (drone, slowly
+ * shifting pad chords and distant chimes); and in matches, a tenser sibling
+ * of it (the same pads and hall, with a slow, steady arpeggio and a deep
+ * bass). Each effect is one method, so recorded audio can replace any of
+ * them later without touching the rest of the game.
  */
 
 const PREFS_KEY = 'blue-loop:sound';
@@ -42,7 +43,8 @@ const CHORDS: number[][] = [
 /** Pentatonic chime notes for the distant sparkles. */
 const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 
-export type MusicScene = 'ambient' | 'battle' | 'campaign';
+/** The scores: the ambient drone (the campaign map), the battle theme (matches), and the voyage (the menus). */
+export type MusicScene = 'ambient' | 'battle' | 'voyage';
 
 // ---- Battle theme -----------------------------------------------------------
 // The menu score's sibling, in the same key and voices, made tense: a soft,
@@ -76,10 +78,10 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
   },
 ];
 
-// ---- Campaign map -----------------------------------------------------------
-// A voyage through a dying universe, in the same key and hall as the menu and
-// battle scores. The menu's breathing drone holds A while a lament falls over
-// it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High above, a
+// ---- The voyage (the menus) -------------------------------------------------
+// A voyage through a dying universe, in the same key and hall as the ambient
+// and battle scores. The ambient score's breathing drone holds A while a lament
+// falls over// it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High above, a
 // sparse melody of bell-like plucks layered with a sustained, slightly distorted
 // synth (a dotted-quarter echo filling the gaps) sings short phrases, rolling a
 // quick chord into its height once a time round and breaking into long,
@@ -600,7 +602,7 @@ class SoundBoard {
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
     if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
-    if (scene === 'campaign') return [[this.campaignBus!, 0.6, 0.05]];
+    if (scene === 'voyage') return [[this.campaignBus!, 0.6, 0.05]];
     return [[this.musicBus!, 0.5, 6]];
   }
 
@@ -615,7 +617,7 @@ class SoundBoard {
       bus.gain.exponentialRampToValueAtTime(level, now + fade);
     }
     if (this.scene === 'battle') this.battleScore(ctx, this.battleBus!, this.battleLush!);
-    else if (this.scene === 'campaign') this.campaignScore(ctx, this.campaignBus!);
+    else if (this.scene === 'voyage') this.campaignScore(ctx, this.campaignBus!);
     else this.ambientScore(ctx, this.musicBus);
   }
 
@@ -1197,7 +1199,7 @@ class SoundBoard {
     let chord = 0;
     let round = 0;
     const tick = () => {
-      if (this.playing !== 'campaign') return;
+      if (this.playing !== 'voyage') return;
       while (next < ctx.currentTime + 0.5) {
         playChord(next, chord, round);
         next += chordLen;
