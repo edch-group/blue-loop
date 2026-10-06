@@ -81,10 +81,12 @@ export function setAICombos(on: boolean) {
  * one of the tuning numbers above.
  */
 export function aiWeights(): Record<string, number> {
-  return { HORIZON, FINISH: FINISH_RATIO, GAP: LEADER_GAP, ACTION: ACTION_VALUE, EHAND: ENERGY_HAND, INCOMING: INCOMING_WEIGHT, RIVAL_BOARD, LSV: LIGHTSPEED_VALUE, COLD: COLD_HOPE };
+  return { HORIZON, HERO_DAYS, RISK_PER, FINISH: FINISH_RATIO, GAP: LEADER_GAP, ACTION: ACTION_VALUE, EHAND: ENERGY_HAND, INCOMING: INCOMING_WEIGHT, RIVAL_BOARD, LSV: LIGHTSPEED_VALUE, COLD: COLD_HOPE };
 }
 export function setAIWeights(w: Record<string, number>) {
   if (w.HORIZON !== undefined) HORIZON = w.HORIZON;
+  if (w.HERO_DAYS !== undefined) HERO_DAYS = w.HERO_DAYS;
+  if (w.RISK_PER !== undefined) RISK_PER = w.RISK_PER;
   if (w.FINISH !== undefined) FINISH_RATIO = w.FINISH;
   if (w.GAP !== undefined) LEADER_GAP = w.GAP;
   if (w.ACTION !== undefined) ACTION_VALUE = w.ACTION;
@@ -211,8 +213,36 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   if (def.abilities?.length) perTurn += 0.8 * Math.max(...def.abilities.map((k) => abilityValue(p, k.effects) - (k.cost ?? 0) * ACTION_VALUE * 0.6));
   // Worth as many turns as it has left (roughly), and a little more where removal cannot reach it. A Hero
   // never fades: it is worth the whole horizon.
-  const turns = def.kind === 'command' || def.kind === 'relic' ? HORIZON + 1 : Math.min(card.stability ?? HORIZON, HORIZON + 1);
-  return perTurn * turns * (0.85 + 0.05 * cardDefence(p, card));
+  // (A Hero never fades: it leads until it is removed, so it is worth a good deal longer than a card that fades.)
+  const turns = def.kind === 'command' ? HORIZON + HERO_DAYS : def.kind === 'relic' ? HORIZON + 1 : Math.min(card.stability ?? HORIZON, HORIZON + 1);
+  return perTurn * turns * (0.85 + 0.05 * cardDefence(p, card)) * (1 - removalRisk(state, p, card));
+}
+
+/** Days a Hero is counted on to lead, beyond the usual horizon. */
+let HERO_DAYS = tuning('HERO_DAYS', 2.5);
+/** How much each removal card a rival has shown (that could reach this card) takes off its worth, and the most. */
+let RISK_PER = tuning('RISK_PER', 0.25);
+const RISK_MAX = 0.5;
+
+/**
+ * The chance a card won't last to do what it's worth: the removal its owner's rival has shown (played: in their
+ * discard pile or in play) that can reach it, as a share. A card a rival can't touch keeps its full worth.
+ */
+function removalRisk(state: GameState, p: PlayerState, card: CardInstance): number {
+  const rival = targetOf(state, p);
+  if (!rival || RISK_PER <= 0) return 0;
+  const defence = cardDefence(p, card);
+  let seen = 0;
+  for (const c of [...rival.discard, ...rival.tableau]) {
+    const def = cardDef(c.defId);
+    for (const e of [...(def.onPlay ?? []), ...(def.abilities ?? []).flatMap((k) => k.effects)]) {
+      if ((e.type === 'destroy' || e.type === 'bounce') && (e.maxDefence === undefined || e.maxDefence >= defence) && (e.type !== 'destroy' || !e.kind || e.kind === cardDef(card.defId).kind)) {
+        seen++;
+        break;
+      }
+    }
+  }
+  return Math.min(RISK_MAX, seen * RISK_PER);
 }
 
 /** Roughly what a Hero ability's effects are worth, used once. */
