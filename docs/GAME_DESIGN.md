@@ -763,6 +763,8 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 
 **Battles** are the card game, on its own board and by its own rules (cards fade, a destroyed card goes to the discard pile, an empty deck shuffles it back in, Draw draws). Only a few things are the campaign's (`GameSetup.campaign`, game.ts):
 - **Ship to ship.** Each card stands in a room of its ship (the tableau's five slots): the room's walls and guns add to its defence and attack. The **hero always starts in the command room** (the Hero slot), with the room's and their training's defence.
+- **Small decks wait to reshuffle.** Once a deck runs dry, its discard pile shuffles back in only after a day for every card the deck began under 10 (a deck of 6 waits 4 days), so a handful of cards can't be cycled again and again; the empty deck shows the days left. (Card-game decks, 30 or more, never wait.)
+- **The rooms show on the board:** an empty slot carries its room's walls, guns and module as marks; once a card stands there, the card carries them along its top edge.
 - **Small decks.** A campaign deck is ten cards at most: with nothing left to draw or shuffle back, it gives no more, without the strain (its sun would burn out before the battle began).
 - **Losing:** your sun goes supernova.
 - **Who defends:** the flagship standing in the system, if there is one. Otherwise the system fights as a **station**: a few cards (4, 6 or 8 by tier; the Heart Wardens 10 of their heaviest), walls as thick as its tier (+0 to +2 defence in every room), its garrison and its fortifications, and **no hero**. A held system's station has its owner's race's cards among them. The Lost Races fight with their leader and a few cards.

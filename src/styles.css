@@ -5545,3 +5545,14 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .sh-mod-face small { position: absolute; right: -3px; bottom: -3px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 999px; background: #fff; font-family: var(--display); font-size: 0.56rem; display: grid; place-items: center; box-shadow: 0 1px 3px rgba(60, 70, 100, 0.2); }
 .sh-mod-tile b { font-family: var(--display); font-weight: 500; font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); text-align: center; line-height: 1.3; }
 @media (max-width: 1000px) { .sh-ship { --k: 11; } .cmp-shipyard { grid-template-columns: 1fr; } }
+
+/* A small deck run dry: the days until its discard pile shuffles back, on the empty deck. */
+.tpile-wait { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 500; font-size: 1.3rem; color: #8a6fe0; }
+
+/* A ship's room on an empty slot (campaign): its walls, guns and module, until a card stands there. */
+.slot-room { position: absolute; left: 0; right: 0; bottom: 8%; display: flex; justify-content: center; gap: 3px; pointer-events: auto; }
+.room-mark .eff-walls, .room-mark .eff-guns { color: #a07a2a; }
+
+/* What a card carries from its room (walls, guns, a module's boons): marks along its top edge. */
+.card-room { position: absolute; top: -7%; left: 0; right: 0; display: flex; justify-content: center; gap: 3px; z-index: 3; pointer-events: auto; }
+.card-room .boon-mark { background: #fff; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.45), 0 2px 5px rgba(60, 70, 100, 0.18); }

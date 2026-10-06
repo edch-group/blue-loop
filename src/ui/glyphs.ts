@@ -578,6 +578,9 @@ const EFFECT_SVG: Record<string, string> = {
   time: '<circle cx="6" cy="6" r="4"/><path d="M6 3.6V6l1.8 1.2"/>',
   plant: '<path d="M6 10.4V5.2M6 5.2C6 3 7.8 1.8 9.8 1.8 9.8 4 8.2 5.2 6 5.2zM6 7C6 5.2 4.6 4.2 2.4 4.2 2.4 6.2 3.8 7 6 7z"/>',
   star: '<path d="M6 1.6 7.2 4.6 10.4 4.8 7.9 6.8 8.7 9.9 6 8.2 3.3 9.9 4.1 6.8 1.6 4.8 4.8 4.6z" class="kw-ico-fill"/>',
+  // A ship room's walls and guns.
+  walls: '<path d="M6 1.4 9.6 2.8V6C9.6 8.4 8 10 6 10.8 4 10 2.4 8.4 2.4 6V2.8Z"/>',
+  guns: '<circle cx="6" cy="6" r="3.2"/><path d="M6 1.2v2M6 8.8v2M1.2 6h2M8.8 6h2"/>',
 };
 /** What an effect type (or a boon's kind) is marked with. */
 export function effectMark(raw: string): string {
@@ -592,6 +595,7 @@ export function effectMark(raw: string): string {
     : kind === 'sturdy' || kind === 'bulwark' || kind === 'guard' || kind === 'tidewall' || kind === 'taunt' ? 'wall'
     : kind === 'repair' || kind === 'restore' ? 'repair'
     : kind === 'stability' ? 'time'
+    : kind === 'walls' || kind === 'guns' ? kind
     : kind === 'plant' ? 'plant'
     : 'star';
   return `<svg class="kw-ico eff-${k}" viewBox="0 0 12 12" aria-hidden="true">${EFFECT_SVG[k]}</svg>`;

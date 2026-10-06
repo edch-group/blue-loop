@@ -57,6 +57,7 @@ export function createGame(setup: GameSetup): GameState {
       heat: BALANCE.startingHeat + (ps.heatDelta ?? 0) + (ps.modifiers?.startingHeat ?? 0) - (catchUp(i) ? BALANCE.laterSeatCool : 0),
       shields: ps.opening?.shields ?? 0,
       deck,
+      deckSize: deck.length + (ps.tableau?.length ?? 0),
       hand: [],
       tableau: [],
       discard: [],
@@ -766,6 +767,17 @@ function drawCards(state: GameState, p: PlayerState, count: number) {
     // more, without the strain. Its sun would burn out before the battle began.)
     if (state.campaign && p.deck.length === 0 && p.discard.length === 0) return;
     if (p.deck.length === 0 && p.discard.length > 0) {
+      // A small deck's discard pile waits a day for every card it is under 10 before it shuffles back in
+      // (so a handful of cards can't be cycled again and again). Meanwhile it simply gives no more.
+      if (p.reshuffleIn === undefined) {
+        const wait = Math.max(0, BALANCE.reshuffleDeckSize - (p.deckSize ?? BALANCE.reshuffleDeckSize));
+        if (wait > 0) {
+          p.reshuffleIn = wait;
+          log(state, `${p.name}'s deck has run dry: their discard pile shuffles back in ${wait} day${wait === 1 ? '' : 's'}.`);
+        }
+      }
+      if ((p.reshuffleIn ?? 0) > 0) return;
+      delete p.reshuffleIn;
       reshuffle(state, p);
       if (p.eliminated) return;
     }
@@ -1250,6 +1262,7 @@ function startTurn(state: GameState) {
   if (!state.keepPulses) state.turnPulses = [];
   delete state.keepPulses;
   p.turnsTaken += 1;
+  if ((p.reshuffleIn ?? 0) > 0) p.reshuffleIn! -= 1;
   // Dawn breaks: every card of theirs is ready to act again.
   for (const c of p.tableau) delete c.dimmed;
   p.turn = emptyTurn();

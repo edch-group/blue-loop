@@ -4798,8 +4798,8 @@ export class App {
       const worn = wear ? ` slot-worn` : '';
       const why = wear ? `: worn to ${def} of ${full} by heat on the card that stood here (it mends 1 a day)` : ` ${full}`;
       return choosingSlot
-        ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" data-slot="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
-        : `<div class="slot-empty${worn}" data-slot="${i}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span></div>`;
+        ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" data-slot="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i>${p.rooms ? `<span class="slot-room">${this.roomMarks(p, i, true)}</span>` : ''}</button>`
+        : `<div class="slot-empty${worn}" data-slot="${i}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span>${p.rooms ? `<span class="slot-room">${this.roomMarks(p, i, true)}</span>` : ''}</div>`;
     }).join('');
     // The Lightspeed slot, right of the tableau: a card set there lies face down (its owner can still read it). It has no defence.
     const ls = p.lightspeed;
@@ -4838,7 +4838,9 @@ export class App {
     const deckStack = stack(p.deck.length), discardStack = stack(p.discard.length);
     const deck = p.deck.length
       ? `${deckStack.layers}<span class="tpile-face tpile-back tpile-stacked" style="${deckStack.style}">${cardBackFace()}</span>`
-      : `<span class="tpile-empty"></span><small>deck</small>`;
+      : (p.reshuffleIn ?? 0) > 0
+        ? `<span class="tpile-empty"></span><b class="tpile-wait" data-tip-title="deck run dry" data-tip="The discard pile shuffles back in ${p.reshuffleIn} day${p.reshuffleIn === 1 ? '' : 's'}: a small deck waits a day for each card it is under 10.">${p.reshuffleIn}</b><small>days</small>`
+        : `<span class="tpile-empty"></span><small>deck</small>`;
     const discard = top
       ? `${discardStack.layers}<span class="tpile-face tpile-stacked" style="${discardStack.style}">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span>`
       : `<span class="tpile-empty"></span><small>discard</small>`;
@@ -4960,11 +4962,13 @@ export class App {
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     // A campaign hero's boons (skills and gear), carried while it is in play: one tag, their text on hover.
     // (A hero's boons stand on the rail beside its slot; any other card's, from a ship module, as marks on it.)
-    const boonTag = c.boons?.length && !(def.kind === 'command' && c.slot === COMMAND_SLOT) ? this.boonMarks(c.boons) : '';
+    // (A campaign card standing in a ship's room: the room's walls and guns on it too.)
+    const roomTag = opts.tableau && opts.owner && c.slot !== undefined && c.slot !== COMMAND_SLOT ? this.roomMarks(opts.owner, c.slot, false) : '';
+    const boonTag = roomTag + (c.boons?.length && !(def.kind === 'command' && c.slot === COMMAND_SLOT) ? this.boonMarks(c.boons) : '');
     // Fusion cards fused onto it: tucked behind it, each a little higher, only its name showing above it
     // (its text on hover). A campaign hero's boons stay as a tag on the card.
     const fusedTags =
-      (boonTag ? `<span class="fused-tags">${boonTag}</span>` : '') +
+      (boonTag ? `<span class="card-room">${boonTag}</span>` : '') +
       (c.fused ?? [])
         .map((f, i) => {
           const fd = cardDef(f.defId);
@@ -5082,6 +5086,23 @@ export class App {
         <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : held ? this.liveNumbers(held, { hand: true }) : {})}${this.fusedTextHtml(c)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </div>`;
+  }
+
+  /**
+   * A ship's room (campaign), as marks: its walls and guns, and (on the empty slot, before a card carries it)
+   * its module. On the slot until a card is played there; then on the card.
+   */
+  private roomMarks(p: PlayerState, slot: number, withModule: boolean): string {
+    const r = p.rooms;
+    if (!r) return '';
+    const walls = r.defence[slot] ?? 0;
+    const guns = r.attack[slot] ?? 0;
+    const mark = (kind: string, n: number, title: string, text: string) => `<i class="boon-mark room-mark" data-tip-title="${title}" data-tip="${esc(text)}">${effectMark(kind)}<small>${n}</small></i>`;
+    return [
+      walls ? mark('walls', walls, 'walls', `This room's walls: +${walls} defence for the card in it.`) : '',
+      guns ? mark('guns', guns, 'guns', `This room's guns: +${guns} attack for a card in it that attacks.`) : '',
+      withModule && r.boons?.[slot]?.length ? this.boonMarks(r.boons[slot], 'boon-mark room-mark') : '',
+    ].join('');
   }
 
   /** Boons as marks, one per kind (a count if several): each says what it does on hover. */

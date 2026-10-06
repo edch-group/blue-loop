@@ -313,6 +313,10 @@ export interface PlayerState {
   heat: number;
   shields: number;
   /** Shuffling the discard pile back in costs no heat (a campaign army's small deck). */
+  /** Cards it began the battle with (a small deck's discard pile waits before it shuffles back: see reshuffleIn). */
+  deckSize?: number;
+  /** Its deck ran dry: days left before its discard pile shuffles back in (one for every card its deck is under 10). */
+  reshuffleIn?: number;
   freeReshuffle?: boolean;
   /** Campaign: the hero whose card carries boons in play, and those boons. */
   heroBoons?: { hero: string; boons: string[] };

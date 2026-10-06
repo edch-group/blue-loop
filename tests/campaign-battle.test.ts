@@ -113,3 +113,23 @@ describe('a campaign hero, never played', () => {
     expect(later.log.filter((l) => l.text.includes('opens the battle')).length).toBe(1);
   });
 });
+
+describe('a small deck run dry', () => {
+  it('waits a day for each card it is under 10 before its discard pile shuffles back', () => {
+    // Flagship: hero + 2 cards (a deck of 3): 7 days' wait.
+    let s = battle();
+    expect(s.players[0].deckSize).toBe(3);
+    const me = s.players[0];
+    me.discard.push(...me.hand.splice(0));
+    me.deck = [];
+    s = endTurn(endTurn(s)); // its next day: the deck is dry, the wait begins
+    expect(s.players[0].reshuffleIn).toBe(7);
+    expect(s.players[0].hand.length).toBe(0);
+    for (let k = 0; k < 6; k++) s = endTurn(endTurn(s));
+    expect(s.players[0].reshuffleIn).toBe(1);
+    expect(s.players[0].hand.length).toBe(0);
+    s = endTurn(endTurn(s));
+    expect(s.players[0].reshuffleIn).toBeUndefined();
+    expect(s.players[0].hand.length + s.players[0].deck.length).toBeGreaterThan(0);
+  });
+});
