@@ -2357,6 +2357,14 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
 .result-loss h2 { color: #6b7590; }
 .game-result p { margin: 0; color: var(--ink-soft); font-size: clamp(0.62rem, calc(2.3 * var(--vh)), 0.9rem); }
 .result-actions { display: flex; gap: 8px; }
+/* A campaign battle won: the beaten side's cards to salvage, one to take. */
+.salvage { display: grid; justify-items: center; gap: 8px; margin: 6px 0 4px; }
+.salvage-title { font-family: var(--display); font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); }
+.salvage-cards { display: flex; gap: 12px; justify-content: center; }
+.salvage-cards .cmp-pick { padding: 4px; }
+.salvage-cards .cmp-pick small { font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+.salvage-cards .cmp-pick-on small { color: #8a6fe0; }
+.game-result .btn-primary[disabled] { opacity: 0.5; cursor: default; }
 @keyframes result-in { from { opacity: 0; transform: translate(-50%, -50%) translateY(10px) scale(0.7); } }
 .stage.stage-out { opacity: 0; transition: opacity 0.4s ease; }
 /* A rival's card waits here until you've read it. */

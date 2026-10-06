@@ -41,14 +41,14 @@ type P = Omit<ResearchProject, 'branch' | 'tier' | 'needs'>;
 /** The tree: each branch in order, from the first project up. */
 const BRANCHES: P[][] = [
   [
-    { id: 'cool1', name: 'Cryo Reserves', text: "Your flagship's sun starts each battle 2 cooler.", cost: 8, turns: 3, icon: 'cool', effect: { mods: { startingHeat: -2 } } },
+    { id: 'cool1', name: 'Cryo Reserves', text: "Your flagship's sun starts each battle 1 cooler.", cost: 8, turns: 3, icon: 'cool', effect: { mods: { startingHeat: -1 } } },
     { id: 'energy1', name: 'Fusion Cells', text: 'Your flagship has +1 energy every day of battle.', cost: 14, turns: 4, icon: 'energy', effect: { mods: { extraPlays: 1 } } },
     { id: 'energy2', name: 'Stellar Taps', text: 'Another +1 energy every day of battle.', cost: 24, turns: 6, icon: 'energy', effect: { mods: { extraPlays: 1 } } },
   ],
   [
-    { id: 'hull1', name: 'Hardened Hulls', text: 'Your flagship has +4 max health in battle.', cost: 8, turns: 3, icon: 'hull', effect: { mods: { maxHealthDelta: 4 } } },
+    { id: 'hull1', name: 'Hardened Hulls', text: 'Your flagship has +2 max health in battle.', cost: 8, turns: 3, icon: 'hull', effect: { mods: { maxHealthDelta: 2 } } },
     { id: 'mend1', name: 'Field Repair', text: 'Your flagship repairs 2 heat at the start of each turn.', cost: 8, turns: 3, icon: 'mend', effect: { mend: 2 } },
-    { id: 'hull2', name: 'Stellar Plating', text: 'Another +6 max health (+10 in all).', cost: 16, turns: 5, icon: 'hull', effect: { mods: { maxHealthDelta: 6 } } },
+    { id: 'hull2', name: 'Stellar Plating', text: 'Another +3 max health (+5 in all).', cost: 16, turns: 5, icon: 'hull', effect: { mods: { maxHealthDelta: 3 } } },
     { id: 'mend2', name: 'Nanite Swarms', text: 'Your flagship repairs 2 more heat a turn (4 in all).', cost: 16, turns: 5, icon: 'mend', effect: { mend: 2 } },
   ],
   [

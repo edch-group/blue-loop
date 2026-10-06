@@ -72,7 +72,7 @@ import {
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
-import { CampaignView, loadCampaign } from './campaign';
+import { CampaignView, cardHtml, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -1825,14 +1825,18 @@ export class App {
   }
 
   /** Leave a campaign battle: hand the result (or the battle to auto-resolve) back to the map. */
-  private returnToCampaign(auto: boolean) {
+  /** The card picked to salvage on a campaign battle's result. */
+  private salvagePick: string | null = null;
+
+  private returnToCampaign(auto: boolean, salvage?: string | null) {
     if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
     this.aiTimer = null;
     this.campaignBattle = false;
     this.screen = 'campaign';
     this.sheet = null;
     this.pending = null;
-    this.campaign.finishBattle(this.state!, auto);
+    this.campaign.finishBattle(this.state!, auto, salvage);
+    this.salvagePick = null;
     this.render();
   }
 
@@ -3085,7 +3089,12 @@ export class App {
         this.render();
         return this.showBanner('campaign', this.campaign.turnLine(), 120, 'campaign');
       case 'campaign-return':
-        return this.returnToCampaign(false);
+        return this.returnToCampaign(false, this.state && this.campaign.salvageFor(this.state).length ? this.salvagePick : undefined);
+      case 'campaign-return-none':
+        return this.returnToCampaign(false, null);
+      case 'salvage-pick':
+        this.salvagePick = arg ?? null;
+        return this.render();
       case 'campaign-auto':
         return this.returnToCampaign(true);
       case 'ranked-find':
@@ -4602,8 +4611,21 @@ export class App {
     const won = winner.id === viewer.id;
     const title = solo ? (won ? 'victory' : 'defeat') : `${esc(winner.name.toLowerCase())} wins`;
     const why = quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} round${s.round === 1 ? "" : "s"}.`;
+    // A campaign battle won: up to three of the beaten side's cards to salvage, one to take.
+    const salvage = this.campaignBattle ? this.campaign.salvageFor(s) : [];
+    const pick = salvage.find((x) => x.id === this.salvagePick);
+    const salvageHtml = salvage.length
+      ? `<div class="salvage">
+          <div class="salvage-title">salvage one card</div>
+          <div class="salvage-cards">${salvage
+            .map((x) => `<button class="cmp-pick ${x.id === this.salvagePick ? 'cmp-pick-on' : ''}" data-act="salvage-pick" data-arg="${x.id}">${cardHtml(x.id)}<small>${x.toDeck ? 'into your deck' : 'deck full: to reserve'}</small></button>`)
+            .join('')}</div>
+        </div>`
+      : '';
     const actions = this.campaignBattle
-      ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
+      ? salvage.length
+        ? `<div class="result-actions"><button class="btn-primary" data-act="campaign-return" ${pick ? '' : 'disabled'}>${pick ? `take ${esc(cardDef(pick.id).name.toLowerCase())} and return` : 'pick a card to salvage'}</button><button class="btn" data-act="campaign-return-none">leave it</button></div>`
+        : '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
       : this.online && this.net.ranked
         ? '<div class="result-actions"><button class="btn-primary" data-act="ranked-again">find another match</button><button class="btn" data-act="to-menu">return to menu</button></div>'
         : this.online
@@ -4616,6 +4638,7 @@ export class App {
         <h2>${title}</h2>
         <p>${why}</p>
         ${this.resultExtra}
+        ${salvageHtml}
         ${actions}
       </div>`;
   }

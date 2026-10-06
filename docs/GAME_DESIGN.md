@@ -756,10 +756,10 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 
 **Stations.** Space stations and research stations are dotted about the map (7 and 10; never at a home, a home's gate or the Heart), shown by a crate or a ringed flask on the system and in its popover. Bring the flagship to one (it has to stand there, so the system must be yours) and **visit** it.
 - **Space stations** stock **6 different cards, each sold once**, for materials: 3 for a White Dwarf, 5 for a Stellar, 8 for an Anomaly, +1 for a race card. Mostly dwarf cards, with a fair chance (60%) of one rare (Stellar, or now and then an Anomaly) among them; a quarter of space stations are nothing but dwarfs. **Within an anomaly's reach** the odds are better: almost always a rare, often two, more often an Anomaly. Its keepers recycle and fuse too (below). A sold-out space station shows as such.
-- **Research stations** have **one upgrade** each, taken once by whoever pays for it first, in **Wisdom** (which builds 1 a turn): 3, 5, 8 or 12 by its tier. Upgrades are the old research projects: **Power** Cryo Reserves (sun starts 2 cooler), Fusion Cells and Stellar Taps (+1 energy a day each); **Armour** Hardened Hulls (+4 max health), Field Repair (repairs 2 heat a turn), Stellar Plating (+6 more), Nanite Swarms (2 more repair); **Command** Salvage Crews (gear more often), Battle Doctrine (+1 opening-hand card), Terror Broadcasts and Shadow of Empire (Dread: weak neutral systems surrender without a battle); **Navigation** Deep Scanners (sight), Jump Lanes and Fold Drives (a route further each turn). Each station's is different while they last. Stations far from anomalies have early (tier 1–2) upgrades; those within an anomaly's reach, deeper ones (tier 2–4). A taken station shows as such.
+- **Research stations** have **one upgrade** each, taken once by whoever pays for it first, in **Wisdom** (which builds 1 a turn): 3, 5, 8 or 12 by its tier. Upgrades are the old research projects: **Power** Cryo Reserves (sun starts 1 cooler), Fusion Cells and Stellar Taps (+1 energy a day each); **Armour** Hardened Hulls (+2 max health), Field Repair (repairs 2 heat a turn), Stellar Plating (+3 more), Nanite Swarms (2 more repair); **Command** Salvage Crews (gear more often), Battle Doctrine (+1 opening-hand card), Terror Broadcasts and Shadow of Empire (Dread: weak neutral systems surrender without a battle); **Navigation** Deep Scanners (sight), Jump Lanes and Fold Drives (a route further each turn). Each station's is different while they last. Stations far from anomalies have early (tier 1–2) upgrades; those within an anomaly's reach, deeper ones (tier 2–4). A taken station shows as such.
 - The AI makes for stations it can use, buys the best cards it can afford, and takes research when it has the Wisdom.
 
-**The ship** (the base's ship tab): the flagship drawn large, its five rooms (where its cards stand in battle, left to right as on the board) and its command room (the hero's) beneath. Pick a room to upgrade its **walls** (+1 defence for the card in it, up to 3) or its **guns** (+1 attack for a card in it that attacks, up to 2); the command room's **bulkheads** (+1 defence for the hero, up to 3 more; it starts at +1, so 3 in all with the slot's own 2); and the ship's **shields** (up as each battle begins, up to 3) and **hull** (+3 max health a level, up to 4). Each costs credits: 4, then 4 more for each level built. The AI upgrades its command room and middle room first.
+**The ship** (the base's ship tab): the flagship drawn large, its five rooms (where its cards stand in battle, left to right as on the board) and its command room (the hero's) beneath. Pick a room to upgrade its **walls** (+1 defence for the card in it, up to 3) or its **guns** (+1 attack for a card in it that attacks, up to 2); the command room's **bulkheads** (+1 defence for the hero, up to 3 more; it starts at +1, so 3 in all with the slot's own 2); and the ship's **shields** (up as each battle begins, up to 3) and **hull** (+1 max health a level, up to 4). Each costs credits: 4, then 4 more for each level built. The AI upgrades its command room and middle room first.
 
 **Battles** are fought under the campaign's own rules (`GameSetup.campaign`, game.ts):
 - **Ship to ship.** Each card stands in a room of its ship (the tableau's five slots): the room's walls and guns add to its defence and attack. The **hero always starts in the command room** (the Hero slot), with the room's and their training's defence.
@@ -775,7 +775,9 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 
 **The map.**
 - About 48 systems in loose clusters, linked by routes that never cross, on a tilted 3D board you pan and zoom. The Heart sits in the middle with clear space round it.
-- **The core:** the closer a system is to the Heart (in routes), the richer and the better defended it is. Systems 1–3 routes from the Heart give +2/+1/+1 credits and materials and their defenders +6/+4/+2 max health; systems within 2 routes are at least tier 2, within 3 at least tier 1. This pays you back for the worlds lost to the dimming.
+- **Sun health rises toward the centre.** In a campaign battle **both suns** start from the same max health, set by how far the system fought over lies from the Heart: **10** at the rim (5+ routes out, where every home is), 12, 14, 17, 20, and the card game's **24 at the Heart**. Specific systems add to it: fortification (+2 a level, for the defender), a brown dwarf (+3, the defender), the Heart Wardens (+4), anomalies (a black hole +2, a pulsar −2), the flagship's hull (+1 a level) and research (Hardened Hulls +2, Stellar Plating +3 more). Everything that heats a sun from the start is scaled to match: sentinels start 2/1/0 hotter by tier, a weakened gate 4, carried damage at most 4, a repelled army takes 2.
+- **The core:** the closer a system is to the Heart (in routes), the richer it is. Systems 1–3 routes from the Heart give +2/+1/+1 credits and materials; systems within 2 routes are at least tier 2, within 3 at least tier 1. This pays you back for the worlds lost to the dimming.
+- **Salvage:** after a battle you win, still on the battle screen, you're shown up to **3 different cards from the beaten side's deck** (never a Hero) and take one (or leave it). It goes **straight into the flagship's deck** while that has room (under 10 cards, and within the copy limits), else into your reserve. A battle auto-resolved offers the same choice on the map.
 - **Stellari blooms:** 4 finite Stellari grow on tier 1+ systems (never a home system or the Heart). Holding one adds 3 credits and 3 materials a turn. Each wilts after 8 turns.
 - **The dimming:** every 7 turns a star gutters, and its system yields less. (Red dwarfs never do.)
 - **Kinds of star** (about 42% of systems; never a home, a gate or the Heart). Each has a gift and a cost:
@@ -783,8 +785,8 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 | Star | Gift | Cost |
 | --- | --- | --- |
 | Red dwarf | Never dims; the last of its ring to collapse | 1 credit less |
-| White dwarf | +2 materials | Battles there are long: every sun starts 3 cooler |
-| Brown dwarf | Its defender has +6 max health | 1 less of each |
+| White dwarf | +2 materials | Battles there are long: every sun starts 2 cooler |
+| Brown dwarf | Its defender has +3 max health | 1 less of each |
 | Neutron star | +2 credits, +1 material; its holder sees two links out | Battles there are volatile: every sun heats 1 a day |
 
   On the map, an unheld star takes its kind's colour, and the kinds differ in size; a neutron star's beam sweeps round.
@@ -807,7 +809,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - The campaign lasts 60 turns. AI factions race for the Heart too, though not before turn 12.
 
 **Economy.**
-- **Credits** upgrade the ship, repair the flagship and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +4 max health.
+- **Credits** upgrade the ship, repair the flagship and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +2 max health.
 - **Materials** buy cards at space stations (each card once) and fuse them.
 - **Wisdom** builds 1 a turn and buys research stations' upgrades.
 - **Your turn:** each of your turns opens with a "your turn" banner (the battle's dawn banner), once the other factions have moved.
@@ -823,10 +825,10 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 
 | Anomaly | Boon | Cost |
 | --- | --- | --- |
-| Black Hole | +5 max health | Opening hand 1 card smaller |
-| Nebula | +1 shield every day | Sun starts 3 hotter |
+| Black Hole | +2 max health | Opening hand 1 card smaller |
+| Nebula | +1 shield every day | Sun starts 1 hotter |
 | Dark Matter Cluster | Draw 1 extra card every day | Sun heats by 1 every day |
-| Pulsar | Sun cools by 1 every day | 4 less max health |
+| Pulsar | Sun cools by 1 every day | 2 less max health |
 
 **Balance notes (simulator).**
 - All-AI campaigns (6 seeds) ended between turns 12 and 32, with a mix of Heart and domination wins. The Wardens' bonus was raised from 8 to 12 health to keep the Heart a late-game goal.

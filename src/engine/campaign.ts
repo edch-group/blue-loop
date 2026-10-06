@@ -52,6 +52,8 @@ import {
 export const CAMPAIGN = {
   /** A flagship's deck: its hero and up to this many cards in all. */
   armySize: 10,
+  /** Cards offered to salvage from a beaten side (the player takes one). */
+  salvageChoices: 3,
   /** Wisdom gained each turn (spent on research stations' upgrades). */
   wisdomPerTurn: 1,
   /** Armouries and research stations on the map, and how many cards an armoury stocks (each sold once). */
@@ -71,7 +73,7 @@ export const CAMPAIGN = {
   shipMax: { defence: 3, attack: 2, command: 3, shields: 3, hull: 4 },
   /** The command room's defence to start with (on top of the slot's own: 3 in all), and the hull's max health a level. */
   commandRoom: 1,
-  hullHealth: 3,
+  hullHealth: 1,
   /** Cards a station (a system with no flagship in it) fights with, by tier, and the Heart's Wardens. */
   stationDeck: [4, 6, 8],
   heartDeck: 10,
@@ -85,17 +87,17 @@ export const CAMPAIGN = {
   maxFortification: 3,
   fortifyBaseCost: 4,
   fortifyCostPerLevel: 4,
-  fortifyHealth: 4,
+  fortifyHealth: 2,
   /** Absorb pays this many turns of the system's yield at once. */
   absorbTurns: 3,
   /** Materials for a fusion, before the two cards' prices. */
   fusionBase: 4,
   /** Neutral sentinels' suns start this much hotter, by tier (the outer systems are the easiest to take). */
-  sentinelHeat: [5, 2, 0],
+  sentinelHeat: [2, 1, 0],
   /** Damage cap on a system (added to its sun's starting heat in battles). */
-  maxDamage: 9,
+  maxDamage: 4,
   /** Damage an attacker's home system takes when the attack is repelled. */
-  repelledDamage: 4,
+  repelledDamage: 2,
   /** Rewards for winning a battle. */
   winCredits: 3,
   winMaterials: 2,
@@ -121,7 +123,7 @@ export const CAMPAIGN = {
   /** Safety cap on simulated (auto-resolved) battles. */
   battleActionCap: 6000,
   /** Damage (heat carried) an army takes when its attack is repelled, and the most it can carry. */
-  armyRepelledDamage: 4,
+  armyRepelledDamage: 2,
   /** Credits to repair one point of an army's damage (in a system you hold). */
   armyHealCost: 1,
   /** Finite Stellari: blooms on this many systems, each giving this much a turn to whoever holds it, for this many turns. */
@@ -142,7 +144,7 @@ export const CAMPAIGN = {
   stabiliseCost: 8,
   stabiliseTurns: 4,
   /** Each home has one route out, to a system whose sentinels start this much hotter (a weakened first foe). */
-  gateHeat: 10,
+  gateHeat: 4,
   /** Recycling a reserve card pays this share of its armory price, in materials (at least 1). */
   recycleShare: 0.5,
   /** The Lost Races: rogue armies at the start, the most there can be, and what beating one pays. */
@@ -156,7 +158,7 @@ export const CAMPAIGN = {
   starOdds: { red: 0.2, white: 0.14, brown: 0.14, neutron: 0.1 },
   /** The Heart: its yield, and its Wardens' extra max health. */
   heartYield: 6,
-  heartWardenHealth: 12,
+  heartWardenHealth: 4,
   /** No other system lies closer than this to the Heart (map units). */
   heartClearance: 300,
   /**
@@ -165,7 +167,13 @@ export const CAMPAIGN = {
    * and extra max health for whoever defends there.
    */
   coreYield: [0, 2, 1, 1],
-  coreHealth: [0, 6, 4, 2],
+  /**
+   * Every sun's max health in a battle, by how far the system fought over lies from the Heart (index 0: the
+   * Heart; past the end, the rim's): 10 out at the rim where the campaign starts, rising to the card game's
+   * 24 at the Heart. Both sides start from it; fortification, a brown dwarf, anomalies, the Heart's Wardens
+   * and a ship's hull add to it.
+   */
+  sunHealth: [24, 20, 17, 14, 12, 10],
 } as const;
 
 /** Armory prices in materials, by rarity (race cards cost 1 more than neutral ones). */
@@ -269,12 +277,12 @@ export const STAR_TYPES: Record<StarType, { name: string; text: string; boon: st
     name: 'White dwarf',
     text: 'The hot, dense core of a star that died long ago.',
     boon: '+2 materials a turn.',
-    cost: 'Battles here are long: every sun starts 3 cooler.',
+    cost: 'Battles here are long: every sun starts 2 cooler.',
   },
   brown: {
     name: 'Brown dwarf',
     text: 'A failed star, barely warm. Easy to overlook; hard to dig out.',
-    boon: 'Its defender has +6 max health.',
+    boon: 'Its defender has +3 max health.',
     cost: 'Its worlds yield 1 less of each.',
   },
   neutron: {
@@ -302,15 +310,15 @@ export const ANOMALIES: Record<AnomalyKind, AnomalyDef> = {
   blackHole: {
     kind: 'blackHole',
     name: 'Black Hole',
-    text: 'Its gravity well drinks heat: +5 max health, but your opening hand is 1 card smaller.',
-    modifiers: { maxHealthDelta: 5, openingHand: -1 },
+    text: 'Its gravity well drinks heat: +2 max health, but your opening hand is 1 card smaller.',
+    modifiers: { maxHealthDelta: 2, openingHand: -1 },
     radius: 240,
   },
   nebula: {
     kind: 'nebula',
     name: 'Nebula',
-    text: 'Hidden in the gas: +1 shield every day, but your sun starts 3 hotter.',
-    modifiers: { shieldPerTurn: 1, startingHeat: 3 },
+    text: 'Hidden in the gas: +1 shield every day, but your sun starts 1 hotter.',
+    modifiers: { shieldPerTurn: 1, startingHeat: 1 },
     radius: 280,
   },
   darkMatter: {
@@ -323,8 +331,8 @@ export const ANOMALIES: Record<AnomalyKind, AnomalyDef> = {
   pulsar: {
     kind: 'pulsar',
     name: 'Pulsar',
-    text: 'Its steady beam steadies your sun: it cools by 1 every day, but you have 4 less max health.',
-    modifiers: { coolPerTurn: 1, maxHealthDelta: -4 },
+    text: 'Its steady beam steadies your sun: it cools by 1 every day, but you have 2 less max health.',
+    modifiers: { coolPerTurn: 1, maxHealthDelta: -2 },
     radius: 240,
   },
 };
@@ -487,8 +495,11 @@ export interface CampaignState {
   battle: BattleContext | null;
   /** The player won an attack and must decide the system's fate (the army that won it marches in if it is settled). */
   conquest: { nodeId: string; armyId?: string } | null;
-  /** Card choices owed to the player (from missions). */
-  cardRewards: { source: string; options: string[] }[];
+  /**
+   * Card choices owed to the player (from missions, relics, and salvage from a battle auto-resolved). A salvaged
+   * card goes into that army's deck while it has room (`toDeck`), else the reserve.
+   */
+  cardRewards: { source: string; options: string[]; toDeck?: string }[];
   /** Whose part of the turn it is: the player's, then the AI factions' in turn. */
   phase: 'player' | 'ai';
   /** AI factions still to act this turn (their turns pause while the player defends). */
@@ -537,7 +548,8 @@ export type CampaignAction =
   /** The oldest story scene has been read. */
   | { type: 'readStory' }
   /** Hand back the battle once it is over (or ask for it to be auto-resolved from here). */
-  | { type: 'finishBattle'; game: GameState; auto?: boolean }
+  /** `salvage`: the card the player salvaged from the beaten side (salvageOptions), or null to take none. */
+  | { type: 'finishBattle'; game: GameState; auto?: boolean; salvage?: string | null }
   | { type: 'conquer'; choice: ConquestChoice }
   | { type: 'chooseCard'; defId: string | null }
   | { type: 'heal'; nodeId: string; all?: boolean }
@@ -1430,6 +1442,15 @@ function wardenDeck(s: CampaignState): string[] {
   return deck;
 }
 
+/** A battle's suns' max health, from how near the Heart its system lies (as a change to the card game's). */
+export function sunHealth(n: CampaignNode): number {
+  const t = CAMPAIGN.sunHealth;
+  return n.heart ? t[0] : t[Math.min(t.length - 1, Math.max(1, n.ring ?? t.length))];
+}
+function sunBase(n: CampaignNode): BattleModifiers {
+  return { maxHealthDelta: sunHealth(n) - BALANCE.supernovaAt };
+}
+
 /**
  * Each side of a battle as it would start: its sun's head start (positive: hotter) and its modifiers, with
  * the names of what made them (anomalies, the star, heroes...). The same sums as battleSetup, for showing.
@@ -1442,18 +1463,18 @@ export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
   const targetFx = anomalyEffects(s, target);
   const atk = armyBonus(s, army);
   const def = guard && guard.id !== army.id ? armyBonus(s, guard) : null;
-  const starBoth: BattleModifiers = target.star === 'white' ? { startingHeat: -3 } : target.star === 'neutron' ? { heatPerTurn: 1 } : {};
-  const coreHealth = target.heart ? 0 : CAMPAIGN.coreHealth[target.ring ?? 99] ?? 0;
+  const starBoth: BattleModifiers = target.star === 'white' ? { startingHeat: -2 } : target.star === 'neutron' ? { heatPerTurn: 1 } : {};
+  const base = sunBase(target);
   const defMods = [
+    base,
     target.fortification ? { maxHealthDelta: target.fortification * CAMPAIGN.fortifyHealth } : {},
     target.heart && !owner ? { maxHealthDelta: CAMPAIGN.heartWardenHealth } : {},
-    coreHealth ? { maxHealthDelta: coreHealth } : {},
     starBoth,
-    target.star === 'brown' ? { maxHealthDelta: 6 } : {},
+    target.star === 'brown' ? { maxHealthDelta: 3 } : {},
     def?.mods ?? {},
     atk.foeMods,
   ].reduce(mergeModifiers, targetFx?.modifiers ?? {});
-  const atkMods = [starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fromFx?.modifiers ?? {});
+  const atkMods = [base, starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fromFx?.modifiers ?? {});
   const defHeat = (guard && guard.id !== army.id ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat + (defMods.startingHeat ?? 0);
   const atkHeat = army.damage + (def?.foeHeat ?? 0) + (atkMods.startingHeat ?? 0);
   const names = (fx: ReturnType<typeof anomalyEffects>) => (fx?.conditions ?? []).map((c) => c.name);
@@ -1462,7 +1483,7 @@ export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
     defender: {
       heat: defHeat,
       mods: defMods,
-      sources: [...names(targetFx), ...(target.star && target.star !== 'red' ? [STAR_TYPES[target.star].name] : []), ...(target.fortification ? ['Fortified'] : []), ...(coreHealth ? ['The core'] : []), ...(target.heart && !owner ? ['Heart Wardens'] : [])],
+      sources: [...names(targetFx), ...(target.star && target.star !== 'red' ? [STAR_TYPES[target.star].name] : []), ...(target.fortification ? ['Fortified'] : []), ...(target.heart && !owner ? ['Heart Wardens'] : [])],
     },
   };
 }
@@ -1478,17 +1499,16 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const targetFx = anomalyEffects(s, target);
   const fortified: BattleModifiers = target.fortification ? { maxHealthDelta: target.fortification * CAMPAIGN.fortifyHealth } : {};
   const wardens: BattleModifiers = target.heart && !owner ? { maxHealthDelta: CAMPAIGN.heartWardenHealth } : {};
-  const coreHealth = target.heart ? 0 : CAMPAIGN.coreHealth[target.ring ?? 99] ?? 0;
-  const core: BattleModifiers = coreHealth ? { maxHealthDelta: coreHealth } : {};
+  // Both suns' max health, from how near the Heart the battle is.
+  const core = sunBase(target);
   // The star the battle is fought round: its nature touches both sides (a brown dwarf shelters its defender).
-  const starBoth: BattleModifiers = target.star === 'white' ? { startingHeat: -3 } : target.star === 'neutron' ? { heatPerTurn: 1 } : {};
-  const starDef: BattleModifiers = target.star === 'brown' ? { maxHealthDelta: 6 } : {};
+  const starBoth: BattleModifiers = target.star === 'white' ? { startingHeat: -2 } : target.star === 'neutron' ? { heatPerTurn: 1 } : {};
+  const starDef: BattleModifiers = target.star === 'brown' ? { maxHealthDelta: 3 } : {};
   const starCond = target.star && target.star !== 'red' ? [{ name: STAR_TYPES[target.star].name, text: target.star === 'brown' ? STAR_TYPES.brown.boon : STAR_TYPES[target.star].cost }] : [];
   const defenceConditions = [
     ...starCond,
     ...(targetFx?.conditions ?? []),
     ...(target.heart && !owner ? [{ name: 'Heart Wardens', text: `The oldest guardians: +${CAMPAIGN.heartWardenHealth} max health.` }] : []),
-    ...(coreHealth ? [{ name: 'The core', text: `Close to the Heart, its defences are old and deep: +${coreHealth} max health.` }] : []),
     ...(target.gate && !owner && !guard ? [{ name: 'Weakened', text: `Cut off and failing: the sentinels' sun starts ${CAMPAIGN.gateHeat} hotter.` }] : []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
     ...(g.tableau.length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
@@ -1509,7 +1529,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       deck: army.deck,
       deckName: `${armyLeader(army)}'s flagship`,
       heatDelta: army.damage + (def?.foeHeat ?? 0),
-      modifiers: [starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
+      modifiers: [core, starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
       ...(atk.skills.length ? { skills: atk.skills } : {}),
       ...(atk.boons.length ? { heroBoons: { hero: army.general, boons: atk.boons } } : {}),
       ...atkShip,
@@ -1609,10 +1629,61 @@ function rout(s: CampaignState, army: Army) {
   clog(s, `${cardDef(army.general).name}'s flagship has nowhere left to go.`, here.id, army.owner);
 }
 
-function resolveBattle(s: CampaignState, game: GameState) {
+/**
+ * Salvage: the cards the player may take one of from the side they beat, once the battle is over (none if they
+ * lost, or weren't in it). Up to CAMPAIGN.salvageChoices different cards from the beaten side's deck (wherever
+ * they ended up), never a Hero; the same ones every time it is asked, for that battle.
+ */
+export function salvageOptions(s: CampaignState, game: GameState): string[] {
+  const b = s.battle;
+  if (!b || !isGameOver(game) || !game.winnerId) return [];
+  const human = (id: string | null) => !!id && id === s.playerId;
+  const seat = human(b.attacker) ? 0 : human(b.defender) ? 1 : -1;
+  if (seat < 0 || game.players[seat].id !== game.winnerId) return [];
+  const foe = game.players[1 - seat];
+  const cards = [...foe.deck, ...foe.hand, ...foe.tableau, ...foe.discard, ...(foe.fallen ?? []), ...(foe.lightspeed ? [foe.lightspeed] : [])];
+  const ids = [...new Set(cards.flatMap((c) => [c.defId, ...(c.fused ?? []).map((f) => f.defId)]))]
+    .filter((id) => {
+      const def = cardDef(id);
+      return !def.token && def.kind !== 'command';
+    })
+    .sort();
+  // (A fixed shuffle, from the battle's own seed and place.)
+  let h = game.rngState ^ 0x9e3779b9;
+  for (const ch of b.nodeId) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193);
+  const next = () => ((h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) ^ 0x6a09e667) >>> 0) / 2 ** 32;
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  return ids.slice(0, CAMPAIGN.salvageChoices);
+}
+
+/** Whether a card salvaged from this battle would go straight into the player's army's deck (else the reserve). */
+export function salvageToDeck(s: CampaignState, id: string): boolean {
+  const b = s.battle;
+  if (!b) return false;
+  const army = s.armies.find((a) => a.id === (b.attacker === s.playerId ? b.armyId : b.defender === s.playerId ? b.defenderArmyId : null));
+  const f = factionById(s, s.playerId);
+  return !!army && deckAddProblem({ ...f, reserve: [id] }, army, id) === null;
+}
+
+/** Salvage a card: into the army's deck while it has room (and may take it), else the reserve. */
+function takeSalvage(s: CampaignState, f: Faction, army: Army | undefined, id: string) {
+  f.reserve.push(id);
+  if (army && army.owner === f.id && deckAddProblem(f, army, id) === null) {
+    f.reserve.splice(f.reserve.lastIndexOf(id), 1);
+    army.deck.push(id);
+    clog(s, `${f.name} salvages ${cardDef(id).name}: it joins ${armyLeader(army)}'s deck.`, army.nodeId, f.id);
+  } else clog(s, `${f.name} salvages ${cardDef(id).name}: it waits in the reserve.`, undefined, f.id);
+}
+
+function resolveBattle(s: CampaignState, game: GameState, salvage?: string | null) {
   const b = s.battle;
   if (!b) throw new GameError('There is no battle to finish.');
   if (!isGameOver(game)) throw new GameError('That battle is not over yet.');
+  const salvageable = salvageOptions(s, game);
+  if (salvage && !salvageable.includes(salvage)) throw new GameError('That card is not there to salvage.');
   s.battle = null;
   const attacker = factionById(s, b.attacker);
   const defender = b.defender ? factionById(s, b.defender) : null;
@@ -1649,6 +1720,14 @@ function resolveBattle(s: CampaignState, game: GameState) {
   } else {
     xp(army, HEROES.lossXp);
     xp(guard, HEROES.defendXp);
+  }
+
+  // Salvage from the beaten side: the player's pick (on the battle screen), or, auto-resolved, a choice owed.
+  if (salvageable.length) {
+    const f = factionById(s, s.playerId);
+    const mine = attackerWon ? army : guard;
+    if (salvage) takeSalvage(s, f, mine, salvage);
+    else if (salvage === undefined) s.cardRewards.push({ source: 'Salvage', options: salvageable, ...(mine ? { toDeck: mine.id } : {}) });
   }
 
   if (winner) {
@@ -2378,7 +2457,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     }
     case 'finishBattle': {
       if (!s.battle) throw new GameError('There is no battle to finish.');
-      resolveBattle(s, action.auto ? simulateBattle(action.game) : action.game);
+      resolveBattle(s, action.auto ? simulateBattle(action.game) : action.game, action.salvage);
       // A defence interrupts the AI factions' turns; carry on with them afterwards.
       if (s.phase === 'ai' && !s.aiStepwise) runAI(s);
       break;
@@ -2397,7 +2476,8 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       if (!reward) throw new GameError('No card to choose.');
       if (action.defId !== null && !reward.options.includes(action.defId)) throw new GameError('That card is not on offer.');
       s.cardRewards.shift();
-      if (action.defId) {
+      if (action.defId && reward.toDeck !== undefined) takeSalvage(s, f, s.armies.find((a) => a.id === reward.toDeck), action.defId);
+      else if (action.defId) {
         f.reserve.push(action.defId);
         clog(s, `${f.name} adds ${cardDef(action.defId).name} to the collection.`);
       }

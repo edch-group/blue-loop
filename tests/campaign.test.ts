@@ -48,6 +48,11 @@ import {
   RACE_NAMES,
   type CampaignState,
 } from '../src/engine';
+import { BALANCE } from '../src/engine/balance';
+import { sunHealth } from '../src/engine/campaign';
+
+/** A battle's suns' max health, as a change to the card game's (both sides start from it). */
+const baseDelta = (st: CampaignState) => sunHealth(st.nodes.find((n) => n.id === st.battle!.nodeId)!) - BALANCE.supernovaAt;
 
 const fresh = (seed = 7) => createCampaign({ seed, rivals: 3 });
 const home = (s: CampaignState) => s.nodes.find((n) => n.home === s.playerId) ?? ownedNodes(s, s.playerId)[0];
@@ -350,7 +355,7 @@ describe('economy', () => {
     expect(me.rooms?.attack[1]).toBe(1);
     expect(me.rooms?.command).toBe(CAMPAIGN.commandRoom + 1);
     expect(me.shields).toBeGreaterThanOrEqual(CAMPAIGN.shipMax.shields);
-    expect(me.modifiers?.maxHealthDelta).toBe(CAMPAIGN.hullHealth);
+    expect(me.modifiers?.maxHealthDelta).toBe(baseDelta(s) + CAMPAIGN.hullHealth);
     // The station defending has no hero: it fights with a few cards and its walls.
     const them = s.battle!.game.players[1];
     expect(them.hero).toBeUndefined();
@@ -806,7 +811,7 @@ describe('armies and generals', () => {
     let b = fresh();
     campaignPlayer(b).research = { done: ['hull1', 'energy1'] };
     b = attack(b);
-    expect(b.battle!.game.players[0].modifiers?.maxHealthDelta).toBe(4);
+    expect(b.battle!.game.players[0].modifiers?.maxHealthDelta).toBe(baseDelta(b) + 2);
     expect(b.battle!.game.players[0].modifiers?.extraPlays).toBe(1);
     expect(researchProject('hull1')).toBeTruthy();
   });
@@ -824,5 +829,44 @@ describe('armies and generals', () => {
   it('fuses cards at the cost of both', () => {
     expect(cardCost(fusedId('coronal_lance', 'cryo_vault'))).toBe(cardCost('coronal_lance') + cardCost('cryo_vault'));
     expect(fusionProblem('hymn_of_the_sun', 'dawnstar_cannon')).toMatch(/energy/);
+  });
+});
+
+describe('sun health and salvage', () => {
+  it('gives every sun 10 max health at the rim, more nearer the Heart, the same base for both sides', () => {
+    expect(sunHealth({ ring: 9 } as never)).toBe(10);
+    expect(sunHealth({ ring: 5 } as never)).toBe(10);
+    expect(sunHealth({ ring: 3 } as never)).toBe(14);
+    expect(sunHealth({ ring: 1 } as never)).toBe(20);
+    expect(sunHealth({ heart: true, ring: 0 } as never)).toBe(24);
+  });
+});
+
+describe('salvage', () => {
+  it('offers up to three of a beaten side\'s cards, never a Hero; the one taken joins the deck while it has room', async () => {
+    const { applyAction } = await import('../src/engine/game');
+    const { salvageOptions } = await import('../src/engine/campaign');
+    let s = attack(fresh());
+    const game = applyAction(s.battle!.game, { type: 'concede', playerId: s.battle!.game.players[1].id });
+    const options = salvageOptions(s, game);
+    expect(options.length).toBeGreaterThan(0);
+    expect(options.length).toBeLessThanOrEqual(CAMPAIGN.salvageChoices);
+    expect(options.every((id) => cardDef(id).kind !== 'command')).toBe(true);
+    expect(salvageOptions(s, game)).toEqual(options);
+    const before = myArmy(s).deck.length;
+    s = applyCampaignAction(s, { type: 'finishBattle', game, salvage: options[0] });
+    expect(myArmy(s).deck.length).toBe(before + 1);
+    expect(myArmy(s).deck).toContain(options[0]);
+  });
+
+  it('offers nothing after a loss, and a battle auto-resolved owes the choice on the map', async () => {
+    const { applyAction } = await import('../src/engine/game');
+    const { salvageOptions } = await import('../src/engine/campaign');
+    const s = attack(fresh());
+    const lost = applyAction(s.battle!.game, { type: 'concede', playerId: s.battle!.game.players[0].id });
+    expect(salvageOptions(s, lost)).toEqual([]);
+    const won = applyAction(s.battle!.game, { type: 'concede', playerId: s.battle!.game.players[1].id });
+    const t = applyCampaignAction(s, { type: 'finishBattle', game: won });
+    expect(t.cardRewards[0]?.source).toBe('Salvage');
   });
 });

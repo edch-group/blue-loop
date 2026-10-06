@@ -1,5 +1,8 @@
 import {
   ANOMALIES,
+  sunHealth,
+  salvageOptions,
+  salvageToDeck,
   applyCampaignAction,
   armoryPrice,
   attackOptions,
@@ -377,8 +380,16 @@ export class CampaignView {
     saveCampaign(this.state);
   }
 
-  finishBattle(game: GameState, auto = false) {
-    this.withReport('battle report', () => this.apply({ type: 'finishBattle', game, auto }));
+  /** The cards the player may salvage from a battle just won (on the battle screen), each with where it would go. */
+  salvageFor(game: GameState): { id: string; toDeck: boolean }[] {
+    const s = this.state;
+    if (!s?.battle) return [];
+    return salvageOptions(s, game).map((id) => ({ id, toDeck: salvageToDeck(s, id) }));
+  }
+
+  /** `salvage`: the card picked on the battle screen, null for none (unset, auto-resolved: it is offered on the map). */
+  finishBattle(game: GameState, auto = false, salvage?: string | null) {
+    this.withReport('battle report', () => this.apply({ type: 'finishBattle', game, auto, ...(salvage !== undefined ? { salvage } : {}) }));
     // A defence over: the others carry on with their turns.
     if (this.state?.phase === 'ai' && this.state.aiStepwise && !this.state.battle) window.setTimeout(() => void this.runOthers(), 0);
   }
@@ -1627,12 +1638,12 @@ export class CampaignView {
     const chip = (body: string, tip: string, tone = '') => `<button class="pop-chip ${tone}" data-act="cmp-tip" data-tip="${esc(tip)}" title="${esc(tip)}">${body}</button>`;
     const icon = (body: string) => `<svg class="pi" viewBox="0 0 16 16" aria-hidden="true">${body}</svg>`;
     const g = garrisonBonus(n);
-    const ringHp = n.heart ? 0 : CAMPAIGN.coreHealth[n.ring ?? 99] ?? 0;
+    const hp = sunHealth(n);
     const chips = [
       chip(`${CREDITS}<b>${n.yield.credits}</b>${MATERIALS}<b>${n.yield.materials}</b>`, `Yields ${n.yield.credits} credits and ${n.yield.materials} materials a turn to whoever holds it.`),
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
       n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>heart</b>`, `The oldest star, at the centre of everything. Whoever claims it wins the campaign.${n.owner ? '' : ` Guarded by the Heart Wardens: +${CAMPAIGN.heartWardenHealth} max health.`}`, 'gold') : '',
-      ringHp > 0 ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${n.ring}</b>`, `${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart: richer worlds (+${CAMPAIGN.coreYield[n.ring!] ?? 0} of each a turn) and deeper defences (+${ringHp} max health to whoever defends it).`) : '',
+      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before fortification, the star, anomalies and ships' hulls): ${n.heart ? 'the most, at the Heart' : `${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart, and more the nearer it lies`}.${(CAMPAIGN.coreYield[n.ring ?? 99] ?? 0) > 0 ? ` A rich world too: +${CAMPAIGN.coreYield[n.ring!]} of each a turn.` : ''}`),
       chip(`${icon('<path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/>')}<b>+${n.fortification * CAMPAIGN.fortifyHealth}</b>`, `Fortification ${n.fortification}/${CAMPAIGN.maxFortification}: its defender has +${n.fortification * CAMPAIGN.fortifyHealth} max health. Each level adds ${CAMPAIGN.fortifyHealth}.`),
       chip(`${icon('<rect x="4" y="2" width="8" height="12" rx="1.6"/><path d="M6.5 6h3"/>')}<b>${n.garrison.length}/${CAMPAIGN.garrisonSlots}</b>`, n.garrison.length ? `Garrison: ${n.garrison.map((c) => cardDef(c.defId).name).join(', ')}. If attacked, ${g.tableau.length} start${g.tableau.length === 1 ? 's' : ''} in play.` : 'Garrison: no cards stationed.'),
       n.damage ? chip(`${icon('<path d="M8 1.5 9.4 6 14 4.6 10.6 8 14 11.4 9.4 10 8 14.5 6.6 10 2 11.4 5.4 8 2 4.6 6.6 6z"/>')}<b>${n.damage}</b>`, `Damage ${n.damage}: its defender's sun starts ${n.damage} hotter.`, 'bad') : '',
@@ -1757,7 +1768,7 @@ export class CampaignView {
       const cards = reward.options.map((id) => `<button class="cmp-pick" data-act="cmp-card" data-arg="${id}">${cardHtml(id)}</button>`).join('');
       return this.modal(
         `★ ${lower(reward.source)} · choose a new card`,
-        `<div class="cmp-cards">${cards}</div><p class="muted center-text">It joins your reserve. Put it in your deck from the deck screen.</p>
+        `<div class="cmp-cards">${cards}</div><p class="muted center-text">${reward.toDeck !== undefined ? 'Salvaged from the beaten side: it joins your flagship\'s deck if there is room, else your reserve.' : 'It joins your reserve. Put it in your deck from the deck screen.'}</p>
          <div class="center-row"><button class="btn" data-act="cmp-card" data-arg="">skip</button></div>`,
       );
     }
@@ -2279,7 +2290,7 @@ export class CampaignView {
 }
 
 /** A small read-only card face. */
-function cardHtml(defId: string): string {
+export function cardHtml(defId: string): string {
   const def = cardDef(defId);
   return `
     <div class="card cmp-card kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
