@@ -3465,8 +3465,8 @@ export class App {
       const instab = instabilityHeat(s);
       backdrop.setHeat(instab > 0 ? Math.min(1, instab / 5) : -remaining / total);
     } else backdrop.setHeat(0);
-    // A match in play gets the battle theme, the campaign map its exploration score; everywhere else, the ambient score.
-    sound.setScene(this.screen === 'game' && this.state && !isGameOver(this.state) ? 'battle' : this.screen === 'campaign' && this.campaign.state ? 'campaign' : 'ambient');
+    // A match in play gets the battle theme, the campaign map the ambient score; everywhere else, the voyage.
+    sound.setScene(this.screen === 'game' && this.state && !isGameOver(this.state) ? 'battle' : this.screen === 'campaign' && this.campaign.state ? 'ambient' : 'voyage');
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
