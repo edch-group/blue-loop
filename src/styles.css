@@ -5062,3 +5062,33 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 /* (Its light, centred with it, still fades out just below the picture's edge.) */
 .card .gem .gem-light { -webkit-mask: linear-gradient(180deg, #000 50%, transparent 61%); mask: linear-gradient(180deg, #000 50%, transparent 61%); }
+
+/* ---------- The card's markers, in the gems' finish ---------- */
+/* The type pill and the attack, defence and stability badges are domed enamel, lit from above, set in a rim of
+   the card's rarity metal (silver, gold or violet silver, as its gem's bezel) with a setting shadow, so they sit
+   into the card as the gem does. Each keeps its colour (--en); a dimmed or worn state just changes the enamel. */
+.card { --m-hi: #ffffff; --m-mid: #c9d0dd; --m-lo: #7d8699; }
+.card.rarity-stellar { --m-hi: #fff4cf; --m-mid: #e1b453; --m-lo: #99671b; }
+.card.rarity-anomaly { --m-hi: #f6efff; --m-mid: #b9a6e0; --m-lo: #6c5a98; }
+.card .card-stats b, .card .stat-def-floor, .card .card-type {
+  --rim: max(1px, calc(var(--cw, 100px) * 0.011));
+  border: var(--rim) solid transparent; box-sizing: border-box;
+  background:
+    radial-gradient(130% 85% at 50% 0%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 58%) padding-box,
+    linear-gradient(180deg, color-mix(in srgb, var(--en) 78%, #fff), var(--en) 50%, color-mix(in srgb, var(--en) 72%, #000)) padding-box,
+    linear-gradient(180deg, var(--m-hi), var(--m-mid) 45%, var(--m-lo)) border-box;
+  color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+.card .card-stats b:not(.stat-atk-on), .card .stat-def-floor, .card .card-type {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.2),
+    0 0 0 0.6px rgba(14, 16, 26, 0.45), 0 1px 3px rgba(14, 16, 26, 0.45);
+}
+.card .stat-atk { --en: #d0553a; }
+.card .stat-stab { --en: #cf9a35; }
+.card .stat-def, .card .stat-def-floor { --en: #63718f; }
+.card .card-type { --en: var(--kc); }
+.card .stat-atk.stat-atk-dim { --en: #8a919d; }
+.card .stat-stab.stat-low, .card .stat-def.stat-dented { --en: #d4694a; }
+/* A card with no race line: room under its picture for the half of the gem that stands below it, so the gem
+   never sits on the card's name. */
+.card:not(:has(> .card-racerow)) > .card-glyph { margin-bottom: calc(var(--gem-s) * 0.8); }
