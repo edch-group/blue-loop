@@ -45,7 +45,7 @@ export const RACE_TRAITS: RaceTrait[] = [
   { bonus: 'Sun-lances: their attack cards have +1 attack.', nerf: 'Unarmoured: −1 defence.', bonusOn: 'value', nerfOn: 'stays', attack: 1, defence: -1 },
   { bonus: 'Shatter: when one leaves your tableau, {heat:1} at your rival.', nerf: 'Fractured: −1 stability.', bonusOn: 'stays', nerfOn: 'value', shatter: 1, stability: -1 },
   { bonus: 'Sting: +1 Sting on their cards that stay in play.', nerf: 'Slow tides: −1 attack (never below 1).', bonusOn: 'value', nerfOn: 'value', sting: 1, attack: -1 },
-  { bonus: 'Regrowth: +1 stability.', nerf: 'Soft-bodied: −1 defence.', bonusOn: 'value', nerfOn: 'stays', stability: 1, defence: -1 },
+  { bonus: 'Regrowth: +1 stability.', nerf: 'Unarmoured: −1 defence.', bonusOn: 'value', nerfOn: 'stays', stability: 1, defence: -1 },
   { bonus: 'Darkspeed: their attackers and Heroes can attack or act the day they come into play.', nerf: 'Fleeting: −2 stability.', bonusOn: 'darkspeed', nerfOn: 'value', ambush: true, stability: -2 },
   { bonus: 'Sturdy: +2 Sturdy on their cards that stay in play.', nerf: 'Ponderous: −1 attack (never below 1).', bonusOn: 'value', nerfOn: 'value', sturdy: 2, attack: -1 },
   { bonus: 'Star-charted: they attune once more.', nerf: 'Frail: −1 stability.', bonusOn: 'attune', nerfOn: 'value', attune: 1, stability: -1 },

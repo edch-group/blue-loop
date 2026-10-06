@@ -5430,8 +5430,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-attack .cmp-tips li.good::before, .cmp-attack .cmp-tips li.bad::before { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 7px 2px 0; border-radius: 50%; background: currentColor; vertical-align: middle; }
 
 /* Your flagship's moves this turn: energy gems standing on its left, like the stars' labels (a billboard). */
-.cmp-ship-moves { position: absolute; left: -38px; top: 0; display: flex; flex-direction: column-reverse; gap: 3px; transform-origin: 50% 100%; transform: translate(-50%, -50%) rotateX(calc(-1 * var(--tilt))) scale(var(--ui)); pointer-events: auto; }
-.cmp-ship-moves i { width: 9px; height: 9px; border-radius: 50%; background: #dfe3e8; border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(40, 46, 70, 0.25); transition: background 0.3s; }
+.cmp-end { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.cmp-ship-moves { display: flex; justify-content: center; gap: 5px; pointer-events: auto; }
+.cmp-ship-moves i { width: 11px; height: 11px; border-radius: 50%; background: #dfe3e8; border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(40, 46, 70, 0.25); transition: background 0.3s; }
 .cmp-ship-moves i.on { background: #6cc28e; box-shadow: 0 0 6px rgba(108, 194, 142, 0.7), 0 1px 3px rgba(40, 46, 70, 0.25); }
 
 /* A Hero's rail, beside its slot: its abilities as round marks (lit when usable: tap to use), then its boons. */

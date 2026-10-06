@@ -20,6 +20,7 @@ import {
   canSetLightspeed,
   canSetFaceDown,
   cardDef,
+  mergeCardText,
   chooseAIAction,
   createGame,
   enemyChoices,
@@ -62,6 +63,7 @@ import {
   type BoosterCard,
   type BoosterKind,
   type CardInstance,
+  type CardDef,
   type CardKind,
   type GameState,
   type PlayerSetup,
@@ -2182,13 +2184,21 @@ export class App {
         }, at);
       });
     };
+    // Heat from reshuffling a deck (a draw that found it empty), told apart from the card's own heat or cooling:
+    // a Heat Sink's cooling and the reshuffle's strain would otherwise cancel out and show nothing.
+    const lastSeq = prev.log[prev.log.length - 1]?.seq ?? 0;
+    const reshuffleHeat = (id: string) => {
+      const name = next.players.find((pl) => pl.id === id)?.name;
+      return next.log.filter((l) => l.seq > lastSeq && l.text.startsWith(`${name} shuffles their discard pile back into their deck: the strain`)).length * BALANCE.reshuffleHeat;
+    };
     const hit = (id: string, at: number, byEnemy: boolean) => {
       const p = next.players.find((pl) => pl.id === id)!;
       const was = prev.players.find((pl) => pl.id === id)!;
       if (!handled.has(id)) holdUntil(p, was, at);
       handled.add(id);
       if (!hitAt.has(id)) hitAt.set(id, at);
-      const dHeat = p.heat - was.heat;
+      const strain = byEnemy ? 0 : reshuffleHeat(id);
+      const dHeat = p.heat - was.heat - strain;
       const lostShields = byEnemy ? Math.max(0, was.shields - p.shields) : 0;
       const gainedShields = Math.max(0, p.shields - was.shields);
       const mine = id === viewer.id;
@@ -2199,6 +2209,8 @@ export class App {
           if (dHeat) floatNumber(r, dHeat > 0 ? `+${dHeat}` : `−${-dHeat}`, dHeat > 0 ? 'hot' : 'cool', 0);
           if (lostShields) floatNumber(r, `⛨−${lostShields}`, 'block', dHeat ? 1 : 0);
           else if (gainedShields) floatNumber(r, `⛨+${gainedShields}`, 'block', dHeat ? 1 : 0);
+          // (The reshuffle's strain, on a line of its own.)
+          if (strain) floatNumber(r, `+${strain} ↻`, 'hot', (dHeat ? 1 : 0) + (lostShields || gainedShields ? 1 : 0));
         }
         if (dHeat > 0) {
           if (mine && byEnemy) {
@@ -2239,7 +2251,7 @@ export class App {
       if (volley) window.setTimeout(() => sound.launch(), delay);
       const me = next.players.find((p) => p.id === source.id)!;
       const meWas = prev.players.find((p) => p.id === source.id)!;
-      if (me.heat !== meWas.heat || me.shields > meWas.shields) {
+      if (me.heat !== meWas.heat || me.shields > meWas.shields || reshuffleHeat(source.id)) {
         hit(source.id, delay, false);
         if (me.heat < meWas.heat) window.setTimeout(() => sound.thermo(), delay);
       }
@@ -5055,20 +5067,38 @@ export class App {
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardBodyHtml(def, opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
+        <div class="card-text">${cardBodyHtml(this.shownDef(def, c), opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </button>`;
   }
 
   /** What a card's Fusion cards add, under its own text (a rule above each, in its colour), so the card says all it does. */
+  /**
+   * A card's text with the Fusion cards on it: like abilities summed into its own lines ("Draw 1" and a fused
+   * "Draw 1" read "Draw 2"), and what each fused card adds beyond that.
+   */
+  private fusedView(c: CardInstance | undefined): { text: string; rests: { defId: string; rest: string }[] } {
+    let text = cardDef(c?.defId ?? '').text;
+    const rests = (c?.fused ?? []).map((f) => {
+      const merged = mergeCardText(text, cardDef(f.defId).text.replace(/^\{fusion\}\.\s*/, ''));
+      text = merged.text;
+      return { defId: f.defId, rest: merged.rest };
+    });
+    return { text, rests };
+  }
+
   private fusedTextHtml(c: CardInstance | undefined): string {
-    return (c?.fused ?? [])
-      .map((f) => {
-        const fd = cardDef(f.defId);
-        const text = fd.text.replace(/^\{fusion\}\.\s*/, '');
-        return text ? `<span class="card-fused-text" style="--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`From ${fd.name}, fused onto it`)}">${cardTextHtml(text)}</span>` : '';
+    return this.fusedView(c)
+      .rests.map(({ defId, rest }) => {
+        const fd = cardDef(defId);
+        return rest ? `<span class="card-fused-text" style="--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`From ${fd.name}, fused onto it`)}">${cardTextHtml(rest)}</span>` : '';
       })
       .join('');
+  }
+
+  /** A card's own text, as shown: with any Fusion cards' like abilities summed in. */
+  private shownDef(def: CardDef, c: CardInstance | undefined): CardDef {
+    return c?.fused?.length ? { ...def, text: this.fusedView(c).text } : def;
   }
 
   /**
@@ -5093,9 +5123,10 @@ export class App {
             : [{ type: e.type, amount: e.amount, now: e.amount + effectAmount(s, owner, c, { ...e, amount: 1, plus: undefined, max: undefined }, when) - 1 }]
           : [],
       );
-    if (inPlay) return liveValues(def.text, numbers(dawnEffects(c), 'turn'), true);
+    const text = this.shownDef(def, c).text;
+    if (inPlay) return liveValues(text, numbers(dawnEffects(c), 'turn'), true);
     // In hand: what it does as it is played, and what its dawns would do once in play (its bonuses already count).
-    return { ...liveValues(def.text, numbers(def.onPlay ?? [], 'play'), false), ...liveValues(def.text, numbers(dawnEffects(c), 'turn'), true) };
+    return { ...liveValues(text, numbers(def.onPlay ?? [], 'play'), false), ...liveValues(text, numbers(dawnEffects(c), 'turn'), true) };
   }
 
   /** The explanations beside a magnified card: its keywords, and its stability and defence (live, for a card in play). */
@@ -5148,7 +5179,7 @@ export class App {
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : held ? this.liveNumbers(held, { hand: true }) : {})}${this.fusedTextHtml(c)}</div>
+        <div class="card-text">${cardBodyHtml(this.shownDef(def, c), c?.choice, owner && c ? this.liveNumbers(c, { owner }) : held ? this.liveNumbers(held, { hand: true }) : {})}${this.fusedTextHtml(c)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </div>`;
   }

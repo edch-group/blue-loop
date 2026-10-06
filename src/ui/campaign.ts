@@ -1030,6 +1030,7 @@ export class CampaignView {
         <section class="cmp-map">${this.renderMap()}</section>
         ${this.renderPop()}
         <div class="cmp-end">
+          ${this.endMoves()}
           <button class="btn-primary ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
         </div>
         ${this.waiting ? this.renderWaiting() : overlay}
@@ -1316,17 +1317,24 @@ export class CampaignView {
     return `<div class="${cls}" data-key="ship-${a.id}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;--rot:${((angle * 180) / Math.PI).toFixed(1)}deg;--dur:${dur.toFixed(2)}s;--ac:${this.colourOf(a.owner)}">
         <div class="cmp-ship-hull" data-act="cmp-army" data-arg="${a.id}"><i class="cmp-ship-shadow"></i><div class="cmp-ship-float">${shipModel(race, !!a.lost)}</div></div>
         <div class="cmp-ship-bb">${this.armyToken(a)}</div>
-        ${mine && !a.lost ? this.moveGems(a) : ''}
       </div>`;
   }
 
-  /** Your flagship's moves this turn, as energy gems standing to its left: lit while there are moves left. */
+  /** Above the end-turn button: the moves left this turn of your flagship (or of the army picked, if another). */
+  private endMoves(): string {
+    const s = this.state!;
+    const mine = s.armies.filter((a) => a.owner === s.playerId && !a.lost);
+    const a = mine.find((x) => x.id === this.army) ?? mine[0];
+    return a ? this.moveGems(a) : '';
+  }
+
+  /** An army's moves this turn, as energy gems in a row: lit while there are moves left. */
   private moveGems(a: Army): string {
     const s = this.state!;
     const total = 1 + armyBonus(s, a).march;
     const left = a.moved || a.refit || s.phase !== 'player' ? 0 : Math.max(0, total - (a.steps ?? 0));
     const gems = Array.from({ length: total }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
-    return `<div class="cmp-ship-moves" title="${left} move${left === 1 ? '' : 's'} left this turn, of ${total}">${gems}</div>`;
+    return `<div class="cmp-ship-moves" data-tip="${left} move${left === 1 ? '' : 's'} left this turn, of ${total}">${gems}</div>`;
   }
 
   /** Send the ships drawn where they were on to where they are going (the CSS transition does the sailing). */

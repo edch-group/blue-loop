@@ -819,6 +819,32 @@ function fusedName(a: CardDef, b: CardDef): string {
   return name === a.name || name === b.name || first === last ? `Fused ${a.name}` : name;
 }
 
+/** A sentence that is one plain amount ("Draw 1.", "{heat:2}.", "{dawn}: {shield:1}."): its timing and keyword, and the amount. */
+const SUMMABLE = /^((?:\{(?:dawn|dusk)\}: )?)(?:\{(heat|cool|shield|sturdy|repair|renew|plant|grows):(\d+)\}|Draw (\d+))\.$/;
+const sentences = (text: string) => text.trim().split(/(?<=\.)\s+/).filter(Boolean);
+
+/**
+ * Text added to a card's (a fused card's other half, or a Fusion card on it), with like abilities summed: "Draw 1"
+ * and "Draw 1" read "Draw 2", a dawn's {heat:1} and another's {heat:2} read {heat:3}. `text` is the card's with the
+ * sums folded in; `rest`, what was added that had nothing to fold into.
+ */
+export function mergeCardText(text: string, added: string): { text: string; rest: string } {
+  const own = sentences(text);
+  const rest: string[] = [];
+  for (const line of sentences(added)) {
+    const m = SUMMABLE.exec(line);
+    const at = m ? own.findIndex((o) => { const n = SUMMABLE.exec(o); return !!n && n[1] === m[1] && (n[2] ?? 'draw') === (m[2] ?? 'draw'); }) : -1;
+    if (!m || at < 0) {
+      rest.push(line);
+      continue;
+    }
+    const n = SUMMABLE.exec(own[at])!;
+    const sum = Number(n[3] ?? n[4]) + Number(m[3] ?? m[4]);
+    own[at] = m[2] ? `${n[1]}{${m[2]}:${sum}}.` : `${n[1]}Draw ${sum}.`;
+  }
+  return { text: own.join(' '), rest: rest.join(' ') };
+}
+
 const FUSED = new Map<string, CardDef>();
 
 function fusedDef(id: string): CardDef | undefined {
@@ -837,7 +863,7 @@ function fusedDef(id: string): CardDef | undefined {
     cost: (da.cost ?? 1) + (db.cost ?? 1),
     race: da.race === db.race ? da.race : undefined,
     rarity: RARITY_RANK[db.rarity ?? 'dwarf'] > RARITY_RANK[da.rarity ?? 'dwarf'] ? db.rarity : da.rarity,
-    text: `${da.text} ${db.text}`,
+    text: (({ text, rest }) => (rest ? `${text} ${rest}` : text))(mergeCardText(da.text, db.text)),
     onPlay: both(da.onPlay, db.onPlay),
     onTurn: both(da.onTurn, db.onTurn),
     onLeave: both(da.onLeave, db.onLeave),

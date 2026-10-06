@@ -694,7 +694,20 @@ export function liveValues(text: string, effects: { type: string; amount: number
     if (p.kw === 'dawn') afterDawn = true;
     if (afterDawn !== dawn) return;
     const j = left.findIndex((l) => l.type === p.kw && String(l.amount) === p.value);
-    if (j < 0) return;
+    if (j < 0) {
+      // A summed amount (a Fusion card's folded into the card's own): the like effects it is made of, together.
+      const want = Number(p.value);
+      const parts: number[] = [];
+      let sum = 0;
+      left.forEach((l, k) => {
+        if (l.type === p.kw && sum < want) parts.push(k), (sum += l.amount);
+      });
+      if (sum !== want || parts.length < 2) return;
+      const now = parts.reduce((n, k) => n + left[k].now, 0);
+      if (now !== want) out[i] = now;
+      for (const k of parts.reverse()) left.splice(k, 1);
+      return;
+    }
     if (left[j].now !== left[j].amount) out[i] = left[j].now;
     left.splice(j, 1);
   });

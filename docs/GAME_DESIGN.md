@@ -587,7 +587,7 @@ Each player is one of eight races (races.ts). Every race has a **bonus and a ner
 | Aureline | Lancers of light: attack cards that power each other | Sun-lances: attack cards +1 attack | Unarmoured: −1 defence | |
 | Xel'Naru | Crystal overloaders: run hot, pay off as cards leave | Shatter: when one leaves your tableau, heat 1 at the rival | Brittle: −1 stability | |
 | Vorthane | Tidal bells: shields, kept, and stinging | Sting: +1 Sting on their cards that stay (written into each card’s own Sting) | Slow tides: −1 attack (never below 1) | |
-| Ixquor | The hive: go wide, ramp, grow | Regrowth: +1 stability | Soft-bodied: −1 defence | |
+| Ixquor | The hive: go wide, ramp, grow | Regrowth: +1 stability | Unarmoured: −1 defence | |
 | Nyxari | Void-stalkers | Darkspeed: their attackers and Heroes can attack or act the day they come into play (not dimmed); their other cards come in dimmed as anyone's do | Fleeting: −2 stability | Veilwalker (Lightspeed traps), Unmaker (removal) |
 | Korrath | Forge-smiths | Sturdy: +2 Sturdy on their cards that stay (written into each card's own Sturdy) | Ponderous: −1 attack (never below 1) | Forgeborn (Fusion grafts), Bastion-kin (Guards) |
 | Seren | Star-readers | Star-charted: attuned cards attune once more | Frail: −1 stability | Tidecaster (orbit), Seer (draw, recover, attune) |
