@@ -495,12 +495,9 @@ function sunRect(root: ParentNode, id: string): DOMRect | null {
   return new DOMRect(l.left + l.width / 2 - size / 2, l.top + l.height / 2 - size / 2, size, size);
 }
 
-/**
- * A player's shields, big, in the board's middle: the rival's above the Stellari, yours below (they are easy to
- * miss on the sun). Faint at none.
- */
+/** A player's shields, by their sun (beside the planet tag), over the sun's lattice. Faint at none. */
 function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
-  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" title="${side === 'mine' ? 'Your' : 'Their'} shields: they absorb enemy heat, and fade at dawn"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/></svg><b>${n}</b></div>`;
+  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" data-tip-title="shields" data-tip="${side === 'mine' ? 'Yours' : 'Theirs'}: they absorb enemy heat, and fade at dawn."><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/></svg><b>${n}</b></div>`;
 }
 
 /**
@@ -543,6 +540,9 @@ function setShieldBadge(root: ParentNode, pid: string, n: number) {
     const was = Number(b?.textContent ?? 0);
     el.classList.toggle('up', n > 0);
     if (b) b.textContent = String(n);
+    // (The sun's lattice follows: brighter the more shields are up.)
+    const dome = el.closest('.vit')?.querySelector<HTMLCanvasElement>('canvas.vit-dome');
+    if (dome) dome.dataset.shields = String(n);
     // Raised (or raised further): the shield flashes, its glint sweeping at once.
     if (n > was) {
       el.classList.remove('raised');
@@ -4726,7 +4726,6 @@ export class App {
             <div class="board-star-slot" data-morph-keep></div>
             ${this.renderRoundRing()}
             ${this.renderPhaseTrack()}
-            ${rival ? shieldBadge(rival.id, rival.shields, 'rival') : ''}${shieldBadge(me.id, me.shields, 'mine')}
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
@@ -4814,7 +4813,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>

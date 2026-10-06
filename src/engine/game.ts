@@ -761,7 +761,8 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
 // Rules
 // ---------------------------------------------------------------------------
 
-function drawCards(state: GameState, p: PlayerState, count: number) {
+/** Draw `count` cards. `byEffect`: a card's draw (not the day's), which also hurries a dry deck's wait. */
+function drawCards(state: GameState, p: PlayerState, count: number, byEffect = false) {
   for (let i = 0; i < count; i++) {
     // (A campaign deck is small, ten cards at most: with nothing left to draw or shuffle back, it gives no
     // more, without the strain. Its sun would burn out before the battle began.)
@@ -775,6 +776,12 @@ function drawCards(state: GameState, p: PlayerState, count: number) {
           p.reshuffleIn = wait;
           log(state, `${p.name}'s deck has run dry: their discard pile shuffles back in ${wait} day${wait === 1 ? '' : 's'}.`);
         }
+      }
+      // A draw effect hurries it along: each card it would draw takes a day off the wait.
+      if ((p.reshuffleIn ?? 0) > 0 && byEffect) {
+        p.reshuffleIn! -= 1;
+        log(state, p.reshuffleIn ? `${p.name} draws on the wait: their discard pile shuffles back in ${p.reshuffleIn} day${p.reshuffleIn === 1 ? '' : 's'}.` : `${p.name} draws out the wait.`);
+        continue;
       }
       if ((p.reshuffleIn ?? 0) > 0) return;
       delete p.reshuffleIn;
@@ -995,7 +1002,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       }
       case 'draw': {
         const n = e.amount + (e.plus ? countOf(p, card, e.plus, state) : 0);
-        drawCards(state, p, n);
+        drawCards(state, p, n, true);
         if (when === 'turn') notePulse(state, p, card, 'draw', p, n);
         break;
       }
@@ -1085,7 +1092,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
           // Nothing there to recover: the card draws instead, so it is never dead.
           if (e.orDraw && !p.discard.some((c) => kindMatches(c, e.kind))) {
             log(state, `${p.name} has nothing to recover, and draws instead.`);
-            drawCards(state, p, e.orDraw);
+            drawCards(state, p, e.orDraw, true);
           }
           break;
         }

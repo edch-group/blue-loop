@@ -138,3 +138,19 @@ describe('a small deck run dry', () => {
     expect(s.players[0].hand.length + s.players[0].deck.length).toBeGreaterThan(0);
   });
 });
+
+describe('drawing on a dry deck', () => {
+  it('takes a day off the wait for each card a draw effect would draw', () => {
+    let s = battle({ me: { deck: ['deep_scanners', 'coolant_array'] } });
+    const me = s.players[0];
+    // A dry deck, waiting 7 days; Deep Scanners in hand.
+    const scan = me.hand.find((c) => c.defId === 'deep_scanners') ?? me.deck.find((c) => c.defId === 'deep_scanners')!;
+    me.hand = [scan];
+    me.discard.push(...me.deck.filter((c) => c !== scan), ...me.tableau.filter((c) => c.slot !== COMMAND_SLOT));
+    me.deck = [];
+    me.discard.push({ uid: 'x1', defId: 'coolant_array' }, { uid: 'x2', defId: 'cryo_vault' });
+    me.reshuffleIn = 7;
+    s = playFirst(s, 'deep_scanners');
+    expect(s.players[0].reshuffleIn).toBe(5);
+  });
+});

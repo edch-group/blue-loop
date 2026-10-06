@@ -146,8 +146,8 @@ export const CAMPAIGN = {
    * from the rim inwards: one a turn, one more every `collapseRamp` turns after that. Each is marked a turn
    * before it goes. Whatever stands there is lost (an army falls back, if it can).
    */
-  stabilityTurns: 30,
-  collapseRamp: 30,
+  stabilityTurns: 8,
+  collapseRamp: 12,
   /** The counter: stabilise a collapsing system you hold, for materials, holding it together this many turns more (once per system). */
   stabiliseCost: 8,
   stabiliseTurns: 4,
