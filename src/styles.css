@@ -5228,3 +5228,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card .art-wrap .art-frame > * { --bump-x: calc(var(--gem-s) * 2.25); --bump-y: calc(var(--gem-s) * 2.05); }
 /* (The light images are three gem-widths across now: every glow reaches half as far past its gem.) */
 .card .gem .gem-light { inset: -100%; -webkit-mask: linear-gradient(180deg, #000 62%, transparent 82%); mask: linear-gradient(180deg, #000 62%, transparent 82%); }
+/* The cutout an even circle round the gem, centred on it (0.72 gem-sizes above the picture's foot), clearing
+   its bezel (0.68) by about a third of a gem-size all round. */
+.card .art-wrap .art-frame > * {
+  -webkit-mask: radial-gradient(circle calc(var(--gem-s) * 1.0) at 50% calc(100% - var(--gem-s) * 0.72), transparent calc(100% - 0.6px), #000 100%);
+  mask: radial-gradient(circle calc(var(--gem-s) * 1.0) at 50% calc(100% - var(--gem-s) * 0.72), transparent calc(100% - 0.6px), #000 100%);
+}
