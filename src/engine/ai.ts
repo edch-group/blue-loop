@@ -34,9 +34,8 @@ import {
   aimChoices,
   aimable,
   abilityAimable,
-  activateProblem,
-  activateCost,
 } from './game';
+import { activateCost, activateProblem } from './voyage/rules';
 import type { Action, CardInstance, Effect, GameState, PlayerState } from './types';
 
 /** A tuning number, overridable from the environment when simulating (npm run simulate); fixed everywhere else. */

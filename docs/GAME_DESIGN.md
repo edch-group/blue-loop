@@ -724,7 +724,7 @@ A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their 
 
 ## Campaign mode
 
-A 4X-style march on the centre of a dying universe, played with the card game. Code: `src/engine/campaign.ts` (rules), `src/engine/story.ts` (story and dialogue) and `src/ui/campaign.ts` (screen). Saves are version 5 (`blue-loop:campaign:v5`); older campaigns are not carried over.
+A 4X-style march on the centre of a dying universe, played with the card game. It is its own game in the Blue Loop universe, sharing the card game's engine. Code lives in `src/engine/voyage/`: `campaign.ts` (map and economy), `rules.ts` (ship-battle rules, installed into the engine through `game.ts`'s `ShipRules` hooks, so the card game's rules carry no campaign checks), `cards.ts` (campaign versions of cards, generated from the card game's with hand-written `OVERRIDES`), `pool.ts` (the cards the adventure uses: a new card-game card isn't in it until added), `balance.ts` (its own numbers), and `story.ts`, `heroes.ts`, `research.ts`. The screen is `src/ui/campaign.ts`. Saves are version 5 (`blue-loop:campaign:v5`); older campaigns are not carried over.
 
 **The story.** The universe is dying: star by star the light is failing, and the four races fight over the last warm worlds. All of them are making for **the Heart**, the supermassive star at the centre of the map, because of a legend: in its light grows the **Infinite Stellari**, a white flower whose bloom gives energy without end. It is the white flower that turns on the landing page, and on the map it turns beside the Heart.
 - The **Aureline** were the flower's first keepers. They called it **Vitalia** ("life-giver"), lost it, and were nearly wiped out in the war that followed. What is left of them is coming home.

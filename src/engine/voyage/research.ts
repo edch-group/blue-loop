@@ -1,4 +1,4 @@
-import type { BattleModifiers } from './types';
+import type { BattleModifiers } from '../types';
 
 /**
  * Research: upgrades a faction's flagship carries for good (more energy a day, longer marches, stronger

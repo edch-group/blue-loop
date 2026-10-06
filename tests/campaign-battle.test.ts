@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
-import { campaignCardId, cardDef } from '../src/engine/cards';
-import { activateProblem, activePlayer, applyAction, attackProblem, cardAttack, cardDefence, COMMAND_SLOT, createGame, isGameOver } from '../src/engine/game';
+import { cardDef } from '../src/engine/cards';
+import { campaignCardId } from '../src/engine/voyage/cards';
+import { activateProblem } from '../src/engine/voyage/rules';
+import { activePlayer, applyAction, attackProblem, cardAttack, cardDefence, COMMAND_SLOT, createGame, isGameOver } from '../src/engine/game';
 import type { GameState, PlayerSetup, ShipRooms } from '../src/engine/types';
 
 const HERO = 'command_directive'; // (no attack of its own)

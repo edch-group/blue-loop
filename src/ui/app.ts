@@ -79,7 +79,7 @@ import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { shipModel, SHIP_LAYOUTS, STATION_LAYOUT } from './ships';
 import { aim, anchorRect, beam, laser, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine, setCampaignText } from './glyphs';
+import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -3494,7 +3494,6 @@ export class App {
     // The page is morphed into its new markup, not rebuilt: only what changed is touched, so the board,
     // its cards and canvases stay as they are between moves (rebuilding it all made every action slow).
     // (A campaign battle's cards read "Stabilise" where others read "Draw".)
-    setCampaignText(this.screen !== 'menu' && this.screen !== 'campaign' && !!this.state?.campaign);
     morphInto(this.root, this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() + (this.zoomed ? this.renderZoom() : '') : this.renderGame());
     this.keptHand = new WeakSet([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].filter((el) => held.has(el)));
     const again = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)];

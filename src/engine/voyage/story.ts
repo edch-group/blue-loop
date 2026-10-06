@@ -14,7 +14,7 @@
  * itself is the white flower that turns on the game's landing page.
  */
 
-import { RACE_NAMES } from './races';
+import { RACE_NAMES } from '../races';
 
 /** Who speaks a line: the guide, or a hero (by Hero card id) of a faction. */
 export type Speaker = { kind: 'oracle' } | { kind: 'general'; card: string; faction: string };

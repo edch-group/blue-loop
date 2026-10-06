@@ -620,18 +620,8 @@ export function cardBodyHtml(def: CardDef, chosen?: string, live: Record<number,
   return row + cardTextHtml(def.text, chosen, false, live);
 }
 
-/** Campaign battles: drawing a card stabilises an ally instead, and the cards say so (set while one is on screen). */
-let campaignText = false;
-export function setCampaignText(on: boolean) {
-  campaignText = on;
-}
-/** "Draw 2" as it reads in a campaign battle: "Stabilise 2" (an ally, the most worn). */
-export function campaignWords(text: string): string {
-  return text.replace(/\b([Dd])raws? (\d+|X)(?: more)?(?: cards?)?/g, (_, d: string, n: string) => `${d === 'D' ? 'S' : 's'}tabilise ${n}`);
-}
-
 export function cardTextHtml(text: string, chosen?: string, inline = false, live: Record<number, number> = {}): string {
-  const parts = textParts(campaignText ? campaignWords(text) : text);
+  const parts = textParts(text);
   // Nothing but a few symbols ("Heat 2", "Heat 2. Cool 1"): they sit in the middle of the text box.
   const symbols = parts.filter((p) => 'kw' in p);
   const only = symbols.length > 0 && symbols.length <= 3 && parts.every((p) => ('kw' in p ? KEYWORDS[p.kw]?.symbol : /^[\s.,]*$/.test(p.text)));
