@@ -5565,3 +5565,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card-room { position: absolute; top: -7%; left: 0; right: 0; display: flex; justify-content: center; gap: 3px; z-index: 3; pointer-events: auto; }
 .rest-mark svg { width: 1em; height: 1em; fill: #6a5ac8; }
 .card-room .boon-mark { background: #fff; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.45), 0 2px 5px rgba(60, 70, 100, 0.18); }
+
+/* Performance: the gems' endless animations repaint the card they sit on every frame. With a hand and two tableaus
+   of them that kept the browser too busy for the hand's lift and the board's zoom to play smoothly, so on the board
+   and in the hand a gem only moves on the card under the pointer (cards magnified, staged or in the builder keep
+   theirs). Each hand card is its own layer: lifting it moves the layer, with nothing to repaint. */
+.hand > .card:not(.lifted) .gem, .hand > .card:not(.lifted) .gem *,
+.tableau .card:not(:hover) .gem, .tableau .card:not(:hover) .gem * { animation-play-state: paused !important; }
+.hand > .card { will-change: transform; }
