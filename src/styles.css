@@ -4889,11 +4889,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   background: var(--art) center / cover no-repeat;
   filter: blur(6px) saturate(1.7);
   opacity: 0.9;
-  /* (Not in the dark corner sections, which carry the circuit in light lines of their own.) */
-  -webkit-mask: radial-gradient(circle at 0 100%, transparent var(--cut-l), #000 calc(var(--cut-l) + 0.5px)), radial-gradient(circle at 100% 100%, transparent var(--cut-r), #000 calc(var(--cut-r) + 0.5px)), linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
-  -webkit-mask-composite: source-in, source-in, source-in, source-in, source-over;
-  mask: radial-gradient(circle at 0 100%, transparent var(--cut-l), #000 calc(var(--cut-l) + 0.5px)), radial-gradient(circle at 100% 100%, transparent var(--cut-r), #000 calc(var(--cut-r) + 0.5px)), linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
-  mask-composite: intersect, intersect, intersect, intersect, add;
+  -webkit-mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  -webkit-mask-composite: source-in, source-in, source-over;
+  mask: linear-gradient(180deg, transparent 2%, #000 9%), var(--fade), var(--trace) 0 0 / var(--tile) repeat, var(--trace) 0 0 / var(--tile) repeat;
+  mask-composite: intersect, intersect, add;
 }
 .card.kind-command .card-stock {
   inset: auto 0 0; height: 58%;
@@ -5134,3 +5133,14 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 }
 .cost-dots i.over { background-image: var(--gem-energyAmber); box-shadow: 0 0 calc(var(--cw, 100px) * 0.03) rgba(250, 180, 60, 0.5), 0 1px 2px rgba(10, 14, 20, 0.55); }
 .hand .card.card-pricey .cost-dots i { background-image: var(--gem-energyGrey); box-shadow: 0 1px 2px rgba(10, 14, 20, 0.5); }
+/* The corner sections and the kind tab in a deeper shade of the card's own colour (its face, by rarity), not the
+   Heroes' dark stock: the values in their colours, bold, stand out on it; the card's own traces run on through. */
+.card { --sect: color-mix(in srgb, var(--face) 84%, #56627c); }
+.card.kind-command { --sect: color-mix(in srgb, var(--face) 70%, #262b36); }
+.card:not(.kind-command) > .card-corners::after { filter: none; opacity: 1; }
+.card:not(.card-table):not(.kind-command) .card-stats-base b { font-weight: 800; }
+.card:not(.card-table):not(.kind-command) .card-stats-base .stat-atk { color: #c13b20; }
+.card:not(.card-table):not(.kind-command) .card-stats-base .stat-stab { color: #9c6a10; }
+.card:not(.card-table):not(.kind-command) .card-stats-base .stat-atk.stat-atk-dim { color: #7d8594; }
+.card:not(.card-table):not(.kind-command) .card-stats-base .stat-stab.stat-low { color: #d23a1c; }
+.card:not(.kind-command) .card-type { color: color-mix(in srgb, var(--kc) 80%, #1a1f2a); font-weight: 700; }

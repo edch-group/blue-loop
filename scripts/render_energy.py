@@ -2,7 +2,7 @@
 # Usage: pip install numpy scipy pillow && python3 scripts/render_energy.py
 """Render the energy cost gems (src/ui/gems/energy-*.png), in the rarity gems' manner (render_gems.py).
 
-Each is a small polished cabochon in a bevelled silver bezel: a stone of the energy's colour with a glowing core deep
+Each is a small polished cabochon in a fine, quiet silver bezel: a stone of the energy's colour with a glowing core deep
 inside it (wisps of light round the core, faint motes in the stone), and the glass's window reflection and glint
 over the top. Green is energy, amber the cost past a day's most energy, grey a cost that can't be paid now.
 """
@@ -20,7 +20,7 @@ c = (M - 1) / 2
 dx, dy = (x - c) / (M / 2), (y - c) / (M / 2)
 r = np.hypot(dx, dy)
 th = np.arctan2(dy, dx)
-SOCK = 0.8          # the stone's radius; the bezel runs from here to the edge
+SOCK = 0.9          # the stone's radius; the bezel runs from here to the edge
 
 
 def smoothstep(e0, e1, v):
@@ -51,9 +51,9 @@ gy, gx = np.gradient(prof * 0.25)
 nb = np.dstack([-gx * SS * 10, -gy * SS * 10, np.ones_like(r)]); nb /= np.linalg.norm(nb, axis=2, keepdims=True)
 L = np.array([0.0, -0.7, 0.7]); L /= np.linalg.norm(L)
 lam = np.clip((nb * L).sum(2), 0, 1)
-metal = 0.5 + 0.5 * lam + 0.35 * np.clip((nb * (L + [0, 0, 1]) / np.linalg.norm(L + [0, 0, 1])).sum(2), 0, 1) ** 30
+metal = 0.42 + 0.22 * lam + 0.12 * np.clip((nb * (L + [0, 0, 1]) / np.linalg.norm(L + [0, 0, 1])).sum(2), 0, 1) ** 30
 metal *= 0.6 + 0.4 * smoothstep(0, 0.2, u) * smoothstep(1, 0.8, u)
-metal_rgb = metal[..., None] * np.array([0.86, 0.89, 0.95])
+metal_rgb = metal[..., None] * np.array([0.78, 0.81, 0.87])
 
 z = np.sqrt(np.clip(1 - (r / SOCK) ** 2, 0, 1))      # the stone's dome
 wisp = fbm(5, 3, 7)
