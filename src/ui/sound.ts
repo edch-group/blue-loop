@@ -713,8 +713,8 @@ class SoundBoard {
   }
 
   /**
-   * The battle theme. Pads and bass only for the first chord, so a match settles in; then the arpeggio joins and
-   * the four chords cycle, the arpeggio resting for a chord every third time round. Chords are scheduled just
+   * The battle theme. Pads and bass for one bar, so a match settles in; then the arpeggio joins and the four
+   * chords cycle, the arpeggio resting for a chord every third time round. Chords are scheduled just
    * ahead of the audio clock.
    */
   private battleScore(ctx: AudioContext, bus: GainNode, lush: GainNode) {
@@ -760,9 +760,9 @@ class SoundBoard {
       this.note(at, hz(c.bass), chordLen - 0.5, { gain: 0.05, type: 'triangle', attack: 1.2, release: 1.5, cutoff: 260, out: bus });
       this.note(at, hz(c.bass) * 2, chordLen - 0.5, { gain: 0.018, type: 'sine', attack: 2, release: 1.5, out: bus });
       // The arpeggio: soft plucks, a triangle with a quiet saw for edge, accented on the beat.
-      const rests = round === 0 ? index === 0 : round % 3 === 2 && index === 0;
-      if (rests) return;
-      for (let b = 0; b < 4; b++) {
+      // It rests for the first chord every third time round; at the very start it joins after one bar.
+      if (round % 3 === 2 && index === 0) return;
+      for (let b = round === 0 && index === 0 ? 1 : 0; b < 4; b++) {
         const notes = c.arp[c.arp.length > 1 && b >= 2 ? 1 : 0];
         notes.forEach((n, e) => {
           const d = this.until(at + b * barLen + e * eighth);
