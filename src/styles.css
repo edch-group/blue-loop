@@ -5092,3 +5092,34 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* A card with no race line: room under its picture for the half of the gem that stands below it, so the gem
    never sits on the card's name. */
 .card:not(:has(> .card-racerow)) > .card-glyph { margin-bottom: calc(var(--gem-s) * 0.8); }
+/* The markers' size: their numbers about the size of the rules' heat chevrons, the badge just round them, and
+   the number and icon centred in it (the display face rides high, so it is nudged down a touch). */
+.card .card-stats b, .card .card-stats-base b, .card .stat-def-floor {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.12em;
+  height: max(12px, calc(var(--cw, 100px) * 0.085)); min-width: max(18px, calc(var(--cw, 100px) * 0.15));
+  padding: 0.06em 0.45em 0; line-height: 1;
+  font-size: max(7px, calc(var(--cw, 100px) * 0.052));
+}
+.card .card-stats b .atk-icon, .card .card-stats b svg { width: 0.9em; height: 0.9em; flex: none; margin-top: -0.06em; }
+.card-big .card-stats b, .card-big .card-stats-base b { height: calc(var(--cw) * 0.085); min-width: calc(var(--cw) * 0.15); font-size: calc(var(--cw) * 0.052); }
+/* The markers' faces are cut stones, as the gems are, not flat enamel: deep at the edges, lit from within (light
+   through the glass gathers low in the stone), a glassy highlight across the top. Attack is a ruby, stability a
+   topaz, defence a sapphire, the type pill a stone of its kind's colour; a dimmed or worn state changes the stone. */
+.card .card-stats b, .card .stat-def-floor, .card .card-type {
+  --glow: color-mix(in srgb, var(--en) 45%, #fff);
+  --deep: color-mix(in srgb, var(--en) 45%, #000);
+  background:
+    radial-gradient(90% 55% at 50% 4%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.18) 55%, rgba(255, 255, 255, 0) 72%) padding-box,
+    radial-gradient(75% 120% at 50% 108%, var(--glow), color-mix(in srgb, var(--en) 85%, #fff) 30%, var(--en) 55%, var(--deep) 100%) padding-box,
+    linear-gradient(180deg, var(--m-hi), var(--m-mid) 45%, var(--m-lo)) border-box;
+  text-shadow: 0 1px 1.5px var(--deep), 0 0 3px var(--deep);
+}
+.card .card-stats b:not(.stat-atk-on), .card .stat-def-floor, .card .card-type {
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.25), inset 0 -1.5px 3px rgba(0, 0, 0, 0.35),
+    0 0 0 0.6px rgba(14, 16, 26, 0.45), 0 1px 3px rgba(14, 16, 26, 0.45);
+}
+.card .stat-atk { --en: #b8182c; }
+.card .stat-stab { --en: #c27a10; }
+.card .stat-def, .card .stat-def-floor { --en: #2d58a8; }
+.card .stat-atk.stat-atk-dim { --en: #6c7383; }
+.card .stat-stab.stat-low, .card .stat-def.stat-dented { --en: #c8321e; }
