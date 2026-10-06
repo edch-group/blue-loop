@@ -316,6 +316,14 @@ export interface PlayerState {
   freeReshuffle?: boolean;
   /** Campaign: the hero whose card carries boons in play, and those boons. */
   heroBoons?: { hero: string; boons: string[] };
+  /** Campaign battles: this side's hero, their training, and their ship's rooms. */
+  hero?: string;
+  heroStats?: { attack: number; defence: number };
+  rooms?: ShipRooms;
+  /** Campaign battles: the hero, beaten, recovering: back in the command room once `left` of their dawns have passed. */
+  wounded?: { card: CardInstance; left: number };
+  /** Campaign battles: cards destroyed, out of the battle for good. */
+  fallen?: CardInstance[];
   /** Wear on the defence of empty slots, left by the cards that stood there (slot → points). */
   slotWear?: Record<number, number>;
   deck: CardInstance[];
@@ -376,6 +384,8 @@ export interface GameState {
   keepPulses?: boolean;
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
+  /** Campaign battle rules (see GameSetup.campaign). */
+  campaign?: boolean;
 }
 
 /** One dawn effect, as it happened: what fired it, where it went, and every sun just after. */
@@ -444,11 +454,31 @@ export interface PlayerSetup {
   conditions?: { name: string; text: string }[];
   /** Campaign battles: the leading hero's skills that can be used in battle. */
   skills?: BattleSkill[];
+  /** Campaign battles: this side's hero (always in their command room; wounded, not lost, when it falls). */
+  hero?: string;
+  /** Campaign battles: the ship's rooms, upgraded (extra defence and attack by tableau slot, and the command room's). */
+  rooms?: ShipRooms;
+  /** Campaign battles: the hero's own training (extra attack and defence on their card). */
+  heroStats?: { attack: number; defence: number };
+}
+
+/** A campaign ship's rooms in battle: extra defence and attack for the card in each tableau slot, and the command room's extra defence. */
+export interface ShipRooms {
+  defence: number[];
+  attack: number[];
+  command: number;
 }
 
 export interface GameSetup {
   seed: number;
   players: PlayerSetup[];
+  /**
+   * Campaign battle rules: cards don't lose stability day by day (they stand until destroyed), and a card
+   * destroyed is out of the battle (no discard pile shuffled back, and no strain on an empty deck). Each
+   * side's hero always starts in their command room and, beaten, is wounded for a turn rather than lost.
+   * Draw effects stabilise an ally instead. A side with no cards left anywhere, and no hero, is beaten.
+   */
+  campaign?: boolean;
 }
 
 export type Action =

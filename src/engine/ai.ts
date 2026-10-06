@@ -389,7 +389,7 @@ export function chooseAIAction(state: GameState): Action {
   const attacks: Action[] = [];
   const targets = aimChoices(state, me);
   for (const c of me.tableau) {
-    if (c.dimmed || (cardDef(c.defId).attack ?? 0) <= 0) continue;
+    if (c.dimmed || cardAttack(state, me, c) <= 0) continue;
     if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
     for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
