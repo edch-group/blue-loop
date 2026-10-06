@@ -6,7 +6,7 @@ import { RACE_CARDS } from './cards-races';
 import { DUSK_CARDS } from './cards-dusk';
 import { BIG_CARDS } from './cards-big';
 import { RELIC_CARDS } from './cards-relics';
-import { HERO_CARDS } from './heroes-battle';
+import { HERO_CARDS, heroCost } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
 import { BOONS } from './boons';
@@ -705,6 +705,8 @@ for (const c of CARDS) {
   Object.assign(c, h);
 }
 for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? c.cost ?? 1 });
+// Heroes cost one more than they are listed at (heroes-battle.ts): an entrance and an ability every day for good.
+for (const c of CARDS) if (c.kind === 'command') c.cost = heroCost(c.cost ?? 2);
 // Attack ratings (attack.ts): by rule, unless a card gives its own.
 for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.cost ?? 1, !isBurst(c));
 // A race's Sturdy (the Korrath) is the cards' own: added to their Sturdy, and written into their text.

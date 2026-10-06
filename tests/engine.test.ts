@@ -46,10 +46,10 @@ describe('content', () => {
       const own = CARDS.filter((c) => c.race === race);
       expect(own.length).toBeGreaterThanOrEqual(10);
       expect(own.filter((c) => c.rarity === 'anomaly' && c.character).length).toBeGreaterThanOrEqual(1);
-      // Three hero leaders (Command cards) of its own: two regulars and a cost-4 bomb.
+      // Three hero leaders (Command cards) of its own: two regulars and a cost-5 bomb.
       const heroes = own.filter((c) => c.kind === 'command' && c.character);
       expect(heroes).toHaveLength(3);
-      expect(heroes.filter((c) => cardCost(c.id) === 4)).toHaveLength(1);
+      expect(heroes.filter((c) => cardCost(c.id) === 5)).toHaveLength(1);
       expect(own.some((c) => c.character)).toBe(true);
     }
     for (const d of PRESET_DECKS) expect(deckProblems(d.cards)).toEqual([]);
@@ -237,13 +237,13 @@ describe('commands', () => {
     for (let i = 0; i < 10; i++) s = endTurn(s);
     expect(s.players[0].tableau.some((c) => c.defId === 'ignition_protocol')).toBe(true);
     expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.stability).toBe(8);
-    // Strafe: heat 3, for 1 energy; then no second ability that day.
+    // Strafe: heat 3, for 2 energy; then no second ability that day.
     const before = s.players[1].heat;
     activePlayer(s).playsLeft = 3;
     expect(heroAbilityProblem(s, activePlayer(s), 0)).toBeNull();
     s = applyAction(s, { type: 'heroAbility', index: 0 });
     expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 3 - s.players[1].shields);
-    expect(activePlayer(s).playsLeft).toBe(2);
+    expect(activePlayer(s).playsLeft).toBe(1);
     expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/acted today/);
     s = endTurn(endTurn(s));
     expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
