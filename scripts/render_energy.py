@@ -2,9 +2,8 @@
 # Usage: pip install numpy scipy pillow && python3 scripts/render_energy.py
 """Render the energy cost gems (src/ui/gems/energy-*.png), in the rarity gems' manner (render_gems.py).
 
-Each is a small polished cabochon in a fine, quiet silver bezel: a stone of the energy's colour with a glowing core deep
-inside it (wisps of light round the core, faint motes in the stone), and the glass's window reflection and glint
-over the top. Green is energy, amber the cost past a day's most energy, grey a cost that can't be paid now.
+Each is a small polished cabochon in a fine, quiet silver bezel: a stone of the energy's colour, softly lit from within,
+with one small highlight: calm, so a card's cost reads at a glance. Green is energy, amber the cost past a day's most energy, grey a cost that can't be paid now.
 """
 import os
 import numpy as np
@@ -64,17 +63,14 @@ for name, k in ENERGY.items():
     deep, mid, core = (np.array(k[q]) for q in ('deep', 'mid', 'core'))
     t = np.clip(1 - r / SOCK, 0, 1)
     body = deep + (mid - deep) * (t ** 0.8)[..., None]                              # rich at the edge, brighter in
-    body *= (0.8 + 0.4 * swirl)[..., None]
+    body *= (0.94 + 0.12 * swirl)[..., None]
     rc = np.hypot(dx, dy + 0.06)
-    glow = np.exp(-(rc / 0.22) ** 2) * k['glow']                                    # the core, a little low
+    glow = np.exp(-(rc / 0.38) ** 2) * k['glow']                                    # the core, a little low
     wisps = np.exp(-(rc / 0.5) ** 2) * np.clip(wisp * 1.6 - 0.55, 0, 1) ** 1.5 * k['glow']
-    body += core * (glow * 1.1 + wisps * 0.6)[..., None]
-    body += core * (np.clip(motes, 0, 1) * z * 0.7 * k['glow'])[..., None]
+    body += core * (glow * 0.45)[..., None]
     body *= (0.7 + 0.3 * smoothstep(0, 0.12, t))[..., None]                         # dark where it meets the bezel
     # Glass: a soft window reflection top left, a sharp glint, light caught low on the rim.
-    hl = np.exp(-(((dx + 0.24) / 0.22) ** 2 + ((dy + 0.32) / 0.12) ** 2)) * 0.55
-    hl += np.exp(-(((dx + 0.3) / 0.06) ** 2 + ((dy + 0.38) / 0.045) ** 2)) * 0.9
-    hl += np.exp(-((r - (SOCK - 0.06)) / 0.04) ** 2) * np.clip(dy + 0.1, 0, 1) * 0.3
+    hl = np.exp(-(((dx + 0.26) / 0.13) ** 2 + ((dy + 0.34) / 0.08) ** 2)) * 0.5
     rgb = np.where(stone[..., None] > 0.5, body + hl[..., None], metal_rgb)
     a = np.maximum(stone, bezel)
     img = np.dstack([np.clip(rgb, 0, 1) * 255, np.clip(a, 0, 1)[..., None] * 255]).astype(np.uint8)
