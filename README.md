@@ -19,20 +19,11 @@ npm run electron:dev # run as a desktop app (Electron)
 npm run dist         # package a desktop build into release/
 ```
 
-## Web app (iPhone / Android) on Cloudflare Pages
+## Web app (iPhone / Android)
 
-The build is a static site that installs as a full-screen web app. It has a
-manifest, home-screen icons and an offline service worker (`public/`).
-
-To deploy it on Cloudflare Pages (free plan):
-
-1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** →
-   **Connect to Git**, and pick this repository.
-2. Build command: `npm run build`. Build output directory: `dist`.
-3. Production branch: the branch you want live. Every push to it redeploys.
-
-On iPhone, open the `*.pages.dev` address in **Safari**, tap **Share →
-Add to Home Screen**, and launch it from the icon to play full-screen.
+The game is served by its Cloudflare Worker (below), the only deployment. It installs as a full-screen web app
+(manifest, home-screen icons and an offline service worker, in `public/`). On iPhone, open the Worker's address in
+**Safari**, tap **Share → Add to Home Screen**, and launch it from the icon.
 
 ## Online 1v1 (play with a friend on your own devices)
 
@@ -53,8 +44,6 @@ Wrangler prints the address, e.g. `https://blue-loop.<your-subdomain>.workers.de
 - **Tidying up:** an idle room costs nothing. It hibernates between moves, and it deletes itself an hour after its game ends, or after a day without play.
 
 **Try it locally first:** `npm run server` runs the Worker and rooms on your machine at http://localhost:8787. Open it in two browser windows to play yourself.
-
-**Playing online from the Pages site:** the Pages build only has the game files, not the rooms. To play online from your `*.pages.dev` address, set the environment variable `VITE_SERVER_URL=https://blue-loop.<your-subdomain>.workers.dev` in the Pages project's build settings and redeploy. Otherwise share the `workers.dev` address, which has both.
 
 ## Accounts
 
