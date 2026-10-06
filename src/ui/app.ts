@@ -4185,7 +4185,7 @@ export class App {
         ${tile('toggle-stats', 'share game stats', sharingStats() ? 'on' : 'off')}
         ${tile('rules', 'how to play', 'read')}
       </div>
-      <p class="opt-note muted">Game stats are anonymous: the decks played, the cards used and who won, never who played. They help us balance the game.</p>`,
+      <p class="opt-note muted">Game stats are anonymous: the decks played, the moves made and who won, never who played. They help us balance the game and teach the AI.</p>`,
       '',
     );
   }

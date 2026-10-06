@@ -295,10 +295,25 @@ export function setSharingStats(on: boolean) {
  * A finished game's anonymous summary (src/engine/stats.ts: the decks, the result, the cards played; nothing
  * about the players), sent for balancing unless switched off. Never in the way: a failure is just dropped.
  */
-export function sendGameStats(stats: unknown) {
+export function sendGameStats(stats: { trace?: unknown; trace64?: string }) {
   if (!sharingStats() || !account()) return;
   const version = typeof __GAME_VERSION__ === 'string' ? __GAME_VERSION__ : 'dev';
-  void api('stats', 'POST', { stats, version }).catch(() => undefined);
+  void (async () => {
+    // The game's moves go compressed (a few kilobytes), for training the AI.
+    const { trace, ...rest } = stats;
+    const out: typeof stats = { ...rest };
+    if (trace) out.trace64 = (await gzip64(JSON.stringify(trace)).catch(() => undefined)) ?? undefined;
+    await api('stats', 'POST', { stats: out, version });
+  })().catch(() => undefined);
+}
+
+/** Text, gzipped, as base64. */
+async function gzip64(text: string): Promise<string> {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
 
 /** A game against the AI ended: the server pays its reward (null: none, e.g. too short, or today's limit reached). */

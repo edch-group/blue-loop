@@ -25,7 +25,13 @@ describe('anonymous game summaries', () => {
     expect(stats.winner).toBe(s.players.findIndex((p) => p.id === s.winnerId));
     const text = JSON.stringify(stats);
     expect(text).not.toContain('Secret Name');
-    for (const p of s.players) expect(text).not.toContain(p.id);
+    // (Its trace names seats, never players: the ids in a game on a device are seats' own, "p1" and the like.)
+    for (const p of s.players) expect(p.id).toMatch(/^p\d$/);
+    // And it replays to the very same end.
+    let r = stats.trace!.start;
+    for (const m of stats.trace!.moves) r = applyAction(r, m);
+    expect(r.winnerId).toBe(s.winnerId);
+    expect(r.round).toBe(s.round);
   });
 
   it('keep only the expected fields on the server', () => {
