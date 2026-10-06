@@ -492,9 +492,9 @@ function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
 }
 
 /**
- * The badge's shield: a heater shield with a bevelled silver rim, an enamel face lit from the top left, a
+ * The badge's shield: a heater shield with a bevelled rim, a polished silver face lit from the top left, a
  * centre ridge (its right half in shade), a highlight, and a glint that sweeps across it now and then. Its
- * colours are CSS variables, so the same drawing serves raised (blue) and down (pale steel).
+ * colours are CSS variables, so the same drawing serves raised (silver) and down (pale steel, faint).
  */
 const SHIELD_PATH = 'M50 3 L93 15 V50 C93 79 75 97 50 107 C25 97 7 79 7 50 V15 Z';
 const SHIELD_FACE = 'M50 12 L84 21.5 V50 C84 73 70 88 50 96.5 C30 88 16 73 16 50 V21.5 Z';
