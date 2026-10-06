@@ -834,6 +834,9 @@ export class App {
 
     root.addEventListener('click', (e) => this.onClick(e));
     root.addEventListener('input', (e) => this.onInput(e));
+    // Forms are the game's own to send: the browser's sending (a page reload, mid sign-in) never happens. (Here, not
+    // as an inline onsubmit: the page's Content Security Policy blocks inline handlers.)
+    root.addEventListener('submit', (e) => e.preventDefault());
     // Online, a new name reaches the room once typed (on leaving the field), so the lobby does not redraw mid-word.
     root.addEventListener('change', (e) => {
       if ((e.target as HTMLElement).dataset.seatName === '0' && this.online && this.screen === 'menu') this.online.setup(this.joinInfo());
@@ -3997,7 +4000,7 @@ export class App {
         : `<button class="link-btn" type="button" data-act="auth-mode" data-arg="signin">${mode === 'signup' ? 'I have an account: sign in' : 'back to sign in'}</button>`;
     return `
       ${back}
-      <form class="signin" onsubmit="return false">
+      <form class="signin">
         ${this.titleBlock(true)}
         <h2 class="menu-heading">${heading}</h2>
         ${this.pendingOAuth ? `<small class="auth-note">One last thing before your account is made:</small>` : social}
