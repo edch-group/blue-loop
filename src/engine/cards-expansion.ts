@@ -99,8 +99,8 @@ export const EXPANSION: CardDef[] = [
   },
 
   // ---- Neutral growth ----
-  { id: 'survey_probe', name: 'Survey Probe', kind: 'growth', text: 'Draw 1. Your {orbit:+1}. {shield:1}.', onPlay: [{ type: 'draw', amount: 1 }, { type: 'orbit', amount: 1, who: 'self' }, { type: 'shield', amount: 1 }] },
-  { id: 'star_chart', name: 'Star Chart', kind: 'growth', text: 'Draw 1. {restore:1}. {cool:1}.', onPlay: [{ type: 'draw', amount: 1 }, { type: 'restore', amount: 1 }, { type: 'cool', amount: 1 }] },
+  { id: 'survey_probe', name: 'Survey Probe', kind: 'growth', text: 'Your {orbit:+3}. {cool:1}.', onPlay: [{ type: 'orbit', amount: 3, who: 'self' }, { type: 'cool', amount: 1 }] },
+  { id: 'star_chart', name: 'Star Chart', kind: 'growth', text: '{restore:2}. Draw 1.', onPlay: [{ type: 'restore', amount: 2 }, { type: 'draw', amount: 1 }] },
   {
     id: 'gravity_well',
     name: 'Gravity Well',
@@ -427,7 +427,7 @@ export const EXPANSION: CardDef[] = [
   { id: 'shard_echo', name: 'Shard Echo', kind: 'growth', race: 1, text: '{recall}. {cool:1}.', onPlay: [{ type: 'recall' }, { type: 'cool', amount: 1 }] },
   // More recall, for every deck: a card that comes back to be played again (and the recall card can take its slot).
   { id: 'tactical_withdrawal', name: 'Tactical Withdrawal', kind: 'growth', text: '{recall}. Your {orbit:+1}.', onPlay: [{ type: 'recall' }, { type: 'orbit', amount: 1, who: 'self' }] },
-  { id: 'rally_banner', name: 'Rally Banner', kind: 'attack', race: 0, text: '{recall}. {heat:1}. {shield:1}.', onPlay: [{ type: 'recall' }, { type: 'heat', amount: 1, to: 'target' }, { type: 'shield', amount: 1 }] },
+  { id: 'rally_banner', name: 'Rally Banner', kind: 'attack', race: 0, text: '{recall}. {heat:1}.', onPlay: [{ type: 'recall' }, { type: 'heat', amount: 1, to: 'target' }] },
   { id: 'spore_return', name: 'Spore Return', kind: 'growth', race: 3, text: '{recall}. {renew:1}.', onPlay: [{ type: 'recall' }, { type: 'restore', amount: 1, all: true }] },
   {
     id: 'overcharge',
@@ -496,8 +496,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Pressure Wave',
     kind: 'attack',
     race: 2,
-    text: '{erode:1}. {heat:1}. {shield:1}.',
-    onPlay: [{ type: 'erode', amount: 1 }, { type: 'heat', amount: 1, to: 'target' }, { type: 'shield', amount: 1 }],
+    text: '{heat:2}. {shield:1}.',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'shield', amount: 1 }],
   },
   {
     id: 'coral_bastion',
@@ -521,8 +521,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Deep Hymn',
     kind: 'growth',
     race: 2,
-    text: '{cool:1}. Draw 1. {shield:1}.',
-    onPlay: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1 }, { type: 'shield', amount: 1 }],
+    text: '{shield:3}. Draw 1.',
+    onPlay: [{ type: 'shield', amount: 3 }, { type: 'draw', amount: 1 }],
   },
   {
     id: 'jelly_swarm',
@@ -563,9 +563,9 @@ export const EXPANSION: CardDef[] = [
     name: 'Stinging Coral',
     kind: 'defence',
     race: 2,
-    text: '{sting:1}. {dawn}: {shield:1}.',
+    text: '{sting:2}. {dawn}: {shield:1}.',
     onTurn: [{ type: 'shield', amount: 1 }],
-    passive: [{ type: 'retaliate', amount: 1 }],
+    passive: [{ type: 'retaliate', amount: 2 }],
   },
   { id: 'sunken_bell', name: 'Sunken Bell', kind: 'growth', race: 2, text: '{recall}. {shield:2}.', onPlay: [{ type: 'recall' }, { type: 'shield', amount: 2 }] },
   {
@@ -652,8 +652,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Ixquor Sporelings',
     kind: 'growth',
     race: 3,
-    text: 'Draw 1. {energy:1}. {plant:1}.',
-    onPlay: [{ type: 'draw', amount: 1 }, { type: 'plays', amount: 1 }, { type: 'plant', amount: 1 }],
+    text: '{energy:1}. {plant:1}.',
+    onPlay: [{ type: 'plays', amount: 1 }, { type: 'plant', amount: 1 }],
   },
   {
     id: 'brood_chamber',

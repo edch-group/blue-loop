@@ -10,8 +10,9 @@
   --ink-soft: #737780;
   --ink-faint: #a6a9b0;
   --line: rgba(120, 124, 134, 0.22);
-  --glass: rgba(255, 255, 255, 0.6);
-  --glass-strong: rgba(255, 255, 255, 0.86);
+  /* Panels and popovers are solid: see-through ones read badly over the board and the map. */
+  --glass: #f7f7f5;
+  --glass-strong: #fcfcfb;
   --shadow: 0 8px 30px rgba(90, 90, 110, 0.13), 0 2px 6px rgba(90, 90, 110, 0.07);
   --bar: linear-gradient(90deg, #8a8c91, #a9abaf 45%, #cfd0d2);
   --gold: #b99b5a;
@@ -83,8 +84,6 @@ input { font: inherit; }
   border: 1px solid rgba(255, 255, 255, 0.95);
   border-radius: 14px;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px) saturate(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(1.05);
 }
 .bar-title {
   /* Crisp white headers: dark type on the panel's own white, a hairline beneath. */

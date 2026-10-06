@@ -915,6 +915,8 @@ A wall deck built with them wins 50% against the starters and 86% against the ch
 - The Cantor cools 2 with 3+ attack cards.
 - The Tidecaller adds +2 shields with 3+ defence cards.
 
+**Across races too, and at most two things at 1 energy.** The check now also runs across races (`ANY=1 npm run dominated`, and the test does both): a race's card should never be outright worse than another race's, even though they never share a deck (Fracture Seer drew 3 for 1 heat to your sun, Eclipse Rite 3 for 2). It found 8 pairs, each made equal or a real trade: Fracture Seer is now 2 heat to your sun; Rally Banner loses its shield (Shard Recall's equal); Flarekin Dancer takes 1 heat to your sun (Glory Charge's equal); Sporelings drops its draw; Stinging Coral is Sting 2 (Umbral Snare trades it for its Lightspeed); Astral Lance drops its heat (Solstice Choir's equal); Cinder Brute's dawn heat is 3 for its heat to your sun; Vesper Knight's bonus is +2. And a one-off 1-energy card does at most two things (a drawback aside), worth about 3 heat (heat 3, or heat 2 and a small rider, cool 2 and draw 1, draw 2): Heat Sink is cool 2 and draw 1; Deep Hymn shields 3 and draws 1; Star Chart restores 2 and draws 1; Survey Probe is orbit +3 and cool 1; Pressure Wave heats 2 and shields 1; Eclipse Caster is the rival's orbit −2 and draw 1; Tide-Turner is orbit +2 and cool 2. `npm run power` gives a rough points budget per card, by cost, for spotting the rest. The 600-game starter spread is unchanged within noise. [direction: no objectively weaker cards; uneven 1-cost cards]
+
 The check now reports none.
 
 **Energy dumps (X).** Seven cards spend all the energy you have left (at least 1, shown by a purple X gem). Their effects grow with each energy spent:

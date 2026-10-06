@@ -39,7 +39,7 @@ export const CARDS: CardDef[] = [
   { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: '{dusk}: {cool:1}.', onDusk: [{ type: 'cool', amount: 1 }] },
   { id: 'cryo_vault', name: 'Cryo Vault', kind: 'defence', text: '{cool:3}.', onPlay: [{ type: 'cool', amount: 3 }] },
   { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: '{sturdy:1}. {dawn}: {shield:2}.', defence: 1, onTurn: [{ type: 'shield', amount: 2 }] },
-  { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: '{cool:1}. Draw 1. {shield:1}.', onPlay: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1 }, { type: 'shield', amount: 1 }] },
+  { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: '{cool:2}. Draw 1.', onPlay: [{ type: 'cool', amount: 2 }, { type: 'draw', amount: 1 }] },
   { id: 'deep_scanners', name: 'Deep-Space Scanners', kind: 'growth', text: 'Draw 2.', onPlay: [{ type: 'draw', amount: 2 }] },
 
   // ---- Global: one at a time on the whole table; a new one replaces it ----
@@ -292,7 +292,7 @@ export const CARDS: CardDef[] = [
     onPlay: [{ type: 'cool', amount: 3 }],
     onDusk: [{ type: 'cool', amount: 1 }],
   },
-  { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 3. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 1 }] },
+  { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 3. {heat:2} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 2 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
   { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:1}. {tidewall}. {dawn}: {shield:3}.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }], passive: [{ type: 'taunt' }, { type: 'tidewall' }] },

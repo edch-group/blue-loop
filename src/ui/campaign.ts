@@ -1194,7 +1194,7 @@ export class CampaignView {
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <p class="cmp-hint">${hint}</p>
-      <div class="pop-row">${a.damage && here.owner === me.id ? this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '') : ''}<button class="pill-btn" data-act="cmp-deck-army" data-arg="${a.id}">deck</button>${a.owner === me.id ? `<button class="pill-btn ${skillPoints(heroState(me, a.general)) > 0 ? 'pill-on' : ''}" data-act="cmp-hero-open" data-arg="${a.general}">hero${skillPoints(heroState(me, a.general)) > 0 ? ' ●' : ''}</button>` : ''}<button class="pill-btn" data-act="cmp-select" data-arg="${here.id}">its system</button></div>`;
+      ${a.damage && here.owner === me.id ? `<div class="pop-row">${this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '')}</div>` : ''}`;
   }
 
   /** Repair one point, or all of it (as far as the credits go). */

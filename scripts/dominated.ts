@@ -6,6 +6,7 @@
  */
 import { dominatedPairs } from './dominance';
 
-const found = dominatedPairs(!!process.env.RACE);
+// ANY=1: across races too (a race's card should never be outright worse than another race's).
+const found = dominatedPairs(!!process.env.RACE, !!process.env.ANY);
 console.log(found.length ? found.join('\n') : 'No strictly worse cards.');
 console.log(`${found.length} pairs`);
