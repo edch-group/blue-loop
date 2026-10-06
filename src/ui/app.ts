@@ -4607,11 +4607,22 @@ export class App {
     const known = keepBz === undefined && !from ? this.zoomFits.get(key) : undefined;
     if (known) {
       set(known.bz, known.zx, known.zy);
-      void game.offsetWidth;
-      game.style.transition = '';
-      frameTableaus(this.root);
-      settle();
-      return;
+      // Checked before it is trusted (one measure): worked out earlier, the tableau may have changed since (a Hero or
+      // a face-down card arrived in its slot), and the zoom would ease to the old place, then jump to the right one.
+      const r = span();
+      const fits =
+        !!r &&
+        Math.abs(w / 2 - (r.left + r.width / 2)) < 3 &&
+        Math.abs(h / 2 - (r.top + r.height / 2)) < 3 &&
+        (Math.abs(r.width - (w - 2 * 76)) < w * 0.02 || Math.abs(r.height - h * 0.94) < h * 0.02);
+      if (fits) {
+        void game.offsetWidth;
+        game.style.transition = '';
+        frameTableaus(this.root);
+        settle();
+        return;
+      }
+      this.zoomFits.delete(key);
     }
     let bz = keepBz ?? 1.6, zx = from?.zx ?? 0, zy = from?.zy ?? 0;
     set(bz, zx, zy);
