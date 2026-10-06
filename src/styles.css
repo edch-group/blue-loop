@@ -5214,3 +5214,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   --hole-l: radial-gradient(ellipse calc(var(--cut-l) * 0.5) calc(var(--cut-l) * 0.26) at calc(var(--cw, 100px) * 0.155) calc(100% - var(--cw, 100px) * 0.078), transparent 55%, #000 100%);
   --hole-r: radial-gradient(ellipse calc(var(--cut-r) * 0.5) calc(var(--cut-r) * 0.26) at calc(100% - var(--cw, 100px) * 0.155) calc(100% - var(--cw, 100px) * 0.078), transparent 55%, #000 100%);
 }
+/* The gem sits up in the picture, in a big curved bump of the card rising into its bottom edge (clear of the
+   race line below). The bump is a broad half-ellipse; the picture's edge line follows it. */
+.card .art-wrap .gem { transform: translate(-50%, calc(50% - var(--gs) * 0.72)); }
+.card .art-wrap .art-frame > * {
+  --bump-x: calc(var(--gem-s) * 2.3); --bump-y: calc(var(--gem-s) * 1.55);
+  -webkit-mask: radial-gradient(ellipse var(--bump-x) var(--bump-y) at 50% 100%, transparent calc(100% - 0.6px), #000 100%);
+  mask: radial-gradient(ellipse var(--bump-x) var(--bump-y) at 50% 100%, transparent calc(100% - 0.6px), #000 100%);
+}
+.card .gem .gem-light { -webkit-mask: linear-gradient(180deg, #000 56%, transparent 68%); mask: linear-gradient(180deg, #000 56%, transparent 68%); }
+.card:not(:has(> .card-racerow)) > .card-glyph { margin-bottom: calc(var(--gem-s) * 0.15); }
