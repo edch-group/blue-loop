@@ -200,8 +200,6 @@ export function cardArt(def: CardDef, gem = false): string {
 /** Each card's picture as an image (drawn once, then reused). */
 const sceneImages = new Map<string, string>();
 function sceneImage(def: CardDef): string {
-  // (A card's campaign version has its card's picture.)
-  if (def.campaignOf) return sceneImage(cardDef(def.campaignOf));
   let img = sceneImages.get(def.id);
   if (!img) {
     const painted = !def.fusedFrom && renderedArt(def.id);
@@ -333,7 +331,6 @@ export function playerAvatar(cardId: string | undefined, cls = ''): string {
  * a card without one, which keeps the plain stock.
  */
 export function cardStock(def: CardDef): string {
-  if (def.campaignOf) return cardStock(cardDef(def.campaignOf));
   const url = def.fusedFrom ? undefined : renderedArt(def.id);
   // (Every card also has its dark corner sections, where its attack and stability sit: styles.css, "corners".)
   return `<span class="card-corners" aria-hidden="true"></span>` + (url ? `<span class="card-stock" style="--art:url('${url}')" aria-hidden="true"></span>` : '');
@@ -434,18 +431,7 @@ const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<'
  * A card's type and race, for the foot of the card: the type is a small pill (placed at the top middle
  * of the card by the stylesheet), the race small text where the line sits.
  */
-/** What a card is aboard a ship (its campaign version): a character is crew, the rest weapons, defences and systems. */
-export function campaignRole(def: CardDef): string {
-  if (def.kind === 'command') return 'captain';
-  if (def.character) return 'crew';
-  return def.kind === 'attack' ? 'weapon' : def.kind === 'defence' ? 'defence' : 'system';
-}
-
 export function typeLine(def: CardDef): string {
-  if (def.campaignOf) {
-    const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
-    return `<span class="card-type">${escType(campaignRole(def))}</span>${race}`;
-  }
   const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
   return `<span class="card-type">${escType(KIND_NAME[def.kind])}</span>${race}`;
 }
@@ -620,8 +606,18 @@ export function cardBodyHtml(def: CardDef, chosen?: string, live: Record<number,
   return row + cardTextHtml(def.text, chosen, false, live);
 }
 
+/** Campaign battles: drawing a card stabilises an ally instead, and the cards say so (set while one is on screen). */
+let campaignText = false;
+export function setCampaignText(on: boolean) {
+  campaignText = on;
+}
+/** "Draw 2" as it reads in a campaign battle: "Stabilise 2" (an ally, the most worn). */
+export function campaignWords(text: string): string {
+  return text.replace(/\b([Dd])raws? (\d+|X)(?: more)?(?: cards?)?/g, (_, d: string, n: string) => `${d === 'D' ? 'S' : 's'}tabilise ${n}`);
+}
+
 export function cardTextHtml(text: string, chosen?: string, inline = false, live: Record<number, number> = {}): string {
-  const parts = textParts(text);
+  const parts = textParts(campaignText ? campaignWords(text) : text);
   // Nothing but a few symbols ("Heat 2", "Heat 2. Cool 1"): they sit in the middle of the text box.
   const symbols = parts.filter((p) => 'kw' in p);
   const only = symbols.length > 0 && symbols.length <= 3 && parts.every((p) => ('kw' in p ? KEYWORDS[p.kw]?.symbol : /^[\s.,]*$/.test(p.text)));

@@ -1642,7 +1642,6 @@ export function renderedArt(id: string): string | undefined {
 
 /** The window a card's picture sits in: a sky in its palette, with stars and the picture. */
 export function cardScene(def: CardDef): string {
-  if (def.campaignOf) return cardScene(cardDef(def.campaignOf));
   if (def.fusedFrom) return fusedScene(def);
   const painted = RENDERED[def.id];
   if (painted) return `<svg class="art" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><image href="${painted}" width="160" height="100" preserveAspectRatio="xMidYMid slice"/></svg>`;

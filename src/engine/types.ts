@@ -72,15 +72,7 @@ export type Condition =
  * owner's turns in turn: a dead planet (nothing), an abundant one (draw an
  * extra card each day) and an industrial one (play an extra card each day).
  */
-export type Planet = 'dead' | 'abundant' | 'industrial' | 'armed' | 'shielded';
-/**
- * A planet of a sun's own (the space adventure: the planets of the system a side fights from, in place of the
- * card game's three). Armed: your cards +1 attack today. Shielded: +1 shield at dawn.
- */
-export interface OrbitPlanet {
-  name: string;
-  kind: Planet;
-}
+export type Planet = 'dead' | 'abundant' | 'industrial';
 
 export type Effect = (
   /** Heat your target's sun, or every enemy sun. */
@@ -250,8 +242,6 @@ export interface CardDef {
   passive?: Passive[];
   /** A fused card (campaign armory): the two cards it was made from. */
   fusedFrom?: [string, string];
-  /** A card's campaign version ("cmp:" and its id): the card it is made from (its picture is that card's). */
-  campaignOf?: string;
 }
 
 export interface CardInstance {
@@ -271,8 +261,6 @@ export interface CardInstance {
   /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
   /** Dimmed: it has taken its action (attacked, or a Hero used an ability) and can't act again until its owner's next dawn. Cards come into play dimmed. */
   dimmed?: boolean;
-  /** Campaign battles: it has been activated today (once a day). */
-  activated?: boolean;
   boons?: string[];
   /** In a tableau: Fusion cards fused onto it (their effects, passives, Sturdy and stability are its own now). */
   fused?: CardInstance[];
@@ -315,8 +303,6 @@ export interface TurnStats {
 }
 
 export interface PlayerState {
-  /** Its sun's own planets, in orbit order (the card game's three if none). */
-  planets?: OrbitPlanet[];
   id: string;
   name: string;
   isAI: boolean;
@@ -336,10 +322,6 @@ export interface PlayerState {
   rooms?: ShipRooms;
   /** Campaign battles: the hero, beaten, recovering: back in the command room once `left` of their dawns have passed. */
   wounded?: { card: CardInstance; left: number };
-  /** Campaign battles: cards knocked out of their rooms (returned to "hand"), back in a day. */
-  benched?: { card: CardInstance; slot: number; left: number }[];
-  /** Campaign battles: the ship's energy store (its most), and what it regains each day. Energy carries over. */
-  energy?: { cap: number; regen: number };
   /** Campaign battles: cards destroyed, out of the battle for good. */
   fallen?: CardInstance[];
   /** Wear on the defence of empty slots, left by the cards that stood there (slot → points). */
@@ -361,7 +343,7 @@ export interface PlayerState {
   turnsTaken: number;
   /** Cards this player may still play today. */
   playsLeft: number;
-  /** Where this player's planets are: three turns per planet (the card game's: 0–2 dead, 3–5 abundant, 6–8 industrial), moving on one each day. */
+  /** Where this player's planets are: 0–8, three turns per planet (0–2 dead, 3–5 abundant, 6–8 industrial), moving on one each day. */
   orbit: number;
   turn: TurnStats;
   /** Rivals this player's Stinging Veil has already stung today (the turn number, and who). */
@@ -449,8 +431,6 @@ export interface BattleSkill {
 }
 
 export interface PlayerSetup {
-  /** Its sun's own planets, in orbit order (the card game's three if none). */
-  planets?: OrbitPlanet[];
   name: string;
   isAI: boolean;
   /** The deck, as card ids (default: a starter, by seat). */
@@ -480,8 +460,6 @@ export interface PlayerSetup {
   rooms?: ShipRooms;
   /** Campaign battles: the hero's own training (extra attack and defence on their card). */
   heroStats?: { attack: number; defence: number };
-  /** Campaign battles: the ship's energy store and its regeneration (see PlayerState.energy). */
-  energy?: { cap: number; regen: number };
 }
 
 /** A campaign ship's rooms in battle: extra defence and attack for the card in each tableau slot, and the command room's extra defence. */
@@ -533,10 +511,5 @@ export type Action =
   | { type: 'heroAbility'; index: number; /** An ability that heats: the rival card it goes to (unset: their sun, or a Guard). */ aimUid?: string }
   /** One of your cards attacks: one of your rival's cards, or their sun (target null). */
   | { type: 'attack'; attackerUid: string; targetUid: string | null }
-  /**
-   * Campaign battles: a card in one of your ship's rooms fires its play effect again, for its cost from your
-   * energy, once a day. Its targets as for playing it.
-   */
-  | { type: 'activate'; cardUid: string; choice?: string; enemyUid?: string; allyUid?: string; aimUid?: string }
   /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string };

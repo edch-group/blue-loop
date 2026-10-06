@@ -6,8 +6,6 @@ import {
   RACE_TRAITS,
   SUBRACES,
   attackProblem,
-  activateProblem,
-  activateCost,
   cardAttack,
   applyAction,
   BALANCE,
@@ -58,7 +56,6 @@ import {
   targetOf,
   planetsEaten,
   currentPlanet,
-  planetIndex,
   type Action,
   type BoosterCard,
   type BoosterKind,
@@ -77,10 +74,9 @@ import { backdrop } from './backdrop';
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
 import { CampaignView, loadCampaign } from './campaign';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
-import { FACTION_COLOUR, factionAvatar } from './factions';
-import { shipModel, SHIP_LAYOUTS, STATION_LAYOUT } from './ships';
-import { aim, anchorRect, beam, laser, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { factionAvatar } from './factions';
+import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
+import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine, setCampaignText } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -148,8 +144,6 @@ interface Pending {
   drop?: { slot?: number | 'ls'; uid?: string };
   /** A Lightspeed guard set face down instead (its Lightspeed slot chosen). */
   faceDown?: boolean;
-  /** Campaign battles: a card in its room being activated (uid is that card): its targets as for playing it. */
-  activate?: boolean;
 }
 
 /** What an AI player just played (or a Lightspeed card that just sprang), shown large at the middle right. */
@@ -259,7 +253,7 @@ const LUNGE_HIT = 0.58;
 const BANNER_GAP_MS = 1300;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, activate: 1500, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -572,8 +566,6 @@ function savedStatsRec(mark: string): GameStats | null {
     return null;
   }
 }
-
-
 
 export class App {
   private screen: Screen = 'menu';
@@ -1375,11 +1367,6 @@ export class App {
     const { cards, sun } = aimChoices(s, me);
     const attackers = sun || cards.length ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
     if (attackers) out.push(`${attackers} card${attackers === 1 ? '' : 's'} that can still attack`);
-    // Aboard a ship: cards in its rooms that can still be activated.
-    if (s.campaign) {
-      const ready = me.tableau.filter((c) => !activateProblem(s, me, c.uid)).length;
-      if (ready) out.push(`${ready} card${ready === 1 ? '' : 's'} to activate`);
-    }
     const hero = commandCard(me);
     if (hero && (cardDef(hero.defId).abilities ?? []).some((_, i) => !heroAbilityProblem(s, me, i))) out.push(`${cardDef(hero.defId).name}'s ability`);
     return out;
@@ -1519,19 +1506,11 @@ export class App {
     const planet = currentPlanet(p, s);
     const gives =
       planet === 'abundant'
-        ? s.campaign
-          ? `<i class="tb-gift" title="Stabilise ${BALANCE.abundantDraw} at dawn">stabilise ${BALANCE.abundantDraw}</i>`
-          : `<i class="tb-gift" title="Draw ${BALANCE.abundantDraw} more at dawn">${HAND_ICON}+${BALANCE.abundantDraw}</i>`
+        ? `<i class="tb-gift" title="Draw ${BALANCE.abundantDraw} more at dawn">${HAND_ICON}+${BALANCE.abundantDraw}</i>`
         : planet === 'industrial'
           ? `<i class="tb-gift" title="${BALANCE.industrialPlays} more energy today"><b class="tb-energy"></b>+${BALANCE.industrialPlays}</i>`
-          : planet === 'armed'
-            ? `<i class="tb-gift" title="Your cards have +${BALANCE.armedAttack} attack today">attack +${BALANCE.armedAttack}</i>`
-            : planet === 'shielded'
-              ? `<i class="tb-gift" title="+${BALANCE.shieldedShields} shield at dawn">shield +${BALANCE.shieldedShields}</i>`
-              : '';
-    // A sun's own planet (the space adventure) by its name.
-    const own = p.planets?.length && !planetsEaten(s, p) ? p.planets[planetIndex(p.orbit, p)] : null;
-    return `<div class="turn-banner-orbit">${own ? esc(own.name.toLowerCase()) : `${planet} orbit`}${gives}</div>`;
+          : '';
+    return `<div class="turn-banner-orbit">${planet} orbit${gives}</div>`;
   }
 
   /**
@@ -1542,8 +1521,7 @@ export class App {
   private announcePhases(actor: PlayerState, next: GameState, turnPassed: boolean, animate = true) {
     if (isGameOver(next) || this.needsHandoff()) return;
     const you = this.viewer().id;
-    // (A ship battle's rival is long-named, and the only one: the enemy's.)
-    const named = (p: PlayerState, phase: string) => (p.id === you ? phase : next.campaign ? `enemy ${phase}` : `${p.name.toLowerCase()}'s ${phase}`);
+    const named = (p: PlayerState, phase: string) => (p.id === you ? phase : `${p.name.toLowerCase()}'s ${phase}`);
     const round = `round ${roman(next.round)}`;
     const now = activePlayer(next);
     // A dusk or dawn in which nothing happened (and nothing is asked) is passed over, banner and all.
@@ -1617,8 +1595,6 @@ export class App {
 
   /** Opening hand: shuffle, then deal the viewer's cards in one by one. */
   private dealOpening() {
-    // (A ship battle has no hand to deal.)
-    if (this.state?.campaign) return;
     sound.shuffle();
     const cards = this.root.querySelectorAll<HTMLElement>('.hand [data-uid]');
     // (The hand can't be raised while it is being dealt.)
@@ -1769,8 +1745,6 @@ export class App {
     if (!el || !target) return false;
     const from = pageRect(el);
     const to = pageRect(target);
-    // Campaign battles are ship to ship: the card's room fires on the target instead of the card flying at it.
-    if (this.state?.campaign) return this.laserStrike(el, target, from, to, owner?.id === this.viewer().id);
     // A copy of the card flies over everything (the board's rows would clip the card itself), the card
     // itself hidden meanwhile: lifted, tilted back, then into the target just short of its centre.
     const cs = getComputedStyle(el);
@@ -1820,27 +1794,6 @@ export class App {
       );
       pulse(target, 'hit-flash');
     }, Math.round(LUNGE_MS * LUNGE_HIT));
-    return true;
-  }
-
-  /** A campaign attack: the attacker's guns charge and fire a volley across, landing as the blow does. */
-  private laserStrike(el: HTMLElement, target: HTMLElement, from: DOMRect, to: DOMRect, mine: boolean): boolean {
-    const hitAt = Math.round(LUNGE_MS * LUNGE_HIT);
-    const shots = 3;
-    const gap = 90;
-    // (Timed so the last bolt lands as the move does.)
-    const start = Math.max(0, hitAt - ((shots - 1) * gap + 110));
-    pulse(el, 'laser-charge');
-    window.setTimeout(() => sound.flare(), start);
-    laser(from, to, mine ? '#7fe3ff' : '#ff7a5c', { delay: start, shots, gap });
-    window.setTimeout(() => {
-      sound.impact(true);
-      target.animate(
-        [{ transform: 'translate(0, 0)' }, { transform: 'translate(-5px, 2px)' }, { transform: 'translate(4px, -2px)' }, { transform: 'translate(-2px, 1px)' }, { transform: 'translate(0, 0)' }],
-        { duration: 320, composite: 'add' },
-      );
-      pulse(target, 'hit-flash');
-    }, hitAt);
     return true;
   }
 
@@ -1909,11 +1862,6 @@ export class App {
   }
 
   private stageFor(actor: PlayerState, action: Action): Stage | null {
-    // (Campaign: a rival's card activated in its room is shown as a card played would be.)
-    if (action.type === 'activate') {
-      const room = actor.tableau.find((c) => c.uid === action.cardUid);
-      return room ? { defId: room.defId, actorId: actor.id, caption: `${actor.name.toLowerCase()} activates`, target: action.enemyUid ?? action.aimUid } : null;
-    }
     if (action.type !== 'playCard') return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
@@ -2148,7 +2096,7 @@ export class App {
         const vit = el.querySelector('.vit');
         if (!vit) return;
         const now = el.innerHTML;
-        vit.outerHTML = vitals({ heat: was.heat, threshold: supernovaThreshold(was), shields: was.shields, dead: was.eliminated, id: was.id, orbit: was.orbit, planets: was.planets });
+        vit.outerHTML = vitals({ heat: was.heat, threshold: supernovaThreshold(was), shields: was.shields, dead: was.eliminated, id: was.id, orbit: was.orbit });
         setShieldBadge(root, p.id, was.shields);
         animateSuns();
         window.setTimeout(() => {
@@ -2372,7 +2320,7 @@ export class App {
       if (id !== this.replayId) return;
       const p = next.players.find((x) => x.id === pid)!;
       root.querySelectorAll(`[data-anchor="player:${pid}"] .vit`).forEach((vit) => {
-        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit, planets: p.planets });
+        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit });
       });
       setShieldBadge(root, pid, sun.shields);
       animateSuns();
@@ -2661,33 +2609,11 @@ export class App {
   }
 
   /** Ask for the next choice the pending card needs, or play it once it has them all. */
-  /** Campaign battles: activating a card in its room, asking for what its effect needs (a rival card, an ally, where heat goes). */
-  private advanceActivate(p: Pending) {
-    const s = this.state!;
-    const me = activePlayer(s);
-    const card = me.tableau.find((c) => c.uid === p.uid);
-    if (!card) {
-      this.pending = null;
-      return this.render();
-    }
-    const ask = (step: Pending['step']) => {
-      p.step = step;
-      this.render();
-    };
-    if (enemyChoices(s, me, card.defId).length > 0 && !p.enemyUid) return ask('enemy');
-    if (allyChoices(me, card.defId).some((c) => c.uid !== card.uid) && !p.allyUid) return ask('ally');
-    if (aimable(card.defId) && aimChoices(s, me).cards.length > 0 && !p.aimUid) return ask('aim');
-    this.pending = null;
-    sound.play();
-    return this.dispatch({ type: 'activate', cardUid: card.uid, enemyUid: p.enemyUid, allyUid: p.allyUid, aimUid: p.aimUid === 'sun' ? undefined : p.aimUid });
-  }
-
   private advancePlay() {
     const p = this.pending;
     const s = this.state!;
     if (!p) return;
     const me = activePlayer(s);
-    if (p.activate) return this.advanceActivate(p);
     const card = me.hand.find((c) => c.uid === p.uid);
     if (!card) {
       this.pending = null;
@@ -3408,13 +3334,6 @@ export class App {
         this.heroPanel = this.heroPanel === arg ? null : arg;
         sound.hover();
         return this.render();
-      case 'room-activate': {
-        const why = activateProblem(this.state!, this.viewer(), arg);
-        if (why) return this.showToast(why, 'info');
-        this.heroPanel = null;
-        this.pending = { uid: arg, step: 'aim', activate: true };
-        return this.advanceActivate(this.pending);
-      }
       case 'hero-ability': {
         const why = heroAbilityProblem(this.state!, this.viewer(), Number(arg));
         if (why) return this.showToast(why, 'info');
@@ -3511,6 +3430,7 @@ export class App {
     // The page is morphed into its new markup, not rebuilt: only what changed is touched, so the board,
     // its cards and canvases stay as they are between moves (rebuilding it all made every action slow).
     // (A campaign battle's cards read "Stabilise" where others read "Draw".)
+    setCampaignText(this.screen !== 'menu' && this.screen !== 'campaign' && !!this.state?.campaign);
     morphInto(this.root, this.screen === 'menu' ? this.renderMenu() : this.screen === 'campaign' ? this.campaign.render() + (this.zoomed ? this.renderZoom() : '') : this.renderGame());
     this.keptHand = new WeakSet([...this.root.querySelectorAll<HTMLElement>('.hand > .card[data-uid]')].filter((el) => held.has(el)));
     const again = [...this.root.querySelectorAll<HTMLElement>(SCROLL_KEEP)];
@@ -4310,7 +4230,7 @@ export class App {
     // The whole play area is a table seen in perspective; pop-ups and the
     // played-card stage sit outside it so they stay flat and readable.
     return `
-      <main class="table-view${s.campaign ? ' ship-view' : ''}${this.boardZoom && !s.campaign ? ` zoom-${this.boardZoom}` : ''}" style="${this.boardZoom && !s.campaign ? this.zoomVars : ''}">
+      <main class="table-view${this.boardZoom ? ` zoom-${this.boardZoom}` : ''}" style="${this.boardZoom ? this.zoomVars : ''}">
         <div class="game">
           <header class="top"></header>
           ${this.renderBoard()}
@@ -4344,7 +4264,7 @@ export class App {
    */
   private prefitQueued = false;
   private prefitZooms() {
-    if (this.prefitQueued || this.screen !== 'game' || this.boardZoom || reducedMotion() || this.state?.campaign) return;
+    if (this.prefitQueued || this.screen !== 'game' || this.boardZoom || reducedMotion()) return;
     const key = (side: string) => `${side}:${window.innerWidth}x${window.innerHeight}`;
     if (this.zoomFits.has(key('mine')) && this.zoomFits.has(key('rival'))) return;
     this.prefitQueued = true;
@@ -4380,8 +4300,6 @@ export class App {
   /** Zoom the board onto one tableau, or out (null): the board itself moves, so everything on it still works. */
   private setBoardZoom(side: 'rival' | 'mine' | null) {
     if (this.boardZoom === side) return;
-    // (A campaign battle's ships are seen whole: no zooming onto one.)
-    if (side && this.state?.campaign) return;
     const was = this.boardZoom;
     this.boardZoom = side;
     sound.hover();
@@ -4703,93 +4621,19 @@ export class App {
     return `
       <section class="display board">
         <div class="board3d">
-          <div class="board-plane" ${this.state?.campaign ? `style="${this.shipSizes()}"` : ''}>
+          <div class="board-plane">
             <div class="board-floor"></div>
             <div class="board-star-slot" data-morph-keep></div>
             ${this.renderRoundRing()}
             ${this.renderPhaseTrack()}
-            ${this.state?.campaign ? '' : `${rival ? shieldBadge(rival.id, rival.shields, 'rival') : ''}${shieldBadge(me.id, me.shields, 'mine')}`}
-            ${rival ? this.shipped(rival, 'rival', this.renderTableau(rival, 'rival')) : ''}
+            ${rival ? shieldBadge(rival.id, rival.shields, 'rival') : ''}${shieldBadge(me.id, me.shields, 'mine')}
+            ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
-            ${this.shipped(me, 'mine', this.renderTableau(me, 'mine'))}
+            ${this.renderTableau(me, 'mine')}
           </div>
         </div>
       </section>`;
-  }
-
-  /**
-   * Campaign battles: a tableau as a ship seen side on (yours on the left, facing right; theirs on the right,
-   * facing left), its rooms the card slots, its command room at the bow. Its hull is drawn behind them, in its
-   * race's colours (a station, with no hero, is a squat platform); some races carry their sun aboard, the rest
-   * fight in front of it. Off campaign, the tableau as it is.
-   */
-  /**
-   * The ship view's sizes, from the window: the rooms' card width (each ship, its rooms, bow and stern, takes
-   * a little under half the width, and two decks of cards fit above the hand), and the 3D model's scale (its
-   * models are 40 units long), so the rooms sit inside the hull.
-   */
-  private shipSizes(): string {
-    // (The page's own size: on a big screen it is laid out smaller and drawn larger.)
-    const { w, h } = appSize();
-    // (Each ship is 10 cards long: its model is 40 units, a card 4.)
-    const tcw = Math.round(Math.max(40, Math.min(w / 21, h * 0.105, 104)));
-    return `--tcw:${tcw}px;--u:${(tcw / 4).toFixed(2)}px`;
-  }
-
-  /**
-   * Campaign battles: a tableau as a ship seen side on (yours on the left, facing right; theirs on the right,
-   * facing left): its race's 3D model, its rooms set into the hull where that ship has room for them (see
-   * SHIP_LAYOUTS), a card standing in each, the command room at the bow. Some races carry their sun aboard;
-   * the rest fight in front of it. Off campaign, the tableau as it is.
-   */
-  private shipped(p: PlayerState, side: 'mine' | 'rival', html: string): string {
-    if (!this.state?.campaign) return html;
-    const race = p.hero ? cardDef(p.hero).race : undefined;
-    const kind = race === undefined ? 'station' : 'ship';
-    const colour = (race !== undefined && FACTION_COLOUR[`f${race + 1}`]) || '#8d93a3';
-    const L = race === undefined ? STATION_LAYOUT : SHIP_LAYOUTS[race] ?? SHIP_LAYOUTS[0];
-    const sun = L.sun !== null ? 'aboard' : 'far';
-    // Positions in units (u: a quarter of a card's width): x along the ship (mirrored for theirs), y across it.
-    const X = (x: number) => (side === 'mine' ? x : 40 - x);
-    // (The box is the same height for every ship, 24 units at 1.35; a slim hull's model is stretched within it.)
-    const mid = 12 * 1.35;
-    const at = (x: number, y: number) => `calc(var(--u) * ${X(x).toFixed(2)}) ; calc(var(--u) * ${y.toFixed(2)})`;
-    // Rooms, stern to bow: in each column of two, the upper first. Slots in the order the board's were laid
-    // out before (the middle one, the safest, amidships), the hangar (the Lightspeed slot) among them.
-    const places: [number, number][] = [];
-    for (const [x, rows] of L.cols) {
-      if (rows === 1) places.push([x, mid]);
-      else places.push([x, mid - 3.25], [x, mid + 3.25]);
-    }
-    // (Five rooms: the middle column one, amidships, the safest.)
-    const order: number[] = [1, 0, 2, 3, 4];
-    // (--tcw again here: the board's own rule would size the cards for its table.)
-    const vars: string[] = [`--ac:${colour}`, '--rot:0deg', `--sy:${L.sy}`, '--tcw:calc(var(--u) * 4)'];
-    const rooms: string[] = [];
-    const r = p.rooms;
-    order.forEach((slot, i) => {
-      const [x, y] = places[i] ?? places[places.length - 1];
-      const [vx, vy] = at(x, y).split(' ; ');
-      vars.push(`--p${slot}x:${vx}`, `--p${slot}y:${vy}`);
-      const d = r?.defence[slot] ?? 0;
-      const a = r?.attack[slot] ?? 0;
-      const tag = `${d ? `walls +${d}` : ''}${d && a ? ' · ' : ''}${a ? `guns +${a}` : ''}`;
-      rooms.push(`<div class="ship-room" style="left:${vx};top:${vy}"><i class="ship-room-light"></i>${tag ? `<small>${tag}</small>` : ''}</div>`);
-    });
-    if (L.cmd !== null) {
-      const [cx, cy] = at(L.cmd, mid).split(' ; ');
-      vars.push(`--pcx:${cx}`, `--pcy:${cy}`);
-      rooms.push(`<div class="ship-room ship-room-cmd" style="left:${cx};top:${cy}"><i class="ship-room-light"></i></div>`);
-    }
-    // The sun: aboard, where the ship carries it; else behind it, above the stern. Its shields beside it.
-    const [sx, sy] = (L.sun !== null ? at(L.sun, mid) : at(5, mid - 6.2)).split(' ; ');
-    const [bx, by] = (L.sun !== null ? at(L.sun + 4.2, mid + 3.6) : at(9.6, mid - 3.2)).split(' ; ');
-    vars.push(`--psx:${sx}`, `--psy:${sy}`, `--pbx:${bx}`, `--pby:${by}`);
-    const model = `<div class="ship-model ship-model-${side}" aria-hidden="true"><div class="ship-model-in">${shipModel(race ?? 0, kind === 'station')}</div></div>`;
-    return html
-      .replace(`data-owner="${p.id}">`, `data-owner="${p.id}" data-ship="${kind}" data-sun="${sun}" style="${vars.join(';')}">`)
-      .replace('<div class="tableau-row-wrap">', `<div class="tableau-row-wrap">${model}${rooms.join('')}${shieldBadge(p.id, p.shields, side)}`);
   }
 
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
@@ -4870,7 +4714,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), lattice: !!st.campaign, planets: p.planets })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
@@ -4936,11 +4780,9 @@ export class App {
     const busy = this.pending !== null;
     const myTurn = activePlayer(s).id === me.id && !isGameOver(s);
     // The day's whole energy, spent pips left empty; energy beyond the day's usual amount (planets, cards) is amber: it is only for today.
-    // (Campaign: the ship's store, kept between days, all its pips shown, filled to what is left.)
-    const store = s.campaign && me.energy ? me.energy.cap : 0;
-    const total = store || Math.max(me.playsLeft, myTurn ? me.turn.energyTotal ?? playsAllowed(s, me) : 0);
-    const base = store || (me.turn.energyBase ?? total);
-    const pips = myTurn || store ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''} ${i >= base ? 'bonus' : ''}"></i>`).join('') : '';
+    const total = Math.max(me.playsLeft, myTurn ? me.turn.energyTotal ?? playsAllowed(s, me) : 0);
+    const base = me.turn.energyBase ?? total;
+    const pips = myTurn ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''} ${i >= base ? 'bonus' : ''}"></i>`).join('') : '';
     // A campaign hero's battle skills, above End Day: each a button with its cost (and spent, once used).
     const skills = (me.skills ?? [])
       .map((k, i) => {
@@ -4953,8 +4795,8 @@ export class App {
     return `
       ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
       <div class="turn-controls turn-corner">
-        <div class="plays ${myTurn ? '' : 'plays-off'}" title="${store ? `Your ship's energy: ${me.playsLeft} of ${store}. It carries over, and you regain ${me.energy!.regen} a day. Activating a card costs the number on its gem.` : 'Energy left today: each card costs the number on its gem'}">
-          <small>${store ? `energy ${me.playsLeft}/${store}` : myTurn ? 'energy' : 'waiting'}</small>
+        <div class="plays ${myTurn ? '' : 'plays-off'}" title="Energy left today: each card costs the number on its gem">
+          <small>${myTurn ? 'energy' : 'waiting'}</small>
           <span class="plays-pips">${pips}</span>
         </div>
         <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
@@ -4975,7 +4817,7 @@ export class App {
     let state = '';
     const s = this.state;
     const me = s ? activePlayer(s) : null;
-    const pendingDef = p && me ? (me.hand.find((h) => h.uid === p.uid) ?? (p.activate ? me.tableau.find((h) => h.uid === p.uid) : undefined))?.defId : undefined;
+    const pendingDef = p && me ? me.hand.find((h) => h.uid === p.uid)?.defId : undefined;
     if (p && pendingDef && me && opts.tableau === 'rival' && p.step === 'enemy' && enemyChoices(s!, me, pendingDef).some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
@@ -4994,12 +4836,7 @@ export class App {
       attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Choose what ${esc(def.name)} does today (hold or right-click to read it)"`;
       state = 'card-attacker';
     }
-    // Campaign: a card in your ship's rooms, with something it can do today (activate, attack): a tap opens its panel.
-    if (!p && act && me && s?.campaign && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && def.kind !== 'command' && c.slot !== undefined && this.roomActions(me, c).length) {
-      attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Choose what ${esc(def.name)} does today (hold or right-click to read it)"`;
-      state = 'card-attacker';
-    }
-    if ((p?.attack || p?.ability !== undefined || p?.activate) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
+    if ((p?.attack || p?.ability !== undefined) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';
     // Placing a recall card: the card it recalls can make way for it.
     if (p && pendingDef && opts.tableau === 'mine' && p.step === 'slot' && p.allyUid === c.uid && allyEffectKind(pendingDef) === 'recall' && c.slot !== undefined) {
@@ -5147,15 +4984,6 @@ export class App {
   }
 
   /** What the viewer's Hero can do right now: its usable abilities (by index), and 'attack' if it may attack. */
-  /** Campaign: what a card in its room can do today: be activated, attack. */
-  private roomActions(me: PlayerState, c: CardInstance): ('activate' | 'attack')[] {
-    const s = this.state!;
-    const out: ('activate' | 'attack')[] = [];
-    if (!activateProblem(s, me, c.uid)) out.push('activate');
-    if (!c.dimmed && !attackProblem(s, me, c.uid)) out.push('attack');
-    return out;
-  }
-
   private heroActions(me: PlayerState): (number | 'attack')[] {
     const s = this.state!;
     const hero = commandCard(me);
@@ -5174,18 +5002,6 @@ export class App {
     const s = this.state!;
     const me = this.viewer();
     const hero = commandCard(me);
-    // (Campaign: a card in a room has its panel too: activate it, or attack with it.)
-    const room = this.heroPanel ? me.tableau.find((c) => c.uid === this.heroPanel && c.slot !== COMMAND_SLOT) : undefined;
-    if (room && s.campaign) {
-      const acts = this.roomActions(me, room);
-      const card = this.renderCard(room, { static: true }).replace(/^(\s*)<button class="card /, '$1<div class="card card-still ').replace(/<\/button>\s*$/, '</div>').replace(/ data-act="[^"]*"/, '');
-      const why = activateProblem(s, me, room.uid);
-      return `<div class="stage stage-hero stage-room">${card}
-        <div class="room-acts">
-          <button class="btn-primary" data-act="room-activate" data-arg="${room.uid}" ${acts.includes('activate') ? '' : `disabled title="${esc(why ?? '')}"`}>activate · ${activateCost(me, room)} energy</button>
-          ${cardAttack(s, me, room) > 0 ? `<button class="btn" data-act="attack-start" data-arg="${room.uid}" ${acts.includes('attack') ? '' : 'disabled'}>attack · ${cardAttack(s, me, room)}</button>` : ''}
-        </div></div>`;
-    }
     if (!hero || hero.uid !== this.heroPanel) return '';
     const attack = this.heroActions(me).includes('attack');
     const card = this.renderCard(hero, { static: true })
@@ -5203,8 +5019,7 @@ export class App {
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
-    const roomPanel = !!s.campaign && !!this.heroPanel && this.viewer().tableau.some((c) => c.uid === this.heroPanel && c.slot !== COMMAND_SLOT);
-    if (!st && this.heroPanel && !isGameOver(s) && this.canAct() && (roomPanel || this.heroActions(this.viewer()).length)) return this.renderHeroPanel();
+    if (!st && this.heroPanel && !isGameOver(s) && this.canAct() && this.heroActions(this.viewer()).length) return this.renderHeroPanel();
     // A card picked from your hand: it waits here while you choose where it goes and what it does.
     const picked = !st && this.pending && !this.pending.attack && this.pending.ability === undefined ? activePlayer(s).hand.find((c) => c.uid === this.pending!.uid) : undefined;
     if (picked) {

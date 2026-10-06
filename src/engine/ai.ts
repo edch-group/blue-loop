@@ -35,7 +35,6 @@ import {
   aimable,
   abilityAimable,
 } from './game';
-import { activateCost, activateProblem } from './voyage/rules';
 import type { Action, CardInstance, Effect, GameState, PlayerState } from './types';
 
 /** A tuning number, overridable from the environment when simulating (npm run simulate); fixed everywhere else. */
@@ -241,14 +240,14 @@ function abilityValue(p: PlayerState, effects: Effect[]): number {
 }
 
 /** What each planet is worth for one turn (an extra card drawn; an extra card played). */
-const PLANET_VALUE = { dead: 0, abundant: tuning('ABUND', 0.9), industrial: tuning('INDUS', 1.3), armed: 1, shielded: 0.8 } as const;
+const PLANET_VALUE = { dead: 0, abundant: tuning('ABUND', 0.9), industrial: tuning('INDUS', 1.3) } as const;
 /** Own turns of orbit the AI looks ahead. */
 const ORBIT_HORIZON = 4;
 
 /** What a player's coming turns are worth from their orbit (from their next day, shifted by `shift`). */
 function orbitOutlook(p: PlayerState, shift = 0): number {
   let v = 0;
-  for (let k = 1; k <= ORBIT_HORIZON; k++) v += PLANET_VALUE[planetAt(p.orbit + shift + k, p)] * (1 - (k - 1) * 0.15);
+  for (let k = 1; k <= ORBIT_HORIZON; k++) v += PLANET_VALUE[planetAt(p.orbit + shift + k)] * (1 - (k - 1) * 0.15);
   return v;
 }
 
@@ -291,23 +290,6 @@ function evaluate(state: GameState, meId: string): number {
 }
 
 /** Every way to play one card now (placement, choice, removal, recall, restore and recovery choices included). */
-/** Campaign battles: each card in its rooms it could activate, with each set of targets it could take. */
-function candidateActivations(state: GameState, me: PlayerState): Action[] {
-  if (!state.campaign) return [];
-  const out: Action[] = [];
-  const opt = <T,>(list: T[]): (T | undefined)[] => (list.length ? list : [undefined]);
-  for (const card of me.tableau) {
-    if (activateProblem(state, me, card.uid) !== null) continue;
-    const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
-    const allies = opt(allyChoices(me, card.defId).filter((c) => c.uid !== card.uid).map((c) => c.uid));
-    const aim = aimable(card.defId) ? aimChoices(state, me) : { sun: true, cards: [] };
-    const aims: (string | undefined)[] = [...(aim.sun ? [undefined] : []), ...aim.cards.map((c) => c.uid)];
-    if (!aims.length) aims.push(undefined);
-    for (const enemyUid of foes) for (const allyUid of allies) for (const aimUid of aims) out.push({ type: 'activate', cardUid: card.uid, enemyUid, allyUid, aimUid });
-  }
-  return out;
-}
-
 function candidatePlays(state: GameState, me: PlayerState): Action[] {
   const plays: Action[] = [];
   const seen = new Set<string>();
@@ -411,8 +393,7 @@ export function chooseAIAction(state: GameState): Action {
     if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
     for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
-  const activations = candidateActivations(state, me);
-  if (!abilities.length && !attacks.length && !activations.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
+  if (!abilities.length && !attacks.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
   // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.
   let view = state;
@@ -425,7 +406,7 @@ export function chooseAIAction(state: GameState): Action {
   // The best gain any move makes, before charging its energy: energy left unspent at day's end is lost, so
   // ending the day only beats moving when every move hurts in itself.
   let bestRaw = -Infinity;
-  for (const action of [...attacks, ...abilities, ...activations, ...candidatePlays(view, me)]) {
+  for (const action of [...attacks, ...abilities, ...candidatePlays(view, me)]) {
     let next: GameState;
     try {
       next = applyAction(view, action);
@@ -437,12 +418,9 @@ export function chooseAIAction(state: GameState): Action {
     // (An ability is a free extra action, but for its energy.)
     const abilityCost = action.type === 'heroAbility' && hero ? cardDef(hero.defId).abilities![action.index].cost ?? 0 : 0;
     let extra = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) - 1 : abilityCost;
-    // Campaign: energy carries over, so what an activation spends is spent for good (weighed in full).
-    const activated = action.type === 'activate' ? me.tableau.find((c) => c.uid === action.cardUid) : undefined;
-    if (activated) extra = activateCost(me, activated) * 0.55;
     // Energy left at day's end is lost: it only costs something when other cards in hand want it today (what they
     // need beyond what is left after this play).
-    if (ENERGY_CONTENTION && extra > 0 && !activated) {
+    if (ENERGY_CONTENTION && extra > 0) {
       const left = me.playsLeft - (played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) : abilityCost);
       const wanted = me.hand.filter((c) => c.uid !== played?.uid && cardCost(c.defId) > 0 && cardCost(c.defId) <= me.playsLeft && hasRoomFor(me, c.defId)).reduce((n, c) => n + cardCost(c.defId), 0);
       extra = Math.min(extra, Math.max(0, wanted - left));
@@ -482,11 +460,6 @@ export function chooseAIAction(state: GameState): Action {
   aiLastDecision.baseline = baseline;
   aiLastDecision.best = best?.score ?? null;
   aiLastDecision.bestAction = best?.action ?? null;
-  // (Campaign: energy saved is energy for tomorrow, so a move has to be worth what it spends.)
-  if (state.campaign) {
-    if (!best || best.score < baseline + 0.05) return { type: 'endTurn' };
-    return best.action;
-  }
   if (!best || (ENERGY_CONTENTION ? bestRaw : best.score) < baseline - 1.5) return { type: 'endTurn' };
   return best.action;
 }

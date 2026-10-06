@@ -5,10 +5,10 @@
  * found when an army takes a system. Skills and gear alike are boons on the hero's own card (boons.ts):
  * abilities it carries while it is in play. What a whole faction's armies share is research (research.ts).
  */
-import { boon } from '../boons';
-import { cardDef } from '../cards';
-import { plainText } from '../keywords';
-import type { BattleSkill } from '../types';
+import { boon } from './boons';
+import { cardDef } from './cards';
+import { plainText } from './keywords';
+import type { BattleSkill } from './types';
 
 /** Kinds of gear slot. Every hero has a weapon; the rest are their race's. */
 export type SlotKind = 'weapon' | 'helm' | 'mantle' | 'sigil' | 'core' | 'facet' | 'ring' | 'carapace' | 'gland' | 'mask' | 'plate' | 'star' | 'ember';

@@ -37,9 +37,9 @@ function hull(path: string, detail: string, o: { slices?: number; step?: number;
   for (let i = 0; i < n; i++) {
     const t = i / n;
     const sc = 1 - taper * (1 - Math.sin((t * Math.PI) / 2));
-    out += `<svg class="s-slice" viewBox="0 0 40 24" preserveAspectRatio="none" style="transform:translateZ(calc(var(--zu, 1px) * ${(z0 + i * step).toFixed(1)})) scale(${sc.toFixed(3)})" aria-hidden="true"><path class="${o.side ?? 's-side'}" style="--k:${t.toFixed(2)}${o.sideFill ? `;fill:color-mix(in srgb, ${o.sideFill} calc(35% + var(--k) * 55%), #0a0810)` : ''}" d="${path}"/></svg>`;
+    out += `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(${(z0 + i * step).toFixed(1)}px) scale(${sc.toFixed(3)})" aria-hidden="true"><path class="${o.side ?? 's-side'}" style="--k:${t.toFixed(2)}${o.sideFill ? `;fill:color-mix(in srgb, ${o.sideFill} calc(35% + var(--k) * 55%), #0a0810)` : ''}" d="${path}"/></svg>`;
   }
-  out += `<svg class="s-slice" viewBox="0 0 40 24" preserveAspectRatio="none" style="transform:translateZ(calc(var(--zu, 1px) * ${(z0 + n * step).toFixed(1)}))" aria-hidden="true">${DEFS}<path class="s-deck" fill="url(#${o.deck ?? 'sg-deck'})" d="${path}"/>${detail}</svg>`;
+  out += `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(${(z0 + n * step).toFixed(1)}px)" aria-hidden="true">${DEFS}<path class="s-deck" fill="url(#${o.deck ?? 'sg-deck'})" d="${path}"/>${detail}</svg>`;
   return out;
 }
 
@@ -68,7 +68,7 @@ function orb(x: number, y: number, r: number, z0: number, cls: string, opts: { d
 }
 
 function disc(x: number, y: number, rx: number, ry: number, z: number, cls: string, k: number, bg?: string): string {
-  return `<i class="s-disc ${cls}" style="left:${(((x - rx) / 40) * 100).toFixed(2)}%;top:${(((y - ry) / 24) * 100).toFixed(2)}%;width:${(((rx * 2) / 40) * 100).toFixed(2)}%;height:${(((ry * 2) / 24) * 100).toFixed(2)}%;transform:translateZ(calc(var(--zu, 1px) * ${z.toFixed(1)}));--k:${k.toFixed(2)}${bg ? `;background:${bg}` : ''}"></i>`;
+  return `<i class="s-disc ${cls}" style="left:${(((x - rx) / 40) * 100).toFixed(2)}%;top:${(((y - ry) / 24) * 100).toFixed(2)}%;width:${(((rx * 2) / 40) * 100).toFixed(2)}%;height:${(((ry * 2) / 24) * 100).toFixed(2)}%;transform:translateZ(${z.toFixed(1)}px);--k:${k.toFixed(2)}${bg ? `;background:${bg}` : ''}"></i>`;
 }
 
 /** A spire: stacked diamonds narrowing to a point. */
@@ -77,14 +77,14 @@ function spire(x: number, y: number, w: number, z0: number, height: number, cls:
   for (let i = 0; i < slices; i++) {
     const t = i / slices;
     const ww = w * (1 - t);
-    out += `<i class="s-gem ${cls}" style="left:${(((x - ww / 2) / 40) * 100).toFixed(2)}%;top:${(((y - ww / 2) / 24) * 100).toFixed(2)}%;width:${((ww / 40) * 100).toFixed(2)}%;height:${((ww / 24) * 100).toFixed(2)}%;transform:translateZ(calc(var(--zu, 1px) * ${(z0 + t * height).toFixed(1)})) rotate(45deg);--k:${t.toFixed(2)}${bg ? `;background:${bg}` : ''}"></i>`;
+    out += `<i class="s-gem ${cls}" style="left:${(((x - ww / 2) / 40) * 100).toFixed(2)}%;top:${(((y - ww / 2) / 24) * 100).toFixed(2)}%;width:${((ww / 40) * 100).toFixed(2)}%;height:${((ww / 24) * 100).toFixed(2)}%;transform:translateZ(${(z0 + t * height).toFixed(1)}px) rotate(45deg);--k:${t.toFixed(2)}${bg ? `;background:${bg}` : ''}"></i>`;
   }
   return out;
 }
 
 /** An engine's exhaust: a glowing disc standing upright at the stern (x), facing backwards, at height z. */
 function exhaust(x: number, y: number, r: number, z: number): Part {
-  return `<i class="s-exhaust" style="left:${(((x - r) / 40) * 100).toFixed(2)}%;top:${(((y - r) / 24) * 100).toFixed(2)}%;width:${(((r * 2) / 40) * 100).toFixed(2)}%;height:${(((r * 2) / 24) * 100).toFixed(2)}%;transform:translateZ(calc(var(--zu, 1px) * ${z.toFixed(1)})) rotateY(90deg)"></i>`;
+  return `<i class="s-exhaust" style="left:${(((x - r) / 40) * 100).toFixed(2)}%;top:${(((y - r) / 24) * 100).toFixed(2)}%;width:${(((r * 2) / 40) * 100).toFixed(2)}%;height:${(((r * 2) / 24) * 100).toFixed(2)}%;transform:translateZ(${z.toFixed(1)}px) rotateY(90deg)"></i>`;
 }
 
 /** Lit windows: a row of small bright dots on a deck. */
@@ -115,19 +115,19 @@ const MODELS: (() => string)[] = [
     exhaust(4, 12, 1.4, 3.6),
   // Vorthane: a low living raft trailing tentacles, under a great glassy bell.
   () =>
-    `<svg class="s-slice" viewBox="0 0 40 24" preserveAspectRatio="none" style="transform:translateZ(calc(var(--zu, 1px) * 1))" aria-hidden="true"><path class="s-tails" d="M17 7c-5 0-6 2-11 1M16 10.5c-5 0-6 1.5-12 1M16 13.5c-5 0-6-1.5-12-1M17 17c-5 0-6-2-11-1"/></svg>` +
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(1px)" aria-hidden="true"><path class="s-tails" d="M17 7c-5 0-6 2-11 1M16 10.5c-5 0-6 1.5-12 1M16 13.5c-5 0-6-1.5-12-1M17 17c-5 0-6-2-11-1"/></svg>` +
     hull('M17 5c11-1 20 2.5 21 7-1 4.5-10 8-21 7-1.5-4.5-1.5-9.5 0-14z', '<path class="s-glow" d="M20 8.5v7M24 7.6v8.8M28 7.4v9.2M32 8v8"/>', { slices: 6, step: 0.6, deck: 'sg-reef', side: 's-side s-side-reef', taper: 0.3 }) +
     orb(26, 12, 7.4, 3.6, 's-bell', { dome: true, rx: 9.5, slices: 9 }) +
     disc(26, 12, 4, 3, 5, 's-core', 0.5),
   // Ixquor: a chitin seed pod on spined legs, plated, its living cap swelling up from the bow.
   () =>
-    `<svg class="s-slice" viewBox="0 0 40 24" preserveAspectRatio="none" style="transform:translateZ(calc(var(--zu, 1px) * 0.5))" aria-hidden="true"><path class="s-legs" d="M14 8 8 3M20 7l-3-5.5M14 16l-6 5M20 17l-3 5.5"/></svg>` +
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(0.5px)" aria-hidden="true"><path class="s-legs" d="M14 8 8 3M20 7l-3-5.5M14 16l-6 5M20 17l-3 5.5"/></svg>` +
     orb(21, 12, 7, 0.5, 's-pod', { rx: 15, slices: 9, h: 0.55 }) +
-    `<svg class="s-slice" viewBox="0 0 40 24" preserveAspectRatio="none" style="transform:translateZ(calc(var(--zu, 1px) * 8.4))" aria-hidden="true"><path class="s-plates" d="M11 8.5c1.5 2 1.5 5 0 7M15 6.8c2 3 2 7.4 0 10.4M19.5 6.2c2 3.4 2 8.2 0 11.6"/></svg>` +
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(8.4px)" aria-hidden="true"><path class="s-plates" d="M11 8.5c1.5 2 1.5 5 0 7M15 6.8c2 3 2 7.4 0 10.4M19.5 6.2c2 3.4 2 8.2 0 11.6"/></svg>` +
     orb(28, 12, 5, 8, 's-cap', { dome: true, slices: 6 }),
   // Nyxari: a low black blade of a ship, swept crescent wings either side of a hooded dome with one violet eye.
   () =>
-    `<svg class="s-slice" viewBox="0 0 40 24" preserveAspectRatio="none" style="transform:translateZ(calc(var(--zu, 1px) * 0.6))" aria-hidden="true"><path d="M8 3c-3 1-5 .6-7 1.6M8 21c-3-1-5-.6-7-1.6M14 12H2" fill="none" stroke="#9d8cff" stroke-width="0.7" stroke-linecap="round" stroke-opacity="0.5"/></svg>` +
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(0.6px)" aria-hidden="true"><path d="M8 3c-3 1-5 .6-7 1.6M8 21c-3-1-5-.6-7-1.6M14 12H2" fill="none" stroke="#9d8cff" stroke-width="0.7" stroke-linecap="round" stroke-opacity="0.5"/></svg>` +
     hull('M39 12C30 9.4 22 5.4 7 1.5c6 4.4 8.6 7.4 8.6 10.5S13 18.1 7 22.5C22 18.6 30 14.6 39 12z', '<path class="s-facet" d="M39 12H16M30 9.6 15.6 12 30 14.4M22 6.4 15.6 12 22 17.6"/><path d="M8.5 2.6c5 3.6 7.6 6.4 7.6 9.4s-2.6 5.8-7.6 9.4" fill="none" stroke="#b8a8ff" stroke-width="0.5"/>', { slices: 5, step: 0.55, deck: 'sg-void', sideFill: '#3a3270', taper: 0.35 }) +
     orb(22, 12, 3.8, 3.2, 's-dome', { dome: true, rx: 5.6, slices: 6, bg: 'radial-gradient(circle at 40% 35%, #6a5ca8, #1d1838 65%, #07060f)' }) +
     disc(25.4, 12, 1.1, 0.8, 7.2, 's-eye', 0.5, 'radial-gradient(circle, #fff, #c8b8ff 40%, rgba(157, 140, 255, 0) 75%)') +
@@ -147,7 +147,7 @@ const MODELS: (() => string)[] = [
   // Seren: a slender pale star-skiff under a crescent sail, an orrery turning above its deck, two moons on its rings.
   () =>
     hull('M39.5 12C33 9.4 22 8.4 10 9.2L4 11v2l6 1.8c12 .8 23-.2 29.5-2.8z', '<path d="M8 12h30" fill="none" stroke="#a9c4ff" stroke-width="0.5"/>' + windows([[33, 12], [30, 12], [27, 12]]), { slices: 6, step: 0.6, deck: 'sg-pearl', sideFill: '#8a9ac8', taper: 0.3 }) +
-    `<svg class="s-slice" viewBox="0 0 40 24" preserveAspectRatio="none" style="transform:translateZ(calc(var(--zu, 1px) * 9))" aria-hidden="true"><path d="M15 4.6a7.4 7.4 0 1 0 0 14.8 5.6 5.6 0 0 1 0-14.8z" fill="#e8eeff" fill-opacity="0.85" stroke="#fff" stroke-width="0.3"/></svg>` +
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(9px)" aria-hidden="true"><path d="M15 4.6a7.4 7.4 0 1 0 0 14.8 5.6 5.6 0 0 1 0-14.8z" fill="#e8eeff" fill-opacity="0.85" stroke="#fff" stroke-width="0.3"/></svg>` +
     block('M12.4 11.4h1.2v1.2h-1.2z', 3.7, 5.4, 'sg-pearl') +
     orb(21, 12, 2, 6.4, 's-star', { slices: 6, bg: 'radial-gradient(circle at 40% 35%, #fff, #e8f0ff 45%, #a9c4ff)' }) +
     disc(21, 12, 6.5, 2.4, 8, 's-ring', 0.5, 'transparent;border:0.35px solid rgba(232, 240, 255, 0.9);box-sizing:border-box') +
@@ -157,7 +157,7 @@ const MODELS: (() => string)[] = [
     exhaust(4, 12, 1.1, 2.4),
   // Pyrr: a living flare, a hull like a flame laid on its side, its tongues streaming astern round a white-hot heart.
   () =>
-    `<svg class="s-slice" viewBox="0 0 40 24" preserveAspectRatio="none" style="transform:translateZ(calc(var(--zu, 1px) * 0.8))" aria-hidden="true"><path d="M12 7C8 5 5 7 1 4.5M10 12c-4-1-6 1-9 0M12 17c-4 2-7 0-11 2.5" fill="none" stroke="#ff7a1e" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.8"/><path d="M12 7C8 5 5 7 1 4.5M10 12c-4-1-6 1-9 0M12 17c-4 2-7 0-11 2.5" fill="none" stroke="#ffe27a" stroke-width="0.5" stroke-linecap="round"/></svg>` +
+    `<svg class="s-slice" viewBox="0 0 40 24" style="transform:translateZ(0.8px)" aria-hidden="true"><path d="M12 7C8 5 5 7 1 4.5M10 12c-4-1-6 1-9 0M12 17c-4 2-7 0-11 2.5" fill="none" stroke="#ff7a1e" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.8"/><path d="M12 7C8 5 5 7 1 4.5M10 12c-4-1-6 1-9 0M12 17c-4 2-7 0-11 2.5" fill="none" stroke="#ffe27a" stroke-width="0.5" stroke-linecap="round"/></svg>` +
     hull('M39 12C36.4 7.4 29 5.2 21 6.6 16 4.2 12 5 7 2.6c3 3.4 3.8 5.4-2 6.8 4 1.4 4 3.8 0 5.2 5.8 1.4 5 3.4 2 6.8 5-2.4 9-1.6 14-4 8 1.4 15.4-.8 18-5.4z', '<path d="M38 12C30 10.6 22 9 14 6M38 12c-8 1.4-16 3-24 6M38 12H9" fill="none" stroke="#fff3c4" stroke-width="0.45" stroke-opacity="0.8"/>', { slices: 6, step: 0.6, deck: 'sg-ember', sideFill: '#c8401a', taper: 0.3 }) +
     orb(24, 12, 3.2, 3.4, 's-heart', { slices: 7, bg: 'radial-gradient(circle at 42% 38%, #ffffff, #fff0a0 30%, #ff9a2a 60%, #e8301a)' }) +
     spire(16, 12, 3.2, 3.8, 6, 's-tongue', 5, 'linear-gradient(135deg, #fff3c4, #ff7a1e 60%, #c8201a)') +
@@ -184,29 +184,3 @@ export function shipModel(race: number, lost: boolean): string {
   }
   return html;
 }
-
-/**
- * Campaign battles: where each race's ship has its rooms, in the model's own units (40 long, 24 across; the
- * bow at +x), so every room sits inside the hull. `sy` stretches the model across (seen side on, a slim hull
- * needs more height for its rooms); `cols` are the room columns, stern to bow, each one room or two (one
- * above the other); `sun` is where a ship that carries its sun has it (null: it burns behind the ship); `cmd`
- * the command room, at the bow (null: a station, with no hero).
- */
-export interface ShipLayout {
-  sy: number;
-  cols: [x: number, rows: 1 | 2][];
-  sun: number | null;
-  cmd: number | null;
-}
-export const SHIP_LAYOUTS: ShipLayout[] = [
-  { sy: 1.4, cols: [[14.6, 2], [19.6, 1], [24.6, 2]], sun: 7.4, cmd: 30.6 }, // Aureline: its sun carried astern
-  { sy: 1.4, cols: [[10.6, 2], [15.6, 1], [20.6, 2]], sun: null, cmd: 26.6 }, // Xel'Naru
-  { sy: 1.12, cols: [[20, 2], [25, 1], [30, 2]], sun: null, cmd: 35 }, // Vorthane
-  { sy: 1.18, cols: [[13.5, 2], [18.5, 1], [23.5, 2]], sun: null, cmd: 29.5 }, // Ixquor
-  { sy: 2.1, cols: [[19.4, 2], [24, 1], [28.6, 2]], sun: null, cmd: 33.4 }, // Nyxari
-  { sy: 1.05, cols: [[9.6, 2], [25, 1], [30, 2]], sun: 17.4, cmd: 35 }, // Korrath: the sun in the furnace
-  { sy: 2.5, cols: [[16, 2], [21, 1], [26, 2]], sun: null, cmd: 31.6 }, // Seren
-  { sy: 1.12, cols: [[10.6, 2], [15.6, 1], [29.6, 2]], sun: 22.6, cmd: 35 }, // Pyrr: the sun its white-hot heart
-];
-/** A station (no hero): the derelict's hull, rooms amidships. */
-export const STATION_LAYOUT: ShipLayout = { sy: 1.15, cols: [[14, 2], [19, 1], [24, 2]], sun: null, cmd: null };

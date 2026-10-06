@@ -753,7 +753,7 @@ for (const t of TOKENS) Object.assign(t, { cost: 0 });
 const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS].map((c) => [c.id, c]));
 
 export function cardDef(defId: string): CardDef {
-  const def = BY_ID.get(defId) ?? fusedDef(defId) ?? sourcedDef(defId);
+  const def = BY_ID.get(defId) ?? fusedDef(defId);
   if (!def) throw new Error(`Unknown card: ${defId}`);
   return def;
 }
@@ -847,24 +847,6 @@ function fusedDef(id: string): CardDef | undefined {
   };
   FUSED.set(id, def);
   return def;
-}
-
-// ---------------------------------------------------------------------------
-// Other games' versions of cards (the space adventure's: voyage/cards.ts), made on demand from their ids.
-// ---------------------------------------------------------------------------
-
-type CardSource = (id: string) => CardDef | undefined;
-const SOURCES: CardSource[] = [];
-/** Let another game make its own versions of cards (by an id prefix of its own), looked up like any card. */
-export function addCardSource(source: CardSource) {
-  SOURCES.push(source);
-}
-function sourcedDef(id: string): CardDef | undefined {
-  for (const source of SOURCES) {
-    const def = source(id);
-    if (def) return def;
-  }
-  return undefined;
 }
 
 export function allCardDefs(): CardDef[] {

@@ -1,4 +1,4 @@
-import { BALANCE, planetAt, planetsOf, type OrbitPlanet, type Planet } from '../engine';
+import { BALANCE, planetAt, type Planet } from '../engine';
 
 /**
  * Procedural art: placeholders until commissioned artwork arrives. Swap any
@@ -44,23 +44,7 @@ const PLANET_LOOK: Record<Planet, { name: string; text: string }> = {
   dead: { name: 'dead', text: 'The dead planet: nothing today.' },
   abundant: { name: 'abundant', text: 'The abundant planet: draw an extra card each day.' },
   industrial: { name: 'industrial', text: 'The industrial planet: play an extra card each day.' },
-  armed: { name: 'armed', text: `An armed world: your cards have +${BALANCE.armedAttack} attack each day.` },
-  shielded: { name: 'shielded', text: `A shielded world: +${BALANCE.shieldedShields} shield at each dawn.` },
 };
-/** What a sun's own planet does, aboard a ship (the space adventure: no deck to draw from, energy in store). */
-const SHIP_PLANET_TEXT: Partial<Record<Planet, string>> = {
-  dead: 'nothing',
-  abundant: `stabilise ${BALANCE.abundantDraw} at each dawn`,
-  industrial: `+${BALANCE.industrialPlays} energy at each dawn`,
-};
-/** A planet as its tag and tip say: a sun's own by its name, the card game's by its kind. */
-function planetInfo(orbit: number, own?: OrbitPlanet[]): { name: string; text: string; kind: Planet } {
-  const kind = planetAt(orbit, { planets: own });
-  if (!own?.length) return { ...PLANET_LOOK[kind], kind };
-  const pl = own[Math.floor((((orbit % (own.length * 3)) + own.length * 3) % (own.length * 3)) / 3)];
-  const does = SHIP_PLANET_TEXT[kind] ?? PLANET_LOOK[kind].text.split(': ')[1].replace(/\.$/, '');
-  return { name: pl.name.toLowerCase(), text: `${pl.name}, ${PLANET_LOOK[kind].name}: ${does}.`, kind };
-}
 
 /**
  * The rings round a sun lie flat on the board, as true circles (the board's
@@ -99,76 +83,29 @@ function ringTracks(heatArc: number, shieldArc: number, orbit: number | undefine
  * sun today is at the front; the others wait their day behind and to
  * the sides (one step of the orbit is 40°, clockwise).
  */
-function orbitPlanets(orbit: number, own?: OrbitPlanet[]): string {
-  const order = planetsOf({ planets: own });
-  const step = 360 / (order.length * 3);
-  const facing = Math.floor((((orbit % (order.length * 3)) + order.length * 3) % (order.length * 3)) / 3);
-  return order
+function orbitPlanets(orbit: number): string {
+  const order: Planet[] = ['dead', 'abundant', 'industrial'];
+  const facing = planetAt(orbit);
+  const planets = order
     .map((pl, i) => {
-      const deg = 90 - (i * 3 + 1 - orbit) * step;
+      const deg = 90 - (i * 3 + 1 - orbit) * 40;
       const [x, y] = ringPoint(ORBIT_R, deg);
-      const tip = planetInfo(i * 3, own).text;
-      return `<i class="vit-planet vp-${pl} ${i === facing ? 'vp-facing' : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" title="${tip}"></i>`;
+      return `<i class="vit-planet vp-${pl} ${pl === facing ? 'vp-facing' : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" title="${PLANET_LOOK[pl].text}"></i>`;
     })
     .join('');
+  return planets;
 }
 
 /** The tag naming the planet facing the sun, and its days left there. */
-function planetTag(orbit: number, eaten = false, own?: OrbitPlanet[]): string {
-  const facing = planetInfo(orbit, own);
+function planetTag(orbit: number, eaten = false): string {
+  const facing = planetAt(orbit);
   const left = BALANCE.orbitTurns - (((orbit % BALANCE.orbitTurns) + BALANCE.orbitTurns) % BALANCE.orbitTurns);
   // A rival's galaxy eater has its planets: whichever faces the sun counts as dead.
   if (eaten) return `<div class="vit-planet-tag vt-dead vt-eaten" title="A rival's Orion, Galaxy Eater has eaten this sun's planets: they count as dead, giving no energy or cards.">eaten · ${left}</div>`;
-  return `<div class="vit-planet-tag vt-${facing.kind}" title="${facing.text} ${left} more day${left === 1 ? '' : 's'} before the next planet comes round.">${facing.name} · ${left}</div>`;
+  return `<div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more day${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
 }
 
-/**
- * Shields as a half-sphere of hexagons in front of a sun (campaign battles), its curve facing the enemy: a
- * lattice of hex cells laid over the half of a globe that faces right (the rival's is mirrored), seen from the
- * side, so the cells crowd and thin as they curve away, those on the far side faint. Brighter the more shields
- * are up; hidden with none.
- */
-let latticeSvg = '';
-function shieldLattice(): string {
-  if (latticeSvg) return latticeSvg;
-  const R = 50;
-  const tilt = (22 * Math.PI) / 180;
-  const deg = Math.PI / 180;
-  // A point on the globe (longitude, latitude), tilted towards the viewer, seen from the front: x, y and depth.
-  const project = (lon: number, lat: number) => {
-    const x = Math.cos(lat) * Math.sin(lon);
-    const y0 = Math.sin(lat);
-    const z0 = Math.cos(lat) * Math.cos(lon);
-    const y = y0 * Math.cos(tilt) - z0 * Math.sin(tilt);
-    const z = y0 * Math.sin(tilt) + z0 * Math.cos(tilt);
-    return { x: x * R, y: -y * R, z };
-  };
-  const cells: string[] = [];
-  const size = 9 * deg;
-  const dx = size * 1.5;
-  const dy = size * Math.sqrt(3);
-  for (let col = -Math.ceil(Math.PI / dx); col <= Math.ceil(Math.PI / dx); col++) {
-    for (let row = -9; row <= 9; row++) {
-      const lon = col * dx;
-      const lat = row * dy + (col % 2 ? dy / 2 : 0);
-      if (Math.abs(lat) > 82 * deg) continue;
-      const c = project(lon, lat);
-      // (Only the half facing the enemy: the cap of the globe towards +x.)
-      if (c.x < R * 0.05) continue;
-      // (Cells are wider in longitude towards the poles, so they keep their shape on the globe.)
-      const pts = Array.from({ length: 6 }, (_, k) => {
-        const a = (k * Math.PI) / 3;
-        const p = project(lon + (Math.cos(a) * size * 0.92) / Math.max(0.25, Math.cos(lat)), lat + Math.sin(a) * size * 0.92);
-        return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
-      }).join(' ');
-      cells.push(`<polygon points="${pts}" style="opacity:${(0.18 + Math.max(0, (c.z + 1) / 2) * 0.82).toFixed(2)}"/>`);
-    }
-  }
-  latticeSvg = `<svg class="vit-lattice" viewBox="-52 -52 104 104" aria-hidden="true"><defs><radialGradient id="lat-glow"><stop offset="0.72" stop-color="#bfe4ff" stop-opacity="0"/><stop offset="0.97" stop-color="#bfe4ff" stop-opacity="0.45"/><stop offset="1" stop-color="#bfe4ff" stop-opacity="0"/></radialGradient></defs><path d="M0 -51A51 51 0 0 1 0 51Z" fill="url(#lat-glow)"/><g class="vit-lattice-cells">${cells.join('')}</g></svg>`;
-  return latticeSvg;
-}
-
-export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number; eaten?: boolean; lattice?: boolean; planets?: OrbitPlanet[] }): string {
+export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number; eaten?: boolean }): string {
   const { heat, threshold, shields, dead } = opts;
   const t = Math.max(0, Math.min(1, heat / threshold));
   const cold = heat < 0 ? Math.min(1, heat / BALANCE.minHeat) : 0;
@@ -188,11 +125,10 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
     <div class="vit ${dead ? 'vit-dead' : ''} ${danger ? 'vit-danger' : ''} ${shields > 0 ? 'vit-shielded' : ''} ${cold ? 'vit-cold' : ''}" style="--core:${core};--rim:${rim}">
       <canvas class="vit-sun sun3d" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-danger="${danger ? 1 : 0}" data-dead="${dead ? 1 : 0}" data-seed="${(seed / 997) * 6.28}" aria-hidden="true"></canvas>
       ${ringTracks(heatArc, shieldArc, orbit)}
-      <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" ${opts.planets?.length ? `data-planets="${opts.planets.map((x) => x.kind).join(',')}"` : ''} data-pid="${opts.id ?? ''}" aria-hidden="true"></canvas>
-      ${orbit !== undefined ? orbitPlanets(orbit, opts.planets) : ''}
-      ${opts.lattice ? `<div class="vit-shell" style="--sh:${Math.min(1, shields / 4).toFixed(2)}">${shieldLattice()}</div>` : ''}
+      <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" data-pid="${opts.id ?? ''}" aria-hidden="true"></canvas>
+      ${orbit !== undefined ? orbitPlanets(orbit) : ''}
       <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
-      <div class="vit-under">${orbit !== undefined ? planetTag(orbit, opts.eaten, opts.planets) : ''}</div>
+      <div class="vit-under">${orbit !== undefined ? planetTag(orbit, opts.eaten) : ''}</div>
     </div>`;
 }
 

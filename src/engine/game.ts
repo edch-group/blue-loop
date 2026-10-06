@@ -7,47 +7,6 @@ import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect,
 
 export class GameError extends Error {}
 
-// ---------------------------------------------------------------------------
-// Another game's rules: the space adventure's ship-to-ship battles (GameSetup.campaign) run on this engine,
-// through these hooks wherever its rules differ from the card game's. Its module installs them
-// (voyage/rules.ts): the card game's own rules carry none of it.
-// ---------------------------------------------------------------------------
-
-export interface ShipRules {
-  /** A side as the battle begins: its cards into its rooms, its energy store. */
-  setup(state: GameState, p: PlayerState): void;
-  /** A side's day begins: whatever comes back into its rooms. */
-  dayBegins(state: GameState, p: PlayerState): void;
-  /** Its energy as its day starts. */
-  dawnEnergy(state: GameState, p: PlayerState): number;
-  /** A draw effect, by these rules. */
-  draw(state: GameState, p: PlayerState, card: CardInstance | null, amount: number): void;
-  /** A card leaving its room for `to` (its room was `room`): true if these rules have put it somewhere. */
-  leaving(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck', room: number | undefined): boolean;
-  /** Where a card out of play goes (out for the battle). */
-  graveyard(owner: PlayerState): CardInstance[];
-  /** After a card has left: whether its side has anything left to fight with. */
-  afterLeave(state: GameState, owner: PlayerState): void;
-  /** What a ship adds to a card's defence (its room, a hero's training). */
-  defence(p: PlayerState, card: CardInstance): number;
-  /** A card's attack aboard a ship, from its own (its room's guns, a hero's training; 0 or less: none). */
-  attack(p: PlayerState, card: CardInstance, base: number): number;
-  /** Activate a card in its room. */
-  activate(state: GameState, p: PlayerState, action: Extract<Action, { type: 'activate' }>): void;
-}
-let shipRules: ShipRules | null = null;
-export function installShipRules(rules: ShipRules) {
-  shipRules = rules;
-}
-/** The ship rules a battle runs by (null: the card game's own). */
-function ship(state: GameState): ShipRules | null {
-  if (!state.campaign) return null;
-  if (!shipRules) throw new Error('Ship battles need their rules: import the voyage module (voyage/rules.ts).');
-  return shipRules;
-}
-/** A side fighting from a ship (rooms, a trained hero), for what needs no game state. */
-const aboard = (p: PlayerState) => (p.rooms || p.heroStats ? shipRules : null);
-
 const emptyTurn = (): TurnStats => ({ heatDealt: 0, cardsPlayed: 0, cooled: 0 });
 
 function newCard(state: GameState, defId: string): CardInstance {
@@ -55,8 +14,7 @@ function newCard(state: GameState, defId: string): CardInstance {
   return { uid: `c${state.uidCounter}`, defId: cardDef(defId).id };
 }
 
-/** Add a line to the battle's log. (Exported for another game's rules: voyage/rules.ts.) */
-export function log(state: GameState, text: string) {
+function log(state: GameState, text: string) {
   const seq = (state.log[state.log.length - 1]?.seq ?? 0) + 1;
   state.log.push({ seq, turn: state.turnNumber, text });
   if (state.log.length > BALANCE.maxLogEntries) state.log.splice(0, state.log.length - BALANCE.maxLogEntries);
@@ -117,8 +75,6 @@ export function createGame(setup: GameSetup): GameState {
       ...(ps.hero ? { hero: ps.hero } : {}),
       ...(ps.heroStats ? { heroStats: { ...ps.heroStats } } : {}),
       ...(ps.rooms ? { rooms: { defence: [...ps.rooms.defence], attack: [...ps.rooms.attack], command: ps.rooms.command } } : {}),
-      ...(ps.energy ? { energy: { ...ps.energy } } : {}),
-      ...(ps.planets?.length ? { planets: ps.planets.map((x) => ({ ...x })) } : {}),
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
     // A garrison takes the safest slots first; a Hero already in play (a campaign hero's Herald) leads from the
@@ -130,12 +86,6 @@ export function createGame(setup: GameSetup): GameState {
       if (cardDef(id).kind === 'command') {
         if (!commandCard(p)) place(p, card, COMMAND_SLOT);
       } else if (safest.length) place(p, card, safest.shift()!);
-    }
-    const rules = ship(state);
-    if (rules) {
-      state.players.push(p);
-      rules.setup(state, p);
-      return;
     }
     if (ps.lightspeed && cardDef(ps.lightspeed).kind === 'lightspeed') p.lightspeed = newCard(state, ps.lightspeed);
     state.players.push(p);
@@ -242,29 +192,13 @@ export function fusionHosts(p: PlayerState): CardInstance[] {
 /** Cards this player may play on a day (before any have been played). */
 // ---- Orbit ------------------------------------------------------------------
 
-export const PLANETS: Planet[] = ['dead', 'abundant', 'industrial'];
-/** A whole orbit of the card game's: three planets, three turns each. */
+const PLANETS: Planet[] = ['dead', 'abundant', 'industrial'];
+/** A whole orbit: three planets, three turns each. */
 export const ORBIT_LENGTH = PLANETS.length * BALANCE.orbitTurns;
 
-/** A sun's planets, in orbit order: its own (the space adventure), else the card game's three. */
-export function planetsOf(p?: Pick<PlayerState, 'planets'>): Planet[] {
-  return p?.planets?.length ? p.planets.map((x) => x.kind) : PLANETS;
-}
-
-/** A whole orbit of a sun's: three turns for each of its planets. */
-export function orbitLength(p?: Pick<PlayerState, 'planets'>): number {
-  return planetsOf(p).length * BALANCE.orbitTurns;
-}
-
-/** Which of a sun's planets faces it at an orbit position (its index in planetsOf). */
-export function planetIndex(orbit: number, p?: Pick<PlayerState, 'planets'>): number {
-  const n = orbitLength(p);
-  return Math.floor((((orbit % n) + n) % n) / BALANCE.orbitTurns);
-}
-
-/** The planet facing a sun at an orbit position (given the player, their own planets). */
-export function planetAt(orbit: number, p?: Pick<PlayerState, 'planets'>): Planet {
-  return planetsOf(p)[planetIndex(orbit, p)];
+/** The planet facing a sun at an orbit position. */
+export function planetAt(orbit: number): Planet {
+  return PLANETS[Math.floor((((orbit % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH) / BALANCE.orbitTurns)];
 }
 
 /**
@@ -272,7 +206,7 @@ export function planetAt(orbit: number, p?: Pick<PlayerState, 'planets'>): Plane
  * has a planet-eater in play (Orion, Galaxy Eater).
  */
 export function currentPlanet(p: PlayerState, state?: GameState): Planet {
-  return state && planetsEaten(state, p) ? 'dead' : planetAt(p.orbit, p);
+  return state && planetsEaten(state, p) ? 'dead' : planetAt(p.orbit);
 }
 
 /** Whether a rival still in the game has a card in play that eats this player's planets. */
@@ -287,8 +221,7 @@ export function planetTurnsLeft(p: PlayerState): number {
 
 function moveOrbit(state: GameState, p: PlayerState, by: number) {
   const before = currentPlanet(p);
-  const n = orbitLength(p);
-  p.orbit = (((p.orbit + by) % n) + n) % n;
+  p.orbit = (((p.orbit + by) % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH;
   const now = currentPlanet(p);
   log(state, `${p.name}'s orbit ${by > 0 ? 'speeds on' : 'slips back'} ${Math.abs(by)}: the ${now} planet${now === before ? '' : ' swings round'} (${planetTurnsLeft(p)} turn${planetTurnsLeft(p) === 1 ? '' : 's'} left).`);
 }
@@ -494,7 +427,7 @@ export function freeSlots(p: PlayerState): number[] {
 }
 
 /** Slots from safest (the middle) to least safe (the edges). */
-export function slotsBySafety(): number[] {
+function slotsBySafety(): number[] {
   return Array.from({ length: BALANCE.tableauSlots }, (_, i) => i).sort((a, b) => BALANCE.slotDefence[b] - BALANCE.slotDefence[a] || a - b);
 }
 
@@ -531,7 +464,7 @@ export function cardCost(defId: string): number {
 }
 
 /** Put a card into a tableau slot, with its full stability. */
-export function place(p: PlayerState, card: CardInstance, slot: number) {
+function place(p: PlayerState, card: CardInstance, slot: number) {
   card.slot = slot;
   card.stability = baseStability(card.defId);
   // A campaign hero's card carries their boons (gear and skills) while it is in play.
@@ -560,7 +493,7 @@ function distance(a: CardInstance, b: CardInstance): number {
  * reach cards with low enough defence.
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
-  let d = slotDefence(card.slot) + cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0) + (aboard(p)?.defence(p, card) ?? 0);
+  let d = slotDefence(card.slot) + cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0) + roomDefence(p, card);
   for (const src of p.tableau) {
     const k = distance(src, card);
     if (k === 0) continue;
@@ -568,6 +501,14 @@ export function cardDefence(p: PlayerState, card: CardInstance): number {
   }
   // Heat wears defence away, and the wear lasts (see mendDefences).
   return Math.max(0, Math.max(0, d) - (card.dented ?? 0));
+}
+
+/** Campaign battles: what the ship's room adds to the card standing in it (and a hero's own training). */
+function roomDefence(p: PlayerState, card: CardInstance): number {
+  let d = 0;
+  if (p.rooms) d += card.slot === COMMAND_SLOT ? p.rooms.command : (p.rooms.defence[card.slot ?? -1] ?? 0);
+  if (p.heroStats && card.defId === p.hero) d += p.heroStats.defence;
+  return d;
 }
 
 /** A slot's own defence: 1 at the edges, 2 inside, 3 in the middle (the Command slot's is its own). */
@@ -587,8 +528,7 @@ function anchored(p: PlayerState, card: CardInstance): boolean {
 
 /** Whether the player may set this Lightspeed card now (only one can be face down at a time). */
 export function canSetLightspeed(p: PlayerState): boolean {
-  // (Campaign battles have no Lightspeed slot: their cards' campaign versions stand in rooms.)
-  return p.lightspeed === null && !p.energy;
+  return p.lightspeed === null;
 }
 
 /** A card of another kind that can also be set face down at lightspeed (a Lightspeed guard). */
@@ -762,15 +702,14 @@ export interface TurnForecast {
 export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   const target = targetOf(state, p);
   // Their next day's planet (their first day starts at the dead planet).
-  const orbit = p.turnsTaken > 0 ? (p.orbit + 1) % orbitLength(p) : p.orbit;
-  const planet = planetsEaten(state, p) ? 'dead' : planetAt(orbit, p);
+  const orbit = p.turnsTaken > 0 ? (p.orbit + 1) % ORBIT_LENGTH : p.orbit;
+  const planet = planetsEaten(state, p) ? 'dead' : planetAt(orbit);
   // Their day comes this round if they sit after the active player, else next round.
   const round = state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
   const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, unstableRound: state.round + 1, round, draw: 0, plays: 0, planet, planetDraw: 0, planetPlays: 0 };
   if (p.eliminated) return f;
   if (planet === 'abundant' && p.turnsTaken > 0) f.planetDraw = BALANCE.abundantDraw;
   if (planet === 'industrial') f.planetPlays = BALANCE.industrialPlays;
-  if (planet === 'shielded') f.shields += BALANCE.shieldedShields;
   f.draw += f.planetDraw;
   f.plays += f.planetPlays;
   // Run the effects on a copy, so growth and the like carry from one effect to the next (its dawn, then its dusk).
@@ -821,7 +760,7 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
 function drawCards(state: GameState, p: PlayerState, count: number) {
   for (let i = 0; i < count; i++) {
     // (Campaign battles: what is spent stays spent. An empty deck just gives no more.)
-    if (ship(state) && p.deck.length === 0) return;
+    if (state.campaign && p.deck.length === 0) return;
     if (p.deck.length === 0 && p.discard.length > 0) {
       reshuffle(state, p);
       if (p.eliminated) return;
@@ -976,7 +915,7 @@ function supernova(state: GameState, p: PlayerState) {
 /** When an effect resolves: as its card is played, at the start of its owner's turn, as it leaves play, as it is recovered, or as a Lightspeed card springs. */
 export type Timing = 'play' | 'turn' | 'leave' | 'recover' | 'spring';
 
-export interface PlayContext {
+interface PlayContext {
   enemyUid?: string;
   /** Heat as it is played (or a Hero's ability): the rival card aimed at (unset: their sun, or a Guard). */
   aimUid?: string;
@@ -989,7 +928,7 @@ export interface PlayContext {
 /** A card in the discard pile a recover effect can take back: of its kind, if it names one, and never a Command card. */
 const kindMatches = (c: CardInstance, kind?: CardKind) => returnable(c) && (!kind || cardDef(c.defId).kind === kind);
 
-export function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, effects: Effect[] | undefined, when: Timing, ctx: PlayContext = {}) {
+function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, effects: Effect[] | undefined, when: Timing, ctx: PlayContext = {}) {
   for (const e of effects ?? []) {
     if (state.winnerId || p.eliminated) return;
     if (!conditionMet(p, e.if, state)) continue;
@@ -1041,9 +980,8 @@ export function resolveEffects(state: GameState, p: PlayerState, card: CardInsta
       case 'draw': {
         const n = e.amount + (e.plus ? countOf(p, card, e.plus, state) : 0);
         // Campaign battles: drawing becomes stabilising an ally (the most worn), as far as its full stability.
-        const rules = ship(state);
-        if (rules) {
-          rules.draw(state, p, card, n);
+        if (state.campaign) {
+          stabiliseAlly(state, p, n);
           break;
         }
         drawCards(state, p, n);
@@ -1176,7 +1114,6 @@ function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
 /** A card leaves its tableau for the discard pile (or its owner's hand or deck), triggering its leave effects. */
 function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck' = 'discard') {
   owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
-  const room = card.slot;
   // Wear on the slot's own defence stays in the slot (the card's own plating goes with it).
   const wear = Math.min(card.dented ?? 0, slotDefence(card.slot));
   if (wear > 0 && card.slot !== undefined) (owner.slotWear ??= {})[card.slot] = wear;
@@ -1190,17 +1127,20 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   // (A token is simply gone.)
   if (cardDef(card.defId).token) {
     /* nothing to keep */
-  } else if (ship(state)?.leaving(state, owner, card, to, room)) {
-    /* where the ship's rules put it */
+  } else if (state.campaign && owner.hero === card.defId) {
+    // Campaign: a hero beaten, or sent from the field, is wounded, back in their command room in a turn.
+    owner.wounded = { card, left: 1 };
+    log(state, `${owner.name}'s ${cardDef(card.defId).name} is wounded: back in the command room after their next day.`);
   } else if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
   else if (to === 'hand') owner.hand.push(card);
-  else (ship(state)?.graveyard(owner) ?? owner.discard).push(card);
+  // Campaign: a card destroyed is out of the battle for good.
+  else (state.campaign ? (owner.fallen ??= []) : owner.discard).push(card);
   resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
   // Its Fusion cards go with it (and their leave effects fire too).
   const fused = card.fused ?? [];
   delete card.fused;
   for (const f of fused) {
-    (ship(state)?.graveyard(owner) ?? owner.discard).push(f);
+    (state.campaign ? (owner.fallen ??= []) : owner.discard).push(f);
     if (!state.winnerId && !owner.eliminated) resolveEffects(state, owner, card, cardDef(f.defId).onLeave, 'leave');
   }
   // Shatter (the Xel'Naru): a card of theirs leaving heats the rival.
@@ -1210,7 +1150,41 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   for (const { card: watcher, passive } of passives(owner)) {
     if (passive.type === 'allyLeaves' && owner.tableau.includes(watcher)) resolveEffects(state, owner, watcher, passive.effects, 'leave');
   }
-  ship(state)?.afterLeave(state, owner);
+  outOfCards(state, owner);
+}
+
+/**
+ * Campaign battles: a side with nothing left (no card in hand, deck, tableau or face down, and no hero, even a
+ * wounded one) is beaten, as if its sun had gone.
+ */
+function outOfCards(state: GameState, p: PlayerState) {
+  if (!state.campaign || p.eliminated || state.winnerId) return;
+  if (p.hand.length || p.deck.length || p.tableau.length || p.lightspeed || p.wounded) return;
+  p.eliminated = true;
+  log(state, `${p.name} has nothing left to fight with.`);
+  const alive = state.players.filter((o) => !o.eliminated);
+  if (alive.length === 1) {
+    state.winnerId = alive[0].id;
+    log(state, `${alive[0].name} wins the battle!`);
+  }
+}
+
+/** Campaign battles: restore an ally's stability (the most worn of them, as far as its full stability). */
+function stabiliseAlly(state: GameState, p: PlayerState, amount: number) {
+  if (amount <= 0) return;
+  const worn = (c: CardInstance) => fullStability(c) - (c.stability ?? 0);
+  const ally = [...p.tableau].filter((c) => worn(c) > 0).sort((a, b) => worn(b) - worn(a))[0];
+  if (!ally) return;
+  const gain = Math.min(amount, worn(ally));
+  ally.stability = (ally.stability ?? 0) + gain;
+  log(state, `${p.name} stabilises ${cardDef(ally.defId).name} by ${gain} (stability ${ally.stability}).`);
+}
+
+/** A card's full stability in play (its base, and a hero's boons). */
+function fullStability(c: CardInstance): number {
+  const boons = c.boons ?? [];
+  if (!boons.length) return baseStability(c.defId);
+  return Math.min(BALANCE.maxStability, baseStability(c.defId) + boons.reduce((n, b) => n + (cardDef(b).stability ?? 0), 0));
 }
 
 /** Note a dawn effect for the table to replay (only while a day is starting). */
@@ -1318,40 +1292,45 @@ function startTurn(state: GameState) {
   delete state.keepPulses;
   p.turnsTaken += 1;
   // Dawn breaks: every card of theirs is ready to act again.
-  for (const c of p.tableau) {
-    delete c.dimmed;
-    delete c.activated;
-  }
+  for (const c of p.tableau) delete c.dimmed;
   p.turn = emptyTurn();
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
-  ship(state)?.dayBegins(state, p);
+  // Campaign: a wounded hero sits a day out, then takes the command room again (whoever stood in it steps aside to the hand).
+  if (p.wounded) {
+    if (p.wounded.left > 0) p.wounded.left -= 1;
+    else {
+      const { card } = p.wounded;
+      delete p.wounded;
+      const sitting = p.tableau.find((c) => c.slot === COMMAND_SLOT);
+      if (sitting) {
+        p.tableau.splice(p.tableau.indexOf(sitting), 1);
+        delete sitting.slot;
+        p.hand.push(sitting);
+      }
+      delete card.dimmed;
+      delete card.dented;
+      place(p, card, COMMAND_SLOT);
+      log(state, `${p.name}'s ${cardDef(card.defId).name} is back in the command room.`);
+    }
+  }
   // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy adds defence, not mending: a fused stack of Sturdy cards would wall up for good).
-  // (Not in a campaign battle: there worn defences stay worn.)
-  if (!ship(state)) mendDefences(state, p);
+  mendDefences(state, p);
 
   // Shields fade, unless Deep Current holds them.
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
-  // (A campaign ship's shields don't fade: they last until spent.)
-  if (!ship(state)) p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
+  // (A campaign ship's shields are up as the battle begins: they last its first day.)
+  if (!(state.campaign && p.turnsTaken === 1)) p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
 
   // The planets move on a day (your first day starts at the dead planet).
   if (p.turnsTaken > 1) {
     const before = currentPlanet(p);
-    p.orbit = (p.orbit + 1) % orbitLength(p);
+    p.orbit = (p.orbit + 1) % ORBIT_LENGTH;
     if (currentPlanet(p) !== before) log(state, `The ${currentPlanet(p)} planet swings round to face ${p.name}'s sun.`);
   }
   const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw : 0;
-  // Draw (your opening hand covers your first day). Aboard a ship there's no deck: an abundant planet's draw is its rules' own.
-  const rules = ship(state);
-  if (rules) {
-    if (p.turnsTaken > 1 && abundance) rules.draw(state, p, null, abundance);
-  } else if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
-  // A shielded planet facing the sun.
-  if (currentPlanet(p, state) === 'shielded') {
-    p.shields += BALANCE.shieldedShields;
-    log(state, `The shielded planet shields ${p.name}'s sun (+${BALANCE.shieldedShields}).`);
-  }
-  ship(state)?.afterLeave(state, p);
+  // Draw (your opening hand covers your first day).
+  if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
+  outOfCards(state, p);
   if (state.winnerId) return;
   if (p.eliminated) return passOn(state);
 
@@ -1400,15 +1379,13 @@ function dawn(state: GameState, p: PlayerState) {
   // (A Hero never fades: it leads until it is removed, beaten down by heat, or replaced by another. Nor
   // does a Relic: it stays until something breaks it.)
   // (In campaign battles cards don't fade: they stand until destroyed.)
-  const fading = ship(state) ? [] : p.tableau.filter((c) => !anchored(p, c) && cardDef(c.defId).kind !== 'command' && cardDef(c.defId).kind !== 'relic');
+  const fading = state.campaign ? [] : p.tableau.filter((c) => !anchored(p, c) && cardDef(c.defId).kind !== 'command' && cardDef(c.defId).kind !== 'relic');
   for (const card of fading) card.stability = (card.stability ?? 1) - 1;
   for (const card of fading) {
     if (state.winnerId || p.eliminated) break;
     if (p.tableau.includes(card) && (card.stability ?? 0) <= 0) sweep(state, p, card);
   }
-  const rules = ship(state);
-  if (rules) p.playsLeft = rules.dawnEnergy(state, p);
-  else p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
+  p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
   p.turn.energyTotal = p.playsLeft;
   p.turn.energyBase = Math.min(p.playsLeft, Math.min(p.turnsTaken, BALANCE.maxPlays));
   if (p.eliminated) passOn(state);
@@ -1635,17 +1612,9 @@ export function applyAction(prev: GameState, action: Action): GameState {
       break;
     }
     case 'playCard':
-      if (ship(state)) throw new GameError('In a ship battle every card is in its room already: activate it there.');
       playCard(state, p, action);
       if (p.eliminated) passOn(state);
       break;
-    case 'activate': {
-      const rules = ship(state);
-      if (!rules) throw new GameError('Cards are activated in ship battles only.');
-      rules.activate(state, p, action);
-      if (p.eliminated) passOn(state);
-      break;
-    }
     case 'setTarget': {
       const t = state.players.find((o) => o.id === action.targetId);
       if (!t || t.eliminated || t.id === p.id) throw new GameError('Choose a living rival to target.');
@@ -1711,12 +1680,11 @@ export function baseAttack(def: CardDef): number {
 export function cardAttack(state: GameState, p: PlayerState, card: CardInstance): number {
   const def = cardDef(card.defId);
   let base = baseAttack(def);
-  // (Aboard a ship: its rooms' guns and its hero's training.)
-  const rules = aboard(p);
-  if (rules) base = rules.attack(p, card, base);
+  // Campaign battles: a hero's training lets them fight (even one who doesn't), and a room's guns add to a card that does.
+  const hero = !!p.heroStats && card.defId === p.hero;
+  if (hero) base += p.heroStats!.attack;
   if (base <= 0) return 0;
-  // An armed planet facing its sun.
-  if (currentPlanet(p, state) === 'armed') base += BALANCE.armedAttack;
+  if (p.rooms && card.slot !== COMMAND_SLOT) base += p.rooms.attack[card.slot ?? -1] ?? 0;
   // Flare-born: more while its owner's sun is overheated.
   const t = raceTrait(def.race);
   if (t?.attackHot && isOverheated(p)) base += t.attackHot;

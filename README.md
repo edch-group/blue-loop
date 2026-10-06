@@ -135,7 +135,7 @@ the page sideways instead.
 | `src/engine/balance.ts` | Every tunable number (costs, limits, clocks). |
 | `src/engine/cards.ts` | The card pool, the four race starter decks and deck rules. |
 | `src/engine/game.ts` | Turns, the tableau, effects, targets and shields. |
-| `src/engine/voyage/` | The space adventure (campaign), its own game on the shared engine: `campaign.ts` (map, factions, stations, ships), `rules.ts` (ship-battle rules, plugged into `game.ts`'s `ShipRules` hooks), `cards.ts` (its card versions and overrides), `pool.ts` (its card pool), `balance.ts` (its numbers), plus `story.ts`, `heroes.ts` and `research.ts`. |
+| `src/engine/campaign.ts` | Campaign mode: the map, factions, garrisons and battles. |
 | `src/engine/ai.ts` | Heuristic AI opponent. |
 | `src/ui/app.ts` | Game client (plain TypeScript + DOM, no framework). |
 | `src/ui/builder.ts`, `src/ui/decks.ts` | The deck builder and saved decks. |

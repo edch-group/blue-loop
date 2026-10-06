@@ -14,7 +14,7 @@
  * itself is the white flower that turns on the game's landing page.
  */
 
-import { RACE_NAMES } from '../races';
+import { RACE_NAMES } from './races';
 
 /** Who speaks a line: the guide, or a hero (by Hero card id) of a faction. */
 export type Speaker = { kind: 'oracle' } | { kind: 'general'; card: string; faction: string };
@@ -272,7 +272,7 @@ export function defeatScene(winnerRace: number, heart: boolean): StoryScene {
  * Both have watched the universe run down, and say so (the dying stars stand, quietly, for our own world's
  * spent resources and warming).
  */
-export const QUARTERMASTER = { name: 'Quartermaster Hesk', role: 'the armoury' };
+export const QUARTERMASTER = { name: 'Quartermaster Hesk', role: 'the space station' };
 export const RECYCLER = { name: 'Mother Tallow', role: 'the recycler' };
 
 export const QUARTERMASTER_LINES: string[] = [
