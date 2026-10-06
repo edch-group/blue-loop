@@ -388,6 +388,9 @@ const GEM_IMAGES: Record<string, string> = {
   lightDwarfSpikes, lightDwarfShimmer1, lightDwarfShimmer2, lightDwarfSparks, lightSunCorona1, lightSunCorona2, lightSunFlares1, lightSunFlares2, lightHoleSwirl1, lightHoleSwirl2, lightHoleLens,
 };
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
+// The markers' stones and rims (scripts/render_markers.py), handed to CSS as --mk-<shape>-<stone or rim-metal>.
+for (const [path, url] of Object.entries(import.meta.glob<string>('./gems/marker-*.webp', { eager: true, query: '?url', import: 'default' })))
+  document.documentElement.style.setProperty(`--mk-${path.slice(path.lastIndexOf('/') + 'marker-'.length + 1, -'.webp'.length)}`, `url("${url}")`);
 
 /**
  * The Anomaly's black hole, seen from above: its accretion disk as streaks of light circling the hole,

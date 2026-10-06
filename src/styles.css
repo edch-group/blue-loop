@@ -5123,3 +5123,32 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card .stat-def, .card .stat-def-floor { --en: #2d58a8; }
 .card .stat-atk.stat-atk-dim { --en: #6c7383; }
 .card .stat-stab.stat-low, .card .stat-def.stat-dented { --en: #c8321e; }
+
+/* ---------- The markers' stones (scripts/render_markers.py) ---------- */
+/* Each marker is a rendered cabochon in a rendered rim: the stone by what it marks (a ruby for attack, a topaz for
+   stability, a sapphire for defence; the type pill's by the card's kind), the rim in the card's rarity metal. Both
+   are drawn on the same capsule and stretched to the marker. */
+.card { --mk-rim-badge: var(--mk-badge-rim-silver); --mk-rim-pill: var(--mk-pill-rim-silver); }
+.card.rarity-stellar { --mk-rim-badge: var(--mk-badge-rim-gold); --mk-rim-pill: var(--mk-pill-rim-gold); }
+.card.rarity-anomaly { --mk-rim-badge: var(--mk-badge-rim-violet); --mk-rim-pill: var(--mk-pill-rim-violet); }
+.card .card-stats b, .card .stat-def-floor, .card .card-type {
+  border: 0; background: var(--mk-rim) 0 0 / 100% 100% no-repeat, var(--mk-stone) 0 0 / 100% 100% no-repeat;
+  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.75), 0 0 3px rgba(0, 0, 0, 0.5);
+}
+.card .card-stats b:not(.stat-atk-on), .card .stat-def-floor, .card .card-type { box-shadow: 0 1px 2.5px rgba(14, 16, 26, 0.45); }
+.card .card-stats b, .card .stat-def-floor { --mk-rim: var(--mk-rim-badge); }
+.card .card-type { --mk-rim: var(--mk-rim-pill); }
+.card .stat-atk { --mk-stone: var(--mk-badge-ruby); }
+.card .stat-stab { --mk-stone: var(--mk-badge-topaz); }
+.card .stat-def, .card .stat-def-floor { --mk-stone: var(--mk-badge-sapphire); }
+.card .stat-atk.stat-atk-dim { --mk-stone: var(--mk-badge-smoky); }
+.card .stat-stab.stat-low, .card .stat-def.stat-dented { --mk-stone: var(--mk-badge-garnet); }
+.card.kind-attack .card-type { --mk-stone: var(--mk-pill-ruby); }
+.card.kind-defence .card-type { --mk-stone: var(--mk-pill-sapphire); }
+.card.kind-growth .card-type { --mk-stone: var(--mk-pill-emerald); }
+.card.kind-global .card-type { --mk-stone: var(--mk-pill-amethyst); }
+.card.kind-command .card-type { --mk-stone: var(--mk-pill-moonstone); }
+.card.kind-lightspeed .card-type { --mk-stone: var(--mk-pill-citrine); }
+.card.kind-relic .card-type { --mk-stone: var(--mk-pill-aquamarine); }
+/* (Its word a touch further in from the ends, clear of the rim's curve.) */
+.card .card-type { padding-left: 1em; padding-right: 1em; }
