@@ -4256,7 +4256,7 @@ export class App {
     // The whole play area is a table seen in perspective; pop-ups and the
     // played-card stage sit outside it so they stay flat and readable.
     return `
-      <main class="table-view${s.campaign ? ' ship-view' : ''}${this.boardZoom ? ` zoom-${this.boardZoom}` : ''}" style="${this.boardZoom ? this.zoomVars : ''}">
+      <main class="table-view${s.campaign ? ' ship-view' : ''}${this.boardZoom && !s.campaign ? ` zoom-${this.boardZoom}` : ''}" style="${this.boardZoom && !s.campaign ? this.zoomVars : ''}">
         <div class="game">
           <header class="top"></header>
           ${this.renderBoard()}
@@ -4290,7 +4290,7 @@ export class App {
    */
   private prefitQueued = false;
   private prefitZooms() {
-    if (this.prefitQueued || this.screen !== 'game' || this.boardZoom || reducedMotion()) return;
+    if (this.prefitQueued || this.screen !== 'game' || this.boardZoom || reducedMotion() || this.state?.campaign) return;
     const key = (side: string) => `${side}:${window.innerWidth}x${window.innerHeight}`;
     if (this.zoomFits.has(key('mine')) && this.zoomFits.has(key('rival'))) return;
     this.prefitQueued = true;
@@ -4326,6 +4326,8 @@ export class App {
   /** Zoom the board onto one tableau, or out (null): the board itself moves, so everything on it still works. */
   private setBoardZoom(side: 'rival' | 'mine' | null) {
     if (this.boardZoom === side) return;
+    // (A campaign battle's ships are seen whole: no zooming onto one.)
+    if (side && this.state?.campaign) return;
     const was = this.boardZoom;
     this.boardZoom = side;
     sound.hover();
@@ -4674,8 +4676,8 @@ export class App {
    * models are 40 units long), so the rooms sit inside the hull.
    */
   private shipSizes(): string {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    // (The page's own size: on a big screen it is laid out smaller and drawn larger.)
+    const { w, h } = appSize();
     // (Each ship is 10 cards long: its model is 40 units, a card 4.)
     const tcw = Math.round(Math.max(40, Math.min(w / 21, h * 0.105, 104)));
     return `--tcw:${tcw}px;--u:${(tcw / 4).toFixed(2)}px`;
