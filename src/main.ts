@@ -8,6 +8,7 @@ import '@fontsource/exo-2/latin-400.css';
 import '@fontsource/exo-2/latin-600.css';
 import './styles.css';
 import { App } from './ui/app';
+import { chooseAIAction } from './engine';
 import { trackViewport } from './ui/viewport';
 import { noNativeTooltips } from './ui/notitles';
 
@@ -27,8 +28,8 @@ const timeout = new Promise((resolve) => window.setTimeout(resolve, 1500));
 void Promise.race([fontsReady, timeout]).then(() => {
   const app = new App(document.getElementById('app')!);
   app.start();
-  // In development only: the app, for test scripts to set up a board.
-  if (import.meta.env.DEV) (window as unknown as { __app: App }).__app = app;
+  // In development only: the app and the AI's choice, for test scripts to set up a board and play it.
+  if (import.meta.env.DEV) Object.assign(window, { __app: app, __ai: chooseAIAction });
   requestAnimationFrame(() => document.documentElement.classList.add('ready'));
 });
 

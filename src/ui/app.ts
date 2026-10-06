@@ -554,6 +554,18 @@ function setShieldBadge(root: ParentNode, pid: string, n: number) {
   });
 }
 
+/**
+ * The card a player just played: from their hand before, or, where that was hidden (a rival's hand, online),
+ * from where it landed: in play, face down, or on their discard pile. '' if it can't be told.
+ */
+function playedDefId(prev: GameState, next: GameState, actorId: string, uid: string): string {
+  const was = prev.players.find((p) => p.id === actorId)?.hand.find((c) => c.uid === uid)?.defId;
+  if (was) return was;
+  const now = next.players.find((p) => p.id === actorId);
+  const found = [...(now?.tableau ?? []), ...(now?.discard ?? []), ...(now?.lightspeed ? [now.lightspeed] : [])].find((c) => c.uid === uid);
+  return found?.defId ?? '';
+}
+
 /** A game's running summary, kept beside its save so a game resumed after a reload is still summed up. */
 const STATS_REC_KEY = 'blue-loop:stats-rec';
 /** Which game, at which point: the summary kept is the one that goes with the save made at the same move. */
@@ -1222,7 +1234,8 @@ export class App {
     if (sprung) this.stage = sprung;
     const land = () => {
       const before = snapshot(this.root);
-      if (this.stage?.own) this.stage = null;
+      // (Once the move lands, a card with nothing left to read leaves the preview pane; one that sprang stays its moment.)
+      if (this.stage?.own || (this.stage && !this.stage.confirm && this.stage !== sprung)) this.stage = null;
       if (last.action.type !== 'setTarget') backdrop.spin();
       this.state = next;
       if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, last.action);
@@ -2021,7 +2034,9 @@ export class App {
       const src = this.root.querySelector(`.tableau [data-uid="${action.cardUid}"]`) ?? this.root.querySelector('.stage .card');
       return src ? pageRect(src) : orbRect(actor.id);
     } : null;
-    const playedDef = action.type === 'playCard' ? cardDef(prev.players.find((p) => p.id === actor.id)!.hand.find((c) => c.uid === action.cardUid)?.defId ?? '') : null;
+    // (Online, a rival's hand is hidden: the card is known by where it landed.)
+    const playedId = action.type === 'playCard' ? playedDefId(prev, next, actor.id, action.cardUid) : '';
+    const playedDef = playedId ? cardDef(playedId) : null;
 
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
@@ -2235,7 +2250,7 @@ export class App {
         // (A rival's card already sounded as it arrived on the stage.)
         if (!this.entranceHeard) sound.play();
         this.entranceHeard = false;
-        const played = prev.players.find((p) => p.id === actor.id)!.hand.find((c) => c.uid === action.cardUid);
+        const played = playedId ? { uid: action.cardUid, defId: playedId } : undefined;
         if (played && cardDef(played.defId).kind === 'command') {
           // (Its boom lands as the card does.)
           window.setTimeout(() => sound.hero(), Math.max(0, delay - 300));

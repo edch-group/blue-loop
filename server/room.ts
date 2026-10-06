@@ -190,12 +190,9 @@ function handleMessage(room: RoomData, seat: number | null, msg: ClientMessage, 
           noteMove(room.stats, g, next, msg.action);
           if (next.winnerId) finishStats(room.stats, next);
         }
-        // A card that landed (in play, or set face down) waits for the rival to read it before its player goes on.
-        if (msg.action.type === 'playCard' && !next.winnerId) {
-          const cardUid = msg.action.cardUid;
-          const actor = next.players.find((p) => p.id === me.id)!;
-          room.waitingOn = actor.tableau.some((c) => c.uid === cardUid) || actor.lightspeed?.uid === cardUid ? 1 - seat : null;
-        } else room.waitingOn = null;
+        // A card played (into play, set face down, or one that resolves and goes) waits for the rival to read it
+        // before its player goes on.
+        room.waitingOn = msg.action.type === 'playCard' && !next.winnerId ? 1 - seat : null;
         return { seat, reply: [], broadcast: true };
       } catch (err) {
         if (err instanceof GameError) return { seat, reply: [{ t: 'error', message: err.message }], broadcast: false };
