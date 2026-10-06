@@ -46,6 +46,8 @@ import {
   recycleValue,
   stabiliseProblem,
   RACE_NAMES,
+  baseCardId,
+  campaignCardId,
   type CampaignState,
 } from '../src/engine';
 
@@ -174,7 +176,7 @@ describe('campaign setup', () => {
     expect(cardDef(myArmy(s).general).race).toBe(7);
     s = attack(s);
     expect(s.battle).not.toBeNull();
-    expect(s.battle!.game.players[0].deck.concat(s.battle!.game.players[0].hand).some((c) => cardDef(c.defId).race === 7)).toBe(true);
+    expect(s.battle!.game.players[0].tableau.some((c) => cardDef(c.defId).race === 7)).toBe(true);
     s = settle(winBattle(s));
     expect(heroState(campaignPlayer(s), GENERALS[7][0]).xp).toBeGreaterThan(0);
   });
@@ -190,7 +192,7 @@ describe('battles and conquest', () => {
     expect(s.battle?.armyId).toBe(myArmy(s).id);
     expect(s.battle?.game.players[0].isAI).toBe(false);
     const p0 = s.battle!.game.players[0];
-    expect([...p0.deck, ...p0.hand, ...p0.tableau].map((c) => c.defId).sort()).toEqual(deck.sort());
+    expect([...p0.deck, ...p0.hand, ...p0.tableau].map((c) => baseCardId(c.defId)).sort()).toEqual(deck.sort());
     expect(s.battle!.game.campaign).toBe(true);
     s = settle(s);
     if (!s.winner && s.turn === 1) expect(armyMoves(s, myArmy(s))).toEqual([]);
@@ -272,7 +274,7 @@ describe('garrisons', () => {
     n.garrison = [];
     s = attack(s, target.id);
     const defender = s.battle!.game.players[1];
-    expect(defender.tableau.map((c) => c.defId).sort()).toEqual(['chamber_protocol', 'plasma_relay']);
+    expect(defender.tableau.map((c) => baseCardId(c.defId))).toEqual(expect.arrayContaining(['chamber_protocol', 'plasma_relay']));
   });
 
   it('only garrisons reserve cards, and keeps the deck legal when swapping', () => {
@@ -505,7 +507,7 @@ describe('armies and generals', () => {
     expect(skillPoints(heroState(campaignPlayer(s), hero), hero)).toBe(1);
     s = attack(s);
     expect(s.battle!.game.players[0].heroStats).toEqual(heroStats(campaignPlayer(s), hero));
-    expect(s.battle!.game.players[0].hero).toBe(hero);
+    expect(s.battle!.game.players[0].hero).toBe(campaignCardId(hero));
   });
 
   it('routes a beaten defending army back to a free system, or breaks it', () => {
@@ -638,7 +640,7 @@ describe('armies and generals', () => {
     expect(plain).toBeGreaterThanOrEqual(CAMPAIGN.gateHeat);
   });
 
-  it('moves cards between the flagship\'s deck and the reserve one at a time, up to ten', () => {
+  it('moves cards between the flagship\'s deck and the reserve, within its rooms and its energy store', () => {
     let s = fresh();
     const army = myArmy(s);
     const out = army.deck.find((id) => id !== army.general)!;
@@ -652,13 +654,21 @@ describe('armies and generals', () => {
     // The hero stays.
     expect(() => applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: army.general })).toThrow(/leads this army/);
     s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: out });
-    // Up to ten cards, no more.
-    campaignPlayer(s).reserve.push(...['coronal_lance', 'coronal_lance', 'photon_drill', 'photon_drill', 'cryo_vault', 'cryo_vault', 'thermal_exchange', 'deflector_grid', 'scatter_shot']);
-    for (const id of ['coronal_lance', 'coronal_lance', 'photon_drill', 'photon_drill', 'cryo_vault', 'cryo_vault', 'thermal_exchange']) {
-      if (myArmy(s).deck.filter((x) => x === id).length < 2) s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: id });
-    }
-    while (myArmy(s).deck.length < CAMPAIGN.armySize) s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: 'deflector_grid' });
-    expect(() => applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: 'scatter_shot' })).toThrow(/at most/);
+    // Its cards may cost no more, added up, than the ship's energy store; and one to a room.
+    const cap = campaignPlayer(s).ship.capacity;
+    const cost = (id: string) => cardDef(id).cost ?? 1;
+    const spare = cap - myArmy(s).deck.filter((id) => id !== army.general).reduce((n, id) => n + cost(id), 0);
+    const pricey = ['star_breaker', 'dreadnought', 'ion_cannon'].find((id) => cost(id) > spare)!;
+    campaignPlayer(s).reserve.push(pricey);
+    expect(() => applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: pricey })).toThrow(/energy store/);
+    campaignPlayer(s).ship.capacity = 99;
+    campaignPlayer(s).reserve.push('coronal_lance', 'photon_drill', 'cryo_vault', 'thermal_exchange');
+    for (const id of ['coronal_lance', 'photon_drill', 'cryo_vault', 'thermal_exchange']) if (myArmy(s).deck.length < CAMPAIGN.armySize) s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: id });
+    expect(myArmy(s).deck).toHaveLength(CAMPAIGN.armySize);
+    expect(() => applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: pricey })).toThrow(/rooms/);
+    campaignPlayer(s).ship.capacity = cap;
+    // (Back within the store, to march.)
+    while (myArmy(s).deck.length > 3) s = applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: myArmy(s).deck[myArmy(s).deck.length - 1] });
     myArmy(s).refit = false; // (as next turn)
     expect(() => attack(s)).not.toThrow();
     // And an army that has marched can't refit until the next turn.
@@ -757,7 +767,7 @@ describe('armies and generals', () => {
     // Both go into battle on the hero's own card: none of the army's other cards are touched.
     t = attack(t);
     const p = t.battle!.game.players[0];
-    expect(p.heroBoons?.hero).toBe(hero);
+    expect(p.heroBoons?.hero).toBe(campaignCardId(hero));
     expect(p.heroBoons?.boons).toEqual(expect.arrayContaining([...(t1.effect.kind === 'boon' ? t1.effect.boons : []), ...item.boons!]));
     expect(p.modifiers ?? {}).not.toHaveProperty('extraPlays');
   });
@@ -789,10 +799,9 @@ describe('armies and generals', () => {
     for (const k of SKILL_TREES[hero].filter((x) => x.branch === 2).sort((a, b) => a.tier - b.tier)) s = applyCampaignAction(s, { type: 'learnSkill', hero, skill: k.id });
     s = attack(s);
     const me = s.battle!.game.players[0];
-    expect(me.tableau.some((c) => c.defId === hero && c.slot === COMMAND_SLOT)).toBe(true);
-    expect(me.deck.filter((c) => c.defId === hero).length + me.hand.filter((c) => c.defId === hero).length).toBeLessThan(myArmy(s).deck.filter((id) => id === hero).length);
+    expect(me.tableau.some((c) => c.defId === campaignCardId(hero) && c.slot === COMMAND_SLOT)).toBe(true);
     // The hero's card carries its learned boons while it is in play.
-    const card = me.tableau.find((c) => c.defId === hero)!;
+    const card = me.tableau.find((c) => c.defId === campaignCardId(hero))!;
     expect(card.boons?.length).toBeGreaterThan(0);
     expect(armyBonus(s, myArmy(s)).boons).toEqual(card.boons);
   });

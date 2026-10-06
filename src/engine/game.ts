@@ -75,6 +75,7 @@ export function createGame(setup: GameSetup): GameState {
       ...(ps.hero ? { hero: ps.hero } : {}),
       ...(ps.heroStats ? { heroStats: { ...ps.heroStats } } : {}),
       ...(ps.rooms ? { rooms: { defence: [...ps.rooms.defence], attack: [...ps.rooms.attack], command: ps.rooms.command } } : {}),
+      ...(ps.energy ? { energy: { ...ps.energy } } : {}),
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
     // A garrison takes the safest slots first; a Hero already in play (a campaign hero's Herald) leads from the
@@ -86,6 +87,20 @@ export function createGame(setup: GameSetup): GameState {
       if (cardDef(id).kind === 'command') {
         if (!commandCard(p)) place(p, card, COMMAND_SLOT);
       } else if (safest.length) place(p, card, safest.shift()!);
+    }
+    if (setup.campaign) {
+      // Campaign battles: no hand and no deck. Every card stands in a room of its ship from the start (the
+      // Hero in the command room), the safest rooms first; a card that doesn't fit is left out.
+      for (const card of p.deck) {
+        if (cardDef(card.defId).kind === 'command') {
+          if (!commandCard(p)) place(p, card, COMMAND_SLOT);
+        } else if (safest.length) place(p, card, safest.shift()!);
+      }
+      p.deck = [];
+      // (Energy: the store starts full; see dawn.)
+      p.energy ??= { cap: BALANCE.maxPlays, regen: 1 };
+      state.players.push(p);
+      return;
     }
     if (ps.lightspeed && cardDef(ps.lightspeed).kind === 'lightspeed') p.lightspeed = newCard(state, ps.lightspeed);
     state.players.push(p);
@@ -528,7 +543,8 @@ function anchored(p: PlayerState, card: CardInstance): boolean {
 
 /** Whether the player may set this Lightspeed card now (only one can be face down at a time). */
 export function canSetLightspeed(p: PlayerState): boolean {
-  return p.lightspeed === null;
+  // (Campaign battles have no Lightspeed slot: their cards' campaign versions stand in rooms.)
+  return p.lightspeed === null && !p.energy;
 }
 
 /** A card of another kind that can also be set face down at lightspeed (a Lightspeed guard). */
@@ -1114,6 +1130,7 @@ function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
 /** A card leaves its tableau for the discard pile (or its owner's hand or deck), triggering its leave effects. */
 function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck' = 'discard') {
   owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
+  const room = card.slot;
   // Wear on the slot's own defence stays in the slot (the card's own plating goes with it).
   const wear = Math.min(card.dented ?? 0, slotDefence(card.slot));
   if (wear > 0 && card.slot !== undefined) (owner.slotWear ??= {})[card.slot] = wear;
@@ -1131,6 +1148,10 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
     // Campaign: a hero beaten, or sent from the field, is wounded, back in their command room in a turn.
     owner.wounded = { card, left: 1 };
     log(state, `${owner.name}'s ${cardDef(card.defId).name} is wounded: back in the command room after their next day.`);
+  } else if (state.campaign && (to === 'hand' || to === 'deck') && room !== undefined && room !== COMMAND_SLOT) {
+    // Campaign: there is no hand to go back to. A card sent from its room is knocked out for a day.
+    (owner.benched ??= []).push({ card, slot: room, left: 1 });
+    log(state, `${owner.name}'s ${cardDef(card.defId).name} is knocked out of its room: back after their next day.`);
   } else if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
   else if (to === 'hand') owner.hand.push(card);
   // Campaign: a card destroyed is out of the battle for good.
@@ -1159,7 +1180,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
  */
 function outOfCards(state: GameState, p: PlayerState) {
   if (!state.campaign || p.eliminated || state.winnerId) return;
-  if (p.hand.length || p.deck.length || p.tableau.length || p.lightspeed || p.wounded) return;
+  if (p.hand.length || p.deck.length || p.tableau.length || p.lightspeed || p.wounded || p.benched?.length) return;
   p.eliminated = true;
   log(state, `${p.name} has nothing left to fight with.`);
   const alive = state.players.filter((o) => !o.eliminated);
@@ -1292,9 +1313,28 @@ function startTurn(state: GameState) {
   delete state.keepPulses;
   p.turnsTaken += 1;
   // Dawn breaks: every card of theirs is ready to act again.
-  for (const c of p.tableau) delete c.dimmed;
+  for (const c of p.tableau) {
+    delete c.dimmed;
+    delete c.activated;
+  }
   p.turn = emptyTurn();
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
+  // Campaign: cards knocked out of their rooms sit a day out, then go back (to another room if theirs is taken).
+  for (const b of [...(p.benched ?? [])]) {
+    if (b.left > 0) {
+      b.left -= 1;
+      continue;
+    }
+    p.benched = p.benched!.filter((x) => x !== b);
+    const room = p.tableau.some((c) => c.slot === b.slot) ? freeSlots(p)[0] : b.slot;
+    if (room === undefined) {
+      (p.fallen ??= []).push(b.card);
+      continue;
+    }
+    place(p, b.card, room);
+    log(state, `${p.name}'s ${cardDef(b.card.defId).name} is back in its room.`);
+  }
+  if (p.benched && !p.benched.length) delete p.benched;
   // Campaign: a wounded hero sits a day out, then takes the command room again (whoever stood in it steps aside to the hand).
   if (p.wounded) {
     if (p.wounded.left > 0) p.wounded.left -= 1;
@@ -1314,12 +1354,13 @@ function startTurn(state: GameState) {
     }
   }
   // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy adds defence, not mending: a fused stack of Sturdy cards would wall up for good).
-  mendDefences(state, p);
+  // (Not in a campaign battle: there worn defences stay worn.)
+  if (!state.campaign) mendDefences(state, p);
 
   // Shields fade, unless Deep Current holds them.
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
-  // (A campaign ship's shields are up as the battle begins: they last its first day.)
-  if (!(state.campaign && p.turnsTaken === 1)) p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
+  // (A campaign ship's shields don't fade: they last until spent.)
+  if (!state.campaign) p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
 
   // The planets move on a day (your first day starts at the dead planet).
   if (p.turnsTaken > 1) {
@@ -1385,7 +1426,12 @@ function dawn(state: GameState, p: PlayerState) {
     if (state.winnerId || p.eliminated) break;
     if (p.tableau.includes(card) && (card.stability ?? 0) <= 0) sweep(state, p, card);
   }
-  p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
+  if (state.campaign && p.energy) {
+    // Campaign: a ship's energy carries over. It starts full and regains so much a day (and what extra energy
+    // its cards give: a day's extra plays add to it), never past its store.
+    const extra = playsAllowed(state, p) - Math.min(p.turnsTaken, BALANCE.maxPlays);
+    p.playsLeft = p.turnsTaken === 1 ? p.energy.cap : Math.min(p.energy.cap, p.playsLeft + p.energy.regen + Math.max(0, extra) + (p.turn.dawnEnergy ?? 0));
+  } else p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
   p.turn.energyTotal = p.playsLeft;
   p.turn.energyBase = Math.min(p.playsLeft, Math.min(p.turnsTaken, BALANCE.maxPlays));
   if (p.eliminated) passOn(state);
@@ -1448,6 +1494,47 @@ function othersInOrder(state: GameState, p: PlayerState): PlayerState[] {
   const n = state.players.length;
   const seat = state.players.indexOf(p);
   return Array.from({ length: n - 1 }, (_, k) => state.players[(seat + k + 1) % n]).filter((o) => !o.eliminated);
+}
+
+/** The energy activating a card costs (an X card: all you have, at least 1). */
+export function activateCost(p: PlayerState, card: CardInstance): number {
+  const def = cardDef(card.defId);
+  return def.spendAll ? Math.max(1, p.playsLeft) : cardCost(def.id);
+}
+
+/** Why a card in a room can't be activated now (null if it can). Campaign battles only. */
+export function activateProblem(state: GameState, p: PlayerState, cardUid: string): string | null {
+  if (!state.campaign) return 'Cards are activated in campaign battles only.';
+  if (activePlayer(state).id !== p.id) return 'Only on your own day.';
+  const card = p.tableau.find((c) => c.uid === cardUid);
+  if (!card) return 'That card is not in your ship.';
+  const def = cardDef(card.defId);
+  if (!def.onPlay?.length || def.fusion) return `${def.name} has nothing to activate.`;
+  if (card.activated) return `${def.name} has been activated today: again from your next day.`;
+  const cost = activateCost(p, card);
+  if (p.playsLeft < cost) return p.playsLeft <= 0 ? 'You have no energy left.' : `${def.name} needs ${cost} energy: you have ${p.playsLeft}.`;
+  return null;
+}
+
+/** Activate a card in a room: its play effect again, for its cost, once a day. */
+function activate(state: GameState, p: PlayerState, action: Extract<Action, { type: 'activate' }>) {
+  const card = p.tableau.find((c) => c.uid === action.cardUid)!;
+  const def = cardDef(card.defId);
+  const choices = cardChoices(def.id);
+  if (choices.length && !choices.includes(action.choice ?? '')) throw new GameError('Choose one of its options.');
+  const target = targetOf(state, p);
+  const foes = enemyChoices(state, p, def.id);
+  if (foes.length > 0 && !foes.some((c) => c.uid === action.enemyUid)) throw new GameError(`Choose a card in ${target?.name ?? 'your rival'}'s ship.`);
+  const allies = allyChoices(p, def.id).filter((c) => c.uid !== card.uid);
+  if (allies.length > 0 && !allies.some((c) => c.uid === action.allyUid)) throw new GameError('Choose a card of yours.');
+  if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's ship (a Guard, while they have one), or at their sun.");
+  const spend = activateCost(p, card);
+  if (def.spendAll) card.spent = spend;
+  p.playsLeft -= spend;
+  card.activated = true;
+  p.turn.cardsPlayed += 1;
+  log(state, `${p.name} activates ${def.name}.`);
+  resolveEffects(state, p, card, def.onPlay, 'play', action);
 }
 
 function playCard(state: GameState, p: PlayerState, action: Extract<Action, { type: 'playCard' }>) {
@@ -1612,9 +1699,17 @@ export function applyAction(prev: GameState, action: Action): GameState {
       break;
     }
     case 'playCard':
+      if (state.campaign) throw new GameError('In a campaign battle every card is in its room already: activate it there.');
       playCard(state, p, action);
       if (p.eliminated) passOn(state);
       break;
+    case 'activate': {
+      const why = activateProblem(state, p, action.cardUid);
+      if (why) throw new GameError(why);
+      activate(state, p, action);
+      if (p.eliminated) passOn(state);
+      break;
+    }
     case 'setTarget': {
       const t = state.players.find((o) => o.id === action.targetId);
       if (!t || t.eliminated || t.id === p.id) throw new GameError('Choose a living rival to target.');

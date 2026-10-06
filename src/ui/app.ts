@@ -6,6 +6,8 @@ import {
   RACE_TRAITS,
   SUBRACES,
   attackProblem,
+  activateProblem,
+  activateCost,
   cardAttack,
   applyAction,
   BALANCE,
@@ -145,6 +147,8 @@ interface Pending {
   drop?: { slot?: number | 'ls'; uid?: string };
   /** A Lightspeed guard set face down instead (its Lightspeed slot chosen). */
   faceDown?: boolean;
+  /** Campaign battles: a card in its room being activated (uid is that card): its targets as for playing it. */
+  activate?: boolean;
 }
 
 /** What an AI player just played (or a Lightspeed card that just sprang), shown large at the middle right. */
@@ -254,7 +258,7 @@ const LUNGE_HIT = 0.58;
 const BANNER_GAP_MS = 1300;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, activate: 1500, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -1888,6 +1892,11 @@ export class App {
   }
 
   private stageFor(actor: PlayerState, action: Action): Stage | null {
+    // (Campaign: a rival's card activated in its room is shown as a card played would be.)
+    if (action.type === 'activate') {
+      const room = actor.tableau.find((c) => c.uid === action.cardUid);
+      return room ? { defId: room.defId, actorId: actor.id, caption: `${actor.name.toLowerCase()} activates`, target: action.enemyUid ?? action.aimUid } : null;
+    }
     if (action.type !== 'playCard') return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
@@ -2635,11 +2644,33 @@ export class App {
   }
 
   /** Ask for the next choice the pending card needs, or play it once it has them all. */
+  /** Campaign battles: activating a card in its room, asking for what its effect needs (a rival card, an ally, where heat goes). */
+  private advanceActivate(p: Pending) {
+    const s = this.state!;
+    const me = activePlayer(s);
+    const card = me.tableau.find((c) => c.uid === p.uid);
+    if (!card) {
+      this.pending = null;
+      return this.render();
+    }
+    const ask = (step: Pending['step']) => {
+      p.step = step;
+      this.render();
+    };
+    if (enemyChoices(s, me, card.defId).length > 0 && !p.enemyUid) return ask('enemy');
+    if (allyChoices(me, card.defId).some((c) => c.uid !== card.uid) && !p.allyUid) return ask('ally');
+    if (aimable(card.defId) && aimChoices(s, me).cards.length > 0 && !p.aimUid) return ask('aim');
+    this.pending = null;
+    sound.play();
+    return this.dispatch({ type: 'activate', cardUid: card.uid, enemyUid: p.enemyUid, allyUid: p.allyUid, aimUid: p.aimUid === 'sun' ? undefined : p.aimUid });
+  }
+
   private advancePlay() {
     const p = this.pending;
     const s = this.state!;
     if (!p) return;
     const me = activePlayer(s);
+    if (p.activate) return this.advanceActivate(p);
     const card = me.hand.find((c) => c.uid === p.uid);
     if (!card) {
       this.pending = null;
@@ -3360,6 +3391,13 @@ export class App {
         this.heroPanel = this.heroPanel === arg ? null : arg;
         sound.hover();
         return this.render();
+      case 'room-activate': {
+        const why = activateProblem(this.state!, this.viewer(), arg);
+        if (why) return this.showToast(why, 'info');
+        this.heroPanel = null;
+        this.pending = { uid: arg, step: 'aim', activate: true };
+        return this.advanceActivate(this.pending);
+      }
       case 'hero-ability': {
         const why = heroAbilityProblem(this.state!, this.viewer(), Number(arg));
         if (why) return this.showToast(why, 'info');
@@ -4708,18 +4746,20 @@ export class App {
       if (rows === 1) places.push([x, mid]);
       else places.push([x, mid - 3.25], [x, mid + 3.25]);
     }
-    const order: (number | 'ls')[] = [1, 0, 2, 'ls', 3, 4];
-    const vars: string[] = [`--ac:${colour}`, '--rot:0deg', `--sy:${L.sy}`];
+    // (Five rooms: the middle column one, amidships, the safest.)
+    const order: number[] = [1, 0, 2, 3, 4];
+    // (--tcw again here: the board's own rule would size the cards for its table.)
+    const vars: string[] = [`--ac:${colour}`, '--rot:0deg', `--sy:${L.sy}`, '--tcw:calc(var(--u) * 4)'];
     const rooms: string[] = [];
     const r = p.rooms;
     order.forEach((slot, i) => {
       const [x, y] = places[i] ?? places[places.length - 1];
       const [vx, vy] = at(x, y).split(' ; ');
       vars.push(`--p${slot}x:${vx}`, `--p${slot}y:${vy}`);
-      const d = slot === 'ls' ? 0 : r?.defence[slot] ?? 0;
-      const a = slot === 'ls' ? 0 : r?.attack[slot] ?? 0;
-      const tag = slot === 'ls' ? 'hangar' : `${d ? `walls +${d}` : ''}${d && a ? ' · ' : ''}${a ? `guns +${a}` : ''}`;
-      rooms.push(`<div class="ship-room ${slot === 'ls' ? 'ship-room-hangar' : ''}" style="left:${vx};top:${vy}"><i class="ship-room-light"></i>${tag ? `<small>${tag}</small>` : ''}</div>`);
+      const d = r?.defence[slot] ?? 0;
+      const a = r?.attack[slot] ?? 0;
+      const tag = `${d ? `walls +${d}` : ''}${d && a ? ' · ' : ''}${a ? `guns +${a}` : ''}`;
+      rooms.push(`<div class="ship-room" style="left:${vx};top:${vy}"><i class="ship-room-light"></i>${tag ? `<small>${tag}</small>` : ''}</div>`);
     });
     if (L.cmd !== null) {
       const [cx, cy] = at(L.cmd, mid).split(' ; ');
@@ -4880,9 +4920,11 @@ export class App {
     const busy = this.pending !== null;
     const myTurn = activePlayer(s).id === me.id && !isGameOver(s);
     // The day's whole energy, spent pips left empty; energy beyond the day's usual amount (planets, cards) is amber: it is only for today.
-    const total = Math.max(me.playsLeft, myTurn ? me.turn.energyTotal ?? playsAllowed(s, me) : 0);
-    const base = me.turn.energyBase ?? total;
-    const pips = myTurn ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''} ${i >= base ? 'bonus' : ''}"></i>`).join('') : '';
+    // (Campaign: the ship's store, kept between days, all its pips shown, filled to what is left.)
+    const store = s.campaign && me.energy ? me.energy.cap : 0;
+    const total = store || Math.max(me.playsLeft, myTurn ? me.turn.energyTotal ?? playsAllowed(s, me) : 0);
+    const base = store || (me.turn.energyBase ?? total);
+    const pips = myTurn || store ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''} ${i >= base ? 'bonus' : ''}"></i>`).join('') : '';
     // A campaign hero's battle skills, above End Day: each a button with its cost (and spent, once used).
     const skills = (me.skills ?? [])
       .map((k, i) => {
@@ -4895,8 +4937,8 @@ export class App {
     return `
       ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
       <div class="turn-controls turn-corner">
-        <div class="plays ${myTurn ? '' : 'plays-off'}" title="Energy left today: each card costs the number on its gem">
-          <small>${myTurn ? 'energy' : 'waiting'}</small>
+        <div class="plays ${myTurn ? '' : 'plays-off'}" title="${store ? `Your ship's energy: ${me.playsLeft} of ${store}. It carries over, and you regain ${me.energy!.regen} a day. Activating a card costs the number on its gem.` : 'Energy left today: each card costs the number on its gem'}">
+          <small>${store ? `energy ${me.playsLeft}/${store}` : myTurn ? 'energy' : 'waiting'}</small>
           <span class="plays-pips">${pips}</span>
         </div>
         <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
@@ -4917,7 +4959,7 @@ export class App {
     let state = '';
     const s = this.state;
     const me = s ? activePlayer(s) : null;
-    const pendingDef = p && me ? me.hand.find((h) => h.uid === p.uid)?.defId : undefined;
+    const pendingDef = p && me ? (me.hand.find((h) => h.uid === p.uid) ?? (p.activate ? me.tableau.find((h) => h.uid === p.uid) : undefined))?.defId : undefined;
     if (p && pendingDef && me && opts.tableau === 'rival' && p.step === 'enemy' && enemyChoices(s!, me, pendingDef).some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
@@ -4936,7 +4978,12 @@ export class App {
       attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Choose what ${esc(def.name)} does today (hold or right-click to read it)"`;
       state = 'card-attacker';
     }
-    if ((p?.attack || p?.ability !== undefined) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
+    // Campaign: a card in your ship's rooms, with something it can do today (activate, attack): a tap opens its panel.
+    if (!p && act && me && s?.campaign && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && def.kind !== 'command' && c.slot !== undefined && this.roomActions(me, c).length) {
+      attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Choose what ${esc(def.name)} does today (hold or right-click to read it)"`;
+      state = 'card-attacker';
+    }
+    if ((p?.attack || p?.ability !== undefined || p?.activate) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';
     // Placing a recall card: the card it recalls can make way for it.
     if (p && pendingDef && opts.tableau === 'mine' && p.step === 'slot' && p.allyUid === c.uid && allyEffectKind(pendingDef) === 'recall' && c.slot !== undefined) {
@@ -5084,6 +5131,15 @@ export class App {
   }
 
   /** What the viewer's Hero can do right now: its usable abilities (by index), and 'attack' if it may attack. */
+  /** Campaign: what a card in its room can do today: be activated, attack. */
+  private roomActions(me: PlayerState, c: CardInstance): ('activate' | 'attack')[] {
+    const s = this.state!;
+    const out: ('activate' | 'attack')[] = [];
+    if (!activateProblem(s, me, c.uid)) out.push('activate');
+    if (!c.dimmed && !attackProblem(s, me, c.uid)) out.push('attack');
+    return out;
+  }
+
   private heroActions(me: PlayerState): (number | 'attack')[] {
     const s = this.state!;
     const hero = commandCard(me);
@@ -5102,6 +5158,18 @@ export class App {
     const s = this.state!;
     const me = this.viewer();
     const hero = commandCard(me);
+    // (Campaign: a card in a room has its panel too: activate it, or attack with it.)
+    const room = this.heroPanel ? me.tableau.find((c) => c.uid === this.heroPanel && c.slot !== COMMAND_SLOT) : undefined;
+    if (room && s.campaign) {
+      const acts = this.roomActions(me, room);
+      const card = this.renderCard(room, { static: true }).replace(/^(\s*)<button class="card /, '$1<div class="card card-still ').replace(/<\/button>\s*$/, '</div>').replace(/ data-act="[^"]*"/, '');
+      const why = activateProblem(s, me, room.uid);
+      return `<div class="stage stage-hero stage-room">${card}
+        <div class="room-acts">
+          <button class="btn-primary" data-act="room-activate" data-arg="${room.uid}" ${acts.includes('activate') ? '' : `disabled title="${esc(why ?? '')}"`}>activate · ${activateCost(me, room)} energy</button>
+          ${cardAttack(s, me, room) > 0 ? `<button class="btn" data-act="attack-start" data-arg="${room.uid}" ${acts.includes('attack') ? '' : 'disabled'}>attack · ${cardAttack(s, me, room)}</button>` : ''}
+        </div></div>`;
+    }
     if (!hero || hero.uid !== this.heroPanel) return '';
     const attack = this.heroActions(me).includes('attack');
     const card = this.renderCard(hero, { static: true })
@@ -5119,7 +5187,8 @@ export class App {
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
-    if (!st && this.heroPanel && !isGameOver(s) && this.canAct() && this.heroActions(this.viewer()).length) return this.renderHeroPanel();
+    const roomPanel = !!s.campaign && !!this.heroPanel && this.viewer().tableau.some((c) => c.uid === this.heroPanel && c.slot !== COMMAND_SLOT);
+    if (!st && this.heroPanel && !isGameOver(s) && this.canAct() && (roomPanel || this.heroActions(this.viewer()).length)) return this.renderHeroPanel();
     // A card picked from your hand: it waits here while you choose where it goes and what it does.
     const picked = !st && this.pending && !this.pending.attack && this.pending.ability === undefined ? activePlayer(s).hand.find((c) => c.uid === this.pending!.uid) : undefined;
     if (picked) {

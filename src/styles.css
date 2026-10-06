@@ -5416,3 +5416,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* (A sun carried aboard: its shield curves just past it, clear of the rooms.) */
 .ship-view [data-sun="aboard"] .vit-shell { top: -12%; bottom: -12%; left: 20%; right: -16%; }
 .ship-view .tableau-rival[data-sun="aboard"] .vit-shell { left: -16%; right: 20%; }
+/* (Campaign battles: no hand, no Lightspeed slot; a card's panel offers activate and attack.) */
+.ship-view .tableau-row > .ls-slot, .ship-view .dock .hand-zone, .ship-view .dock-space { display: none !important; }
+.stage-room { display: grid; justify-items: center; gap: 10px; }
+.room-acts { display: flex; gap: 8px; }
+/* (A card in a room is positioned on its own: its padding from its own width, not the ship's.) */
+.ship-view .tableau-row .card.card-table { box-sizing: border-box; padding: 0 calc(var(--tcw) * 0.07) calc(var(--tcw) * 0.06); }

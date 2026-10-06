@@ -15,7 +15,7 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
-import { CARDS, cardDef, copyLimit, fusedId, fusionProblem, RACE_NAMES } from './cards';
+import { CARDS, campaignCardId, cardDef, copyLimit, fusedId, fusionProblem, RACE_NAMES } from './cards';
 import { BALANCE } from './balance';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
@@ -50,8 +50,17 @@ import {
 // ---------------------------------------------------------------------------
 
 export const CAMPAIGN = {
-  /** A flagship's deck: its hero and up to this many cards in all. */
-  armySize: 10,
+  /** A flagship's deck: its hero and up to this many cards in all (the hero and one card per room). */
+  armySize: 6,
+  /**
+   * A ship's energy: its store to start with (the most energy it holds; the cards aboard may cost no more,
+   * added up, than this), and what it regains each day. Both are ship upgrades.
+   */
+  startCapacity: 5,
+  startRegen: 1,
+  /** Stations' energy store, by tier, and the Heart's; they regain 1 a day (the Heart 2). */
+  stationEnergy: [3, 4, 6],
+  heartEnergy: 9,
   /** Wisdom gained each turn (spent on research stations' upgrades). */
   wisdomPerTurn: 1,
   /** Armouries and research stations on the map, and how many cards an armoury stocks (each sold once). */
@@ -68,13 +77,15 @@ export const CAMPAIGN = {
   /** Ship upgrades: credits for the next level (base + per level already built), and each part's most. */
   shipBase: 4,
   shipPerLevel: 4,
-  shipMax: { defence: 3, attack: 2, command: 3, shields: 3, hull: 4 },
+  shipMax: { defence: 3, attack: 2, command: 3, shields: 3, hull: 4, capacity: 10, regen: 2 },
+  /** Credits for capacity and regeneration levels: dearer than the rest (base, per level). */
+  energyUpgrade: { capacity: [5, 3], regen: [10, 10] } as Record<string, [number, number]>,
   /** The command room's defence to start with (on top of the slot's own: 3 in all), and the hull's max health a level. */
   commandRoom: 1,
   hullHealth: 3,
-  /** Cards a station (a system with no flagship in it) fights with, by tier, and the Heart's Wardens. */
-  stationDeck: [4, 6, 8],
-  heartDeck: 10,
+  /** Cards a station (a system with no flagship in it) fights with, by tier, and the Heart's Wardens (its rooms hold 5). */
+  stationDeck: [2, 3, 4],
+  heartDeck: 5,
   /** Cards a system can hold as its garrison. They start its defence already in play. */
   garrisonSlots: 3,
   startCredits: 6,
@@ -249,11 +260,22 @@ export interface Ship {
   shields: number;
   /** Hull levels: each is more max health. */
   hull: number;
+  /** Its energy store (the most it holds, and the most its cards may cost, added up), and what it regains a day. */
+  capacity: number;
+  regen: number;
 }
 
-export type ShipPart = { part: 'defence' | 'attack'; room: number } | { part: 'command' | 'shields' | 'hull' };
+export type ShipPart = { part: 'defence' | 'attack'; room: number } | { part: 'command' | 'shields' | 'hull' | 'capacity' | 'regen' };
 
-export const newShip = (): Ship => ({ rooms: { defence: [0, 0, 0, 0, 0], attack: [0, 0, 0, 0, 0], command: CAMPAIGN.commandRoom }, shields: 0, hull: 0 });
+export const newShip = (): Ship => ({ rooms: { defence: [0, 0, 0, 0, 0], attack: [0, 0, 0, 0, 0], command: CAMPAIGN.commandRoom }, shields: 0, hull: 0, capacity: CAMPAIGN.startCapacity, regen: CAMPAIGN.startRegen });
+
+/** A ship's energy (older ships in a save: the start). */
+export const shipEnergy = (ship: Ship | undefined) => ({ cap: ship?.capacity ?? CAMPAIGN.startCapacity, regen: ship?.regen ?? CAMPAIGN.startRegen });
+
+/** What a deck's cards cost, added up (its hero aside: the hero holds the command room for nothing). */
+export function deckCost(deck: string[], general?: string): number {
+  return deck.filter((id) => id !== general && cardDef(id).kind !== 'command').reduce((n, id) => n + (cardDef(id).cost ?? 1), 0);
+}
 
 export type StarType = 'red' | 'white' | 'brown' | 'neutron';
 
@@ -470,7 +492,7 @@ export interface CampaignLogEntry {
 }
 
 export interface CampaignState {
-  version: 4;
+  version: 5;
   rngState: number;
   uidCounter: number;
   logSeq: number;
@@ -670,6 +692,8 @@ export function shipLevel(ship: Ship, p: ShipPart): number {
   if (p.part === 'defence') return ship.rooms.defence[p.room] ?? 0;
   if (p.part === 'attack') return ship.rooms.attack[p.room] ?? 0;
   if (p.part === 'command') return ship.rooms.command - CAMPAIGN.commandRoom;
+  if (p.part === 'capacity') return (ship.capacity ?? CAMPAIGN.startCapacity) - CAMPAIGN.startCapacity;
+  if (p.part === 'regen') return (ship.regen ?? CAMPAIGN.startRegen) - CAMPAIGN.startRegen;
   return p.part === 'shields' ? ship.shields : ship.hull;
 }
 
@@ -678,6 +702,8 @@ export function shipUpgradeCost(ship: Ship, p: ShipPart): number | null {
   if ((p.part === 'defence' || p.part === 'attack') && !(p.room >= 0 && p.room < BALANCE.tableauSlots)) return null;
   const level = shipLevel(ship, p);
   if (level >= CAMPAIGN.shipMax[p.part]) return null;
+  const dear = CAMPAIGN.energyUpgrade[p.part];
+  if (dear) return dear[0] + level * dear[1];
   return CAMPAIGN.shipBase + level * CAMPAIGN.shipPerLevel;
 }
 
@@ -778,7 +804,10 @@ export function stabiliseProblem(f: Faction, n: CampaignNode): string | null {
 export function deckAddProblem(f: Faction, army: Army, defId: string): string | null {
   if (!f.reserve.includes(defId)) return `${cardDef(defId).name} is not in your reserve.`;
   const copies = army.deck.filter((id) => id === defId).length;
-  if (army.deck.length >= CAMPAIGN.armySize) return `An army's deck holds at most ${CAMPAIGN.armySize} cards: take one out first.`;
+  if (army.deck.length >= CAMPAIGN.armySize) return `Your ship has ${CAMPAIGN.armySize - 1} rooms, all taken: take a card out first.`;
+  const cap = shipEnergy(f.ship).cap;
+  if (cardDef(defId).kind !== 'command' && deckCost(army.deck, army.general) + (cardDef(defId).cost ?? 1) > cap)
+    return `Your ship's energy store is ${cap}: its cards may cost no more than that, added up (they cost ${deckCost(army.deck, army.general)} now; ${cardDef(defId).name} costs ${cardDef(defId).cost ?? 1}). Upgrade the store on the ship tab.`;
   if (copies >= copyLimit(defId)) return copyLimit(defId) === 1 ? `${cardDef(defId).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`;
   if (cardDef(defId).kind === 'command' && defId !== army.general) return `An army is led by its own hero: ${cardDef(defId).name} can lead an army of their own.`;
   return null;
@@ -843,7 +872,7 @@ export function deckSwapProblem(f: Faction, army: Army, slot: number, reserveInd
   if (army.deck[slot] === army.general && army.deck.filter((x) => x === army.general).length === 1) return `${cardDef(army.general).name} leads this army: their card stays in its deck.`;
   const next = [...army.deck];
   next[slot] = id;
-  return armyDeckProblems(next, army.general)[0] ?? null;
+  return armyDeckProblems(next, army.general, shipEnergy(f.ship).cap)[0] ?? null;
 }
 
 /** Is `factionId` barred from attacking this system (a recent Supernova)? */
@@ -870,17 +899,8 @@ export interface GarrisonBonus {
  * one can be).
  */
 export function garrisonBonus(n: CampaignNode): GarrisonBonus {
-  const b: GarrisonBonus = { tableau: [] };
-  for (const g of n.garrison) {
-    if (g.status !== 'stationed') continue;
-    const def = cardDef(g.defId);
-    if (def.kind === 'lightspeed') {
-      b.lightspeed ??= g.defId;
-      continue;
-    }
-    b.tableau.push(g.defId);
-  }
-  return b;
+  // (In a campaign battle every card stands in a room: a Lightspeed card too, in its campaign version.)
+  return { tableau: n.garrison.filter((g) => g.status === 'stationed').map((g) => g.defId) };
 }
 
 /** Income each turn from the systems a faction controls (Stellari blooms included, while they last). */
@@ -1005,8 +1025,12 @@ export function armyDeck(race: number, general: string): string[] {
   const r = ((race % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
   const plain = (c: (typeof CARDS)[number]) => c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll;
   const mine = CARDS.filter((c) => c.race === r && plain(c));
-  const attack = mine.find((c) => c.kind === 'attack')?.id ?? 'coronal_lance';
-  const defence = mine.find((c) => c.kind === 'defence')?.id ?? 'deflector_grid';
+  // (Within a new ship's energy store: the cheapest of each that fit together.)
+  const cheapest = (kind: string) => mine.filter((c) => c.kind === kind).sort((a, b) => (a.cost ?? 1) - (b.cost ?? 1))[0];
+  const a = cheapest('attack');
+  const d = cheapest('defence');
+  const attack = a && (a.cost ?? 1) <= 3 ? a.id : 'coronal_lance';
+  const defence = d && (d.cost ?? 1) + (cardDef(attack).cost ?? 1) <= CAMPAIGN.startCapacity ? d.id : 'deflector_grid';
   return [general, defence, attack];
 }
 
@@ -1014,9 +1038,10 @@ export function armyDeck(race: number, general: string): string[] {
  * Why a flagship's deck is not ready to fight (empty if it is): its hero (the one Hero in it) and at most
  * CAMPAIGN.armySize cards in all, at most 2 of any card (1 of an Anomaly).
  */
-export function armyDeckProblems(deck: string[], general: string): string[] {
+export function armyDeckProblems(deck: string[], general: string, capacity?: number): string[] {
   const out: string[] = [];
-  if (deck.length > CAMPAIGN.armySize) out.push(`A flagship carries at most ${CAMPAIGN.armySize} cards, its hero among them (this has ${deck.length}).`);
+  if (deck.length > CAMPAIGN.armySize) out.push(`A flagship carries its hero and at most ${CAMPAIGN.armySize - 1} cards, one to a room (this has ${deck.length - 1}).`);
+  if (capacity !== undefined && deckCost(deck, general) > capacity) out.push(`Its cards cost ${deckCost(deck, general)} in all: more than its energy store (${capacity}).`);
   if (!deck.includes(general)) out.push(`${cardDef(general).name} leads this flagship: their card must be in its deck.`);
   const heroes = deck.filter((id) => cardDef(id).kind === 'command' && id !== general);
   if (heroes.length) out.push(`A flagship has one hero: ${cardDef(heroes[0]).name} can't come aboard.`);
@@ -1044,7 +1069,7 @@ export function starterDeck(race: number): string[] {
 export function createCampaign(setup: CampaignSetup): CampaignState {
   const rivals = Math.max(1, Math.min(3, setup.rivals ?? 3));
   const s: CampaignState = {
-    version: 4,
+    version: 5,
     rngState: setup.seed | 0,
     uidCounter: 0,
     logSeq: 0,
@@ -1499,14 +1524,20 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   // The defender: an army standing there (its own deck), else the system's own guard (its race's plain
   // deck), else neutral sentinels, or at the Heart its Wardens.
   const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s flagship`) : owner ? `${target.name} Station` : target.heart ? 'The Heart Wardens' : `${target.name} Sentinels`;
-  const defenderDeck = guard ? guard.deck : stationDeck(s, target, owner?.race);
+  // (A garrison's cards take rooms too, ahead of the station's own, five rooms in all; a flagship's fill what
+  // rooms it leaves.)
+  const rooms = BALANCE.tableauSlots;
+  const defenderDeck = guard ? [...guard.deck, ...g.tableau].slice(0, rooms + 1) : [...g.tableau, ...stationDeck(s, target, owner?.race)].slice(0, rooms);
   const { hull: atkHull, ...atkShip } = flagshipSetup(s, army);
   const defShip = guard ? flagshipSetup(s, guard) : null;
-  return [
+  const shipOf = (a: Army) => (a.lost ? { cap: 5, regen: 1 } : shipEnergy(factionById(s, a.owner).ship));
+  const stationEnergy = target.heart ? { cap: CAMPAIGN.heartEnergy, regen: 2 } : { cap: CAMPAIGN.stationEnergy[Math.max(0, Math.min(2, target.tier))], regen: 1 };
+  const sides: PlayerSetup[] = [
     {
       name: army.lost ? armyLeader(army) : `${armyLeader(army)} (${attacker.name})`,
       isAI: attacker.isAI,
       deck: army.deck,
+      energy: shipOf(army),
       deckName: `${armyLeader(army)}'s flagship`,
       heatDelta: army.damage + (def?.foeHeat ?? 0),
       modifiers: [starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
@@ -1519,17 +1550,26 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
       isAI: owner ? owner.isAI : true,
       deck: defenderDeck,
+      energy: guard ? shipOf(guard) : stationEnergy,
       // (The sentinels' heat, and a gate's weakness, are theirs: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat,
       ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : { rooms: stationRooms(target) }),
-      tableau: [...(defShip ? [guard!.general] : []), ...g.tableau],
-      lightspeed: g.lightspeed,
+      tableau: defShip ? [guard!.general] : [],
       modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, targetFx?.modifiers ?? {}),
       ...(def?.skills.length ? { skills: def.skills } : {}),
       ...(guard && def?.boons.length ? { heroBoons: { hero: guard.general, boons: def.boons } } : {}),
       conditions: [...defenceConditions, ...atk.foeConditions].length ? [...defenceConditions, ...atk.foeConditions] : undefined,
     },
   ];
+  // Every card in its campaign version (cmp:), heroes too.
+  const C = (id: string) => campaignCardId(id);
+  return sides.map((p) => ({
+    ...p,
+    deck: p.deck?.map(C),
+    tableau: p.tableau?.map(C),
+    ...(p.hero ? { hero: C(p.hero) } : {}),
+    ...(p.heroBoons ? { heroBoons: { ...p.heroBoons, hero: C(p.heroBoons.hero) } } : {}),
+  }));
 }
 
 /** Plays a battle out with the AI on every seat. */
@@ -1572,7 +1612,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     checkMissions(s);
     return;
   }
-  const problem = army.lost ? null : armyDeckProblems(army.deck, army.general)[0];
+  const problem = army.lost ? null : armyDeckProblems(army.deck, army.general, shipEnergy(f.ship).cap)[0];
   if (problem) throw new GameError(`${armyLeader(army)}'s deck isn't ready to fight: ${problem}`);
   army.moved = true;
   const players = battleSetup(s, army, target);
@@ -1826,6 +1866,8 @@ function upgradeShip(f: Faction, part: ShipPart) {
   else if (part.part === 'attack') r.attack[part.room] += 1;
   else if (part.part === 'command') r.command += 1;
   else if (part.part === 'shields') f.ship.shields += 1;
+  else if (part.part === 'capacity') f.ship.capacity = (f.ship.capacity ?? CAMPAIGN.startCapacity) + 1;
+  else if (part.part === 'regen') f.ship.regen = (f.ship.regen ?? CAMPAIGN.startRegen) + 1;
   else f.ship.hull += 1;
 }
 
@@ -1848,7 +1890,7 @@ function aiStation(s: CampaignState, f: Faction) {
 
 /** The AI upgrades its ship with spare credits: the rooms its cards stand in most, then shields and hull. */
 function aiShip(f: Faction) {
-  const order: ShipPart[] = [{ part: 'command' }, { part: 'defence', room: 2 }, { part: 'attack', room: 2 }, { part: 'hull' }, { part: 'defence', room: 1 }, { part: 'defence', room: 3 }, { part: 'shields' }, { part: 'attack', room: 1 }, { part: 'attack', room: 3 }, { part: 'defence', room: 0 }, { part: 'defence', room: 4 }];
+  const order: ShipPart[] = [{ part: 'capacity' }, { part: 'command' }, { part: 'capacity' }, { part: 'regen' }, { part: 'defence', room: 2 }, { part: 'attack', room: 2 }, { part: 'hull' }, { part: 'defence', room: 1 }, { part: 'defence', room: 3 }, { part: 'shields' }, { part: 'attack', room: 1 }, { part: 'attack', room: 3 }, { part: 'defence', room: 0 }, { part: 'defence', room: 4 }];
   f.ship ??= newShip();
   for (const part of order) {
     const cost = shipUpgradeCost(f.ship, part);
@@ -2068,8 +2110,14 @@ function aiConquestChoice(s: CampaignState, n: CampaignNode): ConquestChoice {
 
 /** AI deck building: fill the flagship's deck from the reserve, then swap race cards in for neutral ones, keeping it legal. */
 function improveDeck(f: Faction, army: Army) {
-  for (let r = f.reserve.length - 1; r >= 0 && army.deck.length < CAMPAIGN.armySize; r--) {
-    if (deckAddProblem(f, army, f.reserve[r]) === null) army.deck.push(f.reserve.splice(r, 1)[0]);
+  // (The best first: rarest, then dearest, as the energy store allows.)
+  const rank = (id: string) => ARMORY_PRICE[cardDef(id).rarity ?? 'dwarf'] * 10 + (cardDef(id).cost ?? 1);
+  for (const id of [...f.reserve].sort((a, b) => rank(b) - rank(a))) {
+    if (army.deck.length >= CAMPAIGN.armySize) break;
+    if (deckAddProblem(f, army, id) === null) {
+      army.deck.push(id);
+      f.reserve.splice(f.reserve.indexOf(id), 1);
+    }
   }
   for (let r = 0; r < f.reserve.length; r++) {
     const id = f.reserve[r];

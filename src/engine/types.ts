@@ -242,6 +242,8 @@ export interface CardDef {
   passive?: Passive[];
   /** A fused card (campaign armory): the two cards it was made from. */
   fusedFrom?: [string, string];
+  /** A card's campaign version ("cmp:" and its id): the card it is made from (its picture is that card's). */
+  campaignOf?: string;
 }
 
 export interface CardInstance {
@@ -261,6 +263,8 @@ export interface CardInstance {
   /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
   /** Dimmed: it has taken its action (attacked, or a Hero used an ability) and can't act again until its owner's next dawn. Cards come into play dimmed. */
   dimmed?: boolean;
+  /** Campaign battles: it has been activated today (once a day). */
+  activated?: boolean;
   boons?: string[];
   /** In a tableau: Fusion cards fused onto it (their effects, passives, Sturdy and stability are its own now). */
   fused?: CardInstance[];
@@ -322,6 +326,10 @@ export interface PlayerState {
   rooms?: ShipRooms;
   /** Campaign battles: the hero, beaten, recovering: back in the command room once `left` of their dawns have passed. */
   wounded?: { card: CardInstance; left: number };
+  /** Campaign battles: cards knocked out of their rooms (returned to "hand"), back in a day. */
+  benched?: { card: CardInstance; slot: number; left: number }[];
+  /** Campaign battles: the ship's energy store (its most), and what it regains each day. Energy carries over. */
+  energy?: { cap: number; regen: number };
   /** Campaign battles: cards destroyed, out of the battle for good. */
   fallen?: CardInstance[];
   /** Wear on the defence of empty slots, left by the cards that stood there (slot → points). */
@@ -460,6 +468,8 @@ export interface PlayerSetup {
   rooms?: ShipRooms;
   /** Campaign battles: the hero's own training (extra attack and defence on their card). */
   heroStats?: { attack: number; defence: number };
+  /** Campaign battles: the ship's energy store and its regeneration (see PlayerState.energy). */
+  energy?: { cap: number; regen: number };
 }
 
 /** A campaign ship's rooms in battle: extra defence and attack for the card in each tableau slot, and the command room's extra defence. */
@@ -511,5 +521,10 @@ export type Action =
   | { type: 'heroAbility'; index: number; /** An ability that heats: the rival card it goes to (unset: their sun, or a Guard). */ aimUid?: string }
   /** One of your cards attacks: one of your rival's cards, or their sun (target null). */
   | { type: 'attack'; attackerUid: string; targetUid: string | null }
+  /**
+   * Campaign battles: a card in one of your ship's rooms fires its play effect again, for its cost from your
+   * energy, once a day. Its targets as for playing it.
+   */
+  | { type: 'activate'; cardUid: string; choice?: string; enemyUid?: string; allyUid?: string; aimUid?: string }
   /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string };

@@ -200,6 +200,8 @@ export function cardArt(def: CardDef, gem = false): string {
 /** Each card's picture as an image (drawn once, then reused). */
 const sceneImages = new Map<string, string>();
 function sceneImage(def: CardDef): string {
+  // (A card's campaign version has its card's picture.)
+  if (def.campaignOf) return sceneImage(cardDef(def.campaignOf));
   let img = sceneImages.get(def.id);
   if (!img) {
     const painted = !def.fusedFrom && renderedArt(def.id);
@@ -331,6 +333,7 @@ export function playerAvatar(cardId: string | undefined, cls = ''): string {
  * a card without one, which keeps the plain stock.
  */
 export function cardStock(def: CardDef): string {
+  if (def.campaignOf) return cardStock(cardDef(def.campaignOf));
   const url = def.fusedFrom ? undefined : renderedArt(def.id);
   // (Every card also has its dark corner sections, where its attack and stability sit: styles.css, "corners".)
   return `<span class="card-corners" aria-hidden="true"></span>` + (url ? `<span class="card-stock" style="--art:url('${url}')" aria-hidden="true"></span>` : '');
@@ -431,7 +434,18 @@ const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<'
  * A card's type and race, for the foot of the card: the type is a small pill (placed at the top middle
  * of the card by the stylesheet), the race small text where the line sits.
  */
+/** What a card is aboard a ship (its campaign version): a character is crew, the rest weapons, defences and systems. */
+export function campaignRole(def: CardDef): string {
+  if (def.kind === 'command') return 'captain';
+  if (def.character) return 'crew';
+  return def.kind === 'attack' ? 'weapon' : def.kind === 'defence' ? 'defence' : 'system';
+}
+
 export function typeLine(def: CardDef): string {
+  if (def.campaignOf) {
+    const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
+    return `<span class="card-type">${escType(campaignRole(def))}</span>${race}`;
+  }
   const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
   return `<span class="card-type">${escType(KIND_NAME[def.kind])}</span>${race}`;
 }

@@ -199,14 +199,14 @@ export interface ShipLayout {
   cmd: number | null;
 }
 export const SHIP_LAYOUTS: ShipLayout[] = [
-  { sy: 1.4, cols: [[14.6, 2], [19.6, 2], [24.6, 2]], sun: 7.4, cmd: 30.6 }, // Aureline: its sun carried astern
-  { sy: 1.4, cols: [[10.6, 2], [15.6, 2], [20.6, 2]], sun: null, cmd: 26.6 }, // Xel'Naru
-  { sy: 1.12, cols: [[20, 2], [25, 2], [30, 2]], sun: null, cmd: 35 }, // Vorthane
-  { sy: 1.18, cols: [[13.5, 2], [18.5, 2], [23.5, 2]], sun: null, cmd: 29.5 }, // Ixquor
-  { sy: 2.1, cols: [[19.4, 2], [24, 2], [28.6, 2]], sun: null, cmd: 33.4 }, // Nyxari
-  { sy: 1.05, cols: [[9.6, 2], [25, 2], [30, 2]], sun: 17.4, cmd: 35 }, // Korrath: the sun in the furnace
-  { sy: 2.5, cols: [[16, 2], [21, 2], [26, 2]], sun: null, cmd: 31.6 }, // Seren
-  { sy: 1.12, cols: [[10.6, 2], [15.6, 2], [29.6, 2]], sun: 22.6, cmd: 35 }, // Pyrr: the sun its white-hot heart
+  { sy: 1.4, cols: [[14.6, 2], [19.6, 1], [24.6, 2]], sun: 7.4, cmd: 30.6 }, // Aureline: its sun carried astern
+  { sy: 1.4, cols: [[10.6, 2], [15.6, 1], [20.6, 2]], sun: null, cmd: 26.6 }, // Xel'Naru
+  { sy: 1.12, cols: [[20, 2], [25, 1], [30, 2]], sun: null, cmd: 35 }, // Vorthane
+  { sy: 1.18, cols: [[13.5, 2], [18.5, 1], [23.5, 2]], sun: null, cmd: 29.5 }, // Ixquor
+  { sy: 2.1, cols: [[19.4, 2], [24, 1], [28.6, 2]], sun: null, cmd: 33.4 }, // Nyxari
+  { sy: 1.05, cols: [[9.6, 2], [25, 1], [30, 2]], sun: 17.4, cmd: 35 }, // Korrath: the sun in the furnace
+  { sy: 2.5, cols: [[16, 2], [21, 1], [26, 2]], sun: null, cmd: 31.6 }, // Seren
+  { sy: 1.12, cols: [[10.6, 2], [15.6, 1], [29.6, 2]], sun: 22.6, cmd: 35 }, // Pyrr: the sun its white-hot heart
 ];
 /** A station (no hero): the derelict's hull, rooms amidships. */
-export const STATION_LAYOUT: ShipLayout = { sy: 1.15, cols: [[14, 2], [19, 2], [24, 2]], sun: null, cmd: null };
+export const STATION_LAYOUT: ShipLayout = { sy: 1.15, cols: [[14, 2], [19, 1], [24, 2]], sun: null, cmd: null };
