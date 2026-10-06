@@ -3,6 +3,7 @@
 
     FAL_KEY=... python3 scripts/cardart/generate.py aureline helio_lancer halo_ward   # some cards
     FAL_KEY=... python3 scripts/cardart/generate.py aureline                          # every card in the file
+    FAL_KEY=... python3 scripts/cardart/generate.py aureline --edit glory_charge      # repaint its existing picture
 
 Each card's prompt is put together from prompts/<race>.json (the style, the race's look, the framing and the
 card's own scene); the race's reference images (refs/<race>-*.jpg) go with it, so every card shows the same
@@ -19,8 +20,9 @@ MODEL = os.environ.get('FAL_MODEL', 'fal-ai/nano-banana-pro/edit')
 
 
 def data_uri(path):
+    kind = 'png' if path.endswith('.png') else 'jpeg'
     with open(path, 'rb') as f:
-        return 'data:image/jpeg;base64,' + base64.b64encode(f.read()).decode()
+        return f'data:image/{kind};base64,' + base64.b64encode(f.read()).decode()
 
 
 def call(prompt, refs):
@@ -49,17 +51,27 @@ def card_crop(img):
     return img.resize((640, 400), Image.LANCZOS)
 
 
+EDIT = ('Repaint the first image as a finished, full-resolution card illustration: keep its composition, setting, '
+        'lighting and the moment it shows, but repaint every figure (the other images show what the Aureline look like). ')
+
+
 def main():
-    race, ids = sys.argv[1], sys.argv[2:]
+    # `--edit` repaints the card's existing picture (generated/<id>.png, e.g. one painted elsewhere) instead of
+    # starting afresh, with the instruction in prompts/<race>.json "edits" (the race, style and framing follow it).
+    edit = '--edit' in sys.argv
+    args = [a for a in sys.argv[1:] if a != '--edit']
+    race, ids = args[0], args[1:]
     spec = json.load(open(os.path.join(HERE, 'prompts', f'{race}.json')))
     refs = [data_uri(p) for p in sorted(glob.glob(os.path.join(HERE, 'refs', f'{race}-*.jpg')))]
     os.makedirs(KEEP, exist_ok=True)
     failed = []
     for cid in ids or list(spec['cards']):
-        prompt = ' '.join([spec['cards'][cid], spec['race'], spec['style'], spec['framing']])
+        scene = EDIT + spec['edits'][cid] if edit else spec['cards'][cid]
+        prompt = ' '.join([scene, spec['race'], spec['style'], spec['framing']])
+        images = ([data_uri(os.path.join(KEEP, f'{cid}.png'))] if edit else []) + refs
         t = time.time()
         try:
-            img = call(prompt, refs)
+            img = call(prompt, images)
         except Exception as e:
             print(f'{cid}: failed: {e}', flush=True); failed.append(cid)
             if str(e)[:3] in ('401', '403', '404', '422'): break   # the request itself is wrong: the rest would fail too
