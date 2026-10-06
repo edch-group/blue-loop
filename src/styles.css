@@ -4454,7 +4454,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .phase-step { justify-content: flex-start; }
 /* Each player's shields, big, in the board's middle: the rival's above the Stellari, yours below. */
 .board-plane > .board-shields {
-  --bs: 60px;
+  --bs: 30px;
   position: absolute; left: 50%; top: 50%; z-index: 1; width: var(--bs); height: calc(var(--bs) * 1.08);
   display: grid; place-items: center; pointer-events: auto; opacity: 0.28; transition: opacity 0.35s, transform 0.35s;
 }
@@ -4501,7 +4501,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .round-ring { width: calc(20px * var(--bz, 1)); }
   .round-ring-num b { font-size: calc(8px * var(--bz, 1)); }
   .board-plane > .phase-track, .board-plane > .turn-who { --stellari-r: 48px; gap: 4px; }
-  .board-plane > .board-shields { --bs: 30px; --stellari-r: 42px; }
+  .board-plane > .board-shields { --bs: 20px; --stellari-r: 46px; }
   .turn-who span, .phase-step span { font-size: 7px; letter-spacing: 0.18em; }
   .phase-step { gap: 5px; }
   .phase-step i { width: 6px; height: 6px; }
