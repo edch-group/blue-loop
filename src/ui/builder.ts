@@ -1,7 +1,7 @@
-import { BALANCE, coverCard, decodeDeck, encodeDeck, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type Rarity } from '../engine';
+import { BALANCE, coverCard, decodeDeck, encodeDeck, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, type CardDef, type Rarity } from '../engine';
 import { customDecks, deckWithCards, deleteDeck, deckById, missingCopies, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
-import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
+import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
 import { fitWhenSeen } from './fittext';
 import { owned, profile } from './profile';
 import { breakCard, communityDecks, countDeckSave, craftCard, shareDeck, unshareDeck, type CommunityDeck } from './account';
@@ -79,6 +79,48 @@ const FILTER_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3
 
 /** A page arrow, drawn (a text ‹ › sits off-centre in the font). */
 const CHEVRON = (way: 'left' | 'right') => `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="${way === 'left' ? 'M7.5 2.5 4 6l3.5 3.5' : 'M4.5 2.5 8 6 4.5 9.5'}"/></svg>`;
+
+/** Text as searched: lower case, every run of anything but letters and digits a single space. */
+const normal = (t: string) => ` ${t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
+
+/** The words of a search, each to be found somewhere on the card. */
+function searchTerms(q: string): string[] {
+  return normal(q).trim().split(' ').filter(Boolean);
+}
+
+/**
+ * Every word on a card, for the search: its name, its text as it reads (keywords by name, with their numbers),
+ * its type as shown (Support, Hero...), its race and sub-race, its race's traits (name and meaning), its
+ * and rarity.
+ */
+const searchIndex = new Map<string, string>();
+function searchText(c: CardDef): string {
+  let s = searchIndex.get(c.id);
+  if (s === undefined) {
+    const sub = c.sub && SUBRACES[c.sub] ? SUBRACES[c.sub].name : '';
+    s = normal(
+      [
+        c.name,
+        plainText(c.text),
+        KIND_NAME[c.kind],
+        c.race !== undefined ? RACE_NAMES[c.race] : 'neutral',
+        sub,
+        ...raceTraitTags(c).flatMap((t) => [t.name, t.text]),
+        // (and the race's bonus and nerf even where they're folded into its numbers: Sun-lances, Regrowth)
+        ...(c.race !== undefined && RACE_TRAITS[c.race] ? [RACE_TRAITS[c.race].bonus, RACE_TRAITS[c.race].nerf] : []),
+        RARITY_NAME[c.rarity ?? 'dwarf'],
+      ].join(' '),
+    );
+    searchIndex.set(c.id, s);
+  }
+  return s;
+}
+
+/** Whether every word of a search is on the card (each the start of a word on it, or within one). */
+function matches(c: CardDef, terms: string[]): boolean {
+  const s = searchText(c);
+  return terms.every((t) => s.includes(t));
+}
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -926,13 +968,13 @@ export class DeckBuilder {
   /** The cards the filters let through, in the chosen order. */
   private filtered(d: SavedDeck): CardDef[] {
     const f = this.filters;
-    const q = f.q.trim().toLowerCase();
+    const terms = searchTerms(f.q);
     const inDeck = new Set(d.cards);
     // (The races this deck's cards come from: the "this deck's races" filter.)
     const deckRaces = new Set(d.cards.map((id) => cardDef(id).race).filter((r): r is number => r !== undefined));
     const flux = profile().flux;
     const list = (this.mode ? this.mode.cards() : CARDS).filter((c) => {
-      if (q && !`${c.name} ${plainText(c.text)} ${c.kind} ${c.race !== undefined ? RACE_NAMES[c.race] : 'neutral'}`.toLowerCase().includes(q)) return false;
+      if (terms.length && !matches(c, terms)) return false;
       const race = c.race === undefined ? 'neutral' : String(c.race);
       if (f.race.size && !f.race.has(race) && !(f.race.has('deck') && (c.race === undefined || deckRaces.has(c.race)))) return false;
       if (f.kind.size && !f.kind.has(c.kind)) return false;

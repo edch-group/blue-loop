@@ -109,10 +109,30 @@ function collect(): Save {
   return out;
 }
 
-/** Whether two saves hold the same progress. */
+/** The profile's fields the server keeps for itself (its economy): a save's copy of them is never current. */
+const ECONOMY: (keyof EconomyFields)[] = ['level', 'xp', 'stardust', 'flux', 'collection', 'rankPoints', 'played', 'won'];
+
+/** A saved value as compared: the profile without its economy fields (the server's, taken up separately). */
+function comparable(key: string, v: string | null): string | null {
+  if (v === null || key !== 'blue-loop:profile:v1') return v;
+  try {
+    const p = JSON.parse(v) as Record<string, unknown>;
+    for (const f of ECONOMY) delete p[f];
+    return JSON.stringify(p);
+  } catch {
+    return v;
+  }
+}
+
+/**
+ * Whether two saves hold the same progress. The economy is left out: the server's economy is taken up on
+ * every check-in, and the copy of it inside a save is older (games and boosters pay on the server without
+ * touching the save), so comparing it made a save that was really the same look newer, and the page reloaded
+ * for nothing.
+ */
 function sameSave(a: unknown, b: Save): boolean {
   if (!a || typeof a !== 'object') return false;
-  return SYNCED.every((k) => ((a as Save)[k] ?? null) === (b[k] ?? null));
+  return SYNCED.every((k) => comparable(k, (a as Save)[k] ?? null) === comparable(k, b[k] ?? null));
 }
 
 /** Take a copy of the account's progress onto this device (in place of what was here). */

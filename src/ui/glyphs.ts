@@ -203,9 +203,10 @@ function sceneImage(def: CardDef): string {
   let img = sceneImages.get(def.id);
   if (!img) {
     const painted = !def.fusedFrom && renderedArt(def.id);
-    // A rendered picture is an image already; a fused card made from one draws inline (an SVG used as an
+    // A rendered picture is an image already (fetched and decoded ahead of time: cardart.ts preloadArt, so not
+    // lazy); a fused card made from one draws inline (an SVG used as an
     // image can't load the pictures inside it).
-    if (painted) img = `<img class="art" alt="" loading="lazy" decoding="async" draggable="false" src="${painted}" />`;
+    if (painted) img = `<img class="art" alt="" draggable="false" src="${painted}" />`;
     else if (def.fusedFrom?.some((id) => renderedArt(id))) img = cardScene(def);
     if (img) {
       sceneImages.set(def.id, img);
