@@ -90,13 +90,14 @@ def rays(light, seed, n, width, length, colour_in, colour_out, bright, angles=No
 # swirled, not drawn strokes), faint enough that the card shows through it.
 
 # ---------------------------------------------------------------- White dwarf: a searing point, finely rayed
+DW = 0.8            # the white dwarf's glow reaches a little less far than the others
 ICE, WHITE, DEEP = [0.6, 0.78, 1.0], [0.92, 0.97, 1.0], [0.32, 0.5, 0.95]
 near = np.maximum(r - G, 0)
 
 L = Light()   # its glare, with faint diffraction spikes (four, and four fainter between)
-L.add(2.0 * np.exp(-near / 0.08), mix(WHITE, ICE, near / 0.16))
-rays(L, 1, 0, 0.005, 0.26, WHITE, ICE, 1.4, angles=np.radians([0, 90, 180, 270]))
-rays(L, 2, 0, 0.004, 0.12, WHITE, ICE, 0.7, angles=np.radians([45, 135, 225, 315]))
+L.add(2.0 * np.exp(-near / (0.08 * DW)), mix(WHITE, ICE, near / (0.16 * DW)))
+rays(L, 1, 0, 0.005, 0.26 * DW, WHITE, ICE, 1.4, angles=np.radians([0, 90, 180, 270]))
+rays(L, 2, 0, 0.004, 0.12 * DW, WHITE, ICE, 0.7, angles=np.radians([45, 135, 225, 315]))
 L.save('light-dwarf-spikes.png')
 
 for i, (seed, warp) in enumerate([(11, 0.3), (12, -0.25)]):   # its corona: soft ice-blue rays reaching well over the card,
@@ -104,15 +105,15 @@ for i, (seed, warp) in enumerate([(11, 0.3), (12, -0.25)]):   # its corona: soft
     soft = polar_noise(seed, 540, 128, 3.0, 26, warp)
     broad = polar_noise(seed + 100, 120, 128, 3, 20, warp)
     ray = (0.35 + 0.65 * np.clip(soft * 1.4 - 0.3, 0, 1) ** 1.5) * (0.4 + 0.8 * broad)
-    L.add(4.5 * ray * np.exp(-near / (0.08 + 0.08 * broad)), mix(WHITE, DEEP, 0.15 + near / 0.45))
+    L.add(4.5 * ray * np.exp(-near / ((0.08 + 0.08 * broad) * DW)), mix(WHITE, DEEP, 0.15 + near / (0.45 * DW)))
     grain = np.clip(polar_noise(seed + 200, 1440, 128, 0.7, 26) * 1.6 - 0.65, 0, 1) ** 1.8
-    L.add(3.0 * grain * np.exp(-near / 0.15), mix(WHITE, DEEP, near / 0.32))
+    L.add(3.0 * grain * np.exp(-near / (0.15 * DW)), mix(WHITE, DEEP, near / (0.32 * DW)))
     L.save(f'light-dwarf-shimmer{i + 1}.png')
 
 L = Light()   # a few motes of light caught in it
 g = np.random.default_rng(21)
 for _ in range(16):
-    rr = G * 1.15 + (0.85 - G * 1.15) * g.random() ** 1.5; aa = g.random() * 2 * np.pi
+    rr = G * 1.15 + ((0.85 - G * 1.15) * DW) * g.random() ** 1.5; aa = g.random() * 2 * np.pi
     d2 = (dx - rr * np.cos(aa)) ** 2 + (dy - rr * np.sin(aa)) ** 2
     L.add((1.0 + 1.0 * g.random()) * (1.1 - rr) * np.exp(-d2 / (2 * (px * 0.8) ** 2)), WHITE)
 L.save('light-dwarf-sparks.png')
