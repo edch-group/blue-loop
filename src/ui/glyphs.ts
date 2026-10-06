@@ -379,7 +379,7 @@ export function rarityGem(def: CardDef): string {
         : '<i class="g g-dwarf-glow"></i><i class="g g-dwarf"></i>';
   // The light it throws out onto the card (scripts/render_gem_light.py): layers that turn and flicker out of step.
   const light = GEM_LIGHT[r].map((l) => `<i class="gl gl-${l}"></i>`).join('');
-  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}"><i class="gem-light">${light}</i><i class="g g-socket"></i><i class="gem-window">${body}</i><i class="g g-glass"></i></span>`;
+  return `<span class="gem gem-${r}" style="--gp:${phase(def.id)}" title="${RARITY_TITLE[r]}"><i class="gem-seat"></i><i class="gem-light">${light}</i><i class="g g-socket"></i><i class="gem-window">${body}</i><i class="g g-glass"></i></span>`;
 }
 
 // The gem images, bundled (so they resolve in the web, desktop and iOS builds) and handed to CSS.
