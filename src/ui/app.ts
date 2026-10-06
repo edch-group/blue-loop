@@ -85,7 +85,7 @@ import { account, buyBooster, checkIn, flush, confirmReset, deleteAccount, finis
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
-import { fitCardText, fitWhenSeen } from './fittext';
+import { fitCardText } from './fittext';
 import { refreshLift, trackLift } from './lift';
 import { animateSuns, holdSuns, redrawSuns } from './sun3d';
 import { voices } from './voice';
@@ -95,6 +95,10 @@ import { artIdsIn, preloadArt } from './cardart';
 
 type Screen = 'menu' | 'game' | 'campaign';
 type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop' | 'pickdeck';
+/** Where a reload that takes up newer progress remembers the menu page it came from. */
+const RESUME_KEY = 'blue-loop:resume-page';
+/** The menu pages a reload may come back to (not the title, sign-in or a page that needs its own state). */
+const RESUMABLE = new Set<string>(['hub', 'quickplay', 'options', 'decks', 'shop']);
 
 const HUB_ICONS = {
   collection: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><rect class="ic-e" x="8" y="12" width="18" height="26" rx="3" transform="rotate(-10 17 25)"/><rect class="ic-e" x="16" y="10" width="18" height="26" rx="3"/><rect class="ic-e" x="24" y="12" width="18" height="26" rx="3" transform="rotate(10 33 25)"/></svg>`,
@@ -489,13 +493,12 @@ function sunRect(root: ParentNode, id: string): DOMRect | null {
  * miss on the sun). Faint at none.
  */
 function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
-  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" title="${side === 'mine' ? 'Your' : 'Their'} shields: they absorb enemy heat, and fade at dawn">${SHIELD_SVG}<b>${n}</b></div>`;
+  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" title="${side === 'mine' ? 'Your' : 'Their'} shields: they absorb enemy heat, and fade at dawn"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/></svg><b>${n}</b></div>`;
 }
 
 /**
- * The badge's shield: a heater shield with a bevelled rim, a polished silver face lit from the top left, a
- * centre ridge (its right half in shade), a highlight, and a glint that sweeps across it now and then. Its
- * colours are CSS variables, so the same drawing serves raised (silver) and down (pale steel, faint).
+ * A card's defence on the board: a heater shield with a bevelled rim, a polished silver face lit from the top
+ * left, a centre ridge (its right half in shade) and a highlight. Its colours are CSS variables (worn: reddened).
  */
 const SHIELD_PATH = 'M50 3 L93 15 V50 C93 79 75 97 50 107 C25 97 7 79 7 50 V15 Z';
 const SHIELD_FACE = 'M50 12 L84 21.5 V50 C84 73 70 88 50 96.5 C30 88 16 73 16 50 V21.5 Z';
@@ -540,6 +543,29 @@ function setShieldBadge(root: ParentNode, pid: string, n: number) {
       el.classList.add('raised');
     }
   });
+}
+
+/** A game's running summary, kept beside its save so a game resumed after a reload is still summed up. */
+const STATS_REC_KEY = 'blue-loop:stats-rec';
+/** Which game, at which point: the summary kept is the one that goes with the save made at the same move. */
+function gameMark(s: GameState): string {
+  return `${s.turnNumber}|${s.players.map((p) => `${p.id}:${p.heat}:${p.deck.length}:${p.hand.length}`).join(',')}`;
+}
+function keepStatsRec(v: { mark: string; rec: GameStats } | null) {
+  try {
+    if (v) localStorage.setItem(STATS_REC_KEY, JSON.stringify(v));
+    else localStorage.removeItem(STATS_REC_KEY);
+  } catch {
+    // Not available: a resumed game just goes unrecorded.
+  }
+}
+function savedStatsRec(mark: string): GameStats | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(STATS_REC_KEY) ?? 'null') as { mark: string; rec: GameStats } | null;
+    return v && v.mark === mark ? v.rec : null;
+  } catch {
+    return null;
+  }
 }
 
 export class App {
@@ -887,15 +913,25 @@ export class App {
     });
   }
 
+  /** Reload the page (to read progress taken up from the account), coming back to the menu page you're on. */
+  private reloadHere() {
+    try {
+      sessionStorage.setItem(RESUME_KEY, this.menuPage);
+    } catch {
+      // Not available: the reload starts at the title screen.
+    }
+    location.reload();
+  }
+
   start() {
     backdrop.mount();
     // Signed in: take up any newer progress from another device (and reload to read it).
     onProgressReplaced(() => {
-      if (this.screen === 'menu') location.reload();
+      if (this.screen === 'menu') this.reloadHere();
     });
     const avatar = account()?.avatar;
     void checkIn().then((replaced) => {
-      if (replaced && this.screen === 'menu') location.reload();
+      if (replaced && this.screen === 'menu') this.reloadHere();
       // (An account from before pictures has just been dealt one: show it.)
       else if (account()?.avatar !== avatar && this.screen === 'menu') this.render();
     });
@@ -908,6 +944,15 @@ export class App {
       // Not available.
     }
     if (after) this.menuPage = signedIn() ? 'hub' : 'signin';
+    // Reloaded to take up newer progress: back to the menu page you were on (not the title screen).
+    let resume: string | null = null;
+    try {
+      resume = sessionStorage.getItem(RESUME_KEY);
+      sessionStorage.removeItem(RESUME_KEY);
+    } catch {
+      // Not available.
+    }
+    if (!after && resume && RESUMABLE.has(resume) && signedIn()) this.menuPage = resume as MenuPage;
     if (after && !signedIn()) this.authMode = 'name';
     // What sign-ins the server offers (Apple, Google, password reset).
     void serverConfig().then((c) => {
@@ -1422,8 +1467,9 @@ export class App {
         }
       }
     } else this.aiGameId = null;
-    // A fresh game on this device is summed up as it is played (online, the room does it).
-    this.statsRec = state.turnNumber <= 1 && !state.winnerId && humans > 0 ? beginStats(state, this.campaignBattle ? 'campaign' : humans === 1 ? 'ai' : 'hotseat') : null;
+    // A fresh game on this device is summed up as it is played (online, the room does it); a resumed one picks
+    // its summary up where it was left (kept beside the save).
+    this.statsRec = state.turnNumber <= 1 && !state.winnerId && humans > 0 ? beginStats(state, this.campaignBattle ? 'campaign' : humans === 1 ? 'ai' : 'hotseat') : !state.winnerId && humans > 0 ? savedStatsRec(gameMark(state)) : null;
     this.state = state;
     this.revealedFor = null;
     this.viewerId = null;
@@ -1773,7 +1819,8 @@ export class App {
     if (this.statsRec && isGameOver(state)) {
       sendGameStats(finishStats(this.statsRec, state));
       this.statsRec = null;
-    }
+      keepStatsRec(null);
+    } else if (this.statsRec) keepStatsRec({ mark: gameMark(state), rec: this.statsRec });
     if (this.campaignBattle) this.campaign.saveBattle(state);
     else if (isGameOver(state)) clearSave();
     else save(state);
@@ -2165,7 +2212,7 @@ export class App {
     tmp.innerHTML = oldHtml;
     const was = tmp.firstElementChild;
     if (!was) return;
-    for (const sel of ['.stat-def-floor', '.card-stats-stab']) {
+    for (const sel of ['.stat-def-floor', '.card-stats']) {
       const cur = el.querySelector<HTMLElement>(sel), old = was.querySelector<HTMLElement>(sel);
       if (!cur || !old || cur.outerHTML === old.outerHTML) continue;
       const html = cur.innerHTML, cls = cur.className;
@@ -3418,7 +3465,8 @@ export class App {
     fitCardText(this.root);
     this.markKwMore(this.root);
     sizePool(this.root);
-    fitWhenSeen(this.root.querySelectorAll<HTMLElement>('.db-pool .db-card'));
+    const pool = this.root.querySelector<HTMLElement>('.db-pool');
+    if (pool) fitCardText(pool);
     this.activeBuilder().afterRender();
     refreshLift();
     this.prefitZooms();
@@ -4823,7 +4871,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${pv('⛨', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</b><span class="card-stats ${(def.attack ?? 0) > 0 && s ? '' : 'card-stats-stab'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv(STAB_ICON, c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b><span class="card-stats card-stats-base${(def.attack ?? 0) > 0 && s ? ' card-stats-split' : ''}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv(STAB_ICON, c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');

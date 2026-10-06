@@ -1,8 +1,8 @@
-import { BALANCE, coverCard, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, type CardDef, type Rarity } from '../engine';
+import { BALANCE, coverCard, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, ownsDeck, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, type CardDef, type Rarity } from '../engine';
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
-import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
-import { fitWhenSeen } from './fittext';
+import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
+import { fitCardText } from './fittext';
 import { owned, profile } from './profile';
 import { breakCard, craftCard } from './account';
 
@@ -79,6 +79,55 @@ const FILTER_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3
 
 /** A page arrow, drawn (a text ‹ › sits off-centre in the font). */
 const CHEVRON = (way: 'left' | 'right') => `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="${way === 'left' ? 'M7.5 2.5 4 6l3.5 3.5' : 'M4.5 2.5 8 6 4.5 9.5'}"/></svg>`;
+
+/** Text as searched: lower case, every run of anything but letters and digits a single space. */
+const normal = (t: string) => ` ${t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
+
+/** The words of a search, each to be found somewhere on the card. */
+function searchTerms(q: string): string[] {
+  return normal(q).trim().split(' ').filter(Boolean);
+}
+
+/**
+ * Every word on a card, for the search: its name, its text as it reads (keywords by name, with their numbers),
+ * its type as shown (Support, Hero...), its race and sub-race, its race's traits (name and meaning), its
+ * and rarity.
+ */
+const searchIndex = new Map<string, string>();
+function searchText(c: CardDef): string {
+  let s = searchIndex.get(c.id);
+  if (s === undefined) {
+    const sub = c.sub && SUBRACES[c.sub] ? SUBRACES[c.sub].name : '';
+    s = normal(
+      [
+        c.name,
+        plainText(c.text),
+        KIND_NAME[c.kind],
+        c.race !== undefined ? RACE_NAMES[c.race] : 'neutral',
+        sub,
+        ...raceTraitTags(c).flatMap((t) => [t.name, t.text]),
+        // (and the race's bonus and nerf even where they're folded into its numbers: Sun-lances, Regrowth)
+        ...(c.race !== undefined && RACE_TRAITS[c.race] ? [RACE_TRAITS[c.race].bonus, RACE_TRAITS[c.race].nerf] : []),
+        RARITY_NAME[c.rarity ?? 'dwarf'],
+      ].join(' '),
+    );
+    searchIndex.set(c.id, s);
+  }
+  return s;
+}
+
+/** Whether every word of a search is on the card (each the start of a word on it, or within one). */
+function matches(c: CardDef, terms: string[]): boolean {
+  const s = searchText(c);
+  return terms.every((t) => s.includes(t));
+}
+
+/** A short fingerprint of a string (to tell whether a page of cards changed). */
+function hash(t: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619);
+  return `${t.length}:${(h >>> 0).toString(36)}`;
+}
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -561,18 +610,28 @@ export class DeckBuilder {
     if (!d || !pool) return this.host.render();
     // (Pages cut to a new size keep the card that led the old page in view.)
     if (keepCard) this.page = this.pageOf(d, keepCard);
-    pool.innerHTML = this.poolCards(d).join('') || '<p class="muted">No cards match these filters.</p>';
-    sizePool();
-    fitWhenSeen(pool.querySelectorAll<HTMLElement>('.db-card'));
+    const html = this.poolCards(d).join('') || '<p class="muted">No cards match these filters.</p>';
+    // The same page as before (a letter typed that changes nothing shown): leave it be, rather than draw the
+    // cards afresh and fit their text again (which made the text jump at every keystroke).
+    // (Its signature: the cards' markup, at the card size and layout they were fitted for.)
+    const L = this.layout;
+    const sig = `${this.grid}|${L ? `${L.cols}x${L.cmdCols}|${Math.round(L.cardH)}|${Math.round(L.height)}` : '-'}|${hash(html)}`;
+    if (pool.dataset.sig !== sig) {
+      pool.dataset.sig = sig;
+      pool.innerHTML = html;
+      sizePool();
+      // A page holds only what fits on screen, so its text is fitted at once, before it is painted.
+      fitCardText(pool);
+    }
     this.updatePager(d);
     // Now laid out: if a page holds a different number of cards than guessed, draw it again to fit.
     if (this.settlePage()) return this.refreshPool();
     const pop = document.querySelector<HTMLElement>('.db-filters-pop');
     const btn = document.querySelector<HTMLElement>('.db-filter-btn');
-    const html = document.createElement('div');
-    html.innerHTML = this.renderFilters(d);
+    const bar = document.createElement('div');
+    bar.innerHTML = this.renderFilters(d);
     // The ticks, values and button label, copied across from a fresh render of the toolbar.
-    const fresh = html.querySelector<HTMLElement>('.db-filters-pop');
+    const fresh = bar.querySelector<HTMLElement>('.db-filters-pop');
     if (pop && fresh) {
       pop.querySelectorAll<HTMLElement>('[data-act="db-opt"], [data-act="db-sort"], [data-act="db-toggle"]').forEach((el) => {
         const twin = fresh.querySelector<HTMLElement>(`[data-act="${el.dataset.act}"][data-arg="${el.dataset.arg}"]`);
@@ -583,7 +642,7 @@ export class DeckBuilder {
       const freshFoot = fresh.querySelector('.db-filters-foot');
       if (foot && freshFoot) foot.innerHTML = freshFoot.innerHTML;
     }
-    const freshBtn = html.querySelector<HTMLElement>('.db-filter-btn');
+    const freshBtn = bar.querySelector<HTMLElement>('.db-filter-btn');
     if (btn && freshBtn) {
       btn.className = freshBtn.className;
       btn.innerHTML = freshBtn.innerHTML;
@@ -697,13 +756,13 @@ export class DeckBuilder {
   /** The cards the filters let through, in the chosen order. */
   private filtered(d: SavedDeck): CardDef[] {
     const f = this.filters;
-    const q = f.q.trim().toLowerCase();
+    const terms = searchTerms(f.q);
     const inDeck = new Set(d.cards);
     // (The races this deck's cards come from: the "this deck's races" filter.)
     const deckRaces = new Set(d.cards.map((id) => cardDef(id).race).filter((r): r is number => r !== undefined));
     const flux = profile().flux;
     const list = (this.mode ? this.mode.cards() : CARDS).filter((c) => {
-      if (q && !`${c.name} ${plainText(c.text)} ${c.kind} ${c.race !== undefined ? RACE_NAMES[c.race] : 'neutral'}`.toLowerCase().includes(q)) return false;
+      if (terms.length && !matches(c, terms)) return false;
       const race = c.race === undefined ? 'neutral' : String(c.race);
       if (f.race.size && !f.race.has(race) && !(f.race.has('deck') && (c.race === undefined || deckRaces.has(c.race)))) return false;
       if (f.kind.size && !f.kind.has(c.kind)) return false;

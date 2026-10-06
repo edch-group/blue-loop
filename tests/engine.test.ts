@@ -610,6 +610,32 @@ describe('Orion, Galaxy Eater', () => {
   });
 });
 
+describe('Tidewall', () => {
+  it('spreads shields over your cards against heat aimed at them, but not pierce or attacks', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = () => s.players.find((p) => p.id !== me.id)!;
+    give(rival(), ['tide_pearl'], 'tableau');
+    const [chart] = give(rival(), ['star_chart'], 'tableau');
+    chart.stability = 6;
+    rival().shields = 5;
+    me.playsLeft = 9;
+    give(me, ['coronal_lance', 'photon_drill']);
+    const [relay] = give(me, ['plasma_relay'], 'tableau');
+    const shown = () => rival().tableau.find((c) => c.uid === chart.uid)!;
+    const worn = () => (shown().dented ?? 0) + (6 - (shown().stability ?? 0));
+    s = play(s, 'coronal_lance', { aimUid: chart.uid });
+    expect(rival().shields).toBe(2);
+    expect(worn()).toBe(0);
+    s = play(s, 'photon_drill', { aimUid: chart.uid });
+    expect(rival().shields).toBe(2);
+    expect(worn()).toBe(2);
+    s = applyAction(s, { type: 'attack', attackerUid: relay.uid, targetUid: chart.uid });
+    expect(rival().shields).toBe(2);
+    expect(worn()).toBeGreaterThan(2);
+  });
+});
+
 describe('Forge Clans: walls become weapons', () => {
   it('a Siege Ram hits harder at dawn for the defence on your cards, and wear takes it back', () => {
     const s = twoPlayer();

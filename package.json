@@ -15,6 +15,7 @@
     "test": "vitest run",
     "simulate": "vite-node scripts/simulate.ts",
     "simulate:pool": "vite-node scripts/simulate-pool.ts",
+    "ai-holds": "vite-node scripts/ai-holds.ts",
     "duel": "vite-node scripts/duel.ts",
     "gauntlet": "vite-node scripts/gauntlet.ts",
     "deck-search": "vite-node scripts/deck-search.ts",
