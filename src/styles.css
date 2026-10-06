@@ -5054,3 +5054,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .gl-swirl1 { animation: glTurn 14s linear infinite, glPull 6s ease-in infinite; animation-delay: calc(var(--gp) * -14s), calc(var(--gp) * -6s); }
 .gl-swirl2 { animation: glTurn 22s linear infinite, glPull 9s ease-in infinite; animation-delay: calc(var(--gp) * -22s), calc(var(--gp) * -9s - 4s); }
 @keyframes glPull { 0% { scale: 1.18; opacity: 0; } 20% { opacity: 1; } 75% { opacity: 0.9; } 100% { scale: 0.82; opacity: 0; } }
+/* The gem centred exactly on the picture's bottom edge, the notch round it centred there too. */
+.card .art-wrap .gem { transform: translate(-50%, 50%); }
+.card .art-wrap .art-frame > * {
+  -webkit-mask: radial-gradient(circle at 50% 100%, transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
+  mask: radial-gradient(circle at 50% 100%, transparent var(--notch-r), #000 calc(var(--notch-r) + 0.6px));
+}
+/* (Its light, centred with it, still fades out just below the picture's edge.) */
+.card .gem .gem-light { -webkit-mask: linear-gradient(180deg, #000 50%, transparent 61%); mask: linear-gradient(180deg, #000 50%, transparent 61%); }
