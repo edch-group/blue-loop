@@ -5226,3 +5226,5 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card:not(:has(> .card-racerow)) > .card-glyph { margin-bottom: calc(var(--gem-s) * 0.15); }
 /* (A taller, rounder bump: its peak reaches further up into the picture, so the arc rises smoothly.) */
 .card .art-wrap .art-frame > * { --bump-x: calc(var(--gem-s) * 2.25); --bump-y: calc(var(--gem-s) * 2.05); }
+/* (The light images are three gem-widths across now: every glow reaches half as far past its gem.) */
+.card .gem .gem-light { inset: -100%; -webkit-mask: linear-gradient(180deg, #000 62%, transparent 82%); mask: linear-gradient(180deg, #000 62%, transparent 82%); }

@@ -7,7 +7,7 @@ sun's corona streaming out in curling streamers and swelling plumes, a black hol
 dark aura, its dust lanes spiralling in round its bright lensed ring. Each is a few layers that CSS turns, breathes and
 flickers out of step (styles.css, "The rarity gem's light"), so the light never repeats.
 
-Each image is five gem-widths across with the gem in the middle (its window, radius G, is left dark: the
+Each image is three gem-widths across with the gem in the middle (its window, radius G, is left dark: the
 gem covers it). Alpha carries the light, so it reads over the white card and over the picture alike.
 """
 import os
@@ -22,7 +22,7 @@ c = (N - 1) / 2
 dx, dy = (x - c) / (N / 2), (y - c) / (N / 2)
 r = np.hypot(dx, dy)
 th = np.arctan2(dy, dx)
-G = 0.2            # the gem's radius, in this image's half-widths (the image is 1 / G gem-widths across)
+G = 0.333          # the gem's radius, in this image's half-widths (the image is three gem-widths across)
 px = 2 / N         # one pixel, in the same units
 
 
