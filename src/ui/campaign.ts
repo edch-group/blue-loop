@@ -2258,13 +2258,13 @@ export class CampaignView {
    */
   private renderBattleReport(): string {
     const r = this.battleReport!;
-    const token = (icon: string, n: number, label: string) => (n ? `<span class="br-token" data-tip="${esc(label)}">${icon}<b>${n > 0 ? '+' : ''}${n}</b></span>` : '');
+    const token = (icon: string, n: number, label: string) => (n ? `<span class="br-token" data-tip-title="${esc(label.toLowerCase())}" data-tip="${n > 0 ? 'Won in this battle.' : 'Spent in this battle.'}">${icon}<b>${n > 0 ? '+' : ''}${n}</b></span>` : '');
     const hero = r.hero
       ? `<div class="br-hero ${r.level ? 'br-levelled' : ''}">${portrait(r.hero)}${r.level ? `<span class="br-level">level ${r.level}</span>` : r.xp ? `<span class="br-xp">+${r.xp} xp</span>` : ''}</div>`
       : '';
-    const tokens = [token(CREDITS, r.credits, 'Credits'), token(MATERIALS, r.materials, 'Materials'), r.damage ? `<span class="br-token br-bad" data-tip="Damage to your flagship: its sun starts this much hotter until repaired">✸<b>${r.damage}</b></span>` : ''].join('');
+    const tokens = [token(CREDITS, r.credits, 'Credits'), token(MATERIALS, r.materials, 'Materials'), r.damage ? `<span class="br-token br-bad" data-tip-title="damage" data-tip="Your flagship's sun starts this much hotter until it is repaired.">✸<b>${r.damage}</b></span>` : ''].join('');
     const finds = r.finds
-      .map((f) => `<span class="find rarity-${f.rarity}" data-tip="${esc(`${f.name} (${f.kind === 'module' ? 'ship module: fit it in the ship tab' : 'hero gear: equip it in the hero tab'}). ${f.text}`)}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></span>`)
+      .map((f) => `<span class="find rarity-${f.rarity}" data-tip-title="${esc(lower(f.name))}" data-tip="${esc(f.text)}" data-tip-note="${f.kind === 'module' ? 'Ship module: fit it in the ship tab.' : 'Hero gear: equip it in the hero tab.'}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></span>`)
       .join('');
     const card = r.salvaged ? `<div class="br-card">${cardHtml(r.salvaged.id)}<small>${r.salvaged.toDeck ? 'into your deck' : 'to your reserve'}</small></div>` : '';
     return this.modal(

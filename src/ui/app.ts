@@ -769,8 +769,10 @@ export class App {
     let tipTimer = 0;
     // (Anything else with words of its own (data-tip: a hero's ability, a boon, a find) explains itself the same way;
     // on a touch screen, a press shows it.)
+    // A popover of its own: its name, then its words with their keywords drawn as on a card.
     const showTip = (el: HTMLElement) => {
-      tip.innerHTML = `<span class="kw-tip-plain">${esc(el.dataset.tip!)}</span>`;
+      const head = el.dataset.tipTitle ? `<b class="tip-head">${esc(el.dataset.tipTitle)}</b>` : '';
+      tip.innerHTML = `${head}<span class="tip-body">${cardTextHtml(el.dataset.tip!, undefined, true)}</span>${el.dataset.tipNote ? `<small class="tip-note">${esc(el.dataset.tipNote)}</small>` : ''}`;
       const r = pageRect(el);
       const page = appSize();
       tip.classList.add('show');
@@ -4686,7 +4688,7 @@ export class App {
           <div class="finds-row">${finds
             .map((f) => {
               const tip = `${f.name} (${f.kind === 'module' ? 'ship module: fit it in the ship tab' : 'hero gear: equip it in the hero tab'}). ${f.text}`;
-              return `<button class="find rarity-${f.rarity}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></button>`;
+              return `<button class="find rarity-${f.rarity}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${f.kind === 'module' ? 'Ship module: fit it in the ship tab.' : 'Hero gear: equip it in the hero tab.'}" aria-label="${esc(tip)}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></button>`;
             })
             .join('')}</div>
         </div>`
@@ -5092,7 +5094,7 @@ export class App {
       .map(([b, n]) => {
         const kind = b.replace(/^boon_/, '').replace(/_\d+$/, '');
         const amount = Number(b.match(/_(\d+)$/)?.[1] ?? 0) * n;
-        return `<i class="${cls}" data-tip="${esc(`Boon: ${plainText(cardDef(b).text)}${n > 1 ? ` (×${n})` : ''}`)}">${effectMark(kind)}${amount ? `<small>${amount}</small>` : ''}</i>`;
+        return `<i class="${cls}" data-tip-title="boon${n > 1 ? ` ×${n}` : ''}" data-tip="${esc(cardDef(b).text)}">${effectMark(kind)}${amount ? `<small>${amount}</small>` : ''}</i>`;
       })
       .join('');
   }
@@ -5113,12 +5115,13 @@ export class App {
         const why = yours ? heroAbilityProblem(s, p, i) : null;
         const text = `${ab.name}: ${plainText(ab.text)}${ab.cost ? ` Costs ${ab.cost} energy.` : ''}${act && why ? ` (${why})` : ''}`;
         const usable = act && !why;
-        return `<button class="hero-ab ${usable ? 'hero-ab-on' : ''}" ${usable ? `data-act="hero-ability" data-arg="${i}"` : 'aria-disabled="true"'} data-tip="${esc(text)}" aria-label="${esc(text)}">${effectMark(e?.type ?? 'star')}${amount ? `<small>${amount}</small>` : ''}${ab.cost ? `<em class="hero-ab-cost">${'<i></i>'.repeat(ab.cost)}</em>` : ''}</button>`;
+        const tipAttrs = `data-tip-title="${esc(ab.name.toLowerCase())}" data-tip="${esc(`${ab.cost ? `{cost:${ab.cost}} : ` : ''}${ab.text}`)}"${act && why ? ` data-tip-note="${esc(why)}"` : usable ? ' data-tip-note="Tap to use it today."' : ''}`;
+        return `<button class="hero-ab ${usable ? 'hero-ab-on' : ''}" ${usable ? `data-act="hero-ability" data-arg="${i}"` : 'aria-disabled="true"'} ${tipAttrs} aria-label="${esc(text)}">${effectMark(e?.type ?? 'star')}${amount ? `<small>${amount}</small>` : ''}${ab.cost ? `<em class="hero-ab-cost">${'<i></i>'.repeat(ab.cost)}</em>` : ''}</button>`;
       })
       .join('');
     const boons = hero.boons?.length ? this.boonMarks(hero.boons, 'boon-mark hero-boon') : '';
     if (!abilities && !boons) return '';
-    return `<div class="hero-rail hero-rail-${side}">${abilities}${boons}</div>`;
+    return `<div class="hero-rail hero-rail-${side}">${abilities ? `<div class="hero-rail-col">${abilities}</div>` : ''}${boons ? `<div class="hero-rail-col">${boons}</div>` : ''}</div>`;
   }
 
   /** What the viewer's Hero can do right now: its usable abilities (by index), and 'attack' if it may attack. */

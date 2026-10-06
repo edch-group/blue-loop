@@ -2609,7 +2609,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .tableau-rival .forecast { bottom: auto; top: 100%; margin: var(--fc-gap) 0 0; }
 .fc {
   display: inline-flex; align-items: center; gap: 3px; padding: 2px clamp(6px, calc(1 * var(--vw)), 10px) 2px clamp(5px, calc(0.8 * var(--vw)), 8px);
-  border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 3px 10px rgba(80, 84, 100, 0.14); cursor: help;
+  border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 3px 10px rgba(80, 84, 100, 0.14); cursor: default;
   font-size: clamp(0.62rem, calc(2.4 * var(--vh)), 0.95rem); line-height: 1.25; white-space: nowrap;
 }
 .fc i { font-style: normal; font-size: 1.05em; display: inline-flex; }
@@ -2879,9 +2879,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* The planets are drawn on the dome canvas; these are just their tooltips' hit areas, on the orbit. */
 .vit-planet {
   position: absolute; width: calc(var(--vs) * 0.14); height: calc(var(--vs) * 0.14); margin: calc(var(--vs) * -0.07) 0 0 calc(var(--vs) * -0.07);
-  border-radius: 50%; pointer-events: auto; cursor: help;
+  border-radius: 50%; pointer-events: auto; cursor: default;
 }
-.vit-planet-tag { cursor: help; font-size: max(8px, calc(var(--vs) * 0.075)); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.vit-planet-tag { cursor: default; font-size: max(8px, calc(var(--vs) * 0.075)); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 .vt-dead { color: #7d828d; }
 .vt-abundant { color: #2f9a72; }
 .vt-industrial { color: #c06d24; }
@@ -4020,7 +4020,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pop-x { width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.8); color: var(--ink-soft); cursor: pointer; font-size: 0.9rem; line-height: 1; box-shadow: 0 1px 4px rgba(60, 70, 100, 0.12); }
 .pop-x:hover { color: var(--ink); background: #fff; }
 .pop-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.pop-chip { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 8px; border-radius: 999px; border: 1px solid #ebe9e4; background: rgba(255, 255, 255, 0.82); color: var(--ink-soft); font: inherit; font-size: 0.64rem; cursor: help; transition: transform 0.12s, box-shadow 0.12s; }
+.pop-chip { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 8px; border-radius: 999px; border: 1px solid #ebe9e4; background: rgba(255, 255, 255, 0.82); color: var(--ink-soft); font: inherit; font-size: 0.64rem; cursor: default; transition: transform 0.12s, box-shadow 0.12s; }
 .pop-chip:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(60, 70, 100, 0.12); }
 .pop-chip b { font-weight: 600; color: var(--ink); margin-right: 2px; }
 .pop-chip b:last-child { margin-right: 0; }
@@ -5376,7 +5376,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* A battle's finds, on its result: each one round mark (what it does, ringed by quality); the rest on hover. */
 .finds-row { display: flex; gap: 12px; justify-content: center; }
-.find { position: relative; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 2px #c9ccd6, 0 4px 12px rgba(60, 70, 100, 0.14); cursor: help; }
+.find { position: relative; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 2px #c9ccd6, 0 4px 12px rgba(60, 70, 100, 0.14); cursor: default; }
 .find.rarity-stellar { box-shadow: 0 0 0 2px #4f86c6, 0 4px 12px rgba(79, 134, 198, 0.25); }
 .find.rarity-anomaly { box-shadow: 0 0 0 2px #8a6fe0, 0 0 14px rgba(138, 111, 224, 0.4); }
 .find > .kw-ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -5427,9 +5427,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-ship-moves i.on { background: #6cc28e; box-shadow: 0 0 6px rgba(108, 194, 142, 0.7), 0 1px 3px rgba(40, 46, 70, 0.25); }
 
 /* A Hero's rail, beside its slot: its abilities as round marks (lit when usable: tap to use), then its boons. */
-.hero-rail { position: absolute; top: 0; display: flex; flex-direction: column; gap: calc(var(--tcw) * 0.05); align-items: center; z-index: 2; }
-.hero-rail-mine { left: calc(100% + var(--tcw) * 0.07); }
-.hero-rail-rival { right: calc(100% + var(--tcw) * 0.07); }
+.hero-rail { position: absolute; top: 0; height: 100%; display: flex; gap: calc(var(--tcw) * 0.06); z-index: 2; pointer-events: none; }
+.hero-rail > * { pointer-events: auto; }
+/* (Beyond the tableau's outline, which stands this far out from the slot.) */
+.hero-rail-mine { left: calc(100% + var(--frame-pad, 12px) + var(--tcw) * 0.08); }
+.hero-rail-rival { right: calc(100% + var(--frame-pad, 12px) + var(--tcw) * 0.08); flex-direction: row-reverse; }
+.hero-rail-col { display: flex; flex-direction: column; gap: calc(var(--tcw) * 0.06); align-items: center; pointer-events: none; }
+.hero-rail-col > * { pointer-events: auto; }
 .hero-ab {
   --s: calc(var(--tcw) * 0.26);
   position: relative; width: var(--s); height: var(--s); padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center;
@@ -5446,7 +5450,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @keyframes hero-ab-ready { to { box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.6), 0 0 4px rgba(212, 165, 42, 0.2); } }
 @media (prefers-reduced-motion: reduce) { .hero-ab-on { animation: none; } }
 /* Boons: smaller, quieter marks (on a hero's rail, or on a card carrying a ship module's). */
-.boon-mark { --s: calc(var(--tcw, 80px) * 0.18); position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: inline-grid; place-items: center; background: #fbf6ea; color: #b08a3a; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.35); font-style: normal; cursor: help; }
+.boon-mark { --s: calc(var(--tcw, 80px) * 0.18); position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: inline-grid; place-items: center; background: #fbf6ea; color: #b08a3a; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.35); font-style: normal; cursor: default; }
 .boon-mark .kw-ico { width: 56%; height: 56%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .boon-mark .kw-ico .kw-ico-fill { fill: currentColor; stroke: none; }
 .boon-mark small { position: absolute; right: -3px; bottom: -3px; font-family: var(--display); font-size: calc(var(--tcw, 80px) * 0.07); color: var(--ink); }
@@ -5461,6 +5465,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 :is(.hero-ab, .boon-mark) .eff-star { color: #b08a3a; }
 
 .kw-tip-plain { font-size: 0.74rem; line-height: 1.4; }
+/* An icon's own popover: its name, its words (keywords drawn as on a card), and a note. */
+.kw-tip .tip-head { display: block; margin-bottom: 4px; font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); }
+.kw-tip .tip-body { display: block; font-size: 0.76rem; line-height: 1.4; color: var(--ink); }
+.kw-tip .tip-note { display: block; margin-top: 5px; font-size: 0.64rem; color: var(--ink-faint); }
 
 /* A battle's report: the result, the hero, what was won as tokens, the salvaged card as itself, the finds as marks. */
 .cmp-br .bar-title { display: none; }
