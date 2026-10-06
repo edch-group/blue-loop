@@ -12,7 +12,7 @@ import { applyAction, createGame, isGameOver } from '../src/engine/game';
 
 Object.assign(BALANCE, { maxLogEntries: 1e6 });
 const games = Number(process.argv[2] ?? 400);
-let r = 12345;
+let r = Number(process.env.SEED ?? 12345);
 const rand = () => ((r = (r * 1664525 + 1013904223) >>> 0) / 2 ** 32);
 const pick = <T,>(xs: T[]) => xs[Math.floor(rand() * xs.length)];
 
@@ -42,7 +42,7 @@ for (let g = 1; g <= games; g++) {
   const races = [Math.floor(rand() * RACE_NAMES.length), Math.floor(rand() * RACE_NAMES.length)];
   const decks = races.map(randomDeck);
   for (const d of decks) if (deckProblems(d).length) throw new Error(deckProblems(d)[0]);
-  let s = createGame({ seed: g, players: decks.map((deck, i) => ({ name: `AI ${i + 1}`, isAI: true, deck })) });
+  let s = createGame({ seed: g + Number(process.env.SEED ?? 0), players: decks.map((deck, i) => ({ name: `AI ${i + 1}`, isAI: true, deck })) });
   let steps = 0;
   try {
     while (!isGameOver(s) && steps++ < 5000) s = applyAction(s, chooseAIAction(s));
@@ -63,6 +63,8 @@ for (let g = 1; g <= games; g++) {
     }
   });
 }
+// OUT=file: every card's record, for merging runs (scripts/power.ts reads them).
+if (process.env.OUT) (await import('node:fs')).writeFileSync(process.env.OUT, JSON.stringify(Object.fromEntries(inDeck)));
 const fresh = new Set(EXPANSION.map((c) => c.id));
 console.log(`${games} games, ${errors} errors, ${(rounds / games).toFixed(1)} rounds, seats ${seat.join('/')}`);
 const rows = [...inDeck].filter(([, [, n]]) => n >= 15).map(([id, [w, n]]) => [id, w / n, n] as const).sort((a, b) => b[1] - a[1]);

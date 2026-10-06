@@ -9,7 +9,17 @@ import type { CardDef, Effect, HeroAbility } from './types';
  * may use one of them, for the energy shown (like a planeswalker's).
  */
 
-export const act = (id: string, name: string, text: string, effects: Effect[], cost = 0): HeroAbility => ({ id, name, text, effects, ...(cost ? { cost } : {}) });
+/**
+ * An ability. Every one costs energy: 1 more than its listed `cost` (a Hero is an engine that never fades, so
+ * its daily use takes some of the day's energy, the way a card would). An ability that gives energy stays free:
+ * paying 1 to get 1 back would be pointless.
+ */
+export const act = (id: string, name: string, text: string, effects: Effect[], cost = 0): HeroAbility => {
+  const charged = effects.some((e) => e.type === 'plays') ? cost : cost + 1;
+  return { id, name, text, effects, ...(charged ? { cost: charged } : {}) };
+};
+/** A Hero's energy cost, from the cost it was listed at: everything a Hero does once it leads earns it one more. */
+export const heroCost = (listed: number) => listed + 1;
 /**
  * "{act:Rally} {shield:2}." – an ability as it reads on the card: its effect alone (the name is the game's, not
  * the card's), with its energy cost, if any, first: green dots, then a colon ("● : Heat 3"). `{act}` marks where each one starts.
@@ -38,9 +48,8 @@ export const HERO_CARDS: Record<string, CardDef> = Object.fromEntries(
         name: 'Empress Solenne',
         race: 0,
         stability: 12,
-        lead: '{heat:4}, {pierce}. Your attack cards {heat:+1}.',
-        onPlay: [{ type: 'heat', amount: 4, to: 'target', pierce: true }],
-        passive: [{ type: 'kindBonus', kind: 'attack', amount: 1, others: true }],
+        lead: '{heat:4}, {pierce}. {chosen}: +2 attack to a card.',
+        onPlay: [{ type: 'heat', amount: 4, to: 'target', pierce: true }, { type: 'empower', amount: 2 }],
       },
       [act('judgement', 'Judgement', '{heat:3}, {pierce}.', [{ type: 'heat', amount: 3, to: 'target', pierce: true }], 1), act('benediction', 'Benediction', '{renew:1}.', [{ type: 'restore', amount: 1, all: true }])],
     ),

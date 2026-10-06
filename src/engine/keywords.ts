@@ -55,6 +55,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   restore: { name: 'restore', group: 'stability', explain: () => 'One of your cards gains stability.' },
   renew: { name: 'renew', group: 'stability', explain: () => 'Your other cards gain stability.' },
   recover: { name: 'recover', group: 'recovery', explain: () => 'Discard pile to hand.' },
+  chosen: { name: 'chosen', group: 'heat', explain: () => 'Pick one of your cards: it gains attack while it stays in play.' },
   recall: { name: 'recall', group: 'recovery', explain: () => 'One of your cards back to hand.' },
   destroy: { name: 'destroy', group: 'removal', explain: () => 'Destroys a rival card with this much defence or less.' },
   eject: { name: 'eject', group: 'removal', explain: () => 'Returns a rival card with this much defence or less to hand.' },

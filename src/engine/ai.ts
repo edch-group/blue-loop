@@ -45,20 +45,20 @@ function tuning(name: string, fallback: number): number {
 }
 
 /** Turns a card in play is expected to keep working, for valuing ongoing effects. */
-const HORIZON = 2.5;
+let HORIZON = tuning('HORIZON', 2.5);
 /** A rival this close to supernova is worth switching targets to finish. */
-const FINISH_RATIO = tuning('FINISH', 0.75);
+let FINISH_RATIO = tuning('FINISH', 0.75);
 /** In a free-for-all, switch to the leader once it is this much cooler (as a share of max health) than your usual target. */
-const LEADER_GAP = tuning('GAP', 0.25);
+let LEADER_GAP = tuning('GAP', 0.25);
 
 /** What one energy is worth, roughly (beyond the first, which every card costs). */
-const ACTION_VALUE = tuning('ACTION', 2.5);
+let ACTION_VALUE = tuning('ACTION', 2.5);
 /** A dawn's +1 energy is worth a full energy with this many cards (beyond one) in hand to spend it on, less with fewer. */
-const ENERGY_HAND = tuning('EHAND', 4);
+let ENERGY_HAND = tuning('EHAND', 4);
 
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
-const INCOMING_WEIGHT = tuning('INCOMING', 0.8);
+let INCOMING_WEIGHT = tuning('INCOMING', 0.8);
 /** How much a rival's board counts against it (what taking a card from it is worth, against heat on its sun). */
 let RIVAL_BOARD = tuning('RIVAL_BOARD', 0.45);
 /** For simulations that pit two AI settings against each other. */
@@ -76,11 +76,35 @@ export function setAICombos(on: boolean) {
   COMBOS = on;
 }
 
+/**
+ * The AI's weights, by name, to read or set while training it on players' games (scripts/train-ai.ts): each is
+ * one of the tuning numbers above.
+ */
+export function aiWeights(): Record<string, number> {
+  return { HORIZON, FINISH: FINISH_RATIO, GAP: LEADER_GAP, ACTION: ACTION_VALUE, EHAND: ENERGY_HAND, INCOMING: INCOMING_WEIGHT, RIVAL_BOARD, LSV: LIGHTSPEED_VALUE, COLD: COLD_HOPE };
+}
+export function setAIWeights(w: Record<string, number>) {
+  if (w.HORIZON !== undefined) HORIZON = w.HORIZON;
+  if (w.FINISH !== undefined) FINISH_RATIO = w.FINISH;
+  if (w.GAP !== undefined) LEADER_GAP = w.GAP;
+  if (w.ACTION !== undefined) ACTION_VALUE = w.ACTION;
+  if (w.EHAND !== undefined) ENERGY_HAND = w.EHAND;
+  if (w.INCOMING !== undefined) INCOMING_WEIGHT = w.INCOMING;
+  if (w.RIVAL_BOARD !== undefined) RIVAL_BOARD = w.RIVAL_BOARD;
+  if (w.LSV !== undefined) LIGHTSPEED_VALUE = w.LSV;
+  if (w.COLD !== undefined) COLD_HOPE = w.COLD;
+}
+/** While training: every move the AI weighed for its last choice, with its score (null: not kept). */
+export let aiScores: { action: Action; score: number }[] | null = null;
+export function keepAIScores(on: boolean) {
+  aiScores = on ? [] : null;
+}
+
 /** What a face-down Lightspeed card is worth to its owner (a counter waiting to spring). */
-const LIGHTSPEED_VALUE = tuning('LSV', 3);
+let LIGHTSPEED_VALUE = tuning('LSV', 3);
 
 /** How far below zero the AI counts on its sun getting, when valuing a Thermosiphon card. */
-const COLD_HOPE = tuning('COLD', 1);
+let COLD_HOPE = tuning('COLD', 1);
 
 /** Whether a player has a Thermosiphon card in play (so a sun below zero is worth keeping cold). */
 function runsCold(p: PlayerState): boolean {
@@ -389,7 +413,7 @@ export function chooseAIAction(state: GameState): Action {
   const attacks: Action[] = [];
   const targets = aimChoices(state, me);
   for (const c of me.tableau) {
-    if (c.dimmed || (cardDef(c.defId).attack ?? 0) <= 0) continue;
+    if (c.dimmed || cardAttack(state, me, c) <= 0) continue;
     if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
     for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
@@ -403,6 +427,7 @@ export function chooseAIAction(state: GameState): Action {
   }
   const baseline = evaluate(view, me.id);
   let best: { action: Action; score: number } | null = null;
+  if (aiScores) aiScores = [{ action: { type: 'endTurn' }, score: baseline - 1.5 }];
   // The best gain any move makes, before charging its energy: energy left unspent at day's end is lost, so
   // ending the day only beats moving when every move hurts in itself.
   let bestRaw = -Infinity;
@@ -433,6 +458,7 @@ export function chooseAIAction(state: GameState): Action {
     const raw = evaluate(next, me.id) + ramp;
     const score = raw - extra * ACTION_VALUE;
     bestRaw = Math.max(bestRaw, raw);
+    aiScores?.push({ action, score });
     if (!best || score > best.score) best = { action, score };
   }
   // Set-ups a move at a time can't see: wear a card's defence down with an attack or two, then remove it

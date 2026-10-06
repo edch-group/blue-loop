@@ -33,6 +33,8 @@ export const BALANCE = {
   /** The catch-up only applies in games with at most this many players (in bigger games everyone but the leader gangs up anyway). */
   catchUpMaxPlayers: 2,
   /** An empty deck is refilled by shuffling your discard pile back in, which heats your sun by this much (unblockable). */
+  /** A deck smaller than this waits, once it runs dry, a day for each card it is short before its discard pile shuffles back. */
+  reshuffleDeckSize: 10,
   reshuffleHeat: 2,
   /** With both deck and discard pile empty, each card you should draw heats your sun by this much instead (unblockable). */
   fatigueHeat: 2,

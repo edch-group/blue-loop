@@ -48,10 +48,10 @@ function vec(c: CardDef): Vec {
   if (c.onTurn?.length || c.onDusk?.length || c.passive?.length || c.attune) bump(v, 'stability', baseStability(c.id) - (c.kind === 'command' ? 0 : raceTrait(c.race)?.stability ?? 0)); // (a race's trait is the race's, not the card's)
   return v;
 }
-export function dominatedPairs(raceOverNeutral = false): string[] {
+export function dominatedPairs(raceOverNeutral = false, anyRace = false): string[] {
 // b can replace a in every deck a fits (neutral b), or in a's race's decks: a race card that beats a neutral
 // one makes the neutral card dead weight in that race's decks.
-const fits = (a: CardDef, b: CardDef) => b.race === undefined || b.race === a.race || (raceOverNeutral && a.race === undefined);
+const fits = (a: CardDef, b: CardDef) => anyRace || b.race === undefined || b.race === a.race || (raceOverNeutral && a.race === undefined);
 const cards = CARDS.filter((c) => !c.fusedFrom && c.kind !== 'global' && !c.spendAll);
 const vecs = new Map(cards.map((c) => [c.id, vec(c)]));
 const found: string[] = [];

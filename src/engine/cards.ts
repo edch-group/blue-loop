@@ -6,7 +6,7 @@ import { RACE_CARDS } from './cards-races';
 import { DUSK_CARDS } from './cards-dusk';
 import { BIG_CARDS } from './cards-big';
 import { RELIC_CARDS } from './cards-relics';
-import { HERO_CARDS } from './heroes-battle';
+import { HERO_CARDS, heroCost } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
 import { BOONS } from './boons';
@@ -39,7 +39,7 @@ export const CARDS: CardDef[] = [
   { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: '{dusk}: {cool:1}.', onDusk: [{ type: 'cool', amount: 1 }] },
   { id: 'cryo_vault', name: 'Cryo Vault', kind: 'defence', text: '{cool:3}.', onPlay: [{ type: 'cool', amount: 3 }] },
   { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: '{sturdy:1}. {dawn}: {shield:2}.', defence: 1, onTurn: [{ type: 'shield', amount: 2 }] },
-  { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: '{cool:1}. Draw 1. {shield:1}.', onPlay: [{ type: 'cool', amount: 1 }, { type: 'draw', amount: 1 }, { type: 'shield', amount: 1 }] },
+  { id: 'heat_sink', name: 'Heat Sink', kind: 'defence', text: '{cool:2}. Draw 1.', onPlay: [{ type: 'cool', amount: 2 }, { type: 'draw', amount: 1 }] },
   { id: 'deep_scanners', name: 'Deep-Space Scanners', kind: 'growth', text: 'Draw 2.', onPlay: [{ type: 'draw', amount: 2 }] },
 
   // ---- Global: one at a time on the whole table; a new one replaces it ----
@@ -292,7 +292,7 @@ export const CARDS: CardDef[] = [
     onPlay: [{ type: 'cool', amount: 3 }],
     onDusk: [{ type: 'cool', amount: 1 }],
   },
-  { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 3. {heat:1} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 1 }] },
+  { id: 'fracture_lens', name: 'Fracture Lens', kind: 'growth', race: 1, text: 'Draw 3. {heat:2} to your sun.', onPlay: [{ type: 'draw', amount: 3 }, { type: 'selfHeat', amount: 2 }] },
 
   // ---- Vorthane: tides. Build shields, keep them, and sting whoever hits them ----
   { id: 'bell_warden', name: 'Bell Warden', kind: 'defence', race: 2, text: '{guard}. {sturdy:1}. {tidewall}. {dawn}: {shield:3}.', defence: 1, onTurn: [{ type: 'shield', amount: 3 }], passive: [{ type: 'taunt' }, { type: 'tidewall' }] },
@@ -310,8 +310,8 @@ export const CARDS: CardDef[] = [
     name: 'Abyssal Choir',
     kind: 'attack',
     race: 2,
-    text: '{dawn}: {heat:3}. {heat:+1} per 2 shields you have (up to 6).',
-    onTurn: [{ type: 'heat', amount: 3, to: 'target', plus: { of: 'shields', per: 2 }, max: 6 }],
+    text: '{dawn}: {heat:2}. {heat:+1} per 2 shields you have (up to 5).',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }],
   },
   {
     id: 'deep_current',
@@ -705,6 +705,8 @@ for (const c of CARDS) {
   Object.assign(c, h);
 }
 for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? c.cost ?? 1 });
+// Heroes cost one more than they are listed at (heroes-battle.ts): an entrance and an ability every day for good.
+for (const c of CARDS) if (c.kind === 'command') c.cost = heroCost(c.cost ?? 2);
 // Attack ratings (attack.ts): by rule, unless a card gives its own.
 for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.cost ?? 1, !isBurst(c));
 // A race's Sturdy (the Korrath) is the cards' own: added to their Sturdy, and written into their text.

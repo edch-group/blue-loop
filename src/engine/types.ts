@@ -100,6 +100,8 @@ export type Effect = (
   | { type: 'restore'; amount: number; all?: boolean; /** This card itself regains stability (a Hero mending). */ self?: boolean }
   /** Mend worn defence on your side: this many points, the most worn cards first, then empty slots. */
   | { type: 'repair'; amount: number }
+  /** Chosen: one of your other cards gains this much attack while it stays in play. */
+  | { type: 'empower'; amount: number }
   /** Plant this many Saplings (tokens) in your empty slots, the least defended first. */
   | { type: 'plant'; amount: number }
   /** Return another card of yours from your tableau to your hand (to play it again). */
@@ -261,6 +263,10 @@ export interface CardInstance {
   /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
   /** Dimmed: it has taken its action (attacked, or a Hero used an ability) and can't act again until its owner's next dawn. Cards come into play dimmed. */
   dimmed?: boolean;
+  /** Attack added by a Chosen effect, while it stays in play. */
+  attackBonus?: number;
+  /** Came into play today (dimmed, not Darkspeed): its dusk effects rest until tomorrow. */
+  fresh?: boolean;
   boons?: string[];
   /** In a tableau: Fusion cards fused onto it (their effects, passives, Sturdy and stability are its own now). */
   fused?: CardInstance[];
@@ -313,9 +319,21 @@ export interface PlayerState {
   heat: number;
   shields: number;
   /** Shuffling the discard pile back in costs no heat (a campaign army's small deck). */
+  /** Cards it began the battle with (a small deck's discard pile waits before it shuffles back: see reshuffleIn). */
+  deckSize?: number;
+  /** Its deck ran dry: days left before its discard pile shuffles back in (one for every card its deck is under 10). */
+  reshuffleIn?: number;
   freeReshuffle?: boolean;
   /** Campaign: the hero whose card carries boons in play, and those boons. */
   heroBoons?: { hero: string; boons: string[] };
+  /** Campaign battles: this side's hero, their training, and their ship's rooms. */
+  hero?: string;
+  heroStats?: { attack: number; defence: number };
+  rooms?: ShipRooms;
+  /** Campaign battles: the hero, beaten, recovering: back in the command room once `left` of their dawns have passed. */
+  wounded?: { card: CardInstance; left: number };
+  /** Campaign battles: cards destroyed, out of the battle for good. */
+  fallen?: CardInstance[];
   /** Wear on the defence of empty slots, left by the cards that stood there (slot → points). */
   slotWear?: Record<number, number>;
   deck: CardInstance[];
@@ -376,6 +394,8 @@ export interface GameState {
   keepPulses?: boolean;
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
+  /** Campaign battle rules (see GameSetup.campaign). */
+  campaign?: boolean;
 }
 
 /** One dawn effect, as it happened: what fired it, where it went, and every sun just after. */
@@ -444,11 +464,31 @@ export interface PlayerSetup {
   conditions?: { name: string; text: string }[];
   /** Campaign battles: the leading hero's skills that can be used in battle. */
   skills?: BattleSkill[];
+  /** Campaign battles: this side's hero (always in their command room; wounded, not lost, when it falls). */
+  hero?: string;
+  /** Campaign battles: the ship's rooms, upgraded (extra defence and attack by tableau slot, and the command room's). */
+  rooms?: ShipRooms;
+  /** Campaign battles: the hero's own training (extra attack and defence on their card). */
+  heroStats?: { attack: number; defence: number };
+}
+
+/** A campaign ship's rooms in battle: extra defence and attack for the card in each tableau slot, and the command room's extra defence. */
+export interface ShipRooms {
+  defence: number[];
+  attack: number[];
+  command: number;
+  /** Each room's module (campaign): boons carried by whichever card stands in it. */
+  boons?: string[][];
 }
 
 export interface GameSetup {
   seed: number;
   players: PlayerSetup[];
+  /**
+   * A campaign battle: the card game's rules, but a small deck (ten cards at most) with nothing left to draw or
+   * shuffle back gives no more without the strain, and a ship's opening shields hold through its first day.
+   */
+  campaign?: boolean;
 }
 
 export type Action =

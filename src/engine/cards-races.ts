@@ -86,8 +86,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'nyx_hollow_reaper', name: 'Hollow Reaper', kind: 'attack', race: 4, sub: 'unmaker', cost: 3, rarity: 'stellar', character: true,
-    text: '{destroy:2}. {dawn}: {heat:1}. {heat:+1} per 2 Unmaker cards (up to 3).',
-    onPlay: [{ type: 'destroy', maxDefence: 2 }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'race', race: 4, sub: 'unmaker', per: 2 }, max: 3 }],
+    text: '{destroy:2}. {dawn}: {heat:1}. {heat:+1} per 2 Unmaker cards (up to 2).',
+    onPlay: [{ type: 'destroy', maxDefence: 2 }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'race', race: 4, sub: 'unmaker', per: 2 }, max: 2 }],
   },
   {
     id: 'nyx_shadow_court', name: 'Shadow Court', kind: 'growth', race: 4, cost: 1, rarity: 'stellar',
@@ -168,8 +168,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_siege_ram', name: 'Siege Ram', kind: 'attack', race: 5, cost: 3,
-    text: '{heat:2}. {sturdy:2}. {dawn}: {heat:1}. {heat:+1} per 4 defence on your cards (up to 3).',
-    defence: 2, onPlay: [{ type: 'heat', amount: 2, to: 'target' }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'defence', per: 4 }, max: 3 }],
+    text: '{heat:1}. {sturdy:2}. {dawn}: {heat:1}. {heat:+1} per 4 defence on your cards (up to 2).',
+    defence: 2, onPlay: [{ type: 'heat', amount: 1, to: 'target' }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'defence', per: 4 }, max: 2 }],
   },
   {
     id: 'kor_foundry', name: 'Deep Foundry', kind: 'growth', race: 5, cost: 2,
@@ -204,13 +204,13 @@ export const RACE_CARDS: CardDef[] = [
   // Tidecasters
   {
     id: 'ser_astral_lance', name: 'Astral Lance', kind: 'attack', race: 6, sub: 'tidecaster', cost: 2,
-    text: '{heat:1}. Your {orbit:+1}. {attune}.',
-    onPlay: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'orbit', amount: 1, who: 'self' }], attune: 1,
+    text: 'Your {orbit:+1}. {attune}.',
+    onPlay: [{ type: 'orbit', amount: 1, who: 'self' }], attune: 1,
   },
   {
     id: 'ser_tide_turner', name: 'Tide-Turner', kind: 'growth', race: 6, sub: 'tidecaster', cost: 1, character: true,
-    text: 'Your {orbit:+1}. Draw 1. {cool:1}.',
-    onPlay: [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'draw', amount: 1 }, { type: 'cool', amount: 1 }],
+    text: 'Your {orbit:+2}. {cool:2}.',
+    onPlay: [{ type: 'orbit', amount: 2, who: 'self' }, { type: 'cool', amount: 2 }],
   },
   {
     id: 'ser_planet_shepherd', name: 'Planet Shepherd', kind: 'growth', race: 6, sub: 'tidecaster', cost: 2,
@@ -219,8 +219,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'ser_eclipse_caster', name: 'Eclipse Caster', kind: 'growth', race: 6, sub: 'tidecaster', cost: 1,
-    text: "Your rival's {orbit:−1}. {shield:1}. Draw 1.",
-    onPlay: [{ type: 'orbit', amount: -1, who: 'rival' }, { type: 'shield', amount: 1 }, { type: 'draw', amount: 1 }],
+    text: "Your rival's {orbit:−2}. Draw 1.",
+    onPlay: [{ type: 'orbit', amount: -2, who: 'rival' }, { type: 'draw', amount: 1 }],
   },
   {
     id: 'ser_twin_moons', name: 'Twin Moons', kind: 'defence', race: 6, sub: 'tidecaster', cost: 2,
@@ -296,8 +296,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'pyr_cinder_brute', name: 'Cinder Brute', kind: 'attack', race: 7, sub: 'cinderborn', cost: 2, character: true,
-    text: '{dawn}: {heat:2}. {heat:1} to your sun.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'selfHeat', amount: 1 }],
+    text: '{dawn}: {heat:3}. {heat:1} to your sun.',
+    onTurn: [{ type: 'heat', amount: 3, to: 'target' }, { type: 'selfHeat', amount: 1 }],
   },
   {
     id: 'pyr_ash_walker', name: 'Ash-Walker', kind: 'attack', race: 7, sub: 'cinderborn', cost: 2, character: true,
@@ -337,8 +337,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'pyr_flarekin_dancer', name: 'Flarekin Dancer', kind: 'attack', race: 7, sub: 'flarekin', cost: 1, character: true,
-    text: '{energy:1}. {heat:2}.',
-    onPlay: [{ type: 'plays', amount: 1 }, { type: 'heat', amount: 2, to: 'target' }],
+    text: '{energy:1}. {heat:2}. {heat:1} to your sun.',
+    onPlay: [{ type: 'plays', amount: 1 }, { type: 'heat', amount: 2, to: 'target' }, { type: 'selfHeat', amount: 1 }],
   },
   {
     id: 'pyr_stoker', name: 'Stoker', kind: 'growth', race: 7, sub: 'flarekin', cost: 1,

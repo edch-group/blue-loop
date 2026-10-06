@@ -1,17 +1,21 @@
 /**
- * One deck against every race's starter: DECK='["id", ...]' (or NAME='Orbit Riders' for a starter)
+ * One deck against every race's starter: DECK='["id", ...]', CODE='BL1-...' (a deck code), or NAME='Orbit Riders' for a starter;
  * npm run gauntlet -- [games per starter]. PATCH and BAL work as in the simulator. Seats alternate; reports the deck's win rate against each.
  */
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { cardDef, deckProblems, PRESET_DECKS, presetDeck, RACE_NAMES } from '../src/engine/cards';
+import { decodeDeck } from '../src/engine/deckcode';
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
 
 // Try card or rules changes too: PATCH='{"card_id": {...}}' BAL='{"minHeat": -3}'.
 for (const [id, patch] of Object.entries(JSON.parse(process.env.PATCH ?? '{}') as Record<string, object>)) Object.assign(cardDef(id), patch);
 Object.assign(BALANCE, { maxLogEntries: 1e6 }, JSON.parse(process.env.BAL ?? '{}'));
 const named = PRESET_DECKS.find((d) => d.name === process.env.NAME);
-const deck = process.env.DECK ? (JSON.parse(process.env.DECK) as string[]) : named?.cards ?? [];
+// (Or a deck code: CODE='BL1-...', as the deck builder shares them.)
+const coded = process.env.CODE ? decodeDeck(process.env.CODE) : null;
+if (process.env.CODE && !coded) throw new Error('Not a deck code.');
+const deck = coded ? coded.cards : process.env.DECK ? (JSON.parse(process.env.DECK) as string[]) : named?.cards ?? [];
 if (deckProblems(deck).length) throw new Error(deckProblems(deck).join('; '));
 const games = Number(process.argv[2] ?? 60);
 const rows: string[] = [];
@@ -31,4 +35,4 @@ for (const foe of foes) {
   total += wins;
   rows.push(`${foe.name} ${Math.round((wins / games) * 100)}%`);
 }
-console.log(`${process.env.NAME ?? 'deck'}: ${((total / (games * foes.length)) * 100).toFixed(1)}% · ${rows.join(' · ')}`);
+console.log(`${coded?.name ?? process.env.NAME ?? 'deck'}: ${((total / (games * foes.length)) * 100).toFixed(1)}% · ${rows.join(' · ')}`);

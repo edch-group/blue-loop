@@ -10,7 +10,7 @@
 import { reloadProfile, setEconomy, type EconomyFields } from './profile';
 
 /** What an account's progress is made of: these keys of this device's storage. */
-const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v3', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm', 'blue-loop:hide-starters', 'blue-loop:share-stats'];
+const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v5', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm', 'blue-loop:hide-starters', 'blue-loop:share-stats'];
 /** The account signed in on this device, and the version of its progress this device last had. */
 const ACCOUNT_KEY = 'blue-loop:account';
 /** The native app's session token (a browser keeps its session in a cookie that pages can't read). */
@@ -295,10 +295,25 @@ export function setSharingStats(on: boolean) {
  * A finished game's anonymous summary (src/engine/stats.ts: the decks, the result, the cards played; nothing
  * about the players), sent for balancing unless switched off. Never in the way: a failure is just dropped.
  */
-export function sendGameStats(stats: unknown) {
+export function sendGameStats(stats: { trace?: unknown; trace64?: string }) {
   if (!sharingStats() || !account()) return;
   const version = typeof __GAME_VERSION__ === 'string' ? __GAME_VERSION__ : 'dev';
-  void api('stats', 'POST', { stats, version }).catch(() => undefined);
+  void (async () => {
+    // The game's moves go compressed (a few kilobytes), for training the AI.
+    const { trace, ...rest } = stats;
+    const out: typeof stats = { ...rest };
+    if (trace) out.trace64 = (await gzip64(JSON.stringify(trace)).catch(() => undefined)) ?? undefined;
+    await api('stats', 'POST', { stats: out, version });
+  })().catch(() => undefined);
+}
+
+/** Text, gzipped, as base64. */
+async function gzip64(text: string): Promise<string> {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
 
 /** A game against the AI ended: the server pays its reward (null: none, e.g. too short, or today's limit reached). */
@@ -450,4 +465,47 @@ if (typeof window !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') void flush();
   });
+}
+
+/** A deck someone shared with the community: credited to the name they go by in the game. */
+export interface CommunityDeck {
+  id: string;
+  author: string;
+  name: string;
+  note: string;
+  cards: string[];
+  saves: number;
+  created: number;
+  mine: boolean;
+}
+
+/** The community's shared decks: most saved or newest first, matching a search; or only your own. */
+export async function communityDecks(sort: 'popular' | 'new', q: string, mine: boolean): Promise<CommunityDeck[]> {
+  const params = new URLSearchParams({ sort, q, ...(mine ? { mine: '1' } : {}) });
+  return ((await api(`decks?${params}`)).decks as CommunityDeck[]) ?? [];
+}
+
+/** Share a deck with the community (the same cards again update the one already shared). Null once done, else why not. */
+export async function shareDeck(deck: { name: string; cards: string[] }, note: string, author: string): Promise<string | null> {
+  try {
+    await api('decks', 'POST', { name: deck.name, cards: deck.cards, note, author });
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Something went wrong.';
+  }
+}
+
+/** Count a save of a shared deck (once per player). Never in the way: a failure is dropped. */
+export function countDeckSave(id: string) {
+  void api('decks/save', 'POST', { id }).catch(() => undefined);
+}
+
+/** Take a deck you shared down. */
+export async function unshareDeck(id: string): Promise<string | null> {
+  try {
+    await api('decks/remove', 'POST', { id });
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Something went wrong.';
+  }
 }

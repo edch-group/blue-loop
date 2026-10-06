@@ -46,10 +46,10 @@ describe('content', () => {
       const own = CARDS.filter((c) => c.race === race);
       expect(own.length).toBeGreaterThanOrEqual(10);
       expect(own.filter((c) => c.rarity === 'anomaly' && c.character).length).toBeGreaterThanOrEqual(1);
-      // Three hero leaders (Command cards) of its own: two regulars and a cost-4 bomb.
+      // Three hero leaders (Command cards) of its own: two regulars and a cost-5 bomb.
       const heroes = own.filter((c) => c.kind === 'command' && c.character);
       expect(heroes).toHaveLength(3);
-      expect(heroes.filter((c) => cardCost(c.id) === 4)).toHaveLength(1);
+      expect(heroes.filter((c) => cardCost(c.id) === 5)).toHaveLength(1);
       expect(own.some((c) => c.character)).toBe(true);
     }
     for (const d of PRESET_DECKS) expect(deckProblems(d.cards)).toEqual([]);
@@ -237,13 +237,13 @@ describe('commands', () => {
     for (let i = 0; i < 10; i++) s = endTurn(s);
     expect(s.players[0].tableau.some((c) => c.defId === 'ignition_protocol')).toBe(true);
     expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.stability).toBe(8);
-    // Strafe: heat 3, for 1 energy; then no second ability that day.
+    // Strafe: heat 3, for 2 energy; then no second ability that day.
     const before = s.players[1].heat;
     activePlayer(s).playsLeft = 3;
     expect(heroAbilityProblem(s, activePlayer(s), 0)).toBeNull();
     s = applyAction(s, { type: 'heroAbility', index: 0 });
     expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 3 - s.players[1].shields);
-    expect(activePlayer(s).playsLeft).toBe(2);
+    expect(activePlayer(s).playsLeft).toBe(1);
     expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/acted today/);
     s = endTurn(endTurn(s));
     expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
@@ -644,7 +644,7 @@ describe('Forge Clans: walls become weapons', () => {
     const wall = give(me, ['kor_shieldwall', 'kor_iron_sentinel'], 'tableau');
     const total = () => me.tableau.reduce((n, t) => n + cardDefence(me, t), 0);
     const dawnHeat = () => effectAmount(s, me, ram, cardDef('kor_siege_ram').onTurn![0], 'turn');
-    expect(dawnHeat()).toBe(Math.min(3, 1 + Math.floor(total() / 4)));
+    expect(dawnHeat()).toBe(Math.min(2, 1 + Math.floor(total() / 4)));
     expect(dawnHeat()).toBeGreaterThan(1);
     for (const c of [ram, ...wall]) c.dented = 99;
     expect(total()).toBe(0);
@@ -891,14 +891,38 @@ describe('hand limit', () => {
     expect(after.discard.map((c) => c.defId)).toContain('star_breaker');
   });
 
-  it('rests dimmed cards at dusk: a card played today (or that attacked) does nothing then', () => {
+  it('rests a card played today at dusk; one that attacked or acted still has its dusk', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     me.hand = [];
     const [star] = give(me, ['evening_star'], 'tableau');
-    star.dimmed = true;
+    star.dimmed = star.fresh = true;
     s = applyAction(s, { type: 'endTurn' });
     expect(s.players.find((p) => p.id === me.id)!.hand.length).toBe(0);
+    // (Dimmed by acting, not new: its dusk goes ahead.)
+    let t = twoPlayer();
+    const you = activePlayer(t);
+    you.hand = [];
+    const [star2] = give(you, ['evening_star'], 'tableau');
+    star2.dimmed = true;
+    t = applyAction(t, { type: 'endTurn' });
+    expect(t.players.find((p) => p.id === you.id)!.hand.length).toBeGreaterThan(0);
+  });
+
+  it('lets a Darkspeed attacker attack the day it lands and still fire its dusk (Nightfall)', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.hand = [];
+    me.playsLeft = 4;
+    give(me, ['nyx_nightfall']);
+    s = play(s, 'nyx_nightfall');
+    const nf = activePlayer(s).tableau.find((c) => c.defId === 'nyx_nightfall')!;
+    expect(nf.fresh).toBeUndefined();
+    s = applyAction(s, { type: 'attack', attackerUid: nf.uid, targetUid: null } as never);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    const before = rival.heat;
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players.find((p) => p.id === rival.id)!.heat).toBeGreaterThan(before);
   });
 });
 
@@ -1376,5 +1400,21 @@ describe('relics', () => {
     give(me, ['ion_cannon']);
     s = play(s, 'ion_cannon', { enemyUid: relic.uid });
     expect(s.players.find((p) => p.id === rival.id)!.tableau.some((c) => c.uid === relic.uid)).toBe(false);
+  });
+});
+
+describe('chosen', () => {
+  it('gives the chosen card +2 attack while it stays in play (Empress Solenne)', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.playsLeft = 9;
+    const [wall] = give(me, ['coolant_array'], 'tableau');
+    give(me, ['empress_solenne']);
+    const before = cardAttack(s, me, wall);
+    const emp = activePlayer(s).hand.find((c) => c.defId === 'empress_solenne')!;
+    s = applyAction(s, { type: 'playCard', cardUid: emp.uid, allyUid: wall.uid } as never);
+    const now = activePlayer(s);
+    const w = now.tableau.find((c) => c.uid === wall.uid)!;
+    expect(cardAttack(s, now, w)).toBe(before + 2);
   });
 });

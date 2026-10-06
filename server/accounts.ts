@@ -21,6 +21,7 @@
  * Routes (all JSON, under /api): see `handleAccounts`.
  */
 
+import { cleanDeckPost } from './decks';
 import { COOKIE, hashPassword, normaliseEmail, passwordProblem, PROVIDERS, randomToken, sameHex, sessionToken, sha256, verifyIdToken } from './auth';
 import { breakDown, buyBooster, craft, freshEconomy, isBoosterKind, normaliseEconomy, payReward, rewardFor, type Economy, type Payout } from './economy';
 import { AVATARS, isAvatar, randomAvatar } from './avatars';
@@ -43,7 +44,7 @@ export interface AccountsEnv {
 
 /** The versions of the Terms of Service and the Privacy Policy a new account agrees to (public/terms.html, privacy.html). */
 export const TERMS_VERSION = '2026-10-03';
-export const PRIVACY_VERSION = '2026-10-05';
+export const PRIVACY_VERSION = '2026-10-06';
 
 const SESSION_DAYS = 90;
 /** At most this many attempts per email, and per address, in a window. */
@@ -89,6 +90,10 @@ class HttpError extends Error {
  *   POST /api/game/finish { gameId, won, conceded }      → { payout, economy }
  *   POST /api/stats    { stats, version }                → { ok }   (an anonymous game summary: nothing of who sent it is kept)
  *   GET  /api/admin/stats?after=&limit=                  → { stats } (Bearer ADMIN_TOKEN)
+ *   GET  /api/decks?sort=popular|new&q=&mine=1           → { decks }  (community decks: shared lists, credited)
+ *   POST /api/decks    { name, note, author, cards }     → { deck }   (share one; the same cards again updates it)
+ *   POST /api/decks/save   { id }                        → { saves }  (counted once per player)
+ *   POST /api/decks/remove { id }                        → { ok }     (your own only)
  * A session response is { account, token, save, updated, economy }; `account` is { id, email, password, avatar }.
  */
 export async function handleAccounts(request: Request, env: AccountsEnv): Promise<Response> {
@@ -114,6 +119,10 @@ export async function handleAccounts(request: Request, env: AccountsEnv): Promis
       'POST /api/game/finish': gameFinish,
       'POST /api/stats': postStats,
       'GET /api/admin/stats': adminStats,
+      'GET /api/decks': listDecks,
+      'POST /api/decks': publishDeck,
+      'POST /api/decks/save': saveCommunityDeck,
+      'POST /api/decks/remove': removeDeck,
     };
     const route = routes[`${request.method} ${url.pathname}`];
     if (!route) throw new HttpError(404, 'Not found.');
@@ -419,6 +428,8 @@ async function deleteAccount(request: Request, env: AccountsEnv): Promise<Respon
     env.DB.prepare('DELETE FROM games WHERE user_id = ?').bind(a.id),
     env.DB.prepare('DELETE FROM resets WHERE user_id = ?').bind(a.id),
     env.DB.prepare('DELETE FROM identities WHERE user_id = ?').bind(a.id),
+    env.DB.prepare('DELETE FROM community_deck_saves WHERE saver = ?').bind(await sha256(`deck-saver:${a.id}`)),
+    env.DB.prepare('DELETE FROM community_decks WHERE user_id = ?').bind(a.id),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(a.id),
   ]);
   const res = Response.json({ ok: true });
@@ -565,13 +576,103 @@ async function postStats(request: Request, env: AccountsEnv): Promise<Response> 
   return Response.json({ ok: true });
 }
 
-async function limitStats(env: AccountsEnv, key: string) {
+async function limitStats(env: AccountsEnv, key: string, max = 30, why = 'Too many games at once.') {
   const now = Date.now();
   const row = await env.DB.prepare('SELECT count, window_start FROM attempts WHERE key = ?').bind(key).first<{ count: number; window_start: number }>();
   if (row && now - row.window_start < ATTEMPT_WINDOW_MS) {
-    if (row.count >= 30) throw new HttpError(429, 'Too many games at once.');
+    if (row.count >= max) throw new HttpError(429, why);
     await env.DB.prepare('UPDATE attempts SET count = count + 1 WHERE key = ?').bind(key).run();
   } else await env.DB.prepare('INSERT OR REPLACE INTO attempts (key, count, window_start) VALUES (?, 1, ?)').bind(key, now).run();
+}
+
+// ---------------------------------------------------------------------------
+// Community decks
+// ---------------------------------------------------------------------------
+
+/** How many decks one player may have shared at a time. */
+const MAX_SHARED_DECKS = 30;
+
+interface DeckRow {
+  id: string;
+  author: string;
+  name: string;
+  note: string;
+  cards: string;
+  saves: number;
+  created: number;
+  mine: number;
+}
+
+/** The shared decks: most saved (or newest) first, matching a search of name or credit; or only your own. */
+async function listDecks(request: Request, env: AccountsEnv): Promise<Response> {
+  const a = await requireAccount(request, env);
+  const url = new URL(request.url);
+  const q = (url.searchParams.get('q') ?? '').trim().slice(0, 40);
+  const mine = url.searchParams.get('mine') === '1';
+  const order = url.searchParams.get('sort') === 'new' ? 'created DESC' : 'saves DESC, created DESC';
+  const where = ['hidden = 0'];
+  const binds: unknown[] = [a.id];
+  if (mine) {
+    where.push('user_id = ?');
+    binds.push(a.id);
+  }
+  if (q) {
+    const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    where.push("(name LIKE ? ESCAPE '\\' OR author LIKE ? ESCAPE '\\')");
+    binds.push(like, like);
+  }
+  const rows = await env.DB.prepare(`SELECT id, author, name, note, cards, saves, created, user_id = ? AS mine FROM community_decks WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 60`)
+    .bind(...binds)
+    .all<DeckRow>();
+  const decks = (rows.results ?? []).map((r) => ({ id: r.id, author: r.author, name: r.name, note: r.note, cards: JSON.parse(r.cards) as string[], saves: r.saves, created: r.created, mine: !!r.mine }));
+  return Response.json({ decks });
+}
+
+/** Share a deck (credited to the name given, the player's name in the game). The same cards again update it. */
+async function publishDeck(request: Request, env: AccountsEnv): Promise<Response> {
+  const a = await requireAccount(request, env);
+  await limitStats(env, `decks:${await sha256(a.id)}`, 12, 'Too many decks shared at once. Try again in a few minutes.');
+  const got = cleanDeckPost(await body(request));
+  if ('error' in got) throw new HttpError(400, got.error);
+  const { name, note, author, cards } = got.deck;
+  const now = Date.now();
+  const list = JSON.stringify(cards);
+  const same = await env.DB.prepare('SELECT id FROM community_decks WHERE user_id = ? AND cards = ?').bind(a.id, list).first<{ id: string }>();
+  if (same) {
+    await env.DB.prepare('UPDATE community_decks SET name = ?, note = ?, author = ?, updated = ?, hidden = 0 WHERE id = ?').bind(name, note, author, now, same.id).run();
+    return Response.json({ deck: { id: same.id, name, note, author, cards } });
+  }
+  const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM community_decks WHERE user_id = ?').bind(a.id).first<{ n: number }>();
+  if ((count?.n ?? 0) >= MAX_SHARED_DECKS) throw new HttpError(400, `You can share up to ${MAX_SHARED_DECKS} decks. Take one down to share another.`);
+  const id = randomToken(8);
+  await env.DB.prepare('INSERT INTO community_decks (id, user_id, author, name, note, cards, saves, created, updated) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)')
+    .bind(id, a.id, author, name, note, list, now, now)
+    .run();
+  return Response.json({ deck: { id, name, note, author, cards } });
+}
+
+/** Someone saved a shared deck to their own: counted once per player (by a hash, not the account). */
+async function saveCommunityDeck(request: Request, env: AccountsEnv): Promise<Response> {
+  const a = await requireAccount(request, env);
+  const id = String((await body(request)).id ?? '').slice(0, 40);
+  const deck = await env.DB.prepare('SELECT user_id, saves FROM community_decks WHERE id = ? AND hidden = 0').bind(id).first<{ user_id: string; saves: number }>();
+  if (!deck) throw new HttpError(404, 'That deck is no longer shared.');
+  if (deck.user_id === a.id) return Response.json({ saves: deck.saves });
+  const saver = await sha256(`deck-saver:${a.id}`);
+  const added = await env.DB.prepare('INSERT OR IGNORE INTO community_deck_saves (deck_id, saver) VALUES (?, ?)').bind(id, saver).run();
+  if (added.meta.changes) await env.DB.prepare('UPDATE community_decks SET saves = saves + 1 WHERE id = ?').bind(id).run();
+  return Response.json({ saves: deck.saves + (added.meta.changes ? 1 : 0) });
+}
+
+/** Take one of your shared decks down (copies others saved stay theirs). */
+async function removeDeck(request: Request, env: AccountsEnv): Promise<Response> {
+  const a = await requireAccount(request, env);
+  const id = String((await body(request)).id ?? '').slice(0, 40);
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM community_deck_saves WHERE deck_id = ? AND deck_id IN (SELECT id FROM community_decks WHERE user_id = ?)').bind(id, a.id),
+    env.DB.prepare('DELETE FROM community_decks WHERE id = ? AND user_id = ?').bind(id, a.id),
+  ]);
+  return Response.json({ ok: true });
 }
 
 /** The summaries after a given one, oldest first, for whoever holds the admin secret. */

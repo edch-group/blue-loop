@@ -10,8 +10,9 @@
   --ink-soft: #737780;
   --ink-faint: #a6a9b0;
   --line: rgba(120, 124, 134, 0.22);
-  --glass: rgba(255, 255, 255, 0.6);
-  --glass-strong: rgba(255, 255, 255, 0.86);
+  /* Panels and popovers are solid: see-through ones read badly over the board and the map. */
+  --glass: #f7f7f5;
+  --glass-strong: #fcfcfb;
   --shadow: 0 8px 30px rgba(90, 90, 110, 0.13), 0 2px 6px rgba(90, 90, 110, 0.07);
   --bar: linear-gradient(90deg, #8a8c91, #a9abaf 45%, #cfd0d2);
   --gold: #b99b5a;
@@ -83,8 +84,6 @@ input { font: inherit; }
   border: 1px solid rgba(255, 255, 255, 0.95);
   border-radius: 14px;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px) saturate(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(1.05);
 }
 .bar-title {
   /* Crisp white headers: dark type on the panel's own white, a hairline beneath. */
@@ -1190,7 +1189,12 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
 .cmp-grid {
   /* The board the systems sit on, like the battle board: a rounded slab with a dotted grid, a bright rim and
      a front edge, translucent enough for the galaxy to show through. */
-  position: absolute; inset: -90px; border-radius: 72px;
+  /* Painted at a smaller size and scaled up to the map (--gk): the slab looks as it always has, and a big map
+     costs no more to draw. */
+  --gk: 1;
+  position: absolute; left: -90px; top: -90px; border-radius: 72px;
+  width: calc((100% + 180px) / var(--gk)); height: calc((100% + 180px) / var(--gk));
+  transform: scale(var(--gk)); transform-origin: 0 0;
   background:
     radial-gradient(circle, rgba(120, 135, 170, 0.2) 0 1.2px, transparent 1.8px) 0 0 / 40px 40px,
     repeating-linear-gradient(0deg, rgba(140, 150, 175, 0.07) 0 1px, transparent 1px 160px),
@@ -2357,6 +2361,14 @@ button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: 
 .result-loss h2 { color: #6b7590; }
 .game-result p { margin: 0; color: var(--ink-soft); font-size: clamp(0.62rem, calc(2.3 * var(--vh)), 0.9rem); }
 .result-actions { display: flex; gap: 8px; }
+/* A campaign battle won: the beaten side's cards to salvage, one to take. */
+.salvage { display: grid; justify-items: center; gap: 8px; margin: 6px 0 4px; }
+.salvage-title { font-family: var(--display); font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); }
+.salvage-cards { display: flex; gap: 12px; justify-content: center; }
+.salvage-cards .cmp-pick { padding: 4px; }
+.salvage-cards .cmp-pick small { font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+.salvage-cards .cmp-pick-on small { color: #8a6fe0; }
+.game-result .btn-primary[disabled] { opacity: 0.5; cursor: default; }
 @keyframes result-in { from { opacity: 0; transform: translate(-50%, -50%) translateY(10px) scale(0.7); } }
 .stage.stage-out { opacity: 0; transition: opacity 0.4s ease; }
 /* A rival's card waits here until you've read it. */
@@ -2601,7 +2613,7 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .tableau-rival .forecast { bottom: auto; top: 100%; margin: var(--fc-gap) 0 0; }
 .fc {
   display: inline-flex; align-items: center; gap: 3px; padding: 2px clamp(6px, calc(1 * var(--vw)), 10px) 2px clamp(5px, calc(0.8 * var(--vw)), 8px);
-  border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 3px 10px rgba(80, 84, 100, 0.14); cursor: help;
+  border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 3px 10px rgba(80, 84, 100, 0.14); cursor: default;
   font-size: clamp(0.62rem, calc(2.4 * var(--vh)), 0.95rem); line-height: 1.25; white-space: nowrap;
 }
 .fc i { font-style: normal; font-size: 1.05em; display: inline-flex; }
@@ -2871,9 +2883,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* The planets are drawn on the dome canvas; these are just their tooltips' hit areas, on the orbit. */
 .vit-planet {
   position: absolute; width: calc(var(--vs) * 0.14); height: calc(var(--vs) * 0.14); margin: calc(var(--vs) * -0.07) 0 0 calc(var(--vs) * -0.07);
-  border-radius: 50%; pointer-events: auto; cursor: help;
+  border-radius: 50%; pointer-events: auto; cursor: default;
 }
-.vit-planet-tag { cursor: help; font-size: max(8px, calc(var(--vs) * 0.075)); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.vit-planet-tag { cursor: default; font-size: max(8px, calc(var(--vs) * 0.075)); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 .vt-dead { color: #7d828d; }
 .vt-abundant { color: #2f9a72; }
 .vt-industrial { color: #c06d24; }
@@ -3684,24 +3696,24 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* ---- Campaign guide: optional, under the turn count, never in the way of play ---- */
 .cmp-guide {
-  position: absolute; top: calc(100% + 10px); left: 0; z-index: 2; width: min(400px, calc(100 * var(--vw) - 36px));
-  display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: start;
-  padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.86); border: 1px solid #fff;
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--sc) 45%, transparent), var(--shadow);
+  position: absolute; top: calc(100% + 10px); left: 0; z-index: 2; width: min(330px, calc(100 * var(--vw) - 36px));
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 10px 12px 10px 12px; border-radius: 18px; background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 24px rgba(40, 46, 70, 0.12);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   animation: cmp-guide-in 0.28s ease-out both;
 }
 @keyframes cmp-guide-in { from { opacity: 0; transform: translateY(-6px); } }
-.cmp-guide-face .cmp-portrait { width: 52px; height: 52px; }
-.cmp-guide-who { display: block; font-size: 0.62rem; color: var(--ink-faint); letter-spacing: 0.04em; }
-.cmp-guide-who b { font-family: var(--display); font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); }
-.cmp-guide-text { margin: 4px 0 6px; font-size: 0.78rem; line-height: 1.45; color: var(--ink); }
-.cmp-guide-foot { display: flex; align-items: center; gap: 10px; }
-.cmp-guide-foot small { margin-right: auto; font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
-.cmp-guide-foot .pill-btn { padding: 4px 12px; font-size: 0.54rem; }
+.cmp-guide-face .cmp-portrait { width: 34px; height: 34px; box-shadow: 0 0 0 2px var(--sc); }
+.cmp-guide-who { display: block; font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+.cmp-guide-text { margin: 2px 0 0; font-size: 0.8rem; line-height: 1.4; color: var(--ink); }
+.cmp-guide-next { width: 30px; height: 30px; border: 0; border-radius: 50%; background: #f3f2f8; color: var(--ink); font-size: 1.05rem; line-height: 1; cursor: pointer; }
+.cmp-guide-next:hover { background: #e9e7f3; }
+.cmp-guide-x { position: absolute; top: 4px; right: 6px; width: 18px; height: 18px; border: 0; background: none; color: var(--ink-faint); font-size: 0.8rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
+.cmp-guide:hover .cmp-guide-x { opacity: 1; }
 @media (max-width: 700px) {
   .cmp-top-left > button.cmp-turn, .cmp-top-left > .cmp-stability { height: 36px; }
-  .cmp-guide { grid-template-columns: 40px minmax(0, 1fr); }
+  .cmp-guide { grid-template-columns: 30px minmax(0, 1fr) auto; }
   .cmp-guide-face .cmp-portrait { width: 40px; height: 40px; }
   .cmp-guide-text { font-size: 0.7rem; }
 }
@@ -3758,8 +3770,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* ---- Campaign: the base button (larger, a house, "new" when the armoury restocks) ---- */
 .cmp-base-btn { position: relative; display: inline-flex; align-items: center; gap: 8px; height: clamp(36px, calc(8 * var(--vh)), 44px); padding: 0 18px 0 14px; border-radius: 999px; border: 1px solid #fff; background: var(--glass-strong); box-shadow: var(--shadow); font-family: var(--display); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); cursor: pointer; }
 /* Bottom middle of the map, level with end turn. */
-.cmp-base-dock { position: absolute; left: 50%; bottom: calc(var(--pad-b) + 12px); transform: translateX(-50%); z-index: 2; }
-.cmp-base-dock .cmp-base-btn { height: 48px; padding: 0 22px 0 18px; }
 /* Hover: it lifts, its glow widens, and the house gives a little hop. */
 .cmp-base-btn { transition: transform 0.2s cubic-bezier(.2, .8, .2, 1), box-shadow 0.2s; }
 .cmp-base-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(80, 84, 100, 0.2), 0 0 0 1.5px rgba(95, 143, 196, 0.35); }
@@ -4012,7 +4022,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pop-x { width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.8); color: var(--ink-soft); cursor: pointer; font-size: 0.9rem; line-height: 1; box-shadow: 0 1px 4px rgba(60, 70, 100, 0.12); }
 .pop-x:hover { color: var(--ink); background: #fff; }
 .pop-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.pop-chip { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 8px; border-radius: 999px; border: 1px solid #ebe9e4; background: rgba(255, 255, 255, 0.82); color: var(--ink-soft); font: inherit; font-size: 0.64rem; cursor: help; transition: transform 0.12s, box-shadow 0.12s; }
+.pop-chip { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 8px; border-radius: 999px; border: 1px solid #ebe9e4; background: rgba(255, 255, 255, 0.82); color: var(--ink-soft); font: inherit; font-size: 0.64rem; cursor: default; transition: transform 0.12s, box-shadow 0.12s; }
 .pop-chip:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(60, 70, 100, 0.12); }
 .pop-chip b { font-weight: 600; color: var(--ink); margin-right: 2px; }
 .pop-chip b:last-child { margin-right: 0; }
@@ -4473,7 +4483,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .board-shields.raised svg { animation: bs-raise 0.6s cubic-bezier(0.2, 1.6, 0.4, 1); }
 @keyframes bs-raise { 0% { transform: scale(0.8); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .board-shields svg { animation: none !important; } }
-.table-view:is(.zoom-rival, .zoom-mine) .board-plane > .board-shields { opacity: 0; }
+/* By the sun, beside the planet tag. */
+.vit-under .board-shields {
+  --bs: max(18px, calc(var(--vs) * 0.17));
+  position: relative; width: var(--bs); height: calc(var(--bs) * 1.08); flex: none;
+  display: grid; place-items: center; pointer-events: auto; opacity: 0.35; transition: opacity 0.35s;
+}
+.vit-under .board-shields.up { opacity: 1; }
 .turn-who span { font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; color: #b9bfca; transition: color 0.4s; }
 .turn-who span.on { color: #2f3a52; }
 .table-view:is(.zoom-rival, .zoom-mine) .board-plane > :is(.phase-track, .turn-who) { opacity: 0; }
@@ -5240,3 +5256,312 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .card .stat-def-floor .bs-glint { opacity: 0; }
 /* Worn: the face reddens, the number in red. */
 .card .stat-def.stat-def-floor.stat-dented { background: none; color: #a8301a; --face1: #fff1ec; --face2: #e9b3a3; --face3: #c07763; }
+
+/* ---------- Deck codes, community decks and decks still to collect ---------- */
+/* A deck box's tag on its foot: cards still to collect, or how many of a shared deck's you own. */
+.deck-box-tag {
+  position: absolute; z-index: 3; left: 50%; top: 9%; transform: translateX(-50%); white-space: nowrap;
+  padding: 2px 8px; border-radius: 999px; font-style: normal; font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase;
+  background: #fff; color: #a8641c; box-shadow: 0 0 0 1px rgba(212, 149, 42, 0.55), 0 2px 6px rgba(60, 64, 80, 0.18);
+}
+.db-panel { width: min(440px, calc(100% - 24px)); text-align: left; justify-items: stretch; }
+.db-panel > b { text-align: center; }
+.db-panel .section-label { margin-top: 6px; }
+.db-panel .db-confirm-actions { justify-content: center; }
+.db-panel textarea, .db-panel .db-code {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 0.74rem; color: var(--ink); resize: vertical;
+  padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(150, 164, 190, 0.5); background: #fbfcfe;
+}
+.db-panel .db-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.66rem; word-break: break-all; }
+.db-code-row { display: flex; gap: 6px; align-items: center; }
+.db-code-row .db-code { flex: 1; min-width: 0; }
+.db-community-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 6px 16px 0 10px; }
+.db-ctabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.db-ctabs .pill-btn.on { background: #2f3a52; color: #fff; }
+.db-csearch { display: flex; gap: 6px; align-items: center; }
+.db-csearch input { font: inherit; font-size: 0.74rem; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(150, 164, 190, 0.5); background: #fff; width: min(220px, 50vw); }
+.db-chint { margin: 8px 16px 0 10px; font-size: 0.7rem; }
+.db-cboxes { --bw: clamp(96px, calc(28 * var(--vh)), 150px); column-gap: clamp(28px, calc(4 * var(--vw)), 44px); row-gap: 28px; }
+.db-cdeck { display: grid; gap: 6px; justify-items: center; align-content: start; width: var(--bw); }
+.db-cdeck > .db-deck { width: 100%; }
+.db-cdeck .db-credit { margin-top: 20px; }
+.db-cactions { flex-wrap: wrap; justify-content: center; }
+.db-credit { display: flex; gap: 8px; justify-content: center; font-size: 0.64rem; color: var(--ink-soft); }
+.db-credit span:first-child { font-weight: 600; color: var(--ink); }
+.db-cnote { margin: 0; font-size: 0.62rem; line-height: 1.3; color: var(--ink-soft); text-align: center; }
+/* In the deck: a card you don't own enough of, dashed, with what's still needed. */
+.db-row.db-row-missing { grid-template-columns: auto minmax(0, 1fr) auto auto auto; border-style: dashed; border-color: rgba(212, 149, 42, 0.8); }
+.db-row-missing .db-row-art { filter: grayscale(0.8); opacity: 0.7; }
+.db-row-need { font-size: 0.8em; letter-spacing: 0.06em; color: #a8641c; white-space: nowrap; }
+.db-tally-need { display: block; margin-bottom: 2px; color: #a8641c; font-weight: 600; }
+
+/* ---- Campaign: Wisdom, stations, the ship and the hero's training ---- */
+.cur-wisdom, .cur-station { width: 1.15em; height: 1.15em; vertical-align: -0.22em; }
+.cmp-badge .cur-station { width: 14px; height: 14px; vertical-align: -3px; }
+.cmp-station-badge.spent { opacity: 0.45; filter: grayscale(1); }
+.pop-attack .cur-station { margin-right: 6px; }
+.cmp-hero-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cmp-hero-choice { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 14px; border: 1px solid rgba(0, 0, 0, 0.08); background: #fff; text-align: left; cursor: pointer; min-width: 0; }
+.cmp-hero-choice .cmp-portrait { width: 44px; height: 44px; flex: none; }
+.cmp-hero-choice b { display: block; font-family: var(--display); font-size: 0.78rem; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-hero-choice small { color: var(--ink-faint); font-size: 0.68rem; }
+.cmp-hero-choice > span { min-width: 0; }
+.cmp-hero-choice.on { border-color: #c9a14a; box-shadow: 0 0 0 2px rgba(201, 161, 74, 0.35); }
+.cmp-rs-station { display: flex; flex-direction: column; gap: 12px; }
+.cmp-rs-offer { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 12px; background: rgba(169, 143, 224, 0.12); border: 1px solid rgba(169, 143, 224, 0.4); }
+.cmp-rs-offer .cur-station { width: 40px; height: 40px; flex: none; }
+.cmp-rs-offer b { display: block; font-family: var(--display); }
+.cmp-rs-offer small { color: var(--ink-faint); }
+.cmp-rs-offer p { margin: 6px 0 0; }
+.cmp-rs-offer.taken { opacity: 0.55; }
+.hv-train { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.hv-train p { margin: 0 0 4px; font-size: 0.8rem; }
+.hv-train-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); }
+.hv-train-row > span { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; font-family: var(--display); }
+.hv-train-row > span small { grid-column: 1 / -1; }
+.hv-train-row .pill-btn { white-space: nowrap; }
+.hv-train-row b { font-size: 1.1rem; }
+.hv-train-row small { color: var(--ink-faint); font-size: 0.7rem; }
+.cmp-shipyard { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr); gap: 16px; padding: 12px 16px; overflow: auto; flex: 1; min-height: 0; }
+.sh-hull { position: relative; min-height: 300px; border-radius: 16px; background: radial-gradient(ellipse at 50% 55%, rgba(120, 140, 200, 0.18), transparent 70%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; }
+.sh-model { width: 100%; height: 210px; position: relative; perspective: 900px; pointer-events: none; }
+.sh-model-in { position: absolute; left: 50%; top: 50%; width: 40px; height: 24px; transform-style: preserve-3d; transform: translate(-50%, -50%) rotateX(52deg) rotateZ(-8deg) scale3d(7, 7, 7); }
+.sh-rooms { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 560px; }
+.sh-room { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(20, 22, 34, 0.55); color: #fff; cursor: pointer; font-family: var(--display); }
+.sh-room.on { border-color: #e8c47a; box-shadow: 0 0 0 2px rgba(232, 196, 122, 0.4); }
+.sh-room > b { font-size: 1rem; }
+.sh-room-stats { display: flex; gap: 6px; font-size: 0.75rem; }
+.sh-room-stats em { font-style: normal; }
+.sh-room-stats .def { color: #c9d6ee; }
+.sh-room-stats .atk { color: #f0b48a; }
+.sh-command { flex-direction: row; gap: 10px; padding: 6px 14px 6px 6px; }
+.sh-command .cmp-portrait { width: 44px; height: 44px; }
+.sh-side { display: flex; flex-direction: column; gap: 8px; }
+.sh-side h4 { margin: 8px 0 2px; font-family: var(--display); font-weight: 600; text-transform: lowercase; }
+.sh-part { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); }
+.sh-part-name { flex: 1; display: flex; flex-direction: column; font-family: var(--display); }
+.sh-part-name small { font-family: var(--body, inherit); color: var(--ink-faint); font-size: 0.72rem; }
+.sh-pips { display: flex; gap: 3px; }
+.sh-pips i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); }
+.sh-pips i.on { background: #e8c47a; }
+.sh-max { font-size: 0.72rem; color: var(--ink-faint); }
+@media (max-width: 760px) {
+  .cmp-shipyard { grid-template-columns: 1fr; }
+  .sh-rooms { gap: 4px; }
+}
+.slot-empty.slot-wounded { color: #e88a80; border-color: rgba(232, 138, 128, 0.6); background: rgba(176, 84, 74, 0.12); }
+
+/* The tutorial: the oracle's tour, the screen dimmed but for what he talks about, outlined (tour.ts). */
+.tour { position: fixed; inset: 0; z-index: 9500; animation: tour-in 0.3s ease-out; }
+.tour.tour-out { opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+@keyframes tour-in { from { opacity: 0; } }
+.tour-veil { position: absolute; left: 0; top: 0; overflow: visible; }
+.tour-dim { fill: rgba(22, 24, 44, 0.58); transition: fill 0.3s; }
+.tour-open .tour-dim { fill: rgba(22, 24, 44, 0.4); }
+.tour-glow { fill: none; stroke: #b9a6ff; stroke-width: 9; stroke-linejoin: round; opacity: 0.65; animation: tour-pulse 1.6s ease-in-out infinite alternate; }
+.tour-line { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linejoin: round; }
+@keyframes tour-pulse { to { opacity: 0.25; stroke-width: 14; } }
+@media (prefers-reduced-motion: reduce) { .tour-glow { animation: none; } }
+.tour-bubble {
+  position: absolute; width: min(300px, calc(100% - 32px)); display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px;
+  padding: 12px 14px 8px; border-radius: 18px; background: #fff; box-shadow: 0 10px 30px rgba(20, 20, 50, 0.22);
+  transition: left 0.3s cubic-bezier(.2,.8,.2,1), top 0.3s cubic-bezier(.2,.8,.2,1);
+}
+.tour-face { width: 34px; height: 34px; }
+.tour-face .cmp-portrait { width: 34px; height: 34px; }
+.tour-text { margin: 0; padding-right: 10px; font-size: 0.82rem; line-height: 1.4; color: var(--ink); }
+.tour-foot { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
+.tour-foot button { width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; color: var(--ink-soft); font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.tour-foot button:hover { background: #f3f2f8; color: var(--ink); }
+.tour-next { color: #6f5fc0 !important; }
+.tour-back[disabled] { visibility: hidden; }
+.tour-dots { display: flex; gap: 5px; }
+.tour-dots i { width: 5px; height: 5px; border-radius: 50%; background: #e2e0ea; }
+.tour-dots i.past { background: #c9c2ea; }
+.tour-dots i.on { background: #6f5fc0; }
+.tour-skip { position: absolute; top: 6px; right: 8px; width: 20px; height: 20px; border: 0; background: none; color: var(--ink-faint); font-size: 0.9rem; line-height: 1; cursor: pointer; border-radius: 50%; }
+.tour-skip:hover { color: var(--ink); }
+
+/* A battle's finds, on its result: each one round mark (what it does, ringed by quality); the rest on hover. */
+.finds-row { display: flex; gap: 12px; justify-content: center; }
+.find { position: relative; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 2px #c9ccd6, 0 4px 12px rgba(60, 70, 100, 0.14); cursor: default; }
+.find.rarity-stellar { box-shadow: 0 0 0 2px #4f86c6, 0 4px 12px rgba(79, 134, 198, 0.25); }
+.find.rarity-anomaly { box-shadow: 0 0 0 2px #8a6fe0, 0 0 14px rgba(138, 111, 224, 0.4); }
+.find > .kw-ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.find > .kw-ico .kw-ico-fill { fill: currentColor; fill-opacity: 1; stroke: none; }
+.find .eff-heat { color: #d9662f; } .find :is(.eff-cool, .eff-shield) { color: #4f86c6; } .find :is(.eff-draw, .eff-energy, .eff-plant) { color: #3f9a68; } .find :is(.eff-wall, .eff-repair, .eff-time) { color: #7a7f8f; } .find .eff-star { color: #b08a3a; }
+.find-kind { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: #fff; display: grid; place-items: center; color: #8a8fa8; box-shadow: 0 1px 4px rgba(60, 70, 100, 0.2); }
+.find-kind svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+/* With spoils to take, the result is drawn full size (it holds more than a title). */
+.game-result.result-spoils { transform: translate(-50%, -50%); top: 47%; max-height: calc(100% - 24px); overflow-y: auto; }
+@keyframes result-in-full { from { opacity: 0; transform: translate(-50%, -50%) translateY(10px) scale(0.95); } }
+.game-result.result-spoils { animation-name: result-in-full; }
+/* Ship modules, in the ship tab: one to a room. */
+.sh-mod-head { margin-top: 10px; }
+.sh-mod { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 12px; background: #f6f5fb; }
+.sh-mod-name { flex: 1; display: grid; gap: 1px; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.08em; }
+.sh-mod-name small { font-family: inherit; font-family: var(--body, inherit); letter-spacing: 0; font-size: 0.66rem; color: var(--ink-soft); }
+.sh-mod-stores { display: grid; gap: 6px; margin-top: 6px; }
+.sh-mod-stores > small { font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); }
+.sh-mod-empty { font-size: 0.7rem; }
+.sh-room { position: relative; }
+.sh-mod-pip { position: absolute; right: 3px; top: 3px; color: #8a8fa8; }
+.sh-mod-pip svg { width: 13px; height: 13px; }
+.sh-room-mod.rarity-stellar .sh-mod-pip { color: #4f86c6; }
+.sh-room-mod.rarity-anomaly .sh-mod-pip { color: #8a6fe0; }
+
+/* The system popover, kept quiet: facts as plain marks, actions as light buttons, one panel (no cards within it). */
+.cmp-pop { gap: 10px; padding: 12px 14px 12px; }
+.cmp-pop .pop-chips { gap: 2px 10px; }
+.cmp-pop .pop-chip { height: 20px; padding: 0; border: 0; background: none; color: var(--ink-soft); }
+.cmp-pop .pop-chip:hover { transform: none; box-shadow: none; color: var(--ink); }
+.cmp-pop .pop-chip.good, .cmp-pop .pop-chip.bad, .cmp-pop .pop-chip.gold, .cmp-pop .pop-chip.muted { background: none; border: 0; }
+.cmp-pop .pop-army { padding: 0; background: none; border-left: 0; }
+.cmp-pop .pop-army > .cmp-portrait { width: 26px; height: 26px; }
+.cmp-pop .pill-btn { border: 0; box-shadow: none; background: #f4f3f8; color: var(--ink-soft); }
+.cmp-pop .pill-btn:hover:not([disabled]) { background: #ebe9f3; color: var(--ink); }
+.cmp-pop .pop-tip { background: none; border: 0; padding: 0; }
+
+/* The battle's two sides: each sun's start under its name; what tips it, as quiet lines. */
+.cmp-vs-sun { font-family: var(--display); font-size: 0.7rem; letter-spacing: 0.08em; color: var(--ink); }
+.cmp-vs-sun i { font-style: normal; color: var(--ink-faint); margin: 0 1px; }
+.cmp-attack .cmp-tips { gap: 2px; justify-items: center; }
+.cmp-attack .cmp-tips li, .cmp-attack .cmp-tips li.good, .cmp-attack .cmp-tips li.bad { background: none; padding: 1px 0; font-size: 0.74rem; text-align: center; }
+.cmp-attack .cmp-tips li.good::before, .cmp-attack .cmp-tips li.bad::before { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 7px 2px 0; border-radius: 50%; background: currentColor; vertical-align: middle; }
+
+/* Your flagship's moves this turn: energy gems standing on its left, like the stars' labels (a billboard). */
+.cmp-ship-moves { position: absolute; left: -38px; top: 0; display: flex; flex-direction: column-reverse; gap: 3px; transform-origin: 50% 100%; transform: translate(-50%, -50%) rotateX(calc(-1 * var(--tilt))) scale(var(--ui)); pointer-events: auto; }
+.cmp-ship-moves i { width: 9px; height: 9px; border-radius: 50%; background: #dfe3e8; border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(40, 46, 70, 0.25); transition: background 0.3s; }
+.cmp-ship-moves i.on { background: #6cc28e; box-shadow: 0 0 6px rgba(108, 194, 142, 0.7), 0 1px 3px rgba(40, 46, 70, 0.25); }
+
+/* A Hero's rail, beside its slot: its abilities as round marks (lit when usable: tap to use), then its boons. */
+.hero-rail { position: absolute; top: 0; height: 100%; display: flex; gap: calc(var(--tcw) * 0.06); z-index: 2; pointer-events: none; }
+.hero-rail > * { pointer-events: auto; }
+/* (Beyond the tableau's outline, which stands this far out from the slot.) */
+.hero-rail-mine { left: calc(100% + var(--frame-pad, 12px) + var(--tcw) * 0.08); }
+.hero-rail-rival { right: calc(100% + var(--frame-pad, 12px) + var(--tcw) * 0.08); flex-direction: row-reverse; }
+.hero-rail-col { display: flex; flex-direction: column; gap: calc(var(--tcw) * 0.06); align-items: center; pointer-events: none; }
+.hero-rail-col > * { pointer-events: auto; }
+.hero-ab {
+  --s: calc(var(--tcw) * 0.26);
+  position: relative; width: var(--s); height: var(--s); padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center;
+  background: #fff; color: #a07a2a; box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.45), 0 2px 6px rgba(60, 70, 100, 0.16); cursor: default;
+}
+.hero-ab .kw-ico { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.hero-ab .kw-ico .kw-ico-fill { fill: currentColor; stroke: none; }
+.hero-ab small { position: absolute; right: -2px; bottom: -2px; min-width: 42%; height: 42%; display: grid; place-items: center; border-radius: 999px; background: #fff; font-family: var(--display); font-size: calc(var(--tcw) * 0.085); color: var(--ink); box-shadow: 0 1px 3px rgba(60, 70, 100, 0.2); }
+.hero-ab-cost { position: absolute; left: 50%; top: -18%; transform: translateX(-50%); display: flex; gap: 1px; }
+.hero-ab-cost i { width: calc(var(--tcw) * 0.04); height: calc(var(--tcw) * 0.04); border-radius: 50%; background: #6cc28e; }
+.hero-ab[aria-disabled] { opacity: 0.55; }
+.hero-ab-on { cursor: pointer; box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.9), 0 0 12px rgba(212, 165, 42, 0.45); animation: hero-ab-ready 1.6s ease-in-out infinite alternate; }
+.hero-ab-on:hover { transform: scale(1.08); }
+@keyframes hero-ab-ready { to { box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.6), 0 0 4px rgba(212, 165, 42, 0.2); } }
+@media (prefers-reduced-motion: reduce) { .hero-ab-on { animation: none; } }
+/* Boons: smaller, quieter marks (on a hero's rail, or on a card carrying a ship module's). */
+.boon-mark { --s: calc(var(--tcw, 80px) * 0.18); position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: inline-grid; place-items: center; background: #fbf6ea; color: #b08a3a; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.35); font-style: normal; cursor: default; }
+.boon-mark .kw-ico { width: 56%; height: 56%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.boon-mark .kw-ico .kw-ico-fill { fill: currentColor; stroke: none; }
+.boon-mark small { position: absolute; right: -3px; bottom: -3px; font-family: var(--display); font-size: calc(var(--tcw, 80px) * 0.07); color: var(--ink); }
+.fused-tags .boon-mark + .boon-mark { margin-left: 2px; }
+.hero-ab .kw-ico .kw-ico-fill, .boon-mark .kw-ico .kw-ico-fill { fill-opacity: 1; }
+.hero-ab .kw-ico, .boon-mark .kw-ico { stroke-width: 1.8; }
+:is(.hero-ab, .boon-mark) .eff-heat { color: #d9662f; }
+:is(.hero-ab, .boon-mark) .eff-cool { color: #3d8fd1; }
+:is(.hero-ab, .boon-mark) .eff-shield { color: #4f86c6; }
+:is(.hero-ab, .boon-mark) :is(.eff-draw, .eff-energy, .eff-plant) { color: #3f9a68; }
+:is(.hero-ab, .boon-mark) :is(.eff-wall, .eff-repair, .eff-time) { color: #7a7f8f; }
+:is(.hero-ab, .boon-mark) .eff-star { color: #b08a3a; }
+
+.kw-tip-plain { font-size: 0.74rem; line-height: 1.4; }
+/* An icon's own popover: its name, its words (keywords drawn as on a card), and a note. */
+.kw-tip .tip-head { display: block; margin-bottom: 4px; font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); }
+.kw-tip .tip-body { display: block; font-size: 0.76rem; line-height: 1.4; color: var(--ink); }
+.kw-tip .tip-note { display: block; margin-top: 5px; font-size: 0.64rem; color: var(--ink-faint); }
+
+/* A battle's report: the result, the hero, what was won as tokens, the salvaged card as itself, the finds as marks. */
+.cmp-br .bar-title { display: none; }
+.br { display: grid; justify-items: center; gap: 18px; padding: 6px 4px 4px; }
+.br-head { display: grid; justify-items: center; gap: 2px; }
+.br-head h2 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 1.9rem; letter-spacing: 0.32em; text-transform: uppercase; color: #c27a1e; }
+.br-lost .br-head h2 { color: #6b7590; }
+.br-head small { font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-faint); }
+.br-body { display: flex; align-items: center; justify-content: center; gap: 26px; flex-wrap: wrap; }
+.br-hero { position: relative; display: grid; justify-items: center; }
+.br-hero .cmp-portrait { width: 84px; height: 84px; box-shadow: 0 0 0 3px #fff, 0 0 0 5px #e8d6a8, 0 8px 20px rgba(60, 70, 100, 0.18); }
+.br-levelled .cmp-portrait { box-shadow: 0 0 0 3px #fff, 0 0 0 5px #d4a52a, 0 0 22px rgba(212, 165, 42, 0.55); }
+.br-level, .br-xp { position: relative; z-index: 1; margin-top: -10px; padding: 3px 10px; border-radius: 999px; background: #fff; font-family: var(--display); font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; box-shadow: 0 2px 8px rgba(60, 70, 100, 0.16); }
+.br-level { background: #d4a52a; color: #fff; }
+.br-xp { color: var(--ink-soft); }
+.br-spoils { display: grid; justify-items: center; gap: 14px; }
+.br-tokens { display: flex; gap: 14px; }
+.br-token { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 1.05rem; color: var(--ink); }
+.br-token .cur { width: 22px; height: 22px; }
+.br-bad { color: #b3523a; }
+.br-card { display: grid; justify-items: center; gap: 6px; }
+.br-card small { font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
+
+/* ---- The shipyard: the flagship from above, each room's upgrades and module on it; ship-wide upgrades beside;
+   the modules in store as a grid of icons. ---- */
+.cmp-shipyard { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 300px); gap: 24px; align-items: center; padding: 16px 24px; }
+.sh-stage { display: flex; align-items: center; justify-content: center; gap: 18px; min-width: 0; }
+.sh-ship { --k: 16; position: relative; width: calc(40px * var(--k)); height: calc(24px * var(--k)); flex: none; }
+.sh-top { position: absolute; inset: 0; pointer-events: none; }
+.sh-top .sh-model-in { position: absolute; left: 0; top: 0; width: 40px; height: 24px; transform-origin: 0 0; transform: scale3d(var(--k), var(--k), var(--k)); transform-style: preserve-3d; }
+.cmp-shipyard .sh-room {
+  position: absolute; left: var(--x); top: 50%; transform: translate(-50%, -50%); width: calc(var(--k) * 4.6px);
+  display: grid; justify-items: center; gap: 5px; padding: 8px 4px 7px; border-radius: 16px; border: 0;
+  background: rgba(255, 255, 255, 0.82); box-shadow: 0 4px 14px rgba(30, 36, 60, 0.22); color: var(--ink); cursor: pointer;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); transition: box-shadow 0.15s, transform 0.15s;
+}
+.cmp-shipyard .sh-room:hover { transform: translate(-50%, -52%); }
+.cmp-shipyard .sh-room.on { box-shadow: 0 0 0 2px #8a6fe0, 0 6px 18px rgba(138, 111, 224, 0.35); }
+.sh-room-n { font-family: var(--display); font-weight: 500; font-size: 0.7rem; color: var(--ink-faint); }
+.sh-room-ups { display: flex; gap: 4px; }
+.cmp-shipyard .sh-command { cursor: default; }
+.cmp-shipyard .sh-command .cmp-portrait { width: 34px; height: 34px; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--ac); }
+/* An upgrade: a round mark, its level as pips beneath. */
+.sh-up { position: relative; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: #f2f1f6; color: #8a8fa8; cursor: default; }
+.sh-up svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.sh-up .sh-pips { position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); display: flex; gap: 1.5px; }
+.sh-up .sh-pips i { width: 4px; height: 4px; border-radius: 50%; background: #d9d8e2; }
+.sh-up .sh-pips i.on { background: #d4a52a; }
+.sh-up-can { background: #fff; color: #a07a2a; box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.6); cursor: pointer; }
+.sh-up-can:hover { box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.95), 0 0 10px rgba(212, 165, 42, 0.4); }
+.sh-up-max { color: #b08a3a; background: #fbf6ea; }
+/* A room's module socket: empty (dashed), or its module's mark. */
+.sh-socket { position: relative; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed #cfd2dc; margin-top: 3px; }
+.sh-socket-full { border: 0; background: #fff; box-shadow: 0 0 0 2px #c9ccd6; }
+.sh-socket-full.rarity-stellar { box-shadow: 0 0 0 2px #4f86c6; }
+.sh-socket-full.rarity-anomaly { box-shadow: 0 0 0 2px #8a6fe0, 0 0 10px rgba(138, 111, 224, 0.4); }
+.sh-socket .kw-ico, .sh-mod-face .kw-ico { width: 55%; height: 55%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sh-socket .kw-ico .kw-ico-fill, .sh-mod-face .kw-ico .kw-ico-fill { fill: currentColor; fill-opacity: 1; stroke: none; }
+.sh-socket-x { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: var(--ink-soft); font-size: 0.7rem; line-height: 1; cursor: pointer; box-shadow: 0 1px 4px rgba(40, 46, 70, 0.25); opacity: 0; transition: opacity 0.15s; }
+.sh-room:hover .sh-socket-x { opacity: 1; }
+:is(.sh-socket, .sh-mod-face) .eff-heat { color: #d9662f; } :is(.sh-socket, .sh-mod-face) :is(.eff-cool, .eff-shield) { color: #4f86c6; } :is(.sh-socket, .sh-mod-face) :is(.eff-draw, .eff-energy, .eff-plant) { color: #3f9a68; } :is(.sh-socket, .sh-mod-face) :is(.eff-wall, .eff-repair, .eff-time) { color: #7a7f8f; } :is(.sh-socket, .sh-mod-face) .eff-star { color: #b08a3a; }
+/* Ship-wide: shields and hull, by the stern. */
+.sh-whole { display: grid; gap: 14px; order: -1; }
+.sh-whole .sh-up { width: 40px; height: 40px; }
+.sh-whole .sh-up svg { width: 21px; height: 21px; }
+/* The modules in store: a grid of icon tiles, a short name under each. */
+.sh-mods h4 { margin: 0 0 10px; font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
+.sh-mod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 12px 8px; }
+.sh-mod-tile { display: grid; justify-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; }
+.sh-mod-face { position: relative; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 2px #c9ccd6, 0 4px 10px rgba(60, 70, 100, 0.12); transition: transform 0.15s; }
+.sh-mod-tile.rarity-stellar .sh-mod-face { box-shadow: 0 0 0 2px #4f86c6, 0 4px 10px rgba(79, 134, 198, 0.2); }
+.sh-mod-tile.rarity-anomaly .sh-mod-face { box-shadow: 0 0 0 2px #8a6fe0, 0 0 12px rgba(138, 111, 224, 0.4); }
+.sh-mod-tile:hover .sh-mod-face { transform: translateY(-2px); }
+.sh-mod-face small { position: absolute; right: -3px; bottom: -3px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 999px; background: #fff; font-family: var(--display); font-size: 0.56rem; display: grid; place-items: center; box-shadow: 0 1px 3px rgba(60, 70, 100, 0.2); }
+.sh-mod-tile b { font-family: var(--display); font-weight: 500; font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); text-align: center; line-height: 1.3; }
+@media (max-width: 1000px) { .sh-ship { --k: 11; } .cmp-shipyard { grid-template-columns: 1fr; } }
+
+/* A small deck run dry: the days until its discard pile shuffles back, on the empty deck. */
+.tpile-wait { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 500; font-size: 1.3rem; color: #8a6fe0; }
+
+/* A ship's room on an empty slot (campaign): its walls, guns and module, until a card stands there. */
+.slot-room { position: absolute; left: 0; right: 0; bottom: 8%; display: flex; justify-content: center; gap: 3px; pointer-events: auto; }
+.room-mark .eff-walls, .room-mark .eff-guns { color: #a07a2a; }
+
+/* What a card carries from its room (walls, guns, a module's boons): marks along its top edge. */
+.card-room { position: absolute; top: -7%; left: 0; right: 0; display: flex; justify-content: center; gap: 3px; z-index: 3; pointer-events: auto; }
+.rest-mark svg { width: 1em; height: 1em; fill: #6a5ac8; }
+.card-room .boon-mark { background: #fff; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.45), 0 2px 5px rgba(60, 70, 100, 0.18); }

@@ -67,3 +67,20 @@ export function setStartersHidden(on: boolean) {
 export function deleteDeck(id: string) {
   store(customDecks().filter((d) => d.id !== id));
 }
+
+/** The copies a deck needs that the player doesn't own yet (a deck saved from a shared list is something to work towards). */
+export function missingCopies(cards: string[]): { id: string; n: number }[] {
+  const counts = new Map<string, number>();
+  for (const id of cards) counts.set(id, (counts.get(id) ?? 0) + 1);
+  const have = profile().collection;
+  return [...counts].flatMap(([id, n]) => {
+    const short = n - (have[id] ?? 0);
+    return short > 0 ? [{ id, n: short }] : [];
+  });
+}
+
+/** A deck of the player's own with these same cards, if they have one. */
+export function deckWithCards(cards: string[]): SavedDeck | undefined {
+  const key = [...cards].sort().join();
+  return customDecks().find((d) => [...d.cards].sort().join() === key);
+}

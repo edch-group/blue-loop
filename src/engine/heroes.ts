@@ -72,6 +72,8 @@ export interface HeroState {
   skills: string[];
   /** Equipped gear, by slot id. */
   gear: Record<string, Item>;
+  /** Campaign: skill points put into the hero's own attack and defence (each point +1 in battle). */
+  train?: { attack: number; defence: number };
 }
 
 /**
@@ -204,7 +206,7 @@ function buildTree(hero: string): HeroSkill[] {
     ...r.ward.map((t, i) => s(`ward${i + 1}`, 1, (i + 1) as HeroSkill['tier'], t)),
     s('ward6', 1, 6, ward6),
     ...r.legacy.map((t, i) => s(`legacy${i + 1}`, 2, (i + 1) as HeroSkill['tier'], t)),
-    { id: 'legacy6', name: 'Herald', text: 'The hero starts every battle in play, already leading from your Hero slot.', branch: 2, tier: 6, icon: 'start', effect: { kind: 'start' } },
+    { id: 'legacy6', name: 'Herald', text: 'The hero starts every battle in play, already leading from your Hero slot (otherwise they are drawn and played like any card).', branch: 2, tier: 6, icon: 'start', effect: { kind: 'start' } },
   ];
 }
 
@@ -228,7 +230,7 @@ export function learnProblem(hero: string, h: HeroState, id: string): string | n
 
 /** Skill points not yet spent: one per level after the first, less what the skills learned cost. */
 export const skillPoints = (h: HeroState, hero?: string) =>
-  heroLevel(h.xp) - 1 - h.skills.reduce((t, id) => t + (hero ? (heroSkill(hero, id) ? skillCost(heroSkill(hero, id)!) : 0) : spentCost(id)), 0);
+  heroLevel(h.xp) - 1 - (h.train?.attack ?? 0) - (h.train?.defence ?? 0) - h.skills.reduce((t, id) => t + (hero ? (heroSkill(hero, id) ? skillCost(heroSkill(hero, id)!) : 0) : spentCost(id)), 0);
 
 /** What a learned skill cost, from its id alone (ids are the same in every hero's tree: "might4"). */
 function spentCost(id: string): number {
@@ -327,7 +329,7 @@ export function makeItem(id: string, slot: SlotKind, rarity: ItemRarity, race: n
 export const slotsFor = (race: number, kind: SlotKind) => RACE_SLOTS[race].filter((x) => x.kind === kind);
 
 /** A short line for what an item does in battle. */
-export const itemText = (i: Item) => (i.boons ? i.text : `Hero card: ${boonsText(itemBoons(i))}`);
+export const itemText = (i: Item) => `Hero card: ${boonsText(itemBoons(i))}`;
 
 /** How strong an item is, for the AI's choosing. */
 export const itemValue = (i: Item) => STEP[i.rarity] * 10;

@@ -7,6 +7,7 @@ import {
   SUBRACES,
   attackProblem,
   cardAttack,
+  duskEffects,
   applyAction,
   BALANCE,
   boosterPool,
@@ -57,6 +58,7 @@ import {
   planetsEaten,
   currentPlanet,
   type Action,
+  type Effect,
   type BoosterCard,
   type BoosterKind,
   type CardInstance,
@@ -68,16 +70,21 @@ import {
   beginStats,
   finishStats,
   noteMove,
-  type GameStats,
-} from '../engine';
+  type GameStats, isProfane } from '../engine';
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
-import { CampaignView, loadCampaign } from './campaign';
+import { CampaignView, cardHtml, loadCampaign, MODULE_ICON, ORACLE_PORTRAIT } from './campaign';
+
+/** Hero gear's mark, in a battle's finds. */
+const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
+import { closeTour, startTour, tourDue, tourShowing } from './tour';
+import { battleTour } from './tutorial';
+import { ORACLE_NAME } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -488,12 +495,9 @@ function sunRect(root: ParentNode, id: string): DOMRect | null {
   return new DOMRect(l.left + l.width / 2 - size / 2, l.top + l.height / 2 - size / 2, size, size);
 }
 
-/**
- * A player's shields, big, in the board's middle: the rival's above the Stellari, yours below (they are easy to
- * miss on the sun). Faint at none.
- */
+/** A player's shields, by their sun (beside the planet tag), over the sun's lattice. Faint at none. */
 function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
-  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" title="${side === 'mine' ? 'Your' : 'Their'} shields: they absorb enemy heat, and fade at dawn"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/></svg><b>${n}</b></div>`;
+  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" data-tip-title="shields" data-tip="${side === 'mine' ? 'Yours' : 'Theirs'}: they absorb enemy heat, and fade at dawn."><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/></svg><b>${n}</b></div>`;
 }
 
 /**
@@ -536,6 +540,9 @@ function setShieldBadge(root: ParentNode, pid: string, n: number) {
     const was = Number(b?.textContent ?? 0);
     el.classList.toggle('up', n > 0);
     if (b) b.textContent = String(n);
+    // (The sun's lattice follows: brighter the more shields are up.)
+    const dome = el.closest('.vit')?.querySelector<HTMLCanvasElement>('canvas.vit-dome');
+    if (dome) dome.dataset.shields = String(n);
     // Raised (or raised further): the shield flashes, its glint sweeping at once.
     if (n > was) {
       el.classList.remove('raised');
@@ -673,6 +680,7 @@ export class App {
     playBattle: (game) => {
       this.campaignBattle = true;
       this.beginWithArt(game);
+      this.battleTour();
     },
     settingsButtons: () => this.settingsButtons(),
     banner: (text, sub) => this.showBanner(text, sub, 120, 'campaign'),
@@ -685,6 +693,22 @@ export class App {
     },
   });
   private campaignBattle = false;
+
+  /**
+   * The tutorial's tour of the battle board, in the first campaign battle: once the opening deal and banner
+   * have played, on the player's own day, with nothing else asked of them (tried again until then).
+   */
+  private battleTour(tries = 0) {
+    if (!tourDue('battle')) return;
+    window.setTimeout(() => {
+      const s = this.state;
+      if (!s || this.screen !== 'game' || !this.campaignBattle || isGameOver(s) || !tourDue('battle')) return;
+      const ready = !activePlayer(s).isAI && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !document.querySelector('.turn-banner') && performance.now() >= this.dealtAt;
+      if (!ready) return tries < 30 && this.battleTour(tries + 1);
+      this.raiseHand(false);
+      startTour('battle', battleTour(), { face: ORACLE_PORTRAIT, name: ORACLE_NAME }, () => this.scheduleAutoEnd());
+    }, tries ? 800 : 2600);
+  }
   /** Online 1v1: the room connection, and what the lobby shows. */
   private online: OnlineClient | null = null;
   private net = {
@@ -744,7 +768,37 @@ export class App {
     // It shows after a short hover (not as the pointer passes over), and goes at once.
     let tipFor: HTMLElement | null = null;
     let tipTimer = 0;
+    // (Anything else with words of its own (data-tip: a hero's ability, a boon, a find) explains itself the same way;
+    // on a touch screen, a press shows it.)
+    // A popover of its own: its name, then its words with their keywords drawn as on a card.
+    const showTip = (el: HTMLElement) => {
+      const head = el.dataset.tipTitle ? `<b class="tip-head">${esc(el.dataset.tipTitle)}</b>` : '';
+      tip.innerHTML = `${head}<span class="tip-body">${cardTextHtml(el.dataset.tip!, undefined, true)}</span>${el.dataset.tipNote ? `<small class="tip-note">${esc(el.dataset.tipNote)}</small>` : ''}`;
+      const r = pageRect(el);
+      const page = appSize();
+      tip.classList.add('show');
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = `${Math.max(8, Math.min(page.w - w - 8, r.left + r.width / 2 - w / 2))}px`;
+      tip.style.top = `${r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8}px`;
+    };
+    document.addEventListener('pointerdown', (e) => {
+      const el = (e.target as HTMLElement).closest?.<HTMLElement>('[data-tip]:not(.kw):not(.pop-chip)');
+      if (!el || e.pointerType === 'mouse') return;
+      tipFor = el;
+      showTip(el);
+      window.clearTimeout(tipTimer);
+      tipTimer = window.setTimeout(() => tipFor === el && tip.classList.remove('show'), 2600);
+    });
     document.addEventListener('mouseover', (e) => {
+      const plain = (e.target as HTMLElement).closest?.<HTMLElement>('[data-tip]:not(.kw):not(.pop-chip)');
+      if (plain) {
+        if (plain === tipFor) return;
+        tipFor = plain;
+        window.clearTimeout(tipTimer);
+        tip.classList.remove('show');
+        tipTimer = window.setTimeout(() => tipFor === plain && plain.isConnected && showTip(plain), KW_TIP_DELAY_MS);
+        return;
+      }
       const kw = (e.target as HTMLElement).closest?.<HTMLElement>('.kw[data-kw], .kw[data-tip]');
       if (kw === tipFor) return;
       tipFor = kw;
@@ -789,8 +843,9 @@ export class App {
       if (!mouse.matches || this.touch || this.screen !== 'game' || this.drag) return;
       const over = !!(e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone');
       // (The card under the pointer lifts as the hand rises, both at once.)
-      // (Only raised here: it is lowered once the pointer leaves the hand's whole column, below.)
-      if (over) this.raiseHand(true);
+      // (Only raised here: it is lowered once the pointer leaves the hand's whole column, below. It rises only
+      // within that column, or it would drop at once and rise again, over and over.)
+      if (over && this.inHandColumn(e.clientX, e.clientY)) this.raiseHand(true);
     });
     // Raised, the hand stays up while the pointer is anywhere from its cards' tops down to the screen's foot
     // (over the strip it rose out of too: lowering there brought it back under the pointer, and it jittered).
@@ -801,14 +856,10 @@ export class App {
         // (A hover that came while the hand couldn't rise, still being dealt or with a card in the preview pane,
         // raises it once it can: the pointer needn't leave and come back.)
         if (!this.handRaised) {
-          if ((e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone')) this.raiseHand(true);
+          if ((e.target as HTMLElement).closest?.('.table-view > .dock .hand-zone') && this.inHandColumn(e.clientX, e.clientY)) this.raiseHand(true);
           return;
         }
-        const cards = [...this.root.querySelectorAll<HTMLElement>('.table-view > .dock .hand > .card')].map((c) => c.getBoundingClientRect());
-        if (!cards.length) return this.raiseHand(false);
-        const left = Math.min(...cards.map((r) => r.left)), right = Math.max(...cards.map((r) => r.right));
-        const top = Math.min(...cards.map((r) => r.top));
-        if (e.clientX < left || e.clientX > right || e.clientY < top) this.raiseHand(false);
+        if (!this.inHandColumn(e.clientX, e.clientY)) this.raiseHand(false);
       },
       { passive: true },
     );
@@ -1344,7 +1395,7 @@ export class App {
   }
   private canAutoEnd(): boolean {
     const s = this.state;
-    return this.screen === 'game' && !!s && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && this.leftUndone().length === 0;
+    return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && this.leftUndone().length === 0;
   }
 
   /** End the day: over the hand limit, the viewer first picks the cards to discard. */
@@ -1412,7 +1463,9 @@ export class App {
       .map((s, i) => {
         const deck = deckById(s.deckId) ?? PRESETS[i];
         noteRecentDeck(i, deck.id);
-        const name = s.isAI ? s.bot : i === 0 ? profile().name || s.name : s.name;
+        const typed = s.isAI ? s.bot : i === 0 ? profile().name || s.name : s.name;
+        // (A name with profanity in it plays as a plain one.)
+        const name = isProfane(typed) ? `Player ${i + 1}` : typed;
         // Your own picture is your account's; anyone else's is dealt by their name.
         const avatar = (!s.isAI && i === 0 ? account()?.avatar : undefined) ?? pictureFor(name.trim() || 'Unnamed');
         return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, avatar };
@@ -1603,7 +1656,7 @@ export class App {
     window.setTimeout(() => {
       const at = this.mouseAt;
       if (!at || this.touch || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-      if (document.elementFromPoint(at.x, at.y)?.closest('.table-view > .dock .hand-zone')) this.raiseHand(true);
+      if (document.elementFromPoint(at.x, at.y)?.closest('.table-view > .dock .hand-zone') && this.inHandColumn(at.x, at.y)) this.raiseHand(true);
     }, this.dealtAt - performance.now() + 20);
     cards.forEach((el, i) => {
       this.dealCard(el, 350 + i * DEAL_STEP_MS);
@@ -1797,6 +1850,7 @@ export class App {
   }
 
   private quitToMenu() {
+    closeTour();
     this.entranceHeard = false;
     this.unaim?.();
     this.unaim = null;
@@ -1827,14 +1881,19 @@ export class App {
   }
 
   /** Leave a campaign battle: hand the result (or the battle to auto-resolve) back to the map. */
-  private returnToCampaign(auto: boolean) {
+  /** The card picked to salvage on a campaign battle's result. */
+  private salvagePick: string | null = null;
+
+  private returnToCampaign(auto: boolean, salvage?: string | null) {
+    closeTour();
     if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
     this.aiTimer = null;
     this.campaignBattle = false;
     this.screen = 'campaign';
     this.sheet = null;
     this.pending = null;
-    this.campaign.finishBattle(this.state!, auto);
+    this.campaign.finishBattle(this.state!, auto, salvage);
+    this.salvagePick = null;
     this.render();
   }
 
@@ -2673,6 +2732,7 @@ export class App {
     if (seat !== undefined) this.seats[Number(seat)].name = el.value;
     if (el.dataset.dbName !== undefined) this.activeBuilder().onInput(el.value);
     if (el.dataset.dbSearch !== undefined) this.activeBuilder().onSearch(el.value);
+    if (el.dataset.dbText !== undefined) this.activeBuilder().onText(el.dataset.dbText, el.value);
     if (el.dataset.joinCode !== undefined) this.net.joinCode = el.value;
     if (el.dataset.signinName !== undefined) this.signinName = el.value;
     if (el.dataset.authEmail !== undefined) this.authEmail = el.value;
@@ -2774,6 +2834,15 @@ export class App {
   private handStill(): boolean {
     return !!(this.pending || this.stage || this.heroPanel);
   }
+  /** Whether a point is in the hand's column: between its outermost cards, from their tops down (never, with no cards). */
+  private inHandColumn(x: number, y: number): boolean {
+    const cards = [...this.root.querySelectorAll<HTMLElement>('.table-view > .dock .hand > .card')].map((c) => c.getBoundingClientRect());
+    if (!cards.length) return false;
+    const left = Math.min(...cards.map((r) => r.left)), right = Math.max(...cards.map((r) => r.right));
+    const top = Math.min(...cards.map((r) => r.top));
+    return x >= left && x <= right && y >= top;
+  }
+
   private raiseHand(up: boolean) {
     if (up && (performance.now() < this.dealtAt || this.handStill())) return;
     if (this.handRaised === up) return;
@@ -2912,7 +2981,8 @@ export class App {
 
   /** Large, readable copy of a card at the middle right of the screen while held (or, `beside` a panel, to its left). */
   private showPeek(el: HTMLElement, beside: Element | null = null) {
-    this.preview.innerHTML = this.bigCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined) + this.explainCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
+    const uid = el.closest('.tableau, .hand') ? el.dataset.uid : undefined;
+    this.preview.innerHTML = this.bigCard(el.dataset.card!, uid) + this.explainCard(el.dataset.card!, el.closest('.tableau') ? el.dataset.uid : undefined);
     const page = appSize();
     const h = Math.min(420, page.h - 24) * 0.7;
     const w = h * 0.714;
@@ -3077,7 +3147,12 @@ export class App {
         this.render();
         return this.showBanner('campaign', this.campaign.turnLine(), 120, 'campaign');
       case 'campaign-return':
-        return this.returnToCampaign(false);
+        return this.returnToCampaign(false, this.state && this.campaign.salvageFor(this.state).length ? this.salvagePick : undefined);
+      case 'campaign-return-none':
+        return this.returnToCampaign(false, null);
+      case 'salvage-pick':
+        this.salvagePick = arg ?? null;
+        return this.render();
       case 'campaign-auto':
         return this.returnToCampaign(true);
       case 'ranked-find':
@@ -3163,6 +3238,10 @@ export class App {
       case 'auth-apple':
         return this.socialSignIn(act === 'auth-apple' ? 'apple' : 'google');
       case 'signin-go':
+        if (isProfane(this.signinName ?? profile().name)) {
+          this.showToast('Keep it clean: pick another name.', 'error');
+          return;
+        }
         signIn(this.signinName ?? profile().name);
         this.signinName = null;
         this.seats[0].name = profile().name;
@@ -3457,8 +3536,8 @@ export class App {
       const instab = instabilityHeat(s);
       backdrop.setHeat(instab > 0 ? Math.min(1, instab / 5) : -remaining / total);
     } else backdrop.setHeat(0);
-    // A match in play gets the battle theme, the campaign map its exploration score; everywhere else, the ambient score.
-    sound.setScene(this.screen === 'game' && this.state && !isGameOver(this.state) ? 'battle' : this.screen === 'campaign' && this.campaign.state ? 'campaign' : 'ambient');
+    // A match in play gets the battle theme, the campaign map the ambient score; everywhere else, the voyage.
+    sound.setScene(this.screen === 'game' && this.state && !isGameOver(this.state) ? 'battle' : this.screen === 'campaign' && this.campaign.state ? 'ambient' : 'voyage');
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
@@ -4107,7 +4186,7 @@ export class App {
         ${tile('toggle-stats', 'share game stats', sharingStats() ? 'on' : 'off')}
         ${tile('rules', 'how to play', 'read')}
       </div>
-      <p class="opt-note muted">Game stats are anonymous: the decks played, the cards used and who won, never who played. They help us balance the game.</p>`,
+      <p class="opt-note muted">Game stats are anonymous: the decks played, the moves made and who won, never who played. They help us balance the game and teach the AI.</p>`,
       '',
     );
   }
@@ -4568,7 +4647,7 @@ export class App {
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'aim') return hint(guarded ? 'aim at a guard' : 'aim heat');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
-    if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : 'restore a card');
+    if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : allyEffectKind(card.defId) === 'empower' ? 'choose a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
     if (p.step === 'slot') return hint(cardDef(card.defId).fusion && fusionHosts(activePlayer(s)).length ? 'place it, or fuse it onto a card' : 'place it');
     return '';
@@ -4589,8 +4668,35 @@ export class App {
     const won = winner.id === viewer.id;
     const title = solo ? (won ? 'victory' : 'defeat') : `${esc(winner.name.toLowerCase())} wins`;
     const why = quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} round${s.round === 1 ? "" : "s"}.`;
+    // A campaign battle won: up to three of the beaten side's cards to salvage, one to take.
+    const salvage = this.campaignBattle ? this.campaign.salvageFor(s) : [];
+    const pick = salvage.find((x) => x.id === this.salvagePick);
+    const salvageHtml = salvage.length
+      ? `<div class="salvage">
+          <div class="salvage-title">salvage one card</div>
+          <div class="salvage-cards">${salvage
+            .map((x) => `<button class="cmp-pick ${x.id === this.salvagePick ? 'cmp-pick-on' : ''}" data-act="salvage-pick" data-arg="${x.id}">${cardHtml(x.id)}</button>`)
+            .join('')}</div>
+        </div>`
+      : '';
+    // And whatever turned up in the wreckage: gear for your hero, modules for your ship.
+    const finds = this.campaignBattle ? this.campaign.findsFor(s) : [];
+    // Each find is just its mark (what it does, ringed by its quality): everything about it on hover or press.
+    const findsHtml = finds.length
+      ? `<div class="salvage finds">
+          <div class="salvage-title">found</div>
+          <div class="finds-row">${finds
+            .map((f) => {
+              const tip = `${f.name} (${f.kind === 'module' ? 'ship module: fit it in the ship tab' : 'hero gear: equip it in the hero tab'}). ${f.text}`;
+              return `<button class="find rarity-${f.rarity}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${f.kind === 'module' ? 'Ship module: fit it in the ship tab.' : 'Hero gear: equip it in the hero tab.'}" aria-label="${esc(tip)}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></button>`;
+            })
+            .join('')}</div>
+        </div>`
+      : '';
     const actions = this.campaignBattle
-      ? '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
+      ? salvage.length
+        ? `<div class="result-actions"><button class="btn-primary" data-act="campaign-return" ${pick ? '' : 'disabled'}>confirm</button><button class="btn" data-act="campaign-return-none">leave it</button></div>`
+        : '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
       : this.online && this.net.ranked
         ? '<div class="result-actions"><button class="btn-primary" data-act="ranked-again">find another match</button><button class="btn" data-act="to-menu">return to menu</button></div>'
         : this.online
@@ -4599,10 +4705,12 @@ export class App {
           : '<div class="result-actions"><button class="btn-primary" data-act="online-rematch">play again</button><button class="btn" data-act="to-menu">return to menu</button></div>'
         : '<button class="btn-primary" data-act="to-menu">return to menu</button>';
     return `
-      <div class="game-result ${solo ? (won ? 'result-win' : 'result-loss') : ''}">
+      <div class="game-result ${solo ? (won ? 'result-win' : 'result-loss') : ''} ${salvage.length || finds.length ? 'result-spoils' : ''}">
         <h2>${title}</h2>
         <p>${why}</p>
         ${this.resultExtra}
+        ${findsHtml}
+        ${salvageHtml}
         ${actions}
       </div>`;
   }
@@ -4619,7 +4727,6 @@ export class App {
             <div class="board-star-slot" data-morph-keep></div>
             ${this.renderRoundRing()}
             ${this.renderPhaseTrack()}
-            ${rival ? shieldBadge(rival.id, rival.shields, 'rival') : ''}${shieldBadge(me.id, me.shields, 'mine')}
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
@@ -4673,23 +4780,27 @@ export class App {
     // The Command slot: the one Command card leads the tableau from out in front (top right of yours,
     // bottom left of your rival's: a mirror across the board), lying landscape.
     const cmd = commandCard(p);
+    // (A campaign ship's rooms add to their slots' defence; its hero, wounded, sits a turn out.)
+    const cmdDef = BALANCE.commandSlotDefence + (p.rooms?.command ?? 0);
     const cmdHtml = cmd
-      ? this.renderCard(cmd, { tableau: side, owner: p })
-      : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${BALANCE.commandSlotDefence}"><span class="slot-def">⛨${BALANCE.commandSlotDefence}</span><small>hero</small></div>`;
+      ? this.renderCard(cmd, { tableau: side, owner: p }) + this.heroRail(p, cmd, side)
+      : p.wounded
+        ? `<div class="slot-empty slot-cmd slot-wounded" title="${esc(cardDef(p.wounded.card.defId).name)} is wounded: back in the command room ${p.wounded.left > 0 ? 'after their next day' : 'at their next dawn'}."><span class="slot-def">✚</span><small>wounded</small></div>`
+        : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${cmdDef}"><span class="slot-def">⛨${cmdDef}</span><small>hero</small></div>`;
     const slots = Array.from({ length: BALANCE.tableauSlots }, (_, i) => {
       const c = p.tableau.find((x) => x.slot === i);
       const g = ghostAt(i);
       if (g) return g;
       if (c) return this.renderCard(c, { tableau: side, owner: p, preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
       // A slot keeps the wear of the card that stood in it (mending 1 a day).
-      const full = BALANCE.slotDefence[i];
+      const full = BALANCE.slotDefence[i] + (p.rooms?.defence[i] ?? 0);
       const wear = p.slotWear?.[i] ?? 0;
       const def = Math.max(0, full - wear);
       const worn = wear ? ` slot-worn` : '';
       const why = wear ? `: worn to ${def} of ${full} by heat on the card that stood here (it mends 1 a day)` : ` ${full}`;
       return choosingSlot
-        ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" data-slot="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i></button>`
-        : `<div class="slot-empty${worn}" data-slot="${i}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span></div>`;
+        ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" data-slot="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i>${p.rooms ? `<span class="slot-room">${this.roomMarks(p, i, true)}</span>` : ''}</button>`
+        : `<div class="slot-empty${worn}" data-slot="${i}" title="Slot defence${why}"><span class="slot-def">⛨${def}</span>${p.rooms ? `<span class="slot-room">${this.roomMarks(p, i, true)}</span>` : ''}</div>`;
     }).join('');
     // The Lightspeed slot, right of the tableau: a card set there lies face down (its owner can still read it). It has no defence.
     const ls = p.lightspeed;
@@ -4703,7 +4814,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
@@ -4728,7 +4839,9 @@ export class App {
     const deckStack = stack(p.deck.length), discardStack = stack(p.discard.length);
     const deck = p.deck.length
       ? `${deckStack.layers}<span class="tpile-face tpile-back tpile-stacked" style="${deckStack.style}">${cardBackFace()}</span>`
-      : `<span class="tpile-empty"></span><small>deck</small>`;
+      : (p.reshuffleIn ?? 0) > 0
+        ? `<span class="tpile-empty"></span><b class="tpile-wait" data-tip-title="deck run dry" data-tip="The discard pile shuffles back in ${p.reshuffleIn} day${p.reshuffleIn === 1 ? '' : 's'}: a small deck waits a day for each card it is under 10.">${p.reshuffleIn}</b><small>days</small>`
+        : `<span class="tpile-empty"></span><small>deck</small>`;
     const discard = top
       ? `${discardStack.layers}<span class="tpile-face tpile-stacked" style="${discardStack.style}">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span>`
       : `<span class="tpile-empty"></span><small>discard</small>`;
@@ -4820,11 +4933,6 @@ export class App {
       attrs = `data-act="attack-start" data-arg="${c.uid}" title="Attack: click, then a rival card"`;
       state = 'card-attacker';
     }
-    // Your Hero, with something it can do today: a tap opens its actions (middle right).
-    if (!p && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && def.kind === 'command' && c.slot === COMMAND_SLOT && this.heroActions(me).length) {
-      attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Choose what ${esc(def.name)} does today (hold or right-click to read it)"`;
-      state = 'card-attacker';
-    }
     if ((p?.attack || p?.ability !== undefined) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';
     // Placing a recall card: the card it recalls can make way for it.
@@ -4854,11 +4962,16 @@ export class App {
     };
     const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
     // A campaign hero's boons (skills and gear), carried while it is in play: one tag, their text on hover.
-    const boonTag = c.boons?.length ? `<i class="boon-tag" title="${esc(`From skills and gear: ${c.boons.map((b) => plainText(cardDef(b).text)).join(' ')}`)}">✦ ${c.boons.length} boon${c.boons.length === 1 ? '' : 's'}</i>` : '';
+    // (A hero's boons stand on the rail beside its slot; any other card's, from a ship module, as marks on it.)
+    // (A campaign card standing in a ship's room: the room's walls and guns on it too.)
+    const roomTag = opts.tableau && opts.owner && c.slot !== undefined && c.slot !== COMMAND_SLOT ? this.roomMarks(opts.owner, c.slot, false) : '';
+    // A dimmed card with a dusk effect rests tonight: marked, so a quiet dusk is no surprise.
+    const restTag = opts.tableau && c.fresh && c.slot !== undefined && duskEffects(c).length ? `<i class="boon-mark rest-mark" data-tip-title="resting" data-tip="${esc('It came into play today: its dusk effect starts tomorrow.')}"><svg viewBox="0 0 16 16"><path d="M10.5 2.5a5.5 5.5 0 1 0 3 9.6A6 6 0 0 1 10.5 2.5Z"/></svg></i>` : '';
+    const boonTag = restTag + roomTag + (c.boons?.length && !(def.kind === 'command' && c.slot === COMMAND_SLOT) ? this.boonMarks(c.boons) : '');
     // Fusion cards fused onto it: tucked behind it, each a little higher, only its name showing above it
     // (its text on hover). A campaign hero's boons stay as a tag on the card.
     const fusedTags =
-      (c.boons?.length ? `<span class="fused-tags">${boonTag}</span>` : '') +
+      (boonTag ? `<span class="card-room">${boonTag}</span>` : '') +
       (c.fused ?? [])
         .map((f, i) => {
           const fd = cardDef(f.defId);
@@ -4902,21 +5015,25 @@ export class App {
    */
   private liveNumbers(c: CardInstance, opts: { hand?: boolean; owner?: PlayerState }): Record<number, number> {
     const s = this.state;
-    const owner = opts.owner ?? (opts.hand ? this.viewer() : undefined);
+    // (Wherever it is shown, a card of a player's: in play, or in their hand, as it would be played.)
+    const owner = opts.owner ?? (opts.hand ? this.viewer() : s?.players.find((p) => p.tableau.some((x) => x.uid === c.uid) || p.hand.some((x) => x.uid === c.uid)));
     if (!s || !owner) return {};
     const def = cardDef(c.defId);
     const inPlay = c.slot !== undefined && owner.tableau.some((x) => x.uid === c.uid);
-    if (!inPlay && !opts.hand) return {};
-    const when = inPlay ? 'turn' : 'play';
-    const effects = (inPlay ? dawnEffects(c) : def.onPlay ?? []).flatMap((e) =>
-      e.type === 'heat' || e.type === 'cool' || e.type === 'shield'
-        ? // Thermosiphon: the number on the card is per point below zero; shown as the total it now comes to.
-          e.plus?.of === 'cold'
-          ? [{ type: e.type, amount: e.amount || (e.plus.times ?? 1), now: effectAmount(s, owner, c, e, when) }]
-          : [{ type: e.type, amount: e.amount, now: e.amount + effectAmount(s, owner, c, { ...e, amount: 1, plus: undefined, max: undefined }, when) - 1 }]
-        : [],
-    );
-    return liveValues(def.text, effects, inPlay);
+    const inHand = opts.hand || owner.hand.some((x) => x.uid === c.uid);
+    if (!inPlay && !inHand) return {};
+    const numbers = (list: Effect[], when: 'turn' | 'play') =>
+      list.flatMap((e) =>
+        e.type === 'heat' || e.type === 'cool' || e.type === 'shield'
+          ? // Thermosiphon: the number on the card is per point below zero; shown as the total it now comes to.
+            e.plus?.of === 'cold'
+            ? [{ type: e.type, amount: e.amount || (e.plus.times ?? 1), now: effectAmount(s, owner, c, e, when) }]
+            : [{ type: e.type, amount: e.amount, now: e.amount + effectAmount(s, owner, c, { ...e, amount: 1, plus: undefined, max: undefined }, when) - 1 }]
+          : [],
+      );
+    if (inPlay) return liveValues(def.text, numbers(dawnEffects(c), 'turn'), true);
+    // In hand: what it does as it is played, and what its dawns would do once in play (its bonuses already count).
+    return { ...liveValues(def.text, numbers(def.onPlay ?? [], 'play'), false), ...liveValues(def.text, numbers(dawnEffects(c), 'turn'), true) };
   }
 
   /** The explanations beside a magnified card: its keywords, and its stability and defence (live, for a card in play). */
@@ -4957,6 +5074,8 @@ export class App {
     const def = cardDef(defId);
     const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
     const c = owner?.tableau.find((x) => x.uid === uid);
+    // A card in the viewer's hand: its numbers as it would be played.
+    const held = !c && uid ? this.viewer()?.hand.find((x) => x.uid === uid) : undefined;
     const stats =
       owner && c
         ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b>${(def.attack ?? 0) > 0 ? attackBadge(cardAttack(this.state!, owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">${STAB_ICON}${c.stability ?? 0}</b></span>`
@@ -4967,9 +5086,64 @@ export class App {
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
-        <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : {})}${this.fusedTextHtml(c)}</div>
+        <div class="card-text">${cardBodyHtml(def, c?.choice, owner && c ? this.liveNumbers(c, { owner }) : held ? this.liveNumbers(held, { hand: true }) : {})}${this.fusedTextHtml(c)}</div>
         <div class="card-kind">${typeLine(def)}</div>
       </div>`;
+  }
+
+  /**
+   * A ship's room (campaign), as marks: its walls and guns, and (on the empty slot, before a card carries it)
+   * its module. On the slot until a card is played there; then on the card.
+   */
+  private roomMarks(p: PlayerState, slot: number, withModule: boolean): string {
+    const r = p.rooms;
+    if (!r) return '';
+    const walls = r.defence[slot] ?? 0;
+    const guns = r.attack[slot] ?? 0;
+    const mark = (kind: string, n: number, title: string, text: string) => `<i class="boon-mark room-mark" data-tip-title="${title}" data-tip="${esc(text)}">${effectMark(kind)}<small>${n}</small></i>`;
+    return [
+      walls ? mark('walls', walls, 'walls', `This room's walls: +${walls} defence for the card in it.`) : '',
+      guns ? mark('guns', guns, 'guns', `This room's guns: +${guns} attack for a card in it that attacks.`) : '',
+      withModule && r.boons?.[slot]?.length ? this.boonMarks(r.boons[slot], 'boon-mark room-mark') : '',
+    ].join('');
+  }
+
+  /** Boons as marks, one per kind (a count if several): each says what it does on hover. */
+  private boonMarks(boons: string[], cls = 'boon-mark'): string {
+    const seen = new Map<string, number>();
+    for (const b of boons) seen.set(b, (seen.get(b) ?? 0) + 1);
+    return [...seen]
+      .map(([b, n]) => {
+        const kind = b.replace(/^boon_/, '').replace(/_\d+$/, '');
+        const amount = Number(b.match(/_(\d+)$/)?.[1] ?? 0) * n;
+        return `<i class="${cls}" data-tip-title="boon${n > 1 ? ` ×${n}` : ''}" data-tip="${esc(cardDef(b).text)}">${effectMark(kind)}${amount ? `<small>${amount}</small>` : ''}</i>`;
+      })
+      .join('');
+  }
+
+  /**
+   * Beside a Hero in its slot: its abilities as round marks (what each does on hover; on your day, tap one to
+   * use it), then the boons its card carries (skills and gear), smaller.
+   */
+  private heroRail(p: PlayerState, hero: CardInstance, side: 'mine' | 'rival'): string {
+    const s = this.state!;
+    const def = cardDef(hero.defId);
+    const yours = side === 'mine' && p.id === this.viewer().id;
+    const act = yours && this.canAct() && !this.pending && !isGameOver(s);
+    const abilities = (def.abilities ?? [])
+      .map((ab, i) => {
+        const e = ab.effects[0];
+        const amount = e && 'amount' in e && typeof e.amount === 'number' ? e.amount : 0;
+        const why = yours ? heroAbilityProblem(s, p, i) : null;
+        const text = `${ab.name}: ${plainText(ab.text)}${ab.cost ? ` Costs ${ab.cost} energy.` : ''}${act && why ? ` (${why})` : ''}`;
+        const usable = act && !why;
+        const tipAttrs = `data-tip-title="${esc(ab.name.toLowerCase())}" data-tip="${esc(`${ab.cost ? `{cost:${ab.cost}} : ` : ''}${ab.text}`)}"${act && why ? ` data-tip-note="${esc(why)}"` : usable ? ' data-tip-note="Tap to use it today."' : ''}`;
+        return `<button class="hero-ab ${usable ? 'hero-ab-on' : ''}" ${usable ? `data-act="hero-ability" data-arg="${i}"` : 'aria-disabled="true"'} ${tipAttrs} aria-label="${esc(text)}">${effectMark(e?.type ?? 'star')}${amount ? `<small>${amount}</small>` : ''}${ab.cost ? `<em class="hero-ab-cost">${'<i></i>'.repeat(ab.cost)}</em>` : ''}</button>`;
+      })
+      .join('');
+    const boons = hero.boons?.length ? this.boonMarks(hero.boons, 'boon-mark hero-boon') : '';
+    if (!abilities && !boons) return '';
+    return `<div class="hero-rail hero-rail-${side}">${abilities ? `<div class="hero-rail-col">${abilities}</div>` : ''}${boons ? `<div class="hero-rail-col">${boons}</div>` : ''}</div>`;
   }
 
   /** What the viewer's Hero can do right now: its usable abilities (by index), and 'attack' if it may attack. */

@@ -17,5 +17,7 @@ export function cleanStats(raw: unknown): Record<string, unknown> | null {
     ? r.plays.slice(0, 600).flatMap((p) => (Array.isArray(p) && num(p[0], 3) !== null && num(p[1], 200) !== null && id(p[2]) ? [[p[0], p[1], p[2]]] : []))
     : [];
   const end = ['supernova', 'concede', 'other'].includes(String(r.end)) ? String(r.end) : 'other';
-  return { v: 1, mode: String(r.mode), seats, winner: num(r.winner, 3), end, rounds: num(r.rounds, 200) ?? 0, plays };
+  // A game on a device can bring its moves, compressed (scripts/train-ai.ts replays them): kept as it came, if it is base64 and not too big.
+  const trace64 = (r.mode === 'ai' || r.mode === 'hotseat') && typeof r.trace64 === 'string' && r.trace64.length <= 200_000 && /^[A-Za-z0-9+/=]+$/.test(r.trace64) ? r.trace64 : undefined;
+  return { v: 1, mode: String(r.mode), seats, winner: num(r.winner, 3), end, rounds: num(r.rounds, 200) ?? 0, plays, ...(trace64 ? { trace64 } : {}) };
 }

@@ -8,6 +8,7 @@
  * (gold → red, or icy blue when cold), read from the canvas's data attributes.
  */
 
+import { BALANCE } from '../engine';
 const TW = 512;
 /** Directions round the rim the corona's flames are worked out for each frame. */
 const FLAMES = 360;
@@ -649,8 +650,42 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   ctx.clearRect(0, 0, size, size);
   ctx.setTransform(s, 0, 0, s, pad * s, pad * s);
   flat.forEach((f) => f());
+  // Shields: a dome of hexagons over the sun. Its far side goes under the sun, its near side over it.
+  const shields = Number(canvas.dataset.shields ?? 0);
+  const lattice = shields > 0 && !dead ? latticeCells(c, R * LATTICE_R, cam) : null;
+  const strength = Math.min(1, shields / BALANCE.maxKeptShields);
+  const shimmer = reduce() ? 1 : 0.85 + 0.15 * Math.sin(time * 0.0021);
+  const drawCells = (front: boolean) => {
+    if (!lattice) return;
+    ctx.setTransform(s, 0, 0, s, pad * s, pad * s);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(0.6, vs * 0.0055);
+    for (const cell of lattice) {
+      if (cell.front !== front) continue;
+      const a = (front ? 0.22 + 0.6 * cell.face : 0.12) * (0.45 + 0.55 * strength) * shimmer;
+      ctx.beginPath();
+      cell.pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fillStyle = `rgba(150, 200, 255, ${(a * 0.16).toFixed(3)})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(118, 178, 240, ${a.toFixed(3)})`;
+      ctx.stroke();
+    }
+  };
+  if (lattice) {
+    // Where the dome meets the board: a faint ring.
+    ctx.setTransform(s, 0, 0, s, pad * s, pad * s);
+    ctx.beginPath();
+    ctx.arc(c[0], c[1], R * LATTICE_R, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(118, 178, 240, ${(0.25 + 0.35 * strength).toFixed(3)})`;
+    ctx.lineWidth = Math.max(1, vs * 0.008);
+    ctx.stroke();
+  }
+  drawCells(false);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(layer, 0, 0);
+  drawCells(true);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
 
   // The labels standing up off the board, turned to face the eye.
   const stand = (el: HTMLElement | null, at: V3, ay: string) => {
@@ -674,6 +709,48 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   // Remembered, so a redrawn gauge can put its label straight back where it stands (see animateSuns).
   const key = vit.closest('[data-anchor]')?.getAttribute('data-anchor');
   if (key && label) labelPlace.set(key, label.style.transform);
+}
+
+/** The shield dome's radius, as a share of the sun's. */
+const LATTICE_R = 1.4;
+type LatticeCell = { pts: [number, number][]; front: boolean; face: number };
+const lattices = new Map<string, LatticeCell[]>();
+/**
+ * The shield dome's hexagons, laid over a half-sphere standing on the board round the sun (longitude round
+ * the sun, latitude up from the board), each projected onto the board as the eye sees it. Cells facing the
+ * eye are the dome's near side. Kept by geometry: the eye and the sun stay put between frames.
+ */
+function latticeCells(c: V3, r: number, cam: V3): LatticeCell[] {
+  const key = `${c.map((v) => v.toFixed(2)).join(',')}|${r.toFixed(2)}|${cam.map((v) => v.toFixed(2)).join(',')}`;
+  const have = lattices.get(key);
+  if (have) return have;
+  const deg = Math.PI / 180;
+  const size = 11 * deg;
+  const dx = size * 1.5;
+  const dy = size * Math.sqrt(3);
+  const at = (lon: number, lat: number): V3 => [c[0] + r * Math.cos(lat) * Math.cos(lon), c[1] + r * Math.cos(lat) * Math.sin(lon), r * Math.sin(lat)];
+  const cells: LatticeCell[] = [];
+  const cols = Math.round((Math.PI * 2) / dx);
+  for (let col = 0; col < cols; col++) {
+    for (let row = 0; row <= 6; row++) {
+      const lon = col * ((Math.PI * 2) / cols);
+      const lat = row * dy + (col % 2 ? dy / 2 : 0) + size * 0.5;
+      if (lat > 84 * deg) continue;
+      const mid = at(lon, lat);
+      const n = norm3(sub3(mid, c));
+      const face = dot3(n, norm3(sub3(cam, mid)));
+      // (Cells are wider in longitude towards the top, so they keep their shape on the dome; none dips under the board.)
+      const pts = Array.from({ length: 6 }, (_, k) => {
+        const a = (k * Math.PI) / 3;
+        const la = Math.max(0, lat + Math.sin(a) * size * 0.9);
+        return onBoard(cam, at(lon + (Math.cos(a) * size * 0.9) / Math.max(0.3, Math.cos(lat)), la));
+      });
+      cells.push({ pts, front: face > 0, face: Math.max(0, face) });
+    }
+  }
+  if (lattices.size > 16) lattices.clear();
+  lattices.set(key, cells);
+  return cells;
 }
 
 /** Each sun's heat label as last placed, by its gauge's anchor. */

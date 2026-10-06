@@ -28,7 +28,9 @@
     "ios:sync": "npm run build && cap sync ios",
     "ios:open": "npm run ios:sync && cap open ios",
     "server": "npm run build && wrangler dev",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "power": "vite-node scripts/power.ts",
+    "train-ai": "vite-node scripts/train-ai.ts"
   },
   "build": {
     "appId": "com.coronalmassgames.blueloop",

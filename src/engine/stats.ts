@@ -26,6 +26,13 @@ export interface GameStats {
   rounds: number;
   /** Cards played: [seat, round, card id]. */
   plays: [number, number, string][];
+  /**
+   * The whole game, to replay (games on a device against the AI, or pass and play): the state it began in and
+   * every move since, the AI's too. The game is deterministic, so this is the game exactly: the players' own
+   * moves are what the AI is trained on (scripts/train-ai.ts). Sent compressed (`trace64`).
+   */
+  trace?: { start: GameState; moves: Action[] };
+  trace64?: string;
 }
 
 /** Every card a player has, wherever it is (sorted card ids): at the start of a game, its deck. */
@@ -53,16 +60,25 @@ export function beginStats(state: GameState, mode: GameStats['mode']): GameStats
     end: 'other',
     rounds: state.round,
     plays: [],
+    ...(mode === 'ai' || mode === 'hotseat' ? { trace: { start: anonymous(state), moves: [] } } : {}),
   };
 }
 
 /** Note a move: a card played is written down, with its seat and the round. */
 export function noteMove(stats: GameStats, prev: GameState, next: GameState, action: Action) {
+  stats.trace?.moves.push(action);
   if (action.type !== 'playCard') return;
   const seat = prev.activePlayerIndex;
   const card = prev.players[seat]?.hand.find((c) => c.uid === action.cardUid);
   if (card && cardDef(card.defId)) stats.plays.push([seat, prev.round, card.defId]);
   void next;
+}
+
+/** A game's opening state with nothing about who plays it: seats for names, and no log (it names them). */
+function anonymous(state: GameState): GameState {
+  const s = structuredClone(state);
+  s.players.forEach((p, i) => (p.name = `Seat ${i + 1}`));
+  return { ...s, log: [], turnPulses: [] };
 }
 
 /** The game is over: who won, and how. */

@@ -39,6 +39,7 @@ export function createGame(setup: GameSetup): GameState {
     players: [],
     winnerId: null,
     log: [],
+    ...(setup.campaign ? { campaign: true } : {}),
   };
 
   const catchUp = (i: number) => i > 0 && n <= BALANCE.catchUpMaxPlayers;
@@ -56,6 +57,7 @@ export function createGame(setup: GameSetup): GameState {
       heat: BALANCE.startingHeat + (ps.heatDelta ?? 0) + (ps.modifiers?.startingHeat ?? 0) - (catchUp(i) ? BALANCE.laterSeatCool : 0),
       shields: ps.opening?.shields ?? 0,
       deck,
+      deckSize: deck.length + (ps.tableau?.length ?? 0),
       hand: [],
       tableau: [],
       discard: [],
@@ -71,6 +73,9 @@ export function createGame(setup: GameSetup): GameState {
       ...(ps.freeReshuffle ? { freeReshuffle: true } : {}),
       ...(ps.heroBoons?.boons.length ? { heroBoons: ps.heroBoons } : {}),
       ...(ps.skills?.length ? { skills: ps.skills.map((k) => ({ ...k })) } : {}),
+      ...(ps.hero ? { hero: ps.hero } : {}),
+      ...(ps.heroStats ? { heroStats: { ...ps.heroStats } } : {}),
+      ...(ps.rooms ? { rooms: { defence: [...ps.rooms.defence], attack: [...ps.rooms.attack], command: ps.rooms.command, ...(ps.rooms.boons ? { boons: ps.rooms.boons.map((b) => [...b]) } : {}) } } : {}),
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
     // A garrison takes the safest slots first; a Hero already in play (a campaign hero's Herald) leads from the
@@ -368,7 +373,7 @@ export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' |
 
 /** Your other cards this card could return to your hand or restore (empty if it needs no such choice). */
 export function allyChoices(p: PlayerState, defId: string): CardInstance[] {
-  if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || (e.type === 'restore' && !e.all && !e.self))) return [];
+  if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || e.type === 'empower' || (e.type === 'restore' && !e.all && !e.self))) return [];
   // Command cards can't be brought back to your own hand (a rival can still send them back).
   return allyEffectKind(defId) === 'recall' ? p.tableau.filter(returnable) : [...p.tableau];
 }
@@ -391,9 +396,9 @@ export function hasRoomFor(p: PlayerState, defId: string): boolean {
 }
 
 /** Whether a card's ally choice returns the card to hand (rather than restoring its stability). */
-export function allyEffectKind(defId: string): 'recall' | 'restore' | null {
-  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || (x.type === 'restore' && !x.all && !x.self));
-  return e?.type === 'recall' || e?.type === 'restore' ? e.type : null;
+export function allyEffectKind(defId: string): 'recall' | 'restore' | 'empower' | null {
+  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || x.type === 'empower' || (x.type === 'restore' && !x.all && !x.self));
+  return e?.type === 'recall' || e?.type === 'restore' || e?.type === 'empower' ? e.type : null;
 }
 
 /** Cards in your discard pile this card could recover (empty if it has no recover). */
@@ -463,11 +468,16 @@ export function cardCost(defId: string): number {
 function place(p: PlayerState, card: CardInstance, slot: number) {
   card.slot = slot;
   card.stability = baseStability(card.defId);
+  // (A Chosen card's extra attack goes with it when it leaves: it comes back in as printed.)
+  delete card.attackBonus;
   // A campaign hero's card carries their boons (gear and skills) while it is in play.
   if (p.heroBoons && card.defId === p.heroBoons.hero) {
     card.boons = [...p.heroBoons.boons];
     card.stability = Math.min(BALANCE.maxStability, card.stability + card.boons.reduce((t, b) => t + (cardDef(b).stability ?? 0), 0));
   }
+  // A campaign ship's room with a module in it: the card standing there carries the module's boons.
+  const roomBoons = slot !== COMMAND_SLOT ? p.rooms?.boons?.[slot] : undefined;
+  if (roomBoons?.length) card.boons = [...(card.boons ?? []), ...roomBoons];
   // The slot's worn defence is still worn: the new card stands in it.
   const wear = p.slotWear?.[slot] ?? 0;
   if (wear > 0) card.dented = wear;
@@ -489,7 +499,7 @@ function distance(a: CardInstance, b: CardInstance): number {
  * reach cards with low enough defence.
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
-  let d = slotDefence(card.slot) + cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0);
+  let d = slotDefence(card.slot) + cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0) + roomDefence(p, card);
   for (const src of p.tableau) {
     const k = distance(src, card);
     if (k === 0) continue;
@@ -497,6 +507,14 @@ export function cardDefence(p: PlayerState, card: CardInstance): number {
   }
   // Heat wears defence away, and the wear lasts (see mendDefences).
   return Math.max(0, Math.max(0, d) - (card.dented ?? 0));
+}
+
+/** Campaign battles: what the ship's room adds to the card standing in it (and a hero's own training). */
+function roomDefence(p: PlayerState, card: CardInstance): number {
+  let d = 0;
+  if (p.rooms) d += card.slot === COMMAND_SLOT ? p.rooms.command : (p.rooms.defence[card.slot ?? -1] ?? 0);
+  if (p.heroStats && card.defId === p.hero) d += p.heroStats.defence;
+  return d;
 }
 
 /** A slot's own defence: 1 at the edges, 2 inside, 3 in the middle (the Command slot's is its own). */
@@ -745,9 +763,30 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
 // Rules
 // ---------------------------------------------------------------------------
 
-function drawCards(state: GameState, p: PlayerState, count: number) {
+/** Draw `count` cards. `byEffect`: a card's draw (not the day's), which also hurries a dry deck's wait. */
+function drawCards(state: GameState, p: PlayerState, count: number, byEffect = false) {
   for (let i = 0; i < count; i++) {
+    // (A campaign deck is small, ten cards at most: with nothing left to draw or shuffle back, it gives no
+    // more, without the strain. Its sun would burn out before the battle began.)
+    if (state.campaign && p.deck.length === 0 && p.discard.length === 0) return;
     if (p.deck.length === 0 && p.discard.length > 0) {
+      // A small deck's discard pile waits a day for every card it is under 10 before it shuffles back in
+      // (so a handful of cards can't be cycled again and again). Meanwhile it simply gives no more.
+      if (p.reshuffleIn === undefined) {
+        const wait = Math.max(0, BALANCE.reshuffleDeckSize - (p.deckSize ?? BALANCE.reshuffleDeckSize));
+        if (wait > 0) {
+          p.reshuffleIn = wait;
+          log(state, `${p.name}'s deck has run dry: their discard pile shuffles back in ${wait} day${wait === 1 ? '' : 's'}.`);
+        }
+      }
+      // A draw effect hurries it along: each card it would draw takes a day off the wait.
+      if ((p.reshuffleIn ?? 0) > 0 && byEffect) {
+        p.reshuffleIn! -= 1;
+        log(state, p.reshuffleIn ? `${p.name} draws on the wait: their discard pile shuffles back in ${p.reshuffleIn} day${p.reshuffleIn === 1 ? '' : 's'}.` : `${p.name} draws out the wait.`);
+        continue;
+      }
+      if ((p.reshuffleIn ?? 0) > 0) return;
+      delete p.reshuffleIn;
       reshuffle(state, p);
       if (p.eliminated) return;
     }
@@ -965,7 +1004,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       }
       case 'draw': {
         const n = e.amount + (e.plus ? countOf(p, card, e.plus, state) : 0);
-        drawCards(state, p, n);
+        drawCards(state, p, n, true);
         if (when === 'turn') notePulse(state, p, card, 'draw', p, n);
         break;
       }
@@ -1039,6 +1078,13 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'repair':
         repair(state, p, e.amount);
         break;
+      case 'empower': {
+        const chosen = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid);
+        if (!chosen) break;
+        chosen.attackBonus = (chosen.attackBonus ?? 0) + e.amount;
+        log(state, `${p.name}'s ${cardDef(chosen.defId).name} is chosen: +${e.amount} attack.`);
+        break;
+      }
       case 'recall': {
         const back = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid && returnable(c));
         if (back) {
@@ -1055,7 +1101,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
           // Nothing there to recover: the card draws instead, so it is never dead.
           if (e.orDraw && !p.discard.some((c) => kindMatches(c, e.kind))) {
             log(state, `${p.name} has nothing to recover, and draws instead.`);
-            drawCards(state, p, e.orDraw);
+            drawCards(state, p, e.orDraw, true);
           }
           break;
         }
@@ -1109,7 +1155,8 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   if (cardDef(card.defId).token) {
     /* nothing to keep */
   } else if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
-  else (to === 'hand' ? owner.hand : owner.discard).push(card);
+  else if (to === 'hand') owner.hand.push(card);
+  else owner.discard.push(card);
   resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
   // Its Fusion cards go with it (and their leave effects fire too).
   const fused = card.fused ?? [];
@@ -1231,8 +1278,12 @@ function startTurn(state: GameState) {
   if (!state.keepPulses) state.turnPulses = [];
   delete state.keepPulses;
   p.turnsTaken += 1;
+  if ((p.reshuffleIn ?? 0) > 0) p.reshuffleIn! -= 1;
   // Dawn breaks: every card of theirs is ready to act again.
-  for (const c of p.tableau) delete c.dimmed;
+  for (const c of p.tableau) {
+    delete c.dimmed;
+    delete c.fresh;
+  }
   p.turn = emptyTurn();
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
   // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy adds defence, not mending: a fused stack of Sturdy cards would wall up for good).
@@ -1240,7 +1291,8 @@ function startTurn(state: GameState) {
 
   // Shields fade, unless Deep Current holds them.
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
-  p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
+  // (A campaign ship's shields are up as the battle begins: they last its first day.)
+  if (!(state.campaign && p.turnsTaken === 1)) p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
 
   // The planets move on a day (your first day starts at the dead planet).
   if (p.turnsTaken > 1) {
@@ -1251,6 +1303,7 @@ function startTurn(state: GameState) {
   const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw : 0;
   // Draw (your opening hand covers your first day).
   if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
+  if (state.winnerId) return;
   if (p.eliminated) return passOn(state);
 
   // Every sun as the turn's effects begin (shields faded), for the table's replay to start from.
@@ -1282,7 +1335,6 @@ function startTurn(state: GameState) {
     cool(state, p, 1);
     notePulse(state, p, activeGlobal(state)?.card ?? null, 'cool', p, 1);
   }
-
   dawn(state, p);
 }
 
@@ -1297,6 +1349,7 @@ function dawn(state: GameState, p: PlayerState) {
   // Then every card loses 1 stability (unless anchored); at 0 it fades into your discard pile.
   // (A Hero never fades: it leads until it is removed, beaten down by heat, or replaced by another. Nor
   // does a Relic: it stays until something breaks it.)
+  // (In campaign battles cards don't fade: they stand until destroyed.)
   const fading = p.tableau.filter((c) => !anchored(p, c) && cardDef(c.defId).kind !== 'command' && cardDef(c.defId).kind !== 'relic');
   for (const card of fading) card.stability = (card.stability ?? 1) - 1;
   for (const card of fading) {
@@ -1317,8 +1370,8 @@ function dusk(state: GameState, p: PlayerState) {
   notePulse(state, p, null, 'start', p, 0);
   for (const card of cards) {
     if (state.winnerId || p.eliminated) break;
-    // (A dimmed card rests: one played today, or one that attacked or acted, does nothing at dusk.)
-    if (!p.tableau.includes(card) || card.dimmed) continue;
+    // (A card played today rests: its dusk first works the dusk after it lands. Attacking or acting doesn't stop it.)
+    if (!p.tableau.includes(card) || card.fresh) continue;
     resolveEffects(state, p, card, duskEffects(card), 'turn');
   }
 }
@@ -1491,7 +1544,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   place(p, card, slot);
   // A card comes into play dimmed: it can first act (attack, or a Hero's ability) on its owner's next day.
   // (Darkspeed, the Nyxari: their cards that can act, attackers and Heroes, come in ready to.)
-  if (!hasDarkspeed(cardDef(card.defId))) card.dimmed = true;
+  if (!hasDarkspeed(cardDef(card.defId))) card.dimmed = card.fresh = true;
   if (choices.length) {
     card.choice = action.choice;
     log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);
@@ -1598,7 +1651,13 @@ export function baseAttack(def: CardDef): number {
 export function cardAttack(state: GameState, p: PlayerState, card: CardInstance): number {
   const def = cardDef(card.defId);
   let base = baseAttack(def);
+  // Campaign battles: a hero's training lets them fight (even one who doesn't), and a room's guns add to a card that does.
+  const hero = !!p.heroStats && card.defId === p.hero;
+  if (hero) base += p.heroStats!.attack;
+  // (Chosen: even a card with no attack of its own can fight.)
+  base += card.attackBonus ?? 0;
   if (base <= 0) return 0;
+  if (p.rooms && card.slot !== COMMAND_SLOT) base += p.rooms.attack[card.slot ?? -1] ?? 0;
   // Flare-born: more while its owner's sun is overheated.
   const t = raceTrait(def.race);
   if (t?.attackHot && isOverheated(p)) base += t.attackHot;
@@ -1616,7 +1675,7 @@ export function attackProblem(state: GameState, p: PlayerState, attackerUid: str
   const card = p.tableau.find((c) => c.uid === attackerUid);
   if (!card) return 'That card is not in play.';
   if (activePlayer(state).id !== p.id) return 'Only on your own day.';
-  if ((cardDef(card.defId).attack ?? 0) <= 0) return `${cardDef(card.defId).name} has no attack.`;
+  if (cardAttack(state, p, card) <= 0) return `${cardDef(card.defId).name} has no attack.`;
   if (card.dimmed) return `${cardDef(card.defId).name} is dimmed: it acts again from your next day.`;
   const { cards, sun } = aimChoices(state, p);
   if (targetUid === undefined) return null;

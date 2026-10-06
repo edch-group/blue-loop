@@ -29,6 +29,7 @@ const SPECS: Record<string, (n: number) => Spec> = {
   plant: (n) => ({ text: `As it is played: {plant:${n}}.`, onPlay: [{ type: 'plant', amount: n }] }),
 };
 
+
 /** A boon's id: what it does and how much ("boon_heat_2"; "boon_tidewall" for those without a number). */
 export const boon = (kind: keyof typeof SPECS, n = 0) => (n ? `boon_${kind}_${n}` : `boon_${kind}`);
 

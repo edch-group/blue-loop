@@ -12,7 +12,7 @@ export const DUSK_CARDS: CardDef[] = [
     defence: 1, onDusk: [{ type: 'shield', amount: 2 }], passive: [{ type: 'taunt' }],
   },
   {
-    id: 'evening_star', name: 'Evening Star', kind: 'growth', cost: 2,
+    id: 'evening_star', name: 'Evening Star', kind: 'growth', cost: 1,
     text: '{dusk}: draw 1.',
     onDusk: [{ type: 'draw', amount: 1 }],
   },
@@ -29,8 +29,8 @@ export const DUSK_CARDS: CardDef[] = [
   // ---- One for each race ----
   {
     id: 'aureline_vesper_knight', name: 'Vesper Knight', kind: 'attack', race: 0, cost: 2, character: true,
-    text: '{dusk}: {heat:1}. {heat:+1} with 3+ attack cards.',
-    onDusk: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 1, to: 'target', if: { minKind: 'attack', n: 3 } }],
+    text: '{dusk}: {heat:1}. {heat:+2} with 3+ attack cards.',
+    onDusk: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minKind: 'attack', n: 3 } }],
   },
   {
     id: 'shard_twilight', name: 'Twilight Shard', kind: 'attack', race: 1, cost: 2,
