@@ -81,8 +81,8 @@ const BATTLE_CHORDS: { bass: string; pad: string[]; arp: string[][] }[] = [
 // ---- The voyage (the menus) -------------------------------------------------
 // A voyage through a dying universe, in the same key and hall as the ambient
 // and battle scores. The ambient score's breathing drone holds A while a lament
-// falls over// it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High above, a
-// sparse melody of bell-like plucks layered with a sustained, slightly distorted
+// falls over it (Am, G6, Fmaj7, Em7, ten seconds each, round and round). High
+// above, a sparse melody of bell-like plucks layered with a sustained, slightly distorted
 // synth (a dotted-quarter echo filling the gaps) sings short phrases, rolling a
 // quick chord into its height once a time round and breaking into long,
 // climbing runs of eighths over swelling synths; one set of phrases answered by
