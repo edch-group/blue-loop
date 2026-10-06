@@ -657,13 +657,17 @@ describe('armies and generals', () => {
     // The hero stays.
     expect(() => applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: army.general })).toThrow(/leads this army/);
     s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: out });
-    // Up to ten cards, no more.
+    // No most: past ten it goes on taking cards; and from ten it keeps at least ten.
     campaignPlayer(s).reserve.push(...['coronal_lance', 'coronal_lance', 'photon_drill', 'photon_drill', 'cryo_vault', 'cryo_vault', 'thermal_exchange', 'deflector_grid', 'scatter_shot']);
     for (const id of ['coronal_lance', 'coronal_lance', 'photon_drill', 'photon_drill', 'cryo_vault', 'cryo_vault', 'thermal_exchange']) {
       if (myArmy(s).deck.filter((x) => x === id).length < 2) s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: id });
     }
     while (myArmy(s).deck.length < CAMPAIGN.armySize) s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: 'deflector_grid' });
-    expect(() => applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: 'scatter_shot' })).toThrow(/at most/);
+    expect(() => applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: myArmy(s).deck.find((id) => id !== army.general)! })).toThrow(/at least/);
+    s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: 'scatter_shot' });
+    expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize + 1);
+    s = applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: 'scatter_shot' });
+    expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize);
     myArmy(s).refit = false; // (as next turn)
     expect(() => attack(s)).not.toThrow();
     // And an army that has marched can't refit until the next turn.

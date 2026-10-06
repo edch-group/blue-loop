@@ -51,7 +51,10 @@ import {
 // ---------------------------------------------------------------------------
 
 export const CAMPAIGN = {
-  /** A flagship's deck: its hero and up to this many cards in all. */
+  /**
+   * A flagship's deck has no most: every card found goes in. Once it reaches this many (its hero among them)
+   * this is its least: cards can be taken out down to it, not below.
+   */
   armySize: 10,
   /** Cards offered to salvage from a beaten side (the player takes one). */
   salvageChoices: 3,
@@ -801,11 +804,10 @@ export function stabiliseProblem(f: Faction, n: CampaignNode): string | null {
   return null;
 }
 
-/** Why a card can't go into an army's deck from the reserve (null if it can). The deck may be short, not over. */
+/** Why a card can't go into an army's deck from the reserve (null if it can). There is no most. */
 export function deckAddProblem(f: Faction, army: Army, defId: string): string | null {
   if (!f.reserve.includes(defId)) return `${cardDef(defId).name} is not in your reserve.`;
   const copies = army.deck.filter((id) => id === defId).length;
-  if (army.deck.length >= CAMPAIGN.armySize) return `An army's deck holds at most ${CAMPAIGN.armySize} cards: take one out first.`;
   if (copies >= copyLimit(defId)) return copyLimit(defId) === 1 ? `${cardDef(defId).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`;
   if (cardDef(defId).kind === 'command' && defId !== army.general) return `An army is led by its own hero: ${cardDef(defId).name} can lead an army of their own.`;
   return null;
@@ -815,6 +817,8 @@ export function deckAddProblem(f: Faction, army: Army, defId: string): string | 
 export function deckRemoveProblem(army: Army, defId: string): string | null {
   if (!army.deck.includes(defId)) return `${cardDef(defId).name} is not in that deck.`;
   if (defId === army.general && army.deck.filter((x) => x === defId).length === 1) return `${cardDef(defId).name} leads this army: their card stays in its deck.`;
+  // (Once a deck has reached its least, it keeps at least that many.)
+  if (army.deck.length === CAMPAIGN.armySize) return `A flagship's deck keeps at least ${CAMPAIGN.armySize} cards once it has that many.`;
   return null;
 }
 
@@ -1031,7 +1035,7 @@ const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, de
 // deck heavy with defence could not finish even a weakened foe before regional stability ran out.
 /**
  * A flagship's starting deck: its hero, one defensive card and one attack (the race's own first of each, or
- * a neutral one). The rest is found on the way, at armouries and as rewards, up to CAMPAIGN.armySize.
+ * a neutral one). The rest is found on the way, at armouries and as rewards.
  */
 export function armyDeck(race: number, general: string): string[] {
   const r = ((race % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
@@ -1043,12 +1047,11 @@ export function armyDeck(race: number, general: string): string[] {
 }
 
 /**
- * Why a flagship's deck is not ready to fight (empty if it is): its hero (the one Hero in it) and at most
- * CAMPAIGN.armySize cards in all, at most 2 of any card (1 of an Anomaly).
+ * Why a flagship's deck is not ready to fight (empty if it is): its hero (the one Hero in it), at most 2 of any
+ * card (1 of an Anomaly).
  */
 export function armyDeckProblems(deck: string[], general: string): string[] {
   const out: string[] = [];
-  if (deck.length > CAMPAIGN.armySize) out.push(`A flagship carries at most ${CAMPAIGN.armySize} cards, its hero among them (this has ${deck.length}).`);
   if (!deck.includes(general)) out.push(`${cardDef(general).name} leads this flagship: their card must be in its deck.`);
   const heroes = deck.filter((id) => cardDef(id).kind === 'command' && id !== general);
   if (heroes.length) out.push(`A flagship has one hero: ${cardDef(heroes[0]).name} can't come aboard.`);
@@ -1805,7 +1808,7 @@ export function salvageToDeck(s: CampaignState, id: string): boolean {
   return !!army && deckAddProblem({ ...f, reserve: [id] }, army, id) === null;
 }
 
-/** Salvage a card: into the army's deck while it has room (and may take it), else the reserve. */
+/** Salvage a card: straight into the army's deck (else the reserve, if the deck may not take another copy). */
 function takeSalvage(s: CampaignState, f: Faction, army: Army | undefined, id: string) {
   f.reserve.push(id);
   if (army && army.owner === f.id && deckAddProblem(f, army, id) === null) {

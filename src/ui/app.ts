@@ -4839,8 +4839,6 @@ export class App {
     const deckStack = stack(p.deck.length), discardStack = stack(p.discard.length);
     const deck = p.deck.length
       ? `${deckStack.layers}<span class="tpile-face tpile-back tpile-stacked" style="${deckStack.style}">${cardBackFace()}</span>`
-      : (p.reshuffleIn ?? 0) > 0
-        ? `<span class="tpile-empty"></span><b class="tpile-wait" data-tip-title="deck run dry" data-tip="The discard pile shuffles back in ${p.reshuffleIn} day${p.reshuffleIn === 1 ? '' : 's'}: a small deck waits a day for each card it is under 10.">${p.reshuffleIn}</b><small>days</small>`
         : `<span class="tpile-empty"></span><small>deck</small>`;
     const discard = top
       ? `${discardStack.layers}<span class="tpile-face tpile-stacked" style="${discardStack.style}">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span>`

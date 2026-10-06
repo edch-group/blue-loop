@@ -1031,7 +1031,7 @@ export class CampaignView {
           <aside class="cmp-setup-aside">
             <div class="cmp-label">a dying universe</div>
             <p class="muted">The stars are going out. The races fight over the last warm worlds, and every one of them is marching on ${esc(HEART_NAME)}, the vast star at the centre of everything, where the ${esc(STELLARIA)} is said to grow: a flower whose bloom gives energy without end.</p>
-            <p class="muted">Fly one flagship, led by the hero you choose, with a deck that starts small (your hero, a defence and an attack) and grows to ${CAMPAIGN.armySize} cards. Take systems for their resources, find space stations and research stations on the way, and claim the Heart to win. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe wins too.</p>
+            <p class="muted">Fly one flagship, led by the hero you choose, with a deck that starts small (your hero, a defence and an attack) and grows with every card you find. Take systems for their resources, find space stations and research stations on the way, and claim the Heart to win. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of the universe wins too.</p>
             <div class="cmp-label">rival factions</div>
             <div class="cmp-rivals">${rivals}</div>
           </aside>
@@ -1943,7 +1943,7 @@ export class CampaignView {
           <ul class="rules">
             <li><b>The goal:</b> claim ${esc(HEART_NAME)}, the star at the centre of the universe, where the ${esc(STELLARIA)} grows. Its Wardens are the strongest defenders anywhere. Holding ${Math.round(CAMPAIGN.dominationShare * 100)}% of all systems, or outlasting every rival, wins too; otherwise the most systems after ${CAMPAIGN.turnLimit} turns.</li>
             <li><b>Your flagship</b> flies one route a turn, led by your hero. Tap it, then a system next to it: into one you hold, it simply moves; into any other, it fights. Each turn it either <b>moves</b> or <b>refits</b> (its deck changed, or repaired), not both.</li>
-            <li><b>Its deck</b> starts with your hero, a defence and an attack, and holds up to ${CAMPAIGN.armySize} cards. Find more at space stations and as mission rewards; they wait in your reserve until you put them in.</li>
+            <li><b>Its deck</b> starts with your hero, a defence and an attack, and grows with every card you salvage or put in. Once it reaches ${CAMPAIGN.armySize} cards, that is its least: cards come out down to ${CAMPAIGN.armySize}, no further.</li>
             <li><b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card, and your ship's rooms add their walls, guns and modules to the cards standing in them.</li>
             <li>${ARMORY_ICON} <b>Space stations</b> sell ${CAMPAIGN.armoryStock} cards each, every one only once: mostly dwarf cards, often a rare one among them. ${RESEARCH_ICON} <b>Research stations</b> have one upgrade each, taken for Wisdom by the first to get there. Both are better within an anomaly's reach. Bring your flagship to one to use it.</li>
             <li><b>Your base:</b> your deck, your <b>hero</b> (train their attack and defence, learn skills, wear gear) and your <b>ship</b> (upgrade each room's walls and guns, the command room, shields and hull), and your missions.</li>
@@ -2346,7 +2346,7 @@ export class CampaignView {
       // (A refusal has been said already, by the toast.)
       add: (id) => (this.apply({ type: 'deckAdd', armyId, defId: id }) ? null : ''),
       remove: (id) => (this.apply({ type: 'deckRemove', armyId, defId: id }) ? null : ''),
-      tally: (cards) => `<b class="${cards.length === CAMPAIGN.armySize ? 'ok' : ''}" title="Your flagship's deck: its hero and up to ${CAMPAIGN.armySize} cards in all">${cards.length}/${CAMPAIGN.armySize}</b> cards · led by ${esc(cardDef(army().general).name)}`,
+      tally: (cards) => `<b class="${cards.length >= CAMPAIGN.armySize ? 'ok' : ''}" data-tip-title="deck" data-tip="${esc(`Your flagship's deck, its hero among them. It has no most; once it reaches ${CAMPAIGN.armySize} cards, that is its least.`)}">${cards.length}</b> cards · led by ${esc(cardDef(army().general).name)}`,
       badge: (id, n) => ({ text: `${n}/${count(army().deck, id) + count(me().reserve, id)}`, title: `${n} in this deck, ${count(me().reserve, id)} in your reserve`, on: n > 0 }),
       head: () => '',
       foot: () => {

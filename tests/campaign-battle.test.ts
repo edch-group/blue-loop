@@ -120,37 +120,12 @@ describe('a campaign hero', () => {
 });
 
 describe('a small deck run dry', () => {
-  it('waits a day for each card it is under 10 before its discard pile shuffles back', () => {
-    // Flagship: hero + 2 cards (a deck of 3): 7 days' wait.
+  it('shuffles its discard pile straight back in, with no wait', () => {
     let s = battle();
-    expect(s.players[0].deckSize).toBe(3);
     const me = s.players[0];
     me.discard.push(...me.hand.splice(0));
     me.deck = [];
-    s = endTurn(endTurn(s)); // its next day: the deck is dry, the wait begins
-    expect(s.players[0].reshuffleIn).toBe(7);
-    expect(s.players[0].hand.length).toBe(0);
-    for (let k = 0; k < 6; k++) s = endTurn(endTurn(s));
-    expect(s.players[0].reshuffleIn).toBe(1);
-    expect(s.players[0].hand.length).toBe(0);
-    s = endTurn(endTurn(s));
-    expect(s.players[0].reshuffleIn).toBeUndefined();
-    expect(s.players[0].hand.length + s.players[0].deck.length).toBeGreaterThan(0);
-  });
-});
-
-describe('drawing on a dry deck', () => {
-  it('takes a day off the wait for each card a draw effect would draw', () => {
-    let s = battle({ me: { deck: ['deep_scanners', 'coolant_array'] } });
-    const me = s.players[0];
-    // A dry deck, waiting 7 days; Deep Scanners in hand.
-    const scan = me.hand.find((c) => c.defId === 'deep_scanners') ?? me.deck.find((c) => c.defId === 'deep_scanners')!;
-    me.hand = [scan];
-    me.discard.push(...me.deck.filter((c) => c !== scan), ...me.tableau.filter((c) => c.slot !== COMMAND_SLOT));
-    me.deck = [];
-    me.discard.push({ uid: 'x1', defId: 'coolant_array' }, { uid: 'x2', defId: 'cryo_vault' });
-    me.reshuffleIn = 7;
-    s = playFirst(s, 'deep_scanners');
-    expect(s.players[0].reshuffleIn).toBe(5);
+    s = endTurn(endTurn(s)); // its next day: the deck is dry, the discard pile goes back in and it draws
+    expect(s.players[0].hand.length).toBeGreaterThan(0);
   });
 });

@@ -5555,7 +5555,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @media (max-width: 1000px) { .sh-ship { --k: 11; } .cmp-shipyard { grid-template-columns: 1fr; } }
 
 /* A small deck run dry: the days until its discard pile shuffles back, on the empty deck. */
-.tpile-wait { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 500; font-size: 1.3rem; color: #8a6fe0; }
 
 /* A ship's room on an empty slot (campaign): its walls, guns and module, until a card stands there. */
 .slot-room { position: absolute; left: 0; right: 0; bottom: 8%; display: flex; justify-content: center; gap: 3px; pointer-events: auto; }
