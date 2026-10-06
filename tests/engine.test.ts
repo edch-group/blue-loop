@@ -644,7 +644,7 @@ describe('Forge Clans: walls become weapons', () => {
     const wall = give(me, ['kor_shieldwall', 'kor_iron_sentinel'], 'tableau');
     const total = () => me.tableau.reduce((n, t) => n + cardDefence(me, t), 0);
     const dawnHeat = () => effectAmount(s, me, ram, cardDef('kor_siege_ram').onTurn![0], 'turn');
-    expect(dawnHeat()).toBe(Math.min(3, 1 + Math.floor(total() / 4)));
+    expect(dawnHeat()).toBe(Math.min(2, 1 + Math.floor(total() / 4)));
     expect(dawnHeat()).toBeGreaterThan(1);
     for (const c of [ram, ...wall]) c.dented = 99;
     expect(total()).toBe(0);

@@ -426,7 +426,7 @@ export const EXPANSION: CardDef[] = [
     onDusk: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { overheated: true } }], passive: [{ type: 'taunt' }] },
   { id: 'shard_echo', name: 'Shard Echo', kind: 'growth', race: 1, text: '{recall}. {cool:1}.', onPlay: [{ type: 'recall' }, { type: 'cool', amount: 1 }] },
   // More recall, for every deck: a card that comes back to be played again (and the recall card can take its slot).
-  { id: 'tactical_withdrawal', name: 'Tactical Withdrawal', kind: 'growth', text: '{recall}. Your {orbit:+1}.', onPlay: [{ type: 'recall' }, { type: 'orbit', amount: 1, who: 'self' }] },
+  { id: 'tactical_withdrawal', name: 'Tactical Withdrawal', kind: 'growth', text: '{recall}. Your {orbit:+3}.', onPlay: [{ type: 'recall' }, { type: 'orbit', amount: 3, who: 'self' }] },
   { id: 'rally_banner', name: 'Rally Banner', kind: 'attack', race: 0, text: '{recall}. {heat:1}.', onPlay: [{ type: 'recall' }, { type: 'heat', amount: 1, to: 'target' }] },
   { id: 'spore_return', name: 'Spore Return', kind: 'growth', race: 3, text: '{recall}. {renew:1}.', onPlay: [{ type: 'recall' }, { type: 'restore', amount: 1, all: true }] },
   {
@@ -513,8 +513,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Riptide',
     kind: 'attack',
     race: 2,
-    text: '{dawn}: {heat:1}. {heat:+1} per 3 shields you have.',
-    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'shields', per: 3 } }],
+    text: '{dawn}: {heat:1}. {heat:+1} per 3 shields you have (up to 3).',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'shields', per: 3 }, max: 3 }],
   },
   {
     id: 'deep_hymn',
@@ -721,18 +721,18 @@ export const EXPANSION: CardDef[] = [
     name: 'Fruiting Body',
     kind: 'attack',
     race: 3,
-    text: '{dusk}: {cool:1}. When this leaves your tableau, {heat:3}.',
+    text: '{dusk}: {cool:1}. When this leaves your tableau, {heat:2}.',
     onDusk: [{ type: 'cool', amount: 1 }],
-    onLeave: [{ type: 'heat', amount: 3, to: 'target' }],
+    onLeave: [{ type: 'heat', amount: 2, to: 'target' }],
   },
   {
     id: 'hive_tyrant',
     name: 'Ixquor Hive-Tyrant',
     kind: 'attack',
     race: 3,
-    text: '{heat:1}. {dawn}: {heat:1} per 2 cards you control (up to 3).',
+    text: '{heat:1}. {dawn}: {heat:1} per 2 cards you control (up to 2).',
     onPlay: [{ type: 'heat', amount: 1, to: 'target' }],
-    onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cards', per: 2 }, max: 3 }],
+    onTurn: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'cards', per: 2 }, max: 2 }],
   },
   // ---- Defence that answers a big attack at once: shields and cooling as they land, more each dawn ----
   { id: 'frost_bulwark', name: 'Frost Bulwark', kind: 'defence', text: '{cool:2}. {shield:2}.', onPlay: [{ type: 'cool', amount: 2 }, { type: 'shield', amount: 2 }] },
@@ -865,7 +865,7 @@ export const EXPANSION: CardDef[] = [
   { id: 'great_mycelium', name: 'Great Mycelium', kind: 'growth', race: 3, text: '{abundance:1}. {dusk}: {cool:1}. {cool:+1} with 4+ cards.', onTurn: [{ type: 'draw', amount: 1 }], onDusk: [{ type: 'cool', amount: 1 }, { type: 'cool', amount: 1, if: { minCards: 4 } }] },
   { id: 'dreadnought', name: 'Dreadnought', kind: 'attack', text: '{sturdy:2}. {dawn}: {heat:4}.', defence: 2, onTurn: [{ type: 'heat', amount: 4, to: 'target' }] },
   { id: 'star_breaker', name: 'Star Breaker', kind: 'attack', text: '{destroy:4}. {heat:3}.', onPlay: [{ type: 'destroy', maxDefence: 4 }, { type: 'heat', amount: 3, to: 'target' }] },
-  { id: 'fusion_reactor', name: 'Fusion Reactor', kind: 'growth', text: '{plays:1}. {dawn}: {heat:1} to your sun.', onTurn: [{ type: 'selfHeat', amount: 1 }], passive: [{ type: 'extraPlay', amount: 1 }] },
+  { id: 'fusion_reactor', name: 'Fusion Reactor', kind: 'growth', text: '{plays:1}.', passive: [{ type: 'extraPlay', amount: 1 }] },
 ];
 
 /** The second set's rarities and characters (as CARD_META in cards.ts). */

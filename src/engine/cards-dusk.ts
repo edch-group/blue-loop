@@ -12,7 +12,7 @@ export const DUSK_CARDS: CardDef[] = [
     defence: 1, onDusk: [{ type: 'shield', amount: 2 }], passive: [{ type: 'taunt' }],
   },
   {
-    id: 'evening_star', name: 'Evening Star', kind: 'growth', cost: 2,
+    id: 'evening_star', name: 'Evening Star', kind: 'growth', cost: 1,
     text: '{dusk}: draw 1.',
     onDusk: [{ type: 'draw', amount: 1 }],
   },

@@ -19,7 +19,7 @@ export const BIG_CARDS: CardDef[] = [
     defence: 2, onTurn: [{ type: 'heat', amount: 3, to: 'target', pierce: true }],
   },
   {
-    id: 'bulwark_prime', name: 'Bulwark Prime', kind: 'defence', cost: 5, rarity: 'stellar',
+    id: 'bulwark_prime', name: 'Bulwark Prime', kind: 'defence', cost: 4, rarity: 'stellar',
     text: '{guard}. {sturdy:3}. {shield:4}. {dawn}: {shield:3}.',
     defence: 3, onPlay: [{ type: 'shield', amount: 4 }], onTurn: [{ type: 'shield', amount: 3 }], passive: [{ type: 'taunt' }],
   },

@@ -86,8 +86,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'nyx_hollow_reaper', name: 'Hollow Reaper', kind: 'attack', race: 4, sub: 'unmaker', cost: 3, rarity: 'stellar', character: true,
-    text: '{destroy:2}. {dawn}: {heat:1}. {heat:+1} per 2 Unmaker cards (up to 3).',
-    onPlay: [{ type: 'destroy', maxDefence: 2 }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'race', race: 4, sub: 'unmaker', per: 2 }, max: 3 }],
+    text: '{destroy:2}. {dawn}: {heat:1}. {heat:+1} per 2 Unmaker cards (up to 2).',
+    onPlay: [{ type: 'destroy', maxDefence: 2 }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'race', race: 4, sub: 'unmaker', per: 2 }, max: 2 }],
   },
   {
     id: 'nyx_shadow_court', name: 'Shadow Court', kind: 'growth', race: 4, cost: 1, rarity: 'stellar',
@@ -168,8 +168,8 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'kor_siege_ram', name: 'Siege Ram', kind: 'attack', race: 5, cost: 3,
-    text: '{heat:2}. {sturdy:2}. {dawn}: {heat:1}. {heat:+1} per 4 defence on your cards (up to 3).',
-    defence: 2, onPlay: [{ type: 'heat', amount: 2, to: 'target' }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'defence', per: 4 }, max: 3 }],
+    text: '{heat:1}. {sturdy:2}. {dawn}: {heat:1}. {heat:+1} per 4 defence on your cards (up to 2).',
+    defence: 2, onPlay: [{ type: 'heat', amount: 1, to: 'target' }], onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'defence', per: 4 }, max: 2 }],
   },
   {
     id: 'kor_foundry', name: 'Deep Foundry', kind: 'growth', race: 5, cost: 2,

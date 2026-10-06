@@ -310,8 +310,8 @@ export const CARDS: CardDef[] = [
     name: 'Abyssal Choir',
     kind: 'attack',
     race: 2,
-    text: '{dawn}: {heat:3}. {heat:+1} per 2 shields you have (up to 6).',
-    onTurn: [{ type: 'heat', amount: 3, to: 'target', plus: { of: 'shields', per: 2 }, max: 6 }],
+    text: '{dawn}: {heat:2}. {heat:+1} per 2 shields you have (up to 5).',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }],
   },
   {
     id: 'deep_current',
