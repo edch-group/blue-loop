@@ -11,6 +11,12 @@ export const CARD_COSTS: Record<string, number> = {
   // (Heroes now lead for good: a card that destroys one is a big swing.)
   command_breaker: 3,
   bastion_node: 2,
+  // (Guard, Sturdy 3, a dawn shield and its race's Sting: Bastion Node's card, and its cost.)
+  trench_warden: 2,
+  // (1-energy cards worth a 2-energy card's: a dawn of shields and repair growing with neighbours, shields that double with defence cards, pierce every dawn.)
+  tide_pylon: 2,
+  vorthane_tidecaller: 2,
+  searing_core: 2,
   // 0
   coolant_array: 0,
   // (Lightspeed traps cost a little less: a trap sits idle until the rival walks into it.)
