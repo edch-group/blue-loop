@@ -568,6 +568,33 @@ const SYMBOL_SVG: Record<string, string> = {
   shield: '<path class="kw-ico-fill" d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/>',
 }
 
+/** Marks for what a hero's ability or a boon does, by its effect (the heat, cool and shield symbols, and a few more). */
+const EFFECT_SVG: Record<string, string> = {
+  ...SYMBOL_SVG,
+  draw: '<rect x="3" y="1.8" width="6" height="8.4" rx="1.2" class="kw-ico-fill"/>',
+  energy: '<circle cx="6" cy="6" r="3.2" class="kw-ico-fill"/>',
+  wall: '<path d="M2 9.8h8M2.6 9.8V5.2h6.8v4.6M2.6 5.2 6 2.2l3.4 3"/>',
+  repair: '<path d="M6 2.2v7.6M2.2 6h7.6"/>',
+  time: '<circle cx="6" cy="6" r="4"/><path d="M6 3.6V6l1.8 1.2"/>',
+  plant: '<path d="M6 10.4V5.2M6 5.2C6 3 7.8 1.8 9.8 1.8 9.8 4 8.2 5.2 6 5.2zM6 7C6 5.2 4.6 4.2 2.4 4.2 2.4 6.2 3.8 7 6 7z"/>',
+  star: '<path d="M6 1.6 7.2 4.6 10.4 4.8 7.9 6.8 8.7 9.9 6 8.2 3.3 9.9 4.1 6.8 1.6 4.8 4.8 4.6z" class="kw-ico-fill"/>',
+};
+/** What an effect type (or a boon's kind) is marked with. */
+export function effectMark(kind: string): string {
+  const k =
+    kind === 'heat' || kind === 'pierce' || kind === 'playheat' ? 'heat'
+    : kind === 'cool' || kind === 'playcool' ? 'cool'
+    : kind === 'shield' || kind === 'playshield' ? 'shield'
+    : kind === 'draw' || kind === 'playdraw' || kind === 'recall' || kind === 'recover' ? 'draw'
+    : kind === 'plays' || kind === 'energy' ? 'energy'
+    : kind === 'sturdy' || kind === 'bulwark' || kind === 'guard' || kind === 'tidewall' || kind === 'taunt' ? 'wall'
+    : kind === 'repair' || kind === 'restore' ? 'repair'
+    : kind === 'stability' ? 'time'
+    : kind === 'plant' ? 'plant'
+    : 'star';
+  return `<svg class="kw-ico eff-${k}" viewBox="0 0 12 12" aria-hidden="true">${EFFECT_SVG[k]}</svg>`;
+}
+
 /** The heat, cool or shield symbol on its own (also used by the dawn forecast). */
 export function symbolIcon(id: 'heat' | 'cool' | 'shield' | string): string {
   return `<svg class="kw-ico" viewBox="0 0 12 12" aria-hidden="true">${SYMBOL_SVG[id] ?? ''}</svg>`;

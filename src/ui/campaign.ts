@@ -95,7 +95,7 @@ import { heroFigure, skillTree } from './heroview';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
-import { raceRow, cardArtLite, cardStock, cardGlyph, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { raceRow, cardArtLite, cardStock, cardGlyph, cardBodyHtml, effectMark, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { setTutorial, startTour, tourDue, tutorialOn } from './tour';
 import { mapTour } from './tutorial';
@@ -327,6 +327,19 @@ export class CampaignView {
   private anomaly: string | null = null;
   /** What happened in the last battle or turn, shown once the player is free to read it. */
   private report: { title: string; lines: string[] } | null = null;
+  /** A battle just fought, as its report shows it: who won where, and what it brought (or cost). */
+  private battleReport: {
+    won: boolean;
+    system: string;
+    hero: string | null;
+    level: number | null;
+    xp: number;
+    credits: number;
+    materials: number;
+    salvaged: { id: string; toDeck: boolean } | null;
+    finds: ReturnType<CampaignView['findsFor']>;
+    damage: number;
+  } | null = null;
   private sheet: Sheet | null = null;
   /** The base's tab last open. */
   private baseTab: 'deck' | 'heroes' | 'ship' | 'missions' = 'deck';
@@ -404,14 +417,19 @@ export class CampaignView {
   }
 
   /** What the player found in the wreckage of a battle just won (gear for their hero, modules for their ship). */
-  findsFor(game: GameState): { name: string; text: string; rarity: string; kind: 'gear' | 'module' }[] {
+  findsFor(game: GameState): { name: string; text: string; rarity: string; kind: 'gear' | 'module'; mark: string }[] {
     const s = this.state;
     if (!s?.battle || !game.winnerId) return [];
     const b = s.battle;
     const winner = game.winnerId === game.players[0].id ? b.attacker : b.defender;
     if (winner !== s.playerId) return [];
     const { items, modules } = battleFinds(s, game);
-    return [...items.map((i) => ({ name: i.name, text: itemText(i), rarity: i.rarity, kind: 'gear' as const })), ...modules.map((m) => ({ name: m.name, text: m.text, rarity: m.rarity, kind: 'module' as const }))];
+    // (Each marked by what it does: its first boon's kind.)
+    const mark = (boons: string[] | undefined) => (boons?.[0] ?? 'boon_star').replace(/^boon_/, '').replace(/_\d+$/, '');
+    return [
+      ...items.map((i) => ({ name: i.name, text: itemText(i), rarity: i.rarity, kind: 'gear' as const, mark: mark(i.boons) })),
+      ...modules.map((m) => ({ name: m.name, text: m.text, rarity: m.rarity, kind: 'module' as const, mark: mark(m.boons) })),
+    ];
   }
 
   /** The cards the player may salvage from a battle just won (on the battle screen), each with where it would go. */
@@ -423,7 +441,37 @@ export class CampaignView {
 
   /** `salvage`: the card picked on the battle screen, null for none (unset, auto-resolved: it is offered on the map). */
   finishBattle(game: GameState, auto = false, salvage?: string | null) {
+    // What the player has before, to show what the battle changed.
+    const s0 = this.state;
+    const b = s0?.battle;
+    const me0 = s0 ? campaignPlayer(s0) : null;
+    const armyId = b && s0 ? (b.attacker === s0.playerId ? b.armyId : b.defender === s0.playerId ? b.defenderArmyId : null) : null;
+    const army0 = armyId && s0 ? s0.armies.find((a) => a.id === armyId) : undefined;
+    const before = me0 && b ? { credits: me0.credits, materials: me0.materials, xp: army0 ? heroState(me0, army0.general).xp : 0, damage: army0?.damage ?? 0, system: nodeById(s0!, b.nodeId).name } : null;
+    const finds = !auto && s0 ? this.findsFor(game) : [];
+    const salvaged = salvage && s0 ? { id: salvage, toDeck: salvageToDeck(s0, salvage) } : null;
     this.withReport('battle report', () => this.apply({ type: 'finishBattle', game, auto, ...(salvage !== undefined ? { salvage } : {}) }));
+    const s = this.state;
+    if (before && s && b) {
+      const me = campaignPlayer(s);
+      const army = armyId ? s.armies.find((a) => a.id === armyId) : undefined;
+      const xp = army0 ? heroState(me, army0.general).xp : 0;
+      // Who won: the battle's own winner (auto-resolved, the log says whether the attackers won).
+      const attackerName = factionById(s, b.attacker).name;
+      const attackerWon = auto ? this.report?.lines.some((l) => l.startsWith(`${attackerName} wins the battle for`)) ?? false : game.winnerId === game.players[0].id;
+      this.battleReport = {
+        won: attackerWon === (b.attacker === s.playerId),
+        system: before.system,
+        hero: army0?.general ?? null,
+        level: army0 && heroLevel(xp) > heroLevel(before.xp) ? heroLevel(xp) : null,
+        xp: xp - before.xp,
+        credits: me.credits - before.credits,
+        materials: me.materials - before.materials,
+        salvaged,
+        finds,
+        damage: Math.max(0, (army?.damage ?? 0) - before.damage),
+      };
+    }
     // A defence over: the others carry on with their turns.
     if (this.state?.phase === 'ai' && this.state.aiStepwise && !this.state.battle) window.setTimeout(() => void this.runOthers(), 0);
   }
@@ -791,7 +839,10 @@ export class CampaignView {
         break;
       }
       case 'cmp-close':
-        if (this.report && !this.sheet) this.report = null;
+        if (this.battleReport && !this.sheet) {
+          this.battleReport = null;
+          this.report = null;
+        } else if (this.report && !this.sheet) this.report = null;
         else this.sheet = null;
         break;
       case 'cmp-attack-pick':
@@ -1829,6 +1880,7 @@ export class CampaignView {
       );
     }
     const sh = this.sheet;
+    if (!sh && this.battleReport) return this.renderBattleReport();
     if (!sh && this.report) {
       const lines = this.report.lines.map((l) => `<div>${esc(l)}</div>`).join('');
       return this.modal(this.report.title, `<div class="log-list cmp-report">${lines}</div><div class="center-row"><button class="btn-primary" data-act="cmp-close">continue</button></div>`, true);
@@ -2200,6 +2252,38 @@ export class CampaignView {
       ${stores.length ? `<div class="sh-mod-stores"><small>in your stores</small>${stores.map((m) => row(m, `<button class="pill-btn" data-act="cmp-fit" data-arg="${m.id}:${room}">${fitted ? 'swap in' : 'fit'}</button>`)).join('')}</div>` : '<p class="muted sh-mod-empty">Modules are found in the wreckage of battles you win.</p>'}`;
   }
 
+  /**
+   * A battle's report, laid out rather than told: the result and where; the hero (their new level, or the
+   * experience); what was won, as tokens; the card salvaged, as itself; and the finds, as their marks.
+   */
+  private renderBattleReport(): string {
+    const r = this.battleReport!;
+    const token = (icon: string, n: number, label: string) => (n ? `<span class="br-token" data-tip="${esc(label)}">${icon}<b>${n > 0 ? '+' : ''}${n}</b></span>` : '');
+    const hero = r.hero
+      ? `<div class="br-hero ${r.level ? 'br-levelled' : ''}">${portrait(r.hero)}${r.level ? `<span class="br-level">level ${r.level}</span>` : r.xp ? `<span class="br-xp">+${r.xp} xp</span>` : ''}</div>`
+      : '';
+    const tokens = [token(CREDITS, r.credits, 'Credits'), token(MATERIALS, r.materials, 'Materials'), r.damage ? `<span class="br-token br-bad" data-tip="Damage to your flagship: its sun starts this much hotter until repaired">✸<b>${r.damage}</b></span>` : ''].join('');
+    const finds = r.finds
+      .map((f) => `<span class="find rarity-${f.rarity}" data-tip="${esc(`${f.name} (${f.kind === 'module' ? 'ship module: fit it in the ship tab' : 'hero gear: equip it in the hero tab'}). ${f.text}`)}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></span>`)
+      .join('');
+    const card = r.salvaged ? `<div class="br-card">${cardHtml(r.salvaged.id)}<small>${r.salvaged.toDeck ? 'into your deck' : 'to your reserve'}</small></div>` : '';
+    return this.modal(
+      '',
+      `<div class="br ${r.won ? 'br-won' : 'br-lost'}">
+        <div class="br-head"><h2>${r.won ? 'victory' : 'defeat'}</h2><small>${esc(lower(r.system))}</small></div>
+        <div class="br-body">
+          ${hero}
+          <div class="br-spoils">${tokens ? `<div class="br-tokens">${tokens}</div>` : ''}${finds ? `<div class="finds-row">${finds}</div>` : ''}</div>
+          ${card}
+        </div>
+        <button class="btn-primary" data-act="cmp-close">continue</button>
+      </div>`,
+      false,
+      '',
+      'cmp-modal-narrow cmp-br',
+    );
+  }
+
   /** The hero shown in the heroes tab: the one picked, else the first army's general, else the first. */
   private pickedHero(): string {
     const s = this.state!;
@@ -2364,6 +2448,8 @@ export class CampaignView {
   }
 }
 
+/** Hero gear's mark. */
+export const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
 /** A ship module's mark: a chip in a room. */
 export const MODULE_ICON = '<svg viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1.6"/><path d="M6 1.5v2M10 1.5v2M6 12.5v2M10 12.5v2M1.5 6h2M1.5 10h2M12.5 6h2M12.5 10h2"/><circle cx="8" cy="8" r="1.6"/></svg>';
 

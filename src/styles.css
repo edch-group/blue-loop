@@ -5374,17 +5374,20 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .tour-skip { position: absolute; top: 6px; right: 8px; width: 20px; height: 20px; border: 0; background: none; color: var(--ink-faint); font-size: 0.9rem; line-height: 1; cursor: pointer; border-radius: 50%; }
 .tour-skip:hover { color: var(--ink); }
 
-/* A battle's finds, on its result (gear and ship modules). */
-.finds-list { display: grid; gap: 6px; width: min(420px, 80vw); }
-.find { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; background: #f6f5fb; text-align: left; }
-.find span { display: grid; gap: 1px; }
-.find b { font-family: var(--display); font-weight: 500; font-size: 0.7rem; letter-spacing: 0.08em; color: var(--ink); }
-.find small { font-size: 0.68rem; color: var(--ink-soft); }
-.find-icon svg, .sh-mod-icon svg, .sh-mod-pip svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.find-icon, .sh-mod-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #8a8fa8; }
-.rarity-stellar :is(.find-icon, .sh-mod-icon) { color: #4f86c6; }
-.rarity-anomaly :is(.find-icon, .sh-mod-icon) { color: #8a6fe0; }
-.finds-note { font-size: 0.62rem; color: var(--ink-soft); }
+/* A battle's finds, on its result: each one round mark (what it does, ringed by quality); the rest on hover. */
+.finds-row { display: flex; gap: 12px; justify-content: center; }
+.find { position: relative; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: #fff; box-shadow: 0 0 0 2px #c9ccd6, 0 4px 12px rgba(60, 70, 100, 0.14); cursor: help; }
+.find.rarity-stellar { box-shadow: 0 0 0 2px #4f86c6, 0 4px 12px rgba(79, 134, 198, 0.25); }
+.find.rarity-anomaly { box-shadow: 0 0 0 2px #8a6fe0, 0 0 14px rgba(138, 111, 224, 0.4); }
+.find > .kw-ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.find > .kw-ico .kw-ico-fill { fill: currentColor; fill-opacity: 1; stroke: none; }
+.find .eff-heat { color: #d9662f; } .find :is(.eff-cool, .eff-shield) { color: #4f86c6; } .find :is(.eff-draw, .eff-energy, .eff-plant) { color: #3f9a68; } .find :is(.eff-wall, .eff-repair, .eff-time) { color: #7a7f8f; } .find .eff-star { color: #b08a3a; }
+.find-kind { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: #fff; display: grid; place-items: center; color: #8a8fa8; box-shadow: 0 1px 4px rgba(60, 70, 100, 0.2); }
+.find-kind svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+/* With spoils to take, the result is drawn full size (it holds more than a title). */
+.game-result.result-spoils { transform: translate(-50%, -50%); top: 47%; max-height: calc(100% - 24px); overflow-y: auto; }
+@keyframes result-in-full { from { opacity: 0; transform: translate(-50%, -50%) translateY(10px) scale(0.95); } }
+.game-result.result-spoils { animation-name: result-in-full; }
 /* Ship modules, in the ship tab: one to a room. */
 .sh-mod-head { margin-top: 10px; }
 .sh-mod { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 12px; background: #f6f5fb; }
@@ -5422,3 +5425,61 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-ship-moves { position: absolute; left: -38px; top: 0; display: flex; flex-direction: column-reverse; gap: 3px; transform-origin: 50% 100%; transform: translate(-50%, -50%) rotateX(calc(-1 * var(--tilt))) scale(var(--ui)); pointer-events: auto; }
 .cmp-ship-moves i { width: 9px; height: 9px; border-radius: 50%; background: #dfe3e8; border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(40, 46, 70, 0.25); transition: background 0.3s; }
 .cmp-ship-moves i.on { background: #6cc28e; box-shadow: 0 0 6px rgba(108, 194, 142, 0.7), 0 1px 3px rgba(40, 46, 70, 0.25); }
+
+/* A Hero's rail, beside its slot: its abilities as round marks (lit when usable: tap to use), then its boons. */
+.hero-rail { position: absolute; top: 0; display: flex; flex-direction: column; gap: calc(var(--tcw) * 0.05); align-items: center; z-index: 2; }
+.hero-rail-mine { left: calc(100% + var(--tcw) * 0.07); }
+.hero-rail-rival { right: calc(100% + var(--tcw) * 0.07); }
+.hero-ab {
+  --s: calc(var(--tcw) * 0.26);
+  position: relative; width: var(--s); height: var(--s); padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center;
+  background: #fff; color: #a07a2a; box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.45), 0 2px 6px rgba(60, 70, 100, 0.16); cursor: default;
+}
+.hero-ab .kw-ico { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.hero-ab .kw-ico .kw-ico-fill { fill: currentColor; stroke: none; }
+.hero-ab small { position: absolute; right: -2px; bottom: -2px; min-width: 42%; height: 42%; display: grid; place-items: center; border-radius: 999px; background: #fff; font-family: var(--display); font-size: calc(var(--tcw) * 0.085); color: var(--ink); box-shadow: 0 1px 3px rgba(60, 70, 100, 0.2); }
+.hero-ab-cost { position: absolute; left: 50%; top: -18%; transform: translateX(-50%); display: flex; gap: 1px; }
+.hero-ab-cost i { width: calc(var(--tcw) * 0.04); height: calc(var(--tcw) * 0.04); border-radius: 50%; background: #6cc28e; }
+.hero-ab[aria-disabled] { opacity: 0.55; }
+.hero-ab-on { cursor: pointer; box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.9), 0 0 12px rgba(212, 165, 42, 0.45); animation: hero-ab-ready 1.6s ease-in-out infinite alternate; }
+.hero-ab-on:hover { transform: scale(1.08); }
+@keyframes hero-ab-ready { to { box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.6), 0 0 4px rgba(212, 165, 42, 0.2); } }
+@media (prefers-reduced-motion: reduce) { .hero-ab-on { animation: none; } }
+/* Boons: smaller, quieter marks (on a hero's rail, or on a card carrying a ship module's). */
+.boon-mark { --s: calc(var(--tcw, 80px) * 0.18); position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: inline-grid; place-items: center; background: #fbf6ea; color: #b08a3a; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.35); font-style: normal; cursor: help; }
+.boon-mark .kw-ico { width: 56%; height: 56%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.boon-mark .kw-ico .kw-ico-fill { fill: currentColor; stroke: none; }
+.boon-mark small { position: absolute; right: -3px; bottom: -3px; font-family: var(--display); font-size: calc(var(--tcw, 80px) * 0.07); color: var(--ink); }
+.fused-tags .boon-mark + .boon-mark { margin-left: 2px; }
+.hero-ab .kw-ico .kw-ico-fill, .boon-mark .kw-ico .kw-ico-fill { fill-opacity: 1; }
+.hero-ab .kw-ico, .boon-mark .kw-ico { stroke-width: 1.8; }
+:is(.hero-ab, .boon-mark) .eff-heat { color: #d9662f; }
+:is(.hero-ab, .boon-mark) .eff-cool { color: #3d8fd1; }
+:is(.hero-ab, .boon-mark) .eff-shield { color: #4f86c6; }
+:is(.hero-ab, .boon-mark) :is(.eff-draw, .eff-energy, .eff-plant) { color: #3f9a68; }
+:is(.hero-ab, .boon-mark) :is(.eff-wall, .eff-repair, .eff-time) { color: #7a7f8f; }
+:is(.hero-ab, .boon-mark) .eff-star { color: #b08a3a; }
+
+.kw-tip-plain { font-size: 0.74rem; line-height: 1.4; }
+
+/* A battle's report: the result, the hero, what was won as tokens, the salvaged card as itself, the finds as marks. */
+.cmp-br .bar-title { display: none; }
+.br { display: grid; justify-items: center; gap: 18px; padding: 6px 4px 4px; }
+.br-head { display: grid; justify-items: center; gap: 2px; }
+.br-head h2 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 1.9rem; letter-spacing: 0.32em; text-transform: uppercase; color: #c27a1e; }
+.br-lost .br-head h2 { color: #6b7590; }
+.br-head small { font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-faint); }
+.br-body { display: flex; align-items: center; justify-content: center; gap: 26px; flex-wrap: wrap; }
+.br-hero { position: relative; display: grid; justify-items: center; }
+.br-hero .cmp-portrait { width: 84px; height: 84px; box-shadow: 0 0 0 3px #fff, 0 0 0 5px #e8d6a8, 0 8px 20px rgba(60, 70, 100, 0.18); }
+.br-levelled .cmp-portrait { box-shadow: 0 0 0 3px #fff, 0 0 0 5px #d4a52a, 0 0 22px rgba(212, 165, 42, 0.55); }
+.br-level, .br-xp { position: relative; z-index: 1; margin-top: -10px; padding: 3px 10px; border-radius: 999px; background: #fff; font-family: var(--display); font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; box-shadow: 0 2px 8px rgba(60, 70, 100, 0.16); }
+.br-level { background: #d4a52a; color: #fff; }
+.br-xp { color: var(--ink-soft); }
+.br-spoils { display: grid; justify-items: center; gap: 14px; }
+.br-tokens { display: flex; gap: 14px; }
+.br-token { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 1.05rem; color: var(--ink); }
+.br-token .cur { width: 22px; height: 22px; }
+.br-bad { color: #b3523a; }
+.br-card { display: grid; justify-items: center; gap: 6px; }
+.br-card small { font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); }
