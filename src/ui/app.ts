@@ -85,7 +85,7 @@ import { account, buyBooster, checkIn, flush, confirmReset, deleteAccount, finis
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
-import { fitCardText, fitWhenSeen } from './fittext';
+import { fitCardText } from './fittext';
 import { refreshLift, trackLift } from './lift';
 import { animateSuns, holdSuns, redrawSuns } from './sun3d';
 import { voices } from './voice';
@@ -3465,7 +3465,8 @@ export class App {
     fitCardText(this.root);
     this.markKwMore(this.root);
     sizePool(this.root);
-    fitWhenSeen(this.root.querySelectorAll<HTMLElement>('.db-pool .db-card'));
+    const pool = this.root.querySelector<HTMLElement>('.db-pool');
+    if (pool) fitCardText(pool);
     this.activeBuilder().afterRender();
     refreshLift();
     this.prefitZooms();

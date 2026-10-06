@@ -2,7 +2,7 @@ import { BALANCE, coverCard, mainRace, plainText, breakable, breakdownValue, CAR
 import { customDecks, deleteDeck, deckById, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
-import { fitWhenSeen } from './fittext';
+import { fitCardText } from './fittext';
 import { owned, profile } from './profile';
 import { breakCard, craftCard } from './account';
 
@@ -120,6 +120,13 @@ function searchText(c: CardDef): string {
 function matches(c: CardDef, terms: string[]): boolean {
   const s = searchText(c);
   return terms.every((t) => s.includes(t));
+}
+
+/** A short fingerprint of a string (to tell whether a page of cards changed). */
+function hash(t: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619);
+  return `${t.length}:${(h >>> 0).toString(36)}`;
 }
 
 const esc = (s: string) =>
@@ -603,18 +610,28 @@ export class DeckBuilder {
     if (!d || !pool) return this.host.render();
     // (Pages cut to a new size keep the card that led the old page in view.)
     if (keepCard) this.page = this.pageOf(d, keepCard);
-    pool.innerHTML = this.poolCards(d).join('') || '<p class="muted">No cards match these filters.</p>';
-    sizePool();
-    fitWhenSeen(pool.querySelectorAll<HTMLElement>('.db-card'));
+    const html = this.poolCards(d).join('') || '<p class="muted">No cards match these filters.</p>';
+    // The same page as before (a letter typed that changes nothing shown): leave it be, rather than draw the
+    // cards afresh and fit their text again (which made the text jump at every keystroke).
+    // (Its signature: the cards' markup, at the card size and layout they were fitted for.)
+    const L = this.layout;
+    const sig = `${this.grid}|${L ? `${L.cols}x${L.cmdCols}|${Math.round(L.cardH)}|${Math.round(L.height)}` : '-'}|${hash(html)}`;
+    if (pool.dataset.sig !== sig) {
+      pool.dataset.sig = sig;
+      pool.innerHTML = html;
+      sizePool();
+      // A page holds only what fits on screen, so its text is fitted at once, before it is painted.
+      fitCardText(pool);
+    }
     this.updatePager(d);
     // Now laid out: if a page holds a different number of cards than guessed, draw it again to fit.
     if (this.settlePage()) return this.refreshPool();
     const pop = document.querySelector<HTMLElement>('.db-filters-pop');
     const btn = document.querySelector<HTMLElement>('.db-filter-btn');
-    const html = document.createElement('div');
-    html.innerHTML = this.renderFilters(d);
+    const bar = document.createElement('div');
+    bar.innerHTML = this.renderFilters(d);
     // The ticks, values and button label, copied across from a fresh render of the toolbar.
-    const fresh = html.querySelector<HTMLElement>('.db-filters-pop');
+    const fresh = bar.querySelector<HTMLElement>('.db-filters-pop');
     if (pop && fresh) {
       pop.querySelectorAll<HTMLElement>('[data-act="db-opt"], [data-act="db-sort"], [data-act="db-toggle"]').forEach((el) => {
         const twin = fresh.querySelector<HTMLElement>(`[data-act="${el.dataset.act}"][data-arg="${el.dataset.arg}"]`);
@@ -625,7 +642,7 @@ export class DeckBuilder {
       const freshFoot = fresh.querySelector('.db-filters-foot');
       if (foot && freshFoot) foot.innerHTML = freshFoot.innerHTML;
     }
-    const freshBtn = html.querySelector<HTMLElement>('.db-filter-btn');
+    const freshBtn = bar.querySelector<HTMLElement>('.db-filter-btn');
     if (btn && freshBtn) {
       btn.className = freshBtn.className;
       btn.innerHTML = freshBtn.innerHTML;
