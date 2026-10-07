@@ -5837,3 +5837,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .i3d-f { transform: translateZ(5px); } .i3d-b { transform: rotateY(180deg) translateZ(5px); } .i3d-l { transform: rotateY(-90deg) translateZ(5px); }
 .i3d-r { transform: rotateY(90deg) translateZ(5px); } .i3d-t { transform: rotateX(90deg) translateZ(5px); } .i3d-d { transform: rotateX(-90deg) translateZ(5px); }
 .i3d-flask { width: 12px; height: 12px; }
+/* Bird's-eye: the Stellari a small flower just above the wormhole's star (not round it). */
+.cmp-bloom3d { width: 46px; height: 46px; margin: 0; left: 50%; top: auto; bottom: calc(100% + 2px); transform: translateX(-50%); }
+.cmp-bloom3d .stellaria-flower ellipse, .cmp-bloom3d .stellaria-flower path { fill: rgba(255, 255, 255, 0.35); stroke-width: 14; }
+.cmp-bloom3d .stellaria-flower .petal-inner path { stroke-width: 9; }
+/* (Straight down there is nothing to sink into: the stars lie on the map, unlifted.) */
+.cmp-n3 .cmp-bb { transform: translate(-50%, -100%) scale3d(var(--ui), var(--ui), var(--ui)); }
+.cmp-heart .cmp-bb, .cmp-heart .cmp-star { transform-style: flat; }
+.cmp-star > i.cmp-bloom3d { inset: auto; left: 50%; bottom: calc(100% + 3px); width: 46px; height: 46px; margin: 0; transform: translateX(-50%); border-radius: 0; }

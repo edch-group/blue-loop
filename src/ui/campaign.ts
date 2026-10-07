@@ -1576,7 +1576,7 @@ export class CampaignView {
   private swallowClick = false;
   private stageEl: HTMLElement | null = null;
 
-  private static readonly TILT = 44;
+  private static readonly TILT = 0; // (Bird's-eye: straight down on the strip.)
   private static readonly MAX_ZOOM = 12;
   private static readonly GLIDE_MS = 1000;
   /** How far behind the map the sky lies: over the whole map it slides this fraction of the map's fitted width. */
