@@ -584,6 +584,32 @@ Balance has been sensitive to single cards, removal above all. Adding two Ion Ca
 
 The **regional stability** bar at the top loses one segment each round. From round **10**, every sun heats at its dawn: +1, then +1 more each round after. This guarantees that games end. It works exactly as the old stability bar did; the name distinguishes it from each card's own stability (◷). AI games last about 11 rounds, so it often decides the end. [design review: the stability bar stays, as regional stability]
 
+## Game modes: Core and Lost Races
+
+Every deck is built for one of two modes, and every game is played in one.
+
+- **Core** is the simple game. It has the four core races, each built around one mechanic of its own:
+  - Aureline: **Forge**, which boosts neighbouring attack cards.
+  - Xel'Naru: **Overheat**, running their own sun hot for cards that hit harder while it is.
+  - Vorthane: **Shields**.
+  - Ixquor: **Growth**.
+
+  On top of those are the fundamentals every card shares: attack, heat, cooling, defence, stability, energy, drawing, and **Guard**, which is always there.
+
+  A core-race card uses only its race's own mechanic, and a neutral card uses only the fundamentals. Most cards do one or two things. There are no race traits in Core.
+
+  Some cards play a core version in Core (`src/engine/cards-core.ts`). These keep the same name and picture but have pared-down effects. This covers the core races' Heroes, a few more Forge cards for Aureline and more Growth cards for Ixquor. Growth cards cost 2 and last 4 days, so they live long enough to grow.
+
+  The rules check is in `src/engine/modes.ts`. `cardMechanics` names what each card uses, and `modeProblem` says why a card can't be in a Core deck. There are four Core starters: Sunforge, Red Shift, Deep Tide and Living Hive.
+- **Lost Races** is everything: all eight races, their sub-races, every mechanic and the race traits. Every card that exists is legal here, and all the earlier race and mechanic starters live in this mode.
+
+How the mode is used across the game:
+
+- **Rules in force.** The rules come from the game state (`GameState.mode`). `createGame` and `applyAction` set them, and so does any screen that shows cards for a mode, such as the deck builder.
+- **Decks.** A deck saved before modes existed is a Lost Races deck.
+- **Online.** A room plays Core only when both decks are Core decks. Ranked matchmaking only pairs players queued for the same mode.
+- **Campaign.** A run as a core race is played in Core: core starters, core-legal card offers and armouries, and Core rules in battle. Anything else in its decks is swapped for a plain neutral card. The Lost Races are unlocked with Stellari petals, and a run as one of them is played in Lost Races.
+
 ## The eight races [design review]
 
 Each player is one of eight races (races.ts). Every race has a **bonus and a nerf** that ride on every one of its cards, wherever they are played (a mixed deck's Aureline card is still unarmoured), so similar cards read differently by race. The card inspector and the campaign's race picker show them. The four newer races also split into **sub-races**, which their buff cards and Heroes name ("your Unmaker cards heat +1"), with matching counts and conditions (`{of:'race', sub}`, `minRace`).

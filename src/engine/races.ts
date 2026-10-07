@@ -4,6 +4,8 @@
  * The four newer races also split into sub-races, which their own buff cards and Heroes name.
  */
 
+import { rulesMode } from './modes';
+
 export const RACE_NAMES = ['Aureline', "Xel'Naru", 'Vorthane', 'Ixquor', 'Nyxari', 'Korrath', 'Seren', 'Pyrr'] as const;
 
 /** `value`: it only changes the card's own attack or stability, so it is folded into the card's numbers (no keyword). */
@@ -54,7 +56,8 @@ export const RACE_TRAITS: RaceTrait[] = [
 
 /** A race's trait (none for neutral cards). */
 export function raceTrait(race: number | undefined): RaceTrait | undefined {
-  return race === undefined ? undefined : RACE_TRAITS[race];
+  // (Core has no race traits.)
+  return race === undefined || rulesMode() === 'core' ? undefined : RACE_TRAITS[race];
 }
 
 /** The sub-races of the newer races: an id (on cards, as `sub`), its race, its name and what it does. */

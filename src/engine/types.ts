@@ -1,3 +1,4 @@
+import type { GameMode } from './modes';
 /**
  * Blue Loop is a tableau card game. Each player brings a 20-card deck (with
  * exactly 2 Command cards). Cards stay in front of you once played, so their
@@ -399,6 +400,8 @@ export interface GameState {
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
   /** Campaign battle rules (see GameSetup.campaign). */
   campaign?: boolean;
+  /** Core or Lost Races (unset: Lost Races). */
+  mode?: GameMode;
 }
 
 /** One dawn effect, as it happened: what fired it, where it went, and every sun just after. */
@@ -506,6 +509,8 @@ export interface GameSetup {
    * shuffle back gives no more without the strain, and a ship's opening shields hold through its first day.
    */
   campaign?: boolean;
+  /** Core or Lost Races (modes.ts; default Lost Races): which rules the game is played under. */
+  mode?: GameMode;
 }
 
 export type Action =

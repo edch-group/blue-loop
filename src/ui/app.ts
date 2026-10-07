@@ -3,7 +3,7 @@ import {
   activePlayer,
   heroSkillProblem,
   heroAbilityProblem,
-  RACE_TRAITS,
+  raceTrait,
   SUBRACES,
   attackProblem,
   cardAttack,
@@ -73,7 +73,11 @@ import {
   beginStats,
   finishStats,
   noteMove,
-  type GameStats, isProfane } from '../engine';
+  type GameStats, isProfane,
+  modeOf,
+  setRulesMode,
+  GAME_MODES,
+  type GameMode } from '../engine';
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
@@ -766,6 +770,14 @@ export class App {
     { name: profile().name || 'Commander', isAI: false, deckId: lastDeck(0) ?? PRESETS[0].id, bot: botName() },
     { name: 'Player 2', isAI: true, deckId: lastDeck(1) ?? PRESETS[1].id, bot: botName() },
   ];
+  /** The mode quickplay and online games are played in (the decks on offer are that mode's). */
+  private playMode: GameMode = (() => {
+    try {
+      return localStorage.getItem('blue-loop:play-mode') === 'lost' ? 'lost' : 'core';
+    } catch {
+      return 'core';
+    }
+  })();
   /** Choosing a deck: for which seat, and the page to go back to. */
   private pickSeat = 0;
   private pickFrom: MenuPage = 'quickplay';
@@ -1068,8 +1080,8 @@ export class App {
   /** Your name and deck, as the room needs them. */
   private joinInfo() {
     const seat = this.seats[0];
-    const deck = deckById(seat.deckId) ?? PRESETS[0];
-    return { name: profile().name || seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, avatar: account()?.avatar, profileId: profile().id };
+    const deck = this.seatDeck(0);
+    return { name: profile().name || seat.name.trim() || 'Commander', deck: deck.cards, deckName: deck.name, avatar: account()?.avatar, profileId: profile().id, mode: modeOf(deck) };
   }
 
   private goOnline(code?: string) {
@@ -1175,7 +1187,7 @@ export class App {
         this.net.searching = false;
         this.askSignIn();
       },
-    });
+    }, this.playMode);
     this.render();
   }
 
@@ -1486,7 +1498,7 @@ export class App {
   private newGame() {
     const players: PlayerSetup[] = this.seats
       .map((s, i) => {
-        const deck = deckById(s.deckId) ?? PRESETS[i];
+        const deck = this.seatDeck(i);
         noteRecentDeck(i, deck.id);
         const typed = s.isAI ? s.bot : i === 0 ? profile().name || s.name : s.name;
         // (A name with profanity in it plays as a plain one.)
@@ -1495,7 +1507,7 @@ export class App {
         const avatar = (!s.isAI && i === 0 ? account()?.avatar : undefined) ?? pictureFor(name.trim() || 'Unnamed');
         return { name: name.trim() || 'Unnamed', isAI: s.isAI, deck: deck.cards, deckName: deck.name, avatar };
       });
-    this.beginWithArt(createGame({ seed: (Math.random() * 2 ** 31) | 0, players }));
+    this.beginWithArt(createGame({ seed: (Math.random() * 2 ** 31) | 0, players, mode: this.playMode }));
   }
 
   private continueGame() {
@@ -3169,6 +3181,16 @@ export class App {
         this.menuPage = this.pickFrom;
         return this.render();
       }
+      case 'play-mode':
+        if (arg !== 'core' && arg !== 'lost') return;
+        this.playMode = arg;
+        try {
+          localStorage.setItem('blue-loop:play-mode', arg);
+        } catch {
+          // only a convenience
+        }
+        this.seats.forEach((st, i) => (st.deckId = this.seatDeck(i).id));
+        return this.render();
       case 'pick-back':
         this.menuPage = this.pickFrom;
         return this.render();
@@ -4157,15 +4179,29 @@ export class App {
       .join('');
     return this.setupPage(
       'quickplay',
-      `<div class="seat-row">${seats}</div>`,
+      `${this.modeTabs()}<div class="seat-row">${seats}</div>`,
       '<button class="btn-primary" data-act="new-game">launch</button>',
     );
   }
 
   /** A seat's deck (the last one it played, until another is chosen) as a deck box: tap it to choose another. */
   private seatDecks(seat: number): string {
-    const current = deckById(this.seats[seat].deckId) ?? PRESETS[seat];
+    const current = this.seatDeck(seat);
     return `<div class="qp-decks">${this.deckBoxMini(current, true, `data-act="seat-deck" data-arg="${seat}"`)}</div>`;
+  }
+
+  /** A seat's deck, if it is one for the mode being played (else that mode's starter for the seat). */
+  private seatDeck(seat: number): SavedDeck {
+    const d = deckById(this.seats[seat].deckId);
+    if (d && modeOf(d) === this.playMode) return d;
+    const starters = PRESETS.filter((x) => !x.mixed && modeOf(x) === this.playMode);
+    return starters[seat % starters.length];
+  }
+
+  /** Core or Lost Races, as two buttons. */
+  private modeTabs(): string {
+    const tab = (m: GameMode) => `<button class="db-seg-btn ${this.playMode === m ? 'on' : ''}" data-act="play-mode" data-arg="${m}" data-tip="${esc(GAME_MODES[m].blurb)}">${GAME_MODES[m].name.toLowerCase()}</button>`;
+    return `<div class="db-gm-row play-mode-row"><span class="db-seg db-gm" role="group" aria-label="Game mode">${tab('core')}${tab('lost')}</span><small class="muted">${esc(GAME_MODES[this.playMode].blurb)}</small></div>`;
   }
 
   /** A small deck box with its name beneath: a button when `attrs` give it an action. */
@@ -4182,10 +4218,11 @@ export class App {
   private renderPickDeck(): string {
     const current = this.seats[this.pickSeat]?.deckId;
     const box = (d: SavedDeck) => {
-      const legal = deckProblems(d.cards).length === 0;
+      const legal = deckProblems(d.cards, modeOf(d)).length === 0;
       return deckBox(d, { act: 'pick-deck', title: legal ? `Play with ${d.name}` : 'This deck is not complete yet', selected: d.id === current, disabled: !legal });
     };
-    const mine = customDecks();
+    const mine = customDecks().filter((d) => modeOf(d) === this.playMode);
+    const presets = PRESETS.filter((d) => modeOf(d) === this.playMode);
     return `
       <header class="setup-top">
         <button class="btn btn-small" data-act="pick-back">‹ back</button>
@@ -4194,10 +4231,10 @@ export class App {
       </header>
       <div class="setup-body db-list-body">
         <div class="db-list">
-          <div class="section-label">race starters</div>
-          <div class="db-boxes">${PRESETS.filter((d) => !d.mixed).map(box).join('')}</div>
-          <div class="section-label">mechanic starters</div>
-          <div class="db-boxes">${PRESETS.filter((d) => d.mixed).map(box).join('')}</div>
+          <div class="section-label">${esc(GAME_MODES[this.playMode].name.toLowerCase())}: race starters</div>
+          <div class="db-boxes">${presets.filter((d) => !d.mixed).map(box).join('')}</div>
+          ${presets.some((d) => d.mixed) ? `<div class="section-label">mechanic starters</div>
+          <div class="db-boxes">${presets.filter((d) => d.mixed).map(box).join('')}</div>` : ''}
           ${mine.length ? `<div class="section-label">your decks</div><div class="db-boxes">${mine.map(box).join('')}</div>` : ''}
         </div>
       </div>`;
@@ -4222,6 +4259,7 @@ export class App {
       return this.setupPage(
         'play online',
         `<div class="online-page">
+          ${this.modeTabs()}
           ${you()}
           <div class="online-modes">
             ${mode('host a game', 'a room code and link to send a friend', '<button class="btn-primary" data-act="online-create">create room</button>')}
@@ -4406,6 +4444,8 @@ export class App {
 
   private renderGame(): string {
     const s = this.state!;
+    // (The game's own rules: Core or Lost Races.)
+    setRulesMode(s.mode);
     // The whole play area is a table seen in perspective; pop-ups and the
     // played-card stage sit outside it so they stay flat and readable.
     return `
@@ -5213,7 +5253,7 @@ export class App {
   /** A race card's racial bonus and nerf (and its sub-race), which ride on every card of that race. */
   private raceNote(defId: string): string {
     const def = cardDef(defId);
-    const t = def.race !== undefined ? RACE_TRAITS[def.race] : undefined;
+    const t = raceTrait(def.race);
     if (!t) return '';
     const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
     const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race!])}${esc(sub)}</b>`;

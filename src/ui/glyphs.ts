@@ -1,4 +1,4 @@
-import { BALANCE, baseAttack, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseAttack, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, raceTrait, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { stellariaFlower } from './art';
 import { cardScene, renderedArt } from './cardart';
 import disk from './gems/disk.png';
@@ -454,7 +454,7 @@ export function raceRow(def: CardDef): string {
  * applies. Those that only change the card's own attack or stability are in its numbers instead.
  */
 export function raceTraitTags(def: CardDef): { name: string; text: string; nerf: boolean }[] {
-  const t = def.race !== undefined ? RACE_TRAITS[def.race] : undefined;
+  const t = raceTrait(def.race);
   if (!t) return [];
   const stays = persists(def.id) && !isBurst(def);
   const reaches = (on: string) =>

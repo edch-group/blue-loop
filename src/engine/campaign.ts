@@ -15,7 +15,8 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
-import { CARDS, cardDef, copyLimit, fusedId, fusionProblem, RACE_NAMES } from './cards';
+import { CARDS, cardDef, cardIn, copyLimit, fusedId, fusionProblem, presetDeck, RACE_NAMES } from './cards';
+import { CORE_RACES, inMode, type GameMode } from './modes';
 import { BALANCE } from './balance';
 import { applyAction, createGame, GameError, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
@@ -544,6 +545,8 @@ export interface CampaignLogEntry {
 
 export interface CampaignState {
   version: 6;
+  /** Core (a core race's run: core races, their cards and Core's rules) or Lost Races (unset: Lost Races). */
+  mode?: GameMode;
   /** Which universe of the run this is (1 the first), the turn it began, and the next column to give way. */
   universe: number;
   universeStart: number;
@@ -988,14 +991,15 @@ const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, de
  * two attacks and first defence (two of each), and plain neutral cards to fill it. The rest is found on the way,
  * at armouries and as rewards.
  */
-export function armyDeck(race: number, general: string): string[] {
+export function armyDeck(race: number, general: string, mode: GameMode = 'lost'): string[] {
   const r = ((race % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
-  const plain = (c: (typeof CARDS)[number]) => c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll;
+  const plain = (c: (typeof CARDS)[number]) => c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && legalIn(mode, c.id);
   const mine = CARDS.filter((c) => c.race === r && plain(c));
   const own = [...mine.filter((c) => c.kind === 'attack').slice(0, 2), ...mine.filter((c) => c.kind === 'defence').slice(0, 1)].map((c) => c.id);
   const deck = [general, ...own.flatMap((id) => [id, id])];
-  for (const id of ['coronal_lance', 'deflector_grid', 'heat_sink', ...GUARD_NEUTRALS]) {
+  for (const id of ['coronal_lance', 'deflector_grid', 'heat_sink', ...GUARD_NEUTRALS, ...CORE_FILL]) {
     if (deck.length >= CAMPAIGN.armySize) break;
+    if (!legalIn(mode, id)) continue;
     if (deck.filter((x) => x === id).length < 2) deck.push(id);
   }
   return deck.slice(0, CAMPAIGN.armySize);
@@ -1016,14 +1020,29 @@ export function armyDeckProblems(deck: string[], general: string): string[] {
   return out;
 }
 
+/** Whether a card can be in a deck in this mode (in Core, as its core version). */
+export const legalIn = (mode: GameMode | undefined, id: string) => mode !== 'core' || inMode(cardIn(id, 'core'), 'core');
+
+/** Plain neutral cards legal in Core, to stand in for those that aren't in a Core run's decks. */
+const CORE_FILL = ['coronal_lance', 'thermal_exchange', 'cryo_vault', 'gravity_sling', 'heat_sink', 'plasma_relay', 'deep_scanners', 'solar_battery', 'coolant_array', 'dreadnought'];
+
+/** A deck for a Core run: any card Core has no place for swapped for a plain neutral one. */
+function fitMode(s: CampaignState, deck: string[]): string[] {
+  if (s.mode !== 'core') return deck;
+  let k = 0;
+  return deck.map((id) => (legalIn('core', id) ? id : CORE_FILL[k++ % CORE_FILL.length]));
+}
+
 const GUARD_NEUTRALS = ['coronal_lance', 'thermal_exchange', 'photon_drill', 'scatter_shot', 'plasma_relay', 'gravity_sling', 'nova_shell', 'cryo_vault', 'heat_sink', 'deflector_grid', 'deep_scanners', 'solar_mirror'];
 
 /**
  * A race's plain 30-card deck, for those who defend without an army (neutral sentinels, and a system's own
  * guard): neutral pairs, a taste of the race's own, and its first general's Heroes. (Armies fight with 10.)
  */
-export function starterDeck(race: number): string[] {
+export function starterDeck(race: number, mode: GameMode = 'lost'): string[] {
   const r = ((race % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
+  // (In Core, the race's Core starter.)
+  if (mode === 'core') return [...presetDeck(r, 'core').cards];
   const mine = CARDS.filter((c) => c.race === r && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion);
   const own = [...mine.filter((c) => c.kind === 'attack'), ...mine.filter((c) => c.kind !== 'attack')].slice(0, 3).map((c) => c.id);
   const [g0, g1] = GENERALS[r];
@@ -1061,6 +1080,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     log: [],
   };
   const race = (((setup.race ?? 0) % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
+  // A core race's run is played in Core; a Lost Race's (unlocked with petals) in Lost Races.
+  if (CORE_RACES.includes(race)) s.mode = 'core';
   const hero = setup.hero && GENERALS[race].includes(setup.hero) ? setup.hero : GENERALS[race][0];
   const ship = newShip();
   ship.hull = Math.min(CAMPAIGN.shipMax.hull, run.hull);
@@ -1090,7 +1111,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   buildUniverse(s, 1);
   const army = flagship(s, me.id)!;
   // Veterans: more of the race's own cards in the starting deck; Requisition: cards picked to start with.
-  const own = CARDS.filter((c) => c.race === race && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && !army.deck.includes(c.id));
+  const own = CARDS.filter((c) => c.race === race && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && legalIn(s.mode, c.id) && !army.deck.includes(c.id));
   army.deck.push(...own.slice(0, run.cards).map((c) => c.id));
   // (Each Requisition: a pick of cards, the one chosen going straight into the deck.)
   for (let k = 0; k < run.picks; k++) s.cardRewards.push({ source: 'Requisition', options: randomCardChoices(s, me), toDeck: army.id });
@@ -1264,7 +1285,7 @@ function buildUniverse(s: CampaignState, universe: number) {
 /** A new army, led by `general`, standing in `nodeId`. */
 function raiseArmy(s: CampaignState, f: Faction, general: string, nodeId: string): Army {
   // A new army can be refitted on the turn it is raised, but marches from the next.
-  const army: Army = { id: `army${++s.uidCounter}`, owner: f.id, general, nodeId, deck: armyDeck(f.race, general), damage: 0, moved: false };
+  const army: Army = { id: `army${++s.uidCounter}`, owner: f.id, general, nodeId, deck: armyDeck(f.race, general, s.mode), damage: 0, moved: false };
   s.armies.push(army);
   return army;
 }
@@ -1332,9 +1353,9 @@ function drawMission(s: CampaignState, f: Faction) {
  * Cards a faction can be offered: its own race's cards (twice as often), neutral cards, globals and the
  * fine-tuned Command cards (a deck starts with two of its race's first leader); Anomalies are rarest.
  */
-function offerPool(f: Faction): string[] {
+function offerPool(f: Faction, mode?: GameMode): string[] {
   // (Generals are recruited, not bought: no Hero cards of the race's own.)
-  return CARDS.filter((c) => !(c.kind === 'command' && GENERALS[f.race]?.includes(c.id)) && (c.race === undefined || c.race === f.race)).flatMap((c) =>
+  return CARDS.filter((c) => !(c.kind === 'command' && GENERALS[f.race]?.includes(c.id)) && (c.race === undefined || c.race === f.race) && legalIn(mode, c.id)).flatMap((c) =>
     Array(OFFER_WEIGHT[c.rarity ?? 'dwarf'] * (c.race === f.race ? 2 : 1)).fill(c.id) as string[],
   );
 }
@@ -1349,7 +1370,7 @@ const STOCK = CARDS.filter((c) => c.kind !== 'command' && c.kind !== 'global' &&
  */
 function armoryStock(s: CampaignState, n: CampaignNode): string[] {
   const near = nodeAnomalies(s, n).length > 0;
-  const of = (r: ItemRarity) => shuffleInPlace(s, STOCK.filter((c) => (c.rarity ?? 'dwarf') === r).map((c) => c.id));
+  const of = (r: ItemRarity) => shuffleInPlace(s, STOCK.filter((c) => (c.rarity ?? 'dwarf') === r && legalIn(s.mode, c.id)).map((c) => c.id));
   const dwarfs = of('dwarf');
   const stellar = of('stellar');
   const anomaly = of('anomaly');
@@ -1373,7 +1394,7 @@ function pickResearch(s: CampaignState, n: CampaignNode, taken: Set<string>): st
 }
 
 function randomCardChoices(s: CampaignState, f: Faction): string[] {
-  const pool = [...new Set(shuffleInPlace(s, offerPool(f)))];
+  const pool = [...new Set(shuffleInPlace(s, offerPool(f, s.mode)))];
   return pool.slice(0, CAMPAIGN.cardChoices);
 }
 
@@ -1394,7 +1415,7 @@ function stationDeck(s: CampaignState, n: CampaignNode, race?: number): string[]
     return [...w.slice(8, 14), ...shuffleInPlace(s, [...w.slice(0, 8), ...w.slice(14)]).slice(0, size - 6)];
   }
   const tier = Math.max(0, n.tier);
-  const pool = (race === undefined ? neutralDeck(s, tier) : starterDeck(race)).filter((id) => cardDef(id).kind !== 'command');
+  const pool = (race === undefined ? neutralDeck(s, tier) : fitMode(s, starterDeck(race, s.mode))).filter((id) => cardDef(id).kind !== 'command');
   // (Like the player's, it starts at 10 cards; 2 more a tier, up to a full 20.)
   const size = Math.min(20, CAMPAIGN.enemyDeck + 2 * tier);
   const deck: string[] = [];
@@ -1433,17 +1454,17 @@ function flagshipSetup(s: CampaignState, army: Army): Pick<PlayerSetup, 'hero' |
  */
 const SENTINEL_EXTRAS = ['solar_battery', 'solar_battery', 'frost_bulwark', 'frost_bulwark', 'ion_cannon', 'ion_cannon', 'solar_maximum', 'ice_age', 'stellar_aegis', 'stellar_aegis', 'dreadnought', 'dreadnought', 'star_breaker', 'star_breaker', 'meltdown', 'meltdown'];
 function neutralDeck(s: CampaignState, tier: number): string[] {
-  const deck = starterDeck(randomInt(s, RACE_NAMES.length));
+  const deck = starterDeck(s.mode === 'core' ? CORE_RACES[randomInt(s, CORE_RACES.length)] : randomInt(s, RACE_NAMES.length), s.mode);
   // (None of these is in a starting deck already: a deck holds at most two of a card.)
   SENTINEL_EXTRAS.slice(0, Math.max(0, tier) * 4).forEach((id, i) => (deck[i] = id));
-  return deck;
+  return fitMode(s, deck);
 }
 
 /** The Heart Wardens' deck: the strongest sentinels, with the heaviest neutral cards mixed in. */
 function wardenDeck(s: CampaignState): string[] {
   const deck = neutralDeck(s, Math.max(2, s.universe * 2));
   ['star_breaker', 'star_breaker', 'dreadnought', 'dreadnought', 'stellar_aegis', 'stellar_aegis'].forEach((id, i) => (deck[8 + i] = id));
-  return deck;
+  return fitMode(s, deck);
 }
 
 /**
@@ -1624,7 +1645,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   if (problem) throw new GameError(`${armyLeader(army)}'s deck isn't ready to fight: ${problem}`);
   army.moved = true;
   const players = battleSetup(s, army, target);
-  const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players, campaign: true });
+  const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players, campaign: true, mode: s.mode });
   const guard = defenderOf(s, target, army);
   if (guard && guard.nodeId !== toId) clog(s, `${armyLeader(guard)} comes from ${nodeById(s, guard.nodeId).name} to defend ${target.name}.`, [guard.nodeId, toId], guard.owner);
   clog(s, army.lost ? `${armyLeader(army)} strike from ${here.name} at ${target.name} (${players[1].name}).` : `${armyLeader(army)} leads ${f.name}'s army from ${here.name} against ${target.name} (${players[1].name}).`, [here.id, target.id], f.id);

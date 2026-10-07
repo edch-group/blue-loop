@@ -13,6 +13,8 @@ import { BOONS } from './boons';
 import { raceTrait } from './races';
 import { CARD_COSTS } from './costs';
 import { commandChoices } from './commands';
+import { CORE_VERSIONS } from './cards-core';
+import { rulesMode, modeProblem, type GameMode } from './modes';
 
 /**
  * The card pool. Cards have no cost: the number of cards you may play each
@@ -717,6 +719,8 @@ for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.co
 // Its Sting (the Vorthane) is written into theirs too (it still strikes back as the race's, in counterDamage).
 const raiseKeyword = (text: string, kw: string, n: number) =>
   new RegExp(`\\{${kw}:\\d+\\}`).test(text) ? text.replace(new RegExp(`\\{${kw}:(\\d+)\\}`), (_, k: string) => `{${kw}:${Number(k) + n}}`) : `{${kw}:${n}}. ${text}`;
+// (The text before a race's keywords are written in: the card's text in Core, which has no race traits.)
+const TRAITLESS_TEXT = new Map(CARDS.map((c) => [c.id, c.text]));
 for (const c of CARDS) {
   const t = raceTrait(c.race);
   if (!t || c.fusion || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
@@ -758,7 +762,27 @@ for (const t of TOKENS) Object.assign(t, { cost: 0 });
 // (Tokens are cards in play, but not in the pool: no deck, shop or collection has them.)
 const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS].map((c) => [c.id, c]));
 
+/** Each core race's card as it plays in Core: without its race's keywords, and in its core version if it has one. */
+const CORE_BY_ID = new Map(
+  CARDS.filter((c) => c.race !== undefined && c.race < 4).map((c) => {
+    const v = CORE_VERSIONS[c.id];
+    const core: CardDef = { ...c, text: TRAITLESS_TEXT.get(c.id) ?? c.text, ...v };
+    if (v && c.fusion) core.attack = ruleAttack(core, core.cost ?? 1, !isBurst(core));
+    return [c.id, core];
+  }),
+);
+
+/** A card as it plays in a mode (whatever the rules in force). */
+export function cardIn(defId: string, mode: GameMode): CardDef {
+  return (mode === 'core' && CORE_BY_ID.get(defId)) || lostDef(defId);
+}
+
+/** A card as it plays under the rules in force. */
 export function cardDef(defId: string): CardDef {
+  return cardIn(defId, rulesMode());
+}
+
+function lostDef(defId: string): CardDef {
   const def = BY_ID.get(defId) ?? fusedDef(defId);
   if (!def) throw new Error(`Unknown card: ${defId}`);
   return def;
@@ -881,8 +905,8 @@ function fusedDef(id: string): CardDef | undefined {
   return def;
 }
 
-export function allCardDefs(): CardDef[] {
-  return CARDS;
+export function allCardDefs(mode: GameMode = rulesMode()): CardDef[] {
+  return mode === 'core' ? CARDS.map((c) => CORE_BY_ID.get(c.id) ?? c) : CARDS;
 }
 
 export { RACE_NAMES } from './races';
@@ -894,6 +918,8 @@ export interface DeckList {
   mixed?: boolean;
   /** The card whose picture is on its box (else its biggest Hero's). */
   cover?: string;
+  /** The mode it is built for (unset: Lost Races). */
+  mode?: GameMode;
 }
 
 const twoOf = (...ids: string[]) => ids.flatMap((id) => [id, id]);
@@ -1087,6 +1113,42 @@ export const PRESET_DECKS: DeckList[] = [
       'pyr_magma_heart', 'pyr_supernova_charge', 'pyr_flare_temple', 'pyr_solar_tyrant', 'coolant_array',
       'pyr_hero_ignis', 'pyr_hero_ashka', 'pyr_hero_pyrrhus',
     ],
+  },  // ---- Core (modes.ts): one deck per core race, built round its one mechanic ----
+  {
+    // Forge: attack cards lined up beside the Sunforges, Focusing Array and Halo Sentinels that boost them.
+    name: 'Sunforge',
+    mode: 'core',
+    cards: [
+      ...twoOf('command_directive', 'sunforge', 'helio_bastion', 'gilded_lens', 'halo_sentinel', 'solar_aegis', 'aureline_war_herald', 'helio_lancer', 'lancer_squadron', 'aureline_cantor', 'aureline_skirmisher', 'aureline_sun_priest'),
+      'empress_solenne', 'focusing_array', 'dawnstar_cannon', 'aureline_archon', 'aurelia_first_light', 'coronal_lance',
+    ],
+  },
+  {
+    // Overheat: running their own sun hot for cards that hit harder while it is, and cooling just in time.
+    name: 'Red Shift',
+    mode: 'core',
+    cards: [
+      ...twoOf('war_council', 'crystal_storm', 'overload_core', 'shard_storm', 'xelnaru_champion', 'crystal_bloom', 'prism_vent', 'xelnaru_warden', 'fracture_lens', 'overcharge', 'xelnaru_oracle', 'coronal_lance', 'thermal_exchange'),
+      'the_shardmind', 'shard_tempest', 'prism_sanctum', 'heat_bleed',
+    ],
+  },
+  {
+    // Shields: walls of them, and attack cards that hit harder the more there are.
+    name: 'Deep Tide',
+    mode: 'core',
+    cards: [
+      ...twoOf('tide_regent', 'brine_lash', 'tidal_wave', 'pressure_wave', 'riptide', 'kelp_wall', 'trench_warden', 'vorthane_tidecaller', 'ebb_tide', 'deep_hymn', 'abyssal_choir', 'jelly_swarm'),
+      'the_admiralty', 'deep_current', 'pressure_dome', 'ommarath_deep_bell', 'vorthane_elder', 'abyss_lantern',
+    ],
+  },
+  {
+    // Growth: cards that grow each dawn and pay out what they've grown, and the Broodmother growing them all.
+    name: 'Living Hive',
+    mode: 'core',
+    cards: [
+      ...twoOf('chamber_protocol', 'mycelium_tower', 'spore_drone', 'chitin_spire', 'thorn_graft', 'ixquor_brood_tender', 'mycelial_net', 'hive_warrior', 'rot_bloom', 'spore_burst', 'bloom_burst', 'spore_cloud'),
+      'the_worldroot', 'spore_catalyst', 'hive_relay', 'sporestorm', 'hive_mind', 'the_brood_queen',
+    ],
   },
 ];
 
@@ -1142,8 +1204,8 @@ export function mainRace(cards: string[]): number | undefined {
 }
 
 /** The starter deck built from one race's cards (the first starter for anything else): for the campaign's factions. */
-export function presetDeck(race: number): DeckList {
-  return PRESET_DECKS.find((d) => !d.mixed && mainRace(d.cards) === race) ?? PRESET_DECKS[0];
+export function presetDeck(race: number, mode: GameMode = 'lost'): DeckList {
+  return PRESET_DECKS.find((d) => !d.mixed && (d.mode ?? 'lost') === mode && mainRace(d.cards) === race) ?? PRESET_DECKS.find((d) => !d.mixed && mainRace(d.cards) === race) ?? PRESET_DECKS[0];
 }
 
 /** How many Command cards a deck of this size runs: one per `cardsPerCommand` cards (3 in 30, 4 in 40). */
@@ -1152,8 +1214,13 @@ export function commandCardsFor(size: number): number {
 }
 
 /** Why a deck list is not legal (empty if it is). */
-export function deckProblems(cards: string[]): string[] {
+export function deckProblems(cards: string[], mode: GameMode = 'lost'): string[] {
   const problems: string[] = [];
+  for (const id of new Set(cards)) {
+    const def = BY_ID.get(id);
+    const why = def ? modeProblem(cardIn(id, mode), mode) : null;
+    if (why) problems.push(`${def!.name}: ${why}`);
+  }
   if (cards.length < BALANCE.deckSize || cards.length > BALANCE.maxDeckSize) problems.push(`A deck needs ${BALANCE.deckSize}–${BALANCE.maxDeckSize} cards (this has ${cards.length}).`);
   const counts = new Map<string, number>();
   for (const id of cards) counts.set(id, (counts.get(id) ?? 0) + 1);

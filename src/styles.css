@@ -5877,3 +5877,16 @@ body:has(.game-result) .dock { visibility: hidden; }
 .cmp-owned .cmp-star::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; background: none; animation: none;
   box-shadow: 0 0 0 2px var(--fc), 0 0 8px 2px color-mix(in srgb, var(--fc) 55%, transparent); }
 @media (prefers-reduced-motion: reduce) { .cmp-n3 .cmp-ring-march, .cmp-n3 .cmp-ring-target { animation: none; } }
+
+/* ---- Game modes: Core / Lost Races ---- */
+.db-gm-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 2px 0 6px; }
+.play-mode-row { justify-content: center; margin: 0 0 14px; }
+.db-gm { background: #f1f2f6; }
+.db-gm .db-seg-btn { width: auto; height: 30px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+.db-gm .db-seg-btn.on { color: var(--ink); }
+.db-gm-row small { font-size: 12px; }
+.db-name-row { display: flex; align-items: center; gap: 8px; }
+.db-name-row .db-name { flex: 1; min-width: 0; }
+.db-mode-chip { flex: none; padding: 3px 9px; border-radius: 999px; background: #eef0f5; color: var(--ink-soft); font-size: 11px; font-weight: 600; white-space: nowrap; }
+.cmp-rs-head { display: block; margin: 6px 4px 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-soft); text-transform: lowercase; }
+.cmp-rs-head:first-child { margin-top: 0; }

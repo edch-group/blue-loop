@@ -156,6 +156,8 @@ describe('finds', () => {
 describe('conquest', () => {
   it('pays once for a system conquered, and counts it, with no choice to make', () => {
     let s = read(run());
+    // (No finds in the way: every neighbour a battle.)
+    for (const n of s.nodes) delete n.cache;
     const me = () => campaignPlayer(s);
     const target = armyMoves(s, flag(s)).find((m) => m.battle)!.toId;
     const pay = { ...nodeById(s, target).yield };

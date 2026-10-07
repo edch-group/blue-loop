@@ -1,6 +1,7 @@
 import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
 import { cardDef, hasDarkspeed, isBurst, PRESET_DECKS } from './cards';
+import { setRulesMode } from './modes';
 import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
 import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, Planet, PlayerState, TurnPulse, TurnStats } from './types';
@@ -40,12 +41,14 @@ export function createGame(setup: GameSetup): GameState {
     winnerId: null,
     log: [],
     ...(setup.campaign ? { campaign: true } : {}),
+    ...(setup.mode === 'core' ? { mode: 'core' as const } : {}),
   };
+  setRulesMode(state.mode);
 
   const catchUp = (i: number) => i > 0 && n <= BALANCE.catchUpMaxPlayers;
   setup.players.forEach((ps, i) => {
     // (No deck given: a starter, by seat.)
-    const fallback = PRESET_DECKS.filter((d) => !d.mixed)[i % 4];
+    const fallback = PRESET_DECKS.filter((d) => !d.mixed && (d.mode ?? 'lost') === (setup.mode ?? 'lost'))[i % 4];
     const list = ps.deck ?? fallback.cards;
     const deck = shuffleInPlace(state, list.map((id) => newCard(state, id)));
     const p: PlayerState = {
@@ -1578,6 +1581,7 @@ export function choiceLabel(id: string): string {
 /** Apply an action and return the new state (the input is never mutated). */
 export function applyAction(prev: GameState, action: Action): GameState {
   if (prev.winnerId) throw new GameError('The game is over.');
+  setRulesMode(prev.mode);
   const state = structuredClone(prev);
   // Only the state a day starts in carries that start's pulses (and only this move's state, what sprang).
   delete state.turnPulses;

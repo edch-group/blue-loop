@@ -1,4 +1,4 @@
-import { BALANCE, coverCard, decodeDeck, encodeDeck, isProfane, PRESET_DECKS, mainRace, plainText, breakable, breakdownValue, CARDS, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, type CardDef, type Rarity } from '../engine';
+import { BALANCE, coverCard, decodeDeck, encodeDeck, isProfane, PRESET_DECKS, mainRace, plainText, breakable, breakdownValue, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, allCardDefs, inMode, modeOf, setRulesMode, CORE_RACES, GAME_MODES, type GameMode, type CardDef, type Rarity } from '../engine';
 import { customDecks, deckWithCards, deleteDeck, deckById, missingCopies, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
@@ -167,6 +167,14 @@ export class DeckBuilder {
 
   /** Put to another use (the campaign's base), or the menu's own deck builder (null). */
   private mode: BuilderMode | null = null;
+  /** Which game mode's decks the list shows (and a new deck is built for). */
+  private gm: GameMode = (() => {
+    try {
+      return localStorage.getItem('blue-loop:db-mode') === 'lost' ? 'lost' : 'core';
+    } catch {
+      return 'core';
+    }
+  })();
 
   /** A panel over the deck list: pasting in a deck code, or sharing one of your decks (its code, and the community). */
   private panel: { kind: 'import' } | { kind: 'share'; id: string } | null = null;
@@ -241,6 +249,15 @@ export class DeckBuilder {
         if (this.editing) this.editing = this.starter = null;
         else if (this.community) this.community = null;
         else this.host.done();
+        break;
+      case 'db-gm':
+        if (arg !== 'core' && arg !== 'lost') return true;
+        this.gm = arg;
+        try {
+          localStorage.setItem('blue-loop:db-mode', arg);
+        } catch {
+          // only a convenience
+        }
         break;
       case 'db-panel-close':
         this.panel = null;
@@ -334,7 +351,7 @@ export class DeckBuilder {
         if (!c) return true;
         this.starter = null;
         this.fromCommunity = c.mine ? null : c.id;
-        this.editing = { id: `deck-${Date.now().toString(36)}`, name: c.name, cards: [...c.cards] };
+        this.editing = { id: `deck-${Date.now().toString(36)}`, name: c.name, cards: [...c.cards], mode: guessMode(c.cards) };
         this.filters = noFilters();
         this.page = 0;
         break;
@@ -364,14 +381,14 @@ export class DeckBuilder {
         const src = deckById(arg);
         if (!src) return true;
         this.starter = src;
-        this.editing = { id: `deck-${Date.now().toString(36)}`, name: src.name, cards: [...src.cards] };
+        this.editing = { id: `deck-${Date.now().toString(36)}`, name: src.name, cards: [...src.cards], mode: modeOf(src) };
         this.filters = noFilters();
         this.page = 0;
         break;
       }
       case 'db-new':
         this.starter = null;
-        this.editing = { id: `deck-${Date.now().toString(36)}`, name: 'New deck', cards: [] };
+        this.editing = { id: `deck-${Date.now().toString(36)}`, name: 'New deck', cards: [], mode: this.gm };
         this.filters = noFilters();
         this.page = 0;
         break;
@@ -379,7 +396,7 @@ export class DeckBuilder {
         const src = deckById(arg);
         if (!src) return true;
         this.starter = null;
-        this.editing = { id: `deck-${Date.now().toString(36)}`, name: `${src.name} copy`, cards: [...src.cards] };
+        this.editing = { id: `deck-${Date.now().toString(36)}`, name: `${src.name} copy`, cards: [...src.cards], mode: modeOf(src) };
         break;
       }
       case 'db-edit': {
@@ -506,7 +523,7 @@ export class DeckBuilder {
       }
       case 'db-save': {
         if (!d) return true;
-        const problems = deckProblems(d.cards);
+        const problems = deckProblems(d.cards, modeOf(d));
         if (problems.length) {
           this.host.toast(problems[0]);
           return true;
@@ -544,9 +561,10 @@ export class DeckBuilder {
       this.host.toast(`You already have this deck: ${same.name}.`);
       return;
     }
-    saveDeck({ id: `deck-${Date.now().toString(36)}`, name: name.slice(0, 24) || 'Imported deck', cards: [...cards] });
+    const mode = guessMode(cards);
+    saveDeck({ id: `deck-${Date.now().toString(36)}`, name: name.slice(0, 24) || 'Imported deck', cards: [...cards], mode });
     const short = this.toCollect(cards);
-    const why = deckProblems(cards)[0];
+    const why = deckProblems(cards, mode)[0];
     this.host.toast(`Added to your decks${extra}. ${short || (why ? `Not finished yet: ${why}` : 'Ready to play.')}`);
   }
 
@@ -592,6 +610,8 @@ export class DeckBuilder {
   }
 
   render(): string {
+    // (Cards show as they play in the deck's mode.)
+    if (!this.mode) setRulesMode(this.editing ? modeOf(this.editing) : 'lost');
     if (this.mode) {
       this.syncMode();
       return this.renderEditor(this.editing!);
@@ -623,18 +643,22 @@ export class DeckBuilder {
         actions: `<button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>${d.preset ? '' : `<button class="pill-btn" data-act="db-share-open" data-arg="${d.id}">share</button><button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}`,
         tag: d.preset ? undefined : wishTag(d.cards),
       });
-    const mine = customDecks();
+    const gm = this.gm;
+    const mine = customDecks().filter((d) => modeOf(d) === gm);
+    const presets = PRESETS.filter((d) => modeOf(d) === gm);
     const hide = startersHidden();
+    const tabs = (['core', 'lost'] as const).map((m) => `<button class="db-seg-btn ${gm === m ? 'on' : ''}" data-act="db-gm" data-arg="${m}" data-tip="${esc(GAME_MODES[m].blurb)}">${GAME_MODES[m].name.toLowerCase()}</button>`).join('');
     return `
       ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small db-switch ${hide ? 'on' : ''}" data-act="db-hide-starters" role="switch" aria-checked="${hide}">hide starters<span class="switch-track" aria-hidden="true"><i></i></span></button><button class="btn btn-small" data-act="db-community">community</button><button class="btn btn-small" data-act="db-import-open">import</button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
       <div class="setup-body db-list-body">
         <div class="db-list">
+          <div class="db-gm-row"><span class="db-seg db-gm" role="group" aria-label="Game mode">${tabs}</span><small class="muted">${esc(GAME_MODES[gm].blurb)}</small></div>
           <div class="section-label db-group">your decks</div>
           ${mine.length ? `<div class="db-boxes">${mine.map(box).join('')}</div>` : '<p class="muted center-text">No decks of your own yet. Start a new one, or copy a starter to change it.</p>'}
           ${hide ? '' : `<div class="section-label db-group">races</div>
-          <div class="db-boxes">${PRESETS.filter((d) => !d.mixed).map(box).join('')}</div>
-          <div class="section-label db-group">mechanics</div>
-          <div class="db-boxes">${PRESETS.filter((d) => d.mixed).map(box).join('')}</div>`}
+          <div class="db-boxes">${presets.filter((d) => !d.mixed).map(box).join('')}</div>
+          ${presets.some((d) => d.mixed) ? `<div class="section-label db-group">mechanics</div>
+          <div class="db-boxes">${presets.filter((d) => d.mixed).map(box).join('')}</div>` : ''}`}
         </div>
       </div>`;
   }
@@ -717,7 +741,7 @@ export class DeckBuilder {
           ${this.pagerHtml(d)}
         </div>
         ${this.mode ? this.modeSide(d) : `<aside class="db-deck-side">
-          <input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" />
+          <div class="db-name-row"><input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" /><small class="db-mode-chip" data-tip="${esc(GAME_MODES[modeOf(d)].blurb)}">${GAME_MODES[modeOf(d)].name.toLowerCase()}</small></div>
           ${this.tallyHtml(d)}
           <div class="db-focus-slot">${this.focus ? this.renderFocus(this.focus) : ''}</div>
           <div class="db-rows">${this.rowsHtml(d)}</div>
@@ -994,7 +1018,9 @@ export class DeckBuilder {
     // (The races this deck's cards come from: the "this deck's races" filter.)
     const deckRaces = new Set(d.cards.map((id) => cardDef(id).race).filter((r): r is number => r !== undefined));
     const flux = profile().flux;
-    const list = (this.mode ? this.mode.cards() : CARDS).filter((c) => {
+    const core = !this.mode && modeOf(d) === 'core';
+    const list = (this.mode ? this.mode.cards() : allCardDefs()).filter((c) => {
+      if (core && !inMode(c, 'core')) return false;
       if (terms.length && !matches(c, terms)) return false;
       const race = c.race === undefined ? 'neutral' : String(c.race);
       if (f.race.size && !f.race.has(race) && !(f.race.has('deck') && (c.race === undefined || deckRaces.has(c.race)))) return false;
@@ -1026,7 +1052,7 @@ export class DeckBuilder {
    * The card view's toolbar: search, the filters button (its popover: dropdowns of
    * ticks, and toggles), card sizes.
    */
-  private renderFilters(_d: SavedDeck): string {
+  private renderFilters(d: SavedDeck): string {
     const f = this.filters;
     // A dropdown in the app's own style: its head names what is ticked; its rows tick on and off.
     const drop = (key: string, label: string, rows: [string, string][], picked: (v: string) => boolean, act: string, summary: string) => `
@@ -1040,7 +1066,8 @@ export class DeckBuilder {
       const on = rows.filter(([v]) => f[key].has(v)).map(([, t]) => t);
       return drop(key, label, rows, (v) => f[key].has(v), 'db-opt', on.length === 0 ? none : on.length === 1 ? on[0] : `${on.length} picked`);
     };
-    const races: [string, string][] = [['deck', "this deck's races + neutral"], ['neutral', 'neutral'], ...RACE_NAMES.map((n, i): [string, string] => [String(i), n.toLowerCase()])];
+    const core = !this.mode && modeOf(d) === 'core';
+    const races: [string, string][] = [['deck', "this deck's races + neutral"], ['neutral', 'neutral'], ...RACE_NAMES.map((n, i): [string, string] => [String(i), n.toLowerCase()]).filter(([i]) => !core || CORE_RACES.includes(Number(i)))];
     const kinds: [string, string][] = CARD_KINDS.map((k): [string, string] => [k, KIND_NAME[k]]);
     const rarities: [string, string][] = RARITIES.map((r): [string, string] => [r, RARITY_NAME[r].toLowerCase()]);
     const costs: [string, string][] = [['0', 'free'], ['1', '1 energy'], ['2', '2 energy'], ['3', '3 energy'], ['4', '4 or more'], ['x', 'X (all you have)']];
@@ -1081,8 +1108,13 @@ export class DeckBuilder {
  * A deck as a deck box: a little 3D box in its race's colour, its cover the hero of its most expensive
  * Command card (its emblem if it has none), the deck's make-up beneath and any buttons under that.
  */
+/** A deck from elsewhere (a code, a shared list) has no mode: Core if its cards are all Core's. */
+function guessMode(cards: string[]): GameMode {
+  return deckProblems(cards, 'core').some((p) => /Lost Races|too much/.test(p)) ? 'lost' : 'core';
+}
+
 export function deckBox(d: SavedDeck, opts: { act: string; title: string; actions?: string; selected?: boolean; disabled?: boolean; tag?: string }): string {
-  const legal = deckProblems(d.cards).length === 0;
+  const legal = deckProblems(d.cards, modeOf(d)).length === 0;
   return `
     <div class="db-deck db-deck-open ${legal ? '' : 'db-deck-bad'} ${opts.selected ? 'db-deck-on' : ''}" ${opts.disabled ? 'aria-disabled="true"' : `data-act="${opts.act}" data-arg="${d.id}"`} role="button" tabindex="0" title="${esc(opts.title)}" style="--dc:${deckColour(d)}">
       <div class="deck-box">
@@ -1101,7 +1133,7 @@ export function deckBox(d: SavedDeck, opts: { act: string; title: string; action
 /** Why a deck can't be shared with the community (null if it can): unfinished, a starter as it comes, or a name with profanity. */
 function shareProblem(d: SavedDeck): string | null {
   if (d.preset) return 'Starter decks can’t be shared.';
-  const why = deckProblems(d.cards)[0];
+  const why = deckProblems(d.cards, modeOf(d))[0];
   if (why) return `Finish the deck to share it: ${why}`;
   const key = [...d.cards].sort().join();
   if (PRESET_DECKS.some((s) => [...s.cards].sort().join() === key)) return 'This is a starter deck as it comes: change it to make it your own, then share it.';

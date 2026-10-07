@@ -1,3 +1,4 @@
+import type { GameMode } from '../engine';
 import { withSession, type Payout } from './account';
 import type { Action, GameState } from '../engine';
 
@@ -46,6 +47,8 @@ export interface JoinInfo {
   avatar?: string;
   /** Your profile id (ranked rooms admit only the two players matched). */
   profileId?: string;
+  /** The mode your deck is built for. */
+  mode?: GameMode;
 }
 
 export interface RankedResult {
@@ -233,9 +236,9 @@ export class LadderClient {
   private ws: WebSocket;
   private closed = false;
 
-  constructor(id: string, name: string, private on: LadderEvents) {
+  constructor(id: string, name: string, private on: LadderEvents, mode: GameMode = 'core') {
     this.ws = new WebSocket(withSession(`${serverBase()}/ladder`));
-    this.ws.onopen = () => this.ws.send(JSON.stringify({ t: 'queue', id, name }));
+    this.ws.onopen = () => this.ws.send(JSON.stringify({ t: 'queue', id, name, mode }));
     this.ws.onmessage = (e) => {
       let msg: { t: string; [k: string]: unknown };
       try {

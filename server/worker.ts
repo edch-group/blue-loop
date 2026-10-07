@@ -217,7 +217,7 @@ function send(ws: WebSocket, msg: ServerMessage) {
 }
 
 /** What a client may send the ladder. */
-type LadderMessage = { t: 'queue'; id: string; name: string } | { t: 'leave' } | { t: 'standing'; id: string } | { t: 'ping' };
+type LadderMessage = { t: 'queue'; id: string; name: string; mode?: string } | { t: 'leave' } | { t: 'standing'; id: string } | { t: 'ping' };
 
 /** A room code for a ranked match (longer than a friend's, so it never clashes with one). */
 function rankedCode(): string {
@@ -310,7 +310,7 @@ export class Ladder extends DurableObject<Env> {
       const live = new Set(this.ctx.getWebSockets().map((w) => (w.deserializeAttachment() as { id: string | null })?.id).filter(Boolean));
       const data = await this.ladder([id, ...(this.queue ?? (await this.ctx.storage.get<Queued[]>('queue')) ?? []).map((q) => q.id)]);
       data.queue = data.queue.filter((q) => live.has(q.id));
-      const match = enqueue(data, id, name, Date.now(), rankedCode);
+      const match = enqueue(data, id, name, Date.now(), rankedCode, msg.mode === 'core' ? 'core' : 'lost');
       await this.save(data);
       if (!match) {
         const me = standing(data, id, name);

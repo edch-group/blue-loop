@@ -1,3 +1,4 @@
+import type { GameMode } from '../src/engine/modes';
 import { applyRank, canMatch, gameReward, rankName, type Reward } from '../src/engine/progression';
 
 /**
@@ -22,6 +23,8 @@ export interface Queued {
   name: string;
   rankPoints: number;
   since: number;
+  /** The game mode they queued for (unset: Lost Races, from before modes): players only meet others queued for the same. */
+  mode?: GameMode;
 }
 
 export interface LadderData {
@@ -51,12 +54,12 @@ export interface Match {
  * tier of them (the longest-waiting first), they are matched at once: the two
  * leave the queue, and a room code is returned for both to join.
  */
-export function enqueue(ladder: LadderData, id: string, name: string, now: number, roomCode: () => string): Match | null {
+export function enqueue(ladder: LadderData, id: string, name: string, now: number, roomCode: () => string, mode: GameMode = 'lost'): Match | null {
   const me = standing(ladder, id, name);
   ladder.queue = ladder.queue.filter((q) => q.id !== id);
-  const rival = [...ladder.queue].sort((a, b) => a.since - b.since).find((q) => canMatch(q.rankPoints, me.rankPoints));
+  const rival = [...ladder.queue].sort((a, b) => a.since - b.since).find((q) => (q.mode ?? 'lost') === mode && canMatch(q.rankPoints, me.rankPoints));
   if (!rival) {
-    ladder.queue.push({ id, name, rankPoints: me.rankPoints, since: now });
+    ladder.queue.push({ id, name, rankPoints: me.rankPoints, since: now, mode });
     return null;
   }
   ladder.queue = ladder.queue.filter((q) => q.id !== rival.id);

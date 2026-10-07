@@ -97,6 +97,7 @@ import {
   researchBonus,
   heroBonus,
   boonsText,
+  setRulesMode,
 } from '../engine';
 import { markDirty } from './account';
 import { loadMeta, saveMeta } from './meta';
@@ -1062,6 +1063,8 @@ export class CampaignView {
   }
 
   render(): string {
+    // (Cards show, and battles play, under the run's rules: Core for a core race, else Lost Races.)
+    setRulesMode(this.state ? this.state.mode : this.setup.race < 4 ? 'core' : 'lost');
     if (!this.state) return this.renderSetup();
     const html = this.renderCampaign();
     this.lastFocus = this.selected;
@@ -1127,7 +1130,8 @@ export class CampaignView {
     // Down the left: every race, picked or locked.
     const races = RACE_NAMES.map((name, i) => {
       const open = raceUnlocked(meta, i);
-      return `<button class="cmp-rs ${r === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${i}" style="--rc:${colour(i)}">
+      // (The Lost Races, unlocked with petals, under a heading of their own; a run as one plays every mechanic.)
+      return `${i === 0 ? '<small class="cmp-rs-head">core races</small>' : ''}${i === 4 ? '<small class="cmp-rs-head" data-tip="Unlocked with Stellari petals. A run as one of them is played in Lost Races mode: every race and mechanic.">lost races</small>' : ''}<button class="cmp-rs ${r === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${i}" style="--rc:${colour(i)}">
         ${factionAvatar(`f${i + 1}`, 'cmp-rs-emblem')}<b>${lower(name)}</b>${open ? '' : `<i class="cmp-rs-lock">${PETAL}${metaUpgrade(`race:${i}`)!.cost(0)}</i>`}
       </button>`;
     }).join('');
@@ -1139,7 +1143,7 @@ export class CampaignView {
       <div class="cmp-rc-body">
         <b class="cmp-rc-name">${lower(RACE_NAMES[r])}</b>
         <p>${esc(RACE_BLURB[r])}</p>
-        <div class="cmp-rc-traits"><em class="cmp-trait-bonus">+ ${esc(plainText(RACE_TRAITS[r].bonus))}</em><em class="cmp-trait-nerf">− ${esc(plainText(RACE_TRAITS[r].nerf))}</em></div>
+        ${r >= 4 ? `<div class="cmp-rc-traits"><em class="cmp-trait-bonus">+ ${esc(plainText(RACE_TRAITS[r].bonus))}</em><em class="cmp-trait-nerf">− ${esc(plainText(RACE_TRAITS[r].nerf))}</em></div>` : ''}
         ${raceOpen ? '' : buy(`race:${r}`, 'unlock')}
       </div>
     </div>`;

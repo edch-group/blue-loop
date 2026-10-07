@@ -1,4 +1,4 @@
-import { isProfane, applyAction, beginStats, cardDef, coverCard, createGame, deckProblems, finishStats, GameError, noteMove, PRESET_DECKS, type Action, type CardInstance, type GameState, type GameStats } from '../src/engine';
+import { isProfane, applyAction, beginStats, cardDef, coverCard, createGame, deckProblems, finishStats, GameError, noteMove, PRESET_DECKS, type Action, type CardInstance, type GameState, type GameStats, type GameMode } from '../src/engine';
 import { isAvatar } from './avatars';
 
 /**
@@ -24,6 +24,8 @@ export interface Seat {
   ready?: boolean;
   /** The player's profile id (ranked rooms admit only the two players matched). */
   profileId?: string;
+  /** The mode their deck is built for (unset: Lost Races, from before modes). */
+  mode?: GameMode;
 }
 
 export interface RoomData {
@@ -69,11 +71,11 @@ export interface Payout {
 
 /** What a client may send. */
 export type ClientMessage =
-  | { t: 'join'; name: string; deck: string[]; deckName: string; avatar?: string; token?: string; profileId?: string }
+  | { t: 'join'; name: string; deck: string[]; deckName: string; avatar?: string; token?: string; profileId?: string; mode?: string }
   | { t: 'action'; action: Action }
   | { t: 'rematch' }
   /** In the lobby: change your name, deck or race (this un-readies you). */
-  | { t: 'setup'; name: string; deck: string[]; deckName: string; avatar?: string }
+  | { t: 'setup'; name: string; deck: string[]; deckName: string; avatar?: string; mode?: string }
   /** In the lobby: confirm (or take back) that you are ready to start. */
   | { t: 'ready'; ready: boolean }
   /** In a game: you have read the card your rival just played (they may carry on). */
@@ -226,14 +228,18 @@ export function playerIndex(room: RoomData, seat: number): number {
 }
 
 /** A seat's name and deck from a join or setup message (an illegal deck falls back to the first starter). */
-function seatSetup(msg: { name: string; deck: string[]; deckName: string; avatar?: string }, index: number): Omit<Seat, 'token'> {
+function seatSetup(msg: { name: string; deck: string[]; deckName: string; avatar?: string; mode?: string }, index: number): Omit<Seat, 'token'> {
   const deck = Array.isArray(msg.deck) ? msg.deck.map(String) : [];
-  const legal = deck.length > 0 && deckProblems(deck).length === 0;
+  const mode: GameMode = msg.mode === 'core' ? 'core' : 'lost';
+  const legal = deck.length > 0 && deckProblems(deck, mode).length === 0;
+  // (An illegal deck plays its mode's first starter.)
+  const starter = PRESET_DECKS.find((d) => (d.mode ?? 'lost') === mode) ?? PRESET_DECKS[0];
   return {
+    mode,
     // (Profanity is turned away: shown to the other player as a plain name.)
     name: (n => (n && !isProfane(n) ? n : `Player ${index + 1}`))(clean(msg.name, 18)),
-    deck: legal ? deck : PRESET_DECKS[0].cards,
-    deckName: legal ? (n => (n && !isProfane(n) ? n : 'Custom deck'))(clean(msg.deckName, 24)) : PRESET_DECKS[0].name,
+    deck: legal ? deck : starter.cards,
+    deckName: legal ? (n => (n && !isProfane(n) ? n : 'Custom deck'))(clean(msg.deckName, 24)) : starter.name,
     ...(isAvatar(msg.avatar) ? { avatar: msg.avatar } : {}),
   };
 }
@@ -247,6 +253,8 @@ function start(room: RoomData, random: () => number) {
   const order = [room.seats[room.first], room.seats[1 - room.first]];
   room.game = createGame({
     seed: Math.floor(random() * 2 ** 31),
+    // Core when both decks are Core decks; otherwise Lost Races, where every card is legal.
+    mode: room.seats.every((s) => s.mode === 'core') ? 'core' : 'lost',
     players: order.map((s) => ({ name: s.name, isAI: false, deck: s.deck, deckName: s.deckName, avatar: s.avatar })),
   });
   room.last = null;
