@@ -9,7 +9,7 @@
  *
  * Painted pixel by pixel on a canvas, deterministically (the same sky every
  * time). It takes a few seconds, so it is painted once and shipped as
- * src/assets/campaign-sky.webp; after changing this file, regenerate it with
+ * (No longer shipped: the map now uses scripts/paint_dark_sky.py for src/assets/campaign-sky.webp.) Formerly
  * `npm run sky` (scripts/render-sky.mjs; needs playwright-core and a Chromium).
  */
 

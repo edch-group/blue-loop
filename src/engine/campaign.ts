@@ -127,6 +127,8 @@ export const CAMPAIGN = {
   mapMargin: 170,
   /** Worlds with something extra to find (credits or research), taken with the system. */
   bonusPlanets: 3,
+  /** Share of the other systems with nothing to fight, only something to find. */
+  cacheShare: 0.3,
   /** Roaming raiders: in the first universe, one more each universe after, at most. They hunt a flagship this near. */
   raiders: 2,
   raidersMax: 7,
@@ -275,6 +277,8 @@ export interface CampaignNode {
   lane?: number;
   /** Something extra on one of its worlds, taken with the system. */
   bonus?: { credits?: number; wisdom?: number };
+  /** Nothing to fight here, only something to find (taken by flying in): credits, materials, research, or a card to choose. */
+  cache?: Cache;
   /** Burnt out by a supernova: nothing to take, but open to pass through. */
   ruined?: boolean;
 }
@@ -576,6 +580,11 @@ export interface CampaignSetup {
   run?: RunBonuses;
 }
 
+export interface Cache {
+  kind: 'credits' | 'materials' | 'wisdom' | 'cards';
+  amount: number;
+}
+
 export type ConquestChoice = 'settle' | 'absorb' | 'supernova';
 
 export type CampaignAction =
@@ -807,7 +816,7 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
     if (n.collapsed) continue;
     const there = armyAt(s, id);
     // (A system it holds, or a burnt-out ruin, is passed through freely.)
-    if (n.owner === army.owner || (n.ruined && !n.owner && !there)) {
+    if (n.owner === army.owner || ((n.ruined || n.cache) && !n.owner && !there)) {
       if (!there) out.push({ toId: id, battle: false });
       continue;
     }
@@ -1241,9 +1250,16 @@ function buildUniverse(s: CampaignState, universe: number) {
   for (const [i, n] of sites.slice(CAMPAIGN.armories + CAMPAIGN.researchStations, CAMPAIGN.armories + CAMPAIGN.researchStations + CAMPAIGN.bonusPlanets).entries()) {
     n.bonus = i % 2 ? { wisdom: 3 + Math.floor(n.tier / 2) } : { credits: 4 + n.tier };
   }
-  for (const n of s.nodes) n.scanner = open(n) && randomInt(s, 6) === 0;
+  // Systems with nothing to fight, only something to find: a derelict, a depot, an archive.
+  const finds: Cache['kind'][] = ['credits', 'materials', 'wisdom', 'cards'];
+  const quiet = shuffleInPlace(s, s.nodes.filter((n) => open(n) && !n.station && !n.bonus && (n.col ?? 0) >= 1));
+  for (const n of quiet.slice(0, Math.round(quiet.length * CAMPAIGN.cacheShare))) {
+    const kind = finds[randomInt(s, finds.length)];
+    n.cache = { kind, amount: kind === 'cards' ? 3 : kind === 'credits' ? 4 + 2 * n.tier : kind === 'materials' ? 3 + n.tier : 2 + n.tier };
+  }
+  for (const n of s.nodes) n.scanner = open(n) && !n.cache && randomInt(s, 6) === 0;
   // The raiders: a few to start with, more in each universe, out past the first third.
-  const haunts = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 3));
+  const haunts = shuffleInPlace(s, s.nodes.filter((n) => open(n) && !n.cache && (n.col ?? 0) >= 3));
   for (const n of haunts.slice(0, Math.min(CAMPAIGN.raidersMax, CAMPAIGN.raiders + universe - 1))) raiseLost(s, n);
   clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into universe ${universe}, at ${home.name}.`);
   tell(s, wormholeSightedScene(universe));
@@ -1252,7 +1268,7 @@ function buildUniverse(s: CampaignState, universe: number) {
 /** A new army, led by `general`, standing in `nodeId`. */
 function raiseArmy(s: CampaignState, f: Faction, general: string, nodeId: string): Army {
   // A new army can be refitted on the turn it is raised, but marches from the next.
-  const army: Army = { id: `army${++s.uidCounter}`, owner: f.id, general, nodeId, deck: armyDeck(f.race, general), damage: 0, moved: false, refit: true };
+  const army: Army = { id: `army${++s.uidCounter}`, owner: f.id, general, nodeId, deck: armyDeck(f.race, general), damage: 0, moved: false };
   s.armies.push(army);
   return army;
 }
@@ -1585,9 +1601,10 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   const target = nodeById(s, toId);
   if (!here.links.includes(toId)) throw new GameError('There is no route between those systems.');
   if (target.collapsed) throw new GameError(`${target.name} has collapsed. There is nothing left there.`);
-  if (target.owner === f.id || (target.ruined && !target.owner && !armyAt(s, toId))) {
+  if (target.owner === f.id || ((target.ruined || target.cache) && !target.owner && !armyAt(s, toId))) {
     if (armyAt(s, toId)) throw new GameError(`An army already stands in ${target.name}.`);
     army.nodeId = toId;
+    if (target.cache && !army.lost) takeCache(s, f, target);
     army.steps = (army.steps ?? 0) + 1;
     // (A hero who marches fast may go on, but not after a battle.)
     if (army.steps >= 1 + armyBonus(s, army).march) army.moved = true;
@@ -1876,6 +1893,21 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   clog(s, `${f.name} conquers ${n.name}: +${credits} credits, +${materials} materials${extra}.`, n.id, f.id);
   // The victors march in.
   if (army && s.armies.includes(army) && !armyAt(s, n.id)) army.nodeId = n.id;
+}
+
+/** A system with nothing to fight, flown into: what it holds is taken, and the system with it. */
+function takeCache(s: CampaignState, f: Faction, n: CampaignNode) {
+  const c = n.cache!;
+  n.cache = undefined;
+  n.owner = f.id;
+  n.yield = { credits: 0, materials: 0 };
+  s.conquered += 1;
+  if (c.kind === 'credits') f.credits += c.amount;
+  else if (c.kind === 'materials') f.materials += c.amount;
+  else if (c.kind === 'wisdom') f.wisdom = (f.wisdom ?? 0) + c.amount;
+  else if (!f.isAI) s.cardRewards.push({ source: `A derelict at ${n.name}`, options: randomCardChoices(s, f) });
+  const what = c.kind === 'cards' ? 'a derelict, with cards to choose from' : `${c.amount} ${c.kind === 'wisdom' ? 'research' : c.kind}`;
+  clog(s, `${f.name} finds ${what} at ${n.name}.`, n.id, f.id);
 }
 
 /** Gear found by an army in a system it took: better the deeper the system lies. */
@@ -2388,10 +2420,6 @@ function aiTurn(s: CampaignState, f: Faction) {
 // The reducer
 // ---------------------------------------------------------------------------
 
-/** An army that has marched this turn can't refit (its deck, its repairs) until the next. */
-function refitCheck(army: Army) {
-  if (army.moved || (army.steps ?? 0) > 0) throw new GameError(`${armyLeader(army)}'s army has marched this turn: it can refit next turn.`);
-}
 
 function spendCredits(f: Faction, amount: number) {
   if (f.credits < amount) throw new GameError(`Not enough credits (need ${amount}, have ${f.credits}).`);
@@ -2431,23 +2459,19 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     case 'deckAdd': {
       const army = armyById(s, action.armyId);
       if (army.owner !== f.id) throw new GameError('That army is not yours.');
-      refitCheck(army);
       const problem = deckAddProblem(f, army, action.defId);
       if (problem) throw new GameError(problem);
       f.reserve.splice(f.reserve.indexOf(action.defId), 1);
       army.deck.push(action.defId);
-      army.refit = true;
       break;
     }
     case 'deckRemove': {
       const army = armyById(s, action.armyId);
       if (army.owner !== f.id) throw new GameError('That army is not yours.');
-      refitCheck(army);
       const problem = deckRemoveProblem(army, action.defId);
       if (problem) throw new GameError(problem);
       army.deck.splice(army.deck.lastIndexOf(action.defId), 1);
       f.reserve.push(action.defId);
-      army.refit = true;
       break;
     }
     case 'recycle': {
@@ -2530,14 +2554,12 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       if (army.owner !== f.id) throw new GameError('That army is not yours.');
       if (nodeById(s, army.nodeId).owner !== f.id) throw new GameError('An army can only be repaired in a system you hold.');
       if (army.damage <= 0) throw new GameError(`${cardDef(army.general).name}'s army is not damaged.`);
-      refitCheck(army);
       spendCredits(f, CAMPAIGN.armyHealCost);
       army.damage -= 1;
       while (action.all && army.damage > 0 && f.credits >= CAMPAIGN.armyHealCost) {
         f.credits -= CAMPAIGN.armyHealCost;
         army.damage -= 1;
       }
-      army.refit = true;
       break;
     }
     case 'finishBattle': {

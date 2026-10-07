@@ -736,12 +736,15 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 
 **The loop.**
 - Each universe is a thin strip: **4 lanes, 8 columns**, so the wormhole is about 8 moves away, linked along the lanes, by non-crossing diagonals and by rungs between lanes. You begin in column 0; the **wormhole** lies past the far end. Move freely, backwards too.
-- **Regional stability** runs down one a turn (8 turns in universe 1, 2 fewer in each universe after, never below 3; +1 a level of Anchored space). Once it is spent, **the collapse takes one whole column a turn** from the near edge. A collapsed system is gone, with any army in it; if the flagship is caught, the run is over.
+- **Every move is a turn.** There is no end-turn: when the flagship has made its move (and any battle or card choice it brought on is settled), the raiders move and the collapse comes on at once. **Wait** holds position for a move. Changing the deck or repairing costs no move. (Fold drive gives two steps to a move.)
+- **Regional stability** runs down one with every move (8 moves in universe 1, 2 fewer in each universe after, never below 3; +1 a level of Anchored space). Once it is spent, **the collapse takes one whole column with every move** from the near edge. A collapsed system is gone, with any army in it; if the flagship is caught, the run is over.
 - The **Stellari** open the wormhole. Its guardian (the Wardens) must be beaten to cross: a boss battle that grows with the universe.
 - Crossing takes you to the next universe: stronger garrisons (tier +2 a universe), better loot, and stability that runs out sooner. The loop never ends; every run ends in death.
 - **Petals:** at each wormhole you grab 3 + 12 x (share of the strip's systems you conquered) petals (+20% a level of Petal pouch). They are banked at once and survive the run.
 - **No rival empires:** only garrisons in the systems and roaming Raider ships. Raiders flee the collapse, hunt the flagship when it is within 3 routes (70% of the time), raid what you hold, and wander.
 - **Conquest:** beat a system's defenders and it is yours, with no choice to make: it pays its yield once, your flagship moves in, and it counts toward petals. There is no supernova, no settling, no income by the turn, and nothing to manage in a system you hold (no garrisons, reinforcements, fortifications or repairs). Research still builds each turn. Some planets carry a **bonus** of credits or research, paid on capture.
+- **Finds:** about 30% of the other systems hold no defenders, only something to find: a drifting treasury (credits), a depot (materials), an archive (research) or a derelict (a card to choose from three). Flying in takes it, and the system, with no battle; it counts toward petals like a conquest. They are marked on the map by their icon.
+- **The map at night:** the strip lies over a photographic Milky Way (dark sky, warm core, dust lanes, tens of thousands of stars), painted once by scripts/paint_dark_sky.py into src/assets/campaign-sky.webp. Each system's star is the stellar gem's sun (as on the cards), its disc turning slowly inside a breathing corona; red dwarfs are smaller and red, brown dwarfs dim embers, white dwarfs and neutron stars the white dwarf gem's searing point. Little else moves: target rings are still, pulsar beams and nebulae turn slowly.
 - The strip carries 2 armouries, 2 research stations, 2 anomalies and 3 bonus planets; scanners widen what you see.
 
 **Lasting upgrades** (between runs, on the setup screen, bought with petals):
@@ -765,7 +768,7 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 - **Ships.** On the map each flagship is a little 3D ship of its race (an Aureline sun-barque of white metal and gold, its sun carried between two pylons, a bridge forward and twin engines astern; a Xel'Naru shard of dark faceted crystal under crystal spires; a Vorthane living raft under a great glassy bell; an Ixquor chitin seed pod on spined legs with a glowing cap; the Lost Races fly holed, rusted derelicts), built in static CSS 3D, trimmed in its faction's colour, with its hero's portrait above it. Every move is sailed: a move glides down the route; an attack runs halfway down the route before the battle opens, then sails on into the system if it falls, or turns round and comes home if it doesn't.
 - **One move a turn.** The flagship steps along a route into one of your own systems, or attacks a linked system. Tap it to pick it: its routes light up.
 - **Damage** stays with the flagship (its sun starts battles hotter). Repair it for 1 credit a point, or all at once.
-- **Move or refit:** each turn the flagship either moves (or fights), or refits: changes its deck or is repaired. Not both. Buying, recycling and fusing cards tie it up no more than upgrading the ship does.
+- **Refitting** (the deck, repairs) costs no move.
 - Beaten, it **falls back** to a free system you hold next door, else any open neighbour (further along first). The run ends when the flagship is lost.
 
 **The hero** (the base's hero tab) grows with the flagship:

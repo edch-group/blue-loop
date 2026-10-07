@@ -357,20 +357,14 @@ describe('armies and generals', () => {
     s = applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: out });
     expect(myArmy(s).deck).toHaveLength(CAMPAIGN.armySize);
     expect(campaignPlayer(s).reserve).toContain(out);
-    // Refitting this turn: it can't march until the next.
-    expect(armyMoves(s, myArmy(s))).toEqual([]);
-    const target = nodeById(s, home(s).links[0]).id;
-    expect(() => applyCampaignAction(s, { type: 'move', armyId: army.id, toId: target })).toThrow(/refitting/);
+    // Changing the deck costs no move: it can still march.
+    expect(armyMoves(s, myArmy(s)).length).toBeGreaterThan(0);
     // The hero stays.
     s = applyCampaignAction(s, { type: 'deckAdd', armyId: army.id, defId: out });
     expect(() => applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: army.general })).toThrow(/leads this army/);
     s = applyCampaignAction(s, { type: 'deckRemove', armyId: army.id, defId: out });
     expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize);
-    myArmy(s).refit = false; // (as next turn)
     expect(() => attack(s)).not.toThrow();
-    // And an army that has marched can't refit until the next turn.
-    const marched = attack(s);
-    expect(() => applyCampaignAction(structuredClone({ ...marched, battle: null }), { type: 'deckRemove', armyId: army.id, defId: out })).toThrow(/marched/);
   });
 
   it('recycles a reserve card for half its armory price in materials', () => {

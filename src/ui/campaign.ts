@@ -55,7 +55,6 @@ import {
   SLOT_NAME,
   XP_LEVELS,
   battleOdds,
-  logInSight,
   GENERALS,
   ORACLE_NAME,
   STELLARIA_NAME,
@@ -84,6 +83,7 @@ import {
   RACE_NAMES,
   RACE_TRAITS,
   RARITY_NAME,
+  type Cache,
   SUBRACES,
   type MetaState,
   plainText,
@@ -174,6 +174,14 @@ const PETAL =
 /** A hero's portrait: their card's picture, cropped round. */
 function portrait(cardId: string): string {
   return `<span class="cmp-portrait">${cardArtLite(cardDef(cardId))}</span>`;
+}
+
+/** What a find holds, in words and as an icon. */
+function cacheText(c: Cache): string {
+  return c.kind === 'cards' ? 'A derelict: a card to choose from three' : c.kind === 'credits' ? `A drifting treasury: ${c.amount} credits` : c.kind === 'materials' ? `A depot: ${c.amount} materials` : `An archive: ${c.amount} research`;
+}
+function cacheIcon(c: Cache): string {
+  return c.kind === 'credits' ? CREDITS : c.kind === 'materials' ? MATERIALS : c.kind === 'wisdom' ? WISDOM : '<svg class="cur" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="2" width="9" height="12" rx="1.6" fill="#fff" stroke="#8a6fe0" stroke-width="1.4"/><path d="M6 6h4M6 8.5h4" stroke="#8a6fe0" stroke-width="1.2"/></svg>';
 }
 
 /** The base button's icon: a little house. */
@@ -526,7 +534,27 @@ export class CampaignView {
       this.army = null;
       this.host.banner(`universe ${this.state.universe}`, 'through the wormhole');
     }
+    // Every move is a turn: once the flagship has made its move (and anything it brought on is settled), time moves on.
+    if (action.type !== 'endTurn' && action.type !== 'aiStep' && this.moveSpent()) window.setTimeout(() => this.passTime(), 420);
     return true;
+  }
+
+  /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
+  private moveSpent(): boolean {
+    const s = this.state;
+    if (!s || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.winner) return false;
+    const a = flagship(s, s.playerId);
+    return !!a && (a.moved || (a.steps ?? 0) > 0) && armyMoves(s, a).length === 0;
+  }
+
+  /** Time moves on: the raiders move, the collapse comes on. (`wait`: the flagship holds where it is.) */
+  private passTime(wait = false) {
+    if (!wait && !this.moveSpent()) return;
+    if (!this.apply({ type: 'endTurn', stepwise: true })) return;
+    this.selected = null;
+    this.army = null;
+    this.sheet = null;
+    void this.runOthers();
   }
 
   /** Petals grabbed at a wormhole go straight into the account's lasting progress (they outlive the run). */
@@ -572,36 +600,19 @@ export class CampaignView {
     const begun = this.state;
     if (!begun) return;
     const turn = begun.turn;
+    // The raiders move at once (a moment for any in sight, so their ships are seen to go).
     for (;;) {
       const s = this.state;
       if (!s || s.phase !== 'ai' || s.battle || s.winner || s.turn !== turn) break;
       const next = s.aiQueue[0] ?? null;
       const inSight = next !== null && this.factionInSight(next);
-      if (inSight) {
-        this.waiting = { factionId: next, lines: this.waiting?.lines ?? [] };
-        this.host.render();
-        await pause(700);
-        if (this.state !== s) break;
-      }
-      const seq = s.log[s.log.length - 1]?.seq ?? 0;
-      const seen = visibleNodes(s, s.playerId);
       if (!this.apply({ type: 'aiStep' })) break;
-      const now = this.state!;
-      // Only what happened in sight (before or after the move) is known.
-      const after = visibleNodes(now, now.playerId);
-      const lines = now.log.filter((l) => l.seq > seq && l.turn === turn && (logInSight(now, l, now.playerId, seen) || logInSight(now, l, now.playerId, after))).map((l) => l.text);
       if (inSight) {
-        this.waiting = { factionId: next, lines: [...(this.waiting?.lines ?? []), ...lines].slice(-6) };
         this.host.render();
-        await pause(lines.length ? 1100 : 500);
-      } else if (lines.length && this.waiting) {
-        this.waiting.lines = [...this.waiting.lines, ...lines].slice(-6);
+        await pause(220);
       }
     }
     this.waiting = null;
-    const s = this.state;
-    // Like the dawn in battle: every new turn of yours is announced.
-    if (s && s.turn !== turn && !s.winner) this.host.banner('your turn', `turn ${s.turn}`);
     this.host.render();
   }
 
@@ -982,15 +993,11 @@ export class CampaignView {
         if (this.apply({ type: 'chooseCard', defId: arg || null })) sound.buy();
         break;
       case 'cmp-end-turn':
-        if (this.apply({ type: 'endTurn', stepwise: true })) {
-          sound.endTurn();
-          this.selected = null;
-          this.army = null;
-          this.sheet = null;
-          void this.runOthers();
-          return true;
-        }
-        break;
+        // Hold where it stands for a turn (the collapse still comes on).
+        this.sheet = null;
+        this.passTime(true);
+        sound.endTurn();
+        return true;
       case 'cmp-menu':
         this.sheet = { kind: 'settings' };
         break;
@@ -1049,7 +1056,7 @@ export class CampaignView {
         <div class="cmp-sky" aria-hidden="true"></div>
         <header class="cmp-top">
           <div class="cmp-top-left">
-            <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" data-tip="Universe ${s.universe} of this run: the overview"><small>universe ${s.universe}</small><b>turn ${s.turn - s.universeStart + 1}</b><i>›</i></button>
+            <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" data-tip="Universe ${s.universe} of this run: the overview"><small>universe ${s.universe}</small><b>move ${s.turn - s.universeStart + 1}</b><i>›</i></button>
             ${this.renderStability()}
             ${scene ? this.renderStory(scene) : ''}
           </div>
@@ -1072,7 +1079,7 @@ export class CampaignView {
         ${this.renderPop()}
         <div class="cmp-end">
           ${this.endMoves()}
-          <button class="btn-primary ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" ${s.phase !== 'player' ? 'disabled' : ''}>end turn</button>
+          <button class="btn ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" data-tip="Hold position for a move: the raiders move, and the collapse comes on" ${s.phase !== 'player' ? 'disabled' : ''}>wait</button>
         </div>
         ${this.waiting ? this.renderWaiting() : overlay}
       </main>`;
@@ -1180,8 +1187,8 @@ export class CampaignView {
     const segments = Array.from({ length: total }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
     const columns = CAMPAIGN.columns + 1 - s.collapseCol;
     const tip = left
-      ? `Regional stability: ${left} turn${left === 1 ? '' : 's'} left. Then the strip collapses from the near end, a whole column a turn, each marked a turn before it goes. Whatever stands there is lost.`
-      : `The strip is collapsing: a column a turn, from the near end. Marked systems go next turn: be out of them. ${columns} column${columns === 1 ? '' : 's'} left, the wormhole last.`;
+      ? `Regional stability: ${left} move${left === 1 ? '' : 's'} left. Then the strip collapses from the near end, a whole column with every move, each marked a move before it goes. Whatever stands there is lost.`
+      : `The strip is collapsing: a column with every move, from the near end. Marked systems go next: be out of them. ${columns} column${columns === 1 ? '' : 's'} left, the wormhole last.`;
     return `
       <div class="cmp-stability ${left ? '' : 'unstable'}" data-tip="${esc(tip)}">
         <span class="stability-label">${left ? `regional stability ${left}` : `collapsing · ${columns} left`}</span>
@@ -1250,6 +1257,7 @@ export class CampaignView {
           n.collapsing ? 'cmp-collapsing' : '',
           n.collapsed ? 'cmp-collapsed' : '',
           n.ruined ? 'cmp-ruined' : '',
+          n.cache ? 'cmp-cache' : '',
           targets.has(n.id) ? 'cmp-target' : '',
           marches.has(n.id) ? 'cmp-march' : '',
           this.selected === n.id ? 'cmp-selected' : '',
@@ -1266,6 +1274,7 @@ export class CampaignView {
           n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
           n.bonus?.credits ? `<i class="cmp-badge cmp-bonus" data-tip="A treasury: +${n.bonus.credits} credits, taken with the system">${CREDITS}+${n.bonus.credits}</i>` : '',
           n.bonus?.wisdom ? `<i class="cmp-badge cmp-bonus" data-tip="Archives: +${n.bonus.wisdom} research, taken with the system">${WISDOM}+${n.bonus.wisdom}</i>` : '',
+          n.cache ? `<i class="cmp-badge cmp-bonus cmp-find" data-tip="${esc(cacheText(n.cache))}: no fight, just fly in">${cacheIcon(n.cache)}${n.cache.kind === 'cards' ? '' : `+${n.cache.amount}`}</i>` : '',
           n.heart ? `<i class="cmp-badge cmp-bloom" data-tip="The wormhole: beat its guardian to go through, into universe ${s.universe + 1}, with ${wormholePetals(s)} Stellari petal${wormholePetals(s) === 1 ? '' : 's'} (more for every system you conquer first)">${BLOOM}</i>` : '',
         ].join('');
         return `
@@ -1280,7 +1289,7 @@ export class CampaignView {
             ${this.selected === n.id || leaving?.id === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
               <span class="cmp-badges">${badges}</span>
-              <span class="cmp-star" style="--seed:${seedOf(n.id)}"><i class="cmp-core"></i>${
+              <span class="cmp-star" style="--seed:${seedOf(n.id)}"><i class="cmp-flare"></i><i class="cmp-corona"></i><i class="cmp-core"></i>${
                 n.owner ? this.avatarOf(n.owner, 'cmp-owner') : ''
               }</span>
               <span class="cmp-label">${lower(n.name)}</span>
@@ -1423,7 +1432,7 @@ export class CampaignView {
     const total = 1 + armyBonus(s, a).march;
     const left = a.moved || a.refit || s.phase !== 'player' ? 0 : Math.max(0, total - (a.steps ?? 0));
     const gems = Array.from({ length: total }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
-    return `<div class="cmp-ship-moves" data-tip="${left} move${left === 1 ? '' : 's'} left this turn, of ${total}">${gems}</div>`;
+    return `<div class="cmp-ship-moves" data-tip="${left} step${left === 1 ? '' : 's'} left in this move, of ${total}">${gems}</div>`;
   }
 
   /** Send the ships drawn where they were on to where they are going (the CSS transition does the sailing). */
@@ -1886,7 +1895,8 @@ export class CampaignView {
     const icon = (body: string) => `<svg class="pi" viewBox="0 0 16 16" aria-hidden="true">${body}</svg>`;
     const hp = sunHealth(n);
     const chips = [
-      n.owner || n.heart || n.ruined ? '' : chip(`${CREDITS}<b>${n.yield.credits}</b>${MATERIALS}<b>${n.yield.materials}</b>`, `Taken, it pays ${n.yield.credits} credits and ${n.yield.materials} materials, once.`),
+      n.cache ? chip(`${cacheIcon(n.cache)}<b>${n.cache.kind === 'cards' ? 'cards' : `+${n.cache.amount}`}</b>`, `${cacheText(n.cache)}. Nothing guards it: fly in and it is yours.`, 'good') : '',
+      n.owner || n.heart || n.ruined || n.cache ? '' : chip(`${CREDITS}<b>${n.yield.credits}</b>${MATERIALS}<b>${n.yield.materials}</b>`, `Taken, it pays ${n.yield.credits} credits and ${n.yield.materials} materials, once.`),
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
       n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, 'Torn open by a Stellari bloom: beat its guardian and go through, into the next universe, with the petals you grab.', 'gold') : '',
       chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, anomalies and ships' hulls): more the further along the strip, and in every universe after the first.`),
@@ -1926,7 +1936,7 @@ export class CampaignView {
     return `
       <div class="pop-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
         ${n.owner ? this.avatarOf(n.owner, 'cmp-head-av') : '<i></i>'}
-        <div><h3>${lower(n.name)}</h3><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? 'the wormhole · its guardian' : n.ruined ? 'a ruin · pass through' : `garrison · tier ${n.tier + 1}`}${n.home ? ' · arrival' : ''}${n.collapsing ? ' · collapsing' : ''}</small></div>
+        <div><h3>${lower(n.name)}</h3><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? 'the wormhole · its guardian' : n.ruined ? 'a ruin · pass through' : n.cache ? 'a find · no fight' : `garrison · tier ${n.tier + 1}`}${n.home ? ' · arrival' : ''}${n.collapsing ? ' · collapsing' : ''}</small></div>
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <div class="pop-chips">${chips}</div>
@@ -1992,9 +2002,9 @@ export class CampaignView {
         const ready = armiesOf(s, s.playerId).filter((x) => armyMoves(s, x).length > 0).map((x) => armyLeader(x));
         const who = ready.length > 1 ? `${ready.slice(0, -1).join(', ')} and ${ready[ready.length - 1]}` : ready[0] ?? 'Your flagship';
         return this.modal(
-          'end your turn?',
-          `<p class="center-text">${esc(who)} can still move.</p>
-           <div class="end-day-actions"><button class="btn-primary" data-act="cmp-end-turn">end turn <small>⏎</small></button><button class="btn" data-act="cmp-close">keep playing <small>esc</small></button></div>`,
+          'hold position?',
+          `<p class="center-text">${esc(who)} can still move. Waiting spends a move: the raiders move, and the collapse comes on.</p>
+           <div class="end-day-actions"><button class="btn-primary" data-act="cmp-end-turn">wait <small>⏎</small></button><button class="btn" data-act="cmp-close">keep going <small>esc</small></button></div>`,
           true,
           '',
           'cmp-modal-narrow',
@@ -2021,7 +2031,7 @@ export class CampaignView {
             ${row('conquered here', `${s.conquered} of ${s.nodes.length - 1} systems`)}
             ${row('petals at the wormhole', `${PETAL} ${wormholePetals(s)}`)}
             ${row('petals this run', `${PETAL} ${s.petals}`)}
-            ${row('regional stability', left ? `${left} turn${left === 1 ? '' : 's'}` : `collapsing · ${CAMPAIGN.columns + 1 - s.collapseCol} columns left`)}
+            ${row('regional stability', left ? `${left} move${left === 1 ? '' : 's'}` : `collapsing · ${CAMPAIGN.columns + 1 - s.collapseCol} columns left`)}
             ${row('raiders about', String(raiders))}
            </div>
            <p class="muted center-text">Reach the wormhole past the far end, and beat its guardian, before the collapse catches you. Every system conquered first means more petals.</p>`,
@@ -2051,9 +2061,9 @@ export class CampaignView {
           </div>
           <ul class="rules">
             <li><b>The loop:</b> each universe is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian to go through, into a harder universe. The run goes on until your flagship is lost.</li>
-            <li><b>The collapse:</b> regional stability lasts ${CAMPAIGN.stabilityTurns} turns in the first universe, ${CAMPAIGN.stabilityStep} fewer in each one after (never under ${CAMPAIGN.stabilityMin}). Then the strip gives way from the near end, a whole column a turn, each marked (⚠) a turn before. Whatever stands there is lost, your flagship too.</li>
-            <li><b>Your flagship</b> flies one route a turn, led by your hero, any way you like, back on itself too. Into a system you hold, or a ruin, it simply moves; into any other, it fights. Each turn it either <b>moves</b> or <b>refits</b> (its deck changed, or repaired), not both.</li>
-            <li><b>Win</b> a system and it is yours: it pays its credits and materials once, your flagship moves in, and it counts for petals. Research builds ${CAMPAIGN.wisdomPerTurn} a turn; nothing else pays by the turn. Some worlds hold a treasury or archives: more credits or research, taken with the system.</li>
+            <li><b>The collapse:</b> regional stability lasts ${CAMPAIGN.stabilityTurns} moves in the first universe, ${CAMPAIGN.stabilityStep} fewer in each one after (never under ${CAMPAIGN.stabilityMin}). Then the strip gives way from the near end, a whole column with every move, each marked (⚠) a move before. Whatever stands there is lost, your flagship too.</li>
+            <li><b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the raiders move and the collapse comes on. Changing the deck or repairing costs no move; <b>wait</b> holds position for one.</li>
+            <li><b>Win</b> a system and it is yours: it pays its credits and materials once, your flagship moves in, and it counts for petals. Research builds ${CAMPAIGN.wisdomPerTurn} with every move; nothing else pays by the move. Some worlds hold a treasury or archives: more credits or research, taken with the system.</li>
             <li><b>Stellari petals</b> are grabbed at every wormhole: a few for getting there, more for every share of the strip you conquered. They are banked at once and outlive the run. Spend them between runs on a stronger start, a tougher flagship, run perks, and new races and heroes.</li>
             <li><b>Its deck</b> starts with ${CAMPAIGN.armySize} cards: your hero and your race's own, with a few neutral cards. It grows with every card you salvage or put in, and never drops below ${CAMPAIGN.armySize}.</li>
             <li><b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card, and your ship's rooms add their walls, guns and modules to the cards standing in them.</li>
@@ -2064,7 +2074,7 @@ export class CampaignView {
             <li><b>Raiders</b> roam the strip: the last of peoples the collapse has already taken. They hunt a flagship that comes near, raid systems you hold, and flee the collapse. Beat them for their relics: ${MATERIALS} ${CAMPAIGN.lostRelicMaterials} and a card.</li>
             <li>Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits in a system you hold.</li>
             <li><b>Fog of war:</b> you only see systems linked to yours. Hold a system with a <b>scanner</b> to see two links out from it.</li>
-            <li><b>${esc(ORACLE_NAME)}</b> offers guidance under the turn count. Read it or dismiss it; turn it off in settings.</li>
+            <li><b>${esc(ORACLE_NAME)}</b> offers guidance under the move count. Read it or dismiss it; turn it off in settings.</li>
           </ul>`,
           true,
         );

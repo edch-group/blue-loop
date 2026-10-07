@@ -5669,3 +5669,74 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .sh-mod-grid { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 8px 6px; }
   .sh-mod-face { width: 38px; height: 38px; }
 }
+
+/* ---------- The campaign map at night: the Milky Way behind, living stars, and very little moving ---------- */
+.cmp { background: #03050a; }
+.cmp-sky { mix-blend-mode: normal; }
+/* The board: no slab, just a faint survey grid and a thin rim over the sky. */
+.cmp-grid {
+  background:
+    radial-gradient(circle, rgba(170, 190, 235, 0.16) 0 1px, transparent 1.6px) 0 0 / 40px 40px,
+    repeating-linear-gradient(0deg, rgba(170, 190, 235, 0.05) 0 1px, transparent 1px 160px),
+    repeating-linear-gradient(90deg, rgba(170, 190, 235, 0.05) 0 1px, transparent 1px 160px);
+  box-shadow: inset 0 0 0 1.5px rgba(160, 180, 230, 0.22);
+}
+.cmp-link { stroke: rgba(175, 190, 225, 0.32); }
+.cmp-label { color: #c3cce0; text-shadow: 0 0 3px #03050a, 0 0 8px #03050a; }
+.cmp-mine .cmp-label { color: #fff; }
+.cmp-heart .cmp-label { color: #f2c46d; }
+.an-label { color: #a9b0c8; }
+.cmp-turf { background: radial-gradient(circle, rgba(150, 170, 220, 0.10), transparent 70%); }
+.an-reach { border-color: rgba(160, 175, 215, 0.22); }
+.an-cloud { mix-blend-mode: screen; }
+
+/* A star: the stellar gem's sun, as on the cards, burning on the map. The disc and its corona share one box
+   (the corona's ring is cut for the disc, as in the gem), with the gem's outer light round them; the disc turns
+   slowly, the corona breathes. Each kind of star its own colour and size. (Only transform and opacity move.) */
+.cmp-star { width: 40px; height: 40px; border-radius: 50%; }
+.cmp-star::after { content: none; }
+.cmp-star > i { position: absolute; inset: 0; border-radius: 50%; background-size: 100% 100%; background-repeat: no-repeat; pointer-events: none; }
+.cmp-n3 .cmp-core { inset: 0; background: var(--gem-sunDisc) center / 100% 100% no-repeat !important; box-shadow: none !important; animation: gemTurn calc(70s + var(--seed, 0) * 40s) linear infinite; animation-delay: calc(var(--seed, 0) * -90s); }
+.cmp-corona { background-image: var(--gem-sunCorona); animation: gemCorona calc(6s + var(--seed, 0) * 3s) ease-in-out infinite; animation-delay: calc(var(--seed, 0) * -9s); }
+.cmp-flare { inset: -50%; background-image: var(--gem-lightSunCorona1); opacity: 0.7; animation: gemTurn calc(160s + var(--seed, 0) * 60s) linear infinite reverse; }
+/* Red dwarfs: smaller and deep red; brown dwarfs: smaller still, dim and ember-brown. */
+.cmp-st-red .cmp-star { width: 32px; height: 32px; }
+.cmp-st-red .cmp-star > i { filter: hue-rotate(-28deg) saturate(1.6) brightness(0.92); }
+.cmp-st-brown .cmp-star { width: 28px; height: 28px; }
+.cmp-st-brown .cmp-star > i { filter: hue-rotate(-34deg) saturate(0.9) brightness(0.55); }
+.cmp-st-brown .cmp-flare { opacity: 0.25; }
+/* White dwarfs and neutron stars: the white dwarf gem's searing point. */
+.cmp-st-white .cmp-star { width: 34px; height: 34px; }
+.cmp-st-neutron .cmp-star { width: 28px; height: 28px; }
+.cmp-st-white .cmp-core, .cmp-st-neutron .cmp-core { background-image: var(--gem-dwarf) !important; animation: gemFlare calc(4s + var(--seed, 0) * 3s) ease-in-out infinite; }
+.cmp-st-white .cmp-corona, .cmp-st-neutron .cmp-corona { background-image: var(--gem-dwarfGlow); animation: gemTwinkle calc(3s + var(--seed, 0) * 3s) ease-in-out infinite; }
+.cmp-st-white .cmp-flare, .cmp-st-neutron .cmp-flare { inset: -45%; background-image: var(--gem-lightDwarfSpikes); opacity: 0.4; animation: none; }
+.cmp-st-neutron .cmp-star > i { filter: hue-rotate(40deg) saturate(1.4); }
+/* (A neutron star's beam no longer sweeps: a faint, still bar of light.) */
+.cmp-st-neutron .cmp-star::before { animation: none; opacity: 0.4; transform: rotate(-30deg); }
+/* The wormhole's star: the largest and brightest. */
+.cmp-heart .cmp-star { width: 66px; height: 66px; }
+.cmp-heart .cmp-flare { opacity: 0.9; }
+/* Held, taken, dying, dead. */
+.cmp-owned .cmp-star::after { content: ''; position: absolute; inset: 18%; border-radius: 50%; box-shadow: 0 0 0 2px color-mix(in srgb, var(--fc) 85%, #fff); animation: none; background: none; }
+.cmp-collapsing .cmp-star > i { filter: hue-rotate(-30deg) saturate(1.8) brightness(0.8); }
+.cmp-collapsing .cmp-core { animation: gemTurn 20s linear infinite, cmp-gutter 1.8s ease-in-out infinite; }
+.cmp-collapsed .cmp-star > i, .cmp-ruined .cmp-star > i { filter: grayscale(1) brightness(0.28); animation: none !important; }
+.cmp-collapsed .cmp-flare, .cmp-ruined .cmp-flare { opacity: 0; }
+.cmp-cache .cmp-star { width: 30px; height: 30px; }
+.cmp-badge.cmp-find .cur { width: 1em; height: 1em; }
+/* The header over the night sky: its figures light. */
+.cmp-purse { color: #e6ebf5; }
+.cmp-purse small { color: #9aa5bd; }
+
+/* Calmer: rings and anomalies barely move. */
+.cmp-ring-target, .cmp-ring-march { animation: none; }
+.an-beam { animation-duration: 24s !important; opacity: 0.6; }
+.an-wave { animation-duration: 7s; border-color: rgba(130, 200, 255, 0.35); }
+.an-wave-2 { animation-delay: -3.5s; }
+.an-cloud-a, .an-cloud-b, .an-cloud-c { animation-duration: 40s; }
+.an-cluster i { animation-duration: 4s; }
+.an-haze { animation-duration: 14s; }
+.an-disc { animation-duration: 60s !important; }
+.cmp-stellaria svg { animation-duration: 120s; }
+@media (prefers-reduced-motion: reduce) { .cmp-star > i { animation: none !important; } }
