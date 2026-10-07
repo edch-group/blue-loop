@@ -1590,7 +1590,7 @@ export class CampaignView {
     const army = flagship(s, s.playerId);
     const at = army ? nodeById(s, army.nodeId) : ownedNodes(s, s.playerId)[0] ?? s.nodes[0];
     // On the strip: the lanes from top to bottom, and a few columns of the way ahead.
-    if (at.col !== undefined) return { x: Math.min(MAP_WIDTH - 2 * CAMPAIGN.colGap, at.x + 2 * CAMPAIGN.colGap), y: MAP_HEIGHT / 2, zoom: 2.6 };
+    if (at.col !== undefined) return { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2, zoom: 0.9 };
     return { x: at.x, y: at.y, zoom: 6 };
   }
 

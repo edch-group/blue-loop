@@ -66,7 +66,7 @@ describe('the strip', () => {
     // The flagship arrives at the near end, in a system of its own; the strip is tougher further along.
     expect(nodeById(s, flag(s).nodeId).col).toBe(0);
     expect(nodeById(s, flag(s).nodeId).owner).toBe(s.playerId);
-    expect(Math.max(...col(s, 12).map((n) => n.tier))).toBeGreaterThan(Math.max(...col(s, 1).map((n) => n.tier)));
+    expect(Math.max(...col(s, CAMPAIGN.columns - 1).map((n) => n.tier))).toBeGreaterThan(Math.max(...col(s, 1).map((n) => n.tier)));
     // Stations, worlds with extras, and raiders out past the first third.
     expect(s.nodes.filter((n) => n.station?.kind === 'armory')).toHaveLength(CAMPAIGN.armories);
     expect(s.nodes.filter((n) => n.station?.kind === 'research')).toHaveLength(CAMPAIGN.researchStations);
@@ -95,7 +95,7 @@ describe('the collapse', () => {
     let s = run();
     expect(regionalStability(s)).toBe(CAMPAIGN.stabilityTurns);
     // Keep the flagship (and the raiders) well clear, out at the far end.
-    standAt(s, col(s, 12)[0].id);
+    standAt(s, col(s, CAMPAIGN.columns - 1)[0].id);
     s.armies = s.armies.filter((a) => !a.lost);
     for (let t = 0; t < CAMPAIGN.stabilityTurns; t++) s = endTurn(s);
     expect(regionalStability(s)).toBe(0);

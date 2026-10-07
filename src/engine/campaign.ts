@@ -59,8 +59,8 @@ export const CAMPAIGN = {
   /** Wisdom gained each turn (spent on research stations' upgrades). */
   wisdomPerTurn: 1,
   /** Armouries and research stations on each universe's strip, and how many cards an armoury stocks (each sold once). */
-  armories: 3,
-  researchStations: 3,
+  armories: 2,
+  researchStations: 2,
   armoryStock: 6,
   /** Wisdom for a research station's upgrade, by the upgrade's tier (1–4). */
   researchWisdom: [3, 5, 8, 12],
@@ -117,16 +117,16 @@ export const CAMPAIGN = {
    * there so they intertwine; the wormhole lies past the far end. Map units between columns and lanes.
    */
   lanes: 4,
-  columns: 13,
+  columns: 8,
   colGap: 420,
   laneGap: 330,
   /** The map's size (map units): the strip, and the wormhole past its far end. */
-  mapSystems: 53,
-  mapWidth: 170 * 2 + 13 * 420,
+  mapSystems: 33,
+  mapWidth: 170 * 2 + 8 * 420,
   mapHeight: 170 * 2 + 3 * 330,
   mapMargin: 170,
   /** Worlds with something extra to find (credits or research), taken with the system. */
-  bonusPlanets: 4,
+  bonusPlanets: 3,
   /** Roaming raiders: in the first universe, one more each universe after, at most. They hunt a flagship this near. */
   raiders: 2,
   raidersMax: 7,
@@ -144,7 +144,7 @@ export const CAMPAIGN = {
   homeRing: 30,
   homeRingSlack: 3,
   /** Anomalies scattered between systems; each changes battles fought from the systems within its reach. */
-  anomalies: 3,
+  anomalies: 2,
   /** Safety cap on simulated (auto-resolved) battles. */
   battleActionCap: 6000,
   /** Damage (heat carried) an army takes when its attack is repelled, and the most it can carry. */
@@ -1147,7 +1147,7 @@ function buildUniverse(s: CampaignState, universe: number) {
   for (let c = 0; c < C; c++) {
     for (let l = 0; l < L; l++) {
       const name = nodeName(s, used);
-      const tier = (c <= 3 ? 0 : c <= 8 ? 1 : 2) + lift;
+      const tier = (c <= 2 ? 0 : c <= 5 ? 1 : 2) + lift;
       s.nodes.push({
         id: `n${c * L + l}`,
         name,
@@ -1235,7 +1235,10 @@ function buildUniverse(s: CampaignState, universe: number) {
   // Anomalies, in the gaps between columns (each touching the systems round it).
   const kinds: AnomalyKind[] = ['blackHole', 'nebula', 'darkMatter', 'pulsar'];
   const gaps = shuffleInPlace(s, Array.from({ length: C - 3 }, (_, i) => i + 2));
-  for (const c of gaps.slice(0, CAMPAIGN.anomalies)) {
+  // Never in neighbouring gaps (their reaches would overlap).
+  const picked: number[] = [];
+  for (const c of gaps) if (picked.length < CAMPAIGN.anomalies && picked.every((p) => Math.abs(p - c) > 1)) picked.push(c);
+  for (const c of picked) {
     const l = randomInt(s, L - 1);
     s.anomalies!.push({ id: `a${s.anomalies!.length}`, kind: kinds[randomInt(s, kinds.length)], x: Math.round(CAMPAIGN.mapMargin + (c + 0.5) * CAMPAIGN.colGap), y: Math.round(CAMPAIGN.mapMargin + (l + 0.5) * CAMPAIGN.laneGap) });
   }
@@ -1254,7 +1257,7 @@ function buildUniverse(s: CampaignState, universe: number) {
   }
   for (const n of s.nodes) n.scanner = open(n) && randomInt(s, 6) === 0;
   // The raiders: a few to start with, more in each universe, out past the first third.
-  const haunts = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 4));
+  const haunts = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 3));
   for (const n of haunts.slice(0, Math.min(CAMPAIGN.raidersMax, CAMPAIGN.raiders + universe - 1))) raiseLost(s, n);
   clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into universe ${universe}, at ${home.name}.`);
   tell(s, wormholeSightedScene(universe));
