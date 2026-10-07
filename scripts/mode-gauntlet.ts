@@ -6,7 +6,7 @@ import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { PRESET_DECKS } from '../src/engine/cards';
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
-Object.assign(BALANCE, { maxLogEntries: 1e6 });
+Object.assign(BALANCE, { maxLogEntries: 1e6 }, JSON.parse(process.env.BAL ?? '{}'));
 const MODE = (process.env.MODE ?? 'core') as 'core' | 'lost';
 const decks = MODE === 'core' ? PRESET_DECKS.filter((d) => d.mode === 'core') : PRESET_DECKS.slice(0, 4);
 const games = Number(process.argv[2] ?? 60);

@@ -75,6 +75,10 @@ export const BALANCE = {
   stabilityRelic: 3,
   /** Stability can be restored up to this. */
   maxStability: 6,
+  /** Each point a card has grown adds this to its attack (`growthAttackAll`: even a card with none of its own) and to its health. */
+  growthAttack: 0,
+  growthAttackAll: 0,
+  growthHealth: 0,
   /** Health: what a card in play can take, past its defence, before it burns away (1 + its cost, +1 for defence cards, 2 at least). */
   minHealth: 2,
   maxHealth: 8,

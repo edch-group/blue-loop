@@ -1269,6 +1269,7 @@ function grow(p: PlayerState, card: CardInstance, max?: number, spread = true) {
   const limit = Math.max(max ?? 0, ...dawnEffects(card).map((x) => (x.type === 'grow' ? x.max : 0)));
   if (limit <= 0 || (card.growth ?? 0) >= limit) return;
   card.growth = (card.growth ?? 0) + 1;
+  if (BALANCE.growthHealth) card.health = (card.health ?? 0) + BALANCE.growthHealth;
   if (spread && cardPassives(card).some((x) => x.type === 'catalyst')) for (const other of p.tableau) if (other.uid !== card.uid) grow(p, other, undefined, false);
 }
 
@@ -1734,6 +1735,8 @@ export function cardAttack(state: GameState, p: PlayerState, card: CardInstance)
   if (hero) base += p.heroStats!.attack;
   // (Chosen: even a card with no attack of its own can fight.)
   base += card.attackBonus ?? 0;
+  // Growing cards gain attack as they grow.
+  if (BALANCE.growthAttack && card.growth && (base > 0 || BALANCE.growthAttackAll)) base += card.growth * BALANCE.growthAttack;
   if (base <= 0) return 0;
   if (p.rooms && card.slot !== COMMAND_SLOT) base += p.rooms.attack[card.slot ?? -1] ?? 0;
   // Flare-born: more while its owner's sun is overheated.
