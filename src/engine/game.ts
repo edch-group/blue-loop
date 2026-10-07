@@ -304,9 +304,17 @@ export function enemyChoices(state: GameState, p: PlayerState, defId: string): C
   return t.tableau.filter((c) => canReach(t, c, e));
 }
 
+/**
+ * Whether a card is a Guard: by its own Guard, or by its walls (defence of `BALANCE.wallGuard` or more, its
+ * slot's included, a Hero's too) for as long as they hold.
+ */
+export function isGuard(p: PlayerState, c: CardInstance): boolean {
+  return cardPassives(c).some((x) => x.type === 'taunt') || cardDefence(p, c) >= BALANCE.wallGuard;
+}
+
 /** A player's Guard cards: while they have any, rival attacks can only strike them. */
 export function guards(p: PlayerState): CardInstance[] {
-  return p.tableau.filter((c) => cardPassives(c).some((x) => x.type === 'taunt'));
+  return p.tableau.filter((c) => isGuard(p, c));
 }
 
 /**
@@ -1277,8 +1285,9 @@ function plant(state: GameState, p: PlayerState, n: number) {
   if (planted) log(state, `${p.name} plants ${planted} Sapling${planted === 1 ? '' : 's'}.`);
 }
 
-/** At its owner's dawn, worn defence mends: 1 on each card, and 1 on each worn empty slot. */
+/** At its owner's dawn, worn defence mends by `defenceMend` (now 0: defence is a wall worn down over the game, mended only by Repair). */
 function mendDefences(state: GameState, p: PlayerState) {
+  if (BALANCE.defenceMend <= 0) return;
   for (const c of p.tableau) {
     if (!c.dented) continue;
     const by = Math.min(c.dented, BALANCE.defenceMend);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
-import { activePlayer, replaces, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction,
+import { activePlayer, replaces, isGuard, guards, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction,
   baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
@@ -1248,16 +1248,16 @@ describe('attacks and heat', () => {
     expect(attackProblem(t.s, activePlayer(t.s), t.array.uid, null)).toMatch(/Guard/);
   });
 
-  it("wears defence down for good (mending 1 a day), and leaves a destroyed card's wear in its slot", () => {
+  it("wears defence down for good (only Repair mends it), and leaves a destroyed card's wear in its slot", () => {
     let { s, b } = setUp();
     const bo = () => s.players[1];
     const card = () => bo().tableau.find((c) => c.uid === b.uid)!;
     card().dented = 2;
     expect(cardDefence(bo(), card())).toBe(0);
-    // Bo's day mends only 1 of it.
+    // Bo's day mends none of it.
     s = applyAction(s, { type: 'endTurn' });
-    expect(cardDefence(bo(), card())).toBe(1);
-    // Burned away by an attack: the wear stays in its slot, and mends 1 a day.
+    expect(cardDefence(bo(), card())).toBe(0);
+    // Burned away by an attack: the wear stays in its slot, for good.
     s = applyAction(s, { type: 'endTurn' });
     const slot = card().slot!;
     card().health = 1;
@@ -1268,16 +1268,16 @@ describe('attacks and heat', () => {
     const wear = bo().slotWear?.[slot] ?? 0;
     expect(wear).toBeGreaterThan(0);
     s = applyAction(s, { type: 'endTurn' });
-    expect(bo().slotWear?.[slot] ?? 0).toBe(wear - 1);
+    expect(bo().slotWear?.[slot] ?? 0).toBe(wear);
   });
 
-  it('mends Sturdy cards by their Sturdy as well, and Repair mends more', () => {
+  it('mends worn defence only by Repair', () => {
     let { s, b } = setUp();
     const [plating] = give(s.players[1], ['bulwark_plating'], 'tableau');
     s.players[1].tableau.find((c) => c.uid === b.uid)!.dented = 2;
-    // Bo's day: 1 mends on its own, and Bulwark Plating's Repair 1 mends another.
+    // Bo's day: nothing mends on its own; Bulwark Plating's Repair 1 mends 1.
     s = applyAction(s, { type: 'endTurn' });
-    expect(s.players[1].tableau.find((c) => c.uid === b.uid)!.dented ?? 0).toBe(0);
+    expect(s.players[1].tableau.find((c) => c.uid === b.uid)!.dented ?? 0).toBe(1);
     expect(plating).toBeTruthy();
   });
 });
@@ -1433,5 +1433,25 @@ describe('relics', () => {
     give(me, ['ion_cannon']);
     s = play(s, 'ion_cannon', { enemyUid: relic.uid });
     expect(s.players.find((p) => p.id === rival.id)!.tableau.some((c) => c.uid === relic.uid)).toBe(false);
+  });
+});
+
+describe('walls', () => {
+  it('makes any card with 3+ defence a Guard while its defence holds, and a worn wall stays worn', () => {
+    let s = twoPlayer();
+    const bo = s.players[1];
+    // Sturdy 1 on a 2-defence slot: 3, a Guard. On a 1-defence slot: 2, not.
+    const relay: CardInstance = { uid: 'w1', defId: 'plasma_relay', slot: 1, health: 2 };
+    const edge: CardInstance = { uid: 'w2', defId: 'plasma_relay', slot: 0, health: 2 };
+    bo.tableau = [relay, edge];
+    expect(cardDefence(bo, relay)).toBe(3);
+    expect(isGuard(bo, relay)).toBe(true);
+    expect(isGuard(bo, edge)).toBe(false);
+    expect(guards(bo).map((c) => c.uid)).toEqual(['w1']);
+    // Worn below 3, it stops guarding, and stays that way through the days.
+    relay.dented = 1;
+    expect(isGuard(bo, relay)).toBe(false);
+    s = endTurn(endTurn(s));
+    expect(isGuard(s.players[1], s.players[1].tableau.find((c) => c.uid === 'w1')!)).toBe(false);
   });
 });

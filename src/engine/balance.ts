@@ -58,15 +58,17 @@ export const BALANCE = {
   commandSlotDefence: 3,
   /** Fusion cards one card in play can carry. */
   maxFused: 2,
-  /** Worn defence each card (and empty slot) mends at its owner's dawn (Sturdy adds defence, not mending). */
-  defenceMend: 1,
+  /** Worn defence each card (and empty slot) mends at its owner's dawn: none. Defence is a wall worn down over the game; only Repair mends it. */
+  defenceMend: 0,
+  /** A card with at least this much defence (its slot's, Sturdy, Bulwark) is a Guard while it holds, a Hero too. */
+  wallGuard: 3,
   /** A Hero's stability when it lists none. (Cards no longer fade with the days: stability is what they can take.) */
   heroStability: 5,
   /** Stability a Fusion card adds to its host. */
   fusionStability: 2,
   /** Each point a card has grown adds this to its attack (`growthAttackAll`: even a card with none of its own) and to its stability. */
-  growthAttack: 0,
-  growthAttackAll: 0,
+  growthAttack: 1,
+  growthAttackAll: 1,
   growthHealth: 0,
   /** Stability: what a card in play can take, past its defence, before it burns away (1 + its cost, +1 for defence cards, 2 to 8, then its race's trait). */
   minHealth: 2,

@@ -32,6 +32,7 @@ import {
   plainText,
   isGameOver,
   freeSlots,
+  isGuard,
   replaces as replacesCard,
   persists,
   commandCard,
@@ -4382,7 +4383,7 @@ export class App {
         () =>
           facts(
             fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
-            fact('Defence', `An attack or aimed heat wears a card's defence first, and the wear lasts: it mends 1 a day (more with ${kw('sturdy', '1')} or ${kw('repair', '1')}), and stays in the slot if the card leaves. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
+            fact('Defence', `An attack or aimed heat wears a card's defence first, and the wear lasts: only ${kw('repair', '1')} mends it, and it stays in the slot if the card leaves. A card with ⛨3 or more is a ${kw('guard')} while its defence holds, a Hero too. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
             fact('Replacing', 'Cards never fade: into a full tableau, a new card replaces one of yours (you pick it), which leaves play. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
@@ -5168,10 +5169,10 @@ export class App {
     // In play: its defence (what removal must beat), attack and stability (what it can take).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: (def.attack ?? 0) > 0 && s ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. Only Repair mends it, and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: (def.attack ?? 0) > 0 && s ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
-    const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
+    const guard = (opts.tableau && (opts.owner ? isGuard(opts.owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt')) ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
     return `
       <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
