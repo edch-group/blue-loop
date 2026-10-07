@@ -624,7 +624,9 @@ Every deck is built for one of two modes, and every game is played in one.
   - Vorthane: **Shields**.
   - Ixquor: **Growth**.
 
-  On top of those are the fundamentals every card shares: attack, heat, cooling, defence, stability, energy, drawing, and **Guard**, which is always there.
+  On top of those are the fundamentals every card shares: attack, heat, cooling, defence, health, stability, energy, drawing, **Guard** (always there), and plain **removal**, destroying a card or returning it to its owner's hand.
+
+  Removal is a basic so that Core has answers to what the rival builds. The neutral cards with it are now Core-legal: Ion Cannon, Tractor Beam, Command Breaker, Void Bolt and Star Breaker. So are two race cards that pair it with their race's mechanic: Shatter Point (Xel'Naru, Overheat) and Tidebreaker (Vorthane, Shields). Event Horizon does too much for Core. Each Core starter runs one or two removal cards (Ion Cannon, Shatter Point, two Tidebreakers, Void Bolt), and in AI games about one card a game is removed.
 
   A core-race card uses only its race's own mechanic, and a neutral card uses only the fundamentals. Most cards do one or two things. There are no race traits in Core.
 
