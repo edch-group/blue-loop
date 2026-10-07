@@ -9,9 +9,9 @@ export const DAWN_ATTACK_TEXT: Record<string, string> = {
   solar_battery: '{dawn}: with 3+ attack cards, {heat:1}.',
   helio_lancer: '',
   overload_core: '{dawn}: while {overheated}, {heat:2}.',
-  abyssal_choir: '{sting:1}. {dawn}: {heat:1} per 2 shields you have (up to 5).',
+  abyssal_choir: '{dawn}: {heat:1} per 2 shields you have (up to 5).',
   spore_cloud: '{dawn}: with 4+ cards, {heat:2}.',
-  aureline_war_herald: '{dawn}: with a Hero, {heat:1} and {shield:1}.',
+  aureline_war_herald: '{dawn}: {heat:1} per attack card next to this.',
   sunforge: '{forge:1}.',
   aurelia_first_light: '{dawn}: {heat:1} per attack card you control (up to 5).',
   the_brood_queen: '{plays:1}. {dawn}: with 4+ cards, {heat:2}.',
@@ -23,7 +23,7 @@ export const DAWN_ATTACK_TEXT: Record<string, string> = {
   aureline_skirmisher: '{heat:1}.',
   aureline_archon: '{dawn}: with a Hero, {heat:1}.',
   aureline_vanguard: '{sturdy:1}. {shield:1}.',
-  riptide: '{sting:1}. {dawn}: {heat:1} per 3 shields you have (up to 3).',
+  riptide: '{dawn}: {heat:1} per 3 shields you have (up to 3).',
   hive_warrior: '{dawn}: with 4+ cards, {heat:1}.',
   creeping_vines: '{erode:2}.',
   dawnstar_cannon: '{sturdy:1}.',
@@ -44,15 +44,11 @@ export const DAWN_ATTACK_TEXT: Record<string, string> = {
   black_sun: '{sturdy:3}.',
 };
 
-/** The core versions' texts (cards-core.ts), the same way. */
-export const DAWN_ATTACK_CORE_TEXT: Record<string, string> = {
-  abyssal_choir: '{dawn}: {heat:1} per 2 shields you have (up to 5).',
-  aureline_war_herald: '{dawn}: {heat:1} per attack card next to this.',
-  riptide: '{dawn}: {heat:1} per 3 shields you have (up to 3).',
+/**
+ * Attack added on top (or taken off): for cards whose dawn heat alone left them beaten outright by another card at
+ * their cost, Deep Tide's shield attackers, and the Aureline stars a point down (Forge stacks on attack).
+ */
+export const DAWN_ATTACK_EXTRA: Record<string, number> = {
+  helio_lancer: 2, sunforge: 1, dawnstar_cannon: 1, overload_core: 1, aureline_skirmisher: 1, ser_stargazer: 1, pyr_ash_walker: 1, pyr_cinder_brute: 2, pyr_solar_tyrant: 2,
+  riptide: 1, abyssal_choir: 1, aureline_archon: -1, aurelia_first_light: -1,
 };
-
-/** Attack added on top, for cards whose dawn heat alone left them beaten outright by another card at their cost. */
-export const DAWN_ATTACK_EXTRA: Record<string, number> = { helio_lancer: 1, sunforge: 1, dawnstar_cannon: 1, pyr_ash_walker: 1, pyr_cinder_brute: 1, pyr_solar_tyrant: 2, overload_core: 1, aureline_skirmisher: 1, ser_stargazer: 1 };
-
-/** The same, for core versions only: Deep Tide's shield attackers (fewer ways to stack shields in Core), and Aureline attackers a point down (Forge stacks on attack; Sunforge and Dawnstar Cannon only needed theirs against Lost Races cards). */
-export const DAWN_ATTACK_CORE_EXTRA: Record<string, number> = { riptide: 1, abyssal_choir: 1, sunforge: -1, dawnstar_cannon: -1, aureline_archon: -1, aurelia_first_light: -1 };

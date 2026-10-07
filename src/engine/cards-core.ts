@@ -76,7 +76,7 @@ export const CORE_VERSIONS: Record<string, Partial<CardDef>> = {
   dawn_rampart: { ...none, text: '{forge:1}. {dusk}: {cool:2}.', onDusk: [{ type: 'cool', amount: 2 }], passive: [forge()] },
   aureline_cantor: { ...none, text: '{dusk}: {cool:1}. {cool:+1} per attack card next to this.', onDusk: [{ type: 'cool', amount: 1, plus: { of: 'adjacent', kind: 'attack' } }] },
   // Xel'Naru: one thing fewer.
-  overcharge: { ...none, text: '{energy:1}. {heat:1} to your sun.', onPlay: [{ type: 'plays', amount: 1 }, { type: 'selfHeat', amount: 1 }] },
+  overcharge: { ...none, text: '{energy:2}. {heat:1} to your sun.', onPlay: [{ type: 'plays', amount: 2 }, { type: 'selfHeat', amount: 1 }] },
   // Ixquor: more Growth, and growing cards that last long enough to grow (no cheap card lasts more than two days).
   chitin_spire: { ...none, cost: 2, stability: 4, text: '{dawn}: {grows:3}, then {cool} equal to its growth.', onTurn: [{ type: 'grow', max: 3 }, { type: 'cool', amount: 0, plus: { of: 'growth' } }] },
   thorn_graft: { ...none, cost: 2, stability: 4, text: '{dawn}: {grows:3}, then {heat} equal to its growth.', onTurn: [{ type: 'grow', max: 3 }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'growth' } }] },

@@ -240,15 +240,14 @@ describe('commands', () => {
     for (let i = 0; i < 10; i++) s = endTurn(s);
     expect(s.players[0].tableau.some((c) => c.defId === 'ignition_protocol')).toBe(true);
     expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.health).toBe(5);
-    // Strafe: heat 3, paid for with 2 heat on your own sun (no energy); then no second ability that day.
+    // Strafe: heat 3, paid for with 1 of the Hero's health (no energy); then no second ability that day.
     const before = s.players[1].heat;
     activePlayer(s).playsLeft = 3;
-    activePlayer(s).heat = 0;
     expect(heroAbilityProblem(s, activePlayer(s), 0)).toBeNull();
     s = applyAction(s, { type: 'heroAbility', index: 0 });
     expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 3 - s.players[1].shields);
     expect(activePlayer(s).playsLeft).toBe(3);
-    expect(activePlayer(s).heat).toBeGreaterThan(0);
+    expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.health).toBe(4);
     expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/acted today/);
     s = endTurn(endTurn(s));
     expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
@@ -257,57 +256,62 @@ describe('commands', () => {
   it('pay for abilities with more than energy: the Hero\'s health, or a card sacrificed', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    me.playsLeft = 5;
-    give(me, ['war_council', 'deflector_grid']);
-    s = play(s, 'war_council');
+    me.playsLeft = 9;
+    give(me, ['nyx_hero_nyxara', 'deflector_grid']);
+    s = play(s, 'nyx_hero_nyxara');
     s = play(s, 'deflector_grid');
     s = endTurn(endTurn(s));
     const mine = () => activePlayer(s).tableau;
-    const hero = () => mine().find((c) => c.defId === 'war_council')!;
-    // Shatter: sacrifice a card of your choosing (unchosen, the weakest), no energy. Never the Hero.
+    const hero = () => mine().find((c) => c.defId === 'nyx_hero_nyxara')!;
+    // Eclipse: sacrifice a card of your choosing, no energy. Never the Hero.
     const others = mine().length - 1;
     const energy = activePlayer(s).playsLeft;
     const chosen = mine().find((c) => c.defId === 'deflector_grid')!.uid;
-    expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
-    expect(() => applyAction(s, { type: 'heroAbility', index: 1, sacrificeUid: hero().uid })).toThrow(/own cards/);
-    s = applyAction(s, { type: 'heroAbility', index: 1, sacrificeUid: chosen });
+    expect(heroAbilityProblem(s, activePlayer(s), 0)).toBeNull();
+    expect(() => applyAction(s, { type: 'heroAbility', index: 0, sacrificeUid: hero().uid })).toThrow(/own cards/);
+    s = applyAction(s, { type: 'heroAbility', index: 0, sacrificeUid: chosen });
     expect(mine().some((c) => c.uid === chosen)).toBe(false);
     expect(mine().length - 1).toBe(others - 1);
     expect(activePlayer(s).playsLeft).toBe(energy);
-    s = endTurn(endTurn(s));
-    // Archive: 1 of the Hero's own health (never its last).
-    const stab = hero().health!;
-    s = applyAction(s, { type: 'heroAbility', index: 0 });
-    expect(hero().health).toBe(stab - 1);
-    s = endTurn(endTurn(s));
-    hero().health = 1;
-    expect(heroAbilityProblem(s, activePlayer(s), 0)).toMatch(/health/);
+    // Rend (Unmaker Kael): 1 of the Hero's own health (never its last).
+    let t = twoPlayer();
+    activePlayer(t).playsLeft = 9;
+    give(activePlayer(t), ['nyx_hero_kael']);
+    t = play(t, 'nyx_hero_kael');
+    t = endTurn(endTurn(t));
+    const kael = () => activePlayer(t).tableau.find((c) => c.defId === 'nyx_hero_kael')!;
+    const hp = kael().health!;
+    t = applyAction(t, { type: 'heroAbility', index: 0 });
+    expect(kael().health).toBe(hp - 1);
+    t = endTurn(endTurn(t));
+    kael().health = 1;
+    expect(heroAbilityProblem(t, activePlayer(t), 0)).toMatch(/health/);
   });
 
   it('mend their own health, up to their full health', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     me.playsLeft = 5;
-    give(me, ['chamber_protocol']);
-    s = play(s, 'chamber_protocol');
+    give(me, ['kor_hero_durga']);
+    s = play(s, 'kor_hero_durga');
     // (A Hero comes into play dimmed: its abilities wait for the next day.)
-    expect(heroAbilityProblem(s, activePlayer(s), 1)).toMatch(/dimmed/);
+    expect(heroAbilityProblem(s, activePlayer(s), 0)).toMatch(/dimmed/);
     s = endTurn(endTurn(s));
-    const hero = () => activePlayer(s).tableau.find((c) => c.defId === 'chamber_protocol')!;
-    hero().health = 2;
-    s = applyAction(s, { type: 'heroAbility', index: 1 }); // Nurture: renew 1, and she regains 2
-    expect(hero().health).toBe(4);
+    const hero = () => activePlayer(s).tableau.find((c) => c.defId === 'kor_hero_durga')!;
+    hero().health = 4;
+    s = applyAction(s, { type: 'heroAbility', index: 0 }); // Temper: shield 2, and she regains 1
+    expect(hero().health).toBe(5);
     s = endTurn(endTurn(s));
-    s = applyAction(s, { type: 'heroAbility', index: 1 });
+    s = applyAction(s, { type: 'heroAbility', index: 0 });
     expect(hero().health).toBe(5);
   });
 
   it("give their own race's cards a lasting buff, and only theirs", () => {
     const s = twoPlayer();
     const me = activePlayer(s);
-    const [, skirmisher, relay] = give(me, ['command_directive', 'aureline_skirmisher', 'plasma_relay'], 'tableau');
-    // (Solarch Veyra: your Aureline attack cards hit 1 harder, their attacks too.)
-    expect(cardAttack(s, me, skirmisher)).toBe(baseAttack(cardDef('aureline_skirmisher')) + 1);
+    const [, warrior, relay] = give(me, ['logistics_command', 'hive_warrior', 'plasma_relay'], 'tableau');
+    // (Hive-Speaker Zyth: your Ixquor cards hit 1 harder, their attacks too.)
+    expect(cardAttack(s, me, warrior)).toBe(baseAttack(cardDef('hive_warrior')) + 1);
     expect(cardAttack(s, me, relay)).toBe(baseAttack(cardDef('plasma_relay')));
     // Hierarch Vael: the Xel'Naru cool more.
     const t = twoPlayer();
@@ -329,21 +333,6 @@ describe('commands', () => {
     expect(after.tableau.filter((c) => c.slot === COMMAND_SLOT).map((c) => c.defId)).toEqual(['war_council']);
     expect(after.discard.some((c) => c.defId === 'command_directive')).toBe(true);
     expect(after.tableau).toHaveLength(6);
-  });
-
-  it("Archon Seris's Archive takes back the card most recently discarded (not a Hero)", () => {
-    let s = twoPlayer();
-    const me = activePlayer(s);
-    me.playsLeft = 3;
-    give(me, ['war_council']);
-    s = play(s, 'war_council');
-    s = endTurn(endTurn(s));
-    const ada = s.players[0];
-    ada.discard.push({ uid: 'd1', defId: 'coronal_lance' }, { uid: 'd2', defId: 'gravity_sling' }, { uid: 'd3', defId: 'command_directive' });
-    s = applyAction(s, { type: 'heroAbility', index: 0 });
-    const now = s.players[0];
-    expect(now.hand.some((c) => c.uid === 'd2')).toBe(true);
-    expect(now.discard.some((c) => c.uid === 'd3')).toBe(true);
   });
 
   it("can't be recalled or recovered to their owner's hand", () => {
@@ -405,6 +394,7 @@ describe('attacks and dimming', () => {
     // Next day, at a card with an attack of its own: that card hits back, at the attacker's health.
     s = endTurn(endTurn(s));
     const [lancer] = give(s.players[1], ['helio_lancer'], 'tableau');
+    array().health = 12;
     const hp = array().health!;
     s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: lancer.uid });
     expect(array().health).toBe(hp - counterDamage(s, s.players[1], lancer));
@@ -1452,21 +1442,5 @@ describe('relics', () => {
     give(me, ['ion_cannon']);
     s = play(s, 'ion_cannon', { enemyUid: relic.uid });
     expect(s.players.find((p) => p.id === rival.id)!.tableau.some((c) => c.uid === relic.uid)).toBe(false);
-  });
-});
-
-describe('chosen', () => {
-  it('gives the chosen card +2 attack while it stays in play (Empress Solenne)', () => {
-    let s = twoPlayer();
-    const me = activePlayer(s);
-    me.playsLeft = 9;
-    const [wall] = give(me, ['coolant_array'], 'tableau');
-    give(me, ['empress_solenne']);
-    const before = cardAttack(s, me, wall);
-    const emp = activePlayer(s).hand.find((c) => c.defId === 'empress_solenne')!;
-    s = applyAction(s, { type: 'playCard', cardUid: emp.uid, allyUid: wall.uid } as never);
-    const now = activePlayer(s);
-    const w = now.tableau.find((c) => c.uid === wall.uid)!;
-    expect(cardAttack(s, now, w)).toBe(before + 2);
   });
 });

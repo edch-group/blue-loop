@@ -11,16 +11,13 @@ describe('game modes', () => {
     expect(deckProblems(lost.cards, 'core').length).toBeGreaterThan(0);
     expect(modeProblem(cardIn('martyr_crystal', 'core'), 'core')).toMatch(/Lost Races/);
   });
-  it('core versions and race traits follow the rules in force', () => {
-    expect(cardIn('halo_sentinel', 'core').text).toContain('{forge:1}');
-    expect(cardIn('halo_sentinel', 'lost').text).toContain('{shield:1}');
-    expect(cardIn('trench_warden', 'lost').text).toContain('{sting');
-    expect(cardIn('trench_warden', 'core').text).not.toContain('{sting');
+  it('a card is the same card in every mode, race traits and all', () => {
+    for (const id of ['halo_sentinel', 'trench_warden', 'tide_regent', 'riptide', 'sunforge']) expect(cardIn(id, 'core')).toBe(cardIn(id, 'lost'));
     setRulesMode('core');
-    expect(raceTrait(2)).toBeUndefined();
-    expect(cardDef('tide_regent').text).not.toContain('regains');
-    setRulesMode('lost');
     expect(raceTrait(2)).toBeDefined();
+    const inCore = cardDef('trench_warden').text;
+    setRulesMode('lost');
+    expect(cardDef('trench_warden').text).toBe(inCore);
   });
   it('a Core game plays under Core rules', () => {
     const decks = PRESET_DECKS.filter((d) => d.mode === 'core');
@@ -29,7 +26,7 @@ describe('game modes', () => {
     expect(g.mode).toBe('core');
     setRulesMode('lost');
     g = applyAction(g, { type: 'endTurn' } as never);
-    expect(raceTrait(0)).toBeUndefined();
+    expect(g.mode).toBe('core');
     setRulesMode('lost');
   });
 });

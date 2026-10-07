@@ -14,7 +14,7 @@ import { raceTrait } from './races';
 import { CARD_COSTS } from './costs';
 import { commandChoices } from './commands';
 import { CORE_VERSIONS } from './cards-core';
-import { DAWN_ATTACK_CORE_TEXT, DAWN_ATTACK_EXTRA, DAWN_ATTACK_CORE_EXTRA, DAWN_ATTACK_TEXT } from './dawn-attack';
+import { DAWN_ATTACK_EXTRA, DAWN_ATTACK_TEXT } from './dawn-attack';
 import { rulesMode, modeProblem, type GameMode } from './modes';
 
 /**
@@ -714,6 +714,14 @@ for (const c of CARDS) {
 for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? c.cost ?? 1 });
 // Heroes cost one more than they are listed at (heroes-battle.ts): an entrance and an ability every day for good.
 for (const c of CARDS) if (c.kind === 'command') c.cost = heroCost(c.cost ?? 2);
+// The core races' cards as they now are (cards-core.ts): the same card in every mode.
+for (const c of CARDS) {
+  const v = CORE_VERSIONS[c.id];
+  if (!v) continue;
+  const cost = c.cost;
+  Object.assign(c, v);
+  c.cost ??= cost;
+}
 // Attack ratings (attack.ts): by rule, unless a card gives its own.
 for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.cost ?? 1, !isBurst(c));
 // A race's Sturdy (the Korrath) is the cards' own: added to their Sturdy, and written into their text.
@@ -728,8 +736,6 @@ for (const c of CARDS) {
   for (const e of lists.flat()) if (e?.type === 'erode') (e.amount += ERODE_EXTRA), (hit = true);
   if (hit) c.text = c.text.replace(/\{(erode|decay):(\d+)\}/g, (_, k: string, n: string) => `{${k}:${Number(n) + ERODE_EXTRA}}`);
 }
-// (The text before a race's keywords are written in: the card's text in Core, which has no race traits.)
-const TRAITLESS_TEXT = new Map(CARDS.map((c) => [c.id, c.text]));
 for (const c of CARDS) {
   const t = raceTrait(c.race);
   if (!t || c.fusion || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
@@ -771,24 +777,13 @@ for (const t of TOKENS) Object.assign(t, { cost: 0 });
 // (Tokens are cards in play, but not in the pool: no deck, shop or collection has them.)
 const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS].map((c) => [c.id, c]));
 
-/** Each core race's card as it plays in Core: without its race's keywords, and in its core version if it has one. */
-const CORE_BY_ID = new Map(
-  CARDS.filter((c) => c.race !== undefined && c.race < 4).map((c) => {
-    const v = CORE_VERSIONS[c.id];
-    const core: CardDef = { ...c, text: TRAITLESS_TEXT.get(c.id) ?? c.text, ...v };
-    if (v && c.fusion) core.attack = ruleAttack(core, core.cost ?? 1, !isBurst(core));
-    return [c.id, core];
-  }),
-);
-
 /**
  * Dawn heat as attack: each card's plain dawn heat at the rival (no condition) becomes that much more
  * attack, to strike a card or the sun by choice each day (Guards intercepting it), rather than heating the sun
  * by itself. What scales (per card, per shield...) stays a dawn effect, as do conditional bonuses.
  */
 export function dawnHeatAsAttack() {
-  const cores = new Set(CORE_BY_ID.values());
-  for (const c of [...CARDS, ...CORE_BY_ID.values()]) {
+  for (const c of CARDS) {
     if (!c.onTurn?.length || c.kind === 'command' || c.fusion) continue;
     let gained = 0;
     c.onTurn = c.onTurn.flatMap((e) => {
@@ -797,18 +792,17 @@ export function dawnHeatAsAttack() {
       return e.plus ? [{ ...e, amount: 0 }] : [];
     });
     if (!gained) continue;
-    c.attack = (c.attack ?? 0) + gained + (DAWN_ATTACK_EXTRA[c.id] ?? 0) + (cores.has(c) ? DAWN_ATTACK_CORE_EXTRA[c.id] ?? 0 : 0);
+    c.attack = (c.attack ?? 0) + gained + (DAWN_ATTACK_EXTRA[c.id] ?? 0);
     // (Its attack is as steady as its dawn heat was, a day a day: it keeps the shorter term straight heat had.)
     c.stability ??= BALANCE.stabilityDawnHeat;
-    const text = (cores.has(c) ? DAWN_ATTACK_CORE_TEXT[c.id] : undefined) ?? DAWN_ATTACK_TEXT[c.id];
-    if (text !== undefined) c.text = text;
+    if (DAWN_ATTACK_TEXT[c.id] !== undefined) c.text = DAWN_ATTACK_TEXT[c.id];
   }
 }
 dawnHeatAsAttack();
 
-/** A card as it plays in a mode (whatever the rules in force). */
-export function cardIn(defId: string, mode: GameMode): CardDef {
-  return (mode === 'core' && CORE_BY_ID.get(defId)) || lostDef(defId);
+/** A card as it plays in a mode: the same in every mode. */
+export function cardIn(defId: string, _mode?: GameMode): CardDef {
+  return lostDef(defId);
 }
 
 /** A card as it plays under the rules in force. */
@@ -939,8 +933,8 @@ function fusedDef(id: string): CardDef | undefined {
   return def;
 }
 
-export function allCardDefs(mode: GameMode = rulesMode()): CardDef[] {
-  return mode === 'core' ? CARDS.map((c) => CORE_BY_ID.get(c.id) ?? c) : CARDS;
+export function allCardDefs(): CardDef[] {
+  return CARDS;
 }
 
 export { RACE_NAMES } from './races';

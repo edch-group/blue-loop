@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { activePlayer, applyAction, attackProblem, cardAttack, cardCost, cardDefence, COMMAND_SLOT, createGame } from '../src/engine/game';
 import type { GameState, PlayerSetup, ShipRooms } from '../src/engine/types';
 
-const HERO = 'command_directive'; // (no attack of its own)
+const HERO = 'logistics_command'; // (no attack of its own, and nothing at dawn)
 const rooms = (over: Partial<ShipRooms> = {}): ShipRooms => ({ defence: [0, 0, 0, 0, 0], attack: [0, 0, 0, 0, 0], command: 1, ...over });
 
 /** A campaign battle: a flagship (hero, rooms, a small deck) against a hero-less station. */

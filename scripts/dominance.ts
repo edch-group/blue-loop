@@ -61,7 +61,7 @@ function pairs(raceOverNeutral: boolean, anyRace: boolean, mode?: GameMode): str
 // one makes the neutral card dead weight in that race's decks.
 const fits = (a: CardDef, b: CardDef) => anyRace || b.race === undefined || b.race === a.race || (raceOverNeutral && a.race === undefined);
 // (In a mode: its own pool, as the cards play there.)
-const cards = (mode ? allCardDefs(mode).filter((c) => inMode(c, mode)) : CARDS).filter((c) => !c.fusedFrom && c.kind !== 'global' && !c.spendAll);
+const cards = (mode ? allCardDefs().filter((c) => inMode(c, mode)) : CARDS).filter((c) => !c.fusedFrom && c.kind !== 'global' && !c.spendAll);
 const vecs = new Map(cards.map((c) => [c.id, vec(c)]));
 const found: string[] = [];
 for (const a of cards) {
