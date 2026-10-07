@@ -5913,7 +5913,11 @@ body:has(.game-result) .dock { visibility: hidden; }
 }
 .card { --jx: calc(var(--cw, 100px) * 0.16); }
 /* (Stability and health share one column: both centred --jx in from the card's right edge.) */
-.jewels-tr { top: 0; right: calc(var(--jx) - var(--cw, 100px) * 0.125); transform: translateY(-50%); }
+.jewels-tr {
+  --jcr: calc(var(--cw, 100px) * 0.07);
+  top: 0; right: -1px; transform: translateY(-50%);
+  padding-right: calc(var(--jx) - var(--cw, 100px) * 0.095 + 1px);
+}
 .jewels-bl { bottom: calc(var(--cw, 100px) * 0.035); left: calc(var(--cw, 100px) * 0.035); }
 .jewels-br { bottom: calc(var(--cw, 100px) * 0.035); right: calc(var(--jx) - var(--cw, 100px) * 0.095); }
 /* (Attack and health sit inside the card's own corners: no lobe, the stone set straight into the face.) */
@@ -5924,7 +5928,16 @@ body:has(.game-result) .dock { visibility: hidden; }
   content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 999px;
   background: var(--face, #fbfbfc); border: 1px solid var(--rim, #fff);
 }
-.jewels-tr::before { box-shadow: 0 -1px 3px rgba(80, 84, 100, 0.14); clip-path: inset(-6px -6px calc(50% - 1.5px) -6px); }
+/* The stability lobe is a tab at the corner: the card's right edge carried straight up its right side and
+   over the top, round the jewel, then down its left side into the card's top edge (one fillet). It reaches a
+   corner's radius down into the card, covering the card's own rounded corner, so the outline runs unbroken. */
+.jewels-tr::before {
+  bottom: auto; height: calc(50% + var(--jcr));
+  border-bottom: 0; border-radius: calc(var(--cw, 100px) * 0.125) var(--jcr) 0 0;
+  box-shadow: 0 -1px 3px rgba(80, 84, 100, 0.14);
+  /* (Above the card's edge, all of it; below, only the corner it covers.) */
+  clip-path: polygon(-6px -6px, calc(100% + 6px) -6px, calc(100% + 6px) 100%, calc(100% - var(--jcr) - 2px) 100%, calc(100% - var(--jcr) - 2px) calc(100% - var(--jcr) + 1.5px), -6px calc(100% - var(--jcr) + 1.5px));
+}
 .jewels-bl::before, .jewels-br::before { box-shadow: 0 2px 4px rgba(80, 84, 100, 0.18); clip-path: inset(calc(50% - 1.5px) -6px -6px -6px); }
 .card.kind-command .jewels-tr::before { box-shadow: 0 -1px 3px rgba(20, 24, 34, 0.3); }
 .card.kind-command .jewels-bl::before, .card.kind-command .jewels-br::before { box-shadow: 0 2px 4px rgba(20, 24, 34, 0.3); }
