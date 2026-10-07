@@ -5902,7 +5902,8 @@ body:has(.game-result) .dock { visibility: hidden; }
 .kw-health { color: #2f8a57; }
 
 /* ---- The card's numbers as jewels, each set into a lobe of the card itself ----
-   Stability at the top right, attack at the bottom left, health at the bottom right. Each lobe is the card's
+   Stability at the top right, in a lobe; attack at the bottom left and health at the bottom right, inside the
+   card's corners. The lobe is the card's
    face, its rim carried round the part that stands beyond the card's edge and sweeping into that edge through
    concave fillets on either side, so the card's outline rises round each jewel as one shape. */
 .card-jewels {
@@ -5911,8 +5912,11 @@ body:has(.game-result) .dock { visibility: hidden; }
   display: flex; align-items: center; padding: calc(var(--cw, 100px) * 0.03);
 }
 .jewels-tr { top: 0; right: calc(var(--cw, 100px) * 0.1); transform: translateY(-50%); }
-.jewels-bl { bottom: 0; left: calc(var(--cw, 100px) * 0.1); transform: translateY(50%); }
-.jewels-br { bottom: 0; right: calc(var(--cw, 100px) * 0.1); transform: translateY(50%); }
+.jewels-bl { bottom: calc(var(--cw, 100px) * 0.035); left: calc(var(--cw, 100px) * 0.035); }
+.jewels-br { bottom: calc(var(--cw, 100px) * 0.035); right: calc(var(--cw, 100px) * 0.035); }
+/* (Attack and health sit inside the card's own corners: no lobe, the stone set straight into the face.) */
+.jewels-bl, .jewels-br { padding: 0; }
+.jewels-bl::before, .jewels-br::before, .jewels-bl::after, .jewels-br::after { display: none; }
 /* The lobe: the card's face (and a hair over the edge, across the card's own rim line there), rim beyond it. */
 .card-jewels::before {
   content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 999px;
@@ -5963,4 +5967,4 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* (The type word moves left of centre, clear of the jewels.) */
 .card:has(> .jewels-tr) .card-type { left: 30%; }
 /* (Room between the pool's rows for the jewels that stand beyond the cards' top and bottom edges.) */
-.db-editor .db-pool { row-gap: max(14px, calc(var(--dbw, 120px) * 0.2)); padding-top: max(10px, calc(var(--dbw, 120px) * 0.11)); }
+.db-editor .db-pool { row-gap: max(12px, calc(var(--dbw, 120px) * 0.12)); padding-top: max(10px, calc(var(--dbw, 120px) * 0.11)); }
