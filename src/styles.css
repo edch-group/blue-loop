@@ -5911,9 +5911,11 @@ body:has(.game-result) .dock { visibility: hidden; }
   position: absolute; z-index: 6; pointer-events: auto;
   display: flex; align-items: center; padding: calc(var(--cw, 100px) * 0.03);
 }
-.jewels-tr { top: 0; right: calc(var(--cw, 100px) * 0.1); transform: translateY(-50%); }
+.card { --jx: calc(var(--cw, 100px) * 0.16); }
+/* (Stability and health share one column: both centred --jx in from the card's right edge.) */
+.jewels-tr { top: 0; right: calc(var(--jx) - var(--cw, 100px) * 0.125); transform: translateY(-50%); }
 .jewels-bl { bottom: calc(var(--cw, 100px) * 0.035); left: calc(var(--cw, 100px) * 0.035); }
-.jewels-br { bottom: calc(var(--cw, 100px) * 0.035); right: calc(var(--cw, 100px) * 0.035); }
+.jewels-br { bottom: calc(var(--cw, 100px) * 0.035); right: calc(var(--jx) - var(--cw, 100px) * 0.095); }
 /* (Attack and health sit inside the card's own corners: no lobe, the stone set straight into the face.) */
 .jewels-bl, .jewels-br { padding: 0; }
 .jewels-bl::before, .jewels-br::before, .jewels-bl::after, .jewels-br::after { display: none; }
@@ -5933,9 +5935,8 @@ body:has(.game-result) .dock { visibility: hidden; }
 }
 .jewels-tr::after {
   bottom: calc(50% - 1.5px);
-  background:
-    radial-gradient(circle var(--jr) at 0 0, transparent calc(100% - 1px), var(--rim, #fff) calc(100% - 1px), var(--rim, #fff) 100%, var(--face, #fbfbfc) 100%) left bottom / var(--jr) 100% no-repeat,
-    radial-gradient(circle var(--jr) at 100% 0, transparent calc(100% - 1px), var(--rim, #fff) calc(100% - 1px), var(--rim, #fff) 100%, var(--face, #fbfbfc) 100%) right bottom / var(--jr) 100% no-repeat;
+  /* (Only on its left: on its right the lobe runs into the card's rounded corner.) */
+  background: radial-gradient(circle var(--jr) at 0 0, transparent calc(100% - 1px), var(--rim, #fff) calc(100% - 1px), var(--rim, #fff) 100%, var(--face, #fbfbfc) 100%) left bottom / var(--jr) 100% no-repeat;
 }
 .jewels-bl::after, .jewels-br::after {
   top: calc(50% - 1.5px);
