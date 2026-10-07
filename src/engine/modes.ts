@@ -1,6 +1,7 @@
 /**
  * Game modes. Core is the simple game: four races, each with one mechanic of its own, on top of the
- * fundamentals every card shares (attack, heat, cooling, defence, stability, energy, drawing, and Guard).
+ * fundamentals every card shares (attack, heat, cooling, defence, health, stability, energy, drawing, Guard, and plain
+ * removal: destroying a card, or returning it to its owner's hand).
  * Lost Races is everything: all eight races, their sub-races and every mechanic.
  */
 import type { CardDef, Count, Effect, Passive } from './types';
@@ -77,7 +78,7 @@ function ofEffect(e: Effect, add: (m: Mechanic) => void) {
     case 'selfHeat': add('overheat'); break;
     case 'shield': add('shields'); break;
     case 'grow': case 'growOthers': add('growth'); break;
-    case 'destroy': case 'bounce': add('removal'); break;
+    case 'destroy': case 'bounce': break; // (plain removal is a fundamental: Core has a few answers too)
     case 'erode': add('erode'); break;
     case 'restore': add('restore'); break;
     case 'repair': add('repair'); break;

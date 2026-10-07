@@ -1128,7 +1128,7 @@ export const PRESET_DECKS: DeckList[] = [
     mode: 'core',
     cards: [
       ...twoOf('command_directive', 'sunforge', 'helio_bastion', 'gilded_lens', 'halo_sentinel', 'solar_aegis', 'aureline_war_herald', 'helio_lancer', 'lancer_squadron', 'aureline_cantor', 'aureline_skirmisher', 'aureline_sun_priest'),
-      'empress_solenne', 'focusing_array', 'dawnstar_cannon', 'aureline_archon', 'aurelia_first_light', 'coronal_lance',
+      'empress_solenne', 'focusing_array', 'dawnstar_cannon', 'aureline_archon', 'aurelia_first_light', 'ion_cannon',
     ],
   },
   {
@@ -1137,7 +1137,7 @@ export const PRESET_DECKS: DeckList[] = [
     mode: 'core',
     cards: [
       ...twoOf('war_council', 'crystal_storm', 'overload_core', 'shard_storm', 'xelnaru_champion', 'crystal_bloom', 'prism_vent', 'xelnaru_warden', 'fracture_lens', 'overcharge', 'xelnaru_oracle', 'coronal_lance', 'thermal_exchange'),
-      'the_shardmind', 'shard_tempest', 'prism_sanctum', 'heat_bleed',
+      'the_shardmind', 'shard_tempest', 'prism_sanctum', 'shatter_point',
     ],
   },
   {
@@ -1145,7 +1145,7 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Deep Tide',
     mode: 'core',
     cards: [
-      ...twoOf('tide_regent', 'brine_lash', 'tidal_wave', 'pressure_wave', 'riptide', 'kelp_wall', 'trench_warden', 'vorthane_tidecaller', 'ebb_tide', 'deep_hymn', 'abyssal_choir', 'jelly_swarm'),
+      ...twoOf('tide_regent', 'brine_lash', 'tidal_wave', 'pressure_wave', 'riptide', 'kelp_wall', 'trench_warden', 'vorthane_tidecaller', 'ebb_tide', 'deep_hymn', 'abyssal_choir', 'tidebreaker'),
       'the_admiralty', 'deep_current', 'pressure_dome', 'ommarath_deep_bell', 'vorthane_elder', 'abyss_lantern',
     ],
   },
@@ -1155,7 +1155,7 @@ export const PRESET_DECKS: DeckList[] = [
     mode: 'core',
     cards: [
       ...twoOf('chamber_protocol', 'mycelium_tower', 'spore_drone', 'chitin_spire', 'thorn_graft', 'ixquor_brood_tender', 'mycelial_net', 'hive_warrior', 'rot_bloom', 'spore_burst', 'bloom_burst', 'spore_cloud'),
-      'the_worldroot', 'spore_catalyst', 'hive_relay', 'sporestorm', 'hive_mind', 'the_brood_queen',
+      'the_worldroot', 'spore_catalyst', 'hive_relay', 'sporestorm', 'void_bolt', 'the_brood_queen',
     ],
   },
   // (Lost Races, added after the Core starters so every saved starter keeps its place.)
