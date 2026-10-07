@@ -1321,9 +1321,7 @@ export class CampaignView {
             ${this.selected === n.id || leaving?.id === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
               <span class="cmp-badges">${badges}</span>
-              <span class="cmp-star" style="--seed:${seedOf(n.id)}"><i class="cmp-flare"></i><i class="cmp-corona"></i><i class="cmp-core"></i>${
-                n.owner ? this.avatarOf(n.owner, 'cmp-owner') : ''
-              }</span>
+              <span class="cmp-star" style="--seed:${seedOf(n.id)}"><i class="cmp-flare"></i><i class="cmp-corona"></i><i class="cmp-core"></i></span>
             </button>
           </div>`;
       })
