@@ -127,8 +127,6 @@ export const CAMPAIGN = {
   mapMargin: 170,
   /** Worlds with something extra to find (credits or research), taken with the system. */
   bonusPlanets: 3,
-  /** Share of the other systems with nothing to fight, only something to find. */
-  cacheShare: 0.3,
   /** Roaming raiders: in the first universe, one more each universe after, at most. They hunt a flagship this near. */
   raiders: 2,
   raidersMax: 7,
@@ -311,28 +309,46 @@ export const STAR_TYPES: Record<StarType, { name: string; text: string; boon: st
   red: {
     name: 'Red dwarf',
     text: 'Small, cool and patient: it will outlive everything else.',
-    boon: 'Never dims, and is the last of its ring to collapse.',
-    cost: 'Its worlds yield 1 credit less.',
+    boon: 'Often left unguarded: about half hold a find, most often materials.',
+    cost: 'Its worlds are poor: 1 credit less when taken.',
   },
   white: {
     name: 'White dwarf',
     text: 'The hot, dense core of a star that died long ago.',
-    boon: '+2 materials a turn.',
+    boon: 'The archives of the dead: often research, sometimes cards (about 2 in 5 hold a find).',
     cost: 'Battles here are long: every sun starts 2 cooler.',
   },
   brown: {
     name: 'Brown dwarf',
     text: 'A failed star, barely warm. Easy to overlook; hard to dig out.',
-    boon: 'Its defender has +3 max health.',
-    cost: 'Its worlds yield 1 less of each.',
+    boon: 'Easy to overlook: more often than not a derelict, with cards.',
+    cost: 'When it is guarded, its defender has +3 max health.',
   },
   neutron: {
     name: 'Neutron star',
     text: 'A city-sized star spinning hundreds of times a second; its beam sweeps the dark.',
-    boon: '+2 credits and +1 materials a turn, and whoever holds it sees two links out.',
+    boon: 'Rarely unguarded, but what it hides is rare: cards or research.',
     cost: 'Battles here are volatile: every sun heats by 1 each day.',
   },
 };
+
+/**
+ * What a system may hold, by its star: the chance it is a find (no defenders) rather than guarded, and what kind
+ * of find, weighted. Players see the star, never what it holds, until they get there.
+ */
+export const STAR_FINDS: Record<StarType | 'yellow', { find: number; kinds: Partial<Record<Cache['kind'], number>> }> = {
+  yellow: { find: 0.22, kinds: { credits: 3, materials: 3, wisdom: 2, cards: 2 } },
+  red: { find: 0.5, kinds: { materials: 5, credits: 3, cards: 2 } },
+  white: { find: 0.4, kinds: { wisdom: 6, cards: 2, credits: 2 } },
+  brown: { find: 0.55, kinds: { cards: 5, materials: 3, credits: 2 } },
+  neutron: { find: 0.15, kinds: { cards: 6, wisdom: 4 } },
+};
+
+/** What a system's star says about what it may hold. */
+export function starOdds(n: CampaignNode): string {
+  if (n.star) return STAR_TYPES[n.star].boon;
+  return 'An ordinary star: usually guarded, now and then a little of anything.';
+}
 
 export type AnomalyKind = 'blackHole' | 'nebula' | 'darkMatter' | 'pulsar';
 
@@ -1219,10 +1235,13 @@ function buildUniverse(s: CampaignState, universe: number) {
     n.bonus = i % 2 ? { wisdom: 3 + Math.floor(n.tier / 2) } : { credits: 4 + n.tier };
   }
   // Systems with nothing to fight, only something to find: a derelict, a depot, an archive.
-  const finds: Cache['kind'][] = ['credits', 'materials', 'wisdom', 'cards'];
-  const quiet = shuffleInPlace(s, s.nodes.filter((n) => open(n) && !n.station && !n.bonus && (n.col ?? 0) >= 1));
-  for (const n of quiet.slice(0, Math.round(quiet.length * CAMPAIGN.cacheShare))) {
-    const kind = finds[randomInt(s, finds.length)];
+  // Each by the odds of its star (STAR_FINDS).
+  for (const n of s.nodes.filter((x) => open(x) && !x.station && !x.bonus && (x.col ?? 0) >= 1)) {
+    const odds = STAR_FINDS[n.star ?? 'yellow'];
+    if (nextRandom(s) >= odds.find) continue;
+    const weights = Object.entries(odds.kinds) as [Cache['kind'], number][];
+    let roll = nextRandom(s) * weights.reduce((sum, [, w]) => sum + w, 0);
+    const kind = weights.find(([, w]) => (roll -= w) < 0)?.[0] ?? weights[0][0];
     n.cache = { kind, amount: kind === 'cards' ? 3 : kind === 'credits' ? 4 + 2 * n.tier : kind === 'materials' ? 3 + n.tier : 2 + n.tier };
   }
   // The raiders: a few to start with, more in each universe, out past the first third.

@@ -47,7 +47,12 @@ import { sunHealth } from '../src/engine/campaign';
 /** A battle's suns' max health, as a change to the card game's (both sides start from it). */
 const baseDelta = (st: CampaignState) => sunHealth(st.nodes.find((n) => n.id === st.battle!.nodeId)!) - BALANCE.supernovaAt;
 
-const fresh = (seed = 7) => createCampaign({ seed, rivals: 3 });
+/** A new campaign with every system guarded (no finds), so the battle tests have someone to fight. */
+const fresh = (seed = 7) => {
+  const s = createCampaign({ seed, rivals: 3 });
+  for (const n of s.nodes) delete n.cache;
+  return s;
+};
 const home = (s: CampaignState) => s.nodes.find((n) => n.home === s.playerId) ?? ownedNodes(s, s.playerId)[0];
 const myArmy = (s: CampaignState) => armiesOf(s, s.playerId)[0];
 /** The first system the player's army can attack. */
@@ -89,6 +94,7 @@ describe('campaign setup', () => {
 
   it('plays a new race through a battle: Pyrr armies march, fight and gain experience', () => {
     let s = createCampaign({ seed: 5, race: 7, rivals: 3 });
+    for (const n of s.nodes) delete n.cache;
     s = applyCampaignAction(s, { type: 'readStory' });
     expect(cardDef(myArmy(s).general).race).toBe(7);
     s = attack(s);

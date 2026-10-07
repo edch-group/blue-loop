@@ -5720,3 +5720,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @media (prefers-reduced-motion: reduce) { .cmp-star > i { animation: none !important; } }
 /* Every route to the wormhole in view: the routes a touch stronger, so the way through reads at a glance. */
 .cmp-link { stroke: rgba(110, 118, 140, 0.5); stroke-dasharray: 3 7; }
+
+/* Routes as lines of light: a soft blue glow, a brighter band, and a white-hot thread. Held routes burn in
+   the holder's colour. Still (nothing runs along them). */
+.cmp-ray line { fill: none; stroke-linecap: round; }
+.cmp-ray-glow { stroke: rgba(110, 160, 240, 0.26); stroke-width: 14; }
+.cmp-ray-band { stroke: rgba(118, 168, 246, 0.75); stroke-width: 4.5; }
+.cmp-ray-core { stroke: #fff; stroke-width: 2; }
+.cmp-ray-held .cmp-ray-glow { stroke: color-mix(in srgb, var(--fc) 26%, transparent); }
+.cmp-ray-held .cmp-ray-band { stroke: color-mix(in srgb, var(--fc) 70%, #fff); }
