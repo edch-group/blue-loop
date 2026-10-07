@@ -808,8 +808,6 @@ export class CampaignView {
         if (army.owner === s!.playerId) {
           this.army = this.army === arg ? null : arg;
           this.selected = null;
-          // Frame the army and every system it can reach, so its routes are in view.
-          if (this.army) this.view = this.frameArmy(army);
         } else this.selected = army.nodeId;
         sound.hover();
         break;
@@ -950,9 +948,10 @@ export class CampaignView {
         this.anomaly = null;
         this.popTip = null;
         if (this.swallowClick) return true;
-        // With an army picked, tapping one of its routes sends it (into battle, after a look at the matchup).
-        if (this.army && s) {
-          const army = s.armies.find((a) => a.id === this.army);
+        // A star in the flagship's reach sends it there (no need to pick the ship first); a known foe gets a
+        // look at the matchup first.
+        if (s && s.phase === 'player' && !s.battle) {
+          const army = (this.army ? s.armies.find((a) => a.id === this.army) : undefined) ?? flagship(s, s.playerId);
           const move = army ? armyMoves(s, army).find((m) => m.toId === arg) : undefined;
           if (army && move) {
             // Into the unknown (who knows what a system holds until you get there): the ship just sets out.
@@ -1236,10 +1235,12 @@ export class CampaignView {
     const s = this.state!;
     const me = campaignPlayer(s);
     // The picked army's routes: battles ringed in red, marches in its colour.
-    const picked = this.army ? s.armies.find((a) => a.id === this.army) ?? null : null;
-    const moves = picked && s.phase === 'player' && !s.battle ? armyMoves(s, picked) : [];
-    const targets = new Set(moves.filter((m) => m.battle).map((m) => m.toId));
-    const marches = new Set(moves.filter((m) => !m.battle).map((m) => m.toId));
+    // (Always the flagship's: no need to pick the ship first. Unknown systems are all ringed alike: a red ring
+    // would give away what they hold; only a known foe is ringed in red.)
+    const picked = (this.army ? s.armies.find((a) => a.id === this.army) : undefined) ?? flagship(s, me.id) ?? null;
+    const moves = picked && s.phase === 'player' && !s.battle && !s.winner ? armyMoves(s, picked) : [];
+    const targets = new Set(moves.filter((m) => m.battle && this.known(m.toId)).map((m) => m.toId));
+    const marches = new Set(moves.filter((m) => !targets.has(m.toId)).map((m) => m.toId));
     // Focusing a system no longer zooms the camera into it, so nothing else on the map fades away from it
     // either (no "far" systems, no links masked out): the focused system just shows its planets.
     const focus = null as CampaignNode | null;
@@ -1567,7 +1568,6 @@ export class CampaignView {
   private cam: Cam | null = null;
   /** A glide in progress: where it started and when. */
   private glide: { from: Cam; start: number } | null = null;
-  private frame: number | null = null;
   /** The system focused at the last render, to fade out what belonged to it. */
   private lastFocus: string | null = null;
   private drag: { id: number; x: number; y: number; moved: boolean; pinch?: { d: number; zoom: number } } | null = null;
@@ -1578,21 +1578,10 @@ export class CampaignView {
 
   private static readonly TILT = 0; // (Bird's-eye: straight down on the strip.)
   private static readonly MAX_ZOOM = 12;
-  private static readonly GLIDE_MS = 1000;
   /** How far behind the map the sky lies: over the whole map it slides this fraction of the map's fitted width. */
   private static readonly SKY_DEPTH = 0.55;
 
-  /** A view centred between an army and the systems linked to its own, zoomed so they all fit. */
-  private frameArmy(a: Army): { x: number; y: number; zoom: number } {
-    const s = this.state!;
-    const here = nodeById(s, a.nodeId);
-    const pts = [here, ...here.links.map((id) => nodeById(s, id))];
-    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
-    const x = (Math.min(...xs) + Math.max(...xs)) / 2, y = (Math.min(...ys) + Math.max(...ys)) / 2;
-    // Room for the spread, with a margin (and the side panel), in the map's own proportions.
-    const spread = Math.max((Math.max(...xs) - Math.min(...xs)) / MAP_WIDTH, (Math.max(...ys) - Math.min(...ys)) / MAP_HEIGHT, 0.036);
-    return { x, y, zoom: Math.max(1, Math.min(6.5, 0.55 / spread)) };
-  }
+
 
   private homeView() {
     const s = this.state!;
@@ -1716,42 +1705,17 @@ export class CampaignView {
    * pans and pinches follow the finger at once, and a pan during a glide
    * steers it rather than cutting it short.
    */
-  private applyCamera(animate: boolean) {
+  private applyCamera(_animate: boolean) {
+    // (The strip is fitted to the screen and the camera never moves on its own: no glides, it is simply set.)
     const stage = this.stageEl;
     if (!stage || !this.state || !this.view) return;
-    const target = this.cameraTarget(stage);
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (animate && this.cam && !reduce && !sameCam(this.cam, target)) {
-      this.glide = { from: { ...this.cam }, start: performance.now() };
-      this.writeCamera(); // the re-rendered plane starts where the old one was, not untransformed
-      if (this.frame === null) this.frame = requestAnimationFrame((t) => this.tick(t));
-      return;
-    }
-    if (this.glide) return this.writeCamera(); // mid-glide: keep the fresh plane in place; the next frame heads for the new target
-    this.cam = target;
+    this.glide = null;
+    this.cam = this.cameraTarget(stage);
     this.writeCamera();
   }
 
-  private tick(now: number) {
-    this.frame = null;
-    const stage = this.stageEl;
-    if (!stage || !this.state || !this.view || !this.glide) return;
-    const target = this.cameraTarget(stage);
-    const t = Math.min(1, (now - this.glide.start) / CampaignView.GLIDE_MS);
-    // Ease in and out; zoom in log space, so it feels even at every scale.
-    const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
-    const f = this.glide.from;
-    this.cam = {
-      x: f.x + (target.x - f.x) * e,
-      y: f.y + (target.y - f.y) * e,
-      scale: Math.exp(Math.log(f.scale) + (Math.log(target.scale) - Math.log(f.scale)) * e),
-      tilt: f.tilt + (target.tilt - f.tilt) * e,
-      ui: f.ui + (target.ui - f.ui) * e,
-    };
-    this.writeCamera();
-    if (t < 1) this.frame = requestAnimationFrame((n) => this.tick(n));
-    else this.glide = null;
-  }
+
+
 
   /**
    * Parallax: the sky is a far-off layer behind the map. It slides with the
@@ -2645,8 +2609,4 @@ interface Cam {
   tilt: number;
   /** Star size factor: counters the free zoom so stars stay readable (see cameraTarget). */
   ui: number;
-}
-
-function sameCam(a: Cam, b: Cam): boolean {
-  return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.scale / b.scale - 1) < 0.001 && Math.abs(a.tilt - b.tilt) < 0.05 && Math.abs(a.ui - b.ui) < 0.001;
 }
