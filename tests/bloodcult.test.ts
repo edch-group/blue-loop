@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activePlayer, applyAction, baseHealth, baseStability, createGame, freeSlots, hasRoomFor, PRESET_DECKS, deckProblems } from '../src/engine';
+import { activePlayer, applyAction, baseHealth, createGame, freeSlots, hasRoomFor, PRESET_DECKS, deckProblems } from '../src/engine';
 import type { CardInstance, PlayerState } from '../src/engine/types';
 
 let n = 0;
@@ -8,7 +8,6 @@ const give = (p: PlayerState, ids: string[], where: 'hand' | 'tableau' = 'hand')
     const c: CardInstance = { uid: `bc${n++}`, defId };
     if (where === 'tableau') {
       c.slot = freeSlots(p)[0];
-      c.stability = baseStability(defId);
       c.health = baseHealth(defId);
       p.tableau.push(c);
     } else p.hand.push(c);
@@ -47,7 +46,7 @@ describe('the Blood Cult', () => {
     expect(hasRoomFor(me, 'bc_blood_offering')).toBe(false);
     const full = give(me, ['plasma_relay', 'plasma_relay', 'cryo_vault', 'bc_willing_vessel', 'plasma_relay'], 'tableau');
     expect(freeSlots(me)).toHaveLength(0);
-    expect(hasRoomFor(me, 'bc_hemomancer')).toBe(false);
+    expect(hasRoomFor(me, 'bc_hemomancer')).toBe(true); // (it replaces one of yours)
     const [offering] = give(me, ['bc_blood_offering']);
     const hand = me.hand.length;
     const t = applyAction(s, { type: 'playCard', cardUid: offering.uid, sacrificeUid: full[3].uid });

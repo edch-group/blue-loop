@@ -98,7 +98,7 @@ export const DUSK_CARDS: CardDef[] = [
     onDusk: [{ type: 'shield', amount: 3, if: VIGIL }],
   },
   {
-    id: 'vorthane_undertow', name: 'Undertow', kind: 'attack', race: 2, cost: 3,
+    id: 'vorthane_undertow', name: 'Deepwatch', kind: 'attack', race: 2, cost: 3,
     text: '{vigil}: {heat:1} per 2 shields you have (up to 4).',
     onDusk: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'shields', per: 2 }, max: 4, if: VIGIL }],
   },

@@ -60,26 +60,15 @@ export const BALANCE = {
   maxFused: 2,
   /** Worn defence each card (and empty slot) mends at its owner's dawn (Sturdy adds defence, not mending). */
   defenceMend: 1,
-  /**
-   * Stability: how many of your days a card stays in your tableau (its dawn effects trigger
-   * that many times), before it fades into your discard pile. Cards with only a when-played effect fade faster.
-   */
-  stability: 3,
-  /** A card whose dawn heat comes with no conditions (straight heat) fades sooner: it is the most reliable damage there is. */
-  stabilityDawnHeat: 2,
-  stabilityBurst: 1,
-  stabilityCommand: 3,
-  /** A card costing 1 energy or less never has more stability than this (its race's trait included). */
-  cheapMaxStability: 2,
-  /** A Relic's: it never fades, and nothing restores it (Brittle); removal reaches it whatever its defence. */
-  stabilityRelic: 3,
-  /** Stability can be restored up to this. */
-  maxStability: 6,
-  /** Each point a card has grown adds this to its attack (`growthAttackAll`: even a card with none of its own) and to its health. */
+  /** A Hero's stability when it lists none. (Cards no longer fade with the days: stability is what they can take.) */
+  heroStability: 5,
+  /** Stability a Fusion card adds to its host. */
+  fusionStability: 2,
+  /** Each point a card has grown adds this to its attack (`growthAttackAll`: even a card with none of its own) and to its stability. */
   growthAttack: 0,
   growthAttackAll: 0,
   growthHealth: 0,
-  /** Health: what a card in play can take, past its defence, before it burns away (1 + its cost, +1 for defence cards, 2 at least). */
+  /** Stability: what a card in play can take, past its defence, before it burns away (1 + its cost, +1 for defence cards, 2 to 8, then its race's trait). */
   minHealth: 2,
   maxHealth: 8,
   /** Kept shields (Deep Current) never exceed this. */
@@ -87,11 +76,11 @@ export const BALANCE = {
 
 
   /**
-   * Regional stability runs out: the late-game clock that guarantees games end.
-   * From this round on, every sun heats at its dawn (unblockable).
-   * It stacks: +1 in the first unstable round, +1 more every round after.
+   * Regional stability runs out: the late-game clock that guarantees games end (cards no longer fade, so
+   * without it a wall of cooling could hold forever). From this round on, every sun heats at its dawn
+   * (unblockable). It stacks: +1 in the first unstable round, +1 more every round after.
    */
-  instabilityStartsRound: 10,
+  instabilityStartsRound: 8,
   instabilityRampEvery: 1,
 
   /** Log entries kept in game state (older ones are dropped). */

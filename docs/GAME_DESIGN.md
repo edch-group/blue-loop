@@ -52,7 +52,7 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
    - At the first dawn of each round, once regional stability has run out, regional instability heats **every sun at once** by the same amount, past shields. If that would finish every sun, the one least far past its limit holds on (a coin flip if level) and wins. (Simulated 300 games: seats 51.7% / 48.3%.)
    - The global card applies, if there is one.
    - Your tableau's **dawn effects** trigger, left to right.
-   - Then every card in your tableau loses **1 stability**. A card at 0 fades into your discard pile.
+   - Cards don't lose anything with the days: they stand until beaten down or removed. (Anchor mends its neighbours 1 now.)
 2. **Play cards** with your **energy**: 1 on your first day, then 2, 3, 4, and **5 a day** from your fifth day. The industrial planet, Hero abilities and cards like Hive Relay add more on top, with no ceiling. [direction: the cap went from 4 to 5, so bigger cards can be made]
 3. **End day.** Unplayed cards stay in your hand. [proposed]
 
@@ -63,7 +63,7 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
 ## The tableau
 
 - Played cards **stay in play** in your tableau, which has **5 slots**. [design review: 5 slots]
-- **You choose the slot.** There is **no replacing**: with every slot full, no new card goes in (Lightspeed cards excepted) until one fades, or is recalled or removed. A recall card is the one way in: it takes the place of the card it recalls. Fill your tableau carelessly and you can lock yourself out. [design review]
+- **You choose the slot.** With every slot full, a new card **replaces** one of yours (you pick it; it leaves play) and takes its slot; a recall card can instead take the place of the card it recalls. [direction: cards no longer fade, so a full tableau must never lock] (Was: no replacing, until a card faded.)
 - **Defence** comes from the slot: **1, 2, 3, 2, 1** from left to right. The middle is the safest place for the card you most want to keep. [design review]
   - Sturdy cards add their own defence (Bellwarden and Hero of Rathune +1, Aegis Monolith +2). (They used to mend that much more worn defence each dawn too: a guard with Sturdy grafts fused onto it mended 5 a day and could not be worn down, so Sturdy is now defence only.)
   - Repair cards mend worn defence on your side, the most worn cards first: Bulwark Plating, Tide Pylon and Hero of Rathune 1 at each dawn, Aegis Monolith 2.
@@ -72,23 +72,13 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
     - Ion Cannon: 2 or less.
     - Tractor Beam and Command Breaker: 3 or less.
     - Event Horizon (Anomaly): any.
-- **Stability** is how many of your days a card stays in play. Its dawn effects trigger that many times, then it fades into your discard pile. A card costing 1 energy or less never has more than 2 stability, whatever its race (`BALANCE.cheapMaxStability`). [design review: stability on each card; the discard pile takes everything that leaves play] [direction: cheap cards never last three days]
-  - **Standard stability:** 3.
-  - **Cards with only a one-time effect** (no Dawn effect, nothing passive), Command Directive included: 1. They stay through your rival's day and fade at your next dawn: the slot is part of their cost, but they never stay past the day they are played. A card with a leave effect (Xel'Naru Martyr) fires it then.
-  - **Heroes** with a Dawn effect or a passive: 3.
-  - **Cards with their own stability:** Mycelium Tower 4 (it grows over time), Aegis Monolith 4.
-  - **Restoring it (at a price):**
-    - Stasis Field: +2 to a card, cool 1.
-    - Shard Renewal (Xel'Naru): +3, heat your own sun 2.
-    - Hive Rooting (Ixquor): +1 to all your others, draw 1.
-    - Chrono Anchor: the cards next to it lose none. The Anchor itself still fades.
-  - **Eroding it:**
-    - Entropy Pulse: −2 to a rival card, heat 1.
-    - Undertow (Vorthane): −2, gain 2 shields.
-    - Decay Wave: −1 to every card in the target's tableau, heat 2.
-  - Erosion ignores defence. A card eroded to 0 fades into its owner's discard pile.
-- Every card that stays in play shows its stability (◷) in your hand, zoomed and in the deck builder too.
-- On the board, each card in play shows its attack and ◷ stability in its bottom corners as printed (live values; stability turns red on its last turn), and its defence as a silver shield standing on its foot (reddened while worn). Empty slots show their defence.
+- **Stability** is what a card in play can take: attacks, stings, aimed heat past its defence, and Erode wear it down, and at 0 the card burns away into your discard pile (its leave effects fire). [direction: no more fading; stability, the old name, is now what health was, as it always was on Heroes]
+  - **By cost:** 1 + its energy cost, +1 for a defence card, from 2 to 8; then its race's trait (Aureline and Korrath none, Xel'Naru and Seren −1, Nyxari −2, Ixquor +1; at least 1). A Fusion card stands 1 lower alone (fusing is its strength). A Hero's is the stability it is listed with.
+  - **Cards never fade.** A full tableau isn't stuck: a new card **replaces** one of yours (you pick it; it leaves play, leave effects and all) and takes its slot. The AI only replaces for a clear gain.
+  - **Mending it:** Restore / Renew (Stasis Field, Shard Renewal, Hive Rooting...) and Anchor (its neighbours regain 1 at your dawn), never past a card's full stability (its printed value, or more with gear or Fusion: a fused card adds 2).
+  - **Wearing it:** Erode / Decay (Entropy Pulse, Decay Wave...) take stability whatever the defence; a Hero stands up to them. Relics are Brittle: nothing mends them.
+  - **The clock:** with nothing fading, regional instability (every sun heats at its dawn, more each round) now starts at round 8 so games can't stall behind walls of cooling.
+- Every card that stays in play shows its attack (a garnet, bottom left) and stability (a topaz, bottom right) in your hand, zoomed and in the deck builder too; in play, the live values (stability turns ruby at 1), and its defence as a silver shield standing on its foot (reddened while worn).
 - Cards have up to three kinds of effect:
   - **When played**: a one-off effect.
   - **Dawn**: triggers at each of your dawns while the card is in play.
@@ -174,7 +164,7 @@ Control over what a card does each day, alongside the dawn effects that happen b
 ## Dawn, day and dusk [design review]
 
 Every player's turn runs in three parts, each announced with a banner ("dawn", "day", "dusk" for your own; "<name>'s dawn" and so on for a rival's): a phase's effects play out only once its banner has gone, the next banner comes when they are done, and the AI makes its first move only once the day's banner has gone. [direction: actions at dusk/dawn wait for the banner; the AI too]
-- **Dawn**: your cards un-dim, dawn effects resolve (dawn heat strikes the rival's sun), cards lose a stability, you get the day's energy.
+- **Dawn**: your cards un-dim, dawn effects resolve (dawn heat strikes the rival's sun), Anchor mends, you get the day's energy.
 - **Day**: you play cards, attack, and use your Hero.
 - **Dusk**: as you end your day, your cards' **dusk** effects resolve, left to right, once you have acted (all passive cooling comes now). A card **played today** rests instead (unless it has Darkspeed): its dusk first works at the dusk after the day it lands, as a dawn card first works at the next dawn. Attacking or acting does not stop a card's dusk (it used to, which left Nightfall, a 1-stability Darkspeed attacker, with a dusk that could never fire once it attacked). A resting dusk card wears a small moon mark (its tip says why), so a quiet dusk is never a surprise. Its effects replay on the board just before the next player's dawn.
 - **Hand limit**: after your dusk you may hold at most 5 cards (`maxHand`); you pick the cards over that to discard (any you don't pick, the costliest go, a Hero kept while none leads your tableau). Drawing past 5 is wasted unless the cards are played, so draw is worth less to a deck that can't spend it.
@@ -183,7 +173,7 @@ Dusk is the opposite of dawn: it comes after your choices, so it can reward them
 
 **Dawn heat became attack.** [direction: dawn/dusk heat was about half of all damage, unblockable and uninteractive] A card's plain dawn heat at the rival (no condition, no scaling) is now that much more **attack** (dawn-attack.ts): it strikes a card or the sun by its owner's choice each day, Guards drawing it, rather than heating the sun by itself. What scales or depends on something stays a dawn effect (Riptide's heat per 3 shields, Overload Core's while overheated). A converted card keeps the short term its dawn heat had (`stabilityDawnHeat`). Cards left beaten outright by another at their cost got +1 attack (Helio Lancer +2, Overload Core, Skirmisher, Stargazer, Sunforge, Dawnstar Cannon, Ash-Walker; Cinder Brute and Solar Tyrant +2; Overcharge gives 2 energy), Riptide and Abyssal Choir +1 (Deep Tide fell to 25% without it), Archon and Aurelia −1 (Forge stacks on attack, so the Aureline deck ran hot).
 
-**Vigil.** [direction: with dawn heat gone, dawn/day/dusk needed their own jobs: dawn is the engine, day the choices, dusk rewards restraint] `{vigil}: …` is a dusk effect that fires only if the card **held back** today (didn't attack or act, so isn't dimmed): every Vigil card is an attacker, so each day asks "strike now, or keep it home for its dusk?". It's a fundamental (legal in Core). Eight cards, two per core race, in cards-dusk.ts: Dusk Watchkeeper (cool 3) and Sunset Lancer (heat 3); Banked Star (heat 2, heats your own sun at dawn) and Still Flame (draw 1, heat 1 to your sun); Tide Watcher (shield 3) and Undertow (heat 1 per 2 shields, up to 4); Waiting Brood (grows, then heat equal to its growth) and Brood Warden (your other growing cards grow). Each Core starter runs three. The AI charges an attack with a Vigil card what its Vigil would have done tonight. A dusk with nothing to do (a Vigil card that attacked) shows no banner.
+**Vigil.** [direction: with dawn heat gone, dawn/day/dusk needed their own jobs: dawn is the engine, day the choices, dusk rewards restraint] `{vigil}: …` is a dusk effect that fires only if the card **held back** today (didn't attack or act, so isn't dimmed): every Vigil card is an attacker, so each day asks "strike now, or keep it home for its dusk?". It's a fundamental (legal in Core). Eight cards, two per core race, in cards-dusk.ts: Dusk Watchkeeper (cool 3) and Sunset Lancer (heat 3); Banked Star (heat 2, heats your own sun at dawn) and Still Flame (draw 1, heat 1 to your sun); Tide Watcher (shield 3) and Deepwatch (heat 1 per 2 shields, up to 4); Waiting Brood (grows, then heat equal to its growth) and Brood Warden (your other growing cards grow). Each Core starter runs three. The AI charges an attack with a Vigil card what its Vigil would have done tonight. A dusk with nothing to do (a Vigil card that attacked) shows no banner.
 
 ## Heroes
 
@@ -346,8 +336,8 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | bulwark N (· M) | Cards next to it +N defence (two slots away +M) |
 | resonance N (· M) | Cards next to it +N heat, cooling and shields (two places away +M) |
 | forge N | Resonance for attack cards only: +N heat |
-| anchor | Cards next to it lose no stability |
-| erode N / decay N | A rival card / every rival card loses N stability |
+| anchor | Cards next to it regain 1 stability at your dawn |
+| erode N / decay N | A rival card / every rival card loses N stability, whatever its defence |
 | restore N / renew N | Another card / every other card of yours regains N stability |
 | recover (type) | A card (of that type) from your discard pile to your hand; with none there, draw |
 | abundance +N | Draw N more at each of your dawns, while the card is in play (a one-off draw just says "Draw N"). |
@@ -594,9 +584,9 @@ A card in play has three numbers:
 
 - **Defence** wears first. It comes from its slot plus its own Sturdy, and is mended 1 a day and by Repair.
 - **Health** is what heat past its defence wears down: attacks, stings and aimed heat. At 0 the card burns away. Health is 1 + the card's cost, +1 for a defence card, and at least 2 (`baseHealth`). A card can list its own.
-- **Stability** only counts the days before the card fades into the discard pile.
+- **Stability** only counted the days before the card faded into the discard pile.
 
-Keeping the two apart means a card's lifetime and its toughness are balanced separately. A sturdy card no longer has to be a long-lasting one, and the reverse.
+(Superseded: cards no longer fade, and the one stat left is called stability, with health's job. See Stability above.)
 
 How the other rules touch them:
 

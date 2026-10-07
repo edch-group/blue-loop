@@ -728,14 +728,6 @@ for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.co
 // Its Sting (the Vorthane) is written into theirs too (it still strikes back as the race's, in counterDamage).
 const raiseKeyword = (text: string, kw: string, n: number) =>
   new RegExp(`\\{${kw}:\\d+\\}`).test(text) ? text.replace(new RegExp(`\\{${kw}:(\\d+)\\}`), (_, k: string) => `{${kw}:${Number(k) + n}}`) : `{${kw}:${n}}. ${text}`;
-// Erode and Decay take a card's days, not its health (heat does that now): one more day than they were listed with.
-const ERODE_EXTRA = 1;
-for (const c of CARDS) {
-  const lists = [c.onPlay, c.onTurn, c.onDusk, c.onLeave, c.lightspeed?.effects, ...(c.abilities ?? []).map((k) => k.effects)];
-  let hit = false;
-  for (const e of lists.flat()) if (e?.type === 'erode') (e.amount += ERODE_EXTRA), (hit = true);
-  if (hit) c.text = c.text.replace(/\{(erode|decay):(\d+)\}/g, (_, k: string, n: string) => `{${k}:${Number(n) + ERODE_EXTRA}}`);
-}
 for (const c of CARDS) {
   const t = raceTrait(c.race);
   if (!t || c.fusion || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
@@ -793,8 +785,6 @@ export function dawnHeatAsAttack() {
     });
     if (!gained) continue;
     c.attack = (c.attack ?? 0) + gained + (DAWN_ATTACK_EXTRA[c.id] ?? 0);
-    // (Its attack is as steady as its dawn heat was, a day a day: it keeps the shorter term straight heat had.)
-    c.stability ??= BALANCE.stabilityDawnHeat;
     if (DAWN_ATTACK_TEXT[c.id] !== undefined) c.text = DAWN_ATTACK_TEXT[c.id];
   }
 }

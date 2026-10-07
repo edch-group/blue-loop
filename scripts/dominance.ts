@@ -6,7 +6,7 @@
  */
 import { allCardDefs, CARDS } from '../src/engine/cards';
 import { inMode, underRules, type GameMode } from '../src/engine/modes';
-import { baseStability, cardCost } from '../src/engine/game';
+import { baseHealth, cardCost } from '../src/engine/game';
 import { raceTrait } from '../src/engine/races';
 import type { CardDef, Effect, Passive } from '../src/engine/types';
 
@@ -49,7 +49,7 @@ function vec(c: CardDef): Vec {
   if (c.fusion) bump(v, 'fusion', 1);
   // (Consume is a cost: a card given up to play it.)
   if (c.consume) bump(v, 'bad|consume', 1);
-  if (c.onTurn?.length || c.onDusk?.length || c.passive?.length || c.attune || c.attack) bump(v, 'stability', baseStability(c.id) - (c.kind === 'command' ? 0 : raceTrait(c.race)?.stability ?? 0)); // (a race's trait is the race's, not the card's)
+  if (c.onTurn?.length || c.onDusk?.length || c.passive?.length || c.attune || c.attack) bump(v, 'stability', baseHealth(c.id) - (c.kind === 'command' ? 0 : raceTrait(c.race)?.stability ?? 0)); // (a race's trait is the race's, not the card's)
   return v;
 }
 export function dominatedPairs(raceOverNeutral = false, anyRace = false, mode?: GameMode): string[] {

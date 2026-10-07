@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
-import { activePlayer, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability,
+import { activePlayer, replaces, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction,
   baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
@@ -17,7 +17,6 @@ function give(p: PlayerState, defIds: string[], where: 'hand' | 'tableau' = 'han
     // Into the free slots, left to right, at full stability.
     for (const c of cards) {
       c.slot = freeSlots(p)[0];
-      c.stability = baseStability(c.defId);
       c.health = baseHealth(c.defId);
       p.tableau.push(c);
     }
@@ -154,53 +153,45 @@ describe('the tableau', () => {
     expect(s.players[0].tableau[0].growth).toBe(1);
   });
 
-  it('refuses a card when the tableau is full (no replacing), but still takes a Lightspeed card', () => {
+  it('into a full tableau, a card replaces one of yours (the chosen one, else the weakest), and Lightspeed still sets', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    me.playsLeft = 2;
-    give(me, Array(BALANCE.tableauSlots).fill('coolant_array'), 'tableau');
-    give(me, ['plasma_relay', 'null_field']);
-    expect(() => play(s, 'plasma_relay')).toThrow(/full/);
+    me.playsLeft = 3;
+    const wall = give(me, Array(BALANCE.tableauSlots).fill('coolant_array'), 'tableau');
+    wall[2].health = 1;
+    give(me, ['plasma_relay', 'plasma_relay', 'null_field']);
+    expect(replaces(me, 'plasma_relay')).toBe(true);
+    s = play(s, 'plasma_relay', { sacrificeUid: wall[4].uid } as never);
+    expect(s.players[0].tableau.find((c) => c.slot === wall[4].slot)?.defId).toBe('plasma_relay');
+    expect(s.players[0].discard.some((c) => c.uid === wall[4].uid)).toBe(true);
+    s = play(s, 'plasma_relay');
+    expect(s.players[0].discard.some((c) => c.uid === wall[2].uid)).toBe(true);
     s = play(s, 'null_field');
     expect(s.players[0].lightspeed?.defId).toBe('null_field');
   });
 
-  it('fades cards after their stability runs out, into the discard pile, triggering leave effects', () => {
+  it("never fades cards: they stand until beaten down; Erode wears stability, Restore and Anchor mend it", () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    const [martyr] = give(me, ['martyr_crystal'], 'tableau'); // no start-of-turn or passive effect: it fades fast
-    const [relay] = give(me, ['plasma_relay'], 'tableau');
-    expect(martyr.stability).toBe(BALANCE.stabilityBurst);
-    // (An attacker lasts as any card does; a 1-energy one, as long as a cheap card may.)
-    expect(relay.stability).toBe(BALANCE.cheapMaxStability);
-    expect(baseStability('standing_orders')).toBe(BALANCE.stability);
-    // (A 1-energy card never lasts longer than cheapMaxStability.)
-    expect(baseStability('deflector_grid')).toBe(BALANCE.cheapMaxStability);
-    const bo = s.players[1].heat;
-    s = endTurn(endTurn(s)); // Ada's turn 2: both lose 1; the one-time Martyr fades and bursts
-    expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
-    expect(s.players[0].tableau[0].stability).toBe(BALANCE.cheapMaxStability - 1);
-    expect(s.players[0].discard.some((c) => c.uid === martyr.uid)).toBe(true);
-    expect(s.players[1].heat).toBeGreaterThanOrEqual(bo + 4);
-    s = endTurn(endTurn(s)); // Ada's turn 3: the relay fades
-    expect(s.players[0].tableau).toHaveLength(0);
-  });
-
-  it('keeps anchored cards from fading, and lets stability be restored or eroded', () => {
-    let s = twoPlayer();
-    const me = activePlayer(s);
-    me.playsLeft = 2;
+    me.playsLeft = 3;
     const [relay, anchor, lance] = give(me, ['plasma_relay', 'chrono_anchor', 'coronal_lance'], 'tableau');
+    for (let i = 0; i < 8; i++) s = endTurn(s);
+    expect(s.players[0].tableau.map((c) => c.uid)).toEqual([relay.uid, anchor.uid, lance.uid]);
+    const lanceNow = () => s.players[0].tableau.find((c) => c.uid === lance.uid)!;
+    const full = baseHealth('coronal_lance');
+    // Anchor mends its neighbours 1 at its owner's dawn (up to full).
+    lanceNow().health = full - 2;
     s = endTurn(endTurn(s));
-    const t = s.players[0].tableau;
-    expect(t.find((c) => c.uid === relay.uid)!.stability).toBe(BALANCE.stabilityDawnHeat);
-    expect(t.find((c) => c.uid === lance.uid)!.stability).toBe(BALANCE.stabilityBurst);
+    expect(lanceNow().health).toBe(full - 1);
+    // Restore mends a card of yours, never past full.
     give(activePlayer(s), ['stasis_field']);
     s = play(s, 'stasis_field', { allyUid: lance.uid, slot: 3 });
-    expect(s.players[0].tableau.find((c) => c.uid === lance.uid)!.stability).toBe(BALANCE.stabilityBurst + 2);
+    expect(lanceNow().health).toBe(full);
     s = endTurn(s);
+    // Erode takes stability whatever the defence.
+    const a = s.players[0].tableau.find((c) => c.uid === anchor.uid)!;
+    a.health = 2;
     give(activePlayer(s), ['entropy_pulse']);
-    // The Anchor itself still fades: 3 → 2, and the pulse takes the last 2.
     s = play(s, 'entropy_pulse', { enemyUid: anchor.uid });
     expect(s.players[0].tableau.some((c) => c.uid === anchor.uid)).toBe(false);
     expect(s.players[0].discard.some((c) => c.uid === anchor.uid)).toBe(true);
@@ -285,7 +276,7 @@ describe('commands', () => {
     expect(kael().health).toBe(hp - 1);
     t = endTurn(endTurn(t));
     kael().health = 1;
-    expect(heroAbilityProblem(t, activePlayer(t), 0)).toMatch(/health/);
+    expect(heroAbilityProblem(t, activePlayer(t), 0)).toMatch(/stability/);
   });
 
   it('mend their own health, up to their full health', () => {
@@ -385,7 +376,6 @@ describe('attacks and dimming', () => {
     expect(attackProblem(s, activePlayer(s), array().uid)).toMatch(/dimmed/);
     s = endTurn(endTurn(s));
     array().health = 6;
-    array().stability = 9;
     const [chart] = give(s.players[1], ['star_chart'], 'tableau');
     chart.health = 6;
     s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: chart.uid });
@@ -508,7 +498,7 @@ describe('synergies', () => {
     let s = twoPlayer();
     const ada = activePlayer(s);
     const [lancer] = give(ada, ['helio_lancer'], 'tableau');
-    lancer.stability = 2;
+    lancer.health = 2;
     const [veil] = give(s.players[1], ['stinging_veil'], 'tableau');
     // The Veil is a Guard: nothing behind it can be attacked.
     expect(attackProblem(s, ada, lancer.uid, 'elsewhere')).toMatch(/Guard/);
@@ -525,7 +515,7 @@ describe('Lightspeed guards', () => {
     const rival = s.players.find((p) => p.id !== me.id)!;
     // The rival sets a Blink Bulwark face down (1 + 1 energy) instead of playing it as a Guard.
     const [lancerTarget] = give(rival, ['star_chart'], 'tableau');
-    lancerTarget.stability = 5;
+    lancerTarget.health = 5;
     rival.shields = 0;
     const [bw] = give(rival, ['blink_bulwark']);
     s.activePlayerIndex = s.players.indexOf(rival);
@@ -540,13 +530,13 @@ describe('Lightspeed guards', () => {
     // My Siege Array attacks their Star Chart: the Bulwark springs into their tableau and takes the attack.
     s.activePlayerIndex = s.players.indexOf(s.players.find((p) => p.id === me.id)!);
     const [array] = give(activePlayer(s), ['siege_array'], 'tableau');
-    array.stability = 6;
+    array.health = 6;
     s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: lancerTarget.uid });
     const after = s.players.find((p) => p.id === rival.id)!;
     expect(after.lightspeed).toBeNull();
     const guard = after.tableau.find((c) => c.defId === 'blink_bulwark');
     expect(guard).toBeDefined();
-    expect(after.tableau.find((c) => c.uid === lancerTarget.uid)?.stability).toBe(5);
+    expect(after.tableau.find((c) => c.uid === lancerTarget.uid)?.health).toBe(5);
     // Its defence (slot and sturdy) takes the blow first.
     expect(guard!.dented ?? 0).toBeGreaterThan(0);
     expect(s.sprung?.some((x) => x.trigger === 'cardAttacked' && x.defId === 'blink_bulwark')).toBe(true);
@@ -831,12 +821,12 @@ describe('AI', () => {
     }
   });
 
-  it('holds its cards when its tableau is full', () => {
+  it('with a full tableau, only replaces a card for a better one', () => {
     const s = twoPlayer();
     const me = activePlayer(s);
-    give(me, Array(BALANCE.tableauSlots).fill('coolant_array'), 'tableau');
+    give(me, Array(BALANCE.tableauSlots).fill('deflector_grid'), 'tableau');
     me.hand = [];
-    give(me, ['plasma_relay']);
+    give(me, ['coolant_array']);
     expect(chooseAIAction(s).type).toBe('endTurn');
   });
 });
@@ -1188,26 +1178,25 @@ describe('attacks and heat', () => {
     const s = twoPlayer();
     const [ada, bo] = s.players;
     const [array, lancer] = give(ada, ['siege_array', 'helio_lancer'], 'tableau');
-    array.stability = lancer.stability = 6;
+    array.health = lancer.health = 6;
     const [a, b] = give(bo, ['coolant_array', 'coolant_array'], 'tableau');
-    a.stability = b.stability = 6;
+    a.health = b.health = 6;
     bo.shields = 0;
     return { s, array, lancer, a, b };
   }
-  const stab = (st: GameState, uid: string) => st.players[1].tableau.find((c) => c.uid === uid)?.stability ?? 0;
+  const stab = (st: GameState, uid: string) => st.players[1].tableau.find((c) => c.uid === uid)?.health ?? 0;
 
   it("strikes the sun with dawn heat (past Guards), while heat as a card is played can be aimed at a card", () => {
     let { s, a, b } = setUp();
     const [sa, sb] = [stab(s, a.uid), stab(s, b.uid)];
     // A rival Guard doesn't draw dawn heat in.
     const [veil] = give(s.players[1], ['stinging_veil'], 'tableau');
-    veil.stability = 6;
     veil.health = 6;
     s = applyAction(applyAction(s, { type: 'endTurn' }), { type: 'endTurn' });
-    // (Bo's own dawn wore them 1, as every card fades.)
-    expect(stab(s, a.uid)).toBe(sa - 1);
-    expect(stab(s, b.uid)).toBe(sb - 1);
-    expect(stab(s, veil.uid)).toBe(5);
+    // (Nothing fades: dawn wore nothing away.)
+    expect(stab(s, a.uid)).toBe(sa);
+    expect(stab(s, b.uid)).toBe(sb);
+    expect(stab(s, veil.uid)).toBe(6);
     // A Coronal Lance, aimed: with a Guard up, only the Guard can be aimed at.
     activePlayer(s).playsLeft = 9;
     give(activePlayer(s), ['coronal_lance', 'coronal_lance']);
@@ -1309,16 +1298,16 @@ describe('lightspeed', () => {
     let s = twoPlayer();
     const [array] = give(s.players[0], ['siege_array'], 'tableau');
     const [b] = give(s.players[1], ['coolant_array'], 'tableau');
-    array.stability = b.stability = 6;
+    array.health = b.health = 6;
     const t = { array, b };
     const bo = s.players[1];
     bo.lightspeed = { uid: 'ls2', defId: 'nyx_night_ambush' };
     const ada = activePlayer(s);
     const heatBefore = ada.heat, shields = ada.shields;
-    const stab = bo.tableau.find((c) => c.uid === t.b.uid)!.stability;
+    const stab = bo.tableau.find((c) => c.uid === t.b.uid)!.health;
     s = applyAction(s, { type: 'attack', attackerUid: t.array.uid, targetUid: t.b.uid });
     expect(s.players[1].lightspeed).toBeNull();
-    expect(s.players[1].tableau.find((c) => c.uid === t.b.uid)!.stability).toBe(stab);
+    expect(s.players[1].tableau.find((c) => c.uid === t.b.uid)!.health).toBe(stab);
     expect(activePlayer(s).heat + Math.max(0, shields - activePlayer(s).shields)).toBe(heatBefore + 2);
     expect(s.log.some((l) => /never reaches/.test(l.text))).toBe(true);
   });
@@ -1329,14 +1318,14 @@ describe('fusion', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     const [host] = give(me, ['deflector_grid'], 'tableau');
-    const before = host.stability ?? 0;
+    const before = host.health ?? 0;
     give(me, ['tidal_graft']);
     me.playsLeft = 9;
     s = play(s, 'tidal_graft', { hostUid: host.uid });
     const h = activePlayer(s).tableau.find((c) => c.uid === host.uid)!;
     expect(activePlayer(s).tableau.length).toBe(1);
     expect(h.fused?.map((f) => f.defId)).toEqual(['tidal_graft']);
-    expect(h.stability).toBe(before + 2);
+    expect(h.health).toBe(before + 2);
     // Its dawn: the host's own 2 shields, and the graft's 2 more.
     expect(dawnEffects(h).filter((e) => e.type === 'shield').length).toBe(2);
   });
@@ -1352,13 +1341,15 @@ describe('fusion', () => {
     expect(p.tableau.length).toBe(2);
     expect(p.tableau.find((c) => c.defId === 'tidal_graft')!.slot).toBe(3);
     // With a full tableau it can still fuse onto a card, but not take a slot.
-    const t = twoPlayer();
+    let t = twoPlayer();
     const m = activePlayer(t);
     give(m, Array(5).fill('coolant_array'), 'tableau');
     expect(hasRoomFor(m, 'tidal_graft')).toBe(true);
     give(m, ['tidal_graft']);
     m.playsLeft = 9;
-    expect(() => play(t, 'tidal_graft', { slot: 0 })).toThrow(/full/);
+    // (Or, into a slot, it replaces one of yours.)
+    t = play(t, 'tidal_graft', { slot: 0 });
+    expect(activePlayer(t).tableau.find((c) => c.slot === 0)?.defId).toBe('tidal_graft');
   });
 
   it('leaves with its host', () => {
@@ -1372,7 +1363,7 @@ describe('fusion', () => {
     const p = activePlayer(s);
     expect(cardDefence(p, p.tableau[0])).toBe(def0 + 2);
     // Burn the host away: its fusion card goes to the discard pile with it.
-    p.tableau[0].stability = 1;
+    p.tableau[0].health = 1;
     const rival = s.players[1];
     give(p, ['coronal_lance']);
     s.players[1] = rival;
@@ -1415,20 +1406,20 @@ describe('saplings and growth', () => {
 });
 
 describe('relics', () => {
-  it('never fade, have no defence, and lend their bonus', () => {
+  it('stand, have no defence, and lend their bonus', () => {
     let s = twoPlayer(3);
     const me = activePlayer(s);
     const [relic] = give(me, ['ember_idol'], 'tableau');
     const [relay] = give(me, ['plasma_relay'], 'tableau');
     expect(cardAttack(s, me, relic)).toBe(0);
-    expect(relic.stability).toBe(3);
+    expect(relic.health).toBe(baseHealth('ember_idol'));
     // Its bonus: your attack cards heat 1 more.
     expect(effectAmount(s, me, relay, { type: 'heat', amount: 1, to: 'target' }, 'turn')).toBe(2);
     // Days pass: it stays.
     for (let i = 0; i < 8 && !isGameOver(s); i++) s = endTurn(s);
     const mine = s.players.find((p) => p.id === me.id)!;
     const still = mine.tableau.find((c) => c.uid === relic.uid);
-    expect(still?.stability).toBe(3);
+    expect(still?.health).toBe(baseHealth('ember_idol'));
   });
 
   it('break to the weakest removal', () => {

@@ -169,7 +169,7 @@ export const RACE_CARDS: CardDef[] = [
   hero(
     {
       id: 'bc_hero_sanguis', name: 'Sanguis, the Blood Saint', race: 4, sub: 'bloodcult', character: true, rarity: 'stellar', cost: 3, stability: 6,
-      lead: 'When another of your cards leaves your tableau, she mends 1 health.',
+      lead: 'When another of your cards leaves your tableau, she regains 1 stability.',
       passive: [{ type: 'allyLeaves', effects: [{ type: 'restore', amount: 1, self: true }] }],
     },
     [act('communion', 'Communion', 'Draw 2.', [{ type: 'draw', amount: 2 }], { sacrifice: true }), act('bloodletting', 'Bloodletting', '{heat:3}.', [{ type: 'heat', amount: 3, to: 'target' }], { stability: 1 })],

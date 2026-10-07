@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
-import { activePlayer, applyAction, baseStability, cardCost, COMMAND_SLOT, createGame, enemyChoices, freeSlots, allyChoices } from '../src/engine/game';
+import { activePlayer, applyAction, baseHealth, cardCost, COMMAND_SLOT, createGame, enemyChoices, freeSlots, allyChoices } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = () => createGame({ seed: 3, players: [{ name: 'Ada', isAI: false }, { name: 'Bo', isAI: false }] });
 let uid = 5000;
 function put(p: PlayerState, defId: string, slot: number): CardInstance {
-  const c: CardInstance = { uid: `s${uid++}`, defId, slot, stability: baseStability(defId) };
+  const c: CardInstance = { uid: `s${uid++}`, defId, slot, health: baseHealth(defId) };
   p.tableau.push(c);
   return c;
 }

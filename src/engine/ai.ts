@@ -25,6 +25,7 @@ import {
   recoverChoices,
   supernovaThreshold,
   hasRoomFor,
+  replaces,
   targetOf,
   dawnEffects,
   duskEffects,
@@ -230,11 +231,10 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   // (Its other costs too: the Hero's stability, a card sacrificed, heat on its own sun.)
   const payValue = (k: HeroAbility) => ((k.pay?.stability ?? 0) * 0.5 + (k.pay?.sacrifice ? 1 : 0) + (k.pay?.selfHeat ?? 0) * 0.3) * ACTION_VALUE;
   if (def.abilities?.length) perTurn += 0.8 * Math.max(...def.abilities.map((k) => abilityValue(p, k.effects) - (k.cost ?? 0) * ACTION_VALUE * 0.6 - payValue(k)));
-  // Worth as many turns as it has left (roughly), and a little more where removal cannot reach it. A Hero
-  // never fades: it is worth the whole horizon.
-  // (A Hero never fades: it leads until it is removed, so it is worth a good deal longer than a card that fades.)
-  const turns = def.kind === 'command' ? HORIZON + HERO_DAYS : def.kind === 'relic' ? HORIZON + 1 : Math.min(card.stability ?? HORIZON, HORIZON + 1);
-  return perTurn * turns * (0.85 + 0.05 * cardDefence(p, card)) * (1 - removalRisk(state, p, card));
+  // Cards no longer fade: each is worth the horizon, a little more the harder it is to beat down (defence and
+  // stability), less where removal can reach it. A Hero leads longer still.
+  const turns = def.kind === 'command' ? HORIZON + HERO_DAYS : HORIZON + 1;
+  return perTurn * turns * (0.8 + 0.05 * cardDefence(p, card) + 0.02 * (card.health ?? 0)) * (1 - removalRisk(state, p, card));
 }
 
 /** Days a Hero is counted on to lead, beyond the usual horizon. */
@@ -324,12 +324,14 @@ function orbitOutlook(p: PlayerState, shift = 0): number {
   return v;
 }
 
-/** A card in play also blocks a slot until it fades: the cost of that, per turn it stays. */
+/** A card in play also blocks a slot (for something better later): the cost of that. */
 const SLOT_COST = tuning('SLOT', 0.35);
+/** Days a card is counted on to hold its slot. */
+const SLOT_DAYS = 2;
 
 function tableauValue(state: GameState, p: PlayerState): number {
   // (A Hero leads from its own slot: it blocks none of the five.)
-  return p.tableau.reduce((sum, c) => sum + cardValue(state, p, c) - (cardDef(c.defId).kind === 'command' ? 0 : SLOT_COST * (c.stability ?? 0)), 0);
+  return p.tableau.reduce((sum, c) => sum + cardValue(state, p, c) - (cardDef(c.defId).kind === 'command' ? 0 : SLOT_COST * SLOT_DAYS), 0);
 }
 
 /** How good this state is for `meId`: heat on every sun, ongoing value and cards. */
@@ -511,7 +513,9 @@ export function chooseAIAction(state: GameState): Action {
     // (A Vigil card that attacks gives up tonight's Vigil.)
     const vigil = action.type === 'attack' ? vigilWorth(view, me, me.tableau.find((c) => c.uid === action.attackerUid)) : 0;
     const raw = evaluate(next, me.id) + ramp - vigil;
-    const score = raw - extra * ACTION_VALUE;
+    // (Replacing a card of yours in a full tableau: only for a clear gain, never a like-for-like swap.)
+    const replacing = played && action.type === 'playCard' && !action.faceDown && action.hostUid === undefined && replaces(me, played.defId) ? ACTION_VALUE : 0;
+    const score = raw - extra * ACTION_VALUE - replacing;
     bestRaw = Math.max(bestRaw, raw);
     aiScores?.push({ action, score });
     if (!best || score > best.score) best = { action, score };

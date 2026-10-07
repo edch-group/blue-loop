@@ -64,12 +64,10 @@ function passive(p: Passive, days: number): number {
     default: return 0.8 * days;
   }
 }
-/** How long a card lasts, without its race's trait. */
+/** Days a card is counted on to work: cards no longer fade, so about a game's worth for any that stays (one for a card that does nothing after it is played). */
 function stab(c: CardDef): number {
-  if (c.stability !== undefined) return c.stability;
   if (!c.onTurn?.length && !c.onDusk?.length && !c.passive?.length && !c.choices?.length && !c.attune) return 1;
-  if ((c.onTurn ?? []).some((e) => e.type === 'heat' && e.to === 'target' && !e.if && !e.plus)) return 2;
-  return 3;
+  return 4;
 }
 export function power(c: CardDef): number {
   if (c.spendAll) return NaN;

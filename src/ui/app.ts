@@ -32,12 +32,12 @@ import {
   plainText,
   isGameOver,
   freeSlots,
+  replaces as replacesCard,
   persists,
   commandCard,
   inSlots,
   fusionHosts,
   fullDefence,
-  baseStability,
   baseHealth,
   playsAllowed,
   RACE_NAMES,
@@ -2074,7 +2074,7 @@ export class App {
       const was = rivalCards(prev);
       const now = rivalCards(next);
       const hitCards = [...was]
-        .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.stability ?? 0) < (c.stability ?? 0) || (now.get(uid)!.health ?? 0) < (c.health ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0))
+        .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.health ?? 0) < (c.health ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0))
         .map(([uid]) => uid);
       const from = playedFrom!;
       const heats = (playedDef?.onPlay ?? []).some((e) => e.type === 'heat');
@@ -2747,7 +2747,7 @@ export class App {
       return refuse();
     }
     if (!hasRoomFor(me, card.defId) && !canSetFaceDown(me, card.defId)) {
-      this.showToast('Your tableau is full: a card can only go in once one fades (or is recalled or removed). A recall card can take the place of the card it recalls.', 'info');
+      this.showToast('Your tableau is full: a card can only go in once one is beaten down, recalled or removed. A recall card can take the place of the card it recalls.', 'info');
       return refuse();
     }
     this.pending = { uid, step: 'choice', drop };
@@ -2781,8 +2781,10 @@ export class App {
     if (dropSlot !== undefined && p.slot === undefined && freeSlots(me).includes(dropSlot)) p.slot = dropSlot;
     if (canSetFaceDown(me, card.defId) && p.slot === undefined) return ask('slot');
     // A Consume card: first the card of yours it gives up (with no slot free, it takes that card's).
-    if (cardDef(card.defId).consume && !p.sacrificeUid) return ask('sacrifice');
-    if (cardDef(card.defId).consume && p.slot === undefined && !freeSlots(me).length) p.slot = me.tableau.find((c) => c.uid === p.sacrificeUid)?.slot;
+    // (Into a full tableau, any card first picks the card of yours it replaces, and takes its slot.)
+    const replacing = !p.faceDown && !(cardDef(card.defId).fusion && fusionHosts(me).length) && replacesCard(me, card.defId);
+    if ((cardDef(card.defId).consume || replacing) && !p.sacrificeUid) return ask('sacrifice');
+    if ((cardDef(card.defId).consume || replacing) && p.slot === undefined && !freeSlots(me).length) p.slot = me.tableau.find((c) => c.uid === p.sacrificeUid)?.slot;
     // First the card is placed, so what it does next is seen from where it will stand (its slot's forge and
     // resonance count in the heat it aims): a recall card first picks the card it recalls (it may take its
     // place), a Fusion card the card it fuses onto, and any other card its slot. Even the last open slot is
@@ -4358,7 +4360,7 @@ export class App {
             fact('The goal', `Heat your rival's sun to <b>${B.supernovaAt}</b>. It goes supernova and you win.`),
             fact('Two suns', `Both start at ${B.startingHeat} heat. ${kw('heat')} heats, ${kw('cool')} cools, ${kw('shield')} blocks.`),
             fact('Days', 'Players take turns, called days. Each of your days starts at Dawn.'),
-            fact('Cards stay', 'Played cards sit in your tableau and act every Dawn, until they fade.'),
+            fact('Cards stay', 'Played cards sit in your tableau and act every dawn, until they are beaten down or removed.'),
             fact('Your deck', `${B.deckSize}–${B.maxDeckSize} cards: up to ${B.maxCopies} of each, and one Hero per ${B.cardsPerCommand} cards.`),
             fact('Your hand', `Start with ${B.openingHand} cards. Draw ${B.drawPerTurn} every Dawn after the first.`),
           ),
@@ -4382,7 +4384,7 @@ export class App {
             fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
             fact('Defence', `An attack or aimed heat wears a card's defence first, and the wear lasts: it mends 1 a day (more with ${kw('sturdy', '1')} or ${kw('repair', '1')}), and stays in the slot if the card leaves. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
-            fact('No replacing', 'A full tableau takes nothing new until a card fades or leaves. A recall card can go in, in the place of the card it recalls.'),
+            fact('Replacing', 'Cards never fade: into a full tableau, a new card replaces one of yours (you pick it), which leaves play. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
             fact('Discard pile', `Every card that leaves goes here. An empty deck reshuffles it back in: ${kw('heat', String(B.reshuffleHeat))} to your sun.`),
           ),
@@ -4408,8 +4410,8 @@ export class App {
             kind('attack', 'Attack', `Heat your rival's sun, and attack their cards.`),
             kind('defence', 'Defence', 'Cool your sun, raise shields, guard your tableau.'),
             kind('growth', 'Support', 'Draw, recover, grow and play more.'),
-            kind('relic', 'Relic', 'No attack, and never fades: a lasting bonus. Brittle: nothing restores it, and removal reaches it whatever its defence.'),
-            kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. Pick a dawn effect as you play one; it stays ${B.stabilityCommand} days, and never returns to your hand.`),
+            kind('relic', 'Relic', 'No attack: a lasting bonus. Brittle: nothing restores it, and removal reaches it whatever its defence.'),
+            kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. It leads from its own slot until it is beaten down or replaced, with an ability to use each day, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
             kind('lightspeed', 'Lightspeed', "Set face down. Springs during your rival's day."),
           ),
@@ -4810,7 +4812,7 @@ export class App {
     const guarded = !aimChoices(s, activePlayer(s)).sun;
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'aim') return hint(guarded ? 'aim at a guard' : 'aim heat');
-    if (p.step === 'sacrifice') return hint(p.ability === undefined ? 'consume a card' : 'sacrifice a card');
+    if (p.step === 'sacrifice') return hint(p.ability !== undefined ? 'sacrifice a card' : this.state && cardDef(this.state.players.find((x) => x.hand.some((c) => c.uid === p.uid))?.hand.find((c) => c.uid === p.uid)?.defId ?? '').consume ? 'consume a card' : 'replace a card');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card', shift: 'move a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : allyEffectKind(card.defId) === 'empower' ? 'choose a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
@@ -4910,7 +4912,7 @@ export class App {
     const shifting = !!shiftDef && (shiftEffect(shiftDef) === 'mine') === (side === 'mine');
     const st = this.state!;
     // While an attack is aimed: what it would leave of each rival card it could hit.
-    const preview = new Map<string, { defence: number; stability: number; health?: number }>();
+    const preview = new Map<string, { defence: number; health?: number }>();
     // What a staged card is aimed at: a ring round that card's edge.
     const targeted = new Set<string>();
     if (this.stage?.confirm && this.stage.target) targeted.add(this.stage.target);
@@ -4932,7 +4934,7 @@ export class App {
           const after = applyAction(g, move(c.uid));
           const owner = after.players.find((x) => x.id === p.id)!;
           const left = owner.tableau.find((x) => x.uid === c.uid);
-          preview.set(c.uid, left ? { defence: cardDefence(owner, left), stability: left.stability ?? 0, health: left.health ?? 0 } : { defence: 0, stability: 0, health: 0 });
+          preview.set(c.uid, left ? { defence: cardDefence(owner, left), health: left.health ?? 0 } : { defence: 0, health: 0 });
         } catch {
           // (A preview that can't be worked out is simply not shown.)
         }
@@ -4942,7 +4944,7 @@ export class App {
     const placing = side === 'mine' && pend && !pend.attack && pend.slot !== undefined && !pend.faceDown ? activePlayer(st).hand.find((h) => h.uid === pend.uid) : undefined;
     const ghostAt = (i: number) =>
       placing && pend!.slot === i
-        ? this.renderCard({ ...placing, slot: i, stability: baseStability(placing.defId), health: baseHealth(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
+        ? this.renderCard({ ...placing, slot: i, health: baseHealth(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
         : null;
     // Aiming (an attack, a card's heat or a Hero's ability): the rival's sun is a target too, unless a Guard stands.
     const sunAim = side === 'rival' && pend?.step === 'aim' && aimChoices(st, activePlayer(st)).sun;
@@ -5073,7 +5075,7 @@ export class App {
       </div>`;
   }
 
-  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; landscape?: boolean; settled?: { defence: number; stability: number; health?: number }; preview?: { defence: number; stability: number; health?: number }; targeted?: boolean }): string {
+  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; landscape?: boolean; settled?: { defence: number; health?: number }; preview?: { defence: number; health?: number }; targeted?: boolean }): string {
     const def = cardDef(c.defId);
     const act = this.canAct();
     const p = this.pending;
@@ -5163,10 +5165,10 @@ export class App {
     const fusedText = this.fusedTextHtml(c);
     // (Resonance and forge show in the card's own numbers, not as a badge.)
     const resonance = '';
-    // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
+    // In play: its defence (what removal must beat), attack and stability (what it can take).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: (def.attack ?? 0) > 0 && s ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), stab: def.kind === 'command' ? undefined : pv('', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1, lowStab: (c.stability ?? 0) <= 1 })}`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: (def.attack ?? 0) > 0 && s ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
@@ -5243,7 +5245,7 @@ export class App {
   private explainCard(defId: string, uid?: string): string {
     const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
     const c = owner?.tableau.find((x) => x.uid === uid);
-    const stats = owner && c ? { stability: c.stability ?? 0, defence: cardDefence(owner, c), health: c.health ?? 0 } : persists(defId) ? { stability: baseStability(defId), health: baseHealth(defId) } : {};
+    const stats = owner && c ? { defence: cardDefence(owner, c), health: c.health ?? 0 } : persists(defId) ? { health: baseHealth(defId) } : {};
     const def = cardDef(defId);
     const first = [this.raceNote(defId), ...raceTraitTags(def).map((g) => `<div><b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}">${esc(g.name)}</b><span>${esc(g.text)}</span></div>`)].filter(Boolean);
     return keywordList(def.text, stats, first);
@@ -5281,7 +5283,7 @@ export class App {
     const held = !c && uid ? this.viewer()?.hand.find((x) => x.uid === uid) : undefined;
     const stats =
       owner && c
-        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b></span>${cardJewels({ atk: (def.attack ?? 0) > 0 ? cardAttack(this.state!, owner, c) : undefined, dim: c.dimmed, hp: c.health ?? 0, stab: def.kind === 'command' ? undefined : c.stability ?? 0, hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1, lowStab: (c.stability ?? 0) <= 1 })}`
+        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b></span>${cardJewels({ atk: (def.attack ?? 0) > 0 ? cardAttack(this.state!, owner, c) : undefined, dim: c.dimmed, hp: c.health ?? 0, hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `

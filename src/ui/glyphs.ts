@@ -1,4 +1,4 @@
-import { BALANCE, baseAttack, baseHealth, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, raceTrait, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseAttack, baseHealth, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, raceTrait, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { stellariaFlower } from './art';
 import { cardScene, renderedArt } from './cardart';
 import jewelEmerald from './jewels/emerald.png';
@@ -524,18 +524,17 @@ function circuitTile(colour: string, seed: number, strength = 0.27): string {
 }
 const CIRCUIT: Record<Rarity, [string, number]> = { dwarf: ['#6f86ad', 7], stellar: ['#c08a24', 11], anomaly: ['#8c5ad6', 19] };
 for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElement.style.setProperty(`--circuit-${r}`, circuitTile(colour, seed));
-// The stat jewels (scripts/render_jewels.py): an emerald for health, a topaz for stability, a ruby when it is about to run out.
+// The stat jewels (scripts/render_jewels.py): a garnet for attack, a topaz for stability, a ruby when it is about to run out.
 for (const [k, url] of Object.entries({ emerald: jewelEmerald, topaz: jewelTopaz, ruby: jewelRuby, garnet: jewelGarnet })) document.documentElement.style.setProperty(`--jewel-${k}`, `url(${url})`);
 // The same traces, fainter and in silver, for the interface: buttons, panels, pop-ups.
 document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad', 23, 0.2));
 
-/** A card out of play (in hand, zoomed, in the builder): how many turns it will stay once played. */
+/** A card out of play (in hand, zoomed, in the builder): its attack and stability once played. */
 export function stabilityBadge(def: CardDef): string {
   // (A card that goes straight to the discard pile once played never stands in play: no stability to show.)
   if (!persists(def.id) || isBurst(def)) return '';
   const atk = baseAttack(def);
-  // (A Hero never fades: health alone.)
-  return cardJewels({ atk: atk > 0 ? atk : undefined, hp: baseHealth(def.id), stab: def.kind === 'command' ? undefined : baseStability(def.id), hero: def.kind === 'command' });
+  return cardJewels({ atk: atk > 0 ? atk : undefined, hp: baseHealth(def.id), hero: def.kind === 'command' });
 }
 
 // A sword, point straight up: blade, crossguard, grip and pommel.
@@ -552,15 +551,15 @@ export const HP_ICON = '<svg class="hp-icon" viewBox="0 0 16 16" aria-hidden="tr
  * turns ruby; an attacker that has acted today is dimmed. A Hero never fades, so has no stability. The
  * numbers may come as html (a preview's before and after).
  */
-export function cardJewels(o: { atk?: number | string; dim?: boolean; hp: number | string; stab?: number | string; hero?: boolean; lowHp?: boolean; lowStab?: boolean }): string {
+/** A card's jewels: its attack (bottom left, a garnet) and its stability (bottom right, a topaz; a ruby when nearly beaten down). */
+export function cardJewels(o: { atk?: number | string; dim?: boolean; hp: number | string; hero?: boolean; lowHp?: boolean }): string {
   const jewel = (cls: string, n: number | string, title: string) => `<b class="jewel ${cls}" data-tip="${title}"><i>${n}</i></b>`;
   const lobe = (pos: string, inner: string) => `<span class="card-jewels jewels-${pos}">${inner}</span>`;
   const atkTitle = 'Attack: once each of your days it can attack a rival card or their sun for this much, then it is dimmed until your next day. A card it attacks hits back with its own attack and Sting.';
-  const hpTitle = o.hero ? 'Health: heat past its defence (attacks, stings, aimed heat) wears this down, and at 0 the Hero falls. A Hero never fades.' : 'Health: heat past its defence (attacks, stings, aimed heat) wears this down; at 0 it burns away.';
+  const hpTitle = `Stability: attacks, stings, aimed heat past its defence and Erode wear this down; at 0 ${o.hero ? 'the Hero falls' : 'it burns away'}.`;
   return (
-    (o.stab === undefined ? '' : lobe('tr', jewel(`jewel-stab${o.lowStab ? ' jewel-low' : ''}`, o.stab, 'Stability: the days it stays in play before it fades into your discard pile.'))) +
     (o.atk === undefined ? '' : lobe('bl', jewel(`jewel-atk${o.dim ? ' jewel-dim' : ''}`, o.atk, atkTitle + (o.dim ? ' Dimmed: it has acted today.' : '')))) +
-    lobe('br', jewel(`jewel-hp${o.lowHp ? ' jewel-low' : ''}`, o.hp, hpTitle))
+    lobe('br', jewel(`jewel-stab${o.lowHp ? ' jewel-low' : ''}`, o.hp, hpTitle))
   );
 }
 
@@ -750,7 +749,7 @@ const PARA = '<span class="card-para"></span>';
  * The explanations beside a zoomed card: its keywords (Dawn included), the
  * rules its text names in plain words, and its defence badge.
  */
-export function keywordList(text: string, stats: { stability?: number; defence?: number; health?: number } = {}, first: string[] = []): string {
+export function keywordList(text: string, stats: { defence?: number; health?: number } = {}, first: string[] = []): string {
   // (`first`: rows that lead the list, already drawn: the card's race, and what it gives the card.)
   const rows: string[] = [...first];
   const row = (head: string, body: string) => rows.push(`<div>${head}<span>${escText(body)}</span></div>`);
@@ -761,8 +760,8 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'cost' && k.id !== 'act' && k.id !== 'abilities') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain(k.value));
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
-  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before health.');
-  if (stats.health !== undefined) row(`<b class="kw kw-health">♥ Health</b>`, 'Heat past its defence wears it down; at 0 it burns away.');
+  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');
+  if (stats.health !== undefined) row(`<b class="kw kw-stability">Stability</b>`, 'Attacks, stings and heat past its defence wear it down; at 0 it burns away.');
   // (In a column no taller than the card: it scrolls, and an arrow bobs at its foot while there is more below.)
   return rows.length ? `<div class="kw-wrap"><div class="kw-list">${rows.join('')}</div><i class="kw-more" aria-hidden="true"></i></div>` : '';
 }

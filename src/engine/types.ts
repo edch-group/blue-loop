@@ -252,7 +252,7 @@ export interface CardDef {
   token?: boolean;
   /** Extra defence on top of its slot's (sturdy cards). */
   defence?: number;
-  /** Turns it stays in your tableau before it fades into your discard pile (default: see BALANCE.stability). A Hero's is its health. */
+  /** A Hero's stability (what it can take). Other cards' stability comes from their cost (see baseHealth), or `health`. */
   stability?: number;
   /** Heat past its defence it can take in play before it burns away (default: from its cost, see baseHealth). */
   health?: number;
@@ -269,10 +269,15 @@ export interface CardInstance {
   growth?: number;
   /** In a tableau: which of its slots the card sits in (0 far left … 4 far right). */
   slot?: number;
-  /** In a tableau: days left before it fades into its owner's discard pile (a Hero has none: it never fades). */
+  /** (Saves from before version 7 only: the days a card had left before it faded. Cards no longer fade.) */
   stability?: number;
-  /** In a tableau: what heat past its defence (an attack, a sting, aimed heat) can still take before it burns away. */
+  /**
+   * In a tableau: its stability (players see that word), what attacks, stings, aimed heat past its defence and
+   * Erode can still take before it burns away.
+   */
   health?: number;
+  /** In a tableau: its full stability, when gear or Fusion raised it past the printed value. */
+  maxHealth?: number;
   /**
    * In a tableau: defence worn away by heat. It lasts: a card recovers 1 at each of its owner's dawns
    * or by Repair; and the wear on its slot's own defence stays in the slot when it leaves.
@@ -392,7 +397,7 @@ export interface LogEntry {
 
 export interface GameState {
   /** Rules version, so saves from older rules are ignored. */
-  version: 6;
+  version: 7;
   rngState: number;
   uidCounter: number;
   turnNumber: number;

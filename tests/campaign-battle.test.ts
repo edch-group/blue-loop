@@ -51,14 +51,12 @@ describe('campaign battles', () => {
     expect(cardAttack(s, me, wall)).toBe(0);
   });
 
-  it('plays by the card game’s rules: cards fade day by day', () => {
+  it('plays by the card game’s rules: cards stand from day to day (they no longer fade)', () => {
     let s = battle();
     s = playFirst(s, 'coolant_array');
     const wall = s.players[0].tableau.find((c) => c.defId === 'coolant_array')!;
-    const before = wall.stability!;
-    s = endTurn(endTurn(s));
-    const now = s.players[0].tableau.find((c) => c.uid === wall.uid);
-    expect(now ? now.stability : 0).toBeLessThan(before);
+    for (let i = 0; i < 6; i++) s = endTurn(s);
+    expect(s.players[0].tableau.some((c) => c.uid === wall.uid)).toBe(true);
   });
 
   it('sends destroyed cards, the hero too, to the discard pile, and shuffles it back when the deck runs out', () => {
