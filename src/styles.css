@@ -5911,8 +5911,9 @@ body:has(.game-result) .dock { visibility: hidden; }
   position: absolute; z-index: 6; pointer-events: auto;
   display: flex; align-items: center; padding: calc(var(--cw, 100px) * 0.03);
 }
-/* Stability on the card's top-right corner itself, centred on it. */
-.jewels-tr { top: 0; right: 0; transform: translate(50%, -50%); }
+/* Stability inside the card's top-right corner, inset as attack and health are in theirs. */
+.jewels-tr { top: calc(var(--cw, 100px) * 0.035); right: calc(var(--cw, 100px) * 0.035); padding: 0; }
+.jewels-tr::before, .jewels-tr::after, .jewels-tr > .jewel::before { display: none; }
 .jewels-bl { bottom: calc(var(--cw, 100px) * 0.035); left: calc(var(--cw, 100px) * 0.035); }
 .jewels-br { bottom: calc(var(--cw, 100px) * 0.035); right: calc(var(--cw, 100px) * 0.035); }
 /* (Attack and health sit inside the card's own corners: no lobe, the stone set straight into the face.) */
