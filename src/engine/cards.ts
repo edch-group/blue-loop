@@ -780,6 +780,24 @@ const CORE_BY_ID = new Map(
   }),
 );
 
+/**
+ * Dawn heat as attack (a trial): each card's plain dawn heat at the rival (no condition) becomes that much more
+ * attack, to strike a card or the sun by choice each day (Guards intercepting it), rather than heating the sun
+ * by itself. What scales (per card, per shield...) stays a dawn effect, as do conditional bonuses.
+ */
+export function dawnHeatAsAttack() {
+  for (const c of [...CARDS, ...CORE_BY_ID.values()]) {
+    if (!c.onTurn?.length || c.kind === 'command') continue;
+    let gained = 0;
+    c.onTurn = c.onTurn.flatMap((e) => {
+      if (e.type !== 'heat' || e.to !== 'target' || e.if || e.pierce || e.amount <= 0) return [e];
+      gained += e.amount;
+      return e.plus ? [{ ...e, amount: 0 }] : [];
+    });
+    if (gained) c.attack = (c.attack ?? 0) + gained;
+  }
+}
+
 /** A card as it plays in a mode (whatever the rules in force). */
 export function cardIn(defId: string, mode: GameMode): CardDef {
   return (mode === 'core' && CORE_BY_ID.get(defId)) || lostDef(defId);

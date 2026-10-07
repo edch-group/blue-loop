@@ -4,7 +4,8 @@
  */
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
-import { PRESET_DECKS } from '../src/engine/cards';
+import { PRESET_DECKS, dawnHeatAsAttack } from '../src/engine/cards';
+if (process.env.DAWN_ATTACK) dawnHeatAsAttack();
 import { applyAction, createGame, isGameOver } from '../src/engine/game';
 Object.assign(BALANCE, { maxLogEntries: 1e6 }, JSON.parse(process.env.BAL ?? '{}'));
 const MODE = (process.env.MODE ?? 'core') as 'core' | 'lost';
