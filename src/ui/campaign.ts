@@ -620,6 +620,11 @@ export class CampaignView {
       this.state = applyCampaignAction(this.state, { type: 'readStory' });
       this.storyLine = 0;
     }
+    // One thing at a time, at most: only the newest word waits; anything older is let go, unread.
+    while (this.state && this.state.story.queue.length > 1) {
+      this.state = applyCampaignAction(this.state, { type: 'readStory' });
+      this.storyLine = 0;
+    }
   }
 
   /**
@@ -784,8 +789,9 @@ export class CampaignView {
         this.army = null;
         break;
       case 'cmp-anomaly':
+        // (Anomalies are unlabelled and untold: what one does shows when a battle is fought in its reach.)
         if (this.swallowClick) return true;
-        this.anomaly = this.anomaly === arg ? null : arg;
+        this.anomaly = null;
         this.selected = null;
         break;
       case 'cmp-army': {
@@ -1312,7 +1318,6 @@ export class CampaignView {
               <span class="cmp-star" style="--seed:${seedOf(n.id)}"><i class="cmp-flare"></i><i class="cmp-corona"></i><i class="cmp-core"></i>${
                 n.owner ? this.avatarOf(n.owner, 'cmp-owner') : ''
               }</span>
-              <span class="cmp-label">${lower(n.name)}</span>
             </button>
           </div>`;
       })
@@ -1511,7 +1516,6 @@ export class CampaignView {
             ${flat}
             <button class="cmp-bb an-bb" data-act="cmp-anomaly" data-arg="${a.id}" aria-label="${esc(def.name)}">
               ${marker}
-              <span class="cmp-label an-label">${lower(def.name)}</span>
             </button>
           </div>`;
       })
@@ -1959,7 +1963,7 @@ export class CampaignView {
     return `
       <div class="pop-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
         ${n.owner ? this.avatarOf(n.owner, 'cmp-head-av') : '<i></i>'}
-        <div><h3>${lower(n.name)}</h3><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? 'the wormhole · its guardian' : n.ruined ? 'a ruin · pass through' : `unexplored · depth ${n.tier + 1}`}${n.home ? ' · arrival' : ''}${n.collapsing ? ' · collapsing' : ''}</small></div>
+        <div><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? 'the wormhole · its guardian' : n.ruined ? 'a ruin · pass through' : `unexplored · depth ${n.tier + 1}`}${n.home ? ' · arrival' : ''}${n.collapsing ? ' · collapsing' : ''}</small></div>
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <div class="pop-chips">${chips}</div>
@@ -2160,8 +2164,9 @@ export class CampaignView {
   /** A story scene, one line at a time: the speaker's portrait, name and words. */
   private renderStory(scene: StoryScene): string {
     const s = this.state!;
+    // One line of a scene, never a conversation: its first.
     const lines = this.shownLines(scene);
-    const i = Math.min(this.storyLine, lines.length - 1);
+    const i = 0;
     const line = lines[i];
     const sp = line.speaker;
     const who =
@@ -2171,8 +2176,6 @@ export class CampaignView {
             const f = s.factions.find((x) => x.id === sp.faction);
             return { name: cardDef(sp.card).name, sub: f ? (f.id === s.playerId ? `your general · ${RACE_NAMES[f.race]}` : RACE_NAMES[f.race]) : '', face: portrait(sp.card), colour: f ? this.colourOf(f.id) : NEUTRAL };
           })();
-    const last = i >= lines.length - 1;
-    const more = s.story.queue.length - 1;
     // Guidance, not a gate: it sits under the turn count, and the game goes on around it.
     return `
       <aside class="cmp-guide ${sp.kind === 'oracle' ? 'cmp-guide-oracle' : ''}" data-key="guide:${esc(scene.id)}:${i}" style="--sc:${who.colour}">
@@ -2181,8 +2184,7 @@ export class CampaignView {
           <small class="cmp-guide-who">${esc(who.name.toLowerCase())}</small>
           <p class="cmp-guide-text">${esc(line.text)}</p>
         </div>
-        <button class="cmp-guide-next" data-act="cmp-story-next" aria-label="${last ? 'Done' : 'Next'}" title="${lines.length > 1 ? `${i + 1} of ${lines.length}` : ''}${more > 0 ? ` · ${more} more` : ''}">${last ? '✓' : '›'}</button>
-        <button class="cmp-guide-x" data-act="cmp-story-skip" aria-label="Dismiss" title="Dismiss">×</button>
+        <button class="cmp-guide-next" data-act="cmp-story-skip" aria-label="Dismiss">×</button>
       </aside>`;
   }
 

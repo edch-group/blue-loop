@@ -5729,3 +5729,14 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-ray-core { stroke: #fff; stroke-width: 2; }
 .cmp-ray-held .cmp-ray-glow { stroke: color-mix(in srgb, var(--fc) 26%, transparent); }
 .cmp-ray-held .cmp-ray-band { stroke: color-mix(in srgb, var(--fc) 70%, #fff); }
+/* No names on the map: systems are their stars, anomalies what surrounds them. The guide's close is always shown. */
+.cmp-an .cmp-bb { pointer-events: none; }
+.cmp-guide { grid-template-columns: auto minmax(0, 1fr) auto; }
+/* A star sits on its system: its centre on the node, where the routes of light meet. (Lifted towards the
+   camera, so its lower half never sinks into the board.) */
+.cmp-n3 .cmp-bb { padding-bottom: 0; transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt))) translateZ(80px) scale(var(--ui)); }
+.cmp-n3 .cmp-star { margin-bottom: -20px; }
+.cmp-n3.cmp-st-red .cmp-star { margin-bottom: -16px; }
+.cmp-n3.cmp-st-brown .cmp-star, .cmp-n3.cmp-st-neutron .cmp-star { margin-bottom: -14px; }
+.cmp-n3.cmp-st-white .cmp-star { margin-bottom: -17px; }
+.cmp-n3.cmp-heart .cmp-star { margin-bottom: -33px; }
