@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # Usage: pip install numpy scipy pillow && python3 scripts/render_jewels.py
-"""Render the stat jewels (src/ui/jewels/): a round brilliant-cut stone in a gold setting.
+"""Render the stat jewels (src/ui/jewels/): a round brilliant-cut stone in a silver setting.
 
 Health is an emerald, stability a topaz, and a value about to run out a ruby. Each is
 seen from above: the stone's table, star, kite and upper-girdle facets, each lit from
-the top left with its own sparkle and fine dark seams; set in a polished gold bezel
+the top left with its own sparkle and fine dark seams; set in a polished silver bezel (the card's own metal)
 with a stepped inner lip, a row of milgrain beads round its rim, and four claws
 gripping the stone. The number sits over the table, in HTML.
 """
@@ -63,7 +63,8 @@ def ramp(stops, t):
 
 
 hex2 = lambda h: np.array([int(h[i:i + 2], 16) for i in (1, 3, 5)]) / 255
-GOLD = [(0, hex2('#4a2e08')), (0.18, hex2('#8a5c14')), (0.4, hex2('#d29a2c')), (0.62, hex2('#f2c95a')), (0.82, hex2('#fff1b0')), (1, hex2('#ffffff'))]
+# Polished silver, as the card's own rim and the rarity gems' sockets.
+GOLD = [(0, hex2('#3a404c')), (0.2, hex2('#6c7484')), (0.42, hex2('#a3abba')), (0.64, hex2('#d6dbe4')), (0.84, hex2('#f4f6fa')), (1, hex2('#ffffff'))]
 
 
 def gold(nx, ny, nz, grain=0.0):
@@ -120,7 +121,7 @@ def stone(deep, mid, light):
 
 
 def setting():
-    """The gold bezel: inner lip, polished band, milgrain, and four claws."""
+    """The silver bezel: inner lip, polished band, milgrain, and four claws."""
     col = np.zeros((N, N, 3))
     alpha = np.zeros((N, N))
     grain = (gaussian_filter(np.random.default_rng(3).random((N, N)), [0.6, 6]) - 0.5) * 0.12   # (a brushed finish)
@@ -152,7 +153,7 @@ def setting():
     alpha[beads] = 1
     # (The base under the beads, dark between them.)
     base = (r >= BEAD0 - 0.01) & (r < bead_r) & ~beads
-    col[base] = hex2('#3a2408') * 1.0
+    col[base] = hex2('#4a505c') * 1.0
     alpha[base] = 1
     # Four claws over the stone's edge, on the diagonals.
     for ang in np.deg2rad([45, 135, 225, 315]):

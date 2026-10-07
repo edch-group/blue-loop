@@ -5901,18 +5901,25 @@ body:has(.game-result) .dock { visibility: hidden; }
 .stat-hp { display: inline-flex; align-items: center; gap: 0.15em; }
 .kw-health { color: #2f8a57; }
 
-/* ---- Health and stability as jewels: two gold-set stones standing proud of the card's top-right corner ---- */
+/* ---- Health and stability as jewels, set into the card's top edge at its right corner ----
+   Each sits in a mount of the card's own face and rim (as the rarity gem once did), so the card's edge rises
+   round both: two lobes of the card itself, the silver of their settings the card's own metal. */
 .card-jewels {
   position: absolute; z-index: 6; pointer-events: auto;
-  top: calc(var(--cw, 100px) * -0.09); right: calc(var(--cw, 100px) * -0.07);
-  display: flex; flex-direction: row-reverse; align-items: flex-start; gap: calc(var(--cw, 100px) * 0.005);
-  filter: drop-shadow(0 calc(var(--cw, 100px) * 0.012) calc(var(--cw, 100px) * 0.014) rgba(30, 22, 8, 0.45));
+  top: 0; right: calc(var(--cw, 100px) * 0.035); transform: translateY(-46%);
+  display: flex; flex-direction: row-reverse; align-items: center; gap: calc(var(--cw, 100px) * 0.05);
 }
 .jewel {
   position: relative; display: grid; place-items: center;
-  width: max(18px, calc(var(--cw, 100px) * 0.22)); aspect-ratio: 1;
+  width: max(16px, calc(var(--cw, 100px) * 0.19)); aspect-ratio: 1;
   background: var(--jewel-emerald) center / contain no-repeat;
 }
+/* The mount: the card's face, covering its edge where the jewel sits... */
+.jewel::before, .jewel::after { content: ''; position: absolute; inset: -16%; border-radius: 50%; z-index: -1; }
+.jewel::before { background: var(--face, #fbfbfc); }
+/* ...and the card's rim carried round the part that stands above it. */
+.jewel::after { border: 1px solid var(--rim, #fff); clip-path: inset(-3px -3px 54% -3px); box-shadow: 0 -1px 3px rgba(80, 84, 100, 0.14); }
+.card.kind-command .jewel::after { box-shadow: 0 -1px 3px rgba(20, 24, 34, 0.3); }
 .jewel-stab { background-image: var(--jewel-topaz); }
 .jewel.jewel-low { background-image: var(--jewel-ruby); }
 .jewel i {
@@ -5925,3 +5932,5 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* (In a preview, the number now and after side by side, smaller.) */
 .jewel .pv-now, .jewel .pv-after { font-size: 0.78em; }
 .jewel .pv-after { color: #ffd6cc; }
+/* (The type word moves left of centre, clear of the jewels.) */
+.card:has(> .card-jewels) .card-type { left: 30%; }
