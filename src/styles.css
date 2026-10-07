@@ -5734,9 +5734,36 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-guide { grid-template-columns: auto minmax(0, 1fr) auto; }
 /* A star sits on its system: its centre on the node, where the routes of light meet. (Lifted towards the
    camera, so its lower half never sinks into the board.) */
-.cmp-n3 .cmp-bb { padding-bottom: 0; transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt))) translateZ(80px) scale(var(--ui)); }
+.cmp-n3 .cmp-bb { padding-bottom: 0; transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(40px); }
 .cmp-n3 .cmp-star { margin-bottom: -20px; }
 .cmp-n3.cmp-st-red .cmp-star { margin-bottom: -16px; }
 .cmp-n3.cmp-st-brown .cmp-star, .cmp-n3.cmp-st-neutron .cmp-star { margin-bottom: -14px; }
 .cmp-n3.cmp-st-white .cmp-star { margin-bottom: -17px; }
 .cmp-n3.cmp-heart .cmp-star { margin-bottom: -33px; }
+
+/* ---------- The strip on one screen: no board under it, one size of star, a small Stellari ---------- */
+.cmp-grid { display: none; }
+/* Every star the same size (the smallest): its kind shows in its colour and light, not its size. */
+.cmp-n3 .cmp-star, .cmp-n3.cmp-st-red .cmp-star, .cmp-n3.cmp-st-brown .cmp-star, .cmp-n3.cmp-st-white .cmp-star,
+.cmp-n3.cmp-st-neutron .cmp-star, .cmp-n3.cmp-heart .cmp-star, .cmp-n3.cmp-cache .cmp-star { width: 28px; height: 28px; margin-bottom: -14px; }
+/* The Stellari: a small flower of light behind the wormhole's star, its petals lilac on the pale map (no dark disc). */
+.cmp-stellaria {
+  width: 64px; height: 64px; padding: 0; background: none; border-radius: 0;
+  transform-origin: 50% 50%;
+  transform: translate(-50%, -50%) rotateX(calc(-1 * var(--tilt))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(30px);
+}
+.cmp-stellaria .stellaria-flower ellipse, .cmp-stellaria .stellaria-flower path { fill: rgba(206, 178, 246, 0.28); stroke: #b493e6; stroke-width: 5; }
+.cmp-heart-glow { width: 150px; height: 150px; margin: -75px 0 0 -75px; }
+/* The header keeps to one line on a phone. */
+.cmp-turn, .cmp-stability .stability-label { white-space: nowrap; }
+.cmp-turn small { margin-right: 6px; }
+@media (max-width: 960px) {
+  .cmp-top { gap: 8px; }
+  .cmp-top-left > .cmp-stability { width: auto; max-width: 170px; padding: 4px 10px; }
+  .cmp-stability .stability-label { font-size: 0.42rem; letter-spacing: 0.12em; }
+  .cmp-top-left > button.cmp-turn { padding: 0 10px; font-size: 0.62rem; }
+  .cmp-purse { flex: none; gap: 8px; }
+  /* (Too narrow to centre the resources: they follow the turn and stability instead of running under them.) */
+  .cmp-top { grid-template-columns: auto auto minmax(0, 1fr); }
+  .cmp-top > .cmp-purse { justify-self: start; }
+}

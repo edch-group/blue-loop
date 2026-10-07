@@ -1628,7 +1628,41 @@ export class CampaignView {
     }
     this.view ??= this.homeView();
     this.applyCamera(true);
+    if (!this.glide) this.fitStrip(stage);
     this.placePop();
+  }
+
+  /**
+   * The whole strip on screen, nothing to scroll or zoom: measure where its stars (and the Stellari) fall,
+   * and scale and centre the camera so they fill the stage with a margin all round.
+   */
+  private fitStrip(stage: HTMLElement) {
+    const v = this.view;
+    if (!v || !this.state?.nodes.some((n) => n.col !== undefined)) return;
+    for (let pass = 0; pass < 3; pass++) {
+      const marks = stage.querySelectorAll<HTMLElement>('.cmp-n3 .cmp-star, .cmp-stellaria');
+      if (!marks.length) return;
+      let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+      for (const m of marks) {
+        const r = m.getBoundingClientRect();
+        x0 = Math.min(x0, r.left);
+        y0 = Math.min(y0, r.top);
+        x1 = Math.max(x1, r.right);
+        y1 = Math.max(y1, r.bottom);
+      }
+      const box = stage.getBoundingClientRect();
+      const pad = Math.min(48, box.width * 0.04);
+      const ratio = Math.min((box.width - 2 * pad) / (x1 - x0), (box.height - 2 * pad) / (y1 - y0));
+      const dx = (x0 + x1) / 2 - (box.left + box.width / 2);
+      const dy = (y0 + y1) / 2 - (box.top + box.height / 2);
+      if (Math.abs(ratio - 1) < 0.02 && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+      const scale = this.fitScale(stage, CampaignView.TILT) * v.zoom;
+      v.x += dx / scale;
+      v.y += dy / (scale * Math.cos((CampaignView.TILT * Math.PI) / 180));
+      v.zoom *= ratio;
+      this.cam = this.cameraTarget(stage);
+      this.writeCamera();
+    }
   }
 
   /** Scale at which the whole map fits the stage, for a given tilt. */
@@ -1749,13 +1783,7 @@ export class CampaignView {
   private onPointerMove(e: PointerEvent) {
     if (!this.drag || !this.view || !this.stageEl || !this.pointers.has(e.pointerId)) return;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.drag.pinch && this.pointers.size >= 2) {
-      const [a, b] = [...this.pointers.values()];
-      this.view.zoom = this.drag.pinch.zoom * (Math.hypot(a.x - b.x, a.y - b.y) / this.drag.pinch.d);
-      this.clampView();
-      this.applyCamera(false);
-      return;
-    }
+    if (this.drag.pinch && this.pointers.size >= 2) return; // (no pinch zoom: the strip is fitted to the screen)
     if (e.pointerId !== this.drag.id) return;
     // A finger's movement on screen, turned into the page's own directions (the page may be sideways).
     const { x: dx, y: dy } = toPageDelta(e.clientX - this.drag.x, e.clientY - this.drag.y);
@@ -1775,14 +1803,9 @@ export class CampaignView {
         // The pointer has gone; the drag ends with it.
       }
     }
-    const scale = this.fitScale(this.stageEl!, CampaignView.TILT) * this.view.zoom;
-    const tilt = (CampaignView.TILT * Math.PI) / 180;
-    this.view.x -= dx / scale;
-    this.view.y -= dy / (scale * Math.cos(tilt));
+    // (The whole strip is always on screen: a drag is only told from a tap, it never pans.)
     this.drag.x = e.clientX;
     this.drag.y = e.clientY;
-    this.clampView();
-    this.applyCamera(false);
   }
 
   private onPointerUp(e: PointerEvent) {
@@ -1793,13 +1816,10 @@ export class CampaignView {
   }
 
   private onWheel(e: WheelEvent) {
-    if (!this.view) return;
+    // (No zoom: the strip is fitted to the screen.)
     e.preventDefault();
-    if (this.selected) return;
-    this.view.zoom *= Math.exp(-e.deltaY * 0.0015);
-    this.clampView();
-    this.applyCamera(false);
   }
+
 
   private missionRow(id: string, progress: number): string {
     const def = campaignMissionDef(id);
