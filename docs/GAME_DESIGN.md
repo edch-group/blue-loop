@@ -744,7 +744,7 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 - **No rival empires:** only garrisons in the systems and roaming Raider ships. Raiders flee the collapse, hunt the flagship when it is within 3 routes (70% of the time), raid what you hold, and wander.
 - **Conquest:** beat a system's defenders and it is yours, with no choice to make: it pays its yield once, your flagship moves in, and it counts toward petals. There is no supernova, no settling, no income by the turn, and nothing to manage in a system you hold (no garrisons, reinforcements, fortifications or repairs). Research still builds each turn. Some planets carry a **bonus** of credits or research, paid on capture.
 - **Finds:** about 30% of the other systems hold no defenders, only something to find: a drifting treasury (credits), a depot (materials), an archive (research) or a derelict (a card to choose from three). Flying in takes it, and the system, with no battle; it counts toward petals like a conquest. They are marked on the map by their icon.
-- **The map at night:** the strip lies over a photographic Milky Way (dark sky, warm core, dust lanes, tens of thousands of stars), painted once by scripts/paint_dark_sky.py into src/assets/campaign-sky.webp. Each system's star is the stellar gem's sun (as on the cards), its disc turning slowly inside a breathing corona; red dwarfs are smaller and red, brown dwarfs dim embers, white dwarfs and neutron stars the white dwarf gem's searing point. Little else moves: target rings are still, pulsar beams and nebulae turn slowly.
+- **The map:** the strip lies over a pale monochrome Milky Way in Blue Loop's white (a night photograph's band, dust lanes and stars, turned to soft greys on paper), painted once by scripts/paint_dark_sky.py into src/assets/campaign-sky.webp. There is **no fog**: every system and route to the wormhole is in view from the start. Each system's star is the stellar gem's sun (as on the cards), its disc turning slowly inside a breathing corona; red dwarfs are smaller and red, brown dwarfs dim embers, white dwarfs and neutron stars the white dwarf gem's searing point. Little else moves: target rings are still, pulsar beams and nebulae turn slowly.
 - The strip carries 2 armouries, 2 research stations, 2 anomalies and 3 bonus planets; scanners widen what you see.
 
 **Lasting upgrades** (between runs, on the setup screen, bought with petals):
@@ -800,7 +800,7 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 - Battle modifiers stack: the system's anomaly, the Wardens and the core (below), and the ship's hull.
 
 **The map.**
-- The strip (above). Fog of war shows a column back and three ahead of the flagship and your systems (five with a scanner).
+- The strip (above), all of it in view: no fog, and no scanners.
 - **Defending a neighbour:** a system with no army in it is defended by its owner's hero **one route away**, if there is one (the least battered, if several). They come to its aid: if they lose, they go home battered (full damage) rather than being routed. [direction: heroes defend systems one move away]
 - **Sun health rises along the strip.** In a campaign battle both suns start from the same max health, set by the garrison's tier (see Depth); the wormhole's guardian has 2 more.
 - **Depth:** garrison tier rises along the strip and with each universe, and with it the defenders' decks, rooms and sun health (10 + 3 per tier, at most 30).

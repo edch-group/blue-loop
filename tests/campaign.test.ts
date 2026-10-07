@@ -274,26 +274,10 @@ describe('stations', () => {
   });
 });
 
-describe('fog of war', () => {
-  it('shows a column back and three ahead of the flagship (and the wormhole), five with a scanner', () => {
+describe('the view', () => {
+  it('shows the whole strip, every route to the wormhole', () => {
     const s = fresh();
-    const h = home(s);
-    for (const n of s.nodes) n.scanner = false;
-    const col = (id: string) => nodeById(s, id).col ?? 0;
-    const seen = visibleNodes(s, s.playerId);
-    for (const id of seen) if (!nodeById(s, id).heart) expect(Math.abs(col(id) - h.col!)).toBeLessThanOrEqual(3);
-    expect(s.nodes.filter((n) => n.col === 3).every((n) => seen.has(n.id))).toBe(true);
-    h.scanner = true;
-    const wide = visibleNodes(s, s.playerId);
-    expect(wide.size).toBeGreaterThan(seen.size);
-    expect(wide.size).toBeLessThan(s.nodes.length);
-  });
-
-  it('places scanners on some systems, never a home', () => {
-    const s = fresh();
-    const scanners = s.nodes.filter((n) => n.scanner);
-    expect(scanners.length).toBeGreaterThan(0);
-    expect(scanners.every((n) => !n.home)).toBe(true);
+    expect(visibleNodes(s, s.playerId).size).toBe(s.nodes.length);
   });
 });
 

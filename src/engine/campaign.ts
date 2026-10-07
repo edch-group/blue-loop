@@ -692,41 +692,9 @@ export const ownedNodes = (s: CampaignState, factionId: string) => s.nodes.filte
  * and, from a system with a scanner, those two links away. A system being
  * fought over is always in view.
  */
-/** Whether a faction could know of a log entry: its own doing, news everyone hears, or something in its sight. */
-export function logInSight(s: CampaignState, e: CampaignLogEntry, factionId: string, seen = visibleNodes(s, factionId)): boolean {
-  if (e.who === factionId) return true;
-  if (e.at) return e.at.some((id) => seen.has(id));
-  return !e.who;
-}
-
-export function visibleNodes(s: CampaignState, factionId: string): Set<string> {
-  const seen = new Set<string>();
-  const byId = new Map(s.nodes.map((n) => [n.id, n]));
-  const look = (n: CampaignNode, scanner: boolean) => {
-    seen.add(n.id);
-    for (const a of n.links) {
-      seen.add(a);
-      if (scanner) for (const b of byId.get(a)!.links) seen.add(b);
-    }
-  };
-  for (const n of s.nodes) if (n.owner === factionId) look(n, !!n.scanner || n.star === 'neutron');
-  // An army sees the routes out of wherever it stands.
-  for (const a of s.armies) if (a.owner === factionId) look(byId.get(a.nodeId)!, armyBonus(s, a).sight > 0);
-  // On the strip, the way ahead can be seen: every lane, a few columns on from the flagship and the systems held
-  // (more from a scanner), and one back.
-  const reach: [number, number][] = [];
-  for (const n of s.nodes) if (n.owner === factionId && n.col !== undefined) reach.push([n.col, n.scanner ? 5 : 3]);
-  for (const a of s.armies) if (a.owner === factionId) {
-    const c = byId.get(a.nodeId)?.col;
-    if (c !== undefined) reach.push([c, armyBonus(s, a).sight > 0 ? 5 : 3]);
-  }
-  for (const n of s.nodes) if (n.col !== undefined && reach.some(([c, r]) => n.col! >= c - 1 && n.col! <= c + r)) seen.add(n.id);
-  if (s.battle) seen.add(s.battle.nodeId);
-  // The Heart's light reaches everywhere: the supermassive star at the centre is always in view.
-  for (const n of s.nodes) if (n.heart) seen.add(n.id);
-  // The collapse is felt everywhere: a system about to go is always in view.
-  for (const n of s.nodes) if (n.collapsing) seen.add(n.id);
-  return seen;
+/** What a faction can see: the whole strip, every route to the wormhole (there is no fog). */
+export function visibleNodes(s: CampaignState, _factionId: string): Set<string> {
+  return new Set(s.nodes.map((n) => n.id));
 }
 
 export const armyById = (s: CampaignState, id: string) => {
@@ -1257,7 +1225,6 @@ function buildUniverse(s: CampaignState, universe: number) {
     const kind = finds[randomInt(s, finds.length)];
     n.cache = { kind, amount: kind === 'cards' ? 3 : kind === 'credits' ? 4 + 2 * n.tier : kind === 'materials' ? 3 + n.tier : 2 + n.tier };
   }
-  for (const n of s.nodes) n.scanner = open(n) && !n.cache && randomInt(s, 6) === 0;
   // The raiders: a few to start with, more in each universe, out past the first third.
   const haunts = shuffleInPlace(s, s.nodes.filter((n) => open(n) && !n.cache && (n.col ?? 0) >= 3));
   for (const n of haunts.slice(0, Math.min(CAMPAIGN.raidersMax, CAMPAIGN.raiders + universe - 1))) raiseLost(s, n);

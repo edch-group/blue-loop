@@ -1,5 +1,5 @@
 """
-The campaign map's sky: the heart of the Milky Way at night, painted as a
+The campaign map's sky (in pale monochrome, see the end): the heart of the Milky Way at night, painted as a
 photograph would show it. A near-black sky; the galactic band running across
 it, warm and dense at its bulging core and cooler towards its ends, torn by
 dark dust lanes; faint glowing gas here and there; and stars by the tens of
@@ -104,6 +104,12 @@ for _ in range(22):
 vig = 1 - 0.35 * (((x - W / 2) / (W / 2)) ** 2 + ((y - H / 2) / (H / 2)) ** 2)
 sky *= np.clip(vig, 0.5, 1)[..., None]
 sky = 1 - np.exp(-sky * 1.25)
+# Blue Loop is white: the night photograph, turned to a pale monochrome negative on paper. The band becomes a
+# soft grey haze, the dust lanes paler channels through it, and the stars fine grey points.
+lum = sky @ np.array([0.30, 0.55, 0.15], np.float32)
+lum = np.clip(lum / np.percentile(lum, 99.7), 0, 1)
+paper = np.array([0.975, 0.972, 0.962], np.float32)
+sky = paper * (1 - 0.24 * lum ** 0.9)[..., None]
 img = Image.fromarray(np.clip(sky * 255, 0, 255).astype(np.uint8))
 img.save('src/assets/campaign-sky.webp', quality=86, method=6)
 print('wrote', img.size)

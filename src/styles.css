@@ -5670,26 +5670,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .sh-mod-face { width: 38px; height: 38px; }
 }
 
-/* ---------- The campaign map at night: the Milky Way behind, living stars, and very little moving ---------- */
-.cmp { background: #03050a; }
-.cmp-sky { mix-blend-mode: normal; }
-/* The board: no slab, just a faint survey grid and a thin rim over the sky. */
-.cmp-grid {
-  background:
-    radial-gradient(circle, rgba(170, 190, 235, 0.16) 0 1px, transparent 1.6px) 0 0 / 40px 40px,
-    repeating-linear-gradient(0deg, rgba(170, 190, 235, 0.05) 0 1px, transparent 1px 160px),
-    repeating-linear-gradient(90deg, rgba(170, 190, 235, 0.05) 0 1px, transparent 1px 160px);
-  box-shadow: inset 0 0 0 1.5px rgba(160, 180, 230, 0.22);
-}
-.cmp-link { stroke: rgba(175, 190, 225, 0.32); }
-.cmp-label { color: #c3cce0; text-shadow: 0 0 3px #03050a, 0 0 8px #03050a; }
-.cmp-mine .cmp-label { color: #fff; }
-.cmp-heart .cmp-label { color: #f2c46d; }
-.an-label { color: #a9b0c8; }
-.cmp-turf { background: radial-gradient(circle, rgba(150, 170, 220, 0.10), transparent 70%); }
-.an-reach { border-color: rgba(160, 175, 215, 0.22); }
-.an-cloud { mix-blend-mode: screen; }
-
+/* ---------- The campaign map: a pale monochrome Milky Way behind, living stars, and very little moving ---------- */
 /* A star: the stellar gem's sun, as on the cards, burning on the map. The disc and its corona share one box
    (the corona's ring is cut for the disc, as in the gem), with the gem's outer light round them; the disc turns
    slowly, the corona breathes. Each kind of star its own colour and size. (Only transform and opacity move.) */
@@ -5725,9 +5706,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-collapsed .cmp-flare, .cmp-ruined .cmp-flare { opacity: 0; }
 .cmp-cache .cmp-star { width: 30px; height: 30px; }
 .cmp-badge.cmp-find .cur { width: 1em; height: 1em; }
-/* The header over the night sky: its figures light. */
-.cmp-purse { color: #e6ebf5; }
-.cmp-purse small { color: #9aa5bd; }
 
 /* Calmer: rings and anomalies barely move. */
 .cmp-ring-target, .cmp-ring-march { animation: none; }
@@ -5740,3 +5718,5 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .an-disc { animation-duration: 60s !important; }
 .cmp-stellaria svg { animation-duration: 120s; }
 @media (prefers-reduced-motion: reduce) { .cmp-star > i { animation: none !important; } }
+/* Every route to the wormhole in view: the routes a touch stronger, so the way through reads at a glance. */
+.cmp-link { stroke: rgba(110, 118, 140, 0.5); stroke-dasharray: 3 7; }
