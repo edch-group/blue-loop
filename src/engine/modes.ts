@@ -41,7 +41,7 @@ export type Mechanic =
   | 'forge' | 'overheat' | 'shields' | 'growth'
   | 'resonance' | 'bulwark' | 'pierce' | 'removal' | 'erode' | 'restore' | 'repair' | 'recall' | 'recover'
   | 'shift' | 'plant' | 'orbit' | 'attune' | 'lightspeed' | 'fusion' | 'spendAll' | 'global' | 'leave'
-  | 'sting' | 'anchor' | 'thermosiphon' | 'darkspeed' | 'empower' | 'halt' | 'relic';
+  | 'consume' | 'sting' | 'anchor' | 'thermosiphon' | 'darkspeed' | 'empower' | 'halt' | 'relic';
 
 /** The one mechanic each core race is built round: Aureline, Xel'Naru, Vorthane, Ixquor. */
 export const CORE_SIGNATURE: Record<number, Mechanic> = { 0: 'forge', 1: 'overheat', 2: 'shields', 3: 'growth' };
@@ -51,7 +51,7 @@ const MECHANIC_NAME: Record<Mechanic, string> = {
   forge: 'Forge', overheat: 'Overheat', shields: 'Shields', growth: 'Growth', resonance: 'Resonance', bulwark: 'Bulwark',
   pierce: 'Pierce', removal: 'Removal', erode: 'Erode', restore: 'Restore', repair: 'Repair', recall: 'Recall',
   recover: 'Recover', shift: 'Shift', plant: 'Plant', orbit: 'Orbit', attune: 'Attune', lightspeed: 'Lightspeed',
-  fusion: 'Fusion', spendAll: 'Spend all', global: 'Global', leave: 'Leaving play', sting: 'Sting', anchor: 'Anchor',
+  fusion: 'Fusion', consume: 'Consume', spendAll: 'Spend all', global: 'Global', leave: 'Leaving play', sting: 'Sting', anchor: 'Anchor',
   thermosiphon: 'Thermosiphon', darkspeed: 'Darkspeed', empower: 'Chosen', halt: 'Halt', relic: 'Relic',
 };
 export const mechanicName = (m: Mechanic) => MECHANIC_NAME[m];
@@ -120,6 +120,7 @@ export function cardMechanics(def: CardDef): Set<Mechanic> {
   if (def.onRecover?.length) add('recover');
   if (def.lightspeed) add('lightspeed');
   if (def.fusion) add('fusion');
+  if (def.consume) add('consume');
   if (def.spendAll) add('spendAll');
   if (def.attune) add('attune');
   if (def.kind === 'global') add('global');

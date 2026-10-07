@@ -1371,6 +1371,35 @@ const ART_RACES: Record<string, Draw> = {
   nyx_hero_nyxara: (S) =>
     S.glow(80, 30, 76, S.p.accent, 0.35) + nyxari(S, 80, 34, 1.45, { item: 'orb', crown: true, mask: true, eye: '#ffffff', cloak: '#100c20', wisps: 7 }) + S.motes(80, 50, 20, 76, '#e8e0ff', 0.9),
 
+  // ---- Nyxari: the Blood Cult (blood-red light in the dark) ----
+  bc_blood_offering: (S) =>
+    S.ground(84, '#0a0206') + `<path d="M58 84 L64 66 H96 L102 84 Z" fill="${S.linear([[0, '#3a0a14'], [1, '#08020a']])}" stroke="#ff3a4a" stroke-width="0.6"/>` +
+    `<ellipse cx="80" cy="66" rx="16" ry="3.4" fill="#c4122a"/>` + S.glow(80, 62, 26, '#ff3a4a', 0.45) + S.motes(80, 46, 12, 30, '#ff8a96', 1.2),
+  bc_crimson_rite: (S) =>
+    S.glow(80, 46, 56, '#ff2a3a', 0.3) + S.ground(86, '#07020a') +
+    `<circle cx="80" cy="86" r="30" fill="none" stroke="#ff3a4a" stroke-width="1" stroke-dasharray="3 2" opacity="0.9"/>` +
+    S.beam(80, 84, 80, 8, 3, '#ff4a5a') + S.sun(80, 30, 7, '#ff6a7a', 8),
+  bc_bloodfeast: (S) =>
+    S.ground(80, '#0a0206') + [56, 80, 104].map((x, i) => `<path d="M${x - 8} 80 Q${x} ${62 - i * 2} ${x + 8} 80 Z" fill="#8a0f1f" stroke="#ff4a5a" stroke-width="0.6"/>`).join('') +
+    S.glow(80, 66, 40, '#ff3a4a', 0.35) + S.motes(80, 52, 16, 50, '#ffb0b8', 1),
+  bc_exsanguinate: (S) =>
+    S.glow(96, 44, 40, '#ff2a3a', 0.4) + nyxari(S, 60, 30, 1.0, { item: 'blades', mask: true, eye: '#ff3a4a', cloak: '#2a0610', lean: 0.8 }) +
+    S.bolt(84, 40, 140, 58, '#ff4a5a', 4, 1.4) + S.motes(130, 58, 10, 18, '#ff8a96', 1.2),
+  bc_blood_thrall: (S) =>
+    S.glow(80, 40, 46, '#ff3a4a', 0.25) + S.ground(92, '#05020a') + nyxari(S, 80, 32, 1.15, { item: 'none', mask: true, eye: '#ff3a4a', cloak: '#3a0812' }),
+  bc_willing_vessel: (S) =>
+    S.glow(80, 30, 40, '#ff8a96', 0.3) + S.ground(92, '#05020a') + nyxari(S, 80, 34, 1.15, { item: 'orb', crown: false, eye: '#ffd0d4', cloak: '#4a1020', wisps: 3 }),
+  bc_martyrs_chalice: (S) =>
+    S.ground(86, '#07020a') + `<path d="M66 40 H94 L90 58 Q80 66 70 58 Z M78 64 H82 V78 H90 V82 H70 V78 H78 Z" fill="${S.linear([[0, '#e8c070'], [1, '#6a4010']])}"/>` +
+    `<ellipse cx="80" cy="42" rx="13" ry="2.6" fill="#c4122a"/>` + S.glow(80, 44, 30, '#ff3a4a', 0.4) + S.rings(80, 52, 20, 2, 6, '#ff6a7a', 0.5),
+  bc_sanguine_priest: (S) =>
+    S.glow(80, 30, 56, '#ff3a4a', 0.28) + S.ground(94, '#05020a') + nyxari(S, 80, 30, 1.3, { item: 'veil', crown: true, mask: true, eye: '#ff6a7a', cloak: '#2a0610' }),
+  bc_hemomancer: (S) =>
+    S.glow(80, 40, 60, '#ff2a3a', 0.32) + nyxari(S, 74, 32, 1.25, { item: 'orb', mask: true, eye: '#ff3a4a', cloak: '#1a040a', wisps: 5, lean: 0.4 }) + S.motes(80, 56, 18, 70, '#ff6a7a', 1),
+  bc_hero_sanguis: (S) =>
+    crescent(S, 128, 20, 9, 20, '#ff9aa4') + S.glow(80, 34, 70, '#ff3a4a', 0.3) +
+    nyxari(S, 80, 32, 1.42, { item: 'orb', crown: true, mask: true, eye: '#ffffff', cloak: '#3a0812', wisps: 6 }) + S.motes(80, 52, 18, 72, '#ff8a96', 0.9),
+
   // ---- Korrath: Forgeborn ----
   kor_rivet_graft: (S) =>
     S.panel(26, 32, 62, 44, 3) + S.panel(70, 40, 62, 44, 3) +

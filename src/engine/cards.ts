@@ -1158,6 +1158,16 @@ export const PRESET_DECKS: DeckList[] = [
       'the_worldroot', 'spore_catalyst', 'hive_relay', 'sporestorm', 'hive_mind', 'the_brood_queen',
     ],
   },
+  // (Lost Races, added after the Core starters so every saved starter keeps its place.)
+  {
+    // Blood Cult: Thralls, Vessels and Chalices put down to be consumed, by Crimson Rites, Offerings and
+    // Bloodfeasts, each one leaving play firing its own payoff and the Hemomancers' and Sanguine Priests'.
+    name: 'Blood Rite',
+    cards: [
+      ...twoOf('bc_hero_sanguis', 'bc_blood_thrall', 'bc_willing_vessel', 'bc_martyrs_chalice', 'bc_crimson_rite', 'bc_blood_offering', 'bc_sanguine_priest', 'bc_hemomancer', 'bc_bloodfeast', 'bc_exsanguinate', 'nyx_shade_stalker', 'nyx_phantom_strike', 'coronal_lance', 'plasma_relay'),
+      'nyx_hero_nyxara', 'cryo_vault',
+    ],
+  },
 ];
 
 /**

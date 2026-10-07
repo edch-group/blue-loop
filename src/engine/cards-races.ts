@@ -2,11 +2,12 @@ import { act, hero } from './heroes-battle';
 import type { CardDef } from './types';
 
 /**
- * The four newer races, each split into two sub-races (races.ts). Every card carries its race's bonus and
+ * The four newer races, each split into sub-races (races.ts). Every card carries its race's bonus and
  * nerf (races.ts RACE_TRAITS); buff cards and Heroes name a race or a sub-race, so a card can read very
  * differently by the company it keeps.
  *
- * - Nyxari (4), void-stalkers: Veilwalkers set Lightspeed traps, Unmakers take the rival's board apart.
+ * - Nyxari (4), void-stalkers: Veilwalkers set Lightspeed traps, Unmakers take the rival's board apart, and the
+ *   Blood Cult consume their own (cards that pay off as they leave play).
  * - Korrath (5), forge-smiths: Forgeborn hammer grafts onto each other, Bastion-kin hold the line.
  * - Seren (6), star-readers: Tidecasters move the planets, Seers read them (draw, recover, attunement).
  * - Pyrr (7), flare-born: Flarekin spend everything in one burst, Cinderborn run their own sun hot.
@@ -116,6 +117,62 @@ export const RACE_CARDS: CardDef[] = [
   hero(
     { id: 'nyx_hero_nyxara', name: 'Nyxara, the Unlit', race: 4, character: true, rarity: 'anomaly', cost: 4, stability: 7, lead: '{destroy:3}. Your Nyxari cards {heat:+1}.', onPlay: [{ type: 'destroy', maxDefence: 3 }], passive: [{ type: 'kindBonus', race: 4, amount: 1, others: true }] },
     [act('eclipse', 'Eclipse', '{heat:3}, {pierce}.', [{ type: 'heat', amount: 3, to: 'target', pierce: true }], { sacrifice: true }), act('vanish', 'Vanish', 'Draw 2.', [{ type: 'draw', amount: 2 }])],
+  ),
+
+  // Blood Cult: Consume cards give up one of your own cards to play; the rest pay off as they leave play, or
+  // whenever another of yours does.
+  {
+    id: 'bc_blood_offering', name: 'Blood Offering', kind: 'growth', race: 4, sub: 'bloodcult', cost: 0, consume: true,
+    text: '{consume}. Draw 2.',
+    onPlay: [{ type: 'draw', amount: 2 }],
+  },
+  {
+    id: 'bc_crimson_rite', name: 'Crimson Rite', kind: 'attack', race: 4, sub: 'bloodcult', cost: 1, consume: true,
+    text: '{consume}. {heat:5}.',
+    onPlay: [{ type: 'heat', amount: 5, to: 'target' }],
+  },
+  {
+    id: 'bc_bloodfeast', name: 'Bloodfeast', kind: 'growth', race: 4, sub: 'bloodcult', cost: 1, consume: true,
+    text: '{consume}. {energy:2}.',
+    onPlay: [{ type: 'plays', amount: 2 }],
+  },
+  {
+    id: 'bc_exsanguinate', name: 'Exsanguinate', kind: 'attack', race: 4, sub: 'bloodcult', cost: 2, consume: true, rarity: 'stellar',
+    text: '{consume}. {destroy:3}.',
+    onPlay: [{ type: 'destroy', maxDefence: 3 }],
+  },
+  {
+    id: 'bc_blood_thrall', name: 'Blood Thrall', kind: 'attack', race: 4, sub: 'bloodcult', cost: 1, character: true,
+    text: 'When this leaves your tableau, {heat:3}.',
+    onLeave: [{ type: 'heat', amount: 3, to: 'target' }],
+  },
+  {
+    id: 'bc_willing_vessel', name: 'Willing Vessel', kind: 'growth', race: 4, sub: 'bloodcult', cost: 1, character: true,
+    text: '{dusk}: {cool:1}. When this leaves your tableau, draw 2.',
+    onDusk: [{ type: 'cool', amount: 1 }], onLeave: [{ type: 'draw', amount: 2 }],
+  },
+  {
+    id: 'bc_martyrs_chalice', name: "Martyr's Chalice", kind: 'defence', race: 4, sub: 'bloodcult', cost: 1,
+    text: 'When this leaves your tableau, {shield:4}.',
+    onLeave: [{ type: 'shield', amount: 4 }],
+  },
+  {
+    id: 'bc_sanguine_priest', name: 'Sanguine Priest', kind: 'defence', race: 4, sub: 'bloodcult', cost: 2, character: true,
+    text: '{guard}. When another of your cards leaves your tableau, {cool:1}.',
+    passive: [{ type: 'taunt' }, { type: 'allyLeaves', effects: [{ type: 'cool', amount: 1 }] }],
+  },
+  {
+    id: 'bc_hemomancer', name: 'Hemomancer', kind: 'attack', race: 4, sub: 'bloodcult', cost: 2, character: true, rarity: 'stellar',
+    text: 'When another of your cards leaves your tableau, {heat:2}.',
+    passive: [{ type: 'allyLeaves', effects: [{ type: 'heat', amount: 2, to: 'target' }] }],
+  },
+  hero(
+    {
+      id: 'bc_hero_sanguis', name: 'Sanguis, the Blood Saint', race: 4, sub: 'bloodcult', character: true, rarity: 'stellar', cost: 3, stability: 6,
+      lead: 'When another of your cards leaves your tableau, she mends 1 health.',
+      passive: [{ type: 'allyLeaves', effects: [{ type: 'restore', amount: 1, self: true }] }],
+    },
+    [act('communion', 'Communion', 'Draw 2.', [{ type: 'draw', amount: 2 }], { sacrifice: true }), act('bloodletting', 'Bloodletting', '{heat:3}.', [{ type: 'heat', amount: 3, to: 'target' }], { stability: 1 })],
   ),
 
   // ---------------- Korrath ----------------

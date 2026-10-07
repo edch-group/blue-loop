@@ -601,6 +601,19 @@ How the other rules touch them:
 - **Heroes** never fade, so they have health only: the stability they are listed with is their health. Paying "−1 health" for an ability takes it from there. Gear that gives a campaign hero stability gives health.
 - **Older saves** (game version 5) get full health on load.
 
+## The Blood Cult (Nyxari, Lost Races)
+
+The Blood Cult is the Nyxari's third sub-race. Its cards consume their own and pay off whenever a card leaves play.
+
+- **Consume** (`CardDef.consume`) is a play cost. To play the card, you give up another of your cards in play: your choice, any card but your Hero, Saplings included. The consumed card leaves play like any card does, so its own "when this leaves your tableau" effects fire, and so do your cards that answer another leaving. The card played can take the consumed card's slot, so it can be played into a full tableau.
+- **The cards:**
+  - Consume cards: Blood Offering (0: draw 2), Crimson Rite (1: heat 5), Bloodfeast (1: +2 energy), Exsanguinate (2: destroy 3).
+  - Fodder that pays off as it leaves: Blood Thrall (heat 3), Willing Vessel (draw 2), Martyr's Chalice (4 shields).
+  - Payoffs whenever another of your cards leaves: Hemomancer (heat 2), Sanguine Priest (a Guard; cool 1).
+  - The Hero, Sanguis, the Blood Saint: she mends 1 health whenever another of your cards leaves. Abilities: sacrifice a card to draw 2, or pay 1 health for heat 3.
+- **The starter:** Blood Rite, a Lost Races deck. In AI games against the eight Lost Races race starters it wins about 46% overall.
+- Consume is a Lost Races mechanic, so these cards are never legal in Core.
+
 ## Game modes: Core and Lost Races
 
 Every deck is built for one of two modes, and every game is played in one.
@@ -637,7 +650,7 @@ Each player is one of eight races (races.ts). Every race has a **bonus and a ner
 | Xel'Naru | Crystal overloaders: run hot, pay off as cards leave | Shatter: when one leaves your tableau, heat 1 at the rival | Brittle: −1 stability | |
 | Vorthane | Tidal bells: shields, kept, and stinging | Sting: +1 Sting on their cards that stay (written into each card’s own Sting) | Slow tides: −1 attack (never below 1) | |
 | Ixquor | The hive: go wide, ramp, grow | Regrowth: +1 stability | Unarmoured: −1 defence | |
-| Nyxari | Void-stalkers | Darkspeed: their attackers and Heroes can attack or act the day they come into play (not dimmed); their other cards come in dimmed as anyone's do | Fleeting: −2 stability | Veilwalker (Lightspeed traps), Unmaker (removal) |
+| Nyxari | Void-stalkers | Darkspeed: their attackers and Heroes can attack or act the day they come into play (not dimmed); their other cards come in dimmed as anyone's do | Fleeting: −2 stability | Veilwalker (Lightspeed traps), Unmaker (removal), Blood Cult (Consume, and paying off as cards leave play) |
 | Korrath | Forge-smiths | Sturdy: +2 Sturdy on their cards that stay (written into each card's own Sturdy) | Ponderous: −1 attack (never below 1) | Forgeborn (Fusion grafts), Bastion-kin (Guards) |
 | Seren | Star-readers | Star-charted: attuned cards attune once more | Frail: −1 stability | Tidecaster (orbit), Seer (draw, recover, attune) |
 | Pyrr | Flare-born | +1 attack, +2 while overheated | Self-immolating: each attack heats their own sun 1 | Flarekin (spend-all bursts), Cinderborn (run hot) |

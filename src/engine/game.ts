@@ -402,9 +402,16 @@ export function recallsInto(p: PlayerState, defId: string): boolean {
 
 /** Whether a card can be played into this tableau now: a free slot, a recall to make one, or no slot needed. */
 export function hasRoomFor(p: PlayerState, defId: string): boolean {
+  // A Consume card needs a card of yours to give up (and then has its slot).
+  if (cardDef(defId).consume) return consumable(p).length > 0;
   // (A Fusion card can always fuse onto a card in play, full tableau or not.)
   if (cardDef(defId).fusion && fusionHosts(p).length > 0) return true;
   return !inSlots(defId) || !tableauFull(p) || recallsInto(p, defId);
+}
+
+/** The cards of yours a Consume card can give up: any in play but your Hero. */
+export function consumable(p: PlayerState): CardInstance[] {
+  return p.tableau.filter((c) => c.slot !== COMMAND_SLOT);
 }
 
 /** Whether a card's ally choice returns the card to hand (rather than restoring its stability). */
@@ -1473,6 +1480,17 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const cost = playCost(def.id, lightspeed);
   if (p.playsLeft < cost) throw new GameError(p.playsLeft <= 0 ? 'You have no energy left today.' : `${def.name} costs ${cost} energy: you have ${p.playsLeft} left today.`);
   if (lightspeed && !canSetLightspeed(p)) throw new GameError('You already have a Lightspeed card face down.');
+  // Consume: one of your other cards in play is given up first (your choice; unchosen, the weakest), and leaves
+  // play as any card does. (A failed play throws, and the whole move is undone.)
+  if (def.consume && !lightspeed) {
+    const chosen = action.sacrificeUid ? consumable(p).find((c) => c.uid === action.sacrificeUid) : undefined;
+    if (action.sacrificeUid && !chosen) throw new GameError('Consume one of your own cards in play (not your Hero).');
+    const victim = chosen ?? sacrificeOf(p);
+    if (!victim) throw new GameError(`${def.name} needs another of your cards in play to consume.`);
+    log(state, `${p.name}'s ${def.name} consumes ${cardDef(victim.defId).name}.`);
+    leaveTableau(state, p, victim);
+    if (state.winnerId || p.eliminated) return;
+  }
   // A Fusion card is played like any other card, into a slot, or (given a host) fused onto a card in play.
   const fusing = !!def.fusion && !lightspeed && action.hostUid !== undefined;
   const slotted = inSlots(def.id) && !lightspeed && !fusing;

@@ -48,9 +48,9 @@ describe('content', () => {
       const own = CARDS.filter((c) => c.race === race);
       expect(own.length).toBeGreaterThanOrEqual(10);
       expect(own.filter((c) => c.rarity === 'anomaly' && c.character).length).toBeGreaterThanOrEqual(1);
-      // Three hero leaders (Command cards) of its own: two regulars and a cost-5 bomb.
+      // Three hero leaders (Command cards) of its own, at least: two regulars and a cost-5 bomb (a third sub-race brings its own).
       const heroes = own.filter((c) => c.kind === 'command' && c.character);
-      expect(heroes).toHaveLength(3);
+      expect(heroes.length).toBeGreaterThanOrEqual(3);
       expect(heroes.filter((c) => cardCost(c.id) === 5)).toHaveLength(1);
       expect(own.some((c) => c.character)).toBe(true);
     }

@@ -2780,6 +2780,9 @@ export class App {
     if (p.faceDown) return this.dispatch({ type: 'playCard', cardUid: p.uid, faceDown: true });
     if (dropSlot !== undefined && p.slot === undefined && freeSlots(me).includes(dropSlot)) p.slot = dropSlot;
     if (canSetFaceDown(me, card.defId) && p.slot === undefined) return ask('slot');
+    // A Consume card: first the card of yours it gives up (with no slot free, it takes that card's).
+    if (cardDef(card.defId).consume && !p.sacrificeUid) return ask('sacrifice');
+    if (cardDef(card.defId).consume && p.slot === undefined && !freeSlots(me).length) p.slot = me.tableau.find((c) => c.uid === p.sacrificeUid)?.slot;
     // First the card is placed, so what it does next is seen from where it will stand (its slot's forge and
     // resonance count in the heat it aims): a recall card first picks the card it recalls (it may take its
     // place), a Fusion card the card it fuses onto, and any other card its slot. Even the last open slot is
@@ -2809,7 +2812,7 @@ export class App {
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
     // A card that heats, with rival cards on the table: where its heat goes (a card, or their sun).
     if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
-    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, shiftTo: p.shiftTo, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.hostUid ? { hostUid: p.hostUid } : {}) });
+    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, shiftTo: p.shiftTo, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.hostUid ? { hostUid: p.hostUid } : {}), ...(p.sacrificeUid ? { sacrificeUid: p.sacrificeUid } : {}) });
   }
 
   // -------------------------------------------------------------------------
@@ -3579,8 +3582,10 @@ export class App {
       }
       case 'choose-sacrifice': {
         const pend = this.pending;
-        if (!pend || pend.ability === undefined) return;
+        if (!pend) return;
         pend.sacrificeUid = arg;
+        // (A Consume card being played: on to its next choice.)
+        if (pend.ability === undefined) return this.advancePlay();
         // Then aim it, if it heats and there are rival cards to aim at; else it is used at once.
         const hero = commandCard(this.viewer())!;
         if (abilityAimable(hero.defId, pend.ability) && aimChoices(this.state!, this.viewer()).cards.length) {
@@ -4805,7 +4810,7 @@ export class App {
     const guarded = !aimChoices(s, activePlayer(s)).sun;
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'aim') return hint(guarded ? 'aim at a guard' : 'aim heat');
-    if (p.step === 'sacrifice') return hint('sacrifice a card');
+    if (p.step === 'sacrifice') return hint(p.ability === undefined ? 'consume a card' : 'sacrifice a card');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card', shift: 'move a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : allyEffectKind(card.defId) === 'empower' ? 'choose a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
@@ -5098,8 +5103,8 @@ export class App {
     }
     if ((p?.attack || p?.ability !== undefined) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     // Paying for a Hero's ability with a sacrifice: any other card of yours in play can be given up.
-    if (p?.step === 'sacrifice' && opts.tableau === 'mine' && opts.owner?.id === me?.id && c.slot !== undefined && c.uid !== p.uid) {
-      attrs = `data-act="choose-sacrifice" data-arg="${c.uid}" title="Sacrifice this card"`;
+    if (p?.step === 'sacrifice' && opts.tableau === 'mine' && opts.owner?.id === me?.id && c.slot !== undefined && c.slot !== COMMAND_SLOT && c.uid !== p.uid) {
+      attrs = `data-act="choose-sacrifice" data-arg="${c.uid}" title="${p.ability === undefined ? 'Consume' : 'Sacrifice'} this card"`;
       state = 'card-choosable card-sacrifice';
     }
     if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';

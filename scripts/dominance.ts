@@ -45,6 +45,8 @@ function vec(c: CardDef): Vec {
   if (c.defence) bump(v, 'defence', c.defence);
   if (c.attune) bump(v, 'attune', c.attune);
   if (c.fusion) bump(v, 'fusion', 1);
+  // (Consume is a cost: a card given up to play it.)
+  if (c.consume) bump(v, 'bad|consume', 1);
   if (c.onTurn?.length || c.onDusk?.length || c.passive?.length || c.attune) bump(v, 'stability', baseStability(c.id) - (c.kind === 'command' ? 0 : raceTrait(c.race)?.stability ?? 0)); // (a race's trait is the race's, not the card's)
   return v;
 }

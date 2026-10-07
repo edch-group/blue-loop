@@ -55,6 +55,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   restore: { name: 'restore', group: 'stability', explain: () => 'One of your cards gains stability.' },
   renew: { name: 'renew', group: 'stability', explain: () => 'Your other cards gain stability.' },
   recover: { name: 'recover', group: 'recovery', explain: () => 'Discard pile to hand.' },
+  consume: { name: 'consume', group: 'removal', explain: () => 'To play it, give up another of your cards in play (not your Hero): it leaves play, and this can take its slot.' },
   chosen: { name: 'chosen', group: 'heat', explain: () => 'Pick one of your cards: it gains attack while it stays in play.' },
   recall: { name: 'recall', group: 'recovery', explain: () => 'One of your cards back to hand.' },
   shift: { name: 'shift', group: 'tempo', explain: () => 'Move one of your cards to another slot (swapping with any card there). Not a Hero.' },

@@ -236,6 +236,12 @@ export interface CardDef {
   /** Spends all your energy as it is played (at least 1): its effects count how much (an X cost). */
   spendAll?: boolean;
   /**
+   * Consume: to play it, one of your other cards in play (not your Hero) is given up, your choice. It leaves
+   * play as any card does (its own leaving effects, and your cards that answer one leaving, all fire), and the
+   * card played may take its slot.
+   */
+  consume?: boolean;
+  /**
    * Fusion: played onto one of your cards in play rather than into a slot. That card gains this one's dawn
    * effects, passives, Sturdy and stability; this one goes with it when it leaves.
    */
@@ -539,6 +545,8 @@ export type Action =
       recoverUid?: string;
       /** A card that heats as it is played: the rival card its heat goes to (unset: their sun, or a Guard). */
       aimUid?: string;
+      /** A Consume card: the card of yours in play it consumes (unset: your weakest). */
+      sacrificeUid?: string;
     }
   | { type: 'setTarget'; targetId: string }
   /** Ends the day. After dusk a hand over the limit is discarded down to it: `discard` names the cards (any still over are picked for them). */
