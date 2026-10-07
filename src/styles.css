@@ -5232,7 +5232,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   font-family: var(--display); font-weight: 800; font-size: max(8px, calc(var(--cw, 100px) * 0.1)); color: #2f3a52;
 }
 .card .stat-def-floor svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 2px 2px rgba(30, 38, 55, 0.35)); }
-.card .stat-def-floor .def-n { position: relative; margin-top: -8%; line-height: 1; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9); }
+/* (The number at the shield face's optical centre: up from the box's centre, as the shield tapers to its point; digits
+   of one width, centred in it; and no offset shadow to drag it down and right.) */
+.card .stat-def-floor .def-n { position: relative; margin-top: -16%; line-height: 1; text-align: center; font-variant-numeric: tabular-nums; text-shadow: 0 0 1.5px rgba(255, 255, 255, 0.95); }
 .card .stat-def-floor .bs-glint { opacity: 0; }
 /* Worn: the face reddens, the number in red. */
 .card .stat-def.stat-def-floor.stat-dented { background: none; color: #a8301a; --face1: #fff1ec; --face2: #e9b3a3; --face3: #c07763; }
