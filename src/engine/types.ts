@@ -537,7 +537,7 @@ export type Action =
   /** Use one of your hero's battle skills (campaign), on your own day. */
   | { type: 'heroSkill'; index: number }
   /** Use one of the abilities of the Hero leading from your Hero slot (one a day). */
-  | { type: 'heroAbility'; index: number; /** An ability that heats: the rival card it goes to (unset: their sun, or a Guard). */ aimUid?: string }
+  | { type: 'heroAbility'; index: number; /** An ability that heats: the rival card it goes to (unset: their sun, or a Guard). */ aimUid?: string; /** One that costs a sacrifice: the card of yours given up (unset: your weakest). */ sacrificeUid?: string }
   /** One of your cards attacks: one of your rival's cards, or their sun (target null). */
   | { type: 'attack'; attackerUid: string; targetUid: string | null }
   /** A player gives up (at any time, not only on their day): their rival wins. */

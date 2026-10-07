@@ -135,7 +135,9 @@ type Speed = 'slow' | 'normal' | 'fast';
  */
 interface Pending {
   uid: string;
-  step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot' | 'host' | 'shift';
+  step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot' | 'host' | 'shift' | 'sacrifice';
+  /** An ability that costs a sacrifice: the card of yours chosen to give up. */
+  sacrificeUid?: string;
   /** A Fusion card: the card of yours it fuses onto. */
   hostUid?: string;
   /** Where its heat goes: a rival card's uid, or 'sun'. */
@@ -289,7 +291,7 @@ const SCROLL_KEEP = '.db-pool, .db-rows, .db-list-body, .setup-body, .pile-grid,
 const EYE_ICON = '<svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3.2"/></svg>';
 const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in hand"><rect x="2.2" y="3" width="6" height="8.6" rx="1.1" transform="rotate(-18 5.2 11)"/><rect x="5" y="1.8" width="6" height="8.6" rx="1.1"/><rect x="7.8" y="3" width="6" height="8.6" rx="1.1" transform="rotate(18 10.8 11)"/></svg>';
 /** Clicks that make their own sound (or none): moves on the table and picks on the map. */
-const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-host', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
+const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-sacrifice', 'choose-host', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
 
 /** A number that pops out of a sun and rises away: heat taken, cooling, shields. Outside the re-rendered root. */
 function floatNumber(at: DOMRect, text: string, tone: 'hot' | 'cool' | 'block', row: number) {
@@ -3495,6 +3497,12 @@ export class App {
         this.heroPanel = null;
         // An ability that heats, with rival cards on the table: aim it first (a card, or their sun).
         const hero = commandCard(this.viewer())!;
+        // An ability paid for with a sacrifice: first choose which of your cards to give up.
+        if (cardDef(hero.defId).abilities?.[Number(arg)]?.pay?.sacrifice) {
+          this.pending = { uid: hero.uid, step: 'sacrifice', ability: Number(arg) };
+          sound.hover();
+          return this.render();
+        }
         if (abilityAimable(hero.defId, Number(arg)) && aimChoices(this.state!, this.viewer()).cards.length) {
           this.pending = { uid: hero.uid, step: 'aim', ability: Number(arg) };
           sound.hover();
@@ -3541,10 +3549,25 @@ export class App {
         if (pend.ability !== undefined) {
           this.pending = null;
           sound.hero();
-          return this.dispatch({ type: 'heroAbility', index: pend.ability, aimUid: arg === 'sun' ? undefined : arg });
+          return this.dispatch({ type: 'heroAbility', index: pend.ability, aimUid: arg === 'sun' ? undefined : arg, ...(pend.sacrificeUid ? { sacrificeUid: pend.sacrificeUid } : {}) });
         }
         pend.aimUid = arg;
         return this.advancePlay();
+      }
+      case 'choose-sacrifice': {
+        const pend = this.pending;
+        if (!pend || pend.ability === undefined) return;
+        pend.sacrificeUid = arg;
+        // Then aim it, if it heats and there are rival cards to aim at; else it is used at once.
+        const hero = commandCard(this.viewer())!;
+        if (abilityAimable(hero.defId, pend.ability) && aimChoices(this.state!, this.viewer()).cards.length) {
+          pend.step = 'aim';
+          sound.hover();
+          return this.render();
+        }
+        this.pending = null;
+        sound.hero();
+        return this.dispatch({ type: 'heroAbility', index: pend.ability, sacrificeUid: arg });
       }
       case 'choose-ally':
         if (this.pending) this.pending.allyUid = arg;
@@ -4741,6 +4764,7 @@ export class App {
     const guarded = !aimChoices(s, activePlayer(s)).sun;
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'aim') return hint(guarded ? 'aim at a guard' : 'aim heat');
+    if (p.step === 'sacrifice') return hint('sacrifice a card');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card', shift: 'move a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint(allyEffectKind(card.defId) === 'recall' ? 'recall a card' : allyEffectKind(card.defId) === 'empower' ? 'choose a card' : 'restore a card');
     if (p.step === 'host') return hint('fuse onto a card');
@@ -4853,7 +4877,7 @@ export class App {
         pend.attack
           ? { type: 'attack', attackerUid: pend.uid, targetUid: aim }
           : pend.ability !== undefined
-            ? { type: 'heroAbility', index: pend.ability, aimUid: aim }
+            ? { type: 'heroAbility', index: pend.ability, aimUid: aim, ...(pend.sacrificeUid ? { sacrificeUid: pend.sacrificeUid } : {}) }
             : { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, shiftTo: pend.shiftTo, aimUid: aim, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) };
       for (const c of aimChoices(st, me).cards) {
         try {
@@ -5032,6 +5056,11 @@ export class App {
       state = 'card-attacker';
     }
     if ((p?.attack || p?.ability !== undefined) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
+    // Paying for a Hero's ability with a sacrifice: any other card of yours in play can be given up.
+    if (p?.step === 'sacrifice' && opts.tableau === 'mine' && opts.owner?.id === me?.id && c.slot !== undefined && c.uid !== p.uid) {
+      attrs = `data-act="choose-sacrifice" data-arg="${c.uid}" title="Sacrifice this card"`;
+      state = 'card-choosable card-sacrifice';
+    }
     if (opts.tableau && c.dimmed && c.slot !== undefined) state += ' card-dimmed';
     // Placing a recall card: the card it recalls can make way for it.
     if (p && pendingDef && opts.tableau === 'mine' && p.step === 'slot' && p.allyUid === c.uid && allyEffectKind(pendingDef) === 'recall' && c.slot !== undefined) {

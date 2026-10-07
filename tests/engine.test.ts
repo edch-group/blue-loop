@@ -261,11 +261,14 @@ describe('commands', () => {
     s = endTurn(endTurn(s));
     const mine = () => activePlayer(s).tableau;
     const hero = () => mine().find((c) => c.defId === 'war_council')!;
-    // Shatter: sacrifice a card (the weakest other one), no energy.
+    // Shatter: sacrifice a card of your choosing (unchosen, the weakest), no energy. Never the Hero.
     const others = mine().length - 1;
     const energy = activePlayer(s).playsLeft;
+    const chosen = mine().find((c) => c.defId === 'deflector_grid')!.uid;
     expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
-    s = applyAction(s, { type: 'heroAbility', index: 1 });
+    expect(() => applyAction(s, { type: 'heroAbility', index: 1, sacrificeUid: hero().uid })).toThrow(/own cards/);
+    s = applyAction(s, { type: 'heroAbility', index: 1, sacrificeUid: chosen });
+    expect(mine().some((c) => c.uid === chosen)).toBe(false);
     expect(mine().length - 1).toBe(others - 1);
     expect(activePlayer(s).playsLeft).toBe(energy);
     s = endTurn(endTurn(s));

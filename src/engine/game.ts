@@ -1634,7 +1634,10 @@ export function applyAction(prev: GameState, action: Action): GameState {
       p.playsLeft -= k.cost ?? 0;
       // The other costs: the Hero's own stability, a card sacrificed, heat on your own sun.
       if (k.pay?.stability) hero.stability = (hero.stability ?? 0) - k.pay.stability;
-      const victim = k.pay?.sacrifice ? sacrificeOf(p) : undefined;
+      // (The card given up is the player's choice; unchosen, the weakest.)
+      const chosen = action.sacrificeUid ? p.tableau.find((c) => c.uid === action.sacrificeUid && c.slot !== COMMAND_SLOT) : undefined;
+      if (action.sacrificeUid && !chosen) throw new GameError('Sacrifice one of your own cards in play (not your Hero).');
+      const victim = k.pay?.sacrifice ? chosen ?? sacrificeOf(p) : undefined;
       if (victim) {
         log(state, `${p.name} sacrifices ${cardDef(victim.defId).name}.`);
         leaveTableau(state, p, victim);
