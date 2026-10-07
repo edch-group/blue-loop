@@ -1,6 +1,9 @@
 import { BALANCE, baseAttack, baseHealth, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, raceTrait, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { stellariaFlower } from './art';
 import { cardScene, renderedArt } from './cardart';
+import jewelEmerald from './jewels/emerald.png';
+import jewelTopaz from './jewels/topaz.png';
+import jewelRuby from './jewels/ruby.png';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
 import dwarf from './gems/dwarf.png';
@@ -520,6 +523,8 @@ function circuitTile(colour: string, seed: number, strength = 0.27): string {
 }
 const CIRCUIT: Record<Rarity, [string, number]> = { dwarf: ['#6f86ad', 7], stellar: ['#c08a24', 11], anomaly: ['#8c5ad6', 19] };
 for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElement.style.setProperty(`--circuit-${r}`, circuitTile(colour, seed));
+// The stat jewels (scripts/render_jewels.py): an emerald for health, a topaz for stability, a ruby when it is about to run out.
+for (const [k, url] of Object.entries({ emerald: jewelEmerald, topaz: jewelTopaz, ruby: jewelRuby })) document.documentElement.style.setProperty(`--jewel-${k}`, `url(${url})`);
 // The same traces, fainter and in silver, for the interface: buttons, panels, pop-ups.
 document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad', 23, 0.2));
 
