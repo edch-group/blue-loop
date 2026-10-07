@@ -244,8 +244,10 @@ export interface CardDef {
   token?: boolean;
   /** Extra defence on top of its slot's (sturdy cards). */
   defence?: number;
-  /** Turns it stays in your tableau before it fades into your discard pile (default: see BALANCE.stability). */
+  /** Turns it stays in your tableau before it fades into your discard pile (default: see BALANCE.stability). A Hero's is its health. */
   stability?: number;
+  /** Heat past its defence it can take in play before it burns away (default: from its cost, see baseHealth). */
+  health?: number;
   /** While this card is in your tableau. */
   passive?: Passive[];
   /** A fused card (campaign armory): the two cards it was made from. */
@@ -259,8 +261,10 @@ export interface CardInstance {
   growth?: number;
   /** In a tableau: which of its slots the card sits in (0 far left … 4 far right). */
   slot?: number;
-  /** In a tableau: days left before it fades into its owner's discard pile. */
+  /** In a tableau: days left before it fades into its owner's discard pile (a Hero has none: it never fades). */
   stability?: number;
+  /** In a tableau: what heat past its defence (an attack, a sting, aimed heat) can still take before it burns away. */
+  health?: number;
   /**
    * In a tableau: defence worn away by heat. It lasts: a card recovers 1 at each of its owner's dawns
    * or by Repair; and the wear on its slot's own defence stays in the slot when it leaves.
@@ -380,7 +384,7 @@ export interface LogEntry {
 
 export interface GameState {
   /** Rules version, so saves from older rules are ignored. */
-  version: 5;
+  version: 6;
   rngState: number;
   uidCounter: number;
   turnNumber: number;

@@ -24,7 +24,7 @@ export const heroCost = (listed: number) => listed + 1;
  * the card's), with its energy cost, if any, first: green dots, then a colon ("● : Heat 3"). `{act}` marks where each one starts.
  */
 const payText = (a: HeroAbility) =>
-  [a.pay?.stability ? `−${a.pay.stability} stability` : '', a.pay?.sacrifice ? 'Sacrifice a card' : '', a.pay?.selfHeat ? `{heat:${a.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ');
+  [a.pay?.stability ? `−${a.pay.stability} health` : '', a.pay?.sacrifice ? 'Sacrifice a card' : '', a.pay?.selfHeat ? `{heat:${a.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ');
 const line = (a: HeroAbility) => {
   const pay = payText(a);
   return `{act:${a.name}}${a.cost ? `{cost:${a.cost}}${pay ? ` ${pay}` : ''} : ${a.text}` : pay ? `${pay}: ${a.text}` : a.text}`;
@@ -81,7 +81,7 @@ export const HERO_CARDS: Record<string, CardDef> = Object.fromEntries(
     // ---- Vorthane: the weight of the deep ----
     hero(
       { id: 'tide_regent', name: 'Tide-Regent Osshara', race: 2, stability: 5, lead: '{dawn}: {shield:2}.', onTurn: [{ type: 'shield', amount: 2 }] },
-      [act('swell', 'Swell', '{shield:4}. It regains 1 stability.', [{ type: 'shield', amount: 4 }, { type: 'restore', amount: 1, self: true }]), act('current', 'Current', 'Draw 1.', [{ type: 'draw', amount: 1 }])],
+      [act('swell', 'Swell', '{shield:4}. It mends 1 health.', [{ type: 'shield', amount: 4 }, { type: 'restore', amount: 1, self: true }]), act('current', 'Current', 'Draw 1.', [{ type: 'draw', amount: 1 }])],
     ),
     hero(
       {
@@ -106,12 +106,12 @@ export const HERO_CARDS: Record<string, CardDef> = Object.fromEntries(
         onPlay: [{ type: 'shield', amount: 6 }, { type: 'bounce', maxDefence: 3 }],
         passive: [{ type: 'keepShields' }],
       },
-      [act('crush', 'Crush', '{heat:1} per 2 shields you have (up to 5).', [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }], { sacrifice: true }), act('deepcall', 'Deep Call', '{shield:4}. It regains 2 stability.', [{ type: 'shield', amount: 4 }, { type: 'restore', amount: 2, self: true }])],
+      [act('crush', 'Crush', '{heat:1} per 2 shields you have (up to 5).', [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'shields', per: 2 }, max: 5 }], { sacrifice: true }), act('deepcall', 'Deep Call', '{shield:4}. It mends 2 health.', [{ type: 'shield', amount: 4 }, { type: 'restore', amount: 2, self: true }])],
     ),
     // ---- Ixquor: the hive that does not stop ----
     hero(
       { id: 'chamber_protocol', name: "Broodmother Ul'Kha", race: 3, stability: 5, lead: '{dawn}: your other growing cards grow by 1.', onTurn: [{ type: 'growOthers' }] },
-      [act('spawn', 'Spawn', '{plant:1}.', [{ type: 'plant', amount: 1 }]), act('nurture', 'Nurture', '{renew:1}. She regains 2 stability.', [{ type: 'restore', amount: 1, all: true }, { type: 'restore', amount: 2, self: true }])],
+      [act('spawn', 'Spawn', '{plant:1}.', [{ type: 'plant', amount: 1 }]), act('nurture', 'Nurture', '{renew:1}. She mends 2 health.', [{ type: 'restore', amount: 1, all: true }, { type: 'restore', amount: 2, self: true }])],
     ),
     hero(
       { id: 'logistics_command', name: 'Hive-Speaker Zyth', race: 3, stability: 5, lead: 'Your Ixquor cards {heat:+1}.', passive: [{ type: 'kindBonus', race: 3, amount: 1, others: true }] },
@@ -123,7 +123,7 @@ export const HERO_CARDS: Record<string, CardDef> = Object.fromEntries(
         name: 'The Worldroot',
         race: 3,
         stability: 7,
-        lead: 'Draw 3, {renew:2}. {dawn}: draw 1; it regains 1 stability.',
+        lead: 'Draw 3, {renew:2}. {dawn}: draw 1; it mends 1 health.',
         onPlay: [{ type: 'draw', amount: 3 }, { type: 'restore', amount: 2, all: true }],
         onTurn: [{ type: 'draw', amount: 1 }, { type: 'restore', amount: 1, self: true }],
       },

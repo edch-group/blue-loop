@@ -75,6 +75,9 @@ export const BALANCE = {
   stabilityRelic: 3,
   /** Stability can be restored up to this. */
   maxStability: 6,
+  /** Health: what a card in play can take, past its defence, before it burns away (1 + its cost, +1 for defence cards, 2 at least). */
+  minHealth: 2,
+  maxHealth: 8,
   /** Kept shields (Deep Current) never exceed this. */
   maxKeptShields: 12,
 

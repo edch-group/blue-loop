@@ -5890,3 +5890,13 @@ body:has(.game-result) .dock { visibility: hidden; }
 .db-mode-chip { flex: none; padding: 3px 9px; border-radius: 999px; background: #eef0f5; color: var(--ink-soft); font-size: 11px; font-weight: 600; white-space: nowrap; }
 .cmp-rs-head { display: block; margin: 6px 4px 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-soft); text-transform: lowercase; }
 .cmp-rs-head:first-child { margin-top: 0; }
+
+/* ---- Health (heat past defence wears it down) beside stability (the days a card stays) ---- */
+.card .card-stats b .hp-icon { width: 0.95em; height: 0.95em; flex: none; margin: 0; display: block; }
+.card .card-stats-base .stat-hp { position: absolute; left: auto; right: calc(var(--cw, 100px) * 0.08); transform: translateY(50%); color: #2f8a57; font-weight: 800; }
+.card .card-stats-base.card-stats-hp .stat-stab { right: calc(var(--cw, 100px) * 0.27); }
+.card .card-stats-base .stat-hp.stat-low { color: #d23a1c; }
+.card.kind-command .card-stats-base .stat-hp { color: #7fd8a2; }
+.card.kind-command .card-stats-base .stat-hp.stat-low { color: #ff7a5c; }
+.stat-hp { display: inline-flex; align-items: center; gap: 0.15em; }
+.kw-health { color: #2f8a57; }

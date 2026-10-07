@@ -38,6 +38,7 @@ import {
   fusionHosts,
   fullDefence,
   baseStability,
+  baseHealth,
   playsAllowed,
   RACE_NAMES,
   allyChoices,
@@ -91,7 +92,7 @@ import { ORACLE_NAME } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, STAB_ICON, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, healthBadge, HP_ICON, STAB_ICON, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -2073,7 +2074,7 @@ export class App {
       const was = rivalCards(prev);
       const now = rivalCards(next);
       const hitCards = [...was]
-        .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.stability ?? 0) < (c.stability ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0))
+        .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.stability ?? 0) < (c.stability ?? 0) || (now.get(uid)!.health ?? 0) < (c.health ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0))
         .map(([uid]) => uid);
       const from = playedFrom!;
       const heats = (playedDef?.onPlay ?? []).some((e) => e.type === 'heat');
@@ -4904,7 +4905,7 @@ export class App {
     const shifting = !!shiftDef && (shiftEffect(shiftDef) === 'mine') === (side === 'mine');
     const st = this.state!;
     // While an attack is aimed: what it would leave of each rival card it could hit.
-    const preview = new Map<string, { defence: number; stability: number }>();
+    const preview = new Map<string, { defence: number; stability: number; health?: number }>();
     // What a staged card is aimed at: a ring round that card's edge.
     const targeted = new Set<string>();
     if (this.stage?.confirm && this.stage.target) targeted.add(this.stage.target);
@@ -4926,7 +4927,7 @@ export class App {
           const after = applyAction(g, move(c.uid));
           const owner = after.players.find((x) => x.id === p.id)!;
           const left = owner.tableau.find((x) => x.uid === c.uid);
-          preview.set(c.uid, left ? { defence: cardDefence(owner, left), stability: left.stability ?? 0 } : { defence: 0, stability: 0 });
+          preview.set(c.uid, left ? { defence: cardDefence(owner, left), stability: left.stability ?? 0, health: left.health ?? 0 } : { defence: 0, stability: 0, health: 0 });
         } catch {
           // (A preview that can't be worked out is simply not shown.)
         }
@@ -4936,7 +4937,7 @@ export class App {
     const placing = side === 'mine' && pend && !pend.attack && pend.slot !== undefined && !pend.faceDown ? activePlayer(st).hand.find((h) => h.uid === pend.uid) : undefined;
     const ghostAt = (i: number) =>
       placing && pend!.slot === i
-        ? this.renderCard({ ...placing, slot: i, stability: baseStability(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
+        ? this.renderCard({ ...placing, slot: i, stability: baseStability(placing.defId), health: baseHealth(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
         : null;
     // Aiming (an attack, a card's heat or a Hero's ability): the rival's sun is a target too, unless a Guard stands.
     const sunAim = side === 'rival' && pend?.step === 'aim' && aimChoices(st, activePlayer(st)).sun;
@@ -5067,7 +5068,7 @@ export class App {
       </div>`;
   }
 
-  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; landscape?: boolean; settled?: { defence: number; stability: number }; preview?: { defence: number; stability: number }; targeted?: boolean }): string {
+  private renderCard(c: CardInstance, opts: { hand?: boolean; tableau?: 'mine' | 'rival'; static?: boolean; owner?: PlayerState; option?: string; landscape?: boolean; settled?: { defence: number; stability: number; health?: number }; preview?: { defence: number; stability: number; health?: number }; targeted?: boolean }): string {
     const def = cardDef(c.defId);
     const act = this.canAct();
     const p = this.pending;
@@ -5160,7 +5161,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b><span class="card-stats card-stats-base${(def.attack ?? 0) > 0 && s ? ' card-stats-split' : ''}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="${def.kind === 'command' ? 'Stability: a Hero never fades by itself, but heat past its defence wears this down; at 0 it falls' : 'Stability: turns before it fades into the discard pile'}">${pv(STAB_ICON, c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b></span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b><span class="card-stats card-stats-base${(def.attack ?? 0) > 0 && s ? ' card-stats-split' : ''}${def.kind === 'command' ? '' : ' card-stats-hp'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}${healthBadge(pv(HP_ICON, c.health ?? 0, opts.settled?.health, opts.preview?.health), def.kind === 'command', (c.health ?? 0) <= 1)}${def.kind === 'command' ? '' : `<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: days before it fades into the discard pile">${pv(STAB_ICON, c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b>`}</span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
@@ -5237,7 +5238,7 @@ export class App {
   private explainCard(defId: string, uid?: string): string {
     const owner = uid ? this.state?.players.find((p) => p.tableau.some((c) => c.uid === uid)) : undefined;
     const c = owner?.tableau.find((x) => x.uid === uid);
-    const stats = owner && c ? { stability: c.stability ?? 0, defence: cardDefence(owner, c) } : persists(defId) ? { stability: baseStability(defId) } : {};
+    const stats = owner && c ? { stability: c.stability ?? 0, defence: cardDefence(owner, c), health: c.health ?? 0 } : persists(defId) ? { stability: baseStability(defId), health: baseHealth(defId) } : {};
     const def = cardDef(defId);
     const first = [this.raceNote(defId), ...raceTraitTags(def).map((g) => `<div><b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}">${esc(g.name)}</b><span>${esc(g.text)}</span></div>`)].filter(Boolean);
     return keywordList(def.text, stats, first);
@@ -5275,7 +5276,7 @@ export class App {
     const held = !c && uid ? this.viewer()?.hand.find((x) => x.uid === uid) : undefined;
     const stats =
       owner && c
-        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b>${(def.attack ?? 0) > 0 ? attackBadge(cardAttack(this.state!, owner, c), c.dimmed) : ''}<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">${STAB_ICON}${c.stability ?? 0}</b></span>`
+        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b>${(def.attack ?? 0) > 0 ? attackBadge(cardAttack(this.state!, owner, c), c.dimmed) : ''}${healthBadge(c.health ?? 0, def.kind === 'command', (c.health ?? 0) <= 1)}${def.kind === 'command' ? '' : `<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">${STAB_ICON}${c.stability ?? 0}</b>`}</span>`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `

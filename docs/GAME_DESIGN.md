@@ -584,6 +584,23 @@ Balance has been sensitive to single cards, removal above all. Adding two Ion Ca
 
 The **regional stability** bar at the top loses one segment each round. From round **10**, every sun heats at its dawn: +1, then +1 more each round after. This guarantees that games end. It works exactly as the old stability bar did; the name distinguishes it from each card's own stability (◷). AI games last about 11 rounds, so it often decides the end. [design review: the stability bar stays, as regional stability]
 
+## Health and stability
+
+A card in play has three numbers:
+
+- **Defence** wears first. It comes from its slot plus its own Sturdy, and is mended 1 a day and by Repair.
+- **Health** is what heat past its defence wears down: attacks, stings and aimed heat. At 0 the card burns away. Health is 1 + the card's cost, +1 for a defence card, and at least 2 (`baseHealth`). A card can list its own.
+- **Stability** only counts the days before the card fades into the discard pile.
+
+Keeping the two apart means a card's lifetime and its toughness are balanced separately. A sturdy card no longer has to be a long-lasting one, and the reverse.
+
+How the other rules touch them:
+
+- **Erode and Decay** take days, not health. They are 1 stronger than they were listed with (`ERODE_EXTRA`), to make up for no longer finishing off a card worn down by heat.
+- **Restore and Renew** add days. A Hero's self-mending heals its health.
+- **Heroes** never fade, so they have health only: the stability they are listed with is their health. Paying "−1 health" for an ability takes it from there. Gear that gives a campaign hero stability gives health.
+- **Older saves** (game version 5) get full health on load.
+
 ## Game modes: Core and Lost Races
 
 Every deck is built for one of two modes, and every game is played in one.

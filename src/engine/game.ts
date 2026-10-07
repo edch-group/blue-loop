@@ -31,7 +31,7 @@ export function createGame(setup: GameSetup): GameState {
     throw new GameError(`Blue Loop needs ${BALANCE.minPlayers}-${BALANCE.maxPlayers} players.`);
   }
   const state: GameState = {
-    version: 5,
+    version: 6,
     rngState: setup.seed | 0,
     uidCounter: 0,
     turnNumber: 1,
@@ -105,7 +105,7 @@ export function createGame(setup: GameSetup): GameState {
 
 /**
  * Bring a saved game from older rules up to date: version 2 kept Command cards
- * out of the tableau; before version 4 tableaus had 8 unslotted places and no stability.
+ * out of the tableau; before version 4 tableaus had 8 unslotted places and no stability; before 6, no health.
  */
 export function migrateGame(state: GameState): GameState {
   for (const p of state.players) {
@@ -117,8 +117,15 @@ export function migrateGame(state: GameState): GameState {
       p.tableau = [];
       cards.forEach((c, i) => (i < BALANCE.tableauSlots ? place(p, c, i) : p.discard.push(c)));
     }
+    // Version 6 split health from stability: a card saved before it starts with its full health (a Hero, its
+    // stability as its health, and no days to count).
+    if (state.version < 6)
+      for (const c of p.tableau) {
+        c.health ??= cardDef(c.defId).kind === 'command' ? c.stability ?? baseHealth(c.defId) : baseHealth(c.defId);
+        if (cardDef(c.defId).kind === 'command') delete c.stability;
+      }
   }
-  state.version = 5;
+  state.version = 6;
   return state;
 }
 
@@ -328,7 +335,7 @@ function aimedCard(state: GameState, p: PlayerState, aim: string | undefined): C
   const g = guards(t);
   const aimed = aim ? t.tableau.find((c) => c.uid === aim) : undefined;
   if (aimed && (!g.length || g.includes(aimed))) return aimed;
-  if (g.length) return [...g].sort((a, b) => (a.stability ?? 0) - (b.stability ?? 0))[0];
+  if (g.length) return [...g].sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0];
   return null;
 }
 
@@ -337,7 +344,7 @@ export function tidewall(p: PlayerState): boolean {
   return p.tableau.some((c) => cardPassives(c).some((x) => x.type === 'tidewall'));
 }
 
-/** A blow on a card (an attack, or a sting) wears its stability away, 1 for 1; at 0 it burns away into its owner's discard pile. */
+/** A blow on a card (an attack, or a sting) wears its health away past its defence, 1 for 1; at 0 it burns away into its owner's discard pile. */
 function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string, sting = false, heat = false) {
   // Shields guard only the sun, unless a Tidewall card spreads them over its owner's cards too: and then only
   // against heat aimed at them. An attack, a sting or pierce heat breaches it.
@@ -362,10 +369,9 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
   }
   amount -= turned;
   if (amount <= 0) return;
-  const before = victim.stability ?? 0;
-  victim.stability = Math.max(0, before - amount);
-  log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${amount} (stability ${victim.stability}).`);
-  if (victim.stability <= 0) {
+  victim.health = Math.max(0, (victim.health ?? 0) - amount);
+  log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${amount} (health ${victim.health}).`);
+  if (victim.health <= 0) {
     log(state, `${owner.name}'s ${cardDef(victim.defId).name} burns away.`);
     leaveTableau(state, owner, victim);
   }
@@ -464,6 +470,18 @@ export function baseStability(defId: string): number {
   return def.kind !== 'command' && (def.cost ?? 1) <= 1 ? Math.min(s, BALANCE.cheapMaxStability) : s;
 }
 
+/**
+ * What a card in play can take before it burns away: heat past its defence (attacks, stings, aimed heat) wears
+ * this down, never its stability, which only counts the days until it fades. 1 + its cost (+1 for a defence
+ * card), at least 2; a Hero's is the stability it is listed with (it never fades).
+ */
+export function baseHealth(defId: string): number {
+  const def = cardDef(defId);
+  if (def.health !== undefined) return def.health;
+  if (def.kind === 'command') return Math.max(1, rawStability(def));
+  return Math.max(BALANCE.minHealth, Math.min(BALANCE.maxHealth, 1 + (def.cost ?? 1) + (def.kind === 'defence' ? 1 : 0)));
+}
+
 /** How long a card lasts before its race's trait. */
 function rawStability(def: CardDef): number {
   if (def.stability !== undefined) return def.stability;
@@ -484,13 +502,16 @@ export function cardCost(defId: string): number {
 /** Put a card into a tableau slot, with its full stability. */
 function place(p: PlayerState, card: CardInstance, slot: number) {
   card.slot = slot;
-  card.stability = baseStability(card.defId);
+  card.health = baseHealth(card.defId);
+  // (A Hero never fades: it has health, and no days to count.)
+  card.stability = cardDef(card.defId).kind === 'command' ? undefined : baseStability(card.defId);
   // (A Chosen card's extra attack goes with it when it leaves: it comes back in as printed.)
   delete card.attackBonus;
   // A campaign hero's card carries their boons (gear and skills) while it is in play.
   if (p.heroBoons && card.defId === p.heroBoons.hero) {
     card.boons = [...p.heroBoons.boons];
-    card.stability = Math.min(BALANCE.maxStability, card.stability + card.boons.reduce((t, b) => t + (cardDef(b).stability ?? 0), 0));
+    // (A hero's +stability gear is health: a Hero never fades.)
+    card.health = Math.min(BALANCE.maxHealth + 4, card.health + card.boons.reduce((t, b) => t + (cardDef(b).stability ?? 0), 0));
   }
   // A campaign ship's room with a module in it: the card standing there carries the module's boons.
   const roomBoons = slot !== COMMAND_SLOT ? p.rooms?.boons?.[slot] : undefined;
@@ -1059,6 +1080,8 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         }
         for (const c of hit) {
           if (state.winnerId || t.eliminated || !t.tableau.includes(c)) continue;
+          // (A Hero never fades: there are no days to take from it.)
+          if (cardDef(c.defId).kind === 'command') continue;
           c.stability = (c.stability ?? 1) - e.amount;
           log(state, `${t.name}'s ${cardDef(c.defId).name} loses ${e.amount} stability.`);
           if (c.stability <= 0) sweep(state, t, c);
@@ -1071,6 +1094,12 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
           // (Up to the usual cap; a Hero, up to its own full stability.)
           // (A Relic stays brittle: nothing steadies it.)
           if (cardDef(c.defId).kind === 'relic') continue;
+          // A Hero (it never fades) mends its health instead.
+          if (cardDef(c.defId).kind === 'command') {
+            c.health = Math.min(baseHealth(c.defId), (c.health ?? 0) + e.amount);
+            log(state, `${p.name}'s ${cardDef(c.defId).name} mends (health ${c.health}).`);
+            continue;
+          }
           const cap = c.slot === COMMAND_SLOT ? baseStability(c.defId) : Math.max(BALANCE.maxStability, baseStability(c.defId));
           c.stability = Math.min(cap, (c.stability ?? 0) + e.amount);
           log(state, `${p.name}'s ${cardDef(c.defId).name} steadies (stability ${c.stability}).`);
@@ -1163,6 +1192,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   delete card.boons;
   delete card.dented;
   card.stability = undefined;
+  card.health = undefined;
   card.choice = undefined;
   card.spent = undefined;
   // (A token is simply gone.)
@@ -1637,7 +1667,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       const k = cardDef(hero.defId).abilities![action.index];
       p.playsLeft -= k.cost ?? 0;
       // The other costs: the Hero's own stability, a card sacrificed, heat on your own sun.
-      if (k.pay?.stability) hero.stability = (hero.stability ?? 0) - k.pay.stability;
+      if (k.pay?.stability) hero.health = (hero.health ?? 0) - k.pay.stability;
       // (The card given up is the player's choice; unchosen, the weakest.)
       const chosen = action.sacrificeUid ? p.tableau.find((c) => c.uid === action.sacrificeUid && c.slot !== COMMAND_SLOT) : undefined;
       if (action.sacrificeUid && !chosen) throw new GameError('Sacrifice one of your own cards in play (not your Hero).');
@@ -1715,8 +1745,8 @@ export function attackProblem(state: GameState, p: PlayerState, attackerUid: str
 
 /**
  * A card attacks: its attack lands as heat on the rival's sun (past shields), or strikes a rival card (its
- * defence, then its stability), and that card hits back with its own attack and Sting, at the attacker's
- * stability. Then it is dimmed.
+ * defence, then its health), and that card hits back with its own attack and Sting, at the attacker's
+ * health. Then it is dimmed.
  */
 function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid: string | null) {
   const rival = targetOf(state, p);
@@ -1750,9 +1780,9 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
     const own = Math.max(0, cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0));
     const absorbed = Math.min(back, own, cardDefence(p, card));
     if (absorbed > 0) card.dented = (card.dented ?? 0) + absorbed;
-    card.stability = Math.max(0, (card.stability ?? 0) - (back - absorbed));
-    log(state, `${cardDef(victim.defId).name} hits back: ${name} takes ${back}${absorbed ? ` (${absorbed} on its own defence)` : ''} (stability ${card.stability}).`);
-    if (card.stability <= 0) {
+    card.health = Math.max(0, (card.health ?? 0) - (back - absorbed));
+    log(state, `${cardDef(victim.defId).name} hits back: ${name} takes ${back}${absorbed ? ` (${absorbed} on its own defence)` : ''} (health ${card.health}).`);
+    if (card.health <= 0) {
       log(state, `${p.name}'s ${name} burns away.`);
       leaveTableau(state, p, card);
     }
@@ -1767,7 +1797,7 @@ export function heroAbilityProblem(state: GameState, p: PlayerState, index: numb
   if (activePlayer(state).id !== p.id) return 'Only on your own day.';
   if (hero.dimmed) return p.abilityTurn === state.turnNumber ? `${cardDef(hero.defId).name} has acted today.` : `${cardDef(hero.defId).name} is dimmed: it acts from your next day.`;
   if ((k.cost ?? 0) > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
-  if (k.pay?.stability && (hero.stability ?? 0) <= k.pay.stability) return `${cardDef(hero.defId).name} hasn't the stability to spare.`;
+  if (k.pay?.stability && (hero.health ?? 0) <= k.pay.stability) return `${cardDef(hero.defId).name} hasn't the health to spare.`;
   if (k.pay?.sacrifice && !sacrificeOf(p)) return `${k.name} needs another of your cards in play to sacrifice.`;
   if (k.pay?.selfHeat && p.heat + k.pay.selfHeat >= supernovaThreshold(p)) return `${k.name} would drive your own sun to supernova.`;
   return null;

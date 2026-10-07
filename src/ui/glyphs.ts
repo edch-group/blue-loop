@@ -1,4 +1,4 @@
-import { BALANCE, baseAttack, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, raceTrait, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseAttack, baseHealth, baseStability, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, raceTrait, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { stellariaFlower } from './art';
 import { cardScene, renderedArt } from './cardart';
 import disk from './gems/disk.png';
@@ -527,15 +527,25 @@ document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad'
 export function stabilityBadge(def: CardDef): string {
   // (A card that goes straight to the discard pile once played never stands in play: no stability to show.)
   if (!persists(def.id) || isBurst(def)) return '';
-  const title = def.kind === 'command' ? 'Stability: a Hero never fades by itself; heat past its defence wears this down, and at 0 it falls' : 'Stability: it stays in play for this many of your days, then fades into your discard pile';
   const atk = baseAttack(def);
-  return `<span class="card-stats card-stats-base${atk > 0 ? ' card-stats-split' : ''}">${atk > 0 ? attackBadge(atk) : ''}<b class="stat-stab" title="${title}">${STAB_ICON}${baseStability(def.id)}</b></span>`;
+  // (A Hero never fades: health alone.)
+  const stab = def.kind === 'command' ? '' : `<b class="stat-stab" title="Stability: it stays in play for this many of your days, then fades into your discard pile">${STAB_ICON}${baseStability(def.id)}</b>`;
+  return `<span class="card-stats card-stats-base${atk > 0 ? ' card-stats-split' : ''}${stab ? ' card-stats-hp' : ''}">${atk > 0 ? attackBadge(atk) : ''}${healthBadge(baseHealth(def.id), def.kind === 'command')}${stab}</span>`;
 }
 
 // A sword, point straight up: blade, crossguard, grip and pommel.
 const SWORD = '<svg class="atk-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0.6 10 3.2v6.3H6V3.2Z" fill="currentColor"/><rect x="3.4" y="9.5" width="9.2" height="1.9" rx="0.95" fill="currentColor"/><rect x="7" y="11" width="2" height="3" fill="currentColor"/><circle cx="8" cy="14.5" r="1.4" fill="currentColor"/></svg>';
 /** Stability's clock, drawn (not the ◷ character, which sits off-centre beside the number). */
 export const STAB_ICON = '<svg class="stab-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 4.4V8h3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/** Health's heart, drawn. */
+export const HP_ICON = '<svg class="hp-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.2 2.3 8.6A3.4 3.4 0 0 1 8 4a3.4 3.4 0 0 1 5.7 4.6Z" fill="currentColor"/></svg>';
+
+/** A card's health (bottom right): what heat past its defence can take before it burns away. `n`: the number shown (a preview may give it as html). */
+export function healthBadge(n: number | string, hero = false, low = false): string {
+  const title = hero ? 'Health: heat past its defence (attacks, stings, aimed heat) wears this down, and at 0 the Hero falls. A Hero never fades.' : 'Health: heat past its defence (attacks, stings, aimed heat) wears this down; at 0 it burns away. Separate from its stability, the days it stays.';
+  return `<b class="stat-hp${low ? ' stat-low' : ''}" title="${title}">${typeof n === 'number' ? HP_ICON + n : n}</b>`;
+}
 
 /** A card's attack (bottom left, beside its stability): what it deals when it attacks, and what it hits back with. */
 export function attackBadge(n: number, dimmed = false): string {
@@ -723,7 +733,7 @@ const PARA = '<span class="card-para"></span>';
  * The explanations beside a zoomed card: its keywords (Dawn included), the
  * rules its text names in plain words, and its defence badge.
  */
-export function keywordList(text: string, stats: { stability?: number; defence?: number } = {}, first: string[] = []): string {
+export function keywordList(text: string, stats: { stability?: number; defence?: number; health?: number } = {}, first: string[] = []): string {
   // (`first`: rows that lead the list, already drawn: the card's race, and what it gives the card.)
   const rows: string[] = [...first];
   const row = (head: string, body: string) => rows.push(`<div>${head}<span>${escText(body)}</span></div>`);
@@ -734,7 +744,8 @@ export function keywordList(text: string, stats: { stability?: number; defence?:
   for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && k.id !== 'energy' && k.id !== 'cost' && k.id !== 'act' && k.id !== 'abilities') row(keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain(k.value));
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
-  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');
+  if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before health.');
+  if (stats.health !== undefined) row(`<b class="kw kw-health">♥ Health</b>`, 'Heat past its defence wears it down; at 0 it burns away.');
   // (In a column no taller than the card: it scrolls, and an arrow bobs at its foot while there is more below.)
   return rows.length ? `<div class="kw-wrap"><div class="kw-list">${rows.join('')}</div><i class="kw-more" aria-hidden="true"></i></div>` : '';
 }
