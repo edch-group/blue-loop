@@ -529,8 +529,7 @@ export function stabilityBadge(def: CardDef): string {
   if (!persists(def.id) || isBurst(def)) return '';
   const atk = baseAttack(def);
   // (A Hero never fades: health alone.)
-  const stab = def.kind === 'command' ? '' : `<b class="stat-stab" title="Stability: it stays in play for this many of your days, then fades into your discard pile">${STAB_ICON}${baseStability(def.id)}</b>`;
-  return `<span class="card-stats card-stats-base${atk > 0 ? ' card-stats-split' : ''}${stab ? ' card-stats-hp' : ''}">${atk > 0 ? attackBadge(atk) : ''}${healthBadge(baseHealth(def.id), def.kind === 'command')}${stab}</span>`;
+  return `${atk > 0 ? `<span class="card-stats card-stats-base card-stats-split">${attackBadge(atk)}</span>` : ''}${statJewels(baseHealth(def.id), def.kind === 'command' ? undefined : baseStability(def.id), def.kind === 'command')}`;
 }
 
 // A sword, point straight up: blade, crossguard, grip and pommel.
@@ -541,10 +540,15 @@ export const STAB_ICON = '<svg class="stab-icon" viewBox="0 0 16 16" aria-hidden
 /** Health's heart, drawn. */
 export const HP_ICON = '<svg class="hp-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.2 2.3 8.6A3.4 3.4 0 0 1 8 4a3.4 3.4 0 0 1 5.7 4.6Z" fill="currentColor"/></svg>';
 
-/** A card's health (bottom right): what heat past its defence can take before it burns away. `n`: the number shown (a preview may give it as html). */
-export function healthBadge(n: number | string, hero = false, low = false): string {
-  const title = hero ? 'Health: heat past its defence (attacks, stings, aimed heat) wears this down, and at 0 the Hero falls. A Hero never fades.' : 'Health: heat past its defence (attacks, stings, aimed heat) wears this down; at 0 it burns away. Separate from its stability, the days it stays.';
-  return `<b class="stat-hp${low ? ' stat-low' : ''}" title="${title}">${typeof n === 'number' ? HP_ICON + n : n}</b>`;
+/**
+ * A card's health and stability as two jewels in its top-right corner: health an emerald (what heat past its
+ * defence can take before it burns away), stability a topaz (the days it stays; a Hero never fades, so has none).
+ * The numbers may come as html (a preview's before and after).
+ */
+export function statJewels(hp: number | string, stab?: number | string, hero = false, low: { hp?: boolean; stab?: boolean } = {}): string {
+  const hpTitle = hero ? 'Health: heat past its defence (attacks, stings, aimed heat) wears this down, and at 0 the Hero falls. A Hero never fades.' : 'Health: heat past its defence (attacks, stings, aimed heat) wears this down; at 0 it burns away.';
+  const jewel = (cls: string, n: number | string, title: string, isLow?: boolean) => `<b class="jewel ${cls}${isLow ? ' jewel-low' : ''}" data-tip="${title}"><i>${n}</i></b>`;
+  return `<span class="card-jewels">${jewel('jewel-hp', hp, hpTitle, low.hp)}${stab === undefined ? '' : jewel('jewel-stab', stab, 'Stability: the days it stays in play before it fades into your discard pile.', low.stab)}</span>`;
 }
 
 /** A card's attack (bottom left, beside its stability): what it deals when it attacks, and what it hits back with. */

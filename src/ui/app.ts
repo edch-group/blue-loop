@@ -92,7 +92,7 @@ import { ORACLE_NAME } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, healthBadge, HP_ICON, STAB_ICON, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { attackBadge, statJewels, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -5166,7 +5166,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b><span class="card-stats card-stats-base${(def.attack ?? 0) > 0 && s ? ' card-stats-split' : ''}${def.kind === 'command' ? '' : ' card-stats-hp'}">${(def.attack ?? 0) > 0 && s ? attackBadge(cardAttack(s, opts.owner, c), c.dimmed) : ''}${healthBadge(pv(HP_ICON, c.health ?? 0, opts.settled?.health, opts.preview?.health), def.kind === 'command', (c.health ?? 0) <= 1)}${def.kind === 'command' ? '' : `<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability: days before it fades into the discard pile">${pv(STAB_ICON, c.stability ?? 0, opts.settled?.stability, opts.preview?.stability)}</b>`}</span>`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${(def.attack ?? 0) > 0 && s ? `<span class="card-stats card-stats-base card-stats-split">${attackBadge(cardAttack(s, opts.owner, c), c.dimmed)}</span>` : ''}${statJewels(pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), def.kind === 'command' ? undefined : pv('', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability), def.kind === 'command', { hp: (c.health ?? 0) <= 1, stab: (c.stability ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
@@ -5281,7 +5281,7 @@ export class App {
     const held = !c && uid ? this.viewer()?.hand.find((x) => x.uid === uid) : undefined;
     const stats =
       owner && c
-        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b>${(def.attack ?? 0) > 0 ? attackBadge(cardAttack(this.state!, owner, c), c.dimmed) : ''}${healthBadge(c.health ?? 0, def.kind === 'command', (c.health ?? 0) <= 1)}${def.kind === 'command' ? '' : `<b class="stat-stab ${(c.stability ?? 0) <= 1 ? 'stat-low' : ''}" title="Stability">${STAB_ICON}${c.stability ?? 0}</b>`}</span>`
+        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b>${(def.attack ?? 0) > 0 ? attackBadge(cardAttack(this.state!, owner, c), c.dimmed) : ''}</span>${statJewels(c.health ?? 0, def.kind === 'command' ? undefined : c.stability ?? 0, def.kind === 'command', { hp: (c.health ?? 0) <= 1, stab: (c.stability ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `

@@ -5900,3 +5900,30 @@ body:has(.game-result) .dock { visibility: hidden; }
 .card.kind-command .card-stats-base .stat-hp.stat-low { color: #ff7a5c; }
 .stat-hp { display: inline-flex; align-items: center; gap: 0.15em; }
 .kw-health { color: #2f8a57; }
+
+/* ---- Health and stability as jewels, set into the card's top-right corner ---- */
+.card-jewels {
+  position: absolute; z-index: 4; pointer-events: auto;
+  top: calc(var(--cw, 100px) * 0.115); right: calc(var(--cw, 100px) * 0.055);
+  display: flex; flex-direction: column; gap: calc(var(--cw, 100px) * 0.025);
+}
+.jewel {
+  --j1: #5ef0a0; --j2: #18a35c; --j3: #075c31; --rim: #e9fff2;
+  position: relative; display: grid; place-items: center;
+  width: max(14px, calc(var(--cw, 100px) * 0.135)); aspect-ratio: 1; border-radius: 50%;
+  background:
+    conic-gradient(from 20deg, rgba(255,255,255,0.28) 0 12%, transparent 12% 25%, rgba(255,255,255,0.16) 25% 37%, transparent 37% 50%, rgba(0,0,0,0.14) 50% 62%, transparent 62% 75%, rgba(255,255,255,0.12) 75% 87%, transparent 87%),
+    radial-gradient(circle at 34% 28%, var(--j1) 0, var(--j2) 46%, var(--j3) 100%);
+  box-shadow: 0 0 0 max(1px, calc(var(--cw, 100px) * 0.009)) var(--rim), 0 0 0 max(1.5px, calc(var(--cw, 100px) * 0.017)) rgba(40, 46, 60, 0.35), 0 1px 3px rgba(20, 24, 36, 0.35);
+}
+.jewel::after { content: ''; position: absolute; left: 22%; top: 14%; width: 30%; height: 20%; border-radius: 50%; background: rgba(255, 255, 255, 0.75); filter: blur(0.4px); transform: rotate(-25deg); pointer-events: none; }
+.jewel i {
+  position: relative; z-index: 1; font-style: normal; font-weight: 800; line-height: 1; color: #fff;
+  font-size: max(8px, calc(var(--cw, 100px) * 0.075)); text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.55);
+  display: inline-flex; gap: 0.15em; align-items: center;
+}
+.jewel-stab { --j1: #ffe08a; --j2: #e0a12a; --j3: #8a5a08; --rim: #fff6dc; }
+.jewel.jewel-low { --j1: #ff9a8a; --j2: #e0442c; --j3: #8a1608; --rim: #ffe6e0; animation: blink 1.6s ease-in-out infinite; }
+/* (In a preview, the number now and after side by side, smaller.) */
+.jewel .pv-now, .jewel .pv-after { font-size: 0.8em; }
+.jewel .pv-after { color: #ffd0c8; }
