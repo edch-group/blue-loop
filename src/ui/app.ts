@@ -3798,7 +3798,7 @@ export class App {
       </div>
       ${this.titleBlock(true)}
       <div class="hub">
-        ${tile('campaign-new', '', HUB_ICONS.campaign, 'campaign', hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue</button>' : '')}
+        ${tile('campaign-new', '', HUB_ICONS.campaign, 'a dying universe', hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue</button>' : '')}
         ${tile('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue</button>' : '')}
         ${tile('menu-page', 'online', HUB_ICONS.online, 'online')}
       </div>`;

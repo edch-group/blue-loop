@@ -1842,11 +1842,6 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .opt-label { font-family: var(--display); font-size: clamp(0.5rem, calc(2 * var(--vh)), 0.66rem); letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-soft); }
 .opt-value { font-family: var(--display); font-weight: 700; font-size: clamp(0.9rem, calc(5 * var(--vh)), 1.5rem); letter-spacing: 0.14em; text-transform: uppercase; color: #5b5f67; }
 
-.cmp-setup-body { grid-template-columns: minmax(180px, 0.75fr) minmax(0, 2fr); gap: clamp(14px, calc(3 * var(--vw)), 36px); align-items: center; }
-.cmp-setup-aside p { margin: 0 0 6px; font-size: clamp(0.7rem, calc(2.6 * var(--vh)), 0.9rem); line-height: 1.5; }
-.cmp-setup-aside .cmp-label:first-child { margin-top: 0; }
-.cmp-setup-homes { display: grid; grid-template-rows: auto auto; min-height: 0; }
-.cmp-setup-homes .cmp-label { margin-top: 0; }
 .cmp-setup .cmp-home-row { min-height: 0; }
 .cmp-setup .cmp-home-pick { align-content: center; gap: clamp(4px, calc(1.6 * var(--vh)), 10px); padding: clamp(8px, calc(2.4 * var(--vh)), 18px) 14px; background: rgba(255, 255, 255, 0.75); box-shadow: 0 10px 26px rgba(80, 84, 100, 0.1); font-size: clamp(0.66rem, calc(2.4 * var(--vh)), 0.84rem); }
 .cmp-setup .cmp-home-pick.on { background: #fff; box-shadow: 0 0 0 2px rgba(111, 159, 216, 0.7), 0 14px 30px rgba(80, 84, 100, 0.14); }
@@ -2209,8 +2204,6 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 
 /* Campaign: choose your race. */
 .cmp-race-row { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(6px, calc(1.4 * var(--vh)), 10px); }
-.cmp-setup .cmp-race-pick { min-height: min(calc(30 * var(--vh)), 200px); gap: clamp(2px, calc(0.8 * var(--vh)), 6px); padding: clamp(6px, calc(1.6 * var(--vh)), 12px) 10px; font-size: clamp(0.6rem, calc(2 * var(--vh)), 0.74rem); line-height: 1.35; }
-.cmp-race-pick .cmp-race-emblem { width: clamp(28px, calc(8 * var(--vh)), 48px); height: auto; }
 /* The race's trait: its bonus and its nerf, on every one of its cards. */
 .cmp-race-trait { display: grid; gap: 2px; margin-top: 2px; padding-top: 4px; border-top: 1px solid rgba(150, 160, 185, 0.25); font-size: 0.92em; }
 .cmp-race-trait em { font-style: normal; }
@@ -4117,19 +4110,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .cmp-purse { gap: 8px; }
   .cmp-purse small { display: none; }
 }
-/* The new-campaign page on a short screen: one paragraph of story, and race cards that fit. */
-@media (max-height: 480px) {
-  .cmp-setup-aside p + p { display: none; }
-  .cmp-setup-body { align-items: start; overflow-y: auto; }
-  .cmp-setup-body { grid-template-columns: minmax(150px, 0.55fr) minmax(0, 2fr); }
-  .cmp-setup .cmp-race-pick { min-height: 0; padding: 5px 6px; gap: 1px; }
-  .cmp-race-pick .cmp-race-emblem { width: 22px; }
-  .cmp-setup .cmp-race-pick b { font-size: 0.66rem; }
-  .cmp-race-pick span { font-size: 0.52rem; line-height: 1.22; }
-  .cmp-race-trait { margin-top: 0; padding-top: 2px; gap: 0; }
-  /* Room for the trait, not the blurb. */
-  .cmp-race-pick > span:not(.cmp-race-trait) { display: none; }
-}
 /* Fusion cards fused onto a card in play: a tag for each, along its foot. */
 .fused-tags { position: absolute; left: 4%; right: 4%; bottom: 18%; display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; pointer-events: auto; z-index: 2; }
 .fused-tags i { font-style: normal; font-family: var(--display); font-size: max(6px, calc(var(--tcw, 80px) * 0.07)); letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 5px; border-radius: 999px; color: #fff; background: linear-gradient(90deg, #8c5ad6, #5f8fc4); box-shadow: 0 0 6px rgba(140, 90, 214, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -5300,13 +5280,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-badge .cur-station { width: 14px; height: 14px; vertical-align: -3px; }
 .cmp-station-badge.spent { opacity: 0.45; filter: grayscale(1); }
 .pop-attack .cur-station { margin-right: 6px; }
-.cmp-hero-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.cmp-hero-choice { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 14px; border: 1px solid rgba(0, 0, 0, 0.08); background: #fff; text-align: left; cursor: pointer; min-width: 0; }
-.cmp-hero-choice .cmp-portrait { width: 44px; height: 44px; flex: none; }
-.cmp-hero-choice b { display: block; font-family: var(--display); font-size: 0.78rem; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cmp-hero-choice small { color: var(--ink-faint); font-size: 0.68rem; }
-.cmp-hero-choice > span { min-width: 0; }
-.cmp-hero-choice.on { border-color: #c9a14a; box-shadow: 0 0 0 2px rgba(201, 161, 74, 0.35); }
 .cmp-rs-station { display: flex; flex-direction: column; gap: 12px; }
 .cmp-rs-offer { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 12px; background: rgba(169, 143, 224, 0.12); border: 1px solid rgba(169, 143, 224, 0.4); }
 .cmp-rs-offer .cur-station { width: 40px; height: 40px; flex: none; }
@@ -5587,19 +5560,87 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-up-max { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.12em; color: var(--ink-faint); text-transform: uppercase; }
 .cmp-buy { white-space: nowrap; }
 .cmp-buy .cur, .cmp-petals .cur, .cmp-purse .cur-petal { color: inherit; }
-.cmp-race-pick, .cmp-hero-choice { cursor: pointer; }
-.cmp-race-pick.locked > :not(.cmp-buy), .cmp-hero-choice.locked > .cmp-portrait { filter: grayscale(1); opacity: 0.55; }
-.cmp-hero-choice.locked .cmp-buy { margin-top: 4px; }
 .cmp-ruined .cmp-core { background: radial-gradient(circle, #7a6a72 25%, #b9a9b2 55%, transparent 72%) !important; }
 .cmp-ruined .cmp-star { filter: grayscale(0.8); opacity: 0.7; }
 .cmp-ruined .cmp-label { opacity: 0.6; font-style: italic; }
 .cmp-badge.cmp-bonus { display: inline-flex; align-items: center; gap: 1px; font-weight: 700; }
 .cmp-badge.cmp-bonus .cur { width: 1em; height: 1em; margin: 0; }
-/* The run's setup: the loop and the upgrade shop scroll in their own column; the races and heroes stand beside it. */
-.cmp-setup-body { align-items: stretch; height: 100%; }
-.cmp-setup-aside { min-height: 0; overflow-y: auto; padding-right: 6px; scrollbar-width: thin; }
-.cmp-setup-homes { align-content: start; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
-.cmp-setup-aside p { font-size: clamp(0.68rem, calc(2.2 * var(--vh)), 0.82rem); }
-.cmp-hero-choice span > .cmp-buy { display: flex; margin-top: 4px; }
 .cmp-choices:has(> .cmp-choice:nth-child(2):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cmp-choice span { white-space: normal; }
+
+/* ---------- A dying universe: the run's setup ---------- */
+/* Races down the left; on the right, the picked race and its sub-races, then its heroes. */
+.cmp-setup-body { grid-template-columns: clamp(150px, calc(19 * var(--vw)), 220px) minmax(0, 1fr); gap: clamp(12px, calc(2.4 * var(--vw)), 28px); align-items: stretch; height: 100%; width: min(1180px, 100%); }
+.cmp-rs-list { display: grid; align-content: start; gap: clamp(4px, calc(1 * var(--vh)), 8px); min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 2px; }
+.cmp-rs { position: relative; display: flex; align-items: center; gap: 10px; padding: clamp(5px, calc(1.2 * var(--vh)), 9px) 12px clamp(5px, calc(1.2 * var(--vh)), 9px) 8px; border-radius: 12px; border: 1px solid #ecebe7; background: #fff; color: var(--ink); cursor: pointer; text-align: left; font: inherit; transition: border-color 0.15s, background 0.15s, transform 0.15s; }
+.cmp-rs:hover { transform: translateX(2px); border-color: var(--rc); }
+.cmp-rs.on { border-color: var(--rc); background: color-mix(in srgb, var(--rc) 13%, #fff); box-shadow: inset 3px 0 0 var(--rc); }
+.cmp-rs-emblem { width: clamp(24px, calc(6 * var(--vh)), 34px); height: auto; flex: none; }
+.cmp-rs b { flex: 1; min-width: 0; font-family: var(--display); font-weight: 500; font-size: clamp(0.62rem, calc(2.2 * var(--vh)), 0.8rem); letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-rs.locked .cmp-rs-emblem { filter: grayscale(1); }
+.cmp-rs.locked b { color: var(--ink-faint); }
+.cmp-rs-lock { display: inline-flex; align-items: center; gap: 2px; font-style: normal; font-family: var(--display); font-size: 0.62rem; color: #8a4f80; }
+.cmp-rs-lock .cur { width: 1em; height: 1em; }
+
+.cmp-setup-right { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: clamp(8px, calc(2 * var(--vh)), 16px); min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 4px; }
+.cmp-rc-row { display: grid; grid-auto-flow: column; grid-template-columns: minmax(0, 1.6fr); grid-auto-columns: minmax(0, 1fr); gap: clamp(8px, calc(1.6 * var(--vh)), 12px); }
+.cmp-rc { position: relative; overflow: hidden; display: grid; align-content: start; gap: 4px; padding: clamp(8px, calc(2 * var(--vh)), 14px) clamp(10px, calc(2.2 * var(--vh)), 16px); border-radius: 16px; background: #fff; border: 1px solid #ecebe7; border-top: 3px solid var(--rc); }
+.cmp-rc p { margin: 0; font-size: clamp(0.62rem, calc(2.1 * var(--vh)), 0.78rem); line-height: 1.4; color: var(--ink-soft); }
+.cmp-rc-name { font-family: var(--display); font-weight: 500; font-size: clamp(0.68rem, calc(2.6 * var(--vh)), 0.92rem); letter-spacing: 0.16em; text-transform: uppercase; color: color-mix(in srgb, var(--rc) 55%, #2a2d36); }
+.cmp-rc-race { grid-template-columns: auto minmax(0, 1fr); gap: clamp(8px, calc(2 * var(--vh)), 14px); align-items: center; background: linear-gradient(120deg, color-mix(in srgb, var(--rc) 16%, #fff), #fff 70%); }
+.cmp-rc-mark .fav { width: clamp(40px, calc(13 * var(--vh)), 76px); height: auto; display: block; }
+.cmp-rc-body { display: grid; gap: 4px; min-width: 0; justify-items: start; }
+.cmp-rc-traits { display: grid; gap: 1px; font-size: clamp(0.6rem, calc(2 * var(--vh)), 0.74rem); line-height: 1.35; }
+.cmp-rc-traits em { font-style: normal; }
+.cmp-rc-sub { background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 7%, #fff), #fff 60%); }
+.cmp-rc-sub small { font-family: var(--display); font-size: 0.52rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
+
+.cmp-hc-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(8px, calc(1.6 * var(--vh)), 12px); align-items: stretch; min-height: 0; }
+.cmp-hc { display: grid; grid-template-rows: auto 1fr; overflow: hidden; border-radius: 16px; background: #fff; border: 1px solid #ecebe7; cursor: pointer; min-width: 0; transition: transform 0.18s, box-shadow 0.18s; }
+.cmp-hc:hover { transform: translateY(-2px); border-color: var(--rc); }
+.cmp-hc.on { border-color: var(--rc); box-shadow: 0 0 0 2px var(--rc); }
+.cmp-hc-art { display: block; height: clamp(64px, calc(24 * var(--vh)), 190px); background: #1a1f2a; overflow: hidden; }
+.cmp-hc-art .art-wrap, .cmp-hc-art .art-frame { display: block; width: 100%; height: 100%; }
+.cmp-hc-art img.art, .cmp-hc-art svg { width: 100%; height: 100%; object-fit: cover; object-position: 50% 28%; display: block; transition: transform 0.4s; }
+.cmp-hc:hover .cmp-hc-art img.art { transform: scale(1.05); }
+.cmp-hc.locked .cmp-hc-art { filter: grayscale(1) brightness(0.8); }
+.cmp-hc-body { display: grid; align-content: start; gap: 3px; padding: clamp(6px, calc(1.6 * var(--vh)), 12px) clamp(8px, calc(1.8 * var(--vh)), 14px); min-width: 0; justify-items: start; }
+.cmp-hc-body .cmp-rc-name { max-width: 100%; line-height: 1.3; font-size: clamp(0.62rem, calc(2.3 * var(--vh)), 0.84rem); }
+.cmp-hc-body small { font-size: clamp(0.56rem, calc(1.8 * var(--vh)), 0.68rem); color: var(--ink-faint); text-transform: lowercase; }
+.cmp-hc-body p { margin: 2px 0 0; font-size: clamp(0.6rem, calc(2 * var(--vh)), 0.74rem); line-height: 1.4; color: var(--ink-soft); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.cmp-hc-body .cmp-buy, .cmp-rc-body .cmp-buy { margin-top: 4px; }
+
+.cmp-shop-btn { cursor: pointer; font: inherit; font-family: var(--display); }
+.cmp-shop-btn span { font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; margin-left: 4px; }
+.cmp-shop-btn:hover { border-color: #d58ac8; }
+.cmp-shop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: max(12px, var(--sa-t)) max(16px, var(--sa-r)) max(12px, var(--sa-b)) max(16px, var(--sa-l)); background: #ebe9e4; }
+.cmp-shop-panel { width: min(980px, 100%); max-height: 100%; overflow-y: auto; scrollbar-width: thin; padding: clamp(12px, calc(3 * var(--vh)), 22px); border-radius: 18px; background: #fbfaf8; border: 1px solid #ecebe7; box-shadow: var(--shadow); }
+.cmp-shop-panel > header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.cmp-shop-panel > header > b { flex: 1; font-family: var(--display); font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; font-size: 0.9rem; }
+.cmp-shop-panel > p { margin: 0 0 6px; font-size: 0.76rem; }
+.cmp-shop-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 14px; }
+
+/* A phone held upright: the races in a strip across the top. */
+@media (max-width: 780px) and (min-height: 481px) {
+  .cmp-setup-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .cmp-rs-list { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; overflow-y: hidden; }
+  .cmp-rc-row { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cmp-rc-race { grid-column: 1 / -1; }
+  .cmp-hc-row { grid-template-columns: minmax(0, 1fr); }
+  .cmp-hc { grid-template-rows: none; grid-template-columns: 96px minmax(0, 1fr); }
+  .cmp-hc-art { height: 100%; min-height: 96px; }
+}
+/* A short screen (a phone on its side): everything tighter. */
+@media (max-height: 480px) {
+  .cmp-setup.setup-page { gap: 6px; padding-top: max(6px, var(--sa-t)); padding-bottom: max(6px, var(--sa-b)); }
+  .cmp-setup .setup-top { min-height: 36px; }
+  .cmp-setup .setup-foot { min-height: 0; padding-bottom: 0; }
+  .cmp-setup .setup-foot .btn-primary { padding: 7px 20px; }
+  .cmp-rs { gap: 6px; padding: 3px 8px 3px 5px; border-radius: 10px; }
+  .cmp-rs-emblem { width: 20px; }
+  .cmp-rc-race .cmp-rc-mark { display: none; }
+  .cmp-rc-race { grid-template-columns: minmax(0, 1fr); }
+  .cmp-hc { grid-template-rows: none; grid-template-columns: minmax(56px, 32%) minmax(0, 1fr); }
+  .cmp-hc-art { height: 100%; min-height: 72px; }
+  .cmp-hc-body p { -webkit-line-clamp: 7; }
+}

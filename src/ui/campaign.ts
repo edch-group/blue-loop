@@ -86,6 +86,9 @@ import {
   fortifyCost,
   RACE_NAMES,
   RACE_TRAITS,
+  RARITY_NAME,
+  SUBRACES,
+  type MetaState,
   plainText,
   type Anomaly,
   type CampaignAction,
@@ -361,6 +364,7 @@ export class CampaignView {
   private baseTab: 'deck' | 'heroes' | 'ship' | 'missions' = 'deck';
   /** New-campaign setup choices (the hero: an index into the race's heroes). */
   private setup = { rivals: 3, race: 0, hero: 0 };
+  private shopOpen = false;
   /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
   private waiting: { factionId: string | null; lines: string[] } | null = null;
   /** In the heroes tab: the skill and the gear slot picked. */
@@ -676,6 +680,9 @@ export class CampaignView {
       case 'cmp-race':
         if (this.setup.race !== n()) this.setup.hero = 0;
         this.setup.race = n();
+        break;
+      case 'cmp-shop':
+        this.shopOpen = !this.shopOpen;
         break;
       case 'cmp-hero-pick':
         this.setup.hero = n();
@@ -1095,35 +1102,75 @@ export class CampaignView {
 
   private renderSetup(): string {
     const meta = loadMeta();
-    const petal = (n: number) => `<span class="cmp-petals">${PETAL}<b>${n}</b></span>`;
     const buy = (id: string, label: string) => {
       const why = buyUpgradeProblem(meta, id);
       const cost = metaUpgrade(id)!.cost(levelOf(meta, id));
       return `<button class="pill-btn cmp-buy" data-act="cmp-meta-buy" data-arg="${esc(id)}" ${why ? `disabled data-tip="${esc(why)}"` : ''}>${label} · ${PETAL}${cost}</button>`;
     };
-    const races = RACE_NAMES.map((_, r) => r)
-      .map((r) => {
-        const open = raceUnlocked(meta, r);
-        return `
-        <div class="cmp-home-pick cmp-race-pick ${this.setup.race === r ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${r}" role="button">
-          ${factionAvatar(`f${r + 1}`, 'cmp-race-emblem')}
-          <b>${lower(RACE_NAMES[r])}</b>
-          <span>${esc(RACE_BLURB[r])}</span>
-          <span class="cmp-race-trait"><em class="cmp-trait-bonus">+ ${esc(plainText(RACE_TRAITS[r].bonus))}</em><em class="cmp-trait-nerf">− ${esc(plainText(RACE_TRAITS[r].nerf))}</em></span>
-          ${open ? '' : buy(`race:${r}`, 'unlock')}
-        </div>`;
-      })
+    const r = this.setup.race;
+    const colour = (race: number) => FACTION_COLOUR[`f${race + 1}`];
+    // Down the left: every race, picked or locked.
+    const races = RACE_NAMES.map((name, i) => {
+      const open = raceUnlocked(meta, i);
+      return `<button class="cmp-rs ${r === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${i}" style="--rc:${colour(i)}">
+        ${factionAvatar(`f${i + 1}`, 'cmp-rs-emblem')}<b>${lower(name)}</b>${open ? '' : `<i class="cmp-rs-lock">${PETAL}${metaUpgrade(`race:${i}`)!.cost(0)}</i>`}
+      </button>`;
+    }).join('');
+    // The picked race: its own card, then its sub-races.
+    const raceOpen = raceUnlocked(meta, r);
+    const subs = Object.values(SUBRACES).filter((x) => x.race === r);
+    const raceCard = `<div class="cmp-rc cmp-rc-race ${subs.length ? '' : 'wide'}">
+      <span class="cmp-rc-mark">${factionAvatar(`f${r + 1}`)}</span>
+      <div class="cmp-rc-body">
+        <b class="cmp-rc-name">${lower(RACE_NAMES[r])}</b>
+        <p>${esc(RACE_BLURB[r])}</p>
+        <div class="cmp-rc-traits"><em class="cmp-trait-bonus">+ ${esc(plainText(RACE_TRAITS[r].bonus))}</em><em class="cmp-trait-nerf">− ${esc(plainText(RACE_TRAITS[r].nerf))}</em></div>
+        ${raceOpen ? '' : buy(`race:${r}`, 'unlock')}
+      </div>
+    </div>`;
+    const subCards = subs
+      .map((x) => `<div class="cmp-rc cmp-rc-sub"><small>sub-race</small><b class="cmp-rc-name">${lower(x.name)}</b><p>${esc(x.theme)}.</p></div>`)
       .join('');
-    const heroes = GENERALS[this.setup.race]
+    // Its heroes, each a card with its art.
+    const heroes = GENERALS[r]
       .map((g, i) => {
+        const def = cardDef(g);
         const open = heroUnlocked(meta, g);
-        return `<div class="cmp-hero-choice ${this.setup.hero === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-hero-pick" data-arg="${i}" role="button" data-tip="${esc(plainText(cardDef(g).text))}">
-          ${portrait(g)}
-          <span><b>${lower(cardDef(g).name)}</b><small>${cardDef(g).rarity ?? 'dwarf'}</small>${open ? '' : buy(`hero:${g}`, 'unlock')}</span>
+        const sub = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].name : '';
+        return `<div class="cmp-hc ${this.setup.hero === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-hero-pick" data-arg="${i}" role="button">
+          <span class="cmp-hc-art">${cardArtLite(def)}</span>
+          <div class="cmp-hc-body">
+            <b class="cmp-rc-name">${lower(def.name)}</b>
+            <small>${esc(RARITY_NAME[def.rarity ?? 'dwarf'] ?? '')}${sub ? ` · ${esc(sub)}` : ''}</small>
+            <p>${esc(plainText(def.text))}</p>
+            ${open ? '' : buy(`hero:${g}`, 'unlock')}
+          </div>
         </div>`;
       })
       .join('');
-    // The upgrades, by group: each with its level, and the next level's price.
+    const pickedHero = GENERALS[r][this.setup.hero];
+    const ready = raceOpen && heroUnlocked(meta, pickedHero);
+    return `
+      <main class="cmp-setup setup-page" style="--rc:${colour(r)}">
+        <header class="setup-top">
+          <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
+          <h2 class="menu-heading">a dying universe</h2>
+          <button class="cmp-petals cmp-shop-btn" data-act="cmp-shop" data-tip="Spend Stellari petals on lasting upgrades">${PETAL}<b>${meta.petals}</b><span>upgrades</span></button>
+        </header>
+        <div class="setup-body cmp-setup-body">
+          <nav class="cmp-rs-list">${races}</nav>
+          <div class="cmp-setup-right">
+            <div class="cmp-rc-row">${raceCard}${subCards}</div>
+            <div class="cmp-hc-row">${heroes}</div>
+          </div>
+        </div>
+        <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start" ${ready ? '' : 'disabled'}>begin run</button></footer>
+        ${this.shopOpen ? this.renderShop(meta, buy) : ''}
+      </main>`;
+  }
+
+  /** The petal shop: lasting upgrades, by group, each with its level and the next level's price. */
+  private renderShop(meta: MetaState, buy: (id: string, label: string) => string): string {
     const groups: [MetaGroup, string][] = [['start', 'a stronger start'], ['flagship', 'a tougher flagship'], ['perk', 'run perks']];
     const shop = groups
       .map(([g, title]) => {
@@ -1134,35 +1181,17 @@ export class CampaignView {
             return `<div class="cmp-up"><div><b>${esc(u.name.toLowerCase())}</b><small>${esc(u.text)}</small></div><span class="cmp-up-pips">${pips}</span>${level < u.max ? buy(u.id, 'buy') : '<span class="cmp-up-max">max</span>'}</div>`;
           })
           .join('');
-        return `<div class="cmp-label">${title}</div><div class="cmp-ups">${rows}</div>`;
+        return `<section><div class="cmp-label">${title}</div><div class="cmp-ups">${rows}</div></section>`;
       })
       .join('');
-    const pickedHero = GENERALS[this.setup.race][this.setup.hero];
-    const ready = raceUnlocked(meta, this.setup.race) && heroUnlocked(meta, pickedHero);
     return `
-      <main class="cmp-setup setup-page">
-        <header class="setup-top">
-          <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
-          <h2 class="menu-heading">new run</h2>
-          ${petal(meta.petals)}
-        </header>
-        <div class="setup-body cmp-setup-body">
-          <aside class="cmp-setup-aside">
-            <div class="cmp-label">the loop</div>
-            <p class="muted">Each universe is a strip of systems, collapsing from the end you arrive at. At the far end a Stellari bloom has torn open a wormhole: beat its guardian and go through, into a harder universe, before the collapse catches you.</p>
-            <p class="muted">Conquer systems as you go: they pay once, and the more of the strip you take, the more Stellari petals you grab at the wormhole. Petals outlive the run. Spend them here, and go again.</p>
-            ${meta.runs ? `<p class="muted">Best run: ${meta.best} universe${meta.best === 1 ? '' : 's'} crossed, in ${meta.runs} run${meta.runs === 1 ? '' : 's'}.</p>` : ''}
-            ${shop}
-          </aside>
-          <div class="cmp-setup-homes">
-            <div class="cmp-label">choose your race</div>
-            <div class="cmp-home-row cmp-race-row">${races}</div>
-            <div class="cmp-label">choose your hero</div>
-            <div class="cmp-hero-choices">${heroes}</div>
-          </div>
+      <div class="cmp-shop">
+        <div class="cmp-shop-panel">
+          <header><b>upgrades</b><span class="cmp-petals">${PETAL}<b>${meta.petals}</b></span><button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button></header>
+          ${meta.runs ? `<p class="muted">Best run: ${meta.best} universe${meta.best === 1 ? '' : 's'} crossed, in ${meta.runs} run${meta.runs === 1 ? '' : 's'}.</p>` : ''}
+          <div class="cmp-shop-groups">${shop}</div>
         </div>
-        <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start" ${ready ? '' : 'disabled'}>begin run</button></footer>
-      </main>`;
+      </div>`;
   }
 
   /** Regional stability: the lead-up's turns draining away, then how fast the universe is collapsing. */

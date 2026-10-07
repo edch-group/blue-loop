@@ -756,7 +756,7 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 - The guide is **Oriel the Wanderer**, a neutral oracle who speaks to every race alike. Oriel opens the campaign and comments at each moment that matters: the first conquest, a Stellari bloom sighted, claimed or wilted, the first star to dim, the Heart sighted, an army broken, a rival race met or fallen, victory and defeat. Generals speak too: on joining, and when a rival race is first met (its general taunts, yours answers).
 - Each moment plays once, in the guidance panel under the turn count (a portrait, the speaker and the line), never blocking play. Read on, or dismiss it.
 
-**Setup.** Choose an unlocked race and hero, spend petals, and begin the run. The screen shows the best run (universes crossed).
+**Setup** (titled "a dying universe", as is its tile on the menu). The races run down the left (locked ones show their price in petals). On the right, the picked race's card (its style, bonus and nerf) beside its sub-race cards, and below them its three heroes, each a card with its art, rarity, sub-race and ability. The petal button (top right) opens the upgrade shop and the best run. Begin run starts with the race and hero picked, once both are unlocked.
 
 
 **The flagship.**
