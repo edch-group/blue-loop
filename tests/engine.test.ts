@@ -3,7 +3,7 @@ import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
 import { activePlayer, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, baseStability,
-  baseHealth, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+  baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -40,7 +40,8 @@ const endTurn = (s: GameState) => applyAction(s, { type: 'endTurn' });
 describe('content', () => {
   it('has unique card ids, and every card has rules text', () => {
     expect(new Set(CARDS.map((c) => c.id)).size).toBe(CARDS.length);
-    for (const c of CARDS) expect(c.text.length).toBeGreaterThan(5);
+    // (Rules text, or an attack: a card whose dawn heat became attack may have nothing else to say.)
+    for (const c of CARDS) expect(c.text.length > 5 || (c.attack ?? 0) > 0).toBe(true);
   });
 
   it('gives every race at least ten cards, with a Stellar hero and an Anomaly, and a legal starter deck', () => {
@@ -146,12 +147,11 @@ describe('plays per turn', () => {
 describe('the tableau', () => {
   it('keeps played cards in front of you and fires their start-of-turn effects', () => {
     let s = twoPlayer();
-    give(activePlayer(s), ['plasma_relay']);
-    s = play(s, 'plasma_relay');
-    expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
-    const before = s.players[1].heat;
-    s = endTurn(endTurn(s)); // Bo's turn, then Ada's again: the relay fires.
-    expect(s.players[1].heat).toBe(before + 1);
+    give(activePlayer(s), ['spore_drone']);
+    s = play(s, 'spore_drone');
+    expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['spore_drone']);
+    s = endTurn(endTurn(s)); // Bo's turn, then Ada's again: the drone grows.
+    expect(s.players[0].tableau[0].growth).toBe(1);
   });
 
   it('refuses a card when the tableau is full (no replacing), but still takes a Lightspeed card', () => {
@@ -171,18 +171,18 @@ describe('the tableau', () => {
     const [martyr] = give(me, ['martyr_crystal'], 'tableau'); // no start-of-turn or passive effect: it fades fast
     const [relay] = give(me, ['plasma_relay'], 'tableau');
     expect(martyr.stability).toBe(BALANCE.stabilityBurst);
-    // (Straight heat, dawn heat with no conditions, lasts a day less than other cards.)
-    expect(relay.stability).toBe(BALANCE.stabilityDawnHeat);
+    // (An attacker lasts as any card does; a 1-energy one, as long as a cheap card may.)
+    expect(relay.stability).toBe(BALANCE.cheapMaxStability);
     expect(baseStability('standing_orders')).toBe(BALANCE.stability);
     // (A 1-energy card never lasts longer than cheapMaxStability.)
     expect(baseStability('deflector_grid')).toBe(BALANCE.cheapMaxStability);
     const bo = s.players[1].heat;
-    s = endTurn(endTurn(s)); // Ada's turn 2: relay fires, both lose 1; the one-time Martyr fades and bursts
+    s = endTurn(endTurn(s)); // Ada's turn 2: both lose 1; the one-time Martyr fades and bursts
     expect(s.players[0].tableau.map((c) => c.defId)).toEqual(['plasma_relay']);
-    expect(s.players[0].tableau[0].stability).toBe(BALANCE.stabilityDawnHeat - 1);
+    expect(s.players[0].tableau[0].stability).toBe(BALANCE.cheapMaxStability - 1);
     expect(s.players[0].discard.some((c) => c.uid === martyr.uid)).toBe(true);
-    expect(s.players[1].heat).toBeGreaterThanOrEqual(bo + 1 + 4);
-    s = endTurn(endTurn(s)); // Ada's turn 3: the relay fires a second time, then fades
+    expect(s.players[1].heat).toBeGreaterThanOrEqual(bo + 4);
+    s = endTurn(endTurn(s)); // Ada's turn 3: the relay fades
     expect(s.players[0].tableau).toHaveLength(0);
   });
 
@@ -306,9 +306,9 @@ describe('commands', () => {
     const s = twoPlayer();
     const me = activePlayer(s);
     const [, skirmisher, relay] = give(me, ['command_directive', 'aureline_skirmisher', 'plasma_relay'], 'tableau');
-    const dawnHeat = (c: typeof relay) => effectAmount(s, me, c, cardDef(c.defId).onTurn![0], 'turn');
-    expect(dawnHeat(skirmisher)).toBe(2);
-    expect(dawnHeat(relay)).toBe(1);
+    // (Solarch Veyra: your Aureline attack cards hit 1 harder, their attacks too.)
+    expect(cardAttack(s, me, skirmisher)).toBe(baseAttack(cardDef('aureline_skirmisher')) + 1);
+    expect(cardAttack(s, me, relay)).toBe(baseAttack(cardDef('plasma_relay')));
     // Hierarch Vael: the Xel'Naru cool more.
     const t = twoPlayer();
     const [, bloom] = give(activePlayer(t), ['coolant_protocol', 'crystal_bloom'], 'tableau');
@@ -396,6 +396,7 @@ describe('attacks and dimming', () => {
     expect(attackProblem(s, activePlayer(s), array().uid)).toMatch(/dimmed/);
     s = endTurn(endTurn(s));
     array().health = 6;
+    array().stability = 9;
     const [chart] = give(s.players[1], ['star_chart'], 'tableau');
     chart.health = 6;
     s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: chart.uid });
@@ -439,6 +440,18 @@ describe('attacks and dimming', () => {
     expect(u.players[1].heat).toBe(before + 1);
   });
 
+  it('fires a Vigil only for a card that held back today', () => {
+    for (const attacked of [false, true]) {
+      let s = twoPlayer();
+      const [lancer] = give(activePlayer(s), ['aureline_sunset_lancer'], 'tableau');
+      s.players[1].shields = 0;
+      if (attacked) lancer.dimmed = true; // (as an attack leaves it)
+      const before = s.players[1].heat;
+      s = applyAction(s, { type: 'endTurn' });
+      expect(s.players[1].heat).toBe(attacked ? before : before + 2);
+    }
+  });
+
   it("takes a hit back on the attacker's own defence (Sturdy), never its slot's", () => {
     let s = twoPlayer();
     const [relay] = give(s.players[0], ['plasma_relay'], 'tableau');
@@ -466,11 +479,11 @@ describe('attacks and dimming', () => {
 
 describe('synergies', () => {
   it('Focusing Array (Forge 2) boosts the attack card beside it', () => {
-    let s = twoPlayer();
-    give(activePlayer(s), ['plasma_relay', 'focusing_array', 'coolant_array'], 'tableau');
-    const start = s.players[1].heat;
-    s = endTurn(endTurn(s));
-    expect(s.players[1].heat).toBe(start + 1 + 2);
+    const s = twoPlayer();
+    const [relay, , array] = give(activePlayer(s), ['plasma_relay', 'focusing_array', 'coolant_array'], 'tableau');
+    // (Forge 2: the attack card beside it attacks for 2 more; the defence card beside it gains nothing.)
+    expect(cardAttack(s, activePlayer(s), relay)).toBe(baseAttack(cardDef('plasma_relay')) + 2);
+    expect(cardAttack(s, activePlayer(s), array)).toBe(0);
   });
 
   it('Mycelium Tower grows each turn and hits harder', () => {
@@ -679,11 +692,11 @@ describe('Forge Clans: walls become weapons', () => {
     const wall = give(me, ['kor_shieldwall', 'kor_iron_sentinel'], 'tableau');
     const total = () => me.tableau.reduce((n, t) => n + cardDefence(me, t), 0);
     const dawnHeat = () => effectAmount(s, me, ram, cardDef('kor_siege_ram').onTurn![0], 'turn');
-    expect(dawnHeat()).toBe(Math.min(2, 1 + Math.floor(total() / 4)));
-    expect(dawnHeat()).toBeGreaterThan(1);
+    expect(dawnHeat()).toBe(Math.min(2, Math.floor(total() / 4)));
+    expect(dawnHeat()).toBeGreaterThan(0);
     for (const c of [ram, ...wall]) c.dented = 99;
     expect(total()).toBe(0);
-    expect(dawnHeat()).toBe(1);
+    expect(dawnHeat()).toBe(0);
   });
 });
 
@@ -842,11 +855,11 @@ describe('resonance', () => {
   it('boosts the cards next to it, and further away for the Anomaly', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    give(me, ['plasma_relay', 'harmonic_singularity', 'plasma_relay', 'plasma_relay'], 'tableau');
-    const bo = s.players[1].heat;
-    s = endTurn(endTurn(s));
-    // Relays at distance 1, 1 and 2 from the Singularity (resonance 3/2): 1+3, 1+3 and 1+2.
-    expect(s.players[1].heat).toBe(bo + 4 + 4 + 3);
+    const [r1, , r2, r3] = give(me, ['plasma_relay', 'harmonic_singularity', 'plasma_relay', 'plasma_relay'], 'tableau');
+    // Relays at distance 1, 1 and 2 from the Singularity (resonance 3/2): their attacks +3, +3 and +2.
+    const base = baseAttack(cardDef('plasma_relay'));
+    expect([r1, r2, r3].map((r) => cardAttack(s, me, r))).toEqual([base + 3, base + 3, base + 2]);
+    void s;
   });
 
   it('lets you choose where a card goes', () => {
@@ -1062,11 +1075,11 @@ describe('turn forecast', () => {
     ada.tableau[1].growth = 1;
     ada.heat = 5;
     const f = turnForecast(s, ada);
-    // Relay 1, Tower grows to 2 then heats 2; Warden 3 shields; Array cools 1.
-    expect(f).toMatchObject({ heat: 3, targetId: 'p2', shields: 3, cool: 1, selfHeat: 0, draw: 0 });
+    // (The Relay attacks rather than heating at dawn.) Tower grows to 2 then heats 2; Warden 3 shields; Array cools 1.
+    expect(f).toMatchObject({ heat: 2, targetId: 'p2', shields: 3, cool: 1, selfHeat: 0, draw: 0 });
     const bo = s.players[1].heat;
     s = endTurn(endTurn(s));
-    expect(s.players[1].heat).toBe(bo + 3);
+    expect(s.players[1].heat).toBe(bo + 2);
     expect(s.players[0].shields).toBe(3);
     expect(s.players[0].heat).toBe(4);
   });
@@ -1129,7 +1142,7 @@ describe('orbit', () => {
     const f = turnForecast(s, me);
     expect(f.planet).toBe('industrial');
     expect(f.plays).toBe(BALANCE.industrialPlays);
-    expect(f.heat).toBeGreaterThanOrEqual(3);
+    expect(f.heat).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -1225,7 +1238,7 @@ describe('attacks and heat', () => {
     expect(s.players[1].heat).toBe(heat);
   });
 
-  it("attacks a rival card, Guards first, wearing defence before stability", () => {
+  it("attacks a rival card, Guards first, wearing defence before health", () => {
     let { s, array, b } = setUp();
     const ada = activePlayer(s);
     expect(attackProblem(s, ada, array.uid)).toBeNull();
@@ -1233,10 +1246,10 @@ describe('attacks and heat', () => {
     const card = () => s.players[1].tableau.find((c) => c.uid === b.uid)!;
     const def = cardDefence(bo, card());
     const att = cardAttack(s, ada, array);
-    const before = card().stability!;
+    const before = card().health!;
     const heat = bo.heat;
     s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: b.uid });
-    expect(card().stability).toBe(before - Math.max(0, att - def));
+    expect(card()?.health ?? 0).toBe(Math.max(0, before - Math.max(0, att - def)));
     expect(card().dented ?? 0).toBe(Math.min(att, def));
     expect(s.players[1].heat).toBe(heat);
     // A Guard: only it can be attacked.

@@ -115,6 +115,21 @@ function runsCold(p: PlayerState): boolean {
   return p.tableau.some((c) => [...(cardDef(c.defId).onTurn ?? []), ...(cardDef(c.defId).onPlay ?? [])].some((e) => 'plus' in e && e.plus?.of === 'cold' && !e.plus.rival));
 }
 
+/** What a card's Vigil (dusk effects that need it to hold back) does tonight: what attacking with it gives up. */
+function vigilWorth(state: GameState, p: PlayerState, card: CardInstance | undefined): number {
+  if (!card || card.fresh) return 0;
+  let v = 0;
+  for (const e of duskEffects(card)) {
+    if (!e.if || !('vigil' in e.if)) continue;
+    if (e.type === 'heat') v += effectAmount(state, p, card, e, 'turn');
+    else if (e.type === 'cool') v += effectAmount(state, p, card, e, 'turn') * (p.heat > 0 ? 0.9 : 0.35);
+    else if (e.type === 'shield') v += effectAmount(state, p, card, e, 'turn') * 0.45;
+    else if (e.type === 'draw') v += e.amount * 0.7;
+    else if (e.type === 'grow' || e.type === 'growOthers') v += 0.5;
+  }
+  return v;
+}
+
 /** Roughly what a card in play is worth to its owner each day from now on. */
 function cardValue(state: GameState, p: PlayerState, card: CardInstance): number {
   const def = cardDef(card.defId);
@@ -493,7 +508,9 @@ export function chooseAIAction(state: GameState): Action {
     const spent = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) : abilityCost;
     const gained = after.playsLeft - (me.playsLeft - spent);
     const ramp = gained > 0 ? gained * ACTION_VALUE * Math.min(1, after.hand.filter((c) => cardCost(c.defId) <= after.playsLeft && cardCost(c.defId) > 0).length / gained) : 0;
-    const raw = evaluate(next, me.id) + ramp;
+    // (A Vigil card that attacks gives up tonight's Vigil.)
+    const vigil = action.type === 'attack' ? vigilWorth(view, me, me.tableau.find((c) => c.uid === action.attackerUid)) : 0;
+    const raw = evaluate(next, me.id) + ramp - vigil;
     const score = raw - extra * ACTION_VALUE;
     bestRaw = Math.max(bestRaw, raw);
     aiScores?.push({ action, score });

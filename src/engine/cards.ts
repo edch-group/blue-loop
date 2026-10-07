@@ -14,6 +14,7 @@ import { raceTrait } from './races';
 import { CARD_COSTS } from './costs';
 import { commandChoices } from './commands';
 import { CORE_VERSIONS } from './cards-core';
+import { DAWN_ATTACK_CORE_TEXT, DAWN_ATTACK_EXTRA, DAWN_ATTACK_CORE_EXTRA, DAWN_ATTACK_TEXT } from './dawn-attack';
 import { rulesMode, modeProblem, type GameMode } from './modes';
 
 /**
@@ -781,22 +782,29 @@ const CORE_BY_ID = new Map(
 );
 
 /**
- * Dawn heat as attack (a trial): each card's plain dawn heat at the rival (no condition) becomes that much more
+ * Dawn heat as attack: each card's plain dawn heat at the rival (no condition) becomes that much more
  * attack, to strike a card or the sun by choice each day (Guards intercepting it), rather than heating the sun
  * by itself. What scales (per card, per shield...) stays a dawn effect, as do conditional bonuses.
  */
 export function dawnHeatAsAttack() {
+  const cores = new Set(CORE_BY_ID.values());
   for (const c of [...CARDS, ...CORE_BY_ID.values()]) {
-    if (!c.onTurn?.length || c.kind === 'command') continue;
+    if (!c.onTurn?.length || c.kind === 'command' || c.fusion) continue;
     let gained = 0;
     c.onTurn = c.onTurn.flatMap((e) => {
       if (e.type !== 'heat' || e.to !== 'target' || e.if || e.pierce || e.amount <= 0) return [e];
       gained += e.amount;
       return e.plus ? [{ ...e, amount: 0 }] : [];
     });
-    if (gained) c.attack = (c.attack ?? 0) + gained;
+    if (!gained) continue;
+    c.attack = (c.attack ?? 0) + gained + (DAWN_ATTACK_EXTRA[c.id] ?? 0) + (cores.has(c) ? DAWN_ATTACK_CORE_EXTRA[c.id] ?? 0 : 0);
+    // (Its attack is as steady as its dawn heat was, a day a day: it keeps the shorter term straight heat had.)
+    c.stability ??= BALANCE.stabilityDawnHeat;
+    const text = (cores.has(c) ? DAWN_ATTACK_CORE_TEXT[c.id] : undefined) ?? DAWN_ATTACK_TEXT[c.id];
+    if (text !== undefined) c.text = text;
   }
 }
+dawnHeatAsAttack();
 
 /** A card as it plays in a mode (whatever the rules in force). */
 export function cardIn(defId: string, mode: GameMode): CardDef {
@@ -1145,8 +1153,8 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Sunforge',
     mode: 'core',
     cards: [
-      ...twoOf('command_directive', 'sunforge', 'helio_bastion', 'gilded_lens', 'halo_sentinel', 'solar_aegis', 'aureline_war_herald', 'helio_lancer', 'lancer_squadron', 'aureline_cantor', 'aureline_skirmisher', 'aureline_sun_priest'),
-      'empress_solenne', 'focusing_array', 'dawnstar_cannon', 'aureline_archon', 'aurelia_first_light', 'ion_cannon',
+      ...twoOf('command_directive', 'sunforge', 'helio_bastion', 'gilded_lens', 'halo_sentinel', 'solar_aegis', 'aureline_war_herald', 'helio_lancer', 'lancer_squadron', 'aureline_cantor', 'aureline_watchkeeper', 'aureline_sun_priest'),
+      'empress_solenne', 'focusing_array', 'dawnstar_cannon', 'aureline_sunset_lancer', 'aurelia_first_light', 'ion_cannon',
     ],
   },
   {
@@ -1154,8 +1162,8 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Red Shift',
     mode: 'core',
     cards: [
-      ...twoOf('war_council', 'crystal_storm', 'overload_core', 'shard_storm', 'xelnaru_champion', 'crystal_bloom', 'prism_vent', 'xelnaru_warden', 'fracture_lens', 'overcharge', 'xelnaru_oracle', 'coronal_lance', 'thermal_exchange'),
-      'the_shardmind', 'shard_tempest', 'prism_sanctum', 'shatter_point',
+      ...twoOf('war_council', 'crystal_storm', 'overload_core', 'shard_storm', 'xelnaru_champion', 'crystal_bloom', 'prism_vent', 'xelnaru_warden', 'fracture_lens', 'overcharge', 'xelnaru_oracle', 'coronal_lance', 'xelnaru_banked_star'),
+      'the_shardmind', 'xelnaru_still_flame', 'prism_sanctum', 'shatter_point',
     ],
   },
   {
@@ -1163,8 +1171,8 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Deep Tide',
     mode: 'core',
     cards: [
-      ...twoOf('tide_regent', 'brine_lash', 'tidal_wave', 'pressure_wave', 'riptide', 'kelp_wall', 'trench_warden', 'vorthane_tidecaller', 'ebb_tide', 'deep_hymn', 'abyssal_choir', 'tidebreaker'),
-      'the_admiralty', 'deep_current', 'pressure_dome', 'ommarath_deep_bell', 'vorthane_elder', 'abyss_lantern',
+      ...twoOf('tide_regent', 'vorthane_tide_watcher', 'tidal_wave', 'pressure_wave', 'riptide', 'kelp_wall', 'trench_warden', 'vorthane_tidecaller', 'ebb_tide', 'deep_hymn', 'abyssal_choir', 'tidebreaker'),
+      'the_admiralty', 'deep_current', 'pressure_dome', 'ommarath_deep_bell', 'vorthane_elder', 'vorthane_undertow',
     ],
   },
   {
@@ -1172,8 +1180,8 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Living Hive',
     mode: 'core',
     cards: [
-      ...twoOf('chamber_protocol', 'mycelium_tower', 'spore_drone', 'chitin_spire', 'thorn_graft', 'ixquor_brood_tender', 'mycelial_net', 'hive_warrior', 'rot_bloom', 'spore_burst', 'bloom_burst', 'spore_cloud'),
-      'the_worldroot', 'spore_catalyst', 'hive_relay', 'sporestorm', 'void_bolt', 'the_brood_queen',
+      ...twoOf('chamber_protocol', 'mycelium_tower', 'spore_drone', 'chitin_spire', 'thorn_graft', 'ixquor_brood_tender', 'mycelial_net', 'hive_warrior', 'rot_bloom', 'ixquor_waiting_brood', 'bloom_burst', 'spore_cloud'),
+      'the_worldroot', 'spore_catalyst', 'hive_relay', 'ixquor_brood_warden', 'void_bolt', 'the_brood_queen',
     ],
   },
   // (Lost Races, added after the Core starters so every saved starter keeps its place.)

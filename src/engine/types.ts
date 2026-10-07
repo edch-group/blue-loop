@@ -66,7 +66,9 @@ export type Condition =
   /** You control at least `n` cards of this race (or sub-race), this one included. */
   | { minRace: number; sub?: string; n: number }
   /** The planet facing your sun today (see Orbit). */
-  | { planet: Planet };
+  | { planet: Planet }
+  /** Vigil: this card held back today (didn't attack or act, so isn't dimmed). For dusk effects. */
+  | { vigil: true };
 
 /**
  * Orbit: three planets circle each sun, each facing it for three of its

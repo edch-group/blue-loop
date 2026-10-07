@@ -674,8 +674,9 @@ function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState
   }
 }
 
-export function conditionMet(p: PlayerState, cond: Condition | undefined, state?: GameState): boolean {
+export function conditionMet(p: PlayerState, cond: Condition | undefined, state?: GameState, card?: CardInstance): boolean {
   if (!cond) return true;
+  if ('vigil' in cond) return !card?.dimmed;
   if ('overheated' in cond) return isOverheated(p);
   if ('minKind' in cond) return p.tableau.filter((t) => cardDef(t.defId).kind === cond.minKind).length >= cond.n;
   if ('planet' in cond) return currentPlanet(p, state) === cond.planet;
@@ -767,7 +768,7 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c })) };
   for (const card of me.tableau) {
     for (const e of [...dawnEffects(card, me, state), ...duskEffects(card)]) {
-      if (!conditionMet(me, e.if, state)) continue;
+      if (!conditionMet(me, e.if, state, card)) continue;
       switch (e.type) {
         case 'grow':
           card.growth = Math.max(card.growth ?? 0, Math.min(e.max, (card.growth ?? 0) + 1));
@@ -985,7 +986,7 @@ const kindMatches = (c: CardInstance, kind?: CardKind) => returnable(c) && (!kin
 function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, effects: Effect[] | undefined, when: Timing, ctx: PlayContext = {}) {
   for (const e of effects ?? []) {
     if (state.winnerId || p.eliminated) return;
-    if (!conditionMet(p, e.if, state)) continue;
+    if (!conditionMet(p, e.if, state, card)) continue;
     switch (e.type) {
       case 'heat': {
         const amount = effectAmount(state, p, card, e, when);
@@ -1415,7 +1416,8 @@ function dawn(state: GameState, p: PlayerState) {
 
 /** A player's dusk: their tableau's dusk effects, left to right, as their day ends. */
 function dusk(state: GameState, p: PlayerState) {
-  const cards = p.tableau.filter((c) => duskEffects(c).length);
+  // (Only cards whose dusk will do something: a Vigil card that attacked today sits it out.)
+  const cards = p.tableau.filter((c) => !c.fresh && duskEffects(c).some((e) => conditionMet(p, e.if, state, c)));
   if (!cards.length) return;
   log(state, `— Dusk: ${p.name}.`);
   notePulse(state, p, null, 'start', p, 0);

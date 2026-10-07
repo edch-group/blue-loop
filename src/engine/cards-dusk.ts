@@ -1,4 +1,6 @@
-import type { CardDef } from './types';
+import type { CardDef, Condition } from './types';
+
+const VIGIL: Condition = { vigil: true };
 
 /**
  * Dusk cards: their effects come at the end of your day, once you have acted (the opposite of dawn). Some
@@ -68,5 +70,46 @@ export const DUSK_CARDS: CardDef[] = [
     text: '{dusk}: {cool:2}. {dawn}: {heat:1} to your sun.',
     onTurn: [{ type: 'selfHeat', amount: 1 }],
     onDusk: [{ type: 'cool', amount: 2 }],
+  },
+  // ---- Vigil: dusk effects for a card that held back today (didn't attack or act). Two for each core race ----
+  {
+    id: 'aureline_watchkeeper', name: 'Dusk Watchkeeper', kind: 'attack', race: 0, cost: 2, character: true,
+    text: '{vigil}: {cool:3}.',
+    onDusk: [{ type: 'cool', amount: 3, if: VIGIL }],
+  },
+  {
+    id: 'aureline_sunset_lancer', name: 'Sunset Lancer', kind: 'attack', race: 0, cost: 3, character: true,
+    text: '{vigil}: {heat:2}.',
+    onDusk: [{ type: 'heat', amount: 2, to: 'target', if: VIGIL }],
+  },
+  {
+    id: 'xelnaru_banked_star', name: 'Banked Star', kind: 'attack', race: 1, cost: 2,
+    text: '{vigil}: {heat:2}. {dawn}: {heat:1} to your sun.',
+    onTurn: [{ type: 'selfHeat', amount: 1 }], onDusk: [{ type: 'heat', amount: 2, to: 'target', if: VIGIL }],
+  },
+  {
+    id: 'xelnaru_still_flame', name: 'Still Flame', kind: 'attack', race: 1, cost: 3,
+    text: '{vigil}: draw 1 and {heat:1} to your sun.',
+    onDusk: [{ type: 'draw', amount: 1, if: VIGIL }, { type: 'selfHeat', amount: 1, if: VIGIL }],
+  },
+  {
+    id: 'vorthane_tide_watcher', name: 'Tide Watcher', kind: 'attack', race: 2, cost: 2, character: true,
+    text: '{vigil}: {shield:3}.',
+    onDusk: [{ type: 'shield', amount: 3, if: VIGIL }],
+  },
+  {
+    id: 'vorthane_undertow', name: 'Undertow', kind: 'attack', race: 2, cost: 3,
+    text: '{vigil}: {heat:1} per 2 shields you have (up to 4).',
+    onDusk: [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'shields', per: 2 }, max: 4, if: VIGIL }],
+  },
+  {
+    id: 'ixquor_waiting_brood', name: 'Waiting Brood', kind: 'attack', race: 3, cost: 2,
+    text: '{vigil}: {grows:3}, then {heat} equal to its growth.',
+    onDusk: [{ type: 'grow', max: 3, if: VIGIL }, { type: 'heat', amount: 0, to: 'target', plus: { of: 'growth' }, if: VIGIL }],
+  },
+  {
+    id: 'ixquor_brood_warden', name: 'Brood Warden', kind: 'attack', race: 3, cost: 3,
+    text: '{vigil}: your other growing cards grow by 1.',
+    onDusk: [{ type: 'growOthers', if: VIGIL }],
   },
 ];

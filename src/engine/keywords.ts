@@ -38,6 +38,7 @@ function reach(value: string | undefined, what: string): string {
 export const KEYWORDS: Record<string, Keyword> = {
   dawn: { name: 'dawn', group: 'timing', explain: () => 'Start of your day.' },
   dusk: { name: 'dusk', group: 'timing', explain: () => 'End of your day.' },
+  vigil: { name: 'vigil', group: 'timing', explain: () => "End of your day, if this card didn't attack or act." },
   heat: { name: 'heat', group: 'heat', symbol: true, explain: () => "Heats your rival's sun (or, as a card is played, a card)." },
   pierce: { name: 'pierce', group: 'heat', explain: () => 'Ignores defence.' },
   cool: { name: 'cool', group: 'cool', symbol: true, explain: () => 'Cools your sun.' },

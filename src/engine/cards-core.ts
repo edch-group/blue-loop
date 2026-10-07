@@ -72,6 +72,7 @@ export const CORE_VERSIONS: Record<string, Partial<CardDef>> = {
   halo_sentinel: { ...none, text: '{guard}. {sturdy:1}. {forge:1}.', passive: [{ type: 'taunt' }, forge()] },
   solar_aegis: { ...none, text: '{forge:1}. {cool:2}.', onPlay: [{ type: 'cool', amount: 2 }], passive: [forge()] },
   aureline_war_herald: { ...none, text: '{dawn}: {heat:1}. {heat:+1} per attack card next to this.', onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'adjacent', kind: 'attack' } }] },
+  helio_bastion: { ...none, text: '{forge:1}. Draw 1.', onPlay: [{ type: 'draw', amount: 1 }], passive: [forge()] },
   dawn_rampart: { ...none, text: '{forge:1}. {dusk}: {cool:2}.', onDusk: [{ type: 'cool', amount: 2 }], passive: [forge()] },
   aureline_cantor: { ...none, text: '{dusk}: {cool:1}. {cool:+1} per attack card next to this.', onDusk: [{ type: 'cool', amount: 1, plus: { of: 'adjacent', kind: 'attack' } }] },
   // Xel'Naru: one thing fewer.

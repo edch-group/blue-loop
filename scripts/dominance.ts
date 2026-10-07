@@ -4,7 +4,8 @@
  * and fits the same decks. `raceOverNeutral`: also a race card beating a neutral one (the neutral card is
  * then dead weight in that race's decks).
  */
-import { CARDS } from '../src/engine/cards';
+import { allCardDefs, CARDS } from '../src/engine/cards';
+import { inMode, underRules, type GameMode } from '../src/engine/modes';
 import { baseStability, cardCost } from '../src/engine/game';
 import { raceTrait } from '../src/engine/races';
 import type { CardDef, Effect, Passive } from '../src/engine/types';
@@ -43,18 +44,24 @@ function vec(c: CardDef): Vec {
     effects(v, 'spring', c.lightspeed.effects);
   }
   if (c.defence) bump(v, 'defence', c.defence);
+  if (c.attack) bump(v, 'attack', c.attack);
   if (c.attune) bump(v, 'attune', c.attune);
   if (c.fusion) bump(v, 'fusion', 1);
   // (Consume is a cost: a card given up to play it.)
   if (c.consume) bump(v, 'bad|consume', 1);
-  if (c.onTurn?.length || c.onDusk?.length || c.passive?.length || c.attune) bump(v, 'stability', baseStability(c.id) - (c.kind === 'command' ? 0 : raceTrait(c.race)?.stability ?? 0)); // (a race's trait is the race's, not the card's)
+  if (c.onTurn?.length || c.onDusk?.length || c.passive?.length || c.attune || c.attack) bump(v, 'stability', baseStability(c.id) - (c.kind === 'command' ? 0 : raceTrait(c.race)?.stability ?? 0)); // (a race's trait is the race's, not the card's)
   return v;
 }
-export function dominatedPairs(raceOverNeutral = false, anyRace = false): string[] {
+export function dominatedPairs(raceOverNeutral = false, anyRace = false, mode?: GameMode): string[] {
+  return underRules(mode ?? 'lost', () => pairs(raceOverNeutral, anyRace, mode));
+}
+
+function pairs(raceOverNeutral: boolean, anyRace: boolean, mode?: GameMode): string[] {
 // b can replace a in every deck a fits (neutral b), or in a's race's decks: a race card that beats a neutral
 // one makes the neutral card dead weight in that race's decks.
 const fits = (a: CardDef, b: CardDef) => anyRace || b.race === undefined || b.race === a.race || (raceOverNeutral && a.race === undefined);
-const cards = CARDS.filter((c) => !c.fusedFrom && c.kind !== 'global' && !c.spendAll);
+// (In a mode: its own pool, as the cards play there.)
+const cards = (mode ? allCardDefs(mode).filter((c) => inMode(c, mode)) : CARDS).filter((c) => !c.fusedFrom && c.kind !== 'global' && !c.spendAll);
 const vecs = new Map(cards.map((c) => [c.id, vec(c)]));
 const found: string[] = [];
 for (const a of cards) {
