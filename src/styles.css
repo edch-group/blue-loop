@@ -5862,3 +5862,18 @@ body:has(.game-result) .dock { visibility: hidden; }
   .game-result .result-actions .btn-primary, .game-result .result-actions .btn { padding: 7px 16px; font-size: 0.7rem; }
 }
 .game-result .result-actions .btn, .game-result .result-actions .btn-primary { white-space: nowrap; }
+
+/* Where the flagship can jump: a dashed ring turning slowly round the star, and the ring is what you tap (the
+   whole disc inside it). In the holder's colour round a system already taken. */
+.cmp-n3 .cmp-ring-march, .cmp-n3 .cmp-ring-target {
+  width: calc(44px * var(--ui)); height: calc(44px * var(--ui)); pointer-events: auto; cursor: pointer;
+  border: calc(2px * var(--ui)) dashed #8d93a8; animation: cmp-spin 10s linear infinite; z-index: 1;
+}
+.cmp-n3 .cmp-ring-march:hover, .cmp-n3 .cmp-ring-target:hover { background: rgba(141, 147, 168, 0.12); }
+.cmp-owned .cmp-ring-march { border-color: var(--fc); }
+.cmp-owned .cmp-ring-march:hover { background: color-mix(in srgb, var(--fc) 14%, transparent); }
+.cmp-n3 .cmp-ring-target { border-color: #d8452b; }
+/* A system taken: its star ringed and glowing in its holder's colour. */
+.cmp-owned .cmp-star::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; background: none; animation: none;
+  box-shadow: 0 0 0 2px var(--fc), 0 0 8px 2px color-mix(in srgb, var(--fc) 55%, transparent); }
+@media (prefers-reduced-motion: reduce) { .cmp-n3 .cmp-ring-march, .cmp-n3 .cmp-ring-target { animation: none; } }

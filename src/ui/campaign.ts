@@ -1315,8 +1315,8 @@ export class CampaignView {
         return `
           <div class="${cls}" data-key="sys-${n.id}" style="left:${n.x}px;top:${n.y}px;--fc:${colour}">
             <div class="cmp-turf"></div>
-            ${targets.has(n.id) ? '<div class="cmp-ring cmp-ring-target"></div>' : ''}
-            ${marches.has(n.id) ? '<div class="cmp-ring cmp-ring-march"></div>' : ''}
+            ${targets.has(n.id) ? `<div class="cmp-ring cmp-ring-target" data-act="cmp-select" data-arg="${n.id}"></div>` : ''}
+            ${marches.has(n.id) ? `<div class="cmp-ring cmp-ring-march" data-act="cmp-select" data-arg="${n.id}"></div>` : ''}
             ${n.hazard.length ? '<div class="cmp-ring cmp-ring-hazard"></div>' : ''}
             ${n.collapsing ? '<div class="cmp-ring cmp-ring-collapse"></div>' : ''}
             ${n.home ? '<div class="cmp-ring cmp-ring-home"></div>' : ''}
