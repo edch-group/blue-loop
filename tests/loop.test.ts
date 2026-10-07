@@ -52,7 +52,11 @@ const standAt = (s: CampaignState, id: string) => {
 describe('the strip', () => {
   it('lays out lanes of systems the length of the strip, with the wormhole past the far end', () => {
     const s = run();
-    expect(s.nodes).toHaveLength(CAMPAIGN.lanes * CAMPAIGN.columns + 1);
+    // The arrival alone at the near end, the lanes between, the wormhole past the far end.
+    expect(s.nodes).toHaveLength(1 + CAMPAIGN.lanes * (CAMPAIGN.columns - 1) + 1);
+    const start = nodeById(s, flag(s).nodeId);
+    expect(start.links).toHaveLength(CAMPAIGN.lanes);
+    expect(start.y).toBe(s.nodes.find((n) => n.heart)!.y);
     const hole = s.nodes.find((n) => n.heart)!;
     expect(hole.col).toBe(CAMPAIGN.columns);
     // Routes only join neighbouring columns (or lanes within one), and every lane runs the whole way.

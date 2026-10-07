@@ -5734,7 +5734,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-guide { grid-template-columns: auto minmax(0, 1fr) auto; }
 /* A star sits on its system: its centre on the node, where the routes of light meet. (Lifted towards the
    camera, so its lower half never sinks into the board.) */
-.cmp-n3 .cmp-bb { padding-bottom: 0; transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(40px); }
+.cmp-n3 .cmp-bb { padding-bottom: 0; transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(120px); }
 .cmp-n3 .cmp-star { margin-bottom: -20px; }
 .cmp-n3.cmp-st-red .cmp-star { margin-bottom: -16px; }
 .cmp-n3.cmp-st-brown .cmp-star, .cmp-n3.cmp-st-neutron .cmp-star { margin-bottom: -14px; }
@@ -5750,7 +5750,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-stellaria {
   width: 64px; height: 64px; padding: 0; background: none; border-radius: 0;
   transform-origin: 50% 50%;
-  transform: translate(-50%, -50%) rotateX(calc(-1 * var(--tilt))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(30px);
+  transform: translate(-50%, -50%) rotateX(calc(-1 * var(--tilt))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(110px);
 }
 .cmp-stellaria .stellaria-flower ellipse, .cmp-stellaria .stellaria-flower path { fill: rgba(206, 178, 246, 0.28); stroke: #b493e6; stroke-width: 5; }
 .cmp-heart-glow { width: 150px; height: 150px; margin: -75px 0 0 -75px; }
@@ -5767,3 +5767,17 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .cmp-top { grid-template-columns: auto auto minmax(0, 1fr); }
   .cmp-top > .cmp-purse { justify-self: start; }
 }
+/* The routes, drawn flat over the map (campaign.ts drawRays): crisp lines of light between the stars. */
+.cmp-rays { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; overflow: visible; }
+.cmp-rays .cmp-ray-glow { stroke: rgba(110, 160, 240, 0.22); stroke-width: 7; }
+.cmp-rays .cmp-ray-band { stroke: rgba(118, 168, 246, 0.7); stroke-width: 2.6; }
+.cmp-rays .cmp-ray-core { stroke: #fff; stroke-width: 1; }
+.cmp-rays .cmp-link-gone { stroke: rgba(120, 110, 120, 0.35); stroke-width: 1.5; stroke-dasharray: 4 6; }
+.cmp-plane { z-index: 1; }
+/* Smaller suns. */
+.cmp-n3 .cmp-star, .cmp-n3.cmp-st-red .cmp-star, .cmp-n3.cmp-st-brown .cmp-star, .cmp-n3.cmp-st-white .cmp-star,
+.cmp-n3.cmp-st-neutron .cmp-star, .cmp-n3.cmp-heart .cmp-star, .cmp-n3.cmp-cache .cmp-star { width: 18px; height: 18px; margin-bottom: -9px; }
+/* The Stellari in white, a soft grey edge so the petals read on the pale map; still (a filter on a turning flower repaints it every frame). */
+.cmp-stellaria svg { animation: none; filter: drop-shadow(0 0 1.5px rgba(90, 96, 120, 0.55)) drop-shadow(0 0 6px rgba(255, 255, 255, 0.9)); }
+.cmp-stellaria .stellaria-flower ellipse, .cmp-stellaria .stellaria-flower path { fill: rgba(255, 255, 255, 0.85); stroke: #fff; stroke-width: 5; }
+.cmp-stellaria { width: 48px; height: 48px; }

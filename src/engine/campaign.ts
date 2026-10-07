@@ -116,14 +116,14 @@ export const CAMPAIGN = {
    * Each universe is a strip: `lanes` rows of systems, `columns` long, the lanes linked to their neighbours here and
    * there so they intertwine; the wormhole lies past the far end. Map units between columns and lanes.
    */
-  lanes: 4,
+  lanes: 3,
   columns: 8,
   colGap: 420,
   laneGap: 330,
   /** The map's size (map units): the strip, and the wormhole past its far end. */
-  mapSystems: 33,
+  mapSystems: 23,
   mapWidth: 170 * 2 + 8 * 420,
-  mapHeight: 170 * 2 + 3 * 330,
+  mapHeight: 170 * 2 + 2 * 330,
   mapMargin: 170,
   /** Worlds with something extra to find (credits or research), taken with the system. */
   bonusPlanets: 3,
@@ -1122,37 +1122,46 @@ function buildUniverse(s: CampaignState, universe: number) {
   const used = new Set<string>();
   const tints: MapPlanet['tint'][] = ['weapons', 'defences', 'economy', 'resources'];
   const jitter = (n: number) => Math.round((nextRandom(s) - 0.5) * 2 * n);
-  const at = (c: number, l: number) => s.nodes[c * L + l];
-  for (let c = 0; c < C; c++) {
+  const blank = (id: string, name: string, x: number, y: number, tier: number, c: number, l: number): CampaignNode => ({
+    id,
+    name,
+    x,
+    y,
+    planets: Array.from({ length: 2 + randomInt(s, 3) }, (_, j) => ({ name: `${name} ${['I', 'II', 'III', 'IV'][j]}`, tint: tints[randomInt(s, tints.length)] })),
+    owner: null,
+    links: [],
+    fortification: 0,
+    damage: 0,
+    garrison: [],
+    hazard: [],
+    // What taking it pays (once): more the harder it is.
+    yield: { credits: 2 + randomInt(s, 2) + tier, materials: 1 + randomInt(s, 2) + Math.floor(tier / 2) },
+    tier,
+    col: c,
+    lane: l,
+  });
+  const midY = CAMPAIGN.mapMargin + ((L - 1) * CAMPAIGN.laneGap) / 2;
+  // The flagship's arrival: one system alone at the near end, in the middle, with a route into every lane.
+  const home = blank('n0', nodeName(s, used), CAMPAIGN.mapMargin, midY, 0, 0, (L - 1) / 2);
+  s.nodes.push(home);
+  // The lanes, from the second column to the last before the wormhole.
+  const grid: CampaignNode[][] = [];
+  for (let c = 1; c < C; c++) {
+    grid[c] = [];
     for (let l = 0; l < L; l++) {
-      const name = nodeName(s, used);
       const tier = (c <= 2 ? 0 : c <= 5 ? 1 : 2) + lift;
-      s.nodes.push({
-        id: `n${c * L + l}`,
-        name,
-        x: CAMPAIGN.mapMargin + c * CAMPAIGN.colGap + (c ? jitter(55) : 0),
-        y: CAMPAIGN.mapMargin + l * CAMPAIGN.laneGap + jitter(45),
-        planets: Array.from({ length: 2 + randomInt(s, 3) }, (_, j) => ({ name: `${name} ${['I', 'II', 'III', 'IV'][j]}`, tint: tints[randomInt(s, tints.length)] })),
-        owner: null,
-        links: [],
-        fortification: 0,
-        damage: 0,
-        garrison: [],
-        hazard: [],
-        // What taking it pays (once): more the harder it is.
-        yield: { credits: 2 + randomInt(s, 2) + tier, materials: 1 + randomInt(s, 2) + Math.floor(tier / 2) },
-        tier,
-        col: c,
-        lane: l,
-      });
+      const n = blank(`n${s.nodes.length}`, nodeName(s, used), CAMPAIGN.mapMargin + c * CAMPAIGN.colGap + jitter(55), CAMPAIGN.mapMargin + l * CAMPAIGN.laneGap + jitter(45), tier, c, l);
+      grid[c][l] = n;
+      s.nodes.push(n);
     }
   }
+  const at = (c: number, l: number) => grid[c][l];
   // The wormhole, past the far end, in the middle of the lanes: a Stellari bloom and its guardian.
   const hole: CampaignNode = {
-    id: `n${C * L}`,
+    id: `n${s.nodes.length}`,
     name: 'Stellari Wormhole',
     x: CAMPAIGN.mapMargin + C * CAMPAIGN.colGap,
-    y: CAMPAIGN.mapMargin + ((L - 1) * CAMPAIGN.laneGap) / 2,
+    y: midY,
     planets: [],
     owner: null,
     links: [],
@@ -1173,9 +1182,10 @@ function buildUniverse(s: CampaignState, universe: number) {
     a.links.push(b.id);
     b.links.push(a.id);
   };
+  for (let l = 0; l < L; l++) link(home, at(1, l));
   // Lanes run the length of the strip; here and there two neighbouring lanes cross over (one way at a time, so
   // routes never cross), and now and then a rung joins them within a column.
-  for (let c = 0; c < C; c++) {
+  for (let c = 1; c < C; c++) {
     for (let l = 0; l < L; l++) {
       if (c + 1 < C) link(at(c, l), at(c + 1, l));
       else link(at(c, l), hole);
@@ -1183,16 +1193,13 @@ function buildUniverse(s: CampaignState, universe: number) {
     if (c + 1 >= C) continue;
     for (let l = 0; l + 1 < L; l++) {
       const r = nextRandom(s);
-      if (r < 0.2) link(at(c, l), at(c + 1, l + 1));
-      else if (r < 0.4) link(at(c, l + 1), at(c + 1, l));
-      if (c > 0 && nextRandom(s) < 0.15) link(at(c, l), at(c, l + 1));
+      if (r < 0.22) link(at(c, l), at(c + 1, l + 1));
+      else if (r < 0.44) link(at(c, l + 1), at(c + 1, l));
+      if (c > 1 && nextRandom(s) < 0.15) link(at(c, l), at(c, l + 1));
     }
   }
-  // The flagship's arrival: a system of its own at the near end.
-  const home = at(0, randomInt(s, L));
   home.owner = me.id;
   home.home = me.id;
-  home.tier = 0;
   const army = flagship(s, me.id);
   if (army) {
     army.nodeId = home.id;

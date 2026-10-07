@@ -361,6 +361,8 @@ export class CampaignView {
   /** New-campaign setup choices (the hero: an index into the race's heroes). */
   private setup = { rivals: 3, race: 0, hero: 0 };
   private shopOpen = false;
+  /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
+  private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
   /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
   private waiting: { factionId: string | null; lines: string[] } | null = null;
   /** In the heroes tab: the skill and the gear slot picked. */
@@ -1244,6 +1246,7 @@ export class CampaignView {
     // Fog of war: only systems linked to yours (two links from a scanner) are drawn; routes into the fog fade out.
     const seen = visibleNodes(s, me.id);
     const drawn = new Set<string>();
+    this.rays = [];
     const links = s.nodes
       .flatMap((n) =>
         n.links.map((id) => {
@@ -1256,12 +1259,15 @@ export class CampaignView {
             const [a, b] = seen.has(n.id) ? [n, m] : [m, n];
             return `<line x1="${a.x}" y1="${a.y}" x2="${(a.x + (b.x - a.x) * 0.45).toFixed(1)}" y2="${(a.y + (b.y - a.y) * 0.45).toFixed(1)}" class="cmp-link cmp-link-fog" />`;
           }
-          if (n.collapsed || m.collapsed) return `<line x1="${n.x}" y1="${n.y}" x2="${m.x}" y2="${m.y}" class="cmp-link cmp-link-gone" />`;
+          if (n.collapsed || m.collapsed) {
+            this.rays.push({ a: n.id, b: m.id, gone: true });
+            return '';
+          }
           const same = n.owner && n.owner === m.owner;
-          // A route is a line of light: a soft glow, a brighter band, and a white-hot thread down its middle.
-          const ends = `x1="${n.x}" y1="${n.y}" x2="${m.x}" y2="${m.y}"`;
-          const fc = same ? ` style="--fc:${this.colourOf(n.owner!)}"` : '';
-          return `<g class="cmp-ray ${same ? 'cmp-ray-held' : ''}"${fc}><line ${ends} class="cmp-ray-glow" /><line ${ends} class="cmp-ray-band" /><line ${ends} class="cmp-ray-core" /></g>`;
+          // (Drawn flat on the screen over the map, after it is laid out: drawRays. A line on the tilted plane
+          // was drawn small and scaled up, and came out pixelated.)
+          this.rays.push({ a: n.id, b: m.id, colour: same ? this.colourOf(n.owner!) : undefined });
+          return '';
         }),
       )
       .join('');
@@ -1324,6 +1330,7 @@ export class CampaignView {
       .join('');
     return `
       <div class="cmp-stage ${focus ? 'cmp-zoomed' : ''}" data-act="cmp-deselect">
+        <svg class="cmp-rays" aria-hidden="true"></svg>
         <div class="cmp-plane" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">
           <div class="cmp-grid" style="--gk:${(MAP_WIDTH / 3500).toFixed(3)}"></div>
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
@@ -1629,7 +1636,36 @@ export class CampaignView {
     this.view ??= this.homeView();
     this.applyCamera(true);
     if (!this.glide) this.fitStrip(stage);
+    this.drawRays(stage);
+    // (Again once the stars have settled from any grow-in, so the lines meet them exactly.)
+    window.setTimeout(() => stage.isConnected && this.drawRays(stage), 700);
     this.placePop();
+  }
+
+  /** The routes as lines of light, drawn flat on the screen between the stars as they stand (crisp at any size). */
+  private drawRays(stage: HTMLElement) {
+    const svg = stage.querySelector<SVGSVGElement>('.cmp-rays');
+    if (!svg) return;
+    const box = stage.getBoundingClientRect();
+    const at = new Map<string, [number, number]>();
+    for (const el of stage.querySelectorAll<HTMLElement>('.cmp-n3[data-key^="sys-"]')) {
+      const star = el.querySelector('.cmp-star');
+      if (!star) continue;
+      const r = star.getBoundingClientRect();
+      at.set(el.dataset.key!.slice(4), [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top]);
+    }
+    svg.setAttribute('viewBox', `0 0 ${box.width.toFixed(0)} ${box.height.toFixed(0)}`);
+    svg.innerHTML = this.rays
+      .map(({ a, b, gone, colour }) => {
+        const p = at.get(a);
+        const q = at.get(b);
+        if (!p || !q) return '';
+        const ends = `x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}"`;
+        if (gone) return `<line ${ends} class="cmp-link-gone" />`;
+        // A soft glow, a brighter band, and a white-hot thread down its middle (in the holder's colour, if held).
+        return `<g class="cmp-ray ${colour ? 'cmp-ray-held' : ''}"${colour ? ` style="--fc:${colour}"` : ''}><line ${ends} class="cmp-ray-glow" /><line ${ends} class="cmp-ray-band" /><line ${ends} class="cmp-ray-core" /></g>`;
+      })
+      .join('');
   }
 
   /**
