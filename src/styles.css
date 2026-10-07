@@ -5784,3 +5784,56 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* No starry sky behind the map: just the page. The marks over a system stand on their own (no white tile). */
 .cmp-sky { display: none; }
 .cmp-badge, .cmp-badge.cmp-scan { background: none; padding: 0; box-shadow: none; }
+
+/* ---------- Map marks in 3D, small ships, the home screen's Stellari ---------- */
+/* Station marks stand in depth over their systems: the armoury a wooden crate turning slowly, the research
+   station a flask with thickness. (Only transform moves.) */
+.cmp-badges { perspective: 220px; align-items: flex-end; }
+.cmp-badge.cmp-station-badge { transform-style: preserve-3d; }
+.i3d { position: relative; display: block; width: 14px; height: 14px; transform-style: preserve-3d; }
+.i3d-crate { margin: 4px 3px; transform: rotateX(-24deg) rotateY(35deg); animation: i3d-turn 14s linear infinite; }
+@keyframes i3d-turn { from { transform: rotateX(-24deg) rotateY(0deg); } to { transform: rotateX(-24deg) rotateY(360deg); } }
+.i3d-face { position: absolute; inset: 0; background: #c99a52; border: 1px solid #7d5a26; box-sizing: border-box;
+  background-image: linear-gradient(45deg, transparent 46%, #7d5a26 46% 54%, transparent 54%); }
+.i3d-f { transform: translateZ(7px); }
+.i3d-b { transform: rotateY(180deg) translateZ(7px); background-color: #b4863f; }
+.i3d-l { transform: rotateY(-90deg) translateZ(7px); background-color: #b88a45; }
+.i3d-r { transform: rotateY(90deg) translateZ(7px); background-color: #d4a862; }
+.i3d-t { transform: rotateX(90deg) translateZ(7px); background-color: #e0b874; }
+.i3d-d { transform: rotateX(-90deg) translateZ(7px); background-color: #8f672d; }
+.i3d-flask { width: 16px; height: 16px; transform: rotateY(28deg) rotateX(-8deg); }
+.i3d-slice { position: absolute; inset: 0; transform: translateZ(var(--z)); }
+.i3d-slice .cur { width: 100%; height: 100%; display: block; }
+/* (The back slices darker, so the flask reads as solid glass with depth.) */
+.i3d-slice:not(:last-child) .cur { filter: brightness(calc(0.6 + var(--k) * 0.35)); }
+.cmp-station-badge.spent .i3d { opacity: 0.45; }
+@media (prefers-reduced-motion: reduce) { .i3d-crate { animation: none; } }
+
+/* Ships at half the size, with no portrait over them. */
+.cmp-ship-hull { transform: translate(-50%, -50%) scale3d(calc(var(--ui) * 0.5), calc(var(--ui) * 0.5), calc(var(--ui) * 0.5)); }
+.cmp-ship-bb { display: none; }
+
+/* The Stellari as on the home screen: thin white petals lying flat on the map, translucent, around the wormhole. */
+.cmp-stellaria {
+  width: 300px; height: 300px; padding: 0; background: none; border-radius: 0; pointer-events: none;
+  transform-origin: 50% 50%; transform: translate(-50%, -50%) translateZ(1px);
+}
+.cmp-stellaria svg { animation: none; filter: none; }
+.cmp-stellaria .stellaria-flower ellipse, .cmp-stellaria .stellaria-flower path { fill: rgba(255, 255, 255, 0.26); stroke: rgba(255, 255, 255, 0.95); stroke-width: 6; }
+.cmp-stellaria .stellaria-flower .petal-inner path { stroke-width: 4; }
+.cmp-heart-glow { width: 360px; height: 360px; margin: -180px 0 0 -180px; background: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(255, 252, 244, 0.6) 40%, transparent 70%); }
+/* The Stellari, as on the home screen: thin white petals lying flat around the wormhole's star (laid back down
+   from the star's upright frame, so it sits exactly round it). */
+.cmp-heart .cmp-bb, .cmp-heart .cmp-star { transform-style: preserve-3d; }
+.cmp-bloom3d { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 0 !important;
+  transform: rotateX(var(--tilt)) translateZ(-2px); pointer-events: none; }
+.cmp-bloom3d svg { width: 100%; height: 100%; display: block; }
+.cmp-bloom3d .stellaria-flower ellipse, .cmp-bloom3d .stellaria-flower path { fill: rgba(255, 255, 255, 0.12); stroke: #fff; stroke-width: 9; }
+.cmp-bloom3d .stellaria-flower .petal-inner path { stroke-width: 6; }
+/* (A soft grey line under the white, so the petals read on the pale page.) */
+.cmp-bloom3d svg { filter: drop-shadow(0 0 1px rgba(120, 126, 150, 0.55)); }
+.i3d { width: 10px; height: 10px; }
+.i3d-f, .i3d-b, .i3d-l, .i3d-r, .i3d-t, .i3d-d { --h: 5px; }
+.i3d-f { transform: translateZ(5px); } .i3d-b { transform: rotateY(180deg) translateZ(5px); } .i3d-l { transform: rotateY(-90deg) translateZ(5px); }
+.i3d-r { transform: rotateY(90deg) translateZ(5px); } .i3d-t { transform: rotateX(90deg) translateZ(5px); } .i3d-d { transform: rotateX(-90deg) translateZ(5px); }
+.i3d-flask { width: 12px; height: 12px; }

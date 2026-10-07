@@ -158,6 +158,9 @@ const ARMORY_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
 const RESEARCH_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 2.5h4M8.8 2.5v5L4.5 15a1.6 1.6 0 0 0 1.4 2.4h8.2a1.6 1.6 0 0 0 1.4-2.4l-4.3-7.5v-5" fill="#9fd3d9" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/><ellipse cx="10" cy="12.5" rx="7.5" ry="2.4" fill="none" stroke="#a98fe0" stroke-width="1"/></svg>';
+/** A station's mark, in 3D over its system: the armoury a turning crate (a cube), the research station a flask in depth. */
+const CRATE_3D = `<span class="i3d i3d-crate">${['f', 'b', 'l', 'r', 't', 'd'].map((f) => `<i class="i3d-face i3d-${f}"></i>`).join('')}</span>`;
+const FLASK_3D = `<span class="i3d i3d-flask">${Array.from({ length: 6 }, (_, k) => `<i class="i3d-slice" style="--z:${(k - 2.5) * 1.1}px;--k:${k / 5}">${RESEARCH_ICON}</i>`).join('')}</span>`;
 /** A scanner array: a dish with two rings of signal. */
 const SCANNER =
   '<svg class="cur cur-scanner" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5 9.2 10.3" stroke="#6e7f9f" stroke-width="1.4" stroke-linecap="round"/><path d="M3 11a6 6 0 0 0 6 6L3 11Z" fill="#8fa3c6" stroke="#6e7f9f" stroke-width=".9" stroke-linejoin="round"/><path d="M11.2 6.8a3.4 3.4 0 0 1 2 2M11.6 3.6a6.6 6.6 0 0 1 4.8 4.8" fill="none" stroke="#6fb3bc" stroke-width="1.3" stroke-linecap="round"/><circle cx="9.6" cy="9.9" r="1.2" fill="#6fb3bc"/></svg>';
@@ -1304,24 +1307,22 @@ export class CampaignView {
           n.garrison.length ? `<i class="cmp-badge">▣${n.garrison.length}</i>` : '',
           n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
           n.scanner ? `<i class="cmp-badge cmp-scan" title="Scanner array">${SCANNER}</i>` : '',
-          n.station?.kind === 'armory' ? `<i class="cmp-badge cmp-scan cmp-station-badge ${n.station.cards.length ? '' : 'spent'}" title="Space station: ${n.station.cards.length ? `${n.station.cards.length} cards for sale` : 'sold out'}">${ARMORY_ICON}</i>` : '',
-          n.station?.kind === 'research' ? `<i class="cmp-badge cmp-scan cmp-station-badge ${n.station.takenBy ? 'spent' : ''}" title="Research station${n.station.takenBy ? ': taken' : ''}">${RESEARCH_ICON}</i>` : '',
+          n.station?.kind === 'armory' ? `<i class="cmp-badge cmp-scan cmp-station-badge ${n.station.cards.length ? '' : 'spent'}" title="Space station: ${n.station.cards.length ? `${n.station.cards.length} cards for sale` : 'sold out'}">${CRATE_3D}</i>` : '',
+          n.station?.kind === 'research' ? `<i class="cmp-badge cmp-scan cmp-station-badge ${n.station.takenBy ? 'spent' : ''}" title="Research station${n.station.takenBy ? ': taken' : ''}">${FLASK_3D}</i>` : '',
           n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
-          n.heart ? `<i class="cmp-badge cmp-bloom" data-tip="The wormhole: beat its guardian to go through, into universe ${s.universe + 1}, with ${wormholePetals(s)} Stellari petal${wormholePetals(s) === 1 ? '' : 's'} (more for every system you conquer first)">${BLOOM}</i>` : '',
         ].join('');
         return `
           <div class="${cls}" data-key="sys-${n.id}" style="left:${n.x}px;top:${n.y}px;--fc:${colour}">
             <div class="cmp-turf"></div>
             ${targets.has(n.id) ? '<div class="cmp-ring cmp-ring-target"></div>' : ''}
             ${marches.has(n.id) ? '<div class="cmp-ring cmp-ring-march"></div>' : ''}
-            ${n.heart ? `<div class="cmp-heart-glow"></div><div class="cmp-stellaria" title="The ${esc(STELLARIA)}">${stellariaFlower()}</div>` : ''}
             ${n.hazard.length ? '<div class="cmp-ring cmp-ring-hazard"></div>' : ''}
             ${n.collapsing ? '<div class="cmp-ring cmp-ring-collapse"></div>' : ''}
             ${n.home ? '<div class="cmp-ring cmp-ring-home"></div>' : ''}
             ${this.selected === n.id || leaving?.id === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
               <span class="cmp-badges">${badges}</span>
-              <span class="cmp-star" style="--seed:${seedOf(n.id)}"><i class="cmp-flare"></i><i class="cmp-corona"></i><i class="cmp-core"></i></span>
+              <span class="cmp-star" style="--seed:${seedOf(n.id)}">${n.heart ? `<i class="cmp-bloom3d" title="The ${esc(STELLARIA)}">${stellariaFlower()}</i>` : ''}<i class="cmp-flare"></i><i class="cmp-corona"></i><i class="cmp-core"></i></span>
             </button>
           </div>`;
       })
@@ -1444,7 +1445,6 @@ export class CampaignView {
     const race = a.lost ? 0 : factionById(s, a.owner).race;
     return `<div class="${cls}" data-key="ship-${a.id}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;--rot:${((angle * 180) / Math.PI).toFixed(1)}deg;--dur:${dur.toFixed(2)}s;--ac:${this.colourOf(a.owner)}">
         <div class="cmp-ship-hull" data-act="cmp-army" data-arg="${a.id}"><i class="cmp-ship-shadow"></i><div class="cmp-ship-float">${shipModel(race, !!a.lost)}</div></div>
-        <div class="cmp-ship-bb">${this.armyToken(a)}</div>
       </div>`;
   }
 
@@ -1482,14 +1482,7 @@ export class CampaignView {
   }
 
   /** An army on the map: its general's portrait in a ring of its faction's colour (dimmed once it has moved). */
-  private armyToken(a: Army): string {
-    const mine = a.owner === this.state!.playerId;
-    const cls = ['cmp-army', mine ? 'cmp-army-mine' : '', a.lost ? 'cmp-army-lost' : '', a.moved || (mine && a.refit) ? 'cmp-army-moved' : '', this.army === a.id ? 'cmp-army-on' : ''].join(' ');
-    const title = a.lost
-      ? `${armyLeader(a)}: one of the Lost Races. Beat them for their relics.`
-      : `${armyLeader(a)}'s army${mine ? (a.moved ? ' (has moved this turn)' : a.refit ? ' (refitting this turn)' : ': tap to march') : ` (${factionById(this.state!, a.owner).name})`}${a.damage ? `, ${a.damage} damage` : ''}`;
-    return `<span class="${cls}" style="--ac:${this.colourOf(a.owner)}" data-act="cmp-army" data-arg="${a.id}" title="${esc(title)}">${armyFace(a)}${a.damage ? `<i class="cmp-army-dmg">${a.damage}</i>` : ''}</span>`;
-  }
+
 
   /** Anomalies: flat phenomena on the plane (discs, clouds, rings), with an upright marker to tap. */
   private renderAnomalies(focus: CampaignNode | null, prev: CampaignNode | null, seen: Set<string>): string {
@@ -1674,7 +1667,7 @@ export class CampaignView {
     const v = this.view;
     if (!v || !this.state?.nodes.some((n) => n.col !== undefined)) return;
     for (let pass = 0; pass < 3; pass++) {
-      const marks = stage.querySelectorAll<HTMLElement>('.cmp-n3 .cmp-star, .cmp-stellaria');
+      const marks = stage.querySelectorAll<HTMLElement>('.cmp-n3 .cmp-star, .cmp-bloom3d');
       if (!marks.length) return;
       let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
       for (const m of marks) {
