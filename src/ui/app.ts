@@ -521,7 +521,8 @@ function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
 const SHIELD_PATH = 'M50 3 L93 15 V50 C93 79 75 97 50 107 C25 97 7 79 7 50 V15 Z';
 const SHIELD_FACE = 'M50 12 L84 21.5 V50 C84 73 70 88 50 96.5 C30 88 16 73 16 50 V21.5 Z';
 /** Two spears crossed, as guards at a gate. */
-const GUARD_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 14.2 10.6 6.8M12.8 14.2 5.4 6.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/><path d="M14.2 1.8 9.4 4.4 11.6 6.6Z M1.8 1.8 6.6 4.4 4.4 6.6Z" fill="currentColor"/><path d="M8.6 5.6 10.4 7.4M7.4 5.6 5.6 7.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+/** A Guard's shield: two spears crossed behind it, their heads above its shoulders. */
+const GUARD_SVG = '<svg class="guard-spears" viewBox="0 0 100 110" aria-hidden="true"><g stroke="#6b5326" stroke-width="4.5" stroke-linecap="round"><path d="M76 70 14 2"/><path d="M24 70 86 2"/></g><g fill="#efe0a8" stroke="#8a6a2c" stroke-width="2" stroke-linejoin="round"><path d="M2 -12 21 -1 9 10Z"/><path d="M98 -12 79 -1 91 10Z"/></g></svg>';
 const SHIELD_SVG = `<svg viewBox="0 0 100 110" aria-hidden="true">
   <defs>
     <linearGradient id="bs-rim" x1="0" y1="0" x2="1" y2="1">
@@ -547,6 +548,33 @@ const SHIELD_SVG = `<svg viewBox="0 0 100 110" aria-hidden="true">
   <path d="M50 5.5 L90.5 17 V50" fill="none" stroke="#fff" stroke-opacity="0.8" stroke-width="1.6" stroke-linecap="round"/>
   <ellipse cx="36" cy="32" rx="22" ry="16" fill="url(#bs-spec)"/>
   <g clip-path="url(#bs-clip)"><rect class="bs-glint" x="-40" y="-20" width="26" height="160" fill="url(#bs-glint)" transform="rotate(20 50 55)"/></g>
+</svg>`;
+/** A Guard's shield: blue steel in a gilt rim (its own gradients: each shield's ids are shared by every copy). */
+const GUARD_SHIELD_SVG = `<svg viewBox="0 0 100 110" aria-hidden="true">
+  <defs>
+    <linearGradient id="gs-rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff6d8"/><stop offset="0.35" stop-color="#b8913e"/>
+      <stop offset="0.6" stop-color="#f3e2a6"/><stop offset="1" stop-color="#7a5c22"/>
+    </linearGradient>
+    <linearGradient id="gs-face" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#dfe8fb"/><stop offset="0.55" stop-color="#7f9bd0"/><stop offset="1" stop-color="#3f5b93"/>
+    </linearGradient>
+    <radialGradient id="gs-spec" cx="0.32" cy="0.2" r="0.5">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gs-glint" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="gs-clip"><path d="${SHIELD_PATH}"/></clipPath>
+  </defs>
+  <path class="gs-rim" d="${SHIELD_PATH}" fill="url(#gs-rim)"/>
+  <path class="gs-face" d="${SHIELD_FACE}" fill="url(#gs-face)"/>
+  <path d="M50 12 L84 21.5 V50 C84 73 70 88 50 96.5 Z" fill="#0b1630" opacity="0.2"/>
+  <path d="M50 13 V96" stroke="#fff" stroke-opacity="0.45" stroke-width="1.4"/>
+  <path d="${SHIELD_FACE}" fill="none" stroke="#0b1630" stroke-opacity="0.35" stroke-width="1.6"/>
+  <path d="M50 5.5 L90.5 17 V50" fill="none" stroke="#fff" stroke-opacity="0.8" stroke-width="1.6" stroke-linecap="round"/>
+  <ellipse cx="36" cy="32" rx="22" ry="16" fill="url(#gs-spec)"/>
+  <g clip-path="url(#gs-clip)"><rect class="bs-glint" x="-40" y="-20" width="26" height="160" fill="url(#gs-glint)" transform="rotate(20 50 55)"/></g>
 </svg>`;
 
 /** Show these shields on a player's badge (kept in step with their sun while a turn plays out). */
@@ -5147,9 +5175,6 @@ export class App {
       return hover === undefined || hover === shown ? base : `<span class="pv-now">${base}</span><span class="pv-after">${icon}${hover}</span>`;
     };
     const growth = c.growth ? `<span class="growth" data-tip-title="growth" data-tip="Grown ${c.growth}: +${c.growth} attack.">${c.growth}</span>` : '';
-    // A Guard (by its own Guard, or by a wall of 3+ defence): two crossed spears on its top left corner.
-    const isGuardCard = opts.tableau && opts.owner ? isGuard(opts.owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt');
-    const guardMark = isGuardCard ? `<span class="guard-mark" data-tip-title="guard" data-tip="A Guard: rival attacks must strike it first${(def.passive ?? []).some((x) => x.type === 'taunt') ? '' : ' (its defence is 3 or more, while that holds)'}.">${GUARD_SVG}</span>` : '';
     // A campaign hero's boons (skills and gear), carried while it is in play: one tag, their text on hover.
     // (A hero's boons stand on the rail beside its slot; any other card's, from a ship module, as marks on it.)
     // (A campaign card standing in a ship's room: the room's walls and guns on it too.)
@@ -5171,14 +5196,14 @@ export class App {
     // In play: its defence (what removal must beat), attack and stability (what it can take).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. Only Repair mends it, and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: s && cardAttack(s, opts.owner, c) > 0 ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''} ${isGuard(opts.owner, c) ? 'stat-def-guard' : ''}" title="${isGuard(opts.owner, c) ? `A Guard: rival attacks must strike it first${(def.passive ?? []).some((x) => x.type === 'taunt') ? '' : ' (its defence is 3 or more, while that holds)'}. ` : ''}${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. Only Repair mends it, and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${isGuard(opts.owner, c) ? GUARD_SVG + GUARD_SHIELD_SVG : SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: s && cardAttack(s, opts.owner, c) > 0 ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (opts.owner ? isGuard(opts.owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt')) ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
     return `
       <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${growth}${guardMark}${resonance}${fusedTags}${stats}
+        ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>
@@ -5286,13 +5311,13 @@ export class App {
     const held = !c && uid ? this.viewer()?.hand.find((x) => x.uid === uid) : undefined;
     const stats =
       owner && c
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="Defence">${SHIELD_SVG}<span class="def-n">${cardDefence(owner, c)}</span></b>${cardJewels({ atk: cardAttack(this.state!, owner, c) > 0 ? cardAttack(this.state!, owner, c) : undefined, dim: c.dimmed, hp: c.health ?? 0, hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''} ${isGuard(owner, c) ? 'stat-def-guard' : ''}" title="Defence">${isGuard(owner, c) ? GUARD_SVG + GUARD_SHIELD_SVG : SHIELD_SVG}<span class="def-n">${cardDefence(owner, c)}</span></b>${cardJewels({ atk: cardAttack(this.state!, owner, c) > 0 ? cardAttack(this.state!, owner, c) : undefined, dim: c.dimmed, hp: c.health ?? 0, hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
       <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${(owner && c ? isGuard(owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt')) ? `<span class="guard-mark">${GUARD_SVG}</span>` : ''}${stats}
+        ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), c?.choice, owner && c ? this.liveNumbers(c, { owner }) : held ? this.liveNumbers(held, { hand: true }) : {})}${this.fusedTextHtml(c)}</div>
         <div class="card-kind">${typeLine(def)}</div>

@@ -2311,14 +2311,7 @@ html.rotate-ask body { overflow: hidden; }
   min-width: max(10px, calc(var(--cw, 100px) * 0.13)); height: max(10px, calc(var(--cw, 100px) * 0.13)); padding: 0 2px;
   font-size: max(6px, calc(var(--cw, 100px) * 0.075)); box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(40, 60, 40, 0.3);
 }
-/* A Guard: crossed spears on the card's top left corner. */
-.card .guard-mark {
-  position: absolute; left: calc(var(--cw, 100px) * -0.03); top: calc(var(--cw, 100px) * -0.03); z-index: 3;
-  width: max(12px, calc(var(--cw, 100px) * 0.17)); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
-  background: #5d79ab; color: #fff; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(40, 50, 80, 0.3);
-}
-.card .guard-mark svg { width: 78%; height: 78%; }
-.tpile-face .guard-mark, .tpile-face .growth { display: none; }
+.tpile-face .growth { display: none; }
 
 /* Campaign: the turn box opens the game overview. */
 button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 2px; text-align: left; cursor: pointer; }
@@ -5248,6 +5241,13 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
    of one width, centred in it; and no offset shadow to drag it down and right.) */
 .card .stat-def-floor .def-n { position: relative; margin-top: -16%; line-height: 1; text-align: center; font-variant-numeric: tabular-nums; text-shadow: 0 0 1.5px rgba(255, 255, 255, 0.95); }
 .card .stat-def-floor .bs-glint { opacity: 0; }
+/* A Guard (its own, or a wall of 3+ defence): a larger shield of blue steel with a gilt rim, two spears crossed
+   behind it, their heads above its shoulders. */
+.card .stat-def.stat-def-floor.stat-def-guard {
+  width: max(23px, calc(var(--cw, 100px) * 0.31)); color: #fff;
+}
+.card .stat-def-guard .def-n { text-shadow: 0 0 2px rgba(20, 30, 60, 0.9), 0 1px 1px rgba(20, 30, 60, 0.7); }
+.card .stat-def-floor svg.guard-spears { inset: 0; filter: none; z-index: -1; }
 /* Worn: the face reddens, the number in red. */
 .card .stat-def.stat-def-floor.stat-dented { background: none; color: #a8301a; --face1: #fff1ec; --face2: #e9b3a3; --face3: #c07763; }
 
