@@ -5996,3 +5996,14 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* The piles show a card as a thumbnail: its picture and name, no numbers. */
 .tpile-face .card-jewels, .tpile-face .stat-def-floor { display: none !important; }
 .tpile-face .card-name { font-size: max(4px, calc(var(--cw) * 0.07)); }
+
+/* ---- The rarity gem and the energy dots scale with the card, however small (no pixel floors) ---- */
+.card { --gem-s: max(3px, calc(var(--cw, 100px) * 0.08)); }
+.cost-dots i {
+  width: max(2px, calc(var(--cw, 100px) * 0.062)); height: max(2px, calc(var(--cw, 100px) * 0.062));
+  border-width: max(0.5px, calc(var(--cw, 100px) * 0.009));
+  box-shadow: 0 0 calc(var(--cw, 100px) * 0.05) rgba(110, 196, 146, 0.75), 0 calc(var(--cw, 100px) * 0.008) calc(var(--cw, 100px) * 0.016) rgba(20, 40, 30, 0.35);
+}
+.cost-dots i.over { box-shadow: 0 0 calc(var(--cw, 100px) * 0.05) rgba(242, 181, 68, 0.75), 0 calc(var(--cw, 100px) * 0.008) calc(var(--cw, 100px) * 0.016) rgba(60, 40, 10, 0.35); }
+.hand .card.card-pricey .cost-dots i { box-shadow: 0 calc(var(--cw, 100px) * 0.008) calc(var(--cw, 100px) * 0.016) rgba(20, 30, 40, 0.3); }
+.cost-dots .cost-x { font-size: max(4px, calc(var(--cw, 100px) * 0.07)); }
