@@ -5978,7 +5978,5 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* (In a preview, the number now and after side by side, smaller.) */
 .jewel .pv-now, .jewel .pv-after { font-size: 0.78em; }
 .jewel .pv-after { color: #ffd6cc; }
-/* (The type word moves left of centre, clear of the jewels.) */
-.card:has(> .jewels-tr) .card-type { left: 30%; }
 /* (Room between the pool's rows for the jewels that stand beyond the cards' top and bottom edges.) */
 .db-editor .db-pool { row-gap: max(12px, calc(var(--dbw, 120px) * 0.12)); padding-top: max(10px, calc(var(--dbw, 120px) * 0.11)); }
