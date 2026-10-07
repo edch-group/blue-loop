@@ -6,25 +6,24 @@
  */
 import type { TourStep } from './tour';
 
-/** The campaign map, as a first campaign begins: `home` and `gate` are the player's home system and its one route out. */
-export function mapTour(home: string, gate: string | null): TourStep[] {
+/** The campaign map, as a first run begins: `home` is where the flagship arrives, `hole` the wormhole past the far end. */
+export function mapTour(home: string, hole: string | null): TourStep[] {
   const node = (id: string) => `[data-act="cmp-select"][data-arg="${id}"]`;
   const purse = (n: number) => `.cmp-purse > span:nth-child(${n})`;
   return [
-    { title: 'a dying universe', text: 'The stars are going out. Come, let me show you how to outlast them.' },
-    { title: 'your home', text: 'Your home. Every world you hold pays you, each turn.', shapes: [{ sel: node(home), circle: { r: 0.62 } }] },
-    { title: 'your flagship', text: 'Your flagship. Select it, then a neighbouring star, to move or attack.', shapes: [{ sel: '.cmp-ship-hull', circle: { r: 0.85 } }] },
-    ...(gate ? [{ title: 'a failing world', text: 'Cut off and failing. Its guardians are weak: begin here.', shapes: [{ sel: node(gate), circle: { r: 0.62 } }] }] : []),
-    { title: 'credits', text: 'Credits. They repair, fortify and arm your ship.', shapes: [{ sel: purse(1), round: 'pill' as const }] },
+    { title: 'a dying universe', text: 'This universe is coming apart behind you. Come, let me show you how to outrun it.' },
+    { title: 'your flagship', text: 'Your flagship. Select it, then a neighbouring star, to move or attack. Any way you like.', shapes: [{ sel: '.cmp-ship-hull', circle: { r: 0.85 } }] },
+    { title: 'the way', text: 'Lanes of stars run the length of this reach, crossing as they go. The far end is where you must be.', shapes: [{ sel: node(home), circle: { r: 0.62 } }] },
+    ...(hole ? [{ title: 'the wormhole', text: 'A Stellari bloom, and a wormhole torn open beside it. Its guardian will not stand aside.', shapes: [{ sel: node(hole), circle: { r: 0.62 } }] }] : []),
+    { title: 'credits', text: 'Credits. Every world you take pays once. They repair and arm your ship.', shapes: [{ sel: purse(1), round: 'pill' as const }] },
     { title: 'materials', text: 'Materials. Trade them for cards at space stations.', shapes: [{ sel: purse(2), round: 'pill' as const }] },
-    { title: 'wisdom', text: 'Wisdom. It buys the secrets of research stations.', shapes: [{ sel: purse(3), round: 'pill' as const }] },
-    { title: 'your worlds', text: 'The worlds you hold. Hold most, and the universe is yours.', shapes: [{ sel: purse(4), round: 'pill' as const }] },
-    { title: 'your hero', text: 'Your hero. Tap them to find your flagship.', shapes: [{ sel: '.cmp-purse-armies', round: 'pill' as const }] },
-    { title: 'the turns', text: 'Each turn, the dark grows.', shapes: [{ sel: '.cmp-turn' }] },
-    { title: 'stability', text: 'When this runs dry, stars begin to collapse.', shapes: [{ sel: '.cmp-stability' }] },
+    { title: 'research', text: 'Research. It grows each turn, and buys the secrets of research stations.', shapes: [{ sel: purse(3), round: 'pill' as const }] },
+    { title: 'your conquests', text: 'Worlds conquered here. The more you take, the more petals you grab at the wormhole.', shapes: [{ sel: purse(4), round: 'pill' as const }] },
+    { title: 'petals', text: 'Stellari petals. They outlast everything, even you.', shapes: [{ sel: purse(5), round: 'pill' as const }] },
+    { title: 'stability', text: 'When this runs dry, the reach collapses from the end you came in by, a column at a time. Keep ahead of it.', shapes: [{ sel: '.cmp-stability' }] },
     { title: 'your base', text: 'Your base: your deck, your hero, your ship.', shapes: [{ sel: '.cmp-base-btn' }] },
-    { title: 'end the turn', text: 'When you are done, end the turn. Your rivals will move.', shapes: [{ sel: '[data-act="cmp-end-turn"]' }] },
-    { title: 'go', text: 'Now, take that failing world. I will meet you in battle.' },
+    { title: 'end the turn', text: 'When you are done, end the turn. The raiders will move.', shapes: [{ sel: '[data-act="cmp-end-turn"]' }] },
+    { title: 'go', text: 'Now, go. I will meet you in battle.' },
   ];
 }
 

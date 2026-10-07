@@ -323,3 +323,49 @@ export function lostRaidScene(name: string, system: string): StoryScene {
     lines: [oracle(`The ${name} have stripped ${system}. They do not keep what they take. They only need it for a little longer than you do.`)],
   };
 }
+
+// ---------------------------------------------------------------------------
+// The loop: universe after universe, each collapsing behind the one who crosses it
+// ---------------------------------------------------------------------------
+
+/** The Stellari's wormhole, as a new universe's strip begins (where it lies, and that it is guarded). */
+export function wormholeSightedScene(universe: number): StoryScene {
+  return {
+    id: `wormhole:${universe}`,
+    title: universe === 1 ? 'The wormhole' : `Universe ${universe}`,
+    lines:
+      universe === 1
+        ? [
+            oracle('Look to the far end of this reach. A Stellari bloom, and so much power pouring off it that space has torn open round it: a wormhole.'),
+            oracle('Beyond it lies another universe, younger, still burning. Reach it before this one collapses behind you. Something guards it. Something always does.'),
+          ]
+        : [
+            oracle(`Another universe, and another bloom at the far end of it. They burn hotter here, and so does everything guarding them.`),
+            oracle('The collapse will come sooner this time. It always does. Keep moving.'),
+          ],
+  };
+}
+
+/** Through the wormhole: the petals grabbed on the way. */
+export function wormholeCrossedScene(universe: number, petals: number): StoryScene {
+  return {
+    id: `crossed:${universe}`,
+    title: 'Through the wormhole',
+    lines: [
+      oracle(`You tore through, and as you went you caught ${petals} Stellari petal${petals === 1 ? '' : 's'}. Not the flower: never the flower. But petals keep, even when everything else is lost.`),
+      oracle('Whatever becomes of you, they will be there for the one who tries next.'),
+    ],
+  };
+}
+
+/** The run is over: the flagship is lost. */
+export function runOverScene(universe: number): StoryScene {
+  return {
+    id: 'run-over',
+    title: 'The light goes out',
+    lines: [
+      oracle(universe > 1 ? `${universe} universes. Further than most ever go.` : 'It is over, this time.'),
+      oracle('The petals you carried are safe. Spend them, and go again. The loop always comes round.'),
+    ],
+  };
+}

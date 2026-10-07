@@ -8,6 +8,7 @@ export * from './progression';
 export * from './keywords';
 export * from './cover';
 export * from './story';
+export * from './meta';
 export * from './stats';
 export * from './deckcode';
 export * from './profanity';

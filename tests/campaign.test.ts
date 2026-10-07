@@ -24,9 +24,7 @@ import {
   researchProblem,
   researchWisdom,
   shipUpgradeCost,
-  factionIncome,
   GENERALS,
-  regionalStability,
   heroState,
   heroLevel,
   SKILL_TREES,
@@ -40,12 +38,8 @@ import {
   makeItem,
   RACE_SLOTS,
   cardCost,
-  logInSight,
-  visibleNodes as seenBy,
   supernovaThreshold,
   recycleValue,
-  stabiliseProblem,
-  RACE_NAMES,
   type CampaignState,
 } from '../src/engine';
 import { BALANCE } from '../src/engine/balance';
@@ -80,36 +74,6 @@ function settle(s: CampaignState, choice: 'settle' | 'absorb' | 'supernova' = 's
 }
 
 describe('campaign setup', () => {
-  it('builds a connected 48-system map with four factions in the corners', () => {
-    const s = fresh();
-    expect(s.nodes).toHaveLength(CAMPAIGN.mapSystems);
-    // Every system is reachable from every other.
-    const seen = new Set([s.nodes[0].id]);
-    const queue = [s.nodes[0].id];
-    while (queue.length) for (const l of nodeById(s, queue.shift()!).links) if (!seen.has(l)) { seen.add(l); queue.push(l); }
-    expect(seen.size).toBe(s.nodes.length);
-    const rivals = s.factions.filter((f) => !f.lost);
-    expect(rivals).toHaveLength(4);
-    for (const f of rivals) expect(ownedNodes(s, f.id)).toHaveLength(1);
-    // Links are symmetric.
-    for (const n of s.nodes) for (const l of n.links) expect(nodeById(s, l).links).toContain(n.id);
-    // Each faction starts with one army at home, led by its race's first general, with a legal deck.
-    for (const f of rivals) {
-      const armies = armiesOf(s, f.id);
-      expect(armies).toHaveLength(1);
-      expect(armies[0].nodeId).toBe(ownedNodes(s, f.id)[0].id);
-      expect(armies[0].general).toBe(GENERALS[f.race][0]);
-      expect(armyDeckProblems(armies[0].deck, armies[0].general)).toEqual([]);
-      expect(armies[0].deck).toHaveLength(CAMPAIGN.armySize);
-    }
-    expect(new Set(rivals.map((f) => f.race)).size).toBe(4);
-    // The Lost Races wander the middle reaches, each with a leader and a few cards.
-    const lost = s.armies.filter((a) => a.lost);
-    expect(lost).toHaveLength(CAMPAIGN.lostArmies);
-    for (const a of lost) expect(armyDeckProblems(a.deck, a.general)).toEqual([]);
-    expect(campaignPlayer(s).missions).toHaveLength(CAMPAIGN.activeMissions);
-  });
-
   it('is deterministic for a seed', () => {
     expect(fresh(3)).toEqual(fresh(3));
     expect(fresh(3)).not.toEqual(fresh(4));
@@ -123,55 +87,6 @@ describe('campaign setup', () => {
     const far = s.nodes.find((n) => !n.links.includes(home(s).id) && n.id !== home(s).id)!;
     expect(() => applyCampaignAction(s, { type: 'move', armyId: myArmy(s).id, toId: far.id })).toThrow(GameError);
   });
-
-  it('puts the Heart at the centre, guarded, with Stellari blooms out in the reaches', () => {
-    const s = fresh();
-    const heart = s.nodes.filter((n) => n.heart);
-    expect(heart).toHaveLength(1);
-    expect(heart[0].x).toBe(Math.round(s.nodes.reduce((m, n) => Math.max(m, n.x), 0) > 0 ? heart[0].x : 0));
-    expect(heart[0].owner).toBeNull();
-    expect(heart[0].tier).toBe(3);
-    expect(heart[0].links.length).toBeGreaterThan(0);
-    const blooms = s.nodes.filter((n) => (n.stellaria ?? 0) > 0);
-    expect(blooms).toHaveLength(CAMPAIGN.stellariaBlooms);
-    expect(blooms.every((n) => !n.home && !n.heart)).toBe(true);
-  });
-
-  it('opens with the oracle telling the story, and each moment is told once', () => {
-    let s = fresh();
-    expect(s.story.queue[0].id).toBe('intro');
-    expect(s.story.queue[0].lines.some((l) => l.speaker.kind === 'oracle')).toBe(true);
-    s = applyCampaignAction(s, { type: 'readStory' });
-    expect(s.story.queue.find((x) => x.id === 'intro')).toBeUndefined();
-    expect(s.story.told).toContain('intro');
-  });
-
-  it('lets the player lead any race, and draws the rivals from all the others', () => {
-    const seen = new Set<number>();
-    for (let race = 0; race < RACE_NAMES.length; race++) {
-      for (const seed of [1, 2, 3]) {
-        const s = createCampaign({ seed: seed * 101 + race, race, rivals: 3 });
-        const factions = s.factions.filter((f) => !f.lost);
-        expect(campaignPlayer(s).race).toBe(race);
-        expect(new Set(factions.map((f) => f.race)).size).toBe(4);
-        for (const f of factions) {
-          if (f.isAI) seen.add(f.race);
-          const [army] = armiesOf(s, f.id);
-          expect(army.general).toBe(GENERALS[f.race][0]);
-          expect(armyDeckProblems(army.deck, army.general)).toEqual([]);
-          // Every one of its generals has a skill tree, and its slots take gear named for it.
-          for (const g of GENERALS[f.race]) expect(SKILL_TREES[g]).toHaveLength(18);
-          for (const sl of RACE_SLOTS[f.race]) expect(makeItem('x', sl.kind, 'stellar', f.race).name).toMatch(/^Bright /);
-        }
-        expect(s.story.queue[0].id).toBe('intro');
-      }
-    }
-    // Every race turns up as a rival somewhere.
-    expect([...seen].sort()).toEqual(RACE_NAMES.map((_, r) => r));
-    // The rivals depend on the seed, not only on the player's race.
-    const rivalsOf = (seed: number) => createCampaign({ seed, race: 7, rivals: 3 }).factions.filter((f) => f.isAI && !f.lost).map((f) => f.race).join();
-    expect(new Set([1, 2, 3, 4, 5, 6, 7, 8].map(rivalsOf)).size).toBeGreaterThan(1);
-  }, 30000);
 
   it('plays a new race through a battle: Pyrr armies march, fight and gain experience', () => {
     let s = createCampaign({ seed: 5, race: 7, rivals: 3 });
@@ -201,15 +116,6 @@ describe('battles and conquest', () => {
     if (!s.winner && s.turn === 1) expect(armyMoves(s, myArmy(s))).toEqual([]);
   });
 
-  it('marches the army into a system it settles, and not into one it burns', () => {
-    let s = winBattle(attack(fresh()));
-    const target = s.conquest!.nodeId;
-    const settled = applyCampaignAction(s, { type: 'conquer', choice: 'settle' });
-    expect(myArmy(settled).nodeId).toBe(target);
-    const burnt = applyCampaignAction(s, { type: 'conquer', choice: 'supernova' });
-    expect(myArmy(burnt).nodeId).toBe(home(burnt).id);
-  });
-
   it('settle takes the system; garrison cards pass to the victor', () => {
     let s = fresh();
     const target = nodeById(s, firstTarget(s));
@@ -221,22 +127,6 @@ describe('battles and conquest', () => {
     expect(campaignPlayer(s).reserve).toContain('coronal_lance');
   });
 
-  it('absorb pays out and leaves the system neutral; supernova blocks rivals for a turn', () => {
-    const win = (s: CampaignState, choice: 'absorb' | 'supernova') => {
-      const target = firstTarget(s);
-      s = winBattle(attack(s, target));
-      return { s: applyCampaignAction(s, { type: 'conquer', choice }), target };
-    };
-    const a = win(fresh(), 'absorb');
-    expect(nodeById(a.s, a.target).owner).toBeNull();
-    expect(campaignPlayer(a.s).credits).toBeGreaterThan(CAMPAIGN.startCredits + CAMPAIGN.winCredits);
-
-    const n = win(fresh(), 'supernova');
-    const node = nodeById(n.s, n.target);
-    expect(node.owner).toBeNull();
-    expect(node.hazard).toHaveLength(4); // the three rivals, and the Lost Races
-    expect(node.hazard).not.toContain(n.s.playerId);
-  });
 });
 
 describe('garrisons', () => {
@@ -380,29 +270,6 @@ describe('a full campaign', () => {
   }, 240000);
 });
 
-describe('anomalies', () => {
-  it('are scattered between systems and change battles fought from the systems they reach', async () => {
-    const { ANOMALIES, nodeAnomalies } = await import('../src/engine');
-    for (const seed of [1, 2, 3, 4]) {
-      const s = fresh(seed);
-      expect(s.anomalies!.length).toBe(CAMPAIGN.anomalies);
-      expect(new Set(s.anomalies!.map((a) => a.kind)).size).toBe(4);
-      // Every anomaly reaches at least one system; no home system starts inside one.
-      for (const a of s.anomalies!) expect(s.nodes.some((n) => nodeAnomalies(s, n).includes(a))).toBe(true);
-      for (const n of s.nodes.filter((x) => x.home)) expect(nodeAnomalies(s, n)).toHaveLength(0);
-    }
-    // A battle fought for a system inside a nebula gives its defender the nebula's shields.
-    let s = fresh(2);
-    const target = s.nodes.find((n) => nodeAnomalies(s, n).some((a) => a.kind === 'nebula'))!;
-    const home = ownedNodes(s, s.playerId)[0];
-    target.links.push(home.id);
-    home.links.push(target.id);
-    s = attack(s, target.id);
-    const defender = s.battle!.game.players[1];
-    expect(defender.modifiers?.shieldPerTurn).toBeGreaterThanOrEqual(ANOMALIES.nebula.modifiers.shieldPerTurn!);
-    expect(defender.conditions?.map((c) => c.name)).toContain('Nebula');
-  });
-});
 
 describe('stations', () => {
   it('dots armouries and research stations about the map, better stocked near anomalies', async () => {
@@ -456,22 +323,17 @@ describe('stations', () => {
 });
 
 describe('fog of war', () => {
-  it('shows only your systems and those linked to them (and the Heart), two links out from a scanner', () => {
+  it('shows a column back and three ahead of the flagship (and the wormhole), five with a scanner', () => {
     const s = fresh();
     const h = home(s);
     for (const n of s.nodes) n.scanner = false;
+    const col = (id: string) => nodeById(s, id).col ?? 0;
     const seen = visibleNodes(s, s.playerId);
-    const heart = s.nodes.find((n) => n.heart)!;
-    expect([...seen].sort()).toEqual([...new Set([h.id, ...h.links, heart.id])].sort());
-    // An army sees the routes out of where it stands.
-    const out = nodeById(s, h.links[0]);
-    myArmy(s).nodeId = out.id;
-    for (const id of out.links) expect(visibleNodes(s, s.playerId).has(id)).toBe(true);
-    myArmy(s).nodeId = h.id;
+    for (const id of seen) if (!nodeById(s, id).heart) expect(Math.abs(col(id) - h.col!)).toBeLessThanOrEqual(3);
+    expect(s.nodes.filter((n) => n.col === 3).every((n) => seen.has(n.id))).toBe(true);
     h.scanner = true;
     const wide = visibleNodes(s, s.playerId);
-    const twoOut = h.links.flatMap((id) => nodeById(s, id).links);
-    for (const id of twoOut) expect(wide.has(id)).toBe(true);
+    expect(wide.size).toBeGreaterThan(seen.size);
     expect(wide.size).toBeLessThan(s.nodes.length);
   });
 
@@ -515,80 +377,6 @@ describe('armies and generals', () => {
     expect(s.battle!.game.players[0].hero).toBe(hero);
   });
 
-  it('routes a beaten defending army back to a free system, or breaks it', () => {
-    let s = fresh();
-    const rival = s.factions[1];
-    const rivalArmy = armiesOf(s, rival.id)[0];
-    // Put the rival's army in a system next to the player's home that the rival holds.
-    const t = nodeById(s, firstTarget(s));
-    t.owner = rival.id;
-    rivalArmy.nodeId = t.id;
-    s = winBattle(attack(s, t.id));
-    expect(s.battle).toBeNull();
-    expect(armyAt(s, t.id)?.owner ?? null).not.toBe(rival.id);
-    // With nowhere of its own next door, the rival's flagship falls back to the nearest system it holds.
-    expect(armiesOf(s, rival.id)).toHaveLength(1);
-    expect(nodeById(s, armiesOf(s, rival.id)[0].nodeId).owner).toBe(rival.id);
-  });
-
-  it('wins the campaign for whoever claims the Heart', () => {
-    let s = fresh();
-    const heart = s.nodes.find((n) => n.heart)!;
-    const next = nodeById(s, heart.links[0]);
-    next.owner = s.playerId;
-    myArmy(s).nodeId = next.id;
-    s = attack(s, heart.id);
-    expect(s.battle?.game.players[1].name).toMatch(/Wardens/);
-    s = winBattle(s);
-    expect(s.winner).toBe(s.playerId);
-    expect(nodeById(s, heart.id).owner).toBe(s.playerId);
-    expect(s.story.queue.some((x) => x.id === 'victory')).toBe(true);
-  });
-
-  it('pays a Stellari bloom to whoever holds it, until it wilts', () => {
-    let s = fresh();
-    const bloom = s.nodes.find((n) => (n.stellaria ?? 0) > 0)!;
-    bloom.owner = s.playerId;
-    const plain = { ...factionIncome(s, s.playerId) };
-    expect(plain.credits).toBe(home(s).yield.credits + bloom.yield.credits + CAMPAIGN.stellariaCredits);
-    bloom.stellaria = 1;
-    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
-    if (nodeById(s, bloom.id).owner !== s.playerId) return;
-    expect(nodeById(s, bloom.id).stellaria).toBe(0);
-    expect(factionIncome(s, s.playerId).credits).toBe(ownedNodes(s, s.playerId).reduce((n, x) => n + x.yield.credits, 0));
-  });
-
-  it('dims a star now and then: the universe is dying', () => {
-    let s = fresh();
-    const total = (st: CampaignState) => st.nodes.reduce((n, x) => n + x.yield.credits + x.yield.materials, 0);
-    const before = total(s);
-    for (let i = 0; i < CAMPAIGN.dimEvery && !s.winner; i++) s = settle(applyCampaignAction(s, { type: 'endTurn' }));
-    expect(s.nodes.some((n) => n.dimmed)).toBe(true);
-    expect(total(s)).toBeLessThan(before + 10); // (absorbs can lower it too; it never grows)
-  }, 30_000); // (seven whole turns of AI battles)
-
-  it('holds together for a lead-up, then collapses systems from the rim inwards, a turn after marking them', () => {
-    let s = fresh();
-    expect(regionalStability(s)).toBe(CAMPAIGN.stabilityTurns - 1);
-    s.turn = CAMPAIGN.stabilityTurns - 1;
-    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
-    expect(regionalStability(s)).toBe(0);
-    const marked = s.nodes.filter((n) => n.collapsing);
-    expect(marked).toHaveLength(1);
-    const rim = Math.max(...s.nodes.filter((n) => !n.heart).map((n) => n.ring ?? 0));
-    expect(marked[0].ring).toBe(rim);
-    expect(s.nodes.some((n) => n.collapsed)).toBe(false);
-    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
-    const gone = nodeById(s, marked[0].id);
-    expect(gone.collapsed).toBe(true);
-    expect(gone.owner).toBeNull();
-    expect(armyAt(s, gone.id)).toBeNull();
-    // Nothing can march into it, or through it.
-    for (const a of s.armies) expect(armyMoves(s, a).some((m) => m.toId === gone.id)).toBe(false);
-    // (Unless the collapse took the player's last world, and with it the campaign.)
-    if (!s.winner) expect(s.nodes.filter((n) => n.collapsing)).toHaveLength(1);
-  });
-
   it('loses an army caught in a collapse, unless it can fall back', () => {
     let s = fresh();
     const a = myArmy(s);
@@ -600,49 +388,6 @@ describe('armies and generals', () => {
     // Its only system is gone: the player is out.
     expect(s.armies.some((x) => x.id === a.id)).toBe(false);
     expect(s.winner).not.toBeNull();
-  });
-
-  it('can stabilise a collapsing system once, for materials, holding it a few turns more', () => {
-    let s = fresh();
-    const h = home(s);
-    h.collapsing = true;
-    const me = campaignPlayer(s);
-    me.materials = 0;
-    expect(stabiliseProblem(me, h)).toMatch(/materials/);
-    me.materials = CAMPAIGN.stabiliseCost;
-    s = applyCampaignAction(s, { type: 'stabilise', nodeId: h.id });
-    expect(campaignPlayer(s).materials).toBe(0);
-    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
-    expect(nodeById(s, h.id).collapsed).toBeFalsy();
-    expect(nodeById(s, h.id).collapsing).toBeFalsy();
-    // Once only.
-    const n = nodeById(s, h.id);
-    n.collapsing = true;
-    campaignPlayer(s).materials = 99;
-    expect(stabiliseProblem(campaignPlayer(s), n)).toMatch(/once/);
-  });
-
-  it('gives every home exactly one route out, to a weakened neutral system', () => {
-    for (const seed of [1, 2, 3, 7, 11]) {
-      const s = fresh(seed);
-      for (const h of s.nodes.filter((n) => n.home)) {
-        expect(h.links).toHaveLength(1);
-        const gate = nodeById(s, h.links[0]);
-        expect(gate.gate).toBe(true);
-        expect(gate.owner).toBeNull();
-        expect(gate.tier).toBe(0);
-      }
-      // Still one connected map.
-      const seen = new Set([s.nodes[0].id]);
-      const queue = [s.nodes[0].id];
-      while (queue.length) for (const l of nodeById(s, queue.shift()!).links) if (!seen.has(l)) seen.add(l), queue.push(l);
-      expect(seen.size).toBe(s.nodes.length);
-    }
-    let s = fresh();
-    expect(armyMoves(s, myArmy(s)).filter((m) => m.battle)).toHaveLength(1);
-    s = attack(s);
-    const plain = s.battle!.game.players[1].heat;
-    expect(plain).toBeGreaterThanOrEqual(CAMPAIGN.gateHeat);
   });
 
   it('moves cards between the flagship\'s deck and the reserve one at a time, and keeps it at ten or more', () => {
@@ -717,27 +462,6 @@ describe('armies and generals', () => {
     expect(s.armies.some((a) => a.id === lost.id)).toBe(false);
     expect(campaignPlayer(s).materials).toBeGreaterThanOrEqual(before + CAMPAIGN.winMaterials + CAMPAIGN.lostRelicMaterials);
     expect(s.cardRewards.some((r) => r.source.startsWith('Relics'))).toBe(true);
-  });
-
-  it('lets the other factions move one at a time, and shows only what is in sight', () => {
-    let s = fresh();
-    s = applyCampaignAction(s, { type: 'endTurn', stepwise: true });
-    expect(s.phase).toBe('ai');
-    expect(s.aiQueue.length).toBeGreaterThan(1);
-    const before = s.aiQueue.length;
-    s = applyCampaignAction(s, { type: 'aiStep' });
-    if (!s.battle) expect(s.aiQueue.length).toBe(before - 1);
-    for (let guard = 0; guard < 20 && s.phase === 'ai'; guard++) {
-      if (s.battle) s = applyCampaignAction(s, { type: 'finishBattle', game: s.battle.game, auto: true });
-      else s = applyCampaignAction(s, { type: 'aiStep' });
-    }
-    expect(s.turn).toBe(2);
-    // News from out of sight is not the player's to know; their own doings and news everyone hears are.
-    const seen = seenBy(s, s.playerId);
-    const far = s.nodes.find((n) => !seen.has(n.id))!;
-    expect(logInSight(s, { seq: 0, turn: 1, text: 'x', at: [far.id], who: 'f2' }, s.playerId)).toBe(false);
-    expect(logInSight(s, { seq: 0, turn: 1, text: 'x', at: [far.id], who: s.playerId }, s.playerId)).toBe(true);
-    expect(logInSight(s, { seq: 0, turn: 1, text: 'x' }, s.playerId)).toBe(true);
   });
 
   it("grows heroes: experience from battles, skill points, and skills and gear that ride on the hero's card", () => {
@@ -837,19 +561,6 @@ describe('armies and generals', () => {
   });
 });
 
-describe('sun health and salvage', () => {
-  it('gives every sun 10 max health at the rim, more nearer the Heart, the same base for both sides', () => {
-    // (By depth: the way from the Heart out to the homes, in five bands.)
-    const at = (bands: number) => sunHealth({ ring: Math.round(bands * CAMPAIGN.homeRing / 5) } as never);
-    expect(sunHealth({ ring: CAMPAIGN.homeRing + 9 } as never)).toBe(10);
-    expect(at(5)).toBe(10);
-    expect(at(4)).toBe(10);
-    expect(at(3)).toBe(12);
-    expect(at(1)).toBe(19);
-    expect(sunHealth({ ring: 1 } as never)).toBe(19);
-    expect(sunHealth({ heart: true, ring: 0 } as never)).toBe(24);
-  });
-});
 
 describe('salvage', () => {
   it('offers up to three of a beaten side\'s cards, never a Hero; the one taken joins the deck while it has room', async () => {
@@ -923,26 +634,3 @@ describe('ship modules and finds', () => {
   });
 });
 
-describe('defending a neighbour', () => {
-  it('sends a hero one route away to defend a held system with no army in it, and no farther', async () => {
-    const { defenderOf } = await import('../src/engine/campaign');
-    const s = fresh();
-    const mine = myArmy(s);
-    const at = nodeById(s, mine.nodeId);
-    // A neighbour the player holds, with a rival army one route beyond it.
-    const near = nodeById(s, at.links[0]);
-    near.owner = s.playerId;
-    const rival = s.armies.find((a) => a.owner !== s.playerId && !a.lost)!;
-    const beyond = near.links.map((id) => nodeById(s, id)).find((n) => n.id !== at.id)!;
-    rival.nodeId = beyond.id;
-    expect(defenderOf(s, near, rival)).toBe(mine);
-    // Two routes away is too far.
-    const far = beyond.links.map((id) => nodeById(s, id)).find((n) => n.id !== near.id && !n.links.includes(at.id) && n.id !== at.id)!;
-    far.owner = s.playerId;
-    if (!far.links.includes(mine.nodeId)) expect(defenderOf(s, far, rival)).toBeNull();
-    // An army standing in the system defends it first.
-    const other = { ...structuredClone(mine), id: 'armyX', nodeId: near.id };
-    s.armies.push(other);
-    expect(defenderOf(s, near, rival)).toBe(other);
-  });
-});

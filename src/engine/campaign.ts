@@ -23,27 +23,23 @@ import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types
 import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeItem, RACE_SLOTS, itemValue, skillPoints, SKILL_TREES, type HeroState, type Item, type ItemRarity, type SlotKind } from './heroes';
 import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
 import { makeModule, MODULE_KINDS, moduleValue, type ShipModule } from './modules';
+import { runBonuses, type RunBonuses } from './meta';
 import {
   contactScene,
-  defeatScene,
-  dimmingScene,
   firstConquestScene,
   GENERALS,
-  HEART_NAME,
   heartSightedScene,
   introScene,
-  rivalFallsScene,
   collapseScene,
   instabilityScene,
   LOST_RACES,
   lostRaidScene,
   lostSightedScene,
-  stellariaClaimedScene,
   stellariaSightedScene,
-  stellariaWiltedScene,
-  victoryDominationScene,
-  victoryHeartScene,
   type StoryScene,
+  wormholeSightedScene,
+  wormholeCrossedScene,
+  runOverScene,
 } from './story';
 
 // ---------------------------------------------------------------------------
@@ -62,9 +58,9 @@ export const CAMPAIGN = {
   moduleChance: 0.35,
   /** Wisdom gained each turn (spent on research stations' upgrades). */
   wisdomPerTurn: 1,
-  /** Armouries and research stations on the map, and how many cards an armoury stocks (each sold once). */
-  armories: 20,
-  researchStations: 26,
+  /** Armouries and research stations on each universe's strip, and how many cards an armoury stocks (each sold once). */
+  armories: 3,
+  researchStations: 3,
   armoryStock: 6,
   /** Wisdom for a research station's upgrade, by the upgrade's tier (1–4). */
   researchWisdom: [3, 5, 8, 12],
@@ -116,11 +112,29 @@ export const CAMPAIGN = {
   dominationShare: 0.5,
   /** When this turn ends, the faction controlling the most systems wins. */
   turnLimit: 160,
-  /** The map: this many systems scattered in loose clusters over this area (map units). */
-  mapSystems: 320,
-  mapWidth: 7800,
-  mapHeight: 5000,
+  /**
+   * Each universe is a strip: `lanes` rows of systems, `columns` long, the lanes linked to their neighbours here and
+   * there so they intertwine; the wormhole lies past the far end. Map units between columns and lanes.
+   */
+  lanes: 4,
+  columns: 13,
+  colGap: 420,
+  laneGap: 330,
+  /** The map's size (map units): the strip, and the wormhole past its far end. */
+  mapSystems: 53,
+  mapWidth: 170 * 2 + 13 * 420,
+  mapHeight: 170 * 2 + 3 * 330,
   mapMargin: 170,
+  /** Worlds with something extra to find (credits or research), taken with the system. */
+  bonusPlanets: 4,
+  /** Roaming raiders: in the first universe, one more each universe after, at most. They hunt a flagship this near. */
+  raiders: 2,
+  raidersMax: 7,
+  raiderChase: 3,
+  raiderChaseChance: 0.7,
+  /** Petals grabbed at a wormhole: a few for reaching it, more for every share of the strip conquered. */
+  petalBase: 3,
+  petalShare: 12,
   /** Systems are never closer than this; routes longer than this are dropped unless needed to connect. */
   minSystemGap: 160,
   maxRoute: 690,
@@ -130,7 +144,7 @@ export const CAMPAIGN = {
   homeRing: 30,
   homeRingSlack: 3,
   /** Anomalies scattered between systems; each changes battles fought from the systems within its reach. */
-  anomalies: 16,
+  anomalies: 3,
   /** Safety cap on simulated (auto-resolved) battles. */
   battleActionCap: 6000,
   /** Damage (heat carried) an army takes when its attack is repelled, and the most it can carry. */
@@ -151,6 +165,9 @@ export const CAMPAIGN = {
    */
   stabilityTurns: 8,
   collapseRamp: 12,
+  /** Each new universe gives way sooner: this many turns fewer, down to the least. */
+  stabilityStep: 2,
+  stabilityMin: 3,
   /** The counter: stabilise a collapsing system you hold, for materials, holding it together this many turns more (once per system). */
   stabiliseCost: 8,
   stabiliseTurns: 4,
@@ -253,6 +270,13 @@ export interface CampaignNode {
   star?: StarType;
   /** An armoury or a research station: a flagship standing here can use it. */
   station?: Station;
+  /** Where it lies on the strip: its column (0 where the run starts) and lane. */
+  col?: number;
+  lane?: number;
+  /** Something extra on one of its worlds, taken with the system. */
+  bonus?: { credits?: number; wisdom?: number };
+  /** Burnt out by a supernova: nothing to take, but open to pass through. */
+  ruined?: boolean;
 }
 
 /**
@@ -462,7 +486,10 @@ export function armyBonus(s: CampaignState, a: Army) {
   const f = s.factions.find((x) => x.id === a.owner);
   const hero = heroBonus(a.general, a.lost || !f ? undefined : f.heroes?.[a.general]);
   const r = researchBonus(a.lost || !f ? undefined : f.research);
-  return { ...hero, ...r, foeMods: {} as BattleModifiers, foeHeat: 0, foeConditions: [] as { name: string; text: string }[] };
+  const bonus = { ...hero, ...r, foeMods: {} as BattleModifiers, foeHeat: 0, foeConditions: [] as { name: string; text: string }[] };
+  // (The Fold drive, bought between runs: one more move a turn.)
+  if (a.owner === s.playerId && s.run?.march) bonus.march = (bonus.march ?? 0) + s.run.march;
+  return bonus;
 }
 
 /** Who leads an army, as it is named: its general, or (a lost army) the last of its people. */
@@ -493,7 +520,18 @@ export interface CampaignLogEntry {
 }
 
 export interface CampaignState {
-  version: 5;
+  version: 6;
+  /** Which universe of the run this is (1 the first), the turn it began, and the next column to give way. */
+  universe: number;
+  universeStart: number;
+  collapseCol: number;
+  /** Systems conquered (or burnt) in this universe: what the petals at its wormhole are counted from. */
+  conquered: number;
+  /** Petals grabbed this run, and how many of them have been banked to the account's lasting progress. */
+  petals: number;
+  petalsBanked: number;
+  /** The upgrades bought between runs that this run is played with. */
+  run: RunBonuses;
   rngState: number;
   uidCounter: number;
   logSeq: number;
@@ -534,6 +572,8 @@ export interface CampaignSetup {
   rivals?: number;
   /** The hero the player leads (one of their race's, GENERALS): the first if unset. */
   hero?: string;
+  /** What the run starts with and is played under (bought with petals between runs). */
+  run?: RunBonuses;
 }
 
 export type ConquestChoice = 'settle' | 'absorb' | 'supernova';
@@ -584,7 +624,9 @@ export type CampaignAction =
   /** End the player's turn. `stepwise`: the other factions then move one at a time, each on an `aiStep`. */
   | { type: 'endTurn'; stepwise?: boolean }
   /** Let the next faction (in a stepwise end of turn) take its turn. */
-  | { type: 'aiStep' };
+  | { type: 'aiStep' }
+  /** The petals grabbed so far have been added to the account's lasting progress. */
+  | { type: 'petalsBanked' };
 
 // ---------------------------------------------------------------------------
 // Missions
@@ -603,11 +645,10 @@ export interface CampaignMissionDef {
 const stat = (key: keyof CampaignStats) => (f: Faction) => f.stats[key];
 
 export const CAMPAIGN_MISSIONS: CampaignMissionDef[] = [
-  { id: 'c_colonist', name: 'Colonist', text: 'Settle 2 systems.', target: 2, counting: true, value: stat('settled') },
-  { id: 'c_harvest', name: 'Harvest', text: 'Absorb a system.', target: 1, counting: true, value: stat('absorbed') },
+  { id: 'c_colonist', name: 'Conqueror', text: 'Conquer 3 systems.', target: 3, counting: true, value: stat('settled') },
+  { id: 'c_harvest', name: 'Veteran', text: 'Win 5 battles.', target: 5, counting: true, value: stat('battlesWon') },
   { id: 'c_scorched', name: 'Scorched Stars', text: 'Supernova a system.', target: 1, counting: true, value: stat('novas') },
   { id: 'c_bulwark', name: 'Bulwark', text: 'Win a defence.', target: 1, counting: true, value: stat('defences') },
-  { id: 'c_usurper', name: 'Usurper', text: 'Take a system from a rival faction.', target: 1, counting: true, value: stat('rivalsTaken') },
   { id: 'c_warlord', name: 'Warlord', text: 'Win 3 battles.', target: 3, counting: true, value: stat('battlesWon') },
   { id: 'c_blitz', name: 'Blitz', text: 'Win a battle within 6 rounds.', target: 1, counting: true, value: stat('swiftWins') },
   { id: 'c_cold', name: 'Cold Victory', text: 'Win a battle with your sun at 0 or colder.', target: 1, counting: true, value: stat('coldWins') },
@@ -676,6 +717,15 @@ export function visibleNodes(s: CampaignState, factionId: string): Set<string> {
   for (const n of s.nodes) if (n.owner === factionId) look(n, !!n.scanner || n.star === 'neutron');
   // An army sees the routes out of wherever it stands.
   for (const a of s.armies) if (a.owner === factionId) look(byId.get(a.nodeId)!, armyBonus(s, a).sight > 0);
+  // On the strip, the way ahead can be seen: every lane, a few columns on from the flagship and the systems held
+  // (more from a scanner), and one back.
+  const reach: [number, number][] = [];
+  for (const n of s.nodes) if (n.owner === factionId && n.col !== undefined) reach.push([n.col, n.scanner ? 5 : 3]);
+  for (const a of s.armies) if (a.owner === factionId) {
+    const c = byId.get(a.nodeId)?.col;
+    if (c !== undefined) reach.push([c, armyBonus(s, a).sight > 0 ? 5 : 3]);
+  }
+  for (const n of s.nodes) if (n.col !== undefined && reach.some(([c, r]) => n.col! >= c - 1 && n.col! <= c + r)) seen.add(n.id);
   if (s.battle) seen.add(s.battle.nodeId);
   // The Heart's light reaches everywhere: the supermassive star at the centre is always in view.
   for (const n of s.nodes) if (n.heart) seen.add(n.id);
@@ -757,7 +807,7 @@ export function buyProblem(s: CampaignState, f: Faction, n: CampaignNode, index:
   if (n.station?.kind !== 'armory') return `${n.name} has no space station.`;
   const id = n.station.cards[index];
   if (!id) return 'That card has been sold.';
-  if (f.materials < armoryPrice(id)) return `Not enough materials (need ${armoryPrice(id)}, have ${f.materials}).`;
+  if (f.materials < buyPrice(s, f, id)) return `Not enough materials (need ${buyPrice(s, f, id)}, have ${f.materials}).`;
   return null;
 }
 
@@ -770,7 +820,8 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
     const n = nodeById(s, id);
     if (n.collapsed) continue;
     const there = armyAt(s, id);
-    if (n.owner === army.owner) {
+    // (A system it holds, or a burnt-out ruin, is passed through freely.)
+    if (n.owner === army.owner || (n.ruined && !n.owner && !there)) {
       if (!there) out.push({ toId: id, battle: false });
       continue;
     }
@@ -787,21 +838,18 @@ export function surrenders(s: CampaignState, army: Army, n: CampaignNode): boole
 
 /** Turns of regional stability left before systems start to collapse (0: they are collapsing). */
 export function regionalStability(s: CampaignState): number {
-  return Math.max(0, CAMPAIGN.stabilityTurns - s.turn);
+  return Math.max(0, universeStability(s) - (s.turn - s.universeStart));
 }
 
 /** Systems that collapse each turn, once stability has run out. */
-export function collapsesPerTurn(s: CampaignState): number {
-  return 1 + Math.floor(Math.max(0, s.turn - CAMPAIGN.stabilityTurns) / CAMPAIGN.collapseRamp);
+export function collapsesPerTurn(_s: CampaignState): number {
+  // (A whole column of the strip goes each turn.)
+  return 1;
 }
 
 /** Why a faction can't stabilise a system (null if it can). */
-export function stabiliseProblem(f: Faction, n: CampaignNode): string | null {
-  if (n.owner !== f.id) return 'You do not control that system.';
-  if (!n.collapsing) return `${n.name} is not collapsing.`;
-  if (n.stableUntil !== undefined) return `${n.name} has been stabilised once already: it cannot be again.`;
-  if (f.materials < CAMPAIGN.stabiliseCost) return `Not enough materials (need ${CAMPAIGN.stabiliseCost}, have ${f.materials}).`;
-  return null;
+export function stabiliseProblem(_f: Faction, _n: CampaignNode): string | null {
+  return 'Nothing holds back the collapse: keep moving.';
 }
 
 /** Why a card can't go into an army's deck from the reserve (null if it can). There is no most. */
@@ -862,6 +910,11 @@ export function armoryPrice(defId: string): number {
   return ARMORY_PRICE[def.rarity ?? 'dwarf'] + (def.race === undefined ? 0 : ARMORY_PRICE.race);
 }
 
+/** What a card costs a faction at an armoury: the player's, less any Trade friends discount (at least 1). */
+export function buyPrice(s: CampaignState, f: Faction, defId: string): number {
+  return Math.max(1, armoryPrice(defId) - (f.id === s.playerId ? s.run?.armoryDiscount ?? 0 : 0));
+}
+
 /** Any card except a global can garrison a system. */
 export function canGarrison(defId: string): boolean {
   return cardDef(defId).kind !== 'global';
@@ -915,17 +968,9 @@ export function garrisonBonus(n: CampaignNode): GarrisonBonus {
 }
 
 /** Income each turn from the systems a faction controls (Stellari blooms included, while they last). */
-export function factionIncome(s: CampaignState, factionId: string) {
-  return ownedNodes(s, factionId).reduce(
-    (acc, n) => {
-      const bloom = (n.stellaria ?? 0) > 0;
-      return {
-        credits: acc.credits + n.yield.credits + (bloom ? CAMPAIGN.stellariaCredits : 0),
-        materials: acc.materials + n.yield.materials + (bloom ? CAMPAIGN.stellariaMaterials : 0),
-      };
-    },
-    { credits: 0, materials: 0 },
-  );
+export function factionIncome(_s: CampaignState, _factionId: string) {
+  // (No income by the turn: credits and materials come from systems taken, and the worlds with something extra.)
+  return { credits: 0, materials: 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -936,83 +981,6 @@ export function factionIncome(s: CampaignState, factionId: string) {
 export const MAP_WIDTH = CAMPAIGN.mapWidth;
 export const MAP_HEIGHT = CAMPAIGN.mapHeight;
 
-/** Rough normal sample (sum of uniforms). */
-function gauss(s: CampaignState): number {
-  return (nextRandom(s) + nextRandom(s) + nextRandom(s) + nextRandom(s) - 2) / 0.58;
-}
-
-/**
- * Scatter systems in loose clusters with voids between them, so neighbours sit
- * at irregular distances and angles: some huddle close, some lie far out.
- */
-function scatterSystems(s: CampaignState): { x: number; y: number }[] {
-  const m = CAMPAIGN.mapMargin;
-  const inside = (x: number, y: number) => x >= m && x <= MAP_WIDTH - m && y >= m && y <= MAP_HEIGHT - m;
-  const clusters = Array.from({ length: 9 }, () => ({
-    x: m + nextRandom(s) * (MAP_WIDTH - 2 * m),
-    y: m + nextRandom(s) * (MAP_HEIGHT - 2 * m),
-    spread: 140 + nextRandom(s) * 220,
-  }));
-  // Keep the four corners populated so every faction has room to start.
-  clusters.push({ x: m + 100, y: MAP_HEIGHT - m - 100, spread: 175 }, { x: MAP_WIDTH - m - 100, y: m + 100, spread: 175 });
-  clusters.push({ x: m + 100, y: m + 100, spread: 175 }, { x: MAP_WIDTH - m - 100, y: MAP_HEIGHT - m - 100, spread: 175 });
-  // The Heart first, at the very centre, with clear space round it.
-  const centre = { x: Math.round(MAP_WIDTH / 2), y: Math.round(MAP_HEIGHT / 2) };
-  const pts: { x: number; y: number }[] = [centre];
-  for (let tries = 0; pts.length < CAMPAIGN.mapSystems && tries < 20000; tries++) {
-    let x: number;
-    let y: number;
-    if (nextRandom(s) < 0.72) {
-      const c = clusters[randomInt(s, clusters.length)];
-      x = c.x + gauss(s) * c.spread;
-      y = c.y + gauss(s) * c.spread;
-    } else {
-      x = m + nextRandom(s) * (MAP_WIDTH - 2 * m);
-      y = m + nextRandom(s) * (MAP_HEIGHT - 2 * m);
-    }
-    // The gap varies too, so some pairs sit close and others keep their distance.
-    const gap = CAMPAIGN.minSystemGap * (0.85 + nextRandom(s) * 0.6);
-    if (Math.hypot(x - centre.x, y - centre.y) < CAMPAIGN.heartClearance) continue;
-    if (inside(x, y) && pts.every((p) => Math.hypot(p.x - x, p.y - y) >= gap)) pts.push({ x: Math.round(x), y: Math.round(y) });
-  }
-  return pts;
-}
-
-/**
- * Routes: a Gabriel graph (two systems link if no third lies inside the circle
- * on their route as diameter), which is planar so routes never cross. Overlong
- * routes are dropped unless they are needed to keep the map connected.
- */
-function routeSystems(s: CampaignState, pts: { x: number; y: number }[]): [number, number][] {
-  const d2 = (a: number, b: number) => (pts[a].x - pts[b].x) ** 2 + (pts[a].y - pts[b].y) ** 2;
-  const gabriel: [number, number, number][] = [];
-  // (Only pairs within reach of each other, and only the systems near them, need checking.)
-  const reach2 = (CAMPAIGN.maxRoute * 1.6) ** 2;
-  for (let a = 0; a < pts.length; a++) {
-    for (let b = a + 1; b < pts.length; b++) {
-      if (d2(a, b) > reach2) continue;
-      const mx = (pts[a].x + pts[b].x) / 2;
-      const my = (pts[a].y + pts[b].y) / 2;
-      const r2 = d2(a, b) / 4;
-      if (pts.every((p, k) => k === a || k === b || (p.x - mx) ** 2 + (p.y - my) ** 2 > r2)) gabriel.push([a, b, Math.sqrt(d2(a, b))]);
-    }
-  }
-  // Minimum spanning tree (Kruskal) keeps everything reachable.
-  const parent = pts.map((_, i) => i);
-  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
-  const tree = new Set<string>();
-  for (const [a, b] of [...gabriel].sort((x, y) => x[2] - y[2])) {
-    const ra = find(a);
-    const rb = find(b);
-    if (ra !== rb) {
-      parent[ra] = rb;
-      tree.add(`${a}-${b}`);
-    }
-  }
-  // The tree, and only some of the other routes: a sparse web whose routes wind, so the Heart lies far from
-  // every home (CAMPAIGN.homeRing routes), with choices of way all along it.
-  return gabriel.filter(([a, b, len]) => tree.has(`${a}-${b}`) || (len <= CAMPAIGN.maxRoute && nextRandom(s) < CAMPAIGN.extraRoutes)).map(([a, b]) => [a, b]);
-}
 const SYLLABLES = ['ka', 'ren', 'thu', 'vo', 'lis', 'ar', 'mek', 'ssa', 'dor', 'ix', 'ul', 'phe', 'nar', 'zo', 'qua', 'tir', 'bel', 'osh', 'ven', 'cy'];
 
 function nodeName(s: CampaignState, used: Set<string>): string {
@@ -1082,9 +1050,16 @@ export function starterDeck(race: number): string[] {
 }
 
 export function createCampaign(setup: CampaignSetup): CampaignState {
-  const rivals = Math.max(1, Math.min(3, setup.rivals ?? 3));
+  const run = setup.run ?? runBonuses(null);
   const s: CampaignState = {
-    version: 5,
+    version: 6,
+    universe: 0,
+    universeStart: 1,
+    collapseCol: 0,
+    conquered: 0,
+    petals: 0,
+    petalsBanked: 0,
+    run,
     rngState: setup.seed | 0,
     uidCounter: 0,
     logSeq: 0,
@@ -1103,216 +1078,186 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     winner: null,
     log: [],
   };
+  const race = (((setup.race ?? 0) % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
+  const hero = setup.hero && GENERALS[race].includes(setup.hero) ? setup.hero : GENERALS[race][0];
+  const ship = newShip();
+  ship.hull = Math.min(CAMPAIGN.shipMax.hull, run.hull);
+  ship.shields = Math.min(CAMPAIGN.shipMax.shields, run.shields);
+  if (run.walls) ship.rooms.defence = ship.rooms.defence.map((d) => d + run.walls);
+  const me: Faction = {
+    id: 'f1',
+    name: setup.playerName || 'Commander',
+    isAI: false,
+    race,
+    credits: CAMPAIGN.startCredits + run.credits,
+    materials: CAMPAIGN.startMaterials + run.materials,
+    wisdom: run.wisdom,
+    ship,
+    hero,
+    research: { done: [] },
+    reserve: [],
+    missions: [],
+    missionDeck: shuffleInPlace(s, CAMPAIGN_MISSIONS.map((m) => m.id)),
+    stats: emptyStats(),
+    eliminated: false,
+  };
+  s.factions.push(me);
+  // The raiders: the last of peoples the collapse has already taken, roaming the strip (and hunting).
+  s.factions.push({ id: 'lost', name: 'Raiders', isAI: true, race: 0, credits: 0, materials: 0, wisdom: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
+  for (let k = 0; k < CAMPAIGN.activeMissions; k++) drawMission(s, me);
+  buildUniverse(s, 1);
+  const army = flagship(s, me.id)!;
+  // Veterans: more of the race's own cards in the starting deck; Requisition: cards picked to start with.
+  const own = CARDS.filter((c) => c.race === race && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && !army.deck.includes(c.id));
+  army.deck.push(...own.slice(0, run.cards).map((c) => c.id));
+  // (Each Requisition: a pick of cards, the one chosen going straight into the deck.)
+  for (let k = 0; k < run.picks; k++) s.cardRewards.push({ source: 'Requisition', options: randomCardChoices(s, me), toDeck: army.id });
+  army.refit = false;
+  tell(s, introScene(me.race, me.id));
+  noticeStory(s);
+  return s;
+}
 
-  // The map: drawn again (a few times at most) until every home lies about as far from the Heart as the others.
-  let corners: CampaignNode[] = [];
-  for (let attempt = 0; attempt < 24; attempt++) {
-    s.nodes = [];
-    // Systems in loose clusters, linked by routes that never cross.
-    const used = new Set<string>();
-    const pts = scatterSystems(s);
-    const tints: MapPlanet['tint'][] = ['weapons', 'defences', 'economy', 'resources'];
-    pts.forEach((pt, i) => {
+/** Turns of regional stability a universe starts with: fewer in each new universe (and more with the Anchored space perk). */
+export function universeStability(s: CampaignState): number {
+  return Math.max(CAMPAIGN.stabilityMin, CAMPAIGN.stabilityTurns - CAMPAIGN.stabilityStep * (s.universe - 1)) + (s.run?.grace ?? 0);
+}
+
+/**
+ * A new universe: its strip of systems, the wormhole past its far end, its stations, anomalies and raiders, all
+ * tougher the further along the run is. The player's flagship arrives at a system of its own at the near end.
+ */
+function buildUniverse(s: CampaignState, universe: number) {
+  const me = campaignPlayer(s);
+  const L = CAMPAIGN.lanes;
+  const C = CAMPAIGN.columns;
+  s.universe = universe;
+  s.universeStart = s.turn;
+  s.collapseCol = 0;
+  s.conquered = 0;
+  s.nodes = [];
+  s.anomalies = [];
+  s.armies = s.armies.filter((a) => a.owner === me.id);
+  // How hard a system is: by its third of the strip, and two steps more in every universe after the first.
+  const lift = 2 * (universe - 1);
+  const used = new Set<string>();
+  const tints: MapPlanet['tint'][] = ['weapons', 'defences', 'economy', 'resources'];
+  const jitter = (n: number) => Math.round((nextRandom(s) - 0.5) * 2 * n);
+  const at = (c: number, l: number) => s.nodes[c * L + l];
+  for (let c = 0; c < C; c++) {
+    for (let l = 0; l < L; l++) {
       const name = nodeName(s, used);
-      const planets = Array.from({ length: 2 + randomInt(s, 3) }, (_, j) => ({ name: `${name} ${['I', 'II', 'III', 'IV'][j]}`, tint: tints[randomInt(s, tints.length)] }));
+      const tier = (c <= 3 ? 0 : c <= 8 ? 1 : 2) + lift;
       s.nodes.push({
-        id: `n${i}`,
+        id: `n${c * L + l}`,
         name,
-        x: pt.x,
-        y: pt.y,
-        planets,
+        x: CAMPAIGN.mapMargin + c * CAMPAIGN.colGap + (c ? jitter(55) : 0),
+        y: CAMPAIGN.mapMargin + l * CAMPAIGN.laneGap + jitter(45),
+        planets: Array.from({ length: 2 + randomInt(s, 3) }, (_, j) => ({ name: `${name} ${['I', 'II', 'III', 'IV'][j]}`, tint: tints[randomInt(s, tints.length)] })),
         owner: null,
         links: [],
         fortification: 0,
         damage: 0,
         garrison: [],
         hazard: [],
-        yield: { credits: 1 + randomInt(s, 2), materials: 1 + randomInt(s, 2) },
-        tier: 0,
+        // What taking it pays (once): more the harder it is.
+        yield: { credits: 2 + randomInt(s, 2) + tier, materials: 1 + randomInt(s, 2) + Math.floor(tier / 2) },
+        tier,
+        col: c,
+        lane: l,
       });
-    });
-    for (const [a, b] of routeSystems(s, pts)) {
-      s.nodes[a].links.push(s.nodes[b].id);
-      s.nodes[b].links.push(s.nodes[a].id);
     }
-    // The Heart: the first system placed, at the centre.
-    const heart = s.nodes[0];
-    heart.name = HEART_NAME;
-    heart.heart = true;
-    heart.tier = 3;
-    heart.yield = { credits: CAMPAIGN.heartYield, materials: CAMPAIGN.heartYield };
-    heart.planets = [];
-
-    // Factions start in the corners: the system nearest each one.
-    const cornerPts = [
-      { x: 0, y: MAP_HEIGHT },
-      { x: MAP_WIDTH, y: 0 },
-      { x: 0, y: 0 },
-      { x: MAP_WIDTH, y: MAP_HEIGHT },
-    ];
-    // Each home: in its corner of the map, the system nearest CAMPAIGN.homeRing routes from the Heart (the
-    // nearer the corner, the better, among those as far), so every race has as far to go.
-    const fromHeart = hopsFrom(s, s.nodes[0].id);
-    corners = cornerPts.map((c) =>
-      s.nodes
-        .filter((n) => !n.heart && Math.abs(n.x - c.x) < MAP_WIDTH / 2 && Math.abs(n.y - c.y) < MAP_HEIGHT / 2)
-        .sort((a, b) => Math.abs((fromHeart.get(a.id) ?? 0) - CAMPAIGN.homeRing) - Math.abs((fromHeart.get(b.id) ?? 0) - CAMPAIGN.homeRing) || Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0],
-    );
-    const rings = corners.map((n) => fromHeart.get(n.id) ?? 0);
-    if (rings.every((r) => Math.abs(r - CAMPAIGN.homeRing) <= CAMPAIGN.homeRingSlack)) break;
   }
-  const heart = s.nodes[0];
-  const playerRace = (((setup.race ?? 0) % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
-  // The rivals: drawn at random (by the campaign's own seed) from the other races, so any of them can turn up.
-  const races = [playerRace, ...shuffleInPlace(s, RACE_NAMES.map((_, r) => r).filter((r) => r !== playerRace))];
-  for (let i = 0; i <= rivals; i++) {
-    const id = `f${i + 1}`;
-    const home = corners[i];
-    const isAI = i > 0;
-    const race = races[i];
-    home.owner = id;
-    home.home = id;
-    home.yield = { credits: 3, materials: 3 };
-    // The player leads the hero they picked; each rival, its race's first.
-    const hero = !isAI && setup.hero && GENERALS[race].includes(setup.hero) ? setup.hero : GENERALS[race][0];
-    const f: Faction = {
-      id,
-      name: isAI ? RACE_NAMES[race] : setup.playerName || 'Commander',
-      isAI,
-      race,
-      credits: CAMPAIGN.startCredits,
-      materials: CAMPAIGN.startMaterials,
-      wisdom: 0,
-      ship: newShip(),
-      hero,
-      research: { done: [] },
-      reserve: [],
-      missions: [],
-      missionDeck: shuffleInPlace(s, CAMPAIGN_MISSIONS.map((m) => m.id)),
-      stats: emptyStats(),
-      eliminated: false,
-    };
-    s.factions.push(f);
-    // Every faction has one flagship, led by its hero, at home, ready to fly.
-    raiseArmy(s, f, hero, home.id).refit = false;
-    for (let k = 0; k < CAMPAIGN.activeMissions; k++) drawMission(s, f);
+  // The wormhole, past the far end, in the middle of the lanes: a Stellari bloom and its guardian.
+  const hole: CampaignNode = {
+    id: `n${C * L}`,
+    name: 'Stellari Wormhole',
+    x: CAMPAIGN.mapMargin + C * CAMPAIGN.colGap,
+    y: CAMPAIGN.mapMargin + ((L - 1) * CAMPAIGN.laneGap) / 2,
+    planets: [],
+    owner: null,
+    links: [],
+    fortification: 0,
+    damage: 0,
+    garrison: [],
+    hazard: [],
+    yield: { credits: 0, materials: 0 },
+    tier: 3 + lift,
+    col: C,
+    lane: (L - 1) / 2,
+    heart: true,
+    stellaria: 1,
+  };
+  s.nodes.push(hole);
+  const link = (a: CampaignNode, b: CampaignNode) => {
+    if (a.links.includes(b.id)) return;
+    a.links.push(b.id);
+    b.links.push(a.id);
+  };
+  // Lanes run the length of the strip; here and there two neighbouring lanes cross over (one way at a time, so
+  // routes never cross), and now and then a rung joins them within a column.
+  for (let c = 0; c < C; c++) {
+    for (let l = 0; l < L; l++) {
+      if (c + 1 < C) link(at(c, l), at(c + 1, l));
+      else link(at(c, l), hole);
+    }
+    if (c + 1 >= C) continue;
+    for (let l = 0; l + 1 < L; l++) {
+      const r = nextRandom(s);
+      if (r < 0.2) link(at(c, l), at(c + 1, l + 1));
+      else if (r < 0.4) link(at(c, l + 1), at(c + 1, l));
+      if (c > 0 && nextRandom(s) < 0.15) link(at(c, l), at(c, l + 1));
+    }
   }
-
-  // Each home has exactly one route out, towards the Heart, to a weakened neutral system.
-  for (const home of s.nodes.filter((n) => n.home)) openGate(s, home, heart);
-
-  // Anomalies settle in the voids between systems: away from the starting
-  // systems and each other, but close enough to reach at least one system.
-  const kinds: AnomalyKind[] = ['blackHole', 'nebula', 'darkMatter', 'pulsar'];
-  const homesNow = s.nodes.filter((n) => n.home);
-  const candidates: { x: number; y: number; clear: number }[] = [];
-  for (let k = 0; k < 600; k++) {
-    const x = CAMPAIGN.mapMargin + nextRandom(s) * (MAP_WIDTH - 2 * CAMPAIGN.mapMargin);
-    const y = CAMPAIGN.mapMargin + nextRandom(s) * (MAP_HEIGHT - 2 * CAMPAIGN.mapMargin);
-    const nearest = Math.min(...s.nodes.map((n) => Math.hypot(n.x - x, n.y - y)));
-    candidates.push({ x: Math.round(x), y: Math.round(y), clear: nearest });
-  }
-  candidates.sort((a, b) => b.clear - a.clear);
-  for (const c of candidates) {
-    if (s.anomalies!.length >= CAMPAIGN.anomalies) break;
-    const kind = kinds[s.anomalies!.length % kinds.length];
-    const reach = ANOMALIES[kind].radius;
-    if (c.clear < 90 || c.clear > reach * 0.85) continue; // in a gap, yet touching a system
-    if (homesNow.some((h) => Math.hypot(h.x - c.x, h.y - c.y) <= reach + 40)) continue;
-    if (s.anomalies!.some((a) => Math.hypot(a.x - c.x, a.y - c.y) < 530)) continue;
-    s.anomalies!.push({ id: `a${s.anomalies!.length}`, kind, x: c.x, y: c.y });
-  }
-
-  // Neutral systems grow stronger away from the starting corners, and towards the Heart. The core is
-  // richer too: it makes up for the worlds the dimming takes from the rim.
-  const homes = s.nodes.filter((n) => n.home);
-  const ringOf = hopsFrom(s, heart.id);
-  const fromHomes = homes.map((h) => hopsFrom(s, h.id));
-  for (const n of s.nodes) {
-    n.ring = ringOf.get(n.id) ?? Infinity;
-    if (n.home || n.heart) continue;
-    const d = Math.min(...fromHomes.map((m) => m.get(n.id) ?? Infinity));
-    const far = band(d);
-    n.tier = far <= 1 ? 0 : far <= 3 ? 1 : 2;
-    if (depth(n) <= 2) n.tier = 2;
-    else if (depth(n) <= 3) n.tier = Math.max(n.tier, 1);
-    // A home's one route always leads to the weakest foe.
-    if (n.gate) n.tier = 0;
-    const bonus = CAMPAIGN.coreYield[depth(n)] ?? 0;
-    n.yield = { credits: n.yield.credits + bonus, materials: n.yield.materials + bonus };
-  }
-  // Stars of every kind: red, white and brown dwarfs and neutron stars among the ordinary yellow ones
-  // (never at home, at a home's gate, or the Heart).
+  // The flagship's arrival: a system of its own at the near end.
+  const home = at(0, randomInt(s, L));
+  home.owner = me.id;
+  home.home = me.id;
+  home.tier = 0;
+  const army = flagship(s, me.id);
+  if (army) {
+    army.nodeId = home.id;
+    army.moved = army.refit = false;
+    army.steps = 0;
+  } else raiseArmy(s, me, me.hero ?? GENERALS[me.race][0], home.id);
+  // Stars of every kind among the ordinary yellow ones (never the arrival, nor the wormhole).
   const odds = CAMPAIGN.starOdds;
-  for (const n of s.nodes) {
-    if (n.home || n.heart || n.gate) continue;
+  const open = (n: CampaignNode) => !n.home && !n.heart;
+  for (const n of s.nodes.filter(open)) {
     const r = nextRandom(s);
     const kind: StarType | undefined = r < odds.red ? 'red' : r < odds.red + odds.white ? 'white' : r < odds.red + odds.white + odds.brown ? 'brown' : r < odds.red + odds.white + odds.brown + odds.neutron ? 'neutron' : undefined;
     if (!kind) continue;
     n.star = kind;
-    const y = n.yield;
-    if (kind === 'red') y.credits = Math.max(0, y.credits - 1);
-    if (kind === 'white') y.materials += 2;
-    if (kind === 'brown') n.yield = { credits: Math.max(0, y.credits - 1), materials: Math.max(0, y.materials - 1) };
-    if (kind === 'neutron') n.yield = { credits: y.credits + 2, materials: y.materials + 1 };
+    if (kind === 'red') n.yield.credits = Math.max(0, n.yield.credits - 1);
+    if (kind === 'white') n.yield.materials += 2;
+    if (kind === 'neutron') n.yield = { credits: n.yield.credits + 2, materials: n.yield.materials + 1 };
   }
-
-  // Finite Stellari bloom out in the middle reaches, never at home or the Heart.
-  const reaches = shuffleInPlace(s, s.nodes.filter((n) => !n.home && !n.heart && n.tier >= 1));
-  for (const n of reaches.slice(0, CAMPAIGN.stellariaBlooms)) n.stellaria = CAMPAIGN.stellariaTurns;
-
-  // The Lost Races: the last of peoples the dimming has already taken, wandering the middle reaches.
-  s.factions.push({ id: 'lost', name: 'Lost Races', isAI: true, race: 0, credits: 0, materials: 0, wisdom: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
-  const homesNear = (n: CampaignNode) => s.nodes.some((h) => h.home && (h.id === n.id || h.links.includes(n.id)));
-  const haunts = shuffleInPlace(s, s.nodes.filter((n) => !n.home && !n.heart && !n.gate && !homesNear(n) && depth(n) >= 2 && !armyAt(s, n.id)));
-  for (const n of haunts.slice(0, CAMPAIGN.lostArmies)) raiseLost(s, n);
-
-  // Armouries and research stations, dotted about the map (never at home, a home's gate or the Heart).
-  // Those within an anomaly's reach are better stocked: rarer cards, deeper research.
-  const sites = shuffleInPlace(s, s.nodes.filter((n) => !n.home && !n.heart && !n.gate));
+  // Anomalies, in the gaps between columns (each touching the systems round it).
+  const kinds: AnomalyKind[] = ['blackHole', 'nebula', 'darkMatter', 'pulsar'];
+  const gaps = shuffleInPlace(s, Array.from({ length: C - 3 }, (_, i) => i + 2));
+  for (const c of gaps.slice(0, CAMPAIGN.anomalies)) {
+    const l = randomInt(s, L - 1);
+    s.anomalies!.push({ id: `a${s.anomalies!.length}`, kind: kinds[randomInt(s, kinds.length)], x: Math.round(CAMPAIGN.mapMargin + (c + 0.5) * CAMPAIGN.colGap), y: Math.round(CAMPAIGN.mapMargin + (l + 0.5) * CAMPAIGN.laneGap) });
+  }
+  // Armouries and research stations along the strip; those within an anomaly's reach are better stocked.
+  const sites = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2));
   for (const n of sites.slice(0, CAMPAIGN.armories)) n.station = { kind: 'armory', cards: armoryStock(s, n) };
-  const projects = new Set<string>();
+  const projects = new Set<string>(me.research?.done ?? []);
   for (const n of sites.slice(CAMPAIGN.armories, CAMPAIGN.armories + CAMPAIGN.researchStations)) {
     const project = pickResearch(s, n, projects);
     projects.add(project);
     n.station = { kind: 'research', project };
   }
-  // Scanner arrays on about one system in six (never a home, nor the Heart).
-  for (const n of s.nodes) n.scanner = !n.home && !n.heart && randomInt(s, 6) === 0;
-  clog(s, `The campaign begins. ${s.factions.filter((f) => !f.lost).map((f) => `${f.name} holds ${nodeById(s, s.nodes.find((n) => n.home === f.id)!.id).name}`).join('; ')}.`);
-  const me = campaignPlayer(s);
-  tell(s, introScene(me.race, me.id));
-  noticeStory(s);
-  return s;
-}
-
-/**
- * Cut a home's routes down to one: the neighbour nearest the Heart, which becomes its gate. Any system
- * left cut off by that is linked back to the nearest system still joined up (other than the home).
- */
-function openGate(s: CampaignState, home: CampaignNode, heart: CampaignNode) {
-  const hops = hopsFrom(s, heart.id);
-  const near = (n: CampaignNode) => (hops.get(n.id) ?? Infinity) * 1e6 + Math.hypot(n.x - heart.x, n.y - heart.y);
-  const neighbours = home.links.map((id) => nodeById(s, id)).filter((n) => !n.home);
-  const gate = neighbours.sort((a, b) => near(a) - near(b))[0];
-  if (!gate) return;
-  for (const id of home.links) if (id !== gate.id) nodeById(s, id).links = nodeById(s, id).links.filter((x) => x !== home.id);
-  home.links = [gate.id];
-  gate.gate = true;
-  gate.owner = null;
-  // Rejoin anything the cut left stranded.
-  for (;;) {
-    const joined = new Set([heart.id]);
-    const queue = [heart.id];
-    while (queue.length) for (const l of nodeById(s, queue.shift()!).links) if (!joined.has(l)) joined.add(l), queue.push(l);
-    const stray = s.nodes.find((n) => !joined.has(n.id));
-    if (!stray) return;
-    // (A home cut off with its gate rejoins by the gate: a home keeps its one route.)
-    const lost = stray.home ? nodeById(s, stray.links[0]) : stray;
-    const to = s.nodes.filter((n) => joined.has(n.id) && !n.home).sort((a, b) => Math.hypot(a.x - lost.x, a.y - lost.y) - Math.hypot(b.x - lost.x, b.y - lost.y))[0];
-    lost.links.push(to.id);
-    to.links.push(lost.id);
+  // Worlds with something extra: credits or research, taken with the system.
+  for (const [i, n] of sites.slice(CAMPAIGN.armories + CAMPAIGN.researchStations, CAMPAIGN.armories + CAMPAIGN.researchStations + CAMPAIGN.bonusPlanets).entries()) {
+    n.bonus = i % 2 ? { wisdom: 3 + Math.floor(n.tier / 2) } : { credits: 4 + n.tier };
   }
+  for (const n of s.nodes) n.scanner = open(n) && randomInt(s, 6) === 0;
+  // The raiders: a few to start with, more in each universe, out past the first third.
+  const haunts = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 4));
+  for (const n of haunts.slice(0, Math.min(CAMPAIGN.raidersMax, CAMPAIGN.raiders + universe - 1))) raiseLost(s, n);
+  clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into universe ${universe}, at ${home.name}.`);
+  tell(s, wormholeSightedScene(universe));
 }
 
 /** A new army, led by `general`, standing in `nodeId`. */
@@ -1349,23 +1294,6 @@ function noticeStory(s: CampaignState) {
       tell(s, contactScene(rival.race, rivalGeneral, rival.id, myGeneral, me.id));
     }
   }
-}
-
-/** Routes from one system to every other (one sweep; collapsed systems block the way). */
-function hopsFrom(s: CampaignState, from: string): Map<string, number> {
-  const byId = new Map(s.nodes.map((n) => [n.id, n]));
-  const seen = new Map<string, number>([[from, 0]]);
-  const queue = [from];
-  for (let q = 0; q < queue.length; q++) {
-    const id = queue[q];
-    for (const next of byId.get(id)!.links) {
-      if (!seen.has(next) && !byId.get(next)!.collapsed) {
-        seen.set(next, seen.get(id)! + 1);
-        queue.push(next);
-      }
-    }
-  }
-  return seen;
 }
 
 function hops(s: CampaignState, from: string, to: string): number {
@@ -1460,13 +1388,17 @@ function randomCardChoices(s: CampaignState, f: Faction): string[] {
 function stationDeck(s: CampaignState, n: CampaignNode, race?: number): string[] {
   if (n.heart) {
     const w = wardenDeck(s).filter((id) => cardDef(id).kind !== 'command');
-    return [...w.slice(8, 14), ...shuffleInPlace(s, [...w.slice(0, 8), ...w.slice(14)]).slice(0, CAMPAIGN.heartDeck - 6)];
+    // (The wormhole's guardian: bigger in every universe.)
+    const size = Math.min(20, CAMPAIGN.heartDeck + 2 * (s.universe - 1));
+    return [...w.slice(8, 14), ...shuffleInPlace(s, [...w.slice(0, 8), ...w.slice(14)]).slice(0, size - 6)];
   }
-  const tier = Math.max(0, Math.min(2, n.tier));
+  const tier = Math.max(0, n.tier);
   const pool = (race === undefined ? neutralDeck(s, tier) : starterDeck(race)).filter((id) => cardDef(id).kind !== 'command');
+  // (Bigger the harder it is: 4 cards at first, 2 more a tier, up to a full 20.)
+  const size = Math.min(20, 4 + 2 * tier);
   const deck: string[] = [];
   for (const id of shuffleInPlace(s, pool)) {
-    if (deck.length >= CAMPAIGN.stationDeck[tier]) break;
+    if (deck.length >= size) break;
     if (deck.filter((x) => x === id).length < copyLimit(id)) deck.push(id);
   }
   return deck;
@@ -1474,7 +1406,7 @@ function stationDeck(s: CampaignState, n: CampaignNode, race?: number): string[]
 
 /** A station's rooms: walls as thick as its tier. */
 function stationRooms(n: CampaignNode): ShipRooms {
-  const d = n.heart ? 2 : Math.max(0, Math.min(2, n.tier));
+  const d = Math.min(3, Math.max(0, n.heart ? 2 + Math.floor(n.tier / 3) : Math.floor(n.tier / 2)));
   return { defence: [d, d, d, d, d], attack: [0, 0, 0, 0, 0], command: 0 };
 }
 
@@ -1494,18 +1426,21 @@ function flagshipSetup(s: CampaignState, army: Army): Pick<PlayerSetup, 'hero' |
   };
 }
 
-/** Neutral sentinels' decks, by tier: the plain starter at first, then with a pair of each race's cards mixed in. */
+/**
+ * Neutral sentinels' decks, by tier: the plain starter at first, then with stronger and stronger cards mixed in
+ * (four more a tier, the heaviest last), so that far enough into a run every garrison is fearsome.
+ */
+const SENTINEL_EXTRAS = ['solar_battery', 'solar_battery', 'frost_bulwark', 'frost_bulwark', 'ion_cannon', 'ion_cannon', 'solar_maximum', 'ice_age', 'stellar_aegis', 'stellar_aegis', 'dreadnought', 'dreadnought', 'star_breaker', 'star_breaker', 'meltdown', 'meltdown'];
 function neutralDeck(s: CampaignState, tier: number): string[] {
   const deck = starterDeck(randomInt(s, RACE_NAMES.length));
   // (None of these is in a starting deck already: a deck holds at most two of a card.)
-  const extras = [[], ['solar_battery', 'solar_battery', 'frost_bulwark', 'frost_bulwark'], ['solar_battery', 'solar_battery', 'frost_bulwark', 'frost_bulwark', 'ion_cannon', 'ion_cannon', 'solar_maximum', 'ice_age']][tier] ?? [];
-  extras.forEach((id, i) => (deck[i] = id));
+  SENTINEL_EXTRAS.slice(0, Math.max(0, tier) * 4).forEach((id, i) => (deck[i] = id));
   return deck;
 }
 
 /** The Heart Wardens' deck: the strongest sentinels, with the heaviest neutral cards mixed in. */
 function wardenDeck(s: CampaignState): string[] {
-  const deck = neutralDeck(s, 2);
+  const deck = neutralDeck(s, Math.max(2, s.universe * 2));
   ['star_breaker', 'star_breaker', 'dreadnought', 'dreadnought', 'stellar_aegis', 'stellar_aegis'].forEach((id, i) => (deck[8 + i] = id));
   return deck;
 }
@@ -1516,14 +1451,14 @@ function wardenDeck(s: CampaignState): string[] {
  */
 export function depth(n: CampaignNode): number {
   if (n.heart) return 0;
-  return Math.ceil(((n.ring ?? Infinity) * 5) / CAMPAIGN.homeRing);
+  // (On the strip: the harder a system, the deeper it counts, for finds and the like.)
+  return Math.max(1, 5 - n.tier);
 }
-const band = (hops: number) => Math.ceil((hops * 5) / CAMPAIGN.homeRing);
 
 /** A battle's suns' max health, from how near the Heart its system lies (as a change to the card game's). */
 export function sunHealth(n: CampaignNode): number {
-  const t = CAMPAIGN.sunHealth;
-  return n.heart ? t[0] : t[Math.min(t.length - 1, Math.max(1, depth(n)))];
+  // (10 at the near end of the first universe, 3 more a tier, up to 30; the wormhole's guardian's the most.)
+  return Math.min(30, 10 + 3 * Math.max(0, n.tier) + (n.heart ? 2 : 0));
 }
 function sunBase(n: CampaignNode): BattleModifiers {
   return { maxHealthDelta: sunHealth(n) - BALANCE.supernovaAt };
@@ -1661,7 +1596,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   const target = nodeById(s, toId);
   if (!here.links.includes(toId)) throw new GameError('There is no route between those systems.');
   if (target.collapsed) throw new GameError(`${target.name} has collapsed. There is nothing left there.`);
-  if (target.owner === f.id) {
+  if (target.owner === f.id || (target.ruined && !target.owner && !armyAt(s, toId))) {
     if (armyAt(s, toId)) throw new GameError(`An army already stands in ${target.name}.`);
     army.nodeId = toId;
     army.steps = (army.steps ?? 0) + 1;
@@ -1692,9 +1627,11 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   const guard = defenderOf(s, target, army);
   if (guard && guard.nodeId !== toId) clog(s, `${armyLeader(guard)} comes from ${nodeById(s, guard.nodeId).name} to defend ${target.name}.`, [guard.nodeId, toId], guard.owner);
   clog(s, army.lost ? `${armyLeader(army)} strike from ${here.name} at ${target.name} (${players[1].name}).` : `${armyLeader(army)} leads ${f.name}'s army from ${here.name} against ${target.name} (${players[1].name}).`, [here.id, target.id], f.id);
-  s.battle = { attacker: f.id, defender: target.owner, fromId: here.id, nodeId: toId, armyId: army.id, defenderArmyId: guard?.id ?? null, game };
+  // (A flagship standing in a system no one holds, a ruin, defends it for its own side.)
+  const defenderId = target.owner ?? (guard && !guard.lost ? guard.owner : null);
+  s.battle = { attacker: f.id, defender: defenderId, fromId: here.id, nodeId: toId, armyId: army.id, defenderArmyId: guard?.id ?? null, game };
   // Battles between AI factions (or neutrals) are resolved at once; a human fights their own.
-  const playerInvolved = !f.isAI || (target.owner !== null && !factionById(s, target.owner).isAI);
+  const playerInvolved = !f.isAI || (defenderId !== null && !factionById(s, defenderId).isAI);
   if (!playerInvolved) resolveBattle(s, simulateBattle(game));
 }
 
@@ -1705,9 +1642,13 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
 function rout(s: CampaignState, army: Army) {
   const here = nodeById(s, army.nodeId);
   const free = (n: CampaignNode) => n.owner === army.owner && !n.collapsed && !armyAt(s, n.id);
+  // (A flagship with nowhere of its own to go limps to any free system next door, on along the strip if it can,
+  // out of the collapse's way: only with nowhere at all is it lost.)
+  const open = (n: CampaignNode) => !n.collapsed && !n.collapsing && !n.heart && !armyAt(s, n.id);
   const refuge =
     here.links.map((id) => nodeById(s, id)).find(free) ??
-    (army.lost ? undefined : s.nodes.filter(free).sort((a, b) => hops(s, here.id, a.id) - hops(s, here.id, b.id))[0]);
+    (army.lost ? undefined : s.nodes.filter(free).sort((a, b) => hops(s, here.id, a.id) - hops(s, here.id, b.id))[0]) ??
+    (army.lost ? undefined : here.links.map((id) => nodeById(s, id)).filter(open).sort((a, b) => (b.col ?? 0) - (a.col ?? 0))[0]);
   if (refuge) {
     army.nodeId = refuge.id;
     army.damage = CAMPAIGN.maxDamage;
@@ -1720,6 +1661,7 @@ function rout(s: CampaignState, army: Army) {
     return;
   }
   clog(s, `${cardDef(army.general).name}'s flagship has nowhere left to go.`, here.id, army.owner);
+  checkEliminated(s, factionById(s, army.owner));
 }
 
 /**
@@ -1747,7 +1689,7 @@ export function salvageOptions(s: CampaignState, game: GameState): string[] {
     const j = Math.floor(next() * (i + 1));
     [ids[i], ids[j]] = [ids[j], ids[i]];
   }
-  return ids.slice(0, CAMPAIGN.salvageChoices);
+  return ids.slice(0, CAMPAIGN.salvageChoices + (s.run?.salvage ?? 0));
 }
 
 /** A battle's own random numbers for its spoils: the same every time they're asked for (shown, then taken). */
@@ -1914,57 +1856,52 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   checkMissions(s);
 }
 
+/**
+ * A system taken. Conquered ('settle', or 'absorb' from older saves), it is held: it pays once (its credits and
+ * materials), and counts towards the petals at the wormhole. Driven to supernova instead, it pays double, but is
+ * left a burnt-out ruin that counts for nothing. Either way its extras (credits or research) are taken. The
+ * wormhole's guardian beaten, the flagship goes through, into the next universe.
+ */
 function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: ConquestChoice, army?: Army) {
-  const prevOwner = n.owner ? factionById(s, n.owner) : null;
-  // Everything held in the garrison, arriving and leaving too, goes to the victor.
+  // Everything held in the garrison goes to the victor.
   const spoils = n.garrison.map((g) => g.defId);
   f.reserve.push(...spoils);
   n.garrison = [];
   if (spoils.length) clog(s, `${f.name} seizes ${spoils.map((id) => cardDef(id).name).join(', ')} from ${n.name}.`, n.id, f.id);
-  if (prevOwner) f.stats.rivalsTaken += 1;
-  // The first world taken: the guide reflects on the choice.
+  if (n.heart) {
+    if (army && s.armies.includes(army)) army.nodeId = n.id;
+    crossWormhole(s, f);
+    return;
+  }
   if (f.id === s.playerId && f.stats.settled + f.stats.absorbed + f.stats.novas === 0) tell(s, firstConquestScene());
   n.home = undefined;
   n.gate = undefined;
-
-  if (choice === 'settle') {
-    n.owner = f.id;
-    n.damage = 0;
-    f.stats.settled += 1;
-    clog(s, `${f.name} settles ${n.name}.`, n.id, f.id);
-    if (army && s.armies.includes(army) && !armyAt(s, n.id)) army.nodeId = n.id;
-    if (f.id === s.playerId && (n.stellaria ?? 0) > 0) tell(s, stellariaClaimedScene());
-  } else if (choice === 'absorb') {
-    const credits = n.yield.credits * CAMPAIGN.absorbTurns;
-    const materials = n.yield.materials * CAMPAIGN.absorbTurns;
-    f.credits += credits;
-    f.materials += materials;
+  const nova = choice === 'supernova';
+  const credits = n.yield.credits * (nova ? 2 : 1);
+  const materials = n.yield.materials * (nova ? 2 : 1);
+  f.credits += credits;
+  f.materials += materials;
+  if (n.bonus?.credits) f.credits += n.bonus.credits;
+  if (n.bonus?.wisdom) f.wisdom = (f.wisdom ?? 0) + n.bonus.wisdom;
+  const extra = n.bonus?.credits ? ` and ${n.bonus.credits} more from its treasury` : n.bonus?.wisdom ? ` and ${n.bonus.wisdom} research from its archives` : '';
+  n.bonus = undefined;
+  n.yield = { credits: 0, materials: 0 };
+  n.damage = 0;
+  n.fortification = 0;
+  if (nova) {
     n.owner = null;
-    n.fortification = 0;
-    n.yield = { credits: Math.max(0, n.yield.credits - 1), materials: Math.max(0, n.yield.materials - 1) };
+    n.ruined = true;
     n.tier = 0;
-    f.stats.absorbed += 1;
-    clog(s, `${f.name} absorbs ${n.name}: +${credits} credits, +${materials} materials. The system is left depleted.`, n.id, f.id);
-  } else {
-    n.owner = null;
-    n.fortification = 0;
-    n.damage = 0;
-    n.tier = 0;
-    n.hazard = s.factions.filter((o) => !o.eliminated && o.id !== f.id).map((o) => o.id);
     f.stats.novas += 1;
-    clog(s, `${f.name} drives ${n.name}'s sun to supernova. No rival can advance into it for a turn.`, n.id, f.id);
+    clog(s, `${f.name} drives ${n.name}'s sun to supernova: +${credits} credits, +${materials} materials${extra}. Nothing is left but the way through.`, n.id, f.id);
+  } else {
+    n.owner = f.id;
+    f.stats.settled += 1;
+    s.conquered += 1;
+    clog(s, `${f.name} conquers ${n.name}: +${credits} credits, +${materials} materials${extra}.`, n.id, f.id);
   }
-
-  if (prevOwner) checkEliminated(s, prevOwner);
-  // Whoever claims the Heart claims the Infinite Stellari, and the campaign.
-  if (n.heart && n.owner === f.id && !s.winner) {
-    s.winner = f.id;
-    clog(s, `${f.name} claims ${HEART_NAME}, and the Infinite Stellari with it.`);
-    const general = (army && s.armies.includes(army) ? army.general : armiesOf(s, f.id)[0]?.general) ?? GENERALS[f.race][0];
-    tell(s, f.id === s.playerId ? victoryHeartScene(general, f.id, f.race) : defeatScene(f.race, true));
-    return;
-  }
-  checkVictory(s);
+  // The victors march in (a ruin is passed through like any other).
+  if (army && s.armies.includes(army) && !armyAt(s, n.id)) army.nodeId = n.id;
 }
 
 /** Gear found by an army in a system it took: better the deeper the system lies. */
@@ -2051,7 +1988,7 @@ function buyCard(s: CampaignState, f: Faction, n: CampaignNode, index: number) {
   if (why) throw new GameError(why);
   const st = n.station as Extract<Station, { kind: 'armory' }>;
   const id = st.cards[index];
-  f.materials -= armoryPrice(id);
+  f.materials -= buyPrice(s, f, id);
   st.cards.splice(index, 1);
   f.reserve.push(id);
   clog(s, `${f.name} buys ${cardDef(id).name} at ${n.name}'s space station.`, n.id, f.id);
@@ -2102,13 +2039,12 @@ function aiShip(f: Faction) {
 
 /** A faction with no systems left is out: with no worlds to supply them, its armies scatter. */
 function checkEliminated(s: CampaignState, f: Faction) {
-  if (f.eliminated || f.lost || ownedNodes(s, f.id).length > 0) return;
+  // (A run ends when its flagship is lost: systems come and go with every universe.)
+  if (f.eliminated || f.lost || armiesOf(s, f.id).length > 0) return;
   f.eliminated = true;
   s.aiQueue = s.aiQueue.filter((id) => id !== f.id);
-  for (const node of s.nodes) node.hazard = node.hazard.filter((id) => id !== f.id);
-  s.armies = s.armies.filter((a) => a.owner !== f.id);
-  clog(s, `${f.name} has lost every system and is eliminated.`);
-  if (f.id !== s.playerId) tell(s, rivalFallsScene(f.race, f.id));
+  clog(s, `${f.name}'s flagship is lost.`);
+  checkVictory(s);
 }
 
 /** A system gives way: whatever stood there is lost, and an army there falls back if it can. */
@@ -2127,49 +2063,51 @@ function collapse(s: CampaignState, n: CampaignNode) {
   n.scanner = false;
   n.home = undefined;
   clog(s, `${n.name} collapses into the dark.`, n.id);
-  if (army) rout(s, army);
-  if (owner) checkEliminated(s, owner);
+  // (Whatever stands there goes with it.)
+  if (army) {
+    s.armies = s.armies.filter((a) => a !== army);
+    clog(s, `${armyLeader(army)}${army.lost ? '' : "'s flagship"} goes down with ${n.name}.`, n.id, army.owner);
+    checkEliminated(s, factionById(s, army.owner));
+  }
+  void owner;
 }
 
-/** The next systems to collapse: the farthest from the Heart (ties at random), passing over any held stable. */
+/** The next column of the strip to give way, from the near end: marked a turn before it goes (the wormhole last). */
 function markCollapses(s: CampaignState) {
-  const n = collapsesPerTurn(s);
-  for (let i = 0; i < n; i++) {
-    const open = s.nodes.filter((x) => !x.heart && !x.collapsed && !x.collapsing && !((x.stableUntil ?? 0) > s.turn));
-    if (!open.length) return;
-    const far = Math.max(...open.map((x) => x.ring ?? 0));
-    const rimAll = open.filter((x) => (x.ring ?? 0) === far);
-    // A red dwarf outlasts the rest of its ring.
-    const rim = rimAll.some((x) => x.star !== 'red') ? rimAll.filter((x) => x.star !== 'red') : rimAll;
-    const pick = rim[randomInt(s, rim.length)];
-    pick.collapsing = true;
-    clog(s, `${pick.name} is collapsing: it will be gone next turn.`, pick.id);
-  }
+  const col = s.collapseCol;
+  const marked = s.nodes.filter((x) => x.col === col && !x.collapsed);
+  s.collapseCol += 1;
+  if (!marked.length) return;
+  for (const n of marked) n.collapsing = true;
+  clog(s, `Column ${col + 1} of the strip is collapsing: it will be gone next turn.`, marked.map((n) => n.id));
   tell(s, collapseScene());
 }
 
+/** The run is over once the player's flagship is lost (there is no winning: only how far it got). */
 function checkVictory(s: CampaignState) {
   if (s.winner) return;
-  const living = s.factions.filter((f) => !f.eliminated && !f.lost);
   const player = campaignPlayer(s);
-  if (player.eliminated) {
-    const top = [...living].sort((a, b) => ownedNodes(s, b.id).length - ownedNodes(s, a.id).length)[0];
-    s.winner = top?.id ?? 'none';
-    clog(s, `${player.name} has fallen. ${top?.name ?? 'No one'} dominates the universe.`);
-    tell(s, defeatScene(top?.race ?? 0, false));
-    return;
-  }
-  // (Half of what is left: the collapse shrinks the universe.)
-  const standing = s.nodes.filter((n) => !n.collapsed).length;
-  for (const f of living) {
-    const share = ownedNodes(s, f.id).length / Math.max(1, standing);
-    if (living.length === 1 || share >= CAMPAIGN.dominationShare) {
-      s.winner = f.id;
-      clog(s, `${f.name} dominates the universe!`);
-      tell(s, f.id === s.playerId ? victoryDominationScene() : defeatScene(f.race, false));
-      return;
-    }
-  }
+  if (!player.eliminated && armiesOf(s, player.id).length === 0) player.eliminated = true;
+  if (!player.eliminated) return;
+  s.winner = 'none';
+  clog(s, `The run is over, in universe ${s.universe}, with ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed.`);
+  tell(s, runOverScene(s.universe));
+}
+
+/** Petals grabbed at a wormhole: a few for reaching it, more for every share of the strip conquered, more each universe. */
+export function wormholePetals(s: CampaignState): number {
+  const systems = s.nodes.filter((n) => !n.heart && !n.home).length;
+  const share = Math.min(1, s.conquered / Math.max(1, systems));
+  return Math.max(1, Math.round((CAMPAIGN.petalBase + CAMPAIGN.petalShare * share) * (1 + 0.5 * (s.universe - 1)) * (1 + (s.run?.petalBonus ?? 0))));
+}
+
+/** Through the wormhole: petals grabbed, and on into the next universe (the flagship and everything aboard come too). */
+function crossWormhole(s: CampaignState, f: Faction) {
+  const petals = wormholePetals(s);
+  s.petals += petals;
+  clog(s, `${f.name} takes the wormhole, grabbing ${petals} Stellari petal${petals === 1 ? '' : 's'} on the way through.`);
+  tell(s, wormholeCrossedScene(s.universe, petals));
+  buildUniverse(s, s.universe + 1);
 }
 
 function checkMissions(s: CampaignState) {
@@ -2195,14 +2133,6 @@ function checkMissions(s: CampaignState) {
 // ---------------------------------------------------------------------------
 
 function newTurn(s: CampaignState) {
-  if (s.turn >= CAMPAIGN.turnLimit) {
-    const living = s.factions.filter((f) => !f.eliminated && !f.lost);
-    const best = [...living].sort((a, b) => ownedNodes(s, b.id).length - ownedNodes(s, a.id).length || (a.id === s.playerId ? -1 : 1))[0];
-    s.winner = best.id;
-    clog(s, `The campaign's ${CAMPAIGN.turnLimit} turns are over. ${best.name} controls the most systems and dominates the universe.`);
-    tell(s, best.id === s.playerId ? victoryDominationScene() : defeatScene(best.race, false));
-    return;
-  }
   s.turn += 1;
   s.phase = 'player';
   // Garrison movements take a turn: arrivals take up station, departures return.
@@ -2213,13 +2143,8 @@ function newTurn(s: CampaignState) {
     if (owner) owner.reserve.push(...leaving.map((g) => g.defId));
     n.garrison = n.garrison.filter((g) => g.status !== 'leaving');
   }
-  for (const f of s.factions) {
-    if (f.eliminated) continue;
-    const inc = factionIncome(s, f.id);
-    f.credits += inc.credits;
-    f.materials += inc.materials;
-    if (!f.lost) f.wisdom = (f.wisdom ?? 0) + CAMPAIGN.wisdomPerTurn;
-  }
+  // Research goes on every turn (credits and materials come only from what is taken).
+  for (const f of s.factions) if (!f.eliminated && !f.lost) f.wisdom = (f.wisdom ?? 0) + CAMPAIGN.wisdomPerTurn;
   for (const a of s.armies) {
     a.moved = a.refit = false;
     a.steps = 0;
@@ -2227,38 +2152,16 @@ function newTurn(s: CampaignState) {
     const mend = armyBonus(s, a).mend;
     if (mend && a.damage) a.damage = Math.max(0, a.damage - mend);
   }
-  // Stellari blooms held this turn give their last, and wilt in time.
-  for (const n of s.nodes) {
-    if (!n.owner || !((n.stellaria ?? 0) > 0)) continue;
-    n.stellaria! -= 1;
-    if (n.stellaria === 0) {
-      clog(s, `The Stellari bloom on ${n.name} wilts.`, n.id);
-      if (n.owner === s.playerId) tell(s, stellariaWiltedScene());
-    }
-  }
-  // The dimming: now and then a star gutters, and its worlds yield less.
-  if (s.turn % CAMPAIGN.dimEvery === 0) {
-    const lit = s.nodes.filter((n) => !n.heart && !n.collapsed && n.star !== 'red' && n.yield.credits + n.yield.materials > 0);
-    if (lit.length) {
-      const n = lit[randomInt(s, lit.length)];
-      n.yield = { credits: Math.max(0, n.yield.credits - 1), materials: Math.max(0, n.yield.materials - 1) };
-      n.dimmed = true;
-      clog(s, `The star of ${n.name} gutters. Its worlds yield less now.`, n.id);
-      if (visibleNodes(s, s.playerId).has(n.id)) tell(s, dimmingScene(n.name));
-      // The dimming leaves another people homeless: they take to the dark.
-      if (!n.owner && !armyAt(s, n.id) && s.armies.filter((a) => a.lost).length < CAMPAIGN.lostMax) raiseLost(s, n);
-    }
-  }
-  // Regional stability: what was marked gives way, and once stability has run out, more is marked.
-  for (const n of s.nodes) if (n.collapsing && !((n.stableUntil ?? 0) > s.turn)) collapse(s, n);
-  for (const n of s.nodes) if (n.collapsing && (n.stableUntil ?? 0) > s.turn) n.collapsing = false;
+  // Regional stability: what was marked gives way, and once stability has run out, the next column is marked.
+  for (const n of s.nodes) if (n.collapsing) collapse(s, n);
   if (!s.winner) checkVictory(s);
   if (s.winner) return;
-  if (s.turn >= CAMPAIGN.stabilityTurns) markCollapses(s);
+  if (regionalStability(s) <= 0) markCollapses(s);
   else if (regionalStability(s) <= 2) tell(s, instabilityScene());
   checkMissions(s);
   const p = campaignPlayer(s);
-  clog(s, `— Turn ${s.turn}. ${p.name} collects ${factionIncome(s, p.id).credits} credits and ${factionIncome(s, p.id).materials} materials.`);
+  const left = regionalStability(s);
+  clog(s, `— Turn ${s.turn}. ${left > 0 ? `Regional stability: ${left} turn${left === 1 ? '' : 's'}.` : `The strip is collapsing: ${p.name} has ${CAMPAIGN.columns + 1 - s.collapseCol} column${CAMPAIGN.columns + 1 - s.collapseCol === 1 ? '' : 's'} left.`}`);
 }
 
 function endFactionTurn(s: CampaignState, f: Faction) {
@@ -2338,7 +2241,7 @@ function raiseLost(s: CampaignState, n: CampaignNode): Army | null {
   const taken = new Set(s.armies.map((a) => a.lost));
   const names = LOST_RACES.filter((x) => !taken.has(x));
   const name = names.length ? names[randomInt(s, names.length)] : LOST_RACES[randomInt(s, LOST_RACES.length)];
-  const tier = Math.max(1, Math.min(2, n.tier));
+  const tier = Math.max(1, n.tier);
   const full = neutralDeck(s, tier);
   const general = full.find((id) => cardDef(id).kind === 'command') ?? GENERALS[0][0];
   // (The last of a people: their leader, and a few cards, more the deeper they wander.)
@@ -2364,26 +2267,68 @@ function raid(s: CampaignState, n: CampaignNode, army?: Army) {
   checkVictory(s);
 }
 
-/** The Lost Races wander: drift through unheld space, and now and then raid a held system beside them. */
+/** The first step on the shortest way from one system to another (around anything collapsing), or null. */
+function stepToward(s: CampaignState, from: string, to: string): string | null {
+  const prev = new Map<string, string>([[from, from]]);
+  const queue = [from];
+  for (let q = 0; q < queue.length; q++) {
+    const id = queue[q];
+    if (id === to) break;
+    for (const next of nodeById(s, id).links) {
+      const n = nodeById(s, next);
+      if (prev.has(next) || n.collapsed || (n.collapsing && next !== to)) continue;
+      prev.set(next, id);
+      queue.push(next);
+    }
+  }
+  if (!prev.has(to)) return null;
+  let at = to;
+  while (prev.get(at) !== from) at = prev.get(at)!;
+  return at;
+}
+
+/**
+ * The raiders: they flee the collapse, hunt a flagship that comes near (moving in on it, and attacking it once
+ * they reach it), raid a held system beside them now and then, and otherwise drift through unheld space.
+ */
 function lostTurn(s: CampaignState, f: Faction) {
+  const prey = flagship(s, s.playerId);
   for (const army of armiesOf(s, f.id)) {
     if (s.battle || s.winner || !s.armies.includes(army) || army.moved) continue;
     const here = nodeById(s, army.nodeId);
-    const near = here.links.map((id) => nodeById(s, id)).filter((n) => !n.collapsed && !n.collapsing && !n.heart && !armyAt(s, n.id));
-    const held = near.filter((n) => n.owner && !hazardBlocks(n, f.id));
-    // Out of a collapsing system, whatever it takes.
-    const fleeing = !!here.collapsing;
-    if (held.length && (fleeing || nextRandom(s) < CAMPAIGN.lostRaid) && army.damage <= 5) {
+    const near = here.links.map((id) => nodeById(s, id)).filter((n) => !n.collapsed && !n.collapsing && !n.heart);
+    const free = near.filter((n) => !armyAt(s, n.id) && !n.owner);
+    const drift = (to: CampaignNode) => {
+      army.nodeId = to.id;
+      army.moved = true;
+      clog(s, `${armyLeader(army)} move on to ${to.name}.`, [here.id, to.id], f.id);
+    };
+    // Out of the collapse's way first: on, away from the near end.
+    if (here.collapsing || (here.col ?? 0) <= s.collapseCol) {
+      const ahead = free.filter((n) => (n.col ?? 0) > (here.col ?? 0));
+      if (ahead.length) drift(ahead[randomInt(s, ahead.length)]);
+      continue;
+    }
+    // The hunt: a flagship within reach is closed on, and attacked once it is next door.
+    if (prey && army.damage <= 5 && hops(s, here.id, prey.nodeId) <= CAMPAIGN.raiderChase && nextRandom(s) < CAMPAIGN.raiderChaseChance) {
+      const step = stepToward(s, here.id, prey.nodeId);
+      const n = step ? nodeById(s, step) : null;
+      if (n && step === prey.nodeId) {
+        moveArmy(s, army, step);
+        continue;
+      }
+      if (n && !armyAt(s, n.id) && !n.heart) {
+        if (n.owner && !hazardBlocks(n, f.id)) moveArmy(s, army, n.id);
+        else if (!n.owner) drift(n);
+        continue;
+      }
+    }
+    const held = near.filter((n) => n.owner && !armyAt(s, n.id) && !hazardBlocks(n, f.id));
+    if (held.length && nextRandom(s) < CAMPAIGN.lostRaid && army.damage <= 5) {
       moveArmy(s, army, held[randomInt(s, held.length)].id);
       continue;
     }
-    const open = near.filter((n) => !n.owner);
-    if (open.length && (fleeing || nextRandom(s) < CAMPAIGN.lostWander)) {
-      const to = open[randomInt(s, open.length)];
-      army.nodeId = to.id;
-      army.moved = true;
-      clog(s, `${armyLeader(army)} drift on to ${to.name}.`, [here.id, to.id], f.id);
-    }
+    if (free.length && nextRandom(s) < CAMPAIGN.lostWander) drift(free[randomInt(s, free.length)]);
     // Resting, it mends.
     if (!army.moved) army.damage = Math.max(0, army.damage - 2);
   }
@@ -2500,10 +2445,14 @@ function spendMaterials(f: Faction, amount: number) {
 
 export function applyCampaignAction(prev: CampaignState, action: CampaignAction): CampaignState {
   // (The last scene, the ending, can still be read once it is over.)
-  if (prev.winner && action.type !== 'readStory') throw new GameError('The campaign is over.');
+  if (prev.winner && action.type !== 'readStory' && action.type !== 'petalsBanked') throw new GameError('The run is over.');
   const s = structuredClone(prev);
   if (action.type === 'readStory') {
     s.story.queue.shift();
+    return s;
+  }
+  if (action.type === 'petalsBanked') {
+    s.petalsBanked = s.petals;
     return s;
   }
   const f = campaignPlayer(s);

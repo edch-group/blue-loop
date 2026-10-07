@@ -732,17 +732,32 @@ A face-down Lightspeed card lies in its owner's Lightspeed slot, right of their 
 
 ## Campaign mode
 
-A 4X-style march on the centre of a dying universe, played with the card game. Code: `src/engine/campaign.ts` (rules), `src/engine/story.ts` (story and dialogue) and `src/ui/campaign.ts` (screen). Saves are version 5 (`blue-loop:campaign:v5`); older campaigns are not carried over.
+A roguelite run through dying universes, played with the card game. Code: `src/engine/campaign.ts` (rules), `src/engine/meta.ts` (petals and lasting upgrades), `src/engine/story.ts` (story and dialogue) and `src/ui/campaign.ts` (screen). Saves under `blue-loop:campaign:v6` (older saves can't be resumed); lasting progress under `blue-loop:runs:v1`, both synced to the account.
 
-**The story.** The universe is dying: star by star the light is failing, and the four races fight over the last warm worlds. All of them are making for **the Heart**, the supermassive star at the centre of the map, because of a legend: in its light grows the **Infinite Stellari**, a white flower whose bloom gives energy without end. It is the white flower that turns on the landing page, and on the map it turns beside the Heart.
+**The loop.**
+- Each universe is a thin strip: **4 lanes, 13 columns**, linked along the lanes, by non-crossing diagonals and by rungs between lanes. You begin in column 0; the **wormhole** lies past the far end. Move freely, backwards too.
+- **Regional stability** runs down one a turn (8 turns in universe 1, 2 fewer in each universe after, never below 3; +1 a level of Anchored space). Once it is spent, **the collapse takes one whole column a turn** from the near edge. A collapsed system is gone, with any army in it; if the flagship is caught, the run is over.
+- The **Stellari** open the wormhole. Its guardian (the Wardens) must be beaten to cross: a boss battle that grows with the universe.
+- Crossing takes you to the next universe: stronger garrisons (tier +2 a universe), better loot, and stability that runs out sooner. The loop never ends; every run ends in death.
+- **Petals:** at each wormhole you grab 3 + 12 x (share of the strip's systems you conquered) petals (+20% a level of Petal pouch). They are banked at once and survive the run.
+- **No rival empires:** only garrisons in the systems and roaming Raider ships. Raiders flee the collapse, hunt the flagship when it is within 3 routes (70% of the time), raid what you hold, and wander.
+- **Conquest:** beat a system's garrison, then **conquer** it (its yield once, and it counts toward petals) or **supernova** it (twice its yield; it becomes a ruin you can pass through freely). There is no settling and no income: money comes per system conquered. Research still builds each turn. Some planets carry a **bonus** of credits or research, paid on capture.
+- The strip carries 3 armouries, 3 research stations and 3 anomalies; scanners widen what you see.
+
+**Lasting upgrades** (between runs, on the setup screen, bought with petals):
+- **A stronger start:** War chest (+3 credits), Stockpile (+3 materials), Old charts (+2 research), Veterans (another race card in the deck), Requisition (choose a card for the deck).
+- **A tougher flagship:** Reinforced hull, Shield emitters, Armoured rooms (+1 room defence), Fold drive (one more move a turn).
+- **Perks:** Anchored space (stability holds a turn longer), Trade friends (armoury cards 1 material cheaper), Petal pouch, Scavengers (one more salvage choice).
+- **Unlocks:** the first four races and each race's first hero are free; the other races cost 10 petals each, later heroes 6.
+
+**The story.** The universe is dying: star by star the light is failing. The Stellari, the last flowers of light, open wormholes to younger universes, and each run is a flagship racing the collapse to reach one.
 - The **Aureline** were the flower's first keepers. They called it **Vitalia** ("life-giver"), lost it, and were nearly wiped out in the war that followed. What is left of them is coming home.
 - The Xel'Naru need light for the crystal that holds their memories; the Vorthane's oceans are freezing; the Ixquor hive is starving.
 - The guide is **Oriel the Wanderer**, a neutral oracle who speaks to every race alike. Oriel opens the campaign and comments at each moment that matters: the first conquest, a Stellari bloom sighted, claimed or wilted, the first star to dim, the Heart sighted, an army broken, a rival race met or fallen, victory and defeat. Generals speak too: on joining, and when a rival race is first met (its general taunts, yours answers).
 - Each moment plays once, in the guidance panel under the turn count (a portrait, the speaker and the line), never blocking play. Read on, or dismiss it.
 
-**Setup.** Choose your race, your **hero** (one of the race's three) and 1–3 rivals. Factions start in the corners, each with its one flagship (a rival flies under its race's first hero). Each home has exactly **one route out**, towards the Heart, to a cut-off neutral system (tier 0) whose sentinels start 10 heat hotter: every campaign opens with one winnable battle. (Any system the cut strands is linked back to its nearest neighbour.)
+**Setup.** Choose an unlocked race and hero, spend petals, and begin the run. The screen shows the best run (universes crossed).
 
-**The Heart is always in view.** Its light reaches everywhere: whatever the fog of war hides, the supermassive star at the centre is always drawn.
 
 **The flagship.**
 - Each faction flies **one flagship**, led by its **hero** (one of the race's Hero cards: the two leaders, or the race's bomb Hero, Empress Solenne, The Shardmind, Leviathan Thoross or The Worldroot). There is no recruiting.
@@ -751,7 +766,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - **One move a turn.** The flagship steps along a route into one of your own systems, or attacks a linked system. Tap it to pick it: its routes light up.
 - **Damage** stays with the flagship (its sun starts battles hotter). Repair it for 1 credit a point, or all at once.
 - **Move or refit:** each turn the flagship either moves (or fights), or refits: changes its deck or is repaired. Not both. Buying, recycling and fusing cards tie it up no more than upgrading the ship does.
-- Beaten, it **falls back** to a free system you hold next door, else the nearest you hold. A faction with no systems left is out.
+- Beaten, it **falls back** to a free system you hold next door, else any open neighbour (further along first). The run ends when the flagship is lost.
 
 **The hero** (the base's hero tab) grows with the flagship:
 - **Experience:** 20 for a battle won (defending: 16), 6 for one lost or a system that surrenders. **21 levels**, each a little further than the last (10, 22, 36, 52 … 580 experience); each level after the first gives a skill point, 20 in all.
@@ -762,7 +777,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - **The hero tab:** the hero and their training on the left; the hero in the middle, drawn as their race's outline (robed Aureline, crystal Xel'Naru, a domed, many-tentacled Vorthane, an insect Ixquor) with a socket for each slot where it sits on the body (a Vorthane's rings on its tentacles), worn gear glowing in its quality, and their stores beneath (tap an empty socket to see what fits it); and on the right their skill tree, drawn as a constellation in a night sky: the hero at its foot, three branches of six stars rising from them (Might, Ward, Legacy), each skill a star with its kind's glyph, bigger for bigger skills (the capstones spiked diamonds in turning rays), the learn button showing its cost. Learned stars and the lines between them burn gold; the next ones you can learn pulse blue; the rest are faint. Tap a star for its details and to learn it.
 - The AI's heroes learn and equip too.
 
-**Stations.** Space stations and research stations are dotted about the map (20 and 26; never at a home, a home's gate or the Heart), shown by a crate or a ringed flask on the system and in its popover. Bring the flagship to one (it has to stand there, so the system must be yours) and **visit** it.
+**Stations.** 3 armouries and 3 research stations lie in columns 2 to 10 of each strip, shown by a crate or a ringed flask on the system and in its popover. Bring the flagship to one (it has to stand there, so the system must be yours) and **visit** it.
 - **Space stations** stock **6 different cards, each sold once**, for materials: 3 for a White Dwarf, 5 for a Stellar, 8 for an Anomaly, +1 for a race card. Mostly dwarf cards, with a fair chance (60%) of one rare (Stellar, or now and then an Anomaly) among them; a quarter of space stations are nothing but dwarfs. **Within an anomaly's reach** the odds are better: almost always a rare, often two, more often an Anomaly. Its keepers recycle and fuse too (below). A sold-out space station shows as such.
 - **Research stations** have **one upgrade** each, taken once by whoever pays for it first, in **Wisdom** (which builds 1 a turn): 3, 5, 8 or 12 by its tier. Upgrades are the old research projects: **Power** Cryo Reserves (sun starts 1 cooler), Fusion Cells and Stellar Taps (+1 energy a day each); **Armour** Hardened Hulls (+2 max health), Field Repair (repairs 2 heat a turn), Stellar Plating (+3 more), Nanite Swarms (2 more repair); **Command** Salvage Crews (gear more often), Battle Doctrine (+1 opening-hand card), Terror Broadcasts and Shadow of Empire (Dread: weak neutral systems surrender without a battle); **Navigation** Deep Scanners (sight), Jump Lanes and Fold Drives (a route further each turn). Each station's is different while they last. Stations far from anomalies have early (tier 1–2) upgrades; those within an anomaly's reach, deeper ones (tier 2–4). A taken station shows as such.
 - The AI makes for stations it can use, buys the best cards it can afford, and takes research when it has the Wisdom.
@@ -776,24 +791,22 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - **Small decks.** A campaign deck can be small: with nothing left to draw or shuffle back, it gives no more, without the strain (its sun would burn out before the battle began).
 - **Losing:** your sun goes supernova.
 - **Who defends:** the flagship standing in the system, if there is one, else a hero of the owner's one route away. Otherwise the system fights as a **station**: a few cards (4, 6 or 8 by tier; the Heart Wardens 10 of their heaviest), walls as thick as its tier (+0 to +2 defence in every room), its garrison and its fortifications, and **no hero**. A held system's station has its owner's race's cards among them. The Lost Races fight with their leader and a few cards.
-- After a win, choose Settle, Absorb or Supernova, as before. Only Settle moves the flagship in.
+- After a win, choose Conquer or Supernova (see the loop).
 - **The attack dialog:** your flagship against the defender (portraits and names), then a few plain lines on whatever tips the fight, and three buttons: fight, auto, back. Defending shows the same, from your side.
 - Battle modifiers stack: the system's anomaly, its fortifications, the Wardens and the core (below), and the ship's hull.
 
 **The map.**
-- About 320 systems in loose clusters, linked by routes that never cross (a sparse web: the spanning tree and only some other routes, so the ways wind), on a tilted 3D board you pan and zoom. The Heart sits in the middle with clear space round it. Every home lies **about 30 routes from the Heart** (27–33: the map is drawn again until all four do), so the early, stable stretch is for building up a hero, a deck and a ship before the push inwards. Distance from the Heart is read in five **depth bands** (each a sixth of the way home); sun health, neutral tiers, rich core worlds and the quality of finds go by band. The pace matches: 160 turns, 8 turns of regional stability before the rim starts to collapse (one more system a turn every 12 turns after: players have to keep moving inwards), and more of everything on the map (20 armouries, 26 research stations, 16 anomalies, 10 Stellari blooms, 6 Lost Race armies at the start, up to 10). [direction: the map was far too small; reaching the centre should take about 30 moves for every race]
+- The strip (above). Fog of war shows a column back and three ahead of the flagship and your systems (five with a scanner).
 - **Defending a neighbour:** a system with no army in it is defended by its owner's hero **one route away**, if there is one (the least battered, if several). They come to its aid: if they lose, they go home battered (full damage) rather than being routed. [direction: heroes defend systems one move away]
-- **Sun health rises toward the centre.** In a campaign battle **both suns** start from the same max health, set by how far the system fought over lies from the Heart: **10** out at the rim (4 or more routes from the Heart: every home and its neighbours), then 12, 15 and 19 at 3, 2 and 1 routes, and the card game's **24 at the Heart**. Specific systems add to it: fortification (+2 a level, for the defender), a brown dwarf (+3, the defender), the Heart Wardens (+4), anomalies (a black hole +2, a pulsar −2), the flagship's hull (+1 a level) and research (Hardened Hulls +2, Stellar Plating +3 more). Everything that heats a sun from the start is scaled to match: sentinels start 2/1/0 hotter by tier, a weakened gate 4, carried damage at most 4, a repelled army takes 2.
-- **The core:** the closer a system is to the Heart (in routes), the richer it is. Systems 1–3 routes from the Heart give +2/+1/+1 credits and materials; systems within 2 routes are at least tier 2, within 3 at least tier 1. This pays you back for the worlds lost to the dimming.
+- **Sun health rises along the strip.** In a campaign battle both suns start from the same max health, set by the garrison's tier (see Depth); the wormhole's guardian has 2 more.
+- **Depth:** garrison tier rises along the strip and with each universe, and with it the defenders' decks, rooms and sun health (10 + 3 per tier, at most 30).
 - **Enter ends the turn** on the map; while an army could still move it asks first ("end your turn?", naming them): Enter again ends it, Escape keeps playing. [direction: enter should end turn in the campaign, with a warning]
 - **Tutorial:** a first campaign runs the oracle's tours (src/ui/tour.ts, src/ui/tutorial.ts): the campaign map as it begins, and the battle board in the first battle, which teaches the card game. He talks each part through while it is lit and outlined, the rest dimmed. Highlights are traced in each element's own plane (markers pinned at its corners, or round a circle, and read where they land), so on the tilted board a slot is lit as the trapezoid it appears as and a sun or its orbit as an ellipse. Skipping turns it off; the campaign's settings turn it off or back on (on again, the tours play again).
 - **Ship modules:** one-of-a-kind items fitted into the flagship's rooms (the ship tab: pick a room, fit a module from your stores, swap or remove it), one to a room. In battle, whichever card stands in a room carries its module's power, the way a hero carries their gear: Coolant Loop (cool at dawn), Shield Emitter (shields at dawn), Targeting Array (piercing dawn heat), Overcharged Lances (dawn heat), Autoloader (heat as a card is played into the room), Ablative Plating (Sturdy), Repair Drones (repair at dawn), Bulwark Projector (Bulwark for its neighbours) and Decoy Beacon (Guard). Each comes worn, bright or starforged (1, 2 or 3).
 - **Finds:** the winner of a battle searches the wreckage: gear for its hero (35%, more with Salvage Crews) and a ship module (35%), finer the deeper the system lies. The player's are shown on the battle's result, above the salvage pick, and go to their stores; the AI wears and fits its own at once. (Gear is no longer found on taking a system after a battle, only on one taken without a fight.)
 - **The hero is in the deck.** A flagship's hero is drawn and played like any card (only one who has learned **Herald** starts the battle in play), so their own play effect and their "as it is played" boons fire as they are played.
 - **Salvage:** after a battle you win, still on the battle screen, you're shown up to **3 different cards from the beaten side's deck** (never a Hero) and take one (or leave it). It goes **straight into the flagship's deck** (into your reserve only if the deck may not take another copy). A flagship's deck has **no most**: once it reaches 10 cards, 10 is its **least**, and cards come out of it down to 10, no further. [direction: every card into the deck; 10 becomes the minimum] A battle auto-resolved offers the same choice on the map.
-- **Stellari blooms:** 4 finite Stellari grow on tier 1+ systems (never a home system or the Heart). Holding one adds 3 credits and 3 materials a turn. Each wilts after 8 turns.
-- **The dimming:** every 7 turns a star gutters, and its system yields less. (Red dwarfs never do.)
-- **Kinds of star** (about 42% of systems; never a home, a gate or the Heart). Each has a gift and a cost:
+- **Kinds of star** (about 42% of systems; never the home or the wormhole). Each has a gift and a cost:
 
 | Star | Gift | Cost |
 | --- | --- | --- |
@@ -803,9 +816,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 | Neutron star | +2 credits, +1 material; its holder sees two links out | Battles there are volatile: every sun heats 1 a day |
 
   On the map, an unheld star takes its kind's colour, and the kinds differ in size; a neutron star's beam sweeps round.
-- **The Lost Races:** the last of peoples the dimming has already taken (the Vessan, the Orrim, the Quiet Choir...). Three wander the middle reaches at the start, and when a star dims in unheld space another takes to the dark (up to 5). They drift through unheld systems, and raid a held system beside them now and then (35%): a raid they win strips the system (garrison, fortifications, 1 of each yield) and leaves it neutral. They hold nothing, so they are never eliminated. An army standing in a neutral system defends it instead of its sentinels. Beat one for its relics: 6 materials and (for the player) a card. Oriel introduces them the first time one is seen.
-- **Regional stability and the collapse:** a meter in the header counts down an 8-turn lead-up (the oracle warns as it runs low). Then solar systems collapse, from the rim inwards (the systems farthest from the Heart, ties at random): one a turn, one more every 12 turns. Each is marked (⚠, a dashed red ring, always in view) a turn before it goes. A collapsed system is gone: no owner, no yield, no route through it; an army caught there falls back to a free neighbour it holds, or is broken, and a faction left with no systems is out. This keeps everyone moving inwards. Domination counts half of the systems still standing.
-- **Counter, stabilise:** spend 8 materials on a marked system you hold to hold it together 4 turns more, once per system. The AI stabilises its home or a bloom when it can, and pulls its armies out of marked systems.
+- **Raiders** (the Lost Races) roam the strip: 2 at the start, up to 7, from column 4 on (see the loop).
 - **Fog of war:** you see your systems, the systems around your armies, and those linked to them. About one system in six has a **scanner array**; hold it and you see two links out from it.
 - Selecting a system no longer moves the camera: the system shows its planets orbiting where it stands, and the map around it stays as it was.
 - **The others' turns:** after you end your turn, the other factions move one at a time. Those in sight (any of their systems or armies in view) are shown on a waiting card (who is moving, and a short feed of what they do that you can see); those out of sight move unseen and at once, so with none in sight the next turn simply begins. You only learn what happens within your sight lines: every log entry names the systems it happened at and who acted. A battle against you pauses the others; finishing it carries on.
@@ -816,10 +827,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 - **Conquest:** a small dialog of three choices, each with one line (what it pays); the rest is in its tooltip. Settings can turn Oriel off entirely (generals still speak).
 - The board, the Milky Way sky and the settings work as before.
 
-**Winning.**
-- **Reach the Heart:** beat the Wardens (12 extra max health) and claim it. The Heart is settled automatically and wins the campaign.
-- **Domination:** hold 50% of the systems, or eliminate every rival.
-- The campaign lasts 60 turns. AI factions race for the Heart too, though not before turn 12.
+**Winning.** There is no winning a run, only going further: cross as many wormholes as you can and bank petals for the next.
 
 **Economy.**
 - **Credits** upgrade the ship, repair the flagship and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +2 max health.
@@ -844,9 +852,7 @@ A 4X-style march on the centre of a dying universe, played with the card game. C
 | Pulsar | Sun cools by 1 every day | 2 less max health |
 
 **Balance notes (simulator).**
-- All-AI campaigns (6 seeds) ended between turns 12 and 32, with a mix of Heart and domination wins. The Wardens' bonus was raised from 8 to 12 health to keep the Heart a late-game goal.
-- With the collapse (8 seeds): campaigns ended on turns 15–29, 7 at the Heart and 1 by domination, with 5–26 systems collapsed.
-- Early auto-resolved attacks on tier-0 sentinels lose fairly often. Watch this.
+- A run bot (auto-battles, always pushing forward, no upgrades) crossed universe 1 in 4 of 12 seeds (6 petals each) and died in universe 2 every time. Upgrades are meant to carry later runs further.
 
 ## Open design questions
 
