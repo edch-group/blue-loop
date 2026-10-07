@@ -5982,3 +5982,17 @@ body:has(.game-result) .dock { visibility: hidden; }
 .jewel .pv-after { color: #ffd6cc; }
 /* (Room between the pool's rows for the jewels that stand beyond the cards' top and bottom edges.) */
 .db-editor .db-pool { row-gap: max(12px, calc(var(--dbw, 120px) * 0.12)); padding-top: max(10px, calc(var(--dbw, 120px) * 0.11)); }
+
+/* ---- Card text a step below the title, everywhere ---- */
+.card-text { font-size: max(6px, calc(var(--cw) * 0.056)); }
+.card-table .card-text { font-size: max(5px, calc(var(--cw) * 0.06)); }
+.card-big .card-text { font-size: max(10px, calc(var(--cw) * 0.052)); }
+.hand > .card.card-landscape .card-text { font-size: max(7px, calc(var(--cw) * 0.06)); }
+.card-landscape .card-text { font-size: max(5px, calc(var(--cmdw) * 0.042)); }
+
+/* ---- Small cards: the jewels scale down with them (no floor that outgrows the card) ---- */
+.jewel { width: max(9px, calc(var(--cw, 100px) * 0.19)); }
+.jewel i { font-size: max(5px, calc(var(--cw, 100px) * 0.088)); }
+/* The piles show a card as a thumbnail: its picture and name, no numbers. */
+.tpile-face .card-jewels, .tpile-face .stat-def-floor { display: none !important; }
+.tpile-face .card-name { font-size: max(4px, calc(var(--cw) * 0.07)); }
