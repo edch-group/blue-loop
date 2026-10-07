@@ -5902,24 +5902,36 @@ body:has(.game-result) .dock { visibility: hidden; }
 .kw-health { color: #2f8a57; }
 
 /* ---- Health and stability as jewels, set into the card's top edge at its right corner ----
-   Each sits in a mount of the card's own face and rim (as the rarity gem once did), so the card's edge rises
-   round both: two lobes of the card itself, the silver of their settings the card's own metal. */
+   Both sit in one lobe of the card itself: its face, with its rim carried over the top in one line that sweeps
+   down into the card's edge on either side (concave fillets), so the outline rises round the pair as one. */
 .card-jewels {
+  --jr: calc(var(--cw, 100px) * 0.05);
   position: absolute; z-index: 6; pointer-events: auto;
-  top: 0; right: calc(var(--cw, 100px) * 0.035); transform: translateY(-46%);
-  display: flex; flex-direction: row-reverse; align-items: center; gap: calc(var(--cw, 100px) * 0.05);
+  top: 0; right: calc(var(--cw, 100px) * 0.1); transform: translateY(-50%);
+  display: flex; flex-direction: row-reverse; align-items: center; gap: calc(var(--cw, 100px) * 0.012);
+  padding: calc(var(--cw, 100px) * 0.03);
+}
+/* The lobe: the card's face (and a hair below the edge, over the card's own rim line there), rim over the top. */
+.card-jewels::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 999px;
+  background: var(--face, #fbfbfc); border: 1px solid var(--rim, #fff);
+  box-shadow: 0 -1px 3px rgba(80, 84, 100, 0.14);
+  clip-path: inset(-6px -6px calc(50% - 1.5px) -6px);
+}
+.card.kind-command .card-jewels::before { box-shadow: 0 -1px 3px rgba(20, 24, 34, 0.3); }
+/* The fillets: the card's edge curving up into the lobe on both sides. */
+.card-jewels::after {
+  content: ''; position: absolute; z-index: -1; left: calc(var(--jr) * -1 + 1px); right: calc(var(--jr) * -1 + 1px);
+  bottom: calc(50% - 1.5px); height: calc(var(--jr) + 1.5px); pointer-events: none;
+  background:
+    radial-gradient(circle var(--jr) at 0 0, transparent calc(100% - 1px), var(--rim, #fff) calc(100% - 1px), var(--rim, #fff) 100%, var(--face, #fbfbfc) 100%) left bottom / var(--jr) 100% no-repeat,
+    radial-gradient(circle var(--jr) at 100% 0, transparent calc(100% - 1px), var(--rim, #fff) calc(100% - 1px), var(--rim, #fff) 100%, var(--face, #fbfbfc) 100%) right bottom / var(--jr) 100% no-repeat;
 }
 .jewel {
   position: relative; display: grid; place-items: center;
   width: max(16px, calc(var(--cw, 100px) * 0.19)); aspect-ratio: 1;
   background: var(--jewel-emerald) center / contain no-repeat;
 }
-/* The mount: the card's face, covering its edge where the jewel sits... */
-.jewel::before, .jewel::after { content: ''; position: absolute; inset: -16%; border-radius: 50%; z-index: -1; }
-.jewel::before { background: var(--face, #fbfbfc); }
-/* ...and the card's rim carried round the part that stands above it. */
-.jewel::after { border: 1px solid var(--rim, #fff); clip-path: inset(-3px -3px 54% -3px); box-shadow: 0 -1px 3px rgba(80, 84, 100, 0.14); }
-.card.kind-command .jewel::after { box-shadow: 0 -1px 3px rgba(20, 24, 34, 0.3); }
 .jewel-stab { background-image: var(--jewel-topaz); }
 .jewel.jewel-low { background-image: var(--jewel-ruby); }
 .jewel i {
