@@ -7,7 +7,6 @@ import {
   SUBRACES,
   attackProblem,
   cardAttack,
-  duskEffects,
   applyAction,
   BALANCE,
   boosterPool,
@@ -521,6 +520,8 @@ function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
  */
 const SHIELD_PATH = 'M50 3 L93 15 V50 C93 79 75 97 50 107 C25 97 7 79 7 50 V15 Z';
 const SHIELD_FACE = 'M50 12 L84 21.5 V50 C84 73 70 88 50 96.5 C30 88 16 73 16 50 V21.5 Z';
+/** Two spears crossed, as guards at a gate. */
+const GUARD_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 14.2 10.6 6.8M12.8 14.2 5.4 6.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/><path d="M14.2 1.8 9.4 4.4 11.6 6.6Z M1.8 1.8 6.6 4.4 4.4 6.6Z" fill="currentColor"/><path d="M8.6 5.6 10.4 7.4M7.4 5.6 5.6 7.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
 const SHIELD_SVG = `<svg viewBox="0 0 100 110" aria-hidden="true">
   <defs>
     <linearGradient id="bs-rim" x1="0" y1="0" x2="1" y2="1">
@@ -5145,14 +5146,15 @@ export class App {
       const base = shown === n ? `${icon}${n}` : `<span class="pv-settled" title="${n} now">${icon}${shown}</span>`;
       return hover === undefined || hover === shown ? base : `<span class="pv-now">${base}</span><span class="pv-after">${icon}${hover}</span>`;
     };
-    const growth = c.growth ? `<span class="growth" title="Growth">${c.growth}</span>` : '';
+    const growth = c.growth ? `<span class="growth" data-tip-title="growth" data-tip="Grown ${c.growth}: +${c.growth} attack.">${c.growth}</span>` : '';
+    // A Guard (by its own Guard, or by a wall of 3+ defence): two crossed spears on its top left corner.
+    const isGuardCard = opts.tableau && opts.owner ? isGuard(opts.owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt');
+    const guardMark = isGuardCard ? `<span class="guard-mark" data-tip-title="guard" data-tip="A Guard: rival attacks must strike it first${(def.passive ?? []).some((x) => x.type === 'taunt') ? '' : ' (its defence is 3 or more, while that holds)'}.">${GUARD_SVG}</span>` : '';
     // A campaign hero's boons (skills and gear), carried while it is in play: one tag, their text on hover.
     // (A hero's boons stand on the rail beside its slot; any other card's, from a ship module, as marks on it.)
     // (A campaign card standing in a ship's room: the room's walls and guns on it too.)
     const roomTag = opts.tableau && opts.owner && c.slot !== undefined && c.slot !== COMMAND_SLOT ? this.roomMarks(opts.owner, c.slot, false) : '';
-    // A dimmed card with a dusk effect rests tonight: marked, so a quiet dusk is no surprise.
-    const restTag = opts.tableau && c.fresh && c.slot !== undefined && duskEffects(c).length ? `<i class="boon-mark rest-mark" data-tip-title="resting" data-tip="${esc('It came into play today: its dusk effect starts tomorrow.')}"><svg viewBox="0 0 16 16"><path d="M10.5 2.5a5.5 5.5 0 1 0 3 9.6A6 6 0 0 1 10.5 2.5Z"/></svg></i>` : '';
-    const boonTag = restTag + roomTag + (c.boons?.length && !(def.kind === 'command' && c.slot === COMMAND_SLOT) ? this.boonMarks(c.boons) : '');
+    const boonTag = roomTag + (c.boons?.length && !(def.kind === 'command' && c.slot === COMMAND_SLOT) ? this.boonMarks(c.boons) : '');
     // Fusion cards fused onto it: tucked behind it, each a little higher, only its name showing above it
     // (its text on hover). A campaign hero's boons stay as a tag on the card.
     const fusedTags =
@@ -5176,7 +5178,7 @@ export class App {
     return `
       <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${growth}${resonance}${fusedTags}${stats}
+        ${growth}${guardMark}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>
@@ -5290,7 +5292,7 @@ export class App {
     return `
       <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
+        ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${(owner && c ? isGuard(owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt')) ? `<span class="guard-mark">${GUARD_SVG}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), c?.choice, owner && c ? this.liveNumbers(c, { owner }) : held ? this.liveNumbers(held, { hand: true }) : {})}${this.fusedTextHtml(c)}</div>
         <div class="card-kind">${typeLine(def)}</div>

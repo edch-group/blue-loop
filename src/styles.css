@@ -2305,8 +2305,20 @@ html.rotate-ask body { overflow: hidden; }
 .card.rarity-anomaly { border-color: rgba(190, 160, 255, 0.85); box-shadow: 0 0 0 1px rgba(160, 120, 255, 0.25), 0 5px 16px rgba(90, 90, 110, 0.15); }
 
 /* ---------- Character portraits ---------- */
-/* The growth counter: the picture's top right (its cost dots run down the top left). */
-.card .growth { left: auto; right: calc(var(--cw, 100px) * 0.09); top: calc(var(--cw, 100px) * 0.09); z-index: 2; }
+/* The growth counter: small, on the card's top right corner. */
+.card .growth {
+  left: auto; right: calc(var(--cw, 100px) * -0.03); top: calc(var(--cw, 100px) * -0.03); z-index: 3;
+  min-width: max(10px, calc(var(--cw, 100px) * 0.13)); height: max(10px, calc(var(--cw, 100px) * 0.13)); padding: 0 2px;
+  font-size: max(6px, calc(var(--cw, 100px) * 0.075)); box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(40, 60, 40, 0.3);
+}
+/* A Guard: crossed spears on the card's top left corner. */
+.card .guard-mark {
+  position: absolute; left: calc(var(--cw, 100px) * -0.03); top: calc(var(--cw, 100px) * -0.03); z-index: 3;
+  width: max(12px, calc(var(--cw, 100px) * 0.17)); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  background: #5d79ab; color: #fff; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(40, 50, 80, 0.3);
+}
+.card .guard-mark svg { width: 78%; height: 78%; }
+.tpile-face .guard-mark, .tpile-face .growth { display: none; }
 
 /* Campaign: the turn box opens the game overview. */
 button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 2px; text-align: left; cursor: pointer; }
