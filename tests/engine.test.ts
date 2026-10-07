@@ -1455,3 +1455,23 @@ describe('walls', () => {
     expect(isGuard(s.players[1], s.players[1].tableau.find((c) => c.uid === 'w1')!)).toBe(false);
   });
 });
+
+describe('growth', () => {
+  it("grows your other cards 1 (any but a Hero, Grow or not), and each point of growth is +1 attack", () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const [relay, brood] = give(me, ['coolant_array', 'ixquor_waiting_brood'], 'tableau');
+    const before = cardAttack(s, me, relay);
+    give(me, ['chamber_protocol']);
+    me.playsLeft = 9;
+    s = play(s, 'chamber_protocol');
+    // (Ul'Kha's dawn: your other cards grow 1.)
+    s = endTurn(endTurn(s));
+    const p = s.players[0];
+    const r = p.tableau.find((c) => c.uid === relay.uid)!;
+    const b = p.tableau.find((c) => c.uid === brood.uid)!;
+    expect(r.growth).toBe(1);
+    expect(b.growth ?? 0).toBeGreaterThanOrEqual(1);
+    expect(cardAttack(s, p, r)).toBe(before + 1);
+  });
+});

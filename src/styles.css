@@ -2305,8 +2305,8 @@ html.rotate-ask body { overflow: hidden; }
 .card.rarity-anomaly { border-color: rgba(190, 160, 255, 0.85); box-shadow: 0 0 0 1px rgba(160, 120, 255, 0.25), 0 5px 16px rgba(90, 90, 110, 0.15); }
 
 /* ---------- Character portraits ---------- */
-/* The gem sits in the top-right corner, so the growth counter takes the top left. */
-.card .growth { right: auto; left: calc(var(--cw, 100px) * 0.05); }
+/* The growth counter: the picture's top right (its cost dots run down the top left). */
+.card .growth { left: auto; right: calc(var(--cw, 100px) * 0.09); top: calc(var(--cw, 100px) * 0.09); z-index: 2; }
 
 /* Campaign: the turn box opens the game overview. */
 button.cmp-turn { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 2px; text-align: left; cursor: pointer; }

@@ -88,7 +88,7 @@ export type Effect = (
   | { type: 'draw'; amount: number; plus?: Count }
   /** Add 1 to this card's growth counter, up to `max`. */
   | { type: 'grow'; max: number }
-  /** Your other growing cards grow by 1 (up to their own limits). */
+  /** Your other cards grow 1 (any but a Hero, up to BALANCE.maxGrowth). */
   | { type: 'growOthers' }
   /**
    * Destroy a card of your choice in your target's tableau: of a kind, if given, and with at most
@@ -144,7 +144,7 @@ export type Passive =
   | { type: 'extraPlay'; amount: number; /** Only while this planet faces your sun. */ planet?: Planet }
   /** Your shields no longer fade at your dawn. */
   | { type: 'keepShields' }
-  /** Catalyst: whenever this card grows, your other growing cards grow too. */
+  /** Catalyst: whenever this card grows, your other cards grow 1 too. */
   | { type: 'catalyst' }
   /** Tidewall: your shields guard your cards too (they otherwise guard only your sun). */
   | { type: 'tidewall' }

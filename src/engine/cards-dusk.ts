@@ -109,7 +109,7 @@ export const DUSK_CARDS: CardDef[] = [
   },
   {
     id: 'ixquor_brood_warden', name: 'Brood Warden', kind: 'attack', race: 3, cost: 3,
-    text: '{vigil}: your other growing cards grow by 1.',
+    text: '{vigil}: your other cards grow 1.',
     onDusk: [{ type: 'growOthers', if: VIGIL }],
   },
 ];

@@ -1042,6 +1042,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         break;
       }
       case 'growOthers':
+        // (Every other card of yours, whether it grows by itself or not: growth is attack now.)
         for (const other of p.tableau) if (other.uid !== card.uid) grow(p, other);
         break;
       case 'grow':
@@ -1264,9 +1265,14 @@ function regionalInstability(state: GameState, roundStarter: PlayerState) {
  * A card grows by 1, up to the highest limit its growing effects give (its own and its Fusion cards'; a
  * lower limit never shrinks it). A Catalyst that grows makes your other growing cards grow too.
  */
+/**
+ * A card grows 1. Its own Grow effects stop at their limit (`max`); growth from elsewhere (another card making
+ * your others grow, a Catalyst) reaches any card of yours but a Hero, up to `BALANCE.maxGrowth`.
+ */
 function grow(p: PlayerState, card: CardInstance, max?: number, spread = true) {
-  const limit = Math.max(max ?? 0, ...dawnEffects(card).map((x) => (x.type === 'grow' ? x.max : 0)));
-  if (limit <= 0 || (card.growth ?? 0) >= limit) return;
+  if (cardDef(card.defId).kind === 'command') return;
+  const limit = max ?? BALANCE.maxGrowth;
+  if ((card.growth ?? 0) >= limit) return;
   card.growth = (card.growth ?? 0) + 1;
   if (BALANCE.growthHealth) card.health = (card.health ?? 0) + BALANCE.growthHealth;
   if (spread && cardPassives(card).some((x) => x.type === 'catalyst')) for (const other of p.tableau) if (other.uid !== card.uid) grow(p, other, undefined, false);

@@ -531,7 +531,7 @@ export const CARDS: CardDef[] = [
     name: 'Ixquor Brood-Tender',
     kind: 'growth',
     race: 3,
-    text: 'Draw 1. {dawn}: your other growing cards grow by 1.',
+    text: 'Draw 1. {dawn}: your other cards grow 1.',
     onPlay: [{ type: 'draw', amount: 1 }],
     onTurn: [{ type: 'growOthers' }],
   },

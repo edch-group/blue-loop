@@ -67,6 +67,8 @@ export const BALANCE = {
   /** Stability a Fusion card adds to its host. */
   fusionStability: 2,
   /** Each point a card has grown adds this to its attack (`growthAttackAll`: even a card with none of its own) and to its stability. */
+  /** Growth from elsewhere (another card's) stops here; a card's own Grow stops at its own limit. */
+  maxGrowth: 5,
   growthAttack: 1,
   growthAttackAll: 1,
   growthHealth: 0,

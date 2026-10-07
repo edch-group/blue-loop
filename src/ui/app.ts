@@ -5169,7 +5169,7 @@ export class App {
     // In play: its defence (what removal must beat), attack and stability (what it can take).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. Only Repair mends it, and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: (def.attack ?? 0) > 0 && s ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. Only Repair mends it, and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: s && cardAttack(s, opts.owner, c) > 0 ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (opts.owner ? isGuard(opts.owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt')) ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
@@ -5284,7 +5284,7 @@ export class App {
     const held = !c && uid ? this.viewer()?.hand.find((x) => x.uid === uid) : undefined;
     const stats =
       owner && c
-        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b></span>${cardJewels({ atk: (def.attack ?? 0) > 0 ? cardAttack(this.state!, owner, c) : undefined, dim: c.dimmed, hp: c.health ?? 0, hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="Defence">${SHIELD_SVG}<span class="def-n">${cardDefence(owner, c)}</span></b>${cardJewels({ atk: cardAttack(this.state!, owner, c) > 0 ? cardAttack(this.state!, owner, c) : undefined, dim: c.dimmed, hp: c.health ?? 0, hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `

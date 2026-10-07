@@ -52,8 +52,8 @@ const HEROES: CardDef[] = [
   ),
   // ---- Ixquor: Growth ----
   hero(
-    { id: 'chamber_protocol', name: "Broodmother Ul'Kha", race: 3, stability: 5, lead: '{dawn}: your other growing cards grow by 1.', onTurn: [{ type: 'growOthers' }] },
-    [act('feed', 'Feed', 'Your other growing cards grow by 1.', [{ type: 'growOthers' }]), act('forage', 'Forage', 'Draw 1.', [{ type: 'draw', amount: 1 }])],
+    { id: 'chamber_protocol', name: "Broodmother Ul'Kha", race: 3, stability: 5, lead: '{dawn}: your other cards grow 1.', onTurn: [{ type: 'growOthers' }] },
+    [act('feed', 'Feed', 'Your other cards grow 1.', [{ type: 'growOthers' }]), act('forage', 'Forage', 'Draw 1.', [{ type: 'draw', amount: 1 }])],
   ),
   hero(
     { id: 'logistics_command', name: 'Hive-Speaker Zyth', race: 3, stability: 5, lead: 'Your Ixquor cards {heat:+1}.', passive: [{ type: 'kindBonus', race: 3, amount: 1, others: true }] },
@@ -61,7 +61,7 @@ const HEROES: CardDef[] = [
   ),
   hero(
     { id: 'the_worldroot', name: 'The Worldroot', race: 3, stability: 7, lead: 'Draw 3. {dawn}: draw 1.', onPlay: [{ type: 'draw', amount: 3 }], onTurn: [{ type: 'draw', amount: 1 }] },
-    [act('bloom', 'Bloom', 'Your other growing cards grow by 1.', [{ type: 'growOthers' }]), act('roots', 'Deep Roots', '{cool:3}.', [{ type: 'cool', amount: 3 }])],
+    [act('bloom', 'Bloom', 'Your other cards grow 1.', [{ type: 'growOthers' }]), act('roots', 'Deep Roots', '{cool:3}.', [{ type: 'cool', amount: 3 }])],
   ),
 ];
 

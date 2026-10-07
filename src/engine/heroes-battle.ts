@@ -110,7 +110,7 @@ export const HERO_CARDS: Record<string, CardDef> = Object.fromEntries(
     ),
     // ---- Ixquor: the hive that does not stop ----
     hero(
-      { id: 'chamber_protocol', name: "Broodmother Ul'Kha", race: 3, stability: 5, lead: '{dawn}: your other growing cards grow by 1.', onTurn: [{ type: 'growOthers' }] },
+      { id: 'chamber_protocol', name: "Broodmother Ul'Kha", race: 3, stability: 5, lead: '{dawn}: your other cards grow 1.', onTurn: [{ type: 'growOthers' }] },
       [act('spawn', 'Spawn', '{plant:1}.', [{ type: 'plant', amount: 1 }]), act('nurture', 'Nurture', '{renew:1}. She regains 2 stability.', [{ type: 'restore', amount: 1, all: true }, { type: 'restore', amount: 2, self: true }])],
     ),
     hero(

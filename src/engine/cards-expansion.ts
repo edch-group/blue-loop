@@ -644,7 +644,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Mycelial Net',
     kind: 'growth',
     race: 3,
-    text: '{dawn}: your other growing cards grow by 1. {dusk}: {cool:1}.',
+    text: '{dawn}: your other cards grow 1. {dusk}: {cool:1}.',
     onTurn: [{ type: 'growOthers' }], onDusk: [{ type: 'cool', amount: 1 }],
   },
   {
