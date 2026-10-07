@@ -74,7 +74,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   hold: { name: 'hold', group: 'shields', explain: () => "Your shields don't fade." },
   thermosiphon: { name: 'thermosiphon', group: 'cool', explain: () => 'Per 2 points your sun is below zero (it goes down to −10).' },
   overheated: { name: 'overheated', group: 'heat', explain: () => 'Your sun is at half health or hotter.' },
-  grows: { name: 'grow', group: 'tempo', explain: () => 'Grows 1 each time, up to this limit. Each point of growth is +1 attack.' },
+  grows: { name: 'grow', group: 'tempo', explain: () => 'Grows 1 each time it triggers, up to the max shown. Each point of growth is +1 attack.' },
   plays: { name: 'industry', group: 'tempo', explain: () => 'Extra energy each day.' },
   spend: { name: 'spend all', group: 'tempo', explain: () => 'Spends all your energy.' },
   energy: { name: 'gain', group: 'tempo', explain: () => 'Extra energy today.' },
@@ -123,6 +123,8 @@ function rawLabel(id: string, value?: string): string {
   if (!k) return value ?? id;
   if (!value) return k.name;
   if (id === 'destroy' || id === 'eject') return `${k.name} ${value}`;
+  // (Grow N: 1 a time, up to N.)
+  if (id === 'grows') return `${k.name} 1 (max ${value})`;
   if (id === 'plays' || id === 'abundance') return `${k.name} +${value}`;
   if (id === 'attune') return value === '1' ? k.name : `${k.name} ×${value}`;
   if (id === 'act') return '';
