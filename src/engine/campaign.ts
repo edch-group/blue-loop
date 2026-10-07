@@ -77,8 +77,11 @@ export const CAMPAIGN = {
   commandRoom: 1,
   hullHealth: 1,
   /** Cards a station (a system with no flagship in it) fights with, by tier, and the Heart's Wardens. */
-  stationDeck: [4, 6, 8],
-  heartDeck: 10,
+  /** (Older saves: the tiers' deck sizes, before every enemy deck began at 10.) */
+  stationDeck: [10, 12, 14],
+  heartDeck: 12,
+  /** Every other enemy's deck starts at this many cards (as the player's does), 2 more a tier. */
+  enemyDeck: 10,
   /** Cards a system can hold as its garrison. They start its defence already in play. */
   garrisonSlots: 3,
   startCredits: 6,
@@ -1392,8 +1395,8 @@ function stationDeck(s: CampaignState, n: CampaignNode, race?: number): string[]
   }
   const tier = Math.max(0, n.tier);
   const pool = (race === undefined ? neutralDeck(s, tier) : starterDeck(race)).filter((id) => cardDef(id).kind !== 'command');
-  // (Bigger the harder it is: 4 cards at first, 2 more a tier, up to a full 20.)
-  const size = Math.min(20, 4 + 2 * tier);
+  // (Like the player's, it starts at 10 cards; 2 more a tier, up to a full 20.)
+  const size = Math.min(20, CAMPAIGN.enemyDeck + 2 * tier);
   const deck: string[] = [];
   for (const id of shuffleInPlace(s, pool)) {
     if (deck.length >= size) break;

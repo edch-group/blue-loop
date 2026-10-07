@@ -37,7 +37,7 @@ import {
   shiftEffect,
   shiftSlots,
 } from './game';
-import type { Action, CardInstance, Effect, GameState, PlayerState } from './types';
+import type { Action, CardInstance, Effect, GameState, HeroAbility, PlayerState } from './types';
 
 /** A tuning number, overridable from the environment when simulating (npm run simulate); fixed everywhere else. */
 function tuning(name: string, fallback: number): number {
@@ -212,7 +212,9 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   // An attack: about that much heat a day, at the sun or a card.
   if ((def.attack ?? 0) > 0) perTurn += 0.8 * cardAttack(state, p, card);
   // A Hero's abilities: the best of them, once a day, less its energy.
-  if (def.abilities?.length) perTurn += 0.8 * Math.max(...def.abilities.map((k) => abilityValue(p, k.effects) - (k.cost ?? 0) * ACTION_VALUE * 0.6));
+  // (Its other costs too: the Hero's stability, a card sacrificed, heat on its own sun.)
+  const payValue = (k: HeroAbility) => ((k.pay?.stability ?? 0) * 0.5 + (k.pay?.sacrifice ? 1 : 0) + (k.pay?.selfHeat ?? 0) * 0.3) * ACTION_VALUE;
+  if (def.abilities?.length) perTurn += 0.8 * Math.max(...def.abilities.map((k) => abilityValue(p, k.effects) - (k.cost ?? 0) * ACTION_VALUE * 0.6 - payValue(k)));
   // Worth as many turns as it has left (roughly), and a little more where removal cannot reach it. A Hero
   // never fades: it is worth the whole horizon.
   // (A Hero never fades: it leads until it is removed, so it is worth a good deal longer than a card that fades.)

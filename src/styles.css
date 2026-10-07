@@ -5845,3 +5845,20 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-n3 .cmp-bb { transform: translate(-50%, -100%) scale3d(var(--ui), var(--ui), var(--ui)); }
 .cmp-heart .cmp-bb, .cmp-heart .cmp-star { transform-style: flat; }
 .cmp-star > i.cmp-bloom3d { inset: auto; left: 50%; bottom: calc(100% + 3px); width: 46px; height: 46px; margin: 0; transform: translateX(-50%); border-radius: 0; }
+
+/* The result on a short screen (a phone on its side): two columns, everything on screen, the hand put away. */
+body:has(.game-result) .dock { visibility: hidden; }
+@media (max-height: 560px) {
+  .game-result, .game-result.result-spoils { top: 50%; transform: translate(-50%, -50%); max-height: calc(100% - 16px); padding: 10px 18px; gap: 4px 18px; }
+  .game-result.result-spoils { grid-template-columns: auto auto; align-items: center; }
+  .game-result.result-spoils > * { grid-column: 1; }
+  .game-result.result-spoils > .salvage:not(.finds) { grid-column: 2; grid-row: 1 / span 6; }
+  .game-result h2 { font-size: 1.35rem; letter-spacing: 0.26em; }
+  .game-result p { font-size: 0.62rem; }
+  .game-result .salvage-title { font-size: 0.56rem; }
+  .game-result .find { transform: scale(0.75); margin: -6px; }
+  .game-result .salvage-cards { gap: 8px; }
+  .game-result .salvage-cards .cmp-card { --hh: 140px; --hw: 100px; --cw: 100px; }
+  .game-result .result-actions .btn-primary, .game-result .result-actions .btn { padding: 7px 16px; font-size: 0.7rem; }
+}
+.game-result .result-actions .btn, .game-result .result-actions .btn-primary { white-space: nowrap; }

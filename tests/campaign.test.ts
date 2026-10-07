@@ -207,7 +207,7 @@ describe('economy', () => {
     // The station defending has no hero: it fights with a few cards and its walls.
     const them = s.battle!.game.players[1];
     expect(them.hero).toBeUndefined();
-    expect(them.deck.length + them.hand.length).toBeLessThanOrEqual(CAMPAIGN.stationDeck[2]);
+    expect(them.deck.length + them.hand.length).toBeGreaterThanOrEqual(CAMPAIGN.enemyDeck);
   });
 });
 

@@ -423,13 +423,27 @@ export interface TurnPulse {
  * A hero's skill in battle (campaign): used on your own day. `once`: a single use in the battle;
  * otherwise once a day. `cost`: energy, paid like a card's.
  */
-/** One of a Hero's abilities: used on your day, at most one a day, for its energy cost (0 if unset). */
+/**
+ * What an action costs, beyond nothing: energy, the Hero's own stability, one of your other cards (the weakest,
+ * sacrificed to your discard pile), or heat on your own sun. Most abilities are free.
+ */
+export interface ActionCost {
+  energy?: number;
+  stability?: number;
+  sacrifice?: boolean;
+  selfHeat?: number;
+}
+
+/** One of a Hero's abilities: used on your day, at most one a day, for its cost (free if unset). */
 export interface HeroAbility {
   id: string;
   name: string;
   text: string;
   effects: Effect[];
+  /** Energy (kept as `cost` for the energy dots on the card). */
   cost?: number;
+  /** Costs other than energy. */
+  pay?: Omit<ActionCost, 'energy'>;
 }
 
 export interface BattleSkill {

@@ -5111,8 +5111,10 @@ export class App {
    * "Draw 1" read "Draw 2"), and what each fused card adds beyond that.
    */
   private fusedView(c: CardInstance | undefined): { text: string; rests: { defId: string; rest: string }[] } {
-    let text = cardDef(c?.defId ?? '').text;
-    const rests = (c?.fused ?? []).map((f) => {
+    // (A card in hand or the deck builder has no instance in play: nothing fused onto it.)
+    if (!c?.fused?.length) return { text: c ? cardDef(c.defId).text : '', rests: [] };
+    let text = cardDef(c.defId).text;
+    const rests = c.fused.map((f) => {
       const merged = mergeCardText(text, cardDef(f.defId).text.replace(/^\{fusion\}\.\s*/, ''));
       text = merged.text;
       return { defId: f.defId, rest: merged.rest };

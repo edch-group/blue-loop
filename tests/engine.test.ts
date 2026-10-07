@@ -237,16 +237,45 @@ describe('commands', () => {
     for (let i = 0; i < 10; i++) s = endTurn(s);
     expect(s.players[0].tableau.some((c) => c.defId === 'ignition_protocol')).toBe(true);
     expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.stability).toBe(5);
-    // Strafe: heat 3, for 2 energy; then no second ability that day.
+    // Strafe: heat 3, paid for with 2 heat on your own sun (no energy); then no second ability that day.
     const before = s.players[1].heat;
     activePlayer(s).playsLeft = 3;
+    activePlayer(s).heat = 0;
     expect(heroAbilityProblem(s, activePlayer(s), 0)).toBeNull();
     s = applyAction(s, { type: 'heroAbility', index: 0 });
     expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 3 - s.players[1].shields);
-    expect(activePlayer(s).playsLeft).toBe(1);
+    expect(activePlayer(s).playsLeft).toBe(3);
+    expect(activePlayer(s).heat).toBeGreaterThan(0);
     expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/acted today/);
     s = endTurn(endTurn(s));
     expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
+  });
+
+  it('pay for abilities with more than energy: the Hero\'s stability, or a card sacrificed', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    me.playsLeft = 5;
+    give(me, ['war_council', 'deflector_grid']);
+    s = play(s, 'war_council');
+    s = play(s, 'deflector_grid');
+    s = endTurn(endTurn(s));
+    const mine = () => activePlayer(s).tableau;
+    const hero = () => mine().find((c) => c.defId === 'war_council')!;
+    // Shatter: sacrifice a card (the weakest other one), no energy.
+    const others = mine().length - 1;
+    const energy = activePlayer(s).playsLeft;
+    expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
+    s = applyAction(s, { type: 'heroAbility', index: 1 });
+    expect(mine().length - 1).toBe(others - 1);
+    expect(activePlayer(s).playsLeft).toBe(energy);
+    s = endTurn(endTurn(s));
+    // Archive: 1 of the Hero's own stability (never its last).
+    const stab = hero().stability!;
+    s = applyAction(s, { type: 'heroAbility', index: 0 });
+    expect(hero().stability).toBe(stab - 1);
+    s = endTurn(endTurn(s));
+    hero().stability = 1;
+    expect(heroAbilityProblem(s, activePlayer(s), 0)).toMatch(/stability/);
   });
 
   it('mend their own stability (their health), up to their full stability', () => {

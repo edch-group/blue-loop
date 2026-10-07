@@ -111,11 +111,11 @@ export const RACE_CARDS: CardDef[] = [
   ),
   hero(
     { id: 'nyx_hero_kael', name: 'Unmaker Kael', race: 4, sub: 'unmaker', character: true, rarity: 'stellar', cost: 3, stability: 5, lead: 'Your Unmaker cards {heat:+1}.', passive: [{ type: 'kindBonus', sub: 'unmaker', amount: 1, others: true }] },
-    [act('rend', 'Rend', '{heat:2}, {pierce}.', [{ type: 'heat', amount: 2, to: 'target', pierce: true }], 1), act('fade', 'Fade', '{shield:2}. He regains 1 stability.', [{ type: 'shield', amount: 2 }, { type: 'restore', amount: 1, self: true }])],
+    [act('rend', 'Rend', '{heat:2}, {pierce}.', [{ type: 'heat', amount: 2, to: 'target', pierce: true }], { stability: 1 }), act('fade', 'Fade', '{shield:2}. He regains 1 stability.', [{ type: 'shield', amount: 2 }, { type: 'restore', amount: 1, self: true }])],
   ),
   hero(
     { id: 'nyx_hero_nyxara', name: 'Nyxara, the Unlit', race: 4, character: true, rarity: 'anomaly', cost: 4, stability: 7, lead: '{destroy:3}. Your Nyxari cards {heat:+1}.', onPlay: [{ type: 'destroy', maxDefence: 3 }], passive: [{ type: 'kindBonus', race: 4, amount: 1, others: true }] },
-    [act('eclipse', 'Eclipse', '{heat:3}, {pierce}.', [{ type: 'heat', amount: 3, to: 'target', pierce: true }], 1), act('vanish', 'Vanish', 'Draw 2.', [{ type: 'draw', amount: 2 }])],
+    [act('eclipse', 'Eclipse', '{heat:3}, {pierce}.', [{ type: 'heat', amount: 3, to: 'target', pierce: true }], { sacrifice: true }), act('vanish', 'Vanish', 'Draw 2.', [{ type: 'draw', amount: 2 }])],
   ),
 
   // ---------------- Korrath ----------------
@@ -203,11 +203,11 @@ export const RACE_CARDS: CardDef[] = [
   ),
   hero(
     { id: 'kor_hero_brannoc', name: 'Warden Brannoc', race: 5, sub: 'bastionkin', character: true, rarity: 'stellar', cost: 3, stability: 6, lead: 'Your Bastion-kin cards {shield:+1}.', passive: [{ type: 'kindBonus', sub: 'bastionkin', stat: 'shield', amount: 1, others: true }] },
-    [act('holdline', 'Hold the Line', '{shield:3}.', [{ type: 'shield', amount: 3 }]), act('counterblow', 'Counter-blow', '{heat:1} per 2 shields you have (up to 3).', [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'shields', per: 2 }, max: 3 }], 1)],
+    [act('holdline', 'Hold the Line', '{shield:3}.', [{ type: 'shield', amount: 3 }]), act('counterblow', 'Counter-blow', '{heat:1} per 2 shields you have (up to 3).', [{ type: 'heat', amount: 0, to: 'target', plus: { of: 'shields', per: 2 }, max: 3 }], { stability: 1 })],
   ),
   hero(
     { id: 'kor_hero_anvil_king', name: 'The Anvil-King', race: 5, character: true, rarity: 'anomaly', cost: 4, stability: 8, lead: '{repair:4}. Your Korrath cards {heat:+1}.', onPlay: [{ type: 'repair', amount: 4 }], passive: [{ type: 'kindBonus', race: 5, amount: 1, others: true }] },
-    [act('hammerfall', 'Hammerfall', '{heat:4}.', [{ type: 'heat', amount: 4, to: 'target' }], 1), act('reforge', 'Reforge', '{renew:1}. He regains 2 stability.', [{ type: 'restore', amount: 1, all: true }, { type: 'restore', amount: 2, self: true }])],
+    [act('hammerfall', 'Hammerfall', '{heat:4}.', [{ type: 'heat', amount: 4, to: 'target' }], { sacrifice: true }), act('reforge', 'Reforge', '{renew:1}. He regains 2 stability.', [{ type: 'restore', amount: 1, all: true }, { type: 'restore', amount: 2, self: true }])],
   ),
 
   // ---------------- Seren ----------------
@@ -295,11 +295,11 @@ export const RACE_CARDS: CardDef[] = [
   ),
   hero(
     { id: 'ser_hero_maren', name: 'Tidecaster Maren', race: 6, sub: 'tidecaster', character: true, rarity: 'stellar', cost: 3, stability: 5, lead: '{attune}.', attune: 1 },
-    [act('pull', 'Pull', "{heat:2}. Your rival's {orbit:−1}.", [{ type: 'heat', amount: 2, to: 'target' }, { type: 'orbit', amount: -1, who: 'rival' }], 1), act('drift', 'Drift', 'Your {orbit:+1}. {shield:2}.', [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'shield', amount: 2 }])],
+    [act('pull', 'Pull', "{heat:2}. Your rival's {orbit:−1}.", [{ type: 'heat', amount: 2, to: 'target' }, { type: 'orbit', amount: -1, who: 'rival' }], { energy: 1 }), act('drift', 'Drift', 'Your {orbit:+1}. {shield:2}.', [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'shield', amount: 2 }])],
   ),
   hero(
     { id: 'ser_hero_aster', name: 'Aster, the Last Constellation', race: 6, character: true, rarity: 'anomaly', cost: 4, stability: 7, lead: 'Draw 2. Your {orbit:+3}. {attune:2}.', onPlay: [{ type: 'draw', amount: 2 }, { type: 'orbit', amount: 3, who: 'self' }], attune: 2 },
-    [act('starfall', 'Starfall', '{heat:3}, {pierce}.', [{ type: 'heat', amount: 3, to: 'target', pierce: true }], 1), act('alignment', 'Alignment', 'Your {orbit:+1}. Draw 1.', [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'draw', amount: 1 }])],
+    [act('starfall', 'Starfall', '{heat:3}, {pierce}.', [{ type: 'heat', amount: 3, to: 'target', pierce: true }], { sacrifice: true }), act('alignment', 'Alignment', 'Your {orbit:+1}. Draw 1.', [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'draw', amount: 1 }])],
   ),
 
   // ---------------- Pyrr ----------------
@@ -378,14 +378,14 @@ export const RACE_CARDS: CardDef[] = [
   // Heroes
   hero(
     { id: 'pyr_hero_ignis', name: 'Flame-Herald Ignis', race: 7, sub: 'flarekin', character: true, cost: 2, stability: 5, lead: 'Your Flarekin cards {heat:+1}.', passive: [{ type: 'kindBonus', sub: 'flarekin', amount: 1 }] },
-    [act('ignite', 'Ignite', '{energy:1}. {heat:1} to your sun.', [{ type: 'plays', amount: 1 }, { type: 'selfHeat', amount: 1 }]), act('spark', 'Spark', '{heat:2}.', [{ type: 'heat', amount: 2, to: 'target' }], 1)],
+    [act('ignite', 'Ignite', '{energy:1}. {heat:1} to your sun.', [{ type: 'plays', amount: 1 }, { type: 'selfHeat', amount: 1 }]), act('spark', 'Spark', '{heat:2}.', [{ type: 'heat', amount: 2, to: 'target' }], { selfHeat: 1 })],
   ),
   hero(
     { id: 'pyr_hero_ashka', name: 'Cinder-Queen Ashka', race: 7, sub: 'cinderborn', character: true, rarity: 'stellar', cost: 3, stability: 5, lead: '{dawn}: {heat:1}. {heat:+2} while {overheated}.', onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { overheated: true } }] },
-    [act('bathe', 'Bathe in Fire', '{heat:2} to your sun. She regains 2 stability.', [{ type: 'selfHeat', amount: 2 }, { type: 'restore', amount: 2, self: true }]), act('flare', 'Flare', '{heat:3}.', [{ type: 'heat', amount: 3, to: 'target' }], 1)],
+    [act('bathe', 'Bathe in Fire', '{heat:2} to your sun. She regains 2 stability.', [{ type: 'selfHeat', amount: 2 }, { type: 'restore', amount: 2, self: true }]), act('flare', 'Flare', '{heat:3}.', [{ type: 'heat', amount: 3, to: 'target' }], { selfHeat: 2 })],
   ),
   hero(
     { id: 'pyr_hero_pyrrhus', name: 'Pyrrhus, the Undying Flare', race: 7, character: true, rarity: 'anomaly', cost: 4, stability: 7, lead: '{heat:5}. {heat:2} to your sun. Your Pyrr cards {heat:+1}.', onPlay: [{ type: 'heat', amount: 5, to: 'target' }, { type: 'selfHeat', amount: 2 }], passive: [{ type: 'kindBonus', race: 7, amount: 1, others: true }] },
-    [act('inferno', 'Inferno', '{heat:4}, {pierce}. {heat:2} to your sun.', [{ type: 'heat', amount: 4, to: 'target', pierce: true }, { type: 'selfHeat', amount: 2 }], 1), act('rebirth', 'Rebirth', 'He regains 3 stability. {heat:1} to your sun.', [{ type: 'restore', amount: 3, self: true }, { type: 'selfHeat', amount: 1 }])],
+    [act('inferno', 'Inferno', '{heat:4}, {pierce}. {heat:2} to your sun.', [{ type: 'heat', amount: 4, to: 'target', pierce: true }, { type: 'selfHeat', amount: 2 }], { stability: 1 }), act('rebirth', 'Rebirth', 'He regains 3 stability. {heat:1} to your sun.', [{ type: 'restore', amount: 3, self: true }, { type: 'selfHeat', amount: 1 }])],
   ),
 ];

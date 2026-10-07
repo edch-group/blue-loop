@@ -1632,6 +1632,14 @@ export function applyAction(prev: GameState, action: Action): GameState {
       const hero = commandCard(p)!;
       const k = cardDef(hero.defId).abilities![action.index];
       p.playsLeft -= k.cost ?? 0;
+      // The other costs: the Hero's own stability, a card sacrificed, heat on your own sun.
+      if (k.pay?.stability) hero.stability = (hero.stability ?? 0) - k.pay.stability;
+      const victim = k.pay?.sacrifice ? sacrificeOf(p) : undefined;
+      if (victim) {
+        log(state, `${p.name} sacrifices ${cardDef(victim.defId).name}.`);
+        leaveTableau(state, p, victim);
+      }
+      if (k.pay?.selfHeat) resolveEffects(state, p, hero, [{ type: 'selfHeat', amount: k.pay.selfHeat }], 'play');
       p.abilityTurn = state.turnNumber;
       hero.dimmed = true;
       if (action.aimUid && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau (a Guard, while they have one), or at their sun.");
@@ -1752,7 +1760,16 @@ export function heroAbilityProblem(state: GameState, p: PlayerState, index: numb
   if (activePlayer(state).id !== p.id) return 'Only on your own day.';
   if (hero.dimmed) return p.abilityTurn === state.turnNumber ? `${cardDef(hero.defId).name} has acted today.` : `${cardDef(hero.defId).name} is dimmed: it acts from your next day.`;
   if ((k.cost ?? 0) > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
+  if (k.pay?.stability && (hero.stability ?? 0) <= k.pay.stability) return `${cardDef(hero.defId).name} hasn't the stability to spare.`;
+  if (k.pay?.sacrifice && !sacrificeOf(p)) return `${k.name} needs another of your cards in play to sacrifice.`;
+  if (k.pay?.selfHeat && p.heat + k.pay.selfHeat >= supernovaThreshold(p)) return `${k.name} would drive your own sun to supernova.`;
   return null;
+}
+
+/** The card a sacrifice takes: your weakest other card in play (the least stability left; the first of those). */
+export function sacrificeOf(p: PlayerState): CardInstance | undefined {
+  const others = p.tableau.filter((c) => c.slot !== COMMAND_SLOT);
+  return others.reduce<CardInstance | undefined>((low, c) => (!low || (c.stability ?? 99) < (low.stability ?? 99) ? c : low), undefined);
 }
 
 /** Why a hero's battle skill can't be used now (null if it can). */
