@@ -6,7 +6,6 @@ import {
   battleFinds,
   itemText,
   sunHealth,
-  depth,
   defenderOf,
   salvageOptions,
   salvageToDeck,
@@ -17,7 +16,6 @@ import {
   CAMPAIGN_MISSIONS,
   campaignMissionDef,
   campaignPlayer,
-  canGarrison,
   cardDef,
   migrateGame,
   migrateCampaign,
@@ -83,7 +81,6 @@ import {
   nodeAnomalies,
   nodeById,
   ownedNodes,
-  fortifyCost,
   RACE_NAMES,
   RACE_TRAITS,
   RARITY_NAME,
@@ -108,7 +105,7 @@ import { heroFigure, skillTree } from './heroview';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
-import { raceRow, cardArtLite, cardStock, cardGlyph, cardBodyHtml, effectMark, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { raceRow, cardArtLite, cardStock, cardBodyHtml, effectMark, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { setTutorial, startTour, tourDue, tutorialOn } from './tour';
 import { mapTour } from './tutorial';
@@ -144,7 +141,7 @@ const lower = (t: string) => esc(t.toLowerCase());
 import { FACTION_COLOUR, factionAvatar } from './factions';
 export { FACTION_COLOUR };
 const NEUTRAL = '#c9cbd0';
-/** Credits: a solid gold coin. Earned from your systems, battles and missions; spent on repairs and fortifications. */
+/** Credits: a solid gold coin. Earned from your systems, battles and missions; spent on repairs and your ship. */
 const CREDITS =
   '<svg class="cur cur-credits" viewBox="0 0 20 20" aria-label="credits"><circle cx="10" cy="10" r="9" fill="#b98f3c"/><circle cx="9.3" cy="9.2" r="8" fill="#d6ae57"/><circle cx="7.4" cy="6.8" r="3.2" fill="#f0d68f" opacity=".55"/><circle cx="10" cy="10" r="6.3" fill="none" stroke="#fff4d6" stroke-width="1.2" opacity=".85"/><path d="M10 5.6 11.2 8.8 14.4 10 11.2 11.2 10 14.4 8.8 11.2 5.6 10 8.8 8.8Z" fill="#fff8e6"/></svg>';
 /** Materials: a solid teal crystal. Earned the same ways; spent on buying cards in the armory. */
@@ -307,7 +304,6 @@ type Sheet =
   /** The base's ship: its rooms, shields and hull, to upgrade. */
   | { kind: 'ship'; pick?: string }
   | { kind: 'log' }
-  | { kind: 'station'; nodeId: string }
   | { kind: 'attack'; armyId: string; toId: string }
   | { kind: 'help' }
   | { kind: 'settings' }
@@ -980,28 +976,10 @@ export class CampaignView {
         this.finishBattle(s!.battle!.game, true);
         break;
       case 'cmp-conquer':
-        if (this.apply({ type: 'conquer', choice: arg as 'settle' | 'absorb' | 'supernova' })) sound.upgrade();
+        if (this.apply({ type: 'conquer', choice: 'settle' })) sound.upgrade();
         break;
       case 'cmp-card':
         if (this.apply({ type: 'chooseCard', defId: arg || null })) sound.buy();
-        break;
-      case 'cmp-heal':
-        if (this.apply({ type: 'heal', nodeId: arg, all: el.dataset.all === '1' })) el.dataset.all === '1' ? sound.upgrade() : sound.repair();
-        break;
-      case 'cmp-fortify':
-        if (this.apply({ type: 'fortify', nodeId: arg })) sound.upgrade();
-        break;
-      case 'cmp-station-open':
-        this.sheet = { kind: 'station', nodeId: arg };
-        break;
-      case 'cmp-station': {
-        if (this.sheet?.kind !== 'station') break;
-        if (this.apply({ type: 'station', nodeId: this.sheet.nodeId, index: n() })) sound.play();
-        this.sheet = null;
-        break;
-      }
-      case 'cmp-recall':
-        if (this.apply({ type: 'recall', nodeId: el.dataset.node!, uid: arg })) sound.play();
         break;
       case 'cmp-end-turn':
         if (this.apply({ type: 'endTurn', stepwise: true })) {
@@ -1904,23 +1882,17 @@ export class CampaignView {
     const me = campaignPlayer(s);
     const mine = n.owner === me.id;
     const owner = n.owner ? factionById(s, n.owner) : null;
-    const fortCost = fortifyCost(n);
     const chip = (body: string, tip: string, tone = '') => `<button class="pop-chip ${tone}" data-act="cmp-tip" data-tip="${esc(tip)}" title="${esc(tip)}">${body}</button>`;
     const icon = (body: string) => `<svg class="pi" viewBox="0 0 16 16" aria-hidden="true">${body}</svg>`;
-    const g = garrisonBonus(n);
     const hp = sunHealth(n);
     const chips = [
-      chip(`${CREDITS}<b>${n.yield.credits}</b>${MATERIALS}<b>${n.yield.materials}</b>`, `Yields ${n.yield.credits} credits and ${n.yield.materials} materials a turn to whoever holds it.`),
+      n.owner || n.heart || n.ruined ? '' : chip(`${CREDITS}<b>${n.yield.credits}</b>${MATERIALS}<b>${n.yield.materials}</b>`, `Taken, it pays ${n.yield.credits} credits and ${n.yield.materials} materials, once.`),
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
-      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>heart</b>`, `The oldest star, at the centre of everything. Whoever claims it wins the campaign.${n.owner ? '' : ` Guarded by the Heart Wardens: +${CAMPAIGN.heartWardenHealth} max health.`}`, 'gold') : '',
-      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before fortification, the star, anomalies and ships' hulls): ${n.heart ? 'the most, at the Heart' : `${n.ring} route${n.ring === 1 ? '' : 's'} from the Heart, and more the nearer it lies`}.${(CAMPAIGN.coreYield[depth(n)] ?? 0) > 0 ? ` A rich world too: +${CAMPAIGN.coreYield[depth(n)]} of each a turn.` : ''}`),
-      !n.fortification ? '' : chip(`${icon('<path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/>')}<b>+${n.fortification * CAMPAIGN.fortifyHealth}</b>`, `Fortification ${n.fortification}/${CAMPAIGN.maxFortification}: its defender has +${n.fortification * CAMPAIGN.fortifyHealth} max health. Each level adds ${CAMPAIGN.fortifyHealth}.`),
-      !n.garrison.length && !mine ? '' : chip(`${icon('<rect x="4" y="2" width="8" height="12" rx="1.6"/><path d="M6.5 6h3"/>')}<b>${n.garrison.length}/${CAMPAIGN.garrisonSlots}</b>`, n.garrison.length ? `Garrison: ${n.garrison.map((c) => cardDef(c.defId).name).join(', ')}. If attacked, ${g.tableau.length} start${g.tableau.length === 1 ? 's' : ''} in play.` : 'Garrison: no cards stationed.'),
-      n.damage ? chip(`${icon('<path d="M8 1.5 9.4 6 14 4.6 10.6 8 14 11.4 9.4 10 8 14.5 6.6 10 2 11.4 5.4 8 2 4.6 6.6 6z"/>')}<b>${n.damage}</b>`, `Damage ${n.damage}: its defender's sun starts ${n.damage} hotter.`, 'bad') : '',
+      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, 'Torn open by a Stellari bloom: beat its guardian and go through, into the next universe, with the petals you grab.', 'gold') : '',
+      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, anomalies and ships' hulls): more the further along the strip, and in every universe after the first.`),
       n.scanner ? chip(SCANNER, 'Scanner array: whoever holds it sees systems two links away.') : '',
       (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
       n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'Its star has guttered: it yields less than it did.', 'muted') : '',
-      n.hazard.length ? chip(icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>'), 'Supernova remnant: rivals cannot advance into it this turn.', 'bad') : '',
       n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
       (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, `Stabilised: it holds until turn ${n.stableUntil}.`, 'good') : '',
       ...nodeAnomalies(s, n).map((x) => chip(`<i class="an-icon an-icon-${x.kind}"></i>`, `${ANOMALIES[x.kind].name} nearby: ${ANOMALIES[x.kind].text}`)),
@@ -1947,23 +1919,6 @@ export class CampaignView {
           }
         </div>`
       : '';
-    const garrison = mine
-      ? n.garrison
-          .map((c) => {
-            const def = cardDef(c.defId);
-            const state = c.status === 'stationed' ? 'stationed' : c.status === 'arriving' ? 'arrives next turn' : 'leaves next turn';
-            const recall = c.status === 'stationed' ? ` data-act="cmp-recall" data-node="${n.id}" data-arg="${c.uid}"` : '';
-            return `<button class="pop-gar ${c.status}" style="--kc:${KIND_COLOUR[def.kind]}"${recall} title="${esc(`${def.name}: ${state}${recall ? ' (tap to recall)' : ''}`)}">${cardGlyph(def.id, def.kind)}</button>`;
-          })
-          .join('')
-      : '';
-    const acts = mine
-      ? [
-          fortCost !== null ? `<button class="pill-btn" data-act="cmp-fortify" data-arg="${n.id}" ${me.credits < fortCost ? 'disabled' : ''} title="Fortify: +${CAMPAIGN.fortifyHealth} defence">fortify · ${CREDITS}${fortCost}</button>` : '',
-          n.damage ? this.repairButtons('cmp-heal', n.id, n.damage, CAMPAIGN.healCostPerPoint, '') : '',
-          n.garrison.length < CAMPAIGN.garrisonSlots ? `<button class="pill-btn" data-act="cmp-station-open" data-arg="${n.id}">station a card</button>` : '',
-        ].join('')
-      : '';
     const tip = this.popTip ? `<p class="pop-tip">${esc(this.popTip)}</p>` : '';
     // A station your flagship stands in: visit it.
     const atStation = n.station && flagship(s, me.id)?.nodeId === n.id && s.phase === 'player' && !s.battle;
@@ -1979,8 +1934,7 @@ export class CampaignView {
       ${attack ? `<div class="pop-row">${attack}</div>` : ''}
       ${visit ? `<div class="pop-row">${visit}</div>` : ''}
       ${army}
-      ${garrison ? `<div class="pop-gars">${garrison}</div>` : ''}
-      ${acts ? `<div class="pop-row">${acts}</div>` : ''}`;
+`;
   }
 
   // ---- Overlays -------------------------------------------------------------------
@@ -2015,20 +1969,7 @@ export class CampaignView {
     }
     if (s.conquest) {
       const n = nodeById(s, s.conquest.nodeId);
-      const spoils = n.garrison.length ? ` Its garrison (${n.garrison.map((g) => cardDef(g.defId).name).join(', ')}) is yours either way.` : '';
-      // One short line each; the whole story is in the tooltip.
-      const opt = (id: string, title: string, line: string, more: string) => `<button class="cmp-choice" data-act="cmp-conquer" data-arg="${id}" title="${esc(more)}"><b>${title}</b><span>${line}</span></button>`;
-      return this.modal(
-        `${lower(n.name)} has fallen`,
-        `<div class="cmp-choices">
-          ${opt('settle', 'conquer', `${CREDITS}+${n.yield.credits} ${MATERIALS}+${n.yield.materials} · counts for petals`, 'Hold it: it pays once, your flagship moves in, and it counts towards the petals at the wormhole.')}
-          ${opt('supernova', 'supernova', `${CREDITS}+${n.yield.credits * 2} ${MATERIALS}+${n.yield.materials * 2} · no petals`, 'Burn it: it pays double, but is left a ruin (open to pass through) that counts for nothing.')}
-         </div>
-         ${spoils ? `<p class="muted center-text">${esc(spoils.trim())}</p>` : ''}`,
-        false,
-        '',
-        'cmp-modal-narrow',
-      );
+      return this.modal(`${lower(n.name)} has fallen`, `<div class="center-row"><button class="btn-primary" data-act="cmp-conquer">take it · ${CREDITS}+${n.yield.credits} ${MATERIALS}+${n.yield.materials}</button></div>`, false, '', 'cmp-modal-narrow');
     }
     const reward = s.cardRewards[0];
     if (reward) {
@@ -2104,7 +2045,7 @@ export class CampaignView {
         return this.modal(
           'how the campaign works',
           `<div class="cmp-legend">
-            <div>${CREDITS}<span><b>Credits</b> run your systems and your ship. Earned: each system's yield every turn, winning battles, missions. Spent: upgrading your ship, repairs, fortifying systems.</span></div>
+            <div>${CREDITS}<span><b>Credits</b> run your ship. Earned: every system you take, battles and missions. Spent: upgrading your ship and repairs.</span></div>
             <div>${MATERIALS}<span><b>Materials</b> build your deck. Earned the same ways. Spent: cards at space stations, fusing cards.</span></div>
             <div>${WISDOM}<span><b>Wisdom</b> builds ${CAMPAIGN.wisdomPerTurn} a turn. Spent: research stations' upgrades.</span></div>
           </div>
@@ -2112,7 +2053,7 @@ export class CampaignView {
             <li><b>The loop:</b> each universe is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian to go through, into a harder universe. The run goes on until your flagship is lost.</li>
             <li><b>The collapse:</b> regional stability lasts ${CAMPAIGN.stabilityTurns} turns in the first universe, ${CAMPAIGN.stabilityStep} fewer in each one after (never under ${CAMPAIGN.stabilityMin}). Then the strip gives way from the near end, a whole column a turn, each marked (⚠) a turn before. Whatever stands there is lost, your flagship too.</li>
             <li><b>Your flagship</b> flies one route a turn, led by your hero, any way you like, back on itself too. Into a system you hold, or a ruin, it simply moves; into any other, it fights. Each turn it either <b>moves</b> or <b>refits</b> (its deck changed, or repaired), not both.</li>
-            <li><b>Win</b> a system and choose: <b>conquer</b> it (it pays its credits and materials once, your flagship moves in, and it counts for petals), or drive it to <b>supernova</b> (it pays double, but is left a ruin that counts for nothing). Research builds ${CAMPAIGN.wisdomPerTurn} a turn; nothing else pays by the turn. Some worlds hold a treasury or archives: more credits or research, taken with the system.</li>
+            <li><b>Win</b> a system and it is yours: it pays its credits and materials once, your flagship moves in, and it counts for petals. Research builds ${CAMPAIGN.wisdomPerTurn} a turn; nothing else pays by the turn. Some worlds hold a treasury or archives: more credits or research, taken with the system.</li>
             <li><b>Stellari petals</b> are grabbed at every wormhole: a few for getting there, more for every share of the strip you conquered. They are banked at once and outlive the run. Spend them between runs on a stronger start, a tougher flagship, run perks, and new races and heroes.</li>
             <li><b>Its deck</b> starts with ${CAMPAIGN.armySize} cards: your hero and your race's own, with a few neutral cards. It grows with every card you salvage or put in, and never drops below ${CAMPAIGN.armySize}.</li>
             <li><b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card, and your ship's rooms add their walls, guns and modules to the cards standing in them.</li>
@@ -2127,18 +2068,6 @@ export class CampaignView {
           </ul>`,
           true,
         );
-      case 'station': {
-        const n = nodeById(s, sh.nodeId);
-        const cards = me.reserve
-          .map((id, i) => (canGarrison(id) ? `<button class="cmp-pick" data-act="cmp-station" data-arg="${i}">${cardHtml(id)}</button>` : ''))
-          .join('');
-        return this.modal(
-          `send a card to ${lower(n.name)}`,
-          `<div class="cmp-cards">${cards || '<p class="muted">No reserve cards to send. Win missions or visit the armory for more (global cards cannot garrison).</p>'}</div>
-           <p class="muted center-text">It arrives next turn and, from then on, starts in play whenever the system is attacked.</p>`,
-          true,
-        );
-      }
       case 'attack': {
         const to = nodeById(s, sh.toId);
         return this.modal(

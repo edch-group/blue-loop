@@ -5644,3 +5644,28 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   .cmp-hc-art { height: 100%; min-height: 72px; }
   .cmp-hc-body p { -webkit-line-clamp: 7; }
 }
+
+/* The base on a phone held sideways: the hero tab's training beside the portraits, the ship's room buttons inside their rooms. */
+@media (max-height: 560px) {
+  .cmp-heroes { grid-template-columns: clamp(130px, calc(19 * var(--vw)), 170px) minmax(0, 0.75fr) minmax(0, 1.3fr); }
+  .cmp-hero-list { grid-template-columns: repeat(auto-fill, 44px); justify-content: start; align-content: start; overflow-y: auto; scrollbar-width: thin; }
+  .cmp-hero-list .hv-train { grid-column: 1 / -1; margin-top: 4px; gap: 4px; }
+  .cmp-hero-list .hv-train > p { display: none; }
+  .hv-train-row { flex-direction: column; align-items: stretch; gap: 4px; padding: 5px 6px; }
+  .hv-train-row b { font-size: 0.9rem; }
+  .hv-train-row small { font-size: 0.58rem; }
+  .hv-train-row .pill-btn { font-size: 0.52rem; padding: 4px 6px; }
+  .cmp-shipyard { grid-template-columns: minmax(0, 1fr) minmax(170px, 230px); gap: 12px; padding: 4px 8px; align-items: center; overflow: hidden; }
+  .sh-stage { gap: 10px; }
+  .sh-ship { --k: 10; }
+  .cmp-shipyard .sh-room { padding: 6px 2px 5px; gap: 3px; border-radius: 12px; }
+  .cmp-shipyard .sh-room .sh-up { width: 20px; height: 20px; }
+  .cmp-shipyard .sh-room .sh-up svg { width: 12px; height: 12px; }
+  .cmp-shipyard .sh-room-ups { gap: 2px; }
+  .cmp-shipyard .sh-socket { width: 26px; height: 26px; }
+  .sh-whole { gap: 8px; }
+  .sh-whole .sh-up { width: 32px; height: 32px; }
+  .sh-mods { max-height: 100%; overflow-y: auto; scrollbar-width: thin; align-self: stretch; padding-top: 6px; }
+  .sh-mod-grid { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 8px 6px; }
+  .sh-mod-face { width: 38px; height: 38px; }
+}

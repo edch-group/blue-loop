@@ -127,7 +127,7 @@ describe('the collapse', () => {
 });
 
 describe('conquest', () => {
-  it('pays once for a system conquered (and counts it), double for a supernova (a ruin, open to pass through)', () => {
+  it('pays once for a system conquered, and counts it, with no choice to make', () => {
     let s = read(run());
     const me = () => campaignPlayer(s);
     const target = armyMoves(s, flag(s)).find((m) => m.battle)!.toId;
@@ -135,7 +135,7 @@ describe('conquest', () => {
     const before = me().credits;
     s = applyCampaignAction(s, { type: 'move', armyId: flag(s).id, toId: target });
     s = win(s);
-    s = applyCampaignAction(s, { type: 'conquer', choice: 'settle' });
+    expect(s.conquest).toBeNull();
     expect(me().credits - before).toBeGreaterThanOrEqual(pay.credits + 3);
     expect(nodeById(s, target).owner).toBe(s.playerId);
     expect(s.conquered).toBe(1);
@@ -145,18 +145,6 @@ describe('conquest', () => {
     s = endTurn(s);
     expect(me().credits).toBe(c);
     expect(me().wisdom).toBe(w + CAMPAIGN.wisdomPerTurn);
-    // A supernova: double, and a ruin anyone may pass through.
-    const next = armyMoves(s, flag(s)).find((m) => m.battle)?.toId;
-    if (!next) return;
-    const pay2 = { ...nodeById(s, next).yield };
-    const c2 = me().credits;
-    s = applyCampaignAction(s, { type: 'move', armyId: flag(s).id, toId: next });
-    s = win(s);
-    s = applyCampaignAction(s, { type: 'conquer', choice: 'supernova' });
-    expect(me().credits - c2).toBeGreaterThanOrEqual(pay2.credits * 2);
-    expect(nodeById(s, next).ruined).toBe(true);
-    expect(nodeById(s, next).owner).toBeNull();
-    expect(s.conquered).toBe(1);
   });
 });
 

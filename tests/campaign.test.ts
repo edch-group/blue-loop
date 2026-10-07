@@ -5,7 +5,6 @@ import {
   CAMPAIGN,
   campaignPlayer,
   createCampaign,
-  garrisonBonus,
   GameError,
   armoryPrice,
   cardDef,
@@ -116,65 +115,21 @@ describe('battles and conquest', () => {
     if (!s.winner && s.turn === 1) expect(armyMoves(s, myArmy(s))).toEqual([]);
   });
 
-  it('settle takes the system; garrison cards pass to the victor', () => {
+  it('a won battle takes the system, with no choice to make', () => {
     let s = fresh();
     const target = nodeById(s, firstTarget(s));
-    target.garrison.push({ uid: 'x', defId: 'coronal_lance', status: 'stationed' });
     s = winBattle(attack(s, target.id));
-    expect(s.conquest?.nodeId).toBe(target.id);
-    s = applyCampaignAction(s, { type: 'conquer', choice: 'settle' });
+    expect(s.conquest).toBeNull();
     expect(nodeById(s, target.id).owner).toBe(s.playerId);
-    expect(campaignPlayer(s).reserve).toContain('coronal_lance');
   });
 
 });
 
-describe('garrisons', () => {
-  it('cards take a turn to arrive and a turn to return, and cannot be redirected mid-move', () => {
-    let s = fresh();
-    s.factions[0].reserve.push('bell_warden');
-    const h = home(s).id;
-    s = applyCampaignAction(s, { type: 'station', nodeId: h, index: 0 });
-    const g = nodeById(s, h).garrison[0];
-    expect(g.status).toBe('arriving');
-    expect(garrisonBonus(nodeById(s, h)).tableau).toEqual([]);
-    expect(() => applyCampaignAction(s, { type: 'recall', nodeId: h, uid: g.uid })).toThrow(GameError);
-    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
-    if (nodeById(s, h).owner !== s.playerId) return; // lost the home system to an AI attack: nothing more to check
-    expect(nodeById(s, h).garrison[0].status).toBe('stationed');
-    expect(garrisonBonus(nodeById(s, h)).tableau).toEqual(['bell_warden']);
-    s = applyCampaignAction(s, { type: 'recall', nodeId: h, uid: g.uid });
-    expect(nodeById(s, h).garrison[0].status).toBe('leaving');
-    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
-    if (nodeById(s, h).owner !== s.playerId) return;
-    expect(nodeById(s, h).garrison).toHaveLength(0);
-    expect(campaignPlayer(s).reserve).toContain('bell_warden');
-  });
-
-  it('puts stationed cards, Command cards included, in the defender\'s tableau', () => {
-    let s = fresh();
-    const n = home(s);
-    n.garrison = [
-      { uid: 'a', defId: 'plasma_relay', status: 'stationed' },
-      { uid: 'b', defId: 'chamber_protocol', status: 'stationed' },
-      { uid: 'c', defId: 'deflector_grid', status: 'leaving' },
-    ];
-    const b = garrisonBonus(n);
-    expect(b.tableau).toEqual(['plasma_relay', 'chamber_protocol']); // leaving cards no longer defend
-    // Attack a garrisoned system: its defender starts with the garrison in play.
-    const target = nodeById(s, firstTarget(s));
-    target.garrison = n.garrison;
-    n.garrison = [];
-    s = attack(s, target.id);
-    const defender = s.battle!.game.players[1];
-    expect(defender.tableau.map((c) => c.defId).sort()).toEqual(['chamber_protocol', 'plasma_relay']);
-  });
-
-  it('only garrisons reserve cards, and keeps the deck legal when swapping', () => {
+describe('decks', () => {
+  it('keeps the deck legal when swapping', () => {
     let s = fresh();
     const f = campaignPlayer(s);
     f.reserve.push('ice_age', 'helio_lancer', GENERALS[f.race].find((g) => g !== myArmy(s).general)!);
-    expect(() => applyCampaignAction(s, { type: 'station', nodeId: home(s).id, index: 0 })).toThrow(/garrison/);
     // The general stays, and no other Hero joins: an army is led by its own hero.
     const army = myArmy(s);
     const lead = army.deck.indexOf(army.general);
@@ -189,7 +144,7 @@ describe('garrisons', () => {
 });
 
 describe('economy', () => {
-  it('buys cards at an armoury the flagship stands in, each once, and fortifies systems with credits', () => {
+  it('buys cards at an armoury the flagship stands in, each once', () => {
     let s = fresh();
     const shop = s.nodes.find((n) => n.station?.kind === 'armory')!;
     const stock = shop.station!.kind === 'armory' ? [...shop.station!.cards] : [];
@@ -203,9 +158,6 @@ describe('economy', () => {
     expect(campaignPlayer(s).materials).toBe(30 - price);
     const left = nodeById(s, shop.id).station!;
     expect(left.kind === 'armory' && left.cards).toEqual(stock.slice(1));
-    s = applyCampaignAction(s, { type: 'fortify', nodeId: home(s).id });
-    expect(home(s).fortification).toBe(1);
-    expect(campaignPlayer(s).credits).toBe(CAMPAIGN.startCredits - CAMPAIGN.fortifyBaseCost);
   });
 
   it('builds Wisdom a turn, and spends it on a research station\'s one upgrade, taken once', () => {
@@ -446,13 +398,8 @@ describe('armies and generals', () => {
     expect(supernovaThreshold(t.battle!.game.players[1])).toBeGreaterThan(supernovaThreshold(t.battle!.game.players[0]));
   });
 
-  it('repairs all at once, and lets the Lost Races wander, raid and be hunted for relics', () => {
+  it('lets the Lost Races wander, raid and be hunted for relics', () => {
     let s = fresh();
-    const h = home(s);
-    h.damage = 4;
-    campaignPlayer(s).credits = 100;
-    s = applyCampaignAction(s, { type: 'heal', nodeId: h.id, all: true });
-    expect(home(s).damage).toBe(0);
     // A lost army beside the player's gate: beat it and take its relics.
     const gate = nodeById(s, home(s).links[0]);
     const lost = s.armies.find((a) => a.lost)!;

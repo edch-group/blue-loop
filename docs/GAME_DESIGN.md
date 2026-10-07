@@ -741,7 +741,7 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 - Crossing takes you to the next universe: stronger garrisons (tier +2 a universe), better loot, and stability that runs out sooner. The loop never ends; every run ends in death.
 - **Petals:** at each wormhole you grab 3 + 12 x (share of the strip's systems you conquered) petals (+20% a level of Petal pouch). They are banked at once and survive the run.
 - **No rival empires:** only garrisons in the systems and roaming Raider ships. Raiders flee the collapse, hunt the flagship when it is within 3 routes (70% of the time), raid what you hold, and wander.
-- **Conquest:** beat a system's garrison, then **conquer** it (its yield once, and it counts toward petals) or **supernova** it (twice its yield; it becomes a ruin you can pass through freely). There is no settling and no income: money comes per system conquered. Research still builds each turn. Some planets carry a **bonus** of credits or research, paid on capture.
+- **Conquest:** beat a system's defenders and it is yours, with no choice to make: it pays its yield once, your flagship moves in, and it counts toward petals. There is no supernova, no settling, no income by the turn, and nothing to manage in a system you hold (no garrisons, reinforcements, fortifications or repairs). Research still builds each turn. Some planets carry a **bonus** of credits or research, paid on capture.
 - The strip carries 2 armouries, 2 research stations, 2 anomalies and 3 bonus planets; scanners widen what you see.
 
 **Lasting upgrades** (between runs, on the setup screen, bought with petals):
@@ -789,11 +789,12 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 - **A small deck reshuffles straight away.** An empty deck takes its discard pile back at once, as in the card game. (It used to wait a day for every card it was under 10; small decks were unworkable.) [direction: remove the wait]
 - **The rooms show on the board:** an empty slot carries its room's walls, guns and module as marks; once a card stands there, the card carries them along its top edge.
 - **Small decks.** A campaign deck can be small: with nothing left to draw or shuffle back, it gives no more, without the strain (its sun would burn out before the battle began).
+- **The base on a phone held sideways:** the deck pool shows one row of readable cards a page (it would show two on a taller screen); the hero tab keeps the training buttons under the portraits; the ship tab shrinks its room buttons to fit inside the rooms and puts the modules beside the ship.
 - **Losing:** your sun goes supernova.
 - **Who defends:** the flagship standing in the system, if there is one, else a hero of the owner's one route away. Otherwise the system fights as a **station**: a few cards (4, 6 or 8 by tier; the Heart Wardens 10 of their heaviest), walls as thick as its tier (+0 to +2 defence in every room), its garrison and its fortifications, and **no hero**. A held system's station has its owner's race's cards among them. The Lost Races fight with their leader and a few cards.
-- After a win, choose Conquer or Supernova (see the loop).
+- After a win the system is taken at once (see the loop).
 - **The attack dialog:** your flagship against the defender (portraits and names), then a few plain lines on whatever tips the fight, and three buttons: fight, auto, back. Defending shows the same, from your side.
-- Battle modifiers stack: the system's anomaly, its fortifications, the Wardens and the core (below), and the ship's hull.
+- Battle modifiers stack: the system's anomaly, the Wardens and the core (below), and the ship's hull.
 
 **The map.**
 - The strip (above). Fog of war shows a column back and three ahead of the flagship and your systems (five with a scanner).
@@ -830,17 +831,17 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 **Winning.** There is no winning a run, only going further: cross as many wormholes as you can and bank petals for the next.
 
 **Economy.**
-- **Credits** upgrade the ship, repair the flagship and **fortify** a system (4, then 8, then 12). Each fortification level gives that system's defender +2 max health.
+- **Credits** upgrade the ship and repair the flagship.
 - **Materials** buy cards at space stations (each card once) and fuse them.
 - **Wisdom** builds 1 a turn and buys research stations' upgrades.
 - **Your turn:** each of your turns opens with a "your turn" banner (the battle's dawn banner), once the other factions have moved.
-- **Map popovers:** tapping a system, an army's ship or an anomaly opens a small popover beside it (no side panel). A system's facts are a row of icon chips (yield, star type, rings from the Heart, fortification, garrison, damage, scanner, bloom, hazards, anomalies in reach); tap or hover a chip for its words. Below them are what you can do there: attack, visit its station (with your flagship there), its flagship, its garrison (tap a card to recall it), fortify, repair, station a card. An army's popover sits on the far side from its routes, so they stay clear to tap.
+- **Map popovers:** tapping a system, an army's ship or an anomaly opens a small popover beside it (no side panel). A system's facts are a row of icon chips (yield, star type, garrison, damage, scanner, bloom, hazards, anomalies in reach); tap or hover a chip for its words. Below them are what you can do there: attack, visit its station (with your flagship there), its flagship, its garrison (tap a card to recall it), fortify, repair, station a card. An army's popover sits on the far side from its routes, so they stay clear to tap.
 - **Base:** a full-screen view with four tabs. **Deck** is the main deck builder (filters, pages, card sizes) on the flagship's deck: its pool is that deck plus your reserve, and each tap moves one card in or out at once. **Hero** and **Ship** are above. **Missions** lists your missions. A space station, visited, opens the same full-screen builder without the deck list: the side panel holds its keeper and the card picked.
 - **Armoury keepers:** Quartermaster Hesk sells the stock; Mother Tallow recycles and fuses. Each greets you with a line on the state of the universe (quietly echoing our own: spent resources, recycling, warming), a different one each visit.
 - **Recycle (at an armoury):** break a reserve card down for half its armory price in materials (at least 1). The counter to a reserve full of cards you won't use.
 - **Fusion (at an armoury):** merge two reserve cards into one that does both, for materials (4 plus both cards' armory prices by rarity). It cannot be undone. A fused card costs both its parts' energy together (a pair costing more than 4, a day's most, can't be fused, nor can cards that spend all your energy). Command, global and Lightspeed cards can't be fused, a fused card can't be fused again, and two cards that ask for the same kind of choice can't be fused together.
 
-**Garrisons.** Send up to 3 reserve cards to a system you control. They take a day to arrive and a day to return. When the system is attacked, stationed cards **start the battle already in the defender's tableau**, and a stationed Lightspeed card starts set face down (only one). If the system falls, the conqueror takes them.
+**Systems you hold** are not managed: no garrisons, fortifications or repairs. (Garrisons and fortifying were removed with the roguelite loop.)
 
 **Anomalies** give battle modifiers:
 

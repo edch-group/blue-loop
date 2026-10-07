@@ -893,7 +893,7 @@ export class DeckBuilder {
     const cols = L.cols;
     const h = L.cardH;
     void h;
-    const rows = ROWS[this.grid] ?? 2;
+    const rows = L.rows ?? ROWS[this.grid] ?? 2;
     const per = cols * rows;
     const pages: CardDef[][] = [];
     for (let i = 0; i < all.length; i += per) pages.push(all.slice(i, i + per));
@@ -1156,6 +1156,8 @@ interface PoolLayout {
   cmdH: number;
   height: number;
   gap: number;
+  /** Rows a page shows (one fewer on a short screen). */
+  rows?: number;
 }
 const fitted: Partial<Record<string, PoolLayout>> = {};
 /** Rows of cards each view shows. */
@@ -1169,7 +1171,7 @@ function poolLayout(grid: string): PoolLayout {
   return fitted[grid] ?? GUESS[grid] ?? GUESS.md;
 }
 const sameLayout = (a: PoolLayout, b: PoolLayout) =>
-  a.cols === b.cols && a.cmdCols === b.cmdCols && Math.abs(a.cardH - b.cardH) < 2 && Math.abs(a.cmdH - b.cmdH) < 2 && Math.abs(a.height - b.height) < 2;
+  a.cols === b.cols && a.cmdCols === b.cmdCols && Math.abs(a.cardH - b.cardH) < 2 && Math.abs(a.cmdH - b.cmdH) < 2 && Math.abs(a.height - b.height) < 2 && a.rows === b.rows;
 
 /**
  * Size the deck builder's card pool to fill its width: as many columns as fit at the view's card size
@@ -1200,7 +1202,8 @@ export function sizePool(root: ParentNode = document) {
   // would make them fill the width).
   const height = pool.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom);
   const rowGap = parseFloat(css.rowGap) || gap;
-  const rows = ROWS[pool.dataset.grid ?? 'md'] ?? 2;
+  // (On a short screen, a phone on its side, a row fewer: cards too small to read are no use.)
+  const rows = Math.max(1, (ROWS[pool.dataset.grid ?? 'md'] ?? 2) - (height < 300 ? 1 : 0));
   // (A card is 1.4 times as tall as it is wide; a little more room each, for its gem standing above it.)
   const byHeight = Math.floor((((height - (rows - 1) * rowGap) / rows) / 1.52) * 10) / 10;
   const card = height > 0 && byHeight > 0 ? { cols: Math.max(1, Math.floor((width + gap) / (byHeight + gap))), w: byHeight } : fit(base);
@@ -1217,5 +1220,6 @@ export function sizePool(root: ParentNode = document) {
     cmdH: cmd.w / 1.4,
     height,
     gap: rowGap,
+    rows,
   };
 }

@@ -610,17 +610,12 @@ export type CampaignAction =
   | { type: 'finishBattle'; game: GameState; auto?: boolean; salvage?: string | null }
   | { type: 'conquer'; choice: ConquestChoice }
   | { type: 'chooseCard'; defId: string | null }
-  | { type: 'heal'; nodeId: string; all?: boolean }
-  | { type: 'fortify'; nodeId: string }
   /** Buy a card from an armoury your flagship stands in (each card is sold once). */
   | { type: 'buyCard'; nodeId: string; index: number }
   /** Fuse two reserve cards into one that does both (for materials; it cannot be undone). */
   | { type: 'fuse'; a: number; b: number }
   /** Swap a reserve card into an army's deck slot (the slot's card goes to reserve). The deck must stay legal. */
   | { type: 'deckSwap'; armyId: string; slot: number; reserveIndex: number }
-  /** Station a reserve card in a system's garrison. */
-  | { type: 'station'; nodeId: string; index: number }
-  | { type: 'recall'; nodeId: string; uid: string }
   /** End the player's turn. `stepwise`: the other factions then move one at a time, each on an `aiStep`. */
   | { type: 'endTurn'; stepwise?: boolean }
   /** Let the next faction (in a stepwise end of turn) take its turn. */
@@ -647,19 +642,10 @@ const stat = (key: keyof CampaignStats) => (f: Faction) => f.stats[key];
 export const CAMPAIGN_MISSIONS: CampaignMissionDef[] = [
   { id: 'c_colonist', name: 'Conqueror', text: 'Conquer 3 systems.', target: 3, counting: true, value: stat('settled') },
   { id: 'c_harvest', name: 'Veteran', text: 'Win 5 battles.', target: 5, counting: true, value: stat('battlesWon') },
-  { id: 'c_scorched', name: 'Scorched Stars', text: 'Supernova a system.', target: 1, counting: true, value: stat('novas') },
   { id: 'c_bulwark', name: 'Bulwark', text: 'Win a defence.', target: 1, counting: true, value: stat('defences') },
   { id: 'c_warlord', name: 'Warlord', text: 'Win 3 battles.', target: 3, counting: true, value: stat('battlesWon') },
   { id: 'c_blitz', name: 'Blitz', text: 'Win a battle within 6 rounds.', target: 1, counting: true, value: stat('swiftWins') },
   { id: 'c_cold', name: 'Cold Victory', text: 'Win a battle with your sun at 0 or colder.', target: 1, counting: true, value: stat('coldWins') },
-  {
-    id: 'c_fortress',
-    name: 'Fortress',
-    text: 'Have 3 cards stationed in one system.',
-    target: 3,
-    counting: false,
-    value: (f, s) => Math.max(0, ...s.nodes.filter((n) => n.owner === f.id).map((n) => n.garrison.filter((g) => g.status === 'stationed').length)),
-  },
   { id: 'c_expanse', name: 'Expanse', text: 'Control 5 systems.', target: 5, counting: false, value: (f, s) => ownedNodes(s, f.id).length },
 ];
 
@@ -1617,8 +1603,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     if (h) h.xp += HEROES.lossXp;
     // (Taken without a fight, it may still hold gear.)
     if (!army.lost && nextRandom(s) < HEROES.itemChance + armyBonus(s, army).loot) findItem(s, f, army, target);
-    if (!f.isAI) s.conquest = { nodeId: target.id, armyId: army.id };
-    else conquer(s, f, target, aiConquestChoice(s, target), army);
+    conquer(s, f, target, army);
     checkMissions(s);
     return;
   }
@@ -1849,10 +1834,7 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
       checkMissions(s);
       return;
     }
-    if (!attacker.isAI) {
-      if (target.heart) conquer(s, attacker, target, 'settle', army);
-      else s.conquest = { nodeId: target.id, armyId: army?.id };
-    } else conquer(s, attacker, target, target.heart ? 'settle' : aiConquestChoice(s, target), army);
+    conquer(s, attacker, target, army);
   } else {
     clog(s, `${target.name} holds: ${attacker.name}'s attack is repelled.`, target.id, attacker.id);
   }
@@ -1860,12 +1842,11 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
 }
 
 /**
- * A system taken. Conquered ('settle', or 'absorb' from older saves), it is held: it pays once (its credits and
- * materials), and counts towards the petals at the wormhole. Driven to supernova instead, it pays double, but is
- * left a burnt-out ruin that counts for nothing. Either way its extras (credits or research) are taken. The
- * wormhole's guardian beaten, the flagship goes through, into the next universe.
+ * A system taken: it is held, pays once (its credits and materials, and any extras: credits or research), and
+ * counts towards the petals at the wormhole. The wormhole's guardian beaten, the flagship goes through, into the
+ * next universe.
  */
-function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: ConquestChoice, army?: Army) {
+function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   // Everything held in the garrison goes to the victor.
   const spoils = n.garrison.map((g) => g.defId);
   f.reserve.push(...spoils);
@@ -1879,9 +1860,7 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
   if (f.id === s.playerId && f.stats.settled + f.stats.absorbed + f.stats.novas === 0) tell(s, firstConquestScene());
   n.home = undefined;
   n.gate = undefined;
-  const nova = choice === 'supernova';
-  const credits = n.yield.credits * (nova ? 2 : 1);
-  const materials = n.yield.materials * (nova ? 2 : 1);
+  const { credits, materials } = n.yield;
   f.credits += credits;
   f.materials += materials;
   if (n.bonus?.credits) f.credits += n.bonus.credits;
@@ -1891,19 +1870,11 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, choice: Conquest
   n.yield = { credits: 0, materials: 0 };
   n.damage = 0;
   n.fortification = 0;
-  if (nova) {
-    n.owner = null;
-    n.ruined = true;
-    n.tier = 0;
-    f.stats.novas += 1;
-    clog(s, `${f.name} drives ${n.name}'s sun to supernova: +${credits} credits, +${materials} materials${extra}. Nothing is left but the way through.`, n.id, f.id);
-  } else {
-    n.owner = f.id;
-    f.stats.settled += 1;
-    s.conquered += 1;
-    clog(s, `${f.name} conquers ${n.name}: +${credits} credits, +${materials} materials${extra}.`, n.id, f.id);
-  }
-  // The victors march in (a ruin is passed through like any other).
+  n.owner = f.id;
+  f.stats.settled += 1;
+  s.conquered += 1;
+  clog(s, `${f.name} conquers ${n.name}: +${credits} credits, +${materials} materials${extra}.`, n.id, f.id);
+  // The victors march in.
   if (army && s.armies.includes(army) && !armyAt(s, n.id)) army.nodeId = n.id;
 }
 
@@ -2205,15 +2176,6 @@ function runAI(s: CampaignState) {
 // AI factions
 // ---------------------------------------------------------------------------
 
-function aiConquestChoice(s: CampaignState, n: CampaignNode): ConquestChoice {
-  // Settle by default; absorb a poor system far from home; scorch one that borders the player.
-  const bordersPlayer = n.links.some((id) => nodeById(s, id).owner === s.playerId);
-  const r = nextRandom(s);
-  if (bordersPlayer && r < 0.15) return 'supernova';
-  if (n.yield.credits + n.yield.materials <= 2 && r < 0.4) return 'absorb';
-  return 'settle';
-}
-
 /** AI deck building: fill the flagship's deck from the reserve, then swap race cards in for neutral ones, keeping it legal. */
 function improveDeck(f: Faction, army: Army) {
   for (let r = f.reserve.length - 1; r >= 0 && army.deck.length < CAMPAIGN.armySize; r--) {
@@ -2431,12 +2393,6 @@ function refitCheck(army: Army) {
   if (army.moved || (army.steps ?? 0) > 0) throw new GameError(`${armyLeader(army)}'s army has marched this turn: it can refit next turn.`);
 }
 
-function requireOwned(s: CampaignState, f: Faction, nodeId: string): CampaignNode {
-  const n = nodeById(s, nodeId);
-  if (n.owner !== f.id) throw new GameError('You do not control that system.');
-  return n;
-}
-
 function spendCredits(f: Faction, amount: number) {
   if (f.credits < amount) throw new GameError(`Not enough credits (need ${amount}, have ${f.credits}).`);
   f.credits -= amount;
@@ -2596,7 +2552,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       const n = nodeById(s, s.conquest.nodeId);
       const army = s.armies.find((a) => a.id === s.conquest!.armyId);
       s.conquest = null;
-      conquer(s, f, n, action.choice, army);
+      conquer(s, f, n, army);
       checkMissions(s);
       break;
     }
@@ -2610,26 +2566,6 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
         f.reserve.push(action.defId);
         clog(s, `${f.name} adds ${cardDef(action.defId).name} to the collection.`);
       }
-      break;
-    }
-    case 'heal': {
-      const n = requireOwned(s, f, action.nodeId);
-      if (n.damage <= 0) throw new GameError(`${n.name} is not damaged.`);
-      spendCredits(f, CAMPAIGN.healCostPerPoint);
-      n.damage -= 1;
-      while (action.all && n.damage > 0 && f.credits >= CAMPAIGN.healCostPerPoint) {
-        f.credits -= CAMPAIGN.healCostPerPoint;
-        n.damage -= 1;
-      }
-      break;
-    }
-    case 'fortify': {
-      const n = requireOwned(s, f, action.nodeId);
-      const cost = fortifyCost(n);
-      if (cost === null) throw new GameError(`${n.name} is fully fortified.`);
-      spendCredits(f, cost);
-      n.fortification += 1;
-      clog(s, `${f.name} fortifies ${n.name} to level ${n.fortification}.`);
       break;
     }
     case 'buyCard':
@@ -2655,26 +2591,6 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       const out = army.deck[action.slot];
       army.deck[action.slot] = f.reserve[action.reserveIndex];
       f.reserve[action.reserveIndex] = out;
-      break;
-    }
-    case 'station': {
-      const n = requireOwned(s, f, action.nodeId);
-      if (n.garrison.length >= CAMPAIGN.garrisonSlots) throw new GameError(`${n.name}'s garrison is full.`);
-      const id = f.reserve[action.index];
-      if (!id) throw new GameError('No such card in reserve.');
-      if (!canGarrison(id)) throw new GameError(`${cardDef(id).name} cannot garrison a system.`);
-      f.reserve.splice(action.index, 1);
-      n.garrison.push({ uid: uid(s), defId: id, status: 'arriving' });
-      clog(s, `${f.name} sends ${cardDef(id).name} to ${n.name}. It arrives next turn.`);
-      break;
-    }
-    case 'recall': {
-      const n = requireOwned(s, f, action.nodeId);
-      const g = n.garrison.find((x) => x.uid === action.uid);
-      if (!g) throw new GameError('That card is not in the garrison.');
-      if (g.status !== 'stationed') throw new GameError('Cards on the move cannot be redirected this turn.');
-      g.status = 'leaving';
-      clog(s, `${f.name} recalls ${cardDef(g.defId).name} from ${n.name}. It returns next turn.`);
       break;
     }
     case 'endTurn':
