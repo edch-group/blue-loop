@@ -92,7 +92,7 @@ import { ORACLE_NAME } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { attackBadge, statJewels, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { cardJewels, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -2319,7 +2319,7 @@ export class App {
     tmp.innerHTML = oldHtml;
     const was = tmp.firstElementChild;
     if (!was) return;
-    for (const sel of ['.stat-def-floor', '.card-stats']) {
+    for (const sel of ['.stat-def-floor', '.card-stats', '.jewels-tr', '.jewels-bl', '.jewels-br']) {
       const cur = el.querySelector<HTMLElement>(sel), old = was.querySelector<HTMLElement>(sel);
       if (!cur || !old || cur.outerHTML === old.outerHTML) continue;
       const html = cur.innerHTML, cls = cur.className;
@@ -5166,7 +5166,7 @@ export class App {
     // In play: its defence (what removal must beat) and stability (turns before it fades into the discard pile).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${(def.attack ?? 0) > 0 && s ? `<span class="card-stats card-stats-base card-stats-split">${attackBadge(cardAttack(s, opts.owner, c), c.dimmed)}</span>` : ''}${statJewels(pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), def.kind === 'command' ? undefined : pv('', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability), def.kind === 'command', { hp: (c.health ?? 0) <= 1, stab: (c.stability ?? 0) <= 1 })}`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''}" title="${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. It mends 1 at each of its owner's dawns (more with Repair), and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: (def.attack ?? 0) > 0 && s ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), stab: def.kind === 'command' ? undefined : pv('', c.stability ?? 0, opts.settled?.stability, opts.preview?.stability), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1, lowStab: (c.stability ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (def.passive ?? []).some((x) => x.type === 'taunt') ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
@@ -5281,7 +5281,7 @@ export class App {
     const held = !c && uid ? this.viewer()?.hand.find((x) => x.uid === uid) : undefined;
     const stats =
       owner && c
-        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b>${(def.attack ?? 0) > 0 ? attackBadge(cardAttack(this.state!, owner, c), c.dimmed) : ''}</span>${statJewels(c.health ?? 0, def.kind === 'command' ? undefined : c.stability ?? 0, def.kind === 'command', { hp: (c.health ?? 0) <= 1, stab: (c.stability ?? 0) <= 1 })}`
+        ? `<span class="card-stats"><b class="stat-def" title="Defence">⛨${cardDefence(owner, c)}</b></span>${cardJewels({ atk: (def.attack ?? 0) > 0 ? cardAttack(this.state!, owner, c) : undefined, dim: c.dimmed, hp: c.health ?? 0, stab: def.kind === 'command' ? undefined : c.stability ?? 0, hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1, lowStab: (c.stability ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
@@ -5378,7 +5378,7 @@ export class App {
         const why = heroAbilityProblem(s, me, Number(i));
         return why ? `<span class="card-ability card-ability-off" title="${esc(why)}">` : `<span class="card-ability card-ability-on" data-act="hero-ability" data-arg="${i}" role="button">`;
       })
-      .replace(/<b class="stat-atk"/, (m) => (attack ? `<b class="stat-atk stat-atk-on" data-act="attack-start" data-arg="${hero.uid}" role="button"` : m));
+      .replace(/<b class="jewel jewel-atk"/, (m) => (attack ? `<b class="jewel jewel-atk stat-atk-on" data-act="attack-start" data-arg="${hero.uid}" role="button"` : m));
     return `<div class="stage stage-hero">${card}</div>`;
   }
 

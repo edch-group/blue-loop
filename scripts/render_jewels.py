@@ -2,7 +2,7 @@
 # Usage: pip install numpy scipy pillow && python3 scripts/render_jewels.py
 """Render the stat jewels (src/ui/jewels/): a round brilliant-cut stone in a silver setting.
 
-Health is an emerald, stability a topaz, and a value about to run out a ruby. Each is
+Health is an emerald, stability a topaz, attack a garnet, and a value about to run out a ruby. Each is
 seen from above: the stone's table, star, kite and upper-girdle facets, each lit from
 the top left with its own sparkle and fine dark seams; set in a polished silver bezel (the card's own metal)
 with a stepped inner lip, a row of milgrain beads round its rim, and four claws
@@ -186,4 +186,5 @@ def render(name, deep, mid, light):
 render('emerald', '#022a16', '#0c8a48', '#7dffbe')
 render('topaz', '#4a2200', '#d98a12', '#ffe7a0')
 render('ruby', '#3a0008', '#cc1830', '#ffa0ac')
+render('garnet', '#3a0c02', '#c8461a', '#ffb48a')
 print('wrote', OUT)

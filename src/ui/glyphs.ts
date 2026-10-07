@@ -4,6 +4,7 @@ import { cardScene, renderedArt } from './cardart';
 import jewelEmerald from './jewels/emerald.png';
 import jewelTopaz from './jewels/topaz.png';
 import jewelRuby from './jewels/ruby.png';
+import jewelGarnet from './jewels/garnet.png';
 import disk from './gems/disk.png';
 import dwarfGlow from './gems/dwarf-glow.png';
 import dwarf from './gems/dwarf.png';
@@ -524,7 +525,7 @@ function circuitTile(colour: string, seed: number, strength = 0.27): string {
 const CIRCUIT: Record<Rarity, [string, number]> = { dwarf: ['#6f86ad', 7], stellar: ['#c08a24', 11], anomaly: ['#8c5ad6', 19] };
 for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElement.style.setProperty(`--circuit-${r}`, circuitTile(colour, seed));
 // The stat jewels (scripts/render_jewels.py): an emerald for health, a topaz for stability, a ruby when it is about to run out.
-for (const [k, url] of Object.entries({ emerald: jewelEmerald, topaz: jewelTopaz, ruby: jewelRuby })) document.documentElement.style.setProperty(`--jewel-${k}`, `url(${url})`);
+for (const [k, url] of Object.entries({ emerald: jewelEmerald, topaz: jewelTopaz, ruby: jewelRuby, garnet: jewelGarnet })) document.documentElement.style.setProperty(`--jewel-${k}`, `url(${url})`);
 // The same traces, fainter and in silver, for the interface: buttons, panels, pop-ups.
 document.documentElement.style.setProperty('--circuit-ui', circuitTile('#8a96ad', 23, 0.2));
 
@@ -534,7 +535,7 @@ export function stabilityBadge(def: CardDef): string {
   if (!persists(def.id) || isBurst(def)) return '';
   const atk = baseAttack(def);
   // (A Hero never fades: health alone.)
-  return `${atk > 0 ? `<span class="card-stats card-stats-base card-stats-split">${attackBadge(atk)}</span>` : ''}${statJewels(baseHealth(def.id), def.kind === 'command' ? undefined : baseStability(def.id), def.kind === 'command')}`;
+  return cardJewels({ atk: atk > 0 ? atk : undefined, hp: baseHealth(def.id), stab: def.kind === 'command' ? undefined : baseStability(def.id), hero: def.kind === 'command' });
 }
 
 // A sword, point straight up: blade, crossguard, grip and pommel.
@@ -546,14 +547,21 @@ export const STAB_ICON = '<svg class="stab-icon" viewBox="0 0 16 16" aria-hidden
 export const HP_ICON = '<svg class="hp-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.2 2.3 8.6A3.4 3.4 0 0 1 8 4a3.4 3.4 0 0 1 5.7 4.6Z" fill="currentColor"/></svg>';
 
 /**
- * A card's health and stability as two jewels in its top-right corner: health an emerald (what heat past its
- * defence can take before it burns away), stability a topaz (the days it stays; a Hero never fades, so has none).
- * The numbers may come as html (a preview's before and after).
+ * A card's numbers as jewels, each set into a lobe of the card itself: stability (a topaz) at the top right,
+ * attack (a garnet) at the bottom left, health (an emerald) at the bottom right. A value about to run out
+ * turns ruby; an attacker that has acted today is dimmed. A Hero never fades, so has no stability. The
+ * numbers may come as html (a preview's before and after).
  */
-export function statJewels(hp: number | string, stab?: number | string, hero = false, low: { hp?: boolean; stab?: boolean } = {}): string {
-  const hpTitle = hero ? 'Health: heat past its defence (attacks, stings, aimed heat) wears this down, and at 0 the Hero falls. A Hero never fades.' : 'Health: heat past its defence (attacks, stings, aimed heat) wears this down; at 0 it burns away.';
-  const jewel = (cls: string, n: number | string, title: string, isLow?: boolean) => `<b class="jewel ${cls}${isLow ? ' jewel-low' : ''}" data-tip="${title}"><i>${n}</i></b>`;
-  return `<span class="card-jewels">${jewel('jewel-hp', hp, hpTitle, low.hp)}${stab === undefined ? '' : jewel('jewel-stab', stab, 'Stability: the days it stays in play before it fades into your discard pile.', low.stab)}</span>`;
+export function cardJewels(o: { atk?: number | string; dim?: boolean; hp: number | string; stab?: number | string; hero?: boolean; lowHp?: boolean; lowStab?: boolean }): string {
+  const jewel = (cls: string, n: number | string, title: string) => `<b class="jewel ${cls}" data-tip="${title}"><i>${n}</i></b>`;
+  const lobe = (pos: string, inner: string) => `<span class="card-jewels jewels-${pos}">${inner}</span>`;
+  const atkTitle = 'Attack: once each of your days it can attack a rival card or their sun for this much, then it is dimmed until your next day. A card it attacks hits back with its own attack and Sting.';
+  const hpTitle = o.hero ? 'Health: heat past its defence (attacks, stings, aimed heat) wears this down, and at 0 the Hero falls. A Hero never fades.' : 'Health: heat past its defence (attacks, stings, aimed heat) wears this down; at 0 it burns away.';
+  return (
+    (o.stab === undefined ? '' : lobe('tr', jewel(`jewel-stab${o.lowStab ? ' jewel-low' : ''}`, o.stab, 'Stability: the days it stays in play before it fades into your discard pile.'))) +
+    (o.atk === undefined ? '' : lobe('bl', jewel(`jewel-atk${o.dim ? ' jewel-dim' : ''}`, o.atk, atkTitle + (o.dim ? ' Dimmed: it has acted today.' : '')))) +
+    lobe('br', jewel(`jewel-hp${o.lowHp ? ' jewel-low' : ''}`, o.hp, hpTitle))
+  );
 }
 
 /** A card's attack (bottom left, beside its stability): what it deals when it attacks, and what it hits back with. */
