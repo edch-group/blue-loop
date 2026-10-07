@@ -5781,3 +5781,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-stellaria svg { animation: none; filter: drop-shadow(0 0 1.5px rgba(90, 96, 120, 0.55)) drop-shadow(0 0 6px rgba(255, 255, 255, 0.9)); }
 .cmp-stellaria .stellaria-flower ellipse, .cmp-stellaria .stellaria-flower path { fill: rgba(255, 255, 255, 0.85); stroke: #fff; stroke-width: 5; }
 .cmp-stellaria { width: 48px; height: 48px; }
+/* No starry sky behind the map: just the page. The marks over a system stand on their own (no white tile). */
+.cmp-sky { display: none; }
+.cmp-badge, .cmp-badge.cmp-scan { background: none; padding: 0; box-shadow: none; }
