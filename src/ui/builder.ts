@@ -648,10 +648,10 @@ export class DeckBuilder {
     const presets = PRESETS.filter((d) => modeOf(d) === gm);
     const hide = startersHidden();
     return `
-      ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small db-switch ${hide ? 'on' : ''}" data-act="db-hide-starters" role="switch" aria-checked="${hide}">hide starters<span class="switch-track" aria-hidden="true"><i></i></span></button><button class="btn btn-small" data-act="db-community">community</button><button class="btn btn-small" data-act="db-import-open">import</button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
+      ${modeCards(gm, 'db-gm', GAME_MODES, `<button class="btn btn-small pane-btn" data-act="db-back">‹ back</button><button class="btn btn-small pane-btn" data-act="db-community">${ICON_PEOPLE}community</button><button class="btn btn-small pane-btn" data-act="db-import-open">${ICON_UPLOAD}import</button>`)}
+      ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small db-switch ${hide ? '' : 'on'}" data-act="db-hide-starters" role="switch" aria-checked="${!hide}">starters<span class="switch-track" aria-hidden="true"><i></i></span></button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
       <div class="setup-body db-list-body">
         <div class="db-list">
-          ${modeCards(gm, 'db-gm', GAME_MODES)}
           <div class="section-label db-group">your decks</div>
           ${mine.length ? `<div class="db-boxes">${mine.map(box).join('')}</div>` : '<p class="muted center-text">No decks of your own yet. Start a new one, or copy a starter to change it.</p>'}
           ${hide ? '' : `<div class="section-label db-group">races</div>
@@ -1111,6 +1111,9 @@ export class DeckBuilder {
 function guessMode(cards: string[]): GameMode {
   return deckProblems(cards, 'core').some((p) => /Lost Races|too much/.test(p)) ? 'lost' : 'core';
 }
+
+const ICON_PEOPLE = '<svg class="pane-ico" viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.3"/><path d="M1.8 13.5c.4-2.4 2.1-3.8 4.2-3.8s3.8 1.4 4.2 3.8"/><circle cx="11.2" cy="6.2" r="1.8"/><path d="M11 9.8c1.7.1 3 1.3 3.3 3.2"/></svg>';
+const ICON_UPLOAD = '<svg class="pane-ico" viewBox="0 0 16 16"><path d="M8 10.5V2.5M4.8 5.5 8 2.3l3.2 3.2M2.5 10.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2"/></svg>';
 
 /** A deck's actions as small icon buttons beneath its box (named on hover and for screen readers). */
 const ICON_COPY = '<svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.5V3a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>';

@@ -4279,8 +4279,10 @@ export class App {
   }
 
   /** Setup pages fill the screen: back and title across the top, the choices in the middle, the main action bottom right. */
-  private setupPage(title: string, body: string, foot: string, back = 'hub', bodyClass = ''): string {
+  private setupPage(title: string, body: string, foot: string, back = 'hub', bodyClass = '', side = ''): string {
+    // (A side pane, the game mode's cards, stands beside the page, outside its body.)
     return `
+      ${side}
       ${this.setupTop(title, back)}
       <div class="setup-body ${bodyClass}">${body}</div>
       <footer class="setup-foot">${foot}</footer>`;
@@ -4318,8 +4320,11 @@ export class App {
       .join('');
     return this.setupPage(
       'quickplay',
-      `${this.modeTabs()}<div class="seat-row">${seats}</div>`,
+      `<div class="seat-row">${seats}</div>`,
       '<button class="btn-primary" data-act="new-game">launch</button>',
+      'hub',
+      '',
+      this.modeTabs(),
     );
   }
 
@@ -4339,7 +4344,8 @@ export class App {
 
   /** Core or Lost Races, as two buttons. */
   private modeTabs(): string {
-    return modeCards(this.playMode, 'play-mode', GAME_MODES);
+    // (Back lives at the top of the pane.)
+    return modeCards(this.playMode, 'play-mode', GAME_MODES, '<button class="btn btn-small pane-btn" data-act="menu-page" data-arg="hub">‹ back</button>');
   }
 
   /** A small deck box with its name beneath: a button when `attrs` give it an action. */
@@ -4397,7 +4403,6 @@ export class App {
       return this.setupPage(
         'play online',
         `<div class="online-page">
-          ${this.modeTabs()}
           ${you()}
           <div class="online-modes">
             ${mode('host a game', 'a room code and link to send a friend', '<button class="btn-primary" data-act="online-create">create room</button>')}
@@ -4416,6 +4421,8 @@ export class App {
         </div>`,
         '<span class="muted">1v1 · each player on their own device</span>',
         'hub',
+        '',
+        this.modeTabs(),
       );
     }
     const code = this.online.code;
