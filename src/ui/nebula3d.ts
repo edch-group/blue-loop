@@ -1,28 +1,26 @@
 /**
- * The campaign map's nebula, and the 3D space the map itself lies in, drawn in the battle board's style so the
- * map, the nebula and the ground beneath read as one picture.
+ * The campaign map's nebula, and the 3D space the map itself lies in, drawn in the battle board's schematic
+ * style so the map, the nebula and the ground beneath read as one picture.
  *
- * The gas is real volumetric gas: each pixel's ray is marched through 3D noise (domain-warped fBm, gathered into
- * a few broad clumps laid out per universe by nebula-layout.ts), so it is soft, wispy and torn at its edges,
- * thicker in places and thinning to nothing, and it is truly 3D from any angle. It is shown as the board draws:
- * its own dotted paper, each dot swelling where the gas is thicker (a halftone, in the ink and strength of the
- * board's dots), over a wash that is the paper a shade deeper. It churns very slowly. A slab round the strip's
- * plane is kept clear, and the clumps lie away from the strip, so the map is clear from where the camera
- * starts. It all hangs over a floor reaching to
- * the horizon: the board's dotted grid and schematic rings. (The gas is marched at a reduced resolution, into
- * a texture laid smoothly over the floor, and only redrawn as the camera moves or a few times a second.)
+ * Its shape (nebula-geometry.ts, worked out once per universe in a worker) is a soft cloud of gas: billows
+ * heaped along a loose spine, a pillar or two, wisps streaming off and puffs drifting round it, and motes of
+ * dust, with channels cleared through it where the strip's routes run. The gas is drawn as the board's paper,
+ * softly shaded, with schematic contour lines and an ink outline; a faint shimmer in the board's gold and the
+ * routes' blue plays over its edges. The body breathes, the wisps wander, the dust rises. It floats over a
+ * floor reaching to the horizon: the board's dotted grid and schematic rings.
  *
  * The strip of systems lies on a flat plane through the gas (PLANE_Y). The map's own elements (stars, routes,
  * rings, ships) stay HTML, laid on that plane by a CSS transform worked out from this camera (campaign.ts), so
- * they stand exactly in the nebula's space. The gas is drawn twice: once behind the map (all of it), and once
- * over it, lighter, but only the gas on the camera's side of the plane, so gas between the eye and a system
- * veils it. The player navigates: a drag orbits, the wheel or a pinch zooms toward the pointer, a right-drag or
+ * they stand exactly where the gas is drawn. The gas is drawn twice: once behind the map (everything), and
+ * once over it, but only the gas on the camera's side of the plane, so a pillar between the eye and a system
+ * hides it. The player navigates: a drag orbits, the wheel or a pinch zooms toward the pointer, a right-drag or
  * a two-finger drag pans.
  */
 
-import { CLUMPS, nebulaLayout, type Layout, type Strip } from './nebula-layout';
+import { buildNebula, type Geometry, type Strip } from './nebula-geometry';
+import { MapObjects, type MapObject } from './nebula-objects';
 
-export type { Strip };
+export type { Strip, MapObject };
 
 /** The board's paper (#f4f3ef), which everything fades into. */
 const PAPER = [0.957, 0.953, 0.937];
@@ -35,12 +33,87 @@ export const STRIP_WIDTH = 4.4;
 const FOV = (36 * Math.PI) / 180;
 
 
+const geometries = new Map<number, Promise<Geometry>>();
+
+/** A universe's nebula, worked out in a worker (or here, where workers are unavailable), once per seed. */
+function geometry(seed: number, strip: Strip): Promise<Geometry> {
+  let p = geometries.get(seed);
+  if (!p) {
+    p = new Promise<Geometry>((resolve) => {
+      const here = () => setTimeout(() => resolve(buildNebula(seed, strip)), 0);
+      try {
+        const w = new Worker(new URL('./nebula.worker.ts', import.meta.url), { type: 'module' });
+        w.onmessage = (e: MessageEvent<Geometry>) => {
+          resolve({ mesh: e.data.mesh, motes: e.data.motes });
+          w.terminate();
+        };
+        w.onerror = () => {
+          w.terminate();
+          here();
+        };
+        w.postMessage({ seed, strip });
+      } catch {
+        here();
+      }
+    });
+    geometries.set(seed, p);
+  }
+  return p;
+}
+
 // ---------- shaders ----------
 
 const COMMON = `
 uniform mat4 uView; uniform mat4 uProj; uniform float uTime;
 `;
 
+const GAS_VERT = COMMON + `
+attribute vec3 aPos; attribute vec3 aNormal; attribute float aFree;
+varying vec3 vWorld; varying vec3 vNormal; varying float vDist;
+void main() {
+  vec3 p = aPos;
+  // The body breathes; loose plumes wander (neighbouring points move alike, so a plume moves as one).
+  float ph = dot(aPos, vec3(1.3, 0.7, 1.1));
+  p += aNormal * 0.018 * sin(uTime * 0.6 + aPos.x * 2.0 + aPos.y * 3.0);
+  p += aFree * vec3(sin(uTime * 0.31 + ph), 0.6 * sin(uTime * 0.23 + ph * 1.7) + 0.4, cos(uTime * 0.27 + ph * 1.3)) * 0.09;
+  vec4 v = uView * vec4(p, 1.0);
+  gl_Position = uProj * v;
+  vWorld = p;
+  vNormal = aNormal;
+  vDist = -v.z;
+}`;
+
+const GAS_FRAG = `
+#extension GL_OES_standard_derivatives : enable
+precision highp float;
+varying vec3 vWorld; varying vec3 vNormal; varying float vDist;
+uniform vec3 uPaper; uniform vec3 uEye; uniform float uTime; uniform float uFade; uniform float uFront;
+void main() {
+  // Over the map, only the gas on the camera's side of its plane (y = 0): what stands between the eye and it.
+  if (uFront > 0.5 && vWorld.y * uEye.y <= 0.0) discard;
+  vec3 n = normalize(vNormal);
+  vec3 v = normalize(uEye - vWorld);
+  float ndv = abs(dot(n, v));
+  // Paper, softly shaded by a light from above: the board's white, falling to its cool grey in shadow.
+  float lam = max(0.0, dot(n, normalize(vec3(0.45, 0.85, 0.3))));
+  vec3 c = mix(vec3(0.80, 0.82, 0.86), vec3(0.995, 0.994, 0.988), 0.25 + 0.75 * lam);
+  // Schematic contour lines round the gas, as on a survey.
+  float S = 0.12;
+  float cd = abs(fract(vWorld.y / S + 0.5) - 0.5) * S;
+  float line = 1.0 - smoothstep(0.0, fwidth(vWorld.y) * 1.2, cd);
+  c = mix(c, vec3(0.55, 0.60, 0.71), line * 0.45);
+  // A shimmer over its edges, here and there, in the board's gold and the routes' blue.
+  float rim = pow(1.0 - ndv, 2.2);
+  float band = smoothstep(0.55, 1.0, sin(dot(vWorld, vec3(3.1, 5.3, 2.2)) - uTime * 1.1 + 2.0 * sin(vWorld.x * 1.9 + uTime * 0.4)));
+  float patch = smoothstep(0.35, 0.85, 0.5 + 0.5 * sin(vWorld.x * 1.4 + vWorld.z * 2.1 + vWorld.y * 0.9 + uTime * 0.21));
+  vec3 tint = mix(vec3(0.87, 0.66, 0.36), vec3(0.55, 0.69, 0.93), 0.5 + 0.5 * sin(vWorld.y * 4.0 + vWorld.x * 1.3 + uTime * 0.5));
+  c = mix(c, tint, clamp(rim * (0.3 + 0.7 * band) * patch * 0.85 + band * patch * 0.08, 0.0, 0.7));
+  // An ink line where the gas turns away from the eye: its outline.
+  float edge = 1.0 - smoothstep(0.12, 0.3, ndv);
+  c = mix(c, vec3(0.40, 0.46, 0.60), edge * 0.6);
+  c = mix(c, uPaper, smoothstep(4.5, 22.0, vDist));
+  gl_FragColor = uFront > 0.5 ? vec4(c, 1.0) * uFade : vec4(mix(uPaper, c, uFade), 1.0);
+}`;
 
 const FLOOR_VERT = COMMON + `
 attribute vec3 aPos;
@@ -51,7 +124,6 @@ void main() {
   vWorld = aPos;
   vDist = -v.z;
 }`;
-
 
 /** The board: its paper, dotted grid and schematic rings, with the gas's soft shadow under it. */
 const FLOOR_FRAG = `
@@ -79,137 +151,28 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
 }`;
 
-
-/** A triangle covering the whole screen. */
-const SCREEN_VERT = `
-attribute vec2 aPos;
-varying vec2 vNdc;
+const MOTE_VERT = COMMON + `
+attribute vec3 aPos; attribute float aPhase; attribute float aSize;
+uniform float uPx; uniform vec3 uEye; uniform float uFront;
+varying float vAlpha;
 void main() {
-  vNdc = aPos;
-  gl_Position = vec4(aPos, 0.0, 1.0);
+  // Each mote rises slowly and wanders, fading in at the bottom of its climb and out at the top.
+  float t = fract(uTime * 0.025 + aPhase);
+  vec3 p = aPos + vec3(sin(uTime * 0.3 + aPhase * 6.28) * 0.05, t * 0.5 - 0.25, cos(uTime * 0.27 + aPhase * 9.0) * 0.05);
+  vec4 v = uView * vec4(p, 1.0);
+  gl_Position = uProj * v;
+  vAlpha = sin(t * 3.14159) * (1.0 - smoothstep(4.5, 12.0, -v.z));
+  if (uFront > 0.5 && p.y * uEye.y <= 0.0) vAlpha = 0.0;
+  gl_PointSize = aSize * uPx * clamp(4.6 / -v.z, 0.6, 1.6);
 }`;
 
-/**
- * The gas: each pixel's ray marched through the clumps, gathering a pale wash front to back. Thick gas is a cool
- * slate blue going lilac higher up; near the clumps' hearts it glows in the board's gold. Over the map
- * (uFront), only the gas on the camera's side of its plane, and fainter.
- */
-const GAS_FRAG = `
-precision highp float;
-varying vec2 vNdc;
-uniform vec3 uEye; uniform vec3 uRight; uniform vec3 uUp; uniform vec3 uFwd; uniform float uTan; uniform float uAspect;
-uniform float uTime; uniform float uFade; uniform float uFront;
-uniform vec3 uOffset; uniform vec4 uClumps[${CLUMPS}]; uniform vec4 uStrip;
-
-float hash(vec3 p) {
-  p = fract(p * 0.3183099 + 0.1);
-  p *= 17.0;
-  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-float noise(vec3 x) {
-  vec3 i = floor(x), f = fract(x);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
-             mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
-}
-float fbm(vec3 p) {
-  float s = 0.0, a = 0.5;
-  for (int i = 0; i < 4; i++) { s += a * noise(p); p = p * 2.03 + vec3(1.7, 9.2, 3.1); a *= 0.5; }
-  return s;
-}
-
-float fbm2(vec3 p) {
-  return 0.5 * noise(p) + 0.25 * noise(p * 2.03 + vec3(1.7, 9.2, 3.1));
-}
-float fbm3(vec3 p) {
-  return fbm2(p) + 0.125 * noise(p * 4.12 + vec3(5.3, 1.1, 7.7));
-}
-
-// How thick the gas is at p, and how near a clump's heart (for the glow).
-vec2 gas(vec3 p) {
-  float env = 0.0, heart = 0.0;
-  for (int i = 0; i < ${CLUMPS}; i++) {
-    vec4 c = uClumps[i];
-    vec3 d = (p - c.xyz) / c.w;
-    d.y *= 1.3;
-    float k = dot(d, d);
-    env += exp(-k * 1.4);
-    heart += exp(-k * 7.0);
-  }
-  // (Far from every clump there is nothing: no noise to work out.)
-  if (env < 0.04) return vec2(0.0);
-  vec3 q = p * 1.1 + uOffset + vec3(0.0, uTime * 0.012, uTime * 0.008);
-  // Folded through slow noise, so it tears into wisps and filaments rather than sitting in blobs.
-  float w = fbm2(q * 0.7);
-  q += vec3(w * 2.6, w * 1.3, -w * 1.9);
-  float n = fbm(q * 1.6);
-  // Ridged: thin filaments where the noise folds over.
-  float ridge = 1.0 - abs(2.0 * fbm3(q * 2.3 + 11.0) / 0.875 - 1.0);
-  float g = (max(0.0, (n - 0.4) * 4.0) + pow(ridge, 6.0) * 1.4 * smoothstep(0.3, 0.5, n)) * min(env, 1.5);
-  // The strip's slab is kept clear.
-  float inside = smoothstep(uStrip.x - 0.1, uStrip.x + 0.1, p.x) * (1.0 - smoothstep(uStrip.y - 0.1, uStrip.y + 0.1, p.x))
-               * smoothstep(uStrip.z - 0.1, uStrip.z + 0.1, p.z) * (1.0 - smoothstep(uStrip.w - 0.1, uStrip.w + 0.1, p.z));
-  g *= mix(1.0, smoothstep(0.1, 0.38, abs(p.y)), inside);
-  return vec2(g, heart);
-}
-
+const MOTE_FRAG = `
+precision mediump float;
+varying float vAlpha;
+uniform float uFade;
 void main() {
-  vec3 dir = normalize(uFwd + uRight * vNdc.x * uTan * uAspect + uUp * vNdc.y * uTan);
-  // The box the gas lives in.
-  vec3 lo = vec3(-4.0, -1.15, -3.0), hi = vec3(4.0, 1.8, 1.4);
-  vec3 inv = 1.0 / dir;
-  vec3 t0 = (lo - uEye) * inv, t1 = (hi - uEye) * inv;
-  vec3 tmin = min(t0, t1), tmax = max(t0, t1);
-  float tn = max(max(tmin.x, tmin.y), max(tmin.z, 0.0)), tf = min(min(tmax.x, tmax.y), tmax.z);
-  if (tf <= tn) { gl_FragColor = vec4(0.0); return; }
-  const int STEPS = 48;
-  float dt = (tf - tn) / float(STEPS);
-  float t = tn + dt * hash(vec3(gl_FragCoord.xy, 0.0));
-  float a = 0.0, glow = 0.0;
-  for (int i = 0; i < STEPS; i++) {
-    vec3 p = uEye + dir * t;
-    t += dt;
-    if (uFront > 0.5 && p.y * uEye.y <= 0.0) continue;
-    vec2 g = gas(p);
-    if (g.x <= 0.0) continue;
-    float sa = 1.0 - exp(-g.x * dt * 6.0);
-    glow += (1.0 - a) * sa * clamp(g.y, 0.0, 1.0);
-    a += (1.0 - a) * sa;
-    if (a > 0.82) break;
-  }
-  // (Not a colour: how much gas there is (r, a) and how much of it glows (g). The styling is laid on as it is
-  // shown, in the board's own palette.)
-  float k = uFade * (uFront > 0.5 ? 0.5 : 1.0);
-  gl_FragColor = vec4(a * k, glow * k, 0.0, a * k);
-}`;
-
-/**
- * The gas drawn as the board draws: its own dotted paper, with each dot swelling where the gas is thicker (a
- * halftone, as a printed chart shades), in the very ink and strength of the board's dots, over a wash that is
- * the paper itself a shade deeper. Nothing but the board's paper and its dots.
- */
-const SHOW_FRAG = `
-precision highp float;
-varying vec2 vNdc;
-uniform sampler2D uTex; uniform vec2 uTexel; uniform float uCell; uniform vec3 uPaper;
-void main() {
-  // Smoothed a little (the marching leaves a fine grain).
-  vec2 uv = vNdc * 0.5 + 0.5;
-  vec4 g = texture2D(uTex, uv) * 0.25;
-  g += (texture2D(uTex, uv + vec2(uTexel.x, 0.0)) + texture2D(uTex, uv - vec2(uTexel.x, 0.0)) + texture2D(uTex, uv + vec2(0.0, uTexel.y)) + texture2D(uTex, uv - vec2(0.0, uTexel.y))) * 0.125;
-  g += (texture2D(uTex, uv + uTexel) + texture2D(uTex, uv - uTexel) + texture2D(uTex, uv + vec2(uTexel.x, -uTexel.y)) + texture2D(uTex, uv - vec2(uTexel.x, -uTexel.y))) * 0.0625;
-  float a = g.a;
-  if (a < 0.004) { gl_FragColor = vec4(0.0); return; }
-  // The paper, a shade deeper where the gas lies.
-  vec3 wash = uPaper * 0.93;
-  float w = clamp(a * 0.6, 0.0, 0.5);
-  // The board's dot (its ink, at its strength), swelling with the gas.
-  vec2 cell = mod(gl_FragCoord.xy, uCell) - uCell * 0.5;
-  float r = uCell * (0.08 + 0.3 * sqrt(clamp(a * 1.2, 0.0, 1.0)));
-  float d = (1.0 - smoothstep(r - 0.7, r + 0.7, length(cell))) * 0.34 * smoothstep(0.0, 0.15, a);
-  vec3 ink = vec3(0.47, 0.53, 0.67);
-  vec3 c = ink * d + wash * w * (1.0 - d);
-  gl_FragColor = vec4(c, d + w * (1.0 - d));
+  float a = smoothstep(0.5, 0.15, length(gl_PointCoord - 0.5)) * vAlpha * 0.55 * uFade;
+  gl_FragColor = vec4(vec3(0.47, 0.53, 0.67) * a, a);
 }`;
 
 function shader(gl: WebGLRenderingContext, type: number, src: string) {
@@ -243,17 +206,16 @@ export interface Camera {
 /** One canvas the scene is drawn on (its own WebGL context): behind the map, or over it. */
 class Layer {
   gl: WebGLRenderingContext;
-  private floorProg?: WebGLProgram;
   private gasProg: WebGLProgram;
-  private showProg: WebGLProgram;
+  private floorProg?: WebGLProgram;
+  private moteProg: WebGLProgram;
+  private gasBuf: WebGLBuffer;
   private floorBuf?: WebGLBuffer;
-  private screenBuf: WebGLBuffer;
-  private fbo: WebGLFramebuffer;
-  private tex: WebGLTexture;
-  private texSize = [0, 0];
-  private layout: Layout | null = null;
-  /** The gas needs marching again (the camera moved, or time has passed). */
-  stale = true;
+  private moteBuf: WebGLBuffer;
+  private gasCount = 0;
+  private moteCount = 0;
+  /** The map's own things in 3D (stars, black holes and the rest): on the layer over the map. */
+  objects: MapObjects | null = null;
 
   constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean) {
     const gl = canvas.getContext('webgl', front ? { antialias: true, alpha: true, premultipliedAlpha: true, depth: true } : { antialias: true, alpha: false, depth: true });
@@ -268,13 +230,10 @@ class Layer {
       if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('nebula shader');
       return p;
     };
-    this.gasProg = program(SCREEN_VERT, GAS_FRAG);
-    this.showProg = program(SCREEN_VERT, SHOW_FRAG);
-    this.screenBuf = gl.createBuffer()!;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.screenBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    this.tex = gl.createTexture()!;
-    this.fbo = gl.createFramebuffer()!;
+    this.gasProg = program(GAS_VERT, GAS_FRAG);
+    this.moteProg = program(MOTE_VERT, MOTE_FRAG);
+    this.gasBuf = gl.createBuffer()!;
+    this.moteBuf = gl.createBuffer()!;
     if (!front) {
       this.floorProg = program(FLOOR_VERT, FLOOR_FRAG);
       this.floorBuf = gl.createBuffer()!;
@@ -284,27 +243,15 @@ class Layer {
     }
   }
 
-  setLayout(l: Layout) {
-    this.layout = l;
-    this.stale = true;
-  }
-
-  /** The texture the gas is marched into: a little over half the canvas's CSS size (soft gas loses nothing). */
-  private target(w: number, h: number) {
+  upload(g: Geometry) {
     const gl = this.gl;
-    const tw = Math.max(2, Math.round(w * 0.7)), th = Math.max(2, Math.round(h * 0.7));
-    if (this.texSize[0] === tw && this.texSize[1] === th) return;
-    this.texSize = [tw, th];
-    gl.bindTexture(gl.TEXTURE_2D, this.tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tw, th, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.tex, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    this.stale = true;
+    if (gl.isContextLost()) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.gasBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, g.mesh, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.moteBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, g.motes, gl.STATIC_DRAW);
+    this.gasCount = g.mesh.length / 7;
+    this.moteCount = g.motes.length / 5;
   }
 
   draw(cam: Camera, time: number, fade: number) {
@@ -316,78 +263,59 @@ class Layer {
       c.width = w;
       c.height = h;
     }
-    const screen = (p: WebGLProgram) => {
-      gl.useProgram(p);
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.screenBuf);
-      const loc = gl.getAttribLocation(p, 'aPos');
-      gl.enableVertexAttribArray(loc);
-      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-      return () => gl.disableVertexAttribArray(loc);
-    };
-    // March the gas into its texture, when it has gone stale.
-    const L = this.layout;
-    this.target(c.clientWidth, c.clientHeight);
-    if (L && this.stale) {
-      this.stale = false;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
-      gl.viewport(0, 0, this.texSize[0], this.texSize[1]);
-      gl.disable(gl.DEPTH_TEST);
-      gl.disable(gl.BLEND);
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      const p = this.gasProg;
-      const done = screen(p);
-      const u = (n: string) => gl.getUniformLocation(p, n);
-      gl.uniform3fv(u('uEye'), cam.eye);
-      gl.uniform3fv(u('uRight'), cam.right);
-      gl.uniform3fv(u('uUp'), cam.up);
-      gl.uniform3fv(u('uFwd'), cam.forward);
-      gl.uniform1f(u('uTan'), Math.tan(FOV / 2));
-      gl.uniform1f(u('uAspect'), cam.width / cam.height);
-      gl.uniform1f(u('uTime'), time);
-      gl.uniform1f(u('uFade'), fade);
-      gl.uniform1f(u('uFront'), this.front ? 1 : 0);
-      gl.uniform3fv(u('uOffset'), L.offset);
-      gl.uniform4fv(u('uClumps'), L.clumps);
-      gl.uniform4fv(u('uStrip'), L.strip);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      done();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    }
     gl.viewport(0, 0, w, h);
     if (this.front) gl.clearColor(0, 0, 0, 0);
     else gl.clearColor(PAPER[0], PAPER[1], PAPER[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    const use = (p: WebGLProgram, buf: WebGLBuffer, attrs: [string, number][]) => {
+      gl.useProgram(p);
+      gl.uniformMatrix4fv(gl.getUniformLocation(p, 'uProj'), false, cam.proj);
+      gl.uniformMatrix4fv(gl.getUniformLocation(p, 'uView'), false, cam.view);
+      gl.uniform1f(gl.getUniformLocation(p, 'uTime'), time);
+      gl.uniform1f(gl.getUniformLocation(p, 'uFade'), fade);
+      gl.uniform3f(gl.getUniformLocation(p, 'uPaper'), PAPER[0], PAPER[1], PAPER[2]);
+      gl.uniform3f(gl.getUniformLocation(p, 'uEye'), cam.eye[0], cam.eye[1], cam.eye[2]);
+      gl.uniform1f(gl.getUniformLocation(p, 'uFront'), this.front ? 1 : 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      const stride = attrs.reduce((s, [, n]) => s + n, 0) * 4;
+      let off = 0;
+      const used: number[] = [];
+      for (const [name, n] of attrs) {
+        const loc = gl.getAttribLocation(p, name);
+        if (loc >= 0) {
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, n, gl.FLOAT, false, stride, off);
+          used.push(loc);
+        }
+        off += n * 4;
+      }
+      return () => used.forEach((l) => gl.disableVertexAttribArray(l));
+    };
+    let done: () => void;
     if (this.floorProg && this.floorBuf) {
-      gl.enable(gl.DEPTH_TEST);
-      gl.useProgram(this.floorProg);
-      const fp = this.floorProg;
-      gl.uniformMatrix4fv(gl.getUniformLocation(fp, 'uProj'), false, cam.proj);
-      gl.uniformMatrix4fv(gl.getUniformLocation(fp, 'uView'), false, cam.view);
-      gl.uniform1f(gl.getUniformLocation(fp, 'uFade'), fade);
-      gl.uniform3f(gl.getUniformLocation(fp, 'uPaper'), PAPER[0], PAPER[1], PAPER[2]);
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.floorBuf);
-      const loc = gl.getAttribLocation(fp, 'aPos');
-      gl.enableVertexAttribArray(loc);
-      gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+      done = use(this.floorProg, this.floorBuf, [['aPos', 3]]);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
-      gl.disableVertexAttribArray(loc);
-      gl.disable(gl.DEPTH_TEST);
+      done();
     }
-    if (!L) return;
-    // The gas over it, see-through.
+    if (this.gasCount) {
+      done = use(this.gasProg, this.gasBuf, [['aPos', 3], ['aNormal', 3], ['aFree', 1]]);
+      gl.drawArrays(gl.TRIANGLES, 0, this.gasCount);
+      done();
+    }
+    // The map's things, behind whatever gas lies between them and the eye.
+    this.objects?.draw(cam, time, 1);
+    if (!this.gasCount) return;
+    // The dust: blended over, never hiding anything (over the map, only the motes on the camera's side).
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    const done = screen(this.showProg);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.tex);
-    gl.uniform1i(gl.getUniformLocation(this.showProg, 'uTex'), 0);
-    gl.uniform2f(gl.getUniformLocation(this.showProg, 'uTexel'), 1.5 / this.texSize[0], 1.5 / this.texSize[1]);
-    // (The dots' spacing, in device pixels, and the paper they are printed on.)
-    gl.uniform1f(gl.getUniformLocation(this.showProg, 'uCell'), 7 * dpr);
-    gl.uniform3f(gl.getUniformLocation(this.showProg, 'uPaper'), PAPER[0], PAPER[1], PAPER[2]);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.depthMask(false);
+    done = use(this.moteProg, this.moteBuf, [['aPos', 3], ['aPhase', 1], ['aSize', 1]]);
+    gl.uniform1f(gl.getUniformLocation(this.moteProg, 'uPx'), dpr);
+    gl.drawArrays(gl.POINTS, 0, this.moteCount);
     done();
+    gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
 
@@ -408,9 +336,7 @@ export class Nebula {
   private glide: Pose | null = null;
   private moved = true;
   private homed = false;
-  /** How far the nebula has faded in since it was first shown. */
-  /** When the gas was last marched (it churns slowly, so a few times a second is enough). */
-  private marched = 0;
+  /** How far the nebula has faded in since its shape arrived. */
   private fade = 0;
   /** Told whenever the camera moves, with the camera as drawn (the map lays itself on the plane from it). */
   onCamera: ((cam: Camera) => void) | null = null;
@@ -425,17 +351,26 @@ export class Nebula {
         // (Without the layer over the map, the gas simply never hides a system.)
       }
     }
+    const top = this.layers[this.layers.length - 1];
+    try {
+      top.objects = new MapObjects(top.gl);
+    } catch {
+      top.objects = null;
+    }
     this.wake();
   }
 
-  /** Which universe's nebula to show (laid out once per seed, kept clear of the strip). */
+  /** Which universe's nebula to show (built once per seed, with channels cleared for the strip). */
   show(seed: number, strip: Strip) {
     if (seed !== this.seed) {
       this.seed = seed;
-      const layout = nebulaLayout(seed, strip);
-      for (const l of this.layers) l.setLayout(layout);
-      // Fade in (at once if motion is reduced).
-      this.fade = this.reduce ? 1 : 0;
+      void geometry(seed, strip).then((g) => {
+        if (this.seed !== seed) return;
+        for (const l of this.layers) l.upload(g);
+        // Fade in (at once if motion is reduced).
+        this.fade = this.reduce ? 1 : 0;
+        this.wake();
+      });
     }
     if (!this.homed && this.back.clientWidth) {
       this.homed = true;
@@ -443,6 +378,18 @@ export class Nebula {
       this.moved = true;
     }
     this.wake();
+  }
+
+  /** The map's things to draw in 3D (stars, black holes and the rest), as they stand now. */
+  setObjects(list: MapObject[]) {
+    const top = this.layers[this.layers.length - 1];
+    top.objects?.set(list);
+    this.wake();
+  }
+
+  /** Whether the map's things are drawn in 3D here (so the page's own drawings of them can be put away). */
+  get drawsObjects(): boolean {
+    return !!this.layers[this.layers.length - 1].objects;
   }
 
   /** The camera's resting place: looking down on the whole strip at a slant, far enough off to see all of it. */
@@ -583,11 +530,6 @@ export class Nebula {
       // A new size is a new camera too (the map is laid on the plane from it).
       if (!this.camera || this.camera.width !== cam.width || this.camera.height !== cam.height) this.moved = true;
       this.camera = cam;
-      // The gas is marched afresh when the camera moves, while it fades in, and a few times a second as it churns.
-      if (this.moved || this.glide || this.fade < 1 || (live && t - this.marched > 220)) {
-        this.marched = t;
-        for (const l of this.layers) l.stale = true;
-      }
       const fade = this.fade * this.fade * (3 - 2 * this.fade);
       if (!document.hidden) for (const l of this.layers) l.draw(cam, this.time, fade);
       if (this.moved) {

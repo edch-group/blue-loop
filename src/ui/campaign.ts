@@ -111,7 +111,7 @@ import { MENU_ICON } from './menu-icon';
 import { raceRow, cardArtLite, cardStock, cardBodyHtml, effectMark, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { toPageDelta } from './viewport';
-import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type Nebula } from './nebula3d';
+import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 
 const KEY = 'blue-loop:campaign:v6';
 
@@ -1726,6 +1726,29 @@ export class CampaignView {
     let seed = s.universe * 7919;
     for (const ch of s.nodes[0]?.name ?? '') seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
     this.nebula.show(seed, { nodes: [...at.values()], routes });
+    // The map's things in 3D: every system's star (ringed in its holder's colour), and the anomalies.
+    const hex = (c: string): [number, number, number] => {
+      const m = /^#?([0-9a-f]{6})$/i.exec(c);
+      const v = m ? parseInt(m[1], 16) : 0x999999;
+      return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
+    };
+    const objects: MapObject[] = s.nodes.map((n) => {
+      const [x, z] = at.get(n.id)!;
+      return {
+        x,
+        z,
+        kind: n.heart ? 'heart' : (n.star ?? 'yellow'),
+        ring: n.owner ? hex(this.colourOf(n.owner)) : undefined,
+        dim: !!(n.dimmed || n.collapsing),
+        dead: !!(n.collapsed || n.ruined),
+        seed: parseFloat(seedOf(n.id)) * 10 || 0,
+      };
+    });
+    for (const a of s.anomalies ?? []) {
+      const [x, z] = world(a.x, a.y);
+      objects.push({ x, z, kind: a.kind, seed: parseFloat(seedOf(a.id)) * 10 || 0 });
+    }
+    this.nebula.setObjects(objects);
     if (this.nebula.camera) this.layPlane(this.nebula.camera);
   }
 

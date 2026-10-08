@@ -6153,3 +6153,8 @@ body:has(.game-result) .dock { visibility: hidden; }
 .cmp-3d .cmp-plane { pointer-events: none; }
 .cmp-3d .cmp-plane button, .cmp-3d .cmp-plane [data-act] { pointer-events: auto; }
 .cmp-3d .cmp-plane .cmp-an .cmp-bb { pointer-events: none; }
+/* The stars and anomalies are drawn in 3D by the nebula (nebula-objects.ts): the page's own drawings of them are
+   put away, leaving their buttons (invisible, to tap) and the Stellari's flower over the wormhole. */
+.cmp-3d .cmp-n3 .cmp-star { background: none !important; box-shadow: none !important; filter: none !important; animation: none !important; }
+.cmp-3d .cmp-n3 .cmp-star > i:not(.cmp-bloom3d), .cmp-3d .cmp-n3 .cmp-star::before, .cmp-3d .cmp-n3 .cmp-star::after { display: none !important; }
+.cmp-3d .cmp-an .an-bb > span { visibility: hidden; }
