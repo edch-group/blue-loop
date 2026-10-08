@@ -6038,3 +6038,14 @@ body:has(.game-result) .dock { visibility: hidden; }
 .yield-draw, .yield-plays { color: #3f9a68; }
 .yield-repair { color: #7a7f8f; }
 .yield-selfHeat { color: #a8473a; background: rgba(255, 236, 230, 0.95); }
+
+/* The rival's hand: small card backs fanned down from the top of the screen, the one they hover lifted out towards the board. */
+.rival-hand { --rhw: clamp(40px, 4.3vw, 64px); --rhh: calc(var(--rhw) * 1.4); position: absolute; left: 50%; top: 0; width: 0; height: 0; z-index: 6; pointer-events: none; }
+.rh-card {
+  position: absolute; left: calc(var(--o) * var(--rhw) * 0.62 - var(--rhw) / 2); top: calc(var(--rhh) * -0.54); width: var(--rhw); height: var(--rhh);
+  border-radius: calc(var(--rhw) * 0.1); border: 1.5px solid #fff; overflow: hidden; box-shadow: 0 3px 10px rgba(50, 56, 80, 0.22);
+  transform-origin: 50% -260%; transform: rotate(calc(var(--o) * -4deg)); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s;
+}
+.rh-card.lifted { transform: rotate(calc(var(--o) * -4deg)) translateY(calc(var(--rhh) * 0.32)); box-shadow: 0 8px 18px rgba(50, 56, 80, 0.3); }
+.table-view:is(.zoom-rival, .zoom-mine) > .rival-hand { opacity: 0; transition: opacity 0.25s; }
+@media (prefers-reduced-motion: reduce) { .rh-card { transition: none; } }

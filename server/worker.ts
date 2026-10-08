@@ -85,8 +85,18 @@ export class Room extends DurableObject<Env> {
     } catch {
       return;
     }
-    const room = await this.load();
     const { seat, account } = (ws.deserializeAttachment() ?? { seat: null, account: null }) as { seat: number | null; account: string | null };
+    // A hovered card of your hand: straight on to your rival (by place only, never which card), nothing stored.
+    if (msg.t === 'hover') {
+      if (seat === null) return;
+      const i = typeof msg.i === 'number' && Number.isInteger(msg.i) && msg.i >= 0 && msg.i < 20 ? msg.i : null;
+      for (const other of this.ctx.getWebSockets()) {
+        const s = seatOf(other);
+        if (s !== null && s !== seat) send(other, { t: 'rivalHover', i });
+      }
+      return;
+    }
+    const room = await this.load();
     // Who a player is comes from their session, never from what they say: a ranked seat needs an account.
     if (msg.t === 'join') msg = { ...msg, profileId: account ?? undefined };
     const out = handle(room, seat, msg);

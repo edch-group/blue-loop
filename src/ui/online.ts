@@ -35,6 +35,8 @@ export interface OnlineEvents {
   error(message: string): void;
   /** Whether the rival is connected right now. */
   presence(rivalOnline: boolean): void;
+  /** Which card of their hand the rival has under their pointer (by place in the hand; null: none). */
+  rivalHover?(index: number | null): void;
   /** Connected, reconnecting, or given up. */
   status(status: 'connecting' | 'open' | 'lost'): void;
 }
@@ -162,6 +164,9 @@ export class OnlineClient {
         case 'presence':
           this.on.presence(!!msg.rivalOnline);
           break;
+        case 'rivalHover':
+          this.on.rivalHover?.(typeof msg.i === 'number' ? msg.i : null);
+          break;
       }
     };
     ws.onclose = () => {
@@ -181,6 +186,11 @@ export class OnlineClient {
 
   act(action: Action) {
     this.send({ t: 'action', action });
+  }
+
+  /** The card of your hand under your pointer (by place; null: none), for your rival to see lift. */
+  hover(index: number | null) {
+    this.send({ t: 'hover', i: index });
   }
 
   /** You have read the card your rival just played: they may carry on. */

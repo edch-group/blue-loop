@@ -104,7 +104,7 @@ import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
 import { fitCardText } from './fittext';
-import { refreshLift, trackLift } from './lift';
+import { onLiftChange, refreshLift, trackLift } from './lift';
 import { animateSuns, holdSuns } from './sun3d';
 import { voices } from './voice';
 import { morphInto } from './morph';
@@ -866,6 +866,17 @@ export class App {
     this.preview.className = 'card-preview';
     document.body.appendChild(this.preview);
     trackLift();
+    // Online: your rival sees which card of your hand you hover (by place, never which card).
+    let sentHover: number | null = null;
+    onLiftChange((el) => {
+      if (!this.online || this.screen !== 'game') return;
+      const cards = el?.parentElement?.matches('.table-view > .dock .hand') ? [...el.parentElement.children].filter((c) => c.classList.contains('card')) : [];
+      const i = el && cards.length ? cards.indexOf(el) : -1;
+      const at = i >= 0 ? i : null;
+      if (at === sentHover) return;
+      sentHover = at;
+      this.online.hover(at);
+    });
     // Hovering a keyword on a card explains it.
     const tip = document.createElement('div');
     tip.className = 'kw-tip';
@@ -1182,6 +1193,7 @@ export class App {
           }
           if (this.screen === 'menu') this.render();
         },
+        rivalHover: (i) => this.setRivalHover(i),
         state: (state, you, last, waitFor, ranked) => {
           this.net.waitFor = waitFor;
           this.net.ranked = ranked;
@@ -2078,11 +2090,32 @@ export class App {
     if (this.screen !== 'game' || !s || isGameOver(s) || !activePlayer(s).isAI) return;
     // A card of the AI's is still waiting to be read.
     if (this.stage?.confirm) return;
+    // The AI makes up its mind now, and is seen to: it hovers a card of its hand or two as it thinks, ending on
+    // the one it plays.
+    const action = chooseAIAction(s);
+    const wait = pause * SPEED_FACTOR[this.speed];
+    for (const t of this.aiHoverTimers) window.clearTimeout(t);
+    this.aiHoverTimers = [];
+    const ai = activePlayer(s);
+    const n = ai.hand.length;
+    const played = action.type === 'playCard' ? ai.hand.findIndex((c) => c.uid === action.cardUid) : -1;
+    if (n && wait >= 350 && !reducedMotion()) {
+      const other = () => Math.floor(Math.random() * n);
+      const hover = (i: number | null, at: number) => this.aiHoverTimers.push(window.setTimeout(() => this.state === s && this.setRivalHover(i), at));
+      if (Math.random() < 0.7) hover(other(), wait * 0.15);
+      if (played >= 0) hover(played, Math.max(wait * 0.35, wait - 650));
+      else if (Math.random() < 0.5) hover(other(), wait * 0.5);
+      if (played < 0) hover(null, wait * 0.85);
+    }
     this.aiTimer = window.setTimeout(() => {
       this.aiTimer = null;
-      if (this.state === s) this.dispatch(chooseAIAction(s));
-    }, pause * SPEED_FACTOR[this.speed]);
+      this.rivalHover = null;
+      if (this.state === s) this.dispatch(action);
+    }, wait);
   }
+
+  /** The AI's hovers over its hand, waiting to play out. */
+  private aiHoverTimers: number[] = [];
 
   /** Resolve the rest of the AI days instantly, up to the next human turn. */
   private skipAI() {
@@ -4557,6 +4590,7 @@ export class App {
         </div>
         ${/* The hand lies flat in front of the tilted board (on it, its text was drawn small and stretched: blurry). */ ''}
         ${this.renderDock()}
+        ${this.renderRivalHand()}
         ${this.renderHud()}
         ${this.renderTurnControls()}
         ${this.renderZoomControls()}
@@ -4564,6 +4598,30 @@ export class App {
         ${this.renderResult()}
         ${this.renderOverlay(s)}
       </main>`;
+  }
+
+  /** The card of the rival's hand they are hovering (by place), lifted out of their fan. */
+  private rivalHover: number | null = null;
+
+  /**
+   * The rival's hand, small along the top of the screen: their cards' backs in a fan hanging down towards the
+   * board, the one they are hovering lifted out of it (an online rival's pointer; the AI as it thinks).
+   */
+  private renderRivalHand(): string {
+    const rival = this.shownRival();
+    const n = rival && !rival.eliminated ? rival.hand.length : 0;
+    if (!n) return '<section class="rival-hand" aria-hidden="true"></section>';
+    const mid = (n - 1) / 2;
+    const cards = rival!.hand
+      .map((_, i) => `<div class="rh-card${this.rivalHover === i ? ' lifted' : ''}" style="--o:${(i - mid).toFixed(2)};z-index:${i + 1}">${cardBackFace()}</div>`)
+      .join('');
+    return `<section class="rival-hand" aria-label="${esc(rival!.name)}'s hand: ${n} card${n === 1 ? '' : 's'}" style="--n:${n}">${cards}</section>`;
+  }
+
+  /** Lift a card of the rival's hand (or none), in place. */
+  private setRivalHover(i: number | null) {
+    this.rivalHover = i;
+    this.root.querySelectorAll<HTMLElement>('.rival-hand .rh-card').forEach((c, k) => c.classList.toggle('lifted', k === i));
   }
 
   /** Zoomed onto a tableau: back out to the whole board, or across to the other player's. (Unzoomed, each tableau has its own eye.) */

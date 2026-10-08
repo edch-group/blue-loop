@@ -7,12 +7,20 @@
  */
 let lifted: HTMLElement | null = null;
 let at: { x: number; y: number } | null = null;
+/** Told whenever the lifted card changes (online, your rival sees which card of your hand you hover). */
+let onChange: ((el: HTMLElement | null) => void) | null = null;
+
+/** Hear of every change of lifted card. */
+export function onLiftChange(f: (el: HTMLElement | null) => void) {
+  onChange = f;
+}
 
 function set(el: HTMLElement | null) {
   if (lifted === el) return;
   lifted?.classList.remove('lifted');
   lifted = el;
   el?.classList.add('lifted');
+  onChange?.(el);
 }
 
 function update(x: number, y: number, target: Element | null) {

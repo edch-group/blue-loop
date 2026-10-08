@@ -80,6 +80,8 @@ export type ClientMessage =
   | { t: 'ready'; ready: boolean }
   /** In a game: you have read the card your rival just played (they may carry on). */
   | { t: 'ack' }
+  /** In a game: the card of your hand under your pointer (by place; null: none), passed straight on to your rival. */
+  | { t: 'hover'; i: number | null }
   | { t: 'ping' };
 
 /** What the room sends. */
@@ -95,7 +97,9 @@ export type ServerMessage =
   | { t: 'error'; message: string }
   | { t: 'pong' }
   /** Whether the other player is connected right now (sent by the worker as connections come and go). */
-  | { t: 'presence'; rivalOnline: boolean };
+  | { t: 'presence'; rivalOnline: boolean }
+  /** The card of their hand your rival has under their pointer (by place; null: none). */
+  | { t: 'rivalHover'; i: number | null };
 
 /** A placeholder for a card someone may not see (it is a real card id, so the client can draw it safely). */
 const HIDDEN = 'coronal_lance';
@@ -143,6 +147,9 @@ function handleMessage(room: RoomData, seat: number | null, msg: ClientMessage, 
   switch (msg.t) {
     case 'ping':
       return { seat, reply: [{ t: 'pong' }], broadcast: false };
+    case 'hover':
+      // (Passed on by the worker itself: nothing in the room changes.)
+      return { seat, reply: [], broadcast: false };
     case 'join': {
       // Rejoining: the token names the seat.
       const back = msg.token ? room.seats.findIndex((s) => s.token === msg.token) : -1;
