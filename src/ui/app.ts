@@ -49,6 +49,8 @@ import {
   abilityAimable,
   COMMAND_SLOT,
   dawnEffects,
+  duskEffects,
+  conditionMet,
   effectAmount,
   optionText,
   allyEffectKind,
@@ -300,6 +302,35 @@ const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in han
 const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-sacrifice', 'choose-host', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
 
 /** A number that pops out of a sun and rises away: heat taken, cooling, shields. Outside the re-rendered root. */
+/** What a card in play gives each day as things stand now (its dawn and dusk effects whose conditions hold): heat, cooling, shields and the like, by kind. */
+function cardYield(st: GameState, p: PlayerState, c: CardInstance): [string, number][] {
+  const out = new Map<string, number>();
+  for (const e of [...dawnEffects(c, p, st), ...duskEffects(c)]) {
+    if (!conditionMet(p, e.if, st, c)) continue;
+    const n = e.type === 'heat' || e.type === 'cool' || e.type === 'shield' || e.type === 'selfHeat' || e.type === 'draw'
+      ? effectAmount(st, p, c, e, 'turn')
+      : e.type === 'repair' || e.type === 'plays' ? e.amount : 0;
+    if (n > 0) out.set(e.type, (out.get(e.type) ?? 0) + n);
+  }
+  const order = ['heat', 'cool', 'shield', 'draw', 'plays', 'repair', 'selfHeat'];
+  return [...out].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
+}
+
+const YIELD_NAMES: Record<string, string> = { heat: 'heat to the rival sun', cool: 'cooling', shield: 'shields', draw: 'cards drawn', plays: 'energy', repair: 'repair', selfHeat: 'heat to its own sun' };
+
+/** A card's html with its yield marks inside it (first, so they stand with it wherever it moves). */
+function withYield(html: string, marks: string): string {
+  return marks ? html.replace(/^(\s*<(?:div|button)\b[^>]*>)/, `$1${marks}`) : html;
+}
+
+/** The marks over a card in play (under, on the rival's side) for what it gives each day now. */
+function yieldMarks(st: GameState, p: PlayerState, c: CardInstance, side: 'mine' | 'rival'): string {
+  const y = cardYield(st, p, c);
+  if (!y.length) return '';
+  const title = `Each day, as things stand: ${y.map(([k, n]) => `${n} ${YIELD_NAMES[k]}`).join(', ')}.`;
+  return `<span class="card-yield card-yield-${side}" title="${esc(title)}">${y.map(([k, n]) => `<i class="yield yield-${k}">${effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k)}${n}</i>`).join('')}</span>`;
+}
+
 /** The sound of a blow landing on a card: its defence cracking if the blow wore it, and the crunch of what got through. */
 function cardBlowSound(prev: GameState, next: GameState, uid: string) {
   const find = (st: GameState) => st.players.flatMap((p) => p.tableau).find((c) => c.uid === uid);
@@ -4896,7 +4927,7 @@ export class App {
     // (A campaign ship's rooms add to their slots' defence; its hero, wounded, sits a turn out.)
     const cmdDef = BALANCE.commandSlotDefence + (p.rooms?.command ?? 0);
     const cmdHtml = cmd
-      ? this.renderCard(cmd, { tableau: side, owner: p }) + this.heroRail(p, cmd, side)
+      ? withYield(this.renderCard(cmd, { tableau: side, owner: p }), yieldMarks(st, p, cmd, side)) + this.heroRail(p, cmd, side)
       : p.wounded
         ? `<div class="slot-empty slot-cmd slot-wounded" title="${esc(cardDef(p.wounded.card.defId).name)} is wounded: back in the command room ${p.wounded.left > 0 ? 'after their next day' : 'at their next dawn'}."><span class="slot-def">✚</span><small>wounded</small></div>`
         : `<div class="slot-empty slot-cmd" title="Hero slot: your one Hero leads your tableau from here (a new one replaces it). Defence ${cmdDef}"><span class="slot-def">⛨${cmdDef}</span><small>hero</small></div>`;
@@ -4904,7 +4935,7 @@ export class App {
       const c = p.tableau.find((x) => x.slot === i);
       const g = ghostAt(i);
       if (g) return g;
-      if (c) return this.renderCard(c, { tableau: side, owner: p, preview: preview.get(c.uid), targeted: targeted.has(c.uid) });
+      if (c) return withYield(this.renderCard(c, { tableau: side, owner: p, preview: preview.get(c.uid), targeted: targeted.has(c.uid) }), yieldMarks(st, p, c, side));
       // A slot keeps the wear of the card that stood in it (mending 1 a day).
       const full = BALANCE.slotDefence[i] + (p.rooms?.defence[i] ?? 0);
       const wear = p.slotWear?.[i] ?? 0;
