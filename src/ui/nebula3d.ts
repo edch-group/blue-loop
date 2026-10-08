@@ -43,7 +43,7 @@ function geometry(seed: number, strip: Strip): Promise<Geometry> {
       try {
         const w = new Worker(new URL('./nebula.worker.ts', import.meta.url), { type: 'module' });
         w.onmessage = (e: MessageEvent<Geometry>) => {
-          resolve({ mesh: e.data.mesh, motes: e.data.motes });
+          resolve(e.data);
           w.terminate();
         };
         w.onerror = () => {
@@ -86,16 +86,18 @@ const GAS_FRAG = `
 #extension GL_OES_standard_derivatives : enable
 precision highp float;
 varying vec3 vWorld; varying vec3 vNormal; varying float vDist;
-uniform vec3 uPaper; uniform vec3 uEye; uniform float uTime; uniform float uFade; uniform float uFront;
+uniform vec3 uPaper; uniform vec3 uEye; uniform float uTime; uniform float uFade; uniform float uFront; uniform float uVeil;
 void main() {
   // Over the map, only the gas on the camera's side of its plane (y = 0): what stands between the eye and it.
   if (uFront > 0.5 && vWorld.y * uEye.y <= 0.0) discard;
   vec3 n = normalize(vNormal);
   vec3 v = normalize(uEye - vWorld);
   float ndv = abs(dot(n, v));
-  // Paper, softly shaded by a light from above: the board's white, falling to its cool grey in shadow.
+  // Lit from within, as a nebula is: its edges (where it is seen thin) glow paper-white, its thick middle
+  // darkens to a cool grey, as dust does; a little light from above keeps its shape.
   float lam = max(0.0, dot(n, normalize(vec3(0.45, 0.85, 0.3))));
-  vec3 c = mix(vec3(0.80, 0.82, 0.86), vec3(0.995, 0.994, 0.988), 0.25 + 0.75 * lam);
+  float thin = pow(1.0 - ndv, 1.4);
+  vec3 c = mix(vec3(0.76, 0.78, 0.84), vec3(0.995, 0.994, 0.988), clamp(0.15 + thin * 0.9 + lam * 0.15, 0.0, 1.0));
   // Schematic contour lines round the gas, as on a survey.
   float S = 0.12;
   float cd = abs(fract(vWorld.y / S + 0.5) - 0.5) * S;
@@ -111,6 +113,16 @@ void main() {
   float edge = 1.0 - smoothstep(0.12, 0.3, ndv);
   c = mix(c, vec3(0.40, 0.46, 0.60), edge * 0.6);
   c = mix(c, uPaper, smoothstep(4.5, 22.0, vDist));
+  if (uVeil > 0.5) {
+    // The veil: see-through, glowing at its edges (where it is seen edge-on, as thin gas is), a breath of the
+    // board's gold and blue in it, and its outline only a whisper.
+    float a = (0.1 + 0.45 * rim + edge * 0.1) * uFade;
+    vec3 v = mix(vec3(0.99, 0.985, 0.97), tint, 0.18 + 0.3 * patch * band);
+    v = mix(v, vec3(0.55, 0.60, 0.71), line * 0.25 + edge * 0.25);
+    v = mix(v, uPaper, smoothstep(4.5, 22.0, vDist));
+    gl_FragColor = vec4(v * a, a);
+    return;
+  }
   gl_FragColor = uFront > 0.5 ? vec4(c, 1.0) * uFade : vec4(mix(uPaper, c, uFade), 1.0);
 }`;
 
@@ -148,6 +160,33 @@ void main() {
   c *= 1.0 - 0.07 * uFade * exp(-dot(p * vec2(0.55, 1.0), p * vec2(0.55, 1.0)) * 1.2);
   c = mix(c, uPaper, smoothstep(4.5, 22.0, vDist));
   gl_FragColor = vec4(c, 1.0);
+}`;
+
+const FLOW_VERT = COMMON + `
+attribute vec3 aPos; attribute float aAlong; attribute float aPhase;
+uniform vec3 uEye; uniform float uFront;
+varying float vAlong; varying float vPhase; varying float vDist; varying float vKeep;
+void main() {
+  vec3 p = aPos + vec3(0.0, 0.03 * sin(uTime * 0.4 + aAlong * 9.0 + aPhase * 6.28), 0.0);
+  vec4 v = uView * vec4(p, 1.0);
+  gl_Position = uProj * v;
+  vAlong = aAlong;
+  vPhase = aPhase;
+  vDist = -v.z;
+  vKeep = (uFront > 0.5 && p.y * uEye.y <= 0.0) ? 0.0 : 1.0;
+}`;
+
+/** The flow lines: fine ink strands, faded at their ends, with a slow pulse of light running along each. */
+const FLOW_FRAG = `
+precision highp float;
+varying float vAlong; varying float vPhase; varying float vDist; varying float vKeep;
+uniform float uTime; uniform float uFade;
+void main() {
+  float ends = sin(vAlong * 3.14159);
+  float pulse = smoothstep(0.92, 1.0, fract(vAlong * 2.0 - uTime * 0.05 + vPhase));
+  float a = (0.26 * ends + 0.45 * pulse * ends) * (1.0 - smoothstep(5.0, 14.0, vDist)) * uFade * vKeep;
+  vec3 c = mix(vec3(0.45, 0.51, 0.64), vec3(0.86, 0.66, 0.36), pulse);
+  gl_FragColor = vec4(c * a, a);
 }`;
 
 const MOTE_VERT = COMMON + `
@@ -208,10 +247,15 @@ class Layer {
   private gasProg: WebGLProgram;
   private floorProg?: WebGLProgram;
   private moteProg: WebGLProgram;
+  private flowProg: WebGLProgram;
   private gasBuf: WebGLBuffer;
+  private veilBuf: WebGLBuffer;
+  private flowBuf: WebGLBuffer;
   private floorBuf?: WebGLBuffer;
   private moteBuf: WebGLBuffer;
   private gasCount = 0;
+  private veilCount = 0;
+  private flowCount = 0;
   private moteCount = 0;
 
   constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean) {
@@ -229,6 +273,9 @@ class Layer {
     };
     this.gasProg = program(GAS_VERT, GAS_FRAG);
     this.moteProg = program(MOTE_VERT, MOTE_FRAG);
+    this.flowProg = program(FLOW_VERT, FLOW_FRAG);
+    this.veilBuf = gl.createBuffer()!;
+    this.flowBuf = gl.createBuffer()!;
     this.gasBuf = gl.createBuffer()!;
     this.moteBuf = gl.createBuffer()!;
     if (!front) {
@@ -247,6 +294,12 @@ class Layer {
     gl.bufferData(gl.ARRAY_BUFFER, g.mesh, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.moteBuf);
     gl.bufferData(gl.ARRAY_BUFFER, g.motes, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.veilBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, g.veil, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.flowBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, g.lines, gl.STATIC_DRAW);
+    this.veilCount = g.veil.length / 7;
+    this.flowCount = g.lines.length / 5;
     this.gasCount = g.mesh.length / 7;
     this.moteCount = g.motes.length / 5;
   }
@@ -298,12 +351,24 @@ class Layer {
     }
     if (!this.gasCount) return;
     done = use(this.gasProg, this.gasBuf, [['aPos', 3], ['aNormal', 3], ['aFree', 1]]);
+    gl.uniform1f(gl.getUniformLocation(this.gasProg, 'uVeil'), 0);
     gl.drawArrays(gl.TRIANGLES, 0, this.gasCount);
     done();
-    // The dust: blended over, never hiding anything (over the map, only the motes on the camera's side).
+    // Then everything see-through, blended over and hiding nothing: the flow lines, the veil, the dust (over the
+    // map, only what is on the camera's side of its plane).
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
+    done = use(this.flowProg, this.flowBuf, [['aPos', 3], ['aAlong', 1], ['aPhase', 1]]);
+    gl.drawArrays(gl.LINES, 0, this.flowCount);
+    done();
+    // (The veil only behind the map: over it, it would cloud the systems.)
+    if (!this.front) {
+      done = use(this.gasProg, this.veilBuf, [['aPos', 3], ['aNormal', 3], ['aFree', 1]]);
+      gl.uniform1f(gl.getUniformLocation(this.gasProg, 'uVeil'), 1);
+      gl.drawArrays(gl.TRIANGLES, 0, this.veilCount);
+      done();
+    }
     done = use(this.moteProg, this.moteBuf, [['aPos', 3], ['aPhase', 1], ['aSize', 1]]);
     gl.uniform1f(gl.getUniformLocation(this.moteProg, 'uPx'), dpr);
     gl.drawArrays(gl.POINTS, 0, this.moteCount);

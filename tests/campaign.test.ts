@@ -382,19 +382,6 @@ describe('armies and generals', () => {
     expect(supernovaThreshold(t.battle!.game.players[1])).toBeGreaterThan(supernovaThreshold(t.battle!.game.players[0]));
   });
 
-  it('lets the Lost Races wander, raid and be hunted for relics', () => {
-    let s = fresh();
-    // A lost army beside the player's gate: beat it and take its relics.
-    const gate = nodeById(s, home(s).links[0]);
-    const lost = s.armies.find((a) => a.lost)!;
-    lost.nodeId = gate.id;
-    const before = campaignPlayer(s).materials;
-    s = winBattle(attack(s));
-    expect(s.armies.some((a) => a.id === lost.id)).toBe(false);
-    expect(campaignPlayer(s).materials).toBeGreaterThanOrEqual(before + CAMPAIGN.winMaterials + CAMPAIGN.lostRelicMaterials);
-    expect(s.cardRewards.some((r) => r.source.startsWith('Relics'))).toBe(true);
-  });
-
   it("grows heroes: experience from battles, skill points, and skills and gear that ride on the hero's card", () => {
     let s = fresh();
     const me = campaignPlayer(s);

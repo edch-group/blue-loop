@@ -51,6 +51,10 @@ function makeNoise(seed: number) {
 export interface Geometry {
   /** Triangles: x, y, z, normal x, y, z, and how free the gas there is to drift (0 the body, 1 a loose plume). */
   mesh: Float32Array;
+  /** The see-through veil round it, as the mesh. */
+  veil: Float32Array;
+  /** Flow lines, in segment pairs: x, y, z, how far along its line (0 to 1), the line's own phase. */
+  lines: Float32Array;
   /** Dust motes: x, y, z, phase (0 to 1), size. */
   motes: Float32Array;
 }
@@ -121,16 +125,17 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
 
   // The field: positive inside the gas. Each blob falls off smoothly, and they melt together where they meet.
   const field = (x: number, y: number, z: number) => {
-    const wx = x + fbm(x * 0.8, y * 0.8, z * 0.8, 2) * 0.22;
-    const wy = y + fbm(x * 0.8 + 31, y * 0.8, z * 0.8, 2) * 0.22;
-    const wz = z + fbm(x * 0.8, y * 0.8 + 47, z * 0.8, 2) * 0.22;
+    // (Stretched along the strip and torn across it, so the gas streams rather than heaps.)
+    const wx = x + fbm(x * 0.6, y * 1.1, z * 0.8, 2) * 0.45;
+    const wy = y + fbm(x * 0.6 + 31, y * 1.1, z * 0.8, 2) * 0.26;
+    const wz = z + fbm(x * 0.6, y * 1.1 + 47, z * 0.8, 2) * 0.3;
     let sum = 0;
     for (const b of blobs) {
       const d2 = ((wx - b.x) ** 2 + (wy - b.y) ** 2 + (wz - b.z) ** 2) / (b.r * b.r);
       if (d2 < 6) sum += Math.exp(-d2 * 2.8);
     }
     // Billows on billows: a little finer noise heaps the surface like cumulus.
-    return sum - 0.2 + fbm(wx * 2.6, wy * 2.6, wz * 2.6, 3) * 0.16 - clearing(x, y, z);
+    return sum - 0.2 + fbm(wx * 2.2, wy * 3.4, wz * 2.2, 3) * 0.09 - clearing(x, y, z);
   };
   const freeAt = (x: number, y: number, z: number) => {
     let best = 0, near = Infinity;
@@ -144,10 +149,55 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
     return best;
   };
 
-  // Surface nets: one vertex in each cell the surface passes through (at the average of where it crosses
-  // the cell's edges), and a quad across each grid edge it crosses, joining the four cells round that edge.
-  const nx = Math.ceil((2 * BX) / CELL) + 1, ny = Math.ceil((2 * BY) / CELL) + 1, nz = Math.ceil((2 * BZ) / CELL) + 1;
-  const P = (i: number, b: number) => -b + i * CELL;
+  // The veil: thinner gas round the core, torn by ridged noise into sheets, tendrils and holes. Drawn
+  // see-through, it is what makes the core read as a glowing nebula rather than a cloud.
+  const veilField = (x: number, y: number, z: number) => {
+    const torn = 1 - Math.abs(fbm(x * 1.1 + 40, y * 1.6, z * 1.1, 2) * 2.2);
+    return field(x, y, z) + 0.1 + (torn - 0.6) * 0.12 - clearing(x, y, z);
+  };
+  const mesh = surfaceNets(field, CELL, freeAt);
+  const veil = surfaceNets(veilField, CELL * 1.7, freeAt);
+
+  // Flow lines: long strands of gas sweeping through and round the nebula (as a schematic draws its currents),
+  // following a slow swirl, each from one end of the cloud toward the other.
+  const lines: number[] = [];
+  for (let n = 0; n < 48; n++) {
+    let x = range(-2.4, 2.4), y = range(-0.45, 0.55), z = range(-0.9, 0.7);
+    const dir = rnd() < 0.5 ? 1 : -1, seedT = rnd();
+    const pts: number[][] = [];
+    for (let i = 0; i < 70; i++) {
+      pts.push([x, y, z]);
+      const vx = dir * (0.8 + 0.4 * fbm(x * 0.5 + 9, y * 0.5, z * 0.5, 2));
+      const vy = fbm(x * 0.7, y * 0.7 + 13, z * 0.7, 2) * 1.1 - y * 0.25;
+      const vz = fbm(x * 0.7 + 27, y * 0.7, z * 0.7, 2) * 1.3 - z * 0.15;
+      const l = Math.hypot(vx, vy, vz) || 1;
+      x += (vx / l) * 0.045; y += (vy / l) * 0.045; z += (vz / l) * 0.045;
+      if (Math.abs(x) > BX || Math.abs(y) > BY || Math.abs(z) > BZ) break;
+    }
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const t0 = i / (pts.length - 1), t1 = (i + 1) / (pts.length - 1);
+      lines.push(...pts[i], t0, seedT, ...pts[i + 1], t1, seedT);
+    }
+  }
+
+  // Motes of dust hanging round the gas, thickest near its surface.
+  const motes: number[] = [];
+  for (let n = 0; n < 4000 && motes.length < 420 * 5; n++) {
+    const x = range(-BX, BX), y = range(-BY * 0.8, BY), z = range(-BZ, BZ);
+    const v = field(x, y, z);
+    if (v < 0 && v > -0.18 && rnd() < 0.5) motes.push(x, y, z, rnd(), range(1.2, 2.6));
+  }
+  return { mesh, veil, lines: new Float32Array(lines), motes: new Float32Array(motes) };
+}
+
+/**
+ * Surface nets: a smooth mesh of where a field crosses zero. One vertex in each cell the surface passes through
+ * (at the average of where it crosses the cell's edges), and a quad across each grid edge it crosses, joining
+ * the four cells round that edge. Each vertex carries its normal (out of the gas) and how free the gas is there.
+ */
+function surfaceNets(field: (x: number, y: number, z: number) => number, cell: number, freeAt: (x: number, y: number, z: number) => number): Float32Array {
+  const nx = Math.ceil((2 * BX) / cell) + 1, ny = Math.ceil((2 * BY) / cell) + 1, nz = Math.ceil((2 * BZ) / cell) + 1;
+  const P = (i: number, b: number) => -b + i * cell;
   const f = new Float32Array(nx * ny * nz);
   const id = (i: number, j: number, k: number) => (k * ny + j) * nx + i;
   for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) f[id(i, j, k)] = field(P(i, BX), P(j, BY), P(k, BZ));
@@ -155,12 +205,15 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
   const cid = (i: number, j: number, k: number) => (k * (ny - 1) + j) * (nx - 1) + i;
   const vx: number[] = [];
   const EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+  const c = new Float32Array(8);
   for (let k = 0; k < nz - 1; k++) {
     for (let j = 0; j < ny - 1; j++) {
       for (let i = 0; i < nx - 1; i++) {
-        const c: number[] = [];
-        for (let n = 0; n < 8; n++) c.push(f[id(i + (n & 1), j + ((n >> 1) & 1), k + ((n >> 2) & 1))]);
-        const ins = c.filter((v) => v > 0).length;
+        let ins = 0;
+        for (let n = 0; n < 8; n++) {
+          c[n] = f[id(i + (n & 1), j + ((n >> 1) & 1), k + ((n >> 2) & 1))];
+          if (c[n] > 0) ins++;
+        }
         if (ins === 0 || ins === 8) continue;
         let sx = 0, sy = 0, sz = 0, m = 0;
         for (const [a, b] of EDGES) {
@@ -172,49 +225,35 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
           m++;
         }
         vert[cid(i, j, k)] = vx.length / 3;
-        vx.push(P(i, BX) + (sx / m) * CELL, P(j, BY) + (sy / m) * CELL, P(k, BZ) + (sz / m) * CELL);
+        vx.push(P(i, BX) + (sx / m) * cell, P(j, BY) + (sy / m) * cell, P(k, BZ) + (sz / m) * cell);
       }
     }
   }
-  // Each vertex's normal (pointing out of the gas) and how free the gas there is.
   const count = vx.length / 3;
   const nrm = new Float32Array(count * 3), free = new Float32Array(count);
-  const e = CELL * 0.5;
+  const e = cell * 0.5;
   for (let v = 0; v < count; v++) {
     const [x, y, z] = [vx[v * 3], vx[v * 3 + 1], vx[v * 3 + 2]];
-    let gx = field(x - e, y, z) - field(x + e, y, z), gy = field(x, y - e, z) - field(x, y + e, z), gz = field(x, y, z - e) - field(x, y, z + e);
+    const gx = field(x - e, y, z) - field(x + e, y, z), gy = field(x, y - e, z) - field(x, y + e, z), gz = field(x, y, z - e) - field(x, y, z + e);
     const l = Math.hypot(gx, gy, gz) || 1;
     nrm[v * 3] = gx / l; nrm[v * 3 + 1] = gy / l; nrm[v * 3 + 2] = gz / l;
     free[v] = freeAt(x, y, z);
   }
   const mesh: number[] = [];
   const put = (v: number) => mesh.push(vx[v * 3], vx[v * 3 + 1], vx[v * 3 + 2], nrm[v * 3], nrm[v * 3 + 1], nrm[v * 3 + 2], free[v]);
-  const quad = (a: number, b: number, c: number, d: number, flip: boolean) => {
-    if (a < 0 || b < 0 || c < 0 || d < 0) return;
-    if (flip) [b, d] = [d, b];
-    put(a); put(b); put(c); put(a); put(c); put(d);
+  const quad = (a: number, b: number, cc: number, d: number) => {
+    if (a < 0 || b < 0 || cc < 0 || d < 0) return;
+    put(a); put(b); put(cc); put(a); put(cc); put(d);
   };
   for (let k = 1; k < nz - 1; k++) {
     for (let j = 1; j < ny - 1; j++) {
       for (let i = 1; i < nx - 1; i++) {
         const here = f[id(i, j, k)] > 0;
-        // The edge to the next point along x, y and z: where the surface crosses it, join the cells round it.
-        if (i < nx - 1 && here !== f[id(i + 1, j, k)] > 0)
-          quad(vert[cid(i, j - 1, k - 1)], vert[cid(i, j, k - 1)], vert[cid(i, j, k)], vert[cid(i, j - 1, k)], here);
-        if (j < ny - 1 && here !== f[id(i, j + 1, k)] > 0)
-          quad(vert[cid(i - 1, j, k - 1)], vert[cid(i - 1, j, k)], vert[cid(i, j, k)], vert[cid(i, j, k - 1)], here);
-        if (k < nz - 1 && here !== f[id(i, j, k + 1)] > 0)
-          quad(vert[cid(i - 1, j - 1, k)], vert[cid(i, j - 1, k)], vert[cid(i, j, k)], vert[cid(i - 1, j, k)], here);
+        if (here !== f[id(i + 1, j, k)] > 0) quad(vert[cid(i, j - 1, k - 1)], vert[cid(i, j, k - 1)], vert[cid(i, j, k)], vert[cid(i, j - 1, k)]);
+        if (here !== f[id(i, j + 1, k)] > 0) quad(vert[cid(i - 1, j, k - 1)], vert[cid(i - 1, j, k)], vert[cid(i, j, k)], vert[cid(i, j, k - 1)]);
+        if (here !== f[id(i, j, k + 1)] > 0) quad(vert[cid(i - 1, j - 1, k)], vert[cid(i, j - 1, k)], vert[cid(i, j, k)], vert[cid(i - 1, j, k)]);
       }
     }
   }
-
-  // Motes of dust hanging round the gas, thickest near its surface.
-  const motes: number[] = [];
-  for (let n = 0; n < 4000 && motes.length < 420 * 5; n++) {
-    const x = range(-BX, BX), y = range(-BY * 0.8, BY), z = range(-BZ, BZ);
-    const v = field(x, y, z);
-    if (v < 0 && v > -0.18 && rnd() < 0.5) motes.push(x, y, z, rnd(), range(1.2, 2.6));
-  }
-  return { mesh: new Float32Array(mesh), motes: new Float32Array(motes) };
+  return new Float32Array(mesh);
 }

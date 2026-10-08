@@ -6116,3 +6116,40 @@ body:has(.game-result) .dock { visibility: hidden; }
 .cmp-3d .cmp-top { position: relative; z-index: 3; }
 .cmp-3d .cmp-end { z-index: 3; }
 .cmp-recentre { position: absolute; left: calc(var(--pad-l, 0px) + 16px); bottom: calc(var(--pad-b) + 16px); z-index: 3; }
+
+/* ---- The map in the board's colours: routes and rings in paper, drawn round in ink; marks over systems as
+   smooth paper tokens. ---- */
+.cmp-rays .cmp-ray-glow { stroke: rgba(84, 96, 128, 0.32); stroke-width: 4.6; }
+.cmp-rays .cmp-ray-band { stroke: #fcfbf7; stroke-width: 2.8; }
+.cmp-rays .cmp-ray-core { stroke: #ffffff; stroke-width: 1; }
+.cmp-rays .cmp-ray-held .cmp-ray-band { stroke: color-mix(in srgb, var(--fc) 30%, #fcfbf7); }
+.cmp-rays .cmp-link-gone { stroke: rgba(84, 96, 128, 0.28); }
+.cmp-n3 .cmp-ring-march, .cmp-n3 .cmp-ring-target {
+  border-color: #fcfbf7; border-style: dashed;
+  filter: drop-shadow(0 0 0.6px rgba(70, 82, 112, 0.9)) drop-shadow(0 1px 2px rgba(70, 82, 112, 0.25));
+}
+.cmp-owned .cmp-ring-march, .cmp-n3 .cmp-ring-target { border-color: #fcfbf7; }
+.cmp-n3 .cmp-ring-target { filter: drop-shadow(0 0 0.6px rgba(176, 72, 52, 0.95)) drop-shadow(0 1px 2px rgba(176, 72, 52, 0.3)); }
+.cmp-n3 .cmp-ring-march:hover, .cmp-n3 .cmp-ring-target:hover, .cmp-owned .cmp-ring-march:hover { background: rgba(252, 251, 247, 0.35); }
+/* Marks over a system: round paper tokens with an ink mark, floating gently. */
+.cmp-badges { gap: 4px; perspective: none; }
+.cmp-badge, .cmp-badge.cmp-scan, .cmp-badge.cmp-doom, .cmp-badge.cmp-dmg {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #f4f3ef 70%, #e6e5e0);
+  box-shadow: 0 0 0 1px rgba(84, 96, 128, 0.38), 0 2px 5px rgba(60, 70, 100, 0.16);
+  color: #55607e; font-size: 9px; line-height: 1;
+  animation: cmp-token-float 4s ease-in-out infinite;
+}
+.cmp-badge:nth-child(2n) { animation-delay: -2s; }
+.cmp-badge.cmp-doom { color: #b0544a; }
+.cmp-badge.cmp-station-badge { padding: 0; width: 18px; }
+.cmp-badge.cmp-station-badge.spent { opacity: 0.5; }
+.cmp-token-ico { width: 11px; height: 11px; fill: none; stroke: #55607e; stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }
+.cmp-badge .cur-scanner { filter: grayscale(1) contrast(0.9); }
+@keyframes cmp-token-float { 50% { transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .cmp-badge { animation: none; } }
+/* (The plane itself takes no taps, so a star turned up toward the camera is never caught behind it: only what
+   is tapped on it does.) */
+.cmp-3d .cmp-plane { pointer-events: none; }
+.cmp-3d .cmp-plane button, .cmp-3d .cmp-plane [data-act] { pointer-events: auto; }
+.cmp-3d .cmp-plane .cmp-an .cmp-bb { pointer-events: none; }

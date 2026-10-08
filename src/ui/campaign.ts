@@ -110,8 +110,6 @@ import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
 import { raceRow, cardArtLite, cardStock, cardBodyHtml, effectMark, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
-import { setTutorial, startTour, tourDue, tutorialOn } from './tour';
-import { mapTour } from './tutorial';
 import { toPageDelta } from './viewport';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type Nebula } from './nebula3d';
 
@@ -163,8 +161,10 @@ const ARMORY_ICON =
 const RESEARCH_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 2.5h4M8.8 2.5v5L4.5 15a1.6 1.6 0 0 0 1.4 2.4h8.2a1.6 1.6 0 0 0 1.4-2.4l-4.3-7.5v-5" fill="#9fd3d9" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/><ellipse cx="10" cy="12.5" rx="7.5" ry="2.4" fill="none" stroke="#a98fe0" stroke-width="1"/></svg>';
 /** A station's mark, in 3D over its system: the armoury a turning crate (a cube), the research station a flask in depth. */
-const CRATE_3D = `<span class="i3d i3d-crate">${['f', 'b', 'l', 'r', 't', 'd'].map((f) => `<i class="i3d-face i3d-${f}"></i>`).join('')}</span>`;
-const FLASK_3D = `<span class="i3d i3d-flask">${Array.from({ length: 6 }, (_, k) => `<i class="i3d-slice" style="--z:${(k - 2.5) * 1.1}px;--k:${k / 5}">${RESEARCH_ICON}</i>`).join('')}</span>`;
+/** A space station's mark over its system: a box drawn in ink on a paper token. */
+const CRATE_3D = '<svg class="cmp-token-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2 13.4 5v6L8 13.8 2.6 11V5Z"/><path d="M2.6 5 8 7.8 13.4 5M8 7.8v6"/></svg>';
+/** A research station's mark over its system: a flask drawn in ink on a paper token. */
+const FLASK_3D = '<svg class="cmp-token-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.2 2.2h3.6M6.8 2.2v4L3.3 12.4a1 1 0 0 0 .9 1.4h7.6a1 1 0 0 0 .9-1.4L9.2 6.2v-4"/><path d="M4.8 10h6.4"/></svg>';
 /** A scanner array: a dish with two rings of signal. */
 const SCANNER =
   '<svg class="cur cur-scanner" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5 9.2 10.3" stroke="#6e7f9f" stroke-width="1.4" stroke-linecap="round"/><path d="M3 11a6 6 0 0 0 6 6L3 11Z" fill="#8fa3c6" stroke="#6e7f9f" stroke-width=".9" stroke-linejoin="round"/><path d="M11.2 6.8a3.4 3.4 0 0 1 2 2M11.6 3.6a6.6 6.6 0 0 1 4.8 4.8" fill="none" stroke="#6fb3bc" stroke-width="1.3" stroke-linecap="round"/><circle cx="9.6" cy="9.9" r="1.2" fill="#6fb3bc"/></svg>';
@@ -322,22 +322,6 @@ type Sheet =
 /** Map stages already listening for drags and zooms (kept through redraws, which no longer rebuild them). */
 const boundStages = new WeakSet<HTMLElement>();
 
-/** Whether the guide, Oriel, speaks (a setting, remembered on this device). */
-function guideOn(): boolean {
-  try {
-    return localStorage.getItem('blue-loop:guide') !== 'off';
-  } catch {
-    return true;
-  }
-}
-function setGuide(on: boolean) {
-  try {
-    localStorage.setItem('blue-loop:guide', on ? 'on' : 'off');
-  } catch {
-    // only a convenience
-  }
-}
-
 /** How the map's units scale into the nebula's space (the strip spans STRIP_WIDTH there). */
 const MAP_K = STRIP_WIDTH / MAP_WIDTH;
 
@@ -430,22 +414,6 @@ export class CampaignView {
     // Left while the others were moving: they carry on.
     if (s.phase === 'ai' && s.aiStepwise && !s.battle) window.setTimeout(() => void this.runOthers(), 0);
     return true;
-  }
-
-  /** The tutorial's tour of the map: once the map is up, clear of dialogs, on the player's turn. */
-  private tourTimer = 0;
-  private maybeMapTour() {
-    const s = this.state;
-    if (!s || !tourDue('map') || this.tourTimer) return;
-    this.tourTimer = window.setTimeout(() => {
-      this.tourTimer = 0;
-      const st = this.state;
-      if (!st || !tourDue('map') || st.phase !== 'player' || st.battle || st.conquest || st.cardRewards.length || this.sheet || !document.querySelector('.cmp-stage')) return;
-      const home = st.nodes.find((n) => n.home === st.playerId);
-      if (!home) return;
-      // (The wormhole lies off past the far end, out of the opening view: the guide speaks of it without pointing.)
-      startTour('map', mapTour(home.id, null), { face: ORACLE_PORTRAIT, name: ORACLE_NAME });
-    }, 900);
   }
 
   /** The battle screen hands back a battle in progress (to save) or finished. */
@@ -623,9 +591,9 @@ export class CampaignView {
     this.state = applyCampaignAction(s, { type: 'petalsBanked' });
   }
 
-  /** The lines of a scene that are shown: all of them, or (with the guide turned off) only the generals'. */
+  /** The lines of a scene that are shown: the generals' (Oriel, the guide, no longer speaks on the map). */
   private shownLines(scene: StoryScene) {
-    return guideOn() ? scene.lines : scene.lines.filter((l) => l.speaker.kind !== 'oracle');
+    return scene.lines.filter((l) => l.speaker.kind !== 'oracle');
   }
 
   /**
@@ -638,7 +606,7 @@ export class CampaignView {
     if (this.state) saveCampaign(this.state);
   }
 
-  /** Scenes with nothing left to show (the guide turned off) are passed over. */
+  /** Scenes with nothing left to show (only Oriel's lines) are passed over. */
   private skipSilentScenes() {
     while (this.state && this.state.story.queue[0] && !this.shownLines(this.state.story.queue[0]).length) {
       this.state = applyCampaignAction(this.state, { type: 'readStory' });
@@ -834,14 +802,6 @@ export class CampaignView {
         sound.hover();
         break;
       }
-      case 'cmp-tutorial':
-        setTutorial(!tutorialOn());
-        break;
-      case 'cmp-guide':
-        setGuide(!guideOn());
-        this.skipSilentScenes();
-        if (this.state) saveCampaign(this.state);
-        break;
       case 'cmp-story-next': {
         const scene = s?.story.queue[0];
         if (!scene) break;
@@ -1620,7 +1580,6 @@ export class CampaignView {
 
   /** Fit the map to its stage and move the camera (called after every render and on resize). */
   afterRender(root: HTMLElement) {
-    this.maybeMapTour();
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
     if (stage) this.sailShips(stage);
@@ -2184,8 +2143,6 @@ export class CampaignView {
           `settings · turn ${s.turn}`,
           `<div class="menu-list">
             ${this.host.settingsButtons()}
-            <button class="btn" data-act="cmp-tutorial" title="The oracle's guided tours of the map and the battle board (turned back on, they play again)">tutorial: ${tutorialOn() ? 'on' : 'off'}</button>
-            <button class="btn" data-act="cmp-guide" title="Oriel the Wanderer's guidance, under the turn count">${esc(ORACLE_NAME.toLowerCase())}: ${guideOn() ? 'on' : 'off'}</button>
             <button class="btn" data-act="cmp-sheet" data-arg="help">how the loop works</button>
             <button class="btn" data-act="cmp-exit">main menu</button>
           </div>

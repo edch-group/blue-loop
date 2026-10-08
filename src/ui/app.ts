@@ -86,13 +86,12 @@ import {
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
-import { CampaignView, cardHtml, loadCampaign, MODULE_ICON, ORACLE_PORTRAIT } from './campaign';
+import { CampaignView, cardHtml, loadCampaign, MODULE_ICON } from './campaign';
 
 /** Hero gear's mark, in a battle's finds. */
 const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
-import { closeTour, startTour, tourDue, tourShowing } from './tour';
-import { battleTour } from './tutorial';
-import { ORACLE_NAME, shownKind, type ShownKind } from '../engine';
+import { closeTour, tourShowing } from './tour';
+import { shownKind, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -779,7 +778,6 @@ export class App {
     playBattle: (game) => {
       this.campaignBattle = true;
       this.beginWithArt(game);
-      this.battleTour();
     },
     settingsButtons: () => this.settingsButtons(),
     banner: (text, sub) => this.showBanner(text, sub, 120, 'campaign'),
@@ -793,21 +791,6 @@ export class App {
   });
   private campaignBattle = false;
 
-  /**
-   * The tutorial's tour of the battle board, in the first campaign battle: once the opening deal and banner
-   * have played, on the player's own day, with nothing else asked of them (tried again until then).
-   */
-  private battleTour(tries = 0) {
-    if (!tourDue('battle')) return;
-    window.setTimeout(() => {
-      const s = this.state;
-      if (!s || this.screen !== 'game' || !this.campaignBattle || isGameOver(s) || !tourDue('battle')) return;
-      const ready = !activePlayer(s).isAI && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !document.querySelector('.turn-banner') && performance.now() >= this.dealtAt;
-      if (!ready) return tries < 30 && this.battleTour(tries + 1);
-      this.raiseHand(false);
-      startTour('battle', battleTour(), { face: ORACLE_PORTRAIT, name: ORACLE_NAME }, () => this.scheduleAutoEnd());
-    }, tries ? 800 : 2600);
-  }
   /** Online 1v1: the room connection, and what the lobby shows. */
   private online: OnlineClient | null = null;
   private net = {

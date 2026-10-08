@@ -71,13 +71,11 @@ describe('the strip', () => {
     expect(nodeById(s, flag(s).nodeId).col).toBe(0);
     expect(nodeById(s, flag(s).nodeId).owner).toBe(s.playerId);
     expect(Math.max(...col(s, CAMPAIGN.columns - 1).map((n) => n.tier))).toBeGreaterThan(Math.max(...col(s, 1).map((n) => n.tier)));
-    // Stations, worlds with extras, and raiders out past the first third.
+    // Stations, worlds with extras, and no raiders.
     expect(s.nodes.filter((n) => n.station?.kind === 'armory')).toHaveLength(CAMPAIGN.armories);
     expect(s.nodes.filter((n) => n.station?.kind === 'research')).toHaveLength(CAMPAIGN.researchStations);
     expect(s.nodes.filter((n) => n.bonus)).toHaveLength(CAMPAIGN.bonusPlanets);
-    const raiders = s.armies.filter((a) => a.lost);
-    expect(raiders).toHaveLength(CAMPAIGN.raiders);
-    for (const a of raiders) expect(nodeById(s, a.nodeId).col).toBeGreaterThanOrEqual(3);
+    expect(s.armies.filter((a) => a.lost)).toHaveLength(0);
   });
 
   it('starts the flagship with ten cards, and the bought upgrades on top', () => {
@@ -198,29 +196,6 @@ describe('the wormhole', () => {
     // Banked once.
     s = applyCampaignAction(s, { type: 'petalsBanked' });
     expect(s.petalsBanked).toBe(s.petals);
-  });
-});
-
-describe('raiders', () => {
-  it('hunt a flagship that comes near', () => {
-    let attacked = false;
-    for (const seed of [1, 2, 3, 4, 5]) {
-      let s = read(run(seed));
-      const raider = s.armies.find((a) => a.lost)!;
-      s.armies = s.armies.filter((a) => !a.lost || a === raider);
-      // A raider two routes from the flagship.
-      const here = nodeById(s, flag(s).nodeId);
-      const mid = nodeById(s, here.links[0]);
-      const far = mid.links.map((id) => nodeById(s, id)).find((n) => n.id !== here.id && !n.heart)!;
-      raider.nodeId = far.id;
-      for (let t = 0; t < 4 && !attacked; t++) {
-        s = applyCampaignAction(read(s), { type: 'endTurn' });
-        if (s.battle && s.battle.defender === s.playerId) attacked = true;
-        while (s.battle) s = applyCampaignAction(s, { type: 'finishBattle', game: s.battle.game, auto: true });
-      }
-      if (attacked) break;
-    }
-    expect(attacked).toBe(true);
   });
 });
 

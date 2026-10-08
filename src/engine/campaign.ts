@@ -33,7 +33,6 @@ import {
   introScene,
   collapseScene,
   instabilityScene,
-  LOST_RACES,
   lostRaidScene,
   lostSightedScene,
   stellariaSightedScene,
@@ -131,9 +130,7 @@ export const CAMPAIGN = {
   mapMargin: 170,
   /** Worlds with something extra to find (credits or research), taken with the system. */
   bonusPlanets: 3,
-  /** Roaming raiders: in the first universe, one more each universe after, at most. They hunt a flagship this near. */
-  raiders: 2,
-  raidersMax: 7,
+  /** (No raiders roam the strip any more; any in an older save are cleared out. These steered them.) */
   raiderChase: 3,
   raiderChaseChance: 0.7,
   /** Petals grabbed at a wormhole: a few for reaching it, more for every share of the strip conquered. */
@@ -863,6 +860,8 @@ export function recycleValue(defId: string): number {
 /** Bring a saved campaign up to the current rules (saves from before version 4 aren't kept: see the UI). */
 export function migrateCampaign(s: CampaignState): CampaignState {
   ensureScanners(s);
+  // No raiders any more: any left in an older save are gone.
+  s.armies = s.armies.filter((a) => !a.lost);
   return s;
 }
 
@@ -1275,9 +1274,6 @@ function buildUniverse(s: CampaignState, universe: number) {
     const kind = weights.find(([, w]) => (roll -= w) < 0)?.[0] ?? weights[0][0];
     n.cache = { kind, amount: kind === 'cards' ? 3 : kind === 'credits' ? 4 + 2 * n.tier : kind === 'materials' ? 3 + n.tier : 2 + n.tier };
   }
-  // The raiders: a few to start with, more in each universe, out past the first third.
-  const haunts = shuffleInPlace(s, s.nodes.filter((n) => open(n) && !n.cache && (n.col ?? 0) >= 3));
-  for (const n of haunts.slice(0, Math.min(CAMPAIGN.raidersMax, CAMPAIGN.raiders + universe - 1))) raiseLost(s, n);
   clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into universe ${universe}, at ${home.name}.`);
   tell(s, wormholeSightedScene(universe));
 }
@@ -2267,23 +2263,6 @@ function stabilise(s: CampaignState, f: Faction, n: CampaignNode) {
   f.materials -= CAMPAIGN.stabiliseCost;
   n.stableUntil = s.turn + CAMPAIGN.stabiliseTurns + 1;
   clog(s, `${f.name} stabilises ${n.name}. It holds for ${CAMPAIGN.stabiliseTurns} more turns.`, n.id, f.id);
-}
-
-/** One of the Lost Races takes to the dark from a system (it stands there, unowned). */
-function raiseLost(s: CampaignState, n: CampaignNode): Army | null {
-  const lost = s.factions.find((f) => f.lost);
-  if (!lost) return null;
-  const taken = new Set(s.armies.map((a) => a.lost));
-  const names = LOST_RACES.filter((x) => !taken.has(x));
-  const name = names.length ? names[randomInt(s, names.length)] : LOST_RACES[randomInt(s, LOST_RACES.length)];
-  const tier = Math.max(1, n.tier);
-  const full = neutralDeck(s, tier);
-  const general = full.find((id) => cardDef(id).kind === 'command') ?? GENERALS[0][0];
-  // (The last of a people: their leader, and a few cards, more the deeper they wander.)
-  const deck = [general, ...stationDeck(s, { ...n, tier, heart: false })];
-  const army: Army = { id: `army${++s.uidCounter}`, owner: lost.id, general, nodeId: n.id, deck, damage: 0, moved: true, lost: name };
-  s.armies.push(army);
-  return army;
 }
 
 /** A system raided by the Lost Races: stripped (garrison, defences) and left neutral; they move in. */
