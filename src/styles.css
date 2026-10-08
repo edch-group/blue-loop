@@ -1573,7 +1573,7 @@ body.screen-campaign .backdrop { display: none; }
   --gw: calc(min(calc(100 * var(--vw)), calc(var(--app-h, calc(100 * var(--vh))) * 2.2)) * var(--bz, 1));
   --gh: calc(min(calc(112 * var(--vh)), calc(var(--gw) / var(--bz, 1) * 0.64)) * var(--bz, 1));
   /* How far the board tips away from the viewer. */
-  --board-tilt: 28deg;
+  --board-tilt: 22deg;
   position: fixed; inset: 0;
   perspective: calc(200 * var(--vh));
   perspective-origin: 50% 24%;
@@ -6027,8 +6027,8 @@ body:has(.game-result) .dock { visibility: hidden; }
 
 /* Over each of your cards in play (under each of your rival's): what it gives each day as things stand. */
 .card-yield { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: calc(var(--tcw, 80px) * 0.035); z-index: 3; pointer-events: auto; white-space: nowrap; }
-.card-yield-mine { bottom: calc(100% + var(--tcw, 80px) * 0.09); }
-.card-yield-rival { top: calc(100% + var(--tcw, 80px) * 0.4); }
+.card-yield-mine { bottom: calc(100% + var(--tcw, 80px) * 0.15); transform-origin: 50% 100%; }
+.card-yield-rival { top: calc(100% + var(--tcw, 80px) * 0.24); transform-origin: 50% 0; }
 .yield { display: inline-flex; align-items: center; gap: 1px; gap: calc(var(--tcw, 80px) * 0.02); padding: 0 calc(var(--tcw, 80px) * 0.07) 0 calc(var(--tcw, 80px) * 0.055); height: calc(var(--tcw, 80px) * 0.22); border-radius: 999px; background: rgba(255, 255, 255, 0.94); box-shadow: 0 1px 3px rgba(60, 70, 100, 0.18); font-family: var(--display); font-style: normal; font-size: calc(var(--tcw, 80px) * 0.105); line-height: 1; color: var(--ink); }
 .yield .kw-ico { width: calc(var(--tcw, 80px) * 0.105); height: calc(var(--tcw, 80px) * 0.105); margin: 0; stroke-width: 1.8; }
 .yield .kw-ico .kw-ico-fill { fill: currentColor; fill-opacity: 1; stroke: none; }
