@@ -365,7 +365,7 @@ export function modeCards(current: 'core' | 'lost', act: string, modes: Record<'
   };
   const card = (m: 'core' | 'lost') =>
     `<button class="mode-card ${current === m ? 'on' : ''}" data-act="${act}" data-arg="${m}" aria-pressed="${current === m}"><span class="mode-card-art">${art(m)}</span><b>${escType(modes[m].name.toLowerCase())}</b><small>${escType(modes[m].blurb)}</small></button>`;
-  return `<div class="mode-cards" role="group" aria-label="Game mode">${card('core')}${card('lost')}</div>`;
+  return `<div class="mode-cards" role="group" aria-label="Game mode"><div class="mode-cards-in">${card('core')}${card('lost')}</div></div>`;
 }
 
 const RARITY_TITLE: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly (one per deck)' };
