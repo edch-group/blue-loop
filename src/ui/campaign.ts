@@ -98,6 +98,7 @@ import {
   heroBonus,
   boonsText,
   setRulesMode,
+  isDraw,
 } from '../engine';
 import { markDirty } from './account';
 import { loadMeta, saveMeta } from './meta';
@@ -349,6 +350,7 @@ export class CampaignView {
   /** A battle just fought, as its report shows it: who won where, and what it brought (or cost). */
   private battleReport: {
     won: boolean;
+    draw?: boolean;
     system: string;
     hero: string | null;
     level: number | null;
@@ -483,6 +485,7 @@ export class CampaignView {
       const attackerWon = auto ? this.report?.lines.some((l) => l.startsWith(`${attackerName} wins the battle for`)) ?? false : game.winnerId === game.players[0].id;
       this.battleReport = {
         won: attackerWon === (b.attacker === s.playerId),
+        draw: auto ? this.report?.lines.some((l) => l.includes('ends in a draw')) ?? false : isDraw(game),
         system: before.system,
         hero: army0?.general ?? null,
         level: army0 && heroLevel(xp) > heroLevel(before.xp) ? heroLevel(xp) : null,
@@ -2401,8 +2404,8 @@ export class CampaignView {
     const card = r.salvaged ? `<div class="br-card">${cardHtml(r.salvaged.id)}</div>` : '';
     return this.modal(
       '',
-      `<div class="br ${r.won ? 'br-won' : 'br-lost'}">
-        <div class="br-head"><h2>${r.won ? 'victory' : 'defeat'}</h2><small>${esc(lower(r.system))}</small></div>
+      `<div class="br ${r.won ? 'br-won' : r.draw ? '' : 'br-lost'}">
+        <div class="br-head"><h2>${r.won ? 'victory' : r.draw ? 'draw' : 'defeat'}</h2><small>${esc(lower(r.system))}</small></div>
         <div class="br-body">
           ${hero}
           <div class="br-spoils">${tokens ? `<div class="br-tokens">${tokens}</div>` : ''}${finds ? `<div class="finds-row">${finds}</div>` : ''}</div>

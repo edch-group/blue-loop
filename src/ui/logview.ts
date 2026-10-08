@@ -26,7 +26,7 @@ function outcome(text: string): { icon: string; tone: string; chip: Chip | null 
   let m: RegExpMatchArray | null;
   if (/SUPERNOVA/.test(text)) return { icon: '✸', tone: 'nova', chip: { cls: 'nova', html: 'supernova' } };
   if (/wins the Blue Loop/.test(text)) return { icon: '★', tone: 'win', chip: { cls: 'win', html: 'victory' } };
-  if (/barely holds/.test(text)) return { icon: '☀', tone: 'heat', chip: null };
+  if (/supernova together: a draw/.test(text)) return { icon: '✸', tone: 'nova', chip: { cls: 'nova', html: 'draw' } };
   if ((m = text.match(/instability heats every sun by (\d+)/))) return { icon: '≋', tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')}+${m[1]} ${ARROW} every sun` } };
   if ((m = text.match(/heats their sun by (\d+)/))) return { icon: '↻', tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')}+${m[1]}` } };
   if ((m = text.match(/sun heats to (-?\d+)/))) return { icon: sym('heat'), tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')} ${ARROW} ${m[1]}` } };

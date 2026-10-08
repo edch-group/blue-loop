@@ -3,7 +3,8 @@ import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
 import { activePlayer, replaces, isGuard, guards, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction,
-  baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+  baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver,
+  isDraw, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 
 const twoPlayer = (seed = 1) =>
@@ -1157,7 +1158,7 @@ describe('regional instability', () => {
     }
   });
 
-  it('lets the sun least far past its limit hold on when it would finish every sun', () => {
+  it('ends in a draw when it finishes every sun at once', () => {
     let s = twoPlayer();
     s.round = BALANCE.instabilityStartsRound - 1;
     s = endTurn(s);
@@ -1165,10 +1166,11 @@ describe('regional instability', () => {
     a.tableau = [];
     b.tableau = [];
     a.heat = supernovaThreshold(a) - 1;
-    b.heat = supernovaThreshold(b) - 2;
+    b.heat = supernovaThreshold(b) - 1;
     s = endTurn(s);
     expect(isGameOver(s)).toBe(true);
-    expect(s.winnerId).toBe(b.id);
+    expect(isDraw(s)).toBe(true);
+    expect(s.players.every((p) => p.eliminated)).toBe(true);
   });
 });
 

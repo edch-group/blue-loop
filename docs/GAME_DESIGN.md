@@ -49,7 +49,7 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
 1. **Dawn.** In this order:
    - Your shields fade (unless Deep Current holds them).
    - Draw **1 card**. Your opening hand of 5 covers your first day.
-   - At the first dawn of each round, once regional stability has run out, regional instability heats **every sun at once** by the same amount, past shields. If that would finish every sun, the one least far past its limit holds on (a coin flip if level) and wins. (Simulated 300 games: seats 51.7% / 48.3%.)
+   - At the first dawn of each round, once regional stability has run out, regional instability heats **every sun at once** by the same amount, past shields. If that finishes every sun, they all go supernova together: a draw. In the campaign a draw is no loss (the attack is simply repelled); any loss there ends the run.
    - The global card applies, if there is one.
    - Your tableau's **dawn effects** trigger, left to right.
    - Cards don't lose anything with the days: they stand until beaten down or removed. (Anchor mends its neighbours 1 now.)

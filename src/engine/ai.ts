@@ -38,6 +38,7 @@ import {
   abilityAimable,
   shiftEffect,
   shiftSlots,
+  isDraw,
 } from './game';
 import type { Action, CardInstance, Effect, GameState, HeroAbility, PlayerState } from './types';
 
@@ -339,6 +340,8 @@ function tableauValue(state: GameState, p: PlayerState): number {
 function evaluate(state: GameState, meId: string): number {
   const me = state.players.find((p) => p.id === meId)!;
   if (state.winnerId === meId) return 1e6;
+  // (A draw: better than losing, worse than anything still in play.)
+  if (isDraw(state)) return -5e5;
   if (me.eliminated) return -1e6;
   let score = 0;
   for (const o of state.players) {

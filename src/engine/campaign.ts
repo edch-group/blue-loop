@@ -18,7 +18,7 @@ import { chooseAIAction } from './ai';
 import { CARDS, cardDef, cardIn, copyLimit, fusedId, fusionProblem, presetDeck, RACE_NAMES } from './cards';
 import { CORE_RACES, inMode, type GameMode } from './modes';
 import { BALANCE } from './balance';
-import { applyAction, createGame, GameError, isGameOver } from './game';
+import { applyAction, createGame, DRAW, GameError, isDraw, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types';
 import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeItem, RACE_SLOTS, itemValue, skillPoints, SKILL_TREES, type HeroState, type Item, type ItemRarity, type SlotKind } from './heroes';
@@ -1605,7 +1605,7 @@ export function simulateBattle(game: GameState): GameState {
   for (const p of g.players) p.isAI = true;
   let steps = 0;
   while (!isGameOver(g) && steps++ < CAMPAIGN.battleActionCap) g = applyAction(g, chooseAIAction(g));
-  if (!isGameOver(g)) g.winnerId = g.players[1].id; // the defender holds
+  if (!isGameOver(g)) g.winnerId = DRAW; // neither breaks: the defender holds
   return g;
 }
 
@@ -1734,7 +1734,7 @@ function findRarity(n: CampaignNode, r: number): ItemRarity {
 export function battleFinds(s: CampaignState, game: GameState): { items: Item[]; modules: ShipModule[] } {
   const none = { items: [], modules: [] };
   const b = s.battle;
-  if (!b || !isGameOver(game) || !game.winnerId) return none;
+  if (!b || !isGameOver(game) || !game.winnerId || isDraw(game)) return none;
   const attackerWon = game.winnerId === game.players[0].id;
   const fid = attackerWon ? b.attacker : b.defender;
   const f = fid ? s.factions.find((x) => x.id === fid) : undefined;
@@ -1802,12 +1802,16 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   const army = s.armies.find((a) => a.id === b.armyId);
   const guard = b.defenderArmyId ? s.armies.find((a) => a.id === b.defenderArmyId) : undefined;
   const attackerWon = game.winnerId === game.players[0].id;
+  // (A draw: every sun gone together. No one wins, no one falls: the attack is held off, no worse for it.)
+  const draw = isDraw(game);
   const winnerSeat = attackerWon ? game.players[0] : game.players[1];
-  const winner = attackerWon ? attacker : defender;
+  const winner = draw ? null : attackerWon ? attacker : defender;
 
   // The winner's sun carries its heat on as damage; a repelled army takes a beating.
   const carried = Math.max(0, Math.min(CAMPAIGN.maxDamage, winnerSeat.heat));
-  if (attackerWon) {
+  if (draw) {
+    // (Nothing carried on.)
+  } else if (attackerWon) {
     if (army) army.damage = Math.max(army.damage, carried);
   } else {
     if (guard) guard.damage = carried;
@@ -1869,10 +1873,27 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
       return;
     }
     conquer(s, attacker, target, army);
+  } else if (draw) {
+    clog(s, `The battle for ${target.name} ends in a draw: ${attacker.name}'s attack is held off.`, target.id, attacker.id);
   } else {
     clog(s, `${target.name} holds: ${attacker.name}'s attack is repelled.`, target.id, attacker.id);
   }
+  // Any battle the player loses ends the run (a draw is no loss).
+  const playerSide = b.attacker === s.playerId ? 'attacker' : b.defender === s.playerId ? 'defender' : null;
+  if (!draw && playerSide && (playerSide === 'attacker') !== attackerWon) playerFalls(s);
   checkMissions(s);
+}
+
+/** The player's flagship is beaten in battle: it is lost, and the run with it. */
+function playerFalls(s: CampaignState) {
+  const f = factionById(s, s.playerId);
+  const army = flagship(s, f.id);
+  if (army) {
+    s.armies = s.armies.filter((a) => a !== army);
+    clog(s, `${cardDef(army.general).name}'s flagship is destroyed.`, army.nodeId, f.id);
+  }
+  f.eliminated = true;
+  checkVictory(s);
 }
 
 /**

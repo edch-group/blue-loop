@@ -953,7 +953,15 @@ function cool(state: GameState, p: PlayerState, amount: number) {
   if (p.heat !== before) log(state, `${p.name}'s sun cools to ${p.heat}.`);
 }
 
-function supernova(state: GameState, p: PlayerState) {
+/** A game's winnerId when it ends with no one left: every sun gone supernova together. */
+export const DRAW = '~draw';
+
+/** Whether a finished game was a draw. */
+export function isDraw(state: GameState): boolean {
+  return state.winnerId === DRAW;
+}
+
+function supernova(state: GameState, p: PlayerState, decide = true) {
   if (p.eliminated) return;
   p.eliminated = true;
   log(state, `☀ ${p.name}'s sun goes SUPERNOVA!`);
@@ -962,7 +970,7 @@ function supernova(state: GameState, p: PlayerState) {
   p.tableau = [];
   p.lightspeed = null;
   const alive = state.players.filter((o) => !o.eliminated);
-  if (alive.length === 1) {
+  if (decide && alive.length === 1) {
     state.winnerId = alive[0].id;
     log(state, `${alive[0].name} wins the Blue Loop!`);
   }
@@ -1235,8 +1243,8 @@ function notePulse(state: GameState, source: PlayerState, card: CardInstance | n
 }
 
 /**
- * Regional instability: every living sun takes the same heat at once, past shields. If that would
- * finish every sun, the one least far past its limit holds on (a coin flip if they are level) and wins.
+ * Regional instability: every living sun takes the same heat at once, past shields. If that finishes
+ * every sun, they all go together: a draw.
  */
 function regionalInstability(state: GameState, roundStarter: PlayerState) {
   const n = instabilityHeat(state);
@@ -1244,17 +1252,13 @@ function regionalInstability(state: GameState, roundStarter: PlayerState) {
   const living = state.players.filter((x) => !x.eliminated);
   log(state, `Regional instability heats every sun by ${n}.`);
   for (const x of living) x.heat = Math.max(BALANCE.minHeat, x.heat + n);
-  let over = living.filter((x) => x.heat >= supernovaThreshold(x));
-  if (over.length === living.length) {
-    const past = (x: PlayerState) => x.heat - supernovaThreshold(x);
-    const least = Math.min(...over.map(past));
-    const level = over.filter((x) => past(x) === least);
-    const holds = level[randomInt(state, level.length)];
-    holds.heat = supernovaThreshold(holds) - 1;
-    log(state, `${holds.name}'s sun barely holds.`);
-    over = over.filter((x) => x !== holds);
-  }
-  for (const x of over) supernova(state, x);
+  const over = living.filter((x) => x.heat >= supernovaThreshold(x));
+  if (over.length && over.length === living.length) {
+    // (All at once: none of them is left standing to win.)
+    for (const x of over) supernova(state, x, false);
+    state.winnerId = DRAW;
+    log(state, 'Every sun goes supernova together: a draw.');
+  } else for (const x of over) supernova(state, x);
   // Every sun's pulse lands together, showing the suns as they now stand.
   living.forEach((x, i) => {
     notePulse(state, roundStarter, null, 'unstable', x, n);

@@ -522,6 +522,23 @@ describe('salvage', () => {
   });
 });
 
+describe('losing and drawing', () => {
+  it('ends the run when the player loses a battle, but not on a draw', async () => {
+    const { applyAction, DRAW } = await import('../src/engine/game');
+    const s = attack(fresh());
+    const lost = applyAction(s.battle!.game, { type: 'concede', playerId: s.battle!.game.players[0].id });
+    const t = applyCampaignAction(s, { type: 'finishBattle', game: lost });
+    expect(t.winner).toBe('none');
+    expect(armiesOf(t, t.playerId)).toHaveLength(0);
+    const drawn = structuredClone(s.battle!.game);
+    drawn.winnerId = DRAW;
+    const u = applyCampaignAction(s, { type: 'finishBattle', game: drawn });
+    expect(u.winner).toBeFalsy();
+    expect(armiesOf(u, u.playerId)).toHaveLength(1);
+    expect(u.cardRewards.filter((r) => r.source === 'Salvage')).toEqual([]);
+  });
+});
+
 describe('ship modules and finds', () => {
   it('fits a module into a room (one there goes back to the stores), and the card standing there carries it', async () => {
     const { makeModule } = await import('../src/engine/modules');

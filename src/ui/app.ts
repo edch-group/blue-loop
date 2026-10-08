@@ -56,6 +56,7 @@ import {
   cardDefence,
   recoverChoices,
   supernovaThreshold,
+  isDraw,
   hasRoomFor,
   targetOf,
   planetsEaten,
@@ -4766,14 +4767,17 @@ export class App {
   private renderResult(): string {
     const s = this.state!;
     const winner = s.players.find((p) => p.id === s.winnerId);
-    if (!winner || Date.now() < this.resultAt) return '';
+    const draw = isDraw(s);
+    if ((!winner && !draw) || Date.now() < this.resultAt) return '';
     const quitter = s.concededBy ? s.players.find((p) => p.id === s.concededBy) : undefined;
     // One person at this device (online, or against the AI): tell it from their side.
     const viewer = this.viewer();
     const solo = !!this.online || s.players.filter((p) => !p.isAI).length === 1;
-    const won = winner.id === viewer.id;
-    const title = solo ? (won ? 'victory' : 'defeat') : `${esc(winner.name.toLowerCase())} wins`;
-    const why = quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} round${s.round === 1 ? "" : "s"}.`;
+    const won = winner?.id === viewer.id;
+    const title = draw ? 'draw' : solo ? (won ? 'victory' : 'defeat') : `${esc(winner!.name.toLowerCase())} wins`;
+    const why = draw
+      ? `Every sun went supernova together in round ${s.round}.${this.campaignBattle ? ' Your flagship pulls back, unbroken.' : ''}`
+      : quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} round${s.round === 1 ? "" : "s"}.`;
     // A campaign battle won: up to three of the beaten side's cards to salvage, one to take.
     const salvage = this.campaignBattle ? this.campaign.salvageFor(s) : [];
     const pick = salvage.find((x) => x.id === this.salvagePick);
@@ -4811,7 +4815,7 @@ export class App {
           : '<div class="result-actions"><button class="btn-primary" data-act="online-rematch">play again</button><button class="btn" data-act="to-menu">return to menu</button></div>'
         : '<button class="btn-primary" data-act="to-menu">return to menu</button>';
     return `
-      <div class="game-result ${solo ? (won ? 'result-win' : 'result-loss') : ''} ${salvage.length || finds.length ? 'result-spoils' : ''}">
+      <div class="game-result ${solo && !draw ? (won ? 'result-win' : 'result-loss') : ''} ${salvage.length || finds.length ? 'result-spoils' : ''}">
         <h2>${title}</h2>
         <p>${why}</p>
         ${this.resultExtra}
@@ -5579,9 +5583,8 @@ export class App {
   }
 
   private renderOverlay(s: GameState): string {
-    const winner = s.players.find((p) => p.id === s.winnerId);
     // The result lies on the board itself (see renderResult), so the board can still be looked over.
-    if (winner) return this.sheet ? this.renderSheet() : '';
+    if (isGameOver(s)) return this.sheet ? this.renderSheet() : '';
     if (this.needsHandoff()) {
       const p = activePlayer(s);
       return `
