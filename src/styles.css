@@ -4407,7 +4407,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .board-shields { --bs-bg: #fff; --bs-ink: #b3bccb; }
 .board-shields.up { --bs-bg: color-mix(in srgb, #3d7fc4 16%, #fff); --bs-ink: #3d7fc4; }
 .board-shields .bs-hex { fill: var(--bs-bg); stroke: var(--bs-ink); stroke-width: 1.6; stroke-linejoin: round; }
-.board-shields .bs-cell { fill: none; stroke: var(--bs-ink); stroke-width: 1.1; opacity: 0.5; stroke-linejoin: miter; stroke-linecap: butt; }
+.board-shields .bs-cell { fill: none; stroke: var(--bs-ink); stroke-width: 1.1; opacity: 0.5; stroke-linecap: round; shape-rendering: geometricPrecision; }
 .board-shields b {
   position: relative; font-family: var(--display); font-weight: 800; font-size: calc(var(--bs) * 0.28); line-height: 1; color: var(--bs-ink);
   /* (A patch of the badge's own colour behind the number, so it reads over the lattice.) */

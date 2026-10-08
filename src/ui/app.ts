@@ -564,13 +564,24 @@ const hexPath = (cx: number, cy: number, r: number) =>
  * number in the middle on a patch of the badge's own colour so it reads over them.
  */
 const SHIELD_LATTICE = (() => {
-  // (Straight lines only: hexes nested inside it, joined corner to corner, like a faceted plate. No forks, no
-  // petals: it reads as a shield, not a snowflake.)
-  const cells = [hexPath(20, 20, 7.2), hexPath(20, 20, 12.6)];
-  for (let i = 0; i < 6; i++) {
-    const a = ((60 * i - 90) * Math.PI) / 180;
-    cells.push(`M${(20 + 7.2 * Math.cos(a)).toFixed(2)} ${(20 + 7.2 * Math.sin(a)).toFixed(2)} L${(20 + 18.5 * Math.cos(a)).toFixed(2)} ${(20 + 18.5 * Math.sin(a)).toFixed(2)}`);
+  // (A honeycomb of big cells, the middle one round the number, the outer ones cut by the rim: each wall one
+  // straight segment, drawn once, so neighbours meet exactly.)
+  const r = 7.6, d = Math.sqrt(3) * r;
+  const centres: [number, number][] = [[20, 20]];
+  for (let i = 0; i < 6; i++) centres.push([20 + d * Math.cos((60 * i * Math.PI) / 180), 20 + d * Math.sin((60 * i * Math.PI) / 180)]);
+  const walls = new Map<string, string>();
+  for (const [cx, cy] of centres) {
+    const pts = Array.from({ length: 6 }, (_, i) => {
+      const a = ((60 * i - 90) * Math.PI) / 180;
+      return [+(cx + r * Math.cos(a)).toFixed(2), +(cy + r * Math.sin(a)).toFixed(2)];
+    });
+    pts.forEach((p, i) => {
+      const q = pts[(i + 1) % 6];
+      const key = [p, q].map((v) => v.join(',')).sort().join(' ');
+      walls.set(key, `M${p[0]} ${p[1]}L${q[0]} ${q[1]}`);
+    });
   }
+  const cells = [...walls.values()];
   return `<svg viewBox="0 0 40 40" aria-hidden="true"><defs><clipPath id="bs-clip-hex"><path d="${hexPath(20, 20, 18.5)}"/></clipPath></defs><path class="bs-hex" d="${hexPath(20, 20, 18.5)}"/><g clip-path="url(#bs-clip-hex)"><path class="bs-cell" d="${cells.join(' ')}"/></g></svg>`;
 })();
 
@@ -5208,7 +5219,7 @@ export class App {
     const growth = c.growth ? `<span class="growth" data-tip-title="growth" data-tip="Grown ${c.growth}: +${c.growth} attack.">${c.growth}</span>` : '';
     // A campaign hero's boons (skills and gear), carried while it is in play: one tag, their text on hover.
     // (A hero's boons stand on the rail beside its slot; any other card's, from a ship module, as marks on it.)
-    // (A campaign card standing in a ship's room: the room's walls and guns on it too.)
+    // (A campaign card standing in a ship's room: the room's guns on it too.)
     const roomTag = opts.tableau && opts.owner && c.slot !== undefined && c.slot !== COMMAND_SLOT ? this.roomMarks(opts.owner, c.slot, false) : '';
     const boonTag = roomTag + (c.boons?.length && !(def.kind === 'command' && c.slot === COMMAND_SLOT) ? this.boonMarks(c.boons) : '');
     // Fusion cards fused onto it: tucked behind it, each a little higher, only its name showing above it
@@ -5357,17 +5368,15 @@ export class App {
   }
 
   /**
-   * A ship's room (campaign), as marks: its walls and guns, and (on the empty slot, before a card carries it)
+   * A ship's room (campaign), as marks: its guns (its walls show in the card's defence), and (on the empty slot, before a card carries it)
    * its module. On the slot until a card is played there; then on the card.
    */
   private roomMarks(p: PlayerState, slot: number, withModule: boolean): string {
     const r = p.rooms;
     if (!r) return '';
-    const walls = r.defence[slot] ?? 0;
     const guns = r.attack[slot] ?? 0;
     const mark = (kind: string, n: number, title: string, text: string) => `<i class="boon-mark room-mark" data-tip-title="${title}" data-tip="${esc(text)}">${effectMark(kind)}<small>${n}</small></i>`;
     return [
-      walls ? mark('walls', walls, 'walls', `This room's walls: +${walls} defence for the card in it.`) : '',
       guns ? mark('guns', guns, 'guns', `This room's guns: +${guns} attack for a card in it that attacks.`) : '',
       withModule && r.boons?.[slot]?.length ? this.boonMarks(r.boons[slot], 'boon-mark room-mark') : '',
     ].join('');
