@@ -81,6 +81,21 @@ export const PLAIN_EXISTING: Record<string, Profile> = {
   pyr_flare_imp: 'striker',
   pyr_cinder_brute: 'brute',
   pyr_ash_walker: 'glass',
+  // The second round: cards whose only job was a little cooling or shielding.
+  frost_lattice: 'brute',
+  glacier_shell: 'wall',
+  halo_ward: 'wall',
+  prism_vent: 'guardian',
+  prism_ward: 'wall',
+  tide_lock: 'veteran',
+  undertow_shrine: 'wall',
+  canopy: 'guardian',
+  ixquor_broodguard: 'wall',
+  thorn_hedge: 'wall',
+  husk_shell: 'veteran',
+  kor_bastion_kin: 'brute',
+  ser_orrery_keeper: 'guardian',
+  pyr_heat_bloom: 'guardian',
 };
 
 /** A plain card's numbers, by its profile, race and cost (the trait's cost taken off). */
