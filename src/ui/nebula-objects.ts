@@ -420,9 +420,11 @@ export class MapObjects {
       const r = o.heart ? 0.05 : 0.036;
       if (o.dead) solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, o.seed, r * 0.55), 4, [0.62, 0.62, 0.64], 1);
       else {
+        // A held sun takes its holder's colour, softened toward the paper.
+        const held: [number, number, number] = o.ring ? [0, 1, 2].map((i) => SUN[i] * 0.45 + o.ring![i] * 0.55) as [number, number, number] : SUN;
         // A slow pulse in its size, as if it breathes.
         const pulse = 1 + 0.035 * Math.sin(time * 1.4 + o.seed * 3);
-        solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0.3, time * 0.15 + o.seed, r * pulse), o.dim ? 4 : 0, o.dim ? [0.8, 0.81, 0.84] : SUN, 1, o.seed);
+        solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0.3, time * 0.15 + o.seed, r * pulse), o.dim ? 4 : 0, o.dim ? [0.8, 0.81, 0.84] : held, 1, o.seed);
       }
     }
     solid.done();
@@ -439,10 +441,10 @@ export class MapObjects {
       } else {
         const breathe = 1 + 0.1 * Math.sin(time * 1.1 + o.seed);
         // A wide warm glow, the flaring corona round the disc, and a fine dashed ring turning slowly.
-        // A soft paper glow, a fine dashed ring turning slowly, and (where the player can travel) rings pulsing out.
+        // A soft paper glow; where the player can travel, a fine dashed ring turning slowly and rings pulsing out.
         sprite.draw(o.x, y, o.z, r * 4 * breathe, 0, [1, 1, 1], 0.7);
         if (o.reach) sprite.draw(o.x, y, o.z, r * 4.4, 4, INK, 0.6, o.seed);
-        sprite.draw(o.x, y, o.z, r * 3.9, 3, INK, 0.35, o.seed);
+        if (o.reach) sprite.draw(o.x, y, o.z, r * 3.9, 3, INK, 0.35, o.seed);
       }
       if (o.ring) sprite.draw(o.x, y, o.z, r * 2.4, 1, o.ring, 1);
     }
