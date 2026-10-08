@@ -2064,8 +2064,10 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   display: grid; grid-template-columns: repeat(auto-fill, var(--bw)); justify-content: start;
   gap: clamp(12px, calc(3.5 * var(--vh)), 22px) clamp(16px, calc(2.6 * var(--vw)), 28px); padding: 14px 16px 16px 10px; /* (room for the boxes' lids, sides, shadows and the chosen one's lift and halo inside the scrolling list) */
 }
-.db-deck { display: grid; justify-items: center; gap: 6px; padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; outline: none; }
+.db-deck { display: grid; justify-items: center; gap: 6px; min-width: 0; padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; outline: none; }
 .db-deck-bad { opacity: 0.7; }
+/* (Every box the same size, however many buttons sit under it.) */
+.db-boxes .deck-box { width: var(--bw); }
 .deck-box {
   --d: calc(var(--bw) * 0.08); /* the box's depth */
   position: relative; width: 100%; aspect-ratio: 0.72; margin: var(--d) var(--d) 0 0;
@@ -2130,7 +2132,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 .db-deck-on .db-deck-sub { color: var(--ink); }
 .db-deck[aria-disabled="true"] { cursor: default; opacity: 0.45; }
 .db-deck-open:focus-visible .deck-box { filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 6px rgba(93, 106, 140, 0.6)); }
-.db-deck-actions { display: flex; gap: 6px; }
+.db-deck-actions { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; width: 100%; }
 .menu.setup-page.menu-decks { gap: clamp(6px, calc(2 * var(--vh)), 14px); }
 .db-editor { grid-template-columns: minmax(0, 1fr) clamp(170px, calc(26 * var(--vw)), 290px); gap: clamp(8px, calc(1.6 * var(--vw)), 16px); align-items: stretch; height: 100%; min-height: 0; width: 100%; max-width: none; }
 .db-pool-side { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; min-height: 0; }
