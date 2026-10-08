@@ -5897,7 +5897,7 @@ body:has(.game-result) .dock { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .cmp-n3 .cmp-ring-march, .cmp-n3 .cmp-ring-target { animation: none; } }
 
 /* ---- Game modes: Core / Lost Races ---- */
-.db-gm-row { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 2px 0 6px; }
+.db-gm-row { display: flex; flex-direction: column; align-items: center; text-align: center; width: 100%; gap: 4px; margin: 2px 0 6px; }
 .play-mode-row { align-items: center; margin: 0 0 14px; }
 .db-gm { background: #f1f2f6; }
 .db-gm .db-seg-btn { width: auto; height: 30px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
