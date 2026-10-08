@@ -1,5 +1,5 @@
 import { markDirty } from './account';
-import heatFire from '../assets/sfx/heat-fire.mp3';
+import heatFire from '../assets/sfx/heat-fire.mp3?inline';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -16,7 +16,11 @@ import heatFire from '../assets/sfx/heat-fire.mp3';
 
 const PREFS_KEY = 'blue-loop:sound';
 
-/** Recorded effects (made from sfx-raw/ by `npm run sfx`), loaded as soon as audio starts so none plays late. */
+/**
+ * Recorded effects (made from sfx-raw/ by `npm run sfx`), built into the code as data (so they load in the desktop
+ * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
+ * late.
+ */
 const SFX = { heatFire };
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
@@ -142,6 +146,7 @@ class SoundBoard {
   private sfx: GainNode | null = null;
   /** Sounds kept out of the reverb: paper on paper is close and dry (in the hall, a sweep across the hand swelled into a roar). */
   private sfxDry: GainNode | null = null;
+  private lastHandLift = -Infinity;
   private musicBus: GainNode | null = null;
   /** The battle theme's two faders: one lightly reverbed (bass, kick), one drenched like the ambient score. */
   private battleBus: GainNode | null = null;
@@ -479,6 +484,9 @@ class SoundBoard {
   }
   /** The hand lifted to be read: a fan of cards sliding against each other (a longer brush, a spill of crackles). */
   handLift() {
+    // (The hand can lift twice in a breath, as the pointer grazes its edge or a card is dragged straight out: once.)
+    if (performance.now() - this.lastHandLift < 900) return;
+    this.lastHandLift = performance.now();
     this.lastRustle = performance.now();
     this.breath({ dur: 0.34, freq: 1800, to: 3800, q: 0.6, gain: 0.03, attack: 0.06, type: 'bandpass', out: this.sfxDry ?? undefined });
     for (let i = 0; i < 7; i++)
@@ -642,15 +650,15 @@ class SoundBoard {
   /** Decoded recordings, by URL (each is fetched once). */
   private clips = new Map<string, Promise<AudioBuffer | null>>();
 
-  /** Fetch and decode a recording once (kept for every later play). */
+  /** Decode a recording once (kept for every later play). A data URL is decoded in place; anything else fetched. */
   private load(url: string): Promise<AudioBuffer | null> {
     let buf = this.clips.get(url);
     if (!buf) {
       const ctx = this.ctx!;
-      buf = fetch(url)
-        .then((r) => r.arrayBuffer())
-        .then((data) => ctx.decodeAudioData(data))
-        .catch(() => null);
+      const bytes = url.startsWith('data:')
+        ? Promise.resolve(Uint8Array.from(atob(url.slice(url.indexOf(',') + 1)), (c) => c.charCodeAt(0)).buffer)
+        : fetch(url).then((r) => r.arrayBuffer());
+      buf = bytes.then((data) => ctx.decodeAudioData(data)).catch(() => null);
       this.clips.set(url, buf);
     }
     return buf;
