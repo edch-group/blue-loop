@@ -5251,6 +5251,10 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-rs-offer small { color: var(--ink-faint); }
 .cmp-rs-offer p { margin: 6px 0 0; }
 .cmp-rs-offer.taken { opacity: 0.55; }
+/* A research station's upgrades to pick from: each a card to tap (one, free). */
+.cmp-rs-offers { display: grid; gap: 10px; }
+button.cmp-rs-offer { font: inherit; color: inherit; text-align: left; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s, background 0.15s; }
+button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: translateY(-1px); background: rgba(169, 143, 224, 0.2); box-shadow: 0 4px 14px rgba(110, 85, 176, 0.18); }
 .hv-train { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .hv-train p { margin: 0 0 4px; font-size: 0.8rem; }
 .hv-train-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); }

@@ -138,7 +138,7 @@ describe('finds', () => {
     standAt(s, there.id);
     expect(armyMoves(s, flag(s)).find((m) => m.toId === n.id)?.battle).toBe(false);
     const before = campaignPlayer(s);
-    const had = { credits: before.credits, materials: before.materials, wisdom: before.wisdom ?? 0 };
+    const had = { credits: before.credits, materials: before.materials };
     const { kind, amount } = n.cache!;
     s = applyCampaignAction(s, { type: 'move', armyId: flag(s).id, toId: n.id });
     expect(s.battle).toBeNull();
@@ -146,7 +146,7 @@ describe('finds', () => {
     expect(nodeById(s, n.id).cache).toBeUndefined();
     expect(s.conquered).toBe(1);
     const now = campaignPlayer(s);
-    const got = kind === 'credits' ? now.credits - had.credits : kind === 'materials' ? now.materials - had.materials : (now.wisdom ?? 0) - had.wisdom;
+    const got = kind === 'credits' ? now.credits - had.credits : now.materials - had.materials;
     expect(got).toBe(amount);
   });
 });
@@ -167,11 +167,10 @@ describe('conquest', () => {
     expect(nodeById(s, target).owner).toBe(s.playerId);
     expect(s.conquered).toBe(1);
     expect(flag(s).nodeId).toBe(target);
-    // No income by the turn: only research builds.
-    const [c, w] = [me().credits, me().wisdom];
+    // No income by the turn.
+    const c = me().credits;
     s = endTurn(s);
     expect(me().credits).toBe(c);
-    expect(me().wisdom).toBe(w + CAMPAIGN.wisdomPerTurn);
   });
 });
 

@@ -3,8 +3,8 @@ import type { BattleModifiers } from './types';
 /**
  * Research: upgrades a faction's flagship carries for good (more energy a day, longer marches, stronger
  * hulls...). Where a hero's skills and gear are boons on their own card, research is for the whole ship.
- * Each research station on the map has one upgrade, taken for Wisdom by the first flagship to use it
- * (campaign.ts). (`cost` and `turns` are left from the old research tree; a station's price is by tier.)
+ * Each research station on the map offers a few upgrades; the first flagship to use it picks one, free
+ * (campaign.ts). (`cost` and `turns` are left from the old research tree.)
  */
 
 /** What a finished project gives every army of its faction. */

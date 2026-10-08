@@ -24,10 +24,8 @@ import {
   armyMoves,
   buyProblem,
   flagship,
-  researchWisdom,
   regionalStability,
   universeStability,
-  wormholePetals,
   META_UPGRADES,
   buyUpgrade,
   buyUpgradeProblem,
@@ -154,12 +152,6 @@ const CREDITS =
 /** Materials: a solid teal crystal. Earned the same ways; spent on buying cards in the armory. */
 const MATERIALS =
   '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#4f9aa6"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#9fd3d9"/><path d="M10 9.6V18.5L3 14V6Z" fill="#6fb3bc"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="none" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/></svg>';
-/** Systems held: a white dwarf, a small hot white star with a pale blue glow. */
-const SYSTEMS =
-  '<svg class="cur cur-systems" viewBox="0 0 20 20" aria-label="systems"><defs><radialGradient id="wd-glow"><stop offset=".3" stop-color="#9fbcf2" stop-opacity=".75"/><stop offset=".65" stop-color="#b9cff5" stop-opacity=".28"/><stop offset="1" stop-color="#b9cff5" stop-opacity="0"/></radialGradient><radialGradient id="wd-core" cx=".4" cy=".36"><stop offset="0" stop-color="#fff"/><stop offset=".6" stop-color="#eef3ff"/><stop offset="1" stop-color="#b4c6ec"/></radialGradient></defs><circle cx="10" cy="10" r="9.8" fill="url(#wd-glow)"/><path d="M10 .8 10.9 7.6 10 9 9.1 7.6ZM10 19.2 9.1 12.4 10 11 10.9 12.4ZM.8 10 7.6 9.1 9 10 7.6 10.9ZM19.2 10 12.4 10.9 11 10 12.4 9.1Z" fill="#a9bfea" opacity=".9"/><circle cx="10" cy="10" r="5.3" fill="url(#wd-core)" stroke="#7f98cc" stroke-width=".7"/></svg>';
-/** Wisdom: a soft violet eye-star. It builds a point a turn; research stations' upgrades cost it. */
-const WISDOM =
-  '<svg class="cur cur-wisdom" viewBox="0 0 20 20" aria-label="wisdom"><path d="M10 1.2 12 8 18.8 10 12 12 10 18.8 8 12 1.2 10 8 8Z" fill="#a98fe0" stroke="#6e55b0" stroke-width=".8" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.6" fill="#f1eaff"/><circle cx="10" cy="10" r="1.1" fill="#6e55b0"/></svg>';
 /** A station on the map: an armoury (a crate) or a research station (a ringed flask). */
 const ARMORY_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
@@ -306,9 +298,7 @@ type Sheet =
   | { kind: 'help' }
   | { kind: 'settings' }
   /** Enter with moves still to make: end the turn anyway? */
-  | { kind: 'end-turn' }
-  /** The game overview: every faction, its systems and its share of the universe. */
-  | { kind: 'overview' };
+  | { kind: 'end-turn' };
 
 /** Map stages already listening for drags and zooms (kept through redraws, which no longer rebuild them). */
 const boundStages = new WeakSet<HTMLElement>();
@@ -768,10 +758,9 @@ export class CampaignView {
       case 'cmp-army': {
         if (this.swallowClick) return true;
         const army = armyById(s!, arg);
-        // Your own army: pick it to march (tap again to put it down), keeping the map wide so its routes
-        // show. Anyone else's: show the system it stands in.
+        // Your own ship: nothing to show (it is always the one that moves). Anyone else's: the system it stands in.
         if (army.owner === s!.playerId) {
-          this.army = this.army === arg ? null : arg;
+          this.army = null;
           this.selected = null;
         } else this.selected = army.nodeId;
         sound.hover();
@@ -799,7 +788,7 @@ export class CampaignView {
         if (this.apply({ type: 'healArmy', armyId: arg, all: el.dataset.all === '1' })) el.dataset.all === '1' ? sound.upgrade() : sound.repair();
         break;
       case 'cmp-research':
-        if (this.apply({ type: 'research', nodeId: arg })) sound.upgrade();
+        if (el.dataset.project && this.apply({ type: 'research', nodeId: arg, projectId: el.dataset.project })) sound.upgrade();
         break;
       case 'cmp-visit': {
         // A station the flagship stands in: its armoury, or its research.
@@ -851,18 +840,24 @@ export class CampaignView {
             if (move.battle) this.sheet = { kind: 'attack', armyId: army.id, toId: arg };
             else if (this.apply({ type: 'move', armyId: army.id, toId: arg })) {
               sound.play();
-              this.selected = arg;
+              // (Arrived: a station's popover to use it; anywhere else, nothing.)
+              this.selected = nodeById(s, arg).station ? arg : null;
               this.army = null;
             }
             break;
           }
         }
-        // (The camera stays where it is: a focused system just shows its planets.)
+        // (No popover for the starting world, nor where your ship stands, unless it is a station to use there.
+        // The camera stays where it is: a focused system just shows its planets.)
+        if (s && (nodeById(s, arg).home || (flagship(s, s.playerId)?.nodeId === arg && !nodeById(s, arg).station))) {
+          this.selected = null;
+          break;
+        }
         this.selected = arg;
         sound.hover();
         break;
       case 'cmp-sheet':
-        this.sheet = { kind: arg as 'log' | 'help' | 'overview' };
+        this.sheet = { kind: arg as 'log' | 'help' };
         break;
       case 'cmp-fuse': {
         if (this.sheet?.kind !== 'armory' || this.sheet.fuse?.length !== 2) break;
@@ -974,7 +969,6 @@ export class CampaignView {
         <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
         <header class="cmp-top">
           <div class="cmp-top-left">
-            <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" data-tip="Universe ${s.universe} of this run: the overview"><small>universe ${s.universe}</small><b>move ${s.turn - s.universeStart + 1}</b><i>›</i></button>
             ${this.renderGalaxy()}
             ${this.renderStability()}
             ${scene ? this.renderStory(scene) : ''}
@@ -982,12 +976,7 @@ export class CampaignView {
           <div class="cmp-purse">
             <span data-tip="Credits: paid once by every system taken, battles and missions. Spent on repairs and your ship.">${CREDITS}<b>${me.credits}</b></span>
             <span data-tip="Materials: paid once by every system taken, battles and missions. Spent on cards at space stations.">${MATERIALS}<b>${me.materials}</b></span>
-            <span data-tip="Research (+${CAMPAIGN.wisdomPerTurn} a turn): spent on research stations' upgrades.">${WISDOM}<b>${me.wisdom}</b><small>(+${CAMPAIGN.wisdomPerTurn})</small></span>
-            <span data-tip="Systems conquered in this universe: ${s.conquered} of ${s.nodes.length - 1}. The more, the more petals at the wormhole (${wormholePetals(s)} now).">${SYSTEMS}<b>${s.conquered}</b></span>
             <span data-tip="Stellari petals grabbed this run (they are kept, whatever happens)">${PETAL}<b>${s.petals}</b></span>
-            <span class="cmp-purse-armies" title="Your armies: ${armiesOf(s, me.id).filter((a) => !a.moved).length} still to march this turn">${armiesOf(s, me.id)
-              .map((a) => `<i class="cmp-mini-army ${a.moved ? 'moved' : ''}" data-act="cmp-army" data-arg="${a.id}" style="--ac:${this.colourOf(a.owner)}">${armyFace(a)}</i>`)
-              .join('')}</span>
           </div>
           <nav class="cmp-nav">
             <button class="icon-btn" data-act="cmp-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
@@ -1915,7 +1904,7 @@ export class CampaignView {
         ? chip(`${ARMORY_ICON}<b>${n.station.cards.length ? `space station · ${n.station.cards.length}` : 'space station · sold out'}</b>`, n.station.cards.length ? `A space station: ${n.station.cards.length} card${n.station.cards.length === 1 ? '' : 's'} for sale, each only once. Bring your flagship here to dock.` : 'A space station, sold out.', n.station.cards.length ? 'gold' : 'muted')
         : '',
       known && n.station?.kind === 'research'
-        ? chip(`${RESEARCH_ICON}<b>${n.station.takenBy ? 'research · taken' : lower(researchProject(n.station.project)?.name ?? 'research')}</b>`, n.station.takenBy ? `A research station. Its upgrade has been taken${n.station.takenBy === me.id ? ' (by you)' : ''}.` : `A research station: ${researchProject(n.station.project)?.name}. ${researchProject(n.station.project)?.text} Bring your flagship here and spend ${researchWisdom(n.station.project)} Wisdom to take it.`, n.station.takenBy ? 'muted' : 'good')
+        ? chip(`${RESEARCH_ICON}<b>${n.station.takenBy ? 'research · taken' : 'research'}</b>`, n.station.takenBy ? `A research station. Its upgrade has been taken${n.station.takenBy === me.id ? ' (by you)' : ''}.` : `A research station: bring your flagship here and pick one of its ${n.station.options.length} upgrades, free.`, n.station.takenBy ? 'muted' : 'good')
         : '',
     ].join('');
     // What you can do here.
@@ -2025,23 +2014,6 @@ export class CampaignView {
         return this.renderResearch(sh.nodeId);
       case 'log':
         return this.modal('campaign log', `<div class="log-list">${s.log.map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>`, true);
-      case 'overview': {
-        const left = regionalStability(s);
-        const raiders = s.armies.filter((a) => a.lost).length;
-        const row = (label: string, value: string) => `<div class="cmp-faction"><i></i><span>${label}</span><b>${value}</b></div>`;
-        return this.modal(
-          `universe ${s.universe} · turn ${s.turn - s.universeStart + 1}`,
-          `<div class="cmp-factions cmp-overview">
-            ${row('conquered here', `${s.conquered} of ${s.nodes.length - 1} systems`)}
-            ${row('petals at the wormhole', `${PETAL} ${wormholePetals(s)}`)}
-            ${row('petals this run', `${PETAL} ${s.petals}`)}
-            ${row('regional stability', left ? `${left} move${left === 1 ? '' : 's'}` : `collapsing · ${CAMPAIGN.columns + 1 - s.collapseCol} columns left`)}
-            ${row('raiders about', String(raiders))}
-           </div>
-           <p class="muted center-text">Reach the wormhole past the far end, and beat its guardian, before the collapse catches you. Every system conquered first means more petals.</p>`,
-          true,
-        );
-      }
       case 'settings':
         return this.modal(
           `settings · turn ${s.turn}`,
@@ -2059,17 +2031,16 @@ export class CampaignView {
           `<div class="cmp-legend">
             <div>${CREDITS}<span><b>Credits</b> run your ship. Earned: every system you take, battles and missions. Spent: upgrading your ship and repairs.</span></div>
             <div>${MATERIALS}<span><b>Materials</b> build your deck. Earned the same ways. Spent: cards at space stations, fusing cards.</span></div>
-            <div>${WISDOM}<span><b>Wisdom</b> builds ${CAMPAIGN.wisdomPerTurn} a turn. Spent: research stations' upgrades.</span></div>
           </div>
           <ul class="rules">
             <li><b>The loop:</b> each universe is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian to go through, into a harder universe. The run goes on until your flagship is lost.</li>
             <li><b>The collapse:</b> regional stability lasts ${CAMPAIGN.stabilityTurns} moves in the first universe, ${CAMPAIGN.stabilityStep} fewer in each one after (never under ${CAMPAIGN.stabilityMin}). Then the strip gives way from the near end, a whole column with every move, each marked (⚠) a move before. Whatever stands there is lost, your flagship too.</li>
             <li><b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the raiders move and the collapse comes on. Changing the deck or repairing costs no move; <b>wait</b> holds position for one.</li>
-            <li><b>Win</b> a system and it is yours: it pays its credits and materials once, your flagship moves in, and it counts for petals. Research builds ${CAMPAIGN.wisdomPerTurn} with every move; nothing else pays by the move. Some worlds hold a treasury or archives: more credits or research, taken with the system.</li>
+            <li><b>Win</b> a system and it is yours: it pays its credits and materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold a treasury or archives: more credits or research, taken with the system.</li>
             <li><b>Stellari petals</b> are grabbed at every wormhole: a few for getting there, more for every share of the strip you conquered. They are banked at once and outlive the run. Spend them between runs on a stronger start, a tougher flagship, run perks, and new races and heroes.</li>
             <li><b>Its deck</b> starts with ${CAMPAIGN.armySize} cards: your hero and your race's own, with a few neutral cards. It grows with every card you salvage or put in, and never drops below ${CAMPAIGN.armySize}.</li>
             <li><b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card, and your ship's rooms add their walls, guns and modules to the cards standing in them.</li>
-            <li>${ARMORY_ICON} <b>Space stations</b> sell ${CAMPAIGN.armoryStock} cards each, every one only once. ${RESEARCH_ICON} <b>Research stations</b> have one upgrade each. Both are better within an anomaly's reach. Bring your flagship to one to use it.</li>
+            <li>${ARMORY_ICON} <b>Space stations</b> sell ${CAMPAIGN.armoryStock} cards each, every one only once. ${RESEARCH_ICON} <b>Research stations</b> offer ${CAMPAIGN.researchOptions} upgrades each: pick one, free. Both are better deep in the strip. Bring your flagship to one to use it.</li>
             <li><b>Your base:</b> your deck, your <b>hero</b> (train, learn skills, wear gear) and your <b>ship</b> (rooms' walls and guns, the command room, shields and hull), and your missions.</li>
             <li>A system with no flagship in it fights as a <b>garrison</b>: more cards, thicker walls and a bigger sun the further along the strip, and the further along the run.</li>
             <li><b>Stars</b> differ. ${(['red', 'white', 'brown', 'neutron'] as const).map((k) => `<b>${STAR_TYPES[k].name}:</b> ${esc(STAR_TYPES[k].boon)} ${esc(STAR_TYPES[k].cost)}`).join(' ')}</li>
@@ -2168,7 +2139,7 @@ export class CampaignView {
   /** What the player has to spend, for the base's and the stations' headers. */
   private purse(): string {
     const me = campaignPlayer(this.state!);
-    return `<div class="cmp-purse"><span title="Credits">${CREDITS}<b>${me.credits}</b></span><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Wisdom">${WISDOM}<b>${me.wisdom}</b></span><span title="Cards in your reserve, waiting for your deck">▤<b>${me.reserve.length}</b></span></div>`;
+    return `<div class="cmp-purse"><span title="Credits">${CREDITS}<b>${me.credits}</b></span><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Cards in your reserve, waiting for your deck">▤<b>${me.reserve.length}</b></span></div>`;
   }
 
   /** An armoury's stock (empty if the node has none). */
@@ -2192,15 +2163,13 @@ export class CampaignView {
       </div>`;
   }
 
-  /** A research station on the map: its one upgrade, for Wisdom, and the upgrades your flagship carries already. */
+  /** A research station on the map: its upgrades to pick one from (free), and the upgrades your flagship carries already. */
   private renderResearch(nodeId: string): string {
     const s = this.state!;
     const me = campaignPlayer(s);
     const n = nodeById(s, nodeId);
     if (n.station?.kind !== 'research') return '';
-    const p = researchProject(n.station.project)!;
-    const cost = researchWisdom(p.id);
-    const why = researchProblem(s, me, n);
+    const st = n.station;
     const done = (me.research?.done ?? []).map((id) => researchProject(id)).filter((x) => !!x);
     const b = researchBonus(me.research);
     const sums = [
@@ -2214,27 +2183,32 @@ export class CampaignView {
       b.loot ? 'more gear found' : '',
       b.dread ? 'the weak surrender' : '',
     ].filter(Boolean);
-    const taken = n.station.takenBy;
+    const taken = st.takenBy;
+    // Each upgrade on offer, a choice to tap: the one taken marked, the others greyed once it is.
+    const offers = st.options
+      .map((id) => {
+        const p = researchProject(id);
+        if (!p) return '';
+        const why = taken ? null : researchProblem(s, me, n, id);
+        const picked = st.project === id;
+        const inner = `${RESEARCH_ICON}<div><b>${esc(p.name)}</b><small>tier ${p.tier}${picked ? ' · taken' : ''}</small><p>${esc(p.text)}</p></div>`;
+        return taken || why
+          ? `<div class="cmp-rs-offer ${picked ? '' : 'taken'}" ${why ? `title="${esc(why)}"` : ''}>${inner}</div>`
+          : `<button class="cmp-rs-offer cmp-rs-pick" data-act="cmp-research" data-arg="${n.id}" data-project="${esc(id)}">${inner}</button>`;
+      })
+      .join('');
     return this.modal(
       `${lower(n.name)} research station`,
       `<div class="cmp-rs-station">
-          <div class="cmp-rs-offer ${taken ? 'taken' : ''}">
-            ${RESEARCH_ICON}
-            <div><b>${esc(p.name)}</b><small>tier ${p.tier}</small><p>${esc(p.text)}</p></div>
-          </div>
-          ${
-            taken
-              ? `<p class="muted center-text">${taken === me.id ? 'You have taken this upgrade.' : `Taken already, by ${esc(factionById(s, taken).name)}.`}</p>`
-              : `<div class="center-row"><button class="btn-primary" data-act="cmp-research" data-arg="${n.id}" ${why ? `disabled title="${esc(why)}"` : ''}>take it · ${WISDOM} ${cost}</button></div>${why ? `<p class="muted center-text">${esc(why)}</p>` : ''}`
-          }
-          <p class="cmp-rs-sum">${done.length ? `Your flagship carries: ${done.map((x) => esc(x!.name)).join(', ')}.${sums.length ? ` (${sums.join(' · ')})` : ''}` : 'Each research station has one upgrade, taken by the first to pay for it. Wisdom builds a point a turn.'}</p>
+          ${taken ? `<p class="muted center-text">${taken === me.id ? 'You have taken its upgrade.' : `Taken already, by ${esc(factionById(s, taken).name)}.`}</p>` : '<p class="muted center-text">Pick one upgrade, free. The others are lost.</p>'}
+          <div class="cmp-rs-offers">${offers}</div>
+          ${done.length ? `<p class="cmp-rs-sum">Your flagship carries: ${done.map((x) => esc(x!.name)).join(', ')}.${sums.length ? ` (${sums.join(' · ')})` : ''}</p>` : ''}
         </div>`,
       true,
       '',
       'cmp-modal-narrow',
     );
   }
-
 
   /**
    * A battle's report, laid out rather than told: the result and where; the hero (their new level, or the

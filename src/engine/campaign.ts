@@ -6,8 +6,8 @@
  * begins), with a deck of up to ten cards. The flagship moves one route a turn; moving into a system it
  * doesn't hold is a battle, fought under the campaign's own rules (game.ts: GameSetup.campaign): its cards
  * stand in the ship's rooms, and the ship can be upgraded room by room. Armouries and research stations
- * lie about the map: a flagship standing in one can buy its cards (each once) or take its one upgrade (for
- * Wisdom, which builds a point a turn). Claiming the Heart wins; so does holding half the universe.
+ * lie about the map: a flagship standing in one can buy its cards (each once) or pick one of its upgrades
+ * (free). Claiming the Heart wins; so does holding half the universe.
  *
  * Pure and deterministic like the battle engine: `applyCampaignAction`
  * clones the state, uses the seeded RNG stored in it, and throws GameError on
@@ -56,14 +56,12 @@ export const CAMPAIGN = {
   salvageChoices: 3,
   /** Chance the winner of a battle finds a ship module in the wreckage (gear: HEROES.itemChance). */
   moduleChance: 0.35,
-  /** Wisdom gained each turn (spent on research stations' upgrades). */
-  wisdomPerTurn: 1,
   /** Armouries and research stations on each universe's strip, and how many cards an armoury stocks (each sold once). */
   armories: 2,
   researchStations: 2,
   armoryStock: 6,
-  /** Wisdom for a research station's upgrade, by the upgrade's tier (1–4). */
-  researchWisdom: [3, 5, 8, 12],
+  /** Upgrades a research station offers (the flagship picks one, free). */
+  researchOptions: 3,
   /** A hero's own attack and defence before training (they sit in the command room, so start sturdier). */
   heroAttack: 0,
   heroDefence: 2,
@@ -130,7 +128,7 @@ export const CAMPAIGN = {
   mapWidth: 170 * 2 + 8 * 420,
   mapHeight: 170 * 2 + 2 * 330,
   mapMargin: 170,
-  /** Worlds with something extra to find (credits or research), taken with the system. */
+  /** Worlds with something extra to find (credits), taken with the system. */
   bonusPlanets: 3,
   /** (No raiders roam the strip any more; any in an older save are cleared out. These steered them.) */
   raiderChase: 3,
@@ -275,7 +273,7 @@ export interface CampaignNode {
   col?: number;
   lane?: number;
   /** Something extra on one of its worlds, taken with the system. */
-  bonus?: { credits?: number; wisdom?: number };
+  bonus?: { credits?: number };
   /** Nothing to fight here, only something to find (taken by flying in): credits, materials, research, or a card to choose. */
   cache?: Cache;
   /** Burnt out by a supernova: nothing to take, but open to pass through. */
@@ -283,10 +281,11 @@ export interface CampaignNode {
 }
 
 /**
- * A station on the map. An armoury sells each of its cards once (for materials); a research station has one
- * upgrade, taken once by whoever gets there first (for Wisdom). Within an anomaly's reach, both are better.
+ * A station on the map. An armoury sells each of its cards once (for materials); a research station offers a few
+ * upgrades, one of which the first flagship to get there takes, free (`project`, once taken). Deep in the strip,
+ * both are better.
  */
-export type Station = { kind: 'armory'; cards: string[] } | { kind: 'research'; project: string; takenBy?: string };
+export type Station = { kind: 'armory'; cards: string[] } | { kind: 'research'; options: string[]; project?: string; takenBy?: string };
 
 /** A flagship: its rooms (the five card slots and the command room), its shields and its hull. */
 export interface Ship {
@@ -338,11 +337,11 @@ export const STAR_TYPES: Record<StarType, { name: string; text: string; boon: st
  * of find, weighted. Players see the star, never what it holds, until they get there.
  */
 export const STAR_FINDS: Record<StarType | 'yellow', { find: number; kinds: Partial<Record<Cache['kind'], number>> }> = {
-  yellow: { find: 0.22, kinds: { credits: 3, materials: 3, wisdom: 2, cards: 2 } },
+  yellow: { find: 0.22, kinds: { credits: 3, materials: 3, cards: 2 } },
   red: { find: 0.5, kinds: { materials: 5, credits: 3, cards: 2 } },
-  white: { find: 0.4, kinds: { wisdom: 6, cards: 2, credits: 2 } },
+  white: { find: 0.4, kinds: { cards: 4, credits: 3, materials: 2 } },
   brown: { find: 0.55, kinds: { cards: 5, materials: 3, credits: 2 } },
-  neutron: { find: 0.15, kinds: { cards: 6, wisdom: 4 } },
+  neutron: { find: 0.15, kinds: { cards: 6, credits: 3 } },
 };
 
 /** What a system's star says about what it may hold. */
@@ -439,8 +438,6 @@ export interface Faction {
   race: number;
   credits: number;
   materials: number;
-  /** Builds a point a turn; research stations' upgrades are paid for with it. */
-  wisdom: number;
   /** The flagship's upgrades. */
   ship: Ship;
   /** The hero it picked to lead its flagship. */
@@ -599,7 +596,7 @@ export interface CampaignSetup {
 }
 
 export interface Cache {
-  kind: 'credits' | 'materials' | 'wisdom' | 'cards';
+  kind: 'credits' | 'materials' | 'cards';
   amount: number;
 }
 
@@ -615,8 +612,8 @@ export type CampaignAction =
   | { type: 'deckRemove'; armyId: string; defId: string }
   /** Break a reserve card down for materials. */
   | { type: 'recycle'; defId: string }
-  /** Take a research station's upgrade (your flagship must stand there), for Wisdom. */
-  | { type: 'research'; nodeId: string }
+  /** Take one of a research station's upgrades (your flagship must stand there), free. */
+  | { type: 'research'; nodeId: string; projectId: string }
   /** A hero spends a skill point. */
   | { type: 'learnSkill'; hero: string; skill: string }
   /** A hero puts a skill point into their own attack or defence. */
@@ -757,11 +754,6 @@ export function trainProblem(f: Faction, hero: string, stat: 'attack' | 'defence
   return null;
 }
 
-/** Wisdom a research station's upgrade costs. */
-export function researchWisdom(projectId: string): number {
-  return CAMPAIGN.researchWisdom[(researchProject(projectId)?.tier ?? 1) - 1];
-}
-
 /** Why a faction can't use a station here (null if it can): its flagship has to stand in it. */
 export function stationProblem(s: CampaignState, f: Faction, n: CampaignNode): string | null {
   if (!n.station) return `${n.name} has no station.`;
@@ -769,15 +761,16 @@ export function stationProblem(s: CampaignState, f: Faction, n: CampaignNode): s
   return null;
 }
 
-/** Why a faction can't take a research station's upgrade (null if it can). */
-export function researchProblem(s: CampaignState, f: Faction, n: CampaignNode): string | null {
+/** Why a faction can't take this research station's upgrade (or, with no project named, any of them; null if it can). */
+export function researchProblem(s: CampaignState, f: Faction, n: CampaignNode, projectId?: string): string | null {
   const why = stationProblem(s, f, n);
   if (why) return why;
   if (n.station?.kind !== 'research') return `${n.name} has no research station.`;
   if (n.station.takenBy) return `${n.name}'s research has already been taken.`;
-  if (f.research?.done.includes(n.station.project)) return 'You have that upgrade already.';
-  const cost = researchWisdom(n.station.project);
-  if (f.wisdom < cost) return `Not enough Wisdom (need ${cost}, have ${f.wisdom}).`;
+  const open = n.station.options.filter((id) => !f.research?.done.includes(id));
+  if (projectId === undefined) return open.length ? null : 'You have all of its upgrades already.';
+  if (!n.station.options.includes(projectId)) return `${n.name}'s research station doesn't offer that.`;
+  if (f.research?.done.includes(projectId)) return 'You have that upgrade already.';
   return null;
 }
 
@@ -863,6 +856,11 @@ export function migrateCampaign(s: CampaignState): CampaignState {
   s.armies = s.armies.filter((a) => !a.lost);
   // No anomalies on the map any more: a galaxy of its own instead.
   delete (s as { anomalies?: unknown }).anomalies;
+  // Research stations offer a choice now (older saves had one upgrade each, for Wisdom, which is gone).
+  for (const n of s.nodes) {
+    const st = n.station as (Station & { options?: string[] }) | undefined;
+    if (st?.kind === 'research' && !st.options) st.options = st.project ? [st.project] : [];
+  }
   if (!s.galaxy) s.galaxy = GALAXY_KINDS[(s.universe * 7 + s.nodes.length) % GALAXY_KINDS.length];
   return s;
 }
@@ -1094,7 +1092,6 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     race,
     credits: CAMPAIGN.startCredits + run.credits,
     materials: CAMPAIGN.startMaterials + run.materials,
-    wisdom: run.wisdom,
     ship,
     hero,
     research: { done: [] },
@@ -1106,7 +1103,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   };
   s.factions.push(me);
   // The raiders: the last of peoples the collapse has already taken, roaming the strip (and hunting).
-  s.factions.push({ id: 'lost', name: 'Raiders', isAI: true, race: 0, credits: 0, materials: 0, wisdom: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
+  s.factions.push({ id: 'lost', name: 'Raiders', isAI: true, race: 0, credits: 0, materials: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
   for (let k = 0; k < CAMPAIGN.activeMissions; k++) drawMission(s, me);
   buildUniverse(s, 1);
   const army = flagship(s, me.id)!;
@@ -1249,13 +1246,13 @@ function buildUniverse(s: CampaignState, universe: number) {
   for (const n of sites.slice(0, CAMPAIGN.armories)) n.station = { kind: 'armory', cards: armoryStock(s, n) };
   const projects = new Set<string>(me.research?.done ?? []);
   for (const n of sites.slice(CAMPAIGN.armories, CAMPAIGN.armories + CAMPAIGN.researchStations)) {
-    const project = pickResearch(s, n, projects);
-    projects.add(project);
-    n.station = { kind: 'research', project };
+    const options = pickResearch(s, n, projects);
+    for (const id of options) projects.add(id);
+    n.station = { kind: 'research', options };
   }
-  // Worlds with something extra: credits or research, taken with the system.
+  // Worlds with something extra: credits, taken with the system.
   for (const [i, n] of sites.slice(CAMPAIGN.armories + CAMPAIGN.researchStations, CAMPAIGN.armories + CAMPAIGN.researchStations + CAMPAIGN.bonusPlanets).entries()) {
-    n.bonus = i % 2 ? { wisdom: 3 + Math.floor(n.tier / 2) } : { credits: 4 + n.tier };
+    n.bonus = { credits: 4 + n.tier + (i % 2) * 2 };
   }
   // Systems with nothing to fight, only something to find: a derelict, a depot, an archive.
   // Each by the odds of its star (STAR_FINDS).
@@ -1372,14 +1369,16 @@ function armoryStock(s: CampaignState, n: CampaignNode): string[] {
   return shuffleInPlace(s, [...rares, ...dwarfs.slice(0, CAMPAIGN.armoryStock - rares.length)]);
 }
 
-/** A research station's one upgrade: an early one, or (deep in the strip) a deep one; each different while they last. */
-function pickResearch(s: CampaignState, n: CampaignNode, taken: Set<string>): string {
+/**
+ * A research station's upgrades to pick from: early ones, or (deep in the strip) deeper ones, none already taken or
+ * offered elsewhere while they last (topped up from the rest when they run short).
+ */
+function pickResearch(s: CampaignState, n: CampaignNode, taken: Set<string>): string[] {
   const near = deepIn(s, n);
   const free = RESEARCH.filter((r) => !taken.has(r.id));
-  const fits = free.filter((r) => (near ? r.tier >= 2 : r.tier <= 2));
-  // (Once the deeper projects have all been placed, one deep in the strip repeats one of them: it is never shallow.)
-  const pool = fits.length ? fits : near ? RESEARCH.filter((r) => r.tier >= 2) : free.length ? free : RESEARCH;
-  return pool[randomInt(s, pool.length)].id;
+  const fits = shuffleInPlace(s, free.filter((r) => (near ? r.tier >= 2 : r.tier <= 2)));
+  const rest = shuffleInPlace(s, free.filter((r) => !fits.includes(r)));
+  return [...fits, ...rest].slice(0, CAMPAIGN.researchOptions).map((r) => r.id);
 }
 
 /** Whether a system lies in the last third of its strip (its stations better stocked). */
@@ -1918,8 +1917,7 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   f.credits += credits;
   f.materials += materials;
   if (n.bonus?.credits) f.credits += n.bonus.credits;
-  if (n.bonus?.wisdom) f.wisdom = (f.wisdom ?? 0) + n.bonus.wisdom;
-  const extra = n.bonus?.credits ? ` and ${n.bonus.credits} more from its treasury` : n.bonus?.wisdom ? ` and ${n.bonus.wisdom} research from its archives` : '';
+  const extra = n.bonus?.credits ? ` and ${n.bonus.credits} more from its treasury` : '';
   n.bonus = undefined;
   n.yield = { credits: 0, materials: 0 };
   n.damage = 0;
@@ -1941,9 +1939,8 @@ function takeCache(s: CampaignState, f: Faction, n: CampaignNode) {
   s.conquered += 1;
   if (c.kind === 'credits') f.credits += c.amount;
   else if (c.kind === 'materials') f.materials += c.amount;
-  else if (c.kind === 'wisdom') f.wisdom = (f.wisdom ?? 0) + c.amount;
   else if (!f.isAI) s.cardRewards.push({ source: `A derelict at ${n.name}`, options: randomCardChoices(s, f) });
-  const what = c.kind === 'cards' ? 'a derelict, with cards to choose from' : `${c.amount} ${c.kind === 'wisdom' ? 'research' : c.kind}`;
+  const what = c.kind === 'cards' ? 'a derelict, with cards to choose from' : `${c.amount} ${c.kind}`;
   clog(s, `${f.name} finds ${what} at ${n.name}.`, n.id, f.id);
 }
 
@@ -2013,15 +2010,15 @@ function train(h: HeroState, stat: 'attack' | 'defence') {
   h.train[stat] += 1;
 }
 
-/** Take a research station's upgrade (the checks are researchProblem's). */
-function takeResearch(s: CampaignState, f: Faction, n: CampaignNode) {
-  const why = researchProblem(s, f, n);
+/** Take one of a research station's upgrades, free (the checks are researchProblem's). */
+function takeResearch(s: CampaignState, f: Faction, n: CampaignNode, projectId: string) {
+  const why = researchProblem(s, f, n, projectId);
   if (why) throw new GameError(why);
   const st = n.station as Extract<Station, { kind: 'research' }>;
-  f.wisdom -= researchWisdom(st.project);
   st.takenBy = f.id;
-  (f.research ??= { done: [] }).done.push(st.project);
-  clog(s, `${f.name} takes ${researchProject(st.project)!.name} from ${n.name}'s research station.`, n.id, f.id);
+  st.project = projectId;
+  (f.research ??= { done: [] }).done.push(projectId);
+  clog(s, `${f.name} takes ${researchProject(projectId)!.name} from ${n.name}'s research station.`, n.id, f.id);
 }
 
 /** Buy an armoury's card (the checks are buyProblem's): it goes to the reserve, and is gone from the armoury. */
@@ -2055,7 +2052,11 @@ function aiStation(s: CampaignState, f: Faction) {
   const army = flagship(s, f.id);
   if (!army) return;
   const n = nodeById(s, army.nodeId);
-  if (n.station?.kind === 'research' && researchProblem(s, f, n) === null) takeResearch(s, f, n);
+  if (n.station?.kind === 'research' && researchProblem(s, f, n) === null) {
+    // (The deepest it hasn't got.)
+    const pick = n.station.options.filter((id) => !f.research?.done.includes(id)).sort((a, b) => (researchProject(b)?.tier ?? 0) - (researchProject(a)?.tier ?? 0))[0];
+    if (pick) takeResearch(s, f, n, pick);
+  }
   if (n.station?.kind === 'armory') {
     const rank = (id: string) => ARMORY_PRICE[cardDef(id).rarity ?? 'dwarf'] + (cardDef(id).race === f.race ? 2 : 0);
     for (let k = 0; k < 2; k++) {
@@ -2185,8 +2186,6 @@ function newTurn(s: CampaignState) {
     if (owner) owner.reserve.push(...leaving.map((g) => g.defId));
     n.garrison = n.garrison.filter((g) => g.status !== 'leaving');
   }
-  // Research goes on every turn (credits and materials come only from what is taken).
-  for (const f of s.factions) if (!f.eliminated && !f.lost) f.wisdom = (f.wisdom ?? 0) + CAMPAIGN.wisdomPerTurn;
   for (const a of s.armies) {
     a.moved = a.refit = false;
     a.steps = 0;
@@ -2512,7 +2511,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       break;
     }
     case 'research':
-      takeResearch(s, f, nodeById(s, action.nodeId));
+      takeResearch(s, f, nodeById(s, action.nodeId), action.projectId);
       break;
     case 'train': {
       const why = trainProblem(f, action.hero, action.stat);

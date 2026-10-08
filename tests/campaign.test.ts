@@ -23,7 +23,6 @@ import {
   heroStats,
   newShip,
   researchProblem,
-  researchWisdom,
   shipUpgradeCost,
   GENERALS,
   heroState,
@@ -170,23 +169,24 @@ describe('economy', () => {
     expect(left.kind === 'armory' && left.cards).toEqual(stock.slice(1));
   });
 
-  it('builds Wisdom a turn, and spends it on a research station\'s one upgrade, taken once', () => {
+  it('offers a few upgrades at a research station, one taken free, once', () => {
     let s = fresh();
-    s = settle(applyCampaignAction(s, { type: 'endTurn' }));
-    expect(campaignPlayer(s).wisdom).toBe(CAMPAIGN.wisdomPerTurn * (s.turn - 1));
     const lab = s.nodes.find((n) => n.station?.kind === 'research')!;
-    const project = lab.station!.kind === 'research' ? lab.station!.project : '';
+    const options = lab.station!.kind === 'research' ? lab.station!.options : [];
+    expect(options).toHaveLength(CAMPAIGN.researchOptions);
+    expect(new Set(options).size).toBe(options.length);
     lab.owner = s.playerId;
     myArmy(s).nodeId = lab.id;
-    campaignPlayer(s).wisdom = 0;
-    expect(researchProblem(s, campaignPlayer(s), lab)).toMatch(/Wisdom/);
-    campaignPlayer(s).wisdom = 20;
-    s = applyCampaignAction(s, { type: 'research', nodeId: lab.id });
-    expect(campaignPlayer(s).research?.done).toContain(project);
-    expect(campaignPlayer(s).wisdom).toBe(20 - researchWisdom(project));
+    expect(researchProblem(s, campaignPlayer(s), lab)).toBeNull();
+    expect(() => applyCampaignAction(s, { type: 'research', nodeId: lab.id, projectId: 'no_such_project' })).toThrow(/doesn't offer/);
+    const credits = campaignPlayer(s).credits;
+    s = applyCampaignAction(s, { type: 'research', nodeId: lab.id, projectId: options[1] });
+    expect(campaignPlayer(s).research?.done).toContain(options[1]);
+    expect(campaignPlayer(s).credits).toBe(credits);
     const taken = nodeById(s, lab.id).station!;
     expect(taken.kind === 'research' && taken.takenBy).toBe(s.playerId);
-    expect(() => applyCampaignAction(s, { type: 'research', nodeId: lab.id })).toThrow(/already been taken/);
+    expect(taken.kind === 'research' && taken.project).toBe(options[1]);
+    expect(() => applyCampaignAction(s, { type: 'research', nodeId: lab.id, projectId: options[0] })).toThrow(/already been taken/);
   });
 
   it('upgrades the flagship\'s rooms, shields and hull for credits, and they reach the battle', () => {
@@ -260,8 +260,9 @@ describe('stations', () => {
         for (const id of cards) expect(cardDef(id).kind).not.toBe('command');
       }
       for (const n of labs) {
-        const project = n.station!.kind === 'research' ? n.station!.project : '';
-        if (deepIn(s, n)) expect(rp(project)!.tier).toBeGreaterThanOrEqual(2);
+        const options = n.station!.kind === 'research' ? n.station!.options : [];
+        expect(options).toHaveLength(CAMPAIGN.researchOptions);
+        if (deepIn(s, n)) expect(rp(options[0])!.tier).toBeGreaterThanOrEqual(2);
       }
     }
   });
