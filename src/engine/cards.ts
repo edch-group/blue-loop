@@ -732,6 +732,15 @@ for (const c of CARDS) {
   Object.assign(c, v);
   c.cost ??= cost;
 }
+// Fusion cards: what they wrote is now only their bonus to a host (its words after "Fusion:"); in a slot of
+// their own they are plain cards, a little lighter than a plain card of their cost for the choice they offer.
+for (const c of CARDS) {
+  if (!c.fusion || c.fuse) continue;
+  c.fuse = { text: c.text.replace(/^\{fusion\}\.\s*/, ''), onPlay: c.onPlay, onTurn: c.onTurn, onDusk: c.onDusk, passive: c.passive, defence: c.defence };
+  const s = plainStats(c.kind === 'attack' ? 'striker' : 'brute', c.race, c.cost ?? 1);
+  Object.assign(c, { kind: s.attack > 0 ? 'attack' : 'defence', attack: s.attack, health: Math.max(1, s.health - 1), defence: undefined, text: `{fusion}: ${c.fuse.text}` });
+  for (const k of ['onPlay', 'onTurn', 'onDusk', 'onLeave', 'passive', 'stability'] as const) delete c[k];
+}
 // Attack ratings (attack.ts): by rule, unless a card gives its own.
 for (const c of CARDS) if (c.attack === undefined) c.attack = ruleAttack(c, c.cost ?? 1, !isBurst(c));
 // A race's Sturdy (the Korrath) is the cards' own: added to their Sturdy, and written into their text.

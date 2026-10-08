@@ -183,8 +183,21 @@ function passives(p: PlayerState): { card: CardInstance; passive: Passive }[] {
 }
 
 /** What a card carries on top of its own text: its Fusion cards and a campaign hero's boons. */
+/** What a Fusion card lends the card it is fused onto: its Fusion bonus, and nothing else of it. */
+const FUSED = new Map<string, CardDef>();
+export function fusedDef(defId: string): CardDef {
+  let d = FUSED.get(defId);
+  if (!d) {
+    const def = cardDef(defId);
+    const f = def.fuse ?? { text: '' };
+    d = { id: def.id, name: def.name, kind: def.kind, race: def.race, text: f.text, onPlay: f.onPlay, onTurn: f.onTurn, onDusk: f.onDusk, passive: f.passive, defence: f.defence };
+    FUSED.set(defId, d);
+  }
+  return d;
+}
+
 function extras(card: CardInstance): CardDef[] {
-  return [...(card.fused ?? []).map((f) => cardDef(f.defId)), ...(card.boons ?? []).map((b) => cardDef(b))];
+  return [...(card.fused ?? []).map((f) => fusedDef(f.defId)), ...(card.boons ?? []).map((b) => cardDef(b))];
 }
 
 /** A card's passives: its own, and those of what it carries (Fusion cards, boons). */
@@ -1605,13 +1618,11 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       action = { ...action, slot: at };
     }
   }
-  // A Fusion card fuses onto its host: it adds to the host's stability, and its play effects resolve.
+  // A Fusion card fuses onto its host, which gains its Fusion bonus (and only that): any of it for now resolves.
   if (host) {
     (host.fused ??= []).push(card);
-    host.health = (host.health ?? 0) + BALANCE.fusionStability;
-    host.maxHealth = (host.maxHealth ?? baseHealth(host.defId)) + BALANCE.fusionStability;
-    log(state, `${p.name} fuses ${def.name} onto ${cardDef(host.defId).name} (stability ${host.health}).`);
-    resolveEffects(state, p, host, def.onPlay, 'play', action);
+    log(state, `${p.name} fuses ${def.name} onto ${cardDef(host.defId).name}.`);
+    resolveEffects(state, p, host, fusedDef(def.id).onPlay, 'play', action);
     return;
   }
   // A card that does nothing once played resolves and goes straight to the discard pile.

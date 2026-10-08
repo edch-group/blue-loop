@@ -64,8 +64,6 @@ export const BALANCE = {
   wallGuard: 3,
   /** A Hero's stability when it lists none. (Cards no longer fade with the days: stability is what they can take.) */
   heroStability: 5,
-  /** Stability a Fusion card adds to its host. */
-  fusionStability: 2,
   /** Each point a card has grown adds this to its attack (`growthAttackAll`: even a card with none of its own) and to its stability. */
   /** Growth from elsewhere (another card's) stops here; a card's own Grow stops at its own limit. */
   maxGrowth: 5,

@@ -45,7 +45,14 @@ function vec(c: CardDef): Vec {
   if (c.defence) bump(v, 'defence', c.defence);
   if (c.attack) bump(v, 'attack', c.attack);
   if (c.attune) bump(v, 'attune', c.attune);
-  if (c.fusion) bump(v, 'fusion', 1);
+  // (A Fusion card's bonus to a host: what it would add there, apart from what it does in a slot of its own.)
+  if (c.fuse) {
+    effects(v, 'fuse-play', c.fuse.onPlay);
+    effects(v, 'fuse-turn', c.fuse.onTurn);
+    effects(v, 'fuse-dusk', c.fuse.onDusk);
+    for (const p of c.fuse.passive ?? []) passive(v, { ...p, fused: true } as unknown as Passive);
+    if (c.fuse.defence) bump(v, 'fuse-defence', c.fuse.defence);
+  }
   // (Consume is a cost: a card given up to play it.)
   if (c.consume) bump(v, 'bad|consume', 1);
   if (c.onTurn?.length || c.onDusk?.length || c.passive?.length || c.attune || c.attack || c.defence || c.health !== undefined) bump(v, 'stability', baseHealth(c.id));

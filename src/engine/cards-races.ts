@@ -179,8 +179,8 @@ export const RACE_CARDS: CardDef[] = [
   // Forgeborn
   {
     id: 'kor_rivet_graft', name: 'Rivet Graft', kind: 'defence', race: 5, sub: 'forgeborn', cost: 1, fusion: true,
-    text: '{fusion}. {sturdy:2}.',
-    defence: 2,
+    text: '{fusion}. {sturdy:3}.',
+    defence: 3,
   },
   {
     id: 'kor_slag_graft', name: 'Slag Graft', kind: 'attack', race: 5, sub: 'forgeborn', cost: 2, fusion: true,

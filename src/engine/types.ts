@@ -193,6 +193,15 @@ export interface Lightspeed {
   deploy?: boolean;
 }
 
+export interface FuseBonus {
+  text: string;
+  onPlay?: Effect[];
+  onTurn?: Effect[];
+  onDusk?: Effect[];
+  passive?: Passive[];
+  defence?: number;
+}
+
 export interface CardDef {
   id: string;
   name: string;
@@ -244,10 +253,12 @@ export interface CardDef {
    */
   consume?: boolean;
   /**
-   * Fusion: played onto one of your cards in play rather than into a slot. That card gains this one's dawn
-   * effects, passives, Sturdy and stability; this one goes with it when it leaves.
+   * Fusion: played into a slot as a card of its own, or onto one of your cards in play, which then gains its
+   * Fusion bonus (`fuse`) and nothing else; this one goes with it when it leaves.
    */
   fusion?: boolean;
+  /** A Fusion card's bonus to the card it is fused onto: its words, and what they do (resolved as for any card). */
+  fuse?: FuseBonus;
   /** A token (a Sapling): made in play by other cards, never in a deck; when it leaves play it is simply gone. */
   token?: boolean;
   /** Extra defence on top of its slot's (sturdy cards). */

@@ -49,6 +49,7 @@ import {
   abilityAimable,
   COMMAND_SLOT,
   dawnEffects,
+  fusedDef,
   duskEffects,
   conditionMet,
   effectAmount,
@@ -5188,7 +5189,7 @@ export class App {
       (c.fused ?? [])
         .map((f, i) => {
           const fd = cardDef(f.defId);
-          return `<span class="fused-behind" data-act="inspect-fused" data-arg="${c.uid}|${i + 1}" style="--fi:${i};--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`${fd.name} (fused): ${plainText(fd.text).replace(/^Fusion\. /, '')}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
+          return `<span class="fused-behind" data-act="inspect-fused" data-arg="${c.uid}|${i + 1}" style="--fi:${i};--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`${fd.name} (fused): ${plainText(fusedDef(fd.id).text)}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
         })
         .join('');
     const fusedText = this.fusedTextHtml(c);
@@ -5221,7 +5222,7 @@ export class App {
     if (!c?.fused?.length) return { text: c ? cardDef(c.defId).text : '', rests: [] };
     let text = cardDef(c.defId).text;
     const rests = c.fused.map((f) => {
-      const merged = mergeCardText(text, cardDef(f.defId).text.replace(/^\{fusion\}\.\s*/, ''));
+      const merged = mergeCardText(text, fusedDef(f.defId).text);
       text = merged.text;
       return { defId: f.defId, rest: merged.rest };
     });

@@ -1316,7 +1316,7 @@ describe('lightspeed', () => {
 });
 
 describe('fusion', () => {
-  it('fuses a Fusion card onto a card in play: no slot, its dawn effects and stability join the host', () => {
+  it('fuses a Fusion card onto a card in play: no slot, and only its Fusion bonus joins the host', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
     const [host] = give(me, ['deflector_grid'], 'tableau');
@@ -1327,8 +1327,8 @@ describe('fusion', () => {
     const h = activePlayer(s).tableau.find((c) => c.uid === host.uid)!;
     expect(activePlayer(s).tableau.length).toBe(1);
     expect(h.fused?.map((f) => f.defId)).toEqual(['tidal_graft']);
-    expect(h.health).toBe(before + 2);
-    // Its dawn: the host's own 2 shields, and the graft's 2 more.
+    expect(h.health).toBe(before);
+    // Its dawn: the host's own 2 shields, and the graft's bonus of 2 more.
     expect(dawnEffects(h).filter((e) => e.type === 'shield').length).toBe(2);
   });
 
