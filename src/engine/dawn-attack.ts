@@ -49,6 +49,6 @@ export const DAWN_ATTACK_TEXT: Record<string, string> = {
  * their cost, Deep Tide's shield attackers, and the Aureline stars a point down (Forge stacks on attack).
  */
 export const DAWN_ATTACK_EXTRA: Record<string, number> = {
-  helio_lancer: 2, sunforge: 1, dawnstar_cannon: 1, overload_core: 1, aureline_skirmisher: 1, ser_stargazer: 1, pyr_ash_walker: 1, pyr_cinder_brute: 2, pyr_solar_tyrant: 2,
+  sunforge: 1, overload_core: 1, kor_siege_ram: -1, aureline_skirmisher: 1, ser_stargazer: 1, pyr_ash_walker: 1, pyr_cinder_brute: 2, pyr_solar_tyrant: 2,
   riptide: 1, abyssal_choir: 1, aureline_archon: -1, aurelia_first_light: -1,
 };

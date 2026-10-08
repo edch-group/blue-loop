@@ -714,6 +714,8 @@ for (const c of CARDS) {
 for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? c.cost ?? 1 });
 // Heroes cost one more than they are listed at (heroes-battle.ts): an entrance and an ability every day for good.
 for (const c of CARDS) if (c.kind === 'command') c.cost = heroCost(c.cost ?? 2);
+// The Aureline Lancer: all lance, no armour (the most attack a 1-energy card has, and the least stability).
+Object.assign(CARDS.find((c) => c.id === 'helio_lancer')!, { health: 1 });
 // The core races' cards as they now are (cards-core.ts): the same card in every mode.
 for (const c of CARDS) {
   const v = CORE_VERSIONS[c.id];

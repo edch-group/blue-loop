@@ -63,7 +63,7 @@ export const CARD_COSTS: Record<string, number> = {
   gilded_lens: 2,
   heat_bleed: 2,
   helio_bastion: 2,
-  helio_lancer: 2,
+  helio_lancer: 1,
   hero_of_rathune: 2,
   hive_rooting: 2,
   hive_tyrant: 2,
