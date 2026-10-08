@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GALAXIES,
+  galaxyEffects,
   applyCampaignAction,
   attackOptions,
   CAMPAIGN,
@@ -231,9 +233,19 @@ describe('a full campaign', () => {
 });
 
 
+describe('galaxies', () => {
+  it('gives every universe a galaxy, never the same twice running, touching both sides of every battle', () => {
+    const s = fresh(4);
+    expect(GALAXIES[s.galaxy!]).toBeTruthy();
+    expect((s as { anomalies?: unknown }).anomalies).toBeUndefined();
+    const fx = galaxyEffects(s)!;
+    expect(fx.conditions[0].name).toBe(GALAXIES[s.galaxy!].name);
+  });
+});
+
 describe('stations', () => {
-  it('dots armouries and research stations about the map, better stocked near anomalies', async () => {
-    const { nodeAnomalies, researchProject: rp } = await import('../src/engine');
+  it('dots armouries and research stations about the map, better stocked deep in the strip', async () => {
+    const { deepIn, researchProject: rp } = await import('../src/engine');
     for (const seed of [1, 2, 3]) {
       const s = fresh(seed);
       const shops = s.nodes.filter((n) => n.station?.kind === 'armory');
@@ -249,7 +261,7 @@ describe('stations', () => {
       }
       for (const n of labs) {
         const project = n.station!.kind === 'research' ? n.station!.project : '';
-        if (nodeAnomalies(s, n).length) expect(rp(project)!.tier).toBeGreaterThanOrEqual(2);
+        if (deepIn(s, n)) expect(rp(project)!.tier).toBeGreaterThanOrEqual(2);
       }
     }
   });

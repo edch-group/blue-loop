@@ -1,11 +1,11 @@
 /**
- * The campaign map's things as 3D objects in the nebula's space (see nebula3d.ts): each system's star a shaded
- * sphere (a gold sun, a red or brown dwarf, a searing white dwarf, a neutron star with sweeping beams, the
- * wormhole's white glare), ringed in its holder's colour when it is held; and the anomalies: a black hole (a
- * black sphere in a turning gold accretion disc), a pulsar (a white core and two beams wheeling round), dark
- * matter (dark motes orbiting nothing) and a nebula (pale puffs turning slowly). Each drawn as the board would:
- * a fine ink line round its edge. Drawn over the map (so the routes run into them), hidden by any gas between
- * them and the eye.
+ * The campaign map's things as 3D objects in the nebula's space (see nebula3d.ts): each system's sun, all alike in
+ * the board's paper and gold, alive (its surface churning, its corona breathing and flaring, a schematic ring
+ * turning round it), ringed in its holder's colour when it is held. Nothing floats over a system: what it holds is
+ * found by going there.
+ *
+ * And, on the layer behind the map, what lies under this galaxy (its GalaxyKind): a supermassive black hole at the
+ * bottom of a well in the land, or a pulsar whose beams sweep across it.
  */
 
 import type { Camera } from './nebula3d';
@@ -14,7 +14,8 @@ import type { Camera } from './nebula3d';
 export interface MapObject {
   x: number;
   z: number;
-  kind: 'yellow' | 'red' | 'white' | 'brown' | 'neutron' | 'heart' | 'blackHole' | 'pulsar' | 'darkMatter' | 'nebula';
+  /** The wormhole's sun is a little bigger. */
+  heart?: boolean;
   /** The holder's colour (a ring round the star), if held. */
   ring?: [number, number, number];
   /** Dimmed (collapsing, out of reach): drawn faded and grey. */
@@ -23,17 +24,17 @@ export interface MapObject {
   dead?: boolean;
   /** A stable number to vary each one by (spin, phase). */
   seed: number;
-  /** What floats over it: a space station (spent once sold out or taken), a garrison of so many, damage. */
-  marks?: { armory?: boolean; research?: boolean; spent?: boolean; garrison?: number; damage?: number };
 }
 
-/** Every system's star alike, in the board's paper (its kind is told in its popover, not its look). */
-const PAPER_STAR: [number, number, number] = [0.975, 0.97, 0.955];
-const STAR: Record<string, { c: [number, number, number]; r: number }> = Object.fromEntries(
-  ['yellow', 'red', 'white', 'brown', 'neutron', 'heart'].map((k) => [k, { c: PAPER_STAR, r: k === 'heart' ? 0.05 : 0.036 }]),
-);
-const INK: [number, number, number] = [0.45, 0.5, 0.63];
-const RED_INK: [number, number, number] = [0.78, 0.36, 0.32];
+/** What lies under the galaxy (drawn on the layer behind the map). */
+export type GalaxyLook = 'blackHole' | 'pulsar' | 'meteors' | 'nebula' | 'darkMatter';
+
+/** Where the black hole sits, at the bottom of its well (and the pulsar, just over the land). */
+export const BLACK_HOLE_Y = -1.02, BLACK_HOLE_Z = -0.7;
+export const PULSAR_Y = -0.2;
+
+const SUN: [number, number, number] = [0.995, 0.975, 0.93];
+const GOLD: [number, number, number] = [0.86, 0.66, 0.31];
 
 const SOLID_VERT = `
 attribute vec3 aPos; attribute vec3 aNorm;
@@ -48,38 +49,62 @@ void main() {
 }`;
 
 /**
- * kind 0: a glowing sphere (bright where it faces the eye, deepening toward its edge, an ink line round it);
- * 1: a black sphere; 2: an accretion disc (vL.x how far out, vL.y round); 3: a beam (vL.x how far along).
+ * kind 0: a sun (white-hot where it faces the eye, warming to gold at its limb, its surface churning, a fine ink
+ * line round it); 1: a black sphere; 2: an accretion disc (vL.x how far out, vL.y round); 3: a beam (vL.x how far
+ * along); 4: a plain paper sphere (an ember).
  */
 const SOLID_FRAG = `
 precision highp float;
 varying vec3 vN; varying vec3 vW; varying vec3 vL;
-uniform vec3 uEye; uniform vec3 uColor; uniform float uKind; uniform float uTime; uniform float uAlpha;
+uniform vec3 uEye; uniform vec3 uColor; uniform float uKind; uniform float uTime; uniform float uAlpha; uniform float uSeed;
+float h3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float n3(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(h3(i), h3(i + vec3(1, 0, 0)), f.x), mix(h3(i + vec3(0, 1, 0)), h3(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(h3(i + vec3(0, 0, 1)), h3(i + vec3(1, 0, 1)), f.x), mix(h3(i + vec3(0, 1, 1)), h3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
 void main() {
   vec3 v = normalize(uEye - vW);
   float ndv = abs(dot(normalize(vN), v));
   vec3 ink = vec3(0.40, 0.46, 0.60);
   if (uKind < 0.5) {
-    float lit = max(0.0, dot(normalize(vN), normalize(vec3(0.5, 0.8, 0.35))));
-    vec3 c = mix(uColor * 0.72, mix(uColor, vec3(1.0), 0.5), clamp(0.35 * pow(ndv, 1.4) + 0.65 * lit, 0.0, 1.0));
-    c = mix(c, ink, (1.0 - smoothstep(0.12, 0.32, ndv)) * 0.55);
+    // White-hot, warming to gold at the limb, bright cells welling up and churning over its face, flickering.
+    vec3 q = vL * 3.0 + uSeed;
+    float churn = n3(q + vec3(uTime * 0.4, 0.0, uTime * 0.25)) * 0.6 + n3(q * 2.4 - vec3(0.0, uTime * 0.6, 0.0)) * 0.4;
+    float flicker = 0.96 + 0.04 * sin(uTime * 3.1 + uSeed * 5.0) * sin(uTime * 1.7 + uSeed);
+    vec3 limb = vec3(0.96, 0.72, 0.36);
+    vec3 c = mix(limb, vec3(1.0, 0.985, 0.94), smoothstep(0.05, 0.75, ndv));
+    c += vec3(0.08, 0.06, 0.02) * smoothstep(0.45, 0.85, churn) * ndv;
+    c = mix(c, vec3(1.0, 0.86, 0.55), smoothstep(0.55, 0.9, churn) * (1.0 - ndv) * 0.6);
+    c = min(c * flicker, vec3(1.0));
+    c = mix(c, vec3(0.80, 0.55, 0.25), (1.0 - smoothstep(0.04, 0.14, ndv)) * 0.5);
     gl_FragColor = vec4(c * uAlpha, uAlpha);
   } else if (uKind < 1.5) {
-    vec3 c = mix(vec3(0.05, 0.05, 0.07), vec3(0.32, 0.33, 0.38), pow(1.0 - ndv, 3.0));
+    vec3 c = mix(vec3(0.03, 0.03, 0.05), vec3(0.32, 0.33, 0.38), pow(1.0 - ndv, 3.0));
     gl_FragColor = vec4(c * uAlpha, uAlpha);
   } else if (uKind < 2.5) {
     float out_ = vL.x;
-    float swirl = 0.5 + 0.5 * sin(vL.y * 10.0 - uTime * 2.2 + out_ * 9.0);
-    vec3 c = mix(vec3(0.99, 0.985, 0.97), vec3(0.45, 0.5, 0.63), out_);
-    float a = (1.0 - smoothstep(0.55, 1.0, out_)) * (0.55 + 0.45 * swirl) * 0.9 * uAlpha;
+    float swirl = 0.5 + 0.5 * sin(vL.y * 9.0 - uTime * 1.6 + out_ * 14.0);
+    float fine = 0.5 + 0.5 * sin(vL.y * 31.0 - uTime * 2.4 + out_ * 40.0);
+    vec3 c = mix(vec3(1.0, 0.97, 0.88), mix(vec3(0.93, 0.74, 0.42), vec3(0.45, 0.5, 0.63), smoothstep(0.4, 1.0, out_)), smoothstep(0.0, 0.6, out_));
+    float a = (1.0 - smoothstep(0.5, 1.0, out_)) * (0.5 + 0.35 * swirl + 0.15 * fine) * uAlpha;
     gl_FragColor = vec4(c * a, a);
-  } else {
-    float a = (1.0 - vL.x) * 0.5 * uAlpha;
+  } else if (uKind < 3.5) {
+    float a = pow(1.0 - vL.x, 1.5) * 0.55 * uAlpha;
     gl_FragColor = vec4(uColor * a, a);
+  } else {
+    float lit = max(0.0, dot(normalize(vN), normalize(vec3(0.5, 0.8, 0.35))));
+    vec3 c = mix(uColor * 0.75, uColor, lit);
+    c = mix(c, ink, (1.0 - smoothstep(0.12, 0.32, ndv)) * 0.55);
+    gl_FragColor = vec4(c * uAlpha, uAlpha);
   }
 }`;
 
-/** A camera-facing disc: a soft glow (kind 0) or a fine ring (kind 1). */
+/**
+ * A camera-facing disc: a soft glow (kind 0), a fine ring (1), a corona of flickering flares (2), or a dashed
+ * schematic ring turning (3).
+ */
 const SPRITE_VERT = `
 attribute vec2 aCorner;
 uniform mat4 uView; uniform mat4 uProj; uniform vec3 uCenter; uniform float uSize;
@@ -95,14 +120,36 @@ const SPRITE_FRAG = `
 #extension GL_OES_standard_derivatives : enable
 precision highp float;
 varying vec2 vUV;
-uniform vec3 uColor; uniform float uKind; uniform float uAlpha;
+uniform vec3 uColor; uniform float uKind; uniform float uAlpha; uniform float uTime; uniform float uSeed;
+float hash(float x) { return fract(sin(x * 127.1) * 43758.5453); }
+float vn(float x) { float i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(hash(i), hash(i + 1.0), f); }
 void main() {
   float r = length(vUV);
   float a;
   if (uKind < 0.5) a = exp(-r * r * 5.0) * (1.0 - smoothstep(0.8, 1.0, r)) * 0.55;
-  else {
+  else if (uKind < 1.5) {
     float w = max(fwidth(r), 1e-4);
     a = (1.0 - smoothstep(0.0, w * 1.6, abs(r - 0.82))) * 0.95;
+  } else if (uKind < 2.5) {
+    // Flares: their reach round the disc wanders with time, each licking out and falling back.
+    float ang = atan(vUV.y, vUV.x) / 6.28318 + 0.5;
+    float reach = 0.36 + 0.34 * pow(vn(ang * 14.0 + uSeed * 9.0 + uTime * 0.25) * vn(ang * 5.0 - uTime * 0.4 + uSeed), 0.8);
+    a = smoothstep(reach, 0.3, r) * smoothstep(0.18, 0.3, r) * 0.9;
+    a += exp(-r * r * 9.0) * 0.5;
+    // And a few fine rays, turning slowly, each brightening and fading on its own.
+    float ray = 0.0;
+    for (int k = 0; k < 4; k++) {
+      float th = float(k) * 0.785 + uTime * 0.05 + uSeed;
+      float across = abs(vUV.x * sin(th) - vUV.y * cos(th));
+      ray += (1.0 - smoothstep(0.0, 0.025, across)) * (0.5 + 0.5 * sin(uTime * (0.7 + float(k) * 0.3) + uSeed * 3.0 + float(k)));
+    }
+    a += ray * smoothstep(1.0, 0.25, r) * 0.6;
+    a *= 1.0 - smoothstep(0.85, 1.0, r);
+  } else {
+    float w = max(fwidth(r), 1e-4);
+    float ang = atan(vUV.y, vUV.x);
+    float dash = step(0.45, fract(ang * 6.0 / 3.14159 + uTime * 0.15 + uSeed));
+    a = (1.0 - smoothstep(0.0, w * 1.4, abs(r - 0.9))) * dash * 0.7;
   }
   a *= uAlpha;
   gl_FragColor = vec4(uColor * a, a);
@@ -158,40 +205,6 @@ function beam(): Float32Array {
   return new Float32Array(out);
 }
 
-/** A flat-faced solid from its triangles (corner lists), with each face's own normal: position and normal per vertex. */
-function faceted(tris: number[][][]): Float32Array {
-  const out: number[] = [];
-  for (const [a, b, c] of tris) {
-    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-    let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
-    const l = Math.hypot(n[0], n[1], n[2]) || 1;
-    n = n.map((x) => x / l);
-    // (Facing out from the middle.)
-    if (n[0] * (a[0] + b[0] + c[0]) + n[1] * (a[1] + b[1] + c[1]) + n[2] * (a[2] + b[2] + c[2]) < 0) n = n.map((x) => -x);
-    for (const p of [a, b, c]) out.push(p[0], p[1], p[2], n[0], n[1], n[2]);
-  }
-  return new Float32Array(out);
-}
-const cube = () => {
-  const q = (a: number[], b: number[], c: number[], d: number[]) => [[a, b, c], [a, c, d]];
-  const P = (x: number, y: number, z: number) => [x, y, z];
-  return faceted([
-    ...q(P(-1, -1, 1), P(1, -1, 1), P(1, 1, 1), P(-1, 1, 1)), ...q(P(-1, -1, -1), P(-1, 1, -1), P(1, 1, -1), P(1, -1, -1)),
-    ...q(P(-1, 1, -1), P(-1, 1, 1), P(1, 1, 1), P(1, 1, -1)), ...q(P(-1, -1, -1), P(1, -1, -1), P(1, -1, 1), P(-1, -1, 1)),
-    ...q(P(1, -1, -1), P(1, 1, -1), P(1, 1, 1), P(1, -1, 1)), ...q(P(-1, -1, -1), P(-1, -1, 1), P(-1, 1, 1), P(-1, 1, -1)),
-  ]);
-};
-const octahedron = () => {
-  const v = [[1, 0, 0], [-1, 0, 0], [0, 1.4, 0], [0, -1.4, 0], [0, 0, 1], [0, 0, -1]];
-  const t: number[][][] = [];
-  for (const y of [2, 3]) for (const [a, b] of [[0, 4], [4, 1], [1, 5], [5, 0]]) t.push([v[a], v[b], v[y]]);
-  return faceted(t);
-};
-const tetra = () => {
-  const v = [[0, 1.3, 0], [1, -0.6, 0.6], [-1, -0.6, 0.6], [0, -0.6, -1.1]];
-  return faceted([[v[0], v[1], v[2]], [v[0], v[2], v[3]], [v[0], v[3], v[1]], [v[1], v[3], v[2]]]);
-};
-
 /** Column-major 4x4: translate, rotate about x then y, scale. */
 function model(x: number, y: number, z: number, rx: number, ry: number, s: number): Float32Array {
   const cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry);
@@ -211,10 +224,7 @@ export class MapObjects {
   private discBuf: WebGLBuffer;
   private beamBuf: WebGLBuffer;
   private quadBuf: WebGLBuffer;
-  private cubeBuf: WebGLBuffer;
-  private octaBuf: WebGLBuffer;
-  private tetraBuf: WebGLBuffer;
-  private counts: { sphere: number; disc: number; beam: number; cube: number; octa: number; tetra: number };
+  private counts: { sphere: number; disc: number; beam: number };
   private list: MapObject[] = [];
 
   constructor(private gl: WebGLRenderingContext) {
@@ -226,27 +236,21 @@ export class MapObjects {
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
       return b;
     };
-    const sp = sphere(), di = disc(), be = beam(), cu = cube(), oc = octahedron(), te = tetra();
+    const sp = sphere(), di = disc(), be = beam();
     this.sphereBuf = buf(sp);
     this.discBuf = buf(di);
     this.beamBuf = buf(be);
-    this.cubeBuf = buf(cu);
-    this.octaBuf = buf(oc);
-    this.tetraBuf = buf(te);
     this.quadBuf = buf(new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]));
-    this.counts = { sphere: sp.length / 6, disc: di.length / 6, beam: be.length / 6, cube: cu.length / 6, octa: oc.length / 6, tetra: te.length / 6 };
+    this.counts = { sphere: sp.length / 6, disc: di.length / 6, beam: be.length / 6 };
   }
 
   set(list: MapObject[]) {
     this.list = list;
   }
 
-  /** Draw them all: solid spheres first (with depth), then everything see-through over them. */
-  draw(cam: Camera, time: number, fade: number) {
+  /** The solids' program, ready to draw with: a function drawing one buffer with a model, a kind, a colour. */
+  private solids(cam: Camera, time: number, fade: number) {
     const gl = this.gl;
-    if (!this.list.length) return;
-    const y = 0;
-    // ---- solids ----
     gl.useProgram(this.solid);
     const u = (n: string) => gl.getUniformLocation(this.solid, n);
     gl.uniformMatrix4fv(u('uView'), false, cam.view);
@@ -254,109 +258,133 @@ export class MapObjects {
     gl.uniform3f(u('uEye'), cam.eye[0], cam.eye[1], cam.eye[2]);
     gl.uniform1f(u('uTime'), time);
     const pos = gl.getAttribLocation(this.solid, 'aPos'), nrm = gl.getAttribLocation(this.solid, 'aNorm');
-    const bind = (b: WebGLBuffer) => {
+    gl.enableVertexAttribArray(pos);
+    gl.enableVertexAttribArray(nrm);
+    const draw = (b: WebGLBuffer, n: number, m: Float32Array, kind: number, c: [number, number, number], a: number, seed = 0) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, b);
-      gl.enableVertexAttribArray(pos);
-      gl.enableVertexAttribArray(nrm);
       gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, 24, 0);
       gl.vertexAttribPointer(nrm, 3, gl.FLOAT, false, 24, 12);
-    };
-    const draw = (b: WebGLBuffer, n: number, m: Float32Array, kind: number, c: [number, number, number], a: number) => {
-      bind(b);
       gl.uniformMatrix4fv(u('uModel'), false, m);
       gl.uniform1f(u('uKind'), kind);
       gl.uniform3f(u('uColor'), c[0], c[1], c[2]);
       gl.uniform1f(u('uAlpha'), a * fade);
+      gl.uniform1f(u('uSeed'), seed);
       gl.drawArrays(gl.TRIANGLES, 0, n);
     };
-    gl.enable(gl.DEPTH_TEST);
-    gl.disable(gl.BLEND);
-    gl.depthMask(true);
-    for (const o of this.list) {
-      const star = STAR[o.kind];
-      if (star) {
-        const r = o.dead ? star.r * 0.55 : star.r;
-        const c: [number, number, number] = o.dead ? [0.62, 0.62, 0.64] : o.dim ? [0.8, 0.81, 0.84] : star.c;
-        draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, time * 0.2 + o.seed, r), 0, c, 1);
-      } else if (o.kind === 'blackHole') {
-        draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, 0, 0.045), 1, [0, 0, 0], 1);
-      } else if (o.kind === 'pulsar') {
-        draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, 0, 0.022), 0, PAPER_STAR, 1);
-      } else if (o.kind === 'darkMatter') {
-        for (let i = 0; i < 6; i++) {
-          const a = time * 0.3 + o.seed + (i / 6) * Math.PI * 2, rr = 0.07 + 0.03 * Math.sin(i * 2.1);
-          draw(this.sphereBuf, this.counts.sphere, model(o.x + Math.cos(a) * rr, y + Math.sin(a * 1.3 + i) * 0.03, o.z + Math.sin(a) * rr, 0, 0, 0.014 + (i % 3) * 0.004), 0, INK, 1);
-        }
-      } else if (o.kind === 'nebula') {
-        for (let i = 0; i < 5; i++) {
-          const a = time * 0.12 + o.seed + (i / 5) * Math.PI * 2, rr = 0.04 + (i % 2) * 0.03;
-          draw(this.sphereBuf, this.counts.sphere, model(o.x + Math.cos(a) * rr, y + 0.01 * i, o.z + Math.sin(a) * rr, 0, 0, 0.03 - i * 0.003), 0, PAPER_STAR, 1);
-        }
-      }
-    }
-    // ---- what floats over each system: small paper solids, bobbing and turning slowly ----
-    for (const o of this.list) {
-      const m = o.marks;
-      if (!m || o.dead) continue;
-      let h = 0.1;
-      const bob = Math.sin(time * 1.3 + o.seed * 7) * 0.008, spin = time * 0.6 + o.seed;
-      const a = m.spent ? 0.55 : 1;
-      if (m.armory) {
-        draw(this.cubeBuf, this.counts.cube, model(o.x, y + h + 0.02 + bob, o.z, 0.35, spin, 0.03), 0, PAPER_STAR, a);
-        h += 0.1;
-      }
-      if (m.research) {
-        draw(this.octaBuf, this.counts.octa, model(o.x, y + h + 0.03 + bob, o.z, 0, spin, 0.03), 0, PAPER_STAR, a);
-        h += 0.11;
-      }
-      for (let i = 0; i < Math.min(4, m.garrison ?? 0); i++) {
-        draw(this.sphereBuf, this.counts.sphere, new Float32Array([0.04, 0, 0, 0, 0, 0.009, 0, 0, 0, 0, 0.04, 0, o.x, y + h + i * 0.024 + bob, o.z, 1]), 0, PAPER_STAR, 1);
-      }
-      if (m.garrison) h += Math.min(4, m.garrison) * 0.024 + 0.04;
-      if (m.damage) draw(this.tetraBuf, this.counts.tetra, model(o.x, y + h + 0.02 + bob, o.z, 0.3, -spin, 0.028), 0, RED_INK, 1);
-    }
-    // ---- see-through: accretion discs, beams, glows, rings ----
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    gl.depthMask(false);
-    for (const o of this.list) {
-      if (o.kind === 'blackHole') {
-        draw(this.discBuf, this.counts.disc, model(o.x, y, o.z, 0.38, time * 0.4 + o.seed, 0.045), 2, [1, 1, 1], 1);
-      } else if (o.kind === 'pulsar' || (o.kind === 'neutron' && !o.dead)) {
-        // Two beams from the poles of a tilted axis, wheeling round.
-        const spin = time * 1.6 + o.seed, len = o.kind === 'pulsar' ? 0.32 : 0.2;
-        for (const flip of [0, Math.PI]) draw(this.beamBuf, this.counts.beam, model(o.x, y, o.z, 0.5 + flip, spin, len), 3, INK, 0.7);
-      }
-    }
-    gl.disableVertexAttribArray(pos);
-    gl.disableVertexAttribArray(nrm);
-    // Glows and holders' rings, facing the camera.
+    const done = () => {
+      gl.disableVertexAttribArray(pos);
+      gl.disableVertexAttribArray(nrm);
+    };
+    return { draw, done };
+  }
+
+  /** The sprites' program, ready to draw with: a function drawing one camera-facing disc. */
+  private sprites(cam: Camera, time: number, fade: number) {
+    const gl = this.gl;
     gl.useProgram(this.sprite);
     const s = (n: string) => gl.getUniformLocation(this.sprite, n);
     gl.uniformMatrix4fv(s('uView'), false, cam.view);
     gl.uniformMatrix4fv(s('uProj'), false, cam.proj);
+    gl.uniform1f(s('uTime'), time);
     const corner = gl.getAttribLocation(this.sprite, 'aCorner');
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
     gl.enableVertexAttribArray(corner);
     gl.vertexAttribPointer(corner, 2, gl.FLOAT, false, 0, 0);
-    const sprite = (x: number, z: number, size: number, kind: number, c: [number, number, number], a: number) => {
+    const draw = (x: number, y: number, z: number, size: number, kind: number, c: [number, number, number], a: number, seed = 0) => {
       gl.uniform3f(s('uCenter'), x, y, z);
       gl.uniform1f(s('uSize'), size);
       gl.uniform1f(s('uKind'), kind);
       gl.uniform3f(s('uColor'), c[0], c[1], c[2]);
       gl.uniform1f(s('uAlpha'), a * fade);
+      gl.uniform1f(s('uSeed'), seed);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     };
+    return { draw, done: () => gl.disableVertexAttribArray(corner) };
+  }
+
+  /** Draw the suns: their bodies first (with depth), then their glow, flares and rings over them. */
+  draw(cam: Camera, time: number, fade: number) {
+    const gl = this.gl;
+    if (!this.list.length) return;
+    const y = 0;
+    gl.enable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    const solid = this.solids(cam, time, fade);
     for (const o of this.list) {
-      const star = STAR[o.kind];
-      if (star && !o.dead) {
-        const breathe = 1 + 0.06 * Math.sin(time * 1.1 + o.seed);
-        sprite(o.x, o.z, star.r * 2.6 * breathe, 0, [1, 1, 1], o.dim ? 0.2 : 0.5);
-        if (o.ring) sprite(o.x, o.z, star.r * 2.1, 1, o.ring, 1);
-      } else if (o.kind === 'blackHole') sprite(o.x, o.z, 0.14, 0, [0.45, 0.5, 0.63], 0.25);
-      else if (o.kind === 'pulsar') sprite(o.x, o.z, 0.08, 0, [1, 1, 1], 0.6);
+      const r = o.heart ? 0.05 : 0.036;
+      if (o.dead) solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, o.seed, r * 0.55), 4, [0.62, 0.62, 0.64], 1);
+      else {
+        // A slow pulse in its size, as if it breathes.
+        const pulse = 1 + 0.035 * Math.sin(time * 1.4 + o.seed * 3);
+        solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0.3, time * 0.15 + o.seed, r * pulse), o.dim ? 4 : 0, o.dim ? [0.8, 0.81, 0.84] : SUN, 1, o.seed);
+      }
     }
-    gl.disableVertexAttribArray(corner);
+    solid.done();
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    const sprite = this.sprites(cam, time, fade);
+    for (const o of this.list) {
+      if (o.dead) continue;
+      const r = o.heart ? 0.05 : 0.036;
+      if (o.dim) {
+        sprite.draw(o.x, y, o.z, r * 2.4, 0, [1, 1, 1], 0.2);
+      } else {
+        const breathe = 1 + 0.1 * Math.sin(time * 1.1 + o.seed);
+        // A wide warm glow, the flaring corona round the disc, and a fine dashed ring turning slowly.
+        sprite.draw(o.x, y, o.z, r * 5.5 * breathe, 0, GOLD, 0.6);
+        sprite.draw(o.x, y, o.z, r * 4.2, 2, [0.98, 0.8, 0.48], 0.85, o.seed);
+        sprite.draw(o.x, y, o.z, r * 3.6, 3, [0.45, 0.5, 0.63], 0.45, o.seed);
+      }
+      if (o.ring) sprite.draw(o.x, y, o.z, r * 2.4, 1, o.ring, 1);
+    }
+    sprite.done();
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  /**
+   * What lies under the galaxy, on the layer behind the map: a black hole at the bottom of its well, its
+   * accretion disc turning; or a pulsar over the land, its beams sweeping round (the land lights where they
+   * fall: nebula3d.ts). `beam` is the pulsar's sweep (radians).
+   */
+  drawGalaxy(cam: Camera, time: number, fade: number, look: GalaxyLook | null, beam: number) {
+    const gl = this.gl;
+    if (look !== 'blackHole' && look !== 'pulsar') return;
+    gl.enable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    const solid = this.solids(cam, time, fade);
+    if (look === 'blackHole') {
+      solid.draw(this.sphereBuf, this.counts.sphere, model(0, BLACK_HOLE_Y, BLACK_HOLE_Z, 0, 0, 0.16), 1, [0, 0, 0], 1);
+    } else {
+      solid.draw(this.sphereBuf, this.counts.sphere, model(0, PULSAR_Y, 0, 0, time, 0.045), 0, SUN, 1, 3);
+    }
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    if (look === 'blackHole') {
+      // Two discs a little apart in tilt, turning at their own speeds, read as a thick, churning ring of matter.
+      solid.draw(this.discBuf, this.counts.disc, model(0, BLACK_HOLE_Y, BLACK_HOLE_Z, 0.12, time * 0.25, 0.2), 2, [1, 1, 1], 1);
+      solid.draw(this.discBuf, this.counts.disc, model(0, BLACK_HOLE_Y + 0.01, BLACK_HOLE_Z, 0.2, -time * 0.18 + 1, 0.26), 2, [1, 1, 1], 0.55);
+    } else {
+      // Two beams from the poles, lying almost flat, sweeping round over the land.
+      for (const flip of [0, Math.PI]) {
+        const m = model(0, PULSAR_Y, 0, Math.PI / 2 + 0.02 + flip, beam, 7);
+        // (Thin: the beam's width scaled down from its length.)
+        for (const k of [0, 1, 2, 8, 9, 10]) m[k] *= 0.05;
+        solid.draw(this.beamBuf, this.counts.beam, m, 3, [0.52, 0.72, 0.88], 1);
+      }
+    }
+    solid.done();
+    const sprite = this.sprites(cam, time, fade);
+    if (look === 'blackHole') sprite.draw(0, BLACK_HOLE_Y, BLACK_HOLE_Z, 0.9, 0, GOLD, 0.35);
+    else {
+      sprite.draw(0, PULSAR_Y, 0, 0.6 * (1 + 0.2 * Math.sin(time * 9)), 0, [0.52, 0.72, 0.88], 0.9);
+      sprite.draw(0, PULSAR_Y, 0, 0.16, 2, [1, 0.96, 0.9], 0.9, 2);
+    }
+    sprite.done();
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }

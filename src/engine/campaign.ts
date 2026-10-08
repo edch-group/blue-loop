@@ -146,8 +146,6 @@ export const CAMPAIGN = {
   /** Routes from each home to the Heart (as near as the map allows). */
   homeRing: 30,
   homeRingSlack: 3,
-  /** Anomalies scattered between systems; each changes battles fought from the systems within its reach. */
-  anomalies: 2,
   /** Safety cap on simulated (auto-resolved) battles. */
   battleActionCap: 6000,
   /** Damage (heat carried) an army takes when its attack is repelled, and the most it can carry. */
@@ -201,7 +199,7 @@ export const CAMPAIGN = {
   /**
    * Every sun's max health in a battle, by how far the system fought over lies from the Heart (index 0: the
    * Heart; past the end, the rim's): 10 out at the rim where the campaign starts, rising to the card game's
-   * 24 at the Heart. Both sides start from it; fortification, a brown dwarf, anomalies, the Heart's Wardens
+   * 24 at the Heart. Both sides start from it; fortification, a brown dwarf, the galaxy, the Heart's Wardens
    * and a ship's hull add to it.
    */
   sunHealth: [24, 19, 15, 12, 10],
@@ -353,56 +351,54 @@ export function starOdds(n: CampaignNode): string {
   return 'An ordinary star: usually guarded, now and then a little of anything.';
 }
 
-export type AnomalyKind = 'blackHole' | 'nebula' | 'darkMatter' | 'pulsar';
+/**
+ * What a galaxy (one universe of the run, from wormhole to wormhole) is like: something vast lying under the whole
+ * strip, touching every sun in every battle fought there, on both sides.
+ */
+export type GalaxyKind = 'blackHole' | 'pulsar' | 'meteors' | 'nebula' | 'darkMatter';
 
-export interface AnomalyDef {
-  kind: AnomalyKind;
+export interface GalaxyDef {
+  kind: GalaxyKind;
   name: string;
-  /** What it does to battles fought from a system within its reach. */
+  /** What it does to every battle fought in the galaxy. */
   text: string;
   modifiers: BattleModifiers;
-  /** Reach, in map units. */
-  radius: number;
 }
 
-/** Every anomaly is a trade-off: a boon and a cost for whoever fights from a system near it. */
-export const ANOMALIES: Record<AnomalyKind, AnomalyDef> = {
+/** Every galaxy is a trade-off, the same for both sides of every battle in it. */
+export const GALAXIES: Record<GalaxyKind, GalaxyDef> = {
   blackHole: {
     kind: 'blackHole',
-    name: 'Black Hole',
-    text: 'Its gravity well drinks heat: +2 max health, but your opening hand is 1 card smaller.',
+    name: 'Supermassive Black Hole',
+    text: 'A supermassive black hole lies beneath this galaxy, its well drinking heat: every sun has +2 max health, but every opening hand is 1 card smaller.',
     modifiers: { maxHealthDelta: 2, openingHand: -1 },
-    radius: 240,
-  },
-  nebula: {
-    kind: 'nebula',
-    name: 'Nebula',
-    text: 'Hidden in the gas: +1 shield every day, but your sun starts 1 hotter.',
-    modifiers: { shieldPerTurn: 1, startingHeat: 1 },
-    radius: 280,
-  },
-  darkMatter: {
-    kind: 'darkMatter',
-    name: 'Dark Matter Cluster',
-    text: 'Unseen mass to mine: draw 1 extra card every day, but your sun heats by 1 every day.',
-    modifiers: { extraDraw: 1, heatPerTurn: 1 },
-    radius: 240,
   },
   pulsar: {
     kind: 'pulsar',
     name: 'Pulsar',
-    text: 'Its steady beam steadies your sun: it cools by 1 every day, but you have 2 less max health.',
+    text: 'A pulsar\'s beam sweeps this galaxy, steadying every sun: each cools by 1 every day, but has 2 less max health.',
     modifiers: { coolPerTurn: 1, maxHealthDelta: -2 },
-    radius: 240,
+  },
+  meteors: {
+    kind: 'meteors',
+    name: 'Meteor Shower',
+    text: 'Meteors rain through this galaxy: every sun starts 2 hotter, but every opening hand is 1 card bigger.',
+    modifiers: { startingHeat: 2, openingHand: 1 },
+  },
+  nebula: {
+    kind: 'nebula',
+    name: 'Nebula',
+    text: 'This galaxy lies deep in a nebula, hidden in its gas: every side gains 1 shield every day, but every sun starts 1 hotter.',
+    modifiers: { shieldPerTurn: 1, startingHeat: 1 },
+  },
+  darkMatter: {
+    kind: 'darkMatter',
+    name: 'Dark Matter',
+    text: 'Unseen mass threads this galaxy: every side draws 1 extra card every day, but every sun heats by 1 every day.',
+    modifiers: { extraDraw: 1, heatPerTurn: 1 },
   },
 };
-
-export interface Anomaly {
-  id: string;
-  kind: AnomalyKind;
-  x: number;
-  y: number;
-}
+export const GALAXY_KINDS = Object.keys(GALAXIES) as GalaxyKind[];
 
 /** Add two sets of battle modifiers together. */
 export function mergeModifiers(a: BattleModifiers, b: BattleModifiers): BattleModifiers {
@@ -411,18 +407,11 @@ export function mergeModifiers(a: BattleModifiers, b: BattleModifiers): BattleMo
   return out;
 }
 
-/** Anomalies whose reach covers a system. */
-export function nodeAnomalies(s: CampaignState, n: CampaignNode): Anomaly[] {
-  return (s.anomalies ?? []).filter((a) => Math.hypot(n.x - a.x, n.y - a.y) <= ANOMALIES[a.kind].radius);
-}
-
-/** The combined battle modifiers (and their descriptions) for fighting from a system. */
-export function anomalyEffects(s: CampaignState, n: CampaignNode) {
-  const found = nodeAnomalies(s, n);
-  if (!found.length) return null;
-  let modifiers: BattleModifiers = {};
-  for (const a of found) modifiers = mergeModifiers(modifiers, ANOMALIES[a.kind].modifiers);
-  return { modifiers, conditions: found.map((a) => ({ name: ANOMALIES[a.kind].name, text: ANOMALIES[a.kind].text })) };
+/** The galaxy's modifiers (and their description), for every battle fought in it, on both sides. */
+export function galaxyEffects(s: CampaignState) {
+  const g = s.galaxy ? GALAXIES[s.galaxy] : null;
+  if (!g) return null;
+  return { modifiers: g.modifiers, conditions: [{ name: g.name, text: g.text }] };
 }
 
 export interface CampaignStats {
@@ -575,8 +564,8 @@ export interface CampaignState {
   armies: Army[];
   /** Story scenes waiting to be read (oldest first), and every moment already told. */
   story: { queue: StoryScene[]; told: string[] };
-  /** Black holes, nebulae and the like, lying between systems (missing in older saves). */
-  anomalies?: Anomaly[];
+  /** What this universe's galaxy is like (touching every battle in it); missing in older saves until migrated. */
+  galaxy?: GalaxyKind;
   /** A battle the player is fighting (or can auto-resolve). */
   battle: BattleContext | null;
   /** The player won an attack and must decide the system's fate (the army that won it marches in if it is settled). */
@@ -872,6 +861,9 @@ export function migrateCampaign(s: CampaignState): CampaignState {
   ensureScanners(s);
   // No raiders any more: any left in an older save are gone.
   s.armies = s.armies.filter((a) => !a.lost);
+  // No anomalies on the map any more: a galaxy of its own instead.
+  delete (s as { anomalies?: unknown }).anomalies;
+  if (!s.galaxy) s.galaxy = GALAXY_KINDS[(s.universe * 7 + s.nodes.length) % GALAXY_KINDS.length];
   return s;
 }
 
@@ -1079,7 +1071,6 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     nodes: [],
     armies: [],
     story: { queue: [], told: [] },
-    anomalies: [],
     battle: null,
     conquest: null,
     cardRewards: [],
@@ -1136,7 +1127,7 @@ export function universeStability(s: CampaignState): number {
 }
 
 /**
- * A new universe: its strip of systems, the wormhole past its far end, its stations, anomalies and raiders, all
+ * A new universe: its galaxy, its strip of systems, the wormhole past its far end, its stations, all
  * tougher the further along the run is. The player's flagship arrives at a system of its own at the near end.
  */
 function buildUniverse(s: CampaignState, universe: number) {
@@ -1148,7 +1139,6 @@ function buildUniverse(s: CampaignState, universe: number) {
   s.collapseCol = 0;
   s.conquered = 0;
   s.nodes = [];
-  s.anomalies = [];
   s.armies = s.armies.filter((a) => a.owner === me.id);
   // How hard a system is: by its third of the strip, and two steps more in every universe after the first.
   const lift = 2 * (universe - 1);
@@ -1251,17 +1241,10 @@ function buildUniverse(s: CampaignState, universe: number) {
     if (kind === 'white') n.yield.materials += 2;
     if (kind === 'neutron') n.yield = { credits: n.yield.credits + 2, materials: n.yield.materials + 1 };
   }
-  // Anomalies, in the gaps between columns (each touching the systems round it).
-  const kinds: AnomalyKind[] = ['blackHole', 'nebula', 'darkMatter', 'pulsar'];
-  const gaps = shuffleInPlace(s, Array.from({ length: C - 3 }, (_, i) => i + 2));
-  // Never in neighbouring gaps (their reaches would overlap).
-  const picked: number[] = [];
-  for (const c of gaps) if (picked.length < CAMPAIGN.anomalies && picked.every((p) => Math.abs(p - c) > 1)) picked.push(c);
-  for (const c of picked) {
-    const l = randomInt(s, L - 1);
-    s.anomalies!.push({ id: `a${s.anomalies!.length}`, kind: kinds[randomInt(s, kinds.length)], x: Math.round(CAMPAIGN.mapMargin + (c + 0.5) * CAMPAIGN.colGap), y: Math.round(CAMPAIGN.mapMargin + (l + 0.5) * CAMPAIGN.laneGap) });
-  }
-  // Armouries and research stations along the strip; those within an anomaly's reach are better stocked.
+  // The galaxy: never the same twice running.
+  const kinds = GALAXY_KINDS.filter((k) => k !== s.galaxy);
+  s.galaxy = kinds[randomInt(s, kinds.length)];
+  // Armouries and research stations along the strip; those deep in it are better stocked.
   const sites = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2));
   for (const n of sites.slice(0, CAMPAIGN.armories)) n.station = { kind: 'armory', cards: armoryStock(s, n) };
   const projects = new Set<string>(me.research?.done ?? []);
@@ -1371,11 +1354,11 @@ const STOCK = CARDS.filter((c) => c.kind !== 'command' && c.kind !== 'global' &&
 
 /**
  * An armoury's stock: CAMPAIGN.armoryStock different cards, each sold once. Mostly dwarf cards, with a fair
- * chance of a rare (Stellar) or Anomaly card among them; now and then nothing but dwarfs. Within an
- * anomaly's reach the odds are better, and there may be two.
+ * chance of a rare (Stellar) or Anomaly card among them; now and then nothing but dwarfs. Deep in the strip
+ * the odds are better, and there may be two.
  */
 function armoryStock(s: CampaignState, n: CampaignNode): string[] {
-  const near = nodeAnomalies(s, n).length > 0;
+  const near = deepIn(s, n);
   const of = (r: ItemRarity) => shuffleInPlace(s, STOCK.filter((c) => (c.rarity ?? 'dwarf') === r && legalIn(s.mode, c.id)).map((c) => c.id));
   const dwarfs = of('dwarf');
   const stellar = of('stellar');
@@ -1389,14 +1372,19 @@ function armoryStock(s: CampaignState, n: CampaignNode): string[] {
   return shuffleInPlace(s, [...rares, ...dwarfs.slice(0, CAMPAIGN.armoryStock - rares.length)]);
 }
 
-/** A research station's one upgrade: an early one, or (within an anomaly's reach) a deep one; each different while they last. */
+/** A research station's one upgrade: an early one, or (deep in the strip) a deep one; each different while they last. */
 function pickResearch(s: CampaignState, n: CampaignNode, taken: Set<string>): string {
-  const near = nodeAnomalies(s, n).length > 0;
+  const near = deepIn(s, n);
   const free = RESEARCH.filter((r) => !taken.has(r.id));
   const fits = free.filter((r) => (near ? r.tier >= 2 : r.tier <= 2));
-  // (Once the deeper projects have all been placed, one near an anomaly repeats one of them: it is never shallow.)
+  // (Once the deeper projects have all been placed, one deep in the strip repeats one of them: it is never shallow.)
   const pool = fits.length ? fits : near ? RESEARCH.filter((r) => r.tier >= 2) : free.length ? free : RESEARCH;
   return pool[randomInt(s, pool.length)].id;
+}
+
+/** Whether a system lies in the last third of its strip (its stations better stocked). */
+export function deepIn(s: CampaignState, n: CampaignNode): boolean {
+  return n.tier - 2 * (s.universe - 1) >= 2;
 }
 
 function randomCardChoices(s: CampaignState, f: Faction): string[] {
@@ -1494,14 +1482,12 @@ function sunBase(n: CampaignNode): BattleModifiers {
 
 /**
  * Each side of a battle as it would start: its sun's head start (positive: hotter) and its modifiers, with
- * the names of what made them (anomalies, the star, heroes...). The same sums as battleSetup, for showing.
+ * the names of what made them (the galaxy, the star, heroes...). The same sums as battleSetup, for showing.
  */
 export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
   const owner = target.owner ? factionById(s, target.owner) : null;
   const guard = defenderOf(s, target, army);
-  const from = nodeById(s, army.nodeId);
-  const fromFx = anomalyEffects(s, from);
-  const targetFx = anomalyEffects(s, target);
+  const fx = galaxyEffects(s);
   const atk = armyBonus(s, army);
   const def = guard && guard.id !== army.id ? armyBonus(s, guard) : null;
   const starBoth: BattleModifiers = target.star === 'white' ? { startingHeat: -2 } : target.star === 'neutron' ? { heatPerTurn: 1 } : {};
@@ -1514,17 +1500,17 @@ export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
     target.star === 'brown' ? { maxHealthDelta: 3 } : {},
     def?.mods ?? {},
     atk.foeMods,
-  ].reduce(mergeModifiers, targetFx?.modifiers ?? {});
-  const atkMods = [base, starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fromFx?.modifiers ?? {});
+  ].reduce(mergeModifiers, fx?.modifiers ?? {});
+  const atkMods = [base, starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {});
   const defHeat = (guard && guard.id !== army.id ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat + (defMods.startingHeat ?? 0);
   const atkHeat = army.damage + (def?.foeHeat ?? 0) + (atkMods.startingHeat ?? 0);
-  const names = (fx: ReturnType<typeof anomalyEffects>) => (fx?.conditions ?? []).map((c) => c.name);
+  const names = (fx: ReturnType<typeof galaxyEffects>) => (fx?.conditions ?? []).map((c) => c.name);
   return {
-    attacker: { heat: atkHeat, mods: atkMods, sources: [...names(fromFx), ...(target.star === 'white' || target.star === 'neutron' ? [STAR_TYPES[target.star].name] : [])] },
+    attacker: { heat: atkHeat, mods: atkMods, sources: [...names(fx), ...(target.star === 'white' || target.star === 'neutron' ? [STAR_TYPES[target.star].name] : [])] },
     defender: {
       heat: defHeat,
       mods: defMods,
-      sources: [...names(targetFx), ...(target.star && target.star !== 'red' ? [STAR_TYPES[target.star].name] : []), ...(target.fortification ? ['Fortified'] : []), ...(target.heart && !owner ? ['Heart Wardens'] : [])],
+      sources: [...names(fx), ...(target.star && target.star !== 'red' ? [STAR_TYPES[target.star].name] : []), ...(target.fortification ? ['Fortified'] : []), ...(target.heart && !owner ? ['Heart Wardens'] : [])],
     },
   };
 }
@@ -1544,12 +1530,10 @@ export function defenderOf(s: CampaignState, target: CampaignNode, attacker?: Ar
 /** Everything that shapes a battle for a system: the army attacking it, and whoever holds it. */
 function battleSetup(s: CampaignState, army: Army, target: CampaignNode): PlayerSetup[] {
   const attacker = factionById(s, army.owner);
-  const from = nodeById(s, army.nodeId);
   const owner = target.owner ? factionById(s, target.owner) : null;
   const guard = defenderOf(s, target, army);
   const g = garrisonBonus(target);
-  const fromFx = anomalyEffects(s, from);
-  const targetFx = anomalyEffects(s, target);
+  const fx = galaxyEffects(s);
   const fortified: BattleModifiers = target.fortification ? { maxHealthDelta: target.fortification * CAMPAIGN.fortifyHealth } : {};
   const wardens: BattleModifiers = target.heart && !owner ? { maxHealthDelta: CAMPAIGN.heartWardenHealth } : {};
   // Both suns' max health, from how near the Heart the battle is.
@@ -1560,7 +1544,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const starCond = target.star && target.star !== 'red' ? [{ name: STAR_TYPES[target.star].name, text: target.star === 'brown' ? STAR_TYPES.brown.boon : STAR_TYPES[target.star].cost }] : [];
   const defenceConditions = [
     ...starCond,
-    ...(targetFx?.conditions ?? []),
+    ...(fx?.conditions ?? []),
     ...(target.heart && !owner ? [{ name: 'Heart Wardens', text: `The oldest guardians: +${CAMPAIGN.heartWardenHealth} max health.` }] : []),
     ...(target.gate && !owner && !guard ? [{ name: 'Weakened', text: `Cut off and failing: the sentinels' sun starts ${CAMPAIGN.gateHeat} hotter.` }] : []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
@@ -1582,11 +1566,11 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       deck: army.deck,
       deckName: `${armyLeader(army)}'s flagship`,
       heatDelta: army.damage + (def?.foeHeat ?? 0),
-      modifiers: [core, starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fromFx?.modifiers ?? {}),
+      modifiers: [core, starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fx?.modifiers ?? {}),
       ...(atk.skills.length ? { skills: atk.skills } : {}),
       ...(atk.boons.length ? { heroBoons: { hero: army.general, boons: atk.boons } } : {}),
       ...atkShip,
-      conditions: [...(fromFx?.conditions ?? []), ...(target.star === 'white' || target.star === 'neutron' ? starCond : []), ...(def?.foeConditions ?? [])],
+      conditions: [...(fx?.conditions ?? []), ...(target.star === 'white' || target.star === 'neutron' ? starCond : []), ...(def?.foeConditions ?? [])],
     },
     {
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
@@ -1597,7 +1581,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : { rooms: stationRooms(target) }),
       tableau: [...(defShip?.tableau ?? []), ...g.tableau],
       lightspeed: g.lightspeed,
-      modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, targetFx?.modifiers ?? {}),
+      modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}),
       ...(def?.skills.length ? { skills: def.skills } : {}),
       ...(guard && def?.boons.length ? { heroBoons: { hero: guard.general, boons: def.boons } } : {}),
       conditions: [...defenceConditions, ...atk.foeConditions].length ? [...defenceConditions, ...atk.foeConditions] : undefined,

@@ -323,7 +323,7 @@ export interface CardInstance {
   spent?: number;
 }
 
-/** Battle modifiers from the campaign map (anomalies, garrisons). */
+/** Battle modifiers from the campaign map (the galaxy, garrisons). */
 export interface BattleModifiers {
   /** Added to the sun's starting heat. */
   startingHeat?: number;

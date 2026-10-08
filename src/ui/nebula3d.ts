@@ -18,9 +18,9 @@
  */
 
 import { buildNebula, GROUND_STRIDE, type Geometry, type Strip } from './nebula-geometry';
-import { MapObjects, type MapObject } from './nebula-objects';
+import { MapObjects, type GalaxyLook, type MapObject } from './nebula-objects';
 
-export type { Strip, MapObject };
+export type { Strip, MapObject, GalaxyLook };
 
 /** The board's paper (#f4f3ef), which everything fades into. */
 const PAPER = [0.957, 0.953, 0.937];
@@ -29,6 +29,10 @@ export const PLANE_Y = 0;
 /** How wide the strip is in the nebula's space (its map units are scaled to this). */
 export const STRIP_WIDTH = 4.4;
 const FOV = (36 * Math.PI) / 180;
+/** Comets crossing now and then, and the meteors of a shower, each so many points long. */
+const COMETS = 4, METEORS = 30, COMET_POINTS = 28;
+/** Each galaxy's look, as the shaders know it. */
+const GALAXY_CODE: Record<GalaxyLook, number> = { blackHole: 1, pulsar: 2, meteors: 3, nebula: 4, darkMatter: 5 };
 
 
 const geometries = new Map<number, Promise<Geometry>>();
@@ -77,8 +81,11 @@ float fbm(vec2 p) { return 0.5 * vnoise(p) + 0.25 * vnoise(p * 2.03 + 7.1) + 0.1
  */
 const GROUND_VERT = `
 attribute vec3 aPos; attribute vec3 aNorm; attribute vec3 aBary; attribute vec3 aEdge; attribute vec4 aShard;
-uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uCrack; uniform float uTime;
-varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist;
+uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uCrack; uniform float uTime; uniform float uGalaxy;
+varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist; varying float vRest;
+// A supermassive black hole's well (uGalaxy 1): the land sinks toward it, under the middle of the strip.
+const vec2 HOLE = vec2(0.0, -0.7);
+float well(vec2 p) { p -= HOLE; return uGalaxy > 0.5 && uGalaxy < 1.5 ? 0.8 * exp(-dot(p, p) / 0.75) : 0.0; }
 mat3 rot(vec3 axis, float a) {
   float c = cos(a), s = sin(a), t = 1.0 - c;
   vec3 u = normalize(axis);
@@ -89,6 +96,15 @@ mat3 rot(vec3 axis, float a) {
 void main() {
   vec3 p = aPos, n = aNorm;
   vec3 mid = aShard.xyz;
+  vRest = aPos.y;
+  // The well: down toward the hole, and the normal tipped with its slope.
+  float wd = well(p.xz);
+  if (wd > 0.001) {
+    p.y -= wd;
+    mid.y -= well(mid.xz);
+    vec2 slope = (p.xz - HOLE) * (2.0 / 0.75) * wd;
+    n = normalize(n - vec3(slope.x, 0.0, slope.y));
+  }
   float fall = (uGone - mid.x) / 0.8 + aShard.w * 0.45;
   if (fall > 0.0) {
     float t = min(fall, 2.2);
@@ -120,8 +136,8 @@ void main() {
 const GROUND_FRAG = `
 #extension GL_OES_standard_derivatives : enable
 precision highp float;
-varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist;
-uniform vec3 uPaper; uniform vec3 uEye; uniform float uFront; uniform float uFade; uniform float uTime;
+varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist; varying float vRest;
+uniform vec3 uPaper; uniform vec3 uEye; uniform float uFront; uniform float uFade; uniform float uTime; uniform float uGalaxy; uniform float uBeam;
 ${NOISE}
 void main() {
   if (vFall > 2.0) discard;
@@ -131,14 +147,57 @@ void main() {
   float key = max(0.0, dot(n, normalize(vec3(0.5, 0.8, 0.35))));
   float fill = max(0.0, dot(n, normalize(vec3(-0.6, 0.4, 0.5)))) * 0.25;
   vec3 c = mix(vec3(0.70, 0.73, 0.79), vec3(0.99, 0.988, 0.98), clamp(0.2 + 0.8 * key + fill, 0.0, 1.0));
-  // Splashes of colour, faint and few: gold, rose, sea blue.
+  // Splashes of sea blue, here and there on the hills round the strip (never in the trough the strip lies over).
   vec2 q = vWorld.xz * 0.35;
-  float splash = smoothstep(0.52, 0.72, fbm(q + 13.0));
-  float hue = fbm(q * 0.7 + 40.0);
-  vec3 tint = hue < 0.42 ? vec3(0.93, 0.74, 0.42) : hue < 0.55 ? vec3(0.90, 0.62, 0.70) : vec3(0.52, 0.72, 0.88);
-  c = mix(c, c * tint * 1.06, splash * 0.8);
+  float hills = smoothstep(-0.2, 0.08, vRest);
+  float splash = smoothstep(0.5, 0.7, fbm(q + 13.0)) * hills;
+  c = mix(c, c * vec3(0.52, 0.72, 0.88) * 1.06, splash * 0.85);
+  // The mesh's coordinates: drawn into the land, bent by whatever lies under the galaxy.
+  vec2 mp = vWorld.xz;
+  if (uGalaxy > 0.5 && uGalaxy < 1.5) {
+    // Into the well, the mesh is wound round the hole, turning slowly.
+    mp -= vec2(0.0, -0.7);
+    float r = length(mp);
+    float twist = 0.9 / (r + 0.35) + uTime * 0.08 * exp(-r * 0.6);
+    mp = mat2(cos(twist), sin(twist), -sin(twist), cos(twist)) * mp + vec2(0.0, -0.7);
+    c *= mix(1.0, 0.82, exp(-r * r / 0.4));
+  } else if (uGalaxy > 1.5 && uGalaxy < 2.5) {
+    // The pulsar's beams, sweeping round: the land lights where they fall.
+    vec2 d = vWorld.xz;
+    float along = abs(dot(normalize(d + 1e-4), vec2(sin(uBeam), cos(uBeam))));
+    float lit = smoothstep(0.985, 0.9995, along) * smoothstep(0.2, 1.2, length(d));
+    float halo = smoothstep(0.93, 0.999, along) * smoothstep(0.2, 1.2, length(d));
+    c = mix(c, vec3(0.62, 0.8, 0.95), halo * 0.35);
+    c = mix(c, vec3(1.0), lit * 0.8);
+  } else if (uGalaxy > 2.5 && uGalaxy < 3.5) {
+    // Meteors striking the hills: rings spreading from where each lands, and a scorch fading.
+    for (int k = 0; k < 6; k++) {
+      float t = uTime / 2.6 + float(k) / 6.0;
+      float cell = floor(t), f = fract(t);
+      vec2 at = vec2(hash(vec2(cell, float(k))) * 11.0 - 5.5, hash(vec2(float(k), cell + 3.0)) * 8.0 - 5.0);
+      float dd = length(vWorld.xz - at);
+      float ring = 1.0 - smoothstep(0.0, 0.02 + fwidth(dd), abs(dd - f * 0.9));
+      float ring2 = 1.0 - smoothstep(0.0, 0.015 + fwidth(dd), abs(dd - f * 0.55));
+      c = mix(c, vec3(0.45, 0.51, 0.64), max(ring, ring2 * 0.6) * (1.0 - f) * 0.8 * hills);
+      c = mix(c, vec3(0.52, 0.72, 0.88), exp(-dd * dd * 60.0) * (1.0 - f) * hills);
+    }
+  } else if (uGalaxy > 3.5 && uGalaxy < 4.5) {
+    // A nebula: sea-blue mist lying in the hollows of the hills, drifting.
+    float mist = smoothstep(0.42, 0.75, fbm(vWorld.xz * 0.5 + vec2(uTime * 0.03, uTime * 0.012)));
+    float low = 1.0 - smoothstep(-0.1, 0.35, vRest);
+    c = mix(c, mix(c, vec3(0.62, 0.78, 0.92), 0.8), mist * low * hills * 0.9);
+  } else if (uGalaxy > 4.5) {
+    // Dark matter: unseen masses drifting under the land, bending its mesh round them, a shadow on it.
+    for (int k = 0; k < 3; k++) {
+      vec2 at = vec2(sin(uTime * 0.05 + float(k) * 2.1) * 4.5, cos(uTime * 0.04 + float(k) * 1.7) * 2.0 - 1.5);
+      vec2 dd = mp - at;
+      float pull = exp(-dot(dd, dd) / 1.4);
+      mp -= dd * pull * 0.35;
+      c *= 1.0 - pull * 0.12;
+    }
+  }
   // The mesh, in fine ink.
-  vec2 g = vWorld.xz / 0.22;
+  vec2 g = mp / 0.22;
   vec2 gw = fwidth(g);
   vec2 gl = abs(fract(g - 0.5) - 0.5) / max(gw, vec2(1e-4));
   float mesh = 1.0 - min(min(gl.x, gl.y), 1.0);
@@ -265,13 +324,13 @@ uniform mat4 uView; uniform mat4 uProj; uniform float uTime; uniform float uPx;
 varying float vA; varying float vK;
 void main() {
   float period = aTime.x, t = mod(uTime + aTime.y, period);
-  float cross = 5.0;
-  vec3 p = aStart + aDir * (t * 3.2 - aK * 0.07);
+  float cross = min(5.0, period * 0.45);
+  vec3 p = aStart + aDir * (t * 3.2 - aK * 0.035);
   vec4 v = uView * vec4(p, 1.0);
   gl_Position = uProj * v;
   vA = t < cross ? sin(t / cross * 3.14159) * (1.0 - aK / 28.0) : 0.0;
   vK = aK;
-  gl_PointSize = uPx * mix(4.5, 1.0, aK / 28.0) * clamp(5.0 / -v.z, 0.6, 1.8);
+  gl_PointSize = uPx * mix(6.0, 1.2, aK / 28.0) * clamp(5.0 / -v.z, 0.6, 1.8);
 }`;
 
 const COMET_FRAG = `
@@ -280,7 +339,8 @@ varying float vA; varying float vK;
 uniform float uFade;
 void main() {
   float a = smoothstep(0.5, 0.1, length(gl_PointCoord - 0.5)) * vA * uFade;
-  vec3 c = mix(vec3(1.0, 0.92, 0.7), vec3(0.45, 0.65, 0.95), clamp(vK / 14.0, 0.0, 1.0));
+  // A gold head, its tail cooling to ink (so it reads on the paper).
+  vec3 c = mix(vec3(0.93, 0.66, 0.28), vec3(0.45, 0.51, 0.64), clamp(vK / 10.0, 0.0, 1.0));
   gl_FragColor = vec4(c * a, a);
 }`;
 
@@ -330,6 +390,8 @@ class Layer {
   private cometCount = 0;
   /** The map's own things in 3D (stars, black holes and the rest): on the layer over the map. */
   objects: MapObjects | null = null;
+  /** What lies under the galaxy (a black hole, a pulsar): on the layer behind the map. */
+  galaxy: MapObjects | null = null;
 
   constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean) {
     const gl = canvas.getContext('webgl', front ? { antialias: true, alpha: true, premultipliedAlpha: true, depth: true } : { antialias: true, alpha: false, depth: true, stencil: true });
@@ -360,14 +422,16 @@ class Layer {
       this.starBuf = gl.createBuffer()!;
       // The comets: a few, each a head and a tail of points, crossing at their own pace.
       const comets: number[] = [];
-      for (let c = 0; c < 4; c++) {
+      // (After them, the meteors of a shower: steeper, quicker, more often, falling into the hills.)
+      for (let c = 0; c < COMETS + METEORS; c++) {
         const r = (k: number) => Math.abs(Math.sin(c * 12.9898 + k * 78.233) * 43758.5453) % 1;
         const side = r(1) < 0.5 ? -1 : 1;
-        const start = [side * 9, 1.4 + r(2) * 2.5, -6 + r(3) * 4];
-        const dir = [-side * (0.85 + r(4) * 0.1), -0.12 - r(5) * 0.15, 0.25 + r(6) * 0.3];
+        const meteor = c >= COMETS;
+        const start = meteor ? [side * (3 + r(9) * 5), 4 + r(2) * 2, -7 + r(3) * 6] : [side * 9, 1.4 + r(2) * 2.5, -6 + r(3) * 4];
+        const dir = meteor ? [-side * (0.4 + r(4) * 0.3), -0.75 - r(5) * 0.2, 0.15 + r(6) * 0.3] : [-side * (0.85 + r(4) * 0.1), -0.12 - r(5) * 0.15, 0.25 + r(6) * 0.3];
         const l = Math.hypot(dir[0], dir[1], dir[2]);
-        const period = 14 + r(7) * 18, offset = r(8) * period;
-        for (let k = 0; k < 28; k++) comets.push(...start, dir[0] / l, dir[1] / l, dir[2] / l, period, offset, k);
+        const period = meteor ? 2.5 + r(7) * 4 : 14 + r(7) * 18, offset = r(8) * period;
+        for (let k = 0; k < COMET_POINTS; k++) comets.push(...start, dir[0] / l, dir[1] / l, dir[2] / l, period, offset, k);
       }
       this.cometBuf = gl.createBuffer()!;
       gl.bindBuffer(gl.ARRAY_BUFFER, this.cometBuf);
@@ -389,7 +453,10 @@ class Layer {
     }
   }
 
-  draw(cam: Camera, time: number, fade: number, gone: number, crack: number) {
+  draw(cam: Camera, time: number, fade: number, gone: number, crack: number, look: GalaxyLook | null) {
+    const galaxy = look ? GALAXY_CODE[look] : 0;
+    // The pulsar's sweep: round once every 9 seconds.
+    const beam = time * ((Math.PI * 2) / 9);
     const gl = this.gl, c = this.canvas;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr);
@@ -422,6 +489,8 @@ class Layer {
       gl.uniform3f(u('uPaper'), PAPER[0], PAPER[1], PAPER[2]);
       gl.uniform3f(u('uEye'), cam.eye[0], cam.eye[1], cam.eye[2]);
       gl.uniform1f(u('uFront'), this.front ? 1 : 0);
+      gl.uniform1f(u('uGalaxy'), galaxy);
+      gl.uniform1f(u('uBeam'), beam);
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       const stride = attrs.reduce((s, [, n]) => s + n, 0) * 4;
       let off = 0;
@@ -465,7 +534,9 @@ class Layer {
       gl.drawArrays(gl.TRIANGLES, 0, this.groundCount);
       done();
     }
-    // The stars and comets over it, see-through (hidden behind the mountains).
+    // What lies under the galaxy.
+    this.galaxy?.drawGalaxy(cam, time, fade, look, beam);
+    // The stars and comets over it, see-through (hidden behind the hills).
     if (!this.front) {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -477,7 +548,8 @@ class Layer {
       }
       if (this.cometProg && this.cometBuf) {
         done = use(this.cometProg, this.cometBuf, [['aStart', 3], ['aDir', 3], ['aTime', 2], ['aK', 1]]);
-        gl.drawArrays(gl.POINTS, 0, this.cometCount);
+        // (A meteor shower: all of them; otherwise only the few comets.)
+        gl.drawArrays(gl.POINTS, 0, look === 'meteors' ? this.cometCount : COMETS * COMET_POINTS);
         done();
       }
       gl.depthMask(true);
@@ -511,6 +583,7 @@ export class Nebula {
   private gone = -50;
   private goneTarget = -50;
   private crack = -50;
+  private look: GalaxyLook | null = null;
   /** Told whenever the camera moves, with the camera as drawn (the map lays itself on the plane from it). */
   onCamera: ((cam: Camera) => void) | null = null;
   camera: Camera | null = null;
@@ -529,6 +602,7 @@ export class Nebula {
     const top = this.layers[this.layers.length - 1];
     try {
       top.objects = new MapObjects(top.gl);
+      this.layers[0].galaxy = this.layers[0] === top ? top.objects : new MapObjects(this.layers[0].gl);
     } catch {
       top.objects = null;
     }
@@ -552,6 +626,13 @@ export class Nebula {
       this.pose = this.home();
       this.moved = true;
     }
+    this.wake();
+  }
+
+  /** What lies under this galaxy (null: nothing). */
+  setGalaxy(look: GalaxyLook | null) {
+    if (this.look === look) return;
+    this.look = look;
     this.wake();
   }
 
@@ -723,7 +804,7 @@ export class Nebula {
       if (!this.camera || this.camera.width !== cam.width || this.camera.height !== cam.height) this.moved = true;
       this.camera = cam;
       const fade = this.fade * this.fade * (3 - 2 * this.fade);
-      if (!document.hidden) for (const l of this.layers) l.draw(cam, this.time, fade, this.gone, this.crack);
+      if (!document.hidden) for (const l of this.layers) l.draw(cam, this.time, fade, this.gone, this.crack, this.look);
       if (this.moved) {
         this.moved = false;
         this.onCamera?.(cam);

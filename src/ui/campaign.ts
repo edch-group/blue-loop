@@ -1,5 +1,6 @@
 import {
-  ANOMALIES,
+  GALAXIES,
+  type GalaxyKind,
   armyBonus,
   BALANCE,
   battleFinds,
@@ -60,7 +61,6 @@ import {
   garrisonBonus,
   MAP_HEIGHT,
   MAP_WIDTH,
-  nodeAnomalies,
   nodeById,
   ownedNodes,
   RACE_NAMES,
@@ -70,7 +70,6 @@ import {
   SUBRACES,
   type MetaState,
   plainText,
-  type Anomaly,
   type CampaignAction,
   type CampaignNode,
   type CampaignState,
@@ -125,6 +124,15 @@ export { FACTION_COLOUR };
 const NEUTRAL = '#c9cbd0';
 /** Each kind of relic's mark, drawn in ink. */
 const glyph = (d: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+/** Each kind of galaxy's mark, in ink. */
+const GALAXY_GLYPH: Record<GalaxyKind, string> = {
+  blackHole: '<ellipse cx="12" cy="12" rx="10" ry="3.6"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/><path d="M5 9.5a8 8 0 0 1 14 0"/>',
+  pulsar: '<circle cx="12" cy="12" r="2.4"/><path d="M12 9.6 7 2M12 14.4 17 22"/><path d="M9 6.5a7 7 0 0 0-3.6 8M15 17.5a7 7 0 0 0 3.6-8"/>',
+  meteors: '<circle cx="16.5" cy="16.5" r="2.4"/><path d="M14.8 14.8 4 4M18 12.5 10 4.5M12.5 18 4.5 10"/>',
+  nebula: '<path d="M4 15c0-3 2.5-5 5-4.5C10 7 14 6 16 9c3 0 4.5 2.5 4 5-.5 2.5-3 3.5-5 3H8c-2.5 0-4-1-4-2z"/>',
+  darkMatter: '<circle cx="12" cy="12" r="8" stroke-dasharray="2 3"/><circle cx="8" cy="10" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1" fill="currentColor"/><circle cx="13" cy="15" r="1.5" fill="currentColor"/>',
+};
+
 const RELIC_GLYPH: Record<string, string> = {
   weapon: glyph('M5 19 17 7l2-3-3 2L4 18M8 16l-3 3M14 6l4 4'),
   helm: glyph('M5 16V12a7 7 0 0 1 14 0v4M5 16h14M9 9l3-4 3 4'),
@@ -157,11 +165,6 @@ const ARMORY_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
 const RESEARCH_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 2.5h4M8.8 2.5v5L4.5 15a1.6 1.6 0 0 0 1.4 2.4h8.2a1.6 1.6 0 0 0 1.4-2.4l-4.3-7.5v-5" fill="#9fd3d9" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/><ellipse cx="10" cy="12.5" rx="7.5" ry="2.4" fill="none" stroke="#a98fe0" stroke-width="1"/></svg>';
-/** A station's mark, in 3D over its system: the armoury a turning crate (a cube), the research station a flask in depth. */
-/** A space station's mark over its system: a box drawn in ink on a paper token. */
-const CRATE_3D = '<svg class="cmp-token-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2 13.4 5v6L8 13.8 2.6 11V5Z"/><path d="M2.6 5 8 7.8 13.4 5M8 7.8v6"/></svg>';
-/** A research station's mark over its system: a flask drawn in ink on a paper token. */
-const FLASK_3D = '<svg class="cmp-token-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.2 2.2h3.6M6.8 2.2v4L3.3 12.4a1 1 0 0 0 .9 1.4h7.6a1 1 0 0 0 .9-1.4L9.2 6.2v-4"/><path d="M4.8 10h6.4"/></svg>';
 /** A scanner array: a dish with two rings of signal. */
 const SCANNER =
   '<svg class="cur cur-scanner" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5 9.2 10.3" stroke="#6e7f9f" stroke-width="1.4" stroke-linecap="round"/><path d="M3 11a6 6 0 0 0 6 6L3 11Z" fill="#8fa3c6" stroke="#6e7f9f" stroke-width=".9" stroke-linejoin="round"/><path d="M11.2 6.8a3.4 3.4 0 0 1 2 2M11.6 3.6a6.6 6.6 0 0 1 4.8 4.8" fill="none" stroke="#6fb3bc" stroke-width="1.3" stroke-linecap="round"/><circle cx="9.6" cy="9.9" r="1.2" fill="#6fb3bc"/></svg>';
@@ -330,8 +333,7 @@ export class CampaignView {
   private army: string | null = null;
   /** The line reached in the story scene on screen. */
   private storyLine = 0;
-  /** An anomaly whose details are shown in the side panel. */
-  private anomaly: string | null = null;
+
   /** What happened in the last battle or turn, shown once the player is free to read it. */
   private report: { title: string; lines: string[] } | null = null;
   /** A battle just fought, as its report shows it: who won where, and what it brought (or cost). */
@@ -761,18 +763,11 @@ export class CampaignView {
         this.selected = null;
         this.army = null;
         break;
-      case 'cmp-anomaly':
-        // (Anomalies are unlabelled and untold: what one does shows when a battle is fought in its reach.)
-        if (this.swallowClick) return true;
-        this.anomaly = null;
-        this.selected = null;
-        break;
       case 'cmp-army': {
         if (this.swallowClick) return true;
         const army = armyById(s!, arg);
         // Your own army: pick it to march (tap again to put it down), keeping the map wide so its routes
         // show. Anyone else's: show the system it stands in.
-        this.anomaly = null;
         if (army.owner === s!.playerId) {
           this.army = this.army === arg ? null : arg;
           this.selected = null;
@@ -841,7 +836,6 @@ export class CampaignView {
         this.popTip = this.popTip === el.dataset.tip ? null : el.dataset.tip ?? null;
         break;
       case 'cmp-select':
-        this.anomaly = null;
         this.popTip = null;
         if (this.swallowClick) return true;
         // A star in the flagship's reach sends it there (no need to pick the ship first); a known foe gets a
@@ -979,6 +973,7 @@ export class CampaignView {
         <header class="cmp-top">
           <div class="cmp-top-left">
             <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" data-tip="Universe ${s.universe} of this run: the overview"><small>universe ${s.universe}</small><b>move ${s.turn - s.universeStart + 1}</b><i>›</i></button>
+            ${this.renderGalaxy()}
             ${this.renderStability()}
             ${scene ? this.renderStory(scene) : ''}
           </div>
@@ -1003,10 +998,18 @@ export class CampaignView {
         ${this.renderPop()}
         <div class="cmp-end">
           ${this.endMoves()}
-          <button class="btn ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" data-tip="Hold position for a move: the raiders move, and the collapse comes on" ${s.phase !== 'player' ? 'disabled' : ''}>wait</button>
+          <button class="btn ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" data-tip="Hold position for a move: the collapse comes on" ${s.phase !== 'player' ? 'disabled' : ''}>wait</button>
         </div>
         ${this.waiting ? this.renderWaiting() : overlay}
       </main>`;
+  }
+
+  /** What this galaxy is like (touching every battle in it): its mark, its name, and what it does on a hover or tap. */
+  private renderGalaxy(): string {
+    const kind = this.state!.galaxy;
+    if (!kind) return '';
+    const g = GALAXIES[kind];
+    return `<button class="cmp-galaxy" data-tip-title="${esc(g.name.toLowerCase())}" data-tip="${esc(g.text)}" data-tip-note="Every battle in this galaxy, both sides." aria-label="${esc(g.name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${GALAXY_GLYPH[kind]}</svg><b>${esc(g.name.toLowerCase())}</b></button>`;
   }
 
   /**
@@ -1219,8 +1222,6 @@ export class CampaignView {
           n.garrison.length ? `<i class="cmp-badge">▣${n.garrison.length}</i>` : '',
           n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
           n.scanner ? `<i class="cmp-badge cmp-scan" title="Scanner array">${SCANNER}</i>` : '',
-          n.station?.kind === 'armory' ? `<i class="cmp-badge cmp-scan cmp-station-badge ${n.station.cards.length ? '' : 'spent'}" title="Space station: ${n.station.cards.length ? `${n.station.cards.length} cards for sale` : 'sold out'}">${CRATE_3D}</i>` : '',
-          n.station?.kind === 'research' ? `<i class="cmp-badge cmp-scan cmp-station-badge ${n.station.takenBy ? 'spent' : ''}" title="Research station${n.station.takenBy ? ': taken' : ''}">${FLASK_3D}</i>` : '',
           n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
         ].join('');
         return `
@@ -1245,7 +1246,6 @@ export class CampaignView {
         <div class="cmp-plane" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">
           <div class="cmp-grid" style="--gk:${(MAP_WIDTH / 3500).toFixed(3)}"></div>
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
-          ${this.renderAnomalies(focus, prev, seen)}
           ${nodes}
           ${this.renderFleet(seen)}
         </div>
@@ -1395,60 +1395,6 @@ export class CampaignView {
 
   /** An army on the map: its general's portrait in a ring of its faction's colour (dimmed once it has moved). */
 
-
-  /** Anomalies: flat phenomena on the plane (discs, clouds, rings), with an upright marker to tap. */
-  private renderAnomalies(focus: CampaignNode | null, prev: CampaignNode | null, seen: Set<string>): string {
-    const s = this.state!;
-    const farFrom = (f: CampaignNode | null, a: Anomaly) => !!f && Math.hypot(a.x - f.x, a.y - f.y) > 300;
-    // An anomaly shows once its reach touches a system in view.
-    const inView = (a: Anomaly) => s.nodes.some((n) => seen.has(n.id) && Math.hypot(n.x - a.x, n.y - a.y) <= ANOMALIES[a.kind].radius + 40);
-    return (s.anomalies ?? [])
-      .filter(inView)
-      .map((a) => {
-        const def = ANOMALIES[a.kind];
-        const far = farFrom(focus, a);
-        const fade = far !== farFrom(prev, a) ? (far ? 'cmp-fade-out' : 'cmp-fade-in') : '';
-        const flat = {
-          blackHole: '<div class="an-lens"></div>',
-          nebula: '<div class="an-cloud an-cloud-a"></div><div class="an-cloud an-cloud-b"></div><div class="an-cloud an-cloud-c"></div>',
-          darkMatter: '<div class="an-haze"></div><div class="an-motes"></div>',
-          pulsar: '<div class="an-wave"></div><div class="an-wave an-wave-2"></div>',
-        }[a.kind];
-        const marker = {
-          blackHole: '<span class="an-hole"><i class="an-disc"></i></span>',
-          nebula: '<span class="an-glint"></span>',
-          darkMatter: '<span class="an-cluster"><i></i><i></i><i></i><i></i><i></i></span>',
-          pulsar: '<span class="an-pulsar"><i class="an-beam"></i></span>',
-        }[a.kind];
-        return `
-          <div class="cmp-an an-${a.kind} ${far ? 'cmp-far' : ''} ${fade} ${this.anomaly === a.id ? 'an-on' : ''}" data-key="an-${a.id}" style="left:${a.x}px;top:${a.y}px;--ar:${def.radius}px">
-            <div class="an-reach"></div>
-            ${flat}
-            <button class="cmp-bb an-bb" data-act="cmp-anomaly" data-arg="${a.id}" aria-label="${esc(def.name)}">
-              ${marker}
-            </button>
-          </div>`;
-      })
-      .join('');
-  }
-
-  private renderAnomaly(a: Anomaly): string {
-    const s = this.state!;
-    const def = ANOMALIES[a.kind];
-    const reached = s.nodes.filter((n) => nodeAnomalies(s, n).some((x) => x.id === a.id));
-    const rows = reached
-      .map((n) => `<div class="cmp-faction" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">${n.owner ? this.avatarOf(n.owner) : '<i></i>'}<span>${lower(n.name)}</span><b>${n.owner ? lower(factionById(s, n.owner).name) : 'neutral'}</b></div>`)
-      .join('');
-    return `
-      <div class="cmp-node-head" style="--fc:#8d92a0"><i class="an-icon an-icon-${a.kind}"></i>
-        <div><h3>${lower(def.name)}</h3><small>anomaly</small></div>
-        <button class="icon-btn" data-act="cmp-anomaly" data-arg="${a.id}" aria-label="Close">×</button>
-      </div>
-      <div class="cmp-sys cmp-anom"><b>in battle</b><span>${esc(def.text)}</span></div>
-      <p class="cmp-hint">Applies to anyone fighting from a system within its reach: the defender of a system here, or an attacker launching from one.</p>
-      <div class="section-label">systems in reach</div>
-      <div class="cmp-factions">${rows}</div>`;
-  }
 
   /** The selected system's planets, orbiting its star (sized by level, tinted by track). */
   private renderOrbits(n: CampaignNode): string {
@@ -1652,7 +1598,8 @@ export class CampaignView {
     let seed = s.universe * 7919;
     for (const ch of s.nodes[0]?.name ?? '') seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
     this.nebula.show(seed, { nodes: [...at.values()], routes });
-    // The map's things in 3D: every system's star (ringed in its holder's colour), and the anomalies.
+    // The map's things in 3D: every system's star (ringed in its holder's colour); nothing over them (what a system
+    // holds is found by going there).
     const hex = (c: string): [number, number, number] => {
       const m = /^#?([0-9a-f]{6})$/i.exec(c);
       const v = m ? parseInt(m[1], 16) : 0x999999;
@@ -1663,25 +1610,15 @@ export class CampaignView {
       return {
         x,
         z,
-        kind: n.heart ? 'heart' : (n.star ?? 'yellow'),
+        heart: !!n.heart,
         ring: n.owner ? hex(this.colourOf(n.owner)) : undefined,
         dim: !!(n.dimmed || n.collapsing),
         dead: !!(n.collapsed || n.ruined),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,
-        marks: {
-          armory: n.station?.kind === 'armory',
-          research: n.station?.kind === 'research',
-          spent: n.station?.kind === 'armory' ? !n.station.cards.length : n.station?.kind === 'research' ? !!n.station.takenBy : false,
-          garrison: n.garrison.length,
-          damage: n.damage,
-        },
       };
     });
-    for (const a of s.anomalies ?? []) {
-      const [x, z] = world(a.x, a.y);
-      objects.push({ x, z, kind: a.kind, seed: parseFloat(seedOf(a.id)) * 10 || 0 });
-    }
     this.nebula.setObjects(objects);
+    this.nebula.setGalaxy(s.galaxy ?? null);
     // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
     // column past the last one collapsing.
     const half = (CAMPAIGN.colGap / 2) * MAP_K;
@@ -1831,7 +1768,7 @@ export class CampaignView {
 
 
 
-  /** What is picked on the map (a system, an army or an anomaly), in a popover beside it. */
+  /** What is picked on the map (a system or an army), in a popover beside it. */
   private renderPop(): string {
     const s = this.state!;
     let key = '';
@@ -1842,12 +1779,6 @@ export class CampaignView {
     } else if (this.army && s.armies.some((a) => a.id === this.army)) {
       key = `a-${this.army}`;
       body = this.renderArmy(armyById(s, this.army));
-    } else if (this.anomaly) {
-      const an = (s.anomalies ?? []).find((a) => a.id === this.anomaly);
-      if (an) {
-        key = `x-${an.id}`;
-        body = this.renderAnomaly(an);
-      }
     }
     if (!body) {
       this.popPos = null;
@@ -1887,8 +1818,7 @@ export class CampaignView {
     const s = this.state;
     const node = this.selected && s ? s.nodes.find((n) => n.id === this.selected) : undefined;
     const ship = !node && this.army ? this.ships.get(this.army) : undefined;
-    const an = !node && !ship && this.anomaly && s ? (s.anomalies ?? []).find((a) => a.id === this.anomaly) : undefined;
-    const at = node ? { x: node.x, y: node.y, lift: 24 } : ship ? { x: ship.x, y: ship.y, lift: 6 } : an ? { x: an.x, y: an.y, lift: 16 } : null;
+    const at = node ? { x: node.x, y: node.y, lift: 24 } : ship ? { x: ship.x, y: ship.y, lift: 6 } : null;
     const box = pop.offsetParent as HTMLElement | null;
     if (!at || !box || (!this.cam && !this.nebula?.camera)) return;
     // Everything in the popover's own CSS pixels: the page may be zoomed (body zoom), so screen measurements
@@ -1952,21 +1882,22 @@ export class CampaignView {
     const chip = (body: string, tip: string, tone = '') => `<button class="pop-chip ${tone}" data-act="cmp-tip" data-tip="${esc(tip)}" title="${esc(tip)}">${body}</button>`;
     const icon = (body: string) => `<svg class="pi" viewBox="0 0 16 16" aria-hidden="true">${body}</svg>`;
     const hp = sunHealth(n);
+    // What a system holds is known only once you hold it or your flagship is there.
+    const known = mine || flagship(s, me.id)?.nodeId === n.id;
     const chips = [
       n.owner || n.heart || n.ruined ? '' : chip(`${icon('<circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.4M8 11.4v.1"/>')}<b>unknown</b>`, `What ${n.name} holds is unknown until you get there: defenders, or something to find. ${starOdds(n)}`),
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
       n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, 'Torn open by a Stellari bloom: beat its guardian and go through, into the next universe, with the petals you grab.', 'gold') : '',
-      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, anomalies and ships' hulls): more the further along the strip, and in every universe after the first.`),
+      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, the galaxy and ships' hulls): more the further along the strip, and in every universe after the first.`),
       n.scanner ? chip(SCANNER, 'Scanner array: whoever holds it sees systems two links away.') : '',
       (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
       n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'Its star has guttered: it yields less than it did.', 'muted') : '',
       n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
       (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, `Stabilised: it holds until turn ${n.stableUntil}.`, 'good') : '',
-      ...nodeAnomalies(s, n).map((x) => chip(`<i class="an-icon an-icon-${x.kind}"></i>`, `${ANOMALIES[x.kind].name} nearby: ${ANOMALIES[x.kind].text}`)),
-      n.station?.kind === 'armory'
+      known && n.station?.kind === 'armory'
         ? chip(`${ARMORY_ICON}<b>${n.station.cards.length ? `space station · ${n.station.cards.length}` : 'space station · sold out'}</b>`, n.station.cards.length ? `A space station: ${n.station.cards.length} card${n.station.cards.length === 1 ? '' : 's'} for sale, each only once. Bring your flagship here to dock.` : 'A space station, sold out.', n.station.cards.length ? 'gold' : 'muted')
         : '',
-      n.station?.kind === 'research'
+      known && n.station?.kind === 'research'
         ? chip(`${RESEARCH_ICON}<b>${n.station.takenBy ? 'research · taken' : lower(researchProject(n.station.project)?.name ?? 'research')}</b>`, n.station.takenBy ? `A research station. Its upgrade has been taken${n.station.takenBy === me.id ? ' (by you)' : ''}.` : `A research station: ${researchProject(n.station.project)?.name}. ${researchProject(n.station.project)?.text} Bring your flagship here and spend ${researchWisdom(n.station.project)} Wisdom to take it.`, n.station.takenBy ? 'muted' : 'good')
         : '',
     ].join('');
@@ -2253,7 +2184,6 @@ export class CampaignView {
     const p = researchProject(n.station.project)!;
     const cost = researchWisdom(p.id);
     const why = researchProblem(s, me, n);
-    const near = nodeAnomalies(s, n).length > 0;
     const done = (me.research?.done ?? []).map((id) => researchProject(id)).filter((x) => !!x);
     const b = researchBonus(me.research);
     const sums = [
@@ -2273,7 +2203,7 @@ export class CampaignView {
       `<div class="cmp-rs-station">
           <div class="cmp-rs-offer ${taken ? 'taken' : ''}">
             ${RESEARCH_ICON}
-            <div><b>${esc(p.name)}</b><small>tier ${p.tier}${near ? ' · in an anomaly\'s reach' : ''}</small><p>${esc(p.text)}</p></div>
+            <div><b>${esc(p.name)}</b><small>tier ${p.tier}</small><p>${esc(p.text)}</p></div>
           </div>
           ${
             taken
