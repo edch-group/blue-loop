@@ -1,6 +1,5 @@
 import {
   ANOMALIES,
-  MODULES,
   armyBonus,
   BALANCE,
   battleFinds,
@@ -13,13 +12,10 @@ import {
   armoryPrice,
   attackOptions,
   CAMPAIGN,
-  CAMPAIGN_MISSIONS,
-  campaignMissionDef,
   campaignPlayer,
   cardDef,
   migrateGame,
   migrateCampaign,
-  armyDeckProblems,
   visibleNodes,
   armiesOf,
   armyAt,
@@ -27,12 +23,7 @@ import {
   armyMoves,
   buyProblem,
   flagship,
-  heroStats,
-  trainProblem,
-  shipLevel,
-  shipUpgradeCost,
   researchWisdom,
-  type ShipPart,
   regionalStability,
   universeStability,
   wormholePetals,
@@ -47,13 +38,6 @@ import {
   type MetaGroup,
   heroState,
   heroLevel,
-  nextLevelXp,
-  skillPoints,
-  learnProblem,
-  SKILL_TREES,
-  RACE_SLOTS,
-  SLOT_NAME,
-  XP_LEVELS,
   battleOdds,
   GENERALS,
   ORACLE_NAME,
@@ -76,7 +60,6 @@ import {
   garrisonBonus,
   MAP_HEIGHT,
   MAP_WIDTH,
-  missionProgress,
   nodeAnomalies,
   nodeById,
   ownedNodes,
@@ -95,8 +78,6 @@ import {
   researchProblem,
   researchProject,
   researchBonus,
-  heroBonus,
-  boonsText,
   setRulesMode,
   isDraw,
   shownKind,
@@ -104,7 +85,6 @@ import {
 import { markDirty } from './account';
 import { loadMeta, saveMeta } from './meta';
 import { DeckBuilder, type BuilderMode } from './builder';
-import { heroFigure, skillTree } from './heroview';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
@@ -143,6 +123,23 @@ const lower = (t: string) => esc(t.toLowerCase());
 import { FACTION_COLOUR, factionAvatar } from './factions';
 export { FACTION_COLOUR };
 const NEUTRAL = '#c9cbd0';
+/** Each kind of relic's mark, drawn in ink. */
+const glyph = (d: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+const RELIC_GLYPH: Record<string, string> = {
+  weapon: glyph('M5 19 17 7l2-3-3 2L4 18M8 16l-3 3M14 6l4 4'),
+  helm: glyph('M5 16V12a7 7 0 0 1 14 0v4M5 16h14M9 9l3-4 3 4'),
+  mantle: glyph('M8 4h8l3 16H5zM12 4v16'),
+  sigil: glyph('M12 3l2.6 5.6L20 9.5l-4 4 1 6-5-3-5 3 1-6-4-4 5.4-.9z'),
+  core: glyph('M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'),
+  facet: glyph('M12 3 20 9l-3 11H7L4 9zM4 9h16M12 3l-3 6 3 11 3-11z'),
+  ring: glyph('M12 6a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM9 6l3-3 3 3'),
+  carapace: glyph('M5 13a7 7 0 0 1 14 0v3H5zM12 6v10M5 13h14'),
+  gland: glyph('M12 4c3 4 5 7 5 10a5 5 0 0 1-10 0c0-3 2-6 5-10z'),
+  mask: glyph('M5 6h14v6a7 7 0 0 1-14 0zM8.5 10.5h2M13.5 10.5h2'),
+  plate: glyph('M6 4h12v9a6 6 0 0 1-12 0zM6 9h12'),
+  star: glyph('M12 3v18M3 12h18M6 6l12 12M18 6 6 18'),
+  ember: glyph('M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-4 3-5 0 2 1 3 2 3 0-3-1-5 0-8z'),
+};
 /** Credits: a solid gold coin. Earned from your systems, battles and missions; spent on repairs and your ship. */
 const CREDITS =
   '<svg class="cur cur-credits" viewBox="0 0 20 20" aria-label="credits"><circle cx="10" cy="10" r="9" fill="#b98f3c"/><circle cx="9.3" cy="9.2" r="8" fill="#d6ae57"/><circle cx="7.4" cy="6.8" r="3.2" fill="#f0d68f" opacity=".55"/><circle cx="10" cy="10" r="6.3" fill="none" stroke="#fff4d6" stroke-width="1.2" opacity=".85"/><path d="M10 5.6 11.2 8.8 14.4 10 11.2 11.2 10 14.4 8.8 11.2 5.6 10 8.8 8.8Z" fill="#fff8e6"/></svg>';
@@ -183,8 +180,6 @@ function portrait(cardId: string): string {
   return `<span class="cmp-portrait">${cardArtLite(cardDef(cardId))}</span>`;
 }
 
-/** The base button's icon: a little house. */
-const HOME_ICON = '<svg class="cmp-home-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v8.5h11V10"/><path d="M10.2 18.5v-4.6h3.6v4.6"/></svg>';
 
 /** One of the Lost Races: a faded figure, half gone into the dark. */
 const LOST_PORTRAIT = `<span class="cmp-portrait cmp-portrait-lost"><svg viewBox="0 0 80 80" aria-hidden="true">
@@ -299,17 +294,10 @@ export interface CampaignHost {
 type ArmoryTab = 'buy' | 'recycle' | 'fuse';
 
 type Sheet =
-  /** The base, full screen: an army's deck (the first army's if none is named), in the deck builder. */
-  | { kind: 'deck'; armyId?: string }
   /** An armoury on the map, the flagship visiting: buying its stock, recycling or fusing; the card picked (or, fusing, the two). */
   | { kind: 'armory'; nodeId: string; tab: ArmoryTab; pick?: string; fuse?: string[] }
-  | { kind: 'missions' }
   /** A research station on the map: its one upgrade. */
   | { kind: 'research'; nodeId: string }
-  /** The base's hero: their training, skills and gear. */
-  | { kind: 'heroes'; hero?: string }
-  /** The base's ship: its rooms, shields and hull, to upgrade. */
-  | { kind: 'ship'; pick?: string }
   | { kind: 'log' }
   | { kind: 'attack'; armyId: string; toId: string }
   | { kind: 'help' }
@@ -361,8 +349,6 @@ export class CampaignView {
     damage: number;
   } | null = null;
   private sheet: Sheet | null = null;
-  /** The base's tab last open. */
-  private baseTab: 'deck' | 'heroes' | 'ship' | 'missions' = 'deck';
   /** New-campaign setup choices (the hero: an index into the race's heroes). */
   private setup = { rivals: 3, race: 0, hero: 0 };
   private shopOpen = false;
@@ -370,9 +356,6 @@ export class CampaignView {
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
   /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
   private waiting: { factionId: string | null; lines: string[] } | null = null;
-  /** In the heroes tab: the skill and the gear slot picked. */
-  private skillPick: string | null = null;
-  private slotPick: string | null = null;
   /** Visits to the armoury's keepers (each visit, they say something else). */
   private keeperVisit = 0;
   /** The base's deck and armoury: the main deck builder, put to the campaign's use. */
@@ -424,18 +407,18 @@ export class CampaignView {
   }
 
   /** What the player found in the wreckage of a battle just won (gear for their hero, modules for their ship). */
-  findsFor(game: GameState): { name: string; text: string; rarity: string; kind: 'gear' | 'module'; mark: string }[] {
+  findsFor(game: GameState): { name: string; text: string; rarity: string; kind: 'gear' | 'module'; mark: string; cursed?: boolean }[] {
     const s = this.state;
     if (!s?.battle || !game.winnerId) return [];
     const b = s.battle;
     const winner = game.winnerId === game.players[0].id ? b.attacker : b.defender;
     if (winner !== s.playerId) return [];
-    const { items, modules } = battleFinds(s, game);
+    const { items } = battleFinds(s, game);
     // (Each marked by what it does: its first boon's kind.)
     const mark = (boons: string[] | undefined) => (boons?.[0] ?? 'boon_star').replace(/^boon_/, '').replace(/_\d+$/, '');
     return [
-      ...items.map((i) => ({ name: i.name, text: itemText(i), rarity: i.rarity, kind: 'gear' as const, mark: mark(i.boons) })),
-      ...modules.map((m) => ({ name: m.name, text: m.text, rarity: m.rarity, kind: 'module' as const, mark: mark(m.boons) })),
+      ...items.map((i) => ({ name: i.name, text: i.cursed ? i.text : itemText(i), rarity: i.rarity, kind: 'gear' as const, mark: i.cursed ? 'heat' : mark(i.boons), cursed: !!i.cursed })),
+
     ];
   }
 
@@ -698,11 +681,6 @@ export class CampaignView {
     return armiesOf(s, s.playerId).every((a) => armyMoves(s, a).length === 0);
   }
 
-  /** Something waits in the base: skill points to spend, or gear found and not yet worn. */
-  private baseIsNew(): boolean {
-    const me = campaignPlayer(this.state!);
-    return !!me.hero && (skillPoints(heroState(me, me.hero), me.hero) > 0 || (me.items ?? []).length > 0);
-  }
 
   // ---- Clicks -----------------------------------------------------------------
 
@@ -823,14 +801,6 @@ export class CampaignView {
       case 'cmp-heal-army':
         if (this.apply({ type: 'healArmy', armyId: arg, all: el.dataset.all === '1' })) el.dataset.all === '1' ? sound.upgrade() : sound.repair();
         break;
-      case 'cmp-deck-army':
-        this.baseTab = 'deck';
-        this.sheet = { kind: 'deck', armyId: arg };
-        break;
-      case 'cmp-hero-open':
-        this.baseTab = 'heroes';
-        this.sheet = { kind: 'heroes', hero: arg };
-        break;
       case 'cmp-research':
         if (this.apply({ type: 'research', nodeId: arg })) sound.upgrade();
         break;
@@ -844,62 +814,6 @@ export class CampaignView {
         sound.hover();
         break;
       }
-      case 'cmp-train':
-        if ((arg === 'attack' || arg === 'defence') && this.apply({ type: 'train', hero: this.pickedHero(), stat: arg })) sound.upgrade();
-        break;
-      case 'cmp-ship-pick':
-        if (this.sheet?.kind === 'ship') this.sheet = { kind: 'ship', pick: arg };
-        sound.hover();
-        break;
-      case 'cmp-fit': {
-        const [moduleId, room] = arg.split(':');
-        if (this.apply({ type: 'fitModule', moduleId, room: Number(room) })) sound.upgrade();
-        break;
-      }
-      case 'cmp-unfit':
-        this.apply({ type: 'unfitModule', room: Number(arg) });
-        break;
-      case 'cmp-ship': {
-        const [part, room] = arg.split(':');
-        const action = (part === 'defence' || part === 'attack' ? { type: 'upgradeShip', part, room: Number(room) } : { type: 'upgradeShip', part }) as CampaignAction;
-        if (this.apply(action)) sound.upgrade();
-        break;
-      }
-      case 'cmp-hero':
-        this.sheet = { kind: 'heroes', hero: arg };
-        this.skillPick = this.slotPick = null;
-        sound.hover();
-        break;
-      case 'cmp-skill-pick':
-        this.skillPick = arg;
-        sound.hover();
-        break;
-      case 'cmp-slot-pick':
-        this.slotPick = arg || null;
-        sound.hover();
-        break;
-      case 'cmp-learn':
-        if (this.sheet?.kind === 'heroes' && this.apply({ type: 'learnSkill', hero: this.pickedHero(), skill: arg })) sound.upgrade();
-        break;
-      case 'cmp-equip': {
-        if (this.sheet?.kind !== 'heroes') break;
-        const me = campaignPlayer(s!);
-        const hero = this.pickedHero();
-        const item = (me.items ?? []).find((x) => x.id === arg);
-        const h = heroState(me, hero);
-        // Into an empty slot of its kind, else the first of its kind (swapping).
-        const fit = RACE_SLOTS[me.race].filter((x) => item && x.kind === item.slot);
-        const slot = fit.find((x) => x.id === this.slotPick) ?? fit.find((x) => !h.gear[x.id]) ?? fit[0];
-        if (slot && this.apply({ type: 'equip', hero, itemId: arg, slot: slot.id })) sound.shield();
-        break;
-      }
-      case 'cmp-unequip':
-        if (this.sheet?.kind === 'heroes') {
-          const me = campaignPlayer(s!);
-          const hero = this.pickedHero();
-          if (me && this.apply({ type: 'unequip', hero, slot: arg })) sound.hover();
-        }
-        break;
       case 'cmp-armory-tab':
         if (this.sheet?.kind === 'armory' && (arg === 'buy' || arg === 'recycle' || arg === 'fuse')) {
           this.sheet = { kind: 'armory', nodeId: this.sheet.nodeId, tab: arg };
@@ -952,13 +866,7 @@ export class CampaignView {
         sound.hover();
         break;
       case 'cmp-sheet':
-        // "base" reopens the base on the tab last used.
-        if (arg === 'base') arg = this.baseTab;
-        if (arg === 'deck' || arg === 'heroes' || arg === 'ship' || arg === 'missions') this.baseTab = arg;
-        if (arg === 'heroes') this.sheet = { kind: 'heroes' };
-        else if (arg === 'ship') this.sheet = { kind: 'ship' };
-        else if (arg === 'deck') this.sheet = { kind: 'deck', armyId: this.sheet?.kind === 'deck' ? this.sheet.armyId : undefined };
-        else this.sheet = { kind: arg as 'missions' | 'log' | 'help' | 'overview' };
+        this.sheet = { kind: arg as 'log' | 'help' | 'overview' };
         break;
       case 'cmp-fuse': {
         if (this.sheet?.kind !== 'armory' || this.sheet.fuse?.length !== 2) break;
@@ -1085,11 +993,11 @@ export class CampaignView {
               .join('')}</span>
           </div>
           <nav class="cmp-nav">
-            <button class="cmp-base-btn" data-act="cmp-sheet" data-arg="base">${HOME_ICON}<span>base</span>${this.baseIsNew() ? '<i class="cmp-new">new</i>' : ''}</button>
             <button class="icon-btn" data-act="cmp-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
           </nav>
         </header>
         <section class="cmp-map">${this.renderMap()}</section>
+        ${this.renderRelics()}
         <canvas class="cmp-nebula-front" data-key="cmp-nebula-front" aria-hidden="true"></canvas>
         <button class="icon-btn cmp-recentre" data-act="cmp-recentre" data-key="cmp-recentre" aria-label="Back to the whole strip" title="Back to the whole strip" style="display:none">${RECENTRE_ICON}</button>
         ${this.renderPop()}
@@ -1099,6 +1007,22 @@ export class CampaignView {
         </div>
         ${this.waiting ? this.renderWaiting() : overlay}
       </main>`;
+  }
+
+  /**
+   * The relics found on the way, down the right of the screen: each a paper token with its kind's mark in ink,
+   * rimmed in gold (a blessing) or red (a curse), saying what it does on a hover or tap.
+   */
+  private renderRelics(): string {
+    const relics = campaignPlayer(this.state!).relics ?? [];
+    if (!relics.length) return '';
+    const tokens = relics
+      .map(
+        (r) =>
+          `<button class="cmp-relic ${r.cursed ? 'cursed' : 'blessed'} rarity-${r.rarity}" data-key="relic-${r.id}" data-tip-title="${esc(r.name.toLowerCase())}" data-tip="${esc(r.cursed ? r.text : itemText(r))}" data-tip-note="${r.cursed ? 'Cursed: it weighs on your flagship in every battle.' : "A blessing on your hero's card in every battle."}" aria-label="${esc(r.name)}">${RELIC_GLYPH[r.slot] ?? RELIC_GLYPH.weapon}</button>`,
+      )
+      .join('');
+    return `<aside class="cmp-relics" aria-label="Relics">${tokens}</aside>`;
   }
 
   private renderSetup(): string {
@@ -1580,6 +1504,8 @@ export class CampaignView {
 
   /** Fit the map to its stage and move the camera (called after every render and on resize). */
   afterRender(root: HTMLElement) {
+    // (In development, reachable from the console.)
+    if (import.meta.env.DEV) (window as unknown as { campaignView?: CampaignView }).campaignView = this;
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
     if (stage) this.sailShips(stage);
@@ -1904,10 +1830,6 @@ export class CampaignView {
   }
 
 
-  private missionRow(id: string, progress: number): string {
-    const def = campaignMissionDef(id);
-    return `<div class="cmp-mission"><b>${lower(def.name)}</b><span>${esc(def.text)}</span><em>${progress}/${def.target}</em></div>`;
-  }
 
   /** What is picked on the map (a system, an army or an anomaly), in a popover beside it. */
   private renderPop(): string {
@@ -2063,7 +1985,7 @@ export class CampaignView {
             here.owner === me.id
               ? `<span class="pop-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}${
                   here.damage && mine ? this.repairButtons('cmp-heal-army', here.id, here.damage, CAMPAIGN.armyHealCost, here.moved ? 'It has marched this turn: repair it next turn.' : '') : ''
-                }<button class="pill-btn" data-act="cmp-deck-army" data-arg="${here.id}">deck</button></span>`
+                }</span>`
               : ''
           }
         </div>`
@@ -2149,11 +2071,6 @@ export class CampaignView {
           'cmp-modal-narrow',
         );
       }
-      case 'deck':
-      case 'heroes':
-      case 'ship':
-      case 'missions':
-        return this.renderBase(sh);
       case 'armory':
         return this.renderArmory(sh);
       case 'research':
@@ -2298,46 +2215,7 @@ export class CampaignView {
       </aside>`;
   }
 
-  /**
-   * The base, full screen: a tab for each army's deck and the armoury (both in the main deck builder),
-   * and the missions.
-   */
-  private renderBase(sh: Extract<Sheet, { kind: 'deck' | 'heroes' | 'ship' | 'missions' }>): string {
-    const s = this.state!;
-    const me = campaignPlayer(s);
-    const hero = this.pickedHero();
-    const points = skillPoints(heroState(me, hero), hero) > 0 || (me.items ?? []).length > 0;
-    const names = { deck: 'deck', heroes: 'hero', ship: 'ship', missions: 'missions' } as const;
-    const tabs = (['deck', 'heroes', 'ship', 'missions'] as const)
-      .map((t) => `<button class="cmp-tab ${t === sh.kind ? 'cmp-tab-on' : ''}" data-act="cmp-sheet" data-arg="${t}">${names[t]}${t === 'heroes' && points ? '<i class="cmp-tab-dot"></i>' : ''}</button>`)
-      .join('');
-    let body: string;
-    if (sh.kind === 'missions') {
-      const active = me.missions.map((m) => this.missionRow(m.id, missionProgress(s, me, m))).join('');
-      body = `<div class="cmp-base-missions">
-          <div class="cmp-missions">${active || '<p class="muted">All missions complete.</p>'}</div>
-          <p class="muted">Each completed mission pays ${CREDITS} ${CAMPAIGN.missionCredits} and ${MATERIALS} ${CAMPAIGN.missionMaterials}, and lets you choose a new card. ${CAMPAIGN_MISSIONS.length} missions in all.</p>
-        </div>`;
-    } else if (sh.kind === 'heroes') {
-      body = this.renderHeroes(hero);
-    } else if (sh.kind === 'ship') {
-      body = this.renderShip(sh.pick);
-    } else if (!flagship(s, me.id)) {
-      body = '<div class="cmp-base-missions"><p class="muted center-text">Your flagship is gone.</p></div>';
-    } else {
-      this.builder.setMode(this.deckMode(flagship(s, me.id)!.id));
-      body = this.builder.render();
-    }
-    return `
-      <div class="cmp-base">
-        <header class="cmp-base-top">
-          <nav class="cmp-tabs">${tabs}</nav>
-          ${this.purse()}
-          <button class="icon-btn" data-act="cmp-close" aria-label="Back to the map" title="Back to the map">×</button>
-        </header>
-        ${body}
-      </div>`;
-  }
+
 
   /** What the player has to spend, for the base's and the stations' headers. */
   private purse(): string {
@@ -2410,74 +2288,6 @@ export class CampaignView {
     );
   }
 
-  /**
-   * The ship: the flagship drawn large, its five rooms (where its cards stand) and its command room (the
-   * hero's) laid over it. Pick a room to upgrade its walls (defence) or its guns (attack), and the ship's
-   * shields and hull below.
-   */
-  private renderShip(pick?: string): string {
-    const s = this.state!;
-    const me = campaignPlayer(s);
-    const ship = me.ship;
-    // An upgrade as a round icon: its mark, its level in pips; tap to buy the next level (its cost on hover).
-    const up = (p: ShipPart, icon: string, name: string, does: string) => {
-      const cost = shipUpgradeCost(ship, p);
-      const arg = p.part === 'defence' || p.part === 'attack' ? `${p.part}:${p.room}` : p.part;
-      const lvl = shipLevel(ship, p);
-      const max = CAMPAIGN.shipMax[p.part];
-      const pips = Array.from({ length: max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('');
-      const can = cost !== null && me.credits >= cost;
-      const note = cost === null ? 'Fully upgraded.' : `+1 for ${cost} credits${can ? '' : ' (not enough)'}.`;
-      return `<button class="sh-up sh-up-${p.part} ${cost === null ? 'sh-up-max' : can ? 'sh-up-can' : ''}" ${can ? `data-act="cmp-ship" data-arg="${arg}"` : 'aria-disabled="true"'} data-tip-title="${esc(name)}" data-tip="${esc(does)}" data-tip-note="${esc(note)}" aria-label="${esc(`${name}: ${does} ${note}`)}">${SH_ICON[icon]}<span class="sh-pips">${pips}</span></button>`;
-    };
-    const mods = ship.modules ?? [];
-    // The room that modules go into: the one picked, else the first without one.
-    const target = pick !== undefined && pick !== 'command' ? Number(pick) : Math.max(0, [2, 1, 3, 0, 4].find((r) => !mods[r]) ?? 2);
-    const slotDef = [1, 2, 3, 2, 1];
-    // The rooms, along the hull from stern to bow as on the board (the middle the safest), then the command room.
-    const rooms = [0, 1, 2, 3, 4]
-      .map((i) => {
-        const m = mods[i];
-        const socket = m
-          ? `<span class="sh-socket sh-socket-full rarity-${m.rarity}" data-tip-title="${esc(lower(m.name))}" data-tip="${esc(m.text)}">${effectMark(m.boons[0]?.replace(/^boon_/, '').replace(/_\d+$/, '') ?? 'star')}<button class="sh-socket-x" data-act="cmp-unfit" data-arg="${i}" aria-label="Take it out">×</button></span>`
-          : `<span class="sh-socket" data-tip-title="module" data-tip="Empty. Fit a module from your stores."></span>`;
-        return `<div class="sh-room ${target === i ? 'on' : ''}" style="--x:${18 + i * 12.5}%" data-act="cmp-ship-pick" data-arg="${i}">
-          <b class="sh-room-n" data-tip-title="room ${i + 1}" data-tip="The card standing here: {sturdy:${slotDef[i] + ship.rooms.defence[i]}} defence in all, +${ship.rooms.attack[i]} attack if it attacks.">${i + 1}</b>
-          <span class="sh-room-ups">${up({ part: 'defence', room: i }, 'walls', 'walls', 'The card in this room: +1 defence a level.')}${up({ part: 'attack', room: i }, 'guns', 'guns', 'A card in this room that attacks: +1 attack a level.')}</span>
-          ${socket}
-        </div>`;
-      })
-      .join('');
-    const hero = this.pickedHero();
-    const command = `<div class="sh-room sh-command" style="--x:84%">
-        ${portrait(hero)}
-        <span class="sh-room-ups">${up({ part: 'command' }, 'walls', 'bulkheads', 'Your hero: +1 defence a level.')}</span>
-      </div>`;
-    const stores = me.modules ?? [];
-    const grid = stores
-      .map((m) => {
-        const kind = m.boons[0]?.replace(/^boon_/, '').replace(/_\d+$/, '') ?? 'star';
-        const n = Number(m.boons[0]?.match(/_(\d+)$/)?.[1] ?? 0);
-        return `<button class="sh-mod-tile rarity-${m.rarity}" data-act="cmp-fit" data-arg="${m.id}:${target}" data-tip-title="${esc(lower(m.name))}" data-tip="${esc(m.text)}" data-tip-note="Fit it in room ${target + 1}.">
-          <span class="sh-mod-face">${effectMark(kind)}${n ? `<small>${n}</small>` : ''}</span><b>${esc(lower(MODULES[m.kind].name))}</b>
-        </button>`;
-      })
-      .join('');
-    return `
-      <div class="cmp-shipyard">
-        <section class="sh-stage">
-          <div class="sh-ship" style="--ac:${this.colourOf(me.id)}">
-            <div class="sh-top"><div class="sh-model-in" style="--rot:0deg">${shipModel(me.race, false)}</div></div>
-            ${rooms}${command}
-          </div>
-          <div class="sh-whole">${up({ part: 'shields' }, 'shields', 'shields', 'Up as each battle begins: +1 a level.')}${up({ part: 'hull' }, 'hull', 'hull', `Your sun: +${CAMPAIGN.hullHealth} max health a level.`)}</div>
-        </section>
-        <section class="sh-mods">
-          <h4>modules</h4>
-          ${grid ? `<div class="sh-mod-grid">${grid}</div>` : '<p class="muted sh-mod-empty">Found in the wreckage of battles you win.</p>'}
-        </section>
-      </div>`;
-  }
 
   /**
    * A battle's report, laid out rather than told: the result and where; the hero (their new level, or the
@@ -2511,93 +2321,8 @@ export class CampaignView {
     );
   }
 
-  /** The hero shown in the heroes tab: the one picked, else the first army's general, else the first. */
-  private pickedHero(): string {
-    const s = this.state!;
-    const me = campaignPlayer(s);
-    return me.hero ?? flagship(s, me.id)?.general ?? GENERALS[me.race][0];
-  }
 
-  /**
-   * The heroes: each of your race's generals on the left (level, experience, points to spend); the one
-   * picked on the right, with their gear (weapon and race's armour) and their skill tree.
-   */
-  private renderHeroes(pick: string): string {
-    const s = this.state!;
-    const me = campaignPlayer(s);
-    const bar = (xp: number) => {
-      const lvl = heroLevel(xp);
-      const lo = XP_LEVELS[lvl - 1] ?? 0;
-      const hi = nextLevelXp(xp);
-      return hi === null ? '<span class="cmp-xp"><i style="width:100%"></i></span>' : `<span class="cmp-xp" title="${xp} / ${hi} experience"><i style="width:${Math.round(((xp - lo) / (hi - lo)) * 100)}%"></i></span>`;
-    };
-    const h = heroState(me, pick);
-    const hs = heroStats(me, pick);
-    const trainRow = (stat: 'attack' | 'defence', label: string) => {
-      const why = trainProblem(me, pick, stat);
-      const done = h.train?.[stat] ?? 0;
-      return `<div class="hv-train-row"><span>${label}<b>${stat === 'attack' ? (cardDef(pick).attack ?? 0) + hs.attack : hs.defence}</b><small>${stat === 'attack' ? `card ${cardDef(pick).attack ?? 0} + trained ${done}` : `+${CAMPAIGN.heroDefence} base, trained ${done}`}</small></span><button class="pill-btn" data-act="cmp-train" data-arg="${stat}" ${why ? `disabled title="${esc(why)}"` : ''}>+1 · 1 point</button></div>`;
-    };
-    const list = `<div class="cmp-hero-row on">
-        ${portrait(pick)}
-        <span><b>${lower(cardDef(pick).name)}</b><small>level ${heroLevel(h.xp)} · ${skillPoints(h, pick)} point${skillPoints(h, pick) === 1 ? '' : 's'} to spend</small>${bar(h.xp)}</span>
-      </div>
-      <div class="hv-train">
-        <p class="muted">Always in your command room, in every battle. Beaten or sent from the field, they are wounded for a turn, then return. Each skill point trains them up (up to ${CAMPAIGN.trainMax} each).</p>
-        ${trainRow('attack', 'attack')}
-        ${trainRow('defence', 'defence')}
-      </div>`;
-    const pts = skillPoints(h);
-    const slots = RACE_SLOTS[me.race].map((sl) => ({ ...sl, name: SLOT_NAME[sl.kind] }));
-    const picked = this.slotPick && slots.some((x) => x.id === this.slotPick) ? this.slotPick : null;
-    const pickedKind = picked ? slots.find((x) => x.id === picked)!.kind : null;
-    const items = (me.items ?? []).filter((it) => !pickedKind || it.slot === pickedKind);
-    const stores = items
-      .map((it) => `<button class="hv-item rarity-${it.rarity}" data-act="cmp-equip" data-arg="${it.id}" title="Put it on ${esc(cardDef(pick).name)}"><small>${lower(SLOT_NAME[it.slot])}</small><b>${esc(it.name)}</b><span>${esc(it.text)}</span></button>`)
-      .join('');
-    return `
-      <div class="cmp-heroes">
-        <aside class="cmp-hero-list">${list}</aside>
-        <section class="hv-gear">
-          <div class="hv-gear-head"><b>${lower(cardDef(pick).name)}</b><small>level ${heroLevel(h.xp)} · ${h.xp} xp${nextLevelXp(h.xp) !== null ? ` · next at ${nextLevelXp(h.xp)}` : ''}</small>${bar(h.xp)}</div>
-          ${heroFigure({ hero: pick, slots, gear: h.gear, picked })}
-          <p class="hv-boons">${(() => {
-            const hb = heroBonus(pick, h);
-            return hb.boons.length ? `<small>on ${esc(cardDef(pick).name)}'s card in battle</small>${esc(boonsText(hb.boons))}` : `<small>on ${esc(cardDef(pick).name)}'s card in battle</small>Nothing yet: skills and gear add to the hero's own card while it is in play.`;
-          })()}</p>
-          <div class="hv-stores-head"><span>${picked ? `stores · ${lower(SLOT_NAME[pickedKind!])}` : 'stores'}</span>${picked ? '<button class="link-btn" data-act="cmp-slot-pick" data-arg="">show all</button>' : ''}</div>
-          <div class="hv-stores">${stores || `<p class="muted">${picked ? 'Nothing found for this slot yet.' : 'Nothing found yet. Armies find gear when they take systems: more, and better, the deeper they go.'}</p>`}</div>
-        </section>
-        <section class="hv-tree">
-          ${skillTree({ hero: pick, portrait: portrait(pick), tree: SKILL_TREES[pick] ?? [], learned: h.skills, problem: (id) => learnProblem(pick, h, id), points: pts, picked: this.skillPick })}
-        </section>
-      </div>`;
-  }
 
-  /** An army's deck in the deck builder: its cards and the reserve's make the pool; each tap moves a card at once. */
-  private deckMode(armyId: string): BuilderMode {
-    const army = () => armyById(this.state!, armyId);
-    const me = () => campaignPlayer(this.state!);
-    const count = (list: string[], id: string) => list.filter((x) => x === id).length;
-    return {
-      owned: (id) => count(army().deck, id) + count(me().reserve, id),
-      cards: () => [...new Set([...army().deck, ...me().reserve])].map((id) => cardDef(id)),
-      deck: () => ({ name: `${cardDef(army().general).name}'s flagship`, race: me().race, cards: army().deck }),
-      // (A refusal has been said already, by the toast.)
-      add: (id) => (this.apply({ type: 'deckAdd', armyId, defId: id }) ? null : ''),
-      remove: (id) => (this.apply({ type: 'deckRemove', armyId, defId: id }) ? null : ''),
-      tally: (cards) => `<b class="${cards.length >= CAMPAIGN.armySize ? 'ok' : ''}" data-tip-title="deck" data-tip="${esc(`Your flagship's deck, its hero among them. It has no most; once it reaches ${CAMPAIGN.armySize} cards, that is its least.`)}">${cards.length}</b> cards · led by ${esc(cardDef(army().general).name)}`,
-      badge: (id, n) => ({ text: `${n}/${count(army().deck, id) + count(me().reserve, id)}`, title: `${n} in this deck, ${count(me().reserve, id)} in your reserve`, on: n > 0 }),
-      head: () => '',
-      foot: () => {
-        const a = army();
-        if (a.moved) return '<p class="cmp-warn">Your flagship has moved this turn: its deck can change next turn.</p>';
-        const problem = armyDeckProblems(a.deck, a.general)[0];
-        const note = a.refit ? '<p class="muted">Refitting: your flagship moves next turn.</p>' : '<p class="muted">Changing its deck refits your flagship: it can\'t move this turn.</p>';
-        return (problem ? `<p class="cmp-warn">Not ready to fight: ${esc(problem)}</p>` : '<p class="cmp-ok">Ready to fight.</p>') + note;
-      },
-    };
-  }
 
   /** The armoury in the deck builder (no deck): its stock to buy, or your reserve to recycle or fuse, run by its keepers. */
   private armoryMode(sh: Extract<Sheet, { kind: 'armory' }>): BuilderMode {
@@ -2675,13 +2400,6 @@ export class CampaignView {
   }
 }
 
-/** The shipyard's upgrade marks. */
-const SH_ICON: Record<string, string> = {
-  walls: '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>',
-  guns: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.6"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/></svg>',
-  shields: '<svg viewBox="0 0 16 16"><path d="M2.5 11.5a5.5 5.5 0 0 1 11 0"/><path d="M5 11.5a3 3 0 0 1 6 0"/><path d="M1.5 11.5h13"/></svg>',
-  hull: '<svg viewBox="0 0 16 16"><path d="M2 8c2-3.2 6-4.2 12-2.6V10.6C8 12.2 4 11.2 2 8z"/><path d="M6 6.4v3.2M9.5 5.9v4.2"/></svg>',
-};
 
 /** Hero gear's mark. */
 export const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';

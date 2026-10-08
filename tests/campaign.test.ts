@@ -159,8 +159,10 @@ describe('economy', () => {
     shop.owner = s.playerId;
     myArmy(s).nodeId = shop.id;
     const price = armoryPrice(stock[0]);
+    const before = myArmy(s).deck.filter((x) => x === stock[0]).length;
     s = applyCampaignAction(s, { type: 'buyCard', nodeId: shop.id, index: 0 });
-    expect(campaignPlayer(s).reserve).toContain(stock[0]);
+    // (Straight into the flagship's deck: there is no deck to manage.)
+    expect(myArmy(s).deck.filter((x) => x === stock[0]).length + campaignPlayer(s).reserve.filter((x) => x === stock[0]).length).toBe(before + 1);
     expect(campaignPlayer(s).materials).toBe(30 - price);
     const left = nodeById(s, shop.id).station!;
     expect(left.kind === 'armory' && left.cards).toEqual(stock.slice(1));
@@ -557,15 +559,31 @@ describe('ship modules and finds', () => {
       let s = attack(fresh(seed));
       const game = applyAction(s.battle!.game, { type: 'concede', playerId: s.battle!.game.players[1].id });
       const finds = battleFinds(s, game);
-      if (!finds.items.length && !finds.modules.length) continue;
+      if (!finds.items.length) continue;
       found = true;
       expect(battleFinds(s, game)).toEqual(finds);
       s = applyCampaignAction(s, { type: 'finishBattle', game, salvage: null });
       const me = campaignPlayer(s);
-      for (const m of finds.modules) expect(me.modules?.map((x) => x.id)).toContain(m.id);
-      for (const i of finds.items) expect(me.items?.map((x) => x.id)).toContain(i.id);
+      for (const i of finds.items) expect(me.relics?.map((x) => x.id)).toContain(i.id);
     }
     expect(found).toBe(true);
   });
 });
 
+
+describe('relics', () => {
+  it("blesses the hero's card, or curses the flagship, in every battle", async () => {
+    const { makeRelic } = await import('../src/engine/heroes');
+    const s = fresh();
+    const me = campaignPlayer(s);
+    const plain = armyBonus(s, myArmy(s));
+    const blessing = makeRelic('r1', 'weapon', 'stellar', me.race, 0, false);
+    const curse = makeRelic('r2', 'helm', 'dwarf', me.race, 0, true);
+    expect(blessing.cursed).toBeFalsy();
+    expect(curse.cursed).toBe(true);
+    me.relics = [blessing, curse];
+    const b = armyBonus(s, myArmy(s));
+    expect(b.boons.length).toBeGreaterThan(plain.boons.length);
+    expect(b.mods.startingHeat ?? 0).toBe((plain.mods.startingHeat ?? 0) + 2);
+  });
+});

@@ -21,9 +21,9 @@ import { BALANCE } from './balance';
 import { applyAction, createGame, DRAW, GameError, isDraw, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types';
-import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeItem, RACE_SLOTS, itemValue, skillPoints, SKILL_TREES, type HeroState, type Item, type ItemRarity, type SlotKind } from './heroes';
+import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeRelic, relicBonus, RACE_SLOTS, itemValue, skillPoints, SKILL_TREES, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
 import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
-import { makeModule, MODULE_KINDS, moduleValue, type ShipModule } from './modules';
+import { moduleValue, type ShipModule } from './modules';
 import { runBonuses, type RunBonuses } from './meta';
 import {
   contactScene,
@@ -110,7 +110,9 @@ export const CAMPAIGN = {
   missionCredits: 4,
   missionMaterials: 3,
   cardChoices: 3,
-  activeMissions: 3,
+  activeMissions: 0,
+  /** How often a relic found is cursed. */
+  curseChance: 0.3,
   /** Control this share of all systems to win outright. */
   dominationShare: 0.5,
   /** When this turn ends, the faction controlling the most systems wins. */
@@ -466,6 +468,8 @@ export interface Faction {
   heroes?: Record<string, HeroState>;
   /** Gear found, not yet worn. */
   items?: Item[];
+  /** Relics found on the way, worn at once: blessings on the hero's card, or curses on the flagship. */
+  relics?: Relic[];
   /** Ship modules in its stores (not fitted). */
   modules?: ShipModule[];
   /** The upgrades its flagship has taken from research stations. */
@@ -508,6 +512,12 @@ export function armyBonus(s: CampaignState, a: Army) {
   const hero = heroBonus(a.general, a.lost || !f ? undefined : f.heroes?.[a.general]);
   const r = researchBonus(a.lost || !f ? undefined : f.research);
   const bonus = { ...hero, ...r, foeMods: {} as BattleModifiers, foeHeat: 0, foeConditions: [] as { name: string; text: string }[] };
+  // Relics: their blessings on the hero's card, their curses' tolls on the army's own side.
+  if (f && !a.lost && f.relics?.length) {
+    const rel = relicBonus(f.relics);
+    bonus.boons = [...bonus.boons, ...rel.boons];
+    bonus.mods = mergeModifiers(bonus.mods, rel.mods);
+  }
   // (The Fold drive, bought between runs: one more move a turn.)
   if (a.owner === s.playerId && s.run?.march) bonus.march = (bonus.march ?? 0) + s.run.march;
   return bonus;
@@ -1727,7 +1737,7 @@ function findRarity(n: CampaignNode, r: number): ItemRarity {
  * ship. Worked out from the finished battle, so the battle screen can show it before it is taken (the same
  * finds, the same ids). None for neutral defenders or the Lost Races.
  */
-export function battleFinds(s: CampaignState, game: GameState): { items: Item[]; modules: ShipModule[] } {
+export function battleFinds(s: CampaignState, game: GameState): { items: Relic[]; modules: ShipModule[] } {
   const none = { items: [], modules: [] };
   const b = s.battle;
   if (!b || !isGameOver(game) || !game.winnerId || isDraw(game)) return none;
@@ -1739,13 +1749,15 @@ export function battleFinds(s: CampaignState, game: GameState): { items: Item[];
   const n = nodeById(s, b.nodeId);
   const next = spoilsRng(game, `${b.nodeId}:finds`);
   let uid = s.uidCounter;
-  const items: Item[] = [];
+  const items: Relic[] = [];
   const modules: ShipModule[] = [];
   if (next() < HEROES.itemChance + (army ? armyBonus(s, army).loot : 0)) {
     const slots = RACE_SLOTS[f.race];
-    items.push(makeItem(`item${++uid}`, slots[Math.floor(next() * slots.length)].kind, findRarity(n, next()), f.race, next()));
+    const slot = slots[Math.floor(next() * slots.length)].kind, rarity = findRarity(n, next()), roll = next();
+    items.push(makeRelic(`item${++uid}`, slot, rarity, f.race, roll, next() < CAMPAIGN.curseChance));
   }
-  if (next() < CAMPAIGN.moduleChance) modules.push(makeModule(`mod${++uid}`, MODULE_KINDS[Math.floor(next() * MODULE_KINDS.length)], findRarity(n, next())));
+  // (No modules any more: the flagship is not fitted out.)
+  void modules;
   return { items, modules };
 }
 
@@ -1756,8 +1768,8 @@ function takeFinds(s: CampaignState, game: GameState) {
   const b = s.battle!;
   const f = factionById(s, game.winnerId === game.players[0].id ? b.attacker : b.defender!);
   s.uidCounter += items.length + modules.length;
-  (f.items ??= []).push(...items);
-  (f.modules ??= []).push(...modules);
+  (f.relics ??= []).push(...items);
+  for (const r of items) clog(s, `${f.name} finds ${r.name}${r.cursed ? ': it is cursed' : ''}.`, b.nodeId, f.id);
   clog(s, `${f.name} finds ${[...items, ...modules].map((x) => x.name).join(' and ')} in the wreckage.`, b.nodeId, f.id);
   if (f.isAI) {
     aiEquip(f);
@@ -1772,6 +1784,13 @@ export function salvageToDeck(s: CampaignState, id: string): boolean {
   const army = s.armies.find((a) => a.id === (b.attacker === s.playerId ? b.armyId : b.defender === s.playerId ? b.defenderArmyId : null));
   const f = factionById(s, s.playerId);
   return !!army && deckAddProblem({ ...f, reserve: [id] }, army, id) === null;
+}
+
+/** A card gained: straight into the flagship's deck (there is no deck to manage), else, if it may not take another copy, kept aside. */
+function gainCard(s: CampaignState, f: Faction, id: string) {
+  const army = flagship(s, f.id);
+  if (army && deckAddProblem({ ...f, reserve: [id] }, army, id) === null) army.deck.push(id);
+  else f.reserve.push(id);
 }
 
 /** Salvage a card: straight into the army's deck (else the reserve, if the deck may not take another copy). */
@@ -1944,15 +1963,14 @@ function takeCache(s: CampaignState, f: Faction, n: CampaignNode) {
   clog(s, `${f.name} finds ${what} at ${n.name}.`, n.id, f.id);
 }
 
-/** Gear found by an army in a system it took: better the deeper the system lies. */
+/** A relic found by an army in a system it took: better the deeper the system lies, and now and then cursed. */
 function findItem(s: CampaignState, f: Faction, army: Army, n: CampaignNode) {
   const rarity = findRarity(n, nextRandom(s));
   const slots = RACE_SLOTS[f.race];
   const kind: SlotKind = slots[randomInt(s, slots.length)].kind;
-  const item = makeItem(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s));
-  (f.items ??= []).push(item);
-  clog(s, `${cardDef(army.general).name}'s army finds ${item.name} in ${n.name}.`, n.id, f.id);
-  if (f.isAI) aiEquip(f);
+  const relic = makeRelic(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s), nextRandom(s) < CAMPAIGN.curseChance);
+  (f.relics ??= []).push(relic);
+  clog(s, `${cardDef(army.general).name}'s army finds ${relic.name} in ${n.name}${relic.cursed ? ': it is cursed' : ''}.`, n.id, f.id);
 }
 
 /** Fit a module into a room: one already there goes back to the stores. */
@@ -2030,8 +2048,8 @@ function buyCard(s: CampaignState, f: Faction, n: CampaignNode, index: number) {
   const id = st.cards[index];
   f.materials -= buyPrice(s, f, id);
   st.cards.splice(index, 1);
-  f.reserve.push(id);
   clog(s, `${f.name} buys ${cardDef(id).name} at ${n.name}'s space station.`, n.id, f.id);
+  gainCard(s, f, id);
 }
 
 /** Upgrade a part of a faction's flagship (for credits). */
@@ -2602,8 +2620,8 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       s.cardRewards.shift();
       if (action.defId && reward.toDeck !== undefined) takeSalvage(s, f, s.armies.find((a) => a.id === reward.toDeck), action.defId);
       else if (action.defId) {
-        f.reserve.push(action.defId);
-        clog(s, `${f.name} adds ${cardDef(action.defId).name} to the collection.`);
+        clog(s, `${f.name} takes ${cardDef(action.defId).name}.`);
+        gainCard(s, f, action.defId);
       }
       break;
     }

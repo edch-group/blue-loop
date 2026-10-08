@@ -8,7 +8,7 @@
 import { boon } from './boons';
 import { cardDef } from './cards';
 import { plainText } from './keywords';
-import type { BattleSkill } from './types';
+import type { BattleModifiers, BattleSkill } from './types';
 
 /** Kinds of gear slot. Every hero has a weapon; the rest are their race's. */
 export type SlotKind = 'weapon' | 'helm' | 'mantle' | 'sigil' | 'core' | 'facet' | 'ring' | 'carapace' | 'gland' | 'mask' | 'plate' | 'star' | 'ember';
@@ -333,3 +333,42 @@ export const itemText = (i: Item) => `Hero card: ${boonsText(itemBoons(i))}`;
 
 /** How strong an item is, for the AI's choosing. */
 export const itemValue = (i: Item) => STEP[i.rarity] * 10;
+
+// ---------------------------------------------------------------------------
+// Relics
+// ---------------------------------------------------------------------------
+
+/**
+ * A relic: gear found on the way, worn at once (there is nothing to equip). Most bless the hero's card as gear
+ * does; some are cursed, and weaken the flagship in every battle instead.
+ */
+export interface Relic extends Item {
+  cursed?: boolean;
+  /** A curse's toll on the flagship's own side, every battle. */
+  mods?: BattleModifiers;
+}
+
+/** The curses a relic can carry: what it costs, and how it reads. */
+const CURSES: { mods: BattleModifiers; text: string; name: string }[] = [
+  { mods: { startingHeat: 2 }, text: 'Your sun starts every battle 2 hotter.', name: 'Cracked' },
+  { mods: { heatPerTurn: 1 }, text: 'Your sun heats 1 more every day.', name: 'Smouldering' },
+  { mods: { maxHealthDelta: -2 }, text: 'Your sun has 2 less max health.', name: 'Hollow' },
+];
+
+/** A relic for a race, of a rarity: a blessing (gear's boons on the hero's card), or, if cursed, a toll. */
+export function makeRelic(id: string, slot: SlotKind, rarity: ItemRarity, race: number, roll: number, cursed: boolean): Relic {
+  if (!cursed) return makeItem(id, slot, rarity, race);
+  const curse = CURSES[Math.floor(roll * CURSES.length) % CURSES.length];
+  return { id, name: `${curse.name} ${GEAR_NAMES[slot][race] ?? GEAR_NAMES[slot][0]}`, slot, rarity, boons: [], cursed: true, mods: curse.mods, text: curse.text };
+}
+
+/** All the relics' boons on the hero's card, and their curses' tolls, summed. */
+export function relicBonus(relics: Relic[] | undefined): { boons: string[]; mods: BattleModifiers } {
+  const boons: string[] = [];
+  const mods: BattleModifiers = {};
+  for (const r of relics ?? []) {
+    if (!r.cursed) boons.push(...itemBoons(r));
+    for (const [k, v] of Object.entries(r.mods ?? {}) as [keyof BattleModifiers, number][]) mods[k] = (mods[k] ?? 0) + v;
+  }
+  return { boons, mods };
+}

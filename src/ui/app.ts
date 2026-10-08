@@ -86,7 +86,7 @@ import {
 import { roman, sunOrb, vitals } from './art';
 import { backdrop } from './backdrop';
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
-import { CampaignView, cardHtml, loadCampaign, MODULE_ICON } from './campaign';
+import { CampaignView, cardHtml, loadCampaign } from './campaign';
 
 /** Hero gear's mark, in a battle's finds. */
 const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
@@ -4881,8 +4881,8 @@ export class App {
           <div class="salvage-title">found</div>
           <div class="finds-row">${finds
             .map((f) => {
-              const tip = `${f.name} (${f.kind === 'module' ? 'ship module: fit it in the ship tab' : 'hero gear: equip it in the hero tab'}). ${f.text}`;
-              return `<button class="find rarity-${f.rarity}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${f.kind === 'module' ? 'Ship module: fit it in the ship tab.' : 'Hero gear: equip it in the hero tab.'}" aria-label="${esc(tip)}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></button>`;
+              const note = f.cursed ? 'A cursed relic: it weighs on your flagship in every battle.' : "A relic: a blessing on your hero's card in every battle.";
+              return `<button class="find rarity-${f.rarity} ${f.cursed ? 'find-cursed' : ''}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${note}" aria-label="${esc(`${f.name}. ${f.text}`)}">${effectMark(f.mark)}<i class="find-kind">${GEAR_ICON}</i></button>`;
             })
             .join('')}</div>
         </div>`
