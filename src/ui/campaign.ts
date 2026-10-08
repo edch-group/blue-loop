@@ -1497,17 +1497,23 @@ export class CampaignView {
       at.set(el.dataset.key!.slice(4), [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top]);
     }
     svg.setAttribute('viewBox', `0 0 ${box.width.toFixed(0)} ${box.height.toFixed(0)}`);
-    svg.innerHTML = this.rays
-      .map(({ a, b, gone, colour }) => {
-        const p = at.get(a);
-        const q = at.get(b);
-        if (!p || !q) return '';
-        const ends = `x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}"`;
-        if (gone) return `<line ${ends} class="cmp-link-gone" />`;
-        // A soft glow, a brighter band, and a white-hot thread down its middle (in the holder's colour, if held).
-        return `<g class="cmp-ray ${colour ? 'cmp-ray-held' : ''}"${colour ? ` style="--fc:${colour}"` : ''}><line ${ends} class="cmp-ray-glow" /><line ${ends} class="cmp-ray-band" /><line ${ends} class="cmp-ray-core" /></g>`;
-      })
-      .join('');
+    // Neon, as the battle's beams are: a blurred halo, a tube of colour, a lighter band in it, a white-hot thread
+    // down its middle, humming (in the holder's colour, if held). Halos are blurred together, in one pass.
+    const gone: string[] = [];
+    const lit: { ends: string; style: string; held: boolean }[] = [];
+    for (const { a, b, gone: isGone, colour } of this.rays) {
+      const p = at.get(a);
+      const q = at.get(b);
+      if (!p || !q) continue;
+      const ends = `x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}"`;
+      if (isGone) gone.push(`<line ${ends} class="cmp-link-gone" />`);
+      else lit.push({ ends, style: colour ? ` style="--fc:${colour}"` : '', held: !!colour });
+    }
+    const layer = (cls: string) => lit.map((l) => `<line ${l.ends} class="${cls} ${l.held ? 'cmp-ray-held' : ''}"${l.style} />`).join('');
+    svg.innerHTML = `<defs><filter id="cmp-neon" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+      ${gone.join('')}
+      <g class="cmp-ray-halo" filter="url(#cmp-neon)">${layer('cmp-ray-glow')}</g>
+      <g class="cmp-ray">${layer('cmp-ray-tube')}${layer('cmp-ray-band')}${layer('cmp-ray-core')}</g>`;
   }
 
   /**

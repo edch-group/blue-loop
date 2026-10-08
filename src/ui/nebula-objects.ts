@@ -33,7 +33,9 @@ export type GalaxyLook = 'blackHole' | 'pulsar' | 'meteors' | 'nebula' | 'darkMa
 export const BLACK_HOLE_Y = -1.02, BLACK_HOLE_Z = -0.7;
 export const PULSAR_Y = -0.2;
 
-const SUN: [number, number, number] = [0.995, 0.975, 0.93];
+/** The board's paper, and its ink. */
+const SUN: [number, number, number] = [0.975, 0.97, 0.955];
+const INK: [number, number, number] = [0.42, 0.48, 0.62];
 const GOLD: [number, number, number] = [0.86, 0.66, 0.31];
 
 const SOLID_VERT = `
@@ -49,11 +51,12 @@ void main() {
 }`;
 
 /**
- * kind 0: a sun (white-hot where it faces the eye, warming to gold at its limb, its surface churning, a fine ink
- * line round it); 1: a black sphere; 2: an accretion disc (vL.x how far out, vL.y round); 3: a beam (vL.x how far
+ * kind 0: a sun, drawn as the board draws (paper, a globe's lines in fine ink, the contours of its churning surface,
+ * an ink line round it); 1: a black sphere; 2: an accretion disc (vL.x how far out, vL.y round); 3: a beam (vL.x how far
  * along); 4: a plain paper sphere (an ember).
  */
 const SOLID_FRAG = `
+#extension GL_OES_standard_derivatives : enable
 precision highp float;
 varying vec3 vN; varying vec3 vW; varying vec3 vL;
 uniform vec3 uEye; uniform vec3 uColor; uniform float uKind; uniform float uTime; uniform float uAlpha; uniform float uSeed;
@@ -69,16 +72,21 @@ void main() {
   float ndv = abs(dot(normalize(vN), v));
   vec3 ink = vec3(0.40, 0.46, 0.60);
   if (uKind < 0.5) {
-    // White-hot, warming to gold at the limb, bright cells welling up and churning over its face, flickering.
-    vec3 q = vL * 3.0 + uSeed;
-    float churn = n3(q + vec3(uTime * 0.4, 0.0, uTime * 0.25)) * 0.6 + n3(q * 2.4 - vec3(0.0, uTime * 0.6, 0.0)) * 0.4;
-    float flicker = 0.96 + 0.04 * sin(uTime * 3.1 + uSeed * 5.0) * sin(uTime * 1.7 + uSeed);
-    vec3 limb = vec3(0.96, 0.72, 0.36);
-    vec3 c = mix(limb, vec3(1.0, 0.985, 0.94), smoothstep(0.05, 0.75, ndv));
-    c += vec3(0.08, 0.06, 0.02) * smoothstep(0.45, 0.85, churn) * ndv;
-    c = mix(c, vec3(1.0, 0.86, 0.55), smoothstep(0.55, 0.9, churn) * (1.0 - ndv) * 0.6);
-    c = min(c * flicker, vec3(1.0));
-    c = mix(c, vec3(0.80, 0.55, 0.25), (1.0 - smoothstep(0.04, 0.14, ndv)) * 0.5);
+    // Drawn as the board draws: paper, softly shaded, in fine ink. A globe's lines (turning with it), and the
+    // contours of its churning surface, welling and shifting, so it reads alive without leaving the paper.
+    float lit = max(0.0, dot(normalize(vN), normalize(vec3(0.5, 0.8, 0.35))));
+    vec3 c = mix(uColor * 0.86, vec3(1.0, 0.998, 0.99), clamp(0.3 * ndv + 0.7 * lit, 0.0, 1.0));
+    float lat = asin(clamp(vL.y, -1.0, 1.0)) / 3.14159 * 4.0;
+    float lon = (atan(vL.z, vL.x) / 6.28318 + uTime * 0.02) * 8.0;
+    float gx = 1.0 - smoothstep(0.0, 0.8, (0.5 - abs(fract(lat) - 0.5)) / max(fwidth(lat), 1e-4));
+    float gy = 1.0 - smoothstep(0.0, 0.8, (0.5 - abs(fract(lon) - 0.5)) / max(fwidth(lon), 1e-4));
+    c = mix(c, vec3(0.42, 0.48, 0.62), max(gx, gy) * 0.14 * ndv);
+    vec3 q = vL * 2.2 + uSeed;
+    float churn = n3(q + vec3(uTime * 0.25, 0.0, uTime * 0.15)) * 0.65 + n3(q * 2.3 - vec3(0.0, uTime * 0.35, 0.0)) * 0.35;
+    float band = churn * 3.0;
+    float iso = 1.0 - smoothstep(0.0, 0.8, (0.5 - abs(fract(band) - 0.5)) / max(fwidth(band), 1e-4));
+    c = mix(c, vec3(0.42, 0.48, 0.62), iso * 0.2 * smoothstep(0.1, 0.5, ndv));
+    c = mix(c, vec3(0.42, 0.48, 0.62), (1.0 - smoothstep(0.06, 0.16, ndv)) * 0.6);
     gl_FragColor = vec4(c * uAlpha, uAlpha);
   } else if (uKind < 1.5) {
     vec3 c = mix(vec3(0.03, 0.03, 0.05), vec3(0.32, 0.33, 0.38), pow(1.0 - ndv, 3.0));
@@ -102,8 +110,8 @@ void main() {
 }`;
 
 /**
- * A camera-facing disc: a soft glow (kind 0), a fine ring (1), a corona of flickering flares (2), or a dashed
- * schematic ring turning (3).
+ * A camera-facing disc: a soft glow (kind 0), a fine ring (1), a dashed schematic ring turning (3), or rings
+ * pulsing out (4).
  */
 const SPRITE_VERT = `
 attribute vec2 aCorner;
@@ -121,8 +129,6 @@ const SPRITE_FRAG = `
 precision highp float;
 varying vec2 vUV;
 uniform vec3 uColor; uniform float uKind; uniform float uAlpha; uniform float uTime; uniform float uSeed;
-float hash(float x) { return fract(sin(x * 127.1) * 43758.5453); }
-float vn(float x) { float i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(hash(i), hash(i + 1.0), f); }
 void main() {
   float r = length(vUV);
   float a;
@@ -130,21 +136,15 @@ void main() {
   else if (uKind < 1.5) {
     float w = max(fwidth(r), 1e-4);
     a = (1.0 - smoothstep(0.0, w * 1.6, abs(r - 0.82))) * 0.95;
-  } else if (uKind < 2.5) {
-    // Flares: their reach round the disc wanders with time, each licking out and falling back.
-    float ang = atan(vUV.y, vUV.x) / 6.28318 + 0.5;
-    float reach = 0.36 + 0.34 * pow(vn(ang * 14.0 + uSeed * 9.0 + uTime * 0.25) * vn(ang * 5.0 - uTime * 0.4 + uSeed), 0.8);
-    a = smoothstep(reach, 0.3, r) * smoothstep(0.18, 0.3, r) * 0.9;
-    a += exp(-r * r * 9.0) * 0.5;
-    // And a few fine rays, turning slowly, each brightening and fading on its own.
-    float ray = 0.0;
-    for (int k = 0; k < 4; k++) {
-      float th = float(k) * 0.785 + uTime * 0.05 + uSeed;
-      float across = abs(vUV.x * sin(th) - vUV.y * cos(th));
-      ray += (1.0 - smoothstep(0.0, 0.025, across)) * (0.5 + 0.5 * sin(uTime * (0.7 + float(k) * 0.3) + uSeed * 3.0 + float(k)));
+  } else if (uKind > 3.5) {
+    // Rings of ink going out from it, one after another, fading as they spread: it pulses.
+    float w = max(fwidth(r), 1e-4);
+    a = 0.0;
+    for (int i = 0; i < 2; i++) {
+      float t = fract(uTime * 0.35 + uSeed * 0.13 + float(i) * 0.5);
+      float rr = mix(0.32, 0.98, t);
+      a += (1.0 - smoothstep(0.0, w, abs(r - rr))) * (1.0 - t) * 0.8;
     }
-    a += ray * smoothstep(1.0, 0.25, r) * 0.6;
-    a *= 1.0 - smoothstep(0.85, 1.0, r);
   } else {
     float w = max(fwidth(r), 1e-4);
     float ang = atan(vUV.y, vUV.x);
@@ -333,9 +333,10 @@ export class MapObjects {
       } else {
         const breathe = 1 + 0.1 * Math.sin(time * 1.1 + o.seed);
         // A wide warm glow, the flaring corona round the disc, and a fine dashed ring turning slowly.
-        sprite.draw(o.x, y, o.z, r * 5.5 * breathe, 0, GOLD, 0.6);
-        sprite.draw(o.x, y, o.z, r * 4.2, 2, [0.98, 0.8, 0.48], 0.85, o.seed);
-        sprite.draw(o.x, y, o.z, r * 3.6, 3, [0.45, 0.5, 0.63], 0.45, o.seed);
+        // A soft paper glow, a faint ring pulsing out, and a fine dashed ring turning slowly.
+        sprite.draw(o.x, y, o.z, r * 4 * breathe, 0, [1, 1, 1], 0.7);
+        sprite.draw(o.x, y, o.z, r * 4.4, 4, INK, 0.35, o.seed);
+        sprite.draw(o.x, y, o.z, r * 3.9, 3, INK, 0.35, o.seed);
       }
       if (o.ring) sprite.draw(o.x, y, o.z, r * 2.4, 1, o.ring, 1);
     }
@@ -382,7 +383,6 @@ export class MapObjects {
     if (look === 'blackHole') sprite.draw(0, BLACK_HOLE_Y, BLACK_HOLE_Z, 0.9, 0, GOLD, 0.35);
     else {
       sprite.draw(0, PULSAR_Y, 0, 0.6 * (1 + 0.2 * Math.sin(time * 9)), 0, [0.52, 0.72, 0.88], 0.9);
-      sprite.draw(0, PULSAR_Y, 0, 0.16, 2, [1, 0.96, 0.9], 0.9, 2);
     }
     sprite.done();
     gl.depthMask(true);
