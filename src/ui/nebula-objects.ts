@@ -440,11 +440,12 @@ export class MapObjects {
         sprite.draw(o.x, y, o.z, r * 2.4, 0, [1, 1, 1], 0.2);
       } else {
         const breathe = 1 + 0.1 * Math.sin(time * 1.1 + o.seed);
-        // A wide warm glow, the flaring corona round the disc, and a fine dashed ring turning slowly.
-        // A soft paper glow; where the player can travel, a fine dashed ring turning slowly and rings pulsing out.
+        // A soft paper glow; where the player can travel, a fine dashed ring turning slowly and rings pulsing out
+        // (in ink, or the holder's colour once held).
         sprite.draw(o.x, y, o.z, r * 4 * breathe, 0, [1, 1, 1], 0.7);
-        if (o.reach) sprite.draw(o.x, y, o.z, r * 4.4, 4, INK, 0.6, o.seed);
-        if (o.reach) sprite.draw(o.x, y, o.z, r * 3.9, 3, INK, 0.35, o.seed);
+        const mark = o.ring ?? INK;
+        if (o.reach) sprite.draw(o.x, y, o.z, r * 4.4, 4, mark, 0.6, o.seed);
+        if (o.reach) sprite.draw(o.x, y, o.z, r * 3.9, 3, mark, 0.35, o.seed);
       }
       if (o.ring) sprite.draw(o.x, y, o.z, r * 2.4, 1, o.ring, 1);
     }
