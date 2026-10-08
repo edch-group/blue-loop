@@ -1595,7 +1595,7 @@ body.screen-campaign .backdrop { display: none; }
     0 18px 0 -2px #dcdbd5,
     0 60px 90px rgba(60, 60, 80, 0.28);
   /* Smaller cards that rest fully on the table rather than off its edge. */
-  --hh: min(calc(27 * var(--vh)), 210px);
+  --hh: calc(min(calc(33 * var(--vh)), 270px) * 0.78);
   --hvis: calc(var(--hh) * 0.94);
   overflow: visible;
 }
@@ -1648,7 +1648,7 @@ body.screen-campaign .backdrop { display: none; }
   grid-template-columns: minmax(0, 1fr);
   --logw: 0px;
   /* The hand sits lower, its bottom edge tucked past the table's front (like MTG Arena). */
-  --hvis: calc(var(--hh) * 0.72);
+  --hvis: calc(var(--hh) * 0.5);
 }
 .table-view > .game > .display { grid-column: 1 !important; }
 .table-view > .game > .log-panel { grid-column: 2 !important; }
@@ -4280,7 +4280,9 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .table-view > .dock .hand-zone { pointer-events: auto; }
 /* Where the hand used to be on the board: kept empty, so the board keeps its place. */
 .dock.dock-space { visibility: hidden; pointer-events: none; }
-.table-view > .dock { --hh: min(calc(26 * var(--vh)), 210px); bottom: calc(var(--hh) * 0.09); }
+.table-view > .dock { --hh: min(calc(23 * var(--vh)), 186px); bottom: calc(var(--hh) * 0.09); }
+/* (The hand's cards a little smaller than elsewhere: the board takes the room.) */
+.table-view > .dock { --hw: calc(min(calc(33 * var(--vh)), 270px) * 0.714 * 0.78); --hvis: calc(var(--hw) * 1.4 * 0.72); }
 .dock-space .hand-space { height: var(--hvis); }
 
 /* Card titles a size down (they took the room the rules text needed), and the race row kept small on small
