@@ -107,7 +107,7 @@ function searchText(c: CardDef): string {
         sub,
         ...raceTraitTags(c).flatMap((t) => [t.name, t.text]),
         // (and the race's bonus and nerf even where they're folded into its numbers: Sun-lances, Regrowth)
-        ...(c.race !== undefined && RACE_TRAITS[c.race] ? [RACE_TRAITS[c.race].bonus, RACE_TRAITS[c.race].nerf] : []),
+        ...(c.race !== undefined && RACE_TRAITS[c.race] ? [RACE_TRAITS[c.race]!.bonus] : []),
         RARITY_NAME[c.rarity ?? 'dwarf'],
       ].join(' '),
     );

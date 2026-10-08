@@ -497,7 +497,7 @@ export function baseHealth(defId: string): number {
   if (def.kind === 'command') return Math.max(1, def.stability ?? BALANCE.heroStability);
   const base = Math.max(BALANCE.minHealth, Math.min(BALANCE.maxHealth, 1 + (def.cost ?? 1) + (def.kind === 'defence' ? 1 : 0)));
   // (A Fusion card stands a little less well alone: fusing is its strength.)
-  return Math.max(1, base + (raceTrait(def.race)?.stability ?? 0) - (def.fusion ? 1 : 0));
+  return Math.max(1, base - (def.fusion ? 1 : 0));
 }
 
 /** The energy a card costs to play (see costs.ts; 1 if not listed). */
@@ -542,7 +542,7 @@ function distance(a: CardInstance, b: CardInstance): number {
  * reach cards with low enough defence.
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
-  let d = slotDefence(card.slot) + cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0) + roomDefence(p, card);
+  let d = slotDefence(card.slot) + cardSturdy(card) + roomDefence(p, card);
   for (const src of p.tableau) {
     const k = distance(src, card);
     if (k === 0) continue;
@@ -1221,9 +1221,6 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
     owner.discard.push(f);
     if (!state.winnerId && !owner.eliminated) resolveEffects(state, owner, card, cardDef(f.defId).onLeave, 'leave');
   }
-  // Shatter (the Xel'Naru): a card of theirs leaving heats the rival.
-  const shatter = raceTrait(cardDef(card.defId).race)?.shatter ?? 0;
-  if (shatter > 0 && !cardDef(card.defId).token && !state.winnerId && !owner.eliminated) resolveEffects(state, owner, card, [{ type: 'heat', amount: shatter, to: 'target' }], 'leave');
   // Cards that answer another card leaving (Kyr'Vessa).
   for (const { card: watcher, passive } of passives(owner)) {
     if (passive.type === 'allyLeaves' && owner.tableau.includes(watcher)) resolveEffects(state, owner, watcher, passive.effects, 'leave');
@@ -1741,7 +1738,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
 /** A card's printed attack: its rating with its race's trait folded in (Sun-lances, Slow tides...; never below 1). */
 export function baseAttack(def: CardDef): number {
   const a = def.attack ?? 0;
-  return a > 0 ? Math.max(1, a + (raceTrait(def.race)?.attack ?? 0)) : 0;
+  return a > 0 ? a : 0;
 }
 
 /** A card's attack as it stands: its rating, with whatever boosts heat (Forge, a Hero's racial buff...). */
@@ -1757,9 +1754,6 @@ export function cardAttack(state: GameState, p: PlayerState, card: CardInstance)
   if (BALANCE.growthAttack && card.growth && (base > 0 || BALANCE.growthAttackAll)) base += card.growth * BALANCE.growthAttack;
   if (base <= 0) return 0;
   if (p.rooms && card.slot !== COMMAND_SLOT) base += p.rooms.attack[card.slot ?? -1] ?? 0;
-  // Flare-born: more while its owner's sun is overheated.
-  const t = raceTrait(def.race);
-  if (t?.attackHot && isOverheated(p)) base += t.attackHot;
   return effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play');
 }
 
@@ -1793,10 +1787,6 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   const amount = cardAttack(state, p, card);
   const name = cardDef(card.defId).name;
   card.dimmed = true;
-  // Self-immolating (the Pyrr): each attack heats their own sun.
-  const burn = raceTrait(cardDef(card.defId).race)?.attackSelfHeat ?? 0;
-  if (burn > 0) applyHeat(state, p, burn, null);
-  if (state.winnerId) return;
   if (targetUid === null) {
     // (No pulse: the card itself is seen striking the sun.)
     log(state, `${p.name}'s ${name} attacks ${rival.name}'s sun for ${amount}.`);
@@ -1816,7 +1806,7 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   strikeCard(state, rival, victim, amount, p, false, card.uid);
   if (back > 0 && p.tableau.includes(card)) {
     // An attacker out of its slot has no slot defence: only its own (Sturdy, and its race's) takes the blow first.
-    const own = Math.max(0, cardSturdy(card) + (raceTrait(cardDef(card.defId).race)?.defence ?? 0));
+    const own = Math.max(0, cardSturdy(card));
     const absorbed = Math.min(back, own, cardDefence(p, card));
     if (absorbed > 0) card.dented = (card.dented ?? 0) + absorbed;
     card.health = Math.max(0, (card.health ?? 0) - (back - absorbed));

@@ -1,4 +1,4 @@
-import { BALANCE, baseAttack, baseHealth, CARDS, cardDef, hasDarkspeed, isBurst, RACE_TRAITS, raceTrait, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseAttack, baseHealth, CARDS, cardDef, hasDarkspeed, isBurst, raceTrait, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
 import { stellariaFlower } from './art';
 import { cardScene, renderedArt } from './cardart';
 import jewelEmerald from './jewels/emerald.png';
@@ -446,10 +446,8 @@ export function typeLine(def: CardDef): string {
  */
 export function raceRow(def: CardDef): string {
   if (def.race === undefined) return '';
-  const t = RACE_TRAITS[def.race];
   const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
-  // (The race's bonus and nerf are keywords on the card's text, where they apply: see raceTraitTags.)
-  void t;
+  // (The race's trait is a keyword on the card's text, where it applies: see raceTraitTags.)
   return `<span class="card-racerow"><b>${escType(`${RACE_NAMES[def.race]}${sub}`.toLowerCase())}</b></span>`;
 }
 
@@ -461,10 +459,9 @@ export function raceTraitTags(def: CardDef): { name: string; text: string; nerf:
   const t = raceTrait(def.race);
   if (!t) return [];
   const stays = persists(def.id) && !isBurst(def);
-  const reaches = (on: string) =>
-    on === 'attack' ? (def.attack ?? 0) > 0 : on === 'stays' ? stays : on === 'darkspeed' ? hasDarkspeed(def) : on === 'attune' ? !!def.attune : false;
-  const tag = (line: string, nerf: boolean) => ({ name: line.split(':')[0], text: plainText(line.slice(line.indexOf(':') + 1).trim()), nerf });
-  return [...(reaches(t.bonusOn) ? [tag(t.bonusTag ?? t.bonus, false)] : []), ...(reaches(t.nerfOn) ? [tag(t.nerf, true)] : [])];
+  const reaches = (on: string) => (on === 'stays' ? stays : on === 'darkspeed' ? hasDarkspeed(def) : on === 'attune' ? !!def.attune : false);
+  const tag = (line: string) => ({ name: line.split(':')[0], text: plainText(line.slice(line.indexOf(':') + 1).trim()), nerf: false });
+  return reaches(t.bonusOn) ? [tag(t.bonus)] : [];
 }
 
 /** The same as plain words ("attack · aureline"), for lists. */

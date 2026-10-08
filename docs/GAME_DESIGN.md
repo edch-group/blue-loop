@@ -642,20 +642,20 @@ How the mode is used across the game:
 
 ## The eight races [design review]
 
-Each player is one of eight races (races.ts). Every race has a **bonus and a nerf** that ride on every one of its cards, wherever they are played (a mixed deck's Aureline card is still unarmoured), so similar cards read differently by race. The card inspector and the campaign's race picker show them. The four newer races also split into **sub-races**, which their buff cards and Heroes name ("your Unmaker cards heat +1"), with matching counts and conditions (`{of:'race', sub}`, `minRace`).
+Each player is one of eight races (races.ts). [direction: race traits never change a card's numbers; they only give existing keywords, written on the card] A race's **trait** is one existing keyword on each of its cards (where it applies), wherever they are played. There are no nerfs. Aureline, Xel'Naru and Ixquor have none: Forge, Overheat and Growth are their identity.
 
-| Race | Theme | Bonus | Nerf | Sub-races |
-| --- | --- | --- | --- | --- |
-| Aureline | Lancers of light: attack cards that power each other | Sun-lances: attack cards +1 attack | Unarmoured: −1 defence | |
-| Xel'Naru | Crystal overloaders: run hot, pay off as cards leave | Shatter: when one leaves your tableau, heat 1 at the rival | Brittle: −1 stability | |
-| Vorthane | Tidal bells: shields, kept, and stinging | Sting: +1 Sting on their cards that stay (written into each card’s own Sting) | Slow tides: −1 attack (never below 1) | |
-| Ixquor | The hive: go wide, ramp, grow | Regrowth: +1 stability | Unarmoured: −1 defence | |
-| Nyxari | Void-stalkers | Darkspeed: their attackers and Heroes can attack or act the day they come into play (not dimmed); their other cards come in dimmed as anyone's do | Fleeting: −2 stability | Veilwalker (Lightspeed traps), Unmaker (removal), Blood Cult (Consume, and paying off as cards leave play) |
-| Korrath | Forge-smiths | Sturdy: +2 Sturdy on their cards that stay (written into each card's own Sturdy) | Ponderous: −1 attack (never below 1) | Forgeborn (Fusion grafts), Bastion-kin (Guards) |
-| Seren | Star-readers | Star-charted: attuned cards attune once more | Frail: −1 stability | Tidecaster (orbit), Seer (draw, recover, attune) |
-| Pyrr | Flare-born | +1 attack, +2 while overheated | Self-immolating: each attack heats their own sun 1 | Flarekin (spend-all bursts), Cinderborn (run hot) |
+| Race | Theme | Trait | Sub-races |
+| --- | --- | --- | --- |
+| Aureline | Lancers of light: attack cards that power each other | none (Forge) | |
+| Xel'Naru | Crystal overloaders: run hot | none (Overheat) | |
+| Vorthane | Tidal bells: shields, kept, and stinging | Sting 1 on their cards that stay (written into each card's own Sting) | |
+| Ixquor | The hive: go wide, ramp, grow | none (Growth) | |
+| Nyxari | Void-stalkers | Darkspeed: their attackers and Heroes can attack or act the day they come into play | |
+| Korrath | Forge-smiths | Sturdy 2 on their cards that stay (written into each card's own Sturdy) | |
+| Seren | Star-readers | Star-charted: attuned cards attune once more | Tidecaster (orbit), Seer (draw, recover, attune) |
+| Pyrr | Flare-born | Sting 1 on their cards that stay (fire burns what strikes it) | |
 
-A trait that only changes a card's own attack or stability (Sun-lances, Fractured, Slow tides, Regrowth, Fleeting, Ponderous, Frail, and Flare-born's +1), the Korrath's Sturdy and the Vorthane's Sting (added to each card's own Sturdy or Sting), is folded into that card's numbers, not shown as a keyword; the others (the defence nerfs, which depend on the slot, Shatter, Darkspeed, Star-charted, Flare-born while overheated, Self-immolating) stay keywords on the card text.
+(Was: a bonus and a nerf each, many of them hidden changes to attack, defence or stability: Aureline's +1 attack, Pyrr's +1/+2 attack and self-heating, Xel'Naru's Shatter, and −1/−2 stability, attack or defence nerfs. All gone. With the Aureline +1 attack gone, the Sunforge starter's total attack went 52 → 40, still the most of any Core deck: its Forge count is the next thing to look at.)
 
 The newer races have 17–19 cards each (cards-races.ts), with three Heroes (a 2, a 3 and a cost-4 Anomaly bomb), and a starter each: Night Court, Forge Clans, Starwatch, Wildfire. All eight are in the campaign: any race can lead, and the rivals are drawn at random (seeded) from the other seven, each with generals, skill trees, gear, ships and emblems of their own.
 

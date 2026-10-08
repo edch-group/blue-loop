@@ -1143,7 +1143,7 @@ export class CampaignView {
       <div class="cmp-rc-body">
         <b class="cmp-rc-name">${lower(RACE_NAMES[r])}</b>
         <p>${esc(RACE_BLURB[r])}</p>
-        ${r >= 4 ? `<div class="cmp-rc-traits"><em class="cmp-trait-bonus">+ ${esc(plainText(RACE_TRAITS[r].bonus))}</em><em class="cmp-trait-nerf">− ${esc(plainText(RACE_TRAITS[r].nerf))}</em></div>` : ''}
+        ${RACE_TRAITS[r] ? `<div class="cmp-rc-traits"><em class="cmp-trait-bonus">+ ${esc(plainText(RACE_TRAITS[r]!.bonus))}</em></div>` : ''}
         ${raceOpen ? '' : buy(`race:${r}`, 'unlock')}
       </div>
     </div>`;

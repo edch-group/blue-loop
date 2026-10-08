@@ -5144,12 +5144,13 @@ export class App {
   /** A race card's racial bonus and nerf (and its sub-race), which ride on every card of that race. */
   private raceNote(defId: string): string {
     const def = cardDef(defId);
+    if (def.race === undefined) return '';
     const t = raceTrait(def.race);
-    if (!t) return '';
     const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
-    const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race!])}${esc(sub)}</b>`;
-    // (Its bonus and nerf follow as keywords, those that apply to this card.)
-    const theme = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].theme : `${plainText(t.bonus)} ${plainText(t.nerf)}`;
+    const head = `<b class="kw kw-race">${esc(RACE_NAMES[def.race])}${esc(sub)}</b>`;
+    // (Its trait follows as a keyword, where it applies to this card.)
+    const theme = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].theme : t ? plainText(t.bonus) : '';
+    if (!theme) return `<div class="kw-race-row">${head}</div>`;
     return `<div class="kw-race-row">${head}<span>${esc(theme.replace(/\.*$/, '.'))}</span></div>`;
   }
 
