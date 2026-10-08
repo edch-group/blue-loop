@@ -564,13 +564,12 @@ const hexPath = (cx: number, cy: number, r: number) =>
  * number in the middle on a patch of the badge's own colour so it reads over them.
  */
 const SHIELD_LATTICE = (() => {
-  // (A honeycomb of big cells sharing their walls, the middle one round the number, the outer ones cut by the rim:
-  // a shield's plating, not a frost of tiny ones.)
-  const r = 7.6, d = Math.sqrt(3) * r;
-  const cells = [hexPath(20, 20, r)];
+  // (Straight lines only: hexes nested inside it, joined corner to corner, like a faceted plate. No forks, no
+  // petals: it reads as a shield, not a snowflake.)
+  const cells = [hexPath(20, 20, 7.2), hexPath(20, 20, 12.6)];
   for (let i = 0; i < 6; i++) {
-    const a = ((60 * i - 30) * Math.PI) / 180;
-    cells.push(hexPath(20 + d * Math.cos(a), 20 + d * Math.sin(a), r));
+    const a = ((60 * i - 90) * Math.PI) / 180;
+    cells.push(`M${(20 + 7.2 * Math.cos(a)).toFixed(2)} ${(20 + 7.2 * Math.sin(a)).toFixed(2)} L${(20 + 18.5 * Math.cos(a)).toFixed(2)} ${(20 + 18.5 * Math.sin(a)).toFixed(2)}`);
   }
   return `<svg viewBox="0 0 40 40" aria-hidden="true"><defs><clipPath id="bs-clip-hex"><path d="${hexPath(20, 20, 18.5)}"/></clipPath></defs><path class="bs-hex" d="${hexPath(20, 20, 18.5)}"/><g clip-path="url(#bs-clip-hex)"><path class="bs-cell" d="${cells.join(' ')}"/></g></svg>`;
 })();
