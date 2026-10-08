@@ -28,13 +28,17 @@ def data_uri(path):
 def call(prompt, refs):
     key = os.environ.get('FAL_KEY') or os.environ.get('FAL_API_KEY')
     if not key: sys.exit('Set FAL_KEY (your fal.ai API key) in the environment.')
-    body = json.dumps({'prompt': prompt, 'image_urls': refs, 'num_images': 1, 'aspect_ratio': '16:9', 'output_format': 'png'}).encode()
-    req = urllib.request.Request(f'https://fal.run/{MODEL}', data=body, headers={'Authorization': f'Key {key}', 'Content-Type': 'application/json'})
+    # (With no reference images, as for a race not drawn yet, the model paints from the words alone.)
+    model = MODEL if refs else MODEL.removesuffix('/edit')
+    payload = {'prompt': prompt, 'num_images': 1, 'aspect_ratio': '16:9', 'output_format': 'png'}
+    if refs: payload['image_urls'] = refs
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(f'https://fal.run/{model}', data=body, headers={'Authorization': f'Key {key}', 'Content-Type': 'application/json'})
     try:
         with urllib.request.urlopen(req, timeout=300) as r:
             out = json.load(r)
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f'{e.code} from {MODEL}: {e.read().decode(errors="replace")[:2000]}') from None
+        raise RuntimeError(f'{e.code} from {model}: {e.read().decode(errors="replace")[:2000]}') from None
     url = out['images'][0]['url']
     with urllib.request.urlopen(url, timeout=120) as r:
         return Image.open(BytesIO(r.read())).convert('RGB')

@@ -358,8 +358,13 @@ const MODE_ART: Record<'core' | 'lost', string> = { core: 'empress_solenne', los
  * picture, name and a line of what it is. `act`: the action each card sends, with its mode.
  */
 export function modeCards(current: 'core' | 'lost', act: string, modes: Record<'core' | 'lost', { name: string; blurb: string }>): string {
+  // (The Lost Races' own painting, once it has been made: scripts/cardart, "lost mode_lost_races".)
+  const art = (m: 'core' | 'lost') => {
+    const own = m === 'lost' && renderedArt('mode_lost_races');
+    return own ? `<img class="art" alt="" draggable="false" src="${own}" />` : sceneImage(cardDef(MODE_ART[m]));
+  };
   const card = (m: 'core' | 'lost') =>
-    `<button class="mode-card ${current === m ? 'on' : ''}" data-act="${act}" data-arg="${m}" aria-pressed="${current === m}"><span class="mode-card-art">${sceneImage(cardDef(MODE_ART[m]))}</span><b>${escType(modes[m].name.toLowerCase())}</b><small>${escType(modes[m].blurb)}</small></button>`;
+    `<button class="mode-card ${current === m ? 'on' : ''}" data-act="${act}" data-arg="${m}" aria-pressed="${current === m}"><span class="mode-card-art">${art(m)}</span><b>${escType(modes[m].name.toLowerCase())}</b><small>${escType(modes[m].blurb)}</small></button>`;
   return `<div class="mode-cards" role="group" aria-label="Game mode">${card('core')}${card('lost')}</div>`;
 }
 

@@ -6052,8 +6052,8 @@ body:has(.game-result) .dock { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .rh-card { transition: none; } }
 
 /* The game mode, as two cards down the left of the screen: a picture, its name, a line beneath. */
-.mode-cards { position: fixed; left: max(18px, var(--sa-l, 0px)); top: 50%; transform: translateY(-50%); z-index: 4; display: grid; gap: 14px; width: clamp(120px, 12vw, 168px); }
-.mode-card {
+.mode-cards { position: fixed; left: max(18px, var(--sa-l, 0px)); top: 50%; transform: translateY(-50%); z-index: 4; display: grid; grid-auto-rows: 1fr; gap: 14px; width: clamp(120px, 12vw, 168px); }
+.mode-card { align-content: start;
   display: grid; gap: 4px; padding: 6px 6px 10px; border: 0; border-radius: 12px; background: #fff; text-align: center; cursor: pointer;
   box-shadow: 0 0 0 1px rgba(150, 156, 172, 0.25), 0 4px 14px rgba(60, 70, 100, 0.1); opacity: 0.62; transition: opacity 0.2s, box-shadow 0.2s, transform 0.2s;
 }
