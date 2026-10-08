@@ -831,6 +831,42 @@ for (const c of CARDS) {
   for (const a of c.abilities ?? []) a.text = kindWords(a.text);
 }
 
+/**
+ * The stat budget: a unit with abilities has at most 2c+1 points of attack, Sturdy and stability together at cost
+ * c (a race's Sturdy counted too), a point under a plain card's (2c+2), since its abilities are worth something too.
+ * Anything over comes off its stability first (never below 1), then its attack.
+ */
+export const abilityBudget = (cost: number) => 2 * cost + 1;
+const health0 = (c: CardDef) => c.health ?? Math.max(BALANCE.minHealth, Math.min(BALANCE.maxHealth, 1 + (c.cost ?? 1) + (c.kind === 'defence' ? 1 : 0)));
+/** A unit's stats against its budget (attack, its own Sturdy, stability), or null for a card with no budget. */
+export function statPoints(c: CardDef): number | null {
+  if (c.kind === 'command' || c.kind === 'lightspeed' || c.kind === 'relic' || c.kind === 'global' || c.token || isBurst(c)) return null;
+  return Math.max(0, c.attack ?? 0) + (c.defence ?? 0) + health0(c);
+}
+for (const c of CARDS) {
+  if (PLAIN_PROFILE[c.id] || c.fusion) continue;
+  const pts = statPoints(c);
+  if (pts === null) continue;
+  let over = pts - abilityBudget(c.cost ?? 1);
+  if (over <= 0) continue;
+  const h = health0(c);
+  const cut = Math.min(over, h - 1);
+  c.health = h - cut;
+  over -= cut;
+  if (over > 0) {
+    const a = Math.min(over, Math.max(0, c.attack ?? 0));
+    c.attack = (c.attack ?? 0) - a;
+    over -= a;
+  }
+  // (Last, Sturdy, a race's trait kept: its words say it.)
+  const own = (c.defence ?? 0) - (raceTrait(c.race)?.sturdy ?? 0);
+  if (over > 0 && own > 0) {
+    const d = Math.min(over, own);
+    c.defence = (c.defence ?? 0) - d;
+    c.text = c.text.replace(/\{sturdy:(\d+)\}/, (_, n: string) => `{sturdy:${Number(n) - d}}`);
+  }
+}
+
 /** What a card is, as players read it: a unit (it stays in play) or a surge (it resolves and goes), or a Hero, Relic, Lightspeed or global card. */
 export type ShownKind = 'unit' | 'surge' | 'command' | 'lightspeed' | 'relic' | 'global';
 export const SHOWN_KINDS: readonly ShownKind[] = ['unit', 'surge', 'relic', 'global', 'command', 'lightspeed'];

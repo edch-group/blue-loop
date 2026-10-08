@@ -5,37 +5,47 @@ import type { CardDef, CardKind } from './types';
  * With nothing to pay for in text, each stands better on its numbers than a card of its cost with an ability.
  * Race cards still carry their race's trait (Sting, Sturdy, Darkspeed) and its buffs, as any card of theirs does.
  *
- * Profiles, at cost c: striker c+2 attack, c+1 stability; glass c+3 attack, c−1 stability (at least 1); brute c attack,
- * c+4 stability; guardian c attack, Sturdy 2, c+2 stability; veteran c+1 attack, Sturdy 1, c+2 stability; wall no
- * attack, Sturdy 3 (a Guard by its walls), c+3 stability. About two points more than a card of its cost with an ability.
+ * Every profile spends the same budget, 2c+2 points of attack, Sturdy and stability at cost c: one point more than
+ * a card of its cost with an ability (about 2c+1). Striker c+1 attack, c+1 stability; glass c+2 attack, c stability;
+ * brute c attack, c+2 stability; guardian c−1 attack, Sturdy 2, c+1 stability; veteran c attack, Sturdy 1, c+1
+ * stability; wall no attack, Sturdy 3 (a Guard by its walls), 2c−1 stability (at least 1).
  */
 type Profile = 'striker' | 'glass' | 'brute' | 'guardian' | 'veteran' | 'wall';
 
 function stats(p: Profile, c: number): { attack: number; sturdy: number; health: number } {
   switch (p) {
-    case 'striker': return { attack: c + 2, sturdy: 0, health: c + 1 };
-    case 'glass': return { attack: c + 3, sturdy: 0, health: Math.max(1, c - 1) };
-    case 'brute': return { attack: c, sturdy: 0, health: c + 4 };
-    case 'guardian': return { attack: c, sturdy: 2, health: c + 2 };
-    case 'veteran': return { attack: c + 1, sturdy: 1, health: c + 2 };
-    case 'wall': return { attack: 0, sturdy: 3, health: c + 3 };
+    case 'striker': return { attack: c + 1, sturdy: 0, health: c + 1 };
+    case 'glass': return { attack: c + 2, sturdy: 0, health: Math.max(1, c) };
+    case 'brute': return { attack: c, sturdy: 0, health: c + 2 };
+    case 'guardian': return { attack: Math.max(0, c - 1), sturdy: 2, health: c + 1 };
+    case 'veteran': return { attack: c, sturdy: 1, health: c + 1 };
+    case 'wall': return { attack: 0, sturdy: 3, health: Math.max(1, 2 * c - 1) };
   }
 }
+
+/** The budget every plain card spends at its cost (attack, Sturdy and stability together), before its race's trait. */
+export const plainBudget = (cost: number) => 2 * cost + 2;
 
 /** Which profile each card takes, and its art's look (by its race's figure). */
 export const PLAIN_PROFILE: Record<string, Profile> = {};
 
 /**
- * Korrath's trait (Sturdy +2) adds to a card's own numbers, so their plain cards pay for it with a point of
- * stability, and of attack where they have 2 or more:
- * a Korrath card never simply beats a neutral one with the same numbers. (Sting and Darkspeed are the race's, not
+ * Korrath's trait (Sturdy +2) adds to a card's own numbers, so their plain cards pay for it in full, out of the
+ * same budget: a Korrath card never simply beats a neutral one. (Sting and Darkspeed are the race's, not
  * the card's numbers: no cost.)
  */
 function traitTax(race: number | undefined, s: { attack: number; sturdy: number; health: number }, profile: Profile) {
   void profile;
+  // (Korrath: their trait's Sturdy 2 is paid for in full, from stability (never below 1), then attack, then the card's own Sturdy.)
   if (race === 5) {
-    s.health = Math.max(1, s.health - 1);
-    if (s.attack >= 2) s.attack -= 1;
+    let owe = 2;
+    const h = Math.min(owe, s.health - 1);
+    s.health -= h;
+    owe -= h;
+    const a = Math.min(owe, s.attack);
+    s.attack -= a;
+    owe -= a;
+    s.sturdy -= Math.min(owe, s.sturdy);
   }
   return s;
 }

@@ -326,7 +326,8 @@ function withYield(html: string, marks: string): string {
 
 /** The marks over a card in play (under, on the rival's side) for what it gives each day now. */
 function yieldMarks(st: GameState, p: PlayerState, c: CardInstance, side: 'mine' | 'rival'): string {
-  const y = cardYield(st, p, c);
+  // (A rival card's heat to its own sun is theirs to worry about: no chip for it.)
+  const y = cardYield(st, p, c).filter(([k]) => side === 'mine' || k !== 'selfHeat');
   if (!y.length) return '';
   const title = `Each day, as things stand: ${y.map(([k, n]) => `${n} ${YIELD_NAMES[k]}`).join(', ')}.`;
   return `<span class="card-yield card-yield-${side}" title="${esc(title)}">${y.map(([k, n]) => `<i class="yield yield-${k}">${effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k)}${n}</i>`).join('')}</span>`;

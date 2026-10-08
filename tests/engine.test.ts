@@ -159,6 +159,7 @@ describe('the tableau', () => {
     const me = activePlayer(s);
     me.playsLeft = 3;
     const wall = give(me, Array(BALANCE.tableauSlots).fill('coolant_array'), 'tableau');
+    for (const w of wall) w.health = 4;
     wall[2].health = 1;
     give(me, ['plasma_relay', 'plasma_relay', 'null_field']);
     expect(replaces(me, 'plasma_relay')).toBe(true);
