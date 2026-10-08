@@ -1033,7 +1033,7 @@ export class App {
     window.addEventListener(VIEWPORT_EVENT, () => {
       this.fitHand();
       if (this.boardZoom && this.screen === 'game') {
-        this.zoomVars = `--zt:${this.zoomTransform(this.boardZoom)}`;
+        this.zoomVars = this.zoomStyle(this.boardZoom);
         this.root.querySelector('.table-view')?.setAttribute('style', this.zoomVars);
       }
       sizePool(this.root);
@@ -4577,7 +4577,7 @@ export class App {
     const view = this.root.querySelector<HTMLElement>('.table-view');
     if (!view) return;
     // (Worked out before the classes change: the measure takes the board as it is laid out, flat.)
-    this.zoomVars = side ? `--zt:${this.zoomTransform(side)}` : '';
+    this.zoomVars = side ? this.zoomStyle(side) : '';
     view.classList.toggle('zoom-rival', side === 'rival');
     view.classList.toggle('zoom-mine', side === 'mine');
     if (this.zoomVars) view.setAttribute('style', this.zoomVars);
@@ -4602,6 +4602,31 @@ export class App {
     return out;
   }
 
+  /**
+   * Zoomed in, how much of the hand still peeks up from the screen's foot: the tops of its cards (their names
+   * and costs), so a card can still be played; raised, the hand comes up whole as ever.
+   */
+  private handStrip(): number {
+    const card = this.root.querySelector<HTMLElement>('.table-view > .dock .hand > .card');
+    return Math.round((card?.offsetHeight ?? 200) * 0.6);
+  }
+
+  /** How far the hand drops, zoomed in, for only that strip of its lowest card to show. */
+  private handDrop(): number {
+    const dock = this.root.querySelector<HTMLElement>('.table-view > .dock');
+    const cards = [...(dock?.querySelectorAll<HTMLElement>('.hand > .card') ?? [])];
+    if (!dock || !cards.length) return 0;
+    // (Where the cards stand with the dock unmoved: any drop it has now taken back off.)
+    const ty = new DOMMatrixReadOnly(getComputedStyle(dock).transform === 'none' ? undefined : getComputedStyle(dock).transform).m42;
+    const top = Math.max(...cards.map((c) => c.getBoundingClientRect().top)) - ty;
+    return Math.max(0, Math.round(window.innerHeight - this.handStrip() - top));
+  }
+
+  /** The zoomed board's own variables: its transform, and the hand's drop below it. */
+  private zoomStyle(side: 'rival' | 'mine'): string {
+    return `--zt:${this.zoomTransform(side)};--zdrop:${this.handDrop()}px`;
+  }
+
   private measureZoom(side: 'rival' | 'mine'): string {
     const view = this.root.querySelector<HTMLElement>('.table-view');
     const game = view?.querySelector<HTMLElement>(':scope > .game');
@@ -4613,7 +4638,8 @@ export class App {
       const top = Math.min(...parts.map((r) => r.top)), bottom = Math.max(...parts.map((r) => r.bottom));
       return { x: (left + right) / 2, y: (top + bottom) / 2, w: right - left, h: bottom - top };
     };
-    const w = window.innerWidth, h = window.innerHeight;
+    // (Above the hand's peeking tops.)
+    const w = window.innerWidth, h = window.innerHeight - this.handStrip();
     const fit = (r: { w: number; h: number }) => Math.min((w - 2 * 76) / r.w, (h * 0.94) / r.h);
     const was = { transform: game.style.transform, transition: game.style.transition };
     game.style.transition = 'none';

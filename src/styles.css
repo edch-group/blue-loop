@@ -4365,9 +4365,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 /* (--zt is worked out to fit the tableau to the window: see zoomTransform. The board is moved and scaled, never laid out again.) */
 .table-view.zoom-rival > .game, .table-view.zoom-mine > .game { transform: var(--zt); }
 /* Zoomed in, the tableau is all there is: everything else steps out of the way (the zoom buttons stay). */
-.table-view.zoom-rival > :is(.dock, .hud, .turn-controls, .hero-skills, .phase-track, .result-anchor),
-.table-view.zoom-mine > :is(.dock, .hud, .turn-controls, .hero-skills, .phase-track, .result-anchor) { opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-.table-view.zoom-rival > .dock, .table-view.zoom-mine > .dock { transform: translateY(80%); }
+.table-view.zoom-rival > :is(.hud, .turn-controls, .hero-skills, .phase-track, .result-anchor),
+.table-view.zoom-mine > :is(.hud, .turn-controls, .hero-skills, .phase-track, .result-anchor) { opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+/* (All but the hand: its cards' tops still peek up from the screen's foot, to be played from; raised, it comes up whole.) */
+.table-view:is(.zoom-rival, .zoom-mine) > .dock:not(.dock-raised) { transform: translateY(var(--zdrop, 0px)); }
 .board-zoom { position: fixed; left: max(10px, var(--sa-l, 0px)); top: 50%; transform: translateY(-50%); z-index: 13; display: grid; gap: 10px; }
 .zoom-btn { display: grid; justify-items: center; gap: 1px; min-width: 46px; padding: 6px 7px 5px; border: 1px solid #fff; border-radius: 14px; background: rgba(255, 255, 255, 0.85); box-shadow: var(--shadow); color: var(--ink-soft); cursor: pointer; font-family: var(--display); }
 .zoom-btn span { font-size: 1rem; line-height: 1; }
