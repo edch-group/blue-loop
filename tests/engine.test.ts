@@ -1516,3 +1516,51 @@ describe("the sun's ward", () => {
     }
   });
 });
+
+describe('Offering and Rootbreak', () => {
+  it('Offering: an armed card gives its attack for the day, and a rival card loses that much stability past its defence', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const [giver] = give(me, ['p_dawn_lancer'], 'tableau');
+    const [foe] = give(s.players[1], ['p_reef_hulk'], 'tableau');
+    foe.health = 9;
+    give(me, ['aureline_solar_tithe']);
+    me.playsLeft = 5;
+    const atk = cardAttack(s, me, giver);
+    expect(atk).toBeGreaterThan(0);
+    s = play(s, 'aureline_solar_tithe', { allyUid: giver.uid, enemyUid: foe.uid });
+    const g = activePlayer(s).tableau.find((c) => c.uid === giver.uid)!;
+    expect(s.players[1].tableau.find((c) => c.uid === foe.uid)!.health).toBe(9 - atk);
+    // Its attack is spent for the day (it can't attack), and back at its owner's next dawn.
+    expect(cardAttack(s, activePlayer(s), g)).toBe(0);
+    s = endTurn(endTurn(s));
+    expect(cardAttack(s, s.players[0], s.players[0].tableau.find((c) => c.uid === giver.uid)!)).toBe(atk);
+  });
+
+  it('Offering needs an armed card of yours that has not acted today', () => {
+    const s = twoPlayer();
+    const me = activePlayer(s);
+    const [c] = give(me, ['p_dawn_lancer'], 'tableau');
+    c.dimmed = true;
+    give(me, ['aureline_solar_tithe']);
+    expect(hasRoomFor(me, 'aureline_solar_tithe')).toBe(false);
+  });
+
+  it("Rootbreak splits a rival card's defence by a grown card's growth, or their sun's shields", () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const [root] = give(me, ['spore_drone'], 'tableau');
+    root.growth = 2;
+    const [foe] = give(s.players[1], ['p_coral_bulwark'], 'tableau');
+    const bo = s.players[1];
+    const before = cardDefence(bo, foe);
+    expect(before).toBeGreaterThan(1);
+    give(me, ['ixquor_through_the_cracks', 'ixquor_canopy_breach']);
+    me.playsLeft = 5;
+    s = play(s, 'ixquor_through_the_cracks', { allyUid: root.uid, enemyUid: foe.uid });
+    expect(cardDefence(s.players[1], s.players[1].tableau.find((c) => c.uid === foe.uid)!)).toBe(Math.max(0, before - 2));
+    s.players[1].shields = 5;
+    s = play(s, 'ixquor_canopy_breach', { allyUid: root.uid });
+    expect(s.players[1].shields).toBe(3);
+  });
+});

@@ -5,6 +5,7 @@ import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { RACE_CARDS } from './cards-races';
 import { DUSK_CARDS } from './cards-dusk';
 import { PLAIN_CARDS, PLAIN_EXISTING, PLAIN_PROFILE, plainStats } from './cards-plain';
+import { REMOVAL_CARDS } from './cards-removal';
 import { BIG_CARDS } from './cards-big';
 import { RELIC_CARDS } from './cards-relics';
 import { HERO_CARDS, heroCost } from './heroes-battle';
@@ -700,7 +701,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS, ...RELIC_CARDS, ...PLAIN_CARDS);
+CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS, ...RELIC_CARDS, ...PLAIN_CARDS, ...REMOVAL_CARDS);
 // The Heroes as they now fight (heroes-battle.ts): lasting, with abilities to choose from each day, in
 // place of the old choice of dawn effect.
 for (const c of CARDS) {
@@ -1223,8 +1224,8 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Sunforge',
     mode: 'core',
     cards: [
-      ...twoOf('command_directive', 'sunforge', 'helio_bastion', 'p_gilded_vanguard', 'halo_sentinel', 'solar_aegis', 'aureline_war_herald', 'helio_lancer', 'p_dawn_lancer', 'p_sunlance_cadet', 'aureline_watchkeeper', 'aureline_sun_priest'),
-      'empress_solenne', 'focusing_array', 'dawnstar_cannon', 'aureline_sunset_lancer', 'aurelia_first_light', 'ion_cannon',
+      ...twoOf('command_directive', 'sunforge', 'helio_bastion', 'p_gilded_vanguard', 'halo_sentinel', 'aureline_solar_tithe', 'aureline_war_herald', 'helio_lancer', 'p_dawn_lancer', 'p_sunlance_cadet', 'aureline_watchkeeper', 'aureline_sun_priest'),
+      'empress_solenne', 'focusing_array', 'aureline_dawns_judgement', 'aureline_sunset_lancer', 'aurelia_first_light', 'ion_cannon',
     ],
   },
   {
@@ -1250,8 +1251,8 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Living Hive',
     mode: 'core',
     cards: [
-      ...twoOf('chamber_protocol', 'mycelium_tower', 'spore_drone', 'chitin_spire', 'thorn_graft', 'ixquor_brood_tender', 'p_brood_drone', 'hive_warrior', 'p_chitin_hulk', 'ixquor_waiting_brood', 'bloom_burst', 'p_hive_lancer'),
-      'the_worldroot', 'spore_catalyst', 'hive_relay', 'ixquor_brood_warden', 'void_bolt', 'the_brood_queen',
+      ...twoOf('chamber_protocol', 'mycelium_tower', 'spore_drone', 'chitin_spire', 'thorn_graft', 'ixquor_brood_tender', 'p_brood_drone', 'ixquor_through_the_cracks', 'p_chitin_hulk', 'ixquor_waiting_brood', 'bloom_burst', 'p_hive_lancer'),
+      'the_worldroot', 'spore_catalyst', 'hive_relay', 'ixquor_brood_warden', 'ixquor_rootfall', 'the_brood_queen',
     ],
   },
   // (Lost Races, added after the Core starters so every saved starter keeps its place.)

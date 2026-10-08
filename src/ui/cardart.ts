@@ -915,6 +915,22 @@ function pyrr(S: Scene, x: number, y: number, s: number, o: PyrOpts = {}): strin
 type Draw = (S: Scene) => string;
 
 const ART: Record<string, Draw> = {
+  // ---- Removal: the Aureline's Offering, the Ixquor's Rootbreak ----
+  aureline_solar_tithe: (S) => S.sun(128, 22, 12, '#fff3c4', 10) + S.beam(128, 26, 112, 88, 3, '#ffe39a') + S.glow(112, 88, 10, '#ff8a4a', 0.9) + aureline(S, 52, 60, 1, { item: 'lance', halos: 2, eye: '#ffcf6a', lean: 0.15, garb: 'vestment', sash: '#ffd98a' }),
+  aureline_dawns_judgement: (S) => S.sun(80, 14, 16, '#fff7d8', 14) + [56, 80, 104].map((x) => S.beam(80, 22, x, 92, 2.2, '#ffe39a')).join('') + S.ground(92, '#2a1c10', 6) + S.glow(80, 90, 18, '#ffb05a', 0.75),
+  aureline_sunbreak_rite: (S) => S.rings(80, 46, 10, 4, 7, '#ffd98a', 0.55) + S.sun(80, 46, 10, '#fff3c4', 12) + aureline(S, 40, 64, 0.85, { item: 'staff', halos: 1, garb: 'vestment', lean: 0.2 }) + aureline(S, 120, 64, 0.85, { item: 'staff', halos: 1, garb: 'vestment', lean: -0.2 }),
+  ixquor_through_the_cracks: (S) => {
+    // A shield split open, vines growing out through its cracks.
+    const shield = `<path d="M80 12 L114 24 V50 C114 72 98 86 80 94 C62 86 46 72 46 50 V24 Z" fill="${S.linear([[0, '#d8ecff'], [1, '#6a8fc0']])}" stroke="#eaf4ff" stroke-width="2"/>`;
+    const cracks = `<path d="M80 14 L76 34 L86 46 L74 62 L82 78 L80 92 M76 34 L60 40 M86 46 L104 42 M74 62 L56 70" fill="none" stroke="#1d2a3a" stroke-width="2.4" stroke-linejoin="round"/>`;
+    const vine = (d: string, w: number, c: string) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`;
+    const vines = vine('M80 100 C78 84 72 74 76 62 C80 52 90 50 86 40 C82 30 70 30 74 18', 3.4, '#7fcf5a') + vine('M74 62 C64 64 54 60 46 66 C38 72 30 70 24 64', 2.4, '#9fe07a') + vine('M86 46 C98 44 106 36 116 38 C126 40 132 34 138 28', 2.4, '#9fe07a') + vine('M80 92 C88 86 96 88 104 82', 2, '#b8f090');
+    const leaf = (x: number, y: number, r: number) => `<ellipse cx="${x}" cy="${y}" rx="5" ry="2.6" transform="rotate(${r} ${x} ${y})" fill="#c5ff8a"/>`;
+    return S.ground(96, '#0e0a1c') + shield + cracks + vines + leaf(74, 18, -40) + leaf(24, 64, 30) + leaf(138, 28, -20) + leaf(104, 82, 20) + leaf(62, 62, 60) + S.motes(80, 50, 14, 50, '#e8ffd0', 1);
+  },
+  ixquor_rootfall: (S) => S.panel(36, 18, 88, 52, 4) + `<path d="M80 18 L72 40 L88 52 L78 70 M72 40 L50 46 M88 52 L112 48" fill="none" stroke="#1d2a3a" stroke-width="2.6"/>` + [0, 1, 2].map((i) => `<path d="M${60 + i * 20} 100 C${56 + i * 20} 84 ${70 + i * 14} 66 ${74 + i * 6} ${46 - i * 4}" fill="none" stroke="${i % 2 ? '#9fe07a' : '#7fcf5a'}" stroke-width="${3.4 - i * 0.6}" stroke-linecap="round"/>`).join('') + S.ground(94, '#0e0a1c'),
+  ixquor_canopy_breach: (S) => S.planet(80, 98, 30, '#8fbf6a', '#1e3a20') + S.dome(80, 84, 50, '#bfe6ff') + [0, 1, 2, 3].map((i) => `<path d="M${44 + i * 24} 92 C${40 + i * 24} 70 ${60 + i * 16} 52 ${62 + i * 12} ${36 + (i % 2) * 6}" fill="none" stroke="#8fd86a" stroke-width="2.4" stroke-linecap="round"/>`).join('') + S.motes(80, 50, 12, 50, '#e8ffd0', 1.2),
+
   // ---- Neutral attack ----
   coronal_lance: (S) => S.planet(132, 66, 20, '#e8a07a', '#6a2a2a') + S.beam(8, 20, 124, 62, 3.4) + S.glow(124, 62, 16, '#fff', 0.9),
   plasma_relay: (S) => S.sun(24, 50, 8) + [48, 80, 112].map((x, i) => S.panel(x - 5, 42 - i * 3, 10, 16 + i * 3) + S.glow(x, 50 - i * 3, 7, S.p.accent, 0.8)).join('') + `<path d="M32 50 C44 38 52 62 64 50 S84 36 96 47 S116 58 132 44" fill="none" stroke="#fff" stroke-width="1.6"/>` + S.glow(138, 42, 10, '#fff', 0.9),

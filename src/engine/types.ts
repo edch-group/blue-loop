@@ -105,6 +105,17 @@ export type Effect = (
   | { type: 'repair'; amount: number }
   /** Chosen: one of your other cards gains this much attack while it stays in play. */
   | { type: 'empower'; amount: number }
+  /**
+   * Offering (the Aureline): one of your armed cards that hasn't acted today gives up its attack for the rest of
+   * the day (it reads 0, unless something gives it more), and a rival card of your choice loses that much
+   * stability (`times` over), past its defence.
+   */
+  | { type: 'offer'; times?: number }
+  /**
+   * Rootbreak (the Ixquor): the growth on one of your cards splits a rival card's defence by as much (`times` over;
+   * `shields`: their sun's shields instead). Worn defence stays worn, as from any blow.
+   */
+  | { type: 'rootbreak'; times?: number; shields?: boolean }
   /** Plant this many Saplings (tokens) in your empty slots, the least defended first. */
   | { type: 'plant'; amount: number }
   /** Return another card of yours from your tableau to your hand (to play it again). */
@@ -299,6 +310,8 @@ export interface CardInstance {
   dimmed?: boolean;
   /** Attack added by a Chosen effect, while it stays in play. */
   attackBonus?: number;
+  /** Attack given up today (Offering): taken off its attack until its owner's next dawn. */
+  spentAttack?: number;
   /** Came into play today (dimmed, not Darkspeed): its dusk effects rest until tomorrow. */
   fresh?: boolean;
   boons?: string[];

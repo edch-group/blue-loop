@@ -293,16 +293,19 @@ function fieldActive(state: GameState, field: FieldId): boolean {
   return !!g && (cardDef(g.card.defId).passive ?? []).some((ps) => ps.type === 'field' && ps.field === field);
 }
 
-type EnemyEffect = Extract<Effect, { type: 'destroy' | 'bounce' | 'erode' | 'shift' }>;
+type EnemyEffect = Extract<Effect, { type: 'destroy' | 'bounce' | 'erode' | 'shift' | 'offer' | 'rootbreak' }>;
 
 /** The effect a card aims at one card in a rival's tableau (destroy, return or erode), if any. */
 export function enemyEffect(defId: string): EnemyEffect | undefined {
-  return (cardDef(defId).onPlay ?? []).find((e): e is EnemyEffect => e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all) || (e.type === 'shift' && !!e.enemy));
+  return (cardDef(defId).onPlay ?? []).find((e): e is EnemyEffect => e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all) || (e.type === 'shift' && !!e.enemy) || e.type === 'offer' || (e.type === 'rootbreak' && !e.shields));
 }
 
 function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect): boolean {
   // (A Hero leads from its own slot: it can't be shifted.)
   if (e.type === 'shift') return c.slot !== COMMAND_SLOT;
+  // (Rootbreak splits defence: a card with none left to split is no target.)
+  if (e.type === 'rootbreak') return cardDefence(owner, c) > 0;
+  if (e.type === 'offer') return true;
   if (e.type === 'destroy' && e.kind && cardDef(c.defId).kind !== e.kind) return false;
   // (Brittle: removal reaches a Relic whatever its defence.)
   if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) > e.maxDefence && cardDef(c.defId).kind !== 'relic') return false;
@@ -402,13 +405,16 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
 }
 
 /** What a card's removal does to the chosen card. */
-export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' | 'shift' | null {
+export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' | 'shift' | 'offer' | 'rootbreak' | null {
   return enemyEffect(defId)?.type ?? null;
 }
 
 /** Your other cards this card could return to your hand or restore (empty if it needs no such choice). */
 export function allyChoices(p: PlayerState, defId: string): CardInstance[] {
   if (allyEffectKind(defId) === 'shift') return p.tableau.filter((c) => c.slot !== COMMAND_SLOT);
+  // Offering: an armed card of yours that hasn't acted today (nor given its attack already). Rootbreak: a card that has grown.
+  if (allyEffectKind(defId) === 'offer') return p.tableau.filter((c) => armed(p, c) && !c.dimmed && !c.spentAttack);
+  if (allyEffectKind(defId) === 'rootbreak') return p.tableau.filter((c) => (c.growth ?? 0) > 0);
   if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || e.type === 'empower' || (e.type === 'restore' && !e.all && !e.self))) return [];
   // Command cards can't be brought back to your own hand (a rival can still send them back).
   return allyEffectKind(defId) === 'recall' ? p.tableau.filter(returnable) : [...p.tableau];
@@ -426,6 +432,8 @@ export function recallsInto(p: PlayerState, defId: string): boolean {
 
 /** Whether a card can be played into this tableau now: a free slot, a recall to make one, or no slot needed. */
 export function hasRoomFor(p: PlayerState, defId: string): boolean {
+  // (Offering and Rootbreak need a card of yours to draw on.)
+  if (needsAlly(defId) && !allyChoices(p, defId).length) return false;
   // A Consume card needs a card of yours to give up (and then has its slot).
   if (cardDef(defId).consume) return consumable(p).length > 0;
   // (A Fusion card can always fuse onto a card in play, full tableau or not; and into a full tableau, a card
@@ -446,9 +454,15 @@ export function consumable(p: PlayerState): CardInstance[] {
 }
 
 /** Whether a card's ally choice returns the card to hand (rather than restoring its stability). */
-export function allyEffectKind(defId: string): 'recall' | 'restore' | 'empower' | 'shift' | null {
-  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || x.type === 'empower' || (x.type === 'restore' && !x.all && !x.self) || (x.type === 'shift' && !x.enemy));
-  return e?.type === 'recall' || e?.type === 'restore' || e?.type === 'empower' || e?.type === 'shift' ? e.type : null;
+export function allyEffectKind(defId: string): 'recall' | 'restore' | 'empower' | 'shift' | 'offer' | 'rootbreak' | null {
+  const e = (cardDef(defId).onPlay ?? []).find((x) => x.type === 'recall' || x.type === 'empower' || (x.type === 'restore' && !x.all && !x.self) || (x.type === 'shift' && !x.enemy) || x.type === 'offer' || x.type === 'rootbreak');
+  return e?.type === 'recall' || e?.type === 'restore' || e?.type === 'empower' || e?.type === 'shift' || e?.type === 'offer' || e?.type === 'rootbreak' ? e.type : null;
+}
+
+/** Whether a card can only be played with a card of yours to draw on (Offering's attack, Rootbreak's growth). */
+function needsAlly(defId: string): boolean {
+  const k = allyEffectKind(defId);
+  return k === 'offer' || k === 'rootbreak';
 }
 
 /** Whether a card shifts a card as it is played (one of its owner's, or of their rival's), and whose. */
@@ -1132,6 +1146,41 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'repair':
         repair(state, p, e.amount);
         break;
+      case 'offer': {
+        const giver = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid);
+        const t = ctx.against ?? targetOf(state, p);
+        const victim = t?.tableau.find((c) => c.uid === ctx.enemyUid);
+        if (!giver || !t || !victim) break;
+        const given = cardAttack(state, p, giver);
+        if (given <= 0) break;
+        giver.spentAttack = (giver.spentAttack ?? 0) + given;
+        const n = given * (e.times ?? 1);
+        log(state, `${p.name}'s ${cardDef(giver.defId).name} offers its attack: ${t.name}'s ${cardDef(victim.defId).name} loses ${n} stability.`);
+        if (spring(state, t, p, (tr) => tr.on === 'targeted', card.defId)) break;
+        if (state.winnerId || t.eliminated || !t.tableau.includes(victim)) break;
+        victim.health = Math.max(0, (victim.health ?? 0) - n);
+        if (victim.health <= 0) sweep(state, t, victim);
+        break;
+      }
+      case 'rootbreak': {
+        const root = p.tableau.find((c) => c.uid === ctx.allyUid);
+        const t = ctx.against ?? targetOf(state, p);
+        const n = (root?.growth ?? 0) * (e.times ?? 1);
+        if (!t || n <= 0) break;
+        if (e.shields) {
+          const broken = Math.min(n, t.shields);
+          t.shields -= broken;
+          log(state, `${p.name}'s roots split ${t.name}'s shields: ${broken} broken.`);
+          break;
+        }
+        const victim = t.tableau.find((c) => c.uid === ctx.enemyUid);
+        if (!victim) break;
+        if (spring(state, t, p, (tr) => tr.on === 'targeted', card.defId)) break;
+        const broken = Math.min(n, cardDefence(t, victim));
+        victim.dented = (victim.dented ?? 0) + broken;
+        log(state, `${p.name}'s roots split ${t.name}'s ${cardDef(victim.defId).name}: ${broken} defence broken.`);
+        break;
+      }
       case 'empower': {
         const chosen = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid);
         if (!chosen) break;
@@ -1358,6 +1407,7 @@ function startTurn(state: GameState) {
   for (const c of p.tableau) {
     delete c.dimmed;
     delete c.fresh;
+    delete c.spentAttack;
   }
   p.turn = emptyTurn();
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
@@ -1542,6 +1592,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const free = freeSlots(p);
   if (slotted && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
   const allies = allyChoices(p, def.id);
+  if (needsAlly(def.id) && !allies.length) throw new GameError(allyEffectKind(def.id) === 'offer' ? 'It needs an armed card of yours that has not acted today.' : 'It needs a card of yours that has grown.');
   if (allies.length > 0 && !allies.some((c) => c.uid === action.allyUid)) throw new GameError('Choose a card of yours.');
   const host = fusing ? fusionHosts(p).find((c) => c.uid === action.hostUid) : undefined;
   if (fusing && !host) throw new GameError('Choose a card of yours in play to fuse it onto.');
@@ -1768,7 +1819,8 @@ export function cardAttack(state: GameState, p: PlayerState, card: CardInstance)
   if (BALANCE.growthAttack && card.growth && (base > 0 || BALANCE.growthAttackAll)) base += card.growth * BALANCE.growthAttack;
   if (base <= 0) return 0;
   if (p.rooms && card.slot !== COMMAND_SLOT) base += p.rooms.attack[card.slot ?? -1] ?? 0;
-  return effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play');
+  // (Offered today: what it gave up is gone until its owner's dawn.)
+  return Math.max(0, effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play') - (card.spentAttack ?? 0));
 }
 
 /**
