@@ -1235,7 +1235,10 @@ export function sizePool(root: ParentNode = document) {
   const height = pool.clientHeight - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom);
   const rowGap = parseFloat(css.rowGap) || gap;
   // (On a short screen, a phone on its side, a row fewer: cards too small to read are no use.)
-  const rows = Math.max(1, (ROWS[pool.dataset.grid ?? 'md'] ?? 2) - (height < 300 ? 1 : 0));
+  const short = height > 0 && height < 300;
+  const rows = Math.max(1, (ROWS[pool.dataset.grid ?? 'md'] ?? 2) - (short ? 1 : 0));
+  // (There, medium cards would be large ones: the medium size steps aside, and stands for the large.)
+  pool.classList.toggle('db-short', short);
   // (A card is 1.4 times as tall as it is wide; a little more room each, for its gem standing above it.)
   const byHeight = Math.floor((((height - (rows - 1) * rowGap) / rows) / 1.52) * 10) / 10;
   const card = height > 0 && byHeight > 0 ? { cols: Math.max(1, Math.floor((width + gap) / (byHeight + gap))), w: byHeight } : fit(base);

@@ -3419,6 +3419,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .db-seg-btn.on { background: #fff; box-shadow: 0 1px 4px rgba(70, 76, 100, 0.2); }
 .db-seg-btn svg { width: 14px; height: 14px; fill: var(--ink-soft); }
 .db-seg-btn.on svg { fill: var(--ink); }
+/* A short screen (a phone on its side) has room for one row of readable cards: two sizes, small and large. */
+body:has(.db-pool.db-short) .db-grid-btn[data-arg="md"] { display: none; }
+body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg"] { background: #fff; box-shadow: 0 1px 4px rgba(70, 76, 100, 0.2); }
+body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg"] svg { fill: var(--ink); }
 /* The filter button: a funnel, with a count of the filters set. Its popover opens beneath it. */
 .db-filter-wrap { position: relative; flex: none; display: flex; }
 .db-filter-btn {
