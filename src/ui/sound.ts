@@ -559,6 +559,33 @@ class SoundBoard {
     this.voice(1244.5, { dur: 0.9, attack: 0.003, gain: 0.03, cutoff: 5000, detune: 7 });
     this.breath({ dur: 0.25, freq: 4200, to: 2500, type: 'bandpass', q: 2, gain: 0.06, attack: 0.003 });
   }
+  /** A card lunging to attack: a quick rising swoosh as it leaves the table. */
+  swing() {
+    this.breath({ dur: 0.32, freq: 700, to: 3400, type: 'bandpass', q: 1.4, gain: 0.11, attack: 0.2, out: this.sfxDry ?? undefined });
+    this.breath({ dur: 0.26, freq: 2400, to: 6000, type: 'highpass', q: 0.7, gain: 0.035, attack: 0.18, delay: 0.04, out: this.sfxDry ?? undefined });
+  }
+  /** A card smashing into a card: a punchy mid thump with a crunch (heard on small speakers too). Bigger blows land harder. */
+  clash(amount = 1) {
+    const g = Math.min(1.5, 0.8 + amount * 0.12);
+    this.voice(196, { dur: 0.32, attack: 0.003, gain: 0.13 * g, to: 82, type: 'triangle', cutoff: 1400 });
+    this.voice(392, { dur: 0.14, attack: 0.002, gain: 0.05 * g, to: 160, type: 'square', cutoff: 1800 });
+    this.breath({ dur: 0.22, freq: 1600, to: 500, type: 'bandpass', q: 0.9, gain: 0.14 * g, attack: 0.003 });
+    this.breath({ dur: 0.08, freq: 4200, type: 'highpass', q: 0.7, gain: 0.05 * g, attack: 0.002 });
+  }
+  /** A card's defence cracking: a brittle snap with splintering ticks after it. */
+  crack() {
+    this.breath({ dur: 0.07, freq: 3200, type: 'highpass', q: 0.8, gain: 0.16, attack: 0.002, out: this.sfxDry ?? undefined });
+    this.voice(1480, { dur: 0.12, attack: 0.002, gain: 0.04, to: 620, type: 'square', cutoff: 3600 });
+    for (let i = 0; i < 4; i++)
+      this.breath({ dur: 0.03 + Math.random() * 0.03, freq: 2600 + Math.random() * 3000, q: 2, gain: 0.05 + Math.random() * 0.03, attack: 0.002, delay: 0.05 + i * 0.04 + Math.random() * 0.02, type: 'bandpass', out: this.sfxDry ?? undefined });
+  }
+  /** The sun's ward soaking heat: a bright energy ring ringing out, with a shimmer. */
+  ward() {
+    this.voice(659.25, { dur: 0.9, attack: 0.004, gain: 0.06, type: 'triangle', vibrato: 9, cutoff: 4200 });
+    this.voice(988, { dur: 0.7, attack: 0.004, gain: 0.035, vibrato: 12, detune: 6 });
+    this.voice(1976, { dur: 0.4, attack: 0.002, gain: 0.018, to: 1320 });
+    this.breath({ dur: 0.45, freq: 5200, to: 2200, type: 'bandpass', q: 3, gain: 0.05, attack: 0.004 });
+  }
   shield() {
     this.voice(523.25, { dur: 1.6, attack: 0.2, gain: 0.03, type: 'triangle', vibrato: 6, cutoff: 2000 });
     this.voice(784, { dur: 1.6, attack: 0.3, gain: 0.02, vibrato: 6 });

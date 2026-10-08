@@ -299,6 +299,16 @@ const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in han
 const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-sacrifice', 'choose-host', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
 
 /** A number that pops out of a sun and rises away: heat taken, cooling, shields. Outside the re-rendered root. */
+/** The sound of a blow landing on a card: its defence cracking if the blow wore it, and the crunch of what got through. */
+function cardBlowSound(prev: GameState, next: GameState, uid: string) {
+  const find = (st: GameState) => st.players.flatMap((p) => p.tableau).find((c) => c.uid === uid);
+  const was = find(prev), now = find(next);
+  if (!was) return;
+  if ((now?.dented ?? 0) > (was.dented ?? 0)) sound.crack();
+  const lost = (was.health ?? 0) - (now ? now.health ?? 0 : 0);
+  if (lost > 0 || !now || (now.dented ?? 0) <= (was.dented ?? 0)) sound.clash(Math.max(1, lost));
+}
+
 function floatNumber(at: DOMRect, text: string, tone: 'hot' | 'cool' | 'block', row: number) {
   const el = document.createElement('div');
   el.className = `dmg dmg-${tone}`;
@@ -1306,7 +1316,7 @@ export class App {
     // The viewer's own card hangs in the preview pane until the rival has read it.
     if (this.stage?.own) return this.holdOwn(land);
     // An attack lands as the attacker strikes.
-    if (last.action.type === 'attack' && this.lunge(prev, last.action)) this.landAtStrike(land);
+    if (last.action.type === 'attack' && this.lunge(prev, next, last.action)) this.landAtStrike(land);
     else land();
   }
 
@@ -1843,7 +1853,7 @@ export class App {
     // The viewer's own card hangs in the preview pane a moment before it lands.
     if (this.stage?.own && animate) return this.holdOwn(land);
     // An attack lands the moment the attacker strikes.
-    if (action.type === 'attack' && animate && (this.render(), this.lunge(prev, action))) return this.landAtStrike(land);
+    if (action.type === 'attack' && animate && (this.render(), this.lunge(prev, next, action))) return this.landAtStrike(land);
     land();
   }
 
@@ -1852,7 +1862,7 @@ export class App {
    * rival's sun), which shudders as it lands; then it settles back into its slot. (Unlike heat, which flies
    * from a card as a flare, the card itself goes.) Returns false when there is nothing to animate.
    */
-  private lunge(prev: GameState, action: Extract<Action, { type: 'attack' }>): boolean {
+  private lunge(prev: GameState, next: GameState, action: Extract<Action, { type: 'attack' }>): boolean {
     if (reducedMotion()) return false;
     const el = this.root.querySelector<HTMLElement>(`.tableau [data-uid="${action.attackerUid}"]`);
     const owner = prev.players.find((p) => p.tableau.some((c) => c.uid === action.attackerUid));
@@ -1905,9 +1915,15 @@ export class App {
       if (this.lunging === action.attackerUid) this.lunging = null;
       this.root.querySelector<HTMLElement>(`.tableau [data-uid="${action.attackerUid}"]`)?.style.removeProperty('visibility');
     };
-    // The blow: the target shudders, with a crash.
+    sound.swing();
+    // The blow: the target shudders, with a crash (a card's defence cracking; a sun's ward ringing as it soaks the heat).
     window.setTimeout(() => {
-      sound.impact(true);
+      if (action.targetUid) cardBlowSound(prev, next, action.targetUid);
+      else if (rival) {
+        const was = rival, now = next.players.find((p) => p.id === rival.id);
+        if (now && (now.ward ?? BALANCE.sunWard) < (was.ward ?? BALANCE.sunWard)) sound.ward();
+        else if (!now || (now.heat <= was.heat && now.shields >= was.shields)) sound.impact(true);
+      }
       target.animate(
         [{ transform: 'translate(0, 0)' }, { transform: 'translate(-5px, 2px)' }, { transform: 'translate(4px, -2px)' }, { transform: 'translate(-2px, 1px)' }, { transform: 'translate(0, 0)' }],
         { duration: 320, composite: 'add' },
@@ -2128,6 +2144,7 @@ export class App {
           }
           window.setTimeout(() => sound.launch(), delay);
           window.setTimeout(() => sound.whoosh(0, !nowC), land - 60);
+          window.setTimeout(() => cardBlowSound(prev, next, uid), land);
           return;
         }
         // (A card whose aim was shown while it waited to be confirmed already pointed here.)
@@ -2252,6 +2269,7 @@ export class App {
       const lostShields = byEnemy ? Math.max(0, was.shields - p.shields) : 0;
       const gainedShields = Math.max(0, p.shields - was.shields);
       const mine = id === viewer.id;
+      const warded = byEnemy && (p.ward ?? BALANCE.sunWard) < (was.ward ?? BALANCE.sunWard);
       window.setTimeout(() => {
         const r = sunAt(id);
         if (r) {
@@ -2271,6 +2289,8 @@ export class App {
         } else if (dHeat < 0) sound.impact(false);
         if (lostShields) sound.block();
         else if (gainedShields && !dHeat) sound.shield();
+        // (An attacking card's lunge rings the ward itself, as it strikes.)
+        if (warded && action.type !== 'attack') sound.ward();
       }, at);
       const fx = [dHeat > 0 ? 'fx-hot' : dHeat < 0 ? 'fx-cold' : '', lostShields || gainedShields ? 'fx-shield' : ''].filter(Boolean);
       for (const cls of fx.length ? fx : ['fx-shield']) pulse(orb(id), cls, at);
@@ -2286,7 +2306,7 @@ export class App {
       for (const p of next.players) {
         const was = prev.players.find((pl) => pl.id === p.id)!;
         if (p.id === source.id) continue;
-        const struck = p.heat > was.heat || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
+        const struck = p.heat > was.heat || (p.ward ?? BALANCE.sunWard) < (was.ward ?? BALANCE.sunWard) || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
         if (!struck) continue;
         // From the card that struck (if a card was played), else from the striking sun; to the sun as drawn.
         // (A card attacking a sun is its own blow: the move lands as it strikes, so the sun is hit there and then.)
@@ -2501,7 +2521,7 @@ export class App {
       animateSuns();
     };
     // Every sun starts where it was as the turn began (shields already faded).
-    const start = all.find((p) => p.kind === 'start')?.suns ?? Object.fromEntries(prev.players.map((p) => [p.id, { heat: p.heat, shields: p.shields, eliminated: p.eliminated }]));
+    const start = all.find((p) => p.kind === 'start')?.suns ?? Object.fromEntries(prev.players.map((p) => [p.id, { heat: p.heat, shields: p.shields, eliminated: p.eliminated, ward: p.ward ?? BALANCE.sunWard }]));
     for (const p of next.players) show(p.id, start[p.id] ?? { heat: p.heat, shields: p.shields, eliminated: p.eliminated });
     let last = start;
     // Each effect when the day's timeline plays it (dayTimeline): once its phase's banner has gone.
@@ -2538,6 +2558,11 @@ export class App {
         else if (ps.kind === 'shield') land = beam(from, to, 'plain', { delay: at + 120 });
       }
       // A struck card glows as the heat lands, and its numbers change then (after its last blow this dawn).
+      if (ps.toCard) {
+        const uid = ps.toCard, last = !steps.slice(steps.indexOf(ps) + 1).some((x) => x.toCard === uid);
+        // (Its sound with its last blow this dawn, when its wear is known.)
+        if (last) window.setTimeout(() => id === this.replayId && cardBlowSound(prev, next, uid), land);
+      }
       if (cardEl) {
         pulse(cardEl, 'fx-hit-card', land);
         cardLands.set(cardEl, Math.max(cardLands.get(cardEl) ?? 0, land));
@@ -2554,6 +2579,7 @@ export class App {
         let heard = false;
         for (const p of next.players) {
           const a = was[p.id], b = ps.suns[p.id];
+          if (a && b && (b.ward ?? 0) < (a.ward ?? 0) && !heard) sound.ward();
           if (!a || !b || (a.heat === b.heat && a.shields === b.shields && a.eliminated === b.eliminated)) continue;
           show(p.id, b);
           if (b.eliminated && !a.eliminated) onNova(p.id);

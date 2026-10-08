@@ -1230,7 +1230,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
 /** Note a dawn effect for the table to replay (only while a day is starting). */
 function notePulse(state: GameState, source: PlayerState, card: CardInstance | null, kind: TurnPulse['kind'], to: PlayerState, amount: number, toCard?: string) {
   if (!state.turnPulses || (amount <= 0 && kind !== 'start')) return;
-  const suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated }]));
+  const suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated, ward: x.ward ?? BALANCE.sunWard }]));
   state.turnPulses.push({ uid: card?.uid, source: source.id, to: to.id, kind, amount, suns, ...(toCard ? { toCard } : {}) });
 }
 

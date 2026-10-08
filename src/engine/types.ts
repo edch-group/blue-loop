@@ -437,7 +437,7 @@ export interface TurnPulse {
   /** 'start': no effect, just every sun as the turn's effects begin. */
   kind: 'start' | 'heat' | 'selfHeat' | 'cool' | 'shield' | 'draw' | 'unstable';
   amount: number;
-  suns: Record<string, { heat: number; shields: number; eliminated: boolean }>;
+  suns: Record<string, { heat: number; shields: number; eliminated: boolean; ward?: number }>;
   /** The rival card the heat struck, if it was aimed at one (not at their sun). */
   toCard?: string;
   /** Lands at the same moment as the pulse before it (regional instability hits every sun at once). */
