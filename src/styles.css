@@ -2818,23 +2818,18 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp-purse > span small { margin-left: 0; }
 .cmp-purse .cur { vertical-align: 0; }
 
-/* ---------- Campaign: the heart of the Milky Way behind the map (galaxy.ts), drifting with the camera ---------- */
+/* ---------- Campaign: the paper the map lies on, with the nebula drawn over it (nebula3d.ts) ---------- */
 .cmp {
-  /* The board the systems sit on, as on every other screen (the page's own background); the sky is laid over it. */
+  /* The board the systems sit on, as on every other screen (the page's own background); the nebula lies over it. */
   overflow: hidden;
   background:
     radial-gradient(ellipse 70% 60% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0.6) 40%, transparent 75%),
     radial-gradient(ellipse 120% 90% at 50% 110%, #dedcd8 0%, transparent 60%),
     linear-gradient(180deg, #faf9f6, var(--paper) 55%, #e0dfdb);
 }
-.cmp-sky {
-  /* Painted by scripts/paint-sky.ts; sized and moved by the camera (campaign.ts, writeSky). */
-  position: absolute; left: 50%; top: 50%; z-index: -1; pointer-events: none;
-  width: 100%; height: 100%; transform: translate(-50%, -50%);
-  background: url('./assets/campaign-sky.webp') center / 100% 100% no-repeat;
-  /* Multiplied onto the board: the painting's white drops out, leaving only its faint greys. */
-  mix-blend-mode: multiply;
-  will-change: transform;
+.cmp-nebula {
+  /* The nebula behind the strip, a 3D schematic drawn with WebGL (nebula3d.ts); its camera turns on its own. */
+  position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none;
 }
 
 /* Fog of war: routes into unseen space fade out; scanner arrays are marked. */
@@ -5804,8 +5799,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-stellaria svg { animation: none; filter: drop-shadow(0 0 1.5px rgba(90, 96, 120, 0.55)) drop-shadow(0 0 6px rgba(255, 255, 255, 0.9)); }
 .cmp-stellaria .stellaria-flower ellipse, .cmp-stellaria .stellaria-flower path { fill: rgba(255, 255, 255, 0.85); stroke: #fff; stroke-width: 5; }
 .cmp-stellaria { width: 48px; height: 48px; }
-/* No starry sky behind the map: just the page. The marks over a system stand on their own (no white tile). */
-.cmp-sky { display: none; }
+/* The marks over a system stand on their own (no white tile). */
 .cmp-badge, .cmp-badge.cmp-scan { background: none; padding: 0; box-shadow: none; }
 
 /* ---------- Map marks in 3D, small ships, the home screen's Stellari ---------- */

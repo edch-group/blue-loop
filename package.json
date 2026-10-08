@@ -20,7 +20,6 @@
     "gauntlet": "vite-node scripts/gauntlet.ts",
     "deck-search": "vite-node scripts/deck-search.ts",
     "dominated": "vite-node scripts/dominated.ts",
-    "sky": "node scripts/render-sky.mjs",
     "voice": "node scripts/process-voice.mjs",
     "electron:dev": "vite build && electron .",
     "electron:build": "vite build && electron-builder --dir",

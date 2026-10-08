@@ -113,6 +113,7 @@ import { sound } from './sound';
 import { setTutorial, startTour, tourDue, tutorialOn } from './tour';
 import { mapTour } from './tutorial';
 import { toPageDelta } from './viewport';
+import { nebulaOn, type Nebula } from './nebula3d';
 
 const KEY = 'blue-loop:campaign:v6';
 
@@ -1090,7 +1091,7 @@ export class CampaignView {
     const me = campaignPlayer(s);
     return `
       <main class="cmp">
-        <div class="cmp-sky" aria-hidden="true"></div>
+        <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
         <header class="cmp-top">
           <div class="cmp-top-left">
             <button class="cmp-turn" data-act="cmp-sheet" data-arg="overview" data-tip="Universe ${s.universe} of this run: the overview"><small>universe ${s.universe}</small><b>move ${s.turn - s.universeStart + 1}</b><i>›</i></button>
@@ -1583,11 +1584,10 @@ export class CampaignView {
   /** Set after a drag so the click that ends it does not select or deselect. */
   private swallowClick = false;
   private stageEl: HTMLElement | null = null;
+  private nebula: Nebula | null = null;
 
   private static readonly TILT = 0; // (Bird's-eye: straight down on the strip.)
   private static readonly MAX_ZOOM = 12;
-  /** How far behind the map the sky lies: over the whole map it slides this fraction of the map's fitted width. */
-  private static readonly SKY_DEPTH = 0.55;
 
 
 
@@ -1622,6 +1622,7 @@ export class CampaignView {
       stage.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
     }
     this.view ??= this.homeView();
+    this.showNebula(root);
     this.applyCamera(true);
     if (!this.glide) this.fitStrip(stage);
     this.drawRays(stage);
@@ -1725,30 +1726,18 @@ export class CampaignView {
 
 
 
-  /**
-   * Parallax: the sky is a far-off layer behind the map. It slides with the
-   * systems as you pan, the same way but slower, and never scales: zooming
-   * moves the map, not the sky. Its size is fixed (the screen plus room to
-   * slide), so the picture never stretches.
-   */
-  private writeSky(c: Cam) {
-    const stage = this.stageEl;
-    const sky = stage?.closest('.cmp')?.querySelector<HTMLElement>('.cmp-sky');
-    if (!stage || !sky) return;
-    const page = sky.parentElement!;
-    const fit = this.fitScale(stage, CampaignView.TILT);
-    // How far the sky slides across the whole map, in screen pixels (independent of zoom).
-    const range = { x: MAP_WIDTH * fit * CampaignView.SKY_DEPTH, y: MAP_HEIGHT * fit * CampaignView.SKY_DEPTH * 0.7 };
-    const dx = -(c.x / MAP_WIDTH - 0.5) * range.x;
-    const dy = -(c.y / MAP_HEIGHT - 0.5) * range.y;
-    // Cover the screen at either end of the slide, keeping the painting's 8:5 proportions.
-    const w = Math.max(page.clientWidth + range.x, (page.clientHeight + range.y) * 1.6) + 8;
-    if (sky.dataset.w !== w.toFixed(0)) {
-      sky.dataset.w = w.toFixed(0);
-      sky.style.width = `${w.toFixed(0)}px`;
-      sky.style.height = `${(w / 1.6).toFixed(0)}px`;
-    }
-    sky.style.transform = `translate(-50%, -50%) translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+  /** The nebula behind the strip: this universe's, turned to how far along the strip the flagship has come. */
+  private showNebula(root: HTMLElement) {
+    const s = this.state!;
+    const canvas = root.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
+    this.nebula = canvas ? nebulaOn(canvas) : null;
+    if (!this.nebula) return;
+    const cols = Math.max(1, ...s.nodes.map((n) => n.col ?? 0));
+    const army = flagship(s, s.playerId);
+    const col = army ? (nodeById(s, army.nodeId).col ?? 0) : 0;
+    let seed = s.universe * 7919;
+    for (const ch of s.nodes[0]?.name ?? '') seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
+    this.nebula.show(seed, Math.min(1, col / cols));
   }
 
   private writeCamera() {
@@ -1759,7 +1748,6 @@ export class CampaignView {
     plane.style.setProperty('--tilt', `${c.tilt.toFixed(2)}deg`);
     plane.style.setProperty('--ui', c.ui.toFixed(4));
     this.placePop();
-    this.writeSky(c);
   }
 
   private clampView() {
@@ -1802,7 +1790,8 @@ export class CampaignView {
         // The pointer has gone; the drag ends with it.
       }
     }
-    // (The whole strip is always on screen: a drag is only told from a tap, it never pans.)
+    // (The whole strip is always on screen: a drag never pans it, but it turns the nebula behind.)
+    this.nebula?.turn(dx, dy);
     this.drag.x = e.clientX;
     this.drag.y = e.clientY;
   }
