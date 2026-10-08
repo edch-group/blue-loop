@@ -638,13 +638,12 @@ export function persists(defId: string): boolean {
  */
 export function resonanceBonus(p: PlayerState, card: CardInstance): number {
   if (!p.tableau.some((c) => c.uid === card.uid)) return 0;
-  const kind = cardDef(card.defId).kind;
   let bonus = 0;
   p.tableau.forEach((src) => {
     const d = distance(src, card);
     if (d === 0) return;
     for (const ps of cardPassives(src)) {
-      if (ps.type === 'adjacent' && d <= ps.amounts.length && (!ps.kind || ps.kind === kind)) bonus += ps.amounts[d - 1];
+      if (ps.type === 'adjacent' && d <= ps.amounts.length && (!ps.kind || hasRole(p, card, ps.kind))) bonus += ps.amounts[d - 1];
     }
   });
   return bonus;
@@ -659,7 +658,7 @@ function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState
   const per = 'per' in c && c.per ? c.per : 1;
   switch (c.of) {
     case 'kind':
-      return Math.floor(p.tableau.filter((t) => cardDef(t.defId).kind === c.kind).length / per);
+      return Math.floor(p.tableau.filter((t) => hasRole(p, t, c.kind)).length / per);
     case 'cards':
       return Math.floor(p.tableau.length / per);
     case 'rested':
@@ -673,7 +672,7 @@ function countOf(p: PlayerState, card: CardInstance, c: Count, state?: GameState
     case 'growth':
       return card.growth ?? 0;
     case 'adjacent':
-      return neighbours(p, card).filter((n) => !c.kind || cardDef(n.defId).kind === c.kind).length;
+      return neighbours(p, card).filter((n) => !c.kind || hasRole(p, n, c.kind)).length;
     case 'planet':
       return currentPlanet(p, state) === c.planet ? c.amount : 0;
     case 'spent':
@@ -689,7 +688,7 @@ export function conditionMet(p: PlayerState, cond: Condition | undefined, state?
   if (!cond) return true;
   if ('vigil' in cond) return !card?.dimmed;
   if ('overheated' in cond) return isOverheated(p);
-  if ('minKind' in cond) return p.tableau.filter((t) => cardDef(t.defId).kind === cond.minKind).length >= cond.n;
+  if ('minKind' in cond) return p.tableau.filter((t) => hasRole(p, t, cond.minKind)).length >= cond.n;
   if ('planet' in cond) return currentPlanet(p, state) === cond.planet;
   if ('minRace' in cond) return p.tableau.filter((t) => ofRace(cardDef(t.defId), cond.minRace, cond.sub)).length >= cond.n;
   return p.tableau.length >= cond.minCards;
@@ -719,7 +718,7 @@ export function effectAmount(state: GameState, p: PlayerState, card: CardInstanc
     const counted = new Set<string>();
     for (const { card: src, passive } of passives(p)) {
       if (passive.type !== 'kindBonus' || (passive.stat ?? 'heat') !== e.type) continue;
-      if ((passive.kind && passive.kind !== def.kind) || (passive.race !== undefined && passive.race !== def.race) || (passive.sub && passive.sub !== def.sub)) continue;
+      if ((passive.kind && !(p.tableau.includes(card) ? hasRole(p, card, passive.kind) : defHasRole(def, passive.kind))) || (passive.race !== undefined && passive.race !== def.race) || (passive.sub && passive.sub !== def.sub)) continue;
       if ((passive.others && src.uid === card.uid) || (passive.onTurnOnly && when !== 'turn') || counted.has(src.defId)) continue;
       counted.add(src.defId);
       bonus += passive.amount;
@@ -1005,7 +1004,7 @@ interface PlayContext {
 }
 
 /** A card in the discard pile a recover effect can take back: of its kind, if it names one, and never a Command card. */
-const kindMatches = (c: CardInstance, kind?: CardKind) => returnable(c) && (!kind || cardDef(c.defId).kind === kind);
+const kindMatches = (c: CardInstance, kind?: CardKind) => returnable(c) && (!kind || defHasRole(cardDef(c.defId), kind));
 
 function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, effects: Effect[] | undefined, when: Timing, ctx: PlayContext = {}) {
   for (const e of effects ?? []) {
@@ -1566,7 +1565,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
 
   // Rivals' face-down Lightspeed cards may answer the card before it resolves.
   for (const o of othersInOrder(state, p)) {
-    const cancelled = spring(state, o, p, (t) => t.on === 'enemyPlays' && (!t.kind || t.kind === (lightspeed ? 'lightspeed' : def.kind)), lightspeed ? undefined : def.id);
+    const cancelled = spring(state, o, p, (t) => t.on === 'enemyPlays' && (!t.kind || (lightspeed ? t.kind === 'lightspeed' : defHasRole(def, t.kind))), lightspeed ? undefined : def.id);
     if (state.winnerId || p.eliminated) {
       p.discard.push(card);
       return;
@@ -1770,6 +1769,39 @@ export function cardAttack(state: GameState, p: PlayerState, card: CardInstance)
   if (base <= 0) return 0;
   if (p.rooms && card.slot !== COMMAND_SLOT) base += p.rooms.attack[card.slot ?? -1] ?? 0;
   return effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play');
+}
+
+/**
+ * Whether a card in play has attack of its own (its own, from growth, gear or training: not what neighbours lend
+ * it). Cards are all of a kind now; "a card with attack" is one that has any.
+ */
+export function armed(p: PlayerState, card: CardInstance): boolean {
+  let base = baseAttack(cardDef(card.defId)) + (card.attackBonus ?? 0);
+  if (p.heroStats && card.defId === p.hero) base += p.heroStats.attack;
+  if (BALANCE.growthAttack && card.growth && (base > 0 || BALANCE.growthAttackAll)) base += card.growth * BALANCE.growthAttack;
+  return base > 0;
+}
+
+/**
+ * What the old card kinds now mean, of a card in play: an "attack card" is one with attack, a "defence card"
+ * one with Sturdy, a "support card" one with neither. Heroes, Relics, globals and Lightspeed cards are still their own.
+ */
+export function hasRole(p: PlayerState, card: CardInstance, kind: CardKind): boolean {
+  const k = cardDef(card.defId).kind;
+  if (kind === 'attack') return k !== 'command' && armed(p, card);
+  if (kind === 'defence') return k !== 'command' && cardSturdy(card) > 0;
+  if (kind === 'growth') return k !== 'command' && k !== 'relic' && !armed(p, card) && cardSturdy(card) <= 0;
+  return k === kind;
+}
+
+/** The same, of a card as printed (one being played, or in a pile): a "support card" played is one that resolves and goes. */
+export function defHasRole(def: CardDef, kind: CardKind): boolean {
+  const own = def.kind !== 'command' && def.kind !== 'lightspeed' && def.kind !== 'relic' && def.kind !== 'global';
+  // (Played: a card with attack, or one that heats the rival as it is played.)
+  if (kind === 'attack') return own && ((def.attack ?? 0) > 0 || (def.onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target'));
+  if (kind === 'defence') return own && (def.defence ?? 0) > 0;
+  if (kind === 'growth') return own && isBurst(def);
+  return def.kind === kind;
 }
 
 /** What a card hits back with when it is attacked: its own attack, and its Sting. */

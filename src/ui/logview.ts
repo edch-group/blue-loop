@@ -1,4 +1,4 @@
-import { CARDS } from '../engine/cards';
+import { CARDS, shownKind } from '../engine/cards';
 import type { CardDef, LogEntry, PlayerState } from '../engine/types';
 import { cardArtLite, KIND_COLOUR, symbolIcon } from './glyphs';
 
@@ -78,7 +78,7 @@ export function logRows(log: LogEntry[], players: PlayerState[], viewerId: strin
         const d = defs.get(n);
         if (d) {
           cards.push(d);
-          return `<b class="log-card" style="--kc:${KIND_COLOUR[d.kind]}">${n}</b>`;
+          return `<b class="log-card" style="--kc:${KIND_COLOUR[shownKind(d)]}">${n}</b>`;
         }
         const mine = names.find((x) => esc(x.name) === n)?.mine;
         return `<b class="log-who ${mine ? 'log-you' : 'log-rival'}">${n}</b>`;
@@ -87,7 +87,7 @@ export function logRows(log: LogEntry[], players: PlayerState[], viewerId: strin
       // The row's picture: the card it is about (the last named: the one acted on), else what happened.
       // (A Lightspeed card that sprang is the one it is about, not the card it answered.)
       const card = /Lightspeed!/.test(text) ? cards[0] : cards[cards.length - 1];
-      const thumb = card ? `<span class="log-thumb" style="--kc:${KIND_COLOUR[card.kind]}">${cardArtLite(card)}</span>` : `<span class="lg-icon log-tone-${o.tone}">${o.icon}</span>`;
+      const thumb = card ? `<span class="log-thumb" style="--kc:${KIND_COLOUR[shownKind(card)]}">${cardArtLite(card)}</span>` : `<span class="lg-icon log-tone-${o.tone}">${o.icon}</span>`;
       const chip = o.chip ? `<span class="log-chip log-chip-${o.chip.cls}">${o.chip.html}</span>` : '';
       return `<div data-seq="${l.seq}" class="log-row log-tone-${o.tone} ${l.turn === lastTurn ? 'log-now' : ''}">${thumb}<span class="log-text">${html}</span>${chip}</div>`;
     })

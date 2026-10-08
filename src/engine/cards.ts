@@ -811,6 +811,35 @@ export function dawnHeatAsAttack() {
 }
 dawnHeatAsAttack();
 
+/**
+ * Cards are all of one kind now (attack and defence were never fixed: a card with none can gain attack), so
+ * their words say what they mean: an armed card (one with 1+ attack), a Sturdy card, a surge (one that resolves and goes).
+ */
+export function kindWords(text: string): string {
+  return text
+    .replace(/\bplays an attack card\b/g, 'plays an armed card or a heat surge')
+    .replace(/\ban attack card\b/g, 'an armed card')
+    .replace(/\battack card(s?)\b/g, 'armed card$1')
+    .replace(/\ba defence card\b/g, 'a Sturdy card')
+    .replace(/\bdefence card(s?)\b/g, 'Sturdy card$1')
+    .replace(/\ba support card\b/g, 'a surge')
+    .replace(/\bsupport cards\b/g, 'surges');
+}
+for (const c of CARDS) {
+  c.text = kindWords(c.text);
+  if (c.fuse) c.fuse.text = kindWords(c.fuse.text);
+  for (const a of c.abilities ?? []) a.text = kindWords(a.text);
+}
+
+/** What a card is, as players read it: a unit (it stays in play) or a surge (it resolves and goes), or a Hero, Relic, Lightspeed or global card. */
+export type ShownKind = 'unit' | 'surge' | 'command' | 'lightspeed' | 'relic' | 'global';
+export const SHOWN_KINDS: readonly ShownKind[] = ['unit', 'surge', 'relic', 'global', 'command', 'lightspeed'];
+export const SHOWN_KIND_NAME: Record<ShownKind, string> = { unit: 'unit', surge: 'surge', command: 'hero', lightspeed: 'lightspeed', relic: 'relic', global: 'global' };
+export function shownKind(def: CardDef): ShownKind {
+  if (def.kind === 'command' || def.kind === 'lightspeed' || def.kind === 'relic' || def.kind === 'global') return def.kind;
+  return isBurst(def) ? 'surge' : 'unit';
+}
+
 /** A card as it plays in a mode: the same in every mode. */
 export function cardIn(defId: string, _mode?: GameMode): CardDef {
   return lostDef(defId);

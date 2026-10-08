@@ -99,6 +99,7 @@ import {
   boonsText,
   setRulesMode,
   isDraw,
+  shownKind,
 } from '../engine';
 import { markDirty } from './account';
 import { loadMeta, saveMeta } from './meta';
@@ -2600,7 +2601,7 @@ export const MODULE_ICON = '<svg viewBox="0 0 16 16"><rect x="3.5" y="3.5" width
 export function cardHtml(defId: string): string {
   const def = cardDef(defId);
   return `
-    <div class="card cmp-card kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
+    <div class="card cmp-card kind-${def.kind} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[shownKind(def)]}">
       ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}${stabilityBadge(def)}
       <div class="card-name">${lower(def.name)}</div>
       <div class="card-text">${cardBodyHtml(def)}</div>

@@ -92,7 +92,7 @@ import { CampaignView, cardHtml, loadCampaign, MODULE_ICON, ORACLE_PORTRAIT } fr
 const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
 import { closeTour, startTour, tourDue, tourShowing } from './tour';
 import { battleTour } from './tutorial';
-import { ORACLE_NAME } from '../engine';
+import { ORACLE_NAME, shownKind, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -4476,7 +4476,7 @@ export class App {
     const fact = (title: string, body: string) => `<div class="rule-fact"><b>${title}</b><span>${body}</span></div>`;
     const facts = (...f: string[]) => `<div class="rule-facts">${f.join('')}</div>`;
     const step = (title: string, body: string) => `<li><b>${title}</b><span>${body}</span></li>`;
-    const kind = (k: CardKind, name: string, body: string) => `<div class="rule-fact"><b><i class="rule-dot" style="--kc:${KIND_COLOUR[k]}"></i>${name}</b><span>${body}</span></div>`;
+    const kind = (k: CardKind | ShownKind, name: string, body: string) => `<div class="rule-fact"><b><i class="rule-dot" style="--kc:${KIND_COLOUR[k]}"></i>${name}</b><span>${body}</span></div>`;
     const tabs: Record<string, [string, () => string]> = {
       overview: [
         'Overview',
@@ -4533,9 +4533,8 @@ export class App {
         'Card Types',
         () =>
           facts(
-            kind('attack', 'Attack', `Heat your rival's sun, and attack their cards.`),
-            kind('defence', 'Defence', 'Cool your sun, raise shields, guard your tableau.'),
-            kind('growth', 'Support', 'Draw, recover, grow and play more.'),
+            kind('unit', 'Unit', 'Stays in your tableau. One with attack can attack each day (a card with none can gain some); its abilities act at dawn or dusk.'),
+            kind('surge', 'Surge', 'Resolves as it is played, then goes to your discard pile.'),
             kind('relic', 'Relic', 'No attack: a lasting bonus. Brittle: nothing restores it, and removal reaches it whatever its defence.'),
             kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. It leads from its own slot until it is beaten down or replaced, with an ability to use each day, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
@@ -5189,7 +5188,7 @@ export class App {
       (c.fused ?? [])
         .map((f, i) => {
           const fd = cardDef(f.defId);
-          return `<span class="fused-behind" data-act="inspect-fused" data-arg="${c.uid}|${i + 1}" style="--fi:${i};--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`${fd.name} (fused): ${plainText(fusedDef(fd.id).text)}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
+          return `<span class="fused-behind" data-act="inspect-fused" data-arg="${c.uid}|${i + 1}" style="--fi:${i};--fk:${KIND_COLOUR[shownKind(fd)]}" title="${esc(`${fd.name} (fused): ${plainText(fusedDef(fd.id).text)}`)}"><i>${esc(fd.name.toLowerCase())}</i></span>`;
         })
         .join('');
     const fusedText = this.fusedTextHtml(c);
@@ -5203,7 +5202,7 @@ export class App {
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (opts.owner ? isGuard(opts.owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt')) ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
     return `
-      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[def.kind]}">
+      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${growth}${resonance}${fusedTags}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
@@ -5233,7 +5232,7 @@ export class App {
     return this.fusedView(c)
       .rests.map(({ defId, rest }) => {
         const fd = cardDef(defId);
-        return rest ? `<span class="card-fused-text" style="--fk:${KIND_COLOUR[fd.kind]}" title="${esc(`From ${fd.name}, fused onto it`)}">${cardTextHtml(rest)}</span>` : '';
+        return rest ? `<span class="card-fused-text" style="--fk:${KIND_COLOUR[shownKind(fd)]}" title="${esc(`From ${fd.name}, fused onto it`)}">${cardTextHtml(rest)}</span>` : '';
       })
       .join('');
   }
@@ -5318,7 +5317,7 @@ export class App {
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     return `
-      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[def.kind]}">
+      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>

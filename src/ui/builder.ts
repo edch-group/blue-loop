@@ -1,4 +1,4 @@
-import { BALANCE, coverCard, decodeDeck, encodeDeck, isProfane, PRESET_DECKS, mainRace, plainText, breakable, breakdownValue, CARD_KINDS, KIND_NAME, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, allCardDefs, inMode, modeOf, setRulesMode, CORE_RACES, GAME_MODES, type GameMode, type CardDef, type Rarity } from '../engine';
+import { BALANCE, coverCard, decodeDeck, encodeDeck, isProfane, PRESET_DECKS, mainRace, plainText, breakable, breakdownValue, SHOWN_KINDS, SHOWN_KIND_NAME, shownKind, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, allCardDefs, inMode, modeOf, setRulesMode, CORE_RACES, GAME_MODES, type GameMode, type CardDef, type Rarity } from '../engine';
 import { customDecks, deckWithCards, deleteDeck, deckById, missingCopies, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
@@ -102,7 +102,7 @@ function searchText(c: CardDef): string {
       [
         c.name,
         plainText(c.text),
-        KIND_NAME[c.kind],
+        SHOWN_KIND_NAME[shownKind(c)],
         c.race !== undefined ? RACE_NAMES[c.race] : 'neutral',
         sub,
         ...raceTraitTags(c).flatMap((t) => [t.name, t.text]),
@@ -791,7 +791,7 @@ export class DeckBuilder {
         const c = cardDef(id);
         const short = this.mode ? 0 : Math.max(0, count(id) - this.owned(id));
         return `
-        <button class="db-row rarity-${c.rarity ?? 'dwarf'} ${short ? 'db-row-missing' : ''}" data-act="db-remove" data-arg="${id}" data-card="${id}" style="--kc:${KIND_COLOUR[c.kind]}" title="${short ? `${short} still to collect (tap it in the cards to craft it). ` : ''}Tap to remove one">
+        <button class="db-row rarity-${c.rarity ?? 'dwarf'} ${short ? 'db-row-missing' : ''}" data-act="db-remove" data-arg="${id}" data-card="${id}" style="--kc:${KIND_COLOUR[shownKind(c)]}" title="${short ? `${short} still to collect (tap it in the cards to craft it). ` : ''}Tap to remove one">
           <span class="db-row-art">${cardArtLite(c)}</span>
           <span class="db-row-name"><b>${esc(c.name.toLowerCase())}</b><small>${typeWords(c)}</small></span>
           ${short ? `<small class="db-row-need">need ${short}</small>` : ''}<b class="db-row-n">×${count(id)}</b><i>−</i>
@@ -836,7 +836,7 @@ export class DeckBuilder {
       const cmd = c.kind === 'command';
       const badge = this.badge(c.id, n);
       return `
-          <button class="db-card ${cmd ? 'db-card-cmd' : ''} ${n ? 'db-card-in' : ''} ${have ? '' : 'db-card-locked'} ${this.focus === c.id || this.mode?.picked?.(c.id) ? 'db-card-focus' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[c.kind]}">
+          <button class="db-card ${cmd ? 'db-card-cmd' : ''} ${n ? 'db-card-in' : ''} ${have ? '' : 'db-card-locked'} ${this.focus === c.id || this.mode?.picked?.(c.id) ? 'db-card-focus' : ''}" data-act="db-add" data-arg="${c.id}" data-card="${c.id}" style="--kc:${KIND_COLOUR[shownKind(c)]}">
             <span class="card kind-${c.kind}${c.race !== undefined ? ` race-${c.race}` : ''} rarity-${c.rarity ?? 'dwarf'}">
               ${cardStock(c)}<span class="card-glyph">${cardArtLite(c, true)}</span>${raceRow(c)}${stabilityBadge(c)}
               <span class="card-name">${esc(c.name.toLowerCase())}</span>
@@ -1024,7 +1024,7 @@ export class DeckBuilder {
       if (terms.length && !matches(c, terms)) return false;
       const race = c.race === undefined ? 'neutral' : String(c.race);
       if (f.race.size && !f.race.has(race) && !(f.race.has('deck') && (c.race === undefined || deckRaces.has(c.race)))) return false;
-      if (f.kind.size && !f.kind.has(c.kind)) return false;
+      if (f.kind.size && !f.kind.has(shownKind(c))) return false;
       if (f.rarity.size && !f.rarity.has(c.rarity ?? 'dwarf')) return false;
       if (f.cost.size && !f.cost.has(costGroup(c))) return false;
       if (f.own.size) {
@@ -1041,7 +1041,7 @@ export class DeckBuilder {
     const order: Record<Filters['sort'], (a: CardDef, b: CardDef) => number> = {
       race: byRace,
       name: (a, b) => a.name.localeCompare(b.name),
-      type: (a, b) => CARD_KINDS.indexOf(a.kind) - CARD_KINDS.indexOf(b.kind) || a.name.localeCompare(b.name),
+      type: (a, b) => SHOWN_KINDS.indexOf(shownKind(a)) - SHOWN_KINDS.indexOf(shownKind(b)) || a.name.localeCompare(b.name),
       rarity: (a, b) => RARITY_ORDER[b.rarity ?? 'dwarf'] - RARITY_ORDER[a.rarity ?? 'dwarf'] || a.name.localeCompare(b.name),
       cost: (a, b) => costOrder(a) - costOrder(b) || a.name.localeCompare(b.name),
     };
@@ -1068,7 +1068,7 @@ export class DeckBuilder {
     };
     const core = !this.mode && modeOf(d) === 'core';
     const races: [string, string][] = [['deck', "this deck's races + neutral"], ['neutral', 'neutral'], ...RACE_NAMES.map((n, i): [string, string] => [String(i), n.toLowerCase()]).filter(([i]) => !core || CORE_RACES.includes(Number(i)))];
-    const kinds: [string, string][] = CARD_KINDS.map((k): [string, string] => [k, KIND_NAME[k]]);
+    const kinds: [string, string][] = SHOWN_KINDS.map((k): [string, string] => [k, SHOWN_KIND_NAME[k]]);
     const rarities: [string, string][] = RARITIES.map((r): [string, string] => [r, RARITY_NAME[r].toLowerCase()]);
     const costs: [string, string][] = [['0', 'free'], ['1', '1 energy'], ['2', '2 energy'], ['3', '3 energy'], ['4', '4 or more'], ['x', 'X (all you have)']];
     const owns: [string, string][] = [['owned', 'owned'], ['missing', 'not owned'], ['craftable', 'craftable now']];

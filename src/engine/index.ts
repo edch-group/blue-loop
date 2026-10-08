@@ -1,7 +1,7 @@
 export * from './types';
 export * from './game';
 export { BALANCE } from './balance';
-export { cardDef, mergeCardText, isBurst, hasDarkspeed, mainRace, fusedId, fusionProblem, isFused, unfusable, allCardDefs, CARDS, copyLimit, PRESET_DECKS, RACE_NAMES, RARITY_NAME, rarityOf, presetDeck, deckProblems, commandCardsFor, cardIn, type DeckList } from './cards';
+export { cardDef, mergeCardText, isBurst, hasDarkspeed, mainRace, fusedId, fusionProblem, isFused, unfusable, allCardDefs, CARDS, copyLimit, PRESET_DECKS, RACE_NAMES, RARITY_NAME, rarityOf, presetDeck, deckProblems, commandCardsFor, cardIn, shownKind, SHOWN_KINDS, SHOWN_KIND_NAME, kindWords, type ShownKind, type DeckList } from './cards';
 export * from './modes';
 export { raceTrait } from './races';
 export { chooseAIAction } from './ai';

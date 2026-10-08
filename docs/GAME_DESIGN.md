@@ -62,6 +62,8 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
 
 ## The tableau
 
+**Units and surges.** Every card that stays in play is a **unit**, one kind for all (Relics apart; Heroes, Lightspeed and global cards keep their own). A card that resolves as it is played and goes to the discard pile is a **surge**. There are no attack or defence cards any more: a unit attacks if it has 1+ attack, and one with none can gain some (growth, gear). Words that named the old kinds now say what they mean: an **armed card** is a card with 1+ attack, a **Sturdy card** one with Sturdy; a Lightspeed card that answered "an attack card" springs on an armed card or a heat surge, and one that answered "a support card" on a surge.
+
 - Played cards **stay in play** in your tableau, which has **5 slots**. [design review: 5 slots]
 - **You choose the slot.** With every slot full, a new card **replaces** one of yours (you pick it; it leaves play) and takes its slot; a recall card can instead take the place of the card it recalls. [direction: cards no longer fade, so a full tableau must never lock] (Was: no replacing, until a card faded.)
 - **Defence** comes from the slot: **1, 2, 3, 2, 1** from left to right. The middle is the safest place for the card you most want to keep. [design review]

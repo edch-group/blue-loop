@@ -1,4 +1,4 @@
-import { BALANCE, baseAttack, baseHealth, CARDS, cardDef, hasDarkspeed, isBurst, raceTrait, SUBRACES, KIND_NAME, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity } from '../engine';
+import { BALANCE, baseAttack, baseHealth, CARDS, cardDef, hasDarkspeed, isBurst, raceTrait, SUBRACES, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity, type ShownKind, shownKind, SHOWN_KIND_NAME } from '../engine';
 import { stellariaFlower } from './art';
 import { cardScene, renderedArt } from './cardart';
 import jewelEmerald from './jewels/emerald.png';
@@ -34,7 +34,9 @@ import sunDisc from './gems/sun-disc.png';
  */
 
 /** Colour family for each kind of card. */
-export const KIND_COLOUR: Record<CardKind, string> = {
+export const KIND_COLOUR: Record<CardKind | ShownKind, string> = {
+  unit: '#4f7fbf', // steel blue: every card that stays in play
+  surge: '#e07a3a', // ember: one that resolves and goes
   attack: '#e0553a', // red
   defence: '#3f93dc', // blue
   growth: '#3a9e6a', // green: draw, growth and extra plays
@@ -437,7 +439,7 @@ const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<'
  */
 export function typeLine(def: CardDef): string {
   const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
-  return `<span class="card-type">${escType(KIND_NAME[def.kind])}</span>${race}`;
+  return `<span class="card-type">${escType(SHOWN_KIND_NAME[shownKind(def)])}</span>${race}`;
 }
 
 /**
@@ -465,7 +467,8 @@ export function raceTraitTags(def: CardDef): { name: string; text: string; nerf:
 
 /** The same as plain words ("attack · aureline"), for lists. */
 export function typeWords(def: CardDef): string {
-  return escType(def.race !== undefined ? `${KIND_NAME[def.kind]} · ${RACE_NAMES[def.race].toLowerCase()}` : KIND_NAME[def.kind]);
+  const k = SHOWN_KIND_NAME[shownKind(def)];
+  return escType(def.race !== undefined ? `${k} · ${RACE_NAMES[def.race].toLowerCase()}` : k);
 }
 
 /**
