@@ -751,14 +751,13 @@ input { font: inherit; }
 .fx-hot .orb-core { animation: hitHot 0.8s ease-out; }
 .fx-cold .orb-core { animation: hitCold 0.9s ease-out; }
 .fx-shield .orb::before { animation: hitShield 0.8s ease-out; }
-.fx-hot { animation: shake 0.45s ease-out; }
 @keyframes hitHot { 0% { filter: brightness(1.2); box-shadow: 0 0 50px 16px rgba(240, 170, 140, 0.9); } 100% { filter: none; } }
 @keyframes hitCold { 0% { filter: brightness(1.1); box-shadow: 0 0 50px 16px rgba(190, 215, 240, 0.95); } 100% { filter: none; } }
 @keyframes hitShield { 0% { box-shadow: 0 0 0 5px rgba(255, 255, 255, 1), 0 0 30px rgba(200, 210, 225, 1); } 100% { box-shadow: 0 0 0 0 transparent; } }
 @keyframes shake { 20% { transform: translateX(-4px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(1px); } }
 .fx-nova { animation: nova 1.3s ease-out; }
 /* Scale, not transform: the sun's holder is centred by its own translate, which a transform keyframe would wipe out. */
-@keyframes nova { 0% { scale: 1; filter: brightness(2); } 40% { scale: 1.6; filter: brightness(3); } 100% { scale: 1; filter: none; } }
+@keyframes nova { 0% { filter: brightness(2); } 40% { filter: brightness(3); } 100% { filter: none; } }
 .fx-flash::after { content: ''; position: fixed; inset: 0; background: #fff; z-index: 70; pointer-events: none; animation: flash 1s ease-out forwards; }
 @keyframes flash { from { opacity: 0.95; } to { opacity: 0; } }
 .fx-upgrade { animation: upgradeGlow 1.2s ease-out; }
@@ -2492,12 +2491,10 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 }
 .vitals-name { font-family: var(--display); font-size: clamp(0.46rem, calc(1.7 * var(--vh)), 0.66rem); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
 .vitals-name { display: none; }
-/* Hits: the sun flares and shakes; cooling frosts it; blocked heat flashes the shield ring. */
-.fx-hot .vit { animation: vit-hit 0.6s cubic-bezier(.3,.7,.3,1); }
+/* Hits: the sun flares (it never moves); cooling frosts it; blocked heat flashes the shield ring. */
 .fx-hot .vit-sun { animation: vit-flare 0.9s ease-out; }
 .fx-hot .vit-dome { animation: vit-flare-dome 0.9s ease-out; }
 @keyframes vit-flare-dome { 0% { filter: brightness(1.5) saturate(1.3); } 100% { filter: none; } }
-@keyframes vit-hit { 0% { transform: scale(1); } 15% { transform: scale(1.16) rotate(-3deg); } 30% { transform: scale(0.95) rotate(3deg); } 50% { transform: scale(1.05) rotate(-1deg); } 100% { transform: none; } }
 @keyframes vit-flare { 0% { filter: brightness(1.8) saturate(1.4); box-shadow: 0 0 calc(var(--vs) * 0.5) 10px #ff5a2a, 0 0 calc(var(--vs) * 0.9) rgba(255, 90, 40, 0.7); } 100% { filter: none; } }
 .fx-cold .vit-sun { animation: vit-frost 1s ease-out; }
 @keyframes vit-frost { 0% { filter: brightness(1.3); box-shadow: 0 0 calc(var(--vs) * 0.45) 8px #9fd0ff; } 100% { filter: none; } }

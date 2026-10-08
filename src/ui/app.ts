@@ -1969,10 +1969,12 @@ export class App {
         if (now && (now.ward ?? BALANCE.sunWard) < (was.ward ?? BALANCE.sunWard)) sound.ward();
         else if (!now || (now.heat <= was.heat && now.shields >= was.shields)) sound.impact(true);
       }
-      target.animate(
-        [{ transform: 'translate(0, 0)' }, { transform: 'translate(-5px, 2px)' }, { transform: 'translate(4px, -2px)' }, { transform: 'translate(-2px, 1px)' }, { transform: 'translate(0, 0)' }],
-        { duration: 320, composite: 'add' },
-      );
+      // (A card shudders; a sun never moves: it only flares.)
+      if (action.targetUid)
+        target.animate(
+          [{ transform: 'translate(0, 0)' }, { transform: 'translate(-5px, 2px)' }, { transform: 'translate(4px, -2px)' }, { transform: 'translate(-2px, 1px)' }, { transform: 'translate(0, 0)' }],
+          { duration: 320, composite: 'add' },
+        );
       pulse(target, 'hit-flash');
     }, Math.round(LUNGE_MS * LUNGE_HIT));
     return true;
