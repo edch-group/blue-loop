@@ -96,7 +96,7 @@ import { ORACLE_NAME, shownKind, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardJewels, cardBackFace, cardBodyHtml, effectMark, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { cardJewels, cardBackFace, cardBodyHtml, effectMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -4339,8 +4339,7 @@ export class App {
 
   /** Core or Lost Races, as two buttons. */
   private modeTabs(): string {
-    const tab = (m: GameMode) => `<button class="db-seg-btn ${this.playMode === m ? 'on' : ''}" data-act="play-mode" data-arg="${m}">${GAME_MODES[m].name.toLowerCase()}</button>`;
-    return `<div class="db-gm-row play-mode-row"><span class="db-seg db-gm" role="group" aria-label="Game mode">${tab('core')}${tab('lost')}</span><small class="muted">${esc(GAME_MODES[this.playMode].blurb)}</small></div>`;
+    return modeCards(this.playMode, 'play-mode', GAME_MODES);
   }
 
   /** A small deck box with its name beneath: a button when `attrs` give it an action. */

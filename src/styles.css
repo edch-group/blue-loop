@@ -6050,3 +6050,22 @@ body:has(.game-result) .dock { visibility: hidden; }
 .rh-card.lifted { transform: rotate(calc(var(--o) * -4deg)) translateY(calc(var(--rhh) * 0.32)); box-shadow: 0 8px 18px rgba(50, 56, 80, 0.3); }
 .table-view:is(.zoom-rival, .zoom-mine) > .rival-hand { opacity: 0; transition: opacity 0.25s; }
 @media (prefers-reduced-motion: reduce) { .rh-card { transition: none; } }
+
+/* The game mode, as two cards down the left of the screen: a picture, its name, a line beneath. */
+.mode-cards { position: fixed; left: max(18px, var(--sa-l, 0px)); top: 50%; transform: translateY(-50%); z-index: 4; display: grid; gap: 14px; width: clamp(120px, 12vw, 168px); }
+.mode-card {
+  display: grid; gap: 4px; padding: 6px 6px 10px; border: 0; border-radius: 12px; background: #fff; text-align: center; cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(150, 156, 172, 0.25), 0 4px 14px rgba(60, 70, 100, 0.1); opacity: 0.62; transition: opacity 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.mode-card-art { display: block; position: relative; aspect-ratio: 1.45; border-radius: 8px; overflow: hidden; }
+.mode-card-art > * { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mode-card b { font-family: var(--display); font-weight: 500; font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); margin-top: 2px; }
+.mode-card small { font-size: 0.68rem; line-height: 1.3; color: var(--ink-soft); }
+.mode-card.on { opacity: 1; box-shadow: 0 0 0 2px #5d6a8c, 0 8px 22px rgba(60, 70, 100, 0.18); }
+@media (hover: hover) { .mode-card:not(.on):hover { opacity: 0.9; transform: translateY(-2px); } }
+/* (On a narrow screen: side by side above the page.) */
+@media (max-width: 1000px) {
+  .mode-cards { position: static; transform: none; grid-template-columns: repeat(2, minmax(0, 150px)); justify-content: center; width: auto; margin: 0 auto 10px; }
+  .mode-card { grid-template-columns: 56px 1fr; text-align: left; align-items: center; padding: 6px; }
+  .mode-card-art { grid-row: span 2; aspect-ratio: 1; }
+}

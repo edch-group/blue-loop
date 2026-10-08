@@ -350,6 +350,19 @@ export function cardArtLite(def: CardDef, gem = false): string {
   return `<span class="art-wrap"><span class="art-frame ${gem ? 'art-notched' : ''}">${sceneImage(def)}</span>${gem ? rarityGem(def) + costDots(def) : ''}</span>`;
 }
 
+/** Each game mode's picture: a Hero of a race found only there in spirit (an Aureline for Core, a Nyxari for the Lost Races). */
+const MODE_ART: Record<'core' | 'lost', string> = { core: 'empress_solenne', lost: 'nyx_hero_nyxara' };
+
+/**
+ * The game mode picked as two cards down the left of the screen (above the page on a narrow one): each with its
+ * picture, name and a line of what it is. `act`: the action each card sends, with its mode.
+ */
+export function modeCards(current: 'core' | 'lost', act: string, modes: Record<'core' | 'lost', { name: string; blurb: string }>): string {
+  const card = (m: 'core' | 'lost') =>
+    `<button class="mode-card ${current === m ? 'on' : ''}" data-act="${act}" data-arg="${m}" aria-pressed="${current === m}"><span class="mode-card-art">${sceneImage(cardDef(MODE_ART[m]))}</span><b>${escType(modes[m].name.toLowerCase())}</b><small>${escType(modes[m].blurb)}</small></button>`;
+  return `<div class="mode-cards" role="group" aria-label="Game mode">${card('core')}${card('lost')}</div>`;
+}
+
 const RARITY_TITLE: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly (one per deck)' };
 
 /** A stable per-card phase, so gems on neighbouring cards shine out of step. */

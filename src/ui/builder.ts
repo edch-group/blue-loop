@@ -1,7 +1,7 @@
 import { BALANCE, coverCard, decodeDeck, encodeDeck, isProfane, PRESET_DECKS, mainRace, plainText, breakable, breakdownValue, SHOWN_KINDS, SHOWN_KIND_NAME, shownKind, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, allCardDefs, inMode, modeOf, setRulesMode, CORE_RACES, GAME_MODES, type GameMode, type CardDef, type Rarity } from '../engine';
 import { customDecks, deckWithCards, deleteDeck, deckById, missingCopies, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
-import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
+import { modeCards, raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
 import { fitCardText } from './fittext';
 import { owned, profile } from './profile';
 import { breakCard, communityDecks, countDeckSave, craftCard, shareDeck, unshareDeck, type CommunityDeck } from './account';
@@ -647,12 +647,11 @@ export class DeckBuilder {
     const mine = customDecks().filter((d) => modeOf(d) === gm);
     const presets = PRESETS.filter((d) => modeOf(d) === gm);
     const hide = startersHidden();
-    const tabs = (['core', 'lost'] as const).map((m) => `<button class="db-seg-btn ${gm === m ? 'on' : ''}" data-act="db-gm" data-arg="${m}">${GAME_MODES[m].name.toLowerCase()}</button>`).join('');
     return `
       ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small db-switch ${hide ? 'on' : ''}" data-act="db-hide-starters" role="switch" aria-checked="${hide}">hide starters<span class="switch-track" aria-hidden="true"><i></i></span></button><button class="btn btn-small" data-act="db-community">community</button><button class="btn btn-small" data-act="db-import-open">import</button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
       <div class="setup-body db-list-body">
         <div class="db-list">
-          <div class="db-gm-row"><span class="db-seg db-gm" role="group" aria-label="Game mode">${tabs}</span><small class="muted">${esc(GAME_MODES[gm].blurb)}</small></div>
+          ${modeCards(gm, 'db-gm', GAME_MODES)}
           <div class="section-label db-group">your decks</div>
           ${mine.length ? `<div class="db-boxes">${mine.map(box).join('')}</div>` : '<p class="muted center-text">No decks of your own yet. Start a new one, or copy a starter to change it.</p>'}
           ${hide ? '' : `<div class="section-label db-group">races</div>
