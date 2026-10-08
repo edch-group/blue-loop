@@ -190,8 +190,8 @@ export const EXPANSION: CardDef[] = [
     name: 'Lancer Squadron',
     kind: 'attack',
     race: 0,
-    text: '{heat:2}. {heat:+1} per 2 attack cards (up to 4).',
-    onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 4 }],
+    text: '{heat:2}. {heat:+1} per 2 attack cards (up to 3).',
+    onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 3 }],
   },
   {
     id: 'aureline_archon',

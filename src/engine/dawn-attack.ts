@@ -13,7 +13,7 @@ export const DAWN_ATTACK_TEXT: Record<string, string> = {
   spore_cloud: '{dawn}: with 4+ cards, {heat:2}.',
   aureline_war_herald: '{dawn}: {heat:1} per attack card next to this.',
   sunforge: '{forge:1}.',
-  aurelia_first_light: '{dawn}: {heat:1} per attack card you control (up to 5).',
+  aurelia_first_light: '{dawn}: {heat:1} per 2 attack cards you control (up to 3).',
   the_brood_queen: '{plays:1}. {dawn}: with 4+ cards, {heat:2}.',
   perihelion_forge: '{dawn}: {heat:2} while facing the industrial planet.',
   ember_drone: 'When this leaves your tableau, {heat:1}.',
@@ -50,5 +50,5 @@ export const DAWN_ATTACK_TEXT: Record<string, string> = {
  */
 export const DAWN_ATTACK_EXTRA: Record<string, number> = {
   sunforge: 1, overload_core: 1, kor_siege_ram: -1, aureline_skirmisher: 1, ser_stargazer: 1, pyr_ash_walker: 1, pyr_cinder_brute: 2, pyr_solar_tyrant: 2,
-  riptide: 1, abyssal_choir: 1, aureline_archon: -1, aurelia_first_light: -1,
+  riptide: 1, abyssal_choir: 1, aureline_archon: -1, aurelia_first_light: -1, aureline_war_herald: -1,
 };

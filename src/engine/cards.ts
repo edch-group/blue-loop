@@ -487,8 +487,8 @@ export const CARDS: CardDef[] = [
     name: 'Aurelia, the First Light',
     kind: 'attack',
     race: 0,
-    text: '{dawn}: {heat:1}. {heat:+1} per attack card you control (up to 5).',
-    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack' }, max: 5 }],
+    text: '{dawn}: {heat:1}. {heat:+1} per 2 attack cards you control (up to 3).',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'kind', kind: 'attack', per: 2 }, max: 3 }],
   },
   {
     id: 'xelnaru_champion',
