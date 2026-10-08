@@ -44,7 +44,7 @@ function geometry(seed: number, strip: Strip): Promise<Geometry> {
       try {
         const w = new Worker(new URL('./nebula.worker.ts', import.meta.url), { type: 'module' });
         w.onmessage = (e: MessageEvent<Geometry>) => {
-          resolve({ mesh: e.data.mesh, motes: e.data.motes });
+          resolve(e.data);
           w.terminate();
         };
         w.onerror = () => {
@@ -67,51 +67,80 @@ const COMMON = `
 uniform mat4 uView; uniform mat4 uProj; uniform float uTime;
 `;
 
-const GAS_VERT = COMMON + `
-attribute vec3 aPos; attribute vec3 aNormal; attribute float aFree;
-varying vec3 vWorld; varying vec3 vNormal; varying float vDist;
+const FACE_VERT = `
+attribute vec3 aPos; attribute float aTone; attribute float aKind;
+uniform mat4 uView; uniform mat4 uProj;
+varying float vTone; varying float vKind; varying float vDist; varying vec3 vWorld;
 void main() {
-  vec3 p = aPos;
-  // The body breathes; loose plumes wander (neighbouring points move alike, so a plume moves as one).
-  float ph = dot(aPos, vec3(1.3, 0.7, 1.1));
-  p += aNormal * 0.018 * sin(uTime * 0.6 + aPos.x * 2.0 + aPos.y * 3.0);
-  p += aFree * vec3(sin(uTime * 0.31 + ph), 0.6 * sin(uTime * 0.23 + ph * 1.7) + 0.4, cos(uTime * 0.27 + ph * 1.3)) * 0.09;
-  vec4 v = uView * vec4(p, 1.0);
+  vec4 v = uView * vec4(aPos, 1.0);
   gl_Position = uProj * v;
-  vWorld = p;
-  vNormal = aNormal;
+  vTone = aTone;
+  vKind = aKind;
   vDist = -v.z;
+  vWorld = aPos;
 }`;
 
-const GAS_FRAG = `
+/**
+ * Everything is the battle board: flat faces (the model's layers and the floor) are its paper, with its dotted
+ * grid and its schematic rings drawn into them; walls are its grey front edge, shaded by the light. Far off,
+ * it all fades into the paper.
+ */
+const FACE_FRAG = `
 #extension GL_OES_standard_derivatives : enable
 precision highp float;
-varying vec3 vWorld; varying vec3 vNormal; varying float vDist;
-uniform vec3 uPaper; uniform vec3 uEye; uniform float uTime; uniform float uFade; uniform float uFront;
+varying float vTone; varying float vKind; varying float vDist; varying vec3 vWorld;
+uniform vec3 uPaper; uniform float uFade; uniform vec3 uEye; uniform float uFront;
+float aa(float d, float w) { return 1.0 - smoothstep(0.0, w, d); }
 void main() {
-  // Over the map, only the gas on the camera's side of its plane (y = 0): what stands between the eye and it.
+  // Over the map, only what is on the camera's side of its plane (y = 0): what stands between the eye and it.
   if (uFront > 0.5 && vWorld.y * uEye.y <= 0.0) discard;
-  vec3 n = normalize(vNormal);
-  vec3 v = normalize(uEye - vWorld);
-  float ndv = abs(dot(n, v));
-  // Lit as the reference is, with three soft lights for an obvious 3D form: a key from above and to the right,
-  // a fill from the left, and a rim from behind that brightens its edges. Monochrome, in the board's own greys:
-  // the paper's white where lit, its cool slate in shadow.
-  float key = max(0.0, dot(n, normalize(vec3(0.55, 0.75, 0.35))));
-  float fill = max(0.0, dot(n, normalize(vec3(-0.7, 0.25, 0.4)))) * 0.35;
-  float back = pow(1.0 - ndv, 3.0) * max(0.0, dot(n, normalize(vec3(-0.1, 0.4, -0.9))) + 0.35);
-  float light = clamp(0.12 + 0.75 * key * key * (3.0 - 2.0 * key) + fill + back * 0.6, 0.0, 1.0);
-  vec3 c = mix(vec3(0.62, 0.655, 0.72), vec3(0.992, 0.99, 0.982), light);
-  // The faintest shimmer of the board's gold and the routes' blue, along its lit rim, drifting slowly.
-  float rim = pow(1.0 - ndv, 2.5);
-  float patch = smoothstep(0.45, 0.95, 0.5 + 0.5 * sin(vWorld.x * 1.1 + vWorld.z * 1.7 + vWorld.y * 0.8 + uTime * 0.18));
-  vec3 tint = mix(vec3(0.87, 0.68, 0.40), vec3(0.58, 0.70, 0.92), 0.5 + 0.5 * sin(vWorld.y * 2.0 + vWorld.x * 0.9 + uTime * 0.3));
-  c = mix(c, tint, rim * patch * 0.35);
-  // An ink line where the gas turns away from the eye: its outline.
-  float edge = 1.0 - smoothstep(0.06, 0.2, ndv);
-  c = mix(c, vec3(0.40, 0.46, 0.60), edge * 0.55);
-  c = mix(c, uPaper, smoothstep(4.5, 22.0, vDist));
-  gl_FragColor = uFront > 0.5 ? vec4(c, 1.0) * uFade : vec4(mix(uPaper, c, uFade), 1.0);
+  vec3 c;
+  if (vKind < 0.5) {
+    c = mix(vec3(0.925, 0.925, 0.915), vec3(0.995, 0.994, 0.99), vTone);
+    vec2 p = vWorld.xz;
+    // The dotted grid.
+    float S = 0.17;
+    vec2 g = abs(fract(p / S + 0.5) - 0.5) * S;
+    float dd = length(g);
+    float w = max(fwidth(dd), 1e-4);
+    float dotv = 1.0 - smoothstep(0.011 - w, 0.011 + w, dd);
+    // Its schematic rings round the middle, as round the board's star.
+    float r = length(p);
+    float RS = 0.42;
+    float rd = abs(fract(r / RS + 0.5) - 0.5) * RS;
+    float ring = aa(rd, max(fwidth(r), 1e-4) * 1.1) * step(0.55, r);
+    // Small detail fades out with distance before it can shimmer.
+    float near = 1.0 - smoothstep(6.0, 14.0, vDist);
+    c = mix(c, vec3(0.47, 0.53, 0.67), dotv * 0.42 * near);
+    c = mix(c, vec3(0.55, 0.59, 0.69), ring * 0.38 * near);
+  } else {
+    // The board's front edge: #dcdbd5 where lit, a cool grey in shadow.
+    c = mix(vec3(0.74, 0.76, 0.81), vec3(0.90, 0.895, 0.875), vTone);
+  }
+  float fog = smoothstep(4.5, 22.0, vDist);
+  c = mix(c, uPaper, fog);
+  gl_FragColor = uFront > 0.5 ? vec4(c, 1.0) * uFade : vec4(c * uFade + uPaper * (1.0 - uFade), 1.0);
+}`;
+
+const LINE_VERT = `
+attribute vec3 aPos;
+uniform mat4 uView; uniform mat4 uProj; uniform vec3 uEye; uniform float uFront;
+varying float vFog; varying float vKeep;
+void main() {
+  vKeep = (uFront > 0.5 && aPos.y * uEye.y <= 0.0) ? 0.0 : 1.0;
+  vec4 v = uView * vec4(aPos, 1.0);
+  gl_Position = uProj * v;
+  vFog = smoothstep(4.5, 16.0, -v.z);
+}`;
+
+const LINE_FRAG = `
+precision mediump float;
+varying float vFog; varying float vKeep;
+uniform float uFade;
+void main() {
+  // Drawn in, as the board's schematic lines are.
+  float a = 0.55 * (1.0 - vFog) * uFade * vKeep;
+  gl_FragColor = vec4(vec3(0.40, 0.46, 0.60) * a, a);
 }`;
 
 const FLOOR_VERT = COMMON + `
@@ -148,30 +177,6 @@ void main() {
   c *= 1.0 - 0.07 * uFade * exp(-dot(p * vec2(0.55, 1.0), p * vec2(0.55, 1.0)) * 1.2);
   c = mix(c, uPaper, smoothstep(4.5, 22.0, vDist));
   gl_FragColor = vec4(c, 1.0);
-}`;
-
-const MOTE_VERT = COMMON + `
-attribute vec3 aPos; attribute float aPhase; attribute float aSize;
-uniform float uPx; uniform vec3 uEye; uniform float uFront;
-varying float vAlpha;
-void main() {
-  // Each mote rises slowly and wanders, fading in at the bottom of its climb and out at the top.
-  float t = fract(uTime * 0.025 + aPhase);
-  vec3 p = aPos + vec3(sin(uTime * 0.3 + aPhase * 6.28) * 0.05, t * 0.5 - 0.25, cos(uTime * 0.27 + aPhase * 9.0) * 0.05);
-  vec4 v = uView * vec4(p, 1.0);
-  gl_Position = uProj * v;
-  vAlpha = sin(t * 3.14159) * (1.0 - smoothstep(4.5, 12.0, -v.z));
-  if (uFront > 0.5 && p.y * uEye.y <= 0.0) vAlpha = 0.0;
-  gl_PointSize = aSize * uPx * clamp(4.6 / -v.z, 0.6, 1.6);
-}`;
-
-const MOTE_FRAG = `
-precision mediump float;
-varying float vAlpha;
-uniform float uFade;
-void main() {
-  float a = smoothstep(0.5, 0.15, length(gl_PointCoord - 0.5)) * vAlpha * 0.55 * uFade;
-  gl_FragColor = vec4(vec3(0.47, 0.53, 0.67) * a, a);
 }`;
 
 function shader(gl: WebGLRenderingContext, type: number, src: string) {
@@ -229,8 +234,8 @@ class Layer {
       if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('nebula shader');
       return p;
     };
-    this.gasProg = program(GAS_VERT, GAS_FRAG);
-    this.moteProg = program(MOTE_VERT, MOTE_FRAG);
+    this.gasProg = program(FACE_VERT, FACE_FRAG);
+    this.moteProg = program(LINE_VERT, LINE_FRAG);
     this.gasBuf = gl.createBuffer()!;
     this.moteBuf = gl.createBuffer()!;
     if (!front) {
@@ -246,11 +251,11 @@ class Layer {
     const gl = this.gl;
     if (gl.isContextLost()) return;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.gasBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, g.mesh, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, g.faces, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.moteBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, g.motes, gl.STATIC_DRAW);
-    this.gasCount = g.mesh.length / 7;
-    this.moteCount = g.motes.length / 5;
+    gl.bufferData(gl.ARRAY_BUFFER, g.lines, gl.STATIC_DRAW);
+    this.gasCount = g.faces.length / 5;
+    this.moteCount = g.lines.length / 3;
   }
 
   draw(cam: Camera, time: number, fade: number) {
@@ -299,23 +304,22 @@ class Layer {
       done();
     }
     if (this.gasCount) {
-      done = use(this.gasProg, this.gasBuf, [['aPos', 3], ['aNormal', 3], ['aFree', 1]]);
+      // The layers, solid, pushed back a hair so the outlines on their edges win; then their outlines.
+      done = use(this.gasProg, this.gasBuf, [['aPos', 3], ['aTone', 1], ['aKind', 1]]);
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(1, 2);
       gl.drawArrays(gl.TRIANGLES, 0, this.gasCount);
+      gl.disable(gl.POLYGON_OFFSET_FILL);
       done();
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      done = use(this.moteProg, this.moteBuf, [['aPos', 3]]);
+      gl.drawArrays(gl.LINES, 0, this.moteCount);
+      done();
+      gl.disable(gl.BLEND);
     }
     // The map's things, behind whatever gas lies between them and the eye.
     this.objects?.draw(cam, time, 1);
-    if (!this.gasCount) return;
-    // The dust: blended over, never hiding anything (over the map, only the motes on the camera's side).
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    gl.depthMask(false);
-    done = use(this.moteProg, this.moteBuf, [['aPos', 3], ['aPhase', 1], ['aSize', 1]]);
-    gl.uniform1f(gl.getUniformLocation(this.moteProg, 'uPx'), dpr);
-    gl.drawArrays(gl.POINTS, 0, this.moteCount);
-    done();
-    gl.depthMask(true);
-    gl.disable(gl.BLEND);
   }
 
   lose() {

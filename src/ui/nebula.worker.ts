@@ -3,5 +3,5 @@ import { buildNebula, type Strip } from './nebula-geometry';
 
 self.onmessage = (e: MessageEvent<{ seed: number; strip: Strip }>) => {
   const g = buildNebula(e.data.seed, e.data.strip);
-  (self as unknown as Worker).postMessage(g, [g.mesh.buffer, g.motes.buffer]);
+  (self as unknown as Worker).postMessage(g, [g.faces.buffer, g.lines.buffer]);
 };
