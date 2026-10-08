@@ -719,7 +719,9 @@ for (const c of CARDS) if (c.kind === 'command') c.cost = heroCost(c.cost ?? 2);
 for (const [id, profile] of Object.entries(PLAIN_EXISTING)) {
   const c = CARDS.find((x) => x.id === id)!;
   const s = plainStats(profile, c.race, c.cost ?? 1);
-  Object.assign(c, { attack: s.attack, health: s.health, defence: s.sturdy || undefined, text: s.sturdy ? `{sturdy:${s.sturdy}}.` : '', onTurn: undefined });
+  const kind = s.attack > 0 ? 'attack' : 'defence';
+  Object.assign(c, { kind, attack: s.attack, health: s.health, defence: s.sturdy || undefined, text: s.sturdy ? `{sturdy:${s.sturdy}}.` : '' });
+  for (const k of ['onPlay', 'onTurn', 'onDusk', 'onLeave', 'onRecover', 'passive', 'choices', 'attune', 'lightspeed', 'spendAll', 'consume'] as const) delete c[k];
   PLAIN_PROFILE[id] = profile;
 }
 // The core races' cards as they now are (cards-core.ts): the same card in every mode.

@@ -26,13 +26,17 @@ function stats(p: Profile, c: number): { attack: number; sturdy: number; health:
 export const PLAIN_PROFILE: Record<string, Profile> = {};
 
 /**
- * Korrath's trait (Sturdy +2) adds to a card's own numbers, so their plain cards pay for it with a point of attack:
+ * Korrath's trait (Sturdy +2) adds to a card's own numbers, so their plain cards pay for it with a point of
+ * stability, and of attack where they have 2 or more:
  * a Korrath card never simply beats a neutral one with the same numbers. (Sting and Darkspeed are the race's, not
  * the card's numbers: no cost.)
  */
 function traitTax(race: number | undefined, s: { attack: number; sturdy: number; health: number }, profile: Profile) {
   void profile;
-  if (race === 5) s.attack = Math.max(s.attack > 0 ? 1 : 0, s.attack - 1);
+  if (race === 5) {
+    s.health = Math.max(1, s.health - 1);
+    if (s.attack >= 2) s.attack -= 1;
+  }
   return s;
 }
 
@@ -55,6 +59,28 @@ export const PLAIN_EXISTING: Record<string, Profile> = {
   plasma_relay: 'veteran',
   dawnstar_cannon: 'veteran',
   dreadnought: 'striker',
+  // Cards whose ability was small, conditional or the same as another's: plain now, so there are fewer abilities to read.
+  ember_drone: 'striker',
+  comet_hail: 'glass',
+  chain_of_command: 'guardian',
+  aureline_skirmisher: 'striker',
+  aureline_vanguard: 'guardian',
+  aureline_vesper_knight: 'brute',
+  shard_reactor: 'veteran',
+  echo_shard: 'striker',
+  searing_core: 'brute',
+  tidal_bloom: 'guardian',
+  hive_warrior: 'striker',
+  brood_chamber: 'guardian',
+  fruiting_body: 'veteran',
+  nyx_shade_stalker: 'striker',
+  nyx_dusk_raider: 'brute',
+  kor_shieldwall: 'wall',
+  kor_iron_sentinel: 'wall',
+  ser_stargazer: 'glass',
+  pyr_flare_imp: 'striker',
+  pyr_cinder_brute: 'brute',
+  pyr_ash_walker: 'glass',
 };
 
 /** A plain card's numbers, by its profile, race and cost (the trait's cost taken off). */
@@ -96,7 +122,7 @@ export const PLAIN_CARDS: CardDef[] = [
   // ---- Korrath: iron and more iron ----
   plain('p_anvil_guard', 'Anvil Guard', 5, 1, 'veteran'),
   plain('p_iron_bulwark', 'Iron Bulwark', 5, 2, 'guardian'),
-  plain('p_forge_knight', 'Forge Knight', 5, 3, 'veteran'),
+  plain('p_forge_knight', 'Forge Knight', 5, 3, 'striker'),
   plain('p_steel_bastion', 'Steel Bastion', 5, 4, 'guardian'),
   plain('p_iron_colossus', 'Iron Colossus', 5, 5, 'veteran'),
   // ---- Seren: steady star-riders ----
