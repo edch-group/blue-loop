@@ -17,6 +17,7 @@ export const CARD_COSTS: Record<string, number> = {
   tide_pylon: 2,
   vorthane_tidecaller: 2,
   searing_core: 2,
+  kelp_wall: 2,
   // 0
   coolant_array: 0,
   // (Lightspeed traps cost a little less: a trap sits idle until the rival walks into it.)

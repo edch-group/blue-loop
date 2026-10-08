@@ -481,7 +481,7 @@ export const EXPANSION: CardDef[] = [
     text: '{heat:2}. {heat:+1} per 2 shields you have (up to 4).',
     onPlay: [{ type: 'heat', amount: 2, to: 'target', plus: { of: 'shields', per: 2 }, max: 4 }],
   },
-  { id: 'kelp_wall', name: 'Kelp Wall', kind: 'defence', race: 2, text: '{sturdy:1}. {shield:3}.', defence: 1, onPlay: [{ type: 'shield', amount: 3 }] },
+  { id: 'kelp_wall', name: 'Kelp Wall', kind: 'defence', race: 2, text: '{shield:7}.', onPlay: [{ type: 'shield', amount: 7 }] },
   {
     id: 'abyss_lantern',
     name: 'Vorthanian Lanternfolk',

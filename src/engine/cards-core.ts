@@ -71,7 +71,7 @@ export const CORE_VERSIONS: Record<string, Partial<CardDef>> = {
   // Aureline: Forge on three cards only (Sunforge, Focusing Array, Halo Sentinel), so no deck can stack it; the
   // rest stand on the fundamentals.
   halo_sentinel: { ...none, text: '{guard}. {sturdy:1}. {forge:1}.', passive: [{ type: 'taunt' }, forge()] },
-  solar_aegis: { ...none, text: '{sturdy:2}. {cool:2}.', defence: 2, onPlay: [{ type: 'cool', amount: 2 }] },
+  solar_aegis: { ...none, text: '{cool:2}. {cool:+1} per 2 attack cards.', onPlay: [{ type: 'cool', amount: 2, plus: { of: 'kind', kind: 'attack', per: 2 } }] },
   aureline_war_herald: { ...none, text: '{dawn}: {heat:1}. {heat:+1} per attack card next to this.', onTurn: [{ type: 'heat', amount: 1, to: 'target', plus: { of: 'adjacent', kind: 'attack' } }] },
   helio_bastion: { ...none, text: '{guard}. {sturdy:2}. {dusk}: {cool:1}.', defence: 2, passive: [{ type: 'taunt' }], onDusk: [{ type: 'cool', amount: 1 }] },
   dawn_rampart: { ...none, text: '{sturdy:2}. {dusk}: {cool:2}.', defence: 2, onDusk: [{ type: 'cool', amount: 2 }] },
