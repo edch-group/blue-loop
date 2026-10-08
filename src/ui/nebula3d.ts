@@ -94,23 +94,22 @@ void main() {
   vec3 n = normalize(vNormal);
   vec3 v = normalize(uEye - vWorld);
   float ndv = abs(dot(n, v));
-  // Paper, softly shaded by a light from above: the board's white, falling to its cool grey in shadow.
-  float lam = max(0.0, dot(n, normalize(vec3(0.45, 0.85, 0.3))));
-  vec3 c = mix(vec3(0.80, 0.82, 0.86), vec3(0.995, 0.994, 0.988), 0.25 + 0.75 * lam);
-  // Schematic contour lines round the gas, as on a survey.
-  float S = 0.12;
-  float cd = abs(fract(vWorld.y / S + 0.5) - 0.5) * S;
-  float line = 1.0 - smoothstep(0.0, fwidth(vWorld.y) * 1.2, cd);
-  c = mix(c, vec3(0.55, 0.60, 0.71), line * 0.45);
-  // A shimmer over its edges, here and there, in the board's gold and the routes' blue.
-  float rim = pow(1.0 - ndv, 2.2);
-  float band = smoothstep(0.55, 1.0, sin(dot(vWorld, vec3(3.1, 5.3, 2.2)) - uTime * 1.1 + 2.0 * sin(vWorld.x * 1.9 + uTime * 0.4)));
-  float patch = smoothstep(0.35, 0.85, 0.5 + 0.5 * sin(vWorld.x * 1.4 + vWorld.z * 2.1 + vWorld.y * 0.9 + uTime * 0.21));
-  vec3 tint = mix(vec3(0.87, 0.66, 0.36), vec3(0.55, 0.69, 0.93), 0.5 + 0.5 * sin(vWorld.y * 4.0 + vWorld.x * 1.3 + uTime * 0.5));
-  c = mix(c, tint, clamp(rim * (0.3 + 0.7 * band) * patch * 0.85 + band * patch * 0.08, 0.0, 0.7));
+  // Lit as the reference is, with three soft lights for an obvious 3D form: a key from above and to the right,
+  // a fill from the left, and a rim from behind that brightens its edges. Monochrome, in the board's own greys:
+  // the paper's white where lit, its cool slate in shadow.
+  float key = max(0.0, dot(n, normalize(vec3(0.55, 0.75, 0.35))));
+  float fill = max(0.0, dot(n, normalize(vec3(-0.7, 0.25, 0.4)))) * 0.35;
+  float back = pow(1.0 - ndv, 3.0) * max(0.0, dot(n, normalize(vec3(-0.1, 0.4, -0.9))) + 0.35);
+  float light = clamp(0.12 + 0.75 * key * key * (3.0 - 2.0 * key) + fill + back * 0.6, 0.0, 1.0);
+  vec3 c = mix(vec3(0.62, 0.655, 0.72), vec3(0.992, 0.99, 0.982), light);
+  // The faintest shimmer of the board's gold and the routes' blue, along its lit rim, drifting slowly.
+  float rim = pow(1.0 - ndv, 2.5);
+  float patch = smoothstep(0.45, 0.95, 0.5 + 0.5 * sin(vWorld.x * 1.1 + vWorld.z * 1.7 + vWorld.y * 0.8 + uTime * 0.18));
+  vec3 tint = mix(vec3(0.87, 0.68, 0.40), vec3(0.58, 0.70, 0.92), 0.5 + 0.5 * sin(vWorld.y * 2.0 + vWorld.x * 0.9 + uTime * 0.3));
+  c = mix(c, tint, rim * patch * 0.35);
   // An ink line where the gas turns away from the eye: its outline.
-  float edge = 1.0 - smoothstep(0.12, 0.3, ndv);
-  c = mix(c, vec3(0.40, 0.46, 0.60), edge * 0.6);
+  float edge = 1.0 - smoothstep(0.06, 0.2, ndv);
+  c = mix(c, vec3(0.40, 0.46, 0.60), edge * 0.55);
   c = mix(c, uPaper, smoothstep(4.5, 22.0, vDist));
   gl_FragColor = uFront > 0.5 ? vec4(c, 1.0) * uFade : vec4(mix(uPaper, c, uFade), 1.0);
 }`;

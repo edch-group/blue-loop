@@ -2,15 +2,14 @@
  * The campaign nebula's shape, worked out once per universe (seeded): see nebula3d.ts. Pure, so it can run
  * in a worker (nebula.worker.ts) off the page's thread.
  *
- * The gas is a field of soft overlapping blobs (metaballs), built as one grand formation wrapped round the
- * strip: a sea of billows below it (the strip floats over it), a high billowing wall behind it with pillars
- * towering out of it, its ends curling round the strip's ends, and a low lip on the near side (below the eye's
- * line to the strip), with wisps streaming off and loose puffs drifting, all folded a little by slow noise. Its surface is meshed smoothly (surface nets, with normals from the field), and motes of
- * dust are scattered round it. How the surface is drawn (paper, contour lines, shimmer) is nebula3d.ts's.
+ * Modelled on a reference sculpt (a smooth, low-frequency monochrome nebula): a few separate sculptural forms set
+ * round the strip with open space between them, each a big rounded bulb with a tapering arm reaching off it.
+ * The forms are soft overlapping blobs (metaballs) melted smoothly together and meshed with surface nets
+ * (normals from the field); no fine billows. How the surface is lit and drawn is nebula3d.ts's.
  */
 
 // The box the gas is meshed in, and the size of the cells it is meshed with.
-const BX = 3.9, BY = 1.75, BZ = 2.3, CELL = 0.065;
+const BX = 4.1, BY = 2.0, BZ = 3.4, CELL = 0.07;
 
 // ---------- noise (seeded value noise, fBm) ----------
 
@@ -69,48 +68,27 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
   const blobs: Blob[] = [];
   const range = (a: number, b: number) => a + rnd() * (b - a);
   const puff = (x: number, y: number, z: number, r: number, free = 0) => blobs.push({ x, y, z, r, free });
-  // The sea below the strip: broad billows it floats over.
-  for (let i = 0; i < 46; i++) puff(range(-3.3, 3.3), range(-1.2, -0.65), range(-1.3, 0.9), range(0.26, 0.46));
-  // The wall behind it: billows heaped high along the far side, rising and falling.
-  for (let i = 0; i < 60; i++) {
-    const x = range(-3.5, 3.5);
-    const crest = 0.35 + 0.45 * Math.sin(x * 0.9 + seed * 0.01) + 0.25 * Math.sin(x * 2.3 + 1.7);
-    puff(x, range(-0.7, crest), range(-2.0, -1.05), range(0.26, 0.5));
-  }
-  // Pillars towering out of the wall: columns of shrinking puffs, leaning, with rounder heads.
-  const pillars = 2 + Math.floor(rnd() * 2);
-  for (let p = 0; p < pillars; p++) {
-    let x = range(-2.8, 2.8), z = range(-1.75, -1.3), y = 0.2;
-    const lean = range(-0.08, 0.08), steps = 6 + Math.floor(rnd() * 4);
-    for (let i = 0; i < steps; i++) {
-      puff(x + range(-0.05, 0.05), y, z, 0.3 - i * 0.017, (i / steps) * 0.3);
-      x += lean + range(-0.04, 0.04);
-      y += 0.15;
-      z += range(-0.03, 0.03);
+  // A tapering arm of overlapping lobes from one point to another (r0 at its root, r1 at its tip).
+  const arm = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, r0: number, r1: number, free = 0) => {
+    const n = Math.max(4, Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) / (Math.min(r0, r1) * 0.45)));
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, sway = Math.sin(t * Math.PI) * 0.12;
+      puff(ax + (bx - ax) * t, ay + (by - ay) * t + sway, az + (bz - az) * t, r0 + (r1 - r0) * t, free * t);
     }
-    puff(x, y + 0.03, z, 0.26, 0.35);
-  }
-  // The ends, curling round the strip's ends toward the near side.
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 22; i++) {
-      const t = rnd();
-      puff(side * range(3.0, 3.6) - side * t * 0.4, range(-0.8, 0.5 - t * 0.6), -1.6 + t * 2.7, range(0.26, 0.45));
-    }
-  }
-  // A low lip on the near side, under the eye's line to the strip.
-  for (let i = 0; i < 14; i++) puff(range(-3.0, 3.0), range(-1.3, -0.95), range(1.1, 1.7), range(0.18, 0.32));
-  // Wisps streaming off the wall and the ends: trails of ever smaller puffs, freer the further they go.
-  for (let i = 0; i < 12; i++) {
-    let x = range(-3.4, 3.4), y = range(0.0, 1.0), z = range(-1.6, -1.1);
-    const dx = range(-0.15, 0.15), dy = range(0.03, 0.1), dz = range(0.0, 0.12);
-    const len = 3 + Math.floor(rnd() * 4);
-    for (let n = 0; n < len; n++) {
-      x += dx + range(-0.05, 0.05); y += dy + range(-0.03, 0.03); z += dz + range(-0.04, 0.04);
-      puff(x, y, z, 0.12 * (1 - n / (len + 1)) + 0.03, 0.4 + (0.6 * n) / len);
-    }
-  }
-  // And loose puffs, drifting on their own above and around.
-  for (let i = 0; i < 10; i++) puff(range(-3.4, 3.4), range(0.6, 1.5), range(-1.9, -0.6), range(0.06, 0.12), 1);
+  };
+  // Modelled on the reference: separate, smooth sculptural forms, each a big rounded bulb with a tapering arm
+  // reaching off it, set round the strip with open space between them. Three or four behind it, rising high; two
+  // beneath it; one off each end, curling toward the near side.
+  const form = (x: number, y: number, z: number, r: number) => {
+    puff(x, y, z, r);
+    puff(x + range(-0.3, 0.3) * r, y - r * 0.45, z + range(-0.2, 0.2) * r, r * 0.8);
+    const a = range(0, Math.PI * 2), len = r * range(1.6, 2.4);
+    arm(x, y, z, x + Math.cos(a) * len, y + range(-0.2, 0.5) * r, z + Math.sin(a) * len * 0.5, r * 0.8, r * 0.45, 0.4);
+  };
+  const behind = 3 + Math.floor(rnd() * 2);
+  for (let i = 0; i < behind; i++) form(-2.7 + ((i + range(0.3, 0.7)) / behind) * 5.4, range(-0.45, 0.0), range(-2.3, -1.8), range(0.5, 0.72));
+  for (let i = 0; i < 2; i++) form(i ? range(0.6, 1.8) : range(-1.8, -0.6), range(-1.35, -1.05), range(-0.8, 0.2), range(0.45, 0.6));
+  for (const side of [-1, 1]) form(side * range(3.2, 3.6), range(-0.6, -0.2), range(-0.6, 0.4), range(0.45, 0.6));
 
   // Channels through the gas where the strip runs: a tube round each route and a hollow round each system,
   // so the lines of light and the stars are seen from above, and hidden only by gas rising between them and the eye.
@@ -145,21 +123,21 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
 
   // The field: positive inside the gas. Each blob falls off smoothly, and they melt together where they meet.
   const field = (x: number, y: number, z: number) => {
-    const wx = x + fbm(x * 0.8, y * 0.8, z * 0.8, 1) * 0.3;
-    const wy = y + fbm(x * 0.8 + 31, y * 0.8, z * 0.8, 1) * 0.3;
-    const wz = z + fbm(x * 0.8, y * 0.8 + 47, z * 0.8, 1) * 0.3;
+    const wx = x + fbm(x * 0.5, y * 0.5, z * 0.5, 1) * 0.25;
+    const wy = y + fbm(x * 0.5 + 31, y * 0.5, z * 0.5, 1) * 0.25;
+    const wz = z + fbm(x * 0.5, y * 0.5 + 47, z * 0.5, 1) * 0.25;
     const near = bins.get(key(Math.floor(wx / BIN), Math.floor(wy / BIN), Math.floor(wz / BIN))) ?? none;
     // (Nothing near: well outside the gas, with no need for the finer noise.)
     if (!near.length) return -0.3;
     let sum = 0;
     for (const b of near) {
       const d2 = ((wx - b.x) ** 2 + (wy - b.y) ** 2 + (wz - b.z) ** 2) / (b.r * b.r);
-      if (d2 < 6) sum += Math.exp(-d2 * 2.8);
+      if (d2 < 6) sum += Math.exp(-d2 * 1.6);
     }
     // Billows on billows: a little finer noise heaps the surface like cumulus (only near the surface: deep
     // inside or well outside, it changes nothing).
-    const v = sum - 0.2 - clearing(x, y, z);
-    return Math.abs(v) > 0.3 ? v : v + fbm(wx * 2.6, wy * 2.6, wz * 2.6, 3) * 0.16;
+    // (Smooth and low-frequency, like a sculpted form: no fine billows.)
+    return sum - 0.35 - clearing(x, y, z);
   };
   const freeAt = (x: number, y: number, z: number) => {
     let best = 0, near = Infinity;
@@ -240,7 +218,7 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
 
   // Motes of dust hanging round the gas, thickest near its surface.
   const motes: number[] = [];
-  for (let n = 0; n < 4000 && motes.length < 420 * 5; n++) {
+  for (let n = 0; n < 0; n++) {
     const x = range(-BX, BX), y = range(-BY * 0.8, BY), z = range(-BZ, BZ);
     const v = field(x, y, z);
     if (v < 0 && v > -0.18 && rnd() < 0.5) motes.push(x, y, z, rnd(), range(1.2, 2.6));
