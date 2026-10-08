@@ -4407,11 +4407,11 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .board-shields { --bs-bg: #fff; --bs-ink: #b3bccb; }
 .board-shields.up { --bs-bg: color-mix(in srgb, #3d7fc4 16%, #fff); --bs-ink: #3d7fc4; }
 .board-shields .bs-hex { fill: var(--bs-bg); stroke: var(--bs-ink); stroke-width: 1.6; stroke-linejoin: round; }
-.board-shields .bs-cell { fill: none; stroke: var(--bs-ink); stroke-width: 0.75; opacity: 0.6; }
+.board-shields .bs-cell { fill: none; stroke: var(--bs-ink); stroke-width: 1.2; opacity: 0.5; stroke-linejoin: round; }
 .board-shields b {
-  position: relative; font-family: var(--display); font-weight: 800; font-size: calc(var(--bs) * 0.34); line-height: 1; color: var(--bs-ink);
+  position: relative; font-family: var(--display); font-weight: 800; font-size: calc(var(--bs) * 0.28); line-height: 1; color: var(--bs-ink);
   /* (A patch of the badge's own colour behind the number, so it reads over the lattice.) */
-  padding: 0.08em 0.18em; border-radius: 0.3em; background: var(--bs-bg); box-shadow: 0 0 0.2em 0.18em var(--bs-bg);
+  padding: 0.04em 0.12em; border-radius: 0.3em; background: var(--bs-bg); box-shadow: 0 0 0.12em 0.08em var(--bs-bg);
 }
 .board-plane > .board-shields.up { opacity: 1; }
 .board-shields.up .bs-hex { filter: drop-shadow(0 2px 3px rgba(40, 80, 140, 0.3)); }
@@ -4421,7 +4421,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 @media (prefers-reduced-motion: reduce) { .board-shields svg { animation: none !important; } }
 /* By the sun, beside the planet tag. */
 .vit-under .board-shields {
-  --bs: max(26px, calc(var(--vs) * 0.24));
+  --bs: max(32px, calc(var(--vs) * 0.3));
   position: relative; width: var(--bs); height: var(--bs); flex: none;
   display: grid; place-items: center; pointer-events: auto; opacity: 0.35; transition: opacity 0.35s;
 }

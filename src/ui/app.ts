@@ -564,14 +564,15 @@ const hexPath = (cx: number, cy: number, r: number) =>
  * number in the middle on a patch of the badge's own colour so it reads over them.
  */
 const SHIELD_LATTICE = (() => {
-  const r = 3.3, w = Math.sqrt(3) * r;
-  const cells: string[] = [];
-  for (let row = -6; row <= 6; row++)
-    for (let col = -6; col <= 6; col++) {
-      const cx = 20 + col * w + (row % 2 ? w / 2 : 0), cy = 20 + row * 1.5 * r;
-      if (Math.hypot(cx - 20, cy - 20) < 19) cells.push(hexPath(cx, cy, r * 0.82));
-    }
-  return `<svg viewBox="0 0 40 40" aria-hidden="true"><defs><clipPath id="bs-clip-hex"><path d="${hexPath(20, 20, 17)}"/></clipPath></defs><path class="bs-hex" d="${hexPath(20, 20, 18.5)}"/><g clip-path="url(#bs-clip-hex)"><path class="bs-cell" d="${cells.join(' ')}"/></g></svg>`;
+  // (A honeycomb of big cells sharing their walls, the middle one round the number, the outer ones cut by the rim:
+  // a shield's plating, not a frost of tiny ones.)
+  const r = 7.6, d = Math.sqrt(3) * r;
+  const cells = [hexPath(20, 20, r)];
+  for (let i = 0; i < 6; i++) {
+    const a = ((60 * i - 30) * Math.PI) / 180;
+    cells.push(hexPath(20 + d * Math.cos(a), 20 + d * Math.sin(a), r));
+  }
+  return `<svg viewBox="0 0 40 40" aria-hidden="true"><defs><clipPath id="bs-clip-hex"><path d="${hexPath(20, 20, 18.5)}"/></clipPath></defs><path class="bs-hex" d="${hexPath(20, 20, 18.5)}"/><g clip-path="url(#bs-clip-hex)"><path class="bs-cell" d="${cells.join(' ')}"/></g></svg>`;
 })();
 
 function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
