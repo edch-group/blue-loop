@@ -768,6 +768,9 @@ input { font: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* The campaign camera is set in script and measured straight after: even a 0.01ms transition would leave
+     the measurement a frame behind, and the fit would shrink the map to nothing. */
+  .cmp-stage, .cmp-stage * { transition: none !important; }
 }
 
 /* ---------- Larger screens ---------- */
