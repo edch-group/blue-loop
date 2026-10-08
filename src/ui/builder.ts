@@ -648,7 +648,7 @@ export class DeckBuilder {
     const presets = PRESETS.filter((d) => modeOf(d) === gm);
     const hide = startersHidden();
     return `
-      ${modeCards(gm, 'db-gm', GAME_MODES, `<button class="btn btn-small pane-btn" data-act="db-back">‹ back</button><button class="btn btn-small pane-btn" data-act="db-community">${ICON_PEOPLE}community</button><button class="btn btn-small pane-btn" data-act="db-import-open">${ICON_UPLOAD}import</button>`)}
+      ${modeCards(gm, 'db-gm', GAME_MODES, `<button class="btn btn-small pane-btn" data-act="db-back">‹ back</button><button class="btn btn-small pane-btn pane-icon" data-act="db-community" title="Community decks" aria-label="Community decks">${ICON_PEOPLE}</button><button class="btn btn-small pane-btn pane-icon" data-act="db-import-open" title="Import a deck" aria-label="Import a deck">${ICON_UPLOAD}</button>`)}
       ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small db-switch ${hide ? '' : 'on'}" data-act="db-hide-starters" role="switch" aria-checked="${!hide}">starters<span class="switch-track" aria-hidden="true"><i></i></span></button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
       <div class="setup-body db-list-body">
         <div class="db-list">

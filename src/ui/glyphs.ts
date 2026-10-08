@@ -357,7 +357,11 @@ const MODE_ART: Record<'core' | 'lost', string> = { core: 'empress_solenne', los
  * The game mode picked as two cards down the left of the screen (above the page on a narrow one): each with its
  * picture, name and a line of what it is. `act`: the action each card sends, with its mode.
  */
+let shownMode: 'core' | 'lost' | undefined;
 export function modeCards(current: 'core' | 'lost', act: string, modes: Record<'core' | 'lost', { name: string; blurb: string }>, top = ''): string {
+  // The page is redrawn on a switch, so the grey eases in/out by animation, only on the render that switched.
+  const switched = shownMode !== undefined && shownMode !== current;
+  shownMode = current;
   // (The Lost Races' own painting, once it has been made: scripts/cardart, "lost mode_lost_races". It is four
   // panels, one race each, kept whole and shown as four tiles so every race is seen.)
   const art = (m: 'core' | 'lost') => {
@@ -365,7 +369,7 @@ export function modeCards(current: 'core' | 'lost', act: string, modes: Record<'
     return own ? `<span class="mode-quads">${[0, 1, 2, 3].map((i) => `<i style="background-image:url(${own});background-position-x:${(i * 100) / 3}%"></i>`).join('')}</span>` : sceneImage(cardDef(MODE_ART[m]));
   };
   const card = (m: 'core' | 'lost') =>
-    `<button class="mode-card ${current === m ? 'on' : ''}" data-act="${act}" data-arg="${m}" aria-pressed="${current === m}"><span class="mode-card-art">${art(m)}</span><span class="mode-card-text"><b>${escType(modes[m].name.toLowerCase())}</b><small>${escType(modes[m].blurb)}</small></span></button>`;
+    `<button class="mode-card ${current === m ? 'on' : ''}${switched ? ' mode-switch' : ''}" data-act="${act}" data-arg="${m}" aria-pressed="${current === m}"><span class="mode-card-art">${art(m)}</span><span class="mode-card-text"><b>${escType(modes[m].name.toLowerCase())}</b><small>${escType(modes[m].blurb)}</small></span></button>`;
   return `<aside class="mode-cards">${top ? `<div class="mode-cards-top">${top}</div>` : ''}<div class="mode-cards-in" role="group" aria-label="Game mode">${card('core')}${card('lost')}</div></aside>`;
 }
 
