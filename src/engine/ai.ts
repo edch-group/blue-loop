@@ -1,3 +1,4 @@
+import { BALANCE } from './balance';
 import { cardDef } from './cards';
 import {
   activePlayer,
@@ -356,7 +357,8 @@ function evaluate(state: GameState, meId: string): number {
     const attacks = o.tableau.reduce((n, c) => n + cardAttack(state, o, c), 0);
     return sum + turnForecast(state, o).heat + 0.7 * attacks;
   }, 0);
-  const landing = Math.max(0, incoming - me.shields);
+  // (The ward is whole again by then: it soaks the first of it, then shields.)
+  const landing = Math.max(0, incoming - BALANCE.sunWard - me.shields);
   const coming = landing * INCOMING_WEIGHT;
   const mine = Math.max(0, me.heat + coming) / supernovaThreshold(me);
   score -= 12 * mine + 10 * mine * mine;

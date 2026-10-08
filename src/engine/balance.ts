@@ -75,6 +75,11 @@ export const BALANCE = {
   /** Stability: what a card in play can take, past its defence, before it burns away (1 + its cost, +1 for defence cards, 2 to 8, then its race's trait). */
   minHealth: 2,
   maxHealth: 8,
+  /**
+   * Every sun's ward: rival heat it soaks each day before its shields, full again at its owner's dawn. Chip
+   * attacks at the sun do nothing: a board strong enough to break through, or the cards in the way, must be dealt with.
+   */
+  sunWard: 3,
   /** Kept shields (Deep Current) never exceed this. */
   maxKeptShields: 12,
 

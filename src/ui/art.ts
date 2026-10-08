@@ -55,6 +55,7 @@ const PLANET_LOOK: Record<Planet, { name: string; text: string }> = {
 const ORBIT_R = 56;
 const SHIELD_R = 47;
 const HEAT_R = 40;
+const WARD_R = 51.5;
 
 /** A circle as a path starting at its left end and running round the near (lower) side first. */
 function ringPath(r: number): string {
@@ -67,7 +68,25 @@ function ringPoint(r: number, deg: number): [number, number] {
 }
 
 /** The tracks (orbit, shields, heat), flat on the board (the orbit's notches and trail are drawn with the planets, in sun3d.ts). */
-function ringTracks(heatArc: number, shieldArc: number, orbit: number | undefined): string {
+/**
+ * The sun's ward: a ring of segments round it, one for each point it soaks a day, lit while whole and dark once spent
+ * (all lit again at its owner's dawn). The segments run round the top, clear of the heat number below.
+ */
+function wardRing(ward: number, total: number): string {
+  if (total <= 0) return '';
+  const span = 150, gap = 7;
+  const seg = (span - gap * (total - 1)) / total;
+  const at = (deg: number) => {
+    const a = ((deg - 90) * Math.PI) / 180;
+    return `${(50 + WARD_R * Math.cos(a)).toFixed(2)} ${(50 + WARD_R * Math.sin(a)).toFixed(2)}`;
+  };
+  return Array.from({ length: total }, (_, i) => {
+    const a0 = -span / 2 + i * (seg + gap);
+    return `<path class="vit-ward-seg ${i < ward ? 'on' : ''}" d="M${at(a0)} A${WARD_R} ${WARD_R} 0 0 1 ${at(a0 + seg)}"/>`;
+  }).join('');
+}
+
+function ringTracks(heatArc: number, shieldArc: number, orbit: number | undefined, ward?: number): string {
   const track = (r: number, cls: string, fill?: number) =>
     `<path class="${cls}-track" d="${ringPath(r)}" pathLength="100"/>` + (fill ? `<path class="${cls}-arc" d="${ringPath(r)}" pathLength="100" stroke-dasharray="${(fill * 100).toFixed(1)} 100"/>` : '');
   return `
@@ -75,6 +94,7 @@ function ringTracks(heatArc: number, shieldArc: number, orbit: number | undefine
       ${orbit !== undefined ? `<path class="vit-orbit-track" d="${ringPath(ORBIT_R)}"/>` : ''}
       ${track(SHIELD_R, 'vit-shield', shieldArc)}
       ${track(HEAT_R, 'vit-heat', heatArc)}
+      ${ward !== undefined ? wardRing(ward, BALANCE.sunWard) : ''}
     </svg>`;
 }
 
@@ -105,7 +125,7 @@ function planetTag(orbit: number, eaten = false): string {
   return `<div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more day${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
 }
 
-export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number; eaten?: boolean; shieldsHtml?: string }): string {
+export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number; eaten?: boolean; shieldsHtml?: string; ward?: number }): string {
   const { heat, threshold, shields, dead } = opts;
   const t = Math.max(0, Math.min(1, heat / threshold));
   const cold = heat < 0 ? Math.min(1, heat / BALANCE.minHeat) : 0;
@@ -124,10 +144,10 @@ export function vitals(opts: { heat: number; threshold: number; shields: number;
   return `
     <div class="vit ${dead ? 'vit-dead' : ''} ${danger ? 'vit-danger' : ''} ${shields > 0 ? 'vit-shielded' : ''} ${cold ? 'vit-cold' : ''}" style="--core:${core};--rim:${rim}">
       <canvas class="vit-sun sun3d" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-danger="${danger ? 1 : 0}" data-dead="${dead ? 1 : 0}" data-seed="${(seed / 997) * 6.28}" aria-hidden="true"></canvas>
-      ${ringTracks(heatArc, shieldArc, orbit)}
+      ${ringTracks(heatArc, shieldArc, orbit, dead ? undefined : opts.ward)}
       <canvas class="vit-dome" data-t="${t.toFixed(3)}" data-cold="${cold.toFixed(3)}" data-dead="${dead ? 1 : 0}" data-seed="${((seed / 997) * 6.28).toFixed(3)}" data-orbit="${orbit ?? ''}" data-pid="${opts.id ?? ''}" data-shields="${dead ? 0 : shields}" aria-hidden="true"></canvas>
       ${orbit !== undefined ? orbitPlanets(orbit) : ''}
-      <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova">${dead ? '' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
+      <div class="vit-heat" title="Heat ${heat} of ${threshold}: at ${threshold} the sun goes supernova.${opts.ward !== undefined && BALANCE.sunWard > 0 ? ` Ward ${opts.ward} of ${BALANCE.sunWard} (the ring above): it soaks the first ${BALANCE.sunWard} rival heat each day, before shields, and is whole again at its owner's dawn. Pierce goes past it.` : ''}">${dead ? '' : `<b ${idAttr('heat')}>${heat}</b><small>/${threshold}</small>`}</div>
       <div class="vit-under">${orbit !== undefined ? planetTag(orbit, opts.eaten) : ''}${opts.shieldsHtml ?? ''}</div>
     </div>`;
 }

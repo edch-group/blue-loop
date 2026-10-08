@@ -2495,7 +2495,7 @@ export class App {
       if (id !== this.replayId) return;
       const p = next.players.find((x) => x.id === pid)!;
       root.querySelectorAll(`[data-anchor="player:${pid}"] .vit`).forEach((vit) => {
-        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit });
+        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit, ward: p.ward ?? BALANCE.sunWard });
       });
       setShieldBadge(root, pid, sun.shields);
       animateSuns();
@@ -4416,6 +4416,7 @@ export class App {
             fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
             fact('Defence', `An attack or aimed heat wears a card's defence first, and the wear lasts: only ${kw('repair', '1')} mends it, and it stays in the slot if the card leaves. A card with ⛨3 or more is a ${kw('guard')} while its defence holds, a Hero too. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
+            fact('The ward', `Every sun soaks the first ${B.sunWard} rival heat each day, before its shields (the glowing ring round it), whole again at its owner's dawn. Chip attacks do nothing: break through with a strong board, or deal with the cards in the way. Pierce goes past it.`),
             fact('Replacing', 'Cards never fade: into a full tableau, a new card replaces one of yours (you pick it), which leaves play. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
             fact('Discard pile', `Every card that leaves goes here. An empty deck reshuffles it back in: ${kw('heat', String(B.reshuffleHeat))} to your sun.`),
@@ -4870,7 +4871,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side), ward: p.ward ?? BALANCE.sunWard })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>

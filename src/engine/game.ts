@@ -903,10 +903,15 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
     return 0;
   }
   if (target.eliminated || state.winnerId) return 0;
-  // Piercing heat goes straight past shields.
-  const blocked = enemy ? Math.min(pierce ? Math.floor(target.shields * BALANCE.pierceShieldShare) : target.shields, amount) : 0;
+  // The sun's ward soaks rival heat first, then its shields (pierce goes past the ward, and mostly past shields).
+  const warded = enemy && !pierce ? Math.min(target.ward ?? BALANCE.sunWard, amount) : 0;
+  if (warded > 0) {
+    target.ward = (target.ward ?? BALANCE.sunWard) - warded;
+    log(state, `${target.name}'s ward soaks ${warded} heat.`);
+  }
+  const blocked = enemy ? Math.min(pierce ? Math.floor(target.shields * BALANCE.pierceShieldShare) : target.shields, amount - warded) : 0;
   target.shields -= blocked;
-  const applied = amount - blocked;
+  const applied = amount - warded - blocked;
   target.heat = Math.max(BALANCE.minHeat, target.heat + applied);
   if (enemy) source.turn.heatDealt += amount;
   if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat.`);
@@ -1350,6 +1355,8 @@ function startTurn(state: GameState) {
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
   // (A campaign ship's shields are up as the battle begins: they last its first day.)
   if (!(state.campaign && p.turnsTaken === 1)) p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
+  // The ward is whole again.
+  p.ward = BALANCE.sunWard;
 
   // The planets move on a day (your first day starts at the dead planet).
   if (p.turnsTaken > 1) {

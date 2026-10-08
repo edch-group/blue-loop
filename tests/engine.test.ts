@@ -1475,3 +1475,41 @@ describe('growth', () => {
     expect(cardAttack(s, p, r)).toBe(before + 1);
   });
 });
+
+describe("the sun's ward", () => {
+  it('soaks rival heat before shields each day, refills at dawn, and lets pierce and its own heat past', () => {
+    const was = BALANCE.sunWard;
+    Object.assign(BALANCE, { sunWard: 3 });
+    try {
+      let s = twoPlayer();
+      // An attack at Bo's sun: the ward soaks 3, then shields, then the sun.
+      const [array] = give(s.players[0], ['siege_array'], 'tableau');
+      array.health = 9;
+      s = endTurn(endTurn(s));
+      s.players[1].shields = 2;
+      const heat = s.players[1].heat;
+      const attacker = s.players[0].tableau.find((c) => c.uid === array.uid)!;
+      const atk = cardAttack(s, s.players[0], attacker);
+      s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: null });
+      const b = s.players[1];
+      const soaked = Math.min(3, atk);
+      expect(b.ward).toBe(3 - soaked);
+      expect(b.shields).toBe(2 - Math.min(2, atk - soaked));
+      expect(b.heat).toBe(heat + Math.max(0, atk - soaked - 2));
+      // Pierce goes past the ward.
+      const before = b.heat;
+      b.shields = 0;
+      s.players[1].ward = 3;
+      activePlayer(s).playsLeft = 9;
+      give(activePlayer(s), ['photon_drill']);
+      s = play(s, 'photon_drill');
+      expect(s.players[1].ward).toBe(3);
+      expect(s.players[1].heat).toBe(before + 2);
+      // Bo's dawn: the ward is whole again.
+      s = endTurn(s);
+      expect(s.players[1].ward).toBe(3);
+    } finally {
+      Object.assign(BALANCE, { sunWard: was });
+    }
+  });
+});

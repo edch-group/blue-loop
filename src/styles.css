@@ -2878,6 +2878,9 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .vit-tracks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .vit-tracks path { fill: none; }
 .vit-orbit-track { stroke: rgba(150, 160, 185, 0.5); stroke-width: 0.9; }
+/* The sun's ward: a segment for each point it soaks today, glowing while whole, a faint groove once spent. */
+.vit-ward-seg { stroke: rgba(150, 175, 220, 0.28); stroke-width: 2.4; stroke-linecap: round; transition: stroke 0.4s, filter 0.4s; }
+.vit-ward-seg.on { stroke: #bfe3ff; filter: drop-shadow(0 0 1.2px rgba(120, 190, 255, 0.95)) drop-shadow(0 0 2.6px rgba(120, 190, 255, 0.55)); }
 /* The planets are drawn on the dome canvas; these are just their tooltips' hit areas, on the orbit. */
 .vit-planet {
   position: absolute; width: calc(var(--vs) * 0.14); height: calc(var(--vs) * 0.14); margin: calc(var(--vs) * -0.07) 0 0 calc(var(--vs) * -0.07);
