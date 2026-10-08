@@ -113,7 +113,7 @@ import { sound } from './sound';
 import { setTutorial, startTour, tourDue, tutorialOn } from './tour';
 import { mapTour } from './tutorial';
 import { toPageDelta } from './viewport';
-import { nebulaOn, type Nebula } from './nebula3d';
+import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type Nebula } from './nebula3d';
 
 const KEY = 'blue-loop:campaign:v6';
 
@@ -337,6 +337,19 @@ function setGuide(on: boolean) {
     // only a convenience
   }
 }
+
+/** How the map's units scale into the nebula's space (the strip spans STRIP_WIDTH there). */
+const MAP_K = STRIP_WIDTH / MAP_WIDTH;
+
+/** Two column-major 4x4 matrices multiplied (a after b). */
+function mul4(a: number[], b: number[]): number[] {
+  const o = new Array<number>(16).fill(0);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
+  return o;
+}
+
+/** The recentre button's mark: crosshairs in a ring. */
+const RECENTRE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>';
 
 export class CampaignView {
   state: CampaignState | null = null;
@@ -794,6 +807,9 @@ export class CampaignView {
         this.selected = null;
         this.view = this.homeView();
         break;
+      case 'cmp-recentre':
+        this.nebula?.reset();
+        return true;
       case 'cmp-deselect':
         if (this.swallowClick || (!this.selected && !this.army)) return true;
         this.selected = null;
@@ -1090,7 +1106,7 @@ export class CampaignView {
     const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
     const me = campaignPlayer(s);
     return `
-      <main class="cmp">
+      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}">
         <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
         <header class="cmp-top">
           <div class="cmp-top-left">
@@ -1114,6 +1130,8 @@ export class CampaignView {
           </nav>
         </header>
         <section class="cmp-map">${this.renderMap()}</section>
+        <canvas class="cmp-nebula-front" data-key="cmp-nebula-front" aria-hidden="true"></canvas>
+        <button class="icon-btn cmp-recentre" data-act="cmp-recentre" data-key="cmp-recentre" aria-label="Back to the whole strip" title="Back to the whole strip" style="display:none">${RECENTRE_ICON}</button>
         ${this.renderPop()}
         <div class="cmp-end">
           ${this.endMoves()}
@@ -1579,7 +1597,7 @@ export class CampaignView {
   private glide: { from: Cam; start: number } | null = null;
   /** The system focused at the last render, to fade out what belonged to it. */
   private lastFocus: string | null = null;
-  private drag: { id: number; x: number; y: number; moved: boolean; pinch?: { d: number; zoom: number } } | null = null;
+  private drag: { id: number; x: number; y: number; moved: boolean; pan?: boolean; pinch?: { d: number; zoom: number; mx?: number; my?: number } } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
   /** Set after a drag so the click that ends it does not select or deselect. */
   private swallowClick = false;
@@ -1620,11 +1638,15 @@ export class CampaignView {
       stage.addEventListener('pointerup', (e) => this.onPointerUp(e));
       stage.addEventListener('pointercancel', (e) => this.onPointerUp(e));
       stage.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+      stage.addEventListener('contextmenu', (e) => e.preventDefault());
     }
     this.view ??= this.homeView();
     this.showNebula(root);
-    this.applyCamera(true);
-    if (!this.glide) this.fitStrip(stage);
+    // (Without WebGL, the strip lies flat on the page, fitted to the screen, as it used to.)
+    if (!this.nebula) {
+      this.applyCamera(true);
+      if (!this.glide) this.fitStrip(stage);
+    }
     this.drawRays(stage);
     // (Again once the stars have settled from any grow-in, so the lines meet them exactly.)
     window.setTimeout(() => stage.isConnected && this.drawRays(stage), 700);
@@ -1726,18 +1748,63 @@ export class CampaignView {
 
 
 
-  /** The nebula behind the strip: this universe's, turned to how far along the strip the flagship has come. */
+  /**
+   * The nebula, and the 3D space the strip lies in (nebula3d.ts): this universe's gas, with channels cleared
+   * along the strip's routes; the map is laid on its plane whenever the camera moves.
+   */
   private showNebula(root: HTMLElement) {
     const s = this.state!;
-    const canvas = root.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
-    this.nebula = canvas ? nebulaOn(canvas) : null;
+    const back = root.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
+    this.nebula = back ? nebulaOn(back, root.querySelector<HTMLCanvasElement>('canvas.cmp-nebula-front')) : null;
     if (!this.nebula) return;
-    const cols = Math.max(1, ...s.nodes.map((n) => n.col ?? 0));
-    const army = flagship(s, s.playerId);
-    const col = army ? (nodeById(s, army.nodeId).col ?? 0) : 0;
+    this.nebula.onCamera = (cam) => this.layPlane(cam);
+    const world = (x: number, y: number): [number, number] => [(x - MAP_WIDTH / 2) * MAP_K, (y - MAP_HEIGHT / 2) * MAP_K];
+    const at = new Map(s.nodes.map((n) => [n.id, world(n.x, n.y)]));
+    const routes = this.rays.flatMap(({ a, b }) => {
+      const p = at.get(a), q = at.get(b);
+      return p && q ? [[p[0], p[1], q[0], q[1]] as [number, number, number, number]] : [];
+    });
     let seed = s.universe * 7919;
     for (const ch of s.nodes[0]?.name ?? '') seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
-    this.nebula.show(seed, Math.min(1, col / cols));
+    this.nebula.show(seed, { nodes: [...at.values()], routes });
+    if (this.nebula.camera) this.layPlane(this.nebula.camera);
+  }
+
+  /**
+   * Lay the map on the nebula's plane: the plane's transform is the camera's own (its projection, view, and
+   * where the plane lies in the nebula's space), so every star, ring and ship stands exactly where the gas is
+   * drawn. Stars and marks turn to face the camera (--bb) and keep a readable size (--ui); the routes are then
+   * redrawn between the stars as they now stand.
+   */
+  private layPlane(cam: Camera) {
+    const stage = this.stageEl;
+    const plane = stage?.querySelector<HTMLElement>('.cmp-plane');
+    const back = stage?.closest('.cmp')?.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
+    if (!stage || !plane || !back || !stage.isConnected) return;
+    // The stage's place on the canvas, in CSS pixels (the page may be zoomed).
+    const cr = back.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+    const zoom = cr.width / (back.clientWidth || cr.width) || 1;
+    const ox = (sr.left - cr.left) / zoom, oy = (sr.top - cr.top) / zoom;
+    const W = cam.width, H = cam.height, K = MAP_K;
+    // Column-major 4x4s: the plane's own pixels into the nebula's space, then view, projection, and the stage's pixels.
+    const model = [K, 0, 0, 0, 0, 0, K, 0, 0, K, 0, 0, (-K * MAP_WIDTH) / 2, PLANE_Y, (-K * MAP_HEIGHT) / 2, 1];
+    const screen = [W / 2, 0, 0, 0, 0, -H / 2, 0, 0, 0, 0, -100, 0, W / 2 - ox, H / 2 - oy, 0, 1];
+    const m = mul4(screen, mul4(Array.from(cam.proj), mul4(Array.from(cam.view), model)));
+    plane.style.transform = `matrix3d(${m.map((v) => +v.toPrecision(8)).join(',')})`;
+    // Facing the camera, in the plane's own axes (its x, its y across the strip, its z up out of it).
+    const [r, u, f] = [cam.right, cam.up, cam.forward];
+    const bb = [r[0], r[2], r[1], 0, -u[0], -u[2], -u[1], 0, -f[0], -f[2], -f[1], 0, 0, 0, 0, 1];
+    plane.style.setProperty('--bb', `matrix3d(${bb.map((v) => +v.toFixed(5)).join(',')})`);
+    // A star's pixels on screen per pixel of the plane, at the distance the camera looks to: keep them that size.
+    // (Measured at a distance between the camera's and its resting one, so they grow a little as it closes in.)
+    const look = Math.sqrt(Math.hypot(cam.eye[0] - cam.target[0], cam.eye[1] - cam.target[1], cam.eye[2] - cam.target[2]) * (this.nebula?.homeDist ?? 5));
+    const perPx = ((H / 2) * cam.proj[5] * K) / look;
+    plane.style.setProperty('--ui', Math.max(0.4, Math.min(8, 1 / perPx)).toFixed(4));
+    plane.style.setProperty('--tilt', '0deg');
+    this.drawRays(stage);
+    this.placePop();
+    const recentre = stage.closest('.cmp')?.querySelector<HTMLElement>('.cmp-recentre');
+    if (recentre) recentre.style.display = this.nebula?.away ? '' : 'none';
   }
 
   private writeCamera() {
@@ -1764,13 +1831,29 @@ export class CampaignView {
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: true, pinch: { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.view.zoom } };
       return;
     }
-    this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+    this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, pan: e.button === 2 || e.shiftKey };
   }
 
   private onPointerMove(e: PointerEvent) {
     if (!this.drag || !this.view || !this.stageEl || !this.pointers.has(e.pointerId)) return;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.drag.pinch && this.pointers.size >= 2) return; // (no pinch zoom: the strip is fitted to the screen)
+    if (this.drag.pinch && this.pointers.size >= 2) {
+      // Two fingers: spreading them zooms toward their middle, moving them together pans.
+      const [a, b] = [...this.pointers.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const pin = this.drag.pinch;
+      if (this.nebula && pin.mx !== undefined && pin.my !== undefined) {
+        const at = this.canvasPoint(mx, my);
+        if (at && d > 0) this.nebula.zoom(pin.d / d, at.x, at.y);
+        const step = toPageDelta(mx - pin.mx, my - pin.my);
+        this.nebula.pan(step.x, step.y);
+      }
+      pin.d = d;
+      pin.mx = mx;
+      pin.my = my;
+      return;
+    }
     if (e.pointerId !== this.drag.id) return;
     // A finger's movement on screen, turned into the page's own directions (the page may be sideways).
     const { x: dx, y: dy } = toPageDelta(e.clientX - this.drag.x, e.clientY - this.drag.y);
@@ -1790,8 +1873,9 @@ export class CampaignView {
         // The pointer has gone; the drag ends with it.
       }
     }
-    // (The whole strip is always on screen: a drag never pans it, but it turns the nebula behind.)
-    this.nebula?.turn(dx, dy);
+    // A drag orbits round the strip; a right-drag (or shift-drag) slides over it.
+    if (this.drag.pan) this.nebula?.pan(dx, dy);
+    else this.nebula?.orbit(dx, dy);
     this.drag.x = e.clientX;
     this.drag.y = e.clientY;
   }
@@ -1804,8 +1888,21 @@ export class CampaignView {
   }
 
   private onWheel(e: WheelEvent) {
-    // (No zoom: the strip is fitted to the screen.)
+    // The wheel (or a trackpad's pinch) zooms toward the pointer.
     e.preventDefault();
+    const at = this.canvasPoint(e.clientX, e.clientY);
+    if (!this.nebula || !at) return;
+    const lines = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+    this.nebula.zoom(Math.exp(e.deltaY * lines * (e.ctrlKey ? 0.01 : 0.0015)), at.x, at.y);
+  }
+
+  /** A point on the screen, in the nebula canvas's own CSS pixels. */
+  private canvasPoint(cx: number, cy: number): { x: number; y: number } | null {
+    const back = this.stageEl?.closest('.cmp')?.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
+    if (!back) return null;
+    const r = back.getBoundingClientRect();
+    const zx = r.width / (back.clientWidth || r.width) || 1, zy = r.height / (back.clientHeight || r.height) || 1;
+    return { x: (cx - r.left) / zx, y: (cy - r.top) / zy };
   }
 
 
@@ -1873,7 +1970,7 @@ export class CampaignView {
     const an = !node && !ship && this.anomaly && s ? (s.anomalies ?? []).find((a) => a.id === this.anomaly) : undefined;
     const at = node ? { x: node.x, y: node.y, lift: 24 } : ship ? { x: ship.x, y: ship.y, lift: 6 } : an ? { x: an.x, y: an.y, lift: 16 } : null;
     const box = pop.offsetParent as HTMLElement | null;
-    if (!at || !box || !this.cam) return;
+    if (!at || !box || (!this.cam && !this.nebula?.camera)) return;
     // Everything in the popover's own CSS pixels: the page may be zoomed (body zoom), so screen measurements
     // are scaled back by how much bigger the popover's box is drawn than it is laid out.
     const st = stage.getBoundingClientRect();
@@ -1884,7 +1981,16 @@ export class CampaignView {
     const zy = b.height / bh || 1;
     const lw = stage.offsetWidth || st.width;
     const lh = stage.offsetHeight || st.height;
+    const neb = this.nebula;
+    const back = stage.closest('.cmp')?.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
     const proj = (x: number, y: number, lift: number) => {
+      if (neb?.camera && back) {
+        // In the nebula's space: the point on its plane, through the camera, onto the canvas, into the box.
+        const q = neb.toScreen((x - MAP_WIDTH / 2) * MAP_K, PLANE_Y, (y - MAP_HEIGHT / 2) * MAP_K) ?? { x: -999, y: -999 };
+        const cr = back.getBoundingClientRect();
+        const cz = cr.width / (back.clientWidth || cr.width) || 1;
+        return { x: (q.x * cz + cr.left - b.left) / zx, y: (q.y * cz + cr.top - b.top) / zy - lift };
+      }
       const q = this.project(lw, lh, x, y, lift);
       // The stage's layout pixels, drawn on screen, then back into the box's layout pixels.
       return { x: ((q.x * st.width) / lw + st.left - b.left) / zx, y: ((q.y * st.height) / lh + st.top - b.top) / zy };

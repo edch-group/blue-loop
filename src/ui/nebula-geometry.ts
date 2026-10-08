@@ -9,7 +9,7 @@
  */
 
 // The box the gas is meshed in, and the size of the cells it is meshed with.
-const BX = 2.6, BY = 1.35, BZ = 1.5, CELL = 0.045;
+const BX = 3.0, BY = 1.35, BZ = 1.5, CELL = 0.05;
 
 // ---------- noise (seeded value noise, fBm) ----------
 
@@ -57,7 +57,13 @@ export interface Geometry {
 
 interface Blob { x: number; y: number; z: number; r: number; free: number }
 
-export function buildNebula(seed: number): Geometry {
+/** The strip of systems the gas is cleared round: its systems and routes (world x, z, on the plane y = 0). */
+export interface Strip {
+  nodes: [number, number][];
+  routes: [number, number, number, number][];
+}
+
+export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: [] }): Geometry {
   const { fbm, rnd } = makeNoise(seed);
   const blobs: Blob[] = [];
   const range = (a: number, b: number) => a + rnd() * (b - a);
@@ -65,14 +71,15 @@ export function buildNebula(seed: number): Geometry {
   const puffs = 48 + Math.floor(rnd() * 10);
   for (let i = 0; i < puffs; i++) {
     const t = rnd() - 0.5;
-    const spine = { x: t * 2.6, y: -0.25 + 0.18 * Math.sin(t * 5 + seed) - Math.abs(t) * 0.35, z: 0.25 * Math.sin(t * 3.7 + seed * 0.3) };
+    const spine = { x: t * 4.0, y: -0.25 + 0.18 * Math.sin(t * 5 + seed) - Math.abs(t) * 0.35, z: 0.25 * Math.sin(t * 3.7 + seed * 0.3) };
     const r = range(0.15, 0.33) * (1 - Math.abs(t) * 0.6);
     blobs.push({ x: spine.x + range(-0.22, 0.22), y: spine.y + range(-0.2, 0.25), z: spine.z + range(-0.32, 0.32), r, free: 0 });
   }
-  // One or two pillars: a column of shrinking puffs rising and leaning, with a rounder head.
+  // One or two pillars: a column of shrinking puffs rising and leaning, with a rounder head. They stand behind
+  // the strip (as the camera first sees it), so they hide nothing until it is turned round.
   const pillars = 1 + Math.floor(rnd() * 2);
   for (let p = 0; p < pillars; p++) {
-    let x = range(-0.9, 0.9), z = range(-0.3, 0.2), y = -0.05;
+    let x = range(-1.6, 1.6), z = range(-1.0, -0.75), y = -0.05;
     const lean = range(-0.1, 0.1), steps = 5 + Math.floor(rnd() * 3);
     for (let i = 0; i < steps; i++) {
       blobs.push({ x: x + range(-0.05, 0.05), y, z, r: 0.24 - i * 0.018, free: (i / steps) * 0.3 });
@@ -85,7 +92,7 @@ export function buildNebula(seed: number): Geometry {
   // Wisps of displaced gas streaming off the body: trails of ever smaller puffs, freer the further they go.
   for (let i = 0; i < 9; i++) {
     const a = rnd() * Math.PI * 2;
-    let x = Math.cos(a) * 1.05, y = range(-0.4, 0.35), z = Math.sin(a) * 0.5;
+    let x = Math.cos(a) * 2.0, y = range(-0.4, 0.35), z = Math.sin(a) * 0.6;
     const dx = Math.cos(a) * 0.17, dy = range(0.0, 0.08), dz = Math.sin(a) * 0.09;
     const len = 3 + Math.floor(rnd() * 4);
     for (let n = 0; n < len; n++) {
@@ -96,8 +103,21 @@ export function buildNebula(seed: number): Geometry {
   // And a few loose puffs, far out on their own.
   for (let i = 0; i < 6; i++) {
     const a = rnd() * Math.PI * 2, out = range(1.7, 2.2);
-    blobs.push({ x: Math.cos(a) * out * 1.1, y: range(-0.3, 0.7), z: Math.sin(a) * out * 0.55, r: range(0.06, 0.11), free: 1 });
+    blobs.push({ x: Math.cos(a) * out * 1.35, y: range(-0.3, 0.7), z: Math.sin(a) * out * 0.6, r: range(0.06, 0.11), free: 1 });
   }
+
+  // Channels through the gas where the strip runs: a tube round each route and a hollow round each system,
+  // so the lines of light and the stars are seen from above, and hidden only by gas rising between them and the eye.
+  const clearing = (x: number, y: number, z: number) => {
+    let d2 = Infinity;
+    for (const [ax, az, bx, bz] of strip.routes) {
+      const vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2));
+      d2 = Math.min(d2, ((x - ax - vx * t) ** 2 + (z - az - vz * t) ** 2) / (0.13 * 0.13));
+    }
+    for (const [nx, nz] of strip.nodes) d2 = Math.min(d2, ((x - nx) ** 2 + (z - nz) ** 2) / (0.2 * 0.2));
+    return 1.2 * Math.exp(-(d2 + (y * y) / (0.16 * 0.16)));
+  };
 
   // The field: positive inside the gas. Each blob falls off smoothly, and they melt together where they meet.
   const field = (x: number, y: number, z: number) => {
@@ -110,7 +130,7 @@ export function buildNebula(seed: number): Geometry {
       if (d2 < 6) sum += Math.exp(-d2 * 2.8);
     }
     // Billows on billows: a little finer noise heaps the surface like cumulus.
-    return sum - 0.2 + fbm(wx * 2.6, wy * 2.6, wz * 2.6, 3) * 0.16;
+    return sum - 0.2 + fbm(wx * 2.6, wy * 2.6, wz * 2.6, 3) * 0.16 - clearing(x, y, z);
   };
   const freeAt = (x: number, y: number, z: number) => {
     let best = 0, near = Infinity;

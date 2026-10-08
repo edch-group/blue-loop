@@ -1229,7 +1229,7 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
   position: absolute; left: 0; top: 0;
   display: grid; justify-items: center; gap: 3px;
   transform-origin: 50% 100%;
-  transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt))) scale(var(--ui));
+  transform: translate(-50%, -100%) var(--bb, rotateX(calc(-1 * var(--tilt)))) scale(var(--ui));
   /* No transition: the camera sets --tilt and --ui every frame, and the billboards must keep up with it. */
   padding: 6px 6px 0;
 }
@@ -1303,7 +1303,7 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
   position: absolute; left: 0; top: 0; width: var(--ps); height: var(--ps); border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #fff 0 12%, var(--pc) 55%, color-mix(in srgb, var(--pc) 70%, #556) 100%);
   box-shadow: 0 0 6px color-mix(in srgb, var(--pc) 70%, transparent);
-  transform: translate(-50%, -50%) rotateX(calc(-1 * var(--tilt)));
+  transform: translate(-50%, -50%) var(--bb, rotateX(calc(-1 * var(--tilt))));
   animation: cmp-fade 0.8s ease-out;
 }
 .cmp-orb-planet em { position: absolute; left: 50%; bottom: 100%; transform: translate(-50%, -2px) scale(0.45); transform-origin: bottom center; font-style: normal; font-family: var(--display); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; text-shadow: 0 0 3px #fff; }
@@ -3547,7 +3547,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
   /* Its own upright billboard beside the Heart's star (a child placed outside the star's billboard was clipped). */
   position: absolute; left: 0; top: 0; width: 112px; height: 112px; pointer-events: none;
   transform-origin: 0 100%;
-  transform: translate(26px, -84%) rotateX(calc(-1 * var(--tilt))) scale(var(--ui));
+  transform: translate(26px, -84%) var(--bb, rotateX(calc(-1 * var(--tilt)))) scale(var(--ui));
   /* A still disc of night sky behind it, so the white petals show on the pale map (a filter round the
      turning flower would repaint it every frame). */
   border-radius: 50%;
@@ -4006,7 +4006,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-ship-hull:hover .cmp-ship-shadow { background: color-mix(in srgb, var(--ac) 45%, transparent); }
 .cmp-ship-on .cmp-ship-shadow { inset: 0 -2px; background: color-mix(in srgb, var(--ac) 60%, transparent); filter: blur(5px); }
 /* The portrait: a billboard standing above the ship, like the stars. */
-.cmp-ship-bb { position: absolute; left: 30px; top: 2px; padding-bottom: 6px; transform-origin: 50% 100%; transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt))) scale(var(--ui)); pointer-events: none; }
+.cmp-ship-bb { position: absolute; left: 30px; top: 2px; padding-bottom: 6px; transform-origin: 50% 100%; transform: translate(-50%, -100%) var(--bb, rotateX(calc(-1 * var(--tilt)))) scale(var(--ui)); pointer-events: none; }
 .cmp-ship-bb .cmp-army { width: 24px; height: 24px; margin: 0; pointer-events: auto; }
 .cmp-ship-bb::after { content: ''; position: absolute; left: 50%; bottom: 1px; width: 1.5px; height: 7px; margin-left: -0.75px; background: linear-gradient(var(--ac), transparent); opacity: 0.7; }
 .cmp-ship.sailing .cmp-ship-bb .cmp-army { animation: none; }
@@ -5753,7 +5753,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-guide { grid-template-columns: auto minmax(0, 1fr) auto; }
 /* A star sits on its system: its centre on the node, where the routes of light meet. (Lifted towards the
    camera, so its lower half never sinks into the board.) */
-.cmp-n3 .cmp-bb { padding-bottom: 0; transform: translate(-50%, -100%) rotateX(calc(-1 * var(--tilt))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(120px); }
+.cmp-n3 .cmp-bb { padding-bottom: 0; transform: translate(-50%, -100%) var(--bb, rotateX(calc(-1 * var(--tilt)))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(120px); }
 .cmp-n3 .cmp-star { margin-bottom: -20px; }
 .cmp-n3.cmp-st-red .cmp-star { margin-bottom: -16px; }
 .cmp-n3.cmp-st-brown .cmp-star, .cmp-n3.cmp-st-neutron .cmp-star { margin-bottom: -14px; }
@@ -5769,7 +5769,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-stellaria {
   width: 64px; height: 64px; padding: 0; background: none; border-radius: 0;
   transform-origin: 50% 50%;
-  transform: translate(-50%, -50%) rotateX(calc(-1 * var(--tilt))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(110px);
+  transform: translate(-50%, -50%) var(--bb, rotateX(calc(-1 * var(--tilt)))) scale3d(var(--ui), var(--ui), var(--ui)) translateZ(110px);
 }
 .cmp-stellaria .stellaria-flower ellipse, .cmp-stellaria .stellaria-flower path { fill: rgba(206, 178, 246, 0.28); stroke: #b493e6; stroke-width: 5; }
 .cmp-heart-glow { width: 150px; height: 150px; margin: -75px 0 0 -75px; }
@@ -6102,3 +6102,17 @@ body:has(.game-result) .dock { visibility: hidden; }
 .deck-icon { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #fff; color: var(--ink-soft); cursor: pointer; box-shadow: 0 0 0 1px rgba(150, 156, 172, 0.25), 0 2px 6px rgba(60, 70, 100, 0.1); transition: color 0.15s, transform 0.15s; }
 .deck-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 @media (hover: hover) { .deck-icon:hover { color: var(--ink); transform: translateY(-1px); } .deck-icon-danger:hover { color: #c0503a; } }
+
+/* ---- The campaign map in the nebula's 3D space (nebula3d.ts) ----
+   The plane the strip lies on takes the nebula camera's own transform (campaign.ts layPlane): no perspective of
+   the stage's, and laid from the stage's corner. Stars and marks turn to face the camera (--bb). The gas in
+   front of the map is drawn on a canvas over it (pointer events pass through), under the top bar and popovers. */
+.cmp-3d .cmp-stage { perspective: none; cursor: grab; }
+.cmp-3d .cmp-plane { left: 0; top: 0; transform-origin: 0 0; }
+.cmp-3d .cmp-n3 .cmp-bb { transform-origin: 50% 100%; transform: translate(-50%, -100%) var(--bb) scale3d(var(--ui), var(--ui), var(--ui)); }
+.cmp-3d .cmp-map { z-index: 1; }
+.cmp-nebula-front { display: none; }
+.cmp-3d .cmp-nebula-front { display: block; position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+.cmp-3d .cmp-top { position: relative; z-index: 3; }
+.cmp-3d .cmp-end { z-index: 3; }
+.cmp-recentre { position: absolute; left: calc(var(--pad-l, 0px) + 16px); bottom: calc(var(--pad-b) + 16px); z-index: 3; }
