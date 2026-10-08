@@ -3751,7 +3751,8 @@ export class App {
     const inset = w * 0.12; // room for the outer cards' tilt, so they don't cover the piles
     const W = hand.clientWidth - inset * 2;
     const pairs = ws.slice(1).reduce((sum, x, i) => sum + (x + ws[i]) / 2, 0);
-    const k = n > 1 ? Math.min(0.82, (W - ws[0] / 2 - ws[n - 1] / 2) / pairs) : 0;
+    // (Spaced so each card's right edge, its stability gem and all, shows past the next one, while the hand has room.)
+    const k = n > 1 ? Math.min(0.98, (W - ws[0] / 2 - ws[n - 1] / 2) / pairs) : 0;
     const centres = ws.reduce<number[]>((at, x, i) => [...at, i ? at[i - 1] + ((ws[i - 1] + x) / 2) * k : 0], []);
     const span = ws[0] / 2 + centres[n - 1] + ws[n - 1] / 2;
     const start = inset + (W - span) / 2 + ws[0] / 2;
