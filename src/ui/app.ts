@@ -2177,6 +2177,23 @@ export class App {
     // (Online, a rival's hand is hidden: the card is known by where it landed.)
     const playedId = action.type === 'playCard' ? playedDefId(prev, next, actor.id, action.cardUid) : '';
     const playedDef = playedId ? cardDef(playedId) : null;
+    // A Hero's ability: its heat flies from the Hero's card, as a played card's does from that card.
+    const heroCard = action.type === 'heroAbility' ? commandCard(prev.players.find((p) => p.id === actor.id)!) : undefined;
+    const ability = heroCard ? cardDef(heroCard.defId).abilities?.[action.type === 'heroAbility' ? action.index : 0] : undefined;
+    const heroFrom = heroCard
+      ? () => {
+          const el = this.root.querySelector(`.tableau [data-uid="${heroCard.uid}"]`);
+          return el ? pageRect(el) : before.cards.get(heroCard.uid)?.rect ?? orbRect(actor.id);
+        }
+      : null;
+    if (heroCard) {
+      const el = root.querySelector<HTMLElement>(`.tableau [data-uid="${heroCard.uid}"]`);
+      if (el) pulse(el, 'fx-trigger', 0);
+    }
+    // Where this move's heat comes from (a played card or a Hero's ability), and whether it heats at all.
+    const shotFrom = playedFrom ?? heroFrom;
+    const shotHeats = (playedDef?.onPlay ?? ability?.effects ?? []).some((e) => e.type === 'heat');
+    const shotAim = action.type === 'playCard' || action.type === 'heroAbility' ? action.aimUid : undefined;
 
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
@@ -2189,15 +2206,16 @@ export class App {
     const removalAt = new Map<string, number>();
     const shown = this.aimShown;
     this.aimShown = null;
-    if (action.type === 'playCard') {
+    if (action.type === 'playCard' || action.type === 'heroAbility') {
       const rivalCards = (st: GameState) => new Map(st.players.filter((p) => p.id !== actor.id).flatMap((p) => p.tableau.map((c) => [c.uid, c] as const)));
       const was = rivalCards(prev);
       const now = rivalCards(next);
       const hitCards = [...was]
         .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.health ?? 0) < (c.health ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0))
         .map(([uid]) => uid);
-      const from = playedFrom!;
-      const heats = (playedDef?.onPlay ?? []).some((e) => e.type === 'heat');
+      const from = shotFrom!;
+      const heats = shotHeats;
+      const enemyUid = action.type === 'playCard' ? action.enemyUid : undefined;
       hitCards.forEach((uid, i) => {
         const el = root.querySelector<HTMLElement>(`[data-uid="${uid}"]`);
         const to = before.cards.get(uid)?.rect ?? (el ? pageRect(el) : null);
@@ -2206,7 +2224,7 @@ export class App {
         // Heat aimed at a card: flying from the card played to the card it strikes, whose numbers change as
         // it lands. (Removal, below, is a white arc.)
         const wasC = was.get(uid)!, nowC = now.get(uid);
-        const byHeat = heats && uid !== action.enemyUid && (uid === action.aimUid || (nowC?.dented ?? 0) > (wasC.dented ?? 0));
+        const byHeat = heats && uid !== enemyUid && (uid === shotAim || (nowC?.dented ?? 0) > (wasC.dented ?? 0));
         if (byHeat) {
           const land = projectile(from, () => (el?.isConnected ? pageRect(el) : to), HOT, { delay, size: 30, duration: 560 });
           removalAt.set(uid, land);
@@ -2383,7 +2401,7 @@ export class App {
           hit(p.id, 0, true);
           continue;
         }
-        const a = playedFrom && (playedDef?.onPlay ?? []).some((e) => e.type === 'heat') ? playedFrom : orbRect(source.id);
+        const a = shotFrom && shotHeats ? shotFrom : orbRect(source.id);
         const at = a ? projectile(a, () => sunAt(p.id), HOT, { delay: delay + 110 * volley++, size: 34 }) : delay;
         hit(p.id, at, true);
       }
