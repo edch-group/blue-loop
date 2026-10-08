@@ -3,5 +3,5 @@ import { buildNebula } from './nebula-geometry';
 
 self.onmessage = (e: MessageEvent<number>) => {
   const g = buildNebula(e.data);
-  (self as unknown as Worker).postMessage({ seed: e.data, ...g }, [g.faces.buffer, g.lines.buffer]);
+  (self as unknown as Worker).postMessage({ seed: e.data, ...g }, [g.mesh.buffer, g.motes.buffer]);
 };

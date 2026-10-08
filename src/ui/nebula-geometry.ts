@@ -2,15 +2,14 @@
  * The campaign nebula's shape, worked out once per universe (seeded): see nebula3d.ts. Pure, so it can run
  * in a worker (nebula.worker.ts) off the page's thread.
  *
- * The gas is cut into a dozen horizontal layers and built up like a laser-cut contour model: each layer a
- * solid slab, its top face filled, its side walls shaded by the way they face the light, and one outline
- * round its top edge. Opaque, so the nearer layers hide what lies behind them.
+ * The gas is a field of soft overlapping blobs (metaballs): a loose body of a few billows with one or two
+ * rounded pillars rising out of it, and plumes of displaced gas drifting free around it, all folded a little
+ * by slow noise. Its surface is meshed smoothly (surface nets, with normals from the field), and motes of
+ * dust are scattered round it. How the surface is drawn (paper, contour lines, shimmer) is nebula3d.ts's.
  */
 
-const SX = 2.2, SY = 1.0, SZ = 1.25;           // half-size of the volume (x across, y up, z toward the viewer)
-const NX = 112, NZ = 64;                        // the sampling grid of each layer
-const LAYERS = 13;                              // how many layers the gas is cut into
-const ISO = 0;                                  // the gas's surface
+// The box the gas is meshed in, and the size of the cells it is meshed with.
+const BX = 2.6, BY = 1.35, BZ = 1.5, CELL = 0.045;
 
 // ---------- noise (seeded value noise, fBm) ----------
 
@@ -49,104 +48,153 @@ function makeNoise(seed: number) {
   return { fbm, rnd };
 }
 
-const smooth = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-
 export interface Geometry {
-  /** Triangles: x, y, z, tone, kind per vertex (tone: how light the surface is, 0 to 1; kind: 0 a flat face, drawn as
-   * the board's dotted paper, 1 a wall). */
-  faces: Float32Array;
-  /** Line segments: x, y, z per vertex, in pairs. */
-  lines: Float32Array;
+  /** Triangles: x, y, z, normal x, y, z, and how free the gas there is to drift (0 the body, 1 a loose plume). */
+  mesh: Float32Array;
+  /** Dust motes: x, y, z, phase (0 to 1), size. */
+  motes: Float32Array;
 }
+
+interface Blob { x: number; y: number; z: number; r: number; free: number }
 
 export function buildNebula(seed: number): Geometry {
   const { fbm, rnd } = makeNoise(seed);
-  // A few broad pillars rising out of the bank toward the light, leaning a little, with knots at their heads.
-  const count = 2 + Math.floor(rnd() * 2);
-  const pillars = Array.from({ length: count }, (_, i) => ({
-    x: -SX * 0.55 + (i + 0.25 + rnd() * 0.5) * ((SX * 1.1) / count),
-    z: (rnd() - 0.65) * SZ * 0.7,
-    top: 0.35 + rnd() * 0.5,
-    r: 0.16 + rnd() * 0.08,
-    lean: (rnd() - 0.5) * 0.4,
-  }));
-  const density = (x: number, y: number, z: number) => {
-    // Space folded through slow noise, so the shapes billow rather than sitting as plain blobs.
-    const px = x + fbm(x * 0.6, y * 0.6, z * 0.6, 2) * 0.45;
-    const pz = z + fbm(x * 0.6, y * 0.6 + 47, z * 0.6, 2) * 0.45;
-    // The bank: solid below a top that rises and falls in a few broad swells.
-    const top = -0.45 + 0.6 * fbm(px * 0.5, 3.3, pz * 0.5, 2) + 0.15 * Math.sin(px * 1.2 + 0.8);
-    let d = (top - y) * 2.2;
-    for (const p of pillars) {
-      const base = -0.35;
-      const cx = p.x + p.lean * (y - base);
-      const r = p.r * (1 + 0.6 * Math.max(0, (p.top - y) / (p.top - base)));
-      const body = (r - Math.hypot(px - cx, (pz - p.z) * 0.9)) * 4 - Math.max(0, y - p.top) * 8;
-      const knot = (p.r * 1.45 - Math.hypot(px - (p.x + p.lean * (p.top - base)), (y - p.top) * 1.3, (pz - p.z) * 0.9)) * 4;
-      d = Math.max(d, body, knot);
+  const blobs: Blob[] = [];
+  const range = (a: number, b: number) => a + rnd() * (b - a);
+  // The body: puffs heaped along a loose, wandering spine, so it billows like a cloud rather than a hill.
+  const puffs = 48 + Math.floor(rnd() * 10);
+  for (let i = 0; i < puffs; i++) {
+    const t = rnd() - 0.5;
+    const spine = { x: t * 2.6, y: -0.25 + 0.18 * Math.sin(t * 5 + seed) - Math.abs(t) * 0.35, z: 0.25 * Math.sin(t * 3.7 + seed * 0.3) };
+    const r = range(0.15, 0.33) * (1 - Math.abs(t) * 0.6);
+    blobs.push({ x: spine.x + range(-0.22, 0.22), y: spine.y + range(-0.2, 0.25), z: spine.z + range(-0.32, 0.32), r, free: 0 });
+  }
+  // One or two pillars: a column of shrinking puffs rising and leaning, with a rounder head.
+  const pillars = 1 + Math.floor(rnd() * 2);
+  for (let p = 0; p < pillars; p++) {
+    let x = range(-0.9, 0.9), z = range(-0.3, 0.2), y = -0.05;
+    const lean = range(-0.1, 0.1), steps = 5 + Math.floor(rnd() * 3);
+    for (let i = 0; i < steps; i++) {
+      blobs.push({ x: x + range(-0.05, 0.05), y, z, r: 0.24 - i * 0.018, free: (i / steps) * 0.3 });
+      x += lean + range(-0.04, 0.04);
+      y += 0.14;
+      z += range(-0.03, 0.03);
     }
-    // Frayed a little at the edges, and rounded off toward the volume's rim (no box to it).
-    const rim = Math.hypot(x / SX, z / SZ) + 0.15 * fbm(x + 11, 0, z, 2);
-    return d + fbm(px * 1.1, y * 1.1, pz * 1.1, 3) * 0.5 - smooth(0.6, 1, rim) * 3;
+    blobs.push({ x, y: y + 0.02, z, r: 0.2, free: 0.35 });
+  }
+  // Wisps of displaced gas streaming off the body: trails of ever smaller puffs, freer the further they go.
+  for (let i = 0; i < 9; i++) {
+    const a = rnd() * Math.PI * 2;
+    let x = Math.cos(a) * 1.05, y = range(-0.4, 0.35), z = Math.sin(a) * 0.5;
+    const dx = Math.cos(a) * 0.17, dy = range(0.0, 0.08), dz = Math.sin(a) * 0.09;
+    const len = 3 + Math.floor(rnd() * 4);
+    for (let n = 0; n < len; n++) {
+      x += dx + range(-0.05, 0.05); y += dy + range(-0.04, 0.04); z += dz + range(-0.04, 0.04);
+      blobs.push({ x, y, z, r: 0.13 * (1 - n / (len + 1)) + 0.03, free: 0.4 + (0.6 * n) / len });
+    }
+  }
+  // And a few loose puffs, far out on their own.
+  for (let i = 0; i < 6; i++) {
+    const a = rnd() * Math.PI * 2, out = range(1.7, 2.2);
+    blobs.push({ x: Math.cos(a) * out * 1.1, y: range(-0.3, 0.7), z: Math.sin(a) * out * 0.55, r: range(0.06, 0.11), free: 1 });
+  }
+
+  // The field: positive inside the gas. Each blob falls off smoothly, and they melt together where they meet.
+  const field = (x: number, y: number, z: number) => {
+    const wx = x + fbm(x * 0.8, y * 0.8, z * 0.8, 2) * 0.22;
+    const wy = y + fbm(x * 0.8 + 31, y * 0.8, z * 0.8, 2) * 0.22;
+    const wz = z + fbm(x * 0.8, y * 0.8 + 47, z * 0.8, 2) * 0.22;
+    let sum = 0;
+    for (const b of blobs) {
+      const d2 = ((wx - b.x) ** 2 + (wy - b.y) ** 2 + (wz - b.z) ** 2) / (b.r * b.r);
+      if (d2 < 6) sum += Math.exp(-d2 * 2.8);
+    }
+    // Billows on billows: a little finer noise heaps the surface like cumulus.
+    return sum - 0.2 + fbm(wx * 2.6, wy * 2.6, wz * 2.6, 3) * 0.16;
+  };
+  const freeAt = (x: number, y: number, z: number) => {
+    let best = 0, near = Infinity;
+    for (const b of blobs) {
+      const d = Math.hypot(x - b.x, y - b.y, z - b.z) / b.r;
+      if (d < near) {
+        near = d;
+        best = b.free;
+      }
+    }
+    return best;
   };
 
-  const X = (i: number) => -SX + (2 * SX * i) / (NX - 1);
-  const Z = (k: number) => -SZ + (2 * SZ * k) / (NZ - 1);
-  const dy = (2 * SY) / LAYERS;
-  const faces: number[] = [];
-  const lines: number[] = [];
-  const field = new Float32Array(NZ * NX);
-  // The light comes from above and to one side: walls facing it are lit, the rest shaded.
-  const lx = 0.55, lz = 0.35;
-  for (let j = 0; j < LAYERS; j++) {
-    const y = SY - (j + 0.5) * dy;
-    for (let k = 0; k < NZ; k++) for (let i = 0; i < NX; i++) field[k * NX + i] = density(X(i), y, Z(k)) - ISO;
-    // Higher layers are lighter, as if lit from above.
-    const plate = 0.72 + 0.28 * (1 - j / (LAYERS - 1));
-    for (let k = 0; k < NZ - 1; k++) {
-      for (let i = 0; i < NX - 1; i++) {
-        const a = field[k * NX + i], b = field[k * NX + i + 1], c = field[(k + 1) * NX + i + 1], d = field[(k + 1) * NX + i];
-        const inside = (a > 0 ? 1 : 0) | (b > 0 ? 2 : 0) | (c > 0 ? 4 : 0) | (d > 0 ? 8 : 0);
-        if (!inside) continue;
-        const x0 = X(i), x1 = X(i + 1), z0 = Z(k), z1 = Z(k + 1);
-        const cross = (p: number, q: number) => p / (p - q);
-        // The part of this cell inside the gas: its corners that are in, and where its edges cross out.
-        const corners: [number, number, number][] = [[x0, z0, a], [x1, z0, b], [x1, z1, c], [x0, z1, d]];
-        const poly: number[][] = [];
-        const edges: number[][] = [];
-        for (let e = 0; e < 4; e++) {
-          const [px, pz, pv] = corners[e], [qx, qz, qv] = corners[(e + 1) % 4];
-          if (pv > 0) poly.push([px, pz]);
-          if (pv > 0 !== qv > 0) {
-            const t = cross(pv, qv);
-            const pt = [px + (qx - px) * t, pz + (qz - pz) * t];
-            poly.push(pt);
-            edges.push(pt);
-          }
+  // Surface nets: one vertex in each cell the surface passes through (at the average of where it crosses
+  // the cell's edges), and a quad across each grid edge it crosses, joining the four cells round that edge.
+  const nx = Math.ceil((2 * BX) / CELL) + 1, ny = Math.ceil((2 * BY) / CELL) + 1, nz = Math.ceil((2 * BZ) / CELL) + 1;
+  const P = (i: number, b: number) => -b + i * CELL;
+  const f = new Float32Array(nx * ny * nz);
+  const id = (i: number, j: number, k: number) => (k * ny + j) * nx + i;
+  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) f[id(i, j, k)] = field(P(i, BX), P(j, BY), P(k, BZ));
+  const vert = new Int32Array((nx - 1) * (ny - 1) * (nz - 1)).fill(-1);
+  const cid = (i: number, j: number, k: number) => (k * (ny - 1) + j) * (nx - 1) + i;
+  const vx: number[] = [];
+  const EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+  for (let k = 0; k < nz - 1; k++) {
+    for (let j = 0; j < ny - 1; j++) {
+      for (let i = 0; i < nx - 1; i++) {
+        const c: number[] = [];
+        for (let n = 0; n < 8; n++) c.push(f[id(i + (n & 1), j + ((n >> 1) & 1), k + ((n >> 2) & 1))]);
+        const ins = c.filter((v) => v > 0).length;
+        if (ins === 0 || ins === 8) continue;
+        let sx = 0, sy = 0, sz = 0, m = 0;
+        for (const [a, b] of EDGES) {
+          if (c[a] > 0 === c[b] > 0) continue;
+          const t = c[a] / (c[a] - c[b]);
+          sx += (a & 1) + ((b & 1) - (a & 1)) * t;
+          sy += ((a >> 1) & 1) + (((b >> 1) & 1) - ((a >> 1) & 1)) * t;
+          sz += ((a >> 2) & 1) + (((b >> 2) & 1) - ((a >> 2) & 1)) * t;
+          m++;
         }
-        for (let n = 1; n + 1 < poly.length; n++) {
-          faces.push(poly[0][0], y, poly[0][1], plate, 0, poly[n][0], y, poly[n][1], plate, 0, poly[n + 1][0], y, poly[n + 1][1], plate, 0);
-        }
-        // The layer's edge through this cell: its outline, and its wall down to the layer below.
-        for (let n = 0; n + 1 < edges.length; n += 2) {
-          const [p, q] = [edges[n], edges[n + 1]];
-          lines.push(p[0], y, p[1], q[0], y, q[1]);
-          // The wall faces out of the gas: away from where the field rises.
-          const gx = b - a + c - d, gz = d - a + c - b;
-          const gl = Math.hypot(gx, gz) || 1;
-          const lit = Math.max(0, (-gx * lx - gz * lz) / gl);
-          const wall = 0.5 + 0.38 * lit - 0.1 * (j / LAYERS);
-          const yb = y - dy;
-          faces.push(p[0], y, p[1], wall, 1, q[0], y, q[1], wall, 1, q[0], yb, q[1], wall, 1, p[0], y, p[1], wall, 1, q[0], yb, q[1], wall, 1, p[0], yb, p[1], wall, 1);
-        }
+        vert[cid(i, j, k)] = vx.length / 3;
+        vx.push(P(i, BX) + (sx / m) * CELL, P(j, BY) + (sy / m) * CELL, P(k, BZ) + (sz / m) * CELL);
       }
     }
   }
-  // The floor the model stands on, reaching out to the horizon: the same dotted paper as its faces.
-  const F = 40, fy = -SY - 0.002;
-  faces.push(-F, fy, -F, 1, 0, F, fy, -F, 1, 0, F, fy, F, 1, 0, -F, fy, -F, 1, 0, F, fy, F, 1, 0, -F, fy, F, 1, 0);
-  return { faces: new Float32Array(faces), lines: new Float32Array(lines) };
+  // Each vertex's normal (pointing out of the gas) and how free the gas there is.
+  const count = vx.length / 3;
+  const nrm = new Float32Array(count * 3), free = new Float32Array(count);
+  const e = CELL * 0.5;
+  for (let v = 0; v < count; v++) {
+    const [x, y, z] = [vx[v * 3], vx[v * 3 + 1], vx[v * 3 + 2]];
+    let gx = field(x - e, y, z) - field(x + e, y, z), gy = field(x, y - e, z) - field(x, y + e, z), gz = field(x, y, z - e) - field(x, y, z + e);
+    const l = Math.hypot(gx, gy, gz) || 1;
+    nrm[v * 3] = gx / l; nrm[v * 3 + 1] = gy / l; nrm[v * 3 + 2] = gz / l;
+    free[v] = freeAt(x, y, z);
+  }
+  const mesh: number[] = [];
+  const put = (v: number) => mesh.push(vx[v * 3], vx[v * 3 + 1], vx[v * 3 + 2], nrm[v * 3], nrm[v * 3 + 1], nrm[v * 3 + 2], free[v]);
+  const quad = (a: number, b: number, c: number, d: number, flip: boolean) => {
+    if (a < 0 || b < 0 || c < 0 || d < 0) return;
+    if (flip) [b, d] = [d, b];
+    put(a); put(b); put(c); put(a); put(c); put(d);
+  };
+  for (let k = 1; k < nz - 1; k++) {
+    for (let j = 1; j < ny - 1; j++) {
+      for (let i = 1; i < nx - 1; i++) {
+        const here = f[id(i, j, k)] > 0;
+        // The edge to the next point along x, y and z: where the surface crosses it, join the cells round it.
+        if (i < nx - 1 && here !== f[id(i + 1, j, k)] > 0)
+          quad(vert[cid(i, j - 1, k - 1)], vert[cid(i, j, k - 1)], vert[cid(i, j, k)], vert[cid(i, j - 1, k)], here);
+        if (j < ny - 1 && here !== f[id(i, j + 1, k)] > 0)
+          quad(vert[cid(i - 1, j, k - 1)], vert[cid(i - 1, j, k)], vert[cid(i, j, k)], vert[cid(i, j, k - 1)], here);
+        if (k < nz - 1 && here !== f[id(i, j, k + 1)] > 0)
+          quad(vert[cid(i - 1, j - 1, k)], vert[cid(i, j - 1, k)], vert[cid(i, j, k)], vert[cid(i - 1, j, k)], here);
+      }
+    }
+  }
+
+  // Motes of dust hanging round the gas, thickest near its surface.
+  const motes: number[] = [];
+  for (let n = 0; n < 4000 && motes.length < 420 * 5; n++) {
+    const x = range(-BX, BX), y = range(-BY * 0.8, BY), z = range(-BZ, BZ);
+    const v = field(x, y, z);
+    if (v < 0 && v > -0.18 && rnd() < 0.5) motes.push(x, y, z, rnd(), range(1.2, 2.6));
+  }
+  return { mesh: new Float32Array(mesh), motes: new Float32Array(motes) };
 }
