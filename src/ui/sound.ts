@@ -1,4 +1,5 @@
 import { markDirty } from './account';
+import heatFire from '../assets/sfx/heat-fire.mp3';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -14,6 +15,9 @@ import { markDirty } from './account';
  */
 
 const PREFS_KEY = 'blue-loop:sound';
+
+/** Recorded effects (made from sfx-raw/ by `npm run sfx`), loaded as soon as audio starts so none plays late. */
+const SFX = { heatFire };
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
 function silentWav(): string {
@@ -327,6 +331,7 @@ class SoundBoard {
       const data = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     }
+    for (const url of Object.values(SFX)) this.load(url);
     if (!this.muted) this.mediaPlayback();
     if (this.ctx.state !== 'running') {
       // Resuming is asynchronous: start the music once the context is actually running.
@@ -510,9 +515,9 @@ class SoundBoard {
     this.breath({ dur: 1.8, freq: 180, to: 1400, type: 'lowpass', q: 2, gain: 0.16, attack: 0.55 });
     this.voice(55, { dur: 1.8, attack: 0.5, gain: 0.12, to: 110, type: 'triangle', cutoff: 400 });
   }
-  /** Heat thrown at a rival: a short rising rush that leads into the strike (the strike is the blow). */
+  /** Heat fired at a rival or a card: the recorded laser, slowed a little (the strike, as it lands, is the blow). */
   launch() {
-    this.breath({ dur: 0.5, freq: 400, to: 2200, type: 'bandpass', q: 1.2, gain: 0.06, attack: 0.3 });
+    this.clip(SFX.heatFire, 0.55);
   }
   /**
    * The targeting beam sweeping onto a card: an airy swish that rises as it flies, then (if it takes the card
@@ -637,19 +642,25 @@ class SoundBoard {
   /** Decoded recordings, by URL (each is fetched once). */
   private clips = new Map<string, Promise<AudioBuffer | null>>();
 
-  /** Play a recording (a hero's voice line) through the effects mix, so it sits in the same hall. */
-  clip(url: string, gain = 0.85) {
-    const ctx = this.ready();
-    if (!ctx) return;
+  /** Fetch and decode a recording once (kept for every later play). */
+  private load(url: string): Promise<AudioBuffer | null> {
     let buf = this.clips.get(url);
     if (!buf) {
+      const ctx = this.ctx!;
       buf = fetch(url)
         .then((r) => r.arrayBuffer())
         .then((data) => ctx.decodeAudioData(data))
         .catch(() => null);
       this.clips.set(url, buf);
     }
-    void buf.then((b) => {
+    return buf;
+  }
+
+  /** Play a recording (a voice line, a recorded effect) through the effects mix, so it sits in the same hall. */
+  clip(url: string, gain = 0.85) {
+    const ctx = this.ready();
+    if (!ctx) return;
+    void this.load(url).then((b) => {
       if (!b || !this.ready()) return;
       const src = ctx.createBufferSource();
       src.buffer = b;

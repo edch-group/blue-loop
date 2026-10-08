@@ -21,6 +21,7 @@
     "deck-search": "vite-node scripts/deck-search.ts",
     "dominated": "vite-node scripts/dominated.ts",
     "voice": "node scripts/process-voice.mjs",
+    "sfx": "node scripts/process-sfx.mjs",
     "electron:dev": "vite build && electron .",
     "electron:build": "vite build && electron-builder --dir",
     "dist": "vite build && electron-builder",
