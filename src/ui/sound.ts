@@ -592,13 +592,6 @@ class SoundBoard {
     for (let i = 0; i < 4; i++)
       this.breath({ dur: 0.03 + Math.random() * 0.03, freq: 2600 + Math.random() * 3000, q: 2, gain: 0.05 + Math.random() * 0.03, attack: 0.002, delay: 0.05 + i * 0.04 + Math.random() * 0.02, type: 'bandpass', out: this.sfxDry ?? undefined });
   }
-  /** The sun's ward soaking heat: a bright energy ring ringing out, with a shimmer. */
-  ward() {
-    this.voice(659.25, { dur: 0.9, attack: 0.004, gain: 0.06, type: 'triangle', vibrato: 9, cutoff: 4200 });
-    this.voice(988, { dur: 0.7, attack: 0.004, gain: 0.035, vibrato: 12, detune: 6 });
-    this.voice(1976, { dur: 0.4, attack: 0.002, gain: 0.018, to: 1320 });
-    this.breath({ dur: 0.45, freq: 5200, to: 2200, type: 'bandpass', q: 3, gain: 0.05, attack: 0.004 });
-  }
   shield() {
     this.voice(523.25, { dur: 1.6, attack: 0.2, gain: 0.03, type: 'triangle', vibrato: 6, cutoff: 2000 });
     this.voice(784, { dur: 1.6, attack: 0.3, gain: 0.02, vibrato: 6 });

@@ -1945,13 +1945,12 @@ export class App {
       this.root.querySelector<HTMLElement>(`.tableau [data-uid="${action.attackerUid}"]`)?.style.removeProperty('visibility');
     };
     sound.swing();
-    // The blow: the target shudders, with a crash (a card's defence cracking; a sun's ward ringing as it soaks the heat).
+    // The blow: the target shudders, with a crash (a card's defence cracking).
     window.setTimeout(() => {
       if (action.targetUid) cardBlowSound(prev, next, action.targetUid);
       else if (rival) {
         const was = rival, now = next.players.find((p) => p.id === rival.id);
-        if (now && (now.ward ?? BALANCE.sunWard) < (was.ward ?? BALANCE.sunWard)) sound.ward();
-        else if (!now || (now.heat <= was.heat && now.shields >= was.shields)) sound.impact(true);
+        if (!now || (now.heat <= was.heat && now.shields >= was.shields)) sound.impact(true);
       }
       // (A card shudders; a sun never moves: it only flares.)
       if (action.targetUid)
@@ -2321,7 +2320,6 @@ export class App {
       const lostShields = byEnemy ? Math.max(0, was.shields - p.shields) : 0;
       const gainedShields = Math.max(0, p.shields - was.shields);
       const mine = id === viewer.id;
-      const warded = byEnemy && (p.ward ?? BALANCE.sunWard) < (was.ward ?? BALANCE.sunWard);
       window.setTimeout(() => {
         const r = sunAt(id);
         if (r) {
@@ -2341,8 +2339,6 @@ export class App {
         } else if (dHeat < 0) sound.impact(false);
         if (lostShields) sound.block();
         else if (gainedShields && !dHeat) sound.shield();
-        // (An attacking card's lunge rings the ward itself, as it strikes.)
-        if (warded && action.type !== 'attack') sound.ward();
       }, at);
       const fx = [dHeat > 0 ? 'fx-hot' : dHeat < 0 ? 'fx-cold' : '', lostShields || gainedShields ? 'fx-shield' : ''].filter(Boolean);
       for (const cls of fx.length ? fx : ['fx-shield']) pulse(orb(id), cls, at);
@@ -2358,7 +2354,7 @@ export class App {
       for (const p of next.players) {
         const was = prev.players.find((pl) => pl.id === p.id)!;
         if (p.id === source.id) continue;
-        const struck = p.heat > was.heat || (p.ward ?? BALANCE.sunWard) < (was.ward ?? BALANCE.sunWard) || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
+        const struck = p.heat > was.heat || (p.shields < was.shields && !(endingTurn && p.id === actor.id)) || (p.eliminated && !was.eliminated);
         if (!struck) continue;
         // From the card that struck (if a card was played), else from the striking sun; to the sun as drawn.
         // (A card attacking a sun is its own blow: the move lands as it strikes, so the sun is hit there and then.)
@@ -2567,13 +2563,13 @@ export class App {
       if (id !== this.replayId) return;
       const p = next.players.find((x) => x.id === pid)!;
       root.querySelectorAll(`[data-anchor="player:${pid}"] .vit`).forEach((vit) => {
-        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit, ward: p.ward ?? BALANCE.sunWard });
+        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit });
       });
       setShieldBadge(root, pid, sun.shields);
       animateSuns();
     };
     // Every sun starts where it was as the turn began (shields already faded).
-    const start = all.find((p) => p.kind === 'start')?.suns ?? Object.fromEntries(prev.players.map((p) => [p.id, { heat: p.heat, shields: p.shields, eliminated: p.eliminated, ward: p.ward ?? BALANCE.sunWard }]));
+    const start = all.find((p) => p.kind === 'start')?.suns ?? Object.fromEntries(prev.players.map((p) => [p.id, { heat: p.heat, shields: p.shields, eliminated: p.eliminated }]));
     for (const p of next.players) show(p.id, start[p.id] ?? { heat: p.heat, shields: p.shields, eliminated: p.eliminated });
     let last = start;
     // Each effect when the day's timeline plays it (dayTimeline): once its phase's banner has gone.
@@ -2631,7 +2627,6 @@ export class App {
         let heard = false;
         for (const p of next.players) {
           const a = was[p.id], b = ps.suns[p.id];
-          if (a && b && (b.ward ?? 0) < (a.ward ?? 0) && !heard) sound.ward();
           if (!a || !b || (a.heat === b.heat && a.shields === b.shields && a.eliminated === b.eliminated)) continue;
           show(p.id, b);
           if (b.eliminated && !a.eliminated) onNova(p.id);
@@ -4504,7 +4499,6 @@ export class App {
             fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
             fact('Defence', `An attack or aimed heat wears a card's defence first, and the wear lasts: only ${kw('repair', '1')} mends it, and it stays in the slot if the card leaves. A card with ⛨3 or more is a ${kw('guard')} while its defence holds, a Hero too. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
-            fact('The ward', `Every sun soaks the first ${B.sunWard} rival heat each day, before its shields (the glowing ring round it), whole again at its owner's dawn. Chip attacks do nothing: break through with a strong board, or deal with the cards in the way. Pierce goes past it.`),
             fact('Replacing', 'Cards never fade: into a full tableau, a new card replaces one of yours (you pick it), which leaves play. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
             fact('Discard pile', `Every card that leaves goes here. An empty deck reshuffles it back in: ${kw('heat', String(B.reshuffleHeat))} to your sun.`),
@@ -5012,7 +5006,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side), ward: p.ward ?? BALANCE.sunWard })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>

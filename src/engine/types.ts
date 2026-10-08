@@ -365,11 +365,6 @@ export interface PlayerState {
   avatar?: string;
   heat: number;
   shields: number;
-  /**
-   * The sun's ward: what it soaks of rival heat each day before its shields (BALANCE.sunWard, full again at its
-   * owner's dawn; unset means full). Pierce, regional instability and a sun's own heat go past it.
-   */
-  ward?: number;
   /** Shuffling the discard pile back in costs no heat (a campaign army's small deck). */
   /** Cards it began the battle with. */
   deckSize?: number;
@@ -461,7 +456,7 @@ export interface TurnPulse {
   /** 'start': no effect, just every sun as the turn's effects begin. */
   kind: 'start' | 'heat' | 'selfHeat' | 'cool' | 'shield' | 'draw' | 'unstable';
   amount: number;
-  suns: Record<string, { heat: number; shields: number; eliminated: boolean; ward?: number }>;
+  suns: Record<string, { heat: number; shields: number; eliminated: boolean }>;
   /** The rival card the heat struck, if it was aimed at one (not at their sun). */
   toCard?: string;
   /** Lands at the same moment as the pulse before it (regional instability hits every sun at once). */

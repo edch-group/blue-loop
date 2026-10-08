@@ -929,15 +929,10 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
     return 0;
   }
   if (target.eliminated || state.winnerId) return 0;
-  // The sun's ward soaks rival heat first, then its shields (pierce goes past the ward, and mostly past shields).
-  const warded = enemy && !pierce ? Math.min(target.ward ?? BALANCE.sunWard, amount) : 0;
-  if (warded > 0) {
-    target.ward = (target.ward ?? BALANCE.sunWard) - warded;
-    log(state, `${target.name}'s ward soaks ${warded} heat.`);
-  }
-  const blocked = enemy ? Math.min(pierce ? Math.floor(target.shields * BALANCE.pierceShieldShare) : target.shields, amount - warded) : 0;
+  // Shields soak rival heat first (pierce goes mostly past them).
+  const blocked = enemy ? Math.min(pierce ? Math.floor(target.shields * BALANCE.pierceShieldShare) : target.shields, amount) : 0;
   target.shields -= blocked;
-  const applied = amount - warded - blocked;
+  const applied = amount - blocked;
   target.heat = Math.max(BALANCE.minHeat, target.heat + applied);
   if (enemy) source.turn.heatDealt += amount;
   if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat.`);
@@ -1299,7 +1294,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
 /** Note a dawn effect for the table to replay (only while a day is starting). */
 function notePulse(state: GameState, source: PlayerState, card: CardInstance | null, kind: TurnPulse['kind'], to: PlayerState, amount: number, toCard?: string) {
   if (!state.turnPulses || (amount <= 0 && kind !== 'start')) return;
-  const suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated, ward: x.ward ?? BALANCE.sunWard }]));
+  const suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated }]));
   state.turnPulses.push({ uid: card?.uid, source: source.id, to: to.id, kind, amount, suns, ...(toCard ? { toCard } : {}) });
 }
 
@@ -1418,8 +1413,6 @@ function startTurn(state: GameState) {
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
   // (A campaign ship's shields are up as the battle begins: they last its first day.)
   if (!(state.campaign && p.turnsTaken === 1)) p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
-  // The ward is whole again.
-  p.ward = BALANCE.sunWard;
 
   // The planets move on a day (your first day starts at the dead planet).
   if (p.turnsTaken > 1) {
