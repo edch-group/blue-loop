@@ -2,14 +2,14 @@
  * The campaign nebula's shape, worked out once per universe (seeded): see nebula3d.ts. Pure, so it can run
  * in a worker (nebula.worker.ts) off the page's thread.
  *
- * The gas is a field of soft overlapping blobs (metaballs): a loose body of a few billows with one or two
- * rounded pillars rising out of it, and plumes of displaced gas drifting free around it, all folded a little
- * by slow noise. Its surface is meshed smoothly (surface nets, with normals from the field), and motes of
- * dust are scattered round it. How the surface is drawn (paper, contour lines, shimmer) is nebula3d.ts's.
+ * Not a solid: loose clusters of gas. A few filaments curve through the space, and clumps of gas are strung
+ * along them (with a few strays between); each clump is drawn as a stipple of fine dots, thick at its heart
+ * and thinning out, torn by noise so it never closes into a round cloud, and a few soft washes give it body.
+ * The strip's routes and systems are kept clear.
  */
 
-// The box the gas is meshed in, and the size of the cells it is meshed with.
-const BX = 3.0, BY = 1.35, BZ = 1.5, CELL = 0.05;
+// The space the gas fills.
+const BX = 2.7, BY = 1.1, BZ = 1.3;
 
 // ---------- noise (seeded value noise, fBm) ----------
 
@@ -48,212 +48,87 @@ function makeNoise(seed: number) {
   return { fbm, rnd };
 }
 
-export interface Geometry {
-  /** Triangles: x, y, z, normal x, y, z, and how free the gas there is to drift (0 the body, 1 a loose plume). */
-  mesh: Float32Array;
-  /** The see-through veil round it, as the mesh. */
-  veil: Float32Array;
-  /** Flow lines, in segment pairs: x, y, z, how far along its line (0 to 1), the line's own phase. */
-  lines: Float32Array;
-  /** Dust motes: x, y, z, phase (0 to 1), size. */
-  motes: Float32Array;
-}
-
-interface Blob { x: number; y: number; z: number; r: number; free: number }
-
-/** The strip of systems the gas is cleared round: its systems and routes (world x, z, on the plane y = 0). */
+/** The strip of systems the gas is kept clear of: its systems and routes (world x, z, on the plane y = 0). */
 export interface Strip {
   nodes: [number, number][];
   routes: [number, number, number, number][];
 }
 
+export interface Geometry {
+  /** The stipple: x, y, z, size, tone (0 ink, 1 gold), phase (0 to 1), per dot. */
+  dots: Float32Array;
+  /** The soft washes: x, y, z, size (world units), tint (0 slate, 1 gold, 2 blue), phase. */
+  haze: Float32Array;
+}
+
 export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: [] }): Geometry {
   const { fbm, rnd } = makeNoise(seed);
-  const blobs: Blob[] = [];
   const range = (a: number, b: number) => a + rnd() * (b - a);
-  // The body: puffs heaped along a loose, wandering spine, so it billows like a cloud rather than a hill.
-  const puffs = 48 + Math.floor(rnd() * 10);
-  for (let i = 0; i < puffs; i++) {
-    const t = rnd() - 0.5;
-    const spine = { x: t * 4.0, y: -0.25 + 0.18 * Math.sin(t * 5 + seed) - Math.abs(t) * 0.35, z: 0.25 * Math.sin(t * 3.7 + seed * 0.3) };
-    const r = range(0.15, 0.33) * (1 - Math.abs(t) * 0.6);
-    blobs.push({ x: spine.x + range(-0.22, 0.22), y: spine.y + range(-0.2, 0.25), z: spine.z + range(-0.32, 0.32), r, free: 0 });
-  }
-  // One or two pillars: a column of shrinking puffs rising and leaning, with a rounder head. They stand behind
-  // the strip (as the camera first sees it), so they hide nothing until it is turned round.
-  const pillars = 1 + Math.floor(rnd() * 2);
-  for (let p = 0; p < pillars; p++) {
-    let x = range(-1.6, 1.6), z = range(-1.0, -0.75), y = -0.05;
-    const lean = range(-0.1, 0.1), steps = 5 + Math.floor(rnd() * 3);
-    for (let i = 0; i < steps; i++) {
-      blobs.push({ x: x + range(-0.05, 0.05), y, z, r: 0.24 - i * 0.018, free: (i / steps) * 0.3 });
-      x += lean + range(-0.04, 0.04);
-      y += 0.14;
-      z += range(-0.03, 0.03);
-    }
-    blobs.push({ x, y: y + 0.02, z, r: 0.2, free: 0.35 });
-  }
-  // Wisps of displaced gas streaming off the body: trails of ever smaller puffs, freer the further they go.
-  for (let i = 0; i < 9; i++) {
-    const a = rnd() * Math.PI * 2;
-    let x = Math.cos(a) * 2.0, y = range(-0.4, 0.35), z = Math.sin(a) * 0.6;
-    const dx = Math.cos(a) * 0.17, dy = range(0.0, 0.08), dz = Math.sin(a) * 0.09;
-    const len = 3 + Math.floor(rnd() * 4);
-    for (let n = 0; n < len; n++) {
-      x += dx + range(-0.05, 0.05); y += dy + range(-0.04, 0.04); z += dz + range(-0.04, 0.04);
-      blobs.push({ x, y, z, r: 0.13 * (1 - n / (len + 1)) + 0.03, free: 0.4 + (0.6 * n) / len });
-    }
-  }
-  // And a few loose puffs, far out on their own.
-  for (let i = 0; i < 6; i++) {
-    const a = rnd() * Math.PI * 2, out = range(1.7, 2.2);
-    blobs.push({ x: Math.cos(a) * out * 1.35, y: range(-0.3, 0.7), z: Math.sin(a) * out * 0.6, r: range(0.06, 0.11), free: 1 });
-  }
+  const gauss = () => {
+    let u = 0;
+    while (u === 0) u = rnd();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd());
+  };
 
-  // Channels through the gas where the strip runs: a tube round each route and a hollow round each system,
-  // so the lines of light and the stars are seen from above, and hidden only by gas rising between them and the eye.
-  const clearing = (x: number, y: number, z: number) => {
-    let d2 = Infinity;
+  // Kept clear: a tube round each route and a hollow round each system, near the plane they lie on.
+  const clear = (x: number, y: number, z: number) => {
+    if (Math.abs(y) > 0.2) return false;
+    for (const [nx, nz] of strip.nodes) if ((x - nx) ** 2 + (z - nz) ** 2 < 0.16 * 0.16) return true;
     for (const [ax, az, bx, bz] of strip.routes) {
       const vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz || 1;
       const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / l2));
-      d2 = Math.min(d2, ((x - ax - vx * t) ** 2 + (z - az - vz * t) ** 2) / (0.13 * 0.13));
+      if ((x - ax - vx * t) ** 2 + (z - az - vz * t) ** 2 < 0.09 * 0.09) return true;
     }
-    for (const [nx, nz] of strip.nodes) d2 = Math.min(d2, ((x - nx) ** 2 + (z - nz) ** 2) / (0.2 * 0.2));
-    return 1.2 * Math.exp(-(d2 + (y * y) / (0.16 * 0.16)));
+    return false;
   };
 
-  // The field: positive inside the gas. Each blob falls off smoothly, and they melt together where they meet.
-  const field = (x: number, y: number, z: number) => {
-    // (Stretched along the strip and torn across it, so the gas streams rather than heaps.)
-    const wx = x + fbm(x * 0.6, y * 1.1, z * 0.8, 2) * 0.45;
-    const wy = y + fbm(x * 0.6 + 31, y * 1.1, z * 0.8, 2) * 0.26;
-    const wz = z + fbm(x * 0.6, y * 1.1 + 47, z * 0.8, 2) * 0.3;
-    let sum = 0;
-    for (const b of blobs) {
-      const d2 = ((wx - b.x) ** 2 + (wy - b.y) ** 2 + (wz - b.z) ** 2) / (b.r * b.r);
-      if (d2 < 6) sum += Math.exp(-d2 * 2.8);
-    }
-    // Billows on billows: a little finer noise heaps the surface like cumulus.
-    return sum - 0.2 + fbm(wx * 2.2, wy * 3.4, wz * 2.2, 3) * 0.09 - clearing(x, y, z);
-  };
-  const freeAt = (x: number, y: number, z: number) => {
-    let best = 0, near = Infinity;
-    for (const b of blobs) {
-      const d = Math.hypot(x - b.x, y - b.y, z - b.z) / b.r;
-      if (d < near) {
-        near = d;
-        best = b.free;
-      }
-    }
-    return best;
-  };
-
-  // The veil: thinner gas round the core, torn by ridged noise into sheets, tendrils and holes. Drawn
-  // see-through, it is what makes the core read as a glowing nebula rather than a cloud.
-  const veilField = (x: number, y: number, z: number) => {
-    const torn = 1 - Math.abs(fbm(x * 1.1 + 40, y * 1.6, z * 1.1, 2) * 2.2);
-    return field(x, y, z) + 0.1 + (torn - 0.6) * 0.12 - clearing(x, y, z);
-  };
-  const mesh = surfaceNets(field, CELL, freeAt);
-  const veil = surfaceNets(veilField, CELL * 1.7, freeAt);
-
-  // Flow lines: long strands of gas sweeping through and round the nebula (as a schematic draws its currents),
-  // following a slow swirl, each from one end of the cloud toward the other.
-  const lines: number[] = [];
-  for (let n = 0; n < 48; n++) {
-    let x = range(-2.4, 2.4), y = range(-0.45, 0.55), z = range(-0.9, 0.7);
-    const dir = rnd() < 0.5 ? 1 : -1, seedT = rnd();
-    const pts: number[][] = [];
-    for (let i = 0; i < 70; i++) {
-      pts.push([x, y, z]);
-      const vx = dir * (0.8 + 0.4 * fbm(x * 0.5 + 9, y * 0.5, z * 0.5, 2));
-      const vy = fbm(x * 0.7, y * 0.7 + 13, z * 0.7, 2) * 1.1 - y * 0.25;
-      const vz = fbm(x * 0.7 + 27, y * 0.7, z * 0.7, 2) * 1.3 - z * 0.15;
-      const l = Math.hypot(vx, vy, vz) || 1;
-      x += (vx / l) * 0.045; y += (vy / l) * 0.045; z += (vz / l) * 0.045;
+  // The clumps: strung along a few filaments that curve through the space, and a few strays.
+  const clumps: { x: number; y: number; z: number; r: number; weight: number }[] = [];
+  const filaments = 5 + Math.floor(rnd() * 3);
+  for (let f = 0; f < filaments; f++) {
+    let x = range(-BX * 0.9, BX * 0.9), y = range(-0.6, 0.6), z = range(-BZ * 0.8, BZ * 0.6);
+    let a = range(0, Math.PI * 2), b = range(-0.4, 0.4);
+    const steps = 6 + Math.floor(rnd() * 8);
+    for (let i = 0; i < steps; i++) {
+      clumps.push({ x, y, z, r: range(0.12, 0.32), weight: range(0.5, 1) });
+      a += range(-0.6, 0.6);
+      b = Math.max(-0.6, Math.min(0.6, b + range(-0.3, 0.3)));
+      const step = range(0.18, 0.32);
+      x += Math.cos(a) * Math.cos(b) * step * 1.4;
+      y += Math.sin(b) * step * 0.6;
+      z += Math.sin(a) * Math.cos(b) * step * 0.7;
       if (Math.abs(x) > BX || Math.abs(y) > BY || Math.abs(z) > BZ) break;
     }
-    for (let i = 0; i + 1 < pts.length; i++) {
-      const t0 = i / (pts.length - 1), t1 = (i + 1) / (pts.length - 1);
-      lines.push(...pts[i], t0, seedT, ...pts[i + 1], t1, seedT);
+  }
+  for (let i = 0; i < 10; i++) clumps.push({ x: range(-BX, BX), y: range(-0.8, 0.8), z: range(-BZ, BZ), r: range(0.06, 0.14), weight: range(0.3, 0.6) });
+
+  // The stipple: each clump a scatter of dots, dense at its heart and thinning out, kept only where the noise
+  // lets it (so the clump is torn and open, never a round ball). A few dots catch the light, in gold.
+  const dots: number[] = [];
+  for (const c of clumps) {
+    const n = Math.round(c.weight * 900 * (c.r / 0.22) ** 2);
+    for (let i = 0; i < n; i++) {
+      const x = c.x + gauss() * c.r, y = c.y + gauss() * c.r * 0.7, z = c.z + gauss() * c.r;
+      if (fbm(x * 2.2 + 5, y * 2.2, z * 2.2, 3) < -0.05 + rnd() * 0.25 || clear(x, y, z)) continue;
+      dots.push(x, y, z, range(1.1, 2.3), rnd() < 0.05 ? 1 : 0, rnd());
     }
   }
-
-  // Motes of dust hanging round the gas, thickest near its surface.
-  const motes: number[] = [];
-  for (let n = 0; n < 4000 && motes.length < 420 * 5; n++) {
+  // Dust between the clumps: thin, everywhere.
+  for (let i = 0; i < 900; i++) {
     const x = range(-BX, BX), y = range(-BY * 0.8, BY), z = range(-BZ, BZ);
-    const v = field(x, y, z);
-    if (v < 0 && v > -0.18 && rnd() < 0.5) motes.push(x, y, z, rnd(), range(1.2, 2.6));
+    if (!clear(x, y, z)) dots.push(x, y, z, range(0.9, 1.6), 0, rnd());
   }
-  return { mesh, veil, lines: new Float32Array(lines), motes: new Float32Array(motes) };
-}
 
-/**
- * Surface nets: a smooth mesh of where a field crosses zero. One vertex in each cell the surface passes through
- * (at the average of where it crosses the cell's edges), and a quad across each grid edge it crosses, joining
- * the four cells round that edge. Each vertex carries its normal (out of the gas) and how free the gas is there.
- */
-function surfaceNets(field: (x: number, y: number, z: number) => number, cell: number, freeAt: (x: number, y: number, z: number) => number): Float32Array {
-  const nx = Math.ceil((2 * BX) / cell) + 1, ny = Math.ceil((2 * BY) / cell) + 1, nz = Math.ceil((2 * BZ) / cell) + 1;
-  const P = (i: number, b: number) => -b + i * cell;
-  const f = new Float32Array(nx * ny * nz);
-  const id = (i: number, j: number, k: number) => (k * ny + j) * nx + i;
-  for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) f[id(i, j, k)] = field(P(i, BX), P(j, BY), P(k, BZ));
-  const vert = new Int32Array((nx - 1) * (ny - 1) * (nz - 1)).fill(-1);
-  const cid = (i: number, j: number, k: number) => (k * (ny - 1) + j) * (nx - 1) + i;
-  const vx: number[] = [];
-  const EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
-  const c = new Float32Array(8);
-  for (let k = 0; k < nz - 1; k++) {
-    for (let j = 0; j < ny - 1; j++) {
-      for (let i = 0; i < nx - 1; i++) {
-        let ins = 0;
-        for (let n = 0; n < 8; n++) {
-          c[n] = f[id(i + (n & 1), j + ((n >> 1) & 1), k + ((n >> 2) & 1))];
-          if (c[n] > 0) ins++;
-        }
-        if (ins === 0 || ins === 8) continue;
-        let sx = 0, sy = 0, sz = 0, m = 0;
-        for (const [a, b] of EDGES) {
-          if (c[a] > 0 === c[b] > 0) continue;
-          const t = c[a] / (c[a] - c[b]);
-          sx += (a & 1) + ((b & 1) - (a & 1)) * t;
-          sy += ((a >> 1) & 1) + (((b >> 1) & 1) - ((a >> 1) & 1)) * t;
-          sz += ((a >> 2) & 1) + (((b >> 2) & 1) - ((a >> 2) & 1)) * t;
-          m++;
-        }
-        vert[cid(i, j, k)] = vx.length / 3;
-        vx.push(P(i, BX) + (sx / m) * cell, P(j, BY) + (sy / m) * cell, P(k, BZ) + (sz / m) * cell);
-      }
+  // The washes: a few soft blots on each clump, mostly slate, now and then catching gold or blue.
+  const haze: number[] = [];
+  for (const c of clumps) {
+    const n = 1 + Math.floor(c.weight * 3);
+    for (let i = 0; i < n; i++) {
+      const x = c.x + gauss() * c.r * 0.6, y = c.y + gauss() * c.r * 0.4, z = c.z + gauss() * c.r * 0.6;
+      if (clear(x, y, z)) continue;
+      const roll = rnd();
+      haze.push(x, y, z, c.r * range(1.6, 2.6), roll < 0.12 ? 1 : roll < 0.24 ? 2 : 0, rnd());
     }
   }
-  const count = vx.length / 3;
-  const nrm = new Float32Array(count * 3), free = new Float32Array(count);
-  const e = cell * 0.5;
-  for (let v = 0; v < count; v++) {
-    const [x, y, z] = [vx[v * 3], vx[v * 3 + 1], vx[v * 3 + 2]];
-    const gx = field(x - e, y, z) - field(x + e, y, z), gy = field(x, y - e, z) - field(x, y + e, z), gz = field(x, y, z - e) - field(x, y, z + e);
-    const l = Math.hypot(gx, gy, gz) || 1;
-    nrm[v * 3] = gx / l; nrm[v * 3 + 1] = gy / l; nrm[v * 3 + 2] = gz / l;
-    free[v] = freeAt(x, y, z);
-  }
-  const mesh: number[] = [];
-  const put = (v: number) => mesh.push(vx[v * 3], vx[v * 3 + 1], vx[v * 3 + 2], nrm[v * 3], nrm[v * 3 + 1], nrm[v * 3 + 2], free[v]);
-  const quad = (a: number, b: number, cc: number, d: number) => {
-    if (a < 0 || b < 0 || cc < 0 || d < 0) return;
-    put(a); put(b); put(cc); put(a); put(cc); put(d);
-  };
-  for (let k = 1; k < nz - 1; k++) {
-    for (let j = 1; j < ny - 1; j++) {
-      for (let i = 1; i < nx - 1; i++) {
-        const here = f[id(i, j, k)] > 0;
-        if (here !== f[id(i + 1, j, k)] > 0) quad(vert[cid(i, j - 1, k - 1)], vert[cid(i, j, k - 1)], vert[cid(i, j, k)], vert[cid(i, j - 1, k)]);
-        if (here !== f[id(i, j + 1, k)] > 0) quad(vert[cid(i - 1, j, k - 1)], vert[cid(i - 1, j, k)], vert[cid(i, j, k)], vert[cid(i, j, k - 1)]);
-        if (here !== f[id(i, j, k + 1)] > 0) quad(vert[cid(i - 1, j - 1, k)], vert[cid(i, j - 1, k)], vert[cid(i, j, k)], vert[cid(i - 1, j, k)]);
-      }
-    }
-  }
-  return new Float32Array(mesh);
+  return { dots: new Float32Array(dots), haze: new Float32Array(haze) };
 }
