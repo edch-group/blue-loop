@@ -5432,10 +5432,10 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .hero-rail-col > * { pointer-events: auto; }
 .hero-ab {
   --s: calc(var(--tcw) * 0.26);
-  position: relative; width: var(--s); height: var(--s); padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center;
+  position: relative; width: var(--s); height: var(--s); padding: 0; border: 0; border-radius: 50%; display: block; -webkit-appearance: none; appearance: none; font: inherit; line-height: 0;
   background: #fff; color: #a07a2a; box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.45), 0 2px 6px rgba(60, 70, 100, 0.16); cursor: default;
 }
-.hero-ab .kw-ico { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.hero-ab .kw-ico { position: absolute; inset: 0; margin: auto; width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .hero-ab .kw-ico .kw-ico-fill { fill: currentColor; stroke: none; }
 .hero-ab small { position: absolute; right: -2px; bottom: -2px; min-width: 42%; height: 42%; display: grid; place-items: center; border-radius: 999px; background: #fff; font-family: var(--display); font-size: calc(var(--tcw) * 0.085); color: var(--ink); box-shadow: 0 1px 3px rgba(60, 70, 100, 0.2); }
 .hero-ab-cost { position: absolute; left: 50%; top: -18%; transform: translateX(-50%); display: flex; gap: 1px; }
@@ -5447,7 +5447,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 @media (prefers-reduced-motion: reduce) { .hero-ab-on { animation: none; } }
 /* Boons: smaller, quieter marks (on a hero's rail, or on a card carrying a ship module's). */
 .boon-mark { --s: calc(var(--tcw, 80px) * 0.18); position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: inline-grid; place-items: center; background: #fbf6ea; color: #b08a3a; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.35); font-style: normal; cursor: default; }
-.boon-mark .kw-ico { width: 56%; height: 56%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.boon-mark .kw-ico { position: absolute; inset: 0; margin: auto; width: 56%; height: 56%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .boon-mark .kw-ico .kw-ico-fill { fill: currentColor; stroke: none; }
 .boon-mark small { position: absolute; right: -3px; bottom: -3px; font-family: var(--display); font-size: calc(var(--tcw, 80px) * 0.07); color: var(--ink); }
 .fused-tags .boon-mark + .boon-mark { margin-left: 2px; }
