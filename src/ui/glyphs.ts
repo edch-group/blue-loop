@@ -609,11 +609,11 @@ export function costDots(def: CardDef): string {
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-/** Heat, cool and shields are drawn as symbols on cards: two chevrons up, two down, a shield. */
+/** Heat, cool and shields are drawn as symbols on cards: two chevrons up, two down, a hex (as the shields' lattice by the sun). */
 const SYMBOL_SVG: Record<string, string> = {
   heat: '<polyline points="2,6.5 6,2.5 10,6.5"/><polyline points="2,10.5 6,6.5 10,10.5"/>',
   cool: '<polyline points="2,1.5 6,5.5 10,1.5"/><polyline points="2,5.5 6,9.5 10,5.5"/>',
-  shield: '<path class="kw-ico-fill" d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/>',
+  shield: '<path class="kw-ico-fill" d="M6 1.2 10.2 3.6 10.2 8.4 6 10.8 1.8 8.4 1.8 3.6Z"/><path d="M6 3.9 7.8 4.95 7.8 7.05 6 8.1 4.2 7.05 4.2 4.95Z" stroke-width="0.9"/>',
 }
 
 /** Marks for what a hero's ability or a boon does, by its effect (the heat, cool and shield symbols, and a few more). */

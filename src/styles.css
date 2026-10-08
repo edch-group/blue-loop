@@ -4396,7 +4396,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* Each player's shields, big, in the board's middle: the rival's above the Stellari, yours below. */
 .board-plane > .board-shields {
   --bs: 45px;
-  position: absolute; left: 50%; top: 50%; z-index: 1; width: var(--bs); height: calc(var(--bs) * 1.08);
+  position: absolute; left: 50%; top: 50%; z-index: 1; width: var(--bs); height: var(--bs);
   display: grid; place-items: center; pointer-events: auto; opacity: 0.28; transition: opacity 0.35s, transform 0.35s;
 }
 .board-plane > .board-shields-rival { transform: translate(-50%, calc(-100% - var(--stellari-r, 74px))) translateZ(2px); }
@@ -4404,20 +4404,25 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* The badge is the shields symbol printed in card text (an outlined shield in the shields blue), large, the number
    inside it. Pale and faint at none; on a raise it pops. */
 .board-shields svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.board-shields path { fill: #fff; stroke: #b3bccb; stroke-width: 0.9; stroke-linejoin: round; }
+.board-shields { --bs-bg: #fff; --bs-ink: #b3bccb; }
+.board-shields.up { --bs-bg: color-mix(in srgb, #3d7fc4 16%, #fff); --bs-ink: #3d7fc4; }
+.board-shields .bs-hex { fill: var(--bs-bg); stroke: var(--bs-ink); stroke-width: 1.6; stroke-linejoin: round; }
+.board-shields .bs-cell { fill: none; stroke: var(--bs-ink); stroke-width: 0.75; opacity: 0.6; }
 .board-shields b {
-  position: relative; margin-top: -4%; font-family: var(--display); font-weight: 800; font-size: calc(var(--bs) * 0.4); line-height: 1; color: #b3bccb;
+  position: relative; font-family: var(--display); font-weight: 800; font-size: calc(var(--bs) * 0.34); line-height: 1; color: var(--bs-ink);
+  /* (A patch of the badge's own colour behind the number, so it reads over the lattice.) */
+  padding: 0.08em 0.18em; border-radius: 0.3em; background: var(--bs-bg); box-shadow: 0 0 0.2em 0.18em var(--bs-bg);
 }
 .board-plane > .board-shields.up { opacity: 1; }
-.board-shields.up path { fill: color-mix(in srgb, #3d7fc4 16%, #fff); stroke: #3d7fc4; filter: drop-shadow(0 2px 3px rgba(40, 80, 140, 0.3)); }
-.board-shields.up b { color: #3d7fc4; }
+.board-shields.up .bs-hex { filter: drop-shadow(0 2px 3px rgba(40, 80, 140, 0.3)); }
+.board-shields.up b { color: var(--bs-ink); }
 .board-shields.raised svg { animation: bs-raise 0.6s cubic-bezier(0.2, 1.6, 0.4, 1); }
 @keyframes bs-raise { 0% { transform: scale(0.8); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .board-shields svg { animation: none !important; } }
 /* By the sun, beside the planet tag. */
 .vit-under .board-shields {
-  --bs: max(18px, calc(var(--vs) * 0.17));
-  position: relative; width: var(--bs); height: calc(var(--bs) * 1.08); flex: none;
+  --bs: max(26px, calc(var(--vs) * 0.24));
+  position: relative; width: var(--bs); height: var(--bs); flex: none;
   display: grid; place-items: center; pointer-events: auto; opacity: 0.35; transition: opacity 0.35s;
 }
 .vit-under .board-shields.up { opacity: 1; }

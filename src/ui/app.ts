@@ -553,8 +553,29 @@ function sunRect(root: ParentNode, id: string): DOMRect | null {
 }
 
 /** A player's shields, by their sun (beside the planet tag), over the sun's lattice. Faint at none. */
+/** Hexagon corners (pointy top) round a centre, as an SVG path. */
+const hexPath = (cx: number, cy: number, r: number) =>
+  Array.from({ length: 6 }, (_, i) => {
+    const a = ((60 * i - 90) * Math.PI) / 180;
+    return `${i ? 'L' : 'M'}${(cx + r * Math.cos(a)).toFixed(2)} ${(cy + r * Math.sin(a)).toFixed(2)}`;
+  }).join(' ') + 'Z';
+/**
+ * Shields, by the sun: one big hex filled with a lattice of small ones (as the dome over the sun is drawn), the
+ * number in the middle on a patch of the badge's own colour so it reads over them.
+ */
+const SHIELD_LATTICE = (() => {
+  const r = 3.3, w = Math.sqrt(3) * r;
+  const cells: string[] = [];
+  for (let row = -6; row <= 6; row++)
+    for (let col = -6; col <= 6; col++) {
+      const cx = 20 + col * w + (row % 2 ? w / 2 : 0), cy = 20 + row * 1.5 * r;
+      if (Math.hypot(cx - 20, cy - 20) < 19) cells.push(hexPath(cx, cy, r * 0.82));
+    }
+  return `<svg viewBox="0 0 40 40" aria-hidden="true"><defs><clipPath id="bs-clip-hex"><path d="${hexPath(20, 20, 17)}"/></clipPath></defs><path class="bs-hex" d="${hexPath(20, 20, 18.5)}"/><g clip-path="url(#bs-clip-hex)"><path class="bs-cell" d="${cells.join(' ')}"/></g></svg>`;
+})();
+
 function shieldBadge(pid: string, n: number, side: 'mine' | 'rival'): string {
-  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" data-tip-title="shields" data-tip="${side === 'mine' ? 'Yours' : 'Theirs'}: they absorb enemy heat, and fade at dawn."><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.4 L9.6 2.8 V6 C9.6 8.4 8 10 6 10.8 C4 10 2.4 8.4 2.4 6 V2.8 Z"/></svg><b>${n}</b></div>`;
+  return `<div class="board-shields board-shields-${side} ${n > 0 ? 'up' : ''}" data-shields-badge="${esc(pid)}" data-tip-title="shields" data-tip="${side === 'mine' ? 'Yours' : 'Theirs'}: they absorb enemy heat, and fade at dawn.">${SHIELD_LATTICE}<b>${n}</b></div>`;
 }
 
 /**
@@ -2325,8 +2346,8 @@ export class App {
         if (r) {
           // Heat taken (red, rising), cooling (blue) and shields lost or raised, over the sun.
           if (dHeat) floatNumber(r, dHeat > 0 ? `+${dHeat}` : `−${-dHeat}`, dHeat > 0 ? 'hot' : 'cool', 0);
-          if (lostShields) floatNumber(r, `⛨−${lostShields}`, 'block', dHeat ? 1 : 0);
-          else if (gainedShields) floatNumber(r, `⛨+${gainedShields}`, 'block', dHeat ? 1 : 0);
+          if (lostShields) floatNumber(r, `⬡−${lostShields}`, 'block', dHeat ? 1 : 0);
+          else if (gainedShields) floatNumber(r, `⬡+${gainedShields}`, 'block', dHeat ? 1 : 0);
           // (The reshuffle's strain, on a line of its own.)
           if (strain) floatNumber(r, `+${strain} ↻`, 'hot', (dHeat ? 1 : 0) + (lostShields || gainedShields ? 1 : 0));
         }
@@ -2563,7 +2584,9 @@ export class App {
       if (id !== this.replayId) return;
       const p = next.players.find((x) => x.id === pid)!;
       root.querySelectorAll(`[data-anchor="player:${pid}"] .vit`).forEach((vit) => {
-        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit });
+        // (With its shields badge and its planet's state, as the board draws it: rebuilt without them, the badge vanished.)
+        const side = vit.closest('.tableau-rival') ? 'rival' : 'mine';
+        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit, eaten: planetsEaten(next, p), shieldsHtml: shieldBadge(pid, sun.shields, side) });
       });
       setShieldBadge(root, pid, sun.shields);
       animateSuns();
@@ -2633,7 +2656,7 @@ export class App {
           const r = sunAt(p.id);
           const dHeat = b.heat - a.heat, dShield = b.shields - a.shields;
           if (r && dHeat) floatNumber(r, dHeat > 0 ? `+${dHeat}` : `−${-dHeat}`, dHeat > 0 ? 'hot' : 'cool', 0);
-          if (r && dShield) floatNumber(r, dShield > 0 ? `⛨+${dShield}` : `⛨−${-dShield}`, 'block', dHeat ? 1 : 0);
+          if (r && dShield) floatNumber(r, dShield > 0 ? `⬡+${dShield}` : `⬡−${-dShield}`, 'block', dHeat ? 1 : 0);
           const cls = dHeat > 0 ? 'fx-hot' : dHeat < 0 ? 'fx-cold' : 'fx-shield';
           pulse(root.querySelector(`[data-anchor="player:${p.id}"]`), cls, 0);
           const table = ps.kind === 'unstable' && !ps.uid;
@@ -5634,7 +5657,7 @@ export class App {
             ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A Lightspeed card is set face down.'}</p>` : ''}
             ${p.conditions?.length ? `<div class="sys-conditions">${p.conditions.map((c) => `<div><b>${esc(c.name.toLowerCase())}</b>${esc(c.text)}</div>`).join('')}</div>` : ''}
             <div class="sys-stats">
-              <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⛨ ${p.shields}</span><span>${HAND_ICON} ${p.hand.length} in hand</span><span>▤ ${p.deck.length} in deck</span><span>${p.discard.length} discarded</span><span>${p.tableau.length}/${BALANCE.tableauSlots} in play</span>
+              <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⬡ ${p.shields}</span><span>${HAND_ICON} ${p.hand.length} in hand</span><span>▤ ${p.deck.length} in deck</span><span>${p.discard.length} discarded</span><span>${p.tableau.length}/${BALANCE.tableauSlots} in play</span>
             </div>
             <button class="modal-cancel" data-act="cancel">close</button>
           </div>
