@@ -4,6 +4,7 @@ import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { RACE_CARDS } from './cards-races';
 import { DUSK_CARDS } from './cards-dusk';
+import { PLAIN_CARDS, PLAIN_EXISTING, PLAIN_PROFILE, plainStats } from './cards-plain';
 import { BIG_CARDS } from './cards-big';
 import { RELIC_CARDS } from './cards-relics';
 import { HERO_CARDS, heroCost } from './heroes-battle';
@@ -699,7 +700,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS, ...RELIC_CARDS);
+CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS, ...RELIC_CARDS, ...PLAIN_CARDS);
 // The Heroes as they now fight (heroes-battle.ts): lasting, with abilities to choose from each day, in
 // place of the old choice of dawn effect.
 for (const c of CARDS) {
@@ -714,8 +715,13 @@ for (const c of CARDS) {
 for (const c of CARDS) Object.assign(c, CARD_META[c.id] ?? EXPANSION_META[c.id] ?? {}, { cost: CARD_COSTS[c.id] ?? FUSION_COSTS[c.id] ?? ATTUNE_COSTS[c.id] ?? c.cost ?? 1 });
 // Heroes cost one more than they are listed at (heroes-battle.ts): an entrance and an ability every day for good.
 for (const c of CARDS) if (c.kind === 'command') c.cost = heroCost(c.cost ?? 2);
-// The Aureline Lancer: all lance, no armour (the most attack a 1-energy card has, and the least stability).
-Object.assign(CARDS.find((c) => c.id === 'helio_lancer')!, { health: 1 });
+// Cards that were plain all along take a plain card's numbers (cards-plain.ts).
+for (const [id, profile] of Object.entries(PLAIN_EXISTING)) {
+  const c = CARDS.find((x) => x.id === id)!;
+  const s = plainStats(profile, c.race, c.cost ?? 1);
+  Object.assign(c, { attack: s.attack, health: s.health, defence: s.sturdy || undefined, text: s.sturdy ? `{sturdy:${s.sturdy}}.` : '', onTurn: undefined });
+  PLAIN_PROFILE[id] = profile;
+}
 // The core races' cards as they now are (cards-core.ts): the same card in every mode.
 for (const c of CARDS) {
   const v = CORE_VERSIONS[c.id];
@@ -752,6 +758,8 @@ export function hasDarkspeed(def: CardDef): boolean {
 
 export function isBurst(def: CardDef): boolean {
   if (def.kind === 'command' || def.kind === 'lightspeed' || def.kind === 'relic' || def.stability !== undefined) return false;
+  // (A wall, plain or not, stands in play for its defence alone.)
+  if ((def.defence ?? 0) > 0 && def.health !== undefined) return false;
   return !def.onTurn?.length && !def.onDusk?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);
 }
 
@@ -1139,7 +1147,7 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Sunforge',
     mode: 'core',
     cards: [
-      ...twoOf('command_directive', 'sunforge', 'helio_bastion', 'gilded_lens', 'halo_sentinel', 'solar_aegis', 'aureline_war_herald', 'helio_lancer', 'lancer_squadron', 'aureline_cantor', 'aureline_watchkeeper', 'aureline_sun_priest'),
+      ...twoOf('command_directive', 'sunforge', 'helio_bastion', 'p_gilded_vanguard', 'halo_sentinel', 'solar_aegis', 'aureline_war_herald', 'helio_lancer', 'p_dawn_lancer', 'p_sunlance_cadet', 'aureline_watchkeeper', 'aureline_sun_priest'),
       'empress_solenne', 'focusing_array', 'dawnstar_cannon', 'aureline_sunset_lancer', 'aurelia_first_light', 'ion_cannon',
     ],
   },
@@ -1148,7 +1156,7 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Red Shift',
     mode: 'core',
     cards: [
-      ...twoOf('war_council', 'crystal_storm', 'overload_core', 'shard_storm', 'xelnaru_champion', 'crystal_bloom', 'prism_vent', 'xelnaru_warden', 'fracture_lens', 'overcharge', 'xelnaru_oracle', 'coronal_lance', 'xelnaru_banked_star'),
+      ...twoOf('war_council', 'crystal_storm', 'overload_core', 'shard_storm', 'xelnaru_champion', 'p_prism_blade', 'prism_vent', 'xelnaru_warden', 'p_shard_mote', 'overcharge', 'p_crystal_reaver', 'coronal_lance', 'xelnaru_banked_star'),
       'the_shardmind', 'xelnaru_still_flame', 'prism_sanctum', 'shatter_point',
     ],
   },
@@ -1157,7 +1165,7 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Deep Tide',
     mode: 'core',
     cards: [
-      ...twoOf('tide_regent', 'vorthane_tide_watcher', 'tidal_wave', 'pressure_wave', 'riptide', 'kelp_wall', 'trench_warden', 'vorthane_tidecaller', 'ebb_tide', 'deep_hymn', 'abyssal_choir', 'tidebreaker'),
+      ...twoOf('tide_regent', 'vorthane_tide_watcher', 'tidal_wave', 'p_reef_hulk', 'riptide', 'p_bell_sentry', 'trench_warden', 'vorthane_tidecaller', 'ebb_tide', 'p_coral_bulwark', 'abyssal_choir', 'tidebreaker'),
       'the_admiralty', 'deep_current', 'pressure_dome', 'ommarath_deep_bell', 'vorthane_elder', 'vorthane_undertow',
     ],
   },
@@ -1166,7 +1174,7 @@ export const PRESET_DECKS: DeckList[] = [
     name: 'Living Hive',
     mode: 'core',
     cards: [
-      ...twoOf('chamber_protocol', 'mycelium_tower', 'spore_drone', 'chitin_spire', 'thorn_graft', 'ixquor_brood_tender', 'mycelial_net', 'hive_warrior', 'rot_bloom', 'ixquor_waiting_brood', 'bloom_burst', 'spore_cloud'),
+      ...twoOf('chamber_protocol', 'mycelium_tower', 'spore_drone', 'chitin_spire', 'thorn_graft', 'ixquor_brood_tender', 'p_brood_drone', 'hive_warrior', 'p_chitin_hulk', 'ixquor_waiting_brood', 'bloom_burst', 'p_hive_lancer'),
       'the_worldroot', 'spore_catalyst', 'hive_relay', 'ixquor_brood_warden', 'void_bolt', 'the_brood_queen',
     ],
   },

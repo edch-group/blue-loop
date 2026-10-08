@@ -1,4 +1,5 @@
 import { cardDef, type CardDef } from '../engine';
+import { PLAIN_CARDS, PLAIN_PROFILE } from '../engine/cards-plain';
 
 /**
  * Card illustrations: a painted scene for every card, drawn procedurally in
@@ -1626,6 +1627,44 @@ const ART_DUSK: Record<string, Draw> = {
 };
 
 Object.assign(ART, ART_RACES, ART_DUSK);
+
+/**
+ * Plain cards (cards-plain.ts): a figure of the card's race, bigger the more it costs, carrying what its profile
+ * says it is (a lance for a striker, a shield for a guardian...), over a ground and a glow of its own; neutral ones
+ * are ships and stations.
+ */
+const PLAIN_LOOK: Record<string, string> = { striker: '#ffd27a', glass: '#ff9ab0', brute: '#9fe0a0', guardian: '#9fc8ff', veteran: '#e0c8ff', wall: '#c8d0dc' };
+function plainArt(def: CardDef): Draw {
+  const profile = PLAIN_PROFILE[def.id];
+  const c = def.cost ?? 1;
+  const s = 0.95 + c * 0.09;
+  const x = 64 + ((c * 17) % 32);
+  const glowC = PLAIN_LOOK[profile] ?? '#fff';
+  const attacker = profile === 'striker' || profile === 'glass';
+  const shielded = profile === 'guardian' || profile === 'wall' || profile === 'veteran';
+  return (S) => {
+    const back = S.glow(x, 46, 30 + c * 6, glowC, 0.45) + S.ground(86 + (c % 2) * 4);
+    switch (def.race) {
+      case 0: return back + aureline(S, x - 18, 30, s, { item: attacker ? 'lance' : shielded ? 'shield' : 'staff', halos: c > 3 ? 2 : 1, crown: c === 5 });
+      case 1: return back + xelnaru(S, x - 16, 30, s, { item: attacker ? 'blade' : 'lens', pauldrons: c > 3, crown: c === 5, cracked: profile === 'glass' });
+      case 2: return back + S.waves(84, '#7ff0e0', 3, 2, 0.5) + vorthane(S, x - 16, 28, s, { item: shielded ? 'bell' : 'trident', helm: c > 2, crown: c === 5 });
+      case 3: return back + ixquor(S, x - 16, 30, s, { item: c % 2 ? 'pods' : 'spores', arms: 2 + Math.min(3, c), crown: c === 5 });
+      case 4: return back + nyxari(S, x - 16, 30, s, { item: attacker ? (c % 2 ? 'blades' : 'scythe') : 'veil', crown: c === 5 });
+      case 5: return back + korrath(S, x - 16, 30, s, { item: shielded ? 'shield' : 'hammer', crown: c === 5 });
+      case 6: return back + seren(S, x - 16, 30, s, { item: attacker ? 'staff' : 'orrery', crown: c === 5 });
+      case 7: return back + pyrr(S, x - 16, 30, s, { item: attacker ? 'fireball' : 'brand', crown: c === 5 });
+      default: {
+        // Neutral: a station or a hauler, its plating in bands, beacons along its length.
+        const w = 40 + c * 16, h = 10 + c * 4;
+        const hull = `<rect x="${80 - w / 2}" y="${50 - h / 2}" width="${w}" height="${h}" rx="${h / 3}" fill="${S.linear([[0, '#e6ecf5'], [1, '#56657e']])}" stroke="#fff" stroke-width="0.6"/>`;
+        const bands = Array.from({ length: c + 1 }, (_, i) => `<rect x="${80 - w / 2 + 6 + i * ((w - 12) / (c + 1))}" y="${50 - h / 2 + 2}" width="2" height="${h - 4}" fill="#3a4458" opacity="0.6"/>`).join('');
+        const beacons = Array.from({ length: c }, (_, i) => S.glow(80 - w / 2 + 10 + i * ((w - 20) / Math.max(1, c - 1 || 1)), 50 - h / 2, 2.4, glowC, 0.9)).join('');
+        return S.glow(80, 50, 40 + c * 6, glowC, 0.3) + S.planet(132, 82, 14 + c * 2, '#a9b3c4', '#1a1f2a') + hull + bands + beacons;
+      }
+    }
+  };
+}
+for (const def of PLAIN_CARDS) ART[def.id] = plainArt(def);
 
 
 /**

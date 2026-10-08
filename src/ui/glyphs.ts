@@ -458,8 +458,7 @@ export function raceRow(def: CardDef): string {
 export function raceTraitTags(def: CardDef): { name: string; text: string; nerf: boolean }[] {
   const t = raceTrait(def.race);
   if (!t) return [];
-  const stays = persists(def.id) && !isBurst(def);
-  const reaches = (on: string) => (on === 'stays' ? stays : on === 'darkspeed' ? hasDarkspeed(def) : on === 'attune' ? !!def.attune : false);
+  const reaches = (on: string) => (on === 'darkspeed' ? hasDarkspeed(def) : on === 'attune' ? !!def.attune : false);
   const tag = (line: string) => ({ name: line.split(':')[0], text: plainText(line.slice(line.indexOf(':') + 1).trim()), nerf: false });
   return reaches(t.bonusOn) ? [tag(t.bonus)] : [];
 }

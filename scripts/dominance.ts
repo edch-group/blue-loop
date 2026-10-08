@@ -48,7 +48,7 @@ function vec(c: CardDef): Vec {
   if (c.fusion) bump(v, 'fusion', 1);
   // (Consume is a cost: a card given up to play it.)
   if (c.consume) bump(v, 'bad|consume', 1);
-  if (c.onTurn?.length || c.onDusk?.length || c.passive?.length || c.attune || c.attack) bump(v, 'stability', baseHealth(c.id));
+  if (c.onTurn?.length || c.onDusk?.length || c.passive?.length || c.attune || c.attack || c.defence || c.health !== undefined) bump(v, 'stability', baseHealth(c.id));
   return v;
 }
 export function dominatedPairs(raceOverNeutral = false, anyRace = false, mode?: GameMode): string[] {

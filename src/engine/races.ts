@@ -8,8 +8,8 @@
 
 export const RACE_NAMES = ['Aureline', "Xel'Naru", 'Vorthane', 'Ixquor', 'Nyxari', 'Korrath', 'Seren', 'Pyrr'] as const;
 
-/** Which of its cards a trait's keyword goes on: those that stay in play, those with Darkspeed, those that attune. */
-export type TraitReach = 'stays' | 'darkspeed' | 'attune';
+/** Which of its cards a trait shows on as a tag: those with Darkspeed, those that attune ('text': written into the card's own text instead, as Sting and Sturdy are). */
+export type TraitReach = 'text' | 'darkspeed' | 'attune';
 
 export interface RaceTrait {
   /** The keyword it gives, as a player reads it ("Name: what it does."). */
@@ -29,12 +29,12 @@ export interface RaceTrait {
 export const RACE_TRAITS: (RaceTrait | undefined)[] = [
   undefined,
   undefined,
-  { bonus: 'Sting: +1 Sting on their cards that stay in play.', bonusOn: 'stays', sting: 1 },
+  { bonus: 'Sting: +1 Sting on their cards that stay in play.', bonusOn: 'text', sting: 1 },
   undefined,
   { bonus: 'Darkspeed: their attackers and Heroes can attack or act the day they come into play.', bonusOn: 'darkspeed', ambush: true },
-  { bonus: 'Sturdy: +2 Sturdy on their cards that stay in play.', bonusOn: 'stays', sturdy: 2 },
+  { bonus: 'Sturdy: +2 Sturdy on their cards that stay in play.', bonusOn: 'text', sturdy: 2 },
   { bonus: 'Star-charted: they attune once more.', bonusOn: 'attune', attune: 1 },
-  { bonus: 'Sting: +1 Sting on their cards that stay in play.', bonusOn: 'stays', sting: 1 },
+  { bonus: 'Sting: +1 Sting on their cards that stay in play.', bonusOn: 'text', sting: 1 },
 ];
 
 /** A race's trait (none for neutral cards). */

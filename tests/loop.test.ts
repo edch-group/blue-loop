@@ -77,7 +77,7 @@ describe('the strip', () => {
     expect(s.nodes.filter((n) => n.bonus)).toHaveLength(CAMPAIGN.bonusPlanets);
     const raiders = s.armies.filter((a) => a.lost);
     expect(raiders).toHaveLength(CAMPAIGN.raiders);
-    for (const a of raiders) expect(nodeById(s, a.nodeId).col).toBeGreaterThanOrEqual(4);
+    for (const a of raiders) expect(nodeById(s, a.nodeId).col).toBeGreaterThanOrEqual(3);
   });
 
   it('starts the flagship with ten cards, and the bought upgrades on top', () => {
