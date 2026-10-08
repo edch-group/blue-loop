@@ -55,7 +55,8 @@ const smooth = (a: number, b: number, x: number) => {
 };
 
 export interface Geometry {
-  /** Triangles: x, y, z, tone per vertex (tone: how light the surface is, 0 to 1). */
+  /** Triangles: x, y, z, tone, kind per vertex (tone: how light the surface is, 0 to 1; kind: 0 a flat face, drawn as
+   * the board's dotted paper, 1 a wall). */
   faces: Float32Array;
   /** Line segments: x, y, z per vertex, in pairs. */
   lines: Float32Array;
@@ -127,7 +128,7 @@ export function buildNebula(seed: number): Geometry {
           }
         }
         for (let n = 1; n + 1 < poly.length; n++) {
-          faces.push(poly[0][0], y, poly[0][1], plate, poly[n][0], y, poly[n][1], plate, poly[n + 1][0], y, poly[n + 1][1], plate);
+          faces.push(poly[0][0], y, poly[0][1], plate, 0, poly[n][0], y, poly[n][1], plate, 0, poly[n + 1][0], y, poly[n + 1][1], plate, 0);
         }
         // The layer's edge through this cell: its outline, and its wall down to the layer below.
         for (let n = 0; n + 1 < edges.length; n += 2) {
@@ -139,10 +140,13 @@ export function buildNebula(seed: number): Geometry {
           const lit = Math.max(0, (-gx * lx - gz * lz) / gl);
           const wall = 0.5 + 0.38 * lit - 0.1 * (j / LAYERS);
           const yb = y - dy;
-          faces.push(p[0], y, p[1], wall, q[0], y, q[1], wall, q[0], yb, q[1], wall, p[0], y, p[1], wall, q[0], yb, q[1], wall, p[0], yb, p[1], wall);
+          faces.push(p[0], y, p[1], wall, 1, q[0], y, q[1], wall, 1, q[0], yb, q[1], wall, 1, p[0], y, p[1], wall, 1, q[0], yb, q[1], wall, 1, p[0], yb, p[1], wall, 1);
         }
       }
     }
   }
+  // The floor the model stands on, reaching out to the horizon: the same dotted paper as its faces.
+  const F = 40, fy = -SY - 0.002;
+  faces.push(-F, fy, -F, 1, 0, F, fy, -F, 1, 0, F, fy, F, 1, 0, -F, fy, -F, 1, 0, F, fy, F, 1, 0, -F, fy, F, 1, 0);
   return { faces: new Float32Array(faces), lines: new Float32Array(lines) };
 }

@@ -12,6 +12,9 @@
 
 import { buildNebula, type Geometry } from './nebula-geometry';
 
+/** The board's paper (#f4f3ef), which everything fades into. */
+const PAPER = [0.957, 0.953, 0.937];
+
 const geometries = new Map<number, Promise<Geometry>>();
 
 /** A universe's nebula, worked out in a worker (or here, where workers are unavailable), once per seed. */
@@ -43,27 +46,56 @@ function geometry(seed: number): Promise<Geometry> {
 // ---------- drawing ----------
 
 const FACE_VERT = `
-attribute vec3 aPos; attribute float aTone;
+attribute vec3 aPos; attribute float aTone; attribute float aKind;
 uniform mat4 uView; uniform mat4 uProj;
-varying float vTone; varying float vFog;
+varying float vTone; varying float vKind; varying float vDist; varying vec3 vWorld;
 void main() {
   vec4 v = uView * vec4(aPos, 1.0);
   gl_Position = uProj * v;
   vTone = aTone;
-  // The far side fades a little into the paper, so the model has depth.
-  vFog = clamp((-v.z - 3.4) / 4.0, 0.0, 0.55);
+  vKind = aKind;
+  vDist = -v.z;
+  vWorld = aPos;
 }`;
 
+/**
+ * Everything is the battle board: flat faces (the model's layers and the floor) are its paper, with its dotted
+ * grid and its schematic rings drawn into them; walls are its grey front edge, shaded by the light. Far off,
+ * it all fades into the paper.
+ */
 const FACE_FRAG = `
-precision mediump float;
-varying float vTone; varying float vFog;
+#extension GL_OES_standard_derivatives : enable
+precision highp float;
+varying float vTone; varying float vKind; varying float vDist; varying vec3 vWorld;
 uniform vec3 uPaper; uniform float uFade;
+float aa(float d, float w) { return 1.0 - smoothstep(0.0, w, d); }
 void main() {
-  // The board's own greys: shaded walls slate, lit faces near the paper's white.
-  vec3 shade = vec3(0.70, 0.73, 0.80);
-  vec3 lit = vec3(0.985, 0.984, 0.975);
-  vec3 c = mix(mix(shade, lit, vTone), uPaper, vFog);
-  gl_FragColor = vec4(c * uFade, uFade);
+  vec3 c;
+  if (vKind < 0.5) {
+    c = mix(vec3(0.925, 0.925, 0.915), vec3(0.995, 0.994, 0.99), vTone);
+    vec2 p = vWorld.xz;
+    // The dotted grid.
+    float S = 0.17;
+    vec2 g = abs(fract(p / S + 0.5) - 0.5) * S;
+    float dd = length(g);
+    float w = max(fwidth(dd), 1e-4);
+    float dotv = 1.0 - smoothstep(0.011 - w, 0.011 + w, dd);
+    // Its schematic rings round the middle, as round the board's star.
+    float r = length(p);
+    float RS = 0.42;
+    float rd = abs(fract(r / RS + 0.5) - 0.5) * RS;
+    float ring = aa(rd, max(fwidth(r), 1e-4) * 1.1) * step(0.55, r);
+    // Small detail fades out with distance before it can shimmer.
+    float near = 1.0 - smoothstep(6.0, 14.0, vDist);
+    c = mix(c, vec3(0.47, 0.53, 0.67), dotv * 0.42 * near);
+    c = mix(c, vec3(0.55, 0.59, 0.69), ring * 0.38 * near);
+  } else {
+    // The board's front edge: #dcdbd5 where lit, a cool grey in shadow.
+    c = mix(vec3(0.74, 0.76, 0.81), vec3(0.90, 0.895, 0.875), vTone);
+  }
+  float fog = smoothstep(4.5, 22.0, vDist);
+  c = mix(c, uPaper, fog);
+  gl_FragColor = vec4(c * uFade + uPaper * (1.0 - uFade), 1.0);
 }`;
 
 const LINE_VERT = `
@@ -73,7 +105,7 @@ varying float vFog;
 void main() {
   vec4 v = uView * vec4(aPos, 1.0);
   gl_Position = uProj * v;
-  vFog = clamp((-v.z - 3.4) / 4.0, 0.0, 0.7);
+  vFog = smoothstep(4.5, 16.0, -v.z);
 }`;
 
 const LINE_FRAG = `
@@ -81,8 +113,9 @@ precision mediump float;
 varying float vFog;
 uniform float uFade;
 void main() {
-  float a = 0.6 * (1.0 - vFog) * uFade;
-  gl_FragColor = vec4(vec3(0.33, 0.39, 0.53) * a, a);
+  // Drawn in, as the board's schematic lines are.
+  float a = 0.55 * (1.0 - vFog) * uFade;
+  gl_FragColor = vec4(vec3(0.40, 0.46, 0.60) * a, a);
 }`;
 
 function shader(gl: WebGLRenderingContext, type: number, src: string) {
@@ -146,6 +179,7 @@ export class Nebula {
     const gl = canvas.getContext('webgl', { antialias: true, alpha: true, premultipliedAlpha: true, depth: true });
     if (!gl) throw new Error('no webgl');
     this.gl = gl;
+    gl.getExtension('OES_standard_derivatives');
     const program = (vs: string, fs: string) => {
       const p = gl.createProgram()!;
       gl.attachShader(p, shader(gl, gl.VERTEX_SHADER, vs));
@@ -173,7 +207,7 @@ export class Nebula {
         gl.bufferData(gl.ARRAY_BUFFER, g.faces, gl.STATIC_DRAW);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuf);
         gl.bufferData(gl.ARRAY_BUFFER, g.lines, gl.STATIC_DRAW);
-        this.faceCount = g.faces.length / 4;
+        this.faceCount = g.faces.length / 5;
         this.lineCount = g.lines.length / 3;
         // Fade in (at once if motion is reduced).
         this.fade = this.reduce ? 1 : 0;
@@ -238,7 +272,8 @@ export class Nebula {
       c.height = h;
     }
     gl.viewport(0, 0, w, h);
-    gl.clearColor(0, 0, 0, 0);
+    // The paper itself (the floor fades into it at the horizon), so the whole picture is one.
+    gl.clearColor(PAPER[0], PAPER[1], PAPER[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     if (!this.faceCount) return;
     const aspect = w / h;
@@ -263,16 +298,19 @@ export class Nebula {
       return p;
     };
     // The solid model first, pushed back a hair so the outlines on its edges win.
-    const fp = use(this.faceProg, this.faceBuf, 16);
-    const tone = gl.getAttribLocation(fp, 'aTone');
+    const fp = use(this.faceProg, this.faceBuf, 20);
+    const tone = gl.getAttribLocation(fp, 'aTone'), kind = gl.getAttribLocation(fp, 'aKind');
     gl.enableVertexAttribArray(tone);
-    gl.vertexAttribPointer(tone, 1, gl.FLOAT, false, 16, 12);
-    gl.uniform3f(gl.getUniformLocation(fp, 'uPaper'), 0.957, 0.953, 0.937);
+    gl.vertexAttribPointer(tone, 1, gl.FLOAT, false, 20, 12);
+    gl.enableVertexAttribArray(kind);
+    gl.vertexAttribPointer(kind, 1, gl.FLOAT, false, 20, 16);
+    gl.uniform3f(gl.getUniformLocation(fp, 'uPaper'), PAPER[0], PAPER[1], PAPER[2]);
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(1, 2);
     gl.drawArrays(gl.TRIANGLES, 0, this.faceCount);
     gl.disable(gl.POLYGON_OFFSET_FILL);
     gl.disableVertexAttribArray(tone);
+    gl.disableVertexAttribArray(kind);
     use(this.lineProg, this.lineBuf, 12);
     gl.drawArrays(gl.LINES, 0, this.lineCount);
   }
