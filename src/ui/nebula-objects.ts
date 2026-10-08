@@ -23,16 +23,17 @@ export interface MapObject {
   dead?: boolean;
   /** A stable number to vary each one by (spin, phase). */
   seed: number;
+  /** What floats over it: a space station (spent once sold out or taken), a garrison of so many, damage. */
+  marks?: { armory?: boolean; research?: boolean; spent?: boolean; garrison?: number; damage?: number };
 }
 
-const STAR: Record<string, { c: [number, number, number]; r: number }> = {
-  yellow: { c: [0.97, 0.72, 0.3], r: 0.042 },
-  red: { c: [0.9, 0.42, 0.3], r: 0.034 },
-  white: { c: [0.93, 0.96, 1.0], r: 0.026 },
-  brown: { c: [0.58, 0.4, 0.31], r: 0.032 },
-  neutron: { c: [0.86, 0.92, 1.0], r: 0.02 },
-  heart: { c: [1.0, 0.99, 0.95], r: 0.05 },
-};
+/** Every system's star alike, in the board's paper (its kind is told in its popover, not its look). */
+const PAPER_STAR: [number, number, number] = [0.975, 0.97, 0.955];
+const STAR: Record<string, { c: [number, number, number]; r: number }> = Object.fromEntries(
+  ['yellow', 'red', 'white', 'brown', 'neutron', 'heart'].map((k) => [k, { c: PAPER_STAR, r: k === 'heart' ? 0.05 : 0.036 }]),
+);
+const INK: [number, number, number] = [0.45, 0.5, 0.63];
+const RED_INK: [number, number, number] = [0.78, 0.36, 0.32];
 
 const SOLID_VERT = `
 attribute vec3 aPos; attribute vec3 aNorm;
@@ -59,7 +60,8 @@ void main() {
   float ndv = abs(dot(normalize(vN), v));
   vec3 ink = vec3(0.40, 0.46, 0.60);
   if (uKind < 0.5) {
-    vec3 c = mix(uColor * 0.78, mix(uColor, vec3(1.0), 0.55), pow(ndv, 1.4));
+    float lit = max(0.0, dot(normalize(vN), normalize(vec3(0.5, 0.8, 0.35))));
+    vec3 c = mix(uColor * 0.72, mix(uColor, vec3(1.0), 0.5), clamp(0.35 * pow(ndv, 1.4) + 0.65 * lit, 0.0, 1.0));
     c = mix(c, ink, (1.0 - smoothstep(0.12, 0.32, ndv)) * 0.55);
     gl_FragColor = vec4(c * uAlpha, uAlpha);
   } else if (uKind < 1.5) {
@@ -68,7 +70,7 @@ void main() {
   } else if (uKind < 2.5) {
     float out_ = vL.x;
     float swirl = 0.5 + 0.5 * sin(vL.y * 10.0 - uTime * 2.2 + out_ * 9.0);
-    vec3 c = mix(vec3(1.0, 0.95, 0.82), vec3(0.88, 0.58, 0.24), out_);
+    vec3 c = mix(vec3(0.99, 0.985, 0.97), vec3(0.45, 0.5, 0.63), out_);
     float a = (1.0 - smoothstep(0.55, 1.0, out_)) * (0.55 + 0.45 * swirl) * 0.9 * uAlpha;
     gl_FragColor = vec4(c * a, a);
   } else {
@@ -156,6 +158,40 @@ function beam(): Float32Array {
   return new Float32Array(out);
 }
 
+/** A flat-faced solid from its triangles (corner lists), with each face's own normal: position and normal per vertex. */
+function faceted(tris: number[][][]): Float32Array {
+  const out: number[] = [];
+  for (const [a, b, c] of tris) {
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const l = Math.hypot(n[0], n[1], n[2]) || 1;
+    n = n.map((x) => x / l);
+    // (Facing out from the middle.)
+    if (n[0] * (a[0] + b[0] + c[0]) + n[1] * (a[1] + b[1] + c[1]) + n[2] * (a[2] + b[2] + c[2]) < 0) n = n.map((x) => -x);
+    for (const p of [a, b, c]) out.push(p[0], p[1], p[2], n[0], n[1], n[2]);
+  }
+  return new Float32Array(out);
+}
+const cube = () => {
+  const q = (a: number[], b: number[], c: number[], d: number[]) => [[a, b, c], [a, c, d]];
+  const P = (x: number, y: number, z: number) => [x, y, z];
+  return faceted([
+    ...q(P(-1, -1, 1), P(1, -1, 1), P(1, 1, 1), P(-1, 1, 1)), ...q(P(-1, -1, -1), P(-1, 1, -1), P(1, 1, -1), P(1, -1, -1)),
+    ...q(P(-1, 1, -1), P(-1, 1, 1), P(1, 1, 1), P(1, 1, -1)), ...q(P(-1, -1, -1), P(1, -1, -1), P(1, -1, 1), P(-1, -1, 1)),
+    ...q(P(1, -1, -1), P(1, 1, -1), P(1, 1, 1), P(1, -1, 1)), ...q(P(-1, -1, -1), P(-1, -1, 1), P(-1, 1, 1), P(-1, 1, -1)),
+  ]);
+};
+const octahedron = () => {
+  const v = [[1, 0, 0], [-1, 0, 0], [0, 1.4, 0], [0, -1.4, 0], [0, 0, 1], [0, 0, -1]];
+  const t: number[][][] = [];
+  for (const y of [2, 3]) for (const [a, b] of [[0, 4], [4, 1], [1, 5], [5, 0]]) t.push([v[a], v[b], v[y]]);
+  return faceted(t);
+};
+const tetra = () => {
+  const v = [[0, 1.3, 0], [1, -0.6, 0.6], [-1, -0.6, 0.6], [0, -0.6, -1.1]];
+  return faceted([[v[0], v[1], v[2]], [v[0], v[2], v[3]], [v[0], v[3], v[1]], [v[1], v[3], v[2]]]);
+};
+
 /** Column-major 4x4: translate, rotate about x then y, scale. */
 function model(x: number, y: number, z: number, rx: number, ry: number, s: number): Float32Array {
   const cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry);
@@ -175,7 +211,10 @@ export class MapObjects {
   private discBuf: WebGLBuffer;
   private beamBuf: WebGLBuffer;
   private quadBuf: WebGLBuffer;
-  private counts: { sphere: number; disc: number; beam: number };
+  private cubeBuf: WebGLBuffer;
+  private octaBuf: WebGLBuffer;
+  private tetraBuf: WebGLBuffer;
+  private counts: { sphere: number; disc: number; beam: number; cube: number; octa: number; tetra: number };
   private list: MapObject[] = [];
 
   constructor(private gl: WebGLRenderingContext) {
@@ -187,12 +226,15 @@ export class MapObjects {
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
       return b;
     };
-    const sp = sphere(), di = disc(), be = beam();
+    const sp = sphere(), di = disc(), be = beam(), cu = cube(), oc = octahedron(), te = tetra();
     this.sphereBuf = buf(sp);
     this.discBuf = buf(di);
     this.beamBuf = buf(be);
+    this.cubeBuf = buf(cu);
+    this.octaBuf = buf(oc);
+    this.tetraBuf = buf(te);
     this.quadBuf = buf(new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]));
-    this.counts = { sphere: sp.length / 6, disc: di.length / 6, beam: be.length / 6 };
+    this.counts = { sphere: sp.length / 6, disc: di.length / 6, beam: be.length / 6, cube: cu.length / 6, octa: oc.length / 6, tetra: te.length / 6 };
   }
 
   set(list: MapObject[]) {
@@ -230,31 +272,48 @@ export class MapObjects {
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
     gl.depthMask(true);
-    const grey = (c: [number, number, number], k: number): [number, number, number] => {
-      const l = c[0] * 0.3 + c[1] * 0.55 + c[2] * 0.15;
-      return [c[0] + (l - c[0]) * k, c[1] + (l - c[1]) * k, c[2] + (l - c[2]) * k];
-    };
     for (const o of this.list) {
       const star = STAR[o.kind];
       if (star) {
         const r = o.dead ? star.r * 0.55 : star.r;
-        const c: [number, number, number] = o.dead ? [0.62, 0.62, 0.64] : o.dim ? grey(star.c, 0.7) : star.c;
+        const c: [number, number, number] = o.dead ? [0.62, 0.62, 0.64] : o.dim ? [0.8, 0.81, 0.84] : star.c;
         draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, time * 0.2 + o.seed, r), 0, c, 1);
       } else if (o.kind === 'blackHole') {
         draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, 0, 0.045), 1, [0, 0, 0], 1);
       } else if (o.kind === 'pulsar') {
-        draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, 0, 0.022), 0, [0.86, 0.92, 1.0], 1);
+        draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, 0, 0.022), 0, PAPER_STAR, 1);
       } else if (o.kind === 'darkMatter') {
         for (let i = 0; i < 6; i++) {
           const a = time * 0.3 + o.seed + (i / 6) * Math.PI * 2, rr = 0.07 + 0.03 * Math.sin(i * 2.1);
-          draw(this.sphereBuf, this.counts.sphere, model(o.x + Math.cos(a) * rr, y + Math.sin(a * 1.3 + i) * 0.03, o.z + Math.sin(a) * rr, 0, 0, 0.014 + (i % 3) * 0.004), 0, [0.42, 0.44, 0.52], 1);
+          draw(this.sphereBuf, this.counts.sphere, model(o.x + Math.cos(a) * rr, y + Math.sin(a * 1.3 + i) * 0.03, o.z + Math.sin(a) * rr, 0, 0, 0.014 + (i % 3) * 0.004), 0, INK, 1);
         }
       } else if (o.kind === 'nebula') {
         for (let i = 0; i < 5; i++) {
           const a = time * 0.12 + o.seed + (i / 5) * Math.PI * 2, rr = 0.04 + (i % 2) * 0.03;
-          draw(this.sphereBuf, this.counts.sphere, model(o.x + Math.cos(a) * rr, y + 0.01 * i, o.z + Math.sin(a) * rr, 0, 0, 0.03 - i * 0.003), 0, [0.9, 0.9, 0.93], 0.999);
+          draw(this.sphereBuf, this.counts.sphere, model(o.x + Math.cos(a) * rr, y + 0.01 * i, o.z + Math.sin(a) * rr, 0, 0, 0.03 - i * 0.003), 0, PAPER_STAR, 1);
         }
       }
+    }
+    // ---- what floats over each system: small paper solids, bobbing and turning slowly ----
+    for (const o of this.list) {
+      const m = o.marks;
+      if (!m || o.dead) continue;
+      let h = 0.1;
+      const bob = Math.sin(time * 1.3 + o.seed * 7) * 0.008, spin = time * 0.6 + o.seed;
+      const a = m.spent ? 0.55 : 1;
+      if (m.armory) {
+        draw(this.cubeBuf, this.counts.cube, model(o.x, y + h + 0.02 + bob, o.z, 0.35, spin, 0.03), 0, PAPER_STAR, a);
+        h += 0.1;
+      }
+      if (m.research) {
+        draw(this.octaBuf, this.counts.octa, model(o.x, y + h + 0.03 + bob, o.z, 0, spin, 0.03), 0, PAPER_STAR, a);
+        h += 0.11;
+      }
+      for (let i = 0; i < Math.min(4, m.garrison ?? 0); i++) {
+        draw(this.sphereBuf, this.counts.sphere, new Float32Array([0.04, 0, 0, 0, 0, 0.009, 0, 0, 0, 0, 0.04, 0, o.x, y + h + i * 0.024 + bob, o.z, 1]), 0, PAPER_STAR, 1);
+      }
+      if (m.garrison) h += Math.min(4, m.garrison) * 0.024 + 0.04;
+      if (m.damage) draw(this.tetraBuf, this.counts.tetra, model(o.x, y + h + 0.02 + bob, o.z, 0.3, -spin, 0.028), 0, RED_INK, 1);
     }
     // ---- see-through: accretion discs, beams, glows, rings ----
     gl.enable(gl.BLEND);
@@ -266,7 +325,7 @@ export class MapObjects {
       } else if (o.kind === 'pulsar' || (o.kind === 'neutron' && !o.dead)) {
         // Two beams from the poles of a tilted axis, wheeling round.
         const spin = time * 1.6 + o.seed, len = o.kind === 'pulsar' ? 0.32 : 0.2;
-        for (const flip of [0, Math.PI]) draw(this.beamBuf, this.counts.beam, model(o.x, y, o.z, 0.5 + flip, spin, len), 3, [0.8, 0.88, 1.0], 1);
+        for (const flip of [0, Math.PI]) draw(this.beamBuf, this.counts.beam, model(o.x, y, o.z, 0.5 + flip, spin, len), 3, INK, 0.7);
       }
     }
     gl.disableVertexAttribArray(pos);
@@ -292,10 +351,10 @@ export class MapObjects {
       const star = STAR[o.kind];
       if (star && !o.dead) {
         const breathe = 1 + 0.06 * Math.sin(time * 1.1 + o.seed);
-        sprite(o.x, o.z, star.r * 3.2 * breathe, 0, star.c, o.dim ? 0.3 : 0.8);
+        sprite(o.x, o.z, star.r * 2.6 * breathe, 0, [1, 1, 1], o.dim ? 0.2 : 0.5);
         if (o.ring) sprite(o.x, o.z, star.r * 2.1, 1, o.ring, 1);
-      } else if (o.kind === 'blackHole') sprite(o.x, o.z, 0.2, 0, [0.95, 0.75, 0.45], 0.45);
-      else if (o.kind === 'pulsar') sprite(o.x, o.z, 0.09, 0, [0.85, 0.9, 1.0], 0.9);
+      } else if (o.kind === 'blackHole') sprite(o.x, o.z, 0.14, 0, [0.45, 0.5, 0.63], 0.25);
+      else if (o.kind === 'pulsar') sprite(o.x, o.z, 0.08, 0, [1, 1, 1], 0.6);
     }
     gl.disableVertexAttribArray(corner);
     gl.depthMask(true);

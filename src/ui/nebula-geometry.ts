@@ -2,9 +2,9 @@
  * The campaign's landscape, worked out once per universe (seeded): see nebula3d.ts. Pure, so it can run in a
  * worker (nebula.worker.ts) off the page's thread.
  *
- * A mesh landscape: a heightfield of soft hills and ridged mountains, low in a shallow valley where the strip of
- * systems lies (the strip floats just over it, on the plane y = 0), rising into mountains behind it, hills at its
- * ends and lower ones in front (so the strip stays in view). The ground is cut in advance into shards (a jittered
+ * A mesh landscape like a sea: a heightfield of long rolling swells and smaller waves on them, low in a shallow
+ * trough where the strip of systems lies (the strip floats just over it, on the plane y = 0), rising a little
+ * away from it, most behind (never peaks). The ground is cut in advance into shards (a jittered
  * grid of cells, each triangle given to the cell its middle falls in), each triangle carrying its own corners,
  * which of its edges lie on a shard's border, and its shard's middle: so when instability comes, the ground can
  * crack along those borders and the shards break away and fall (nebula3d.ts).
@@ -48,17 +48,7 @@ function makeNoise(seed: number) {
     }
     return sum;
   };
-  const ridged = (x: number, y: number, oct: number) => {
-    let sum = 0, amp = 0.5, f = 1;
-    for (let i = 0; i < oct; i++) {
-      const r = 1 - Math.abs(noise(x * f + i * 7.7, y * f + i * 3.3));
-      sum += amp * r * r;
-      amp *= 0.5;
-      f *= 2.1;
-    }
-    return sum;
-  };
-  return { fbm, ridged, rnd };
+  return { fbm, rnd };
 }
 
 const smooth = (a: number, b: number, x: number) => {
@@ -85,7 +75,7 @@ export interface Geometry {
 export const GROUND_STRIDE = 16;
 
 export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: [] }): Geometry {
-  const { fbm, ridged, rnd } = makeNoise(seed);
+  const { fbm, rnd } = makeNoise(seed);
   const range = (a: number, b: number) => a + rnd() * (b - a);
   // The strip's footprint, a little padded: the land lies low there.
   const xs = strip.nodes.map((n) => n[0]), zs = strip.nodes.map((n) => n[1]);
@@ -93,15 +83,15 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
   const fz0 = zs.length ? Math.min(...zs) - 0.35 : -0.6, fz1 = zs.length ? Math.max(...zs) + 0.35 : 0.6;
 
   const height = (x: number, z: number) => {
-    // How far outside the footprint (0 inside it), and which way.
+    // How far outside the footprint (0 inside it).
     const dx = Math.max(fx0 - x, 0, x - fx1), dzBack = Math.max(fz0 - z, 0), dzFront = Math.max(z - fz1, 0);
     const out = Math.hypot(dx, dzBack, dzFront);
-    // Mountains rise behind the strip, hills at its ends, lower ones in front.
-    const amp = Math.min(1, dzBack / 1.6) * 1.7 + Math.min(1, dx / 1.4) * 1.1 + Math.min(1, dzFront / 1.4) * 0.45;
-    const rise = smooth(0, 0.9, out);
-    const hills = fbm(x * 0.5 + 3, z * 0.5, 4) * 0.5;
-    const peaks = ridged(x * 0.32 + 11, z * 0.32, 5);
-    return -0.32 + 0.06 * fbm(x * 1.3, z * 1.3, 2) + rise * (amp * (peaks * 1.05 - 0.15) + hills * (0.4 + 0.4 * amp));
+    // Rolling, like a sea: long swells and smaller waves on them, a little higher away from the strip (most
+    // behind it), and never peaks.
+    const swell = Math.sin(x * 0.55 + z * 0.25 + fbm(x * 0.2, z * 0.2, 2) * 3) * 0.5 + 0.5;
+    const waves = fbm(x * 0.45 + 3, z * 0.6, 4);
+    const rise = smooth(0, 1.2, out) * (0.35 + 0.35 * Math.min(1, dzBack / 2));
+    return -0.32 + 0.05 * fbm(x * 1.3, z * 1.3, 2) + rise * (swell * 0.7 + waves * 0.6);
   };
 
   // The heights on the grid, and normals from them.

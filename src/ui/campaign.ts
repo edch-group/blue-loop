@@ -1742,6 +1742,13 @@ export class CampaignView {
         dim: !!(n.dimmed || n.collapsing),
         dead: !!(n.collapsed || n.ruined),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,
+        marks: {
+          armory: n.station?.kind === 'armory',
+          research: n.station?.kind === 'research',
+          spent: n.station?.kind === 'armory' ? !n.station.cards.length : n.station?.kind === 'research' ? !!n.station.takenBy : false,
+          garrison: n.garrison.length,
+          damage: n.damage,
+        },
       };
     });
     for (const a of s.anomalies ?? []) {

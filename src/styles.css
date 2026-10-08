@@ -6158,3 +6158,5 @@ body:has(.game-result) .dock { visibility: hidden; }
 .cmp-3d .cmp-n3 .cmp-star { background: none !important; box-shadow: none !important; filter: none !important; animation: none !important; }
 .cmp-3d .cmp-n3 .cmp-star > i:not(.cmp-bloom3d), .cmp-3d .cmp-n3 .cmp-star::before, .cmp-3d .cmp-n3 .cmp-star::after { display: none !important; }
 .cmp-3d .cmp-an .an-bb > span { visibility: hidden; }
+/* (The marks over systems are 3D objects too, drawn by the nebula: the page's own are put away.) */
+.cmp-3d .cmp-n3 .cmp-badges { visibility: hidden; }
