@@ -1,11 +1,16 @@
 /**
  * The campaign nebula's shape, worked out once per universe (seeded): see nebula3d.ts. Pure, so it can run
  * in a worker (nebula.worker.ts) off the page's thread.
+ *
+ * The gas is cut into a dozen horizontal layers and built up like a laser-cut contour model: each layer a
+ * solid slab, its top face filled, its side walls shaded by the way they face the light, and one outline
+ * round its top edge. Opaque, so the nearer layers hide what lies behind them.
  */
 
-const SX = 2.2, SY = 1.15, SZ = 1.2;            // half-size of the volume (x across, y up, z toward the viewer)
-const NX = 128, NZ = 72, NY = 42;               // the sampling grid (x, z per slice) and the number of slices
-const LEVELS = [0.0, 0.55];                     // contour levels: the cloud's outline, and its denser core
+const SX = 2.2, SY = 1.0, SZ = 1.25;           // half-size of the volume (x across, y up, z toward the viewer)
+const NX = 112, NZ = 64;                        // the sampling grid of each layer
+const LAYERS = 13;                              // how many layers the gas is cut into
+const ISO = 0;                                  // the gas's surface
 
 // ---------- noise (seeded value noise, fBm) ----------
 
@@ -49,126 +54,95 @@ const smooth = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-// ---------- the volume, and its schematic ----------
-
 export interface Geometry {
-  lines: Float32Array;   // x, y, z, lit, weight per vertex (pairs make segments)
-  dots: Float32Array;    // x, y, z, size, weight per dot
+  /** Triangles: x, y, z, tone per vertex (tone: how light the surface is, 0 to 1). */
+  faces: Float32Array;
+  /** Line segments: x, y, z per vertex, in pairs. */
+  lines: Float32Array;
 }
 
 export function buildNebula(seed: number): Geometry {
   const { fbm, rnd } = makeNoise(seed);
-  // Pillars: columns rising from the bank toward the light, leaning a little, with dense knots at their heads.
-  const count = 3 + Math.floor(rnd() * 2);
+  // A few broad pillars rising out of the bank toward the light, leaning a little, with knots at their heads.
+  const count = 2 + Math.floor(rnd() * 2);
   const pillars = Array.from({ length: count }, (_, i) => ({
-    x: -SX * 0.75 + (i + 0.3 + rnd() * 0.4) * ((SX * 1.5) / count),
-    z: (rnd() - 0.6) * SZ * 0.9,
-    top: 0.05 + rnd() * 0.55,
-    r: 0.10 + rnd() * 0.08,
-    lean: (rnd() - 0.5) * 0.5,
+    x: -SX * 0.55 + (i + 0.25 + rnd() * 0.5) * ((SX * 1.1) / count),
+    z: (rnd() - 0.65) * SZ * 0.7,
+    top: 0.35 + rnd() * 0.5,
+    r: 0.16 + rnd() * 0.08,
+    lean: (rnd() - 0.5) * 0.4,
   }));
   const density = (x: number, y: number, z: number) => {
-    // Fold space through slow noise so the gas billows and tears rather than sitting in round blobs.
-    const wx = fbm(x * 0.7, y * 0.7, z * 0.7, 3) * 0.55;
-    const wy = fbm(x * 0.7 + 31, y * 0.7, z * 0.7, 3) * 0.35;
-    const wz = fbm(x * 0.7, y * 0.7 + 47, z * 0.7, 3) * 0.55;
-    const px = x + wx, py = y + wy, pz = z + wz;
-    const n = fbm(px * 1.15, py * 1.15, pz * 1.15, 4);
-    // The cloud bank: dense below a ragged top that rises and falls across the strip.
-    const top = -0.5 + 0.75 * fbm(px * 0.55, 3.3, pz * 0.55, 3) + 0.16 * Math.sin(px * 1.3 + 0.8) + 0.12 * Math.sin(pz * 2.1 - px * 0.7);
-    let d = smooth(0.12, -0.18, py - top) * 1.3;
-    // The pillars, narrowing as they rise, with a knot at the head.
+    // Space folded through slow noise, so the shapes billow rather than sitting as plain blobs.
+    const px = x + fbm(x * 0.6, y * 0.6, z * 0.6, 2) * 0.45;
+    const pz = z + fbm(x * 0.6, y * 0.6 + 47, z * 0.6, 2) * 0.45;
+    // The bank: solid below a top that rises and falls in a few broad swells.
+    const top = -0.45 + 0.6 * fbm(px * 0.5, 3.3, pz * 0.5, 2) + 0.15 * Math.sin(px * 1.2 + 0.8);
+    let d = (top - y) * 2.2;
     for (const p of pillars) {
-      const cx = p.x + p.lean * (py - top), r = p.r * (1 + 0.9 * Math.max(0, p.top - py));
-      const dist = Math.hypot(px - cx, (pz - p.z) * 0.9);
-      const body = smooth(r * 1.1, r * 0.4, dist) * smooth(p.top + 0.05, p.top - 0.08, py);
-      const knot = smooth(r * 1.7, r * 0.5, Math.hypot(px - (p.x + p.lean * (p.top - top)), py - p.top, (pz - p.z) * 0.9));
-      d = Math.max(d, body * 1.2, knot * 1.5);
+      const base = -0.35;
+      const cx = p.x + p.lean * (y - base);
+      const r = p.r * (1 + 0.6 * Math.max(0, (p.top - y) / (p.top - base)));
+      const body = (r - Math.hypot(px - cx, (pz - p.z) * 0.9)) * 4 - Math.max(0, y - p.top) * 8;
+      const knot = (p.r * 1.45 - Math.hypot(px - (p.x + p.lean * (p.top - base)), (y - p.top) * 1.3, (pz - p.z) * 0.9)) * 4;
+      d = Math.max(d, body, knot);
     }
-    // Thin veils high up, torn into filaments.
-    const veil = Math.max(0, 1 - Math.abs(fbm(px * 0.9 + 70, py * 1.6, pz * 0.9, 3)) * 5) * smooth(0.6, 0.25, Math.abs(py - 0.5)) * 0.62;
-    // Fade out toward the volume's edges, so it has no box to it.
-    const edge = smooth(1, 0.62, Math.hypot(x / SX, z / SZ) + 0.18 * fbm(x * 0.8 + 11, 0, z * 0.8, 2)) * smooth(SY, SY * 0.8, Math.abs(y));
-    return (Math.max(d, veil) - 0.5 + n * 0.55) * edge - (1 - edge) * 0.6;
+    // Frayed a little at the edges, and rounded off toward the volume's rim (no box to it).
+    const rim = Math.hypot(x / SX, z / SZ) + 0.15 * fbm(x + 11, 0, z, 2);
+    return d + fbm(px * 1.1, y * 1.1, pz * 1.1, 3) * 0.5 - smooth(0.6, 1, rim) * 3;
   };
 
-  // Sample the grid, slice by slice from the top, carrying the light down each column as it is absorbed.
-  const field = new Float32Array(NY * NZ * NX);
-  const light = new Float32Array(NY * NZ * NX);
-  const sun = new Float32Array(NZ * NX).fill(1);
   const X = (i: number) => -SX + (2 * SX * i) / (NX - 1);
   const Z = (k: number) => -SZ + (2 * SZ * k) / (NZ - 1);
-  const Y = (j: number) => SY - (2 * SY * j) / (NY - 1);
-  const dy = (2 * SY) / (NY - 1);
-  for (let j = 0; j < NY; j++) {
-    const y = Y(j);
-    for (let k = 0; k < NZ; k++) {
-      for (let i = 0; i < NX; i++) {
-        const at = (j * NZ + k) * NX + i;
-        const d = density(X(i), y, Z(k));
-        field[at] = d;
-        light[at] = sun[k * NX + i];
-        sun[k * NX + i] *= Math.exp(-Math.max(0, d + 0.15) * dy * 6);
-      }
-    }
-  }
-
-  // Trace each slice's contours (marching squares, with the crossing points interpolated).
+  const dy = (2 * SY) / LAYERS;
+  const faces: number[] = [];
   const lines: number[] = [];
-  const at = (j: number, k: number, i: number) => (j * NZ + k) * NX + i;
-  for (let j = 1; j < NY - 1; j++) {
-    const y = Y(j);
-    for (let L = 0; L < LEVELS.length; L++) {
-      const iso = LEVELS[L];
-      const weight = L === 0 ? 0.45 : 1;
-      for (let k = 0; k < NZ - 1; k++) {
-        for (let i = 0; i < NX - 1; i++) {
-          const a = field[at(j, k, i)] - iso, b = field[at(j, k, i + 1)] - iso;
-          const c = field[at(j, k + 1, i + 1)] - iso, d = field[at(j, k + 1, i)] - iso;
-          const code = (a > 0 ? 1 : 0) | (b > 0 ? 2 : 0) | (c > 0 ? 4 : 0) | (d > 0 ? 8 : 0);
-          if (code === 0 || code === 15) continue;
-          const x0 = X(i), x1 = X(i + 1), z0 = Z(k), z1 = Z(k + 1);
-          const t = (p: number, q: number) => p / (p - q);
-          // Crossing points on the four edges: bottom (a-b), right (b-c), top (d-c), left (a-d).
-          const e = [
-            () => [x0 + (x1 - x0) * t(a, b), z0],
-            () => [x1, z0 + (z1 - z0) * t(b, c)],
-            () => [x0 + (x1 - x0) * t(d, c), z1],
-            () => [x0, z0 + (z1 - z0) * t(a, d)],
-          ];
-          const pairs = SEGMENTS[code];
-          // Only the dense cores catch the light in gold; the thin outer gas stays ink.
-          const lit = L === 0 ? 0 : light[at(j, k, i)];
-          for (let s = 0; s < pairs.length; s += 2) {
-            const [p, q] = [e[pairs[s]](), e[pairs[s + 1]]()];
-            lines.push(p[0], y, p[1], lit, weight, q[0], y, q[1], lit, weight);
+  const field = new Float32Array(NZ * NX);
+  // The light comes from above and to one side: walls facing it are lit, the rest shaded.
+  const lx = 0.55, lz = 0.35;
+  for (let j = 0; j < LAYERS; j++) {
+    const y = SY - (j + 0.5) * dy;
+    for (let k = 0; k < NZ; k++) for (let i = 0; i < NX; i++) field[k * NX + i] = density(X(i), y, Z(k)) - ISO;
+    // Higher layers are lighter, as if lit from above.
+    const plate = 0.72 + 0.28 * (1 - j / (LAYERS - 1));
+    for (let k = 0; k < NZ - 1; k++) {
+      for (let i = 0; i < NX - 1; i++) {
+        const a = field[k * NX + i], b = field[k * NX + i + 1], c = field[(k + 1) * NX + i + 1], d = field[(k + 1) * NX + i];
+        const inside = (a > 0 ? 1 : 0) | (b > 0 ? 2 : 0) | (c > 0 ? 4 : 0) | (d > 0 ? 8 : 0);
+        if (!inside) continue;
+        const x0 = X(i), x1 = X(i + 1), z0 = Z(k), z1 = Z(k + 1);
+        const cross = (p: number, q: number) => p / (p - q);
+        // The part of this cell inside the gas: its corners that are in, and where its edges cross out.
+        const corners: [number, number, number][] = [[x0, z0, a], [x1, z0, b], [x1, z1, c], [x0, z1, d]];
+        const poly: number[][] = [];
+        const edges: number[][] = [];
+        for (let e = 0; e < 4; e++) {
+          const [px, pz, pv] = corners[e], [qx, qz, qv] = corners[(e + 1) % 4];
+          if (pv > 0) poly.push([px, pz]);
+          if (pv > 0 !== qv > 0) {
+            const t = cross(pv, qv);
+            const pt = [px + (qx - px) * t, pz + (qz - pz) * t];
+            poly.push(pt);
+            edges.push(pt);
           }
+        }
+        for (let n = 1; n + 1 < poly.length; n++) {
+          faces.push(poly[0][0], y, poly[0][1], plate, poly[n][0], y, poly[n][1], plate, poly[n + 1][0], y, poly[n + 1][1], plate);
+        }
+        // The layer's edge through this cell: its outline, and its wall down to the layer below.
+        for (let n = 0; n + 1 < edges.length; n += 2) {
+          const [p, q] = [edges[n], edges[n + 1]];
+          lines.push(p[0], y, p[1], q[0], y, q[1]);
+          // The wall faces out of the gas: away from where the field rises.
+          const gx = b - a + c - d, gz = d - a + c - b;
+          const gl = Math.hypot(gx, gz) || 1;
+          const lit = Math.max(0, (-gx * lx - gz * lz) / gl);
+          const wall = 0.5 + 0.38 * lit - 0.1 * (j / LAYERS);
+          const yb = y - dy;
+          faces.push(p[0], y, p[1], wall, q[0], y, q[1], wall, q[0], yb, q[1], wall, p[0], y, p[1], wall, q[0], yb, q[1], wall, p[0], yb, p[1], wall);
         }
       }
     }
   }
-
-  // Dust: dots scattered through the gas, thicker where it is denser; and a dotted floor grid beneath.
-  const dots: number[] = [];
-  for (let n = 0; n < 45000 && dots.length < 20000 * 5; n++) {
-    const x = (rnd() * 2 - 1) * SX, y = (rnd() * 2 - 1) * SY, z = (rnd() * 2 - 1) * SZ;
-    const d = density(x, y, z);
-    if (rnd() < smooth(-0.15, 0.35, d) * 0.9) dots.push(x, y, z, 1 + rnd() * 1.2, 0.5 + 0.5 * smooth(-0.2, 0.6, d));
-  }
-  const floor = -SY - 0.08;
-  for (let x = -SX * 1.3; x <= SX * 1.3 + 1e-6; x += 0.1) for (let z = -SZ * 1.2; z <= SZ * 1.2 + 1e-6; z += 0.1) dots.push(x, floor, z, 1.6, -0.35);
-  // Far stars, and a few bright ones marked with a cross as on a chart.
-  for (let n = 0; n < 500; n++) {
-    const a = rnd() * Math.PI * 2, b = (rnd() - 0.3) * 1.2, r = 9 + rnd() * 3;
-    dots.push(Math.cos(a) * Math.cos(b) * r, Math.sin(b) * r, Math.sin(a) * Math.cos(b) * r, 1 + rnd() * 1.5, -0.6);
-  }
-  for (let n = 0; n < 10; n++) {
-    const x = (rnd() * 2 - 1) * SX * 1.1, y = (rnd() * 2 - 1) * SY, z = (rnd() * 2 - 1) * SZ, l = 0.02 + rnd() * 0.02;
-    lines.push(x - l, y, z, 2, 1, x + l, y, z, 2, 1, x, y - l, z, 2, 1, x, y + l, z, 2, 1);
-  }
-  return { lines: new Float32Array(lines), dots: new Float32Array(dots) };
+  return { faces: new Float32Array(faces), lines: new Float32Array(lines) };
 }
-
-/** Marching squares: for each corner pattern, the pairs of edges its contour runs between. */
-const SEGMENTS: number[][] = [[], [3, 0], [0, 1], [3, 1], [1, 2], [3, 0, 1, 2], [0, 2], [3, 2], [3, 2], [0, 2], [0, 1, 2, 3], [1, 2], [3, 1], [0, 1], [3, 0], []];
-

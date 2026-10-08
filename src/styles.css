@@ -2822,10 +2822,11 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .cmp {
   /* The board the systems sit on, as on every other screen (the page's own background); the nebula lies over it. */
   overflow: hidden;
+  /* As the battle board: a dotted grid and faint rings round the middle, on the board's paper. */
   background:
-    radial-gradient(ellipse 70% 60% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0.6) 40%, transparent 75%),
-    radial-gradient(ellipse 120% 90% at 50% 110%, #dedcd8 0%, transparent 60%),
-    linear-gradient(180deg, #faf9f6, var(--paper) 55%, #e0dfdb);
+    radial-gradient(circle, rgba(120, 135, 170, 0.22) 0 1px, transparent 1.6px) 0 0 / 38px 38px,
+    repeating-radial-gradient(circle at 50% 55%, transparent 0 88px, rgba(140, 150, 175, 0.13) 88px 89px),
+    radial-gradient(ellipse 70% 60% at 50% 45%, #ffffff, #f4f3ef 60%, #ebeae5);
 }
 .cmp-nebula {
   /* The nebula behind the strip, a 3D schematic drawn with WebGL (nebula3d.ts); its camera turns on its own. */

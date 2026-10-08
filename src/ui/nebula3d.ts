@@ -1,13 +1,10 @@
 /**
- * The campaign map's nebula: a real 3D object behind the strip, drawn as a schematic in the battle board's
- * style (fine ink lines and dots on the paper).
+ * The campaign map's nebula: a real 3D object behind the strip, drawn in the battle board's schematic style.
  *
- * A volume of gas is worked out once per universe (seeded): a dark cloud bank with pillars rising out of it
- * toward the light overhead, knotted at their heads, and thin torn veils above, all frayed by warped noise.
- * It is cut into horizontal slices and each slice's outline traced (marching squares), so the cloud reads
- * as a stack of contour lines, as a survey would draw it; dust hangs as dots, and a dotted floor grid lies
- * beneath. Where the light from above reaches a surface its lines turn gold, as the lit edges of a real
- * nebula glow.
+ * Its shape (nebula-geometry.ts, worked out once per universe in a worker) is a cloud bank with a few pillars
+ * rising out of it, built up like a laser-cut contour model: a dozen solid layers, each with its top filled,
+ * its walls shaded by the way they face the light, and a single ink outline. It is opaque, so what is near
+ * hides what is behind, and the far side fades a little into the paper.
  *
  * It is drawn with WebGL from a camera of its own that can turn: it drifts slowly, leans toward the pointer,
  * turns as the flagship advances along the strip, and a drag across the map turns it by hand.
@@ -26,7 +23,7 @@ function geometry(seed: number): Promise<Geometry> {
       try {
         const w = new Worker(new URL('./nebula.worker.ts', import.meta.url), { type: 'module' });
         w.onmessage = (e: MessageEvent<Geometry>) => {
-          resolve({ lines: e.data.lines, dots: e.data.dots });
+          resolve({ faces: e.data.faces, lines: e.data.lines });
           w.terminate();
         };
         w.onerror = () => {
@@ -45,42 +42,47 @@ function geometry(seed: number): Promise<Geometry> {
 
 // ---------- drawing ----------
 
-const VERT = `
-attribute vec3 aPos; attribute float aLit; attribute float aWeight;
-uniform mat4 uView; uniform mat4 uProj; uniform float uPx; uniform float uDot;
-varying float vLit; varying float vAlpha;
+const FACE_VERT = `
+attribute vec3 aPos; attribute float aTone;
+uniform mat4 uView; uniform mat4 uProj;
+varying float vTone; varying float vFog;
 void main() {
   vec4 v = uView * vec4(aPos, 1.0);
   gl_Position = uProj * v;
-  float dist = -v.z;
-  // Farther lines fade into the paper, so the volume has depth.
-  float fog = clamp((8.5 - dist) / 5.0, 0.0, 1.0);
-  vLit = aLit;
-  vAlpha = (aWeight < 0.0 ? -aWeight : aWeight) * fog;
-  if (aWeight < -0.5) vAlpha = -aWeight * 0.9;   // far stars: no fog
-  gl_PointSize = uDot * aLit * uPx * clamp(3.4 / dist, 0.6, 1.6);
+  vTone = aTone;
+  // The far side fades a little into the paper, so the model has depth.
+  vFog = clamp((-v.z - 3.4) / 4.0, 0.0, 0.55);
 }`;
 
-const FRAG = `
+const FACE_FRAG = `
 precision mediump float;
-varying float vLit; varying float vAlpha;
-uniform float uDots; uniform float uFade;
+varying float vTone; varying float vFog;
+uniform vec3 uPaper; uniform float uFade;
 void main() {
-  vec3 ink = vec3(0.33, 0.39, 0.53);
-  vec3 gold = vec3(0.86, 0.58, 0.24);
-  float a = vAlpha;
-  vec3 c = ink;
-  if (uDots > 0.5) {
-    vec2 p = gl_PointCoord - 0.5;
-    a *= smoothstep(0.5, 0.2, length(p)) * 0.42;
-  } else {
-    // Lit surfaces glow gold, the rest is ink; chart crosses (lit 2) are gold.
-    float g = vLit > 1.5 ? 1.0 : smoothstep(0.55, 0.95, vLit);
-    c = mix(ink, gold, g);
-    a *= mix(0.26, 0.6, g);
-  }
-  a *= uFade;
-  gl_FragColor = vec4(c * a, a);
+  // The board's own greys: shaded walls slate, lit faces near the paper's white.
+  vec3 shade = vec3(0.70, 0.73, 0.80);
+  vec3 lit = vec3(0.985, 0.984, 0.975);
+  vec3 c = mix(mix(shade, lit, vTone), uPaper, vFog);
+  gl_FragColor = vec4(c * uFade, uFade);
+}`;
+
+const LINE_VERT = `
+attribute vec3 aPos;
+uniform mat4 uView; uniform mat4 uProj;
+varying float vFog;
+void main() {
+  vec4 v = uView * vec4(aPos, 1.0);
+  gl_Position = uProj * v;
+  vFog = clamp((-v.z - 3.4) / 4.0, 0.0, 0.7);
+}`;
+
+const LINE_FRAG = `
+precision mediump float;
+varying float vFog;
+uniform float uFade;
+void main() {
+  float a = 0.6 * (1.0 - vFog) * uFade;
+  gl_FragColor = vec4(vec3(0.33, 0.39, 0.53) * a, a);
 }`;
 
 function shader(gl: WebGLRenderingContext, type: number, src: string) {
@@ -113,18 +115,19 @@ function orbit(yaw: number, pitch: number, dist: number, ty: number) {
 
 export class Nebula {
   private gl: WebGLRenderingContext;
-  private prog: WebGLProgram;
+  private faceProg: WebGLProgram;
+  private lineProg: WebGLProgram;
+  private faceBuf: WebGLBuffer;
   private lineBuf: WebGLBuffer;
-  private dotBuf: WebGLBuffer;
+  private faceCount = 0;
   private lineCount = 0;
-  private dotCount = 0;
   private seed = -1;
   private raf = 0;
   private last = 0;
   private reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   /** Where the camera is, and where it is easing toward. */
   private yaw = 0;
-  private pitch = 0.42;
+  private pitch = 0.5;
   private drift = 0;
   private hand = { yaw: 0, pitch: 0 };
   private lean = { x: 0, y: 0, tx: 0, ty: 0 };
@@ -140,16 +143,20 @@ export class Nebula {
   };
 
   constructor(readonly canvas: HTMLCanvasElement) {
-    const gl = canvas.getContext('webgl', { antialias: true, alpha: true, premultipliedAlpha: true });
+    const gl = canvas.getContext('webgl', { antialias: true, alpha: true, premultipliedAlpha: true, depth: true });
     if (!gl) throw new Error('no webgl');
     this.gl = gl;
-    const p = gl.createProgram()!;
-    gl.attachShader(p, shader(gl, gl.VERTEX_SHADER, VERT));
-    gl.attachShader(p, shader(gl, gl.FRAGMENT_SHADER, FRAG));
-    gl.linkProgram(p);
-    this.prog = p;
+    const program = (vs: string, fs: string) => {
+      const p = gl.createProgram()!;
+      gl.attachShader(p, shader(gl, gl.VERTEX_SHADER, vs));
+      gl.attachShader(p, shader(gl, gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(p);
+      return p;
+    };
+    this.faceProg = program(FACE_VERT, FACE_FRAG);
+    this.lineProg = program(LINE_VERT, LINE_FRAG);
+    this.faceBuf = gl.createBuffer()!;
     this.lineBuf = gl.createBuffer()!;
-    this.dotBuf = gl.createBuffer()!;
     window.addEventListener('pointermove', this.onMove, { passive: true });
     this.wake();
   }
@@ -162,12 +169,12 @@ export class Nebula {
       void geometry(seed).then((g) => {
         if (this.seed !== seed || this.gl.isContextLost()) return;
         const gl = this.gl;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.faceBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, g.faces, gl.STATIC_DRAW);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuf);
         gl.bufferData(gl.ARRAY_BUFFER, g.lines, gl.STATIC_DRAW);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.dotBuf);
-        gl.bufferData(gl.ARRAY_BUFFER, g.dots, gl.STATIC_DRAW);
-        this.lineCount = g.lines.length / 5;
-        this.dotCount = g.dots.length / 5;
+        this.faceCount = g.faces.length / 4;
+        this.lineCount = g.lines.length / 3;
         // Fade in (at once if motion is reduced).
         this.fade = this.reduce ? 1 : 0;
         this.wake();
@@ -179,7 +186,7 @@ export class Nebula {
   /** Turn the nebula by hand (a drag across the map, in screen pixels). */
   turn(dx: number, dy: number) {
     this.hand.yaw += dx * 0.004;
-    this.hand.pitch = Math.max(-0.3, Math.min(0.55, this.hand.pitch + dy * 0.003));
+    this.hand.pitch = Math.max(-0.3, Math.min(0.5, this.hand.pitch + dy * 0.003));
     this.wake();
   }
 
@@ -232,34 +239,41 @@ export class Nebula {
     }
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (!this.faceCount) return;
+    const aspect = w / h;
+    // Back the camera off on narrow screens so the whole model stays in view.
+    const dist = 4.6 * Math.max(1, 1.6 / aspect);
+    const proj = perspective((36 * Math.PI) / 180, aspect, 0.1, 40);
+    const view = orbit(this.yaw, pitch, dist, -0.2);
+    const fade = this.fade * this.fade * (3 - 2 * this.fade);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    gl.useProgram(this.prog);
-    if (!this.lineCount) return;
-    gl.uniform1f(gl.getUniformLocation(this.prog, 'uFade'), this.fade * this.fade * (3 - 2 * this.fade));
-    const aspect = w / h;
-    // Back the camera off on narrow screens so the whole cloud stays in view.
-    const dist = 4.3 * Math.max(1, 1.6 / aspect);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.prog, 'uProj'), false, perspective((38 * Math.PI) / 180, aspect, 0.1, 40));
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.prog, 'uView'), false, orbit(this.yaw, pitch, dist, -0.15));
-    gl.uniform1f(gl.getUniformLocation(this.prog, 'uPx'), dpr);
-    const pos = gl.getAttribLocation(this.prog, 'aPos'), lit = gl.getAttribLocation(this.prog, 'aLit'), wt = gl.getAttribLocation(this.prog, 'aWeight');
-    const bind = (buf: WebGLBuffer) => {
+    const use = (p: WebGLProgram, buf: WebGLBuffer, stride: number) => {
+      gl.useProgram(p);
+      gl.uniformMatrix4fv(gl.getUniformLocation(p, 'uProj'), false, proj);
+      gl.uniformMatrix4fv(gl.getUniformLocation(p, 'uView'), false, view);
+      gl.uniform1f(gl.getUniformLocation(p, 'uFade'), fade);
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      const pos = gl.getAttribLocation(p, 'aPos');
       gl.enableVertexAttribArray(pos);
-      gl.enableVertexAttribArray(lit);
-      gl.enableVertexAttribArray(wt);
-      gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, 20, 0);
-      gl.vertexAttribPointer(lit, 1, gl.FLOAT, false, 20, 12);
-      gl.vertexAttribPointer(wt, 1, gl.FLOAT, false, 20, 16);
+      gl.vertexAttribPointer(pos, 3, gl.FLOAT, false, stride, 0);
+      return p;
     };
-    bind(this.dotBuf);
-    gl.uniform1f(gl.getUniformLocation(this.prog, 'uDots'), 1);
-    gl.uniform1f(gl.getUniformLocation(this.prog, 'uDot'), 1.6);
-    gl.drawArrays(gl.POINTS, 0, this.dotCount);
-    bind(this.lineBuf);
-    gl.uniform1f(gl.getUniformLocation(this.prog, 'uDots'), 0);
+    // The solid model first, pushed back a hair so the outlines on its edges win.
+    const fp = use(this.faceProg, this.faceBuf, 16);
+    const tone = gl.getAttribLocation(fp, 'aTone');
+    gl.enableVertexAttribArray(tone);
+    gl.vertexAttribPointer(tone, 1, gl.FLOAT, false, 16, 12);
+    gl.uniform3f(gl.getUniformLocation(fp, 'uPaper'), 0.957, 0.953, 0.937);
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(1, 2);
+    gl.drawArrays(gl.TRIANGLES, 0, this.faceCount);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.disableVertexAttribArray(tone);
+    use(this.lineProg, this.lineBuf, 12);
     gl.drawArrays(gl.LINES, 0, this.lineCount);
   }
 }
