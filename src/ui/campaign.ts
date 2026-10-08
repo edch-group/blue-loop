@@ -1624,6 +1624,13 @@ export class CampaignView {
       };
     });
     this.nebula.setObjects(objects);
+    // The routes, as tubes of soft light in the scene (in the holder's colour where both ends are held).
+    this.nebula.setRoutes(
+      this.rays.flatMap(({ a, b, gone, colour }) => {
+        const p = at.get(a), q = at.get(b);
+        return p && q ? [{ a: p, b: q, gone, colour: colour ? hex(colour) : undefined }] : [];
+      }),
+    );
     this.nebula.setGalaxy(s.galaxy ?? null);
     // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
     // column past the last one collapsing.

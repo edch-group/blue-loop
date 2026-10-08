@@ -6054,12 +6054,13 @@ body:has(.game-result) .dock { visibility: hidden; }
 
 /* ---- The map in the board's colours: routes and rings in paper, drawn round in ink; marks over systems as
    smooth paper tokens. ---- */
-/* Routes as neon (like the battle's beams): a blurred halo, a tube, a lighter band and a white-hot thread, humming. */
+/* Routes as soft white neon (the 3D map draws them as tubes of light in its scene instead: nebula-objects.ts). */
+.cmp-3d .cmp-rays { display: none; }
 .cmp-rays line { fill: none; stroke-linecap: round; }
-.cmp-rays .cmp-ray-glow { stroke: #4fb0ff; stroke-width: 7; opacity: 0.55; }
-.cmp-rays .cmp-ray-tube { stroke: #2a88f2; stroke-width: 3; opacity: 0.75; }
-.cmp-rays .cmp-ray-band { stroke: #b4e2ff; stroke-width: 1.8; }
-.cmp-rays .cmp-ray-core { stroke: #f6fcff; stroke-width: 0.8; }
+.cmp-rays .cmp-ray-glow { stroke: #8a8d96; stroke-width: 8; opacity: 0.3; }
+.cmp-rays .cmp-ray-tube { stroke: #e9e8e4; stroke-width: 3; opacity: 0.9; }
+.cmp-rays .cmp-ray-band { stroke: #fbfaf7; stroke-width: 1.8; }
+.cmp-rays .cmp-ray-core { stroke: #ffffff; stroke-width: 0.8; }
 .cmp-rays .cmp-ray-glow.cmp-ray-held { stroke: var(--fc); }
 .cmp-rays .cmp-ray-tube.cmp-ray-held { stroke: var(--fc); }
 .cmp-rays .cmp-ray-band.cmp-ray-held { stroke: color-mix(in srgb, var(--fc) 35%, #fff); }

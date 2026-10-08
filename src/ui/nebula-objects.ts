@@ -26,6 +26,14 @@ export interface MapObject {
   seed: number;
 }
 
+/** A route between two systems (world x, z at each end): held (in its holder's colour), or gone (a faint dashed trace). */
+export interface MapRoute {
+  a: [number, number];
+  b: [number, number];
+  colour?: [number, number, number];
+  gone?: boolean;
+}
+
 /** What lies under the galaxy (drawn on the layer behind the map). */
 export type GalaxyLook = 'blackHole' | 'pulsar' | 'meteors' | 'nebula' | 'darkMatter';
 
@@ -155,6 +163,53 @@ void main() {
   gl_FragColor = vec4(uColor * a, a);
 }`;
 
+/**
+ * A route as a tube of soft white light in the scene: a ribbon between its ends, turned to face the camera all along
+ * (so from any angle it reads as a round tube), as wide as the tube's glow in world units (so it shrinks with
+ * distance and hides behind the land and the suns).
+ */
+const ROUTE_VERT = `
+attribute vec3 aA; attribute vec3 aB; attribute vec2 aSide; attribute vec4 aColor;
+uniform mat4 uView; uniform mat4 uProj; uniform float uWidth;
+varying float vSide; varying float vAlong; varying vec4 vColor;
+void main() {
+  vec4 va = uView * vec4(aA, 1.0), vb = uView * vec4(aB, 1.0);
+  vec4 v = mix(va, vb, aSide.y);
+  vec2 d = vb.xy / -vb.z - va.xy / -va.z;
+  d = length(d) > 1e-6 ? normalize(d) : vec2(1.0, 0.0);
+  v.xy += vec2(-d.y, d.x) * aSide.x * uWidth;
+  gl_Position = uProj * v;
+  vSide = aSide.x;
+  vAlong = aSide.y * length(aB - aA);
+  vColor = aColor;
+}`;
+
+const ROUTE_FRAG = `
+precision highp float;
+varying float vSide; varying float vAlong; varying vec4 vColor;
+uniform float uTime; uniform float uAlpha;
+void main() {
+  float x = abs(vSide);
+  if (vColor.a < 0.5) {
+    // Gone: a faint dashed trace.
+    float dash = step(0.5, fract(vAlong * 18.0));
+    float a = (1.0 - smoothstep(0.15, 0.3, x)) * dash * 0.3 * uAlpha;
+    gl_FragColor = vec4(vec3(0.5, 0.52, 0.56) * a, a);
+    return;
+  }
+  // Neon: a soft halo falling away either side, a bright tube, a white-hot thread down its middle, humming.
+  float hum = 0.9 + 0.1 * sin(uTime * 2.3 + vAlong * 3.0) * sin(uTime * 0.7);
+  float halo = exp(-x * x * 6.0) * 0.42 * hum;
+  float tube = exp(-x * x * 45.0);
+  float core = exp(-x * x * 300.0);
+  vec3 tint = vColor.rgb;
+  // The halo is a soft shade (so white light shows on the paper); the tube is the light itself.
+  vec3 c = mix(tint * 0.62, tint, tube);
+  c = mix(c, vec3(1.0), core);
+  float a = max(halo, tube * 0.95) * uAlpha;
+  gl_FragColor = vec4(c * a, a);
+}`;
+
 function program(gl: WebGLRenderingContext, vs: string, fs: string) {
   const p = gl.createProgram()!;
   for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]] as const) {
@@ -226,10 +281,15 @@ export class MapObjects {
   private quadBuf: WebGLBuffer;
   private counts: { sphere: number; disc: number; beam: number };
   private list: MapObject[] = [];
+  private routeProg: WebGLProgram;
+  private routeBuf: WebGLBuffer;
+  private routeCount = 0;
 
   constructor(private gl: WebGLRenderingContext) {
     this.solid = program(gl, SOLID_VERT, SOLID_FRAG);
     this.sprite = program(gl, SPRITE_VERT, SPRITE_FRAG);
+    this.routeProg = program(gl, ROUTE_VERT, ROUTE_FRAG);
+    this.routeBuf = gl.createBuffer()!;
     const buf = (data: Float32Array) => {
       const b = gl.createBuffer()!;
       gl.bindBuffer(gl.ARRAY_BUFFER, b);
@@ -246,6 +306,49 @@ export class MapObjects {
 
   set(list: MapObject[]) {
     this.list = list;
+  }
+
+  /** The routes, as they stand: each a ribbon of six corners (start, end, which side, how far along, colour). */
+  setRoutes(routes: MapRoute[]) {
+    const gl = this.gl;
+    const out: number[] = [];
+    for (const r of routes) {
+      const A = [r.a[0], 0, r.a[1]], B = [r.b[0], 0, r.b[1]];
+      const c = r.colour ?? [1, 1, 1];
+      const corner = (side: number, t: number) => out.push(...A, ...B, side, t, c[0], c[1], c[2], r.gone ? 0 : 1);
+      corner(-1, 0); corner(1, 0); corner(1, 1);
+      corner(-1, 0); corner(1, 1); corner(-1, 1);
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.routeBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.DYNAMIC_DRAW);
+    this.routeCount = out.length / 12;
+  }
+
+  /** The routes: soft tubes of light, behind the suns and the land where those stand in front. */
+  private drawRoutes(cam: Camera, time: number, fade: number) {
+    const gl = this.gl;
+    if (!this.routeCount) return;
+    gl.useProgram(this.routeProg);
+    const u = (n: string) => gl.getUniformLocation(this.routeProg, n);
+    gl.uniformMatrix4fv(u('uView'), false, cam.view);
+    gl.uniformMatrix4fv(u('uProj'), false, cam.proj);
+    gl.uniform1f(u('uTime'), time);
+    gl.uniform1f(u('uAlpha'), fade);
+    gl.uniform1f(u('uWidth'), 0.04);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.routeBuf);
+    const locs: number[] = [];
+    let off = 0;
+    for (const [name, n] of [['aA', 3], ['aB', 3], ['aSide', 2], ['aColor', 4]] as const) {
+      const l = gl.getAttribLocation(this.routeProg, name);
+      if (l >= 0) {
+        gl.enableVertexAttribArray(l);
+        gl.vertexAttribPointer(l, n, gl.FLOAT, false, 48, off);
+        locs.push(l);
+      }
+      off += n * 4;
+    }
+    gl.drawArrays(gl.TRIANGLES, 0, this.routeCount);
+    for (const l of locs) gl.disableVertexAttribArray(l);
   }
 
   /** The solids' program, ready to draw with: a function drawing one buffer with a model, a kind, a colour. */
@@ -305,7 +408,7 @@ export class MapObjects {
   /** Draw the suns: their bodies first (with depth), then their glow, flares and rings over them. */
   draw(cam: Camera, time: number, fade: number) {
     const gl = this.gl;
-    if (!this.list.length) return;
+    if (!this.list.length && !this.routeCount) return;
     const y = 0;
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
@@ -324,6 +427,7 @@ export class MapObjects {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
+    this.drawRoutes(cam, time, fade);
     const sprite = this.sprites(cam, time, fade);
     for (const o of this.list) {
       if (o.dead) continue;
