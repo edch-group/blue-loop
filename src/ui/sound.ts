@@ -1,4 +1,5 @@
 import { markDirty } from './account';
+import heatFire from '../assets/sfx/heat-fire.mp3?inline';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -14,6 +15,13 @@ import { markDirty } from './account';
  */
 
 const PREFS_KEY = 'blue-loop:sound';
+
+/**
+ * Recorded effects (made from sfx-raw/ by `npm run sfx`), built into the code as data (so they load in the desktop
+ * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
+ * late.
+ */
+const SFX = { heatFire };
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
 function silentWav(): string {
@@ -138,6 +146,7 @@ class SoundBoard {
   private sfx: GainNode | null = null;
   /** Sounds kept out of the reverb: paper on paper is close and dry (in the hall, a sweep across the hand swelled into a roar). */
   private sfxDry: GainNode | null = null;
+  private lastHandLift = -Infinity;
   private musicBus: GainNode | null = null;
   /** The battle theme's two faders: one lightly reverbed (bass, kick), one drenched like the ambient score. */
   private battleBus: GainNode | null = null;
@@ -327,6 +336,7 @@ class SoundBoard {
       const data = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     }
+    for (const url of Object.values(SFX)) this.load(url);
     if (!this.muted) this.mediaPlayback();
     if (this.ctx.state !== 'running') {
       // Resuming is asynchronous: start the music once the context is actually running.
@@ -474,6 +484,9 @@ class SoundBoard {
   }
   /** The hand lifted to be read: a fan of cards sliding against each other (a longer brush, a spill of crackles). */
   handLift() {
+    // (The hand can lift twice in a breath, as the pointer grazes its edge or a card is dragged straight out: once.)
+    if (performance.now() - this.lastHandLift < 900) return;
+    this.lastHandLift = performance.now();
     this.lastRustle = performance.now();
     this.breath({ dur: 0.34, freq: 1800, to: 3800, q: 0.6, gain: 0.03, attack: 0.06, type: 'bandpass', out: this.sfxDry ?? undefined });
     for (let i = 0; i < 7; i++)
@@ -510,9 +523,9 @@ class SoundBoard {
     this.breath({ dur: 1.8, freq: 180, to: 1400, type: 'lowpass', q: 2, gain: 0.16, attack: 0.55 });
     this.voice(55, { dur: 1.8, attack: 0.5, gain: 0.12, to: 110, type: 'triangle', cutoff: 400 });
   }
-  /** Heat thrown at a rival: a short rising rush that leads into the strike (the strike is the blow). */
+  /** Heat fired at a rival or a card: the recorded laser, slowed a little (the strike, as it lands, is the blow). */
   launch() {
-    this.breath({ dur: 0.5, freq: 400, to: 2200, type: 'bandpass', q: 1.2, gain: 0.06, attack: 0.3 });
+    this.clip(SFX.heatFire, 0.55);
   }
   /**
    * The targeting beam sweeping onto a card: an airy swish that rises as it flies, then (if it takes the card
@@ -637,19 +650,25 @@ class SoundBoard {
   /** Decoded recordings, by URL (each is fetched once). */
   private clips = new Map<string, Promise<AudioBuffer | null>>();
 
-  /** Play a recording (a hero's voice line) through the effects mix, so it sits in the same hall. */
+  /** Decode a recording once (kept for every later play). A data URL is decoded in place; anything else fetched. */
+  private load(url: string): Promise<AudioBuffer | null> {
+    let buf = this.clips.get(url);
+    if (!buf) {
+      const ctx = this.ctx!;
+      const bytes = url.startsWith('data:')
+        ? Promise.resolve(Uint8Array.from(atob(url.slice(url.indexOf(',') + 1)), (c) => c.charCodeAt(0)).buffer)
+        : fetch(url).then((r) => r.arrayBuffer());
+      buf = bytes.then((data) => ctx.decodeAudioData(data)).catch(() => null);
+      this.clips.set(url, buf);
+    }
+    return buf;
+  }
+
+  /** Play a recording (a voice line, a recorded effect) through the effects mix, so it sits in the same hall. */
   clip(url: string, gain = 0.85) {
     const ctx = this.ready();
     if (!ctx) return;
-    let buf = this.clips.get(url);
-    if (!buf) {
-      buf = fetch(url)
-        .then((r) => r.arrayBuffer())
-        .then((data) => ctx.decodeAudioData(data))
-        .catch(() => null);
-      this.clips.set(url, buf);
-    }
-    void buf.then((b) => {
+    void this.load(url).then((b) => {
       if (!b || !this.ready()) return;
       const src = ctx.createBufferSource();
       src.buffer = b;

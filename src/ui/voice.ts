@@ -8,10 +8,11 @@ import { sound } from './sound';
 
 /**
  * Recorded lines, found by file name: src/assets/voice/<card id>-<line>.mp3, where <line> counts from 0 in that
- * hero's lines below. Made from raw takes in voice-raw/ by `npm run voice`.
+ * hero's lines below. Made from raw takes in voice-raw/ by `npm run voice`. Built into the code as data, so they
+ * play in the desktop app too (which runs from file://, where files can't be fetched).
  */
 const RECORDED: Record<string, string> = Object.fromEntries(
-  Object.entries(import.meta.glob<string>('../assets/voice/*.mp3', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
+  Object.entries(import.meta.glob<string>('../assets/voice/*.mp3', { eager: true, query: '?inline', import: 'default' })).map(([path, url]) => [
     path.replace(/^.*\/|\.mp3$/g, ''),
     url,
   ]),
