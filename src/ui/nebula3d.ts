@@ -2,12 +2,11 @@
  * The campaign map's nebula, and the 3D space the map itself lies in, drawn in the battle board's schematic
  * style so the map, the nebula and the ground beneath read as one picture.
  *
- * Its shape (nebula-geometry.ts, worked out once per universe in a worker) is loose clusters of gas strung
- * along a few filaments, kept clear of the strip's routes and systems. It is drawn open, never as a solid: each
- * clump a stipple of fine ink dots (the board's own dot, clustered in space; a few in its gold), with soft
- * washes of slate giving it body, a few in the board's gold or the routes' blue that swell and fade, so the gas
- * shimmers here and there. The dots drift on slow currents and twinkle. It all floats over a floor reaching to
- * the horizon: the board's dotted grid and schematic rings.
+ * Its shape (nebula-geometry.ts, worked out once per universe in a worker) is kept minimal, in the board's own
+ * language: a few loose clusters of gas, each a handful of overlapping bubbles (translucent paper discs drawn
+ * round with a fine ink circle, as the board's rings are; a few rims in its gold, pulsing slowly), and a light
+ * sprinkle of dust, behind and below the strip. The bubbles drift and breathe. It all floats over a floor
+ * reaching to the horizon: the board's dotted grid and schematic rings.
  *
  * The strip of systems lies on a flat plane through the gas (PLANE_Y). The map's own elements (stars, routes,
  * rings, ships) stay HTML, laid on that plane by a CSS transform worked out from this camera (campaign.ts), so
@@ -107,7 +106,7 @@ void main() {
  * slow current and twinkles. Over the map, only the dots on the camera's side of its plane, and lighter.
  */
 const DOT_VERT = COMMON + `
-attribute vec3 aPos; attribute float aSize; attribute float aTone; attribute float aPhase;
+attribute vec3 aPos; attribute float aSize; attribute float aPhase;
 uniform float uPx; uniform vec3 uEye; uniform float uFront;
 varying float vAlpha; varying float vTone;
 void main() {
@@ -118,7 +117,7 @@ void main() {
   float d = -v.z;
   vAlpha = (0.72 + 0.28 * sin(uTime * 0.8 + ph * 3.0)) * (1.0 - smoothstep(5.0, 14.0, d));
   if (uFront > 0.5) vAlpha *= (p.y * uEye.y > 0.0) ? 0.55 : 0.0;
-  vTone = aTone;
+  vTone = 0.0;
   gl_PointSize = aSize * uPx * clamp(4.8 / d, 0.6, 2.4);
 }`;
 
@@ -128,41 +127,51 @@ varying float vAlpha; varying float vTone;
 uniform float uFade;
 void main() {
   float r = length(gl_PointCoord - 0.5);
-  float a = smoothstep(0.5, 0.3, r) * vAlpha * uFade * mix(0.62, 0.9, vTone);
+  float a = smoothstep(0.5, 0.3, r) * vAlpha * uFade * 0.5;
   vec3 c = mix(vec3(0.42, 0.48, 0.63), vec3(0.85, 0.63, 0.32), vTone);
   gl_FragColor = vec4(c * a, a);
 }`;
 
 /**
- * The washes: big soft blots that give each clump its body, a faint slate on the paper; a few carry the board's
- * gold or the routes' blue, and swell and fade slowly, so the gas shimmers here and there.
+ * The bubbles of gas: paper discs facing the camera, a touch cooler toward their edge, each drawn round with a
+ * fine ink circle as the board's rings are (a few rims in its gold, pulsing slowly). They drift and breathe a
+ * little. Over the map, only those on the camera's side of its plane, and fainter.
  */
-const HAZE_VERT = COMMON + `
-attribute vec3 aPos; attribute float aSize; attribute float aTint; attribute float aPhase;
-uniform float uPx; uniform vec3 uEye; uniform float uFront; uniform float uScale;
-varying float vAlpha; varying float vTint;
+const BUBBLE_VERT = COMMON + `
+attribute vec3 aCenter; attribute vec2 aCorner; attribute float aRadius; attribute float aGold; attribute float aPhase;
+uniform vec3 uEye; uniform float uFront;
+varying vec2 vUV; varying float vGold; varying float vPhase; varying float vDist; varying float vKeep;
 void main() {
   float ph = aPhase * 6.2832;
-  vec3 p = aPos + vec3(sin(uTime * 0.07 + ph), 0.5 * sin(uTime * 0.05 + ph * 1.3), cos(uTime * 0.06 + ph)) * 0.04;
-  vec4 v = uView * vec4(p, 1.0);
+  vec3 c = aCenter + vec3(sin(uTime * 0.08 + ph), 0.6 * sin(uTime * 0.06 + ph * 1.4), cos(uTime * 0.07 + ph)) * 0.03;
+  float r = aRadius * (1.0 + 0.03 * sin(uTime * 0.3 + ph * 2.0));
+  vec4 v = uView * vec4(c, 1.0);
+  v.xy += aCorner * r;
   gl_Position = uProj * v;
-  float d = -v.z;
-  float breathe = 0.75 + 0.25 * sin(uTime * 0.35 + ph * 2.0);
-  vAlpha = breathe * (1.0 - smoothstep(5.0, 14.0, d));
-  if (uFront > 0.5) vAlpha *= (p.y * uEye.y > 0.0) ? 0.45 : 0.0;
-  vTint = aTint;
-  gl_PointSize = min(aSize * uScale / d, 480.0 * uPx);
+  vUV = aCorner;
+  vGold = aGold;
+  vPhase = ph;
+  vDist = -v.z;
+  vKeep = (uFront > 0.5 && c.y * uEye.y <= 0.0) ? 0.0 : 1.0;
 }`;
 
-const HAZE_FRAG = `
+const BUBBLE_FRAG = `
+#extension GL_OES_standard_derivatives : enable
 precision highp float;
-varying float vAlpha; varying float vTint;
-uniform float uFade;
+varying vec2 vUV; varying float vGold; varying float vPhase; varying float vDist; varying float vKeep;
+uniform float uTime; uniform float uFade; uniform float uFront; uniform vec3 uPaper;
 void main() {
-  float r = length(gl_PointCoord - 0.5) * 2.0;
-  float soft = exp(-r * r * 3.2) * (1.0 - smoothstep(0.85, 1.0, r));
-  vec3 c = vTint > 1.5 ? vec3(0.55, 0.68, 0.92) : vTint > 0.5 ? vec3(0.88, 0.68, 0.38) : vec3(0.60, 0.65, 0.76);
-  float a = soft * vAlpha * uFade * (vTint > 0.5 ? 0.2 : 0.14);
+  float r = length(vUV);
+  if (r > 1.0 || vKeep < 0.5) discard;
+  float w = max(fwidth(r), 1e-4);
+  vec3 fill = mix(vec3(0.995, 0.994, 0.99), vec3(0.87, 0.89, 0.93), smoothstep(0.35, 1.0, r) * 0.7);
+  float rim = 1.0 - smoothstep(0.0, w * 1.6, abs(r - (1.0 - w * 2.0)));
+  float glow = 0.5 + 0.5 * sin(uTime * 0.5 + vPhase);
+  vec3 ink = vGold > 0.5 ? mix(vec3(0.62, 0.62, 0.66), vec3(0.86, 0.64, 0.33), 0.55 + 0.45 * glow) : vec3(0.53, 0.58, 0.69);
+  float fillA = uFront > 0.5 ? 0.32 : 0.6;
+  vec3 c = mix(fill, ink, rim);
+  float a = max(fillA, rim * 0.9) * uFade * (1.0 - smoothstep(6.0, 16.0, vDist));
+  c = mix(c, uPaper, smoothstep(6.0, 18.0, vDist));
   gl_FragColor = vec4(c * a, a);
 }`;
 
@@ -199,12 +208,14 @@ class Layer {
   gl: WebGLRenderingContext;
   private floorProg?: WebGLProgram;
   private dotProg: WebGLProgram;
-  private hazeProg: WebGLProgram;
+  private bubbleProg: WebGLProgram;
   private floorBuf?: WebGLBuffer;
   private dotBuf: WebGLBuffer;
-  private hazeBuf: WebGLBuffer;
+  private bubbleBuf: WebGLBuffer;
   private dotCount = 0;
-  private hazeCount = 0;
+  /** The bubbles as they came (x, y, z, radius, gold, phase), and the quads they are drawn with, sorted far to near. */
+  private bubbles: Float32Array = new Float32Array(0);
+  private quads = new Float32Array(0);
 
   constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean) {
     const gl = canvas.getContext('webgl', front ? { antialias: true, alpha: true, premultipliedAlpha: true, depth: true } : { antialias: true, alpha: false, depth: true });
@@ -220,9 +231,9 @@ class Layer {
       return p;
     };
     this.dotProg = program(DOT_VERT, DOT_FRAG);
-    this.hazeProg = program(HAZE_VERT, HAZE_FRAG);
+    this.bubbleProg = program(BUBBLE_VERT, BUBBLE_FRAG);
     this.dotBuf = gl.createBuffer()!;
-    this.hazeBuf = gl.createBuffer()!;
+    this.bubbleBuf = gl.createBuffer()!;
     if (!front) {
       this.floorProg = program(FLOOR_VERT, FLOOR_FRAG);
       this.floorBuf = gl.createBuffer()!;
@@ -237,10 +248,9 @@ class Layer {
     if (gl.isContextLost()) return;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.dotBuf);
     gl.bufferData(gl.ARRAY_BUFFER, g.dots, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.hazeBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, g.haze, gl.STATIC_DRAW);
-    this.dotCount = g.dots.length / 6;
-    this.hazeCount = g.haze.length / 6;
+    this.dotCount = g.dots.length / 5;
+    this.bubbles = g.bubbles;
+    this.quads = new Float32Array((g.bubbles.length / 6) * 6 * 8);
   }
 
   draw(cam: Camera, time: number, fade: number) {
@@ -268,8 +278,6 @@ class Layer {
       gl.uniform3f(gl.getUniformLocation(p, 'uEye'), cam.eye[0], cam.eye[1], cam.eye[2]);
       gl.uniform1f(gl.getUniformLocation(p, 'uFront'), this.front ? 1 : 0);
       gl.uniform1f(gl.getUniformLocation(p, 'uPx'), dpr);
-      // (A world unit's size in device pixels at unit distance, for sprites sized in world units.)
-      gl.uniform1f(gl.getUniformLocation(p, 'uScale'), (cam.proj[5] * h) / 2);
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       const stride = attrs.reduce((s, [, n]) => s + n, 0) * 4;
       let off = 0;
@@ -291,19 +299,39 @@ class Layer {
       gl.drawArrays(gl.TRIANGLES, 0, 6);
       done();
     }
-    if (!this.dotCount) return;
-    // The gas is all see-through: washes first, the stipple over them, none of it hiding anything.
+    if (!this.bubbles.length) return;
+    // The bubbles, far to near (they are see-through, so each is laid over what lies behind it), then the dust.
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
-    done = use(this.hazeProg, this.hazeBuf, [['aPos', 3], ['aSize', 1], ['aTint', 1], ['aPhase', 1]]);
-    gl.drawArrays(gl.POINTS, 0, this.hazeCount);
+    this.sortQuads(cam);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.bubbleBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.quads, gl.DYNAMIC_DRAW);
+    done = use(this.bubbleProg, this.bubbleBuf, [['aCenter', 3], ['aCorner', 2], ['aRadius', 1], ['aGold', 1], ['aPhase', 1]]);
+    gl.drawArrays(gl.TRIANGLES, 0, this.quads.length / 8);
     done();
-    done = use(this.dotProg, this.dotBuf, [['aPos', 3], ['aSize', 1], ['aTone', 1], ['aPhase', 1]]);
+    done = use(this.dotProg, this.dotBuf, [['aPos', 3], ['aSize', 1], ['aPhase', 1]]);
     gl.drawArrays(gl.POINTS, 0, this.dotCount);
     done();
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+  }
+
+  /** Lay the bubbles' quads out far to near, as seen from the camera. */
+  private sortQuads(cam: Camera) {
+    const b = this.bubbles, n = b.length / 6;
+    const f = cam.forward, e = cam.eye;
+    const order = Array.from({ length: n }, (_, i) => i);
+    const depth = order.map((i) => (b[i * 6] - e[0]) * f[0] + (b[i * 6 + 1] - e[1]) * f[1] + (b[i * 6 + 2] - e[2]) * f[2]);
+    order.sort((p, q) => depth[q] - depth[p]);
+    const corners = [-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1];
+    let o = 0;
+    for (const i of order) {
+      for (let k = 0; k < 6; k++) {
+        this.quads.set([b[i * 6], b[i * 6 + 1], b[i * 6 + 2], corners[k * 2], corners[k * 2 + 1], b[i * 6 + 3], b[i * 6 + 4], b[i * 6 + 5]], o);
+        o += 8;
+      }
+    }
   }
 
   lose() {
