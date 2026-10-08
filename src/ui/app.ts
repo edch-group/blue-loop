@@ -102,7 +102,7 @@ import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
 import { fitCardText } from './fittext';
 import { refreshLift, trackLift } from './lift';
-import { animateSuns, holdSuns, redrawSuns } from './sun3d';
+import { animateSuns, holdSuns } from './sun3d';
 import { voices } from './voice';
 import { morphInto } from './morph';
 import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
@@ -682,12 +682,10 @@ export class App {
   private lunging: string | null = null;
   /** The board zoomed onto one tableau (the rival's, or yours), to read it close up; null: the whole board. */
   private boardZoom: 'rival' | 'mine' | null = null;
-  /** How the board is zoomed to fit that tableau to the window (--bz, --zx, --zy), as worked out by fitZoom. */
+  /** How the board is zoomed to fit that tableau to the window (--zt, its transform), as worked out by zoomTransform. */
   private zoomVars = '';
-  /** The zoom worked out for each tableau at each window size, so zooming again needs no measuring. */
-  private zoomFits = new Map<string, { bz: number; zx: number; zy: number }>();
-  /** Card text to fit again once the zoom's easing is over (it would stall the easing mid-way). */
-  private pendingRefit: (() => void) | null = null;
+  /** The zoom transform worked out for each side at each window size. */
+  private zoomFits = new Map<string, string>();
   private sheet: Sheet | null = null;
   /** A move held back until the viewer has read its card on the stage (then it lands and animates). */
   private landing: (() => void) | null = null;
@@ -1024,7 +1022,10 @@ export class App {
     // Re-lay out whenever the page's size settles (after a rotation the first resize event can be stale).
     window.addEventListener(VIEWPORT_EVENT, () => {
       this.fitHand();
-      if (this.boardZoom && this.screen === 'game') this.fitZoom();
+      if (this.boardZoom && this.screen === 'game') {
+        this.zoomVars = `--zt:${this.zoomTransform(this.boardZoom)}`;
+        this.root.querySelector('.table-view')?.setAttribute('style', this.zoomVars);
+      }
       sizePool(this.root);
       // (The pool's pages are cut to the rows its new height holds.)
       this.activeBuilder().afterRender();
@@ -4516,13 +4517,10 @@ export class App {
     </div>`;
   }
 
-  /**
-   * Work out the zoom onto each tableau ahead of time, while nothing is happening (all in one task, put back
-   * before the screen is drawn, so nothing on it changes): the first zoom then starts at once, as later ones do.
-   */
+  /** Both zooms worked out while the game is idle (only transforms change as they are measured: nothing is laid out), so the first is instant too. */
   private prefitQueued = false;
   private prefitZooms() {
-    if (this.prefitQueued || this.screen !== 'game' || this.boardZoom || reducedMotion()) return;
+    if (this.prefitQueued || this.screen !== 'game' || this.boardZoom) return;
     const key = (side: string) => `${side}:${window.innerWidth}x${window.innerHeight}`;
     if (this.zoomFits.has(key('mine')) && this.zoomFits.has(key('rival'))) return;
     this.prefitQueued = true;
@@ -4530,243 +4528,98 @@ export class App {
     idle(
       () => {
         this.prefitQueued = false;
-        const view = this.root.querySelector<HTMLElement>('.table-view');
-        if (!view || this.screen !== 'game' || this.boardZoom) return;
-        const style = view.getAttribute('style');
-        // (No transitions while it is measured: the zoom's own styles, come and gone, would set them off.)
-        view.classList.add('no-anim');
-        for (const side of ['mine', 'rival'] as const) {
-          if (this.zoomFits.has(key(side))) continue;
-          this.boardZoom = side;
-          view.classList.add(`zoom-${side}`);
-          this.fitZoom(undefined, undefined, { measureOnly: true });
-          view.classList.remove(`zoom-${side}`);
-          this.boardZoom = null;
-        }
-        this.zoomVars = '';
-        if (style === null) view.removeAttribute('style');
-        else view.setAttribute('style', style);
-        const game = view.querySelector<HTMLElement>(':scope > .game');
-        void view.offsetWidth;
-        if (game) game.style.transition = '';
-        view.classList.remove('no-anim');
+        if (this.screen !== 'game' || this.boardZoom) return;
+        this.zoomTransform('mine');
+        this.zoomTransform('rival');
       },
-      { timeout: 2000 },
+      { timeout: 3000 },
     );
   }
 
-  /** Zoom the board onto one tableau, or out (null): the board itself moves, so everything on it still works. */
+  /**
+   * Zoom the board onto one tableau, or out (null). The board isn't laid out again: it is the same board, drawn
+   * once, moved and scaled as a whole (a transform, eased by its CSS transition), so nothing on it is redrawn or
+   * re-measured as it goes and everything on it still works.
+   */
   private setBoardZoom(side: 'rival' | 'mine' | null) {
     if (this.boardZoom === side) return;
-    const was = this.boardZoom;
     this.boardZoom = side;
     sound.hover();
-    // (Zooming in, the suns hold still while the board moves: redrawn at their new, larger size, they would
-    // stall it. Zooming out, they are drawn at their smaller size at once, below.)
-    if (!reducedMotion() && side) holdSuns(720);
-    const view = this.root.querySelector('.table-view');
+    if (!reducedMotion()) holdSuns(560);
+    const view = this.root.querySelector<HTMLElement>('.table-view');
     if (!view) return;
-    const game = view.querySelector<HTMLElement>(':scope > .game');
-    // Zooming in: the board is laid out at its zoomed size at once (to stay sharp), then shown easing in from where
-    // the tableau stood, tilting up as it comes (as zooming out tilts it back down).
-    const spanOf = (which: 'rival' | 'mine') => {
-      const parts = [...view.querySelectorAll<HTMLElement>(`.tableau-${which} .tableau-row, .tableau-${which} .cmd-slot, .tableau-${which} .ls-slot`)].map((el) => el.getBoundingClientRect());
-      if (!parts.length) return null;
-      const left = Math.min(...parts.map((r) => r.left)), right = Math.max(...parts.map((r) => r.right));
-      const top = Math.min(...parts.map((r) => r.top)), bottom = Math.max(...parts.map((r) => r.bottom));
-      return { x: (left + right) / 2, y: (top + bottom) / 2, w: right - left };
-    };
-    // Across from one tableau to the other: the board keeps its zoom and glides over (the other tableau, off
-    // the screen in the tilted view, can't be measured where it stands).
-    if (was && side && game) {
-      const num = (k: string) => Number(new RegExp(`--${k}:(-?[\\d.]+)`).exec(this.zoomVars)?.[1] ?? NaN);
-      const [bz, zx, zy] = [num('bz'), num('zx'), num('zy')];
-      view.classList.toggle('zoom-rival', side === 'rival');
-      view.classList.toggle('zoom-mine', side === 'mine');
-      this.fitZoom(Number.isFinite(bz) ? bz : undefined);
-      if (Number.isFinite(zx) && Number.isFinite(zy) && !reducedMotion()) {
-        const to = this.zoomVars;
-        game.style.transition = 'none';
-        (view as HTMLElement).style.setProperty('--zx', `${zx}px`);
-        (view as HTMLElement).style.setProperty('--zy', `${zy}px`);
-        void game.offsetWidth;
-        game.style.transition = '';
-        view.setAttribute('style', to);
-      }
-      const ctl = this.root.querySelector('.board-zoom');
-      if (ctl) ctl.outerHTML = this.renderZoomControls();
-      return;
-    }
-    // In or out: the board is laid out at its new size at once (sharp when zoomed), then eased from exactly
-    // how it stood to how it now stands, its pan, scale and tilt all at once: the same list of steps at both
-    // ends (a pan, a tilt, a scale), so it moves step by step, never twisting through a matrix.
-    const animate = !!game && !reducedMotion();
-    const tiltOf = (zoomed: boolean) => (zoomed ? '6deg' : getComputedStyle(view).getPropertyValue('--board-tilt').trim() || '34deg');
-    const layoutBox = (el: HTMLElement) => {
-      const t = el.style.transform;
-      el.style.transform = 'none';
-      const r = el.getBoundingClientRect();
-      el.style.transform = t;
-      return r;
-    };
-    // (Lined up on the tableau zoomed onto, or out from: it starts exactly where it stood on screen.)
-    const which = (side ?? was)!;
-    let from: { box: DOMRect; m: DOMMatrix; tilt: string; span: ReturnType<typeof spanOf> } | null = null;
-    if (animate) {
-      for (const a of game!.getAnimations()) a.cancel();
-      game!.style.transition = 'none';
-      from = { box: layoutBox(game!), m: new DOMMatrix(getComputedStyle(game!).transform), tilt: tiltOf(!!was), span: spanOf(which) };
-    }
+    // (Worked out before the classes change: the measure takes the board as it is laid out, flat.)
+    this.zoomVars = side ? `--zt:${this.zoomTransform(side)}` : '';
     view.classList.toggle('zoom-rival', side === 'rival');
     view.classList.toggle('zoom-mine', side === 'mine');
-    this.fitZoom(undefined, undefined, { deferFit: animate });
-    if (!side) redrawSuns();
-    if (animate && from && game) {
-      game.style.transition = 'none';
-      const box = layoutBox(game);
-      const m = new DOMMatrix(getComputedStyle(game).transform);
-      let k = box.width > 0 ? from.box.width / box.width : 1;
-      let dx = from.box.left + from.box.width / 2 + from.m.m41 - (box.left + box.width / 2);
-      let dy = from.box.top + from.box.height / 2 + from.m.m42 - (box.top + box.height / 2);
-      const start = () => `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotateX(${from!.tilt}) scale(${(0.82 * k).toFixed(5)})`;
-      // Nudged until the tableau stands just where it stood (the two layouts aren't exactly in proportion).
-      if (from.span) {
-        for (let i = 0; i < 4; i++) {
-          game.style.transform = start();
-          const now = spanOf(which);
-          if (!now || now.w <= 0) break;
-          k *= from.span.w / now.w;
-          game.style.transform = start();
-          const again = spanOf(which);
-          if (!again) break;
-          dx += from.span.x - again.x;
-          dy += from.span.y - again.y;
-          if (Math.abs(from.span.x - again.x) < 0.3 && Math.abs(from.span.y - again.y) < 0.3 && Math.abs(from.span.w - again.w) < 0.3) break;
-        }
-        game.style.transform = '';
-      }
-      // Held on its first frame until that frame is drawn (the board at its new size takes a moment to paint),
-      // then run, so none of the easing is lost to the paint; on its own layer while it moves.
-      game.style.willChange = 'transform';
-      const anim = game.animate([{ transform: start() }, { transform: `translate(${m.m41.toFixed(1)}px, ${m.m42.toFixed(1)}px) rotateX(${tiltOf(!!side)}) scale(0.82)` }], {
-        duration: 520,
-        easing: 'cubic-bezier(0.32, 0, 0.18, 1)',
-      });
-      anim.pause();
-      requestAnimationFrame(() => requestAnimationFrame(() => anim.play()));
-      anim.finished
-        .finally(() => {
-          game.style.transition = '';
-          game.style.willChange = '';
-          this.runRefit();
-        })
-        .catch(() => undefined);
-    } else this.runRefit();
+    if (this.zoomVars) view.setAttribute('style', this.zoomVars);
+    else view.removeAttribute('style');
     const ctl = this.root.querySelector('.board-zoom');
     if (ctl) ctl.outerHTML = this.renderZoomControls();
   }
 
-  /** The card text fitting held back for the zoom, now. */
-  private runRefit() {
-    const f = this.pendingRefit;
-    this.pendingRefit = null;
-    f?.();
+  /**
+   * Where the board stands zoomed onto a tableau: tipped nearly flat, scaled so the tableau (its row of slots, Hero
+   * and Lightspeed slot) spans the window, centred. Worked out from the board as laid out (its transform set aside
+   * a moment), then checked on screen a few times for the tilt's perspective. Only transforms change while it
+   * measures, so the board is never laid out again (no card text, art or gems redrawn).
+   */
+  private zoomTransform(side: 'rival' | 'mine'): string {
+    // (The slots stand where they stand whatever is in them: worked out once per side and window size.)
+    const key = `${side}:${window.innerWidth}x${window.innerHeight}`;
+    const known = this.zoomFits.get(key);
+    if (known) return known;
+    const out = this.measureZoom(side);
+    if (out) this.zoomFits.set(key, out);
+    return out;
   }
 
-  /**
-   * Zoom the board so the tableau zoomed onto (its row of slots and its Hero) spans the window end to end, centred:
-   * the board is laid out larger (--bz, so it stays sharp), then moved (--zx, --zy), measuring as it goes.
-   */
-  private fitZoom(keepBz?: number, from?: { zx: number; zy: number }, opts: { deferFit?: boolean; measureOnly?: boolean } = {}) {
+  private measureZoom(side: 'rival' | 'mine'): string {
     const view = this.root.querySelector<HTMLElement>('.table-view');
     const game = view?.querySelector<HTMLElement>(':scope > .game');
-    if (!view || !game) return;
-    // (Card text fitted afresh to the cards' new size, and the tableaus' outlines and the piles' lean drawn
-    // again: at once, or once the zoom's easing is done, so none of it holds up its first frame.)
-    const refit = () => {
-      fitCardText(view);
-      frameTableaus(this.root);
-      leanPiles(this.root);
-    };
-    const settle = () => (opts.deferFit ? (this.pendingRefit = refit) : refit());
-    if (!this.boardZoom) {
-      this.zoomVars = '';
-      view.removeAttribute('style');
-      frameTableaus(this.root);
-      settle();
-      return;
-    }
-    const side = this.boardZoom;
+    if (!view || !game) return '';
     const span = () => {
       const parts = [...view.querySelectorAll<HTMLElement>(`.tableau-${side} .tableau-row, .tableau-${side} .cmd-slot, .tableau-${side} .ls-slot`)].map((el) => el.getBoundingClientRect());
       if (!parts.length) return null;
       const left = Math.min(...parts.map((r) => r.left)), right = Math.max(...parts.map((r) => r.right));
       const top = Math.min(...parts.map((r) => r.top)), bottom = Math.max(...parts.map((r) => r.bottom));
-      return { left, top, width: right - left, height: bottom - top };
-    };
-    const set = (bz: number, zx: number, zy: number) => {
-      this.zoomVars = `--bz:${bz.toFixed(3)};--zx:${zx.toFixed(1)}px;--zy:${zy.toFixed(1)}px`;
-      view.setAttribute('style', this.zoomVars);
+      return { x: (left + right) / 2, y: (top + bottom) / 2, w: right - left, h: bottom - top };
     };
     const w = window.innerWidth, h = window.innerHeight;
-    // (Measured as it will stand, not mid-way through a transition, nor under a zoom's easing still running.)
+    const fit = (r: { w: number; h: number }) => Math.min((w - 2 * 76) / r.w, (h * 0.94) / r.h);
+    const was = { transform: game.style.transform, transition: game.style.transition };
     game.style.transition = 'none';
-    for (const a of game.getAnimations()) a.cancel();
-    // Already worked out for this tableau at this size: no measuring (each step lays the whole board out again).
-    const key = `${side}:${w}x${h}`;
-    const known = keepBz === undefined && !from ? this.zoomFits.get(key) : undefined;
-    if (known) {
-      set(known.bz, known.zx, known.zy);
-      // Checked before it is trusted (one measure): worked out earlier, the tableau may have changed since (a Hero or
-      // a face-down card arrived in its slot), and the zoom would ease to the old place, then jump to the right one.
-      const r = span();
-      const fits =
-        !!r &&
-        Math.abs(w / 2 - (r.left + r.width / 2)) < 3 &&
-        Math.abs(h / 2 - (r.top + r.height / 2)) < 3 &&
-        (Math.abs(r.width - (w - 2 * 76)) < w * 0.02 || Math.abs(r.height - h * 0.94) < h * 0.02);
-      if (fits) {
-        void game.offsetWidth;
-        game.style.transition = '';
-        frameTableaus(this.root);
-        settle();
-        return;
-      }
-      this.zoomFits.delete(key);
+    // Flat, as laid out: the tableau's place on the board, about the board's centre (its transform origin).
+    game.style.transform = 'none';
+    const g = game.getBoundingClientRect();
+    const flat = span();
+    if (!flat) {
+      Object.assign(game.style, was);
+      return '';
     }
-    let bz = keepBz ?? 1.6, zx = from?.zx ?? 0, zy = from?.zy ?? 0;
-    set(bz, zx, zy);
-    // First measured with the board laid flat (no tilt, no perspective to throw a far tableau's measure off),
-    // then with its tilt for the last step.
-    view.classList.add('zoom-measuring');
-    const centre = (tries: number) => {
-      for (let i = 0; i < tries; i++) {
-        const r = span();
-        if (!r) break;
-        if (Math.abs(w / 2 - (r.left + r.width / 2)) < 0.5 && Math.abs(h / 2 - (r.top + r.height / 2)) < 0.5) break;
-        zx += w / 2 - (r.left + r.width / 2);
-        zy += h / 2 - (r.top + r.height / 2);
-        set(bz, zx, zy);
-      }
-    };
-    centre(3);
-    for (let i = 0; i < (keepBz ? 0 : 3); i++) {
+    const ox = g.left + g.width / 2, oy = g.top + g.height / 2;
+    let k = fit(flat);
+    let tx = w / 2 - ox - k * (flat.x - ox), ty = h / 2 - oy - k * (flat.y - oy);
+    // (Laid flat, not tipped: a flat transform is redrawn sharp at its new scale once the move is over; a tipped one stays blurred.)
+    const make = () => `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) rotateX(0deg) scale(${k.toFixed(4)})`;
+    // Then on screen, tipped and in perspective: nudged until it is centred and spans the window.
+    for (let i = 0; i < 4; i++) {
+      game.style.transform = make();
       const r = span();
       if (!r) break;
-      // (Clear of the zoom buttons at the left edge, and as far in from the right, so it stays centred.)
-      bz *= Math.min((w - 2 * 76) / r.width, (h * 0.94) / r.height);
-      set(bz, zx, zy);
+      const dk = fit(r);
+      const dx = w / 2 - r.x, dy = h / 2 - r.y;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(dk - 1) < 0.002) break;
+      k *= dk;
+      tx += dx;
+      ty += dy;
     }
-    centre(3);
-    view.classList.remove('zoom-measuring');
-    // (The board is tilted: a move comes out a little short on screen, so it is measured and moved again.)
-    centre(6);
-    if (keepBz === undefined) this.zoomFits.set(key, { bz, zx, zy });
-    if (opts.measureOnly) return;
+    const out = make();
+    // (Put back, and the transition held off until it is: the move itself is the CSS transition, from where it stood.)
+    game.style.transform = was.transform;
     void game.offsetWidth;
-    game.style.transition = '';
-    frameTableaus(this.root);
-    settle();
+    game.style.transition = was.transition;
+    return out;
   }
 
   /** Round and stability, together in one container at the top centre. */
