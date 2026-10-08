@@ -6069,3 +6069,8 @@ body:has(.game-result) .dock { visibility: hidden; }
   .mode-card { grid-template-columns: 56px 1fr; text-align: left; align-items: center; padding: 6px; }
   .mode-card-art { grid-row: span 2; aspect-ratio: 1; }
 }
+
+/* A deck's actions: small icons beneath its box. */
+.deck-icon { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #fff; color: var(--ink-soft); cursor: pointer; box-shadow: 0 0 0 1px rgba(150, 156, 172, 0.25), 0 2px 6px rgba(60, 70, 100, 0.1); transition: color 0.15s, transform 0.15s; }
+.deck-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: hover) { .deck-icon:hover { color: var(--ink); transform: translateY(-1px); } .deck-icon-danger:hover { color: #c0503a; } }

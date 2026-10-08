@@ -640,7 +640,7 @@ export class DeckBuilder {
         act: d.preset ? 'db-view' : 'db-edit',
         title: d.preset ? 'Look through it (changes save as a copy)' : 'Edit it',
         // (Open it by tapping the box: a starter to look through, your own to edit.)
-        actions: `<button class="pill-btn" data-act="db-copy" data-arg="${d.id}">copy</button>${d.preset ? '' : `<button class="pill-btn" data-act="db-share-open" data-arg="${d.id}">share</button><button class="pill-btn" data-act="db-delete" data-arg="${d.id}">delete</button>`}`,
+        actions: `${iconBtn('db-copy', d.id, 'Copy', ICON_COPY)}${d.preset ? '' : `${iconBtn('db-share-open', d.id, 'Share', ICON_SHARE)}${iconBtn('db-delete', d.id, 'Delete', ICON_DELETE, ' deck-icon-danger')}`}`,
         tag: d.preset ? undefined : wishTag(d.cards),
       });
     const gm = this.gm;
@@ -1111,6 +1111,13 @@ export class DeckBuilder {
 function guessMode(cards: string[]): GameMode {
   return deckProblems(cards, 'core').some((p) => /Lost Races|too much/.test(p)) ? 'lost' : 'core';
 }
+
+/** A deck's actions as small icon buttons beneath its box (named on hover and for screen readers). */
+const ICON_COPY = '<svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.5V3a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>';
+const ICON_SHARE = '<svg viewBox="0 0 16 16"><circle cx="12" cy="3.5" r="1.8"/><circle cx="4" cy="8" r="1.8"/><circle cx="12" cy="12.5" r="1.8"/><path d="M5.6 7.1l4.8-2.7M5.6 8.9l4.8 2.7"/></svg>';
+const ICON_DELETE = '<svg viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5a1 1 0 0 0 1 .9h3.6a1 1 0 0 0 1-.9l.7-8.5M7 7v4.5M9 7v4.5"/></svg>';
+const iconBtn = (act: string, arg: string, label: string, icon: string, cls = '') =>
+  `<button class="deck-icon${cls}" data-act="${act}" data-arg="${arg}" title="${label}" aria-label="${label}">${icon}</button>`;
 
 export function deckBox(d: SavedDeck, opts: { act: string; title: string; actions?: string; selected?: boolean; disabled?: boolean; tag?: string }): string {
   const legal = deckProblems(d.cards, modeOf(d)).length === 0;
