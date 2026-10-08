@@ -22,6 +22,8 @@ export interface MapObject {
   dim?: boolean;
   /** Gone (collapsed, ruined): a small grey ember. */
   dead?: boolean;
+  /** One the player can travel to: it pulses, rings going out from it like sonar. */
+  reach?: boolean;
   /** A stable number to vary each one by (spin, phase). */
   seed: number;
 }
@@ -437,9 +439,9 @@ export class MapObjects {
       } else {
         const breathe = 1 + 0.1 * Math.sin(time * 1.1 + o.seed);
         // A wide warm glow, the flaring corona round the disc, and a fine dashed ring turning slowly.
-        // A soft paper glow, a faint ring pulsing out, and a fine dashed ring turning slowly.
+        // A soft paper glow, a fine dashed ring turning slowly, and (where the player can travel) rings pulsing out.
         sprite.draw(o.x, y, o.z, r * 4 * breathe, 0, [1, 1, 1], 0.7);
-        sprite.draw(o.x, y, o.z, r * 4.4, 4, INK, 0.35, o.seed);
+        if (o.reach) sprite.draw(o.x, y, o.z, r * 4.4, 4, INK, 0.6, o.seed);
         sprite.draw(o.x, y, o.z, r * 3.9, 3, INK, 0.35, o.seed);
       }
       if (o.ring) sprite.draw(o.x, y, o.z, r * 2.4, 1, o.ring, 1);

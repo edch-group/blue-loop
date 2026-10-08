@@ -356,6 +356,8 @@ export class CampaignView {
   private shopOpen = false;
   /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
+  /** The systems the player can travel to this move (their suns pulse, as sonar, on the 3D map). */
+  private reach = new Set<string>();
   /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
   private waiting: { factionId: string | null; lines: string[] } | null = null;
   /** Visits to the armoury's keepers (each visit, they say something else). */
@@ -1155,6 +1157,7 @@ export class CampaignView {
     const moves = picked && s.phase === 'player' && !s.battle && !s.winner ? armyMoves(s, picked) : [];
     const targets = new Set(moves.filter((m) => m.battle && this.known(m.toId)).map((m) => m.toId));
     const marches = new Set(moves.filter((m) => !targets.has(m.toId)).map((m) => m.toId));
+    this.reach = new Set(moves.map((m) => m.toId));
     // Focusing a system no longer zooms the camera into it, so nothing else on the map fades away from it
     // either (no "far" systems, no links masked out): the focused system just shows its planets.
     const focus = null as CampaignNode | null;
@@ -1620,6 +1623,7 @@ export class CampaignView {
         ring: n.owner ? hex(this.colourOf(n.owner)) : undefined,
         dim: !!(n.dimmed || n.collapsing),
         dead: !!(n.collapsed || n.ruined),
+        reach: this.reach.has(n.id),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,
       };
     });

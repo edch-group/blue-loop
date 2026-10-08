@@ -6132,3 +6132,7 @@ body:has(.game-result) .dock { visibility: hidden; }
 .cmp-galaxy svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .cmp-galaxy b { font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
 .cmp-3d .cmp-n3:not(.cmp-owned) .cmp-turf { display: none; }
+
+/* On the 3D map, the systems you can travel to pulse (sonar rings, drawn in the scene): no spinning dashed ring.
+   (The ring stays as the tap target.) */
+.cmp-3d .cmp-n3 .cmp-ring-march, .cmp-3d .cmp-n3 .cmp-ring-target { border-color: transparent !important; filter: none !important; animation: none !important; }

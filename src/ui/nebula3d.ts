@@ -667,13 +667,15 @@ export class Nebula {
     return !!this.layers[this.layers.length - 1].objects;
   }
 
-  /** The camera's resting place: looking down on the whole strip at a slant, far enough off to see all of it. */
+  /** The camera's resting place: looking along the whole strip from its near end, far enough off to see all of it. */
   private home(): Pose {
     const c = this.back;
     const aspect = (c.clientWidth || 16) / (c.clientHeight || 10);
+    // From behind the strip's near end, looking along it at a slant: the start near the bottom left, the
+    // wormhole far off at the top right.
     const half = STRIP_WIDTH / 2 + 0.3;
-    const dist = Math.max(3, (half / (Math.tan(FOV / 2) * aspect)) * 1.1);
-    return { x: 0, y: PLANE_Y, z: -0.35, yaw: 0, pitch: 0.6, dist };
+    const dist = Math.max(2.4, (half / (Math.tan(FOV / 2) * Math.min(1, aspect))) * 0.6);
+    return { x: -0.35, y: PLANE_Y, z: 0.15, yaw: -0.95, pitch: 0.62, dist };
   }
 
   /** How far off the camera rests (marks on the map grow a little as it closes in from there). */
