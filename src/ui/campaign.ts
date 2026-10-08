@@ -1749,6 +1749,15 @@ export class CampaignView {
       objects.push({ x, z, kind: a.kind, seed: parseFloat(seedOf(a.id)) * 10 || 0 });
     }
     this.nebula.setObjects(objects);
+    // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
+    // column past the last one collapsing.
+    const half = (CAMPAIGN.colGap / 2) * MAP_K;
+    const edge = (f: (n: CampaignNode) => boolean) => {
+      const xs = s.nodes.filter(f).map((n) => at.get(n.id)![0]);
+      return xs.length ? Math.max(...xs) + half : -50;
+    };
+    const gone = edge((n) => !!n.collapsed);
+    this.nebula.setCollapse(gone, Math.max(gone, edge((n) => !!n.collapsing)));
     if (this.nebula.camera) this.layPlane(this.nebula.camera);
   }
 

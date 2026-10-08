@@ -1,19 +1,21 @@
 /**
- * The campaign nebula's shape, worked out once per universe (seeded): see nebula3d.ts. Pure, so it can run
- * in a worker (nebula.worker.ts) off the page's thread.
+ * The campaign's landscape, worked out once per universe (seeded): see nebula3d.ts. Pure, so it can run in a
+ * worker (nebula.worker.ts) off the page's thread.
  *
- * (The strip of systems lies on the plane y = 0, over the cloud bank: the gas is kept below it across the
- * strip's footprint, and the pillars stand behind it.)
+ * A mesh landscape: a heightfield of soft hills and ridged mountains, low in a shallow valley where the strip of
+ * systems lies (the strip floats just over it, on the plane y = 0), rising into mountains behind it, hills at its
+ * ends and lower ones in front (so the strip stays in view). The ground is cut in advance into shards (a jittered
+ * grid of cells, each triangle given to the cell its middle falls in), each triangle carrying its own corners,
+ * which of its edges lie on a shard's border, and its shard's middle: so when instability comes, the ground can
+ * crack along those borders and the shards break away and fall (nebula3d.ts).
  *
- * The gas is cut into a dozen horizontal layers and built up like a laser-cut contour model: each layer a
- * solid slab, its top face filled, its side walls shaded by the way they face the light, and one outline
- * round its top edge. Opaque, so the nearer layers hide what lies behind them.
+ * Over it hang a scattering of stars, most in ink, a few in colour.
  */
 
-const SX = 3.0, SY = 1.0, SZ = 1.6;            // half-size of the volume (x across, y up, z toward the viewer)
-const NX = 112, NZ = 64;                        // the sampling grid of each layer
-const LAYERS = 13;                              // how many layers the gas is cut into
-const ISO = 0;                                  // the gas's surface
+// The ground's extent (x across, z toward the viewer) and the size of its mesh's cells.
+const X0 = -7, X1 = 7, Z0 = -5.5, Z1 = 4, CELL = 0.11;
+// The shards' size.
+const SHARD = 0.42;
 
 // ---------- noise (seeded value noise, fBm) ----------
 
@@ -28,28 +30,35 @@ function makeNoise(seed: number) {
   }
   for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
   const val = new Float32Array(256).map(() => rnd() * 2 - 1);
-  const h = (x: number, y: number, z: number) => val[perm[perm[perm[x & 255] + (y & 255)] + (z & 255)]];
-  const noise = (x: number, y: number, z: number) => {
-    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
-    const xf = x - xi, yf = y - yi, zf = z - zi;
-    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
-    const a = h(xi, yi, zi) + (h(xi + 1, yi, zi) - h(xi, yi, zi)) * u;
-    const b = h(xi, yi + 1, zi) + (h(xi + 1, yi + 1, zi) - h(xi, yi + 1, zi)) * u;
-    const c = h(xi, yi, zi + 1) + (h(xi + 1, yi, zi + 1) - h(xi, yi, zi + 1)) * u;
-    const d = h(xi, yi + 1, zi + 1) + (h(xi + 1, yi + 1, zi + 1) - h(xi, yi + 1, zi + 1)) * u;
-    const e = a + (b - a) * v, f = c + (d - c) * v;
-    return e + (f - e) * w;
+  const h = (x: number, y: number) => val[perm[perm[x & 255] + (y & 255)]];
+  const noise = (x: number, y: number) => {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = h(xi, yi) + (h(xi + 1, yi) - h(xi, yi)) * u;
+    const b = h(xi, yi + 1) + (h(xi + 1, yi + 1) - h(xi, yi + 1)) * u;
+    return a + (b - a) * v;
   };
-  const fbm = (x: number, y: number, z: number, oct: number) => {
+  const fbm = (x: number, y: number, oct: number) => {
     let sum = 0, amp = 0.5, f = 1;
     for (let i = 0; i < oct; i++) {
-      sum += amp * noise(x * f + i * 17.3, y * f - i * 9.1, z * f + i * 5.7);
+      sum += amp * noise(x * f + i * 17.3, y * f - i * 9.1);
       amp *= 0.5;
       f *= 2.03;
     }
     return sum;
   };
-  return { fbm, rnd };
+  const ridged = (x: number, y: number, oct: number) => {
+    let sum = 0, amp = 0.5, f = 1;
+    for (let i = 0; i < oct; i++) {
+      const r = 1 - Math.abs(noise(x * f + i * 7.7, y * f + i * 3.3));
+      sum += amp * r * r;
+      amp *= 0.5;
+      f *= 2.1;
+    }
+    return sum;
+  };
+  return { fbm, ridged, rnd };
 }
 
 const smooth = (a: number, b: number, x: number) => {
@@ -57,108 +66,122 @@ const smooth = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-export interface Geometry {
-  /** Triangles: x, y, z, tone, kind per vertex (tone: how light the surface is, 0 to 1; kind: 0 a flat face, drawn as
-   * the board's dotted paper, 1 a wall). */
-  faces: Float32Array;
-  /** Line segments: x, y, z per vertex, in pairs. */
-  lines: Float32Array;
-}
-
-/** The strip of systems the gas is kept clear of: its systems and routes (world x, z, on the plane y = 0). */
+/** The strip of systems the land lies low under: its systems and routes (world x, z, on the plane y = 0). */
 export interface Strip {
   nodes: [number, number][];
   routes: [number, number, number, number][];
 }
 
+export interface Geometry {
+  /**
+   * The ground, as triangles, 16 floats a corner: position (3), normal (3), barycentric (3), whether each edge
+   * (opposite each corner) is a shard's border (3), and its shard's middle and a random number (4).
+   */
+  ground: Float32Array;
+  /** The stars over it: x, y, z, size, hue (0 ink; 1 gold, 2 rose, 3 sea blue), phase. */
+  stars: Float32Array;
+}
+
+export const GROUND_STRIDE = 16;
+
 export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: [] }): Geometry {
-  // The strip's footprint on the plane, a little padded: the gas stays below the plane there.
+  const { fbm, ridged, rnd } = makeNoise(seed);
+  const range = (a: number, b: number) => a + rnd() * (b - a);
+  // The strip's footprint, a little padded: the land lies low there.
   const xs = strip.nodes.map((n) => n[0]), zs = strip.nodes.map((n) => n[1]);
-  const foot = xs.length ? [Math.min(...xs) - 0.3, Math.max(...xs) + 0.3, Math.min(...zs) - 0.3, Math.max(...zs) + 0.3] : [0, 0, 0, 0];
-  const { fbm, rnd } = makeNoise(seed);
-  // A few broad pillars rising out of the bank toward the light, leaning a little, with knots at their heads.
-  const count = 2 + Math.floor(rnd() * 2);
-  const pillars = Array.from({ length: count }, (_, i) => ({
-    x: -SX * 0.55 + (i + 0.25 + rnd() * 0.5) * ((SX * 1.1) / count),
-    z: (rnd() - 0.65) * SZ * 0.7,
-    top: 0.35 + rnd() * 0.5,
-    r: 0.16 + rnd() * 0.08,
-    lean: (rnd() - 0.5) * 0.4,
-  }));
-  const density = (x: number, y: number, z: number) => {
-    // Space folded through slow noise, so the shapes billow rather than sitting as plain blobs.
-    const px = x + fbm(x * 0.6, y * 0.6, z * 0.6, 2) * 0.45;
-    const pz = z + fbm(x * 0.6, y * 0.6 + 47, z * 0.6, 2) * 0.45;
-    // The bank: solid below a top that rises and falls in a few broad swells.
-    const top = -0.45 + 0.6 * fbm(px * 0.5, 3.3, pz * 0.5, 2) + 0.15 * Math.sin(px * 1.2 + 0.8);
-    let d = (top - y) * 2.2;
-    for (const p of pillars) {
-      const base = -0.35;
-      const cx = p.x + p.lean * (y - base);
-      const r = p.r * (1 + 0.6 * Math.max(0, (p.top - y) / (p.top - base)));
-      const body = (r - Math.hypot(px - cx, (pz - p.z) * 0.9)) * 4 - Math.max(0, y - p.top) * 8;
-      const knot = (p.r * 1.45 - Math.hypot(px - (p.x + p.lean * (p.top - base)), (y - p.top) * 1.3, (pz - p.z) * 0.9)) * 4;
-      d = Math.max(d, body, knot);
-    }
-    // Frayed a little at the edges, and rounded off toward the volume's rim (no box to it).
-    const rim = Math.hypot(x / SX, z / SZ) + 0.15 * fbm(x + 11, 0, z, 2);
-    const g = d + fbm(px * 1.1, y * 1.1, pz * 1.1, 3) * 0.5 - smooth(0.6, 1, rim) * 3;
-    // Over the strip's footprint, nothing above just under its plane.
-    const inFoot = smooth(foot[0] - 0.15, foot[0] + 0.15, x) * smooth(foot[1] + 0.15, foot[1] - 0.15, x) * smooth(foot[2] - 0.15, foot[2] + 0.15, z) * smooth(foot[3] + 0.15, foot[3] - 0.15, z);
-    return g - inFoot * smooth(-0.3, -0.12, y) * 6;
+  const fx0 = xs.length ? Math.min(...xs) - 0.35 : -2.4, fx1 = xs.length ? Math.max(...xs) + 0.35 : 2.4;
+  const fz0 = zs.length ? Math.min(...zs) - 0.35 : -0.6, fz1 = zs.length ? Math.max(...zs) + 0.35 : 0.6;
+
+  const height = (x: number, z: number) => {
+    // How far outside the footprint (0 inside it), and which way.
+    const dx = Math.max(fx0 - x, 0, x - fx1), dzBack = Math.max(fz0 - z, 0), dzFront = Math.max(z - fz1, 0);
+    const out = Math.hypot(dx, dzBack, dzFront);
+    // Mountains rise behind the strip, hills at its ends, lower ones in front.
+    const amp = Math.min(1, dzBack / 1.6) * 1.7 + Math.min(1, dx / 1.4) * 1.1 + Math.min(1, dzFront / 1.4) * 0.45;
+    const rise = smooth(0, 0.9, out);
+    const hills = fbm(x * 0.5 + 3, z * 0.5, 4) * 0.5;
+    const peaks = ridged(x * 0.32 + 11, z * 0.32, 5);
+    return -0.32 + 0.06 * fbm(x * 1.3, z * 1.3, 2) + rise * (amp * (peaks * 1.05 - 0.15) + hills * (0.4 + 0.4 * amp));
   };
 
-  const X = (i: number) => -SX + (2 * SX * i) / (NX - 1);
-  const Z = (k: number) => -SZ + (2 * SZ * k) / (NZ - 1);
-  const dy = (2 * SY) / LAYERS;
-  const faces: number[] = [];
-  const lines: number[] = [];
-  const field = new Float32Array(NZ * NX);
-  // The light comes from above and to one side: walls facing it are lit, the rest shaded.
-  const lx = 0.55, lz = 0.35;
-  for (let j = 0; j < LAYERS; j++) {
-    const y = SY - (j + 0.5) * dy;
-    for (let k = 0; k < NZ; k++) for (let i = 0; i < NX; i++) field[k * NX + i] = density(X(i), y, Z(k)) - ISO;
-    // Higher layers are lighter, as if lit from above.
-    const plate = 0.72 + 0.28 * (1 - j / (LAYERS - 1));
-    for (let k = 0; k < NZ - 1; k++) {
-      for (let i = 0; i < NX - 1; i++) {
-        const a = field[k * NX + i], b = field[k * NX + i + 1], c = field[(k + 1) * NX + i + 1], d = field[(k + 1) * NX + i];
-        const inside = (a > 0 ? 1 : 0) | (b > 0 ? 2 : 0) | (c > 0 ? 4 : 0) | (d > 0 ? 8 : 0);
-        if (!inside) continue;
-        const x0 = X(i), x1 = X(i + 1), z0 = Z(k), z1 = Z(k + 1);
-        const cross = (p: number, q: number) => p / (p - q);
-        // The part of this cell inside the gas: its corners that are in, and where its edges cross out.
-        const corners: [number, number, number][] = [[x0, z0, a], [x1, z0, b], [x1, z1, c], [x0, z1, d]];
-        const poly: number[][] = [];
-        const edges: number[][] = [];
-        for (let e = 0; e < 4; e++) {
-          const [px, pz, pv] = corners[e], [qx, qz, qv] = corners[(e + 1) % 4];
-          if (pv > 0) poly.push([px, pz]);
-          if (pv > 0 !== qv > 0) {
-            const t = cross(pv, qv);
-            const pt = [px + (qx - px) * t, pz + (qz - pz) * t];
-            poly.push(pt);
-            edges.push(pt);
-          }
-        }
-        for (let n = 1; n + 1 < poly.length; n++) {
-          faces.push(poly[0][0], y, poly[0][1], plate, 0, poly[n][0], y, poly[n][1], plate, 0, poly[n + 1][0], y, poly[n + 1][1], plate, 0);
-        }
-        // The layer's edge through this cell: its outline, and its wall down to the layer below.
-        for (let n = 0; n + 1 < edges.length; n += 2) {
-          const [p, q] = [edges[n], edges[n + 1]];
-          lines.push(p[0], y, p[1], q[0], y, q[1]);
-          // The wall faces out of the gas: away from where the field rises.
-          const gx = b - a + c - d, gz = d - a + c - b;
-          const gl = Math.hypot(gx, gz) || 1;
-          const lit = Math.max(0, (-gx * lx - gz * lz) / gl);
-          const wall = 0.5 + 0.38 * lit - 0.1 * (j / LAYERS);
-          const yb = y - dy;
-          faces.push(p[0], y, p[1], wall, 1, q[0], y, q[1], wall, 1, q[0], yb, q[1], wall, 1, p[0], y, p[1], wall, 1, q[0], yb, q[1], wall, 1, p[0], yb, p[1], wall, 1);
+  // The heights on the grid, and normals from them.
+  const nx = Math.round((X1 - X0) / CELL) + 1, nz = Math.round((Z1 - Z0) / CELL) + 1;
+  const H = new Float32Array(nx * nz);
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) H[j * nx + i] = height(X0 + i * CELL, Z0 + j * CELL);
+  const at = (i: number, j: number) => H[Math.min(nz - 1, Math.max(0, j)) * nx + Math.min(nx - 1, Math.max(0, i))];
+  const normal = (i: number, j: number) => {
+    const gx = (at(i + 1, j) - at(i - 1, j)) / (2 * CELL), gz = (at(i, j + 1) - at(i, j - 1)) / (2 * CELL);
+    const l = Math.hypot(gx, 1, gz);
+    return [-gx / l, 1 / l, -gz / l];
+  };
+
+  // The shards: a jittered grid of seeds; each point belongs to its nearest.
+  const sx = Math.ceil((X1 - X0) / SHARD) + 2, sz = Math.ceil((Z1 - Z0) / SHARD) + 2;
+  const seeds = new Float32Array(sx * sz * 3);
+  for (let j = 0; j < sz; j++)
+    for (let i = 0; i < sx; i++) {
+      const k = (j * sx + i) * 3;
+      seeds[k] = X0 + (i - 0.5 + range(0.1, 0.9)) * SHARD;
+      seeds[k + 1] = Z0 + (j - 0.5 + range(0.1, 0.9)) * SHARD;
+      seeds[k + 2] = rnd();
+    }
+  const shardOf = (x: number, z: number) => {
+    const ci = Math.floor((x - X0) / SHARD + 0.5), cj = Math.floor((z - Z0) / SHARD + 0.5);
+    let best = 0, bd = Infinity;
+    for (let j = cj - 1; j <= cj + 1; j++)
+      for (let i = ci - 1; i <= ci + 1; i++) {
+        if (i < 0 || j < 0 || i >= sx || j >= sz) continue;
+        const k = j * sx + i;
+        const d = (seeds[k * 3] - x) ** 2 + (seeds[k * 3 + 1] - z) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = k;
         }
       }
+    return best;
+  };
+  // Each quad's two triangles (A: 00, 10, 11; B: 00, 11, 01), and the shard each belongs to.
+  const qx = nx - 1, qz = nz - 1;
+  const tri = new Int32Array(qx * qz * 2);
+  for (let j = 0; j < qz; j++)
+    for (let i = 0; i < qx; i++) {
+      const x = X0 + (i + 0.5) * CELL, z = Z0 + (j + 0.5) * CELL;
+      tri[(j * qx + i) * 2] = shardOf(x + CELL * 0.17, z - CELL * 0.17);
+      tri[(j * qx + i) * 2 + 1] = shardOf(x - CELL * 0.17, z + CELL * 0.17);
     }
+  const shard = (i: number, j: number, t: number) => (i < 0 || j < 0 || i >= qx || j >= qz ? -1 : tri[(j * qx + i) * 2 + t]);
+
+  const ground = new Float32Array(qx * qz * 6 * GROUND_STRIDE);
+  let o = 0;
+  const corner = (i: number, j: number, bary: number[], edges: number[], s: number) => {
+    const n = normal(i, j);
+    const sxw = seeds[s * 3], szw = seeds[s * 3 + 1];
+    ground.set([X0 + i * CELL, at(i, j), Z0 + j * CELL, n[0], n[1], n[2], bary[0], bary[1], bary[2], edges[0], edges[1], edges[2], sxw, height(sxw, szw), szw, seeds[s * 3 + 2]], o);
+    o += GROUND_STRIDE;
+  };
+  for (let j = 0; j < qz; j++)
+    for (let i = 0; i < qx; i++) {
+      const a = shard(i, j, 0), b = shard(i, j, 1);
+      // A's edges, opposite each corner: 00 faces 10-11 (the quad to the right's B), 10 faces 11-00 (B), 11 faces
+      // 00-10 (the quad below's B).
+      const ea = [+(shard(i + 1, j, 1) !== a), +(b !== a), +(shard(i, j - 1, 1) !== a)];
+      corner(i, j, [1, 0, 0], ea, a);
+      corner(i + 1, j, [0, 1, 0], ea, a);
+      corner(i + 1, j + 1, [0, 0, 1], ea, a);
+      // B's edges: 00 faces 11-01 (the quad above's A), 11 faces 01-00 (the quad to the left's A), 01 faces 00-11 (A).
+      const eb = [+(shard(i, j + 1, 0) !== b), +(shard(i - 1, j, 0) !== b), +(a !== b)];
+      corner(i, j, [1, 0, 0], eb, b);
+      corner(i + 1, j + 1, [0, 1, 0], eb, b);
+      corner(i, j + 1, [0, 0, 1], eb, b);
+    }
+
+  // Stars over the land, mostly behind the strip and above the mountains: most in ink, a few in colour.
+  const stars: number[] = [];
+  for (let n = 0; n < 340; n++) {
+    const x = range(-9, 9), z = range(-9, 1.5), y = range(0.4, 4.5);
+    if (y < height(x, z) + 0.3) continue;
+    const roll = rnd();
+    stars.push(x, y, z, range(1.2, 3.2), roll < 0.08 ? 1 : roll < 0.13 ? 2 : roll < 0.18 ? 3 : 0, rnd());
   }
-  return { faces: new Float32Array(faces), lines: new Float32Array(lines) };
+  return { ground, stars: new Float32Array(stars) };
 }
