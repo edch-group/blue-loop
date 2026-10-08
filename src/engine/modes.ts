@@ -9,8 +9,8 @@ import type { CardDef, Count, Effect, Passive } from './types';
 export type GameMode = 'core' | 'lost';
 
 export const GAME_MODES: Record<GameMode, { name: string; blurb: string }> = {
-  core: { name: 'Core', blurb: 'Four races, one mechanic each. Every card does one or two things.' },
-  lost: { name: 'Lost Races', blurb: 'All eight races and every mechanic.' },
+  core: { name: 'Core', blurb: 'Four core races, limited mechanics.' },
+  lost: { name: 'Lost Races', blurb: 'All races, all mechanics.' },
 };
 
 /** A deck saved without a mode is from before modes: everything was legal then. */

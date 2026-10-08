@@ -647,7 +647,7 @@ export class DeckBuilder {
     const mine = customDecks().filter((d) => modeOf(d) === gm);
     const presets = PRESETS.filter((d) => modeOf(d) === gm);
     const hide = startersHidden();
-    const tabs = (['core', 'lost'] as const).map((m) => `<button class="db-seg-btn ${gm === m ? 'on' : ''}" data-act="db-gm" data-arg="${m}" data-tip="${esc(GAME_MODES[m].blurb)}">${GAME_MODES[m].name.toLowerCase()}</button>`).join('');
+    const tabs = (['core', 'lost'] as const).map((m) => `<button class="db-seg-btn ${gm === m ? 'on' : ''}" data-act="db-gm" data-arg="${m}">${GAME_MODES[m].name.toLowerCase()}</button>`).join('');
     return `
       ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small db-switch ${hide ? 'on' : ''}" data-act="db-hide-starters" role="switch" aria-checked="${hide}">hide starters<span class="switch-track" aria-hidden="true"><i></i></span></button><button class="btn btn-small" data-act="db-community">community</button><button class="btn btn-small" data-act="db-import-open">import</button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
       <div class="setup-body db-list-body">
@@ -741,7 +741,7 @@ export class DeckBuilder {
           ${this.pagerHtml(d)}
         </div>
         ${this.mode ? this.modeSide(d) : `<aside class="db-deck-side">
-          <div class="db-name-row"><input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" /><small class="db-mode-chip" data-tip="${esc(GAME_MODES[modeOf(d)].blurb)}">${GAME_MODES[modeOf(d)].name.toLowerCase()}</small></div>
+          <div class="db-name-row"><input class="db-name" data-db-name value="${esc(d.name)}" maxlength="24" aria-label="Deck name" /><small class="db-mode-chip">${GAME_MODES[modeOf(d)].name.toLowerCase()}</small></div>
           ${this.tallyHtml(d)}
           <div class="db-focus-slot">${this.focus ? this.renderFocus(this.focus) : ''}</div>
           <div class="db-rows">${this.rowsHtml(d)}</div>

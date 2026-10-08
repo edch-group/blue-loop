@@ -4339,7 +4339,7 @@ export class App {
 
   /** Core or Lost Races, as two buttons. */
   private modeTabs(): string {
-    const tab = (m: GameMode) => `<button class="db-seg-btn ${this.playMode === m ? 'on' : ''}" data-act="play-mode" data-arg="${m}" data-tip="${esc(GAME_MODES[m].blurb)}">${GAME_MODES[m].name.toLowerCase()}</button>`;
+    const tab = (m: GameMode) => `<button class="db-seg-btn ${this.playMode === m ? 'on' : ''}" data-act="play-mode" data-arg="${m}">${GAME_MODES[m].name.toLowerCase()}</button>`;
     return `<div class="db-gm-row play-mode-row"><span class="db-seg db-gm" role="group" aria-label="Game mode">${tab('core')}${tab('lost')}</span><small class="muted">${esc(GAME_MODES[this.playMode].blurb)}</small></div>`;
   }
 
