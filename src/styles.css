@@ -6279,8 +6279,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .sd-body { width: min(1100px, 100%); justify-self: center; min-height: 0; overflow-y: auto; scrollbar-width: thin; display: grid; align-content: start; gap: clamp(10px, calc(2.4 * var(--vh)), 20px); padding: 6px 2px 12px; }
 .sd-body h4 { margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); }
 .sd-body h4 small { font-family: var(--body, inherit); font-size: 0.66rem; letter-spacing: 0; text-transform: none; color: var(--ink-faint); }
-.sd-row { display: flex; flex-wrap: wrap; gap: 10px; min-height: 40px; }
-.sd-empty { margin: 0; font-size: 0.74rem; color: var(--ink-faint); }
 .sd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
 .sd-card { position: relative; display: grid; grid-template-rows: auto auto auto; gap: 5px; width: 118px; padding: 0 0 8px; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 3px 10px rgba(70, 76, 100, 0.1); cursor: pointer; }
 .sd-grid .sd-card { width: auto; }
@@ -6295,5 +6293,12 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .sd-buy .cur { width: 1.1em; height: 1.1em; }
 .sd-buy:not(:disabled):hover { background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.45); }
 .sd-buy:disabled { cursor: default; color: var(--ink-faint); box-shadow: none; }
-.sd-remove { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border: 0; border-radius: 50%; cursor: pointer; background: rgba(255, 255, 255, 0.92); color: var(--ink); font-size: 0.9rem; line-height: 1; box-shadow: 0 1px 4px rgba(40, 46, 70, 0.25); }
-.sd-pool.full .sd-buy { opacity: 0.4; }
+.sd-remove { justify-self: start; margin: 0 8px; padding: 2px 10px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.08em; color: #fff; background: var(--ink); }
+.sd-remove:hover { background: #6c7488; }
+/* The six offers in one row: two white dwarf, two stellar, two anomaly. */
+.sd-offers { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+.sd-offers .sd-art { height: clamp(70px, calc(18 * var(--vh)), 150px); }
+.sd-offers .sd-name { font-size: 0.56rem; }
+.sd-card.owned { box-shadow: 0 0 0 2px var(--ink), 0 3px 10px rgba(70, 76, 100, 0.1); }
+@media (max-width: 720px) { .sd-offers { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; } }
+

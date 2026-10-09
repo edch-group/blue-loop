@@ -142,16 +142,38 @@ export interface RunBonuses {
   deck: string[];
 }
 
-/** Starter cards: how many can be bought into one race's starting deck, and what each costs in petals. */
-export const STARTER_ADDS_MAX = 6;
+/**
+ * Each race's six cards that can be bought into its starting deck with petals: two white dwarf, two stellar and two
+ * anomaly, each chosen for how that race plays (and legal in the mode its runs are played in: Core for the four core
+ * races, whose only anomalies there are few).
+ */
+export const STARTER_OFFERS: string[][] = [
+  // Aureline: armed cards making each other hit harder.
+  ['dawnblade', 'banner_of_dawn', 'lancer_squadron', 'coronal_chorus', 'the_sun_throne', 'event_horizon'],
+  // Xel'Naru: run the sun hot for bigger bursts.
+  ['shard_tempest', 'crystal_bloom', 'xelnaru_oracle', 'refraction_veil', 'event_horizon', 'black_sun'],
+  // Vorthane: shields kept, and stinging.
+  ['brine_lash', 'deep_hymn', 'riptide_sentinel', 'abyssal_snap', 'black_sun', 'event_horizon'],
+  // Ixquor: grow, and go wide.
+  ['sporestorm', 'mycelial_net', 'spore_burst', 'hive_colossus', 'event_horizon', 'black_sun'],
+  // Nyxari: traps from the dark, and unmaking.
+  ['nyx_unmaker_blade', 'nyx_veil_sentry', 'nyx_hollow_reaper', 'nyx_null_shroud', 'temporal_snare', 'event_horizon'],
+  // Korrath: walls, and the forge behind them.
+  ['kor_foundry', 'kor_molten_pour', 'kor_master_smith', 'kor_rampart_lord', 'aegis_monolith', 'black_sun'],
+  // Seren: the planets turned, and attunement.
+  ['ser_eclipse_caster', 'ser_twin_moons', 'ser_oracle', 'ser_constellation', 'grand_orrery', 'circular_refraction'],
+  // Pyrr: everything spent in one burst, the sun run hot.
+  ['pyr_flare_burst', 'pyr_stoker', 'pyr_supernova_charge', 'pyr_solar_tyrant', 'supernova_lance', 'crown_first_sun'],
+];
+
+/** What a starter card costs in petals, by its rarity. */
 export const starterCardPrice = (rarity: string | undefined) => (rarity === 'anomaly' ? 14 : rarity === 'stellar' ? 8 : 4);
 
 /** Why this card can't be bought into this race's starting deck now (null if it can). */
 export function starterAddProblem(meta: MetaState, race: number, defId: string, rarity: string | undefined): string | null {
-  const have = meta.deck?.[race] ?? [];
-  if (have.length >= STARTER_ADDS_MAX) return `At most ${STARTER_ADDS_MAX} cards bought into a starting deck.`;
+  if (!STARTER_OFFERS[race]?.includes(defId)) return "That card isn't offered to this race's starting deck.";
+  if ((meta.deck?.[race] ?? []).includes(defId)) return 'Already in the starting deck.';
   if (meta.petals < starterCardPrice(rarity)) return `Needs ${starterCardPrice(rarity)} petals.`;
-  void defId;
   return null;
 }
 

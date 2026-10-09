@@ -28,16 +28,12 @@ import {
   regionalStability,
   universeStability,
   META_UPGRADES,
-  CARDS,
-  isBossCard,
   upgradeOpen,
   buyStarterCard,
   removeStarterCard,
   starterAddProblem,
   starterCardPrice,
-  STARTER_ADDS_MAX,
-  legalIn,
-  CORE_RACES,
+  STARTER_OFFERS,
   buyUpgrade,
   buyUpgradeProblem,
   levelOf,
@@ -1155,33 +1151,26 @@ export class CampaignView {
   }
 
   /**
-   * A race's starting deck, and the cards bought into it with petals (kept for every run as that race): those
-   * bought (to take out again), then every card it could buy, by rarity, each with its price.
+   * A race's starting deck offers: the six cards (two of each rarity) that can be bought into it with petals, kept
+   * for every run as that race. A bought card can be taken out again.
    */
   private renderStarterDeck(meta: MetaState): string {
     const r = this.setup.race;
-    const mode = CORE_RACES.includes(r) ? 'core' : undefined;
     const have = meta.deck?.[r] ?? [];
-    const order = { dwarf: 0, stellar: 1, anomaly: 2 } as Record<string, number>;
-    const pool = CARDS.filter((c) => (c.race === r || c.race === undefined) && c.kind !== 'command' && c.kind !== 'global' && !c.fusion && !isBossCard(c.id) && legalIn(mode, c.id) && !c.id.startsWith('boon_'))
-      .sort((x, y) => (order[x.rarity ?? 'dwarf'] ?? 0) - (order[y.rarity ?? 'dwarf'] ?? 0) || (x.race === r ? 0 : 1) - (y.race === r ? 0 : 1) || (x.cost ?? 0) - (y.cost ?? 0));
-    const mini = (id: string, foot: string) => {
-      const def = cardDef(id);
-      return `<div class="sd-card rarity-${def.rarity ?? 'dwarf'}" data-act="inspect" data-card="${esc(id)}">
-        <span class="sd-art">${cardArtLite(def)}</span>
-        <span class="sd-name"><i></i>${esc(def.name.toLowerCase())}</span>
-        ${foot}
-      </div>`;
-    };
-    const bought = have.length
-      ? have.map((id, i) => mini(id, `<button class="sd-remove" data-act="cmp-deck-remove" data-arg="${i}" aria-label="Take it out">×</button>`)).join('')
-      : `<p class="sd-empty">None yet: every card bought here starts every run as the ${lower(RACE_NAMES[r])} with you.</p>`;
-    const full = have.length >= STARTER_ADDS_MAX;
-    const shop = pool
-      .map((c) => {
-        const price = starterCardPrice(c.rarity);
-        const why = starterAddProblem(meta, r, c.id, c.rarity);
-        return mini(c.id, `<button class="sd-buy" data-act="cmp-deck-add" data-arg="${esc(c.id)}" ${why ? 'disabled' : ''}>${PETAL}${price}</button>`);
+    const offers = STARTER_OFFERS[r] ?? [];
+    const cards = offers
+      .map((id) => {
+        const def = cardDef(id);
+        const at = have.indexOf(id);
+        const foot =
+          at >= 0
+            ? `<button class="sd-remove" data-act="cmp-deck-remove" data-arg="${at}" aria-label="Take it out">in deck ×</button>`
+            : `<button class="sd-buy" data-act="cmp-deck-add" data-arg="${esc(id)}" ${starterAddProblem(meta, r, id, def.rarity) ? 'disabled' : ''}>${PETAL}${starterCardPrice(def.rarity)}</button>`;
+        return `<div class="sd-card rarity-${def.rarity ?? 'dwarf'} ${at >= 0 ? 'owned' : ''}" data-act="inspect" data-card="${esc(id)}">
+          <span class="sd-art">${cardArtLite(def)}</span>
+          <span class="sd-name"><i></i>${esc(def.name.toLowerCase())}</span>
+          ${foot}
+        </div>`;
       })
       .join('');
     return `
@@ -1192,8 +1181,7 @@ export class CampaignView {
           <button class="icon-btn" data-act="cmp-deck" aria-label="Close">×</button>
         </header>
         <div class="sd-body">
-          <section class="sd-have"><h4>bought <small>${have.length} of ${STARTER_ADDS_MAX}</small></h4><div class="sd-row">${bought}</div></section>
-          <section class="sd-pool ${full ? 'full' : ''}"><h4>add a card <small>white dwarf ${starterCardPrice('dwarf')} · stellar ${starterCardPrice('stellar')} · anomaly ${starterCardPrice('anomaly')}</small></h4><div class="sd-grid">${shop}</div></section>
+          <section class="sd-pool"><h4>${have.length} of ${offers.length} in deck <small>white dwarf ${starterCardPrice('dwarf')} · stellar ${starterCardPrice('stellar')} · anomaly ${starterCardPrice('anomaly')}</small></h4><div class="sd-grid sd-offers">${cards}</div></section>
         </div>
       </div>`;
   }

@@ -16,6 +16,10 @@ import {
   runBonuses,
   universeStability,
   wormholePetals,
+  STARTER_OFFERS,
+  starterAddProblem,
+  legalIn,
+  cardDef,
   buyStarterCard,
   levelOf,
   rarityOf,
@@ -86,16 +90,29 @@ describe('the strip', () => {
     // (Requisition needs Stockpile II: Stockpile is bought twice.)
     for (const id of ['materials', 'materials', 'hull', 'cards', 'pick', 'grace']) meta = buyUpgrade(meta, id);
     // A card bought into the race's starting deck with petals.
-    meta = buyStarterCard(meta, 1, 'p_prism_blade', 'dwarf');
+    meta = buyStarterCard(meta, 1, 'shard_tempest', 'dwarf');
     const s = createCampaign({ seed: 11, race: 1, run: runBonuses(meta, 1) });
     const plain = run(11);
     expect(flag(plain).deck).toHaveLength(CAMPAIGN.armySize);
     expect(flag(s).deck).toHaveLength(CAMPAIGN.armySize + 2);
-    expect(flag(s).deck.filter((id) => id === 'p_prism_blade').length).toBeGreaterThan(flag(plain).deck.filter((id) => id === 'p_prism_blade').length);
+    expect(flag(s).deck.filter((id) => id === 'shard_tempest').length).toBeGreaterThan(flag(plain).deck.filter((id) => id === 'shard_tempest').length);
     expect(campaignPlayer(s).materials).toBe(campaignPlayer(plain).materials + 6);
     expect(campaignPlayer(s).ship.hull).toBe(1);
     expect(s.cardRewards[0].source).toBe('Requisition');
     expect(universeStability(s)).toBe(universeStability(plain) + 1);
+  });
+});
+
+describe('starter offers', () => {
+  it('offers each race two white dwarf, two stellar and two anomaly cards, legal in its mode, each bought once', () => {
+    STARTER_OFFERS.forEach((ids, r) => {
+      expect(ids.map((id) => cardDef(id).rarity ?? 'dwarf')).toEqual(['dwarf', 'dwarf', 'stellar', 'stellar', 'anomaly', 'anomaly']);
+      for (const id of ids) expect(legalIn(r < 4 ? 'core' : 'lost', id)).toBe(true);
+    });
+    let meta = { ...emptyMeta(), petals: 50 };
+    expect(starterAddProblem(meta, 0, 'shard_tempest', 'dwarf')).toMatch(/offered/);
+    meta = buyStarterCard(meta, 0, 'dawnblade', 'dwarf');
+    expect(starterAddProblem(meta, 0, 'dawnblade', 'dwarf')).toMatch(/Already/);
   });
 });
 
