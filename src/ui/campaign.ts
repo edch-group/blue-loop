@@ -416,6 +416,14 @@ export class CampaignView {
   }
 
   /** The cards the player may salvage from a battle just won (on the battle screen), each with where it would go. */
+  /** Materials a battle won pays the player (the win, and the system's yield and stores as it is taken); 0 otherwise. */
+  spoilsFor(game: GameState): number {
+    const s = this.state;
+    if (!s?.battle || s.battle.attacker !== s.playerId || game.winnerId !== game.players[0].id) return 0;
+    const n = nodeById(s, s.battle.nodeId);
+    return CAMPAIGN.winMaterials + n.yield.materials + (n.bonus?.materials ?? 0);
+  }
+
   salvageFor(game: GameState): { id: string; toDeck: boolean }[] {
     const s = this.state;
     if (!s?.battle) return [];
@@ -442,7 +450,8 @@ export class CampaignView {
       // Who won: the battle's own winner (auto-resolved, the log says whether the attackers won).
       const attackerName = factionById(s, b.attacker).name;
       const attackerWon = auto ? this.report?.lines.some((l) => l.startsWith(`${attackerName} wins the battle for`)) ?? false : game.winnerId === game.players[0].id;
-      this.battleReport = {
+      // (The battle screen's own result says what it won: no second report on the map.)
+      if (auto) this.battleReport = {
         won: attackerWon === (b.attacker === s.playerId),
         draw: auto ? this.report?.lines.some((l) => l.includes('ends in a draw')) ?? false : isDraw(game),
         system: before.system,
@@ -2162,18 +2171,16 @@ export class CampaignView {
   }
 
   /**
-   * A battle's report, laid out rather than told: the result and where; the hero (their new level, or the
-   * experience); what was won, as tokens; the card salvaged, as itself; and the finds, as their marks.
+   * A battle's report (one fought without the player at the table), laid out rather than told: the result and
+   * where; the hero; what was won, as tokens; the card salvaged, as itself; and the finds, as their marks.
    */
   private renderBattleReport(): string {
     const r = this.battleReport!;
     const token = (icon: string, n: number, label: string) => (n ? `<span class="br-token" data-tip-title="${esc(label.toLowerCase())}" data-tip="${n > 0 ? 'Won in this battle.' : 'Spent in this battle.'}">${icon}<b>${n > 0 ? '+' : ''}${n}</b></span>` : '');
-    const hero = r.hero
-      ? `<div class="br-hero ${r.level ? 'br-levelled' : ''}">${portrait(r.hero)}${r.level ? `<span class="br-level">level ${r.level}</span>` : r.xp ? `<span class="br-xp">+${r.xp} xp</span>` : ''}</div>`
-      : '';
+    const hero = r.hero ? `<div class="br-hero">${portrait(r.hero)}</div>` : '';
     const tokens = [token(MATERIALS, r.materials, 'Materials'), r.damage ? `<span class="br-token br-bad" data-tip-title="damage" data-tip="Your flagship's sun starts this much hotter until it is repaired.">✸<b>${r.damage}</b></span>` : ''].join('');
     const finds = r.finds
-      .map((f) => `<span class="find rarity-${f.rarity}" data-tip-title="${esc(lower(f.name))}" data-tip="${esc(f.text)}" data-tip-note="${f.kind === 'module' ? 'Ship module: fit it in the ship tab.' : 'Hero gear: equip it in the hero tab.'}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></span>`)
+      .map((f) => `<span class="find rarity-${f.rarity}" data-tip-title="${esc(lower(f.name))}" data-tip="${esc(f.text)}" data-tip-note="${f.cursed ? 'A cursed relic: it weighs on your flagship in every battle.' : "A relic: a blessing on your hero's card in every battle."}">${effectMark(f.mark)}<i class="find-kind">${GEAR_ICON}</i></span>`)
       .join('');
     const card = r.salvaged ? `<div class="br-card">${cardHtml(r.salvaged.id)}</div>` : '';
     return this.modal(

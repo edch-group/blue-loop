@@ -121,12 +121,13 @@ void main() {
     float a = pow(1.0 - vL.x, 1.5) * 0.55 * uAlpha;
     gl_FragColor = vec4(uColor * a, a);
   } else if (uKind > 4.5) {
-    // A Stellari petal, as the home screen's flower: white, see-through, its edge a bright white line, with the
-    // faint grey shadow round it that keeps it visible on the paper.
-    float edge = 1.0 - smoothstep(0.12, 0.35, ndv);
-    float shade = 1.0 - smoothstep(0.0, 0.1, ndv);
-    vec3 c = mix(vec3(1.0), vec3(0.47, 0.49, 0.59), shade * 0.5);
-    float a = (0.2 + 0.75 * edge) * uAlpha;
+    // A Stellari petal, as the battle board draws its star: a wireframe, a fine silver line round each petal
+    // over the faintest pale fill (vL.x: 0 at the petal's middle, 1 at its edge).
+    float r = vL.x;
+    float w = max(fwidth(r), 1e-4);
+    float line = 1.0 - smoothstep(w * 0.6, w * 1.8, 1.0 - r);
+    vec3 c = mix(vec3(0.86, 0.88, 0.93), vec3(0.66, 0.7, 0.79), line);
+    float a = (0.14 + 0.65 * line) * uAlpha;
     gl_FragColor = vec4(c * a, a);
   } else {
     float lit = max(0.0, dot(normalize(vN), normalize(vec3(0.5, 0.8, 0.35))));
@@ -341,6 +342,23 @@ function sphere(): Float32Array {
   return new Float32Array(out);
 }
 
+/**
+ * A flat shape as a fan from a middle point to its outline (in the xy plane), for the Stellari's petals: position,
+ * then (how far out: 0 at the middle, 1 on the outline, 0, 0), so its outline can be drawn as a fine line.
+ */
+function fan(outline: [number, number][], mid: [number, number]): Float32Array {
+  const out: number[] = [];
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i], b = outline[(i + 1) % outline.length];
+    out.push(mid[0], mid[1], 0, 0, 0, 0, a[0], a[1], 0, 1, 0, 0, b[0], b[1], 0, 1, 0, 0);
+  }
+  return new Float32Array(out);
+}
+/** A petal of the board's star: an ellipse through the middle (half-width 0.29, half-length 1). */
+const petalShape = () => fan(Array.from({ length: 48 }, (_, i) => [Math.cos((i / 48) * Math.PI * 2) * 0.29, Math.sin((i / 48) * Math.PI * 2)] as [number, number]), [0, 0]);
+/** A spike of its inner ring: a slim diamond from the middle out (as the board's: to 0.79, widest at 0.61). */
+const spikeShape = () => fan([[0, 0], [0.079, 0.606], [0, 0.788], [-0.079, 0.606]], [0, 0.5]);
+
 /** A flat ring from radius 1 to 2.6, as triangles: position, then (how far out 0 to 1, angle, 0). */
 function disc(): Float32Array {
   const out: number[] = [];
@@ -397,8 +415,10 @@ export class MapObjects {
   private sphereBuf: WebGLBuffer;
   private discBuf: WebGLBuffer;
   private beamBuf: WebGLBuffer;
+  private petalBuf: WebGLBuffer;
+  private spikeBuf: WebGLBuffer;
   private quadBuf: WebGLBuffer;
-  private counts: { sphere: number; disc: number; beam: number };
+  private counts: { sphere: number; disc: number; beam: number; petal: number; spike: number };
   private list: MapObject[] = [];
   private shipProg: WebGLProgram;
   private shipBuf: WebGLBuffer;
@@ -426,12 +446,14 @@ export class MapObjects {
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
       return b;
     };
-    const sp = sphere(), di = disc(), be = beam();
+    const sp = sphere(), di = disc(), be = beam(), pe = petalShape(), sk = spikeShape();
+    this.petalBuf = buf(pe);
+    this.spikeBuf = buf(sk);
     this.sphereBuf = buf(sp);
     this.discBuf = buf(di);
     this.beamBuf = buf(be);
     this.quadBuf = buf(new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]));
-    this.counts = { sphere: sp.length / 6, disc: di.length / 6, beam: be.length / 6 };
+    this.counts = { sphere: sp.length / 6, disc: di.length / 6, beam: be.length / 6, petal: pe.length / 6, spike: sk.length / 6 };
   }
 
   set(list: MapObject[]) {
@@ -694,9 +716,9 @@ export class MapObjects {
   }
 
   /**
-   * The Stellari, as on the home screen but standing in the scene: a flower of pale petals just past the wormhole's
-   * sun (clear of it), turned to face the camera, its outer ring of petals turning one way and its inner spikes
-   * the other, more slowly.
+   * The Stellari, drawn as the battle board draws its star (a wireframe of fine silver lines over pale petals) but
+   * standing in the scene: just past the wormhole's sun (clear of it), turned to face the camera, its outer ring
+   * of petals turning one way and its inner spikes the other, more slowly, the spikes a little in front.
    */
   private drawStellari(cam: Camera, time: number, fade: number) {
     const gl = this.gl;
@@ -715,19 +737,19 @@ export class MapObjects {
     gl.disable(gl.DEPTH_TEST);
     // (A little breath, as if it were alive.)
     const b = 1 + 0.03 * Math.sin(time * 0.9);
+    // The outer petals a little behind, the inner spikes a little in front: depth as the camera moves.
+    const back = [x - f[0] * 0.03, y - f[1] * 0.03, z - f[2] * 0.03];
+    const front = [x + f[0] * 0.03, y + f[1] * 0.03, z + f[2] * 0.03];
     for (let i = 0; i < 12; i++) {
-      solid.draw(this.sphereBuf, this.counts.sphere, facing(x, y, z, f, turn + (i * Math.PI) / 6, R * 0.29 * b, R * b, R * 0.02), 5, [1, 1, 1], 0.55);
+      solid.draw(this.petalBuf, this.counts.petal, facing(back[0], back[1], back[2], f, turn + (i * Math.PI) / 6, R * b, R * b, R), 5, [1, 1, 1], 1);
     }
     for (let i = 0; i < 18; i++) {
       const a = -turn * 0.6 + ((i * 20 + 10) * Math.PI) / 180;
-      // Each spike from the middle outward: its centre partway out along its own direction.
-      const m = facing(x, y, z, f, a, R * 0.05, R * 0.4, R * 0.015);
-      for (let k = 0; k < 3; k++) m[12 + k] += m[4 + k] / (R * 0.4) * R * 0.42;
-      solid.draw(this.sphereBuf, this.counts.sphere, m, 5, [1, 1, 1], 0.7);
+      solid.draw(this.spikeBuf, this.counts.spike, facing(front[0], front[1], front[2], f, a, R * b, R * b, R), 5, [1, 1, 1], 1);
     }
     solid.done();
     const sprite = this.sprites(cam, time, fade);
-    sprite.draw(x, y, z, R * 1.4, 0, [1, 1, 1], 0.5);
+    sprite.draw(x, y, z, R * 1.2, 0, [1, 1, 1], 0.35);
     sprite.done();
     gl.enable(gl.DEPTH_TEST);
   }

@@ -4922,6 +4922,9 @@ export class App {
             .join('')}</div>
         </div>`
       : '';
+    // What a campaign battle won pays: materials.
+    const spoils = this.campaignBattle ? this.campaign.spoilsFor(s) : 0;
+    const spoilsHtml = spoils ? `<div class="result-rewards"><span>+${spoils} materials</span></div>` : '';
     const actions = this.campaignBattle
       ? salvage.length
         ? `<div class="result-actions"><button class="btn-primary" data-act="campaign-return" ${pick ? '' : 'disabled'}>confirm</button><button class="btn" data-act="campaign-return-none">leave it</button></div>`
@@ -4938,6 +4941,7 @@ export class App {
         <h2>${title}</h2>
         <p>${why}</p>
         ${this.resultExtra}
+        ${spoilsHtml}
         ${findsHtml}
         ${salvageHtml}
         ${actions}
