@@ -61,6 +61,7 @@ import {
   supernovaThreshold,
   isDraw,
   hasRoomFor,
+  roomProblem,
   targetOf,
   planetsEaten,
   currentPlanet,
@@ -2903,8 +2904,9 @@ export class App {
       this.showToast('You already have a Lightspeed card face down: only one at a time.', 'info');
       return refuse();
     }
-    if (!hasRoomFor(me, card.defId) && !canSetFaceDown(me, card.defId)) {
-      this.showToast('Your tableau is full: a card can only go in once one is beaten down, recalled or removed. A recall card can take the place of the card it recalls.', 'info');
+    const noRoom = roomProblem(me, card.defId);
+    if (noRoom && !canSetFaceDown(me, card.defId)) {
+      this.showToast(noRoom, 'info');
       return refuse();
     }
     this.pending = { uid, step: 'choice', drop };

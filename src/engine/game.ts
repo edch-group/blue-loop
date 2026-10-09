@@ -433,16 +433,26 @@ export function recallsInto(p: PlayerState, defId: string): boolean {
   return allyEffectKind(defId) === 'recall' && p.tableau.some(returnable);
 }
 
-/** Whether a card can be played into this tableau now: a free slot, a recall to make one, or no slot needed. */
-export function hasRoomFor(p: PlayerState, defId: string): boolean {
+/**
+ * Why a card can't be played into this tableau now (null if it can). A full tableau never stops it: the new card
+ * replaces one of yours. Only a card that needs one of yours to work on can be held back.
+ */
+export function roomProblem(p: PlayerState, defId: string): string | null {
+  const name = cardDef(defId).name;
   // (Offering and Rootbreak need a card of yours to draw on.)
-  if (needsAlly(defId) && !allyChoices(p, defId).length) return false;
+  if (needsAlly(defId) && !allyChoices(p, defId).length) {
+    return allyEffectKind(defId) === 'offer'
+      ? `${name}'s Offering needs an armed card of yours that hasn't acted today.`
+      : `${name}'s Rootbreak needs a card of yours that has grown.`;
+  }
   // A Consume card needs a card of yours to give up (and then has its slot).
-  if (cardDef(defId).consume) return consumable(p).length > 0;
-  // (A Fusion card can always fuse onto a card in play, full tableau or not; and into a full tableau, a card
-  // replaces one of yours.)
-  if (cardDef(defId).fusion && fusionHosts(p).length > 0) return true;
-  return !inSlots(defId) || !tableauFull(p) || recallsInto(p, defId) || consumable(p).length > 0;
+  if (cardDef(defId).consume && !consumable(p).length) return `${name} needs another card of yours in play to consume.`;
+  return null;
+}
+
+/** Whether a card can be played into this tableau now (see roomProblem). */
+export function hasRoomFor(p: PlayerState, defId: string): boolean {
+  return roomProblem(p, defId) === null;
 }
 
 /** Whether playing this card into a slot means replacing one of your cards: your tableau is full (cards no longer fade). */
@@ -1592,7 +1602,6 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   // player puts it in that card's slot.
   const recalled = allyEffectKind(def.id) === 'recall' ? p.tableau.find((c) => c.uid === action.allyUid && returnable(c) && c.slot !== COMMAND_SLOT) : undefined;
   const swap = slotted && (tableauFull(p) ? recallsInto(p, def.id) : !!recalled && action.slot === recalled.slot);
-  if (slotted && tableauFull(p) && !swap) throw new GameError('Your tableau is full: a card can only go in by replacing one of yours.');
   const free = freeSlots(p);
   if (slotted && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
   const allies = allyChoices(p, def.id);
