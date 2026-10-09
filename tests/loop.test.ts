@@ -80,12 +80,12 @@ describe('the strip', () => {
 
   it('starts the flagship with ten cards, and the bought upgrades on top', () => {
     let meta = { ...emptyMeta(), petals: 200 };
-    for (const id of ['credits', 'hull', 'cards', 'pick', 'grace']) meta = buyUpgrade(meta, id);
+    for (const id of ['materials', 'hull', 'cards', 'pick', 'grace']) meta = buyUpgrade(meta, id);
     const s = run(11, meta);
     const plain = run(11);
     expect(flag(plain).deck).toHaveLength(CAMPAIGN.armySize);
     expect(flag(s).deck).toHaveLength(CAMPAIGN.armySize + 1);
-    expect(campaignPlayer(s).credits).toBe(campaignPlayer(plain).credits + 3);
+    expect(campaignPlayer(s).materials).toBe(campaignPlayer(plain).materials + 3);
     expect(campaignPlayer(s).ship.hull).toBe(1);
     expect(s.cardRewards[0].source).toBe('Requisition');
     expect(universeStability(s)).toBe(universeStability(plain) + 1);
@@ -141,15 +141,15 @@ describe('finds', () => {
     standAt(s, there.id);
     expect(armyMoves(s, flag(s)).find((m) => m.toId === n.id)?.battle).toBe(false);
     const before = campaignPlayer(s);
-    const had = { credits: before.credits, materials: before.materials };
-    const { kind, amount } = n.cache!;
+    const had = { materials: before.materials };
+    const { amount } = n.cache!;
     s = applyCampaignAction(s, { type: 'move', armyId: flag(s).id, toId: n.id });
     expect(s.battle).toBeNull();
     expect(nodeById(s, n.id).owner).toBe(s.playerId);
     expect(nodeById(s, n.id).cache).toBeUndefined();
     expect(s.conquered).toBe(1);
     const now = campaignPlayer(s);
-    const got = kind === 'credits' ? now.credits - had.credits : now.materials - had.materials;
+    const got = now.materials - had.materials;
     expect(got).toBe(amount);
   });
 });
@@ -162,18 +162,18 @@ describe('conquest', () => {
     const me = () => campaignPlayer(s);
     const target = armyMoves(s, flag(s)).find((m) => m.battle)!.toId;
     const pay = { ...nodeById(s, target).yield };
-    const before = me().credits;
+    const before = me().materials;
     s = applyCampaignAction(s, { type: 'move', armyId: flag(s).id, toId: target });
     s = win(s);
     expect(s.conquest).toBeNull();
-    expect(me().credits - before).toBeGreaterThanOrEqual(pay.credits + 3);
+    expect(me().materials - before).toBeGreaterThanOrEqual(pay.materials + CAMPAIGN.winMaterials);
     expect(nodeById(s, target).owner).toBe(s.playerId);
     expect(s.conquered).toBe(1);
     expect(flag(s).nodeId).toBe(target);
     // No income by the turn.
-    const c = me().credits;
+    const c = me().materials;
     s = endTurn(s);
-    expect(me().credits).toBe(c);
+    expect(me().materials).toBe(c);
   });
 });
 

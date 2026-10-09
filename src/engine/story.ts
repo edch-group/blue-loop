@@ -110,7 +110,7 @@ export function introScene(race: number, faction: string): StoryScene {
       ),
       oracle(MOTIVE[race]),
       general(first, faction, GENERAL_LINES[first].join),
-      oracle(`Your armies march one route a turn. Take systems for their credits and materials, and press on towards ${HEART_NAME}. Recruit more generals as you grow: each leads an army with a deck of its own.`),
+      oracle(`Your armies march one route a turn. Take systems for their materials, and press on towards ${HEART_NAME}. Recruit more generals as you grow: each leads an army with a deck of its own.`),
     ],
   };
 }
@@ -151,7 +151,7 @@ export function stellariaSightedScene(): StoryScene {
     title: 'A Stellari bloom',
     lines: [
       oracle('Look there: a Stellari bloom. A finite one, a cutting from the legend, blown out across the dark.'),
-      oracle('Hold the system, and the bloom will pour credits and materials into your hands every turn. But it is not the real thing. It wilts.'),
+      oracle('Hold the system, and the bloom will pour materials into your hands every turn. But it is not the real thing. It wilts.'),
     ],
   };
 }

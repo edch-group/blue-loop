@@ -46,7 +46,8 @@ import { BALANCE } from '../src/engine/balance';
 import { sunHealth } from '../src/engine/campaign';
 
 /** A battle's suns' max health, as a change to the card game's (both sides start from it). */
-const baseDelta = (st: CampaignState) => sunHealth(st.nodes.find((n) => n.id === st.battle!.nodeId)!) - BALANCE.supernovaAt;
+/** Both suns' max health before anything of either side's: the system's, and the galaxy's. */
+const baseDelta = (st: CampaignState) => sunHealth(st.nodes.find((n) => n.id === st.battle!.nodeId)!) - BALANCE.supernovaAt + (galaxyEffects(st)?.modifiers.maxHealthDelta ?? 0);
 
 /** A new campaign with every system guarded (no finds), so the battle tests have someone to fight. */
 const fresh = (seed = 7) => {
@@ -179,26 +180,26 @@ describe('economy', () => {
     myArmy(s).nodeId = lab.id;
     expect(researchProblem(s, campaignPlayer(s), lab)).toBeNull();
     expect(() => applyCampaignAction(s, { type: 'research', nodeId: lab.id, projectId: 'no_such_project' })).toThrow(/doesn't offer/);
-    const credits = campaignPlayer(s).credits;
+    const materials = campaignPlayer(s).materials;
     s = applyCampaignAction(s, { type: 'research', nodeId: lab.id, projectId: options[1] });
     expect(campaignPlayer(s).research?.done).toContain(options[1]);
-    expect(campaignPlayer(s).credits).toBe(credits);
+    expect(campaignPlayer(s).materials).toBe(materials);
     const taken = nodeById(s, lab.id).station!;
     expect(taken.kind === 'research' && taken.takenBy).toBe(s.playerId);
     expect(taken.kind === 'research' && taken.project).toBe(options[1]);
     expect(() => applyCampaignAction(s, { type: 'research', nodeId: lab.id, projectId: options[0] })).toThrow(/already been taken/);
   });
 
-  it('upgrades the flagship\'s rooms, shields and hull for credits, and they reach the battle', () => {
+  it('upgrades the flagship\'s rooms, shields and hull for materials, and they reach the battle', () => {
     let s = fresh();
-    campaignPlayer(s).credits = 200;
+    campaignPlayer(s).materials = 200;
     expect(shipUpgradeCost(newShip(), { part: 'defence', room: 2 })).toBe(CAMPAIGN.shipBase);
     s = applyCampaignAction(s, { type: 'upgradeShip', part: 'defence', room: 2 });
     s = applyCampaignAction(s, { type: 'upgradeShip', part: 'attack', room: 1 });
     s = applyCampaignAction(s, { type: 'upgradeShip', part: 'command' });
     s = applyCampaignAction(s, { type: 'upgradeShip', part: 'shields' });
     s = applyCampaignAction(s, { type: 'upgradeShip', part: 'hull' });
-    expect(campaignPlayer(s).credits).toBe(200 - 5 * CAMPAIGN.shipBase);
+    expect(campaignPlayer(s).materials).toBe(200 - 5 * CAMPAIGN.shipBase);
     for (let i = 1; i < CAMPAIGN.shipMax.shields; i++) s = applyCampaignAction(s, { type: 'upgradeShip', part: 'shields' });
     expect(() => applyCampaignAction(s, { type: 'upgradeShip', part: 'shields' })).toThrow(/fully upgraded/);
     s = attack(s);

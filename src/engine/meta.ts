@@ -41,7 +41,6 @@ export const STARTING_RACES = [0, 1, 2, 3];
 
 export const META_UPGRADES: MetaUpgrade[] = [
   // A stronger start.
-  { id: 'credits', group: 'start', name: 'War chest', text: '+3 credits to start each run.', max: 5, cost: rising(3, 2) },
   { id: 'materials', group: 'start', name: 'Stockpile', text: '+3 materials to start each run.', max: 5, cost: rising(3, 2) },
   { id: 'cards', group: 'start', name: 'Veterans', text: 'One more of your race\'s cards in the starting deck.', max: 3, cost: rising(5, 4) },
   { id: 'pick', group: 'start', name: 'Requisition', text: 'Choose a card to add to the starting deck.', max: 2, cost: rising(6, 6) },
@@ -95,7 +94,6 @@ export function heroUnlocked(meta: MetaState, hero: string): boolean {
 
 /** What a run begins with, and the rules it is played under, from the upgrades bought. */
 export interface RunBonuses {
-  credits: number;
   materials: number;
   /** Extra race cards in the starting deck, and card picks to add to it. */
   cards: number;
@@ -115,7 +113,6 @@ export interface RunBonuses {
 export function runBonuses(meta: MetaState | null | undefined): RunBonuses {
   const l = (id: string) => (meta ? levelOf(meta, id) : 0);
   return {
-    credits: 3 * l('credits'),
     materials: 3 * l('materials'),
     cards: l('cards'),
     picks: l('pick'),

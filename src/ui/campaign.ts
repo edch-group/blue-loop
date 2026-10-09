@@ -1,7 +1,6 @@
 import {
   GALAXIES,
   type GalaxyKind,
-  armyBonus,
   BALANCE,
   battleFinds,
   itemText,
@@ -146,12 +145,9 @@ const RELIC_GLYPH: Record<string, string> = {
   star: glyph('M12 3v18M3 12h18M6 6l12 12M18 6 6 18'),
   ember: glyph('M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-4 3-5 0 2 1 3 2 3 0-3-1-5 0-8z'),
 };
-/** Credits: a solid gold coin. Earned from your systems, battles and missions; spent on repairs and your ship. */
-const CREDITS =
-  '<svg class="cur cur-credits" viewBox="0 0 20 20" aria-label="credits"><circle cx="10" cy="10" r="9" fill="#b98f3c"/><circle cx="9.3" cy="9.2" r="8" fill="#d6ae57"/><circle cx="7.4" cy="6.8" r="3.2" fill="#f0d68f" opacity=".55"/><circle cx="10" cy="10" r="6.3" fill="none" stroke="#fff4d6" stroke-width="1.2" opacity=".85"/><path d="M10 5.6 11.2 8.8 14.4 10 11.2 11.2 10 14.4 8.8 11.2 5.6 10 8.8 8.8Z" fill="#fff8e6"/></svg>';
-/** Materials: a solid teal crystal. Earned the same ways; spent on buying cards in the armory. */
+/** Materials: a paper crate drawn in ink. Earned from systems taken, finds and battles; spent on everything (cards, fusing, repairs). */
 const MATERIALS =
-  '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#4f9aa6"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#9fd3d9"/><path d="M10 9.6V18.5L3 14V6Z" fill="#6fb3bc"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="none" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/></svg>';
+  '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#e3e2dc"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#ffffff"/><path d="M10 9.6V18.5L3 14V6Z" fill="#f0efea"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6ZM10 9.6V18.5M3 6l7 3.6L17 6" fill="none" stroke="#6b7590" stroke-width="1" stroke-linejoin="round"/></svg>';
 /** A station on the map: an armoury (a crate) or a research station (a ringed flask). */
 const ARMORY_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
@@ -168,7 +164,7 @@ const BLOOM =
 
 /** A Stellari petal: what a wormhole gives, banked for every run after. */
 const PETAL =
-  '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.5C14.5 5 15.5 11 10 18.5 4.5 11 5.5 5 10 1.5Z" fill="#f2b8e6" stroke="#c97bc0" stroke-width=".9" stroke-linejoin="round"/><path d="M10 4v12" stroke="#fff" stroke-width=".8" opacity=".7"/></svg>';
+  '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.5C14.5 5 15.5 11 10 18.5 4.5 11 5.5 5 10 1.5Z" fill="#ffffff" stroke="#6b7590" stroke-width="1" stroke-linejoin="round"/><path d="M10 4.5v11" stroke="#6b7590" stroke-width=".7" opacity=".55"/></svg>';
 
 /** A hero's portrait: their card's picture, cropped round. */
 function portrait(cardId: string): string {
@@ -296,9 +292,7 @@ type Sheet =
   | { kind: 'log' }
   | { kind: 'attack'; armyId: string; toId: string }
   | { kind: 'help' }
-  | { kind: 'settings' }
-  /** Enter with moves still to make: end the turn anyway? */
-  | { kind: 'end-turn' };
+  | { kind: 'settings' };
 
 /** Map stages already listening for drags and zooms (kept through redraws, which no longer rebuild them). */
 const boundStages = new WeakSet<HTMLElement>();
@@ -334,7 +328,6 @@ export class CampaignView {
     hero: string | null;
     level: number | null;
     xp: number;
-    credits: number;
     materials: number;
     salvaged: { id: string; toDeck: boolean } | null;
     finds: ReturnType<CampaignView['findsFor']>;
@@ -437,7 +430,7 @@ export class CampaignView {
     const me0 = s0 ? campaignPlayer(s0) : null;
     const armyId = b && s0 ? (b.attacker === s0.playerId ? b.armyId : b.defender === s0.playerId ? b.defenderArmyId : null) : null;
     const army0 = armyId && s0 ? s0.armies.find((a) => a.id === armyId) : undefined;
-    const before = me0 && b ? { credits: me0.credits, materials: me0.materials, xp: army0 ? heroState(me0, army0.general).xp : 0, damage: army0?.damage ?? 0, system: nodeById(s0!, b.nodeId).name } : null;
+    const before = me0 && b ? { materials: me0.materials, xp: army0 ? heroState(me0, army0.general).xp : 0, damage: army0?.damage ?? 0, system: nodeById(s0!, b.nodeId).name } : null;
     const finds = !auto && s0 ? this.findsFor(game) : [];
     const salvaged = salvage && s0 ? { id: salvage, toDeck: salvageToDeck(s0, salvage) } : null;
     this.withReport('battle report', () => this.apply({ type: 'finishBattle', game, auto, ...(salvage !== undefined ? { salvage } : {}) }));
@@ -456,7 +449,6 @@ export class CampaignView {
         hero: army0?.general ?? null,
         level: army0 && heroLevel(xp) > heroLevel(before.xp) ? heroLevel(xp) : null,
         xp: xp - before.xp,
-        credits: me.credits - before.credits,
         materials: me.materials - before.materials,
         salvaged,
         finds,
@@ -502,7 +494,10 @@ export class CampaignView {
       this.host.banner(`universe ${this.state.universe}`, 'through the wormhole');
     }
     // Every move is a turn: once the flagship has made its move (and anything it brought on is settled), time moves on.
-    if (action.type !== 'endTurn' && action.type !== 'aiStep' && this.moveSpent()) window.setTimeout(() => this.passTime(), 420);
+    if (action.type !== 'endTurn' && action.type !== 'aiStep' && this.moveSpent()) {
+      const f = flagship(this.state!, this.state!.playerId);
+      window.setTimeout(() => this.passTime(!(f?.moved || (f?.steps ?? 0) > 0)), 420);
+    }
     return true;
   }
 
@@ -552,7 +547,8 @@ export class CampaignView {
     const s = this.state;
     if (!s || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.winner) return false;
     const a = flagship(s, s.playerId);
-    return !!a && (a.moved || (a.steps ?? 0) > 0) && armyMoves(s, a).length === 0;
+    // (Moved, or with nowhere to go at all: there is no waiting, so time moves on by itself.)
+    return !!a && armyMoves(s, a).length === 0;
   }
 
   /** Time moves on: the raiders move, the collapse comes on. (`wait`: the flagship holds where it is.) */
@@ -651,35 +647,11 @@ export class CampaignView {
       </div>`;
   }
 
-  /**
-   * A key on the map: Enter ends the turn (asking first while an army could still move; Enter again ends it),
-   * Escape takes the question back. Returns whether it did anything (the screen then redraws).
-   */
-  onKey(key: string): boolean {
-    const s = this.state;
-    if (!s) return false;
-    if (this.sheet?.kind === 'end-turn') {
-      if (key === 'Enter') return this.onClick('cmp-end-turn', '', document.body);
-      if (key === 'Escape') {
-        this.sheet = null;
-        return true;
-      }
-      return false;
-    }
-    if (key !== 'Enter') return false;
-    // (Not while anything else is up: a dialog, a battle, a choice to make, the AI's turn.)
-    if (this.sheet || this.report || this.battleReport || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.winner) return false;
-    if (this.nothingLeft()) return this.onClick('cmp-end-turn', '', document.body);
-    this.sheet = { kind: 'end-turn' };
-    return true;
+  /** A key on the map: nothing to do (there is no waiting: every turn is a move). */
+  onKey(_key: string): boolean {
+    return false;
   }
 
-  /** Nothing left to do this turn: no army can move (each has marched, is refitting, or has nowhere to go). */
-  private nothingLeft(): boolean {
-    const s = this.state!;
-    if (s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length) return false;
-    return armiesOf(s, s.playerId).every((a) => armyMoves(s, a).length === 0);
-  }
 
 
   // ---- Clicks -----------------------------------------------------------------
@@ -980,7 +952,6 @@ export class CampaignView {
             ${scene ? this.renderStory(scene) : ''}
           </div>
           <div class="cmp-purse">
-            <span data-tip="Credits: paid once by every system taken, battles and missions. Spent on repairs and your ship.">${CREDITS}<b>${me.credits}</b></span>
             <span data-tip="Materials: paid once by every system taken, battles and missions. Spent on cards at space stations.">${MATERIALS}<b>${me.materials}</b></span>
             <span data-tip="Stellari petals grabbed this run (they are kept, whatever happens)">${PETAL}<b>${s.petals}</b></span>
           </div>
@@ -994,10 +965,6 @@ export class CampaignView {
         ${this.flyOver() ? `<div class="cmp-fleet-top" data-key="cmp-fleet-top"><div class="cmp-plane cmp-plane-top" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">${this.renderFleet(this.seenNow)}</div></div>` : ''}
         <button class="icon-btn cmp-recentre" data-act="cmp-recentre" data-key="cmp-recentre" aria-label="Back to the whole strip" title="Back to the whole strip" style="display:none">${RECENTRE_ICON}</button>
         ${this.renderPop()}
-        <div class="cmp-end">
-          ${this.endMoves()}
-          <button class="btn ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" data-tip="Hold position for a move: the collapse comes on" ${s.phase !== 'player' ? 'disabled' : ''}>wait</button>
-        </div>
         ${this.waiting ? this.renderWaiting() : overlay}
       </main>`;
   }
@@ -1278,13 +1245,13 @@ export class CampaignView {
       ${a.damage && here.owner === me.id ? `<div class="pop-row">${this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '')}</div>` : ''}`;
   }
 
-  /** Repair one point, or all of it (as far as the credits go). */
+  /** Repair one point, or all of it (as far as the materials go). */
   private repairButtons(act: string, id: string, damage: number, cost: number, blocked: string): string {
-    const credits = campaignPlayer(this.state!).credits;
-    const all = Math.min(damage, Math.floor(credits / cost));
-    const dis = (need: number) => (blocked ? `disabled title="${esc(blocked)}"` : credits < need ? 'disabled' : '');
-    return `<button class="pill-btn" data-act="${act}" data-arg="${id}" ${dis(cost)}>repair 1 · ${CREDITS}${cost}</button>${
-      damage > 1 ? `<button class="pill-btn" data-act="${act}" data-arg="${id}" data-all="1" ${dis(cost)}>repair all · ${CREDITS}${Math.max(1, all) * cost}</button>` : ''
+    const materials = campaignPlayer(this.state!).materials;
+    const all = Math.min(damage, Math.floor(materials / cost));
+    const dis = (need: number) => (blocked ? `disabled title="${esc(blocked)}"` : materials < need ? 'disabled' : '');
+    return `<button class="pill-btn" data-act="${act}" data-arg="${id}" ${dis(cost)}>repair 1 · ${MATERIALS}${cost}</button>${
+      damage > 1 ? `<button class="pill-btn" data-act="${act}" data-arg="${id}" data-all="1" ${dis(cost)}>repair all · ${MATERIALS}${Math.max(1, all) * cost}</button>` : ''
     }`;
   }
 
@@ -1360,22 +1327,7 @@ export class CampaignView {
       </div>`;
   }
 
-  /** Above the end-turn button: the moves left this turn of your flagship (or of the army picked, if another). */
-  private endMoves(): string {
-    const s = this.state!;
-    const mine = s.armies.filter((a) => a.owner === s.playerId && !a.lost);
-    const a = mine.find((x) => x.id === this.army) ?? mine[0];
-    return a ? this.moveGems(a) : '';
-  }
 
-  /** An army's moves this turn, as energy gems in a row: lit while there are moves left. */
-  private moveGems(a: Army): string {
-    const s = this.state!;
-    const total = 1 + armyBonus(s, a).march;
-    const left = a.moved || a.refit || s.phase !== 'player' ? 0 : Math.max(0, total - (a.steps ?? 0));
-    const gems = Array.from({ length: total }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
-    return `<div class="cmp-ship-moves" data-tip="${left} step${left === 1 ? '' : 's'} left in this move, of ${total}">${gems}</div>`;
-  }
 
   /** Send the ships drawn where they were on to where they are going (the CSS transition does the sailing). */
   private sailShips(root: HTMLElement) {
@@ -1910,7 +1862,7 @@ export class CampaignView {
       n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, 'Torn open by a Stellari bloom: beat its guardian and go through, into the next universe, with the petals you grab.', 'gold') : '',
       chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, the galaxy and ships' hulls): more the further along the strip, and in every universe after the first.`),
       n.scanner ? chip(SCANNER, 'Scanner array: whoever holds it sees systems two links away.') : '',
-      (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
+      (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
       n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'Its star has guttered: it yields less than it did.', 'muted') : '',
       n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
       (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, `Stabilised: it holds until turn ${n.stableUntil}.`, 'good') : '',
@@ -1991,7 +1943,7 @@ export class CampaignView {
     }
     if (s.conquest) {
       const n = nodeById(s, s.conquest.nodeId);
-      return this.modal(`${lower(n.name)} has fallen`, `<div class="center-row"><button class="btn-primary" data-act="cmp-conquer">take it · ${CREDITS}+${n.yield.credits} ${MATERIALS}+${n.yield.materials}</button></div>`, false, '', 'cmp-modal-narrow');
+      return this.modal(`${lower(n.name)} has fallen`, `<div class="center-row"><button class="btn-primary" data-act="cmp-conquer">take it · ${MATERIALS}+${n.yield.materials}</button></div>`, false, '', 'cmp-modal-narrow');
     }
     const reward = s.cardRewards[0];
     if (reward) {
@@ -2010,18 +1962,6 @@ export class CampaignView {
     }
     if (!sh) return '';
     switch (sh.kind) {
-      case 'end-turn': {
-        const ready = armiesOf(s, s.playerId).filter((x) => armyMoves(s, x).length > 0).map((x) => armyLeader(x));
-        const who = ready.length > 1 ? `${ready.slice(0, -1).join(', ')} and ${ready[ready.length - 1]}` : ready[0] ?? 'Your flagship';
-        return this.modal(
-          'hold position?',
-          `<p class="center-text">${esc(who)} can still move. Waiting spends a move: the raiders move, and the collapse comes on.</p>
-           <div class="end-day-actions"><button class="btn-primary" data-act="cmp-end-turn">wait <small>⏎</small></button><button class="btn" data-act="cmp-close">keep going <small>esc</small></button></div>`,
-          true,
-          '',
-          'cmp-modal-narrow',
-        );
-      }
       case 'armory':
         return this.renderArmory(sh);
       case 'research':
@@ -2043,14 +1983,13 @@ export class CampaignView {
         return this.modal(
           'how the campaign works',
           `<div class="cmp-legend">
-            <div>${CREDITS}<span><b>Credits</b> run your ship. Earned: every system you take, battles and missions. Spent: upgrading your ship and repairs.</span></div>
-            <div>${MATERIALS}<span><b>Materials</b> build your deck. Earned the same ways. Spent: cards at space stations, fusing cards.</span></div>
+            <div>${MATERIALS}<span><b>Materials</b> pay for everything. Earned: every system you take, finds and battles. Spent: cards at space stations, fusing cards and repairs.</span></div>
           </div>
           <ul class="rules">
             <li><b>The loop:</b> each universe is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian to go through, into a harder universe. The run goes on until your flagship is lost.</li>
             <li><b>The collapse:</b> regional stability lasts ${CAMPAIGN.stabilityTurns} moves in the first universe, ${CAMPAIGN.stabilityStep} fewer in each one after (never under ${CAMPAIGN.stabilityMin}). Then the strip gives way from the near end, a whole column with every move, each marked (⚠) a move before. Whatever stands there is lost, your flagship too.</li>
             <li><b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the raiders move and the collapse comes on. Changing the deck or repairing costs no move; <b>wait</b> holds position for one.</li>
-            <li><b>Win</b> a system and it is yours: it pays its credits and materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold a treasury or archives: more credits or research, taken with the system.</li>
+            <li><b>Win</b> a system and it is yours: it pays its materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold a treasury or archives: more credits or research, taken with the system.</li>
             <li><b>Stellari petals</b> are grabbed at every wormhole: a few for getting there, more for every share of the strip you conquered. They are banked at once and outlive the run. Spend them between runs on a stronger start, a tougher flagship, run perks, and new races and heroes.</li>
             <li><b>Its deck</b> starts with ${CAMPAIGN.armySize} cards: your hero and your race's own, with a few neutral cards. It grows with every card you salvage or put in, and never drops below ${CAMPAIGN.armySize}.</li>
             <li><b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card, and your ship's rooms add their walls, guns and modules to the cards standing in them.</li>
@@ -2059,7 +1998,7 @@ export class CampaignView {
             <li>A system with no flagship in it fights as a <b>garrison</b>: more cards, thicker walls and a bigger sun the further along the strip, and the further along the run.</li>
             <li><b>Stars</b> differ. ${(['red', 'white', 'brown', 'neutron'] as const).map((k) => `<b>${STAR_TYPES[k].name}:</b> ${esc(STAR_TYPES[k].boon)} ${esc(STAR_TYPES[k].cost)}`).join(' ')}</li>
             <li><b>Raiders</b> roam the strip: the last of peoples the collapse has already taken. They hunt a flagship that comes near, raid systems you hold, and flee the collapse. Beat them for their relics: ${MATERIALS} ${CAMPAIGN.lostRelicMaterials} and a card.</li>
-            <li>Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits in a system you hold.</li>
+            <li>Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${MATERIALS} materials in a system you hold.</li>
             <li><b>Fog of war:</b> you only see systems linked to yours. Hold a system with a <b>scanner</b> to see two links out from it.</li>
             <li><b>${esc(ORACLE_NAME)}</b> offers guidance under the move count. Read it or dismiss it; turn it off in settings.</li>
           </ul>`,
@@ -2153,7 +2092,7 @@ export class CampaignView {
   /** What the player has to spend, for the base's and the stations' headers. */
   private purse(): string {
     const me = campaignPlayer(this.state!);
-    return `<div class="cmp-purse"><span title="Credits">${CREDITS}<b>${me.credits}</b></span><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Cards in your reserve, waiting for your deck">▤<b>${me.reserve.length}</b></span></div>`;
+    return `<div class="cmp-purse"><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Cards in your reserve, waiting for your deck">▤<b>${me.reserve.length}</b></span></div>`;
   }
 
   /** An armoury's stock (empty if the node has none). */
@@ -2234,7 +2173,7 @@ export class CampaignView {
     const hero = r.hero
       ? `<div class="br-hero ${r.level ? 'br-levelled' : ''}">${portrait(r.hero)}${r.level ? `<span class="br-level">level ${r.level}</span>` : r.xp ? `<span class="br-xp">+${r.xp} xp</span>` : ''}</div>`
       : '';
-    const tokens = [token(CREDITS, r.credits, 'Credits'), token(MATERIALS, r.materials, 'Materials'), r.damage ? `<span class="br-token br-bad" data-tip-title="damage" data-tip="Your flagship's sun starts this much hotter until it is repaired.">✸<b>${r.damage}</b></span>` : ''].join('');
+    const tokens = [token(MATERIALS, r.materials, 'Materials'), r.damage ? `<span class="br-token br-bad" data-tip-title="damage" data-tip="Your flagship's sun starts this much hotter until it is repaired.">✸<b>${r.damage}</b></span>` : ''].join('');
     const finds = r.finds
       .map((f) => `<span class="find rarity-${f.rarity}" data-tip-title="${esc(lower(f.name))}" data-tip="${esc(f.text)}" data-tip-note="${f.kind === 'module' ? 'Ship module: fit it in the ship tab.' : 'Hero gear: equip it in the hero tab.'}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></span>`)
       .join('');
