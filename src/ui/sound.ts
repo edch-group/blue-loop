@@ -1,5 +1,8 @@
 import { markDirty } from './account';
 import heatFire from '../assets/sfx/heat-fire.mp3?inline';
+import sunHit from '../assets/sfx/sun-hit.mp3?inline';
+import cardHit from '../assets/sfx/card-hit.mp3?inline';
+import playAttack from '../assets/sfx/play-attack.mp3?inline';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -21,7 +24,7 @@ const PREFS_KEY = 'blue-loop:sound';
  * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
  * late.
  */
-const SFX = { heatFire };
+const SFX = { heatFire, sunHit, cardHit, playAttack };
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
 function silentWav(): string {
@@ -508,7 +511,9 @@ class SoundBoard {
   shuffle() {
     for (let i = 0; i < 4; i++) this.breath({ dur: 0.5, freq: 700 + i * 300, to: 1800, gain: 0.04, attack: 0.15, delay: i * 0.14 });
   }
-  play() {
+  /** A card put into play (or arriving on the stage): an attack card draws a sword of light; others, a soft bloom. */
+  play(kind?: string) {
+    if (kind === 'attack') return this.clip(SFX.playAttack, 0.5);
     this.breath({ dur: 0.9, freq: 400, to: 1600, gain: 0.05, attack: 0.25 });
     this.voice(440, { dur: 1.6, attack: 0.18, gain: 0.05, cutoff: 1800 });
     this.voice(659.25, { dur: 1.6, attack: 0.25, gain: 0.03, cutoff: 1800, detune: 4 });
@@ -544,27 +549,28 @@ class SoundBoard {
     this.breath({ dur: 1.6, freq: 6000, to: 1200, type: 'bandpass', q: 1.5, gain: 0.05, attack: 0.3 });
     [1567.98, 1318.51, 987.77].forEach((f, i) => this.voice(f, { dur: 1.8, attack: 0.25, gain: 0.018, delay: i * 0.18, vibrato: 4 }));
   }
+  /** Heat landing on a sun from no rival (its own, or a blow it shrugged off): the flame, a touch softer. Cold: a chime. */
   impact(hot: boolean) {
-    if (hot) {
-      this.voice(65, { dur: 1.6, attack: 0.04, gain: 0.16, to: 40, cutoff: 300 });
-      this.breath({ dur: 1.1, freq: 300, to: 90, type: 'lowpass', gain: 0.08, attack: 0.05 });
-    } else {
+    if (hot) this.sunHit(1, 0.4);
+    else {
       this.bell(1174.66, 0, 0.03);
     }
   }
-  /** Your sun takes enemy heat: a heavy, low blow with a searing crackle (bigger hits land harder). */
-  hurt(amount = 1) {
-    const g = Math.min(1.6, 0.8 + amount * 0.12);
-    this.voice(49, { dur: 1.4, attack: 0.01, gain: 0.2 * g, to: 30, type: 'triangle', cutoff: 260 });
-    this.voice(98, { dur: 0.5, attack: 0.005, gain: 0.08 * g, to: 55, type: 'square', cutoff: 500 });
-    this.breath({ dur: 0.9, freq: 2400, to: 300, type: 'bandpass', q: 0.8, gain: 0.12 * g, attack: 0.01 });
+  /**
+   * A sun hit by heat: the recorded flame swoosh. Bigger hits land louder, and a little slower and deeper (as
+   * set by the heat that landed, never by chance).
+   */
+  private sunHit(amount: number, level: number) {
+    const a = Math.max(1, amount);
+    this.clip(SFX.sunHit, level * Math.min(1.5, 0.85 + 0.12 * (a - 1)), 1 - Math.min(0.14, 0.035 * (a - 1)));
   }
-  /** You land heat on a rival: a bright crack, then a rolling burn. */
+  /** Your sun takes enemy heat. */
+  hurt(amount = 1) {
+    this.sunHit(amount, 0.55);
+  }
+  /** You land heat on a rival's sun. */
   strike(amount = 1) {
-    const g = Math.min(1.5, 0.8 + amount * 0.1);
-    this.breath({ dur: 0.35, freq: 5000, to: 1200, type: 'highpass', q: 0.7, gain: 0.1 * g, attack: 0.004 });
-    this.voice(130.8, { dur: 1.0, attack: 0.01, gain: 0.1 * g, to: 65, type: 'triangle', cutoff: 900 });
-    this.breath({ dur: 1.2, freq: 900, to: 160, type: 'lowpass', q: 1.2, gain: 0.07 * g, attack: 0.06, delay: 0.05 });
+    this.sunHit(amount, 0.5);
   }
   /** Shields take a hit: a glassy clang. */
   block() {
@@ -577,13 +583,13 @@ class SoundBoard {
     this.breath({ dur: 0.32, freq: 700, to: 3400, type: 'bandpass', q: 1.4, gain: 0.11, attack: 0.2, out: this.sfxDry ?? undefined });
     this.breath({ dur: 0.26, freq: 2400, to: 6000, type: 'highpass', q: 0.7, gain: 0.035, attack: 0.18, delay: 0.04, out: this.sfxDry ?? undefined });
   }
-  /** A card smashing into a card: a punchy mid thump with a crunch (heard on small speakers too). Bigger blows land harder. */
+  /**
+   * A blow landing on a card: the recorded whip crack, slowed. Bigger blows land louder, and a little slower and
+   * deeper (as set by what the blow took, never by chance).
+   */
   clash(amount = 1) {
-    const g = Math.min(1.5, 0.8 + amount * 0.12);
-    this.voice(196, { dur: 0.32, attack: 0.003, gain: 0.13 * g, to: 82, type: 'triangle', cutoff: 1400 });
-    this.voice(392, { dur: 0.14, attack: 0.002, gain: 0.05 * g, to: 160, type: 'square', cutoff: 1800 });
-    this.breath({ dur: 0.22, freq: 1600, to: 500, type: 'bandpass', q: 0.9, gain: 0.14 * g, attack: 0.003 });
-    this.breath({ dur: 0.08, freq: 4200, type: 'highpass', q: 0.7, gain: 0.05 * g, attack: 0.002 });
+    const a = Math.max(1, amount);
+    this.clip(SFX.cardHit, 0.5 * Math.min(1.5, 0.85 + 0.12 * (a - 1)), 1 - Math.min(0.14, 0.035 * (a - 1)));
   }
   /** A card's defence cracking: a brittle snap with splintering ticks after it. */
   crack() {
@@ -658,13 +664,14 @@ class SoundBoard {
   }
 
   /** Play a recording (a voice line, a recorded effect) through the effects mix, so it sits in the same hall. */
-  clip(url: string, gain = 0.85) {
+  clip(url: string, gain = 0.85, rate = 1) {
     const ctx = this.ready();
     if (!ctx) return;
     void this.load(url).then((b) => {
       if (!b || !this.ready()) return;
       const src = ctx.createBufferSource();
       src.buffer = b;
+      src.playbackRate.value = rate;
       const g = ctx.createGain();
       g.gain.value = gain;
       src.connect(g).connect(this.sfx!);

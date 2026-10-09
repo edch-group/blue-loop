@@ -1405,7 +1405,7 @@ export class App {
 
   /** A rival's card arriving on the stage to be read: it flies in from their side of the board, with a sound. */
   private stageEntrance(actorId: string) {
-    sound.play();
+    sound.play(this.stage && !this.stage.faceDown ? cardDef(this.stage.defId).kind : undefined);
     this.entranceHeard = true;
     // Auto-confirm: the card is shown for a moment, then lands by itself.
     const stage = this.stage;
@@ -2428,7 +2428,7 @@ export class App {
     switch (action.type) {
       case 'playCard': {
         // (A rival's card already sounded as it arrived on the stage.)
-        if (!this.entranceHeard) sound.play();
+        if (!this.entranceHeard) sound.play(playedId && !action.faceDown ? cardDef(playedId).kind : undefined);
         this.entranceHeard = false;
         const played = playedId ? { uid: action.cardUid, defId: playedId } : undefined;
         if (played && cardDef(played.defId).kind === 'command') {
