@@ -142,8 +142,11 @@ export type Effect = (
   | { type: 'fortify'; amount: number; who: 'it' | 'best' }
   /** Lightspeed: your card attacked or aimed at moves to your best-defended free slot. */
   | { type: 'shiftMine' }
-  /** A Lost Overlord's blow: this much heat to the rival card with the most attack (its defence first). */
-  | { type: 'strikeBest'; amount: number }
+  /**
+   * A Lost Overlord's blow: this much heat to the rival card with the most attack (its defence first). `guarded`
+   * (the Frost Line's cold): a Guard draws it in, and with no card to strike it goes to their sun.
+   */
+  | { type: 'strikeBest'; amount: number; guarded?: boolean }
   /** A Lost Overlord's sweep: this much heat to every rival card (each one's defence first). */
   | { type: 'strikeAll'; amount: number }
   /** A Lost Overlord's hunger: the rival card with the least stability left is destroyed. */

@@ -114,8 +114,8 @@ export const CHALLENGE_CARDS: CardDef[] = [
   },
   {
     id: 'frost_wraith', overlordPart: 'frost', name: 'Frost Wraith', kind: 'attack', health: 3, attack: 2,
-    text: '{dawn}: {heat:2}. Cold given a shape, and a hunger.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target' }],
+    text: '{dawn}: 2 heat to your card with the most attack (a Guard draws it in; with no card, your sun). Cold given a shape, and a hunger.',
+    onTurn: [{ type: 'strikeBest', amount: 2, guarded: true }],
   },
   {
     id: 'frost_shade', overlordPart: 'frost', name: 'Frost Shade', kind: 'attack', health: 3, attack: 1,

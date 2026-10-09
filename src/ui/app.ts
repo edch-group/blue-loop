@@ -383,7 +383,7 @@ function yieldMarks(st: GameState, p: PlayerState, c: CardInstance, side: 'mine'
   const y = cardYield(st, p, c).filter(([k]) => side === 'mine' || k !== 'selfHeat');
   const mech = cardMechanics(c);
   if (!y.length && !mech.length) return '';
-  const yields = y.map(([k, n]) => `<i class="yield yield-${k}" data-tip-title="${esc(YIELD_NAMES[k])}" data-tip="${esc(`${n} each day, as things stand.`)}">${effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k)}${n}</i>`);
+  const yields = y.map(([k, n]) => `<i class="yield yield-${k}" data-tip-title="${esc(YIELD_NAMES[k])}" data-tip="${esc(`${n} each day.`)}">${effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k)}${n}</i>`);
   const marks = mech.map((m) => `<i class="yield mech kw-${m.group}${m.n ? '' : ' mech-bare'}" data-tip-title="${esc(m.name)}" data-tip="${esc(m.tip)}">${mechanicMark(m.id)}${m.n}</i>`);
   return `<span class="card-yield card-yield-${side}">${[...yields, ...marks].join('')}</span>`;
 }

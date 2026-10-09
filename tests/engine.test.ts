@@ -1665,3 +1665,25 @@ describe('heat waves on cards', () => {
     expect(s.log.some((l) => /heat wave sears/.test(l.text))).toBe(true);
   });
 });
+
+describe('the Frost Line', () => {
+  it("a Frost Wraith's dawn strikes the card with the most attack, a Guard drawing it in, else the sun", () => {
+    let s = twoPlayer(3);
+    const [ada, bo] = s.players;
+    ada.hand = [];
+    bo.hand = [];
+    give(bo, ['frost_wraith'], 'tableau');
+    const [blade] = give(ada, ['dawnblade'], 'tableau');
+    const before = blade.health!;
+    s = endTurn(s);
+    const mine = s.players[0].tableau.find((c) => c.uid === blade.uid);
+    expect(mine ? mine.health! : 0).toBeLessThan(before);
+    // With nothing of Ada's to strike, the cold goes to her sun.
+    let t = twoPlayer(3);
+    t.players[0].hand = [];
+    give(t.players[1], ['frost_wraith'], 'tableau');
+    const heat = t.players[0].heat;
+    t = endTurn(t);
+    expect(t.players[0].heat).toBeGreaterThan(heat);
+  });
+});

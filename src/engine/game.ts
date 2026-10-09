@@ -1249,7 +1249,14 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'strikeAll': {
         const t = ctx.against ?? targetOf(state, p);
         if (!t) break;
-        const hit = e.type === 'strikeAll' ? [...t.tableau] : [...t.tableau].sort((a, b) => cardAttack(state, t, b) - cardAttack(state, t, a) || (b.health ?? 0) - (a.health ?? 0)).slice(0, 1);
+        const pool = e.type === 'strikeBest' && e.guarded && guards(t).length ? guards(t) : t.tableau;
+        const hit = e.type === 'strikeAll' ? [...t.tableau] : [...pool].sort((a, b) => cardAttack(state, t, b) - cardAttack(state, t, a) || (b.health ?? 0) - (a.health ?? 0)).slice(0, 1);
+        // (The Frost Line's cold, with no card to strike: their sun.)
+        if (e.type === 'strikeBest' && e.guarded && !hit.length) {
+          applyHeat(state, t, e.amount, p, false, card.uid, false, `${p.name}'s ${cardDef(card.defId).name}`);
+          notePulse(state, p, card, 'heat', t, e.amount);
+          break;
+        }
         for (const c of hit) {
           if (state.winnerId || t.eliminated || !t.tableau.includes(c)) continue;
           strikeCard(state, t, c, e.amount, p, false, card.uid, false, true);

@@ -236,9 +236,9 @@ export type ChallengeKind = 'mine' | 'lord' | 'frost';
  * waves (what comes, how many a day, and the days to hold).
  */
 const FROST_LINES: { start: string[]; waves: { days: number; spawn: string[]; per: number } }[] = [
-  { start: ['frost_shade', 'frost_shade'], waves: { days: 6, spawn: ['frost_shade'], per: 1 } },
   { start: ['frost_wraith', 'frost_shade'], waves: { days: 6, spawn: ['frost_wraith', 'frost_shade'], per: 1 } },
-  { start: ['frost_wraith', 'frost_wraith', 'blizzard_herald'], waves: { days: 7, spawn: ['frost_wraith'], per: 2 } },
+  { start: ['frost_wraith', 'frost_wraith', 'frost_shade'], waves: { days: 6, spawn: ['frost_wraith', 'frost_shade'], per: 1 } },
+  { start: ['frost_wraith', 'frost_wraith', 'blizzard_herald'], waves: { days: 7, spawn: ['frost_wraith', 'frost_shade'], per: 2 } },
   { start: ['frost_wraith', 'frost_wraith', 'blizzard_herald'], waves: { days: 8, spawn: ['frost_wraith', 'frost_wraith', 'blizzard_herald'], per: 2 } },
 ];
 
