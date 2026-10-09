@@ -111,6 +111,12 @@ void main() {
   } else if (uKind < 3.5) {
     float a = pow(1.0 - vL.x, 1.5) * 0.55 * uAlpha;
     gl_FragColor = vec4(uColor * a, a);
+  } else if (uKind > 4.5) {
+    // A Stellari petal: pale and see-through, its edge drawn round in soft ink (as the home screen's flower).
+    float edge = 1.0 - smoothstep(0.18, 0.45, ndv);
+    vec3 c = mix(vec3(1.0), vec3(0.74, 0.77, 0.87), edge);
+    float a = (0.16 + 0.55 * edge) * uAlpha;
+    gl_FragColor = vec4(c * a, a);
   } else {
     float lit = max(0.0, dot(normalize(vN), normalize(vec3(0.5, 0.8, 0.35))));
     vec3 c = mix(uColor * 0.75, uColor, lit);
@@ -260,6 +266,12 @@ function beam(): Float32Array {
     out.push(0, 0, 0, 0, 0, 0, Math.cos(a) * 0.14, 1, Math.sin(a) * 0.14, 1, 0, 0, Math.cos(b) * 0.14, 1, Math.sin(b) * 0.14, 1, 0, 0);
   }
   return new Float32Array(out);
+}
+
+/** Column-major 4x4: translate, turn about y, roll about z, scale along each axis (local +z faces (sin ry, 0, cos ry)). */
+function rolled(x: number, y: number, z: number, ry: number, rz: number, sx: number, sy: number, sz: number): Float32Array {
+  const cy = Math.cos(ry), syn = Math.sin(ry), cz = Math.cos(rz), szn = Math.sin(rz);
+  return new Float32Array([cy * cz * sx, szn * sx, -syn * cz * sx, 0, -cy * szn * sy, cz * sy, syn * szn * sy, 0, syn * sz, 0, cy * sz, 0, x, y, z, 1]);
 }
 
 /** Column-major 4x4: translate, rotate about x then y, scale. */
@@ -417,7 +429,7 @@ export class MapObjects {
     gl.depthMask(true);
     const solid = this.solids(cam, time, fade);
     for (const o of this.list) {
-      const r = o.heart ? 0.05 : 0.036;
+      const r = o.heart ? 0.072 : 0.036;
       if (o.dead) solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, o.seed, r * 0.55), 4, [0.62, 0.62, 0.64], 1);
       else {
         // A held sun takes its holder's colour, softened toward the paper.
@@ -435,7 +447,7 @@ export class MapObjects {
     const sprite = this.sprites(cam, time, fade);
     for (const o of this.list) {
       if (o.dead) continue;
-      const r = o.heart ? 0.05 : 0.036;
+      const r = o.heart ? 0.072 : 0.036;
       if (o.dim) {
         sprite.draw(o.x, y, o.z, r * 2.4, 0, [1, 1, 1], 0.2);
       } else {
@@ -450,8 +462,40 @@ export class MapObjects {
       if (o.ring) sprite.draw(o.x, y, o.z, r * 2.4, 1, o.ring, 1);
     }
     sprite.done();
+    this.drawStellari(cam, time, fade);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+  }
+
+  /**
+   * The Stellari, as on the home screen but standing in the scene: a flower of pale petals just past the wormhole's
+   * sun (clear of it), turned to face the camera, its outer ring of petals turning one way and its inner spikes
+   * the other, more slowly.
+   */
+  private drawStellari(cam: Camera, time: number, fade: number) {
+    const heart = this.list.find((o) => o.heart);
+    if (!heart || heart.dead) return;
+    const R = 0.26;
+    // (Just past the sun, its petals clear of it: the sun is 0.072 across, the flower R.)
+    const x = heart.x + R * 0.75 + 0.1, z = heart.z, y = R + 0.03;
+    const ry = Math.atan2(cam.eye[0] - x, cam.eye[2] - z);
+    const turn = (time * 4 * Math.PI) / 180;
+    const solid = this.solids(cam, time, fade);
+    // (A little breath, as if it were alive.)
+    const b = 1 + 0.03 * Math.sin(time * 0.9);
+    for (let i = 0; i < 12; i++) {
+      solid.draw(this.sphereBuf, this.counts.sphere, rolled(x, y, z, ry, turn + (i * Math.PI) / 6, R * 0.29 * b, R * b, R * 0.02), 5, [1, 1, 1], 0.55);
+    }
+    for (let i = 0; i < 18; i++) {
+      const a = -turn * 0.6 + ((i * 20 + 10) * Math.PI) / 180;
+      // Each spike from the middle outward: its centre partway out along its own direction.
+      const cx = x + Math.cos(ry) * -Math.sin(a) * R * 0.42, cyy = y + Math.cos(a) * R * 0.42, cz = z - Math.sin(ry) * -Math.sin(a) * R * 0.42;
+      solid.draw(this.sphereBuf, this.counts.sphere, rolled(cx, cyy, cz, ry, a, R * 0.05, R * 0.4, R * 0.015), 5, [1, 1, 1], 0.7);
+    }
+    solid.done();
+    const sprite = this.sprites(cam, time, fade);
+    sprite.draw(x, y, z, R * 1.4, 0, [1, 1, 1], 0.5);
+    sprite.done();
   }
 
   /**

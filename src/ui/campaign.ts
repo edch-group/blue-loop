@@ -346,6 +346,12 @@ export class CampaignView {
   private shopOpen = false;
   /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
+  /** The systems seen as the map was last drawn (the ships flying over it are drawn after it). */
+  private seenNow = new Set<string>();
+  /** Whether the ships fly over the 3D map, on a plane of their own above it (so no sun or glow is drawn over them). */
+  private flyOver(): boolean {
+    return canNebula();
+  }
   /** The systems the player can travel to this move (their suns pulse, as sonar, on the 3D map). */
   private reach = new Set<string>();
   /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
@@ -985,6 +991,7 @@ export class CampaignView {
         <section class="cmp-map">${this.renderMap()}</section>
         ${this.renderRelics()}
         <canvas class="cmp-nebula-front" data-key="cmp-nebula-front" aria-hidden="true"></canvas>
+        ${this.flyOver() ? `<div class="cmp-fleet-top" data-key="cmp-fleet-top"><div class="cmp-plane cmp-plane-top" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">${this.renderFleet(this.seenNow)}</div></div>` : ''}
         <button class="icon-btn cmp-recentre" data-act="cmp-recentre" data-key="cmp-recentre" aria-label="Back to the whole strip" title="Back to the whole strip" style="display:none">${RECENTRE_ICON}</button>
         ${this.renderPop()}
         <div class="cmp-end">
@@ -1155,6 +1162,7 @@ export class CampaignView {
     const farFrom = (f: CampaignNode | null, x: number, y: number, id: string, r: number) => !!f && f.id !== id && Math.hypot(x - f.x, y - f.y) > r;
     // Fog of war: only systems linked to yours (two links from a scanner) are drawn; routes into the fog fade out.
     const seen = visibleNodes(s, me.id);
+    this.seenNow = seen;
     const drawn = new Set<string>();
     this.rays = [];
     const links = s.nodes
@@ -1239,7 +1247,7 @@ export class CampaignView {
           <div class="cmp-grid" style="--gk:${(MAP_WIDTH / 3500).toFixed(3)}"></div>
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
           ${nodes}
-          ${this.renderFleet(seen)}
+          ${this.flyOver() ? '' : this.renderFleet(seen)}
         </div>
       </div>`;
   }
@@ -1658,15 +1666,21 @@ export class CampaignView {
     const screen = [W / 2, 0, 0, 0, 0, -H / 2, 0, 0, 0, 0, -100, 0, W / 2 - ox, H / 2 - oy, 0, 1];
     const m = mul4(screen, mul4(Array.from(cam.proj), mul4(Array.from(cam.view), model)));
     plane.style.transform = `matrix3d(${m.map((v) => +v.toPrecision(8)).join(',')})`;
+    // The ships' plane, over the canvas (laid from the canvas's own corner).
+    const top = stage.closest('.cmp')?.querySelector<HTMLElement>('.cmp-plane-top');
+    const topScreen = [W / 2, 0, 0, 0, 0, -H / 2, 0, 0, 0, 0, -100, 0, W / 2, H / 2, 0, 1];
+    if (top) top.style.transform = `matrix3d(${mul4(topScreen, mul4(Array.from(cam.proj), mul4(Array.from(cam.view), model))).map((v) => +v.toPrecision(8)).join(',')})`;
     // Facing the camera, in the plane's own axes (its x, its y across the strip, its z up out of it).
     const [r, u, f] = [cam.right, cam.up, cam.forward];
     const bb = [r[0], r[2], r[1], 0, -u[0], -u[2], -u[1], 0, -f[0], -f[2], -f[1], 0, 0, 0, 0, 1];
     plane.style.setProperty('--bb', `matrix3d(${bb.map((v) => +v.toFixed(5)).join(',')})`);
+    top?.style.setProperty('--bb', `matrix3d(${bb.map((v) => +v.toFixed(5)).join(',')})`);
     // A star's pixels on screen per pixel of the plane, at the distance the camera looks to: keep them that size.
     // (Measured at a distance between the camera's and its resting one, so they grow a little as it closes in.)
     const look = Math.sqrt(Math.hypot(cam.eye[0] - cam.target[0], cam.eye[1] - cam.target[1], cam.eye[2] - cam.target[2]) * (this.nebula?.homeDist ?? 5));
     const perPx = ((H / 2) * cam.proj[5] * K) / look;
     plane.style.setProperty('--ui', Math.max(0.4, Math.min(8, 1 / perPx)).toFixed(4));
+    top?.style.setProperty('--ui', Math.max(0.4, Math.min(8, 1 / perPx)).toFixed(4));
     plane.style.setProperty('--tilt', '0deg');
     this.drawRays(stage);
     this.placePop();
