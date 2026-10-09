@@ -21,7 +21,7 @@ import { BALANCE } from './balance';
 import { applyAction, createGame, DRAW, GameError, isDraw, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types';
-import { HEROES, heroBonus, learnProblem, heroSkill, makeRelic, relicBonus, RACE_SLOTS, itemValue, skillPoints, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
+import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
 import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
 import { runBonuses, type RunBonuses } from './meta';
@@ -238,8 +238,6 @@ export interface CampaignNode {
   tier: number;
   /** Set on a faction's starting system. */
   home?: string;
-  /** A scanner array: whoever holds it sees systems two links away, not just one (fog of war). */
-  scanner?: boolean;
   /** The Heart, at the centre of the universe: whoever claims it wins. */
   heart?: boolean;
   /** Routes from here to the Heart (0 at the Heart): the core is richer and better defended. */
@@ -605,17 +603,10 @@ export type CampaignAction =
   /** Take one of a research station's upgrades (your flagship must stand there), free. */
   | { type: 'research'; nodeId: string; projectId: string }
   /** A hero spends a skill point. */
-  | { type: 'learnSkill'; hero: string; skill: string }
   /** A hero puts a skill point into their own attack or defence. */
-  | { type: 'train'; hero: string; stat: 'attack' | 'defence' }
   /** Upgrade a part of the flagship, for materials. */
-  | ({ type: 'upgradeShip' } & ShipPart)
   /** Fit a module from the stores into a room (one already there goes back to the stores), or take one out. */
-  | { type: 'fitModule'; moduleId: string; room: number }
-  | { type: 'unfitModule'; room: number }
   /** A hero puts on gear (from the faction's finds), in a slot it fits; or takes it off. */
-  | { type: 'equip'; hero: string; itemId: string; slot: string }
-  | { type: 'unequip'; hero: string; slot: string }
   | { type: 'healArmy'; armyId: string; all?: boolean }
   /** The oldest story scene has been read. */
   | { type: 'readStory' }
@@ -692,11 +683,6 @@ export const factionById = (s: CampaignState, id: string) => {
 export const campaignPlayer = (s: CampaignState) => factionById(s, s.playerId);
 export const ownedNodes = (s: CampaignState, factionId: string) => s.nodes.filter((n) => n.owner === factionId);
 
-/**
- * Fog of war: the systems a faction can see. Its own, those linked to them,
- * and, from a system with a scanner, those two links away. A system being
- * fought over is always in view.
- */
 /** What a faction can see: the whole strip, every route to the wormhole (there is no fog). */
 export function visibleNodes(s: CampaignState, _factionId: string): Set<string> {
   return new Set(s.nodes.map((n) => n.id));
@@ -729,19 +715,9 @@ export function shipUpgradeCost(ship: Ship, p: ShipPart): number | null {
   return CAMPAIGN.shipBase + level * CAMPAIGN.shipPerLevel;
 }
 
-/** A hero's attack and defence in the command room: the baseline, and what they have trained. */
-export function heroStats(f: Faction | undefined, hero: string): { attack: number; defence: number } {
-  const t = f?.heroes?.[hero]?.train;
-  return { attack: CAMPAIGN.heroAttack + (t?.attack ?? 0), defence: CAMPAIGN.heroDefence + (t?.defence ?? 0) };
-}
-
-/** Why a hero can't train a stat (null if they can). */
-export function trainProblem(f: Faction, hero: string, stat: 'attack' | 'defence'): string | null {
-  if (f.hero && hero !== f.hero) return 'That is not your hero.';
-  const h = heroState(f, hero);
-  if ((h.train?.[stat] ?? 0) >= CAMPAIGN.trainMax) return `${cardDef(hero).name}'s ${stat} is fully trained.`;
-  if (skillPoints(h, hero) < 1) return 'No skill points: win battles to gain levels.';
-  return null;
+/** A hero's attack and defence in the command room (heroes no longer train: the baseline). */
+export function heroStats(_f: Faction | undefined, _hero: string): { attack: number; defence: number } {
+  return { attack: CAMPAIGN.heroAttack, defence: CAMPAIGN.heroDefence };
 }
 
 /** Why a faction can't use a station here (null if it can): its flagship has to stand in it. */
@@ -841,11 +817,24 @@ export function recycleValue(defId: string): number {
 
 /** Bring a saved campaign up to the current rules (saves from before version 4 aren't kept: see the UI). */
 export function migrateCampaign(s: CampaignState): CampaignState {
-  ensureScanners(s);
+  // No scanners any more (there is no fog).
+  for (const n of s.nodes) delete (n as { scanner?: boolean }).scanner;
   // No raiders any more: any left in an older save are gone.
   s.armies = s.armies.filter((a) => !a.lost);
   // No one else takes turns, and no missions: a turn left half-passed simply begins.
   for (const f of s.factions) f.missions = [];
+  // Heroes no longer level, learn, train or wear gear: what an older save gave them is let go (relics stay).
+  for (const f of s.factions) {
+    for (const h of Object.values(f.heroes ?? {})) {
+      h.xp = 0;
+      h.skills = [];
+      h.gear = {};
+      delete h.train;
+    }
+    f.items = [];
+    f.modules = [];
+    if (f.ship) delete f.ship.modules;
+  }
   if (s.phase === 'ai') {
     s.aiQueue = [];
     s.aiStepwise = undefined;
@@ -875,18 +864,6 @@ export function migrateCampaign(s: CampaignState): CampaignState {
   }
   if (!s.galaxy) s.galaxy = GALAXY_KINDS[(s.universe * 7 + s.nodes.length) % GALAXY_KINDS.length];
   return s;
-}
-
-/** Older saves have no scanners: place them as a new campaign would (about one system in six, never a home). */
-export function ensureScanners(s: CampaignState) {
-  if (s.nodes.some((n) => n.scanner !== undefined)) return;
-  for (const n of s.nodes) n.scanner = !n.home && scannerRoll(n.id);
-}
-
-function scannerRoll(id: string): boolean {
-  let h = 2166136261;
-  for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
-  return (h >>> 0) % 6 === 0;
 }
 
 /** Materials for the next fortification level on a system (null at the maximum). */
@@ -1973,15 +1950,6 @@ function aiEquip(f: Faction) {
   }
 }
 
-function learn(h: HeroState, id: string) {
-  h.skills.push(id);
-}
-
-function train(h: HeroState, stat: 'attack' | 'defence') {
-  h.train ??= { attack: 0, defence: 0 };
-  h.train[stat] += 1;
-}
-
 /** Take one of a research station's upgrades, free (the checks are researchProblem's). */
 function takeResearch(s: CampaignState, f: Faction, n: CampaignNode, projectId: string) {
   const why = researchProblem(s, f, n, projectId);
@@ -2003,20 +1971,6 @@ function buyCard(s: CampaignState, f: Faction, n: CampaignNode, index: number) {
   st.cards.splice(index, 1);
   clog(s, `${f.name} buys ${cardDef(id).name} at ${n.name}'s space station.`, n.id, f.id);
   gainCard(s, f, id);
-}
-
-/** Upgrade a part of a faction's flagship (for materials). */
-function upgradeShip(f: Faction, part: ShipPart) {
-  f.ship ??= newShip();
-  const cost = shipUpgradeCost(f.ship, part);
-  if (cost === null) throw new GameError('That part of the ship is fully upgraded.');
-  spendMaterials(f, cost);
-  const r = f.ship.rooms;
-  if (part.part === 'defence') r.defence[part.room] += 1;
-  else if (part.part === 'attack') r.attack[part.room] += 1;
-  else if (part.part === 'command') r.command += 1;
-  else if (part.part === 'shields') f.ship.shields += 1;
-  else f.ship.hull += 1;
 }
 
 /** A faction with no systems left is out: with no worlds to supply them, its armies scatter. */
@@ -2042,7 +1996,6 @@ function collapse(s: CampaignState, n: CampaignNode) {
   n.hazard = [];
   n.yield = { materials: 0 };
   n.stellaria = n.stellaria === undefined ? undefined : 0;
-  n.scanner = false;
   n.home = undefined;
   clog(s, `${n.name} collapses into the dark.`, n.id);
   // (Whatever stands there goes with it.)
@@ -2194,65 +2147,9 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       clog(s, `${f.name} recycles ${cardDef(action.defId).name} for ${value} materials.`);
       break;
     }
-    case 'learnSkill': {
-      if (!GENERALS[f.race].includes(action.hero)) throw new GameError('That is not one of your heroes.');
-      const h = heroState(f, action.hero);
-      const why = learnProblem(action.hero, h, action.skill);
-      if (why) throw new GameError(why);
-      learn(h, action.skill);
-      clog(s, `${cardDef(action.hero).name} learns ${heroSkill(action.hero, action.skill)!.name}.`, undefined, f.id);
-      break;
-    }
     case 'research':
       takeResearch(s, f, nodeById(s, action.nodeId), action.projectId);
       break;
-    case 'train': {
-      const why = trainProblem(f, action.hero, action.stat);
-      if (why) throw new GameError(why);
-      train(heroState(f, action.hero), action.stat);
-      clog(s, `${cardDef(action.hero).name} trains: +1 ${action.stat}.`, undefined, f.id);
-      break;
-    }
-    case 'fitModule': {
-      const m = (f.modules ?? []).find((x) => x.id === action.moduleId);
-      if (!m) throw new GameError('That module is not in your stores.');
-      if (!Number.isInteger(action.room) || action.room < 0 || action.room > 4) throw new GameError('No such room.');
-      fitModule(f, m, action.room);
-      break;
-    }
-    case 'unfitModule': {
-      const old = f.ship.modules?.[action.room];
-      if (!old) throw new GameError('There is no module in that room.');
-      f.ship.modules![action.room] = null;
-      (f.modules ??= []).push(old);
-      break;
-    }
-    case 'upgradeShip': {
-      const { type: _t, ...part } = action;
-      upgradeShip(f, part as ShipPart);
-      break;
-    }
-    case 'equip': {
-      if (!GENERALS[f.race].includes(action.hero)) throw new GameError('That is not one of your heroes.');
-      const item = (f.items ?? []).find((x) => x.id === action.itemId);
-      if (!item) throw new GameError('That gear is not in your stores.');
-      const slot = RACE_SLOTS[f.race].find((x) => x.id === action.slot);
-      if (!slot || slot.kind !== item.slot) throw new GameError(`${item.name} does not fit there.`);
-      const h = heroState(f, action.hero);
-      const old = h.gear[slot.id];
-      h.gear[slot.id] = item;
-      f.items = f.items!.filter((x) => x !== item);
-      if (old) f.items.push(old);
-      break;
-    }
-    case 'unequip': {
-      const h = heroState(f, action.hero);
-      const old = h.gear[action.slot];
-      if (!old) throw new GameError('Nothing is worn there.');
-      delete h.gear[action.slot];
-      (f.items ??= []).push(old);
-      break;
-    }
     case 'stabilise': {
       const n = nodeById(s, action.nodeId);
       const problem = stabiliseProblem(f, n);
@@ -2263,7 +2160,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     case 'healArmy': {
       const army = armyById(s, action.armyId);
       if (army.owner !== f.id) throw new GameError('That army is not yours.');
-      if (nodeById(s, army.nodeId).owner !== f.id) throw new GameError('An army can only be repaired in a system you hold.');
+      if (nodeById(s, army.nodeId).station?.kind !== 'armory') throw new GameError('Your flagship can only be repaired at a space station.');
       if (army.damage <= 0) throw new GameError(`${cardDef(army.general).name}'s army is not damaged.`);
       spendMaterials(f, CAMPAIGN.armyHealCost);
       army.damage -= 1;

@@ -20,23 +20,12 @@ import {
   armyMoves,
   armyAt,
   buyProblem,
-  heroStats,
-  newShip,
   researchProblem,
-  shipUpgradeCost,
   GENERALS,
   heroState,
-  heroLevel,
-  SKILL_TREES,
   armyDeckProblems,
-  COMMAND_SLOT,
   armyBonus,
   researchProject,
-  XP_LEVELS,
-  skillCost,
-  skillPoints,
-  makeItem,
-  RACE_SLOTS,
   cardCost,
   supernovaThreshold,
   recycleValue,
@@ -77,6 +66,20 @@ function settle(s: CampaignState, choice: 'settle' | 'absorb' | 'supernova' = 's
 }
 
 describe('campaign setup', () => {
+  it('repairs the flagship only at a space station, for materials', () => {
+    let s = fresh();
+    const me = campaignPlayer(s);
+    me.materials = 50;
+    const army = myArmy(s);
+    army.damage = 3;
+    expect(() => applyCampaignAction(s, { type: 'healArmy', armyId: army.id })).toThrow(/space station/);
+    const dock = s.nodes.find((n) => n.station?.kind === 'armory')!;
+    army.nodeId = dock.id;
+    s = applyCampaignAction(s, { type: 'healArmy', armyId: army.id, all: true });
+    expect(myArmy(s).damage).toBe(0);
+    expect(campaignPlayer(s).materials).toBe(50 - 3 * CAMPAIGN.armyHealCost);
+  });
+
   it('is deterministic for a seed', () => {
     expect(fresh(3)).toEqual(fresh(3));
     expect(fresh(3)).not.toEqual(fresh(4));
@@ -187,30 +190,6 @@ describe('economy', () => {
     expect(() => applyCampaignAction(s, { type: 'research', nodeId: lab.id, projectId: options[0] })).toThrow(/already been taken/);
   });
 
-  it('upgrades the flagship\'s rooms, shields and hull for materials, and they reach the battle', () => {
-    let s = fresh();
-    campaignPlayer(s).materials = 200;
-    expect(shipUpgradeCost(newShip(), { part: 'defence', room: 2 })).toBe(CAMPAIGN.shipBase);
-    s = applyCampaignAction(s, { type: 'upgradeShip', part: 'defence', room: 2 });
-    s = applyCampaignAction(s, { type: 'upgradeShip', part: 'attack', room: 1 });
-    s = applyCampaignAction(s, { type: 'upgradeShip', part: 'command' });
-    s = applyCampaignAction(s, { type: 'upgradeShip', part: 'shields' });
-    s = applyCampaignAction(s, { type: 'upgradeShip', part: 'hull' });
-    expect(campaignPlayer(s).materials).toBe(200 - 5 * CAMPAIGN.shipBase);
-    for (let i = 1; i < CAMPAIGN.shipMax.shields; i++) s = applyCampaignAction(s, { type: 'upgradeShip', part: 'shields' });
-    expect(() => applyCampaignAction(s, { type: 'upgradeShip', part: 'shields' })).toThrow(/fully upgraded/);
-    s = attack(s);
-    const me = s.battle!.game.players[0];
-    expect(me.rooms?.defence[2]).toBe(1);
-    expect(me.rooms?.attack[1]).toBe(1);
-    expect(me.rooms?.command).toBe(CAMPAIGN.commandRoom + 1);
-    expect(me.shields).toBeGreaterThanOrEqual(CAMPAIGN.shipMax.shields);
-    expect(me.modifiers?.maxHealthDelta).toBe(flagDelta(s) + CAMPAIGN.hullHealth);
-    // The station defending has no hero: it fights with a few cards and its walls.
-    const them = s.battle!.game.players[1];
-    expect(them.hero).toBeUndefined();
-    expect(them.deck.length + them.hand.length).toBeGreaterThanOrEqual(CAMPAIGN.enemyDeck);
-  });
 });
 
 describe('a full campaign', () => {
@@ -318,20 +297,6 @@ describe('armies and generals', () => {
     expect(campaignPlayer(createCampaign({ seed: 5, race: 2, hero: GENERALS[3][0] })).hero).toBe(GENERALS[2][0]);
   });
 
-  it('trains a hero\'s own attack and defence with skill points, for the battle', () => {
-    let s = fresh();
-    const hero = myArmy(s).general;
-    expect(() => applyCampaignAction(s, { type: 'train', hero, stat: 'attack' })).toThrow(/skill points/);
-    heroState(campaignPlayer(s), hero).xp = XP_LEVELS[3];
-    s = applyCampaignAction(s, { type: 'train', hero, stat: 'attack' });
-    s = applyCampaignAction(s, { type: 'train', hero, stat: 'defence' });
-    expect(heroStats(campaignPlayer(s), hero)).toEqual({ attack: CAMPAIGN.heroAttack + 1, defence: CAMPAIGN.heroDefence + 1 });
-    expect(skillPoints(heroState(campaignPlayer(s), hero), hero)).toBe(1);
-    s = attack(s);
-    expect(s.battle!.game.players[0].heroStats).toEqual(heroStats(campaignPlayer(s), hero));
-    expect(s.battle!.game.players[0].hero).toBe(hero);
-  });
-
   it('loses an army caught in a collapse, unless it can fall back', () => {
     let s = fresh();
     const a = myArmy(s);
@@ -396,72 +361,6 @@ describe('armies and generals', () => {
       return supernovaThreshold(t.battle!.game.players[1]);
     };
     expect(defender('brown')).toBeGreaterThan(defender(undefined));
-  });
-
-  it("earns heroes no experience; skills and gear still ride on the hero's card", () => {
-    let s = fresh();
-    const me = campaignPlayer(s);
-    const hero = myArmy(s).general;
-    s = winBattle(attack(s));
-    expect(heroState(campaignPlayer(s), hero).xp).toBe(0);
-    // Enough experience for a level: one point to spend, down a branch in order.
-    let t = fresh();
-    const h = heroState(campaignPlayer(t), hero);
-    h.xp = 25; // level 3: two points
-    expect(heroLevel(h.xp)).toBe(3);
-    const tree = SKILL_TREES[hero];
-    const t2 = tree.find((k) => k.branch === 0 && k.tier === 2)!;
-    expect(() => applyCampaignAction(t, { type: 'learnSkill', hero, skill: t2.id })).toThrow(/before it/);
-    const t1 = tree.find((k) => k.branch === 0 && k.tier === 1)!;
-    t = applyCampaignAction(t, { type: 'learnSkill', hero, skill: t1.id });
-    expect(heroState(campaignPlayer(t), hero).skills).toContain(t1.id);
-    // Gear: equipped in a slot of its kind.
-    const item = makeItem('i1', 'weapon', 'anomaly', me.race, 0.2);
-    expect(item.boons!.length).toBeGreaterThan(0);
-    campaignPlayer(t).items = [item];
-    expect(() => applyCampaignAction(t, { type: 'equip', hero, itemId: 'i1', slot: RACE_SLOTS[me.race][1].id })).toThrow(/fit/);
-    t = applyCampaignAction(t, { type: 'equip', hero, itemId: 'i1', slot: 'weapon' });
-    // Both go into battle on the hero's own card: none of the army's other cards are touched.
-    t = attack(t);
-    const p = t.battle!.game.players[0];
-    expect(p.heroBoons?.hero).toBe(hero);
-    expect(p.heroBoons?.boons).toEqual(expect.arrayContaining([...(t1.effect.kind === 'boon' ? t1.effect.boons : []), ...item.boons!]));
-    expect(p.modifiers ?? {}).not.toHaveProperty('extraPlays');
-  });
-
-  it('gives each hero eighteen skills in three branches, deeper ones costing more, over twenty-one levels', () => {
-    const hero = myArmy(fresh()).general;
-    const tree = SKILL_TREES[hero];
-    expect(tree.length).toBe(18);
-    for (const b of [0, 1, 2]) expect(tree.filter((k) => k.branch === b).map((k) => k.tier).sort()).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(XP_LEVELS.length).toBe(21);
-    const total = tree.reduce((t, k) => t + skillCost(k), 0);
-    expect(total).toBeGreaterThan(XP_LEVELS.length - 1);
-    // A capstone costs 3 points.
-    let t = fresh();
-    const h = heroState(campaignPlayer(t), hero);
-    h.xp = XP_LEVELS[XP_LEVELS.length - 1];
-    for (const k of tree.filter((x) => x.branch === 0 && x.tier < 6).sort((a, b) => a.tier - b.tier)) t = applyCampaignAction(t, { type: 'learnSkill', hero, skill: k.id });
-    const before = skillPoints(heroState(campaignPlayer(t), hero), hero);
-    const cap = tree.find((x) => x.branch === 0 && x.tier === 6)!;
-    t = applyCampaignAction(t, { type: 'learnSkill', hero, skill: cap.id });
-    expect(skillPoints(heroState(campaignPlayer(t), hero), hero)).toBe(before - 3);
-  });
-
-  it("always has the hero in the command room, carrying their learned boons", () => {
-    let s = fresh();
-    const hero = myArmy(s).general;
-    const h = heroState(campaignPlayer(s), hero);
-    h.xp = XP_LEVELS[XP_LEVELS.length - 1];
-    for (const k of SKILL_TREES[hero].filter((x) => x.branch === 2).sort((a, b) => a.tier - b.tier)) s = applyCampaignAction(s, { type: 'learnSkill', hero, skill: k.id });
-    s = attack(s);
-    const me = s.battle!.game.players[0];
-    expect(me.tableau.some((c) => c.defId === hero && c.slot === COMMAND_SLOT)).toBe(true);
-    expect(me.deck.filter((c) => c.defId === hero).length + me.hand.filter((c) => c.defId === hero).length).toBeLessThan(myArmy(s).deck.filter((id) => id === hero).length);
-    // The hero's card carries its learned boons while it is in play.
-    const card = me.tableau.find((c) => c.defId === hero)!;
-    expect(card.boons?.length).toBeGreaterThan(0);
-    expect(armyBonus(s, myArmy(s)).boons).toEqual(card.boons);
   });
 
   it('carries research upgrades into battle and onto the map', () => {
@@ -542,27 +441,6 @@ describe('losing and drawing', () => {
 });
 
 describe('ship modules and finds', () => {
-  it('fits a module into a room (one there goes back to the stores), and the card standing there carries it', async () => {
-    const { makeModule } = await import('../src/engine/modules');
-    let s = fresh();
-    const me = campaignPlayer(s);
-    me.modules = [makeModule('m1', 'coolant', 'stellar'), makeModule('m2', 'lances', 'dwarf')];
-    s = applyCampaignAction(s, { type: 'fitModule', moduleId: 'm1', room: 2 });
-    expect(campaignPlayer(s).ship.modules?.[2]?.id).toBe('m1');
-    s = applyCampaignAction(s, { type: 'fitModule', moduleId: 'm2', room: 2 });
-    expect(campaignPlayer(s).ship.modules?.[2]?.id).toBe('m2');
-    expect(campaignPlayer(s).modules?.map((m) => m.id)).toEqual(['m1']);
-    s = applyCampaignAction(s, { type: 'fitModule', moduleId: 'm1', room: 0 });
-    s = attack(s);
-    const p = s.battle!.game.players[0];
-    expect(p.rooms?.boons?.[2]).toEqual(['boon_heat_1']);
-    expect(p.rooms?.boons?.[0]).toEqual(['boon_cool_2']);
-    // A card placed in room 2 carries the lances; leaving, it drops them.
-    const { createGame } = await import('../src/engine/game');
-    const g = createGame({ seed: 1, campaign: true, players: [{ name: 'A', isAI: false, deck: ['coolant_array', 'coolant_array'], tableau: ['coolant_array'], rooms: p.rooms }, { name: 'B', isAI: true, deck: ['coolant_array'] }] });
-    const placed = g.players[0].tableau.find((c) => c.slot === 2);
-    expect(placed?.boons).toContain('boon_heat_1');
-  });
 
   it("shows a battle's finds before they are taken, and takes the same ones", async () => {
     const { applyAction } = await import('../src/engine/game');

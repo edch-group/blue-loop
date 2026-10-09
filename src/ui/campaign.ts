@@ -150,9 +150,6 @@ const ARMORY_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
 const RESEARCH_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 2.5h4M8.8 2.5v5L4.5 15a1.6 1.6 0 0 0 1.4 2.4h8.2a1.6 1.6 0 0 0 1.4-2.4l-4.3-7.5v-5" fill="#9fd3d9" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/><ellipse cx="10" cy="12.5" rx="7.5" ry="2.4" fill="none" stroke="#a98fe0" stroke-width="1"/></svg>';
-/** A scanner array: a dish with two rings of signal. */
-const SCANNER =
-  '<svg class="cur cur-scanner" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5 9.2 10.3" stroke="#6e7f9f" stroke-width="1.4" stroke-linecap="round"/><path d="M3 11a6 6 0 0 0 6 6L3 11Z" fill="#8fa3c6" stroke="#6e7f9f" stroke-width=".9" stroke-linejoin="round"/><path d="M11.2 6.8a3.4 3.4 0 0 1 2 2M11.6 3.6a6.6 6.6 0 0 1 4.8 4.8" fill="none" stroke="#6fb3bc" stroke-width="1.3" stroke-linecap="round"/><circle cx="9.6" cy="9.9" r="1.2" fill="#6fb3bc"/></svg>';
 /** A Finite Stellari bloom: a small six-petalled flower. */
 const BLOOM =
   '<svg class="cur cur-bloom" viewBox="0 0 20 20" aria-hidden="true">' +
@@ -1074,7 +1071,6 @@ export class CampaignView {
         const badges = [
           n.garrison.length ? `<i class="cmp-badge">▣${n.garrison.length}</i>` : '',
           n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
-          n.scanner ? `<i class="cmp-badge cmp-scan" title="Scanner array">${SCANNER}</i>` : '',
           n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
         ].join('');
         return `
@@ -1108,7 +1104,6 @@ export class CampaignView {
   /** The picked army: its general, its state, and what tapping the map will do with it. */
   private renderArmy(a: Army): string {
     const s = this.state!;
-    const me = campaignPlayer(s);
     const here = nodeById(s, a.nodeId);
     const moves = s.phase === 'player' && !s.battle ? armyMoves(s, a) : [];
     const fights = moves.filter((m) => m.battle).length;
@@ -1126,8 +1121,7 @@ export class CampaignView {
         <div><h3>${lower(armyLeader(a))}</h3><small>${a.deck.length} cards · in ${lower(here.name)}${a.damage ? ` · ✸${a.damage}` : ''}</small></div>
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
-      <p class="cmp-hint">${hint}</p>
-      ${a.damage && here.owner === me.id ? `<div class="pop-row">${this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '')}</div>` : ''}`;
+      <p class="cmp-hint">${hint}</p>`;
   }
 
   /** Repair one point, or all of it (as far as the materials go). */
@@ -1732,7 +1726,6 @@ export class CampaignView {
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
       n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, 'Torn open by a Stellari bloom: beat its guardian and go through, into the next universe, with the petals you grab.', 'gold') : '',
       chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, the galaxy and ships' hulls): more the further along the strip, and in every universe after the first.`),
-      n.scanner ? chip(SCANNER, 'Scanner array: whoever holds it sees systems two links away.') : '',
       (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
       n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'Its star has guttered: it yields less than it did.', 'muted') : '',
       n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
@@ -1757,9 +1750,7 @@ export class CampaignView {
           ${armyFace(here)}<span><b>${lower(armyLeader(here))}</b><small>${here.owner === me.id ? (here.moved ? 'marched this turn' : here.refit ? 'refitting' : 'ready') : here.lost ? 'lost race' : lower(factionById(s, here.owner).name)}${here.damage ? ` · ✸${here.damage}` : ''}</small></span>
           ${
             here.owner === me.id
-              ? `<span class="pop-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}${
-                  here.damage && mine ? this.repairButtons('cmp-heal-army', here.id, here.damage, CAMPAIGN.armyHealCost, here.moved ? 'It has marched this turn: repair it next turn.' : '') : ''
-                }</span>`
+              ? `<span class="pop-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}</span>`
               : ''
           }
         </div>`
@@ -1862,7 +1853,7 @@ export class CampaignView {
             <li>${ARMORY_ICON} <b>Space stations</b> sell ${CAMPAIGN.armoryStock} cards each, every one only once. ${RESEARCH_ICON} <b>Research stations</b> offer ${CAMPAIGN.researchOptions} upgrades each: pick one, free. Both are better deep in the strip. Bring your flagship to one to use it.</li>
             <li>A system with no flagship in it fights as a <b>garrison</b>: more cards, thicker walls and a bigger sun the further along the strip, and the further along the run.</li>
             <li><b>Stars</b> differ. ${(['red', 'white', 'brown', 'neutron'] as const).map((k) => `<b>${STAR_TYPES[k].name}:</b> ${esc(STAR_TYPES[k].boon)} ${esc(STAR_TYPES[k].cost)}`).join(' ')}</li>
-            <li>Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${MATERIALS} materials in a system you hold.</li>
+            <li>Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${MATERIALS} materials at a space station.</li>
           </ul>`,
           true,
         );
@@ -1967,10 +1958,14 @@ export class CampaignView {
   private renderArmory(sh: Extract<Sheet, { kind: 'armory' }>): string {
     const n = nodeById(this.state!, sh.nodeId);
     this.builder.setMode(this.armoryMode(sh));
+    // The station's dock repairs the flagship's damage (its sun starts battles that much hotter).
+    const ship = flagship(this.state!, this.state!.playerId);
+    const repair = ship?.damage ? `<span class="cmp-repair"><small>damage ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';
     return `
       <div class="cmp-base">
         <header class="cmp-base-top">
           <nav class="cmp-tabs"><span class="cmp-tab cmp-tab-on">${ARMORY_ICON} ${lower(n.name)} space station</span></nav>
+          ${repair}
           ${this.purse()}
           <button class="icon-btn" data-act="cmp-close" aria-label="Back to the map" title="Back to the map">×</button>
         </header>
