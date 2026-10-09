@@ -65,7 +65,6 @@ import {
   starOdds,
   SUBRACES,
   type MetaState,
-  plainText,
   type CampaignAction,
   type CampaignNode,
   type CampaignState,
@@ -85,7 +84,7 @@ import { DeckBuilder, type BuilderMode } from './builder';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
-import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { raceRow, cardArtLite, cardStock, cardBodyHtml, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
@@ -163,6 +162,21 @@ const BLOOM =
 /** A Stellari petal: what a wormhole gives, banked for every run after. */
 const PETAL =
   '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.5C14.5 5 15.5 11 10 18.5 4.5 11 5.5 5 10 1.5Z" fill="#ffffff" stroke="#6b7590" stroke-width="1" stroke-linejoin="round"/><path d="M10 4.5v11" stroke="#6b7590" stroke-width=".7" opacity=".55"/></svg>';
+
+/** Each lasting upgrade's mark, and what it gives at a level, in a few words (the number large on its tile). */
+const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: number) => string }> = {
+  materials: { icon: glyph('M12 2.5 20 7v10l-8 4.5L4 17V7ZM4 7l8 4.5L20 7M12 11.5v10'), unit: 'materials to start a run', value: (l) => `+${3 * l}` },
+  cards: { icon: glyph('M7 3.5h9a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5ZM11.5 8.5v7M8 12h7'), unit: 'race cards in the starting deck', value: (l) => `+${l}` },
+  pick: { icon: glyph('M6 4.5h8.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V6A1.5 1.5 0 0 1 6 4.5ZM16 7.5l2.6.7a1.5 1.5 0 0 1 1 1.8l-3 11.2M8 12.5l2 2 3.5-4.5'), unit: 'cards of your choice to start', value: (l) => `+${l}` },
+  hull: { icon: glyph('M4 14h16l-2.5 5.5h-11ZM6.5 14V9.5h11V14M9 9.5V6h6v3.5'), unit: 'hull levels on the flagship', value: (l) => `+${l}` },
+  shields: { icon: glyph('M12 2.8 19.5 6v5.5c0 4.6-3.2 7.8-7.5 9.5-4.3-1.7-7.5-4.9-7.5-9.5V6Z'), unit: 'shield levels on the flagship', value: (l) => `+${l}` },
+  walls: { icon: glyph('M3.5 20.5h17M5 20.5V9h14v11.5M5 9V5.5h3V9M10.5 9V5.5h3V9M16 9V5.5h3V9M9 20.5v-5h6v5'), unit: "defence on every room", value: (l) => `+${l}` },
+  march: { icon: glyph('M4 12h11M11 7l5 5-5 5M17.5 5.5v13M20.5 5.5v13'), unit: 'move a turn, every turn', value: (l) => `+${l}` },
+  grace: { icon: glyph('M12 3v4M12 17v4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M3 12h4M17 12h4M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z'), unit: 'turns of stability in every galaxy', value: (l) => `+${l}` },
+  armory: { icon: glyph('M4 8.5 12 4l8 4.5v7L12 20l-8-4.5ZM4 8.5l8 4.5 8-4.5M12 13v7M8.5 6.2l8 4.5'), unit: 'material off every armoury card', value: (l) => `−${l}` },
+  petals: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM12 5.5v10M5 20.5h14'), unit: 'more petals at every wormhole', value: (l) => `+${20 * l}%` },
+  salvage: { icon: glyph('M5.5 7.5h13l-1.2 12a1.5 1.5 0 0 1-1.5 1.4H8.2a1.5 1.5 0 0 1-1.5-1.4ZM3.5 7.5h17M9 7.5V4.5h6v3M10 11.5v6M14 11.5v6'), unit: 'card to choose from when salvaging', value: (l) => `+${l}` },
+};
 
 /** A hero's portrait: their card's picture, cropped round. */
 function portrait(cardId: string): string {
@@ -932,96 +946,118 @@ export class CampaignView {
 
   private renderSetup(): string {
     const meta = loadMeta();
-    const buy = (id: string, label: string) => {
+    const buy = (id: string, label: string, cls = '') => {
       const why = buyUpgradeProblem(meta, id);
       const cost = metaUpgrade(id)!.cost(levelOf(meta, id));
-      return `<button class="pill-btn cmp-buy" data-act="cmp-meta-buy" data-arg="${esc(id)}" ${why ? `disabled data-tip="${esc(why)}"` : ''}>${label} · ${PETAL}${cost}</button>`;
+      return `<button class="cs-buy ${cls}" data-act="cmp-meta-buy" data-arg="${esc(id)}" ${why ? `disabled data-tip="${esc(why)}"` : ''}><span>${label}</span><i>${PETAL}${cost}</i></button>`;
     };
     const r = this.setup.race;
     const colour = (race: number) => FACTION_COLOUR[`f${race + 1}`];
-    // Down the left: every race, picked or locked.
-    const races = RACE_NAMES.map((name, i) => {
+    // Across the top: every race as its emblem, the core four, then the Lost Races (unlocked with petals).
+    const orb = (i: number) => {
       const open = raceUnlocked(meta, i);
-      // (The Lost Races, unlocked with petals, under a heading of their own; a run as one plays every mechanic.)
-      return `${i === 0 ? '<small class="cmp-rs-head">core races</small>' : ''}${i === 4 ? '<small class="cmp-rs-head" data-tip="Unlocked with Stellari petals. A run as one of them is played in Lost Races mode: every race and mechanic.">lost races</small>' : ''}<button class="cmp-rs ${r === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${i}" style="--rc:${colour(i)}">
-        ${factionAvatar(`f${i + 1}`, 'cmp-rs-emblem')}<b>${lower(name)}</b>${open ? '' : `<i class="cmp-rs-lock">${PETAL}${metaUpgrade(`race:${i}`)!.cost(0)}</i>`}
+      return `<button class="cs-orb ${r === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${i}" style="--rc:${colour(i)}" aria-label="${esc(RACE_NAMES[i])}">
+        <span class="cs-orb-mark">${factionAvatar(`f${i + 1}`, 'cs-orb-emblem')}</span><b>${lower(RACE_NAMES[i])}</b>${open ? '' : `<i class="cs-orb-price">${PETAL}${metaUpgrade(`race:${i}`)!.cost(0)}</i>`}
       </button>`;
-    }).join('');
-    // The picked race: its own card, then its sub-races.
+    };
+    const races = `<nav class="cs-races">
+      <div class="cs-race-set">${[0, 1, 2, 3].map(orb).join('')}</div>
+      <span class="cs-race-gap" data-tip="Unlocked with Stellari petals. A run as one of them is played in Lost Races mode: every race and mechanic."><small>lost races</small></span>
+      <div class="cs-race-set">${[4, 5, 6, 7].map(orb).join('')}</div>
+    </nav>`;
+    // The picked race: its name large, its creed, its trait, its sub-races.
     const raceOpen = raceUnlocked(meta, r);
     const subs = Object.values(SUBRACES).filter((x) => x.race === r);
-    const raceCard = `<div class="cmp-rc cmp-rc-race ${subs.length ? '' : 'wide'}">
-      <span class="cmp-rc-mark">${factionAvatar(`f${r + 1}`)}</span>
-      <div class="cmp-rc-body">
-        <b class="cmp-rc-name">${lower(RACE_NAMES[r])}</b>
-        <p>${esc(RACE_BLURB[r])}</p>
-        ${RACE_TRAITS[r] ? `<div class="cmp-rc-traits"><em class="cmp-trait-bonus">+ ${esc(plainText(RACE_TRAITS[r]!.bonus))}</em></div>` : ''}
-        ${raceOpen ? '' : buy(`race:${r}`, 'unlock')}
+    const race = `<section class="cs-race">
+      <span class="cs-race-ghost">${factionAvatar(`f${r + 1}`)}</span>
+      <h3>${lower(RACE_NAMES[r])}</h3>
+      <p>${esc(RACE_BLURB[r])}</p>
+      <div class="cs-tags">
+        ${RACE_TRAITS[r] ? `<span class="cs-tag cs-tag-trait">${cardTextHtml(RACE_TRAITS[r]!.bonus, undefined, true)}</span>` : ''}
+        ${subs.map((x) => `<span class="cs-tag" data-tip-title="${esc(lower(x.name))}" data-tip="${esc(x.theme)}.">${lower(x.name)}</span>`).join('')}
       </div>
-    </div>`;
-    const subCards = subs
-      .map((x) => `<div class="cmp-rc cmp-rc-sub"><small>sub-race</small><b class="cmp-rc-name">${lower(x.name)}</b><p>${esc(x.theme)}.</p></div>`)
-      .join('');
-    // Its heroes, each a card with its art.
+      ${raceOpen ? '' : buy(`race:${r}`, `unlock the ${lower(RACE_NAMES[r])}`, 'cs-buy-big')}
+    </section>`;
+    // Its heroes: portraits, their power in the game's own marks, the one leading the run lifted.
     const heroes = GENERALS[r]
       .map((g, i) => {
         const def = cardDef(g);
         const open = heroUnlocked(meta, g);
         const sub = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].name : '';
-        return `<div class="cmp-hc ${this.setup.hero === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-hero-pick" data-arg="${i}" role="button">
-          <span class="cmp-hc-art">${cardArtLite(def)}</span>
-          <div class="cmp-hc-body">
-            <b class="cmp-rc-name">${lower(def.name)}</b>
-            <small>${esc(RARITY_NAME[def.rarity ?? 'dwarf'] ?? '')}${sub ? ` · ${esc(sub)}` : ''}</small>
-            <p>${esc(plainText(def.text))}</p>
-            ${open ? '' : buy(`hero:${g}`, 'unlock')}
+        const rarity = def.rarity ?? 'dwarf';
+        return `<div class="cs-hero rarity-${rarity} ${this.setup.hero === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-hero-pick" data-arg="${i}" role="button" aria-label="${esc(def.name)}">
+          <span class="cs-hero-art">${cardArtLite(def)}</span>
+          <span class="cs-hero-rarity"><i></i>${esc(RARITY_NAME[rarity] ?? '')}${sub ? ` · ${esc(lower(sub))}` : ''}</span>
+          <div class="cs-hero-body">
+            <b>${lower(def.name)}</b>
+            <div class="cs-hero-text">${cardTextHtml(def.text)}</div>
           </div>
+          ${open ? '' : `<div class="cs-hero-lock">${buy(`hero:${g}`, 'unlock')}</div>`}
         </div>`;
       })
       .join('');
     const pickedHero = GENERALS[r][this.setup.hero];
     const ready = raceOpen && heroUnlocked(meta, pickedHero);
     return `
-      <main class="cmp-setup setup-page" style="--rc:${colour(r)}">
+      <main class="cmp-setup setup-page cs-page" style="--rc:${colour(r)}">
         <header class="setup-top">
           <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">a dying universe</h2>
-          <button class="cmp-petals cmp-shop-btn" data-act="cmp-shop" data-tip="Spend Stellari petals on lasting upgrades">${PETAL}<b>${meta.petals}</b><span>upgrades</span></button>
+          <button class="cs-petals" data-act="cmp-shop">${PETAL}<b>${meta.petals}</b><span>upgrades</span></button>
         </header>
-        <div class="setup-body cmp-setup-body">
-          <nav class="cmp-rs-list">${races}</nav>
-          <div class="cmp-setup-right">
-            <div class="cmp-rc-row">${raceCard}${subCards}</div>
-            <div class="cmp-hc-row">${heroes}</div>
-          </div>
+        <div class="cs-body">
+          ${races}
+          ${race}
+          <div class="cs-heroes">${heroes}</div>
         </div>
         <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start" ${ready ? '' : 'disabled'}>begin run</button></footer>
-        ${this.shopOpen ? this.renderShop(meta, buy) : ''}
+        ${this.shopOpen ? this.renderShop(meta) : ''}
       </main>`;
   }
 
-  /** The petal shop: lasting upgrades, by group, each with its level and the next level's price. */
-  private renderShop(meta: MetaState, buy: (id: string, label: string) => string): string {
-    const groups: [MetaGroup, string][] = [['start', 'a stronger start'], ['flagship', 'a tougher flagship'], ['perk', 'run perks']];
+  /**
+   * The petal shop: lasting upgrades, each a tile with its mark, what it gives now (large) and what its next level
+   * gives, its levels as petals, and its price.
+   */
+  private renderShop(meta: MetaState): string {
+    const groups: [MetaGroup, string, string][] = [
+      ['start', 'a stronger start', 'what every run begins with'],
+      ['flagship', 'a tougher flagship', 'your ship, before its first battle'],
+      ['perk', 'run perks', 'how every galaxy treats you'],
+    ];
+    const petalMark = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.5C14.5 5 15.5 11 10 18.5 4.5 11 5.5 5 10 1.5Z"/></svg>';
     const shop = groups
-      .map(([g, title]) => {
-        const rows = META_UPGRADES.filter((u) => u.group === g)
+      .map(([g, title, sub]) => {
+        const tiles = META_UPGRADES.filter((u) => u.group === g)
           .map((u) => {
             const level = levelOf(meta, u.id);
-            const pips = Array.from({ length: u.max }, (_, i) => `<i class="${i < level ? 'on' : ''}"></i>`).join('');
-            return `<div class="cmp-up"><div><b>${esc(u.name.toLowerCase())}</b><small>${esc(u.text)}</small></div><span class="cmp-up-pips">${pips}</span>${level < u.max ? buy(u.id, 'buy') : '<span class="cmp-up-max">max</span>'}</div>`;
+            const look = UPGRADE_LOOK[u.id];
+            const maxed = level >= u.max;
+            const why = buyUpgradeProblem(meta, u.id);
+            const now = look ? look.value(level) : `${level}`;
+            const next = look && !maxed ? look.value(level + 1) : '';
+            const petals = Array.from({ length: u.max }, (_, i) => `<i class="${i < level ? 'on' : ''}">${petalMark}</i>`).join('');
+            return `<article class="up-tile ${maxed ? 'maxed' : ''} ${level ? 'owned' : ''} ${!maxed && !why ? 'afford' : ''}" data-tip-title="${esc(u.name.toLowerCase())}" data-tip="${esc(u.text)}">
+              <header><span class="up-ico">${look?.icon ?? ''}</span><b>${esc(u.name.toLowerCase())}</b></header>
+              <div class="up-now"><strong>${esc(level ? now : look ? look.value(1) : '')}</strong><small>${esc(look?.unit ?? u.text)}</small></div>
+              <footer>
+                <span class="up-petals" aria-label="level ${level} of ${u.max}">${petals}</span>
+                ${maxed ? '<span class="up-max">complete</span>' : `<button class="up-buy" data-act="cmp-meta-buy" data-arg="${esc(u.id)}" ${why ? `disabled data-tip="${esc(why)}"` : ''}><span>${esc(next)}</span><i>${PETAL}${u.cost(level)}</i></button>`}
+              </footer>
+            </article>`;
           })
           .join('');
-        return `<section><div class="cmp-label">${title}</div><div class="cmp-ups">${rows}</div></section>`;
+        return `<section class="up-group"><h4>${title}<small>${sub}</small></h4><div class="up-grid">${tiles}</div></section>`;
       })
       .join('');
     return `
-      <div class="cmp-shop">
-        <div class="cmp-shop-panel">
-          <header><b>upgrades</b><span class="cmp-petals">${PETAL}<b>${meta.petals}</b></span><button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button></header>
-          ${meta.runs ? `<p class="muted">Best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed, in ${meta.runs} run${meta.runs === 1 ? '' : 's'}.</p>` : ''}
-          <div class="cmp-shop-groups">${shop}</div>
-        </div>
+      <div class="up-shop">
+        <header class="up-head">
+          <div class="up-title"><h3>lasting upgrades</h3>${meta.runs ? `<small>best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed · ${meta.runs} run${meta.runs === 1 ? '' : 's'}</small>` : '<small>bought with Stellari petals, kept for every run</small>'}</div>
+          <span class="up-purse">${PETAL}<b>${meta.petals}</b></span>
+          <button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button>
+        </header>
+        <div class="up-groups">${shop}</div>
       </div>`;
   }
 
