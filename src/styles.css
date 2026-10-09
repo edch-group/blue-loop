@@ -6008,3 +6008,10 @@ body:has(.game-result) .dock { visibility: hidden; }
 
 /* The Stellari is drawn in the scene (nebula-objects.ts), as are the ships. */
 .cmp-3d .cmp-bloom3d { display: none !important; }
+
+/* A heat wave from the Stellari: a hot ring going out across the board (fx.ts heatWave). */
+.heat-wave {
+  position: absolute; z-index: 60; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 80%, rgba(255, 170, 90, 0.35) 88%, rgba(236, 72, 40, 0.85) 95%, rgba(255, 220, 160, 0.9) 97.5%, transparent 100%);
+  filter: drop-shadow(0 0 10px rgba(236, 72, 40, 0.7));
+}

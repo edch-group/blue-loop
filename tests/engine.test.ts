@@ -1536,3 +1536,22 @@ describe('Offering and Rootbreak', () => {
     expect(s.log.some((l) => /Riptide hits back for its attack \d+ and Sting 1: Focusing Array takes \d+/.test(l.text))).toBe(true);
   });
 });
+
+describe('heat waves on cards', () => {
+  it('a battlefield with waveCardHeat strikes every card of the side its wave reaches, a Hero apart', () => {
+    let s = twoPlayer(3);
+    const me = activePlayer(s);
+    const bo = s.players.find((p) => p !== me)!;
+    const plain = CARDS.find((c) => c.kind === 'attack' && !c.onTurn?.length && !c.passive?.length && !c.text.includes('{'))!;
+    const [card] = give(bo, [plain.id], 'tableau');
+    bo.modifiers = { heatPerTurn: 1, waveCardHeat: 1 };
+    const worn = (st: GameState) => {
+      const c = st.players.find((p) => p.id === bo.id)!.tableau.find((x) => x.uid === card.uid)!;
+      return (c.dented ?? 0) + (baseHealth(c.defId) - (c.health ?? 0));
+    };
+    expect(worn(s)).toBe(0);
+    s = endTurn(s);
+    expect(worn(s)).toBe(1);
+    expect(s.log.some((l) => /heat wave sears/.test(l.text))).toBe(true);
+  });
+});

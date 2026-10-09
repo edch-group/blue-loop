@@ -1336,6 +1336,27 @@ function regionalInstability(state: GameState, roundStarter: PlayerState) {
     const last = state.turnPulses?.[state.turnPulses.length - 1];
     if (last && i > 0) last.together = true;
   });
+  // On some battlefields the wave burns through the cards too.
+  for (const x of living) waveHitsCards(state, x, roundStarter);
+}
+
+/**
+ * A heat wave from the Stellari reaching a side whose battlefield lets it burn their cards (waveCardHeat): every
+ * card of theirs but a Hero takes that much, as heat aimed at it. Its blows land with the wave (together).
+ */
+function waveHitsCards(state: GameState, x: PlayerState, source: PlayerState) {
+  const n = x.modifiers?.waveCardHeat ?? 0;
+  if (n <= 0 || state.winnerId || x.eliminated) return;
+  const hit = x.tableau.filter((c) => cardDef(c.defId).kind !== 'command');
+  if (!hit.length) return;
+  log(state, `The heat wave sears ${x.name}'s cards.`);
+  for (const c of hit) {
+    if (state.winnerId || x.eliminated || !x.tableau.includes(c)) continue;
+    strikeCard(state, x, c, n, x, false, '', false, true);
+    notePulse(state, source, null, 'unstable', x, n, c.uid);
+    const last = state.turnPulses?.[state.turnPulses.length - 1];
+    if (last) last.together = true;
+  }
 }
 
 /**
@@ -1452,6 +1473,7 @@ function startTurn(state: GameState) {
   if (m?.heatPerTurn) {
     applyHeat(state, p, m.heatPerTurn, null, false, undefined, false, 'this battlefield');
     notePulse(state, p, null, 'unstable', p, m.heatPerTurn);
+    waveHitsCards(state, p, p);
   }
   if (m?.coolPerTurn) {
     cool(state, p, m.coolPerTurn, 'this battlefield');

@@ -475,3 +475,36 @@ export function supernovaBurst(at: DOMRect) {
   }
   window.setTimeout(() => layer.remove(), 2400);
 }
+
+/**
+ * A heat wave going out from the Stellari in a ring, across the board (an ellipse, as the board lies tilted):
+ * from `center` to radii `rx`, `ry` (page pixels) over `duration`, steadily, so it reaches a point at a set time
+ * (waveReach). A hot band, glowing, fading as it goes.
+ */
+export function heatWave(center: DOMRect, rx: number, ry: number, opts: { delay?: number; duration?: number } = {}) {
+  if (reducedMotion()) return;
+  const duration = opts.duration ?? 900;
+  window.setTimeout(() => {
+    const el = document.createElement('div');
+    el.className = 'heat-wave';
+    const cx = center.left + center.width / 2, cy = center.top + center.height / 2;
+    Object.assign(el.style, { left: `${cx - rx}px`, top: `${cy - ry}px`, width: `${2 * rx}px`, height: `${2 * ry}px` });
+    document.body.appendChild(el);
+    const anim = el.animate(
+      [
+        { transform: 'scale(0.04)', opacity: 0 },
+        { transform: 'scale(0.12)', opacity: 1, offset: 0.08 },
+        { transform: 'scale(0.75)', opacity: 0.9, offset: 0.75 },
+        { transform: 'scale(1)', opacity: 0 },
+      ],
+      { duration, easing: 'linear', fill: 'both' },
+    );
+    anim.onfinish = () => el.remove();
+  }, opts.delay ?? 0);
+}
+
+/** How far out (0 at the centre, 1 at the wave's edge) a point lies on a heat wave's ellipse. */
+export function waveReach(center: DOMRect, rx: number, ry: number, at: DOMRect): number {
+  const dx = at.left + at.width / 2 - (center.left + center.width / 2), dy = at.top + at.height / 2 - (center.top + center.height / 2);
+  return Math.hypot(dx / rx, dy / ry);
+}

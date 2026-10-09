@@ -76,6 +76,7 @@ import {
   type GameState,
   type PlayerSetup,
   type PlayerState,
+  type TurnPulse,
   deckProblems,
   beginStats,
   finishStats,
@@ -86,7 +87,13 @@ import {
   GAME_MODES,
   type GameMode } from '../engine';
 import { roman, sunOrb, vitals } from './art';
-import { backdrop } from './backdrop';
+import { backdrop, RAGE_IN_MS } from './backdrop';
+/** How long a heat wave from the Stellari takes to cross the board. */
+const WAVE_MS = 1000;
+/** How much longer than a bolt a heat wave holds the day's effects up (its flush of red, and its crossing). */
+const WAVE_EXTRA_MS = 800;
+/** Whether a day's effect is the table's heat, loosed as a heat wave from the Stellari (not a card's). */
+const isWave = (p: TurnPulse) => p.kind === 'unstable' && !p.uid;
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
 import { CampaignView, cardHtml, loadCampaign } from './campaign';
 
@@ -96,7 +103,7 @@ import { closeTour, tourShowing } from './tour';
 import { shownKind, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
-import { aim, pointerAim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
+import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardJewels, cardBackFace, cardBodyHtml, effectMark, mechanicMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
@@ -2598,8 +2605,9 @@ export class App {
       });
     }
     // (A day's change: its banners and effects, as dayTimeline lays them out, at most.)
-    const pulses = (next.turnPulses ?? []).filter((p) => p.kind !== 'start' && !p.together).length;
-    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' ? (pulses ? 2 * (BANNER_SHOWN_MS + 150) + pulses * PULSE_STEP * SPEED_FACTOR[this.speed] + 700 : 0) : 900) + 1800;
+    const pulses = (next.turnPulses ?? []).filter((p) => p.kind !== 'start' && !p.together);
+    const waves = pulses.filter(isWave).length * WAVE_EXTRA_MS;
+    const wait = reducedMotion() ? 300 : (action.type === 'endTurn' ? (pulses.length ? 2 * (BANNER_SHOWN_MS + 150) + pulses.length * PULSE_STEP * SPEED_FACTOR[this.speed] + waves + 700 : 0) : 900) + 1800;
     this.resultAt = Date.now() + wait;
     window.setTimeout(() => {
       if (this.state === next || isGameOver(this.state ?? next)) this.render();
@@ -2645,10 +2653,35 @@ export class App {
       const when = p.together ? lastAt : t;
       lastAt = when;
       pulses.push(when);
-      if (!p.together) t += step;
+      // (A heat wave from the Stellari takes longer to cross the board than a bolt to fly.)
+      if (!p.together) t += step + (isWave(p) ? WAVE_EXTRA_MS : 0);
     }
     banner('dawn');
     return { ...at, day: any ? t + 400 : t, pulses };
+  }
+
+  /**
+   * A heat wave from the Stellari, `delay` ms from now: it whirls and flushes red (RAGE_IN_MS), then a ring goes
+   * out across the board, wide enough to pass every sun and card. Returns when the ring sets out and its shape,
+   * for when it reaches each thing (fx.ts waveReach).
+   */
+  private startWave(delay: number): { start: number; centre: DOMRect; rx: number; ry: number } | null {
+    const slot = this.root.querySelector('.board-star-slot');
+    if (!slot) return null;
+    const centre = pageRect(slot);
+    // (The board lies tilted: the ring is an ellipse, flattened as the star's own square slot is.)
+    const aspect = centre.width ? Math.max(0.3, Math.min(1, centre.height / centre.width)) : 1;
+    const cx = centre.left + centre.width / 2, cy = centre.top + centre.height / 2;
+    let far = 0;
+    for (const el of this.root.querySelectorAll('.tableau .card, [data-anchor^="player:"] .vit')) {
+      const r = pageRect(el);
+      far = Math.max(far, Math.hypot(r.left + r.width / 2 - cx, (r.top + r.height / 2 - cy) / aspect));
+    }
+    const rx = far * 1.12 + 30, ry = rx * aspect;
+    const start = delay + RAGE_IN_MS;
+    window.setTimeout(() => backdrop.heatWave(WAVE_MS), delay);
+    heatWave(centre, rx, ry, { delay: start, duration: WAVE_MS });
+    return { start, centre, rx, ry };
   }
 
   /**
@@ -2688,6 +2721,9 @@ export class App {
     const cardLands = new Map<HTMLElement, number>();
     let lastAt = t;
     let index = 0;
+    // The heat wave going out now, and the last moment anything lands.
+    let wave: { start: number; centre: DOMRect; rx: number; ry: number } | null = null;
+    let lastLand = 0;
     for (const ps of steps) {
       // Regional instability strikes every sun at once: those pulses share one moment.
       const at = times[index++] ?? (ps.together ? lastAt : t);
@@ -2711,7 +2747,15 @@ export class App {
       // The instability gauge throbs red as it deals its heat.
       if (ps.kind === 'unstable' && !ps.uid && !ps.together) pulse(root.querySelector('.round-box'), 'fx-unstable', at);
       let land = at + 300;
-      if (from && to) {
+      // The table's heat (regional instability, the battlefield's own) is a heat wave from the Stellari: it whirls
+      // and flushes red, then a hot ring goes out across the board, striking each sun (and card, on some
+      // battlefields) as it reaches it.
+      const tableWave = ps.kind === 'unstable' && !ps.uid;
+      if (tableWave && !ps.together) wave = this.startWave(at + 120);
+      if (tableWave && wave) {
+        const target = ps.toCard ? (cardEl ? pageRect(cardEl) : before.cards.get(ps.toCard)?.rect ?? null) : sunAt(ps.to);
+        land = wave.start + (target ? Math.min(1, waveReach(wave.centre, wave.rx, wave.ry, target)) : 0.5) * WAVE_MS;
+      } else if (from && to) {
         if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') land = projectile(from, to, HOT, { delay: at + 120, size: ps.kind === 'heat' ? 34 : 26, duration: 520 });
         else if (ps.kind === 'cool') land = beam(from, to, 'cool', { delay: at + 120 });
         else if (ps.kind === 'shield') land = beam(from, to, 'plain', { delay: at + 120 });
@@ -2726,9 +2770,11 @@ export class App {
         pulse(cardEl, 'fx-hit-card', land);
         cardLands.set(cardEl, Math.max(cardLands.get(cardEl) ?? 0, land));
       }
+      lastLand = Math.max(lastLand, land);
       if (!ps.together) window.setTimeout(() => {
         if (id !== this.replayId) return;
-        if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') sound.launch();
+        if (tableWave) sound.heatWave();
+        else if (ps.kind === 'heat' || ps.kind === 'selfHeat' || ps.kind === 'unstable') sound.launch();
         else if (ps.kind === 'cool') sound.thermo();
         else if (ps.kind === 'draw') sound.draw();
       }, at + 120);
@@ -2766,7 +2812,7 @@ export class App {
     }
     for (const [el, at] of cardLands) this.holdCardStats(el, before.cards.get(el.dataset.uid!)?.html, at);
     // Finally the suns as they really are.
-    const end = t + 200;
+    const end = Math.max(t, lastLand) + 200;
     window.setTimeout(() => {
       if (id !== this.replayId) return;
       for (const p of next.players) show(p.id, { heat: p.heat, shields: p.shields, eliminated: p.eliminated });

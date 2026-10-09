@@ -370,8 +370,8 @@ export const GALAXIES: Record<GalaxyKind, GalaxyDef> = {
   meteors: {
     kind: 'meteors',
     name: 'Meteor Shower',
-    text: 'Meteors rain through this galaxy: every sun starts 2 hotter, but every opening hand is 1 card bigger.',
-    modifiers: { startingHeat: 2, openingHand: 1 },
+    text: 'Meteors rain through this galaxy: every sun starts 2 hotter, and every heat wave from the Stellari strikes every card for 1 too; but every opening hand is 1 card bigger.',
+    modifiers: { startingHeat: 2, openingHand: 1, waveCardHeat: 1 },
   },
   nebula: {
     kind: 'nebula',
@@ -382,8 +382,8 @@ export const GALAXIES: Record<GalaxyKind, GalaxyDef> = {
   darkMatter: {
     kind: 'darkMatter',
     name: 'Dark Matter',
-    text: 'Unseen mass threads this galaxy: every side draws 1 extra card every day, but every sun heats by 1 every day.',
-    modifiers: { extraDraw: 1, heatPerTurn: 1 },
+    text: 'Unseen mass threads this galaxy: every side draws 1 extra card every day, but a heat wave from the Stellari heats every sun by 1 every day, and strikes every card for 1.',
+    modifiers: { extraDraw: 1, heatPerTurn: 1, waveCardHeat: 1 },
   },
 };
 export const GALAXY_KINDS = Object.keys(GALAXIES) as GalaxyKind[];

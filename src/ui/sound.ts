@@ -451,6 +451,16 @@ class SoundBoard {
     this.breath({ dur: 0.9, freq: 900, to: 3800, type: 'bandpass', q: 3, gain: 0.05, attack: 0.5, delay: 0.1 });
     [1174.66, 1244.51].forEach((f, i) => this.voice(f, { dur: 0.9, attack: 0.02, gain: 0.014, delay: 0.12 + i * 0.09, vibrato: 7 }));
   }
+  /**
+   * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and
+   * a long rushing wash as it crosses the board.
+   */
+  heatWave() {
+    this.breath({ dur: 0.35, freq: 300, to: 1600, type: 'bandpass', q: 1.2, gain: 0.07, attack: 0.25 });
+    this.voice(73.42, { dur: 1.4, attack: 0.02, gain: 0.16, to: 41.2, type: 'triangle', cutoff: 380, delay: 0.2 });
+    this.breath({ dur: 1.3, freq: 2400, to: 260, type: 'bandpass', q: 0.9, gain: 0.12, attack: 0.12, delay: 0.2 });
+    this.breath({ dur: 1.0, freq: 140, to: 70, type: 'lowpass', q: 1, gain: 0.14, attack: 0.05, delay: 0.2 });
+  }
   /** A star under the pointer: a soft glassy chime, each star its own note of a pentatonic scale. */
   starHover(seed: number) {
     const now = performance.now();

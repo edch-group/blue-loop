@@ -688,7 +688,7 @@ export class Nebula {
     const f = this.focus;
     if (!f) return { x: -0.35, y: PLANE_Y, z: 0.15, yaw: -0.95, pitch: 0.62, dist: whole };
     // A little ahead of the ship, so it sits low and to the left with the way on in view.
-    const dist = whole * 0.62;
+    const dist = whole * 0.8;
     const reach = STRIP_WIDTH / 2 - dist * 0.35;
     const x = Math.max(-reach, Math.min(reach, f[0] + dist * 0.28));
     return { x, y: PLANE_Y, z: 0.1 + f[1] * 0.35, yaw: -0.95, pitch: 0.62, dist };

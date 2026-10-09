@@ -335,6 +335,11 @@ export interface BattleModifiers {
   heatPerTurn?: number;
   /** Your sun cools by this much at the start of every day. */
   coolPerTurn?: number;
+  /**
+   * Each heat wave from the Stellari that reaches this side (regional instability, or the battlefield's own heat)
+   * strikes every one of its cards too, for this much (its defence first, as heat aimed at a card; a Hero stands).
+   */
+  waveCardHeat?: number;
   /** Extra cards drawn every day. */
   extraDraw?: number;
   /** Extra cards in the opening hand. */
