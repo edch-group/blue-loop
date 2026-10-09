@@ -1080,6 +1080,31 @@ export class CampaignView {
       return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" class="${i < level ? 'on' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');
     };
     const skills = META_UPGRADES.filter((u) => u.group !== 'unlock');
+    // A petal of the Stellari for each branch, from the heart out to its first skill, its blue filling from the base
+    // as the branch's skills are learnt (levels learnt of all its levels). Its angle and length are worked out in
+    // CSS from where the first skill lies (the sky is placed in % of its width and height, so not a circle).
+    const petals = branches
+      .map((br) => {
+        const own = skills.filter((u) => u.group === br.g);
+        const first = own.find((u) => (u.tier ?? 1) === 1);
+        if (!first) return '';
+        const [x, y] = pos.get(first.id)!;
+        const got = own.reduce((n, u) => n + Math.min(levelOf(meta, u.id), u.max), 0);
+        const all = own.reduce((n, u) => n + u.max, 0);
+        const f = all ? got / all : 0;
+        const stop = (Math.max(0, f) * 100).toFixed(1);
+        const soft = Math.min(100, Math.max(0, f * 100 + (f > 0 && f < 1 ? 6 : 0))).toFixed(1);
+        return `<span class="up-petal ${f >= 1 ? 'full' : ''}" style="--dx:${(x - 50).toFixed(2)};--dy:${(y - 40).toFixed(2)}" title="${esc(br.title)}: ${got} of ${all}">
+          <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+            <defs><linearGradient id="up-petal-${br.g}" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="${stop}%" class="blue"/><stop offset="${soft}%" class="white"/>
+            </linearGradient></defs>
+            <path d="M0 20 C 22 3, 70 -1, 100 20 C 70 41, 22 37, 0 20 Z" fill="url(#up-petal-${br.g})"/>
+            <path class="up-petal-vein" d="M3 20 L 92 20"/>
+          </svg>
+        </span>`;
+      })
+      .join('');
     // The links: the heart to each first tier, each skill to what it needs.
     const links = skills
       .flatMap((u) => {
@@ -1143,6 +1168,8 @@ export class CampaignView {
         </header>
         <div class="up-sky">
           <span class="up-flower">${stellariaFlower()}</span>
+          ${petals}
+          <span class="up-core"></span>
           <svg class="up-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${links}</svg>
           ${heart}
           ${nodes}
