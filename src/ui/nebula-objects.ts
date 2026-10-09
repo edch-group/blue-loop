@@ -286,7 +286,7 @@ void main() {
   if (m > 1.5 && m < 2.5) {
     // Glowing: white-hot at its heart (where it faces the eye), its own colour round its edge, flickering.
     float flick = 0.9 + 0.1 * sin(uTime * 23.0 + vL.x * 30.0) * sin(uTime * 13.0 + vL.z * 20.0);
-    c = mix(vCol, vec3(1.0), 0.35 + 0.45 * ndv) * flick * (1.0 + uBurn * 0.15);
+    c = mix(vCol, vec3(1.0), 0.12 + 0.5 * ndv * ndv * ndv) * flick * (1.0 + uBurn * 0.15);
     gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
     return;
   }
@@ -443,7 +443,7 @@ export class MapObjects {
   private list: MapObject[] = [];
   private shipProg: WebGLProgram;
   /** Each race's model, uploaded the first time a ship of it is drawn. */
-  private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][] }>();
+  private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[] }>();
   /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
   private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number }>();
   private routeProg: WebGLProgram;
@@ -513,7 +513,7 @@ export class MapObjects {
       const buf = gl.createBuffer()!;
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, model.mesh, gl.STATIC_DRAW);
-      m = { buf, count: model.mesh.length / SHIP_STRIDE, engines: model.engines };
+      m = { buf, count: model.mesh.length / SHIP_STRIDE, engines: model.engines, glow: model.glow };
       this.shipBufs.set(race, m);
     }
     return m;
@@ -555,7 +555,7 @@ export class MapObjects {
         off += n * 4;
       });
     };
-    const placed: { m: Float32Array; burn: number; engines: number[][] }[] = [];
+    const placed: { m: Float32Array; burn: number; engines: number[][]; glow: number[] }[] = [];
     for (const sh of this.ships.values()) {
       const [x, z] = this.shipAt(sh, now);
       const moving = sh.dur > 0 && now - sh.t0 < sh.dur;
@@ -579,7 +579,7 @@ export class MapObjects {
       gl.uniform3f(u('uColor'), sh.colour[0], sh.colour[1], sh.colour[2]);
       gl.uniform1f(u('uBurn'), moving ? 1 : 0);
       gl.drawArrays(gl.TRIANGLES, 0, model.count);
-      placed.push({ m, burn: moving ? 1 : 0, engines: model.engines });
+      placed.push({ m, burn: moving ? 1 : 0, engines: model.engines, glow: model.glow });
     }
     for (const l of locs) if (l >= 0) gl.disableVertexAttribArray(l);
     // The engines' glow, over the hull, longer under way.
@@ -593,7 +593,7 @@ export class MapObjects {
         const wy = p.m[1] * e[0] + p.m[5] * e[1] + p.m[9] * e[2] + p.m[13];
         const wz = p.m[2] * e[0] + p.m[6] * e[1] + p.m[10] * e[2] + p.m[14];
         const size = 0.022 * (1 + p.burn * 0.8) * (0.9 + 0.1 * Math.sin(time * 23 + i));
-        sprite.draw(wx, wy, wz, size, 0, [1, 0.8, 0.55], 0.9);
+        sprite.draw(wx, wy, wz, size, 0, [0.55 + p.glow[0] * 0.45, 0.55 + p.glow[1] * 0.45, 0.55 + p.glow[2] * 0.45], 0.9);
       }
     }
     sprite.done();
