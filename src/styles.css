@@ -3998,6 +3998,11 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* ---------- Attacks and dimming ---------- */
 /* A card of yours that can attack today: a red ring (click it, then a rival card or their sun). */
 .card.card-attacker, .board-plane .card.card-table.card-attacker { cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.7), 0 0 14px rgba(216, 69, 43, 0.3); }
+/* An attack can be dragged from its card to its target (the beam follows the pointer): no page scroll on touch. */
+.card.card-attacker { touch-action: none; cursor: grab; }
+/* The target an attack being dragged is over: lit brighter, ready to strike. */
+.board-plane .card.card-table.aim-over { box-shadow: 0 0 0 2px #fff, 0 0 0 5px #e0452b, 0 0 22px rgba(224, 69, 43, 0.65); }
+.vitals.aim-over .vit::after { border-width: 4px; box-shadow: 0 0 0 2px #fff, 0 0 30px rgba(224, 69, 43, 0.8); }
 /* A dimmed card has acted today (or just arrived): greyed until its controller's next day. */
 .card.card-table.card-dimmed .card-glyph > :not(.art-wrap), .card.card-table.card-dimmed .art-wrap > *, .card.card-table.card-dimmed .card-text, .card.card-table.card-dimmed .card-name { filter: saturate(0.25) brightness(0.86); }
 .card.card-table.card-dimmed::after {

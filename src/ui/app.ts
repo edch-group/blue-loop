@@ -96,7 +96,7 @@ import { closeTour, tourShowing } from './tour';
 import { shownKind, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
-import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
+import { aim, pointerAim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { cardJewels, cardBackFace, cardBodyHtml, effectMark, mechanicMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
@@ -1054,6 +1054,11 @@ export class App {
     window.addEventListener('pointermove', (e) => this.onDragMove(e));
     window.addEventListener('pointerup', (e) => this.onDragEnd(e));
     window.addEventListener('pointercancel', () => this.onDragEnd(null));
+    // Dragging from a card of yours that can attack aims it: let go over what it attacks (see onAttackDrag*).
+    root.addEventListener('pointerdown', (e) => this.onAttackDragStart(e));
+    window.addEventListener('pointermove', (e) => this.onAttackDragMove(e));
+    window.addEventListener('pointerup', (e) => this.onAttackDragEnd(e));
+    window.addEventListener('pointercancel', () => this.onAttackDragEnd(null));
     // A swipe across the deck builder's card pool turns its page.
     let swipeFrom: { x: number; y: number } | null = null;
     root.addEventListener('pointerdown', (e) => {
@@ -3251,6 +3256,80 @@ export class App {
       sound.rustle();
       this.startPlay(d.uid, this.dropAt(e.clientX, e.clientY));
     }
+  }
+
+  // ---- Dragging an attack: from your card to what it attacks, a beam under the pointer all the way ----
+
+  /** An attack being dragged: the attacker, where the press began, and (once it moves) the beam to the pointer. */
+  private attackDrag: { uid: string; x: number; y: number; beam: ReturnType<typeof pointerAim> | null; over: HTMLElement | null } | null = null;
+
+  private onAttackDragStart(e: PointerEvent) {
+    if (e.button > 0 || this.screen !== 'game' || this.attackDrag) return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>('.tableau-mine .card[data-act="attack-start"]');
+    if (!el || !this.canAct()) return;
+    this.attackDrag = { uid: el.dataset.arg!, x: e.clientX, y: e.clientY, beam: null, over: null };
+  }
+
+  /** What the pointer is over that the attack could strike: a rival card or their sun, as lit for aiming. */
+  private attackTargetAt(x: number, y: number): HTMLElement | null {
+    for (const el of document.elementsFromPoint(x, y)) {
+      const hit = el.closest<HTMLElement>('[data-act="choose-aim"]');
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  private onAttackDragMove(e: PointerEvent) {
+    const d = this.attackDrag;
+    if (!d) return;
+    if (!d.beam) {
+      // A drag, not a tap: it has moved a little. (Held long enough on a phone to read the card first: that closes.)
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10) return;
+      if (this.press?.shown) {
+        this.zoomed = null;
+        this.root.querySelector('.zoom-view')?.remove();
+        if (this.sheet?.kind === 'card') this.sheet = null;
+      }
+      this.cancelPress();
+      const why = attackProblem(this.state!, this.viewer(), d.uid);
+      if (why) {
+        this.attackDrag = null;
+        return this.showToast(why, 'info');
+      }
+      // The targets light up as for a click to aim; the beam runs from the card to the pointer.
+      this.heroPanel = null;
+      this.pending = { uid: d.uid, step: 'aim', attack: true };
+      this.render();
+      sound.hover();
+      d.beam = pointerAim(() => this.root.querySelector(`.tableau-mine [data-uid="${d.uid}"]`)?.getBoundingClientRect() ?? null);
+    }
+    d.beam.to(e.clientX, e.clientY);
+    const over = this.attackTargetAt(e.clientX, e.clientY);
+    if (over !== d.over) {
+      d.over?.classList.remove('aim-over');
+      over?.classList.add('aim-over');
+      d.over = over;
+    }
+  }
+
+  private onAttackDragEnd(e: PointerEvent | null) {
+    const d = this.attackDrag;
+    this.attackDrag = null;
+    if (!d?.beam) return;
+    d.beam.stop();
+    d.over?.classList.remove('aim-over');
+    // Let go over a target: it attacks (as a click on it would). Anywhere else: no attack.
+    const target = e ? this.attackTargetAt(e.clientX, e.clientY) : null;
+    // (A long press read the card on the way: its release would block this click, so it goes through first.)
+    this.suppressClick = false;
+    if (target && this.pending?.attack) target.click();
+    else {
+      this.pending = null;
+      this.render();
+    }
+    // (The click that ends a drag must not also tap whatever it ended over.)
+    this.suppressClick = true;
+    window.setTimeout(() => (this.suppressClick = false), 0);
   }
 
   // ---- Long press (touch): hold a card to read it; release to dismiss ----
