@@ -350,6 +350,13 @@ function cardMechanics(c: CardInstance): { id: string; n: string; name: string; 
     const kw = KEYWORDS[part.kw];
     if (!kw || UNMARKED.has(part.kw) || seen.has(part.kw) || (AS_PLAYED.has(part.kw) && !timed && !hero)) continue;
     seen.add(part.kw);
+    // (Grow counts what the card has grown so far, its growth tokens, not the most it can: that is in the tip.)
+    if (part.kw === 'grows') {
+      const max = part.value?.match(/\d+/)?.[0];
+      const grown = c.growth ?? 0;
+      out.push({ id: part.kw, n: String(grown), name: kw.name, tip: `Grown ${grown}${max ? ` (at most ${max})` : ''}: +${grown} attack. ${kw.explain(part.value)}`, group: kw.group });
+      continue;
+    }
     out.push({ id: part.kw, n: part.value?.match(/\d+/)?.[0] ?? '', name: kw.name, tip: kw.explain(part.value), group: kw.group });
   }
   return out;
