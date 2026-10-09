@@ -15,8 +15,10 @@ const BURST_MS = 1800;
 const easeInOut = (t: number) => 0.5 - Math.cos(Math.PI * t) / 2;
 /** A heat wave: how far the star whirls, how fast it flushes red, and how slowly it cools again. */
 const WAVE_SPIN_DEG = 120;
+/** (A heat wave's whirl is quick: a sharp turn, not a move's slow drift.) */
+const WAVE_SPIN_MS = 750;
 export const RAGE_IN_MS = 200;
-const RAGE_OUT_MS = 600;
+const RAGE_OUT_MS = 400;
 
 class Backdrop {
   private el: HTMLElement | null = null;
@@ -27,7 +29,7 @@ class Backdrop {
    * Bursts of spin from moves: each turns the star a set amount over a set time, easing in and out,
    * timed by the clock (so a frame that a re-render holds up does not jolt it). Overlapping bursts add up.
    */
-  private bursts: { start: number; deg: number }[] = [];
+  private bursts: { start: number; deg: number; ms?: number }[] = [];
   private tint = 0;
   private tintTarget = 0;
   /** A heat wave gathering: the star whirls and flushes red (0 to 1), then lets it go. */
@@ -85,7 +87,7 @@ class Backdrop {
     if (reducedMotion()) return;
     const now = performance.now();
     this.rages.push({ start: now, hold: holdMs });
-    this.bursts.push({ start: now, deg: WAVE_SPIN_DEG });
+    this.bursts.push({ start: now, deg: WAVE_SPIN_DEG, ms: WAVE_SPIN_MS });
   }
 
   /** -1 = as cold as a sun can be (blue), 0 = neutral (white), 1 = on the edge of supernova (red). */
@@ -102,7 +104,7 @@ class Backdrop {
     this.angle = (this.angle + 2 * dt) % 1800;
     let extra = 0;
     this.bursts = this.bursts.filter((b) => {
-      const t = (now - b.start) / BURST_MS;
+      const t = (now - b.start) / (b.ms ?? BURST_MS);
       if (t >= 1) {
         this.angle = (this.angle + b.deg) % 1800;
         return false;

@@ -4164,8 +4164,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .round-ring-num b { font-size: calc(clamp(9px, calc(1.5 * var(--vh)), 17px) * var(--bz, 1)); }
 .round-ring-num em { font-size: clamp(6px, calc(0.9 * var(--vh)), 10px); }
 
-/* Your Hero's actions, in the stage's place: its abilities (and attack) to pick from. */
-.stage.stage-hero { pointer-events: auto; }
 
 /* ---------- Zooming onto a tableau: the board tips flatter and comes closer, centred on that side ---------- */
 .table-view > .game { transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
@@ -5220,7 +5218,7 @@ button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: transl
 .cmp-ship-moves i.on { background: #6cc28e; box-shadow: 0 0 6px rgba(108, 194, 142, 0.7), 0 1px 3px rgba(40, 46, 70, 0.25); }
 
 /* A Hero's rail, beside its slot: its abilities as round marks (lit when usable: tap to use), then its boons. */
-.hero-rail { position: absolute; top: 0; height: 100%; display: flex; gap: calc(var(--tcw) * 0.06); z-index: 2; pointer-events: none; }
+.hero-rail { position: absolute; top: 0; height: 100%; display: flex; transform-style: preserve-3d; gap: calc(var(--tcw) * 0.06); z-index: 2; pointer-events: none; }
 .hero-rail > * { pointer-events: auto; }
 /* (Beyond the tableau's outline, which stands this far out from the slot.) */
 .hero-rail-mine { left: calc(100% + var(--frame-pad, 12px) + var(--tcw) * 0.08); }
@@ -5991,6 +5989,13 @@ body:has(.game-result) .dock { visibility: hidden; }
   background: radial-gradient(closest-side, transparent 80%, rgba(255, 170, 90, 0.35) 88%, rgba(236, 72, 40, 0.85) 95%, rgba(255, 220, 160, 0.9) 97.5%, transparent 100%);
   filter: drop-shadow(0 0 10px rgba(236, 72, 40, 0.7));
 }
+/* Its shockwave: a ripple across the board (fx.ts heatWave), a bright crest and a dark trough, bending what is under it. */
+.wave-ripple {
+  position: absolute; z-index: 59; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 84%, rgba(80, 90, 120, 0.12) 89%, rgba(255, 255, 255, 0.75) 93.5%, rgba(255, 236, 214, 0.35) 96%, transparent 100%);
+  -webkit-backdrop-filter: blur(1.5px) brightness(1.06); backdrop-filter: blur(1.5px) brightness(1.06);
+  -webkit-mask: radial-gradient(closest-side, transparent 82%, #000 90%, #000 96%, transparent 100%); mask: radial-gradient(closest-side, transparent 82%, #000 90%, #000 96%, transparent 100%);
+}
 
 
 /* ---- A reaction window: answer the rival's move at lightspeed (app.ts renderReaction) ---- */
@@ -6099,31 +6104,32 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* (On a short screen there is room under the Stellari for the name only: the rest shows on hover.) */
 @media (max-height: 560px) { .galaxy-tag span { display: none; } }
 
-/* Your Hero, tapped on your day: its abilities (and attack) to pick from, large, with what each does. */
-.hero-picks {
-  pointer-events: auto; display: grid; gap: 8px; width: min(340px, calc(100vw - 32px)); max-height: calc(100 * var(--vh) - 32px); overflow-y: auto;
-  padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 0 0 1px #fff, 0 18px 44px rgba(70, 70, 90, 0.24);
-}
-.hero-picks header { display: flex; align-items: center; justify-content: space-between; font-family: var(--display); letter-spacing: 0.24em; text-transform: uppercase; font-size: 0.72rem; color: var(--ink-soft); padding: 0 2px 2px 4px; }
-.hero-picks-close { border: 0; background: none; font-size: 1.3rem; line-height: 1; color: var(--ink-soft); cursor: pointer; padding: 2px 6px; }
+/* Your Hero, tapped on your day: its abilities (and attack), each its own pill, nothing round them, beside it on the
+   board (in its rail, so they lie tilted with the board). */
+.hero-picks { pointer-events: none; align-self: center; transform: translateZ(40px); display: grid; gap: 5px; justify-items: start; width: max-content; max-width: 240px; z-index: 5; animation: hero-picks-in 0.18s ease-out both; }
+@keyframes hero-picks-in { from { opacity: 0; transform: translateZ(40px) translateX(-6px); } }
 .hero-pick {
-  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; text-align: left; width: 100%; padding: 10px 12px; border: 0; border-radius: 12px; cursor: pointer;
-  font: inherit; color: var(--ink); background: #fbf8f1; box-shadow: inset 0 0 0 1.5px rgba(212, 165, 42, 0.55); transition: background 0.15s, transform 0.15s;
+  pointer-events: auto; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; text-align: left; width: 100%; padding: 3px 12px 3px 3px;
+  border: 0; border-radius: 999px; cursor: pointer; font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.6), 0 6px 16px rgba(70, 70, 90, 0.18); transition: background 0.15s, transform 0.15s;
 }
-.hero-pick:hover { background: #fff3d6; }
-.hero-pick:active { transform: scale(0.98); }
-.hero-pick-off { cursor: default; opacity: 0.55; box-shadow: inset 0 0 0 1px rgba(150, 156, 170, 0.4); background: #f6f6f7; }
-.hero-pick-off:hover { background: #f6f6f7; }
+.hero-pick:hover { background: #fff6e2; }
+.hero-pick:active { transform: scale(0.97); }
+.hero-pick-off { cursor: default; opacity: 0.6; box-shadow: 0 0 0 1px rgba(150, 156, 170, 0.45), 0 4px 10px rgba(70, 70, 90, 0.1); }
+.hero-pick-off:hover { background: rgba(255, 255, 255, 0.97); }
 .hero-pick-off:active { transform: none; }
-.hero-pick-attack { box-shadow: inset 0 0 0 1.5px rgba(214, 96, 70, 0.55); }
-.hero-pick-mark { position: relative; width: 48px; height: 48px; border-radius: 50%; background: #fff; color: #a07a2a; box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.45), 0 2px 6px rgba(60, 70, 100, 0.16); }
-.hero-pick-mark .kw-ico { position: absolute; inset: 0; margin: auto; width: 56%; height: 56%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.hero-pick-mark small { position: absolute; right: -4px; bottom: -4px; min-width: 22px; height: 22px; display: grid; place-items: center; border-radius: 999px; background: #fff; font-family: var(--display); font-size: 0.8rem; color: var(--ink); box-shadow: 0 1px 3px rgba(60, 70, 100, 0.25); }
-.hero-pick-words { display: grid; gap: 3px; min-width: 0; }
-.hero-pick-words b { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-size: 0.8rem; }
-.hero-pick-words > span { font-size: 0.82rem; line-height: 1.35; color: var(--ink-soft); }
-.hero-pick-words i { font-style: normal; font-size: 0.74rem; color: #b0563f; }
-.hero-pick-cost { display: inline-flex; gap: 3px; }
-.hero-pick-cost i { width: 8px; height: 8px; border-radius: 50%; background: #6cc28e; }
-.stage.stage-hero::before { display: none; }
-.hero-pick-words > span small { display: block; margin-top: 2px; font-size: 0.74rem; color: var(--ink-faint); }
+.hero-pick-attack { box-shadow: 0 0 0 1.5px rgba(214, 96, 70, 0.6), 0 6px 16px rgba(70, 70, 90, 0.18); }
+.hero-pick-mark { position: relative; width: 26px; height: 26px; border-radius: 50%; background: #fff; color: #a07a2a; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.45); }
+.hero-pick-mark .kw-ico { position: absolute; inset: 0; margin: auto; width: 58%; height: 58%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.hero-pick-mark small { position: absolute; right: -4px; bottom: -3px; min-width: 15px; height: 15px; display: grid; place-items: center; border-radius: 999px; background: #fff; font-family: var(--display); font-size: 0.62rem; color: var(--ink); box-shadow: 0 1px 2px rgba(60, 70, 100, 0.25); }
+.hero-pick-words { display: grid; gap: 0; min-width: 0; line-height: 1.2; }
+.hero-pick-words b { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.62rem; }
+.hero-pick-words > span { font-size: 0.68rem; color: var(--ink-soft); }
+.hero-pick-mark-atk { color: #c8553d; }
+.hero-pick-off .hero-pick-words > span { color: #b0563f; }
+.hero-pick-cost { display: inline-flex; gap: 2px; }
+.hero-pick-cost i { width: 6px; height: 6px; border-radius: 50%; background: #6cc28e; }
+/* (Something in its way under the Stellari: its name only; still in the way, under "you", left of the Stellari. app.ts placeGalaxyTag.) */
+.galaxy-tag-name span { display: none; }
+.galaxy-tag.galaxy-tag-side { left: auto; right: calc(50% + 74px); top: calc(50% + 24px); transform: translateZ(2px); justify-items: end; text-align: right; }
+@media (max-height: 560px) { .galaxy-tag.galaxy-tag-side { right: calc(50% + 48px); top: calc(50% + 16px); } }

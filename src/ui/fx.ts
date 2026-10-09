@@ -501,6 +501,27 @@ export function heatWave(center: DOMRect, rx: number, ry: number, opts: { delay?
     );
     anim.onfinish = () => el.remove();
   }, opts.delay ?? 0);
+  // Then the shockwave: ripples spreading across the whole board behind the hot ring, as on water (a bright crest
+  // and a dark trough, bending what lies under them), each a little behind and fainter than the last.
+  for (let i = 0; i < 3; i++) {
+    window.setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'wave-ripple';
+      const cx = center.left + center.width / 2, cy = center.top + center.height / 2;
+      const k = 1.25;
+      Object.assign(el.style, { left: `${cx - rx * k}px`, top: `${cy - ry * k}px`, width: `${2 * rx * k}px`, height: `${2 * ry * k}px` });
+      document.body.appendChild(el);
+      const anim = el.animate(
+        [
+          { transform: 'scale(0.05)', opacity: 0 },
+          { transform: 'scale(0.15)', opacity: 1 - i * 0.25, offset: 0.1 },
+          { transform: 'scale(1)', opacity: 0 },
+        ],
+        { duration: duration * 1.9, easing: 'cubic-bezier(.2,.6,.4,1)', fill: 'both' },
+      );
+      anim.onfinish = () => el.remove();
+    }, (opts.delay ?? 0) + duration * 0.35 + i * 110);
+  }
 }
 
 /** How far out (0 at the centre, 1 at the wave's edge) a point lies on a heat wave's ellipse. */

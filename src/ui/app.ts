@@ -91,9 +91,9 @@ import {
 import { roman, sunOrb, vitals } from './art';
 import { backdrop, RAGE_IN_MS } from './backdrop';
 /** How long a heat wave from the Stellari takes to cross the board. */
-const WAVE_MS = 1000;
+const WAVE_MS = 550;
 /** How much longer than a bolt a heat wave holds the day's effects up (its flush of red, and its crossing). */
-const WAVE_EXTRA_MS = 800;
+const WAVE_EXTRA_MS = 450;
 /** Whether a day's effect is the table's heat, loosed as a heat wave from the Stellari (not a card's). */
 const isWave = (p: TurnPulse) => p.kind === 'unstable' && !p.uid;
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
@@ -3500,7 +3500,7 @@ export class App {
       }
     }
     // Your Hero's actions close with a click anywhere else.
-    if (this.heroPanel && !(e.target as HTMLElement).closest?.('.stage-hero') && el?.dataset.act !== 'hero-panel') {
+    if (this.heroPanel && !(e.target as HTMLElement).closest?.('.hero-picks') && el?.dataset.act !== 'hero-panel') {
       this.heroPanel = null;
       this.render();
       if (!el) return;
@@ -4059,6 +4059,7 @@ export class App {
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();
+    this.placeGalaxyTag();
     fitCardText(this.root);
     this.markKwMore(this.root);
     sizePool(this.root);
@@ -5245,6 +5246,28 @@ export class App {
     return `<div class="galaxy-tag" title="${esc(g.text)}"><b>${esc(g.name.toLowerCase())}</b>${g.short ? `<span>${esc(g.short)}</span>` : ''}</div>`;
   }
 
+  /**
+   * The galaxy's tag lies under the Stellari unless something there is in its way (a card's chips, your shields, the
+   * board's word in the middle): then its name only, and if even that is in the way, under "you", left of the
+   * Stellari.
+   */
+  private placeGalaxyTag() {
+    const tag = this.root.querySelector<HTMLElement>('.galaxy-tag');
+    if (!tag) return;
+    const clash = () => {
+      const t = tag.getBoundingClientRect();
+      return [...this.root.querySelectorAll('.card-yield .yield, .board-shields, .mid-hint b, .tableau .card')].some((e) => {
+        const r = e.getBoundingClientRect();
+        return r.width > 0 && r.left < t.right + 2 && r.right > t.left - 2 && r.top < t.bottom + 2 && r.bottom > t.top - 2;
+      });
+    };
+    tag.classList.remove('galaxy-tag-name', 'galaxy-tag-side');
+    if (!clash()) return;
+    tag.classList.add('galaxy-tag-name');
+    if (!clash()) return;
+    tag.classList.add('galaxy-tag-side');
+  }
+
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
     const pend = this.pending;
     const choosingSlot = side === 'mine' && pend?.step === 'slot';
@@ -5708,10 +5731,13 @@ export class App {
    * Beside a Hero in its slot: the boons its card carries (skills and gear). Its abilities are not marked here, at
    * any size (they were too small to read or tap on a phone): tap your Hero for them, large, with what each does.
    */
-  private heroRail(_p: PlayerState, hero: CardInstance, side: 'mine' | 'rival'): string {
+  private heroRail(p: PlayerState, hero: CardInstance, side: 'mine' | 'rival'): string {
     const boons = hero.boons?.length ? this.boonMarks(hero.boons, 'boon-mark hero-boon') : '';
-    if (!boons) return '';
-    return `<div class="hero-rail hero-rail-${side}"><div class="hero-rail-col">${boons}</div></div>`;
+    // Your Hero, tapped on your day: its abilities (and attack) as pills beside it, lying on the board with it.
+    const s = this.state;
+    const picks = side === 'mine' && s && p.id === this.viewer().id && this.heroPanel === hero.uid && this.canAct() && !isGameOver(s) ? this.heroPicks(p, hero) : '';
+    if (!boons && !picks) return '';
+    return `<div class="hero-rail hero-rail-${side}">${picks}${boons ? `<div class="hero-rail-col">${boons}</div>` : ''}</div>`;
   }
 
   /** What the viewer's Hero can do right now: its usable abilities (by index), and 'attack' if it may attack. */
@@ -5729,11 +5755,8 @@ export class App {
    * Your Hero, tapped on your day: its abilities to pick from, each a large mark with its name, its cost and what it
    * does (one that can't be used today says why), and its attack, if it may attack. In the stage's place.
    */
-  private renderHeroPanel(): string {
+  private heroPicks(me: PlayerState, hero: CardInstance): string {
     const s = this.state!;
-    const me = this.viewer();
-    const hero = commandCard(me);
-    if (!hero || hero.uid !== this.heroPanel) return '';
     const def = cardDef(hero.defId);
     const abilities = (def.abilities ?? [])
       .map((ab, i) => {
@@ -5743,22 +5766,20 @@ export class App {
         // What it does, in words: its text, then what its keywords mean (the marks' own meaning).
         const explain = keywordsIn(ab.text).map((k) => KEYWORDS[k.id]?.explain(k.value)).filter(Boolean).join(' ');
         const cost = ab.cost ? `<em class="hero-pick-cost" title="${ab.cost} energy">${'<i></i>'.repeat(ab.cost)}</em>` : '';
-        return `<button class="hero-pick ${why ? 'hero-pick-off' : ''}" ${why ? 'aria-disabled="true"' : `data-act="hero-ability" data-arg="${i}"`}>
+        return `<button class="hero-pick ${why ? 'hero-pick-off' : ''}" ${why ? 'aria-disabled="true"' : `data-act="hero-ability" data-arg="${i}"`} title="${esc([explain, why].filter(Boolean).join(' '))}">
           <span class="hero-pick-mark">${effectMark(e?.type ?? 'star')}${amount ? `<small>${amount}</small>` : ''}</span>
-          <span class="hero-pick-words"><b>${esc(ab.name.toLowerCase())}${cost}</b><span>${esc(plainText(ab.text))}${explain ? ` <small>${esc(explain)}</small>` : ''}</span>${why ? `<i>${esc(why)}</i>` : ''}</span>
+          <span class="hero-pick-words"><b>${esc(ab.name.toLowerCase())}${cost}</b><span>${esc(why ?? plainText(ab.text))}</span></span>
         </button>`;
       })
       .join('');
     const attack = this.heroActions(me).includes('attack')
       ? `<button class="hero-pick hero-pick-attack" data-act="attack-start" data-arg="${hero.uid}">
-          <span class="hero-pick-mark">${effectMark('attack')}<small>${cardAttack(s, me, hero)}</small></span>
-          <span class="hero-pick-words"><b>attack</b><span>Strike a rival card${aimChoices(s, me).sun ? ', or their sun' : ''}.</span></span>
+          <span class="hero-pick-mark hero-pick-mark-atk">${effectMark('guns')}<small>${cardAttack(s, me, hero)}</small></span>
+          <span class="hero-pick-words"><b>attack</b><span>A rival card${aimChoices(s, me).sun ? ' or their sun' : ''}.</span></span>
         </button>`
       : '';
-    return `<div class="stage stage-hero" data-key="hero-picks"><div class="hero-picks">
-      <header>${esc(def.name.toLowerCase())}<button class="hero-picks-close" data-act="hero-panel" data-arg="${hero.uid}" aria-label="Close">×</button></header>
-      ${abilities}${attack}
-    </div></div>`;
+    // (Each its own pill, nothing round them; a tap anywhere else puts them away.)
+    return `<div class="hero-picks" aria-label="${esc(def.name)}">${abilities}${attack}</div>`;
   }
 
   /**
@@ -5847,7 +5868,6 @@ export class App {
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
-    if (!st && this.heroPanel && !isGameOver(s) && this.canAct()) return this.renderHeroPanel();
     // A card picked from your hand: it waits here while you choose where it goes and what it does.
     const picked = !st && this.pending && !this.pending.attack && this.pending.ability === undefined ? activePlayer(s).hand.find((c) => c.uid === this.pending!.uid) : undefined;
     if (picked) {
