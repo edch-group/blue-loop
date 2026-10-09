@@ -441,7 +441,12 @@ export interface ShipModel {
   engines: V3[];
   /** The colour its engines burn. */
   glow: RGB;
+  /** Suns it carries (the Aureline's captive sun): where, in its own axes, and how big; they radiate heat. */
+  suns: { at: V3; r: number }[];
 }
+
+/** Suns the ship being built carries (see ShipModel.suns). */
+let carried: { at: V3; r: number }[] = [];
 
 /** An engine: a housing collared in its holder's colour, flaring to its bell, the burn inside; facing astern. */
 function engine(m: Mesh, x: number, y: number, z: number, r: number, l: number, e: V3[], burn: RGB = ENGINE, housing: RGB = IRON, mat = 0) {
@@ -491,8 +496,9 @@ const BUILDERS: ((m: Mesh, e: V3[]) => RGB)[] = [
       1,
     );
     m.windows(hull, 9, 31, 11, 0.32, 0.26, WINDOW);
-    // The sun, in its cradle.
+    // The sun, in its cradle (radiating heat: nebula-objects.ts draws its corona).
     m.ball(16, 12, 11.6, 3.0, SUN, 2, 22, 14);
+    carried.push({ at: P(16, 12, 11.6), r: 3.0 / 40 });
     m.ring(16, 12, 11.6, 4.0, 0.34, Math.PI / 2, GOLD, 0);
     m.ring(16, 12, 11.6, 4.7, 0.16, 0.45, GOLD, 5);
     m.mirror(() => m.tube([[16, 9.4, 5.9], [16, 8.0, 8.4], [16, 8.0, 11.6]], 0.6, 0.45, GOLD, 0));
@@ -891,9 +897,10 @@ export function shipModel3d(race: number): ShipModel {
     const m = new Mesh();
     const engines: V3[] = [];
     let glow: RGB = [1, 0.4, 0.3];
+    carried = [];
     if (race < 0) derelict(m);
     else glow = (BUILDERS[race] ?? BUILDERS[0])(m, engines);
-    model = { mesh: new Float32Array(m.out), engines, glow };
+    model = { mesh: new Float32Array(m.out), engines, glow, suns: carried };
     models.set(key, model);
   }
   return model;

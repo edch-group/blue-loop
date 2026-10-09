@@ -170,6 +170,22 @@ void main() {
   else if (uKind < 1.5) {
     float w = max(fwidth(r), 1e-4);
     a = (1.0 - smoothstep(0.0, w * 1.6, abs(r - 0.82))) * 0.95;
+  } else if (uKind > 4.5) {
+    // A sun's corona, as the stellar gem's sun has it: a white-hot core in a soft halo, rays turning slowly
+    // round it, the whole breathing (a little larger and brighter, then back) and shimmering with heat.
+    float ang = atan(vUV.y, vUV.x);
+    float breath = 0.5 + 0.5 * sin(uTime * 6.2832 / 5.5 + uSeed);
+    float rr = r / (1.0 + 0.07 * breath);
+    float core = exp(-rr * rr * 14.0);
+    float halo = exp(-rr * rr * 3.2) * 0.55;
+    float rays = pow(0.5 + 0.5 * sin(ang * 12.0 + uTime * 0.35 + sin(rr * 9.0 - uTime * 2.0) * 0.25), 3.0) * 0.55
+      + pow(0.5 + 0.5 * sin(ang * 7.0 - uTime * 0.22 + 1.3), 4.0) * 0.45;
+    float shimmer = 0.9 + 0.1 * sin(uTime * 7.0 + ang * 5.0 + rr * 12.0);
+    a = (core + halo + rays * exp(-rr * 2.4) * (1.0 - smoothstep(0.62, 1.0, rr))) * (0.85 + 0.15 * breath) * shimmer;
+    vec3 c = mix(uColor, vec3(1.0, 0.98, 0.9), clamp(core * 1.4, 0.0, 1.0));
+    a = min(a, 1.0) * uAlpha;
+    gl_FragColor = vec4(c * a, a);
+    return;
   } else if (uKind > 3.5) {
     // Rings of ink going out from it, one after another, fading as they spread: it pulses.
     float w = max(fwidth(r), 1e-4);
@@ -447,7 +463,7 @@ export class MapObjects {
   private list: MapObject[] = [];
   private shipProg: WebGLProgram;
   /** Each race's model, uploaded the first time a ship of it is drawn. */
-  private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[] }>();
+  private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }>();
   /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
   private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number }>();
   private routeProg: WebGLProgram;
@@ -550,7 +566,7 @@ export class MapObjects {
       const buf = gl.createBuffer()!;
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, model.mesh, gl.STATIC_DRAW);
-      m = { buf, count: model.mesh.length / SHIP_STRIDE, engines: model.engines, glow: model.glow };
+      m = { buf, count: model.mesh.length / SHIP_STRIDE, engines: model.engines, glow: model.glow, suns: model.suns };
       this.shipBufs.set(race, m);
     }
     return m;
@@ -592,7 +608,7 @@ export class MapObjects {
         off += n * 4;
       });
     };
-    const placed: { m: Float32Array; burn: number; engines: number[][]; glow: number[] }[] = [];
+    const placed: { m: Float32Array; burn: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }[] = [];
     for (const sh of this.ships.values()) {
       const [x, z] = this.shipAt(sh, now);
       const moving = sh.dur > 0 && now - sh.t0 < sh.dur;
@@ -616,7 +632,7 @@ export class MapObjects {
       gl.uniform3f(u('uColor'), sh.colour[0], sh.colour[1], sh.colour[2]);
       gl.uniform1f(u('uBurn'), moving ? 1 : 0);
       gl.drawArrays(gl.TRIANGLES, 0, model.count);
-      placed.push({ m, burn: moving ? 1 : 0, engines: model.engines, glow: model.glow });
+      placed.push({ m, burn: moving ? 1 : 0, engines: model.engines, glow: model.glow, suns: model.suns });
     }
     for (const l of locs) if (l >= 0) gl.disableVertexAttribArray(l);
     // The engines' glow, over the hull, longer under way.
@@ -631,6 +647,15 @@ export class MapObjects {
         const wz = p.m[2] * e[0] + p.m[6] * e[1] + p.m[10] * e[2] + p.m[14];
         const size = 0.022 * (1 + p.burn * 0.8) * (0.9 + 0.1 * Math.sin(time * 23 + i));
         sprite.draw(wx, wy, wz, size, 0, [0.55 + p.glow[0] * 0.45, 0.55 + p.glow[1] * 0.45, 0.55 + p.glow[2] * 0.45], 0.9);
+      }
+      // A captive sun radiates heat round itself (its corona several times its size).
+      for (const [i, sun] of p.suns.entries()) {
+        const e = sun.at;
+        const wx = p.m[0] * e[0] + p.m[4] * e[1] + p.m[8] * e[2] + p.m[12];
+        const wy = p.m[1] * e[0] + p.m[5] * e[1] + p.m[9] * e[2] + p.m[13];
+        const wz = p.m[2] * e[0] + p.m[6] * e[1] + p.m[10] * e[2] + p.m[14];
+        const scale = Math.hypot(p.m[0], p.m[1], p.m[2]);
+        sprite.draw(wx, wy, wz, sun.r * scale * 4.2, 5, [1, 0.7, 0.28], 1, i * 1.7);
       }
     }
     sprite.done();
