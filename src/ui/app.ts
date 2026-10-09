@@ -314,18 +314,30 @@ const HAND_ICON = '<svg class="hand-icon" viewBox="0 0 16 14" aria-label="in han
 const QUIET_ACTS = new Set(['play', 'end-turn', 'choose-option', 'choose-enemy', 'choose-ally', 'choose-sacrifice', 'choose-host', 'choose-recover', 'choose-slot', 'stage-ok', 'inspect', 'cmp-select', 'cmp-anomaly', 'cmp-deselect', 'cmp-end-turn', 'cmp-start']);
 
 /** A number that pops out of a sun and rises away: heat taken, cooling, shields. Outside the re-rendered root. */
-/** What a card in play gives each day as things stand now (its dawn and dusk effects whose conditions hold): heat, cooling, shields and the like, by kind. */
-function cardYield(st: GameState, p: PlayerState, c: CardInstance): [string, number][] {
-  const out = new Map<string, number>();
-  for (const e of [...dawnEffects(c, p, st), ...duskEffects(c)]) {
-    if (!conditionMet(p, e.if, st, c)) continue;
-    const n = e.type === 'heat' || e.type === 'cool' || e.type === 'shield' || e.type === 'selfHeat' || e.type === 'draw'
-      ? effectAmount(st, p, c, e, 'turn')
-      : e.type === 'repair' || e.type === 'plays' ? e.amount : 0;
-    if (n > 0) out.set(e.type, (out.get(e.type) ?? 0) + n);
-  }
+/** What a card in play gives now (its dawn and dusk effects whose conditions hold): heat, cooling, shields and the like, by kind, with when. */
+function cardYield(st: GameState, p: PlayerState, c: CardInstance): [string, number, string][] {
+  const out = new Map<string, { dawn: number; dusk: number }>();
+  const add = (effects: Effect[], when: 'dawn' | 'dusk') => {
+    for (const e of effects) {
+      if (!conditionMet(p, e.if, st, c)) continue;
+      const n = e.type === 'heat' || e.type === 'cool' || e.type === 'shield' || e.type === 'selfHeat' || e.type === 'draw'
+        ? effectAmount(st, p, c, e, 'turn')
+        : e.type === 'repair' || e.type === 'plays' ? e.amount : 0;
+      if (n <= 0) continue;
+      const t = out.get(e.type) ?? { dawn: 0, dusk: 0 };
+      t[when] += n;
+      out.set(e.type, t);
+    }
+  };
+  add(dawnEffects(c, p, st), 'dawn');
+  add(duskEffects(c), 'dusk');
+  // (Said by its keyword: at dawn, at dusk, or at dusk only if it held back, a Vigil.)
+  const vigil = /\{vigil\}/.test(cardDef(c.defId).text ?? '');
+  const dusk = vigil ? 'at dusk, if it held back today (Vigil)' : 'at dusk';
   const order = ['heat', 'cool', 'shield', 'draw', 'plays', 'repair', 'selfHeat'];
-  return [...out].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
+  return [...out]
+    .map(([k, t]): [string, number, string] => [k, t.dawn + t.dusk, [t.dawn ? `${t.dawn} at dawn` : '', t.dusk ? `${t.dusk} ${dusk}` : ''].filter(Boolean).join(', ') + '.'])
+    .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
 }
 
 const YIELD_NAMES: Record<string, string> = { heat: 'heat to the rival sun', cool: 'cooling', shield: 'shields', draw: 'cards drawn', plays: 'energy', repair: 'repair', selfHeat: 'heat to its own sun' };
@@ -383,7 +395,7 @@ function yieldMarks(st: GameState, p: PlayerState, c: CardInstance, side: 'mine'
   const y = cardYield(st, p, c).filter(([k]) => side === 'mine' || k !== 'selfHeat');
   const mech = cardMechanics(c);
   if (!y.length && !mech.length) return '';
-  const yields = y.map(([k, n]) => `<i class="yield yield-${k}" data-tip-title="${esc(YIELD_NAMES[k])}" data-tip="${esc(`${n} each day.`)}">${effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k)}${n}</i>`);
+  const yields = y.map(([k, n, when]) => `<i class="yield yield-${k}" data-tip-title="${esc(YIELD_NAMES[k])}" data-tip="${esc(when)}">${effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k)}${n}</i>`);
   const marks = mech.map((m) => `<i class="yield mech kw-${m.group}${m.n ? '' : ' mech-bare'}" data-tip-title="${esc(m.name)}" data-tip="${esc(m.tip)}">${mechanicMark(m.id)}${m.n}</i>`);
   return `<span class="card-yield card-yield-${side}">${[...yields, ...marks].join('')}</span>`;
 }
@@ -1400,6 +1412,7 @@ export class App {
       this.sheet = null;
       this.campaignBattle = false;
       this.screen = 'game';
+      this.phase = 'day';
       this.render();
       this.dealOpening();
       this.announceTurn(400);
@@ -1430,6 +1443,8 @@ export class App {
       if (last.action.type !== 'setTarget') backdrop.spin();
       this.state = next;
       if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, last.action);
+      // (A new day isn't under way until its dawn has played out: the hand waits.)
+      if (turnPassed) this.phase = 'dawn';
       this.render();
       this.surfaceLog(prev);
       this.animate(prev, next, last.action, actor, before);
@@ -1572,8 +1587,14 @@ export class App {
     return parts;
   }
 
+  /** Whether it is day (cards are played by day; while a dawn or dusk plays out, only Lightspeed cards can be). */
+  private dayUnderWay(defId: string): boolean {
+    return this.phase === 'day' || cardDef(defId).kind === 'lightspeed';
+  }
+
   /** Whether a card in hand could be played now (energy, room in the tableau, a free Lightspeed slot). */
   private canPlayNow(me: PlayerState, defId: string): boolean {
+    if (!this.dayUnderWay(defId)) return false;
     return (cardCost(defId) <= me.playsLeft && hasRoomFor(me, defId) && (cardDef(defId).kind !== 'lightspeed' || canSetLightspeed(me))) || canSetFaceDown(me, defId);
   }
 
@@ -1758,6 +1779,7 @@ export class App {
     this.screen = 'game';
     this.persist(state);
     this.syncViewer();
+    this.phase = 'day';
     this.render();
     this.dealOpening();
     this.announceTurn(400);
@@ -1806,9 +1828,15 @@ export class App {
     // phase's effects play once its banner has gone, and the day's banner comes once they are done (dayTimeline).
     if (turnPassed) {
       const t = this.dayTimeline(next, actor, animate);
+      // (Until the day's banner, it isn't day: no cards are played but Lightspeed ones.)
+      this.phase = t.dusk !== null ? 'dusk' : 'dawn';
       if (t.dusk !== null) this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, t.dusk, 'game', () => this.setPhase('dusk'));
       if (t.dawn !== null) this.showBanner(named(now, 'dawn'), round, t.dawn, 'game', () => this.setPhase('dawn'));
-      this.showBanner(named(now, 'day'), round, t.day, 'game', () => this.setPhase('day'), this.orbitLine(next, now));
+      this.showBanner(named(now, 'day'), round, t.day, 'game', () => {
+        this.setPhase('day');
+        // (The hand's cards light up as playable now it is day.)
+        if (now.id === you) this.render();
+      }, this.orbitLine(next, now));
     }
   }
 
@@ -1980,6 +2008,8 @@ export class App {
           // (Should the explosion never come, e.g. the replay was cut short, it still greys in time.)
           window.setTimeout(() => this.finishDying(p.id), 8000);
         }
+      // (A new day isn't under way until its dawn has played out: the hand waits.)
+      if (turnPassed) this.phase = 'dawn';
       this.render();
       if (before) {
         this.surfaceLog(prev);
@@ -2253,6 +2283,7 @@ export class App {
     this.sheet = null;
     this.persist(s);
     this.syncViewer();
+    this.phase = 'day';
     this.render();
     this.announceTurn();
   }
@@ -2997,6 +3028,8 @@ export class App {
   // -------------------------------------------------------------------------
 
   private startPlay(uid: string, drop?: Pending['drop']) {
+    const held = this.state ? activePlayer(this.state).hand.find((c) => c.uid === uid) : undefined;
+    if (held && !this.dayUnderWay(held.defId)) return;
     // (The hand drops back down once a card is picked from it.)
     this.raiseHand(false);
     // Tapping the card that is waiting to be placed puts it back.
