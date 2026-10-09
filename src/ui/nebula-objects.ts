@@ -9,7 +9,7 @@
  */
 
 import type { Camera } from './nebula3d';
-import { buildShip, SHIP_ENGINES, SHIP_STRIDE } from './ship3d';
+import { shipModel3d, SHIP_STRIDE } from './ship3d';
 
 /** One thing to draw: where it stands on the map's plane (world x, z), what it is, and how it looks. */
 export interface MapObject {
@@ -43,6 +43,8 @@ export interface MapShip {
   x: number;
   z: number;
   colour: [number, number, number];
+  /** Its race (its model), or -1 for a Lost Races derelict. */
+  race: number;
 }
 
 /** What lies under the galaxy (drawn on the layer behind the map). */
@@ -232,9 +234,9 @@ void main() {
 
 /** The ship: a mesh in the scene (ship3d.ts), its look worked out here. */
 const SHIP_VERT = `
-attribute vec3 aPos; attribute vec3 aNorm; attribute float aMat;
+attribute vec3 aPos; attribute vec3 aNorm; attribute vec3 aCol; attribute float aMat;
 uniform mat4 uView; uniform mat4 uProj; uniform mat4 uModel;
-varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vMat;
+varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vMat; varying vec3 vCol;
 void main() {
   vec4 w = uModel * vec4(aPos, 1.0);
   vW = w.xyz;
@@ -242,6 +244,7 @@ void main() {
   vL = aPos;
   vLN = aNorm;
   vMat = aMat;
+  vCol = aCol;
   gl_Position = uProj * uView * w;
 }`;
 
@@ -253,7 +256,7 @@ void main() {
 const SHIP_FRAG = `
 #extension GL_OES_standard_derivatives : enable
 precision highp float;
-varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vMat;
+varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vMat; varying vec3 vCol;
 uniform vec3 uEye; uniform vec3 uColor; uniform float uTime; uniform float uAlpha; uniform float uBurn;
 float h3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float n3(vec3 p) {
@@ -275,43 +278,61 @@ void main() {
   vec3 l = normalize(vec3(0.45, 0.85, 0.3));
   vec3 h = normalize(l + v);
   float diff = max(dot(n, l), 0.0);
-  float fres = pow(1.0 - max(dot(n, v), 0.0), 4.0);
+  float ndv = max(dot(n, v), 0.0);
+  float fres = pow(1.0 - ndv, 4.0);
   vec3 sky = vec3(0.95, 0.95, 0.93);
+  float m = vMat;
   vec3 c;
-  if (vMat > 1.5 && vMat < 2.5) {
-    // The engines: white-hot at the heart, fading to the holder's colour, flickering; brighter under way.
-    float flick = 0.85 + 0.15 * sin(uTime * 31.0 + vL.z * 40.0) * sin(uTime * 17.0);
-    c = mix(vec3(1.0, 0.85, 0.6), mix(uColor, vec3(1.0), 0.4), 0.35) * flick * (1.0 + uBurn * 0.4);
+  if (m > 1.5 && m < 2.5) {
+    // Glowing: white-hot at its heart (where it faces the eye), its own colour round its edge, flickering.
+    float flick = 0.9 + 0.1 * sin(uTime * 23.0 + vL.x * 30.0) * sin(uTime * 13.0 + vL.z * 20.0);
+    c = mix(vCol, vec3(1.0), 0.35 + 0.45 * ndv) * flick * (1.0 + uBurn * 0.15);
     gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
     return;
   }
-  if (vMat > 0.5 && vMat < 1.5) {
-    // The canopy: dark smoked glass, the light sharp on it, the paper's light in its edge.
-    c = vec3(0.06, 0.09, 0.14) * (0.5 + 0.5 * diff);
-    c += vec3(1.0) * pow(max(dot(n, h), 0.0), 90.0) * 0.9;
-    c = mix(c, sky * 0.85, fres * 0.7);
-    gl_FragColor = vec4(c * uAlpha, uAlpha);
+  if (m > 5.5) {
+    // Molten: an ember hull, its glow welling through darker crust, moving.
+    float lava = n3(vL * 18.0 + vec3(uTime * 0.6, 0.0, 0.0)) * 0.6 + n3(vL * 46.0 - vec3(0.0, uTime, 0.0)) * 0.4;
+    c = mix(vCol * 0.35, mix(vCol, vec3(1.0, 0.9, 0.55), 0.4), smoothstep(0.35, 0.75, lava));
+    c += vec3(1.0) * pow(max(dot(n, h), 0.0), 30.0) * 0.25;
+    gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
     return;
   }
-  // Plated metal (vMat 0), or darker, rougher metal (vMat 3: the pods, the nozzles).
-  vec3 an = abs(normalize(vLN));
-  vec3 q = vL * vec3(9.0, 16.0, 13.0);
-  // Seams on the two axes that run along this face.
-  float lines = an.x > an.y && an.x > an.z ? max(seam(q.y), seam(q.z)) : an.y > an.z ? max(seam(q.x), seam(q.z)) : max(seam(q.x), seam(q.y));
-  float panel = h3(floor(q + 0.5));
-  float grime = n3(vL * 46.0) * 0.6 + n3(vL * 110.0) * 0.4;
-  vec3 base = vMat > 2.5 ? vec3(0.42, 0.44, 0.48) : vec3(0.86, 0.87, 0.89) * (0.94 + 0.08 * panel);
-  base *= 0.88 + 0.16 * grime;
-  // A stripe of the holder's colour down the spine, and on the fin's tip.
-  float stripe = vMat < 0.5 ? max(step(abs(vL.z), 0.018) * step(0.0, vL.y) * step(vL.x, 0.0), step(0.16, vL.y) * step(abs(vL.z), 0.02)) : 0.0;
-  base = mix(base, uColor * 0.85, stripe);
-  base *= 1.0 - lines * 0.3;
-  float rough = vMat > 2.5 ? 0.55 : 0.25 + 0.3 * grime;
-  float spec = pow(max(dot(n, h), 0.0), mix(90.0, 18.0, rough)) * (1.0 - rough) * 1.1;
+  if (m > 0.5 && m < 1.5) {
+    // Glass or crystal: its colour deep in it, bright where it turns from the eye, a sharp light on it.
+    c = vCol * (0.35 + 0.45 * diff);
+    c = mix(c, mix(vCol, vec3(1.0), 0.6), fres * 0.8);
+    c += vec3(1.0) * pow(max(dot(n, h), 0.0), 70.0) * 0.8;
+    gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
+    return;
+  }
+  vec3 base = vCol;
+  float rough;
+  if (m > 2.5 && m < 3.5) {
+    // Living: mottled, soft, a little sheen.
+    float mott = n3(vL * 38.0) * 0.6 + n3(vL * 95.0) * 0.4;
+    base *= 0.82 + 0.3 * mott;
+    rough = 0.65;
+  } else if (m > 3.5 && m < 4.5) {
+    // Dark gloss: void-metal (or rust, rougher), smooth, a long highlight.
+    base *= 0.9 + 0.2 * n3(vL * 60.0);
+    rough = 0.2;
+  } else {
+    // Plated metal (or, 5, metal in its holder's colour): panels of slightly differing tone, seams, wear.
+    if (m > 4.5) base = mix(base, uColor, 0.65);
+    vec3 an = abs(normalize(vLN));
+    vec3 q = vL * vec3(9.0, 16.0, 13.0);
+    float lines = an.x > an.y && an.x > an.z ? max(seam(q.y), seam(q.z)) : an.y > an.z ? max(seam(q.x), seam(q.z)) : max(seam(q.x), seam(q.y));
+    float panel = h3(floor(q + 0.5));
+    float grime = n3(vL * 46.0) * 0.6 + n3(vL * 110.0) * 0.4;
+    base *= (0.94 + 0.08 * panel) * (0.9 + 0.14 * grime) * (1.0 - lines * 0.16);
+    rough = 0.25 + 0.3 * grime;
+  }
+  float spec = pow(max(dot(n, h), 0.0), mix(90.0, 14.0, rough)) * (1.0 - rough) * 1.1;
   c = base * (0.45 + 0.7 * diff) + vec3(spec);
   // Light from below, off the paper, and the paper caught at its edge.
   c += base * max(-n.y, 0.0) * 0.12;
-  c = mix(c, sky, fres * 0.35);
+  c = mix(c, sky, fres * 0.3);
   gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
 }`;
 
@@ -421,10 +442,10 @@ export class MapObjects {
   private counts: { sphere: number; disc: number; beam: number; petal: number; spike: number };
   private list: MapObject[] = [];
   private shipProg: WebGLProgram;
-  private shipBuf: WebGLBuffer;
-  private shipCount: number;
+  /** Each race's model, uploaded the first time a ship of it is drawn. */
+  private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][] }>();
   /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
-  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number] }>();
+  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number }>();
   private routeProg: WebGLProgram;
   private routeBuf: WebGLBuffer;
   private routeCount = 0;
@@ -434,11 +455,6 @@ export class MapObjects {
     this.sprite = program(gl, SPRITE_VERT, SPRITE_FRAG);
     this.routeProg = program(gl, ROUTE_VERT, ROUTE_FRAG);
     this.shipProg = program(gl, SHIP_VERT, SHIP_FRAG);
-    const ship = buildShip();
-    this.shipBuf = gl.createBuffer()!;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.shipBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, ship, gl.STATIC_DRAW);
-    this.shipCount = ship.length / SHIP_STRIDE;
     this.routeBuf = gl.createBuffer()!;
     const buf = (data: Float32Array) => {
       const b = gl.createBuffer()!;
@@ -472,10 +488,11 @@ export class MapObjects {
     for (const sh of list) {
       const was = this.ships.get(sh.id);
       if (!was) {
-        this.ships.set(sh.id, { from: [sh.x, sh.z], to: [sh.x, sh.z], t0: now, dur: 0, heading: 0, colour: sh.colour });
+        this.ships.set(sh.id, { from: [sh.x, sh.z], to: [sh.x, sh.z], t0: now, dur: 0, heading: 0, colour: sh.colour, race: sh.race });
         continue;
       }
       was.colour = sh.colour;
+      was.race = sh.race;
       if (Math.hypot(was.to[0] - sh.x, was.to[1] - sh.z) < 1e-4) continue;
       const at = this.shipAt(was, now);
       const d = Math.hypot(sh.x - at[0], sh.z - at[1]);
@@ -485,6 +502,21 @@ export class MapObjects {
       was.dur = reduce ? 0 : Math.max(0.7, Math.min(1.8, d * 2.4));
       if (d > 1e-4) was.heading = Math.atan2(sh.z - at[1], sh.x - at[0]);
     }
+  }
+
+  /** A race's model on the GPU (built and uploaded the first time). */
+  private shipModel(race: number) {
+    let m = this.shipBufs.get(race);
+    if (!m) {
+      const gl = this.gl;
+      const model = shipModel3d(race);
+      const buf = gl.createBuffer()!;
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, model.mesh, gl.STATIC_DRAW);
+      m = { buf, count: model.mesh.length / SHIP_STRIDE, engines: model.engines };
+      this.shipBufs.set(race, m);
+    }
+    return m;
   }
 
   /** Where a ship is at a moment (world x, z). */
@@ -510,19 +542,20 @@ export class MapObjects {
     gl.uniform3f(u('uEye'), cam.eye[0], cam.eye[1], cam.eye[2]);
     gl.uniform1f(u('uTime'), time);
     gl.uniform1f(u('uAlpha'), fade);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.shipBuf);
-    const locs: number[] = [];
-    let off = 0;
-    for (const [name, n] of [['aPos', 3], ['aNorm', 3], ['aMat', 1]] as const) {
-      const l = gl.getAttribLocation(this.shipProg, name);
-      if (l >= 0) {
-        gl.enableVertexAttribArray(l);
-        gl.vertexAttribPointer(l, n, gl.FLOAT, false, SHIP_STRIDE * 4, off);
-        locs.push(l);
-      }
-      off += n * 4;
-    }
-    const placed: { m: Float32Array; burn: number; colour: [number, number, number] }[] = [];
+    const attrs: [string, number][] = [['aPos', 3], ['aNorm', 3], ['aCol', 3], ['aMat', 1]];
+    const locs = attrs.map(([name]) => gl.getAttribLocation(this.shipProg, name));
+    const bindModel = (buf: WebGLBuffer) => {
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      let off = 0;
+      attrs.forEach(([, n], k) => {
+        if (locs[k] >= 0) {
+          gl.enableVertexAttribArray(locs[k]);
+          gl.vertexAttribPointer(locs[k], n, gl.FLOAT, false, SHIP_STRIDE * 4, off);
+        }
+        off += n * 4;
+      });
+    };
+    const placed: { m: Float32Array; burn: number; engines: number[][] }[] = [];
     for (const sh of this.ships.values()) {
       const [x, z] = this.shipAt(sh, now);
       const moving = sh.dur > 0 && now - sh.t0 < sh.dur;
@@ -540,24 +573,26 @@ export class MapObjects {
       const U = [0, 1, 2].map((i) => U0[i] * cb + Rr[i] * sb);
       const R = [0, 1, 2].map((i) => Rr[i] * cb - U0[i] * sb);
       const m = new Float32Array([F[0] * S, F[1] * S, F[2] * S, 0, U[0] * S, U[1] * S, U[2] * S, 0, R[0] * S, R[1] * S, R[2] * S, 0, x, y, z, 1]);
+      const model = this.shipModel(sh.race);
+      bindModel(model.buf);
       gl.uniformMatrix4fv(u('uModel'), false, m);
       gl.uniform3f(u('uColor'), sh.colour[0], sh.colour[1], sh.colour[2]);
       gl.uniform1f(u('uBurn'), moving ? 1 : 0);
-      gl.drawArrays(gl.TRIANGLES, 0, this.shipCount);
-      placed.push({ m, burn: moving ? 1 : 0, colour: sh.colour });
+      gl.drawArrays(gl.TRIANGLES, 0, model.count);
+      placed.push({ m, burn: moving ? 1 : 0, engines: model.engines });
     }
-    for (const l of locs) gl.disableVertexAttribArray(l);
+    for (const l of locs) if (l >= 0) gl.disableVertexAttribArray(l);
     // The engines' glow, over the hull, longer under way.
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
     const sprite = this.sprites(cam, time, fade);
     for (const p of placed) {
-      for (const [i, e] of SHIP_ENGINES.entries()) {
+      for (const [i, e] of p.engines.entries()) {
         const wx = p.m[0] * e[0] + p.m[4] * e[1] + p.m[8] * e[2] + p.m[12];
         const wy = p.m[1] * e[0] + p.m[5] * e[1] + p.m[9] * e[2] + p.m[13];
         const wz = p.m[2] * e[0] + p.m[6] * e[1] + p.m[10] * e[2] + p.m[14];
-        const size = (i ? 0.018 : 0.03) * (1 + p.burn * 0.8) * (0.9 + 0.1 * Math.sin(time * 23 + i));
+        const size = 0.022 * (1 + p.burn * 0.8) * (0.9 + 0.1 * Math.sin(time * 23 + i));
         sprite.draw(wx, wy, wz, size, 0, [1, 0.8, 0.55], 0.9);
       }
     }

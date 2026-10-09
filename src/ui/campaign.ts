@@ -1595,7 +1595,7 @@ export class CampaignView {
         .map((a) => {
           const [x, z] = at.get(a.nodeId)!;
           const adv = this.advance?.armyId === a.id ? at.get(this.advance.toId) : undefined;
-          return { id: a.id, x: adv ? (x + adv[0]) / 2 : x, z: adv ? (z + adv[1]) / 2 : z, colour: hex(this.colourOf(a.owner)) };
+          return { id: a.id, x: adv ? (x + adv[0]) / 2 : x, z: adv ? (z + adv[1]) / 2 : z, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race };
         }),
     );
     // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
