@@ -356,8 +356,11 @@ export interface TurnStats {
 }
 
 export interface PlayerState {
-  /** Dawn Shifts waiting on this player, one per card that gave one (its uid): answered before anything else that day. */
-  dawnShift?: string[];
+  /**
+   * Dawn choices waiting on this player (a dawn Recall or Shift of their own), in order, each with the card that
+   * gave it: answered one by one before anything else that day.
+   */
+  dawnChoices?: { uid: string; kind: 'recall' | 'shift' }[];
   id: string;
   name: string;
   isAI: boolean;
@@ -579,8 +582,11 @@ export type Action =
       sacrificeUid?: string;
     }
   | { type: 'setTarget'; targetId: string }
-  /** A dawn Shift waiting on the player (Circular Refraction): the card of theirs moved and where to; neither, to let it be. */
-  | { type: 'dawnShift'; allyUid?: string; shiftTo?: number }
+  /**
+   * The first dawn choice waiting on the player (Circular Refraction): for a Recall, the card of theirs returned to
+   * hand; for a Shift, the card moved and where to. Neither, to let it be.
+   */
+  | { type: 'dawnChoice'; allyUid?: string; shiftTo?: number }
   /** Ends the day. After dusk a hand over the limit is discarded down to it: `discard` names the cards (any still over are picked for them). */
   | { type: 'endTurn'; discard?: string[] }
   /** Use one of your hero's battle skills (campaign), on your own day. */

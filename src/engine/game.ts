@@ -1475,16 +1475,21 @@ function startTurn(state: GameState) {
 
 /** A player's dawn: their tableau's dawn effects, cards fading, and the day's energy. */
 function dawn(state: GameState, p: PlayerState) {
-  // Your tableau's dawn effects, left to right. A Shift of your own waits on you: you choose what moves, first
-  // thing in your day (or let it be).
-  delete p.dawnShift;
+  // Your tableau's dawn effects, left to right. A Recall or Shift of your own waits on you: you choose which card,
+  // first thing in your day (or let it be).
+  delete p.dawnChoices;
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
     if (!p.tableau.includes(card)) continue;
     const effects = dawnEffects(card, p, state);
-    const waits = (e: Effect) => e.type === 'shift' && !e.enemy;
+    const waits = (e: Effect) => (e.type === 'shift' && !e.enemy) || e.type === 'recall';
     resolveEffects(state, p, card, effects.filter((e) => !waits(e)), 'turn');
-    if (effects.some(waits) && p.tableau.some((c) => c.slot !== COMMAND_SLOT)) (p.dawnShift ??= []).push(card.uid);
+    // (Only where there is a card it could take: another of yours to return, or any of yours, not your Hero, to move.)
+    for (const e of effects.filter(waits)) {
+      const kind = e.type === 'recall' ? 'recall' : 'shift';
+      const could = kind === 'recall' ? p.tableau.some((c) => c.uid !== card.uid && returnable(c)) : p.tableau.some((c) => c.slot !== COMMAND_SLOT);
+      if (could) (p.dawnChoices ??= []).push({ uid: card.uid, kind });
+    }
   }
   // (Cards no longer fade with the days: they stand until beaten down or removed.) Anchor mends its neighbours.
   for (const card of p.tableau) if (anchored(p, card) && cardDef(card.defId).kind !== 'relic') mend(state, p, card, 1);
@@ -1728,21 +1733,29 @@ export function applyAction(prev: GameState, action: Action): GameState {
   delete state.turnPulses;
   delete state.sprung;
   const p = activePlayer(state);
-  if (p.dawnShift?.length && action.type !== 'dawnShift' && action.type !== 'concede') throw new GameError('Your dawn shift comes first: move one of your cards, or let it be.');
+  if (p.dawnChoices?.length && action.type !== 'dawnChoice' && action.type !== 'concede') throw new GameError(`Your dawn ${p.dawnChoices[0].kind} comes first: choose a card, or let it be.`);
   switch (action.type) {
-    case 'dawnShift': {
-      const uid = p.dawnShift?.shift();
-      if (!uid) throw new GameError('There is no dawn shift to make.');
-      if (!p.dawnShift?.length) delete p.dawnShift;
-      const source = p.tableau.find((c) => c.uid === uid) ?? { uid, defId: 'circular_refraction' };
+    case 'dawnChoice': {
+      const next = p.dawnChoices?.shift();
+      if (!next) throw new GameError('There is no dawn choice to make.');
+      if (!p.dawnChoices?.length) delete p.dawnChoices;
+      // (Its card may have left play since: the choice still stands.)
+      const source = p.tableau.find((c) => c.uid === next.uid) ?? { uid: next.uid, defId: 'circular_refraction' };
+      const name = cardDef(source.defId).name;
       if (action.allyUid === undefined) {
-        log(state, `${p.name} lets ${cardDef(source.defId).name}'s dawn shift pass.`);
+        log(state, `${p.name} lets ${name}'s dawn ${next.kind} pass.`);
+        break;
+      }
+      if (next.kind === 'recall') {
+        const back = p.tableau.find((c) => c.uid === action.allyUid && c.uid !== source.uid && returnable(c));
+        if (!back) throw new GameError('Return one of your other cards in play (not your Hero) to your hand.');
+        resolveEffects(state, p, source, [{ type: 'recall' }], 'turn', { allyUid: back.uid });
         break;
       }
       const moved = p.tableau.find((c) => c.uid === action.allyUid && c.slot !== COMMAND_SLOT);
       const to = action.shiftTo;
       if (!moved || to === undefined || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots) throw new GameError('Move one of your cards (not your Hero) to another of your slots.');
-      log(state, `${p.name}'s ${cardDef(source.defId).name}: dawn shift.`);
+      log(state, `${p.name}'s ${name}: dawn shift.`);
       resolveEffects(state, p, source, [{ type: 'shift' }], 'turn', { allyUid: moved.uid, shiftTo: to });
       break;
     }

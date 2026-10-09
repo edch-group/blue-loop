@@ -280,7 +280,7 @@ const BANNER_GAP_MS = 1300;
 const BANNER_SHOWN_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300, dawnShift: 1100 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300, dawnChoice: 1100 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -3806,12 +3806,15 @@ export class App {
       case 'dawn-shift-to': {
         const uid = this.dawnPick;
         this.dawnPick = null;
-        if (uid) this.dispatch({ type: 'dawnShift', allyUid: uid, shiftTo: Number(arg) });
+        if (uid) this.dispatch({ type: 'dawnChoice', allyUid: uid, shiftTo: Number(arg) });
         return;
       }
+      case 'dawn-recall':
+        this.dawnPick = null;
+        return this.dispatch({ type: 'dawnChoice', allyUid: arg });
       case 'dawn-shift-skip':
         this.dawnPick = null;
-        return this.dispatch({ type: 'dawnShift' });
+        return this.dispatch({ type: 'dawnChoice' });
       case 'choose-host':
         if (this.pending) this.pending.hostUid = arg;
         return this.advancePlay();
@@ -4910,12 +4913,17 @@ export class App {
       </div>`;
   }
 
-  /** Whether the viewer has a dawn Shift to answer before anything else (their own day, on this device). */
-  private dawnShiftWaiting(): boolean {
+  /** The dawn choice (a Recall or a Shift) the viewer has to answer before anything else, on their own day here. */
+  private dawnChoice(): { uid: string; kind: 'recall' | 'shift' } | null {
     const s = this.state;
-    if (!s || isGameOver(s)) return false;
+    if (!s || isGameOver(s)) return null;
     const now = activePlayer(s);
-    return !!now.dawnShift?.length && now.id === this.viewer().id && !now.isAI;
+    return now.id === this.viewer().id && !now.isAI ? now.dawnChoices?.[0] ?? null : null;
+  }
+
+  /** Whether the viewer has a dawn Shift to answer now. */
+  private dawnShiftWaiting(): boolean {
+    return this.dawnChoice()?.kind === 'shift';
   }
 
   /**
@@ -4929,7 +4937,9 @@ export class App {
     const hint = (text: string, cancel = true) => `<div class="mid-hint"><b>${text}</b>${cancel ? '<button class="mid-cancel" data-act="cancel">cancel</button>' : ''}</div>`;
     // Online, while your rival reads the card you just played.
     if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
-    // Your dawn Shift, first thing in your day: a card to move, then where; or let it be.
+    // Your dawn Recall, first thing in your day: a card back to hand; or let it be.
+    if (this.dawnChoice()?.kind === 'recall') return '<div class="mid-hint"><b>dawn recall: return a card to hand</b><button class="mid-cancel" data-act="dawn-shift-skip">let it be</button></div>';
+    // Your dawn Shift: a card to move, then where; or let it be.
     if (this.dawnShiftWaiting())
       return `<div class="mid-hint"><b>${this.dawnPick ? 'dawn shift: where it moves' : 'dawn shift: move a card'}</b><button class="mid-cancel" data-act="${this.dawnPick ? 'dawn-shift-back' : 'dawn-shift-skip'}">${this.dawnPick ? 'back' : 'let it be'}</button></div>`;
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
@@ -5262,6 +5272,12 @@ export class App {
         attrs = `data-act="choose-shift" data-arg="${c.slot}" title="Swap places with ${esc(cardDef(c.defId).name)}"`;
         state = 'card-choosable';
       } else attrs = '';
+    }
+    // Your dawn Recall: any other card of yours (not your Hero) back to hand.
+    const recall = this.dawnChoice();
+    if (recall?.kind === 'recall' && opts.tableau === 'mine' && opts.owner?.id === this.viewer().id && c.uid !== recall.uid && c.slot !== undefined && c.slot !== COMMAND_SLOT) {
+      attrs = `data-act="dawn-recall" data-arg="${c.uid}" title="Return ${esc(cardDef(c.defId).name)} to your hand"`;
+      state = 'card-choosable';
     }
     // Your dawn Shift: pick a card of yours (not your Hero), then a card to swap with (or an empty slot).
     if (opts.tableau === 'mine' && c.slot !== undefined && c.slot !== COMMAND_SLOT && opts.owner?.id === this.viewer().id && this.dawnShiftWaiting()) {

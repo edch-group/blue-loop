@@ -456,15 +456,17 @@ export const aiLastDecision: { baseline: number; best: number | null; bestAction
 
 export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
-  // A dawn Shift waiting (Circular Refraction): the move that leaves its cards best placed, or none if none is better.
-  if (me.dawnShift?.length) {
-    let best: Action = { type: 'dawnShift' };
+  // A dawn choice waiting (Circular Refraction): the card returned or moved that leaves it best placed, or none if
+  // none is better.
+  const dawn = me.dawnChoices?.[0];
+  if (dawn) {
+    let best: Action = { type: 'dawnChoice' };
     let score = evaluate(applyAction(state, best), me.id) + 0.05;
     for (const c of me.tableau) {
       if (c.slot === COMMAND_SLOT) continue;
-      for (let to = 0; to < BALANCE.tableauSlots; to++) {
-        if (to === c.slot) continue;
-        const a: Action = { type: 'dawnShift', allyUid: c.uid, shiftTo: to };
+      for (let to = 0; to < (dawn.kind === 'shift' ? BALANCE.tableauSlots : 1); to++) {
+        if (dawn.kind === 'shift' && to === c.slot) continue;
+        const a: Action = dawn.kind === 'shift' ? { type: 'dawnChoice', allyUid: c.uid, shiftTo: to } : { type: 'dawnChoice', allyUid: c.uid };
         try {
           const v = evaluate(applyAction(state, a), me.id);
           if (v > score) [score, best] = [v, a];
