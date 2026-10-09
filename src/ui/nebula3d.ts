@@ -453,7 +453,7 @@ class Layer {
     }
   }
 
-  draw(cam: Camera, time: number, fade: number, gone: number, crack: number, look: GalaxyLook | null, abyssOnly = false) {
+  draw(cam: Camera, time: number, fade: number, gone: number, crack: number, look: GalaxyLook | null) {
     const galaxy = look ? GALAXY_CODE[look] : 0;
     // The pulsar's sweep: round once every 9 seconds.
     const beam = time * ((Math.PI * 2) / 9);
@@ -507,16 +507,6 @@ class Layer {
       return () => used.forEach((l) => gl.disableVertexAttribArray(l));
     };
     let done: () => void;
-    // Only the starry abyss, over the whole view (what the screen breaks to show, going into a battle).
-    if (abyssOnly) {
-      if (!this.abyssProg || !this.screenBuf) return;
-      gl.disable(gl.DEPTH_TEST);
-      done = use(this.abyssProg, this.screenBuf, [['aPos', 2]]);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      done();
-      gl.enable(gl.DEPTH_TEST);
-      return;
-    }
     // The starry abyss, only under what has fallen.
     if (this.abyssProg && this.maskProg && this.abyssBuf && gone > -9) {
       // Mark where the land has fallen (seen through), then fill it with the sky beneath.
@@ -746,47 +736,7 @@ export class Nebula {
     this.wake();
   }
 
-  /**
-   * The scene as it stands, drawn now and copied into a plain canvas (the same size, CSS pixels scaled by the
-   * device ratio): both layers, the gas over the map included. Drawn and copied in one go, so the copy is
-   * never blank. Null if there is nothing to draw yet.
-   */
-  /**
-   * The starry abyss beneath the land, in full colour, over the whole view (as the collapse shows it through the
-   * holes it leaves), drawn now and copied into a plain canvas. Null where it can't be drawn.
-   */
-  abyss(): HTMLCanvasElement | null {
-    const cam = this.makeCamera();
-    const layer = this.layers[0];
-    if (!cam || !layer) return null;
-    const out = document.createElement('canvas');
-    out.width = this.back.width;
-    out.height = this.back.height;
-    const ctx = out.getContext('2d');
-    if (!ctx) return null;
-    layer.draw(cam, this.time, 1, this.gone, this.crack, this.look, true);
-    ctx.drawImage(layer.gl.canvas as HTMLCanvasElement, 0, 0, out.width, out.height);
-    // (The map is drawn again as it was on the next frame.)
-    this.moved = true;
-    this.wake();
-    return out;
-  }
 
-  snapshot(): HTMLCanvasElement | null {
-    const cam = this.makeCamera();
-    if (!cam) return null;
-    const out = document.createElement('canvas');
-    out.width = this.back.width;
-    out.height = this.back.height;
-    const ctx = out.getContext('2d');
-    if (!ctx) return null;
-    const fade = this.fade * this.fade * (3 - 2 * this.fade);
-    for (const l of this.layers) {
-      l.draw(cam, this.time, fade, this.gone, this.crack, this.look);
-      ctx.drawImage(l.gl.canvas as HTMLCanvasElement, 0, 0, out.width, out.height);
-    }
-    return out;
-  }
 
   /** Where a point on the canvas (CSS pixels) falls on the map's plane (world x, z), if it does. */
   onPlane(sx: number, sy: number): [number, number] | null {

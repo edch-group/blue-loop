@@ -88,7 +88,6 @@ import { MENU_ICON } from './menu-icon';
 import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { voices } from './voice';
-import { shatter } from './fx';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 
 const KEY = 'blue-loop:campaign:v6';
@@ -511,38 +510,18 @@ export class CampaignView {
         this.encountering = false;
         return this.host.render();
       }
+      // A dive-bombing synth as it lands; the battle board opens a second later.
       sound.encounter();
-      // The screen smashes like glass from where the ship landed, and falls away onto white; the battle board
-      // fades in from the white.
-      const release = reduce ? null : this.smashScreen(toId);
       setTimeout(() => {
         this.advance = null;
         this.encountering = false;
         const now = this.state;
-        if (!now?.battle) {
-          release?.(250);
-          return this.host.render();
-        }
+        if (!now?.battle) return this.host.render();
         this.readWaiting(waiting);
         this.host.playBattle(now.battle.game);
-        window.setTimeout(() => release?.(600), 80);
       }, reduce ? 0 : ENCOUNTER_PAUSE + 60);
     }, reduce ? 0 : battleAhead ? flight * 1000 + 80 : 1150);
     return true;
-  }
-
-  /** The screen smashes from the star the flagship landed at (its place on screen, or the middle). */
-  private smashScreen(nodeId: string): (fadeMs?: number) => void {
-    const n = this.state ? nodeById(this.state, nodeId) : null;
-    const cam = this.nebula?.camera;
-    let at = { x: 0.5, y: 0.5 };
-    if (n && cam && this.nebula) {
-      const p = this.nebula.toScreen((n.x - MAP_WIDTH / 2) * MAP_K, 0.13, (n.y - MAP_HEIGHT / 2) * MAP_K);
-      if (p) at = { x: Math.min(0.95, Math.max(0.05, p.x / cam.width)), y: Math.min(0.95, Math.max(0.05, p.y / cam.height)) };
-    }
-    // (The universe behind it, in full colour, first: the snapshot draws the map back over the same canvas.)
-    const behind = this.nebula?.abyss() ?? null;
-    return shatter(this.nebula?.snapshot() ?? null, at, { behind });
   }
 
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */

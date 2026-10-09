@@ -439,19 +439,61 @@ class SoundBoard {
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
   /**
-   * An encounter: the flagship lands at a guarded star and the screen smashes like glass. A heavy thump, the
-   * crack of the break, a bright shatter, and shards tinkling as they fall.
+   * An encounter: the flagship lands at a guarded star. A dive-bombing synth in the battle theme's own voice: its
+   * soft triangle-and-saw pluck, through the arpeggio's resonant filter and dotted-eighth echo, screaming down
+   * from high A to low as the filter closes, and landing on the theme's opening chord (Am(add9): its deep bass,
+   * its detuned triangle pad swelling in the hall), with a soft low thud as it hits.
    */
   encounter() {
-    this.voice(68, { dur: 0.6, attack: 0.003, gain: 0.24, to: 38, type: 'triangle', cutoff: 320 });
-    this.breath({ dur: 0.3, freq: 3800, to: 1600, type: 'highpass', q: 0.7, gain: 0.26, attack: 0.002 });
-    this.breath({ dur: 1.0, freq: 6500, to: 2600, type: 'bandpass', q: 1.4, gain: 0.09, attack: 0.01, delay: 0.04 });
-    this.voice(1900, { dur: 0.25, attack: 0.002, gain: 0.03, to: 1300, type: 'triangle', cutoff: 7000 });
-    // Shards: short bright pings scattered over the second they take to fall.
-    for (let i = 0; i < 16; i++) {
-      const f = 2200 + Math.random() * 4600;
-      this.voice(f, { dur: 0.12 + Math.random() * 0.28, attack: 0.002, gain: 0.008 + Math.random() * 0.014, delay: 0.06 + Math.random() * 0.95, cutoff: 9000, detune: Math.random() * 20 });
+    const ctx = this.ready();
+    if (!ctx || !this.sfx) return;
+    const t = ctx.currentTime;
+    const eighth = 60 / BATTLE_BPM / 2;
+    const fall = 0.9;
+    // The battle arpeggio's filter (resonant, lowpass), closing as the synth falls, and its echo into the hall.
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 5;
+    filter.frequency.setValueAtTime(5200, t);
+    filter.frequency.exponentialRampToValueAtTime(420, t + fall);
+    // (Opening again to the arpeggio's own as it lands.)
+    filter.frequency.exponentialRampToValueAtTime(1400, t + fall + 0.15);
+    const echo = ctx.createDelay(2);
+    echo.delayTime.value = eighth * 1.5;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.38;
+    const echoTone = ctx.createBiquadFilter();
+    echoTone.type = 'lowpass';
+    echoTone.frequency.value = 1800;
+    filter.connect(this.sfx);
+    filter.connect(echo).connect(echoTone).connect(feedback).connect(echo);
+    echoTone.connect(this.reverb ?? this.sfx);
+    // (Let go once the echo has died away.)
+    window.setTimeout(() => { feedback.gain.value = 0; filter.disconnect(); echoTone.disconnect(); }, 6000);
+    // The dive: the pluck's triangle and saw, a detuned pair of each, from A6 down to A1, with a slight warble.
+    for (const d of [-8, 8]) {
+      this.voice(hz('A6'), { dur: fall + 0.1, attack: 0.02, gain: 0.05, to: hz('A1'), type: 'triangle', cutoff: 9000, detune: d, vibrato: 12, out: filter });
+      this.voice(hz('A6'), { dur: fall + 0.1, attack: 0.02, gain: 0.018, to: hz('A1'), type: 'sawtooth', cutoff: 9000, detune: d * 1.5, vibrato: 12, out: filter });
     }
+    // A thin whistle over it, an octave up, fading as it falls.
+    this.voice(hz('E7'), { dur: fall * 0.8, attack: 0.04, gain: 0.012, to: hz('E4'), type: 'sine' });
+    // Air rushing past.
+    this.breath({ dur: fall, freq: 3200, to: 500, type: 'bandpass', q: 1.1, gain: 0.05, attack: 0.3 });
+    // The landing: the theme's opening chord. Its bass (triangle and sine an octave up), a soft thud under it…
+    const land = fall - 0.03;
+    this.voice(hz('A1'), { dur: 2.6, attack: 0.01, gain: 0.12, type: 'triangle', cutoff: 300, delay: land });
+    this.voice(hz('A2'), { dur: 2.2, attack: 0.02, gain: 0.04, type: 'sine', delay: land });
+    this.voice(70, { dur: 0.7, attack: 0.004, gain: 0.16, to: 36, type: 'triangle', cutoff: 220, delay: land });
+    this.breath({ dur: 0.7, freq: 200, to: 60, type: 'lowpass', q: 1, gain: 0.1, attack: 0.008, delay: land });
+    // …and its pad, detuned triangle pairs swelling quickly and ringing out in the hall.
+    ['A3', 'E4', 'B4', 'C5'].forEach((n, i) => {
+      this.voice(hz(n), { dur: 2.8, attack: 0.18 + i * 0.04, gain: 0.022, type: 'triangle', cutoff: 1400, delay: land });
+      this.voice(hz(n), { dur: 2.8, attack: 0.18 + i * 0.04, gain: 0.014, type: 'triangle', cutoff: 1400, detune: 9, delay: land });
+    });
+    // One pluck of the arpeggio's first notes as it lands, into the echo.
+    ['A4', 'E5', 'A5'].forEach((n, i) => {
+      this.voice(hz(n), { dur: eighth * 2.2, attack: 0.012, gain: 0.03, type: 'triangle', cutoff: 5000, delay: land + 0.02 + i * eighth * 0.5, out: filter });
+    });
   }
   /**
    * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and
