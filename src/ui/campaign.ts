@@ -341,7 +341,7 @@ export class CampaignView {
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
   /** The systems seen as the map was last drawn (the ships flying over it are drawn after it). */
   private seenNow = new Set<string>();
-  /** Whether the ships fly over the 3D map, on a plane of their own above it (so no sun or glow is drawn over them). */
+  /** Whether the ships are drawn in the 3D map's scene (as 3D objects), not on the page. */
   private flyOver(): boolean {
     return canNebula();
   }
@@ -957,7 +957,6 @@ export class CampaignView {
         <section class="cmp-map">${this.renderMap()}</section>
         ${this.renderRelics()}
         <canvas class="cmp-nebula-front" data-key="cmp-nebula-front" aria-hidden="true"></canvas>
-        ${this.flyOver() ? `<div class="cmp-fleet-top" data-key="cmp-fleet-top"><div class="cmp-plane cmp-plane-top" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">${this.renderFleet(this.seenNow)}</div></div>` : ''}
         <button class="icon-btn cmp-recentre" data-act="cmp-recentre" data-key="cmp-recentre" aria-label="Back to the whole strip" title="Back to the whole strip" style="display:none">${RECENTRE_ICON}</button>
         ${this.renderPop()}
         ${this.waiting ? this.renderWaiting() : overlay}
@@ -1580,6 +1579,16 @@ export class CampaignView {
       }),
     );
     this.nebula.setGalaxy(s.galaxy ?? null);
+    // The ships, as 3D objects: each over the star it stands at (or, setting out to attack, halfway there).
+    this.nebula.setShips(
+      s.armies
+        .filter((a) => this.seenNow.has(a.nodeId))
+        .map((a) => {
+          const [x, z] = at.get(a.nodeId)!;
+          const adv = this.advance?.armyId === a.id ? at.get(this.advance.toId) : undefined;
+          return { id: a.id, x: adv ? (x + adv[0]) / 2 : x, z: adv ? (z + adv[1]) / 2 : z, colour: hex(this.colourOf(a.owner)) };
+        }),
+    );
     // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
     // column past the last one collapsing.
     const half = (CAMPAIGN.colGap / 2) * MAP_K;
@@ -1613,21 +1622,15 @@ export class CampaignView {
     const screen = [W / 2, 0, 0, 0, 0, -H / 2, 0, 0, 0, 0, -100, 0, W / 2 - ox, H / 2 - oy, 0, 1];
     const m = mul4(screen, mul4(Array.from(cam.proj), mul4(Array.from(cam.view), model)));
     plane.style.transform = `matrix3d(${m.map((v) => +v.toPrecision(8)).join(',')})`;
-    // The ships' plane, over the canvas (laid from the canvas's own corner).
-    const top = stage.closest('.cmp')?.querySelector<HTMLElement>('.cmp-plane-top');
-    const topScreen = [W / 2, 0, 0, 0, 0, -H / 2, 0, 0, 0, 0, -100, 0, W / 2, H / 2, 0, 1];
-    if (top) top.style.transform = `matrix3d(${mul4(topScreen, mul4(Array.from(cam.proj), mul4(Array.from(cam.view), model))).map((v) => +v.toPrecision(8)).join(',')})`;
     // Facing the camera, in the plane's own axes (its x, its y across the strip, its z up out of it).
     const [r, u, f] = [cam.right, cam.up, cam.forward];
     const bb = [r[0], r[2], r[1], 0, -u[0], -u[2], -u[1], 0, -f[0], -f[2], -f[1], 0, 0, 0, 0, 1];
     plane.style.setProperty('--bb', `matrix3d(${bb.map((v) => +v.toFixed(5)).join(',')})`);
-    top?.style.setProperty('--bb', `matrix3d(${bb.map((v) => +v.toFixed(5)).join(',')})`);
     // A star's pixels on screen per pixel of the plane, at the distance the camera looks to: keep them that size.
     // (Measured at a distance between the camera's and its resting one, so they grow a little as it closes in.)
     const look = Math.sqrt(Math.hypot(cam.eye[0] - cam.target[0], cam.eye[1] - cam.target[1], cam.eye[2] - cam.target[2]) * (this.nebula?.homeDist ?? 5));
     const perPx = ((H / 2) * cam.proj[5] * K) / look;
     plane.style.setProperty('--ui', Math.max(0.4, Math.min(8, 1 / perPx)).toFixed(4));
-    top?.style.setProperty('--ui', Math.max(0.4, Math.min(8, 1 / perPx)).toFixed(4));
     plane.style.setProperty('--tilt', '0deg');
     this.drawRays(stage);
     this.placePop();

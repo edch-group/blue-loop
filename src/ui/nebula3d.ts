@@ -18,9 +18,9 @@
  */
 
 import { buildNebula, GROUND_STRIDE, type Geometry, type Strip } from './nebula-geometry';
-import { MapObjects, type GalaxyLook, type MapObject, type MapRoute } from './nebula-objects';
+import { MapObjects, type GalaxyLook, type MapObject, type MapRoute, type MapShip } from './nebula-objects';
 
-export type { Strip, MapObject, MapRoute, GalaxyLook };
+export type { Strip, MapObject, MapRoute, MapShip, GalaxyLook };
 
 /** The board's paper (#f4f3ef), which everything fades into. */
 const PAPER = [0.957, 0.953, 0.937];
@@ -637,6 +637,13 @@ export class Nebula {
   }
 
   /** The map's things to draw in 3D (stars, black holes and the rest), as they stand now. */
+  /** The ships, and where each is bound (one bound somewhere new flies there). */
+  setShips(ships: MapShip[]) {
+    const top = this.layers[this.layers.length - 1];
+    top.objects?.setShips(ships);
+    this.wake();
+  }
+
   setRoutes(routes: MapRoute[]) {
     const top = this.layers[this.layers.length - 1];
     top.objects?.setRoutes(routes);

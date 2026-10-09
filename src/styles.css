@@ -6142,9 +6142,5 @@ body:has(.game-result) .dock { visibility: hidden; }
    (The ring stays as the tap target.) */
 .cmp-3d .cmp-n3 .cmp-ring-march, .cmp-3d .cmp-n3 .cmp-ring-target { border-color: transparent !important; filter: none !important; animation: none !important; }
 
-/* The ships fly over the 3D map: a plane of their own laid over the canvas (campaign.ts layPlane), so no sun, glow or
-   ring is drawn over them; bigger, and lifted clear of the suns. The Stellari is drawn in the scene instead. */
-.cmp-fleet-top { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
-.cmp-fleet-top .cmp-plane-top { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; pointer-events: none; }
-.cmp-plane-top .cmp-ship-hull { transform: translate(-50%, -50%) translateZ(120px) scale3d(calc(var(--ui) * 1.5), calc(var(--ui) * 1.5), calc(var(--ui) * 1.5)); }
+/* The Stellari is drawn in the scene (nebula-objects.ts), as are the ships. */
 .cmp-3d .cmp-bloom3d { display: none !important; }

@@ -9,6 +9,7 @@
  */
 
 import type { Camera } from './nebula3d';
+import { buildShip, SHIP_ENGINES, SHIP_STRIDE } from './ship3d';
 
 /** One thing to draw: where it stands on the map's plane (world x, z), what it is, and how it looks. */
 export interface MapObject {
@@ -34,6 +35,14 @@ export interface MapRoute {
   b: [number, number];
   colour?: [number, number, number];
   gone?: boolean;
+}
+
+/** A ship on the map: where it is bound (world x, z, over a star), and its holder's colour. */
+export interface MapShip {
+  id: string;
+  x: number;
+  z: number;
+  colour: [number, number, number];
 }
 
 /** What lies under the galaxy (drawn on the layer behind the map). */
@@ -220,6 +229,91 @@ void main() {
   gl_FragColor = vec4(c * a, a);
 }`;
 
+/** The ship: a mesh in the scene (ship3d.ts), its look worked out here. */
+const SHIP_VERT = `
+attribute vec3 aPos; attribute vec3 aNorm; attribute float aMat;
+uniform mat4 uView; uniform mat4 uProj; uniform mat4 uModel;
+varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vMat;
+void main() {
+  vec4 w = uModel * vec4(aPos, 1.0);
+  vW = w.xyz;
+  vN = normalize(mat3(uModel) * aNorm);
+  vL = aPos;
+  vLN = aNorm;
+  vMat = aMat;
+  gl_Position = uProj * uView * w;
+}`;
+
+/**
+ * Plated metal: panels of slightly differing tone, the seams between them cut in (on the two axes that run along
+ * each face), wear and grime, a stripe in its holder's colour down the spine, lit by a key light with a sharp
+ * highlight and the paper's light caught at its edges. The canopy is dark glass, glossy; the engines burn.
+ */
+const SHIP_FRAG = `
+#extension GL_OES_standard_derivatives : enable
+precision highp float;
+varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vMat;
+uniform vec3 uEye; uniform vec3 uColor; uniform float uTime; uniform float uAlpha; uniform float uBurn;
+float h3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float n3(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(h3(i), h3(i + vec3(1, 0, 0)), f.x), mix(h3(i + vec3(0, 1, 0)), h3(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(h3(i + vec3(0, 0, 1)), h3(i + vec3(1, 0, 1)), f.x), mix(h3(i + vec3(0, 1, 1)), h3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+float seam(float c) {
+  float d = abs(fract(c) - 0.5);
+  float w = max(fwidth(c), 1e-4);
+  // (Fading out where the panels are too small on screen to draw their seams: no shimmer of dots.)
+  return (1.0 - smoothstep(0.5 - w * 1.5, 0.5 - w * 0.3, d)) * (1.0 - smoothstep(0.12, 0.3, w));
+}
+void main() {
+  vec3 n = normalize(vN);
+  vec3 v = normalize(uEye - vW);
+  if (dot(n, v) < 0.0) n = -n;
+  vec3 l = normalize(vec3(0.45, 0.85, 0.3));
+  vec3 h = normalize(l + v);
+  float diff = max(dot(n, l), 0.0);
+  float fres = pow(1.0 - max(dot(n, v), 0.0), 4.0);
+  vec3 sky = vec3(0.95, 0.95, 0.93);
+  vec3 c;
+  if (vMat > 1.5 && vMat < 2.5) {
+    // The engines: white-hot at the heart, fading to the holder's colour, flickering; brighter under way.
+    float flick = 0.85 + 0.15 * sin(uTime * 31.0 + vL.z * 40.0) * sin(uTime * 17.0);
+    c = mix(vec3(1.0, 0.85, 0.6), mix(uColor, vec3(1.0), 0.4), 0.35) * flick * (1.0 + uBurn * 0.4);
+    gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
+    return;
+  }
+  if (vMat > 0.5 && vMat < 1.5) {
+    // The canopy: dark smoked glass, the light sharp on it, the paper's light in its edge.
+    c = vec3(0.06, 0.09, 0.14) * (0.5 + 0.5 * diff);
+    c += vec3(1.0) * pow(max(dot(n, h), 0.0), 90.0) * 0.9;
+    c = mix(c, sky * 0.85, fres * 0.7);
+    gl_FragColor = vec4(c * uAlpha, uAlpha);
+    return;
+  }
+  // Plated metal (vMat 0), or darker, rougher metal (vMat 3: the pods, the nozzles).
+  vec3 an = abs(normalize(vLN));
+  vec3 q = vL * vec3(9.0, 16.0, 13.0);
+  // Seams on the two axes that run along this face.
+  float lines = an.x > an.y && an.x > an.z ? max(seam(q.y), seam(q.z)) : an.y > an.z ? max(seam(q.x), seam(q.z)) : max(seam(q.x), seam(q.y));
+  float panel = h3(floor(q + 0.5));
+  float grime = n3(vL * 46.0) * 0.6 + n3(vL * 110.0) * 0.4;
+  vec3 base = vMat > 2.5 ? vec3(0.42, 0.44, 0.48) : vec3(0.86, 0.87, 0.89) * (0.94 + 0.08 * panel);
+  base *= 0.88 + 0.16 * grime;
+  // A stripe of the holder's colour down the spine, and on the fin's tip.
+  float stripe = vMat < 0.5 ? max(step(abs(vL.z), 0.018) * step(0.0, vL.y) * step(vL.x, 0.0), step(0.16, vL.y) * step(abs(vL.z), 0.02)) : 0.0;
+  base = mix(base, uColor * 0.85, stripe);
+  base *= 1.0 - lines * 0.3;
+  float rough = vMat > 2.5 ? 0.55 : 0.25 + 0.3 * grime;
+  float spec = pow(max(dot(n, h), 0.0), mix(90.0, 18.0, rough)) * (1.0 - rough) * 1.1;
+  c = base * (0.45 + 0.7 * diff) + vec3(spec);
+  // Light from below, off the paper, and the paper caught at its edge.
+  c += base * max(-n.y, 0.0) * 0.12;
+  c = mix(c, sky, fres * 0.35);
+  gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
+}`;
+
 function program(gl: WebGLRenderingContext, vs: string, fs: string) {
   const p = gl.createProgram()!;
   for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]] as const) {
@@ -306,6 +400,11 @@ export class MapObjects {
   private quadBuf: WebGLBuffer;
   private counts: { sphere: number; disc: number; beam: number };
   private list: MapObject[] = [];
+  private shipProg: WebGLProgram;
+  private shipBuf: WebGLBuffer;
+  private shipCount: number;
+  /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
+  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number] }>();
   private routeProg: WebGLProgram;
   private routeBuf: WebGLBuffer;
   private routeCount = 0;
@@ -314,6 +413,12 @@ export class MapObjects {
     this.solid = program(gl, SOLID_VERT, SOLID_FRAG);
     this.sprite = program(gl, SPRITE_VERT, SPRITE_FRAG);
     this.routeProg = program(gl, ROUTE_VERT, ROUTE_FRAG);
+    this.shipProg = program(gl, SHIP_VERT, SHIP_FRAG);
+    const ship = buildShip();
+    this.shipBuf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.shipBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, ship, gl.STATIC_DRAW);
+    this.shipCount = ship.length / SHIP_STRIDE;
     this.routeBuf = gl.createBuffer()!;
     const buf = (data: Float32Array) => {
       const b = gl.createBuffer()!;
@@ -331,6 +436,112 @@ export class MapObjects {
 
   set(list: MapObject[]) {
     this.list = list;
+  }
+
+  /**
+   * The ships, and where each is bound: one bound somewhere new flies there from where it is now (straight, easing
+   * in and out, turning to face its way); one first seen is simply there.
+   */
+  setShips(list: MapShip[]) {
+    const now = performance.now() / 1000;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const live = new Set(list.map((sh) => sh.id));
+    for (const id of [...this.ships.keys()]) if (!live.has(id)) this.ships.delete(id);
+    for (const sh of list) {
+      const was = this.ships.get(sh.id);
+      if (!was) {
+        this.ships.set(sh.id, { from: [sh.x, sh.z], to: [sh.x, sh.z], t0: now, dur: 0, heading: 0, colour: sh.colour });
+        continue;
+      }
+      was.colour = sh.colour;
+      if (Math.hypot(was.to[0] - sh.x, was.to[1] - sh.z) < 1e-4) continue;
+      const at = this.shipAt(was, now);
+      const d = Math.hypot(sh.x - at[0], sh.z - at[1]);
+      was.from = at;
+      was.to = [sh.x, sh.z];
+      was.t0 = now;
+      was.dur = reduce ? 0 : Math.max(0.7, Math.min(1.8, d * 2.4));
+      if (d > 1e-4) was.heading = Math.atan2(sh.z - at[1], sh.x - at[0]);
+    }
+  }
+
+  /** Where a ship is at a moment (world x, z). */
+  private shipAt(sh: { from: [number, number]; to: [number, number]; t0: number; dur: number }, now: number): [number, number] {
+    const t = sh.dur > 0 ? Math.min(1, (now - sh.t0) / sh.dur) : 1;
+    const e = t * t * (3 - 2 * t);
+    return [sh.from[0] + (sh.to[0] - sh.from[0]) * e, sh.from[1] + (sh.to[1] - sh.from[1]) * e];
+  }
+
+  /** The ships: hovering over their stars, bobbing a little, flying from star to star, their engines burning. */
+  private drawShips(cam: Camera, time: number, fade: number) {
+    const gl = this.gl;
+    if (!this.ships.size) return;
+    const now = performance.now() / 1000;
+    const S = 0.2;
+    gl.enable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    gl.useProgram(this.shipProg);
+    const u = (n: string) => gl.getUniformLocation(this.shipProg, n);
+    gl.uniformMatrix4fv(u('uView'), false, cam.view);
+    gl.uniformMatrix4fv(u('uProj'), false, cam.proj);
+    gl.uniform3f(u('uEye'), cam.eye[0], cam.eye[1], cam.eye[2]);
+    gl.uniform1f(u('uTime'), time);
+    gl.uniform1f(u('uAlpha'), fade);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.shipBuf);
+    const locs: number[] = [];
+    let off = 0;
+    for (const [name, n] of [['aPos', 3], ['aNorm', 3], ['aMat', 1]] as const) {
+      const l = gl.getAttribLocation(this.shipProg, name);
+      if (l >= 0) {
+        gl.enableVertexAttribArray(l);
+        gl.vertexAttribPointer(l, n, gl.FLOAT, false, SHIP_STRIDE * 4, off);
+        locs.push(l);
+      }
+      off += n * 4;
+    }
+    const placed: { m: Float32Array; burn: number; colour: [number, number, number] }[] = [];
+    for (const sh of this.ships.values()) {
+      const [x, z] = this.shipAt(sh, now);
+      const moving = sh.dur > 0 && now - sh.t0 < sh.dur;
+      const k = moving ? (now - sh.t0) / sh.dur : 1;
+      // Hovering over its star, bobbing; under way it rises a little and banks into its course.
+      const y = 0.13 + Math.sin(time * 1.3) * 0.006 + (moving ? Math.sin(Math.PI * k) * 0.05 : 0);
+      const bank = moving ? Math.sin(Math.PI * k) * 0.25 : Math.sin(time * 0.9) * 0.04;
+      const pitch = moving ? Math.cos(Math.PI * k) * 0.12 : 0;
+      const fx = Math.cos(sh.heading), fz = Math.sin(sh.heading);
+      // Forward (pitched), up (banked), and starboard, scaled.
+      const F = [fx * Math.cos(pitch), Math.sin(pitch), fz * Math.cos(pitch)];
+      const Rr = [-fz, 0, fx];
+      const U0 = [Rr[1] * F[2] - Rr[2] * F[1], Rr[2] * F[0] - Rr[0] * F[2], Rr[0] * F[1] - Rr[1] * F[0]];
+      const cb = Math.cos(bank), sb = Math.sin(bank);
+      const U = [0, 1, 2].map((i) => U0[i] * cb + Rr[i] * sb);
+      const R = [0, 1, 2].map((i) => Rr[i] * cb - U0[i] * sb);
+      const m = new Float32Array([F[0] * S, F[1] * S, F[2] * S, 0, U[0] * S, U[1] * S, U[2] * S, 0, R[0] * S, R[1] * S, R[2] * S, 0, x, y, z, 1]);
+      gl.uniformMatrix4fv(u('uModel'), false, m);
+      gl.uniform3f(u('uColor'), sh.colour[0], sh.colour[1], sh.colour[2]);
+      gl.uniform1f(u('uBurn'), moving ? 1 : 0);
+      gl.drawArrays(gl.TRIANGLES, 0, this.shipCount);
+      placed.push({ m, burn: moving ? 1 : 0, colour: sh.colour });
+    }
+    for (const l of locs) gl.disableVertexAttribArray(l);
+    // The engines' glow, over the hull, longer under way.
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    const sprite = this.sprites(cam, time, fade);
+    for (const p of placed) {
+      for (const [i, e] of SHIP_ENGINES.entries()) {
+        const wx = p.m[0] * e[0] + p.m[4] * e[1] + p.m[8] * e[2] + p.m[12];
+        const wy = p.m[1] * e[0] + p.m[5] * e[1] + p.m[9] * e[2] + p.m[13];
+        const wz = p.m[2] * e[0] + p.m[6] * e[1] + p.m[10] * e[2] + p.m[14];
+        const size = (i ? 0.018 : 0.03) * (1 + p.burn * 0.8) * (0.9 + 0.1 * Math.sin(time * 23 + i));
+        sprite.draw(wx, wy, wz, size, 0, [1, 0.8, 0.55], 0.9);
+      }
+    }
+    sprite.done();
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
   }
 
   /** The routes, as they stand: each a ribbon of six corners (start, end, which side, how far along, colour). */
@@ -433,7 +644,7 @@ export class MapObjects {
   /** Draw the suns: their bodies first (with depth), then their glow, flares and rings over them. */
   draw(cam: Camera, time: number, fade: number) {
     const gl = this.gl;
-    if (!this.list.length && !this.routeCount) return;
+    if (!this.list.length && !this.routeCount && !this.ships.size) return;
     const y = 0;
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
@@ -455,6 +666,10 @@ export class MapObjects {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
     this.drawRoutes(cam, time, fade);
+    this.drawShips(cam, time, fade);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
     const sprite = this.sprites(cam, time, fade);
     for (const o of this.list) {
       if (o.dead) continue;
