@@ -94,8 +94,6 @@ export const CAMPAIGN = {
   absorbTurns: 3,
   /** Materials for a fusion, before the two cards' prices. */
   fusionBase: 4,
-  /** Neutral sentinels' suns start this much hotter, by tier (the outer systems are the easiest to take). */
-  sentinelHeat: [2, 1, 0],
   /** Damage cap on a system (added to its sun's starting heat in battles). */
   maxDamage: 4,
   /** Damage an attacker's home system takes when the attack is repelled. */
@@ -166,8 +164,6 @@ export const CAMPAIGN = {
   /** The counter: stabilise a collapsing system you hold, for materials, holding it together this many turns more (once per system). */
   stabiliseCost: 8,
   stabiliseTurns: 4,
-  /** Each home has one route out, to a system whose sentinels start this much hotter (a weakened first foe). */
-  gateHeat: 4,
   /** Recycling a reserve card pays this share of its armory price, in materials (at least 1). */
   recycleShare: 0.5,
   /** The Lost Races: rogue armies at the start, the most there can be, and what beating one pays. */
@@ -259,7 +255,7 @@ export interface CampaignNode {
   collapsed?: boolean;
   /** Stabilised (once only): it holds until this turn. */
   stableUntil?: number;
-  /** The one system a home's route leads to: its defenders start weakened (much hotter), until it is taken. */
+  /** (Older saves: the one system a home's route led to, whose defenders started weakened. No longer used.) */
   gate?: boolean;
   /** What kind of star it is (an ordinary yellow star if unset): see STAR_TYPES. */
   star?: StarType;
@@ -1479,13 +1475,26 @@ export function depth(n: CampaignNode): number {
   return Math.max(1, 5 - n.tier);
 }
 
-/** A battle's suns' max health, from how near the Heart its system lies (as a change to the card game's). */
+/**
+ * A system's defenders' sun's max health: lower at the near end, rising with the strip and the run, never above
+ * the card game's (20). A flagship's sun always starts at the card game's (its own upgrades on top).
+ */
 export function sunHealth(n: CampaignNode): number {
-  // (10 at the near end of the first universe, 3 more a tier, up to 30; the wormhole's guardian's the most.)
-  return Math.min(30, 10 + 3 * Math.max(0, n.tier) + (n.heart ? 2 : 0));
+  // (10 at the near end of the first universe, 3 more a tier, up to 20; the wormhole's guardian's the most.)
+  return Math.min(BALANCE.supernovaAt, 10 + 3 * Math.max(0, n.tier) + (n.heart ? 2 : 0));
 }
 function sunBase(n: CampaignNode): BattleModifiers {
   return { maxHealthDelta: sunHealth(n) - BALANCE.supernovaAt };
+}
+/**
+ * A defending side's modifiers, with its max health held to at most the card game's (20; the galaxy aside,
+ * which touches both sides alike): a system's extras (fortification, wardens, a brown dwarf) can't lift it past.
+ */
+function capDefence(mods: BattleModifiers, galaxy: BattleModifiers | undefined, flagshipDefends = false): BattleModifiers {
+  // (A flagship defending keeps its own upgrades.)
+  if (flagshipDefends) return mods;
+  const most = galaxy?.maxHealthDelta ?? 0;
+  return (mods.maxHealthDelta ?? 0) > most ? { ...mods, maxHealthDelta: most } : mods;
 }
 
 /**
@@ -1500,17 +1509,20 @@ export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
   const def = guard && guard.id !== army.id ? armyBonus(s, guard) : null;
   const starBoth: BattleModifiers = target.star === 'white' ? { startingHeat: -2 } : target.star === 'neutron' ? { heatPerTurn: 1 } : {};
   const base = sunBase(target);
-  const defMods = [
-    base,
+  // (The defenders' sun is the system's; an army defending it brings its flagship's, at the card game's.)
+  const defBase = guard && guard.id !== army.id ? {} : base;
+  const defMods = capDefence([
+    defBase,
     target.fortification ? { maxHealthDelta: target.fortification * CAMPAIGN.fortifyHealth } : {},
     target.heart && !owner ? { maxHealthDelta: CAMPAIGN.heartWardenHealth } : {},
     starBoth,
     target.star === 'brown' ? { maxHealthDelta: 3 } : {},
     def?.mods ?? {},
     atk.foeMods,
-  ].reduce(mergeModifiers, fx?.modifiers ?? {});
-  const atkMods = [base, starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {});
-  const defHeat = (guard && guard.id !== army.id ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat + (defMods.startingHeat ?? 0);
+  ].reduce(mergeModifiers, fx?.modifiers ?? {}), fx?.modifiers, !!guard && guard.id !== army.id);
+  // (The attacking flagship's sun is always the card game's: only its own upgrades change it.)
+  const atkMods = [starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {});
+  const defHeat = (guard && guard.id !== army.id ? guard.damage : target.damage) + atk.foeHeat + (defMods.startingHeat ?? 0);
   const atkHeat = army.damage + (def?.foeHeat ?? 0) + (atkMods.startingHeat ?? 0);
   const names = (fx: ReturnType<typeof galaxyEffects>) => (fx?.conditions ?? []).map((c) => c.name);
   return {
@@ -1554,7 +1566,6 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
     ...starCond,
     ...(fx?.conditions ?? []),
     ...(target.heart && !owner ? [{ name: 'Heart Wardens', text: `The oldest guardians: +${CAMPAIGN.heartWardenHealth} max health.` }] : []),
-    ...(target.gate && !owner && !guard ? [{ name: 'Weakened', text: `Cut off and failing: the sentinels' sun starts ${CAMPAIGN.gateHeat} hotter.` }] : []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
     ...(g.tableau.length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
   ];
@@ -1574,7 +1585,8 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       deck: army.deck,
       deckName: `${armyLeader(army)}'s flagship`,
       heatDelta: army.damage + (def?.foeHeat ?? 0),
-      modifiers: [core, starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fx?.modifiers ?? {}),
+      // (A flagship's sun is the card game's, 20: only its own upgrades change it.)
+      modifiers: [starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fx?.modifiers ?? {}),
       ...(atk.skills.length ? { skills: atk.skills } : {}),
       ...(atk.boons.length ? { heroBoons: { hero: army.general, boons: atk.boons } } : {}),
       ...atkShip,
@@ -1584,12 +1596,12 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
       isAI: owner ? owner.isAI : true,
       deck: defenderDeck,
-      // (The sentinels' heat, and a gate's weakness, are theirs: an army standing there brings its own.)
-      heatDelta: (guard ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat,
+      // (A system's damage is its own: an army standing there brings its own.)
+      heatDelta: (guard ? guard.damage : target.damage) + atk.foeHeat,
       ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : { rooms: stationRooms(target) }),
       tableau: [...(defShip?.tableau ?? []), ...g.tableau],
       lightspeed: g.lightspeed,
-      modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}),
+      modifiers: capDefence([fortified, wardens, guard ? {} : core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}), fx?.modifiers, !!guard),
       ...(def?.skills.length ? { skills: def.skills } : {}),
       ...(guard && def?.boons.length ? { heroBoons: { hero: guard.general, boons: def.boons } } : {}),
       conditions: [...defenceConditions, ...atk.foeConditions].length ? [...defenceConditions, ...atk.foeConditions] : undefined,

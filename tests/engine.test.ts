@@ -756,14 +756,14 @@ describe('the end', () => {
     expect(s.players[0].heat).toBe(before + BALANCE.drawPerTurn * BALANCE.fatigueHeat);
   });
 
-  it('shuffles the discard pile back in when the deck runs out, for a little heat', () => {
+  it('shuffles the discard pile back in when the deck runs out, at no cost', () => {
     let s = endTurn(twoPlayer());
     s.players[0].deck = [];
     s.players[0].discard = [{ uid: 'x1', defId: 'coolant_array' }, { uid: 'x2', defId: 'cryo_vault' }, { uid: 'x3', defId: 'coronal_lance' }];
     const before = s.players[0].heat;
     const hand = s.players[0].hand.length;
     s = endTurn(s);
-    expect(s.players[0].heat).toBe(before + BALANCE.reshuffleHeat);
+    expect(s.players[0].heat).toBe(before);
     expect(s.players[0].hand.length).toBe(hand + BALANCE.drawPerTurn);
     expect(s.players[0].discard).toHaveLength(0);
     expect(s.players[0].deck).toHaveLength(3 - BALANCE.drawPerTurn);

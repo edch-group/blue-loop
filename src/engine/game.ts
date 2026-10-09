@@ -73,7 +73,6 @@ export function createGame(setup: GameSetup): GameState {
       turn: emptyTurn(),
       modifiers: ps.modifiers,
       conditions: ps.conditions,
-      ...(ps.freeReshuffle ? { freeReshuffle: true } : {}),
       ...(ps.heroBoons?.boons.length ? { heroBoons: ps.heroBoons } : {}),
       ...(ps.skills?.length ? { skills: ps.skills.map((k) => ({ ...k })) } : {}),
       ...(ps.hero ? { hero: ps.hero } : {}),
@@ -865,16 +864,11 @@ function drawCards(state: GameState, p: PlayerState, count: number) {
   }
 }
 
-/** An empty deck: the discard pile is shuffled back in to be used again, at the price of some heat. */
+/** An empty deck: the discard pile is shuffled back in to be used again (it costs nothing). */
 function reshuffle(state: GameState, p: PlayerState) {
   p.deck = shuffleInPlace(state, p.discard);
   p.discard = [];
-  if (p.freeReshuffle) {
-    log(state, `${p.name} shuffles their discard pile back into their deck.`);
-    return;
-  }
-  log(state, `${p.name} shuffles their discard pile back into their deck: the strain heats their sun by ${BALANCE.reshuffleHeat}.`);
-  applyHeat(state, p, BALANCE.reshuffleHeat, null, false, undefined, false, 'the strain of reshuffling');
+  log(state, `${p.name} shuffles their discard pile back into their deck.`);
 }
 
 /**

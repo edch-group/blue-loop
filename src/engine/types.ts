@@ -368,7 +368,6 @@ export interface PlayerState {
   /** Shuffling the discard pile back in costs no heat (a campaign army's small deck). */
   /** Cards it began the battle with. */
   deckSize?: number;
-  freeReshuffle?: boolean;
   /** Campaign: the hero whose card carries boons in play, and those boons. */
   heroBoons?: { hero: string; boons: string[] };
   /** Campaign battles: this side's hero, their training, and their ship's rooms. */
@@ -511,8 +510,6 @@ export interface PlayerSetup {
   avatar?: string;
   /** Campaign battles: heat carried in (damage taken earlier, or a garrison's bombardment). */
   heatDelta?: number;
-  /** Campaign armies (small decks): shuffling the discard pile back in costs no heat. */
-  freeReshuffle?: boolean;
   /** Campaign: the army's hero, and the boons (gear and skills) their card carries while in play. */
   heroBoons?: { hero: string; boons: string[] };
   /** Campaign battles: a one-off head start (from a garrison). */

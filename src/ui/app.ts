@@ -2353,21 +2353,13 @@ export class App {
         }, at);
       });
     };
-    // Heat from reshuffling a deck (a draw that found it empty), told apart from the card's own heat or cooling:
-    // a Heat Sink's cooling and the reshuffle's strain would otherwise cancel out and show nothing.
-    const lastSeq = prev.log[prev.log.length - 1]?.seq ?? 0;
-    const reshuffleHeat = (id: string) => {
-      const name = next.players.find((pl) => pl.id === id)?.name;
-      return next.log.filter((l) => l.seq > lastSeq && l.text.startsWith(`${name} shuffles their discard pile back into their deck: the strain`)).length * BALANCE.reshuffleHeat;
-    };
     const hit = (id: string, at: number, byEnemy: boolean) => {
       const p = next.players.find((pl) => pl.id === id)!;
       const was = prev.players.find((pl) => pl.id === id)!;
       if (!handled.has(id)) holdUntil(p, was, at);
       handled.add(id);
       if (!hitAt.has(id)) hitAt.set(id, at);
-      const strain = byEnemy ? 0 : reshuffleHeat(id);
-      const dHeat = p.heat - was.heat - strain;
+      const dHeat = p.heat - was.heat;
       const lostShields = byEnemy ? Math.max(0, was.shields - p.shields) : 0;
       const gainedShields = Math.max(0, p.shields - was.shields);
       const mine = id === viewer.id;
@@ -2378,8 +2370,6 @@ export class App {
           if (dHeat) floatNumber(r, dHeat > 0 ? `+${dHeat}` : `−${-dHeat}`, dHeat > 0 ? 'hot' : 'cool', 0);
           if (lostShields) floatNumber(r, `⬡−${lostShields}`, 'block', dHeat ? 1 : 0);
           else if (gainedShields) floatNumber(r, `⬡+${gainedShields}`, 'block', dHeat ? 1 : 0);
-          // (The reshuffle's strain, on a line of its own.)
-          if (strain) floatNumber(r, `+${strain} ↻`, 'hot', (dHeat ? 1 : 0) + (lostShields || gainedShields ? 1 : 0));
         }
         if (dHeat > 0) {
           if (mine && byEnemy) {
@@ -2420,7 +2410,7 @@ export class App {
       if (volley) window.setTimeout(() => sound.launch(), delay);
       const me = next.players.find((p) => p.id === source.id)!;
       const meWas = prev.players.find((p) => p.id === source.id)!;
-      if (me.heat !== meWas.heat || me.shields > meWas.shields || reshuffleHeat(source.id)) {
+      if (me.heat !== meWas.heat || me.shields > meWas.shields) {
         hit(source.id, delay, false);
         if (me.heat < meWas.heat) window.setTimeout(() => sound.thermo(), delay);
       }
@@ -4553,7 +4543,7 @@ export class App {
             fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
             fact('Replacing', 'Cards never fade: into a full tableau, a new card replaces one of yours (you pick it), which leaves play. A recall card can go in, in the place of the card it recalls.'),
             fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
-            fact('Discard pile', `Every card that leaves goes here. An empty deck reshuffles it back in: ${kw('heat', String(B.reshuffleHeat))} to your sun.`),
+            fact('Discard pile', `Every card that leaves goes here. An empty deck reshuffles it back in, at no cost.`),
           ),
       ],
       sun: [

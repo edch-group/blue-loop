@@ -11,7 +11,7 @@ was replaced by this design in design review.
 
 ## The goal
 
-- **1v1**: two players, always. Every sun starts at **0** heat with **24** max health. Reaching max health makes your sun go supernova, and your rival wins. [proposed numbers; design review: 1v1 across the board]
+- **1v1**: two players, always. Every sun starts at **0** heat with **20** max health. Reaching max health makes your sun go supernova, and your rival wins. [proposed numbers; design review: 1v1 across the board]
 - Cooling can take a sun down to **−10**. [direction: the deep cold is Absolute Zero's whole point; a balance pass had cut it to −5, then −3]
 
 ## Decks
@@ -58,7 +58,7 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
 
 **Second seat head start** [proposed]: the second player starts with 1 extra card (with 4 energy and 30-card decks the first seat won 55–58% without it; with it, seats are about 48/52). The old head start (2 cooler, 1 extra card, 1 extra play) let the second seat win 68%; a sun 1 cooler was still worth too much with the current decks. With 1 extra card, seats are 46/54.
 
-**The discard pile** takes every card that leaves play: cards that fade, and cards destroyed or cancelled (cards returned or recalled go to hand). Recovery cards draw from it. **An empty deck** is refilled by shuffling the discard pile into a new deck. Each reshuffle heats your sun by 2 (unblockable). Only with both deck and discard pile empty does each card you should have drawn heat your sun by 2 instead. [design review: cards are discarded for reuse; proposed: 2 heat]
+**The discard pile** takes every card that leaves play: cards that fade, and cards destroyed or cancelled (cards returned or recalled go to hand). Recovery cards draw from it. **An empty deck** is refilled by shuffling the discard pile back in, at no cost. Only with both deck and discard pile empty does each card you should have drawn heat your sun by 2 instead. [design review: cards are discarded for reuse; proposed: 2 heat]
 
 ## The tableau
 
@@ -801,6 +801,7 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 **The loop.**
 - Each universe is a thin strip: you arrive at a lone system in the middle of the near end, with a route into each of **3 lanes**; the lanes run 7 columns, and the wormhole lies in the middle past the far end, so it is about 8 moves away, linked along the lanes, by non-crossing diagonals and by rungs between lanes. You begin in column 0; the **wormhole** lies past the far end. Move freely, backwards too.
 - **Every move is a turn.** There is no end-turn: when the flagship has made its move (and any battle or card choice it brought on is settled), the raiders move and the collapse comes on at once. **Wait** holds position for a move. Changing the deck or repairing costs no move. (Fold drive gives two steps to a move.) There is no waiting either: no Wait button and no move pips at the bottom right; if the flagship has nowhere to go, time moves on by itself.
+- **Sun health:** every flagship's sun (yours, in every battle) starts at the card game's 20, its own upgrades on top (nothing of yours ever reaches the enemy). A system's defenders' sun is lower at the near end (10, 3 more a tier) and never above 20, whatever its extras (fortification, wardens, a brown dwarf); the galaxy touches both sides alike. No first foe is weakened any more (no sentinels starting hotter).
 - **Regional stability** runs down one with every move (8 moves in universe 1, 2 fewer in each universe after, never below 3; +1 a level of Anchored space). Once it is spent, **the collapse takes one whole column with every move** from the near edge. A collapsed system is gone, with any army in it; if the flagship is caught, the run is over.
 - The **Stellari** open the wormhole. Its guardian (the Wardens) must be beaten to cross: a boss battle that grows with the universe.
 - Crossing takes you to the next universe: stronger garrisons (tier +2 a universe), better loot, and stability that runs out sooner. The loop never ends; every run ends in death.
@@ -934,7 +935,7 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 
 ## Open design questions
 
-1. **Numbers:** max health 24, 5 slots, slot defence 1-2-3-2-1, stability 3 (1 for one-time cards), a cap of 2 plays and 1 draw a day are all first guesses. Human playtesting should drive them.
+1. **Numbers:** max health 20, 5 slots, slot defence 1-2-3-2-1, stability 3 (1 for one-time cards), a cap of 2 plays and 1 draw a day are all first guesses. Human playtesting should drive them.
 2. **Removal:** Ion Cannon is the only way to destroy a card, and it swings match-ups hard. Should there be more removal, or none?
 3. **Abyssal Tide** is the weakest starter (about 39%). It needs a stronger finisher or cheaper protection.
 4. **Collection:** decks are built from the full pool. A collection to unlock would suit a CCG, but was left for later.

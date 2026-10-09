@@ -42,12 +42,9 @@ import {
   recycleValue,
   type CampaignState,
 } from '../src/engine';
-import { BALANCE } from '../src/engine/balance';
-import { sunHealth } from '../src/engine/campaign';
 
-/** A battle's suns' max health, as a change to the card game's (both sides start from it). */
-/** Both suns' max health before anything of either side's: the system's, and the galaxy's. */
-const baseDelta = (st: CampaignState) => sunHealth(st.nodes.find((n) => n.id === st.battle!.nodeId)!) - BALANCE.supernovaAt + (galaxyEffects(st)?.modifiers.maxHealthDelta ?? 0);
+/** The attacking flagship's sun before its own upgrades: the card game's, and the galaxy's touch. */
+const flagDelta = (st: CampaignState) => galaxyEffects(st)?.modifiers.maxHealthDelta ?? 0;
 
 /** A new campaign with every system guarded (no finds), so the battle tests have someone to fight. */
 const fresh = (seed = 7) => {
@@ -208,7 +205,7 @@ describe('economy', () => {
     expect(me.rooms?.attack[1]).toBe(1);
     expect(me.rooms?.command).toBe(CAMPAIGN.commandRoom + 1);
     expect(me.shields).toBeGreaterThanOrEqual(CAMPAIGN.shipMax.shields);
-    expect(me.modifiers?.maxHealthDelta).toBe(baseDelta(s) + CAMPAIGN.hullHealth);
+    expect(me.modifiers?.maxHealthDelta).toBe(flagDelta(s) + CAMPAIGN.hullHealth);
     // The station defending has no hero: it fights with a few cards and its walls.
     const them = s.battle!.game.players[1];
     expect(them.hero).toBeUndefined();
@@ -391,11 +388,14 @@ describe('armies and generals', () => {
     // Never at home, a gate, or the Heart.
     for (const n of s.nodes) if (n.home || n.gate || n.heart) expect(n.star).toBeUndefined();
     // A brown dwarf shelters its defender; a neutron star heats every sun.
-    let t = fresh();
-    const gate = nodeById(t, home(t).links[0]);
-    gate.star = 'brown';
-    t = attack(t);
-    expect(supernovaThreshold(t.battle!.game.players[1])).toBeGreaterThan(supernovaThreshold(t.battle!.game.players[0]));
+    const defender = (star: 'brown' | undefined) => {
+      let t = fresh();
+      const n = nodeById(t, firstTarget(t));
+      n.star = star;
+      t = attack(t, n.id);
+      return supernovaThreshold(t.battle!.game.players[1]);
+    };
+    expect(defender('brown')).toBeGreaterThan(defender(undefined));
   });
 
   it("grows heroes: experience from battles, skill points, and skills and gear that ride on the hero's card", () => {
@@ -474,7 +474,7 @@ describe('armies and generals', () => {
     let b = fresh();
     campaignPlayer(b).research = { done: ['hull1', 'energy1'] };
     b = attack(b);
-    expect(b.battle!.game.players[0].modifiers?.maxHealthDelta).toBe(baseDelta(b) + 2);
+    expect(b.battle!.game.players[0].modifiers?.maxHealthDelta).toBe(flagDelta(b) + 2);
     expect(b.battle!.game.players[0].modifiers?.extraPlays).toBe(1);
     expect(researchProject('hull1')).toBeTruthy();
   });
