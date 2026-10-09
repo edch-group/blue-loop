@@ -6125,8 +6125,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-hero.rarity-anomaly .cs-hero-rarity i { background: #a77ee8; box-shadow: 0 0 6px #a77ee8; }
 .cs-hero-body { position: relative; z-index: 1; display: grid; gap: 6px; margin-top: -26px; padding: 0 clamp(10px, calc(1.6 * var(--vw)), 18px) clamp(10px, calc(2 * var(--vh)), 16px); }
 .cs-hero-body > b { font-family: var(--display); font-weight: 500; font-size: clamp(0.7rem, calc(2.6 * var(--vh)), 1rem); letter-spacing: 0.18em; text-transform: uppercase; color: color-mix(in srgb, var(--rc) 50%, #2a2d36); line-height: 1.25; }
-.cs-hero-text { font-size: clamp(0.62rem, calc(2.1 * var(--vh)), 0.8rem); line-height: 1.45; color: var(--ink-soft); }
-.cs-hero-text .kw-timing, .cs-hero-text b { color: var(--ink); }
+.cs-hero-bio { margin: 0; font-size: clamp(0.64rem, calc(2.1 * var(--vh)), 0.82rem); line-height: 1.5; color: var(--ink-soft); font-style: italic; }
 .cs-hero.locked .cs-hero-body { opacity: 0.6; }
 .cs-hero-lock { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; pointer-events: none; }
 .cs-hero-lock .cs-buy { pointer-events: auto; }
@@ -6163,8 +6162,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   .cs-hero-art::after { background: linear-gradient(180deg, transparent 22%, rgba(255, 255, 255, 0.92) 52%, #fff 70%); }
   .cs-hero-body { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; gap: 2px; padding: 0 10px 8px; }
   .cs-hero-body > b { font-size: 0.66rem; letter-spacing: 0.14em; }
-  .cs-hero-text { font-size: 0.6rem; line-height: 1.35; }
-  .cs-hero-text .card-divider, .cs-hero-text hr { margin: 2px 0; }
+  .cs-hero-bio { font-size: 0.6rem; line-height: 1.4; }
   .cs-hero-rarity { top: 6px; left: 6px; font-size: 0.46rem; padding: 2px 7px 2px 5px; }
   .cs-hero-lock { place-items: start end; padding: 6px; }
   .cs-hero-lock .cs-buy { padding: 4px 4px 4px 10px; font-size: 0.54rem; }

@@ -62,6 +62,42 @@ const MOTIVE: string[] = [
   "The Pyrr are living flame, and their sun is the only thing that has ever kept them burning. It is guttering now, and so are they. They would rather burn out in the Heart's light than fade in the dark.",
 ];
 
+/** Each hero in a line or two, as the run's setup introduces them: who they are, and why they fight. */
+export const HERO_BIOS: Record<string, string> = {
+  // Aureline: the flower's first keepers, coming home.
+  command_directive: 'The Solarch reads a war the way others read a map: calmly, and to the end. She lost Vitalia once, as a young officer. She has spent every year since planning how to take her back.',
+  ignition_protocol: 'The Aureline\'s spearhead, and their most reckless son. Aurex burns hotter than his armour can bear, and counts every scar a victory.',
+  empress_solenne: 'Last of the line that tended Vitalia in the Heart\'s light. Solenne has waited an age in exile, and she no longer asks.',
+  // Xel'Naru: memory kept in living crystal.
+  war_council: 'Keeper of the shard-archives, where every Xel\'Naru who ever lived still whispers. Seris fights so that none of them are forgotten.',
+  coolant_protocol: 'A priest of stillness who can slow a burning crystal to a sleep. Vael is patient as ice, and as hard to break.',
+  the_shardmind: 'A chorus of a thousand minds grown into one crystal. It woke when the light began to fail, and it does not mean to sleep again.',
+  // Vorthane: tide fleets fleeing a freezing sea.
+  tide_regent: 'Regent of the last warm currents. Osshara led the tide fleets out from under the ice, and has not looked back once.',
+  the_admiralty: 'Not one admiral but a council of old captains, who speak with one voice and have never lost a fleet. They intend to keep it that way.',
+  leviathan_thoross: 'The oldest thing in the Vorthane seas, risen from the deep at last. Where Thoross swims, the tide follows.',
+  // Ixquor: the starving hive.
+  logistics_command: 'The hive\'s many voices, gathered into one throat. Zyth does not want, or fear, or rest. Zyth only spreads.',
+  chamber_protocol: 'The brood-mother of a hundred worlds, waking hungry. Every root she sets down becomes a new brood, and every brood an army.',
+  the_worldroot: 'A single root threaded through a dozen dying worlds. Now it is reaching for the Heart, and for every living thing between.',
+  // Nyxari: void-stalkers, born in the dark between the stars.
+  nyx_hero_vesh: 'Queen of a court no one has ever seen. Vesh wins her wars before her enemies know they are fighting one.',
+  nyx_hero_kael: 'A Nyxari made for one purpose: to take things apart. Fleets, fortresses, alliances. Kael has never met a thing he could not undo.',
+  nyx_hero_nyxara: 'Older than the first star, and the dark was always hers. Now even she can feel it growing hungry, and she has come for the light.',
+  // Korrath: forge-smiths whose fires are cooling.
+  kor_hero_durga: 'The greatest smith of the deep forges. Durga mends what others throw away, and hammers it back into the line harder than before.',
+  kor_hero_brannoc: 'The wall the Korrath stand behind. In forty years of sieges, nothing has ever got past Brannoc. He does not mean to start now.',
+  kor_hero_anvil_king: 'The forge-lord woken from his long sleep beneath the mountain. Where the Anvil-King marches, every world is ore.',
+  // Seren: star-readers watching their stars go out.
+  ser_hero_ilyath: 'The finest reader of the stars the Seren have left. Ilyath has seen how this war ends, and is trying very hard to change it.',
+  ser_hero_maren: 'A tidecaster who turns the planets in their orbits as a sailor trims a sail. Maren asks the worlds to move, and they do.',
+  ser_hero_aster: 'Every star the Seren ever charted, gathered into a single being as the sky went dark. Aster is the last constellation, and the last hope.',
+  // Pyrr: living flame, guttering.
+  pyr_hero_ignis: 'Herald of the Pyrr host, who burns everything at once and lets tomorrow find its own fire. Ignis has never once held back.',
+  pyr_hero_ashka: 'Queen of the cinder-courts, who runs her people\'s sun hot and thrives where others scorch. Ashka was born in the fire, and does not fear it.',
+  pyr_hero_pyrrhus: 'A flare that has burned out a hundred times, and risen from its ashes each time brighter. Pyrrhus fights as if he cannot lose, because he cannot stay lost.',
+};
+
 /** What a general says on taking command (and on first meeting a rival). */
 const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
   command_directive: { join: 'Solarch Veyra stands with you. We lost Vitalia once. We will not lose her again.', taunt: 'Vitalia was ours before your star was lit. Turn back.' },

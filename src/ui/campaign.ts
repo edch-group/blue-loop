@@ -1,4 +1,5 @@
 import {
+  HERO_BIOS,
   GALAXIES,
   type GalaxyKind,
   BALANCE,
@@ -997,7 +998,7 @@ export class CampaignView {
           <span class="cs-hero-rarity"><i></i>${esc(RARITY_NAME[rarity] ?? '')}${sub ? ` · ${esc(lower(sub))}` : ''}</span>
           <div class="cs-hero-body">
             <b>${lower(def.name)}</b>
-            <div class="cs-hero-text">${cardTextHtml(def.text)}</div>
+            <p class="cs-hero-bio">${esc(HERO_BIOS[g] ?? '')}</p>
           </div>
           ${open ? '' : `<div class="cs-hero-lock">${buy(`hero:${g}`, 'unlock')}</div>`}
         </div>`;
