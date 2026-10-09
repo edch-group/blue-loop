@@ -107,7 +107,7 @@ const GLYPHS: Record<string, string> = {
 
   // Recovery, recall and removal
   salvage_drone: `<path d="M34 34 A16 16 0 1 1 50 46"/><polyline points="30,28 34,35 41,31"/>${ring(4, 'class="fill"')}`,
-  redeployment: `<rect x="18" y="22" width="16" height="22" rx="2"/><rect class="fill" x="42" y="22" width="16" height="22" rx="2"/><rect x="66" y="22" width="16" height="22" rx="2"/><path d="M26 18 Q50 4 74 18M70 14 L74 18 L69 21"/>`,
+  circular_refraction: `<circle cx="50" cy="32" r="13"/><path d="M14 38 L37 35M63 34 L86 22M63 34 L86 32M63 34 L86 42"/><path class="fill" d="M37 35 A13 13 0 1 1 50 45" fill="none"/>`,
   phase_shift: `<rect x="26" y="18" width="18" height="24" rx="2"/><rect class="fill" x="56" y="18" width="18" height="24" rx="2"/><path d="M44 24 H56M52 20 L56 24 L52 28M56 36 H44M48 32 L44 36 L48 40"/>`,
   tractor_beam: `${ring(4, 'class="fill" transform="translate(-24 0)"')}<path d="M30 26 L72 16 V44 L30 34"/><rect x="66" y="24" width="10" height="12" rx="2"/>`,
   command_breaker: `<rect x="34" y="14" width="32" height="32" rx="4"/><polyline class="fill" points="44,14 52,28 46,32 56,46"/>`,

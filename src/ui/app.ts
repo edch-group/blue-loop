@@ -788,7 +788,7 @@ export class App {
   private opened: { kind: BoosterKind; cards: BoosterCard[] } | null = null;
   private state: GameState | null = null;
   private pending: Pending | null = null;
-  /** A dawn Shift being answered (Redeployment): the card of yours picked to move, before where it goes. */
+  /** A dawn Shift being answered (Circular Refraction): the card of yours picked to move, before where it goes. */
   private dawnPick: string | null = null;
   private stage: Stage | null = null;
   /** Your Hero, tapped on your day: its actions (abilities, and attack) shown in the stage's place, middle right. */

@@ -1734,7 +1734,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       const uid = p.dawnShift?.shift();
       if (!uid) throw new GameError('There is no dawn shift to make.');
       if (!p.dawnShift?.length) delete p.dawnShift;
-      const source = p.tableau.find((c) => c.uid === uid) ?? { uid, defId: 'redeployment' };
+      const source = p.tableau.find((c) => c.uid === uid) ?? { uid, defId: 'circular_refraction' };
       if (action.allyUid === undefined) {
         log(state, `${p.name} lets ${cardDef(source.defId).name}'s dawn shift pass.`);
         break;

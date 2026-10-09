@@ -292,7 +292,7 @@ Some cards count their own neighbours instead:
   - Shard Recall (Xel'Naru): and heat your rival by 1 (recalling a Martyr fires it too).
 - **Shift** (move one of your cards to another slot; into an occupied slot, the two swap places) and **Displace** (the same, to a card in your rival's tableau). Position matters: slot defence (1/2/3/2/1), neighbours' resonance, Bulwark and Forge, and where a removal or attack can reach. A Hero leads from its own slot and can't be moved. The card to move is chosen, then the slot.
   - Gravity Tether (neutral, 1): Shift, shields 2.
-  - Redeployment (neutral Anomaly, 1): Recall. Dawn: Shift. It stays in play; at its owner's dawn their Shift waits on them, first thing in their day (nothing else can be done until it is answered): pick one of their cards (not the Hero), then a slot to move it to (swapping with any card there), or let it be. The AI takes the move that leaves its cards best placed, or none.
+  - Circular Refraction (neutral Anomaly, 1): Recall. Dawn: Shift. It stays in play; at its owner's dawn their Shift waits on them, first thing in their day (nothing else can be done until it is answered): pick one of their cards (not the Hero), then a slot to move it to (swapping with any card there), or let it be. The AI takes the move that leaves its cards best placed, or none.
   - Orbital Tug (neutral, 2): Displace, heat 3.
   - Umbral Drift (Nyxari, 1): Displace, draw 1.
   - Realignment (Seren, 2): Shift, cool 3, draw 1.

@@ -71,10 +71,10 @@ describe('shift', () => {
     expect(freeSlots(me).length).toBeGreaterThan(0);
   });
 
-  it('Redeployment: its dawn Shift waits on its owner, before anything else that day; moved, or let be', () => {
+  it('Circular Refraction: its dawn Shift waits on its owner, before anything else that day; moved, or let be', () => {
     let s = twoPlayer();
     const me = activePlayer(s);
-    const r = put(me, 'redeployment', 0);
+    const r = put(me, 'circular_refraction', 0);
     const v = put(me, 'cryo_vault', 3);
     // Round to its owner's next dawn.
     s = applyAction(s, { type: 'endTurn' });

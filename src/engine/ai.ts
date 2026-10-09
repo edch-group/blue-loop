@@ -456,7 +456,7 @@ export const aiLastDecision: { baseline: number; best: number | null; bestAction
 
 export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
-  // A dawn Shift waiting (Redeployment): the move that leaves its cards best placed, or none if none is better.
+  // A dawn Shift waiting (Circular Refraction): the move that leaves its cards best placed, or none if none is better.
   if (me.dawnShift?.length) {
     let best: Action = { type: 'dawnShift' };
     let score = evaluate(applyAction(state, best), me.id) + 0.05;

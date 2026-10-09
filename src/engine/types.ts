@@ -579,7 +579,7 @@ export type Action =
       sacrificeUid?: string;
     }
   | { type: 'setTarget'; targetId: string }
-  /** A dawn Shift waiting on the player (Redeployment): the card of theirs moved and where to; neither, to let it be. */
+  /** A dawn Shift waiting on the player (Circular Refraction): the card of theirs moved and where to; neither, to let it be. */
   | { type: 'dawnShift'; allyUid?: string; shiftTo?: number }
   /** Ends the day. After dusk a hand over the limit is discarded down to it: `discard` names the cards (any still over are picked for them). */
   | { type: 'endTurn'; discard?: string[] }

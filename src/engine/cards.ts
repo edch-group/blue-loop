@@ -157,7 +157,7 @@ export const CARDS: CardDef[] = [
   // ---- Shift: moving cards between slots (yours, or with Displace your rival's) ----
   { id: 'gravity_tether', name: 'Gravity Tether', kind: 'defence', text: '{shift}. {shield:2}.', onPlay: [{ type: 'shift' }, { type: 'shield', amount: 2 }] },
   // (Its dawn Shift waits on its owner: at their dawn they move one of their cards, or let it be.)
-  { id: 'redeployment', name: 'Redeployment', kind: 'growth', cost: 1, rarity: 'anomaly', text: '{recall}. {dawn}: {shift}.', onPlay: [{ type: 'recall' }], onTurn: [{ type: 'shift' }] },
+  { id: 'circular_refraction', name: 'Circular Refraction', kind: 'growth', cost: 1, rarity: 'anomaly', text: '{recall}. {dawn}: {shift}.', onPlay: [{ type: 'recall' }], onTurn: [{ type: 'shift' }] },
   { id: 'orbital_tug', name: 'Orbital Tug', kind: 'attack', text: '{displace}. {heat:3}.', onPlay: [{ type: 'shift', enemy: true }, { type: 'heat', amount: 3, to: 'target' }] },
 
   // ---- Removal: aimed at your rival's tableau ----
