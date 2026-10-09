@@ -614,7 +614,8 @@ input { font: inherit; }
 
 /* ---------- AI spotlight ---------- */
 /* (--scw: the stage's card width; each card sets its own --cw, so the stage's is handed down under another name.) */
-.stage { --scw: min(250px, calc(50 * var(--vh))); position: fixed; left: min(78%, calc(100% - var(--scw) / 2 - 16px)); top: 50%; transform: translate(-50%, -50%); z-index: 15; display: grid; justify-items: center; gap: 8px; pointer-events: none; animation: stage-in 0.25s ease-out; }
+/* Against the right edge of the screen, clear of the board. */
+.stage { --scw: min(250px, calc(50 * var(--vh))); position: fixed; left: auto; right: calc(var(--pad-r, 0px) + 16px); top: 50%; transform: translateY(-50%); z-index: 15; display: grid; justify-items: center; gap: 8px; pointer-events: none; animation: stage-in 0.25s ease-out; }
 /* Fades in where it stands (its own translate centres it: a moving keyframe would slide it sideways). */
 @keyframes stage-in { from { opacity: 0; } }
 .stage::before { content: ''; position: absolute; inset: -50px -110px; background: radial-gradient(ellipse, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.6) 45%, transparent 70%); z-index: -1; }
