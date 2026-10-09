@@ -1713,6 +1713,8 @@ export class App {
    * has played out. The viewer's own read plainly ("dawn"); everyone else's carry their name.
    */
   private announcePhases(actor: PlayerState, next: GameState, turnPassed: boolean, animate = true) {
+    // A new player's turn: the board comes out of any tableau it was zoomed onto, so the whole table is in view.
+    if (turnPassed && this.boardZoom) this.setBoardZoom(null);
     if (isGameOver(next) || this.needsHandoff()) return;
     const you = this.viewer().id;
     const named = (p: PlayerState, phase: string) => (p.id === you ? phase : `${p.name.toLowerCase()}'s ${phase}`);
