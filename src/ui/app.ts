@@ -210,7 +210,6 @@ type Sheet =
   /** Ending the day with plays still left: are you sure? */
   | { kind: 'end-day' }
   /** Ending the day holding more than the hand limit: which cards go (`picked`, by uid). */
-  | { kind: 'discard'; picked: string[] }
   | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string; /** Of a card in play with Fusion cards on it: which is shown (0 the card itself, then each fused card). */ tab?: number };
 
 /** Menu buttons that lead somewhere: the page they're on lifts away (and the star spins up) before the next one comes in. */
@@ -790,6 +789,8 @@ export class App {
   private pending: Pending | null = null;
   /** A dawn Shift being answered (Circular Refraction): the card of yours picked to move, before where it goes. */
   private dawnPick: string | null = null;
+  /** Ending the day over the hand limit: the cards of the hand picked to discard (null: not discarding). */
+  private discarding: string[] | null = null;
   private stage: Stage | null = null;
   /** Your Hero, tapped on your day: its actions (abilities, and attack) shown in the stage's place, middle right. */
   private heroPanel: string | null = null;
@@ -1553,6 +1554,7 @@ export class App {
   private requestEndDay() {
     const s = this.state;
     if (!s || !this.canAct() || this.pending) return;
+    if (this.discarding) return this.finishDay();
     if (this.leftUndone().length && this.sheet?.kind !== 'end-day') {
       this.sheet = { kind: 'end-day' };
       return this.render();
@@ -1579,14 +1581,25 @@ export class App {
     return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && this.leftUndone().length === 0;
   }
 
-  /** End the day: over the hand limit, the viewer first picks the cards to discard. */
+  /**
+   * End the day: over the hand limit, the viewer first picks the cards to discard, in the hand itself (the middle of
+   * the board says how many); End Day then confirms them.
+   */
   private finishDay() {
     const me = activePlayer(this.state!);
-    if (me.hand.length > BALANCE.maxHand) {
-      this.sheet = { kind: 'discard', picked: [] };
-      return this.render();
-    }
+    const over = me.hand.length - BALANCE.maxHand;
     this.sheet = null;
+    if (over > 0) {
+      const picked = (this.discarding ?? []).filter((u) => me.hand.some((c) => c.uid === u));
+      if (picked.length !== over) {
+        if (this.discarding && picked.length < over) this.showToast(`Pick ${over - picked.length} more card${over - picked.length === 1 ? '' : 's'} to discard.`, 'error');
+        this.discarding = picked;
+        return this.render();
+      }
+      this.discarding = null;
+      return this.dispatch({ type: 'endTurn', discard: picked });
+    }
+    this.discarding = null;
     this.dispatch({ type: 'endTurn' });
   }
 
@@ -1680,6 +1693,7 @@ export class App {
 
   private begin(state: GameState) {
     this.boardZoom = null;
+    this.discarding = null;
     this.gamesBegun++;
     // A game against the AI: a new one is noted by the server (for its reward); a continued one keeps its id. (Not a
     // campaign battle: the campaign pays its own way, in materials and petals, with no stardust, flux or experience.)
@@ -3087,6 +3101,10 @@ export class App {
     }
     if (e.key !== 'Escape') return;
     if (this.peeking) return this.setPeek(false);
+    if (this.discarding) {
+      this.discarding = null;
+      return this.render();
+    }
     if (this.boardZoom && !this.zoomed && !this.pending && !this.sheet) return this.setBoardZoom(null);
     if (this.zoomed) {
       this.zoomed = null;
@@ -3655,6 +3673,7 @@ export class App {
       case 'cancel':
         this.pending = null;
         this.sheet = null;
+        this.discarding = null;
         return this.render();
     }
 
@@ -3691,19 +3710,15 @@ export class App {
       case 'end-day-confirm':
         return this.finishDay();
       case 'discard-pick': {
-        if (this.sheet?.kind !== 'discard') return;
+        if (!this.discarding) return;
         const over = activePlayer(this.state!).hand.length - BALANCE.maxHand;
-        const picked = this.sheet.picked.includes(arg) ? this.sheet.picked.filter((u) => u !== arg) : [...this.sheet.picked, arg].slice(-over);
-        this.sheet = { kind: 'discard', picked };
+        this.discarding = this.discarding.includes(arg) ? this.discarding.filter((u) => u !== arg) : [...this.discarding, arg].slice(-over);
         sound.rustle();
         return this.render();
       }
-      case 'discard-confirm': {
-        if (this.sheet?.kind !== 'discard') return;
-        const discard = this.sheet.picked;
-        this.sheet = null;
-        return this.dispatch({ type: 'endTurn', discard });
-      }
+      case 'discard-cancel':
+        this.discarding = null;
+        return this.render();
       case 'board-zoom':
         return this.setBoardZoom(this.boardZoom === arg ? null : (arg as 'rival' | 'mine'));
       case 'hero-panel':
@@ -4937,6 +4952,11 @@ export class App {
     const hint = (text: string, cancel = true) => `<div class="mid-hint"><b>${text}</b>${cancel ? '<button class="mid-cancel" data-act="cancel">cancel</button>' : ''}</div>`;
     // Online, while your rival reads the card you just played.
     if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
+    // Over the hand limit at the day's end: pick the cards to discard in the hand, then End Day.
+    if (this.discarding && !p) {
+      const left = activePlayer(s).hand.length - BALANCE.maxHand - this.discarding.length;
+      return `<div class="mid-hint"><b>${left > 0 ? `discard ${left} card${left === 1 ? '' : 's'}` : 'end day to discard'}</b><button class="mid-cancel" data-act="discard-cancel">keep playing</button></div>`;
+    }
     // Your dawn Recall, first thing in your day: a card back to hand; or let it be.
     if (this.dawnChoice()?.kind === 'recall') return '<div class="mid-hint"><b>dawn recall: return a card to hand</b><button class="mid-cancel" data-act="dawn-shift-skip">let it be</button></div>';
     // Your dawn Shift: a card to move, then where; or let it be.
@@ -5230,6 +5250,8 @@ export class App {
       extra = `data-hand="${c.uid}"`;
       // (While one card waits to be placed, tapping another plays that one instead.)
       if (act || this.touch) attrs = `data-act="play" data-arg="${c.uid}"`;
+      // Discarding at the day's end: tapping a card marks it to go (again, to keep it).
+      if (this.discarding) attrs = `data-act="discard-pick" data-arg="${c.uid}" title="${this.discarding.includes(c.uid) ? 'Keep it' : 'Discard it'}"`;
     }
     let state = '';
     const s = this.state;
@@ -5301,6 +5323,8 @@ export class App {
     if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
     // ...and one that can be played now has a faint green rim.
     if (opts.hand && !state && me && act && me.id === this.viewer().id && this.canPlayNow(me, c.defId)) state = 'card-playable';
+    // (Marked to discard at the day's end.)
+    if (opts.hand && this.discarding) state = this.discarding.includes(c.uid) ? 'card-discard' : '';
     // A stat as it stands; on a card heat is aimed at, as that heat will leave it (in red, all the while it is
     // aimed); and while aiming more heat, as that would leave it, shown on hover.
     const pv = (icon: string, n: number, settled?: number, hover?: number) => {
@@ -5654,27 +5678,6 @@ export class App {
           'end your day?',
           `<p class="center-text">You still have ${esc(left.length > 1 ? `${left.slice(0, -1).join(', ')} and ${left[left.length - 1]}` : left[0] ?? 'things to do')}.</p>
            <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
-        );
-      }
-      case 'discard': {
-        const me = activePlayer(this.state!);
-        const over = me.hand.length - BALANCE.maxHand;
-        const picked = new Set(sh.picked);
-        // (Each card shown still: tapping it marks it to go, tapping again keeps it.)
-        const still = (c: CardInstance) =>
-          this.renderCard(c, { static: true })
-            .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
-            .replace(/<\/button>\s*$/, '</div>')
-            .replace(/ data-act="[^"]*"/, '');
-        const cards = me.hand
-          .map((c) => `<button class="discard-pick ${picked.has(c.uid) ? 'on' : ''}" data-act="discard-pick" data-arg="${c.uid}" title="${picked.has(c.uid) ? 'Keep it' : 'Discard it'}">${still(c)}</button>`)
-          .join('');
-        const left = over - picked.size;
-        return this.sheetFrame(
-          `discard ${over} card${over === 1 ? '' : 's'}`,
-          `<p class="center-text">You can hold ${BALANCE.maxHand} cards at the end of your day. Pick ${over === 1 ? 'the card' : `the ${over} cards`} to discard.</p>
-           <div class="discard-grid">${cards}</div>
-           <div class="end-day-actions"><button class="btn-primary" data-act="discard-confirm" ${left ? 'disabled' : ''}>${left ? `pick ${left} more` : 'discard and end day'}</button><button class="btn" data-act="cancel">keep playing</button></div>`,
         );
       }
       case 'quit': {
