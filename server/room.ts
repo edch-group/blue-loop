@@ -189,7 +189,11 @@ function handleMessage(room: RoomData, seat: number | null, msg: ClientMessage, 
         if (room.stats) finishStats(room.stats, room.game);
         return { seat, reply: [], broadcast: true };
       }
-      if (g.players[g.activePlayerIndex].id !== me.id) return { seat, reply: [{ t: 'error', message: "It's not your day." }], broadcast: false };
+      // A reaction window: only the player answering may move (their answer: a Lightspeed card, or let it pass).
+      if (g.reaction) {
+        if (msg.action.type !== 'react' || g.reaction.playerId !== me.id) return { seat, reply: [{ t: 'error', message: 'Waiting on an answer at lightspeed.' }], broadcast: false };
+      } else if (msg.action.type === 'react') return { seat, reply: [], broadcast: false };
+      else if (g.players[g.activePlayerIndex].id !== me.id) return { seat, reply: [{ t: 'error', message: "It's not your day." }], broadcast: false };
       if (room.waitingOn === 1 - seat) return { seat, reply: [{ t: 'error', message: `${room.seats[1 - seat]?.name ?? 'Your rival'} is still reading your card.` }], broadcast: false };
       try {
         const next = applyAction(g, msg.action);
@@ -201,7 +205,8 @@ function handleMessage(room: RoomData, seat: number | null, msg: ClientMessage, 
         }
         // A card played (into play, set face down, or one that resolves and goes) waits for the rival to read it
         // before its player goes on.
-        room.waitingOn = msg.action.type === 'playCard' && !next.winnerId ? 1 - seat : null;
+        // (Not while a reaction window is open: the rival is answering it, and the card shows them there.)
+        room.waitingOn = msg.action.type === 'playCard' && !next.winnerId && !next.reaction ? 1 - seat : null;
         return { seat, reply: [], broadcast: true };
       } catch (err) {
         if (err instanceof GameError) return { seat, reply: [{ t: 'error', message: err.message }], broadcast: false };
@@ -274,7 +279,9 @@ function describe(prev: GameState, next: GameState, action: Action, actorId: str
   const last: LastMove = { action, actorId };
   if (action.type === 'playCard') {
     const card = prev.players.find((p) => p.id === actorId)!.hand.find((c) => c.uid === action.cardUid);
-    if (card && cardDef(card.defId).kind === 'lightspeed') {
+    // (Still waiting on an answer at lightspeed: a card being set face down stays face down.)
+    if (card && next.reaction && (cardDef(card.defId).kind === 'lightspeed' || action.faceDown)) last.faceDown = true;
+    else if (card && cardDef(card.defId).kind === 'lightspeed') {
       // Set face down (unless it was cancelled on the way, in which case it is in the discard pile for all to see).
       const actor = next.players.find((p) => p.id === actorId)!;
       if (actor.lightspeed?.uid === card.uid) last.faceDown = true;
@@ -303,6 +310,11 @@ export function viewFor(game: GameState, me: number): GameState {
       if (p.lightspeed) p.lightspeed = hide();
     }
   });
+  // A reaction window: what the one answering could answer with is theirs alone to see.
+  if (v.reaction && v.players[me]?.id !== v.reaction.playerId) {
+    v.reaction.slot = false;
+    v.reaction.hand = [];
+  }
   return v;
 }
 

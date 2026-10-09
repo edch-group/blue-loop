@@ -94,7 +94,7 @@ export const KEYWORDS: Record<string, Keyword> = {
     explain: (v) =>
       `Each dawn, gains your orbit's bonus${v && v !== '1' ? ` (×${v})` : ''}. Dead planet: ${ATTUNEMENT.slice(0, 3).map((a) => plainText(a.text)).join(' → ')}. Abundant: ${ATTUNEMENT.slice(3, 6).map((a) => plainText(a.text)).join(' → ')}. Industrial: ${ATTUNEMENT.slice(6).map((a) => plainText(a.text)).join(' → ')}.`,
   },
-  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => 'Set face down; springs on its trigger.' },
+  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Answers your rival's move, before it resolves. Set it face down on your day (it waits for its trigger), or play it from hand on their day, paid with banked energy (energy left unspent at your day's end). One from hand per rival day." },
   global: { name: 'global', group: 'global', explain: () => 'Affects both players.' },
 };
 
@@ -106,7 +106,8 @@ export const TEXT_RULES: { name: string; group: Keyword['group']; pattern: RegEx
   { name: 'Hero', group: 'tempo', pattern: /\bHero(es)?\b|Dawn, one of/, explain: 'Goes in your Hero slot. One at a time.' },
   { name: 'Leaves Your Tableau', group: 'stability', pattern: /leaves? your tableau/, explain: 'Is beaten down, destroyed, or returned to hand.' },
   { name: 'Facing A Planet', group: 'orbit', pattern: /facing the (dead|abundant|industrial) planet/, explain: 'The planet now facing your sun.' },
-  { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'It has no effect.' },
+  { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'It has no effect (a card cancelled is discarded, its energy spent).' },
+  { name: 'Best-Defended', group: 'lightspeed', pattern: /best-defended/, explain: 'Your card (or free slot) with the most defence.' },
   { name: 'Max Health', group: 'heat', pattern: /max health/, explain: 'The heat at which your sun goes supernova.' },
 ];
 

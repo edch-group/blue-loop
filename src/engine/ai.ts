@@ -1,6 +1,7 @@
 import { BALANCE } from './balance';
 import { cardDef } from './cards';
 import {
+  reactCost,
   activePlayer,
   COMMAND_SLOT,
   heroSkillProblem,
@@ -366,6 +367,9 @@ function evaluate(state: GameState, meId: string): number {
   const mine = Math.max(0, me.heat + coming) / supernovaThreshold(me);
   score -= 12 * mine + 10 * mine * mine;
   score += tableauValue(state, me) + orbitOutlook(me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
+  // A Lightspeed card in hand it could pay for from what it leaves unspent (banked at day's end): an answer ready.
+  const ready = me.hand.some((c) => !!cardDef(c.defId).lightspeed && reactCost(c.defId) <= (activePlayer(state).id === me.id ? me.playsLeft : me.banked ?? 0));
+  if (ready) score += LIGHTSPEED_VALUE * 0.6;
   return score;
 }
 
@@ -452,9 +456,39 @@ function aiSkill(state: GameState, me: PlayerState): number | null {
 }
 
 /** The last decision's numbers, for simulations that look into why the AI did what it did. */
+/**
+ * The AI's answer in a reaction window: each answer it could make (its face-down card, or a Lightspeed card from
+ * hand) is played out with the move it answers, and kept if it leaves it clearly better off than letting it pass
+ * (a Lightspeed card held is worth something: it is not spent on a small gain).
+ */
+function chooseReaction(state: GameState): Action {
+  const r = state.reaction!;
+  const settle = (s: GameState): GameState => {
+    let t = s;
+    // (Any answer still open is let pass, to see where the move leaves things.)
+    for (let i = 0; i < 3 && t.reaction; i++) t = applyAction(t, { type: 'react' });
+    return t;
+  };
+  const pass: Action = { type: 'react' };
+  let best: Action = pass;
+  let score = evaluate(settle(applyAction(state, pass)), r.playerId);
+  const options: Action[] = [...(r.slot ? [{ type: 'react' as const, slot: true }] : []), ...r.hand.map((cardUid) => ({ type: 'react' as const, cardUid }))];
+  for (const a of options) {
+    try {
+      const v = evaluate(settle(applyAction(state, a)), r.playerId) - LIGHTSPEED_VALUE * 0.5;
+      if (v > score) [score, best] = [v, a];
+    } catch {
+      // (Not an answer it can make.)
+    }
+  }
+  return best;
+}
+
 export const aiLastDecision: { baseline: number; best: number | null; bestAction: Action | null } = { baseline: 0, best: null, bestAction: null };
 
 export function chooseAIAction(state: GameState): Action {
+  // A reaction window open for it: answer with the Lightspeed card that leaves it best off, or let the move pass.
+  if (state.reaction) return chooseReaction(state);
   const me = activePlayer(state);
   // A dawn choice waiting (Circular Refraction): the card returned or moved that leaves it best placed, or none if
   // none is better.
@@ -500,12 +534,11 @@ export function chooseAIAction(state: GameState): Action {
   }
   if (!abilities.length && !attacks.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
-  // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.
-  let view = state;
-  if (state.players.some((p) => p.id !== me.id && p.lightspeed)) {
-    view = structuredClone(state);
-    for (const p of view.players) if (p.id !== me.id) p.lightspeed = null;
-  }
+  // The AI cannot see its rivals' face-down Lightspeed cards (or their hands), so it plans as if no answer
+  // would come: no reaction windows in its look-ahead.
+  const view = structuredClone(state);
+  view.noReactions = true;
+  for (const p of view.players) if (p.id !== me.id) p.lightspeed = null;
   const baseline = evaluate(view, me.id);
   let best: { action: Action; score: number } | null = null;
   if (aiScores) aiScores = [{ action: { type: 'endTurn' }, score: baseline - 1.5 }];

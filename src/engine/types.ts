@@ -131,6 +131,17 @@ export type Effect = (
   | { type: 'plays'; amount: number }
   /** Lightspeed: the enemy who sprang this card may play no more cards today. */
   | { type: 'halt' }
+  /** Lightspeed: this much heat to the enemy card that attacks (at it, past nothing but its defence). */
+  | { type: 'hitBack'; amount: number }
+  /** Lightspeed: the enemy card it answers goes back to its owner's hand (the card being played, or the attacker). */
+  | { type: 'returnIt' }
+  /**
+   * Lightspeed: one of your cards gains this much defence until your next dawn (at 3 or more it is a Guard, and
+   * draws the attack): the card attacked or aimed at (`it`), or your best-defended card (`best`).
+   */
+  | { type: 'fortify'; amount: number; who: 'it' | 'best' }
+  /** Lightspeed: your card attacked or aimed at moves to your best-defended free slot. */
+  | { type: 'shiftMine' }
   /** Move an orbit on by `amount` turns (negative: back), yours or your rival's. Three turns is a whole planet. */
   | { type: 'orbit'; amount: number; who: 'self' | 'rival' }
 ) & { if?: Condition };
@@ -183,25 +194,61 @@ export type Passive =
   | { type: 'eatPlanets' };
 
 /**
- * What springs a face-down Lightspeed card, during an enemy's day:
- * - `enemyPlays`: an enemy plays a card (of a kind, if given), before it resolves;
- * - `heated`: an enemy's card is about to heat your sun (by at least `min`);
- * - `targeted`: an enemy is about to destroy or return one of your cards;
- * - `cardAttacked`: an enemy card is about to attack one of your cards.
+ * What a Lightspeed card answers, during an enemy's day (from its owner's face-down slot, or from their hand with
+ * banked energy). Each is something the enemy does, caught before it resolves:
+ * - `enemyPlays`: an enemy plays a card (of a kind, if given: `command` is a Hero);
+ * - `sunAttacked`: an enemy card attacks your sun;
+ * - `cardAttacked`: an enemy card attacks one of your cards;
+ * - `targeted`: an enemy plays a card aimed at one of your cards (removal, a shift, heat aimed at it...).
  */
-export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'heated'; /** Only heat of at least this much. */ min?: number } | { on: 'targeted' } | { on: 'cardAttacked' };
+export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'sunAttacked' } | { on: 'cardAttacked' } | { on: 'targeted' };
 
 export interface Lightspeed {
   trigger: LightspeedTrigger;
-  /** Cancel what sprang it: the card played (it goes to its owner's discard pile), the heat, or the removal. */
+  /** Cancel what it answers: the card played (it goes to its owner's discard pile, its energy spent), or the attack. */
   counter?: boolean;
-  /** Resolved as the card springs (before the enemy's card, if it is not cancelled). "Your target" is the enemy who sprang it. */
+  /** Resolved as it springs, before what it answers. "Your target" is the enemy it answers. */
   effects?: Effect[];
   /**
    * A Lightspeed guard (a card of another kind that can also be set face down, for 1 more energy): as it
-   * springs it lands in a free slot of your tableau, and the heat that sprang it strikes it instead.
+   * springs it lands in a free slot of your tableau, and the attack it answers strikes it instead.
    */
   deploy?: boolean;
+}
+
+/** What an enemy is doing, that a Lightspeed card may answer (see Reaction). */
+export interface ReactEvent {
+  on: LightspeedTrigger['on'];
+  /** The card the enemy is playing (enemyPlays, targeted). */
+  defId?: string;
+  /** The enemy is setting a card face down (enemyPlays: what it is stays hidden). */
+  faceDown?: boolean;
+  /** The enemy card attacking (sunAttacked, cardAttacked). */
+  attackerUid?: string;
+  /** Your card attacked, or aimed at (cardAttacked, targeted). */
+  mineUid?: string;
+}
+
+/**
+ * A reaction window: the active player's move waits while a rival decides whether to answer it with a
+ * Lightspeed card (their face-down one, or one from hand they can pay for with banked energy).
+ */
+export interface Reaction {
+  /** Who may answer. */
+  playerId: string;
+  /** Whose move it is. */
+  enemyId: string;
+  events: ReactEvent[];
+  /** The move waiting (checked, not yet made): a card being played, or an attack. */
+  pending: { kind: 'play'; action: Extract<Action, { type: 'playCard' }> } | { kind: 'attack'; attackerUid: string; targetUid: string | null };
+  /** What may answer it: the face-down card (if it matches), and the cards in hand that do (and can be paid for). */
+  slot: boolean;
+  hand: string[];
+  /** A card of the reacting player's that the attack (or aimed heat) now strikes instead (a guard that landed). */
+  redirect?: string;
+  /** An answer cancelled the move (`returned`: the card played went back to its owner's hand instead). */
+  cancelled?: boolean;
+  returned?: boolean;
 }
 
 export interface FuseBonus {
@@ -310,6 +357,8 @@ export interface CardInstance {
   dimmed?: boolean;
   /** Attack added by a Chosen effect, while it stays in play. */
   attackBonus?: number;
+  /** Defence added by a Lightspeed card, until its owner's next dawn. */
+  fortified?: number;
   /** Attack given up today (Offering): taken off its attack until its owner's next dawn. */
   spentAttack?: number;
   /** Came into play today (dimmed, not Darkspeed): its dusk effects rest until tomorrow. */
@@ -400,6 +449,13 @@ export interface PlayerState {
   discard: CardInstance[];
   /** A face-down Lightspeed card waiting to spring (only one at a time). Rivals see only its back. */
   lightspeed: CardInstance | null;
+  /**
+   * Energy left unspent at the end of this player's day, kept through the enemy's day to play a Lightspeed card
+   * from hand in answer to them. Gone at their own next dawn.
+   */
+  banked?: number;
+  /** The day (turnNumber) this player last played a Lightspeed card from hand in answer: one per enemy day. */
+  reactedDay?: number;
   eliminated: boolean;
   /** The rival this player's attacks hit. */
   targetId: string | null;
@@ -446,6 +502,10 @@ export interface GameState {
   turnPulses?: TurnPulse[];
   /** Set while a day passes on: the dusk's pulses carry into the next day's replay (dusk, then dawn). */
   keepPulses?: boolean;
+  /** A reaction window open: the active player's move waits on a rival's answer (see Reaction). */
+  reaction?: Reaction;
+  /** Planning copies (the AI's look-ahead): no reaction windows open, moves go straight through. */
+  noReactions?: boolean;
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
   /** Campaign battle rules (see GameSetup.campaign). */
@@ -601,4 +661,9 @@ export type Action =
   /** One of your cards attacks: one of your rival's cards, or their sun (target null). */
   | { type: 'attack'; attackerUid: string; targetUid: string | null }
   /** A player gives up (at any time, not only on their day): their rival wins. */
-  | { type: 'concede'; playerId: string };
+  | { type: 'concede'; playerId: string }
+  /**
+   * The reacting player's answer in a reaction window: spring their face-down card (`slot`), play a Lightspeed
+   * card from hand (`cardUid`), or neither (let it pass).
+   */
+  | { type: 'react'; cardUid?: string; slot?: boolean };

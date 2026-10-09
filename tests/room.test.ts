@@ -87,6 +87,21 @@ describe('online room', () => {
     expect(room.game!.activePlayerIndex).not.toBe(g.activePlayerIndex);
   });
 
+  it('a reaction window: only the one answering may move, and only they see what they could answer with', () => {
+    const { room, rand } = twoSeats();
+    const g = room.game!;
+    const active = g.activePlayerIndex;
+    const other = 1 - active;
+    g.reaction = { playerId: g.players[other].id, enemyId: g.players[active].id, events: [{ on: 'sunAttacked', attackerUid: 'x' }], pending: { kind: 'attack', attackerUid: 'x', targetUid: null }, slot: true, hand: [] };
+    const seatOf = (i: number) => [0, 1].find((seat) => playerIndex(room, seat) === i)!;
+    // The active player can't move while it is open.
+    const blocked = handle(room, seatOf(active), { t: 'action', action: { type: 'endTurn' } }, rand);
+    expect(blocked.reply[0]).toMatchObject({ t: 'error' });
+    const vs = views(room) as Extract<ServerMessage, { t: 'state' }>[];
+    expect(vs[seatOf(active)].state.reaction?.slot).toBe(false);
+    expect(vs[seatOf(other)].state.reaction?.slot).toBe(true);
+  });
+
   it("hides the rival's hand, deck and face-down card, and the random seed", () => {
     const { room } = twoSeats();
     const g = room.game!;

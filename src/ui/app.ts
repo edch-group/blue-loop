@@ -17,6 +17,7 @@ import {
   rankOf,
   xpToNext,
   canSetLightspeed,
+  reactCost,
   canSetFaceDown,
   cardDef,
   mergeCardText,
@@ -286,7 +287,7 @@ const BANNER_GAP_MS = 1300;
 const BANNER_SHOWN_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300, dawnChoice: 1100 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300, dawnChoice: 1100, react: 1000 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -1948,7 +1949,7 @@ export class App {
     const turnPassed = activePlayer(prev).id !== activePlayer(next).id;
     this.pending = null;
     if (this.sheet?.kind === 'card') this.sheet = null;
-    this.stage = actor.isAI ? this.stageFor(actor, action) : this.ownStage(actor, action);
+    this.stage = next.reaction ? null : actor.isAI ? this.stageFor(actor, action) : this.ownStage(actor, action);
     // With someone watching, an AI's card waits on the stage until they have read it.
     if (this.stage && !this.stage.own && animate && !isGameOver(next) && next.players.some((p) => !p.isAI)) this.stage.confirm = true;
     const sprung = this.sprungLightspeed(prev, next);
@@ -2151,38 +2152,43 @@ export class App {
   }
 
   /** A Lightspeed card that just sprang (revealed from face down into its owner's discard pile), announced for everyone. */
-  private sprungLightspeed(prev: GameState, next: GameState): Stage | null {
-    for (const was of prev.players) {
-      const card = was.lightspeed;
-      const now = next.players.find((p) => p.id === was.id)!;
-      if (!card || now.lightspeed || now.eliminated) continue;
-      // What sprang it: the enemy card it answers (the card played, the heat's card, or the removal).
-      const why = [...(next.sprung ?? [])].reverse().find((x) => x.ownerId === now.id);
-      // A rival's face-down card is hidden (online): the record of what sprang says what it was (it is now on
-      // top of their discard pile, or in their tableau for a Lightspeed guard).
-      const defId = why?.defId ?? now.discard[now.discard.length - 1]?.defId ?? card.defId;
-      // (Announced by a small tag above the card in the preview pane: a banner across the screen hid what happened.)
-      sound.flare();
-      const stage: Stage = { defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs`, against: why?.against };
-      // It shows for a few seconds, then fades away by itself (not lingering until someone acts).
-      window.setTimeout(() => {
-        if (this.stage !== stage) return;
-        this.stage = null;
-        const el = this.root.querySelector<HTMLElement>('.stage-sprung');
-        if (!el) return;
-        el.classList.add('stage-out');
-        window.setTimeout(() => el.remove(), 400);
-      }, stage.against ? 5000 : 3500);
-      return stage;
-    }
-    return null;
+  private sprungLightspeed(_prev: GameState, next: GameState): Stage | null {
+    // A Lightspeed card that answered this move (sprung face down, or played from hand), and what it answered.
+    const why = next.sprung?.[next.sprung.length - 1];
+    const now = why && next.players.find((p) => p.id === why.ownerId);
+    if (!why || !now) return null;
+    // (Announced by a small tag above the card in the preview pane: a banner across the screen hid what happened.)
+    sound.flare();
+    const stage: Stage = { defId: why.defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs`, against: why.against };
+    // It shows for a few seconds, then fades away by itself (not lingering until someone acts).
+    window.setTimeout(() => {
+      if (this.stage !== stage) return;
+      this.stage = null;
+      const el = this.root.querySelector<HTMLElement>('.stage-sprung');
+      if (!el) return;
+      el.classList.add('stage-out');
+      window.setTimeout(() => el.remove(), 400);
+    }, stage.against ? 5000 : 3500);
+    return stage;
   }
 
   private scheduleAI(pause: number) {
     if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
     this.aiTimer = null;
     const s = this.state;
-    if (this.screen !== 'game' || !s || isGameOver(s) || !activePlayer(s).isAI) return;
+    if (this.screen !== 'game' || !s || isGameOver(s)) return;
+    // A reaction window: an AI answering decides after a moment; anyone else is waited on.
+    if (s.reaction) {
+      const who = s.players.find((p) => p.id === s.reaction!.playerId);
+      if (!who?.isAI || this.online) return;
+      const answer = chooseAIAction(s);
+      this.aiTimer = window.setTimeout(() => {
+        this.aiTimer = null;
+        if (this.state === s) this.dispatch(answer);
+      }, AI_PAUSE.react * SPEED_FACTOR[this.speed]);
+      return;
+    }
+    if (!activePlayer(s).isAI) return;
     // A card of the AI's is still waiting to be read.
     if (this.stage?.confirm) return;
     // The AI makes up its mind now, and is seen to: it hovers a card of its hand or two as it thinks, ending on
@@ -2228,6 +2234,8 @@ export class App {
     let s = this.state!;
     let guard = 0;
     while (!isGameOver(s) && activePlayer(s).isAI && guard++ < 5000) {
+      // (A player's own answer in a reaction window is theirs to make: the skip stops there.)
+      if (s.reaction && !s.players.find((p) => p.id === s.reaction!.playerId)?.isAI) break;
       const action = chooseAIAction(s);
       const next = applyAction(s, action);
       if (this.statsRec) noteMove(this.statsRec, s, next, action);
@@ -2963,6 +2971,8 @@ export class App {
     const me = activePlayer(s);
     // Online, you wait while your rival reads the card you just played.
     if (this.online && this.net.waitFor === 'rival') return false;
+    // A reaction window: the move waits on the rival's answer.
+    if (s.reaction) return false;
     return !me.isAI && me.id === this.viewer().id && !isGameOver(s) && !this.needsHandoff();
   }
 
@@ -3836,6 +3846,10 @@ export class App {
       this.sheet = { kind: 'card', defId: el.dataset.card, uid: el.dataset.hand, table: el.closest('.tableau') ? el.dataset.uid : undefined };
       sound.hover();
       return this.render();
+    }
+    // An answer at lightspeed is made on the rival's day (it is never one's own day to act).
+    if (s.reaction && (act === 'react-slot' || act === 'react-card' || act === 'react-pass')) {
+      return this.dispatch(act === 'react-slot' ? { type: 'react', slot: true } : act === 'react-card' ? { type: 'react', cardUid: arg } : { type: 'react' });
     }
     if (!this.canAct()) return;
 
@@ -4841,6 +4855,7 @@ export class App {
         ${this.renderTurnControls()}
         ${this.renderZoomControls()}
         ${this.renderStage()}
+        ${this.renderReaction(s)}
         ${this.renderResult()}
         ${this.renderOverlay(s)}
       </main>`;
@@ -5360,6 +5375,9 @@ export class App {
     const total = Math.max(me.playsLeft, myTurn ? me.turn.energyTotal ?? playsAllowed(s, me) : 0);
     const base = me.turn.energyBase ?? total;
     const pips = myTurn ? Array.from({ length: total }, (_, i) => `<i class="${i < me.playsLeft ? 'on' : ''} ${i >= base ? 'bonus' : ''}"></i>`).join('') : '';
+    // On the rival's day: the energy banked from yours, to answer them with a Lightspeed card from hand.
+    const banked = !myTurn ? me.banked ?? 0 : 0;
+    const bankPips = banked ? Array.from({ length: banked }, () => '<i class="on banked"></i>').join('') : '';
     // A campaign hero's battle skills, above End Day: each a button with its cost (and spent, once used).
     const skills = (me.skills ?? [])
       .map((k, i) => {
@@ -5372,9 +5390,9 @@ export class App {
     return `
       ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
       <div class="turn-controls turn-corner">
-        <div class="plays ${myTurn ? '' : 'plays-off'}" title="Energy left today: each card costs the number on its gem">
-          <small>${myTurn ? 'energy' : 'waiting'}</small>
-          <span class="plays-pips">${pips}</span>
+        <div class="plays ${myTurn || banked ? '' : 'plays-off'}" title="${myTurn ? 'Energy left today: each card costs the number on its gem. What you leave unspent is banked through your rival\'s day, to answer them at lightspeed.' : 'Banked energy: to play a Lightspeed card from hand in answer to your rival'}">
+          <small>${myTurn ? 'energy' : banked ? 'banked' : 'waiting'}</small>
+          <span class="plays-pips">${myTurn ? pips : bankPips}</span>
         </div>
         <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
       </div>`;
@@ -5709,6 +5727,61 @@ export class App {
     return `<div class="stage stage-hero">${card}</div>`;
   }
 
+  /**
+   * A reaction window: the rival's move waits while its target decides. The one answering sees the move (the card
+   * being played, or the card attacking and what it attacks), the Lightspeed cards they could answer with (their
+   * face-down card, and cards in hand their banked energy pays for), and Let It Pass. Anyone else waits.
+   */
+  private renderReaction(s: GameState): string {
+    const r = s.reaction;
+    if (!r || isGameOver(s)) return '';
+    const who = s.players.find((p) => p.id === r.playerId)!;
+    const enemy = s.players.find((p) => p.id === r.enemyId)!;
+    const answering = !who.isAI && (!this.online || who.id === this.viewer().id);
+    if (!answering) return `<div class="react-wait" data-key="react-wait"><b>⚡</b> ${esc(who.name.toLowerCase())} may answer…</div>`;
+    const still = (uid: string, defId: string) =>
+      this.renderCard({ uid, defId }, { static: true })
+        .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+        .replace(/<\/button>\s*$/, '</div>')
+        .replace(/ data-act="[^"]*"/, '');
+    const name = (defId: string) => esc(cardDef(defId).name);
+    const mineName = (uid?: string) => {
+      const c = uid ? who.tableau.find((x) => x.uid === uid) : undefined;
+      return c ? name(c.defId) : '';
+    };
+    let move = '';
+    let what = '';
+    if (r.pending.kind === 'play') {
+      const ev = r.events[0];
+      const aimed = r.events.find((e) => e.on === 'targeted');
+      if (ev.faceDown || !ev.defId) what = `${esc(enemy.name)} sets a card face down at lightspeed.`;
+      else {
+        move = still('react-move', ev.defId);
+        what = `${esc(enemy.name)} plays <b>${name(ev.defId)}</b>${aimed ? `, aimed at your <b>${mineName(aimed.mineUid)}</b>` : ''}.`;
+      }
+    } else {
+      const atk = enemy.tableau.find((c) => c.uid === (r.pending as { attackerUid: string }).attackerUid);
+      const target = r.pending.targetUid;
+      if (atk) move = still('react-move', atk.defId);
+      what = `${esc(enemy.name)}'s <b>${atk ? name(atk.defId) : 'card'}</b> attacks ${target ? `your <b>${mineName(target)}</b>` : 'your sun'}.`;
+    }
+    const opts = [
+      ...(r.slot && who.lightspeed ? [`<button class="react-opt" data-act="react-slot">${still(who.lightspeed.uid, who.lightspeed.defId)}<span class="react-opt-tag">face down · free</span></button>`] : []),
+      ...r.hand.map((uid) => {
+        const c = who.hand.find((x) => x.uid === uid);
+        return c ? `<button class="react-opt" data-act="react-card" data-arg="${uid}">${still(uid, c.defId)}<span class="react-opt-tag">from hand · ${reactCost(c.defId)} banked</span></button>` : '';
+      }),
+    ].join('');
+    const hotseat = s.players.filter((p) => !p.isAI).length > 1 && !this.online;
+    return `
+      <div class="react-panel" data-key="react-panel" role="dialog" aria-label="Answer at lightspeed">
+        <div class="react-head"><b>⚡ answer at lightspeed?</b>${hotseat ? `<small>${esc(who.name.toLowerCase())}</small>` : ''}</div>
+        <div class="react-move">${move}<p>${what}</p></div>
+        <div class="react-opts">${opts}</div>
+        <div class="react-foot"><span>banked energy <b>${who.banked ?? 0}</b></span><button class="btn" data-act="react-pass">let it pass</button></div>
+      </div>`;
+  }
+
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
@@ -5745,7 +5818,7 @@ export class App {
     // and the Lightspeed card beside it on the left, the same size.
     if (st.against) {
       const trigger = s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays';
-      const how = { enemyPlays: 'in answer to this', heated: 'against its heat', targeted: 'against this', cardAttacked: 'against its attack' }[trigger] ?? 'in answer to this';
+      const how = { enemyPlays: 'in answer to this', sunAttacked: 'against its attack', targeted: 'against this', cardAttacked: 'against its attack' }[trigger] ?? 'in answer to this';
       return `
       <div class="stage stage-sprung stage-pair">
         <div class="stage-ls"><span class="stage-ls-tag">⚡ lightspeed</span>${card}</div>

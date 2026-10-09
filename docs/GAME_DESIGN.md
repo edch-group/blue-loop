@@ -424,21 +424,46 @@ The dominance check doesn't compare Relics with other kinds (lasting but brittle
 
 ## Lightspeed cards [design review]
 
-Lightspeed cards are played **face down**. They don't take a slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies face down in the Lightspeed slot, right of its owner's five (that slot has no defence), and the owner's pill shows ⚡. The card springs **during an enemy's day** when its trigger happens. It is revealed ("Lightspeed!"), resolves against that enemy ("your target" means them), and goes to your discard pile.
+**Lightspeed cards answer your rival's move, before it resolves.** Each has a trigger: a specific thing the rival does on their own day. There are two ways to have one ready:
 
-| Card | Rarity | Springs when an enemy… | Effect |
+- **Face down.** On your day, set it face down (for its cost). It takes no slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies in the Lightspeed slot, right of its owner's five (no defence there), and the owner's pill shows ⚡.
+- **From hand.** On the rival's day, play it straight from your hand, paid for with **banked energy**: whatever energy you left unspent at the end of your day is banked through their day (shown in amber where your energy pips are, "banked"), and is gone at your own next dawn. **One from hand per rival day.** So holding energy back is a choice, and so is what to spend your one answer on.
+
+At most two answers can come in a rival's day: the face-down card, and one from hand.
+
+**The reaction window.** When the rival does something a Lightspeed card of yours could answer (its trigger, and you can pay for it), their move waits: you are shown the move (the card being played, or the card attacking and what it attacks) and your cards that could answer it, and choose one, or **let it pass**. A face-down card is never sprung by itself: its owner chooses (and may keep it for a better moment). The answer resolves first, then the move goes on: unless it was cancelled, or its attacker was sent away. If what it aimed at has moved or gone, a play fizzles (its energy spent); an attack goes to a Guard that landed or rose to Guard (a card raised to 3 defence is a Guard, as always, so a sun attack can be drawn onto it). Only moves are answered (a card played, an attack): never dawn or dusk effects, or a Hero's ability. While a window is open nothing else can happen (online, only the one answering may move; what they could answer with is theirs alone to see). The AI answers when an answer leaves it clearly better off; it plans its own moves without knowing whether its rival could answer.
+
+**Triggers:** your rival plays a card (of a kind: an armed card, a support card, a Hero); a rival card attacks your sun; a rival card attacks one of your cards; your rival plays a card aimed at one of yours (removal, a shift, heat aimed at it).
+
+**Effects** (beyond the usual heat, shields, draw...): **cancel** the move (a card cancelled goes to the discard pile, its energy spent; an attack is called off, the attacker spent); **4 heat to the attacker** (hitBack); **return** the card being played (back to hand, its energy spent) or the attacker (to its owner's hand); **gain defence** until your next dawn, on the card attacked or your best-defended card (at 3 or more it is a Guard and draws the attack); **shift** the card attacked to your best-defended free slot.
+
+| Card | Cost | Answers | Effect |
 | --- | --- | --- | --- |
-| Null Field | Stellar | plays an attack card | Cancel it |
-| Signal Jammer | White Dwarf | plays a support card | Cancel it, draw 1 |
-| Frost Snare | White Dwarf | plays a defence card | Cancel it, heat them 1 |
-| Solar Mirror | White Dwarf | is about to heat your sun | First gain 3 shields and heat them 1 |
-| Decoy Array | White Dwarf | is about to destroy or return one of your cards | Cancel it, draw 1 |
-| Riptide Ambushers (Vorthane) | Stellar | is about to heat your sun by 3 or more | Cancel that heat, heat them 2 |
-| Temporal Snare | Anomaly | plays any card | Cancel it; they may play no more cards today |
+| Null Field | 2 | rival plays an armed card | Cancel it |
+| Signal Jammer | 1 | rival plays a support card | Cancel it |
+| Temporal Snare | 3 | rival plays any card | Cancel it; they may play no more cards today |
+| Snare Beacon | 1 | rival plays a Hero | Draw 2, cool 2 |
+| Spore Trap (Ixquor) | 1 | rival plays a Hero | Plant 2 Saplings, draw 1 |
+| Null Shroud (Nyxari) | 3 | rival plays a Hero | Cancel it |
+| Solar Mirror | 2 | rival card attacks your sun | Return the attacker to its owner's hand |
+| Flare Trap | 1 | rival card attacks your sun | First 4 heat to the attacker |
+| Prism of Dawn (Aureline) | 1 | rival card attacks your sun | Your best-defended card gains 3 defence: a Guard, it takes the attack |
+| Ink Cloud (Vorthane) | 2 | rival card attacks your sun | Cancel the attack, draw 1 |
+| Frost Snare | 1 | rival card attacks one of yours | First 4 heat to the attacker |
+| Decoy Array | 1 | rival card attacks one of yours | That card gains 3 defence until your next dawn |
+| Counter-Pulse | 2 | rival card attacks one of yours | Cancel the attack |
+| Riptide Ambushers (Vorthane) | 2 | rival card attacks one of yours | Shift yours to your best-defended free slot, then 3 heat to the attacker |
+| Abyssal Snap (Vorthane) | 2 | rival card attacks one of yours | Return the attacker to its owner's hand |
+| Ghost Signal | 1 | rival plays a card aimed at one of yours | It goes back to their hand (its energy spent) |
+| Refraction Veil (Xel'Naru) | 2 | rival plays a card aimed at one of yours | Cancel it |
 
-A cancelled card still uses the play and goes to its owner's discard pile. The AI plans without seeing its rivals' face-down cards.
+**Dual cards** can be played either way: into a slot as an ordinary card, or as Lightspeed (face down, or from hand on the rival's day) for **1 more energy**:
+- **Lightspeed guards** (Blink Bulwark, Sunflash Aegis, Riptide Sentinel, Veil Sentry): when a rival card attacks one of yours, it lands in your safest free slot and takes the attack instead (on its defence first). With no free slot it can't answer.
+- **Umbral Snare** (Nyxari): when a rival card attacks your sun, 3 heat to the attacker and 2 shields.
+- **Mirror Veil** (Nyxari): when your rival plays a card aimed at one of yours, cancel it.
+- **Night Ambush** (Nyxari): when a rival card attacks one of yours, cancel the attack and 2 heat to their sun.
 
-**Lightspeed guards.** Blink Bulwark (neutral), Sunflash Aegis (Aureline) and Riptide Sentinel (Vorthane) are Guards that can be played either way: into a slot as an ordinary Guard, or set face down in the Lightspeed slot for **1 more energy**. Face down, one springs when an enemy's attack or aimed heat is about to strike one of your cards: it lands in your safest free slot and takes it instead (on its defence first). With no free slot it can't land and stays face down. It answers the way Guards do, but unseen, so aiming at a rival's weak cards is never quite safe.
+(Lightspeed cards used to spring by themselves, face down only, on looser triggers: any heat about to reach your sun, any card of a kind played. They were weak, and their answers small: a shield or two, a card drawn. Now every answer is a decision, and most are strong; what keeps them in check is the trigger, the energy held back to pay for one from hand, and the one-from-hand limit.)
 
 ## Rarity [design review]
 

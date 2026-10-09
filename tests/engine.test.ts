@@ -534,6 +534,9 @@ describe('Lightspeed guards', () => {
     const [array] = give(activePlayer(s), ['siege_array'], 'tableau');
     array.health = 6;
     s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: lancerTarget.uid });
+    // The attack waits on their answer: they spring the Bulwark.
+    expect(s.reaction?.slot).toBe(true);
+    s = applyAction(s, { type: 'react', slot: true });
     const after = s.players.find((p) => p.id === rival.id)!;
     expect(after.lightspeed).toBeNull();
     const guard = after.tableau.find((c) => c.defId === 'blink_bulwark');
@@ -970,52 +973,81 @@ describe('lightspeed', () => {
     expect(() => play(s, 'signal_jammer')).toThrow(/face down/);
   });
 
-  it('cancels an enemy attack card during their turn (Null Field)', () => {
+  it('cancels an enemy attack card during their turn, if its owner springs it (Null Field)', () => {
     let s = twoPlayer();
     give(activePlayer(s), ['null_field']);
+    activePlayer(s).playsLeft = 2;
     s = play(s, 'null_field');
     s = endTurn(s);
     give(activePlayer(s), ['coronal_lance', 'cryo_vault']);
     const ada = s.players[0].heat;
     s = play(s, 'coronal_lance');
+    // The play waits: Ada may answer it.
+    expect(s.reaction?.playerId).toBe(s.players[0].id);
+    expect(() => applyAction(s, { type: 'endTurn' })).toThrow(/Waiting/);
+    s = applyAction(s, { type: 'react', slot: true });
+    expect(s.reaction).toBeUndefined();
     expect(s.players[0].heat).toBe(ada);
     expect(s.players[0].lightspeed).toBeNull();
     expect(s.players[1].discard.some((c) => c.defId === 'coronal_lance')).toBe(true);
     expect(s.players[1].tableau).toHaveLength(0);
   });
 
-  it('ignores cards of other kinds, and springs on heat (Riptide Ambushers)', () => {
+  it('can be kept face down: let the move pass, and it waits for another', () => {
     let s = twoPlayer();
-    give(activePlayer(s), ['riptide_ambush']);
-    s = play(s, 'riptide_ambush');
+    give(activePlayer(s), ['null_field']);
+    activePlayer(s).playsLeft = 2;
+    s = play(s, 'null_field');
     s = endTurn(s);
-    const bo = activePlayer(s);
-    bo.playsLeft = 2;
-    give(bo, ['gravity_sling', 'coronal_lance']);
-    const ada = s.players[0].heat;
-    s = play(s, 'gravity_sling'); // only 1 heat: not enough to spring it
-    expect(s.players[0].heat).toBe(ada + 1);
-    const boHeat = s.players[1].heat;
+    give(activePlayer(s), ['coronal_lance']);
     s = play(s, 'coronal_lance');
-    expect(s.players[0].heat).toBe(ada + 1);
-    expect(s.players[1].heat).toBe(boHeat + 2); // the ambush
+    s = applyAction(s, { type: 'react' });
+    expect(s.reaction).toBeUndefined();
+    expect(s.players[0].lightspeed?.defId).toBe('null_field');
+    expect(s.players[1].hand.some((c) => c.defId === 'coronal_lance')).toBe(false);
+    expect(s.log.some((l) => /cancelled/.test(l.text))).toBe(false);
+    expect(s.log.some((l) => /plays Coronal Lance/.test(l.text))).toBe(true);
   });
 
-  it('protects your cards from removal (Decoy Array)', () => {
+  it('answers only its own trigger (Flare Trap: an attack on your sun, not on a card)', () => {
     let s = twoPlayer();
-    const [keep] = give(activePlayer(s), ['coolant_array'], 'tableau');
-    give(activePlayer(s), ['decoy_array']);
-    s = play(s, 'decoy_array');
+    const [mine] = give(s.players[0], ['coolant_array'], 'tableau');
+    mine.health = 6;
+    s.players[0].lightspeed = { uid: 'ft', defId: 'flare_trap' };
     s = endTurn(s);
-    give(activePlayer(s), ['ion_cannon']);
-    s = play(s, 'ion_cannon', { enemyUid: keep.uid });
-    expect(s.players[0].tableau.map((c) => c.uid)).toContain(keep.uid);
-    expect(s.players[0].lightspeed).toBeNull();
+    const [array] = give(activePlayer(s), ['siege_array'], 'tableau');
+    const [array2] = give(activePlayer(s), ['siege_array'], 'tableau');
+    array.health = array2.health = 9;
+    s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: mine.uid });
+    expect(s.reaction).toBeUndefined();
+    s = applyAction(s, { type: 'attack', attackerUid: array2.uid, targetUid: null });
+    expect(s.reaction?.slot).toBe(true);
+    s = applyAction(s, { type: 'react', slot: true });
+    // 4 heat to the attacker first (its defence, then its stability), then its attack lands.
+    const a2 = s.players[1].tableau.find((c) => c.uid === array2.uid);
+    expect((a2?.dented ?? 0) + (9 - (a2?.health ?? 0))).toBe(4);
+  });
+
+  it('a card attacked can be made a Guard: it takes the blow on its new defence (Decoy Array)', () => {
+    let s = twoPlayer();
+    const [keep] = give(s.players[0], ['coolant_array'], 'tableau');
+    keep.health = 6;
+    s.players[0].lightspeed = { uid: 'da', defId: 'decoy_array' };
+    s = endTurn(s);
+    const [array] = give(activePlayer(s), ['siege_array'], 'tableau');
+    array.health = 9;
+    const before = cardDefence(s.players[0], s.players[0].tableau.find((c) => c.uid === keep.uid)!);
+    s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: keep.uid });
+    s = applyAction(s, { type: 'react', slot: true });
+    const k = s.players[0].tableau.find((c) => c.uid === keep.uid)!;
+    expect(k.fortified).toBe(3);
+    expect((k.dented ?? 0)).toBeGreaterThan(0);
+    expect(before).toBeLessThan(before + 3);
   });
 
   it('stops the enemy playing more cards (Temporal Snare)', () => {
     let s = twoPlayer();
-    activePlayer(s).playsLeft = 2;
+    activePlayer(s).playsLeft = 3;
     give(activePlayer(s), ['temporal_snare']);
     s = play(s, 'temporal_snare');
     s = endTurn(s);
@@ -1023,8 +1055,33 @@ describe('lightspeed', () => {
     bo.playsLeft = 3;
     give(bo, ['coolant_array']);
     s = play(s, 'coolant_array');
+    s = applyAction(s, { type: 'react', slot: true });
     expect(s.players[1].playsLeft).toBe(0);
     expect(s.players[1].tableau).toHaveLength(0);
+  });
+
+  it('can be played from hand on the rival day with banked energy: one from hand per rival day', () => {
+    let s = twoPlayer();
+    const ada = activePlayer(s);
+    give(ada, ['flare_trap', 'flare_trap']);
+    ada.playsLeft = 1;
+    s = endTurn(s);
+    // Ada banked the energy she left unspent.
+    expect(s.players[0].banked).toBe(1);
+    const [a1] = give(activePlayer(s), ['siege_array'], 'tableau');
+    const [a2] = give(activePlayer(s), ['siege_array'], 'tableau');
+    a1.health = a2.health = 9;
+    s = applyAction(s, { type: 'attack', attackerUid: a1.uid, targetUid: null });
+    expect(s.reaction?.hand.length).toBe(2);
+    s = applyAction(s, { type: 'react', cardUid: s.reaction!.hand[0] });
+    expect(s.players[0].banked).toBe(0);
+    expect(s.players[0].hand.filter((c) => c.defId === 'flare_trap')).toHaveLength(1);
+    // The second attack finds no answer: one from hand a day (and no energy left to pay for it).
+    s = applyAction(s, { type: 'attack', attackerUid: a2.uid, targetUid: null });
+    expect(s.reaction).toBeUndefined();
+    // Banked energy is gone at her own dawn.
+    s = endTurn(s);
+    expect(s.players[0].banked).toBeUndefined();
   });
 });
 
@@ -1291,7 +1348,7 @@ describe('lightspeed', () => {
     const bo = s.players[1];
     bo.lightspeed = { uid: 'ls1', defId: 'null_field' };
     give(activePlayer(s), ['coronal_lance']);
-    const next = play(s, 'coronal_lance');
+    const next = applyAction(play(s, 'coronal_lance'), { type: 'react', slot: true });
     expect(next.sprung).toEqual([{ ownerId: bo.id, defId: 'null_field', enemyId: activePlayer(s).id, against: 'coronal_lance', trigger: 'enemyPlays' }]);
     expect(next.log.some((l) => /springs Null Field in answer to .*Coronal Lance/.test(l.text))).toBe(true);
     // Only the move it sprang on carries it.
@@ -1309,10 +1366,42 @@ describe('lightspeed', () => {
     const heatBefore = ada.heat, shields = ada.shields;
     const stab = bo.tableau.find((c) => c.uid === t.b.uid)!.health;
     s = applyAction(s, { type: 'attack', attackerUid: t.array.uid, targetUid: t.b.uid });
+    s = applyAction(s, { type: 'react', slot: true });
     expect(s.players[1].lightspeed).toBeNull();
     expect(s.players[1].tableau.find((c) => c.uid === t.b.uid)!.health).toBe(stab);
     expect(activePlayer(s).heat + Math.max(0, shields - activePlayer(s).shields)).toBe(heatBefore + 2);
-    expect(s.log.some((l) => /never reaches/.test(l.text))).toBe(true);
+    expect(s.log.some((l) => /attack is called off/.test(l.text))).toBe(true);
+    // (The attacker is spent all the same.)
+    expect(activePlayer(s).tableau.find((c) => c.uid === t.array.uid)!.dimmed).toBe(true);
+  });
+  it('a sun attack is drawn onto a card raised to Guard (Prism of Dawn)', () => {
+    let s = twoPlayer();
+    const [array] = give(s.players[0], ['siege_array'], 'tableau');
+    const [wall] = give(s.players[1], ['coolant_array'], 'tableau');
+    array.health = 9;
+    wall.health = 9;
+    s.players[1].lightspeed = { uid: 'pd', defId: 'prism_of_dawn' };
+    const sun = s.players[1].heat;
+    s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: null });
+    s = applyAction(s, { type: 'react', slot: true });
+    const w = s.players[1].tableau.find((c) => c.uid === wall.uid)!;
+    expect(w.fortified).toBe(3);
+    expect(s.players[1].heat).toBe(sun);
+    expect(w.dented ?? 0).toBeGreaterThan(0);
+  });
+  it('a card returned to hand, answering a play, goes back with its energy spent (Ghost Signal)', () => {
+    let s = twoPlayer();
+    const [keep] = give(s.players[1], ['coolant_array'], 'tableau');
+    s.players[1].lightspeed = { uid: 'gs', defId: 'ghost_signal' };
+    const me = activePlayer(s);
+    give(me, ['ion_cannon']);
+    me.playsLeft = 5;
+    s = play(s, 'ion_cannon', { enemyUid: keep.uid });
+    const left = activePlayer(s).playsLeft;
+    s = applyAction(s, { type: 'react', slot: true });
+    expect(activePlayer(s).hand.some((c) => c.defId === 'ion_cannon')).toBe(true);
+    expect(activePlayer(s).playsLeft).toBeLessThan(left);
+    expect(s.players[1].tableau.some((c) => c.uid === keep.uid)).toBe(true);
   });
 });
 
