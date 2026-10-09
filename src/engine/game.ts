@@ -375,11 +375,14 @@ export function tidewall(p: PlayerState): boolean {
 function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, amount: number, source: PlayerState, pierce: boolean, cardUid: string, sting = false, heat = false) {
   // Shields guard only the sun, unless a Tidewall card spreads them over its owner's cards too: and then only
   // against heat aimed at them. An attack, a sting or pierce heat breaches it.
+  // What struck it, for the log: the card, if it is one on the table (or in hand) of the side striking.
+  const by = cardUid ? cardIn(source, cardUid) : undefined;
+  const fromText = by ? ` from ${source.name}'s ${cardDef(by.defId).name}` : sting ? ` (a sting)` : '';
   if (tidewall(owner) && heat && !pierce) {
     const blocked = Math.min(owner.shields, amount);
     owner.shields -= blocked;
     if (blocked > 0) {
-      log(state, `${owner.name}'s Tidewall shields absorb ${blocked}.`);
+      log(state, `${owner.name}'s Tidewall shields absorb ${blocked}${fromText}.`);
       // (A sting answered by shields doesn't sting back.)
       if (!sting) shieldsAnswer(state, owner, source, cardUid);
     }
@@ -392,12 +395,12 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
   const turned = pierce || sting ? 0 : Math.min(amount, cardDefence(owner, victim));
   if (turned > 0) {
     victim.dented = (victim.dented ?? 0) + turned;
-    log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${turned} on its defence (defence ${cardDefence(owner, victim)} left).`);
+    log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${turned} on its defence${fromText} (defence ${cardDefence(owner, victim)} left).`);
   }
   amount -= turned;
   if (amount <= 0) return;
   victim.health = Math.max(0, (victim.health ?? 0) - amount);
-  log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${amount} (health ${victim.health}).`);
+  log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${amount}${turned > 0 ? '' : fromText} (health ${victim.health}).`);
   if (victim.health <= 0) {
     log(state, `${owner.name}'s ${cardDef(victim.defId).name} burns away.`);
     leaveTableau(state, owner, victim);
@@ -846,7 +849,7 @@ function drawCards(state: GameState, p: PlayerState, count: number) {
     if (card) p.hand.push(card);
     else {
       log(state, `${p.name}'s deck is empty: the strain heats their sun by ${BALANCE.fatigueHeat}.`);
-      applyHeat(state, p, BALANCE.fatigueHeat, null);
+      applyHeat(state, p, BALANCE.fatigueHeat, null, false, undefined, false, 'the strain of an empty deck');
       if (p.eliminated) return;
     }
   }
@@ -861,7 +864,7 @@ function reshuffle(state: GameState, p: PlayerState) {
     return;
   }
   log(state, `${p.name} shuffles their discard pile back into their deck: the strain heats their sun by ${BALANCE.reshuffleHeat}.`);
-  applyHeat(state, p, BALANCE.reshuffleHeat, null);
+  applyHeat(state, p, BALANCE.reshuffleHeat, null, false, undefined, false, 'the strain of reshuffling');
 }
 
 /**
@@ -917,11 +920,14 @@ function springAmbush(state: GameState, owner: PlayerState, enemy: PlayerState, 
 
 /** A player's card by uid, wherever it is. */
 function cardIn(p: PlayerState, uid: string): CardInstance | undefined {
-  return [...p.tableau, ...p.hand, ...p.discard, ...p.deck].find((c) => c.uid === uid);
+  return [...p.tableau, ...p.hand, ...p.discard, ...p.deck, ...(p.lightspeed ? [p.lightspeed] : [])].find((c) => c.uid === uid);
 }
 
-/** Heat a sun. Enemy heat is absorbed by shields first. Returns the heat that got through. */
-function applyHeat(state: GameState, target: PlayerState, amount: number, source: PlayerState | null, retaliation = false, cardUid?: string, pierce = false): number {
+/**
+ * Heat a sun. Enemy heat is absorbed by shields first. Returns the heat that got through. `why` names what the heat
+ * came from, for the log (unset: the card `cardUid` of `source`'s, if it is one).
+ */
+function applyHeat(state: GameState, target: PlayerState, amount: number, source: PlayerState | null, retaliation = false, cardUid?: string, pierce = false, why?: string): number {
   if (target.eliminated || amount <= 0) return 0;
   const enemy = source !== null && source.id !== target.id;
   if (enemy && !retaliation && spring(state, target, source, (t) => t.on === 'heated' && amount >= (t.min ?? 1), cardUid ? cardIn(source, cardUid)?.defId : undefined)) {
@@ -935,8 +941,11 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   const applied = amount - blocked;
   target.heat = Math.max(BALANCE.minHeat, target.heat + applied);
   if (enemy) source.turn.heatDealt += amount;
-  if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat.`);
-  if (applied > 0) log(state, `${target.name}'s sun heats to ${target.heat}.`);
+  const byCard = cardUid && source ? cardIn(source, cardUid) : undefined;
+  const from = why ?? (byCard && source ? `${source.name}'s ${cardDef(byCard.defId).name}` : undefined);
+  const fromText = from ? ` from ${from}` : '';
+  if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked} heat${fromText}${applied > 0 ? `; ${applied} gets through` : ''}.`);
+  if (applied > 0) log(state, `${target.name}'s sun heats to ${target.heat} (+${applied}${fromText}).`);
   if (target.heat >= supernovaThreshold(target)) supernova(state, target);
   if (enemy && blocked > 0 && !retaliation && !target.eliminated) shieldsAnswer(state, target, source, cardUid);
   return applied;
@@ -955,7 +964,7 @@ function shieldsAnswer(state: GameState, target: PlayerState, source: PlayerStat
   if (target.stung?.turn !== state.turnNumber) target.stung = { turn: state.turnNumber, ids: [] };
   if ((sting > 0 || soothe > 0) && !target.stung.ids.includes(key)) {
     target.stung.ids.push(key);
-    if (soothe > 0) cool(state, target, soothe);
+    if (soothe > 0) cool(state, target, soothe, 'its shields (Soothe)');
     if (sting > 0) {
       // The sting hits the card that attacked, past its defence; never a sun (with no such card on the table, nothing).
       const attacker = cardUid ? source.tableau.find((c) => c.uid === cardUid) : undefined;
@@ -967,11 +976,12 @@ function shieldsAnswer(state: GameState, target: PlayerState, source: PlayerStat
   }
 }
 
-function cool(state: GameState, p: PlayerState, amount: number) {
+/** Cool a sun. `why` names what cooled it, for the log. */
+function cool(state: GameState, p: PlayerState, amount: number, why?: string) {
   const before = p.heat;
   p.heat = Math.max(BALANCE.minHeat, p.heat - amount);
   p.turn.cooled += before - p.heat;
-  if (p.heat !== before) log(state, `${p.name}'s sun cools to ${p.heat}.`);
+  if (p.heat !== before) log(state, `${p.name}'s sun cools to ${p.heat} (−${before - p.heat}${why ? ` from ${why}` : ''}).`);
 }
 
 /** A game's winnerId when it ends with no one left: every sun gone supernova together. */
@@ -1039,18 +1049,18 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
           strikeCard(state, main, victim, amount, p, !!e.pierce, card.uid, false, true);
           break;
         }
-        applyHeat(state, main, amount, p, false, card.uid, e.pierce);
+        applyHeat(state, main, amount, p, false, card.uid, e.pierce, `${p.name}'s ${cardDef(card.defId).name}`);
         if (when === 'turn') notePulse(state, p, card, 'heat', main, amount);
         break;
       }
       case 'selfHeat':
-        applyHeat(state, p, e.amount, null);
+        applyHeat(state, p, e.amount, null, false, undefined, false, `its own ${cardDef(card.defId).name}`);
         if (when === 'turn') notePulse(state, p, card, 'selfHeat', p, e.amount);
         break;
       case 'cool': {
         const amount = effectAmount(state, p, card, e, when);
         if (amount > 0) {
-          cool(state, p, amount);
+          cool(state, p, amount, `${p.name}'s ${cardDef(card.defId).name}`);
           if (when === 'turn') notePulse(state, p, card, 'cool', p, amount);
         }
         break;
@@ -1435,11 +1445,11 @@ function startTurn(state: GameState) {
   if (p.eliminated) return passOn(state);
   const m = p.modifiers;
   if (m?.heatPerTurn) {
-    applyHeat(state, p, m.heatPerTurn, null);
+    applyHeat(state, p, m.heatPerTurn, null, false, undefined, false, "the battle's conditions");
     notePulse(state, p, null, 'unstable', p, m.heatPerTurn);
   }
   if (m?.coolPerTurn) {
-    cool(state, p, m.coolPerTurn);
+    cool(state, p, m.coolPerTurn, "the battle's conditions");
     notePulse(state, p, null, 'cool', p, m.coolPerTurn);
   }
   if (m?.shieldPerTurn) {
@@ -1448,11 +1458,11 @@ function startTurn(state: GameState) {
   }
   if (fieldActive(state, 'solarStorm')) {
     log(state, `Solar Storm batters ${p.name}.`);
-    applyHeat(state, p, 1, null);
+    applyHeat(state, p, 1, null, false, undefined, false, 'Solar Storm');
     notePulse(state, p, activeGlobal(state)?.card ?? null, 'unstable', p, 1);
   }
   if (fieldActive(state, 'iceAge')) {
-    cool(state, p, 1);
+    cool(state, p, 1, 'Ice Age');
     notePulse(state, p, activeGlobal(state)?.card ?? null, 'cool', p, 1);
   }
   dawn(state, p);
@@ -1882,7 +1892,7 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   if (targetUid === null) {
     // (No pulse: the card itself is seen striking the sun.)
     log(state, `${p.name}'s ${name} attacks ${rival.name}'s sun for ${amount}.`);
-    applyHeat(state, rival, amount, p, false, card.uid);
+    applyHeat(state, rival, amount, p, false, card.uid, false, `${p.name}'s ${name}'s attack`);
     return;
   }
   // A face-down Lightspeed guard can spring in front of the card attacked, and take the blow.
