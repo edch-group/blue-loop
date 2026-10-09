@@ -6093,7 +6093,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-orb.on .cs-orb-mark { transform: scale(1.12); background: #fff; box-shadow: 0 0 0 2px var(--rc), 0 0 22px color-mix(in srgb, var(--rc) 45%, transparent), 0 8px 18px rgba(70, 76, 100, 0.16); }
 .cs-orb.on b { color: color-mix(in srgb, var(--rc) 55%, #2a2d36); }
 .cs-orb.locked .cs-orb-emblem { filter: grayscale(1); opacity: 0.45; }
-.cs-orb-price { position: absolute; top: calc(var(--s) - 14px); left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 1px; padding: 1px 6px 1px 3px; border-radius: 999px; background: #fff; box-shadow: 0 1px 4px rgba(70, 76, 100, 0.2); font-style: normal; font-family: var(--display); font-size: 0.56rem; color: #8a4f80; }
+.cs-orb-price { position: absolute; top: calc(var(--s) - 14px); left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 1px; padding: 1px 6px 1px 3px; border-radius: 999px; background: #fff; box-shadow: 0 1px 4px rgba(70, 76, 100, 0.2); font-style: normal; font-family: var(--display); font-size: 0.56rem; color: var(--ink); }
 .cs-orb-price .cur { width: 1.1em; height: 1.1em; }
 
 /* The picked race: its name large and spaced, its creed, its trait and sub-races as tags; its emblem a ghost behind. */
@@ -6130,19 +6130,19 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-hero-lock .cs-buy { pointer-events: auto; }
 
 /* An unlock: a white pill, its price in petals. */
-.cs-buy { display: inline-flex; align-items: center; gap: 8px; padding: 7px 8px 7px 16px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink); background: #fff; box-shadow: 0 0 0 1px rgba(213, 138, 200, 0.5), 0 6px 18px rgba(70, 76, 100, 0.18); }
-.cs-buy i { display: inline-flex; align-items: center; gap: 2px; padding: 3px 9px 3px 5px; border-radius: 999px; background: #fbeef8; color: #8a4f80; font-style: normal; letter-spacing: 0.04em; }
+.cs-buy { display: inline-flex; align-items: center; gap: 8px; padding: 7px 8px 7px 16px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink); background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.25), 0 6px 18px rgba(70, 76, 100, 0.18); }
+.cs-buy i { display: inline-flex; align-items: center; gap: 2px; padding: 3px 9px 3px 5px; border-radius: 999px; background: #f2f3f6; color: var(--ink); font-style: normal; letter-spacing: 0.04em; }
 .cs-buy i .cur { width: 1.1em; height: 1.1em; }
 .cs-buy:disabled { cursor: default; opacity: 0.75; box-shadow: 0 0 0 1px rgba(150, 156, 170, 0.35), 0 4px 12px rgba(70, 76, 100, 0.12); }
 .cs-buy:disabled i { background: #f2f2f4; color: var(--ink-faint); }
 .cs-buy-big { margin-top: 4px; }
 
 /* The petals: the purse, and the way to the upgrades. */
-.cs-petals { justify-self: end; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 6px 10px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 1px rgba(213, 138, 200, 0.45), 0 4px 12px rgba(70, 76, 100, 0.12); }
+.cs-petals { justify-self: end; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 6px 10px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.23), 0 4px 12px rgba(70, 76, 100, 0.12); }
 .cs-petals .cur { width: 1.3em; height: 1.3em; }
 .cs-petals b { font-size: 0.95rem; }
 .cs-petals span { margin-left: 4px; font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); }
-.cs-petals:hover { box-shadow: 0 0 0 1.5px #d58ac8, 0 6px 16px rgba(213, 138, 200, 0.25); }
+.cs-petals:hover { box-shadow: 0 0 0 1.5px #3a4256, 0 6px 16px rgba(58, 66, 86, 0.12); }
 
 /* A short screen (a phone on its side): each hero's portrait fills its card, its words over a white fade at the
    foot; the scroll is the page's own (with room for the picked card's glow). */
@@ -6178,46 +6178,76 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   .cs-races { flex-wrap: wrap; }
 }
 
-/* ---------- Lasting upgrades: tiles over the Stellari, each its mark, what it gives (large), its levels as petals ---------- */
-.up-shop { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: clamp(8px, calc(2 * var(--vh)), 18px); padding: max(14px, var(--sa-t)) max(18px, var(--sa-r)) max(14px, var(--sa-b)) max(18px, var(--sa-l)); background: rgba(250, 250, 251, 0.82); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); animation: up-in 0.22s ease-out both; }
+/* ---------- Lasting upgrades: a constellation round the Stellari (campaign.ts renderShop), in its white and ink ---------- */
+.up-shop { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: max(14px, var(--sa-t)) max(18px, var(--sa-r)) max(10px, var(--sa-b)) max(18px, var(--sa-l)); background: rgba(251, 251, 252, 0.96); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); animation: up-in 0.25s ease-out both; }
 @keyframes up-in { from { opacity: 0; } }
-.up-head { width: min(1100px, 100%); justify-self: center; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; }
-.up-title h3 { margin: 0; font-family: var(--display); font-weight: 500; letter-spacing: 0.36em; text-transform: uppercase; font-size: clamp(0.9rem, calc(3.2 * var(--vh)), 1.3rem); color: var(--ink); }
-.up-title small { display: block; margin-top: 2px; font-size: 0.72rem; color: var(--ink-faint); }
-.up-purse { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px 6px 10px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px rgba(213, 138, 200, 0.45), 0 4px 12px rgba(70, 76, 100, 0.1); font-family: var(--display); }
-.up-purse .cur { width: 1.6em; height: 1.6em; }
-.up-purse b { font-size: 1.25rem; font-weight: 600; color: #8a4f80; }
-.up-groups { width: min(1100px, 100%); justify-self: center; min-height: 0; overflow-y: auto; scrollbar-width: thin; display: grid; gap: clamp(10px, calc(2.4 * var(--vh)), 22px); align-content: start; padding: 4px 2px 12px; }
-.up-group h4 { margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; font-family: var(--display); font-weight: 500; font-size: 0.66rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); }
-.up-group h4::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(120, 128, 150, 0.25), transparent); align-self: center; }
-.up-group h4 small { font-family: var(--body, inherit); font-size: 0.68rem; letter-spacing: 0; text-transform: none; color: var(--ink-faint); }
-.up-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-.up-tile { position: relative; display: grid; grid-template-rows: auto 1fr auto; gap: 6px; padding: 12px 12px 10px; border-radius: 18px; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 6px 18px rgba(70, 76, 100, 0.1); cursor: default; overflow: hidden; }
-.up-tile header { display: flex; align-items: center; gap: 8px; }
-.up-ico { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; background: #f6f3f8; color: #8a7aa8; }
-.up-ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.up-tile.owned .up-ico { background: #fbeef8; color: #b0559f; }
-.up-tile header b { font-family: var(--display); font-weight: 500; font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); }
-.up-now { display: grid; align-content: center; }
-.up-now strong { font-family: var(--display); font-weight: 600; font-size: clamp(1.3rem, calc(4.4 * var(--vh)), 1.9rem); line-height: 1.1; color: var(--ink); }
-.up-tile:not(.owned) .up-now strong { color: #cfd2da; }
-.up-now small { font-size: 0.7rem; line-height: 1.3; color: var(--ink-faint); }
-.up-tile footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.up-petals { display: flex; gap: 2px; }
-.up-petals i svg { width: 11px; height: 13px; display: block; fill: #fff; stroke: #d9d5de; stroke-width: 1.2; }
-.up-petals i.on svg { fill: #e09ad3; stroke: #c773b8; filter: drop-shadow(0 0 3px rgba(224, 154, 211, 0.7)); }
-.up-buy { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.72rem; color: var(--ink); background: #fff; box-shadow: 0 0 0 1px rgba(213, 138, 200, 0.55); transition: transform 0.15s, box-shadow 0.15s; }
-.up-buy i { display: inline-flex; align-items: center; gap: 1px; padding: 2px 8px 2px 4px; border-radius: 999px; background: #fbeef8; color: #8a4f80; font-style: normal; }
-.up-buy i .cur { width: 1.1em; height: 1.1em; }
-.up-tile.afford .up-buy:hover { transform: translateY(-1px); box-shadow: 0 0 0 1.5px #d58ac8, 0 4px 12px rgba(213, 138, 200, 0.3); }
-.up-buy:disabled { cursor: default; box-shadow: 0 0 0 1px rgba(150, 156, 170, 0.3); color: var(--ink-faint); }
-.up-buy:disabled i { background: #f2f2f4; color: var(--ink-faint); }
-.up-max { font-family: var(--display); font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: #b0559f; }
-.up-tile.maxed { box-shadow: 0 0 0 1.5px rgba(224, 154, 211, 0.6), 0 6px 18px rgba(213, 138, 200, 0.16); }
+.up-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; }
+.up-title h3 { margin: 0; font-family: var(--display); font-weight: 500; letter-spacing: 0.34em; text-transform: uppercase; font-size: 0.82rem; color: var(--ink-soft); }
+.up-title small { display: block; margin-top: 3px; font-size: 0.66rem; color: var(--ink-faint); }
+.up-purse { display: inline-flex; align-items: center; gap: 5px; font-family: var(--display); color: var(--ink); }
+.up-purse .cur { width: 1.2em; height: 1.2em; }
+.up-purse b { font-size: 0.95rem; font-weight: 600; }
+
+/* The sky: the nodes round an ellipse across it (placed in %), the flower and its heart in the middle. */
+.up-sky { --F: min(40vh, 30vw, 340px); position: relative; width: min(1100px, 100%); height: 100%; justify-self: center; }
+.up-flower { position: absolute; left: 50%; top: 50%; width: var(--F); transform: translate(-50%, -50%); opacity: 0.5; pointer-events: none; }
+.up-flower svg { width: 100%; height: auto; display: block; }
+
+.up-node, .up-arc-label { position: absolute; transform: translate(-50%, -50%); }
+.up-node { display: grid; justify-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
+.up-node-disc { position: relative; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #9aa1b2; box-shadow: 0 3px 10px rgba(70, 76, 100, 0.12); transition: transform 0.18s, box-shadow 0.18s, color 0.18s; }
+.up-node-disc > svg:not(.up-node-ring) { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.up-node-ring { position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px); overflow: visible; }
+.up-node-ring circle { fill: none; stroke: #e3e6ec; stroke-width: 2.4; stroke-linecap: round; transition: stroke 0.3s; }
+.up-node-ring circle.on { stroke: #3a4256; }
+.up-node b { position: absolute; top: calc(100% + 9px); left: 50%; transform: translateX(-50%); font-family: var(--display); font-weight: 500; font-size: 0.52rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; transition: color 0.18s; }
+.up-node.owned .up-node-disc { color: #3a4256; }
+.up-node.owned b { color: var(--ink-soft); }
+.up-node.afford .up-node-disc::after { content: ''; position: absolute; top: -3px; right: -3px; width: 7px; height: 7px; border-radius: 50%; background: #3a4256; box-shadow: 0 0 0 2px #fff; animation: up-ready 2.6s ease-in-out infinite; }
+@keyframes up-ready { 50% { opacity: 0.35; } }
+.up-node:hover .up-node-disc { transform: scale(1.07); }
+.up-node.on .up-node-disc { transform: scale(1.12); color: #1f2433; box-shadow: 0 0 0 1.5px #3a4256, 0 8px 20px rgba(58, 66, 86, 0.2); }
+.up-node.on b { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .up-node.afford .up-node-disc::after { animation: none; } }
+.up-arc-label { font-family: var(--display); font-size: 0.48rem; letter-spacing: 0.3em; text-transform: uppercase; color: #b9becb; white-space: nowrap; pointer-events: none; }
+
+/* The flower's heart: the purse, or the picked upgrade. */
+.up-heart { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(260px, 32vw); display: grid; justify-items: center; gap: 4px; text-align: center; animation: up-in 0.2s ease-out both; }
+.up-heart small { font-family: var(--display); font-size: 0.48rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
+.up-heart p { margin: 2px 0 0; font-size: 0.72rem; line-height: 1.4; color: var(--ink-soft); }
+.up-heart-purse { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); color: var(--ink); }
+.up-heart-purse .cur { width: 1.5em; height: 1.5em; }
+.up-heart-purse strong { font-size: 2.1rem; font-weight: 500; line-height: 1; }
+.up-heart h4 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 0.88rem; letter-spacing: 0.24em; text-indent: 0.24em; text-transform: uppercase; color: var(--ink); }
+.up-heart-vals { display: flex; align-items: flex-start; gap: 16px; margin-top: 6px; }
+.up-heart-vals span { display: grid; justify-items: center; }
+.up-heart-vals strong { font-family: var(--display); font-weight: 500; font-size: 1.6rem; line-height: 1; color: var(--ink); }
+.up-heart-vals strong.none { color: #cfd3dc; }
+.up-heart-vals strong.next { color: #8a92a6; }
+.up-heart-vals i { font-style: normal; font-family: var(--display); font-size: 0.46rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); margin-top: 4px; }
+.up-heart-vals em { font-style: normal; font-size: 1.1rem; line-height: 1.6rem; color: #c9cdd6; }
+.up-heart-buy { margin-top: 8px; display: inline-flex; align-items: center; gap: 10px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink); background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.25), 0 6px 16px rgba(70, 76, 100, 0.14); transition: transform 0.15s, box-shadow 0.15s; }
+.up-heart-buy i { display: inline-flex; align-items: center; gap: 2px; padding: 3px 10px 3px 5px; border-radius: 999px; background: #f2f3f6; color: var(--ink); font-style: normal; letter-spacing: 0.04em; font-size: 0.7rem; }
+.up-heart-buy i .cur { width: 1.1em; height: 1.1em; }
+.up-heart-buy:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.45), 0 8px 18px rgba(70, 76, 100, 0.18); }
+.up-heart-buy:disabled { cursor: default; color: var(--ink-faint); box-shadow: 0 0 0 1px rgba(150, 156, 170, 0.25); }
+.up-heart-buy:disabled i { color: var(--ink-faint); }
+.up-heart-max { margin-top: 8px; font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-soft); }
+
+/* A short screen: everything a size down. */
 @media (max-height: 560px) {
-  .up-grid { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; }
-  .up-tile { padding: 8px 10px 8px; gap: 3px; border-radius: 14px; }
-  .up-now strong { font-size: 1.15rem; }
-  .up-ico { width: 24px; height: 24px; }
-  .up-ico svg { width: 15px; height: 15px; }
+  .up-shop { padding-top: max(8px, var(--sa-t)); }
+  .up-title small { display: none; }
+  .up-node-disc { width: 30px; height: 30px; }
+  .up-node-disc > svg:not(.up-node-ring) { width: 13px; height: 13px; }
+  .up-node-ring { inset: -3px; width: calc(100% + 6px); height: calc(100% + 6px); }
+  .up-node b { font-size: 0.42rem; letter-spacing: 0.12em; top: calc(100% + 6px); }
+  .up-arc-label { font-size: 0.4rem; }
+  .up-heart { gap: 2px; width: min(220px, 30vw); }
+  .up-heart h4 { font-size: 0.66rem; }
+  .up-heart-vals strong { font-size: 1.15rem; }
+  .up-heart-vals em { line-height: 1.15rem; font-size: 0.9rem; }
+  .up-heart-purse strong { font-size: 1.4rem; }
+  .up-heart p { font-size: 0.58rem; }
+  .up-heart-buy { margin-top: 4px; padding: 4px 4px 4px 12px; font-size: 0.52rem; }
 }

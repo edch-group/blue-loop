@@ -343,6 +343,8 @@ export class CampaignView {
   /** New-campaign setup choices (the hero: an index into the race's heroes). */
   private setup = { rivals: 3, race: 0, hero: 0 };
   private shopOpen = false;
+  /** The lasting upgrade picked in the shop, shown in the flower's heart. */
+  private upPick: string | null = null;
   /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
   /** The systems seen as the map was last drawn (the ships flying over it are drawn after it). */
@@ -620,6 +622,11 @@ export class CampaignView {
         break;
       case 'cmp-shop':
         this.shopOpen = !this.shopOpen;
+        this.upPick = null;
+        break;
+      case 'cmp-up-pick':
+        this.upPick = this.upPick === arg ? null : arg;
+        sound.hover();
         break;
       case 'cmp-hero-pick':
         this.setup.hero = n();
@@ -1016,48 +1023,87 @@ export class CampaignView {
   }
 
   /**
-   * The petal shop: lasting upgrades, each a tile with its mark, what it gives now (large) and what its next level
-   * gives, its levels as petals, and its price.
+   * The petal shop, as a constellation round the Stellari: the three groups on three arcs, each upgrade a node (its
+   * mark, its name, its levels as petals round its rim). Picking one shows it in the flower's heart: what it gives
+   * now, what the next level would, and the way to buy it.
    */
   private renderShop(meta: MetaState): string {
-    const groups: [MetaGroup, string, string][] = [
-      ['start', 'a stronger start', 'what every run begins with'],
-      ['flagship', 'a tougher flagship', 'your ship, before its first battle'],
-      ['perk', 'run perks', 'how every galaxy treats you'],
-    ];
-    const petalMark = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.5C14.5 5 15.5 11 10 18.5 4.5 11 5.5 5 10 1.5Z"/></svg>';
-    const shop = groups
-      .map(([g, title, sub]) => {
-        const tiles = META_UPGRADES.filter((u) => u.group === g)
+    // Round an ellipse (the sky is wider than tall), evenly, the three groups apart: the start up left, the
+    // flagship up right, the run's perks below. Degrees clockwise from the right.
+    const groups: [MetaGroup, string][] = [['start', 'a stronger start'], ['flagship', 'a tougher flagship'], ['perk', 'run perks']];
+    const lists = groups.map(([g]) => META_UPGRADES.filter((u) => u.group === g));
+    const gap = 26;
+    const step = (360 - gap * groups.length) / lists.reduce((n, l) => n + l.length, 0);
+    const at = (deg: number, k = 1) => {
+      const r = (deg * Math.PI) / 180;
+      return `left:${(50 + 41 * k * Math.cos(r)).toFixed(2)}%;top:${(50 + 40 * k * Math.sin(r)).toFixed(2)}%`;
+    };
+    const ring = (level: number, max: number) => {
+      const C = 2 * Math.PI * 22;
+      const g = max > 1 ? 4 : 0;
+      const seg = C / max - g;
+      return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" class="${i < level ? 'on' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');
+    };
+    let deg = 225 - step * ((lists[0].length - 1) / 2);
+    const nodes = lists
+      .map((ups, gi) => {
+        const first = deg;
+        const html = ups
           .map((u) => {
             const level = levelOf(meta, u.id);
-            const look = UPGRADE_LOOK[u.id];
             const maxed = level >= u.max;
-            const why = buyUpgradeProblem(meta, u.id);
-            const now = look ? look.value(level) : `${level}`;
-            const next = look && !maxed ? look.value(level + 1) : '';
-            const petals = Array.from({ length: u.max }, (_, i) => `<i class="${i < level ? 'on' : ''}">${petalMark}</i>`).join('');
-            return `<article class="up-tile ${maxed ? 'maxed' : ''} ${level ? 'owned' : ''} ${!maxed && !why ? 'afford' : ''}" data-tip-title="${esc(u.name.toLowerCase())}" data-tip="${esc(u.text)}">
-              <header><span class="up-ico">${look?.icon ?? ''}</span><b>${esc(u.name.toLowerCase())}</b></header>
-              <div class="up-now"><strong>${esc(level ? now : look ? look.value(1) : '')}</strong><small>${esc(look?.unit ?? u.text)}</small></div>
-              <footer>
-                <span class="up-petals" aria-label="level ${level} of ${u.max}">${petals}</span>
-                ${maxed ? '<span class="up-max">complete</span>' : `<button class="up-buy" data-act="cmp-meta-buy" data-arg="${esc(u.id)}" ${why ? `disabled data-tip="${esc(why)}"` : ''}><span>${esc(next)}</span><i>${PETAL}${u.cost(level)}</i></button>`}
-              </footer>
-            </article>`;
+            const canBuy = !maxed && !buyUpgradeProblem(meta, u.id);
+            const pos = at(deg);
+            deg += step;
+            return `<button class="up-node ${level ? 'owned' : ''} ${maxed ? 'maxed' : ''} ${canBuy ? 'afford' : ''} ${this.upPick === u.id ? 'on' : ''}" style="${pos}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" aria-label="${esc(u.name)}">
+              <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max)}</svg>${UPGRADE_LOOK[u.id]?.icon ?? ''}</span>
+              <b>${esc(u.name.toLowerCase())}</b>
+            </button>`;
           })
           .join('');
-        return `<section class="up-group"><h4>${title}<small>${sub}</small></h4><div class="up-grid">${tiles}</div></section>`;
+        const mid = (first + deg - step) / 2;
+        deg += gap;
+        return `<span class="up-arc-label" style="${at(mid, 0.64)}">${groups[gi][1]}</span>${html}`;
       })
       .join('');
+    const arcs = groups;
+    // The heart: the picked upgrade, or the purse and a word on what this is.
+    const u = this.upPick ? metaUpgrade(this.upPick) : undefined;
+    let heart: string;
+    if (u) {
+      const level = levelOf(meta, u.id);
+      const look = UPGRADE_LOOK[u.id];
+      const maxed = level >= u.max;
+      const why = buyUpgradeProblem(meta, u.id);
+      heart = `<div class="up-heart up-heart-pick">
+        <small>${esc(arcs.find(([g]) => g === u.group)?.[1] ?? '')} · level ${level} of ${u.max}</small>
+        <h4>${esc(u.name.toLowerCase())}</h4>
+        <div class="up-heart-vals">
+          <span><strong class="${level ? '' : 'none'}">${esc(level ? look?.value(level) ?? `${level}` : '0')}</strong><i>now</i></span>
+          ${maxed ? '' : `<em>›</em><span><strong class="next">${esc(look?.value(level + 1) ?? `${level + 1}`)}</strong><i>next</i></span>`}
+        </div>
+        <p>${esc(look?.unit ?? u.text)}</p>
+        ${maxed ? '<span class="up-heart-max">complete</span>' : `<button class="up-heart-buy" data-act="cmp-meta-buy" data-arg="${esc(u.id)}" ${why ? 'disabled' : ''}>${why ? 'need' : 'buy'}<i>${PETAL}${u.cost(level)}</i></button>`}
+      </div>`;
+    } else {
+      heart = `<div class="up-heart">
+        <span class="up-heart-purse">${PETAL}<strong>${meta.petals}</strong></span>
+        <small>petals to spend</small>
+        <p>Pick an upgrade round the flower. What you buy is kept for every run.</p>
+      </div>`;
+    }
     return `
       <div class="up-shop">
         <header class="up-head">
-          <div class="up-title"><h3>lasting upgrades</h3>${meta.runs ? `<small>best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed · ${meta.runs} run${meta.runs === 1 ? '' : 's'}</small>` : '<small>bought with Stellari petals, kept for every run</small>'}</div>
+          <div class="up-title"><h3>lasting upgrades</h3>${meta.runs ? `<small>best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed · ${meta.runs} run${meta.runs === 1 ? '' : 's'}</small>` : ''}</div>
           <span class="up-purse">${PETAL}<b>${meta.petals}</b></span>
           <button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button>
         </header>
-        <div class="up-groups">${shop}</div>
+        <div class="up-sky">
+          <span class="up-flower">${stellariaFlower()}</span>
+          ${heart}
+          ${nodes}
+        </div>
       </div>`;
   }
 
