@@ -23,6 +23,7 @@ import {
   planetAt,
   allyChoices,
   cardDefence,
+  guards,
   cardPassives,
   fusionHosts,
   freeSlots,
@@ -67,6 +68,8 @@ let ENERGY_HAND = tuning('EHAND', 4);
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
 let INCOMING_WEIGHT = tuning('INCOMING', 0.8);
+/** What a sun its rivals could burn out next day costs, beyond the usual weight of heat coming. */
+let LETHAL_WEIGHT = tuning('LETHAL', 30);
 /** How much a rival's board counts against it (what taking a card from it is worth, against heat on its sun). */
 let RIVAL_BOARD = tuning('RIVAL_BOARD', 0.45);
 /** For simulations that pit two AI settings against each other. */
@@ -89,7 +92,7 @@ export function setAICombos(on: boolean) {
  * one of the tuning numbers above.
  */
 export function aiWeights(): Record<string, number> {
-  return { HORIZON, HERO_DAYS, RISK_PER, FINISH: FINISH_RATIO, GAP: LEADER_GAP, ACTION: ACTION_VALUE, EHAND: ENERGY_HAND, INCOMING: INCOMING_WEIGHT, RIVAL_BOARD, LSV: LIGHTSPEED_VALUE, COLD: COLD_HOPE };
+  return { HORIZON, HERO_DAYS, RISK_PER, FINISH: FINISH_RATIO, GAP: LEADER_GAP, ACTION: ACTION_VALUE, EHAND: ENERGY_HAND, INCOMING: INCOMING_WEIGHT, LETHAL: LETHAL_WEIGHT, RIVAL_BOARD, LSV: LIGHTSPEED_VALUE, COLD: COLD_HOPE };
 }
 export function setAIWeights(w: Record<string, number>) {
   if (w.HORIZON !== undefined) HORIZON = w.HORIZON;
@@ -100,6 +103,7 @@ export function setAIWeights(w: Record<string, number>) {
   if (w.ACTION !== undefined) ACTION_VALUE = w.ACTION;
   if (w.EHAND !== undefined) ENERGY_HAND = w.EHAND;
   if (w.INCOMING !== undefined) INCOMING_WEIGHT = w.INCOMING;
+  if (w.LETHAL !== undefined) LETHAL_WEIGHT = w.LETHAL;
   if (w.RIVAL_BOARD !== undefined) RIVAL_BOARD = w.RIVAL_BOARD;
   if (w.LSV !== undefined) LIGHTSPEED_VALUE = w.LSV;
   if (w.COLD !== undefined) COLD_HOPE = w.COLD;
@@ -369,11 +373,33 @@ function evaluate(state: GameState, meId: string): number {
   const coming = landing * INCOMING_WEIGHT;
   const mine = Math.max(0, me.heat + coming) / supernovaThreshold(me);
   score -= 12 * mine + 10 * mine * mine;
+  // A kill shot waiting: if the rivals' next days could burn this sun out (their dawn heat, and every attack that
+  // gets past its Guards), nothing else matters as much. Breaking that up (removing an attacker, a Guard in the
+  // way, shields, cooling) beats any heat it could send their way now.
+  const lethal = lethalMargin(state, me);
+  if (lethal >= 0) score -= LETHAL_WEIGHT + 3 * lethal;
   score += tableauValue(state, me) + orbitOutlook(me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
   // A Lightspeed card in hand it could pay for from what it leaves unspent (banked at day's end): an answer ready.
   const ready = me.hand.some((c) => !!cardDef(c.defId).lightspeed && reactCost(c.defId) <= (activePlayer(state).id === me.id ? me.playsLeft : me.banked ?? 0));
   if (ready) score += LIGHTSPEED_VALUE * 0.6;
   return score;
+}
+
+/** How hot it would burn past its limit if the rivals' next days went all at its sun (negative: it survives). */
+function lethalMargin(state: GameState, me: PlayerState): number {
+  if (me.boss) return -Infinity;
+  // (Its Guards stand in the way of attacks: what it takes to beat each one down soaks that much.)
+  let soak = guards(me).reduce((n, c) => n + cardDefence(me, c) + (c.health ?? 0), 0);
+  let heat = 0;
+  for (const o of state.players) {
+    if (o.id === me.id || o.eliminated || targetOf(state, o)?.id !== me.id) continue;
+    heat += turnForecast(state, o).heat;
+    const attacks = o.tableau.reduce((n, c) => n + cardAttack(state, o, c), 0);
+    const through = Math.max(0, attacks - soak);
+    soak = Math.max(0, soak - attacks);
+    heat += through;
+  }
+  return me.heat + Math.max(0, heat - me.shields) - supernovaThreshold(me);
 }
 
 /** Every way to play one card now (placement, choice, removal, recall, restore and recovery choices included). */

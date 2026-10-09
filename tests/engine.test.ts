@@ -834,6 +834,30 @@ describe('AI', () => {
     give(me, ['coolant_array']);
     expect(chooseAIAction(s).type).toBe('endTurn');
   });
+
+  it('breaks up a kill shot waiting on the board rather than hitting the sun', () => {
+    const s = twoPlayer();
+    const me = activePlayer(s);
+    const bo = s.players.find((p) => p.id !== me.id)!;
+    // Their three attackers (3 + 4 + 3) would burn its sun out next day (12 + 10 >= 20); its spear can kill the
+    // blade (4), leaving 18, or hit their sun for 6.
+    me.heat = 12;
+    me.shields = 0;
+    me.hand = [];
+    me.playsLeft = 0;
+    const [spear] = give(me, ['p_lattice_spear'], 'tableau');
+    spear.dimmed = false;
+    bo.tableau = [
+      { uid: 'b1', defId: 'p_shade_wisp', slot: 0, health: 1 },
+      { uid: 'b2', defId: 'p_prism_blade', slot: 1, health: 2 },
+      { uid: 'b3', defId: 'p_ember_wisp', slot: 3, health: 1 },
+    ];
+    // (Their sun is hot too: a face hit is tempting, but it doesn't win today.)
+    bo.heat = 10;
+    const a = chooseAIAction(s);
+    expect(a.type).toBe('attack');
+    expect(a.type === 'attack' && a.targetUid).toBeTruthy();
+  });
 });
 
 describe('resonance', () => {
