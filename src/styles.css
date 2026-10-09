@@ -6190,23 +6190,23 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-sky { --F: min(40vh, 30vw, 340px); position: relative; width: min(1100px, 100%); height: 100%; justify-self: center; }
 .up-flower { position: absolute; left: 50%; top: 40%; width: var(--F); transform: translate(-50%, -50%); opacity: 0.5; pointer-events: none; }
 .up-flower svg { width: 100%; height: auto; display: block; }
-/* The branches' petals: from the heart out to each branch's first skill (--dx/--dy in % of the sky), filling blue. */
+/* Under the flower, the petal each branch grows from, filling blue from its base; then a stem from its tip on to
+   the branch's first skill (--dx/--dy in % of the sky; --cx/--cy the petal's direction; its tip 330/860 of the flower out). */
 .up-sky { container-type: size; }
-.up-petal {
-  --px: calc(var(--dx) * 1cqw); --py: calc(var(--dy) * 1cqh);
-  position: absolute; left: 50%; top: 40%; height: calc(var(--F) * 0.3);
-  width: calc(hypot(var(--px), var(--py)) - 24px);
-  transform-origin: 0 50%; transform: translateY(-50%) rotate(atan2(var(--py), var(--px)));
-  pointer-events: none; filter: drop-shadow(0 2px 6px rgba(70, 76, 100, 0.1));
+.up-flower-fill { position: absolute; left: 50%; top: 40%; width: var(--F); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; }
+.up-flower-fill svg { display: block; width: 100%; height: 100%; }
+.up-flower-fill stop.blue { stop-color: #9cc2ee; }
+.up-flower-fill stop.none { stop-color: #8fb8ea; stop-opacity: 0; }
+.up-stem {
+  --tip: calc(var(--F) * 330 / 860);
+  --px: calc(var(--dx) * 1cqw - var(--tip) * var(--cx)); --py: calc(var(--dy) * 1cqh - var(--tip) * var(--cy));
+  position: absolute; left: calc(50% + var(--tip) * var(--cx)); top: calc(40% + var(--tip) * var(--cy)); height: 0;
+  width: max(0px, calc(hypot(var(--px), var(--py)) - var(--stem-gap, 24px)));
+  transform-origin: 0 0; transform: rotate(atan2(var(--py), var(--px)));
+  border-top: 1.2px dashed #d8dce4; pointer-events: none;
 }
-.up-petal svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.up-petal path { stroke: #c9ced9; stroke-width: 1; vector-effect: non-scaling-stroke; }
-.up-petal stop.blue { stop-color: #a8c8f0; }
-.up-petal stop.white { stop-color: #fff; }
-.up-petal .up-petal-vein { fill: none; stroke: rgba(58, 66, 86, 0.12); }
-.up-petal.full path { stroke: #8fb8ea; }
-/* The Stellari's core, where its petals meet (the heart's words sit above the flower, clear of the petals). */
-.up-core { position: absolute; left: 50%; top: 40%; width: 18px; height: 18px; transform: translate(-50%, -50%); border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px #c9ced9, 0 2px 8px rgba(70, 76, 100, 0.15); pointer-events: none; }
+.up-stem.lit { border-top: 1.2px solid rgba(58, 66, 86, 0.55); }
+/* (The heart's words sit above the flower, clear of the petals filling.) */
 
 .up-node, .up-arc-label { position: absolute; transform: translate(-50%, -50%); }
 .up-node { display: grid; justify-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
@@ -6254,6 +6254,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   .up-shop { padding-top: max(8px, var(--sa-t)); }
   .up-title small { display: none; }
   .up-node-disc { width: 30px; height: 30px; }
+  .up-stem { --stem-gap: 17px; }
   .up-node-disc > svg:not(.up-node-ring) { width: 13px; height: 13px; }
   .up-node-ring { inset: -3px; width: calc(100% + 6px); height: calc(100% + 6px); }
   .up-node b { font-size: 0.42rem; letter-spacing: 0.12em; top: calc(100% + 6px); }

@@ -1080,31 +1080,39 @@ export class CampaignView {
       return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" class="${i < level ? 'on' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');
     };
     const skills = META_UPGRADES.filter((u) => u.group !== 'unlock');
-    // A petal of the Stellari for each branch, from the heart out to its first skill, its blue filling from the base
-    // as the branch's skills are learnt (levels learnt of all its levels). Its angle and length are worked out in
-    // CSS from where the first skill lies (the sky is placed in % of its width and height, so not a circle).
-    const petals = branches
-      .map((br) => {
-        const own = skills.filter((u) => u.group === br.g);
-        const first = own.find((u) => (u.tier ?? 1) === 1);
-        if (!first) return '';
-        const [x, y] = pos.get(first.id)!;
-        const got = own.reduce((n, u) => n + Math.min(levelOf(meta, u.id), u.max), 0);
-        const all = own.reduce((n, u) => n + u.max, 0);
-        const f = all ? got / all : 0;
-        const stop = (Math.max(0, f) * 100).toFixed(1);
-        const soft = Math.min(100, Math.max(0, f * 100 + (f > 0 && f < 1 ? 6 : 0))).toFixed(1);
-        return `<span class="up-petal ${f >= 1 ? 'full' : ''}" style="--dx:${(x - 50).toFixed(2)};--dy:${(y - 40).toFixed(2)}" title="${esc(br.title)}: ${got} of ${all}">
-          <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-            <defs><linearGradient id="up-petal-${br.g}" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="${stop}%" class="blue"/><stop offset="${soft}%" class="white"/>
-            </linearGradient></defs>
-            <path d="M0 20 C 22 3, 70 -1, 100 20 C 70 41, 22 37, 0 20 Z" fill="url(#up-petal-${br.g})"/>
-            <path class="up-petal-vein" d="M3 20 L 92 20"/>
-          </svg>
-        </span>`;
-      })
-      .join('');
+    // Each branch grows out of one of the Stellari's own petals (the flower drawn as everywhere else, 12 petals, one
+    // every 30°): the petal pointing its way fills blue from its base as the branch's levels are learnt, and a stem
+    // runs on from its tip to the branch's first skill (its angle and length worked out in CSS, the sky being placed
+    // in % of its width and height).
+    const fills: string[] = [];
+    const stems: string[] = [];
+    for (const br of branches) {
+      const own = skills.filter((u) => u.group === br.g);
+      const first = own.find((u) => (u.tier ?? 1) === 1);
+      if (!first) continue;
+      const got = own.reduce((n, u) => n + Math.min(levelOf(meta, u.id), u.max), 0);
+      const all = own.reduce((n, u) => n + u.max, 0);
+      const f = all ? got / all : 0;
+      // The petal nearest the branch: the flower's petals point every 30° (rotation 0 is straight up, 270° on screen).
+      const deg = Math.round(br.dir / 30) * 30;
+      const rot = (deg - 270 + 360) % 360;
+      // (The petal as it shows: the outer lobe of its ellipse, beyond its two neighbours, from 170 out to its tip at
+      // 330: filled outward from there.)
+      const from = 170 / 330;
+      const front = ((from + f * (1 - from)) * 100).toFixed(1);
+      const edge = Math.min(100, +front + (f > 0 && f < 1 ? 1.5 : 0)).toFixed(1);
+      const ell = (t: number, fill: string) => `<ellipse cx="500" cy="170" rx="95" ry="330" transform="rotate(${t} 500 170)" fill="${fill}"/>`;
+      fills.push(`<radialGradient id="up-fill-${br.g}" gradientUnits="userSpaceOnUse" cx="500" cy="170" r="330">
+          <stop offset="0%" class="blue"/><stop offset="${f > 0 ? front : 0}%" class="blue"/><stop offset="${f > 0 ? edge : 0}%" class="none"/>
+        </radialGradient>
+        <mask id="up-lobe-${br.g}" maskUnits="userSpaceOnUse" x="70" y="-260" width="860" height="860">
+          <path d="M500 170 L405 170 A95 330 0 0 1 595 170 Z" transform="rotate(${rot} 500 170)" fill="#fff"/>${ell(rot - 30, '#000')}${ell(rot + 30, '#000')}
+        </mask>
+        <rect x="70" y="-260" width="860" height="860" mask="url(#up-lobe-${br.g})" fill="url(#up-fill-${br.g})"/>`);
+      const [x, y] = pos.get(first.id)!;
+      const r = (deg * Math.PI) / 180;
+      stems.push(`<span class="up-stem ${levelOf(meta, first.id) ? 'lit' : ''}" style="--dx:${(x - 50).toFixed(2)};--dy:${(y - 40).toFixed(2)};--cx:${Math.cos(r).toFixed(4)};--cy:${Math.sin(r).toFixed(4)}"></span>`);
+    }
     // The links: the heart to each first tier, each skill to what it needs.
     const links = skills
       .flatMap((u) => {
@@ -1167,9 +1175,9 @@ export class CampaignView {
           <button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button>
         </header>
         <div class="up-sky">
+          <span class="up-flower-fill"><svg viewBox="70 -260 860 860" aria-hidden="true">${fills.join('')}</svg></span>
           <span class="up-flower">${stellariaFlower()}</span>
-          ${petals}
-          <span class="up-core"></span>
+          ${stems.join('')}
           <svg class="up-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${links}</svg>
           ${heart}
           ${nodes}
