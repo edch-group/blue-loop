@@ -377,6 +377,8 @@ export interface GalaxyDef {
   name: string;
   /** What it does to every battle fought in the galaxy. */
   text: string;
+  /** The same, in a few words, for the battle board. */
+  short: string;
   modifiers: BattleModifiers;
 }
 
@@ -386,30 +388,35 @@ export const GALAXIES: Record<GalaxyKind, GalaxyDef> = {
     kind: 'blackHole',
     name: 'Supermassive Black Hole',
     text: 'A supermassive black hole lies beneath this galaxy, its well drinking heat: every sun has +2 max health, but every opening hand is 1 card smaller.',
+    short: '+2 max health · opening hand 1 smaller',
     modifiers: { maxHealthDelta: 2, openingHand: -1 },
   },
   pulsar: {
     kind: 'pulsar',
     name: 'Pulsar',
     text: 'A pulsar\'s beam sweeps this galaxy, steadying every sun: each cools by 1 every day, but has 2 less max health.',
+    short: 'suns cool 1 each day · 2 less max health',
     modifiers: { coolPerTurn: 1, maxHealthDelta: -2 },
   },
   meteors: {
     kind: 'meteors',
     name: 'Meteor Shower',
     text: 'Meteors rain through this galaxy: every sun starts 2 hotter, and every heat wave from the Stellari strikes every card for 1 too; but every opening hand is 1 card bigger.',
+    short: 'suns start 2 hotter · heat waves strike cards for 1 · opening hand 1 bigger',
     modifiers: { startingHeat: 2, openingHand: 1, waveCardHeat: 1 },
   },
   nebula: {
     kind: 'nebula',
     name: 'Nebula',
     text: 'This galaxy lies deep in a nebula, hidden in its gas: every side gains 1 shield every day, but every sun starts 1 hotter.',
+    short: '+1 shield each day · suns start 1 hotter',
     modifiers: { shieldPerTurn: 1, startingHeat: 1 },
   },
   darkMatter: {
     kind: 'darkMatter',
     name: 'Dark Matter',
     text: 'Unseen mass threads this galaxy: every side draws 1 extra card every day, but a heat wave from the Stellari heats every sun by 1 every day, and strikes every card for 1.',
+    short: 'draw 1 extra each day · daily heat wave: suns +1, cards 1',
     modifiers: { extraDraw: 1, heatPerTurn: 1, waveCardHeat: 1 },
   },
 };
@@ -426,7 +433,7 @@ export function mergeModifiers(a: BattleModifiers, b: BattleModifiers): BattleMo
 export function galaxyEffects(s: CampaignState) {
   const g = s.galaxy ? GALAXIES[s.galaxy] : null;
   if (!g) return null;
-  return { modifiers: g.modifiers, conditions: [{ name: g.name, text: g.text }] };
+  return { modifiers: g.modifiers, conditions: [{ name: g.name, text: g.text, short: g.short, galaxy: true }] };
 }
 
 export interface CampaignStats {

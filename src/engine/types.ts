@@ -491,7 +491,7 @@ export interface PlayerState {
   stung?: { turn: number; ids: string[] };
   modifiers?: BattleModifiers;
   /** What the modifiers are, for display ("Nebula: +1 shield each day"). */
-  conditions?: { name: string; text: string }[];
+  conditions?: { name: string; text: string; short?: string; galaxy?: boolean }[];
   /** A campaign hero's battle skills: spent (once), or the turn last used (daily). */
   skills?: (BattleSkill & { spent?: boolean; usedTurn?: number })[];
   /** The turn (turnNumber) this player last used their Hero's ability: one a day. */
@@ -622,7 +622,7 @@ export interface PlayerSetup {
   /** Campaign battles: a Lightspeed card already set face down (a garrison). */
   lightspeed?: string;
   modifiers?: BattleModifiers;
-  conditions?: { name: string; text: string }[];
+  conditions?: { name: string; text: string; short?: string; galaxy?: boolean }[];
   /** Campaign battles: the leading hero's skills that can be used in battle. */
   skills?: BattleSkill[];
   /** Campaign battles: this side's hero (always in their command room; wounded, not lost, when it falls). */

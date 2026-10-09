@@ -5226,6 +5226,7 @@ export class App {
             <div class="board-floor"></div>
             <div class="board-star-slot" data-morph-keep></div>
             ${this.renderRoundRing()}
+            ${this.renderGalaxyTag()}
             ${this.renderPhaseTrack()}
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
@@ -5234,6 +5235,13 @@ export class App {
           </div>
         </div>
       </section>`;
+  }
+
+  /** The galaxy's trade-off (a campaign battle's), named under the Stellari. */
+  private renderGalaxyTag(): string {
+    const g = this.state?.players.flatMap((p) => p.conditions ?? []).find((c) => c.galaxy);
+    if (!g) return '';
+    return `<div class="galaxy-tag" title="${esc(g.text)}"><b>${esc(g.name.toLowerCase())}</b>${g.short ? `<span>${esc(g.short)}</span>` : ''}</div>`;
   }
 
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
