@@ -4153,7 +4153,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
    the petals spread out from its edge. */
 .round-ring {
   /* (Sized with the board, so it stays inside the flower's dense heart, where the petals meet.) */
-  width: calc(clamp(26px, calc(4 * var(--vh)), 52px) * var(--bz, 1));
+  width: calc(clamp(34px, calc(5.4 * var(--vh)), 70px) * var(--bz, 1));
   background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 8px rgba(90, 90, 110, 0.18);
 }
 .round-ring .round-track { fill: none; stroke: rgba(120, 124, 134, 0.14); stroke-width: 9; }
@@ -4161,8 +4161,8 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .round-ring path.on { stroke: #ffffff; filter: drop-shadow(0 0 1.5px rgba(150, 158, 175, 0.95)); }
 .round-ring.unstable .round-track { stroke: rgba(201, 138, 134, 0.25); }
 .round-ring-num { width: auto; aspect-ratio: auto; background: none; border: 0; box-shadow: none; }
-.round-ring-num b { font-size: calc(clamp(9px, calc(1.5 * var(--vh)), 17px) * var(--bz, 1)); }
-.round-ring-num em { font-size: clamp(6px, calc(0.9 * var(--vh)), 10px); }
+.round-ring-num b { font-size: calc(clamp(12px, calc(2 * var(--vh)), 23px) * var(--bz, 1)); }
+.round-ring-num em { font-size: clamp(7px, calc(1.1 * var(--vh)), 12px); }
 
 
 /* ---------- Zooming onto a tableau: the board tips flatter and comes closer, centred on that side ---------- */
@@ -4300,8 +4300,9 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
    the space the two tableaus' outlines leave between them. */
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .board-plane > .board-star-slot { width: calc(104px * var(--bz, 1)); }
-  .round-ring { width: calc(20px * var(--bz, 1)); }
-  .round-ring-num b { font-size: calc(8px * var(--bz, 1)); }
+  .round-ring { width: calc(27px * var(--bz, 1)); }
+  .round-ring-num b { font-size: calc(11px * var(--bz, 1)); }
+  .round-ring-num em { font-size: calc(6px * var(--bz, 1)); }
   .board-plane > .phase-track, .board-plane > .turn-who { --stellari-r: 48px; gap: 4px; }
   .board-plane > .board-shields { --bs: 23px; --stellari-r: 44px; }
   .turn-who span, .phase-step span { font-size: 7px; letter-spacing: 0.18em; }
@@ -6152,13 +6153,9 @@ body:has(.game-result) .dock { visibility: hidden; }
 .card.card-full:not(.card-table) .card-kind .card-type {
   position: static; transform: none; height: auto; padding: 0; font-size: max(9px, calc(var(--cw) * 0.04)); letter-spacing: 0.22em; color: #ffb070;
 }
-/* On a phone there is no room for a strip of readable chips over every card: on the whole board each card with
-   chips shows a dot in their place, and zoomed onto a tableau (the eye buttons), where the cards are twice the size,
-   the chips come back, readable. (The inspector explains a card in full either way.) */
+/* On a phone there is no room for a strip of readable chips over every card: on the whole board they are not shown
+   at all, and zoomed onto a tableau (the eye buttons), where the cards are twice the size, they come back, readable.
+   (The inspector explains a card in full either way.) */
 @media (pointer: coarse), (orientation: landscape) and (max-height: 560px) {
-  .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield {
-    width: max(6px, calc(var(--tcw, 80px) * 0.09)); height: max(6px, calc(var(--tcw, 80px) * 0.09)); min-width: 0; padding: 0; gap: 0;
-    border-radius: 50%; background: #c9a24a; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(60, 70, 100, 0.25); pointer-events: none;
-  }
-  .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield > * { display: none; }
+  .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield { display: none; }
 }
