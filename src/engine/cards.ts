@@ -4,7 +4,7 @@ import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { RACE_CARDS } from './cards-races';
 import { DUSK_CARDS } from './cards-dusk';
-import { PLAIN_CARDS, PLAIN_EXISTING, PLAIN_PROFILE, plainStats } from './cards-plain';
+import { PLAIN_CARDS, PLAIN_EXISTING, PLAIN_PROFILE, plainStats, plainText } from './cards-plain';
 import { REMOVAL_CARDS } from './cards-removal';
 import { BIG_CARDS } from './cards-big';
 import { RELIC_CARDS } from './cards-relics';
@@ -725,8 +725,9 @@ for (const [id, profile] of Object.entries(PLAIN_EXISTING)) {
   const c = CARDS.find((x) => x.id === id)!;
   const s = plainStats(profile, c.race, c.cost ?? 1);
   const kind = s.attack > 0 ? 'attack' : 'defence';
-  Object.assign(c, { kind, attack: s.attack, health: s.health, defence: s.sturdy || undefined, text: s.sturdy ? `{sturdy:${s.sturdy}}.` : '' });
+  Object.assign(c, { kind, attack: s.attack, health: s.health, defence: s.sturdy || undefined, text: plainText(profile, s.sturdy) });
   for (const k of ['onPlay', 'onTurn', 'onDusk', 'onLeave', 'onRecover', 'passive', 'choices', 'attune', 'lightspeed', 'spendAll', 'consume'] as const) delete c[k];
+  if (profile === 'wall') c.passive = [{ type: 'taunt' }];
   PLAIN_PROFILE[id] = profile;
 }
 // The core races' cards as they now are (cards-core.ts): the same card in every mode.

@@ -330,11 +330,11 @@ export function enemyChoices(state: GameState, p: PlayerState, defId: string): C
 }
 
 /**
- * Whether a card is a Guard: by its own Guard, by standing in the middle slot (`BALANCE.guardSlot`), or fortified
- * by a Lightspeed answer (until its owner's next dawn). Defence alone no longer makes one.
+ * Whether a card is a Guard: by its own Guard (the keyword), or fortified by a Lightspeed answer (until its
+ * owner's next dawn). Neither its defence nor its slot makes one.
  */
 export function isGuard(_p: PlayerState, c: CardInstance): boolean {
-  return cardPassives(c).some((x) => x.type === 'taunt') || c.slot === BALANCE.guardSlot || (c.fortified ?? 0) > 0;
+  return cardPassives(c).some((x) => x.type === 'taunt') || (c.fortified ?? 0) > 0;
 }
 
 /** A player's Guard cards: while they have any, rival attacks can only strike them. */

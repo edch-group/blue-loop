@@ -1553,18 +1553,16 @@ describe('relics', () => {
 });
 
 describe('guards', () => {
-  it('makes whatever stands in the middle slot a Guard; elsewhere only the keyword (or a fortify) does, whatever the defence', () => {
+  it('are only the cards with Guard (every plain wall among them), or one fortified; never by defence or slot', () => {
     const s = twoPlayer();
     const bo = s.players[1];
-    // Sturdy 1 on a 2-defence slot: 3 defence, but no Guard. In the middle slot: a Guard, even worn.
+    // Sturdy 1 on a 2-defence slot: 3 defence, but no Guard; nor in the middle slot.
     const relay: CardInstance = { uid: 'w1', defId: 'plasma_relay', slot: 1, health: 2 };
     const mid: CardInstance = { uid: 'w2', defId: 'plasma_relay', slot: 2, health: 2 };
-    bo.tableau = [relay, mid];
+    const wall: CardInstance = { uid: 'w3', defId: 'p_barrier_drone', slot: 0, health: 1 };
+    bo.tableau = [relay, mid, wall];
     expect(cardDefence(bo, relay)).toBe(3);
-    expect(isGuard(bo, relay)).toBe(false);
-    expect(guards(bo).map((c) => c.uid)).toEqual(['w2']);
-    mid.dented = 3;
-    expect(isGuard(bo, mid)).toBe(true);
+    expect(guards(bo).map((c) => c.uid)).toEqual(['w3']);
     // Fortified by a Lightspeed answer, a card stands Guard until its owner's dawn.
     relay.fortified = 3;
     expect(isGuard(bo, relay)).toBe(true);

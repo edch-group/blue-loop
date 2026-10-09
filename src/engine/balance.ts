@@ -58,8 +58,6 @@ export const BALANCE = {
   maxFused: 2,
   /** Worn defence each card (and empty slot) mends at its owner's dawn: none. Defence is a wall worn down over the game; only Repair mends it. */
   defenceMend: 0,
-  /** The middle slot: whatever stands in it is a Guard (other cards need the keyword). */
-  guardSlot: 2,
   /** A Hero's stability when it lists none. (Cards no longer fade with the days: stability is what they can take.) */
   heroStability: 5,
   /** Each point a card has grown adds this to its attack (`growthAttackAll`: even a card with none of its own) and to its stability. */
