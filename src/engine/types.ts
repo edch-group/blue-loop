@@ -142,6 +142,14 @@ export type Effect = (
   | { type: 'fortify'; amount: number; who: 'it' | 'best' }
   /** Lightspeed: your card attacked or aimed at moves to your best-defended free slot. */
   | { type: 'shiftMine' }
+  /** A Lost Overlord's blow: this much heat to the rival card with the most attack (its defence first). */
+  | { type: 'strikeBest'; amount: number }
+  /** A Lost Overlord's sweep: this much heat to every rival card (each one's defence first). */
+  | { type: 'strikeAll'; amount: number }
+  /** A Lost Overlord's hunger: the rival card with the least stability left is destroyed. */
+  | { type: 'devour' }
+  /** A Lost Overlord calls its retainers: this many of a card into its free slots. */
+  | { type: 'summon'; defId: string; amount: number }
   /** Move an orbit on by `amount` turns (negative: back), yours or your rival's. Three turns is a whole planet. */
   | { type: 'orbit'; amount: number; who: 'self' | 'rival' }
 ) & { if?: Condition };
@@ -300,6 +308,13 @@ export interface CardDef {
   onRecover?: Effect[];
   /** Lightspeed cards: what springs it and what it does. */
   lightspeed?: Lightspeed;
+  /**
+   * A Lost Overlord's part (a limb, its gear, a retainer): the one great action it takes when its turn in the
+   * Overlord's round comes (see PlayerState.boss). Destroy the part and the action is lost.
+   */
+  bossAction?: { name: string; effects: Effect[] };
+  /** A Lost Overlord's card: what it is of the Overlord's (shown where a card's type is). */
+  overlordPart?: 'overlord' | 'body' | 'gear' | 'retainer';
   /** The energy it costs to play (see costs.ts). */
   cost?: number;
   /** Spends all your energy as it is played (at least 1): its effects count how much (an X cost). */
@@ -450,6 +465,12 @@ export interface PlayerState {
   /** A face-down Lightspeed card waiting to spring (only one at a time). Rivals see only its back. */
   lightspeed: CardInstance | null;
   /**
+   * A Lost Overlord (a campaign's wormhole guardian): it draws and plays no cards; each day it takes one great
+   * action, its parts taking turns (left to right, the Overlord itself last). `intent`: the part whose action
+   * comes next (shown to its rival, who can destroy that part to stop it).
+   */
+  boss?: { intent?: string };
+  /**
    * Energy left unspent at the end of this player's day, kept through the enemy's day to play a Lightspeed card
    * from hand in answer to them. Gone at their own next dawn.
    */
@@ -586,6 +607,8 @@ export interface PlayerSetup {
   opening?: { shields?: number; draw?: number };
   /** Campaign battles: cards already in the tableau when the battle starts (a garrison). */
   tableau?: string[];
+  /** A Lost Overlord: its parts start in play (`tableau`, its Overlord in the Hero slot), and it takes one action a day. */
+  boss?: boolean;
   /** Campaign battles: a Lightspeed card already set face down (a garrison). */
   lightspeed?: string;
   modifiers?: BattleModifiers;

@@ -19,3 +19,4 @@ export * from './modules';
 export * from './research';
 export * from './boons';
 export * from './races';
+export * from './cards-bosses';

@@ -11,6 +11,7 @@ import { RELIC_CARDS } from './cards-relics';
 import { HERO_CARDS, heroCost } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
+import { BOSS_CARDS } from './cards-bosses';
 import { BOONS } from './boons';
 import { raceTrait } from './races';
 import { CARD_COSTS } from './costs';
@@ -792,7 +793,7 @@ export function copyLimit(defId: string): number {
 
 for (const t of TOKENS) Object.assign(t, { cost: 0 });
 // (Tokens are cards in play, but not in the pool: no deck, shop or collection has them.)
-const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS].map((c) => [c.id, c]));
+const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS, ...BOSS_CARDS].map((c) => [c.id, c]));
 
 /**
  * Dawn heat as attack: each card's plain dawn heat at the rival (no condition) becomes that much more

@@ -21,6 +21,7 @@ import { BALANCE } from './balance';
 import { applyAction, createGame, DRAW, GameError, isDraw, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types';
+import { OVERLORDS, overlordById, overlordHealth } from './cards-bosses';
 import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
 import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
@@ -551,6 +552,8 @@ export interface CampaignState {
   story: { queue: StoryScene[]; told: string[] };
   /** What this universe's galaxy is like (touching every battle in it); missing in older saves until migrated. */
   galaxy?: GalaxyKind;
+  /** The Lost Overlord guarding this universe's wormhole (OVERLORDS); missing in older saves until migrated. */
+  overlord?: string;
   /** A battle the player is fighting (or can auto-resolve). */
   battle: BattleContext | null;
   /** The player won an attack and must decide the system's fate (the army that won it marches in if it is settled). */
@@ -1228,6 +1231,9 @@ function buildUniverse(s: CampaignState, universe: number) {
   // The galaxy: never the same twice running.
   const kinds = GALAXY_KINDS.filter((k) => k !== s.galaxy);
   s.galaxy = kinds[randomInt(s, kinds.length)];
+  // The wormhole's Lost Overlord: never the same twice running.
+  const lords = OVERLORDS.filter((o) => o.id !== s.overlord);
+  s.overlord = lords[randomInt(s, lords.length)].id;
   // Armouries and research stations along the strip; those deep in it are better stocked.
   const sites = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2));
   for (const n of sites.slice(0, CAMPAIGN.armories)) n.station = { kind: 'armory', cards: armoryStock(s, n) };
@@ -1503,7 +1509,7 @@ export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
     defender: {
       heat: defHeat,
       mods: defMods,
-      sources: [...names(fx), ...(target.star && target.star !== 'red' ? [STAR_TYPES[target.star].name] : []), ...(target.fortification ? ['Fortified'] : []), ...(target.heart && !owner ? ['Heart Wardens'] : [])],
+      sources: [...names(fx), ...(target.star && target.star !== 'red' ? [STAR_TYPES[target.star].name] : []), ...(target.fortification ? ['Fortified'] : []), ...(target.heart && !owner ? ['Lost Overlord'] : [])],
     },
   };
 }
@@ -1538,7 +1544,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const defenceConditions = [
     ...starCond,
     ...(fx?.conditions ?? []),
-    ...(target.heart && !owner ? [{ name: 'Heart Wardens', text: `The oldest guardians: +${CAMPAIGN.heartWardenHealth} max health.` }] : []),
+    ...(target.heart && !owner ? [{ name: 'Lost Overlord', text: `The wormhole's guardian: its sun has ${overlordHealth(s.universe)} max health. It takes one great action a day, its parts in turn: destroy a part to stop its action.` }] : []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
     ...(g.tableau.length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
   ];
@@ -1547,7 +1553,9 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const def = guard ? armyBonus(s, guard) : null;
   // The defender: an army standing there (its own deck), else the system's own guard (its race's plain
   // deck), else neutral sentinels, or at the Heart its Wardens.
-  const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s flagship`) : owner ? `${target.name} Station` : target.heart ? 'The Heart Wardens' : `${target.name} Sentinels`;
+  // The wormhole's guardian: a Lost Overlord, its body in play (see cards-bosses.ts).
+  const lord = target.heart && !owner && !guard ? overlordById(s.overlord ?? OVERLORDS[0].id) : null;
+  const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s flagship`) : owner ? `${target.name} Station` : lord ? lord.name : `${target.name} Sentinels`;
   const defenderDeck = guard ? guard.deck : stationDeck(s, target, owner?.race);
   const { hull: atkHull, ...atkShip } = flagshipSetup(s, army);
   const defShip = guard ? flagshipSetup(s, guard) : null;
@@ -1568,13 +1576,17 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
     {
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
       isAI: owner ? owner.isAI : true,
-      deck: defenderDeck,
+      deck: lord ? [] : defenderDeck,
+      ...(lord ? { boss: true } : {}),
       // (A system's damage is its own: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage) + atk.foeHeat,
-      ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : { rooms: stationRooms(target) }),
-      tableau: [...(defShip?.tableau ?? []), ...g.tableau],
+      ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : lord ? {} : { rooms: stationRooms(target) }),
+      tableau: lord ? [lord.hero, ...lord.parts] : [...(defShip?.tableau ?? []), ...g.tableau],
       lightspeed: g.lightspeed,
-      modifiers: capDefence([fortified, wardens, guard ? {} : core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}), fx?.modifiers, !!guard),
+      // (A Lost Overlord's sun is its own: well beyond any system's, and more in every universe.)
+      modifiers: lord
+        ? [{ maxHealthDelta: overlordHealth(s.universe) - BALANCE.supernovaAt }, starBoth, atk.foeMods].reduce(mergeModifiers, fx?.modifiers ?? {})
+        : capDefence([fortified, wardens, guard ? {} : core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}), fx?.modifiers, !!guard),
       ...(def?.skills.length ? { skills: def.skills } : {}),
       ...(guard && def?.boons.length ? { heroBoons: { hero: guard.general, boons: def.boons } } : {}),
       conditions: [...defenceConditions, ...atk.foeConditions].length ? [...defenceConditions, ...atk.foeConditions] : undefined,

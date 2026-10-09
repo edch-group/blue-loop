@@ -91,6 +91,8 @@ export function createGame(setup: GameSetup): GameState {
       } else if (safest.length) place(p, card, safest.shift()!);
     }
     if (ps.lightspeed && cardDef(ps.lightspeed).kind === 'lightspeed') p.lightspeed = newCard(state, ps.lightspeed);
+    // A Lost Overlord: its body in play, and the first of its parts' actions to come.
+    if (ps.boss) p.boss = { intent: bossOrder(p)[0]?.uid };
     state.players.push(p);
     // Later seats start a little ahead to make up for moving second.
     drawCards(state, p, BALANCE.openingHand + (catchUp(i) ? BALANCE.laterSeatCards : 0) + (ps.modifiers?.openingHand ?? 0) + (ps.opening?.draw ?? 0));
@@ -846,6 +848,8 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
 // ---------------------------------------------------------------------------
 
 function drawCards(state: GameState, p: PlayerState, count: number) {
+  // (A Lost Overlord draws nothing: it fights with the body it has.)
+  if (p.boss) return;
   for (let i = 0; i < count; i++) {
     // (A campaign deck can be small: with nothing left to draw or shuffle back, it gives no
     // more, without the strain. Its sun would burn out before the battle began.)
@@ -1221,6 +1225,36 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         log(state, `${p.name}'s ${cardDef(mine.defId).name} shifts to slot ${to + 1}, out of harm's way.`);
         break;
       }
+      case 'strikeBest':
+      case 'strikeAll': {
+        const t = ctx.against ?? targetOf(state, p);
+        if (!t) break;
+        const hit = e.type === 'strikeAll' ? [...t.tableau] : [...t.tableau].sort((a, b) => cardAttack(state, t, b) - cardAttack(state, t, a) || (b.health ?? 0) - (a.health ?? 0)).slice(0, 1);
+        for (const c of hit) {
+          if (state.winnerId || t.eliminated || !t.tableau.includes(c)) continue;
+          strikeCard(state, t, c, e.amount, p, false, card.uid, false, true);
+          notePulse(state, p, card, 'heat', t, e.amount, c.uid);
+          // (A sweep's blows land together.)
+          const last = state.turnPulses?.[state.turnPulses.length - 1];
+          if (last && e.type === 'strikeAll' && c !== hit[0]) last.together = true;
+        }
+        break;
+      }
+      case 'devour': {
+        const t = ctx.against ?? targetOf(state, p);
+        const victim = t ? [...t.tableau].sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0] : undefined;
+        if (!t || !victim) break;
+        log(state, `${p.name}'s ${cardDef(card.defId).name} devours ${t.name}'s ${cardDef(victim.defId).name}.`);
+        notePulse(state, p, card, 'heat', t, 1, victim.uid);
+        leaveTableau(state, t, victim);
+        break;
+      }
+      case 'summon': {
+        const open = slotsBySafety().filter((i) => freeSlots(p).includes(i) && i !== COMMAND_SLOT).slice(0, e.amount);
+        for (const slot of open) place(p, newCard(state, e.defId), slot);
+        if (open.length) log(state, `${p.name} calls ${open.length} ${cardDef(e.defId).name}${open.length === 1 ? '' : 's'} into play.`);
+        break;
+      }
       case 'halt':
         if (ctx.against && ctx.against.playsLeft > 0) {
           ctx.against.playsLeft = 0;
@@ -1471,6 +1505,8 @@ function startTurn(state: GameState) {
     notePulse(state, p, activeGlobal(state)?.card ?? null, 'cool', p, 1);
   }
   dawn(state, p);
+  // A Lost Overlord takes its one great action.
+  if (p.boss && !state.winnerId && !p.eliminated) bossAct(state, p);
 }
 
 /** A player's dawn: their tableau's dawn effects, cards fading, and the day's energy. */
@@ -1557,6 +1593,42 @@ function othersInOrder(state: GameState, p: PlayerState): PlayerState[] {
   const n = state.players.length;
   const seat = state.players.indexOf(p);
   return Array.from({ length: n - 1 }, (_, k) => state.players[(seat + k + 1) % n]).filter((o) => !o.eliminated);
+}
+
+/** A Lost Overlord's parts that act, in the order they take their turns: left to right, the Overlord itself last. */
+export function bossOrder(p: PlayerState): CardInstance[] {
+  return p.tableau.filter((c) => cardDef(c.defId).bossAction).sort((a, b) => (a.slot === COMMAND_SLOT ? 99 : a.slot ?? 0) - (b.slot === COMMAND_SLOT ? 99 : b.slot ?? 0));
+}
+
+/** A Lost Overlord's next action: its part, and what it is (none if the part is gone: it will stagger). */
+export function bossIntent(p: PlayerState): { card: CardInstance; name: string } | null {
+  const card = p.boss?.intent ? p.tableau.find((c) => c.uid === p.boss!.intent) : undefined;
+  const a = card ? cardDef(card.defId).bossAction : undefined;
+  return card && a ? { card, name: a.name } : null;
+}
+
+/**
+ * A Lost Overlord's day: the part whose turn it is takes its action (if it is still there: if not, the Overlord
+ * staggers, and the day is lost to it); then the next part's turn is shown.
+ */
+function bossAct(state: GameState, p: PlayerState) {
+  const intent = bossIntent(p);
+  const order = bossOrder(p);
+  if (intent) {
+    const a = cardDef(intent.card.defId).bossAction!;
+    log(state, `⚔ ${p.name}: ${a.name}!`);
+    resolveEffects(state, p, intent.card, a.effects, 'turn');
+  } else log(state, `${p.name} reaches for a part it no longer has, and staggers.`);
+  if (state.winnerId || p.eliminated || !p.boss) return;
+  // The next to act: the part after this one, in turn (its place in the order as it was, if it has gone).
+  const now = bossOrder(p);
+  if (!now.length) {
+    p.boss.intent = undefined;
+    return;
+  }
+  const was = order.findIndex((c) => c.uid === p.boss!.intent);
+  const after = was >= 0 ? order.slice(was + 1).concat(order.slice(0, was + 1)) : order;
+  p.boss.intent = (after.find((c) => now.includes(c)) ?? now[0]).uid;
 }
 
 /** A player by id. */

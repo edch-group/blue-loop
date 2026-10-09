@@ -74,6 +74,7 @@ import {
   researchBonus,
   setRulesMode,
   shownKind,
+  overlordById,
 } from '../engine';
 import { markDirty } from './account';
 import { loadMeta, saveMeta } from './meta';
@@ -1734,7 +1735,7 @@ export class CampaignView {
     const chips = [
       n.owner || n.heart || n.ruined ? '' : chip(`${icon('<circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.4M8 11.4v.1"/>')}<b>unknown</b>`, `What ${n.name} holds is unknown until you get there: defenders, or something to find. ${starOdds(n)}`),
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
-      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, 'Torn open by a Stellari bloom: beat its guardian and go through, into the next universe, with the petals you grab.', 'gold') : '',
+      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, `Torn open by a Stellari bloom, and guarded by a Lost Overlord: ${overlordById(this.state!.overlord ?? 'colossus').name}. Beat it and go through, into the next universe, with the petals you grab.`, 'gold') : '',
       chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, the galaxy and ships' hulls): more the further along the strip, and in every universe after the first.`),
       (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
       n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'Its star has guttered: it yields less than it did.', 'muted') : '',
@@ -1772,7 +1773,7 @@ export class CampaignView {
     return `
       <div class="pop-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
         ${n.owner ? this.avatarOf(n.owner, 'cmp-head-av') : '<i></i>'}
-        <div><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? 'the wormhole · its guardian' : n.ruined ? 'a ruin · pass through' : `unexplored · depth ${n.tier + 1}`}${n.home ? ' · arrival' : ''}${n.collapsing ? ' · collapsing' : ''}</small></div>
+        <div><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? `the wormhole · ${lower(overlordById(s.overlord ?? 'colossus').name)}` : n.ruined ? 'a ruin · pass through' : `unexplored · depth ${n.tier + 1}`}${n.home ? ' · arrival' : ''}${n.collapsing ? ' · collapsing' : ''}</small></div>
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <div class="pop-chips">${chips}</div>
@@ -1851,7 +1852,7 @@ export class CampaignView {
             <div>${MATERIALS}<span><b>Materials</b> pay for everything. Earned: every system you take, finds and battles. Spent: cards at space stations, fusing cards and repairs.</span></div>
           </div>
           <ul class="rules">
-            <li><b>The loop:</b> each universe is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian to go through, into a harder universe. The run goes on until your flagship is lost.</li>
+            <li><b>The loop:</b> each universe is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian, a Lost Overlord, to go through, into a harder universe. An Overlord fights with its body already in play (limbs, gear, retainers) and takes one great action a day, its parts in turn; the next is always shown, and destroying that part stops it. The run goes on until your flagship is lost.</li>
             <li><b>The collapse:</b> regional stability lasts ${CAMPAIGN.stabilityTurns} moves in the first universe, ${CAMPAIGN.stabilityStep} fewer in each one after (never under ${CAMPAIGN.stabilityMin}). Then the strip gives way from the near end, a whole column with every move, each marked (⚠) a move before. Whatever stands there is lost, your flagship too.</li>
             <li><b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the collapse comes on. Changing the deck or repairing costs no move. If your flagship has nowhere to go, time moves on by itself.</li>
             <li><b>Win</b> a system and it is yours: it pays its materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold extra materials, taken with the system.</li>
@@ -1889,7 +1890,7 @@ export class CampaignView {
     const sun = (o: { heat: number; mods: { maxHealthDelta?: number } } | undefined) =>
       o ? `<small class="cmp-vs-sun" title="Its sun starts at ${Math.max(0, o.heat)} heat, of ${BALANCE.supernovaAt + (o.mods.maxHealthDelta ?? 0)} max health">${Math.max(0, o.heat)}<i>/</i>${BALANCE.supernovaAt + (o.mods.maxHealthDelta ?? 0)}</small>` : '';
     const side = (army: Army | null, n: CampaignNode, o?: { heat: number; mods: { maxHealthDelta?: number } }) => {
-      const name = army ? armyLeader(army) : n.owner ? `${factionById(s, n.owner).name} guard` : n.heart ? 'the Heart Wardens' : `${n.name} sentinels`;
+      const name = army ? armyLeader(army) : n.owner ? `${factionById(s, n.owner).name} guard` : n.heart ? overlordById(s.overlord ?? 'colossus').name : `${n.name} sentinels`;
       const face = army ? armyFace(army) : n.owner ? this.avatarOf(n.owner, 'cmp-vs-av') : '<span class="cmp-portrait cmp-vs-blank"></span>';
       const colour = army ? this.colourOf(army.owner) : n.owner ? this.colourOf(n.owner) : NEUTRAL;
       return `<div class="cmp-vs-side" style="--fc:${colour}">${face}<b>${lower(name)}</b>${sun(o)}</div>`;

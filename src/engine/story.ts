@@ -250,7 +250,7 @@ export function heartSightedScene(): StoryScene {
     title: HEART_NAME,
     lines: [
       oracle(`There it is. ${HEART_NAME}. Even dying, it outshines everything.`),
-      oracle('It is guarded. The Heart Wardens have kept it since the first light, and they will not stand aside for anyone. Come strong, and come rested.'),
+      oracle('It is guarded. A Lost Overlord squats before it: the last of some dead empire, more body than mind now, and it will not stand aside for anyone. Watch what it means to do next, and break that part of it first.'),
     ],
   };
 }
@@ -276,7 +276,7 @@ export function victoryHeartScene(hero: string, faction: string, race: number): 
     id: 'victory',
     title: race === 0 ? VITALIA : STELLARIA_NAME,
     lines: [
-      oracle(`You have reached ${HEART_NAME}, and the Wardens are scattered. And there, in the white fire at its centre: the ${STELLARIA_NAME}, in bloom.`),
+      oracle(`You have reached ${HEART_NAME}, and its Overlord has fallen. And there, in the white fire at its centre: the ${STELLARIA_NAME}, in bloom.`),
       general(hero, faction, race === 0 ? `${VITALIA}. She is still here. After everything, we have brought her home.` : 'It is real. After everything, it is real.'),
       oracle('Carry it home. Light your star again. And remember, when the others come to you in the dark, how much light there is now to share.'),
     ],

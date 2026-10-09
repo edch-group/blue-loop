@@ -47,6 +47,8 @@ const PAL: Record<string, Pal> = {
   seren: { sky: ['#070c24', '#22306a', '#9aa8d8'], glow: '#f0f4ff', accent: '#a9c4ff', deep: '#050920' },
   pyrr: { sky: ['#1c0505', '#6a140c', '#f06a24'], glow: '#ffd060', accent: '#ff6a1e', deep: '#160302' },
   lightspeed: { sky: ['#2a1a08', '#6a4210', '#e8b45a'], glow: '#ffe2a0', accent: '#fff6dc', deep: '#170d03' },
+  // The Lost Overlords: dried blood and embers, out past the last stars.
+  overlord: { sky: ['#0a0406', '#3a0c10', '#9a3a22'], glow: '#ff6a3a', accent: '#ffb070', deep: '#050203' },
 };
 
 const RACE_PAL = ['aureline', 'xelnaru', 'vorthane', 'ixquor', 'nyxari', 'korrath', 'seren', 'pyrr'];
@@ -915,6 +917,78 @@ function pyrr(S: Scene, x: number, y: number, s: number, o: PyrOpts = {}): strin
 type Draw = (S: Scene) => string;
 
 const ART: Record<string, Draw> = {
+  // ---- The Lost Overlords (cards-bosses.ts): silhouettes against the embers ----
+  boss_colossus: (S) =>
+    S.ground(92, '#050203', 6) + S.glow(80, 58, 30, '#ff6a3a', 0.55) +
+    `<path d="M50 96 L54 60 L46 44 L58 30 L68 26 L70 14 L90 14 L92 26 L102 30 L114 44 L106 60 L110 96 Z" fill="#14090a" stroke="#ffb070" stroke-width="0.8" stroke-opacity="0.5"/>` +
+    `<rect x="72" y="18" width="16" height="7" rx="1.5" fill="#ff6a3a"/>` + S.glow(80, 21, 10, '#ffd060', 0.9) +
+    S.sun(80, 52, 7, '#ffb04a', 6) + `<path d="M64 40 H96 M62 70 H98" stroke="#ffb070" stroke-width="0.6" opacity="0.5"/>` + S.motes(80, 40, 14, 50, '#ffb070'),
+  colossus_left_fist: (S) =>
+    S.glow(84, 52, 34, '#ff6a3a', 0.5) +
+    `<path d="M40 100 L56 66 Q60 52 74 48 L104 44 Q116 44 118 54 L118 70 Q118 80 106 82 L78 84 Z" fill="#160a0b" stroke="#ffb070" stroke-width="0.8" stroke-opacity="0.6"/>` +
+    [52, 62, 72].map((y) => `<path d="M90 ${y - 4} H116" stroke="#ffb070" stroke-width="0.7" opacity="0.55"/>`).join('') +
+    S.beam(122, 30, 112, 50, 2.4, '#ffd060') + S.beam(130, 64, 118, 62, 2, '#ffd060') + S.motes(118, 56, 10, 20, '#ffd060'),
+  colossus_right_fist: (S) =>
+    S.glow(80, 40, 30, '#ff6a3a', 0.5) +
+    `<path d="M70 0 L90 0 L92 30 L100 34 L100 58 L60 58 L60 34 L68 30 Z" fill="#160a0b" stroke="#ffb070" stroke-width="0.8" stroke-opacity="0.6"/>` +
+    `<rect x="74" y="8" width="12" height="20" fill="#3a1410"/><path d="M76 12 H84 M76 18 H84 M76 24 H84" stroke="#ff8a4a" stroke-width="0.8"/>` +
+    S.ground(80, '#050203', 4) + `<path d="M30 80 L60 62 M130 80 L100 62 M80 84 L80 62" stroke="#ffb04a" stroke-width="1.4" opacity="0.8"/>` + S.glow(80, 66, 18, '#ffd060', 0.7),
+  colossus_plating: (S) =>
+    S.glow(80, 50, 30, '#ff6a3a', 0.35) +
+    `<path d="M42 24 L118 24 L124 56 L80 92 L36 56 Z" fill="#1e0f0e" stroke="#ffb070" stroke-width="1" stroke-opacity="0.7"/>` +
+    `<path d="M50 32 L110 32 L114 54 L80 82 L46 54 Z" fill="none" stroke="#ff8a4a" stroke-width="0.7" opacity="0.6"/>` +
+    [[56, 38], [104, 38], [80, 72], [62, 58], [98, 58]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2" fill="#ffb070"/>`).join('') + S.glow(80, 50, 8, '#ffd060', 0.6),
+  colossus_drones: (S) =>
+    S.glow(80, 50, 30, '#ff6a3a', 0.3) +
+    [[48, 36, 1], [80, 28, 1.3], [112, 42, 1], [64, 62, 0.9], [100, 66, 1.1]].map(([x, y, k]) => `<g transform="translate(${x} ${y}) scale(${k})"><path d="M-9 0 L-3 -5 L3 -5 L9 0 L3 5 L-3 5 Z" fill="#1a0c0c" stroke="#ffb070" stroke-width="0.7"/><circle r="1.8" fill="#ff6a3a"/><path d="M-9 0 L-15 -3 M9 0 L15 -3" stroke="#ffb070" stroke-width="0.6"/></g>`).join('') + S.motes(80, 50, 18, 60, '#ffb070', 1),
+  boss_maws: (S) =>
+    S.glow(80, 54, 34, '#ff3a5a', 0.45) +
+    `<path d="M30 100 Q34 56 56 42 Q80 26 104 42 Q126 56 130 100 Z" fill="#12070c" stroke="#ff8a8a" stroke-width="0.8" stroke-opacity="0.5"/>` +
+    `<path d="M58 64 Q80 50 102 64 Q80 92 58 64 Z" fill="#3a0612"/>` +
+    [62, 70, 78, 86, 94].map((x) => `<path d="M${x} 62 L${x + 3} 70 L${x + 6} 61" fill="#f0e0d0"/>`).join('') +
+    [[60, 46], [72, 40], [88, 40], [100, 46]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.2" fill="#ffd060"/>`).join('') + S.glow(80, 66, 12, '#ff3a5a', 0.6),
+  maws_left_claw: (S) =>
+    S.glow(80, 50, 32, '#ff3a5a', 0.4) +
+    [0, 1, 2].map((k) => `<path d="M${40 + k * 22} 100 Q${44 + k * 22} 60 ${70 + k * 18} ${24 + k * 6} Q${60 + k * 22} 64 ${54 + k * 22} 100 Z" fill="#14080c" stroke="#ff9a9a" stroke-width="0.7" stroke-opacity="0.6"/>`).join('') +
+    S.beam(36, 30, 120, 70, 1.2, '#ff8a8a') + S.beam(44, 22, 128, 62, 1, '#ff8a8a'),
+  maws_right_claw: (S) =>
+    S.glow(80, 50, 30, '#ff3a5a', 0.4) +
+    `<path d="M20 30 Q70 40 120 80" stroke="#ff8a8a" stroke-width="1.4" fill="none"/><path d="M26 40 Q74 48 118 90" stroke="#ff8a8a" stroke-width="1.2" fill="none"/><path d="M34 52 Q76 58 112 98" stroke="#ff8a8a" stroke-width="1" fill="none"/>` +
+    `<path d="M118 6 Q130 30 124 52 L136 50 Q140 24 124 4 Z" fill="#14080c" stroke="#ff9a9a" stroke-width="0.7"/>` + S.motes(80, 60, 14, 50, '#ff8a8a'),
+  maws_maw: (S) =>
+    S.glow(80, 50, 34, '#ff3a5a', 0.5) +
+    `<ellipse cx="80" cy="54" rx="46" ry="34" fill="#12070c"/><ellipse cx="80" cy="56" rx="32" ry="22" fill="#2a040c"/>` +
+    Array.from({ length: 12 }, (_, i) => { const a = (i / 12) * Math.PI * 2; const x = 80 + Math.cos(a) * 34, y = 56 + Math.sin(a) * 24; const x2 = 80 + Math.cos(a) * 22, y2 = 56 + Math.sin(a) * 14; return `<path d="M${x.toFixed(1)} ${y.toFixed(1)} L${x2.toFixed(1)} ${y2.toFixed(1)}" stroke="#f0e0d0" stroke-width="2.4" stroke-linecap="round"/>`; }).join('') +
+    S.glow(80, 56, 10, '#ff3a5a', 0.8),
+  maws_carapace: (S) =>
+    S.glow(80, 50, 30, '#ff3a5a', 0.3) +
+    [0, 1, 2, 3].map((k) => `<path d="M${30 + k * 4} ${30 + k * 14} Q80 ${12 + k * 14} ${130 - k * 4} ${30 + k * 14} L${126 - k * 4} ${42 + k * 14} Q80 ${26 + k * 14} ${34 + k * 4} ${42 + k * 14} Z" fill="#1c0a10" stroke="#ff9a9a" stroke-width="0.7" stroke-opacity="0.6"/>`).join(''),
+  boss_broodling: (S) =>
+    S.glow(80, 60, 22, '#ff3a5a', 0.4) + S.ground(86, '#050203', 4) +
+    `<ellipse cx="80" cy="66" rx="18" ry="11" fill="#14080c" stroke="#ff9a9a" stroke-width="0.7"/>` +
+    [-1, 1].flatMap((d) => [0, 1, 2].map((k) => `<path d="M${80 + d * 12} ${64 + k * 3} L${80 + d * (24 + k * 3)} ${74 + k * 4}" stroke="#ff9a9a" stroke-width="1"/>`)).join('') +
+    `<circle cx="74" cy="62" r="1.6" fill="#ffd060"/><circle cx="86" cy="62" r="1.6" fill="#ffd060"/>`,
+  boss_tyrant: (S) =>
+    S.glow(80, 40, 34, '#ff7a2a', 0.5) +
+    `<path d="M44 100 L50 64 Q54 50 66 46 L70 36 Q80 30 90 36 L94 46 Q106 50 110 64 L116 100 Z" fill="#120a08" stroke="#ffb070" stroke-width="0.8" stroke-opacity="0.5"/>` +
+    `<path d="M66 30 L70 18 L75 26 L80 14 L85 26 L90 18 L94 30 Z" fill="#ff9a3a"/>` + S.glow(80, 24, 12, '#ffd060', 0.7) +
+    `<path d="M72 40 H88" stroke="#ffd060" stroke-width="1.2"/>` + S.motes(80, 50, 16, 60, '#ffb070'),
+  tyrant_greatsword: (S) =>
+    S.glow(80, 50, 30, '#ff7a2a', 0.45) +
+    `<path d="M77 8 L83 8 L84 72 L80 80 L76 72 Z" fill="#2a1410" stroke="#ffd060" stroke-width="0.8"/><rect x="66" y="72" width="28" height="4" rx="1" fill="#ff9a3a"/><rect x="78" y="76" width="4" height="16" fill="#3a1a10"/>` +
+    S.beam(80, 10, 80, 70, 1.4, '#ffd060') + S.motes(80, 40, 16, 40, '#ffb070'),
+  tyrant_tower_shield: (S) =>
+    S.glow(80, 50, 30, '#ff7a2a', 0.35) +
+    `<path d="M54 16 L106 16 L106 60 Q106 84 80 96 Q54 84 54 60 Z" fill="#1e100c" stroke="#ffb070" stroke-width="1"/>` +
+    `<path d="M80 22 L80 88 M60 42 H100" stroke="#ff9a3a" stroke-width="1.4" opacity="0.8"/>` + S.glow(80, 42, 8, '#ffd060', 0.6),
+  tyrant_crown: (S) =>
+    S.glow(80, 56, 30, '#ff7a2a', 0.5) +
+    `<path d="M50 70 L54 40 L66 54 L80 32 L94 54 L106 40 L110 70 Z" fill="#2a1410" stroke="#ffd060" stroke-width="1"/>` +
+    [[54, 40], [80, 32], [106, 40]].map(([x, y]) => S.glow(x, y, 5, '#ffd060', 0.9)).join('') + S.motes(80, 40, 14, 40, '#ffb070'),
+  tyrant_retainers: (S) =>
+    S.glow(80, 56, 32, '#ff7a2a', 0.35) + S.ground(92, '#050203', 4) +
+    [[52, 0.85], [80, 1], [108, 0.85]].map(([x, k]) => `<g transform="translate(${x} 92) scale(${k})"><path d="M-8 0 L-6 -30 Q0 -40 6 -30 L8 0 Z" fill="#120a08" stroke="#ffb070" stroke-width="0.6"/><path d="M-4 -34 H4" stroke="#ffd060" stroke-width="1"/><path d="M10 -2 L10 -52" stroke="#ffb070" stroke-width="0.8"/><path d="M8 -52 L10 -58 L12 -52 Z" fill="#ffd060"/></g>`).join(''),
+
   // ---- Removal: the Aureline's Offering, the Ixquor's Rootbreak ----
   aureline_solar_tithe: (S) => S.sun(128, 22, 12, '#fff3c4', 10) + S.beam(128, 26, 112, 88, 3, '#ffe39a') + S.glow(112, 88, 10, '#ff8a4a', 0.9) + aureline(S, 52, 60, 1, { item: 'lance', halos: 2, eye: '#ffcf6a', lean: 0.15, garb: 'vestment', sash: '#ffd98a' }),
   aureline_dawns_judgement: (S) => S.sun(80, 14, 16, '#fff7d8', 14) + [56, 80, 104].map((x) => S.beam(80, 22, x, 92, 2.2, '#ffe39a')).join('') + S.ground(92, '#2a1c10', 6) + S.glow(80, 90, 18, '#ffb05a', 0.75),
@@ -1752,7 +1826,7 @@ export function cardScene(def: CardDef): string {
   if (def.fusedFrom) return fusedScene(def);
   const painted = RENDERED[def.id];
   if (painted) return `<svg class="art" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><image href="${painted}" width="160" height="100" preserveAspectRatio="xMidYMid slice"/></svg>`;
-  const palette = PAL[def.race !== undefined ? RACE_PAL[def.race] : def.kind] ?? PAL.command;
+  const palette = def.bossAction || def.id.startsWith('boss_') || /^(colossus|maws|tyrant)_/.test(def.id) ? PAL.overlord : PAL[def.race !== undefined ? RACE_PAL[def.race] : def.kind] ?? PAL.command;
   const S = new Scene(`a-${def.id}`, palette);
   const p = S.p;
   const body = (ART[def.id] ?? ((s: Scene) => s.sun(80, 50, 12)))(S);

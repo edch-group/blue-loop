@@ -490,6 +490,8 @@ export function chooseAIAction(state: GameState): Action {
   // A reaction window open for it: answer with the Lightspeed card that leaves it best off, or let the move pass.
   if (state.reaction) return chooseReaction(state);
   const me = activePlayer(state);
+  // A Lost Overlord acts at its dawn, by itself: it has nothing to play, and its parts do not attack.
+  if (me.boss) return { type: 'endTurn' };
   // A dawn choice waiting (Circular Refraction): the card returned or moved that leaves it best placed, or none if
   // none is better.
   const dawn = me.dawnChoices?.[0];

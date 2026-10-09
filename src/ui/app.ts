@@ -101,7 +101,7 @@ import { CampaignView, cardHtml, loadCampaign } from './campaign';
 /** Hero gear's mark, in a battle's finds. */
 const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
 import { closeTour, tourShowing } from './tour';
-import { shownKind, type ShownKind } from '../engine';
+import { shownKind, isBossCard, bossIntent, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -5117,6 +5117,15 @@ export class App {
     // Your dawn Shift: a card to move, then where; or let it be.
     if (this.dawnShiftWaiting())
       return `<div class="mid-hint"><b>${this.dawnPick ? 'dawn shift: where it moves' : 'dawn shift: move a card'}</b><button class="mid-cancel" data-act="${this.dawnPick ? 'dawn-shift-back' : 'dawn-shift-skip'}">${this.dawnPick ? 'back' : 'let it be'}</button></div>`;
+    // Against a Lost Overlord: its next action, and the part making it (destroy that part to stop it).
+    if (!p) {
+      const lord = s.players.find((x) => x.boss && !x.eliminated);
+      const next = lord ? bossIntent(lord) : null;
+      if (lord && next) {
+        const part = cardDef(next.card.defId);
+        return `<div class="mid-hint boss-hint"><small>${esc(lord.name.toLowerCase())} · next</small><b>${esc(next.name.toLowerCase())}</b><span>${esc(plainText(part.text).replace(/^.*?Action: /, ''))} <i>(${esc(part.name.toLowerCase())}: destroy it to stop this)</i></span></div>`;
+      }
+    }
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack || p.ability !== undefined ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
@@ -5516,10 +5525,14 @@ export class App {
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (opts.owner ? isGuard(opts.owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt')) ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
+    // A Lost Overlord's part: a full-art card, its one action named across its picture; the part whose action
+    // comes next is marked.
+    const full = isBossCard(def.id) ? ` card-full${opts.owner?.boss?.intent === c.uid ? ' card-intent' : ''}` : '';
+    const actionTag = def.bossAction ? `<div class="card-action">${esc(def.bossAction.name.toLowerCase())}</div>` : '';
     return `
-      <button class="card kind-${def.kind}${race}${guard} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
+      <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${growth}${resonance}${fusedTags}${stats}
+        ${growth}${resonance}${fusedTags}${stats}${actionTag}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>
@@ -5631,10 +5644,13 @@ export class App {
         ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''} ${isGuard(owner, c) ? 'stat-def-guard' : ''}" title="Defence">${isGuard(owner, c) ? GUARD_SVG + GUARD_SHIELD_SVG : SHIELD_SVG}<span class="def-n">${cardDefence(owner, c)}</span></b>${cardJewels({ atk: cardAttack(this.state!, owner, c) > 0 ? cardAttack(this.state!, owner, c) : undefined, dim: c.dimmed, hp: c.health ?? 0, hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
+    // (A Lost Overlord's part: full-art, its action named across its picture.)
+    const full = isBossCard(def.id) ? ' card-full' : '';
+    const actionTag = def.bossAction ? `<div class="card-action">${esc(def.bossAction.name.toLowerCase())}</div>` : '';
     return `
-      <div class="card card-big kind-${def.kind}${race} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[shownKind(def)]}">
+      <div class="card card-big kind-${def.kind}${race}${full} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}
+        ${c?.growth ? `<span class="growth">${c.growth}</span>` : ''}${stats}${actionTag}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), c?.choice, owner && c ? this.liveNumbers(c, { owner }) : held ? this.liveNumbers(held, { hand: true }) : {})}${this.fusedTextHtml(c)}</div>
         <div class="card-kind">${typeLine(def)}</div>

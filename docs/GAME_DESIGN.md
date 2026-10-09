@@ -951,6 +951,16 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 
 **Systems you hold** are not managed: no garrisons, fortifications or repairs. (Garrisons and fortifying were removed with the roguelite loop.)
 
+**Lost Overlords: the wormhole's guardians.** Each universe's wormhole is guarded by a Lost Overlord (never the same one twice running), not a deck. It is a body in play from the start: the Overlord itself in its Hero slot, and its parts in its slots: limbs, the gear it wears, its retainers. Every one is a full-art card (its picture fills the card, its one action named across it in orange, its type line saying what it is: lost overlord, body, gear or retainer). It draws and plays nothing, and its parts never attack (those with attack hit back when struck). **Each day it takes one great action**, its parts taking turns (left to right, the Overlord itself last), and the part whose turn is next is always shown: it burns on the board, and the middle of the board names the action, what it does, and the part ("destroy it to stop this"). Destroy that part before its turn and the Overlord **staggers**: that day's action is lost, and the next part's turn is shown. Its sun is still how it is beaten (30 max health in the first universe, 5 more in each after); its gear holds Guards in front of it (attacks must go at those first) and shields it each day, and the Overlord itself heats your sun by 2 each dawn while it stands.
+
+| Overlord | Parts (actions) |
+| --- | --- |
+| The Hollow Colossus | Colossal Fist (Crushing Blow: 6 heat to your card with the most attack), Piston Arm (Hammerfall: 2 heat to each of your cards), Bastion Plating (gear: Guard, 1 shield a day), Scrap Drones (retainers: 1 heat a day); the Colossus (Furnace Breath: 5 heat to your sun) |
+| The Mother of Maws | Rending Claw (Rend: 7 heat to your card with the most attack), Raking Talon (Rake: 3 heat to each of your cards), Gaping Maw (Devour: your card with the least stability left is destroyed), Chitin Carapace (Guard, 3 shields a day); the Mother (Spawn: 2 Broodlings, 1 heat a day each) |
+| The Ashen Tyrant | Ember Greatsword (Cleave: 4 heat to your card with the most attack, then 1 to each), Tower Shield (Guard; Shield Wall: 6 shields), Crown of Cinders (his heat +1), Ashen Retainers (Rally: 3 stability back to each other part); the Tyrant (Decree: 6 heat to your sun) |
+
+(The old guardian, the Heart Wardens' deck of the heaviest sentinel cards, was too much at the end of the first universe: players reported never beating it. Simulated with the AI on both sides, 24 seeds each, a flagship's starting deck beats the Colossus about 46% of the time, the Tyrant 67% and the Mother 70%; with 8 stronger cards added, 63%, 79% and 83%. The AI never aims at the part whose turn is next; a player who does should do better. Cards: src/engine/cards-bosses.ts.)
+
 **Galaxies** give battle modifiers, to both sides of every battle in them:
 
 | Galaxy | Boon | Cost |

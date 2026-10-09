@@ -463,6 +463,8 @@ const escType = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<'
  */
 export function typeLine(def: CardDef): string {
   const race = def.race !== undefined ? `<span class="card-race">${escType(RACE_NAMES[def.race].toLowerCase())}</span>` : '';
+  // (A Lost Overlord's card says what it is of the Overlord's: the Overlord itself, its body, its gear, a retainer.)
+  if (def.overlordPart) return `<span class="card-type">${escType(def.overlordPart === 'overlord' ? 'lost overlord' : def.overlordPart)}</span>`;
   return `<span class="card-type">${escType(SHOWN_KIND_NAME[shownKind(def)])}</span>${race}`;
 }
 
