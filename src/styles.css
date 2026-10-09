@@ -6016,12 +6016,6 @@ body:has(.game-result) .dock { visibility: hidden; }
   filter: drop-shadow(0 0 10px rgba(236, 72, 40, 0.7));
 }
 
-/* Into a battle: white closing in from the edges as a circle (fx.ts irisToWhite), then fading off the board. */
-.iris-white { position: fixed; inset: 0; z-index: 9000; pointer-events: none; overflow: hidden; }
-.iris-white > i {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%;
-  box-shadow: 0 0 60px 200vmax #fff, inset 0 0 60px 20px #fff;
-}
 
 /* ---- A reaction window: answer the rival's move at lightspeed (app.ts renderReaction) ---- */
 .react-panel {
@@ -6060,3 +6054,9 @@ body:has(.game-result) .dock { visibility: hidden; }
 .plays-pips i.banked { background: #e2b04a; box-shadow: 0 0 6px rgba(212, 149, 42, 0.6); }
 /* (While an answer is being chosen, the card display waits: the panel shows the move itself.) */
 .table-view:has(.react-panel) .stage { display: none; }
+
+/* Into a battle: the screen smashes like glass and falls away onto white (fx.ts shatter). */
+.shatter { position: fixed; inset: 0; z-index: 9000; pointer-events: none; overflow: hidden; background: #fff; perspective: 1400px; }
+.shatter > i { position: absolute; inset: 0; background: #f6f6f4 center / 100% 100% no-repeat; will-change: transform, opacity; }
+.shatter-cracks { position: absolute; inset: 0; width: 100%; height: 100%; }
+.shatter-cracks polyline, .shatter-cracks line { fill: none; stroke: rgba(40, 46, 70, 0.8); stroke-width: 1.5; filter: drop-shadow(1px 1px 0 rgba(255, 255, 255, 0.95)); }

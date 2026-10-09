@@ -439,17 +439,19 @@ class SoundBoard {
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
   /**
-   * An encounter: the flagship lands at a guarded star. A dive-bombing synth: a detuned saw pair screaming down
-   * from high to low through a closing filter, a whistle over it, and a heavy boom as it hits.
+   * An encounter: the flagship lands at a guarded star and the screen smashes like glass. A heavy thump, the
+   * crack of the break, a bright shatter, and shards tinkling as they fall.
    */
   encounter() {
-    const fall = 0.95;
-    for (const d of [-9, 9]) this.voice(1760, { dur: fall, attack: 0.03, gain: 0.05, to: 70, type: 'sawtooth', cutoff: 2600, detune: d, vibrato: 18 });
-    this.voice(2637, { dur: fall * 0.9, attack: 0.05, gain: 0.018, to: 330, type: 'sine' });
-    this.voice(880, { dur: fall, attack: 0.02, gain: 0.04, to: 55, type: 'square', cutoff: 900 });
-    // The hit.
-    this.voice(62, { dur: 1.2, attack: 0.005, gain: 0.24, to: 30, type: 'triangle', cutoff: 260, delay: fall - 0.04 });
-    this.breath({ dur: 0.9, freq: 220, to: 50, type: 'lowpass', q: 1.2, gain: 0.22, attack: 0.008, delay: fall - 0.04 });
+    this.voice(68, { dur: 0.6, attack: 0.003, gain: 0.24, to: 38, type: 'triangle', cutoff: 320 });
+    this.breath({ dur: 0.3, freq: 3800, to: 1600, type: 'highpass', q: 0.7, gain: 0.26, attack: 0.002 });
+    this.breath({ dur: 1.0, freq: 6500, to: 2600, type: 'bandpass', q: 1.4, gain: 0.09, attack: 0.01, delay: 0.04 });
+    this.voice(1900, { dur: 0.25, attack: 0.002, gain: 0.03, to: 1300, type: 'triangle', cutoff: 7000 });
+    // Shards: short bright pings scattered over the second they take to fall.
+    for (let i = 0; i < 16; i++) {
+      const f = 2200 + Math.random() * 4600;
+      this.voice(f, { dur: 0.12 + Math.random() * 0.28, attack: 0.002, gain: 0.008 + Math.random() * 0.014, delay: 0.06 + Math.random() * 0.95, cutoff: 9000, detune: Math.random() * 20 });
+    }
   }
   /**
    * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and

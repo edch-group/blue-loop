@@ -84,7 +84,7 @@ import { MENU_ICON } from './menu-icon';
 import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { voices } from './voice';
-import { irisToWhite } from './fx';
+import { shatter } from './fx';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 
 const KEY = 'blue-loop:campaign:v6';
@@ -499,8 +499,9 @@ export class CampaignView {
         return this.host.render();
       }
       sound.encounter();
-      // The screen whites out from its edges in to its middle, and the battle board fades in from the white.
-      const release = reduce ? null : irisToWhite(ENCOUNTER_PAUSE);
+      // The screen smashes like glass from where the ship landed, and falls away onto white; the battle board
+      // fades in from the white.
+      const release = reduce ? null : this.smashScreen(toId);
       setTimeout(() => {
         this.advance = null;
         this.encountering = false;
@@ -515,6 +516,18 @@ export class CampaignView {
       }, reduce ? 0 : ENCOUNTER_PAUSE + 60);
     }, reduce ? 0 : battleAhead ? flight * 1000 + 80 : 1150);
     return true;
+  }
+
+  /** The screen smashes from the star the flagship landed at (its place on screen, or the middle). */
+  private smashScreen(nodeId: string): (fadeMs?: number) => void {
+    const n = this.state ? nodeById(this.state, nodeId) : null;
+    const cam = this.nebula?.camera;
+    let at = { x: 0.5, y: 0.5 };
+    if (n && cam && this.nebula) {
+      const p = this.nebula.toScreen((n.x - MAP_WIDTH / 2) * MAP_K, 0.13, (n.y - MAP_HEIGHT / 2) * MAP_K);
+      if (p) at = { x: Math.min(0.95, Math.max(0.05, p.x / cam.width)), y: Math.min(0.95, Math.max(0.05, p.y / cam.height)) };
+    }
+    return shatter(this.nebula?.snapshot() ?? null, at);
   }
 
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
