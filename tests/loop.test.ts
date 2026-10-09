@@ -134,9 +134,8 @@ describe('finds', () => {
     const strips = [11, 12, 13, 14, 15].map((seed) => read(run(seed)));
     const counts = strips.map((x) => x.nodes.filter((n) => n.cache).length);
     expect(counts.reduce((a, b) => a + b, 0) / counts.length).toBeGreaterThan(3);
-    let s = strips[counts.indexOf(Math.max(...counts))];
-    const finds = s.nodes.filter((n) => n.cache);
-    const n = finds.find((x) => x.cache!.kind !== 'cards')!;
+    let s = strips.find((x) => x.nodes.some((n) => n.cache?.kind === 'materials'))!;
+    const n = s.nodes.find((x) => x.cache?.kind === 'materials')!;
     const there = nodeById(s, n.links[0]);
     standAt(s, there.id);
     expect(armyMoves(s, flag(s)).find((m) => m.toId === n.id)?.battle).toBe(false);
@@ -151,6 +150,20 @@ describe('finds', () => {
     const now = campaignPlayer(s);
     const got = now.materials - had.materials;
     expect(got).toBe(amount);
+  });
+});
+
+describe('relic finds', () => {
+  it('a system can hold a relic, worn as soon as the flagship flies in', () => {
+    const strips = [11, 12, 13, 14, 15, 16, 17, 18].map((seed) => read(run(seed)));
+    let s = strips.find((x) => x.nodes.some((n) => n.cache?.kind === 'relic'))!;
+    expect(s).toBeTruthy();
+    const n = s.nodes.find((x) => x.cache?.kind === 'relic')!;
+    standAt(s, n.links[0]);
+    const had = campaignPlayer(s).relics?.length ?? 0;
+    s = applyCampaignAction(s, { type: 'move', armyId: flag(s).id, toId: n.id });
+    expect(s.battle).toBeNull();
+    expect(campaignPlayer(s).relics?.length).toBe(had + 1);
   });
 });
 

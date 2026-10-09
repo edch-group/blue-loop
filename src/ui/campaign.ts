@@ -169,6 +169,8 @@ function portrait(cardId: string): string {
 /** One of the Lost Races: a faded figure, half gone into the dark. */
 /** How long the flagship takes to fly in as a campaign starts (seconds). */
 const ARRIVAL_FLIGHT = 3.2;
+/** Into a battle: the pause between the flagship landing on the star (the encounter sounding) and the battle. */
+const ENCOUNTER_PAUSE = 1000;
 
 const LOST_PORTRAIT = `<span class="cmp-portrait cmp-portrait-lost"><svg viewBox="0 0 80 80" aria-hidden="true">
   <defs><radialGradient id="lost-bg" cx=".5" cy=".35"><stop offset="0" stop-color="#4a4658"/><stop offset="1" stop-color="#15131c"/></radialGradient>
@@ -461,14 +463,27 @@ export class CampaignView {
   private setOut(armyId: string, toId: string): boolean {
     this.sheet = null;
     this.army = null;
-    this.advance = { armyId, toId };
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Into a battle, the ship flies all the way to the star: as it lands the encounter sounds, and the battle
+    // opens a second later.
+    const s0 = this.state!;
+    const army0 = armyById(s0, armyId);
+    const battleAhead = !!armyMoves(s0, army0).find((m) => m.toId === toId)?.battle;
+    this.advance = { armyId, toId, land: battleAhead };
+    // (The 3D ship's flight takes as long as nebula-objects.ts setShips gives it, by distance.)
+    const from = nodeById(s0, army0.nodeId), to = nodeById(s0, toId);
+    const flight = Math.max(0.7, Math.min(1.8, Math.hypot(to.x - from.x, to.y - from.y) * MAP_K * 2.4));
     sound.flare();
     this.host.render();
     setTimeout(() => {
-      this.advance = null;
       const waiting = this.state?.story.queue.length ?? 0;
       const seq = this.state?.log[this.state.log.length - 1]?.seq ?? 0;
-      if (!this.state || this.state.battle || !this.apply({ type: 'move', armyId, toId })) return this.host.render();
+      if (battleAhead) this.encountering = true;
+      if (!this.state || this.state.battle || !this.apply({ type: 'move', armyId, toId })) {
+        this.advance = null;
+        this.encountering = false;
+        return this.host.render();
+      }
       this.selected = toId;
       // What was there, found as the ship arrives.
       const found = this.state.log.find((l) => l.seq > seq && / finds /.test(l.text));
@@ -477,10 +492,21 @@ export class CampaignView {
         sound.buy();
       }
       const battle = (this.state as CampaignState).battle;
-      if (!battle) return this.host.render();
-      this.readWaiting(waiting);
-      this.host.playBattle(battle.game);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1150);
+      if (!battle) {
+        this.advance = null;
+        this.encountering = false;
+        return this.host.render();
+      }
+      sound.encounter();
+      setTimeout(() => {
+        this.advance = null;
+        this.encountering = false;
+        const now = this.state;
+        if (!now?.battle) return this.host.render();
+        this.readWaiting(waiting);
+        this.host.playBattle(now.battle.game);
+      }, reduce ? 0 : ENCOUNTER_PAUSE);
+    }, reduce ? 0 : battleAhead ? flight * 1000 + 80 : 1150);
     return true;
   }
 
@@ -1139,7 +1165,10 @@ export class CampaignView {
   /** Ships to set sailing once the map is drawn: where to, and how long it takes. */
   private sails = new Map<string, { x: number; y: number }>();
   /** An army setting out to attack: its ship runs halfway down the route before the battle opens. */
-  private advance: { armyId: string; toId: string } | null = null;
+  /** The flagship under way: to the halfway point (or, into a battle, all the way to the star). */
+  private advance: { armyId: string; toId: string; land?: boolean } | null = null;
+  /** The flagship has landed at a guarded star: the encounter sounds and the battle waits a second to open. */
+  private encountering = false;
   /** The words of the chip last tapped in the popover (shown under its chips). */
   private popTip: string | null = null;
   /** Where the popover was last placed (in the map's box), so a redraw doesn't jump it. */
@@ -1177,8 +1206,9 @@ export class CampaignView {
         const adv = this.advance?.armyId === a.id ? s.nodes.find((m) => m.id === this.advance!.toId) : undefined;
         if (adv) {
           angle = Math.atan2(adv.y - n.y, adv.x - n.x);
-          x = n.x + (adv.x - n.x) * 0.5;
-          y = n.y + (adv.y - n.y) * 0.5;
+          const k = this.advance?.land ? 1 : 0.5;
+          x = n.x + (adv.x - n.x) * k;
+          y = n.y + (adv.y - n.y) * k;
         }
         let shown = { x, y };
         let dur = mem?.dur ?? 1;
@@ -1475,9 +1505,10 @@ export class CampaignView {
       .map((a) => {
         const [x, z] = at.get(a.nodeId)!;
         const adv = this.advance?.armyId === a.id ? at.get(this.advance.toId) : undefined;
+        const k = this.advance?.land ? 1 : 0.5;
         // A new campaign: the flagship flies in from off screen, behind the strip's near end.
         const arrive = arriving && a.id === mine?.id ? { from: [x - 2.6, z + 1.9] as [number, number], dur: ARRIVAL_FLIGHT } : undefined;
-        return { id: a.id, x: adv ? (x + adv[0]) / 2 : x, z: adv ? (z + adv[1]) / 2 : z, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive };
+        return { id: a.id, x: adv ? x + (adv[0] - x) * k : x, z: adv ? z + (adv[1] - z) * k : z, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive };
       });
     this.nebula.setShips(ships);
     // The camera keeps the flagship in view, on its own.
@@ -1747,7 +1778,7 @@ export class CampaignView {
       );
     }
     // A battle pending (a run picked up mid-battle): straight into it, no stop on the way.
-    if (s.battle) {
+    if (s.battle && !this.encountering) {
       if (!this.enteringBattle) {
         this.enteringBattle = true;
         window.setTimeout(() => {

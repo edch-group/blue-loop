@@ -298,25 +298,25 @@ export const STAR_TYPES: Record<StarType, { name: string; text: string; boon: st
   red: {
     name: 'Red dwarf',
     text: 'Small, cool and patient: it will outlive everything else.',
-    boon: 'Often left unguarded: about half hold a find, most often materials.',
+    boon: 'Often left unguarded: about half hold a find, most often materials, sometimes cards or a relic.',
     cost: 'Its worlds are poor: 1 material less when taken.',
   },
   white: {
     name: 'White dwarf',
     text: 'The hot, dense core of a star that died long ago.',
-    boon: 'The archives of the dead: often research, sometimes cards (about 2 in 5 hold a find).',
+    boon: 'The archives of the dead: about 2 in 5 hold a find, most often cards, sometimes a relic.',
     cost: 'Battles here are long: every sun starts 2 cooler.',
   },
   brown: {
     name: 'Brown dwarf',
     text: 'A failed star, barely warm. Easy to overlook; hard to dig out.',
-    boon: 'Easy to overlook: more often than not a derelict, with cards.',
+    boon: 'Easy to overlook: more often than not a find, cards or a relic.',
     cost: 'When it is guarded, its defender has +3 max health.',
   },
   neutron: {
     name: 'Neutron star',
     text: 'A city-sized star spinning hundreds of times a second; its beam sweeps the dark.',
-    boon: 'Rarely unguarded, but what it hides is rare: cards or research.',
+    boon: 'Rarely unguarded, but what it hides is rare: most often a relic, or cards.',
     cost: 'Battles here are volatile: every sun heats by 1 each day.',
   },
 };
@@ -326,11 +326,11 @@ export const STAR_TYPES: Record<StarType, { name: string; text: string; boon: st
  * of find, weighted. Players see the star, never what it holds, until they get there.
  */
 export const STAR_FINDS: Record<StarType | 'yellow', { find: number; kinds: Partial<Record<Cache['kind'], number>> }> = {
-  yellow: { find: 0.22, kinds: { materials: 6, cards: 2 } },
-  red: { find: 0.5, kinds: { materials: 8, cards: 2 } },
-  white: { find: 0.4, kinds: { cards: 4, materials: 5 } },
-  brown: { find: 0.55, kinds: { cards: 5, materials: 5 } },
-  neutron: { find: 0.15, kinds: { cards: 6, materials: 3 } },
+  yellow: { find: 0.3, kinds: { materials: 3, cards: 3, relic: 2 } },
+  red: { find: 0.5, kinds: { materials: 5, cards: 2, relic: 2 } },
+  white: { find: 0.4, kinds: { cards: 4, materials: 2, relic: 2 } },
+  brown: { find: 0.55, kinds: { cards: 4, materials: 2, relic: 3 } },
+  neutron: { find: 0.25, kinds: { relic: 4, cards: 3, materials: 1 } },
 };
 
 /** What a system's star says about what it may hold. */
@@ -584,7 +584,7 @@ export interface CampaignSetup {
 }
 
 export interface Cache {
-  kind: 'materials' | 'cards';
+  kind: 'materials' | 'cards' | 'relic';
   amount: number;
 }
 
@@ -1604,7 +1604,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   if (target.owner === f.id || ((target.ruined || target.cache) && !target.owner && !armyAt(s, toId))) {
     if (armyAt(s, toId)) throw new GameError(`An army already stands in ${target.name}.`);
     army.nodeId = toId;
-    if (target.cache && !army.lost) takeCache(s, f, target);
+    if (target.cache && !army.lost) takeCache(s, f, target, army);
     army.steps = (army.steps ?? 0) + 1;
     // (A hero who marches fast may go on, but not after a battle.)
     if (army.steps >= 1 + armyBonus(s, army).march) army.moved = true;
@@ -1895,12 +1895,13 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
 }
 
 /** A system with nothing to fight, flown into: what it holds is taken, and the system with it. */
-function takeCache(s: CampaignState, f: Faction, n: CampaignNode) {
+function takeCache(s: CampaignState, f: Faction, n: CampaignNode, army: Army) {
   const c = n.cache!;
   n.cache = undefined;
   n.owner = f.id;
   n.yield = { materials: 0 };
   s.conquered += 1;
+  if (c.kind === 'relic') return findItem(s, f, army, n);
   if (c.kind === 'materials') f.materials += c.amount;
   else if (!f.isAI) s.cardRewards.push({ source: `A derelict at ${n.name}`, options: randomCardChoices(s, f) });
   const what = c.kind === 'cards' ? 'a derelict, with cards to choose from' : `${c.amount} ${c.kind}`;

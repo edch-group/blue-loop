@@ -438,6 +438,19 @@ class SoundBoard {
     this.lastHover = now;
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
+  /**
+   * An encounter: the flagship comes to rest at a guarded star and something is waiting there. A low boom
+   * under a rising, dissonant brass stab, and a shimmer of alarm over it, held for the second before the battle.
+   */
+  encounter() {
+    this.voice(49, { dur: 1.6, attack: 0.01, gain: 0.2, to: 36, type: 'triangle', cutoff: 300 });
+    this.breath({ dur: 1.1, freq: 160, to: 60, type: 'lowpass', q: 1.2, gain: 0.18, attack: 0.01 });
+    for (const [f, d] of [[146.83, 0], [155.56, 6], [220, -4]] as [number, number][]) {
+      this.voice(f, { dur: 1.3, attack: 0.04, gain: 0.04, to: f * 1.06, type: 'sawtooth', cutoff: 1400, detune: d, delay: 0.05 });
+    }
+    this.breath({ dur: 0.9, freq: 900, to: 3800, type: 'bandpass', q: 3, gain: 0.05, attack: 0.5, delay: 0.1 });
+    [1174.66, 1244.51].forEach((f, i) => this.voice(f, { dur: 0.9, attack: 0.02, gain: 0.014, delay: 0.12 + i * 0.09, vibrato: 7 }));
+  }
   /** A star under the pointer: a soft glassy chime, each star its own note of a pentatonic scale. */
   starHover(seed: number) {
     const now = performance.now();
