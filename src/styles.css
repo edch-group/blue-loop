@@ -6015,3 +6015,10 @@ body:has(.game-result) .dock { visibility: hidden; }
   background: radial-gradient(closest-side, transparent 80%, rgba(255, 170, 90, 0.35) 88%, rgba(236, 72, 40, 0.85) 95%, rgba(255, 220, 160, 0.9) 97.5%, transparent 100%);
   filter: drop-shadow(0 0 10px rgba(236, 72, 40, 0.7));
 }
+
+/* Into a battle: white closing in from the edges as a circle (fx.ts irisToWhite), then fading off the board. */
+.iris-white { position: fixed; inset: 0; z-index: 9000; pointer-events: none; overflow: hidden; }
+.iris-white > i {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%;
+  box-shadow: 0 0 60px 200vmax #fff, inset 0 0 60px 20px #fff;
+}

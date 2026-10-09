@@ -439,17 +439,17 @@ class SoundBoard {
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
   /**
-   * An encounter: the flagship comes to rest at a guarded star and something is waiting there. A low boom
-   * under a rising, dissonant brass stab, and a shimmer of alarm over it, held for the second before the battle.
+   * An encounter: the flagship lands at a guarded star. A dive-bombing synth: a detuned saw pair screaming down
+   * from high to low through a closing filter, a whistle over it, and a heavy boom as it hits.
    */
   encounter() {
-    this.voice(49, { dur: 1.6, attack: 0.01, gain: 0.2, to: 36, type: 'triangle', cutoff: 300 });
-    this.breath({ dur: 1.1, freq: 160, to: 60, type: 'lowpass', q: 1.2, gain: 0.18, attack: 0.01 });
-    for (const [f, d] of [[146.83, 0], [155.56, 6], [220, -4]] as [number, number][]) {
-      this.voice(f, { dur: 1.3, attack: 0.04, gain: 0.04, to: f * 1.06, type: 'sawtooth', cutoff: 1400, detune: d, delay: 0.05 });
-    }
-    this.breath({ dur: 0.9, freq: 900, to: 3800, type: 'bandpass', q: 3, gain: 0.05, attack: 0.5, delay: 0.1 });
-    [1174.66, 1244.51].forEach((f, i) => this.voice(f, { dur: 0.9, attack: 0.02, gain: 0.014, delay: 0.12 + i * 0.09, vibrato: 7 }));
+    const fall = 0.95;
+    for (const d of [-9, 9]) this.voice(1760, { dur: fall, attack: 0.03, gain: 0.05, to: 70, type: 'sawtooth', cutoff: 2600, detune: d, vibrato: 18 });
+    this.voice(2637, { dur: fall * 0.9, attack: 0.05, gain: 0.018, to: 330, type: 'sine' });
+    this.voice(880, { dur: fall, attack: 0.02, gain: 0.04, to: 55, type: 'square', cutoff: 900 });
+    // The hit.
+    this.voice(62, { dur: 1.2, attack: 0.005, gain: 0.24, to: 30, type: 'triangle', cutoff: 260, delay: fall - 0.04 });
+    this.breath({ dur: 0.9, freq: 220, to: 50, type: 'lowpass', q: 1.2, gain: 0.22, attack: 0.008, delay: fall - 0.04 });
   }
   /**
    * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and

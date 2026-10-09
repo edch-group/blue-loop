@@ -84,6 +84,7 @@ import { MENU_ICON } from './menu-icon';
 import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { voices } from './voice';
+import { irisToWhite } from './fx';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 
 const KEY = 'blue-loop:campaign:v6';
@@ -498,14 +499,20 @@ export class CampaignView {
         return this.host.render();
       }
       sound.encounter();
+      // The screen whites out from its edges in to its middle, and the battle board fades in from the white.
+      const release = reduce ? null : irisToWhite(ENCOUNTER_PAUSE);
       setTimeout(() => {
         this.advance = null;
         this.encountering = false;
         const now = this.state;
-        if (!now?.battle) return this.host.render();
+        if (!now?.battle) {
+          release?.(250);
+          return this.host.render();
+        }
         this.readWaiting(waiting);
         this.host.playBattle(now.battle.game);
-      }, reduce ? 0 : ENCOUNTER_PAUSE);
+        window.setTimeout(() => release?.(600), 80);
+      }, reduce ? 0 : ENCOUNTER_PAUSE + 60);
     }, reduce ? 0 : battleAhead ? flight * 1000 + 80 : 1150);
     return true;
   }

@@ -508,3 +508,26 @@ export function waveReach(center: DOMRect, rx: number, ry: number, at: DOMRect):
   const dx = at.left + at.width / 2 - (center.left + center.width / 2), dy = at.top + at.height / 2 - (center.top + center.height / 2);
   return Math.hypot(dx / rx, dy / ry);
 }
+
+/**
+ * A white iris closing on the middle of the screen (white from the edges in, as a circle) over `ms`, then
+ * holding white. Call the returned function to fade the white away (over `fadeMs`) once what is under it is ready.
+ */
+export function irisToWhite(ms: number): (fadeMs?: number) => void {
+  const el = document.createElement('div');
+  el.className = 'iris-white';
+  const hole = document.createElement('i');
+  el.appendChild(hole);
+  document.body.appendChild(el);
+  // (From just past the corners, so the white starts creeping in at once.)
+  const from = Math.hypot(window.innerWidth, window.innerHeight);
+  hole.style.width = hole.style.height = `${from}px`;
+  hole.animate([{ width: `${from}px`, height: `${from}px` }, { width: '0px', height: '0px' }], { duration: ms, easing: 'cubic-bezier(.2,.25,.6,1)', fill: 'forwards' });
+  let gone = false;
+  return (fadeMs = 500) => {
+    if (gone) return;
+    gone = true;
+    const out = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: fadeMs, easing: 'ease-out', fill: 'forwards' });
+    out.onfinish = () => el.remove();
+  };
+}
