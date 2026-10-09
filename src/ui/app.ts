@@ -4,7 +4,6 @@ import {
   heroSkillProblem,
   heroAbilityProblem,
   raceTrait,
-  cardSting,
   SUBRACES,
   attackProblem,
   cardAttack,
@@ -353,13 +352,6 @@ function cardMechanics(c: CardInstance): { id: string; n: string; name: string; 
     seen.add(part.kw);
     out.push({ id: part.kw, n: part.value?.match(/\d+/)?.[0] ?? '', name: kw.name, tip: kw.explain(part.value), group: kw.group });
   }
-  // Sting as it stands: its own and its race's together (Vorthane cards Sting 1, though their text never says so).
-  const sting = cardSting(c);
-  const own = out.find((m) => m.id === 'sting');
-  const race = raceTrait(def.race)?.sting ?? 0;
-  const tip = `Hits back at attackers: ${sting} on top of its attack${race ? ` (${race} from its race)` : ''}.`;
-  if (own) Object.assign(own, { n: String(sting), tip });
-  else if (sting > 0) out.push({ id: 'sting', n: String(sting), name: KEYWORDS.sting.name, tip, group: KEYWORDS.sting.group });
   return out;
 }
 

@@ -649,7 +649,7 @@ How the mode is used across the game:
 
 ## The eight races [design review]
 
-Each player is one of eight races (races.ts). [direction: race traits never change a card's numbers; they only give existing keywords, written on the card] A race's **trait** is one existing keyword on each of its cards (where it applies), wherever they are played. There are no nerfs. Aureline, Xel'Naru and Ixquor have none: Forge, Overheat and Growth are their identity.
+Each player is one of eight races (races.ts). [direction: race traits never change a card's numbers; they only give existing keywords, written on the card] A race's **trait** is one existing keyword on each of its cards (where it applies), wherever they are played. **Never invisible:** a trait is printed on every card it reaches, in the card's own words and numbers (a Vorthane card reads "Sting 1", a Korrath card's Sturdy includes the +2, a Nyxari attacker reads "Darkspeed", a Seren card's attunement includes the extra one); this is written last of all when the cards are built, so no later change to a card's words drops it, and a test (tests/traits.test.ts) holds every card to it: what a card does in play is exactly what it says. There are no nerfs. Aureline, Xel'Naru and Ixquor have none: Forge, Overheat and Growth are their identity.
 
 | Race | Theme | Trait | Sub-races |
 | --- | --- | --- | --- |

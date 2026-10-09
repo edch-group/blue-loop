@@ -871,6 +871,23 @@ for (const c of CARDS) {
   }
 }
 
+/**
+ * A race's traits, printed on its cards in full, last of all (after every change to the cards' words, so none is
+ * lost): nothing a race gives a card goes unsaid. Its Sturdy in the card's Sturdy, its Sting in the card's Sting
+ * (every card that stands in play, a Fusion card in a slot of its own too, a Hero too), Darkspeed on the cards that
+ * have it, and the Seren's extra attunement in the card's attunement.
+ */
+const setKeyword = (text: string, kw: string, n: number) =>
+  new RegExp(`\\{${kw}(:\\d+)?\\}`).test(text) ? text.replace(new RegExp(`\\{${kw}(:\\d+)?\\}`), `{${kw}:${n}}`) : `{${kw}:${n}}. ${text}`;
+for (const c of CARDS) {
+  const t = raceTrait(c.race);
+  if (!t || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
+  if (t.sturdy && !c.fusion && (c.defence ?? 0) > 0) c.text = setKeyword(c.text, 'sturdy', c.defence ?? 0);
+  if (t.sting) c.text = setKeyword(c.text, 'sting', (c.passive ?? []).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0) + t.sting);
+  if (t.attune && c.attune) c.text = setKeyword(c.text, 'attune', c.attune + t.attune);
+  if (hasDarkspeed(c) && !/\{darkspeed\}/.test(c.text)) c.text = `{darkspeed}. ${c.text}`;
+}
+
 /** What a card is, as players read it: a unit (it stays in play) or a surge (it resolves and goes), or a Hero, Relic, Lightspeed or global card. */
 export type ShownKind = 'unit' | 'surge' | 'command' | 'lightspeed' | 'relic' | 'global';
 export const SHOWN_KINDS: readonly ShownKind[] = ['unit', 'surge', 'relic', 'global', 'command', 'lightspeed'];
