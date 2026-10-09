@@ -736,7 +736,8 @@ export function keywordHtml(id: string, value?: string, opts: { named?: boolean;
 /** A card's text as it reads on the card: its own, after any keyword its race gives it (Darkspeed). */
 export function cardBodyHtml(def: CardDef, chosen?: string, live: Record<number, number> = {}): string {
   // Its race's keywords that apply to it, side by side on one row.
-  const tags = raceTraitTags(def);
+  // (Not one its own text already carries: the race's keywords are written into it where they apply, cards.ts.)
+  const tags = raceTraitTags(def).filter((g) => !new RegExp(`\\{${g.name.toLowerCase()}[:}]`).test(def.text));
   const row = tags.length ? `<span class="card-traits">${tags.map((g) => `<b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}" data-tip="${escText(g.text)}">${escText(g.name)}</b>`).join(' ')}</span>${PARA}` : '';
   return row + cardTextHtml(def.text, chosen, false, live);
 }
