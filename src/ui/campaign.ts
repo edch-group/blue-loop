@@ -861,20 +861,15 @@ export class CampaignView {
         break;
       case 'cmp-travel':
         return this.setOut(el.dataset.army!, arg, false);
-      case 'cmp-fight':
-      case 'cmp-auto': {
+      case 'cmp-fight': {
         if (this.sheet?.kind !== 'attack') break;
         const { armyId, toId } = this.sheet;
-        return this.setOut(armyId, toId, act === 'cmp-auto');
+        return this.setOut(armyId, toId, false);
       }
       case 'cmp-defend':
         this.readWaiting(s!.story.queue.length);
         this.host.playBattle(s!.battle!.game);
         return true;
-      case 'cmp-defend-auto':
-        this.readWaiting(s!.story.queue.length);
-        this.finishBattle(s!.battle!.game, true);
-        break;
       case 'cmp-conquer':
         if (this.apply({ type: 'conquer', choice: 'settle' })) sound.upgrade();
         break;
@@ -1935,7 +1930,7 @@ export class CampaignView {
       return this.modal(
         mine ? `the battle for ${lower(node.name)}` : `${lower(army ? armyLeader(army) : attacker.name)} attack${army?.lost ? '' : 's'} ${lower(node.name)}`,
         `${this.matchup(b.armyId, node, b.defender === s.playerId)}
-          <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-defend">${mine ? 'back to it' : 'defend'}</button><button class="btn" data-act="cmp-defend-auto" title="Let the battle play itself out">auto</button></div>`,
+          <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-defend">${mine ? 'back to it' : 'defend'}</button></div>`,
         false,
         '',
         'cmp-modal-narrow cmp-attack',
@@ -2009,7 +2004,7 @@ export class CampaignView {
         return this.modal(
           `attack ${lower(to.name)}?`,
           `${this.matchup(sh.armyId, to)}
-           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-fight">fight</button><button class="btn" data-act="cmp-auto" title="Let the battle play itself out">auto</button><button class="btn" data-act="cmp-close">back</button></div>`,
+           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-fight">fight</button><button class="btn" data-act="cmp-close">back</button></div>`,
           false,
           '',
           'cmp-modal-narrow cmp-attack',

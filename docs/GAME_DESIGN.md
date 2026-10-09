@@ -869,7 +869,7 @@ A roguelite run through dying universes, played with the card game. Code: `src/e
 - **Losing:** your sun goes supernova.
 - **Who defends:** the flagship standing in the system, if there is one, else a hero of the owner's one route away. Otherwise the system fights as a **station**: a deck that starts at 10 cards, as the player's does, and grows by 2 a tier up to 20 (the wormhole's guardian 12 and more each universe), walls as thick as its tier (+0 to +2 defence in every room), its garrison and its fortifications, and **no hero**. A held system's station has its owner's race's cards among them. The Lost Races fight with their leader and a few cards.
 - After a win the system is taken at once (see the loop).
-- **The attack dialog:** your flagship against the defender (portraits and names), then a few plain lines on whatever tips the fight, and three buttons: fight, auto, back. Defending shows the same, from your side.
+- **The attack dialog:** your flagship against the defender (portraits and names), then a few plain lines on whatever tips the fight, and two buttons: fight and back. There is no auto-resolve: every battle is played. Defending shows the same, from your side.
 - Battle modifiers stack: the galaxy, the Wardens and the core (below), and the ship's hull.
 
 **The map.**

@@ -29,9 +29,9 @@ function outcome(text: string): { icon: string; tone: string; chip: Chip | null 
   if (/supernova together: a draw/.test(text)) return { icon: '✸', tone: 'nova', chip: { cls: 'nova', html: 'draw' } };
   if ((m = text.match(/instability heats every sun by (\d+)/))) return { icon: '≋', tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')}+${m[1]} ${ARROW} every sun` } };
   if ((m = text.match(/heats their sun by (\d+)/))) return { icon: '↻', tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')}+${m[1]}` } };
-  if ((m = text.match(/sun heats to (-?\d+)/))) return { icon: sym('heat'), tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')} ${ARROW} ${m[1]}` } };
-  if ((m = text.match(/sun cools to (-?\d+)/))) return { icon: sym('cool'), tone: 'cool', chip: { cls: 'cool', html: `${sym('cool')} ${ARROW} ${m[1]}` } };
-  if ((m = text.match(/shields absorb (\d+)/))) return { icon: sym('shield'), tone: 'shield', chip: { cls: 'shield', html: `${sym('shield')}−${m[1]}` } };
+  if ((m = text.match(/(?:sun heats to |'s sun to (?=-?\d+ \(\+))(-?\d+)/))) return { icon: sym('heat'), tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')} ${ARROW} ${m[1]}` } };
+  if ((m = text.match(/(?:sun cools to |'s sun to (?=-?\d+ \(−))(-?\d+)/))) return { icon: sym('cool'), tone: 'cool', chip: { cls: 'cool', html: `${sym('cool')} ${ARROW} ${m[1]}` } };
+  if ((m = text.match(/shields absorb (\d+)|'s shields \(−(\d+)\)/))) return { icon: sym('shield'), tone: 'shield', chip: { cls: 'shield', html: `${sym('shield')}−${m[1] ?? m[2]}` } };
   if ((m = text.match(/raises (\d+) shield/))) return { icon: sym('shield'), tone: 'shield', chip: { cls: 'shield', html: `${sym('shield')}+${m[1]}` } };
   if ((m = text.match(/stings .+ for (\d+)/))) return { icon: '⚔', tone: 'heat', chip: { cls: 'heat', html: `${sym('heat')}+${m[1]}` } };
   if ((m = text.match(/takes (\d+) on its defence.*?\(defence (\d+) left/))) return { icon: '⛨', tone: 'shield', chip: { cls: 'shield', html: `⛨−${m[1]} ${ARROW} ${m[2]}` } };
