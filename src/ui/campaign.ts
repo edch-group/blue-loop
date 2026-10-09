@@ -1065,25 +1065,29 @@ export class CampaignView {
    */
   private renderShop(meta: MetaState): string {
     const branches: { g: MetaGroup; title: string; dir: number }[] = [
-      { g: 'start', title: 'a stronger start', dir: 212 },
-      { g: 'flagship', title: 'a tougher flagship', dir: 328 },
-      { g: 'perk', title: 'run perks', dir: 90 },
+      { g: 'start', title: 'a stronger start', dir: 210 },
+      { g: 'flagship', title: 'a tougher flagship', dir: 330 },
+      { g: 'perk', title: 'run perks', dir: 270 },
     ];
-    // Where a skill lies (in % of the sky): out along its branch by tier, its tier's skills fanned across it.
-    const reach = [0, 0.44, 0.72, 0.97];
+    // Where a skill lies, from the Stellari's heart (at the foot of the sky, half of it below), in units of the
+    // sky's reach R (a true circle, set in CSS): out along its branch by tier, its tier's skills fanned across it.
+    // Each branch leaves the tip of one of the flower's own petals (they point every 30°, the tips 0.345 R out).
+    const TIP = 0.345;
+    const reach = [0, 0.45, 0.7, 0.94];
     const pos = new Map<string, [number, number]>();
     const place = (deg: number, k: number): [number, number] => {
       const r = (deg * Math.PI) / 180;
-      return [50 + 46 * k * Math.cos(r), 40 + 47 * k * Math.sin(r)];
+      return [k * Math.cos(r), k * Math.sin(r)];
     };
+    // A line from one point to another (in R): CSS works out its length and angle.
+    const line = (a: [number, number], b: [number, number], cls: string) =>
+      `<span class="up-line ${cls}" style="--x1:${a[0].toFixed(4)};--y1:${a[1].toFixed(4)};--x2:${b[0].toFixed(4)};--y2:${b[1].toFixed(4)}"></span>`;
     for (const br of branches) {
       const skills = META_UPGRADES.filter((u) => u.group === br.g);
       for (const tier of [1, 2, 3]) {
         const row = skills.filter((u) => (u.tier ?? 1) === tier);
         const fan = row.length > 1 ? (tier === 2 ? 34 : 22) : 0;
-        // (The branch hanging below the heart starts further out, clear of the heart's words.)
-        const out = br.dir === 90 ? [0, 0.52, 0.77, 1] : reach;
-        row.forEach((u, i) => pos.set(u.id, place(br.dir + (row.length > 1 ? -fan / 2 + (fan * i) / (row.length - 1) : 0), out[tier])));
+        row.forEach((u, i) => pos.set(u.id, place(br.dir + (row.length > 1 ? -fan / 2 + (fan * i) / (row.length - 1) : 0), reach[tier])));
       }
     }
     const ring = (level: number, max: number) => {
@@ -1095,8 +1099,7 @@ export class CampaignView {
     const skills = META_UPGRADES.filter((u) => u.group !== 'unlock');
     // Each branch grows out of one of the Stellari's own petals (the flower drawn as everywhere else, 12 petals, one
     // every 30°): the petal pointing its way fills blue from its base as the branch's levels are learnt, and a stem
-    // runs on from its tip to the branch's first skill (its angle and length worked out in CSS, the sky being placed
-    // in % of its width and height).
+    // runs on from its tip, straight out, to the branch's first skill.
     const fills: string[] = [];
     const stems: string[] = [];
     for (const br of branches) {
@@ -1122,9 +1125,7 @@ export class CampaignView {
           <path d="M500 170 L405 170 A95 330 0 0 1 595 170 Z" transform="rotate(${rot} 500 170)" fill="#fff"/>${ell(rot - 30, '#000')}${ell(rot + 30, '#000')}
         </mask>
         <rect x="70" y="-260" width="860" height="860" mask="url(#up-lobe-${br.g})" fill="url(#up-fill-${br.g})"/>`);
-      const [x, y] = pos.get(first.id)!;
-      const r = (deg * Math.PI) / 180;
-      stems.push(`<span class="up-stem ${levelOf(meta, first.id) ? 'lit' : ''}" style="--dx:${(x - 50).toFixed(2)};--dy:${(y - 40).toFixed(2)};--cx:${Math.cos(r).toFixed(4)};--cy:${Math.sin(r).toFixed(4)}"></span>`);
+      stems.push(line(place(deg, TIP), pos.get(first.id)!, levelOf(meta, first.id) ? 'lit' : ''));
     }
     // The links: the heart to each first tier, each skill to what it needs.
     const links = skills
@@ -1135,7 +1136,7 @@ export class CampaignView {
         if (!needs) return [];
         return needs.map(([r, n]) => {
           const [x0, y0] = pos.get(r)!;
-          return `<line x1="${x0.toFixed(2)}" y1="${y0.toFixed(2)}" x2="${x.toFixed(2)}" y2="${y.toFixed(2)}" class="${levelOf(meta, r) >= n ? 'lit' : ''}"/>`;
+          return line([x0, y0], [x, y], levelOf(meta, r) >= n ? 'lit' : '');
         });
       })
       .join('');
@@ -1146,7 +1147,7 @@ export class CampaignView {
         const maxed = level >= u.max;
         const open = upgradeOpen(meta, u.id);
         const canBuy = !maxed && !buyUpgradeProblem(meta, u.id);
-        return `<button class="up-node tier-${u.tier ?? 1} ${level ? 'owned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${canBuy ? 'afford' : ''} ${this.upPick === u.id ? 'on' : ''}" style="left:${x.toFixed(2)}%;top:${y.toFixed(2)}%" data-act="cmp-up-pick" data-arg="${esc(u.id)}" aria-label="${esc(u.name)}">
+        return `<button class="up-node tier-${u.tier ?? 1} ${level ? 'owned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${canBuy ? 'afford' : ''} ${this.upPick === u.id ? 'on' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" aria-label="${esc(u.name)}">
           <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max)}</svg>${UPGRADE_LOOK[u.id]?.icon ?? ''}</span>
           <b>${esc(u.name.toLowerCase())}</b>
         </button>`;
@@ -1181,17 +1182,17 @@ export class CampaignView {
       </div>`;
     }
     return `
-      <div class="up-shop">
+      <div class="up-shop up-tree">
         <header class="up-head">
           <div class="up-title"><h3>skills</h3>${meta.runs ? `<small>best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed · ${meta.runs} run${meta.runs === 1 ? '' : 's'}</small>` : ''}</div>
           <span class="up-purse">${XP_MARK}<b>${meta.xp ?? 0}</b></span>
           <button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button>
         </header>
         <div class="up-sky">
-          <span class="up-flower-fill"><svg viewBox="70 -260 860 860" aria-hidden="true">${fills.join('')}</svg></span>
           <span class="up-flower">${stellariaFlower()}</span>
+          <span class="up-flower-fill"><svg viewBox="70 -260 860 860" aria-hidden="true">${fills.join('')}</svg></span>
           ${stems.join('')}
-          <svg class="up-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${links}</svg>
+          ${links}
           ${heart}
           ${nodes}
         </div>

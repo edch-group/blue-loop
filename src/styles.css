@@ -6190,25 +6190,38 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-purse b { font-size: 0.95rem; font-weight: 600; }
 
 /* The sky: the nodes round an ellipse across it (placed in %), the flower and its heart in the middle. */
-.up-sky { --F: min(40vh, 30vw, 340px); position: relative; width: min(1100px, 100%); height: 100%; justify-self: center; }
-.up-flower { position: absolute; left: 50%; top: 40%; width: var(--F); transform: translate(-50%, -50%); opacity: 0.5; pointer-events: none; }
+.up-sky { position: relative; width: min(1100px, 100%); height: 100%; justify-self: center; }
+/* The skill tree lies on the page's own paper (as the home page does), not a white wash: so the Stellari, white on it, shows. */
+.up-shop.up-tree {
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0.6) 40%, transparent 75%),
+    radial-gradient(ellipse 120% 90% at 50% 110%, #dedcd8 0%, transparent 60%),
+    linear-gradient(180deg, #faf9f6, var(--paper) 55%, #e0dfdb);
+  overflow: hidden;
+}
+/* The Stellari at the foot of the sky, half of it below, drawn as on the home page (fine white lines, a white veil). */
+.up-flower { position: absolute; left: 50%; top: 100%; width: var(--F); transform: translate(-50%, -50%); pointer-events: none; }
+.up-flower .stellaria-flower ellipse, .up-flower .stellaria-flower path { fill: rgba(255, 255, 255, 0.26); stroke: rgba(255, 255, 255, 0.95); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.up-flower .stellaria-flower .petal-inner path { stroke-width: 1; }
 .up-flower svg { width: 100%; height: auto; display: block; }
-/* Under the flower, the petal each branch grows from, filling blue from its base; then a stem from its tip on to
+/* Over the flower's veil, the petal each branch grows from, filling blue from its base; then a stem from its tip on to
    the branch's first skill (--dx/--dy in % of the sky; --cx/--cy the petal's direction; its tip 330/860 of the flower out). */
 .up-sky { container-type: size; }
-.up-flower-fill { position: absolute; left: 50%; top: 40%; width: var(--F); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; }
-.up-flower-fill svg { display: block; width: 100%; height: 100%; }
-.up-flower-fill stop.blue { stop-color: #9cc2ee; }
-.up-flower-fill stop.none { stop-color: #8fb8ea; stop-opacity: 0; }
-.up-stem {
-  --tip: calc(var(--F) * 330 / 860);
-  --px: calc(var(--dx) * 1cqw - var(--tip) * var(--cx)); --py: calc(var(--dy) * 1cqh - var(--tip) * var(--cy));
-  position: absolute; left: calc(50% + var(--tip) * var(--cx)); top: calc(40% + var(--tip) * var(--cy)); height: 0;
-  width: max(0px, calc(hypot(var(--px), var(--py)) - var(--stem-gap, 24px)));
-  transform-origin: 0 0; transform: rotate(atan2(var(--py), var(--px)));
-  border-top: 1.2px dashed #d8dce4; pointer-events: none;
+/* The sky's reach R: a true circle round the Stellari's heart (the foot of the sky), as wide as the sky lets it be.
+   Everything on the tree is placed in it (--x/--y in R), the flower 0.9 R across, so its petals' tips are 0.345 R out. */
+.up-sky > * { --R: min(46cqw, 90cqh); --F: calc(var(--R) * 0.9); }
+.up-sky > .up-node { left: calc(50% + var(--R) * var(--x)); top: calc(100% + var(--R) * var(--y)); }
+.up-line {
+  --px: calc(var(--R) * (var(--x2) - var(--x1))); --py: calc(var(--R) * (var(--y2) - var(--y1)));
+  position: absolute; left: calc(50% + var(--R) * var(--x1)); top: calc(100% + var(--R) * var(--y1)); height: 0;
+  width: hypot(var(--px), var(--py)); transform-origin: 0 0; transform: rotate(atan2(var(--py), var(--px)));
+  border-top: 1.2px dashed #cfd3db; pointer-events: none;
 }
-.up-stem.lit { border-top: 1.2px solid rgba(58, 66, 86, 0.55); }
+.up-line.lit { border-top: 1.2px solid rgba(58, 66, 86, 0.55); }
+.up-flower-fill { position: absolute; left: 50%; top: 100%; width: var(--F); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; }
+.up-flower-fill svg { display: block; width: 100%; height: 100%; }
+.up-flower-fill stop.blue { stop-color: #8db8ec; stop-opacity: 0.85; }
+.up-flower-fill stop.none { stop-color: #8fb8ea; stop-opacity: 0; }
 /* (The heart's words sit above the flower, clear of the petals filling.) */
 
 .up-node, .up-arc-label { position: absolute; transform: translate(-50%, -50%); }
@@ -6230,13 +6243,13 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-arc-label { font-family: var(--display); font-size: 0.48rem; letter-spacing: 0.3em; text-transform: uppercase; color: #b9becb; white-space: nowrap; pointer-events: none; }
 
 /* The flower's heart: the purse, or the picked upgrade. */
-.up-heart { position: absolute; left: 50%; top: 17%; transform: translate(-50%, -50%); width: min(310px, 34vw); display: grid; justify-items: center; gap: 4px; text-align: center; animation: up-in 0.2s ease-out both; }
+.up-heart { position: absolute; left: 0; top: 2%; width: min(310px, 30vw); display: grid; justify-items: start; gap: 4px; text-align: left; animation: up-in 0.2s ease-out both; }
 .up-heart small { font-family: var(--display); font-size: 0.48rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
 .up-heart p { margin: 2px 0 0; font-size: 0.72rem; line-height: 1.4; color: var(--ink-soft); }
 .up-heart-purse { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); color: var(--ink); }
 .up-heart-purse .cur { width: 1.5em; height: 1.5em; }
 .up-heart-purse strong { font-size: 2.1rem; font-weight: 500; line-height: 1; }
-.up-heart h4 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 0.88rem; letter-spacing: 0.24em; text-indent: 0.24em; text-transform: uppercase; color: var(--ink); }
+.up-heart h4 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 0.88rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink); }
 .up-heart-vals { display: flex; align-items: flex-start; gap: 16px; margin-top: 6px; }
 .up-heart-vals span { display: grid; justify-items: center; }
 .up-heart-vals strong { font-family: var(--display); font-weight: 500; font-size: 1.6rem; line-height: 1; color: var(--ink); }
@@ -6257,12 +6270,11 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   .up-shop { padding-top: max(8px, var(--sa-t)); }
   .up-title small { display: none; }
   .up-node-disc { width: 30px; height: 30px; }
-  .up-stem { --stem-gap: 17px; }
   .up-node-disc > svg:not(.up-node-ring) { width: 13px; height: 13px; }
   .up-node-ring { inset: -3px; width: calc(100% + 6px); height: calc(100% + 6px); }
   .up-node b { font-size: 0.42rem; letter-spacing: 0.12em; top: calc(100% + 6px); }
   .up-arc-label { font-size: 0.4rem; }
-  .up-heart { gap: 1px; width: min(320px, 34vw); top: 15%; }
+  .up-heart { gap: 1px; width: min(260px, 28vw); top: 0; }
   .up-heart-vals { margin-top: 2px; }
   .up-heart h4 { font-size: 0.66rem; }
   .up-heart-vals strong { font-size: 1.15rem; }
@@ -6276,9 +6288,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-orb-mark img.cs-orb-emblem { width: 100%; height: 100%; }
 
 /* ---------- The skill tree (campaign.ts renderShop): links, locked skills, capstones ---------- */
-.up-links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.up-links line { stroke: #d8dce4; stroke-width: 1.2; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
-.up-links line.lit { stroke: #3a4256; stroke-opacity: 0.55; stroke-dasharray: none; }
 .up-node.locked .up-node-disc { background: #f6f7f9; color: #c8ccd6; box-shadow: 0 0 0 1px #e6e8ee; }
 .up-node.locked b { color: #c8ccd6; }
 .up-node.tier-3 .up-node-disc { width: 54px; height: 54px; }
