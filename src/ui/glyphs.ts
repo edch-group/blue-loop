@@ -570,7 +570,7 @@ export const HP_ICON = '<svg class="hp-icon" viewBox="0 0 16 16" aria-hidden="tr
 /**
  * A card's numbers as jewels, each set into a lobe of the card itself: stability (a topaz) at the top right,
  * attack (a garnet) at the bottom left, health (an emerald) at the bottom right. A value about to run out
- * turns ruby; an attacker that has acted today is dimmed. A Hero never fades, so has no stability. The
+ * turns ruby; an attacker that has attacked today is dimmed. A Hero never fades, so has no stability. The
  * numbers may come as html (a preview's before and after).
  */
 /** A card's jewels: its attack (bottom left, a garnet) and its stability (bottom right, a topaz; a ruby when nearly beaten down). */
@@ -580,7 +580,7 @@ export function cardJewels(o: { atk?: number | string; dim?: boolean; hp: number
   const atkTitle = 'Attack: once each of your days it can attack a rival card or their sun for this much, then it is dimmed until your next day. A card it attacks hits back with its own attack and Sting.';
   const hpTitle = `Stability: attacks, stings, aimed heat past its defence and Erode wear this down; at 0 ${o.hero ? 'the Hero falls' : 'it burns away'}.`;
   return (
-    (o.atk === undefined ? '' : lobe('bl', jewel(`jewel-atk${o.dim ? ' jewel-dim' : ''}`, o.atk, atkTitle + (o.dim ? ' Dimmed: it has acted today.' : '')))) +
+    (o.atk === undefined ? '' : lobe('bl', jewel(`jewel-atk${o.dim ? ' jewel-dim' : ''}`, o.atk, atkTitle + (o.dim ? ' Dimmed: it has attacked today, and is undimmed at your next dawn.' : '')))) +
     lobe('br', jewel(`jewel-stab${o.lowHp ? ' jewel-low' : ''}`, o.hp, hpTitle))
   );
 }

@@ -241,7 +241,7 @@ describe('commands', () => {
     expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 3 - s.players[1].shields);
     expect(activePlayer(s).playsLeft).toBe(3);
     expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.health).toBe(4);
-    expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/acted today/);
+    expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/used today/);
     s = endTurn(endTurn(s));
     expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
   });
@@ -1499,7 +1499,7 @@ describe('Offering and Rootbreak', () => {
     expect(cardAttack(s, s.players[0], s.players[0].tableau.find((c) => c.uid === giver.uid)!)).toBe(atk);
   });
 
-  it('Offering needs an armed card of yours that has not acted today', () => {
+  it('Offering needs an undimmed allied card with attack', () => {
     const s = twoPlayer();
     const me = activePlayer(s);
     const [c] = give(me, ['p_dawn_lancer'], 'tableau');

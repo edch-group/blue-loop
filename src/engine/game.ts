@@ -415,7 +415,7 @@ export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' |
 /** Your other cards this card could return to your hand or restore (empty if it needs no such choice). */
 export function allyChoices(p: PlayerState, defId: string): CardInstance[] {
   if (allyEffectKind(defId) === 'shift') return p.tableau.filter((c) => c.slot !== COMMAND_SLOT);
-  // Offering: an armed card of yours that hasn't acted today (nor given its attack already). Rootbreak: a card that has grown.
+  // Offering: an undimmed armed card of yours (that hasn't given its attack already). Rootbreak: a card that has grown.
   if (allyEffectKind(defId) === 'offer') return p.tableau.filter((c) => armed(p, c) && !c.dimmed && !c.spentAttack);
   if (allyEffectKind(defId) === 'rootbreak') return p.tableau.filter((c) => (c.growth ?? 0) > 0);
   if (!(cardDef(defId).onPlay ?? []).some((e) => e.type === 'recall' || e.type === 'empower' || (e.type === 'restore' && !e.all && !e.self))) return [];
@@ -442,7 +442,7 @@ export function roomProblem(p: PlayerState, defId: string): string | null {
   // (Offering and Rootbreak need a card of yours to draw on.)
   if (needsAlly(defId) && !allyChoices(p, defId).length) {
     return allyEffectKind(defId) === 'offer'
-      ? `${name}'s Offering needs an armed card of yours that hasn't acted today.`
+      ? `${name} needs an undimmed allied card with attack.`
       : `${name}'s Rootbreak needs a card of yours that has grown.`;
   }
   // A Consume card needs a card of yours to give up (and then has its slot).
@@ -1605,7 +1605,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const free = freeSlots(p);
   if (slotted && !swap && action.slot !== undefined && !free.includes(action.slot)) throw new GameError('Choose an empty slot.');
   const allies = allyChoices(p, def.id);
-  if (needsAlly(def.id) && !allies.length) throw new GameError(allyEffectKind(def.id) === 'offer' ? 'It needs an armed card of yours that has not acted today.' : 'It needs a card of yours that has grown.');
+  if (needsAlly(def.id) && !allies.length) throw new GameError(allyEffectKind(def.id) === 'offer' ? 'It needs an undimmed allied card with attack.' : 'It needs a card of yours that has grown.');
   if (allies.length > 0 && !allies.some((c) => c.uid === action.allyUid)) throw new GameError('Choose a card of yours.');
   const host = fusing ? fusionHosts(p).find((c) => c.uid === action.hostUid) : undefined;
   if (fusing && !host) throw new GameError('Choose a card of yours in play to fuse it onto.');
@@ -1936,7 +1936,7 @@ export function heroAbilityProblem(state: GameState, p: PlayerState, index: numb
   const k = hero ? cardDef(hero.defId).abilities?.[index] : undefined;
   if (!hero || !k) return 'No Hero leads your tableau.';
   if (activePlayer(state).id !== p.id) return 'Only on your own day.';
-  if (hero.dimmed) return p.abilityTurn === state.turnNumber ? `${cardDef(hero.defId).name} has acted today.` : `${cardDef(hero.defId).name} is dimmed: it acts from your next day.`;
+  if (hero.dimmed) return p.abilityTurn === state.turnNumber ? `${cardDef(hero.defId).name} is dimmed: it has been used today.` : `${cardDef(hero.defId).name} is dimmed: it acts from your next day.`;
   if ((k.cost ?? 0) > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
   if (k.pay?.stability && (hero.health ?? 0) <= k.pay.stability) return `${cardDef(hero.defId).name} hasn't the stability to spare.`;
   if (k.pay?.sacrifice && !sacrificeOf(p)) return `${k.name} needs another of your cards in play to sacrifice.`;

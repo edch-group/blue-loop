@@ -106,7 +106,7 @@ export type Effect = (
   /** Chosen: one of your other cards gains this much attack while it stays in play. */
   | { type: 'empower'; amount: number }
   /**
-   * Offering (the Aureline): one of your armed cards that hasn't acted today gives up its attack for the rest of
+   * Offering (the Aureline): one of your undimmed armed cards gives up its attack for the rest of
    * the day (it reads 0, unless something gives it more), and a rival card of your choice loses that much
    * stability (`times` over), past its defence.
    */
