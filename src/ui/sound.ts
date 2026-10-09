@@ -587,12 +587,21 @@ class SoundBoard {
     this.breath({ dur: 0.26, freq: 2400, to: 6000, type: 'highpass', q: 0.7, gain: 0.035, attack: 0.18, delay: 0.04, out: this.sfxDry ?? undefined });
   }
   /**
-   * A blow landing on a card: the recorded whip crack, slowed. Bigger blows land louder, and a little slower and
-   * deeper (as set by what the blow took, never by chance).
+   * A blow landing on a card: a crash. A deep falling thump and a low burst of crunching noise, a scatter of debris,
+   * and the recorded whip crack, slowed right down, riding on top. Bigger blows land louder and a little deeper (as
+   * set by what the blow took, never by chance).
    */
   clash(amount = 1) {
     const a = Math.max(1, amount);
-    this.clip(SFX.cardHit, 0.5 * Math.min(1.5, 0.85 + 0.12 * (a - 1)), 1 - Math.min(0.14, 0.035 * (a - 1)));
+    const g = Math.min(1.5, 0.85 + 0.12 * (a - 1));
+    const deeper = 1 - Math.min(0.14, 0.035 * (a - 1));
+    this.voice(92 * deeper, { dur: 0.7, attack: 0.004, gain: 0.16 * g, to: 38, type: 'triangle', cutoff: 420 });
+    this.breath({ dur: 0.55, freq: 1300, to: 180, type: 'lowpass', q: 0.9, gain: 0.16 * g, attack: 0.004 });
+    this.breath({ dur: 0.3, freq: 700, to: 300, type: 'bandpass', q: 1.2, gain: 0.08 * g, attack: 0.003 });
+    [0.03, 0.07, 0.12, 0.19].forEach((d, i) =>
+      this.breath({ dur: 0.05, freq: [1900, 1400, 2300, 1100][i], q: 2.2, gain: 0.035 * g, attack: 0.002, delay: d, type: 'bandpass' }),
+    );
+    this.clip(SFX.cardHit, 0.32 * g, 0.75 * deeper);
   }
   /** A card's defence cracking: a brittle snap with splintering ticks after it. */
   crack() {
