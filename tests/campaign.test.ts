@@ -91,7 +91,7 @@ describe('campaign setup', () => {
     expect(() => applyCampaignAction(s, { type: 'move', armyId: myArmy(s).id, toId: far.id })).toThrow(GameError);
   });
 
-  it('plays a new race through a battle: Pyrr armies march, fight and gain experience', () => {
+  it('plays a new race through a battle: Pyrr armies march and fight (heroes no longer level)', () => {
     let s = createCampaign({ seed: 5, race: 7, rivals: 3 });
     for (const n of s.nodes) delete n.cache;
     s = applyCampaignAction(s, { type: 'readStory' });
@@ -100,7 +100,7 @@ describe('campaign setup', () => {
     expect(s.battle).not.toBeNull();
     expect(s.battle!.game.players[0].deck.concat(s.battle!.game.players[0].hand).some((c) => cardDef(c.defId).race === 7)).toBe(true);
     s = settle(winBattle(s));
-    expect(heroState(campaignPlayer(s), GENERALS[7][0]).xp).toBeGreaterThan(0);
+    expect(heroState(campaignPlayer(s), GENERALS[7][0]).xp).toBe(0);
   });
 });
 
@@ -398,13 +398,12 @@ describe('armies and generals', () => {
     expect(defender('brown')).toBeGreaterThan(defender(undefined));
   });
 
-  it("grows heroes: experience from battles, skill points, and skills and gear that ride on the hero's card", () => {
+  it("earns heroes no experience; skills and gear still ride on the hero's card", () => {
     let s = fresh();
     const me = campaignPlayer(s);
     const hero = myArmy(s).general;
     s = winBattle(attack(s));
-    expect(heroState(campaignPlayer(s), hero).xp).toBeGreaterThan(0);
-    s = settle(s);
+    expect(heroState(campaignPlayer(s), hero).xp).toBe(0);
     // Enough experience for a level: one point to spend, down a branch in order.
     let t = fresh();
     const h = heroState(campaignPlayer(t), hero);
