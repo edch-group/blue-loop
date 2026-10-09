@@ -8,7 +8,7 @@ import type { CardDef, CardKind } from './types';
  * Every profile spends the same budget, 2c+2 points of attack, Sturdy and stability at cost c: one point more than
  * a card of its cost with an ability (about 2c+1). Striker c+1 attack, c+1 stability; glass c+2 attack, c stability;
  * brute c attack, c+2 stability; guardian c−1 attack, Sturdy 2, c+1 stability; veteran c attack, Sturdy 1, c+1
- * stability; wall no attack, Sturdy 3 (a Guard by its walls), 2c−1 stability (at least 1).
+ * stability; wall no attack, Sturdy 3, 2c−1 stability (at least 1).
  */
 type Profile = 'striker' | 'glass' | 'brute' | 'guardian' | 'veteran' | 'wall';
 

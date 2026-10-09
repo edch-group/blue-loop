@@ -330,11 +330,11 @@ export function enemyChoices(state: GameState, p: PlayerState, defId: string): C
 }
 
 /**
- * Whether a card is a Guard: by its own Guard, or by its walls (defence of `BALANCE.wallGuard` or more, its
- * slot's included, a Hero's too) for as long as they hold.
+ * Whether a card is a Guard: by its own Guard, by standing in the middle slot (`BALANCE.guardSlot`), or fortified
+ * by a Lightspeed answer (until its owner's next dawn). Defence alone no longer makes one.
  */
-export function isGuard(p: PlayerState, c: CardInstance): boolean {
-  return cardPassives(c).some((x) => x.type === 'taunt') || cardDefence(p, c) >= BALANCE.wallGuard;
+export function isGuard(_p: PlayerState, c: CardInstance): boolean {
+  return cardPassives(c).some((x) => x.type === 'taunt') || c.slot === BALANCE.guardSlot || (c.fortified ?? 0) > 0;
 }
 
 /** A player's Guard cards: while they have any, rival attacks can only strike them. */
@@ -1232,8 +1232,8 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (!mine) break;
         mine.fortified = (mine.fortified ?? 0) + e.amount;
         const guard = isGuard(p, mine);
-        log(state, `${p.name}'s ${cardDef(mine.defId).name} gains ${e.amount} defence until their next dawn${guard ? ': it stands Guard' : ''}.`);
-        // (A Guard now: the attack, or heat aimed at another card, comes to it.)
+        log(state, `${p.name}'s ${cardDef(mine.defId).name} gains ${e.amount} defence and stands Guard until their next dawn.`);
+        // (A Guard now, as fortified: the attack, or heat aimed at another card, comes to it.)
         if (guard && ctx.reaction) ctx.reaction.redirect = mine.uid;
         break;
       }

@@ -1528,23 +1528,22 @@ describe('relics', () => {
   });
 });
 
-describe('walls', () => {
-  it('makes any card with 3+ defence a Guard while its defence holds, and a worn wall stays worn', () => {
-    let s = twoPlayer();
+describe('guards', () => {
+  it('makes whatever stands in the middle slot a Guard; elsewhere only the keyword (or a fortify) does, whatever the defence', () => {
+    const s = twoPlayer();
     const bo = s.players[1];
-    // Sturdy 1 on a 2-defence slot: 3, a Guard. On a 1-defence slot: 2, not.
+    // Sturdy 1 on a 2-defence slot: 3 defence, but no Guard. In the middle slot: a Guard, even worn.
     const relay: CardInstance = { uid: 'w1', defId: 'plasma_relay', slot: 1, health: 2 };
-    const edge: CardInstance = { uid: 'w2', defId: 'plasma_relay', slot: 0, health: 2 };
-    bo.tableau = [relay, edge];
+    const mid: CardInstance = { uid: 'w2', defId: 'plasma_relay', slot: 2, health: 2 };
+    bo.tableau = [relay, mid];
     expect(cardDefence(bo, relay)).toBe(3);
-    expect(isGuard(bo, relay)).toBe(true);
-    expect(isGuard(bo, edge)).toBe(false);
-    expect(guards(bo).map((c) => c.uid)).toEqual(['w1']);
-    // Worn below 3, it stops guarding, and stays that way through the days.
-    relay.dented = 1;
     expect(isGuard(bo, relay)).toBe(false);
-    s = endTurn(endTurn(s));
-    expect(isGuard(s.players[1], s.players[1].tableau.find((c) => c.uid === 'w1')!)).toBe(false);
+    expect(guards(bo).map((c) => c.uid)).toEqual(['w2']);
+    mid.dented = 3;
+    expect(isGuard(bo, mid)).toBe(true);
+    // Fortified by a Lightspeed answer, a card stands Guard until its owner's dawn.
+    relay.fortified = 3;
+    expect(isGuard(bo, relay)).toBe(true);
   });
 });
 

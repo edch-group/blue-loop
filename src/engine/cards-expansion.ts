@@ -275,7 +275,7 @@ export const EXPANSION: CardDef[] = [
     name: 'Prism of Dawn',
     kind: 'lightspeed',
     race: 0,
-    text: '{lightspeed}. When a rival card attacks your sun, your best-defended card gains 3 defence until your next dawn: a Guard now, it takes the attack.',
+    text: '{lightspeed}. When a rival card attacks your sun, your best-defended card gains 3 defence and stands Guard until your next dawn: it takes the attack.',
     lightspeed: { trigger: { on: 'sunAttacked' }, effects: [{ type: 'fortify', amount: 3, who: 'best' }] },
   },
   {

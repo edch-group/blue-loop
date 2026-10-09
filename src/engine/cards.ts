@@ -218,7 +218,7 @@ export const CARDS: CardDef[] = [
     id: 'decoy_array',
     name: 'Decoy Array',
     kind: 'lightspeed',
-    text: '{lightspeed}. When a rival card attacks one of yours, that card gains 3 defence until your next dawn.',
+    text: '{lightspeed}. When a rival card attacks one of yours, that card gains 3 defence and stands Guard until your next dawn.',
     lightspeed: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'fortify', amount: 3, who: 'it' }] },
   },
   {
