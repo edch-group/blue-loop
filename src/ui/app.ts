@@ -5000,8 +5000,6 @@ export class App {
             <div class="board-star-slot" data-morph-keep></div>
             ${this.renderRoundRing()}
             ${this.renderPhaseTrack()}
-            ${rival ? this.boardEye('rival') : ''}
-            ${this.boardEye('mine')}
             ${rival ? this.renderTableau(rival, 'rival') : ''}
             ${this.state?.winnerId && Date.now() >= this.resultAt ? '<div class="result-anchor"></div>' : ''}
             ${this.renderMidHint()}
@@ -5009,12 +5007,6 @@ export class App {
           </div>
         </div>
       </section>`;
-  }
-
-  /** A tableau's eye, in the board's middle (the rival's above the Stellari, yours below): tap to look closely at it. */
-  private boardEye(side: 'mine' | 'rival'): string {
-    const whose = side === 'mine' ? 'your' : 'their';
-    return `<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${whose} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${whose} tableau">${EYE_ICON}</button>`;
   }
 
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
@@ -5100,7 +5092,7 @@ export class App {
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
           <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
-          <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
+          <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
       </div>`;

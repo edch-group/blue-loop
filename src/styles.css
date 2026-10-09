@@ -1841,17 +1841,17 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   --boardw: calc(var(--gw) - 2 * var(--inset) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
   /* Five slots and the Lightspeed slot, set a little apart. */
   /* (The height share leaves room between the rows for the Command slots, which stand out a card's width.) */
-  --tcw-h: 0.32;
+  --tcw-h: 0.262;
   --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * var(--tcw-h) * 0.714), calc(150px * var(--bz, 1)),
     /* Room across the board for each row's sun on the left (and the same on the right). */
     calc((var(--game-w) - 2 * var(--inset) - 24px - 2 * var(--row-side) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
   /* Each row's ends: its sun on the left, its upgrade pills on the right, the same width each so the slots centre. */
-  --row-side: calc(1.05 * var(--row-vs));
+  --row-side: calc(1.3 * var(--row-vs));
   --game-w: calc(var(--gw) * 0.95);
   --row-vs: clamp(calc(84px * var(--bz, 1)), calc(var(--gh) / 112 * 23), calc(168px * var(--bz, 1)));
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .table-view > .game { --logw: 0px; --tcw-h: 0.28; }
+  .table-view > .game { --logw: 0px; --tcw-h: 0.215; }
 }
 .table-view > .game > .board { grid-column: 1 / -1 !important; grid-row: 2; display: flex; min-height: 0; }
 .board .board3d { flex: 1; min-height: 0; display: flex; }
@@ -4199,19 +4199,17 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* An ability's energy cost: the card's own cost dots (green, lit, white-rimmed), flush left, then " : ". */
 .kw-cost .gain-dots { margin-left: 0; }
 .kw-cost .gain-dots i { width: 0.78em; height: 0.78em; background: #7cc79a; border: 0.12em solid #fff; box-shadow: 0 0 6px rgba(110, 196, 146, 0.75), 0 1px 2px rgba(20, 40, 30, 0.35); }
-/* Each tableau's eye, in the board's middle: the rival's just above the Stellari, yours just below. Tap to
-   look closely at that tableau. */
-.board-plane > .tableau-eye {
-  --eye: clamp(24px, calc(var(--tcw) * 0.28), 36px);
-  position: absolute; left: 50%; top: 50%; z-index: 2; display: grid; place-items: center; padding: 0; cursor: pointer;
-  width: var(--eye); aspect-ratio: 1; margin: calc(var(--eye) / -2) 0 0 calc(var(--eye) / -2);
+/* Each tableau's eye, on its owner's left (yours on the left of your row; theirs, facing you, on the right of
+   theirs), level with the row: tap to look closely at that tableau. */
+.tableau-eye {
+  position: absolute; top: 50%; z-index: 2; display: grid; place-items: center; padding: 0; cursor: pointer;
+  width: clamp(26px, calc(var(--tcw) * 0.3), 40px); aspect-ratio: 1; margin-top: calc(clamp(26px, calc(var(--tcw) * 0.3), 40px) / -2);
   border: 1px solid #fff; border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: 0 2px 8px rgba(70, 76, 100, 0.2); color: #5b6170;
   transition: transform 0.15s, background 0.15s;
-  --eye-r: 66px; /* (from the Stellari's centre, at the edge of its petals) */
 }
-.board-plane > .tableau-eye-rival { transform: translateY(calc(-1 * var(--eye-r))) translateZ(2px); }
-.board-plane > .tableau-eye-mine { transform: translateY(var(--eye-r)) translateZ(2px); }
-.board-plane > .tableau-eye:hover { background: #fff; }
+.tableau-eye-mine { right: calc(100% + var(--frame-pad, 12px) + 8px); }
+.tableau-eye-rival { left: calc(100% + var(--frame-pad, 12px) + 8px); }
+.tableau-eye:hover { background: #fff; transform: scale(1.08); }
 .eye-icon { width: 62%; height: auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
 .zoom-btn .eye-icon { width: 20px; }
 .table-view.zoom-rival .tableau-eye, .table-view.zoom-mine .tableau-eye { display: none; }
@@ -4237,6 +4235,8 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* The boards mirror: the rival's Lightspeed slot ends their row on the viewer's left, under their Hero
    (as yours ends your row on the right, under yours). */
 .tableau-rival .ls-slot { grid-column: 1; grid-row: 1; }
+/* Both eyes on the viewer's left of each row. */
+.tableau-eye-rival { left: auto; right: calc(100% + var(--frame-pad, 12px) + 8px); }
 /* A card picked that can also go face down: the choice in the pane, under the card. */
 .stage-ls-btn { pointer-events: auto; justify-self: center; width: auto; min-width: 0; white-space: nowrap; font-size: 0.62rem; display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 14px; color: #a86d10; border-color: rgba(212, 149, 42, 0.6); box-shadow: 0 0 14px rgba(212, 149, 42, 0.35); }
 .stage-ls-btn small { font-size: 0.8em; opacity: 0.8; letter-spacing: 0.06em; }
@@ -4300,7 +4300,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
   .round-ring-num b { font-size: calc(8px * var(--bz, 1)); }
   .board-plane > .phase-track, .board-plane > .turn-who { --stellari-r: 48px; gap: 4px; }
   .board-plane > .board-shields { --bs: 23px; --stellari-r: 44px; }
-  .board-plane > .tableau-eye { --eye-r: 40px; }
   .turn-who span, .phase-step span { font-size: 7px; letter-spacing: 0.18em; }
   .phase-step { gap: 5px; }
   .phase-step i { width: 6px; height: 6px; }
