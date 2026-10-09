@@ -112,10 +112,12 @@ void main() {
     float a = pow(1.0 - vL.x, 1.5) * 0.55 * uAlpha;
     gl_FragColor = vec4(uColor * a, a);
   } else if (uKind > 4.5) {
-    // A Stellari petal: pale and see-through, its edge drawn round in soft ink (as the home screen's flower).
-    float edge = 1.0 - smoothstep(0.18, 0.45, ndv);
-    vec3 c = mix(vec3(1.0), vec3(0.74, 0.77, 0.87), edge);
-    float a = (0.16 + 0.55 * edge) * uAlpha;
+    // A Stellari petal, as the home screen's flower: white, see-through, its edge a bright white line, with the
+    // faint grey shadow round it that keeps it visible on the paper.
+    float edge = 1.0 - smoothstep(0.12, 0.35, ndv);
+    float shade = 1.0 - smoothstep(0.0, 0.1, ndv);
+    vec3 c = mix(vec3(1.0), vec3(0.47, 0.49, 0.59), shade * 0.5);
+    float a = (0.2 + 0.75 * edge) * uAlpha;
     gl_FragColor = vec4(c * a, a);
   } else {
     float lit = max(0.0, dot(normalize(vN), normalize(vec3(0.5, 0.8, 0.35))));
@@ -268,10 +270,19 @@ function beam(): Float32Array {
   return new Float32Array(out);
 }
 
-/** Column-major 4x4: translate, turn about y, roll about z, scale along each axis (local +z faces (sin ry, 0, cos ry)). */
-function rolled(x: number, y: number, z: number, ry: number, rz: number, sx: number, sy: number, sz: number): Float32Array {
-  const cy = Math.cos(ry), syn = Math.sin(ry), cz = Math.cos(rz), szn = Math.sin(rz);
-  return new Float32Array([cy * cz * sx, szn * sx, -syn * cz * sx, 0, -cy * szn * sy, cz * sy, syn * szn * sy, 0, syn * sz, 0, cy * sz, 0, x, y, z, 1]);
+/**
+ * Column-major 4x4 for a shape facing a direction: its local +z along `f` (unit), rolled about it by `roll`, scaled
+ * along each local axis, at (x, y, z).
+ */
+function facing(x: number, y: number, z: number, f: number[], roll: number, sx: number, sy: number, sz: number): Float32Array {
+  // Right and up across the facing (world up as the guide).
+  let r = [f[2], 0, -f[0]];
+  const rl = Math.hypot(r[0], r[2]) || 1;
+  r = [r[0] / rl, 0, r[2] / rl];
+  const u = [f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0]];
+  const c = Math.cos(roll), s = Math.sin(roll);
+  const X = [0, 1, 2].map((i) => c * r[i] + s * u[i]), Y = [0, 1, 2].map((i) => -s * r[i] + c * u[i]);
+  return new Float32Array([X[0] * sx, X[1] * sx, X[2] * sx, 0, Y[0] * sy, Y[1] * sy, Y[2] * sy, 0, f[0] * sz, f[1] * sz, f[2] * sz, 0, x, y, z, 1]);
 }
 
 /** Column-major 4x4: translate, rotate about x then y, scale. */
@@ -473,29 +484,37 @@ export class MapObjects {
    * the other, more slowly.
    */
   private drawStellari(cam: Camera, time: number, fade: number) {
+    const gl = this.gl;
     const heart = this.list.find((o) => o.heart);
     if (!heart || heart.dead) return;
     const R = 0.26;
     // (Just past the sun, its petals clear of it: the sun is 0.072 across, the flower R.)
-    const x = heart.x + R * 0.75 + 0.1, z = heart.z, y = R + 0.03;
-    const ry = Math.atan2(cam.eye[0] - x, cam.eye[2] - z);
+    const x = heart.x + R * 0.75 + 0.1, z = heart.z, y = R + 0.12;
+    // Facing the camera full on (as the home screen's flower faces the viewer).
+    const d = [cam.eye[0] - x, cam.eye[1] - y, cam.eye[2] - z];
+    const dl = Math.hypot(d[0], d[1], d[2]) || 1;
+    const f = d.map((v) => v / dl);
     const turn = (time * 4 * Math.PI) / 180;
     const solid = this.solids(cam, time, fade);
+    // (Over the land, never into it: the hills past the strip rise behind it.)
+    gl.disable(gl.DEPTH_TEST);
     // (A little breath, as if it were alive.)
     const b = 1 + 0.03 * Math.sin(time * 0.9);
     for (let i = 0; i < 12; i++) {
-      solid.draw(this.sphereBuf, this.counts.sphere, rolled(x, y, z, ry, turn + (i * Math.PI) / 6, R * 0.29 * b, R * b, R * 0.02), 5, [1, 1, 1], 0.55);
+      solid.draw(this.sphereBuf, this.counts.sphere, facing(x, y, z, f, turn + (i * Math.PI) / 6, R * 0.29 * b, R * b, R * 0.02), 5, [1, 1, 1], 0.55);
     }
     for (let i = 0; i < 18; i++) {
       const a = -turn * 0.6 + ((i * 20 + 10) * Math.PI) / 180;
       // Each spike from the middle outward: its centre partway out along its own direction.
-      const cx = x + Math.cos(ry) * -Math.sin(a) * R * 0.42, cyy = y + Math.cos(a) * R * 0.42, cz = z - Math.sin(ry) * -Math.sin(a) * R * 0.42;
-      solid.draw(this.sphereBuf, this.counts.sphere, rolled(cx, cyy, cz, ry, a, R * 0.05, R * 0.4, R * 0.015), 5, [1, 1, 1], 0.7);
+      const m = facing(x, y, z, f, a, R * 0.05, R * 0.4, R * 0.015);
+      for (let k = 0; k < 3; k++) m[12 + k] += m[4 + k] / (R * 0.4) * R * 0.42;
+      solid.draw(this.sphereBuf, this.counts.sphere, m, 5, [1, 1, 1], 0.7);
     }
     solid.done();
     const sprite = this.sprites(cam, time, fade);
     sprite.draw(x, y, z, R * 1.4, 0, [1, 1, 1], 0.5);
     sprite.done();
+    gl.enable(gl.DEPTH_TEST);
   }
 
   /**
