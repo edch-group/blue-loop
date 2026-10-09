@@ -136,6 +136,19 @@ const GALAXY_GLYPH: Record<GalaxyKind, string> = {
   darkMatter: '<circle cx="12" cy="12" r="8" stroke-dasharray="2 3"/><circle cx="8" cy="10" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1" fill="currentColor"/><circle cx="13" cy="15" r="1.5" fill="currentColor"/>',
 };
 
+/** Each relic's painted badge, by its base name (the name without its quality or curse word): "Bright Sunlance" is sunlance. */
+const RELIC_ART: Record<string, string> = Object.fromEntries(
+  Object.entries(import.meta.glob<string>('../assets/relics/*.webp', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
+    path.slice(path.lastIndexOf('/') + 1, -'.webp'.length),
+    url,
+  ]),
+);
+function relicMark(name: string, slot: string): string {
+  const slug = name.slice(name.indexOf(' ') + 1).toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const url = RELIC_ART[slug];
+  return url ? `<img src="${url}" alt="" draggable="false">` : (RELIC_GLYPH[slot] ?? RELIC_GLYPH.weapon);
+}
+
 const RELIC_GLYPH: Record<string, string> = {
   weapon: glyph('M5 19 17 7l2-3-3 2L4 18M8 16l-3 3M14 6l4 4'),
   helm: glyph('M5 16V12a7 7 0 0 1 14 0v4M5 16h14M9 9l3-4 3 4'),
@@ -964,7 +977,7 @@ export class CampaignView {
   }
 
   /**
-   * The relics found on the way, down the right of the screen: each a paper token with its kind's mark in ink,
+   * The relics found on the way, down the right of the screen: each a token with its painted badge,
    * rimmed in gold (a blessing) or red (a curse), saying what it does on a hover or tap.
    */
   private renderRelics(): string {
@@ -973,7 +986,7 @@ export class CampaignView {
     const tokens = relics
       .map(
         (r) =>
-          `<button class="cmp-relic ${r.cursed ? 'cursed' : 'blessed'} rarity-${r.rarity}" data-key="relic-${r.id}" data-tip-title="${esc(r.name.toLowerCase())}" data-tip="${esc(r.cursed ? r.text : itemText(r))}" data-tip-note="${r.cursed ? 'Cursed: it weighs on your flagship in every battle.' : "A blessing on your hero's card in every battle."}" aria-label="${esc(r.name)}">${RELIC_GLYPH[r.slot] ?? RELIC_GLYPH.weapon}</button>`,
+          `<button class="cmp-relic ${r.cursed ? 'cursed' : 'blessed'} rarity-${r.rarity}" data-key="relic-${r.id}" data-tip-title="${esc(r.name.toLowerCase())}" data-tip="${esc(r.cursed ? r.text : itemText(r))}" data-tip-note="${r.cursed ? 'Cursed: it weighs on your flagship in every battle.' : "A blessing on your hero's card in every battle."}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
       )
       .join('');
     return `<aside class="cmp-relics" aria-label="Relics">${tokens}</aside>`;
