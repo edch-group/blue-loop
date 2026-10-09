@@ -538,8 +538,16 @@ export function armyBonus(s: CampaignState, a: Army) {
     bonus.boons = [...bonus.boons, ...rel.boons];
     bonus.mods = mergeModifiers(bonus.mods, rel.mods);
   }
-  // (The Fold drive, bought between runs: one more move a turn.)
-  if (a.owner === s.playerId && s.run?.march) bonus.march = (bonus.march ?? 0) + s.run.march;
+  // The skill tree, bought between runs, for the player's own armies: the Fold drive's move, the flagship's battles
+  // (a cooler sun, a sharper command), its repair on the map, its finds and the systems that surrender to it.
+  if (a.owner === s.playerId && s.run) {
+    const run = s.run;
+    if (run.march) bonus.march = (bonus.march ?? 0) + run.march;
+    if (run.mods) bonus.mods = mergeModifiers(bonus.mods, run.mods);
+    bonus.mend += run.mend ?? 0;
+    bonus.loot += run.loot ?? 0;
+    bonus.dread += run.dread ?? 0;
+  }
   return bonus;
 }
 
@@ -1441,7 +1449,8 @@ export function deepIn(s: CampaignState, n: CampaignNode): boolean {
 
 function randomCardChoices(s: CampaignState, f: Faction): string[] {
   const pool = [...new Set(shuffleInPlace(s, offerPool(f, s.mode)))];
-  return pool.slice(0, CAMPAIGN.cardChoices);
+  // (Wide offers, bought between runs: more to choose from.)
+  return pool.slice(0, CAMPAIGN.cardChoices + (f.id === s.playerId ? s.run?.choices ?? 0 : 0));
 }
 
 // ---------------------------------------------------------------------------
@@ -1909,12 +1918,12 @@ function takeSalvage(s: CampaignState, f: Faction, army: Army | undefined, id: s
  */
 function overlordBounty(s: CampaignState, f: Faction, army?: Army) {
   const lord = overlordById(s.overlord ?? OVERLORDS[0].id);
-  const petals = Math.max(1, Math.round(CAMPAIGN.bossPetals * s.universe * (1 + (s.run?.petalBonus ?? 0))));
+  const petals = Math.max(1, Math.round(CAMPAIGN.bossPetals * s.universe * (1 + (s.run?.petalBonus ?? 0)))) + (s.run?.tithe ?? 0);
   s.petals += petals;
   gainXp(s, CAMPAIGN.xpBoss);
   clog(s, `${lord.name} falls: ${f.name} gathers ${petals} Stellari petal${petals === 1 ? '' : 's'} from its remains.`, undefined, f.id);
   const fits = (id: string) => rarityOf(id) !== 'dwarf' && cardDef(id).kind !== 'command' && (!army || deckAddProblem({ ...f, reserve: [id] }, army, id) === null);
-  const options = [...new Set(shuffleInPlace(s, offerPool(f, s.mode)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices);
+  const options = [...new Set(shuffleInPlace(s, offerPool(f, s.mode)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices + (s.run?.vault ?? 0));
   if (options.length) s.cardRewards.push({ source: `${lord.name}'s hoard`, options, ...(army ? { toDeck: army.id } : {}), take: 'claims' });
 }
 
@@ -1964,7 +1973,7 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   // Stellari's Favour: the flagship's sun cools after every battle it wins.
   if (attackerWon && army && army.owner === s.playerId && s.run?.favour) army.damage = Math.max(BALANCE.minHeat, army.damage - s.run.favour);
   if (winner) {
-    winner.materials += CAMPAIGN.winMaterials;
+    winner.materials += CAMPAIGN.winMaterials + (winner.id === s.playerId ? s.run?.plunder ?? 0 : 0);
     winner.stats.battlesWon += 1;
     if (game.round <= 6) winner.stats.swiftWins += 1;
     if (winnerSeat.heat <= 0) winner.stats.coldWins += 1;
@@ -1996,7 +2005,8 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
 
 /** Experience for the player, for something done this run (it is banked at once: a lost run keeps it). */
 function gainXp(s: CampaignState, amount: number) {
-  s.xp = (s.xp ?? 0) + amount;
+  // (Study, bought between runs: a share more.)
+  s.xp = (s.xp ?? 0) + Math.round(amount * (1 + (s.run?.xpBonus ?? 0)));
 }
 
 /** The player's flagship is beaten in battle: it is lost, and the run with it. */

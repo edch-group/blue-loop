@@ -200,6 +200,22 @@ const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: 
   petals: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM12 5.5v10M5 20.5h14'), unit: 'more petals at every wormhole', value: (l) => `+${20 * l}%` },
   hoard: { icon: glyph('M3.5 13.5 9 10.5l5.5 3v6l-5.5 3-5.5-3ZM3.5 13.5 9 16.5l5.5-3M9 16.5v6M9.5 7.5 15 4.5l5.5 3v6l-5.5 3M9.5 7.5 15 10.5l5.5-3M15 10.5v6'), unit: 'materials in every new galaxy', value: (l) => `+${6 * l}` },
   favour: { icon: glyph('M12 3.5c3 2.4 3.8 6.4 0 11.5-3.8-5.1-3-9.1 0-11.5ZM4.5 9.5c3.6-.6 7 1.4 7.5 5.5-4.4.5-7.3-1.6-7.5-5.5ZM19.5 9.5c-3.6-.6-7 1.4-7.5 5.5 4.4.5 7.3-1.6 7.5-5.5ZM12 15v5.5'), unit: "cooling for the flagship's sun after each battle won", value: (l) => `−${3 * l}` },
+  cryo: { icon: glyph('M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 6.5l2.5-2M9.5 19.5l2.5-2 2.5 2'), unit: "cooler start for the flagship's sun in every battle", value: (l) => `−${l}` },
+  plating: { icon: glyph('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17ZM12 7.5v9M7.5 12h9'), unit: "max health on the flagship's sun in battle", value: (l) => `+${2 * l}` },
+  mend: { icon: glyph('M14.5 4.5a4 4 0 0 0-4.8 5.3L4.5 15a2.1 2.1 0 0 0 3 3l5.2-5.2a4 4 0 0 0 5.3-4.8l-2.5 2.5-2.4-.6-.6-2.4Z'), unit: 'heat repaired each turn on the map', value: (l) => `${l}` },
+  mantle: { icon: glyph('M12 4.5c4.2 0 7.5 2 7.5 4.5S16.2 13.5 12 13.5 4.5 11.5 4.5 9 7.8 4.5 12 4.5ZM12 13.5c-3.6 0-6.5 2.8-7 6.5h14c-.5-3.7-3.4-6.5-7-6.5Z'), unit: "shield on the sun every day of battle", value: (l) => `+${l}` },
+  doctrine: { icon: glyph('M5 4.5h10.5a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2ZM5 17.5a2 2 0 0 1 2-2h10.5M9 8.5h5M9 11.5h5'), unit: 'cards in the opening hand', value: (l) => `+${l}` },
+  insight: { icon: glyph('M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12ZM12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z'), unit: 'card drawn every day of battle', value: (l) => `+${l}` },
+  calm: { icon: glyph('M4 9.5h11a2.5 2.5 0 1 0-2.5-2.5M4 13.5h14a2.5 2.5 0 1 1-2.5 2.5M4 17.5h7'), unit: 'cooling every day of battle', value: (l) => `${l}` },
+  secondsun: { icon: glyph('M9 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9ZM16.5 5a3 3 0 1 1 0 6M16.5 13a3 3 0 1 1 0 6'), unit: 'energy every day of battle', value: (l) => `+${l}` },
+  scouts: { icon: glyph('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5'), unit: 'more chance of gear', value: (l) => `+${10 * l}%` },
+  dread: { icon: glyph('M5 9.5v5h3l6 4.5v-14l-6 4.5ZM17.5 9a4 4 0 0 1 0 6M19.5 6.5a7.5 7.5 0 0 1 0 11'), unit: 'tiers of neutral system that surrender', value: (l) => `${l}` },
+  plunder: { icon: glyph('M4.5 9.5h15l-1.5 10h-12ZM8 9.5a4 4 0 0 1 8 0M10 13.5h4'), unit: 'materials for every battle won', value: (l) => `+${2 * l}` },
+  empire: { icon: glyph('M3.5 18.5h17M5 18.5l-1.5-11 5 4L12 5l3.5 6.5 5-4-1.5 11'), unit: 'tiers of neutral system that surrender', value: (l) => `+${l}` },
+  study: { icon: glyph('M3 8.5 12 4.5l9 4-9 4ZM6.5 10.5v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.5M21 8.5v5'), unit: 'more experience from everything', value: (l) => `+${10 * l}%` },
+  choice: { icon: glyph('M4 6.5h6v9H4ZM14 6.5h6v9h-6ZM9 18.5h6'), unit: 'card to choose from in every reward', value: (l) => `+${l}` },
+  tithe: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM5 20.5h14M8 17.5l-2 3M16 17.5l2 3'), unit: 'petals from every Overlord beaten', value: (l) => `+${2 * l}` },
+  vault: { icon: glyph('M4 6.5h16v13H4ZM4 10.5h16M12 13.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z'), unit: "cards more in every Overlord's hoard", value: (l) => `+${2 * l}` },
   salvage: { icon: glyph('M5.5 7.5h13l-1.2 12a1.5 1.5 0 0 1-1.5 1.4H8.2a1.5 1.5 0 0 1-1.5-1.4ZM3.5 7.5h17M9 7.5V4.5h6v3M10 11.5v6M14 11.5v6'), unit: 'card to choose from when salvaging', value: (l) => `+${l}` },
 };
 
@@ -1065,15 +1081,20 @@ export class CampaignView {
    */
   private renderShop(meta: MetaState): string {
     const branches: { g: MetaGroup; title: string; dir: number }[] = [
-      { g: 'start', title: 'a stronger start', dir: 210 },
-      { g: 'flagship', title: 'a tougher flagship', dir: 330 },
+      // (One off each of the seven petals the flower shows above the foot of the screen, every 30° from left to right.)
+      { g: 'sun', title: 'a cooler sun', dir: 180 },
+      { g: 'command', title: 'a sharper command', dir: 210 },
+      { g: 'flagship', title: 'a tougher flagship', dir: 240 },
       { g: 'perk', title: 'run perks', dir: 270 },
+      { g: 'start', title: 'a stronger start', dir: 300 },
+      { g: 'spoils', title: 'spoils of war', dir: 330 },
+      { g: 'lore', title: 'lasting wisdom', dir: 360 },
     ];
     // Where a skill lies, from the Stellari's heart (at the foot of the sky, half of it below), in units of the
     // sky's reach R (a true circle, set in CSS): out along its branch by tier, its tier's skills fanned across it.
     // Each branch leaves the tip of one of the flower's own petals (they point every 30°, the tips 0.345 R out).
     const TIP = 0.345;
-    const reach = [0, 0.45, 0.7, 0.94];
+    const reach = [0, 0.46, 0.7, 0.94];
     const pos = new Map<string, [number, number]>();
     const place = (deg: number, k: number): [number, number] => {
       const r = (deg * Math.PI) / 180;
@@ -1086,8 +1107,11 @@ export class CampaignView {
       const skills = META_UPGRADES.filter((u) => u.group === br.g);
       for (const tier of [1, 2, 3]) {
         const row = skills.filter((u) => (u.tier ?? 1) === tier);
-        const fan = row.length > 1 ? (tier === 2 ? 34 : 22) : 0;
-        row.forEach((u, i) => pos.set(u.id, place(br.dir + (row.length > 1 ? -fan / 2 + (fan * i) / (row.length - 1) : 0), reach[tier])));
+        // (A tier's skills fanned within their own 30° of sky, clear of the next branch's.)
+        const fan = row.length > 1 ? (row.length > 2 ? 18 : 13) : 0;
+        // (A branch along the foot of the sky fans upward only, clear of the screen's edge.)
+        const lift = br.dir === 180 ? fan / 2 : br.dir === 360 ? -fan / 2 : 0;
+        row.forEach((u, i) => pos.set(u.id, place(br.dir + lift + (row.length > 1 ? -fan / 2 + (fan * i) / (row.length - 1) : 0), reach[tier])));
       }
     }
     const ring = (level: number, max: number) => {

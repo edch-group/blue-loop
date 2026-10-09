@@ -2,17 +2,19 @@
  * The loop's lasting progress, in two currencies, both kept for every run after.
  *
  * Experience (XP) is earned by everything a run does (battles won, systems taken, challenges cleared, galaxies
- * crossed, bosses beaten), win or lose, so every run moves the player on. It buys the skill tree: three branches
- * (a stronger start, a tougher flagship, run perks), each a tier of upgrades bought level by level, unlocking the
- * next tier up, to a capstone.
+ * crossed, bosses beaten), win or lose, so every run moves the player on. It buys the skill tree: seven branches,
+ * one off each petal of the Stellari (a cooler sun, a sharper command, a tougher flagship, run perks, a stronger
+ * start, spoils of war, lasting wisdom), each a tier of upgrades bought level by level, unlocking the next tier up,
+ * to a capstone.
  *
  * Stellari petals are grabbed at wormholes and from beaten Overlords. They unlock races and heroes, and buy cards
  * into a race's starting deck for good.
  */
 
 import { GENERALS } from './story';
+import type { BattleModifiers } from './types';
 
-export type MetaGroup = 'start' | 'flagship' | 'unlock' | 'perk';
+export type MetaGroup = 'sun' | 'command' | 'flagship' | 'perk' | 'start' | 'spoils' | 'lore' | 'unlock';
 
 export interface MetaUpgrade {
   id: string;
@@ -71,6 +73,26 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'petals', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Petal pouch', text: '+20% petals at every wormhole.', max: 3, cost: rising(40, 20) },
   { id: 'salvage', group: 'perk', tier: 2, requires: [['grace', 2]], name: 'Scavengers', text: 'One more card to choose from when salvaging.', max: 1, cost: flat(60) },
   { id: 'favour', group: 'perk', tier: 3, requires: [['armory', 1], ['salvage', 1]], name: "Stellari's Favour", text: "After every battle the flagship wins, its sun cools by 3.", max: 1, cost: flat(170) },
+  // A cooler sun.
+  { id: 'cryo', group: 'sun', tier: 1, name: 'Cryo core', text: "The flagship's sun starts every battle 1 cooler.", max: 3, cost: rising(20, 15) },
+  { id: 'plating', group: 'sun', tier: 2, requires: [['cryo', 1]], name: 'Stellar plating', text: '+2 max health on the flagship\'s sun in battle.', max: 2, cost: rising(45, 35) },
+  { id: 'mend', group: 'sun', tier: 2, requires: [['cryo', 2]], name: 'Field repair', text: 'The flagship repairs 1 heat at the start of every turn on the map.', max: 2, cost: rising(50, 40) },
+  { id: 'mantle', group: 'sun', tier: 3, requires: [['plating', 1], ['mend', 1]], name: 'Halo mantle', text: "+1 shield on the flagship's sun every day of battle.", max: 1, cost: flat(180) },
+  // A sharper command.
+  { id: 'doctrine', group: 'command', tier: 1, name: 'Battle doctrine', text: 'One more card in the opening hand of every battle.', max: 2, cost: rising(25, 25) },
+  { id: 'insight', group: 'command', tier: 2, requires: [['doctrine', 1]], name: 'Insight', text: 'Draw 1 more card every day of battle.', max: 1, cost: flat(90) },
+  { id: 'calm', group: 'command', tier: 2, requires: [['doctrine', 2]], name: 'Cold focus', text: "The flagship's sun cools 1 at the start of every day of battle.", max: 1, cost: flat(90) },
+  { id: 'secondsun', group: 'command', tier: 3, requires: [['insight', 1], ['calm', 1]], name: 'Second sun', text: '+1 energy every day of battle.', max: 1, cost: flat(200) },
+  // Spoils of war.
+  { id: 'scouts', group: 'spoils', tier: 1, name: 'Salvage crews', text: 'The flagship is likelier to find gear when it takes a system or wins a battle.', max: 3, cost: rising(20, 15) },
+  { id: 'dread', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Terror broadcasts', text: 'The weakest neutral systems surrender to the flagship without a battle.', max: 1, cost: flat(70) },
+  { id: 'plunder', group: 'spoils', tier: 2, requires: [['scouts', 2]], name: 'Plunder', text: '+2 materials for every battle won.', max: 2, cost: rising(45, 35) },
+  { id: 'empire', group: 'spoils', tier: 3, requires: [['dread', 1], ['plunder', 1]], name: 'Shadow of empire', text: 'Stronger neutral systems surrender to the flagship too.', max: 1, cost: flat(180) },
+  // Lasting wisdom.
+  { id: 'study', group: 'lore', tier: 1, name: 'Study', text: '+10% experience from everything.', max: 3, cost: rising(25, 20) },
+  { id: 'choice', group: 'lore', tier: 2, requires: [['study', 1]], name: 'Wide offers', text: 'One more card to choose from in every card reward.', max: 1, cost: flat(70) },
+  { id: 'tithe', group: 'lore', tier: 2, requires: [['study', 2]], name: "Overlord's tithe", text: '+2 petals from every Overlord beaten.', max: 2, cost: rising(50, 40) },
+  { id: 'vault', group: 'lore', tier: 3, requires: [['choice', 1], ['tithe', 1]], name: "Overlord's vault", text: "Every Overlord's hoard offers 2 more cards to choose from.", max: 1, cost: flat(170) },
   // Unlocks (petals): the other races, and each race's later heroes.
   ...[4, 5, 6, 7].map((race) => ({ id: `race:${race}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(10) })),
   ...GENERALS.flatMap((heroes) => heroes.slice(1).map((hero) => ({ id: `hero:${hero}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(6) }))),
@@ -140,6 +162,20 @@ export interface RunBonuses {
   favour: number;
   /** Cards bought into the starting deck (for the run's race). */
   deck: string[];
+  /** The flagship's battles: its sun's start, health, shields and cooling, its hand and energy (a cooler sun, a sharper command). */
+  mods?: BattleModifiers;
+  /** Heat the flagship repairs each turn on the map (Field repair). */
+  mend?: number;
+  /** More chance of gear (Salvage crews), and the tiers of neutral system that surrender to it (Terror broadcasts, Shadow of empire). */
+  loot?: number;
+  dread?: number;
+  /** More materials for every battle won (Plunder). */
+  plunder?: number;
+  /** A share more experience (Study), cards more in every card reward (Wide offers), petals more from every Overlord (Overlord's tithe), and cards more in its hoard (Overlord's vault). */
+  xpBonus?: number;
+  choices?: number;
+  tithe?: number;
+  vault?: number;
 }
 
 /**
@@ -209,5 +245,22 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
     hoard: 6 * l('hoard'),
     favour: 3 * l('favour'),
     deck: meta && race !== undefined ? [...(meta.deck?.[race] ?? [])] : [],
+    mods: {
+      ...(l('cryo') ? { startingHeat: -l('cryo') } : {}),
+      ...(l('plating') ? { maxHealthDelta: 2 * l('plating') } : {}),
+      ...(l('mantle') ? { shieldPerTurn: l('mantle') } : {}),
+      ...(l('doctrine') ? { openingHand: l('doctrine') } : {}),
+      ...(l('insight') ? { extraDraw: l('insight') } : {}),
+      ...(l('calm') ? { coolPerTurn: l('calm') } : {}),
+      ...(l('secondsun') ? { extraPlays: l('secondsun') } : {}),
+    },
+    mend: l('mend'),
+    loot: 0.1 * l('scouts'),
+    dread: l('dread') + l('empire'),
+    plunder: 2 * l('plunder'),
+    xpBonus: 0.1 * l('study'),
+    choices: l('choice'),
+    tithe: 2 * l('tithe'),
+    vault: 2 * l('vault'),
   };
 }

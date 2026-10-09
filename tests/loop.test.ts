@@ -17,6 +17,7 @@ import {
   universeStability,
   wormholePetals,
   STARTER_OFFERS,
+  armyBonus,
   starterAddProblem,
   legalIn,
   cardDef,
@@ -100,6 +101,25 @@ describe('the strip', () => {
     expect(campaignPlayer(s).ship.hull).toBe(1);
     expect(s.cardRewards[0].source).toBe('Requisition');
     expect(universeStability(s)).toBe(universeStability(plain) + 1);
+  });
+});
+
+describe('the skill tree', () => {
+  it("brings the new branches' skills to the flagship: its battles, repair, finds, surrenders and rewards", () => {
+    let meta = { ...emptyMeta(), xp: 9999 };
+    for (const id of ['cryo', 'cryo', 'plating', 'doctrine', 'scouts', 'scouts', 'dread', 'plunder', 'study', 'choice']) meta = buyUpgrade(meta, id);
+    const run = runBonuses(meta, 1);
+    expect(run.mods).toMatchObject({ startingHeat: -2, maxHealthDelta: 2, openingHand: 1 });
+    const s = createCampaign({ seed: 11, race: 1, run });
+    const plain = createCampaign({ seed: 11, race: 1, run: runBonuses(emptyMeta(), 1) });
+    const b = armyBonus(s, flag(s));
+    const p = armyBonus(plain, flag(plain));
+    expect(b.mods.startingHeat ?? 0).toBe((p.mods.startingHeat ?? 0) - 2);
+    expect(b.mods.openingHand ?? 0).toBe((p.mods.openingHand ?? 0) + 1);
+    expect(b.loot).toBeCloseTo(p.loot + 0.2);
+    expect(b.dread).toBe(p.dread + 1);
+    expect(run).toMatchObject({ plunder: 2, choices: 1 });
+    expect(run.xpBonus).toBeCloseTo(0.1);
   });
 });
 
