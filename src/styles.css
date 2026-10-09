@@ -614,7 +614,8 @@ input { font: inherit; }
 
 /* ---------- AI spotlight ---------- */
 /* (--scw: the stage's card width; each card sets its own --cw, so the stage's is handed down under another name.) */
-.stage { --scw: min(250px, calc(50 * var(--vh))); position: fixed; left: min(78%, calc(100% - var(--scw) / 2 - 16px)); top: 50%; transform: translate(-50%, -50%); z-index: 15; display: grid; justify-items: center; gap: 8px; pointer-events: none; animation: stage-in 0.25s ease-out; }
+/* Against the right edge of the screen, clear of the board. */
+.stage { --scw: min(250px, calc(50 * var(--vh))); position: fixed; left: auto; right: calc(var(--pad-r, 0px) + 16px); top: 50%; transform: translateY(-50%); z-index: 15; display: grid; justify-items: center; gap: 8px; pointer-events: none; animation: stage-in 0.25s ease-out; }
 /* Fades in where it stands (its own translate centres it: a moving keyframe would slide it sideways). */
 @keyframes stage-in { from { opacity: 0; } }
 .stage::before { content: ''; position: absolute; inset: -50px -110px; background: radial-gradient(ellipse, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.6) 45%, transparent 70%); z-index: -1; }
@@ -1169,6 +1170,8 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
 .cmp-turn { font-family: var(--display); font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; padding: 7px 14px; border-radius: 8px; background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow); }
 .cmp-turn small { color: var(--ink-faint); }
 .cmp-purse { display: flex; gap: clamp(8px, calc(1.6 * var(--vw)), 18px); align-items: baseline; font-family: var(--display); font-size: 0.78rem; }
+.cmp-repair { display: flex; gap: 6px; align-items: center; margin-left: auto; margin-right: 12px; }
+.cmp-repair small { font-family: var(--display); font-size: 0.72rem; color: var(--ink-soft, #6b6b6b); margin-right: 4px; }
 .cmp-purse small { margin-left: 3px; font-size: 0.6rem; color: var(--ink-faint); }
 .cmp-held { font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); }
 .cmp-nav { margin-left: auto; display: flex; gap: 6px; align-items: center; }
@@ -1270,6 +1273,8 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
 
 /* Faction portraits: beside every owned star, and in the panels. */
 .fav { width: 22px; height: 22px; flex: none; display: inline-block; }
+/* A painted badge: square, round, never stretched. */
+img.fav-badge { aspect-ratio: 1; object-fit: contain; border-radius: 50%; user-select: none; }
 .fav-disc { fill: #fbfbfc; stroke: var(--fc); stroke-width: 2; }
 .fav-head * { fill: none; stroke: var(--fc); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .fav-head .fill { fill: color-mix(in srgb, var(--fc) 45%, #fff); stroke: none; }
@@ -1421,12 +1426,6 @@ img, svg { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none
 .cmp-legend div { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; font-size: 0.78rem; color: var(--ink-soft); }
 .cmp-legend .cur { width: 1.6em; height: 1.6em; margin: 0; }
 .cmp-legend b { color: var(--ink); font-weight: 600; }
-
-
-
-
-
-
 
 @media (prefers-reduced-motion: reduce) {
   .cmp-star::after, .cmp-corona, .cmp-core, .cmp-companion { animation: none !important; }
@@ -1917,7 +1916,12 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   0%, 100% { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(208, 101, 75, 0.55), 0 6px 18px rgba(80, 84, 100, 0.16); }
   50% { box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(208, 101, 75, 0.25), 0 0 22px rgba(208, 101, 75, 0.45); }
 }
+/* A card in the hand marked to discard at the day's end: ringed in red, greyed. */
+.hand > .card.card-discard { box-shadow: 0 0 0 2px #fff, 0 0 0 5px #d0654b, 0 14px 30px rgba(120, 60, 50, 0.28); filter: grayscale(0.65) brightness(0.96); }
+.hand > .card.card-discard::after { content: '✕'; position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; border-radius: inherit; font-size: calc(var(--cw, 100px) * 0.42); color: #c0563d; background: rgba(255, 255, 255, 0.38); pointer-events: none; }
 .hand > .card.card-picked { box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--kc) 60%, transparent), 0 14px 30px rgba(90, 90, 110, 0.24); }
+/* (On the board, the card picked to move: ringed in blue, lifted a little.) */
+.board-plane .card.card-table.card-picked { box-shadow: 0 0 0 2px #fff, 0 0 0 4.5px #4f86c6, 0 10px 22px rgba(60, 90, 140, 0.3); }
 .pick-hint {
   position: fixed; left: 50%; top: calc(var(--pad-t) + clamp(56px, calc(13 * var(--vh)), 84px)); transform: translateX(-50%); z-index: 14;
   display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 16px; border-radius: 999px;
@@ -2584,7 +2588,6 @@ img.art { object-fit: cover; }
 .art-wrap { position: relative; display: block; width: 100%; height: 100%; }
 .card .art-wrap { width: calc(100% + 4%); margin: 0 -2%; }
 
-
 /* ---------- Deck builder: real cards, always the same shape and size ---------- */
 .db-pool { --dbw: clamp(108px, calc(14 * var(--vw)), 156px); grid-template-columns: repeat(auto-fill, var(--dbw)); justify-content: start; gap: 10px; }
 /* (sizePool in builder.ts widens the columns, --cardw, so the cards fill the grid's whole width.) */
@@ -2605,7 +2608,6 @@ img.art { object-fit: cover; }
 .db-card .db-have.on { background: var(--kc); color: #fff; box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(80, 84, 100, 0.2); }
 .db-card-locked .db-have { color: #6d6fd0; }
 @media (hover: hover) { .db-card:hover > .card { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(90, 90, 110, 0.2); } }
-
 
 /* ---------- The gem sits in a notch cut from the picture's top corner ---------- */
 .card .art-wrap {
@@ -2837,7 +2839,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .pf-dust { color: #b9852a; }
 .pf-flux { color: #6d6fd0; }
 .pf-cur b { color: var(--ink); }
-
 
 /* Deck builder: cards you don't own are greyed out; tap one to craft it. */
 .db-card-locked .card { filter: grayscale(1) opacity(0.45); }
@@ -3647,6 +3648,8 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   animation: cmp-guide-in 0.28s ease-out both;
 }
+/* A campaign's first words wait for the flagship to fly in. */
+.cmp-guide.cmp-guide-arrive { animation-duration: 0.5s; animation-delay: 2.9s; }
 @keyframes cmp-guide-in { from { opacity: 0; transform: translateY(-6px); } }
 .cmp-guide-face .cmp-portrait { width: 34px; height: 34px; box-shadow: 0 0 0 2px var(--sc); }
 .cmp-guide-who { display: block; font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
@@ -3801,108 +3804,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-heroes { grid-template-columns: clamp(180px, calc(20 * var(--vw)), 240px) minmax(0, 1fr) minmax(0, 1.2fr); align-items: stretch; }
 .cmp-hero-list { align-content: start; }
 
-/* -- The figure -- */
-.hv-gear { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 8px; min-height: 0; padding: 12px; border-radius: 18px; background: rgba(255, 255, 255, 0.72); border: 1px solid #fff; box-shadow: var(--shadow); }
-.hv-gear-head b { display: block; font-family: var(--display); font-weight: 500; font-size: 0.74rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); }
-.hv-gear-head small { display: block; font-size: 0.64rem; color: var(--ink-faint); margin: 2px 0 6px; }
-.hv-figure { position: relative; justify-self: center; height: 100%; max-height: 400px; aspect-ratio: 4 / 5; min-height: 220px; border-radius: 18px; background: #0c0f22; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(95, 143, 196, 0.18), 0 16px 34px rgba(20, 24, 50, 0.28); }
-.hv-portrait { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; pointer-events: none; user-select: none; }
-.hv-figure::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35); }
-.hv-socket { position: absolute; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; z-index: 1; transition: transform 0.18s cubic-bezier(.2, .8, .2, 1), box-shadow 0.18s; }
-.hv-socket .hv-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.hv-socket.empty { color: rgba(255, 255, 255, 0.9); background: rgba(12, 16, 36, 0.42); border: 1.5px dashed rgba(255, 255, 255, 0.7); backdrop-filter: blur(3px); box-shadow: 0 0 12px rgba(0, 0, 0, 0.3); }
-.hv-socket.empty:hover { background: rgba(95, 143, 196, 0.55); }
-.hv-socket.full { color: #fff; border: 2px solid #fff; }
-.hv-socket.full.rarity-dwarf { background: radial-gradient(circle at 35% 30%, #c9d8ea, #6f86ad); box-shadow: 0 0 0 2px rgba(111, 134, 173, 0.35), 0 4px 12px rgba(60, 70, 100, 0.25); }
-.hv-socket.full.rarity-stellar { background: radial-gradient(circle at 35% 30%, #ffe7a8, #c08a24); box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.45), 0 0 16px rgba(212, 165, 42, 0.5); }
-.hv-socket.full.rarity-anomaly { background: radial-gradient(circle at 35% 30%, #e2cdff, #8c5ad6); box-shadow: 0 0 0 2px rgba(140, 90, 214, 0.45), 0 0 20px rgba(140, 90, 214, 0.6); }
-.hv-socket:hover { transform: scale(1.12); }
-.hv-socket.picked { box-shadow: 0 0 0 3px #fff, 0 0 0 5.5px #5f8fc4, 0 0 18px rgba(255, 255, 255, 0.6); }
-.hv-socket.tag-left .hv-socket-tag { left: auto; right: 50%; transform: none; }
-.hv-socket.tag-right .hv-socket-tag { left: 50%; transform: none; }
-.hv-socket-tag { position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; font-style: normal; font-size: 0.56rem; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.95); color: var(--ink-soft); box-shadow: 0 2px 6px rgba(60, 70, 100, 0.15); opacity: 0; pointer-events: none; transition: opacity 0.15s; }
-.hv-socket:hover .hv-socket-tag, .hv-socket.full .hv-socket-tag, .hv-socket.picked .hv-socket-tag { opacity: 1; }
-.hv-socket.full:not(:hover):not(.picked) .hv-socket-tag { opacity: 0.85; }
-.hv-stores-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.56rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
-.hv-stores { display: grid; gap: 6px; max-height: 160px; overflow-y: auto; }
-.hv-item { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; text-align: left; padding: 6px 10px; border-radius: 10px; background: #fff; border: 1px solid #ebe8e3; cursor: pointer; font-size: 0.66rem; color: var(--ink-soft); transition: transform 0.15s, box-shadow 0.15s; }
-.hv-item small { grid-row: 1 / 3; align-self: center; font-size: 0.48rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); writing-mode: vertical-rl; transform: rotate(180deg); }
-.hv-item b { font-size: 0.7rem; color: var(--ink); }
-.hv-item.rarity-stellar { border-left: 3px solid #d4a52a; }
-.hv-item.rarity-anomaly { border-left: 3px solid #8c5ad6; }
-.hv-item:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(80, 84, 100, 0.14); }
-
-/* -- The constellation -- */
-.hv-tree { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; min-height: 0; }
-.hv-sky { position: relative; min-height: 320px; border-radius: 22px; overflow: hidden;
-  background:
-    radial-gradient(ellipse 70% 45% at 50% 100%, rgba(95, 143, 196, 0.32), transparent 65%),
-    radial-gradient(ellipse 38% 26% at 22% 28%, rgba(140, 100, 210, 0.16), transparent 70%),
-    radial-gradient(ellipse 34% 30% at 80% 62%, rgba(70, 150, 190, 0.13), transparent 70%),
-    linear-gradient(56deg, transparent 30%, rgba(170, 190, 255, 0.07) 46%, rgba(255, 230, 210, 0.05) 52%, transparent 68%),
-    radial-gradient(ellipse 80% 80% at 50% 45%, #1b2144, #090b1a 80%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 18px 40px rgba(20, 24, 50, 0.3); }
-.hv-dust, .hv-links { position: absolute; inset: 0; width: 100%; height: 100%; }
-.hv-links path { fill: none; stroke: rgba(255, 255, 255, 0.16); stroke-width: 1.5; stroke-dasharray: 2 5; vector-effect: non-scaling-stroke; }
-.hv-links path.next { stroke: rgba(170, 205, 255, 0.75); stroke-dasharray: 6 6; animation: hv-flow 1.2s linear infinite; }
-.hv-links path.lit { stroke: #ffd98a; stroke-width: 2.5; stroke-dasharray: none; filter: drop-shadow(0 0 4px rgba(255, 210, 120, 0.9)); }
-@keyframes hv-flow { to { stroke-dashoffset: -12; } }
-.hv-root { position: absolute; transform: translate(-50%, -50%); width: 58px; height: 58px; }
-.hv-root .cmp-portrait { width: 58px; height: 58px; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85), 0 0 26px rgba(160, 200, 255, 0.6); }
-.hv-root-pts { position: absolute; top: -6px; right: -8px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #ffd98a; color: #4a3200; font-style: normal; font-weight: 700; font-size: 0.66rem; display: grid; place-items: center; box-shadow: 0 0 12px rgba(255, 210, 120, 0.9); }
-
-/* Stars: bigger for bigger skills. */
-.hv-star { position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center; border: 0; padding: 0; background: none; cursor: pointer; --sz: 44px; width: var(--sz); height: var(--sz); }
-.hv-star.tier-2 { --sz: 56px; }
-.hv-star.tier-3 { --sz: 76px; }
-.hv-star-core { position: relative; z-index: 1; width: 62%; height: 62%; border-radius: 50%; display: grid; place-items: center; transition: transform 0.2s cubic-bezier(.2, .8, .2, 1), box-shadow 0.3s; }
-.hv-star.tier-3 .hv-star-core { width: 58%; height: 58%; border-radius: 30%; transform: rotate(45deg); }
-.hv-star.tier-3 .hv-star-core .hv-icon { transform: rotate(-45deg); }
-.hv-star .hv-icon { width: 48%; height: 48%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.hv-star.locked .hv-star-core { color: rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.22); }
-.hv-star.open .hv-star-core { color: #fff; background: radial-gradient(circle at 35% 30%, #9cc0e6, #3c5f99); box-shadow: 0 0 0 2px rgba(200, 225, 255, 0.85), 0 0 18px rgba(140, 190, 255, 0.8); animation: hv-beckon 1.6s ease-in-out infinite; }
-.hv-star.learned .hv-star-core { color: #4a3200; background: radial-gradient(circle at 35% 30%, #fff6d6, #ffd98a 45%, #d49a2a); box-shadow: 0 0 0 2px rgba(255, 240, 200, 0.95), 0 0 24px rgba(255, 200, 100, 0.85), 0 0 60px rgba(255, 190, 90, 0.35); }
-.hv-star.tier-3.learned .hv-star-core { box-shadow: 0 0 0 3px #fff3cf, 0 0 34px rgba(255, 200, 100, 1), 0 0 90px rgba(255, 190, 90, 0.5); }
-@keyframes hv-beckon { 50% { box-shadow: 0 0 0 3px rgba(200, 225, 255, 1), 0 0 30px rgba(140, 190, 255, 1); } }
-.hv-star:hover .hv-star-core { transform: scale(1.12); }
-.hv-star.tier-3:hover .hv-star-core { transform: rotate(45deg) scale(1.1); }
-.hv-star.picked .hv-star-core { outline: 2px solid rgba(255, 255, 255, 0.9); outline-offset: 5px; }
-/* A legendary star's rays: they turn slowly, and blaze once it is learned. */
-.hv-rays { position: absolute; inset: -18%; width: 136%; height: 136%; animation: hv-turn 24s linear infinite; }
-.hv-rays path { stroke: rgba(255, 255, 255, 0.18); stroke-width: 1.2; stroke-linecap: round; }
-.hv-star.open .hv-rays path { stroke: rgba(170, 205, 255, 0.5); }
-.hv-star.learned .hv-rays path { stroke: rgba(255, 215, 130, 0.8); stroke-width: 1.6; }
-@keyframes hv-turn { to { transform: rotate(360deg); } }
-.hv-star-name { position: absolute; top: calc(100% + 2px); left: 50%; transform: translateX(-50%); white-space: nowrap; font-style: normal; font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255, 255, 255, 0.5); text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
-.hv-star.tier-3 .hv-star-name { font-size: 0.56rem; top: calc(100% + 4px); }
-.hv-star.learned .hv-star-name { color: #ffe3a8; }
-.hv-star.open .hv-star-name { color: #d4e6ff; }
-
-/* The picked star's details, beneath the sky. */
-.hv-detail { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 16px; background: linear-gradient(135deg, #1a2040, #10132a); color: #e6ecf8; box-shadow: 0 10px 26px rgba(20, 24, 50, 0.25); }
-.hv-detail-icon { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, #9cc0e6, #3c5f99); color: #fff; }
-.hv-detail.learned .hv-detail-icon { background: radial-gradient(circle at 35% 30%, #fff6d6, #ffd98a 45%, #d49a2a); color: #4a3200; }
-.hv-detail.locked .hv-detail-icon { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.5); }
-.hv-detail.tier-3 .hv-detail-icon { border-radius: 30%; transform: rotate(45deg); }
-.hv-detail.tier-3 .hv-detail-icon .hv-icon { transform: rotate(-45deg); }
-.hv-detail-icon .hv-icon { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.hv-detail small { font-size: 0.54rem; letter-spacing: 0.18em; text-transform: uppercase; color: #9fb4d8; }
-.hv-detail.tier-3 small { color: #ffd98a; }
-.hv-detail b { display: block; font-family: var(--display); font-weight: 500; font-size: 0.86rem; letter-spacing: 0.12em; text-transform: uppercase; margin: 2px 0; }
-.hv-detail p { margin: 0; font-size: 0.76rem; line-height: 1.4; color: #c8d3ea; }
-.hv-learn { padding: 10px 16px; border-radius: 999px; border: 0; cursor: pointer; font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: #4a3200; background: linear-gradient(180deg, #fff1c2, #ffcf6a); box-shadow: 0 0 18px rgba(255, 200, 100, 0.55); transition: transform 0.15s; }
-.hv-learn:hover:not(:disabled) { transform: translateY(-2px) scale(1.03); }
-.hv-learn:disabled { cursor: default; color: rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.08); box-shadow: none; max-width: 180px; white-space: normal; line-height: 1.3; }
-.hv-learned { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: #ffd98a; }
-
-.hv-dust i { position: absolute; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); border-radius: 50%; background: var(--c); }
-.hv-dust i.tw { animation: hv-twinkle var(--d) ease-in-out infinite; }
-@keyframes hv-twinkle { 50% { opacity: calc(var(--o) * 0.25); } }
-.hv-dust b { position: absolute; width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); opacity: 0.75;
-  background: radial-gradient(circle, #fff 0 1px, rgba(200, 220, 255, 0.5) 1.6px, transparent 4px), linear-gradient(90deg, transparent, rgba(220, 232, 255, 0.55) 50%, transparent) center / 100% 1px no-repeat, linear-gradient(0deg, transparent, rgba(220, 232, 255, 0.55) 50%, transparent) center / 1px 100% no-repeat;
-  animation: hv-glint var(--d) ease-in-out infinite; }
-@keyframes hv-glint { 50% { opacity: 0.35; transform: scale(0.8); } }
-
 /* ---- Ships: each army sails the map in a little ship of its race, lying on the plane beside its system,
    its general's portrait flying above it. Moving, it sails down the route (left/top transition). ---- */
 .cmp-ship { position: absolute; width: 0; height: 0; transform-style: preserve-3d; transition: left var(--dur, 1s) cubic-bezier(0.45, 0, 0.3, 1), top var(--dur, 1s) cubic-bezier(0.45, 0, 0.3, 1); pointer-events: none; }
@@ -4002,9 +3903,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .pop-head-army > .cmp-portrait { width: 30px; height: 30px; box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px var(--fc); }
 .cmp-pop .cmp-hint { font-size: 0.7rem; margin: 0; }
 .slot-worn .slot-def { color: #c0563d; font-weight: 600; }
-/* Three branches of six: a taller sky, and each branch named at its foot. */
-.hv-sky { min-height: 440px; }
-.hv-branch { position: absolute; bottom: 8px; transform: translateX(-50%); font-style: normal; font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(200, 215, 255, 0.35); pointer-events: none; }
 
 /* ---- Phones (landscape): the campaign on a short, narrow screen. ---- */
 @media (max-width: 960px), (max-height: 560px) {
@@ -4015,35 +3913,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
   .cmp-hero-row > span:not(.cmp-portrait) { display: none; }
   .cmp-hero-row .cmp-portrait { width: 40px; height: 40px; }
   .cmp-hero-row .cmp-points { top: -4px; right: -4px; }
-  .hv-gear { padding: 8px; gap: 4px; border-radius: 14px; }
-  .hv-gear-head b { font-size: 0.6rem; }
-  .hv-gear-head small { margin: 1px 0 3px; font-size: 0.56rem; }
-  .hv-figure { height: 100%; max-height: none; min-height: 0; border-radius: 12px; }
-  .hv-socket { width: 28px; height: 28px; margin: -14px 0 0 -14px; }
-  .hv-socket .hv-icon { width: 14px; height: 14px; }
-  .hv-socket-tag { font-size: 0.48rem; }
-  .hv-stores-head { font-size: 0.48rem; }
-  .hv-stores { max-height: 58px; gap: 4px; }
-  .hv-item { padding: 4px 8px; font-size: 0.58rem; }
-  .hv-stores .muted { font-size: 0.6rem; margin: 0; }
-  .hv-tree { gap: 6px; }
-  .hv-sky { min-height: 0; border-radius: 14px; }
-  .hv-star { --sz: 28px; }
-  .hv-star.tier-2 { --sz: 36px; }
-  .hv-star.tier-3 { --sz: 50px; }
-  .hv-star-name { font-size: 0.38rem; letter-spacing: 0.08em; top: calc(100% + 1px); }
-  .hv-star.tier-3 .hv-star-name { font-size: 0.42rem; top: calc(100% + 2px); }
-  .hv-root, .hv-root .cmp-portrait { width: 38px; height: 38px; }
-  .hv-root-pts { min-width: 18px; height: 18px; font-size: 0.56rem; }
-  .hv-branch { font-size: 0.4rem; bottom: 4px; }
-  .hv-detail { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; padding: 6px 10px; border-radius: 12px; }
-  .hv-detail-icon { width: 32px; height: 32px; }
-  .hv-detail-icon .hv-icon { width: 16px; height: 16px; }
-  .hv-detail small { font-size: 0.44rem; }
-  .hv-detail b { font-size: 0.66rem; margin: 1px 0; }
-  .hv-detail p { font-size: 0.62rem; line-height: 1.3; }
-  .hv-learn { padding: 7px 10px; font-size: 0.5rem; }
-  .hv-learn:disabled { max-width: 120px; }
   /* The armoury's buy / recycle / fuse tabs wrap rather than run off the panel. */
   .cmp-armory-tabs { flex-wrap: wrap; }
   .cmp-armory-tabs .cmp-tab { padding: 5px 10px; font-size: 0.5rem; }
@@ -4103,8 +3972,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .rt-detail p { margin: 0; font-size: 0.74rem; color: var(--ink-soft, #555); }
 .rt-tag { font-size: 0.58rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--lc); font-weight: 600; }
 .rt-go { white-space: nowrap; }
-.hv-boons { margin: 6px 0 0; font-size: 0.7rem; line-height: 1.4; color: var(--ink); }
-.hv-boons small { display: block; font-size: 0.54rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
 .fused-tags i.boon-tag { background: linear-gradient(90deg, #d8a840, #c07a2a); box-shadow: 0 0 6px rgba(216, 168, 64, 0.6); }
 @media (max-width: 960px), (max-height: 560px) {
   .cmp-research { gap: 4px; padding-bottom: 6px; }
@@ -4135,6 +4002,11 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* ---------- Attacks and dimming ---------- */
 /* A card of yours that can attack today: a red ring (click it, then a rival card or their sun). */
 .card.card-attacker, .board-plane .card.card-table.card-attacker { cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(216, 69, 43, 0.7), 0 0 14px rgba(216, 69, 43, 0.3); }
+/* An attack can be dragged from its card to its target (the beam follows the pointer): no page scroll on touch. */
+.card.card-attacker { touch-action: none; cursor: grab; }
+/* The target an attack being dragged is over: lit brighter, ready to strike. */
+.board-plane .card.card-table.aim-over { box-shadow: 0 0 0 2px #fff, 0 0 0 5px #e0452b, 0 0 22px rgba(224, 69, 43, 0.65); }
+.vitals.aim-over .vit::after { border-width: 4px; box-shadow: 0 0 0 2px #fff, 0 0 30px rgba(224, 69, 43, 0.8); }
 /* A dimmed card has acted today (or just arrived): greyed until its controller's next day. */
 .card.card-table.card-dimmed .card-glyph > :not(.art-wrap), .card.card-table.card-dimmed .art-wrap > *, .card.card-table.card-dimmed .card-text, .card.card-table.card-dimmed .card-name { filter: saturate(0.25) brightness(0.86); }
 .card.card-table.card-dimmed::after {
@@ -4283,7 +4155,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
    the petals spread out from its edge. */
 .round-ring {
   /* (Sized with the board, so it stays inside the flower's dense heart, where the petals meet.) */
-  width: calc(clamp(26px, calc(4 * var(--vh)), 52px) * var(--bz, 1));
+  width: calc(clamp(34px, calc(5.4 * var(--vh)), 70px) * var(--bz, 1));
   background: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef); border: 1px solid #fff; box-shadow: 0 2px 8px rgba(90, 90, 110, 0.18);
 }
 .round-ring .round-track { fill: none; stroke: rgba(120, 124, 134, 0.14); stroke-width: 9; }
@@ -4291,17 +4163,9 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .round-ring path.on { stroke: #ffffff; filter: drop-shadow(0 0 1.5px rgba(150, 158, 175, 0.95)); }
 .round-ring.unstable .round-track { stroke: rgba(201, 138, 134, 0.25); }
 .round-ring-num { width: auto; aspect-ratio: auto; background: none; border: 0; box-shadow: none; }
-.round-ring-num b { font-size: calc(clamp(9px, calc(1.5 * var(--vh)), 17px) * var(--bz, 1)); }
-.round-ring-num em { font-size: clamp(6px, calc(0.9 * var(--vh)), 10px); }
+.round-ring-num b { font-size: calc(clamp(12px, calc(2 * var(--vh)), 23px) * var(--bz, 1)); }
+.round-ring-num em { font-size: clamp(7px, calc(1.1 * var(--vh)), 12px); }
 
-/* Your Hero's actions, in the stage's place: the card, its abilities (and attack) beneath. */
-.stage.stage-hero { pointer-events: auto; }
-/* Your Hero on the stage: each ability line (and its attack) is a button. */
-.stage-hero .card-ability { display: block; border-radius: 6px; margin: 1px -4px; padding: 1px 4px; }
-.stage-hero .card-ability-on { pointer-events: auto; cursor: pointer; background: rgba(240, 170, 60, 0.14); box-shadow: inset 0 0 0 1px rgba(240, 170, 60, 0.55); transition: background 0.15s; }
-.stage-hero .card-ability-on:hover { background: rgba(240, 170, 60, 0.3); }
-.stage-hero .card-ability-off { opacity: 0.45; }
-.stage-hero .stat-atk-on { pointer-events: auto; cursor: pointer; box-shadow: 0 0 0 2px #fff, 0 0 10px 2px rgba(230, 90, 70, 0.7); }
 
 /* ---------- Zooming onto a tableau: the board tips flatter and comes closer, centred on that side ---------- */
 .table-view > .game { transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
@@ -4438,8 +4302,9 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
    the space the two tableaus' outlines leave between them. */
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
   .board-plane > .board-star-slot { width: calc(104px * var(--bz, 1)); }
-  .round-ring { width: calc(20px * var(--bz, 1)); }
-  .round-ring-num b { font-size: calc(8px * var(--bz, 1)); }
+  .round-ring { width: calc(27px * var(--bz, 1)); }
+  .round-ring-num b { font-size: calc(11px * var(--bz, 1)); }
+  .round-ring-num em { font-size: calc(6px * var(--bz, 1)); }
   .board-plane > .phase-track, .board-plane > .turn-who { --stellari-r: 48px; gap: 4px; }
   .board-plane > .board-shields { --bs: 23px; --stellari-r: 44px; }
   .turn-who span, .phase-step span { font-size: 7px; letter-spacing: 0.18em; }
@@ -4448,9 +4313,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 }
 /* Your Hero in the preview pane: its abilities as rows with no gap between them, tall enough to tap easily,
    split only by the light line (no highlight). */
-.stage-hero .card-ability, .stage-hero .card-ability ~ .card-ability { margin: 0 -4px; padding: 0.55em 4px; border-radius: 0; }
-.stage-hero .card-ability-on { background: none; box-shadow: none; }
-@media (hover: hover) { .stage-hero .card-ability-on:hover { background: rgba(255, 255, 255, 0.08); } }
 /* Where a card dragged out of the hand would land on your tableau. */
 .tableau-mine .drop-over { outline: 2px solid color-mix(in srgb, #3f8f6a 70%, #fff); outline-offset: 3px; border-radius: calc(var(--tcw, 60px) * 0.08); }
 /* The preview pane's buttons: solid, so they stand out over the board. */
@@ -4504,16 +4366,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .card .card-racerow ~ .card-name { margin-top: calc(var(--cw, 100px) * 0.012) !important; }
 /* A card in the preview pane: the hand keeps still (no card lifts under the pointer). */
 .dock-still .hand > .card.lifted { transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg))) !important; z-index: var(--hz) !important; box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18); }
-/* Over the hand limit at the end of the day: the hand laid out, the cards picked to go marked. */
-.discard-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 12px 0 16px; }
-.discard-pick { position: relative; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 10px; transition: transform 0.15s, opacity 0.15s; }
-.discard-pick .card { --cw: clamp(78px, calc(16 * var(--vh)), 110px); width: var(--cw); height: calc(var(--cw) * 1.4); pointer-events: none; }
-.discard-pick.on { transform: translateY(6px) scale(0.95); opacity: 0.55; }
-.discard-pick.on::after {
-  content: '✕'; position: absolute; inset: 0; display: grid; place-items: center; border-radius: 10px;
-  font-size: 2rem; color: #c0563d; background: rgba(255, 255, 255, 0.35); box-shadow: inset 0 0 0 2px #c0563d;
-}
-@media (hover: hover) { .discard-pick:not(.on):hover { transform: translateY(-3px); } }
 /* (Zoom being fitted: the board laid flat for a moment, to measure where the tableau stands.) */
 /* The banner's thin line: between the round and the day's orbit (none across the words). */
 .turn-banner-glow::before { display: none; }
@@ -5255,14 +5107,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-rs-offers { display: grid; gap: 10px; }
 button.cmp-rs-offer { font: inherit; color: inherit; text-align: left; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s, background 0.15s; }
 button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: translateY(-1px); background: rgba(169, 143, 224, 0.2); box-shadow: 0 4px 14px rgba(110, 85, 176, 0.18); }
-.hv-train { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.hv-train p { margin: 0 0 4px; font-size: 0.8rem; }
-.hv-train-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); }
-.hv-train-row > span { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; font-family: var(--display); }
-.hv-train-row > span small { grid-column: 1 / -1; }
-.hv-train-row .pill-btn { white-space: nowrap; }
-.hv-train-row b { font-size: 1.1rem; }
-.hv-train-row small { color: var(--ink-faint); font-size: 0.7rem; }
 .cmp-shipyard { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr); gap: 16px; padding: 12px 16px; overflow: auto; flex: 1; min-height: 0; }
 .sh-hull { position: relative; min-height: 300px; border-radius: 16px; background: radial-gradient(ellipse at 50% 55%, rgba(120, 140, 200, 0.18), transparent 70%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; }
 .sh-model { width: 100%; height: 210px; position: relative; perspective: 900px; pointer-events: none; }
@@ -5384,35 +5228,20 @@ button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: transl
 .hero-rail-rival { right: calc(100% + var(--frame-pad, 12px) + var(--tcw) * 0.08); flex-direction: row-reverse; }
 .hero-rail-col { display: flex; flex-direction: column; gap: calc(var(--tcw) * 0.06); align-items: center; pointer-events: none; }
 .hero-rail-col > * { pointer-events: auto; }
-.hero-ab {
-  --s: calc(var(--tcw) * 0.26);
-  position: relative; width: var(--s); height: var(--s); padding: 0; border: 0; border-radius: 50%; display: block; -webkit-appearance: none; appearance: none; font: inherit; line-height: 0;
-  background: #fff; color: #a07a2a; box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.45), 0 2px 6px rgba(60, 70, 100, 0.16); cursor: default;
-}
-.hero-ab .kw-ico { position: absolute; inset: 0; margin: auto; width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.hero-ab .kw-ico .kw-ico-fill { fill: currentColor; stroke: none; }
-.hero-ab small { position: absolute; right: -2px; bottom: -2px; min-width: 42%; height: 42%; display: grid; place-items: center; border-radius: 999px; background: #fff; font-family: var(--display); font-size: calc(var(--tcw) * 0.085); color: var(--ink); box-shadow: 0 1px 3px rgba(60, 70, 100, 0.2); }
-.hero-ab-cost { position: absolute; left: 50%; top: -18%; transform: translateX(-50%); display: flex; gap: 1px; }
-.hero-ab-cost i { width: calc(var(--tcw) * 0.04); height: calc(var(--tcw) * 0.04); border-radius: 50%; background: #6cc28e; }
-.hero-ab[aria-disabled] { opacity: 0.55; }
-.hero-ab-on { cursor: pointer; box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.9), 0 0 12px rgba(212, 165, 42, 0.45); animation: hero-ab-ready 1.6s ease-in-out infinite alternate; }
-.hero-ab-on:hover { transform: scale(1.08); }
-@keyframes hero-ab-ready { to { box-shadow: 0 0 0 2px rgba(212, 165, 42, 0.6), 0 0 4px rgba(212, 165, 42, 0.2); } }
-@media (prefers-reduced-motion: reduce) { .hero-ab-on { animation: none; } }
 /* Boons: smaller, quieter marks (on a hero's rail, or on a card carrying a ship module's). */
 .boon-mark { --s: calc(var(--tcw, 80px) * 0.18); position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: inline-grid; place-items: center; background: #fbf6ea; color: #b08a3a; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.35); font-style: normal; cursor: default; }
 .boon-mark .kw-ico { position: absolute; inset: 0; margin: auto; width: 56%; height: 56%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .boon-mark .kw-ico .kw-ico-fill { fill: currentColor; stroke: none; }
 .boon-mark small { position: absolute; right: -3px; bottom: -3px; font-family: var(--display); font-size: calc(var(--tcw, 80px) * 0.07); color: var(--ink); }
 .fused-tags .boon-mark + .boon-mark { margin-left: 2px; }
-.hero-ab .kw-ico .kw-ico-fill, .boon-mark .kw-ico .kw-ico-fill { fill-opacity: 1; }
-.hero-ab .kw-ico, .boon-mark .kw-ico { stroke-width: 1.8; }
-:is(.hero-ab, .boon-mark) .eff-heat { color: #d9662f; }
-:is(.hero-ab, .boon-mark) .eff-cool { color: #3d8fd1; }
-:is(.hero-ab, .boon-mark) .eff-shield { color: #4f86c6; }
-:is(.hero-ab, .boon-mark) :is(.eff-draw, .eff-energy, .eff-plant) { color: #3f9a68; }
-:is(.hero-ab, .boon-mark) :is(.eff-wall, .eff-repair, .eff-time) { color: #7a7f8f; }
-:is(.hero-ab, .boon-mark) .eff-star { color: #b08a3a; }
+.hero-pick-mark .kw-ico .kw-ico-fill, .boon-mark .kw-ico .kw-ico-fill { fill-opacity: 1; }
+.hero-pick-mark .kw-ico, .boon-mark .kw-ico { stroke-width: 1.8; }
+:is(.hero-pick-mark, .boon-mark) .eff-heat { color: #d9662f; }
+:is(.hero-pick-mark, .boon-mark) .eff-cool { color: #3d8fd1; }
+:is(.hero-pick-mark, .boon-mark) .eff-shield { color: #4f86c6; }
+:is(.hero-pick-mark, .boon-mark) :is(.eff-draw, .eff-energy, .eff-plant) { color: #3f9a68; }
+:is(.hero-pick-mark, .boon-mark) :is(.eff-wall, .eff-repair, .eff-time) { color: #7a7f8f; }
+:is(.hero-pick-mark, .boon-mark) .eff-star { color: #b08a3a; }
 
 .kw-tip-plain { font-size: 0.74rem; line-height: 1.4; }
 /* An icon's own popover: its name, its words (keywords drawn as on a card), and a note. */
@@ -5518,14 +5347,6 @@ button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: transl
 /* ---- The loop: petals, the upgrade shop, locked races and heroes, ruins and bonus worlds ---- */
 .cmp-petals { display: inline-flex; align-items: center; gap: 4px; justify-self: end; padding: 4px 12px; border-radius: 999px; background: #fff; border: 1px solid #f0d2ea; font-family: var(--display); font-size: 0.8rem; color: #8a4f80; }
 .cmp-petals .cur { width: 1.2em; height: 1.2em; }
-.cmp-ups { display: grid; gap: 6px; margin-bottom: 10px; }
-.cmp-up { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: #fff; border: 1px solid #ecebe7; }
-.cmp-up b { display: block; font-family: var(--display); font-size: 0.68rem; letter-spacing: 0.08em; }
-.cmp-up small { display: block; color: var(--ink-faint); font-size: 0.66rem; line-height: 1.3; }
-.cmp-up-pips { display: flex; gap: 3px; }
-.cmp-up-pips i { width: 7px; height: 7px; border-radius: 50%; background: #e4e2dd; }
-.cmp-up-pips i.on { background: #d58ac8; box-shadow: 0 0 4px rgba(213, 138, 200, 0.6); }
-.cmp-up-max { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.12em; color: var(--ink-faint); text-transform: uppercase; }
 .cmp-buy { white-space: nowrap; }
 .cmp-buy .cur, .cmp-petals .cur, .cmp-purse .cur-petal { color: inherit; }
 .cmp-ruined .cmp-core { background: radial-gradient(circle, #7a6a72 25%, #b9a9b2 55%, transparent 72%) !important; }
@@ -5536,93 +5357,10 @@ button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: transl
 .cmp-choices:has(> .cmp-choice:nth-child(2):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cmp-choice span { white-space: normal; }
 
-/* ---------- A dying universe: the run's setup ---------- */
-/* Races down the left; on the right, the picked race and its sub-races, then its heroes. */
-.cmp-setup-body { grid-template-columns: clamp(150px, calc(19 * var(--vw)), 220px) minmax(0, 1fr); gap: clamp(12px, calc(2.4 * var(--vw)), 28px); align-items: stretch; height: 100%; width: min(1180px, 100%); }
-.cmp-rs-list { display: grid; align-content: start; gap: clamp(4px, calc(1 * var(--vh)), 8px); min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 2px; }
-.cmp-rs { position: relative; display: flex; align-items: center; gap: 10px; padding: clamp(5px, calc(1.2 * var(--vh)), 9px) 12px clamp(5px, calc(1.2 * var(--vh)), 9px) 8px; border-radius: 12px; border: 1px solid #ecebe7; background: #fff; color: var(--ink); cursor: pointer; text-align: left; font: inherit; transition: border-color 0.15s, background 0.15s, transform 0.15s; }
-.cmp-rs:hover { transform: translateX(2px); border-color: var(--rc); }
-.cmp-rs.on { border-color: var(--rc); background: color-mix(in srgb, var(--rc) 13%, #fff); box-shadow: inset 3px 0 0 var(--rc); }
-.cmp-rs-emblem { width: clamp(24px, calc(6 * var(--vh)), 34px); height: auto; flex: none; }
-.cmp-rs b { flex: 1; min-width: 0; font-family: var(--display); font-weight: 500; font-size: clamp(0.62rem, calc(2.2 * var(--vh)), 0.8rem); letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cmp-rs.locked .cmp-rs-emblem { filter: grayscale(1); }
-.cmp-rs.locked b { color: var(--ink-faint); }
-.cmp-rs-lock { display: inline-flex; align-items: center; gap: 2px; font-style: normal; font-family: var(--display); font-size: 0.62rem; color: #8a4f80; }
-.cmp-rs-lock .cur { width: 1em; height: 1em; }
-
-.cmp-setup-right { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: clamp(8px, calc(2 * var(--vh)), 16px); min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 4px; }
-.cmp-rc-row { display: grid; grid-auto-flow: column; grid-template-columns: minmax(0, 1.6fr); grid-auto-columns: minmax(0, 1fr); gap: clamp(8px, calc(1.6 * var(--vh)), 12px); }
-.cmp-rc { position: relative; overflow: hidden; display: grid; align-content: start; gap: 4px; padding: clamp(8px, calc(2 * var(--vh)), 14px) clamp(10px, calc(2.2 * var(--vh)), 16px); border-radius: 16px; background: #fff; border: 1px solid #ecebe7; border-top: 3px solid var(--rc); }
-.cmp-rc p { margin: 0; font-size: clamp(0.62rem, calc(2.1 * var(--vh)), 0.78rem); line-height: 1.4; color: var(--ink-soft); }
-.cmp-rc-name { font-family: var(--display); font-weight: 500; font-size: clamp(0.68rem, calc(2.6 * var(--vh)), 0.92rem); letter-spacing: 0.16em; text-transform: uppercase; color: color-mix(in srgb, var(--rc) 55%, #2a2d36); }
-.cmp-rc-race { grid-template-columns: auto minmax(0, 1fr); gap: clamp(8px, calc(2 * var(--vh)), 14px); align-items: center; background: linear-gradient(120deg, color-mix(in srgb, var(--rc) 16%, #fff), #fff 70%); }
-.cmp-rc-mark .fav { width: clamp(40px, calc(13 * var(--vh)), 76px); height: auto; display: block; }
-.cmp-rc-body { display: grid; gap: 4px; min-width: 0; justify-items: start; }
-.cmp-rc-traits { display: grid; gap: 1px; font-size: clamp(0.6rem, calc(2 * var(--vh)), 0.74rem); line-height: 1.35; }
-.cmp-rc-traits em { font-style: normal; }
-.cmp-rc-sub { background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 7%, #fff), #fff 60%); }
-.cmp-rc-sub small { font-family: var(--display); font-size: 0.52rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
-
-.cmp-hc-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(8px, calc(1.6 * var(--vh)), 12px); align-items: stretch; min-height: 0; }
-.cmp-hc { display: grid; grid-template-rows: auto 1fr; overflow: hidden; border-radius: 16px; background: #fff; border: 1px solid #ecebe7; cursor: pointer; min-width: 0; transition: transform 0.18s, box-shadow 0.18s; }
-.cmp-hc:hover { transform: translateY(-2px); border-color: var(--rc); }
-.cmp-hc.on { border-color: var(--rc); box-shadow: 0 0 0 2px var(--rc); }
-.cmp-hc-art { display: block; height: clamp(64px, calc(24 * var(--vh)), 190px); background: #1a1f2a; overflow: hidden; }
-.cmp-hc-art .art-wrap, .cmp-hc-art .art-frame { display: block; width: 100%; height: 100%; }
-.cmp-hc-art img.art, .cmp-hc-art svg { width: 100%; height: 100%; object-fit: cover; object-position: 50% 28%; display: block; transition: transform 0.4s; }
-.cmp-hc:hover .cmp-hc-art img.art { transform: scale(1.05); }
-.cmp-hc.locked .cmp-hc-art { filter: grayscale(1) brightness(0.8); }
-.cmp-hc-body { display: grid; align-content: start; gap: 3px; padding: clamp(6px, calc(1.6 * var(--vh)), 12px) clamp(8px, calc(1.8 * var(--vh)), 14px); min-width: 0; justify-items: start; }
-.cmp-hc-body .cmp-rc-name { max-width: 100%; line-height: 1.3; font-size: clamp(0.62rem, calc(2.3 * var(--vh)), 0.84rem); }
-.cmp-hc-body small { font-size: clamp(0.56rem, calc(1.8 * var(--vh)), 0.68rem); color: var(--ink-faint); text-transform: lowercase; }
-.cmp-hc-body p { margin: 2px 0 0; font-size: clamp(0.6rem, calc(2 * var(--vh)), 0.74rem); line-height: 1.4; color: var(--ink-soft); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.cmp-hc-body .cmp-buy, .cmp-rc-body .cmp-buy { margin-top: 4px; }
-
-.cmp-shop-btn { cursor: pointer; font: inherit; font-family: var(--display); }
-.cmp-shop-btn span { font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; margin-left: 4px; }
-.cmp-shop-btn:hover { border-color: #d58ac8; }
-.cmp-shop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: max(12px, var(--sa-t)) max(16px, var(--sa-r)) max(12px, var(--sa-b)) max(16px, var(--sa-l)); background: #ebe9e4; }
-.cmp-shop-panel { width: min(980px, 100%); max-height: 100%; overflow-y: auto; scrollbar-width: thin; padding: clamp(12px, calc(3 * var(--vh)), 22px); border-radius: 18px; background: #fbfaf8; border: 1px solid #ecebe7; box-shadow: var(--shadow); }
-.cmp-shop-panel > header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.cmp-shop-panel > header > b { flex: 1; font-family: var(--display); font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; font-size: 0.9rem; }
-.cmp-shop-panel > p { margin: 0 0 6px; font-size: 0.76rem; }
-.cmp-shop-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 14px; }
-
-/* A phone held upright: the races in a strip across the top. */
-@media (max-width: 780px) and (min-height: 481px) {
-  .cmp-setup-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .cmp-rs-list { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; overflow-y: hidden; }
-  .cmp-rc-row { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cmp-rc-race { grid-column: 1 / -1; }
-  .cmp-hc-row { grid-template-columns: minmax(0, 1fr); }
-  .cmp-hc { grid-template-rows: none; grid-template-columns: 96px minmax(0, 1fr); }
-  .cmp-hc-art { height: 100%; min-height: 96px; }
-}
-/* A short screen (a phone on its side): everything tighter. */
-@media (max-height: 480px) {
-  .cmp-setup.setup-page { gap: 6px; padding-top: max(6px, var(--sa-t)); padding-bottom: max(6px, var(--sa-b)); }
-  .cmp-setup .setup-top { min-height: 36px; }
-  .cmp-setup .setup-foot { min-height: 0; padding-bottom: 0; }
-  .cmp-setup .setup-foot .btn-primary { padding: 7px 20px; }
-  .cmp-rs { gap: 6px; padding: 3px 8px 3px 5px; border-radius: 10px; }
-  .cmp-rs-emblem { width: 20px; }
-  .cmp-rc-race .cmp-rc-mark { display: none; }
-  .cmp-rc-race { grid-template-columns: minmax(0, 1fr); }
-  .cmp-hc { grid-template-rows: none; grid-template-columns: minmax(56px, 32%) minmax(0, 1fr); }
-  .cmp-hc-art { height: 100%; min-height: 72px; }
-  .cmp-hc-body p { -webkit-line-clamp: 7; }
-}
-
 /* The base on a phone held sideways: the hero tab's training beside the portraits, the ship's room buttons inside their rooms. */
 @media (max-height: 560px) {
   .cmp-heroes { grid-template-columns: clamp(130px, calc(19 * var(--vw)), 170px) minmax(0, 0.75fr) minmax(0, 1.3fr); }
   .cmp-hero-list { grid-template-columns: repeat(auto-fill, 44px); justify-content: start; align-content: start; overflow-y: auto; scrollbar-width: thin; }
-  .cmp-hero-list .hv-train { grid-column: 1 / -1; margin-top: 4px; gap: 4px; }
-  .cmp-hero-list .hv-train > p { display: none; }
-  .hv-train-row { flex-direction: column; align-items: stretch; gap: 4px; padding: 5px 6px; }
-  .hv-train-row b { font-size: 0.9rem; }
-  .hv-train-row small { font-size: 0.58rem; }
-  .hv-train-row .pill-btn { font-size: 0.52rem; padding: 4px 6px; }
   .cmp-shipyard { grid-template-columns: minmax(0, 1fr) minmax(170px, 230px); gap: 12px; padding: 4px 8px; align-items: center; overflow: hidden; }
   .sh-stage { gap: 10px; }
   .sh-ship { --k: 10; }
@@ -5978,6 +5716,26 @@ body:has(.game-result) .dock { visibility: hidden; }
 .yield-draw, .yield-plays { color: #3f9a68; }
 .yield-repair { color: #7a7f8f; }
 .yield-selfHeat { color: #a8473a; background: rgba(255, 236, 230, 0.95); }
+/* A card's mechanics, each as its own mark in its keyword's colour (its number beside it, where it has one), after
+   what it gives each day. The strip keeps within the card's width, wrapping away from it (up over yours, down
+   under theirs) rather than running into its neighbours. */
+.yield.mech { color: var(--kwc, var(--ink)); }
+.yield.mech-bare { padding-right: calc(var(--tcw, 80px) * 0.055); }
+/* (All of a card's marks in one pill, set close, so most cards' fit in a row as wide as the card.) */
+.card-yield {
+  flex-wrap: wrap; justify-content: center; max-width: calc(var(--tcw, 80px) * 1.1); width: max-content;
+  gap: 0 calc(var(--tcw, 80px) * 0.05); padding: 0 calc(var(--tcw, 80px) * 0.06);
+  border-radius: calc(var(--tcw, 80px) * 0.11); background: rgba(255, 255, 255, 0.94); box-shadow: 0 1px 3px rgba(60, 70, 100, 0.18);
+}
+.card-yield-mine { flex-wrap: wrap-reverse; }
+.card-yield .yield { padding: 0; background: none; box-shadow: none; }
+.card-yield .yield.mech-bare { padding: 0; }
+/* On the board a card's energy cost is spent: hidden. Its attack and stability stand as large as its defence. */
+.card.card-table .cost-dots { display: none; }
+/* Nor its text: what it does is in the marks over it (tap the card to read it whole). */
+.card.card-table .card-text { display: none; }
+.card.card-table .jewel { width: calc(var(--cw, 100px) * 0.27); }
+.card.card-table .jewel i { font-size: calc(var(--cw, 100px) * 0.125); }
 
 /* The rival's hand: small card backs fanned down from the top of the screen, the one they hover lifted out towards the board. */
 .rival-hand { --rhw: clamp(40px, 4.3vw, 64px); --rhh: calc(var(--rhw) * 1.4); position: absolute; left: 50%; top: 0; width: 0; height: 0; z-index: 6; pointer-events: none; }
@@ -6048,7 +5806,7 @@ body:has(.game-result) .dock { visibility: hidden; }
    The plane the strip lies on takes the nebula camera's own transform (campaign.ts layPlane): no perspective of
    the stage's, and laid from the stage's corner. Stars and marks turn to face the camera (--bb). The gas in
    front of the map is drawn on a canvas over it (pointer events pass through), under the top bar and popovers. */
-.cmp-3d .cmp-stage { perspective: none; cursor: grab; }
+.cmp-3d .cmp-stage { perspective: none; }
 .cmp-3d .cmp-plane { left: 0; top: 0; transform-origin: 0 0; }
 .cmp-3d .cmp-n3 .cmp-bb { transform-origin: 50% 100%; transform: translate(-50%, -100%) var(--bb) scale3d(var(--ui), var(--ui), var(--ui)); }
 .cmp-3d .cmp-map { z-index: 1; }
@@ -6056,7 +5814,6 @@ body:has(.game-result) .dock { visibility: hidden; }
 .cmp-3d .cmp-nebula-front { display: block; position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 .cmp-3d .cmp-top { position: relative; z-index: 3; }
 .cmp-3d .cmp-end { z-index: 3; }
-.cmp-recentre { position: absolute; left: calc(var(--pad-l, 0px) + 16px); bottom: calc(var(--pad-b) + 16px); z-index: 3; }
 
 /* ---- The map in the board's colours: routes and rings in paper, drawn round in ink; marks over systems as
    smooth paper tokens. ---- */
@@ -6140,3 +5897,408 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* On the 3D map, the systems you can travel to pulse (sonar rings, drawn in the scene): no spinning dashed ring.
    (The ring stays as the tap target.) */
 .cmp-3d .cmp-n3 .cmp-ring-march, .cmp-3d .cmp-n3 .cmp-ring-target { border-color: transparent !important; filter: none !important; animation: none !important; }
+
+/* The Stellari is drawn in the scene (nebula-objects.ts), as are the ships. */
+.cmp-3d .cmp-bloom3d { display: none !important; }
+
+/* A heat wave from the Stellari: a hot ring going out across the board (fx.ts heatWave). */
+.heat-wave {
+  position: absolute; z-index: 60; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 80%, rgba(255, 170, 90, 0.35) 88%, rgba(236, 72, 40, 0.85) 95%, rgba(255, 220, 160, 0.9) 97.5%, transparent 100%);
+  filter: drop-shadow(0 0 10px rgba(236, 72, 40, 0.7));
+}
+/* Its shockwave: a ripple across the board (fx.ts heatWave), a bright crest and a dark trough, bending what is under it. */
+.wave-ripple {
+  position: absolute; z-index: 59; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(closest-side, transparent 84%, rgba(80, 90, 120, 0.12) 89%, rgba(255, 255, 255, 0.75) 93.5%, rgba(255, 236, 214, 0.35) 96%, transparent 100%);
+  -webkit-backdrop-filter: blur(1.5px) brightness(1.06); backdrop-filter: blur(1.5px) brightness(1.06);
+  -webkit-mask: radial-gradient(closest-side, transparent 82%, #000 90%, #000 96%, transparent 100%); mask: radial-gradient(closest-side, transparent 82%, #000 90%, #000 96%, transparent 100%);
+}
+
+
+/* ---- A reaction window: answer the rival's move at lightspeed (app.ts renderReaction) ---- */
+.react-panel {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 40;
+  width: min(600px, calc(100% - 32px)); max-height: calc(100% - 24px); overflow: auto;
+  display: grid; gap: 12px; padding: 16px 18px 14px; border-radius: 20px;
+  background: rgba(255, 255, 255, 0.97); box-shadow: 0 0 0 1.5px rgba(212, 149, 42, 0.55), 0 24px 60px rgba(70, 70, 90, 0.3);
+  animation: react-in 0.22s ease-out both;
+}
+@keyframes react-in { from { opacity: 0; transform: translate(-50%, -46%) scale(0.97); } }
+.react-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.react-head b { font-family: var(--display); font-weight: 500; text-transform: uppercase; letter-spacing: 0.24em; font-size: 0.9rem; color: #b07a1c; }
+.react-head small { color: var(--muted, #8a8fa3); letter-spacing: 0.1em; }
+.react-move { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px; }
+.react-move p { margin: 0; color: var(--ink); line-height: 1.45; }
+.react-move .card, .react-opt .card { --hw: 96px; --hh: 134px; --cw: 96px; pointer-events: none; }
+.react-move .card .card-text, .react-opt .card .card-text { display: block; }
+.react-opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.react-opt {
+  display: grid; justify-items: center; gap: 6px; padding: 6px; border: 0; border-radius: 14px; background: none; cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.react-opt .card { --hw: 112px; --hh: 157px; --cw: 112px; box-shadow: 0 0 0 1.5px #fff, 0 0 18px rgba(212, 149, 42, 0.55), 0 6px 18px rgba(90, 90, 110, 0.18); }
+.react-opt:hover, .react-opt:focus-visible { transform: translateY(-4px); }
+.react-opt-tag { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: #b07a1c; }
+.react-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--ink); font-size: 0.8rem; letter-spacing: 0.08em; }
+.react-wait {
+  position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 40; padding: 8px 16px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95); box-shadow: 0 6px 20px rgba(70, 70, 90, 0.18); color: var(--ink); font-size: 0.85rem; letter-spacing: 0.06em;
+}
+.react-wait b { color: #b07a1c; }
+@media (max-width: 560px) {
+  .react-move .card { --hw: 76px; --hh: 106px; --cw: 76px; }
+  .react-opt .card { --hw: 92px; --hh: 129px; --cw: 92px; }
+}
+.plays-pips i.banked { background: #e2b04a; box-shadow: 0 0 6px rgba(212, 149, 42, 0.6); }
+/* (While an answer is being chosen, the card display waits: the panel shows the move itself.) */
+.table-view:has(.react-panel) .stage { display: none; }
+
+
+/* ---- A Lost Overlord's parts: full-art cards (its one action across the picture), the next to act marked ---- */
+/* (The picture is clipped to the card, not the card itself: its defence shield and jewels hang over its edges.) */
+.card.card-full { overflow: visible; background: #0d0607; color: #f6ece6; }
+.card.card-full .card-stock { display: none; }
+.card.card-full .card-glyph { position: absolute; inset: 0; height: auto; padding: 0; z-index: 0; overflow: hidden; border-radius: inherit; }
+.card.card-full .card-glyph .art-wrap { width: 100%; margin: 0; filter: none; }
+.card.card-full .card-glyph .art-frame { border-radius: inherit; box-shadow: none; -webkit-mask: none; mask: none; }
+.card.card-full .card-glyph .gem, .card.card-full .card-glyph .cost-dots { display: none; }
+.card.card-full::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(180deg, rgba(10, 4, 6, 0.35) 0%, transparent 22%, transparent 46%, rgba(10, 4, 6, 0.88) 72%, rgba(10, 4, 6, 0.96) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 176, 112, 0.35);
+}
+.card.card-full .card-name, .card.card-full .card-text, .card.card-full .card-kind, .card.card-full .card-action { position: relative; z-index: 2; }
+.card.card-full .card-action { margin-top: auto; }
+.card.card-full .card-name { color: #fff; text-shadow: 0 1px 3px #000; }
+.card.card-full .card-text { color: #f1dfd6; text-shadow: 0 1px 2px #000; }
+.card.card-full .card-kind { color: #ffb070; }
+.card-action {
+  justify-self: start; align-self: start; width: fit-content; margin-bottom: calc(var(--cw) * 0.02);
+  padding: calc(var(--cw) * 0.012) calc(var(--cw) * 0.05); border-radius: 999px;
+  background: rgba(255, 106, 58, 0.9); color: #fff; font-family: var(--display); font-weight: 500;
+  font-size: max(6px, calc(var(--cw) * 0.06)); letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.3;
+  box-shadow: 0 0 calc(var(--cw) * 0.06) rgba(255, 106, 58, 0.6);
+}
+.card.card-full:not(.card-table) .card-text { display: block; }
+/* The part whose action comes next: it burns, and says so. */
+.card.card-intent { box-shadow: 0 0 0 2px #ff6a3a, 0 0 calc(var(--cw) * 0.18) rgba(255, 106, 58, 0.85) !important; animation: intent-burn 1.6s ease-in-out infinite; }
+.card.card-intent .card-action { background: #fff; color: #c2401c; }
+@keyframes intent-burn { 50% { box-shadow: 0 0 0 2px #ffb070, 0 0 calc(var(--cw) * 0.3) rgba(255, 106, 58, 1) !important; } }
+@media (prefers-reduced-motion: reduce) { .card.card-intent { animation: none; } }
+.mid-hint.boss-hint { gap: 2px; max-width: min(520px, 70%); text-align: center; }
+.mid-hint.boss-hint small { font-family: var(--display); letter-spacing: 0.2em; text-transform: uppercase; color: #c2401c; font-size: 0.7rem; }
+.mid-hint.boss-hint b { color: #c2401c; }
+.mid-hint.boss-hint span { color: var(--ink); font-size: 0.85rem; }
+.mid-hint.boss-hint i { color: var(--ink-faint, #8a8fa3); font-style: normal; }
+.card.card-full::before { display: none; }
+.card.card-full .card-text { flex: none; }
+/* On the board the action is named mid-card, clear of the card's numbers along its foot. */
+.card.card-table.card-full .card-action { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); margin: 0; white-space: nowrap; }
+.card.card-table.card-full .card-name { position: absolute; left: 0; right: 0; top: 4%; padding: 0 6%; text-align: center; font-size: max(5px, calc(var(--cw) * 0.07)); }
+.card.card-big.card-full .card-text { padding-bottom: calc(var(--cw) * 0.22); font-size: calc(var(--cw) * 0.06); }
+/* Read close up (the inspector, the stage): its words at the foot, over the dark of the picture's fade, its kind just
+   above its name. */
+.card.card-full:not(.card-table) { justify-content: flex-end; }
+.card.card-full:not(.card-table) .card-kind { position: relative; order: -1; align-self: flex-start; margin: 0 0 calc(var(--cw) * 0.01); text-align: left; padding: 0; color: #ffb070; font-size: max(9px, calc(var(--cw) * 0.04)); letter-spacing: 0.22em; }
+.card.card-full:not(.card-table) .card-action { margin-top: 0; }
+/* (Its words run higher up the card than on the board: the picture's fade to dark starts higher to carry them.) */
+.card.card-full:not(.card-table)::after { background: linear-gradient(180deg, rgba(10, 4, 6, 0.3) 0%, transparent 16%, rgba(10, 4, 6, 0.55) 38%, rgba(10, 4, 6, 0.9) 58%, rgba(10, 4, 6, 0.97) 100%); }
+.cmp-sunstat { display: inline-flex; align-items: center; gap: 6px; }
+.cmp-sunstat-orb { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff3c4, #f0a040 55%, #c2541c); box-shadow: 0 0 6px rgba(240, 140, 60, 0.6); }
+.cmp-sunstat.hot .cmp-sunstat-orb { background: radial-gradient(circle at 40% 35%, #ffd0a0, #e05030 55%, #8a1a10); box-shadow: 0 0 8px rgba(224, 80, 48, 0.8); }
+.cmp-sunstat.cold .cmp-sunstat-orb { background: radial-gradient(circle at 40% 35%, #f0fbff, #7cc0f0 55%, #2a6aa8); box-shadow: 0 0 8px rgba(110, 180, 240, 0.7); }
+/* A Lost Overlord has no sun: its Overlord's stability, to beat down. */
+.boss-vitals { display: grid; justify-items: center; gap: 4px; padding: 10px 14px; border-radius: 16px; background: rgba(20, 8, 10, 0.88); color: #f6ece6; box-shadow: 0 0 0 1px rgba(255, 176, 112, 0.4), 0 8px 24px rgba(40, 10, 10, 0.3); min-width: 110px; }
+.boss-vitals-label { font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.22em; text-transform: uppercase; color: #ffb070; }
+.boss-vitals-hp { font-family: var(--display); font-size: 1.6rem; font-weight: 500; line-height: 1; }
+.boss-vitals-hp small { font-size: 0.8rem; opacity: 0.7; }
+.boss-vitals-bar { width: 100%; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.boss-vitals-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff6a3a, #ffb070); }
+.boss-vitals-shields { font-size: 0.75rem; color: #bfe6ff; }
+.boss-vitals .vitals-name { color: #ffb070; }
+
+/* The galaxy's trade-off, lying on the board just under the Stellari. */
+.galaxy-tag {
+  position: absolute; left: 50%; top: calc(50% + 66px * var(--bz, 1)); transform: translateX(-50%) translateZ(2px); z-index: 1;
+  display: grid; justify-items: center; gap: 1px; max-width: min(46%, 300px); text-align: center; pointer-events: auto; cursor: help;
+  font-family: var(--display); color: var(--ink-soft); line-height: 1.25;
+}
+.galaxy-tag b { font-weight: 600; font-size: clamp(7px, calc(1.4 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink); }
+.galaxy-tag span { font-size: clamp(7px, calc(1.3 * var(--vh)), 10px); letter-spacing: 0.04em; }
+/* (On a short screen there is room under the Stellari for the name only: the rest shows on hover.) */
+@media (max-height: 560px) { .galaxy-tag span { display: none; } }
+
+/* Your Hero, tapped on your day: its card in the preview pane, its abilities (and attack) to its left, each its own
+   pill, nothing round them. */
+.stage.stage-hero { display: flex; align-items: center; gap: 12px; }
+.hero-picks { pointer-events: none; display: grid; gap: 5px; justify-items: end; width: max-content; max-width: 240px; animation: hero-picks-in 0.18s ease-out both; }
+@keyframes hero-picks-in { from { opacity: 0; transform: translateX(6px); } }
+.hero-pick {
+  pointer-events: auto; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; text-align: left; width: 100%; padding: 3px 12px 3px 3px;
+  border: 0; border-radius: 999px; cursor: pointer; font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 0 0 1.5px rgba(212, 165, 42, 0.6), 0 6px 16px rgba(70, 70, 90, 0.18); transition: background 0.15s, transform 0.15s;
+}
+.hero-pick:hover { background: #fff6e2; }
+.hero-pick:active { transform: scale(0.97); }
+.hero-pick-off { cursor: default; opacity: 0.6; box-shadow: 0 0 0 1px rgba(150, 156, 170, 0.45), 0 4px 10px rgba(70, 70, 90, 0.1); }
+.hero-pick-off:hover { background: rgba(255, 255, 255, 0.97); }
+.hero-pick-off:active { transform: none; }
+.hero-pick-attack { box-shadow: 0 0 0 1.5px rgba(214, 96, 70, 0.6), 0 6px 16px rgba(70, 70, 90, 0.18); }
+.hero-pick-mark { position: relative; width: 26px; height: 26px; border-radius: 50%; background: #fff; color: #a07a2a; box-shadow: 0 0 0 1px rgba(212, 165, 42, 0.45); }
+.hero-pick-mark .kw-ico { position: absolute; inset: 0; margin: auto; width: 58%; height: 58%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.hero-pick-mark small { position: absolute; right: -4px; bottom: -3px; min-width: 15px; height: 15px; display: grid; place-items: center; border-radius: 999px; background: #fff; font-family: var(--display); font-size: 0.62rem; color: var(--ink); box-shadow: 0 1px 2px rgba(60, 70, 100, 0.25); }
+.hero-pick-words { display: grid; gap: 0; min-width: 0; line-height: 1.2; }
+.hero-pick-words b { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.62rem; }
+.hero-pick-words > span { font-size: 0.68rem; color: var(--ink-soft); }
+.hero-pick-mark-atk { color: #c8553d; }
+.hero-pick-off .hero-pick-words > span { color: #b0563f; }
+.hero-pick-cost { display: inline-flex; gap: 2px; }
+.hero-pick-cost i { width: 6px; height: 6px; border-radius: 50%; background: #6cc28e; }
+.hero-pick-pay { font-style: normal; font-family: var(--body, inherit); font-weight: 600; letter-spacing: 0.02em; text-transform: none; font-size: 0.66rem; color: #fff; background: #c8553d; padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
+/* (Something in its way under the Stellari: its name only; still in the way, under "you", left of the Stellari. app.ts placeGalaxyTag.) */
+.galaxy-tag-name span { display: none; }
+.galaxy-tag.galaxy-tag-side { left: auto; right: calc(50% + 74px); top: calc(50% + 24px); transform: translateZ(2px); justify-items: end; text-align: right; }
+.galaxy-tag.galaxy-tag-right { left: calc(50% + 74px); top: calc(50% + 36px); transform: translateZ(2px); justify-items: start; text-align: left; }
+.galaxy-tag.galaxy-tag-off { display: none; }
+@media (max-height: 560px) {
+  .galaxy-tag.galaxy-tag-side { right: calc(50% + 48px); top: calc(50% + 16px); }
+  .galaxy-tag.galaxy-tag-right { left: calc(50% + 48px); top: calc(50% + 26px); }
+}
+/* On a full-art card read close up, its type sits in the flow just above its name (not pinned to the card's top
+   edge, where the picture is), in the parts' amber. */
+.card.card-full:not(.card-table) .card-kind .card-type {
+  position: static; transform: none; height: auto; padding: 0; font-size: max(9px, calc(var(--cw) * 0.04)); letter-spacing: 0.22em; color: #ffb070;
+}
+/* On a phone there is no room for a strip of readable chips over every card: on the whole board they are not shown
+   at all, and zoomed onto a tableau (the eye buttons), where the cards are twice the size, they come back, readable.
+   (The inspector explains a card in full either way.) */
+@media (pointer: coarse), (orientation: landscape) and (max-height: 560px) {
+  .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield { display: none; }
+}
+
+/* ---------- A dying universe: the run's setup (over the Stellari, as every menu) ---------- */
+body.screen-campaign:has(.cs-page) .backdrop { display: block; }
+.cs-page { --cs-gap: clamp(8px, calc(2.4 * var(--vh)), 22px); }
+.cs-body { min-height: 0; width: 100%; max-width: 1080px; justify-self: center; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: var(--cs-gap); padding: 8px 4px 10px; }
+
+/* The races: emblems in a row, the picked one lifted in its colour, its name under it. */
+.cs-races { display: flex; justify-content: center; align-items: flex-start; gap: clamp(6px, calc(1.6 * var(--vw)), 18px); }
+.cs-race-set { display: flex; gap: clamp(4px, calc(1.2 * var(--vw)), 14px); }
+.cs-orb { --s: clamp(36px, calc(7.4 * var(--vh)), 56px); position: relative; display: grid; justify-items: center; gap: 5px; width: calc(var(--s) + 26px); padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: var(--ink-faint); }
+.cs-orb-mark { width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 4px 12px rgba(70, 76, 100, 0.12); transition: transform 0.2s, box-shadow 0.2s; }
+.cs-orb-emblem { width: 72%; height: auto; }
+.cs-orb b { font-family: var(--display); font-weight: 500; font-size: clamp(0.48rem, calc(1.5 * var(--vh)), 0.62rem); letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; transition: color 0.2s; }
+.cs-orb:hover .cs-orb-mark { transform: translateY(-2px); }
+.cs-orb.on .cs-orb-mark { transform: scale(1.12); background: #fff; box-shadow: 0 0 0 2px var(--rc), 0 0 22px color-mix(in srgb, var(--rc) 45%, transparent), 0 8px 18px rgba(70, 76, 100, 0.16); }
+.cs-orb.on b { color: color-mix(in srgb, var(--rc) 55%, #2a2d36); }
+.cs-orb.locked .cs-orb-emblem { filter: grayscale(1); opacity: 0.45; }
+.cs-orb-price { position: absolute; top: calc(var(--s) - 14px); left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 1px; padding: 1px 6px 1px 3px; border-radius: 999px; background: #fff; box-shadow: 0 1px 4px rgba(70, 76, 100, 0.2); font-style: normal; font-family: var(--display); font-size: 0.56rem; color: var(--ink); }
+.cs-orb-price .cur { width: 1.1em; height: 1.1em; }
+
+/* The picked race: its name large and spaced, its creed, its trait and sub-races as tags; its emblem a ghost behind. */
+.cs-race { position: relative; display: grid; justify-items: center; gap: clamp(3px, calc(0.8 * var(--vh)), 8px); text-align: center; padding: 0 12px; isolation: isolate; }
+.cs-race-ghost { position: absolute; z-index: -1; top: 50%; left: 50%; transform: translate(-50%, -50%); width: clamp(80px, calc(20 * var(--vh)), 170px); opacity: 0.08; pointer-events: none; }
+.cs-race-ghost .fav { width: 100%; height: auto; display: block; }
+.cs-race h3 { margin: 0; font-family: var(--display); font-weight: 500; letter-spacing: 0.42em; text-indent: 0.42em; text-transform: uppercase; font-size: clamp(1rem, calc(4.4 * var(--vh)), 1.9rem); color: color-mix(in srgb, var(--rc) 55%, #2a2d36); }
+.cs-race p { margin: 0; font-family: var(--display); font-size: clamp(0.56rem, calc(1.8 * var(--vh)), 0.72rem); letter-spacing: 0.32em; text-indent: 0.32em; text-transform: uppercase; color: var(--ink-faint); }
+.cs-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.cs-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 2px 6px rgba(70, 76, 100, 0.1); font-family: var(--display); font-size: clamp(0.5rem, calc(1.6 * var(--vh)), 0.64rem); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); cursor: default; }
+.cs-tag-trait { font-family: inherit; letter-spacing: 0; text-transform: none; font-size: clamp(0.62rem, calc(2 * var(--vh)), 0.78rem); color: var(--ink); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--rc) 60%, #fff), 0 2px 8px color-mix(in srgb, var(--rc) 22%, transparent); }
+
+/* Its heroes: tall portraits, their power in the game's own marks, the one leading the run lifted in its colour. */
+.cs-heroes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, calc(1.6 * var(--vw)), 20px); min-height: 0; align-items: start; }
+/* (Every hero card the same height, whatever the race or the length of its bio.) */
+.cs-hero { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; height: clamp(220px, calc(48 * var(--vh)), 440px); border-radius: 20px; overflow: hidden; cursor: pointer; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 8px 24px rgba(70, 76, 100, 0.14); transition: transform 0.22s, box-shadow 0.22s; }
+.cs-hero:hover { transform: translateY(-3px); }
+.cs-hero.on { box-shadow: 0 0 0 2px var(--rc), 0 0 30px color-mix(in srgb, var(--rc) 35%, transparent), 0 16px 34px rgba(70, 76, 100, 0.2); }
+.cs-hero-art { position: relative; display: block; min-height: 0; overflow: hidden; background: #1a1f2a; }
+.cs-hero-art .art-wrap, .cs-hero-art .art-frame { display: block; width: 100%; height: 100%; }
+.cs-hero-art img.art, .cs-hero-art svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 26%; transition: transform 0.5s; }
+.cs-hero:hover .cs-hero-art img.art { transform: scale(1.04); }
+.cs-hero-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(255, 255, 255, 0.95)); }
+.cs-hero.locked .cs-hero-art { filter: grayscale(1) contrast(0.9); }
+.cs-hero-rarity { position: absolute; top: 10px; left: 10px; z-index: 2; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.9); font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); }
+.cs-hero-rarity i { width: 8px; height: 8px; border-radius: 50%; background: #9cc4f0; box-shadow: 0 0 6px #9cc4f0; }
+.cs-hero.rarity-stellar .cs-hero-rarity i { background: #f0b04a; box-shadow: 0 0 6px #f0b04a; }
+.cs-hero.rarity-anomaly .cs-hero-rarity i { background: #a77ee8; box-shadow: 0 0 6px #a77ee8; }
+.cs-hero-body { position: relative; z-index: 1; display: grid; gap: 6px; margin-top: -26px; padding: 0 clamp(10px, calc(1.6 * var(--vw)), 18px) clamp(10px, calc(2 * var(--vh)), 16px); }
+.cs-hero-body > b { font-family: var(--display); font-weight: 500; font-size: clamp(0.7rem, calc(2.6 * var(--vh)), 1rem); letter-spacing: 0.18em; text-transform: uppercase; color: color-mix(in srgb, var(--rc) 50%, #2a2d36); line-height: 1.25; }
+.cs-hero-bio { margin: 0; font-size: clamp(0.64rem, calc(2.1 * var(--vh)), 0.82rem); line-height: 1.5; color: var(--ink-soft); font-style: italic; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; min-height: 6em; }
+.cs-hero.locked .cs-hero-body { opacity: 0.6; }
+.cs-hero-lock { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; pointer-events: none; }
+.cs-hero-lock .cs-buy { pointer-events: auto; }
+
+/* An unlock: a white pill, its price in petals. */
+.cs-buy { display: inline-flex; align-items: center; gap: 8px; padding: 7px 8px 7px 16px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink); background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.25), 0 6px 18px rgba(70, 76, 100, 0.18); }
+.cs-buy i { display: inline-flex; align-items: center; gap: 2px; padding: 3px 9px 3px 5px; border-radius: 999px; background: #f2f3f6; color: var(--ink); font-style: normal; letter-spacing: 0.04em; }
+.cs-buy i .cur { width: 1.1em; height: 1.1em; }
+.cs-buy:disabled { cursor: default; opacity: 0.75; box-shadow: 0 0 0 1px rgba(150, 156, 170, 0.35), 0 4px 12px rgba(70, 76, 100, 0.12); }
+.cs-buy:disabled i { background: #f2f2f4; color: var(--ink-faint); }
+.cs-buy-big { margin-top: 4px; }
+
+/* The petals: the purse, and the way to the upgrades. */
+.cs-petals { justify-self: end; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 6px 10px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.23), 0 4px 12px rgba(70, 76, 100, 0.12); }
+.cs-petals .cur { width: 1.3em; height: 1.3em; }
+.cs-petals b { font-size: 0.95rem; }
+.cs-petals span { margin-left: 4px; font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); }
+.cs-petals:hover { box-shadow: 0 0 0 1.5px #3a4256, 0 6px 16px rgba(58, 66, 86, 0.12); }
+
+/* A short screen (a phone on its side): each hero's portrait fills its card, its words over a white fade at the
+   foot; the scroll is the page's own (with room for the picked card's glow). */
+@media (max-height: 560px) {
+  .cs-page.setup-page { gap: 6px; padding-top: max(6px, var(--sa-t)); padding-bottom: max(6px, var(--sa-b)); }
+  .cs-page .setup-top { min-height: 36px; }
+  .cs-page .setup-foot { min-height: 0; padding-bottom: 0; }
+  .cs-page .setup-foot .btn-primary { padding: 7px 20px; }
+  .cs-body { gap: 6px; padding: 6px 8px 10px; overflow-y: auto; scrollbar-width: none; }
+  .cs-orb { --s: 30px; width: 54px; gap: 3px; }
+    .cs-race h3 { font-size: 0.95rem; letter-spacing: 0.34em; }
+  .cs-race p { font-size: 0.5rem; }
+  .cs-hero { display: block; height: clamp(170px, calc(100 * var(--vh) - 250px), 230px); border-radius: 14px; }
+  .cs-hero-art { position: absolute; inset: 0; }
+  .cs-hero-art::after { background: linear-gradient(180deg, transparent 22%, rgba(255, 255, 255, 0.92) 52%, #fff 70%); }
+  .cs-hero-body { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; gap: 2px; padding: 0 10px 8px; }
+  .cs-hero-body > b { font-size: 0.66rem; letter-spacing: 0.14em; }
+  .cs-hero-bio { font-size: 0.6rem; line-height: 1.4; min-height: 0; }
+  .cs-hero-rarity { top: 6px; left: 6px; font-size: 0.46rem; padding: 2px 7px 2px 5px; }
+  .cs-hero-lock { place-items: start end; padding: 6px; }
+  .cs-hero-lock .cs-buy { padding: 4px 4px 4px 10px; font-size: 0.54rem; }
+  .cs-hero.on { transform: none; box-shadow: 0 0 0 2px var(--rc), 0 4px 10px rgba(70, 76, 100, 0.16); }
+  .cs-hero { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 3px 8px rgba(70, 76, 100, 0.12); }
+}
+/* A phone held upright: one hero a row. */
+@media (max-width: 780px) and (min-height: 561px) {
+  .cs-heroes { grid-template-columns: minmax(0, 1fr); }
+  .cs-hero { grid-template-rows: none; grid-template-columns: 40% minmax(0, 1fr); height: 150px; }
+  .cs-hero-art::after { background: linear-gradient(90deg, transparent 60%, rgba(255, 255, 255, 0.95)); }
+  .cs-hero-body { margin: 0 0 0 -14px; align-content: center; padding: 10px 12px 10px 0; }
+  .cs-races { flex-wrap: wrap; }
+}
+
+/* ---------- Lasting upgrades: a constellation round the Stellari (campaign.ts renderShop), in its white and ink ---------- */
+.up-shop { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: max(14px, var(--sa-t)) max(18px, var(--sa-r)) max(10px, var(--sa-b)) max(18px, var(--sa-l)); background: rgba(251, 251, 252, 0.96); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); animation: up-in 0.25s ease-out both; }
+@keyframes up-in { from { opacity: 0; } }
+.up-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; }
+.up-title h3 { margin: 0; font-family: var(--display); font-weight: 500; letter-spacing: 0.34em; text-transform: uppercase; font-size: 0.82rem; color: var(--ink-soft); }
+.up-title small { display: block; margin-top: 3px; font-size: 0.66rem; color: var(--ink-faint); }
+.up-purse { display: inline-flex; align-items: center; gap: 5px; font-family: var(--display); color: var(--ink); }
+.up-purse .cur { width: 1.2em; height: 1.2em; }
+.up-purse b { font-size: 0.95rem; font-weight: 600; }
+
+/* The sky: the nodes round an ellipse across it (placed in %), the flower and its heart in the middle. */
+.up-sky { --F: min(40vh, 30vw, 340px); position: relative; width: min(1100px, 100%); height: 100%; justify-self: center; }
+.up-flower { position: absolute; left: 50%; top: 40%; width: var(--F); transform: translate(-50%, -50%); opacity: 0.5; pointer-events: none; }
+.up-flower svg { width: 100%; height: auto; display: block; }
+
+.up-node, .up-arc-label { position: absolute; transform: translate(-50%, -50%); }
+.up-node { display: grid; justify-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
+.up-node-disc { position: relative; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #9aa1b2; box-shadow: 0 3px 10px rgba(70, 76, 100, 0.12); transition: transform 0.18s, box-shadow 0.18s, color 0.18s; }
+.up-node-disc > svg:not(.up-node-ring) { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.up-node-ring { position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px); overflow: visible; }
+.up-node-ring circle { fill: none; stroke: #e3e6ec; stroke-width: 2.4; stroke-linecap: round; transition: stroke 0.3s; }
+.up-node-ring circle.on { stroke: #3a4256; }
+.up-node b { position: absolute; top: calc(100% + 9px); left: 50%; transform: translateX(-50%); font-family: var(--display); font-weight: 500; font-size: 0.52rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; transition: color 0.18s; }
+.up-node.owned .up-node-disc { color: #3a4256; }
+.up-node.owned b { color: var(--ink-soft); }
+.up-node.afford .up-node-disc::after { content: ''; position: absolute; top: -3px; right: -3px; width: 7px; height: 7px; border-radius: 50%; background: #3a4256; box-shadow: 0 0 0 2px #fff; animation: up-ready 2.6s ease-in-out infinite; }
+@keyframes up-ready { 50% { opacity: 0.35; } }
+.up-node:hover .up-node-disc { transform: scale(1.07); }
+.up-node.on .up-node-disc { transform: scale(1.12); color: #1f2433; box-shadow: 0 0 0 1.5px #3a4256, 0 8px 20px rgba(58, 66, 86, 0.2); }
+.up-node.on b { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .up-node.afford .up-node-disc::after { animation: none; } }
+.up-arc-label { font-family: var(--display); font-size: 0.48rem; letter-spacing: 0.3em; text-transform: uppercase; color: #b9becb; white-space: nowrap; pointer-events: none; }
+
+/* The flower's heart: the purse, or the picked upgrade. */
+.up-heart { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); width: min(310px, 34vw); display: grid; justify-items: center; gap: 4px; text-align: center; animation: up-in 0.2s ease-out both; }
+.up-heart small { font-family: var(--display); font-size: 0.48rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
+.up-heart p { margin: 2px 0 0; font-size: 0.72rem; line-height: 1.4; color: var(--ink-soft); }
+.up-heart-purse { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); color: var(--ink); }
+.up-heart-purse .cur { width: 1.5em; height: 1.5em; }
+.up-heart-purse strong { font-size: 2.1rem; font-weight: 500; line-height: 1; }
+.up-heart h4 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 0.88rem; letter-spacing: 0.24em; text-indent: 0.24em; text-transform: uppercase; color: var(--ink); }
+.up-heart-vals { display: flex; align-items: flex-start; gap: 16px; margin-top: 6px; }
+.up-heart-vals span { display: grid; justify-items: center; }
+.up-heart-vals strong { font-family: var(--display); font-weight: 500; font-size: 1.6rem; line-height: 1; color: var(--ink); }
+.up-heart-vals strong.none { color: #cfd3dc; }
+.up-heart-vals strong.next { color: #8a92a6; }
+.up-heart-vals i { font-style: normal; font-family: var(--display); font-size: 0.46rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); margin-top: 4px; }
+.up-heart-vals em { font-style: normal; font-size: 1.1rem; line-height: 1.6rem; color: #c9cdd6; }
+.up-heart-buy { margin-top: 8px; display: inline-flex; align-items: center; gap: 10px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink); background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.25), 0 6px 16px rgba(70, 76, 100, 0.14); transition: transform 0.15s, box-shadow 0.15s; }
+.up-heart-buy i { display: inline-flex; align-items: center; gap: 2px; padding: 3px 10px 3px 5px; border-radius: 999px; background: #f2f3f6; color: var(--ink); font-style: normal; letter-spacing: 0.04em; font-size: 0.7rem; }
+.up-heart-buy i .cur { width: 1.1em; height: 1.1em; }
+.up-heart-buy:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.45), 0 8px 18px rgba(70, 76, 100, 0.18); }
+.up-heart-buy:disabled { cursor: default; color: var(--ink-faint); box-shadow: 0 0 0 1px rgba(150, 156, 170, 0.25); }
+.up-heart-buy:disabled i { color: var(--ink-faint); }
+.up-heart-max { margin-top: 8px; font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-soft); }
+
+/* A short screen: everything a size down. */
+@media (max-height: 560px) {
+  .up-shop { padding-top: max(8px, var(--sa-t)); }
+  .up-title small { display: none; }
+  .up-node-disc { width: 30px; height: 30px; }
+  .up-node-disc > svg:not(.up-node-ring) { width: 13px; height: 13px; }
+  .up-node-ring { inset: -3px; width: calc(100% + 6px); height: calc(100% + 6px); }
+  .up-node b { font-size: 0.42rem; letter-spacing: 0.12em; top: calc(100% + 6px); }
+  .up-arc-label { font-size: 0.4rem; }
+  .up-heart { gap: 2px; width: min(220px, 30vw); }
+  .up-heart h4 { font-size: 0.66rem; }
+  .up-heart-vals strong { font-size: 1.15rem; }
+  .up-heart-vals em { line-height: 1.15rem; font-size: 0.9rem; }
+  .up-heart-purse strong { font-size: 1.4rem; }
+  .up-heart p { font-size: 0.58rem; }
+  .up-heart-buy { margin-top: 4px; padding: 4px 4px 4px 12px; font-size: 0.52rem; }
+}
+/* (The race badges are discs of their own: in an orb, the badge is the orb.) */
+.cs-orb-mark:has(img.fav-badge) { background: none; }
+.cs-orb-mark img.cs-orb-emblem { width: 100%; height: 100%; }
+
+/* ---------- The skill tree (campaign.ts renderShop): links, locked skills, capstones ---------- */
+.up-links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.up-links line { stroke: #d8dce4; stroke-width: 1.2; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.up-links line.lit { stroke: #3a4256; stroke-opacity: 0.55; stroke-dasharray: none; }
+.up-node.locked .up-node-disc { background: #f6f7f9; color: #c8ccd6; box-shadow: 0 0 0 1px #e6e8ee; }
+.up-node.locked b { color: #c8ccd6; }
+.up-node.tier-3 .up-node-disc { width: 54px; height: 54px; }
+.up-node.tier-3 .up-node-disc > svg:not(.up-node-ring) { width: 22px; height: 22px; }
+.up-node.tier-3 .up-node-disc::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 1px solid rgba(58, 66, 86, 0.18); }
+.up-node.tier-3 b { font-weight: 600; letter-spacing: 0.2em; }
+.up-heart-needs { margin-top: 8px; font-family: var(--display); font-size: 0.52rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
+.up-heart-purse .cur-xp, .up-purse .cur-xp, .up-heart-buy .cur-xp { width: 1.3em; height: 1.3em; }
+@media (max-height: 560px) {
+  .up-node.tier-3 .up-node-disc { width: 40px; height: 40px; }
+  .up-node.tier-3 .up-node-disc > svg:not(.up-node-ring) { width: 16px; height: 16px; }
+}
+
+/* The setup's two purses, top right: petals (the starting deck) and experience (the skills). */
+.cs-purses { justify-self: end; display: flex; gap: 8px; }
+.cs-petals .cur-xp { width: 1.3em; height: 1.3em; }
+@media (max-height: 560px) { .cs-petals span { display: none; } }
+
+/* ---------- A race's starting deck, bought with petals (campaign.ts renderStarterDeck) ---------- */
+.sd-body { width: min(1100px, 100%); justify-self: center; min-height: 0; overflow-y: auto; scrollbar-width: thin; display: grid; align-content: start; gap: clamp(10px, calc(2.4 * var(--vh)), 20px); padding: 6px 2px 12px; }
+.sd-body h4 { margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); }
+.sd-body h4 small { font-family: var(--body, inherit); font-size: 0.66rem; letter-spacing: 0; text-transform: none; color: var(--ink-faint); }
+.sd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.sd-card { position: relative; display: grid; grid-template-rows: auto auto auto; gap: 5px; width: 118px; padding: 0 0 8px; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 3px 10px rgba(70, 76, 100, 0.1); cursor: pointer; }
+.sd-grid .sd-card { width: auto; }
+.sd-art { display: block; height: 70px; overflow: hidden; background: #1a1f2a; }
+.sd-art .art-wrap, .sd-art .art-frame { display: block; width: 100%; height: 100%; }
+.sd-art img.art, .sd-art svg { width: 100%; height: 100%; object-fit: cover; }
+.sd-name { display: flex; align-items: center; gap: 5px; padding: 0 8px; font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); line-height: 1.25; min-height: 2.5em; }
+.sd-name i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: #9cc4f0; }
+.sd-card.rarity-stellar .sd-name i { background: #f0b04a; }
+.sd-card.rarity-anomaly .sd-name i { background: #a77ee8; }
+.sd-buy { justify-self: start; margin: 0 8px; display: inline-flex; align-items: center; gap: 2px; padding: 2px 10px 2px 5px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.66rem; color: var(--ink); background: #f2f3f6; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.18); }
+.sd-buy .cur { width: 1.1em; height: 1.1em; }
+.sd-buy:not(:disabled):hover { background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.45); }
+.sd-buy:disabled { cursor: default; color: var(--ink-faint); box-shadow: none; }
+.sd-remove { justify-self: start; margin: 0 8px; padding: 2px 10px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.08em; color: #fff; background: var(--ink); }
+.sd-remove:hover { background: #6c7488; }
+/* The six offers in one row: two white dwarf, two stellar, two anomaly. */
+.sd-offers { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+.sd-offers .sd-art { height: clamp(70px, calc(18 * var(--vh)), 150px); }
+.sd-offers .sd-name { font-size: 0.56rem; }
+.sd-card.owned { box-shadow: 0 0 0 2px var(--ink), 0 3px 10px rgba(70, 76, 100, 0.1); }
+@media (max-width: 720px) { .sd-offers { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; } }
+

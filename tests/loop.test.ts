@@ -16,6 +16,13 @@ import {
   runBonuses,
   universeStability,
   wormholePetals,
+  STARTER_OFFERS,
+  starterAddProblem,
+  legalIn,
+  cardDef,
+  buyStarterCard,
+  levelOf,
+  rarityOf,
   GENERALS,
   type CampaignState,
 } from '../src/engine';
@@ -53,7 +60,7 @@ describe('the strip', () => {
   it('lays out lanes of systems the length of the strip, with the wormhole past the far end', () => {
     const s = run();
     // The arrival alone at the near end, the lanes between, the wormhole past the far end.
-    expect(s.nodes).toHaveLength(1 + CAMPAIGN.lanes * (CAMPAIGN.columns - 1) + 1);
+    expect(s.nodes.filter((n) => !n.challenge)).toHaveLength(1 + CAMPAIGN.lanes * (CAMPAIGN.columns - 1) + 1);
     const start = nodeById(s, flag(s).nodeId);
     expect(start.links).toHaveLength(CAMPAIGN.lanes);
     expect(start.y).toBe(s.nodes.find((n) => n.heart)!.y);
@@ -79,16 +86,33 @@ describe('the strip', () => {
   });
 
   it('starts the flagship with ten cards, and the bought upgrades on top', () => {
-    let meta = { ...emptyMeta(), petals: 200 };
-    for (const id of ['credits', 'hull', 'cards', 'pick', 'grace']) meta = buyUpgrade(meta, id);
-    const s = run(11, meta);
+    let meta = { ...emptyMeta(), xp: 999, petals: 20 };
+    // (Requisition needs Stockpile II: Stockpile is bought twice.)
+    for (const id of ['materials', 'materials', 'hull', 'cards', 'pick', 'grace']) meta = buyUpgrade(meta, id);
+    // A card bought into the race's starting deck with petals.
+    meta = buyStarterCard(meta, 1, 'shard_tempest', 'dwarf');
+    const s = createCampaign({ seed: 11, race: 1, run: runBonuses(meta, 1) });
     const plain = run(11);
     expect(flag(plain).deck).toHaveLength(CAMPAIGN.armySize);
-    expect(flag(s).deck).toHaveLength(CAMPAIGN.armySize + 1);
-    expect(campaignPlayer(s).credits).toBe(campaignPlayer(plain).credits + 3);
+    expect(flag(s).deck).toHaveLength(CAMPAIGN.armySize + 2);
+    expect(flag(s).deck.filter((id) => id === 'shard_tempest').length).toBeGreaterThan(flag(plain).deck.filter((id) => id === 'shard_tempest').length);
+    expect(campaignPlayer(s).materials).toBe(campaignPlayer(plain).materials + 6);
     expect(campaignPlayer(s).ship.hull).toBe(1);
     expect(s.cardRewards[0].source).toBe('Requisition');
     expect(universeStability(s)).toBe(universeStability(plain) + 1);
+  });
+});
+
+describe('starter offers', () => {
+  it('offers each race two white dwarf, two stellar and two anomaly cards, legal in its mode, each bought once', () => {
+    STARTER_OFFERS.forEach((ids, r) => {
+      expect(ids.map((id) => cardDef(id).rarity ?? 'dwarf')).toEqual(['dwarf', 'dwarf', 'stellar', 'stellar', 'anomaly', 'anomaly']);
+      for (const id of ids) expect(legalIn(r < 4 ? 'core' : 'lost', id)).toBe(true);
+    });
+    let meta = { ...emptyMeta(), petals: 50 };
+    expect(starterAddProblem(meta, 0, 'shard_tempest', 'dwarf')).toMatch(/offered/);
+    meta = buyStarterCard(meta, 0, 'dawnblade', 'dwarf');
+    expect(starterAddProblem(meta, 0, 'dawnblade', 'dwarf')).toMatch(/Already/);
   });
 });
 
@@ -130,24 +154,40 @@ describe('the collapse', () => {
 
 describe('finds', () => {
   it('scatters systems with nothing to fight, taken (and counted) just by flying in', () => {
-    let s = read(run());
-    const finds = s.nodes.filter((n) => n.cache);
-    expect(finds.length).toBeGreaterThan(3);
-    const n = finds.find((x) => x.cache!.kind !== 'cards')!;
+    // (Several on a strip, on average: one strip by chance may hold few.)
+    const strips = [11, 12, 13, 14, 15].map((seed) => read(run(seed)));
+    const counts = strips.map((x) => x.nodes.filter((n) => n.cache).length);
+    expect(counts.reduce((a, b) => a + b, 0) / counts.length).toBeGreaterThan(3);
+    let s = strips.find((x) => x.nodes.some((n) => n.cache?.kind === 'materials'))!;
+    const n = s.nodes.find((x) => x.cache?.kind === 'materials')!;
     const there = nodeById(s, n.links[0]);
     standAt(s, there.id);
     expect(armyMoves(s, flag(s)).find((m) => m.toId === n.id)?.battle).toBe(false);
     const before = campaignPlayer(s);
-    const had = { credits: before.credits, materials: before.materials };
-    const { kind, amount } = n.cache!;
+    const had = { materials: before.materials };
+    const { amount } = n.cache!;
     s = applyCampaignAction(s, { type: 'move', armyId: flag(s).id, toId: n.id });
     expect(s.battle).toBeNull();
     expect(nodeById(s, n.id).owner).toBe(s.playerId);
     expect(nodeById(s, n.id).cache).toBeUndefined();
     expect(s.conquered).toBe(1);
     const now = campaignPlayer(s);
-    const got = kind === 'credits' ? now.credits - had.credits : now.materials - had.materials;
+    const got = now.materials - had.materials;
     expect(got).toBe(amount);
+  });
+});
+
+describe('relic finds', () => {
+  it('a system can hold a relic, worn as soon as the flagship flies in', () => {
+    const strips = [11, 12, 13, 14, 15, 16, 17, 18].map((seed) => read(run(seed)));
+    let s = strips.find((x) => x.nodes.some((n) => n.cache?.kind === 'relic'))!;
+    expect(s).toBeTruthy();
+    const n = s.nodes.find((x) => x.cache?.kind === 'relic')!;
+    standAt(s, n.links[0]);
+    const had = campaignPlayer(s).relics?.length ?? 0;
+    s = applyCampaignAction(s, { type: 'move', armyId: flag(s).id, toId: n.id });
+    expect(s.battle).toBeNull();
+    expect(campaignPlayer(s).relics?.length).toBe(had + 1);
   });
 });
 
@@ -159,18 +199,18 @@ describe('conquest', () => {
     const me = () => campaignPlayer(s);
     const target = armyMoves(s, flag(s)).find((m) => m.battle)!.toId;
     const pay = { ...nodeById(s, target).yield };
-    const before = me().credits;
+    const before = me().materials;
     s = applyCampaignAction(s, { type: 'move', armyId: flag(s).id, toId: target });
     s = win(s);
     expect(s.conquest).toBeNull();
-    expect(me().credits - before).toBeGreaterThanOrEqual(pay.credits + 3);
+    expect(me().materials - before).toBeGreaterThanOrEqual(pay.materials + CAMPAIGN.winMaterials);
     expect(nodeById(s, target).owner).toBe(s.playerId);
     expect(s.conquered).toBe(1);
     expect(flag(s).nodeId).toBe(target);
     // No income by the turn.
-    const c = me().credits;
+    const c = me().materials;
     s = endTurn(s);
-    expect(me().credits).toBe(c);
+    expect(me().materials).toBe(c);
   });
 });
 
@@ -188,7 +228,17 @@ describe('the wormhole', () => {
     expect(s.battle?.nodeId).toBe(hole.id);
     s = read(win(s));
     expect(s.universe).toBe(2);
-    expect(s.petals).toBe(petals);
+    // The wormhole's petals, and the Overlord's bounty: petals, and a pick of two rare-or-better cards.
+    expect(s.petals).toBe(petals + CAMPAIGN.bossPetals);
+    // And experience: the battle, the boss, the galaxy crossed.
+    expect(s.xp).toBeGreaterThanOrEqual(CAMPAIGN.xpBattle + CAMPAIGN.xpBoss + CAMPAIGN.xpGalaxy);
+    const hoard = s.cardRewards.find((r) => /hoard/.test(r.source))!;
+    expect(hoard.options).toHaveLength(CAMPAIGN.bossCardChoices);
+    expect(hoard.options.every((id) => rarityOf(id) !== 'dwarf')).toBe(true);
+    while (s.cardRewards.length && !/hoard/.test(s.cardRewards[0].source)) s = applyCampaignAction(s, { type: 'chooseCard', defId: null });
+    const before = flag(s).deck.length;
+    s = applyCampaignAction(s, { type: 'chooseCard', defId: hoard.options[0] });
+    expect(flag(s).deck).toHaveLength(before + 1);
     expect(nodeById(s, flag(s).nodeId).col).toBe(0);
     expect(s.nodes.find((n) => n.heart)!.tier).toBeGreaterThan(tier);
     expect(regionalStability(s)).toBe(CAMPAIGN.stabilityTurns - CAMPAIGN.stabilityStep);
@@ -198,8 +248,8 @@ describe('the wormhole', () => {
   });
 });
 
-describe('petals between runs', () => {
-  it('buys upgrades level by level, and unlocks races and heroes', () => {
+describe('progress between runs', () => {
+  it('buys the skill tree with XP, a tier at a time, and unlocks races and heroes with petals', () => {
     let meta = { ...emptyMeta(), petals: 12 };
     expect(raceUnlocked(meta, 0)).toBe(true);
     expect(raceUnlocked(meta, 5)).toBe(false);
@@ -208,7 +258,13 @@ describe('petals between runs', () => {
     meta = buyUpgrade(meta, 'race:5');
     expect(raceUnlocked(meta, 5)).toBe(true);
     expect(meta.petals).toBe(2);
-    expect(buyUpgradeProblem(meta, 'march')).toMatch(/petals/);
-    expect(buyUpgradeProblem({ ...meta, petals: 99, upgrades: { march: 1 } }, 'march')).toMatch(/most/);
+    // The skill tree costs XP, and each tier needs the one below it.
+    expect(buyUpgradeProblem(meta, 'materials')).toMatch(/XP/);
+    expect(buyUpgradeProblem({ ...meta, xp: 999 }, 'march')).toMatch(/first/);
+    let rich = { ...meta, xp: 999 };
+    for (const id of ['hull', 'hull', 'shields', 'walls', 'march']) rich = buyUpgrade(rich, id);
+    expect(levelOf(rich, 'march')).toBe(1);
+    expect(rich.petals).toBe(2);
+    expect(buyUpgradeProblem(rich, 'march')).toMatch(/most/);
   });
 });

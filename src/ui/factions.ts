@@ -3,6 +3,18 @@
  * titans.ts) on a pearl disc ringed in the faction's colour. Used wherever a
  * faction owns or is named on the map.
  */
+import badge1 from '../assets/races/f1.webp';
+import badge2 from '../assets/races/f2.webp';
+import badge3 from '../assets/races/f3.webp';
+import badge4 from '../assets/races/f4.webp';
+import badge5 from '../assets/races/f5.webp';
+import badge6 from '../assets/races/f6.webp';
+import badge7 from '../assets/races/f7.webp';
+import badge8 from '../assets/races/f8.webp';
+
+/** The eight races' painted badges (a porcelain medallion, the race's emblem in its colour): used in place of the line-art emblems below. */
+const BADGES: Record<string, string> = { f1: badge1, f2: badge2, f3: badge3, f4: badge4, f5: badge5, f6: badge6, f7: badge7, f8: badge8 };
+
 export const FACTION_COLOUR: Record<string, string> = { f1: '#6f9fd8', f2: '#d48a7c', f3: '#c9a95e', f4: '#a08bcb', f5: '#5d5398', f6: '#c7783e', f7: '#8fa6c4', f8: '#d9503a' };
 
 const HEADS: Record<string, string> = {
@@ -26,5 +38,7 @@ const HEADS: Record<string, string> = {
 
 export function factionAvatar(id: string, cls = ''): string {
   const colour = FACTION_COLOUR[id] ?? '#9aa0ac';
+  // (A race with a painted badge shows it; anything else, the line-art emblem on a pearl disc.)
+  if (BADGES[id]) return `<img class="fav fav-badge ${cls}" src="${BADGES[id]}" alt="" style="--fc:${colour}" draggable="false" aria-hidden="true">`;
   return `<svg class="fav ${cls}" viewBox="0 0 32 32" style="--fc:${colour}" aria-hidden="true"><circle cx="16" cy="16" r="15" class="fav-disc"/><g class="fav-head">${HEADS[id] ?? ''}</g></svg>`;
 }

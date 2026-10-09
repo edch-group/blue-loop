@@ -62,6 +62,42 @@ const MOTIVE: string[] = [
   "The Pyrr are living flame, and their sun is the only thing that has ever kept them burning. It is guttering now, and so are they. They would rather burn out in the Heart's light than fade in the dark.",
 ];
 
+/** Each hero in a line or two, as the run's setup introduces them: who they are, and why they fight. */
+export const HERO_BIOS: Record<string, string> = {
+  // Aureline: the flower's first keepers, coming home.
+  command_directive: 'The Solarch reads a war the way others read a map: calmly, and to the end. She lost Vitalia once, as a young officer. She has spent every year since planning how to take her back.',
+  ignition_protocol: 'The Aureline\'s spearhead, and their most reckless son. Aurex burns hotter than his armour can bear, and counts every scar a victory.',
+  empress_solenne: 'Last of the line that tended Vitalia in the Heart\'s light. Solenne has waited an age in exile, and she no longer asks.',
+  // Xel'Naru: memory kept in living crystal.
+  war_council: 'Keeper of the shard-archives, where every Xel\'Naru who ever lived still whispers. Seris fights so that none of them are forgotten.',
+  coolant_protocol: 'A priest of stillness who can slow a burning crystal to a sleep. Vael is patient as ice, and as hard to break.',
+  the_shardmind: 'A chorus of a thousand minds grown into one crystal. It woke when the light began to fail, and it does not mean to sleep again.',
+  // Vorthane: tide fleets fleeing a freezing sea.
+  tide_regent: 'Regent of the last warm currents. Osshara led the tide fleets out from under the ice, and has not looked back once.',
+  the_admiralty: 'Not one admiral but a council of old captains, who speak with one voice and have never lost a fleet. They intend to keep it that way.',
+  leviathan_thoross: 'The oldest thing in the Vorthane seas, risen from the deep at last. Where Thoross swims, the tide follows.',
+  // Ixquor: the starving hive.
+  logistics_command: 'The hive\'s many voices, gathered into one throat. Zyth does not want, or fear, or rest. Zyth only spreads.',
+  chamber_protocol: 'The brood-mother of a hundred worlds, waking hungry. Every root she sets down becomes a new brood, and every brood an army.',
+  the_worldroot: 'A single root threaded through a dozen dying worlds. Now it is reaching for the Heart, and for every living thing between.',
+  // Nyxari: void-stalkers, born in the dark between the stars.
+  nyx_hero_vesh: 'Queen of a court no one has ever seen. Vesh wins her wars before her enemies know they are fighting one.',
+  nyx_hero_kael: 'A Nyxari made for one purpose: to take things apart. Fleets, fortresses, alliances. Kael has never met a thing he could not undo.',
+  nyx_hero_nyxara: 'Older than the first star, and the dark was always hers. Now even she can feel it growing hungry, and she has come for the light.',
+  // Korrath: forge-smiths whose fires are cooling.
+  kor_hero_durga: 'The greatest smith of the deep forges. Durga mends what others throw away, and hammers it back into the line harder than before.',
+  kor_hero_brannoc: 'The wall the Korrath stand behind. In forty years of sieges, nothing has ever got past Brannoc. He does not mean to start now.',
+  kor_hero_anvil_king: 'The forge-lord woken from his long sleep beneath the mountain. Where the Anvil-King marches, every world is ore.',
+  // Seren: star-readers watching their stars go out.
+  ser_hero_ilyath: 'The finest reader of the stars the Seren have left. Ilyath has seen how this war ends, and is trying very hard to change it.',
+  ser_hero_maren: 'A tidecaster who turns the planets in their orbits as a sailor trims a sail. Maren asks the worlds to move, and they do.',
+  ser_hero_aster: 'Every star the Seren ever charted, gathered into a single being as the sky went dark. Aster is the last constellation, and the last hope.',
+  // Pyrr: living flame, guttering.
+  pyr_hero_ignis: 'Herald of the Pyrr host, who burns everything at once and lets tomorrow find its own fire. Ignis has never once held back.',
+  pyr_hero_ashka: 'Queen of the cinder-courts, who runs her people\'s sun hot and thrives where others scorch. Ashka was born in the fire, and does not fear it.',
+  pyr_hero_pyrrhus: 'A flare that has burned out a hundred times, and risen from its ashes each time brighter. Pyrrhus fights as if he cannot lose, because he cannot stay lost.',
+};
+
 /** What a general says on taking command (and on first meeting a rival). */
 const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
   command_directive: { join: 'Solarch Veyra stands with you. We lost Vitalia once. We will not lose her again.', taunt: 'Vitalia was ours before your star was lit. Turn back.' },
@@ -90,12 +126,51 @@ const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
   pyr_hero_pyrrhus: { join: 'Pyrrhus, the Undying Flare. I have burned out a hundred times. I always rise again.', taunt: 'I will burn, and you will burn, and only one of us will rise.' },
 };
 
+/**
+ * What each general says as their flagship first flies in, at the start of a campaign: why they have come, and
+ * what they see. (Recorded as src/assets/voice/<hero id>-arrive.mp3.)
+ */
+export const ARRIVAL_LINES: Record<string, string> = {
+  // Aureline: coming home to the flower they lost.
+  command_directive: "So many dark stars. When we kept Vitalia, this whole sky was lit. We are going home, and we are taking her back.",
+  ignition_protocol: "Look at it. Cold, all of it. Good: cold things catch fire easily. Take us in towards the Heart.",
+  empress_solenne: "My mothers watched the Heart from this very sky. They lost the flower. I will not. Onward.",
+  // Xel'Naru: the crystal needs light, or they forget.
+  war_council: "The shards are dimming already. Every star out there is a memory we cannot afford to lose. Make for the light.",
+  coolant_protocol: "The dark does not frighten me. Forgetting does. Steady now, and towards the Heart.",
+  the_shardmind: "We count the lights, and there are fewer than yesterday. We must reach the Heart before we forget why we came.",
+  // Vorthane: the oceans are freezing; the fleets sail inwards.
+  tide_regent: "Our seas are ice to the seabed. There is nowhere left to sail but in. Set a course for the Heart.",
+  the_admiralty: "Admiralty flagship on station. Ice behind us, dead stars ahead. The fleet sails for the Heart.",
+  leviathan_thoross: "I left a frozen ocean for this? Then this had better be worth the cold. Onward, to the Heart.",
+  // Ixquor: the hive is starving, and spreads.
+  logistics_command: "Zyth smells warm worlds, there, and there. Zyth's brood is hungry. Zyth goes towards the Heart.",
+  chamber_protocol: "Our spore-worlds are rotting, children. But look: soil, all the way to the Heart. Spread.",
+  the_worldroot: "The old soil is dead. Here, new soil. Every world between us and the Heart, a place to take root.",
+  // Nyxari: even the void-stalkers fear the growing dark.
+  nyx_hero_vesh: "The dark was always ours. Now it eats the stars, and soon it will eat us. Quietly, then. Towards the Heart.",
+  nyx_hero_kael: "So many dead lights, and every race clawing for the last ones. Let them build. I will take it all apart on the way to the Heart.",
+  nyx_hero_nyxara: "I have watched these stars wake, one by one. Now I watch them go out. I would rather not watch the last.",
+  // Korrath: the forges are cooling; they march for undying fire.
+  kor_hero_durga: "The forges back home are ash and embers. Out there is a fire that never needs feeding. We go and get it.",
+  kor_hero_brannoc: "Cold worlds, cold road, and enemies on every lane of it. Stay behind me. We reach the Heart together.",
+  kor_hero_anvil_king: "Ten thousand years our forges burned. They will burn ten thousand more, once we have the Heart. March.",
+  // Seren: they read the future in stars that are going out.
+  ser_hero_ilyath: "Fewer stars to read every night, and every reading ends the same: the Heart, the flower, or nothing. So: the Heart.",
+  ser_hero_maren: "The orbits are slowing. Worlds that once sang now barely turn. Set our course. The Heart is waiting.",
+  ser_hero_aster: "I carry every star that ever shone, and still the sky goes dark. Follow me, and we will light it again.",
+  // Pyrr: living flame, guttering with their sun.
+  pyr_hero_ignis: "Our sun is guttering, and we gutter with it. If we burn out, we burn out in the Heart's light. Full burn!",
+  pyr_hero_ashka: "It is so cold out here. Feel that? Nothing. Then we bring the heat ourselves, all the way to the Heart.",
+  pyr_hero_pyrrhus: "I have died and risen a hundred times. This dark will not be the end of me. To the Heart.",
+};
+
 const oracle = (text: string): StoryLine => ({ speaker: { kind: 'oracle' }, text });
 const general = (card: string, faction: string, text: string): StoryLine => ({ speaker: { kind: 'general', card, faction }, text });
 
 /** The opening: the dying universe, the legend, the player's race and its first general. */
-export function introScene(race: number, faction: string): StoryScene {
-  const first = GENERALS[race][0];
+export function introScene(race: number, faction: string, hero = GENERALS[race][0]): StoryScene {
+  const first = hero;
   return {
     id: 'intro',
     title: 'A dying universe',
@@ -109,8 +184,8 @@ export function introScene(race: number, faction: string): StoryScene {
           : `It is more than a legend. It was kept, once, by the Aureline, who called it ${VITALIA}, the life-giver. They lost it, and very nearly everything else.`,
       ),
       oracle(MOTIVE[race]),
-      general(first, faction, GENERAL_LINES[first].join),
-      oracle(`Your armies march one route a turn. Take systems for their credits and materials, and press on towards ${HEART_NAME}. Recruit more generals as you grow: each leads an army with a deck of its own.`),
+      general(first, faction, ARRIVAL_LINES[first] ?? GENERAL_LINES[first].join),
+      oracle(`Your armies march one route a turn. Take systems for their materials, and press on towards ${HEART_NAME}. Recruit more generals as you grow: each leads an army with a deck of its own.`),
     ],
   };
 }
@@ -151,7 +226,7 @@ export function stellariaSightedScene(): StoryScene {
     title: 'A Stellari bloom',
     lines: [
       oracle('Look there: a Stellari bloom. A finite one, a cutting from the legend, blown out across the dark.'),
-      oracle('Hold the system, and the bloom will pour credits and materials into your hands every turn. But it is not the real thing. It wilts.'),
+      oracle('Hold the system, and the bloom will pour materials into your hands every turn. But it is not the real thing. It wilts.'),
     ],
   };
 }
@@ -211,7 +286,7 @@ export function heartSightedScene(): StoryScene {
     title: HEART_NAME,
     lines: [
       oracle(`There it is. ${HEART_NAME}. Even dying, it outshines everything.`),
-      oracle('It is guarded. The Heart Wardens have kept it since the first light, and they will not stand aside for anyone. Come strong, and come rested.'),
+      oracle('It is guarded. A Lost Overlord squats before it: the last of some dead empire, more body than mind now, and it will not stand aside for anyone. Watch what it means to do next, and break that part of it first.'),
     ],
   };
 }
@@ -237,7 +312,7 @@ export function victoryHeartScene(hero: string, faction: string, race: number): 
     id: 'victory',
     title: race === 0 ? VITALIA : STELLARIA_NAME,
     lines: [
-      oracle(`You have reached ${HEART_NAME}, and the Wardens are scattered. And there, in the white fire at its centre: the ${STELLARIA_NAME}, in bloom.`),
+      oracle(`You have reached ${HEART_NAME}, and its Overlord has fallen. And there, in the white fire at its centre: the ${STELLARIA_NAME}, in bloom.`),
       general(hero, faction, race === 0 ? `${VITALIA}. She is still here. After everything, we have brought her home.` : 'It is real. After everything, it is real.'),
       oracle('Carry it home. Light your star again. And remember, when the others come to you in the dark, how much light there is now to share.'),
     ],
@@ -332,15 +407,15 @@ export function lostRaidScene(name: string, system: string): StoryScene {
 export function wormholeSightedScene(universe: number): StoryScene {
   return {
     id: `wormhole:${universe}`,
-    title: universe === 1 ? 'The wormhole' : `Universe ${universe}`,
+    title: universe === 1 ? 'The wormhole' : `Galaxy ${universe}`,
     lines:
       universe === 1
         ? [
             oracle('Look to the far end of this reach. A Stellari bloom, and so much power pouring off it that space has torn open round it: a wormhole.'),
-            oracle('Beyond it lies another universe, younger, still burning. Reach it before this one collapses behind you. Something guards it. Something always does.'),
+            oracle('Beyond it lies another galaxy, younger, still burning. Reach it before this one collapses behind you. Something guards it. Something always does.'),
           ]
         : [
-            oracle(`Another universe, and another bloom at the far end of it. They burn hotter here, and so does everything guarding them.`),
+            oracle(`Another galaxy, and another bloom at the far end of it. They burn hotter here, and so does everything guarding them.`),
             oracle('The collapse will come sooner this time. It always does. Keep moving.'),
           ],
   };
@@ -364,7 +439,7 @@ export function runOverScene(universe: number): StoryScene {
     id: 'run-over',
     title: 'The light goes out',
     lines: [
-      oracle(universe > 1 ? `${universe} universes. Further than most ever go.` : 'It is over, this time.'),
+      oracle(universe > 1 ? `${universe} galaxies. Further than most ever go.` : 'It is over, this time.'),
       oracle('The petals you carried are safe. Spend them, and go again. The loop always comes round.'),
     ],
   };

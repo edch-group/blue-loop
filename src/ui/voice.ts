@@ -76,6 +76,15 @@ class HeroLines {
     if (recording) sound.clip(recording);
   }
 
+  /**
+   * A hero's arrival line, as their flagship flies in at a campaign's start (its words show on the map's guide):
+   * spoken once the ship comes to rest, if recorded (src/assets/voice/<hero id>-arrive.mp3).
+   */
+  arrive(heroId: string, afterMs: number) {
+    const recording = RECORDED[`${heroId}-arrive`];
+    if (recording) window.setTimeout(() => sound.clip(recording), afterMs);
+  }
+
   private showCaption(text: string, card: Element | null) {
     this.caption?.remove();
     window.clearTimeout(this.captionTimer);

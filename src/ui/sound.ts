@@ -1,5 +1,7 @@
 import { markDirty } from './account';
 import heatFire from '../assets/sfx/heat-fire.mp3?inline';
+import sunHit from '../assets/sfx/sun-hit.mp3?inline';
+import cardHit from '../assets/sfx/card-hit.mp3?inline';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -21,7 +23,7 @@ const PREFS_KEY = 'blue-loop:sound';
  * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
  * late.
  */
-const SFX = { heatFire };
+const SFX = { heatFire, sunHit, cardHit };
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
 function silentWav(): string {
@@ -40,6 +42,7 @@ function silentWav(): string {
 }
 const MUSIC_KEY = 'blue-loop:music';
 /** Where the score had got to when the app was hidden (or the page left), kept for the tab's session. */
+/** Where the score was left (no longer kept: cleared on loading). */
 const MUSIC_AT_KEY = 'blue-loop:music-at';
 
 /** A-aeolian flavoured chords (frequencies in Hz) the score drifts between. */
@@ -164,10 +167,6 @@ class SoundBoard {
   /** Which score the current screen wants. */
   private scene: MusicScene = 'ambient';
   private silent: HTMLAudioElement | null = null;
-  /** The chords the score has scheduled lately (when each starts), to know where it is. */
-  private placed: { scene: MusicScene; chord: number; round: number; at: number }[] = [];
-  /** Where to pick the score up again, once it comes back. */
-  private resumeAt: { scene: MusicScene; chord: number; round: number } | null = null;
   muted = false;
   musicOn = true;
 
@@ -178,9 +177,9 @@ class SoundBoard {
     } catch {
       // Storage unavailable: defaults.
     }
+    // (The score's place was once kept between pages; it starts from the top now, and an old note of it goes.)
     try {
-      const at = JSON.parse(sessionStorage.getItem(MUSIC_AT_KEY) ?? 'null');
-      if (at && typeof at.chord === 'number' && typeof at.round === 'number') this.resumeAt = at;
+      sessionStorage.removeItem(MUSIC_AT_KEY);
     } catch {
       // ignore
     }
@@ -198,7 +197,6 @@ class SoundBoard {
   }
 
   private sleep() {
-    this.keepPlace();
     this.stopMusic(true);
     this.releasePlayback();
     if (this.ctx && this.ctx.state === 'running') void this.ctx.suspend().catch(() => undefined);
@@ -220,39 +218,6 @@ class SoundBoard {
       this.mediaPlayback();
       if (this.musicOn) this.startMusic();
     }
-  }
-
-  /** Note the chord the score is on, so coming back picks it up there rather than at the top. */
-  private keepPlace() {
-    if (!this.ctx || !this.playing) return;
-    const now = this.ctx.currentTime;
-    const at = [...this.placed].reverse().find((p) => p.scene === this.playing && p.at <= now);
-    if (!at) return;
-    this.resumeAt = { scene: at.scene, chord: at.chord, round: at.round };
-    try {
-      sessionStorage.setItem(MUSIC_AT_KEY, JSON.stringify(this.resumeAt));
-    } catch {
-      // ignore
-    }
-  }
-
-  /** Where a score starts: where it was left, if it was this one, else the top. */
-  private startPlace(scene: MusicScene): { chord: number; round: number } {
-    const at = this.resumeAt;
-    this.resumeAt = null;
-    this.placed = [];
-    try {
-      sessionStorage.removeItem(MUSIC_AT_KEY);
-    } catch {
-      // ignore
-    }
-    return at && at.scene === scene ? at : { chord: 0, round: 0 };
-  }
-
-  /** A chord scheduled: remembered (the last few) so the score's place can be kept. */
-  private place(scene: MusicScene, chord: number, round: number, at: number) {
-    this.placed.push({ scene, chord, round, at });
-    if (this.placed.length > 4) this.placed.shift();
   }
 
   /** Muted: stop claiming media playback, so the phone's other audio can carry on. */
@@ -473,6 +438,84 @@ class SoundBoard {
     this.lastHover = now;
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
+  /**
+   * An encounter: the flagship lands at a guarded star. A dive-bombing synth in the battle theme's own voice: its
+   * soft triangle-and-saw pluck, through the arpeggio's resonant filter and dotted-eighth echo, screaming down
+   * from high A to low as the filter closes, and landing on the theme's opening chord (Am(add9): its deep bass,
+   * its detuned triangle pad swelling in the hall), with a soft low thud as it hits.
+   */
+  encounter() {
+    const ctx = this.ready();
+    if (!ctx || !this.sfx) return;
+    const t = ctx.currentTime;
+    const eighth = 60 / BATTLE_BPM / 2;
+    const fall = 0.9;
+    // The battle arpeggio's filter (resonant, lowpass), closing as the synth falls, and its echo into the hall.
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 5;
+    filter.frequency.setValueAtTime(5200, t);
+    filter.frequency.exponentialRampToValueAtTime(420, t + fall);
+    // (Opening again to the arpeggio's own as it lands.)
+    filter.frequency.exponentialRampToValueAtTime(1400, t + fall + 0.15);
+    const echo = ctx.createDelay(2);
+    echo.delayTime.value = eighth * 1.5;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.38;
+    const echoTone = ctx.createBiquadFilter();
+    echoTone.type = 'lowpass';
+    echoTone.frequency.value = 1800;
+    filter.connect(this.sfx);
+    filter.connect(echo).connect(echoTone).connect(feedback).connect(echo);
+    echoTone.connect(this.reverb ?? this.sfx);
+    // (Let go once the echo has died away.)
+    window.setTimeout(() => { feedback.gain.value = 0; filter.disconnect(); echoTone.disconnect(); }, 6000);
+    // The dive: the pluck's triangle and saw, a detuned pair of each, from A6 down to A1, with a slight warble.
+    for (const d of [-8, 8]) {
+      this.voice(hz('A6'), { dur: fall + 0.1, attack: 0.02, gain: 0.05, to: hz('A1'), type: 'triangle', cutoff: 9000, detune: d, vibrato: 12, out: filter });
+      this.voice(hz('A6'), { dur: fall + 0.1, attack: 0.02, gain: 0.018, to: hz('A1'), type: 'sawtooth', cutoff: 9000, detune: d * 1.5, vibrato: 12, out: filter });
+    }
+    // A thin whistle over it, an octave up, fading as it falls.
+    this.voice(hz('E7'), { dur: fall * 0.8, attack: 0.04, gain: 0.012, to: hz('E4'), type: 'sine' });
+    // Air rushing past.
+    this.breath({ dur: fall, freq: 3200, to: 500, type: 'bandpass', q: 1.1, gain: 0.05, attack: 0.3 });
+    // The landing: the theme's opening chord. Its bass (triangle and sine an octave up), a soft thud under it…
+    const land = fall - 0.03;
+    this.voice(hz('A1'), { dur: 2.6, attack: 0.01, gain: 0.12, type: 'triangle', cutoff: 300, delay: land });
+    this.voice(hz('A2'), { dur: 2.2, attack: 0.02, gain: 0.04, type: 'sine', delay: land });
+    this.voice(70, { dur: 0.7, attack: 0.004, gain: 0.16, to: 36, type: 'triangle', cutoff: 220, delay: land });
+    this.breath({ dur: 0.7, freq: 200, to: 60, type: 'lowpass', q: 1, gain: 0.1, attack: 0.008, delay: land });
+    // …and its pad, detuned triangle pairs swelling quickly and ringing out in the hall.
+    ['A3', 'E4', 'B4', 'C5'].forEach((n, i) => {
+      this.voice(hz(n), { dur: 2.8, attack: 0.18 + i * 0.04, gain: 0.022, type: 'triangle', cutoff: 1400, delay: land });
+      this.voice(hz(n), { dur: 2.8, attack: 0.18 + i * 0.04, gain: 0.014, type: 'triangle', cutoff: 1400, detune: 9, delay: land });
+    });
+    // One pluck of the arpeggio's first notes as it lands, into the echo.
+    ['A4', 'E5', 'A5'].forEach((n, i) => {
+      this.voice(hz(n), { dur: eighth * 2.2, attack: 0.012, gain: 0.03, type: 'triangle', cutoff: 5000, delay: land + 0.02 + i * eighth * 0.5, out: filter });
+    });
+  }
+  /**
+   * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and
+   * a long rushing wash as it crosses the board.
+   */
+  heatWave() {
+    this.breath({ dur: 0.35, freq: 300, to: 1600, type: 'bandpass', q: 1.2, gain: 0.07, attack: 0.25 });
+    this.voice(73.42, { dur: 1.4, attack: 0.02, gain: 0.16, to: 41.2, type: 'triangle', cutoff: 380, delay: 0.2 });
+    this.breath({ dur: 1.3, freq: 2400, to: 260, type: 'bandpass', q: 0.9, gain: 0.12, attack: 0.12, delay: 0.2 });
+    this.breath({ dur: 1.0, freq: 140, to: 70, type: 'lowpass', q: 1, gain: 0.14, attack: 0.05, delay: 0.2 });
+  }
+  /** A star under the pointer: a soft glassy chime, each star its own note of a pentatonic scale. */
+  starHover(seed: number) {
+    const now = performance.now();
+    if (now - this.lastHover < 60) return;
+    this.lastHover = now;
+    const scale = [0, 2, 4, 7, 9, 12, 14];
+    const f = 659.25 * 2 ** (scale[Math.floor(Math.abs(seed) * 997) % scale.length] / 12);
+    this.voice(f, { dur: 0.9, attack: 0.006, gain: 0.03, cutoff: 5000 });
+    this.voice(f * 2, { dur: 0.5, attack: 0.004, gain: 0.012, cutoff: 7000, detune: 6 });
+    this.voice(f * 1.5, { dur: 1.2, attack: 0.06, gain: 0.008, cutoff: 3000, delay: 0.04 });
+  }
   /** A card or deck under the pointer: the dry rustle of paper (a few tiny bright crackles over a soft brush). */
   rustle() {
     const now = performance.now();
@@ -508,10 +551,16 @@ class SoundBoard {
   shuffle() {
     for (let i = 0; i < 4; i++) this.breath({ dur: 0.5, freq: 700 + i * 300, to: 1800, gain: 0.04, attack: 0.15, delay: i * 0.14 });
   }
+  /**
+   * A card coming in (put into play, or arriving on the stage): a short, bell-like chord, the dawn banner's
+   * (root, fifth and octave on soft sines) a fifth higher, struck rather than swelled, ringing out over a second
+   * or so; a quiet octave above each note gives it its ring.
+   */
   play() {
-    this.breath({ dur: 0.9, freq: 400, to: 1600, gain: 0.05, attack: 0.25 });
-    this.voice(440, { dur: 1.6, attack: 0.18, gain: 0.05, cutoff: 1800 });
-    this.voice(659.25, { dur: 1.6, attack: 0.25, gain: 0.03, cutoff: 1800, detune: 4 });
+    [329.63, 493.88, 659.25].forEach((f, i) => {
+      this.voice(f, { dur: 1.3, attack: 0.015, gain: 0.036 - i * 0.004, cutoff: 2400, delay: i * 0.025 });
+      this.voice(f * 2, { dur: 0.6, attack: 0.01, gain: 0.004, delay: i * 0.025 });
+    });
   }
   buy() {
     this.bell(880, 0, 0.045);
@@ -544,27 +593,28 @@ class SoundBoard {
     this.breath({ dur: 1.6, freq: 6000, to: 1200, type: 'bandpass', q: 1.5, gain: 0.05, attack: 0.3 });
     [1567.98, 1318.51, 987.77].forEach((f, i) => this.voice(f, { dur: 1.8, attack: 0.25, gain: 0.018, delay: i * 0.18, vibrato: 4 }));
   }
+  /** Heat landing on a sun from no rival (its own, or a blow it shrugged off): the flame, a touch softer. Cold: a chime. */
   impact(hot: boolean) {
-    if (hot) {
-      this.voice(65, { dur: 1.6, attack: 0.04, gain: 0.16, to: 40, cutoff: 300 });
-      this.breath({ dur: 1.1, freq: 300, to: 90, type: 'lowpass', gain: 0.08, attack: 0.05 });
-    } else {
+    if (hot) this.sunHit(1, 0.4);
+    else {
       this.bell(1174.66, 0, 0.03);
     }
   }
-  /** Your sun takes enemy heat: a heavy, low blow with a searing crackle (bigger hits land harder). */
-  hurt(amount = 1) {
-    const g = Math.min(1.6, 0.8 + amount * 0.12);
-    this.voice(49, { dur: 1.4, attack: 0.01, gain: 0.2 * g, to: 30, type: 'triangle', cutoff: 260 });
-    this.voice(98, { dur: 0.5, attack: 0.005, gain: 0.08 * g, to: 55, type: 'square', cutoff: 500 });
-    this.breath({ dur: 0.9, freq: 2400, to: 300, type: 'bandpass', q: 0.8, gain: 0.12 * g, attack: 0.01 });
+  /**
+   * A sun hit by heat: the recorded flame swoosh. Bigger hits land louder, and a little slower and deeper (as
+   * set by the heat that landed, never by chance).
+   */
+  private sunHit(amount: number, level: number) {
+    const a = Math.max(1, amount);
+    this.clip(SFX.sunHit, level * Math.min(1.5, 0.85 + 0.12 * (a - 1)), 1 - Math.min(0.14, 0.035 * (a - 1)));
   }
-  /** You land heat on a rival: a bright crack, then a rolling burn. */
+  /** Your sun takes enemy heat. */
+  hurt(amount = 1) {
+    this.sunHit(amount, 0.55);
+  }
+  /** You land heat on a rival's sun. */
   strike(amount = 1) {
-    const g = Math.min(1.5, 0.8 + amount * 0.1);
-    this.breath({ dur: 0.35, freq: 5000, to: 1200, type: 'highpass', q: 0.7, gain: 0.1 * g, attack: 0.004 });
-    this.voice(130.8, { dur: 1.0, attack: 0.01, gain: 0.1 * g, to: 65, type: 'triangle', cutoff: 900 });
-    this.breath({ dur: 1.2, freq: 900, to: 160, type: 'lowpass', q: 1.2, gain: 0.07 * g, attack: 0.06, delay: 0.05 });
+    this.sunHit(amount, 0.5);
   }
   /** Shields take a hit: a glassy clang. */
   block() {
@@ -577,13 +627,22 @@ class SoundBoard {
     this.breath({ dur: 0.32, freq: 700, to: 3400, type: 'bandpass', q: 1.4, gain: 0.11, attack: 0.2, out: this.sfxDry ?? undefined });
     this.breath({ dur: 0.26, freq: 2400, to: 6000, type: 'highpass', q: 0.7, gain: 0.035, attack: 0.18, delay: 0.04, out: this.sfxDry ?? undefined });
   }
-  /** A card smashing into a card: a punchy mid thump with a crunch (heard on small speakers too). Bigger blows land harder. */
+  /**
+   * A blow landing on a card: a crash. A deep falling thump and a low burst of crunching noise, a scatter of debris,
+   * and the recorded whip crack, slowed right down, riding on top. Bigger blows land louder and a little deeper (as
+   * set by what the blow took, never by chance).
+   */
   clash(amount = 1) {
-    const g = Math.min(1.5, 0.8 + amount * 0.12);
-    this.voice(196, { dur: 0.32, attack: 0.003, gain: 0.13 * g, to: 82, type: 'triangle', cutoff: 1400 });
-    this.voice(392, { dur: 0.14, attack: 0.002, gain: 0.05 * g, to: 160, type: 'square', cutoff: 1800 });
-    this.breath({ dur: 0.22, freq: 1600, to: 500, type: 'bandpass', q: 0.9, gain: 0.14 * g, attack: 0.003 });
-    this.breath({ dur: 0.08, freq: 4200, type: 'highpass', q: 0.7, gain: 0.05 * g, attack: 0.002 });
+    const a = Math.max(1, amount);
+    const g = Math.min(1.5, 0.85 + 0.12 * (a - 1));
+    const deeper = 1 - Math.min(0.14, 0.035 * (a - 1));
+    this.voice(92 * deeper, { dur: 0.7, attack: 0.004, gain: 0.16 * g, to: 38, type: 'triangle', cutoff: 420 });
+    this.breath({ dur: 0.55, freq: 1300, to: 180, type: 'lowpass', q: 0.9, gain: 0.16 * g, attack: 0.004 });
+    this.breath({ dur: 0.3, freq: 700, to: 300, type: 'bandpass', q: 1.2, gain: 0.08 * g, attack: 0.003 });
+    [0.03, 0.07, 0.12, 0.19].forEach((d, i) =>
+      this.breath({ dur: 0.05, freq: [1900, 1400, 2300, 1100][i], q: 2.2, gain: 0.035 * g, attack: 0.002, delay: d, type: 'bandpass' }),
+    );
+    this.clip(SFX.cardHit, 0.32 * g, 0.75 * deeper);
   }
   /** A card's defence cracking: a brittle snap with splintering ticks after it. */
   crack() {
@@ -658,13 +717,14 @@ class SoundBoard {
   }
 
   /** Play a recording (a voice line, a recorded effect) through the effects mix, so it sits in the same hall. */
-  clip(url: string, gain = 0.85) {
+  clip(url: string, gain = 0.85, rate = 1) {
     const ctx = this.ready();
     if (!ctx) return;
     void this.load(url).then((b) => {
       if (!b || !this.ready()) return;
       const src = ctx.createBufferSource();
       src.buffer = b;
+      src.playbackRate.value = rate;
       const g = ctx.createGain();
       g.gain.value = gain;
       src.connect(g).connect(this.sfx!);
@@ -864,11 +924,10 @@ class SoundBoard {
     };
 
     let next = ctx.currentTime + 0.1;
-    let { chord, round } = this.startPlace('battle');
+    let chord = 0, round = 0;
     const tick = () => {
       if (this.playing !== 'battle') return;
       while (next < ctx.currentTime + 0.5) {
-        this.place('battle', chord, round, next);
         playChord(next, chord, round);
         next += chordLen;
         chord = (chord + 1) % BATTLE_CHORDS.length;
@@ -1281,13 +1340,10 @@ class SoundBoard {
     };
 
     let next = t0;
-    let { chord, round } = this.startPlace('voyage');
-    // (A crescendo climbs over two chords: picked up halfway, it starts from its foot.)
-    if (chord === 3 && round % 2 === 1) chord = 2;
+    let chord = 0, round = 0;
     const tick = () => {
       if (this.playing !== 'voyage') return;
       while (next < ctx.currentTime + 0.5) {
-        this.place('voyage', chord, round, next);
         playChord(next, chord, round);
         next += chordLen;
         chord = (chord + 1) % CAMPAIGN_CHORDS.length;

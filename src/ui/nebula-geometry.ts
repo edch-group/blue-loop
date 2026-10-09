@@ -94,16 +94,7 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
     return -0.32 + 0.05 * fbm(x * 1.3, z * 1.3, 2) + rise * (swell * 0.7 + waves * 0.6);
   };
 
-  // The heights on the grid, and normals from them.
   const nx = Math.round((X1 - X0) / CELL) + 1, nz = Math.round((Z1 - Z0) / CELL) + 1;
-  const H = new Float32Array(nx * nz);
-  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) H[j * nx + i] = height(X0 + i * CELL, Z0 + j * CELL);
-  const at = (i: number, j: number) => H[Math.min(nz - 1, Math.max(0, j)) * nx + Math.min(nx - 1, Math.max(0, i))];
-  const normal = (i: number, j: number) => {
-    const gx = (at(i + 1, j) - at(i - 1, j)) / (2 * CELL), gz = (at(i, j + 1) - at(i, j - 1)) / (2 * CELL);
-    const l = Math.hypot(gx, 1, gz);
-    return [-gx / l, 1 / l, -gz / l];
-  };
 
   // The shards: a jittered grid of seeds; each point belongs to its nearest.
   const sx = Math.ceil((X1 - X0) / SHARD) + 2, sz = Math.ceil((Z1 - Z0) / SHARD) + 2;
@@ -115,14 +106,21 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
       seeds[k + 1] = Z0 + (j - 0.5 + range(0.1, 0.9)) * SHARD;
       seeds[k + 2] = rnd();
     }
+  // A shard's reach, warped a little by smooth noise so its borders curve gently rather than run dead straight.
+  const warp = (x: number, z: number): [number, number] => [x + 0.09 * fbm(x * 2.2 + 11, z * 2.2, 2), z + 0.09 * fbm(x * 2.2, z * 2.2 - 7, 2)];
+  const distTo = (k: number, x: number, z: number) => {
+    const [wx, wz] = warp(x, z);
+    return (seeds[k * 3] - wx) ** 2 + (seeds[k * 3 + 1] - wz) ** 2;
+  };
   const shardOf = (x: number, z: number) => {
-    const ci = Math.floor((x - X0) / SHARD + 0.5), cj = Math.floor((z - Z0) / SHARD + 0.5);
+    const [wx, wz] = warp(x, z);
+    const ci = Math.floor((wx - X0) / SHARD + 0.5), cj = Math.floor((wz - Z0) / SHARD + 0.5);
     let best = 0, bd = Infinity;
     for (let j = cj - 1; j <= cj + 1; j++)
       for (let i = ci - 1; i <= ci + 1; i++) {
         if (i < 0 || j < 0 || i >= sx || j >= sz) continue;
         const k = j * sx + i;
-        const d = (seeds[k * 3] - x) ** 2 + (seeds[k * 3 + 1] - z) ** 2;
+        const d = (seeds[k * 3] - wx) ** 2 + (seeds[k * 3 + 1] - wz) ** 2;
         if (d < bd) {
           bd = d;
           best = k;
@@ -130,40 +128,89 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
       }
     return best;
   };
-  // Each quad's two triangles (A: 00, 10, 11; B: 00, 11, 01), and the shard each belongs to.
-  const qx = nx - 1, qz = nz - 1;
-  const tri = new Int32Array(qx * qz * 2);
-  for (let j = 0; j < qz; j++)
-    for (let i = 0; i < qx; i++) {
-      const x = X0 + (i + 0.5) * CELL, z = Z0 + (j + 0.5) * CELL;
-      tri[(j * qx + i) * 2] = shardOf(x + CELL * 0.17, z - CELL * 0.17);
-      tri[(j * qx + i) * 2 + 1] = shardOf(x - CELL * 0.17, z + CELL * 0.17);
+  // Each point's height and normal (worked out once: most points are shared by six triangles).
+  const memo = new Map<string, number[]>();
+  const surface = (x: number, z: number) => {
+    const key = `${x.toFixed(5)},${z.toFixed(5)}`;
+    let v = memo.get(key);
+    if (!v) {
+      const e = CELL * 0.5;
+      const gx = (height(x + e, z) - height(x - e, z)) / (2 * e), gz = (height(x, z + e) - height(x, z - e)) / (2 * e);
+      const l = Math.hypot(gx, 1, gz);
+      v = [height(x, z), -gx / l, 1 / l, -gz / l];
+      memo.set(key, v);
     }
-  const shard = (i: number, j: number, t: number) => (i < 0 || j < 0 || i >= qx || j >= qz ? -1 : tri[(j * qx + i) * 2 + t]);
-
-  const ground = new Float32Array(qx * qz * 6 * GROUND_STRIDE);
-  let o = 0;
-  const corner = (i: number, j: number, bary: number[], edges: number[], s: number) => {
-    const n = normal(i, j);
-    const sxw = seeds[s * 3], szw = seeds[s * 3 + 1];
-    ground.set([X0 + i * CELL, at(i, j), Z0 + j * CELL, n[0], n[1], n[2], bary[0], bary[1], bary[2], edges[0], edges[1], edges[2], sxw, height(sxw, szw), szw, seeds[s * 3 + 2]], o);
-    o += GROUND_STRIDE;
+    return v;
   };
+
+  // The mesh: each cell's two triangles, cut along the shards' borders where a border crosses them (so a shard's
+  // edge runs smoothly across the cells, never in steps along them). A cut is where two shards' reach is equal,
+  // found along each edge; the edges a cut makes are the shard's border (where the cracks glow).
+  type V = { x: number; z: number };
+  type Edge = { v: V; cut: boolean };
+  const out: number[] = [];
+  const emit = (a: V, b: V, c: V, edges: number[], s: number) => {
+    const sxw = seeds[s * 3], szw = seeds[s * 3 + 1];
+    const bary = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const mid = height(sxw, szw);
+    [a, b, c].forEach((v, k) => {
+      const [y, n0, n1, n2] = surface(v.x, v.z);
+      out.push(v.x, y, v.z, n0, n1, n2, ...bary[k], edges[0], edges[1], edges[2], sxw, mid, szw, seeds[s * 3 + 2]);
+    });
+  };
+  // Clip a polygon (its edges flagged as cuts or not) to where shard `s` reaches further than shard `t`.
+  const clip = (poly: Edge[], s: number, t: number): Edge[] => {
+    const g = (v: V) => distTo(s, v.x, v.z) - distTo(t, v.x, v.z);
+    const res: Edge[] = [];
+    for (let i = 0; i < poly.length; i++) {
+      const cur = poly[i], next = poly[(i + 1) % poly.length];
+      const gc = g(cur.v), gn = g(next.v);
+      if (gc <= 0) res.push(cur);
+      if ((gc <= 0) !== (gn <= 0)) {
+        const k = gc / (gc - gn);
+        const m = { x: cur.v.x + (next.v.x - cur.v.x) * k, z: cur.v.z + (next.v.z - cur.v.z) * k };
+        // Leaving the region the edge from here on is a cut; coming back in, the original edge goes on.
+        res.push(gc <= 0 ? { v: m, cut: true } : { v: m, cut: cur.cut });
+      }
+    }
+    return res;
+  };
+  const owner = new Map<V, number>();
+  const ownerOf = (v: V) => {
+    let k = owner.get(v);
+    if (k === undefined) owner.set(v, (k = shardOf(v.x, v.z)));
+    return k;
+  };
+  const tri = (a: V, b: V, c: V) => {
+    const owners = [...new Set([a, b, c].map(ownerOf))];
+    if (owners.length === 1) {
+      emit(a, b, c, [0, 0, 0], owners[0]);
+      return;
+    }
+    for (const s of owners) {
+      let poly: Edge[] = [{ v: a, cut: false }, { v: b, cut: false }, { v: c, cut: false }];
+      for (const t of owners) if (t !== s && poly.length >= 3) poly = clip(poly, s, t);
+      if (poly.length < 3) continue;
+      // A fan from its first corner; each triangle's edges opposite its corners (b-c, c-a, a-b).
+      for (let i = 1; i < poly.length - 1; i++) {
+        const e0 = poly[i].cut ? 1 : 0;
+        const e1 = i + 1 === poly.length - 1 && poly[i + 1].cut ? 1 : 0;
+        const e2 = i === 1 && poly[0].cut ? 1 : 0;
+        emit(poly[0].v, poly[i].v, poly[i + 1].v, [e0, e1, e2], s);
+      }
+    }
+  };
+  const qx = nx - 1, qz = nz - 1;
+  const grid: V[] = [];
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) grid.push({ x: X0 + i * CELL, z: Z0 + j * CELL });
+  const gv = (i: number, j: number) => grid[j * nx + i];
   for (let j = 0; j < qz; j++)
     for (let i = 0; i < qx; i++) {
-      const a = shard(i, j, 0), b = shard(i, j, 1);
-      // A's edges, opposite each corner: 00 faces 10-11 (the quad to the right's B), 10 faces 11-00 (B), 11 faces
-      // 00-10 (the quad below's B).
-      const ea = [+(shard(i + 1, j, 1) !== a), +(b !== a), +(shard(i, j - 1, 1) !== a)];
-      corner(i, j, [1, 0, 0], ea, a);
-      corner(i + 1, j, [0, 1, 0], ea, a);
-      corner(i + 1, j + 1, [0, 0, 1], ea, a);
-      // B's edges: 00 faces 11-01 (the quad above's A), 11 faces 01-00 (the quad to the left's A), 01 faces 00-11 (A).
-      const eb = [+(shard(i, j + 1, 0) !== b), +(shard(i - 1, j, 0) !== b), +(a !== b)];
-      corner(i, j, [1, 0, 0], eb, b);
-      corner(i + 1, j + 1, [0, 1, 0], eb, b);
-      corner(i, j + 1, [0, 0, 1], eb, b);
+      const v00 = gv(i, j), v10 = gv(i + 1, j), v11 = gv(i + 1, j + 1), v01 = gv(i, j + 1);
+      tri(v00, v10, v11);
+      tri(v00, v11, v01);
     }
+  const ground = new Float32Array(out);
 
   // Stars over the land, mostly behind the strip and above the mountains: most in ink, a few in colour.
   const stars: number[] = [];

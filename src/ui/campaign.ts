@@ -1,13 +1,14 @@
 import {
+  HERO_BIOS,
   GALAXIES,
   type GalaxyKind,
-  armyBonus,
   BALANCE,
   battleFinds,
   itemText,
   sunHealth,
   defenderOf,
   salvageOptions,
+  salvageKind,
   salvageToDeck,
   applyCampaignAction,
   armoryPrice,
@@ -27,6 +28,12 @@ import {
   regionalStability,
   universeStability,
   META_UPGRADES,
+  upgradeOpen,
+  buyStarterCard,
+  removeStarterCard,
+  starterAddProblem,
+  starterCardPrice,
+  STARTER_OFFERS,
   buyUpgrade,
   buyUpgradeProblem,
   levelOf,
@@ -35,8 +42,6 @@ import {
   runBonuses,
   metaUpgrade,
   type MetaGroup,
-  heroState,
-  heroLevel,
   battleOdds,
   GENERALS,
   ORACLE_NAME,
@@ -62,12 +67,10 @@ import {
   nodeById,
   ownedNodes,
   RACE_NAMES,
-  RACE_TRAITS,
   RARITY_NAME,
   starOdds,
   SUBRACES,
   type MetaState,
-  plainText,
   type CampaignAction,
   type CampaignNode,
   type CampaignState,
@@ -76,8 +79,10 @@ import {
   researchProject,
   researchBonus,
   setRulesMode,
-  isDraw,
   shownKind,
+  overlordById,
+  CHALLENGES,
+  type ChallengeKind,
 } from '../engine';
 import { markDirty } from './account';
 import { loadMeta, saveMeta } from './meta';
@@ -85,9 +90,9 @@ import { DeckBuilder, type BuilderMode } from './builder';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
-import { raceRow, cardArtLite, cardStock, cardBodyHtml, effectMark, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
-import { toPageDelta } from './viewport';
+import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 
 const KEY = 'blue-loop:campaign:v6';
@@ -146,29 +151,44 @@ const RELIC_GLYPH: Record<string, string> = {
   star: glyph('M12 3v18M3 12h18M6 6l12 12M18 6 6 18'),
   ember: glyph('M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-4 3-5 0 2 1 3 2 3 0-3-1-5 0-8z'),
 };
-/** Credits: a solid gold coin. Earned from your systems, battles and missions; spent on repairs and your ship. */
-const CREDITS =
-  '<svg class="cur cur-credits" viewBox="0 0 20 20" aria-label="credits"><circle cx="10" cy="10" r="9" fill="#b98f3c"/><circle cx="9.3" cy="9.2" r="8" fill="#d6ae57"/><circle cx="7.4" cy="6.8" r="3.2" fill="#f0d68f" opacity=".55"/><circle cx="10" cy="10" r="6.3" fill="none" stroke="#fff4d6" stroke-width="1.2" opacity=".85"/><path d="M10 5.6 11.2 8.8 14.4 10 11.2 11.2 10 14.4 8.8 11.2 5.6 10 8.8 8.8Z" fill="#fff8e6"/></svg>';
-/** Materials: a solid teal crystal. Earned the same ways; spent on buying cards in the armory. */
+/** Materials: a paper crate drawn in ink. Earned from systems taken, finds and battles; spent on everything (cards, fusing, repairs). */
 const MATERIALS =
-  '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#4f9aa6"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#9fd3d9"/><path d="M10 9.6V18.5L3 14V6Z" fill="#6fb3bc"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="none" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/></svg>';
+  '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#e3e2dc"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#ffffff"/><path d="M10 9.6V18.5L3 14V6Z" fill="#f0efea"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6ZM10 9.6V18.5M3 6l7 3.6L17 6" fill="none" stroke="#6b7590" stroke-width="1" stroke-linejoin="round"/></svg>';
 /** A station on the map: an armoury (a crate) or a research station (a ringed flask). */
 const ARMORY_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
 const RESEARCH_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 2.5h4M8.8 2.5v5L4.5 15a1.6 1.6 0 0 0 1.4 2.4h8.2a1.6 1.6 0 0 0 1.4-2.4l-4.3-7.5v-5" fill="#9fd3d9" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/><ellipse cx="10" cy="12.5" rx="7.5" ry="2.4" fill="none" stroke="#a98fe0" stroke-width="1"/></svg>';
-/** A scanner array: a dish with two rings of signal. */
-const SCANNER =
-  '<svg class="cur cur-scanner" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15.5 9.2 10.3" stroke="#6e7f9f" stroke-width="1.4" stroke-linecap="round"/><path d="M3 11a6 6 0 0 0 6 6L3 11Z" fill="#8fa3c6" stroke="#6e7f9f" stroke-width=".9" stroke-linejoin="round"/><path d="M11.2 6.8a3.4 3.4 0 0 1 2 2M11.6 3.6a6.6 6.6 0 0 1 4.8 4.8" fill="none" stroke="#6fb3bc" stroke-width="1.3" stroke-linecap="round"/><circle cx="9.6" cy="9.9" r="1.2" fill="#6fb3bc"/></svg>';
 /** A Finite Stellari bloom: a small six-petalled flower. */
 const BLOOM =
   '<svg class="cur cur-bloom" viewBox="0 0 20 20" aria-hidden="true">' +
   [0, 60, 120, 180, 240, 300].map((a) => `<ellipse cx="10" cy="5.2" rx="2.6" ry="4.4" fill="#f2b8e6" stroke="#c97bc0" stroke-width=".6" transform="rotate(${a} 10 10)"/>`).join('') +
   '<circle cx="10" cy="10" r="2.6" fill="#fff4b0" stroke="#e0b450" stroke-width=".6"/></svg>';
 
+/** Experience: a small four-pointed star in ink. */
+const XP_MARK =
+  '<svg class="cur cur-xp" viewBox="0 0 20 20" aria-label="experience"><path d="M10 1.5 12 8l6.5 2-6.5 2L10 18.5 8 12 1.5 10 8 8Z" fill="#ffffff" stroke="#3a4256" stroke-width="1.1" stroke-linejoin="round"/><circle cx="10" cy="10" r="1.6" fill="#3a4256"/></svg>';
+
 /** A Stellari petal: what a wormhole gives, banked for every run after. */
 const PETAL =
-  '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.5C14.5 5 15.5 11 10 18.5 4.5 11 5.5 5 10 1.5Z" fill="#f2b8e6" stroke="#c97bc0" stroke-width=".9" stroke-linejoin="round"/><path d="M10 4v12" stroke="#fff" stroke-width=".8" opacity=".7"/></svg>';
+  '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.5C14.5 5 15.5 11 10 18.5 4.5 11 5.5 5 10 1.5Z" fill="#ffffff" stroke="#6b7590" stroke-width="1" stroke-linejoin="round"/><path d="M10 4.5v11" stroke="#6b7590" stroke-width=".7" opacity=".55"/></svg>';
+
+/** Each lasting upgrade's mark, and what it gives at a level, in a few words (the number large on its tile). */
+const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: number) => string }> = {
+  materials: { icon: glyph('M12 2.5 20 7v10l-8 4.5L4 17V7ZM4 7l8 4.5L20 7M12 11.5v10'), unit: 'materials to start a run', value: (l) => `+${3 * l}` },
+  cards: { icon: glyph('M7 3.5h9a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5ZM11.5 8.5v7M8 12h7'), unit: 'race cards in the starting deck', value: (l) => `+${l}` },
+  pick: { icon: glyph('M6 4.5h8.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V6A1.5 1.5 0 0 1 6 4.5ZM16 7.5l2.6.7a1.5 1.5 0 0 1 1 1.8l-3 11.2M8 12.5l2 2 3.5-4.5'), unit: 'cards of your choice to start', value: (l) => `+${l}` },
+  hull: { icon: glyph('M4 14h16l-2.5 5.5h-11ZM6.5 14V9.5h11V14M9 9.5V6h6v3.5'), unit: 'hull levels on the flagship', value: (l) => `+${l}` },
+  shields: { icon: glyph('M12 2.8 19.5 6v5.5c0 4.6-3.2 7.8-7.5 9.5-4.3-1.7-7.5-4.9-7.5-9.5V6Z'), unit: 'shield levels on the flagship', value: (l) => `+${l}` },
+  walls: { icon: glyph('M3.5 20.5h17M5 20.5V9h14v11.5M5 9V5.5h3V9M10.5 9V5.5h3V9M16 9V5.5h3V9M9 20.5v-5h6v5'), unit: "defence on every room", value: (l) => `+${l}` },
+  march: { icon: glyph('M4 12h11M11 7l5 5-5 5M17.5 5.5v13M20.5 5.5v13'), unit: 'move a turn, every turn', value: (l) => `+${l}` },
+  grace: { icon: glyph('M12 3v4M12 17v4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M3 12h4M17 12h4M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z'), unit: 'turns of stability in every galaxy', value: (l) => `+${l}` },
+  armory: { icon: glyph('M4 8.5 12 4l8 4.5v7L12 20l-8-4.5ZM4 8.5l8 4.5 8-4.5M12 13v7M8.5 6.2l8 4.5'), unit: 'material off every armoury card', value: (l) => `−${l}` },
+  petals: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM12 5.5v10M5 20.5h14'), unit: 'more petals at every wormhole', value: (l) => `+${20 * l}%` },
+  hoard: { icon: glyph('M3.5 13.5 9 10.5l5.5 3v6l-5.5 3-5.5-3ZM3.5 13.5 9 16.5l5.5-3M9 16.5v6M9.5 7.5 15 4.5l5.5 3v6l-5.5 3M9.5 7.5 15 10.5l5.5-3M15 10.5v6'), unit: 'materials in every new galaxy', value: (l) => `+${6 * l}` },
+  favour: { icon: glyph('M12 3.5c3 2.4 3.8 6.4 0 11.5-3.8-5.1-3-9.1 0-11.5ZM4.5 9.5c3.6-.6 7 1.4 7.5 5.5-4.4.5-7.3-1.6-7.5-5.5ZM19.5 9.5c-3.6-.6-7 1.4-7.5 5.5 4.4.5 7.3-1.6 7.5-5.5ZM12 15v5.5'), unit: "cooling for the flagship's sun after each battle won", value: (l) => `−${3 * l}` },
+  salvage: { icon: glyph('M5.5 7.5h13l-1.2 12a1.5 1.5 0 0 1-1.5 1.4H8.2a1.5 1.5 0 0 1-1.5-1.4ZM3.5 7.5h17M9 7.5V4.5h6v3M10 11.5v6M14 11.5v6'), unit: 'card to choose from when salvaging', value: (l) => `+${l}` },
+};
 
 /** A hero's portrait: their card's picture, cropped round. */
 function portrait(cardId: string): string {
@@ -177,6 +197,14 @@ function portrait(cardId: string): string {
 
 
 /** One of the Lost Races: a faded figure, half gone into the dark. */
+/** How long the flagship takes to fly in as a campaign starts (seconds). */
+const ARRIVAL_FLIGHT = 3.2;
+/** Into a battle: the pause between the flagship landing on the star (the encounter sounding) and the battle. */
+const ENCOUNTER_PAUSE = 1000;
+
+/** Each challenge's colour on the map: its ring and its route. */
+const CHALLENGE_COLOUR: Record<ChallengeKind, string> = { mine: '#d0479a', lord: '#d4a02a', frost: '#5aa8e0' };
+
 const LOST_PORTRAIT = `<span class="cmp-portrait cmp-portrait-lost"><svg viewBox="0 0 80 80" aria-hidden="true">
   <defs><radialGradient id="lost-bg" cx=".5" cy=".35"><stop offset="0" stop-color="#4a4658"/><stop offset="1" stop-color="#15131c"/></radialGradient>
   <linearGradient id="lost-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9c4dc" stop-opacity=".85"/><stop offset="1" stop-color="#c9c4dc" stop-opacity="0"/></linearGradient></defs>
@@ -259,17 +287,8 @@ function seedOf(id: string): string {
   return ((h % 1000) / 1000).toFixed(3);
 }
 const TRACK_TINT: Record<string, string> = { weapons: '#e2a494', defences: '#a3c3df', economy: '#e0cd94', resources: '#abd2b5' };
-/** Each race's style of play, for choosing one. */
-const RACE_BLURB = [
-  'Lancers of light: many attack cards, each making the others hit harder.',
-  'Crystal overloaders: big bursts of heat, and run your own sun hot to hit harder still.',
-  'Tidal bells: stack shields, keep them, and sting whoever strikes them.',
-  'The hive: grow, spread wide, and play more cards each turn.',
-  'Void-stalkers: spring traps from the dark, and unmake whatever your rival builds.',
-  'Forge-smiths: hammer grafts onto each other behind walls that will not fall.',
-  'Star-readers: move the planets, read what is coming, and attune again and again.',
-  'Flare-born: spend everything in one burst, and run your own sun hot to thrive.',
-];
+/** Each race in a few words, under its name on the run's setup. */
+const RACE_EPITHET = ['the keepers', 'the rememberers', 'the tide', 'the hive', 'the unseen', 'the forgers', 'the star-readers', 'the flame'];
 
 /** What the campaign screen needs from the app that hosts it. */
 export interface CampaignHost {
@@ -296,9 +315,7 @@ type Sheet =
   | { kind: 'log' }
   | { kind: 'attack'; armyId: string; toId: string }
   | { kind: 'help' }
-  | { kind: 'settings' }
-  /** Enter with moves still to make: end the turn anyway? */
-  | { kind: 'end-turn' };
+  | { kind: 'settings' };
 
 /** Map stages already listening for drags and zooms (kept through redraws, which no longer rebuild them). */
 const boundStages = new WeakSet<HTMLElement>();
@@ -313,8 +330,6 @@ function mul4(a: number[], b: number[]): number[] {
   return o;
 }
 
-/** The recentre button's mark: crosshairs in a ring. */
-const RECENTRE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>';
 
 export class CampaignView {
   state: CampaignState | null = null;
@@ -325,31 +340,26 @@ export class CampaignView {
   private storyLine = 0;
 
   /** What happened in the last battle or turn, shown once the player is free to read it. */
-  private report: { title: string; lines: string[] } | null = null;
-  /** A battle just fought, as its report shows it: who won where, and what it brought (or cost). */
-  private battleReport: {
-    won: boolean;
-    draw?: boolean;
-    system: string;
-    hero: string | null;
-    level: number | null;
-    xp: number;
-    credits: number;
-    materials: number;
-    salvaged: { id: string; toDeck: boolean } | null;
-    finds: ReturnType<CampaignView['findsFor']>;
-    damage: number;
-  } | null = null;
   private sheet: Sheet | null = null;
+  /** On the way into a pending battle (so the map, drawn meanwhile, sends it only once). */
+  private enteringBattle = false;
   /** New-campaign setup choices (the hero: an index into the race's heroes). */
   private setup = { rivals: 3, race: 0, hero: 0 };
   private shopOpen = false;
+  /** The starting-deck panel (cards bought into the picked race's starting deck with petals) is open. */
+  private deckOpen = false;
+  /** The lasting upgrade picked in the shop, shown in the flower's heart. */
+  private upPick: string | null = null;
   /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
+  /** The systems seen as the map was last drawn (the ships flying over it are drawn after it). */
+  private seenNow = new Set<string>();
+  /** Whether the ships are drawn in the 3D map's scene (as 3D objects), not on the page. */
+  private flyOver(): boolean {
+    return canNebula();
+  }
   /** The systems the player can travel to this move (their suns pulse, as sonar, on the 3D map). */
   private reach = new Set<string>();
-  /** The other factions' turns, as they happen: whose it is, and what of it can be seen. */
-  private waiting: { factionId: string | null; lines: string[] } | null = null;
   /** Visits to the armoury's keepers (each visit, they say something else). */
   private keeperVisit = 0;
   /** The base's deck and armoury: the main deck builder, put to the campaign's use. */
@@ -376,7 +386,7 @@ export class CampaignView {
 
   /** "universe 2 · turn 12", for the banner on entering the campaign. */
   turnLine(): string {
-    return this.state ? `universe ${this.state.universe} · turn ${this.state.turn}` : '';
+    return this.state ? `galaxy ${this.state.universe} · turn ${this.state.turn}` : '';
   }
 
   resume(): boolean {
@@ -388,8 +398,6 @@ export class CampaignView {
     this.selected = null;
     this.view = null;
     this.skipSilentScenes();
-    // Left while the others were moving: they carry on.
-    if (s.phase === 'ai' && s.aiStepwise && !s.battle) window.setTimeout(() => void this.runOthers(), 0);
     return true;
   }
 
@@ -417,6 +425,20 @@ export class CampaignView {
   }
 
   /** The cards the player may salvage from a battle just won (on the battle screen), each with where it would go. */
+  /** Materials a battle won pays the player (the win, and the system's yield and stores as it is taken); 0 otherwise. */
+  spoilsFor(game: GameState): number {
+    const s = this.state;
+    if (!s?.battle || s.battle.challenge || s.battle.attacker !== s.playerId || game.winnerId !== game.players[0].id) return 0;
+    const n = nodeById(s, s.battle.nodeId);
+    return CAMPAIGN.winMaterials + n.yield.materials + (n.bonus?.materials ?? 0);
+  }
+
+  /** Who the salvage comes from: your own race's cards defecting, or freed prisoners with neutral cards. */
+  salvageTitle(game: GameState): string {
+    const s = this.state;
+    return s && salvageKind(s, game) === 'defectors' ? 'defectors · one joins you' : 'freed prisoners · one joins you';
+  }
+
   salvageFor(game: GameState): { id: string; toDeck: boolean }[] {
     const s = this.state;
     if (!s?.battle) return [];
@@ -425,49 +447,7 @@ export class CampaignView {
 
   /** `salvage`: the card picked on the battle screen, null for none (unset, auto-resolved: it is offered on the map). */
   finishBattle(game: GameState, auto = false, salvage?: string | null) {
-    // What the player has before, to show what the battle changed.
-    const s0 = this.state;
-    const b = s0?.battle;
-    const me0 = s0 ? campaignPlayer(s0) : null;
-    const armyId = b && s0 ? (b.attacker === s0.playerId ? b.armyId : b.defender === s0.playerId ? b.defenderArmyId : null) : null;
-    const army0 = armyId && s0 ? s0.armies.find((a) => a.id === armyId) : undefined;
-    const before = me0 && b ? { credits: me0.credits, materials: me0.materials, xp: army0 ? heroState(me0, army0.general).xp : 0, damage: army0?.damage ?? 0, system: nodeById(s0!, b.nodeId).name } : null;
-    const finds = !auto && s0 ? this.findsFor(game) : [];
-    const salvaged = salvage && s0 ? { id: salvage, toDeck: salvageToDeck(s0, salvage) } : null;
-    this.withReport('battle report', () => this.apply({ type: 'finishBattle', game, auto, ...(salvage !== undefined ? { salvage } : {}) }));
-    const s = this.state;
-    if (before && s && b) {
-      const me = campaignPlayer(s);
-      const army = armyId ? s.armies.find((a) => a.id === armyId) : undefined;
-      const xp = army0 ? heroState(me, army0.general).xp : 0;
-      // Who won: the battle's own winner (auto-resolved, the log says whether the attackers won).
-      const attackerName = factionById(s, b.attacker).name;
-      const attackerWon = auto ? this.report?.lines.some((l) => l.startsWith(`${attackerName} wins the battle for`)) ?? false : game.winnerId === game.players[0].id;
-      this.battleReport = {
-        won: attackerWon === (b.attacker === s.playerId),
-        draw: auto ? this.report?.lines.some((l) => l.includes('ends in a draw')) ?? false : isDraw(game),
-        system: before.system,
-        hero: army0?.general ?? null,
-        level: army0 && heroLevel(xp) > heroLevel(before.xp) ? heroLevel(xp) : null,
-        xp: xp - before.xp,
-        credits: me.credits - before.credits,
-        materials: me.materials - before.materials,
-        salvaged,
-        finds,
-        damage: Math.max(0, (army?.damage ?? 0) - before.damage),
-      };
-    }
-    // A defence over: the others carry on with their turns.
-    if (this.state?.phase === 'ai' && this.state.aiStepwise && !this.state.battle) window.setTimeout(() => void this.runOthers(), 0);
-  }
-
-  /** Run an action and keep its new log lines as a report. */
-  private withReport(title: string, run: () => boolean) {
-    const seq = this.state?.log[this.state.log.length - 1]?.seq ?? 0;
-    if (!run() || !this.state) return false;
-    const lines = this.state.log.filter((l) => l.seq > seq).map((l) => l.text);
-    this.report = lines.length ? { title, lines } : null;
-    return true;
+    this.apply({ type: 'finishBattle', game, auto, ...(salvage !== undefined ? { salvage } : {}) });
   }
 
   get inBattle() {
@@ -493,10 +473,13 @@ export class CampaignView {
       this.view = null;
       this.selected = null;
       this.army = null;
-      this.host.banner(`universe ${this.state.universe}`, 'through the wormhole');
+      this.host.banner(`galaxy ${this.state.universe}`, 'through the wormhole');
     }
     // Every move is a turn: once the flagship has made its move (and anything it brought on is settled), time moves on.
-    if (action.type !== 'endTurn' && action.type !== 'aiStep' && this.moveSpent()) window.setTimeout(() => this.passTime(), 420);
+    if (action.type !== 'endTurn' && action.type !== 'aiStep' && this.moveSpent()) {
+      const f = flagship(this.state!, this.state!.playerId);
+      window.setTimeout(() => this.passTime(!(f?.moved || (f?.steps ?? 0) > 0)), 420);
+    }
     return true;
   }
 
@@ -511,17 +494,30 @@ export class CampaignView {
    * The flagship sets out down a route. Its ship flies first; whatever the system holds shows as it arrives:
    * a find taken, or (if it is guarded) the battle, opening as the ship gets halfway.
    */
-  private setOut(armyId: string, toId: string, auto: boolean): boolean {
+  private setOut(armyId: string, toId: string): boolean {
     this.sheet = null;
     this.army = null;
-    this.advance = { armyId, toId };
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Into a battle, the ship flies all the way to the star: as it lands the encounter sounds, and the battle
+    // opens a second later.
+    const s0 = this.state!;
+    const army0 = armyById(s0, armyId);
+    const battleAhead = !!armyMoves(s0, army0).find((m) => m.toId === toId)?.battle;
+    this.advance = { armyId, toId, land: battleAhead };
+    // (The 3D ship's flight takes as long as nebula-objects.ts setShips gives it, by distance.)
+    const from = nodeById(s0, army0.nodeId), to = nodeById(s0, toId);
+    const flight = Math.max(0.7, Math.min(1.8, Math.hypot(to.x - from.x, to.y - from.y) * MAP_K * 2.4));
     sound.flare();
     this.host.render();
     setTimeout(() => {
-      this.advance = null;
       const waiting = this.state?.story.queue.length ?? 0;
       const seq = this.state?.log[this.state.log.length - 1]?.seq ?? 0;
-      if (!this.state || this.state.battle || !this.apply({ type: 'move', armyId, toId })) return this.host.render();
+      if (battleAhead) this.encountering = true;
+      if (!this.state || this.state.battle || !this.apply({ type: 'move', armyId, toId })) {
+        this.advance = null;
+        this.encountering = false;
+        return this.host.render();
+      }
       this.selected = toId;
       // What was there, found as the ship arrives.
       const found = this.state.log.find((l) => l.seq > seq && / finds /.test(l.text));
@@ -530,41 +526,52 @@ export class CampaignView {
         sound.buy();
       }
       const battle = (this.state as CampaignState).battle;
-      if (!battle) return this.host.render();
-      this.readWaiting(waiting);
-      if (auto) {
-        this.finishBattle(battle.game, true);
-        // (Auto-resolved here, so the map redraws with the result.)
-        this.host.render();
-      } else this.host.playBattle(battle.game);
-    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1150);
+      if (!battle) {
+        this.advance = null;
+        this.encountering = false;
+        return this.host.render();
+      }
+      // A dive-bombing synth as it lands; the battle board opens a second later.
+      sound.encounter();
+      setTimeout(() => {
+        this.advance = null;
+        this.encountering = false;
+        const now = this.state;
+        if (!now?.battle) return this.host.render();
+        this.readWaiting(waiting);
+        this.host.playBattle(now.battle.game);
+      }, reduce ? 0 : ENCOUNTER_PAUSE + 60);
+    }, reduce ? 0 : battleAhead ? flight * 1000 + 80 : 1150);
     return true;
   }
 
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
   private moveSpent(): boolean {
     const s = this.state;
-    if (!s || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.winner) return false;
+    if (!s || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.boon || s.winner) return false;
     const a = flagship(s, s.playerId);
-    return !!a && (a.moved || (a.steps ?? 0) > 0) && armyMoves(s, a).length === 0;
+    // (Moved, or with nowhere to go at all: there is no waiting, so time moves on by itself.)
+    return !!a && armyMoves(s, a).length === 0;
   }
 
-  /** Time moves on: the raiders move, the collapse comes on. (`wait`: the flagship holds where it is.) */
+  /** Time moves on: the collapse comes on. */
   private passTime(wait = false) {
     if (!wait && !this.moveSpent()) return;
     if (!this.apply({ type: 'endTurn', stepwise: true })) return;
     this.selected = null;
     this.army = null;
     this.sheet = null;
-    void this.runOthers();
+    this.host.render();
   }
 
   /** Petals grabbed at a wormhole go straight into the account's lasting progress (they outlive the run). */
   private bankPetals() {
     const s = this.state;
-    if (!s || s.petals <= s.petalsBanked) return;
+    // (Experience too: kept the moment it is earned, so a lost run still moves the player on.)
+    const xp = (s?.xp ?? 0) - (s?.xpBanked ?? 0);
+    if (!s || (s.petals <= s.petalsBanked && xp <= 0)) return;
     const meta = loadMeta();
-    saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), best: Math.max(meta.best, s.universe - 1) });
+    saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), xp: (meta.xp ?? 0) + Math.max(0, xp), best: Math.max(meta.best, s.universe - 1) });
     this.state = applyCampaignAction(s, { type: 'petalsBanked' });
   }
 
@@ -596,84 +603,14 @@ export class CampaignView {
     }
   }
 
-  /**
-   * The other factions take their turns one at a time. Those in sight are shown moving, on a waiting
-   * screen, with whatever they do that can be seen; those out of sight move unseen and at once (so with
-   * none in sight, the next turn simply begins). A battle against the player pauses it; finishing the
-   * battle carries on.
-   */
-  private async runOthers() {
-    const pause = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
-    const begun = this.state;
-    if (!begun) return;
-    const turn = begun.turn;
-    // The raiders move at once (a moment for any in sight, so their ships are seen to go).
-    for (;;) {
-      const s = this.state;
-      if (!s || s.phase !== 'ai' || s.battle || s.winner || s.turn !== turn) break;
-      const next = s.aiQueue[0] ?? null;
-      const inSight = next !== null && this.factionInSight(next);
-      if (!this.apply({ type: 'aiStep' })) break;
-      if (inSight) {
-        this.host.render();
-        await pause(220);
-      }
-    }
-    this.waiting = null;
-    this.host.render();
+
+
+
+  /** A key on the map: nothing to do (there is no waiting: every turn is a move). */
+  onKey(_key: string): boolean {
+    return false;
   }
 
-  /** Whether a faction can be seen at all: any of its systems or armies in sight. */
-  private factionInSight(factionId: string): boolean {
-    const s = this.state!;
-    const seen = visibleNodes(s, s.playerId);
-    return s.nodes.some((n) => n.owner === factionId && seen.has(n.id)) || s.armies.some((a) => a.owner === factionId && seen.has(a.nodeId));
-  }
-
-  /** The waiting screen while the others move: who is moving, and what of it can be seen. */
-  private renderWaiting(): string {
-    const w = this.waiting!;
-    const s = this.state!;
-    const f = w.factionId ? s.factions.find((x) => x.id === w.factionId) : null;
-    const name = f ? (f.lost ? 'the lost races' : lower(f.name)) : 'the others';
-    return `
-      <div class="cmp-waiting" aria-live="polite">
-        <div class="cmp-waiting-card" style="--fc:${f ? this.colourOf(f.id) : NEUTRAL}">
-          <div class="cmp-waiting-head">${f ? this.avatarOf(f.id, 'cmp-waiting-av') : ''}<div><small>the other factions move</small><b>${esc(name)}</b></div><span class="cmp-waiting-dots"><i></i><i></i><i></i></span></div>
-          ${w.lines.length ? `<ul class="cmp-waiting-feed">${w.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
-        </div>
-      </div>`;
-  }
-
-  /**
-   * A key on the map: Enter ends the turn (asking first while an army could still move; Enter again ends it),
-   * Escape takes the question back. Returns whether it did anything (the screen then redraws).
-   */
-  onKey(key: string): boolean {
-    const s = this.state;
-    if (!s) return false;
-    if (this.sheet?.kind === 'end-turn') {
-      if (key === 'Enter') return this.onClick('cmp-end-turn', '', document.body);
-      if (key === 'Escape') {
-        this.sheet = null;
-        return true;
-      }
-      return false;
-    }
-    if (key !== 'Enter') return false;
-    // (Not while anything else is up: a dialog, a battle, a choice to make, the AI's turn.)
-    if (this.sheet || this.report || this.battleReport || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.winner) return false;
-    if (this.nothingLeft()) return this.onClick('cmp-end-turn', '', document.body);
-    this.sheet = { kind: 'end-turn' };
-    return true;
-  }
-
-  /** Nothing left to do this turn: no army can move (each has marched, is refitting, or has nowhere to go). */
-  private nothingLeft(): boolean {
-    const s = this.state!;
-    if (s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length) return false;
-    return armiesOf(s, s.playerId).every((a) => armyMoves(s, a).length === 0);
-  }
 
 
   // ---- Clicks -----------------------------------------------------------------
@@ -692,6 +629,11 @@ export class CampaignView {
         break;
       case 'cmp-shop':
         this.shopOpen = !this.shopOpen;
+        this.upPick = null;
+        break;
+      case 'cmp-up-pick':
+        this.upPick = this.upPick === arg ? null : arg;
+        sound.hover();
         break;
       case 'cmp-hero-pick':
         this.setup.hero = n();
@@ -714,6 +656,27 @@ export class CampaignView {
         sound.upgrade();
         break;
       }
+      case 'cmp-deck': {
+        this.deckOpen = !this.deckOpen;
+        break;
+      }
+      case 'cmp-deck-add': {
+        const meta = loadMeta();
+        const why = starterAddProblem(meta, this.setup.race, arg, cardDef(arg).rarity);
+        if (why) {
+          this.host.toast(why);
+          sound.error();
+          break;
+        }
+        saveMeta(buyStarterCard(meta, this.setup.race, arg, cardDef(arg).rarity));
+        sound.buy();
+        break;
+      }
+      case 'cmp-deck-remove': {
+        saveMeta(removeStarterCard(loadMeta(), this.setup.race, n()));
+        sound.hover();
+        break;
+      }
       case 'cmp-start': {
         const meta = loadMeta();
         const hero = GENERALS[this.setup.race][this.setup.hero];
@@ -723,19 +686,30 @@ export class CampaignView {
           break;
         }
         saveMeta({ ...meta, runs: meta.runs + 1 });
-        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, race: this.setup.race, hero, run: runBonuses(meta) });
+        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, race: this.setup.race, hero, run: runBonuses(meta, this.setup.race) });
+        this.arriving = true;
+        this.introFlight = true;
         this.selected = null;
         this.view = null;
-        this.skipSilentScenes();
+        // The hero's arrival comes first: whatever else the opening brought on waits its turn behind it.
+        const story = this.state.story;
+        this.state = { ...this.state, story: { ...story, queue: [...story.queue.filter((sc) => sc.id === 'intro'), ...story.queue.filter((sc) => sc.id !== 'intro')] } };
+        if (this.state.story.queue[0]?.id !== 'intro') this.skipSilentScenes();
         saveCampaign(this.state);
         sound.objective();
         this.army = null;
         this.storyLine = 0;
         // The map is up: announce the run (the setup page before it gets none).
         this.host.render();
-        this.host.banner('universe 1', 'reach the wormhole');
+        this.host.banner('galaxy 1', 'reach the wormhole');
+        // The hero speaks as the flagship comes to rest (their words on the guide, spoken if recorded).
+        voices.arrive(hero, ARRIVAL_FLIGHT * 1000);
         return true;
       }
+      case 'cmp-boon':
+        if (!this.apply({ type: 'takeBoon', pick: arg === 'health' ? 'health' : 'cool' })) return true;
+        sound.upgrade();
+        break;
       case 'cmp-zoom':
         if (this.view) {
           this.selected = null;
@@ -747,16 +721,16 @@ export class CampaignView {
         this.selected = null;
         this.view = this.homeView();
         break;
-      case 'cmp-recentre':
-        this.nebula?.reset();
-        return true;
-      case 'cmp-deselect':
-        if (this.swallowClick || (!this.selected && !this.army)) return true;
+      case 'cmp-deselect': {
+        // A click inside a star's rings is a click on the star.
+        const hit = this.pointerAt && this.pickAt(this.pointerAt[0], this.pointerAt[1]);
+        if (hit) return this.onClick('cmp-select', hit, el);
+      }
+        if (!this.selected && !this.army) return true;
         this.selected = null;
         this.army = null;
         break;
       case 'cmp-army': {
-        if (this.swallowClick) return true;
         const army = armyById(s!, arg);
         // Your own ship: nothing to show (it is always the one that moves). Anyone else's: the system it stands in.
         if (army.owner === s!.playerId) {
@@ -828,7 +802,6 @@ export class CampaignView {
         break;
       case 'cmp-select':
         this.popTip = null;
-        if (this.swallowClick) return true;
         // A star in the flagship's reach sends it there (no need to pick the ship first); a known foe gets a
         // look at the matchup first.
         if (s && s.phase === 'player' && !s.battle) {
@@ -836,7 +809,7 @@ export class CampaignView {
           const move = army ? armyMoves(s, army).find((m) => m.toId === arg) : undefined;
           if (army && move) {
             // Into the unknown (who knows what a system holds until you get there): the ship just sets out.
-            if (!this.known(arg) && !nodeById(s, arg).owner) return this.setOut(army.id, arg, false);
+            if (!this.known(arg) && !nodeById(s, arg).owner) return this.setOut(army.id, arg);
             if (move.battle) this.sheet = { kind: 'attack', armyId: army.id, toId: arg };
             else if (this.apply({ type: 'move', armyId: army.id, toId: arg })) {
               sound.play();
@@ -872,31 +845,18 @@ export class CampaignView {
         break;
       }
       case 'cmp-close':
-        if (this.battleReport && !this.sheet) {
-          this.battleReport = null;
-          this.report = null;
-        } else if (this.report && !this.sheet) this.report = null;
-        else this.sheet = null;
+        this.sheet = null;
         break;
       case 'cmp-attack-pick':
         this.sheet = { kind: 'attack', armyId: el.dataset.army!, toId: arg };
         break;
       case 'cmp-travel':
-        return this.setOut(el.dataset.army!, arg, false);
-      case 'cmp-fight':
-      case 'cmp-auto': {
+        return this.setOut(el.dataset.army!, arg);
+      case 'cmp-fight': {
         if (this.sheet?.kind !== 'attack') break;
         const { armyId, toId } = this.sheet;
-        return this.setOut(armyId, toId, act === 'cmp-auto');
+        return this.setOut(armyId, toId);
       }
-      case 'cmp-defend':
-        this.readWaiting(s!.story.queue.length);
-        this.host.playBattle(s!.battle!.game);
-        return true;
-      case 'cmp-defend-auto':
-        this.readWaiting(s!.story.queue.length);
-        this.finishBattle(s!.battle!.game, true);
-        break;
       case 'cmp-conquer':
         if (this.apply({ type: 'conquer', choice: 'settle' })) sound.upgrade();
         break;
@@ -961,7 +921,7 @@ export class CampaignView {
     // A dialog up (a battle, a conquest, a sheet) takes the stage: the guide waits until it closes.
     const overlay = this.renderOverlay();
     // Ships hold still under a dialog, and sail once it closes (so a march after a battle is seen).
-    this.fleetHeld = !!overlay && !this.waiting;
+    this.fleetHeld = !!overlay;
     const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
     const me = campaignPlayer(s);
     return `
@@ -974,8 +934,13 @@ export class CampaignView {
             ${scene ? this.renderStory(scene) : ''}
           </div>
           <div class="cmp-purse">
-            <span data-tip="Credits: paid once by every system taken, battles and missions. Spent on repairs and your ship.">${CREDITS}<b>${me.credits}</b></span>
-            <span data-tip="Materials: paid once by every system taken, battles and missions. Spent on cards at space stations.">${MATERIALS}<b>${me.materials}</b></span>
+            ${(() => {
+              // Your flagship's sun: it starts the next battle as the last one left it.
+              const f = flagship(s, s.playerId);
+              const heat = f?.damage ?? 0;
+              return `<span class="cmp-sunstat ${heat > 0 ? 'hot' : heat < 0 ? 'cold' : ''}" data-tip="Your sun: your next battle starts at ${heat} heat, as your last one ended${heat > 0 ? '. Repair at a space station to cool it.' : heat < 0 ? ': cooled, a head start.' : '.'}"><i class="cmp-sunstat-orb"></i><b>${heat}</b></span>`;
+            })()}
+            <span data-tip="Materials: paid once by every system taken, finds and battles. Spent on cards at space stations.">${MATERIALS}<b>${me.materials}</b></span>
             <span data-tip="Stellari petals grabbed this run (they are kept, whatever happens)">${PETAL}<b>${s.petals}</b></span>
           </div>
           <nav class="cmp-nav">
@@ -985,13 +950,8 @@ export class CampaignView {
         <section class="cmp-map">${this.renderMap()}</section>
         ${this.renderRelics()}
         <canvas class="cmp-nebula-front" data-key="cmp-nebula-front" aria-hidden="true"></canvas>
-        <button class="icon-btn cmp-recentre" data-act="cmp-recentre" data-key="cmp-recentre" aria-label="Back to the whole strip" title="Back to the whole strip" style="display:none">${RECENTRE_ICON}</button>
         ${this.renderPop()}
-        <div class="cmp-end">
-          ${this.endMoves()}
-          <button class="btn ${this.nothingLeft() ? 'cmp-end-pulse' : ''}" data-act="cmp-end-turn" data-tip="Hold position for a move: the collapse comes on" ${s.phase !== 'player' ? 'disabled' : ''}>wait</button>
-        </div>
-        ${this.waiting ? this.renderWaiting() : overlay}
+        ${overlay}
       </main>`;
   }
 
@@ -1021,95 +981,207 @@ export class CampaignView {
 
   private renderSetup(): string {
     const meta = loadMeta();
-    const buy = (id: string, label: string) => {
+    const buy = (id: string, label: string, cls = '') => {
       const why = buyUpgradeProblem(meta, id);
       const cost = metaUpgrade(id)!.cost(levelOf(meta, id));
-      return `<button class="pill-btn cmp-buy" data-act="cmp-meta-buy" data-arg="${esc(id)}" ${why ? `disabled data-tip="${esc(why)}"` : ''}>${label} · ${PETAL}${cost}</button>`;
+      return `<button class="cs-buy ${cls}" data-act="cmp-meta-buy" data-arg="${esc(id)}" ${why ? `disabled data-tip="${esc(why)}"` : ''}><span>${label}</span><i>${PETAL}${cost}</i></button>`;
     };
     const r = this.setup.race;
     const colour = (race: number) => FACTION_COLOUR[`f${race + 1}`];
-    // Down the left: every race, picked or locked.
-    const races = RACE_NAMES.map((name, i) => {
+    // Across the top: every race as its emblem, the core four, then the Lost Races (unlocked with petals, priced on them).
+    const orb = (i: number) => {
       const open = raceUnlocked(meta, i);
-      // (The Lost Races, unlocked with petals, under a heading of their own; a run as one plays every mechanic.)
-      return `${i === 0 ? '<small class="cmp-rs-head">core races</small>' : ''}${i === 4 ? '<small class="cmp-rs-head" data-tip="Unlocked with Stellari petals. A run as one of them is played in Lost Races mode: every race and mechanic.">lost races</small>' : ''}<button class="cmp-rs ${r === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${i}" style="--rc:${colour(i)}">
-        ${factionAvatar(`f${i + 1}`, 'cmp-rs-emblem')}<b>${lower(name)}</b>${open ? '' : `<i class="cmp-rs-lock">${PETAL}${metaUpgrade(`race:${i}`)!.cost(0)}</i>`}
+      return `<button class="cs-orb ${r === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${i}" style="--rc:${colour(i)}" aria-label="${esc(RACE_NAMES[i])}">
+        <span class="cs-orb-mark">${factionAvatar(`f${i + 1}`, 'cs-orb-emblem')}</span><b>${lower(RACE_NAMES[i])}</b>${open ? '' : `<i class="cs-orb-price">${PETAL}${metaUpgrade(`race:${i}`)!.cost(0)}</i>`}
       </button>`;
-    }).join('');
-    // The picked race: its own card, then its sub-races.
+    };
+    const races = `<nav class="cs-races"><div class="cs-race-set">${[0, 1, 2, 3, 4, 5, 6, 7].map(orb).join('')}</div></nav>`;
+    // The picked race: its name large, its creed, its trait, its sub-races.
     const raceOpen = raceUnlocked(meta, r);
-    const subs = Object.values(SUBRACES).filter((x) => x.race === r);
-    const raceCard = `<div class="cmp-rc cmp-rc-race ${subs.length ? '' : 'wide'}">
-      <span class="cmp-rc-mark">${factionAvatar(`f${r + 1}`)}</span>
-      <div class="cmp-rc-body">
-        <b class="cmp-rc-name">${lower(RACE_NAMES[r])}</b>
-        <p>${esc(RACE_BLURB[r])}</p>
-        ${RACE_TRAITS[r] ? `<div class="cmp-rc-traits"><em class="cmp-trait-bonus">+ ${esc(plainText(RACE_TRAITS[r]!.bonus))}</em></div>` : ''}
-        ${raceOpen ? '' : buy(`race:${r}`, 'unlock')}
-      </div>
-    </div>`;
-    const subCards = subs
-      .map((x) => `<div class="cmp-rc cmp-rc-sub"><small>sub-race</small><b class="cmp-rc-name">${lower(x.name)}</b><p>${esc(x.theme)}.</p></div>`)
-      .join('');
-    // Its heroes, each a card with its art.
+    const race = `<section class="cs-race">
+      <span class="cs-race-ghost">${factionAvatar(`f${r + 1}`)}</span>
+      <h3>${lower(RACE_NAMES[r])}</h3>
+      <p>${esc(RACE_EPITHET[r] ?? '')}</p>
+    </section>`;
+    // Its heroes: portraits, their power in the game's own marks, the one leading the run lifted.
     const heroes = GENERALS[r]
       .map((g, i) => {
         const def = cardDef(g);
         const open = heroUnlocked(meta, g);
         const sub = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].name : '';
-        return `<div class="cmp-hc ${this.setup.hero === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-hero-pick" data-arg="${i}" role="button">
-          <span class="cmp-hc-art">${cardArtLite(def)}</span>
-          <div class="cmp-hc-body">
-            <b class="cmp-rc-name">${lower(def.name)}</b>
-            <small>${esc(RARITY_NAME[def.rarity ?? 'dwarf'] ?? '')}${sub ? ` · ${esc(sub)}` : ''}</small>
-            <p>${esc(plainText(def.text))}</p>
-            ${open ? '' : buy(`hero:${g}`, 'unlock')}
+        const rarity = def.rarity ?? 'dwarf';
+        return `<div class="cs-hero rarity-${rarity} ${this.setup.hero === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-hero-pick" data-arg="${i}" role="button" aria-label="${esc(def.name)}">
+          <span class="cs-hero-art">${cardArtLite(def)}</span>
+          <span class="cs-hero-rarity"><i></i>${esc(RARITY_NAME[rarity] ?? '')}${sub ? ` · ${esc(lower(sub))}` : ''}</span>
+          <div class="cs-hero-body">
+            <b>${lower(def.name)}</b>
+            <p class="cs-hero-bio">${esc(HERO_BIOS[g] ?? '')}</p>
           </div>
+          ${open ? '' : `<div class="cs-hero-lock">${buy(`hero:${g}`, 'unlock')}</div>`}
         </div>`;
       })
       .join('');
     const pickedHero = GENERALS[r][this.setup.hero];
     const ready = raceOpen && heroUnlocked(meta, pickedHero);
     return `
-      <main class="cmp-setup setup-page" style="--rc:${colour(r)}">
+      <main class="cmp-setup setup-page cs-page" style="--rc:${colour(r)}">
         <header class="setup-top">
           <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">a dying universe</h2>
-          <button class="cmp-petals cmp-shop-btn" data-act="cmp-shop" data-tip="Spend Stellari petals on lasting upgrades">${PETAL}<b>${meta.petals}</b><span>upgrades</span></button>
-        </header>
-        <div class="setup-body cmp-setup-body">
-          <nav class="cmp-rs-list">${races}</nav>
-          <div class="cmp-setup-right">
-            <div class="cmp-rc-row">${raceCard}${subCards}</div>
-            <div class="cmp-hc-row">${heroes}</div>
+          <div class="cs-purses">
+            <button class="cs-petals" data-act="cmp-deck" data-tip-title="starting deck" data-tip="Spend Stellari petals on cards for this race's starting deck.">${PETAL}<b>${meta.petals}</b><span>starting deck</span></button>
+            <button class="cs-petals cs-xp" data-act="cmp-shop" data-tip-title="skills" data-tip="Spend experience on the skill tree: earned on every run, won or lost.">${XP_MARK}<b>${meta.xp ?? 0}</b><span>skills</span></button>
           </div>
+        </header>
+        <div class="cs-body">
+          ${races}
+          ${race}
+          <div class="cs-heroes">${heroes}</div>
         </div>
-        <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start" ${ready ? '' : 'disabled'}>begin run</button></footer>
-        ${this.shopOpen ? this.renderShop(meta, buy) : ''}
+        <footer class="setup-foot">${raceOpen ? `<button class="btn-primary" data-act="cmp-start" ${ready ? '' : 'disabled'}>begin run</button>` : buy(`race:${r}`, `unlock the ${lower(RACE_NAMES[r])}`, 'cs-buy-big')}</footer>
+        ${this.shopOpen ? this.renderShop(meta) : ''}
+        ${this.deckOpen ? this.renderStarterDeck(meta) : ''}
       </main>`;
   }
 
-  /** The petal shop: lasting upgrades, by group, each with its level and the next level's price. */
-  private renderShop(meta: MetaState, buy: (id: string, label: string) => string): string {
-    const groups: [MetaGroup, string][] = [['start', 'a stronger start'], ['flagship', 'a tougher flagship'], ['perk', 'run perks']];
-    const shop = groups
-      .map(([g, title]) => {
-        const rows = META_UPGRADES.filter((u) => u.group === g)
-          .map((u) => {
-            const level = levelOf(meta, u.id);
-            const pips = Array.from({ length: u.max }, (_, i) => `<i class="${i < level ? 'on' : ''}"></i>`).join('');
-            return `<div class="cmp-up"><div><b>${esc(u.name.toLowerCase())}</b><small>${esc(u.text)}</small></div><span class="cmp-up-pips">${pips}</span>${level < u.max ? buy(u.id, 'buy') : '<span class="cmp-up-max">max</span>'}</div>`;
-          })
-          .join('');
-        return `<section><div class="cmp-label">${title}</div><div class="cmp-ups">${rows}</div></section>`;
+  /**
+   * The skill tree, round the Stellari, bought with experience: three branches growing out from the flower (a
+   * stronger start to the left, a tougher flagship to the right, run perks below), each tier further out than the
+   * one it needs, ending in a capstone. Lines join each skill to what it needs (lit once that is bought). Picking a
+   * skill shows it in the flower's heart: what it gives now and next, what it needs, and the way to buy it.
+   */
+  private renderShop(meta: MetaState): string {
+    const branches: { g: MetaGroup; title: string; dir: number }[] = [
+      { g: 'start', title: 'a stronger start', dir: 212 },
+      { g: 'flagship', title: 'a tougher flagship', dir: 328 },
+      { g: 'perk', title: 'run perks', dir: 90 },
+    ];
+    // Where a skill lies (in % of the sky): out along its branch by tier, its tier's skills fanned across it.
+    const reach = [0, 0.44, 0.72, 0.97];
+    const pos = new Map<string, [number, number]>();
+    const place = (deg: number, k: number): [number, number] => {
+      const r = (deg * Math.PI) / 180;
+      return [50 + 46 * k * Math.cos(r), 40 + 47 * k * Math.sin(r)];
+    };
+    for (const br of branches) {
+      const skills = META_UPGRADES.filter((u) => u.group === br.g);
+      for (const tier of [1, 2, 3]) {
+        const row = skills.filter((u) => (u.tier ?? 1) === tier);
+        const fan = row.length > 1 ? (tier === 2 ? 34 : 22) : 0;
+        // (The branch hanging below the heart starts further out, clear of the heart's words.)
+        const out = br.dir === 90 ? [0, 0.52, 0.77, 1] : reach;
+        row.forEach((u, i) => pos.set(u.id, place(br.dir + (row.length > 1 ? -fan / 2 + (fan * i) / (row.length - 1) : 0), out[tier])));
+      }
+    }
+    const ring = (level: number, max: number) => {
+      const C = 2 * Math.PI * 22;
+      const g = max > 1 ? 4 : 0;
+      const seg = C / max - g;
+      return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" class="${i < level ? 'on' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');
+    };
+    const skills = META_UPGRADES.filter((u) => u.group !== 'unlock');
+    // The links: the heart to each first tier, each skill to what it needs.
+    const links = skills
+      .flatMap((u) => {
+        const [x, y] = pos.get(u.id)!;
+        const needs = u.requires?.length ? u.requires : null;
+        // (A first tier hangs off the flower itself: no line into its heart, where the words are.)
+        if (!needs) return [];
+        return needs.map(([r, n]) => {
+          const [x0, y0] = pos.get(r)!;
+          return `<line x1="${x0.toFixed(2)}" y1="${y0.toFixed(2)}" x2="${x.toFixed(2)}" y2="${y.toFixed(2)}" class="${levelOf(meta, r) >= n ? 'lit' : ''}"/>`;
+        });
+      })
+      .join('');
+    const nodes = skills
+      .map((u) => {
+        const [x, y] = pos.get(u.id)!;
+        const level = Math.min(levelOf(meta, u.id), u.max);
+        const maxed = level >= u.max;
+        const open = upgradeOpen(meta, u.id);
+        const canBuy = !maxed && !buyUpgradeProblem(meta, u.id);
+        return `<button class="up-node tier-${u.tier ?? 1} ${level ? 'owned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${canBuy ? 'afford' : ''} ${this.upPick === u.id ? 'on' : ''}" style="left:${x.toFixed(2)}%;top:${y.toFixed(2)}%" data-act="cmp-up-pick" data-arg="${esc(u.id)}" aria-label="${esc(u.name)}">
+          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max)}</svg>${UPGRADE_LOOK[u.id]?.icon ?? ''}</span>
+          <b>${esc(u.name.toLowerCase())}</b>
+        </button>`;
+      })
+      .join('');
+    // (Each branch named in the heart's small print when one of its skills is picked, not on the tree.)
+    const branchOf = (g: MetaGroup) => branches.find((b) => b.g === g)?.title ?? '';
+    // The heart: the picked skill, or the experience to spend.
+    const u = this.upPick ? metaUpgrade(this.upPick) : undefined;
+    let heart: string;
+    if (u) {
+      const level = Math.min(levelOf(meta, u.id), u.max);
+      const look = UPGRADE_LOOK[u.id];
+      const maxed = level >= u.max;
+      const why = buyUpgradeProblem(meta, u.id);
+      const needs = (u.requires ?? []).filter(([r, n]) => levelOf(meta, r) < n).map(([r, n]) => `${metaUpgrade(r)?.name.toLowerCase() ?? r} ${'I'.repeat(n)}`);
+      heart = `<div class="up-heart up-heart-pick">
+        <small>${esc(branchOf(u.group))} · ${u.tier === 3 ? 'capstone' : `tier ${u.tier ?? 1}`} · level ${level} of ${u.max}</small>
+        <h4>${esc(u.name.toLowerCase())}</h4>
+        ${look ? `<div class="up-heart-vals">
+          <span><strong class="${level ? '' : 'none'}">${esc(level ? look.value(level) : '0')}</strong><i>now</i></span>
+          ${maxed ? '' : `<em>›</em><span><strong class="next">${esc(look.value(level + 1))}</strong><i>next</i></span>`}
+        </div>
+        <p>${esc(look.unit)}</p>` : `<p>${esc(u.text)}</p>`}
+        ${maxed ? '<span class="up-heart-max">complete</span>' : needs.length ? `<span class="up-heart-needs">needs ${esc(needs.join(' and '))}</span>` : `<button class="up-heart-buy" data-act="cmp-meta-buy" data-arg="${esc(u.id)}" ${why ? 'disabled' : ''}>${why ? 'need' : 'learn'}<i>${XP_MARK}${u.cost(level)}</i></button>`}
+      </div>`;
+    } else {
+      heart = `<div class="up-heart">
+        <span class="up-heart-purse">${XP_MARK}<strong>${meta.xp ?? 0}</strong></span>
+        <small>experience to spend</small>
+        <p>Earned on every run, won or lost. Each tier opens the next.</p>
+      </div>`;
+    }
+    return `
+      <div class="up-shop">
+        <header class="up-head">
+          <div class="up-title"><h3>skills</h3>${meta.runs ? `<small>best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed · ${meta.runs} run${meta.runs === 1 ? '' : 's'}</small>` : ''}</div>
+          <span class="up-purse">${XP_MARK}<b>${meta.xp ?? 0}</b></span>
+          <button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button>
+        </header>
+        <div class="up-sky">
+          <span class="up-flower">${stellariaFlower()}</span>
+          <svg class="up-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${links}</svg>
+          ${heart}
+          ${nodes}
+        </div>
+      </div>`;
+  }
+
+  /**
+   * A race's starting deck offers: the six cards (two of each rarity) that can be bought into it with petals, kept
+   * for every run as that race. A bought card can be taken out again.
+   */
+  private renderStarterDeck(meta: MetaState): string {
+    const r = this.setup.race;
+    const have = meta.deck?.[r] ?? [];
+    const offers = STARTER_OFFERS[r] ?? [];
+    const cards = offers
+      .map((id) => {
+        const def = cardDef(id);
+        const at = have.indexOf(id);
+        const foot =
+          at >= 0
+            ? `<button class="sd-remove" data-act="cmp-deck-remove" data-arg="${at}" aria-label="Take it out">in deck ×</button>`
+            : `<button class="sd-buy" data-act="cmp-deck-add" data-arg="${esc(id)}" ${starterAddProblem(meta, r, id, def.rarity) ? 'disabled' : ''}>${PETAL}${starterCardPrice(def.rarity)}</button>`;
+        return `<div class="sd-card rarity-${def.rarity ?? 'dwarf'} ${at >= 0 ? 'owned' : ''}" data-act="inspect" data-card="${esc(id)}">
+          <span class="sd-art">${cardArtLite(def)}</span>
+          <span class="sd-name"><i></i>${esc(def.name.toLowerCase())}</span>
+          ${foot}
+        </div>`;
       })
       .join('');
     return `
-      <div class="cmp-shop">
-        <div class="cmp-shop-panel">
-          <header><b>upgrades</b><span class="cmp-petals">${PETAL}<b>${meta.petals}</b></span><button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button></header>
-          ${meta.runs ? `<p class="muted">Best run: ${meta.best} universe${meta.best === 1 ? '' : 's'} crossed, in ${meta.runs} run${meta.runs === 1 ? '' : 's'}.</p>` : ''}
-          <div class="cmp-shop-groups">${shop}</div>
+      <div class="up-shop sd-shop">
+        <header class="up-head">
+          <div class="up-title"><h3>starting deck · ${lower(RACE_NAMES[r])}</h3><small>cards bought here start every run as the ${lower(RACE_NAMES[r])}</small></div>
+          <span class="up-purse">${PETAL}<b>${meta.petals}</b></span>
+          <button class="icon-btn" data-act="cmp-deck" aria-label="Close">×</button>
+        </header>
+        <div class="sd-body">
+          <section class="sd-pool"><h4>${have.length} of ${offers.length} in deck <small>white dwarf ${starterCardPrice('dwarf')} · stellar ${starterCardPrice('stellar')} · anomaly ${starterCardPrice('anomaly')}</small></h4><div class="sd-grid sd-offers">${cards}</div></section>
         </div>
       </div>`;
   }
@@ -1155,6 +1227,7 @@ export class CampaignView {
     const farFrom = (f: CampaignNode | null, x: number, y: number, id: string, r: number) => !!f && f.id !== id && Math.hypot(x - f.x, y - f.y) > r;
     // Fog of war: only systems linked to yours (two links from a scanner) are drawn; routes into the fog fade out.
     const seen = visibleNodes(s, me.id);
+    this.seenNow = seen;
     const drawn = new Set<string>();
     this.rays = [];
     const links = s.nodes
@@ -1164,6 +1237,8 @@ export class CampaignView {
           if (drawn.has(key)) return '';
           drawn.add(key);
           const m = nodeById(s, id);
+          // (A hidden challenge's route is hidden with it.)
+          if (n.challenge?.hidden || m.challenge?.hidden) return '';
           if (!seen.has(n.id) && !seen.has(m.id)) return '';
           if (!seen.has(n.id) || !seen.has(m.id)) {
             const [a, b] = seen.has(n.id) ? [n, m] : [m, n];
@@ -1176,7 +1251,9 @@ export class CampaignView {
           const same = n.owner && n.owner === m.owner;
           // (Drawn flat on the screen over the map, after it is laid out: drawRays. A line on the tilted plane
           // was drawn small and scaled up, and came out pixelated.)
-          this.rays.push({ a: n.id, b: m.id, colour: same ? this.colourOf(n.owner!) : undefined });
+          // (A challenge's route leads off the strip in its own colour.)
+          const ch = n.challenge ?? m.challenge;
+          this.rays.push({ a: n.id, b: m.id, colour: ch ? CHALLENGE_COLOUR[ch.kind] : same ? this.colourOf(n.owner!) : undefined, gone: ch?.done ? true : undefined });
           return '';
         }),
       )
@@ -1213,7 +1290,6 @@ export class CampaignView {
         const badges = [
           n.garrison.length ? `<i class="cmp-badge">▣${n.garrison.length}</i>` : '',
           n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
-          n.scanner ? `<i class="cmp-badge cmp-scan" title="Scanner array">${SCANNER}</i>` : '',
           n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
         ].join('');
         return `
@@ -1239,7 +1315,7 @@ export class CampaignView {
           <div class="cmp-grid" style="--gk:${(MAP_WIDTH / 3500).toFixed(3)}"></div>
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
           ${nodes}
-          ${this.renderFleet(seen)}
+          ${this.flyOver() ? '' : this.renderFleet(seen)}
         </div>
       </div>`;
   }
@@ -1247,7 +1323,6 @@ export class CampaignView {
   /** The picked army: its general, its state, and what tapping the map will do with it. */
   private renderArmy(a: Army): string {
     const s = this.state!;
-    const me = campaignPlayer(s);
     const here = nodeById(s, a.nodeId);
     const moves = s.phase === 'player' && !s.battle ? armyMoves(s, a) : [];
     const fights = moves.filter((m) => m.battle).length;
@@ -1259,24 +1334,22 @@ export class CampaignView {
       : moves.length
         ? `Tap a system next to ${esc(here.name)}: ${marches ? `a <b class="cmp-hint-march">green</b> ring to march there` : ''}${marches && fights ? ', or ' : ''}${fights ? `a <b class="cmp-hint-fight">red</b> ring to fight for it` : ''}.`
         : 'No route is open to this army.';
-    const lvl = a.lost ? '' : `level ${heroLevel(heroState(me, a.general).xp)} · `;
     return `
       <div class="pop-head pop-head-army" style="--fc:${this.colourOf(a.owner)}">
         ${armyFace(a)}
-        <div><h3>${lower(armyLeader(a))}</h3><small>${lvl}${a.deck.length} cards · in ${lower(here.name)}${a.damage ? ` · ✸${a.damage}` : ''}</small></div>
+        <div><h3>${lower(armyLeader(a))}</h3><small>${a.deck.length} cards · in ${lower(here.name)}${a.damage > 0 ? ` · ✸${a.damage}` : ''}</small></div>
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
-      <p class="cmp-hint">${hint}</p>
-      ${a.damage && here.owner === me.id ? `<div class="pop-row">${this.repairButtons('cmp-heal-army', a.id, a.damage, CAMPAIGN.armyHealCost, a.moved ? 'It has marched this turn: repair it next turn.' : '')}</div>` : ''}`;
+      <p class="cmp-hint">${hint}</p>`;
   }
 
-  /** Repair one point, or all of it (as far as the credits go). */
+  /** Repair one point, or all of it (as far as the materials go). */
   private repairButtons(act: string, id: string, damage: number, cost: number, blocked: string): string {
-    const credits = campaignPlayer(this.state!).credits;
-    const all = Math.min(damage, Math.floor(credits / cost));
-    const dis = (need: number) => (blocked ? `disabled title="${esc(blocked)}"` : credits < need ? 'disabled' : '');
-    return `<button class="pill-btn" data-act="${act}" data-arg="${id}" ${dis(cost)}>repair 1 · ${CREDITS}${cost}</button>${
-      damage > 1 ? `<button class="pill-btn" data-act="${act}" data-arg="${id}" data-all="1" ${dis(cost)}>repair all · ${CREDITS}${Math.max(1, all) * cost}</button>` : ''
+    const materials = campaignPlayer(this.state!).materials;
+    const all = Math.min(damage, Math.floor(materials / cost));
+    const dis = (need: number) => (blocked ? `disabled title="${esc(blocked)}"` : materials < need ? 'disabled' : '');
+    return `<button class="pill-btn" data-act="${act}" data-arg="${id}" ${dis(cost)}>repair 1 · ${MATERIALS}${cost}</button>${
+      damage > 1 ? `<button class="pill-btn" data-act="${act}" data-arg="${id}" data-all="1" ${dis(cost)}>repair all · ${MATERIALS}${Math.max(1, all) * cost}</button>` : ''
     }`;
   }
 
@@ -1285,7 +1358,10 @@ export class CampaignView {
   /** Ships to set sailing once the map is drawn: where to, and how long it takes. */
   private sails = new Map<string, { x: number; y: number }>();
   /** An army setting out to attack: its ship runs halfway down the route before the battle opens. */
-  private advance: { armyId: string; toId: string } | null = null;
+  /** The flagship under way: to the halfway point (or, into a battle, all the way to the star). */
+  private advance: { armyId: string; toId: string; land?: boolean } | null = null;
+  /** The flagship has landed at a guarded star: the encounter sounds and the battle waits a second to open. */
+  private encountering = false;
   /** The words of the chip last tapped in the popover (shown under its chips). */
   private popTip: string | null = null;
   /** Where the popover was last placed (in the map's box), so a redraw doesn't jump it. */
@@ -1323,8 +1399,9 @@ export class CampaignView {
         const adv = this.advance?.armyId === a.id ? s.nodes.find((m) => m.id === this.advance!.toId) : undefined;
         if (adv) {
           angle = Math.atan2(adv.y - n.y, adv.x - n.x);
-          x = n.x + (adv.x - n.x) * 0.5;
-          y = n.y + (adv.y - n.y) * 0.5;
+          const k = this.advance?.land ? 1 : 0.5;
+          x = n.x + (adv.x - n.x) * k;
+          y = n.y + (adv.y - n.y) * k;
         }
         let shown = { x, y };
         let dur = mem?.dur ?? 1;
@@ -1352,22 +1429,7 @@ export class CampaignView {
       </div>`;
   }
 
-  /** Above the end-turn button: the moves left this turn of your flagship (or of the army picked, if another). */
-  private endMoves(): string {
-    const s = this.state!;
-    const mine = s.armies.filter((a) => a.owner === s.playerId && !a.lost);
-    const a = mine.find((x) => x.id === this.army) ?? mine[0];
-    return a ? this.moveGems(a) : '';
-  }
 
-  /** An army's moves this turn, as energy gems in a row: lit while there are moves left. */
-  private moveGems(a: Army): string {
-    const s = this.state!;
-    const total = 1 + armyBonus(s, a).march;
-    const left = a.moved || a.refit || s.phase !== 'player' ? 0 : Math.max(0, total - (a.steps ?? 0));
-    const gems = Array.from({ length: total }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
-    return `<div class="cmp-ship-moves" data-tip="${left} step${left === 1 ? '' : 's'} left in this move, of ${total}">${gems}</div>`;
-  }
 
   /** Send the ships drawn where they were on to where they are going (the CSS transition does the sailing). */
   private sailShips(root: HTMLElement) {
@@ -1419,12 +1481,13 @@ export class CampaignView {
   private glide: { from: Cam; start: number } | null = null;
   /** The system focused at the last render, to fade out what belonged to it. */
   private lastFocus: string | null = null;
-  private drag: { id: number; x: number; y: number; moved: boolean; pan?: boolean; pinch?: { d: number; zoom: number; mx?: number; my?: number } } | null = null;
-  private pointers = new Map<number, { x: number; y: number }>();
-  /** Set after a drag so the click that ends it does not select or deselect. */
-  private swallowClick = false;
   private stageEl: HTMLElement | null = null;
   private nebula: Nebula | null = null;
+
+  /** Set as a campaign starts: the flagship's first appearance on the map is a fly-in. */
+  private arriving = false;
+  /** This session's campaign began with a fly-in: the hero's first words wait for the ship to come to rest. */
+  private introFlight = false;
 
   private static readonly TILT = 0; // (Bird's-eye: straight down on the strip.)
   private static readonly MAX_ZOOM = 12;
@@ -1456,12 +1519,18 @@ export class CampaignView {
     }
     if (!boundStages.has(stage)) {
       boundStages.add(stage);
-      stage.addEventListener('pointerdown', (e) => this.onPointerDown(e));
-      stage.addEventListener('pointermove', (e) => this.onPointerMove(e));
-      stage.addEventListener('pointerup', (e) => this.onPointerUp(e));
-      stage.addEventListener('pointercancel', (e) => this.onPointerUp(e));
       stage.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
-      stage.addEventListener('contextmenu', (e) => e.preventDefault());
+      // A star under the pointer swells and flares, with a soft chime.
+      // (Anywhere inside its rings, measured from the scene: see pickAt. Without WebGL, the star's own mark.)
+      stage.addEventListener('pointermove', (e) => {
+        this.pointerAt = [e.clientX, e.clientY];
+        if (this.nebula) this.setHovered(this.pickAt(e.clientX, e.clientY), e.pointerType);
+      });
+      stage.addEventListener('pointerover', (e) => { if (!this.nebula) this.hoverStar(e.target as Element, e.pointerType); });
+      stage.addEventListener('pointerout', (e) => {
+        if (!this.nebula && !(e.relatedTarget as Element | null)?.closest?.('.cmp-star')) this.hoverStar(null, e.pointerType);
+      });
+      stage.addEventListener('pointerleave', (e) => { this.pointerAt = null; this.setHovered(null, e.pointerType); });
     }
     this.view ??= this.homeView();
     this.showNebula(root);
@@ -1603,17 +1672,18 @@ export class CampaignView {
       const v = m ? parseInt(m[1], 16) : 0x999999;
       return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
     };
-    const objects: MapObject[] = s.nodes.map((n) => {
+    const objects: MapObject[] = s.nodes.filter((n) => !n.challenge?.hidden).map((n) => {
       const [x, z] = at.get(n.id)!;
       return {
         x,
         z,
         heart: !!n.heart,
-        ring: n.owner ? hex(this.colourOf(n.owner)) : undefined,
-        dim: !!(n.dimmed || n.collapsing),
+        ring: n.challenge ? hex(CHALLENGE_COLOUR[n.challenge.kind]) : n.owner ? hex(this.colourOf(n.owner)) : undefined,
+        dim: !!(n.dimmed || n.collapsing || n.challenge?.done),
         dead: !!(n.collapsed || n.ruined),
         reach: this.reach.has(n.id),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,
+        id: n.id,
       };
     });
     this.nebula.setObjects(objects);
@@ -1625,6 +1695,24 @@ export class CampaignView {
       }),
     );
     this.nebula.setGalaxy(s.galaxy ?? null);
+    // The ships, as 3D objects: each over the star it stands at (or, setting out to attack, halfway there).
+    const mine = flagship(s, s.playerId);
+    const arriving = this.arriving;
+    this.arriving = false;
+    const ships = s.armies
+      .filter((a) => this.seenNow.has(a.nodeId))
+      .map((a) => {
+        const [x, z] = at.get(a.nodeId)!;
+        const adv = this.advance?.armyId === a.id ? at.get(this.advance.toId) : undefined;
+        const k = this.advance?.land ? 1 : 0.5;
+        // A new campaign: the flagship flies in from off screen, behind the strip's near end.
+        const arrive = arriving && a.id === mine?.id ? { from: [x - 2.6, z + 1.9] as [number, number], dur: ARRIVAL_FLIGHT } : undefined;
+        return { id: a.id, x: adv ? x + (adv[0] - x) * k : x, z: adv ? z + (adv[1] - z) * k : z, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive };
+      });
+    this.nebula.setShips(ships);
+    // The camera keeps the flagship in view, on its own.
+    const own = ships.find((sh) => sh.id === mine?.id);
+    if (own) this.nebula.follow(own.x, own.z);
     // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
     // column past the last one collapsing.
     const half = (CAMPAIGN.colGap / 2) * MAP_K;
@@ -1670,8 +1758,6 @@ export class CampaignView {
     plane.style.setProperty('--tilt', '0deg');
     this.drawRays(stage);
     this.placePop();
-    const recentre = stage.closest('.cmp')?.querySelector<HTMLElement>('.cmp-recentre');
-    if (recentre) recentre.style.display = this.nebula?.away ? '' : 'none';
   }
 
   private writeCamera() {
@@ -1691,88 +1777,43 @@ export class CampaignView {
     v.y = Math.max(0, Math.min(MAP_HEIGHT, v.y));
   }
 
-  private onPointerDown(e: PointerEvent) {
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.pointers.size === 2 && this.view) {
-      const [a, b] = [...this.pointers.values()];
-      this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: true, pinch: { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.view.zoom } };
-      return;
-    }
-    this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, pan: e.button === 2 || e.shiftKey };
+  private hoveredStar: string | null = null;
+
+  private pointerAt: [number, number] | null = null;
+
+  /** The star whose rings take in this point on the screen, if any (the map's stars as the scene draws them). */
+  private pickAt(cx: number, cy: number): string | null {
+    const canvas = this.nebula?.back;
+    if (!canvas || !this.state) return null;
+    // (Not through a popover, a sheet or the map's own controls lying over the stage.)
+    const top = document.elementFromPoint(cx, cy);
+    if (top && !top.closest('.cmp-stage')) return null;
+    // (A star's own billboard is that star's.)
+    const own = top?.closest('.cmp-bb')?.closest<HTMLElement>('.cmp-n3')?.dataset.key;
+    if (own?.startsWith('sys-')) return own.slice(4);
+    if (top?.closest('.cmp-pop, .cmp-orbits, button, [data-act]:not(.cmp-stage):not(.cmp-ring)')) return null;
+    const box = canvas.getBoundingClientRect();
+    const id = this.nebula!.pickStar(cx - box.left, cy - box.top);
+    return id && this.state.nodes.some((n) => n.id === id && !n.challenge?.hidden) ? id : null;
   }
 
-  private onPointerMove(e: PointerEvent) {
-    if (!this.drag || !this.view || !this.stageEl || !this.pointers.has(e.pointerId)) return;
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.drag.pinch && this.pointers.size >= 2) {
-      // Two fingers: spreading them zooms toward their middle, moving them together pans.
-      const [a, b] = [...this.pointers.values()];
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const pin = this.drag.pinch;
-      if (this.nebula && pin.mx !== undefined && pin.my !== undefined) {
-        const at = this.canvasPoint(mx, my);
-        if (at && d > 0) this.nebula.zoom(pin.d / d, at.x, at.y);
-        const step = toPageDelta(mx - pin.mx, my - pin.my);
-        this.nebula.pan(step.x, step.y);
-      }
-      pin.d = d;
-      pin.mx = mx;
-      pin.my = my;
-      return;
-    }
-    if (e.pointerId !== this.drag.id) return;
-    // A finger's movement on screen, turned into the page's own directions (the page may be sideways).
-    const { x: dx, y: dy } = toPageDelta(e.clientX - this.drag.x, e.clientY - this.drag.y);
-    if (!this.drag.moved && Math.hypot(dx, dy) < 6) return;
-    if (!this.drag.moved) {
-      this.drag.moved = true;
-      // Dragging while zoomed on a system lets go of it: the camera glides back out while the drag pans on.
-      if (this.selected) {
-        const n = nodeById(this.state!, this.selected);
-        this.view = { ...this.view, x: n.x, y: n.y };
-        this.selected = null;
-        this.host.render();
-      }
-      try {
-        this.stageEl!.setPointerCapture(e.pointerId);
-      } catch {
-        // The pointer has gone; the drag ends with it.
-      }
-    }
-    // A drag orbits round the strip; a right-drag (or shift-drag) slides over it.
-    if (this.drag.pan) this.nebula?.pan(dx, dy);
-    else this.nebula?.orbit(dx, dy);
-    this.drag.x = e.clientX;
-    this.drag.y = e.clientY;
+  private hoverStar(target: Element | null, pointer: string) {
+    const key = target?.closest('.cmp-star')?.closest<HTMLElement>('.cmp-n3')?.dataset.key;
+    this.setHovered(key?.startsWith('sys-') ? key.slice(4) : null, pointer);
   }
 
-  private onPointerUp(e: PointerEvent) {
-    this.pointers.delete(e.pointerId);
-    if (this.drag?.moved) this.swallowClick = true;
-    if (this.pointers.size === 0) this.drag = null;
-    window.setTimeout(() => (this.swallowClick = false), 0);
+  private setHovered(id: string | null, pointer: string) {
+    if (id === this.hoveredStar) return;
+    this.hoveredStar = id;
+    this.nebula?.hover(id);
+    // (A finger's touch is a tap, not a hover: no chime for it.)
+    if (id && pointer !== 'touch') sound.starHover(parseFloat(seedOf(id)) || 0);
   }
 
   private onWheel(e: WheelEvent) {
-    // The wheel (or a trackpad's pinch) zooms toward the pointer.
+    // (No zooming: the wheel does nothing on the map, but the page doesn't scroll either.)
     e.preventDefault();
-    const at = this.canvasPoint(e.clientX, e.clientY);
-    if (!this.nebula || !at) return;
-    const lines = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-    this.nebula.zoom(Math.exp(e.deltaY * lines * (e.ctrlKey ? 0.01 : 0.0015)), at.x, at.y);
   }
-
-  /** A point on the screen, in the nebula canvas's own CSS pixels. */
-  private canvasPoint(cx: number, cy: number): { x: number; y: number } | null {
-    const back = this.stageEl?.closest('.cmp')?.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
-    if (!back) return null;
-    const r = back.getBoundingClientRect();
-    const zx = r.width / (back.clientWidth || r.width) || 1, zy = r.height / (back.clientHeight || r.height) || 1;
-    return { x: (cx - r.left) / zx, y: (cy - r.top) / zy };
-  }
-
-
 
   /** What is picked on the map (a system or an army), in a popover beside it. */
   private renderPop(): string {
@@ -1883,6 +1924,23 @@ export class CampaignView {
   private renderNode(n: CampaignNode): string {
     const s = this.state!;
     const me = campaignPlayer(s);
+    // A challenge: what it is, what it pays, and the way in (once only).
+    if (n.challenge) {
+      const c = CHALLENGES[n.challenge.kind];
+      const army = flagship(s, me.id);
+      const can = !!army && s.phase === 'player' && !s.battle && armyMoves(s, army).some((m) => m.toId === n.id);
+      const status = n.challenge.done === 'won' ? 'done: won' : n.challenge.done === 'lost' ? 'sealed: lost' : 'one try only';
+      const lord = n.challenge.kind === 'lord' && n.challenge.lord ? `<p class="pop-tip">${esc(cardDef(n.challenge.lord).name)} waits there.</p>` : '';
+      return `
+      <div class="pop-head" style="--fc:${CHALLENGE_COLOUR[n.challenge.kind]}">
+        <i></i>
+        <div><small>a hidden challenge · ${status}</small><b>${esc(c.name.toLowerCase())}</b></div>
+        <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
+      </div>
+      <p class="pop-tip">${esc(c.text)}</p>${lord}
+      <p class="pop-tip"><b>Reward:</b> ${esc(c.reward)}. Lose, and your flagship is thrown clear (the run goes on), but the way in is sealed.</p>
+      ${can && army ? `<div class="pop-row"><button class="btn-primary pop-attack" data-act="cmp-travel" data-arg="${n.id}" data-army="${army.id}">${armyFace(army)}enter</button></div>` : ''}`;
+    }
     const mine = n.owner === me.id;
     const owner = n.owner ? factionById(s, n.owner) : null;
     const chip = (body: string, tip: string, tone = '') => `<button class="pop-chip ${tone}" data-act="cmp-tip" data-tip="${esc(tip)}" title="${esc(tip)}">${body}</button>`;
@@ -1893,10 +1951,9 @@ export class CampaignView {
     const chips = [
       n.owner || n.heart || n.ruined ? '' : chip(`${icon('<circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.4M8 11.4v.1"/>')}<b>unknown</b>`, `What ${n.name} holds is unknown until you get there: defenders, or something to find. ${starOdds(n)}`),
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
-      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, 'Torn open by a Stellari bloom: beat its guardian and go through, into the next universe, with the petals you grab.', 'gold') : '',
-      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, the galaxy and ships' hulls): more the further along the strip, and in every universe after the first.`),
-      n.scanner ? chip(SCANNER, 'Scanner array: whoever holds it sees systems two links away.') : '',
-      (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaCredits} credits and +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
+      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, `Torn open by a Stellari bloom, and guarded by a Lost Overlord: ${overlordById(this.state!.overlord ?? 'colossus').name}. Beat it and go through, into the next galaxy, with the petals you grab.`, 'gold') : '',
+      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, the galaxy and ships' hulls): more the further along the strip, and in every galaxy after the first.`),
+      (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
       n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'Its star has guttered: it yields less than it did.', 'muted') : '',
       n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
       (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, `Stabilised: it holds until turn ${n.stableUntil}.`, 'good') : '',
@@ -1917,12 +1974,10 @@ export class CampaignView {
     const here = armyAt(s, n.id);
     const army = here
       ? `<div class="pop-army" style="--ac:${this.colourOf(here.owner)}">
-          ${armyFace(here)}<span><b>${lower(armyLeader(here))}</b><small>${here.owner === me.id ? (here.moved ? 'marched this turn' : here.refit ? 'refitting' : 'ready') : here.lost ? 'lost race' : lower(factionById(s, here.owner).name)}${here.damage ? ` · ✸${here.damage}` : ''}</small></span>
+          ${armyFace(here)}<span><b>${lower(armyLeader(here))}</b><small>${here.owner === me.id ? (here.moved ? 'marched this turn' : here.refit ? 'refitting' : 'ready') : here.lost ? 'lost race' : lower(factionById(s, here.owner).name)}${here.damage > 0 ? ` · ✸${here.damage}` : ''}</small></span>
           ${
             here.owner === me.id
-              ? `<span class="pop-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}${
-                  here.damage && mine ? this.repairButtons('cmp-heal-army', here.id, here.damage, CAMPAIGN.armyHealCost, here.moved ? 'It has marched this turn: repair it next turn.' : '') : ''
-                }</span>`
+              ? `<span class="pop-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}</span>`
               : ''
           }
         </div>`
@@ -1934,7 +1989,7 @@ export class CampaignView {
     return `
       <div class="pop-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
         ${n.owner ? this.avatarOf(n.owner, 'cmp-head-av') : '<i></i>'}
-        <div><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? 'the wormhole · its guardian' : n.ruined ? 'a ruin · pass through' : `unexplored · depth ${n.tier + 1}`}${n.home ? ' · arrival' : ''}${n.collapsing ? ' · collapsing' : ''}</small></div>
+        <div><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? `the wormhole · ${lower(overlordById(s.overlord ?? 'colossus').name)}` : n.ruined ? 'a ruin · pass through' : `unexplored · depth ${n.tier + 1}`}${n.home ? ' · arrival' : ''}${n.collapsing ? ' · collapsing' : ''}</small></div>
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <div class="pop-chips">${chips}</div>
@@ -1949,35 +2004,43 @@ export class CampaignView {
 
   private renderOverlay(): string {
     const s = this.state!;
-    const me = campaignPlayer(s);
     if (s.winner) {
       // The run is over: how far it got, and what it banked.
       const meta = loadMeta();
       return this.modal(
         'the run is over',
-        `<div class="center"><h2>${s.universe > 1 ? `${s.universe - 1} universe${s.universe - 1 === 1 ? '' : 's'} crossed` : 'lost in the first universe'}</h2>
-          <p>${s.petals ? `${PETAL} ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed this run, and banked.` : 'No petals this time: reach a wormhole to grab some.'} You have ${PETAL} ${meta.petals} to spend.</p>
+        `<div class="center"><h2>${s.universe > 1 ? `${s.universe - 1} galax${s.universe - 1 === 1 ? 'y' : 'ies'} crossed` : 'lost in the first galaxy'}</h2>
+          <p>${XP_MARK} ${s.xp ?? 0} experience earned this run, and kept: you have ${XP_MARK} ${meta.xp ?? 0} to spend on skills.</p>
+          <p>${s.petals ? `${PETAL} ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed this run, and banked.` : 'No petals this time: reach a wormhole to grab some.'} You have ${PETAL} ${meta.petals} to spend on your starting decks.</p>
           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-new-run">upgrades · new run</button><button class="btn" data-act="cmp-abandon">back to menu</button></div></div>`,
       );
     }
-    if (s.battle) {
-      const b = s.battle;
-      const node = nodeById(s, b.nodeId);
-      const attacker = factionById(s, b.attacker);
-      const mine = b.attacker === me.id;
-      const army = s.armies.find((a) => a.id === b.armyId);
+    // A Frost Line held: its reward, chosen.
+    if (s.boon && !s.battle) {
       return this.modal(
-        mine ? `the battle for ${lower(node.name)}` : `${lower(army ? armyLeader(army) : attacker.name)} attack${army?.lost ? '' : 's'} ${lower(node.name)}`,
-        `${this.matchup(b.armyId, node, b.defender === s.playerId)}
-          <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-defend">${mine ? 'back to it' : 'defend'}</button><button class="btn" data-act="cmp-defend-auto" title="Let the battle play itself out">auto</button></div>`,
+        `${lower(s.boon.source)} held`,
+        `<div class="center"><p>The cold has left its mark on your sun. Take one:</p>
+          <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-boon" data-arg="health">+5 max health, for good</button><button class="btn-primary" data-act="cmp-boon" data-arg="cool">cool your sun by 6 now</button></div></div>`,
         false,
-        '',
-        'cmp-modal-narrow cmp-attack',
       );
+    }
+    // A battle pending (a run picked up mid-battle): straight into it, no stop on the way.
+    if (s.battle && !this.encountering) {
+      if (!this.enteringBattle) {
+        this.enteringBattle = true;
+        window.setTimeout(() => {
+          this.enteringBattle = false;
+          const now = this.state;
+          if (!now?.battle) return;
+          this.readWaiting(now.story.queue.length);
+          this.host.playBattle(now.battle.game);
+        }, 0);
+      }
+      return '';
     }
     if (s.conquest) {
       const n = nodeById(s, s.conquest.nodeId);
-      return this.modal(`${lower(n.name)} has fallen`, `<div class="center-row"><button class="btn-primary" data-act="cmp-conquer">take it · ${CREDITS}+${n.yield.credits} ${MATERIALS}+${n.yield.materials}</button></div>`, false, '', 'cmp-modal-narrow');
+      return this.modal(`${lower(n.name)} has fallen`, `<div class="center-row"><button class="btn-primary" data-act="cmp-conquer">take it · ${MATERIALS}+${n.yield.materials}</button></div>`, false, '', 'cmp-modal-narrow');
     }
     const reward = s.cardRewards[0];
     if (reward) {
@@ -1989,25 +2052,8 @@ export class CampaignView {
       );
     }
     const sh = this.sheet;
-    if (!sh && this.battleReport) return this.renderBattleReport();
-    if (!sh && this.report) {
-      const lines = this.report.lines.map((l) => `<div>${esc(l)}</div>`).join('');
-      return this.modal(this.report.title, `<div class="log-list cmp-report">${lines}</div><div class="center-row"><button class="btn-primary" data-act="cmp-close">continue</button></div>`, true);
-    }
     if (!sh) return '';
     switch (sh.kind) {
-      case 'end-turn': {
-        const ready = armiesOf(s, s.playerId).filter((x) => armyMoves(s, x).length > 0).map((x) => armyLeader(x));
-        const who = ready.length > 1 ? `${ready.slice(0, -1).join(', ')} and ${ready[ready.length - 1]}` : ready[0] ?? 'Your flagship';
-        return this.modal(
-          'hold position?',
-          `<p class="center-text">${esc(who)} can still move. Waiting spends a move: the raiders move, and the collapse comes on.</p>
-           <div class="end-day-actions"><button class="btn-primary" data-act="cmp-end-turn">wait <small>⏎</small></button><button class="btn" data-act="cmp-close">keep going <small>esc</small></button></div>`,
-          true,
-          '',
-          'cmp-modal-narrow',
-        );
-      }
       case 'armory':
         return this.renderArmory(sh);
       case 'research':
@@ -2029,25 +2075,20 @@ export class CampaignView {
         return this.modal(
           'how the campaign works',
           `<div class="cmp-legend">
-            <div>${CREDITS}<span><b>Credits</b> run your ship. Earned: every system you take, battles and missions. Spent: upgrading your ship and repairs.</span></div>
-            <div>${MATERIALS}<span><b>Materials</b> build your deck. Earned the same ways. Spent: cards at space stations, fusing cards.</span></div>
+            <div>${MATERIALS}<span><b>Materials</b> pay for everything. Earned: every system you take, finds and battles. Spent: cards at space stations, fusing cards and repairs.</span></div>
           </div>
           <ul class="rules">
-            <li><b>The loop:</b> each universe is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian to go through, into a harder universe. The run goes on until your flagship is lost.</li>
+            <li><b>The loop:</b> each galaxy is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian, a Lost Overlord, to go through, into a harder galaxy (the universe is dying, galaxy by galaxy: each one you reach is younger, and burns hotter). An Overlord fights with its body already in play (limbs, gear, retainers) and takes one great action a day, its parts in turn; the next is always shown, and destroying that part stops it. The run goes on until your flagship is lost.</li>
             <li><b>The collapse:</b> regional stability lasts ${CAMPAIGN.stabilityTurns} moves in the first universe, ${CAMPAIGN.stabilityStep} fewer in each one after (never under ${CAMPAIGN.stabilityMin}). Then the strip gives way from the near end, a whole column with every move, each marked (⚠) a move before. Whatever stands there is lost, your flagship too.</li>
-            <li><b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the raiders move and the collapse comes on. Changing the deck or repairing costs no move; <b>wait</b> holds position for one.</li>
-            <li><b>Win</b> a system and it is yours: it pays its credits and materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold a treasury or archives: more credits or research, taken with the system.</li>
+            <li><b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the collapse comes on. Changing the deck or repairing costs no move. If your flagship has nowhere to go, time moves on by itself.</li>
+            <li><b>Win</b> a system and it is yours: it pays its materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold extra materials, taken with the system.</li>
             <li><b>Stellari petals</b> are grabbed at every wormhole: a few for getting there, more for every share of the strip you conquered. They are banked at once and outlive the run. Spend them between runs on a stronger start, a tougher flagship, run perks, and new races and heroes.</li>
             <li><b>Its deck</b> starts with ${CAMPAIGN.armySize} cards: your hero and your race's own, with a few neutral cards. It grows with every card you salvage or put in, and never drops below ${CAMPAIGN.armySize}.</li>
-            <li><b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card, and your ship's rooms add their walls, guns and modules to the cards standing in them.</li>
+            <li><b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card. Each universe's <b>galaxy</b> (a black hole, a pulsar, a meteor shower, a nebula or dark matter) bends every battle fought in it.</li>
             <li>${ARMORY_ICON} <b>Space stations</b> sell ${CAMPAIGN.armoryStock} cards each, every one only once. ${RESEARCH_ICON} <b>Research stations</b> offer ${CAMPAIGN.researchOptions} upgrades each: pick one, free. Both are better deep in the strip. Bring your flagship to one to use it.</li>
-            <li><b>Your base:</b> your deck, your <b>hero</b> (train, learn skills, wear gear) and your <b>ship</b> (rooms' walls and guns, the command room, shields and hull), and your missions.</li>
             <li>A system with no flagship in it fights as a <b>garrison</b>: more cards, thicker walls and a bigger sun the further along the strip, and the further along the run.</li>
             <li><b>Stars</b> differ. ${(['red', 'white', 'brown', 'neutron'] as const).map((k) => `<b>${STAR_TYPES[k].name}:</b> ${esc(STAR_TYPES[k].boon)} ${esc(STAR_TYPES[k].cost)}`).join(' ')}</li>
-            <li><b>Raiders</b> roam the strip: the last of peoples the collapse has already taken. They hunt a flagship that comes near, raid systems you hold, and flee the collapse. Beat them for their relics: ${MATERIALS} ${CAMPAIGN.lostRelicMaterials} and a card.</li>
-            <li>Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${CREDITS} credits in a system you hold.</li>
-            <li><b>Fog of war:</b> you only see systems linked to yours. Hold a system with a <b>scanner</b> to see two links out from it.</li>
-            <li><b>${esc(ORACLE_NAME)}</b> offers guidance under the move count. Read it or dismiss it; turn it off in settings.</li>
+            <li>Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with ${MATERIALS} materials at a space station.</li>
           </ul>`,
           true,
         );
@@ -2056,7 +2097,7 @@ export class CampaignView {
         return this.modal(
           `attack ${lower(to.name)}?`,
           `${this.matchup(sh.armyId, to)}
-           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-fight">fight</button><button class="btn" data-act="cmp-auto" title="Let the battle play itself out">auto</button><button class="btn" data-act="cmp-close">back</button></div>`,
+           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-fight">fight</button><button class="btn" data-act="cmp-close">back</button></div>`,
           false,
           '',
           'cmp-modal-narrow cmp-attack',
@@ -2075,7 +2116,7 @@ export class CampaignView {
     const sun = (o: { heat: number; mods: { maxHealthDelta?: number } } | undefined) =>
       o ? `<small class="cmp-vs-sun" title="Its sun starts at ${Math.max(0, o.heat)} heat, of ${BALANCE.supernovaAt + (o.mods.maxHealthDelta ?? 0)} max health">${Math.max(0, o.heat)}<i>/</i>${BALANCE.supernovaAt + (o.mods.maxHealthDelta ?? 0)}</small>` : '';
     const side = (army: Army | null, n: CampaignNode, o?: { heat: number; mods: { maxHealthDelta?: number } }) => {
-      const name = army ? armyLeader(army) : n.owner ? `${factionById(s, n.owner).name} guard` : n.heart ? 'the Heart Wardens' : `${n.name} sentinels`;
+      const name = army ? armyLeader(army) : n.owner ? `${factionById(s, n.owner).name} guard` : n.heart ? overlordById(s.overlord ?? 'colossus').name : `${n.name} sentinels`;
       const face = army ? armyFace(army) : n.owner ? this.avatarOf(n.owner, 'cmp-vs-av') : '<span class="cmp-portrait cmp-vs-blank"></span>';
       const colour = army ? this.colourOf(army.owner) : n.owner ? this.colourOf(n.owner) : NEUTRAL;
       return `<div class="cmp-vs-side" style="--fc:${colour}">${face}<b>${lower(name)}</b>${sun(o)}</div>`;
@@ -2093,6 +2134,7 @@ export class CampaignView {
       if (m.shieldPerTurn) tips.push(`<li class="${tone(true)}">${who} gain ${m.shieldPerTurn} shield${m.shieldPerTurn === 1 ? '' : 's'} every day.</li>`);
       if (m.coolPerTurn) tips.push(`<li class="${tone(true)}">${whose} sun cools by ${m.coolPerTurn} every day.</li>`);
       if (m.heatPerTurn) tips.push(`<li class="${tone(false)}">${whose} sun heats by ${m.heatPerTurn} every day.</li>`);
+      if (m.waveCardHeat) tips.push(`<li class="${tone(false)}">Heat waves from the Stellari strike ${whose.toLowerCase()} cards for ${m.waveCardHeat} too.</li>`);
       if (m.extraDraw) tips.push(`<li class="${tone(m.extraDraw > 0)}">${who} draw ${Math.abs(m.extraDraw)} ${m.extraDraw > 0 ? 'more' : 'fewer'} every day.</li>`);
       if (m.openingHand) tips.push(`<li class="${tone(m.openingHand > 0)}">${who} start with ${Math.abs(m.openingHand)} ${m.openingHand > 0 ? 'more' : 'fewer'} card${Math.abs(m.openingHand) === 1 ? '' : 's'} in hand.</li>`);
     }
@@ -2124,7 +2166,7 @@ export class CampaignView {
           })();
     // Guidance, not a gate: it sits under the turn count, and the game goes on around it.
     return `
-      <aside class="cmp-guide ${sp.kind === 'oracle' ? 'cmp-guide-oracle' : ''}" data-key="guide:${esc(scene.id)}:${i}" style="--sc:${who.colour}">
+      <aside class="cmp-guide ${sp.kind === 'oracle' ? 'cmp-guide-oracle' : ''} ${scene.id === 'intro' && this.introFlight ? 'cmp-guide-arrive' : ''}" data-key="guide:${esc(scene.id)}:${i}" style="--sc:${who.colour}">
         <div class="cmp-guide-face" title="${esc(who.name)}${who.sub ? ` · ${esc(who.sub)}` : ''}">${who.face}</div>
         <div class="cmp-guide-body">
           <small class="cmp-guide-who">${esc(who.name.toLowerCase())}</small>
@@ -2139,7 +2181,7 @@ export class CampaignView {
   /** What the player has to spend, for the base's and the stations' headers. */
   private purse(): string {
     const me = campaignPlayer(this.state!);
-    return `<div class="cmp-purse"><span title="Credits">${CREDITS}<b>${me.credits}</b></span><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Cards in your reserve, waiting for your deck">▤<b>${me.reserve.length}</b></span></div>`;
+    return `<div class="cmp-purse"><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Cards in your reserve, waiting for your deck">▤<b>${me.reserve.length}</b></span></div>`;
   }
 
   /** An armoury's stock (empty if the node has none). */
@@ -2152,10 +2194,14 @@ export class CampaignView {
   private renderArmory(sh: Extract<Sheet, { kind: 'armory' }>): string {
     const n = nodeById(this.state!, sh.nodeId);
     this.builder.setMode(this.armoryMode(sh));
+    // The station's dock repairs the flagship's damage (its sun starts battles that much hotter).
+    const ship = flagship(this.state!, this.state!.playerId);
+    const repair = ship && ship.damage > 0 ? `<span class="cmp-repair"><small>damage ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';
     return `
       <div class="cmp-base">
         <header class="cmp-base-top">
           <nav class="cmp-tabs"><span class="cmp-tab cmp-tab-on">${ARMORY_ICON} ${lower(n.name)} space station</span></nav>
+          ${repair}
           ${this.purse()}
           <button class="icon-btn" data-act="cmp-close" aria-label="Back to the map" title="Back to the map">×</button>
         </header>
@@ -2210,37 +2256,6 @@ export class CampaignView {
     );
   }
 
-  /**
-   * A battle's report, laid out rather than told: the result and where; the hero (their new level, or the
-   * experience); what was won, as tokens; the card salvaged, as itself; and the finds, as their marks.
-   */
-  private renderBattleReport(): string {
-    const r = this.battleReport!;
-    const token = (icon: string, n: number, label: string) => (n ? `<span class="br-token" data-tip-title="${esc(label.toLowerCase())}" data-tip="${n > 0 ? 'Won in this battle.' : 'Spent in this battle.'}">${icon}<b>${n > 0 ? '+' : ''}${n}</b></span>` : '');
-    const hero = r.hero
-      ? `<div class="br-hero ${r.level ? 'br-levelled' : ''}">${portrait(r.hero)}${r.level ? `<span class="br-level">level ${r.level}</span>` : r.xp ? `<span class="br-xp">+${r.xp} xp</span>` : ''}</div>`
-      : '';
-    const tokens = [token(CREDITS, r.credits, 'Credits'), token(MATERIALS, r.materials, 'Materials'), r.damage ? `<span class="br-token br-bad" data-tip-title="damage" data-tip="Your flagship's sun starts this much hotter until it is repaired.">✸<b>${r.damage}</b></span>` : ''].join('');
-    const finds = r.finds
-      .map((f) => `<span class="find rarity-${f.rarity}" data-tip-title="${esc(lower(f.name))}" data-tip="${esc(f.text)}" data-tip-note="${f.kind === 'module' ? 'Ship module: fit it in the ship tab.' : 'Hero gear: equip it in the hero tab.'}">${effectMark(f.mark)}<i class="find-kind">${f.kind === 'module' ? MODULE_ICON : GEAR_ICON}</i></span>`)
-      .join('');
-    const card = r.salvaged ? `<div class="br-card">${cardHtml(r.salvaged.id)}</div>` : '';
-    return this.modal(
-      '',
-      `<div class="br ${r.won ? 'br-won' : r.draw ? '' : 'br-lost'}">
-        <div class="br-head"><h2>${r.won ? 'victory' : r.draw ? 'draw' : 'defeat'}</h2><small>${esc(lower(r.system))}</small></div>
-        <div class="br-body">
-          ${hero}
-          <div class="br-spoils">${tokens ? `<div class="br-tokens">${tokens}</div>` : ''}${finds ? `<div class="finds-row">${finds}</div>` : ''}</div>
-          ${card}
-        </div>
-        <button class="btn-primary" data-act="cmp-close">continue</button>
-      </div>`,
-      false,
-      '',
-      'cmp-modal-narrow cmp-br',
-    );
-  }
 
 
 

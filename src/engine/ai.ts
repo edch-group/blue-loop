@@ -1,6 +1,10 @@
+import { BALANCE } from './balance';
 import { cardDef } from './cards';
 import {
+  reactCost,
+  baseHealth,
   activePlayer,
+  COMMAND_SLOT,
   heroSkillProblem,
   heroAbilityProblem,
   cardAttack,
@@ -19,6 +23,7 @@ import {
   planetAt,
   allyChoices,
   cardDefence,
+  guards,
   cardPassives,
   fusionHosts,
   freeSlots,
@@ -63,6 +68,8 @@ let ENERGY_HAND = tuning('EHAND', 4);
 
 /** How much of the heat a rival's next dawn will bring counts as heat already taken. */
 let INCOMING_WEIGHT = tuning('INCOMING', 0.8);
+/** What a sun its rivals could burn out next day costs, beyond the usual weight of heat coming. */
+let LETHAL_WEIGHT = tuning('LETHAL', 30);
 /** How much a rival's board counts against it (what taking a card from it is worth, against heat on its sun). */
 let RIVAL_BOARD = tuning('RIVAL_BOARD', 0.45);
 /** For simulations that pit two AI settings against each other. */
@@ -85,7 +92,7 @@ export function setAICombos(on: boolean) {
  * one of the tuning numbers above.
  */
 export function aiWeights(): Record<string, number> {
-  return { HORIZON, HERO_DAYS, RISK_PER, FINISH: FINISH_RATIO, GAP: LEADER_GAP, ACTION: ACTION_VALUE, EHAND: ENERGY_HAND, INCOMING: INCOMING_WEIGHT, RIVAL_BOARD, LSV: LIGHTSPEED_VALUE, COLD: COLD_HOPE };
+  return { HORIZON, HERO_DAYS, RISK_PER, FINISH: FINISH_RATIO, GAP: LEADER_GAP, ACTION: ACTION_VALUE, EHAND: ENERGY_HAND, INCOMING: INCOMING_WEIGHT, LETHAL: LETHAL_WEIGHT, RIVAL_BOARD, LSV: LIGHTSPEED_VALUE, COLD: COLD_HOPE };
 }
 export function setAIWeights(w: Record<string, number>) {
   if (w.HORIZON !== undefined) HORIZON = w.HORIZON;
@@ -96,6 +103,7 @@ export function setAIWeights(w: Record<string, number>) {
   if (w.ACTION !== undefined) ACTION_VALUE = w.ACTION;
   if (w.EHAND !== undefined) ENERGY_HAND = w.EHAND;
   if (w.INCOMING !== undefined) INCOMING_WEIGHT = w.INCOMING;
+  if (w.LETHAL !== undefined) LETHAL_WEIGHT = w.LETHAL;
   if (w.RIVAL_BOARD !== undefined) RIVAL_BOARD = w.RIVAL_BOARD;
   if (w.LSV !== undefined) LIGHTSPEED_VALUE = w.LSV;
   if (w.COLD !== undefined) COLD_HOPE = w.COLD;
@@ -347,7 +355,9 @@ function evaluate(state: GameState, meId: string): number {
     if (o.id === meId) continue;
     if (o.eliminated) score += 16;
     else {
-      const danger = Math.max(0, o.heat) / supernovaThreshold(o);
+      // (A Lost Overlord has no sun: how near its Overlord is to falling is its danger.)
+      const leader = o.boss?.leader ? o.tableau.find((c) => c.uid === o.boss!.leader) : undefined;
+      const danger = leader ? 1 - (leader.health ?? 0) / Math.max(1, leader.maxHealth ?? baseHealth(leader.defId)) : Math.max(0, o.heat) / supernovaThreshold(o);
       score += 12 * danger + 5 * danger * danger - RIVAL_BOARD * tableauValue(state, o) - 0.6 * orbitOutlook(o);
     }
   }
@@ -363,8 +373,33 @@ function evaluate(state: GameState, meId: string): number {
   const coming = landing * INCOMING_WEIGHT;
   const mine = Math.max(0, me.heat + coming) / supernovaThreshold(me);
   score -= 12 * mine + 10 * mine * mine;
+  // A kill shot waiting: if the rivals' next days could burn this sun out (their dawn heat, and every attack that
+  // gets past its Guards), nothing else matters as much. Breaking that up (removing an attacker, a Guard in the
+  // way, shields, cooling) beats any heat it could send their way now.
+  const lethal = lethalMargin(state, me);
+  if (lethal >= 0) score -= LETHAL_WEIGHT + 3 * lethal;
   score += tableauValue(state, me) + orbitOutlook(me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
+  // A Lightspeed card in hand it could pay for from what it leaves unspent (banked at day's end): an answer ready.
+  const ready = me.hand.some((c) => !!cardDef(c.defId).lightspeed && reactCost(c.defId) <= (activePlayer(state).id === me.id ? me.playsLeft : me.banked ?? 0));
+  if (ready) score += LIGHTSPEED_VALUE * 0.6;
   return score;
+}
+
+/** How hot it would burn past its limit if the rivals' next days went all at its sun (negative: it survives). */
+function lethalMargin(state: GameState, me: PlayerState): number {
+  if (me.boss) return -Infinity;
+  // (Its Guards stand in the way of attacks: what it takes to beat each one down soaks that much.)
+  let soak = guards(me).reduce((n, c) => n + cardDefence(me, c) + (c.health ?? 0), 0);
+  let heat = 0;
+  for (const o of state.players) {
+    if (o.id === me.id || o.eliminated || targetOf(state, o)?.id !== me.id) continue;
+    heat += turnForecast(state, o).heat;
+    const attacks = o.tableau.reduce((n, c) => n + cardAttack(state, o, c), 0);
+    const through = Math.max(0, attacks - soak);
+    soak = Math.max(0, soak - attacks);
+    heat += through;
+  }
+  return me.heat + Math.max(0, heat - me.shields) - supernovaThreshold(me);
 }
 
 /** Every way to play one card now (placement, choice, removal, recall, restore and recovery choices included). */
@@ -450,10 +485,63 @@ function aiSkill(state: GameState, me: PlayerState): number | null {
 }
 
 /** The last decision's numbers, for simulations that look into why the AI did what it did. */
+/**
+ * The AI's answer in a reaction window: each answer it could make (its face-down card, or a Lightspeed card from
+ * hand) is played out with the move it answers, and kept if it leaves it clearly better off than letting it pass
+ * (a Lightspeed card held is worth something: it is not spent on a small gain).
+ */
+function chooseReaction(state: GameState): Action {
+  const r = state.reaction!;
+  const settle = (s: GameState): GameState => {
+    let t = s;
+    // (Any answer still open is let pass, to see where the move leaves things.)
+    for (let i = 0; i < 3 && t.reaction; i++) t = applyAction(t, { type: 'react' });
+    return t;
+  };
+  const pass: Action = { type: 'react' };
+  let best: Action = pass;
+  let score = evaluate(settle(applyAction(state, pass)), r.playerId);
+  const options: Action[] = [...(r.slot ? [{ type: 'react' as const, slot: true }] : []), ...r.hand.map((cardUid) => ({ type: 'react' as const, cardUid }))];
+  for (const a of options) {
+    try {
+      const v = evaluate(settle(applyAction(state, a)), r.playerId) - LIGHTSPEED_VALUE * 0.5;
+      if (v > score) [score, best] = [v, a];
+    } catch {
+      // (Not an answer it can make.)
+    }
+  }
+  return best;
+}
+
 export const aiLastDecision: { baseline: number; best: number | null; bestAction: Action | null } = { baseline: 0, best: null, bestAction: null };
 
 export function chooseAIAction(state: GameState): Action {
+  // A reaction window open for it: answer with the Lightspeed card that leaves it best off, or let the move pass.
+  if (state.reaction) return chooseReaction(state);
   const me = activePlayer(state);
+  // A Lost Overlord acts at its dawn, by itself: it has nothing to play, and its parts do not attack.
+  if (me.boss) return { type: 'endTurn' };
+  // A dawn choice waiting (Circular Refraction): the card returned or moved that leaves it best placed, or none if
+  // none is better.
+  const dawn = me.dawnChoices?.[0];
+  if (dawn) {
+    let best: Action = { type: 'dawnChoice' };
+    let score = evaluate(applyAction(state, best), me.id) + 0.05;
+    for (const c of me.tableau) {
+      if (c.slot === COMMAND_SLOT) continue;
+      for (let to = 0; to < (dawn.kind === 'shift' ? BALANCE.tableauSlots : 1); to++) {
+        if (dawn.kind === 'shift' && to === c.slot) continue;
+        const a: Action = dawn.kind === 'shift' ? { type: 'dawnChoice', allyUid: c.uid, shiftTo: to } : { type: 'dawnChoice', allyUid: c.uid };
+        try {
+          const v = evaluate(applyAction(state, a), me.id);
+          if (v > score) [score, best] = [v, a];
+        } catch {
+          // (Not a move it can make.)
+        }
+      }
+    }
+    return best;
+  }
   const focus = bestTarget(state, me);
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
   const skill = aiSkill(state, me);
@@ -477,12 +565,11 @@ export function chooseAIAction(state: GameState): Action {
   }
   if (!abilities.length && !attacks.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
-  // The AI cannot see its rivals' face-down Lightspeed cards, so it plans as if there were none.
-  let view = state;
-  if (state.players.some((p) => p.id !== me.id && p.lightspeed)) {
-    view = structuredClone(state);
-    for (const p of view.players) if (p.id !== me.id) p.lightspeed = null;
-  }
+  // The AI cannot see its rivals' face-down Lightspeed cards (or their hands), so it plans as if no answer
+  // would come: no reaction windows in its look-ahead.
+  const view = structuredClone(state);
+  view.noReactions = true;
+  for (const p of view.players) if (p.id !== me.id) p.lightspeed = null;
   const baseline = evaluate(view, me.id);
   let best: { action: Action; score: number } | null = null;
   if (aiScores) aiScores = [{ action: { type: 'endTurn' }, score: baseline - 1.5 }];

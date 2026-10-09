@@ -390,6 +390,33 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
 }
 
 /**
+ * An aim being dragged: the attack beam from a card to the pointer (or finger), its head at the pointer and
+ * following it, until stopped. `to` moves its head (a point in the page's own coordinates, like the source's
+ * rectangle: see viewport.ts toPage); `stop` takes it away.
+ */
+export function pointerAim(source: () => DOMRect | null, kind: BeamKind = 'attack'): { to: (x: number, y: number) => void; stop: () => void } {
+  const b = new Beam(kind, 0.22);
+  b.mount();
+  let at: [number, number] | null = null;
+  let frame = 0;
+  const place = () => {
+    const from = source();
+    b.svg.style.visibility = from && at ? '' : 'hidden';
+    // (The head's tip on the pointer: the beam ends a hair short of a point there.)
+    if (from && at) b.draw(from, new DOMRect(at[0] - 1, at[1] - 1, 2, 2), 1);
+    frame = requestAnimationFrame(place);
+  };
+  frame = requestAnimationFrame(place);
+  return {
+    to: (x, y) => (at = [x, y]),
+    stop: () => {
+      cancelAnimationFrame(frame);
+      b.remove();
+    },
+  };
+}
+
+/**
  * A sun going supernova: a white-hot flash swelling from it, shockwave rings racing out across the
  * board, and sparks flung in every direction, all fading as they go.
  */
@@ -448,3 +475,58 @@ export function supernovaBurst(at: DOMRect) {
   }
   window.setTimeout(() => layer.remove(), 2400);
 }
+
+/**
+ * A heat wave going out from the Stellari in a ring, across the board (an ellipse, as the board lies tilted):
+ * from `center` to radii `rx`, `ry` (page pixels) over `duration`, steadily, so it reaches a point at a set time
+ * (waveReach). A hot band, glowing, fading as it goes.
+ */
+export function heatWave(center: DOMRect, rx: number, ry: number, opts: { delay?: number; duration?: number } = {}) {
+  if (reducedMotion()) return;
+  const duration = opts.duration ?? 900;
+  window.setTimeout(() => {
+    const el = document.createElement('div');
+    el.className = 'heat-wave';
+    const cx = center.left + center.width / 2, cy = center.top + center.height / 2;
+    Object.assign(el.style, { left: `${cx - rx}px`, top: `${cy - ry}px`, width: `${2 * rx}px`, height: `${2 * ry}px` });
+    document.body.appendChild(el);
+    const anim = el.animate(
+      [
+        { transform: 'scale(0.04)', opacity: 0 },
+        { transform: 'scale(0.12)', opacity: 1, offset: 0.08 },
+        { transform: 'scale(0.75)', opacity: 0.9, offset: 0.75 },
+        { transform: 'scale(1)', opacity: 0 },
+      ],
+      { duration, easing: 'linear', fill: 'both' },
+    );
+    anim.onfinish = () => el.remove();
+  }, opts.delay ?? 0);
+  // Then the shockwave: ripples spreading across the whole board behind the hot ring, as on water (a bright crest
+  // and a dark trough, bending what lies under them), each a little behind and fainter than the last.
+  for (let i = 0; i < 3; i++) {
+    window.setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'wave-ripple';
+      const cx = center.left + center.width / 2, cy = center.top + center.height / 2;
+      const k = 1.25;
+      Object.assign(el.style, { left: `${cx - rx * k}px`, top: `${cy - ry * k}px`, width: `${2 * rx * k}px`, height: `${2 * ry * k}px` });
+      document.body.appendChild(el);
+      const anim = el.animate(
+        [
+          { transform: 'scale(0.05)', opacity: 0 },
+          { transform: 'scale(0.15)', opacity: 1 - i * 0.25, offset: 0.1 },
+          { transform: 'scale(1)', opacity: 0 },
+        ],
+        { duration: duration * 1.9, easing: 'cubic-bezier(.2,.6,.4,1)', fill: 'both' },
+      );
+      anim.onfinish = () => el.remove();
+    }, (opts.delay ?? 0) + duration * 0.35 + i * 110);
+  }
+}
+
+/** How far out (0 at the centre, 1 at the wave's edge) a point lies on a heat wave's ellipse. */
+export function waveReach(center: DOMRect, rx: number, ry: number, at: DOMRect): number {
+  const dx = at.left + at.width / 2 - (center.left + center.width / 2), dy = at.top + at.height / 2 - (center.top + center.height / 2);
+  return Math.hypot(dx / rx, dy / ry);
+}
+

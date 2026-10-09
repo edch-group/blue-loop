@@ -10,7 +10,7 @@ export const BALANCE = {
   /** Sun temperature bounds. Reaching `supernovaAt` eliminates a player. */
   startingHeat: 0,
   minHeat: -10,
-  supernovaAt: 24,
+  supernovaAt: 20,
 
   /** Decks: between `deckSize` and `maxDeckSize` cards, at most `maxCopies` of each, and one Command card per `cardsPerCommand` cards. */
   deckSize: 30,
@@ -32,8 +32,6 @@ export const BALANCE = {
   laterSeatCool: 0,
   /** The catch-up only applies in games with at most this many players (in bigger games everyone but the leader gangs up anyway). */
   catchUpMaxPlayers: 2,
-  /** An empty deck is refilled by shuffling your discard pile back in, which heats your sun by this much (unblockable). */
-  reshuffleHeat: 2,
   /** With both deck and discard pile empty, each card you should draw heats your sun by this much instead (unblockable). */
   fatigueHeat: 2,
 
@@ -60,8 +58,6 @@ export const BALANCE = {
   maxFused: 2,
   /** Worn defence each card (and empty slot) mends at its owner's dawn: none. Defence is a wall worn down over the game; only Repair mends it. */
   defenceMend: 0,
-  /** A card with at least this much defence (its slot's, Sturdy, Bulwark) is a Guard while it holds, a Hero too. */
-  wallGuard: 3,
   /** A Hero's stability when it lists none. (Cards no longer fade with the days: stability is what they can take.) */
   heroStability: 5,
   /** Each point a card has grown adds this to its attack (`growthAttackAll`: even a card with none of its own) and to its stability. */

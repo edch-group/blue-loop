@@ -8,7 +8,7 @@ import type { CardDef, CardKind } from './types';
  * Every profile spends the same budget, 2c+2 points of attack, Sturdy and stability at cost c: one point more than
  * a card of its cost with an ability (about 2c+1). Striker c+1 attack, c+1 stability; glass c+2 attack, c stability;
  * brute c attack, c+2 stability; guardian c−1 attack, Sturdy 2, c+1 stability; veteran c attack, Sturdy 1, c+1
- * stability; wall no attack, Sturdy 3 (a Guard by its walls), 2c−1 stability (at least 1).
+ * stability; wall no attack, Sturdy 3, 2c−1 stability (at least 1), and Guard (a wall is there to be struck first).
  */
 type Profile = 'striker' | 'glass' | 'brute' | 'guardian' | 'veteran' | 'wall';
 
@@ -56,11 +56,17 @@ function plain(id: string, name: string, race: number | undefined, cost: number,
   const kind: CardKind = s.attack > 0 ? 'attack' : 'defence';
   return {
     id, name, kind, cost, race,
-    text: s.sturdy ? `{sturdy:${s.sturdy}}.` : '',
+    text: plainText(profile, s.sturdy),
     attack: s.attack,
     health: s.health,
     ...(s.sturdy ? { defence: s.sturdy } : {}),
+    ...(profile === 'wall' ? { passive: [{ type: 'taunt' as const }] } : {}),
   };
+}
+
+/** A plain card's words: a wall's Guard (it is there to be struck first), then its Sturdy. */
+export function plainText(profile: Profile, sturdy: number): string {
+  return [profile === 'wall' ? '{guard}.' : '', sturdy ? `{sturdy:${sturdy}}.` : ''].filter(Boolean).join(' ');
 }
 
 /** Cards that were plain all along: given their profile's numbers (in cards.ts, once they are loaded). */
@@ -145,7 +151,7 @@ export const PLAIN_CARDS: CardDef[] = [
   plain('p_umbral_knight', 'Umbral Knight', 4, 4, 'striker'),
   plain('p_eclipse_reaver', 'Eclipse Reaver', 4, 5, 'glass'),
   // ---- Korrath: iron and more iron ----
-  plain('p_anvil_guard', 'Anvil Guard', 5, 1, 'veteran'),
+  plain('p_anvil_guard', 'Anvil Guard', 5, 1, 'brute'),
   plain('p_iron_bulwark', 'Iron Bulwark', 5, 2, 'guardian'),
   plain('p_forge_knight', 'Forge Knight', 5, 3, 'striker'),
   plain('p_steel_bastion', 'Steel Bastion', 5, 4, 'guardian'),

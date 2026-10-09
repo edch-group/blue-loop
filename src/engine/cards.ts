@@ -4,13 +4,14 @@ import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { RACE_CARDS } from './cards-races';
 import { DUSK_CARDS } from './cards-dusk';
-import { PLAIN_CARDS, PLAIN_EXISTING, PLAIN_PROFILE, plainStats } from './cards-plain';
+import { PLAIN_CARDS, PLAIN_EXISTING, PLAIN_PROFILE, plainStats, plainText } from './cards-plain';
 import { REMOVAL_CARDS } from './cards-removal';
 import { BIG_CARDS } from './cards-big';
 import { RELIC_CARDS } from './cards-relics';
 import { HERO_CARDS, heroCost } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
+import { BOSS_CARDS } from './cards-bosses';
 import { BOONS } from './boons';
 import { raceTrait } from './races';
 import { CARD_COSTS } from './costs';
@@ -156,6 +157,9 @@ export const CARDS: CardDef[] = [
 
   // ---- Shift: moving cards between slots (yours, or with Displace your rival's) ----
   { id: 'gravity_tether', name: 'Gravity Tether', kind: 'defence', text: '{shift}. {shield:2}.', onPlay: [{ type: 'shift' }, { type: 'shield', amount: 2 }] },
+  // (Its dawn Recall and Shift wait on its owner: at their dawn they return a card of theirs to hand, then move one, or
+  // let either be.)
+  { id: 'circular_refraction', name: 'Circular Refraction', kind: 'growth', cost: 1, rarity: 'anomaly', text: '{dawn}: {recall}, then {shift}.', onTurn: [{ type: 'recall' }, { type: 'shift' }] },
   { id: 'orbital_tug', name: 'Orbital Tug', kind: 'attack', text: '{displace}. {heat:3}.', onPlay: [{ type: 'shift', enemy: true }, { type: 'heat', amount: 3, to: 'target' }] },
 
   // ---- Removal: aimed at your rival's tableau ----
@@ -186,43 +190,43 @@ export const CARDS: CardDef[] = [
     id: 'null_field',
     name: 'Null Field',
     kind: 'lightspeed',
-    text: "{lightspeed}. When an enemy plays an attack card, cancel it.",
+    text: '{lightspeed}. When your rival plays an armed card, cancel it.',
     lightspeed: { trigger: { on: 'enemyPlays', kind: 'attack' }, counter: true },
   },
   {
     id: 'signal_jammer',
     name: 'Signal Jammer',
     kind: 'lightspeed',
-    text: '{lightspeed}. When an enemy plays a support card, cancel it. Draw 1.',
-    lightspeed: { trigger: { on: 'enemyPlays', kind: 'growth' }, counter: true, effects: [{ type: 'draw', amount: 1 }] },
+    text: '{lightspeed}. When your rival plays a support card, cancel it.',
+    lightspeed: { trigger: { on: 'enemyPlays', kind: 'growth' }, counter: true },
   },
   {
     id: 'frost_snare',
     name: 'Frost Snare',
     kind: 'lightspeed',
-    text: '{lightspeed}. When an enemy plays a defence card, cancel it and {heat:1} to them.',
-    lightspeed: { trigger: { on: 'enemyPlays', kind: 'defence' }, counter: true, effects: [{ type: 'heat', amount: 1, to: 'target' }] },
+    text: '{lightspeed}. When a rival card attacks one of yours, first 4 heat to the attacker.',
+    lightspeed: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'hitBack', amount: 4 }] },
   },
   {
     id: 'solar_mirror',
     name: 'Solar Mirror',
     kind: 'lightspeed',
-    text: "{lightspeed}. When an enemy's card is about to heat your sun, first {shield:3} and {heat:1} to them.",
-    lightspeed: { trigger: { on: 'heated' }, effects: [{ type: 'shield', amount: 3 }, { type: 'heat', amount: 1, to: 'target' }] },
+    text: "{lightspeed}. When a rival card attacks your sun, return it to its owner's hand.",
+    lightspeed: { trigger: { on: 'sunAttacked' }, effects: [{ type: 'returnIt' }] },
   },
   {
     id: 'decoy_array',
     name: 'Decoy Array',
     kind: 'lightspeed',
-    text: '{lightspeed}. When an enemy is about to destroy or return one of your cards, cancel it. Draw 1.',
-    lightspeed: { trigger: { on: 'targeted' }, counter: true, effects: [{ type: 'draw', amount: 1 }] },
+    text: '{lightspeed}. When a rival card attacks one of yours, that card gains 3 defence and stands Guard until your next dawn.',
+    lightspeed: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'fortify', amount: 3, who: 'it' }] },
   },
   {
     id: 'temporal_snare',
     name: 'Temporal Snare',
     kind: 'lightspeed',
-    text: "{lightspeed}. When an enemy plays a card, cancel it. They may play no more cards today. Draw 1.",
-    lightspeed: { trigger: { on: 'enemyPlays' }, counter: true, effects: [{ type: 'halt' }, { type: 'draw', amount: 1 }] },
+    text: '{lightspeed}. When your rival plays a card, cancel it. They may play no more cards today.',
+    lightspeed: { trigger: { on: 'enemyPlays' }, counter: true, effects: [{ type: 'halt' }] },
   },
 
   // ---- Aureline: lancers. Many attack cards, each making the others hit harder ----
@@ -454,8 +458,8 @@ export const CARDS: CardDef[] = [
     name: 'Riptide Ambushers',
     kind: 'lightspeed',
     race: 2,
-    text: "{lightspeed}. When an enemy's card would heat your sun by 3 or more, cancel that and {heat:2} to them.",
-    lightspeed: { trigger: { on: 'heated', min: 3 }, counter: true, effects: [{ type: 'heat', amount: 2, to: 'target' }] },
+    text: '{lightspeed}. When a rival card attacks one of yours, shift yours to your best-defended free slot, then 3 heat to the attacker.',
+    lightspeed: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'shiftMine' }, { type: 'hitBack', amount: 3 }] },
   },
   {
     id: 'regrowth_pod',
@@ -721,8 +725,9 @@ for (const [id, profile] of Object.entries(PLAIN_EXISTING)) {
   const c = CARDS.find((x) => x.id === id)!;
   const s = plainStats(profile, c.race, c.cost ?? 1);
   const kind = s.attack > 0 ? 'attack' : 'defence';
-  Object.assign(c, { kind, attack: s.attack, health: s.health, defence: s.sturdy || undefined, text: s.sturdy ? `{sturdy:${s.sturdy}}.` : '' });
+  Object.assign(c, { kind, attack: s.attack, health: s.health, defence: s.sturdy || undefined, text: plainText(profile, s.sturdy) });
   for (const k of ['onPlay', 'onTurn', 'onDusk', 'onLeave', 'onRecover', 'passive', 'choices', 'attune', 'lightspeed', 'spendAll', 'consume'] as const) delete c[k];
+  if (profile === 'wall') c.passive = [{ type: 'taunt' }];
   PLAIN_PROFILE[id] = profile;
 }
 // The core races' cards as they now are (cards-core.ts): the same card in every mode.
@@ -789,7 +794,7 @@ export function copyLimit(defId: string): number {
 
 for (const t of TOKENS) Object.assign(t, { cost: 0 });
 // (Tokens are cards in play, but not in the pool: no deck, shop or collection has them.)
-const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS].map((c) => [c.id, c]));
+const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS, ...BOSS_CARDS].map((c) => [c.id, c]));
 
 /**
  * Dawn heat as attack: each card's plain dawn heat at the rival (no condition) becomes that much more
@@ -866,6 +871,23 @@ for (const c of CARDS) {
     c.defence = (c.defence ?? 0) - d;
     c.text = c.text.replace(/\{sturdy:(\d+)\}/, (_, n: string) => `{sturdy:${Number(n) - d}}`);
   }
+}
+
+/**
+ * A race's traits, printed on its cards in full, last of all (after every change to the cards' words, so none is
+ * lost): nothing a race gives a card goes unsaid. Its Sturdy in the card's Sturdy, its Sting in the card's Sting
+ * (every card that stands in play, a Fusion card in a slot of its own too, a Hero too), Darkspeed on the cards that
+ * have it, and the Seren's extra attunement in the card's attunement.
+ */
+const setKeyword = (text: string, kw: string, n: number) =>
+  new RegExp(`\\{${kw}(:\\d+)?\\}`).test(text) ? text.replace(new RegExp(`\\{${kw}(:\\d+)?\\}`), `{${kw}:${n}}`) : `{${kw}:${n}}. ${text}`;
+for (const c of CARDS) {
+  const t = raceTrait(c.race);
+  if (!t || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
+  if (t.sturdy && !c.fusion && (c.defence ?? 0) > 0) c.text = setKeyword(c.text, 'sturdy', c.defence ?? 0);
+  if (t.sting) c.text = setKeyword(c.text, 'sting', (c.passive ?? []).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0) + t.sting);
+  if (t.attune && c.attune) c.text = setKeyword(c.text, 'attune', c.attune + t.attune);
+  if (hasDarkspeed(c) && !/\{darkspeed\}/.test(c.text)) c.text = `{darkspeed}. ${c.text}`;
 }
 
 /** What a card is, as players read it: a unit (it stays in play) or a surge (it resolves and goes), or a Hero, Relic, Lightspeed or global card. */

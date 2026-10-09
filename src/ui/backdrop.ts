@@ -13,6 +13,12 @@ const BURST_DEG = 30;
 const BURST_MS = 1800;
 /** Gentle at both ends (a sine ease: no sudden start or stop). */
 const easeInOut = (t: number) => 0.5 - Math.cos(Math.PI * t) / 2;
+/** A heat wave: how far the star whirls, how fast it flushes red, and how slowly it cools again. */
+const WAVE_SPIN_DEG = 120;
+/** (A heat wave's whirl is quick: a sharp turn, not a move's slow drift.) */
+const WAVE_SPIN_MS = 750;
+export const RAGE_IN_MS = 200;
+const RAGE_OUT_MS = 400;
 
 class Backdrop {
   private el: HTMLElement | null = null;
@@ -23,9 +29,12 @@ class Backdrop {
    * Bursts of spin from moves: each turns the star a set amount over a set time, easing in and out,
    * timed by the clock (so a frame that a re-render holds up does not jolt it). Overlapping bursts add up.
    */
-  private bursts: { start: number; deg: number }[] = [];
+  private bursts: { start: number; deg: number; ms?: number }[] = [];
   private tint = 0;
   private tintTarget = 0;
+  /** A heat wave gathering: the star whirls and flushes red (0 to 1), then lets it go. */
+  private rages: { start: number; hold: number }[] = [];
+  private rage = 0;
   private last = 0;
 
   mount() {
@@ -70,6 +79,17 @@ class Backdrop {
     this.bursts.push({ start: performance.now(), deg: BURST_DEG });
   }
 
+  /**
+   * The Stellari looses a heat wave: it whirls round and turns red (eased in over RAGE_IN_MS), holds red while
+   * the wave goes out (`holdMs`), then cools back to its colour.
+   */
+  heatWave(holdMs: number) {
+    if (reducedMotion()) return;
+    const now = performance.now();
+    this.rages.push({ start: now, hold: holdMs });
+    this.bursts.push({ start: now, deg: WAVE_SPIN_DEG, ms: WAVE_SPIN_MS });
+  }
+
   /** -1 = as cold as a sun can be (blue), 0 = neutral (white), 1 = on the edge of supernova (red). */
   setHeat(t: number) {
     this.tintTarget = Math.max(-1, Math.min(1, t));
@@ -84,7 +104,7 @@ class Backdrop {
     this.angle = (this.angle + 2 * dt) % 1800;
     let extra = 0;
     this.bursts = this.bursts.filter((b) => {
-      const t = (now - b.start) / BURST_MS;
+      const t = (now - b.start) / (b.ms ?? BURST_MS);
       if (t >= 1) {
         this.angle = (this.angle + b.deg) % 1800;
         return false;
@@ -95,22 +115,39 @@ class Backdrop {
     const a = this.angle + extra;
     this.outer?.setAttribute('transform', `rotate(${a.toFixed(3)} 500 170)`);
     this.inner?.setAttribute('transform', `rotate(${(-a * 0.6).toFixed(3)} 500 170)`);
+    let tinted = false;
     if (Math.abs(this.tint - this.tintTarget) > 0.002) {
       this.tint += (this.tintTarget - this.tint) * Math.min(1, dt * 1.5);
-      this.applyTint();
+      tinted = true;
     }
+    // A heat wave's flush of red: in over RAGE_IN_MS, held, then out over RAGE_OUT_MS.
+    let rage = 0;
+    this.rages = this.rages.filter((r) => {
+      const t = now - r.start;
+      if (t > RAGE_IN_MS + r.hold + RAGE_OUT_MS) return false;
+      const k = t < RAGE_IN_MS ? easeInOut(t / RAGE_IN_MS) : t < RAGE_IN_MS + r.hold ? 1 : 1 - easeInOut((t - RAGE_IN_MS - r.hold) / RAGE_OUT_MS);
+      rage = Math.max(rage, k);
+      return true;
+    });
+    if (rage !== this.rage) {
+      this.rage = rage;
+      tinted = true;
+    }
+    if (tinted) this.applyTint();
     requestAnimationFrame((t) => this.frame(t));
   }
 
   private applyTint() {
     if (!this.el) return;
-    const t = Math.abs(this.tint);
-    // Deep red when hot, icy blue when cold.
-    const [r, g, b] = this.tint >= 0 ? [226, 84, 66] : [74, 142, 226];
     const mix = (from: number, to: number, k: number) => Math.round(from + (to - from) * k);
+    // Deep red when hot, icy blue when cold; and red, strongly, while it looses a heat wave.
+    const base = this.tint >= 0 ? [226, 84, 66] : [74, 142, 226];
+    const RED = [222, 52, 38];
+    const [r, g, b] = base.map((v, i) => mix(v, RED[i], this.rage));
+    const t = Math.max(Math.abs(this.tint), this.rage);
     // The petals only take a light wash of the colour, so the page stays easy to read;
-    // the strong colour sits in a glow at the centre of the mandala.
-    const k = t * 0.35;
+    // the strong colour sits in a glow at the centre of the mandala (a heat wave floods the petals too).
+    const k = Math.max(Math.abs(this.tint) * 0.35, this.rage * 0.9);
     const stroke = `rgba(${mix(255, r, k)}, ${mix(255, g, k)}, ${mix(255, b, k)}, 0.95)`;
     const fill = `rgba(${mix(255, r, k)}, ${mix(255, g, k)}, ${mix(255, b, k)}, 0.26)`;
     this.el.style.setProperty('--petal-stroke', stroke);

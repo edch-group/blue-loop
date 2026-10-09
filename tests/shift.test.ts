@@ -70,4 +70,38 @@ describe('shift', () => {
     expect(() => applyAction(s, action)).not.toThrow();
     expect(freeSlots(me).length).toBeGreaterThan(0);
   });
+
+  it('Circular Refraction: at its dawn a Recall, then a Shift, wait on its owner before anything else; done, or let be', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const r = put(me, 'circular_refraction', 0);
+    const v = put(me, 'cryo_vault', 3);
+    const d = put(me, 'deflector_grid', 4);
+    // Round to its owner's next dawn.
+    s = applyAction(s, { type: 'endTurn' });
+    s = applyAction(s, { type: 'endTurn' });
+    expect(activePlayer(s).id).toBe(me.id);
+    expect(activePlayer(s).dawnChoices).toEqual([{ uid: r.uid, kind: 'recall' }, { uid: r.uid, kind: 'shift' }]);
+    // Nothing else first; the AI answers it too.
+    expect(() => applyAction(s, { type: 'endTurn' })).toThrow(/dawn recall/);
+    expect(chooseAIAction(s).type).toBe('dawnChoice');
+    // The Recall: another of its owner's cards (not itself) back to hand.
+    expect(() => applyAction(s, { type: 'dawnChoice', allyUid: r.uid })).toThrow();
+    s = applyAction(s, { type: 'dawnChoice', allyUid: d.uid });
+    expect(activePlayer(s).hand.some((c) => c.defId === 'deflector_grid')).toBe(true);
+    // Then the Shift: a card can't move onto its own slot.
+    expect(() => applyAction(s, { type: 'endTurn' })).toThrow(/dawn shift/);
+    expect(() => applyAction(s, { type: 'dawnChoice', allyUid: v.uid, shiftTo: 3 })).toThrow();
+    s = applyAction(s, { type: 'dawnChoice', allyUid: v.uid, shiftTo: 1 });
+    expect(activePlayer(s).tableau.find((c) => c.uid === v.uid)!.slot).toBe(1);
+    expect(activePlayer(s).dawnChoices).toBeUndefined();
+    // Next dawn, both let be: nothing moves, and the day goes on.
+    s = applyAction(s, { type: 'endTurn' });
+    s = applyAction(s, { type: 'endTurn' });
+    s = applyAction(s, { type: 'dawnChoice' });
+    s = applyAction(s, { type: 'dawnChoice' });
+    expect(activePlayer(s).tableau.find((c) => c.uid === v.uid)!.slot).toBe(1);
+    expect(() => applyAction(s, { type: 'endTurn' })).not.toThrow();
+  });
+
 });

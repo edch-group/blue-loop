@@ -106,7 +106,7 @@ export type Effect = (
   /** Chosen: one of your other cards gains this much attack while it stays in play. */
   | { type: 'empower'; amount: number }
   /**
-   * Offering (the Aureline): one of your armed cards that hasn't acted today gives up its attack for the rest of
+   * Offering (the Aureline): one of your undimmed armed cards gives up its attack for the rest of
    * the day (it reads 0, unless something gives it more), and a rival card of your choice loses that much
    * stability (`times` over), past its defence.
    */
@@ -131,6 +131,25 @@ export type Effect = (
   | { type: 'plays'; amount: number }
   /** Lightspeed: the enemy who sprang this card may play no more cards today. */
   | { type: 'halt' }
+  /** Lightspeed: this much heat to the enemy card that attacks (at it, past nothing but its defence). */
+  | { type: 'hitBack'; amount: number }
+  /** Lightspeed: the enemy card it answers goes back to its owner's hand (the card being played, or the attacker). */
+  | { type: 'returnIt' }
+  /**
+   * Lightspeed: one of your cards gains this much defence until your next dawn (at 3 or more it is a Guard, and
+   * draws the attack): the card attacked or aimed at (`it`), or your best-defended card (`best`).
+   */
+  | { type: 'fortify'; amount: number; who: 'it' | 'best' }
+  /** Lightspeed: your card attacked or aimed at moves to your best-defended free slot. */
+  | { type: 'shiftMine' }
+  /** A Lost Overlord's blow: this much heat to the rival card with the most attack (its defence first). */
+  | { type: 'strikeBest'; amount: number }
+  /** A Lost Overlord's sweep: this much heat to every rival card (each one's defence first). */
+  | { type: 'strikeAll'; amount: number }
+  /** A Lost Overlord's hunger: the rival card with the least stability left is destroyed. */
+  | { type: 'devour' }
+  /** A Lost Overlord calls its retainers: this many of a card into its free slots. */
+  | { type: 'summon'; defId: string; amount: number }
   /** Move an orbit on by `amount` turns (negative: back), yours or your rival's. Three turns is a whole planet. */
   | { type: 'orbit'; amount: number; who: 'self' | 'rival' }
 ) & { if?: Condition };
@@ -183,25 +202,61 @@ export type Passive =
   | { type: 'eatPlanets' };
 
 /**
- * What springs a face-down Lightspeed card, during an enemy's day:
- * - `enemyPlays`: an enemy plays a card (of a kind, if given), before it resolves;
- * - `heated`: an enemy's card is about to heat your sun (by at least `min`);
- * - `targeted`: an enemy is about to destroy or return one of your cards;
- * - `cardAttacked`: an enemy card is about to attack one of your cards.
+ * What a Lightspeed card answers, during an enemy's day (from its owner's face-down slot, or from their hand with
+ * banked energy). Each is something the enemy does, caught before it resolves:
+ * - `enemyPlays`: an enemy plays a card (of a kind, if given: `command` is a Hero);
+ * - `sunAttacked`: an enemy card attacks your sun;
+ * - `cardAttacked`: an enemy card attacks one of your cards;
+ * - `targeted`: an enemy plays a card aimed at one of your cards (removal, a shift, heat aimed at it...).
  */
-export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'heated'; /** Only heat of at least this much. */ min?: number } | { on: 'targeted' } | { on: 'cardAttacked' };
+export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'sunAttacked' } | { on: 'cardAttacked' } | { on: 'targeted' };
 
 export interface Lightspeed {
   trigger: LightspeedTrigger;
-  /** Cancel what sprang it: the card played (it goes to its owner's discard pile), the heat, or the removal. */
+  /** Cancel what it answers: the card played (it goes to its owner's discard pile, its energy spent), or the attack. */
   counter?: boolean;
-  /** Resolved as the card springs (before the enemy's card, if it is not cancelled). "Your target" is the enemy who sprang it. */
+  /** Resolved as it springs, before what it answers. "Your target" is the enemy it answers. */
   effects?: Effect[];
   /**
    * A Lightspeed guard (a card of another kind that can also be set face down, for 1 more energy): as it
-   * springs it lands in a free slot of your tableau, and the heat that sprang it strikes it instead.
+   * springs it lands in a free slot of your tableau, and the attack it answers strikes it instead.
    */
   deploy?: boolean;
+}
+
+/** What an enemy is doing, that a Lightspeed card may answer (see Reaction). */
+export interface ReactEvent {
+  on: LightspeedTrigger['on'];
+  /** The card the enemy is playing (enemyPlays, targeted). */
+  defId?: string;
+  /** The enemy is setting a card face down (enemyPlays: what it is stays hidden). */
+  faceDown?: boolean;
+  /** The enemy card attacking (sunAttacked, cardAttacked). */
+  attackerUid?: string;
+  /** Your card attacked, or aimed at (cardAttacked, targeted). */
+  mineUid?: string;
+}
+
+/**
+ * A reaction window: the active player's move waits while a rival decides whether to answer it with a
+ * Lightspeed card (their face-down one, or one from hand they can pay for with banked energy).
+ */
+export interface Reaction {
+  /** Who may answer. */
+  playerId: string;
+  /** Whose move it is. */
+  enemyId: string;
+  events: ReactEvent[];
+  /** The move waiting (checked, not yet made): a card being played, or an attack. */
+  pending: { kind: 'play'; action: Extract<Action, { type: 'playCard' }> } | { kind: 'attack'; attackerUid: string; targetUid: string | null };
+  /** What may answer it: the face-down card (if it matches), and the cards in hand that do (and can be paid for). */
+  slot: boolean;
+  hand: string[];
+  /** A card of the reacting player's that the attack (or aimed heat) now strikes instead (a guard that landed). */
+  redirect?: string;
+  /** An answer cancelled the move (`returned`: the card played went back to its owner's hand instead). */
+  cancelled?: boolean;
+  returned?: boolean;
 }
 
 export interface FuseBonus {
@@ -253,6 +308,13 @@ export interface CardDef {
   onRecover?: Effect[];
   /** Lightspeed cards: what springs it and what it does. */
   lightspeed?: Lightspeed;
+  /**
+   * A Lost Overlord's part (a limb, its gear, a retainer): the one great action it takes when its turn in the
+   * Overlord's round comes (see PlayerState.boss). Destroy the part and the action is lost.
+   */
+  bossAction?: { name: string; effects: Effect[]; /** What it does, in words (if not the card's whole text). */ say?: string };
+  /** A Lost Overlord's card: what it is of the Overlord's (shown where a card's type is). */
+  overlordPart?: 'overlord' | 'body' | 'gear' | 'retainer' | 'antimatter' | 'frost' | 'lost lord';
   /** The energy it costs to play (see costs.ts). */
   cost?: number;
   /** Spends all your energy as it is played (at least 1): its effects count how much (an X cost). */
@@ -310,6 +372,8 @@ export interface CardInstance {
   dimmed?: boolean;
   /** Attack added by a Chosen effect, while it stays in play. */
   attackBonus?: number;
+  /** Defence added by a Lightspeed card, until its owner's next dawn. */
+  fortified?: number;
   /** Attack given up today (Offering): taken off its attack until its owner's next dawn. */
   spentAttack?: number;
   /** Came into play today (dimmed, not Darkspeed): its dusk effects rest until tomorrow. */
@@ -335,6 +399,11 @@ export interface BattleModifiers {
   heatPerTurn?: number;
   /** Your sun cools by this much at the start of every day. */
   coolPerTurn?: number;
+  /**
+   * Each heat wave from the Stellari that reaches this side (regional instability, or the battlefield's own heat)
+   * strikes every one of its cards too, for this much (its defence first, as heat aimed at a card; a Hero stands).
+   */
+  waveCardHeat?: number;
   /** Extra cards drawn every day. */
   extraDraw?: number;
   /** Extra cards in the opening hand. */
@@ -356,6 +425,11 @@ export interface TurnStats {
 }
 
 export interface PlayerState {
+  /**
+   * Dawn choices waiting on this player (a dawn Recall or Shift of their own), in order, each with the card that
+   * gave it: answered one by one before anything else that day.
+   */
+  dawnChoices?: { uid: string; kind: 'recall' | 'shift' }[];
   id: string;
   name: string;
   isAI: boolean;
@@ -368,7 +442,6 @@ export interface PlayerState {
   /** Shuffling the discard pile back in costs no heat (a campaign army's small deck). */
   /** Cards it began the battle with. */
   deckSize?: number;
-  freeReshuffle?: boolean;
   /** Campaign: the hero whose card carries boons in play, and those boons. */
   heroBoons?: { hero: string; boons: string[] };
   /** Campaign battles: this side's hero, their training, and their ship's rooms. */
@@ -391,6 +464,19 @@ export interface PlayerState {
   discard: CardInstance[];
   /** A face-down Lightspeed card waiting to spring (only one at a time). Rivals see only its back. */
   lightspeed: CardInstance | null;
+  /**
+   * A Lost Overlord (a campaign's wormhole guardian): it draws and plays no cards; each day it takes one great
+   * action, its parts taking turns (left to right, the Overlord itself last). `intent`: the part whose action
+   * comes next (shown to its rival, who can destroy that part to stop it).
+   */
+  boss?: { intent?: string; /** The card whose fall beats it (its Overlord): it has no sun. */ leader?: string };
+  /**
+   * Energy left unspent at the end of this player's day, kept through the enemy's day to play a Lightspeed card
+   * from hand in answer to them. Gone at their own next dawn.
+   */
+  banked?: number;
+  /** The day (turnNumber) this player last played a Lightspeed card from hand in answer: one per enemy day. */
+  reactedDay?: number;
   eliminated: boolean;
   /** The rival this player's attacks hit. */
   targetId: string | null;
@@ -405,7 +491,7 @@ export interface PlayerState {
   stung?: { turn: number; ids: string[] };
   modifiers?: BattleModifiers;
   /** What the modifiers are, for display ("Nebula: +1 shield each day"). */
-  conditions?: { name: string; text: string }[];
+  conditions?: { name: string; text: string; short?: string; galaxy?: boolean }[];
   /** A campaign hero's battle skills: spent (once), or the turn last used (daily). */
   skills?: (BattleSkill & { spent?: boolean; usedTurn?: number })[];
   /** The turn (turnNumber) this player last used their Hero's ability: one a day. */
@@ -437,6 +523,16 @@ export interface GameState {
   turnPulses?: TurnPulse[];
   /** Set while a day passes on: the dusk's pulses carry into the next day's replay (dusk, then dawn). */
   keepPulses?: boolean;
+  /** A reaction window open: the active player's move waits on a rival's answer (see Reaction). */
+  reaction?: Reaction;
+  /** Planning copies (the AI's look-ahead): no reaction windows open, moves go straight through. */
+  noReactions?: boolean;
+  /**
+   * A campaign challenge (a secret system): `days` the challenger has (once they are spent, the challenge is
+   * over: survived, or mined out); what the other side calls into its free slots each day (`spawn`, `per` at a
+   * time), and the crystals broken so far (the Antimatter Mine).
+   */
+  challenge?: { kind: 'mine' | 'frost' | 'lord'; days?: number; spawn?: string[]; per?: number; broken: number };
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
   /** Campaign battle rules (see GameSetup.campaign). */
@@ -511,18 +607,22 @@ export interface PlayerSetup {
   avatar?: string;
   /** Campaign battles: heat carried in (damage taken earlier, or a garrison's bombardment). */
   heatDelta?: number;
-  /** Campaign armies (small decks): shuffling the discard pile back in costs no heat. */
-  freeReshuffle?: boolean;
   /** Campaign: the army's hero, and the boons (gear and skills) their card carries while in play. */
   heroBoons?: { hero: string; boons: string[] };
   /** Campaign battles: a one-off head start (from a garrison). */
   opening?: { shields?: number; draw?: number };
   /** Campaign battles: cards already in the tableau when the battle starts (a garrison). */
   tableau?: string[];
+  /** A Lost Overlord: its parts start in play (`tableau`, its Overlord in the Hero slot), and it takes one action a day. */
+  boss?: boolean;
+  /** A Lost Overlord's leader's stability (its Overlord: beat it and the battle is won), if not its printed one. */
+  bossHealth?: number;
+  /** The card that leads it, if not the one in its Hero slot (a Lost Lord); none at all for a mine or a wave. */
+  bossLeader?: string;
   /** Campaign battles: a Lightspeed card already set face down (a garrison). */
   lightspeed?: string;
   modifiers?: BattleModifiers;
-  conditions?: { name: string; text: string }[];
+  conditions?: { name: string; text: string; short?: string; galaxy?: boolean }[];
   /** Campaign battles: the leading hero's skills that can be used in battle. */
   skills?: BattleSkill[];
   /** Campaign battles: this side's hero (always in their command room; wounded, not lost, when it falls). */
@@ -543,6 +643,8 @@ export interface ShipRooms {
 }
 
 export interface GameSetup {
+  /** A campaign challenge's rules (see GameState.challenge). */
+  challenge?: GameState['challenge'];
   seed: number;
   players: PlayerSetup[];
   /**
@@ -580,6 +682,11 @@ export type Action =
       sacrificeUid?: string;
     }
   | { type: 'setTarget'; targetId: string }
+  /**
+   * The first dawn choice waiting on the player (Circular Refraction): for a Recall, the card of theirs returned to
+   * hand; for a Shift, the card moved and where to. Neither, to let it be.
+   */
+  | { type: 'dawnChoice'; allyUid?: string; shiftTo?: number }
   /** Ends the day. After dusk a hand over the limit is discarded down to it: `discard` names the cards (any still over are picked for them). */
   | { type: 'endTurn'; discard?: string[] }
   /** Use one of your hero's battle skills (campaign), on your own day. */
@@ -589,4 +696,9 @@ export type Action =
   /** One of your cards attacks: one of your rival's cards, or their sun (target null). */
   | { type: 'attack'; attackerUid: string; targetUid: string | null }
   /** A player gives up (at any time, not only on their day): their rival wins. */
-  | { type: 'concede'; playerId: string };
+  | { type: 'concede'; playerId: string }
+  /**
+   * The reacting player's answer in a reaction window: spring their face-down card (`slot`), play a Lightspeed
+   * card from hand (`cardUid`), or neither (let it pass).
+   */
+  | { type: 'react'; cardUid?: string; slot?: boolean };

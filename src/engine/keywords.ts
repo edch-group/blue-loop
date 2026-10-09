@@ -43,7 +43,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   pierce: { name: 'pierce', group: 'heat', explain: () => 'Ignores defence.' },
   cool: { name: 'cool', group: 'cool', symbol: true, explain: () => 'Cools your sun.' },
   shield: { name: 'shields', group: 'shields', symbol: true, explain: () => 'Blocks heat on your sun. Fades at dawn.' },
-  guard: { name: 'guard', group: 'defence', explain: () => 'Must be targeted first. Any card with 3+ defence is a Guard too, while it holds.' },
+  guard: { name: 'guard', group: 'defence', explain: () => 'Must be targeted first.' },
   sturdy: { name: 'sturdy', group: 'defence', explain: () => 'Extra defence.' },
   repair: { name: 'repair', group: 'defence', explain: () => 'Mends worn defence.' },
   bulwark: { name: 'bulwark', group: 'defence', explain: (v) => reach(v, 'Extra defence for neighbours') },
@@ -51,7 +51,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   forge: { name: 'forge', group: 'resonance', explain: () => 'Boosts neighbouring armed cards (those with 1+ attack).' },
   brittle: { name: 'brittle', group: 'stability', explain: () => 'Nothing restores it, and removal reaches it whatever its defence.' },
   anchor: { name: 'anchor', group: 'stability', explain: () => 'Neighbours regain 1 stability at your dawn.' },
-  offering: { name: 'offering', group: 'removal', explain: () => 'One of your armed cards that has not acted today gives up its attack for the rest of the day (it reads 0, unless something gives it more); a rival card of your choice loses that much stability, whatever its defence.' },
+  offering: { name: 'offering', group: 'removal', explain: () => 'The attack of an undimmed allied card is set to 0 for 1 day. Remove stability from another card equal to the removed attack (past its defence).' },
   rootbreak: { name: 'rootbreak', group: 'removal', explain: () => "Roots grow through the cracks: one of your cards that has grown splits a rival card's defence by its growth (or, where it says so, their sun's shields). Split defence stays split." },
   erode: { name: 'erode', group: 'stability', explain: () => 'A rival card loses this much stability, whatever its defence.' },
   decay: { name: 'decay', group: 'stability', explain: () => 'Every rival card loses this much stability, whatever its defence.' },
@@ -67,7 +67,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   eject: { name: 'eject', group: 'removal', explain: () => 'Returns a rival card with this much defence or less to hand.' },
   sting: { name: 'sting', group: 'defence', explain: () => 'Hits back at attackers.' },
   attack: { name: 'attack', group: 'heat', explain: () => 'Once a day, hit a rival card or sun.' },
-  dimmed: { name: 'dimmed', group: 'timing', explain: () => 'Has acted today.' },
+  dimmed: { name: 'dimmed', group: 'timing', explain: () => 'Dimmed: it has attacked or been used today, and is undimmed at your next dawn.' },
   soothe: { name: 'soothe', group: 'shields', explain: () => 'Cools your sun when shields block.' },
   fusion: { name: 'fusion', group: 'tempo', explain: () => 'Play it as a card of its own, or fuse it onto one of your cards in play: that card gains its Fusion bonus (the words after "Fusion:"), and nothing else of it.' },
   plant: { name: 'plant', group: 'tempo', explain: () => 'Fills empty slots with Saplings.' },
@@ -94,7 +94,7 @@ export const KEYWORDS: Record<string, Keyword> = {
     explain: (v) =>
       `Each dawn, gains your orbit's bonus${v && v !== '1' ? ` (×${v})` : ''}. Dead planet: ${ATTUNEMENT.slice(0, 3).map((a) => plainText(a.text)).join(' → ')}. Abundant: ${ATTUNEMENT.slice(3, 6).map((a) => plainText(a.text)).join(' → ')}. Industrial: ${ATTUNEMENT.slice(6).map((a) => plainText(a.text)).join(' → ')}.`,
   },
-  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => 'Set face down; springs on its trigger.' },
+  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Answers your rival's move, before it resolves. Set it face down on your day (it waits for its trigger), or play it from hand on their day, paid with banked energy (energy left unspent at your day's end). One from hand per rival day." },
   global: { name: 'global', group: 'global', explain: () => 'Affects both players.' },
 };
 
@@ -106,7 +106,8 @@ export const TEXT_RULES: { name: string; group: Keyword['group']; pattern: RegEx
   { name: 'Hero', group: 'tempo', pattern: /\bHero(es)?\b|Dawn, one of/, explain: 'Goes in your Hero slot. One at a time.' },
   { name: 'Leaves Your Tableau', group: 'stability', pattern: /leaves? your tableau/, explain: 'Is beaten down, destroyed, or returned to hand.' },
   { name: 'Facing A Planet', group: 'orbit', pattern: /facing the (dead|abundant|industrial) planet/, explain: 'The planet now facing your sun.' },
-  { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'It has no effect.' },
+  { name: 'Cancel', group: 'lightspeed', pattern: /\bcancel/i, explain: 'It has no effect (a card cancelled is discarded, its energy spent).' },
+  { name: 'Best-Defended', group: 'lightspeed', pattern: /best-defended/, explain: 'Your card (or free slot) with the most defence.' },
   { name: 'Max Health', group: 'heat', pattern: /max health/, explain: 'The heat at which your sun goes supernova.' },
 ];
 

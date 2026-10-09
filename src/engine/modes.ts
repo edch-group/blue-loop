@@ -1,7 +1,7 @@
 /**
  * Game modes. Core is the simple game: four races, each with one mechanic of its own, on top of the
- * fundamentals every card shares (attack, heat, cooling, defence, health, stability, energy, drawing, Guard, and plain
- * removal: destroying a card, or returning it to its owner's hand).
+ * fundamentals every card shares (attack, heat, cooling, defence, health, stability, energy, drawing, Guard, plain
+ * removal: destroying a card, or returning it to its owner's hand, and Lightspeed, which has its own slot).
  * Lost Races is everything: all eight races, their sub-races and every mechanic.
  */
 import type { CardDef, Count, Effect, Passive } from './types';
@@ -47,6 +47,8 @@ export type Mechanic =
 /** The one mechanic each core race is built round: Aureline, Xel'Naru, Vorthane, Ixquor. */
 export const CORE_SIGNATURE: Record<number, Mechanic> = { 0: 'forge', 1: 'overheat', 2: 'shields', 3: 'growth' };
 export const CORE_RACES = [0, 1, 2, 3];
+/** Mechanics every race may use in Core, beyond the fundamentals. */
+export const CORE_MECHANICS: Mechanic[] = ['lightspeed'];
 
 const MECHANIC_NAME: Record<Mechanic, string> = {
   forge: 'Forge', overheat: 'Overheat', shields: 'Shields', growth: 'Growth', resonance: 'Resonance', bulwark: 'Bulwark',
@@ -143,7 +145,8 @@ export function modeProblem(def: CardDef, mode: GameMode): string | null {
   if (mode === 'lost') return null;
   if (def.race !== undefined && !CORE_RACES.includes(def.race)) return 'Lost Races only.';
   const own = def.race !== undefined ? CORE_SIGNATURE[def.race] : undefined;
-  const extra = [...cardMechanics(def)].filter((m) => m !== own);
+  // (Lightspeed is core: the board has a slot for it in every game.)
+  const extra = [...cardMechanics(def)].filter((m) => m !== own && !CORE_MECHANICS.includes(m));
   if (extra.length) return `${extra.map(mechanicName).join(', ')}: Lost Races only.`;
   if (def.kind !== 'command' && cardThings(def) > 2) return 'Does too much for Core.';
   return null;

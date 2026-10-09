@@ -15,13 +15,14 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
-import { CARDS, cardDef, cardIn, copyLimit, fusedId, fusionProblem, presetDeck, RACE_NAMES } from './cards';
+import { CARDS, cardDef, cardIn, copyLimit, fusedId, fusionProblem, presetDeck, RACE_NAMES, rarityOf } from './cards';
 import { CORE_RACES, inMode, type GameMode } from './modes';
 import { BALANCE } from './balance';
 import { applyAction, createGame, DRAW, GameError, isDraw, isGameOver } from './game';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types';
-import { HEROES, heroBonus, heroLevel, learnProblem, heroSkill, makeRelic, relicBonus, RACE_SLOTS, itemValue, skillPoints, SKILL_TREES, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
+import { LOST_LORDS, OVERLORDS, overlordById, overlordHealth } from './cards-bosses';
+import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
 import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
 import { runBonuses, type RunBonuses } from './meta';
@@ -33,7 +34,6 @@ import {
   introScene,
   collapseScene,
   instabilityScene,
-  lostRaidScene,
   lostSightedScene,
   stellariaSightedScene,
   type StoryScene,
@@ -67,7 +67,7 @@ export const CAMPAIGN = {
   heroDefence: 2,
   /** The most skill points a hero can put into each of attack and defence. */
   trainMax: 5,
-  /** Ship upgrades: credits for the next level (base + per level already built), and each part's most. */
+  /** Ship upgrades: materials for the next level (base + per level already built), and each part's most. */
   shipBase: 4,
   shipPerLevel: 4,
   shipMax: { defence: 3, attack: 2, command: 3, shields: 3, hull: 4 },
@@ -82,11 +82,10 @@ export const CAMPAIGN = {
   enemyDeck: 10,
   /** Cards a system can hold as its garrison. They start its defence already in play. */
   garrisonSlots: 3,
-  startCredits: 6,
-  startMaterials: 6,
-  /** Credits to repair one point of damage on a system. */
+  startMaterials: 10,
+  /** Materials to repair one point of damage on a system. */
   healCostPerPoint: 1,
-  /** Fortifying a system: each level gives its defender extra max health. Credits: base + per level already built. */
+  /** Fortifying a system: each level gives its defender extra max health. Materials: base + per level already built. */
   maxFortification: 3,
   fortifyBaseCost: 4,
   fortifyCostPerLevel: 4,
@@ -95,18 +94,14 @@ export const CAMPAIGN = {
   absorbTurns: 3,
   /** Materials for a fusion, before the two cards' prices. */
   fusionBase: 4,
-  /** Neutral sentinels' suns start this much hotter, by tier (the outer systems are the easiest to take). */
-  sentinelHeat: [2, 1, 0],
   /** Damage cap on a system (added to its sun's starting heat in battles). */
   maxDamage: 4,
   /** Damage an attacker's home system takes when the attack is repelled. */
   repelledDamage: 2,
   /** Rewards for winning a battle. */
-  winCredits: 3,
-  winMaterials: 2,
+  winMaterials: 4,
   /** Rewards for completing a campaign mission (plus a card choice). */
-  missionCredits: 4,
-  missionMaterials: 3,
+  missionMaterials: 6,
   cardChoices: 3,
   activeMissions: 0,
   /** How often a relic found is cursed. */
@@ -128,13 +123,23 @@ export const CAMPAIGN = {
   mapWidth: 170 * 2 + 8 * 420,
   mapHeight: 170 * 2 + 2 * 330,
   mapMargin: 170,
-  /** Worlds with something extra to find (credits), taken with the system. */
+  /** Worlds with something extra to find (materials), taken with the system. */
   bonusPlanets: 3,
   /** (No raiders roam the strip any more; any in an older save are cleared out. These steered them.) */
   raiderChase: 3,
   raiderChaseChance: 0.7,
   /** Petals grabbed at a wormhole: a few for reaching it, more for every share of the strip conquered. */
   petalBase: 3,
+  /** Petals for beating a wormhole's Lost Overlord, each galaxy (on top of the wormhole's own). */
+  bossPetals: 4,
+  /** The rare (Stellar) or Anomaly cards offered from a beaten Overlord's hoard: pick one. */
+  bossCardChoices: 2,
+  /** Experience earned, win or lose: for every battle won, system taken, challenge cleared, galaxy crossed, boss beaten. */
+  xpBattle: 6,
+  xpConquer: 3,
+  xpChallenge: 12,
+  xpGalaxy: 20,
+  xpBoss: 30,
   petalShare: 12,
   /** Systems are never closer than this; routes longer than this are dropped unless needed to connect. */
   minSystemGap: 160,
@@ -148,12 +153,11 @@ export const CAMPAIGN = {
   battleActionCap: 6000,
   /** Damage (heat carried) an army takes when its attack is repelled, and the most it can carry. */
   armyRepelledDamage: 2,
-  /** Credits to repair one point of an army's damage (in a system you hold). */
+  /** Materials to repair one point of an army's damage (in a system you hold). */
   armyHealCost: 1,
   /** Finite Stellari: blooms on this many systems, each giving this much a turn to whoever holds it, for this many turns. */
   stellariaBlooms: 10,
-  stellariaCredits: 3,
-  stellariaMaterials: 3,
+  stellariaMaterials: 5,
   stellariaTurns: 8,
   /** The dimming: every this many turns a star gutters, and its system yields 1 less of each. */
   dimEvery: 7,
@@ -170,8 +174,6 @@ export const CAMPAIGN = {
   /** The counter: stabilise a collapsing system you hold, for materials, holding it together this many turns more (once per system). */
   stabiliseCost: 8,
   stabiliseTurns: 4,
-  /** Each home has one route out, to a system whose sentinels start this much hotter (a weakened first foe). */
-  gateHeat: 4,
   /** Recycling a reserve card pays this share of its armory price, in materials (at least 1). */
   recycleShare: 0.5,
   /** The Lost Races: rogue armies at the start, the most there can be, and what beating one pays. */
@@ -190,7 +192,7 @@ export const CAMPAIGN = {
   heartClearance: 300,
   /**
    * The core: systems nearer the Heart are richer and better defended, to make up for the worlds the
-   * dimming takes. By routes from the Heart (index 1 = next to it): extra credits and materials each turn,
+   * dimming takes. By routes from the Heart (index 1 = next to it): extra materials each turn,
    * and extra max health for whoever defends there.
    */
   coreYield: [0, 2, 1, 1],
@@ -226,6 +228,27 @@ export interface GarrisonCard {
   status: GarrisonStatus;
 }
 
+/** A challenge system's kind (see CHALLENGES). */
+export type ChallengeKind = 'mine' | 'lord' | 'frost';
+
+/**
+ * The Frost Line, harder each time it is held: what stands there at first (with a Rime Golem in front), then the
+ * waves (what comes, how many a day, and the days to hold).
+ */
+const FROST_LINES: { start: string[]; waves: { days: number; spawn: string[]; per: number } }[] = [
+  { start: ['frost_shade', 'frost_shade'], waves: { days: 6, spawn: ['frost_shade'], per: 1 } },
+  { start: ['frost_wraith', 'frost_shade'], waves: { days: 6, spawn: ['frost_wraith', 'frost_shade'], per: 1 } },
+  { start: ['frost_wraith', 'frost_wraith', 'blizzard_herald'], waves: { days: 7, spawn: ['frost_wraith'], per: 2 } },
+  { start: ['frost_wraith', 'frost_wraith', 'blizzard_herald'], waves: { days: 8, spawn: ['frost_wraith', 'frost_wraith', 'blizzard_herald'], per: 2 } },
+];
+
+/** The challenges: secret systems off the strip, each with rules and a reward of its own. */
+export const CHALLENGES: Record<ChallengeKind, { name: string; text: string; reward: string }> = {
+  mine: { name: 'Antimatter Mine', text: 'Crystals of antimatter, growing in the dark: break as many as you can in 6 days. They heat your sun while they stand.', reward: '3 materials for every crystal broken' },
+  lord: { name: 'Lost Lord', text: 'The last lord of a Lost Race, with their retinue: beat the lord down. Like an Overlord, they play no cards, and take one great action a day.', reward: 'the Lost Lord joins your deck' },
+  frost: { name: 'The Frost Line', text: 'Wave after wave out of the cold: survive 6 days (a day more for each Frost Line held before). Each is harder than the last.', reward: '+5 max health on your sun for good, or 6 cooling now' },
+};
+
 export interface CampaignNode {
   id: string;
   name: string;
@@ -242,15 +265,18 @@ export interface CampaignNode {
   garrison: GarrisonCard[];
   /** Factions still barred from attacking it after a Supernova (each is cleared when that faction's turn ends). */
   hazard: string[];
-  yield: { credits: number; materials: number };
+  yield: { materials: number };
   /** Neutral defenders' strength (0–2). */
   tier: number;
   /** Set on a faction's starting system. */
   home?: string;
-  /** A scanner array: whoever holds it sees systems two links away, not just one (fog of war). */
-  scanner?: boolean;
   /** The Heart, at the centre of the universe: whoever claims it wins. */
   heart?: boolean;
+  /**
+   * A challenge: a secret system off the strip, hidden until the system it hangs off (`from`) is taken. Its own
+   * rules and rewards (CHALLENGES); tried once: `done` once fought (won, or lost: then it is dimmed).
+   */
+  challenge?: { kind: ChallengeKind; hidden: boolean; from: string; done?: 'won' | 'lost'; lord?: string };
   /** Routes from here to the Heart (0 at the Heart): the core is richer and better defended. */
   ring?: number;
   /** A Finite Stellari bloom: the turns of plenty it has left (0: wilted). */
@@ -263,7 +289,7 @@ export interface CampaignNode {
   collapsed?: boolean;
   /** Stabilised (once only): it holds until this turn. */
   stableUntil?: number;
-  /** The one system a home's route leads to: its defenders start weakened (much hotter), until it is taken. */
+  /** (Older saves: the one system a home's route led to, whose defenders started weakened. No longer used.) */
   gate?: boolean;
   /** What kind of star it is (an ordinary yellow star if unset): see STAR_TYPES. */
   star?: StarType;
@@ -273,8 +299,8 @@ export interface CampaignNode {
   col?: number;
   lane?: number;
   /** Something extra on one of its worlds, taken with the system. */
-  bonus?: { credits?: number };
-  /** Nothing to fight here, only something to find (taken by flying in): credits, materials, research, or a card to choose. */
+  bonus?: { materials?: number };
+  /** Nothing to fight here, only something to find (taken by flying in): materials, or a card to choose. */
   cache?: Cache;
   /** Burnt out by a supernova: nothing to take, but open to pass through. */
   ruined?: boolean;
@@ -309,25 +335,25 @@ export const STAR_TYPES: Record<StarType, { name: string; text: string; boon: st
   red: {
     name: 'Red dwarf',
     text: 'Small, cool and patient: it will outlive everything else.',
-    boon: 'Often left unguarded: about half hold a find, most often materials.',
-    cost: 'Its worlds are poor: 1 credit less when taken.',
+    boon: 'Often left unguarded: about half hold a find, most often materials, sometimes cards or a relic.',
+    cost: 'Its worlds are poor: 1 material less when taken.',
   },
   white: {
     name: 'White dwarf',
     text: 'The hot, dense core of a star that died long ago.',
-    boon: 'The archives of the dead: often research, sometimes cards (about 2 in 5 hold a find).',
+    boon: 'The archives of the dead: about 2 in 5 hold a find, most often cards, sometimes a relic.',
     cost: 'Battles here are long: every sun starts 2 cooler.',
   },
   brown: {
     name: 'Brown dwarf',
     text: 'A failed star, barely warm. Easy to overlook; hard to dig out.',
-    boon: 'Easy to overlook: more often than not a derelict, with cards.',
+    boon: 'Easy to overlook: more often than not a find, cards or a relic.',
     cost: 'When it is guarded, its defender has +3 max health.',
   },
   neutron: {
     name: 'Neutron star',
     text: 'A city-sized star spinning hundreds of times a second; its beam sweeps the dark.',
-    boon: 'Rarely unguarded, but what it hides is rare: cards or research.',
+    boon: 'Rarely unguarded, but what it hides is rare: most often a relic, or cards.',
     cost: 'Battles here are volatile: every sun heats by 1 each day.',
   },
 };
@@ -337,11 +363,11 @@ export const STAR_TYPES: Record<StarType, { name: string; text: string; boon: st
  * of find, weighted. Players see the star, never what it holds, until they get there.
  */
 export const STAR_FINDS: Record<StarType | 'yellow', { find: number; kinds: Partial<Record<Cache['kind'], number>> }> = {
-  yellow: { find: 0.22, kinds: { credits: 3, materials: 3, cards: 2 } },
-  red: { find: 0.5, kinds: { materials: 5, credits: 3, cards: 2 } },
-  white: { find: 0.4, kinds: { cards: 4, credits: 3, materials: 2 } },
-  brown: { find: 0.55, kinds: { cards: 5, materials: 3, credits: 2 } },
-  neutron: { find: 0.15, kinds: { cards: 6, credits: 3 } },
+  yellow: { find: 0.3, kinds: { materials: 3, cards: 3, relic: 2 } },
+  red: { find: 0.5, kinds: { materials: 5, cards: 2, relic: 2 } },
+  white: { find: 0.4, kinds: { cards: 4, materials: 2, relic: 2 } },
+  brown: { find: 0.55, kinds: { cards: 4, materials: 2, relic: 3 } },
+  neutron: { find: 0.25, kinds: { relic: 4, cards: 3, materials: 1 } },
 };
 
 /** What a system's star says about what it may hold. */
@@ -361,6 +387,8 @@ export interface GalaxyDef {
   name: string;
   /** What it does to every battle fought in the galaxy. */
   text: string;
+  /** The same, in a few words, for the battle board. */
+  short: string;
   modifiers: BattleModifiers;
 }
 
@@ -370,31 +398,36 @@ export const GALAXIES: Record<GalaxyKind, GalaxyDef> = {
     kind: 'blackHole',
     name: 'Supermassive Black Hole',
     text: 'A supermassive black hole lies beneath this galaxy, its well drinking heat: every sun has +2 max health, but every opening hand is 1 card smaller.',
+    short: '+2 max health · opening hand 1 smaller',
     modifiers: { maxHealthDelta: 2, openingHand: -1 },
   },
   pulsar: {
     kind: 'pulsar',
     name: 'Pulsar',
     text: 'A pulsar\'s beam sweeps this galaxy, steadying every sun: each cools by 1 every day, but has 2 less max health.',
+    short: 'suns cool 1 each day · 2 less max health',
     modifiers: { coolPerTurn: 1, maxHealthDelta: -2 },
   },
   meteors: {
     kind: 'meteors',
     name: 'Meteor Shower',
-    text: 'Meteors rain through this galaxy: every sun starts 2 hotter, but every opening hand is 1 card bigger.',
-    modifiers: { startingHeat: 2, openingHand: 1 },
+    text: 'Meteors rain through this galaxy: every sun starts 2 hotter, and every heat wave from the Stellari strikes every card for 1 too; but every opening hand is 1 card bigger.',
+    short: 'suns start 2 hotter · heat waves strike cards for 1 · opening hand 1 bigger',
+    modifiers: { startingHeat: 2, openingHand: 1, waveCardHeat: 1 },
   },
   nebula: {
     kind: 'nebula',
     name: 'Nebula',
     text: 'This galaxy lies deep in a nebula, hidden in its gas: every side gains 1 shield every day, but every sun starts 1 hotter.',
+    short: '+1 shield each day · suns start 1 hotter',
     modifiers: { shieldPerTurn: 1, startingHeat: 1 },
   },
   darkMatter: {
     kind: 'darkMatter',
     name: 'Dark Matter',
-    text: 'Unseen mass threads this galaxy: every side draws 1 extra card every day, but every sun heats by 1 every day.',
-    modifiers: { extraDraw: 1, heatPerTurn: 1 },
+    text: 'Unseen mass threads this galaxy: every side draws 1 extra card every day, but a heat wave from the Stellari heats every sun by 1 every day, and strikes every card for 1.',
+    short: 'draw 1 extra each day · daily heat wave: suns +1, cards 1',
+    modifiers: { extraDraw: 1, heatPerTurn: 1, waveCardHeat: 1 },
   },
 };
 export const GALAXY_KINDS = Object.keys(GALAXIES) as GalaxyKind[];
@@ -410,7 +443,7 @@ export function mergeModifiers(a: BattleModifiers, b: BattleModifiers): BattleMo
 export function galaxyEffects(s: CampaignState) {
   const g = s.galaxy ? GALAXIES[s.galaxy] : null;
   if (!g) return null;
-  return { modifiers: g.modifiers, conditions: [{ name: g.name, text: g.text }] };
+  return { modifiers: g.modifiers, conditions: [{ name: g.name, text: g.text, short: g.short, galaxy: true }] };
 }
 
 export interface CampaignStats {
@@ -431,12 +464,13 @@ export interface ActiveMission {
 }
 
 export interface Faction {
+  /** Max health the flagship's sun has gained for good (the Frost Line). */
+  sunBonus?: number;
   id: string;
   name: string;
   isAI: boolean;
   /** Which of the alien races this faction is (an index into RACE_NAMES, 0–7). */
   race: number;
-  credits: number;
   materials: number;
   /** The flagship's upgrades. */
   ship: Ship;
@@ -524,6 +558,8 @@ export interface BattleContext {
   armyId: string;
   defenderArmyId: string | null;
   game: GameState;
+  /** A challenge being fought, and the flagship's sun before it (a loss leaves it as it was: it is only ejected). */
+  challenge?: { kind: ChallengeKind; damage: number };
 }
 
 export interface CampaignLogEntry {
@@ -549,6 +585,9 @@ export interface CampaignState {
   /** Petals grabbed this run, and how many of them have been banked to the account's lasting progress. */
   petals: number;
   petalsBanked: number;
+  /** Experience earned this run, and how much of it has been banked (it is kept even if the run is lost). */
+  xp?: number;
+  xpBanked?: number;
   /** The upgrades bought between runs that this run is played with. */
   run: RunBonuses;
   rngState: number;
@@ -563,6 +602,8 @@ export interface CampaignState {
   story: { queue: StoryScene[]; told: string[] };
   /** What this universe's galaxy is like (touching every battle in it); missing in older saves until migrated. */
   galaxy?: GalaxyKind;
+  /** The Lost Overlord guarding this universe's wormhole (OVERLORDS); missing in older saves until migrated. */
+  overlord?: string;
   /** A battle the player is fighting (or can auto-resolve). */
   battle: BattleContext | null;
   /** The player won an attack and must decide the system's fate (the army that won it marches in if it is settled). */
@@ -571,7 +612,13 @@ export interface CampaignState {
    * Card choices owed to the player (from missions, relics, and salvage from a battle auto-resolved). A salvaged
    * card goes into that army's deck while it has room (`toDeck`), else the reserve.
    */
-  cardRewards: { source: string; options: string[]; toDeck?: string }[];
+  cardRewards: { source: string; options: string[]; toDeck?: string; /** How the log tells it ("salvages"). */ take?: string }[];
+  /** Frost Lines held so far this run (each is harder than the last). */
+  frostLevel?: number;
+  /** Lost Lords beaten this run (each joins only once). */
+  lordsWon?: string[];
+  /** A Frost Line's reward waiting to be chosen: more max health for good, or cooling now. */
+  boon?: { source: string };
   /** Whose part of the turn it is: the player's, then the AI factions' in turn. */
   phase: 'player' | 'ai';
   /** AI factions still to act this turn (their turns pause while the player defends). */
@@ -596,7 +643,7 @@ export interface CampaignSetup {
 }
 
 export interface Cache {
-  kind: 'credits' | 'materials' | 'cards';
+  kind: 'materials' | 'cards' | 'relic';
   amount: number;
 }
 
@@ -615,23 +662,18 @@ export type CampaignAction =
   /** Take one of a research station's upgrades (your flagship must stand there), free. */
   | { type: 'research'; nodeId: string; projectId: string }
   /** A hero spends a skill point. */
-  | { type: 'learnSkill'; hero: string; skill: string }
   /** A hero puts a skill point into their own attack or defence. */
-  | { type: 'train'; hero: string; stat: 'attack' | 'defence' }
-  /** Upgrade a part of the flagship, for credits. */
-  | ({ type: 'upgradeShip' } & ShipPart)
+  /** Upgrade a part of the flagship, for materials. */
   /** Fit a module from the stores into a room (one already there goes back to the stores), or take one out. */
-  | { type: 'fitModule'; moduleId: string; room: number }
-  | { type: 'unfitModule'; room: number }
   /** A hero puts on gear (from the faction's finds), in a slot it fits; or takes it off. */
-  | { type: 'equip'; hero: string; itemId: string; slot: string }
-  | { type: 'unequip'; hero: string; slot: string }
   | { type: 'healArmy'; armyId: string; all?: boolean }
   /** The oldest story scene has been read. */
   | { type: 'readStory' }
   /** Hand back the battle once it is over (or ask for it to be auto-resolved from here). */
   /** `salvage`: the card the player salvaged from the beaten side (salvageOptions), or null to take none. */
   | { type: 'finishBattle'; game: GameState; auto?: boolean; salvage?: string | null }
+  /** A Frost Line's reward: 5 more max health on the flagship's sun for good, or 6 cooling now. */
+  | { type: 'takeBoon'; pick: 'health' | 'cool' }
   | { type: 'conquer'; choice: ConquestChoice }
   | { type: 'chooseCard'; defId: string | null }
   /** Buy a card from an armoury your flagship stands in (each card is sold once). */
@@ -702,14 +744,10 @@ export const factionById = (s: CampaignState, id: string) => {
 export const campaignPlayer = (s: CampaignState) => factionById(s, s.playerId);
 export const ownedNodes = (s: CampaignState, factionId: string) => s.nodes.filter((n) => n.owner === factionId);
 
-/**
- * Fog of war: the systems a faction can see. Its own, those linked to them,
- * and, from a system with a scanner, those two links away. A system being
- * fought over is always in view.
- */
 /** What a faction can see: the whole strip, every route to the wormhole (there is no fog). */
 export function visibleNodes(s: CampaignState, _factionId: string): Set<string> {
-  return new Set(s.nodes.map((n) => n.id));
+  // (A challenge stays unseen until the system it hangs off is taken.)
+  return new Set(s.nodes.filter((n) => !n.challenge?.hidden).map((n) => n.id));
 }
 
 export const armyById = (s: CampaignState, id: string) => {
@@ -731,7 +769,7 @@ export function shipLevel(ship: Ship, p: ShipPart): number {
   return p.part === 'shields' ? ship.shields : ship.hull;
 }
 
-/** Credits for a ship part's next level (null at its most, or no such room). */
+/** Materials for a ship part's next level (null at its most, or no such room). */
 export function shipUpgradeCost(ship: Ship, p: ShipPart): number | null {
   if ((p.part === 'defence' || p.part === 'attack') && !(p.room >= 0 && p.room < BALANCE.tableauSlots)) return null;
   const level = shipLevel(ship, p);
@@ -739,19 +777,9 @@ export function shipUpgradeCost(ship: Ship, p: ShipPart): number | null {
   return CAMPAIGN.shipBase + level * CAMPAIGN.shipPerLevel;
 }
 
-/** A hero's attack and defence in the command room: the baseline, and what they have trained. */
-export function heroStats(f: Faction | undefined, hero: string): { attack: number; defence: number } {
-  const t = f?.heroes?.[hero]?.train;
-  return { attack: CAMPAIGN.heroAttack + (t?.attack ?? 0), defence: CAMPAIGN.heroDefence + (t?.defence ?? 0) };
-}
-
-/** Why a hero can't train a stat (null if they can). */
-export function trainProblem(f: Faction, hero: string, stat: 'attack' | 'defence'): string | null {
-  if (f.hero && hero !== f.hero) return 'That is not your hero.';
-  const h = heroState(f, hero);
-  if ((h.train?.[stat] ?? 0) >= CAMPAIGN.trainMax) return `${cardDef(hero).name}'s ${stat} is fully trained.`;
-  if (skillPoints(h, hero) < 1) return 'No skill points: win battles to gain levels.';
-  return null;
+/** A hero's attack and defence in the command room (heroes no longer train: the baseline). */
+export function heroStats(_f: Faction | undefined, _hero: string): { attack: number; defence: number } {
+  return { attack: CAMPAIGN.heroAttack, defence: CAMPAIGN.heroDefence };
 }
 
 /** Why a faction can't use a station here (null if it can): its flagship has to stand in it. */
@@ -793,6 +821,11 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
   for (const id of here.links) {
     const n = nodeById(s, id);
     if (n.collapsed) continue;
+    // A challenge: the player's alone, once found, and tried once.
+    if (n.challenge) {
+      if (army.owner === s.playerId && !n.challenge.hidden && !n.challenge.done) out.push({ toId: id, battle: true });
+      continue;
+    }
     const there = armyAt(s, id);
     // (A system it holds, or a burnt-out ruin, is passed through freely.)
     if (n.owner === army.owner || ((n.ruined || n.cache) && !n.owner && !there)) {
@@ -851,11 +884,46 @@ export function recycleValue(defId: string): number {
 
 /** Bring a saved campaign up to the current rules (saves from before version 4 aren't kept: see the UI). */
 export function migrateCampaign(s: CampaignState): CampaignState {
-  ensureScanners(s);
+  // No scanners any more (there is no fog).
+  for (const n of s.nodes) delete (n as { scanner?: boolean }).scanner;
   // No raiders any more: any left in an older save are gone.
   s.armies = s.armies.filter((a) => !a.lost);
+  // No one else takes turns, and no missions: a turn left half-passed simply begins.
+  for (const f of s.factions) f.missions = [];
+  // Heroes no longer level, learn, train or wear gear: what an older save gave them is let go (relics stay).
+  for (const f of s.factions) {
+    for (const h of Object.values(f.heroes ?? {})) {
+      h.xp = 0;
+      h.skills = [];
+      h.gear = {};
+      delete h.train;
+    }
+    f.items = [];
+    f.modules = [];
+    if (f.ship) delete f.ship.modules;
+  }
+  if (s.phase === 'ai') {
+    s.aiQueue = [];
+    s.aiStepwise = undefined;
+    s.phase = 'player';
+  }
   // No anomalies on the map any more: a galaxy of its own instead.
   delete (s as { anomalies?: unknown }).anomalies;
+  // No credits any more: what a faction had is materials now, and so is what its systems pay.
+  for (const f of s.factions) {
+    const old = f as Faction & { credits?: number };
+    if (old.credits) f.materials += old.credits;
+    delete old.credits;
+  }
+  for (const n of s.nodes) {
+    const y = n.yield as { credits?: number; materials: number };
+    if (y.credits) y.materials += y.credits;
+    delete y.credits;
+    const b = n.bonus as { credits?: number; materials?: number } | undefined;
+    if (b?.credits) b.materials = (b.materials ?? 0) + b.credits;
+    if (b) delete b.credits;
+    if ((n.cache?.kind as string) === 'credits') n.cache!.kind = 'materials';
+  }
   // Research stations offer a choice now (older saves had one upgrade each, for Wisdom, which is gone).
   for (const n of s.nodes) {
     const st = n.station as (Station & { options?: string[] }) | undefined;
@@ -865,19 +933,7 @@ export function migrateCampaign(s: CampaignState): CampaignState {
   return s;
 }
 
-/** Older saves have no scanners: place them as a new campaign would (about one system in six, never a home). */
-export function ensureScanners(s: CampaignState) {
-  if (s.nodes.some((n) => n.scanner !== undefined)) return;
-  for (const n of s.nodes) n.scanner = !n.home && scannerRoll(n.id);
-}
-
-function scannerRoll(id: string): boolean {
-  let h = 2166136261;
-  for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
-  return (h >>> 0) % 6 === 0;
-}
-
-/** Credits for the next fortification level on a system (null at the maximum). */
+/** Materials for the next fortification level on a system (null at the maximum). */
 export function fortifyCost(node: CampaignNode): number | null {
   if (node.fortification >= CAMPAIGN.maxFortification) return null;
   return CAMPAIGN.fortifyBaseCost + node.fortification * CAMPAIGN.fortifyCostPerLevel;
@@ -953,8 +1009,8 @@ export function garrisonBonus(n: CampaignNode): GarrisonBonus {
 
 /** Income each turn from the systems a faction controls (Stellari blooms included, while they last). */
 export function factionIncome(_s: CampaignState, _factionId: string) {
-  // (No income by the turn: credits and materials come from systems taken, and the worlds with something extra.)
-  return { credits: 0, materials: 0 };
+  // (No income by the turn: materials come from systems taken, and the worlds with something extra.)
+  return { materials: 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -1059,6 +1115,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     conquered: 0,
     petals: 0,
     petalsBanked: 0,
+    xp: 0,
+    xpBanked: 0,
     run,
     rngState: setup.seed | 0,
     uidCounter: 0,
@@ -1090,7 +1148,6 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     name: setup.playerName || 'Commander',
     isAI: false,
     race,
-    credits: CAMPAIGN.startCredits + run.credits,
     materials: CAMPAIGN.startMaterials + run.materials,
     ship,
     hero,
@@ -1103,17 +1160,18 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   };
   s.factions.push(me);
   // The raiders: the last of peoples the collapse has already taken, roaming the strip (and hunting).
-  s.factions.push({ id: 'lost', name: 'Raiders', isAI: true, race: 0, credits: 0, materials: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
-  for (let k = 0; k < CAMPAIGN.activeMissions; k++) drawMission(s, me);
+  s.factions.push({ id: 'lost', name: 'Raiders', isAI: true, race: 0, materials: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
   buildUniverse(s, 1);
   const army = flagship(s, me.id)!;
   // Veterans: more of the race's own cards in the starting deck; Requisition: cards picked to start with.
   const own = CARDS.filter((c) => c.race === race && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && legalIn(s.mode, c.id) && !army.deck.includes(c.id));
   army.deck.push(...own.slice(0, run.cards).map((c) => c.id));
+  // Cards bought into this race's starting deck with petals (as many copies as a deck may hold).
+  for (const id of run.deck ?? []) if (CARDS.some((c) => c.id === id) && army.deck.filter((x) => x === id).length < copyLimit(id)) army.deck.push(id);
   // (Each Requisition: a pick of cards, the one chosen going straight into the deck.)
   for (let k = 0; k < run.picks; k++) s.cardRewards.push({ source: 'Requisition', options: randomCardChoices(s, me), toDeck: army.id });
   army.refit = false;
-  tell(s, introScene(me.race, me.id));
+  tell(s, introScene(me.race, me.id, army.general));
   noticeStory(s);
   return s;
 }
@@ -1155,7 +1213,7 @@ function buildUniverse(s: CampaignState, universe: number) {
     garrison: [],
     hazard: [],
     // What taking it pays (once): more the harder it is.
-    yield: { credits: 2 + randomInt(s, 2) + tier, materials: 1 + randomInt(s, 2) + Math.floor(tier / 2) },
+    yield: { materials: 3 + randomInt(s, 3) + tier + Math.floor(tier / 2) },
     tier,
     col: c,
     lane: l,
@@ -1189,7 +1247,7 @@ function buildUniverse(s: CampaignState, universe: number) {
     damage: 0,
     garrison: [],
     hazard: [],
-    yield: { credits: 0, materials: 0 },
+    yield: { materials: 0 },
     tier: 3 + lift,
     col: C,
     lane: (L - 1) / 2,
@@ -1234,13 +1292,16 @@ function buildUniverse(s: CampaignState, universe: number) {
     const kind: StarType | undefined = r < odds.red ? 'red' : r < odds.red + odds.white ? 'white' : r < odds.red + odds.white + odds.brown ? 'brown' : r < odds.red + odds.white + odds.brown + odds.neutron ? 'neutron' : undefined;
     if (!kind) continue;
     n.star = kind;
-    if (kind === 'red') n.yield.credits = Math.max(0, n.yield.credits - 1);
+    if (kind === 'red') n.yield.materials = Math.max(0, n.yield.materials - 1);
     if (kind === 'white') n.yield.materials += 2;
-    if (kind === 'neutron') n.yield = { credits: n.yield.credits + 2, materials: n.yield.materials + 1 };
+    if (kind === 'neutron') n.yield.materials += 3;
   }
   // The galaxy: never the same twice running.
   const kinds = GALAXY_KINDS.filter((k) => k !== s.galaxy);
   s.galaxy = kinds[randomInt(s, kinds.length)];
+  // The wormhole's Lost Overlord: never the same twice running.
+  const lords = OVERLORDS.filter((o) => o.id !== s.overlord);
+  s.overlord = lords[randomInt(s, lords.length)].id;
   // Armouries and research stations along the strip; those deep in it are better stocked.
   const sites = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2));
   for (const n of sites.slice(0, CAMPAIGN.armories)) n.station = { kind: 'armory', cards: armoryStock(s, n) };
@@ -1250,9 +1311,9 @@ function buildUniverse(s: CampaignState, universe: number) {
     for (const id of options) projects.add(id);
     n.station = { kind: 'research', options };
   }
-  // Worlds with something extra: credits, taken with the system.
+  // Worlds with something extra: materials, taken with the system.
   for (const [i, n] of sites.slice(CAMPAIGN.armories + CAMPAIGN.researchStations, CAMPAIGN.armories + CAMPAIGN.researchStations + CAMPAIGN.bonusPlanets).entries()) {
-    n.bonus = { credits: 4 + n.tier + (i % 2) * 2 };
+    n.bonus = { materials: 4 + n.tier + (i % 2) * 2 };
   }
   // Systems with nothing to fight, only something to find: a derelict, a depot, an archive.
   // Each by the odds of its star (STAR_FINDS).
@@ -1262,9 +1323,10 @@ function buildUniverse(s: CampaignState, universe: number) {
     const weights = Object.entries(odds.kinds) as [Cache['kind'], number][];
     let roll = nextRandom(s) * weights.reduce((sum, [, w]) => sum + w, 0);
     const kind = weights.find(([, w]) => (roll -= w) < 0)?.[0] ?? weights[0][0];
-    n.cache = { kind, amount: kind === 'cards' ? 3 : kind === 'credits' ? 4 + 2 * n.tier : kind === 'materials' ? 3 + n.tier : 2 + n.tier };
+    n.cache = { kind, amount: kind === 'cards' ? 3 : 4 + 2 * n.tier };
   }
-  clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into universe ${universe}, at ${home.name}.`);
+  placeChallenges(s);
+  clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into galaxy ${universe}, at ${home.name}.`);
   tell(s, wormholeSightedScene(universe));
 }
 
@@ -1324,15 +1386,6 @@ function clog(s: CampaignState, text: string, at?: string | string[], who?: stri
   s.logSeq += 1;
   s.log.push({ seq: s.logSeq, turn: s.turn, text, ...(at ? { at: Array.isArray(at) ? at : [at] } : {}), ...(who ? { who } : {}) });
   if (s.log.length > 200) s.log.splice(0, s.log.length - 200);
-}
-
-const uid = (s: CampaignState) => `g${++s.uidCounter}`;
-
-function drawMission(s: CampaignState, f: Faction) {
-  const id = f.missionDeck.shift();
-  if (!id) return;
-  const def = campaignMissionDef(id);
-  f.missions.push({ id, base: def.counting ? def.value(f, s) : 0 });
 }
 
 /**
@@ -1437,7 +1490,7 @@ function flagshipSetup(s: CampaignState, army: Army): Pick<PlayerSetup, 'hero' |
     heroStats: heroStats(f, army.general),
     rooms: ship.modules?.some(Boolean) ? { ...ship.rooms, boons: [0, 1, 2, 3, 4].map((r) => ship.modules?.[r]?.boons ?? []) } : ship.rooms,
     ...(ship.shields ? { opening: { shields: ship.shields } } : {}),
-    hull: ship.hull ? { maxHealthDelta: ship.hull * CAMPAIGN.hullHealth } : {},
+    hull: ship.hull || f.sunBonus ? { maxHealthDelta: (ship.hull ?? 0) * CAMPAIGN.hullHealth + (f.sunBonus ?? 0) } : {},
   };
 }
 
@@ -1470,13 +1523,26 @@ export function depth(n: CampaignNode): number {
   return Math.max(1, 5 - n.tier);
 }
 
-/** A battle's suns' max health, from how near the Heart its system lies (as a change to the card game's). */
+/**
+ * A system's defenders' sun's max health: lower at the near end, rising with the strip and the run, never above
+ * the card game's (20). A flagship's sun always starts at the card game's (its own upgrades on top).
+ */
 export function sunHealth(n: CampaignNode): number {
-  // (10 at the near end of the first universe, 3 more a tier, up to 30; the wormhole's guardian's the most.)
-  return Math.min(30, 10 + 3 * Math.max(0, n.tier) + (n.heart ? 2 : 0));
+  // (10 at the near end of the first universe, 3 more a tier, up to 20; the wormhole's guardian's the most.)
+  return Math.min(BALANCE.supernovaAt, 10 + 3 * Math.max(0, n.tier) + (n.heart ? 2 : 0));
 }
 function sunBase(n: CampaignNode): BattleModifiers {
   return { maxHealthDelta: sunHealth(n) - BALANCE.supernovaAt };
+}
+/**
+ * A defending side's modifiers, with its max health held to at most the card game's (20; the galaxy aside,
+ * which touches both sides alike): a system's extras (fortification, wardens, a brown dwarf) can't lift it past.
+ */
+function capDefence(mods: BattleModifiers, galaxy: BattleModifiers | undefined, flagshipDefends = false): BattleModifiers {
+  // (A flagship defending keeps its own upgrades.)
+  if (flagshipDefends) return mods;
+  const most = galaxy?.maxHealthDelta ?? 0;
+  return (mods.maxHealthDelta ?? 0) > most ? { ...mods, maxHealthDelta: most } : mods;
 }
 
 /**
@@ -1491,17 +1557,20 @@ export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
   const def = guard && guard.id !== army.id ? armyBonus(s, guard) : null;
   const starBoth: BattleModifiers = target.star === 'white' ? { startingHeat: -2 } : target.star === 'neutron' ? { heatPerTurn: 1 } : {};
   const base = sunBase(target);
-  const defMods = [
-    base,
+  // (The defenders' sun is the system's; an army defending it brings its flagship's, at the card game's.)
+  const defBase = guard && guard.id !== army.id ? {} : base;
+  const defMods = capDefence([
+    defBase,
     target.fortification ? { maxHealthDelta: target.fortification * CAMPAIGN.fortifyHealth } : {},
     target.heart && !owner ? { maxHealthDelta: CAMPAIGN.heartWardenHealth } : {},
     starBoth,
     target.star === 'brown' ? { maxHealthDelta: 3 } : {},
     def?.mods ?? {},
     atk.foeMods,
-  ].reduce(mergeModifiers, fx?.modifiers ?? {});
-  const atkMods = [base, starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {});
-  const defHeat = (guard && guard.id !== army.id ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat + (defMods.startingHeat ?? 0);
+  ].reduce(mergeModifiers, fx?.modifiers ?? {}), fx?.modifiers, !!guard && guard.id !== army.id);
+  // (The attacking flagship's sun is always the card game's: only its own upgrades change it.)
+  const atkMods = [starBoth, atk.mods, def?.foeMods ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {});
+  const defHeat = (guard && guard.id !== army.id ? guard.damage : target.damage) + atk.foeHeat + (defMods.startingHeat ?? 0);
   const atkHeat = army.damage + (def?.foeHeat ?? 0) + (atkMods.startingHeat ?? 0);
   const names = (fx: ReturnType<typeof galaxyEffects>) => (fx?.conditions ?? []).map((c) => c.name);
   return {
@@ -1509,7 +1578,7 @@ export function battleOdds(s: CampaignState, army: Army, target: CampaignNode) {
     defender: {
       heat: defHeat,
       mods: defMods,
-      sources: [...names(fx), ...(target.star && target.star !== 'red' ? [STAR_TYPES[target.star].name] : []), ...(target.fortification ? ['Fortified'] : []), ...(target.heart && !owner ? ['Heart Wardens'] : [])],
+      sources: [...names(fx), ...(target.star && target.star !== 'red' ? [STAR_TYPES[target.star].name] : []), ...(target.fortification ? ['Fortified'] : []), ...(target.heart && !owner ? ['Lost Overlord'] : [])],
     },
   };
 }
@@ -1544,8 +1613,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const defenceConditions = [
     ...starCond,
     ...(fx?.conditions ?? []),
-    ...(target.heart && !owner ? [{ name: 'Heart Wardens', text: `The oldest guardians: +${CAMPAIGN.heartWardenHealth} max health.` }] : []),
-    ...(target.gate && !owner && !guard ? [{ name: 'Weakened', text: `Cut off and failing: the sentinels' sun starts ${CAMPAIGN.gateHeat} hotter.` }] : []),
+    ...(target.heart && !owner ? [{ name: 'Lost Overlord', text: `The wormhole's guardian has no sun: beat down the Overlord itself (${overlordHealth(s.universe)} stability) to win. It takes one great action a day, its parts in turn: destroy a part to stop its action.` }] : []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
     ...(g.tableau.length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
   ];
@@ -1554,7 +1622,9 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const def = guard ? armyBonus(s, guard) : null;
   // The defender: an army standing there (its own deck), else the system's own guard (its race's plain
   // deck), else neutral sentinels, or at the Heart its Wardens.
-  const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s flagship`) : owner ? `${target.name} Station` : target.heart ? 'The Heart Wardens' : `${target.name} Sentinels`;
+  // The wormhole's guardian: a Lost Overlord, its body in play (see cards-bosses.ts).
+  const lord = target.heart && !owner && !guard ? overlordById(s.overlord ?? OVERLORDS[0].id) : null;
+  const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s flagship`) : owner ? `${target.name} Station` : lord ? lord.name : `${target.name} Sentinels`;
   const defenderDeck = guard ? guard.deck : stationDeck(s, target, owner?.race);
   const { hull: atkHull, ...atkShip } = flagshipSetup(s, army);
   const defShip = guard ? flagshipSetup(s, guard) : null;
@@ -1565,7 +1635,8 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       deck: army.deck,
       deckName: `${armyLeader(army)}'s flagship`,
       heatDelta: army.damage + (def?.foeHeat ?? 0),
-      modifiers: [core, starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fx?.modifiers ?? {}),
+      // (A flagship's sun is the card game's, 20: only its own upgrades change it.)
+      modifiers: [starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fx?.modifiers ?? {}),
       ...(atk.skills.length ? { skills: atk.skills } : {}),
       ...(atk.boons.length ? { heroBoons: { hero: army.general, boons: atk.boons } } : {}),
       ...atkShip,
@@ -1574,13 +1645,17 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
     {
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
       isAI: owner ? owner.isAI : true,
-      deck: defenderDeck,
-      // (The sentinels' heat, and a gate's weakness, are theirs: an army standing there brings its own.)
-      heatDelta: (guard ? guard.damage : target.damage + (owner || target.heart ? 0 : CAMPAIGN.sentinelHeat[target.tier] ?? 0) + (target.gate && !owner ? CAMPAIGN.gateHeat : 0)) + atk.foeHeat,
-      ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : { rooms: stationRooms(target) }),
-      tableau: [...(defShip?.tableau ?? []), ...g.tableau],
+      deck: lord ? [] : defenderDeck,
+      ...(lord ? { boss: true, bossHealth: overlordHealth(s.universe) } : {}),
+      // (A system's damage is its own: an army standing there brings its own.)
+      heatDelta: (guard ? guard.damage : target.damage) + atk.foeHeat,
+      ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : lord ? {} : { rooms: stationRooms(target) }),
+      tableau: lord ? [lord.hero, ...lord.parts] : [...(defShip?.tableau ?? []), ...g.tableau],
       lightspeed: g.lightspeed,
-      modifiers: [fortified, wardens, core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}),
+      // (A Lost Overlord's sun is its own: well beyond any system's, and more in every universe.)
+      modifiers: lord
+        ? [{ maxHealthDelta: overlordHealth(s.universe) - BALANCE.supernovaAt }, starBoth, atk.foeMods].reduce(mergeModifiers, fx?.modifiers ?? {})
+        : capDefence([fortified, wardens, guard ? {} : core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}), fx?.modifiers, !!guard),
       ...(def?.skills.length ? { skills: def.skills } : {}),
       ...(guard && def?.boons.length ? { heroBoons: { hero: guard.general, boons: def.boons } } : {}),
       conditions: [...defenceConditions, ...atk.foeConditions].length ? [...defenceConditions, ...atk.foeConditions] : undefined,
@@ -1607,10 +1682,15 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   const target = nodeById(s, toId);
   if (!here.links.includes(toId)) throw new GameError('There is no route between those systems.');
   if (target.collapsed) throw new GameError(`${target.name} has collapsed. There is nothing left there.`);
+  if (target.challenge) {
+    if (target.challenge.hidden || target.challenge.done || f.id !== s.playerId) throw new GameError('There is nothing there to try.');
+    startChallenge(s, army, target);
+    return;
+  }
   if (target.owner === f.id || ((target.ruined || target.cache) && !target.owner && !armyAt(s, toId))) {
     if (armyAt(s, toId)) throw new GameError(`An army already stands in ${target.name}.`);
     army.nodeId = toId;
-    if (target.cache && !army.lost) takeCache(s, f, target);
+    if (target.cache && !army.lost) takeCache(s, f, target, army);
     army.steps = (army.steps ?? 0) + 1;
     // (A hero who marches fast may go on, but not after a battle.)
     if (army.steps >= 1 + armyBonus(s, army).march) army.moved = true;
@@ -1622,12 +1702,9 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   if (surrenders(s, army, target)) {
     army.moved = true;
     clog(s, `${target.name}'s sentinels surrender to ${armyLeader(army)} without a fight.`, [here.id, target.id], f.id);
-    const h = !army.lost ? heroState(f, army.general) : null;
-    if (h) h.xp += HEROES.lossXp;
     // (Taken without a fight, it may still hold gear.)
     if (!army.lost && nextRandom(s) < HEROES.itemChance + armyBonus(s, army).loot) findItem(s, f, army, target);
     conquer(s, f, target, army);
-    checkMissions(s);
     return;
   }
   const problem = army.lost ? null : armyDeckProblems(army.deck, army.general)[0];
@@ -1680,27 +1757,67 @@ function rout(s: CampaignState, army: Army) {
  * lost, or weren't in it). Up to CAMPAIGN.salvageChoices different cards from the beaten side's deck (wherever
  * they ended up), never a Hero; the same ones every time it is asked, for that battle.
  */
-export function salvageOptions(s: CampaignState, game: GameState): string[] {
+/**
+ * Who a beaten side's cards come from: its own race (most of its cards'), or none for neutral sentinels.
+ * Beaten, your own race's cards may **defect** to you; any other side's prisoners, **freed**, bring neutral cards.
+ */
+export function salvageKind(s: CampaignState, game: GameState): 'defectors' | 'prisoners' | null {
   const b = s.battle;
-  if (!b || !isGameOver(game) || !game.winnerId) return [];
-  const human = (id: string | null) => !!id && id === s.playerId;
-  const seat = human(b.attacker) ? 0 : human(b.defender) ? 1 : -1;
-  if (seat < 0 || game.players[seat].id !== game.winnerId) return [];
+  // (A challenge pays its own reward: nothing to salvage.)
+  if (!b || b.challenge || !isGameOver(game) || !game.winnerId) return null;
+  const seat = b.attacker === s.playerId ? 0 : b.defender === s.playerId ? 1 : -1;
+  if (seat < 0 || game.players[seat].id !== game.winnerId) return null;
   const foe = game.players[1 - seat];
+  const counts = new Map<number, number>();
+  for (const c of [...foe.deck, ...foe.hand, ...foe.tableau, ...foe.discard, ...(foe.fallen ?? [])]) {
+    const r = cardDef(c.defId).race;
+    if (r !== undefined) counts.set(r, (counts.get(r) ?? 0) + 1);
+  }
+  const race = [...counts.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
+  return race !== undefined && race === factionById(s, s.playerId).race ? 'defectors' : 'prisoners';
+}
+
+/**
+ * Salvage: the cards the player may take one of from the side they beat, once the battle is over (none if they
+ * lost, or weren't in it). Cards of a race other than your own play by rules your deck doesn't (a lone grow card
+ * among cards that never grow), so: a side of your own race has cards of yours **defect** (its cards of your
+ * race, and its neutral ones); any other side's **freed prisoners** bring neutral cards (its own neutral ones
+ * first, then others). Up to CAMPAIGN.salvageChoices, different.
+ */
+export function salvageOptions(s: CampaignState, game: GameState): string[] {
+  const kind = salvageKind(s, game);
+  if (!kind) return [];
+  const b = s.battle!;
+  const seat = b.attacker === s.playerId ? 0 : 1;
+  const foe = game.players[1 - seat];
+  const myRace = factionById(s, s.playerId).race;
   const cards = [...foe.deck, ...foe.hand, ...foe.tableau, ...foe.discard, ...(foe.fallen ?? []), ...(foe.lightspeed ? [foe.lightspeed] : [])];
-  const ids = [...new Set(cards.flatMap((c) => [c.defId, ...(c.fused ?? []).map((f) => f.defId)]))]
-    .filter((id) => {
-      const def = cardDef(id);
-      return !def.token && def.kind !== 'command';
-    })
-    .sort();
+  const usable = (id: string) => {
+    const def = cardDef(id);
+    return !def.token && def.kind !== 'command' && !def.overlordPart && legalIn(s.mode, id);
+  };
+  // (Only cards the flagship's deck could still take: none it already holds as many of as a deck may.)
+  const flag = flagship(s, s.playerId);
+  const room = (id: string) => !flag || flag.deck.filter((x) => x === id).length < copyLimit(id);
+  const fits = (id: string) => room(id) && (kind === 'defectors' ? cardDef(id).race === myRace || cardDef(id).race === undefined : cardDef(id).race === undefined);
+  const ids = [...new Set(cards.flatMap((c) => [c.defId, ...(c.fused ?? []).map((f) => f.defId)]))].filter((id) => usable(id) && fits(id)).sort();
   // (A fixed shuffle, from the battle's own seed and place.)
   const next = spoilsRng(game, b.nodeId);
-  for (let i = ids.length - 1; i > 0; i--) {
-    const j = Math.floor(next() * (i + 1));
-    [ids[i], ids[j]] = [ids[j], ids[i]];
+  const shuffle = (list: string[]) => {
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(next() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  };
+  const want = CAMPAIGN.salvageChoices + (s.run?.salvage ?? 0);
+  const out = shuffle(ids).slice(0, want);
+  // Freed prisoners with too few neutral cards of the side's own: others, from the neutral cards at large.
+  if (out.length < want) {
+    const more = shuffle(CARDS.filter((c) => c.race === undefined && !c.fusion && c.kind !== 'global' && usable(c.id) && room(c.id) && !out.includes(c.id)).map((c) => c.id).sort());
+    out.push(...more.slice(0, want - out.length));
   }
-  return ids.slice(0, CAMPAIGN.salvageChoices + (s.run?.salvage ?? 0));
+  return out;
 }
 
 /** A battle's own random numbers for its spoils: the same every time they're asked for (shown, then taken). */
@@ -1723,7 +1840,7 @@ function findRarity(n: CampaignNode, r: number): ItemRarity {
 export function battleFinds(s: CampaignState, game: GameState): { items: Relic[]; modules: ShipModule[] } {
   const none = { items: [], modules: [] };
   const b = s.battle;
-  if (!b || !isGameOver(game) || !game.winnerId || isDraw(game)) return none;
+  if (!b || b.challenge || !isGameOver(game) || !game.winnerId || isDraw(game)) return none;
   const attackerWon = game.winnerId === game.players[0].id;
   const fid = attackerWon ? b.attacker : b.defender;
   const f = fid ? s.factions.find((x) => x.id === fid) : undefined;
@@ -1777,19 +1894,35 @@ function gainCard(s: CampaignState, f: Faction, id: string) {
 }
 
 /** Salvage a card: straight into the army's deck (else the reserve, if the deck may not take another copy). */
-function takeSalvage(s: CampaignState, f: Faction, army: Army | undefined, id: string) {
+function takeSalvage(s: CampaignState, f: Faction, army: Army | undefined, id: string, verb = 'salvages') {
   f.reserve.push(id);
   if (army && army.owner === f.id && deckAddProblem(f, army, id) === null) {
     f.reserve.splice(f.reserve.lastIndexOf(id), 1);
     army.deck.push(id);
-    clog(s, `${f.name} salvages ${cardDef(id).name}: it joins ${armyLeader(army)}'s deck.`, army.nodeId, f.id);
-  } else clog(s, `${f.name} salvages ${cardDef(id).name}: it waits in the reserve.`, undefined, f.id);
+    clog(s, `${f.name} ${verb} ${cardDef(id).name}: it joins ${armyLeader(army)}'s deck.`, army.nodeId, f.id);
+  } else clog(s, `${f.name} ${verb} ${cardDef(id).name}: it waits in the reserve.`, undefined, f.id);
+}
+
+/**
+ * A beaten Lost Overlord's bounty: Stellari petals (more each galaxy), and its hoard, a pick of rare (Stellar) or
+ * Anomaly cards for the flagship's deck (none it already holds as many of as it may).
+ */
+function overlordBounty(s: CampaignState, f: Faction, army?: Army) {
+  const lord = overlordById(s.overlord ?? OVERLORDS[0].id);
+  const petals = Math.max(1, Math.round(CAMPAIGN.bossPetals * s.universe * (1 + (s.run?.petalBonus ?? 0))));
+  s.petals += petals;
+  gainXp(s, CAMPAIGN.xpBoss);
+  clog(s, `${lord.name} falls: ${f.name} gathers ${petals} Stellari petal${petals === 1 ? '' : 's'} from its remains.`, undefined, f.id);
+  const fits = (id: string) => rarityOf(id) !== 'dwarf' && cardDef(id).kind !== 'command' && (!army || deckAddProblem({ ...f, reserve: [id] }, army, id) === null);
+  const options = [...new Set(shuffleInPlace(s, offerPool(f, s.mode)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices);
+  if (options.length) s.cardRewards.push({ source: `${lord.name}'s hoard`, options, ...(army ? { toDeck: army.id } : {}), take: 'claims' });
 }
 
 function resolveBattle(s: CampaignState, game: GameState, salvage?: string | null) {
   const b = s.battle;
   if (!b) throw new GameError('There is no battle to finish.');
   if (!isGameOver(game)) throw new GameError('That battle is not over yet.');
+  if (b.challenge) return resolveChallenge(s, game);
   const salvageable = salvageOptions(s, game);
   if (salvage && !salvageable.includes(salvage)) throw new GameError('That card is not there to salvage.');
   takeFinds(s, game);
@@ -1805,34 +1938,18 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   const winnerSeat = attackerWon ? game.players[0] : game.players[1];
   const winner = draw ? null : attackerWon ? attacker : defender;
 
-  // The winner's sun carries its heat on as damage; a repelled army takes a beating.
+  // The winner's sun goes on as it ended: a flagship starts its next battle at the heat it finished this one on
+  // (cooled below 0, it starts cooler; burned near its end, it starts there). A system keeps a little of it.
   const carried = Math.max(0, Math.min(CAMPAIGN.maxDamage, winnerSeat.heat));
+  const flagHeat = Math.max(BALANCE.minHeat, winnerSeat.heat);
   if (draw) {
     // (Nothing carried on.)
   } else if (attackerWon) {
-    if (army) army.damage = Math.max(army.damage, carried);
+    if (army) army.damage = flagHeat;
   } else {
-    if (guard) guard.damage = carried;
+    if (guard) guard.damage = flagHeat;
     else target.damage = carried;
     if (army) army.damage = Math.min(CAMPAIGN.maxDamage, army.damage + CAMPAIGN.armyRepelledDamage);
-  }
-
-  // Heroes learn from every battle: most from a win.
-  const xp = (a: Army | undefined, amount: number) => {
-    if (!a || a.lost) return;
-    const f = s.factions.find((x) => x.id === a.owner);
-    if (!f) return;
-    const h = heroState(f, a.general);
-    const before = heroLevel(h.xp);
-    h.xp += amount;
-    if (heroLevel(h.xp) > before) clog(s, `${cardDef(a.general).name} reaches level ${heroLevel(h.xp)}.`, a.nodeId, f.id);
-  };
-  if (attackerWon) {
-    xp(army, HEROES.winXp);
-    xp(guard, HEROES.lossXp);
-  } else {
-    xp(army, HEROES.lossXp);
-    xp(guard, HEROES.defendXp);
   }
 
   // Salvage from the beaten side: the player's pick (on the battle screen), or, auto-resolved, a choice owed.
@@ -1840,11 +1957,13 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
     const f = factionById(s, s.playerId);
     const mine = attackerWon ? army : guard;
     if (salvage) takeSalvage(s, f, mine, salvage);
-    else if (salvage === undefined) s.cardRewards.push({ source: 'Salvage', options: salvageable, ...(mine ? { toDeck: mine.id } : {}) });
+    else if (salvage === undefined) s.cardRewards.push({ source: salvageKind(s, game) === 'defectors' ? 'Defectors' : 'Freed prisoners', options: salvageable, ...(mine ? { toDeck: mine.id } : {}) });
   }
 
+  if (winner?.id === s.playerId) gainXp(s, CAMPAIGN.xpBattle);
+  // Stellari's Favour: the flagship's sun cools after every battle it wins.
+  if (attackerWon && army && army.owner === s.playerId && s.run?.favour) army.damage = Math.max(BALANCE.minHeat, army.damage - s.run.favour);
   if (winner) {
-    winner.credits += CAMPAIGN.winCredits;
     winner.materials += CAMPAIGN.winMaterials;
     winner.stats.battlesWon += 1;
     if (game.round <= 6) winner.stats.swiftWins += 1;
@@ -1864,12 +1983,6 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
     // (A hero who came to its aid from next door goes home battered.)
     if (guard?.nodeId === target.id) rout(s, guard);
     else if (guard) guard.damage = CAMPAIGN.maxDamage;
-    // The Lost Races take what they can and keep nothing: a raided system is stripped and left neutral.
-    if (attacker.lost) {
-      raid(s, target, army);
-      checkMissions(s);
-      return;
-    }
     conquer(s, attacker, target, army);
   } else if (draw) {
     clog(s, `The battle for ${target.name} ends in a draw: ${attacker.name}'s attack is held off.`, target.id, attacker.id);
@@ -1879,7 +1992,11 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   // Any battle the player loses ends the run (a draw is no loss).
   const playerSide = b.attacker === s.playerId ? 'attacker' : b.defender === s.playerId ? 'defender' : null;
   if (!draw && playerSide && (playerSide === 'attacker') !== attackerWon) playerFalls(s);
-  checkMissions(s);
+}
+
+/** Experience for the player, for something done this run (it is banked at once: a lost run keeps it). */
+function gainXp(s: CampaignState, amount: number) {
+  s.xp = (s.xp ?? 0) + amount;
 }
 
 /** The player's flagship is beaten in battle: it is lost, and the run with it. */
@@ -1895,7 +2012,7 @@ function playerFalls(s: CampaignState) {
 }
 
 /**
- * A system taken: it is held, pays once (its credits and materials, and any extras: credits or research), and
+ * A system taken: it is held, pays once (its materials, and any extra), and
  * counts towards the petals at the wormhole. The wormhole's guardian beaten, the flagship goes through, into the
  * next universe.
  */
@@ -1905,40 +2022,158 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   f.reserve.push(...spoils);
   n.garrison = [];
   if (spoils.length) clog(s, `${f.name} seizes ${spoils.map((id) => cardDef(id).name).join(', ')} from ${n.name}.`, n.id, f.id);
+  if (f.id === s.playerId && !n.heart) gainXp(s, CAMPAIGN.xpConquer);
   if (n.heart) {
     if (army && s.armies.includes(army)) army.nodeId = n.id;
+    if (f.id === s.playerId) overlordBounty(s, f, army);
     crossWormhole(s, f);
     return;
   }
   if (f.id === s.playerId && f.stats.settled + f.stats.absorbed + f.stats.novas === 0) tell(s, firstConquestScene());
   n.home = undefined;
   n.gate = undefined;
-  const { credits, materials } = n.yield;
-  f.credits += credits;
+  const { materials } = n.yield;
   f.materials += materials;
-  if (n.bonus?.credits) f.credits += n.bonus.credits;
-  const extra = n.bonus?.credits ? ` and ${n.bonus.credits} more from its treasury` : '';
+  if (n.bonus?.materials) f.materials += n.bonus.materials;
+  const extra = n.bonus?.materials ? ` and ${n.bonus.materials} more from its stores` : '';
   n.bonus = undefined;
-  n.yield = { credits: 0, materials: 0 };
+  n.yield = { materials: 0 };
   n.damage = 0;
   n.fortification = 0;
   n.owner = f.id;
   f.stats.settled += 1;
   s.conquered += 1;
-  clog(s, `${f.name} conquers ${n.name}: +${credits} credits, +${materials} materials${extra}.`, n.id, f.id);
+  clog(s, `${f.name} conquers ${n.name}: +${materials} materials${extra}.`, n.id, f.id);
+  revealChallenges(s, f, n);
   // The victors march in.
   if (army && s.armies.includes(army) && !armyAt(s, n.id)) army.nodeId = n.id;
 }
 
+/** Taking a system shows any challenge hanging off it (the player's only: the AI never looks). */
+function revealChallenges(s: CampaignState, f: Faction, n: CampaignNode) {
+  if (f.id !== s.playerId) return;
+  for (const c of s.nodes) {
+    if (!c.challenge?.hidden || c.challenge.from !== n.id) continue;
+    c.challenge.hidden = false;
+    clog(s, `${f.name} finds a hidden route from ${n.name}: ${CHALLENGES[c.challenge.kind].name}.`, [n.id, c.id], f.id);
+  }
+}
+
+/**
+ * Secret systems off the strip, a few each galaxy: each hangs off an ordinary system (in the middle of the strip),
+ * a little way beyond the outer lanes, linked to it alone, hidden until that system is taken. Never two alike; the
+ * Lost Lord only while there are Lost Lords left to beat.
+ */
+function placeChallenges(s: CampaignState) {
+  const L = CAMPAIGN.lanes, C = CAMPAIGN.columns;
+  const kinds = shuffleInPlace<ChallengeKind>(s, ['mine', 'frost', ...(LOST_LORDS.some((id) => !s.lordsWon?.includes(id)) ? ['lord' as const] : [])]).slice(0, 2);
+  // (Off the outer lanes: the top lane's systems upward, the bottom's downward.)
+  const hosts = shuffleInPlace(s, s.nodes.filter((n) => !n.heart && !n.home && !n.station && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2 && (n.lane === 0 || n.lane === L - 1)));
+  kinds.forEach((kind, i) => {
+    const from = hosts[i];
+    if (!from) return;
+    const up = from.lane === 0 ? -1 : 1;
+    const lord = kind === 'lord' ? shuffleInPlace(s, LOST_LORDS.filter((id) => !s.lordsWon?.includes(id)))[0] : undefined;
+    const node: CampaignNode = {
+      id: `n${s.nodes.length}`,
+      name: CHALLENGES[kind].name,
+      x: from.x + 70,
+      y: from.y + up * CAMPAIGN.laneGap * 0.62,
+      planets: [],
+      owner: null,
+      links: [from.id],
+      fortification: 0,
+      damage: 0,
+      garrison: [],
+      hazard: [],
+      yield: { materials: 0 },
+      tier: from.tier,
+      col: from.col,
+      lane: from.lane,
+      challenge: { kind, hidden: true, from: from.id, ...(lord ? { lord } : {}) },
+    };
+    from.links.push(node.id);
+    s.nodes.push(node);
+  });
+}
+
+/**
+ * A challenge entered: the flagship fights the challenge's own side (a body in play, playing nothing): the
+ * mine's crystals, the Frost Line's waves (harder each time), a Lost Lord and their retinue.
+ */
+function startChallenge(s: CampaignState, army: Army, target: CampaignNode) {
+  const f = factionById(s, army.owner);
+  const kind = target.challenge!.kind;
+  army.moved = true;
+  const [me] = battleSetup(s, army, target);
+  const level = s.frostLevel ?? 0;
+  const lord = target.challenge!.lord ?? LOST_LORDS[0];
+  const side: PlayerSetup =
+    kind === 'mine'
+      ? { name: 'The Antimatter Mine', isAI: true, deck: [], boss: true, tableau: Array(5).fill('antimatter_crystal') }
+      : kind === 'frost'
+        ? { name: `The Frost Line${level ? ` (${level + 1})` : ''}`, isAI: true, deck: [], boss: true, tableau: ['rime_golem', ...FROST_LINES[Math.min(level, FROST_LINES.length - 1)].start] }
+        : { name: cardDef(lord).name, isAI: true, deck: [], boss: true, bossLeader: lord, bossHealth: 18 + 3 * (s.universe - 1), tableau: [lord, 'lost_retinue', 'lost_retinue'] };
+  const challenge: GameState['challenge'] =
+    kind === 'mine'
+      ? { kind, days: 6, spawn: ['antimatter_crystal'], per: 2, broken: 0 }
+      : kind === 'frost'
+        ? { kind, broken: 0, ...FROST_LINES[Math.min(level, FROST_LINES.length - 1)].waves }
+        : { kind, broken: 0 };
+  const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players: [me, side], campaign: true, mode: s.mode, challenge });
+  clog(s, `${armyLeader(army)} takes on ${CHALLENGES[kind].name}.`, [army.nodeId, target.id], f.id);
+  s.battle = { attacker: f.id, defender: null, fromId: army.nodeId, nodeId: target.id, armyId: army.id, defenderArmyId: null, game, challenge: { kind, damage: army.damage } };
+}
+
+/**
+ * A challenge over. Won: its reward, and the flagship's sun goes on as it ended. Lost: the run goes on, the
+ * flagship ejected (its sun as it was before), and the challenge dimmed, never to be tried again. Either way the
+ * flagship stays where it set out from.
+ */
+function resolveChallenge(s: CampaignState, game: GameState) {
+  const b = s.battle!;
+  s.battle = null;
+  const f = factionById(s, b.attacker);
+  const army = s.armies.find((a) => a.id === b.armyId);
+  const n = nodeById(s, b.nodeId);
+  const c = n.challenge!;
+  const won = !isDraw(game) && game.winnerId === game.players[0].id;
+  c.done = won ? 'won' : 'lost';
+  if (won && f.id === s.playerId) gainXp(s, CAMPAIGN.xpChallenge);
+  if (!won) {
+    n.dimmed = true;
+    if (army) army.damage = b.challenge!.damage;
+    clog(s, `${f.name}'s flagship is thrown clear of ${n.name}, battered but whole. It will not let them in again.`, n.id, f.id);
+    return;
+  }
+  if (army) army.damage = Math.max(BALANCE.minHeat, game.players[0].heat);
+  if (c.kind === 'mine') {
+    const broken = game.challenge?.broken ?? 0;
+    f.materials += broken * 3;
+    clog(s, `${f.name} breaks ${broken} antimatter crystal${broken === 1 ? '' : 's'} in ${n.name}: +${broken * 3} materials.`, n.id, f.id);
+  } else if (c.kind === 'lord') {
+    const lord = c.lord ?? LOST_LORDS[0];
+    (s.lordsWon ??= []).push(lord);
+    if (army) army.deck.push(lord);
+    else f.reserve.push(lord);
+    clog(s, `${cardDef(lord).name} is beaten, and joins ${f.name}'s flagship.`, n.id, f.id);
+  } else {
+    s.frostLevel = (s.frostLevel ?? 0) + 1;
+    s.boon = { source: n.name };
+    clog(s, `${f.name} holds ${n.name}.`, n.id, f.id);
+  }
+}
+
 /** A system with nothing to fight, flown into: what it holds is taken, and the system with it. */
-function takeCache(s: CampaignState, f: Faction, n: CampaignNode) {
+function takeCache(s: CampaignState, f: Faction, n: CampaignNode, army: Army) {
   const c = n.cache!;
   n.cache = undefined;
   n.owner = f.id;
-  n.yield = { credits: 0, materials: 0 };
+  n.yield = { materials: 0 };
   s.conquered += 1;
-  if (c.kind === 'credits') f.credits += c.amount;
-  else if (c.kind === 'materials') f.materials += c.amount;
+  revealChallenges(s, f, n);
+  if (c.kind === 'relic') return findItem(s, f, army, n);
+  if (c.kind === 'materials') f.materials += c.amount;
   else if (!f.isAI) s.cardRewards.push({ source: `A derelict at ${n.name}`, options: randomCardChoices(s, f) });
   const what = c.kind === 'cards' ? 'a derelict, with cards to choose from' : `${c.amount} ${c.kind}`;
   clog(s, `${f.name} finds ${what} at ${n.name}.`, n.id, f.id);
@@ -1987,29 +2222,6 @@ function aiEquip(f: Faction) {
   }
 }
 
-/** The AI spends its hero's skill points: training first (defence, then attack, by turns), then down the first branch. */
-function aiLearn(f: Faction) {
-  for (const hero of [f.hero ?? GENERALS[f.race][0]]) {
-    const h = heroState(f, hero);
-    for (let i = 0; i < 2; i++) {
-      const stat = (h.train?.defence ?? 0) <= (h.train?.attack ?? 0) ? 'defence' : 'attack';
-      if (trainProblem(f, hero, stat) === null) train(h, stat);
-    }
-    for (const k of [...(SKILL_TREES[hero] ?? [])].sort((a, b) => a.branch - b.branch || a.tier - b.tier)) {
-      if (learnProblem(hero, h, k.id) === null) learn(h, k.id);
-    }
-  }
-}
-
-function learn(h: HeroState, id: string) {
-  h.skills.push(id);
-}
-
-function train(h: HeroState, stat: 'attack' | 'defence') {
-  h.train ??= { attack: 0, defence: 0 };
-  h.train[stat] += 1;
-}
-
 /** Take one of a research station's upgrades, free (the checks are researchProblem's). */
 function takeResearch(s: CampaignState, f: Faction, n: CampaignNode, projectId: string) {
   const why = researchProblem(s, f, n, projectId);
@@ -2033,53 +2245,6 @@ function buyCard(s: CampaignState, f: Faction, n: CampaignNode, index: number) {
   gainCard(s, f, id);
 }
 
-/** Upgrade a part of a faction's flagship (for credits). */
-function upgradeShip(f: Faction, part: ShipPart) {
-  f.ship ??= newShip();
-  const cost = shipUpgradeCost(f.ship, part);
-  if (cost === null) throw new GameError('That part of the ship is fully upgraded.');
-  spendCredits(f, cost);
-  const r = f.ship.rooms;
-  if (part.part === 'defence') r.defence[part.room] += 1;
-  else if (part.part === 'attack') r.attack[part.room] += 1;
-  else if (part.part === 'command') r.command += 1;
-  else if (part.part === 'shields') f.ship.shields += 1;
-  else f.ship.hull += 1;
-}
-
-/** The AI at a station: it takes the research if it can, and buys the best card it can afford with room in its deck. */
-function aiStation(s: CampaignState, f: Faction) {
-  const army = flagship(s, f.id);
-  if (!army) return;
-  const n = nodeById(s, army.nodeId);
-  if (n.station?.kind === 'research' && researchProblem(s, f, n) === null) {
-    // (The deepest it hasn't got.)
-    const pick = n.station.options.filter((id) => !f.research?.done.includes(id)).sort((a, b) => (researchProject(b)?.tier ?? 0) - (researchProject(a)?.tier ?? 0))[0];
-    if (pick) takeResearch(s, f, n, pick);
-  }
-  if (n.station?.kind === 'armory') {
-    const rank = (id: string) => ARMORY_PRICE[cardDef(id).rarity ?? 'dwarf'] + (cardDef(id).race === f.race ? 2 : 0);
-    for (let k = 0; k < 2; k++) {
-      const st = n.station as Extract<Station, { kind: 'armory' }>;
-      const best = st.cards.map((id, i) => ({ id, i })).filter(({ i }) => buyProblem(s, f, n, i) === null).sort((a, b) => rank(b.id) - rank(a.id))[0];
-      if (!best) break;
-      buyCard(s, f, n, best.i);
-    }
-  }
-}
-
-/** The AI upgrades its ship with spare credits: the rooms its cards stand in most, then shields and hull. */
-function aiShip(f: Faction) {
-  const order: ShipPart[] = [{ part: 'command' }, { part: 'defence', room: 2 }, { part: 'attack', room: 2 }, { part: 'hull' }, { part: 'defence', room: 1 }, { part: 'defence', room: 3 }, { part: 'shields' }, { part: 'attack', room: 1 }, { part: 'attack', room: 3 }, { part: 'defence', room: 0 }, { part: 'defence', room: 4 }];
-  f.ship ??= newShip();
-  for (const part of order) {
-    const cost = shipUpgradeCost(f.ship, part);
-    if (cost === null) continue;
-    if (f.credits >= cost + 4) upgradeShip(f, part);
-    return;
-  }
-}
-
 /** A faction with no systems left is out: with no worlds to supply them, its armies scatter. */
 function checkEliminated(s: CampaignState, f: Faction) {
   // (A run ends when its flagship is lost: systems come and go with every universe.)
@@ -2101,9 +2266,8 @@ function collapse(s: CampaignState, n: CampaignNode) {
   n.fortification = 0;
   n.damage = 0;
   n.hazard = [];
-  n.yield = { credits: 0, materials: 0 };
+  n.yield = { materials: 0 };
   n.stellaria = n.stellaria === undefined ? undefined : 0;
-  n.scanner = false;
   n.home = undefined;
   clog(s, `${n.name} collapses into the dark.`, n.id);
   // (Whatever stands there goes with it.)
@@ -2133,13 +2297,13 @@ function checkVictory(s: CampaignState) {
   if (!player.eliminated && armiesOf(s, player.id).length === 0) player.eliminated = true;
   if (!player.eliminated) return;
   s.winner = 'none';
-  clog(s, `The run is over, in universe ${s.universe}, with ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed.`);
+  clog(s, `The run is over, in galaxy ${s.universe}, with ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed.`);
   tell(s, runOverScene(s.universe));
 }
 
 /** Petals grabbed at a wormhole: a few for reaching it, more for every share of the strip conquered, more each universe. */
 export function wormholePetals(s: CampaignState): number {
-  const systems = s.nodes.filter((n) => !n.heart && !n.home).length;
+  const systems = s.nodes.filter((n) => !n.heart && !n.home && !n.challenge).length;
   const share = Math.min(1, s.conquered / Math.max(1, systems));
   return Math.max(1, Math.round((CAMPAIGN.petalBase + CAMPAIGN.petalShare * share) * (1 + 0.5 * (s.universe - 1)) * (1 + (s.run?.petalBonus ?? 0))));
 }
@@ -2148,27 +2312,17 @@ export function wormholePetals(s: CampaignState): number {
 function crossWormhole(s: CampaignState, f: Faction) {
   const petals = wormholePetals(s);
   s.petals += petals;
+  if (f.id === s.playerId) {
+    gainXp(s, CAMPAIGN.xpGalaxy);
+    // Founders' Hoard: materials for every new galaxy.
+    if (s.run?.hoard) {
+      f.materials += s.run.hoard;
+      clog(s, `The Founders' Hoard opens: +${s.run.hoard} materials.`, undefined, f.id);
+    }
+  }
   clog(s, `${f.name} takes the wormhole, grabbing ${petals} Stellari petal${petals === 1 ? '' : 's'} on the way through.`);
   tell(s, wormholeCrossedScene(s.universe, petals));
   buildUniverse(s, s.universe + 1);
-}
-
-function checkMissions(s: CampaignState) {
-  for (const f of s.factions) {
-    if (f.eliminated || f.lost) continue;
-    for (const m of [...f.missions]) {
-      if (missionProgress(s, f, m) < campaignMissionDef(m.id).target) continue;
-      f.missions = f.missions.filter((x) => x !== m);
-      f.credits += CAMPAIGN.missionCredits;
-      f.materials += CAMPAIGN.missionMaterials;
-      const def = campaignMissionDef(m.id);
-      clog(s, `${f.name} completes the mission ${def.name}: +${CAMPAIGN.missionCredits} credits, +${CAMPAIGN.missionMaterials} materials and a new card.`, undefined, f.id);
-      const options = randomCardChoices(s, f);
-      if (f.isAI) f.reserve.push(options[randomInt(s, options.length)]);
-      else s.cardRewards.push({ source: def.name, options });
-      drawMission(s, f);
-    }
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2178,14 +2332,6 @@ function checkMissions(s: CampaignState) {
 function newTurn(s: CampaignState) {
   s.turn += 1;
   s.phase = 'player';
-  // Garrison movements take a turn: arrivals take up station, departures return.
-  for (const n of s.nodes) {
-    const owner = n.owner ? factionById(s, n.owner) : null;
-    for (const g of n.garrison) if (g.status === 'arriving') g.status = 'stationed';
-    const leaving = n.garrison.filter((g) => g.status === 'leaving');
-    if (owner) owner.reserve.push(...leaving.map((g) => g.defId));
-    n.garrison = n.garrison.filter((g) => g.status !== 'leaving');
-  }
   for (const a of s.armies) {
     a.moved = a.refit = false;
     a.steps = 0;
@@ -2199,7 +2345,6 @@ function newTurn(s: CampaignState) {
   if (s.winner) return;
   if (regionalStability(s) <= 0) markCollapses(s);
   else if (regionalStability(s) <= 2) tell(s, instabilityScene());
-  checkMissions(s);
   const p = campaignPlayer(s);
   const left = regionalStability(s);
   clog(s, `— Turn ${s.turn}. ${left > 0 ? `Regional stability: ${left} turn${left === 1 ? '' : 's'}.` : `The strip is collapsing: ${p.name} has ${CAMPAIGN.columns + 1 - s.collapseCol} column${CAMPAIGN.columns + 1 - s.collapseCol === 1 ? '' : 's'} left.`}`);
@@ -2209,56 +2354,9 @@ function endFactionTurn(s: CampaignState, f: Faction) {
   for (const n of s.nodes) n.hazard = n.hazard.filter((id) => id !== f.id);
 }
 
-/** Runs AI turns until they are done, or one attacks the player (who then defends). */
-/** One faction's turn (the next in the queue); once none are left, a new turn begins. */
-function aiStep(s: CampaignState) {
-  if (s.battle || s.winner) return;
-  const id = s.aiQueue.shift();
-  if (id) {
-    const f = factionById(s, id);
-    if (!f.eliminated) {
-      if (f.lost) lostTurn(s, f);
-      else aiTurn(s, f);
-      endFactionTurn(s, f);
-    }
-  }
-  if (!s.aiQueue.length && !s.battle && !s.winner) {
-    s.aiStepwise = undefined;
-    newTurn(s);
-  }
-}
-
-function runAI(s: CampaignState) {
-  while (s.aiQueue.length && !s.battle && !s.winner) {
-    const f = factionById(s, s.aiQueue.shift()!);
-    if (f.eliminated) continue;
-    if (f.lost) lostTurn(s, f);
-    else aiTurn(s, f);
-    endFactionTurn(s, f);
-  }
-  if (!s.aiQueue.length && !s.battle && !s.winner) newTurn(s);
-}
-
 // ---------------------------------------------------------------------------
 // AI factions
 // ---------------------------------------------------------------------------
-
-/** AI deck building: fill the flagship's deck from the reserve, then swap race cards in for neutral ones, keeping it legal. */
-function improveDeck(f: Faction, army: Army) {
-  for (let r = f.reserve.length - 1; r >= 0 && army.deck.length < CAMPAIGN.armySize; r--) {
-    if (deckAddProblem(f, army, f.reserve[r]) === null) army.deck.push(f.reserve.splice(r, 1)[0]);
-  }
-  for (let r = 0; r < f.reserve.length; r++) {
-    const id = f.reserve[r];
-    const def = cardDef(id);
-    if (def.race === undefined || def.kind === 'command') continue;
-    const slot = army.deck.findIndex((d, i) => cardDef(d).race === undefined && cardDef(d).kind !== 'command' && deckSwapProblem(f, army, i, r) === null);
-    if (slot < 0) continue;
-    const out = army.deck[slot];
-    army.deck[slot] = id;
-    f.reserve[r] = out;
-  }
-}
 
 function stabilise(s: CampaignState, f: Faction, n: CampaignNode) {
   f.materials -= CAMPAIGN.stabiliseCost;
@@ -2266,183 +2364,11 @@ function stabilise(s: CampaignState, f: Faction, n: CampaignNode) {
   clog(s, `${f.name} stabilises ${n.name}. It holds for ${CAMPAIGN.stabiliseTurns} more turns.`, n.id, f.id);
 }
 
-/** A system raided by the Lost Races: stripped (garrison, defences) and left neutral; they move in. */
-function raid(s: CampaignState, n: CampaignNode, army?: Army) {
-  const prev = n.owner ? factionById(s, n.owner) : null;
-  n.owner = null;
-  n.home = undefined;
-  n.garrison = [];
-  n.fortification = 0;
-  n.damage = 0;
-  n.yield = { credits: Math.max(0, n.yield.credits - 1), materials: Math.max(0, n.yield.materials - 1) };
-  if (army && s.armies.includes(army) && !armyAt(s, n.id)) army.nodeId = n.id;
-  clog(s, `${army ? armyLeader(army) : 'The Lost Races'} raid ${n.name}, strip it, and leave it to the dark.`, n.id, army?.owner);
-  if (prev?.id === s.playerId && army?.lost) tell(s, lostRaidScene(army.lost, n.name));
-  if (prev) checkEliminated(s, prev);
-  checkVictory(s);
-}
-
-/** The first step on the shortest way from one system to another (around anything collapsing), or null. */
-function stepToward(s: CampaignState, from: string, to: string): string | null {
-  const prev = new Map<string, string>([[from, from]]);
-  const queue = [from];
-  for (let q = 0; q < queue.length; q++) {
-    const id = queue[q];
-    if (id === to) break;
-    for (const next of nodeById(s, id).links) {
-      const n = nodeById(s, next);
-      if (prev.has(next) || n.collapsed || (n.collapsing && next !== to)) continue;
-      prev.set(next, id);
-      queue.push(next);
-    }
-  }
-  if (!prev.has(to)) return null;
-  let at = to;
-  while (prev.get(at) !== from) at = prev.get(at)!;
-  return at;
-}
-
-/**
- * The raiders: they flee the collapse, hunt a flagship that comes near (moving in on it, and attacking it once
- * they reach it), raid a held system beside them now and then, and otherwise drift through unheld space.
- */
-function lostTurn(s: CampaignState, f: Faction) {
-  const prey = flagship(s, s.playerId);
-  for (const army of armiesOf(s, f.id)) {
-    if (s.battle || s.winner || !s.armies.includes(army) || army.moved) continue;
-    const here = nodeById(s, army.nodeId);
-    const near = here.links.map((id) => nodeById(s, id)).filter((n) => !n.collapsed && !n.collapsing && !n.heart);
-    const free = near.filter((n) => !armyAt(s, n.id) && !n.owner);
-    const drift = (to: CampaignNode) => {
-      army.nodeId = to.id;
-      army.moved = true;
-      clog(s, `${armyLeader(army)} move on to ${to.name}.`, [here.id, to.id], f.id);
-    };
-    // Out of the collapse's way first: on, away from the near end.
-    if (here.collapsing || (here.col ?? 0) <= s.collapseCol) {
-      const ahead = free.filter((n) => (n.col ?? 0) > (here.col ?? 0));
-      if (ahead.length) drift(ahead[randomInt(s, ahead.length)]);
-      continue;
-    }
-    // The hunt: a flagship within reach is closed on, and attacked once it is next door.
-    if (prey && army.damage <= 5 && hops(s, here.id, prey.nodeId) <= CAMPAIGN.raiderChase && nextRandom(s) < CAMPAIGN.raiderChaseChance) {
-      const step = stepToward(s, here.id, prey.nodeId);
-      const n = step ? nodeById(s, step) : null;
-      if (n && step === prey.nodeId) {
-        moveArmy(s, army, step);
-        continue;
-      }
-      if (n && !armyAt(s, n.id) && !n.heart) {
-        if (n.owner && !hazardBlocks(n, f.id)) moveArmy(s, army, n.id);
-        else if (!n.owner) drift(n);
-        continue;
-      }
-    }
-    const held = near.filter((n) => n.owner && !armyAt(s, n.id) && !hazardBlocks(n, f.id));
-    if (held.length && nextRandom(s) < CAMPAIGN.lostRaid && army.damage <= 5) {
-      moveArmy(s, army, held[randomInt(s, held.length)].id);
-      continue;
-    }
-    if (free.length && nextRandom(s) < CAMPAIGN.lostWander) drift(free[randomInt(s, free.length)]);
-    // Resting, it mends.
-    if (!army.moved) army.damage = Math.max(0, army.damage - 2);
-  }
-}
-
-/** Hops from a system to the Heart. */
-function hopsToHeart(s: CampaignState, id: string): number {
-  const heart = s.nodes.find((n) => n.heart);
-  return heart ? hops(s, id, heart.id) : 0;
-}
-
-function aiTurn(s: CampaignState, f: Faction) {
-  const mine = ownedNodes(s, f.id);
-  // 1. Repair damaged systems, then armies standing in its own systems.
-  for (const n of [...mine].sort((a, b) => b.damage - a.damage)) {
-    while (n.damage > 0 && f.credits >= CAMPAIGN.healCostPerPoint) {
-      f.credits -= CAMPAIGN.healCostPerPoint;
-      n.damage -= 1;
-    }
-  }
-  // An army refits (repairs, deck changes) or marches, not both: the battered rest and mend, and now and
-  // then one stands down to take on new cards.
-  armiesOf(s, f.id).forEach((army, i) => {
-    if (army.moved) return;
-    const battered = army.damage > 5 && nodeById(s, army.nodeId).owner === f.id;
-    if (battered || (s.turn % 5 === 0 && i === 0)) army.refit = true;
-    while (army.refit && army.damage > 0 && nodeById(s, army.nodeId).owner === f.id && f.credits >= CAMPAIGN.armyHealCost + 4) {
-      f.credits -= CAMPAIGN.armyHealCost;
-      army.damage -= 1;
-    }
-  });
-  // 2. At a station, it buys cards and takes research; with spare credits, it upgrades its ship.
-  aiStation(s, f);
-  aiShip(f);
-  // 3. Its hero trains and learns, and wears what they have found.
-  aiLearn(f);
-  aiEquip(f);
-  // 3b. Hold a collapsing home or bloom together, if it can.
-  for (const n of mine) if ((n.home === f.id || (n.stellaria ?? 0) > 0) && stabiliseProblem(f, n) === null) stabilise(s, f, n);
-  // 4. Improve its flagship's deck: new cards in, race cards for neutral ones (a short deck fills whenever it can).
-  for (const army of armiesOf(s, f.id)) if (army.refit || army.deck.length < CAMPAIGN.armySize) improveDeck(f, army);
-  // 5. Fortify the home system with spare credits.
-  const home = mine.find((n) => n.home === f.id) ?? mine[0];
-  const fcost = home ? fortifyCost(home) : null;
-  if (home && fcost !== null && f.credits >= fcost + 10) {
-    f.credits -= fcost;
-    home.fortification += 1;
-  }
-  // 6. Garrison a border system with a spare card.
-  const border = mine.filter((n) => n.links.some((id) => nodeById(s, id).owner !== f.id) && n.garrison.length < CAMPAIGN.garrisonSlots);
-  const spare = f.reserve.findIndex(canGarrison);
-  if (border.length && spare >= 0) {
-    const n = border[randomInt(s, border.length)];
-    n.garrison.push({ uid: uid(s), defId: f.reserve.splice(spare, 1)[0], status: 'arriving' });
-  }
-  // 7. Each army marches: on the weakest system in reach (most turns), else on towards the Heart. A fight
-  // with the player pauses the AI's turn until it is fought.
-  for (const army of armiesOf(s, f.id)) {
-    if (s.battle || s.winner || !s.armies.includes(army) || army.moved) continue;
-    const moves = armyMoves(s, army);
-    if (!moves.length) continue;
-    // (A station still to use draws it: an armoury with stock, research not yet taken.)
-    const lure = (n: CampaignNode) => (n.station?.kind === 'armory' ? (n.station.cards.length ? 1 : 0) : n.station?.kind === 'research' && !n.station.takenBy ? 1 : 0);
-    const strength = (n: CampaignNode) =>
-      (n.heart ? 6 : n.owner ? 3 : n.tier) + n.garrison.length + (armyAt(s, n.id) ? 2 - armyAt(s, n.id)!.damage * 0.2 : 0) - n.damage * 0.3 + (n.owner === s.playerId ? 0.5 : 0) - ((n.stellaria ?? 0) > 0 ? 1 : 0) - lure(n);
-    // Never into a system about to collapse; and out of one, before it does.
-    const battles = moves.filter((m) => m.battle && !nodeById(s, m.toId).collapsing).map((m) => ({ ...m, node: nodeById(s, m.toId) }));
-    if (nodeById(s, army.nodeId).collapsing) {
-      const away = moves.filter((m) => !nodeById(s, m.toId).collapsing).sort((a, b) => Number(a.battle) - Number(b.battle) || hopsToHeart(s, a.toId) - hopsToHeart(s, b.toId))[0];
-      if (away) {
-        moveArmy(s, army, away.toId);
-        continue;
-      }
-    }
-    // A battered army rests (and is repaired) rather than attack.
-    const ready = army.damage <= 5;
-    const pick = battles.sort((a, b) => strength(a.node) - strength(b.node) || nextRandom(s) - 0.5)[0];
-    // The Heart only once the army is strong and the campaign has run a while.
-    const heartTooSoon = pick?.node.heart && (s.turn < 12 || army.damage > 2);
-    if (pick && ready && !heartTooSoon && nextRandom(s) < 0.8) {
-      moveArmy(s, army, pick.toId);
-      continue;
-    }
-    // No fight: step through its own systems towards the Heart.
-    const here = hopsToHeart(s, army.nodeId);
-    const step = moves.filter((m) => !m.battle && !nodeById(s, m.toId).collapsing).find((m) => hopsToHeart(s, m.toId) < here);
-    if (step && ready) moveArmy(s, army, step.toId);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // The reducer
 // ---------------------------------------------------------------------------
 
 
-function spendCredits(f: Faction, amount: number) {
-  if (f.credits < amount) throw new GameError(`Not enough credits (need ${amount}, have ${f.credits}).`);
-  f.credits -= amount;
-}
 function spendMaterials(f: Faction, amount: number) {
   if (f.materials < amount) throw new GameError(`Not enough materials (need ${amount}, have ${f.materials}).`);
   f.materials -= amount;
@@ -2458,6 +2384,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
   }
   if (action.type === 'petalsBanked') {
     s.petalsBanked = s.petals;
+    s.xpBanked = s.xp ?? 0;
     return s;
   }
   const f = campaignPlayer(s);
@@ -2501,65 +2428,9 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       clog(s, `${f.name} recycles ${cardDef(action.defId).name} for ${value} materials.`);
       break;
     }
-    case 'learnSkill': {
-      if (!GENERALS[f.race].includes(action.hero)) throw new GameError('That is not one of your heroes.');
-      const h = heroState(f, action.hero);
-      const why = learnProblem(action.hero, h, action.skill);
-      if (why) throw new GameError(why);
-      learn(h, action.skill);
-      clog(s, `${cardDef(action.hero).name} learns ${heroSkill(action.hero, action.skill)!.name}.`, undefined, f.id);
-      break;
-    }
     case 'research':
       takeResearch(s, f, nodeById(s, action.nodeId), action.projectId);
       break;
-    case 'train': {
-      const why = trainProblem(f, action.hero, action.stat);
-      if (why) throw new GameError(why);
-      train(heroState(f, action.hero), action.stat);
-      clog(s, `${cardDef(action.hero).name} trains: +1 ${action.stat}.`, undefined, f.id);
-      break;
-    }
-    case 'fitModule': {
-      const m = (f.modules ?? []).find((x) => x.id === action.moduleId);
-      if (!m) throw new GameError('That module is not in your stores.');
-      if (!Number.isInteger(action.room) || action.room < 0 || action.room > 4) throw new GameError('No such room.');
-      fitModule(f, m, action.room);
-      break;
-    }
-    case 'unfitModule': {
-      const old = f.ship.modules?.[action.room];
-      if (!old) throw new GameError('There is no module in that room.');
-      f.ship.modules![action.room] = null;
-      (f.modules ??= []).push(old);
-      break;
-    }
-    case 'upgradeShip': {
-      const { type: _t, ...part } = action;
-      upgradeShip(f, part as ShipPart);
-      break;
-    }
-    case 'equip': {
-      if (!GENERALS[f.race].includes(action.hero)) throw new GameError('That is not one of your heroes.');
-      const item = (f.items ?? []).find((x) => x.id === action.itemId);
-      if (!item) throw new GameError('That gear is not in your stores.');
-      const slot = RACE_SLOTS[f.race].find((x) => x.id === action.slot);
-      if (!slot || slot.kind !== item.slot) throw new GameError(`${item.name} does not fit there.`);
-      const h = heroState(f, action.hero);
-      const old = h.gear[slot.id];
-      h.gear[slot.id] = item;
-      f.items = f.items!.filter((x) => x !== item);
-      if (old) f.items.push(old);
-      break;
-    }
-    case 'unequip': {
-      const h = heroState(f, action.hero);
-      const old = h.gear[action.slot];
-      if (!old) throw new GameError('Nothing is worn there.');
-      delete h.gear[action.slot];
-      (f.items ??= []).push(old);
-      break;
-    }
     case 'stabilise': {
       const n = nodeById(s, action.nodeId);
       const problem = stabiliseProblem(f, n);
@@ -2570,12 +2441,12 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     case 'healArmy': {
       const army = armyById(s, action.armyId);
       if (army.owner !== f.id) throw new GameError('That army is not yours.');
-      if (nodeById(s, army.nodeId).owner !== f.id) throw new GameError('An army can only be repaired in a system you hold.');
+      if (nodeById(s, army.nodeId).station?.kind !== 'armory') throw new GameError('Your flagship can only be repaired at a space station.');
       if (army.damage <= 0) throw new GameError(`${cardDef(army.general).name}'s army is not damaged.`);
-      spendCredits(f, CAMPAIGN.armyHealCost);
+      spendMaterials(f, CAMPAIGN.armyHealCost);
       army.damage -= 1;
-      while (action.all && army.damage > 0 && f.credits >= CAMPAIGN.armyHealCost) {
-        f.credits -= CAMPAIGN.armyHealCost;
+      while (action.all && army.damage > 0 && f.materials >= CAMPAIGN.armyHealCost) {
+        f.materials -= CAMPAIGN.armyHealCost;
         army.damage -= 1;
       }
       break;
@@ -2583,8 +2454,19 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     case 'finishBattle': {
       if (!s.battle) throw new GameError('There is no battle to finish.');
       resolveBattle(s, action.auto ? simulateBattle(action.game) : action.game, action.salvage);
-      // A defence interrupts the AI factions' turns; carry on with them afterwards.
-      if (s.phase === 'ai' && !s.aiStepwise) runAI(s);
+      break;
+    }
+    case 'takeBoon': {
+      if (!s.boon) throw new GameError('There is nothing to choose.');
+      const army = flagship(s, s.playerId);
+      if (action.pick === 'health') {
+        f.sunBonus = (f.sunBonus ?? 0) + 5;
+        clog(s, `${f.name}'s sun is tempered by the cold: +5 max health, for good.`);
+      } else if (army) {
+        army.damage = Math.max(BALANCE.minHeat, army.damage - 6);
+        clog(s, `${f.name}'s sun drinks in the cold: cooled by 6.`);
+      }
+      s.boon = undefined;
       break;
     }
     case 'conquer': {
@@ -2593,7 +2475,6 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       const army = s.armies.find((a) => a.id === s.conquest!.armyId);
       s.conquest = null;
       conquer(s, f, n, army);
-      checkMissions(s);
       break;
     }
     case 'chooseCard': {
@@ -2601,7 +2482,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       if (!reward) throw new GameError('No card to choose.');
       if (action.defId !== null && !reward.options.includes(action.defId)) throw new GameError('That card is not on offer.');
       s.cardRewards.shift();
-      if (action.defId && reward.toDeck !== undefined) takeSalvage(s, f, s.armies.find((a) => a.id === reward.toDeck), action.defId);
+      if (action.defId && reward.toDeck !== undefined) takeSalvage(s, f, s.armies.find((a) => a.id === reward.toDeck), action.defId, reward.take);
       else if (action.defId) {
         clog(s, `${f.name} takes ${cardDef(action.defId).name}.`);
         gainCard(s, f, action.defId);
@@ -2634,17 +2515,14 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       break;
     }
     case 'endTurn':
+      // (No one else moves: the next turn begins at once.)
       endFactionTurn(s, f);
-      s.phase = 'ai';
-      s.aiQueue = s.factions.filter((o) => o.isAI && !o.eliminated).map((o) => o.id);
-      if (action.stepwise) s.aiStepwise = true;
-      else runAI(s);
+      s.aiQueue = [];
+      s.aiStepwise = undefined;
+      newTurn(s);
       break;
     case 'aiStep':
-      if (s.phase !== 'ai') throw new GameError('It is your turn.');
-      if (s.battle) throw new GameError('Finish the battle first.');
-      aiStep(s);
-      break;
+      throw new GameError('It is your turn.');
   }
   noticeStory(s);
   return s;

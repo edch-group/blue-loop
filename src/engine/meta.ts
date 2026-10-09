@@ -1,9 +1,13 @@
 /**
- * The loop's lasting progress: Stellari petals, grabbed at each wormhole, and what they buy for every run after.
+ * The loop's lasting progress, in two currencies, both kept for every run after.
  *
- * A run is one flagship's journey, universe after universe, until it is lost. Petals are banked the moment a
- * wormhole is crossed (they survive the run), and spent between runs on upgrades in four groups: a stronger
- * start, a tougher flagship, unlocks (more races and heroes to begin with), and perks that change a run's rules.
+ * Experience (XP) is earned by everything a run does (battles won, systems taken, challenges cleared, galaxies
+ * crossed, bosses beaten), win or lose, so every run moves the player on. It buys the skill tree: three branches
+ * (a stronger start, a tougher flagship, run perks), each a tier of upgrades bought level by level, unlocking the
+ * next tier up, to a capstone.
+ *
+ * Stellari petals are grabbed at wormholes and from beaten Overlords. They unlock races and heroes, and buy cards
+ * into a race's starting deck for good.
  */
 
 import { GENERALS } from './story';
@@ -18,20 +22,31 @@ export interface MetaUpgrade {
   text: string;
   /** Levels it can be bought to. */
   max: number;
-  /** Petals for the level after `level`. */
+  /** The price of the level after `level` (in XP for the skill tree, petals for unlocks). */
   cost(level: number): number;
+  /** Its tier in its branch (1, 2, then the capstone, 3). */
+  tier?: number;
+  /** What must be bought first: other upgrades, each to a level. */
+  requires?: [string, number][];
 }
+
+/** What an upgrade is bought with. */
+export const currencyOf = (u: MetaUpgrade): 'xp' | 'petals' => (u.group === 'unlock' ? 'petals' : 'xp');
 
 /** What a player has banked and bought (kept on the account). */
 export interface MetaState {
   petals: number;
+  /** Experience banked, to spend on the skill tree. */
+  xp: number;
   upgrades: Record<string, number>;
+  /** Cards bought (with petals) into each race's starting deck, by race. */
+  deck: Record<string, string[]>;
   /** The most universes crossed in one run, and runs begun. */
   best: number;
   runs: number;
 }
 
-export const emptyMeta = (): MetaState => ({ petals: 0, upgrades: {}, best: 0, runs: 0 });
+export const emptyMeta = (): MetaState => ({ petals: 0, xp: 0, upgrades: {}, deck: {}, best: 0, runs: 0 });
 
 const flat = (n: number) => () => n;
 const rising = (base: number, step: number) => (level: number) => base + step * level;
@@ -41,21 +56,22 @@ export const STARTING_RACES = [0, 1, 2, 3];
 
 export const META_UPGRADES: MetaUpgrade[] = [
   // A stronger start.
-  { id: 'credits', group: 'start', name: 'War chest', text: '+3 credits to start each run.', max: 5, cost: rising(3, 2) },
-  { id: 'materials', group: 'start', name: 'Stockpile', text: '+3 materials to start each run.', max: 5, cost: rising(3, 2) },
-  { id: 'cards', group: 'start', name: 'Veterans', text: 'One more of your race\'s cards in the starting deck.', max: 3, cost: rising(5, 4) },
-  { id: 'pick', group: 'start', name: 'Requisition', text: 'Choose a card to add to the starting deck.', max: 2, cost: rising(6, 6) },
+  { id: 'materials', group: 'start', tier: 1, name: 'Stockpile', text: '+3 materials to start each run.', max: 3, cost: rising(20, 15) },
+  { id: 'cards', group: 'start', tier: 2, requires: [['materials', 1]], name: 'Veterans', text: "One more of your race's cards in the starting deck.", max: 2, cost: rising(45, 35) },
+  { id: 'pick', group: 'start', tier: 2, requires: [['materials', 2]], name: 'Requisition', text: 'Choose a card to add to the starting deck.', max: 2, cost: rising(50, 40) },
+  { id: 'hoard', group: 'start', tier: 3, requires: [['cards', 1], ['pick', 1]], name: "Founders' Hoard", text: '+6 materials whenever the flagship enters a new galaxy.', max: 1, cost: flat(160) },
   // A tougher flagship.
-  { id: 'hull', group: 'flagship', name: 'Reinforced hull', text: 'The flagship starts with one more hull level.', max: 3, cost: rising(5, 4) },
-  { id: 'shields', group: 'flagship', name: 'Shield emitters', text: 'The flagship starts with one more shield level.', max: 2, cost: rising(6, 5) },
-  { id: 'walls', group: 'flagship', name: 'Armoured rooms', text: '+1 to every room\'s defence to start with.', max: 2, cost: rising(8, 8) },
-  { id: 'march', group: 'flagship', name: 'Fold drive', text: 'One more move a turn, every turn.', max: 1, cost: flat(20) },
+  { id: 'hull', group: 'flagship', tier: 1, name: 'Reinforced hull', text: 'The flagship starts with one more hull level.', max: 3, cost: rising(20, 15) },
+  { id: 'shields', group: 'flagship', tier: 2, requires: [['hull', 1]], name: 'Shield emitters', text: 'The flagship starts with one more shield level.', max: 2, cost: rising(45, 35) },
+  { id: 'walls', group: 'flagship', tier: 2, requires: [['hull', 2]], name: 'Armoured rooms', text: "+1 to every room's defence to start with.", max: 2, cost: rising(50, 40) },
+  { id: 'march', group: 'flagship', tier: 3, requires: [['shields', 1], ['walls', 1]], name: 'Fold drive', text: 'One more move a turn, every turn.', max: 1, cost: flat(180) },
   // Run perks.
-  { id: 'grace', group: 'perk', name: 'Anchored space', text: 'Regional stability holds one turn longer in every universe.', max: 3, cost: rising(6, 5) },
-  { id: 'armory', group: 'perk', name: 'Trade friends', text: 'Armoury cards cost 1 material less.', max: 2, cost: rising(6, 6) },
-  { id: 'petals', group: 'perk', name: 'Petal pouch', text: '+20% petals at every wormhole.', max: 3, cost: rising(8, 6) },
-  { id: 'salvage', group: 'perk', name: 'Scavengers', text: 'One more card to choose from when salvaging.', max: 1, cost: flat(10) },
-  // Unlocks: the other races, and each race's later heroes.
+  { id: 'grace', group: 'perk', tier: 1, name: 'Anchored space', text: 'Regional stability holds one turn longer in every galaxy.', max: 3, cost: rising(20, 15) },
+  { id: 'armory', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Trade friends', text: 'Armoury cards cost 1 material less.', max: 2, cost: rising(40, 30) },
+  { id: 'petals', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Petal pouch', text: '+20% petals at every wormhole.', max: 3, cost: rising(40, 20) },
+  { id: 'salvage', group: 'perk', tier: 2, requires: [['grace', 2]], name: 'Scavengers', text: 'One more card to choose from when salvaging.', max: 1, cost: flat(60) },
+  { id: 'favour', group: 'perk', tier: 3, requires: [['armory', 1], ['salvage', 1]], name: "Stellari's Favour", text: "After every battle the flagship wins, its sun cools by 3.", max: 1, cost: flat(170) },
+  // Unlocks (petals): the other races, and each race's later heroes.
   ...[4, 5, 6, 7].map((race) => ({ id: `race:${race}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(10) })),
   ...GENERALS.flatMap((heroes) => heroes.slice(1).map((hero) => ({ id: `hero:${hero}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(6) }))),
 ];
@@ -72,16 +88,25 @@ export function buyUpgradeProblem(meta: MetaState, id: string): string | null {
   if (!u) return 'No such upgrade.';
   const level = levelOf(meta, id);
   if (level >= u.max) return 'Already at its most.';
-  if (meta.petals < u.cost(level)) return `Needs ${u.cost(level)} petals.`;
+  const missing = (u.requires ?? []).find(([r, n]) => levelOf(meta, r) < n);
+  if (missing) return `Needs ${metaUpgrade(missing[0])?.name ?? missing[0]} ${'I'.repeat(missing[1])} first.`;
+  const price = u.cost(level);
+  if (currencyOf(u) === 'xp' ? (meta.xp ?? 0) < price : meta.petals < price) return `Needs ${price} ${currencyOf(u) === 'xp' ? 'XP' : 'petals'}.`;
   return null;
 }
+
+/** Whether an upgrade's prerequisites are all bought (it can be bought, given the price). */
+export const upgradeOpen = (meta: MetaState, id: string) => (metaUpgrade(id)?.requires ?? []).every(([r, n]) => levelOf(meta, r) >= n);
 
 /** Buy the next level of an upgrade (a new state; throws if it can't be bought). */
 export function buyUpgrade(meta: MetaState, id: string): MetaState {
   const why = buyUpgradeProblem(meta, id);
   if (why) throw new Error(why);
   const level = levelOf(meta, id);
-  return { ...meta, petals: meta.petals - metaUpgrade(id)!.cost(level), upgrades: { ...meta.upgrades, [id]: level + 1 } };
+  const u = metaUpgrade(id)!;
+  const price = u.cost(level);
+  const paid = currencyOf(u) === 'xp' ? { xp: (meta.xp ?? 0) - price } : { petals: meta.petals - price };
+  return { ...meta, ...paid, upgrades: { ...meta.upgrades, [id]: level + 1 } };
 }
 
 export function raceUnlocked(meta: MetaState, race: number): boolean {
@@ -95,7 +120,6 @@ export function heroUnlocked(meta: MetaState, hero: string): boolean {
 
 /** What a run begins with, and the rules it is played under, from the upgrades bought. */
 export interface RunBonuses {
-  credits: number;
   materials: number;
   /** Extra race cards in the starting deck, and card picks to add to it. */
   cards: number;
@@ -110,12 +134,67 @@ export interface RunBonuses {
   /** Share more petals at each wormhole (0.2 a level). */
   petalBonus: number;
   salvage: number;
+  /** Materials whenever the flagship enters a new galaxy (Founders' Hoard). */
+  hoard: number;
+  /** How much the flagship's sun cools after every battle it wins (Stellari's Favour). */
+  favour: number;
+  /** Cards bought into the starting deck (for the run's race). */
+  deck: string[];
 }
 
-export function runBonuses(meta: MetaState | null | undefined): RunBonuses {
-  const l = (id: string) => (meta ? levelOf(meta, id) : 0);
+/**
+ * Each race's six cards that can be bought into its starting deck with petals: two white dwarf, two stellar and two
+ * anomaly, each chosen for how that race plays (and legal in the mode its runs are played in: Core for the four core
+ * races, whose only anomalies there are few).
+ */
+export const STARTER_OFFERS: string[][] = [
+  // Aureline: armed cards making each other hit harder.
+  ['dawnblade', 'banner_of_dawn', 'lancer_squadron', 'coronal_chorus', 'the_sun_throne', 'event_horizon'],
+  // Xel'Naru: run the sun hot for bigger bursts.
+  ['shard_tempest', 'crystal_bloom', 'xelnaru_oracle', 'refraction_veil', 'event_horizon', 'black_sun'],
+  // Vorthane: shields kept, and stinging.
+  ['brine_lash', 'deep_hymn', 'riptide_sentinel', 'abyssal_snap', 'black_sun', 'event_horizon'],
+  // Ixquor: grow, and go wide.
+  ['sporestorm', 'mycelial_net', 'spore_burst', 'hive_colossus', 'event_horizon', 'black_sun'],
+  // Nyxari: traps from the dark, and unmaking.
+  ['nyx_unmaker_blade', 'nyx_veil_sentry', 'nyx_hollow_reaper', 'nyx_null_shroud', 'temporal_snare', 'event_horizon'],
+  // Korrath: walls, and the forge behind them.
+  ['kor_foundry', 'kor_molten_pour', 'kor_master_smith', 'kor_rampart_lord', 'aegis_monolith', 'black_sun'],
+  // Seren: the planets turned, and attunement.
+  ['ser_eclipse_caster', 'ser_twin_moons', 'ser_oracle', 'ser_constellation', 'grand_orrery', 'circular_refraction'],
+  // Pyrr: everything spent in one burst, the sun run hot.
+  ['pyr_flare_burst', 'pyr_stoker', 'pyr_supernova_charge', 'pyr_solar_tyrant', 'supernova_lance', 'crown_first_sun'],
+];
+
+/** What a starter card costs in petals, by its rarity. */
+export const starterCardPrice = (rarity: string | undefined) => (rarity === 'anomaly' ? 14 : rarity === 'stellar' ? 8 : 4);
+
+/** Why this card can't be bought into this race's starting deck now (null if it can). */
+export function starterAddProblem(meta: MetaState, race: number, defId: string, rarity: string | undefined): string | null {
+  if (!STARTER_OFFERS[race]?.includes(defId)) return "That card isn't offered to this race's starting deck.";
+  if ((meta.deck?.[race] ?? []).includes(defId)) return 'Already in the starting deck.';
+  if (meta.petals < starterCardPrice(rarity)) return `Needs ${starterCardPrice(rarity)} petals.`;
+  return null;
+}
+
+/** Buy a card into a race's starting deck for good (a new state; throws if it can't be bought). */
+export function buyStarterCard(meta: MetaState, race: number, defId: string, rarity: string | undefined): MetaState {
+  const why = starterAddProblem(meta, race, defId, rarity);
+  if (why) throw new Error(why);
+  return { ...meta, petals: meta.petals - starterCardPrice(rarity), deck: { ...meta.deck, [race]: [...(meta.deck?.[race] ?? []), defId] } };
+}
+
+/** Take a bought card back out of a race's starting deck (its petals are not returned). */
+export function removeStarterCard(meta: MetaState, race: number, index: number): MetaState {
+  const have = [...(meta.deck?.[race] ?? [])];
+  have.splice(index, 1);
+  return { ...meta, deck: { ...meta.deck, [race]: have } };
+}
+
+export function runBonuses(meta: MetaState | null | undefined, race?: number): RunBonuses {
+  // (A level bought before a skill's most was lowered counts only up to its most now.)
+  const l = (id: string) => (meta ? Math.min(levelOf(meta, id), metaUpgrade(id)?.max ?? 0) : 0);
   return {
-    credits: 3 * l('credits'),
     materials: 3 * l('materials'),
     cards: l('cards'),
     picks: l('pick'),
@@ -127,5 +206,8 @@ export function runBonuses(meta: MetaState | null | undefined): RunBonuses {
     armoryDiscount: l('armory'),
     petalBonus: 0.2 * l('petals'),
     salvage: l('salvage'),
+    hoard: 6 * l('hoard'),
+    favour: 3 * l('favour'),
+    deck: meta && race !== undefined ? [...(meta.deck?.[race] ?? [])] : [],
   };
 }
