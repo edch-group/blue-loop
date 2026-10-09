@@ -5125,18 +5125,13 @@ export class App {
     // Your dawn Shift: a card to move, then where; or let it be.
     if (this.dawnShiftWaiting())
       return `<div class="mid-hint"><b>${this.dawnPick ? 'dawn shift: where it moves' : 'dawn shift: move a card'}</b><button class="mid-cancel" data-act="${this.dawnPick ? 'dawn-shift-back' : 'dawn-shift-skip'}">${this.dawnPick ? 'back' : 'let it be'}</button></div>`;
-    // Against a Lost Overlord: its next action, and the part making it (destroy that part to stop it).
+    // A challenge's clock (the mine's count too), with nothing acting next. (Against a Lost Overlord or Lord, the
+    // card that acts next burns on the board: that says enough.)
     if (!p) {
       const lord = s.players.find((x) => x.boss && !x.eliminated);
-      const next = lord ? bossIntent(lord) : null;
-      // A challenge's clock (and the mine's count).
       const ch = s.challenge;
       const clock = ch?.days !== undefined ? `${ch.days} day${ch.days === 1 ? '' : 's'} left${ch.kind === 'mine' ? ` · ${ch.broken} broken` : ''}` : '';
-      if (lord && !next && clock) return `<div class="mid-hint boss-hint"><small>${esc(lord.name.toLowerCase())}</small><b>${ch!.kind === 'mine' ? 'break the crystals' : 'hold the line'}</b><span>${clock}</span></div>`;
-      if (lord && next) {
-        const part = cardDef(next.card.defId);
-        return `<div class="mid-hint boss-hint"><small>${esc(lord.name.toLowerCase())}${clock ? ` · ${clock}` : ''} · next</small><b>${esc(next.name.toLowerCase())}</b><span>${esc(part.bossAction?.say ?? plainText(part.text).replace(/^.*?Action: /, ''))} <i>(${esc(part.name.toLowerCase())}: destroy it to stop this)</i></span></div>`;
-      }
+      if (lord && !bossIntent(lord) && clock) return `<div class="mid-hint boss-hint"><small>${esc(lord.name.toLowerCase())}</small><b>${ch!.kind === 'mine' ? 'break the crystals' : 'hold the line'}</b><span>${clock}</span></div>`;
     }
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack || p.ability !== undefined ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
