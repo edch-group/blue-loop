@@ -110,7 +110,7 @@ import { onLiftChange, refreshLift, trackLift } from './lift';
 import { animateSuns, holdSuns } from './sun3d';
 import { voices } from './voice';
 import { morphInto } from './morph';
-import { appSize, forceLandscape, pageRect, VIEWPORT_EVENT } from './viewport';
+import { appSize, forceLandscape, pageRect, toPage, VIEWPORT_EVENT } from './viewport';
 import { artIdsIn, preloadArt } from './cardart';
 
 type Screen = 'menu' | 'game' | 'campaign';
@@ -3207,7 +3207,9 @@ export class App {
       d.dy = (d.dy / r.height) * d.el.offsetHeight;
       d.el.classList.add('card-dragging');
     }
-    d.ghost.style.transform = `translate(${e.clientX - d.dx}px, ${e.clientY - d.dy}px) rotate(-3deg) scale(1.05)`;
+    // (The pointer is on screen; the copy is laid on the page, which may be zoomed or turned: in the page's own pixels.)
+    const at = toPage(new DOMRect(e.clientX, e.clientY, 0, 0));
+    d.ghost.style.transform = `translate(${at.x - d.dx}px, ${at.y - d.dy}px) rotate(-3deg) scale(1.05)`;
     this.markDrop(this.dropEl(e.clientX, e.clientY));
   }
 
@@ -3301,9 +3303,14 @@ export class App {
       this.pending = { uid: d.uid, step: 'aim', attack: true };
       this.render();
       sound.hover();
-      d.beam = pointerAim(() => this.root.querySelector(`.tableau-mine [data-uid="${d.uid}"]`)?.getBoundingClientRect() ?? null);
+      d.beam = pointerAim(() => {
+        const el = this.root.querySelector(`.tableau-mine [data-uid="${d.uid}"]`);
+        return el ? pageRect(el) : null;
+      });
     }
-    d.beam.to(e.clientX, e.clientY);
+    // (The pointer is on screen; the beam is drawn on the page, which may be zoomed or turned.)
+    const at = toPage(new DOMRect(e.clientX, e.clientY, 0, 0));
+    d.beam.to(at.x, at.y);
     const over = this.attackTargetAt(e.clientX, e.clientY);
     if (over !== d.over) {
       d.over?.classList.remove('aim-over');

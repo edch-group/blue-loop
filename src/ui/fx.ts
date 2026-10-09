@@ -264,9 +264,6 @@ class Beam {
   }
   /** Lay the beam from one rectangle to another, drawn out to `progress` (0–1) of its length. */
   draw(from: DOMRect, to: DOMRect, progress = 1) {
-    // (Measured on screen; drawn on the page, which may be zoomed: turned back into the page's own pixels.)
-    const z = parseFloat(getComputedStyle(document.body).zoom) || 1;
-    if (z !== 1) [from, to] = [from, to].map((r) => new DOMRect(r.left / z, r.top / z, r.width / z, r.height / z));
     const ax = from.left + from.width / 2, ay = from.top + from.height / 2;
     const bx = to.left + to.width / 2, by = to.top + to.height / 2;
     const dx = bx - ax, dy = by - ay;
@@ -394,7 +391,8 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
 
 /**
  * An aim being dragged: the attack beam from a card to the pointer (or finger), its head at the pointer and
- * following it, until stopped. `to` moves its head; `stop` takes it away.
+ * following it, until stopped. `to` moves its head (a point in the page's own coordinates, like the source's
+ * rectangle: see viewport.ts toPage); `stop` takes it away.
  */
 export function pointerAim(source: () => DOMRect | null, kind: BeamKind = 'attack'): { to: (x: number, y: number) => void; stop: () => void } {
   const b = new Beam(kind, 0.22);
