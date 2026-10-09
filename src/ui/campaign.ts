@@ -314,6 +314,8 @@ export class CampaignView {
 
   /** What happened in the last battle or turn, shown once the player is free to read it. */
   private sheet: Sheet | null = null;
+  /** On the way into a pending battle (so the map, drawn meanwhile, sends it only once). */
+  private enteringBattle = false;
   /** New-campaign setup choices (the hero: an index into the race's heroes). */
   private setup = { rivals: 3, race: 0, hero: 0 };
   private shopOpen = false;
@@ -755,10 +757,6 @@ export class CampaignView {
         const { armyId, toId } = this.sheet;
         return this.setOut(armyId, toId);
       }
-      case 'cmp-defend':
-        this.readWaiting(s!.story.queue.length);
-        this.host.playBattle(s!.battle!.game);
-        return true;
       case 'cmp-conquer':
         if (this.apply({ type: 'conquer', choice: 'settle' })) sound.upgrade();
         break;
@@ -1777,7 +1775,6 @@ export class CampaignView {
 
   private renderOverlay(): string {
     const s = this.state!;
-    const me = campaignPlayer(s);
     if (s.winner) {
       // The run is over: how far it got, and what it banked.
       const meta = loadMeta();
@@ -1788,20 +1785,19 @@ export class CampaignView {
           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-new-run">upgrades · new run</button><button class="btn" data-act="cmp-abandon">back to menu</button></div></div>`,
       );
     }
+    // A battle pending (a run picked up mid-battle): straight into it, no stop on the way.
     if (s.battle) {
-      const b = s.battle;
-      const node = nodeById(s, b.nodeId);
-      const attacker = factionById(s, b.attacker);
-      const mine = b.attacker === me.id;
-      const army = s.armies.find((a) => a.id === b.armyId);
-      return this.modal(
-        mine ? `the battle for ${lower(node.name)}` : `${lower(army ? armyLeader(army) : attacker.name)} attack${army?.lost ? '' : 's'} ${lower(node.name)}`,
-        `${this.matchup(b.armyId, node, b.defender === s.playerId)}
-          <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-defend">${mine ? 'back to it' : 'defend'}</button></div>`,
-        false,
-        '',
-        'cmp-modal-narrow cmp-attack',
-      );
+      if (!this.enteringBattle) {
+        this.enteringBattle = true;
+        window.setTimeout(() => {
+          this.enteringBattle = false;
+          const now = this.state;
+          if (!now?.battle) return;
+          this.readWaiting(now.story.queue.length);
+          this.host.playBattle(now.battle.game);
+        }, 0);
+      }
+      return '';
     }
     if (s.conquest) {
       const n = nodeById(s, s.conquest.nodeId);
