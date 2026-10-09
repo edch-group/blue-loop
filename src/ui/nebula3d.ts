@@ -670,7 +670,32 @@ export class Nebula {
   setObjects(list: MapObject[]) {
     const top = this.layers[this.layers.length - 1];
     top.objects?.set(list);
+    this.objectList = list;
     this.wake();
+  }
+
+  private objectList: MapObject[] = [];
+
+  /**
+   * The star whose rings take in this point on the canvas (CSS pixels): anywhere inside its outer ring (as the
+   * travel rings pulse out to), the nearest to its middle if two overlap. (Measured as the scene is drawn, not by
+   * the page's billboards, which tilt in 3D and are slight.)
+   */
+  pickStar(sx: number, sy: number): string | null {
+    const cam = this.camera;
+    if (!cam) return null;
+    let best: string | null = null, bestK = 1;
+    for (const o of this.objectList) {
+      if (!o.id || o.dead) continue;
+      const at = this.toScreen(o.x, 0, o.z);
+      if (!at) continue;
+      // (The rings round a star reach r * 4.4 across its sprite; never smaller than a fingertip.)
+      const reach = (o.heart ? 0.072 : 0.036) * 4.4;
+      const px = Math.max(16, ((cam.proj[0] * reach) / at.depth) * cam.width / 2);
+      const k = Math.hypot(sx - at.x, sy - at.y) / px;
+      if (k <= bestK) { bestK = k; best = o.id; }
+    }
+    return best;
   }
 
   /**

@@ -693,7 +693,11 @@ export class CampaignView {
         this.selected = null;
         this.view = this.homeView();
         break;
-      case 'cmp-deselect':
+      case 'cmp-deselect': {
+        // A click inside a star's rings is a click on the star.
+        const hit = this.pointerAt && this.pickAt(this.pointerAt[0], this.pointerAt[1]);
+        if (hit) return this.onClick('cmp-select', hit, el);
+      }
         if (!this.selected && !this.army) return true;
         this.selected = null;
         this.army = null;
@@ -1377,10 +1381,16 @@ export class CampaignView {
       boundStages.add(stage);
       stage.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
       // A star under the pointer swells and flares, with a soft chime.
-      stage.addEventListener('pointerover', (e) => this.hoverStar(e.target as Element, e.pointerType));
-      stage.addEventListener('pointerout', (e) => {
-        if (!(e.relatedTarget as Element | null)?.closest?.('.cmp-star')) this.hoverStar(null, e.pointerType);
+      // (Anywhere inside its rings, measured from the scene: see pickAt. Without WebGL, the star's own mark.)
+      stage.addEventListener('pointermove', (e) => {
+        this.pointerAt = [e.clientX, e.clientY];
+        if (this.nebula) this.setHovered(this.pickAt(e.clientX, e.clientY), e.pointerType);
       });
+      stage.addEventListener('pointerover', (e) => { if (!this.nebula) this.hoverStar(e.target as Element, e.pointerType); });
+      stage.addEventListener('pointerout', (e) => {
+        if (!this.nebula && !(e.relatedTarget as Element | null)?.closest?.('.cmp-star')) this.hoverStar(null, e.pointerType);
+      });
+      stage.addEventListener('pointerleave', (e) => { this.pointerAt = null; this.setHovered(null, e.pointerType); });
     }
     this.view ??= this.homeView();
     this.showNebula(root);
@@ -1629,9 +1639,30 @@ export class CampaignView {
 
   private hoveredStar: string | null = null;
 
+  private pointerAt: [number, number] | null = null;
+
+  /** The star whose rings take in this point on the screen, if any (the map's stars as the scene draws them). */
+  private pickAt(cx: number, cy: number): string | null {
+    const canvas = this.nebula?.back;
+    if (!canvas || !this.state) return null;
+    // (Not through a popover, a sheet or the map's own controls lying over the stage.)
+    const top = document.elementFromPoint(cx, cy);
+    if (top && !top.closest('.cmp-stage')) return null;
+    // (A star's own billboard is that star's.)
+    const own = top?.closest('.cmp-bb')?.closest<HTMLElement>('.cmp-n3')?.dataset.key;
+    if (own?.startsWith('sys-')) return own.slice(4);
+    if (top?.closest('.cmp-pop, .cmp-orbits, button, [data-act]:not(.cmp-stage):not(.cmp-ring)')) return null;
+    const box = canvas.getBoundingClientRect();
+    const id = this.nebula!.pickStar(cx - box.left, cy - box.top);
+    return id && this.state.nodes.some((n) => n.id === id && !n.challenge?.hidden) ? id : null;
+  }
+
   private hoverStar(target: Element | null, pointer: string) {
     const key = target?.closest('.cmp-star')?.closest<HTMLElement>('.cmp-n3')?.dataset.key;
-    const id = key?.startsWith('sys-') ? key.slice(4) : null;
+    this.setHovered(key?.startsWith('sys-') ? key.slice(4) : null, pointer);
+  }
+
+  private setHovered(id: string | null, pointer: string) {
     if (id === this.hoveredStar) return;
     this.hoveredStar = id;
     this.nebula?.hover(id);
