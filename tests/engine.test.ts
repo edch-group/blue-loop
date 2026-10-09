@@ -1525,4 +1525,14 @@ describe('Offering and Rootbreak', () => {
     s = play(s, 'ixquor_canopy_breach', { allyUid: root.uid });
     expect(s.players[1].shields).toBe(3);
   });
+
+  it("a card hitting back says what from: its attack, and its Sting (a Vorthane card's own, from its race)", () => {
+    let s = twoPlayer();
+    const ada = activePlayer(s);
+    const [array] = give(ada, ['focusing_array'], 'tableau');
+    array.health = 9;
+    const [tide] = give(s.players[1], ['riptide'], 'tableau');
+    s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: tide.uid });
+    expect(s.log.some((l) => /Riptide hits back for its attack \d+ and Sting 1: Focusing Array takes \d+/.test(l.text))).toBe(true);
+  });
 });

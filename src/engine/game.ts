@@ -1898,10 +1898,14 @@ export function defHasRole(def: CardDef, kind: CardKind): boolean {
   return def.kind === kind;
 }
 
+/** A card's Sting: its own (its text, fused cards) and its race's (Vorthane cards Sting 1). */
+export function cardSting(card: CardInstance): number {
+  return cardPassives(card).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0) + (raceTrait(cardDef(card.defId).race)?.sting ?? 0);
+}
+
 /** What a card hits back with when it is attacked: its own attack, and its Sting. */
 export function counterDamage(state: GameState, owner: PlayerState, card: CardInstance): number {
-  const sting = cardPassives(card).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0) + (raceTrait(cardDef(card.defId).race)?.sting ?? 0);
-  return cardAttack(state, owner, card) + sting;
+  return cardAttack(state, owner, card) + cardSting(card);
 }
 
 /** Why a card can't attack this target now (null if it can). `targetUid` null: the rival's sun; unset: whether it can attack at all. */
@@ -1951,7 +1955,10 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
     const absorbed = Math.min(back, own, cardDefence(p, card));
     if (absorbed > 0) card.dented = (card.dented ?? 0) + absorbed;
     card.health = Math.max(0, (card.health ?? 0) - (back - absorbed));
-    log(state, `${cardDef(victim.defId).name} hits back: ${name} takes ${back}${absorbed ? ` (${absorbed} on its own defence)` : ''} (health ${card.health}).`);
+    // (Where the blow comes from, in words: its attack and its Sting, each named.)
+    const atk = cardAttack(state, rival, victim), sting = back - atk;
+    const from = [atk > 0 ? `its attack ${atk}` : '', sting > 0 ? `Sting ${sting}` : ''].filter(Boolean).join(' and ');
+    log(state, `${cardDef(victim.defId).name} hits back for ${from}: ${name} takes ${back}${absorbed ? ` (${absorbed} on its own defence)` : ''} (health ${card.health}).`);
     if (card.health <= 0) {
       log(state, `${p.name}'s ${name} burns away.`);
       leaveTableau(state, p, card);
