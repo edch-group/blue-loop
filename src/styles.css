@@ -6152,12 +6152,13 @@ body:has(.game-result) .dock { visibility: hidden; }
 .card.card-full:not(.card-table) .card-kind .card-type {
   position: static; transform: none; height: auto; padding: 0; font-size: max(9px, calc(var(--cw) * 0.04)); letter-spacing: 0.22em; color: #ffb070;
 }
-/* On a phone the chips over the cards scale down with them past reading: they keep to a size a finger and an eye can
-   use (their strip may run a little wider than the card). */
+/* On a phone there is no room for a strip of readable chips over every card: on the whole board each card with
+   chips shows a dot in their place, and zoomed onto a tableau (the eye buttons), where the cards are twice the size,
+   the chips come back, readable. (The inspector explains a card in full either way.) */
 @media (pointer: coarse), (orientation: landscape) and (max-height: 560px) {
-  .card-yield { max-width: calc(var(--tcw, 80px) * 1.6); gap: 0 5px; padding: 1px 8px; border-radius: 999px; }
-  .yield { font-size: max(13px, calc(var(--tcw, 80px) * 0.105)); height: max(21px, calc(var(--tcw, 80px) * 0.22)); gap: 2px; }
-  .yield .kw-ico { width: max(13px, calc(var(--tcw, 80px) * 0.105)); height: max(13px, calc(var(--tcw, 80px) * 0.105)); }
-  .boon-mark { --s: max(18px, calc(var(--tcw, 80px) * 0.18)); }
-  .boon-mark small { font-size: max(9px, calc(var(--tcw, 80px) * 0.07)); }
+  .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield {
+    width: max(6px, calc(var(--tcw, 80px) * 0.09)); height: max(6px, calc(var(--tcw, 80px) * 0.09)); min-width: 0; padding: 0; gap: 0;
+    border-radius: 50%; background: #c9a24a; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(60, 70, 100, 0.25); pointer-events: none;
+  }
+  .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield > * { display: none; }
 }
