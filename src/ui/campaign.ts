@@ -961,18 +961,14 @@ export class CampaignView {
     };
     const r = this.setup.race;
     const colour = (race: number) => FACTION_COLOUR[`f${race + 1}`];
-    // Across the top: every race as its emblem, the core four, then the Lost Races (unlocked with petals).
+    // Across the top: every race as its emblem, the core four, then the Lost Races (unlocked with petals, priced on them).
     const orb = (i: number) => {
       const open = raceUnlocked(meta, i);
       return `<button class="cs-orb ${r === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${i}" style="--rc:${colour(i)}" aria-label="${esc(RACE_NAMES[i])}">
         <span class="cs-orb-mark">${factionAvatar(`f${i + 1}`, 'cs-orb-emblem')}</span><b>${lower(RACE_NAMES[i])}</b>${open ? '' : `<i class="cs-orb-price">${PETAL}${metaUpgrade(`race:${i}`)!.cost(0)}</i>`}
       </button>`;
     };
-    const races = `<nav class="cs-races">
-      <div class="cs-race-set">${[0, 1, 2, 3].map(orb).join('')}</div>
-      <span class="cs-race-gap" data-tip="Unlocked with Stellari petals. A run as one of them is played in Lost Races mode: every race and mechanic."><small>lost races</small></span>
-      <div class="cs-race-set">${[4, 5, 6, 7].map(orb).join('')}</div>
-    </nav>`;
+    const races = `<nav class="cs-races"><div class="cs-race-set">${[0, 1, 2, 3, 4, 5, 6, 7].map(orb).join('')}</div></nav>`;
     // The picked race: its name large, its creed, its trait, its sub-races.
     const raceOpen = raceUnlocked(meta, r);
     const subs = Object.values(SUBRACES).filter((x) => x.race === r);

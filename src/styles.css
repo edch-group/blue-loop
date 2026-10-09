@@ -6085,8 +6085,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* The races: emblems in a row, the picked one lifted in its colour, its name under it. */
 .cs-races { display: flex; justify-content: center; align-items: flex-start; gap: clamp(6px, calc(1.6 * var(--vw)), 18px); }
 .cs-race-set { display: flex; gap: clamp(4px, calc(1.2 * var(--vw)), 14px); }
-.cs-race-gap { align-self: center; display: grid; place-items: center; padding: 0 clamp(2px, 1vw, 10px); border-left: 1px solid rgba(120, 128, 150, 0.25); height: 38px; }
-.cs-race-gap small { writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
 .cs-orb { --s: clamp(36px, calc(7.4 * var(--vh)), 56px); position: relative; display: grid; justify-items: center; gap: 5px; width: calc(var(--s) + 26px); padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: var(--ink-faint); }
 .cs-orb-mark { width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 4px 12px rgba(70, 76, 100, 0.12); transition: transform 0.2s, box-shadow 0.2s; }
 .cs-orb-emblem { width: 72%; height: auto; }
@@ -6154,8 +6152,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   .cs-page .setup-foot .btn-primary { padding: 7px 20px; }
   .cs-body { gap: 6px; padding: 6px 8px 10px; overflow-y: auto; scrollbar-width: none; }
   .cs-orb { --s: 30px; width: 54px; gap: 3px; }
-  .cs-race-gap { height: 28px; }
-  .cs-race h3 { font-size: 0.95rem; letter-spacing: 0.34em; }
+    .cs-race h3 { font-size: 0.95rem; letter-spacing: 0.34em; }
   .cs-race p { font-size: 0.62rem; }
   .cs-hero { display: block; min-height: 190px; border-radius: 14px; }
   .cs-hero-art { position: absolute; inset: 0; }
