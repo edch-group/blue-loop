@@ -512,13 +512,13 @@ class SoundBoard {
   }
   /**
    * A card coming in (put into play, or arriving on the stage): a short, bell-like chord, the dawn banner's
-   * (root, fifth and octave on soft sines) an octave higher, struck rather than swelled, and gone in under a
-   * second; a quiet octave above each note gives it its ring.
+   * (root, fifth and octave on soft sines) a fifth higher, struck rather than swelled, ringing out over a second
+   * or so; a quiet octave above each note gives it its ring.
    */
   play() {
-    [440, 659.25, 880].forEach((f, i) => {
-      this.voice(f, { dur: 0.75, attack: 0.012, gain: 0.034 - i * 0.004, cutoff: 2800, delay: i * 0.025 });
-      this.voice(f * 2, { dur: 0.35, attack: 0.008, gain: 0.006, delay: i * 0.025 });
+    [329.63, 493.88, 659.25].forEach((f, i) => {
+      this.voice(f, { dur: 1.3, attack: 0.015, gain: 0.036 - i * 0.004, cutoff: 2400, delay: i * 0.025 });
+      this.voice(f * 2, { dur: 0.6, attack: 0.01, gain: 0.004, delay: i * 0.025 });
     });
   }
   buy() {
