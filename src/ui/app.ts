@@ -333,7 +333,8 @@ function withYield(html: string, marks: string): string {
 }
 
 /** Keywords not marked over a card in play: timings, its own numbers, and what its yield already shows. */
-const UNMARKED = new Set(['dawn', 'dusk', 'vigil', 'dimmed', 'abilities', 'act', 'attack', 'cost', 'heat', 'cool', 'shield', 'plays', 'energy', 'repair', 'draw']);
+// (Overheated is a condition, not a mechanic: what it turns on shows in the card's yield, and only while it holds.)
+const UNMARKED = new Set(['dawn', 'dusk', 'vigil', 'dimmed', 'abilities', 'act', 'attack', 'cost', 'heat', 'cool', 'shield', 'plays', 'energy', 'repair', 'draw', 'overheated']);
 
 /**
  * What a card does only as it is played (or before): once it is on the board, nothing more. Marked only where its
