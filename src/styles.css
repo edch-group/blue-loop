@@ -6131,6 +6131,7 @@ body:has(.game-result) .dock { visibility: hidden; }
 .hero-pick-off .hero-pick-words > span { color: #b0563f; }
 .hero-pick-cost { display: inline-flex; gap: 2px; }
 .hero-pick-cost i { width: 6px; height: 6px; border-radius: 50%; background: #6cc28e; }
+.hero-pick-pay { font-style: normal; font-family: var(--body, inherit); font-weight: 600; letter-spacing: 0.02em; text-transform: none; font-size: 0.66rem; color: #fff; background: #c8553d; padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
 /* (Something in its way under the Stellari: its name only; still in the way, under "you", left of the Stellari. app.ts placeGalaxyTag.) */
 .galaxy-tag-name span { display: none; }
 .galaxy-tag.galaxy-tag-side { left: auto; right: calc(50% + 74px); top: calc(50% + 24px); transform: translateZ(2px); justify-items: end; text-align: right; }

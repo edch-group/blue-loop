@@ -5775,9 +5775,16 @@ export class App {
         // What it does, in words: its text, then what its keywords mean (the marks' own meaning).
         const explain = keywordsIn(ab.text).map((k) => KEYWORDS[k.id]?.explain(k.value)).filter(Boolean).join(' ');
         const cost = ab.cost ? `<em class="hero-pick-cost" title="${ab.cost} energy">${'<i></i>'.repeat(ab.cost)}</em>` : '';
+        // What else it costs, which matters as much as what it does: stability off the Hero, a card, heat on your sun.
+        const pay = [
+          ab.pay?.stability ? `−${ab.pay.stability} stability` : '',
+          ab.pay?.sacrifice ? 'sacrifice a card' : '',
+          ab.pay?.selfHeat ? `${ab.pay.selfHeat} heat to your sun` : '',
+        ].filter(Boolean);
+        const payTag = pay.length ? `<em class="hero-pick-pay">${esc(pay.join(' · '))}</em>` : '';
         return `<button class="hero-pick ${why ? 'hero-pick-off' : ''}" ${why ? 'aria-disabled="true"' : `data-act="hero-ability" data-arg="${i}"`} title="${esc([explain, why].filter(Boolean).join(' '))}">
           <span class="hero-pick-mark">${effectMark(e?.type ?? 'star')}${amount ? `<small>${amount}</small>` : ''}</span>
-          <span class="hero-pick-words"><b>${esc(ab.name.toLowerCase())}${cost}</b><span>${esc(why ?? plainText(ab.text))}</span></span>
+          <span class="hero-pick-words"><b>${esc(ab.name.toLowerCase())}${cost}${payTag}</b><span>${esc(why ?? plainText(ab.text))}</span></span>
         </button>`;
       })
       .join('');
