@@ -2,7 +2,6 @@ import { markDirty } from './account';
 import heatFire from '../assets/sfx/heat-fire.mp3?inline';
 import sunHit from '../assets/sfx/sun-hit.mp3?inline';
 import cardHit from '../assets/sfx/card-hit.mp3?inline';
-import playAttack from '../assets/sfx/play-attack.mp3?inline';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -24,7 +23,7 @@ const PREFS_KEY = 'blue-loop:sound';
  * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
  * late.
  */
-const SFX = { heatFire, sunHit, cardHit, playAttack };
+const SFX = { heatFire, sunHit, cardHit };
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
 function silentWav(): string {
@@ -511,12 +510,16 @@ class SoundBoard {
   shuffle() {
     for (let i = 0; i < 4; i++) this.breath({ dur: 0.5, freq: 700 + i * 300, to: 1800, gain: 0.04, attack: 0.15, delay: i * 0.14 });
   }
-  /** A card put into play (or arriving on the stage): an attack card draws a sword of light; others, a soft bloom. */
-  play(kind?: string) {
-    if (kind === 'attack') return this.clip(SFX.playAttack, 0.5);
-    this.breath({ dur: 0.9, freq: 400, to: 1600, gain: 0.05, attack: 0.25 });
-    this.voice(440, { dur: 1.6, attack: 0.18, gain: 0.05, cutoff: 1800 });
-    this.voice(659.25, { dur: 1.6, attack: 0.25, gain: 0.03, cutoff: 1800, detune: 4 });
+  /**
+   * A card coming in (put into play, or arriving on the stage): a short, bell-like chord, the dawn banner's
+   * (root, fifth and octave on soft sines) an octave higher, struck rather than swelled, and gone in under a
+   * second; a quiet octave above each note gives it its ring.
+   */
+  play() {
+    [440, 659.25, 880].forEach((f, i) => {
+      this.voice(f, { dur: 0.75, attack: 0.012, gain: 0.034 - i * 0.004, cutoff: 2800, delay: i * 0.025 });
+      this.voice(f * 2, { dur: 0.35, attack: 0.008, gain: 0.006, delay: i * 0.025 });
+    });
   }
   buy() {
     this.bell(880, 0, 0.045);

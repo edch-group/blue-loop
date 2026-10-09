@@ -13,7 +13,6 @@ mkdirSync(out, { recursive: true });
 const TREATMENT = {
   'heat-fire': { speed: 0.88 },
   'card-hit': { speed: 0.6 },
-  'play-attack': { speed: 0.6 },
 };
 
 for (const file of readdirSync(src).filter((f) => /^[a-z0-9-]+\.(wav|mp3|ogg|flac)$/.test(f))) {
