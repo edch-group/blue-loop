@@ -92,7 +92,12 @@ export function createGame(setup: GameSetup): GameState {
     }
     if (ps.lightspeed && cardDef(ps.lightspeed).kind === 'lightspeed') p.lightspeed = newCard(state, ps.lightspeed);
     // A Lost Overlord: its body in play, and the first of its parts' actions to come.
-    if (ps.boss) p.boss = { intent: bossOrder(p)[0]?.uid };
+    if (ps.boss) {
+      // It has no sun: its leader (the Overlord in its Hero slot) is what must be beaten.
+      const leader = commandCard(p);
+      if (leader && ps.bossHealth) leader.health = leader.maxHealth = ps.bossHealth;
+      p.boss = { intent: bossOrder(p)[0]?.uid, ...(leader ? { leader: leader.uid } : {}) };
+    }
     state.players.push(p);
     // Later seats start a little ahead to make up for moving second.
     drawCards(state, p, BALANCE.openingHand + (catchUp(i) ? BALANCE.laterSeatCards : 0) + (ps.modifiers?.openingHand ?? 0) + (ps.opening?.draw ?? 0));
@@ -302,6 +307,8 @@ export function enemyEffect(defId: string): EnemyEffect | undefined {
 }
 
 function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect): boolean {
+  // (A Lost Overlord can't be removed or moved: it must be beaten down.)
+  if (owner.boss?.leader === c.uid && e.type !== 'offer' && e.type !== 'rootbreak') return false;
   // (A Hero leads from its own slot: it can't be shifted.)
   if (e.type === 'shift') return c.slot !== COMMAND_SLOT;
   // (Rootbreak splits defence: a card with none left to split is no target.)
@@ -343,7 +350,8 @@ export function aimChoices(state: GameState, p: PlayerState): { cards: CardInsta
   const t = targetOf(state, p);
   if (!t) return { cards: [], sun: true };
   const g = guards(t);
-  return g.length ? { cards: g, sun: false } : { cards: [...t.tableau], sun: true };
+  // (A Lost Overlord has no sun to aim at: only its body.)
+  return g.length ? { cards: g, sun: false } : { cards: [...t.tableau], sun: !t.boss };
 }
 
 /** Whether a card heats your rival as it is played (it may be aimed then, at their sun or one of their cards). */
@@ -887,6 +895,17 @@ function cardIn(p: PlayerState, uid: string): CardInstance | undefined {
 function applyHeat(state: GameState, target: PlayerState, amount: number, source: PlayerState | null, retaliation = false, cardUid?: string, pierce = false, why?: string): number {
   if (target.eliminated || amount <= 0) return 0;
   const enemy = source !== null && source.id !== target.id;
+  // A Lost Overlord has no sun: heat sent at it strikes the Overlord itself (its shields first, then its
+  // defence and stability). Its own heat goes nowhere.
+  if (target.boss) {
+    if (!enemy) return 0;
+    const blocked = pierce ? 0 : Math.min(target.shields, amount);
+    target.shields -= blocked;
+    if (blocked > 0) log(state, `${target.name}'s shields absorb ${blocked}.`);
+    const leader = target.tableau.find((c) => c.uid === target.boss!.leader);
+    if (leader && source && amount > blocked) strikeCard(state, target, leader, amount - blocked, source, false, cardUid ?? '', false, true);
+    return 0;
+  }
   // Shields soak rival heat first (pierce goes mostly past them).
   const blocked = enemy ? Math.min(pierce ? Math.floor(target.shields * BALANCE.pierceShieldShare) : target.shields, amount) : 0;
   target.shields -= blocked;
@@ -1282,6 +1301,16 @@ function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
 /** A card leaves its tableau for the discard pile (or its owner's hand or deck), triggering its leave effects. */
 function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck' = 'discard') {
   owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
+  // A Lost Overlord beaten down: the battle is won.
+  if (owner.boss?.leader === card.uid && !owner.eliminated) {
+    log(state, `☠ ${owner.name} falls!`);
+    owner.eliminated = true;
+    const alive = state.players.filter((o) => !o.eliminated);
+    if (alive.length === 1) {
+      state.winnerId = alive[0].id;
+      log(state, `${alive[0].name} wins the Blue Loop!`);
+    }
+  }
   // Wear on the slot's own defence stays in the slot (the card's own plating goes with it).
   const wear = Math.min(card.dented ?? 0, slotDefence(card.slot));
   if (wear > 0 && card.slot !== undefined) (owner.slotWear ??= {})[card.slot] = wear;
@@ -2200,7 +2229,7 @@ export function attackProblem(state: GameState, p: PlayerState, attackerUid: str
   if (card.dimmed) return `${cardDef(card.defId).name} is dimmed: it acts again from your next day.`;
   const { cards, sun } = aimChoices(state, p);
   if (targetUid === undefined) return null;
-  if (targetUid === null) return sun ? null : 'Your rival has a Guard in play: attack it.';
+  if (targetUid === null) return sun ? null : targetOf(state, p)?.boss && !guards(targetOf(state, p)!).length ? 'It has no sun: strike its body (its Overlord is what must fall).' : 'Your rival has a Guard in play: attack it.';
   return cards.some((c) => c.uid === targetUid) ? null : sun ? "Attack a card in your rival's tableau, or their sun." : 'Your rival has a Guard in play: attack it.';
 }
 

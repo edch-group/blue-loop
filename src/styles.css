@@ -6103,3 +6103,16 @@ body:has(.game-result) .dock { visibility: hidden; }
 .card.card-table.card-full .card-name { position: absolute; left: 0; right: 0; top: 4%; padding: 0 6%; text-align: center; font-size: max(5px, calc(var(--cw) * 0.07)); }
 .card.card-big.card-full .card-text { padding-bottom: calc(var(--cw) * 0.22); font-size: calc(var(--cw) * 0.06); }
 .card.card-big.card-full .card-kind { position: absolute; left: 0; right: 0; top: 2.5%; }
+.cmp-sunstat { display: inline-flex; align-items: center; gap: 6px; }
+.cmp-sunstat-orb { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff3c4, #f0a040 55%, #c2541c); box-shadow: 0 0 6px rgba(240, 140, 60, 0.6); }
+.cmp-sunstat.hot .cmp-sunstat-orb { background: radial-gradient(circle at 40% 35%, #ffd0a0, #e05030 55%, #8a1a10); box-shadow: 0 0 8px rgba(224, 80, 48, 0.8); }
+.cmp-sunstat.cold .cmp-sunstat-orb { background: radial-gradient(circle at 40% 35%, #f0fbff, #7cc0f0 55%, #2a6aa8); box-shadow: 0 0 8px rgba(110, 180, 240, 0.7); }
+/* A Lost Overlord has no sun: its Overlord's stability, to beat down. */
+.boss-vitals { display: grid; justify-items: center; gap: 4px; padding: 10px 14px; border-radius: 16px; background: rgba(20, 8, 10, 0.88); color: #f6ece6; box-shadow: 0 0 0 1px rgba(255, 176, 112, 0.4), 0 8px 24px rgba(40, 10, 10, 0.3); min-width: 110px; }
+.boss-vitals-label { font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.22em; text-transform: uppercase; color: #ffb070; }
+.boss-vitals-hp { font-family: var(--display); font-size: 1.6rem; font-weight: 500; line-height: 1; }
+.boss-vitals-hp small { font-size: 0.8rem; opacity: 0.7; }
+.boss-vitals-bar { width: 100%; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.boss-vitals-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff6a3a, #ffb070); }
+.boss-vitals-shields { font-size: 0.75rem; color: #bfe6ff; }
+.boss-vitals .vitals-name { color: #ffb070; }

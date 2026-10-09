@@ -411,6 +411,20 @@ describe('salvage', () => {
     expect(myArmy(s).deck).toContain(options[0]);
   });
 
+  it('freed prisoners bring neutral cards; a side of your own race has its cards defect', async () => {
+    const { applyAction } = await import('../src/engine/game');
+    const { salvageOptions, salvageKind, campaignPlayer: me } = await import('../src/engine/campaign');
+    const s = attack(fresh());
+    const game = applyAction(s.battle!.game, { type: 'concede', playerId: s.battle!.game.players[1].id });
+    const kind = salvageKind(s, game);
+    const race = me(s).race;
+    for (const id of salvageOptions(s, game)) {
+      const r = cardDef(id).race;
+      if (kind === 'prisoners') expect(r).toBeUndefined();
+      else expect(r === undefined || r === race).toBe(true);
+    }
+  });
+
   it('offers nothing after a loss, and a battle auto-resolved owes the choice on the map', async () => {
     const { applyAction } = await import('../src/engine/game');
     const { salvageOptions } = await import('../src/engine/campaign');
@@ -419,7 +433,7 @@ describe('salvage', () => {
     expect(salvageOptions(s, lost)).toEqual([]);
     const won = applyAction(s.battle!.game, { type: 'concede', playerId: s.battle!.game.players[1].id });
     const t = applyCampaignAction(s, { type: 'finishBattle', game: won });
-    expect(t.cardRewards[0]?.source).toBe('Salvage');
+    expect(['Freed prisoners', 'Defectors']).toContain(t.cardRewards[0]?.source);
   });
 });
 

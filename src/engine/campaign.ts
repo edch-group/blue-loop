@@ -1257,7 +1257,7 @@ function buildUniverse(s: CampaignState, universe: number) {
     const kind = weights.find(([, w]) => (roll -= w) < 0)?.[0] ?? weights[0][0];
     n.cache = { kind, amount: kind === 'cards' ? 3 : 4 + 2 * n.tier };
   }
-  clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into universe ${universe}, at ${home.name}.`);
+  clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into galaxy ${universe}, at ${home.name}.`);
   tell(s, wormholeSightedScene(universe));
 }
 
@@ -1544,7 +1544,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const defenceConditions = [
     ...starCond,
     ...(fx?.conditions ?? []),
-    ...(target.heart && !owner ? [{ name: 'Lost Overlord', text: `The wormhole's guardian: its sun has ${overlordHealth(s.universe)} max health. It takes one great action a day, its parts in turn: destroy a part to stop its action.` }] : []),
+    ...(target.heart && !owner ? [{ name: 'Lost Overlord', text: `The wormhole's guardian has no sun: beat down the Overlord itself (${overlordHealth(s.universe)} stability) to win. It takes one great action a day, its parts in turn: destroy a part to stop its action.` }] : []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
     ...(g.tableau.length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
   ];
@@ -1577,7 +1577,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       name: owner ? `${defenderName} (${owner.name})` : defenderName,
       isAI: owner ? owner.isAI : true,
       deck: lord ? [] : defenderDeck,
-      ...(lord ? { boss: true } : {}),
+      ...(lord ? { boss: true, bossHealth: overlordHealth(s.universe) } : {}),
       // (A system's damage is its own: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage) + atk.foeHeat,
       ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : lord ? {} : { rooms: stationRooms(target) }),
@@ -1683,27 +1683,63 @@ function rout(s: CampaignState, army: Army) {
  * lost, or weren't in it). Up to CAMPAIGN.salvageChoices different cards from the beaten side's deck (wherever
  * they ended up), never a Hero; the same ones every time it is asked, for that battle.
  */
-export function salvageOptions(s: CampaignState, game: GameState): string[] {
+/**
+ * Who a beaten side's cards come from: its own race (most of its cards'), or none for neutral sentinels.
+ * Beaten, your own race's cards may **defect** to you; any other side's prisoners, **freed**, bring neutral cards.
+ */
+export function salvageKind(s: CampaignState, game: GameState): 'defectors' | 'prisoners' | null {
   const b = s.battle;
-  if (!b || !isGameOver(game) || !game.winnerId) return [];
-  const human = (id: string | null) => !!id && id === s.playerId;
-  const seat = human(b.attacker) ? 0 : human(b.defender) ? 1 : -1;
-  if (seat < 0 || game.players[seat].id !== game.winnerId) return [];
+  if (!b || !isGameOver(game) || !game.winnerId) return null;
+  const seat = b.attacker === s.playerId ? 0 : b.defender === s.playerId ? 1 : -1;
+  if (seat < 0 || game.players[seat].id !== game.winnerId) return null;
   const foe = game.players[1 - seat];
+  const counts = new Map<number, number>();
+  for (const c of [...foe.deck, ...foe.hand, ...foe.tableau, ...foe.discard, ...(foe.fallen ?? [])]) {
+    const r = cardDef(c.defId).race;
+    if (r !== undefined) counts.set(r, (counts.get(r) ?? 0) + 1);
+  }
+  const race = [...counts.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
+  return race !== undefined && race === factionById(s, s.playerId).race ? 'defectors' : 'prisoners';
+}
+
+/**
+ * Salvage: the cards the player may take one of from the side they beat, once the battle is over (none if they
+ * lost, or weren't in it). Cards of a race other than your own play by rules your deck doesn't (a lone grow card
+ * among cards that never grow), so: a side of your own race has cards of yours **defect** (its cards of your
+ * race, and its neutral ones); any other side's **freed prisoners** bring neutral cards (its own neutral ones
+ * first, then others). Up to CAMPAIGN.salvageChoices, different.
+ */
+export function salvageOptions(s: CampaignState, game: GameState): string[] {
+  const kind = salvageKind(s, game);
+  if (!kind) return [];
+  const b = s.battle!;
+  const seat = b.attacker === s.playerId ? 0 : 1;
+  const foe = game.players[1 - seat];
+  const myRace = factionById(s, s.playerId).race;
   const cards = [...foe.deck, ...foe.hand, ...foe.tableau, ...foe.discard, ...(foe.fallen ?? []), ...(foe.lightspeed ? [foe.lightspeed] : [])];
-  const ids = [...new Set(cards.flatMap((c) => [c.defId, ...(c.fused ?? []).map((f) => f.defId)]))]
-    .filter((id) => {
-      const def = cardDef(id);
-      return !def.token && def.kind !== 'command';
-    })
-    .sort();
+  const usable = (id: string) => {
+    const def = cardDef(id);
+    return !def.token && def.kind !== 'command' && !def.overlordPart && legalIn(s.mode, id);
+  };
+  const fits = (id: string) => (kind === 'defectors' ? cardDef(id).race === myRace || cardDef(id).race === undefined : cardDef(id).race === undefined);
+  const ids = [...new Set(cards.flatMap((c) => [c.defId, ...(c.fused ?? []).map((f) => f.defId)]))].filter((id) => usable(id) && fits(id)).sort();
   // (A fixed shuffle, from the battle's own seed and place.)
   const next = spoilsRng(game, b.nodeId);
-  for (let i = ids.length - 1; i > 0; i--) {
-    const j = Math.floor(next() * (i + 1));
-    [ids[i], ids[j]] = [ids[j], ids[i]];
+  const shuffle = (list: string[]) => {
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(next() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  };
+  const want = CAMPAIGN.salvageChoices + (s.run?.salvage ?? 0);
+  const out = shuffle(ids).slice(0, want);
+  // Freed prisoners with too few neutral cards of the side's own: others, from the neutral cards at large.
+  if (out.length < want) {
+    const more = shuffle(CARDS.filter((c) => c.race === undefined && !c.fusion && c.kind !== 'global' && usable(c.id) && !out.includes(c.id)).map((c) => c.id).sort());
+    out.push(...more.slice(0, want - out.length));
   }
-  return ids.slice(0, CAMPAIGN.salvageChoices + (s.run?.salvage ?? 0));
+  return out;
 }
 
 /** A battle's own random numbers for its spoils: the same every time they're asked for (shown, then taken). */
@@ -1808,14 +1844,16 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   const winnerSeat = attackerWon ? game.players[0] : game.players[1];
   const winner = draw ? null : attackerWon ? attacker : defender;
 
-  // The winner's sun carries its heat on as damage; a repelled army takes a beating.
+  // The winner's sun goes on as it ended: a flagship starts its next battle at the heat it finished this one on
+  // (cooled below 0, it starts cooler; burned near its end, it starts there). A system keeps a little of it.
   const carried = Math.max(0, Math.min(CAMPAIGN.maxDamage, winnerSeat.heat));
+  const flagHeat = Math.max(BALANCE.minHeat, winnerSeat.heat);
   if (draw) {
     // (Nothing carried on.)
   } else if (attackerWon) {
-    if (army) army.damage = Math.max(army.damage, carried);
+    if (army) army.damage = flagHeat;
   } else {
-    if (guard) guard.damage = carried;
+    if (guard) guard.damage = flagHeat;
     else target.damage = carried;
     if (army) army.damage = Math.min(CAMPAIGN.maxDamage, army.damage + CAMPAIGN.armyRepelledDamage);
   }
@@ -1825,7 +1863,7 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
     const f = factionById(s, s.playerId);
     const mine = attackerWon ? army : guard;
     if (salvage) takeSalvage(s, f, mine, salvage);
-    else if (salvage === undefined) s.cardRewards.push({ source: 'Salvage', options: salvageable, ...(mine ? { toDeck: mine.id } : {}) });
+    else if (salvage === undefined) s.cardRewards.push({ source: salvageKind(s, game) === 'defectors' ? 'Defectors' : 'Freed prisoners', options: salvageable, ...(mine ? { toDeck: mine.id } : {}) });
   }
 
   if (winner) {
@@ -2038,7 +2076,7 @@ function checkVictory(s: CampaignState) {
   if (!player.eliminated && armiesOf(s, player.id).length === 0) player.eliminated = true;
   if (!player.eliminated) return;
   s.winner = 'none';
-  clog(s, `The run is over, in universe ${s.universe}, with ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed.`);
+  clog(s, `The run is over, in galaxy ${s.universe}, with ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed.`);
   tell(s, runOverScene(s.universe));
 }
 

@@ -5164,7 +5164,7 @@ export class App {
     const pick = salvage.find((x) => x.id === this.salvagePick);
     const salvageHtml = salvage.length
       ? `<div class="salvage">
-          <div class="salvage-title">salvage one card</div>
+          <div class="salvage-title">${this.campaign.salvageTitle(s)}</div>
           <div class="salvage-cards">${salvage
             .map((x) => `<button class="cmp-pick ${x.id === this.salvagePick ? 'cmp-pick-on' : ''}" data-act="salvage-pick" data-arg="${x.id}">${cardHtml(x.id)}</button>`)
             .join('')}</div>
@@ -5315,7 +5315,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          <div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>
+          ${p.boss ? this.bossVitals(p) : `<div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>`}
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
@@ -5741,6 +5741,23 @@ export class App {
       })
       .replace(/<b class="jewel jewel-atk"/, (m) => (attack ? `<b class="jewel jewel-atk stat-atk-on" data-act="attack-start" data-arg="${hero.uid}" role="button"` : m));
     return `<div class="stage stage-hero">${card}</div>`;
+  }
+
+  /**
+   * A Lost Overlord has no sun: in its place, the Overlord's own stability (what must be beaten down) and its
+   * shields. Heat sent at it strikes the Overlord.
+   */
+  private bossVitals(p: PlayerState): string {
+    const leader = p.tableau.find((c) => c.uid === p.boss?.leader);
+    const hp = leader?.health ?? 0, max = leader?.maxHealth ?? (leader ? baseHealth(leader.defId) : 1);
+    const pct = Math.max(0, Math.min(100, (hp / Math.max(1, max)) * 100));
+    return `<div class="vitals boss-vitals" data-anchor="player:${p.id}" title="It has no sun: beat down the Overlord itself (heat sent at it strikes the Overlord, past its shields).">
+      <span class="boss-vitals-label">no sun</span>
+      <b class="boss-vitals-hp">${hp}<small>/${max}</small></b>
+      <span class="boss-vitals-bar"><i style="width:${pct.toFixed(1)}%"></i></span>
+      ${p.shields ? `<span class="boss-vitals-shields">⛨ ${p.shields}</span>` : ''}
+      <span class="vitals-name">${esc(p.name.toLowerCase())}</span>
+    </div>`;
   }
 
   /**

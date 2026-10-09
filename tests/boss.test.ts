@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyCampaignAction, createCampaign, flagship } from '../src/engine/campaign';
 import { OVERLORDS, overlordHealth } from '../src/engine/cards-bosses';
-import { applyAction, bossIntent, bossOrder, COMMAND_SLOT, createGame, supernovaThreshold } from '../src/engine/game';
+import { applyAction, bossIntent, bossOrder, COMMAND_SLOT, createGame } from '../src/engine/game';
 import type { GameState } from '../src/engine/types';
 
 const lord = OVERLORDS[0];
@@ -50,7 +50,30 @@ describe('Lost Overlords', () => {
     expect(boss.boss).toBeDefined();
     expect(OVERLORDS.some((o) => o.name === boss.name)).toBe(true);
     expect(boss.deck).toHaveLength(0);
-    // (The galaxy may add to it or take a little off, as it does every sun.)
-    expect(supernovaThreshold(boss)).toBeGreaterThanOrEqual(overlordHealth(1) - 2);
+    // It has no sun: its Overlord's stability is what must be beaten down.
+    const leader = boss.tableau.find((c) => c.uid === boss.boss!.leader)!;
+    expect(leader.health).toBe(overlordHealth(1));
+  });
+
+  it('have no sun: heat sent at it strikes the Overlord, and beating the Overlord down wins', () => {
+    const s = battle();
+    const boss = s.players[1];
+    const leader = boss.tableau.find((c) => c.uid === boss.boss!.leader)!;
+    const hp = leader.health!;
+    // (Its Guards draw heat aimed as a card is played: with them gone, the heat goes at the Overlord.)
+    boss.tableau = boss.tableau.filter((c) => c.defId !== 'colossus_plating');
+    s.players[0].hand.push({ uid: 'cl', defId: 'coronal_lance' });
+    s.players[0].playsLeft = 5;
+    let t = applyAction(s, { type: 'playCard', cardUid: 'cl' });
+    const l2 = t.players[1].tableau.find((c) => c.uid === leader.uid)!;
+    expect(t.players[1].heat).toBe(0);
+    expect((l2.dented ?? 0) + (hp - (l2.health ?? 0))).toBeGreaterThan(0);
+    // Beaten down to nothing: the battle is won.
+    l2.health = 1;
+    t.players[0].hand.push({ uid: 'cl2', defId: 'coronal_lance' });
+    t.players[0].playsLeft = 5;
+    l2.dented = 99;
+    t = applyAction(t, { type: 'playCard', cardUid: 'cl2' });
+    expect(t.winnerId).toBe(t.players[0].id);
   });
 });

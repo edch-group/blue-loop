@@ -50,7 +50,7 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'walls', group: 'flagship', name: 'Armoured rooms', text: '+1 to every room\'s defence to start with.', max: 2, cost: rising(8, 8) },
   { id: 'march', group: 'flagship', name: 'Fold drive', text: 'One more move a turn, every turn.', max: 1, cost: flat(20) },
   // Run perks.
-  { id: 'grace', group: 'perk', name: 'Anchored space', text: 'Regional stability holds one turn longer in every universe.', max: 3, cost: rising(6, 5) },
+  { id: 'grace', group: 'perk', name: 'Anchored space', text: 'Regional stability holds one turn longer in every galaxy.', max: 3, cost: rising(6, 5) },
   { id: 'armory', group: 'perk', name: 'Trade friends', text: 'Armoury cards cost 1 material less.', max: 2, cost: rising(6, 6) },
   { id: 'petals', group: 'perk', name: 'Petal pouch', text: '+20% petals at every wormhole.', max: 3, cost: rising(8, 6) },
   { id: 'salvage', group: 'perk', name: 'Scavengers', text: 'One more card to choose from when salvaging.', max: 1, cost: flat(10) },

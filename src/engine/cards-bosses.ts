@@ -11,9 +11,9 @@ import type { CardDef } from './types';
 export const BOSS_CARDS: CardDef[] = [
   // ---- The Hollow Colossus: a vast construct of a dead race, its furnace still burning ----
   {
-    id: 'boss_colossus', overlordPart: 'overlord', name: 'Hollow Colossus', kind: 'command', stability: 14, attack: 0,
-    text: '{dawn}: {heat:2}. Action: {heat:5}.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target' }],
+    id: 'boss_colossus', overlordPart: 'overlord', name: 'Hollow Colossus', kind: 'command', stability: 30, attack: 0,
+    text: '{dawn}: {heat:1}. Action: {heat:5}.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     bossAction: { name: 'Furnace Breath', effects: [{ type: 'heat', amount: 5, to: 'target' }] },
   },
   {
@@ -40,9 +40,9 @@ export const BOSS_CARDS: CardDef[] = [
 
   // ---- The Mother of Maws: the brood-queen of a hive that ate its own stars ----
   {
-    id: 'boss_maws', overlordPart: 'overlord', name: 'Mother of Maws', kind: 'command', stability: 16, attack: 0,
-    text: '{dawn}: {heat:2}. Action: 2 Broodlings into her free slots.',
-    onTurn: [{ type: 'heat', amount: 2, to: 'target' }],
+    id: 'boss_maws', overlordPart: 'overlord', name: 'Mother of Maws', kind: 'command', stability: 30, attack: 0,
+    text: '{dawn}: {heat:1}. Action: 2 Broodlings into her free slots.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     bossAction: { name: 'Spawn', effects: [{ type: 'summon', defId: 'boss_broodling', amount: 2 }] },
   },
   {
@@ -74,10 +74,10 @@ export const BOSS_CARDS: CardDef[] = [
 
   // ---- The Ashen Tyrant: the last king of a burned-out empire, still in his armour ----
   {
-    id: 'boss_tyrant', overlordPart: 'overlord', name: 'Ashen Tyrant', kind: 'command', stability: 14, attack: 0,
-    text: "{dawn}: {heat:2}. Action: {heat:6}.",
-    onTurn: [{ type: 'heat', amount: 2, to: 'target' }],
-    bossAction: { name: "Tyrant's Decree", effects: [{ type: 'heat', amount: 6, to: 'target' }] },
+    id: 'boss_tyrant', overlordPart: 'overlord', name: 'Ashen Tyrant', kind: 'command', stability: 30, attack: 0,
+    text: "{dawn}: {heat:1}. Action: {heat:7}.",
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
+    bossAction: { name: "Tyrant's Decree", effects: [{ type: 'heat', amount: 7, to: 'target' }] },
   },
   {
     id: 'tyrant_greatsword', overlordPart: 'gear', name: 'Ember Greatsword', kind: 'attack', health: 6, attack: 4,
@@ -137,8 +137,8 @@ export const OVERLORDS: Overlord[] = [
   },
 ];
 
-/** A Lost Overlord's sun's max health: well beyond any other's, and more in every universe. */
-export const overlordHealth = (universe: number) => 30 + 5 * (universe - 1);
+/** A Lost Overlord's own stability (it has no sun: beat it down to win): 30, and 5 more in every galaxy after the first. */
+export const overlordHealth = (galaxy: number) => 30 + 5 * (galaxy - 1);
 
 export const overlordById = (id: string): Overlord => OVERLORDS.find((o) => o.id === id) ?? OVERLORDS[0];
 

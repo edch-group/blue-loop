@@ -371,15 +371,15 @@ export function lostRaidScene(name: string, system: string): StoryScene {
 export function wormholeSightedScene(universe: number): StoryScene {
   return {
     id: `wormhole:${universe}`,
-    title: universe === 1 ? 'The wormhole' : `Universe ${universe}`,
+    title: universe === 1 ? 'The wormhole' : `Galaxy ${universe}`,
     lines:
       universe === 1
         ? [
             oracle('Look to the far end of this reach. A Stellari bloom, and so much power pouring off it that space has torn open round it: a wormhole.'),
-            oracle('Beyond it lies another universe, younger, still burning. Reach it before this one collapses behind you. Something guards it. Something always does.'),
+            oracle('Beyond it lies another galaxy, younger, still burning. Reach it before this one collapses behind you. Something guards it. Something always does.'),
           ]
         : [
-            oracle(`Another universe, and another bloom at the far end of it. They burn hotter here, and so does everything guarding them.`),
+            oracle(`Another galaxy, and another bloom at the far end of it. They burn hotter here, and so does everything guarding them.`),
             oracle('The collapse will come sooner this time. It always does. Keep moving.'),
           ],
   };
@@ -403,7 +403,7 @@ export function runOverScene(universe: number): StoryScene {
     id: 'run-over',
     title: 'The light goes out',
     lines: [
-      oracle(universe > 1 ? `${universe} universes. Further than most ever go.` : 'It is over, this time.'),
+      oracle(universe > 1 ? `${universe} galaxies. Further than most ever go.` : 'It is over, this time.'),
       oracle('The petals you carried are safe. Spend them, and go again. The loop always comes round.'),
     ],
   };

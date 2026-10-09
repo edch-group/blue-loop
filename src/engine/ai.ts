@@ -2,6 +2,7 @@ import { BALANCE } from './balance';
 import { cardDef } from './cards';
 import {
   reactCost,
+  baseHealth,
   activePlayer,
   COMMAND_SLOT,
   heroSkillProblem,
@@ -350,7 +351,9 @@ function evaluate(state: GameState, meId: string): number {
     if (o.id === meId) continue;
     if (o.eliminated) score += 16;
     else {
-      const danger = Math.max(0, o.heat) / supernovaThreshold(o);
+      // (A Lost Overlord has no sun: how near its Overlord is to falling is its danger.)
+      const leader = o.boss?.leader ? o.tableau.find((c) => c.uid === o.boss!.leader) : undefined;
+      const danger = leader ? 1 - (leader.health ?? 0) / Math.max(1, leader.maxHealth ?? baseHealth(leader.defId)) : Math.max(0, o.heat) / supernovaThreshold(o);
       score += 12 * danger + 5 * danger * danger - RIVAL_BOARD * tableauValue(state, o) - 0.6 * orbitOutlook(o);
     }
   }

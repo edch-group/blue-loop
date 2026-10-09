@@ -469,7 +469,7 @@ export interface PlayerState {
    * action, its parts taking turns (left to right, the Overlord itself last). `intent`: the part whose action
    * comes next (shown to its rival, who can destroy that part to stop it).
    */
-  boss?: { intent?: string };
+  boss?: { intent?: string; /** The card whose fall beats it (its Overlord): it has no sun. */ leader?: string };
   /**
    * Energy left unspent at the end of this player's day, kept through the enemy's day to play a Lightspeed card
    * from hand in answer to them. Gone at their own next dawn.
@@ -609,6 +609,8 @@ export interface PlayerSetup {
   tableau?: string[];
   /** A Lost Overlord: its parts start in play (`tableau`, its Overlord in the Hero slot), and it takes one action a day. */
   boss?: boolean;
+  /** A Lost Overlord's leader's stability (its Overlord: beat it and the battle is won), if not its printed one. */
+  bossHealth?: number;
   /** Campaign battles: a Lightspeed card already set face down (a garrison). */
   lightspeed?: string;
   modifiers?: BattleModifiers;

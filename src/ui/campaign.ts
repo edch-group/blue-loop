@@ -7,6 +7,7 @@ import {
   sunHealth,
   defenderOf,
   salvageOptions,
+  salvageKind,
   salvageToDeck,
   applyCampaignAction,
   armoryPrice,
@@ -360,7 +361,7 @@ export class CampaignView {
 
   /** "universe 2 · turn 12", for the banner on entering the campaign. */
   turnLine(): string {
-    return this.state ? `universe ${this.state.universe} · turn ${this.state.turn}` : '';
+    return this.state ? `galaxy ${this.state.universe} · turn ${this.state.turn}` : '';
   }
 
   resume(): boolean {
@@ -407,6 +408,12 @@ export class CampaignView {
     return CAMPAIGN.winMaterials + n.yield.materials + (n.bonus?.materials ?? 0);
   }
 
+  /** Who the salvage comes from: your own race's cards defecting, or freed prisoners with neutral cards. */
+  salvageTitle(game: GameState): string {
+    const s = this.state;
+    return s && salvageKind(s, game) === 'defectors' ? 'defectors · one joins you' : 'freed prisoners · one joins you';
+  }
+
   salvageFor(game: GameState): { id: string; toDeck: boolean }[] {
     const s = this.state;
     if (!s?.battle) return [];
@@ -441,7 +448,7 @@ export class CampaignView {
       this.view = null;
       this.selected = null;
       this.army = null;
-      this.host.banner(`universe ${this.state.universe}`, 'through the wormhole');
+      this.host.banner(`galaxy ${this.state.universe}`, 'through the wormhole');
     }
     // Every move is a turn: once the flagship has made its move (and anything it brought on is settled), time moves on.
     if (action.type !== 'endTurn' && action.type !== 'aiStep' && this.moveSpent()) {
@@ -659,7 +666,7 @@ export class CampaignView {
         this.storyLine = 0;
         // The map is up: announce the run (the setup page before it gets none).
         this.host.render();
-        this.host.banner('universe 1', 'reach the wormhole');
+        this.host.banner('galaxy 1', 'reach the wormhole');
         // The hero speaks as the flagship comes to rest (their words on the guide, spoken if recorded).
         voices.arrive(hero, ARRIVAL_FLIGHT * 1000);
         return true;
@@ -884,6 +891,12 @@ export class CampaignView {
             ${scene ? this.renderStory(scene) : ''}
           </div>
           <div class="cmp-purse">
+            ${(() => {
+              // Your flagship's sun: it starts the next battle as the last one left it.
+              const f = flagship(s, s.playerId);
+              const heat = f?.damage ?? 0;
+              return `<span class="cmp-sunstat ${heat > 0 ? 'hot' : heat < 0 ? 'cold' : ''}" data-tip="Your sun: your next battle starts at ${heat} heat, as your last one ended${heat > 0 ? '. Repair at a space station to cool it.' : heat < 0 ? ': cooled, a head start.' : '.'}"><i class="cmp-sunstat-orb"></i><b>${heat}</b></span>`;
+            })()}
             <span data-tip="Materials: paid once by every system taken, finds and battles. Spent on cards at space stations.">${MATERIALS}<b>${me.materials}</b></span>
             <span data-tip="Stellari petals grabbed this run (they are kept, whatever happens)">${PETAL}<b>${s.petals}</b></span>
           </div>
@@ -1012,7 +1025,7 @@ export class CampaignView {
       <div class="cmp-shop">
         <div class="cmp-shop-panel">
           <header><b>upgrades</b><span class="cmp-petals">${PETAL}<b>${meta.petals}</b></span><button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button></header>
-          ${meta.runs ? `<p class="muted">Best run: ${meta.best} universe${meta.best === 1 ? '' : 's'} crossed, in ${meta.runs} run${meta.runs === 1 ? '' : 's'}.</p>` : ''}
+          ${meta.runs ? `<p class="muted">Best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed, in ${meta.runs} run${meta.runs === 1 ? '' : 's'}.</p>` : ''}
           <div class="cmp-shop-groups">${shop}</div>
         </div>
       </div>`;
@@ -1165,7 +1178,7 @@ export class CampaignView {
     return `
       <div class="pop-head pop-head-army" style="--fc:${this.colourOf(a.owner)}">
         ${armyFace(a)}
-        <div><h3>${lower(armyLeader(a))}</h3><small>${a.deck.length} cards · in ${lower(here.name)}${a.damage ? ` · ✸${a.damage}` : ''}</small></div>
+        <div><h3>${lower(armyLeader(a))}</h3><small>${a.deck.length} cards · in ${lower(here.name)}${a.damage > 0 ? ` · ✸${a.damage}` : ''}</small></div>
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <p class="cmp-hint">${hint}</p>`;
@@ -1735,8 +1748,8 @@ export class CampaignView {
     const chips = [
       n.owner || n.heart || n.ruined ? '' : chip(`${icon('<circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.4M8 11.4v.1"/>')}<b>unknown</b>`, `What ${n.name} holds is unknown until you get there: defenders, or something to find. ${starOdds(n)}`),
       n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
-      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, `Torn open by a Stellari bloom, and guarded by a Lost Overlord: ${overlordById(this.state!.overlord ?? 'colossus').name}. Beat it and go through, into the next universe, with the petals you grab.`, 'gold') : '',
-      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, the galaxy and ships' hulls): more the further along the strip, and in every universe after the first.`),
+      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, `Torn open by a Stellari bloom, and guarded by a Lost Overlord: ${overlordById(this.state!.overlord ?? 'colossus').name}. Beat it and go through, into the next galaxy, with the petals you grab.`, 'gold') : '',
+      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, the galaxy and ships' hulls): more the further along the strip, and in every galaxy after the first.`),
       (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
       n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'Its star has guttered: it yields less than it did.', 'muted') : '',
       n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
@@ -1758,7 +1771,7 @@ export class CampaignView {
     const here = armyAt(s, n.id);
     const army = here
       ? `<div class="pop-army" style="--ac:${this.colourOf(here.owner)}">
-          ${armyFace(here)}<span><b>${lower(armyLeader(here))}</b><small>${here.owner === me.id ? (here.moved ? 'marched this turn' : here.refit ? 'refitting' : 'ready') : here.lost ? 'lost race' : lower(factionById(s, here.owner).name)}${here.damage ? ` · ✸${here.damage}` : ''}</small></span>
+          ${armyFace(here)}<span><b>${lower(armyLeader(here))}</b><small>${here.owner === me.id ? (here.moved ? 'marched this turn' : here.refit ? 'refitting' : 'ready') : here.lost ? 'lost race' : lower(factionById(s, here.owner).name)}${here.damage > 0 ? ` · ✸${here.damage}` : ''}</small></span>
           ${
             here.owner === me.id
               ? `<span class="pop-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}</span>`
@@ -1793,7 +1806,7 @@ export class CampaignView {
       const meta = loadMeta();
       return this.modal(
         'the run is over',
-        `<div class="center"><h2>${s.universe > 1 ? `${s.universe - 1} universe${s.universe - 1 === 1 ? '' : 's'} crossed` : 'lost in the first universe'}</h2>
+        `<div class="center"><h2>${s.universe > 1 ? `${s.universe - 1} galax${s.universe - 1 === 1 ? 'y' : 'ies'} crossed` : 'lost in the first galaxy'}</h2>
           <p>${s.petals ? `${PETAL} ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed this run, and banked.` : 'No petals this time: reach a wormhole to grab some.'} You have ${PETAL} ${meta.petals} to spend.</p>
           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-new-run">upgrades · new run</button><button class="btn" data-act="cmp-abandon">back to menu</button></div></div>`,
       );
@@ -1852,7 +1865,7 @@ export class CampaignView {
             <div>${MATERIALS}<span><b>Materials</b> pay for everything. Earned: every system you take, finds and battles. Spent: cards at space stations, fusing cards and repairs.</span></div>
           </div>
           <ul class="rules">
-            <li><b>The loop:</b> each universe is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian, a Lost Overlord, to go through, into a harder universe. An Overlord fights with its body already in play (limbs, gear, retainers) and takes one great action a day, its parts in turn; the next is always shown, and destroying that part stops it. The run goes on until your flagship is lost.</li>
+            <li><b>The loop:</b> each galaxy is a strip of systems, ${CAMPAIGN.lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian, a Lost Overlord, to go through, into a harder galaxy (the universe is dying, galaxy by galaxy: each one you reach is younger, and burns hotter). An Overlord fights with its body already in play (limbs, gear, retainers) and takes one great action a day, its parts in turn; the next is always shown, and destroying that part stops it. The run goes on until your flagship is lost.</li>
             <li><b>The collapse:</b> regional stability lasts ${CAMPAIGN.stabilityTurns} moves in the first universe, ${CAMPAIGN.stabilityStep} fewer in each one after (never under ${CAMPAIGN.stabilityMin}). Then the strip gives way from the near end, a whole column with every move, each marked (⚠) a move before. Whatever stands there is lost, your flagship too.</li>
             <li><b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the collapse comes on. Changing the deck or repairing costs no move. If your flagship has nowhere to go, time moves on by itself.</li>
             <li><b>Win</b> a system and it is yours: it pays its materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold extra materials, taken with the system.</li>
@@ -1970,7 +1983,7 @@ export class CampaignView {
     this.builder.setMode(this.armoryMode(sh));
     // The station's dock repairs the flagship's damage (its sun starts battles that much hotter).
     const ship = flagship(this.state!, this.state!.playerId);
-    const repair = ship?.damage ? `<span class="cmp-repair"><small>damage ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';
+    const repair = ship && ship.damage > 0 ? `<span class="cmp-repair"><small>damage ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';
     return `
       <div class="cmp-base">
         <header class="cmp-base-top">
