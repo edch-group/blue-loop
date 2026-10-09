@@ -5218,7 +5218,7 @@ button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: transl
 .cmp-ship-moves i.on { background: #6cc28e; box-shadow: 0 0 6px rgba(108, 194, 142, 0.7), 0 1px 3px rgba(40, 46, 70, 0.25); }
 
 /* A Hero's rail, beside its slot: its abilities as round marks (lit when usable: tap to use), then its boons. */
-.hero-rail { position: absolute; top: 0; height: 100%; display: flex; transform-style: preserve-3d; gap: calc(var(--tcw) * 0.06); z-index: 2; pointer-events: none; }
+.hero-rail { position: absolute; top: 0; height: 100%; display: flex; gap: calc(var(--tcw) * 0.06); z-index: 2; pointer-events: none; }
 .hero-rail > * { pointer-events: auto; }
 /* (Beyond the tableau's outline, which stands this far out from the slot.) */
 .hero-rail-mine { left: calc(100% + var(--frame-pad, 12px) + var(--tcw) * 0.08); }
@@ -6105,10 +6105,11 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* (On a short screen there is room under the Stellari for the name only: the rest shows on hover.) */
 @media (max-height: 560px) { .galaxy-tag span { display: none; } }
 
-/* Your Hero, tapped on your day: its abilities (and attack), each its own pill, nothing round them, beside it on the
-   board (in its rail, so they lie tilted with the board). */
-.hero-picks { pointer-events: none; align-self: center; transform: translateZ(40px); display: grid; gap: 5px; justify-items: start; width: max-content; max-width: 240px; z-index: 5; animation: hero-picks-in 0.18s ease-out both; }
-@keyframes hero-picks-in { from { opacity: 0; transform: translateZ(40px) translateX(-6px); } }
+/* Your Hero, tapped on your day: its card in the preview pane, its abilities (and attack) to its left, each its own
+   pill, nothing round them. */
+.stage.stage-hero { display: flex; align-items: center; gap: 12px; }
+.hero-picks { pointer-events: none; display: grid; gap: 5px; justify-items: end; width: max-content; max-width: 240px; animation: hero-picks-in 0.18s ease-out both; }
+@keyframes hero-picks-in { from { opacity: 0; transform: translateX(6px); } }
 .hero-pick {
   pointer-events: auto; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; text-align: left; width: 100%; padding: 3px 12px 3px 3px;
   border: 0; border-radius: 999px; cursor: pointer; font: inherit; color: var(--ink); background: rgba(255, 255, 255, 0.97);

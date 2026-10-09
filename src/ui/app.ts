@@ -5736,13 +5736,22 @@ export class App {
    * Beside a Hero in its slot: the boons its card carries (skills and gear). Its abilities are not marked here, at
    * any size (they were too small to read or tap on a phone): tap your Hero for them, large, with what each does.
    */
-  private heroRail(p: PlayerState, hero: CardInstance, side: 'mine' | 'rival'): string {
+  private heroRail(_p: PlayerState, hero: CardInstance, side: 'mine' | 'rival'): string {
     const boons = hero.boons?.length ? this.boonMarks(hero.boons, 'boon-mark hero-boon') : '';
-    // Your Hero, tapped on your day: its abilities (and attack) as pills beside it, lying on the board with it.
-    const s = this.state;
-    const picks = side === 'mine' && s && p.id === this.viewer().id && this.heroPanel === hero.uid && this.canAct() && !isGameOver(s) ? this.heroPicks(p, hero) : '';
-    if (!boons && !picks) return '';
-    return `<div class="hero-rail hero-rail-${side}">${picks}${boons ? `<div class="hero-rail-col">${boons}</div>` : ''}</div>`;
+    if (!boons) return '';
+    return `<div class="hero-rail hero-rail-${side}"><div class="hero-rail-col">${boons}</div></div>`;
+  }
+
+  /** Your Hero, tapped on your day: its card in the preview pane (middle right), its abilities as pills to its left. */
+  private renderHeroPanel(): string {
+    const me = this.viewer();
+    const hero = commandCard(me);
+    if (!hero || hero.uid !== this.heroPanel) return '';
+    const card = this.renderCard(hero, { static: true })
+      .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
+      .replace(/<\/button>\s*$/, '</div>')
+      .replace(/ data-act="[^"]*"/, '');
+    return `<div class="stage stage-hero" data-key="hero-picks">${this.heroPicks(me, hero)}${card}</div>`;
   }
 
   /** What the viewer's Hero can do right now: its usable abilities (by index), and 'attack' if it may attack. */
@@ -5873,6 +5882,7 @@ export class App {
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
+    if (!st && this.heroPanel && !isGameOver(s) && this.canAct()) return this.renderHeroPanel();
     // A card picked from your hand: it waits here while you choose where it goes and what it does.
     const picked = !st && this.pending && !this.pending.attack && this.pending.ability === undefined ? activePlayer(s).hand.find((c) => c.uid === this.pending!.uid) : undefined;
     if (picked) {
