@@ -5838,6 +5838,8 @@ body:has(.game-result) .dock { visibility: hidden; }
 .card-yield .yield.mech-bare { padding: 0; }
 /* On the board a card's energy cost is spent: hidden. Its attack and stability stand as large as its defence. */
 .card.card-table .cost-dots { display: none; }
+/* Nor its text: what it does is in the marks over it (tap the card to read it whole). */
+.card.card-table .card-text { display: none; }
 .card.card-table .jewel { width: calc(var(--cw, 100px) * 0.27); }
 .card.card-table .jewel i { font-size: calc(var(--cw, 100px) * 0.125); }
 
