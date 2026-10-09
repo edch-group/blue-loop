@@ -6057,6 +6057,7 @@ body:has(.game-result) .dock { visibility: hidden; }
 
 /* Into a battle: the screen smashes like glass and falls away onto white (fx.ts shatter). */
 .shatter { position: fixed; inset: 0; z-index: 9000; pointer-events: none; overflow: hidden; background: #fff; perspective: 1400px; }
+.shatter.shatter-deep { background: #05030c center / 100% 100% no-repeat; }
 .shatter > i { position: absolute; inset: 0; background: #f6f6f4 center / 100% 100% no-repeat; will-change: transform, opacity; }
 .shatter-cracks { position: absolute; inset: 0; width: 100%; height: 100%; }
 .shatter-cracks polyline, .shatter-cracks line { fill: none; stroke: rgba(40, 46, 70, 0.8); stroke-width: 1.5; filter: drop-shadow(1px 1px 0 rgba(255, 255, 255, 0.95)); }

@@ -512,14 +512,19 @@ export function waveReach(center: DOMRect, rx: number, ry: number, at: DOMRect):
 /**
  * The screen smashes like glass: cracks run out from `at` (a point on the screen, as fractions of its width and
  * height), then the picture breaks into shards (rays from the impact, cut by rings) that fly out and fall away,
- * the nearest first, leaving white. `picture` is what the screen showed (none: plain white glass, cracked).
+ * the nearest first, leaving the universe behind it in full colour (`behind`), or white. `picture` is what the screen showed (none: plain white glass, cracked).
  * Call the returned function to fade the white away once what is under it is ready.
  */
-export function shatter(picture: HTMLCanvasElement | null, at: { x: number; y: number }, opts: { crackMs?: number; fallMs?: number } = {}): (fadeMs?: number) => void {
+export function shatter(picture: HTMLCanvasElement | null, at: { x: number; y: number }, opts: { crackMs?: number; fallMs?: number; behind?: HTMLCanvasElement | null } = {}): (fadeMs?: number) => void {
   const crackMs = opts.crackMs ?? 260;
   const fallMs = opts.fallMs ?? 900;
   const el = document.createElement('div');
   el.className = 'shatter';
+  // Behind the glass: the universe in full colour (the starry abyss the collapse shows), else white.
+  if (opts.behind) {
+    el.style.backgroundImage = `url(${opts.behind.toDataURL('image/jpeg', 0.85)})`;
+    el.classList.add('shatter-deep');
+  }
   document.body.appendChild(el);
   const W = window.innerWidth, H = window.innerHeight;
   const url = picture ? picture.toDataURL('image/jpeg', 0.85) : '';

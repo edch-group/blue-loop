@@ -540,7 +540,9 @@ export class CampaignView {
       const p = this.nebula.toScreen((n.x - MAP_WIDTH / 2) * MAP_K, 0.13, (n.y - MAP_HEIGHT / 2) * MAP_K);
       if (p) at = { x: Math.min(0.95, Math.max(0.05, p.x / cam.width)), y: Math.min(0.95, Math.max(0.05, p.y / cam.height)) };
     }
-    return shatter(this.nebula?.snapshot() ?? null, at);
+    // (The universe behind it, in full colour, first: the snapshot draws the map back over the same canvas.)
+    const behind = this.nebula?.abyss() ?? null;
+    return shatter(this.nebula?.snapshot() ?? null, at, { behind });
   }
 
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
