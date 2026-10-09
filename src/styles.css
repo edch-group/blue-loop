@@ -6079,7 +6079,13 @@ body:has(.game-result) .dock { visibility: hidden; }
 .card.card-table.card-full .card-action { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); margin: 0; white-space: nowrap; }
 .card.card-table.card-full .card-name { position: absolute; left: 0; right: 0; top: 4%; padding: 0 6%; text-align: center; font-size: max(5px, calc(var(--cw) * 0.07)); }
 .card.card-big.card-full .card-text { padding-bottom: calc(var(--cw) * 0.22); font-size: calc(var(--cw) * 0.06); }
-.card.card-big.card-full .card-kind { position: absolute; left: 0; right: 0; top: 2.5%; }
+/* Read close up (the inspector, the stage): its words at the foot, over the dark of the picture's fade, its kind just
+   above its name. */
+.card.card-full:not(.card-table) { justify-content: flex-end; }
+.card.card-full:not(.card-table) .card-kind { position: relative; order: -1; align-self: flex-start; margin: 0 0 calc(var(--cw) * 0.01); text-align: left; padding: 0; color: #ffb070; font-size: max(9px, calc(var(--cw) * 0.04)); letter-spacing: 0.22em; }
+.card.card-full:not(.card-table) .card-action { margin-top: 0; }
+/* (Its words run higher up the card than on the board: the picture's fade to dark starts higher to carry them.) */
+.card.card-full:not(.card-table)::after { background: linear-gradient(180deg, rgba(10, 4, 6, 0.3) 0%, transparent 16%, rgba(10, 4, 6, 0.55) 38%, rgba(10, 4, 6, 0.9) 58%, rgba(10, 4, 6, 0.97) 100%); }
 .cmp-sunstat { display: inline-flex; align-items: center; gap: 6px; }
 .cmp-sunstat-orb { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff3c4, #f0a040 55%, #c2541c); box-shadow: 0 0 6px rgba(240, 140, 60, 0.6); }
 .cmp-sunstat.hot .cmp-sunstat-orb { background: radial-gradient(circle at 40% 35%, #ffd0a0, #e05030 55%, #8a1a10); box-shadow: 0 0 8px rgba(224, 80, 48, 0.8); }
@@ -6135,4 +6141,23 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* (Something in its way under the Stellari: its name only; still in the way, under "you", left of the Stellari. app.ts placeGalaxyTag.) */
 .galaxy-tag-name span { display: none; }
 .galaxy-tag.galaxy-tag-side { left: auto; right: calc(50% + 74px); top: calc(50% + 24px); transform: translateZ(2px); justify-items: end; text-align: right; }
-@media (max-height: 560px) { .galaxy-tag.galaxy-tag-side { right: calc(50% + 48px); top: calc(50% + 16px); } }
+.galaxy-tag.galaxy-tag-right { left: calc(50% + 74px); top: calc(50% + 36px); transform: translateZ(2px); justify-items: start; text-align: left; }
+.galaxy-tag.galaxy-tag-off { display: none; }
+@media (max-height: 560px) {
+  .galaxy-tag.galaxy-tag-side { right: calc(50% + 48px); top: calc(50% + 16px); }
+  .galaxy-tag.galaxy-tag-right { left: calc(50% + 48px); top: calc(50% + 26px); }
+}
+/* On a full-art card read close up, its type sits in the flow just above its name (not pinned to the card's top
+   edge, where the picture is), in the parts' amber. */
+.card.card-full:not(.card-table) .card-kind .card-type {
+  position: static; transform: none; height: auto; padding: 0; font-size: max(9px, calc(var(--cw) * 0.04)); letter-spacing: 0.22em; color: #ffb070;
+}
+/* On a phone the chips over the cards scale down with them past reading: they keep to a size a finger and an eye can
+   use (their strip may run a little wider than the card). */
+@media (pointer: coarse), (orientation: landscape) and (max-height: 560px) {
+  .card-yield { max-width: calc(var(--tcw, 80px) * 1.6); gap: 0 5px; padding: 1px 8px; border-radius: 999px; }
+  .yield { font-size: max(13px, calc(var(--tcw, 80px) * 0.105)); height: max(21px, calc(var(--tcw, 80px) * 0.22)); gap: 2px; }
+  .yield .kw-ico { width: max(13px, calc(var(--tcw, 80px) * 0.105)); height: max(13px, calc(var(--tcw, 80px) * 0.105)); }
+  .boon-mark { --s: max(18px, calc(var(--tcw, 80px) * 0.18)); }
+  .boon-mark small { font-size: max(9px, calc(var(--tcw, 80px) * 0.07)); }
+}

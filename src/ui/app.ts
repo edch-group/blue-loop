@@ -5249,23 +5249,28 @@ export class App {
   /**
    * The galaxy's tag lies under the Stellari unless something there is in its way (a card's chips, your shields, the
    * board's word in the middle): then its name only, and if even that is in the way, under "you", left of the
-   * Stellari.
+   * Stellari, or under the day's phases, right of it; and where nothing is clear, not at all.
    */
   private placeGalaxyTag() {
     const tag = this.root.querySelector<HTMLElement>('.galaxy-tag');
     if (!tag) return;
     const clash = () => {
       const t = tag.getBoundingClientRect();
-      return [...this.root.querySelectorAll('.card-yield .yield, .board-shields, .mid-hint b, .tableau .card')].some((e) => {
+      return [...this.root.querySelectorAll('.card-yield .yield, .board-shields, .mid-hint b, .board-plane .card, .turn-who span, .phase-step, .hero-rail')].some((e) => {
         const r = e.getBoundingClientRect();
         return r.width > 0 && r.left < t.right + 2 && r.right > t.left - 2 && r.top < t.bottom + 2 && r.bottom > t.top - 2;
       });
     };
-    tag.classList.remove('galaxy-tag-name', 'galaxy-tag-side');
+    tag.classList.remove('galaxy-tag-name', 'galaxy-tag-side', 'galaxy-tag-right', 'galaxy-tag-off');
     if (!clash()) return;
     tag.classList.add('galaxy-tag-name');
     if (!clash()) return;
     tag.classList.add('galaxy-tag-side');
+    if (!clash()) return;
+    tag.classList.replace('galaxy-tag-side', 'galaxy-tag-right');
+    if (!clash()) return;
+    // (Nowhere clear: the galaxy's chip at the top of the map says it, and the battle's conditions.)
+    tag.classList.add('galaxy-tag-off');
   }
 
   private renderTableau(p: PlayerState, side: 'mine' | 'rival'): string {
