@@ -1678,14 +1678,12 @@ export class CampaignView {
     if (!this.drag || !this.view || !this.stageEl || !this.pointers.has(e.pointerId)) return;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.drag.pinch && this.pointers.size >= 2) {
-      // Two fingers: spreading them zooms toward their middle, moving them together pans.
+      // Two fingers: moving them together pans (no zooming).
       const [a, b] = [...this.pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const pin = this.drag.pinch;
       if (this.nebula && pin.mx !== undefined && pin.my !== undefined) {
-        const at = this.canvasPoint(mx, my);
-        if (at && d > 0) this.nebula.zoom(pin.d / d, at.x, at.y);
         const step = toPageDelta(mx - pin.mx, my - pin.my);
         this.nebula.pan(step.x, step.y);
       }
@@ -1713,9 +1711,8 @@ export class CampaignView {
         // The pointer has gone; the drag ends with it.
       }
     }
-    // A drag orbits round the strip; a right-drag (or shift-drag) slides over it.
-    if (this.drag.pan) this.nebula?.pan(dx, dy);
-    else this.nebula?.orbit(dx, dy);
+    // Any drag slides the camera over the strip (no turning it).
+    this.nebula?.pan(dx, dy);
     this.drag.x = e.clientX;
     this.drag.y = e.clientY;
   }
@@ -1728,24 +1725,9 @@ export class CampaignView {
   }
 
   private onWheel(e: WheelEvent) {
-    // The wheel (or a trackpad's pinch) zooms toward the pointer.
+    // (No zooming: the wheel does nothing on the map, but the page doesn't scroll either.)
     e.preventDefault();
-    const at = this.canvasPoint(e.clientX, e.clientY);
-    if (!this.nebula || !at) return;
-    const lines = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-    this.nebula.zoom(Math.exp(e.deltaY * lines * (e.ctrlKey ? 0.01 : 0.0015)), at.x, at.y);
   }
-
-  /** A point on the screen, in the nebula canvas's own CSS pixels. */
-  private canvasPoint(cx: number, cy: number): { x: number; y: number } | null {
-    const back = this.stageEl?.closest('.cmp')?.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
-    if (!back) return null;
-    const r = back.getBoundingClientRect();
-    const zx = r.width / (back.clientWidth || r.width) || 1, zy = r.height / (back.clientHeight || r.height) || 1;
-    return { x: (cx - r.left) / zx, y: (cy - r.top) / zy };
-  }
-
-
 
   /** What is picked on the map (a system or an army), in a popover beside it. */
   private renderPop(): string {
