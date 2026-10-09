@@ -28,6 +28,7 @@ import {
   GameError,
   instabilityHeat,
   KEYWORDS,
+  keywordsIn,
   textParts,
   keywordLabel,
   plainText,
@@ -5450,6 +5451,11 @@ export class App {
       attrs = `data-act="attack-start" data-arg="${c.uid}" title="Attack: click, then a rival card"`;
       state = 'card-attacker';
     }
+    // Your Hero, with abilities, on your day: tap it for its abilities (and its attack) to pick from.
+    if (!p && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && c.slot === COMMAND_SLOT && !c.dimmed && (cardDef(c.defId).abilities ?? []).length && !isGameOver(s)) {
+      attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Its abilities"`;
+      state = 'card-attacker';
+    }
     if ((p?.attack || p?.ability !== undefined) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
     // Paying for a Hero's ability with a sacrifice: any other card of yours in play can be given up.
     if (p?.step === 'sacrifice' && opts.tableau === 'mine' && opts.owner?.id === me?.id && c.slot !== undefined && c.slot !== COMMAND_SLOT && c.uid !== p.uid) {
@@ -5699,28 +5705,13 @@ export class App {
   }
 
   /**
-   * Beside a Hero in its slot: its abilities as round marks (what each does on hover; on your day, tap one to
-   * use it), then the boons its card carries (skills and gear), smaller.
+   * Beside a Hero in its slot: the boons its card carries (skills and gear). Its abilities are not marked here, at
+   * any size (they were too small to read or tap on a phone): tap your Hero for them, large, with what each does.
    */
-  private heroRail(p: PlayerState, hero: CardInstance, side: 'mine' | 'rival'): string {
-    const s = this.state!;
-    const def = cardDef(hero.defId);
-    const yours = side === 'mine' && p.id === this.viewer().id;
-    const act = yours && this.canAct() && !this.pending && !isGameOver(s);
-    const abilities = (def.abilities ?? [])
-      .map((ab, i) => {
-        const e = ab.effects[0];
-        const amount = e && 'amount' in e && typeof e.amount === 'number' ? e.amount : 0;
-        const why = yours ? heroAbilityProblem(s, p, i) : null;
-        const text = `${ab.name}: ${plainText(ab.text)}${ab.cost ? ` Costs ${ab.cost} energy.` : ''}${act && why ? ` (${why})` : ''}`;
-        const usable = act && !why;
-        const tipAttrs = `data-tip-title="${esc(ab.name.toLowerCase())}" data-tip="${esc(`${ab.cost ? `{cost:${ab.cost}} : ` : ''}${ab.text}`)}"${act && why ? ` data-tip-note="${esc(why)}"` : usable ? ' data-tip-note="Tap to use it today."' : ''}`;
-        return `<button class="hero-ab ${usable ? 'hero-ab-on' : ''}" ${usable ? `data-act="hero-ability" data-arg="${i}"` : 'aria-disabled="true"'} ${tipAttrs} aria-label="${esc(text)}">${effectMark(e?.type ?? 'star')}${amount ? `<small>${amount}</small>` : ''}${ab.cost ? `<em class="hero-ab-cost">${'<i></i>'.repeat(ab.cost)}</em>` : ''}</button>`;
-      })
-      .join('');
+  private heroRail(_p: PlayerState, hero: CardInstance, side: 'mine' | 'rival'): string {
     const boons = hero.boons?.length ? this.boonMarks(hero.boons, 'boon-mark hero-boon') : '';
-    if (!abilities && !boons) return '';
-    return `<div class="hero-rail hero-rail-${side}">${abilities ? `<div class="hero-rail-col">${abilities}</div>` : ''}${boons ? `<div class="hero-rail-col">${boons}</div>` : ''}</div>`;
+    if (!boons) return '';
+    return `<div class="hero-rail hero-rail-${side}"><div class="hero-rail-col">${boons}</div></div>`;
   }
 
   /** What the viewer's Hero can do right now: its usable abilities (by index), and 'attack' if it may attack. */
@@ -5735,25 +5726,39 @@ export class App {
   }
 
   /**
-   * Your Hero, in the stage's place (middle right), full size like any card there: tap one of its ability
-   * lines to use it, or its attack (bottom left) to attack with it.
+   * Your Hero, tapped on your day: its abilities to pick from, each a large mark with its name, its cost and what it
+   * does (one that can't be used today says why), and its attack, if it may attack. In the stage's place.
    */
   private renderHeroPanel(): string {
     const s = this.state!;
     const me = this.viewer();
     const hero = commandCard(me);
     if (!hero || hero.uid !== this.heroPanel) return '';
-    const attack = this.heroActions(me).includes('attack');
-    const card = this.renderCard(hero, { static: true })
-      .replace(/^(\s*)<button class="card /, '$1<div class="card card-still ')
-      .replace(/<\/button>\s*$/, '</div>')
-      .replace(/ data-act="[^"]*"/, '')
-      .replace(/<span class="card-ability" data-ability="(\d+)">/g, (_, i: string) => {
-        const why = heroAbilityProblem(s, me, Number(i));
-        return why ? `<span class="card-ability card-ability-off" title="${esc(why)}">` : `<span class="card-ability card-ability-on" data-act="hero-ability" data-arg="${i}" role="button">`;
+    const def = cardDef(hero.defId);
+    const abilities = (def.abilities ?? [])
+      .map((ab, i) => {
+        const e = ab.effects[0];
+        const amount = e && 'amount' in e && typeof e.amount === 'number' ? e.amount : 0;
+        const why = heroAbilityProblem(s, me, i);
+        // What it does, in words: its text, then what its keywords mean (the marks' own meaning).
+        const explain = keywordsIn(ab.text).map((k) => KEYWORDS[k.id]?.explain(k.value)).filter(Boolean).join(' ');
+        const cost = ab.cost ? `<em class="hero-pick-cost" title="${ab.cost} energy">${'<i></i>'.repeat(ab.cost)}</em>` : '';
+        return `<button class="hero-pick ${why ? 'hero-pick-off' : ''}" ${why ? 'aria-disabled="true"' : `data-act="hero-ability" data-arg="${i}"`}>
+          <span class="hero-pick-mark">${effectMark(e?.type ?? 'star')}${amount ? `<small>${amount}</small>` : ''}</span>
+          <span class="hero-pick-words"><b>${esc(ab.name.toLowerCase())}${cost}</b><span>${esc(plainText(ab.text))}${explain ? ` <small>${esc(explain)}</small>` : ''}</span>${why ? `<i>${esc(why)}</i>` : ''}</span>
+        </button>`;
       })
-      .replace(/<b class="jewel jewel-atk"/, (m) => (attack ? `<b class="jewel jewel-atk stat-atk-on" data-act="attack-start" data-arg="${hero.uid}" role="button"` : m));
-    return `<div class="stage stage-hero">${card}</div>`;
+      .join('');
+    const attack = this.heroActions(me).includes('attack')
+      ? `<button class="hero-pick hero-pick-attack" data-act="attack-start" data-arg="${hero.uid}">
+          <span class="hero-pick-mark">${effectMark('attack')}<small>${cardAttack(s, me, hero)}</small></span>
+          <span class="hero-pick-words"><b>attack</b><span>Strike a rival card${aimChoices(s, me).sun ? ', or their sun' : ''}.</span></span>
+        </button>`
+      : '';
+    return `<div class="stage stage-hero" data-key="hero-picks"><div class="hero-picks">
+      <header>${esc(def.name.toLowerCase())}<button class="hero-picks-close" data-act="hero-panel" data-arg="${hero.uid}" aria-label="Close">×</button></header>
+      ${abilities}${attack}
+    </div></div>`;
   }
 
   /**
@@ -5842,7 +5847,7 @@ export class App {
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
-    if (!st && this.heroPanel && !isGameOver(s) && this.canAct() && this.heroActions(this.viewer()).length) return this.renderHeroPanel();
+    if (!st && this.heroPanel && !isGameOver(s) && this.canAct()) return this.renderHeroPanel();
     // A card picked from your hand: it waits here while you choose where it goes and what it does.
     const picked = !st && this.pending && !this.pending.attack && this.pending.ability === undefined ? activePlayer(s).hand.find((c) => c.uid === this.pending!.uid) : undefined;
     if (picked) {
