@@ -1597,7 +1597,8 @@ export class App {
   }
   private canAutoEnd(): boolean {
     const s = this.state;
-    return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && this.leftUndone().length === 0;
+    // (Not while discards are being picked: End Day confirms those, never the clock.)
+    return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && !this.discarding && this.leftUndone().length === 0;
   }
 
   /**
