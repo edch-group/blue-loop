@@ -6101,16 +6101,17 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-race-ghost { position: absolute; z-index: -1; top: 50%; left: 50%; transform: translate(-50%, -50%); width: clamp(80px, calc(20 * var(--vh)), 170px); opacity: 0.08; pointer-events: none; }
 .cs-race-ghost .fav { width: 100%; height: auto; display: block; }
 .cs-race h3 { margin: 0; font-family: var(--display); font-weight: 500; letter-spacing: 0.42em; text-indent: 0.42em; text-transform: uppercase; font-size: clamp(1rem, calc(4.4 * var(--vh)), 1.9rem); color: color-mix(in srgb, var(--rc) 55%, #2a2d36); }
-.cs-race p { margin: 0; max-width: 560px; font-size: clamp(0.66rem, calc(2.2 * var(--vh)), 0.86rem); line-height: 1.45; color: var(--ink-soft); }
+.cs-race p { margin: 0; font-family: var(--display); font-size: clamp(0.56rem, calc(1.8 * var(--vh)), 0.72rem); letter-spacing: 0.32em; text-indent: 0.32em; text-transform: uppercase; color: var(--ink-faint); }
 .cs-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .cs-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 2px 6px rgba(70, 76, 100, 0.1); font-family: var(--display); font-size: clamp(0.5rem, calc(1.6 * var(--vh)), 0.64rem); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); cursor: default; }
 .cs-tag-trait { font-family: inherit; letter-spacing: 0; text-transform: none; font-size: clamp(0.62rem, calc(2 * var(--vh)), 0.78rem); color: var(--ink); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--rc) 60%, #fff), 0 2px 8px color-mix(in srgb, var(--rc) 22%, transparent); }
 
 /* Its heroes: tall portraits, their power in the game's own marks, the one leading the run lifted in its colour. */
-.cs-heroes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, calc(1.6 * var(--vw)), 20px); min-height: 0; align-items: stretch; }
-.cs-hero { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: clamp(150px, calc(44 * var(--vh)), 400px); border-radius: 20px; overflow: hidden; cursor: pointer; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 8px 24px rgba(70, 76, 100, 0.14); transition: transform 0.22s, box-shadow 0.22s; }
+.cs-heroes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, calc(1.6 * var(--vw)), 20px); min-height: 0; align-items: start; }
+/* (Every hero card the same height, whatever the race or the length of its bio.) */
+.cs-hero { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; height: clamp(220px, calc(48 * var(--vh)), 440px); border-radius: 20px; overflow: hidden; cursor: pointer; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 8px 24px rgba(70, 76, 100, 0.14); transition: transform 0.22s, box-shadow 0.22s; }
 .cs-hero:hover { transform: translateY(-3px); }
-.cs-hero.on { transform: translateY(-6px); box-shadow: 0 0 0 2px var(--rc), 0 0 30px color-mix(in srgb, var(--rc) 35%, transparent), 0 16px 34px rgba(70, 76, 100, 0.2); }
+.cs-hero.on { box-shadow: 0 0 0 2px var(--rc), 0 0 30px color-mix(in srgb, var(--rc) 35%, transparent), 0 16px 34px rgba(70, 76, 100, 0.2); }
 .cs-hero-art { position: relative; display: block; min-height: 0; overflow: hidden; background: #1a1f2a; }
 .cs-hero-art .art-wrap, .cs-hero-art .art-frame { display: block; width: 100%; height: 100%; }
 .cs-hero-art img.art, .cs-hero-art svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 26%; transition: transform 0.5s; }
@@ -6123,7 +6124,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-hero.rarity-anomaly .cs-hero-rarity i { background: #a77ee8; box-shadow: 0 0 6px #a77ee8; }
 .cs-hero-body { position: relative; z-index: 1; display: grid; gap: 6px; margin-top: -26px; padding: 0 clamp(10px, calc(1.6 * var(--vw)), 18px) clamp(10px, calc(2 * var(--vh)), 16px); }
 .cs-hero-body > b { font-family: var(--display); font-weight: 500; font-size: clamp(0.7rem, calc(2.6 * var(--vh)), 1rem); letter-spacing: 0.18em; text-transform: uppercase; color: color-mix(in srgb, var(--rc) 50%, #2a2d36); line-height: 1.25; }
-.cs-hero-bio { margin: 0; font-size: clamp(0.64rem, calc(2.1 * var(--vh)), 0.82rem); line-height: 1.5; color: var(--ink-soft); font-style: italic; }
+.cs-hero-bio { margin: 0; font-size: clamp(0.64rem, calc(2.1 * var(--vh)), 0.82rem); line-height: 1.5; color: var(--ink-soft); font-style: italic; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; min-height: 6em; }
 .cs-hero.locked .cs-hero-body { opacity: 0.6; }
 .cs-hero-lock { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; pointer-events: none; }
 .cs-hero-lock .cs-buy { pointer-events: auto; }
@@ -6153,13 +6154,13 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   .cs-body { gap: 6px; padding: 6px 8px 10px; overflow-y: auto; scrollbar-width: none; }
   .cs-orb { --s: 30px; width: 54px; gap: 3px; }
     .cs-race h3 { font-size: 0.95rem; letter-spacing: 0.34em; }
-  .cs-race p { font-size: 0.62rem; }
-  .cs-hero { display: block; min-height: 190px; border-radius: 14px; }
+  .cs-race p { font-size: 0.5rem; }
+  .cs-hero { display: block; height: clamp(170px, calc(100 * var(--vh) - 250px), 230px); border-radius: 14px; }
   .cs-hero-art { position: absolute; inset: 0; }
   .cs-hero-art::after { background: linear-gradient(180deg, transparent 22%, rgba(255, 255, 255, 0.92) 52%, #fff 70%); }
   .cs-hero-body { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; gap: 2px; padding: 0 10px 8px; }
   .cs-hero-body > b { font-size: 0.66rem; letter-spacing: 0.14em; }
-  .cs-hero-bio { font-size: 0.6rem; line-height: 1.4; }
+  .cs-hero-bio { font-size: 0.6rem; line-height: 1.4; min-height: 0; }
   .cs-hero-rarity { top: 6px; left: 6px; font-size: 0.46rem; padding: 2px 7px 2px 5px; }
   .cs-hero-lock { place-items: start end; padding: 6px; }
   .cs-hero-lock .cs-buy { padding: 4px 4px 4px 10px; font-size: 0.54rem; }
@@ -6169,7 +6170,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* A phone held upright: one hero a row. */
 @media (max-width: 780px) and (min-height: 561px) {
   .cs-heroes { grid-template-columns: minmax(0, 1fr); }
-  .cs-hero { grid-template-rows: none; grid-template-columns: 40% minmax(0, 1fr); min-height: 140px; }
+  .cs-hero { grid-template-rows: none; grid-template-columns: 40% minmax(0, 1fr); height: 150px; }
   .cs-hero-art::after { background: linear-gradient(90deg, transparent 60%, rgba(255, 255, 255, 0.95)); }
   .cs-hero-body { margin: 0 0 0 -14px; align-content: center; padding: 10px 12px 10px 0; }
   .cs-races { flex-wrap: wrap; }

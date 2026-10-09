@@ -61,7 +61,6 @@ import {
   nodeById,
   ownedNodes,
   RACE_NAMES,
-  RACE_TRAITS,
   RARITY_NAME,
   starOdds,
   SUBRACES,
@@ -85,7 +84,7 @@ import { DeckBuilder, type BuilderMode } from './builder';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
-import { raceRow, cardArtLite, cardStock, cardBodyHtml, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
@@ -276,17 +275,8 @@ function seedOf(id: string): string {
   return ((h % 1000) / 1000).toFixed(3);
 }
 const TRACK_TINT: Record<string, string> = { weapons: '#e2a494', defences: '#a3c3df', economy: '#e0cd94', resources: '#abd2b5' };
-/** Each race's style of play, for choosing one. */
-const RACE_BLURB = [
-  'Lancers of light: many attack cards, each making the others hit harder.',
-  'Crystal overloaders: big bursts of heat, and run your own sun hot to hit harder still.',
-  'Tidal bells: stack shields, keep them, and sting whoever strikes them.',
-  'The hive: grow, spread wide, and play more cards each turn.',
-  'Void-stalkers: spring traps from the dark, and unmake whatever your rival builds.',
-  'Forge-smiths: hammer grafts onto each other behind walls that will not fall.',
-  'Star-readers: move the planets, read what is coming, and attune again and again.',
-  'Flare-born: spend everything in one burst, and run your own sun hot to thrive.',
-];
+/** Each race in a few words, under its name on the run's setup. */
+const RACE_EPITHET = ['the keepers', 'the rememberers', 'the tide', 'the hive', 'the unseen', 'the forgers', 'the star-readers', 'the flame'];
 
 /** What the campaign screen needs from the app that hosts it. */
 export interface CampaignHost {
@@ -971,16 +961,10 @@ export class CampaignView {
     const races = `<nav class="cs-races"><div class="cs-race-set">${[0, 1, 2, 3, 4, 5, 6, 7].map(orb).join('')}</div></nav>`;
     // The picked race: its name large, its creed, its trait, its sub-races.
     const raceOpen = raceUnlocked(meta, r);
-    const subs = Object.values(SUBRACES).filter((x) => x.race === r);
     const race = `<section class="cs-race">
       <span class="cs-race-ghost">${factionAvatar(`f${r + 1}`)}</span>
       <h3>${lower(RACE_NAMES[r])}</h3>
-      <p>${esc(RACE_BLURB[r])}</p>
-      <div class="cs-tags">
-        ${RACE_TRAITS[r] ? `<span class="cs-tag cs-tag-trait">${cardTextHtml(RACE_TRAITS[r]!.bonus, undefined, true)}</span>` : ''}
-        ${subs.map((x) => `<span class="cs-tag" data-tip-title="${esc(lower(x.name))}" data-tip="${esc(x.theme)}.">${lower(x.name)}</span>`).join('')}
-      </div>
-      ${raceOpen ? '' : buy(`race:${r}`, `unlock the ${lower(RACE_NAMES[r])}`, 'cs-buy-big')}
+      <p>${esc(RACE_EPITHET[r] ?? '')}</p>
     </section>`;
     // Its heroes: portraits, their power in the game's own marks, the one leading the run lifted.
     const heroes = GENERALS[r]
@@ -1014,7 +998,7 @@ export class CampaignView {
           ${race}
           <div class="cs-heroes">${heroes}</div>
         </div>
-        <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start" ${ready ? '' : 'disabled'}>begin run</button></footer>
+        <footer class="setup-foot">${raceOpen ? `<button class="btn-primary" data-act="cmp-start" ${ready ? '' : 'disabled'}>begin run</button>` : buy(`race:${r}`, `unlock the ${lower(RACE_NAMES[r])}`, 'cs-buy-big')}</footer>
         ${this.shopOpen ? this.renderShop(meta) : ''}
       </main>`;
   }
