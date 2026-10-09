@@ -90,6 +90,8 @@ import {
   type GameMode } from '../engine';
 import { roman, sunOrb, vitals } from './art';
 import { backdrop, RAGE_IN_MS } from './backdrop';
+/** What counts as on a card, for tooltips (none on a touch screen: the inspector explains a card there). */
+const ON_CARD = '.card, .card-yield, .boon-mark, .hero-rail';
 /** How long a heat wave from the Stellari takes to cross the board. */
 const WAVE_MS = 550;
 /** How much longer than a bolt a heat wave holds the day's effects up (its flush of red, and its crossing). */
@@ -975,6 +977,8 @@ export class App {
     document.addEventListener('pointerdown', (e) => {
       const el = (e.target as HTMLElement).closest?.<HTMLElement>('[data-tip]:not(.kw):not(.pop-chip)');
       if (!el || e.pointerType === 'mouse') return;
+      // (On a touch screen, nothing on a card explains itself: the inspector does that.)
+      if (el.closest(ON_CARD)) return;
       tipFor = el;
       showTip(el);
       window.clearTimeout(tipTimer);
@@ -982,6 +986,7 @@ export class App {
     });
     document.addEventListener('mouseover', (e) => {
       const plain = (e.target as HTMLElement).closest?.<HTMLElement>('[data-tip]:not(.kw):not(.pop-chip)');
+      if (plain && this.touch && plain.closest(ON_CARD)) return;
       if (plain) {
         if (plain === tipFor) return;
         tipFor = plain;

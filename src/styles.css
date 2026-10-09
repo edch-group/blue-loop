@@ -6038,9 +6038,10 @@ body:has(.game-result) .dock { visibility: hidden; }
 
 
 /* ---- A Lost Overlord's parts: full-art cards (its one action across the picture), the next to act marked ---- */
-.card.card-full { overflow: hidden; background: #0d0607; color: #f6ece6; }
+/* (The picture is clipped to the card, not the card itself: its defence shield and jewels hang over its edges.) */
+.card.card-full { overflow: visible; background: #0d0607; color: #f6ece6; }
 .card.card-full .card-stock { display: none; }
-.card.card-full .card-glyph { position: absolute; inset: 0; height: auto; padding: 0; z-index: 0; }
+.card.card-full .card-glyph { position: absolute; inset: 0; height: auto; padding: 0; z-index: 0; overflow: hidden; border-radius: inherit; }
 .card.card-full .card-glyph .art-wrap { width: 100%; margin: 0; filter: none; }
 .card.card-full .card-glyph .art-frame { border-radius: inherit; box-shadow: none; -webkit-mask: none; mask: none; }
 .card.card-full .card-glyph .gem, .card.card-full .card-glyph .cost-dots { display: none; }
