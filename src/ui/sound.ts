@@ -1,6 +1,8 @@
 import { markDirty } from './account';
 import heatFire from '../assets/sfx/heat-fire.mp3?inline';
 import sunHit from '../assets/sfx/sun-hit.mp3?inline';
+import cardHit from '../assets/sfx/card-hit.mp3?inline';
+import playAttack from '../assets/sfx/play-attack.mp3?inline';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -22,7 +24,7 @@ const PREFS_KEY = 'blue-loop:sound';
  * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
  * late.
  */
-const SFX = { heatFire, sunHit };
+const SFX = { heatFire, sunHit, cardHit, playAttack };
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
 function silentWav(): string {
@@ -509,7 +511,9 @@ class SoundBoard {
   shuffle() {
     for (let i = 0; i < 4; i++) this.breath({ dur: 0.5, freq: 700 + i * 300, to: 1800, gain: 0.04, attack: 0.15, delay: i * 0.14 });
   }
-  play() {
+  /** A card put into play (or arriving on the stage): an attack card draws a sword of light; others, a soft bloom. */
+  play(kind?: string) {
+    if (kind === 'attack') return this.clip(SFX.playAttack, 0.5);
     this.breath({ dur: 0.9, freq: 400, to: 1600, gain: 0.05, attack: 0.25 });
     this.voice(440, { dur: 1.6, attack: 0.18, gain: 0.05, cutoff: 1800 });
     this.voice(659.25, { dur: 1.6, attack: 0.25, gain: 0.03, cutoff: 1800, detune: 4 });
@@ -579,13 +583,13 @@ class SoundBoard {
     this.breath({ dur: 0.32, freq: 700, to: 3400, type: 'bandpass', q: 1.4, gain: 0.11, attack: 0.2, out: this.sfxDry ?? undefined });
     this.breath({ dur: 0.26, freq: 2400, to: 6000, type: 'highpass', q: 0.7, gain: 0.035, attack: 0.18, delay: 0.04, out: this.sfxDry ?? undefined });
   }
-  /** A card smashing into a card: a punchy mid thump with a crunch (heard on small speakers too). Bigger blows land harder. */
+  /**
+   * A blow landing on a card: the recorded whip crack, slowed. Bigger blows land louder, and a little slower and
+   * deeper (as set by what the blow took, never by chance).
+   */
   clash(amount = 1) {
-    const g = Math.min(1.5, 0.8 + amount * 0.12);
-    this.voice(196, { dur: 0.32, attack: 0.003, gain: 0.13 * g, to: 82, type: 'triangle', cutoff: 1400 });
-    this.voice(392, { dur: 0.14, attack: 0.002, gain: 0.05 * g, to: 160, type: 'square', cutoff: 1800 });
-    this.breath({ dur: 0.22, freq: 1600, to: 500, type: 'bandpass', q: 0.9, gain: 0.14 * g, attack: 0.003 });
-    this.breath({ dur: 0.08, freq: 4200, type: 'highpass', q: 0.7, gain: 0.05 * g, attack: 0.002 });
+    const a = Math.max(1, amount);
+    this.clip(SFX.cardHit, 0.5 * Math.min(1.5, 0.85 + 0.12 * (a - 1)), 1 - Math.min(0.14, 0.035 * (a - 1)));
   }
   /** A card's defence cracking: a brittle snap with splintering ticks after it. */
   crack() {
