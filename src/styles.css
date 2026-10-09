@@ -1516,9 +1516,7 @@ body.screen-campaign .backdrop { display: none; }
   --gw: calc(min(calc(100 * var(--vw)), calc(var(--app-h, calc(100 * var(--vh))) * 2.2)) * var(--bz, 1));
   --gh: calc(min(calc(112 * var(--vh)), calc(var(--gw) / var(--bz, 1) * 0.64)) * var(--bz, 1));
   /* How far the board tips away from the viewer. */
-  --board-tilt: 14deg;
-  /* How much wider than the table's own shape the board is laid out (the room either side goes to the cards). */
-  --bwide: 1.12;
+  --board-tilt: 22deg;
   position: fixed; inset: 0;
   perspective: calc(200 * var(--vh));
   perspective-origin: 50% 24%;
@@ -1649,8 +1647,7 @@ body.screen-campaign .backdrop { display: none; }
   --reach: calc(var(--gh) * 0.07);
   /* Below your tableau, as much board as above your rival's: your hand hangs over the front edge. */
   --drop: calc(var(--hvis) * 0.6);
-  width: calc(var(--gw) * var(--bwide)); height: calc(var(--gh) + var(--reach) - var(--drop)); margin-inline: auto;
-  margin-left: calc(50% - var(--gw) * var(--bwide) / 2);
+  width: var(--gw); height: calc(var(--gh) + var(--reach) - var(--drop)); margin-inline: auto;
   top: calc((100 * var(--vh) - var(--gh)) / 2 - 2 * var(--vh) - var(--reach));
   padding-top: calc(var(--inset) + var(--reach));
 }
@@ -1841,7 +1838,7 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
 /* ---------- The card game: tableaus on the board ---------- */
 .table-view > .game {
   /* Tableau cards: eight across the board, capped by the height of half the board. */
-  --boardw: calc(var(--gw) * var(--bwide) - 2 * var(--inset) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
+  --boardw: calc(var(--gw) - 2 * var(--inset) - clamp(8px, calc(1.6 * var(--vw)), 20px) - 24px);
   /* Five slots and the Lightspeed slot, set a little apart. */
   /* (The height share leaves room between the rows for the Command slots, which stand out a card's width.) */
   --tcw-h: 0.32;
@@ -1850,11 +1847,11 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
     calc((var(--game-w) - 2 * var(--inset) - 24px - 2 * var(--row-side) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
   /* Each row's ends: its sun on the left, its upgrade pills on the right, the same width each so the slots centre. */
   --row-side: calc(1.05 * var(--row-vs));
-  --game-w: calc(var(--gw) * var(--bwide) * 0.95);
+  --game-w: calc(var(--gw) * 0.95);
   --row-vs: clamp(calc(84px * var(--bz, 1)), calc(var(--gh) / 112 * 23), calc(168px * var(--bz, 1)));
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .table-view > .game { --logw: 0px; --tcw-h: 0.26; }
+  .table-view > .game { --logw: 0px; --tcw-h: 0.28; }
 }
 .table-view > .game > .board { grid-column: 1 / -1 !important; grid-row: 2; display: flex; min-height: 0; }
 .board .board3d { flex: 1; min-height: 0; display: flex; }
