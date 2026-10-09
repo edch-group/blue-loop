@@ -732,7 +732,7 @@ Outside a single game, each player has a **profile** (kept on their device): a l
 
 | Game | Win | Loss |
 | --- | --- | --- |
-| Against the AI (quickplay or campaign battle) | ✦20 ⟁5, 40 xp | ✦8 ⟁2, 20 xp |
+| Against the AI (quickplay; campaign battles pay materials instead, no stardust, flux or experience) | ✦20 ⟁5, 40 xp | ✦8 ⟁2, 20 xp |
 | Online, with a friend | ✦60 ⟁15, 100 xp | ✦25 ⟁6, 50 xp |
 | Ranked (against an equal) | ✦120 ⟁30, 160 xp | ✦50 ⟁12, 80 xp |
 

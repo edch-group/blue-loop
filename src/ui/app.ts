@@ -1679,9 +1679,10 @@ export class App {
   private begin(state: GameState) {
     this.boardZoom = null;
     this.gamesBegun++;
-    // A game against the AI: a new one is noted by the server (for its reward); a continued one keeps its id.
+    // A game against the AI: a new one is noted by the server (for its reward); a continued one keeps its id. (Not a
+    // campaign battle: the campaign pays its own way, in materials and petals, with no stardust, flux or experience.)
     const humans = state.players.filter((p) => !p.isAI).length;
-    if (humans === 1 && !state.winnerId) {
+    if (humans === 1 && !state.winnerId && !this.campaignBattle) {
       if (state.turnNumber <= 1) {
         this.aiGameId = null;
         this.rememberAiGame(null);
@@ -2559,7 +2560,7 @@ export class App {
     const humans = next.players.filter((p) => !p.isAI).length;
     // Against the AI: the server pays the reward for the game it saw start (an online game's, it pays by itself).
     const gameId = this.aiGameId;
-    if (viewer && !this.online && humans === 1 && gameId) {
+    if (viewer && !this.online && humans === 1 && gameId && !this.campaignBattle) {
       this.aiGameId = null;
       this.rememberAiGame(null);
       const won = next.winnerId === viewer.id;
