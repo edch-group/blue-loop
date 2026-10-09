@@ -27,6 +27,8 @@ export interface MapObject {
   reach?: boolean;
   /** A stable number to vary each one by (spin, phase). */
   seed: number;
+  /** Which system it is (for the pointer hovering it). */
+  id?: string;
 }
 
 /** A route between two systems (world x, z at each end): held (in its holder's colour), or gone (a faint dashed trace). */
@@ -45,6 +47,8 @@ export interface MapShip {
   colour: [number, number, number];
   /** Its race (its model), or -1 for a Lost Races derelict. */
   race: number;
+  /** Flying in from here (world x, z), taking this long (seconds): a ship arriving from off screen. */
+  arrive?: { from: [number, number]; dur: number };
 }
 
 /** What lies under the galaxy (drawn on the layer behind the map). */
@@ -476,6 +480,36 @@ export class MapObjects {
     this.list = list;
   }
 
+  /** The system under the pointer (it swells and flares), and how far each has swelled (0 to 1). */
+  private hovered: string | null = null;
+  private hoverAmt = new Map<string, number>();
+  private hoverClock = 0;
+
+  /** Whether anything is still swelling or settling (the scene keeps drawing until it is still). */
+  get hoverMoving(): boolean {
+    for (const [id, v] of this.hoverAmt) if (Math.abs((id === this.hovered ? 1 : 0) - v) > 0.01) return true;
+    return false;
+  }
+
+  hover(id: string | null) {
+    this.hovered = id;
+    if (id && !this.hoverAmt.has(id)) this.hoverAmt.set(id, 0);
+  }
+
+  /** Ease each system toward swelled (hovered) or at rest. */
+  private stepHover() {
+    const now = performance.now() / 1000;
+    const dt = this.hoverClock ? Math.min(0.1, now - this.hoverClock) : 0;
+    this.hoverClock = now;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    for (const [id, v] of this.hoverAmt) {
+      const to = id === this.hovered ? 1 : 0;
+      const next = reduce ? to : v + (to - v) * (1 - Math.exp(-dt * (to ? 14 : 8)));
+      if (!to && next < 0.005) this.hoverAmt.delete(id);
+      else this.hoverAmt.set(id, next);
+    }
+  }
+
   /**
    * The ships, and where each is bound: one bound somewhere new flies there from where it is now (straight, easing
    * in and out, turning to face its way); one first seen is simply there.
@@ -488,7 +522,10 @@ export class MapObjects {
     for (const sh of list) {
       const was = this.ships.get(sh.id);
       if (!was) {
-        this.ships.set(sh.id, { from: [sh.x, sh.z], to: [sh.x, sh.z], t0: now, dur: 0, heading: 0, colour: sh.colour, race: sh.race });
+        const a = reduce ? undefined : sh.arrive;
+        const from: [number, number] = a ? a.from : [sh.x, sh.z];
+        const heading = a ? Math.atan2(sh.z - from[1], sh.x - from[0]) : 0;
+        this.ships.set(sh.id, { from, to: [sh.x, sh.z], t0: now, dur: a?.dur ?? 0, heading, colour: sh.colour, race: sh.race });
         continue;
       }
       was.colour = sh.colour;
@@ -706,9 +743,15 @@ export class MapObjects {
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
     gl.depthMask(true);
+    this.stepHover();
+    // Hovered, a star swells with a little overshoot, and flares.
+    const swell = (o: MapObject) => {
+      const h = o.id ? this.hoverAmt.get(o.id) ?? 0 : 0;
+      return { h, k: 1 + 0.4 * h + 0.12 * Math.sin(Math.PI * h) };
+    };
     const solid = this.solids(cam, time, fade);
     for (const o of this.list) {
-      const r = o.heart ? 0.072 : 0.036;
+      const r = (o.heart ? 0.072 : 0.036) * swell(o).k;
       if (o.dead) solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, o.seed, r * 0.55), 4, [0.62, 0.62, 0.64], 1);
       else {
         // A held sun takes its holder's colour, softened toward the paper.
@@ -730,7 +773,13 @@ export class MapObjects {
     const sprite = this.sprites(cam, time, fade);
     for (const o of this.list) {
       if (o.dead) continue;
-      const r = o.heart ? 0.072 : 0.036;
+      const { h, k } = swell(o);
+      const r = (o.heart ? 0.072 : 0.036) * k;
+      // A bright flare and a turning ring of light round a hovered star.
+      if (h > 0.01) {
+        sprite.draw(o.x, y, o.z, r * 6, 0, [1, 1, 1], 0.55 * h);
+        sprite.draw(o.x, y, o.z, r * (3.2 + 0.6 * h), 4, o.ring ?? INK, 0.9 * h, o.seed + time * 0.4);
+      }
       if (o.dim) {
         sprite.draw(o.x, y, o.z, r * 2.4, 0, [1, 1, 1], 0.2);
       } else {

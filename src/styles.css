@@ -3646,6 +3646,8 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   animation: cmp-guide-in 0.28s ease-out both;
 }
+/* A campaign's first words wait for the flagship to fly in. */
+.cmp-guide.cmp-guide-arrive { animation-duration: 0.5s; animation-delay: 2.9s; }
 @keyframes cmp-guide-in { from { opacity: 0; transform: translateY(-6px); } }
 .cmp-guide-face .cmp-portrait { width: 34px; height: 34px; box-shadow: 0 0 0 2px var(--sc); }
 .cmp-guide-who { display: block; font-family: var(--display); font-size: 0.54rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
@@ -5912,7 +5914,7 @@ body:has(.game-result) .dock { visibility: hidden; }
    The plane the strip lies on takes the nebula camera's own transform (campaign.ts layPlane): no perspective of
    the stage's, and laid from the stage's corner. Stars and marks turn to face the camera (--bb). The gas in
    front of the map is drawn on a canvas over it (pointer events pass through), under the top bar and popovers. */
-.cmp-3d .cmp-stage { perspective: none; cursor: grab; }
+.cmp-3d .cmp-stage { perspective: none; }
 .cmp-3d .cmp-plane { left: 0; top: 0; transform-origin: 0 0; }
 .cmp-3d .cmp-n3 .cmp-bb { transform-origin: 50% 100%; transform: translate(-50%, -100%) var(--bb) scale3d(var(--ui), var(--ui), var(--ui)); }
 .cmp-3d .cmp-map { z-index: 1; }
@@ -5920,7 +5922,6 @@ body:has(.game-result) .dock { visibility: hidden; }
 .cmp-3d .cmp-nebula-front { display: block; position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 .cmp-3d .cmp-top { position: relative; z-index: 3; }
 .cmp-3d .cmp-end { z-index: 3; }
-.cmp-recentre { position: absolute; left: calc(var(--pad-l, 0px) + 16px); bottom: calc(var(--pad-b) + 16px); z-index: 3; }
 
 /* ---- The map in the board's colours: routes and rings in paper, drawn round in ink; marks over systems as
    smooth paper tokens. ---- */

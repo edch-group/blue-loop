@@ -90,12 +90,51 @@ const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
   pyr_hero_pyrrhus: { join: 'Pyrrhus, the Undying Flare. I have burned out a hundred times. I always rise again.', taunt: 'I will burn, and you will burn, and only one of us will rise.' },
 };
 
+/**
+ * What each general says as their flagship first flies in, at the start of a campaign: why they have come, and
+ * what they see. (Recorded as src/assets/voice/<hero id>-arrive.mp3.)
+ */
+export const ARRIVAL_LINES: Record<string, string> = {
+  // Aureline: coming home to the flower they lost.
+  command_directive: "So many dark stars. When we kept Vitalia, this whole sky was lit. We are going home, and we are taking her back.",
+  ignition_protocol: "Look at it. Cold, all of it. Good: cold things catch fire easily. Take us in towards the Heart.",
+  empress_solenne: "My mothers watched the Heart from this very sky. They lost the flower. I will not. Onward.",
+  // Xel'Naru: the crystal needs light, or they forget.
+  war_council: "The shards are dimming already. Every star out there is a memory we cannot afford to lose. Make for the light.",
+  coolant_protocol: "The dark does not frighten me. Forgetting does. Steady now, and towards the Heart.",
+  the_shardmind: "We count the lights, and there are fewer than yesterday. We must reach the Heart before we forget why we came.",
+  // Vorthane: the oceans are freezing; the fleets sail inwards.
+  tide_regent: "Our seas are ice to the seabed. There is nowhere left to sail but in. Set a course for the Heart.",
+  the_admiralty: "Admiralty flagship on station. Ice behind us, dead stars ahead. The fleet sails for the Heart.",
+  leviathan_thoross: "I left a frozen ocean for this? Then this had better be worth the cold. Onward, to the Heart.",
+  // Ixquor: the hive is starving, and spreads.
+  logistics_command: "Zyth smells warm worlds, there, and there. Zyth's brood is hungry. Zyth goes towards the Heart.",
+  chamber_protocol: "Our spore-worlds are rotting, children. But look: soil, all the way to the Heart. Spread.",
+  the_worldroot: "The old soil is dead. Here, new soil. Every world between us and the Heart, a place to take root.",
+  // Nyxari: even the void-stalkers fear the growing dark.
+  nyx_hero_vesh: "The dark was always ours. Now it eats the stars, and soon it will eat us. Quietly, then. Towards the Heart.",
+  nyx_hero_kael: "So many dead lights, and every race clawing for the last ones. Let them build. I will take it all apart on the way to the Heart.",
+  nyx_hero_nyxara: "I have watched these stars wake, one by one. Now I watch them go out. I would rather not watch the last.",
+  // Korrath: the forges are cooling; they march for undying fire.
+  kor_hero_durga: "The forges back home are ash and embers. Out there is a fire that never needs feeding. We go and get it.",
+  kor_hero_brannoc: "Cold worlds, cold road, and enemies on every lane of it. Stay behind me. We reach the Heart together.",
+  kor_hero_anvil_king: "Ten thousand years our forges burned. They will burn ten thousand more, once we have the Heart. March.",
+  // Seren: they read the future in stars that are going out.
+  ser_hero_ilyath: "Fewer stars to read every night, and every reading ends the same: the Heart, the flower, or nothing. So: the Heart.",
+  ser_hero_maren: "The orbits are slowing. Worlds that once sang now barely turn. Set our course. The Heart is waiting.",
+  ser_hero_aster: "I carry every star that ever shone, and still the sky goes dark. Follow me, and we will light it again.",
+  // Pyrr: living flame, guttering with their sun.
+  pyr_hero_ignis: "Our sun is guttering, and we gutter with it. If we burn out, we burn out in the Heart's light. Full burn!",
+  pyr_hero_ashka: "It is so cold out here. Feel that? Nothing. Then we bring the heat ourselves, all the way to the Heart.",
+  pyr_hero_pyrrhus: "I have died and risen a hundred times. This dark will not be the end of me. To the Heart.",
+};
+
 const oracle = (text: string): StoryLine => ({ speaker: { kind: 'oracle' }, text });
 const general = (card: string, faction: string, text: string): StoryLine => ({ speaker: { kind: 'general', card, faction }, text });
 
 /** The opening: the dying universe, the legend, the player's race and its first general. */
-export function introScene(race: number, faction: string): StoryScene {
-  const first = GENERALS[race][0];
+export function introScene(race: number, faction: string, hero = GENERALS[race][0]): StoryScene {
+  const first = hero;
   return {
     id: 'intro',
     title: 'A dying universe',
@@ -109,7 +148,7 @@ export function introScene(race: number, faction: string): StoryScene {
           : `It is more than a legend. It was kept, once, by the Aureline, who called it ${VITALIA}, the life-giver. They lost it, and very nearly everything else.`,
       ),
       oracle(MOTIVE[race]),
-      general(first, faction, GENERAL_LINES[first].join),
+      general(first, faction, ARRIVAL_LINES[first] ?? GENERAL_LINES[first].join),
       oracle(`Your armies march one route a turn. Take systems for their materials, and press on towards ${HEART_NAME}. Recruit more generals as you grow: each leads an army with a deck of its own.`),
     ],
   };

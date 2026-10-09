@@ -650,6 +650,13 @@ export class Nebula {
     this.wake();
   }
 
+  /** The system under the pointer (by id; null: none): it swells and flares. */
+  hover(id: string | null) {
+    const top = this.layers[this.layers.length - 1];
+    top.objects?.hover(id);
+    this.wake();
+  }
+
   setObjects(list: MapObject[]) {
     const top = this.layers[this.layers.length - 1];
     top.objects?.set(list);
@@ -674,73 +681,34 @@ export class Nebula {
     return !!this.layers[this.layers.length - 1].objects;
   }
 
-  /** The camera's resting place: looking along the whole strip from its near end, far enough off to see all of it. */
+  /** The camera's resting place: behind the ship it follows (or, before there is one, the strip's near end), looking
+   * along the strip at a slant, the way ahead filling the view. */
   private home(): Pose {
+    const whole = this.homeDist;
+    const f = this.focus;
+    if (!f) return { x: -0.35, y: PLANE_Y, z: 0.15, yaw: -0.95, pitch: 0.62, dist: whole };
+    // A little ahead of the ship, so it sits low and to the left with the way on in view.
+    const dist = whole * 0.62;
+    const reach = STRIP_WIDTH / 2 - dist * 0.35;
+    const x = Math.max(-reach, Math.min(reach, f[0] + dist * 0.28));
+    return { x, y: PLANE_Y, z: 0.1 + f[1] * 0.35, yaw: -0.95, pitch: 0.62, dist };
+  }
+
+  /** How far off the camera rests over the whole strip (marks on the map grow a little as it closes in from there). */
+  get homeDist(): number {
     const c = this.back;
     const aspect = (c.clientWidth || 16) / (c.clientHeight || 10);
-    // From behind the strip's near end, looking along it at a slant: the start near the bottom left, the
-    // wormhole far off at the top right.
-    const half = STRIP_WIDTH / 2 + 0.3;
-    const dist = Math.max(2.4, (half / (Math.tan(FOV / 2) * Math.min(1, aspect))) * 0.6);
-    return { x: -0.35, y: PLANE_Y, z: 0.15, yaw: -0.95, pitch: 0.62, dist };
+    return Math.max(2.4, ((STRIP_WIDTH / 2 + 0.3) / (Math.tan(FOV / 2) * Math.min(1, aspect))) * 0.6);
   }
 
-  /** How far off the camera rests (marks on the map grow a little as it closes in from there). */
-  get homeDist(): number {
-    return this.home().dist;
-  }
+  /** What the camera follows (world x, z): it glides to keep it in view, on its own (the player never moves it). */
+  private focus: [number, number] | null = null;
 
-  /** Whether the camera has been moved from its resting place (so a way back is worth offering). */
-  get away(): boolean {
-    const h = this.home(), p = this.pose;
-    return Math.abs(p.yaw - h.yaw) > 0.05 || Math.abs(p.pitch - h.pitch) > 0.05 || Math.abs(p.dist / h.dist - 1) > 0.05 || Math.hypot(p.x - h.x, p.z - h.z) > 0.1;
-  }
-
-  /** Back to the resting place, gliding (the long way round never: the turn back is the short one). */
-  reset() {
-    const h = this.home();
-    const turn = Math.PI * 2;
-    h.yaw = this.pose.yaw + ((((h.yaw - this.pose.yaw) % turn) + turn * 1.5) % turn) - turn / 2;
-    this.glide = h;
+  follow(x: number, z: number) {
+    if (this.focus && Math.hypot(this.focus[0] - x, this.focus[1] - z) < 1e-4) return;
+    this.focus = [x, z];
+    if (this.homed) this.glide = this.home();
     this.wake();
-  }
-
-  /** Orbit by a drag (screen pixels): sideways turns round, up and down tilts. */
-  orbit(dx: number, dy: number) {
-    this.glide = null;
-    this.pose.yaw -= dx * 0.005;
-    this.pose.pitch = Math.max(0.12, Math.min(1.45, this.pose.pitch + dy * 0.004));
-    this.changed();
-  }
-
-  /** Slide the camera over the plane by a drag (screen pixels), so the map follows the finger. */
-  pan(dx: number, dy: number) {
-    this.glide = null;
-    const p = this.pose, cam = this.camera;
-    if (!cam) return;
-    const perPx = (2 * p.dist * Math.tan(FOV / 2)) / (cam.height || 1);
-    const rl = Math.hypot(cam.right[0], cam.right[2]) || 1, fl = Math.hypot(cam.forward[0], cam.forward[2]) || 1;
-    const k = perPx / Math.max(0.35, Math.sin(p.pitch));
-    p.x += -(cam.right[0] / rl) * dx * perPx + (cam.forward[0] / fl) * dy * k;
-    p.z += -(cam.right[2] / rl) * dx * perPx + (cam.forward[2] / fl) * dy * k;
-    this.clamp();
-    this.changed();
-  }
-
-  /** Zoom by a factor (below 1 closer), toward a point on the canvas (CSS pixels), as a map zooms toward the pointer. */
-  zoom(factor: number, sx: number, sy: number) {
-    this.glide = null;
-    const p = this.pose;
-    const next = Math.max(1.1, Math.min(this.home().dist * 1.6, p.dist * factor));
-    const f = next / p.dist;
-    const hit = this.onPlane(sx, sy);
-    if (hit) {
-      p.x += (hit[0] - p.x) * (1 - f);
-      p.z += (hit[1] - p.z) * (1 - f);
-    }
-    p.dist = next;
-    this.clamp();
-    this.changed();
   }
 
   /** Where a point on the canvas (CSS pixels) falls on the map's plane (world x, z), if it does. */
@@ -765,17 +733,6 @@ export class Nebula {
     if (ez >= -0.01) return null;
     const w = -ez;
     return { x: ((P[0] * ex) / w + 1) / 2 * cam.width, y: ((1 - (P[5] * ey) / w) / 2) * cam.height, depth: w };
-  }
-
-  private clamp() {
-    const p = this.pose;
-    p.x = Math.max(-STRIP_WIDTH / 2 - 0.4, Math.min(STRIP_WIDTH / 2 + 0.4, p.x));
-    p.z = Math.max(-0.8, Math.min(0.8, p.z));
-  }
-
-  private changed() {
-    this.moved = true;
-    this.wake();
   }
 
   destroy() {
@@ -826,7 +783,7 @@ export class Nebula {
       }
     }
     // Keep running while the gas lives (it always does, unless motion is reduced) or the camera glides.
-    if (live || this.glide || this.fade < 1 || !cam) this.raf = requestAnimationFrame((t2) => this.frame(t2));
+    if (live || this.glide || this.fade < 1 || !cam || this.layers[this.layers.length - 1].objects?.hoverMoving) this.raf = requestAnimationFrame((t2) => this.frame(t2));
     else this.last = 0;
   }
 

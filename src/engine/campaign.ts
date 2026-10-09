@@ -1100,7 +1100,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   // (Each Requisition: a pick of cards, the one chosen going straight into the deck.)
   for (let k = 0; k < run.picks; k++) s.cardRewards.push({ source: 'Requisition', options: randomCardChoices(s, me), toDeck: army.id });
   army.refit = false;
-  tell(s, introScene(me.race, me.id));
+  tell(s, introScene(me.race, me.id, army.general));
   noticeStory(s);
   return s;
 }

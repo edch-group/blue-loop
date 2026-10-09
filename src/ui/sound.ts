@@ -438,6 +438,17 @@ class SoundBoard {
     this.lastHover = now;
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
+  /** A star under the pointer: a soft glassy chime, each star its own note of a pentatonic scale. */
+  starHover(seed: number) {
+    const now = performance.now();
+    if (now - this.lastHover < 60) return;
+    this.lastHover = now;
+    const scale = [0, 2, 4, 7, 9, 12, 14];
+    const f = 659.25 * 2 ** (scale[Math.floor(Math.abs(seed) * 997) % scale.length] / 12);
+    this.voice(f, { dur: 0.9, attack: 0.006, gain: 0.03, cutoff: 5000 });
+    this.voice(f * 2, { dur: 0.5, attack: 0.004, gain: 0.012, cutoff: 7000, detune: 6 });
+    this.voice(f * 1.5, { dur: 1.2, attack: 0.06, gain: 0.008, cutoff: 3000, delay: 0.04 });
+  }
   /** A card or deck under the pointer: the dry rustle of paper (a few tiny bright crackles over a soft brush). */
   rustle() {
     const now = performance.now();

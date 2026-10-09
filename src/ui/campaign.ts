@@ -83,7 +83,7 @@ import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
 import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
-import { toPageDelta } from './viewport';
+import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 
 const KEY = 'blue-loop:campaign:v6';
@@ -167,6 +167,9 @@ function portrait(cardId: string): string {
 
 
 /** One of the Lost Races: a faded figure, half gone into the dark. */
+/** How long the flagship takes to fly in as a campaign starts (seconds). */
+const ARRIVAL_FLIGHT = 3.2;
+
 const LOST_PORTRAIT = `<span class="cmp-portrait cmp-portrait-lost"><svg viewBox="0 0 80 80" aria-hidden="true">
   <defs><radialGradient id="lost-bg" cx=".5" cy=".35"><stop offset="0" stop-color="#4a4658"/><stop offset="1" stop-color="#15131c"/></radialGradient>
   <linearGradient id="lost-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9c4dc" stop-opacity=".85"/><stop offset="1" stop-color="#c9c4dc" stop-opacity="0"/></linearGradient></defs>
@@ -301,8 +304,6 @@ function mul4(a: number[], b: number[]): number[] {
   return o;
 }
 
-/** The recentre button's mark: crosshairs in a ring. */
-const RECENTRE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>';
 
 export class CampaignView {
   state: CampaignState | null = null;
@@ -597,9 +598,14 @@ export class CampaignView {
         }
         saveMeta({ ...meta, runs: meta.runs + 1 });
         this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, race: this.setup.race, hero, run: runBonuses(meta) });
+        this.arriving = true;
+        this.introFlight = true;
         this.selected = null;
         this.view = null;
-        this.skipSilentScenes();
+        // The hero's arrival comes first: whatever else the opening brought on waits its turn behind it.
+        const story = this.state.story;
+        this.state = { ...this.state, story: { ...story, queue: [...story.queue.filter((sc) => sc.id === 'intro'), ...story.queue.filter((sc) => sc.id !== 'intro')] } };
+        if (this.state.story.queue[0]?.id !== 'intro') this.skipSilentScenes();
         saveCampaign(this.state);
         sound.objective();
         this.army = null;
@@ -607,6 +613,8 @@ export class CampaignView {
         // The map is up: announce the run (the setup page before it gets none).
         this.host.render();
         this.host.banner('universe 1', 'reach the wormhole');
+        // The hero speaks as the flagship comes to rest (their words on the guide, spoken if recorded).
+        voices.arrive(hero, ARRIVAL_FLIGHT * 1000);
         return true;
       }
       case 'cmp-zoom':
@@ -620,16 +628,12 @@ export class CampaignView {
         this.selected = null;
         this.view = this.homeView();
         break;
-      case 'cmp-recentre':
-        this.nebula?.reset();
-        return true;
       case 'cmp-deselect':
-        if (this.swallowClick || (!this.selected && !this.army)) return true;
+        if (!this.selected && !this.army) return true;
         this.selected = null;
         this.army = null;
         break;
       case 'cmp-army': {
-        if (this.swallowClick) return true;
         const army = armyById(s!, arg);
         // Your own ship: nothing to show (it is always the one that moves). Anyone else's: the system it stands in.
         if (army.owner === s!.playerId) {
@@ -701,7 +705,6 @@ export class CampaignView {
         break;
       case 'cmp-select':
         this.popTip = null;
-        if (this.swallowClick) return true;
         // A star in the flagship's reach sends it there (no need to pick the ship first); a known foe gets a
         // look at the matchup first.
         if (s && s.phase === 'player' && !s.battle) {
@@ -844,7 +847,6 @@ export class CampaignView {
         <section class="cmp-map">${this.renderMap()}</section>
         ${this.renderRelics()}
         <canvas class="cmp-nebula-front" data-key="cmp-nebula-front" aria-hidden="true"></canvas>
-        <button class="icon-btn cmp-recentre" data-act="cmp-recentre" data-key="cmp-recentre" aria-label="Back to the whole strip" title="Back to the whole strip" style="display:none">${RECENTRE_ICON}</button>
         ${this.renderPop()}
         ${overlay}
       </main>`;
@@ -1256,12 +1258,13 @@ export class CampaignView {
   private glide: { from: Cam; start: number } | null = null;
   /** The system focused at the last render, to fade out what belonged to it. */
   private lastFocus: string | null = null;
-  private drag: { id: number; x: number; y: number; moved: boolean; pan?: boolean; pinch?: { d: number; zoom: number; mx?: number; my?: number } } | null = null;
-  private pointers = new Map<number, { x: number; y: number }>();
-  /** Set after a drag so the click that ends it does not select or deselect. */
-  private swallowClick = false;
   private stageEl: HTMLElement | null = null;
   private nebula: Nebula | null = null;
+
+  /** Set as a campaign starts: the flagship's first appearance on the map is a fly-in. */
+  private arriving = false;
+  /** This session's campaign began with a fly-in: the hero's first words wait for the ship to come to rest. */
+  private introFlight = false;
 
   private static readonly TILT = 0; // (Bird's-eye: straight down on the strip.)
   private static readonly MAX_ZOOM = 12;
@@ -1293,12 +1296,12 @@ export class CampaignView {
     }
     if (!boundStages.has(stage)) {
       boundStages.add(stage);
-      stage.addEventListener('pointerdown', (e) => this.onPointerDown(e));
-      stage.addEventListener('pointermove', (e) => this.onPointerMove(e));
-      stage.addEventListener('pointerup', (e) => this.onPointerUp(e));
-      stage.addEventListener('pointercancel', (e) => this.onPointerUp(e));
       stage.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
-      stage.addEventListener('contextmenu', (e) => e.preventDefault());
+      // A star under the pointer swells and flares, with a soft chime.
+      stage.addEventListener('pointerover', (e) => this.hoverStar(e.target as Element, e.pointerType));
+      stage.addEventListener('pointerout', (e) => {
+        if (!(e.relatedTarget as Element | null)?.closest?.('.cmp-star')) this.hoverStar(null, e.pointerType);
+      });
     }
     this.view ??= this.homeView();
     this.showNebula(root);
@@ -1451,6 +1454,7 @@ export class CampaignView {
         dead: !!(n.collapsed || n.ruined),
         reach: this.reach.has(n.id),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,
+        id: n.id,
       };
     });
     this.nebula.setObjects(objects);
@@ -1463,15 +1467,22 @@ export class CampaignView {
     );
     this.nebula.setGalaxy(s.galaxy ?? null);
     // The ships, as 3D objects: each over the star it stands at (or, setting out to attack, halfway there).
-    this.nebula.setShips(
-      s.armies
-        .filter((a) => this.seenNow.has(a.nodeId))
-        .map((a) => {
-          const [x, z] = at.get(a.nodeId)!;
-          const adv = this.advance?.armyId === a.id ? at.get(this.advance.toId) : undefined;
-          return { id: a.id, x: adv ? (x + adv[0]) / 2 : x, z: adv ? (z + adv[1]) / 2 : z, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race };
-        }),
-    );
+    const mine = flagship(s, s.playerId);
+    const arriving = this.arriving;
+    this.arriving = false;
+    const ships = s.armies
+      .filter((a) => this.seenNow.has(a.nodeId))
+      .map((a) => {
+        const [x, z] = at.get(a.nodeId)!;
+        const adv = this.advance?.armyId === a.id ? at.get(this.advance.toId) : undefined;
+        // A new campaign: the flagship flies in from off screen, behind the strip's near end.
+        const arrive = arriving && a.id === mine?.id ? { from: [x - 2.6, z + 1.9] as [number, number], dur: ARRIVAL_FLIGHT } : undefined;
+        return { id: a.id, x: adv ? (x + adv[0]) / 2 : x, z: adv ? (z + adv[1]) / 2 : z, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive };
+      });
+    this.nebula.setShips(ships);
+    // The camera keeps the flagship in view, on its own.
+    const own = ships.find((sh) => sh.id === mine?.id);
+    if (own) this.nebula.follow(own.x, own.z);
     // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
     // column past the last one collapsing.
     const half = (CAMPAIGN.colGap / 2) * MAP_K;
@@ -1517,8 +1528,6 @@ export class CampaignView {
     plane.style.setProperty('--tilt', '0deg');
     this.drawRays(stage);
     this.placePop();
-    const recentre = stage.closest('.cmp')?.querySelector<HTMLElement>('.cmp-recentre');
-    if (recentre) recentre.style.display = this.nebula?.away ? '' : 'none';
   }
 
   private writeCamera() {
@@ -1538,64 +1547,16 @@ export class CampaignView {
     v.y = Math.max(0, Math.min(MAP_HEIGHT, v.y));
   }
 
-  private onPointerDown(e: PointerEvent) {
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.pointers.size === 2 && this.view) {
-      const [a, b] = [...this.pointers.values()];
-      this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: true, pinch: { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.view.zoom } };
-      return;
-    }
-    this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, pan: e.button === 2 || e.shiftKey };
-  }
+  private hoveredStar: string | null = null;
 
-  private onPointerMove(e: PointerEvent) {
-    if (!this.drag || !this.view || !this.stageEl || !this.pointers.has(e.pointerId)) return;
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.drag.pinch && this.pointers.size >= 2) {
-      // Two fingers: moving them together pans (no zooming).
-      const [a, b] = [...this.pointers.values()];
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const pin = this.drag.pinch;
-      if (this.nebula && pin.mx !== undefined && pin.my !== undefined) {
-        const step = toPageDelta(mx - pin.mx, my - pin.my);
-        this.nebula.pan(step.x, step.y);
-      }
-      pin.d = d;
-      pin.mx = mx;
-      pin.my = my;
-      return;
-    }
-    if (e.pointerId !== this.drag.id) return;
-    // A finger's movement on screen, turned into the page's own directions (the page may be sideways).
-    const { x: dx, y: dy } = toPageDelta(e.clientX - this.drag.x, e.clientY - this.drag.y);
-    if (!this.drag.moved && Math.hypot(dx, dy) < 6) return;
-    if (!this.drag.moved) {
-      this.drag.moved = true;
-      // Dragging while zoomed on a system lets go of it: the camera glides back out while the drag pans on.
-      if (this.selected) {
-        const n = nodeById(this.state!, this.selected);
-        this.view = { ...this.view, x: n.x, y: n.y };
-        this.selected = null;
-        this.host.render();
-      }
-      try {
-        this.stageEl!.setPointerCapture(e.pointerId);
-      } catch {
-        // The pointer has gone; the drag ends with it.
-      }
-    }
-    // Any drag slides the camera over the strip (no turning it).
-    this.nebula?.pan(dx, dy);
-    this.drag.x = e.clientX;
-    this.drag.y = e.clientY;
-  }
-
-  private onPointerUp(e: PointerEvent) {
-    this.pointers.delete(e.pointerId);
-    if (this.drag?.moved) this.swallowClick = true;
-    if (this.pointers.size === 0) this.drag = null;
-    window.setTimeout(() => (this.swallowClick = false), 0);
+  private hoverStar(target: Element | null, pointer: string) {
+    const key = target?.closest('.cmp-star')?.closest<HTMLElement>('.cmp-n3')?.dataset.key;
+    const id = key?.startsWith('sys-') ? key.slice(4) : null;
+    if (id === this.hoveredStar) return;
+    this.hoveredStar = id;
+    this.nebula?.hover(id);
+    // (A finger's touch is a tap, not a hover: no chime for it.)
+    if (id && pointer !== 'touch') sound.starHover(parseFloat(seedOf(id)) || 0);
   }
 
   private onWheel(e: WheelEvent) {
@@ -1926,7 +1887,7 @@ export class CampaignView {
           })();
     // Guidance, not a gate: it sits under the turn count, and the game goes on around it.
     return `
-      <aside class="cmp-guide ${sp.kind === 'oracle' ? 'cmp-guide-oracle' : ''}" data-key="guide:${esc(scene.id)}:${i}" style="--sc:${who.colour}">
+      <aside class="cmp-guide ${sp.kind === 'oracle' ? 'cmp-guide-oracle' : ''} ${scene.id === 'intro' && this.introFlight ? 'cmp-guide-arrive' : ''}" data-key="guide:${esc(scene.id)}:${i}" style="--sc:${who.colour}">
         <div class="cmp-guide-face" title="${esc(who.name)}${who.sub ? ` · ${esc(who.sub)}` : ''}">${who.face}</div>
         <div class="cmp-guide-body">
           <small class="cmp-guide-who">${esc(who.name.toLowerCase())}</small>
