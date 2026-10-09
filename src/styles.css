@@ -1516,7 +1516,7 @@ body.screen-campaign .backdrop { display: none; }
   --gw: calc(min(calc(100 * var(--vw)), calc(var(--app-h, calc(100 * var(--vh))) * 2.2)) * var(--bz, 1));
   --gh: calc(min(calc(112 * var(--vh)), calc(var(--gw) / var(--bz, 1) * 0.64)) * var(--bz, 1));
   /* How far the board tips away from the viewer. */
-  --board-tilt: 8deg;
+  --board-tilt: 14deg;
   /* How much wider than the table's own shape the board is laid out (the room either side goes to the cards). */
   --bwide: 1.12;
   position: fixed; inset: 0;
@@ -1845,21 +1845,16 @@ html.ready #app { opacity: 1; transition: opacity 0.35s ease; }
   /* Five slots and the Lightspeed slot, set a little apart. */
   /* (The height share leaves room between the rows for the Command slots, which stand out a card's width.) */
   --tcw-h: 0.32;
-  /* (The height share is a first guess: once the board is drawn, --tcw-fit is its height measured, see fitTableaus.) */
-  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), var(--tcw-fit, calc(var(--gh) / 1.12 * var(--tcw-h) * 0.714)), calc(150px * var(--bz, 1)),
+  --tcw: min(calc((var(--boardw) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6), calc(var(--gh) / 1.12 * var(--tcw-h) * 0.714), calc(150px * var(--bz, 1)),
     /* Room across the board for each row's sun on the left (and the same on the right). */
     calc((var(--game-w) - 2 * var(--inset) - 24px - 2 * var(--row-side) - 5 * clamp(6px, calc(1.4 * var(--vw)), 18px) - 12px) / 6));
   /* Each row's ends: its sun on the left, its upgrade pills on the right, the same width each so the slots centre. */
   --row-side: calc(1.05 * var(--row-vs));
-  /* The rival's row moves up the board until the top of their hand just covers the top of its cards (measured: see
-     fitTableaus); on short screens yours steps a little down it. Room for larger cards (fitTableaus counts both). */
-  --rival-lift: 0px;
-  --mine-drop: 0px;
   --game-w: calc(var(--gw) * var(--bwide) * 0.95);
   --row-vs: clamp(calc(84px * var(--bz, 1)), calc(var(--gh) / 112 * 23), calc(168px * var(--bz, 1)));
 }
 @media (orientation: landscape) and (max-height: 560px), (orientation: portrait) and (max-width: 560px) {
-  .table-view > .game { --logw: 0px; --tcw-h: 0.26; --mine-drop: 5px; }
+  .table-view > .game { --logw: 0px; --tcw-h: 0.26; }
 }
 .table-view > .game > .board { grid-column: 1 / -1 !important; grid-row: 2; display: flex; min-height: 0; }
 .board .board3d { flex: 1; min-height: 0; display: flex; }
@@ -3249,8 +3244,6 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 
 /* ---------- The Command slot: the tableau's leader, landscape, out in front ---------- */
 .tableau-row { position: relative; }
-.tableau-rival .tableau-row { translate: 0 calc(-1 * var(--rival-lift, 0px)); }
-.tableau-mine .tableau-row { translate: 0 var(--mine-drop, 0px); }
 /* Yours stands above the right end of your row; your rival's below the left end of theirs (the board is a mirror). */
 .tableau-row { --frame-pad: clamp(10px, calc(1.8 * var(--vh)), 16px); }
 /* Exactly a table card turned on its side. */

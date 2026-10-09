@@ -496,67 +496,12 @@ function leanPiles(root: HTMLElement) {
   }
 }
 
-/**
- * The table cards as large as the board's height allows, measured: the two rows, with the rival's Hero slot under
- * theirs and yours over yours (side by side, interlocking), and their outlines kept apart. The outlines and the
- * Hero slot's gap are fixed in pixels, so a share of the height alone let them touch on short screens. The rival's
- * row moves up the board (or down it) until their hand, along the board's top, covers only the very top of its
- * cards (their type line); on short screens yours steps down a little too (--mine-drop). Written to a stylesheet
- * of its own (--tcw-fit, --rival-lift), so redraws keep it.
- */
-const FIT_CLEAR = 10, FIT_FRAME = 12, FIT_COVER = 0.07;
-function fitTableaus(root: HTMLElement) {
-  const plane = root.querySelector<HTMLElement>('.board-plane');
-  const row = root.querySelector<HTMLElement>('.tableau-rival .tableau-row');
-  const cmd = row?.querySelector<HTMLElement>('.cmd-slot');
-  // (Not while the board is zoomed onto a tableau: it is measured as it lies.)
-  if (!plane || !row || !cmd || plane.closest('.zoom-rival, .zoom-mine')) return;
-  const cs = getComputedStyle(plane);
-  const h = plane.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  const gap = cmd.offsetTop - row.offsetHeight;
-  const drop = parseFloat(getComputedStyle(root.querySelector('.tableau-mine .tableau-row') ?? row).translate.split(' ')[1] ?? '0') || 0;
-  // How far the rival's row may rise: its top to just under their hand's lowest card, less the cover allowed.
-  // (Measured where it lies unmoved, with no slide under way, so each measure starts from the same place.)
-  const { transition, translate } = row.style;
-  row.style.transition = 'none';
-  row.style.translate = '0 0';
-  const box = row.getBoundingClientRect();
-  row.style.translate = translate;
-  void row.offsetWidth;
-  row.style.transition = transition;
-  const k = box.height / (row.offsetHeight || 1) || 1;
-  // (Their hand lies along the top of the screen, off the board; a card lifted as it is played is left out.)
-  const hand = [...root.querySelectorAll<HTMLElement>('.rival-hand .rh-card:not(.lifted)')].map((c) => c.getBoundingClientRect().bottom);
-  const unlifted = box.top;
-  const lift = hand.length ? Math.round(Math.max(-0.25 * h, Math.min(0.15 * h, (unlifted - (Math.max(...hand) - box.height * FIT_COVER)) / k))) : 0;
-  // Down the left: their row and Hero slot (1.4 cards each), the gap between, both outlines and the clearance, then
-  // your row (1.4 cards), in the plane's height and what the rows are moved.
-  const tcw = Math.floor(((h + drop + lift - gap - 2 * FIT_FRAME - FIT_CLEAR) / 4.2) * 2) / 2;
-  if (!(tcw > 20)) return;
-  let style = document.getElementById('tcw-fit') as HTMLStyleElement | null;
-  const css = `.table-view > .game { --tcw-fit: ${tcw}px; --rival-lift: ${lift}px; }`;
-  if (style?.textContent === css) return;
-  if (!style) {
-    style = document.createElement('style');
-    style.id = 'tcw-fit';
-    document.head.appendChild(style);
-    window.addEventListener('resize', () => requestAnimationFrame(() => frameTableaus(document.body)));
-  }
-  style.textContent = css;
-  // (Drawn at the new size, the rows are measured again, and their outlines redrawn round them.)
-  requestAnimationFrame(() => frameTableaus(document.body));
-}
-
-/** The tableaus' fitted size (part of a zoom's key: the zoom is worked out again when the cards change size). */
-const fitKey = () => document.getElementById('tcw-fit')?.textContent ?? '';
-
 function frameTableaus(root: HTMLElement) {
-  fitTableaus(root);
   for (const row of root.querySelectorAll<HTMLElement>('.tableau-row')) {
     const svg = row.querySelector<SVGSVGElement>('.tableau-frame');
     const cmd = row.querySelector<HTMLElement>('.cmd-slot');
     if (!svg || !cmd) continue;
-    const pad = FIT_FRAME;
+    const pad = parseFloat(getComputedStyle(row).getPropertyValue('--frame-pad')) || 12;
     const W = row.offsetWidth + 2 * pad, H = row.offsetHeight + 2 * pad;
     const bw = cmd.offsetWidth + 2 * pad;
     // How far the bump stands out past the row's outline (the slot sits just outside the row).
@@ -4727,7 +4672,7 @@ export class App {
   private prefitQueued = false;
   private prefitZooms() {
     if (this.prefitQueued || this.screen !== 'game' || this.boardZoom) return;
-    const key = (side: string) => `${side}:${window.innerWidth}x${window.innerHeight}:${fitKey()}`;
+    const key = (side: string) => `${side}:${window.innerWidth}x${window.innerHeight}`;
     if (this.zoomFits.has(key('mine')) && this.zoomFits.has(key('rival'))) return;
     this.prefitQueued = true;
     const idle = (window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 300));
@@ -4772,7 +4717,7 @@ export class App {
    */
   private zoomTransform(side: 'rival' | 'mine'): string {
     // (The slots stand where they stand whatever is in them: worked out once per side and window size.)
-    const key = `${side}:${window.innerWidth}x${window.innerHeight}:${fitKey()}`;
+    const key = `${side}:${window.innerWidth}x${window.innerHeight}`;
     const known = this.zoomFits.get(key);
     if (known) return known;
     const out = this.measureZoom(side);
