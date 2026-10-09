@@ -1475,11 +1475,16 @@ function startTurn(state: GameState) {
 
 /** A player's dawn: their tableau's dawn effects, cards fading, and the day's energy. */
 function dawn(state: GameState, p: PlayerState) {
-  // Your tableau's dawn effects, left to right.
+  // Your tableau's dawn effects, left to right. A Shift of your own waits on you: you choose what moves, first
+  // thing in your day (or let it be).
+  delete p.dawnShift;
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
     if (!p.tableau.includes(card)) continue;
-    resolveEffects(state, p, card, dawnEffects(card, p, state), 'turn');
+    const effects = dawnEffects(card, p, state);
+    const waits = (e: Effect) => e.type === 'shift' && !e.enemy;
+    resolveEffects(state, p, card, effects.filter((e) => !waits(e)), 'turn');
+    if (effects.some(waits) && p.tableau.some((c) => c.slot !== COMMAND_SLOT)) (p.dawnShift ??= []).push(card.uid);
   }
   // (Cards no longer fade with the days: they stand until beaten down or removed.) Anchor mends its neighbours.
   for (const card of p.tableau) if (anchored(p, card) && cardDef(card.defId).kind !== 'relic') mend(state, p, card, 1);
@@ -1723,7 +1728,24 @@ export function applyAction(prev: GameState, action: Action): GameState {
   delete state.turnPulses;
   delete state.sprung;
   const p = activePlayer(state);
+  if (p.dawnShift?.length && action.type !== 'dawnShift' && action.type !== 'concede') throw new GameError('Your dawn shift comes first: move one of your cards, or let it be.');
   switch (action.type) {
+    case 'dawnShift': {
+      const uid = p.dawnShift?.shift();
+      if (!uid) throw new GameError('There is no dawn shift to make.');
+      if (!p.dawnShift?.length) delete p.dawnShift;
+      const source = p.tableau.find((c) => c.uid === uid) ?? { uid, defId: 'redeployment' };
+      if (action.allyUid === undefined) {
+        log(state, `${p.name} lets ${cardDef(source.defId).name}'s dawn shift pass.`);
+        break;
+      }
+      const moved = p.tableau.find((c) => c.uid === action.allyUid && c.slot !== COMMAND_SLOT);
+      const to = action.shiftTo;
+      if (!moved || to === undefined || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots) throw new GameError('Move one of your cards (not your Hero) to another of your slots.');
+      log(state, `${p.name}'s ${cardDef(source.defId).name}: dawn shift.`);
+      resolveEffects(state, p, source, [{ type: 'shift' }], 'turn', { allyUid: moved.uid, shiftTo: to });
+      break;
+    }
     case 'concede': {
       const quitter = state.players.find((o) => o.id === action.playerId);
       if (!quitter || quitter.eliminated) throw new GameError('That player is not in the game.');

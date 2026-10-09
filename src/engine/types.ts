@@ -356,6 +356,8 @@ export interface TurnStats {
 }
 
 export interface PlayerState {
+  /** Dawn Shifts waiting on this player, one per card that gave one (its uid): answered before anything else that day. */
+  dawnShift?: string[];
   id: string;
   name: string;
   isAI: boolean;
@@ -577,6 +579,8 @@ export type Action =
       sacrificeUid?: string;
     }
   | { type: 'setTarget'; targetId: string }
+  /** A dawn Shift waiting on the player (Redeployment): the card of theirs moved and where to; neither, to let it be. */
+  | { type: 'dawnShift'; allyUid?: string; shiftTo?: number }
   /** Ends the day. After dusk a hand over the limit is discarded down to it: `discard` names the cards (any still over are picked for them). */
   | { type: 'endTurn'; discard?: string[] }
   /** Use one of your hero's battle skills (campaign), on your own day. */

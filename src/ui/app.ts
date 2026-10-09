@@ -280,7 +280,7 @@ const BANNER_GAP_MS = 1300;
 const BANNER_SHOWN_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300 };
+const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300, dawnShift: 1100 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -788,6 +788,8 @@ export class App {
   private opened: { kind: BoosterKind; cards: BoosterCard[] } | null = null;
   private state: GameState | null = null;
   private pending: Pending | null = null;
+  /** A dawn Shift being answered (Redeployment): the card of yours picked to move, before where it goes. */
+  private dawnPick: string | null = null;
   private stage: Stage | null = null;
   /** Your Hero, tapped on your day: its actions (abilities, and attack) shown in the stage's place, middle right. */
   private heroPanel: string | null = null;
@@ -3795,6 +3797,21 @@ export class App {
       case 'choose-shift':
         if (this.pending) this.pending.shiftTo = Number(arg);
         return this.advancePlay();
+      case 'dawn-shift-card':
+        this.dawnPick = arg;
+        return this.render();
+      case 'dawn-shift-back':
+        this.dawnPick = null;
+        return this.render();
+      case 'dawn-shift-to': {
+        const uid = this.dawnPick;
+        this.dawnPick = null;
+        if (uid) this.dispatch({ type: 'dawnShift', allyUid: uid, shiftTo: Number(arg) });
+        return;
+      }
+      case 'dawn-shift-skip':
+        this.dawnPick = null;
+        return this.dispatch({ type: 'dawnShift' });
       case 'choose-host':
         if (this.pending) this.pending.hostUid = arg;
         return this.advancePlay();
@@ -4893,6 +4910,14 @@ export class App {
       </div>`;
   }
 
+  /** Whether the viewer has a dawn Shift to answer before anything else (their own day, on this device). */
+  private dawnShiftWaiting(): boolean {
+    const s = this.state;
+    if (!s || isGameOver(s)) return false;
+    const now = activePlayer(s);
+    return !!now.dawnShift?.length && now.id === this.viewer().id && !now.isAI;
+  }
+
   /**
    * While the board waits on you (aiming heat, choosing a card), a word or two lies in the middle of the
    * board saying what to do, with a way back out.
@@ -4904,6 +4929,9 @@ export class App {
     const hint = (text: string, cancel = true) => `<div class="mid-hint"><b>${text}</b>${cancel ? '<button class="mid-cancel" data-act="cancel">cancel</button>' : ''}</div>`;
     // Online, while your rival reads the card you just played.
     if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
+    // Your dawn Shift, first thing in your day: a card to move, then where; or let it be.
+    if (this.dawnShiftWaiting())
+      return `<div class="mid-hint"><b>${this.dawnPick ? 'dawn shift: where it moves' : 'dawn shift: move a card'}</b><button class="mid-cancel" data-act="${this.dawnPick ? 'dawn-shift-back' : 'dawn-shift-skip'}">${this.dawnPick ? 'back' : 'let it be'}</button></div>`;
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack || p.ability !== undefined ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
@@ -5015,6 +5043,7 @@ export class App {
     // Shifting: the slots of the tableau the chosen card stands in (it moves there, swapping with any card there).
     const shiftDef = pend?.step === 'shift' ? activePlayer(this.state!).hand.find((h) => h.uid === pend.uid)?.defId : undefined;
     const shifting = !!shiftDef && (shiftEffect(shiftDef) === 'mine') === (side === 'mine');
+    const dawnMoving = side === 'mine' && !!this.dawnPick && this.dawnShiftWaiting();
     const st = this.state!;
     // While an attack is aimed: what it would leave of each rival card it could hit.
     const preview = new Map<string, { defence: number; health?: number }>();
@@ -5074,6 +5103,7 @@ export class App {
       const def = Math.max(0, full - wear);
       const worn = wear ? ` slot-worn` : '';
       const why = wear ? `: worn to ${def} of ${full} by heat on the card that stood here (it mends 1 a day)` : ` ${full}`;
+      if (dawnMoving) return `<button class="slot-empty slot-choosable${worn}" data-act="dawn-shift-to" data-arg="${i}" data-slot="${i}" title="Move it here: defence${why}"><span class="slot-def">⛨${def}</span><i>move here</i></button>`;
       if (shifting) return `<button class="slot-empty slot-choosable${worn}" data-act="choose-shift" data-arg="${i}" data-slot="${i}" title="Move it here: defence${why}"><span class="slot-def">⛨${def}</span><i>move here</i></button>`;
       return choosingSlot
         ? `<button class="slot-empty slot-choosable${worn}" data-act="choose-slot" data-arg="${i}" data-slot="${i}" title="Place it here: defence${why}"><span class="slot-def">⛨${def}</span><i>here</i>${p.rooms ? `<span class="slot-room">${this.roomMarks(p, i, true)}</span>` : ''}</button>`
@@ -5232,6 +5262,19 @@ export class App {
         attrs = `data-act="choose-shift" data-arg="${c.slot}" title="Swap places with ${esc(cardDef(c.defId).name)}"`;
         state = 'card-choosable';
       } else attrs = '';
+    }
+    // Your dawn Shift: pick a card of yours (not your Hero), then a card to swap with (or an empty slot).
+    if (opts.tableau === 'mine' && c.slot !== undefined && c.slot !== COMMAND_SLOT && opts.owner?.id === this.viewer().id && this.dawnShiftWaiting()) {
+      if (!this.dawnPick) {
+        attrs = `data-act="dawn-shift-card" data-arg="${c.uid}" title="Move ${esc(cardDef(c.defId).name)}"`;
+        state = 'card-choosable';
+      } else if (c.uid === this.dawnPick) {
+        attrs = 'data-act="dawn-shift-back" title="Choose another card"';
+        state = 'card-picked';
+      } else {
+        attrs = `data-act="dawn-shift-to" data-arg="${c.slot}" title="Swap places with ${esc(cardDef(c.defId).name)}"`;
+        state = 'card-choosable';
+      }
     }
     if (p && opts.tableau === 'mine' && (p.step === 'host' || (p.step === 'slot' && pendingDef && cardDef(pendingDef).fusion)) && opts.owner && fusionHosts(opts.owner).some((h) => h.uid === c.uid)) {
       attrs = `data-act="choose-host" data-arg="${c.uid}" title="Fuse it onto ${esc(cardDef(c.defId).name)}"`;

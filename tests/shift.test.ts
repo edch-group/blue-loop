@@ -70,4 +70,30 @@ describe('shift', () => {
     expect(() => applyAction(s, action)).not.toThrow();
     expect(freeSlots(me).length).toBeGreaterThan(0);
   });
+
+  it('Redeployment: its dawn Shift waits on its owner, before anything else that day; moved, or let be', () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const r = put(me, 'redeployment', 0);
+    const v = put(me, 'cryo_vault', 3);
+    // Round to its owner's next dawn.
+    s = applyAction(s, { type: 'endTurn' });
+    s = applyAction(s, { type: 'endTurn' });
+    expect(activePlayer(s).id).toBe(me.id);
+    expect(activePlayer(s).dawnShift).toEqual([r.uid]);
+    // Nothing else first; the AI answers it too.
+    expect(() => applyAction(s, { type: 'endTurn' })).toThrow(/dawn shift/);
+    expect(chooseAIAction(s).type).toBe('dawnShift');
+    // A card can't move onto its own slot.
+    expect(() => applyAction(s, { type: 'dawnShift', allyUid: v.uid, shiftTo: 3 })).toThrow();
+    s = applyAction(s, { type: 'dawnShift', allyUid: v.uid, shiftTo: 1 });
+    expect(activePlayer(s).tableau.find((c) => c.uid === v.uid)!.slot).toBe(1);
+    expect(activePlayer(s).dawnShift).toBeUndefined();
+    // Next dawn, let be: nothing moves, and the day goes on.
+    s = applyAction(s, { type: 'endTurn' });
+    s = applyAction(s, { type: 'endTurn' });
+    s = applyAction(s, { type: 'dawnShift' });
+    expect(activePlayer(s).tableau.find((c) => c.uid === v.uid)!.slot).toBe(1);
+    expect(() => applyAction(s, { type: 'endTurn' })).not.toThrow();
+  });
 });

@@ -1,6 +1,8 @@
+import { BALANCE } from './balance';
 import { cardDef } from './cards';
 import {
   activePlayer,
+  COMMAND_SLOT,
   heroSkillProblem,
   heroAbilityProblem,
   cardAttack,
@@ -454,6 +456,25 @@ export const aiLastDecision: { baseline: number; best: number | null; bestAction
 
 export function chooseAIAction(state: GameState): Action {
   const me = activePlayer(state);
+  // A dawn Shift waiting (Redeployment): the move that leaves its cards best placed, or none if none is better.
+  if (me.dawnShift?.length) {
+    let best: Action = { type: 'dawnShift' };
+    let score = evaluate(applyAction(state, best), me.id) + 0.05;
+    for (const c of me.tableau) {
+      if (c.slot === COMMAND_SLOT) continue;
+      for (let to = 0; to < BALANCE.tableauSlots; to++) {
+        if (to === c.slot) continue;
+        const a: Action = { type: 'dawnShift', allyUid: c.uid, shiftTo: to };
+        try {
+          const v = evaluate(applyAction(state, a), me.id);
+          if (v > score) [score, best] = [v, a];
+        } catch {
+          // (Not a move it can make.)
+        }
+      }
+    }
+    return best;
+  }
   const focus = bestTarget(state, me);
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
   const skill = aiSkill(state, me);
