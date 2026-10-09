@@ -10,6 +10,8 @@
 
 import type { Camera } from './nebula3d';
 import { shipModel3d, SHIP_STRIDE } from './ship3d';
+import sunCoronaUrl from './gems/sun-corona.png';
+import sunDiscUrl from './gems/sun-disc.png';
 
 /** One thing to draw: where it stands on the map's plane (world x, z), what it is, and how it looks. */
 export interface MapObject {
@@ -145,7 +147,7 @@ void main() {
 
 /**
  * A camera-facing disc: a soft glow (kind 0), a fine ring (1), a dashed schematic ring turning (3), or rings
- * pulsing out (4).
+ * pulsing out (4); or a picture (5: the stellar gem's sun, its corona and disc).
  */
 const SPRITE_VERT = `
 attribute vec2 aCorner;
@@ -163,6 +165,7 @@ const SPRITE_FRAG = `
 precision highp float;
 varying vec2 vUV;
 uniform vec3 uColor; uniform float uKind; uniform float uAlpha; uniform float uTime; uniform float uSeed;
+uniform sampler2D uTex;
 void main() {
   float r = length(vUV);
   float a;
@@ -171,20 +174,10 @@ void main() {
     float w = max(fwidth(r), 1e-4);
     a = (1.0 - smoothstep(0.0, w * 1.6, abs(r - 0.82))) * 0.95;
   } else if (uKind > 4.5) {
-    // A sun's corona, as the stellar gem's sun has it: a white-hot core in a soft halo, rays turning slowly
-    // round it, the whole breathing (a little larger and brighter, then back) and shimmering with heat.
-    float ang = atan(vUV.y, vUV.x);
-    float breath = 0.5 + 0.5 * sin(uTime * 6.2832 / 5.5 + uSeed);
-    float rr = r / (1.0 + 0.07 * breath);
-    float core = exp(-rr * rr * 14.0);
-    float halo = exp(-rr * rr * 3.2) * 0.55;
-    float rays = pow(0.5 + 0.5 * sin(ang * 12.0 + uTime * 0.35 + sin(rr * 9.0 - uTime * 2.0) * 0.25), 3.0) * 0.55
-      + pow(0.5 + 0.5 * sin(ang * 7.0 - uTime * 0.22 + 1.3), 4.0) * 0.45;
-    float shimmer = 0.9 + 0.1 * sin(uTime * 7.0 + ang * 5.0 + rr * 12.0);
-    a = (core + halo + rays * exp(-rr * 2.4) * (1.0 - smoothstep(0.62, 1.0, rr))) * (0.85 + 0.15 * breath) * shimmer;
-    vec3 c = mix(uColor, vec3(1.0, 0.98, 0.9), clamp(core * 1.4, 0.0, 1.0));
-    a = min(a, 1.0) * uAlpha;
-    gl_FragColor = vec4(c * a, a);
+    // A picture (premultiplied), turned by uSeed radians: the stellar gem's sun, as the cards show it.
+    float c = cos(uSeed), sn = sin(uSeed);
+    vec2 uv = vec2(c * vUV.x - sn * vUV.y, sn * vUV.x + c * vUV.y) * 0.5 + 0.5;
+    gl_FragColor = texture2D(uTex, vec2(uv.x, 1.0 - uv.y)) * uAlpha;
     return;
   } else if (uKind > 3.5) {
     // Rings of ink going out from it, one after another, fading as they spread: it pulses.
@@ -489,6 +482,8 @@ export class MapObjects {
     this.discBuf = buf(di);
     this.beamBuf = buf(be);
     this.quadBuf = buf(new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]));
+    this.sunDisc = this.texture(sunDiscUrl);
+    this.sunCorona = this.texture(sunCoronaUrl);
     this.counts = { sphere: sp.length / 6, disc: di.length / 6, beam: be.length / 6, petal: pe.length / 6, spike: sk.length / 6 };
   }
 
@@ -497,6 +492,29 @@ export class MapObjects {
   }
 
   /** The system under the pointer (it swells and flares), and how far each has swelled (0 to 1). */
+  /** The stellar gem's sun, as pictures: its disc and its corona (null until loaded). */
+  private sunDisc: { tex: WebGLTexture; ready: boolean };
+  private sunCorona: { tex: WebGLTexture; ready: boolean };
+
+  private texture(url: string) {
+    const gl = this.gl;
+    const out = { tex: gl.createTexture()!, ready: false };
+    const img = new Image();
+    img.onload = () => {
+      gl.bindTexture(gl.TEXTURE_2D, out.tex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      out.ready = true;
+    };
+    img.src = url;
+    return out;
+  }
+
   private hovered: string | null = null;
   private hoverAmt = new Map<string, number>();
   private hoverClock = 0;
@@ -655,7 +673,24 @@ export class MapObjects {
         const wy = p.m[1] * e[0] + p.m[5] * e[1] + p.m[9] * e[2] + p.m[13];
         const wz = p.m[2] * e[0] + p.m[6] * e[1] + p.m[10] * e[2] + p.m[14];
         const scale = Math.hypot(p.m[0], p.m[1], p.m[2]);
-        sprite.draw(wx, wy, wz, sun.r * scale * 4.2, 5, [1, 0.7, 0.28], 1, i * 1.7);
+        // (The disc fills 0.58 of the pictures' width: sized so it just covers the sun in its cradle, and drawn at
+        // its near face, so the sphere doesn't hide it while the cradle in front still does.)
+        const size = sun.r * scale * 2;
+        const to = [cam.eye[0] - wx, cam.eye[1] - wy, cam.eye[2] - wz];
+        const tl = Math.hypot(to[0], to[1], to[2]) || 1;
+        const lift = (sun.r * scale * 1.05) / tl;
+        const [sx, sy, sz] = [wx + to[0] * lift, wy + to[1] * lift, wz + to[2] * lift];
+        // As the stellar gem: the corona breathing (a little larger and brighter, then back, every 5.5 seconds)...
+        const breath = 0.5 - 0.5 * Math.cos(((time + i * 1.7) * 2 * Math.PI) / 5.5);
+        if (this.sunCorona.ready) {
+          gl.bindTexture(gl.TEXTURE_2D, this.sunCorona.tex);
+          sprite.draw(sx, sy, sz, size * (1 + 0.07 * breath), 5, [1, 1, 1], 0.85 + 0.15 * breath, 0);
+        }
+        // ...and the disc turning slowly inside it (once every 48 seconds).
+        if (this.sunDisc.ready) {
+          gl.bindTexture(gl.TEXTURE_2D, this.sunDisc.tex);
+          sprite.draw(sx, sy, sz, size, 5, [1, 1, 1], 1, -((time + i * 7) * 2 * Math.PI) / 48);
+        }
       }
     }
     sprite.done();
@@ -744,6 +779,8 @@ export class MapObjects {
     gl.uniformMatrix4fv(s('uView'), false, cam.view);
     gl.uniformMatrix4fv(s('uProj'), false, cam.proj);
     gl.uniform1f(s('uTime'), time);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(s('uTex'), 0);
     const corner = gl.getAttribLocation(this.sprite, 'aCorner');
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
     gl.enableVertexAttribArray(corner);
