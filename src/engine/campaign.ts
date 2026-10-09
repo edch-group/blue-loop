@@ -134,6 +134,12 @@ export const CAMPAIGN = {
   bossPetals: 4,
   /** The rare (Stellar) or Anomaly cards offered from a beaten Overlord's hoard: pick one. */
   bossCardChoices: 2,
+  /** Experience earned, win or lose: for every battle won, system taken, challenge cleared, galaxy crossed, boss beaten. */
+  xpBattle: 6,
+  xpConquer: 3,
+  xpChallenge: 12,
+  xpGalaxy: 20,
+  xpBoss: 30,
   petalShare: 12,
   /** Systems are never closer than this; routes longer than this are dropped unless needed to connect. */
   minSystemGap: 160,
@@ -579,6 +585,9 @@ export interface CampaignState {
   /** Petals grabbed this run, and how many of them have been banked to the account's lasting progress. */
   petals: number;
   petalsBanked: number;
+  /** Experience earned this run, and how much of it has been banked (it is kept even if the run is lost). */
+  xp?: number;
+  xpBanked?: number;
   /** The upgrades bought between runs that this run is played with. */
   run: RunBonuses;
   rngState: number;
@@ -1106,6 +1115,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     conquered: 0,
     petals: 0,
     petalsBanked: 0,
+    xp: 0,
+    xpBanked: 0,
     run,
     rngState: setup.seed | 0,
     uidCounter: 0,
@@ -1155,6 +1166,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   // Veterans: more of the race's own cards in the starting deck; Requisition: cards picked to start with.
   const own = CARDS.filter((c) => c.race === race && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && legalIn(s.mode, c.id) && !army.deck.includes(c.id));
   army.deck.push(...own.slice(0, run.cards).map((c) => c.id));
+  // Cards bought into this race's starting deck with petals (as many copies as a deck may hold).
+  for (const id of run.deck ?? []) if (CARDS.some((c) => c.id === id) && army.deck.filter((x) => x === id).length < copyLimit(id)) army.deck.push(id);
   // (Each Requisition: a pick of cards, the one chosen going straight into the deck.)
   for (let k = 0; k < run.picks; k++) s.cardRewards.push({ source: 'Requisition', options: randomCardChoices(s, me), toDeck: army.id });
   army.refit = false;
@@ -1898,6 +1911,7 @@ function overlordBounty(s: CampaignState, f: Faction, army?: Army) {
   const lord = overlordById(s.overlord ?? OVERLORDS[0].id);
   const petals = Math.max(1, Math.round(CAMPAIGN.bossPetals * s.universe * (1 + (s.run?.petalBonus ?? 0))));
   s.petals += petals;
+  gainXp(s, CAMPAIGN.xpBoss);
   clog(s, `${lord.name} falls: ${f.name} gathers ${petals} Stellari petal${petals === 1 ? '' : 's'} from its remains.`, undefined, f.id);
   const fits = (id: string) => rarityOf(id) !== 'dwarf' && cardDef(id).kind !== 'command' && (!army || deckAddProblem({ ...f, reserve: [id] }, army, id) === null);
   const options = [...new Set(shuffleInPlace(s, offerPool(f, s.mode)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices);
@@ -1946,6 +1960,9 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
     else if (salvage === undefined) s.cardRewards.push({ source: salvageKind(s, game) === 'defectors' ? 'Defectors' : 'Freed prisoners', options: salvageable, ...(mine ? { toDeck: mine.id } : {}) });
   }
 
+  if (winner?.id === s.playerId) gainXp(s, CAMPAIGN.xpBattle);
+  // Stellari's Favour: the flagship's sun cools after every battle it wins.
+  if (attackerWon && army && army.owner === s.playerId && s.run?.favour) army.damage = Math.max(BALANCE.minHeat, army.damage - s.run.favour);
   if (winner) {
     winner.materials += CAMPAIGN.winMaterials;
     winner.stats.battlesWon += 1;
@@ -1977,6 +1994,11 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   if (!draw && playerSide && (playerSide === 'attacker') !== attackerWon) playerFalls(s);
 }
 
+/** Experience for the player, for something done this run (it is banked at once: a lost run keeps it). */
+function gainXp(s: CampaignState, amount: number) {
+  s.xp = (s.xp ?? 0) + amount;
+}
+
 /** The player's flagship is beaten in battle: it is lost, and the run with it. */
 function playerFalls(s: CampaignState) {
   const f = factionById(s, s.playerId);
@@ -2000,6 +2022,7 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   f.reserve.push(...spoils);
   n.garrison = [];
   if (spoils.length) clog(s, `${f.name} seizes ${spoils.map((id) => cardDef(id).name).join(', ')} from ${n.name}.`, n.id, f.id);
+  if (f.id === s.playerId && !n.heart) gainXp(s, CAMPAIGN.xpConquer);
   if (n.heart) {
     if (army && s.armies.includes(army)) army.nodeId = n.id;
     if (f.id === s.playerId) overlordBounty(s, f, army);
@@ -2116,6 +2139,7 @@ function resolveChallenge(s: CampaignState, game: GameState) {
   const c = n.challenge!;
   const won = !isDraw(game) && game.winnerId === game.players[0].id;
   c.done = won ? 'won' : 'lost';
+  if (won && f.id === s.playerId) gainXp(s, CAMPAIGN.xpChallenge);
   if (!won) {
     n.dimmed = true;
     if (army) army.damage = b.challenge!.damage;
@@ -2288,6 +2312,14 @@ export function wormholePetals(s: CampaignState): number {
 function crossWormhole(s: CampaignState, f: Faction) {
   const petals = wormholePetals(s);
   s.petals += petals;
+  if (f.id === s.playerId) {
+    gainXp(s, CAMPAIGN.xpGalaxy);
+    // Founders' Hoard: materials for every new galaxy.
+    if (s.run?.hoard) {
+      f.materials += s.run.hoard;
+      clog(s, `The Founders' Hoard opens: +${s.run.hoard} materials.`, undefined, f.id);
+    }
+  }
   clog(s, `${f.name} takes the wormhole, grabbing ${petals} Stellari petal${petals === 1 ? '' : 's'} on the way through.`);
   tell(s, wormholeCrossedScene(s.universe, petals));
   buildUniverse(s, s.universe + 1);
@@ -2352,6 +2384,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
   }
   if (action.type === 'petalsBanked') {
     s.petalsBanked = s.petals;
+    s.xpBanked = s.xp ?? 0;
     return s;
   }
   const f = campaignPlayer(s);

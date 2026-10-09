@@ -16,6 +16,8 @@ import {
   runBonuses,
   universeStability,
   wormholePetals,
+  buyStarterCard,
+  levelOf,
   rarityOf,
   GENERALS,
   type CampaignState,
@@ -80,13 +82,17 @@ describe('the strip', () => {
   });
 
   it('starts the flagship with ten cards, and the bought upgrades on top', () => {
-    let meta = { ...emptyMeta(), petals: 200 };
-    for (const id of ['materials', 'hull', 'cards', 'pick', 'grace']) meta = buyUpgrade(meta, id);
-    const s = run(11, meta);
+    let meta = { ...emptyMeta(), xp: 999, petals: 20 };
+    // (Requisition needs Stockpile II: Stockpile is bought twice.)
+    for (const id of ['materials', 'materials', 'hull', 'cards', 'pick', 'grace']) meta = buyUpgrade(meta, id);
+    // A card bought into the race's starting deck with petals.
+    meta = buyStarterCard(meta, 1, 'p_prism_blade', 'dwarf');
+    const s = createCampaign({ seed: 11, race: 1, run: runBonuses(meta, 1) });
     const plain = run(11);
     expect(flag(plain).deck).toHaveLength(CAMPAIGN.armySize);
-    expect(flag(s).deck).toHaveLength(CAMPAIGN.armySize + 1);
-    expect(campaignPlayer(s).materials).toBe(campaignPlayer(plain).materials + 3);
+    expect(flag(s).deck).toHaveLength(CAMPAIGN.armySize + 2);
+    expect(flag(s).deck.filter((id) => id === 'p_prism_blade').length).toBeGreaterThan(flag(plain).deck.filter((id) => id === 'p_prism_blade').length);
+    expect(campaignPlayer(s).materials).toBe(campaignPlayer(plain).materials + 6);
     expect(campaignPlayer(s).ship.hull).toBe(1);
     expect(s.cardRewards[0].source).toBe('Requisition');
     expect(universeStability(s)).toBe(universeStability(plain) + 1);
@@ -207,6 +213,8 @@ describe('the wormhole', () => {
     expect(s.universe).toBe(2);
     // The wormhole's petals, and the Overlord's bounty: petals, and a pick of two rare-or-better cards.
     expect(s.petals).toBe(petals + CAMPAIGN.bossPetals);
+    // And experience: the battle, the boss, the galaxy crossed.
+    expect(s.xp).toBeGreaterThanOrEqual(CAMPAIGN.xpBattle + CAMPAIGN.xpBoss + CAMPAIGN.xpGalaxy);
     const hoard = s.cardRewards.find((r) => /hoard/.test(r.source))!;
     expect(hoard.options).toHaveLength(CAMPAIGN.bossCardChoices);
     expect(hoard.options.every((id) => rarityOf(id) !== 'dwarf')).toBe(true);
@@ -223,8 +231,8 @@ describe('the wormhole', () => {
   });
 });
 
-describe('petals between runs', () => {
-  it('buys upgrades level by level, and unlocks races and heroes', () => {
+describe('progress between runs', () => {
+  it('buys the skill tree with XP, a tier at a time, and unlocks races and heroes with petals', () => {
     let meta = { ...emptyMeta(), petals: 12 };
     expect(raceUnlocked(meta, 0)).toBe(true);
     expect(raceUnlocked(meta, 5)).toBe(false);
@@ -233,7 +241,13 @@ describe('petals between runs', () => {
     meta = buyUpgrade(meta, 'race:5');
     expect(raceUnlocked(meta, 5)).toBe(true);
     expect(meta.petals).toBe(2);
-    expect(buyUpgradeProblem(meta, 'march')).toMatch(/petals/);
-    expect(buyUpgradeProblem({ ...meta, petals: 99, upgrades: { march: 1 } }, 'march')).toMatch(/most/);
+    // The skill tree costs XP, and each tier needs the one below it.
+    expect(buyUpgradeProblem(meta, 'materials')).toMatch(/XP/);
+    expect(buyUpgradeProblem({ ...meta, xp: 999 }, 'march')).toMatch(/first/);
+    let rich = { ...meta, xp: 999 };
+    for (const id of ['hull', 'hull', 'shields', 'walls', 'march']) rich = buyUpgrade(rich, id);
+    expect(levelOf(rich, 'march')).toBe(1);
+    expect(rich.petals).toBe(2);
+    expect(buyUpgradeProblem(rich, 'march')).toMatch(/most/);
   });
 });

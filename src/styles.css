@@ -6188,7 +6188,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 
 /* The sky: the nodes round an ellipse across it (placed in %), the flower and its heart in the middle. */
 .up-sky { --F: min(40vh, 30vw, 340px); position: relative; width: min(1100px, 100%); height: 100%; justify-self: center; }
-.up-flower { position: absolute; left: 50%; top: 50%; width: var(--F); transform: translate(-50%, -50%); opacity: 0.5; pointer-events: none; }
+.up-flower { position: absolute; left: 50%; top: 40%; width: var(--F); transform: translate(-50%, -50%); opacity: 0.5; pointer-events: none; }
 .up-flower svg { width: 100%; height: auto; display: block; }
 
 .up-node, .up-arc-label { position: absolute; transform: translate(-50%, -50%); }
@@ -6210,7 +6210,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-arc-label { font-family: var(--display); font-size: 0.48rem; letter-spacing: 0.3em; text-transform: uppercase; color: #b9becb; white-space: nowrap; pointer-events: none; }
 
 /* The flower's heart: the purse, or the picked upgrade. */
-.up-heart { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(260px, 32vw); display: grid; justify-items: center; gap: 4px; text-align: center; animation: up-in 0.2s ease-out both; }
+.up-heart { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); width: min(310px, 34vw); display: grid; justify-items: center; gap: 4px; text-align: center; animation: up-in 0.2s ease-out both; }
 .up-heart small { font-family: var(--display); font-size: 0.48rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
 .up-heart p { margin: 2px 0 0; font-size: 0.72rem; line-height: 1.4; color: var(--ink-soft); }
 .up-heart-purse { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); color: var(--ink); }
@@ -6252,3 +6252,48 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* (The race badges are discs of their own: in an orb, the badge is the orb.) */
 .cs-orb-mark:has(img.fav-badge) { background: none; }
 .cs-orb-mark img.cs-orb-emblem { width: 100%; height: 100%; }
+
+/* ---------- The skill tree (campaign.ts renderShop): links, locked skills, capstones ---------- */
+.up-links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.up-links line { stroke: #d8dce4; stroke-width: 1.2; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.up-links line.lit { stroke: #3a4256; stroke-opacity: 0.55; stroke-dasharray: none; }
+.up-node.locked .up-node-disc { background: #f6f7f9; color: #c8ccd6; box-shadow: 0 0 0 1px #e6e8ee; }
+.up-node.locked b { color: #c8ccd6; }
+.up-node.tier-3 .up-node-disc { width: 54px; height: 54px; }
+.up-node.tier-3 .up-node-disc > svg:not(.up-node-ring) { width: 22px; height: 22px; }
+.up-node.tier-3 .up-node-disc::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; border: 1px solid rgba(58, 66, 86, 0.18); }
+.up-node.tier-3 b { font-weight: 600; letter-spacing: 0.2em; }
+.up-heart-needs { margin-top: 8px; font-family: var(--display); font-size: 0.52rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
+.up-heart-purse .cur-xp, .up-purse .cur-xp, .up-heart-buy .cur-xp { width: 1.3em; height: 1.3em; }
+@media (max-height: 560px) {
+  .up-node.tier-3 .up-node-disc { width: 40px; height: 40px; }
+  .up-node.tier-3 .up-node-disc > svg:not(.up-node-ring) { width: 16px; height: 16px; }
+}
+
+/* The setup's two purses, top right: petals (the starting deck) and experience (the skills). */
+.cs-purses { justify-self: end; display: flex; gap: 8px; }
+.cs-petals .cur-xp { width: 1.3em; height: 1.3em; }
+@media (max-height: 560px) { .cs-petals span { display: none; } }
+
+/* ---------- A race's starting deck, bought with petals (campaign.ts renderStarterDeck) ---------- */
+.sd-body { width: min(1100px, 100%); justify-self: center; min-height: 0; overflow-y: auto; scrollbar-width: thin; display: grid; align-content: start; gap: clamp(10px, calc(2.4 * var(--vh)), 20px); padding: 6px 2px 12px; }
+.sd-body h4 { margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); }
+.sd-body h4 small { font-family: var(--body, inherit); font-size: 0.66rem; letter-spacing: 0; text-transform: none; color: var(--ink-faint); }
+.sd-row { display: flex; flex-wrap: wrap; gap: 10px; min-height: 40px; }
+.sd-empty { margin: 0; font-size: 0.74rem; color: var(--ink-faint); }
+.sd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.sd-card { position: relative; display: grid; grid-template-rows: auto auto auto; gap: 5px; width: 118px; padding: 0 0 8px; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 3px 10px rgba(70, 76, 100, 0.1); cursor: pointer; }
+.sd-grid .sd-card { width: auto; }
+.sd-art { display: block; height: 70px; overflow: hidden; background: #1a1f2a; }
+.sd-art .art-wrap, .sd-art .art-frame { display: block; width: 100%; height: 100%; }
+.sd-art img.art, .sd-art svg { width: 100%; height: 100%; object-fit: cover; }
+.sd-name { display: flex; align-items: center; gap: 5px; padding: 0 8px; font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); line-height: 1.25; min-height: 2.5em; }
+.sd-name i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: #9cc4f0; }
+.sd-card.rarity-stellar .sd-name i { background: #f0b04a; }
+.sd-card.rarity-anomaly .sd-name i { background: #a77ee8; }
+.sd-buy { justify-self: start; margin: 0 8px; display: inline-flex; align-items: center; gap: 2px; padding: 2px 10px 2px 5px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.66rem; color: var(--ink); background: #f2f3f6; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.18); }
+.sd-buy .cur { width: 1.1em; height: 1.1em; }
+.sd-buy:not(:disabled):hover { background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.45); }
+.sd-buy:disabled { cursor: default; color: var(--ink-faint); box-shadow: none; }
+.sd-remove { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border: 0; border-radius: 50%; cursor: pointer; background: rgba(255, 255, 255, 0.92); color: var(--ink); font-size: 0.9rem; line-height: 1; box-shadow: 0 1px 4px rgba(40, 46, 70, 0.25); }
+.sd-pool.full .sd-buy { opacity: 0.4; }

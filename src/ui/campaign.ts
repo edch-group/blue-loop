@@ -28,6 +28,16 @@ import {
   regionalStability,
   universeStability,
   META_UPGRADES,
+  CARDS,
+  isBossCard,
+  upgradeOpen,
+  buyStarterCard,
+  removeStarterCard,
+  starterAddProblem,
+  starterCardPrice,
+  STARTER_ADDS_MAX,
+  legalIn,
+  CORE_RACES,
   buyUpgrade,
   buyUpgradeProblem,
   levelOf,
@@ -159,6 +169,10 @@ const BLOOM =
   [0, 60, 120, 180, 240, 300].map((a) => `<ellipse cx="10" cy="5.2" rx="2.6" ry="4.4" fill="#f2b8e6" stroke="#c97bc0" stroke-width=".6" transform="rotate(${a} 10 10)"/>`).join('') +
   '<circle cx="10" cy="10" r="2.6" fill="#fff4b0" stroke="#e0b450" stroke-width=".6"/></svg>';
 
+/** Experience: a small four-pointed star in ink. */
+const XP_MARK =
+  '<svg class="cur cur-xp" viewBox="0 0 20 20" aria-label="experience"><path d="M10 1.5 12 8l6.5 2-6.5 2L10 18.5 8 12 1.5 10 8 8Z" fill="#ffffff" stroke="#3a4256" stroke-width="1.1" stroke-linejoin="round"/><circle cx="10" cy="10" r="1.6" fill="#3a4256"/></svg>';
+
 /** A Stellari petal: what a wormhole gives, banked for every run after. */
 const PETAL =
   '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.5C14.5 5 15.5 11 10 18.5 4.5 11 5.5 5 10 1.5Z" fill="#ffffff" stroke="#6b7590" stroke-width="1" stroke-linejoin="round"/><path d="M10 4.5v11" stroke="#6b7590" stroke-width=".7" opacity=".55"/></svg>';
@@ -175,6 +189,8 @@ const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: 
   grace: { icon: glyph('M12 3v4M12 17v4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M3 12h4M17 12h4M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z'), unit: 'turns of stability in every galaxy', value: (l) => `+${l}` },
   armory: { icon: glyph('M4 8.5 12 4l8 4.5v7L12 20l-8-4.5ZM4 8.5l8 4.5 8-4.5M12 13v7M8.5 6.2l8 4.5'), unit: 'material off every armoury card', value: (l) => `−${l}` },
   petals: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM12 5.5v10M5 20.5h14'), unit: 'more petals at every wormhole', value: (l) => `+${20 * l}%` },
+  hoard: { icon: glyph('M3.5 13.5 9 10.5l5.5 3v6l-5.5 3-5.5-3ZM3.5 13.5 9 16.5l5.5-3M9 16.5v6M9.5 7.5 15 4.5l5.5 3v6l-5.5 3M9.5 7.5 15 10.5l5.5-3M15 10.5v6'), unit: 'materials in every new galaxy', value: (l) => `+${6 * l}` },
+  favour: { icon: glyph('M12 3.5c3 2.4 3.8 6.4 0 11.5-3.8-5.1-3-9.1 0-11.5ZM4.5 9.5c3.6-.6 7 1.4 7.5 5.5-4.4.5-7.3-1.6-7.5-5.5ZM19.5 9.5c-3.6-.6-7 1.4-7.5 5.5 4.4.5 7.3-1.6 7.5-5.5ZM12 15v5.5'), unit: "cooling for the flagship's sun after each battle won", value: (l) => `−${3 * l}` },
   salvage: { icon: glyph('M5.5 7.5h13l-1.2 12a1.5 1.5 0 0 1-1.5 1.4H8.2a1.5 1.5 0 0 1-1.5-1.4ZM3.5 7.5h17M9 7.5V4.5h6v3M10 11.5v6M14 11.5v6'), unit: 'card to choose from when salvaging', value: (l) => `+${l}` },
 };
 
@@ -334,6 +350,8 @@ export class CampaignView {
   /** New-campaign setup choices (the hero: an index into the race's heroes). */
   private setup = { rivals: 3, race: 0, hero: 0 };
   private shopOpen = false;
+  /** The starting-deck panel (cards bought into the picked race's starting deck with petals) is open. */
+  private deckOpen = false;
   /** The lasting upgrade picked in the shop, shown in the flower's heart. */
   private upPick: string | null = null;
   /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
@@ -553,9 +571,11 @@ export class CampaignView {
   /** Petals grabbed at a wormhole go straight into the account's lasting progress (they outlive the run). */
   private bankPetals() {
     const s = this.state;
-    if (!s || s.petals <= s.petalsBanked) return;
+    // (Experience too: kept the moment it is earned, so a lost run still moves the player on.)
+    const xp = (s?.xp ?? 0) - (s?.xpBanked ?? 0);
+    if (!s || (s.petals <= s.petalsBanked && xp <= 0)) return;
     const meta = loadMeta();
-    saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), best: Math.max(meta.best, s.universe - 1) });
+    saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), xp: (meta.xp ?? 0) + Math.max(0, xp), best: Math.max(meta.best, s.universe - 1) });
     this.state = applyCampaignAction(s, { type: 'petalsBanked' });
   }
 
@@ -640,6 +660,27 @@ export class CampaignView {
         sound.upgrade();
         break;
       }
+      case 'cmp-deck': {
+        this.deckOpen = !this.deckOpen;
+        break;
+      }
+      case 'cmp-deck-add': {
+        const meta = loadMeta();
+        const why = starterAddProblem(meta, this.setup.race, arg, cardDef(arg).rarity);
+        if (why) {
+          this.host.toast(why);
+          sound.error();
+          break;
+        }
+        saveMeta(buyStarterCard(meta, this.setup.race, arg, cardDef(arg).rarity));
+        sound.buy();
+        break;
+      }
+      case 'cmp-deck-remove': {
+        saveMeta(removeStarterCard(loadMeta(), this.setup.race, n()));
+        sound.hover();
+        break;
+      }
       case 'cmp-start': {
         const meta = loadMeta();
         const hero = GENERALS[this.setup.race][this.setup.hero];
@@ -649,7 +690,7 @@ export class CampaignView {
           break;
         }
         saveMeta({ ...meta, runs: meta.runs + 1 });
-        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, race: this.setup.race, hero, run: runBonuses(meta) });
+        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, race: this.setup.race, hero, run: runBonuses(meta, this.setup.race) });
         this.arriving = true;
         this.introFlight = true;
         this.selected = null;
@@ -991,7 +1032,10 @@ export class CampaignView {
         <header class="setup-top">
           <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">a dying universe</h2>
-          <button class="cs-petals" data-act="cmp-shop">${PETAL}<b>${meta.petals}</b><span>upgrades</span></button>
+          <div class="cs-purses">
+            <button class="cs-petals" data-act="cmp-deck" data-tip-title="starting deck" data-tip="Spend Stellari petals on cards for this race's starting deck.">${PETAL}<b>${meta.petals}</b><span>starting deck</span></button>
+            <button class="cs-petals cs-xp" data-act="cmp-shop" data-tip-title="skills" data-tip="Spend experience on the skill tree: earned on every run, won or lost.">${XP_MARK}<b>${meta.xp ?? 0}</b><span>skills</span></button>
+          </div>
         </header>
         <div class="cs-body">
           ${races}
@@ -1000,90 +1044,156 @@ export class CampaignView {
         </div>
         <footer class="setup-foot">${raceOpen ? `<button class="btn-primary" data-act="cmp-start" ${ready ? '' : 'disabled'}>begin run</button>` : buy(`race:${r}`, `unlock the ${lower(RACE_NAMES[r])}`, 'cs-buy-big')}</footer>
         ${this.shopOpen ? this.renderShop(meta) : ''}
+        ${this.deckOpen ? this.renderStarterDeck(meta) : ''}
       </main>`;
   }
 
   /**
-   * The petal shop, as a constellation round the Stellari: the three groups on three arcs, each upgrade a node (its
-   * mark, its name, its levels as petals round its rim). Picking one shows it in the flower's heart: what it gives
-   * now, what the next level would, and the way to buy it.
+   * The skill tree, round the Stellari, bought with experience: three branches growing out from the flower (a
+   * stronger start to the left, a tougher flagship to the right, run perks below), each tier further out than the
+   * one it needs, ending in a capstone. Lines join each skill to what it needs (lit once that is bought). Picking a
+   * skill shows it in the flower's heart: what it gives now and next, what it needs, and the way to buy it.
    */
   private renderShop(meta: MetaState): string {
-    // Round an ellipse (the sky is wider than tall), evenly, the three groups apart: the start up left, the
-    // flagship up right, the run's perks below. Degrees clockwise from the right.
-    const groups: [MetaGroup, string][] = [['start', 'a stronger start'], ['flagship', 'a tougher flagship'], ['perk', 'run perks']];
-    const lists = groups.map(([g]) => META_UPGRADES.filter((u) => u.group === g));
-    const gap = 26;
-    const step = (360 - gap * groups.length) / lists.reduce((n, l) => n + l.length, 0);
-    const at = (deg: number, k = 1) => {
+    const branches: { g: MetaGroup; title: string; dir: number }[] = [
+      { g: 'start', title: 'a stronger start', dir: 212 },
+      { g: 'flagship', title: 'a tougher flagship', dir: 328 },
+      { g: 'perk', title: 'run perks', dir: 90 },
+    ];
+    // Where a skill lies (in % of the sky): out along its branch by tier, its tier's skills fanned across it.
+    const reach = [0, 0.44, 0.72, 0.97];
+    const pos = new Map<string, [number, number]>();
+    const place = (deg: number, k: number): [number, number] => {
       const r = (deg * Math.PI) / 180;
-      return `left:${(50 + 41 * k * Math.cos(r)).toFixed(2)}%;top:${(50 + 40 * k * Math.sin(r)).toFixed(2)}%`;
+      return [50 + 46 * k * Math.cos(r), 40 + 47 * k * Math.sin(r)];
     };
+    for (const br of branches) {
+      const skills = META_UPGRADES.filter((u) => u.group === br.g);
+      for (const tier of [1, 2, 3]) {
+        const row = skills.filter((u) => (u.tier ?? 1) === tier);
+        const fan = row.length > 1 ? (tier === 2 ? 34 : 22) : 0;
+        // (The branch hanging below the heart starts further out, clear of the heart's words.)
+        const out = br.dir === 90 ? [0, 0.52, 0.77, 1] : reach;
+        row.forEach((u, i) => pos.set(u.id, place(br.dir + (row.length > 1 ? -fan / 2 + (fan * i) / (row.length - 1) : 0), out[tier])));
+      }
+    }
     const ring = (level: number, max: number) => {
       const C = 2 * Math.PI * 22;
       const g = max > 1 ? 4 : 0;
       const seg = C / max - g;
       return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" class="${i < level ? 'on' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');
     };
-    let deg = 225 - step * ((lists[0].length - 1) / 2);
-    const nodes = lists
-      .map((ups, gi) => {
-        const first = deg;
-        const html = ups
-          .map((u) => {
-            const level = levelOf(meta, u.id);
-            const maxed = level >= u.max;
-            const canBuy = !maxed && !buyUpgradeProblem(meta, u.id);
-            const pos = at(deg);
-            deg += step;
-            return `<button class="up-node ${level ? 'owned' : ''} ${maxed ? 'maxed' : ''} ${canBuy ? 'afford' : ''} ${this.upPick === u.id ? 'on' : ''}" style="${pos}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" aria-label="${esc(u.name)}">
-              <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max)}</svg>${UPGRADE_LOOK[u.id]?.icon ?? ''}</span>
-              <b>${esc(u.name.toLowerCase())}</b>
-            </button>`;
-          })
-          .join('');
-        const mid = (first + deg - step) / 2;
-        deg += gap;
-        return `<span class="up-arc-label" style="${at(mid, 0.64)}">${groups[gi][1]}</span>${html}`;
+    const skills = META_UPGRADES.filter((u) => u.group !== 'unlock');
+    // The links: the heart to each first tier, each skill to what it needs.
+    const links = skills
+      .flatMap((u) => {
+        const [x, y] = pos.get(u.id)!;
+        const needs = u.requires?.length ? u.requires : null;
+        // (A first tier hangs off the flower itself: no line into its heart, where the words are.)
+        if (!needs) return [];
+        return needs.map(([r, n]) => {
+          const [x0, y0] = pos.get(r)!;
+          return `<line x1="${x0.toFixed(2)}" y1="${y0.toFixed(2)}" x2="${x.toFixed(2)}" y2="${y.toFixed(2)}" class="${levelOf(meta, r) >= n ? 'lit' : ''}"/>`;
+        });
       })
       .join('');
-    const arcs = groups;
-    // The heart: the picked upgrade, or the purse and a word on what this is.
+    const nodes = skills
+      .map((u) => {
+        const [x, y] = pos.get(u.id)!;
+        const level = Math.min(levelOf(meta, u.id), u.max);
+        const maxed = level >= u.max;
+        const open = upgradeOpen(meta, u.id);
+        const canBuy = !maxed && !buyUpgradeProblem(meta, u.id);
+        return `<button class="up-node tier-${u.tier ?? 1} ${level ? 'owned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${canBuy ? 'afford' : ''} ${this.upPick === u.id ? 'on' : ''}" style="left:${x.toFixed(2)}%;top:${y.toFixed(2)}%" data-act="cmp-up-pick" data-arg="${esc(u.id)}" aria-label="${esc(u.name)}">
+          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max)}</svg>${UPGRADE_LOOK[u.id]?.icon ?? ''}</span>
+          <b>${esc(u.name.toLowerCase())}</b>
+        </button>`;
+      })
+      .join('');
+    // (Each branch named in the heart's small print when one of its skills is picked, not on the tree.)
+    const branchOf = (g: MetaGroup) => branches.find((b) => b.g === g)?.title ?? '';
+    // The heart: the picked skill, or the experience to spend.
     const u = this.upPick ? metaUpgrade(this.upPick) : undefined;
     let heart: string;
     if (u) {
-      const level = levelOf(meta, u.id);
+      const level = Math.min(levelOf(meta, u.id), u.max);
       const look = UPGRADE_LOOK[u.id];
       const maxed = level >= u.max;
       const why = buyUpgradeProblem(meta, u.id);
+      const needs = (u.requires ?? []).filter(([r, n]) => levelOf(meta, r) < n).map(([r, n]) => `${metaUpgrade(r)?.name.toLowerCase() ?? r} ${'I'.repeat(n)}`);
       heart = `<div class="up-heart up-heart-pick">
-        <small>${esc(arcs.find(([g]) => g === u.group)?.[1] ?? '')} · level ${level} of ${u.max}</small>
+        <small>${esc(branchOf(u.group))} · ${u.tier === 3 ? 'capstone' : `tier ${u.tier ?? 1}`} · level ${level} of ${u.max}</small>
         <h4>${esc(u.name.toLowerCase())}</h4>
-        <div class="up-heart-vals">
-          <span><strong class="${level ? '' : 'none'}">${esc(level ? look?.value(level) ?? `${level}` : '0')}</strong><i>now</i></span>
-          ${maxed ? '' : `<em>›</em><span><strong class="next">${esc(look?.value(level + 1) ?? `${level + 1}`)}</strong><i>next</i></span>`}
+        ${look ? `<div class="up-heart-vals">
+          <span><strong class="${level ? '' : 'none'}">${esc(level ? look.value(level) : '0')}</strong><i>now</i></span>
+          ${maxed ? '' : `<em>›</em><span><strong class="next">${esc(look.value(level + 1))}</strong><i>next</i></span>`}
         </div>
-        <p>${esc(look?.unit ?? u.text)}</p>
-        ${maxed ? '<span class="up-heart-max">complete</span>' : `<button class="up-heart-buy" data-act="cmp-meta-buy" data-arg="${esc(u.id)}" ${why ? 'disabled' : ''}>${why ? 'need' : 'buy'}<i>${PETAL}${u.cost(level)}</i></button>`}
+        <p>${esc(look.unit)}</p>` : `<p>${esc(u.text)}</p>`}
+        ${maxed ? '<span class="up-heart-max">complete</span>' : needs.length ? `<span class="up-heart-needs">needs ${esc(needs.join(' and '))}</span>` : `<button class="up-heart-buy" data-act="cmp-meta-buy" data-arg="${esc(u.id)}" ${why ? 'disabled' : ''}>${why ? 'need' : 'learn'}<i>${XP_MARK}${u.cost(level)}</i></button>`}
       </div>`;
     } else {
       heart = `<div class="up-heart">
-        <span class="up-heart-purse">${PETAL}<strong>${meta.petals}</strong></span>
-        <small>petals to spend</small>
-        <p>Pick an upgrade round the flower. What you buy is kept for every run.</p>
+        <span class="up-heart-purse">${XP_MARK}<strong>${meta.xp ?? 0}</strong></span>
+        <small>experience to spend</small>
+        <p>Earned on every run, won or lost. Each tier opens the next.</p>
       </div>`;
     }
     return `
       <div class="up-shop">
         <header class="up-head">
-          <div class="up-title"><h3>lasting upgrades</h3>${meta.runs ? `<small>best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed · ${meta.runs} run${meta.runs === 1 ? '' : 's'}</small>` : ''}</div>
-          <span class="up-purse">${PETAL}<b>${meta.petals}</b></span>
+          <div class="up-title"><h3>skills</h3>${meta.runs ? `<small>best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed · ${meta.runs} run${meta.runs === 1 ? '' : 's'}</small>` : ''}</div>
+          <span class="up-purse">${XP_MARK}<b>${meta.xp ?? 0}</b></span>
           <button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button>
         </header>
         <div class="up-sky">
           <span class="up-flower">${stellariaFlower()}</span>
+          <svg class="up-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${links}</svg>
           ${heart}
           ${nodes}
+        </div>
+      </div>`;
+  }
+
+  /**
+   * A race's starting deck, and the cards bought into it with petals (kept for every run as that race): those
+   * bought (to take out again), then every card it could buy, by rarity, each with its price.
+   */
+  private renderStarterDeck(meta: MetaState): string {
+    const r = this.setup.race;
+    const mode = CORE_RACES.includes(r) ? 'core' : undefined;
+    const have = meta.deck?.[r] ?? [];
+    const order = { dwarf: 0, stellar: 1, anomaly: 2 } as Record<string, number>;
+    const pool = CARDS.filter((c) => (c.race === r || c.race === undefined) && c.kind !== 'command' && c.kind !== 'global' && !c.fusion && !isBossCard(c.id) && legalIn(mode, c.id) && !c.id.startsWith('boon_'))
+      .sort((x, y) => (order[x.rarity ?? 'dwarf'] ?? 0) - (order[y.rarity ?? 'dwarf'] ?? 0) || (x.race === r ? 0 : 1) - (y.race === r ? 0 : 1) || (x.cost ?? 0) - (y.cost ?? 0));
+    const mini = (id: string, foot: string) => {
+      const def = cardDef(id);
+      return `<div class="sd-card rarity-${def.rarity ?? 'dwarf'}" data-act="inspect" data-card="${esc(id)}">
+        <span class="sd-art">${cardArtLite(def)}</span>
+        <span class="sd-name"><i></i>${esc(def.name.toLowerCase())}</span>
+        ${foot}
+      </div>`;
+    };
+    const bought = have.length
+      ? have.map((id, i) => mini(id, `<button class="sd-remove" data-act="cmp-deck-remove" data-arg="${i}" aria-label="Take it out">×</button>`)).join('')
+      : `<p class="sd-empty">None yet: every card bought here starts every run as the ${lower(RACE_NAMES[r])} with you.</p>`;
+    const full = have.length >= STARTER_ADDS_MAX;
+    const shop = pool
+      .map((c) => {
+        const price = starterCardPrice(c.rarity);
+        const why = starterAddProblem(meta, r, c.id, c.rarity);
+        return mini(c.id, `<button class="sd-buy" data-act="cmp-deck-add" data-arg="${esc(c.id)}" ${why ? 'disabled' : ''}>${PETAL}${price}</button>`);
+      })
+      .join('');
+    return `
+      <div class="up-shop sd-shop">
+        <header class="up-head">
+          <div class="up-title"><h3>starting deck · ${lower(RACE_NAMES[r])}</h3><small>cards bought here start every run as the ${lower(RACE_NAMES[r])}</small></div>
+          <span class="up-purse">${PETAL}<b>${meta.petals}</b></span>
+          <button class="icon-btn" data-act="cmp-deck" aria-label="Close">×</button>
+        </header>
+        <div class="sd-body">
+          <section class="sd-have"><h4>bought <small>${have.length} of ${STARTER_ADDS_MAX}</small></h4><div class="sd-row">${bought}</div></section>
+          <section class="sd-pool ${full ? 'full' : ''}"><h4>add a card <small>white dwarf ${starterCardPrice('dwarf')} · stellar ${starterCardPrice('stellar')} · anomaly ${starterCardPrice('anomaly')}</small></h4><div class="sd-grid">${shop}</div></section>
         </div>
       </div>`;
   }
@@ -1912,7 +2022,8 @@ export class CampaignView {
       return this.modal(
         'the run is over',
         `<div class="center"><h2>${s.universe > 1 ? `${s.universe - 1} galax${s.universe - 1 === 1 ? 'y' : 'ies'} crossed` : 'lost in the first galaxy'}</h2>
-          <p>${s.petals ? `${PETAL} ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed this run, and banked.` : 'No petals this time: reach a wormhole to grab some.'} You have ${PETAL} ${meta.petals} to spend.</p>
+          <p>${XP_MARK} ${s.xp ?? 0} experience earned this run, and kept: you have ${XP_MARK} ${meta.xp ?? 0} to spend on skills.</p>
+          <p>${s.petals ? `${PETAL} ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed this run, and banked.` : 'No petals this time: reach a wormhole to grab some.'} You have ${PETAL} ${meta.petals} to spend on your starting decks.</p>
           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-new-run">upgrades · new run</button><button class="btn" data-act="cmp-abandon">back to menu</button></div></div>`,
       );
     }
