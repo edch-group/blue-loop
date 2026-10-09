@@ -16,6 +16,7 @@ import {
   runBonuses,
   universeStability,
   wormholePetals,
+  rarityOf,
   GENERALS,
   type CampaignState,
 } from '../src/engine';
@@ -204,7 +205,15 @@ describe('the wormhole', () => {
     expect(s.battle?.nodeId).toBe(hole.id);
     s = read(win(s));
     expect(s.universe).toBe(2);
-    expect(s.petals).toBe(petals);
+    // The wormhole's petals, and the Overlord's bounty: petals, and a pick of two rare-or-better cards.
+    expect(s.petals).toBe(petals + CAMPAIGN.bossPetals);
+    const hoard = s.cardRewards.find((r) => /hoard/.test(r.source))!;
+    expect(hoard.options).toHaveLength(CAMPAIGN.bossCardChoices);
+    expect(hoard.options.every((id) => rarityOf(id) !== 'dwarf')).toBe(true);
+    while (s.cardRewards.length && !/hoard/.test(s.cardRewards[0].source)) s = applyCampaignAction(s, { type: 'chooseCard', defId: null });
+    const before = flag(s).deck.length;
+    s = applyCampaignAction(s, { type: 'chooseCard', defId: hoard.options[0] });
+    expect(flag(s).deck).toHaveLength(before + 1);
     expect(nodeById(s, flag(s).nodeId).col).toBe(0);
     expect(s.nodes.find((n) => n.heart)!.tier).toBeGreaterThan(tier);
     expect(regionalStability(s)).toBe(CAMPAIGN.stabilityTurns - CAMPAIGN.stabilityStep);

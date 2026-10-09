@@ -15,7 +15,7 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
-import { CARDS, cardDef, cardIn, copyLimit, fusedId, fusionProblem, presetDeck, RACE_NAMES } from './cards';
+import { CARDS, cardDef, cardIn, copyLimit, fusedId, fusionProblem, presetDeck, RACE_NAMES, rarityOf } from './cards';
 import { CORE_RACES, inMode, type GameMode } from './modes';
 import { BALANCE } from './balance';
 import { applyAction, createGame, DRAW, GameError, isDraw, isGameOver } from './game';
@@ -130,6 +130,10 @@ export const CAMPAIGN = {
   raiderChaseChance: 0.7,
   /** Petals grabbed at a wormhole: a few for reaching it, more for every share of the strip conquered. */
   petalBase: 3,
+  /** Petals for beating a wormhole's Lost Overlord, each galaxy (on top of the wormhole's own). */
+  bossPetals: 4,
+  /** The rare (Stellar) or Anomaly cards offered from a beaten Overlord's hoard: pick one. */
+  bossCardChoices: 2,
   petalShare: 12,
   /** Systems are never closer than this; routes longer than this are dropped unless needed to connect. */
   minSystemGap: 160,
@@ -599,7 +603,7 @@ export interface CampaignState {
    * Card choices owed to the player (from missions, relics, and salvage from a battle auto-resolved). A salvaged
    * card goes into that army's deck while it has room (`toDeck`), else the reserve.
    */
-  cardRewards: { source: string; options: string[]; toDeck?: string }[];
+  cardRewards: { source: string; options: string[]; toDeck?: string; /** How the log tells it ("salvages"). */ take?: string }[];
   /** Frost Lines held so far this run (each is harder than the last). */
   frostLevel?: number;
   /** Lost Lords beaten this run (each joins only once). */
@@ -1877,13 +1881,27 @@ function gainCard(s: CampaignState, f: Faction, id: string) {
 }
 
 /** Salvage a card: straight into the army's deck (else the reserve, if the deck may not take another copy). */
-function takeSalvage(s: CampaignState, f: Faction, army: Army | undefined, id: string) {
+function takeSalvage(s: CampaignState, f: Faction, army: Army | undefined, id: string, verb = 'salvages') {
   f.reserve.push(id);
   if (army && army.owner === f.id && deckAddProblem(f, army, id) === null) {
     f.reserve.splice(f.reserve.lastIndexOf(id), 1);
     army.deck.push(id);
-    clog(s, `${f.name} salvages ${cardDef(id).name}: it joins ${armyLeader(army)}'s deck.`, army.nodeId, f.id);
-  } else clog(s, `${f.name} salvages ${cardDef(id).name}: it waits in the reserve.`, undefined, f.id);
+    clog(s, `${f.name} ${verb} ${cardDef(id).name}: it joins ${armyLeader(army)}'s deck.`, army.nodeId, f.id);
+  } else clog(s, `${f.name} ${verb} ${cardDef(id).name}: it waits in the reserve.`, undefined, f.id);
+}
+
+/**
+ * A beaten Lost Overlord's bounty: Stellari petals (more each galaxy), and its hoard, a pick of rare (Stellar) or
+ * Anomaly cards for the flagship's deck (none it already holds as many of as it may).
+ */
+function overlordBounty(s: CampaignState, f: Faction, army?: Army) {
+  const lord = overlordById(s.overlord ?? OVERLORDS[0].id);
+  const petals = Math.max(1, Math.round(CAMPAIGN.bossPetals * s.universe * (1 + (s.run?.petalBonus ?? 0))));
+  s.petals += petals;
+  clog(s, `${lord.name} falls: ${f.name} gathers ${petals} Stellari petal${petals === 1 ? '' : 's'} from its remains.`, undefined, f.id);
+  const fits = (id: string) => rarityOf(id) !== 'dwarf' && cardDef(id).kind !== 'command' && (!army || deckAddProblem({ ...f, reserve: [id] }, army, id) === null);
+  const options = [...new Set(shuffleInPlace(s, offerPool(f, s.mode)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices);
+  if (options.length) s.cardRewards.push({ source: `${lord.name}'s hoard`, options, ...(army ? { toDeck: army.id } : {}), take: 'claims' });
 }
 
 function resolveBattle(s: CampaignState, game: GameState, salvage?: string | null) {
@@ -1984,6 +2002,7 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   if (spoils.length) clog(s, `${f.name} seizes ${spoils.map((id) => cardDef(id).name).join(', ')} from ${n.name}.`, n.id, f.id);
   if (n.heart) {
     if (army && s.armies.includes(army)) army.nodeId = n.id;
+    if (f.id === s.playerId) overlordBounty(s, f, army);
     crossWormhole(s, f);
     return;
   }
@@ -2430,7 +2449,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       if (!reward) throw new GameError('No card to choose.');
       if (action.defId !== null && !reward.options.includes(action.defId)) throw new GameError('That card is not on offer.');
       s.cardRewards.shift();
-      if (action.defId && reward.toDeck !== undefined) takeSalvage(s, f, s.armies.find((a) => a.id === reward.toDeck), action.defId);
+      if (action.defId && reward.toDeck !== undefined) takeSalvage(s, f, s.armies.find((a) => a.id === reward.toDeck), action.defId, reward.take);
       else if (action.defId) {
         clog(s, `${f.name} takes ${cardDef(action.defId).name}.`);
         gainCard(s, f, action.defId);
