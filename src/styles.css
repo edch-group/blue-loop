@@ -5823,6 +5823,24 @@ body:has(.game-result) .dock { visibility: hidden; }
 .yield-draw, .yield-plays { color: #3f9a68; }
 .yield-repair { color: #7a7f8f; }
 .yield-selfHeat { color: #a8473a; background: rgba(255, 236, 230, 0.95); }
+/* A card's mechanics, each as its own mark in its keyword's colour (its number beside it, where it has one), after
+   what it gives each day. The strip keeps within the card's width, wrapping away from it (up over yours, down
+   under theirs) rather than running into its neighbours. */
+.yield.mech { color: var(--kwc, var(--ink)); }
+.yield.mech-bare { padding-right: calc(var(--tcw, 80px) * 0.055); }
+/* (All of a card's marks in one pill, set close, so most cards' fit in a row as wide as the card.) */
+.card-yield {
+  flex-wrap: wrap; justify-content: center; max-width: calc(var(--tcw, 80px) * 1.1); width: max-content;
+  gap: 0 calc(var(--tcw, 80px) * 0.05); padding: 0 calc(var(--tcw, 80px) * 0.06);
+  border-radius: calc(var(--tcw, 80px) * 0.11); background: rgba(255, 255, 255, 0.94); box-shadow: 0 1px 3px rgba(60, 70, 100, 0.18);
+}
+.card-yield-mine { flex-wrap: wrap-reverse; }
+.card-yield .yield { padding: 0; background: none; box-shadow: none; }
+.card-yield .yield.mech-bare { padding: 0; }
+/* On the board a card's energy cost is spent: hidden. Its attack and stability stand as large as its defence. */
+.card.card-table .cost-dots { display: none; }
+.card.card-table .jewel { width: calc(var(--cw, 100px) * 0.27); }
+.card.card-table .jewel i { font-size: calc(var(--cw, 100px) * 0.125); }
 
 /* The rival's hand: small card backs fanned down from the top of the screen, the one they hover lifted out towards the board. */
 .rival-hand { --rhw: clamp(40px, 4.3vw, 64px); --rhh: calc(var(--rhw) * 1.4); position: absolute; left: 50%; top: 0; width: 0; height: 0; z-index: 6; pointer-events: none; }

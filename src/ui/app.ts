@@ -27,6 +27,7 @@ import {
   GameError,
   instabilityHeat,
   KEYWORDS,
+  textParts,
   keywordLabel,
   plainText,
   isGameOver,
@@ -96,7 +97,7 @@ import { shownKind, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, anchorRect, beam, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardJewels, cardBackFace, cardBodyHtml, effectMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { cardJewels, cardBackFace, cardBodyHtml, effectMark, mechanicMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -324,13 +325,49 @@ function withYield(html: string, marks: string): string {
   return marks ? html.replace(/^(\s*<(?:div|button)\b[^>]*>)/, `$1${marks}`) : html;
 }
 
-/** The marks over a card in play (under, on the rival's side) for what it gives each day now. */
+/** Keywords not marked over a card in play: timings, its own numbers, and what its yield already shows. */
+const UNMARKED = new Set(['dawn', 'dusk', 'vigil', 'dimmed', 'abilities', 'act', 'attack', 'cost', 'heat', 'cool', 'shield', 'plays', 'energy', 'repair', 'draw']);
+
+/**
+ * What a card does only as it is played (or before): once it is on the board, nothing more. Marked only where its
+ * text gives it a dawn, dusk or vigil (it goes on happening), or on a Hero (whose abilities come round each day).
+ */
+const AS_PLAYED = new Set(['lightspeed', 'consume', 'fusion', 'offering', 'rootbreak', 'erode', 'decay', 'restore', 'renew', 'recover', 'recall', 'shift', 'displace', 'destroy', 'eject', 'chosen', 'plant', 'spend', 'global', 'orbit']);
+
+/** A card's mechanics in play, each once, in the order its text gives them, with the number it carries (if any). */
+function cardMechanics(c: CardInstance): { id: string; n: string; name: string; tip: string; group: string }[] {
+  const def = cardDef(c.defId);
+  const hero = def.kind === 'command';
+  const seen = new Set<string>();
+  const out: { id: string; n: string; name: string; tip: string; group: string }[] = [];
+  // (A sentence opened by a dawn, dusk or vigil goes on happening; the next sentence starts afresh.)
+  let timed = false;
+  for (const part of textParts(def.text)) {
+    if ('text' in part) {
+      if (part.text.includes('.')) timed = false;
+      continue;
+    }
+    if (part.kw === 'dawn' || part.kw === 'dusk' || part.kw === 'vigil') timed = true;
+    const kw = KEYWORDS[part.kw];
+    if (!kw || UNMARKED.has(part.kw) || seen.has(part.kw) || (AS_PLAYED.has(part.kw) && !timed && !hero)) continue;
+    seen.add(part.kw);
+    out.push({ id: part.kw, n: part.value?.match(/\d+/)?.[0] ?? '', name: kw.name, tip: kw.explain(part.value), group: kw.group });
+  }
+  return out;
+}
+
+/**
+ * The marks over a card in play (under, on the rival's side): what it gives each day now (heat, cooling, shields
+ * and the like, with their numbers), then a mark for each of its mechanics, so the board reads at a glance.
+ */
 function yieldMarks(st: GameState, p: PlayerState, c: CardInstance, side: 'mine' | 'rival'): string {
   // (A rival card's heat to its own sun is theirs to worry about: no chip for it.)
   const y = cardYield(st, p, c).filter(([k]) => side === 'mine' || k !== 'selfHeat');
-  if (!y.length) return '';
-  const title = `Each day, as things stand: ${y.map(([k, n]) => `${n} ${YIELD_NAMES[k]}`).join(', ')}.`;
-  return `<span class="card-yield card-yield-${side}" title="${esc(title)}">${y.map(([k, n]) => `<i class="yield yield-${k}">${effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k)}${n}</i>`).join('')}</span>`;
+  const mech = cardMechanics(c);
+  if (!y.length && !mech.length) return '';
+  const yields = y.map(([k, n]) => `<i class="yield yield-${k}" data-tip-title="${esc(YIELD_NAMES[k])}" data-tip="${esc(`${n} each day, as things stand.`)}">${effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k)}${n}</i>`);
+  const marks = mech.map((m) => `<i class="yield mech kw-${m.group}${m.n ? '' : ' mech-bare'}" data-tip-title="${esc(m.name)}" data-tip="${esc(m.tip)}">${mechanicMark(m.id)}${m.n}</i>`);
+  return `<span class="card-yield card-yield-${side}">${[...yields, ...marks].join('')}</span>`;
 }
 
 /** The sound of a blow landing on a card: its defence cracking if the blow wore it, and the crunch of what got through. */

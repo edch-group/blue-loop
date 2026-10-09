@@ -630,6 +630,57 @@ const EFFECT_SVG: Record<string, string> = {
   walls: '<path d="M6 1.4 9.6 2.8V6C9.6 8.4 8 10 6 10.8 4 10 2.4 8.4 2.4 6V2.8Z"/>',
   guns: '<circle cx="6" cy="6" r="3.2"/><path d="M6 1.2v2M6 8.8v2M1.2 6h2M8.8 6h2"/>',
 };
+/**
+ * Each mechanic's mark (12 x 12, drawn in lines like the effect marks), for the strip over a card in play: what
+ * the card does, read at a glance.
+ */
+const MECHANIC_SVG: Record<string, string> = {
+  pierce: '<path d="M1.6 6h8.2M7.4 3.6 9.8 6 7.4 8.4"/><path d="M5 2v8"/>',
+  guard: '<path d="M6 1.4 10 3v3.2C10 8.6 8.2 10 6 10.8 3.8 10 2 8.6 2 6.2V3Z"/><path d="M6 4v2.6M6 8.2v.1"/>',
+  sturdy: '<rect x="1.8" y="2.4" width="8.4" height="7.2" rx="0.8"/><path d="M1.8 6h8.4M6 2.4V6M4 6v3.6M8 6v3.6"/>',
+  bulwark: '<path d="M6 2 9 3.2v2.6C9 7.8 7.6 9 6 9.8 4.4 9 3 7.8 3 5.8V3.2Z"/><path d="M1.2 6H2.4M9.6 6h1.2"/>',
+  resonance: '<circle cx="6" cy="6" r="1.2" class="kw-ico-fill"/><path d="M3.4 3.4a3.7 3.7 0 0 0 0 5.2M8.6 3.4a3.7 3.7 0 0 1 0 5.2M1.8 1.8a6 6 0 0 0 0 8.4M10.2 1.8a6 6 0 0 1 0 8.4"/>',
+  forge: '<path d="M2 5h7l-1.6 2H4.4L4 8.8h4.4M3.4 10.2h5.2M9 5 10.4 3.6"/>',
+  brittle: '<path d="M2 2h8v8H2z"/><path d="M6 2 5 4.6 7 6l-1.6 4"/>',
+  anchor: '<circle cx="6" cy="2.6" r="1"/><path d="M6 3.6v6.8M3.8 5.2h4.4M2.2 7.2a3.8 3.8 0 0 0 7.6 0"/>',
+  offering: '<path d="M2.6 3h6.8L8.6 6.4a2.6 2.6 0 0 1-5.2 0Z"/><path d="M6 9v1.4M4 10.4h4"/>',
+  rootbreak: '<path d="M6 1.6v3.2M6 4.8 3.6 7.2 2.4 10.2M6 4.8l2.2 2L8 10.2M6 4.8v5.4"/>',
+  erode: '<path d="M6 1.8C7.8 4.2 8.8 5.6 8.8 7a2.8 2.8 0 0 1-5.6 0c0-1.4 1-2.8 2.8-5.2Z"/><path d="M4.6 7.4h2.8"/>',
+  decay: '<path d="M2.4 2.4 4 4M9.6 2.4 8 4M6 1.6v2.2"/><circle cx="6" cy="7.4" r="2.8"/><path d="M4.8 7.4h2.4"/>',
+  restore: '<path d="M6 10S2 7.6 2 4.8A2.1 2.1 0 0 1 6 3.6a2.1 2.1 0 0 1 4 1.2C10 7.6 6 10 6 10Z"/><path d="M6 4.8v3M4.5 6.3h3"/>',
+  renew: '<path d="M9.6 4.2A3.9 3.9 0 1 0 10 7.4"/><path d="M10 1.8v2.6H7.4"/>',
+  recover: '<rect x="3.4" y="4" width="5.2" height="6.6" rx="0.8"/><path d="M6 1.2v4.6M4.4 2.8 6 1.2l1.6 1.6"/>',
+  recall: '<rect x="2" y="3.4" width="5.2" height="6.6" rx="0.8"/><path d="M10.4 2.4v3.4H6.6M8 4.4 6.6 5.8 8 7.2"/>',
+  consume: '<path d="M10.4 4.4A4.6 4.6 0 1 0 10.4 7.6L6.4 6Z"/>',
+  chosen: '<circle cx="6" cy="6" r="3.8"/><circle cx="6" cy="6" r="1.2" class="kw-ico-fill"/><path d="M6 .8v1.6M6 9.6v1.6M.8 6h1.6M9.6 6h1.6"/>',
+  shift: '<path d="M1.8 4h8.4M8 1.8 10.2 4 8 6.2M10.2 8H1.8M4 5.8 1.8 8 4 10.2"/>',
+  displace: '<path d="M2 2l8 8M10 2 2 10M6.8 2H10v3.2M2 6.8V10h3.2"/>',
+  destroy: '<path d="M6 1.2 7.1 4.2 10.4 3.4 8.4 6l2 2.6-3.3-.8L6 10.8 4.9 7.8l-3.3.8L3.6 6 1.6 3.4l3.3.8Z"/>',
+  eject: '<path d="M2 7.4V10h8V7.4M6 1.4v6M3.8 3.6 6 1.4l2.2 2.2"/>',
+  sting: '<path d="M2 10 7.4 4.6M7.4 4.6 10.4 1.6 9.2 6.2 5.8 2.8Z"/>',
+  soothe: '<path d="M6 1.6C7.6 3.8 8.6 5.2 8.6 6.6a2.6 2.6 0 0 1-5.2 0C3.4 5.2 4.4 3.8 6 1.6Z"/><path d="M1.6 10.2c1.4-1 3-1 4.4 0s3 1 4.4 0"/>',
+  fusion: '<circle cx="4.4" cy="6" r="2.8"/><circle cx="7.6" cy="6" r="2.8"/>',
+  plant: '<path d="M6 10.4V5.2M6 5.2C6 3 7.8 1.8 9.8 1.8 9.8 4 8.2 5.2 6 5.2zM6 7C6 5.2 4.6 4.2 2.4 4.2 2.4 6.2 3.8 7 6 7z"/>',
+  catalyst: '<path d="M6 1.4 7 5 10.6 6 7 7 6 10.6 5 7 1.4 6 5 5Z"/>',
+  tidewall: '<path d="M6 1.6 9.4 3v2.8C9.4 8 7.8 9.4 6 10.2 4.2 9.4 2.6 8 2.6 5.8V3Z"/><path d="M3.6 6.4c.8-.6 1.6-.6 2.4 0s1.6.6 2.4 0"/>',
+  hold: '<rect x="2.6" y="5.4" width="6.8" height="5" rx="1"/><path d="M4 5.4V3.8a2 2 0 0 1 4 0v1.6"/>',
+  thermosiphon: '<path d="M6 1.4v9.2M2 3.7l8 4.6M10 3.7 2 8.3"/>',
+  overheated: '<path d="M5 2.2a1 1 0 0 1 2 0v4.4a2.2 2.2 0 1 1-2 0Z"/><path d="M6 4.4v3.2M8.6 2.4h1.6M8.6 4.4h1.2"/>',
+  grows: '<path d="M2.4 6.4 6 2.8l3.6 3.6M2.4 9.6 6 6l3.6 3.6"/>',
+  spend: '<rect x="1.6" y="3.6" width="7.6" height="4.8" rx="1"/><path d="M10.4 5.2v1.6"/>',
+  darkspeed: '<path d="M7.6 1.6a4.6 4.6 0 1 0 2.8 7.4A3.8 3.8 0 0 1 7.6 1.6Z"/><path d="M6.4 3.6 4.6 6.2h2l-1.6 2.6"/>',
+  abundance: '<rect x="1.6" y="3" width="4.6" height="6.4" rx="0.8"/><rect x="4.4" y="2" width="4.6" height="6.4" rx="0.8"/><path d="M10.2 7.8v3M8.7 9.3h3"/>',
+  orbit: '<circle cx="6" cy="6" r="1.8"/><ellipse cx="6" cy="6" rx="4.8" ry="2.2" transform="rotate(-25 6 6)"/>',
+  attune: '<circle cx="6" cy="6" r="4.2"/><circle cx="9" cy="3" r="1.2" class="kw-ico-fill"/><circle cx="6" cy="6" r="1" class="kw-ico-fill"/>',
+  lightspeed: '<path d="M6.8 1.2 2.8 6.6h3l-.6 4.2 4-5.4h-3Z"/>',
+  global: '<circle cx="6" cy="6" r="4.4"/><path d="M1.6 6h8.8M6 1.6c1.6 1.6 1.6 7.2 0 8.8M6 1.6c-1.6 1.6-1.6 7.2 0 8.8"/>',
+};
+
+/** A mechanic's mark (a keyword's own symbol; the star where it has none). */
+export function mechanicMark(id: string): string {
+  return `<svg class="kw-ico mech-${id}" viewBox="0 0 12 12" aria-hidden="true">${MECHANIC_SVG[id] ?? EFFECT_SVG.star}</svg>`;
+}
+
 /** What an effect type (or a boon's kind) is marked with. */
 export function effectMark(raw: string): string {
   // (A hero's "as the battle begins" boons are marked as what they do.)
