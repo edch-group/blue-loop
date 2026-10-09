@@ -76,6 +76,8 @@ import {
   setRulesMode,
   shownKind,
   overlordById,
+  CHALLENGES,
+  type ChallengeKind,
 } from '../engine';
 import { markDirty } from './account';
 import { loadMeta, saveMeta } from './meta';
@@ -174,6 +176,9 @@ function portrait(cardId: string): string {
 const ARRIVAL_FLIGHT = 3.2;
 /** Into a battle: the pause between the flagship landing on the star (the encounter sounding) and the battle. */
 const ENCOUNTER_PAUSE = 1000;
+
+/** Each challenge's colour on the map: its ring and its route. */
+const CHALLENGE_COLOUR: Record<ChallengeKind, string> = { mine: '#d0479a', lord: '#d4a02a', frost: '#5aa8e0' };
 
 const LOST_PORTRAIT = `<span class="cmp-portrait cmp-portrait-lost"><svg viewBox="0 0 80 80" aria-hidden="true">
   <defs><radialGradient id="lost-bg" cx=".5" cy=".35"><stop offset="0" stop-color="#4a4658"/><stop offset="1" stop-color="#15131c"/></radialGradient>
@@ -403,7 +408,7 @@ export class CampaignView {
   /** Materials a battle won pays the player (the win, and the system's yield and stores as it is taken); 0 otherwise. */
   spoilsFor(game: GameState): number {
     const s = this.state;
-    if (!s?.battle || s.battle.attacker !== s.playerId || game.winnerId !== game.players[0].id) return 0;
+    if (!s?.battle || s.battle.challenge || s.battle.attacker !== s.playerId || game.winnerId !== game.players[0].id) return 0;
     const n = nodeById(s, s.battle.nodeId);
     return CAMPAIGN.winMaterials + n.yield.materials + (n.bonus?.materials ?? 0);
   }
@@ -541,7 +546,7 @@ export class CampaignView {
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
   private moveSpent(): boolean {
     const s = this.state;
-    if (!s || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.winner) return false;
+    if (!s || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.boon || s.winner) return false;
     const a = flagship(s, s.playerId);
     // (Moved, or with nowhere to go at all: there is no waiting, so time moves on by itself.)
     return !!a && armyMoves(s, a).length === 0;
@@ -671,6 +676,10 @@ export class CampaignView {
         voices.arrive(hero, ARRIVAL_FLIGHT * 1000);
         return true;
       }
+      case 'cmp-boon':
+        if (!this.apply({ type: 'takeBoon', pick: arg === 'health' ? 'health' : 'cool' })) return true;
+        sound.upgrade();
+        break;
       case 'cmp-zoom':
         if (this.view) {
           this.selected = null;
@@ -1082,6 +1091,8 @@ export class CampaignView {
           if (drawn.has(key)) return '';
           drawn.add(key);
           const m = nodeById(s, id);
+          // (A hidden challenge's route is hidden with it.)
+          if (n.challenge?.hidden || m.challenge?.hidden) return '';
           if (!seen.has(n.id) && !seen.has(m.id)) return '';
           if (!seen.has(n.id) || !seen.has(m.id)) {
             const [a, b] = seen.has(n.id) ? [n, m] : [m, n];
@@ -1094,7 +1105,9 @@ export class CampaignView {
           const same = n.owner && n.owner === m.owner;
           // (Drawn flat on the screen over the map, after it is laid out: drawRays. A line on the tilted plane
           // was drawn small and scaled up, and came out pixelated.)
-          this.rays.push({ a: n.id, b: m.id, colour: same ? this.colourOf(n.owner!) : undefined });
+          // (A challenge's route leads off the strip in its own colour.)
+          const ch = n.challenge ?? m.challenge;
+          this.rays.push({ a: n.id, b: m.id, colour: ch ? CHALLENGE_COLOUR[ch.kind] : same ? this.colourOf(n.owner!) : undefined, gone: ch?.done ? true : undefined });
           return '';
         }),
       )
@@ -1507,14 +1520,14 @@ export class CampaignView {
       const v = m ? parseInt(m[1], 16) : 0x999999;
       return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
     };
-    const objects: MapObject[] = s.nodes.map((n) => {
+    const objects: MapObject[] = s.nodes.filter((n) => !n.challenge?.hidden).map((n) => {
       const [x, z] = at.get(n.id)!;
       return {
         x,
         z,
         heart: !!n.heart,
-        ring: n.owner ? hex(this.colourOf(n.owner)) : undefined,
-        dim: !!(n.dimmed || n.collapsing),
+        ring: n.challenge ? hex(CHALLENGE_COLOUR[n.challenge.kind]) : n.owner ? hex(this.colourOf(n.owner)) : undefined,
+        dim: !!(n.dimmed || n.collapsing || n.challenge?.done),
         dead: !!(n.collapsed || n.ruined),
         reach: this.reach.has(n.id),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,
@@ -1738,6 +1751,23 @@ export class CampaignView {
   private renderNode(n: CampaignNode): string {
     const s = this.state!;
     const me = campaignPlayer(s);
+    // A challenge: what it is, what it pays, and the way in (once only).
+    if (n.challenge) {
+      const c = CHALLENGES[n.challenge.kind];
+      const army = flagship(s, me.id);
+      const can = !!army && s.phase === 'player' && !s.battle && armyMoves(s, army).some((m) => m.toId === n.id);
+      const status = n.challenge.done === 'won' ? 'done: won' : n.challenge.done === 'lost' ? 'sealed: lost' : 'one try only';
+      const lord = n.challenge.kind === 'lord' && n.challenge.lord ? `<p class="pop-tip">${esc(cardDef(n.challenge.lord).name)} waits there.</p>` : '';
+      return `
+      <div class="pop-head" style="--fc:${CHALLENGE_COLOUR[n.challenge.kind]}">
+        <i></i>
+        <div><small>a hidden challenge · ${status}</small><b>${esc(c.name.toLowerCase())}</b></div>
+        <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
+      </div>
+      <p class="pop-tip">${esc(c.text)}</p>${lord}
+      <p class="pop-tip"><b>Reward:</b> ${esc(c.reward)}. Lose, and your flagship is thrown clear (the run goes on), but the way in is sealed.</p>
+      ${can && army ? `<div class="pop-row"><button class="btn-primary pop-attack" data-act="cmp-travel" data-arg="${n.id}" data-army="${army.id}">${armyFace(army)}enter</button></div>` : ''}`;
+    }
     const mine = n.owner === me.id;
     const owner = n.owner ? factionById(s, n.owner) : null;
     const chip = (body: string, tip: string, tone = '') => `<button class="pop-chip ${tone}" data-act="cmp-tip" data-tip="${esc(tip)}" title="${esc(tip)}">${body}</button>`;
@@ -1809,6 +1839,15 @@ export class CampaignView {
         `<div class="center"><h2>${s.universe > 1 ? `${s.universe - 1} galax${s.universe - 1 === 1 ? 'y' : 'ies'} crossed` : 'lost in the first galaxy'}</h2>
           <p>${s.petals ? `${PETAL} ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed this run, and banked.` : 'No petals this time: reach a wormhole to grab some.'} You have ${PETAL} ${meta.petals} to spend.</p>
           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-new-run">upgrades · new run</button><button class="btn" data-act="cmp-abandon">back to menu</button></div></div>`,
+      );
+    }
+    // A Frost Line held: its reward, chosen.
+    if (s.boon && !s.battle) {
+      return this.modal(
+        `${lower(s.boon.source)} held`,
+        `<div class="center"><p>The cold has left its mark on your sun. Take one:</p>
+          <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-boon" data-arg="health">+5 max health, for good</button><button class="btn-primary" data-act="cmp-boon" data-arg="cool">cool your sun by 6 now</button></div></div>`,
+        false,
       );
     }
     // A battle pending (a run picked up mid-battle): straight into it, no stop on the way.

@@ -275,7 +275,8 @@ describe('stations', () => {
 describe('the view', () => {
   it('shows the whole strip, every route to the wormhole', () => {
     const s = fresh();
-    expect(visibleNodes(s, s.playerId).size).toBe(s.nodes.length);
+    // (All but the hidden challenges, found only once the system they hang off is taken.)
+    expect(visibleNodes(s, s.playerId).size).toBe(s.nodes.filter((n) => !n.challenge?.hidden).length);
   });
 });
 

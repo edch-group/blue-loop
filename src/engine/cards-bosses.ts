@@ -101,7 +101,69 @@ export const BOSS_CARDS: CardDef[] = [
     bossAction: { name: 'Rally', effects: [{ type: 'restore', amount: 3, all: true }] },
   },
 ];
+
+/**
+ * Challenges (secret systems off the strip): the Antimatter Mine's crystals, the Frost Line's waves, and the Lost
+ * Lords (campaign-only characters: beaten, a Lost Lord joins the flagship's deck, so its cards are real cards).
+ */
+export const CHALLENGE_CARDS: CardDef[] = [
+  {
+    id: 'antimatter_crystal', overlordPart: 'antimatter', name: 'Antimatter Crystal', kind: 'defence', health: 3,
+    text: '{dawn}: {heat:1}. Unstable: break as many as you can before the mine seals.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
+  },
+  {
+    id: 'frost_wraith', overlordPart: 'frost', name: 'Frost Wraith', kind: 'attack', health: 3, attack: 2,
+    text: '{dawn}: {heat:2}. Cold given a shape, and a hunger.',
+    onTurn: [{ type: 'heat', amount: 2, to: 'target' }],
+  },
+  {
+    id: 'frost_shade', overlordPart: 'frost', name: 'Frost Shade', kind: 'attack', health: 3, attack: 1,
+    text: '{dawn}: {heat:1}. A breath of the cold, wandering.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
+  },
+  {
+    id: 'rime_golem', overlordPart: 'frost', name: 'Rime Golem', kind: 'defence', health: 6, defence: 2,
+    text: '{guard}. {sturdy:2}. Ice packed hard round a frozen heart.',
+    passive: [{ type: 'taunt' }],
+  },
+  {
+    id: 'blizzard_herald', overlordPart: 'frost', name: 'Blizzard Herald', kind: 'attack', health: 5, attack: 2,
+    text: '2 heat to each of your cards.',
+    bossAction: { name: 'Whiteout', effects: [{ type: 'strikeAll', amount: 2 }] },
+  },
+  {
+    id: 'lost_retinue', overlordPart: 'retainer', name: 'Lost Retinue', kind: 'attack', health: 3, attack: 2,
+    text: "{dawn}: {heat:1}. Sworn to a lord whose people are gone.",
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
+  },
+  // The Lost Lords: the last of the Lost Races, each a card of its own. As a foe, it takes a great action a day.
+  {
+    id: 'lord_orrim', overlordPart: 'lost lord', name: 'Orrim, the Hollow King', kind: 'defence', rarity: 'anomaly', character: true, cost: 5, health: 9, attack: 4,
+    text: '{guard}. {dawn}: {shield:2}. Last of the Hollow Kings, crowned by no one left alive.',
+    passive: [{ type: 'taunt' }],
+    onTurn: [{ type: 'shield', amount: 2 }],
+    bossAction: { name: 'Hollow Decree', effects: [{ type: 'heat', amount: 5, to: 'target' }], say: '5 heat to your sun.' },
+  },
+  {
+    id: 'lord_vessa', overlordPart: 'lost lord', name: 'Vessa of the Quiet Choir', kind: 'growth', rarity: 'anomaly', character: true, cost: 4, health: 7, attack: 3,
+    text: '{dawn}: {cool:2}. Draw 1. The last voice of a choir that sang its stars to sleep.',
+    onTurn: [{ type: 'cool', amount: 2 }, { type: 'draw', amount: 1 }],
+    bossAction: { name: 'Silence', effects: [{ type: 'strikeAll', amount: 2 }], say: '2 heat to each of your cards.' },
+  },
+  {
+    id: 'lord_glasswright', overlordPart: 'lost lord', name: 'The Last Glasswright', kind: 'attack', rarity: 'anomaly', character: true, cost: 5, health: 7, attack: 5, defence: 2,
+    text: '{sturdy:2}. {dawn}: {heat:1}. Her people blew suns into glass; she alone remembers how.',
+    onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
+    bossAction: { name: 'Shatterglass', effects: [{ type: 'strikeBest', amount: 6 }], say: '6 heat to your card with the most attack.' },
+  },
+];
 for (const c of BOSS_CARDS) Object.assign(c, { cost: 0, token: true });
+for (const c of CHALLENGE_CARDS) if (!c.id.startsWith('lord_')) Object.assign(c, { cost: 0, token: true });
+BOSS_CARDS.push(...CHALLENGE_CARDS);
+
+/** The Lost Lords, each beaten once to join the flagship's deck. */
+export const LOST_LORDS = ['lord_orrim', 'lord_vessa', 'lord_glasswright'];
 
 /** A Lost Overlord: its name, what it is, and the body it fights with (its Overlord leads from the Hero slot). */
 export interface Overlord {

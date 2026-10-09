@@ -41,6 +41,7 @@ export function createGame(setup: GameSetup): GameState {
     winnerId: null,
     log: [],
     ...(setup.campaign ? { campaign: true } : {}),
+    ...(setup.challenge ? { challenge: { ...setup.challenge } } : {}),
     ...(setup.mode === 'core' ? { mode: 'core' as const } : {}),
   };
   setRulesMode(state.mode);
@@ -94,7 +95,7 @@ export function createGame(setup: GameSetup): GameState {
     // A Lost Overlord: its body in play, and the first of its parts' actions to come.
     if (ps.boss) {
       // It has no sun: its leader (the Overlord in its Hero slot) is what must be beaten.
-      const leader = commandCard(p);
+      const leader = ps.bossLeader ? p.tableau.find((c) => c.defId === ps.bossLeader) : commandCard(p);
       if (leader && ps.bossHealth) leader.health = leader.maxHealth = ps.bossHealth;
       p.boss = { intent: bossOrder(p)[0]?.uid, ...(leader ? { leader: leader.uid } : {}) };
     }
@@ -1301,6 +1302,7 @@ function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
 /** A card leaves its tableau for the discard pile (or its owner's hand or deck), triggering its leave effects. */
 function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck' = 'discard') {
   owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
+  if (owner.boss && state.challenge?.kind === 'mine' && card.defId === 'antimatter_crystal') state.challenge.broken += 1;
   // A Lost Overlord beaten down: the battle is won.
   if (owner.boss?.leader === card.uid && !owner.eliminated) {
     log(state, `☠ ${owner.name} falls!`);
@@ -1534,6 +1536,8 @@ function startTurn(state: GameState) {
     notePulse(state, p, activeGlobal(state)?.card ?? null, 'cool', p, 1);
   }
   dawn(state, p);
+  // A challenge's clock and its waves (a secret system's own rules: see GameState.challenge).
+  if (p.boss && state.challenge && !state.winnerId) challengeDay(state, p);
   // A Lost Overlord takes its one great action.
   if (p.boss && !state.winnerId && !p.eliminated) bossAct(state, p);
 }
@@ -1622,6 +1626,28 @@ function othersInOrder(state: GameState, p: PlayerState): PlayerState[] {
   const n = state.players.length;
   const seat = state.players.indexOf(p);
   return Array.from({ length: n - 1 }, (_, k) => state.players[(seat + k + 1) % n]).filter((o) => !o.eliminated);
+}
+
+/**
+ * A challenge's day, at the dawn of the side that holds it: the challenger's days run down (all spent, the
+ * challenge is over and they have come through it); then what it calls up fills its free slots.
+ */
+function challengeDay(state: GameState, p: PlayerState) {
+  const c = state.challenge!;
+  if (c.days !== undefined) {
+    c.days -= 1;
+    if (c.days <= 0) {
+      const them = state.players.find((x) => x !== p && !x.eliminated);
+      log(state, c.kind === 'mine' ? `The mine seals itself: ${c.broken} crystal${c.broken === 1 ? '' : 's'} broken.` : `${them?.name ?? 'The challenger'} holds the line: the storm is spent.`);
+      p.eliminated = true;
+      state.winnerId = them?.id ?? null;
+      return;
+    }
+  }
+  if (!c.spawn?.length) return;
+  const open = slotsBySafety().filter((i) => freeSlots(p).includes(i) && i !== COMMAND_SLOT).slice(0, c.per ?? 99);
+  open.forEach((slot, i) => place(p, newCard(state, c.spawn![i % c.spawn!.length]), slot));
+  if (open.length) log(state, c.kind === 'mine' ? `${open.length} more crystal${open.length === 1 ? '' : 's'} grow${open.length === 1 ? 's' : ''} in the mine.` : `A wave: ${open.length} more come out of the cold.`);
 }
 
 /** A Lost Overlord's parts that act, in the order they take their turns: left to right, the Overlord itself last. */

@@ -917,6 +917,26 @@ function pyrr(S: Scene, x: number, y: number, s: number, o: PyrOpts = {}): strin
 type Draw = (S: Scene) => string;
 
 const ART: Record<string, Draw> = {
+  // ---- Challenges (cards-bosses.ts) ----
+  antimatter_crystal: (S) =>
+    S.glow(80, 54, 30, '#d0479a', 0.6) + S.crystal(80, 56, 46, 18, 0, '#ff8ad0') + S.crystal(60, 66, 26, 10, -18, '#c06ad8', 0.8) + S.crystal(100, 64, 30, 11, 16, '#ff6ab0', 0.85) + S.motes(80, 50, 16, 40, '#ffc0e8'),
+  frost_shade: (S) =>
+    S.glow(80, 50, 26, '#9fd8ff', 0.5) + `<path d="M64 92 Q60 60 72 40 Q80 28 88 40 Q100 60 96 92 Q88 80 80 92 Q72 80 64 92 Z" fill="#dff2ff" opacity="0.55"/>` + `<circle cx="75" cy="46" r="1.8" fill="#2a6aa8"/><circle cx="85" cy="46" r="1.8" fill="#2a6aa8"/>` + S.motes(80, 50, 14, 50, '#ffffff'),
+  frost_wraith: (S) =>
+    S.glow(80, 48, 30, '#7cc0f0', 0.55) + `<path d="M56 96 Q50 56 68 34 Q80 20 92 34 Q110 56 104 96 Q92 82 80 96 Q68 82 56 96 Z" fill="#e8f6ff" opacity="0.75" stroke="#7cc0f0" stroke-width="0.8"/>` + `<path d="M70 44 L76 48 M90 44 L84 48" stroke="#1a4a80" stroke-width="2"/>` + S.crystal(48, 40, 16, 6, -30, '#bfe6ff', 0.8) + S.crystal(112, 40, 16, 6, 30, '#bfe6ff', 0.8),
+  rime_golem: (S) =>
+    S.glow(80, 54, 32, '#7cc0f0', 0.35) + S.ground(92, '#0a1a2a', 4) + `<path d="M50 92 L54 54 L62 40 L98 40 L106 54 L110 92 Z" fill="#cfe6f6" stroke="#5aa8e0" stroke-width="1"/>` + `<path d="M62 40 L80 24 L98 40" fill="#e8f6ff" stroke="#5aa8e0" stroke-width="1"/>` + S.glow(80, 62, 8, '#5aa8e0', 0.8),
+  blizzard_herald: (S) =>
+    S.glow(80, 46, 32, '#9fd8ff', 0.5) + `<path d="M66 96 L70 50 Q80 36 90 50 L94 96 Z" fill="#e8f6ff" opacity="0.85"/>` + `<circle cx="80" cy="40" r="8" fill="#ffffff"/>` + [0, 1, 2, 3, 4, 5].map((k) => `<path d="M80 40 L${(80 + Math.cos(k * 1.047) * 34).toFixed(1)} ${(40 + Math.sin(k * 1.047) * 24).toFixed(1)}" stroke="#bfe6ff" stroke-width="1.2" opacity="0.8"/>`).join('') + S.motes(80, 50, 24, 70, '#ffffff'),
+  lost_retinue: (S) =>
+    S.glow(80, 56, 30, '#d4a02a', 0.35) + S.ground(92, '#0a0806', 4) + `<path d="M70 92 L72 58 Q80 48 88 58 L90 92 Z" fill="#1a140c" stroke="#d4a02a" stroke-width="0.7"/><circle cx="80" cy="50" r="6" fill="#1a140c" stroke="#d4a02a" stroke-width="0.7"/><path d="M94 92 L94 40" stroke="#d4a02a" stroke-width="1"/>`,
+  lord_orrim: (S) =>
+    S.glow(80, 44, 34, '#d4a02a', 0.5) + `<path d="M48 100 L54 60 Q60 48 72 44 L72 34 Q80 28 88 34 L88 44 Q100 48 106 60 L112 100 Z" fill="#14100a" stroke="#d4a02a" stroke-width="0.8"/>` + `<path d="M68 30 L72 18 L76 26 L80 14 L84 26 L88 18 L92 30 Z" fill="none" stroke="#ffd060" stroke-width="1.4"/>` + `<circle cx="80" cy="40" r="3" fill="#000"/>` + S.motes(80, 40, 12, 50, '#ffd060'),
+  lord_vessa: (S) =>
+    S.glow(80, 44, 34, '#c8a0ff', 0.5) + `<path d="M56 100 Q58 60 72 46 Q80 38 88 46 Q102 60 104 100 Z" fill="#1a1428" stroke="#c8a0ff" stroke-width="0.8"/>` + `<circle cx="80" cy="36" r="8" fill="#e8dcff"/>` + S.rings(80, 36, 12, 3, 6, '#c8a0ff', 0.6) + S.motes(80, 40, 14, 60, '#e8dcff'),
+  lord_glasswright: (S) =>
+    S.glow(80, 50, 34, '#ffb070', 0.55) + `<path d="M58 100 Q60 62 74 50 Q80 44 86 50 Q100 62 102 100 Z" fill="#160e0a" stroke="#ffb070" stroke-width="0.8"/>` + `<circle cx="80" cy="42" r="7" fill="#160e0a" stroke="#ffb070" stroke-width="0.8"/>` + S.sun(112, 34, 9, '#ffd060', 6) + `<path d="M88 52 Q100 44 108 38" stroke="#ffd060" stroke-width="1.6" fill="none"/>` + S.crystal(46, 70, 20, 8, -10, '#ffe0a0', 0.8),
+
   // ---- The Lost Overlords (cards-bosses.ts): silhouettes against the embers ----
   boss_colossus: (S) =>
     S.ground(92, '#050203', 6) + S.glow(80, 58, 30, '#ff6a3a', 0.55) +
@@ -1826,7 +1846,7 @@ export function cardScene(def: CardDef): string {
   if (def.fusedFrom) return fusedScene(def);
   const painted = RENDERED[def.id];
   if (painted) return `<svg class="art" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><image href="${painted}" width="160" height="100" preserveAspectRatio="xMidYMid slice"/></svg>`;
-  const palette = def.bossAction || def.id.startsWith('boss_') || /^(colossus|maws|tyrant)_/.test(def.id) ? PAL.overlord : PAL[def.race !== undefined ? RACE_PAL[def.race] : def.kind] ?? PAL.command;
+  const palette = def.overlordPart || def.id.startsWith('boss_') ? PAL.overlord : PAL[def.race !== undefined ? RACE_PAL[def.race] : def.kind] ?? PAL.command;
   const S = new Scene(`a-${def.id}`, palette);
   const p = S.p;
   const body = (ART[def.id] ?? ((s: Scene) => s.sun(80, 50, 12)))(S);

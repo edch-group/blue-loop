@@ -5121,9 +5121,13 @@ export class App {
     if (!p) {
       const lord = s.players.find((x) => x.boss && !x.eliminated);
       const next = lord ? bossIntent(lord) : null;
+      // A challenge's clock (and the mine's count).
+      const ch = s.challenge;
+      const clock = ch?.days !== undefined ? `${ch.days} day${ch.days === 1 ? '' : 's'} left${ch.kind === 'mine' ? ` · ${ch.broken} broken` : ''}` : '';
+      if (lord && !next && clock) return `<div class="mid-hint boss-hint"><small>${esc(lord.name.toLowerCase())}</small><b>${ch!.kind === 'mine' ? 'break the crystals' : 'hold the line'}</b><span>${clock}</span></div>`;
       if (lord && next) {
         const part = cardDef(next.card.defId);
-        return `<div class="mid-hint boss-hint"><small>${esc(lord.name.toLowerCase())} · next</small><b>${esc(next.name.toLowerCase())}</b><span>${esc(plainText(part.text).replace(/^.*?Action: /, ''))} <i>(${esc(part.name.toLowerCase())}: destroy it to stop this)</i></span></div>`;
+        return `<div class="mid-hint boss-hint"><small>${esc(lord.name.toLowerCase())}${clock ? ` · ${clock}` : ''} · next</small><b>${esc(next.name.toLowerCase())}</b><span>${esc(part.bossAction?.say ?? plainText(part.text).replace(/^.*?Action: /, ''))} <i>(${esc(part.name.toLowerCase())}: destroy it to stop this)</i></span></div>`;
       }
     }
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
@@ -5749,6 +5753,17 @@ export class App {
    */
   private bossVitals(p: PlayerState): string {
     const leader = p.tableau.find((c) => c.uid === p.boss?.leader);
+    // A challenge with no leader (the mine, the Frost Line): its count in place of a sun.
+    const ch = this.state?.challenge;
+    if (!p.boss?.leader && ch) {
+      const mine = ch.kind === 'mine';
+      return `<div class="vitals boss-vitals" data-anchor="player:${p.id}" title="${mine ? 'Break as many crystals as you can before the mine seals: 3 materials each.' : 'Hold out until the storm is spent.'}">
+        <span class="boss-vitals-label">${mine ? 'crystals broken' : 'days to hold'}</span>
+        <b class="boss-vitals-hp">${mine ? ch.broken : ch.days ?? 0}</b>
+        ${mine ? `<span class="boss-vitals-shields">${ch.days ?? 0} day${ch.days === 1 ? '' : 's'} left</span>` : ''}
+        <span class="vitals-name">${esc(p.name.toLowerCase())}</span>
+      </div>`;
+    }
     const hp = leader?.health ?? 0, max = leader?.maxHealth ?? (leader ? baseHealth(leader.defId) : 1);
     const pct = Math.max(0, Math.min(100, (hp / Math.max(1, max)) * 100));
     return `<div class="vitals boss-vitals" data-anchor="player:${p.id}" title="It has no sun: beat down the Overlord itself (heat sent at it strikes the Overlord, past its shields).">

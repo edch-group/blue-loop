@@ -312,9 +312,9 @@ export interface CardDef {
    * A Lost Overlord's part (a limb, its gear, a retainer): the one great action it takes when its turn in the
    * Overlord's round comes (see PlayerState.boss). Destroy the part and the action is lost.
    */
-  bossAction?: { name: string; effects: Effect[] };
+  bossAction?: { name: string; effects: Effect[]; /** What it does, in words (if not the card's whole text). */ say?: string };
   /** A Lost Overlord's card: what it is of the Overlord's (shown where a card's type is). */
-  overlordPart?: 'overlord' | 'body' | 'gear' | 'retainer';
+  overlordPart?: 'overlord' | 'body' | 'gear' | 'retainer' | 'antimatter' | 'frost' | 'lost lord';
   /** The energy it costs to play (see costs.ts). */
   cost?: number;
   /** Spends all your energy as it is played (at least 1): its effects count how much (an X cost). */
@@ -527,6 +527,12 @@ export interface GameState {
   reaction?: Reaction;
   /** Planning copies (the AI's look-ahead): no reaction windows open, moves go straight through. */
   noReactions?: boolean;
+  /**
+   * A campaign challenge (a secret system): `days` the challenger has (once they are spent, the challenge is
+   * over: survived, or mined out); what the other side calls into its free slots each day (`spawn`, `per` at a
+   * time), and the crystals broken so far (the Antimatter Mine).
+   */
+  challenge?: { kind: 'mine' | 'frost' | 'lord'; days?: number; spawn?: string[]; per?: number; broken: number };
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
   /** Campaign battle rules (see GameSetup.campaign). */
@@ -611,6 +617,8 @@ export interface PlayerSetup {
   boss?: boolean;
   /** A Lost Overlord's leader's stability (its Overlord: beat it and the battle is won), if not its printed one. */
   bossHealth?: number;
+  /** The card that leads it, if not the one in its Hero slot (a Lost Lord); none at all for a mine or a wave. */
+  bossLeader?: string;
   /** Campaign battles: a Lightspeed card already set face down (a garrison). */
   lightspeed?: string;
   modifiers?: BattleModifiers;
@@ -635,6 +643,8 @@ export interface ShipRooms {
 }
 
 export interface GameSetup {
+  /** A campaign challenge's rules (see GameState.challenge). */
+  challenge?: GameState['challenge'];
   seed: number;
   players: PlayerSetup[];
   /**

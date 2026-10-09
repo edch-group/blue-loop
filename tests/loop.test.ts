@@ -53,7 +53,7 @@ describe('the strip', () => {
   it('lays out lanes of systems the length of the strip, with the wormhole past the far end', () => {
     const s = run();
     // The arrival alone at the near end, the lanes between, the wormhole past the far end.
-    expect(s.nodes).toHaveLength(1 + CAMPAIGN.lanes * (CAMPAIGN.columns - 1) + 1);
+    expect(s.nodes.filter((n) => !n.challenge)).toHaveLength(1 + CAMPAIGN.lanes * (CAMPAIGN.columns - 1) + 1);
     const start = nodeById(s, flag(s).nodeId);
     expect(start.links).toHaveLength(CAMPAIGN.lanes);
     expect(start.y).toBe(s.nodes.find((n) => n.heart)!.y);
