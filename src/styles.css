@@ -6407,3 +6407,5 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-tip b { font-family: var(--display); font-weight: 500; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); }
 .up-tip span { font-size: 0.78rem; line-height: 1.35; color: var(--ink); }
 .up-tip small { font-size: 0.68rem; line-height: 1.35; color: var(--ink-faint); }
+/* Top left: back, and (with points placed this visit) undo and clear beside it. */
+.up-left { justify-self: start; display: flex; align-items: center; gap: 14px; }

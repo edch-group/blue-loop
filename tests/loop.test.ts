@@ -19,6 +19,7 @@ import {
   STARTER_OFFERS,
   armyBonus,
   migrateMeta,
+  refundUpgrade,
   starterAddProblem,
   legalIn,
   cardDef,
@@ -121,6 +122,17 @@ describe('the skill tree', () => {
     expect(b.dread).toBe(p.dread + 1);
     expect(run).toMatchObject({ plunder: 2, choices: 1 });
     expect(run.xpBonus).toBeCloseTo(0.1);
+  });
+});
+
+describe('a point taken back', () => {
+  it('refunds its XP', () => {
+    let meta = { ...emptyMeta(), xp: 100 };
+    meta = buyUpgrade(buyUpgrade(meta, 'cryo'), 'cryo');
+    const after = refundUpgrade(meta, 'cryo');
+    expect(after.upgrades.cryo).toBe(1);
+    expect(after.xp).toBe(meta.xp + 35);
+    expect(refundUpgrade(after, 'cryo')).toMatchObject({ xp: 100, upgrades: {} });
   });
 });
 

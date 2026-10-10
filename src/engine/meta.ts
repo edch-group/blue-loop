@@ -147,6 +147,18 @@ export function buyUpgrade(meta: MetaState, id: string): MetaState {
   return { ...meta, ...paid, upgrades: { ...meta.upgrades, [id]: level + 1 } };
 }
 
+/** Take back the last level of a skill (a point placed by mistake): its XP (or petals) refunded. */
+export function refundUpgrade(meta: MetaState, id: string): MetaState {
+  const level = levelOf(meta, id);
+  const u = metaUpgrade(id);
+  if (!u || level <= 0) return meta;
+  const price = u.cost(level - 1);
+  const back = currencyOf(u) === 'xp' ? { xp: (meta.xp ?? 0) + price } : { petals: meta.petals + price };
+  const upgrades = { ...meta.upgrades, [id]: level - 1 };
+  if (!upgrades[id]) delete upgrades[id];
+  return { ...meta, ...back, upgrades };
+}
+
 export function raceUnlocked(meta: MetaState, race: number): boolean {
   return STARTING_RACES.includes(race) || levelOf(meta, `race:${race}`) > 0;
 }

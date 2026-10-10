@@ -37,6 +37,7 @@ import {
   starterCardPrice,
   STARTER_OFFERS,
   buyUpgrade,
+  refundUpgrade,
   buyUpgradeProblem,
   levelOf,
   raceUnlocked,
@@ -364,10 +365,10 @@ export class CampaignView {
   private deckOpen = false;
   /** The lasting upgrade picked in the shop, shown in the flower's heart. */
   /**
-   * Skill points placed on the tree but not yet learnt [direction: a tap assigns a point, which must be confirmed, so
-   * no point is spent by accident]: each a level of a skill, in the order placed.
+   * Skill points placed on the tree this visit [direction: a tap assigns a point at once; undo and clear, by the back
+   * button, take points back (their XP refunded), so none is spent by accident]: each a level of a skill, in order.
    */
-  private upPending: string[] = [];
+  private upPlaced: string[] = [];
   /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
   /** The systems seen as the map was last drawn (the ships flying over it are drawn after it). */
@@ -691,43 +692,33 @@ export class CampaignView {
         break;
       case 'cmp-shop':
         this.shopOpen = !this.shopOpen;
-        this.upPending = [];
+        this.upPlaced = [];
         break;
       case 'cmp-up-pick': {
-        // A point placed (as the tree would stand with those already placed): learnt only once confirmed.
-        const plan = this.plannedMeta(loadMeta());
-        const why = buyUpgradeProblem(plan, arg);
+        // A point placed: learnt at once (undo or clear takes it back, while the tree is open).
+        const meta = loadMeta();
+        const why = buyUpgradeProblem(meta, arg);
         if (why) {
           this.host.toast(why);
           sound.error();
           break;
         }
         // (A battery charging up, higher with each point already in it.)
-        sound.charge(levelOf(plan, arg));
-        this.upPending.push(arg);
+        sound.charge(levelOf(meta, arg));
+        saveMeta(buyUpgrade(meta, arg));
+        this.upPlaced.push(arg);
         // (The tree is drawn afresh: its tip goes back beside it.)
         requestAnimationFrame(() => this.showUpTip());
         break;
       }
       case 'cmp-up-undo':
-        this.upPending.pop();
-        break;
-      case 'cmp-up-clear':
-        this.upPending = [];
-        break;
-      case 'cmp-up-confirm': {
+      case 'cmp-up-clear': {
+        // Points placed this visit taken back, the last first, their XP refunded.
         let meta = loadMeta();
-        try {
-          for (const id of this.upPending) meta = buyUpgrade(meta, id);
-        } catch (e) {
-          this.host.toast((e as Error).message);
-          sound.error();
-          this.upPending = [];
-          break;
-        }
+        const n = act === 'cmp-up-undo' ? 1 : this.upPlaced.length;
+        for (let i = 0; i < n && this.upPlaced.length; i++) meta = refundUpgrade(meta, this.upPlaced.pop()!);
         saveMeta(meta);
-        this.upPending = [];
-        sound.upgrade();
+        sound.hover();
         break;
       }
       case 'cmp-hero-pick':
@@ -1145,20 +1136,7 @@ export class CampaignView {
    * one it needs, ending in a capstone. Lines join each skill to what it needs (lit once that is bought). Picking a
    * skill shows it in the flower's heart: what it gives now and next, what it needs, and the way to buy it.
    */
-  /** The tree as it would stand with the points placed (each bought in turn; one that no longer can be is let go). */
-  private plannedMeta(meta: MetaState): MetaState {
-    let plan = meta;
-    this.upPending = this.upPending.filter((id) => {
-      if (buyUpgradeProblem(plan, id)) return false;
-      plan = buyUpgrade(plan, id);
-      return true;
-    });
-    return plan;
-  }
-
-  private renderShop(real: MetaState): string {
-    // (The tree drawn as it would stand with the points placed: those still to confirm marked as such.)
-    const meta = this.plannedMeta(real);
+  private renderShop(meta: MetaState): string {
     // [direction: each branch its own colour; its petal deepens in it the more points are poured in]
     const branches: { g: MetaGroup; title: string; dir: number; colour: string }[] = [
       // (One off each of the seven petals the flower shows above the foot of the screen, every 30° from left to right.)
@@ -1224,7 +1202,7 @@ export class CampaignView {
         fills.push(`<mask id="up-lobe-${br.g}" maskUnits="userSpaceOnUse" x="70" y="-260" width="860" height="860">
           <path d="M500 170 L405 170 A95 330 0 0 1 595 170 Z" transform="rotate(${rot} 500 170)" fill="#fff"/>${ell(rot - 30, '#000')}${ell(rot + 30, '#000')}
         </mask>
-        <rect x="70" y="-260" width="860" height="860" mask="url(#up-lobe-${br.g})" fill="${br.colour}" fill-opacity="${(0.14 + 0.66 * f).toFixed(3)}"/>`);
+        <rect x="70" y="-260" width="860" height="860" mask="url(#up-lobe-${br.g})" fill="${br.colour}" fill-opacity="${(0.06 + 0.26 * f).toFixed(3)}"/>`);
       stems.push(line(place(deg, TIP), pos.get(first.id)!, levelOf(meta, first.id) ? 'lit' : '', br.colour));
     }
     // The links: the heart to each first tier, each skill to what it needs.
@@ -1247,7 +1225,8 @@ export class CampaignView {
     const nodes = skills
       .map((u) => {
         const [x, y] = pos.get(u.id)!;
-        const had = Math.min(levelOf(real, u.id), u.max);
+        // (Points placed this visit, which undo can still take back, marked as such.)
+        const had = Math.max(0, Math.min(levelOf(meta, u.id), u.max) - this.upPlaced.filter((x) => x === u.id).length);
         const level = Math.min(levelOf(meta, u.id), u.max);
         const maxed = level >= u.max;
         const open = upgradeOpen(meta, u.id);
@@ -1255,8 +1234,8 @@ export class CampaignView {
         const look = UPGRADE_LOOK[u.id];
         const needs = (u.requires ?? []).filter(([r, n]) => levelOf(meta, r) < n).map(([r, n]) => `${metaUpgrade(r)?.name ?? r} ${'I'.repeat(n)}`);
         const vals = look ? `${level ? `${look.value(level)} now` : 'none yet'}${maxed ? '' : ` · ${look.value(level + 1)} next`}: ${look.unit}.` : u.text;
-        const note = `${branchOf(u.group)} · ${u.tier === 3 ? 'capstone' : `tier ${u.tier ?? 1}`} · level ${level} of ${u.max}${level > had ? ` (${level - had} to confirm)` : ''}. ${
-          maxed ? 'Complete.' : needs.length ? `Needs ${needs.join(' and ')}.` : why ? why : `Tap to place a point: ${u.cost(level)} XP.`
+        const note = `${branchOf(u.group)} · ${u.tier === 3 ? 'capstone' : `tier ${u.tier ?? 1}`} · level ${level} of ${u.max}${level > had ? ` (${level - had} just placed: undo takes ${level - had === 1 ? 'it' : 'them'} back)` : ''}. ${
+          maxed ? 'Complete.' : needs.length ? `Needs ${needs.join(' and ')}.` : why ? why : `Tap to learn the next level: ${u.cost(level)} XP.`
         }`;
         return `<button class="up-node tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--bc:${colourOf(u.group)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-note="${esc(note)}" aria-label="${esc(u.name)}">
           <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max, had)}</svg>${look?.icon ?? ''}</span>
@@ -1264,30 +1243,16 @@ export class CampaignView {
         </button>`;
       })
       .join('');
-    // Under the title: the experience to spend; with points placed, what they'll learn and cost, to confirm.
-    const spend = (real.xp ?? 0) - (meta.xp ?? 0);
-    const placed = [...new Set(this.upPending)].map((id) => {
-      const n = this.upPending.filter((x) => x === id).length;
-      return `${esc(metaUpgrade(id)?.name.toLowerCase() ?? id)}${n > 1 ? ` ×${n}` : ''}`;
-    });
-    const plan = this.upPending.length
-      ? `<div class="up-plan">
-          <p class="up-plan-list">${placed.join(' · ')}</p>
-          <div class="up-plan-acts">
-            <button class="up-heart-buy" data-act="cmp-up-confirm">confirm<i>${XP_MARK}${spend}</i></button>
-            <button class="up-plan-undo" data-act="cmp-up-undo">undo</button>
-            <button class="up-plan-undo" data-act="cmp-up-clear">clear</button>
-          </div>
-        </div>`
-      : '';
     return `
       <div class="up-shop up-tree">
         <header class="up-head up-head-tree">
-          <button class="up-back" data-act="cmp-shop" aria-label="Back">‹ back</button>
+          <div class="up-left">
+            <button class="up-back" data-act="cmp-shop" aria-label="Back">‹ back</button>
+            ${this.upPlaced.length ? '<button class="up-plan-undo" data-act="cmp-up-undo">undo</button><button class="up-plan-undo" data-act="cmp-up-clear">clear</button>' : ''}
+          </div>
           <div class="up-title-big">
             <h3>skills</h3>
-            <span class="up-xp">${XP_MARK}<b>${(real.xp ?? 0) - spend}</b><small>experience to spend</small></span>
-            ${plan}
+            <span class="up-xp">${XP_MARK}<b>${meta.xp ?? 0}</b><small>experience to spend</small></span>
           </div>
         </header>
         <div class="up-sky">
