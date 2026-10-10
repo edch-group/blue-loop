@@ -6680,3 +6680,13 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 @keyframes loot-core { 50% { transform: scale(1.18); filter: brightness(1.15); } }
 @keyframes loot-led { 50% { opacity: 0.25; } }
 @media (prefers-reduced-motion: reduce) { .loot-cache-core, .loot-cache-led { animation: none; } }
+
+/* The run over: no box, three lines and the way out. */
+.run-over { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; }
+.run-over h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, 6vh, 2.6rem); letter-spacing: 0.32em; text-transform: uppercase; color: var(--ink); animation: run-over-in 1.4s ease both; }
+.run-over p { margin: 0; font-style: italic; font-size: clamp(0.85rem, 3vh, 1.05rem); color: var(--ink-soft); animation: run-over-in 1.4s ease 0.6s both; }
+.run-over-petals { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 1.1rem; letter-spacing: 0.08em; color: var(--ink); animation: run-over-in 1s ease 1.3s both; }
+.run-over-petals svg { width: 20px; height: 20px; }
+.run-over .btn-primary { margin-top: 10px; min-width: 140px; animation: run-over-in 0.8s ease 1.8s both; }
+@keyframes run-over-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .run-over h2, .run-over p, .run-over-petals, .run-over .btn-primary { animation: none; } }

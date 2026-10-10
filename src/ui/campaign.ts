@@ -2337,15 +2337,14 @@ export class CampaignView {
   private renderOverlay(): string {
     const s = this.state!;
     if (s.winner) {
-      // The run is over: how far it got, and what it banked.
-      const meta = loadMeta();
-      return this.modal(
-        'the run is over',
-        `<div class="center"><h2>${s.universe > 1 ? `${s.universe - 1} galax${s.universe - 1 === 1 ? 'y' : 'ies'} crossed` : 'lost in the first galaxy'}</h2>
-          <p>${XP_MARK} ${s.xp ?? 0} experience earned this run, and kept: commander level ${levelFor(meta.xp ?? 0).level}, with ${pointsLeft(meta)} skill point${pointsLeft(meta) === 1 ? '' : 's'} to spend.</p>
-          <p>${s.petals ? `${PETAL} ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed this run, and banked.` : 'No petals this time: reach a wormhole to grab some.'} You have ${PETAL} ${meta.petals} to spend on your starting decks.</p>
-          <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-new-run">upgrades · new run</button><button class="btn" data-act="cmp-abandon">back to menu</button></div></div>`,
-      );
+      // The run is over (the flagship is lost): said plainly, the petals it banked, and the way out to the campaign's
+      // menu (its upgrades, and a new run).
+      return `<div class="overlay overlay-soft run-over">
+        <h2>you are dead</h2>
+        <p>The others will follow, soon enough…</p>
+        <span class="run-over-petals">+ ${s.petals} ${PETAL}</span>
+        <button class="btn-primary" data-act="cmp-new-run">exit</button>
+      </div>`;
     }
     // A Frost Line held: its reward, chosen.
     if (s.boon && !s.battle) {
