@@ -57,7 +57,7 @@ const CHORDS: number[][] = [
 const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 
 /** The scores: the ambient drone (the campaign map), the battle theme (matches), and the voyage (the menus). */
-export type MusicScene = 'ambient' | 'battle' | 'voyage';
+export type MusicScene = 'ambient' | 'battle' | 'boss' | 'voyage';
 
 // ---- Battle theme -----------------------------------------------------------
 // The menu score's sibling, in the same key and voices, made tense: a soft,
@@ -144,6 +144,48 @@ const CAMPAIGN_PHRASES: [number, string][][][] = [
   ],
 ];
 
+// ---- Boss battles --------------------------------------------------------------
+// For a match against an Overlord (or a challenge), in the voices of the other
+// scores: a plucked arpeggio like the battle theme's, a little faster and
+// hammering on each chord's root, over a deep held bass and a low pulse on
+// every beat that the whole score breathes with; the chords turn darker (Am,
+// B-flat, Dm, then E, wrenching back round). Then the voyage's voices join one
+// by one: its gritty haze and a slow, menacing melody (chorused and driven
+// harder); a second arpeggio an octave up, a sixteenth behind the first; and a
+// long climb in eighths, swelling to the top of the E before cutting back to
+// the arpeggio alone.
+
+const BOSS_BPM = 88;
+/** The form, in bars (two times round the chords): see bossScore. */
+const BOSS_FORM_BARS = 32;
+/**
+ * Per chord (four bars each): the held bass, the arpeggio's eight eighths per bar (two halves for the turn), the
+ * haze, and the climb's swelling chord. Plain triads throughout (only the E adds its seventh, for the pull home),
+ * so nothing stacked over the arpeggio rubs against it. The arpeggio hammers on the chord's root an octave up
+ * between every other note.
+ */
+const BOSS_CHORDS: { bass: string; arp: string[][]; haze: string[]; swell: string[] }[] = [
+  { bass: 'A1', arp: [['A3', 'A4', 'E4', 'A4', 'C5', 'A4', 'E4', 'A4']], haze: ['C4', 'E4', 'A4'], swell: [] }, // Am
+  { bass: 'A#1', arp: [['A#3', 'A#4', 'F4', 'A#4', 'D5', 'A#4', 'F4', 'A#4']], haze: ['D4', 'F4', 'A#4'], swell: [] }, // B-flat
+  { bass: 'D2', arp: [['D3', 'D4', 'A3', 'D4', 'F4', 'D4', 'A3', 'D4']], haze: ['F3', 'A3', 'D4'], swell: ['A3', 'D4', 'F4', 'A4'] }, // Dm
+  {
+    bass: 'E1',
+    arp: [
+      ['E3', 'E4', 'B3', 'E4', 'G#4', 'E4', 'B3', 'E4'], // E...
+      ['E3', 'E4', 'B3', 'E4', 'G#4', 'B4', 'D5', 'B4'], // ...climbing to its seventh, pulling back round
+    ],
+    haze: ['G#3', 'B3', 'E4'],
+    swell: ['G#3', 'B3', 'E4', 'B4'],
+  },
+];
+/** The melody, per chord from the ninth bar of the form, as [eighth (0-31 across the chord's four bars), note]: chord tones only. */
+const BOSS_PHRASES: [number, string][][] = [
+  [[0, 'A5'], [12, 'F5'], [16, 'D6'], [24, 'A5']], // Dm
+  [[0, 'G#5'], [8, 'B5'], [16, 'E6'], [24, 'B5']], // E
+  [[0, 'E6'], [8, 'C6'], [16, 'A5'], [24, 'E6']], // Am
+  [[0, 'D6'], [8, 'F6'], [16, 'D6'], [24, 'A#5']], // B-flat
+];
+
 class SoundBoard {
   private ctx: AudioContext | null = null;
   private sfx: GainNode | null = null;
@@ -154,6 +196,9 @@ class SoundBoard {
   /** The battle theme's two faders: one lightly reverbed (bass, kick), one drenched like the ambient score. */
   private battleBus: GainNode | null = null;
   private battleLush: GainNode | null = null;
+  /** The boss track's faders: one lightly reverbed (drums, timpani, bass, stabs), one drenched (the pads). */
+  private bossBus: GainNode | null = null;
+  private bossLush: GainNode | null = null;
   /** The campaign map's fader (its own, so a crossfade from a battle never cuts the battle's tails short). */
   private campaignBus: GainNode | null = null;
   private reverb: ConvolverNode | null = null;
@@ -291,6 +336,16 @@ class SoundBoard {
       this.battleLush.gain.value = 0.0001;
       this.battleLush.connect(master);
       this.battleLush.connect(this.reverb);
+      this.bossBus = ctx.createGain();
+      this.bossBus.gain.value = 0.0001;
+      this.bossBus.connect(master);
+      const bossSend = ctx.createGain();
+      bossSend.gain.value = 0.3;
+      this.bossBus.connect(bossSend).connect(this.reverb);
+      this.bossLush = ctx.createGain();
+      this.bossLush.gain.value = 0.0001;
+      this.bossLush.connect(master);
+      this.bossLush.connect(this.reverb);
       this.campaignBus = ctx.createGain();
       this.campaignBus.gain.value = 0.0001;
       this.campaignBus.connect(master);
@@ -761,6 +816,7 @@ class SoundBoard {
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
     if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
+    if (scene === 'boss') return [[this.bossBus!, 1.4, 0.05], [this.bossLush!, 1.4, 0.05]];
     if (scene === 'voyage') return [[this.campaignBus!, 0.6, 0.05]];
     return [[this.musicBus!, 0.5, 6]];
   }
@@ -776,6 +832,7 @@ class SoundBoard {
       bus.gain.exponentialRampToValueAtTime(level, now + fade);
     }
     if (this.scene === 'battle') this.battleScore(ctx, this.battleBus!, this.battleLush!);
+    else if (this.scene === 'boss') this.bossScore(ctx, this.bossBus!, this.bossLush!);
     else if (this.scene === 'voyage') this.campaignScore(ctx, this.campaignBus!);
     else this.ambientScore(ctx, this.musicBus);
   }
@@ -1051,7 +1108,7 @@ class SoundBoard {
    * own distortion (so the grit is clear without the chord turning to mush), then a brighter lowpass, swelling in,
    * holding for the whole chord, and fading over the next (more slowly when it first enters).
    */
-  private haze(at: number, len: number, chord: string[], curve: Float32Array<ArrayBuffer>, entering: boolean, bus: GainNode) {
+  private haze(at: number, len: number, chord: string[], curve: Float32Array<ArrayBuffer>, entering: boolean, bus: GainNode, level = CAMPAIGN_HAZE) {
     const ctx = this.ctx!;
     const end = at + len;
     const highpass = ctx.createBiquadFilter();
@@ -1064,8 +1121,8 @@ class SoundBoard {
     const g = ctx.createGain();
     const attack = entering ? 4 : 1.5;
     g.gain.setValueAtTime(0, at);
-    g.gain.linearRampToValueAtTime(CAMPAIGN_HAZE, at + attack);
-    g.gain.setValueAtTime(CAMPAIGN_HAZE, end);
+    g.gain.linearRampToValueAtTime(level, at + attack);
+    g.gain.setValueAtTime(level, end);
     g.gain.linearRampToValueAtTime(0, end + 2.5);
     highpass.connect(filter).connect(g).connect(bus);
     for (const n of chord) {
@@ -1366,6 +1423,232 @@ class SoundBoard {
     };
     tick();
     this.musicTimers.push(window.setInterval(tick, 200));
+  }
+
+  /**
+   * The boss track (see BOSS_* above), in a form two times round the chords long: bars 1-8, the arpeggio over the
+   * bass and pulse; 9-16, the haze and the melody join; 17-24, a second arpeggio an octave up; 25-32, the climb.
+   * Scheduled a bar at a time, just ahead of the audio clock.
+   */
+  private bossScore(ctx: AudioContext, bus: GainNode, lush: GainNode) {
+    const eighth = 60 / BOSS_BPM / 2;
+    const beat = eighth * 2;
+    const barLen = eighth * 8;
+    const formLen = barLen * BOSS_FORM_BARS;
+    const t0 = ctx.currentTime + 0.1;
+    // Everything but the pulse goes through this, dipping on every beat and recovering (the voyage's sidechain).
+    const mix = ctx.createGain();
+    mix.connect(bus);
+
+    // The arpeggio's filter opens across each pass of the form; its dotted-eighth echo goes into the hall.
+    const arpFilter = ctx.createBiquadFilter();
+    arpFilter.type = 'lowpass';
+    arpFilter.Q.value = 2.5;
+    arpFilter.frequency.value = 1100;
+    const echo = ctx.createDelay(2);
+    echo.delayTime.value = eighth * 1.5;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.35;
+    const echoTone = ctx.createBiquadFilter();
+    echoTone.type = 'lowpass';
+    echoTone.frequency.value = 1800;
+    const echoWet = ctx.createGain();
+    echoWet.gain.value = 0.35;
+    arpFilter.connect(mix);
+    arpFilter.connect(echo).connect(echoTone).connect(feedback).connect(echo);
+    echoTone.connect(echoWet).connect(lush);
+    // The second arpeggio's place, a little to one side (the first leans the other way).
+    const arpLeft = ctx.createStereoPanner();
+    arpLeft.pan.value = -0.2;
+    arpLeft.connect(arpFilter);
+    const arpRight = ctx.createStereoPanner();
+    arpRight.pan.value = 0.45;
+    arpRight.connect(arpFilter);
+
+    // The melody's filter and echo, as in the voyage: a dotted quarter later, darker.
+    const melody = ctx.createBiquadFilter();
+    melody.type = 'lowpass';
+    melody.Q.value = 0.7;
+    melody.frequency.value = 3200;
+    const melEcho = ctx.createDelay(2);
+    melEcho.delayTime.value = eighth * 3;
+    const melFeedback = ctx.createGain();
+    melFeedback.gain.value = 0.35;
+    const melTone = ctx.createBiquadFilter();
+    melTone.type = 'lowpass';
+    melTone.frequency.value = 1500;
+    const melWet = ctx.createGain();
+    melWet.gain.value = 0.35;
+    melody.connect(mix);
+    melody.connect(melEcho).connect(melTone).connect(melFeedback).connect(melEcho);
+    melTone.connect(melWet).connect(lush);
+    this.musicNodes = [mix, arpFilter, echo, feedback, echoTone, echoWet, arpLeft, arpRight, melody, melEcho, melFeedback, melTone, melWet];
+    // A wide chorus on the melody: two short delays, each slowly wavering in time, spread hard left and right.
+    [-1, 1].forEach((side, i) => {
+      const d = ctx.createDelay(0.1);
+      d.delayTime.value = 0.02 + i * 0.006;
+      const wobble = ctx.createOscillator();
+      wobble.frequency.value = [0.55, 0.8][i];
+      const depth = ctx.createGain();
+      depth.gain.value = 0.004;
+      wobble.connect(depth).connect(d.delayTime);
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = side * 0.8;
+      const wet = ctx.createGain();
+      wet.gain.value = 0.7;
+      melody.connect(d).connect(pan).connect(wet).connect(mix);
+      wobble.start(t0);
+      this.musicNodes.push(d, wobble, depth, pan, wet);
+    });
+
+    // The haze's hard distortion and the melody synth's milder one, as in the voyage.
+    const curveOf = (k: number) => {
+      const c = new Float32Array(new ArrayBuffer(1024 * 4));
+      for (let i = 0; i < c.length; i++) c[i] = Math.tanh(k * ((i / (c.length - 1)) * 2 - 1)) / Math.tanh(k);
+      return c;
+    };
+    const hard = curveOf(9);
+    const drive = curveOf(6);
+
+    /** The voyage's melody voice: a bell-like pluck layered with held, distorted saws. */
+    const lead = (t: number, f: number, gain: number, len: number) => {
+      const d = this.until(t);
+      const pluck = Math.max(eighth * 2.4, Math.min(len, eighth * 5));
+      this.voice(f, { dur: pluck, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: melody });
+      this.voice(f, { dur: pluck / 2, attack: 0.01, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: melody });
+      const level = gain * 0.3;
+      const release = Math.min(0.6, len * 0.6);
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = drive;
+      shaper.oversample = '2x';
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 2400;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(level, t + Math.min(0.06, len / 3));
+      g.gain.linearRampToValueAtTime(level * 0.75, t + len);
+      g.gain.linearRampToValueAtTime(0, t + len + release);
+      shaper.connect(lp).connect(g).connect(melody);
+      // Driven harder than the voyage's, with a third saw and a wider detune for a thicker, chorused sound.
+      for (const detune of [-10, 0, 10]) {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = f;
+        o.detune.value = detune;
+        const lv = ctx.createGain();
+        lv.gain.value = 0.3;
+        o.connect(lv).connect(shaper);
+        o.start(t);
+        o.stop(t + len + release + 0.05);
+      }
+    };
+
+    /** One bar of an arpeggio: soft plucks, a triangle with a quiet saw for edge, accented on the beat. */
+    const arpBar = (at: number, notes: string[], transpose: number, offset: number, gain: number, out: AudioNode) =>
+      notes.forEach((n, e) => {
+        const d = this.until(at + offset + e * eighth);
+        const f = hz(n) * transpose;
+        const accent = e % 2 === 0 ? 1 : 0.7;
+        this.voice(f, { dur: eighth * 2.4, attack: 0.012, gain: gain * accent, type: 'triangle', cutoff: 5000, delay: d, out });
+        this.voice(f, { dur: eighth * 1.6, attack: 0.012, gain: gain * 0.2 * accent, type: 'sawtooth', cutoff: 5000, detune: 6, delay: d, out });
+      });
+
+    /** The climb's supporting chord: detuned saws through a lowpass that opens, swelling over its four bars from `from` (0-1) to `to`. */
+    const swell = (at: number, chord: string[], from: number, to: number, cut: boolean) => {
+      const len = barLen * 4;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.Q.value = 1.5;
+      filter.frequency.setValueAtTime(400 * Math.pow(7, from), at);
+      filter.frequency.exponentialRampToValueAtTime(400 * Math.pow(7, to), at + len);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.15 + 0.85 * from, at + 0.4);
+      g.gain.linearRampToValueAtTime(0.15 + 0.85 * to, at + len - (cut ? 0.05 : 0));
+      // At the top it cuts dead, back to the arpeggio alone; otherwise it hands over to the next chord's swell.
+      g.gain.linearRampToValueAtTime(0, at + len + (cut ? 0 : 0.4));
+      filter.connect(g).connect(mix);
+      for (const n of chord)
+        for (const detune of [-9, 9]) {
+          const o = ctx.createOscillator();
+          o.type = 'sawtooth';
+          o.frequency.value = hz(n);
+          o.detune.value = detune;
+          const lv = ctx.createGain();
+          lv.gain.value = 0.004;
+          o.connect(lv).connect(filter);
+          o.start(at);
+          o.stop(at + len + 0.5);
+        }
+    };
+
+    const playBar = (at: number, bar: number) => {
+      const inForm = bar % BOSS_FORM_BARS;
+      const index = Math.floor(inForm / 4) % BOSS_CHORDS.length;
+      const inChord = inForm % 4;
+      const c = BOSS_CHORDS[index];
+      if (inForm === 0) {
+        // The arpeggio's filter opens across the form, and closes again as it comes back round.
+        arpFilter.frequency.setValueAtTime(1100, at);
+        arpFilter.frequency.linearRampToValueAtTime(2600, at + formLen - barLen);
+      }
+      if (inChord === 0) {
+        // The bass: a deep held note, a triangle and a sine an octave apart.
+        this.note(at, hz(c.bass), barLen * 4 - 0.4, { gain: 0.05, type: 'triangle', attack: 0.4, release: 1.2, cutoff: 260, out: mix });
+        this.note(at, hz(c.bass) * 2, barLen * 4 - 0.4, { gain: 0.018, type: 'sine', attack: 0.8, release: 1.2, out: mix });
+        // The haze joins at the ninth bar.
+        if (inForm >= 8) this.haze(at, barLen * 4, c.haze, hard, inForm === 8, mix, CAMPAIGN_HAZE * 0.5);
+        // The melody, from the ninth bar to the twenty-fourth: each note held until the next.
+        if (inForm >= 8 && inForm < 24) {
+          const phrase = BOSS_PHRASES[inForm / 4 - 2];
+          phrase.forEach(([e, n], i) => lead(at + e * eighth, hz(n), 0.02 * (e % 8 === 0 ? 1 : 0.85), ((phrase[i + 1]?.[0] ?? 32) - e) * eighth - 0.15));
+        }
+        // The climb's swelling chord, over the last eight bars.
+        if (inForm >= 24) swell(at, c.swell, inForm === 24 ? 0 : 0.5, inForm === 24 ? 0.5 : 1, inForm === 28);
+      }
+      // The pulse, on every beat: the root, a low sine with a little triangle, the second and fourth an octave up.
+      // Everything else dips as it lands and breathes back.
+      for (let k = 0; k < 4; k++) {
+        const t = at + k * beat;
+        const d = this.until(t);
+        const f = hz(c.bass) * (k % 2 ? 4 : 2);
+        mix.gain.setTargetAtTime(0.78, t, 0.01);
+        mix.gain.setTargetAtTime(1, t + 0.05, 0.16);
+        this.voice(f, { dur: beat * 0.9, attack: 0.02, gain: k % 2 ? 0.018 : 0.026, delay: d, out: bus });
+        this.voice(f, { dur: beat * 0.6, attack: 0.02, gain: 0.006, type: 'triangle', cutoff: 1200, delay: d, out: bus });
+      }
+      // The arpeggio, always; the second, an octave up and a sixteenth behind, from the seventeenth bar.
+      const notes = c.arp[c.arp.length > 1 && inChord >= 2 ? 1 : 0];
+      arpBar(at, notes, 1, 0, 0.04, arpLeft);
+      if (inForm >= 16 && inForm < 24) arpBar(at, notes, 2, eighth / 2, 0.016, arpRight);
+      // The climb, over the last eight bars: the melody's voice in steady eighths up the chord, growing louder.
+      if (inForm >= 24) {
+        const k = inForm - 24;
+        const tones = new Set(c.arp.flat().map((n) => midiOf(n) % 12));
+        const ladder: number[] = [];
+        for (let n = midiOf('D5'); n <= midiOf('E7'); n++) if (tones.has(n % 12)) ladder.push(n);
+        const lo = Math.min(ladder.length - 5, Math.floor(k * 1.1));
+        const five = ladder.slice(lo, lo + 5);
+        [0, 1, 2, 3, 4, 3, 2, 1].forEach((j, e) => {
+          const progress = (k + e / 8) / 8;
+          lead(at + e * eighth, hzOf(five[j]), 0.012 + 0.016 * progress, eighth * 0.95);
+        });
+      }
+    };
+
+    let next = t0;
+    let bar = 0;
+    const tick = () => {
+      if (this.playing !== 'boss') return;
+      while (next < ctx.currentTime + 0.5) {
+        playBar(next, bar);
+        next += barLen;
+        bar++;
+      }
+    };
+    tick();
+    this.musicTimers.push(window.setInterval(tick, 100));
   }
 
   /** Fade the score out (or cut it at once, when the app is being hidden). */
