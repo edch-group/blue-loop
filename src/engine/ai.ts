@@ -44,6 +44,7 @@ import {
   shiftSlots,
   isDraw,
   heroAbilities,
+  handCost,
 } from './game';
 import type { Action, CardInstance, Effect, GameState, HeroAbility, PlayerState } from './types';
 
@@ -416,7 +417,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     // A card that can also be set as a trap may be set face down (for 1 more energy).
     if (canSetFaceDown(me, card.defId)) plays.push({ type: 'playCard', cardUid: card.uid, faceDown: true });
     if (cardDef(card.defId).kind === 'trap' && !canSetTrap(me)) continue;
-    if (cardCost(card.defId) > me.playsLeft) continue;
+    if (handCost(card) > me.playsLeft) continue;
     const choices = opt(cardChoices(card.defId));
     const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
     if (!hasRoomFor(me, card.defId)) continue;
@@ -554,7 +555,7 @@ export function chooseAIAction(state: GameState): Action {
     if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
     for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
-  if (!abilities.length && !attacks.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
+  if (!abilities.length && !attacks.length && !me.hand.some((c) => handCost(c) <= me.playsLeft)) return { type: 'endTurn' };
 
   // The AI cannot see its rivals' face-down traps (or their hands), so it plans as if no answer
   // would come: no reaction windows in its look-ahead.
@@ -689,6 +690,11 @@ function removalCombo(view: GameState, me: PlayerState, attacks: Action[]): { ac
  */
 function dawnPick(state: GameState, me: PlayerState): Action {
   const dawn = me.dawnChoices![0];
+  // (A Bargain: the costliest card in hand, which the board can't price.)
+  if (dawn.kind === 'discount') {
+    const dear = [...me.hand].sort((a, b) => handCost(b) - handCost(a))[0];
+    return dear ? { type: 'dawnChoice', allyUid: dear.uid } : { type: 'dawnChoice' };
+  }
   const rival = targetOf(state, me);
   const options: Action[] = [];
   if (dawn.kind === 'aim') for (const c of rival?.tableau ?? []) options.push({ type: 'dawnChoice', enemyUid: c.uid });

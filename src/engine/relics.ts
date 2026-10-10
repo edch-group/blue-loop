@@ -49,7 +49,9 @@ export type RelicPower =
   | 'multishot'
   | 'ward'
   | 'freeze'
-  | 'displace';
+  | 'displace'
+  | 'bargain'
+  | 'echo';
 
 export interface RelicPowerDef {
   /** Always at work, answering what happens, or kept for the right moment: once a battle, or once a day (a button on the battle's right). */
@@ -112,6 +114,9 @@ export const RELIC_POWERS: Record<RelicPower, RelicPowerDef> = {
   ward: { kind: 'ability', amounts: [2, 2, 3], text: (n) => `Hero ability: a card gains ${n} shields.`, ability: (n) => ({ name: 'Ward', text: `${n} shields to a card.`, choice: { kind: 'ward', times: 1, amount: n } }) },
   freeze: { kind: 'ability', amounts: [1, 1, 1], text: () => "Hero ability: a rival card can't attack next turn.", ability: () => ({ name: 'Freeze', text: "A rival card can't attack next turn.", choice: { kind: 'freeze', times: 1 } }) },
   displace: { kind: 'ability', amounts: [1, 1, 1], text: () => 'Hero ability: shift a rival card.', ability: () => ({ name: 'Displace', text: 'Shift a rival card.', choice: { kind: 'displace', times: 1 } }) },
+  bargain: { kind: 'ability', amounts: [2, 2, 3], text: (n) => `Hero ability: a card in your hand costs ${n} less.`, ability: (n) => ({ name: 'Bargain', text: `A card in hand costs ${n} less.`, choice: { kind: 'discount', times: 1, amount: n } }) },
+  // (A card played may come into play as a random Hero of any race, in its slot, and turn back as it leaves.)
+  echo: { kind: 'trigger', amounts: [10, 10, 10], text: (n) => `Cards you play have a ${n}% chance to become a random Hero while in play.` },
   phoenix: { kind: 'once', amounts: [1, 1, 1], text: () => 'Once per battle: return your last discarded card to your hand.', effects: () => [{ type: 'recover', latest: true }] },
 };
 
@@ -120,15 +125,15 @@ export const SLOT_POWERS: Record<SlotKind, RelicPower[]> = {
   weapon: ['edge', 'splash', 'flurry', 'starfall', 'leech', 'ram', 'might', 'multishot'],
   helm: ['walls', 'vigour', 'herald', 'anchor', 'ward'],
   mantle: ['aegis', 'renew', 'walls', 'fortress', 'ward'],
-  sigil: ['herald', 'firstLight', 'overcharge', 'harvest', 'grasp', 'might'],
+  sigil: ['herald', 'firstLight', 'overcharge', 'harvest', 'grasp', 'might', 'bargain', 'echo'],
   core: ['frost', 'coolant', 'bounty', 'phoenix', 'freeze'],
   facet: ['splash', 'nova', 'bounty', 'sear', 'multishot'],
   ring: ['mend', 'vigour', 'aegis', 'thorns', 'steady'],
   carapace: ['walls', 'vigour', 'renew', 'thorns', 'ram', 'steady'],
-  gland: ['gift', 'recycle', 'renew', 'reclaim', 'paradise', 'steady'],
+  gland: ['gift', 'recycle', 'renew', 'reclaim', 'paradise', 'steady', 'bargain'],
   mask: ['flurry', 'recall', 'bounty', 'devour', 'freeze', 'displace'],
   plate: ['walls', 'aegis', 'mend', 'anchor', 'ward'],
-  star: ['shift', 'firstLight', 'gift', 'duskShift', 'paradise', 'grasp', 'displace'],
+  star: ['shift', 'firstLight', 'gift', 'duskShift', 'paradise', 'grasp', 'displace', 'echo'],
   ember: ['nova', 'recycle', 'starfall', 'sear', 'multishot'],
 };
 

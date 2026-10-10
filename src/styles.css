@@ -6747,3 +6747,9 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 }
 .card.card-table.card-frozen .card-glyph { filter: saturate(0.4) hue-rotate(-10deg) brightness(1.05); }
 .hero-pick-mark.hero-pick-relic { box-shadow: 0 0 0 1.5px #e3c46a; }
+/* A Bargain on a card in hand: its cost, less. */
+.card .card-discount {
+  position: absolute; left: 0; top: 0; transform: translate(-30%, -30%); z-index: 5; pointer-events: auto;
+  padding: 1px 6px; border-radius: 999px; font-family: var(--display); font-weight: 700; font-size: max(9px, calc(var(--cw, 100px) * 0.11)); color: #fff;
+  background: linear-gradient(180deg, #5fc58a, #2f9a5e); box-shadow: 0 0 0 1.5px #fff, 0 0 8px rgba(70, 180, 110, 0.55);
+}

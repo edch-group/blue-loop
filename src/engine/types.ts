@@ -392,6 +392,10 @@ export interface CardInstance {
   shields?: number;
   /** Frozen: it can't attack until its owner's day is over. */
   frozen?: boolean;
+  /** In hand: energy off its cost (a Bargain), until it is played. */
+  discount?: number;
+  /** In play: the card it really is, while an Echo has it stand as a Hero (it turns back as it leaves). */
+  echoOf?: string;
   /** Came into play today (dimmed, not Darkspeed): its dusk effects rest until tomorrow. */
   fresh?: boolean;
   boons?: string[];
@@ -629,7 +633,7 @@ export interface HeroAbility {
 }
 
 /** A choice an ability (or a dawn) leaves its holder to make, first thing. */
-export type AbilityChoice = 'recall' | 'shift' | 'aim' | 'empower' | 'renew' | 'ward' | 'freeze' | 'displace';
+export type AbilityChoice = 'recall' | 'shift' | 'aim' | 'empower' | 'renew' | 'ward' | 'freeze' | 'displace' | 'discount';
 
 export interface BattleSkill {
   id: string;

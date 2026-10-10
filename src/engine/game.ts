@@ -402,6 +402,7 @@ function choiceOpen(state: GameState, p: PlayerState, kind: AbilityChoice): bool
   if (kind === 'displace') return !!rival?.tableau.some((c) => c.slot !== COMMAND_SLOT);
   if (kind === 'shift') return p.tableau.some((c) => c.slot !== COMMAND_SLOT);
   if (kind === 'recall') return p.tableau.some(returnable);
+  if (kind === 'discount') return p.hand.some((c) => handCost(c) > 0);
   return p.tableau.length > 0;
 }
 
@@ -642,6 +643,14 @@ export function baseHealth(defId: string): number {
 export function cardCost(defId: string): number {
   return cardDef(defId).cost ?? 1;
 }
+
+/** What a card in hand costs to play now: its cost, less any Bargain on it. */
+export function handCost(c: CardInstance): number {
+  return Math.max(0, cardCost(c.defId) - (c.discount ?? 0));
+}
+
+/** The Heroes an Echo may make of a card played: every race's (not the Overlords' or their parts). */
+const ECHO_HEROES = () => CARDS.filter((c) => c.kind === 'command' && !c.token && !isBossCard(c.id) && !c.id.startsWith('boon_'));
 
 /** Put a card into a tableau slot, with its full stability. */
 function place(p: PlayerState, card: CardInstance, slot: number) {
@@ -1453,13 +1462,21 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   card.health = undefined;
   card.choice = undefined;
   card.spent = undefined;
+  delete card.shields;
+  delete card.frozen;
+  // (An Echo's Hero turns back into the card it really is, its leave effects the Hero's own.)
+  const leaving = cardDef(card.defId);
+  if (card.echoOf) {
+    card.defId = card.echoOf;
+    delete card.echoOf;
+  }
   // (A token is simply gone.)
   if (cardDef(card.defId).token) {
     /* nothing to keep */
   } else if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
   else if (to === 'hand') owner.hand.push(card);
   else owner.discard.push(card);
-  resolveEffects(state, owner, card, cardDef(card.defId).onLeave, 'leave');
+  resolveEffects(state, owner, card, leaving.onLeave, 'leave');
   // Its Fusion cards go with it (and their leave effects fire too).
   const fused = card.fused ?? [];
   delete card.fused;
@@ -2125,7 +2142,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       if (openReaction(state, p, events, { kind: 'play', action })) return;
     }
   }
-  const cost = playCost(def.id, asTrap);
+  const cost = Math.max(0, playCost(def.id, asTrap) - (card.discount ?? 0));
   if (p.playsLeft < cost) throw new GameError(p.playsLeft <= 0 ? 'You have no energy left today.' : `${def.name} costs ${cost} energy: you have ${p.playsLeft} left today.`);
   if (asTrap && !canSetTrap(p)) throw new GameError('You already have a trap face down.');
   // Consume: one of your other cards in play is given up first (your choice; unchosen, the weakest), and leaves
@@ -2184,6 +2201,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
 
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
+  delete card.discount;
   // An X card spends all the energy left; its effects count how much.
   const spend = def.spendAll ? p.playsLeft : cost;
   if (def.spendAll) card.spent = spend;
@@ -2269,6 +2287,20 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   resolveEffects(state, p, card, def.onPlay, 'play', action);
   // A campaign hero's boons that act as the card is played.
   for (const b of card.boons ?? []) if (!state.winnerId && !p.eliminated && cardDef(b).onPlay) resolveEffects(state, p, card, cardDef(b).onPlay, 'play');
+  // An Echo: once its own play is done, a card may stand as a random Hero of any race while it stays in play (in
+  // its slot, as any card: the Hero leading the tableau is still the one in the Hero slot).
+  const echo = relicN(p.relics, 'echo');
+  if (echo && slot !== COMMAND_SLOT && !def.token && def.kind !== 'command' && p.tableau.includes(card) && !state.winnerId && randomInt(state, 100) < echo) {
+    const heroes = ECHO_HEROES();
+    const hero = heroes[randomInt(state, heroes.length)];
+    if (hero) {
+      card.echoOf = card.defId;
+      card.defId = hero.id;
+      card.health = baseHealth(hero.id);
+      delete card.maxHealth;
+      log(state, `${p.name}'s ${relicOf(p.relics, 'echo')!.name}: ${def.name} stands as ${hero.name}.`);
+    }
+  }
 }
 
 /** A choice as words, for the log ("heat 2", "draw 1"). */
@@ -2340,6 +2372,14 @@ export function applyAction(prev: GameState, action: Action): GameState {
       }
       if (action.allyUid === undefined) {
         log(state, next.kind === 'recall' || next.kind === 'shift' ? `${p.name} lets ${name}'s ${next.relic && next.kind === 'recall' ? '' : 'dawn '}${next.kind} pass.` : `${p.name} lets ${name} pass.`);
+        break;
+      }
+      // A Bargain: a card in your hand costs less.
+      if (next.kind === 'discount') {
+        const held = p.hand.find((c) => c.uid === action.allyUid);
+        if (!held) throw new GameError('Choose a card in your hand.');
+        held.discount = (held.discount ?? 0) + (next.amount ?? 1);
+        log(state, `${p.name}'s ${name}: ${cardDef(held.defId).name} costs ${handCost(held)} now.`);
         break;
       }
       // An emblem's ability on a card of yours: attack, stability or shields.

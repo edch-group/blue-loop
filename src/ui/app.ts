@@ -4,6 +4,7 @@ import {
   heroSkillProblem,
   heroAbilityProblem,
   heroAbilities,
+  handCost,
   raceTrait,
   SUBRACES,
   attackProblem,
@@ -1689,9 +1690,9 @@ export class App {
   }
 
   /** Whether a card in hand could be played now (energy, room in the tableau, a free Lightspeed slot). */
-  private canPlayNow(me: PlayerState, defId: string): boolean {
+  private canPlayNow(me: PlayerState, defId: string, discount = 0): boolean {
     if (!this.dayUnderWay(defId)) return false;
-    return (cardCost(defId) <= me.playsLeft && hasRoomFor(me, defId) && (cardDef(defId).kind !== 'trap' || canSetTrap(me))) || canSetFaceDown(me, defId);
+    return (Math.max(0, cardCost(defId) - discount) <= me.playsLeft && hasRoomFor(me, defId) && (cardDef(defId).kind !== 'trap' || canSetTrap(me))) || canSetFaceDown(me, defId);
   }
 
   /** End the day, checking first if there are still cards that could be played. */
@@ -1756,7 +1757,7 @@ export class App {
     const s = this.state!;
     const me = activePlayer(s);
     const out: string[] = [];
-    const playable = me.hand.filter((c) => this.canPlayNow(me, c.defId)).length;
+    const playable = me.hand.filter((c) => this.canPlayNow(me, c.defId, c.discount)).length;
     if (playable) out.push(`${playable} playable card${playable === 1 ? '' : 's'}`);
     const { cards, sun } = aimChoices(s, me, true);
     const attackers = sun || cards.length ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
@@ -3169,8 +3170,8 @@ export class App {
         { duration: 380, easing: 'ease-out' },
       );
     };
-    if (cardCost(card.defId) > me.playsLeft && !canSetFaceDown(me, card.defId)) {
-      this.showToast(`${cardDef(card.defId).name} costs ${cardCost(card.defId)} energy: you have ${me.playsLeft} left today.`, 'info');
+    if (handCost(card) > me.playsLeft && !canSetFaceDown(me, card.defId)) {
+      this.showToast(`${cardDef(card.defId).name} costs ${handCost(card)} energy: you have ${me.playsLeft} left today.`, 'info');
       return refuse();
     }
     // (Another card in your hand, while one waits to be placed: that one is played instead.)
@@ -5385,6 +5386,7 @@ export class App {
     if (choice?.kind === 'recall') return `<div class="mid-hint"><b>${choice.relic ? 'recall a card to hand' : 'dawn recall: return a card to hand'}</b><button class="mid-cancel" data-act="dawn-shift-skip">skip</button></div>`;
     // An emblem's ability, waiting on its choice: a card of yours, or a rival card (and, moving one, where it goes).
     const skip = '<button class="mid-cancel" data-act="dawn-shift-skip">skip</button>';
+    if (choice?.kind === 'discount') return `<div class="mid-hint"><b>−${choice.amount ?? 1} cost: choose a card in hand</b>${skip}</div>`;
     const ask = ({ empower: `+${choice?.amount ?? 1} attack: choose a card`, renew: `+${choice?.amount ?? 1} stability: choose a card`, ward: `${choice?.amount ?? 1} shields: choose a card`, freeze: 'freeze a rival card' } as Record<string, string>)[choice?.kind ?? ''];
     if (ask) return `<div class="mid-hint"><b>${ask}</b>${skip}</div>`;
     if (choice?.kind === 'displace') return `<div class="mid-hint"><b>${this.dawnPick ? 'where it moves' : 'move a rival card'}</b><span class="mid-btns">${this.dawnPick ? '<button class="mid-cancel" data-act="dawn-shift-back">back</button>' : ''}${skip}</span></div>`;
@@ -5729,7 +5731,7 @@ export class App {
           <small>${myTurn ? 'energy' : banked ? 'banked' : 'waiting'}</small>
           <span class="plays-pips">${myTurn ? pips : bankPips}</span>
         </div>
-        <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
+        <button class="btn-primary end-turn ${act && !me.hand.some((c) => this.canPlayNow(me, c.defId, c.discount)) ? 'end-turn-ready' : ''}" data-act="end-turn" ${act && !busy ? '' : 'disabled'}>end day</button>
       </div>`;
   }
 
@@ -5745,6 +5747,8 @@ export class App {
       if (act || this.touch) attrs = `data-act="play" data-arg="${c.uid}"`;
       // Discarding at the day's end: tapping a card marks it to go (again, to keep it).
       if (this.discarding) attrs = `data-act="discard-pick" data-arg="${c.uid}" title="${this.discarding.includes(c.uid) ? 'Keep it' : 'Discard it'}"`;
+      // A Bargain waiting: the card in hand to make cheaper.
+      if (this.dawnChoice()?.kind === 'discount') attrs = `data-act="dawn-ally" data-arg="${c.uid}" title="Make ${esc(cardDef(c.defId).name)} cheaper"`;
     }
     let state = '';
     const s = this.state;
@@ -5845,10 +5849,11 @@ export class App {
       state = 'card-choosable';
     }
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
+    if (opts.hand && this.dawnChoice()?.kind === 'discount') state = 'card-choosable';
     // On your day, a card that costs more energy than you have left is dimmed.
-    if (opts.hand && !state && me && act && me.id === this.viewer().id && cardCost(c.defId) > me.playsLeft) state = 'card-pricey';
+    if (opts.hand && !state && me && act && me.id === this.viewer().id && handCost(c) > me.playsLeft) state = 'card-pricey';
     // ...and one that can be played now has a faint green rim.
-    if (opts.hand && !state && me && act && me.id === this.viewer().id && this.canPlayNow(me, c.defId)) state = 'card-playable';
+    if (opts.hand && !state && me && act && me.id === this.viewer().id && this.canPlayNow(me, c.defId, c.discount)) state = 'card-playable';
     // (Marked to discard at the day's end.)
     if (opts.hand && this.discarding) state = this.discarding.includes(c.uid) ? 'card-discard' : '';
     // A stat as it stands; on a card heat is aimed at, as that heat will leave it (in red, all the while it is
@@ -5892,7 +5897,7 @@ export class App {
     return `
       <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${growth}${resonance}${fusedTags}${stats}${actionTag}${opts.tableau && c.shields ? `<b class="card-shields" title="Shields: they take heat before its defence does, and fade at its owner's dawn">${symbolIcon('shield')}<span>${c.shields}</span></b>` : ''}
+        ${growth}${resonance}${fusedTags}${stats}${actionTag}${opts.hand && c.discount ? `<b class="card-discount" title="Costs ${handCost(c)} now (a Bargain)">−${c.discount}</b>` : ''}${opts.tableau && c.shields ? `<b class="card-shields" title="Shields: they take heat before its defence does, and fade at its owner's dawn">${symbolIcon('shield')}<span>${c.shields}</span></b>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>

@@ -4,7 +4,7 @@ import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
 import { activePlayer, replaces, isGuard, guards, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, answerShown,
   baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver,
-  isDraw, maxHand, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+  isDraw, maxHand, playsAllowed, supernovaThreshold, tableauFull, handCost } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 import { TEST_DECKS } from './fixture-decks';
 
@@ -1976,6 +1976,43 @@ describe('emblem hero abilities', () => {
     let t = applyAction(s, { type: 'heroAbility', index });
     t = applyAction(t, { type: 'dawnChoice', enemyUid: theirs.uid, shiftTo: to });
     expect(t.players[1].tableau.find((c) => c.uid === theirs.uid)!.slot).toBe(to);
+  });
+
+  it('Bargain: a card in hand costs less, until it is played', () => {
+    const { s, index } = setup('bargain', 2);
+    const [held] = give(s.players[0], ['focusing_array']);
+    const before = cardCost(held.defId);
+    let t = applyAction(s, { type: 'heroAbility', index });
+    t = applyAction(t, { type: 'dawnChoice', allyUid: held.uid });
+    const me = t.players[0];
+    const card = me.hand.find((c) => c.uid === held.uid)!;
+    expect(handCost(card)).toBe(Math.max(0, before - 2));
+    me.playsLeft = handCost(card);
+    t = applyAction(t, { type: 'playCard', cardUid: held.uid });
+    expect(t.players[0].playsLeft).toBe(0);
+  });
+
+  it('Echo: a card played may stand as a random Hero in its slot, and turn back as it leaves', () => {
+    let s = twoPlayer(22);
+    const [ada] = s.players;
+    ada.relics = [relic('echo', 100)];
+    const [lancer] = give(ada, ['helio_lancer']);
+    ada.playsLeft = 5;
+    s = applyAction(s, { type: 'playCard', cardUid: lancer.uid });
+    const inPlay = s.players[0].tableau.find((c) => c.uid === lancer.uid)!;
+    expect(cardDef(inPlay.defId).kind).toBe('command');
+    expect(inPlay.slot).not.toBe(COMMAND_SLOT);
+    expect(inPlay.echoOf).toBe('helio_lancer');
+    // Burnt away, it is a Lancer again in its owner's discard pile.
+    s = endTurn(s);
+    const bo = activePlayer(s);
+    const [atk] = give(bo, ['helio_lancer'], 'tableau');
+    atk.attackBonus = 30;
+    s.players[0].tableau.find((c) => c.uid === lancer.uid)!.health = 1;
+    s = applyAction(s, { type: 'attack', attackerUid: atk.uid, targetUid: lancer.uid });
+    const gone = s.players[0].discard.find((c) => c.uid === lancer.uid)!;
+    expect(gone.defId).toBe('helio_lancer');
+    expect(gone.echoOf).toBeUndefined();
   });
 
   it('the AI uses them, and answers their choices', () => {
