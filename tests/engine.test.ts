@@ -4,7 +4,7 @@ import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
 import { activePlayer, replaces, isGuard, guards, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, answerShown,
   baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver,
-  isDraw, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
+  isDraw, maxHand, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 import { TEST_DECKS } from './fixture-decks';
 
@@ -1856,5 +1856,30 @@ describe('the paradise planet', () => {
     const me = t.players[0];
     expect(currentPlanet(me, t)).toBe('dead');
     expect(me.tableau.find((x) => x.uid === c.uid)!.health).toBeGreaterThan(1);
+  });
+});
+
+describe('the Grasp and Ram emblems', () => {
+  const relic = (power: string, n: number) => ({ power: power as never, n, name: `Test ${power}` });
+  it('Grasp: a bigger hand kept through dusk', () => {
+    const s = twoPlayer(12);
+    const [ada] = s.players;
+    expect(maxHand(ada)).toBe(BALANCE.maxHand);
+    ada.relics = [relic('grasp', 2)];
+    expect(maxHand(ada)).toBe(BALANCE.maxHand + 2);
+    ada.hand = [];
+    give(ada, Array(BALANCE.maxHand + 2).fill('helio_lancer'), 'hand');
+    const t = applyAction(s, { type: 'endTurn' });
+    expect(t.players[0].hand.length).toBe(BALANCE.maxHand + 2);
+  });
+  it('Ram: an attacker adds its defence to its attack, up to the number; a card with no attack still has none', () => {
+    const s = twoPlayer(13);
+    const [ada] = s.players;
+    const [a, w] = give(ada, ['helio_lancer', 'halo_ward'], 'tableau');
+    const before = cardAttack(s, ada, a);
+    const wall = cardAttack(s, ada, w);
+    ada.relics = [relic('ram', 2)];
+    expect(cardAttack(s, ada, a)).toBe(before + Math.min(2, cardDefence(ada, a)));
+    expect(cardAttack(s, ada, w)).toBe(wall);
   });
 });

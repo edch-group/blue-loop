@@ -41,7 +41,9 @@ export type RelicPower =
   | 'devour'
   | 'fortress'
   | 'phoenix'
-  | 'paradise';
+  | 'paradise'
+  | 'grasp'
+  | 'ram';
 
 export interface RelicPowerDef {
   /** Always at work, answering what happens, or kept for the right moment: once a battle, or once a day (a button on the battle's right). */
@@ -90,23 +92,27 @@ export const RELIC_POWERS: Record<RelicPower, RelicPowerDef> = {
   devour: { kind: 'once', amounts: [1, 1, 1], text: () => 'Once per battle: destroy the rival card with the least stability.', effects: () => [{ type: 'devour' }] },
   fortress: { kind: 'once', amounts: [2, 3, 4], text: (n) => `Once per battle: your best-defended card gains +${n} defence and Guard.`, effects: (n) => [{ type: 'fortify', amount: n, who: 'best' }] },
   paradise: { kind: 'trigger', amounts: [1, 1, 2], text: (n) => `Your dead planet becomes a paradise planet, providing renew ${n} each turn it faces you.` },
+  grasp: { kind: 'trigger', amounts: [1, 1, 2], text: (n) => `+${n} hand size.` },
+  // (Walls that hit back: a card's defence, while it stands, adds to its attack, up to the emblem's number. Only a card
+  // that attacks at all: a wall with none still doesn't.)
+  ram: { kind: 'trigger', amounts: [2, 3, 4], text: (n) => `Your attackers add their defence to their attack (up to +${n}).` },
   phoenix: { kind: 'once', amounts: [1, 1, 1], text: () => 'Once per battle: return your last discarded card to your hand.', effects: () => [{ type: 'recover', latest: true }] },
 };
 
 /** The powers a relic of each kind can carry (its slot's flavour: a weapon strikes, a core cools...). */
 export const SLOT_POWERS: Record<SlotKind, RelicPower[]> = {
-  weapon: ['edge', 'splash', 'flurry', 'starfall', 'leech'],
+  weapon: ['edge', 'splash', 'flurry', 'starfall', 'leech', 'ram'],
   helm: ['walls', 'vigour', 'herald', 'anchor'],
   mantle: ['aegis', 'renew', 'walls', 'fortress'],
-  sigil: ['herald', 'firstLight', 'overcharge', 'harvest'],
+  sigil: ['herald', 'firstLight', 'overcharge', 'harvest', 'grasp'],
   core: ['frost', 'coolant', 'bounty', 'phoenix'],
   facet: ['splash', 'nova', 'bounty', 'sear'],
   ring: ['mend', 'vigour', 'aegis', 'thorns'],
-  carapace: ['walls', 'vigour', 'renew', 'thorns'],
+  carapace: ['walls', 'vigour', 'renew', 'thorns', 'ram'],
   gland: ['gift', 'recycle', 'renew', 'reclaim', 'paradise'],
   mask: ['flurry', 'recall', 'bounty', 'devour'],
   plate: ['walls', 'aegis', 'mend', 'anchor'],
-  star: ['shift', 'firstLight', 'gift', 'duskShift', 'paradise'],
+  star: ['shift', 'firstLight', 'gift', 'duskShift', 'paradise', 'grasp'],
   ember: ['nova', 'recycle', 'starfall', 'sear'],
 };
 

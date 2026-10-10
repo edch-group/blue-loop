@@ -7,6 +7,7 @@ import {
   SUBRACES,
   attackProblem,
   cardAttack,
+  maxHand,
   applyAction,
   answerShown,
   BALANCE,
@@ -1730,7 +1731,7 @@ export class App {
    */
   private finishDay() {
     const me = activePlayer(this.state!);
-    const over = me.hand.length - BALANCE.maxHand;
+    const over = me.hand.length - maxHand(me);
     this.sheet = null;
     const duskShift = this.duskMove ?? undefined;
     if (over > 0) {
@@ -4091,7 +4092,7 @@ export class App {
         return this.finishDay();
       case 'discard-pick': {
         if (!this.discarding) return;
-        const over = activePlayer(this.state!).hand.length - BALANCE.maxHand;
+        const over = activePlayer(this.state!).hand.length - maxHand(activePlayer(this.state!));
         this.discarding = this.discarding.includes(arg) ? this.discarding.filter((u) => u !== arg) : [...this.discarding, arg].slice(-over);
         sound.rustle();
         return this.render();
@@ -5371,7 +5372,7 @@ export class App {
     if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
     // Over the hand limit at the day's end: pick the cards to discard in the hand, then End Day.
     if (this.discarding && !p) {
-      const left = activePlayer(s).hand.length - BALANCE.maxHand - this.discarding.length;
+      const left = activePlayer(s).hand.length - maxHand(activePlayer(s)) - this.discarding.length;
       return `<div class="mid-hint"><b>${left > 0 ? `discard ${left} card${left === 1 ? '' : 's'}` : 'end day to discard'}</b><button class="mid-cancel" data-act="discard-cancel">keep playing</button></div>`;
     }
     // Your dawn Recall, first thing in your day: a card back to hand; or let it be.

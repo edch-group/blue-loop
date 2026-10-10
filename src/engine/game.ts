@@ -1714,8 +1714,13 @@ function dusk(state: GameState, p: PlayerState) {
  * After dusk, a hand over the limit is discarded down to it: the cards the player picked, then (if still over)
  * the costliest of the rest (a Hero kept while none leads their tableau).
  */
+/** The most cards a player may hold after dusk (a Grasp emblem holds more). */
+export function maxHand(p: PlayerState): number {
+  return BALANCE.maxHand + relicN(p.relics, 'grasp');
+}
+
 function trimHand(state: GameState, p: PlayerState, picked: string[] = []) {
-  const over = p.hand.length - BALANCE.maxHand;
+  const over = p.hand.length - maxHand(p);
   if (over <= 0) return;
   const chosen = [...new Set(picked)].map((uid) => p.hand.find((c) => c.uid === uid)).filter((c): c is CardInstance => !!c).slice(0, over);
   const keepHero = !commandCard(p);
@@ -1725,7 +1730,7 @@ function trimHand(state: GameState, p: PlayerState, picked: string[] = []) {
   const out = [...chosen, ...rest.slice(0, over - chosen.length)];
   p.hand = p.hand.filter((c) => !out.includes(c));
   p.discard.push(...out);
-  log(state, `${p.name} holds more than ${BALANCE.maxHand} cards and discards ${out.map((c) => cardDef(c.defId).name).join(', ')}.`);
+  log(state, `${p.name} holds more than ${maxHand(p)} cards and discards ${out.map((c) => cardDef(c.defId).name).join(', ')}.`);
 }
 
 /** A card's dusk effects (its own and its Fusion cards'). */
@@ -2427,8 +2432,10 @@ export function cardAttack(state: GameState, p: PlayerState, card: CardInstance)
   if (BALANCE.growthAttack && card.growth && (base > 0 || BALANCE.growthAttackAll)) base += card.growth * BALANCE.growthAttack;
   if (base <= 0) return 0;
   if (p.rooms && card.slot !== COMMAND_SLOT) base += p.rooms.attack[card.slot ?? -1] ?? 0;
+  // (A Ram emblem: its defence adds to its attack, up to the emblem's number.)
+  const ram = p.relics ? Math.min(relicN(p.relics, 'ram'), cardDefence(p, card)) : 0;
   // (Offered today: what it gave up is gone until its owner's dawn.)
-  return Math.max(0, effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play') - (card.spentAttack ?? 0));
+  return Math.max(0, effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play') + ram - (card.spentAttack ?? 0));
 }
 
 /**
