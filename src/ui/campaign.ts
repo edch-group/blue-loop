@@ -1027,7 +1027,7 @@ export class CampaignView {
         // The experience gauge fills once it is out (it comes after the materials, if any).
         if (l.xp) {
           const from = this.commanderXp() - l.xp;
-          window.setTimeout(() => this.fillXpGauge(from, l.xp), LOOT_FIRST + (l.materials ? 1 : 0) * LOOT_STEP + 350);
+          window.setTimeout(() => this.fillXpGauge(from, l.xp), LOOT_FIRST + 350);
         }
         break;
       }
@@ -2367,19 +2367,23 @@ export class CampaignView {
     // it bursts open and its rewards come out one at a time, each lit gold; then they are taken.
     if (s.loot) {
       const l = s.loot;
+      // (Every reward the same size, on a gold glow: materials and petals their mark large with the number under it;
+      // an emblem its badge, its name, what it does; a card itself.)
       const items = [
-        l.materials ? `<div class="loot-row">${MATERIALS}<b>+${l.materials}</b><span>materials</span></div>` : '',
-        l.xp ? this.xpGauge(this.commanderXp() - l.xp, l.xp) : '',
-        l.petals ? `<div class="loot-row">${PETAL}<b>+${l.petals}</b><span>Stellari petals</span></div>` : '',
-        ...l.relics.map((r) => `<div class="loot-relic"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span><div><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div></div>`),
-        ...l.cards.map((id) => `<div class="cmp-pick loot-card">${cardHtml(id)}</div>`),
+        l.materials ? `<div class="loot-tile loot-res" title="Materials">${MATERIALS}<b>+${l.materials}</b></div>` : '',
+        l.petals ? `<div class="loot-tile loot-res" title="Stellari petals">${PETAL}<b>+${l.petals}</b></div>` : '',
+        ...l.relics.map((r) => `<div class="loot-tile loot-emblem"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div>`),
+        ...l.cards.map((id) => `<div class="loot-tile loot-card">${cardHtml(id)}</div>`),
       ].filter(Boolean);
+      // (The experience first, top middle; the rewards after it, one at a time.)
+      const first = l.xp ? 1 : 0;
       if (!this.lootOpen)
         return `<div class="overlay overlay-soft loot-overlay"><button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${LOOT_CACHE}<span class="loot-cache-tap">${l.won ? 'victory · tap to open' : 'what was saved · tap to open'}</span></button></div>`;
       return `<div class="overlay overlay-soft loot-overlay loot-opened">
         <div class="loot-burst" aria-hidden="true"></div>
-        <div class="loot-items">${items.map((h, i) => `<div class="loot-item" style="--i:${i}">${h}</div>`).join('')}</div>
-        <button class="btn-primary loot-take" style="--i:${items.length}" data-act="cmp-loot-ok">take it</button>
+        ${l.xp ? `<div class="loot-item loot-top" style="--i:0">${this.xpGauge(this.commanderXp() - l.xp, l.xp)}</div>` : ''}
+        <div class="loot-items">${items.map((h, i) => `<div class="loot-item" style="--i:${i + first}">${h}</div>`).join('')}</div>
+        <button class="btn-primary loot-take" style="--i:${items.length + first}" data-act="cmp-loot-ok">take it</button>
       </div>`;
     }
     const reward = s.cardRewards[0];

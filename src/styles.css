@@ -6534,18 +6534,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .table-view.zoom-rival > .confirm-pill, .table-view.zoom-mine > .confirm-pill { opacity: 0; pointer-events: none; }
 
 /* A battle's loot, on the map as you come back: what it paid, the relics found, the cards gained. */
-.loot-rows { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; margin: 4px 0 14px; }
-.loot-row { display: flex; align-items: baseline; gap: 6px; font-family: var(--display); letter-spacing: 0.08em; }
-.loot-row b { font-size: 1.15rem; color: var(--ink); }
-.loot-row span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.16em; color: var(--ink-soft); }
-.loot-row svg { width: 16px; height: 16px; align-self: center; }
-.loot-relics { display: grid; gap: 10px; margin: 0 auto 14px; max-width: 420px; }
-.loot-relic { display: flex; align-items: center; gap: 12px; text-align: left; }
-.loot-relic .cmp-relic { flex: none; animation: none; }
-.loot-relic b { display: block; font-family: var(--display); font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.72rem; color: var(--ink); }
-.loot-relic small { color: var(--ink-soft); font-size: 0.8rem; line-height: 1.35; }
-.loot-cards { justify-content: center; margin-bottom: 12px; }
-.loot-card { cursor: default; }
 /* A full-art card that costs energy (a Lost Lord): its cost in the top left corner, clear of its name. */
 .card.card-full.card-costed .card-glyph .cost-dots { top: calc(var(--cw) * 0.05); left: calc(var(--cw) * 0.05); bottom: auto; transform: none; z-index: 3; }
 
@@ -6606,26 +6594,33 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   animation: loot-rays 0.9s ease-out both; }
 @keyframes loot-burst { 0% { transform: scale(0.2); opacity: 1; } 60% { opacity: 1; } 100% { transform: scale(60); opacity: 0; } }
 @keyframes loot-rays { from { transform: scale(0.3) rotate(0deg); opacity: 1; } to { transform: scale(1.4) rotate(40deg); opacity: 0; } }
-.loot-items { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px; max-width: min(760px, 92vw); max-height: 74vh; overflow: auto; padding: 18px; }
-.loot-item {
-  position: relative; display: grid; place-items: center; padding: 12px 16px; border-radius: 16px;
-  background: linear-gradient(160deg, #fffdf6, #fbf4e1); box-shadow: 0 0 0 1.5px rgba(214, 170, 80, 0.85), 0 0 22px 4px rgba(236, 196, 110, 0.45), 0 10px 26px rgba(90, 70, 30, 0.14);
-  animation: loot-in 0.55s cubic-bezier(.2,1.4,.4,1) both, loot-halo 2.4s ease-in-out infinite;
-  animation-delay: calc(450ms + var(--i) * 420ms), calc(1000ms + var(--i) * 420ms);
-  overflow: hidden;
-}
-/* (The shimmer: a band of light sweeping across each reward, again and again.) */
-.loot-item::after { content: ''; position: absolute; inset: -40%; pointer-events: none;
-  background: linear-gradient(105deg, transparent 38%, rgba(255, 238, 180, 0.0) 42%, rgba(255, 236, 170, 0.75) 50%, rgba(255, 238, 180, 0) 58%, transparent 62%);
-  transform: translateX(-60%); animation: loot-shine 2.6s ease-in-out infinite; animation-delay: calc(900ms + var(--i) * 420ms); mix-blend-mode: screen; }
-.loot-item .loot-card, .loot-item .cmp-pick { margin: 0; }
-.loot-item .loot-relic { max-width: 320px; }
+.loot-items { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 34px; max-width: min(860px, 94vw); padding: 26px 18px; }
+/* Each reward: the same size (a card's), no box, a living gold glow behind it (a soft treasure light breathing,
+   faint rays turning slowly through it). */
+.loot-item { position: relative; animation: loot-in 0.55s cubic-bezier(.2,1.4,.4,1) both; animation-delay: calc(450ms + var(--i) * 420ms); }
+.loot-tile { --lw: 112px; --lh: calc(var(--lw) * 1.4); position: relative; isolation: isolate; width: var(--lw); height: var(--lh); display: grid; justify-items: center; align-content: center; gap: 6px; text-align: center; }
+.loot-tile::before { content: ''; position: absolute; left: 50%; top: 50%; width: 150%; height: 125%; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 226, 140, 0.8), rgba(246, 200, 96, 0.38) 50%, rgba(240, 190, 80, 0) 100%);
+  animation: loot-glow-breathe 2.6s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -0.4s); }
+.loot-tile::after { content: ''; position: absolute; left: 50%; top: 50%; width: 175%; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 236, 170, 0.5) 0 5deg, transparent 5deg 24deg);
+  -webkit-mask: radial-gradient(closest-side, #000 15%, transparent 72%); mask: radial-gradient(closest-side, #000 15%, transparent 72%);
+  animation: loot-rays-turn 18s linear infinite; opacity: 0.7; }
+.loot-res svg { width: calc(var(--lw) * 0.58); height: calc(var(--lw) * 0.58); filter: drop-shadow(0 2px 6px rgba(150, 110, 30, 0.35)); }
+.loot-res b { font-family: var(--display); font-size: 0.95rem; letter-spacing: 0.08em; color: var(--ink); }
+.loot-emblem { align-content: start; padding-top: 4px; }
+.loot-emblem .cmp-relic { width: calc(var(--lw) * 0.62); height: calc(var(--lw) * 0.62); padding: calc(var(--lw) * 0.08); animation: none; }
+.loot-emblem b { font-family: var(--display); font-weight: 600; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); line-height: 1.3; }
+.loot-emblem small { font-size: 0.72rem; line-height: 1.3; color: var(--ink-soft); }
+.loot-card .cmp-card { --cw: var(--lw); --hw: var(--lw); --hh: var(--lh); width: var(--lw); height: var(--lh); }
 .loot-take { margin-top: 6px; animation: loot-in 0.4s ease-out both; animation-delay: calc(450ms + var(--i) * 420ms + 200ms); }
-.loot-opened { flex-direction: column; display: flex; align-items: center; justify-content: center; }
+.loot-opened { flex-direction: column; display: flex; align-items: center; justify-content: center; gap: 4px; }
+/* The experience, top middle: the level, its bar filling, what was earned. */
+.loot-top { margin-bottom: 4px; }
 @keyframes loot-in { from { opacity: 0; transform: translateY(18px) scale(0.6); } }
-@keyframes loot-halo { 50% { box-shadow: 0 0 0 1.5px rgba(240, 200, 110, 1), 0 0 34px 8px rgba(246, 210, 120, 0.6), 0 10px 26px rgba(90, 70, 30, 0.14); } }
-@keyframes loot-shine { 0% { transform: translateX(-60%); } 55%, 100% { transform: translateX(60%); } }
-@media (prefers-reduced-motion: reduce) { .loot-cache, .loot-cache-glow, .loot-cache-seam, .loot-item, .loot-item::after { animation: none; } .loot-burst { display: none; } .loot-take { animation: none; } }
+@keyframes loot-glow-breathe { 50% { opacity: 0.65; transform: translate(-50%, -50%) scale(1.08); } }
+@keyframes loot-rays-turn { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loot-cache, .loot-cache-glow, .loot-cache-seam, .loot-item, .loot-tile::before, .loot-tile::after { animation: none; } .loot-burst { display: none; } .loot-take { animation: none; } }
 
 /* A system on a rise or in a dip of the land: its marks stand at its height (the plane's own up, in map units). */
 .cmp-3d .cmp-n3 { transform: translateZ(var(--h, 0px)); }
@@ -6664,4 +6659,4 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 @keyframes xp-up { 0% { opacity: 0; transform: translate(-50%, -60%); } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -160%); } }
 @keyframes xp-lv { 50% { transform: scale(1.5); color: #c9a24e; } }
 /* (A phone on its side: the cards in a cache a little smaller, so everything fits above "take it".) */
-@media (max-height: 560px) { .loot-items { gap: 10px; padding: 10px; max-height: 70vh; } .loot-item { padding: 8px 12px; } .loot-item .loot-card { zoom: 0.72; } }
+@media (max-height: 560px) { .loot-items { gap: 22px; padding: 16px; } .loot-tile { --lw: 88px; } }
