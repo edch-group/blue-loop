@@ -1829,6 +1829,7 @@ export class CampaignView {
         heart: !!n.heart,
         ring: n.challenge ? hex(CHALLENGE_COLOUR[n.challenge.kind]) : n.owner ? hex(this.colourOf(n.owner)) : undefined,
         dim: !!(n.dimmed || n.collapsing || n.challenge?.done),
+        doom: !!n.collapsing,
         dead: !!(n.collapsed || n.ruined),
         reach: this.reach.has(n.id),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,

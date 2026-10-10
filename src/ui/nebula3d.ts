@@ -77,7 +77,7 @@ float fbm(vec2 p) { return 0.5 * vnoise(p) + 0.25 * vnoise(p * 2.03 + 7.1) + 0.1
 
 /**
  * The ground. Shards past the collapse (uGone, a world x) break away: each turns about its middle and falls,
- * the further past the sooner, until it is gone; shards in the next column to go (up to uCrack) are marked, burnt orange.
+ * the further past the sooner, until it is gone; shards in the next column to go (up to uCrack) are marked, faintly red.
  */
 const GROUND_VERT = `
 attribute vec3 aPos; attribute vec3 aNorm; attribute vec3 aBary; attribute vec3 aEdge; attribute vec4 aShard;
@@ -207,8 +207,8 @@ void main() {
     float w = fwidth(d) * 1.8;
     float crack = 1.0 - smoothstep(0.0, w, d);
     vec3 glow = mix(vec3(0.85, 0.35, 0.75), vec3(0.3, 0.75, 0.95), 0.5 + 0.5 * sin(vWorld.x * 3.0 + uTime * 2.0));
-    // (About to go: the whole shard burnt orange, still, under its glowing cracks.)
-    if (vFall <= 0.0) c *= vec3(0.95, 0.6, 0.42);
+    // (About to go: the whole shard faintly red, still, under its glowing cracks.)
+    if (vFall <= 0.0) c *= vec3(1.0, 0.9, 0.88);
     c = mix(c, glow, crack * 0.9);
     if (vFall > 0.0) c *= 1.0 - min(vFall, 1.5) * 0.35;
   }

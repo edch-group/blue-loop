@@ -13,6 +13,9 @@ import { shipModel3d, SHIP_STRIDE } from './ship3d';
 import sunCoronaUrl from './gems/sun-corona.png';
 import sunDiscUrl from './gems/sun-disc.png';
 
+/** A system gone next turn: red. */
+const DOOM: [number, number, number] = [0.86, 0.26, 0.22];
+
 /** One thing to draw: where it stands on the map's plane (world x, z), what it is, and how it looks. */
 export interface MapObject {
   x: number;
@@ -23,6 +26,8 @@ export interface MapObject {
   ring?: [number, number, number];
   /** Dimmed (collapsing, out of reach): drawn faded and grey. */
   dim?: boolean;
+  /** Collapsing (gone next turn): drawn red. */
+  doom?: boolean;
   /** Gone (collapsed, ruined): a small grey ember. */
   dead?: boolean;
   /** One the player can travel to: it pulses, rings going out from it like sonar. */
@@ -820,7 +825,7 @@ export class MapObjects {
         const held: [number, number, number] = o.ring ? [0, 1, 2].map((i) => SUN[i] * 0.45 + o.ring![i] * 0.55) as [number, number, number] : SUN;
         // A slow pulse in its size, as if it breathes.
         const pulse = 1 + 0.035 * Math.sin(time * 1.4 + o.seed * 3);
-        solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0.3, time * 0.15 + o.seed, r * pulse), o.dim ? 4 : 0, o.dim ? [0.8, 0.81, 0.84] : held, 1, o.seed);
+        solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0.3, time * 0.15 + o.seed, r * pulse), o.dim && !o.doom ? 4 : 0, o.doom ? DOOM : o.dim ? [0.8, 0.81, 0.84] : held, 1, o.seed);
       }
     }
     solid.done();
@@ -842,7 +847,10 @@ export class MapObjects {
         sprite.draw(o.x, y, o.z, r * 6, 0, [1, 1, 1], 0.55 * h);
         sprite.draw(o.x, y, o.z, r * (3.2 + 0.6 * h), 4, o.ring ?? INK, 0.9 * h, o.seed + time * 0.4);
       }
-      if (o.dim) {
+      if (o.doom) {
+        sprite.draw(o.x, y, o.z, r * 3.2, 0, DOOM, 0.45);
+        sprite.draw(o.x, y, o.z, r * 2.4, 1, DOOM, 1);
+      } else if (o.dim) {
         sprite.draw(o.x, y, o.z, r * 2.4, 0, [1, 1, 1], 0.2);
       } else {
         const breathe = 1 + 0.1 * Math.sin(time * 1.1 + o.seed);
@@ -853,7 +861,7 @@ export class MapObjects {
         if (o.reach) sprite.draw(o.x, y, o.z, r * 4.4, 4, mark, 0.6, o.seed);
         if (o.reach) sprite.draw(o.x, y, o.z, r * 3.9, 3, mark, 0.35, o.seed);
       }
-      if (o.ring) sprite.draw(o.x, y, o.z, r * 2.4, 1, o.ring, 1);
+      if (o.ring && !o.doom) sprite.draw(o.x, y, o.z, r * 2.4, 1, o.ring, 1);
     }
     sprite.done();
     this.drawStellari(cam, time, fade);
