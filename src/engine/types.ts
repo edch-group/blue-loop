@@ -435,7 +435,11 @@ export interface PlayerState {
    * Dawn choices waiting on this player (a dawn Recall or Shift of their own), in order, each with the card that
    * gave it: answered one by one before anything else that day.
    */
-  dawnChoices?: { uid: string; kind: 'recall' | 'shift'; /** A relic's dawn (its name), not a card's. */ relic?: string }[];
+  /**
+   * (Also any choice a relic leaves its holder to make in their day: a Recall, or heat to aim at any target, a rival
+   * card or their sun, `amount` of it.)
+   */
+  dawnChoices?: { uid: string; kind: 'recall' | 'shift' | 'aim'; /** A relic's choice (its name), not a card's. */ relic?: string; amount?: number }[];
   /** Campaign: the relic powers this side carries into battle that the engine answers (relics.ts). */
   relics?: RelicInPlay[];
   id: string;
@@ -605,6 +609,8 @@ export interface BattleSkill {
   once?: boolean;
   /** A relic's once-a-battle power (its name): shown with the relics, on the battle's right, not with the hero. */
   relic?: string;
+  /** Choices it leaves its holder to make, one after another (a relic's Recall 2). */
+  choices?: { kind: 'recall'; times: number };
 }
 
 export interface PlayerSetup {
@@ -698,9 +704,11 @@ export type Action =
    * The first dawn choice waiting on the player (Circular Refraction): for a Recall, the card of theirs returned to
    * hand; for a Shift, the card moved and where to. Neither, to let it be.
    */
-  | { type: 'dawnChoice'; allyUid?: string; shiftTo?: number }
+  | { type: 'dawnChoice'; allyUid?: string; shiftTo?: number; /** A relic's heat at any target: the rival card (unset: their sun). */ enemyUid?: string }
   /** Ends the day. After dusk a hand over the limit is discarded down to it: `discard` names the cards (any still over are picked for them). */
-  | { type: 'endTurn'; discard?: string[] }
+  | { type: 'endTurn'; discard?: string[]; /** A Dusk Shift relic: one of your cards moved to another slot as your day ends. */ duskShift?: { uid: string; to: number } }
+  /** A Reclaim relic: a card from your discard pile back to your hand, for energy (then played as any card). */
+  | { type: 'reclaim'; cardUid: string }
   /** Use one of your hero's battle skills (campaign), on your own day. */
   | { type: 'heroSkill'; index: number }
   /** Use one of the abilities of the Hero leading from your Hero slot (one a day). */

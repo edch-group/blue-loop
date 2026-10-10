@@ -530,6 +530,21 @@ export function chooseAIAction(state: GameState): Action {
   // A dawn choice waiting (Circular Refraction): the card returned or moved that leaves it best placed, or none if
   // none is better.
   const dawn = me.dawnChoices?.[0];
+  // A relic's heat at any target: the rival card, or their sun, that leaves it best placed.
+  if (dawn?.kind === 'aim') {
+    let best: Action = { type: 'dawnChoice' };
+    let score = -Infinity;
+    for (const c of [undefined, ...(targetOf(state, me)?.tableau ?? [])]) {
+      const a: Action = c ? { type: 'dawnChoice', enemyUid: c.uid } : { type: 'dawnChoice' };
+      try {
+        const v = evaluate(applyAction(state, a), me.id);
+        if (v > score) [score, best] = [v, a];
+      } catch {
+        // (Not a move it can make.)
+      }
+    }
+    return best;
+  }
   if (dawn) {
     let best: Action = { type: 'dawnChoice' };
     let score = evaluate(applyAction(state, best), me.id) + 0.05;

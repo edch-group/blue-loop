@@ -105,7 +105,7 @@ import { relicMark } from './relic-art';
 /** Hero gear's mark, in a battle's finds. */
 const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
 import { closeTour, tourShowing } from './tour';
-import { shownKind, isBossCard, bossIntent, type ShownKind } from '../engine';
+import { shownKind, isBossCard, bossIntent, relicN, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -291,7 +291,7 @@ const BANNER_GAP_MS = 1300;
 const BANNER_SHOWN_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300, dawnChoice: 1100, react: 1000 };
+const AI_PAUSE: Record<Action['type'], number> = { reclaim: 800, playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300, dawnChoice: 1100, react: 1000 };
 const TOAST_MS = 2600;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
@@ -821,6 +821,9 @@ export class App {
   private pending: Pending | null = null;
   /** A dawn Shift being answered (Circular Refraction): the card of yours picked to move, before where it goes. */
   private dawnPick: string | null = null;
+  /** A Dusk Shift relic, as the day ends: picking the card to move (and where), then the move made with End Day. */
+  private duskShifting = false;
+  private duskMove: { uid: string; to: number } | null | undefined;
   /** Ending the day over the hand limit: the cards of the hand picked to discard (null: not discarding). */
   private discarding: string[] | null = null;
   private stage: Stage | null = null;
@@ -1639,6 +1642,12 @@ export class App {
     const me = activePlayer(this.state!);
     const over = me.hand.length - BALANCE.maxHand;
     this.sheet = null;
+    // A Dusk Shift relic: first, a card to move as the day ends (or let it be).
+    if (this.duskMove === undefined && relicN(me.relics, 'duskShift') && me.tableau.some((c) => c.slot !== COMMAND_SLOT)) {
+      this.duskShifting = true;
+      return this.render();
+    }
+    const duskShift = this.duskMove ?? undefined;
     if (over > 0) {
       const picked = (this.discarding ?? []).filter((u) => me.hand.some((c) => c.uid === u));
       if (picked.length !== over) {
@@ -1647,10 +1656,12 @@ export class App {
         return this.render();
       }
       this.discarding = null;
-      return this.dispatch({ type: 'endTurn', discard: picked });
+      this.duskMove = undefined;
+      return this.dispatch({ type: 'endTurn', discard: picked, ...(duskShift ? { duskShift } : {}) });
     }
     this.discarding = null;
-    this.dispatch({ type: 'endTurn' });
+    this.duskMove = undefined;
+    this.dispatch({ type: 'endTurn', ...(duskShift ? { duskShift } : {}) });
   }
 
   /** What the viewer could still do today (asked about before the day ends): cards to play, attacks, their Hero's ability. */
@@ -3913,6 +3924,7 @@ export class App {
       }
       case 'discard-cancel':
         this.discarding = null;
+        this.duskMove = undefined;
         return this.render();
       case 'board-zoom':
         return this.setBoardZoom(this.boardZoom === arg ? null : (arg as 'rival' | 'mine'));
@@ -4016,14 +4028,32 @@ export class App {
       case 'dawn-shift-to': {
         const uid = this.dawnPick;
         this.dawnPick = null;
+        // (A relic's dusk shift: made with the day's end.)
+        if (this.duskShifting) {
+          this.duskShifting = false;
+          this.duskMove = uid ? { uid, to: Number(arg) } : null;
+          return this.finishDay();
+        }
         if (uid) this.dispatch({ type: 'dawnChoice', allyUid: uid, shiftTo: Number(arg) });
         return;
       }
+      case 'dawn-aim':
+        return this.dispatch({ type: 'dawnChoice', enemyUid: arg });
+      case 'dawn-aim-sun':
+        return this.dispatch({ type: 'dawnChoice' });
+      case 'reclaim':
+        this.sheet = null;
+        return this.dispatch({ type: 'reclaim', cardUid: arg });
       case 'dawn-recall':
         this.dawnPick = null;
         return this.dispatch({ type: 'dawnChoice', allyUid: arg });
       case 'dawn-shift-skip':
         this.dawnPick = null;
+        if (this.duskShifting) {
+          this.duskShifting = false;
+          this.duskMove = null;
+          return this.finishDay();
+        }
         return this.dispatch({ type: 'dawnChoice' });
       case 'choose-host':
         if (this.pending) this.pending.hostUid = arg;
@@ -5126,7 +5156,7 @@ export class App {
   }
 
   /** The dawn choice (a Recall or a Shift) the viewer has to answer before anything else, on their own day here. */
-  private dawnChoice(): { uid: string; kind: 'recall' | 'shift' } | null {
+  private dawnChoice(): NonNullable<PlayerState['dawnChoices']>[number] | null {
     const s = this.state;
     if (!s || isGameOver(s)) return null;
     const now = activePlayer(s);
@@ -5135,7 +5165,7 @@ export class App {
 
   /** Whether the viewer has a dawn Shift to answer now. */
   private dawnShiftWaiting(): boolean {
-    return this.dawnChoice()?.kind === 'shift';
+    return this.dawnChoice()?.kind === 'shift' || this.duskShifting;
   }
 
   /**
@@ -5155,10 +5185,16 @@ export class App {
       return `<div class="mid-hint"><b>${left > 0 ? `discard ${left} card${left === 1 ? '' : 's'}` : 'end day to discard'}</b><button class="mid-cancel" data-act="discard-cancel">keep playing</button></div>`;
     }
     // Your dawn Recall, first thing in your day: a card back to hand; or let it be.
-    if (this.dawnChoice()?.kind === 'recall') return '<div class="mid-hint"><b>dawn recall: return a card to hand</b><button class="mid-cancel" data-act="dawn-shift-skip">let it be</button></div>';
-    // Your dawn Shift: a card to move, then where; or let it be.
-    if (this.dawnShiftWaiting())
-      return `<div class="mid-hint"><b>${this.dawnPick ? 'dawn shift: where it moves' : 'dawn shift: move a card'}</b><button class="mid-cancel" data-act="${this.dawnPick ? 'dawn-shift-back' : 'dawn-shift-skip'}">${this.dawnPick ? 'back' : 'let it be'}</button></div>`;
+    const choice = this.dawnChoice();
+    if (choice?.kind === 'recall') return `<div class="mid-hint"><b>${choice.relic ? 'recall a card to hand' : 'dawn recall: return a card to hand'}</b><button class="mid-cancel" data-act="dawn-shift-skip">let it be</button></div>`;
+    // A relic's heat at any target: a rival card, or their sun.
+    // (Short, as every hint here is: the relic is named in the log.)
+    if (choice?.kind === 'aim') return `<div class="mid-hint"><b>${choice.amount ?? 0} heat: pick a target</b><button class="mid-cancel" data-act="dawn-aim-sun">their sun</button></div>`;
+    // Your dawn Shift (or a relic's dusk one, as your day ends): a card to move, then where; or let it be.
+    if (this.dawnShiftWaiting()) {
+      const when = this.duskShifting ? 'dusk shift' : 'dawn shift';
+      return `<div class="mid-hint"><b>${this.dawnPick ? `${when}: where it moves` : `${when}: move a card`}</b><button class="mid-cancel" data-act="${this.dawnPick ? 'dawn-shift-back' : 'dawn-shift-skip'}">${this.dawnPick ? 'back' : 'let it be'}</button></div>`;
+    }
     // A challenge's clock (the mine's count too), with nothing acting next. (Against a Lost Overlord or Lord, the
     // card that acts next burns on the board: that says enough.)
     if (!p) {
@@ -5562,6 +5598,11 @@ export class App {
     const recall = this.dawnChoice();
     if (recall?.kind === 'recall' && opts.tableau === 'mine' && opts.owner?.id === this.viewer().id && c.uid !== recall.uid && c.slot !== undefined && c.slot !== COMMAND_SLOT) {
       attrs = `data-act="dawn-recall" data-arg="${c.uid}" title="Return ${esc(cardDef(c.defId).name)} to your hand"`;
+      state = 'card-choosable';
+    }
+    // A relic's heat at any target: any rival card (or, from the middle of the board, their sun).
+    if (recall?.kind === 'aim' && opts.tableau === 'rival') {
+      attrs = `data-act="dawn-aim" data-arg="${c.uid}" title="${recall.amount ?? 0} heat to ${esc(cardDef(c.defId).name)}"`;
       state = 'card-choosable';
     }
     // Your dawn Shift: pick a card of yours (not your Hero), then a card to swap with (or an empty slot).
@@ -6164,7 +6205,13 @@ export class App {
         `<p class="muted center-text">Most recent first. ${esc(of.name)} has ${of.deck.length} card${of.deck.length === 1 ? '' : 's'} left in their deck and ${of.hand.length} in hand.</p><div class="pile-grid">${rows || '<p class="muted">Their discard pile is empty.</p>'}</div>`,
       );
     }
-    const rows = [...me.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');
+    // A Reclaim relic: on your day, any card here can be taken back to hand, for energy.
+    const reclaim = relicN(me.relics, 'reclaim');
+    const canTake = reclaim > 0 && this.canAct() && activePlayer(this.state!).id === me.id;
+    const rows = [...me.discard]
+      .reverse()
+      .map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}${canTake ? `<button class="pile-take" data-act="reclaim" data-arg="${c.uid}" ${me.playsLeft < reclaim ? 'disabled' : ''}>take back · ${reclaim} energy</button>` : ''}</div>`)
+      .join('');
     return this.sheetFrame(
       `your discard · ${me.discard.length}`,
       `<p class="muted center-text">Cards that faded, were destroyed or were cancelled, most recent first. When your deck runs out they are shuffled into a new one.</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,

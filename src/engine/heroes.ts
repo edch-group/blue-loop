@@ -8,7 +8,7 @@
 import { boon } from './boons';
 import { cardDef } from './cards';
 import { plainText } from './keywords';
-import { RELIC_POWERS, SLOT_POWERS, type RelicInPlay, type RelicPower } from './relics';
+import { RELIC_POWERS, rollPower, type RelicInPlay, type RelicPower } from './relics';
 import type { BattleModifiers, BattleSkill } from './types';
 
 /** Kinds of gear slot. Every hero has a weapon; the rest are their race's. */
@@ -363,8 +363,7 @@ const CURSES: { mods: BattleModifiers; text: string; name: string }[] = [
 /** A relic for a race, of a rarity: a power (one its kind can carry, chosen by the roll), or, if cursed, a toll. */
 export function makeRelic(id: string, slot: SlotKind, rarity: ItemRarity, race: number, roll: number, cursed: boolean): Relic {
   if (!cursed) {
-    const pool = SLOT_POWERS[slot];
-    const power = pool[Math.floor(roll * pool.length) % pool.length];
+    const power = rollPower(slot, roll);
     const n = RELIC_POWERS[power].amounts[STEP[rarity] - 1];
     return { id, name: `${QUALITY[rarity]} ${GEAR_NAMES[slot][race] ?? GEAR_NAMES[slot][0]}`, slot, rarity, boons: [], power, n, text: RELIC_POWERS[power].text(n) };
   }
@@ -399,7 +398,7 @@ export function relicBonus(relics: Relic[] | undefined, hero = ''): { boons: str
     else if (r.power === 'walls') out.walls += n;
     else if (r.power === 'edge') out.guns += n;
     else if (r.power === 'herald') out.start = true;
-    else if (def.kind === 'once') out.skills.push({ id: `relic-${r.id}`, name: r.name, text: def.text(n), hero, effects: def.effects!(n), cost: 0, once: true, relic: r.name });
+    else if (def.kind === 'once') out.skills.push({ id: `relic-${r.id}`, name: r.name, text: def.text(n), hero, effects: def.effects!(n), cost: 0, once: true, relic: r.name, ...(def.choices ? { choices: def.choices(n) } : {}) });
     else out.powers.push({ power: r.power, n, name: r.name });
   }
   return out;

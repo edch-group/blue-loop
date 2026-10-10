@@ -1732,6 +1732,55 @@ describe('relic powers', () => {
     bo.tableau = [];
     let t = endTurn(s);
     t = endTurn(t);
+    // (Its blow at any target waits on Ada's choice: here, Bo's sun.)
+    expect(t.players[0].dawnChoices?.find((c) => c.kind === 'aim')).toMatchObject({ amount: 5 });
+    while (t.players[0].dawnChoices?.length) t = applyAction(t, { type: 'dawnChoice' });
     expect(t.players[1].heat).toBeGreaterThan(heat);
+  });
+});
+
+describe('relic powers, part two', () => {
+  const relic = (power: string, n: number) => ({ power: power as never, n, name: `Test ${power}` });
+  it("Flurry's third attack leaves a choice: heat at any target, a rival card or their sun", () => {
+    let s = twoPlayer(8);
+    const [ada, bo] = s.players;
+    ada.relics = [relic('flurry', 2)];
+    const atk = give(ada, ['helio_lancer', 'helio_lancer', 'helio_lancer'], 'tableau');
+    for (const c of atk) c.dimmed = false;
+    bo.tableau = [];
+    for (const c of atk) s = applyAction(s, { type: 'attack', attackerUid: c.uid, targetUid: null });
+    expect(s.players[0].dawnChoices?.[0]).toMatchObject({ kind: 'aim', amount: 2 });
+    const heat = s.players[1].heat;
+    s = applyAction(s, { type: 'dawnChoice' });
+    expect(s.players[1].heat).toBeGreaterThanOrEqual(heat + 2 - s.players[1].shields);
+    expect(s.players[0].dawnChoices ?? []).toHaveLength(0);
+  });
+
+  it('Reclaim takes a card back from the discard pile for energy; Thorns hits back harder', () => {
+    let s = twoPlayer(9);
+    const [ada, bo] = s.players;
+    ada.relics = [relic('reclaim', 1)];
+    const [gone] = give(ada, ['helio_lancer']);
+    ada.hand = ada.hand.filter((c) => c.uid !== gone.uid);
+    ada.discard.push(gone);
+    ada.playsLeft = 3;
+    s = applyAction(s, { type: 'reclaim', cardUid: gone.uid });
+    expect(s.players[0].hand.some((c) => c.uid === gone.uid)).toBe(true);
+    expect(s.players[0].playsLeft).toBe(2);
+    void bo;
+    const [wall] = give(s.players[1], ['halo_ward'], 'tableau');
+    const plain = counterDamage(s, s.players[1], s.players[1].tableau.find((c) => c.uid === wall.uid)!);
+    s.players[1].relics = [relic('thorns', 2)];
+    expect(counterDamage(s, s.players[1], s.players[1].tableau.find((c) => c.uid === wall.uid)!)).toBe(plain + 2);
+  });
+
+  it('a Dusk Shift moves a card as the day ends', () => {
+    let s = twoPlayer(10);
+    const [ada] = s.players;
+    ada.relics = [relic('duskShift', 1)];
+    const [c] = give(ada, ['helio_lancer'], 'tableau');
+    const to = [0, 1, 2, 3, 4].find((i) => i !== c.slot && !ada.tableau.some((x) => x.slot === i))!;
+    s = applyAction(s, { type: 'endTurn', duskShift: { uid: c.uid, to } });
+    expect(s.players[0].tableau.find((x) => x.uid === c.uid)!.slot).toBe(to);
   });
 });

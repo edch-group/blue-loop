@@ -423,26 +423,24 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
   }
 }
 
-/**
- * A relic's blow where its holder would want it ("any target"): the rival card it would burn away (the one with
- * the most attack of those), else the rival's sun (a Lost Overlord's body, if it has no sun).
- */
-function relicStrike(state: GameState, p: PlayerState, amount: number, power: RelicPower) {
-  const rival = targetOf(state, p);
+/** A relic's blow at any target: a choice its holder makes (a rival card, or their sun), waiting first thing in their day. */
+function relicAim(state: GameState, p: PlayerState, amount: number, power: RelicPower) {
   const relic = relicOf(p.relics, power);
-  if (!rival || !relic || amount <= 0 || state.winnerId) return;
-  const kills = rival.tableau
-    .filter((c) => !(rival.boss && c.uid === rival.boss.leader) && (c.health ?? 0) + cardDefence(rival, c) <= amount)
-    .sort((a, b) => cardAttack(state, rival, b) - cardAttack(state, rival, a));
-  const victim = kills[0];
-  log(state, `${p.name}'s ${relic.name} strikes ${victim ? `${rival.name}'s ${cardDef(victim.defId).name}` : `${rival.name}'s sun`} for ${amount}.`);
-  if (victim) {
-    notePulse(state, p, null, 'heat', rival, amount, victim.uid);
-    strikeCard(state, rival, victim, amount, p, false, '', false, true);
-  } else {
-    notePulse(state, p, null, 'heat', rival, amount);
-    applyHeat(state, rival, amount, p, false, undefined, false, `${p.name}'s ${relic.name}`);
-  }
+  if (!relic || amount <= 0 || state.winnerId || p.eliminated || !targetOf(state, p)) return;
+  log(state, `${p.name}'s ${relic.name}: ${amount} heat to any target.`);
+  (p.dawnChoices ??= []).push({ uid: `relic:${relic.name}`, kind: 'aim', relic: relic.name, amount });
+}
+
+/** The dawn Sear of a relic: heat to the rival card with the most attack (a Guard draws attacks only). */
+function relicSear(state: GameState, p: PlayerState) {
+  const n = relicN(p.relics, 'sear');
+  const rival = targetOf(state, p);
+  if (!n || !rival) return;
+  const victim = [...rival.tableau].filter((c) => !(rival.boss && c.uid === rival.boss.leader)).sort((a, b) => cardAttack(state, rival, b) - cardAttack(state, rival, a))[0];
+  if (!victim || cardAttack(state, rival, victim) <= 0) return;
+  log(state, `${p.name}'s ${relicOf(p.relics, 'sear')!.name} sears ${rival.name}'s ${cardDef(victim.defId).name} for ${n}.`);
+  notePulse(state, p, null, 'heat', rival, n, victim.uid);
+  strikeCard(state, rival, victim, n, p, false, '', false, true);
 }
 
 /** A Gift relic's card: a random one of its holder's race (as rare as the relic allows), legal in the battle's mode. */
@@ -637,6 +635,8 @@ function distance(a: CardInstance, b: CardInstance): number {
  */
 export function cardDefence(p: PlayerState, card: CardInstance): number {
   let d = slotDefence(card.slot) + cardSturdy(card) + roomDefence(p, card) + (card.fortified ?? 0);
+  // (An Anchor relic: Guards stand thicker.)
+  if (p.relics && isGuard(p, card)) d += relicN(p.relics, 'anchor');
   for (const src of p.tableau) {
     const k = distance(src, card);
     if (k === 0) continue;
@@ -928,7 +928,7 @@ function reshuffle(state: GameState, p: PlayerState) {
   log(state, `${p.name} shuffles their discard pile back into their deck.`);
   // A Recycle relic answers it with a blow.
   const recycle = relicN(p.relics, 'recycle');
-  if (recycle) relicStrike(state, p, recycle, 'recycle');
+  if (recycle) relicAim(state, p, recycle, 'recycle');
 }
 
 /** A player's card by uid, wherever it is. */
@@ -1316,7 +1316,8 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       }
       case 'devour': {
         const t = ctx.against ?? targetOf(state, p);
-        const victim = t ? [...t.tableau].sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0] : undefined;
+        // (Never a Lost Overlord's own body: what must be beaten down is beaten down.)
+        const victim = t ? [...t.tableau].filter((c) => c.uid !== t.boss?.leader).sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0] : undefined;
         if (!t || !victim) break;
         log(state, `${p.name}'s ${cardDef(card.defId).name} devours ${t.name}'s ${cardDef(victim.defId).name}.`);
         notePulse(state, p, card, 'heat', t, 1, victim.uid);
@@ -1599,8 +1600,9 @@ function startTurn(state: GameState) {
 /** A player's dawn: their tableau's dawn effects, cards fading, and the day's energy. */
 function dawn(state: GameState, p: PlayerState) {
   // Your tableau's dawn effects, left to right. A Recall or Shift of your own waits on you: you choose which card,
-  // first thing in your day (or let it be).
-  delete p.dawnChoices;
+  // first thing in your day (or let it be). (A relic's blow at any target, from the day's draw, still waits.)
+  p.dawnChoices = p.dawnChoices?.filter((c) => c.kind === 'aim');
+  if (!p.dawnChoices?.length) delete p.dawnChoices;
   for (const card of [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
     if (!p.tableau.includes(card)) continue;
@@ -1614,7 +1616,9 @@ function dawn(state: GameState, p: PlayerState) {
       if (could) (p.dawnChoices ??= []).push({ uid: card.uid, kind });
     }
   }
-  // Relics' dawns: a repair, a card given, and a Recall or Shift that waits on its holder as a card's does.
+  // Relics' dawns: a sear, a repair, a card given, and a Recall or Shift that waits on its holder as a card's does.
+  relicSear(state, p);
+  if (state.winnerId || p.eliminated) return;
   const mendBy = relicN(p.relics, 'mend');
   if (mendBy) {
     log(state, `${p.name}'s ${relicOf(p.relics, 'mend')!.name}: dawn repair ${mendBy}.`);
@@ -2043,6 +2047,13 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   p.playsLeft -= spend;
   p.turn.cardsPlayed += 1;
   log(state, lightspeed ? `${p.name} sets a card face down at lightspeed.` : `${p.name} plays ${def.name}.`);
+  // A Harvest relic: the third card played in a day draws.
+  const harvest = relicN(p.relics, 'harvest');
+  if (harvest && p.turn.cardsPlayed === 3) {
+    log(state, `${p.name}'s ${relicOf(p.relics, 'harvest')!.name}: draw ${harvest}.`);
+    drawCards(state, p, harvest);
+    if (state.winnerId || p.eliminated) return;
+  }
 
   if (lightspeed) {
     p.lightspeed = card;
@@ -2145,8 +2156,26 @@ export function applyAction(prev: GameState, action: Action): GameState {
       // (Its card may have left play since: the choice still stands.)
       const source = p.tableau.find((c) => c.uid === next.uid) ?? { uid: next.uid, defId: 'circular_refraction' };
       const name = next.relic ?? cardDef(source.defId).name;
+      // A relic's heat at any target: the rival card chosen, else their sun.
+      if (next.kind === 'aim') {
+        const rival = targetOf(state, p);
+        const victim = rival?.tableau.find((c) => c.uid === action.enemyUid);
+        if (!rival) break;
+        if (action.enemyUid && !victim) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
+        const n = next.amount ?? 0;
+        if (victim) {
+          log(state, `${p.name}'s ${name} strikes ${rival.name}'s ${cardDef(victim.defId).name} for ${n}.`);
+          notePulse(state, p, null, 'heat', rival, n, victim.uid);
+          strikeCard(state, rival, victim, n, p, false, '', false, true);
+        } else {
+          notePulse(state, p, null, 'heat', rival, n);
+          applyHeat(state, rival, n, p, false, undefined, false, `${p.name}'s ${name}`);
+        }
+        if (p.eliminated) passOn(state);
+        break;
+      }
       if (action.allyUid === undefined) {
-        log(state, `${p.name} lets ${name}'s dawn ${next.kind} pass.`);
+        log(state, `${p.name} lets ${name}'s ${next.relic && next.kind === 'recall' ? '' : 'dawn '}${next.kind} pass.`);
         break;
       }
       if (next.kind === 'recall') {
@@ -2187,6 +2216,16 @@ export function applyAction(prev: GameState, action: Action): GameState {
       break;
     }
     case 'endTurn':
+      // A Dusk Shift relic: a card moved first, as the day ends (or none).
+      if (action.duskShift) {
+        const relic = relicOf(p.relics, 'duskShift');
+        const moved = p.tableau.find((c) => c.uid === action.duskShift!.uid && c.slot !== COMMAND_SLOT);
+        const to = action.duskShift.to;
+        if (!relic) throw new GameError('Only a Dusk Shift relic moves a card as the day ends.');
+        if (!moved || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots) throw new GameError('Move one of your cards (not your Hero) to another of your slots.');
+        log(state, `${p.name}'s ${relic.name}: dusk shift.`);
+        resolveEffects(state, p, { uid: `relic:${relic.name}`, defId: 'circular_refraction' }, [{ type: 'shift' }], 'turn', { allyUid: moved.uid, shiftTo: to });
+      }
       // Dusk: the day's last effects, replayed with the next dawn's.
       state.turnPulses = [];
       dusk(state, p);
@@ -2244,7 +2283,22 @@ export function applyAction(prev: GameState, action: Action): GameState {
       else k.usedTurn = state.turnNumber;
       log(state, k.relic ? `${p.name} calls on the ${k.relic}.` : `${p.name} calls on ${cardDef(k.hero).name}: ${k.name}.`);
       resolveEffects(state, p, { uid: `skill-${k.id}`, defId: k.hero }, k.effects, 'play');
+      // (A relic's Recall 2: its choices, one after another, before anything else.)
+      for (let i = 0; i < (k.choices?.times ?? 0); i++) if (p.tableau.some(returnable)) (p.dawnChoices ??= []).push({ uid: `relic:${k.relic ?? k.name}`, kind: k.choices!.kind, relic: k.relic ?? k.name });
       if (p.eliminated) passOn(state);
+      break;
+    }
+    case 'reclaim': {
+      // A Reclaim relic: a card from the discard pile back to hand, for energy (then played as any card is).
+      const n = relicN(p.relics, 'reclaim');
+      const i = p.discard.findIndex((c) => c.uid === action.cardUid);
+      if (!n) throw new GameError('Only a Reclaim relic takes cards back from your discard pile.');
+      if (i < 0) throw new GameError('That card is not in your discard pile.');
+      if (p.playsLeft < n) throw new GameError(`Taking a card back costs ${n} energy.`);
+      const [card] = p.discard.splice(i, 1);
+      p.playsLeft -= n;
+      p.hand.push(card);
+      log(state, `${p.name}'s ${relicOf(p.relics, 'reclaim')!.name} takes ${cardDef(card.defId).name} back from the discard pile.`);
       break;
     }
   }
@@ -2314,7 +2368,8 @@ export function cardSting(card: CardInstance): number {
 
 /** What a card hits back with when it is attacked: its own attack, and its Sting. */
 export function counterDamage(state: GameState, owner: PlayerState, card: CardInstance): number {
-  return cardAttack(state, owner, card) + cardSting(card);
+  // (A Thorns relic: every card hits back harder.)
+  return cardAttack(state, owner, card) + cardSting(card) + relicN(owner.relics, 'thorns');
 }
 
 /** Why a card can't attack this target now (null if it can). `targetUid` null: the rival's sun; unset: whether it can attack at all. */
@@ -2340,7 +2395,7 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   p.turn.attacks = (p.turn.attacks ?? 0) + 1;
   strike(state, p, card, targetUid);
   const flurry = relicN(p.relics, 'flurry');
-  if (flurry && p.turn.attacks === 3 && !state.winnerId && !p.eliminated) relicStrike(state, p, flurry, 'flurry');
+  if (flurry && p.turn.attacks === 3 && !state.winnerId && !p.eliminated) relicAim(state, p, flurry, 'flurry');
 }
 
 function strike(state: GameState, p: PlayerState, card: CardInstance, targetUid: string | null) {
@@ -2353,6 +2408,12 @@ function strike(state: GameState, p: PlayerState, card: CardInstance, targetUid:
     // (No pulse: the card itself is seen striking the sun.)
     log(state, `${p.name}'s ${name} attacks ${rival.name}'s sun for ${amount}.`);
     applyHeat(state, rival, amount, p, false, card.uid, false, `${p.name}'s ${name}'s attack`);
+    // A Leech relic: a blow at the rival's sun cools your own.
+    const leech = relicN(p.relics, 'leech');
+    if (leech && !p.eliminated && !state.winnerId) {
+      cool(state, p, leech, relicOf(p.relics, 'leech')!.name);
+      notePulse(state, p, null, 'cool', p, leech);
+    }
     return;
   }
   const victim = rival.tableau.find((c) => c.uid === targetUid);

@@ -486,7 +486,7 @@ describe('relics', () => {
     // (A weapon's first power: guns for every armed card, 2 at stellar.)
     const guns = makeRelic('r1', 'weapon', 'stellar', me.race, 0, false);
     const shields = makeRelic('r3', 'mantle', 'dwarf', me.race, 0, false);
-    const nova = makeRelic('r4', 'facet', 'anomaly', me.race, 0.5, false);
+    const nova = makeRelic('r4', 'facet', 'anomaly', me.race, 0.15, false);
     const curse = makeRelic('r2', 'helm', 'dwarf', me.race, 0, true);
     expect([guns.power, guns.n, shields.power, nova.power, nova.n]).toEqual(['edge', 2, 'aegis', 'nova', 3]);
     expect(curse.cursed).toBe(true);
