@@ -278,7 +278,7 @@ const AUTO_CONFIRM_MS = 2000;
 /** How long the viewer's own card hangs in the preview pane (at least) before it lands, as the rival reads it. */
 const OWN_HOLD_MS = 1100;
 /** With nothing left to do today, how long the board rests before the day ends by itself. */
-const AUTO_END_MS = 1600;
+const AUTO_END_MS = 250;
 /** How much the hand's cards grow while it is raised to be read. */
 const HAND_GROW = 1.14;
 /** An attack: the card's lunge (it strikes a little past halfway; the attack lands once it is back). */
