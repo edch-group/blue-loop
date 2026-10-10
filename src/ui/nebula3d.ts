@@ -28,6 +28,8 @@ const PAPER = [0.957, 0.953, 0.937];
 export const PLANE_Y = 0;
 /** How wide the strip is in the nebula's space (its map units are scaled to this). */
 export const STRIP_WIDTH = 4.4;
+/** How long the opening shot holds on the whole strip before settling on the flagship (seconds). */
+export const CINE_HOLD = 1.6;
 const FOV = (36 * Math.PI) / 180;
 /** Comets crossing now and then, and the meteors of a shower, each so many points long. */
 const COMETS = 4, METEORS = 30, COMET_POINTS = 28;
@@ -573,6 +575,8 @@ export class Nebula {
   /** Where the camera is, and where it is easing to after a reset. */
   private pose: Pose = { x: 0, y: PLANE_Y, z: 0, yaw: 0, pitch: 0.85, dist: 5 };
   private glide: Pose | null = null;
+  /** How quickly a glide eases there (per second). */
+  private glideRate = 5;
   private moved = true;
   private homed = false;
   /** How far the nebula has faded in since its shape arrived. */
@@ -647,6 +651,79 @@ export class Nebula {
     const top = this.layers[this.layers.length - 1];
     top.objects?.setRoutes(routes);
     this.wake();
+  }
+
+  /**
+   * A campaign's opening shot: the camera flies alongside the flagship (`id`, cruising in), close up, while its
+   * hero speaks; then `reveal` pulls it back, turning as it goes, to its resting place over the map.
+   */
+  private cine: { id: string; reveal?: { t0: number; dur: number; from: Pose } } | null = null;
+
+  ride(id: string) {
+    this.cine = { id };
+    this.glide = null;
+    this.wake();
+  }
+
+  /** The opening shot ends: the ship is let go to fly in, and the camera pulls back and turns to show the map. */
+  reveal(dur: number) {
+    const c = this.cine;
+    if (!c || c.reveal) return;
+    this.layers[this.layers.length - 1].objects?.release(c.id, dur * 0.8);
+    // (On the clock, not the frames: a slow device sees the same shot, only less smoothly.)
+    c.reveal = { t0: performance.now() / 1000, dur, from: { ...this.pose } };
+    this.wake();
+  }
+
+  /** Whether the opening shot is still playing. */
+  get riding(): boolean {
+    return !!this.cine;
+  }
+
+  /** Close beside the flagship, a little ahead of it and looking back along it, drifting slowly round. */
+  private ridePose(): Pose | null {
+    const sh = this.cine && this.layers[this.layers.length - 1].objects?.shipPose(this.cine.id, this.time);
+    if (!sh) return null;
+    // (Off its side and a little ahead: the side away from where the camera will come to rest, so the turn out to
+    // the map is a wide one.)
+    const fx = Math.cos(sh.heading), fz = Math.sin(sh.heading);
+    const side = (k: number) => Math.atan2(-fz * k + fx * 0.7, fx * k + fz * 0.7);
+    const home = this.home().yaw;
+    const turn = (y: number) => Math.abs(Math.atan2(Math.sin(y - home), Math.cos(y - home)));
+    const yaw = (turn(side(1)) > turn(side(-1)) ? side(1) : side(-1)) + 0.12 * Math.sin(this.time * 0.25);
+    // (Looking a little to the ship's left, so it sits right of centre, clear of the hero's words.)
+    const off = 0.13;
+    return { x: sh.x - Math.cos(yaw) * off, y: sh.y, z: sh.z + Math.sin(yaw) * off, yaw, pitch: 0.2 + 0.04 * Math.sin(this.time * 0.18), dist: 0.5 };
+  }
+
+  /** The whole strip at once, from the near end to the wormhole and the Stellari past it: where the pull back ends. */
+  private overview(): Pose {
+    return { x: 0.25, y: PLANE_Y, z: 0, yaw: -0.95, pitch: 0.66, dist: this.homeDist * 1.05 };
+  }
+
+  /** The camera through the opening shot, this frame (null: it is over). */
+  private cinePose(): Pose | null {
+    const c = this.cine!;
+    const ride = this.ridePose();
+    if (!c.reveal) return ride ?? this.pose;
+    const t = performance.now() / 1000 - c.reveal.t0;
+    const k = Math.min(1, t / c.reveal.dur);
+    // (Held a moment on the whole strip, then it is over: the camera settles on the flagship.)
+    if (k >= 1) return t < c.reveal.dur + CINE_HOLD ? this.overview() : null;
+    // (Eased in and out; the pull back leads the turn a little, so the map opens out as it comes round.)
+    const e = k * k * k * (k * (6 * k - 15) + 10);
+    const out = 1 - Math.pow(1 - k, 2.2);
+    const a = ride ?? c.reveal.from, b = this.overview();
+    const dy = Math.atan2(Math.sin(b.yaw - a.yaw), Math.cos(b.yaw - a.yaw));
+    return {
+      x: a.x + (b.x - a.x) * e,
+      y: a.y + (b.y - a.y) * e,
+      z: a.z + (b.z - a.z) * e,
+      yaw: a.yaw + dy * e,
+      pitch: a.pitch + (b.pitch - a.pitch) * e,
+      // (Distance eased in log space: out from close up at an even pace to the eye.)
+      dist: a.dist * Math.pow(b.dist / a.dist, out),
+    };
   }
 
   /** The system under the pointer (by id; null: none): it swells and flares. */
@@ -731,7 +808,7 @@ export class Nebula {
   follow(x: number, z: number) {
     if (this.focus && Math.hypot(this.focus[0] - x, this.focus[1] - z) < 1e-4) return;
     this.focus = [x, z];
-    if (this.homed) this.glide = this.home();
+    if (this.homed && !this.cine) this.glide = this.home();
     this.wake();
   }
 
@@ -789,11 +866,25 @@ export class Nebula {
       this.pose = this.home();
       this.moved = true;
     }
-    // A glide home eases there.
-    if (this.glide) {
-      const g = this.glide, p = this.pose, k = live ? 1 - Math.exp(-dt * 5) : 1;
+    // The opening shot, while it plays, has the camera; when it is over, the camera settles (slowly) at home.
+    if (this.cine) {
+      const p = this.cinePose();
+      if (p) this.pose = p;
+      this.glide = null;
+      if (!p) {
+        this.cine = null;
+        this.homed = true;
+        this.glide = this.home();
+        this.glideRate = 1.6;
+      }
+      this.moved = true;
+    } else if (this.glide) {
+      const g = this.glide, p = this.pose, k = live ? 1 - Math.exp(-dt * this.glideRate) : 1;
       for (const key of ['x', 'y', 'z', 'yaw', 'pitch', 'dist'] as const) p[key] += (g[key] - p[key]) * k;
-      if (Math.abs(g.dist - p.dist) < 1e-3 && Math.abs(g.yaw - p.yaw) < 1e-4 && Math.abs(g.pitch - p.pitch) < 1e-4 && Math.hypot(g.x - p.x, g.z - p.z) < 1e-3) this.glide = null;
+      if (Math.abs(g.dist - p.dist) < 1e-3 && Math.abs(g.yaw - p.yaw) < 1e-4 && Math.abs(g.pitch - p.pitch) < 1e-4 && Math.hypot(g.x - p.x, g.z - p.z) < 1e-3) {
+        this.glide = null;
+        this.glideRate = 5;
+      }
       this.moved = true;
     }
     const cam = this.makeCamera();
@@ -809,7 +900,7 @@ export class Nebula {
       }
     }
     // Keep running while the gas lives (it always does, unless motion is reduced) or the camera glides.
-    if (live || this.glide || this.fade < 1 || !cam || this.layers[this.layers.length - 1].objects?.hoverMoving) this.raf = requestAnimationFrame((t2) => this.frame(t2));
+    if (live || this.glide || this.cine || this.fade < 1 || !cam || this.layers[this.layers.length - 1].objects?.hoverMoving) this.raf = requestAnimationFrame((t2) => this.frame(t2));
     else this.last = 0;
   }
 

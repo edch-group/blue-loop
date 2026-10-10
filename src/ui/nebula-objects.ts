@@ -55,7 +55,7 @@ export interface MapShip {
   /** Its race (its model), or -1 for a Lost Races derelict. */
   race: number;
   /** Flying in from here (world x, z), taking this long (seconds): a ship arriving from off screen. */
-  arrive?: { from: [number, number]; dur: number };
+  arrive?: { from: [number, number]; dur: number; cruise?: boolean };
 }
 
 /** What lies under the galaxy (drawn on the layer behind the map). */
@@ -463,7 +463,7 @@ export class MapObjects {
   /** Each race's model, uploaded the first time a ship of it is drawn. */
   private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }>();
   /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
-  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number }>();
+  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number }>();
   private routeProg: WebGLProgram;
   private routeBuf: WebGLBuffer;
   private routeCount = 0;
@@ -564,7 +564,9 @@ export class MapObjects {
         const a = reduce ? undefined : sh.arrive;
         const from: [number, number] = a ? a.from : [sh.x, sh.z];
         const heading = a ? Math.atan2(sh.z - from[1], sh.x - from[0]) : 0;
-        this.ships.set(sh.id, { from, to: [sh.x, sh.z], t0: now, dur: a?.dur ?? 0, heading, colour: sh.colour, race: sh.race });
+        // (Cruising: it flies slowly in, never quite arriving, until it is let go: see release.)
+        const cruise = a?.cruise ? (Math.hypot(sh.x - from[0], sh.z - from[1]) * 0.85) / a.dur : undefined;
+        this.ships.set(sh.id, { from, to: [sh.x, sh.z], t0: now, dur: a?.dur ?? 0, heading, colour: sh.colour, race: sh.race, cruise });
         continue;
       }
       was.colour = sh.colour;
@@ -578,6 +580,32 @@ export class MapObjects {
       was.dur = reduce ? 0 : Math.max(0.7, Math.min(1.8, d * 2.4));
       if (d > 1e-4) was.heading = Math.atan2(sh.z - at[1], sh.x - at[0]);
     }
+  }
+
+  /** A cruising ship let go: it flies the rest of the way in, taking `dur` seconds. */
+  release(id: string, dur: number) {
+    const sh = this.ships.get(id);
+    if (!sh?.cruise) return;
+    const now = performance.now() / 1000;
+    sh.from = this.shipAt(sh, now);
+    sh.cruise = undefined;
+    sh.t0 = now;
+    sh.dur = dur;
+  }
+
+  /** Where a ship is now (world x, y, z) and which way it faces. */
+  shipPose(id: string, time: number): { x: number; y: number; z: number; heading: number } | null {
+    const sh = this.ships.get(id);
+    if (!sh) return null;
+    const [x, z] = this.shipAt(sh, performance.now() / 1000);
+    return { x, y: this.shipLift(sh, performance.now() / 1000, time), z, heading: sh.heading };
+  }
+
+  /** How high a ship flies: hovering over its star, bobbing; under way it rises a little. */
+  private shipLift(sh: { t0: number; dur: number; cruise?: number }, now: number, time: number): number {
+    const moving = sh.dur > 0 && now - sh.t0 < sh.dur;
+    const k = moving ? (now - sh.t0) / sh.dur : 1;
+    return 0.13 + Math.sin(time * 1.3) * 0.006 + (sh.cruise ? 0.05 : moving ? Math.sin(Math.PI * k) * 0.05 : 0);
   }
 
   /** A race's model on the GPU (built and uploaded the first time). */
@@ -596,7 +624,12 @@ export class MapObjects {
   }
 
   /** Where a ship is at a moment (world x, z). */
-  private shipAt(sh: { from: [number, number]; to: [number, number]; t0: number; dur: number }, now: number): [number, number] {
+  private shipAt(sh: { from: [number, number]; to: [number, number]; t0: number; dur: number; cruise?: number }, now: number): [number, number] {
+    if (sh.cruise) {
+      const len = Math.hypot(sh.to[0] - sh.from[0], sh.to[1] - sh.from[1]) || 1;
+      const d = Math.min(len * 0.85, sh.cruise * (now - sh.t0));
+      return [sh.from[0] + ((sh.to[0] - sh.from[0]) * d) / len, sh.from[1] + ((sh.to[1] - sh.from[1]) * d) / len];
+    }
     const t = sh.dur > 0 ? Math.min(1, (now - sh.t0) / sh.dur) : 1;
     const e = t * t * (3 - 2 * t);
     return [sh.from[0] + (sh.to[0] - sh.from[0]) * e, sh.from[1] + (sh.to[1] - sh.from[1]) * e];
@@ -634,12 +667,14 @@ export class MapObjects {
     const placed: { m: Float32Array; burn: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }[] = [];
     for (const sh of this.ships.values()) {
       const [x, z] = this.shipAt(sh, now);
-      const moving = sh.dur > 0 && now - sh.t0 < sh.dur;
-      const k = moving ? (now - sh.t0) / sh.dur : 1;
-      // Hovering over its star, bobbing; under way it rises a little and banks into its course.
-      const y = 0.13 + Math.sin(time * 1.3) * 0.006 + (moving ? Math.sin(Math.PI * k) * 0.05 : 0);
-      const bank = moving ? Math.sin(Math.PI * k) * 0.25 : Math.sin(time * 0.9) * 0.04;
-      const pitch = moving ? Math.cos(Math.PI * k) * 0.12 : 0;
+      const cruising = !!sh.cruise;
+      const moving = cruising || (sh.dur > 0 && now - sh.t0 < sh.dur);
+      const k = moving && !cruising ? (now - sh.t0) / sh.dur : 1;
+      // Hovering over its star, bobbing; under way it rises a little and banks into its course (cruising, it rolls
+      // gently, steady on its course).
+      const y = this.shipLift(sh, now, time);
+      const bank = cruising ? Math.sin(time * 0.7) * 0.07 : moving ? Math.sin(Math.PI * k) * 0.25 : Math.sin(time * 0.9) * 0.04;
+      const pitch = moving && !cruising ? Math.cos(Math.PI * k) * 0.12 : 0;
       const fx = Math.cos(sh.heading), fz = Math.sin(sh.heading);
       // Forward (pitched), up (banked), and starboard, scaled.
       const F = [fx * Math.cos(pitch), Math.sin(pitch), fz * Math.cos(pitch)];

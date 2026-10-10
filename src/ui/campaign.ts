@@ -96,6 +96,7 @@ import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
 import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
+import { reducedMotion } from './fx';
 import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 
@@ -207,6 +208,9 @@ function portrait(cardId: string): string {
 /** One of the Lost Races: a faded figure, half gone into the dark. */
 /** How long the flagship takes to fly in as a campaign starts (seconds). */
 const ARRIVAL_FLIGHT = 3.2;
+/** The opening shot: the longest the camera rides alongside the flagship, and how long it takes to pull back. */
+const CINE_RIDE_MAX = 10;
+const CINE_REVEAL = 4.2;
 /** Into a battle: the pause between the flagship landing on the star (the encounter sounding) and the battle. */
 const ENCOUNTER_PAUSE = 1000;
 
@@ -793,6 +797,8 @@ export class CampaignView {
         this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, race: this.setup.race, hero, run: runBonuses(meta, this.setup.race) });
         this.arriving = true;
         this.introFlight = true;
+        // (In 3D and with motion: the opening shot, alongside the flagship as its hero speaks; see showNebula.)
+        this.cine = canNebula() && !reducedMotion() ? 'start' : null;
         this.selected = null;
         this.view = null;
         // The hero's arrival comes first: whatever else the opening brought on waits its turn behind it.
@@ -805,9 +811,16 @@ export class CampaignView {
         this.storyLine = 0;
         // The map is up: announce the run (the setup page before it gets none).
         this.host.render();
-        this.host.banner('galaxy 1', 'reach the wormhole');
-        // The hero speaks as the flagship comes to rest (their words on the guide, spoken if recorded).
-        voices.arrive(hero, ARRIVAL_FLIGHT * 1000);
+        if (this.cine) {
+          // The hero speaks as the flagship cruises in; the map is shown once they are done (or after a while).
+          voices.arrive(hero, 900);
+          window.clearTimeout(this.cineTimer);
+          this.cineTimer = window.setTimeout(() => this.endRide(), CINE_RIDE_MAX * 1000);
+        } else {
+          this.host.banner('galaxy 1', 'reach the wormhole');
+          // The hero speaks as the flagship comes to rest (their words on the guide, spoken if recorded).
+          voices.arrive(hero, ARRIVAL_FLIGHT * 1000);
+        }
         return true;
       }
       case 'cmp-boon':
@@ -851,14 +864,18 @@ export class CampaignView {
         else {
           this.storyLine = 0;
           this.apply({ type: 'readStory' });
+          if (scene.id === 'intro') this.endRide();
         }
         sound.hover();
         break;
       }
-      case 'cmp-story-skip':
+      case 'cmp-story-skip': {
+        const intro = s?.story.queue[0]?.id === 'intro';
         this.storyLine = 0;
         this.apply({ type: 'readStory' });
+        if (intro) this.endRide();
         break;
+      }
       case 'cmp-stabilise':
         if (this.apply({ type: 'stabilise', nodeId: arg })) sound.shield();
         break;
@@ -1032,7 +1049,7 @@ export class CampaignView {
     const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
     const me = campaignPlayer(s);
     return `
-      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}">
+      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}${this.cine === 'ride' || this.cine === 'start' || this.cine === 'reveal' ? ' cmp-cine' : this.cine === 'done' ? ' cmp-cine-done' : ''}">
         <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
         <header class="cmp-top">
           <div class="cmp-top-left">
@@ -1633,6 +1650,37 @@ export class CampaignView {
   private arriving = false;
   /** This session's campaign began with a fly-in: the hero's first words wait for the ship to come to rest. */
   private introFlight = false;
+  /**
+   * The opening shot: 'start' (to begin as the map is first drawn), 'ride' (alongside the flagship, the map's marks
+   * and panels hidden), 'reveal' (pulling back to show the map), 'done' (just over: the marks and panels fade in).
+   */
+  private cine: 'start' | 'ride' | 'reveal' | 'done' | null = null;
+  private cineTimer = 0;
+
+  /** The hero has had their say: the camera pulls back to show the map, and the run is announced as it settles. */
+  private endRide() {
+    window.clearTimeout(this.cineTimer);
+    if (this.cine !== 'ride' && this.cine !== 'start') return;
+    this.cine = 'reveal';
+    this.nebula?.reveal(CINE_REVEAL);
+    sound.whoosh(0.1);
+    // (Its marks and panels come back as the camera leaves the whole strip to settle on the flagship.)
+    const wait = () => {
+      if (this.cine !== 'reveal') return;
+      if (this.nebula?.riding) {
+        this.cineTimer = window.setTimeout(wait, 150);
+        return;
+      }
+      this.cine = 'done';
+      this.host.render();
+      this.host.banner('galaxy 1', 'reach the wormhole');
+      this.cineTimer = window.setTimeout(() => {
+        this.cine = null;
+      }, 1200);
+    };
+    this.cineTimer = window.setTimeout(wait, 500);
+    this.host.render();
+  }
 
   private static readonly TILT = 0; // (Bird's-eye: straight down on the strip.)
   private static readonly MAX_ZOOM = 12;
@@ -1856,10 +1904,15 @@ export class CampaignView {
         const adv = this.advance?.armyId === a.id ? at.get(this.advance.toId) : undefined;
         const k = this.advance?.land ? 1 : 0.5;
         // A new campaign: the flagship flies in from off screen, behind the strip's near end.
-        const arrive = arriving && a.id === mine?.id ? { from: [x - 2.6, z + 1.9] as [number, number], dur: ARRIVAL_FLIGHT } : undefined;
+        // (In the opening shot it cruises in from further off, slowly, until the hero has had their say.)
+        const arrive = arriving && a.id === mine?.id ? (this.cine === 'start' ? { from: [x - 3.4, z + 2.5] as [number, number], dur: CINE_RIDE_MAX + 4, cruise: true } : { from: [x - 2.6, z + 1.9] as [number, number], dur: ARRIVAL_FLIGHT }) : undefined;
         return { id: a.id, x: adv ? x + (adv[0] - x) * k : x, z: adv ? z + (adv[1] - z) * k : z, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive };
       });
     this.nebula.setShips(ships);
+    if (this.cine === 'start') {
+      if (mine) this.nebula.ride(mine.id);
+      this.cine = 'ride';
+    }
     // The camera keeps the flagship in view, on its own.
     const own = ships.find((sh) => sh.id === mine?.id);
     if (own) this.nebula.follow(own.x, own.z);

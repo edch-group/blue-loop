@@ -6553,3 +6553,12 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .loot-card { cursor: default; }
 /* A full-art card that costs energy (a Lost Lord): its cost in the top left corner, clear of its name. */
 .card.card-full.card-costed .card-glyph .cost-dots { top: calc(var(--cw) * 0.05); left: calc(var(--cw) * 0.05); bottom: auto; transform: none; z-index: 3; }
+
+/* ---- A campaign's opening shot: alongside the flagship as its hero speaks, nothing but the scene and their words;
+   then, pulled back over the map, its marks and panels fade in. ---- */
+.cmp.cmp-cine .cmp-map, .cmp.cmp-cine .cmp-relics, .cmp.cmp-cine .cmp-purse, .cmp.cmp-cine .cmp-nav,
+.cmp.cmp-cine .cmp-top-left > :not(.cmp-guide) { opacity: 0; pointer-events: none; }
+.cmp.cmp-cine .cmp-guide.cmp-guide-arrive { animation-delay: 0.9s; }
+.cmp.cmp-cine-done .cmp-map, .cmp.cmp-cine-done .cmp-relics, .cmp.cmp-cine-done .cmp-purse, .cmp.cmp-cine-done .cmp-nav,
+.cmp.cmp-cine-done .cmp-top-left > :not(.cmp-guide) { animation: cmp-cine-in 1s ease both; }
+@keyframes cmp-cine-in { from { opacity: 0; } }
