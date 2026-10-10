@@ -823,13 +823,13 @@ dawnHeatAsAttack();
  */
 export function kindWords(text: string): string {
   return text
-    .replace(/\bplays an attack card\b/g, 'plays an armed card or a heat surge')
+    .replace(/\bplays an attack card\b/g, 'plays an armed card or a heat technology')
     .replace(/\ban attack card\b/g, 'an armed card')
     .replace(/\battack card(s?)\b/g, 'armed card$1')
     .replace(/\ba defence card\b/g, 'a Sturdy card')
     .replace(/\bdefence card(s?)\b/g, 'Sturdy card$1')
-    .replace(/\ba support card\b/g, 'a surge')
-    .replace(/\bsupport cards\b/g, 'surges');
+    .replace(/\ba support card\b/g, 'a technology')
+    .replace(/\bsupport cards\b/g, 'technologies');
 }
 for (const c of CARDS) {
   c.text = kindWords(c.text);
@@ -893,7 +893,7 @@ for (const c of CARDS) {
 /** What a card is, as players read it: a unit (it stays in play) or a surge (it resolves and goes), or a Hero, Relic, Lightspeed or global card. */
 export type ShownKind = 'unit' | 'surge' | 'command' | 'lightspeed' | 'relic' | 'global';
 export const SHOWN_KINDS: readonly ShownKind[] = ['unit', 'surge', 'relic', 'global', 'command', 'lightspeed'];
-export const SHOWN_KIND_NAME: Record<ShownKind, string> = { unit: 'unit', surge: 'surge', command: 'hero', lightspeed: 'lightspeed', relic: 'relic', global: 'global' };
+export const SHOWN_KIND_NAME: Record<ShownKind, string> = { unit: 'entity', surge: 'technology', command: 'hero', lightspeed: 'lightspeed', relic: 'relic', global: 'global' };
 export function shownKind(def: CardDef): ShownKind {
   if (def.kind === 'command' || def.kind === 'lightspeed' || def.kind === 'relic' || def.kind === 'global') return def.kind;
   return isBurst(def) ? 'surge' : 'unit';

@@ -4891,8 +4891,8 @@ export class App {
         'Card Types',
         () =>
           facts(
-            kind('unit', 'Unit', 'Stays in your tableau. One with attack can attack each day (a card with none can gain some); its abilities act at dawn or dusk.'),
-            kind('surge', 'Surge', 'Resolves as it is played, then goes to your discard pile.'),
+            kind('unit', 'Entity', 'Stays in your tableau. One with attack can attack each day (a card with none can gain some); its abilities act at dawn or dusk.'),
+            kind('surge', 'Technology', 'Resolves as it is played, then goes to your discard pile.'),
             kind('relic', 'Relic', 'No attack: a lasting bonus. Brittle: nothing restores it, and removal reaches it whatever its defence.'),
             kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. It leads from its own slot until it is beaten down or replaced, with an ability to use each day, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
