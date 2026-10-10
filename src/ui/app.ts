@@ -1428,7 +1428,6 @@ export class App {
       this.screen = 'game';
       this.phase = 'day';
       this.render();
-      sound.battleStart();
       this.dealOpening();
       this.announceTurn(400);
       return;
@@ -1868,7 +1867,6 @@ export class App {
     this.syncViewer();
     this.phase = 'day';
     this.render();
-    sound.battleStart();
     this.dealOpening();
     this.announceTurn(400);
     this.scheduleAI(900);

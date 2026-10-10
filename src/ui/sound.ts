@@ -440,9 +440,8 @@ class SoundBoard {
   }
   /**
    * An encounter: the flagship lands at a guarded star. A dive-bombing synth in the battle theme's own voice: its
-   * soft triangle-and-saw pluck, through the arpeggio's resonant filter and dotted-eighth echo, screaming down
-   * from high A to low as the filter closes, and landing on the theme's opening chord (Am(add9): its deep bass,
-   * its detuned triangle pad swelling in the hall), with a soft low thud as it hits.
+   * soft triangle-and-saw pluck, through the arpeggio's resonant filter and dotted-eighth echo, diving down
+   * from A4 to A1 as the filter closes, with low air rushing past. (The battle screen itself opens in silence.)
    */
   encounter() {
     const ctx = this.ready();
@@ -454,8 +453,8 @@ class SoundBoard {
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.Q.value = 5;
-    filter.frequency.setValueAtTime(5200, t);
-    filter.frequency.exponentialRampToValueAtTime(420, t + fall);
+    filter.frequency.setValueAtTime(2200, t);
+    filter.frequency.exponentialRampToValueAtTime(260, t + fall);
     // (Opening again to the arpeggio's own as it lands.)
     filter.frequency.exponentialRampToValueAtTime(1400, t + fall + 0.15);
     const echo = ctx.createDelay(2);
@@ -470,39 +469,13 @@ class SoundBoard {
     echoTone.connect(this.reverb ?? this.sfx);
     // (Let go once the echo has died away.)
     window.setTimeout(() => { feedback.gain.value = 0; filter.disconnect(); echoTone.disconnect(); }, 6000);
-    // The dive: the pluck's triangle and saw, a detuned pair of each, from A6 down to A1, with a slight warble.
+    // The dive: the pluck's triangle and saw, a detuned pair of each, from A4 down to A1, with a slight warble.
     for (const d of [-8, 8]) {
-      this.voice(hz('A6'), { dur: fall + 0.1, attack: 0.02, gain: 0.05, to: hz('A1'), type: 'triangle', cutoff: 9000, detune: d, vibrato: 12, out: filter });
-      this.voice(hz('A6'), { dur: fall + 0.1, attack: 0.02, gain: 0.018, to: hz('A1'), type: 'sawtooth', cutoff: 9000, detune: d * 1.5, vibrato: 12, out: filter });
+      this.voice(hz('A4'), { dur: fall + 0.1, attack: 0.02, gain: 0.07, to: hz('A1'), type: 'triangle', cutoff: 3000, detune: d, vibrato: 4, out: filter });
+      this.voice(hz('A4'), { dur: fall + 0.1, attack: 0.02, gain: 0.022, to: hz('A1'), type: 'sawtooth', cutoff: 3000, detune: d * 1.5, vibrato: 4, out: filter });
     }
-    // Air rushing past.
-    this.breath({ dur: fall, freq: 3200, to: 500, type: 'bandpass', q: 1.1, gain: 0.05, attack: 0.3 });
-    // (The landing is the battle's own start: battleStart, as the board opens.)
-  }
-  /**
-   * A battle begins, and it should feel like it: an alarm blaring twice (saw and square, rising a fourth), then the
-   * hit, a deep falling boom with a burst of low noise under a brass stab of the battle theme's chord (A minor,
-   * detuned saws) and a crash ringing over it.
-   */
-  battleStart() {
-    const ctx = this.ready();
-    if (!ctx || !this.sfx) return;
-    for (const d of [0, 0.3]) {
-      this.voice(hz('E4'), { dur: 0.24, attack: 0.008, gain: 0.06, to: hz('A4'), type: 'sawtooth', cutoff: 2600, detune: -7, delay: d });
-      this.voice(hz('E4'), { dur: 0.24, attack: 0.008, gain: 0.045, to: hz('A4'), type: 'square', cutoff: 1800, detune: 7, delay: d });
-      this.voice(hz('E3'), { dur: 0.24, attack: 0.008, gain: 0.05, to: hz('A3'), type: 'sawtooth', cutoff: 1400, delay: d });
-    }
-    const hit = 0.66;
-    // The boom.
-    this.voice(96, { dur: 1.8, attack: 0.003, gain: 0.5, to: 26, type: 'sine', delay: hit });
-    this.voice(58, { dur: 1.4, attack: 0.003, gain: 0.3, to: 30, type: 'triangle', cutoff: 220, delay: hit });
-    this.breath({ dur: 1, freq: 1100, to: 70, type: 'lowpass', q: 0.8, gain: 0.4, attack: 0.003, delay: hit });
-    // The stab: A minor, low and wide, detuned saws.
-    ['A2', 'E3', 'A3', 'C4', 'E4'].forEach((n) => {
-      for (const d of [-11, 11]) this.voice(hz(n), { dur: 1.5, attack: 0.015, gain: 0.032, type: 'sawtooth', cutoff: 2800, detune: d, delay: hit });
-    });
-    // The crash.
-    this.breath({ dur: 2, freq: 7000, to: 3200, type: 'highpass', q: 0.5, gain: 0.09, attack: 0.004, delay: hit });
+    // Air rushing past, low.
+    this.breath({ dur: fall, freq: 900, to: 160, type: 'bandpass', q: 1.1, gain: 0.05, attack: 0.3 });
   }
   /**
    * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and
