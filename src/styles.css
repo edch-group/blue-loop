@@ -6479,3 +6479,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-tree .up-node-ring circle.on { stroke: color-mix(in srgb, var(--bc) 90%, #fff); filter: drop-shadow(0 0 2.5px var(--bc)); }
 .up-tree .up-node-ring circle.plan { stroke: color-mix(in srgb, var(--bc) 55%, #fff); filter: drop-shadow(0 0 2px var(--bc)); }
 .up-tree .up-node.locked .up-node-ring circle { stroke: rgba(170, 176, 191, 0.2); }
+
+/* A surge dragged straight onto what it heats: the rival card (or sun) it would land on. */
+.tableau-rival .card.drop-over, .tableau-rival .vitals.drop-over { outline: 2px solid #d8452b; outline-offset: 3px; border-radius: calc(var(--tcw, 60px) * 0.08); }
+.tableau-rival .vitals.drop-over { border-radius: 50%; }

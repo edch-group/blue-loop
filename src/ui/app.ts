@@ -105,7 +105,7 @@ import { relicMark } from './relic-art';
 /** Hero gear's mark, in a battle's finds. */
 const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
 import { closeTour, tourShowing } from './tour';
-import { shownKind, isBossCard, bossIntent, relicN, type ShownKind } from '../engine';
+import { shownKind, isBurst, isBossCard, bossIntent, relicN, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -178,7 +178,7 @@ interface Pending {
   shiftTo?: number;
   /** Where the card was dropped, dragged out of the hand onto your tableau: a slot, your Lightspeed slot, or a
    *  card of yours (to recall or fuse onto). Used for whichever of those choices it fits; the rest are asked. */
-  drop?: { slot?: number | 'ls'; uid?: string };
+  drop?: { slot?: number | 'ls'; uid?: string; /** A surge dropped straight onto what it heats: a rival card, or 'sun'. */ aim?: string };
   /** A Lightspeed guard set face down instead (its Lightspeed slot chosen). */
   faceDown?: boolean;
 }
@@ -3076,7 +3076,7 @@ export class App {
       this.showToast(noRoom, 'info');
       return refuse();
     }
-    this.pending = { uid, step: 'choice', drop };
+    this.pending = { uid, step: 'choice', drop, ...(drop?.aim ? { aimUid: drop.aim } : {}) };
     this.advancePlay();
   }
 
@@ -3291,14 +3291,27 @@ export class App {
   }
 
   /** A card being dragged out of the hand: where it was picked up, and (once it moves) its flying copy. */
-  private drag: { uid: string; el: HTMLElement; x: number; y: number; dx: number; dy: number; ghost: HTMLElement | null } | null = null;
+  private drag: { uid: string; el: HTMLElement; x: number; y: number; dx: number; dy: number; ghost: HTMLElement | null; aim?: boolean } | null = null;
+
+  /**
+   * Whether a card in hand can be dragged straight onto what it heats: a surge whose only choice is where its heat
+   * goes (one target: no other card of yours or theirs to pick, no option, nothing to consume).
+   */
+  private quickAim(defId: string): boolean {
+    const def = cardDef(defId);
+    if (!isBurst(def) || !aimable(defId) || def.consume || def.choices?.length) return false;
+    const single = new Set(['heat', 'cool', 'shield', 'draw', 'selfHeat', 'plays', 'repair']);
+    const effects = def.onPlay ?? [];
+    return effects.every((e) => single.has(e.type)) && effects.filter((e) => e.type === 'heat' && e.to === 'target').length === 1;
+  }
 
   private onDragStart(e: PointerEvent) {
     if (e.button > 0 || this.screen !== 'game') return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('.hand > .card[data-act="play"]');
     if (!el || !this.canAct()) return;
     const r = el.getBoundingClientRect();
-    this.drag = { uid: el.dataset.arg!, el, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, ghost: null };
+    const held = activePlayer(this.state!).hand.find((c) => c.uid === el.dataset.arg);
+    this.drag = { uid: el.dataset.arg!, el, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, ghost: null, aim: !!held && this.quickAim(held.defId) };
   }
 
   private onDragMove(e: PointerEvent) {
@@ -3329,8 +3342,19 @@ export class App {
     this.markDrop(this.dropEl(e.clientX, e.clientY));
   }
 
-  /** What on your tableau is under a dragged card: a slot, your Lightspeed slot, or a card of yours. */
+  /** What on your tableau is under a dragged card: a slot, your Lightspeed slot, or a card of yours (or, a surge that
+   *  heats one target, the rival card or sun it would heat). */
   private dropEl(x: number, y: number): HTMLElement | null {
+    if (this.drag?.aim) {
+      const me = activePlayer(this.state!);
+      const { cards, sun } = aimChoices(this.state!, me);
+      for (const el of document.elementsFromPoint(x, y)) {
+        const card = el.closest<HTMLElement>('.tableau-rival .card[data-uid]');
+        if (card && cards.some((c) => c.uid === card.dataset.uid)) return card;
+        const vit = el.closest<HTMLElement>('.tableau-rival .vitals[data-anchor^="player:"]');
+        if (vit && sun) return vit;
+      }
+    }
     for (const el of document.elementsFromPoint(x, y)) {
       const hit = el.closest<HTMLElement>('.tableau-mine [data-slot], .tableau-mine .card[data-uid], .tableau-mine .ls-slot');
       if (hit) return hit;
@@ -3342,6 +3366,7 @@ export class App {
   private dropAt(x: number, y: number): Pending['drop'] {
     const el = this.dropEl(x, y);
     if (!el) return undefined;
+    if (el.closest('.tableau-rival')) return { aim: el.classList.contains('vitals') ? 'sun' : el.dataset.uid };
     if (el.classList.contains('ls-slot')) return { slot: 'ls' };
     if (el.dataset.slot !== undefined) return { slot: Number(el.dataset.slot) };
     return el.dataset.uid ? { uid: el.dataset.uid } : undefined;
@@ -3358,6 +3383,7 @@ export class App {
 
   private onDragEnd(e: PointerEvent | null) {
     const d = this.drag;
+    const drop = d?.ghost && e ? this.dropAt(e.clientX, e.clientY) : undefined;
     this.drag = null;
     if (!d?.ghost) return;
     d.ghost.remove();
@@ -3372,7 +3398,7 @@ export class App {
       this.raiseHand(false);
       this.sheet = null;
       sound.rustle();
-      this.startPlay(d.uid, this.dropAt(e.clientX, e.clientY));
+      this.startPlay(d.uid, drop);
     }
   }
 
