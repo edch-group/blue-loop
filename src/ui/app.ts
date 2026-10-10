@@ -1674,7 +1674,7 @@ export class App {
   private canAutoEnd(): boolean {
     const s = this.state;
     // (Not while discards are being picked: End Day confirms those, never the clock.)
-    return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && !this.discarding && !this.dawnChoice() && !this.landing && this.leftUndone().length === 0;
+    return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && !this.discarding && !this.dawnChoice() && !this.landing && this.phase === 'day' && this.leftUndone().length === 0;
   }
 
   /**
@@ -3356,6 +3356,8 @@ export class App {
     if (!el || !this.canAct() || this.landing || this.dawnChoice()) return;
     const r = el.getBoundingClientRect();
     const held = activePlayer(this.state!).hand.find((c) => c.uid === el.dataset.arg);
+    // (Before it is day, only a Lightspeed card leaves the hand.)
+    if (held && !this.dayUnderWay(held.defId)) return;
     this.drag = { uid: el.dataset.arg!, el, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, ghost: null, aim: !!held && this.quickAim(held.defId) };
   }
 
@@ -3455,7 +3457,7 @@ export class App {
   private onAttackDragStart(e: PointerEvent) {
     if (e.button > 0 || this.screen !== 'game' || this.attackDrag) return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('.tableau-mine .card[data-act="attack-start"], .tableau-mine .card[data-act="hero-panel"][data-attacker]');
-    if (!el || !this.canAct() || this.landing || this.dawnChoice()) return;
+    if (!el || !this.canAct() || this.landing || this.dawnChoice() || this.phase !== 'day') return;
     this.attackDrag = { uid: el.dataset.arg!, x: e.clientX, y: e.clientY, beam: null, over: null };
   }
 
@@ -3977,6 +3979,12 @@ export class App {
     if (!this.canAct()) return;
     // A move of yours still landing lands first: what it sets off (a relic's aim) comes before anything else.
     if (this.landing && !this.stage?.confirm) this.flushLanding();
+    // Dawn and dusk play out by themselves: until it is day, only their own choices (a dawn recall, shift or aim)
+    // and Lightspeed cards (a card from hand is refused by startPlay unless it is one).
+    if (this.phase !== 'day' && !act.startsWith('dawn-') && act !== 'board-zoom' && act !== 'play' && !this.pending) {
+      sound.blocked();
+      return;
+    }
     // A choice owed (a relic's aim, a dawn recall or shift): nothing else until it is made.
     if (this.dawnChoice() && !act.startsWith('dawn-') && act !== 'board-zoom') {
       this.pending = null;
@@ -5590,7 +5598,7 @@ export class App {
   private renderTurnControls(): string {
     const s = this.state!;
     const me = this.viewer();
-    const act = this.canAct();
+    const act = this.canAct() && this.phase === 'day';
     const busy = this.pending !== null;
     const myTurn = activePlayer(s).id === me.id && !isGameOver(s);
     // The day's whole energy, spent pips left empty; energy beyond the day's usual amount (planets, cards) is amber: it is only for today.
