@@ -5793,8 +5793,8 @@ body:has(.game-result) .dock { visibility: hidden; }
 .mode-card.on.mode-switch { animation-name: mode-ungrey; }
 .mode-card.on { filter: none; box-shadow: inset 3px 0 0 #fff, inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
 @media (hover: hover) { .mode-card:not(.on):hover { filter: grayscale(0.6) brightness(0.8); } .mode-card:hover .mode-card-art > * { transform: scale(1.04); } }
-/* (On a narrow screen: the two modes side by side above the page, no pane.) */
-@media (max-width: 1000px) {
+/* (On a narrow upright screen: the two modes side by side above the page, no pane. A phone on its side keeps the pane.) */
+@media (max-width: 1000px) and (orientation: portrait), (max-width: 640px) {
   .menu:has(> .mode-cards) { padding-left: max(18px, var(--sa-l)); }
   .menu:has(> .mode-cards) > .setup-top > .btn:first-child { visibility: visible; }
   .mode-cards, .menu > .mode-cards.mode-cards { position: static; width: auto; padding: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; order: 1; }
@@ -6583,3 +6583,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .relic-panel-when { font-family: var(--display); letter-spacing: 0.16em; text-transform: uppercase; font-size: 0.62rem; color: var(--ink-faint, #8a8fa3); }
 .relic-panel-btns { display: flex; gap: 8px; margin-top: 4px; }
 .relic-panel-btns .btn { min-width: 84px; }
+
+/* A phone on its side: the deck boxes smaller, so more of them fit. */
+@media (max-height: 560px) { .db-boxes { --bw: clamp(62px, calc(22 * var(--vh)), 92px); } }
