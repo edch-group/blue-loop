@@ -475,25 +475,34 @@ class SoundBoard {
       this.voice(hz('A6'), { dur: fall + 0.1, attack: 0.02, gain: 0.05, to: hz('A1'), type: 'triangle', cutoff: 9000, detune: d, vibrato: 12, out: filter });
       this.voice(hz('A6'), { dur: fall + 0.1, attack: 0.02, gain: 0.018, to: hz('A1'), type: 'sawtooth', cutoff: 9000, detune: d * 1.5, vibrato: 12, out: filter });
     }
-    // A thin whistle over it, an octave up, fading as it falls.
-    this.voice(hz('E7'), { dur: fall * 0.8, attack: 0.04, gain: 0.012, to: hz('E4'), type: 'sine' });
     // Air rushing past.
     this.breath({ dur: fall, freq: 3200, to: 500, type: 'bandpass', q: 1.1, gain: 0.05, attack: 0.3 });
-    // The landing: the theme's opening chord. Its bass (triangle and sine an octave up), a soft thud under it…
-    const land = fall - 0.03;
-    this.voice(hz('A1'), { dur: 2.6, attack: 0.01, gain: 0.12, type: 'triangle', cutoff: 300, delay: land });
-    this.voice(hz('A2'), { dur: 2.2, attack: 0.02, gain: 0.04, type: 'sine', delay: land });
-    this.voice(70, { dur: 0.7, attack: 0.004, gain: 0.16, to: 36, type: 'triangle', cutoff: 220, delay: land });
-    this.breath({ dur: 0.7, freq: 200, to: 60, type: 'lowpass', q: 1, gain: 0.1, attack: 0.008, delay: land });
-    // …and its pad, detuned triangle pairs swelling quickly and ringing out in the hall.
-    ['A3', 'E4', 'B4', 'C5'].forEach((n, i) => {
-      this.voice(hz(n), { dur: 2.8, attack: 0.18 + i * 0.04, gain: 0.022, type: 'triangle', cutoff: 1400, delay: land });
-      this.voice(hz(n), { dur: 2.8, attack: 0.18 + i * 0.04, gain: 0.014, type: 'triangle', cutoff: 1400, detune: 9, delay: land });
+    // (The landing is the battle's own start: battleStart, as the board opens.)
+  }
+  /**
+   * A battle begins, and it should feel like it: an alarm blaring twice (saw and square, rising a fourth), then the
+   * hit, a deep falling boom with a burst of low noise under a brass stab of the battle theme's chord (A minor,
+   * detuned saws) and a crash ringing over it.
+   */
+  battleStart() {
+    const ctx = this.ready();
+    if (!ctx || !this.sfx) return;
+    for (const d of [0, 0.3]) {
+      this.voice(hz('E4'), { dur: 0.24, attack: 0.008, gain: 0.06, to: hz('A4'), type: 'sawtooth', cutoff: 2600, detune: -7, delay: d });
+      this.voice(hz('E4'), { dur: 0.24, attack: 0.008, gain: 0.045, to: hz('A4'), type: 'square', cutoff: 1800, detune: 7, delay: d });
+      this.voice(hz('E3'), { dur: 0.24, attack: 0.008, gain: 0.05, to: hz('A3'), type: 'sawtooth', cutoff: 1400, delay: d });
+    }
+    const hit = 0.66;
+    // The boom.
+    this.voice(96, { dur: 1.8, attack: 0.003, gain: 0.5, to: 26, type: 'sine', delay: hit });
+    this.voice(58, { dur: 1.4, attack: 0.003, gain: 0.3, to: 30, type: 'triangle', cutoff: 220, delay: hit });
+    this.breath({ dur: 1, freq: 1100, to: 70, type: 'lowpass', q: 0.8, gain: 0.4, attack: 0.003, delay: hit });
+    // The stab: A minor, low and wide, detuned saws.
+    ['A2', 'E3', 'A3', 'C4', 'E4'].forEach((n) => {
+      for (const d of [-11, 11]) this.voice(hz(n), { dur: 1.5, attack: 0.015, gain: 0.032, type: 'sawtooth', cutoff: 2800, detune: d, delay: hit });
     });
-    // One pluck of the arpeggio's first notes as it lands, into the echo.
-    ['A4', 'E5', 'A5'].forEach((n, i) => {
-      this.voice(hz(n), { dur: eighth * 2.2, attack: 0.012, gain: 0.03, type: 'triangle', cutoff: 5000, delay: land + 0.02 + i * eighth * 0.5, out: filter });
-    });
+    // The crash.
+    this.breath({ dur: 2, freq: 7000, to: 3200, type: 'highpass', q: 0.5, gain: 0.09, attack: 0.004, delay: hit });
   }
   /**
    * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and
