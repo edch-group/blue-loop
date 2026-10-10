@@ -6475,7 +6475,12 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 
 /* A surge dragged straight onto what it heats: the rival card (or sun) it would land on. */
 .tableau-rival .card.drop-over, .tableau-rival .vitals.drop-over { outline: 2px solid #d8452b; outline-offset: 3px; border-radius: calc(var(--tcw, 60px) * 0.08); }
-.tableau-rival .vitals.drop-over { border-radius: 50%; }
+/* (A sun aimed at from the hand: the ring round the sun itself, as any aim at it, not an outline round its whole block.) */
+.tableau-rival .vitals.drop-over { outline: none; }
+.vitals.drop-over .vit::after {
+  content: ''; position: absolute; inset: 2%; border-radius: 50%; pointer-events: none;
+  border: 4px solid rgba(216, 69, 43, 0.9); box-shadow: 0 0 0 2px #fff, 0 0 30px rgba(224, 69, 43, 0.8);
+}
 
 /* A relic that counts the day's attacks: a ring round its token fills a third with each, and its tally under it. */
 .relic-actives .relic-count { position: relative; z-index: 2; margin-bottom: 14px; --rim: #c9ccd6; }
