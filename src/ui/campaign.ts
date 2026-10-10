@@ -420,7 +420,7 @@ export class CampaignView {
     if (!sky || !node) return;
     const tip = document.createElement('div');
     tip.className = 'up-tip';
-    tip.innerHTML = `<b>${esc(node.dataset.upTitle ?? '')}</b><span>${esc(node.dataset.upText ?? '')}</span><small>${esc(node.dataset.upNote ?? '')}</small>`;
+    tip.innerHTML = `<b>${esc(node.dataset.upTitle ?? '')}</b><span>${esc(node.dataset.upText ?? '')}</span>${node.dataset.upNext ? `<small>${esc(node.dataset.upNext)}</small>` : ''}`;
     sky.appendChild(tip);
     // (Measured on screen, laid out in the page's own pixels: the page may be zoomed.)
     const box = sky.getBoundingClientRect();
@@ -1224,8 +1224,6 @@ export class CampaignView {
         });
       })
       .join('');
-    // (Each branch named in a skill's tip.)
-    const branchOf = (g: MetaGroup) => branches.find((b) => b.g === g)?.title ?? '';
     // The skills: each a disc, its ring its levels (learnt inked, placed but not confirmed blue). What it does shows on
     // a hover (or a press); a tap places a point on it.
     const nodes = skills
@@ -1238,12 +1236,12 @@ export class CampaignView {
         const open = upgradeOpen(meta, u.id);
         const why = maxed ? null : buyUpgradeProblem(meta, u.id);
         const look = UPGRADE_LOOK[u.id];
-        const needs = (u.requires ?? []).filter(([r, n]) => levelOf(meta, r) < n).map(([r, n]) => `${metaUpgrade(r)?.name ?? r} ${'I'.repeat(n)}`);
-        const vals = look ? `${level ? `${look.value(level)} now` : 'none yet'}${maxed ? '' : ` · ${look.value(level + 1)} next`}: ${look.unit}.` : u.text;
-        const note = `${branchOf(u.group)} · ${u.tier === 3 ? 'capstone' : `tier ${u.tier ?? 1}`} · level ${level} of ${u.max}${level > had ? ` (${level - had} just placed: undo takes ${level - had === 1 ? 'it' : 'them'} back)` : ''}. ${
-          maxed ? 'Complete.' : needs.length ? `Needs ${needs.join(' and ')}.` : why ? why : `Tap to learn the next level: ${u.cost(level)} XP.`
-        }`;
-        return `<button class="up-node tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--bc:${colourOf(u.group)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-note="${esc(note)}" aria-label="${esc(u.name)}">
+        // (Its tip: its name, what it gives now, and what the next point would make it, nothing more [direction: title,
+        // current value, next value].)
+        // (Not yet learnt: what its first point gives, with no "next" line.)
+        const vals = look ? `${look.value(Math.max(level, 1))} ${look.unit}` : u.text;
+        const next = look && level > 0 && !maxed ? `Next: ${look.value(level + 1)}` : '';
+        return `<button class="up-node tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--bc:${colourOf(u.group)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-next="${esc(next)}" aria-label="${esc(u.name)}">
           <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max, had, this.upJust === u.id)}</svg>${look?.icon ?? ''}</span>
           ${level > had ? `<i class="up-node-plus">+${level - had}</i>` : ''}
         </button>`;

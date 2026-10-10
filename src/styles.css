@@ -6413,5 +6413,5 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* (Its own turn: the map's spin also centres what it turns, which would throw the ring off its disc.) */
 @keyframes up-ring-spin { to { transform: rotate(360deg); } }
 /* A point just placed: its ring segment draws itself in. */
-.up-node-ring circle.fresh { animation: up-seg-in 0.1s ease both; }
+.up-node-ring circle.fresh { animation: up-seg-in 0.65s ease-out both; }
 @keyframes up-seg-in { from { stroke-dashoffset: var(--seg); } to { stroke-dashoffset: 0; } }
