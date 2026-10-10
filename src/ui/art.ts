@@ -101,7 +101,7 @@ function planetTag(orbit: number, eaten = false, paradise = false): string {
   const facing = planetAt(orbit);
   if (facing === 'dead' && paradise && !eaten) {
     const left = BALANCE.orbitTurns - (((orbit % BALANCE.orbitTurns) + BALANCE.orbitTurns) % BALANCE.orbitTurns);
-    return `<div class="vit-planet-tag vt-paradise" title="The paradise planet (a relic brought the dead world to life): your cards regain stability each dawn it faces your sun. ${left} more day${left === 1 ? '' : 's'} before the next planet comes round.">paradise · ${left}</div>`;
+    return `<div class="vit-planet-tag vt-paradise" title="Paradise planet: renew.">paradise · ${left}</div>`;
   }
   const left = BALANCE.orbitTurns - (((orbit % BALANCE.orbitTurns) + BALANCE.orbitTurns) % BALANCE.orbitTurns);
   // A rival's galaxy eater has its planets: whichever faces the sun counts as dead.

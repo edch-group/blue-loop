@@ -126,14 +126,7 @@ function saveCampaign(s: CampaignState | null) {
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const lower = (t: string) => esc(t.toLowerCase());
 /** Where a relic does its work, for its tip. */
-const relicNote = (r: Relic) =>
-  r.cursed
-    ? 'Cursed: it weighs on your flagship in every battle.'
-    : !r.power
-      ? "A blessing on your hero's card in every battle."
-      : RELIC_POWERS[r.power].kind === 'once'
-        ? "Once in every battle the flagship fights: call on it from the relics on the battle's right."
-        : 'At work in every battle the flagship fights.';
+const relicNote = (r: Relic) => (r.cursed ? 'Cursed.' : !r.power ? 'Hero card.' : RELIC_POWERS[r.power].kind === 'once' ? 'Once per battle.' : '');
 
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { relicMark } from './relic-art';

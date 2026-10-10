@@ -5255,7 +5255,7 @@ export class App {
           <div class="salvage-title">found</div>
           <div class="finds-row">${finds
             .map((f) => {
-              const note = f.note ?? (f.cursed ? 'A cursed relic: it weighs on your flagship in every battle.' : 'A relic, at work in every battle.');
+              const note = f.note ?? (f.cursed ? 'Cursed.' : '');
               // (A relic: its painted badge, as down the right of the map.)
               return f.art
                 ? `<button class="find find-relic rarity-${f.rarity} ${f.cursed ? 'find-cursed' : ''}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${f.name}. ${f.text}`)}">${f.art}</button>`
@@ -5509,7 +5509,7 @@ export class App {
         if (!k.relic) return '';
         const why = heroSkillProblem(s, me, i);
         const ready = !why && act && !busy;
-        const note = k.spent ? 'Used this battle.' : ready ? 'Once a battle: tap to call on it.' : `Once a battle${why && !k.spent ? `: ${why[0].toLowerCase()}${why.slice(1)}` : '.'}`;
+        const note = k.spent ? 'Used.' : '';
         return `<button class="cmp-relic relic-active ${k.spent ? 'spent' : ''} ${ready ? 'ready' : ''}" ${ready ? `data-act="hero-skill" data-arg="${i}"` : ''} data-tip-title="${esc(k.relic.toLowerCase())}" data-tip="${esc(k.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${k.relic}. ${k.text}`)}">${relicMark(k.relic, '')}</button>`;
       })
       .join('');
