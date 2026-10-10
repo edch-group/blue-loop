@@ -6472,7 +6472,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .tableau-rival .vitals.drop-over { border-radius: 50%; }
 
 /* A relic that counts the day's attacks: a ring round its token fills a third with each, and its tally under it. */
-.relic-actives .relic-count { position: relative; margin-bottom: 14px; --rim: #c9ccd6; }
+.relic-actives .relic-count { position: relative; z-index: 2; margin-bottom: 14px; --rim: #c9ccd6; }
 .relic-actives .relic-count::after {
   content: ''; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none;
   background: conic-gradient(#c9a24e calc(var(--f, 0) * 360deg), transparent 0);
