@@ -1200,7 +1200,7 @@ export class CampaignView {
     }
     const ring = (level: number, max: number, had = level, fresh = false) => {
       const C = 2 * Math.PI * 22;
-      const g = max > 1 ? 4 : 0;
+      const g = max > 1 ? 7 : 0;
       const seg = C / max - g;
       // (The segment of a point just placed draws itself in.)
       return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" style="--seg:${seg.toFixed(2)}" class="${i < had ? 'on' : i < level ? 'plan' : ''} ${fresh && i === level - 1 ? 'fresh' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');

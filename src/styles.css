@@ -6472,3 +6472,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-sky.up-searching .up-line, .up-sky.up-searching .up-flower-fill { opacity: 0.35; transition: opacity 0.2s; }
 /* (A skill with no points in it is not yet lit: a grey glimmer, its colour coming with its first point.) */
 .up-tree .up-node:not(.owned):not(.planned) .up-mote { --bc: #aab0bf; }
+/* [direction: a skill's stages plainer, and further out from its centre] Its level ring out near the edge of its disc,
+   each stage a clear arc (the empty ones a visible grey track, gaps between). */
+.up-tree .up-node-ring { inset: 4%; width: 92%; height: 92%; }
+.up-tree .up-node-ring circle { stroke-width: 3.4; stroke: rgba(150, 156, 172, 0.32); }
+.up-tree .up-node-ring circle.on { stroke: color-mix(in srgb, var(--bc) 90%, #fff); filter: drop-shadow(0 0 2.5px var(--bc)); }
+.up-tree .up-node-ring circle.plan { stroke: color-mix(in srgb, var(--bc) 55%, #fff); filter: drop-shadow(0 0 2px var(--bc)); }
+.up-tree .up-node.locked .up-node-ring circle { stroke: rgba(170, 176, 191, 0.2); }
