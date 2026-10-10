@@ -5717,9 +5717,9 @@ export class App {
       ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
       ${relics || counter ? `<aside class="relic-actives" aria-label="Relics">${counter}${relics}</aside>` : ''}
       <div class="confirm-pill" role="radiogroup" aria-label="Your rival's moves">${(
-        [['normal', 'normal', 'normal', "Each of your rival's cards waits for your OK"], ['auto', 'auto-confirm', 'auto', "Your rival's cards show a moment, then land by themselves"], ['skip', 'skip all', 'skip', 'Auto-confirm, and Lightspeed replies let pass, until the day ends']] as const
+        [['normal', "Each of your rival's cards waits for your OK"], ['auto', "Your rival's cards show a moment, then land by themselves"], ['skip', 'Auto, and Lightspeed replies let pass, until the day ends']] as const
       )
-        .map(([m, label, short, tip]) => `<button class="${this.confirmMode === m ? 'on' : ''}" data-act="confirm-mode" data-arg="${m}" role="radio" aria-checked="${this.confirmMode === m}" title="${tip}" aria-label="${label}"><span class="cp-long">${label}</span><span class="cp-short">${short}</span></button>`)
+        .map(([m, tip]) => `<button class="${this.confirmMode === m ? 'on' : ''}" data-act="confirm-mode" data-arg="${m}" role="radio" aria-checked="${this.confirmMode === m}" title="${tip}">${m}</button>`)
         .join('')}</div>
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn || banked ? '' : 'plays-off'}" title="${myTurn ? 'Energy left today: each card costs the number on its gem. What you leave unspent is banked through your rival\'s day, to answer them at lightspeed.' : 'Banked energy: to play a Lightspeed card in reply to your rival'}">

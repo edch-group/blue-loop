@@ -6534,5 +6534,3 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .confirm-pill button.on { background: var(--ink); color: #fff; }
 @media (max-height: 560px) { .confirm-pill { left: calc(var(--pad-l, 0px) + 8px); bottom: calc(var(--pad-b, 0px) + 8px); } .confirm-pill button { padding: 5px 8px; font-size: 0.5rem; letter-spacing: 0.1em; } }
 .table-view.zoom-rival > .confirm-pill, .table-view.zoom-mine > .confirm-pill { opacity: 0; pointer-events: none; }
-.confirm-pill .cp-short { display: none; }
-@media (max-height: 560px) { .confirm-pill .cp-long { display: none; } .confirm-pill .cp-short { display: inline; } }
