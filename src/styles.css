@@ -6392,7 +6392,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
    on the map; under the pointer, the ring fills softly and the disc lifts. */
 .up-node.afford .up-node-disc::after {
   content: ''; position: absolute; inset: -8px; width: auto; height: auto; top: -8px; right: -8px; border-radius: 50%; background: none; box-shadow: none;
-  border: 1.5px dashed color-mix(in srgb, var(--bc, #8d93a8) 80%, #8d93a8); animation: cmp-spin 10s linear infinite; transition: background 0.15s;
+  border: 1.5px dashed color-mix(in srgb, var(--bc, #8d93a8) 80%, #8d93a8); animation: up-ring-spin 10s linear infinite; transition: background 0.15s;
 }
 .up-node.tier-3.afford .up-node-disc::after { inset: -12px; top: -12px; right: -12px; }
 .up-node:hover .up-node-disc::after { background: color-mix(in srgb, var(--bc, #8d93a8) 14%, transparent); }
@@ -6409,3 +6409,9 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-tip small { font-size: 0.68rem; line-height: 1.35; color: var(--ink-faint); }
 /* Top left: back, and (with points placed this visit) undo and clear beside it. */
 .up-left { justify-self: start; display: flex; align-items: center; gap: 14px; }
+
+/* (Its own turn: the map's spin also centres what it turns, which would throw the ring off its disc.) */
+@keyframes up-ring-spin { to { transform: rotate(360deg); } }
+/* A point just placed: its ring segment draws itself in. */
+.up-node-ring circle.fresh { animation: up-seg-in 0.1s ease both; }
+@keyframes up-seg-in { from { stroke-dashoffset: var(--seg); } to { stroke-dashoffset: 0; } }

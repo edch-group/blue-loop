@@ -369,6 +369,8 @@ export class CampaignView {
    * button, take points back (their XP refunded), so none is spent by accident]: each a level of a skill, in order.
    */
   private upPlaced: string[] = [];
+  /** The skill a point was just placed on (its new ring segment draws itself in). */
+  private upJust: string | null = null;
   /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
   /** The systems seen as the map was last drawn (the ships flying over it are drawn after it). */
@@ -693,6 +695,7 @@ export class CampaignView {
       case 'cmp-shop':
         this.shopOpen = !this.shopOpen;
         this.upPlaced = [];
+        this.upJust = null;
         break;
       case 'cmp-up-pick': {
         // A point placed: learnt at once (undo or clear takes it back, while the tree is open).
@@ -707,6 +710,7 @@ export class CampaignView {
         sound.charge(levelOf(meta, arg));
         saveMeta(buyUpgrade(meta, arg));
         this.upPlaced.push(arg);
+        this.upJust = arg;
         // (The tree is drawn afresh: its tip goes back beside it.)
         requestAnimationFrame(() => this.showUpTip());
         break;
@@ -717,6 +721,7 @@ export class CampaignView {
         let meta = loadMeta();
         const n = act === 'cmp-up-undo' ? 1 : this.upPlaced.length;
         for (let i = 0; i < n && this.upPlaced.length; i++) meta = refundUpgrade(meta, this.upPlaced.pop()!);
+        this.upJust = null;
         saveMeta(meta);
         sound.hover();
         break;
@@ -1173,11 +1178,12 @@ export class CampaignView {
         row.forEach((u, i) => pos.set(u.id, place(br.dir + lift + (row.length > 1 ? -fan / 2 + (fan * i) / (row.length - 1) : 0), reach[tier])));
       }
     }
-    const ring = (level: number, max: number, had = level) => {
+    const ring = (level: number, max: number, had = level, fresh = false) => {
       const C = 2 * Math.PI * 22;
       const g = max > 1 ? 4 : 0;
       const seg = C / max - g;
-      return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" class="${i < had ? 'on' : i < level ? 'plan' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');
+      // (The segment of a point just placed draws itself in.)
+      return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" style="--seg:${seg.toFixed(2)}" class="${i < had ? 'on' : i < level ? 'plan' : ''} ${fresh && i === level - 1 ? 'fresh' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');
     };
     const skills = META_UPGRADES.filter((u) => u.group !== 'unlock');
     // Each branch grows out of one of the Stellari's own petals (the flower drawn as everywhere else, 12 petals, one
@@ -1238,7 +1244,7 @@ export class CampaignView {
           maxed ? 'Complete.' : needs.length ? `Needs ${needs.join(' and ')}.` : why ? why : `Tap to learn the next level: ${u.cost(level)} XP.`
         }`;
         return `<button class="up-node tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--bc:${colourOf(u.group)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-note="${esc(note)}" aria-label="${esc(u.name)}">
-          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max, had)}</svg>${look?.icon ?? ''}</span>
+          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max, had, this.upJust === u.id)}</svg>${look?.icon ?? ''}</span>
           ${level > had ? `<i class="up-node-plus">+${level - had}</i>` : ''}
         </button>`;
       })
