@@ -2060,7 +2060,7 @@ export function battleFinds(s: CampaignState, game: GameState): { items: Relic[]
   if (next() < HEROES.itemChance + (army ? armyBonus(s, army).loot : 0)) {
     const slots = RACE_SLOTS[f.race];
     const slot = slots[Math.floor(next() * slots.length)].kind, rarity = findRarity(n, next(), s.universe), roll = next();
-    items.push(makeRelic(`item${++uid}`, slot, rarity, f.race, roll, next() < CAMPAIGN.curseChance));
+    items.push(makeRelic(`item${++uid}`, slot, rarity, f.race, roll, next() < CAMPAIGN.curseChance, f.relics ?? []));
   }
   // (No modules any more: the flagship is not fitted out.)
   void modules;
@@ -2079,10 +2079,14 @@ export function vaultFinds(s: CampaignState, game: GameState): Relic[] {
   const next = spoilsRng(game, `${b.nodeId}:vault`);
   // (Ids after any the wreckage gives.)
   let uid = s.uidCounter + 10;
+  // (Never one already held, nor two alike out of the same cache.)
+  const held = [...(f.relics ?? []), ...battleFinds(s, game).items];
   return Array.from({ length: n.vault ?? 0 }, () => {
     const slots = RACE_SLOTS[f.race];
     const slot = slots[Math.floor(next() * slots.length)].kind;
-    return makeRelic(`item${++uid}`, slot, findRarity(n, next(), s.universe), f.race, next(), false);
+    const relic = makeRelic(`item${++uid}`, slot, findRarity(n, next(), s.universe), f.race, next(), false, held);
+    held.push(relic);
+    return relic;
   });
 }
 
@@ -2451,7 +2455,7 @@ function findItem(s: CampaignState, f: Faction, army: Army, n: CampaignNode) {
   const rarity = findRarity(n, nextRandom(s), s.universe);
   const slots = RACE_SLOTS[f.race];
   const kind: SlotKind = slots[randomInt(s, slots.length)].kind;
-  const relic = makeRelic(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s), nextRandom(s) < CAMPAIGN.curseChance);
+  const relic = makeRelic(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s), nextRandom(s) < CAMPAIGN.curseChance, f.relics ?? []);
   (f.relics ??= []).push(relic);
   clog(s, `${cardDef(army.general).name}'s army finds ${relic.name} in ${n.name}${relic.cursed ? ': it is cursed' : ''}.`, n.id, f.id);
 }

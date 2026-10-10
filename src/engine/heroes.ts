@@ -360,14 +360,19 @@ const CURSES: { mods: BattleModifiers; text: string; name: string }[] = [
   { mods: { maxHealthDelta: -2 }, text: 'Your sun has 2 less max health.', name: 'Hollow' },
 ];
 
-/** A relic for a race, of a rarity: a power (one its kind can carry, chosen by the roll), or, if cursed, a toll. */
-export function makeRelic(id: string, slot: SlotKind, rarity: ItemRarity, race: number, roll: number, cursed: boolean): Relic {
+/**
+ * A relic for a race, of a rarity: a power (one its kind can carry, chosen by the roll), or, if cursed, a toll. Never
+ * the same as one already held (`held`): no power twice, no curse twice, while there are others to be had.
+ */
+export function makeRelic(id: string, slot: SlotKind, rarity: ItemRarity, race: number, roll: number, cursed: boolean, held: Relic[] = []): Relic {
   if (!cursed) {
-    const power = rollPower(slot, roll);
+    const power = rollPower(slot, roll, new Set(held.flatMap((r) => (r.power ? [r.power] : []))));
     const n = RELIC_POWERS[power].amounts[STEP[rarity] - 1];
     return { id, name: `${QUALITY[rarity]} ${GEAR_NAMES[slot][race] ?? GEAR_NAMES[slot][0]}`, slot, rarity, boons: [], power, n, text: RELIC_POWERS[power].text(n) };
   }
-  const curse = CURSES[Math.floor(roll * CURSES.length) % CURSES.length];
+  const fresh = CURSES.filter((c) => !held.some((r) => r.cursed && r.text === c.text));
+  const curses = fresh.length ? fresh : CURSES;
+  const curse = curses[Math.floor(roll * curses.length) % curses.length];
   return { id, name: `${curse.name} ${GEAR_NAMES[slot][race] ?? GEAR_NAMES[slot][0]}`, slot, rarity, boons: [], cursed: true, mods: curse.mods, text: curse.text };
 }
 

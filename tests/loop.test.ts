@@ -365,3 +365,16 @@ describe('map variety', () => {
     expect(offerWeight('stellar', 4) / offerWeight('dwarf', 4)).toBeGreaterThan(offerWeight('stellar', 1) / offerWeight('dwarf', 1));
   });
 });
+
+describe('emblems', () => {
+  it('are never found twice: no power, nor curse, the flagship already holds', async () => {
+    const { makeRelic } = await import('../src/engine/heroes');
+    const held: ReturnType<typeof makeRelic>[] = [];
+    for (let i = 0; i < 24; i++) held.push(makeRelic(`r${i}`, 'weapon', 'stellar', 0, (i * 0.37) % 1, false, held));
+    const powers = held.map((r) => r.power);
+    expect(new Set(powers).size).toBe(powers.length);
+    const curses: ReturnType<typeof makeRelic>[] = [];
+    for (let i = 0; i < 3; i++) curses.push(makeRelic(`c${i}`, 'helm', 'dwarf', 0, 0.1, true, curses));
+    expect(new Set(curses.map((r) => r.text)).size).toBe(3);
+  });
+});

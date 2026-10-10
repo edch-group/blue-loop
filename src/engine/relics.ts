@@ -119,10 +119,17 @@ export const SLOT_POWERS: Record<SlotKind, RelicPower[]> = {
 /** Every power (a relic's roll falls on its kind's own half the time, else on any power at all). */
 export const ALL_POWERS = Object.keys(RELIC_POWERS) as RelicPower[];
 
-/** The power a relic of a kind carries, by its roll (0–1). */
-export function rollPower(slot: SlotKind, roll: number): RelicPower {
-  const own = SLOT_POWERS[slot];
-  return roll < 0.5 ? own[Math.floor((roll / 0.5) * own.length) % own.length] : ALL_POWERS[Math.floor(((roll - 0.5) / 0.5) * ALL_POWERS.length) % ALL_POWERS.length];
+/**
+ * The power a relic of a kind carries, by its roll (0–1): never one already held (`held`), while any other is left
+ * (its kind's own if it can, else any).
+ */
+export function rollPower(slot: SlotKind, roll: number, held: ReadonlySet<RelicPower> = new Set()): RelicPower {
+  const own = SLOT_POWERS[slot].filter((p) => !held.has(p));
+  const all = ALL_POWERS.filter((p) => !held.has(p));
+  const pick = (list: RelicPower[], r: number) => list[Math.floor(r * list.length) % list.length];
+  if (!all.length) return pick(SLOT_POWERS[slot], roll);
+  if (!own.length) return pick(all, roll);
+  return roll < 0.5 ? pick(own, roll / 0.5) : pick(all, (roll - 0.5) / 0.5);
 }
 
 /** A relic's power as a side carries it into battle: which, how strong, and the relic's name (for the log). */
