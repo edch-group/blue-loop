@@ -6594,11 +6594,18 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   animation: loot-rays 0.9s ease-out both; }
 @keyframes loot-burst { 0% { transform: scale(0.2); opacity: 1; } 60% { opacity: 1; } 100% { transform: scale(60); opacity: 0; } }
 @keyframes loot-rays { from { transform: scale(0.3) rotate(0deg); opacity: 1; } to { transform: scale(1.4) rotate(40deg); opacity: 0; } }
-.loot-items { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 34px; max-width: min(860px, 94vw); padding: 26px 18px; }
+/* The rewards in one or two rows (the second set half a tile across from the first), each tile sized to fit them
+   all on the screen: no more than a card's width, no wider than the columns allow, no taller than the rows do. */
+.loot-items { --gap: clamp(14px, 3vw, 34px);
+  --lw: min(112px, calc((92vw - (var(--cols) - 1) * var(--gap)) / var(--cols)), calc((100vh - 190px - (var(--rows) - 1) * var(--gap)) / var(--rows) / 1.45));
+  display: grid; justify-items: center; gap: var(--gap); padding: 20px 18px; }
+.loot-row { display: flex; justify-content: center; gap: var(--gap); }
+.loot-row + .loot-row { transform: translateX(calc(var(--lw) * 0.3)); }
+.loot-item { transform: translateY(var(--y, 0px)) rotate(var(--r, 0deg)); }
 /* Each reward: the same size (a card's), no box, a living gold glow behind it (a soft treasure light breathing,
    faint rays turning slowly through it). */
 .loot-item { position: relative; animation: loot-in 0.55s cubic-bezier(.2,1.4,.4,1) both; animation-delay: calc(450ms + var(--i) * 420ms); }
-.loot-tile { --lw: 112px; --lh: calc(var(--lw) * 1.4); position: relative; isolation: isolate; width: var(--lw); height: var(--lh); display: grid; justify-items: center; align-content: center; gap: 6px; text-align: center; }
+.loot-tile { --lh: calc(var(--lw) * 1.4); position: relative; isolation: isolate; width: var(--lw); height: var(--lh); display: grid; justify-items: center; align-content: center; gap: 6px; text-align: center; }
 .loot-tile::before { content: ''; position: absolute; left: 50%; top: 50%; width: 150%; height: 125%; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; border-radius: 50%;
   background: radial-gradient(closest-side, rgba(255, 226, 140, 0.8), rgba(246, 200, 96, 0.38) 50%, rgba(240, 190, 80, 0) 100%);
   animation: loot-glow-breathe 2.6s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -0.4s); }
@@ -6617,7 +6624,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .loot-opened { flex-direction: column; display: flex; align-items: center; justify-content: center; gap: 4px; }
 /* The experience, top middle: the level, its bar filling, what was earned. */
 .loot-top { margin-bottom: 4px; }
-@keyframes loot-in { from { opacity: 0; transform: translateY(18px) scale(0.6); } }
+@keyframes loot-in { from { opacity: 0; transform: translateY(calc(var(--y, 0px) + 18px)) rotate(var(--r, 0deg)) scale(0.6); } }
 @keyframes loot-glow-breathe { 50% { opacity: 0.65; transform: translate(-50%, -50%) scale(1.08); } }
 @keyframes loot-rays-turn { to { transform: translate(-50%, -50%) rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .loot-cache, .loot-cache-glow, .loot-cache-seam, .loot-item, .loot-tile::before, .loot-tile::after { animation: none; } .loot-burst { display: none; } .loot-take { animation: none; } }
@@ -6659,4 +6666,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 @keyframes xp-up { 0% { opacity: 0; transform: translate(-50%, -60%); } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -160%); } }
 @keyframes xp-lv { 50% { transform: scale(1.5); color: #c9a24e; } }
 /* (A phone on its side: the cards in a cache a little smaller, so everything fits above "take it".) */
-@media (max-height: 560px) { .loot-items { gap: 22px; padding: 16px; } .loot-tile { --lw: 88px; } }
+@media (max-height: 560px) { .loot-items { padding: 10px 14px; } .loot-emblem small { font-size: 0.6rem; } .loot-emblem b { font-size: 0.52rem; } }
+/* (An emblem's name and power each kept to two lines, so a long name never spills out of its tile.) */
+.loot-emblem b, .loot-emblem small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; }

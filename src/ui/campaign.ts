@@ -2377,12 +2377,25 @@ export class CampaignView {
       ].filter(Boolean);
       // (The experience first, top middle; the rewards after it, one at a time.)
       const first = l.xp ? 1 : 0;
+      // (In one row, or past three in two: the first a little fuller; the tiles sized so both rows fit the screen.)
+      const split = items.length > 3 ? Math.ceil(items.length / 2) : items.length;
+      const rows = [items.slice(0, split), items.slice(split)].filter((r) => r.length);
+      const cols = Math.max(...rows.map((r) => r.length));
       if (!this.lootOpen)
         return `<div class="overlay overlay-soft loot-overlay"><button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${LOOT_CACHE}<span class="loot-cache-tap">${l.won ? 'victory · tap to open' : 'what was saved · tap to open'}</span></button></div>`;
       return `<div class="overlay overlay-soft loot-overlay loot-opened">
         <div class="loot-burst" aria-hidden="true"></div>
         ${l.xp ? `<div class="loot-item loot-top" style="--i:0">${this.xpGauge(this.commanderXp() - l.xp, l.xp)}</div>` : ''}
-        <div class="loot-items">${items.map((h, i) => `<div class="loot-item" style="--i:${i + first}">${h}</div>`).join('')}</div>
+        <div class="loot-items" style="--cols:${cols};--rows:${rows.length}">${rows
+          .map((row, r) => `<div class="loot-row" style="--n:${row.length}">${row
+            .map((h, j) => {
+              // (Each a little off true, like treasure spilled out: tilted alternately, the row bowed into a gentle arc.)
+              const at = j - (row.length - 1) / 2;
+              const i = r * rows[0].length + j;
+              return `<div class="loot-item" style="--i:${i + first};--r:${((i % 2 ? 1 : -1) * (2 + (i % 3))).toFixed(0)}deg;--y:${(at * at * 7).toFixed(0)}px">${h}</div>`;
+            })
+            .join('')}</div>`)
+          .join('')}</div>
         <button class="btn-primary loot-take" style="--i:${items.length + first}" data-act="cmp-loot-ok">take it</button>
       </div>`;
     }
