@@ -20,6 +20,8 @@ const DOOM: [number, number, number] = [0.86, 0.26, 0.22];
 export interface MapObject {
   x: number;
   z: number;
+  /** How high it stands (world y; the land rises and falls with the route). */
+  y?: number;
   /** The wormhole's sun is a little bigger. */
   heart?: boolean;
   /** The holder's colour (a ring round the star), if held. */
@@ -44,6 +46,9 @@ export interface MapRoute {
   b: [number, number];
   colour?: [number, number, number];
   gone?: boolean;
+  /** Its ends' heights (world y). */
+  ya?: number;
+  yb?: number;
 }
 
 /** A ship on the map: where it is bound (world x, z, over a star), and its holder's colour. */
@@ -52,6 +57,8 @@ export interface MapShip {
   x: number;
   z: number;
   colour: [number, number, number];
+  /** The height of the star it is bound for (world y). */
+  y?: number;
   /** Its race (its model), or -1 for a Lost Races derelict. */
   race: number;
   /** Flying in from here (world x, z), taking this long (seconds): a ship arriving from off screen. */
@@ -463,7 +470,7 @@ export class MapObjects {
   /** Each race's model, uploaded the first time a ship of it is drawn. */
   private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }>();
   /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
-  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number }>();
+  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number; fromY: number; toY: number }>();
   private routeProg: WebGLProgram;
   private routeBuf: WebGLBuffer;
   private routeCount = 0;
@@ -566,13 +573,15 @@ export class MapObjects {
         const heading = a ? Math.atan2(sh.z - from[1], sh.x - from[0]) : 0;
         // (Cruising: it flies slowly in, never quite arriving, until it is let go: see release.)
         const cruise = a?.cruise ? (Math.hypot(sh.x - from[0], sh.z - from[1]) * 0.85) / a.dur : undefined;
-        this.ships.set(sh.id, { from, to: [sh.x, sh.z], t0: now, dur: a?.dur ?? 0, heading, colour: sh.colour, race: sh.race, cruise });
+        this.ships.set(sh.id, { from, to: [sh.x, sh.z], t0: now, dur: a?.dur ?? 0, heading, colour: sh.colour, race: sh.race, cruise, fromY: sh.y ?? 0, toY: sh.y ?? 0 });
         continue;
       }
       was.colour = sh.colour;
       was.race = sh.race;
       if (Math.hypot(was.to[0] - sh.x, was.to[1] - sh.z) < 1e-4) continue;
       const at = this.shipAt(was, now);
+      was.fromY = this.groundY(was, now);
+      was.toY = sh.y ?? 0;
       const d = Math.hypot(sh.x - at[0], sh.z - at[1]);
       was.from = at;
       was.to = [sh.x, sh.z];
@@ -602,10 +611,17 @@ export class MapObjects {
   }
 
   /** How high a ship flies: hovering over its star, bobbing; under way it rises a little. */
-  private shipLift(sh: { t0: number; dur: number; cruise?: number }, now: number, time: number): number {
+  private shipLift(sh: { t0: number; dur: number; cruise?: number; fromY: number; toY: number }, now: number, time: number): number {
     const moving = sh.dur > 0 && now - sh.t0 < sh.dur;
     const k = moving ? (now - sh.t0) / sh.dur : 1;
-    return 0.13 + Math.sin(time * 1.3) * 0.006 + (sh.cruise ? 0.05 : moving ? Math.sin(Math.PI * k) * 0.05 : 0);
+    return this.groundY(sh, now) + 0.13 + Math.sin(time * 1.3) * 0.006 + (sh.cruise ? 0.05 : moving ? Math.sin(Math.PI * k) * 0.05 : 0);
+  }
+
+  /** The height of the route under a ship, eased from the star it left to the one it is bound for. */
+  private groundY(sh: { t0: number; dur: number; fromY: number; toY: number; cruise?: number }, now: number): number {
+    if (sh.cruise) return sh.toY;
+    const t = sh.dur > 0 ? Math.min(1, (now - sh.t0) / sh.dur) : 1;
+    return sh.fromY + (sh.toY - sh.fromY) * t * t * (3 - 2 * t);
   }
 
   /** A race's model on the GPU (built and uploaded the first time). */
@@ -743,7 +759,7 @@ export class MapObjects {
     const gl = this.gl;
     const out: number[] = [];
     for (const r of routes) {
-      const A = [r.a[0], 0, r.a[1]], B = [r.b[0], 0, r.b[1]];
+      const A = [r.a[0], r.ya ?? 0, r.a[1]], B = [r.b[0], r.yb ?? 0, r.b[1]];
       const c = r.colour ?? [1, 1, 1];
       const corner = (side: number, t: number) => out.push(...A, ...B, side, t, c[0], c[1], c[2], r.gone ? 0 : 1);
       corner(-1, 0); corner(1, 0); corner(1, 1);
@@ -841,7 +857,6 @@ export class MapObjects {
   draw(cam: Camera, time: number, fade: number) {
     const gl = this.gl;
     if (!this.list.length && !this.routeCount && !this.ships.size) return;
-    const y = 0;
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
     gl.depthMask(true);
@@ -853,6 +868,7 @@ export class MapObjects {
     };
     const solid = this.solids(cam, time, fade);
     for (const o of this.list) {
+      const y = o.y ?? 0;
       const r = (o.heart ? 0.072 : 0.036) * swell(o).k;
       if (o.dead) solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, o.seed, r * 0.55), 4, [0.62, 0.62, 0.64], 1);
       else {
@@ -875,6 +891,7 @@ export class MapObjects {
     const sprite = this.sprites(cam, time, fade);
     for (const o of this.list) {
       if (o.dead) continue;
+      const y = o.y ?? 0;
       const { h, k } = swell(o);
       const r = (o.heart ? 0.072 : 0.036) * k;
       // A bright flare and a turning ring of light round a hovered star.
@@ -915,7 +932,7 @@ export class MapObjects {
     if (!heart || heart.dead) return;
     const R = 0.26;
     // (Just past the sun, its petals clear of it: the sun is 0.072 across, the flower R.)
-    const x = heart.x + R * 0.75 + 0.1, z = heart.z, y = R + 0.12;
+    const x = heart.x + R * 0.75 + 0.1, z = heart.z, y = R + 0.12 + (heart.y ?? 0);
     // Facing the camera full on (as the home screen's flower faces the viewer).
     const d = [cam.eye[0] - x, cam.eye[1] - y, cam.eye[2] - z];
     const dl = Math.hypot(d[0], d[1], d[2]) || 1;

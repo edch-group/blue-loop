@@ -56,23 +56,27 @@ const smooth = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-/** The strip of systems the land lies low under: its systems and routes (world x, z, on the plane y = 0). */
+/**
+ * The strip of systems the land lies low under: its systems (world x, z; how far along the route each lies, in
+ * columns; its height, world y) and routes.
+ */
 export interface Strip {
-  nodes: [number, number][];
+  nodes: [number, number, number?, number?][];
   routes: [number, number, number, number][];
 }
 
 export interface Geometry {
   /**
-   * The ground, as triangles, 16 floats a corner: position (3), normal (3), barycentric (3), whether each edge
-   * (opposite each corner) is a shard's border (3), and its shard's middle and a random number (4).
+   * The ground, as triangles, 17 floats a corner: position (3), normal (3), barycentric (3), whether each edge
+   * (opposite each corner) is a shard's border (3), its shard's middle and a random number (4), and how far along
+   * the route its shard lies (1: in columns, as the collapse counts them).
    */
   ground: Float32Array;
   /** The stars over it: x, y, z, size, hue (0 ink; 1 gold, 2 rose, 3 sea blue), phase. */
   stars: Float32Array;
 }
 
-export const GROUND_STRIDE = 16;
+export const GROUND_STRIDE = 17;
 
 export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: [] }): Geometry {
   const { fbm, rnd } = makeNoise(seed);
@@ -82,7 +86,21 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
   const fx0 = xs.length ? Math.min(...xs) - 0.35 : -2.4, fx1 = xs.length ? Math.max(...xs) + 0.35 : 2.4;
   const fz0 = zs.length ? Math.min(...zs) - 0.35 : -0.6, fz1 = zs.length ? Math.max(...zs) + 0.35 : 0.6;
 
-  const height = (x: number, z: number) => {
+  // The route's own heights and places along it, spread over the land: each point takes after the systems nearest
+  // it (by inverse distance), so the land rises and falls with the route, and breaks away in the route's order.
+  const near = (x: number, z: number, k: 2 | 3) => {
+    let wsum = 0, v = 0;
+    for (const n of strip.nodes) {
+      const d = (n[0] - x) ** 2 + (n[1] - z) ** 2;
+      const w = 1 / (d * d + 1e-4);
+      wsum += w;
+      v += w * (n[k] ?? 0);
+    }
+    return wsum ? v / wsum : 0;
+  };
+  const lifts = strip.nodes.some((n) => n[3]);
+  const height = (x: number, z: number) => (lifts ? near(x, z, 3) : 0) + base(x, z);
+  const base = (x: number, z: number) => {
     // How far outside the footprint (0 inside it).
     const dx = Math.max(fx0 - x, 0, x - fx1), dzBack = Math.max(fz0 - z, 0), dzFront = Math.max(z - fz1, 0);
     const out = Math.hypot(dx, dzBack, dzFront);
@@ -106,6 +124,9 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
       seeds[k + 1] = Z0 + (j - 0.5 + range(0.1, 0.9)) * SHARD;
       seeds[k + 2] = rnd();
     }
+  // How far along the route each shard lies (in columns): with no route, its x (as the land always broke before).
+  const progress = new Float32Array(sx * sz);
+  for (let k = 0; k < sx * sz; k++) progress[k] = strip.nodes.length && strip.nodes[0][2] !== undefined ? near(seeds[k * 3], seeds[k * 3 + 1], 2) : seeds[k * 3];
   // A shard's reach, warped a little by smooth noise so its borders curve gently rather than run dead straight.
   const warp = (x: number, z: number): [number, number] => [x + 0.09 * fbm(x * 2.2 + 11, z * 2.2, 2), z + 0.09 * fbm(x * 2.2, z * 2.2 - 7, 2)];
   const distTo = (k: number, x: number, z: number) => {
@@ -155,7 +176,7 @@ export function buildNebula(seed: number, strip: Strip = { nodes: [], routes: []
     const mid = height(sxw, szw);
     [a, b, c].forEach((v, k) => {
       const [y, n0, n1, n2] = surface(v.x, v.z);
-      out.push(v.x, y, v.z, n0, n1, n2, ...bary[k], edges[0], edges[1], edges[2], sxw, mid, szw, seeds[s * 3 + 2]);
+      out.push(v.x, y, v.z, n0, n1, n2, ...bary[k], edges[0], edges[1], edges[2], sxw, mid, szw, seeds[s * 3 + 2], progress[s]);
     });
   };
   // Clip a polygon (its edges flagged as cuts or not) to where shard `s` reaches further than shard `t`.

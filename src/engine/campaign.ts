@@ -125,7 +125,8 @@ export const CAMPAIGN = {
   /** The map's size (map units): the strip, and the wormhole past its far end. */
   mapSystems: 23,
   mapWidth: 170 * 2 + 8 * 420,
-  mapHeight: 170 * 2 + 2 * 330,
+  /** (Tall enough for a spiral arm round the wormhole, and a strip that bends and widens.) */
+  mapHeight: 3200,
   mapMargin: 170,
   /** Worlds with something extra to find (materials), taken with the system. */
   bonusPlanets: 3,
@@ -253,12 +254,17 @@ export const CHALLENGES: Record<ChallengeKind, { name: string; text: string; rew
   frost: { name: 'The Frost Line', text: 'Wave after wave out of the cold: survive 6 days (a day more for each Frost Line held before). Each is harder than the last.', reward: '+5 max health on your sun for good, or 6 cooling now' },
 };
 
+export type MapLayout = 'strip' | 'spiral';
+export type MapTerrain = 'flat' | 'rolling' | 'climb';
+
 export interface CampaignNode {
   id: string;
   name: string;
   /** Map position, within MAP_WIDTH × MAP_HEIGHT. */
   x: number;
   y: number;
+  /** Its height over the map's plane, in map units (the land rises and falls with the route). */
+  h?: number;
   planets: MapPlanet[];
   owner: string | null;
   links: string[];
@@ -633,6 +639,13 @@ export interface CampaignState {
   galaxy?: GalaxyKind;
   /** The Lost Overlord guarding this universe's wormhole (OVERLORDS); missing in older saves until migrated. */
   overlord?: string;
+  /**
+   * How this universe's systems lie: a long strip, bending and widening as it goes, the wormhole past its far end;
+   * or a spiral arm wound in toward the wormhole at the galaxy's heart, the galaxy turning slowly round it.
+   */
+  layout?: MapLayout;
+  /** How the land lies under the route: flat, rolling hills, or climbing toward the wormhole. */
+  terrain?: MapTerrain;
   /** A battle the player is fighting (or can auto-resolve). */
   battle: BattleContext | null;
   /** The player won an attack and must decide the system's fate (the army that won it marches in if it is settled). */
@@ -974,6 +987,14 @@ function lootSince(s: CampaignState, before: ReturnType<typeof lootMark>, won: b
 
 /** Bring a saved campaign up to the current rules (saves from before version 4 aren't kept: see the UI). */
 export function migrateCampaign(s: CampaignState): CampaignState {
+  // A map from before maps grew taller (and could bend, or wind round their wormhole): a straight strip, moved
+  // down to the middle of the taller map.
+  if (!s.layout) {
+    const shift = (CAMPAIGN.mapHeight - (170 * 2 + 2 * 330)) / 2;
+    for (const n of s.nodes) n.y += shift;
+    s.layout = 'strip';
+    s.terrain = 'flat';
+  }
   // No scanners any more (there is no fog).
   for (const n of s.nodes) delete (n as { scanner?: boolean }).scanner;
   // No raiders any more: any left in an older save are gone.
@@ -1295,10 +1316,44 @@ export function universeStability(s: CampaignState): number {
 }
 
 /**
+ * Where a system of a universe's map lies (column `c`, lane `l`, nudged by `dx`, `dy`) and how high: on a strip,
+ * its middle line bending in a long slow curve and its lanes spreading apart and closing up again as it goes (so
+ * there is room between them here and there); on a spiral arm, wound in round the wormhole at the galaxy's heart,
+ * the wormhole at its middle. The land rolls in long hills, or climbs toward the wormhole.
+ */
+function mapPlacer(s: CampaignState, layout: MapLayout, terrain: MapTerrain): (c: number, l: number, dx?: number, dy?: number) => { x: number; y: number; h: number } {
+  const L = CAMPAIGN.lanes, C = CAMPAIGN.columns, gap = CAMPAIGN.laneGap, mid = (L - 1) / 2;
+  const W = CAMPAIGN.mapWidth, H = CAMPAIGN.mapHeight;
+  const r = () => nextRandom(s);
+  const bend = { a: 120 + r() * 260, f: 0.35 + r() * 0.4, p: r() * Math.PI * 2 };
+  const spread = { a: 0.25 + r() * 0.3, f: 0.6 + r() * 0.7, p: r() * Math.PI * 2 };
+  const hills = { a: 120 + r() * 120, f: 0.7 + r() * 0.5, p: r() * Math.PI * 2 };
+  const height = (c: number) => (terrain === 'rolling' ? hills.a * Math.sin(c * hills.f + hills.p) : terrain === 'climb' ? (c / C) * 300 - 120 : 0);
+  if (layout === 'spiral') {
+    // Outer edge to heart: the radius shrinks column by column, each step about a column's width along the arm.
+    const R0 = 1150, R1 = 520;
+    const radius = (c: number) => R0 - ((R0 - R1) * Math.min(c, C - 1)) / (C - 1);
+    const angle: number[] = [Math.PI];
+    for (let c = 1; c <= C; c++) angle[c] = angle[c - 1] + CAMPAIGN.colGap / radius(c - 1);
+    return (c, l, dx = 0, dy = 0) => {
+      if (c >= C) return { x: W / 2, y: H / 2, h: height(C) };
+      const rad = radius(c) + (l - mid) * gap * 0.75 + dy * 0.6;
+      const a = angle[c] + dx / radius(c);
+      return { x: W / 2 + Math.cos(a) * rad, y: H / 2 + Math.sin(a) * rad, h: height(c) };
+    };
+  }
+  return (c, l, dx = 0, dy = 0) => {
+    const centre = H / 2 + bend.a * Math.sin(c * bend.f + bend.p);
+    const wide = Math.max(0.85, Math.min(1.6, 1.15 + spread.a * Math.sin(c * spread.f + spread.p)));
+    return { x: CAMPAIGN.mapMargin + c * CAMPAIGN.colGap + dx, y: centre + (l - mid) * gap * wide + dy, h: height(c) };
+  };
+}
+
+/**
  * A new universe: its galaxy, its strip of systems, the wormhole past its far end, its stations, all
  * tougher the further along the run is. The player's flagship arrives at a system of its own at the near end.
  */
-function buildUniverse(s: CampaignState, universe: number) {
+export function buildUniverse(s: CampaignState, universe: number, layout?: MapLayout) {
   const me = campaignPlayer(s);
   const L = CAMPAIGN.lanes;
   const C = CAMPAIGN.columns;
@@ -1331,9 +1386,15 @@ function buildUniverse(s: CampaignState, universe: number) {
     col: c,
     lane: l,
   });
-  const midY = CAMPAIGN.mapMargin + ((L - 1) * CAMPAIGN.laneGap) / 2;
+  // The lie of the map: the first universe is always a strip; after it, a strip or a spiral, never twice running.
+  s.layout = layout ?? (universe === 1 ? 'strip' : nextRandom(s) < (s.layout === 'spiral' ? 0.25 : 0.55) ? 'spiral' : 'strip');
+  const terrains: MapTerrain[] = ['flat', 'rolling', 'climb'];
+  s.terrain = terrains[randomInt(s, terrains.length)];
+  const place = mapPlacer(s, s.layout, s.terrain);
   // The flagship's arrival: one system alone at the near end, in the middle, with a route into every lane.
-  const home = blank('n0', nodeName(s, used), CAMPAIGN.mapMargin, midY, 0, 0, (L - 1) / 2);
+  const at0 = place(0, (L - 1) / 2);
+  const home = blank('n0', nodeName(s, used), at0.x, at0.y, 0, 0, (L - 1) / 2);
+  home.h = at0.h;
   s.nodes.push(home);
   // The lanes, from the second column to the last before the wormhole.
   const grid: CampaignNode[][] = [];
@@ -1341,18 +1402,22 @@ function buildUniverse(s: CampaignState, universe: number) {
     grid[c] = [];
     for (let l = 0; l < L; l++) {
       const tier = (c <= 2 ? 0 : c <= 5 ? 1 : 2) + lift;
-      const n = blank(`n${s.nodes.length}`, nodeName(s, used), CAMPAIGN.mapMargin + c * CAMPAIGN.colGap + jitter(55), CAMPAIGN.mapMargin + l * CAMPAIGN.laneGap + jitter(45), tier, c, l);
+      const p = place(c, l, jitter(55), jitter(45));
+      const n = blank(`n${s.nodes.length}`, nodeName(s, used), p.x, p.y, tier, c, l);
+      n.h = p.h;
       grid[c][l] = n;
       s.nodes.push(n);
     }
   }
+  const atHole = place(C, (L - 1) / 2);
   const at = (c: number, l: number) => grid[c][l];
   // The wormhole, past the far end, in the middle of the lanes: a Stellari bloom and its guardian.
   const hole: CampaignNode = {
     id: `n${s.nodes.length}`,
     name: 'Stellari Wormhole',
-    x: CAMPAIGN.mapMargin + C * CAMPAIGN.colGap,
-    y: midY,
+    x: atHole.x,
+    y: atHole.y,
+    h: atHole.h,
     planets: [],
     owner: null,
     links: [],
@@ -2228,25 +2293,56 @@ function revealChallenges(s: CampaignState, f: Faction, n: CampaignNode) {
 }
 
 /**
- * Secret systems off the strip, a few each galaxy: each hangs off an ordinary system (in the middle of the strip),
- * a little way beyond the outer lanes, linked to it alone, hidden until that system is taken. Never two alike; the
- * Lost Lord only while there are Lost Lords left to beat.
+ * Secret systems off the route, a few each galaxy: each hangs off an ordinary system (in the middle stretch of the
+ * route, on any lane), set out to one side of its lane where there is open space, clear of every other system and
+ * route (past the outer lanes, or in a gap where the lanes spread apart), linked to it alone, hidden until that
+ * system is taken. Never two alike; the Lost Lord only while there are Lost Lords left to beat.
  */
 function placeChallenges(s: CampaignState) {
-  const L = CAMPAIGN.lanes, C = CAMPAIGN.columns;
+  const C = CAMPAIGN.columns, gap = CAMPAIGN.laneGap;
   const kinds = shuffleInPlace<ChallengeKind>(s, ['mine', 'frost', ...(LOST_LORDS.some((id) => !s.lordsWon?.includes(id)) ? ['lord' as const] : [])]).slice(0, 2);
-  // (Off the outer lanes: the top lane's systems upward, the bottom's downward.)
-  const hosts = shuffleInPlace(s, s.nodes.filter((n) => !n.heart && !n.home && !n.station && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2 && (n.lane === 0 || n.lane === L - 1)));
-  kinds.forEach((kind, i) => {
-    const from = hosts[i];
-    if (!from) return;
-    const up = from.lane === 0 ? -1 : 1;
+  const hosts = shuffleInPlace(s, s.nodes.filter((n) => !n.heart && !n.home && !n.station && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2));
+  const segDist = (px: number, py: number, a: CampaignNode, b: CampaignNode) => {
+    const vx = b.x - a.x, vy = b.y - a.y, len = vx * vx + vy * vy || 1;
+    const t = Math.max(0, Math.min(1, ((px - a.x) * vx + (py - a.y) * vy) / len));
+    return Math.hypot(px - (a.x + vx * t), py - (a.y + vy * t));
+  };
+  // Where a secret could hang off a system: out to either side of its lane (across the way its lane runs there).
+  const spot = (from: CampaignNode): { x: number; y: number } | null => {
+    const lane = s.nodes.filter((n) => n.lane === from.lane && !n.challenge && Math.abs((n.col ?? 0) - (from.col ?? 0)) === 1);
+    const [a, b] = lane.length === 2 ? lane : [from, lane[0] ?? from];
+    let tx = b.x - a.x, ty = b.y - a.y;
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl;
+    ty /= tl;
+    const sides = shuffleInPlace(s, [1, -1]);
+    for (const side of sides) {
+      const x = from.x - ty * side * gap * 0.62, y = from.y + tx * side * gap * 0.62;
+      if (x < 60 || y < 60 || x > CAMPAIGN.mapWidth - 60 || y > CAMPAIGN.mapHeight - 60) continue;
+      if (s.nodes.some((n) => n !== from && Math.hypot(n.x - x, n.y - y) < gap * 0.55)) continue;
+      const clear = s.nodes.every((n) => n.links.every((id) => {
+        const m = s.nodes.find((k) => k.id === id)!;
+        return n === from || m === from || segDist(x, y, n, m) > 95;
+      }));
+      if (clear) return { x, y };
+    }
+    return null;
+  };
+  let hi = 0;
+  for (const kind of kinds) {
+    let from: CampaignNode | undefined, at: { x: number; y: number } | null = null;
+    while (hi < hosts.length && !at) {
+      from = hosts[hi++];
+      at = spot(from);
+    }
+    if (!from || !at) return;
     const lord = kind === 'lord' ? shuffleInPlace(s, LOST_LORDS.filter((id) => !s.lordsWon?.includes(id)))[0] : undefined;
     const node: CampaignNode = {
       id: `n${s.nodes.length}`,
       name: CHALLENGES[kind].name,
-      x: from.x + 70,
-      y: from.y + up * CAMPAIGN.laneGap * 0.62,
+      x: at.x,
+      y: at.y,
+      h: from.h,
       planets: [],
       owner: null,
       links: [from.id],
@@ -2262,7 +2358,7 @@ function placeChallenges(s: CampaignState) {
     };
     from.links.push(node.id);
     s.nodes.push(node);
-  });
+  }
 }
 
 /**

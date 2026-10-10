@@ -1092,7 +1092,6 @@ export class CampaignView {
         <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
         <header class="cmp-top">
           <div class="cmp-top-left">
-            ${this.renderGalaxy()}
             ${scene ? this.renderStory(scene) : ''}
           </div>
           <div class="cmp-purse">
@@ -1118,11 +1117,34 @@ export class CampaignView {
   }
 
   /** What this galaxy is like (touching every battle in it): its mark, its name, and what it does on a hover or tap. */
+  /**
+   * The galaxy's name, written on the land itself beside the start of the route, running along it (turned to read
+   * the right way up): what the galaxy does to every battle in it, on a tap.
+   */
   private renderGalaxy(): string {
-    const kind = this.state!.galaxy;
+    const s = this.state!;
+    const kind = s.galaxy;
     if (!kind) return '';
     const g = GALAXIES[kind];
-    return `<button class="cmp-galaxy" data-tip-title="${esc(g.name.toLowerCase())}" data-tip="${esc(g.text)}" data-tip-note="Every battle in this galaxy, both sides." aria-label="${esc(g.name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${GALAXY_GLYPH[kind]}</svg><b>${esc(g.name.toLowerCase())}</b></button>`;
+    // (Along the outer lane's second and third systems, out past it, on the side away from the other lanes.)
+    const lane = (c: number, l: number) => s.nodes.find((n) => n.col === c && n.lane === l && !n.challenge);
+    const L = CAMPAIGN.lanes;
+    const a = lane(1, L - 1), b = lane(2, L - 1), inner = lane(1, L - 2);
+    // (Gone with the land it was written on.)
+    if (!a || !b || !inner || a.collapsed || b.collapsed) return '';
+    let dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    // (Out from the lanes: the normal pointing away from the next lane in.)
+    let nx = -dy, ny = dx;
+    if (nx * (inner.x - a.x) + ny * (inner.y - a.y) > 0) (nx = -nx), (ny = -ny);
+    const off = CAMPAIGN.laneGap * 0.55;
+    const x = (a.x + b.x) / 2 + nx * off, y = (a.y + b.y) / 2 + ny * off;
+    let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    if (angle > 90) angle -= 180;
+    if (angle < -90) angle += 180;
+    return `<button class="cmp-galaxy cmp-galaxy-land" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--a:${angle.toFixed(1)}deg;--h:${(((a.h ?? 0) + (b.h ?? 0)) / 2).toFixed(0)}px" data-tip-title="${esc(g.name.toLowerCase())}" data-tip="${esc(g.text)}" data-tip-note="Every battle in this galaxy, both sides." aria-label="${esc(g.name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${GALAXY_GLYPH[kind]}</svg><b>${esc(g.name.toLowerCase())}</b></button>`;
   }
 
   /**
@@ -1474,7 +1496,7 @@ export class CampaignView {
           n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
         ].join('');
         return `
-          <div class="${cls}" data-key="sys-${n.id}" style="left:${n.x}px;top:${n.y}px;--fc:${colour}">
+          <div class="${cls}" data-key="sys-${n.id}" style="left:${n.x}px;top:${n.y}px;--fc:${colour};--h:${n.h ?? 0}px">
             <div class="cmp-turf"></div>
             ${targets.has(n.id) ? `<div class="cmp-ring cmp-ring-target" data-act="cmp-select" data-arg="${n.id}"></div>` : ''}
             ${marches.has(n.id) ? `<div class="cmp-ring cmp-ring-march" data-act="cmp-select" data-arg="${n.id}"></div>` : ''}
@@ -1495,6 +1517,7 @@ export class CampaignView {
         <div class="cmp-plane" style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px">
           <div class="cmp-grid" style="--gk:${(MAP_WIDTH / 3500).toFixed(3)}"></div>
           <svg class="cmp-links ${focus ? 'cmp-links-focus' : ''} ${!!focus !== !!prev ? 'cmp-links-fade' : ''}" ${mask} width="${MAP_WIDTH}" height="${MAP_HEIGHT}" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}">${links}</svg>
+          ${this.renderGalaxy()}
           ${nodes}
           ${this.flyOver() ? '' : this.renderFleet(seen)}
         </div>
@@ -1876,13 +1899,16 @@ export class CampaignView {
     this.nebula.onCamera = (cam) => this.layPlane(cam);
     const world = (x: number, y: number): [number, number] => [(x - MAP_WIDTH / 2) * MAP_K, (y - MAP_HEIGHT / 2) * MAP_K];
     const at = new Map(s.nodes.map((n) => [n.id, world(n.x, n.y)]));
+    // (How high each system stands: the land rises and falls with the route.)
+    const lift = new Map(s.nodes.map((n) => [n.id, (n.h ?? 0) * MAP_K]));
     const routes = this.rays.flatMap(({ a, b }) => {
       const p = at.get(a), q = at.get(b);
       return p && q ? [[p[0], p[1], q[0], q[1]] as [number, number, number, number]] : [];
     });
     let seed = s.universe * 7919;
     for (const ch of s.nodes[0]?.name ?? '') seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
-    this.nebula.show(seed, { nodes: [...at.values()], routes });
+    // (The land knows each system's place along the route, in columns, so it breaks away in the route's order.)
+    this.nebula.show(seed, { nodes: s.nodes.map((n) => [...at.get(n.id)!, n.col ?? 0, lift.get(n.id)!] as [number, number, number, number]), routes });
     // The map's things in 3D: every system's star (ringed in its holder's colour); nothing over them (what a system
     // holds is found by going there).
     const hex = (c: string): [number, number, number] => {
@@ -1895,6 +1921,7 @@ export class CampaignView {
       return {
         x,
         z,
+        y: lift.get(n.id),
         heart: !!n.heart,
         ring: n.challenge ? hex(CHALLENGE_COLOUR[n.challenge.kind]) : n.owner ? hex(this.colourOf(n.owner)) : undefined,
         dim: !!(n.dimmed || n.collapsing || n.challenge?.done),
@@ -1910,10 +1937,12 @@ export class CampaignView {
     this.nebula.setRoutes(
       this.rays.flatMap(({ a, b, gone, colour }) => {
         const p = at.get(a), q = at.get(b);
-        return p && q ? [{ a: p, b: q, gone, colour: colour ? hex(colour) : undefined }] : [];
+        return p && q ? [{ a: p, b: q, gone, colour: colour ? hex(colour) : undefined, ya: lift.get(a), yb: lift.get(b) }] : [];
       }),
     );
     this.nebula.setGalaxy(s.galaxy ?? null);
+    // (A spiral arm's galaxy turns slowly round its heart.)
+    this.nebula.setSpin(s.layout === 'spiral');
     // The ships, as 3D objects: each over the star it stands at (or, setting out to attack, halfway there).
     const mine = flagship(s, s.playerId);
     const arriving = this.arriving;
@@ -1927,7 +1956,8 @@ export class CampaignView {
         // A new campaign: the flagship flies in from off screen, behind the strip's near end.
         // (In the opening shot it cruises in from further off, slowly, until the hero has had their say.)
         const arrive = arriving && a.id === mine?.id ? (this.cine === 'start' ? { from: [x - 3.4, z + 2.5] as [number, number], dur: CINE_RIDE_MAX + 4, cruise: true } : { from: [x - 2.6, z + 1.9] as [number, number], dur: ARRIVAL_FLIGHT }) : undefined;
-        return { id: a.id, x: adv ? x + (adv[0] - x) * k : x, z: adv ? z + (adv[1] - z) * k : z, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive };
+        const y0 = lift.get(a.nodeId) ?? 0, y1 = adv ? lift.get(this.advance!.toId) ?? 0 : y0;
+        return { id: a.id, x: adv ? x + (adv[0] - x) * k : x, z: adv ? z + (adv[1] - z) * k : z, y: y0 + (y1 - y0) * k, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive };
       });
     this.nebula.setShips(ships);
     if (this.cine === 'start') {
@@ -1938,11 +1968,10 @@ export class CampaignView {
     const own = ships.find((sh) => sh.id === mine?.id);
     if (own) this.nebula.follow(own.x, own.z);
     // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
-    // column past the last one collapsing.
-    const half = (CAMPAIGN.colGap / 2) * MAP_K;
+    // column past the last one collapsing (counted along the route, in columns).
     const edge = (f: (n: CampaignNode) => boolean) => {
-      const xs = s.nodes.filter(f).map((n) => at.get(n.id)![0]);
-      return xs.length ? Math.max(...xs) + half : -50;
+      const cols = s.nodes.filter(f).map((n) => n.col ?? 0);
+      return cols.length ? Math.max(...cols) + 0.5 : -50;
     };
     const gone = edge((n) => !!n.collapsed);
     this.nebula.setCollapse(gone, Math.max(gone, edge((n) => !!n.collapsing)));
@@ -2089,7 +2118,8 @@ export class CampaignView {
     const s = this.state;
     const node = this.selected && s ? s.nodes.find((n) => n.id === this.selected) : undefined;
     const ship = !node && this.army ? this.ships.get(this.army) : undefined;
-    const at = node ? { x: node.x, y: node.y, lift: 24 } : ship ? { x: ship.x, y: ship.y, lift: 6 } : null;
+    const shipNode = ship && s ? s.nodes.find((n) => n.x === ship.x && n.y === ship.y) : undefined;
+    const at = node ? { x: node.x, y: node.y, h: node.h ?? 0, lift: 24 } : ship ? { x: ship.x, y: ship.y, h: shipNode?.h ?? 0, lift: 6 } : null;
     const box = pop.offsetParent as HTMLElement | null;
     if (!at || !box || (!this.cam && !this.nebula?.camera)) return;
     // Everything in the popover's own CSS pixels: the page may be zoomed (body zoom), so screen measurements
@@ -2104,10 +2134,10 @@ export class CampaignView {
     const lh = stage.offsetHeight || st.height;
     const neb = this.nebula;
     const back = stage.closest('.cmp')?.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
-    const proj = (x: number, y: number, lift: number) => {
+    const proj = (x: number, y: number, lift: number, h = 0) => {
       if (neb?.camera && back) {
-        // In the nebula's space: the point on its plane, through the camera, onto the canvas, into the box.
-        const q = neb.toScreen((x - MAP_WIDTH / 2) * MAP_K, PLANE_Y, (y - MAP_HEIGHT / 2) * MAP_K) ?? { x: -999, y: -999 };
+        // In the nebula's space: the point on its plane (at its height), through the camera, onto the canvas, into the box.
+        const q = neb.toScreen((x - MAP_WIDTH / 2) * MAP_K, PLANE_Y + h * MAP_K, (y - MAP_HEIGHT / 2) * MAP_K) ?? { x: -999, y: -999 };
         const cr = back.getBoundingClientRect();
         const cz = cr.width / (back.clientWidth || cr.width) || 1;
         return { x: (q.x * cz + cr.left - b.left) / zx, y: (q.y * cz + cr.top - b.top) / zy - lift };
@@ -2116,7 +2146,7 @@ export class CampaignView {
       // The stage's layout pixels, drawn on screen, then back into the box's layout pixels.
       return { x: ((q.x * st.width) / lw + st.left - b.left) / zx, y: ((q.y * st.height) / lh + st.top - b.top) / zy };
     };
-    const p = proj(at.x, at.y, at.lift);
+    const p = proj(at.x, at.y, at.lift, at.h);
     const w = pop.offsetWidth;
     const h = pop.offsetHeight;
     // Clear of the planets' orbits round a selected star.

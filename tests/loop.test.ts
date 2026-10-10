@@ -66,7 +66,7 @@ describe('the strip', () => {
     expect(s.nodes.filter((n) => !n.challenge)).toHaveLength(1 + CAMPAIGN.lanes * (CAMPAIGN.columns - 1) + 1);
     const start = nodeById(s, flag(s).nodeId);
     expect(start.links).toHaveLength(CAMPAIGN.lanes);
-    expect(start.y).toBe(s.nodes.find((n) => n.heart)!.y);
+    expect(start.col).toBe(0);
     const hole = s.nodes.find((n) => n.heart)!;
     expect(hole.col).toBe(CAMPAIGN.columns);
     // Routes only join neighbouring columns (or lanes within one), and every lane runs the whole way.
@@ -307,5 +307,34 @@ describe('progress between runs', () => {
     expect(levelOf(rich, 'march')).toBe(1);
     expect(rich.petals).toBe(2);
     expect(buyUpgradeProblem(rich, 'march')).toMatch(/most/);
+  });
+});
+
+describe('map variety', () => {
+  it('lays every map out clear: systems never on top of one another, all on the map, secrets off any lane', async () => {
+    const { buildUniverse, CAMPAIGN: C } = await import('../src/engine/campaign');
+    const lanes = new Set<number>();
+    for (const layout of ['strip', 'spiral'] as const)
+      for (let seed = 1; seed <= 25; seed++) {
+        const s = createCampaign({ seed, race: 0 });
+        buildUniverse(s, 2, layout);
+        expect(s.layout).toBe(layout);
+        for (const n of s.nodes) {
+          expect(n.x).toBeGreaterThanOrEqual(0);
+          expect(n.y).toBeGreaterThanOrEqual(0);
+          expect(n.x).toBeLessThanOrEqual(C.mapWidth);
+          expect(n.y).toBeLessThanOrEqual(C.mapHeight);
+          for (const m of s.nodes) if (m !== n) expect(Math.hypot(m.x - n.x, m.y - n.y)).toBeGreaterThan(150);
+        }
+        for (const n of s.nodes.filter((x) => x.challenge)) lanes.add(nodeById(s, n.challenge!.from).lane!);
+      }
+    // (Secret systems hang off the middle lane too, not only the outer ones.)
+    expect(lanes.has(1)).toBe(true);
+  });
+  it('rewards lean rarer through every wormhole', async () => {
+    const { offerWeight } = await import('../src/engine/campaign');
+    const share = (u: number) => offerWeight('anomaly', u) / offerWeight('dwarf', u);
+    expect(share(3)).toBeGreaterThan(share(1));
+    expect(offerWeight('stellar', 4) / offerWeight('dwarf', 4)).toBeGreaterThan(offerWeight('stellar', 1) / offerWeight('dwarf', 1));
   });
 });

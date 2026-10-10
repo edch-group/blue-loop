@@ -78,11 +78,12 @@ float fbm(vec2 p) { return 0.5 * vnoise(p) + 0.25 * vnoise(p * 2.03 + 7.1) + 0.1
 `;
 
 /**
- * The ground. Shards past the collapse (uGone, a world x) break away: each turns about its middle and falls,
+ * The ground. Shards past the collapse (uGone: how far along the route, in columns; each shard knows its own,
+ * aProg) break away: each turns about its middle and falls,
  * the further past the sooner, until it is gone; shards in the next column to go (up to uCrack) are marked, faintly red.
  */
 const GROUND_VERT = `
-attribute vec3 aPos; attribute vec3 aNorm; attribute vec3 aBary; attribute vec3 aEdge; attribute vec4 aShard;
+attribute vec3 aPos; attribute vec3 aNorm; attribute vec3 aBary; attribute vec3 aEdge; attribute vec4 aShard; attribute float aProg;
 uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uCrack; uniform float uTime; uniform float uGalaxy;
 varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist; varying float vRest;
 // A supermassive black hole's well (uGalaxy 1): the land sinks toward it, under the middle of the strip.
@@ -107,14 +108,14 @@ void main() {
     vec2 slope = (p.xz - HOLE) * (2.0 / 0.75) * wd;
     n = normalize(n - vec3(slope.x, 0.0, slope.y));
   }
-  float fall = (uGone - mid.x) / 0.8 + aShard.w * 0.45;
+  float fall = (uGone - aProg) / 1.6 + aShard.w * 0.45;
   if (fall > 0.0) {
     float t = min(fall, 2.2);
     mat3 r = rot(vec3(aShard.w - 0.5, 0.3, 0.5 - fract(aShard.w * 7.0)), t * (0.8 + aShard.w * 1.6));
     p = mid + r * (p - mid);
     n = r * n;
     p.y -= 3.2 * t * t;
-    p.xz += (mid.xz - vec2(uGone, 0.0)) * 0.08 * t;
+    p.xz += mid.xz * 0.04 * t;
   }
   vec4 v = uView * vec4(p, 1.0);
   gl_Position = uProj * v;
@@ -123,7 +124,7 @@ void main() {
   vBary = aBary;
   vEdge = aEdge;
   vFall = fall;
-  vCrack = (mid.x < uCrack || fall > 0.0) ? 1.0 : 0.0;
+  vCrack = (aProg < uCrack || fall > 0.0) ? 1.0 : 0.0;
   vDist = -v.z;
 }`;
 
@@ -221,12 +222,16 @@ void main() {
   gl_FragColor = uFront > 0.5 ? vec4(c, 1.0) * uFade : vec4(mix(uPaper, c, uFade), 1.0);
 }`;
 
-/** Where the land has fallen: a flat mask just under its surface, marking where the abyss shows through. */
+/**
+ * Where the land has fallen: the fallen shards drawn again where they lay (a little below), marking where the abyss
+ * shows through; everything else is put out of sight. (Far past the land's edge, the whole sky is open.)
+ */
 const MASK_VERT = `
-attribute vec2 aPos;
+attribute vec3 aPos; attribute vec4 aShard; attribute float aProg;
 uniform mat4 uView; uniform mat4 uProj; uniform float uGone;
 void main() {
-  gl_Position = uProj * uView * vec4(mix(-40.0, uGone + 0.6, aPos.x), -0.45, mix(-40.0, 12.0, aPos.y), 1.0);
+  float fall = (uGone - aProg) / 1.6 + aShard.w * 0.45;
+  gl_Position = fall > 0.0 ? uProj * uView * vec4(aPos.x, aPos.y - 0.12, aPos.z, 1.0) : vec4(2.0, 2.0, 2.0, 1.0);
 }`;
 const MASK_FRAG = `
 precision mediump float;
@@ -355,6 +360,9 @@ function perspective(fov: number, aspect: number, near: number, far: number) {
   const f = 1 / Math.tan(fov / 2), nf = 1 / (near - far);
   return new Float32Array([f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0]);
 }
+
+/** The ground's vertex attributes, in order (GROUND_STRIDE floats). */
+const GROUND_ATTRS: [string, number][] = [['aPos', 3], ['aNorm', 3], ['aBary', 3], ['aEdge', 3], ['aShard', 4], ['aProg', 1]];
 
 /** Where the camera is: what it looks at, from which way, how far off. */
 interface Pose { x: number; y: number; z: number; yaw: number; pitch: number; dist: number }
@@ -509,15 +517,15 @@ class Layer {
     };
     let done: () => void;
     // The starry abyss, only under what has fallen.
-    if (this.abyssProg && this.maskProg && this.abyssBuf && gone > -9) {
+    if (this.abyssProg && this.maskProg && this.groundCount && gone > -9) {
       // Mark where the land has fallen (seen through), then fill it with the sky beneath.
       gl.enable(gl.STENCIL_TEST);
       gl.stencilFunc(gl.ALWAYS, 1, 0xff);
       gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
       gl.colorMask(false, false, false, false);
       gl.depthMask(false);
-      done = use(this.maskProg, this.abyssBuf, [['aPos', 2]]);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      done = use(this.maskProg, this.groundBuf, GROUND_ATTRS);
+      gl.drawArrays(gl.TRIANGLES, 0, this.groundCount);
       done();
       gl.colorMask(true, true, true, true);
       gl.stencilFunc(gl.EQUAL, 1, 0xff);
@@ -531,7 +539,7 @@ class Layer {
       gl.disable(gl.STENCIL_TEST);
     }
     if (this.groundCount) {
-      done = use(this.groundProg, this.groundBuf, [['aPos', 3], ['aNorm', 3], ['aBary', 3], ['aEdge', 3], ['aShard', 4]]);
+      done = use(this.groundProg, this.groundBuf, GROUND_ATTRS);
       gl.drawArrays(gl.TRIANGLES, 0, this.groundCount);
       done();
     }
@@ -698,7 +706,7 @@ export class Nebula {
 
   /** The whole strip at once, from the near end to the wormhole and the Stellari past it: where the pull back ends. */
   private overview(): Pose {
-    return { x: 0.25, y: PLANE_Y, z: 0, yaw: -0.95, pitch: 0.66, dist: this.homeDist * 1.05 };
+    return { x: 0.25, y: PLANE_Y, z: 0, yaw: -0.95 + this.spin, pitch: 0.66, dist: this.homeDist * 1.05 };
   }
 
   /** The camera through the opening shot, this frame (null: it is over). */
@@ -753,7 +761,7 @@ export class Nebula {
     let best: string | null = null, bestK = 1;
     for (const o of this.objectList) {
       if (!o.id || o.dead) continue;
-      const at = this.toScreen(o.x, 0, o.z);
+      const at = this.toScreen(o.x, o.y ?? 0, o.z);
       if (!at) continue;
       // (The rings round a star reach r * 4.4 across its sprite; never smaller than a fingertip.)
       const reach = (o.heart ? 0.072 : 0.036) * 4.4;
@@ -787,12 +795,25 @@ export class Nebula {
   private home(): Pose {
     const whole = this.homeDist;
     const f = this.focus;
-    if (!f) return { x: -0.35, y: PLANE_Y, z: 0.15, yaw: -0.95, pitch: 0.62, dist: whole };
+    if (!f) return { x: -0.35, y: PLANE_Y, z: 0.15, yaw: -0.95 + this.spin, pitch: 0.62, dist: whole };
+    // A turning galaxy: the camera circles slowly, looking between the ship and the galaxy's heart (where the wormhole is).
+    if (this.spinning) return { x: f[0] * 0.55, y: PLANE_Y, z: f[1] * 0.55, yaw: -0.95 + this.spin, pitch: 0.66, dist: whole * 0.9 };
     // A little ahead of the ship, so it sits low and to the left with the way on in view.
     const dist = whole * 0.8;
     const reach = STRIP_WIDTH / 2 - dist * 0.35;
     const x = Math.max(-reach, Math.min(reach, f[0] + dist * 0.28));
     return { x, y: PLANE_Y, z: 0.1 + f[1] * 0.35, yaw: -0.95, pitch: 0.62, dist };
+  }
+
+  /** A galaxy turning slowly round its heart (a spiral arm's): how far it has turned, and whether it turns at all. */
+  private spin = 0;
+  private spinning = false;
+  setSpin(on: boolean) {
+    if (on === this.spinning) return;
+    this.spinning = on;
+    if (!on) this.spin = 0;
+    if (this.homed && !this.cine) this.glide = this.home();
+    this.wake();
   }
 
   /** How far off the camera rests over the whole strip (marks on the map grow a little as it closes in from there). */
@@ -855,7 +876,7 @@ export class Nebula {
     const live = !this.reduce;
     // The land breaks away toward the collapse, a column at a time (at once with motion reduced, or going back).
     if (this.gone !== this.goneTarget) {
-      this.gone = live && this.goneTarget > this.gone ? Math.min(this.goneTarget, this.gone + dt * 0.7) : this.goneTarget;
+      this.gone = live && this.goneTarget > this.gone ? Math.min(this.goneTarget, this.gone + dt * 1.3) : this.goneTarget;
     }
     if (live) {
       this.time += dt;
@@ -865,6 +886,12 @@ export class Nebula {
       this.homed = true;
       this.pose = this.home();
       this.moved = true;
+    }
+    // A turning galaxy: round about once every six minutes, the camera easing after it.
+    if (this.spinning && live && !this.cine && this.homed) {
+      this.spin += dt * ((Math.PI * 2) / 360);
+      this.glide = this.home();
+      this.glideRate = Math.min(this.glideRate, 2.5);
     }
     // The opening shot, while it plays, has the camera; when it is over, the camera settles (slowly) at home.
     if (this.cine) {

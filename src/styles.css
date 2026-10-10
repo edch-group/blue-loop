@@ -6626,3 +6626,16 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 @keyframes loot-halo { 50% { box-shadow: 0 0 0 1.5px rgba(240, 200, 110, 1), 0 0 34px 8px rgba(246, 210, 120, 0.6), 0 10px 26px rgba(90, 70, 30, 0.14); } }
 @keyframes loot-shine { 0% { transform: translateX(-60%); } 55%, 100% { transform: translateX(60%); } }
 @media (prefers-reduced-motion: reduce) { .loot-cache, .loot-cache-glow, .loot-cache-seam, .loot-item, .loot-item::after { animation: none; } .loot-burst { display: none; } .loot-take { animation: none; } }
+
+/* A system on a rise or in a dip of the land: its marks stand at its height (the plane's own up, in map units). */
+.cmp-3d .cmp-n3 { transform: translateZ(var(--h, 0px)); }
+
+/* The galaxy's name, written on the land beside the start of the route, along it: big, light letters lying flat. */
+.cmp-galaxy.cmp-galaxy-land {
+  position: absolute; transform: translate(-50%, -50%) translateZ(var(--h, 0px)) rotate(var(--a, 0deg));
+  display: flex; align-items: center; gap: 22px; padding: 10px 30px; border: 0; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35); box-shadow: none; color: rgba(70, 78, 104, 0.62); cursor: help;
+  font-family: var(--display); font-size: 70px; letter-spacing: 0.32em; text-transform: uppercase; white-space: nowrap;
+}
+.cmp-galaxy.cmp-galaxy-land svg { width: 76px; height: 76px; stroke-width: 1.2; }
+.cmp-galaxy.cmp-galaxy-land b { font-weight: 400; letter-spacing: 0.32em; }
