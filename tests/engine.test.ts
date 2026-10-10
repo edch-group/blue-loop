@@ -1142,6 +1142,25 @@ describe('lightspeed', () => {
   });
 });
 
+describe('destroy-immune cards', () => {
+  it('an Overlord\'s parts, a Lost Lord and a Reliquary Obelisk take a destroy as damage; a retinue is destroyed', () => {
+    let s = twoPlayer();
+    const foe = s.players[1];
+    const [obelisk, retinue] = give(foe, ['reliquary_obelisk', 'lost_retinue'], 'tableau');
+    const hp = obelisk.health!;
+    give(activePlayer(s), ['ion_cannon', 'ion_cannon']);
+    activePlayer(s).playsLeft = 5;
+    s = play(s, 'ion_cannon', { enemyUid: obelisk.uid });
+    const ob = s.players[1].tableau.find((c) => c.uid === obelisk.uid);
+    expect(ob).toBeDefined();
+    expect(ob!.health).toBe(hp - 2);
+    expect(s.log.some((l) => /can't be destroyed: it takes 2 damage/.test(l.text))).toBe(true);
+    activePlayer(s).playsLeft = 5;
+    s = play(s, 'ion_cannon', { enemyUid: retinue.uid });
+    expect(s.players[1].tableau.some((c) => c.uid === retinue.uid)).toBe(false);
+  });
+});
+
 describe('defence', () => {
   it('comes from the slot (1, 2, 3, 2, 1), sturdiness and bulwarks', () => {
     const s = twoPlayer();

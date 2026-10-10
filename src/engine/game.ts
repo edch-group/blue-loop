@@ -310,15 +310,27 @@ export function enemyEffect(defId: string): EnemyEffect | undefined {
   return (cardDef(defId).onPlay ?? []).find((e): e is EnemyEffect => e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all) || (e.type === 'shift' && !!e.enemy) || e.type === 'offer' || (e.type === 'rootbreak' && !e.shields));
 }
 
+/**
+ * Cards no destroy card can destroy: a Lost Overlord's body and armour (and the Overlord itself), a Lost Lord, a
+ * Reliquary Obelisk. A destroy aimed at one does its value as damage instead (past its defence). Retinues and the
+ * like are destroyed as any card is.
+ */
+export function destroyImmune(defId: string): boolean {
+  const part = cardDef(defId).overlordPart;
+  return part === 'overlord' || part === 'body' || part === 'gear' || part === 'lost lord' || part === 'vault';
+}
+
 function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect): boolean {
-  // (A Lost Overlord can't be removed or moved: it must be beaten down.)
-  if (owner.boss?.leader === c.uid && e.type !== 'offer' && e.type !== 'rootbreak') return false;
+  // (A Lost Overlord can't be removed or moved: it must be beaten down. A destroy only wears it.)
+  if (owner.boss?.leader === c.uid && e.type !== 'offer' && e.type !== 'rootbreak' && !(e.type === 'destroy' && destroyImmune(c.defId))) return false;
   // (A Hero leads from its own slot: it can't be shifted.)
   if (e.type === 'shift') return c.slot !== COMMAND_SLOT;
   // (Rootbreak splits defence: a card with none left to split is no target.)
   if (e.type === 'rootbreak') return cardDefence(owner, c) > 0;
   if (e.type === 'offer') return true;
   if (e.type === 'destroy' && e.kind && cardDef(c.defId).kind !== e.kind) return false;
+  // (One a destroy can't destroy is in reach whatever its defence: it takes the destroy's value as damage.)
+  if (e.type === 'destroy' && destroyImmune(c.defId)) return true;
   // (Brittle: removal reaches a Relic whatever its defence.)
   if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) > e.maxDefence && cardDef(c.defId).kind !== 'relic') return false;
   return true;
@@ -1136,6 +1148,15 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
           leaveTableau(state, t, victim, 'hand');
           break;
         }
+        // One that can't be destroyed takes the destroy's value as damage instead, past its defence.
+        if (destroyImmune(victim.defId)) {
+          const n = e.maxDefence ?? 1;
+          log(state, `${t.name}'s ${cardDef(victim.defId).name} can't be destroyed: it takes ${n} damage.`);
+          notePulse(state, p, card, 'heat', t, n, victim.uid);
+          victim.health = Math.max(0, (victim.health ?? 0) - n);
+          if (victim.health <= 0) sweep(state, t, victim);
+          break;
+        }
         const around = e.neighbours ? neighbours(t, victim) : [];
         log(state, `${p.name} destroys ${t.name}'s ${cardDef(victim.defId).name}.`);
         leaveTableau(state, t, victim);
@@ -1329,7 +1350,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'devour': {
         const t = ctx.against ?? targetOf(state, p);
         // (Never a Lost Overlord's own body: what must be beaten down is beaten down.)
-        const victim = t ? [...t.tableau].filter((c) => c.uid !== t.boss?.leader).sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0] : undefined;
+        const victim = t ? [...t.tableau].filter((c) => c.uid !== t.boss?.leader && !destroyImmune(c.defId)).sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0] : undefined;
         if (!t || !victim) break;
         log(state, `${p.name}'s ${cardDef(card.defId).name} devours ${t.name}'s ${cardDef(victim.defId).name}.`);
         notePulse(state, p, card, 'heat', t, 1, victim.uid);
