@@ -4,7 +4,7 @@
  * Experience (XP) is earned by everything a run does (every battle, won or lost, systems taken, challenges
  * cleared, galaxies crossed, bosses beaten), so every run moves the player on. It is never spent: it raises the
  * commander's level, and every level grants a skill point. Points buy the skill tree: seven branches,
- * one off each petal of the Stellari (a cooler sun, a sharper command, a tougher flagship, run perks, a stronger
+ * one off each petal of the Stellari (a cooler sun, a sharper command, stronger defences, run perks, a stronger
  * start, spoils of war, lasting wisdom), each a tier of upgrades bought level by level, unlocking the next tier up,
  * to a capstone.
  *
@@ -96,33 +96,33 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'materials', group: 'start', tier: 1, name: 'Stockpile', text: '+3 materials to start each run.', max: 3, cost: rising(20, 15) },
   { id: 'cards', group: 'start', tier: 2, requires: [['materials', 1]], name: 'Veterans', text: "One more of your race's cards in the starting deck.", max: 2, cost: rising(45, 35) },
   { id: 'pick', group: 'start', tier: 2, requires: [['materials', 2]], name: 'Requisition', text: 'Choose a card to add to the starting deck.', max: 2, cost: rising(50, 40) },
-  { id: 'hoard', group: 'start', tier: 3, requires: [['cards', 1], ['pick', 1]], name: "Founders' Hoard", text: '+6 materials whenever the flagship enters a new galaxy.', max: 1, cost: flat(160) },
+  { id: 'hoard', group: 'start', tier: 3, requires: [['cards', 1], ['pick', 1]], name: "Founders' Hoard", text: '+6 materials whenever you enter a new galaxy.', max: 1, cost: flat(160) },
   // A tougher flagship.
-  { id: 'hull', group: 'flagship', tier: 1, name: 'Reinforced hull', text: 'The flagship starts with one more hull level.', max: 3, cost: rising(20, 15) },
-  { id: 'shields', group: 'flagship', tier: 2, requires: [['hull', 1]], name: 'Shield emitters', text: 'The flagship starts with one more shield level.', max: 2, cost: rising(45, 35) },
-  { id: 'walls', group: 'flagship', tier: 2, requires: [['hull', 2]], name: 'Armoured rooms', text: "+1 to every room's defence to start with.", max: 2, cost: rising(50, 40) },
-  { id: 'march', group: 'flagship', tier: 3, requires: [['shields', 1], ['walls', 1]], name: 'Fold drive', text: 'One more move a turn, every turn.', max: 1, cost: flat(180) },
+  { id: 'hull', group: 'flagship', tier: 1, name: 'Reinforced core', text: '+1 max health on your sun in battle.', max: 3, cost: rising(20, 15) },
+  { id: 'shields', group: 'flagship', tier: 2, requires: [['hull', 1]], name: 'Shield emitters', text: 'Your sun starts every battle with +1 shield.', max: 2, cost: rising(45, 35) },
+  { id: 'walls', group: 'flagship', tier: 2, requires: [['hull', 2]], name: 'Armoured slots', text: '+1 defence on every slot of your tableau.', max: 2, cost: rising(50, 40) },
+  { id: 'march', group: 'flagship', tier: 3, requires: [['shields', 1], ['walls', 1]], name: 'Fold drive', text: 'One more move each turn on the map.', max: 1, cost: flat(180) },
   // Run perks.
   { id: 'grace', group: 'perk', tier: 1, name: 'Anchored space', text: 'Regional stability holds one turn longer in every galaxy.', max: 3, cost: rising(20, 15) },
   { id: 'armory', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Trade friends', text: 'Armoury cards cost 1 material less.', max: 2, cost: rising(40, 30) },
   { id: 'petals', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Petal pouch', text: '+20% petals at every wormhole.', max: 3, cost: rising(40, 20) },
   { id: 'salvage', group: 'perk', tier: 2, requires: [['grace', 2]], name: 'Scavengers', text: 'One more card to choose from when salvaging.', max: 1, cost: flat(60) },
-  { id: 'favour', group: 'perk', tier: 3, requires: [['armory', 1], ['salvage', 1]], name: "Stellari's Favour", text: "After every battle the flagship wins, its sun cools by 3.", max: 1, cost: flat(170) },
+  { id: 'favour', group: 'perk', tier: 3, requires: [['armory', 1], ['salvage', 1]], name: "Stellari's Favour", text: 'Your sun cools by 3 after every battle won.', max: 1, cost: flat(170) },
   // A cooler sun.
-  { id: 'cryo', group: 'sun', tier: 1, name: 'Cryo core', text: "The flagship's sun starts every battle 1 cooler.", max: 3, cost: rising(20, 15) },
-  { id: 'plating', group: 'sun', tier: 2, requires: [['cryo', 1]], name: 'Stellar plating', text: '+2 max health on the flagship\'s sun in battle.', max: 2, cost: rising(45, 35) },
-  { id: 'mend', group: 'sun', tier: 2, requires: [['cryo', 2]], name: 'Field repair', text: 'The flagship repairs 1 heat at the start of every turn on the map.', max: 2, cost: rising(50, 40) },
-  { id: 'mantle', group: 'sun', tier: 3, requires: [['plating', 1], ['mend', 1]], name: 'Halo mantle', text: "+1 shield on the flagship's sun every day of battle.", max: 1, cost: flat(180) },
+  { id: 'cryo', group: 'sun', tier: 1, name: 'Cryo core', text: 'Your sun starts every battle 1 cooler.', max: 3, cost: rising(20, 15) },
+  { id: 'plating', group: 'sun', tier: 2, requires: [['cryo', 1]], name: 'Stellar plating', text: '+2 max health on your sun in battle.', max: 2, cost: rising(45, 35) },
+  { id: 'mend', group: 'sun', tier: 2, requires: [['cryo', 2]], name: 'Field cooling', text: 'Your sun cools by 1 each turn on the map.', max: 2, cost: rising(50, 40) },
+  { id: 'mantle', group: 'sun', tier: 3, requires: [['plating', 1], ['mend', 1]], name: 'Halo mantle', text: '+1 shield on your sun every day of battle.', max: 1, cost: flat(180) },
   // Kinder planets [direction: skills that upgrade the planets, rather than straight draws or energy].
   { id: 'abundance', group: 'command', tier: 1, name: 'Fertile orbit', text: 'The abundant planet draws 1 more card each day it faces your sun.', max: 2, cost: rising(25, 25) },
   { id: 'foundry', group: 'command', tier: 2, requires: [['abundance', 1]], name: 'Deep foundries', text: 'The industrial planet gives 1 more energy each day it faces your sun.', max: 1, cost: flat(90) },
   { id: 'coldworld', group: 'command', tier: 2, requires: [['abundance', 2]], name: 'Cold world', text: 'The dead planet cools your sun by 2 each dawn it faces it.', max: 1, cost: flat(90) },
   { id: 'gardens', group: 'command', tier: 3, requires: [['foundry', 1], ['coldworld', 1]], name: 'Paradise', text: 'The dead planet becomes a paradise planet: each dawn it faces your sun, your cards regain 1 stability.', max: 1, cost: flat(200) },
   // Spoils of war.
-  { id: 'scouts', group: 'spoils', tier: 1, name: 'Salvage crews', text: 'The flagship is likelier to find gear when it takes a system or wins a battle.', max: 3, cost: rising(20, 15) },
-  { id: 'dread', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Terror broadcasts', text: 'The weakest neutral systems surrender to the flagship without a battle.', max: 1, cost: flat(70) },
+  { id: 'scouts', group: 'spoils', tier: 1, name: 'Salvage crews', text: 'More chance of finding emblems when you take a system or win a battle.', max: 3, cost: rising(20, 15) },
+  { id: 'dread', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Terror broadcasts', text: 'The weakest neutral systems surrender without a battle.', max: 1, cost: flat(70) },
   { id: 'plunder', group: 'spoils', tier: 2, requires: [['scouts', 2]], name: 'Plunder', text: '+2 materials for every battle won.', max: 2, cost: rising(45, 35) },
-  { id: 'empire', group: 'spoils', tier: 3, requires: [['dread', 1], ['plunder', 1]], name: 'Shadow of empire', text: 'Stronger neutral systems surrender to the flagship too.', max: 1, cost: flat(180) },
+  { id: 'empire', group: 'spoils', tier: 3, requires: [['dread', 1], ['plunder', 1]], name: 'Shadow of empire', text: 'Stronger neutral systems surrender too.', max: 1, cost: flat(180) },
   // Lasting wisdom.
   { id: 'study', group: 'lore', tier: 1, name: 'Study', text: '+10% experience from everything.', max: 3, cost: rising(25, 20) },
   { id: 'choice', group: 'lore', tier: 2, requires: [['study', 1]], name: 'Wide offers', text: 'One more card to choose from in every card reward.', max: 1, cost: flat(70) },
